@@ -6,7 +6,7 @@
 
 ## 1. Reference: Chrome Extension Project
 
-The existing Chrome Extension (`../browser_extension/`) is the source of all business logic, API knowledge, and UI patterns. This section documents its complete architecture and feature set.
+The existing Chrome Extension ([psycle-chrome repo](https://github.com/piersjones/psycle-chrome)) is the source of all business logic, API knowledge, and UI patterns. This section documents its complete architecture and feature set.
 
 ### 1.1 File Structure
 

@@ -38,6 +38,15 @@ app.get('/api/auth/status', authenticateToken, (req, res) => {
   res.json({ userId: req.userId, email: req.email });
 });
 
+app.delete('/api/auth/me', authenticateToken, (req, res) => {
+  try {
+    db.deleteAllUserData(req.userId);
+    res.json({ success: true });
+  } catch (err) {
+    res.status(500).json({ message: err.message });
+  }
+});
+
 // -------------------------------------------------------------
 // WEB PUSH SUBSCRIPTIONS
 // -------------------------------------------------------------

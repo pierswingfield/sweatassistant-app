@@ -260,7 +260,7 @@ function renderBookingsTable(bookings, upgrades) {
       cancelBtn.addEventListener('click', async () => {
         if (!confirmState) {
           confirmState = true;
-          cancelBtn.textContent = 'Confirm Cancel?';
+          cancelBtn.textContent = isUnderPenalty ? 'Confirm penalty cancel?' : 'Confirm cancel?';
           cancelBtn.style.background = '#ef4444';
           cancelBtn.style.color = '#fff';
           setTimeout(() => {

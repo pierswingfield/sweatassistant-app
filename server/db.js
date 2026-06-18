@@ -258,6 +258,11 @@ module.exports = {
   getPushSubscriptions(userId) {
     return db.prepare('SELECT * FROM push_subscriptions WHERE user_id = ?').all(userId);
   },
+  deleteAllUserData(userId) {
+    db.pragma('foreign_keys = ON');
+    db.prepare('DELETE FROM users WHERE id = ?').run(userId);
+  },
+
   addPushSubscription(userId, subscription) {
     db.prepare('INSERT INTO push_subscriptions (user_id, subscription) VALUES (?, ?)')
       .run(userId, JSON.stringify(subscription));

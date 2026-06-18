@@ -937,6 +937,21 @@ async function renderTimetableGrid() {
         e.stopPropagation();
         const type = splitMainBtn.getAttribute('data-type');
         if (type === 'quickbook') {
+          if (isWithin12Hours(event.start_at) && splitMainBtn.dataset.confirmState !== 'confirm') {
+            splitMainBtn.dataset.confirmState = 'confirm';
+            const origHtml = splitMainBtn.innerHTML;
+            splitMainBtn.innerHTML = 'Class starts soon. Confirm?';
+            splitMainBtn.style.background = '#f59e0b';
+            setTimeout(() => {
+              if (splitMainBtn.dataset.confirmState === 'confirm') {
+                delete splitMainBtn.dataset.confirmState;
+                splitMainBtn.innerHTML = origHtml;
+                splitMainBtn.style.background = '';
+              }
+            }, 4000);
+            return;
+          }
+          delete splitMainBtn.dataset.confirmState;
           // Get studio preferences from settings
           try {
             const studioPrefs = await api.getStudioPreferences();
@@ -1825,6 +1840,20 @@ async function openBookingModal(c, mode) {
             return;
           }
           const btn = controls.querySelector('#btn-book-simple');
+          if (isWithin12Hours(c.start_at) && btn.dataset.confirmState !== 'confirm') {
+            btn.dataset.confirmState = 'confirm';
+            btn.textContent = 'Class starts soon. Confirm?';
+            btn.style.background = '#f59e0b';
+            setTimeout(() => {
+              if (btn.dataset.confirmState === 'confirm') {
+                delete btn.dataset.confirmState;
+                btn.textContent = 'Book Selected Spots';
+                btn.style.background = '';
+              }
+            }, 4000);
+            return;
+          }
+          delete btn.dataset.confirmState;
           btn.disabled = true;
           btn.textContent = 'Booking...';
           try {
@@ -1893,6 +1922,20 @@ async function openBookingModal(c, mode) {
             return;
           }
           const btn = controls.querySelector('#btn-submit-quickbook');
+          if (isWithin12Hours(c.start_at) && btn.dataset.confirmState !== 'confirm') {
+            btn.dataset.confirmState = 'confirm';
+            btn.textContent = 'Class starts soon. Confirm?';
+            btn.style.background = '#f59e0b';
+            setTimeout(() => {
+              if (btn.dataset.confirmState === 'confirm') {
+                delete btn.dataset.confirmState;
+                btn.textContent = 'Quick Book Selected Spots';
+                btn.style.background = '';
+              }
+            }, 4000);
+            return;
+          }
+          delete btn.dataset.confirmState;
           btn.disabled = true;
           btn.textContent = 'Booking...';
           try {
@@ -2027,12 +2070,18 @@ async function bookSeatDirect(eventId, slotId, callback, event) {
   }
 }
 
+function isWithin12Hours(startAt) {
+  if (!startAt) return false;
+  const diff = new Date(startAt) - new Date();
+  return diff > 0 && diff <= 12 * 60 * 60 * 1000;
+}
+
 // Cancel Booking direct, warning if inside 12-hour penalty period
 async function cancelBookingDirect(bookingId, isPenalty, btn) {
   if (isPenalty) {
     if (btn.dataset.confirmState !== 'confirm') {
       btn.dataset.confirmState = 'confirm';
-      btn.textContent = 'Confirm Cancel';
+      btn.textContent = 'Confirm penalty cancel?';
       btn.style.background = '#ef4444';
       btn.style.borderColor = '#ef4444';
       btn.style.color = '#fff';
@@ -2047,7 +2096,6 @@ async function cancelBookingDirect(bookingId, isPenalty, btn) {
           btn.style.color = '#f87171';
         }
       }, 4000);
-      showToast('⚠️ Warning: Class starts in <12h. Cancelling may lose credit.', 'warning');
       return;
     }
   }

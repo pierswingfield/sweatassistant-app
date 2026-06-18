@@ -1,4 +1,4 @@
-import { api } from '../api';
+import { api, apiFetch } from '../api';
 import { showToast, togglePushSubscription, updatePushStatusUI, userSettings, cache } from '../main';
 import { renderStudioFloorPlan } from './spotmap';
 
@@ -44,7 +44,10 @@ function setupKonamiListener() {
         if (loadedProfile) {
           openProfileEditorModal(loadedProfile);
         } else {
-          showToast('Load profile data first', 'info');
+          api.proxyGet('/profile').then(res => {
+            loadedProfile = res.data || res;
+            openProfileEditorModal(loadedProfile);
+          }).catch(() => showToast('Could not load profile', 'error'));
         }
       }
     } else {
@@ -352,103 +355,38 @@ function renderProfileEditorBody(profile, body, modal) {
 function renderProfileAccordion(profile, container) {
   setupKonamiListener();
 
-  const sections = [
-    {
-      title: '👤 Basic Info',
-      fields: {
-        'Name': `${profile.first_name || ''} ${profile.last_name || ''}`.trim() || '—',
-        'Email': profile.email || '—',
-        'Username': profile.username || '—',
-        'User ID': profile.id || '—',
-        'Date of Birth': profile.dob || '—',
-        'Phone': profile.telephone || '—',
-        'Verified': profile.verified ? '✅ Yes' : '❌ No',
-        'Gender': profile.gender || '—',
-        'Postcode': profile.postcode || '—'
-      }
-    },
-    {
-      title: '💳 Account & Payments',
-      fields: {
-        'Stripe ID': profile.stripe_id || '—',
-        'Card': profile.card_brand && profile.card_last_four ? `${profile.card_brand} •••• ${profile.card_last_four}` : '—',
-        'Has Purchased': profile.has_purchased ? '✅ Yes' : '❌ No',
-        'Cart Instance ID': profile.cart_instance_id || '—'
-      }
-    },
-    {
-      title: '⚙️ Booking Cutoffs & Privileges',
-      fields: {
-        'Booking Cutoff': profile.booking_cutoff || '—',
-        'Extended Cutoff': profile.extended_cutoff || '—',
-        'Always Bookable': profile.is_always_bookable ? '✅ Yes' : '❌ No',
-        'Extended Booking Allowed': profile.extended_booking_allowed ? '✅ Yes' : '❌ No',
-        'Can Guest Book': profile.can_guest_book ? '✅ Yes' : '❌ No'
-      }
-    },
-    {
-      title: '📊 Stats',
-      fields: {
-        'Total Bookings': profile.stats?.total_bookings ?? '—',
-        'Unique Bookings': profile.stats?.total_unique_bookings ?? '—',
-        'Attended': profile.stats?.total_unique_bookings_attended ?? '—',
-        'Credits Remaining': profile.stats?.credits_remaining ?? '—',
-        'Credits Used': profile.stats?.total_credits_used ?? '—',
-        'Attended Minutes': profile.stats?.total_attended_minutes ?? '—',
-        'No-Shows': profile.stats?.total_no_shows ?? '—',
-        'Late Cancels': profile.stats?.total_late_cancels ?? '—'
-      }
-    }
-  ];
-
-  if (profile.available_credits && profile.available_credits.length > 0) {
-    const creditFields = {};
-    profile.available_credits.forEach(c => {
-      const expiry = c.expiry_date ? ` · exp ${new Date(c.expiry_date).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' })}` : '';
-      creditFields[c.name || 'Credit'] = `${c.count} credit${c.count !== 1 ? 's' : ''}${expiry}`;
-    });
-    sections.push({ title: '🎫 Available Credits', fields: creditFields });
-  }
-
-  if (profile.metafields) {
-    const mf = profile.metafields;
-    const metaFields = {};
-    if (mf.public?.bookmarks?.events) {
-      const bm = mf.public.bookmarks.events;
-      metaFields['Bookmarked Classes'] = Array.isArray(bm) ? `${bm.length} bookmark${bm.length !== 1 ? 's' : ''}` : JSON.stringify(bm).slice(0, 80);
-    }
-    // Flatten other public metafields
-    const publicMeta = mf.public || {};
-    Object.entries(publicMeta).forEach(([key, val]) => {
-      if (key !== 'bookmarks') {
-        metaFields[key] = typeof val === 'object' ? JSON.stringify(val).slice(0, 100) : String(val ?? '—');
-      }
-    });
-    if (Object.keys(metaFields).length > 0) {
-      sections.push({ title: '🔖 Metafields', fields: metaFields });
-    }
-  }
-
   container.innerHTML = '';
 
-  sections.forEach(section => {
+  // Render each top-level key as a collapsible section showing raw values
+  const topLevelKeys = Object.keys(profile);
+
+  topLevelKeys.forEach(key => {
+    const value = profile[key];
     const sectionDiv = document.createElement('div');
     sectionDiv.className = 'psycle-profile-section';
     sectionDiv.style.cssText = 'margin-bottom: 8px; border: 1px solid rgba(255,255,255,0.08); border-radius: 8px; overflow: hidden;';
 
     const header = document.createElement('div');
     header.style.cssText = 'padding: 10px 14px; cursor: pointer; display: flex; justify-content: space-between; align-items: center; background: rgba(255,255,255,0.04); font-weight: 600; font-size: 13px; color: #e2e8f0;';
-    header.innerHTML = `<span>${section.title}</span><span class="psycle-profile-chevron" style="transition: transform 0.2s;">▼</span>`;
+
+    const isObject = value !== null && typeof value === 'object';
+    const preview = isObject ? (Array.isArray(value) ? `[${value.length}]` : '{…}') : String(value ?? 'null');
+    header.innerHTML = `<span style="color:#a78bfa;">${key}</span><span style="color:#94a3b8;font-size:11px;font-weight:400;">${isObject ? '' : preview}<span class="psycle-profile-chevron" style="margin-left:8px;transition:transform 0.2s;">▼</span></span>`;
 
     const body = document.createElement('div');
     body.style.cssText = 'padding: 10px 14px; display: none;';
 
-    Object.entries(section.fields).forEach(([label, value]) => {
+    if (isObject) {
+      const pre = document.createElement('pre');
+      pre.style.cssText = 'background:rgba(0,0,0,0.3);border:1px solid rgba(255,255,255,0.06);border-radius:6px;padding:10px;font-size:11px;line-height:1.5;color:#e2e8f0;white-space:pre-wrap;word-break:break-all;margin:0;overflow:auto;max-height:300px;';
+      pre.textContent = JSON.stringify(value, null, 2);
+      body.appendChild(pre);
+    } else {
       const row = document.createElement('div');
-      row.style.cssText = 'display: flex; justify-content: space-between; padding: 4px 0; font-size: 12px; border-bottom: 1px solid rgba(255,255,255,0.04);';
-      row.innerHTML = `<span style="color: #94a3b8;">${label}</span><span style="color: #e2e8f0; text-align: right; max-width: 60%; word-break: break-word;">${value}</span>`;
+      row.style.cssText = 'font-size: 12px; color: #e2e8f0; word-break: break-word; font-family: monospace;';
+      row.textContent = String(value ?? 'null');
       body.appendChild(row);
-    });
+    }
 
     header.addEventListener('click', () => {
       const isOpen = body.style.display !== 'none';
@@ -958,15 +896,47 @@ function setupSettingsListeners() {
   if (logoutBtn && !logoutBtn.dataset.listener) {
     logoutBtn.dataset.listener = 'true';
     logoutBtn.addEventListener('click', () => {
-      let confirmState = false;
-      
-      // Clear local session state
       showToast('Logging out...', 'info');
       localStorage.removeItem('psycleLocalToken');
-      
-      setTimeout(() => {
-        window.location.reload();
-      }, 500);
+      setTimeout(() => { window.location.reload(); }, 500);
+    });
+  }
+
+  // Delete all data button (two-step confirm)
+  const deleteDataBtn = document.getElementById('psycle-delete-data-btn');
+  if (deleteDataBtn && !deleteDataBtn.dataset.listener) {
+    deleteDataBtn.dataset.listener = 'true';
+    deleteDataBtn.addEventListener('click', async () => {
+      if (deleteDataBtn.dataset.confirmState !== 'confirm') {
+        deleteDataBtn.dataset.confirmState = 'confirm';
+        deleteDataBtn.textContent = 'Are you sure? Click again to confirm.';
+        deleteDataBtn.style.background = '#ef4444';
+        deleteDataBtn.style.color = '#fff';
+        deleteDataBtn.style.borderColor = '#ef4444';
+        setTimeout(() => {
+          if (deleteDataBtn.dataset.confirmState === 'confirm') {
+            delete deleteDataBtn.dataset.confirmState;
+            deleteDataBtn.textContent = 'Delete All My Data';
+            deleteDataBtn.style.background = '';
+            deleteDataBtn.style.color = '';
+            deleteDataBtn.style.borderColor = '';
+          }
+        }, 5000);
+        return;
+      }
+      delete deleteDataBtn.dataset.confirmState;
+      deleteDataBtn.disabled = true;
+      deleteDataBtn.textContent = 'Deleting...';
+      try {
+        await apiFetch('/api/auth/me', { method: 'DELETE' });
+        showToast('All data deleted. Logging out.', 'success');
+        localStorage.removeItem('psycleLocalToken');
+        setTimeout(() => { window.location.reload(); }, 1500);
+      } catch (err) {
+        showToast(`Delete failed: ${err.message}`, 'error');
+        deleteDataBtn.disabled = false;
+        deleteDataBtn.textContent = 'Delete All My Data';
+      }
     });
   }
 }

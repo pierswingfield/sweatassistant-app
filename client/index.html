@@ -9,6 +9,7 @@
   <link rel="manifest" href="/manifest.json">
   <link rel="icon" href="/icons/icon-192.png" type="image/png">
   <link rel="apple-touch-icon" href="/icons/icon-192.png">
+  <meta name="mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
   <meta name="apple-mobile-web-app-title" content="Psycle">
@@ -78,6 +79,7 @@
       <button class="psycle-nav-btn" data-tab="auto-book">Auto-Book</button>
       <button class="psycle-nav-btn" data-tab="buy-credits">Buy Credits</button>
       <button class="psycle-nav-btn" data-tab="settings">Settings</button>
+      <button class="psycle-nav-btn" data-tab="about">About</button>
     </div>
 
     <!-- Main Workspace Panels (Rendered dynamically based on active tab) -->
@@ -354,6 +356,50 @@
         </div>
       </section>
 
+      <!-- ABOUT TAB PANEL -->
+      <section id="psycle-panel-about" class="psycle-tab-content" style="display: none;">
+        <div class="psycle-tab-header">
+          <h3>About Psycle App</h3>
+          <p>An unofficial companion app for Psycle London, built for personal use.</p>
+        </div>
+        <div class="psycle-settings-grid">
+          <div class="psycle-settings-card">
+            <h4>What is this?</h4>
+            <p class="psycle-card-desc" style="line-height:1.7;">This is an unofficial personal tool — not affiliated with or endorsed by Psycle London or CodexFit. It uses your CodexFit credentials to interact with the same API that powers the Psycle website.</p>
+            <p class="psycle-card-desc" style="line-height:1.7;margin-top:8px;">Your login credentials are encrypted with AES-256-GCM and stored only on your private server. They are never transmitted to any third party.</p>
+          </div>
+          <div class="psycle-settings-card">
+            <h4>Features</h4>
+            <div style="display:flex;flex-direction:column;gap:10px;margin-top:4px;">
+              <div style="display:flex;gap:10px;align-items:flex-start;">
+                <span style="font-size:16px;flex-shrink:0;">📅</span>
+                <div><strong style="color:#e2e8f0;font-size:13px;">Auto-Book</strong><p class="psycle-card-desc" style="margin:2px 0 0;">Schedules a booking to fire at the exact millisecond a class is released (Monday 12PM), giving you priority access.</p></div>
+              </div>
+              <div style="display:flex;gap:10px;align-items:flex-start;">
+                <span style="font-size:16px;flex-shrink:0;">⬆️</span>
+                <div><strong style="color:#e2e8f0;font-size:13px;">Auto-Upgrade</strong><p class="psycle-card-desc" style="margin:2px 0 0;">Continuously monitors your booked class and upgrades you to a better spot if one becomes available.</p></div>
+              </div>
+              <div style="display:flex;gap:10px;align-items:flex-start;">
+                <span style="font-size:16px;flex-shrink:0;">⚡</span>
+                <div><strong style="color:#e2e8f0;font-size:13px;">Quick-Book</strong><p class="psycle-card-desc" style="margin:2px 0 0;">Books your preferred spot in any class in one click, using your saved seat preferences per studio.</p></div>
+              </div>
+              <div style="display:flex;gap:10px;align-items:flex-start;">
+                <span style="font-size:16px;flex-shrink:0;">🗺️</span>
+                <div><strong style="color:#e2e8f0;font-size:13px;">Preferred Spot Maps</strong><p class="psycle-card-desc" style="margin:2px 0 0;">Save your favourite seat positions per studio — used automatically by Quick-Book, Auto-Book, and Auto-Upgrade.</p></div>
+              </div>
+              <div style="display:flex;gap:10px;align-items:flex-start;">
+                <span style="font-size:16px;flex-shrink:0;">🔔</span>
+                <div><strong style="color:#e2e8f0;font-size:13px;">Push Notifications</strong><p class="psycle-card-desc" style="margin:2px 0 0;">Receive instant alerts on your device when Auto-Book or Auto-Upgrade takes action.</p></div>
+              </div>
+            </div>
+          </div>
+          <div class="psycle-settings-card">
+            <h4>Privacy & Data</h4>
+            <p class="psycle-card-desc" style="line-height:1.7;">All data is stored exclusively on your own server. The app stores your encrypted credentials, booking queue, spot preferences, and notification subscriptions — nothing else. You can delete all stored data at any time from the Settings tab.</p>
+          </div>
+        </div>
+      </section>
+
       <!-- SETTINGS TAB PANEL -->
       <section id="psycle-panel-settings" class="psycle-tab-content" style="display: none;">
         <div class="psycle-tab-header">
@@ -492,6 +538,13 @@
             <h4 style="color: #f87171;">Account Session</h4>
             <p class="psycle-card-desc">Logout from the server. This deletes local session tokens and revokes credentials encryption keys.</p>
             <button id="psycle-logout-btn" class="psycle-btn" style="background: rgba(239, 68, 68, 0.1); border-color: rgba(239, 68, 68, 0.25); color: #f87171;">Log Out</button>
+          </div>
+
+          <!-- Delete All Data -->
+          <div class="psycle-settings-card" style="border-color: rgba(239, 68, 68, 0.3);">
+            <h4 style="color: #f87171;">Delete All My Data</h4>
+            <p class="psycle-card-desc">Permanently deletes your account, encrypted credentials, booking queue, upgrade monitors, spot preferences, and push subscriptions from the server. This cannot be undone.</p>
+            <button id="psycle-delete-data-btn" class="psycle-btn" style="background: rgba(239, 68, 68, 0.15); border-color: rgba(239, 68, 68, 0.4); color: #f87171;">Delete All My Data</button>
           </div>
 
         </div>

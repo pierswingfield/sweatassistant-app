@@ -99,7 +99,7 @@ const panels = document.querySelectorAll('.psycle-tab-content');
 // Expose on window so inline onclick handlers (e.g. "Buy Credits" button in timetable) can call it
 window.switchTab = switchTab;
 
-const VALID_TABS = ['class-timetable', 'my-bookings', 'auto-book', 'buy-credits', 'settings'];
+const VALID_TABS = ['class-timetable', 'my-bookings', 'auto-book', 'buy-credits', 'settings', 'about'];
 
 function switchTab(tabId) {
   const targetPanelId = `psycle-panel-${tabId}`;

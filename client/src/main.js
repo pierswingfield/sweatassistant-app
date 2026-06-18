@@ -21,6 +21,32 @@ export let cache = {
   timetable: {} // keyed by date string
 };
 
+// --- THEME (Auto / Light / Dark) ---
+// 'auto' follows the OS via prefers-color-scheme; 'light'/'dark' force via data-theme.
+const THEME_KEY = 'psycleTheme';
+
+export function getTheme() {
+  return localStorage.getItem(THEME_KEY) || 'auto';
+}
+
+export function applyTheme(mode = getTheme()) {
+  const root = document.documentElement;
+  if (mode === 'light' || mode === 'dark') {
+    root.setAttribute('data-theme', mode);
+  } else {
+    root.removeAttribute('data-theme'); // auto → CSS prefers-color-scheme decides
+  }
+}
+
+export function setTheme(mode) {
+  if (mode === 'auto') localStorage.removeItem(THEME_KEY);
+  else localStorage.setItem(THEME_KEY, mode);
+  applyTheme(mode);
+}
+
+// Apply persisted choice immediately (before first paint of the app shell).
+applyTheme();
+
 // --- TOAST NOTIFICATIONS ---
 export function showToast(message, type = 'info') {
   const container = document.getElementById('psycle-toast-container');

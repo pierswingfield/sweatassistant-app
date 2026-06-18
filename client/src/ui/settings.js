@@ -1,5 +1,5 @@
 import { api, apiFetch } from '../api';
-import { showToast, togglePushSubscription, updatePushStatusUI, userSettings, cache } from '../main';
+import { showToast, togglePushSubscription, updatePushStatusUI, userSettings, cache, getTheme, setTheme } from '../main';
 import { renderStudioFloorPlan } from './spotmap';
 import { cacheGet } from './timetable';
 
@@ -879,11 +879,34 @@ async function openStudioFloorPlanEditor(studioId, studioName, onSaved) {
 export async function initSettings() {
   loadSettingsInputs();
   setupSettingsListeners();
+  setupThemeToggle();
   setupNotificationPrefs();
   updateTestNotifCardVisibility();
   // Konami listener is attached on first profile explorer modal open via setupExplorerKonamiListener()
   updatePushStatusUI();
   // Spot Maps section is ready; button opens the modal
+}
+
+// ─── Theme toggle (Auto / Light / Dark) ──────────────────────────────────────
+function setupThemeToggle() {
+  const group = document.getElementById('psycle-theme-segmented');
+  if (!group || group.dataset.listener) return;
+  group.dataset.listener = 'true';
+
+  const sync = () => {
+    const active = getTheme();
+    group.querySelectorAll('.psycle-segmented-btn').forEach(btn => {
+      btn.classList.toggle('active', btn.dataset.themeMode === active);
+    });
+  };
+
+  group.querySelectorAll('.psycle-segmented-btn').forEach(btn => {
+    btn.addEventListener('click', () => {
+      setTheme(btn.dataset.themeMode);
+      sync();
+    });
+  });
+  sync();
 }
 
 // ─── Notification preferences ────────────────────────────────────────────────

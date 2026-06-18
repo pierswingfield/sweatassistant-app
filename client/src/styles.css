@@ -1,4 +1,167 @@
-@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Fraunces:opsz,wght@9..144,400;9..144,500;9..144,600;9..144,700&display=swap');
+
+/* =========================================================
+   DESIGN TOKENS (Phase 1) — see DESIGN.md
+   Dark values match the current look so adopting tokens is
+   visually invisible until colours are migrated phase by phase.
+   Theme resolves via:
+     1. system (prefers-color-scheme) by default
+     2. manual override: <html data-theme="light|dark">
+   ========================================================= */
+
+/* ---- Dark theme (default) ---- */
+:root {
+  color-scheme: dark;
+
+  /* Surfaces */
+  --bg: #090d16;
+  --surface: rgba(20, 24, 38, 0.65);
+  --surface-2: rgba(255, 255, 255, 0.03);
+  --surface-inset: rgba(0, 0, 0, 0.2);
+
+  /* Text */
+  --text: #f1f5f9;
+  --text-secondary: #94a3b8;
+  --text-tertiary: #64748b;
+
+  /* Lines */
+  --border: rgba(255, 255, 255, 0.08);
+  --border-strong: rgba(255, 255, 255, 0.16);
+  --separator: rgba(255, 255, 255, 0.06);
+
+  /* Accent — Anthropic clay */
+  --accent: #d2876b;
+  --accent-hover: #c9785c;
+  --on-accent: #1a1815;
+
+  /* Feature identity */
+  --feat-autobook: #d2876b;   /* clay (primary) */
+  --feat-autoupgrade: #a78bfa; /* violet (demoted from primary) */
+  --feat-quickbook: #fbbf24;  /* amber */
+  --feat-waitlist: #60a5fa;   /* slate-blue */
+
+  /* Semantic */
+  --success: #34d399;
+  --warning: #fbbf24;
+  --danger: #f87171;
+  --info: #60a5fa;
+
+  /* Radius & shadow */
+  --radius-card: 16px;
+  --radius-control: 12px;
+  --radius-sheet: 24px;
+  --shadow-card: 0 8px 24px rgba(0, 0, 0, 0.35);
+  --shadow-sheet: 0 35px 80px rgba(0, 0, 0, 0.4);
+
+  /* Typography */
+  --font-serif: 'Fraunces', 'Source Serif 4', Georgia, 'Times New Roman', serif;
+  --font-sans: 'Inter', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+  --font-mono: 'SF Mono', 'Fira Code', 'Consolas', monospace;
+}
+
+/* ---- Light theme (system preference) ---- */
+@media (prefers-color-scheme: light) {
+  :root:not([data-theme="dark"]) {
+    color-scheme: light;
+
+    --bg: #f5f2ec;
+    --surface: #fbfaf7;
+    --surface-2: rgba(31, 27, 22, 0.03);
+    --surface-inset: rgba(31, 27, 22, 0.04);
+
+    --text: #1f1b16;
+    --text-secondary: #6b6358;
+    --text-tertiary: #938a7c;
+
+    --border: rgba(31, 27, 22, 0.10);
+    --border-strong: rgba(31, 27, 22, 0.18);
+    --separator: rgba(31, 27, 22, 0.07);
+
+    --accent: #c9785c;
+    --accent-hover: #b5694e;
+    --on-accent: #ffffff;
+
+    --feat-autobook: #c9785c;
+    --feat-autoupgrade: #7c5cdb;
+    --feat-quickbook: #c2870a;
+    --feat-waitlist: #3b82f6;
+
+    --success: #059669;
+    --warning: #c2870a;
+    --danger: #dc2626;
+    --info: #3b82f6;
+
+    --shadow-card: 0 8px 24px rgba(31, 27, 22, 0.10);
+    --shadow-sheet: 0 35px 80px rgba(31, 27, 22, 0.18);
+  }
+}
+
+/* ---- Manual override: forced light ---- */
+:root[data-theme="light"] {
+  color-scheme: light;
+
+  --bg: #f5f2ec;
+  --surface: #fbfaf7;
+  --surface-2: rgba(31, 27, 22, 0.03);
+  --surface-inset: rgba(31, 27, 22, 0.04);
+
+  --text: #1f1b16;
+  --text-secondary: #6b6358;
+  --text-tertiary: #938a7c;
+
+  --border: rgba(31, 27, 22, 0.10);
+  --border-strong: rgba(31, 27, 22, 0.18);
+  --separator: rgba(31, 27, 22, 0.07);
+
+  --accent: #c9785c;
+  --accent-hover: #b5694e;
+  --on-accent: #ffffff;
+
+  --feat-autobook: #c9785c;
+  --feat-autoupgrade: #7c5cdb;
+  --feat-quickbook: #c2870a;
+  --feat-waitlist: #3b82f6;
+
+  --success: #059669;
+  --warning: #c2870a;
+  --danger: #dc2626;
+  --info: #3b82f6;
+
+  --shadow-card: 0 8px 24px rgba(31, 27, 22, 0.10);
+  --shadow-sheet: 0 35px 80px rgba(31, 27, 22, 0.18);
+}
+/* (dark override [data-theme="dark"] simply uses the :root defaults above) */
+
+/* ---- Segmented control (theme toggle) ---- */
+#psycle-helper-container .psycle-segmented {
+  display: flex;
+  gap: 4px;
+  padding: 4px;
+  margin-top: 8px;
+  background: var(--surface-inset);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-control);
+}
+#psycle-helper-container .psycle-segmented-btn {
+  flex: 1;
+  padding: 8px 12px;
+  border: none;
+  border-radius: calc(var(--radius-control) - 4px);
+  background: transparent;
+  color: var(--text-secondary);
+  font-family: var(--font-sans);
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background 0.18s ease, color 0.18s ease;
+}
+#psycle-helper-container .psycle-segmented-btn:hover {
+  color: var(--text);
+}
+#psycle-helper-container .psycle-segmented-btn.active {
+  background: var(--accent);
+  color: var(--on-accent);
+}
 
 #psycle-helper-container {
   position: fixed;
@@ -9,8 +172,8 @@
   z-index: 999999;
   font-family: 'Inter', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
   box-sizing: border-box;
-  color: #f1f5f9;
-  background: #090d16;
+  color: var(--text);
+  background: var(--bg);
   display: flex;
   align-items: center;
   justify-content: center;
@@ -3583,7 +3746,7 @@
   justify-content: center;
   width: 100vw;
   height: 100vh;
-  background: #090d16;
+  background: var(--bg);
   position: fixed;
   top: 0;
   left: 0;
@@ -3593,13 +3756,12 @@
 .psycle-login-card {
   width: 420px;
   padding: 40px;
-  border-radius: 24px;
-  background: rgba(20, 24, 38, 0.65);
+  border-radius: var(--radius-sheet);
+  background: var(--surface);
   backdrop-filter: blur(30px) saturate(200%);
   -webkit-backdrop-filter: blur(30px) saturate(200%);
-  border: 1px solid rgba(255, 255, 255, 0.12);
-  box-shadow: 0 24px 60px rgba(0, 0, 0, 0.5),
-              inset 0 1px 0 rgba(255, 255, 255, 0.25);
+  border: 1px solid var(--border-strong);
+  box-shadow: var(--shadow-sheet);
   display: flex;
   flex-direction: column;
   gap: 28px;
@@ -3611,19 +3773,17 @@
 }
 
 .psycle-login-logo h1 {
-  font-family: 'Outfit', sans-serif;
-  font-size: 32px;
-  font-weight: 800;
-  letter-spacing: 2px;
-  background: linear-gradient(135deg, #ffffff 0%, #a5b4fc 100%);
-  -webkit-background-clip: text;
-  -webkit-text-fill-color: transparent;
+  font-family: var(--font-serif);
+  font-size: 38px;
+  font-weight: 600;
+  letter-spacing: 0.5px;
+  color: var(--accent);
   margin-bottom: 6px;
 }
 
 .psycle-login-logo p {
   font-size: 13px;
-  color: #94a3b8;
+  color: var(--text-secondary);
   font-weight: 500;
 }
 
@@ -3642,7 +3802,7 @@
 .psycle-form-group label {
   font-size: 12px;
   font-weight: 600;
-  color: #cbd5e1;
+  color: var(--text-secondary);
   text-transform: uppercase;
   letter-spacing: 0.5px;
 }
@@ -3650,38 +3810,37 @@
 .psycle-form-group input {
   width: 100%;
   padding: 12px 16px;
-  border-radius: 12px;
-  background: rgba(0, 0, 0, 0.4);
-  border: 1px solid rgba(255, 255, 255, 0.15);
-  color: #ffffff;
+  border-radius: var(--radius-control);
+  background: var(--surface-inset);
+  border: 1px solid var(--border);
+  color: var(--text);
   font-size: 14px;
   outline: none;
   transition: all 0.2s ease;
 }
 
 .psycle-form-group input:focus {
-  border-color: #38bdf8;
-  box-shadow: 0 0 0 2px rgba(56, 189, 248, 0.2);
+  border-color: var(--accent);
+  box-shadow: 0 0 0 2px color-mix(in srgb, var(--accent) 25%, transparent);
 }
 
 .psycle-btn-primary {
   width: 100%;
   padding: 14px;
-  border-radius: 12px;
-  background: linear-gradient(135deg, #3b82f6 0%, #1d4ed8 100%);
+  border-radius: var(--radius-control);
+  background: var(--accent);
   border: none;
-  color: #ffffff;
+  color: var(--on-accent);
   font-size: 14px;
   font-weight: 700;
   cursor: pointer;
-  box-shadow: 0 8px 20px rgba(29, 78, 216, 0.4);
+  box-shadow: var(--shadow-card);
   transition: all 0.2s ease;
 }
 
 .psycle-btn-primary:hover {
   transform: translateY(-2px);
-  box-shadow: 0 10px 24px rgba(29, 78, 216, 0.6);
-  background: linear-gradient(135deg, #60a5fa 0%, #3b82f6 100%);
+  background: var(--accent-hover);
 }
 
 .psycle-btn-primary:disabled {
@@ -3693,7 +3852,7 @@
 
 .psycle-login-footer {
   font-size: 11px;
-  color: #64748b;
+  color: var(--text-tertiary);
   text-align: center;
   line-height: 1.5;
 }

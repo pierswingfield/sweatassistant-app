@@ -1,0 +1,18 @@
+version: '3.8'
+
+services:
+  psycle-app:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: psycle-app
+    ports:
+      - "3005:3000"
+    volumes:
+      - psycle-data:/data
+    env_file:
+      - .env
+    restart: unless-stopped
+
+volumes:
+  psycle-data:

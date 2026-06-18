@@ -942,9 +942,9 @@
 }
 
 #psycle-helper-container .psycle-btn-mini {
-  background: rgba(255, 255, 255, 0.06);
-  border: 1px solid rgba(255, 255, 255, 0.08);
-  color: #cbd5e1;
+  background: var(--surface-2);
+  border: 1px solid var(--border);
+  color: var(--text-secondary);
   padding: 6px 12px;
   border-radius: 8px;
   font-size: 11px;
@@ -954,15 +954,15 @@
 }
 
 #psycle-helper-container .psycle-btn-mini:hover {
-  background: rgba(255, 255, 255, 0.12);
-  color: #ffffff;
+  background: var(--surface-inset);
+  color: var(--text);
 }
 
 /* Scrollable Table styling */
 #psycle-helper-container .psycle-table-container {
-  border: 1px solid rgba(255, 255, 255, 0.06);
+  border: 1px solid var(--border);
   border-radius: 16px;
-  background: rgba(0, 0, 0, 0.15);
+  background: var(--surface-inset);
 }
 
 /* Custom WebKit scrollbar styles consolidated */
@@ -1193,11 +1193,11 @@
 }
 
 #psycle-helper-container .psycle-action-btn-mini.primary {
-  background: #ffffff;
-  color: #0a0f1e;
+  background: var(--accent);
+  color: var(--on-accent);
 }
 #psycle-helper-container .psycle-action-btn-mini.primary:hover {
-  background: #e2e8f0;
+  background: var(--accent-hover);
   transform: translateY(-1px);
 }
 
@@ -1218,13 +1218,13 @@
 
 #psycle-helper-container .detail-header h3 {
   font-size: 14px;
-  color: #ffffff !important;
+  color: var(--text) !important;
 }
 
 #psycle-helper-container .psycle-btn-back {
-  background: rgba(255, 255, 255, 0.08);
-  border: 1px solid rgba(255, 255, 255, 0.1);
-  color: #ffffff;
+  background: var(--surface-2);
+  border: 1px solid var(--border);
+  color: var(--text);
   padding: 6px 12px;
   border-radius: 8px;
   font-size: 11px;
@@ -1234,7 +1234,7 @@
 }
 
 #psycle-helper-container .psycle-btn-back:hover {
-  background: rgba(255, 255, 255, 0.15);
+  background: var(--surface-inset);
 }
 
 #psycle-helper-container .detail-layout {
@@ -1383,57 +1383,58 @@
 
 #psycle-helper-container .psycle-btn.primary,
 .psycle-modal .psycle-btn.primary {
-  background: #ffffff;
-  color: #0a0f1e;
+  background: var(--accent);
+  color: var(--on-accent);
 }
 #psycle-helper-container .psycle-btn.primary:hover,
 .psycle-modal .psycle-btn.primary:hover {
-  background: #f8fafc;
+  background: var(--accent-hover);
   transform: translateY(-1.5px);
 }
 
 #psycle-helper-container .psycle-btn.warning,
 .psycle-modal .psycle-btn.warning {
-  background: #6366f1;
-  color: #ffffff;
+  background: var(--accent);
+  color: var(--on-accent);
 }
 #psycle-helper-container .psycle-btn.warning:hover,
 .psycle-modal .psycle-btn.warning:hover {
-  background: #4f46e5;
+  background: var(--accent-hover);
   transform: translateY(-1.5px);
 }
 
 #psycle-helper-container .psycle-btn.danger,
 .psycle-modal .psycle-btn.danger {
-  background: #ef4444;
+  background: var(--danger);
   color: #ffffff;
 }
 #psycle-helper-container .psycle-btn.danger:hover,
 .psycle-modal .psycle-btn.danger:hover {
-  background: #dc2626;
+  background: var(--danger);
+  filter: brightness(0.9);
   transform: translateY(-1.5px);
 }
 
 #psycle-helper-container .psycle-btn:disabled,
 .psycle-modal .psycle-btn:disabled {
-  background: rgba(255, 255, 255, 0.05) !important;
-  color: rgba(255, 255, 255, 0.25) !important;
+  background: var(--surface-2) !important;
+  color: var(--text-tertiary) !important;
   cursor: not-allowed !important;
   transform: none !important;
-  border: 1px solid rgba(255, 255, 255, 0.05) !important;
+  border: 1px solid var(--border) !important;
   box-shadow: none !important;
 }
 
 /* Footer Section */
 #psycle-helper-container .psycle-footer {
   padding: 14px 28px;
-  border-top: 1px solid rgba(255, 255, 255, 0.06);
-  background: rgba(0, 0, 0, 0.2);
+  border-top: 1px solid var(--separator);
+  background: var(--surface-inset);
 }
 
 #psycle-helper-container .psycle-footer-info {
   font-size: 11px;
-  color: #64748b;
+  color: var(--text-tertiary);
   line-height: 1.4;
   text-align: center;
 }
@@ -1473,18 +1474,18 @@
 }
 
 #psycle-helper-container .psycle-toast.success {
-  background: #10b981;
-  border-left: 4px solid #047857;
+  background: var(--success);
+  border-left: 4px solid color-mix(in srgb, var(--success) 70%, #000);
 }
 
 #psycle-helper-container .psycle-toast.error {
-  background: #ef4444;
-  border-left: 4px solid #b91c1c;
+  background: var(--danger);
+  border-left: 4px solid color-mix(in srgb, var(--danger) 70%, #000);
 }
 
 #psycle-helper-container .psycle-toast.info {
-  background: #6366f1;
-  border-left: 4px solid #3730a3;
+  background: var(--accent);
+  border-left: 4px solid var(--accent-hover);
 }
 
 /* Auth Overlay Styling */
@@ -1613,16 +1614,16 @@
 }
 
 .psycle-modal-content {
-  background: rgba(20, 24, 38, 0.9);
-  border: 1px solid rgba(255, 255, 255, 0.15);
-  border-radius: 24px;
+  background: var(--surface);
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius-sheet);
   width: 960px;
   max-width: 95vw;
   max-height: 90vh;
   display: flex;
   flex-direction: column;
   overflow: hidden;
-  box-shadow: 0 25px 60px rgba(0, 0, 0, 0.5), inset 0 1px 0 rgba(255, 255, 255, 0.2);
+  box-shadow: var(--shadow-sheet);
   animation: modalSlideIn 0.3s cubic-bezier(0.25, 1, 0.5, 1);
   position: relative;
   z-index: 1;
@@ -1638,36 +1639,40 @@
   display: flex;
   justify-content: space-between;
   align-items: center;
-  border-bottom: 1px solid rgba(255, 255, 255, 0.08);
-  background: rgba(0, 0, 0, 0.2);
+  border-bottom: 1px solid var(--border);
+  background: var(--surface-inset);
 }
 
-.psycle-modal-header h3 {
-  font-size: 15px;
-  font-weight: 700;
-  color: #ffffff;
+.psycle-modal-header h3,
+.psycle-modal-header h4 {
+  font-family: var(--font-serif);
+  font-size: 18px;
+  font-weight: 600;
+  color: var(--text);
   margin: 0;
 }
 
-.psycle-modal-close {
+.psycle-modal-close,
+.psycle-modal-close-btn {
   background: transparent;
   border: none;
-  color: #94a3b8;
+  color: var(--text-secondary);
   font-size: 24px;
   cursor: pointer;
   line-height: 1;
   transition: color 0.2s;
 }
 
-.psycle-modal-close:hover {
-  color: #ffffff;
+.psycle-modal-close:hover,
+.psycle-modal-close-btn:hover {
+  color: var(--text);
 }
 
 .psycle-modal-body {
   padding: 12px 18px;
   overflow-y: auto;
   font-size: 13px;
-  color: #cbd5e1;
+  color: var(--text-secondary);
   display: flex;
   flex-direction: column;
   gap: 10px;
@@ -2296,10 +2301,10 @@
 #psycle-helper-container .psycle-ms-trigger {
   appearance: none;
   -webkit-appearance: none;
-  background: rgba(255, 255, 255, 0.05);
-  border: 1px solid rgba(255, 255, 255, 0.1);
+  background: var(--surface-2);
+  border: 1px solid var(--border);
   border-radius: 12px;
-  color: #ffffff;
+  color: var(--text);
   height: 40px !important;
   padding: 0 16px !important;
   font-size: 12px;
@@ -2307,18 +2312,14 @@
   cursor: pointer;
   text-align: left;
   transition: all 0.2s cubic-bezier(0.25, 1, 0.5, 1);
-  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15),
-              inset 0 1px 0 rgba(255, 255, 255, 0.05);
-  backdrop-filter: blur(10px);
-  -webkit-backdrop-filter: blur(10px);
   display: flex !important;
   align-items: center !important;
   box-sizing: border-box !important;
 }
 
 #psycle-helper-container .psycle-ms-trigger:hover {
-  background: rgba(255, 255, 255, 0.08);
-  border-color: rgba(255, 255, 255, 0.2);
+  background: var(--surface-inset);
+  border-color: var(--border-strong);
 }
 
 #psycle-helper-container .psycle-ms-trigger-text {
@@ -3916,21 +3917,21 @@
 #psycle-helper-container .psycle-table-wrapper .psycle-table th {
   display: table-cell;
   padding: 9px 14px;
-  color: #64748b;
+  color: var(--text-tertiary);
   font-weight: 700;
   font-size: 9px;
   text-transform: uppercase;
   letter-spacing: 0.6px;
-  border-bottom: 1px solid rgba(255, 255, 255, 0.07);
-  background: rgba(0, 0, 0, 0.15);
+  border-bottom: 1px solid var(--border);
+  background: var(--surface-inset);
   white-space: nowrap;
 }
 
 #psycle-helper-container .psycle-table-wrapper .psycle-table td {
   padding: 10px 14px;
-  border-bottom: 1px solid rgba(255, 255, 255, 0.04);
+  border-bottom: 1px solid var(--separator);
   vertical-align: middle;
-  color: #cbd5e1;
+  color: var(--text-secondary);
 }
 
 #psycle-helper-container .psycle-table-wrapper .psycle-table tbody tr:last-child td {
@@ -3938,17 +3939,17 @@
 }
 
 #psycle-helper-container .psycle-table-wrapper .psycle-table tbody tr:hover {
-  background: rgba(255, 255, 255, 0.015);
+  background: var(--surface-2);
 }
 
 #psycle-helper-container .psycle-table-wrapper .psycle-table td strong {
-  color: #ffffff;
+  color: var(--text);
   font-weight: 600;
 }
 
 #psycle-helper-container .psycle-table-empty {
   text-align: center !important;
-  color: #475569 !important;
+  color: var(--text-tertiary) !important;
   font-style: italic !important;
   padding: 36px 20px !important;
   font-size: 12px !important;
@@ -3994,7 +3995,7 @@
   justify-content: space-between;
   gap: 16px;
   padding: 10px 0;
-  border-top: 1px solid rgba(255, 255, 255, 0.05);
+  border-top: 1px solid var(--separator);
 }
 
 #psycle-helper-container .psycle-settings-card > .psycle-setting-row:first-of-type {
@@ -4012,12 +4013,12 @@
 #psycle-helper-container .psycle-setting-label > span {
   font-size: 13px;
   font-weight: 600;
-  color: #e2e8f0;
+  color: var(--text);
 }
 
 #psycle-helper-container .psycle-setting-label > small {
   font-size: 11px;
-  color: #64748b;
+  color: var(--text-tertiary);
   line-height: 1.4;
 }
 
@@ -4042,8 +4043,8 @@
   position: absolute;
   cursor: pointer;
   top: 0; left: 0; right: 0; bottom: 0;
-  background: rgba(255, 255, 255, 0.1);
-  border: 1px solid rgba(255, 255, 255, 0.08);
+  background: var(--surface-inset);
+  border: 1px solid var(--border);
   border-radius: 20px;
   transition: background 0.25s ease;
 }
@@ -4057,12 +4058,13 @@
   bottom: 2px;
   background: #ffffff;
   border-radius: 50%;
+  box-shadow: 0 1px 2px rgba(0,0,0,0.3);
   transition: transform 0.25s ease;
 }
 
 #psycle-helper-container .psycle-switch input:checked + .psycle-slider {
-  background: rgba(56, 189, 248, 0.4);
-  border-color: rgba(56, 189, 248, 0.3);
+  background: var(--accent);
+  border-color: var(--accent);
 }
 
 #psycle-helper-container .psycle-switch input:checked + .psycle-slider::before {
@@ -4073,24 +4075,24 @@
 #psycle-helper-container .psycle-select {
   appearance: none;
   -webkit-appearance: none;
-  background: rgba(0, 0, 0, 0.35);
-  border: 1px solid rgba(255, 255, 255, 0.12);
+  background: var(--surface-inset);
+  border: 1px solid var(--border);
   border-radius: 10px;
-  color: #ffffff;
+  color: var(--text);
   padding: 7px 28px 7px 12px;
   font-size: 13px;
   font-family: inherit;
   font-weight: 500;
   outline: none;
   cursor: pointer;
-  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='6'%3E%3Cpath d='M0 0l5 6 5-6z' fill='%2394a3b8'/%3E%3C/svg%3E");
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='6'%3E%3Cpath d='M0 0l5 6 5-6z' fill='%23938a7c'/%3E%3C/svg%3E");
   background-repeat: no-repeat;
   background-position: right 10px center;
   flex-shrink: 0;
 }
 #psycle-helper-container .psycle-select option {
-  background: #1e293b;
-  color: #ffffff;
+  background: var(--surface);
+  color: var(--text);
 }
 
 /* Generic action button for settings cards */
@@ -4101,15 +4103,16 @@
   font-size: 13px;
   font-weight: 600;
   cursor: pointer;
-  border: 1px solid rgba(255, 255, 255, 0.12);
-  background: rgba(255, 255, 255, 0.06);
-  color: #ffffff;
+  border: 1px solid var(--border);
+  background: var(--surface-2);
+  color: var(--text);
   transition: all 0.2s ease;
   text-align: center;
   font-family: inherit;
 }
 #psycle-helper-container .psycle-settings-card .psycle-btn:hover {
-  background: rgba(255, 255, 255, 0.1);
+  background: var(--surface-inset);
+  border-color: var(--border-strong);
 }
 
 /* Tab header (page title block) — serif large-title, token-driven */

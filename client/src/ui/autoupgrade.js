@@ -64,15 +64,7 @@ function renderUpgradeList(upgrades, studioPrefs = {}) {
   container.innerHTML = '';
   activeJobs.forEach(job => {
     const card = document.createElement('div');
-    card.className = 'psycle-autobook-card'; // re-use glassmorphic card styling
-    card.style.background = 'rgba(255,255,255,0.03)';
-    card.style.border = '1px solid rgba(255,255,255,0.08)';
-    card.style.borderRadius = '16px';
-    card.style.padding = '16px';
-    card.style.marginBottom = '12px';
-    card.style.display = 'flex';
-    card.style.flexDirection = 'column';
-    card.style.gap = '10px';
+    card.className = 'psycle-autobook-card';
 
     const startDt = new Date(job.start_at);
     const timeStr = startDt.toLocaleString('en-GB', {
@@ -105,20 +97,16 @@ function renderUpgradeList(upgrades, studioPrefs = {}) {
     const hasInsufficientCredits = totalAvailableCredits < 1; // Auto-upgrade needs at least 1 credit
 
     let statusText = 'Monitoring Active';
-    let statusColor = '#34d399';
-    let statusBgColor = '#34d39915';
+    let statusChipClass = 'state-active';
     if (job.status === 'paused_no_credits' || hasInsufficientCredits) {
       statusText = '⚠ Insufficient Credits';
-      statusColor = '#f59e0b';
-      statusBgColor = '#f59e0b15';
+      statusChipClass = 'state-warning';
     } else if (job.status === 'cutoff_booked') {
       statusText = 'Upgraded (12h window)';
-      statusColor = '#a78bfa';
-      statusBgColor = '#a78bfa15';
+      statusChipClass = 'state-upgrade';
     } else if (job.status === 'stopped') {
       statusText = 'Stopped';
-      statusColor = '#64748b';
-      statusBgColor = '#64748b15';
+      statusChipClass = 'state-stopped';
     }
 
     // Format class name without group prefix
@@ -127,22 +115,22 @@ function renderUpgradeList(upgrades, studioPrefs = {}) {
 
     card.innerHTML = `
       <div style="display: flex; justify-content: space-between; align-items: center; gap: 8px;">
-        <div style="flex: 1; min-width: 0; font-size: 13px; color: #e2e8f0; display: flex; align-items: center; gap: 8px; flex-wrap: wrap; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">
+        <div style="flex: 1; min-width: 0; font-size: 13px; color: var(--text); display: flex; align-items: center; gap: 8px; flex-wrap: wrap; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">
           <span style="font-weight: 600;">${timeStr}</span>
-          <span style="color: #94a3b8;">•</span>
-          <span style="text-transform: uppercase; font-size: 11px; font-weight: 600; color: #a78bfa;">${groupName}</span>
-          <span style="color: #94a3b8;">•</span>
+          <span style="color: var(--text-tertiary);">•</span>
+          <span class="psycle-class-type-chip">${groupName}</span>
+          <span style="color: var(--text-tertiary);">•</span>
           <span style="overflow: hidden; text-overflow: ellipsis;">${classLabel}</span>
-          <span style="color: #94a3b8;">•</span>
+          <span style="color: var(--text-tertiary);">•</span>
           <span>${job.instructor_name}</span>
-          <span style="color: #94a3b8;">•</span>
-          <span style="font-weight: 600; color: #10b981;">Spot ${currentSpotLabel}</span>
+          <span style="color: var(--text-tertiary);">•</span>
+          <span style="font-weight: 600; color: var(--success);">Spot ${currentSpotLabel}</span>
         </div>
-        <div style="font-size: 11px; font-weight: 700; color: ${statusColor}; white-space: nowrap; padding: 3px 8px; border-radius: 6px; border: 1px solid ${statusColor}30; background: ${statusBgColor}; flex-shrink: 0;">${statusText}</div>
+        <div class="psycle-upgrade-status-chip ${statusChipClass}">${statusText}</div>
       </div>
       <div style="display: flex; gap: 6px; margin-top: 10px;">
-        <button class="psycle-action-btn-mini edit-upgrade-modal-btn" data-id="${job.id}" style="flex: 1; background: rgba(167, 139, 250, 0.15); border: 1px solid rgba(167, 139, 250, 0.3); color: #c4b5fd;">Configure</button>
-        <button class="psycle-action-btn-mini delete-upgrade-btn" data-id="${job.id}" style="flex: 1; background: rgba(239, 68, 68, 0.1); border-color: rgba(239, 68, 68, 0.2); color: #f87171;">Stop</button>
+        <button class="psycle-action-btn-mini variant-autoupgrade edit-upgrade-modal-btn" data-id="${job.id}" style="flex: 1;">Configure</button>
+        <button class="psycle-action-btn-mini variant-danger delete-upgrade-btn" data-id="${job.id}" style="flex: 1;">Stop</button>
       </div>
     `;
 

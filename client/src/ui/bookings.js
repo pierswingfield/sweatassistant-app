@@ -214,18 +214,18 @@ function renderBookingsTable(bookings, upgrades) {
     if (activeUpgrade) {
       if (activeUpgrade.status === 'paused_no_credits' || hasInsufficientCredits) {
         actionButtonsHtml = `
-          <button class="psycle-action-btn-mini upgrade-status-btn" data-upgrade-id="${activeUpgrade.id}" data-event-id="${event.id}" data-booking-id="${b.id}" data-slot-id="${resolvedSlotId}" data-studio-id="${event.studio_id || ''}" style="background: rgba(245, 158, 11, 0.15); border: 1px solid rgba(245, 158, 11, 0.3); color: #f59e0b;">⚠ Auto-Upgrade: Insufficient Credits</button>
-          <button class="psycle-action-btn-mini cancel-upgrade-btn" data-upgrade-id="${activeUpgrade.id}" style="background: rgba(239, 68, 68, 0.1); border-color: rgba(239, 68, 68, 0.2); color: #f87171; margin-left: 4px;">Stop</button>
+          <button class="psycle-action-btn-mini variant-warning upgrade-status-btn" data-upgrade-id="${activeUpgrade.id}" data-event-id="${event.id}" data-booking-id="${b.id}" data-slot-id="${resolvedSlotId}" data-studio-id="${event.studio_id || ''}">⚠ Auto-Upgrade: Insufficient Credits</button>
+          <button class="psycle-action-btn-mini variant-danger cancel-upgrade-btn" data-upgrade-id="${activeUpgrade.id}" style="margin-left: 4px;">Stop</button>
         `;
       } else {
         actionButtonsHtml = `
-          <button class="psycle-action-btn-mini upgrade-status-btn" data-upgrade-id="${activeUpgrade.id}" data-event-id="${event.id}" data-booking-id="${b.id}" data-slot-id="${resolvedSlotId}" data-studio-id="${event.studio_id || ''}" style="background: rgba(16, 185, 129, 0.15); border: 1px solid rgba(16, 185, 129, 0.3); color: #10b981;">Auto-Upgrade On</button>
-          <button class="psycle-action-btn-mini cancel-upgrade-btn" data-upgrade-id="${activeUpgrade.id}" style="background: rgba(239, 68, 68, 0.1); border-color: rgba(239, 68, 68, 0.2); color: #f87171; margin-left: 4px;">Stop</button>
+          <button class="psycle-action-btn-mini variant-success-muted upgrade-status-btn" data-upgrade-id="${activeUpgrade.id}" data-event-id="${event.id}" data-booking-id="${b.id}" data-slot-id="${resolvedSlotId}" data-studio-id="${event.studio_id || ''}">Auto-Upgrade On</button>
+          <button class="psycle-action-btn-mini variant-danger cancel-upgrade-btn" data-upgrade-id="${activeUpgrade.id}" style="margin-left: 4px;">Stop</button>
         `;
       }
     } else {
       actionButtonsHtml = `
-        <button class="psycle-action-btn-mini upgrade-status-btn" data-event-id="${event.id}" data-booking-id="${b.id}" data-slot-id="${resolvedSlotId}" data-studio-id="${event.studio_id || ''}" style="background: rgba(255, 255, 255, 0.06); border: 1px solid rgba(255, 255, 255, 0.15); color: #cbd5e1;">Auto-Upgrade Off</button>
+        <button class="psycle-action-btn-mini variant-neutral upgrade-status-btn" data-event-id="${event.id}" data-booking-id="${b.id}" data-slot-id="${resolvedSlotId}" data-studio-id="${event.studio_id || ''}">Auto-Upgrade Off</button>
       `;
     }
 
@@ -290,7 +290,7 @@ function renderBookingsTable(bookings, upgrades) {
         if (!confirmState) {
           confirmState = true;
           cancelBtn.textContent = isUnderPenalty ? 'Confirm penalty cancel?' : 'Confirm cancel?';
-          cancelBtn.style.background = '#ef4444';
+          cancelBtn.style.background = 'var(--danger)';
           cancelBtn.style.color = '#fff';
           setTimeout(() => {
             confirmState = false;
@@ -373,7 +373,7 @@ function renderWaitlistsTable(waitlists) {
         if (!confirmState) {
           confirmState = true;
           leaveBtn.textContent = 'Confirm Leave?';
-          leaveBtn.style.background = '#ef4444';
+          leaveBtn.style.background = 'var(--danger)';
           leaveBtn.style.color = '#fff';
           setTimeout(() => {
             confirmState = false;
@@ -514,7 +514,7 @@ export async function openUpgradeConfigModal({ eventId, bookingId, currentSlotId
     const studioPrefs = resolvedStudioId ? allPrefs[resolvedStudioId] : null;
 
     if (layoutSlots.length === 0) {
-      body.innerHTML = `<div style="padding: 24px; text-align: center; color: #94a3b8;">No floor map available for this studio. Auto-upgrade requires a spot map.</div>`;
+      body.innerHTML = `<div style="padding: 24px; text-align: center; color: var(--text-secondary);">No floor map available for this studio. Auto-upgrade requires a spot map.</div>`;
       return;
     }
 
@@ -531,23 +531,23 @@ export async function openUpgradeConfigModal({ eventId, bookingId, currentSlotId
     const upgradeCreditsNeeded = 1; // Auto-upgrade needs 1 credit for the additional spot
     const hasEnoughCredits = availableCredits >= upgradeCreditsNeeded;
     const creditWarningHtml = !hasEnoughCredits
-      ? `<div style="font-size:12px;color:#ef4444;background:rgba(239,68,68,0.1);border:1px solid rgba(239,68,68,0.2);border-radius:8px;padding:10px;margin-bottom:10px;line-height:1.5;">In order for Auto-Upgrade to work, you need to purchase ${upgradeCreditsNeeded - availableCredits} more credit${upgradeCreditsNeeded - availableCredits !== 1 ? 's' : ''}. Auto-Upgrade books an additional spot before cancelling your current one.</div>`
+      ? `<div style="font-size:12px;color:var(--danger);background:color-mix(in srgb,var(--danger) 10%,transparent);border:1px solid color-mix(in srgb,var(--danger) 20%,transparent);border-radius:8px;padding:10px;margin-bottom:10px;line-height:1.5;">In order for Auto-Upgrade to work, you need to purchase ${upgradeCreditsNeeded - availableCredits} more credit${upgradeCreditsNeeded - availableCredits !== 1 ? 's' : ''}. Auto-Upgrade books an additional spot before cancelling your current one.</div>`
       : '';
 
     body.innerHTML = `<div id="psycle-upgrade-editor"></div>`;
     const editorContainer = body.querySelector('#psycle-upgrade-editor');
 
     const bannerHtml = `
-      <div style="font-size:11px;color:#a5b4fc;background:rgba(99,102,241,0.08);border:1px solid rgba(99,102,241,0.18);border-radius:8px;padding:8px 10px;margin-bottom:10px;line-height:1.5;">
+      <div style="font-size:11px;color:var(--feat-autoupgrade);background:color-mix(in srgb,var(--feat-autoupgrade) 8%,transparent);border:1px solid color-mix(in srgb,var(--feat-autoupgrade) 18%,transparent);border-radius:8px;padding:8px 10px;margin-bottom:10px;line-height:1.5;">
         This is the one shared preferred spot map for <strong>${studioName}</strong>. Auto-Upgrade aims for these spots in priority order — and Quick-Book &amp; Auto-Book here use the same map. Your current seat is <strong>${currentSlotLabel}</strong>.
       </div>${creditWarningHtml}`;
 
     const extraControlsHtml = `
-      <label style="display:flex;align-items:flex-start;gap:10px;font-size:13px;cursor:pointer;line-height:1.4;background:rgba(0,0,0,0.15);border:1px solid rgba(255,255,255,0.06);border-radius:10px;padding:12px;">
-        <input type="checkbox" id="upgrade-keep-original" ${seedKeepOriginal ? 'checked' : ''} style="margin-top:2px;accent-color:#a78bfa;">
+      <label style="display:flex;align-items:flex-start;gap:10px;font-size:13px;cursor:pointer;line-height:1.4;background:var(--surface-inset);border:1px solid var(--border);border-radius:10px;padding:12px;">
+        <input type="checkbox" id="upgrade-keep-original" ${seedKeepOriginal ? 'checked' : ''} style="margin-top:2px;accent-color:var(--feat-autoupgrade);">
         <span>
           <strong>Continue past 12h cutoff</strong><br>
-          <span style="font-size:11px;color:#64748b;">Within 12h of class, make one final upgrade attempt without cancelling your original seat — you'll need to ask Psycle to release it. Without this, monitoring stops at 12h.</span>
+          <span style="font-size:11px;color:var(--text-tertiary);">Within 12h of class, make one final upgrade attempt without cancelling your original seat — you'll need to ask Psycle to release it. Without this, monitoring stops at 12h.</span>
         </span>
       </label>`;
 

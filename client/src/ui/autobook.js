@@ -91,7 +91,6 @@ function updateQueueDisplayForEvent(eventId, update) {
   if (!statusEl) {
     statusEl = document.createElement('div');
     statusEl.className = 'autobook-status-line';
-    statusEl.style.cssText = 'font-size:11px;color:#64748b;margin-top:8px;padding:6px;background:rgba(99,102,241,0.05);border-left:2px solid rgba(99,102,241,0.3);border-radius:4px;';
     card.appendChild(statusEl);
   }
 
@@ -126,7 +125,7 @@ function updateQueueDisplayForEvent(eventId, update) {
   } else if (update.status === 'failed') {
     statusIcon = '❌';
     statusColor = '#f87171';
-    statusEl.innerHTML = `${statusIcon} <span style="color:#f87171;"><strong>Failed:</strong> ${update.message}</span>`;
+    statusEl.innerHTML = `${statusIcon} <span style="color:var(--danger);"><strong>Failed:</strong> ${update.message}</span>`;
   }
 
   statusEl.style.color = statusColor;
@@ -150,10 +149,7 @@ function renderAutoBookControls() {
 
   // Pause / Resume button
   const pauseBtn = document.createElement('button');
-  pauseBtn.className = 'psycle-btn-mini';
-  pauseBtn.style.cssText = isPaused
-    ? 'background:rgba(52,211,153,0.15);border-color:rgba(52,211,153,0.3);color:#34d399;'
-    : 'background:rgba(239,68,68,0.12);border-color:rgba(239,68,68,0.25);color:#f87171;';
+  pauseBtn.className = `psycle-btn-mini psycle-pause-btn ${isPaused ? 'state-paused' : 'state-active'}`;
   pauseBtn.textContent = isPaused ? '▶ Resume Auto-Book' : '⏸ Pause Auto-Book';
   pauseBtn.addEventListener('click', async () => {
     pauseBtn.disabled = true;
@@ -172,8 +168,7 @@ function renderAutoBookControls() {
 
   // Favourites button
   const favsBtn = document.createElement('button');
-  favsBtn.className = 'psycle-btn-mini';
-  favsBtn.style.cssText = 'background:rgba(251,191,36,0.1);border-color:rgba(251,191,36,0.25);color:#fbbf24;';
+  favsBtn.className = 'psycle-btn-mini variant-warning';
   favsBtn.textContent = '♥ Auto-Book Favourites';
   favsBtn.addEventListener('click', () => openFavouritesModal());
 
@@ -183,8 +178,7 @@ function renderAutoBookControls() {
   // Simulate button (debug mode only)
   if (userSettings.debugMode) {
     const simBtn = document.createElement('button');
-    simBtn.className = 'psycle-btn-mini';
-    simBtn.style.cssText = 'background:rgba(139,92,246,0.12);border-color:rgba(139,92,246,0.3);color:#a78bfa;';
+    simBtn.className = 'psycle-btn-mini variant-autoupgrade';
     simBtn.textContent = '⚡ Simulate Release';
     simBtn.addEventListener('click', async () => {
       simBtn.disabled = true;
@@ -227,41 +221,41 @@ function openFavouritesModal() {
   overlay.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,0.75);z-index:2000;display:flex;align-items:center;justify-content:center;padding:16px;';
 
   const modal = document.createElement('div');
-  modal.style.cssText = 'background:#0f172a;border:1px solid rgba(255,255,255,0.12);border-radius:16px;width:100%;max-width:480px;max-height:90vh;display:flex;flex-direction:column;overflow:hidden;';
+  modal.style.cssText = 'background:var(--surface);border:1px solid var(--border-strong);border-radius:16px;width:100%;max-width:480px;max-height:90vh;display:flex;flex-direction:column;overflow:hidden;';
 
   const header = document.createElement('div');
-  header.style.cssText = 'display:flex;justify-content:space-between;align-items:center;padding:14px 18px;border-bottom:1px solid rgba(255,255,255,0.08);flex-shrink:0;';
-  header.innerHTML = `<h3 style="margin:0;font-size:15px;font-weight:700;color:#f1f5f9;">♥ Auto-Book Favourites</h3><button style="background:none;border:none;color:#94a3b8;font-size:22px;cursor:pointer;padding:0;" id="favs-modal-close">×</button>`;
+  header.style.cssText = 'display:flex;justify-content:space-between;align-items:center;padding:14px 18px;border-bottom:1px solid var(--border);flex-shrink:0;';
+  header.innerHTML = `<h3 style="margin:0;font-size:15px;font-weight:700;color:var(--text);">♥ Auto-Book Favourites</h3><button style="background:none;border:none;color:var(--text-secondary);font-size:22px;cursor:pointer;padding:0;" id="favs-modal-close">×</button>`;
 
   const body = document.createElement('div');
   body.style.cssText = 'flex:1;overflow-y:auto;padding:16px;';
 
   if (bookmarks.length === 0) {
-    body.innerHTML = '<div style="text-align:center;padding:24px;color:#94a3b8;font-size:13px;">No bookmarked classes found.<br>Bookmark classes from the timetable to set up recurring auto-book.</div>';
+    body.innerHTML = '<div style="text-align:center;padding:24px;color:var(--text-secondary);font-size:13px;">No bookmarked classes found.<br>Bookmark classes from the timetable to set up recurring auto-book.</div>';
   } else {
     const parsed = bookmarks.map(parseBookmark);
     const enabled = new Set(userSettings.autoBookFavourites || []);
 
-    body.innerHTML = '<p style="font-size:12px;color:#94a3b8;margin:0 0 12px;">Select which favourites to auto-book each week:</p>';
+    body.innerHTML = '<p style="font-size:12px;color:var(--text-secondary);margin:0 0 12px;">Select which favourites to auto-book each week:</p>';
 
     parsed.forEach(bm => {
       const row = document.createElement('div');
-      row.style.cssText = 'display:flex;align-items:center;gap:10px;padding:8px 10px;border:1px solid rgba(255,255,255,0.06);border-radius:8px;margin-bottom:6px;';
+      row.style.cssText = 'display:flex;align-items:center;gap:10px;padding:8px 10px;border:1px solid var(--border);border-radius:8px;margin-bottom:6px;';
 
       const cb = document.createElement('input');
       cb.type = 'checkbox';
       cb.checked = enabled.has(bm.raw);
-      cb.style.cssText = 'width:16px;height:16px;accent-color:#a78bfa;cursor:pointer;flex-shrink:0;';
+      cb.style.cssText = 'width:16px;height:16px;accent-color:var(--feat-autoupgrade);cursor:pointer;flex-shrink:0;';
       cb.addEventListener('change', () => {
         if (cb.checked) enabled.add(bm.raw);
         else enabled.delete(bm.raw);
       });
 
       const label = document.createElement('div');
-      label.style.cssText = 'flex:1;font-size:12px;color:#e2e8f0;';
+      label.style.cssText = 'flex:1;font-size:12px;color:var(--text);';
       label.innerHTML = bm.studioId
         ? `<strong>Studio ${bm.studioId}</strong> · ${bm.dayOfWeek} ${bm.time}`
-        : `<span style="color:#94a3b8;">${bm.raw}</span>`;
+        : `<span style="color:var(--text-secondary);">${bm.raw}</span>`;
 
       row.appendChild(cb);
       row.appendChild(label);
@@ -270,7 +264,7 @@ function openFavouritesModal() {
 
     const saveBtn = document.createElement('button');
     saveBtn.className = 'psycle-btn';
-    saveBtn.style.cssText = 'width:100%;margin-top:12px;background:#a78bfa;color:#fff;';
+    saveBtn.style.cssText = 'width:100%;margin-top:12px;background:var(--feat-autoupgrade);color:#fff;';
     saveBtn.textContent = 'Save Favourites';
     saveBtn.addEventListener('click', async () => {
       saveBtn.disabled = true;
@@ -360,14 +354,6 @@ function renderQueue(queue) {
     const card = document.createElement('div');
     card.className = 'psycle-autobook-card';
     card.setAttribute('data-event-id', q.event_id);
-    card.style.background = 'rgba(255,255,255,0.03)';
-    card.style.border = '1px solid rgba(255,255,255,0.08)';
-    card.style.borderRadius = '16px';
-    card.style.padding = '16px';
-    card.style.marginBottom = '12px';
-    card.style.display = 'flex';
-    card.style.flexDirection = 'column';
-    card.style.gap = '10px';
 
     const startDt = new Date(q.start_at);
     const timeStr = startDt.toLocaleString('en-GB', {
@@ -400,20 +386,20 @@ function renderQueue(queue) {
     const hasInsufficientCredits = totalAvailableCredits < creditsNeeded;
 
     const creditWarning = hasInsufficientCredits
-      ? `<div style="font-size: 11px; font-weight: 700; color: #f59e0b; padding: 4px 8px; border-radius: 6px; background: rgba(245, 158, 11, 0.15); border: 1px solid rgba(245, 158, 11, 0.3); text-align: center;">⚠ Insufficient Credits</div>`
+      ? `<div style="font-size: 11px; font-weight: 700; color: var(--warning); padding: 4px 8px; border-radius: 6px; background: color-mix(in srgb,var(--warning) 15%,transparent); border: 1px solid color-mix(in srgb,var(--warning) 30%,transparent); text-align: center;">⚠ Insufficient Credits</div>`
       : '';
 
     card.innerHTML = `
       <div style="display: flex; justify-content: space-between; align-items: flex-start;">
         <div>
-          <h4 style="margin: 0; font-family: 'Outfit'; font-size: 16px; font-weight: 700;">${q.class_name}</h4>
-          <span style="font-size: 12px; color: #94a3b8;">with ${q.instructor_name}</span>
+          <h4 style="margin: 0; font-size: 16px; font-weight: 700;">${q.class_name}</h4>
+          <span style="font-size: 12px; color: var(--text-secondary);">with ${q.instructor_name}</span>
         </div>
-        <span class="psycle-autobook-card-countdown" data-start-at="${q.start_at}" style="font-size: 11px; font-weight: 700; padding: 4px 10px; border-radius: 8px; border: 1px solid; text-transform: uppercase;">
+        <span class="psycle-autobook-card-countdown state-pending" data-start-at="${q.start_at}">
           00:00:00
         </span>
       </div>
-      <div style="font-size: 13px; color: #cbd5e1; display: flex; flex-direction: column; gap: 4px;">
+      <div style="font-size: 13px; color: var(--text-secondary); display: flex; flex-direction: column; gap: 4px;">
         <div><strong>Time:</strong> ${timeStr}</div>
         <div><strong>Studio:</strong> ${q.studio_name} (${q.location_name})</div>
         <div><strong>Spot Preference:</strong> ${preferencesLabel} ${prefs.bookAny ? '(or fallback)' : '(strict)'}</div>
@@ -421,7 +407,7 @@ function renderQueue(queue) {
       </div>
       ${creditWarning}
       <div style="display: flex; gap: 10px; margin-top: 6px;">
-        <button class="psycle-action-btn-mini delete-autobook-btn" data-id="${q.id}" style="background: rgba(239, 68, 68, 0.1); border-color: rgba(239, 68, 68, 0.2); color: #f87171;">Delete</button>
+        <button class="psycle-action-btn-mini variant-danger delete-autobook-btn" data-id="${q.id}">Delete</button>
       </div>
     `;
 
@@ -469,18 +455,18 @@ function renderHistory(history) {
     if (h.status === 'success') {
       statusBadge = '<span class="status-cell yes">Booked</span>';
     } else if (h.status === 'waitlist') {
-      statusBadge = '<span class="status-cell warning" style="color:#fbbf24; border-color:rgba(245,158,11,0.2);">Waitlist</span>';
+      statusBadge = '<span class="status-cell warning" style="color:var(--warning); border-color:color-mix(in srgb,var(--warning) 20%,transparent);">Waitlist</span>';
     } else {
       statusBadge = '<span class="status-cell no">Failed</span>';
     }
 
     const row = document.createElement('tr');
     row.innerHTML = `
-      <td><strong>${h.class_name}</strong><br><small style="color:#94a3b8;">with ${h.instructor_name}</small></td>
-      <td>${h.studio_name}<br><small style="color:#94a3b8;">${h.location_name}</small></td>
+      <td><strong>${h.class_name}</strong><br><small style="color:var(--text-secondary);">with ${h.instructor_name}</small></td>
+      <td>${h.studio_name}<br><small style="color:var(--text-secondary);">${h.location_name}</small></td>
       <td>${timeStr}</td>
       <td>${statusBadge}</td>
-      <td style="font-size:12px; color:#cbd5e1; max-width:250px; overflow:hidden; text-overflow:ellipsis;" title="${h.execution_message || ''}">
+      <td style="font-size:12px; color:var(--text-secondary); max-width:250px; overflow:hidden; text-overflow:ellipsis;" title="${h.execution_message || ''}">
         ${h.execution_message || 'No details recorded.'}
       </td>
     `;
@@ -497,7 +483,7 @@ function updateCountdowns() {
   if (mainCountdown && mainTarget) {
     if (userSettings.autoBookPaused) {
       mainCountdown.textContent = "PAUSED";
-      mainCountdown.style.color = "#f87171";
+      mainCountdown.style.color = "var(--danger)";
       mainTarget.textContent = "Auto-book is paused";
     } else {
       const targetRelease = getNextMondayNoonLondon();
@@ -505,10 +491,10 @@ function updateCountdowns() {
       mainTarget.textContent = `Target Release: ${targetRelease.toLocaleString(DateTime.DATETIME_FULL_WITH_ZONE)}`;
       if (diffMs <= 0) {
         mainCountdown.textContent = "RELEASE ACTIVE!";
-        mainCountdown.style.color = "#34d399";
+        mainCountdown.style.color = "var(--success)";
       } else {
         mainCountdown.textContent = formatFullCountdown(diffMs);
-        mainCountdown.style.color = diffMs <= 30000 ? "#f87171" : "#fff";
+        mainCountdown.style.color = diffMs <= 30000 ? "var(--danger)" : "var(--text)";
       }
     }
   }
@@ -529,14 +515,12 @@ function updateCountdowns() {
 
     if (diff <= 0) {
       el.textContent = "Active";
-      el.style.color = '#34d399';
-      el.style.background = 'rgba(16, 185, 129, 0.1)';
-      el.style.borderColor = 'rgba(16, 185, 129, 0.2)';
+      el.classList.remove('state-pending');
+      el.classList.add('state-active');
     } else {
       el.textContent = formatCountdown(diff);
-      el.style.color = '#c084fc';
-      el.style.background = 'rgba(139, 92, 246, 0.1)';
-      el.style.borderColor = 'rgba(139, 92, 246, 0.2)';
+      el.classList.remove('state-active');
+      el.classList.add('state-pending');
     }
   });
 }

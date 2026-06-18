@@ -318,7 +318,7 @@ function createBundleCard(b, isFavSection) {
     <div class="fav-card-header">
       <div>
         <div class="fav-card-title">${b.name}</div>
-        <div class="fav-card-handle" style="font-size: 11px; color: #64748b; margin-top: 2px;">${b.handle} (ID: ${b.id})</div>
+        <div class="fav-card-handle" style="font-size: 11px; color: var(--text-tertiary); margin-top: 2px;">${b.handle} (ID: ${b.id})</div>
       </div>
       <button class="fav-card-star-btn ${isFav ? 'active' : ''}" title="${isFav ? 'Unpin' : 'Pin to favorites'}">
         ${isFav ? '★' : '☆'}
@@ -332,8 +332,8 @@ function createBundleCard(b, isFavSection) {
       <span class="badge-pill" style="text-transform:none;">${b.total_credits} Credits</span>
       <span class="badge-pill ${allStudios ? 'valid' : 'invalid'}">${allStudios ? 'All Studios' : 'Select Studios'}</span>
       <span class="badge-pill ${allClasses ? 'valid' : 'invalid'}">${allClasses ? 'All Workouts' : 'Excl. Lagree'}</span>
-      <span class="badge-pill" style="text-transform:none; ${b.is_first_purchase_only ? 'background:rgba(239,68,68,0.12);color:#f87171;border:1px solid rgba(239,68,68,0.3);' : 'background:rgba(16,185,129,0.12);color:#34d399;border:1px solid rgba(16,185,129,0.3);'}">${b.is_first_purchase_only ? '1st Only' : '✔ Returning'}</span>
-      <span class="badge-pill" style="text-transform:none; ${b.is_one_time_purchase_only ? 'background:rgba(239,68,68,0.12);color:#f87171;border:1px solid rgba(239,68,68,0.3);' : 'background:rgba(16,185,129,0.12);color:#34d399;border:1px solid rgba(16,185,129,0.3);'}">${b.is_one_time_purchase_only ? '1-Time' : '✔ Repeat'}</span>
+      <span class="badge-pill ${b.is_first_purchase_only ? 'badge-restricted' : 'badge-available'}">${b.is_first_purchase_only ? '1st Only' : '✔ Returning'}</span>
+      <span class="badge-pill ${b.is_one_time_purchase_only ? 'badge-restricted' : 'badge-available'}">${b.is_one_time_purchase_only ? '1-Time' : '✔ Repeat'}</span>
     </div>
     <button class="psycle-btn-primary fav-card-buy-btn" style="margin-top: 12px; padding: 8px;">
       Buy on Website
@@ -369,8 +369,8 @@ function createBundleCard(b, isFavSection) {
       const result = await api.addBundleToCart(b.id);
       showToast(`Added "${b.name}" to cart!`, 'success');
       buyBtn.textContent = 'Checkout →';
-      buyBtn.style.background = '#10b981';
-      buyBtn.style.borderColor = '#10b981';
+      buyBtn.style.background = 'var(--success)';
+      buyBtn.style.borderColor = 'var(--success)';
       buyBtn.dataset.cartState = 'added';
     } catch (err) {
       showToast(`Failed to add to cart: ${err.message}`, 'error');

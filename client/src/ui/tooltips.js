@@ -222,7 +222,8 @@ function positionTooltip(target, tooltipEl) {
   tooltipEl.style.top = `${top}px`;
 }
 
-function renderMinimap(payload, occupancyTooltip) {
+// === MOBILE TIMETABLE — export renderMinimap (added Jun 2026; delete 'export' to revert) ===
+export function renderMinimap(payload, occupancyTooltip) {
   const eventData = payload.data || payload;
   const studio = payload.relations?.studios?.[0] || eventData.relations?.studios?.[0] || eventData.studio || {};
   const layoutSlots = studio?.layout?.slots || [];

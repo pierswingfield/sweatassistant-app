@@ -291,7 +291,7 @@ function renderBookingsTable(bookings, upgrades) {
           confirmState = true;
           cancelBtn.textContent = isUnderPenalty ? 'Confirm penalty cancel?' : 'Confirm cancel?';
           cancelBtn.style.background = 'var(--danger)';
-          cancelBtn.style.color = '#fff';
+          cancelBtn.style.color = 'var(--on-accent)';
           setTimeout(() => {
             confirmState = false;
             cancelBtn.textContent = cancelLabel;
@@ -374,7 +374,7 @@ function renderWaitlistsTable(waitlists) {
           confirmState = true;
           leaveBtn.textContent = 'Confirm Leave?';
           leaveBtn.style.background = 'var(--danger)';
-          leaveBtn.style.color = '#fff';
+          leaveBtn.style.color = 'var(--on-accent)';
           setTimeout(() => {
             confirmState = false;
             leaveBtn.textContent = 'Leave Waitlist';

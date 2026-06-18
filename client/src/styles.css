@@ -198,7 +198,7 @@
   left: 0;
   width: 100vw;
   height: 100vh;
-  background: rgba(255, 255, 255, 0.15);
+  background: color-mix(in srgb, var(--text) 8%, transparent);
   backdrop-filter: blur(10px);
   -webkit-backdrop-filter: blur(10px);
   z-index: 999998;
@@ -212,19 +212,16 @@
   pointer-events: auto;
 }
 
-/* Minimized Toggle Button - Apple Liquid Glass Style */
+/* Minimized Toggle Button */
 #psycle-helper-container .psycle-toggle-btn {
   width: 64px;
   height: 64px;
   border-radius: 50%;
-  background: rgba(15, 23, 42, 0.95);
+  background: var(--surface);
   backdrop-filter: blur(20px) saturate(180%);
   -webkit-backdrop-filter: blur(20px) saturate(180%);
-  border: 1.5px solid rgba(255, 255, 255, 0.2);
-  box-shadow: 0 12px 30px rgba(0, 0, 0, 0.4),
-              0 0 0 1px rgba(0, 0, 0, 0.3),
-              inset 0 1px 0 rgba(255, 255, 255, 0.2),
-              inset 0 -1px 0 rgba(0, 0, 0, 0.4);
+  border: 1.5px solid var(--border-strong);
+  box-shadow: var(--shadow-card);
   display: flex;
   align-items: center;
   justify-content: center;
@@ -235,18 +232,16 @@
 
 #psycle-helper-container .psycle-toggle-btn:hover {
   transform: scale(1.08) translateY(-2px);
-  background: rgba(255, 255, 255, 0.2);
-  border-color: rgba(255, 255, 255, 0.35);
-  box-shadow: 0 14px 35px rgba(0, 0, 0, 0.25), 
-              inset 0 1px 0 rgba(255, 255, 255, 0.5);
+  background: var(--surface-2);
+  border-color: var(--border-strong);
+  box-shadow: var(--shadow-sheet);
 }
 
 #psycle-helper-container .psycle-btn-text {
   font-weight: 800;
   font-size: 22px;
-  color: #ffffff;
+  color: var(--text);
   letter-spacing: 0.5px;
-  text-shadow: 0 2px 6px rgba(0, 0, 0, 0.6);
 }
 
 /* Pulse Animation for first 5 seconds */
@@ -255,17 +250,17 @@
 }
 
 @keyframes pulse-ring {
-  0% { box-shadow: 0 0 0 0 rgba(255, 255, 255, 0.5), 0 10px 30px rgba(0, 0, 0, 0.2); }
-  70% { box-shadow: 0 0 0 16px rgba(255, 255, 255, 0), 0 10px 30px rgba(0, 0, 0, 0.2); }
-  100% { box-shadow: 0 0 0 0 rgba(255, 255, 255, 0), 0 10px 30px rgba(0, 0, 0, 0.2); }
+  0% { box-shadow: 0 0 0 0 color-mix(in srgb, var(--accent) 50%, transparent), 0 10px 30px rgba(0, 0, 0, 0.2); }
+  70% { box-shadow: 0 0 0 16px color-mix(in srgb, var(--accent) 0%, transparent), 0 10px 30px rgba(0, 0, 0, 0.2); }
+  100% { box-shadow: 0 0 0 0 color-mix(in srgb, var(--accent) 0%, transparent), 0 10px 30px rgba(0, 0, 0, 0.2); }
 }
 
 #psycle-helper-container .psycle-btn-badge {
   position: absolute;
   top: 0px;
   right: 0px;
-  background: #10b981;
-  color: #fff;
+  background: var(--success);
+  color: var(--on-accent);
   border-radius: 50%;
   font-size: 11px;
   font-weight: bold;
@@ -292,11 +287,11 @@
 }
 
 #psycle-helper-container .psycle-btn-badge.error {
-  background: #ef4444;
+  background: var(--danger);
 }
 
 #psycle-helper-container .psycle-btn-badge.success {
-  background: #10b981;
+  background: var(--success);
 }
 
 /* Expanded State styling */
@@ -407,7 +402,7 @@
 #psycle-helper-container .psycle-close-btn {
   background: transparent;
   border: none;
-  color: #94a3b8;
+  color: var(--text-secondary);
   font-size: 28px;
   cursor: pointer;
   line-height: 1;
@@ -415,7 +410,7 @@
 }
 
 #psycle-helper-container .psycle-close-btn:hover {
-  color: #ffffff;
+  color: var(--text);
   transform: rotate(90deg);
 }
 
@@ -427,8 +422,8 @@
   border-radius: 9999px;
   letter-spacing: 0.4px;
 }
-#psycle-helper-container .psycle-badge.success { background: rgba(16, 185, 129, 0.15); color: #34d399; border: 1px solid rgba(16, 185, 129, 0.25); }
-#psycle-helper-container .psycle-badge.warning { background: rgba(245, 158, 11, 0.15); color: #fbbf24; border: 1px solid rgba(245, 158, 11, 0.25); }
+#psycle-helper-container .psycle-badge.success { background: color-mix(in srgb, var(--success) 15%, transparent); color: var(--success); border: 1px solid color-mix(in srgb, var(--success) 25%, transparent); }
+#psycle-helper-container .psycle-badge.warning { background: color-mix(in srgb, var(--warning) 15%, transparent); color: var(--warning); border: 1px solid color-mix(in srgb, var(--warning) 25%, transparent); }
 
 /* Navigation Tabs */
 #psycle-helper-container .psycle-nav-bar {
@@ -509,40 +504,32 @@
 #psycle-helper-container .fav-empty-state {
   grid-column: span 3;
   padding: 30px;
-  background: rgba(255, 255, 255, 0.02);
-  border: 1.5px dashed rgba(255, 255, 255, 0.08);
+  background: color-mix(in srgb, var(--text) 2%, transparent);
+  border: 1.5px dashed var(--border);
   border-radius: 16px;
   text-align: center;
   font-size: 12px;
-  color: #64748b;
+  color: var(--text-secondary);
   line-height: 1.5;
 }
 
 #psycle-helper-container .fav-card {
-  background: rgba(255, 255, 255, 0.05);
-  border: 1px solid rgba(255, 255, 255, 0.15);
+  background: var(--surface);
+  border: 1px solid var(--border);
   border-radius: 16px;
   padding: 14px;
   display: flex;
   flex-direction: column;
   gap: 10px;
   transition: all 0.3s cubic-bezier(0.25, 1, 0.5, 1);
-  box-shadow: 
-    0 8px 24px rgba(0, 0, 0, 0.2), 
-    0 0 20px rgba(236, 72, 153, 0.25), 
-    0 0 40px rgba(59, 130, 246, 0.15), 
-    inset 0 1px 0 rgba(255, 255, 255, 0.05);
+  box-shadow: var(--shadow-card);
 }
 
 #psycle-helper-container .fav-card:hover {
   transform: translateY(-2px);
-  border-color: rgba(255, 255, 255, 0.3);
-  background: rgba(255, 255, 255, 0.08);
-  box-shadow: 
-    0 12px 30px rgba(0, 0, 0, 0.3), 
-    0 0 25px rgba(236, 72, 153, 0.4), 
-    0 0 50px rgba(59, 130, 246, 0.25), 
-    inset 0 1px 0 rgba(255, 255, 255, 0.1);
+  border-color: var(--border-strong);
+  background: var(--surface-2);
+  box-shadow: var(--shadow-card);
 }
 
 #psycle-helper-container .fav-card-header {
@@ -555,7 +542,7 @@
 #psycle-helper-container .fav-card-title {
   font-size: 13px;
   font-weight: 700;
-  color: #ffffff;
+  color: var(--text);
   line-height: 1.3;
 }
 
@@ -579,13 +566,13 @@
 #psycle-helper-container .fav-price {
   font-size: 14px;
   font-weight: 700;
-  color: #ffffff;
+  color: var(--text);
 }
 
 #psycle-helper-container .fav-cost {
   font-size: 13px;
   font-weight: 600;
-  color: #38bdf8;
+  color: var(--accent);
 }
 
 #psycle-helper-container .fav-card-pills {
@@ -608,22 +595,22 @@
 }
 
 #psycle-helper-container .badge-pill.yes {
-  background: rgba(16, 185, 129, 0.1);
-  color: #34d399;
-  border: 1px solid rgba(16, 185, 129, 0.15);
+  background: color-mix(in srgb, var(--success) 10%, transparent);
+  color: var(--success);
+  border: 1px solid color-mix(in srgb, var(--success) 15%, transparent);
 }
 
 #psycle-helper-container .badge-pill.no {
-  background: rgba(244, 63, 94, 0.1);
-  color: #f43f5e;
-  border: 1px solid rgba(244, 63, 94, 0.15);
+  background: color-mix(in srgb, var(--danger) 10%, transparent);
+  color: var(--danger);
+  border: 1px solid color-mix(in srgb, var(--danger) 15%, transparent);
 }
 
 #psycle-helper-container .fav-card-actions {
   display: flex;
   justify-content: space-between;
   align-items: center;
-  border-top: 1px solid rgba(255, 255, 255, 0.06);
+  border-top: 1px solid var(--separator);
   padding-top: 10px;
   margin-top: 0px;
 }
@@ -633,7 +620,7 @@
   align-items: center;
   gap: 8px;
   font-size: 12px;
-  color: #94a3b8;
+  color: var(--text-secondary);
   font-weight: 600;
   text-transform: uppercase;
 }
@@ -642,37 +629,36 @@
   appearance: none;
   -webkit-appearance: none;
   width: 56px;
-  background: rgba(0, 0, 0, 0.4);
-  border: 1px solid rgba(255, 255, 255, 0.2);
+  background: var(--surface-inset);
+  border: 1px solid var(--border-strong);
   border-radius: 10px;
-  color: #ffffff;
+  color: var(--text);
   padding: 8px 10px;
   text-align: center;
   font-size: 14px;
   outline: none;
   font-weight: 700;
-  box-shadow: inset 0 2px 4px rgba(0, 0, 0, 0.3);
 }
 
 #psycle-helper-container .fav-buy-btn {
   appearance: none;
   -webkit-appearance: none;
-  background: linear-gradient(135deg, #10b981 0%, #059669 100%);
-  color: #ffffff;
+  background: var(--success);
+  color: var(--on-accent);
   border: none;
   padding: 8px 20px;
   border-radius: 12px;
   font-size: 13px;
   font-weight: 700;
   cursor: pointer;
-  box-shadow: 0 4px 12px rgba(16, 185, 129, 0.4);
+  box-shadow: 0 4px 12px color-mix(in srgb, var(--success) 40%, transparent);
   transition: all 0.2s ease;
 }
 
 #psycle-helper-container .fav-buy-btn:hover {
   transform: translateY(-2px);
-  box-shadow: 0 6px 16px rgba(16, 185, 129, 0.6);
-  background: linear-gradient(135deg, #34d399 0%, #10b981 100%);
+  box-shadow: 0 6px 16px color-mix(in srgb, var(--success) 50%, transparent);
+  background: color-mix(in srgb, var(--success) 85%, #fff);
 }
 
 /* Collapsible Table Section Header button */
@@ -683,19 +669,19 @@
   cursor: pointer;
   padding: 8px 12px;
   border-radius: 12px;
-  background: rgba(255, 255, 255, 0.03);
-  border: 1px solid rgba(255, 255, 255, 0.06);
+  background: var(--surface-inset);
+  border: 1px solid var(--border);
   transition: background 0.2s;
 }
 
 #psycle-helper-container .table-section-header:hover {
-  background: rgba(255, 255, 255, 0.06);
+  background: color-mix(in srgb, var(--text) 6%, transparent);
 }
 
 #psycle-helper-container .psycle-btn-text-action {
-  background: rgba(255, 255, 255, 0.1);
-  border: 1px solid rgba(255, 255, 255, 0.2);
-  color: #ffffff;
+  background: color-mix(in srgb, var(--text) 10%, transparent);
+  border: 1px solid var(--border-strong);
+  color: var(--text);
   padding: 8px 20px;
   border-radius: 20px;
   font-size: 12px;
@@ -703,11 +689,11 @@
   letter-spacing: 0.3px;
   cursor: pointer;
   transition: all 0.2s ease;
-  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.06);
 }
 
 #psycle-helper-container .psycle-btn-text-action:hover {
-  background: rgba(255, 255, 255, 0.15);
+  background: color-mix(in srgb, var(--text) 15%, transparent);
   transform: translateY(-1px);
 }
 
@@ -734,10 +720,10 @@
   justify-content: space-between;
   align-items: center;
   gap: 20px;
-  background: rgba(255, 255, 255, 0.02);
+  background: var(--surface-inset);
   padding: 10px 16px;
   border-radius: 16px;
-  border: 1px solid rgba(255, 255, 255, 0.04);
+  border: 1px solid var(--separator);
 }
 
 #psycle-helper-container .psycle-search-box {
@@ -748,11 +734,11 @@
 
 #psycle-helper-container .psycle-search-box input {
   width: 100%;
-  background: rgba(0, 0, 0, 0.4);
-  border: 1px solid rgba(255, 255, 255, 0.15);
+  background: var(--surface-inset);
+  border: 1px solid var(--border);
   border-radius: 12px;
   padding: 10px 14px 10px 42px;
-  color: #ffffff !important;
+  color: var(--text) !important;
   font-family: inherit;
   font-size: 13px;
   outline: none;
@@ -760,21 +746,20 @@
 }
 
 #psycle-helper-container .psycle-search-box input:focus {
-  background: rgba(0, 0, 0, 0.35);
-  border-color: rgba(255, 255, 255, 0.25);
+  background: var(--surface-inset);
+  border-color: var(--border-strong);
 }
 
 #psycle-helper-container .psycle-search-box input::placeholder {
-  color: rgba(255, 255, 255, 0.5);
+  color: var(--text-secondary);
 }
 
-/* Search icon highlighted white against background */
 #psycle-helper-container .psycle-search-box .search-icon {
   position: absolute;
   left: 14px;
   top: 50%;
   transform: translateY(-50%);
-  color: #ffffff;
+  color: var(--text-secondary);
   pointer-events: none;
 }
 
@@ -791,10 +776,10 @@
   flex-wrap: wrap;
   gap: 14px;
   align-items: center;
-  background: rgba(0, 0, 0, 0.2);
+  background: var(--surface-inset);
   padding: 10px 14px;
   border-radius: 10px;
-  border: 1px solid rgba(255, 255, 255, 0.04);
+  border: 1px solid var(--separator);
   max-width: 580px;
   animation: fadeIn 0.25s ease;
 }
@@ -804,7 +789,7 @@
   align-items: center;
   gap: 8px;
   font-size: 11px;
-  color: #94a3b8;
+  color: var(--text-secondary);
   cursor: pointer;
   user-select: none;
   font-weight: 500;
@@ -812,7 +797,7 @@
 }
 
 #psycle-helper-container .psycle-checkbox-label:hover {
-  color: #ffffff;
+  color: var(--text);
 }
 
 #psycle-helper-container .psycle-checkbox-label input[type="checkbox"] {
@@ -823,16 +808,16 @@
   width: 14px;
   height: 14px;
   border-radius: 4px;
-  border: 1px solid rgba(255, 255, 255, 0.15);
-  background: rgba(0, 0, 0, 0.2);
+  border: 1px solid var(--border-strong);
+  background: var(--surface-inset);
   display: inline-block;
   position: relative;
   transition: all 0.2s ease;
 }
 
 #psycle-helper-container .psycle-checkbox-label input[type="checkbox"]:checked + .custom-checkbox {
-  background: #ffffff;
-  border-color: #ffffff;
+  background: var(--accent);
+  border-color: var(--accent);
 }
 
 #psycle-helper-container .psycle-checkbox-label input[type="checkbox"]:checked + .custom-checkbox::after {
@@ -842,7 +827,7 @@
   top: 1px;
   width: 4px;
   height: 7px;
-  border: solid #0a0f1e;
+  border: solid var(--on-accent);
   border-width: 0 2px 2px 0;
   transform: rotate(45deg);
 }
@@ -856,7 +841,7 @@
 #psycle-helper-container .psycle-global-settings label {
   font-size: 10px;
   font-weight: 600;
-  color: #64748b;
+  color: var(--text-secondary);
   text-transform: uppercase;
 }
 
@@ -869,11 +854,11 @@
 
 #psycle-helper-container .psycle-global-settings .qty-group input {
   width: 48px;
-  background: rgba(0, 0, 0, 0.25);
-  border: 1px solid rgba(255, 255, 255, 0.08);
+  background: var(--surface-inset);
+  border: 1px solid var(--border);
   border-radius: 8px;
   padding: 6px 8px;
-  color: #ffffff;
+  color: var(--text);
   outline: none;
   font-family: inherit;
   font-size: 13px;
@@ -907,10 +892,10 @@
   left: 0;
   right: 0;
   bottom: 0;
-  background-color: rgba(255, 255, 255, 0.1);
+  background-color: color-mix(in srgb, var(--text) 15%, transparent);
   transition: .3s;
   border-radius: 18px;
-  border: 1px solid rgba(255, 255, 255, 0.05);
+  border: 1px solid var(--border);
 }
 
 #psycle-helper-container .psycle-switch-slider:before {
@@ -920,22 +905,23 @@
   width: 12px;
   left: 2px;
   bottom: 2px;
-  background-color: #ffffff;
+  background-color: var(--text-secondary);
   transition: .3s;
   border-radius: 50%;
 }
 
 #psycle-helper-container .psycle-switch-container input:checked + .psycle-switch-slider {
-  background-color: rgba(255, 255, 255, 0.3);
+  background-color: var(--accent);
 }
 
 #psycle-helper-container .psycle-switch-container input:checked + .psycle-switch-slider:before {
   transform: translateX(14px);
+  background-color: var(--on-accent);
 }
 
 #psycle-helper-container .psycle-switch-label {
   font-size: 11px;
-  color: #f8fafc;
+  color: var(--text);
   cursor: help;
   user-select: none;
   font-weight: 600;
@@ -975,19 +961,19 @@
 #psycle-helper-container .psycle-table-container::-webkit-scrollbar-track,
 #psycle-helper-container .psycle-date-selector::-webkit-scrollbar-track,
 #psycle-helper-container .psycle-ms-menu::-webkit-scrollbar-track {
-  background: rgba(255, 255, 255, 0.02);
+  background: color-mix(in srgb, var(--text) 3%, transparent);
   border-radius: 3px;
 }
 #psycle-helper-container .psycle-table-container::-webkit-scrollbar-thumb,
 #psycle-helper-container .psycle-date-selector::-webkit-scrollbar-thumb,
 #psycle-helper-container .psycle-ms-menu::-webkit-scrollbar-thumb {
-  background: rgba(255, 255, 255, 0.12);
+  background: color-mix(in srgb, var(--text) 15%, transparent);
   border-radius: 3px;
 }
 #psycle-helper-container .psycle-table-container::-webkit-scrollbar-thumb:hover,
 #psycle-helper-container .psycle-date-selector::-webkit-scrollbar-thumb:hover,
 #psycle-helper-container .psycle-ms-menu::-webkit-scrollbar-thumb:hover {
-  background: rgba(255, 255, 255, 0.25);
+  background: color-mix(in srgb, var(--text) 30%, transparent);
 }
 
 #psycle-helper-container .psycle-dashboard-table {
@@ -1000,11 +986,11 @@
 #psycle-helper-container .psycle-dashboard-table th {
   position: sticky;
   top: 0;
-  background: #111422;
-  color: #94a3b8;
+  background: var(--surface-inset);
+  color: var(--text-secondary);
   font-weight: 600;
   padding: 12px 14px;
-  border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+  border-bottom: 1px solid var(--border);
   z-index: 10;
   text-transform: uppercase;
   font-size: 9px;
@@ -1018,24 +1004,24 @@
 }
 
 #psycle-helper-container .psycle-dashboard-table th.sortable:hover {
-  color: #ffffff;
-  background: #1e293b;
+  color: var(--text);
+  background: color-mix(in srgb, var(--text) 5%, var(--surface-inset));
 }
 
 #psycle-helper-container .sort-arrow {
   display: inline-block;
   font-size: 8px;
-  color: rgba(255, 255, 255, 0.2);
+  color: color-mix(in srgb, var(--text) 25%, transparent);
   margin-left: 2px;
 }
 
 #psycle-helper-container .sort-arrow.active {
-  color: #ffffff;
+  color: var(--text);
 }
 
 #psycle-helper-container .psycle-dashboard-table td {
   padding: 12px 14px;
-  border-bottom: 1px solid rgba(255, 255, 255, 0.04);
+  border-bottom: 1px solid var(--separator);
   vertical-align: middle;
 }
 
@@ -1044,14 +1030,14 @@
 }
 
 #psycle-helper-container .psycle-dashboard-table tbody tr:hover {
-  background: rgba(255, 255, 255, 0.015);
+  background: color-mix(in srgb, var(--text) 3%, transparent);
 }
 
 /* Loading & Empty states */
 #psycle-helper-container .table-loading, #psycle-helper-container .table-error, #psycle-helper-container .table-empty {
   text-align: center;
   padding: 60px 0 !important;
-  color: #64748b;
+  color: var(--text-secondary);
   font-style: italic;
   font-size: 12px;
 }
@@ -1062,7 +1048,7 @@
 
 #psycle-helper-container .row-armed {
   background: rgba(239, 68, 68, 0.04) !important;
-  border-left: 3px solid #ef4444;
+  border-left: 3px solid var(--danger);
 }
 
 /* Favorites Cell */
@@ -1090,7 +1076,7 @@
 
 #psycle-helper-container .bundle-id {
   font-weight: 600;
-  color: #94a3b8;
+  color: var(--text-secondary);
   font-family: monospace;
 }
 
@@ -1103,12 +1089,12 @@
 
 #psycle-helper-container .bundle-name-cell strong {
   font-size: 12.5px;
-  color: #ffffff;
+  color: var(--text);
 }
 
 #psycle-helper-container .bundle-handle {
   font-size: 10.5px;
-  color: #94a3b8;
+  color: var(--text-secondary);
   font-family: monospace;
 }
 
@@ -1117,11 +1103,11 @@
   font-size: 9px;
   padding: 1px 6px;
   border-radius: 4px;
-  background: rgba(255, 255, 255, 0.04);
-  color: #94a3b8;
+  background: color-mix(in srgb, var(--text) 4%, transparent);
+  color: var(--text-secondary);
   margin-top: 3px;
   cursor: help;
-  border: 1px solid rgba(255, 255, 255, 0.03);
+  border: 1px solid var(--separator);
 }
 
 /* Status ticks/crosses */
@@ -1134,17 +1120,17 @@
 }
 
 #psycle-helper-container .status-cell.yes {
-  color: #34d399;
-  background: rgba(16, 185, 129, 0.08);
+  color: var(--success);
+  background: color-mix(in srgb, var(--success) 8%, transparent);
 }
 
 #psycle-helper-container .status-cell.no {
-  color: #f43f5e;
-  background: rgba(244, 63, 94, 0.08);
+  color: var(--danger);
+  background: color-mix(in srgb, var(--danger) 8%, transparent);
 }
 
 #psycle-helper-container .expiry-cell {
-  color: #cbd5e1;
+  color: var(--text-secondary);
 }
 
 /* Pricing Cells */
@@ -1158,12 +1144,12 @@
 #psycle-helper-container .price-value {
   font-size: 14px;
   font-weight: 700;
-  color: #ffffff;
+  color: var(--text);
 }
 
 #psycle-helper-container .credits-total {
   font-size: 10px;
-  color: #94a3b8;
+  color: var(--text-secondary);
 }
 
 #psycle-helper-container .cost-credit-cell {
@@ -1175,7 +1161,7 @@
 #psycle-helper-container .cost-value {
   font-size: 13px;
   font-weight: 600;
-  color: #38bdf8;
+  color: var(--accent);
 }
 
 /* Mini select button */
@@ -1212,7 +1198,7 @@
   align-items: center;
   gap: 16px;
   margin-bottom: 20px;
-  border-bottom: 1px solid rgba(255, 255, 255, 0.06);
+  border-bottom: 1px solid var(--separator);
   padding-bottom: 12px;
 }
 
@@ -1244,8 +1230,8 @@
 }
 
 #psycle-helper-container .detail-card {
-  background: rgba(0, 0, 0, 0.25);
-  border: 1px solid rgba(255, 255, 255, 0.08);
+  background: var(--surface);
+  border: 1px solid var(--border);
   border-radius: 20px;
   padding: 24px;
   display: flex;
@@ -1256,13 +1242,13 @@
 #psycle-helper-container .detail-card-name {
   font-size: 18px;
   font-weight: 700;
-  color: #ffffff;
+  color: var(--text);
 }
 
 #psycle-helper-container .detail-card-handle {
   font-size: 12px;
   font-family: monospace;
-  color: #64748b;
+  color: var(--text-secondary);
   margin-top: -8px;
 }
 
@@ -1270,10 +1256,10 @@
   display: grid;
   grid-template-columns: repeat(2, 1fr);
   gap: 16px;
-  background: rgba(255, 255, 255, 0.02);
+  background: var(--surface-inset);
   padding: 16px;
   border-radius: 12px;
-  border: 1px solid rgba(255, 255, 255, 0.04);
+  border: 1px solid var(--border);
 }
 
 #psycle-helper-container .detail-grid-item {
@@ -1285,7 +1271,7 @@
 #psycle-helper-container .grid-label {
   font-size: 9px;
   font-weight: 600;
-  color: #64748b;
+  color: var(--text-secondary);
   text-transform: uppercase;
   letter-spacing: 0.5px;
 }
@@ -1293,16 +1279,16 @@
 #psycle-helper-container .grid-value {
   font-size: 14px;
   font-weight: 700;
-  color: #ffffff;
+  color: var(--text);
 }
 
 #psycle-helper-container .grid-value.price-highlight {
   font-size: 18px;
-  color: #ffffff;
+  color: var(--text);
 }
 
 #psycle-helper-container .grid-value.credit-highlight {
-  color: #38bdf8;
+  color: var(--accent);
 }
 
 #psycle-helper-container .detail-card-restrictions {
@@ -1315,28 +1301,28 @@
 
 #psycle-helper-container .detail-card-desc {
   font-size: 12px;
-  color: #cbd5e1;
+  color: var(--text-secondary);
   line-height: 1.5;
-  border-top: 1px solid rgba(255, 255, 255, 0.06);
+  border-top: 1px solid var(--separator);
   padding-top: 14px;
 }
 
 #psycle-helper-container .detail-card-terms {
   font-size: 11px;
-  color: #94a3b8;
+  color: var(--text-secondary);
   font-style: italic;
-  background: rgba(255, 255, 255, 0.01);
+  background: var(--surface-inset);
   padding: 8px 12px;
   border-radius: 6px;
-  border-left: 2px solid rgba(255, 255, 255, 0.2);
+  border-left: 2px solid var(--border-strong);
 }
 
 #psycle-helper-container .detail-actions {
   display: flex;
   flex-direction: column;
   gap: 20px;
-  background: rgba(255, 255, 255, 0.02);
-  border: 1px solid rgba(255, 255, 255, 0.06);
+  background: var(--surface);
+  border: 1px solid var(--border);
   border-radius: 20px;
   padding: 24px;
   justify-content: center;
@@ -1351,17 +1337,17 @@
 #psycle-helper-container .qty-group-large label {
   font-size: 10px;
   font-weight: 600;
-  color: #94a3b8;
+  color: var(--text-secondary);
   text-transform: uppercase;
 }
 
 #psycle-helper-container .qty-group-large input {
   width: 100%;
-  background: rgba(0, 0, 0, 0.3);
-  border: 1px solid rgba(255, 255, 255, 0.08);
+  background: var(--surface-inset);
+  border: 1px solid var(--border);
   border-radius: 10px;
   padding: 10px;
-  color: #ffffff;
+  color: var(--text);
   text-align: center;
   font-size: 16px;
   font-weight: 700;
@@ -1406,7 +1392,7 @@
 #psycle-helper-container .psycle-btn.danger,
 .psycle-modal .psycle-btn.danger {
   background: var(--danger);
-  color: #ffffff;
+  color: var(--on-accent);
 }
 #psycle-helper-container .psycle-btn.danger:hover,
 .psycle-modal .psycle-btn.danger:hover {
@@ -1456,7 +1442,7 @@
 #psycle-helper-container .psycle-toast {
   padding: 14px 20px;
   border-radius: 12px;
-  color: #ffffff;
+  color: var(--on-accent);
   font-size: 13px;
   font-weight: 500;
   box-shadow: 0 10px 30px rgba(0, 0, 0, 0.45);
@@ -1495,7 +1481,7 @@
   left: 0;
   width: 100%;
   height: 100%;
-  background: rgba(20, 24, 38, 0.9);
+  background: color-mix(in srgb, var(--bg) 90%, transparent);
   backdrop-filter: blur(15px);
   -webkit-backdrop-filter: blur(15px);
   z-index: 100;
@@ -1506,13 +1492,13 @@
 }
 
 #psycle-helper-container .psycle-auth-message-box {
-  background: rgba(255, 255, 255, 0.05);
-  border: 1px solid rgba(255, 255, 255, 0.1);
+  background: var(--surface);
+  border: 1px solid var(--border-strong);
   padding: 40px;
   border-radius: 20px;
   text-align: center;
   max-width: 400px;
-  box-shadow: 0 20px 40px rgba(0,0,0,0.4);
+  box-shadow: var(--shadow-card);
 }
 
 /* Passcode Overlay Styling */
@@ -1522,7 +1508,7 @@
   left: 0;
   width: 100%;
   height: 100%;
-  background: rgba(10, 12, 22, 0.95);
+  background: color-mix(in srgb, var(--bg) 95%, transparent);
   backdrop-filter: blur(20px);
   -webkit-backdrop-filter: blur(20px);
   z-index: 200;
@@ -1536,9 +1522,9 @@
   width: 80%;
   padding: 10px 14px;
   border-radius: 10px;
-  border: 1px solid rgba(255, 255, 255, 0.15);
-  background: rgba(0, 0, 0, 0.2);
-  color: #fff;
+  border: 1px solid var(--border-strong);
+  background: var(--surface-inset);
+  color: var(--text);
   text-align: center;
   font-size: 16px;
   margin-bottom: 16px;
@@ -1547,9 +1533,9 @@
 }
 
 #psycle-helper-container .psycle-input-passcode:focus {
-  border-color: #8b5cf6;
-  box-shadow: 0 0 10px rgba(139, 92, 246, 0.3);
-  background: rgba(0, 0, 0, 0.4);
+  border-color: var(--feat-autoupgrade);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--feat-autoupgrade) 20%, transparent);
+  background: var(--surface-inset);
 }
 
 /* Table Warning Banner Styling */
@@ -1557,13 +1543,13 @@
   display: flex;
   align-items: flex-start;
   justify-content: space-between;
-  background: rgba(245, 158, 11, 0.1);
-  border: 1px solid rgba(245, 158, 11, 0.25);
+  background: color-mix(in srgb, var(--warning) 10%, transparent);
+  border: 1px solid color-mix(in srgb, var(--warning) 25%, transparent);
   padding: 12px 16px;
   border-radius: 12px;
   margin-bottom: 16px;
   font-family: 'Inter', sans-serif;
-  color: #fef08a;
+  color: var(--warning);
   font-size: 12.5px;
   line-height: 1.5;
 }
@@ -1577,7 +1563,7 @@
 #psycle-helper-container .warning-dismiss-btn {
   background: none;
   border: none;
-  color: rgba(254, 240, 138, 0.6);
+  color: color-mix(in srgb, var(--warning) 60%, transparent);
   font-size: 18px;
   line-height: 1;
   cursor: pointer;
@@ -1586,7 +1572,7 @@
 }
 
 #psycle-helper-container .warning-dismiss-btn:hover {
-  color: #fef08a;
+  color: var(--warning);
 }
 
 /* Glassmorphic Modal styling */
@@ -1596,7 +1582,7 @@
   left: 0;
   width: 100vw;
   height: 100vh;
-  background: rgba(10, 12, 22, 0.7);
+  background: color-mix(in srgb, var(--bg) 70%, transparent);
   backdrop-filter: blur(15px);
   -webkit-backdrop-filter: blur(15px);
   z-index: 2000000;
@@ -1683,8 +1669,8 @@
 /* Debug list classes */
 .debug-section-title {
   font-weight: 700;
-  color: #a78bfa;
-  border-left: 3px solid #8b5cf6;
+  color: var(--feat-autoupgrade);
+  border-left: 3px solid var(--feat-autoupgrade);
   padding-left: 8px;
   font-size: 11px;
   text-transform: uppercase;
@@ -1695,10 +1681,10 @@
   display: flex;
   flex-direction: column;
   gap: 10px;
-  background: rgba(0,0,0,0.25);
+  background: var(--surface-inset);
   padding: 14px;
   border-radius: 12px;
-  border: 1px solid rgba(255, 255, 255, 0.05);
+  border: 1px solid var(--border);
 }
 
 .debug-row {
@@ -1706,7 +1692,7 @@
   justify-content: space-between;
   align-items: center;
   padding: 6px 0;
-  border-bottom: 1px solid rgba(255, 255, 255, 0.03);
+  border-bottom: 1px solid var(--separator);
 }
 
 .debug-row:last-child {
@@ -1714,13 +1700,13 @@
 }
 
 .debug-label {
-  color: #94a3b8;
+  color: var(--text-secondary);
   font-weight: 600;
   font-size: 12px;
 }
 
 .debug-value {
-  color: #ffffff;
+  color: var(--text);
   font-size: 12px;
   display: flex;
   align-items: center;
@@ -1729,9 +1715,9 @@
 
 .debug-source {
   font-size: 9px;
-  color: #c084fc;
-  background: rgba(139, 92, 246, 0.15);
-  border: 1px solid rgba(139, 92, 246, 0.25);
+  color: var(--feat-autoupgrade);
+  background: color-mix(in srgb, var(--feat-autoupgrade) 15%, transparent);
+  border: 1px solid color-mix(in srgb, var(--feat-autoupgrade) 25%, transparent);
   padding: 2px 6px;
   border-radius: 4px;
   display: inline-block;
@@ -1739,13 +1725,13 @@
 }
 
 .debug-json-block {
-  background: rgba(0, 0, 0, 0.45);
-  border: 1px solid rgba(255, 255, 255, 0.08);
+  background: var(--surface-inset);
+  border: 1px solid var(--border);
   border-radius: 12px;
   padding: 14px;
   font-family: monospace;
   font-size: 11px;
-  color: #38bdf8;
+  color: var(--accent);
   overflow-x: auto;
   max-height: 180px;
   white-space: pre-wrap;
@@ -1785,8 +1771,8 @@
   justify-content: center;
   gap: 0px;
   padding: 7px 8px 5px 8px;
-  background: rgba(255, 255, 255, 0.02);
-  border: 1px solid rgba(255, 255, 255, 0.05);
+  background: color-mix(in srgb, var(--text) 3%, transparent);
+  border: 1px solid var(--border);
   border-radius: 8px;
   min-width: 68px;
   cursor: pointer;
@@ -1795,21 +1781,21 @@
 }
 
 #psycle-helper-container .psycle-day-pill:hover {
-  background: rgba(255, 255, 255, 0.08);
-  border-color: rgba(255, 255, 255, 0.15);
+  background: color-mix(in srgb, var(--text) 8%, transparent);
+  border-color: var(--border-strong);
   transform: translateY(-1px);
 }
 
 #psycle-helper-container .psycle-day-pill.active {
-  background: rgba(56, 189, 248, 0.12);
-  border-color: #38bdf8;
-  box-shadow: 0 0 12px rgba(56, 189, 248, 0.25);
+  background: color-mix(in srgb, var(--accent) 12%, transparent);
+  border-color: var(--accent);
+  box-shadow: 0 0 12px color-mix(in srgb, var(--accent) 25%, transparent);
 }
 
 #psycle-helper-container .psycle-day-pill .day-name {
   font-size: 11px;
   font-weight: 400;
-  color: #94a3b8;
+  color: var(--text-secondary);
   text-transform: uppercase;
   margin-bottom: 0px;
   letter-spacing: 0.2px;
@@ -1817,32 +1803,32 @@
 }
 
 #psycle-helper-container .psycle-day-pill.active .day-name {
-  color: #38bdf8;
+  color: var(--accent);
   opacity: 0.75;
 }
 
 #psycle-helper-container .psycle-day-pill .day-num {
   font-size: 13px;
   font-weight: 700;
-  color: #ffffff;
+  color: var(--text);
   line-height: 1 !important;
 }
 
 #psycle-helper-container .psycle-day-pill.active .day-num {
-  color: #38bdf8;
+  color: var(--accent);
 }
 
 #psycle-helper-container .psycle-day-pill .day-month {
   font-size: 13px;
   font-weight: 700;
   text-transform: uppercase;
-  color: #ffffff;
+  color: var(--text);
   margin-top: 0px;
   line-height: 1 !important;
 }
 
 #psycle-helper-container .psycle-day-pill.active .day-month {
-  color: #38bdf8;
+  color: var(--accent);
 }
 
 /* Select Dropdown Filters styling */
@@ -1855,11 +1841,11 @@
 }
 
 #psycle-helper-container .psycle-select {
-  background: rgba(0, 0, 0, 0.35);
-  border: 1px solid rgba(255, 255, 255, 0.08);
+  background: var(--surface-inset);
+  border: 1px solid var(--border);
   border-radius: 10px;
   padding: 8px 12px;
-  color: #ffffff;
+  color: var(--text);
   font-size: 11px;
   font-weight: 500;
   outline: none;
@@ -1868,18 +1854,18 @@
 }
 
 #psycle-helper-container .psycle-select:hover {
-  background: rgba(255, 255, 255, 0.04);
-  border-color: rgba(255, 255, 255, 0.15);
+  background: var(--surface-2);
+  border-color: var(--border-strong);
 }
 
 #psycle-helper-container .psycle-select:focus {
-  border-color: #38bdf8;
-  box-shadow: 0 0 8px rgba(56, 189, 248, 0.2);
+  border-color: var(--accent);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent) 20%, transparent);
 }
 
 #psycle-helper-container .psycle-select option {
-  background: #111422;
-  color: #ffffff;
+  background: var(--surface);
+  color: var(--text);
 }
 
 /* Grayed-out classes outside current booking cutoff */
@@ -1905,7 +1891,7 @@
 }
 
 #psycle-helper-container .psycle-btn-autobook:hover {
-  background: #a78bfa !important;
+  background: var(--feat-autoupgrade) !important;
   transform: translateY(-0.5px);
 }
 
@@ -1923,73 +1909,73 @@
   justify-content: center;
   font-size: 11px;
   font-weight: 700;
-  color: #ffffff;
+  color: var(--text);
   user-select: none;
   transition: all 0.2s cubic-bezier(0.25, 1, 0.5, 1);
 }
 
 .psycle-slot-bubble.available {
-  background: rgba(16, 185, 129, 0.12);
-  border: 1.5px solid #10b981;
-  color: #34d399;
+  background: color-mix(in srgb, var(--success) 12%, transparent);
+  border: 1.5px solid var(--success);
+  color: var(--success);
   cursor: pointer;
   box-shadow: 0 2px 6px rgba(16, 185, 129, 0.15);
 }
 
 .psycle-slot-bubble.available:hover {
-  background: rgba(16, 185, 129, 0.3);
-  border-color: #34d399;
-  color: #ffffff;
+  background: color-mix(in srgb, var(--success) 30%, transparent);
+  border-color: var(--success);
+  color: var(--on-accent);
   transform: translate(-50%, -50%) scale(1.18);
-  box-shadow: 0 4px 12px rgba(16, 185, 129, 0.4);
+  box-shadow: 0 4px 12px color-mix(in srgb, var(--success) 40%, transparent);
 }
 
 .psycle-slot-bubble.available.selected {
-  background: #10b981 !important;
-  border-color: #34d399 !important;
-  color: #ffffff !important;
+  background: var(--success) !important;
+  border-color: var(--success) !important;
+  color: var(--on-accent) !important;
   transform: translate(-50%, -50%) scale(1.25);
-  box-shadow: 0 0 16px rgba(52, 211, 153, 0.7), 0 4px 10px rgba(0,0,0,0.3);
+  box-shadow: 0 0 16px color-mix(in srgb, var(--success) 60%, transparent);
   z-index: 10;
 }
 
 .psycle-slot-bubble.occupied {
-  background: rgba(30, 41, 59, 0.4);
-  border: 1px solid rgba(255, 255, 255, 0.08);
-  color: rgba(255, 255, 255, 0.2);
+  background: var(--surface-inset);
+  border: 1px solid var(--border);
+  color: color-mix(in srgb, var(--text) 25%, transparent);
   cursor: not-allowed;
 }
 
 .psycle-slot-bubble.booked {
-  background: #8b5cf6 !important;
-  border-color: #c084fc !important;
-  color: #ffffff !important;
-  box-shadow: 0 0 16px rgba(167, 139, 250, 0.7), 0 4px 10px rgba(0,0,0,0.3);
+  background: var(--feat-autoupgrade) !important;
+  border-color: color-mix(in srgb, var(--feat-autoupgrade) 70%, #fff) !important;
+  color: var(--on-accent) !important;
+  box-shadow: 0 0 16px color-mix(in srgb, var(--feat-autoupgrade) 60%, transparent);
   z-index: 10;
 }
 
-/* Auto-Book Preferred Selection Purple Styling */
+/* Auto-Book Preferred Selection Styling */
 .psycle-slot-bubble.autobook-selected {
-  background: #8b5cf6 !important;
-  border-color: #c084fc !important;
-  color: #ffffff !important;
+  background: var(--feat-autoupgrade) !important;
+  border-color: color-mix(in srgb, var(--feat-autoupgrade) 70%, #fff) !important;
+  color: var(--on-accent) !important;
   transform: translate(-50%, -50%) scale(1.2);
-  box-shadow: 0 0 16px rgba(167, 139, 250, 0.7), 0 4px 10px rgba(0,0,0,0.3);
+  box-shadow: 0 0 16px color-mix(in srgb, var(--feat-autoupgrade) 60%, transparent);
   z-index: 10;
 }
 
 .psycle-slot-bubble.autobook-selected.occupied-selected {
-  background: rgba(139, 92, 246, 0.35) !important;
-  border-color: rgba(167, 139, 250, 0.6) !important;
-  color: rgba(255, 255, 255, 0.7) !important;
+  background: color-mix(in srgb, var(--feat-autoupgrade) 35%, transparent) !important;
+  border-color: color-mix(in srgb, var(--feat-autoupgrade) 60%, transparent) !important;
+  color: color-mix(in srgb, var(--on-accent) 70%, transparent) !important;
   border-style: dashed !important;
-  box-shadow: 0 0 12px rgba(139, 92, 246, 0.3);
+  box-shadow: 0 0 12px color-mix(in srgb, var(--feat-autoupgrade) 30%, transparent);
 }
 
 .psycle-slot-bubble.autobook-row-selected {
   background: #06b6d4 !important;
   border-color: #67e8f9 !important;
-  color: #ffffff !important;
+  color: var(--on-accent) !important;
   transform: translate(-50%, -50%) scale(1.15);
   box-shadow: 0 0 14px rgba(6, 182, 212, 0.7), 0 3px 8px rgba(0,0,0,0.3);
   z-index: 9;
@@ -1998,7 +1984,7 @@
 .psycle-slot-bubble.autobook-row-selected.occupied-selected {
   background: rgba(6, 182, 212, 0.3) !important;
   border-color: rgba(103, 232, 249, 0.6) !important;
-  color: rgba(255, 255, 255, 0.8) !important;
+  color: color-mix(in srgb, var(--on-accent) 80%, transparent) !important;
   border-style: dashed !important;
   box-shadow: 0 0 8px rgba(6, 182, 212, 0.3);
 }
@@ -2016,9 +2002,9 @@
 
 .psycle-row-select-btn.active:hover {
   background: rgba(239, 68, 68, 0.2) !important;
-  border-color: #ef4444 !important;
-  color: #ef4444 !important;
-  box-shadow: 0 0 10px rgba(239, 68, 68, 0.4) !important;
+  border-color: var(--danger) !important;
+  color: var(--danger) !important;
+  box-shadow: 0 0 10px color-mix(in srgb, var(--danger) 40%, transparent) !important;
 }
 
 .psycle-row-backdrop {
@@ -2037,22 +2023,22 @@
 }
 
 .psycle-slot-grid-btn.autobook-selected {
-  background: #8b5cf6 !important;
-  border-color: #a78bfa !important;
-  color: #ffffff !important;
-  box-shadow: 0 0 12px rgba(167, 139, 250, 0.45);
+  background: var(--feat-autoupgrade) !important;
+  border-color: color-mix(in srgb, var(--feat-autoupgrade) 70%, #fff) !important;
+  color: var(--on-accent) !important;
+  box-shadow: 0 0 12px color-mix(in srgb, var(--feat-autoupgrade) 45%, transparent);
 }
 
 .psycle-slot-grid-btn.autobook-selected.occupied-selected {
-  background: rgba(139, 92, 246, 0.45) !important;
-  border-color: rgba(167, 139, 250, 0.6) !important;
-  box-shadow: 0 0 8px rgba(139, 92, 246, 0.3);
+  background: color-mix(in srgb, var(--feat-autoupgrade) 45%, transparent) !important;
+  border-color: color-mix(in srgb, var(--feat-autoupgrade) 60%, transparent) !important;
+  box-shadow: 0 0 8px color-mix(in srgb, var(--feat-autoupgrade) 30%, transparent);
 }
 
 .psycle-slot-grid-btn.occupied {
-  background: rgba(255, 255, 255, 0.02) !important;
-  border: 1px solid rgba(255, 255, 255, 0.05) !important;
-  color: rgba(255, 255, 255, 0.18) !important;
+  background: color-mix(in srgb, var(--text) 3%, transparent) !important;
+  border: 1px solid var(--border) !important;
+  color: color-mix(in srgb, var(--text) 20%, transparent) !important;
 }
 
 /* Auto-Upgrade Bubble Styles */
@@ -2076,7 +2062,7 @@
 .psycle-upgrade-bubble.current-slot {
   background: #3b82f6 !important;
   border: 2px solid #60a5fa !important;
-  color: #ffffff !important;
+  color: var(--on-accent) !important;
   transform: translate(-50%, -50%) scale(1.25);
   box-shadow: 0 0 16px rgba(59, 130, 246, 0.7), 0 4px 10px rgba(0,0,0,0.3);
   z-index: 12;
@@ -2084,49 +2070,49 @@
 }
 
 .psycle-upgrade-bubble.upgrade-selected {
-  background: #8b5cf6 !important;
-  border-color: #c084fc !important;
-  color: #ffffff !important;
+  background: var(--feat-autoupgrade) !important;
+  border-color: color-mix(in srgb, var(--feat-autoupgrade) 70%, #fff) !important;
+  color: var(--on-accent) !important;
   transform: translate(-50%, -50%) scale(1.2);
-  box-shadow: 0 0 16px rgba(167, 139, 250, 0.7), 0 4px 10px rgba(0,0,0,0.3);
+  box-shadow: 0 0 16px color-mix(in srgb, var(--feat-autoupgrade) 60%, transparent);
   z-index: 10;
 }
 
 .psycle-upgrade-bubble.available {
-  background: rgba(16, 185, 129, 0.2) !important;
-  border: 1.5px solid rgba(52, 211, 153, 0.5) !important;
-  color: #34d399 !important;
+  background: color-mix(in srgb, var(--success) 20%, transparent) !important;
+  border: 1.5px solid color-mix(in srgb, var(--success) 50%, transparent) !important;
+  color: var(--success) !important;
 }
 
 .psycle-upgrade-bubble.available:hover {
-  background: rgba(16, 185, 129, 0.35) !important;
-  border-color: #34d399 !important;
+  background: color-mix(in srgb, var(--success) 35%, transparent) !important;
+  border-color: var(--success) !important;
   transform: translate(-50%, -50%) scale(1.15);
-  box-shadow: 0 0 10px rgba(52, 211, 153, 0.4);
+  box-shadow: 0 0 10px color-mix(in srgb, var(--success) 40%, transparent);
 }
 
 .psycle-upgrade-bubble.occupied {
-  background: rgba(255, 255, 255, 0.04) !important;
-  border: 1px solid rgba(255, 255, 255, 0.08) !important;
-  color: rgba(255, 255, 255, 0.2) !important;
+  background: color-mix(in srgb, var(--text) 4%, transparent) !important;
+  border: 1px solid var(--border) !important;
+  color: color-mix(in srgb, var(--text) 20%, transparent) !important;
   cursor: not-allowed;
 }
 
 /* Auto-Upgrade button in My Bookings */
 .psycle-auto-upgrade-btn:hover {
-  background: rgba(16, 185, 129, 0.2) !important;
-  border-color: rgba(52, 211, 153, 0.5) !important;
+  background: color-mix(in srgb, var(--success) 15%, transparent) !important;
+  border-color: color-mix(in srgb, var(--success) 50%, transparent) !important;
   transform: translateY(-1px);
-  box-shadow: 0 2px 8px rgba(16, 185, 129, 0.2);
+  box-shadow: 0 2px 8px color-mix(in srgb, var(--success) 20%, transparent);
 }
 
 /* Fallback Grid layout buttons */
 .psycle-slot-grid-btn {
-  background: rgba(255, 255, 255, 0.03);
-  border: 1px solid rgba(255, 255, 255, 0.08);
+  background: var(--surface-inset);
+  border: 1px solid var(--border);
   border-radius: 10px;
   padding: 10px;
-  color: #cbd5e1;
+  color: var(--text-secondary);
   text-align: center;
   font-size: 12px;
   font-weight: 600;
@@ -2136,28 +2122,28 @@
 }
 
 .psycle-slot-grid-btn:hover {
-  background: rgba(16, 185, 129, 0.15);
-  border-color: rgba(16, 185, 129, 0.45);
-  color: #ffffff;
+  background: color-mix(in srgb, var(--success) 15%, transparent);
+  border-color: color-mix(in srgb, var(--success) 45%, transparent);
+  color: var(--text);
   transform: translateY(-1px);
 }
 
 .psycle-slot-grid-btn.selected {
-  background: #10b981 !important;
-  border-color: #34d399 !important;
-  color: #ffffff !important;
-  box-shadow: 0 0 12px rgba(16, 185, 129, 0.45);
+  background: var(--success) !important;
+  border-color: var(--success) !important;
+  color: var(--on-accent) !important;
+  box-shadow: 0 0 12px color-mix(in srgb, var(--success) 45%, transparent);
 }
 
 /* My Bookings layout and styling */
 #psycle-helper-container .psycle-booking-card {
-  box-shadow: 0 4px 15px rgba(0, 0, 0, 0.15), inset 0 1px 0 rgba(255, 255, 255, 0.03);
+  box-shadow: var(--shadow-card);
   transition: border-color 0.2s, background-color 0.2s;
 }
 
 #psycle-helper-container .psycle-booking-card:hover {
-  border-color: rgba(255, 255, 255, 0.15) !important;
-  background-color: rgba(255, 255, 255, 0.05) !important;
+  border-color: var(--border-strong) !important;
+  background-color: color-mix(in srgb, var(--text) 3%, var(--surface)) !important;
 }
 
 #psycle-helper-container .psycle-cancel-booking-btn {
@@ -2165,9 +2151,9 @@
 }
 
 #psycle-helper-container .psycle-cancel-booking-btn:hover {
-  background: rgba(239, 68, 68, 0.25) !important;
-  border-color: rgba(239, 68, 68, 0.5) !important;
-  color: #ef4444 !important;
+  background: color-mix(in srgb, var(--danger) 15%, transparent) !important;
+  border-color: color-mix(in srgb, var(--danger) 50%, transparent) !important;
+  color: var(--danger) !important;
   transform: translateY(-0.5px);
 }
 
@@ -2176,9 +2162,9 @@
 }
 
 #psycle-helper-container .psycle-leave-waitlist-btn:hover {
-  background: rgba(245, 158, 11, 0.25) !important;
-  border-color: rgba(245, 158, 11, 0.5) !important;
-  color: #fbbf24 !important;
+  background: color-mix(in srgb, var(--warning) 15%, transparent) !important;
+  border-color: color-mix(in srgb, var(--warning) 50%, transparent) !important;
+  color: var(--warning) !important;
   transform: translateY(-0.5px);
 }
 
@@ -2204,14 +2190,14 @@
   position: fixed;
   z-index: 2200000; /* Ensure it floats above the modal (2000000) and other components */
   width: 280px;
-  background: rgba(15, 23, 42, 0.85);
+  background: var(--surface);
   backdrop-filter: blur(20px);
   -webkit-backdrop-filter: blur(20px);
-  border: 1px solid rgba(255, 255, 255, 0.15);
+  border: 1px solid var(--border-strong);
   border-radius: 16px;
   padding: 16px;
-  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.5), inset 0 1px 0 rgba(255, 255, 255, 0.1);
-  color: #f8fafc;
+  box-shadow: var(--shadow-card);
+  color: var(--text);
   pointer-events: auto;
   font-family: 'Outfit', 'Inter', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
   opacity: 0;
@@ -2235,24 +2221,23 @@
   height: 48px;
   border-radius: 50%;
   object-fit: cover;
-  border: 2px solid rgba(139, 92, 246, 0.6);
-  box-shadow: 0 0 12px rgba(139, 92, 246, 0.3);
+  border: 2px solid color-mix(in srgb, var(--accent) 60%, transparent);
+  box-shadow: 0 0 12px color-mix(in srgb, var(--accent) 30%, transparent);
 }
 
 .psycle-tooltip-name {
   font-size: 14px;
   font-weight: 700;
-  color: #ffffff;
+  color: var(--text);
   margin: 0;
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
-  text-shadow: 0 1px 2px rgba(0, 0, 0, 0.5);
 }
 
 .psycle-tooltip-keywords {
   font-size: 10px;
-  color: #a78bfa;
+  color: var(--accent);
   font-weight: 500;
   margin-top: 2px;
   overflow: hidden;
@@ -2265,7 +2250,7 @@
   display: flex;
   gap: 12px;
   font-size: 10px;
-  color: #a78bfa;
+  color: var(--accent);
 }
 
 .psycle-tooltip-socials span {
@@ -2276,11 +2261,10 @@
 
 /* Interactive JSON Explorer */
 .json-toggle:hover {
-  color: #a78bfa !important;
-  text-shadow: 0 0 8px rgba(167, 139, 250, 0.4);
+  color: var(--accent) !important;
 }
 .json-nested li:hover {
-  background: rgba(255, 255, 255, 0.02);
+  background: color-mix(in srgb, var(--text) 3%, transparent);
 }
 
 /* Class Debug Modal Size Overrides */
@@ -2340,7 +2324,7 @@
   align-items: center;
   gap: 8px;
   font-size: 11px;
-  color: #cbd5e1;
+  color: var(--text-secondary);
   cursor: pointer;
   padding: 6px 8px !important;
   border-radius: 8px;
@@ -2349,8 +2333,8 @@
 }
 
 #psycle-helper-container .psycle-ms-option-label:hover {
-  background: rgba(255, 255, 255, 0.06);
-  color: #ffffff;
+  background: color-mix(in srgb, var(--text) 6%, transparent);
+  color: var(--text);
 }
 
 /* Custom Checkboxes */
@@ -2360,8 +2344,8 @@
   width: 14px;
   height: 14px;
   border-radius: 4px;
-  border: 1px solid rgba(255, 255, 255, 0.25);
-  background: rgba(0, 0, 0, 0.3);
+  border: 1px solid var(--border-strong);
+  background: var(--surface-inset);
   position: relative;
   cursor: pointer;
   transition: all 0.2s ease;
@@ -2370,9 +2354,9 @@
 }
 
 #psycle-helper-container .psycle-ms-checkbox:checked {
-  background: #8b5cf6;
-  border-color: #a78bfa;
-  box-shadow: 0 0 8px rgba(167, 139, 250, 0.5);
+  background: var(--accent);
+  border-color: var(--accent);
+  box-shadow: 0 0 8px color-mix(in srgb, var(--accent) 40%, transparent);
 }
 
 #psycle-helper-container .psycle-ms-checkbox:checked::after {
@@ -2382,7 +2366,7 @@
   top: 1px;
   width: 4px;
   height: 7px;
-  border: solid #ffffff;
+  border: solid var(--on-accent);
   border-width: 0 2px 2px 0;
   transform: rotate(45deg);
 }
@@ -2425,28 +2409,28 @@
 
 #psycle-helper-container .psycle-table tr {
   display: table-row !important;
-  border-bottom: 1px solid rgba(255, 255, 255, 0.05) !important;
+  border-bottom: 1px solid var(--separator) !important;
   background: transparent !important;
   transition: background-color 0.15s ease !important;
 }
 
 #psycle-helper-container .psycle-table tr:hover {
-  background: rgba(255, 255, 255, 0.015) !important;
+  background: color-mix(in srgb, var(--text) 4%, transparent) !important;
 }
 
 #psycle-helper-container .psycle-table th {
   display: table-cell !important;
   padding: 6px 8px !important;
-  color: #94a3b8 !important;
+  color: var(--text-secondary) !important;
   font-weight: 600 !important;
   font-size: 9px !important;
   text-transform: uppercase !important;
   letter-spacing: 0.5px !important;
-  border-bottom: 1px solid rgba(255, 255, 255, 0.08) !important;
+  border-bottom: 1px solid var(--border) !important;
   vertical-align: middle !important;
   position: sticky !important;
   top: 0 !important;
-  background: #111422 !important;
+  background: var(--surface-inset) !important;
   z-index: 10 !important;
 }
 
@@ -2454,21 +2438,21 @@
   display: table-cell !important;
   padding: 6px 8px !important;
   vertical-align: middle !important;
-  border-bottom: 1px solid rgba(255, 255, 255, 0.04) !important;
+  border-bottom: 1px solid var(--separator) !important;
   font-size: 13px !important;
-  color: #cbd5e1 !important;
+  color: var(--text-secondary) !important;
 }
 
 #psycle-helper-container .psycle-table td strong {
   font-size: 13px !important;
   font-weight: 600 !important;
-  color: #ffffff !important;
+  color: var(--text) !important;
 }
 
 #psycle-helper-container .psycle-table td .psycle-location-clickable {
   font-size: 13px !important;
   font-weight: 600 !important;
-  color: #ffffff !important;
+  color: var(--text) !important;
 }
 
 #psycle-helper-container .psycle-table td .psycle-instructor-hover {
@@ -2481,7 +2465,7 @@
 
 #psycle-helper-container .psycle-table td.col-type {
   font-weight: 600 !important;
-  color: #a78bfa !important;
+  color: var(--accent) !important;
   white-space: nowrap !important;
   overflow: hidden !important;
   text-overflow: ellipsis !important;
@@ -2491,7 +2475,7 @@
 #psycle-helper-container .psycle-table td.col-time strong {
   font-size: 14px !important;
   font-weight: 800 !important;
-  color: #ffffff !important;
+  color: var(--text) !important;
   white-space: nowrap !important;
 }
 
@@ -2529,9 +2513,9 @@
   display: inline-block;
   width: 10px;
   height: 10px;
-  border: 2px solid rgba(255, 255, 255, 0.3) !important;
+  border: 2px solid color-mix(in srgb, var(--text) 30%, transparent) !important;
   border-radius: 50% !important;
-  border-top-color: #ffffff !important;
+  border-top-color: var(--text) !important;
   animation: spin 0.8s linear infinite !important;
   margin-right: 6px;
   vertical-align: middle;
@@ -2559,7 +2543,7 @@
 
 /* Calendar Button Hover Style */
 .psycle-add-calendar-btn:hover {
-  color: #ffffff !important;
+  color: var(--text) !important;
   transform: scale(1.1);
 }
 
@@ -2587,7 +2571,7 @@
 #psycle-helper-container .psycle-maximize-btn {
   background: transparent;
   border: none;
-  color: #94a3b8;
+  color: var(--text-secondary);
   cursor: pointer;
   display: flex;
   align-items: center;
@@ -2597,7 +2581,7 @@
 }
 
 #psycle-helper-container .psycle-maximize-btn:hover {
-  color: #ffffff !important;
+  color: var(--text) !important;
   transform: scale(1.1);
 }
 
@@ -2607,8 +2591,8 @@
   bottom: 74px;
   right: 24px;
   z-index: 10000;
-  background: #8b5cf6;
-  color: white;
+  background: var(--feat-autoupgrade);
+  color: var(--on-accent);
   border: none;
   border-radius: 50%;
   width: 44px;
@@ -2616,23 +2600,23 @@
   display: flex;
   align-items: center;
   justify-content: center;
-  box-shadow: 0 4px 14px rgba(139, 92, 246, 0.4), inset 0 1px 0 rgba(255,255,255,0.25);
+  box-shadow: 0 4px 14px color-mix(in srgb, var(--feat-autoupgrade) 40%, transparent);
   cursor: pointer;
   transition: all 0.3s cubic-bezier(0.25, 1, 0.5, 1);
   backdrop-filter: blur(10px);
-  border: 1px solid rgba(255, 255, 255, 0.1);
+  border: 1px solid color-mix(in srgb, var(--on-accent) 15%, transparent);
 }
 
 #psycle-helper-container .psycle-global-refresh-btn:hover {
-  background: #7c3aed;
+  background: color-mix(in srgb, var(--feat-autoupgrade) 85%, #000);
   transform: scale(1.08);
-  box-shadow: 0 6px 18px rgba(139, 92, 246, 0.55), inset 0 1px 0 rgba(255,255,255,0.3);
+  box-shadow: 0 6px 18px color-mix(in srgb, var(--feat-autoupgrade) 55%, transparent);
 }
 
 #psycle-helper-container .psycle-global-refresh-btn .refresh-icon {
   width: 18px;
   height: 18px;
-  color: #ffffff !important;
+  color: var(--on-accent) !important;
   display: block;
 }
 
@@ -2669,12 +2653,12 @@
 }
 
 #psycle-helper-container .psycle-split-btn-group .psycle-split-main-btn:not(.scheduled) {
-  background: #8b5cf6;
-  color: #ffffff;
+  background: var(--feat-autoupgrade);
+  color: var(--on-accent);
 }
 
 #psycle-helper-container .psycle-split-btn-group .psycle-split-main-btn:not(.scheduled):hover {
-  background: #7c3aed;
+  background: color-mix(in srgb, var(--feat-autoupgrade) 85%, #000);
 }
 
 #psycle-helper-container .psycle-split-btn-group .psycle-split-context-btn {
@@ -2686,36 +2670,36 @@
 }
 
 #psycle-helper-container .psycle-split-btn-group .psycle-split-context-btn:not(.scheduled) {
-  background: #7c3aed;
-  color: #ffffff;
-  border-left: 1px solid rgba(255, 255, 255, 0.15);
+  background: color-mix(in srgb, var(--feat-autoupgrade) 85%, #000);
+  color: var(--on-accent);
+  border-left: 1px solid color-mix(in srgb, var(--on-accent) 15%, transparent);
 }
 
 #psycle-helper-container .psycle-split-btn-group .psycle-split-context-btn:not(.scheduled):hover {
-  background: #6d28d9;
+  background: color-mix(in srgb, var(--feat-autoupgrade) 70%, #000);
 }
 
 /* Colors for scheduled buttons */
 #psycle-helper-container .psycle-split-btn-group .psycle-split-main-btn.scheduled {
-  background: rgba(139, 92, 246, 0.15);
-  border: 1px solid rgba(139, 92, 246, 0.3);
+  background: color-mix(in srgb, var(--feat-autoupgrade) 15%, transparent);
+  border: 1px solid color-mix(in srgb, var(--feat-autoupgrade) 30%, transparent);
   border-right: none;
-  color: #c084fc;
+  color: var(--feat-autoupgrade);
 }
 
 #psycle-helper-container .psycle-split-btn-group .psycle-split-main-btn.scheduled:hover {
-  background: rgba(139, 92, 246, 0.25);
+  background: color-mix(in srgb, var(--feat-autoupgrade) 25%, transparent);
 }
 
 #psycle-helper-container .psycle-split-btn-group .psycle-split-context-btn.scheduled {
-  background: rgba(139, 92, 246, 0.15);
-  border: 1px solid rgba(139, 92, 246, 0.3);
-  border-left: 1px solid rgba(139, 92, 246, 0.2);
-  color: #c084fc;
+  background: color-mix(in srgb, var(--feat-autoupgrade) 15%, transparent);
+  border: 1px solid color-mix(in srgb, var(--feat-autoupgrade) 30%, transparent);
+  border-left: 1px solid color-mix(in srgb, var(--feat-autoupgrade) 20%, transparent);
+  color: var(--feat-autoupgrade);
 }
 
 #psycle-helper-container .psycle-split-btn-group .psycle-split-context-btn.scheduled:hover {
-  background: rgba(139, 92, 246, 0.25);
+  background: color-mix(in srgb, var(--feat-autoupgrade) 25%, transparent);
 }
 
 /* --- OCCUPANCY HOVER TOOLTIP & MINIMAP --- */
@@ -2723,14 +2707,14 @@
   position: fixed;
   z-index: 2200000; /* Float above standard components */
   width: 240px;
-  background: rgba(15, 23, 42, 0.9);
+  background: var(--surface);
   backdrop-filter: blur(20px);
   -webkit-backdrop-filter: blur(20px);
-  border: 1px solid rgba(255, 255, 255, 0.15);
+  border: 1px solid var(--border-strong);
   border-radius: 16px;
   padding: 12px;
-  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.5), inset 0 1px 0 rgba(255, 255, 255, 0.1);
-  color: #f8fafc;
+  box-shadow: var(--shadow-card);
+  color: var(--text);
   pointer-events: none; /* Avoid mouse collision / hover flicker */
   font-family: 'Outfit', 'Inter', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
   opacity: 0;
@@ -2747,8 +2731,8 @@
   position: relative;
   width: 100%;
   height: 150px;
-  background: rgba(0, 0, 0, 0.3);
-  border: 1px solid rgba(255, 255, 255, 0.08);
+  background: var(--surface-inset);
+  border: 1px solid var(--border);
   border-radius: 10px;
   margin-top: 8px;
   overflow: hidden;
@@ -2757,9 +2741,9 @@
 
 .psycle-minimap-stage {
   position: absolute;
-  background: rgba(255, 255, 255, 0.1);
-  border: 1px solid rgba(255, 255, 255, 0.2);
-  color: rgba(255, 255, 255, 0.6);
+  background: color-mix(in srgb, var(--text) 10%, transparent);
+  border: 1px solid var(--border-strong);
+  color: color-mix(in srgb, var(--text) 60%, transparent);
   font-size: 8px;
   font-weight: 700;
   padding: 2px 8px;
@@ -2778,13 +2762,13 @@
 }
 
 .psycle-minimap-dot.available {
-  background: #10b981;
-  box-shadow: 0 0 6px rgba(16, 185, 129, 0.6);
+  background: var(--success);
+  box-shadow: 0 0 6px color-mix(in srgb, var(--success) 60%, transparent);
 }
 
 .psycle-minimap-dot.occupied {
-  background: #ef4444;
-  box-shadow: 0 0 4px rgba(239, 68, 68, 0.4);
+  background: var(--danger);
+  box-shadow: 0 0 4px color-mix(in srgb, var(--danger) 40%, transparent);
 }
 
 .psycle-minimap-legend {
@@ -2792,7 +2776,7 @@
   justify-content: center;
   gap: 12px;
   font-size: 9px;
-  color: #94a3b8;
+  color: var(--text-secondary);
   margin-top: 6px;
 }
 
@@ -2809,13 +2793,13 @@
 }
 
 .psycle-minimap-legend-dot.available {
-  background: #10b981;
-  box-shadow: 0 0 4px rgba(16, 185, 129, 0.6);
+  background: var(--success);
+  box-shadow: 0 0 4px color-mix(in srgb, var(--success) 60%, transparent);
 }
 
 .psycle-minimap-legend-dot.occupied {
-  background: #ef4444;
-  box-shadow: 0 0 3px rgba(239, 68, 68, 0.4);
+  background: var(--danger);
+  box-shadow: 0 0 3px color-mix(in srgb, var(--danger) 40%, transparent);
 }
 
 /* --- Bookmark & Auto-Book Pause UI Additions --- */
@@ -2839,12 +2823,12 @@
 }
 
 .psycle-timetable-heart.bookmarked {
-  color: #ef4444 !important;
-  filter: drop-shadow(0 0 5px rgba(239, 68, 68, 0.6));
+  color: var(--danger) !important;
+  filter: drop-shadow(0 0 5px color-mix(in srgb, var(--danger) 60%, transparent));
 }
 
 .psycle-timetable-heart.unbookmarked {
-  color: rgba(255, 255, 255, 0.35) !important;
+  color: color-mix(in srgb, var(--text) 35%, transparent) !important;
 }
 
 .psycle-timetable-heart.loading {
@@ -2860,9 +2844,9 @@
 
 /* Bookmarks Filter Button */
 #psycle-filter-favorites-only {
-  background: rgba(255, 255, 255, 0.03);
-  border: 1px solid rgba(255, 255, 255, 0.12);
-  color: #94a3b8;
+  background: var(--surface-inset);
+  border: 1px solid var(--border);
+  color: var(--text-secondary);
   border-radius: 12px;
   font-size: 12px;
   font-weight: 600;
@@ -2877,15 +2861,14 @@
 }
 
 #psycle-filter-favorites-only:hover {
-  background: rgba(255, 255, 255, 0.08);
-  color: #f1f5f9;
+  background: color-mix(in srgb, var(--text) 8%, transparent);
+  color: var(--text);
 }
 
 #psycle-filter-favorites-only.active {
-  background: rgba(236, 72, 153, 0.15) !important;
-  border: 1.5px solid #ec4899 !important;
-  color: #f472b6 !important;
-  box-shadow: 0 0 10px rgba(236, 72, 153, 0.25);
+  background: color-mix(in srgb, var(--danger) 15%, transparent) !important;
+  border: 1.5px solid var(--danger) !important;
+  color: var(--danger) !important;
 }
 
 /* Pause Auto-Book Button */
@@ -2915,8 +2898,8 @@
   align-items: center;
   padding: 12px 14px;
   border-radius: 12px;
-  background: rgba(255, 255, 255, 0.02);
-  border: 1px solid rgba(255, 255, 255, 0.06);
+  background: color-mix(in srgb, var(--text) 2%, transparent);
+  border: 1px solid var(--border);
   margin-bottom: 8px;
   cursor: pointer;
   transition: all 0.2s ease;
@@ -2924,13 +2907,13 @@
 }
 
 .psycle-bookmark-slot-row:hover {
-  background: rgba(255, 255, 255, 0.06);
-  border-color: rgba(255, 255, 255, 0.12);
+  background: color-mix(in srgb, var(--text) 6%, transparent);
+  border-color: var(--border-strong);
 }
 
 .psycle-bookmark-slot-row.checked {
-  background: rgba(139, 92, 246, 0.08);
-  border-color: rgba(139, 92, 246, 0.25);
+  background: color-mix(in srgb, var(--accent) 8%, transparent);
+  border-color: color-mix(in srgb, var(--accent) 25%, transparent);
 }
 
 .psycle-bookmark-slot-row input[type="checkbox"] {
@@ -2938,7 +2921,7 @@
   margin-right: 14px;
   width: 18px;
   height: 18px;
-  accent-color: #8b5cf6;
+  accent-color: var(--accent);
 }
 
 .psycle-bookmark-slot-info {
@@ -2951,12 +2934,12 @@
 .psycle-bookmark-slot-title {
   font-size: 13px;
   font-weight: 600;
-  color: #f1f5f9;
+  color: var(--text);
 }
 
 .psycle-bookmark-slot-meta {
   font-size: 11px;
-  color: #94a3b8;
+  color: var(--text-secondary);
 }
 
 /* ============================================================
@@ -2989,77 +2972,77 @@
 
 /* Quick Book button — green */
 .psycle-native-btn-quickbook {
-  background: #10b981;
-  color: #fff;
-  border: 1px solid rgba(16, 185, 129, 0.3);
+  background: var(--success);
+  color: var(--on-accent);
+  border: 1px solid color-mix(in srgb, var(--success) 30%, transparent);
 }
-.psycle-native-btn-quickbook:hover { background: #059669; }
+.psycle-native-btn-quickbook:hover { background: color-mix(in srgb, var(--success) 85%, #000); }
 
 /* Waitlist button — amber */
 .psycle-native-btn-waitlist {
-  background: #f59e0b;
-  color: #fff;
-  border: 1px solid rgba(245, 158, 11, 0.3);
+  background: var(--warning);
+  color: var(--on-accent);
+  border: 1px solid color-mix(in srgb, var(--warning) 30%, transparent);
 }
-.psycle-native-btn-waitlist:hover { background: #d97706; }
+.psycle-native-btn-waitlist:hover { background: color-mix(in srgb, var(--warning) 85%, #000); }
 
 /* Auto Book button — purple */
 .psycle-native-btn-autobook {
-  background: #8b5cf6;
-  color: #fff;
-  border: 1px solid rgba(139, 92, 246, 0.3);
+  background: var(--feat-autoupgrade);
+  color: var(--on-accent);
+  border: 1px solid color-mix(in srgb, var(--feat-autoupgrade) 30%, transparent);
 }
-.psycle-native-btn-autobook:hover { background: #7c3aed; }
+.psycle-native-btn-autobook:hover { background: color-mix(in srgb, var(--feat-autoupgrade) 85%, #000); }
 
 /* Booked badge — green outline */
 .psycle-native-btn-booked {
-  background: rgba(16, 185, 129, 0.15);
-  color: #10b981;
-  border: 1px solid rgba(16, 185, 129, 0.3);
+  background: color-mix(in srgb, var(--success) 15%, transparent);
+  color: var(--success);
+  border: 1px solid color-mix(in srgb, var(--success) 30%, transparent);
   cursor: default;
 }
 
 /* On Waitlist badge — amber outline */
 .psycle-native-btn-onwaitlist {
-  background: rgba(245, 158, 11, 0.15);
-  color: #f59e0b;
-  border: 1px solid rgba(245, 158, 11, 0.3);
+  background: color-mix(in srgb, var(--warning) 15%, transparent);
+  color: var(--warning);
+  border: 1px solid color-mix(in srgb, var(--warning) 30%, transparent);
   cursor: default;
 }
 
 /* Cancel button — red */
 .psycle-native-btn-cancel {
-  background: rgba(239, 68, 68, 0.1);
-  color: #f87171;
-  border: 1px solid rgba(239, 68, 68, 0.25);
+  background: color-mix(in srgb, var(--danger) 10%, transparent);
+  color: var(--danger);
+  border: 1px solid color-mix(in srgb, var(--danger) 25%, transparent);
   font-size: 10px;
   padding: 2px 8px;
 }
-.psycle-native-btn-cancel:hover { background: rgba(239, 68, 68, 0.2); }
+.psycle-native-btn-cancel:hover { background: color-mix(in srgb, var(--danger) 20%, transparent); }
 
 /* Leave Waitlist button — amber */
 .psycle-native-btn-leave {
-  background: rgba(245, 158, 11, 0.1);
-  color: #f59e0b;
-  border: 1px solid rgba(245, 158, 11, 0.25);
+  background: color-mix(in srgb, var(--warning) 10%, transparent);
+  color: var(--warning);
+  border: 1px solid color-mix(in srgb, var(--warning) 25%, transparent);
   font-size: 10px;
   padding: 2px 8px;
 }
-.psycle-native-btn-leave:hover { background: rgba(245, 158, 11, 0.2); }
+.psycle-native-btn-leave:hover { background: color-mix(in srgb, var(--warning) 20%, transparent); }
 
 /* Disabled state */
 .psycle-native-btn-disabled {
-  background: rgba(255, 255, 255, 0.05);
-  color: #64748b;
-  border: 1px solid rgba(255, 255, 255, 0.1);
+  background: color-mix(in srgb, var(--text) 5%, transparent);
+  color: var(--text-secondary);
+  border: 1px solid var(--border);
   cursor: not-allowed;
 }
 
 /* Confirmation button — red pulsing */
 .psycle-native-btn-confirm {
-  background: #ef4444;
-  color: #fff;
-  border: 1px solid rgba(239, 68, 68, 0.3);
+  background: var(--danger);
+  color: var(--on-accent);
+  border: 1px solid color-mix(in srgb, var(--danger) 30%, transparent);
   animation: psycle-pulse-confirm 1s ease-in-out infinite;
 }
 
@@ -3067,20 +3050,20 @@
 .psycle-native-availability {
   font-size: 10px;
   font-weight: 500;
-  color: #94a3b8;
+  color: var(--text-secondary);
   cursor: pointer;
   padding: 2px 4px;
   border-radius: 3px;
   transition: background 0.2s;
 }
 .psycle-native-availability:hover {
-  background: rgba(139, 92, 246, 0.1);
+  background: color-mix(in srgb, var(--accent) 10%, transparent);
 }
 .psycle-native-availability.low {
-  color: #f59e0b;
+  color: var(--warning);
 }
 .psycle-native-availability.none {
-  color: #ef4444;
+  color: var(--danger);
 }
 
 /* Spinner inside native buttons */
@@ -3088,8 +3071,8 @@
   display: inline-block;
   width: 10px;
   height: 10px;
-  border: 1.5px solid rgba(255,255,255,0.3);
-  border-top-color: #fff;
+  border: 1.5px solid color-mix(in srgb, var(--on-accent) 30%, transparent);
+  border-top-color: var(--on-accent);
   border-radius: 50%;
   animation: psycle-spin 0.6s linear infinite;
   margin-right: 4px;
@@ -3134,7 +3117,7 @@
 .psycle-native-debug-info {
   margin-left: 2px !important;
   font-size: 14px !important;
-  color: #a78bfa !important;
+  color: var(--feat-autoupgrade) !important;
   text-decoration: none !important;
   cursor: pointer !important;
   line-height: 1 !important;
@@ -3153,9 +3136,9 @@
   font-weight: 700;
   text-transform: uppercase;
   letter-spacing: 0.5px;
-  color: #f87171; /* pastel red */
-  background: rgba(239, 68, 68, 0.12); /* pastel red bg */
-  border: 1px solid rgba(239, 68, 68, 0.25);
+  color: var(--danger);
+  background: color-mix(in srgb, var(--danger) 12%, transparent);
+  border: 1px solid color-mix(in srgb, var(--danger) 25%, transparent);
   border-radius: 3px;
   padding: 1px 5px;
   margin-left: 4px;
@@ -3170,7 +3153,7 @@
   border-radius: 4px;
   overflow: hidden;
   vertical-align: middle;
-  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.2);
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.15);
 }
 .psycle-native-split-group button {
   border: none;
@@ -3192,59 +3175,59 @@
 }
 .psycle-native-split-group .psycle-native-split-cog {
   border-radius: 0 4px 4px 0;
-  border-left: 1px solid rgba(255, 255, 255, 0.15);
+  border-left: 1px solid color-mix(in srgb, var(--on-accent) 15%, transparent);
   font-size: 15px !important;
   padding: 0 6px;
 }
 
 /* Green split (Quick Book) */
 .psycle-native-split-group.quickbook .psycle-native-split-main {
-  background: #10b981;
-  color: #fff;
+  background: var(--success);
+  color: var(--on-accent);
 }
 .psycle-native-split-group.quickbook .psycle-native-split-main:hover {
-  background: #059669;
+  background: color-mix(in srgb, var(--success) 85%, #000);
 }
 .psycle-native-split-group.quickbook .psycle-native-split-cog {
-  background: #059669;
-  color: #fff;
+  background: color-mix(in srgb, var(--success) 85%, #000);
+  color: var(--on-accent);
 }
 .psycle-native-split-group.quickbook .psycle-native-split-cog:hover {
-  background: #047857;
+  background: color-mix(in srgb, var(--success) 70%, #000);
 }
 
 /* Purple split (Auto Book) */
 .psycle-native-split-group.autobook .psycle-native-split-main {
-  background: #8b5cf6;
-  color: #fff;
+  background: var(--feat-autoupgrade);
+  color: var(--on-accent);
 }
 .psycle-native-split-group.autobook .psycle-native-split-main:hover {
-  background: #7c3aed;
+  background: color-mix(in srgb, var(--feat-autoupgrade) 85%, #000);
 }
 .psycle-native-split-group.autobook .psycle-native-split-cog {
-  background: #7c3aed;
-  color: #fff;
+  background: color-mix(in srgb, var(--feat-autoupgrade) 85%, #000);
+  color: var(--on-accent);
 }
 .psycle-native-split-group.autobook .psycle-native-split-cog:hover {
-  background: #6d28d9;
+  background: color-mix(in srgb, var(--feat-autoupgrade) 70%, #000);
 }
 
 /* Scheduled state (already auto-booked) */
 .psycle-native-split-group.scheduled .psycle-native-split-main {
-  background: rgba(139, 92, 246, 0.15);
-  color: #c084fc;
-  border: 1px solid rgba(139, 92, 246, 0.3);
+  background: color-mix(in srgb, var(--feat-autoupgrade) 15%, transparent);
+  color: var(--feat-autoupgrade);
+  border: 1px solid color-mix(in srgb, var(--feat-autoupgrade) 30%, transparent);
   border-right: none;
   cursor: default;
 }
 .psycle-native-split-group.scheduled .psycle-native-split-cog {
-  background: rgba(139, 92, 246, 0.15);
-  color: #c084fc;
-  border: 1px solid rgba(139, 92, 246, 0.3);
-  border-left: 1px solid rgba(139, 92, 246, 0.2);
+  background: color-mix(in srgb, var(--feat-autoupgrade) 15%, transparent);
+  color: var(--feat-autoupgrade);
+  border: 1px solid color-mix(in srgb, var(--feat-autoupgrade) 30%, transparent);
+  border-left: 1px solid color-mix(in srgb, var(--feat-autoupgrade) 20%, transparent);
 }
 .psycle-native-split-group.scheduled .psycle-native-split-cog:hover {
-  background: rgba(139, 92, 246, 0.25);
+  background: color-mix(in srgb, var(--feat-autoupgrade) 25%, transparent);
 }
 
 @keyframes psycle-spin {
@@ -3268,21 +3251,21 @@
   display: flex;
   align-items: center;
   justify-content: center;
-  color: #fff;
+  color: var(--on-accent);
   font-weight: 600;
 }
 .psycle-slot-available {
-  background: rgba(16, 185, 129, 0.6);
-  border: 2px solid rgba(16, 185, 129, 0.8);
+  background: color-mix(in srgb, var(--success) 60%, transparent);
+  border: 2px solid color-mix(in srgb, var(--success) 80%, transparent);
   cursor: pointer;
 }
 .psycle-slot-available:hover {
-  background: rgba(16, 185, 129, 0.9);
-  box-shadow: 0 0 8px rgba(16, 185, 129, 0.6);
+  background: color-mix(in srgb, var(--success) 90%, transparent);
+  box-shadow: 0 0 8px color-mix(in srgb, var(--success) 60%, transparent);
 }
 .psycle-slot-occupied {
-  background: rgba(239, 68, 68, 0.4);
-  border: 2px solid rgba(239, 68, 68, 0.6);
+  background: color-mix(in srgb, var(--danger) 40%, transparent);
+  border: 2px solid color-mix(in srgb, var(--danger) 60%, transparent);
   cursor: not-allowed;
 }
 
@@ -3295,7 +3278,7 @@
   align-items: center;
   gap: 10px;
   padding: 6px 0;
-  border-bottom: 1px dashed rgba(255, 255, 255, 0.05);
+  border-bottom: 1px dashed var(--separator);
 }
 #psycle-helper-container .psycle-profile-editor-field:last-child {
   border-bottom: none;
@@ -3305,7 +3288,7 @@
   flex: 0 0 130px;
   font-size: 12px;
   font-weight: 500;
-  color: #94a3b8;
+  color: var(--text-secondary);
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -3319,22 +3302,22 @@
 
 #psycle-helper-container .psycle-profile-editor-input {
   width: 100%;
-  background: rgba(0, 0, 0, 0.35);
-  border: 1px solid rgba(255, 255, 255, 0.1);
+  background: var(--surface-inset);
+  border: 1px solid var(--border);
   border-radius: 8px;
   padding: 8px 12px;
-  color: #f1f5f9;
+  color: var(--text);
   font-size: 12px;
   font-family: 'Inter', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
   outline: none;
   transition: border-color 0.2s ease, box-shadow 0.2s ease;
 }
 #psycle-helper-container .psycle-profile-editor-input:focus {
-  border-color: #8b5cf6;
-  box-shadow: 0 0 0 2px rgba(139, 92, 246, 0.25);
+  border-color: var(--feat-autoupgrade);
+  box-shadow: 0 0 0 2px color-mix(in srgb, var(--feat-autoupgrade) 25%, transparent);
 }
 #psycle-helper-container .psycle-profile-editor-input::placeholder {
-  color: #64748b;
+  color: var(--text-secondary);
   font-style: italic;
 }
 
@@ -3343,7 +3326,7 @@
   width: 18px;
   height: 18px;
   cursor: pointer;
-  accent-color: #8b5cf6;
+  accent-color: var(--feat-autoupgrade);
   flex: none;
   padding: 0;
   appearance: auto;
@@ -3353,9 +3336,9 @@
 /* Save button — appears on change */
 #psycle-helper-container .psycle-profile-editor-save {
   flex: 0 0 auto;
-  background: rgba(139, 92, 246, 0.2);
-  border: 1.5px solid rgba(139, 92, 246, 0.4);
-  color: #c084fc;
+  background: color-mix(in srgb, var(--feat-autoupgrade) 20%, transparent);
+  border: 1.5px solid color-mix(in srgb, var(--feat-autoupgrade) 40%, transparent);
+  color: var(--feat-autoupgrade);
   padding: 6px 14px;
   border-radius: 8px;
   font-weight: 700;
@@ -3368,14 +3351,14 @@
   gap: 4px;
 }
 #psycle-helper-container .psycle-profile-editor-save:hover {
-  background: rgba(139, 92, 246, 0.35);
-  border-color: rgba(139, 92, 246, 0.6);
+  background: color-mix(in srgb, var(--feat-autoupgrade) 35%, transparent);
+  border-color: color-mix(in srgb, var(--feat-autoupgrade) 60%, transparent);
 }
 #psycle-helper-container .psycle-profile-editor-save.confirming,
 #psycle-helper-container .psycle-profile-editor-save[data-confirm="true"] {
-  background: rgba(217, 119, 6, 0.25) !important;
-  border-color: #d97706 !important;
-  color: #fbbf24 !important;
+  background: color-mix(in srgb, var(--warning) 25%, transparent) !important;
+  border-color: var(--warning) !important;
+  color: var(--warning) !important;
 }
 
 /* Change log container */
@@ -3391,38 +3374,38 @@
   padding: 6px 10px;
   margin-bottom: 4px;
   border-radius: 6px;
-  background: rgba(0, 0, 0, 0.2);
-  border-left: 3px solid rgba(255, 255, 255, 0.15);
+  background: var(--surface-inset);
+  border-left: 3px solid var(--border-strong);
   font-size: 11px;
   transition: background 0.15s ease;
 }
 #psycle-helper-container .psycle-profile-editor-log-entry:hover {
-  background: rgba(0, 0, 0, 0.35);
+  background: color-mix(in srgb, var(--text) 6%, transparent);
 }
 
 /* Status-based left border colors */
 #psycle-helper-container .psycle-profile-editor-log-entry.verified {
-  border-left-color: #34d399;
+  border-left-color: var(--success);
 }
 #psycle-helper-container .psycle-profile-editor-log-entry.sent {
-  border-left-color: #eab308;
+  border-left-color: var(--warning);
 }
 #psycle-helper-container .psycle-profile-editor-log-entry.failed {
-  border-left-color: #ef4444;
+  border-left-color: var(--danger);
 }
 #psycle-helper-container .psycle-profile-editor-log-entry.reverted {
-  border-left-color: #64748b;
+  border-left-color: var(--text-secondary);
 }
 
 #psycle-helper-container .psycle-profile-editor-log-time {
-  color: #64748b;
+  color: var(--text-secondary);
   font-family: monospace;
   font-size: 10px;
   flex: 0 0 auto;
   min-width: 50px;
 }
 #psycle-helper-container .psycle-profile-editor-log-path {
-  color: #94a3b8;
+  color: var(--text-secondary);
   font-family: monospace;
   font-size: 10px;
   flex: 0 0 auto;
@@ -3434,16 +3417,16 @@
 #psycle-helper-container .psycle-profile-editor-log-change {
   flex: 1;
   font-size: 11px;
-  color: #e2e8f0;
+  color: var(--text);
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
 #psycle-helper-container .psycle-profile-editor-log-change .log-old {
-  color: #f87171;
+  color: var(--danger);
 }
 #psycle-helper-container .psycle-profile-editor-log-change .log-new {
-  color: #34d399;
+  color: var(--success);
 }
 #psycle-helper-container .psycle-profile-editor-log-status {
   flex: 0 0 auto;
@@ -3461,13 +3444,11 @@
   height: 85vh;
   max-height: 85vh;
   border-radius: 28px;
-  background: rgba(20, 24, 38, 0.65);
+  background: var(--surface);
   backdrop-filter: blur(35px) saturate(210%);
   -webkit-backdrop-filter: blur(35px) saturate(210%);
-  border: 1px solid rgba(255, 255, 255, 0.16);
-  box-shadow: 0 35px 80px rgba(0, 0, 0, 0.4), 
-              inset 0 1px 0 rgba(255, 255, 255, 0.25),
-              inset 0 -1px 0 rgba(0, 0, 0, 0.2);
+  border: 1px solid var(--border-strong);
+  box-shadow: var(--shadow-sheet);
   overflow: hidden;
   animation: slideIn 0.4s cubic-bezier(0.25, 1, 0.5, 1);
 }
@@ -3515,52 +3496,52 @@
   flex: 0 0 75px;
   padding: 10px;
   border-radius: 16px;
-  background: rgba(255, 255, 255, 0.04);
-  border: 1px solid rgba(255, 255, 255, 0.08);
+  background: color-mix(in srgb, var(--text) 4%, transparent);
+  border: 1px solid var(--border);
   cursor: pointer;
   transition: all 0.25s cubic-bezier(0.25, 1, 0.5, 1);
 }
 
 .psycle-date-item:hover {
-  background: rgba(255, 255, 255, 0.08);
-  border-color: rgba(255, 255, 255, 0.15);
+  background: color-mix(in srgb, var(--text) 8%, transparent);
+  border-color: var(--border-strong);
   transform: translateY(-2px);
 }
 
 .psycle-date-item.active {
-  background: linear-gradient(135deg, rgba(56, 189, 248, 0.2) 0%, rgba(59, 130, 246, 0.2) 100%);
-  border-color: #38bdf8;
-  box-shadow: 0 0 15px rgba(56, 189, 248, 0.3);
+  background: color-mix(in srgb, var(--accent) 15%, transparent);
+  border-color: var(--accent);
+  box-shadow: 0 0 15px color-mix(in srgb, var(--accent) 25%, transparent);
 }
 
 .psycle-date-item .day-name {
   font-size: 11px;
   font-weight: 600;
   text-transform: uppercase;
-  color: #94a3b8;
+  color: var(--text-secondary);
   margin-bottom: 4px;
 }
 
 .psycle-date-item.active .day-name {
-  color: #38bdf8;
+  color: var(--accent);
 }
 
 .psycle-date-item .day-num {
   font-size: 20px;
   font-weight: 800;
-  color: #ffffff;
+  color: var(--text);
 }
 
 .psycle-date-item .month-name {
   font-size: 10px;
-  color: #64748b;
+  color: var(--text-secondary);
   margin-top: 2px;
 }
 
 /* --- DROPDOWN FILTERS STYLING --- */
 .psycle-filters-card {
-  background: rgba(255, 255, 255, 0.02);
-  border: 1px solid rgba(255, 255, 255, 0.05);
+  background: var(--surface-inset);
+  border: 1px solid var(--border);
   border-radius: 20px;
   padding: 16px 24px;
   margin-bottom: 16px;
@@ -3586,7 +3567,7 @@
   font-size: 11px;
   font-weight: 600;
   text-transform: uppercase;
-  color: #64748b;
+  color: var(--text-secondary);
   letter-spacing: 0.5px;
 }
 
@@ -3599,9 +3580,9 @@
   width: 100%;
   padding: 10px 16px;
   border-radius: 12px;
-  background: rgba(0, 0, 0, 0.4);
-  border: 1px solid rgba(255, 255, 255, 0.12);
-  color: #ffffff;
+  background: var(--surface-inset);
+  border: 1px solid var(--border);
+  color: var(--text);
   font-size: 13px;
   font-weight: 500;
   display: flex;
@@ -3612,7 +3593,7 @@
 }
 
 .psycle-dropdown-trigger:hover {
-  border-color: rgba(255, 255, 255, 0.25);
+  border-color: var(--border-strong);
 }
 
 .psycle-dropdown-options {
@@ -3623,11 +3604,11 @@
   max-height: 250px;
   overflow-y: auto;
   border-radius: 16px;
-  background: rgba(15, 23, 42, 0.95);
+  background: var(--surface);
   backdrop-filter: blur(20px);
   -webkit-backdrop-filter: blur(20px);
-  border: 1px solid rgba(255, 255, 255, 0.15);
-  box-shadow: 0 12px 30px rgba(0, 0, 0, 0.5);
+  border: 1px solid var(--border-strong);
+  box-shadow: var(--shadow-card);
   z-index: 10000;
   padding: 8px;
 }
@@ -3640,29 +3621,30 @@
   border-radius: 8px;
   cursor: pointer;
   font-size: 13px;
-  color: #cbd5e1;
+  color: var(--text-secondary);
   transition: background 0.15s ease;
 }
 
 .psycle-dropdown-option:hover {
-  background: rgba(255, 255, 255, 0.08);
-  color: #ffffff;
+  background: color-mix(in srgb, var(--text) 8%, transparent);
+  color: var(--text);
 }
 
 .psycle-dropdown-option input[type="checkbox"] {
   width: 16px;
   height: 16px;
   border-radius: 4px;
-  border: 1.5px solid rgba(255, 255, 255, 0.3);
+  border: 1.5px solid var(--border-strong);
   background: transparent;
   cursor: pointer;
+  accent-color: var(--accent);
 }
 
 /* Nav Bar at bottom for PWA */
 .psycle-nav {
   display: flex;
-  background: rgba(0, 0, 0, 0.3);
-  border-top: 1px solid rgba(255, 255, 255, 0.08);
+  background: var(--surface-inset);
+  border-top: 1px solid var(--border);
   padding: 0 36px;
   gap: 20px;
   justify-content: space-around;
@@ -3672,7 +3654,7 @@
 .psycle-nav-item {
   background: transparent;
   border: none;
-  color: #94a3b8;
+  color: var(--text-secondary);
   padding: 12px 0;
   font-size: 11px;
   font-weight: 600;
@@ -3686,12 +3668,12 @@
 }
 
 .psycle-nav-item:hover {
-  color: #ffffff;
+  color: var(--text);
 }
 
 .psycle-nav-item.active {
-  color: #38bdf8;
-  border-bottom-color: #38bdf8;
+  color: var(--accent);
+  border-bottom-color: var(--accent);
 }
 
 /* -------------------------------------------------------------
@@ -3869,8 +3851,8 @@
 
 #psycle-helper-container .psycle-filters-card {
   padding: 10px 36px;
-  border-bottom: 1px solid rgba(255, 255, 255, 0.06);
-  background: rgba(0, 0, 0, 0.15);
+  border-bottom: 1px solid var(--separator);
+  background: var(--surface-inset);
   flex-shrink: 0;
 }
 
@@ -3879,8 +3861,8 @@
   align-items: center;
   gap: 12px;
   padding: 10px 36px;
-  border-bottom: 1px solid rgba(255, 255, 255, 0.06);
-  background: rgba(0, 0, 0, 0.15);
+  border-bottom: 1px solid var(--separator);
+  background: var(--surface-inset);
   flex-shrink: 0;
 }
 
@@ -4056,7 +4038,7 @@
   width: 14px;
   left: 2px;
   bottom: 2px;
-  background: #ffffff;
+  background: var(--text-secondary);
   border-radius: 50%;
   box-shadow: 0 1px 2px rgba(0,0,0,0.3);
   transition: transform 0.25s ease;
@@ -4165,9 +4147,9 @@
    Matching Chrome Extension aesthetic
    ========================================================= */
 
-/* --- 1. TABLE ROWS — Enhanced glassmorphic hover & alternating rows --- */
+/* --- 1. TABLE ROWS — Enhanced hover & alternating rows --- */
 #psycle-helper-container .psycle-table-wrapper .psycle-table tbody tr:nth-child(even) {
-  background: rgba(255, 255, 255, 0.012);
+  background: color-mix(in srgb, var(--text) 2%, transparent);
 }
 
 #psycle-helper-container .psycle-table-wrapper .psycle-table tbody tr {
@@ -4176,13 +4158,12 @@
 }
 
 #psycle-helper-container .psycle-table-wrapper .psycle-table tbody tr:hover {
-  background: rgba(255, 255, 255, 0.04) !important;
-  border-left: 2px solid rgba(56, 189, 248, 0.5);
-  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.03);
+  background: color-mix(in srgb, var(--accent) 6%, transparent) !important;
+  border-left: 2px solid color-mix(in srgb, var(--accent) 50%, transparent);
 }
 
 #psycle-helper-container .psycle-table-wrapper .psycle-table tbody tr.row-beyond-cutoff:hover {
-  border-left-color: rgba(148, 163, 184, 0.3);
+  border-left-color: color-mix(in srgb, var(--text-secondary) 30%, transparent);
 }
 
 /* --- 2. STATUS BADGES — Pill styling with color coding & glow --- */
@@ -4194,33 +4175,29 @@
 }
 
 #psycle-helper-container .badge-pill.yes {
-  background: rgba(16, 185, 129, 0.12) !important;
-  color: #34d399 !important;
-  border: 1px solid rgba(16, 185, 129, 0.3) !important;
-  box-shadow: 0 0 10px rgba(16, 185, 129, 0.2);
+  background: color-mix(in srgb, var(--success) 12%, transparent) !important;
+  color: var(--success) !important;
+  border: 1px solid color-mix(in srgb, var(--success) 30%, transparent) !important;
 }
 
 #psycle-helper-container .badge-pill.no {
-  background: rgba(245, 158, 11, 0.12) !important;
-  color: #fbbf24 !important;
-  border: 1px solid rgba(245, 158, 11, 0.3) !important;
-  box-shadow: 0 0 10px rgba(245, 158, 11, 0.2);
+  background: color-mix(in srgb, var(--warning) 12%, transparent) !important;
+  color: var(--warning) !important;
+  border: 1px solid color-mix(in srgb, var(--warning) 30%, transparent) !important;
 }
 
 /* Fully booked red variant */
 #psycle-helper-container .col-status .badge-pill[style*="239, 68, 68"] {
-  background: rgba(239, 68, 68, 0.12) !important;
-  color: #f87171 !important;
-  border: 1px solid rgba(239, 68, 68, 0.35) !important;
-  box-shadow: 0 0 10px rgba(239, 68, 68, 0.2);
+  background: color-mix(in srgb, var(--danger) 12%, transparent) !important;
+  color: var(--danger) !important;
+  border: 1px solid color-mix(in srgb, var(--danger) 35%, transparent) !important;
 }
 
 /* Not live gray variant */
 #psycle-helper-container .col-status .badge-pill[style*="94a3b8"] {
-  background: rgba(148, 163, 184, 0.1) !important;
-  color: #94a3b8 !important;
-  border: 1px solid rgba(148, 163, 184, 0.2) !important;
-  box-shadow: 0 0 8px rgba(148, 163, 184, 0.1);
+  background: color-mix(in srgb, var(--text-secondary) 10%, transparent) !important;
+  color: var(--text-secondary) !important;
+  border: 1px solid color-mix(in srgb, var(--text-secondary) 20%, transparent) !important;
 }
 
 /* Occupancy hover glow */
@@ -4247,10 +4224,8 @@
 
 /* --- 3. ACTION BUTTONS — Glassmorphic button styling --- */
 #psycle-helper-container .psycle-btn-mini {
-  backdrop-filter: blur(10px);
-  -webkit-backdrop-filter: blur(10px);
-  border: 1px solid rgba(255, 255, 255, 0.12) !important;
-  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.25);
+  border: 1px solid color-mix(in srgb, var(--on-accent) 12%, transparent) !important;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15);
   transition: all 0.2s cubic-bezier(0.25, 1, 0.5, 1);
   font-weight: 600;
   letter-spacing: 0.2px;
@@ -4258,8 +4233,8 @@
 
 #psycle-helper-container .psycle-btn-mini:hover {
   transform: translateY(-1.5px);
-  box-shadow: 0 6px 16px rgba(0, 0, 0, 0.35);
-  border-color: rgba(255, 255, 255, 0.25) !important;
+  box-shadow: 0 6px 16px rgba(0, 0, 0, 0.2);
+  border-color: color-mix(in srgb, var(--on-accent) 25%, transparent) !important;
 }
 
 #psycle-helper-container .psycle-btn-mini:active {
@@ -4268,44 +4243,44 @@
 
 /* Green book button */
 #psycle-helper-container .psycle-timetable-book-btn {
-  background: linear-gradient(135deg, #10b981 0%, #059669 100%) !important;
-  border: 1px solid rgba(16, 185, 129, 0.4) !important;
-  box-shadow: 0 4px 14px rgba(16, 185, 129, 0.4) !important;
+  background: var(--success) !important;
+  border: 1px solid color-mix(in srgb, var(--success) 40%, transparent) !important;
+  box-shadow: 0 4px 14px color-mix(in srgb, var(--success) 40%, transparent) !important;
 }
 
 #psycle-helper-container .psycle-timetable-book-btn:hover {
-  background: linear-gradient(135deg, #34d399 0%, #10b981 100%) !important;
-  box-shadow: 0 6px 20px rgba(16, 185, 129, 0.55) !important;
+  background: color-mix(in srgb, var(--success) 85%, #fff) !important;
+  box-shadow: 0 6px 20px color-mix(in srgb, var(--success) 55%, transparent) !important;
 }
 
 /* Amber waitlist button */
 #psycle-helper-container .psycle-timetable-waitlist-btn {
-  background: linear-gradient(135deg, #f59e0b 0%, #d97706 100%) !important;
-  border: 1px solid rgba(245, 158, 11, 0.4) !important;
-  box-shadow: 0 4px 14px rgba(245, 158, 11, 0.4) !important;
+  background: var(--warning) !important;
+  border: 1px solid color-mix(in srgb, var(--warning) 40%, transparent) !important;
+  box-shadow: 0 4px 14px color-mix(in srgb, var(--warning) 40%, transparent) !important;
 }
 
 #psycle-helper-container .psycle-timetable-waitlist-btn:hover {
-  background: linear-gradient(135deg, #fbbf24 0%, #f59e0b 100%) !important;
-  box-shadow: 0 6px 20px rgba(245, 158, 11, 0.55) !important;
+  background: color-mix(in srgb, var(--warning) 85%, #fff) !important;
+  box-shadow: 0 6px 20px color-mix(in srgb, var(--warning) 55%, transparent) !important;
 }
 
 /* Red buy credits button */
 #psycle-helper-container button.psycle-btn-mini[style*="ef4444"][onclick*="buy-credits"] {
-  background: linear-gradient(135deg, #ef4444 0%, #dc2626 100%) !important;
-  border: 1px solid rgba(239, 68, 68, 0.4) !important;
-  box-shadow: 0 4px 14px rgba(239, 68, 68, 0.35) !important;
+  background: var(--danger) !important;
+  border: 1px solid color-mix(in srgb, var(--danger) 40%, transparent) !important;
+  box-shadow: 0 4px 14px color-mix(in srgb, var(--danger) 35%, transparent) !important;
 }
 
 #psycle-helper-container button.psycle-btn-mini[style*="ef4444"][onclick*="buy-credits"]:hover {
-  background: linear-gradient(135deg, #f87171 0%, #ef4444 100%) !important;
-  box-shadow: 0 6px 20px rgba(239, 68, 68, 0.5) !important;
+  background: color-mix(in srgb, var(--danger) 85%, #fff) !important;
+  box-shadow: 0 6px 20px color-mix(in srgb, var(--danger) 50%, transparent) !important;
 }
 
 /* Cancel booking button enhancements */
 #psycle-helper-container .psycle-timetable-cancel-booking-btn:hover {
   transform: translateY(-1.5px);
-  box-shadow: 0 4px 14px rgba(239, 68, 68, 0.3) !important;
+  box-shadow: 0 4px 14px color-mix(in srgb, var(--danger) 30%, transparent) !important;
 }
 
 /* Leave waitlist button enhancements */
@@ -4316,32 +4291,32 @@
 
 /* Manage bookings purple button */
 #psycle-helper-container .psycle-btn-manage-bookings {
-  box-shadow: 0 2px 10px rgba(139, 92, 246, 0.3) !important;
+  box-shadow: 0 2px 10px color-mix(in srgb, var(--feat-autoupgrade) 30%, transparent) !important;
 }
 
 #psycle-helper-container .psycle-btn-manage-bookings:hover {
-  background: rgba(139, 92, 246, 0.3) !important;
-  box-shadow: 0 6px 18px rgba(139, 92, 246, 0.45) !important;
+  background: color-mix(in srgb, var(--feat-autoupgrade) 30%, transparent) !important;
+  box-shadow: 0 6px 18px color-mix(in srgb, var(--feat-autoupgrade) 45%, transparent) !important;
 }
 
 /* Debug button */
 #psycle-helper-container .psycle-debug-btn {
-  box-shadow: 0 2px 10px rgba(139, 92, 246, 0.3) !important;
+  box-shadow: 0 2px 10px color-mix(in srgb, var(--feat-autoupgrade) 30%, transparent) !important;
 }
 
 #psycle-helper-container .psycle-debug-btn:hover {
-  background: rgba(139, 92, 246, 0.45) !important;
-  box-shadow: 0 6px 18px rgba(139, 92, 246, 0.45) !important;
+  background: color-mix(in srgb, var(--feat-autoupgrade) 45%, transparent) !important;
+  box-shadow: 0 6px 18px color-mix(in srgb, var(--feat-autoupgrade) 45%, transparent) !important;
 }
 
-/* --- 4. SPLIT BUTTON — Enhanced dropdown glassmorphism --- */
+/* --- 4. SPLIT BUTTON — Enhanced dropdown --- */
 #psycle-helper-container .psycle-split-dropdown {
-  background: rgba(20, 24, 38, 0.9) !important;
+  background: var(--surface) !important;
   backdrop-filter: blur(24px) saturate(180%) !important;
   -webkit-backdrop-filter: blur(24px) saturate(180%) !important;
-  border: 1px solid rgba(255, 255, 255, 0.15) !important;
+  border: 1px solid var(--border-strong) !important;
   border-radius: 14px !important;
-  box-shadow: 0 16px 40px rgba(0, 0, 0, 0.45), inset 0 1px 0 rgba(255, 255, 255, 0.1) !important;
+  box-shadow: var(--shadow-card) !important;
   padding: 8px !important;
   overflow: hidden;
 }
@@ -4353,43 +4328,41 @@
   transition: all 0.15s ease;
   border: none !important;
   background: transparent !important;
-  color: #e2e8f0 !important;
+  color: var(--text-secondary) !important;
 }
 
 #psycle-helper-container .psycle-split-dropdown-item:hover {
-  background: rgba(255, 255, 255, 0.08) !important;
+  background: color-mix(in srgb, var(--text) 8%, transparent) !important;
   transform: translateX(3px);
-  color: #ffffff !important;
+  color: var(--text) !important;
 }
 
-/* --- 5. DATE CAROUSEL PILLS — Enhanced active glow --- */
+/* --- 5. DATE CAROUSEL PILLS — Enhanced active state --- */
 #psycle-helper-container .psycle-day-pill {
-  backdrop-filter: blur(4px);
-  -webkit-backdrop-filter: blur(4px);
-  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08);
 }
 
 #psycle-helper-container .psycle-day-pill.active {
-  background: rgba(56, 189, 248, 0.15) !important;
-  border-color: rgba(56, 189, 248, 0.45) !important;
-  box-shadow: 0 0 20px rgba(56, 189, 248, 0.35), inset 0 1px 0 rgba(255, 255, 255, 0.1) !important;
+  background: color-mix(in srgb, var(--accent) 15%, transparent) !important;
+  border-color: color-mix(in srgb, var(--accent) 45%, transparent) !important;
+  box-shadow: 0 0 16px color-mix(in srgb, var(--accent) 25%, transparent) !important;
 }
 
 #psycle-helper-container .psycle-day-pill:hover {
-  background: rgba(255, 255, 255, 0.08) !important;
-  border-color: rgba(255, 255, 255, 0.22) !important;
+  background: color-mix(in srgb, var(--text) 8%, transparent) !important;
+  border-color: color-mix(in srgb, var(--text) 22%, transparent) !important;
   transform: translateY(-2px) !important;
-  box-shadow: 0 6px 16px rgba(0, 0, 0, 0.2);
+  box-shadow: 0 6px 16px rgba(0, 0, 0, 0.12);
 }
 
-/* --- 6. FILTER DROPDOWNS — Glassmorphic menu styling --- */
+/* --- 6. FILTER DROPDOWNS — Token-driven menu styling --- */
 #psycle-helper-container .psycle-ms-menu {
-  background: rgba(20, 24, 38, 0.92) !important;
+  background: var(--surface) !important;
   backdrop-filter: blur(24px) saturate(180%) !important;
   -webkit-backdrop-filter: blur(24px) saturate(180%) !important;
-  border: 1px solid rgba(255, 255, 255, 0.15) !important;
+  border: 1px solid var(--border-strong) !important;
   border-radius: 16px !important;
-  box-shadow: 0 20px 50px rgba(0, 0, 0, 0.5), inset 0 1px 0 rgba(255, 255, 255, 0.1) !important;
+  box-shadow: var(--shadow-card) !important;
   padding: 10px !important;
 }
 
@@ -4400,44 +4373,40 @@
 }
 
 #psycle-helper-container .psycle-ms-clear-btn:hover {
-  background: rgba(167, 139, 250, 0.15) !important;
-  color: #c084fc !important;
+  background: color-mix(in srgb, var(--accent) 15%, transparent) !important;
+  color: var(--accent) !important;
 }
 
 #psycle-helper-container .psycle-ms-trigger {
-  backdrop-filter: blur(10px);
-  -webkit-backdrop-filter: blur(10px);
-  box-shadow: 0 4px 14px rgba(0, 0, 0, 0.2), inset 0 1px 0 rgba(255, 255, 255, 0.05);
+  box-shadow: 0 4px 14px rgba(0, 0, 0, 0.08);
 }
 
-/* --- 7. SECTION CARDS & TITLES — Glass card backgrounds --- */
+/* --- 7. SECTION CARDS & TITLES --- */
 #psycle-helper-container .psycle-section {
-  background: rgba(255, 255, 255, 0.02);
-  border: 1px solid rgba(255, 255, 255, 0.06);
+  background: var(--surface);
+  border: 1px solid var(--border);
   border-radius: 20px;
   padding: 20px;
-  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.15), inset 0 1px 0 rgba(255, 255, 255, 0.04);
-  backdrop-filter: blur(10px);
-  -webkit-backdrop-filter: blur(10px);
+  box-shadow: var(--shadow-card);
 }
 
 #psycle-helper-container .psycle-section h3 {
   font-size: 13px;
   font-weight: 700;
-  color: #f8fafc;
+  color: var(--text);
   letter-spacing: 0.3px;
   margin: 0 0 14px 0;
   padding-bottom: 10px;
-  border-bottom: 1px solid rgba(255, 255, 255, 0.06);
+  border-bottom: 1px solid var(--separator);
   text-transform: uppercase;
 }
 
-/* --- 8. BOOKING MODAL — Glassmorphic card & overlay --- */
+/* --- 8. BOOKING MODAL — Token-driven card & overlay --- */
 .psycle-modal-card {
-  background: rgba(20, 24, 38, 0.92);
+  background: var(--surface);
   backdrop-filter: blur(30px) saturate(200%);
   -webkit-backdrop-filter: blur(30px) saturate(200%);
-  border: 1px solid rgba(255, 255, 255, 0.15);
+  border: 1px solid var(--border-strong);
   border-radius: 24px;
   width: 520px;
   max-width: 90vw;
@@ -4445,7 +4414,7 @@
   display: flex;
   flex-direction: column;
   overflow: hidden;
-  box-shadow: 0 25px 60px rgba(0, 0, 0, 0.5), inset 0 1px 0 rgba(255, 255, 255, 0.2);
+  box-shadow: var(--shadow-card);
   animation: modalSlideIn 0.35s cubic-bezier(0.25, 1, 0.5, 1);
 }
 
@@ -4455,7 +4424,7 @@
   left: 0;
   width: 100%;
   height: 100%;
-  background: rgba(10, 12, 22, 0.55);
+  background: color-mix(in srgb, var(--bg) 60%, transparent);
   backdrop-filter: blur(12px);
   -webkit-backdrop-filter: blur(12px);
 }
@@ -4466,8 +4435,8 @@
   display: flex;
   justify-content: space-between;
   align-items: center;
-  border-bottom: 1px solid rgba(255, 255, 255, 0.08);
-  background: rgba(0, 0, 0, 0.2);
+  border-bottom: 1px solid var(--separator);
+  background: var(--surface-inset);
   flex-shrink: 0;
 }
 
@@ -4475,14 +4444,14 @@
 #psycle-debug-modal .psycle-modal-header h4 {
   font-size: 15px;
   font-weight: 700;
-  color: #ffffff;
+  color: var(--text);
   margin: 0;
 }
 
 .psycle-modal-close-btn {
   background: transparent;
   border: none;
-  color: #94a3b8;
+  color: var(--text-secondary);
   font-size: 24px;
   cursor: pointer;
   line-height: 1;
@@ -4491,93 +4460,69 @@
 }
 
 .psycle-modal-close-btn:hover {
-  color: #ffffff;
+  color: var(--text);
   transform: rotate(90deg);
 }
 
-/* --- 9. AUTO-BOOK COUNTDOWN — Large countdown with purple accent --- */
+/* --- 9. AUTO-BOOK COUNTDOWN --- */
 #psycle-helper-container .psycle-countdown-banner {
   display: flex;
   align-items: center;
   justify-content: space-between;
   gap: 20px;
   padding: 18px 24px;
-  background: linear-gradient(135deg, rgba(59, 130, 246, 0.1) 0%, rgba(139, 92, 246, 0.1) 50%, rgba(236, 72, 153, 0.05) 100%);
-  border: 1px solid rgba(139, 92, 246, 0.25);
+  background: color-mix(in srgb, var(--feat-autobook) 8%, var(--surface));
+  border: 1px solid color-mix(in srgb, var(--feat-autobook) 25%, transparent);
   border-radius: 16px;
-  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.2), 0 0 40px rgba(139, 92, 246, 0.12), inset 0 1px 0 rgba(255, 255, 255, 0.08);
+  box-shadow: var(--shadow-card);
   position: relative;
   overflow: hidden;
 }
 
-#psycle-helper-container .psycle-countdown-banner::before {
-  content: '';
-  position: absolute;
-  top: -50%;
-  left: -50%;
-  width: 200%;
-  height: 200%;
-  background: radial-gradient(circle at 30% 50%, rgba(139, 92, 246, 0.1) 0%, transparent 60%);
-  pointer-events: none;
-}
-
 #psycle-helper-container .psycle-countdown-time {
-  text-shadow: 0 0 40px rgba(139, 92, 246, 0.5), 0 2px 8px rgba(0, 0, 0, 0.4);
-  background: linear-gradient(135deg, #ffffff 0%, #c084fc 100%);
-  -webkit-background-clip: text;
-  -webkit-text-fill-color: transparent;
+  color: var(--text);
+  font-weight: 800;
 }
 
 #psycle-helper-container .psycle-countdown-status {
-  background: rgba(16, 185, 129, 0.1) !important;
-  border: 1px solid rgba(16, 185, 129, 0.25) !important;
-  backdrop-filter: blur(10px);
-  -webkit-backdrop-filter: blur(10px);
-  box-shadow: 0 4px 14px rgba(16, 185, 129, 0.2);
+  background: color-mix(in srgb, var(--success) 10%, transparent) !important;
+  border: 1px solid color-mix(in srgb, var(--success) 25%, transparent) !important;
 }
 
-/* --- 10. CREDITS BUNDLE CARDS — Enhanced glass hover --- */
+/* --- 10. CREDITS BUNDLE CARDS --- */
 #psycle-helper-container .fav-card {
-  backdrop-filter: blur(10px);
-  -webkit-backdrop-filter: blur(10px);
-  border: 1px solid rgba(255, 255, 255, 0.12);
+  border: 1px solid var(--border);
 }
 
 #psycle-helper-container .fav-card:hover {
   transform: translateY(-4px) scale(1.01);
-  border-color: rgba(255, 255, 255, 0.28);
-  box-shadow: 
-    0 16px 40px rgba(0, 0, 0, 0.35), 
-    0 0 30px rgba(236, 72, 153, 0.35), 
-    0 0 60px rgba(59, 130, 246, 0.2), 
-    inset 0 1px 0 rgba(255, 255, 255, 0.12);
+  border-color: var(--border-strong);
+  box-shadow: var(--shadow-card);
 }
 
 /* Additional badge pills for credits page */
 #psycle-helper-container .badge-pill.valid {
-  background: rgba(16, 185, 129, 0.1);
-  color: #34d399;
-  border: 1px solid rgba(16, 185, 129, 0.2);
-  box-shadow: 0 0 8px rgba(16, 185, 129, 0.1);
+  background: color-mix(in srgb, var(--success) 10%, transparent);
+  color: var(--success);
+  border: 1px solid color-mix(in srgb, var(--success) 20%, transparent);
 }
 
 #psycle-helper-container .badge-pill.invalid {
-  background: rgba(245, 158, 11, 0.1);
-  color: #fbbf24;
-  border: 1px solid rgba(245, 158, 11, 0.2);
-  box-shadow: 0 0 8px rgba(245, 158, 11, 0.1);
+  background: color-mix(in srgb, var(--warning) 10%, transparent);
+  color: var(--warning);
+  border: 1px solid color-mix(in srgb, var(--warning) 20%, transparent);
 }
 
 /* ─── Profile Explorer ─────────────────────────────────────── */
 .psycle-profile-section {
-  border: 1px solid rgba(255, 255, 255, 0.08);
+  border: 1px solid var(--border);
   border-radius: 12px;
   overflow: hidden;
   flex-shrink: 0;
   margin-bottom: 10px;
 }
 .psycle-profile-section-header {
-  background: rgba(255, 255, 255, 0.03);
+  background: var(--surface-inset);
   padding: 12px 16px;
   display: flex;
   justify-content: space-between;
@@ -4586,32 +4531,32 @@
   user-select: none;
 }
 .psycle-profile-section-header:hover {
-  background: rgba(255, 255, 255, 0.06);
+  background: color-mix(in srgb, var(--text) 6%, transparent);
 }
 .psycle-profile-section-content {
   padding: 14px;
-  background: rgba(0, 0, 0, 0.15);
-  border-top: 1px solid rgba(255, 255, 255, 0.05);
+  background: var(--surface-inset);
+  border-top: 1px solid var(--separator);
 }
 .psycle-accordion-arrow {
   font-size: 11px;
-  color: #94a3b8;
+  color: var(--text-secondary);
   transition: transform 0.2s;
 }
 .psycle-profile-edit-input {
   flex: 1;
-  background: rgba(0, 0, 0, 0.4);
-  border: 1px solid rgba(255, 255, 255, 0.1);
+  background: var(--surface-inset);
+  border: 1px solid var(--border);
   border-radius: 5px;
   padding: 4px 8px;
   font-size: 11px;
-  color: #e2e8f0;
+  color: var(--text);
   font-family: inherit;
 }
 .psycle-profile-edit-input:focus {
   outline: none;
-  border-color: rgba(167, 139, 250, 0.5);
-  box-shadow: 0 0 0 2px rgba(167, 139, 250, 0.15);
+  border-color: color-mix(in srgb, var(--accent) 50%, transparent);
+  box-shadow: 0 0 0 2px color-mix(in srgb, var(--accent) 15%, transparent);
 }
 
 /* =================================================================
@@ -4740,7 +4685,7 @@
 .psycle-btn-mini.variant-success,
 .psycle-action-btn-mini.variant-success {
   background: var(--success);
-  color: #fff;
+  color: var(--on-accent);
   border-color: transparent;
 }
 .psycle-btn-mini.variant-success-muted,

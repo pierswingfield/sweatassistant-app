@@ -5,6 +5,7 @@ const path = require('path');
 const db = require('./db');
 const { handleLogin, authenticateToken, authenticateTokenSSE, triggerAutoRelogin } = require('./auth');
 const pushService = require('./push');
+const notifications = require('./notifications');
 const scheduler = require('./scheduler');
 const poller = require('./poller');
 
@@ -83,6 +84,41 @@ app.post('/api/push/test', authenticateToken, async (req, res) => {
   }
 });
 
+// Debug: send a fully-formed sample of a specific notification type to all devices.
+app.post('/api/push/test/:type', authenticateToken, async (req, res) => {
+  try {
+    await notifications.sendSample(req.userId, req.params.type);
+    res.json({ success: true });
+  } catch (err) {
+    res.status(400).json({ message: err.message });
+  }
+});
+
+// Client-reported booking success → fan out a "Spot Booked" notification to all
+// devices (honours the user's scope preference: all bookings vs auto-book only).
+app.post('/api/notify/booking-success', authenticateToken, async (req, res) => {
+  try {
+    const { eventId, className, groupName, instructorName, startAt, slots, source } = req.body;
+    await notifications.notify(req.userId, 'booking', {
+      source: source || 'manual', eventId, className, groupName, instructorName, startAt, slots,
+    });
+    res.json({ success: true });
+  } catch (err) {
+    res.status(500).json({ message: err.message });
+  }
+});
+
+// Client pushes its freshly-fetched bookings to keep the reminder cache warm (no extra CodexFit calls).
+app.post('/api/bookings/sync', authenticateToken, (req, res) => {
+  try {
+    const { bookings } = req.body;
+    db.replaceBookingCache(req.userId, Array.isArray(bookings) ? bookings : []);
+    res.json({ success: true });
+  } catch (err) {
+    res.status(500).json({ message: err.message });
+  }
+});
+
 // -------------------------------------------------------------
 // AUTO-BOOK QUEUE MANAGEMENT
 // -------------------------------------------------------------
@@ -102,12 +138,20 @@ app.get('/api/auto-book', authenticateToken, (req, res) => {
 });
 
 app.post('/api/auto-book', authenticateToken, (req, res) => {
-  const { eventId, studioId, className, instructorName, studioName, locationName, startAt, preferences, skipImmediate } = req.body;
+  const { eventId, studioId, className, instructorName, studioName, locationName, startAt, preferences, skipImmediate, groupName, creditShortfall } = req.body;
   if (!eventId || !preferences) {
     return res.status(400).json({ message: 'eventId and preferences are required' });
   }
   try {
-    const id = db.addAutoBooking(req.userId, eventId, className, instructorName, studioName, locationName, startAt, preferences, studioId ?? null);
+    const id = db.addAutoBooking(req.userId, eventId, className, instructorName, studioName, locationName, startAt, preferences, studioId ?? null, groupName ?? null);
+
+    // Warn (via push) if the user set this up without enough credits.
+    if (creditShortfall && creditShortfall > 0) {
+      notifications.notify(req.userId, 'creditWarning', {
+        kind: 'autobook', startAt, groupName, className, instructorName,
+        spots: preferences.requiredCount || 1, creditsShort: creditShortfall,
+      });
+    }
 
     // Check if the release window is already open; if so, trigger booking immediately in background
     // UNLESS skipImmediate is set (e.g., for forcing open classes to wait until next release window)
@@ -197,7 +241,7 @@ app.get('/api/auto-upgrade', authenticateToken, (req, res) => {
 });
 
 app.post('/api/auto-upgrade', authenticateToken, (req, res) => {
-  const { eventId, studioId, bookingId, currentSlotId, className, instructorName, studioName, locationName, startAt, preferences } = req.body;
+  const { eventId, studioId, bookingId, currentSlotId, className, instructorName, studioName, locationName, startAt, preferences, groupName, creditShortfall } = req.body;
   if (eventId == null || bookingId == null || currentSlotId == null || isNaN(Number(currentSlotId)) || !preferences) {
     return res.status(400).json({ message: 'Missing required auto-upgrade fields' });
   }
@@ -208,7 +252,15 @@ app.post('/api/auto-upgrade', authenticateToken, (req, res) => {
       return res.status(400).json({ message: 'An active auto-upgrade monitor already exists for this booking.' });
     }
 
-    const id = db.addAutoUpgrade(req.userId, eventId, bookingId, currentSlotId, className, instructorName, studioName, locationName, startAt, preferences, studioId ?? null);
+    const id = db.addAutoUpgrade(req.userId, eventId, bookingId, currentSlotId, className, instructorName, studioName, locationName, startAt, preferences, studioId ?? null, groupName ?? null);
+
+    // Warn (via push) if auto-upgrade is enabled without a spare credit to book the upgraded seat.
+    if (creditShortfall && creditShortfall > 0) {
+      notifications.notify(req.userId, 'creditWarning', {
+        kind: 'autoupgrade', startAt, groupName, className, instructorName,
+      });
+    }
+
     res.json({ id, success: true });
   } catch (err) {
     res.status(500).json({ message: err.message });

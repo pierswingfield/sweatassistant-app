@@ -154,6 +154,7 @@ function renderUpgradeList(upgrades, studioPrefs = {}) {
         currentSlotId: job.current_slot_id,
         studioId: job.studio_id,
         className: job.class_name,
+        groupName: job.group_name,
         instructorName: job.instructor_name,
         studioName: job.studio_name,
         locationName: job.location_name,

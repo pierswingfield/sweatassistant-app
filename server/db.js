@@ -95,6 +95,36 @@ db.exec(`
     key TEXT PRIMARY KEY,
     value TEXT NOT NULL
   );
+
+  -- Cached snapshot of a user's upcoming bookings, used to fire cancellation
+  -- reminders locally without hammering the CodexFit API. Populated by client
+  -- sync (free), the proxy booking hook, and an infrequent discovery poll.
+  CREATE TABLE IF NOT EXISTS booking_cache (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    user_id INTEGER NOT NULL,
+    booking_id INTEGER NOT NULL,
+    event_id INTEGER,
+    start_at TEXT,
+    class_name TEXT,
+    group_name TEXT,
+    instructor_name TEXT,
+    studio_name TEXT,
+    location_name TEXT,
+    slot_label TEXT,
+    synced_at TEXT DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
+    UNIQUE(user_id, booking_id)
+  );
+
+  -- Dedupe ledger for one-shot scheduled notifications (cancellation + booking-window reminders).
+  CREATE TABLE IF NOT EXISTS sent_notifications (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    user_id INTEGER NOT NULL,
+    dedupe_key TEXT NOT NULL,
+    sent_at TEXT DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
+    UNIQUE(user_id, dedupe_key)
+  );
 `);
 
 // --- Lightweight migrations ---
@@ -108,6 +138,9 @@ function ensureColumn(table, column, definition) {
 }
 ensureColumn('auto_bookings', 'studio_id', 'INTEGER');
 ensureColumn('auto_upgrades', 'studio_id', 'INTEGER');
+// Store the event-type group (e.g. "RIDE") so notifications can render it without a re-fetch.
+ensureColumn('auto_bookings', 'group_name', 'TEXT');
+ensureColumn('auto_upgrades', 'group_name', 'TEXT');
 
 // Helper methods
 module.exports = {
@@ -150,11 +183,11 @@ module.exports = {
   getUserAutoBookings(userId) {
     return db.prepare('SELECT * FROM auto_bookings WHERE user_id = ? ORDER BY id DESC').all(userId);
   },
-  addAutoBooking(userId, eventId, className, instructorName, studioName, locationName, startAt, preferences, studioId = null) {
+  addAutoBooking(userId, eventId, className, instructorName, studioName, locationName, startAt, preferences, studioId = null, groupName = null) {
     const result = db.prepare(`
-      INSERT INTO auto_bookings (user_id, event_id, studio_id, class_name, instructor_name, studio_name, location_name, start_at, preferences)
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
-    `).run(userId, eventId, studioId, className, instructorName, studioName, locationName, startAt, JSON.stringify(preferences));
+      INSERT INTO auto_bookings (user_id, event_id, studio_id, class_name, instructor_name, studio_name, location_name, start_at, preferences, group_name)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    `).run(userId, eventId, studioId, className, instructorName, studioName, locationName, startAt, JSON.stringify(preferences), groupName);
     return result.lastInsertRowid;
   },
   updateAutoBookingPreferences(id, userId, preferences) {
@@ -179,11 +212,11 @@ module.exports = {
   getUserAutoUpgrades(userId) {
     return db.prepare('SELECT * FROM auto_upgrades WHERE user_id = ? ORDER BY id DESC').all(userId);
   },
-  addAutoUpgrade(userId, eventId, bookingId, currentSlotId, className, instructorName, studioName, locationName, startAt, preferences, studioId = null) {
+  addAutoUpgrade(userId, eventId, bookingId, currentSlotId, className, instructorName, studioName, locationName, startAt, preferences, studioId = null, groupName = null) {
     const result = db.prepare(`
-      INSERT INTO auto_upgrades (user_id, event_id, studio_id, booking_id, current_slot_id, class_name, instructor_name, studio_name, location_name, start_at, preferences)
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-    `).run(userId, eventId, studioId, bookingId, currentSlotId, className, instructorName, studioName, locationName, startAt, JSON.stringify(preferences));
+      INSERT INTO auto_upgrades (user_id, event_id, studio_id, booking_id, current_slot_id, class_name, instructor_name, studio_name, location_name, start_at, preferences, group_name)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    `).run(userId, eventId, studioId, bookingId, currentSlotId, className, instructorName, studioName, locationName, startAt, JSON.stringify(preferences), groupName);
     return result.lastInsertRowid;
   },
   updateAutoUpgrade(id, userId, status, statusMessage, updates = {}) {
@@ -261,6 +294,53 @@ module.exports = {
   deleteAllUserData(userId) {
     db.pragma('foreign_keys = ON');
     db.prepare('DELETE FROM users WHERE id = ?').run(userId);
+  },
+
+  // User lookups (for background notification jobs)
+  getAllUserIds() {
+    return db.prepare('SELECT id FROM users').all().map(r => r.id);
+  },
+  getUserIdsWithPushSubs() {
+    return db.prepare('SELECT DISTINCT user_id FROM push_subscriptions').all().map(r => r.user_id);
+  },
+
+  // Booking cache (for cancellation reminders — no per-minute API polling)
+  replaceBookingCache(userId, bookings) {
+    const del = db.prepare('DELETE FROM booking_cache WHERE user_id = ?');
+    const ins = db.prepare(`
+      INSERT OR REPLACE INTO booking_cache
+        (user_id, booking_id, event_id, start_at, class_name, group_name, instructor_name, studio_name, location_name, slot_label, synced_at)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP)
+    `);
+    const tx = db.transaction((uid, list) => {
+      del.run(uid);
+      for (const b of list) {
+        if (b.bookingId == null || !b.startAt) continue;
+        ins.run(uid, b.bookingId, b.eventId ?? null, b.startAt, b.className ?? null, b.groupName ?? null,
+          b.instructorName ?? null, b.studioName ?? null, b.locationName ?? null, String(b.slotLabel ?? ''));
+      }
+    });
+    tx(userId, Array.isArray(bookings) ? bookings : []);
+  },
+  getAllBookingCache() {
+    return db.prepare('SELECT * FROM booking_cache').all();
+  },
+  getBookingCacheForUser(userId) {
+    return db.prepare('SELECT * FROM booking_cache WHERE user_id = ?').all(userId);
+  },
+  pruneBookingCache(beforeISO) {
+    db.prepare('DELETE FROM booking_cache WHERE start_at < ?').run(beforeISO);
+  },
+
+  // Sent-notification dedupe ledger (one-shot scheduled reminders)
+  wasNotificationSent(userId, key) {
+    return !!db.prepare('SELECT 1 FROM sent_notifications WHERE user_id = ? AND dedupe_key = ?').get(userId, key);
+  },
+  markNotificationSent(userId, key) {
+    db.prepare('INSERT OR IGNORE INTO sent_notifications (user_id, dedupe_key) VALUES (?, ?)').run(userId, key);
+  },
+  pruneSentNotifications(beforeISO) {
+    db.prepare('DELETE FROM sent_notifications WHERE sent_at < ?').run(beforeISO);
   },
 
   addPushSubscription(userId, subscription) {

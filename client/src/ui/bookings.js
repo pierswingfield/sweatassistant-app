@@ -126,11 +126,39 @@ export async function renderBookings() {
 
     renderBookingsTable(bookings, upgrades);
     renderWaitlistsTable(waitlists);
+
+    // Keep the server's reminder cache warm using data we already fetched (no extra CodexFit calls).
+    syncBookingCache(bookings);
   } catch (err) {
     console.error('[Bookings] Loading failed:', err);
     if (bookingsBody) bookingsBody.innerHTML = `<tr><td colspan="6" class="psycle-table-error">Error: ${err.message}</td></tr>`;
     if (waitlistsBody) waitlistsBody.innerHTML = `<tr><td colspan="5" class="psycle-table-error">Error: ${err.message}</td></tr>`;
   }
+}
+
+// Push the user's upcoming bookings to the server so cancellation reminders can
+// fire locally without the server re-polling CodexFit.
+function syncBookingCache(bookings) {
+  try {
+    const now = Date.now();
+    const normalized = (bookings || []).map(b => {
+      const event = b.event || {};
+      const startAt = event.start_at || b.start_at;
+      if (!startAt || new Date(startAt).getTime() < now) return null;
+      return {
+        bookingId: b.id,
+        eventId: event.id || b.event_id || null,
+        startAt,
+        className: event.event_type?.name || event.name || 'Class',
+        groupName: event.event_type?.group?.name || '',
+        instructorName: event.instructor?.full_name || event.instructor?.name || '',
+        studioName: event.studio?.name || '',
+        locationName: event.studio?.location?.name || '',
+        slotLabel: b.studio_slot?.label ?? b.slot ?? b.studio_slot_id ?? b.slot_id ?? '',
+      };
+    }).filter(Boolean);
+    api.syncBookings(normalized).catch(() => {});
+  } catch (_) { /* best-effort */ }
 }
 
 function renderBookingsTable(bookings, upgrades) {
@@ -228,6 +256,7 @@ function renderBookingsTable(bookings, upgrades) {
           currentSlotId: parseInt(statusBtn.dataset.slotId),
           studioId: parseInt(statusBtn.dataset.studioId) || null,
           className: event.event_type?.name || 'Ride',
+          groupName: event.event_type?.group?.name || '',
           instructorName: event.instructor?.full_name || 'Instructor',
           studioName: event.studio?.name || 'Studio',
           locationName: event.studio?.location?.name || 'Location',
@@ -379,8 +408,18 @@ function renderWaitlistsTable(waitlists) {
   });
 }
 
+// Auto-upgrade needs at least one spare credit to book the upgraded seat before
+// releasing the old one. Returns 1 if the user has none spare, else 0.
+function upgradeCreditShortfall() {
+  let total = 0;
+  if (cache.profile?.available_credits) {
+    total = cache.profile.available_credits.reduce((sum, c) => sum + (c.count || 0), 0);
+  }
+  return total < 1 ? 1 : 0;
+}
+
 // Quick-register or open modal, like the auto-book flow
-async function handleUpgradeClick({ eventId, bookingId, currentSlotId, studioId, className, instructorName, studioName, locationName, startAt, existingUpgradeId, existingPrefs }) {
+async function handleUpgradeClick({ eventId, bookingId, currentSlotId, studioId, className, groupName, instructorName, studioName, locationName, startAt, existingUpgradeId, existingPrefs }) {
   if (!eventId || !bookingId || currentSlotId === '' || currentSlotId == null || isNaN(Number(currentSlotId))) {
     showToast('Could not determine your current spot. Open the booking details to find your slot.', 'error');
     return;
@@ -388,7 +427,7 @@ async function handleUpgradeClick({ eventId, bookingId, currentSlotId, studioId,
 
   // If editing an existing monitor, always open the config modal
   if (existingUpgradeId !== null) {
-    openUpgradeConfigModal({ eventId, bookingId, currentSlotId, studioId, className, instructorName, studioName, locationName, startAt, existingUpgradeId, existingPrefs });
+    openUpgradeConfigModal({ eventId, bookingId, currentSlotId, studioId, className, groupName, instructorName, studioName, locationName, startAt, existingUpgradeId, existingPrefs });
     return;
   }
 
@@ -408,10 +447,12 @@ async function handleUpgradeClick({ eventId, bookingId, currentSlotId, studioId,
         bookingId,
         currentSlotId,
         className,
+        groupName,
         instructorName,
         studioName,
         locationName,
         startAt,
+        creditShortfall: upgradeCreditShortfall(),
         preferences: {
           keepOriginalOnCutoff: true
         }
@@ -420,7 +461,7 @@ async function handleUpgradeClick({ eventId, bookingId, currentSlotId, studioId,
       renderBookings();
     } else {
       // No prefs — open modal to configure
-      openUpgradeConfigModal({ eventId, bookingId, currentSlotId, studioId, className, instructorName, studioName, locationName, startAt, existingUpgradeId: null, existingPrefs: null });
+      openUpgradeConfigModal({ eventId, bookingId, currentSlotId, studioId, className, groupName, instructorName, studioName, locationName, startAt, existingUpgradeId: null, existingPrefs: null });
     }
   } catch (err) {
     showToast(`Error: ${err.message}`, 'error');
@@ -428,7 +469,7 @@ async function handleUpgradeClick({ eventId, bookingId, currentSlotId, studioId,
 }
 
 // Auto-Upgrade configuration modal (floor plan + options)
-export async function openUpgradeConfigModal({ eventId, bookingId, currentSlotId, studioId, className, instructorName, studioName, locationName, startAt, existingUpgradeId, existingPrefs }) {
+export async function openUpgradeConfigModal({ eventId, bookingId, currentSlotId, studioId, className, groupName, instructorName, studioName, locationName, startAt, existingUpgradeId, existingPrefs }) {
   const modal = document.getElementById('psycle-booking-modal');
   const body = document.getElementById('psycle-booking-modal-body');
   const title = document.getElementById('psycle-booking-modal-title');
@@ -543,7 +584,8 @@ export async function openUpgradeConfigModal({ eventId, bookingId, currentSlotId
         } else {
           await api.addAutoUpgrade({
             eventId, studioId: resolvedStudioId || null, bookingId, currentSlotId,
-            className, instructorName, studioName, locationName, startAt,
+            className, groupName, instructorName, studioName, locationName, startAt,
+            creditShortfall: upgradeCreditShortfall(),
             preferences: { keepOriginalOnCutoff }
           });
           showToast('Auto-upgrade monitor started! Monitoring for a better spot.', 'success');

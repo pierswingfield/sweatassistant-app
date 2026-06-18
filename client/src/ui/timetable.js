@@ -38,7 +38,7 @@ async function cacheSet(key, value) {
   }
 }
 
-async function cacheGet(key) {
+export async function cacheGet(key) {
   try {
     const db = await openCacheDB();
     const tx = db.transaction(CACHE_STORE, 'readonly');
@@ -1375,6 +1375,7 @@ async function quickBookClass(eventId, prefs, btn) {
     
     let lastBookedSlot = null;
     let lastBookingRes = null;
+    const bookedSlotLabels = [];
     while (bookedCount < requiredCount && attemptIdx < slotsToTry.length) {
       const targetSlot = slotsToTry[attemptIdx];
       try {
@@ -1385,7 +1386,9 @@ async function quickBookClass(eventId, prefs, btn) {
         bookedCount++;
         lastBookedSlot = targetSlot;
         lastBookingRes = bookRes;
-        showToast(`Quick-booked spot ${targetSlot}! 🎉`, 'success');
+        const ls = layoutSlots.find(s => Number(s.id) === Number(targetSlot));
+        bookedSlotLabels.push(ls?.label ?? targetSlot);
+        showToast(`Quick-booked spot ${ls?.label ?? targetSlot}! 🎉`, 'success');
       } catch (err) {
         console.error(`Quick book failed for slot ${targetSlot}:`, err.message);
       }
@@ -1396,6 +1399,17 @@ async function quickBookClass(eventId, prefs, btn) {
     }
 
     if (bookedCount > 0) {
+      const qbInstructor = res.relations?.instructors?.find(i => i.id === eventData.instructor_id)
+        || res.relations?.instructors?.[0] || eventData.instructor;
+      const qbEventType = res.relations?.event_types?.find(t => t.id === eventData.event_type_id)
+        || res.relations?.event_types?.[0] || eventData.event_type;
+      api.notifyBookingSuccess({
+        source: 'quickbook', eventId,
+        className: eventData.name || qbEventType?.name,
+        groupName: qbEventType?.group?.name || '',
+        instructorName: qbInstructor?.full_name || qbInstructor?.name || '',
+        startAt: eventData.start_at, slots: bookedSlotLabels,
+      }).catch(() => {});
       if (lastBookedSlot !== null) await tryAutoRegisterUpgrade(eventData, lastBookedSlot, lastBookingRes);
       await refreshUserData();
       renderTimetableGrid();
@@ -1862,6 +1876,14 @@ async function openBookingModal(c, mode) {
               slots: state.selectedSlots
             });
             showToast(`Successfully booked ${state.selectedSlots.length} spot${state.selectedSlots.length > 1 ? 's' : ''}! 🎉`, 'success');
+            const bookedLabels = state.selectedSlots.map(id => {
+              const s = layoutSlots.find(ls => Number(ls.id) === Number(id));
+              return s?.label ?? id;
+            });
+            api.notifyBookingSuccess({
+              source: 'manual', eventId: c.id, className: c.name || groupName, groupName,
+              instructorName: instrName, startAt: c.start_at, slots: bookedLabels,
+            }).catch(() => {});
             closeModal();
             if (state.selectedSlots.length === 1) await tryAutoRegisterUpgrade(c, state.selectedSlots[0], bookingRes);
             await refreshUserData();
@@ -2164,15 +2186,20 @@ async function saveAutoBookPreferences(c, slots, rows, qty, bookAny, callback, s
       }
     }
 
+    const availForAB = getAvailableCreditsForEvent(c);
+    const creditShortfall = Number.isFinite(availForAB) ? Math.max(0, qty - availForAB) : 0;
+
     await api.addAutoBooking({
       eventId: c.id,
       studioId: c.studio_id || null,
       className: strippedClassName,
+      groupName,
       instructorName: instructor.full_name || instructor.name,
       studioName: studio.name,
       locationName: location.name,
       startAt: c.start_at,
       skipImmediate,
+      creditShortfall,
       preferences: {
         preferredSlots: slots,
         preferredRows: rows,

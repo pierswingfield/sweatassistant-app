@@ -2,6 +2,7 @@ const cron = require('node-cron');
 const { DateTime } = require('luxon');
 const db = require('./db');
 const pushService = require('./push');
+const notifications = require('./notifications');
 const { triggerAutoRelogin } = require('./auth');
 
 // Calculate booking offset/headers like scheduler
@@ -105,6 +106,12 @@ async function attemptUpgradeSlot(upgrade, isCutoffMode) {
     const payload = await res.json();
     const eventData = payload.data || payload;
     const availableSlots = (payload.slots || eventData.slots || []).map(id => Number(id));
+    const upgradeStudio = payload.relations?.studios?.[0] || eventData.relations?.studios?.[0] || eventData.studio;
+    const upgradeLayout = upgradeStudio?.layout?.slots || [];
+    const labelForSlot = (id) => {
+      const s = upgradeLayout.find(ls => Number(ls.id) === Number(id));
+      return s?.label ?? id;
+    };
 
     // 2. Iterate preferred slots to find a better one
     for (let i = 0; i < preferredSlots.length; i++) {
@@ -177,11 +184,14 @@ async function attemptUpgradeSlot(upgrade, isCutoffMode) {
             newBookingId,
             lastCheckedAt: nowStr
           });
-          pushService.sendNotification(
-            userId,
-            'Seat Upgraded! 🚀 Action Required',
-            `We grabbed slot ${candidateSlot} for ${upgrade.class_name}. As you're within 12 hours, we kept your original seat — please contact Psycle to cancel it.`
-          );
+          notifications.notify(userId, 'upgrade', {
+            slot: labelForSlot(candidateSlot),
+            startAt: upgrade.start_at,
+            groupName: upgrade.group_name,
+            className: upgrade.class_name,
+            instructorName: upgrade.instructor_name,
+            keptOriginal: true,
+          });
         } else {
           db.updateAutoUpgrade(upgrade.id, userId, 'active', `Upgraded to slot ${candidateSlot}. Monitoring for better slots...`, {
             currentSlotId: candidateSlot,
@@ -190,11 +200,14 @@ async function attemptUpgradeSlot(upgrade, isCutoffMode) {
             upgradedAt: nowStr,
             lastCheckedAt: nowStr
           });
-          pushService.sendNotification(
-            userId,
-            'Auto-Upgrade Success! 🚀',
-            `Upgraded to slot ${candidateSlot} for ${upgrade.class_name}.`
-          );
+          notifications.notify(userId, 'upgrade', {
+            slot: labelForSlot(candidateSlot),
+            startAt: upgrade.start_at,
+            groupName: upgrade.group_name,
+            className: upgrade.class_name,
+            instructorName: upgrade.instructor_name,
+            keptOriginal: false,
+          });
         }
         return; // Success! Exit check loop
       }
@@ -266,14 +279,163 @@ async function executeAutoUpgradeChecks() {
   }
 }
 
+// ─── Booking-schedule discovery (infrequent CodexFit poll) ───────────────────
+// Normalise a raw CodexFit booking into our cache shape (mirrors client parsing).
+function normalizeBooking(b) {
+  const event = b.event || {};
+  const startAt = event.start_at || b.start_at;
+  if (!startAt) return null;
+  return {
+    bookingId: b.id,
+    eventId: event.id || b.event_id || null,
+    startAt,
+    className: event.event_type?.name || event.name || 'Class',
+    groupName: event.event_type?.group?.name || '',
+    instructorName: event.instructor?.full_name || event.instructor?.name || '',
+    studioName: event.studio?.name || '',
+    locationName: event.studio?.location?.name || '',
+    slotLabel: b.studio_slot?.label ?? b.slot ?? b.studio_slot_id ?? b.slot_id ?? '',
+  };
+}
+
+// Refresh booking caches for users who have cancellation reminders enabled and at
+// least one push subscription. Runs every few hours — reminders themselves fire
+// locally from the cache with no extra API cost.
+async function refreshBookingCaches() {
+  const userIds = db.getUserIdsWithPushSubs();
+  for (const userId of userIds) {
+    try {
+      const prefs = notifications.getPrefs(userId);
+      if (!prefs.cancellationReminder.enabled) continue;
+
+      const url = 'https://psycle.codexfit.com/api/v1/customer/bookings?limit=100&page=1';
+      const res = await fetchCodexFit(userId, url);
+      if (!res.ok) continue;
+      const payload = await res.json();
+      const list = payload.data || payload || [];
+      const normalized = (Array.isArray(list) ? list : []).map(normalizeBooking).filter(Boolean);
+      db.replaceBookingCache(userId, normalized);
+      console.log(`[Reminders] Cached ${normalized.length} upcoming booking(s) for user ${userId}.`);
+    } catch (err) {
+      console.error(`[Reminders] Failed to refresh bookings for user ${userId}:`, err.message);
+    }
+  }
+  // Housekeeping: drop past classes and stale dedupe keys.
+  const now = DateTime.now().toISO();
+  db.pruneBookingCache(now);
+  db.pruneSentNotifications(DateTime.now().minus({ days: 30 }).toISO());
+}
+
+// ─── Local reminder firing (no API calls) ────────────────────────────────────
+function checkCancellationReminders() {
+  const now = DateTime.now().setZone('Europe/London');
+  const cached = db.getAllBookingCache();
+  for (const bk of cached) {
+    try {
+      const prefs = notifications.getPrefs(bk.user_id);
+      if (!prefs.cancellationReminder.enabled) continue;
+
+      const timing = prefs.cancellationReminder.timing === '14h' ? 14 : 24;
+      const start = DateTime.fromISO(bk.start_at, { zone: 'Europe/London' });
+      if (!start.isValid) continue;
+
+      const hoursUntil = start.diff(now, 'hours').hours;
+      // Only inside the free-cancellation window and at/after the chosen offset.
+      if (hoursUntil <= 12) continue;
+      if (hoursUntil > timing) continue;
+
+      const key = `cancel:${bk.booking_id}:${timing}h`;
+      if (db.wasNotificationSent(bk.user_id, key)) continue;
+      db.markNotificationSent(bk.user_id, key);
+
+      notifications.notify(bk.user_id, 'cancellationReminder', {
+        startAt: bk.start_at,
+        groupName: bk.group_name,
+        className: bk.class_name,
+        instructorName: bk.instructor_name,
+        slot: bk.slot_label,
+      });
+    } catch (err) {
+      console.error(`[Reminders] Cancellation reminder failed for booking ${bk.booking_id}:`, err.message);
+    }
+  }
+}
+
+// Weekly "booking opens in 1 hour" reminder, fired once per Monday-noon release.
+async function checkBookingWindowReminder() {
+  const now = DateTime.now().setZone('Europe/London');
+  let mondayNoon = now.set({ weekday: 1, hour: 12, minute: 0, second: 0, millisecond: 0 });
+  if (now > mondayNoon) mondayNoon = mondayNoon.plus({ weeks: 1 });
+  const fireAt = mondayNoon.minus({ hours: 1 });
+  if (now < fireAt || now >= mondayNoon) return;
+
+  const key = `window:${mondayNoon.toISODate()}`;
+  const userIds = db.getUserIdsWithPushSubs();
+  for (const userId of userIds) {
+    try {
+      const prefs = notifications.getPrefs(userId);
+      if (!prefs.bookingWindow.enabled) continue;
+      if (db.wasNotificationSent(userId, key)) continue;
+      db.markNotificationSent(userId, key);
+      await sendBookingWindowTip(userId);
+    } catch (err) {
+      console.error(`[Reminders] Booking-window reminder failed for user ${userId}:`, err.message);
+    }
+  }
+}
+
+async function sendBookingWindowTip(userId) {
+  const pending = db.getUserAutoBookings(userId).filter(b => b.status === 'pending');
+  const count = pending.length;
+  let tip;
+  if (count === 0) {
+    tip = "Don't forget to set up Auto-Book!";
+  } else {
+    let enough = true;
+    try {
+      const res = await fetchCodexFit(userId, 'https://psycle.codexfit.com/api/v1/customer/profile');
+      if (res.ok) {
+        const payload = await res.json();
+        const profile = payload.data || payload;
+        const totalCredits = (profile.available_credits || []).reduce((s, c) => s + (c.count || 0), 0);
+        const needed = pending.reduce((s, b) => {
+          let p = {};
+          try { p = JSON.parse(b.preferences || '{}'); } catch (_) {}
+          return s + (p.requiredCount || 1);
+        }, 0);
+        enough = totalCredits >= needed;
+      }
+    } catch (_) { /* fall back to the neutral tip */ }
+    const plural = count !== 1 ? 'es' : '';
+    tip = enough
+      ? `You have ${count} class${plural} set to Auto-Book.`
+      : `⚠️ You have ${count} class${plural} set to Auto-Book, but you don't have enough credits.`;
+  }
+  await notifications.notify(userId, 'bookingWindow', { tip });
+}
+
 module.exports = {
   init() {
     console.log('[Poller] Auto-Upgrade Poller initialized.');
-    // Run upgrade checks every minute
+    // Auto-upgrade checks every minute (respects each monitor's own interval).
     cron.schedule('* * * * *', async () => {
       console.log('[Poller] Running auto-upgrade check cycle...');
       await executeAutoUpgradeChecks();
     });
+    // Scheduled-notification engine every minute — purely local, no API calls
+    // (except the once-weekly booking-window tip which fetches credits once).
+    cron.schedule('* * * * *', async () => {
+      checkCancellationReminders();
+      await checkBookingWindowReminder();
+    });
+    // Infrequent booking-schedule discovery to keep the local cache fresh.
+    cron.schedule('0 */6 * * *', async () => {
+      console.log('[Reminders] Running booking-cache discovery poll...');
+      await refreshBookingCaches();
+    });
+    // Warm the cache shortly after startup.
+    setTimeout(() => { refreshBookingCaches().catch(() => {}); }, 60 * 1000);
   },
-  executeAutoUpgradeChecks
+  executeAutoUpgradeChecks,
+  refreshBookingCaches
 };

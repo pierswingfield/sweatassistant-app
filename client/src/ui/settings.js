@@ -1,480 +1,637 @@
 import { api, apiFetch } from '../api';
 import { showToast, togglePushSubscription, updatePushStatusUI, userSettings, cache } from '../main';
 import { renderStudioFloorPlan } from './spotmap';
+import { cacheGet } from './timetable';
 
 let loadedProfile = null;
 
-async function loadProfileData() {
-  const btn = document.getElementById('psycle-profile-load-btn');
-  const content = document.getElementById('psycle-profile-content');
-  if (!btn || !content) return;
+// ─── Profile Explorer — Unified Implementation ─────────────────────────────
 
-  btn.disabled = true;
-  btn.textContent = 'Loading...';
+let editMode = false;
+let konamiProgress = 0;
+let explorerModalOpen = false;
+let changeLog = []; // module-level — persists across saves, reset on modal open
+
+// Konami code sequence: ↑↑↓↓←→←→BA + Enter (uses e.code)
+const KONAMI = ['ArrowUp','ArrowUp','ArrowDown','ArrowDown','ArrowLeft','ArrowRight','ArrowLeft','ArrowRight','KeyB','KeyA','Enter'];
+
+// Section schema definition — categorizes known fields
+const SECTION_DEFS = [
+  {
+    title: 'Basic Info',
+    emoji: '👤',
+    paths: ['id', 'first_name', 'last_name', 'email', 'username', 'dob', 'telephone', 'referral_code', 'verified', 'created_at']
+  },
+  {
+    title: 'Account & Payments',
+    emoji: '💳',
+    paths: ['stripe_id', 'card_brand', 'card_last_four', 'has_purchased', 'opt_ins', 'policies']
+  },
+  {
+    title: 'Metafields & Preferences',
+    emoji: '⚙️',
+    // Special: all metafields.* except metafields.public.bookmarks
+    // Built dynamically in buildSections()
+  },
+  {
+    title: 'Booking Stats & Cutoffs',
+    emoji: '📊',
+    paths: ['stats.total_bookings', 'stats.total_unique_bookings', 'stats.total_unique_bookings_attended', 'stats.credits_remaining', 'stats.total_attended_minutes', 'booking_cutoff', 'extended_cutoff']
+  },
+  {
+    title: 'Available Credits',
+    emoji: '🎟️',
+    paths: ['available_credits']  // array — rendered as cards, read-only
+  },
+  {
+    title: 'Subscriptions & Plans',
+    emoji: '🔄',
+    paths: ['subscriptions', 'subscription_statuses']  // arrays — rendered as cards, read-only
+  },
+];
+
+// ─── Helpers ────────────────────────────────────────────────────────────────
+
+function getByPath(obj, path) {
+  return path.split('.').reduce((acc, part) => acc && acc[part] !== undefined ? acc[part] : undefined, obj);
+}
+
+function setByPath(obj, path, value) {
+  const parts = path.split('.');
+  let current = obj;
+  for (let i = 0; i < parts.length - 1; i++) {
+    if (!current[parts[i]] || typeof current[parts[i]] !== 'object') current[parts[i]] = {};
+    current = current[parts[i]];
+  }
+  current[parts[parts.length - 1]] = value;
+}
+
+function humanizeKey(key) {
+  return key.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase());
+}
+
+function isScalar(val) {
+  return val === null || val === undefined || typeof val === 'string' || typeof val === 'number' || typeof val === 'boolean';
+}
+
+function formatVal(val) {
+  if (val === null || val === undefined) return '<span style="color:#64748b;font-style:italic;">null</span>';
+  if (typeof val === 'object') {
+    return `<pre style="margin:0;background:rgba(0,0,0,0.3);padding:6px;border-radius:6px;font-family:monospace;font-size:11px;white-space:pre-wrap;word-break:break-all;color:#e2e8f0;text-align:left;">${JSON.stringify(val, null, 2)}</pre>`;
+  }
+  if (typeof val === 'boolean') {
+    return val ? '<span style="color:#34d399;font-weight:700;">true</span>' : '<span style="color:#f87171;font-weight:700;">false</span>';
+  }
+  return `<span style="color:#ffffff;font-weight:600;">${String(val)}</span>`;
+}
+
+// ─── Special Section Renderers ──────────────────────────────────────────────
+
+function renderCreditsHtml(credits) {
+  if (!credits || credits.length === 0) return '<div style="color:#94a3b8;font-style:italic;text-align:center;font-size:12px;">No active credits.</div>';
+  return credits.map(c => `
+    <div style="background:rgba(139,92,246,0.08);border:1px solid rgba(139,92,246,0.2);border-radius:10px;padding:10px 14px;display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;">
+      <div style="display:flex;flex-direction:column;gap:2px;">
+        <strong style="color:#fff;font-size:13px;">${c.credit_type?.name || 'Unknown'}</strong>
+        <span style="font-size:10px;color:#94a3b8;">Handle: ${c.credit_type?.handle || '—'}</span>
+      </div>
+      <span style="background:#8b5cf6;color:#fff;border-radius:12px;padding:4px 10px;font-size:11px;font-weight:700;box-shadow:0 2px 4px rgba(139,92,246,0.3);border:1px solid rgba(255,255,255,0.1);">${c.count} Left</span>
+    </div>
+  `).join('');
+}
+
+function renderSubsHtml(subs, statuses) {
+  const allSubs = [...(subs || []), ...(statuses || [])];
+  if (allSubs.length === 0) return '<div style="color:#94a3b8;font-style:italic;text-align:center;font-size:12px;">No subscription plans found.</div>';
+  return allSubs.map(s => {
+    const status = s.status || 'inactive';
+    const isCancelled = status === 'cancelled';
+    const statusBg = isCancelled ? 'rgba(239,68,68,0.15)' : 'rgba(16,185,129,0.15)';
+    const statusBorder = isCancelled ? 'rgba(239,68,68,0.3)' : 'rgba(16,185,129,0.3)';
+    const statusColor = isCancelled ? '#f87171' : '#34d399';
+    return `
+      <div style="background:rgba(255,255,255,0.02);border:1px solid rgba(255,255,255,0.06);border-radius:10px;padding:10px 14px;display:flex;justify-content:space-between;align-items:center;gap:12px;margin-bottom:8px;">
+        <div style="display:flex;flex-direction:column;gap:2px;flex:1;">
+          <span style="font-weight:600;color:#fff;font-size:12px;line-height:1.4;">${s.name || '—'}</span>
+          <span style="font-size:10px;color:#94a3b8;">Plan: ${s.handle || '—'}</span>
+        </div>
+        <span style="background:${statusBg};border:1px solid ${statusBorder};color:${statusColor};border-radius:6px;padding:3px 8px;font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:0.5px;">${status}</span>
+      </div>
+    `;
+  }).join('');
+}
+
+// ─── buildSections — Build categorized section array from profile ───────────
+
+function buildSections(profile) {
+  const consumedPaths = new Set();
+  const sections = [];
+
+  SECTION_DEFS.forEach(def => {
+    if (def.title === 'Metafields & Preferences') {
+      const subFields = [];
+      const metafields = profile.metafields;
+      if (metafields && typeof metafields === 'object') {
+        Object.keys(metafields).forEach(key => {
+          if (key === 'public' && typeof metafields.public === 'object') {
+            Object.keys(metafields.public).forEach(subKey => {
+              if (subKey === 'bookmarks') return;
+              const path = `metafields.public.${subKey}`;
+              consumedPaths.add(path);
+              subFields.push({ key: subKey, path, value: getByPath(profile, path), editable: isScalar(metafields.public[subKey]) });
+            });
+          } else {
+            const path = `metafields.${key}`;
+            consumedPaths.add(path);
+            subFields.push({ key, path, value: metafields[key], editable: isScalar(metafields[key]) });
+          }
+        });
+      }
+      sections.push({ title: def.title, emoji: def.emoji, fields: subFields, isSpecial: false });
+    } else if (def.title === 'Available Credits' || def.title === 'Subscriptions & Plans') {
+      def.paths.forEach(p => consumedPaths.add(p));
+      const vals = def.paths.map(p => ({ path: p, value: getByPath(profile, p) }));
+      sections.push({ title: def.title, emoji: def.emoji, fields: vals, isSpecial: true });
+    } else {
+      const subFields = [];
+      def.paths.forEach(path => {
+        consumedPaths.add(path);
+        const val = getByPath(profile, path);
+        subFields.push({ key: path.split('.').pop(), path, value: val, editable: isScalar(val) });
+      });
+      sections.push({ title: def.title, emoji: def.emoji, fields: subFields, isSpecial: false });
+    }
+  });
+
+  // Build the "Other" section — top-level keys not consumed
+  const otherFields = [];
+  const topKeys = Object.keys(profile);
+  topKeys.forEach(key => {
+    if (key === 'metafields' || key === 'stats') {
+      // Check sub-keys
+      const subObj = profile[key];
+      if (subObj && typeof subObj === 'object') {
+        Object.keys(subObj).forEach(subKey => {
+          const path = `${key}.${subKey}`;
+          if (!consumedPaths.has(path)) {
+            otherFields.push({ key: path, path, value: getByPath(profile, path), editable: isScalar(getByPath(profile, path)) });
+          }
+        });
+      }
+    } else {
+      // Check if any path starting with this key is consumed
+      const consumed = Array.from(consumedPaths).some(cp => cp === key || cp.startsWith(key + '.'));
+      if (!consumed) {
+        otherFields.push({ key, path: key, value: profile[key], editable: isScalar(profile[key]) });
+      }
+    }
+  });
+
+  if (otherFields.length > 0) {
+    sections.push({ title: 'Other', emoji: '📦', fields: otherFields, isSpecial: false });
+  }
+
+  return sections;
+}
+
+// ─── Modal Functions ────────────────────────────────────────────────────────
+
+async function openProfileExplorerModal() {
+  const modal = document.getElementById('psycle-profile-explorer-modal');
+  const body = document.getElementById('psycle-profile-explorer-body');
+  if (!modal || !body) return;
+
+  // Reset state
+  editMode = false;
+  konamiProgress = 0;
+  explorerModalOpen = true;
+  changeLog = [];
+
+  // Show loading state — use .show class for opacity transition (matches booking/debug modal convention)
+  modal.style.display = 'flex';
+  setTimeout(() => modal.classList.add('show'), 10);
+  body.innerHTML = '<div style="text-align:center;padding:40px;"><div class="psycle-spinner" style="margin:0 auto;"></div><div style="color:#94a3b8;margin-top:10px;font-size:13px;">Loading profile…</div></div>';
+
+  // Set up close handlers
+  setupExplorerModalClose(modal);
+
+  // Set up konami listener (scoped to modal open)
+  setupExplorerKonamiListener();
 
   try {
     const res = await api.proxyGet('/profile');
-    const profile = res.data || res;
-    renderProfileAccordion(profile, content);
-    loadedProfile = profile;
-    content.style.display = 'block';
-    btn.textContent = 'Refresh Profile Data';
+    loadedProfile = res.data || res;
+    renderExplorerBody(body);
   } catch (err) {
-    content.style.display = 'block';
-    content.innerHTML = `<div class="psycle-card-error">Failed to load profile: ${err.message}</div>`;
-    btn.textContent = 'Retry';
-  } finally {
-    btn.disabled = false;
+    body.innerHTML = `<div class="psycle-card-error">Failed to load profile: ${err.message}</div>`;
   }
 }
 
-// Konami code sequence: ↑↑↓↓←→←→BA
-const KONAMI = ['ArrowUp','ArrowUp','ArrowDown','ArrowDown','ArrowLeft','ArrowRight','ArrowLeft','ArrowRight','b','a'];
-let konamiProgress = 0;
-let konamiUnlocked = false;
+function setupExplorerModalClose(modal) {
+  const closeBtn = document.getElementById('psycle-profile-explorer-close');
+  const overlay = modal.querySelector('.psycle-modal-overlay');
+  const closer = () => {
+    modal.classList.remove('show');
+    setTimeout(() => { modal.style.display = 'none'; }, 300);
+    explorerModalOpen = false;
+    editMode = false;
+    konamiProgress = 0;
+  };
+  if (closeBtn && !closeBtn.dataset.listener) {
+    closeBtn.dataset.listener = 'true';
+    closeBtn.addEventListener('click', closer);
+  }
+  if (overlay && !overlay.dataset.listener) {
+    overlay.dataset.listener = 'true';
+    overlay.addEventListener('click', closer);
+  }
+}
 
-function setupKonamiListener() {
-  if (document.body.dataset.konamiListenerAttached) return;
-  document.body.dataset.konamiListenerAttached = 'true';
+function setupExplorerKonamiListener() {
+  if (document.body.dataset.explorerKonamiAttached) return;
+  document.body.dataset.explorerKonamiAttached = 'true';
   document.addEventListener('keydown', (e) => {
-    if (e.key === KONAMI[konamiProgress]) {
+    if (!explorerModalOpen) {
+      konamiProgress = 0;
+      return;
+    }
+    if (e.code === KONAMI[konamiProgress]) {
       konamiProgress++;
       if (konamiProgress === KONAMI.length) {
         konamiProgress = 0;
-        if (loadedProfile) {
-          openProfileEditorModal(loadedProfile);
-        } else {
-          api.proxyGet('/profile').then(res => {
-            loadedProfile = res.data || res;
-            openProfileEditorModal(loadedProfile);
-          }).catch(() => showToast('Could not load profile', 'error'));
-        }
+        toggleEditMode();
       }
     } else {
-      konamiProgress = e.key === KONAMI[0] ? 1 : 0;
+      konamiProgress = e.code === KONAMI[0] ? 1 : 0;
     }
   });
 }
 
-// ─── Profile Editor Modal (Konami-triggered) ────────────────────────────────
-
-function openProfileEditorModal(profile) {
-  const modal = document.getElementById('psycle-profile-editor-modal');
-  if (!modal) return;
-
-  const body = document.getElementById('psycle-profile-editor-body');
-  if (!body) return;
-
-  modal.style.display = 'flex';
-  body.innerHTML = '';
-  renderProfileEditorBody(profile, body, modal);
+function toggleEditMode() {
+  if (!loadedProfile) return;
+  if (editMode) {
+    // Exiting edit mode — check for unsaved changes
+    const body = document.getElementById('psycle-profile-explorer-body');
+    const hasChanges = body.querySelector('.psycle-profile-save-btn') && body.querySelector('.psycle-profile-save-btn').style.display !== 'none';
+    if (hasChanges) {
+      if (!confirm('You have unsaved changes. Exit edit mode and discard them?')) return;
+    }
+  }
+  editMode = !editMode;
+  const body = document.getElementById('psycle-profile-explorer-body');
+  renderExplorerBody(body);
+  if (editMode) {
+    showToast('Edit mode enabled', 'info');
+  } else {
+    showToast('Edit mode disabled', 'info');
+  }
 }
 
-function renderProfileEditorBody(profile, body, modal) {
-  const originalProfile = JSON.parse(JSON.stringify(profile));
+// ─── Render Functions ───────────────────────────────────────────────────────
 
-  function getByPath(obj, path) {
-    return path.split('.').reduce((acc, part) => acc && acc[part] !== undefined ? acc[part] : undefined, obj);
+function renderExplorerBody(body) {
+  if (!loadedProfile) {
+    body.innerHTML = '<div class="psycle-card-error">No profile data loaded.</div>';
+    return;
   }
 
-  function setByPath(obj, path, value) {
-    const parts = path.split('.');
-    let current = obj;
-    for (let i = 0; i < parts.length - 1; i++) {
-      if (!current[parts[i]] || typeof current[parts[i]] !== 'object') current[parts[i]] = {};
-      current = current[parts[i]];
-    }
-    current[parts[parts.length - 1]] = value;
+  const sections = buildSections(loadedProfile);
+  let html = '';
+
+  // Edit mode banner
+  if (editMode) {
+    html += `<div style="background:rgba(245,158,11,0.1);border:1px solid rgba(245,158,11,0.3);border-radius:8px;padding:10px 14px;margin-bottom:12px;display:flex;justify-content:space-between;align-items:center;">
+      <span style="color:#fbbf24;font-weight:600;font-size:13px;">🔓 Edit Mode Enabled — modify fields and click Save Changes</span>
+      <span style="color:#94a3b8;font-size:11px;">Enter konami code again to exit</span>
+    </div>`;
   }
 
-  function humanizeKey(key) {
-    return key.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase());
-  }
-
-  function isBool(path) {
-    const boolPaths = ['verified', 'has_purchased', 'metafields.extended_booking_allowed', 'metafields.opt_in_email', 'metafields.opt_in_sms', 'metafields.vip'];
-    return boolPaths.includes(path);
-  }
-
-  const sections = [
-    {
-      title: '👤 Basic Info',
-      fields: [
-        { key: 'first_name', path: 'first_name' },
-        { key: 'last_name', path: 'last_name' },
-        { key: 'email', path: 'email' },
-        { key: 'username', path: 'username' },
-        { key: 'dob', path: 'dob' },
-        { key: 'telephone', path: 'telephone' },
-        { key: 'verified', path: 'verified' },
-      ]
-    },
-    {
-      title: '💳 Account & Payments',
-      fields: [
-        { key: 'stripe_id', path: 'stripe_id' },
-        { key: 'card_brand', path: 'card_brand' },
-        { key: 'card_last_four', path: 'card_last_four' },
-        { key: 'has_purchased', path: 'has_purchased' },
-      ]
-    },
-    {
-      title: '⚙️ Metafields & Preferences',
-      fields: [
-        { key: 'vip', path: 'metafields.vip' },
-        { key: 'gender', path: 'metafields.gender' },
-        { key: 'address_1', path: 'metafields.address_1' },
-        { key: 'address_2', path: 'metafields.address_2' },
-        { key: 'address_3', path: 'metafields.address_3' },
-        { key: 'address_postcode', path: 'metafields.address_postcode' },
-        { key: 'shoe_size', path: 'metafields.shoe_size' },
-        { key: 'seat_height', path: 'metafields.seat_height' },
-        { key: 'seat_horizontal', path: 'metafields.seat_horizontal' },
-        { key: 'handlebar_height', path: 'metafields.handlebar_height' },
-        { key: 'handlebar_horizontal', path: 'metafields.handlebar_horizontal' },
-        { key: 'emergency_contact_name', path: 'metafields.emergency_contact_name' },
-        { key: 'emergency_contact_mobile', path: 'metafields.emergency_contact_mobile' },
-        { key: 'emergency_contact_relationship', path: 'metafields.emergency_contact_relationship' },
-        { key: 'booking_period', path: 'metafields.booking_period' },
-        { key: 'extended_booking_allowed', path: 'metafields.extended_booking_allowed' },
-        { key: 'opt_in_email', path: 'metafields.opt_in_email' },
-        { key: 'opt_in_sms', path: 'metafields.opt_in_sms' },
-      ]
-    },
-    {
-      title: '📊 Booking Stats & Cutoffs',
-      fields: [
-        { key: 'total_bookings', path: 'stats.total_bookings' },
-        { key: 'total_unique_bookings', path: 'stats.total_unique_bookings' },
-        { key: 'total_unique_bookings_attended', path: 'stats.total_unique_bookings_attended' },
-        { key: 'credits_remaining', path: 'stats.credits_remaining' },
-        { key: 'total_attended_minutes', path: 'stats.total_attended_minutes' },
-        { key: 'booking_cutoff', path: 'booking_cutoff' },
-        { key: 'extended_cutoff', path: 'extended_cutoff' },
-      ]
-    },
-  ];
-
-  let changeLog = [];
-
-  function renderLog() {
-    const logContainer = document.getElementById('psycle-editor-log-container');
-    if (!logContainer) return;
-    if (changeLog.length === 0) {
-      logContainer.innerHTML = '<div style="padding:12px;text-align:center;color:#64748b;font-style:italic;font-size:12px;">No changes yet.</div>';
-      return;
-    }
-    const reversed = [...changeLog].reverse();
-    logContainer.innerHTML = reversed.map(e => {
-      const ts = e.timestamp.toLocaleTimeString('en-GB', { hour12: false });
-      const oldS = e.oldValue == null ? 'null' : String(e.oldValue);
-      const newS = e.newValue == null ? 'null' : String(e.newValue);
-      const icon = e.status === 'verified' ? '✅' : e.status === 'sent' ? '⚠️' : e.status === 'failed' ? '❌' : '🔙';
-      const color = e.status === 'verified' ? '#34d399' : e.status === 'sent' ? '#fbbf24' : e.status === 'failed' ? '#f87171' : '#94a3b8';
-      return `<div style="display:flex;align-items:center;gap:8px;padding:6px 10px;border-bottom:1px solid rgba(255,255,255,0.04);font-size:11px;">
-        <span style="color:#64748b;flex-shrink:0;">${ts}</span>
-        <span style="color:#c084fc;flex-shrink:0;">${e.fieldPath}</span>
-        <span style="color:#94a3b8;flex:1;">${oldS} → <span style="color:#e2e8f0;">${newS}</span></span>
-        <span style="color:${color};">${icon}</span>
-      </div>`;
-    }).join('');
-  }
-
-  // Build sections
-  sections.forEach((section, sIdx) => {
-    const sectionDiv = document.createElement('div');
-    sectionDiv.style.cssText = 'margin-bottom:8px;border:1px solid rgba(255,255,255,0.08);border-radius:8px;overflow:hidden;';
-
-    const hdr = document.createElement('div');
-    hdr.style.cssText = 'padding:10px 14px;cursor:pointer;display:flex;justify-content:space-between;align-items:center;background:rgba(255,255,255,0.04);font-weight:600;font-size:13px;color:#e2e8f0;';
-    const chevron = document.createElement('span');
-    chevron.style.cssText = 'transition:transform 0.2s;';
-    chevron.textContent = '▼';
-    hdr.innerHTML = `<span>${section.title}</span>`;
-    hdr.appendChild(chevron);
-
-    const sectionBody = document.createElement('div');
-    sectionBody.style.cssText = 'padding:10px 14px;display:none;';
-
-    section.fields.forEach(({ key, path }) => {
-      const rawVal = getByPath(profile, path);
-      const isCheckbox = isBool(path);
-      const fieldRow = document.createElement('div');
-      fieldRow.style.cssText = 'display:flex;align-items:center;gap:8px;padding:5px 0;border-bottom:1px solid rgba(255,255,255,0.04);font-size:12px;';
-
-      const label = document.createElement('span');
-      label.style.cssText = 'flex:0 0 180px;color:#94a3b8;';
-      label.textContent = humanizeKey(key);
-
-      let input;
-      if (isCheckbox) {
-        input = document.createElement('input');
-        input.type = 'checkbox';
-        input.checked = !!rawVal;
-        input.style.cssText = 'width:16px;height:16px;cursor:pointer;accent-color:#a78bfa;';
-      } else {
-        input = document.createElement('input');
-        input.type = 'text';
-        input.value = rawVal == null ? '' : String(rawVal);
-        input.placeholder = rawVal == null ? 'null' : '';
-        input.style.cssText = 'flex:1;background:rgba(0,0,0,0.4);border:1px solid rgba(255,255,255,0.1);border-radius:5px;padding:4px 8px;font-size:11px;color:#e2e8f0;font-family:inherit;';
-      }
-
-      const saveBtn = document.createElement('button');
-      saveBtn.textContent = '💾 Save';
-      saveBtn.style.cssText = 'display:none;padding:3px 10px;font-size:10px;background:rgba(167,139,250,0.15);border:1px solid rgba(167,139,250,0.3);border-radius:5px;color:#a78bfa;cursor:pointer;white-space:nowrap;';
-
-      const checkChanged = () => {
-        const origVal = getByPath(originalProfile, path);
-        let currentVal = isCheckbox ? input.checked : input.value;
-        const origStr = origVal == null ? '' : String(origVal);
-        const currStr = currentVal === null || currentVal === undefined ? '' : String(currentVal);
-        saveBtn.style.display = origStr !== currStr ? 'inline-block' : 'none';
-      };
-
-      input.addEventListener('input', checkChanged);
-      input.addEventListener('change', checkChanged);
-
-      saveBtn.addEventListener('click', async () => {
-        const origVal = getByPath(originalProfile, path);
-        let newVal = isCheckbox ? input.checked : input.value;
-        if (!isCheckbox) {
-          const raw = input.value;
-          if (raw === '' && input.placeholder === 'null') newVal = null;
-          else {
-            const num = Number(raw);
-            if (!isNaN(num) && raw.trim() !== '') newVal = num;
-          }
-        }
-
-        saveBtn.disabled = true;
-        saveBtn.textContent = '⏳';
-
-        const workingProfile = JSON.parse(JSON.stringify(profile));
-        setByPath(workingProfile, path, newVal);
-
-        let logEntry = {
-          timestamp: new Date(),
-          fieldPath: path,
-          oldValue: origVal,
-          newValue: newVal,
-          status: 'sent'
-        };
-        changeLog.push(logEntry);
-        renderLog();
-
-        try {
-          await api.proxyPut('/profile', workingProfile);
-          // Re-fetch to verify
-          const refetched = await api.proxyGet('/profile');
-          const refetchedProfile = refetched.data || refetched;
-          const verifiedVal = getByPath(refetchedProfile, path);
-          const verifiedStr = verifiedVal == null ? '' : String(verifiedVal);
-          const newStr = newVal == null ? '' : String(newVal);
-          if (verifiedStr === newStr) {
-            logEntry.status = 'verified';
-            setByPath(profile, path, newVal);
-            setByPath(originalProfile, path, newVal);
-            loadedProfile = profile;
-          } else {
-            logEntry.status = 'reverted';
-            // Revert UI
-            if (isCheckbox) input.checked = !!origVal;
-            else input.value = origVal == null ? '' : String(origVal);
-          }
-        } catch (err) {
-          logEntry.status = 'failed';
-          showToast(`Save failed: ${err.message}`, 'error');
-        }
-
-        renderLog();
-        saveBtn.disabled = false;
-        saveBtn.textContent = '💾 Save';
-        checkChanged();
-      });
-
-      fieldRow.appendChild(label);
-      if (isCheckbox) {
-        const wrap = document.createElement('span');
-        wrap.style.cssText = 'flex:1;display:flex;align-items:center;gap:8px;';
-        wrap.appendChild(input);
-        fieldRow.appendChild(wrap);
-      } else {
-        fieldRow.appendChild(input);
-      }
-      fieldRow.appendChild(saveBtn);
-      sectionBody.appendChild(fieldRow);
-    });
-
-    hdr.addEventListener('click', () => {
-      const isOpen = sectionBody.style.display !== 'none';
-      sectionBody.style.display = isOpen ? 'none' : 'block';
-      chevron.style.transform = isOpen ? '' : 'rotate(180deg)';
-    });
-
-    sectionDiv.appendChild(hdr);
-    sectionDiv.appendChild(sectionBody);
-    body.appendChild(sectionDiv);
+  // Render each section as an accordion
+  sections.forEach((section, idx) => {
+    const isSpecial = section.title === 'Available Credits' || section.title === 'Subscriptions & Plans';
+    html += renderSectionAccordion(section, idx, isSpecial);
   });
 
-  // Change log panel
-  const logPanel = document.createElement('div');
-  logPanel.style.cssText = 'margin-top:12px;border:1px solid rgba(255,255,255,0.08);border-radius:8px;overflow:hidden;';
-  const logHdr = document.createElement('div');
-  logHdr.style.cssText = 'padding:10px 14px;cursor:pointer;display:flex;justify-content:space-between;align-items:center;background:rgba(255,255,255,0.04);font-weight:600;font-size:13px;color:#e2e8f0;';
-  const logChevron = document.createElement('span');
-  logChevron.textContent = '▼';
-  logChevron.style.cssText = 'transition:transform 0.2s;transform:rotate(180deg);';
-  logHdr.innerHTML = '<span>📋 Change Log</span>';
-  logHdr.appendChild(logChevron);
-
-  const logBody = document.createElement('div');
-  logBody.id = 'psycle-editor-log-container';
-  logBody.style.cssText = 'max-height:200px;overflow-y:auto;';
-  logBody.innerHTML = '<div style="padding:12px;text-align:center;color:#64748b;font-style:italic;font-size:12px;">No changes yet.</div>';
-
-  logHdr.addEventListener('click', () => {
-    const isOpen = logBody.style.display !== 'none';
-    logBody.style.display = isOpen ? 'none' : 'block';
-    logChevron.style.transform = isOpen ? '' : 'rotate(180deg)';
-  });
-
-  logPanel.appendChild(logHdr);
-  logPanel.appendChild(logBody);
-  body.appendChild(logPanel);
-
-  // Close button
-  const closeBtn = document.createElement('button');
-  closeBtn.className = 'psycle-btn';
-  closeBtn.style.cssText = 'width:100%;margin-top:12px;background:rgba(255,255,255,0.06);border:1px solid rgba(255,255,255,0.12);color:#e2e8f0;';
-  closeBtn.textContent = 'Close';
-  closeBtn.addEventListener('click', () => { modal.style.display = 'none'; });
-  body.appendChild(closeBtn);
-}
-
-function renderProfileAccordion(profile, container) {
-  setupKonamiListener();
-
-  container.innerHTML = '';
-
-  // Render each top-level key as a collapsible section showing raw values
-  const topLevelKeys = Object.keys(profile);
-
-  topLevelKeys.forEach(key => {
-    const value = profile[key];
-    const sectionDiv = document.createElement('div');
-    sectionDiv.className = 'psycle-profile-section';
-    sectionDiv.style.cssText = 'margin-bottom: 8px; border: 1px solid rgba(255,255,255,0.08); border-radius: 8px; overflow: hidden;';
-
-    const header = document.createElement('div');
-    header.style.cssText = 'padding: 10px 14px; cursor: pointer; display: flex; justify-content: space-between; align-items: center; background: rgba(255,255,255,0.04); font-weight: 600; font-size: 13px; color: #e2e8f0;';
-
-    const isObject = value !== null && typeof value === 'object';
-    const preview = isObject ? (Array.isArray(value) ? `[${value.length}]` : '{…}') : String(value ?? 'null');
-    header.innerHTML = `<span style="color:#a78bfa;">${key}</span><span style="color:#94a3b8;font-size:11px;font-weight:400;">${isObject ? '' : preview}<span class="psycle-profile-chevron" style="margin-left:8px;transition:transform 0.2s;">▼</span></span>`;
-
-    const body = document.createElement('div');
-    body.style.cssText = 'padding: 10px 14px; display: none;';
-
-    if (isObject) {
-      const pre = document.createElement('pre');
-      pre.style.cssText = 'background:rgba(0,0,0,0.3);border:1px solid rgba(255,255,255,0.06);border-radius:6px;padding:10px;font-size:11px;line-height:1.5;color:#e2e8f0;white-space:pre-wrap;word-break:break-all;margin:0;overflow:auto;max-height:300px;';
-      pre.textContent = JSON.stringify(value, null, 2);
-      body.appendChild(pre);
-    } else {
-      const row = document.createElement('div');
-      row.style.cssText = 'font-size: 12px; color: #e2e8f0; word-break: break-word; font-family: monospace;';
-      row.textContent = String(value ?? 'null');
-      body.appendChild(row);
-    }
-
-    header.addEventListener('click', () => {
-      const isOpen = body.style.display !== 'none';
-      body.style.display = isOpen ? 'none' : 'block';
-      header.querySelector('.psycle-profile-chevron').style.transform = isOpen ? '' : 'rotate(180deg)';
-    });
-
-    sectionDiv.appendChild(header);
-    sectionDiv.appendChild(body);
-    container.appendChild(sectionDiv);
-  });
-
-  // Developer mode section (Konami-unlocked)
-  const devSection = document.createElement('div');
-  devSection.className = 'psycle-dev-mode-section';
-  devSection.style.cssText = `display: ${konamiUnlocked ? 'block' : 'none'}; margin-top: 12px;`;
-
-  // Metafield editor
-  const publicMeta = profile.metafields?.public || {};
-  const editableKeys = Object.keys(publicMeta).filter(k => k !== 'bookmarks');
-  const metaEditorRows = editableKeys.map(key => {
-    const val = typeof publicMeta[key] === 'object' ? JSON.stringify(publicMeta[key]) : String(publicMeta[key] ?? '');
-    return `
-      <div style="display:flex;gap:8px;align-items:center;margin-bottom:6px;">
-        <span style="flex:0 0 120px;font-size:11px;color:#94a3b8;overflow:hidden;text-overflow:ellipsis;" title="${key}">${key}</span>
-        <input data-metakey="${key}" value="${val.replace(/"/g, '&quot;')}" style="flex:1;background:rgba(0,0,0,0.4);border:1px solid rgba(255,255,255,0.12);border-radius:5px;padding:4px 8px;font-size:11px;color:#e2e8f0;font-family:inherit;" />
-      </div>`;
-  }).join('');
-
-  const rawJson = JSON.stringify(profile, null, 2).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
-
-  devSection.innerHTML = `
-    <div style="border: 1px solid rgba(245,158,11,0.3); border-radius: 8px; overflow: hidden;">
-      <div style="padding: 10px 14px; background: rgba(245,158,11,0.08); font-weight: 600; font-size: 13px; color: #fbbf24;">
-        🔓 Developer Mode
+  // Change log (only in edit mode)
+  if (editMode) {
+    const logEntriesHtml = renderLogEntriesHtml();
+    html += `
+      <div class="psycle-profile-log-panel" style="margin-top:12px;border:1px solid rgba(255,255,255,0.08);border-radius:12px;overflow:hidden;">
+        <div class="psycle-profile-section-header" id="psycle-explorer-log-header" style="background:rgba(255,255,255,0.03);padding:10px 16px;display:flex;justify-content:space-between;align-items:center;cursor:pointer;user-select:none;">
+          <span style="font-weight:700;font-size:13px;color:#fff;display:flex;align-items:center;gap:6px;">📝 Change Log <span id="psycle-explorer-log-count" style="font-weight:400;font-size:11px;color:#94a3b8;">(${changeLog.length})</span></span>
+          <span class="psycle-accordion-arrow" id="psycle-explorer-log-arrow" style="font-size:11px;color:#94a3b8;transition:transform 0.2s;">▲</span>
+        </div>
+        <div id="psycle-explorer-log-container" style="max-height:200px;overflow-y:auto;padding:8px;background:rgba(0,0,0,0.15);border-top:1px solid rgba(255,255,255,0.05);">
+          ${logEntriesHtml}
+        </div>
       </div>
-      <div style="padding: 12px 14px;">
-        ${editableKeys.length > 0 ? `
-          <div style="margin-bottom:14px;">
-            <div style="font-size:11px;font-weight:600;color:#fbbf24;margin-bottom:8px;text-transform:uppercase;letter-spacing:0.5px;">Edit Public Metafields</div>
-            ${metaEditorRows}
-            <button id="psycle-metafields-save-btn" class="psycle-btn-mini" style="margin-top:6px;background:rgba(245,158,11,0.15);border-color:rgba(245,158,11,0.3);color:#fbbf24;">Save Metafields</button>
+    `;
+    // Save Changes button
+    html += `<button id="psycle-profile-save-btn" class="psycle-btn" style="width:100%;margin-top:12px;background:rgba(167,139,250,0.2);border:1px solid rgba(167,139,250,0.4);color:#a78bfa;font-weight:700;display:none;">💾 Save Changes</button>`;
+  }
+
+  body.innerHTML = html;
+
+  // Attach accordion toggles
+  body.querySelectorAll('.psycle-profile-section').forEach(sec => {
+    const header = sec.querySelector('.psycle-profile-section-header');
+    const content = sec.querySelector('.psycle-profile-section-content');
+    const arrow = sec.querySelector('.psycle-accordion-arrow');
+    if (header) {
+      header.addEventListener('click', () => {
+        const closed = content.style.display === 'none';
+        content.style.display = closed ? 'block' : 'none';
+        if (arrow) {
+          arrow.style.transform = closed ? 'rotate(180deg)' : 'rotate(0deg)';
+          arrow.textContent = closed ? '▲' : '▼';
+        }
+      });
+    }
+  });
+
+  // Log toggle
+  const logHeader = document.getElementById('psycle-explorer-log-header');
+  if (logHeader) {
+    const logContainer = document.getElementById('psycle-explorer-log-container');
+    const logArrow = document.getElementById('psycle-explorer-log-arrow');
+    logHeader.addEventListener('click', () => {
+      const closed = logContainer.style.display === 'none';
+      logContainer.style.display = closed ? 'block' : 'none';
+      if (logArrow) {
+        logArrow.style.transform = closed ? 'rotate(180deg)' : 'rotate(0deg)';
+        logArrow.textContent = closed ? '▲' : '▼';
+      }
+    });
+  }
+
+  // In edit mode: attach input change listeners + save button
+  if (editMode) {
+    setupEditListeners(body);
+  }
+}
+
+function renderSectionAccordion(section, idx, isSpecial) {
+  let contentHtml = '';
+
+  if (section.title === 'Available Credits') {
+    contentHtml = renderCreditsHtml(getByPath(loadedProfile, 'available_credits'));
+  } else if (section.title === 'Subscriptions & Plans') {
+    contentHtml = renderSubsHtml(getByPath(loadedProfile, 'subscriptions'), getByPath(loadedProfile, 'subscription_statuses'));
+  } else {
+    // Regular key-value rows
+    contentHtml = '<div style="display:flex;flex-direction:column;gap:8px;">';
+    section.fields.forEach(field => {
+      const label = humanizeKey(field.key);
+      if (editMode && field.editable) {
+        const isBool = typeof field.value === 'boolean';
+        let inputHtml;
+        if (isBool) {
+          inputHtml = `<input type="checkbox" class="psycle-profile-edit-input" data-path="${field.path}" ${field.value ? 'checked' : ''} style="width:16px;height:16px;cursor:pointer;accent-color:#a78bfa;">`;
+        } else {
+          const val = field.value !== null && field.value !== undefined ? String(field.value) : '';
+          inputHtml = `<input type="text" class="psycle-profile-edit-input" data-path="${field.path}" value="${val.replace(/"/g, '&quot;')}" placeholder="${field.value === null ? 'null' : ''}" style="flex:1;background:rgba(0,0,0,0.4);border:1px solid rgba(255,255,255,0.1);border-radius:5px;padding:4px 8px;font-size:11px;color:#e2e8f0;font-family:inherit;">`;
+        }
+        contentHtml += `
+          <div class="psycle-profile-field-row" data-path="${field.path}" style="display:flex;align-items:center;gap:8px;padding:5px 0;border-bottom:1px dashed rgba(255,255,255,0.05);">
+            <span style="color:#94a3b8;font-size:12px;font-weight:500;flex:0 0 160px;">${label}</span>
+            ${inputHtml}
           </div>
-        ` : ''}
-        <div style="font-size:11px;font-weight:600;color:#fbbf24;margin-bottom:6px;text-transform:uppercase;letter-spacing:0.5px;">Raw Profile JSON</div>
-        <pre style="background: rgba(0,0,0,0.4); border: 1px solid rgba(255,255,255,0.06); border-radius: 6px; padding: 12px; font-size: 10px; line-height: 1.5; color: #e2e8f0; max-height: 400px; overflow: auto; white-space: pre-wrap; word-break: break-all; margin: 0;">${rawJson}</pre>
-        <div style="margin-top: 8px; font-size: 11px; color: #94a3b8;">Press ↑↑↓↓←→←→BA again to hide.</div>
+        `;
+      } else {
+        contentHtml += `
+          <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:16px;border-bottom:1px dashed rgba(255,255,255,0.05);padding-bottom:6px;">
+            <span style="color:#94a3b8;font-size:12px;font-weight:500;padding-top:1px;">${label}</span>
+            <div style="font-size:12px;text-align:right;max-width:65%;word-break:break-word;">${formatVal(field.value)}</div>
+          </div>
+        `;
+      }
+    });
+    contentHtml += '</div>';
+  }
+
+  // For special sections in edit mode, add a read-only badge
+  let titleSuffix = '';
+  if (editMode && isSpecial) {
+    titleSuffix = ' <span style="font-size:10px;color:#64748b;font-weight:400;">(read-only)</span>';
+  }
+
+  return `
+    <div class="psycle-profile-section" style="border:1px solid rgba(255,255,255,0.08);border-radius:12px;overflow:hidden;flex-shrink:0;margin-bottom:10px;">
+      <div class="psycle-profile-section-header" style="background:rgba(255,255,255,0.03);padding:12px 16px;display:flex;justify-content:space-between;align-items:center;cursor:pointer;user-select:none;">
+        <span style="font-weight:700;font-size:13px;color:#fff;display:flex;align-items:center;gap:6px;">${section.emoji} ${section.title}${titleSuffix}</span>
+        <span class="psycle-accordion-arrow" style="font-size:11px;color:#94a3b8;transition:transform 0.2s;">▼</span>
+      </div>
+      <div class="psycle-profile-section-content" style="display:none;padding:14px;background:rgba(0,0,0,0.15);border-top:1px solid rgba(255,255,255,0.05);">
+        ${contentHtml}
       </div>
     </div>
   `;
+}
 
-  if (editableKeys.length > 0) {
-    devSection.querySelector('#psycle-metafields-save-btn').addEventListener('click', async () => {
-      const saveBtn = devSection.querySelector('#psycle-metafields-save-btn');
-      saveBtn.disabled = true;
-      saveBtn.textContent = 'Saving...';
-      try {
-        const inputs = devSection.querySelectorAll('input[data-metakey]');
-        const updates = {};
-        inputs.forEach(inp => {
-          const k = inp.dataset.metakey;
-          let v = inp.value;
-          try { v = JSON.parse(v); } catch (_) { /* keep as string */ }
-          updates[k] = v;
-        });
-        // CodexFit metafields endpoint: PATCH /profile with metafields body
-        await api.proxyPut('/profile', { metafields: { public: { ...publicMeta, ...updates } } });
-        showToast('Metafields saved!', 'success');
-      } catch (err) {
-        showToast(`Save failed: ${err.message}`, 'error');
-      } finally {
-        saveBtn.disabled = false;
-        saveBtn.textContent = 'Save Metafields';
+function setupEditListeners(body) {
+  const saveBtn = document.getElementById('psycle-profile-save-btn');
+  if (!saveBtn) return;
+
+  const originalProfile = JSON.parse(JSON.stringify(loadedProfile));
+
+  const checkChanges = () => {
+    let hasChanges = false;
+    body.querySelectorAll('.psycle-profile-edit-input').forEach(input => {
+      const path = input.getAttribute('data-path');
+      const origVal = getByPath(originalProfile, path);
+      let curVal;
+      if (input.type === 'checkbox') {
+        curVal = input.checked;
+      } else {
+        const raw = input.value;
+        if (raw === '' && input.placeholder === 'null') curVal = null;
+        else curVal = raw;
+      }
+      if (String(curVal) !== String(origVal)) {
+        hasChanges = true;
       }
     });
+    saveBtn.style.display = hasChanges ? 'block' : 'none';
+  };
+
+  body.querySelectorAll('.psycle-profile-edit-input').forEach(input => {
+    input.addEventListener('input', checkChanges);
+    input.addEventListener('change', checkChanges);
+  });
+
+  saveBtn.addEventListener('click', () => saveProfileChanges(body, originalProfile));
+}
+
+// Render log entries HTML from the module-level changeLog (used by renderExplorerBody and saveProfileChanges)
+function renderLogEntriesHtml() {
+  if (changeLog.length === 0) {
+    return '<div style="padding:12px;text-align:center;color:#64748b;font-style:italic;font-size:12px;">No changes yet.</div>';
+  }
+  const reversed = [...changeLog].reverse();
+  return reversed.map(e => {
+    const ts = e.timestamp.toLocaleTimeString('en-GB', { hour12: false });
+    const oldS = e.oldValue == null ? 'null' : String(e.oldValue);
+    const newS = e.newValue == null ? 'null' : String(e.newValue);
+    const icon = e.status === 'verified' ? '✅' : e.status === 'sent' ? '⚠️' : e.status === 'failed' ? '❌' : '🔙';
+    const color = e.status === 'verified' ? '#34d399' : e.status === 'sent' ? '#fbbf24' : e.status === 'failed' ? '#f87171' : '#94a3b8';
+    return `<div style="display:flex;align-items:center;gap:8px;padding:6px 10px;border-bottom:1px solid rgba(255,255,255,0.04);font-size:11px;">
+      <span style="color:#64748b;flex-shrink:0;">${ts}</span>
+      <span style="color:#c084fc;flex-shrink:0;">${e.fieldPath}</span>
+      <span style="color:#94a3b8;flex:1;">${oldS} → <span style="color:#e2e8f0;">${newS}</span></span>
+      <span style="color:${color};">${icon}</span>
+    </div>`;
+  }).join('');
+}
+
+// Update the log container + count in the DOM without re-rendering the whole body
+function updateLogInPlace() {
+  const logContainer = document.getElementById('psycle-explorer-log-container');
+  const logCount = document.getElementById('psycle-explorer-log-count');
+  if (logContainer) logContainer.innerHTML = renderLogEntriesHtml();
+  if (logCount) logCount.textContent = `(${changeLog.length})`;
+}
+
+async function saveProfileChanges(body, originalProfile) {
+  const saveBtn = document.getElementById('psycle-profile-save-btn');
+  if (!saveBtn) return;
+
+  // Collect changed fields
+  const changes = [];
+  body.querySelectorAll('.psycle-profile-edit-input').forEach(input => {
+    const path = input.getAttribute('data-path');
+    const origVal = getByPath(originalProfile, path);
+    let newVal;
+    if (input.type === 'checkbox') {
+      newVal = input.checked;
+    } else {
+      const raw = input.value;
+      if (raw === '' && input.placeholder === 'null') newVal = null;
+      else {
+        // Try to preserve number type
+        const num = Number(raw);
+        if (!isNaN(num) && raw.trim() !== '' && typeof origVal === 'number') newVal = num;
+        else newVal = raw;
+      }
+    }
+    if (String(newVal) !== String(origVal)) {
+      changes.push({ path, oldValue: origVal, newValue: newVal });
+    }
+  });
+
+  if (changes.length === 0) {
+    showToast('No changes to save', 'info');
+    return;
   }
 
-  container.appendChild(devSection);
+  // Build the updated profile payload
+  const payload = JSON.parse(JSON.stringify(loadedProfile));
+  changes.forEach(c => setByPath(payload, c.path, c.newValue));
 
-  // Auto-expand first section
-  const firstBody = container.querySelector('.psycle-profile-section div:last-child');
-  const firstSec = container.querySelector('.psycle-profile-section');
-  if (firstSec) {
-    const b = firstSec.querySelector('div:last-child');
-    if (b) b.style.display = 'block';
-    const ch = firstSec.querySelector('.psycle-profile-chevron');
-    if (ch) ch.style.transform = 'rotate(180deg)';
+  // Disable save button, show spinner
+  saveBtn.disabled = true;
+  saveBtn.textContent = '⏳ Saving...';
+
+  // Add entries to the module-level change log (persists across saves)
+  const newEntries = changes.map(c => ({
+    timestamp: new Date(),
+    fieldPath: c.path,
+    oldValue: c.oldValue,
+    newValue: c.newValue,
+    status: 'sent'
+  }));
+  changeLog.push(...newEntries);
+  updateLogInPlace();
+
+  try {
+    // Send the update
+    await api.proxyPost('/account/update', payload);
+
+    // Re-fetch to verify
+    try {
+      const refetched = await api.proxyGet('/profile');
+      const refetchedProfile = refetched.data || refetched;
+
+      // Verify each new entry and update input values in-place
+      newEntries.forEach(entry => {
+        const verifiedVal = getByPath(refetchedProfile, entry.fieldPath);
+        if (String(verifiedVal) === String(entry.newValue)) {
+          entry.status = 'verified';
+          setByPath(loadedProfile, entry.fieldPath, entry.newValue);
+          setByPath(originalProfile, entry.fieldPath, entry.newValue); // update baseline for future change detection
+        } else {
+          entry.status = 'reverted';
+          setByPath(loadedProfile, entry.fieldPath, verifiedVal);
+          setByPath(originalProfile, entry.fieldPath, verifiedVal); // update baseline to actual persisted value
+        }
+
+        // Update the input element in-place to reflect verified/reverted value
+        const input = body.querySelector(`.psycle-profile-edit-input[data-path="${entry.fieldPath}"]`);
+        if (input) {
+          if (input.type === 'checkbox') {
+            input.checked = verifiedVal === true;
+          } else {
+            const pv = verifiedVal !== null && verifiedVal !== undefined ? String(verifiedVal) : '';
+            input.value = pv;
+            input.placeholder = verifiedVal === null ? 'null' : '';
+          }
+        }
+      });
+
+      updateLogInPlace();
+      showToast('Profile saved and verified', 'success');
+
+    } catch (verifyErr) {
+      // Verification fetch failed — changes were sent but not verified
+      newEntries.forEach(entry => { entry.status = 'sent'; });
+      updateLogInPlace();
+      showToast('Saved but verification failed: ' + verifyErr.message, 'warning');
+    }
+
+  } catch (err) {
+    newEntries.forEach(entry => { entry.status = 'failed'; });
+    updateLogInPlace();
+    showToast(`Save failed: ${err.message}`, 'error');
   }
+
+  saveBtn.disabled = false;
+  saveBtn.textContent = '💾 Save Changes';
+  saveBtn.style.display = 'none';
+}
+
+// ─── Active Studio IDs — cached 24h, derived from timetable events ──────────
+
+const ACTIVE_STUDIO_IDS_KEY = 'psycleActiveStudioIds';
+const ACTIVE_STUDIO_IDS_TIME_KEY = 'psycleActiveStudioIdsTime';
+const ACTIVE_STUDIO_IDS_TTL_MS = 24 * 60 * 60 * 1000; // 24 hours
+
+async function getActiveStudioIds() {
+  // Check localStorage cache first (24h TTL)
+  const cachedTime = parseInt(localStorage.getItem(ACTIVE_STUDIO_IDS_TIME_KEY) || '0', 10);
+  const cacheAge = Date.now() - cachedTime;
+  if (cacheAge < ACTIVE_STUDIO_IDS_TTL_MS) {
+    const cached = localStorage.getItem(ACTIVE_STUDIO_IDS_KEY);
+    if (cached) {
+      try { return new Set(JSON.parse(cached)); } catch (_) { /* fall through */ }
+    }
+  }
+
+  // Cache stale or missing — recompute from timetable events in IndexedDB
+  try {
+    const events = await cacheGet('psycleCacheEvents');
+    if (events && Array.isArray(events) && events.length > 0) {
+      const ids = new Set();
+      events.forEach(ev => { if (ev.studio_id) ids.add(ev.studio_id); });
+      // Persist to localStorage
+      localStorage.setItem(ACTIVE_STUDIO_IDS_KEY, JSON.stringify([...ids]));
+      localStorage.setItem(ACTIVE_STUDIO_IDS_TIME_KEY, String(Date.now()));
+      return ids;
+    }
+  } catch (e) {
+    console.warn('[SpotMaps] Failed to read timetable events for active studio filter:', e);
+  }
+
+  // No timetable data available at all
+  return null;
 }
 
 async function openManageSpotMapsModal() {
@@ -502,13 +659,14 @@ async function openManageSpotMapsModal() {
   overlay.addEventListener('click', e => { if (e.target === overlay) close(); });
 
   try {
-    const [prefs, studiosRes] = await Promise.all([
+    const [prefs, studiosRes, activeStudioIds] = await Promise.all([
       api.getStudioPreferences(),
       cache.studios?.length > 0 ? Promise.resolve(cache.studios) : api.proxyGet('/studios').then(r => {
         const s = r.data || r || [];
         cache.studios = s;
         return s;
-      })
+      }),
+      getActiveStudioIds()
     ]);
 
     let locations = cache.locations || [];
@@ -523,22 +681,20 @@ async function openManageSpotMapsModal() {
     }
 
     const studios = studiosRes || cache.studios || [];
-    renderManageSpotMapsModal(prefs, studios, locations, body, close);
+    renderManageSpotMapsModal(prefs, studios, locations, body, close, activeStudioIds);
   } catch (err) {
     body.innerHTML = `<div class="psycle-card-error" style="padding:16px;">Error loading studios: ${err.message}</div>`;
   }
 }
 
-function renderManageSpotMapsModal(prefs, studios, locations, container, onClose) {
+function renderManageSpotMapsModal(prefs, studios, locations, container, onClose, activeStudioIds) {
   const locMap = {};
   locations.forEach(loc => { locMap[loc.id] = loc.name; });
 
-  // Determine which studio IDs appear in the loaded timetable events
-  const activeStudioIds = new Set();
-  if (cache.events && cache.events.length > 0) {
-    cache.events.forEach(ev => { if (ev.studio_id) activeStudioIds.add(ev.studio_id); });
-  }
-  const hasActiveFilter = activeStudioIds.size > 0;
+  // Filter to only studios with active classes in the timetable.
+  // activeStudioIds is a Set of studio IDs (from cached timetable events, 24h TTL).
+  // If null, no timetable data is available — show a prompt instead of all studios.
+  const hasActiveFilter = activeStudioIds !== null && activeStudioIds.size > 0;
 
   const grouped = {};
   studios.forEach(studio => {
@@ -553,7 +709,8 @@ function renderManageSpotMapsModal(prefs, studios, locations, container, onClose
   container.innerHTML = '';
 
   if (sortedLocs.length === 0) {
-    container.innerHTML = '<div style="text-align:center;padding:24px;color:#94a3b8;"><div style="font-size:32px;margin-bottom:12px;">🗺️</div><p style="margin:0;">No Studios Loaded</p><p style="font-size:12px;margin:8px 0 0 0;">Please refresh the timetable first to load the active locations and studios.</p></div>';
+    const noTimetable = activeStudioIds === null;
+    container.innerHTML = `<div style="text-align:center;padding:24px;color:#94a3b8;"><div style="font-size:32px;margin-bottom:12px;">🗺️</div><p style="margin:0;">${noTimetable ? 'No Timetable Data' : 'No Active Studios'}</p><p style="font-size:12px;margin:8px 0 0 0;">${noTimetable ? 'Please open the Timetable tab first to load classes, then return here.' : 'No studios with layouts match the current timetable.'}</p></div>`;
     return;
   }
 
@@ -722,9 +879,145 @@ async function openStudioFloorPlanEditor(studioId, studioName, onSaved) {
 export async function initSettings() {
   loadSettingsInputs();
   setupSettingsListeners();
-  setupKonamiListener();
+  setupNotificationPrefs();
+  updateTestNotifCardVisibility();
+  // Konami listener is attached on first profile explorer modal open via setupExplorerKonamiListener()
   updatePushStatusUI();
   // Spot Maps section is ready; button opens the modal
+}
+
+// ─── Notification preferences ────────────────────────────────────────────────
+
+const NOTIF_DEFAULTS = {
+  booking: { enabled: true, scope: 'all' },
+  upgrade: { enabled: true },
+  creditWarning: { enabled: true },
+  cancellationReminder: { enabled: true, timing: '24h' },
+  bookingWindow: { enabled: true },
+};
+
+function getNotifPrefs() {
+  const n = userSettings.notifications || {};
+  const merged = {};
+  for (const key of Object.keys(NOTIF_DEFAULTS)) {
+    merged[key] = { ...NOTIF_DEFAULTS[key], ...(n[key] || {}) };
+  }
+  return merged;
+}
+
+const NOTIF_ROWS = [
+  { key: 'booking', title: 'Spot Booked', desc: 'When a class is successfully booked.',
+    dropdown: { prop: 'scope', options: [['all', 'All Bookings'], ['autobook', 'Auto-Book only']] } },
+  { key: 'upgrade', title: 'Spot Upgraded', desc: 'When auto-upgrade moves you to a better spot.' },
+  { key: 'creditWarning', title: 'Credit Warning', desc: "When you set something up but don't have enough credits." },
+  { key: 'cancellationReminder', title: 'Cancellation Reminder', desc: 'Reminder to cancel before the free-cancel window closes.',
+    dropdown: { prop: 'timing', options: [['24h', '1 day before (24h)'], ['14h', 'Before penalty (14h)']] } },
+  { key: 'bookingWindow', title: 'Booking Window Reminder', desc: 'Heads-up 1 hour before the Monday release.' },
+];
+
+function renderNotifPrefs() {
+  const body = document.getElementById('psycle-notif-prefs-body');
+  if (!body) return;
+  const prefs = getNotifPrefs();
+
+  body.innerHTML = `
+    <p style="font-size:12px;color:#94a3b8;margin:0 0 16px;line-height:1.5;">Choose which push notifications you receive. Changes apply to all your devices.</p>
+    ${NOTIF_ROWS.map(row => {
+      const p = prefs[row.key];
+      const dd = row.dropdown ? `
+        <select class="psycle-select notif-dropdown" data-key="${row.key}" data-prop="${row.dropdown.prop}" style="margin-top:8px;width:100%;font-size:12px;">
+          ${row.dropdown.options.map(([val, label]) => `<option value="${val}" ${p[row.dropdown.prop] === val ? 'selected' : ''}>${label}</option>`).join('')}
+        </select>` : '';
+      return `
+        <div style="border:1px solid rgba(255,255,255,0.08);border-radius:10px;padding:12px 14px;margin-bottom:10px;background:rgba(255,255,255,0.02);">
+          <div style="display:flex;justify-content:space-between;align-items:center;gap:12px;">
+            <div style="flex:1;min-width:0;">
+              <div style="font-size:13px;font-weight:600;color:#e2e8f0;">${row.title}</div>
+              <div style="font-size:11px;color:#94a3b8;margin-top:2px;line-height:1.4;">${row.desc}</div>
+            </div>
+            <label class="psycle-switch" style="flex-shrink:0;">
+              <input type="checkbox" class="notif-toggle" data-key="${row.key}" ${p.enabled ? 'checked' : ''}>
+              <span class="psycle-slider"></span>
+            </label>
+          </div>
+          ${dd ? `<div class="notif-dropdown-wrap" data-key="${row.key}" style="${p.enabled ? '' : 'opacity:0.4;pointer-events:none;'}">${dd}</div>` : ''}
+        </div>`;
+    }).join('')}
+  `;
+
+  body.querySelectorAll('.notif-toggle').forEach(el => {
+    el.addEventListener('change', () => {
+      const wrap = body.querySelector(`.notif-dropdown-wrap[data-key="${el.dataset.key}"]`);
+      if (wrap) { wrap.style.opacity = el.checked ? '' : '0.4'; wrap.style.pointerEvents = el.checked ? '' : 'none'; }
+      saveNotifPrefs();
+    });
+  });
+  body.querySelectorAll('.notif-dropdown').forEach(el => {
+    el.addEventListener('change', saveNotifPrefs);
+  });
+}
+
+async function saveNotifPrefs() {
+  const body = document.getElementById('psycle-notif-prefs-body');
+  if (!body) return;
+  const prefs = getNotifPrefs();
+  body.querySelectorAll('.notif-toggle').forEach(el => {
+    prefs[el.dataset.key].enabled = el.checked;
+  });
+  body.querySelectorAll('.notif-dropdown').forEach(el => {
+    prefs[el.dataset.key][el.dataset.prop] = el.value;
+  });
+
+  userSettings.notifications = prefs;
+  try {
+    await api.updateSettings({ ...userSettings, notifications: prefs });
+  } catch (err) {
+    showToast(`Failed to save notification settings: ${err.message}`, 'error');
+  }
+}
+
+function setupNotificationPrefs() {
+  const openBtn = document.getElementById('psycle-notif-prefs-btn');
+  const modal = document.getElementById('psycle-notif-prefs-modal');
+  const closeBtn = document.getElementById('psycle-notif-prefs-close');
+  if (openBtn && !openBtn.dataset.listener) {
+    openBtn.dataset.listener = 'true';
+    openBtn.addEventListener('click', () => {
+      renderNotifPrefs();
+      modal.style.display = 'flex';
+    });
+  }
+  if (closeBtn && !closeBtn.dataset.listener) {
+    closeBtn.dataset.listener = 'true';
+    const close = () => { modal.style.display = 'none'; };
+    closeBtn.addEventListener('click', close);
+    modal.querySelector('.psycle-modal-overlay').addEventListener('click', close);
+  }
+
+  // Debug test-notification buttons
+  document.querySelectorAll('.test-notif-btn').forEach(btn => {
+    if (btn.dataset.listener) return;
+    btn.dataset.listener = 'true';
+    btn.addEventListener('click', async () => {
+      const type = btn.dataset.type;
+      const orig = btn.textContent;
+      btn.disabled = true;
+      try {
+        await api.triggerPushTestType(type);
+        showToast('Test notification sent to all devices.', 'success');
+      } catch (err) {
+        showToast(`Test failed: ${err.message}`, 'error');
+      } finally {
+        btn.disabled = false;
+        btn.textContent = orig;
+      }
+    });
+  });
+}
+
+function updateTestNotifCardVisibility() {
+  const card = document.getElementById('psycle-test-notif-card');
+  if (card) card.style.display = userSettings.debugMode ? 'block' : 'none';
 }
 
 function loadSettingsInputs() {
@@ -752,7 +1045,9 @@ function setupSettingsListeners() {
   const prefetchWeeks = document.getElementById('psycle-setting-prefetch-weeks');
 
   const saveSettings = async () => {
+    // Spread existing settings first so unmanaged keys (notifications, cartInstanceId) survive.
     const newSettings = {
+      ...userSettings,
       advancedBooking: advBooking ? advBooking.checked : false,
       autoUpgradeEnabled: upgradeEnabled ? upgradeEnabled.checked : true,
       autoUpgradeByDefault: upgradeDefault ? upgradeDefault.checked : false,
@@ -764,6 +1059,7 @@ function setupSettingsListeners() {
     try {
       await api.updateSettings(newSettings);
       Object.assign(userSettings, newSettings);
+      updateTestNotifCardVisibility();
       showToast('Settings saved successfully.', 'success');
     } catch (err) {
       showToast(`Error saving settings: ${err.message}`, 'error');
@@ -872,16 +1168,27 @@ function setupSettingsListeners() {
   const profileBtn = document.getElementById('psycle-profile-load-btn');
   if (profileBtn && !profileBtn.dataset.listener) {
     profileBtn.dataset.listener = 'true';
-    profileBtn.addEventListener('click', loadProfileData);
+    profileBtn.addEventListener('click', openProfileExplorerModal);
   }
 
-  // Profile editor modal close
-  const profileEditorModal = document.getElementById('psycle-profile-editor-modal');
-  const profileEditorClose = document.getElementById('psycle-profile-editor-modal-close');
-  if (profileEditorModal && profileEditorClose && !profileEditorClose.dataset.listener) {
-    profileEditorClose.dataset.listener = 'true';
-    profileEditorClose.addEventListener('click', () => { profileEditorModal.style.display = 'none'; });
-    profileEditorModal.querySelector('.psycle-modal-overlay').addEventListener('click', () => { profileEditorModal.style.display = 'none'; });
+  // Profile explorer modal close (handled inside openProfileExplorerModal via setupExplorerModalClose,
+  // but keep a fallback here for safety)
+  const explorerModal = document.getElementById('psycle-profile-explorer-modal');
+  const explorerClose = document.getElementById('psycle-profile-explorer-close');
+  if (explorerModal && explorerClose && !explorerClose.dataset.listener) {
+    explorerClose.dataset.listener = 'true';
+    const closeExplorer = () => {
+      explorerModal.classList.remove('show');
+      setTimeout(() => { explorerModal.style.display = 'none'; }, 300);
+      explorerModalOpen = false;
+      editMode = false;
+      konamiProgress = 0;
+    };
+    explorerClose.addEventListener('click', closeExplorer);
+    const overlay = explorerModal.querySelector('.psycle-modal-overlay');
+    if (overlay) {
+      overlay.addEventListener('click', closeExplorer);
+    }
   }
 
   // Spot maps button

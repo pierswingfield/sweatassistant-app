@@ -271,6 +271,36 @@ export const api = {
     return res.json();
   },
 
+  // Send a sample of a specific notification type to all devices (debug).
+  async triggerPushTestType(type) {
+    const res = await apiFetch(`/api/push/test/${encodeURIComponent(type)}`, {
+      method: 'POST'
+    });
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({}));
+      throw new Error(err.message || 'Failed to send test notification');
+    }
+    return res.json();
+  },
+
+  // Report a successful manual/quick booking so the server can fan out a push to all devices.
+  async notifyBookingSuccess(ctx) {
+    const res = await apiFetch('/api/notify/booking-success', {
+      method: 'POST',
+      body: JSON.stringify(ctx)
+    });
+    return res.json();
+  },
+
+  // Push freshly-fetched bookings to the server to keep the reminder cache warm.
+  async syncBookings(bookings) {
+    const res = await apiFetch('/api/bookings/sync', {
+      method: 'POST',
+      body: JSON.stringify({ bookings })
+    });
+    return res.json();
+  },
+
   // Cart
   async addBundleToCart(bundleId, quantity = 1) {
     const res = await apiFetch(`/api/cart/add-bundle/${bundleId}`, {

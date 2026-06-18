@@ -1,6 +1,7 @@
 const { DateTime } = require('luxon');
 const db = require('./db');
 const pushService = require('./push');
+const notifications = require('./notifications');
 const { triggerAutoRelogin } = require('./auth');
 
 let mainTimeout = null;
@@ -273,12 +274,19 @@ async function executeAutoBookForClass(booking) {
         message: msg
       });
 
-      // Notify the user
-      pushService.sendNotification(
-        userId,
-        'Auto-Book Success! 🎉',
-        `Booked ${booking.class_name} with ${booking.instructor_name} (Slot: ${bookedSlots.join(', ')}).`
-      );
+      // Notify the user (Spot Booked) — map slot IDs to labels where possible
+      const bookedLabels = bookedSlots.map(id => {
+        const s = layoutSlots.find(ls => Number(ls.id) === Number(id));
+        return s?.label ?? id;
+      });
+      notifications.notify(userId, 'booking', {
+        source: 'autobook',
+        startAt: booking.start_at,
+        groupName: booking.group_name,
+        className: booking.class_name,
+        instructorName: booking.instructor_name,
+        slots: bookedLabels,
+      });
 
       // Automatically register auto-upgrade if studio layout exists
       if (layoutSlots.length > 0) {
@@ -296,7 +304,8 @@ async function executeAutoBookForClass(booking) {
             booking.location_name,
             booking.start_at,
             { keepOriginalOnCutoff: true },
-            booking.studio_id
+            booking.studio_id,
+            booking.group_name
           );
         }
       }

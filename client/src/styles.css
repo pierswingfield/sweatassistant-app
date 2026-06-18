@@ -4384,3 +4384,49 @@
   border: 1px solid rgba(245, 158, 11, 0.2);
   box-shadow: 0 0 8px rgba(245, 158, 11, 0.1);
 }
+
+/* ─── Profile Explorer ─────────────────────────────────────── */
+.psycle-profile-section {
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 12px;
+  overflow: hidden;
+  flex-shrink: 0;
+  margin-bottom: 10px;
+}
+.psycle-profile-section-header {
+  background: rgba(255, 255, 255, 0.03);
+  padding: 12px 16px;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  cursor: pointer;
+  user-select: none;
+}
+.psycle-profile-section-header:hover {
+  background: rgba(255, 255, 255, 0.06);
+}
+.psycle-profile-section-content {
+  padding: 14px;
+  background: rgba(0, 0, 0, 0.15);
+  border-top: 1px solid rgba(255, 255, 255, 0.05);
+}
+.psycle-accordion-arrow {
+  font-size: 11px;
+  color: #94a3b8;
+  transition: transform 0.2s;
+}
+.psycle-profile-edit-input {
+  flex: 1;
+  background: rgba(0, 0, 0, 0.4);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 5px;
+  padding: 4px 8px;
+  font-size: 11px;
+  color: #e2e8f0;
+  font-family: inherit;
+}
+.psycle-profile-edit-input:focus {
+  outline: none;
+  border-color: rgba(167, 139, 250, 0.5);
+  box-shadow: 0 0 0 2px rgba(167, 139, 250, 0.15);
+}

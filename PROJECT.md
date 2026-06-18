@@ -2,6 +2,8 @@
 
 > **Goal**: Migrate the Psycle Chrome Extension's core scheduling and booking features to a server-backed Progressive Web App so that auto-book, auto-upgrade, and other background features work reliably without requiring an open browser tab. The PWA will run on iOS via "Add to Home Screen" and receive push notifications.
 
+> **Status**: ✅ Implemented and deployed. All core features working — auto-book (server-side precision scheduler), auto-upgrade (cron polling), quick-book, timetable, bookings, buy credits, push notifications (5 types), shared spot maps, Profile Explorer, notification preferences. See `AGENTS.md` for the current feature parity table and known issues. The sections below document the original architecture proposal; §4.5 and §4.7 have been updated to reflect what was actually built.
+
 ---
 
 ## 1. Reference: Chrome Extension Project
@@ -599,43 +601,56 @@ The extension's existing HTML/CSS/JS can be directly ported to the PWA. The Liqu
 - **Scheduling**: node-cron for periodic tasks, precision `setTimeout` for auto-book
 - **Hosting**: Railway, Render, or Fly.io (~$5/mo)
 
-**API Routes**:
+**API Routes** (implemented):
 
 ```
 # Auth
-POST   /api/auth/login          # Login with email/password → JWT
-POST   /api/auth/logout         # Logout, clear server session
-GET    /api/auth/status         # Check if stored JWT is valid
-POST   /api/auth/refresh        # Force re-authentication with stored creds
+POST   /api/auth/login              # Login → CodexFit BFF, returns local JWT
+GET    /api/auth/status             # Check local JWT validity
+DELETE /api/auth/me                 # Delete all user data (account, creds, queue, prefs, push)
 
-# Proxy (all CodexFit API calls go through here)
-GET    /api/proxy/*             # Proxy to CodexFit with stored JWT
+# CodexFit Proxy
+ALL    /api/proxy/*                 # Proxy to CodexFit with stored JWT, auto-relogin on 401
 
 # Auto-Book
-GET    /api/auto-book           # List user's auto-book queue
-POST   /api/auto-book           # Add to auto-book queue
-DELETE /api/auto-book/:id       # Remove from auto-book queue
-PUT    /api/auto-book/:id       # Update auto-book preferences
+GET    /api/auto-book               # List user's auto-book queue
+POST   /api/auto-book               # Add to auto-book queue (triggers immediate-book check)
+PUT    /api/auto-book/:id           # Update auto-book preferences
+DELETE /api/auto-book/:id           # Remove from auto-book queue
+POST   /api/simulate-release        # Debug: force-execute all pending bookings now
+GET    /api/auto-book/stream        # SSE: real-time auto-book execution status (token via query param)
 
 # Auto-Upgrade
-GET    /api/auto-upgrade        # List user's auto-upgrades
-POST   /api/auto-upgrade        # Set up auto-upgrade for a booking
-DELETE /api/auto-upgrade/:id    # Cancel auto-upgrade
-PUT    /api/auto-upgrade/:id    # Update auto-upgrade preferences
+GET    /api/auto-upgrade            # List user's auto-upgrade monitors
+POST   /api/auto-upgrade            # Set up auto-upgrade (checks for duplicate active monitor)
+PUT    /api/auto-upgrade/:id        # Update auto-upgrade (resets cutoffAttempted, sets active)
+DELETE /api/auto-upgrade/:id        # Cancel auto-upgrade
 
-# Settings
-GET    /api/settings             # Get user settings
-PUT    /api/settings             # Update user settings
-POST   /api/settings/export     # Export all preferences as JSON
-POST   /api/settings/import     # Import preferences from JSON
+# Settings & Preferences
+GET    /api/settings                # Get user settings
+PUT    /api/settings                # Update user settings
+GET    /api/studio-preferences      # Get all studio preference maps
+PUT    /api/studio-preferences/:id  # Update studio preference map
+
+# Backup & Migration
+GET    /api/config/export           # Export all preferences as JSON
+POST   /api/config/import           # Import preferences from JSON (deduplicates auto-book)
+
+# Cart
+POST   /api/cart/create             # Create CodexFit cart instance, store cartInstanceId in settings
+POST   /api/cart/add-bundle/:id     # Add bundle to cart (recreates cart on 404/410)
+GET    /api/cart                    # Get current cart
 
 # Push Notifications
-POST   /api/push/subscribe      # Register push subscription
-DELETE /api/push/subscribe      # Unregister push subscription
+GET    /api/push/vapid-public-key   # Get VAPID public key
+POST   /api/push/subscribe          # Register push subscription
+POST   /api/push/unsubscribe        # Unregister push subscription by endpoint
+POST   /api/push/test               # Send generic test push
+POST   /api/push/test/:type         # Send typed sample notification (debug)
 
-# Studio Preferences
-GET    /api/studio-preferences   # Get all studio preference maps
-PUT    /api/studio-preferences/:id  # Update studio preference map
+# Notifications & Sync
+POST   /api/notify/booking-success  # Client reports manual/quick booking → server fans out push
+POST   /api/bookings/sync           # Client pushes bookings to warm server reminder cache
 ```
 
 **Auto-Book Scheduler**:
@@ -696,38 +711,49 @@ class AutoUpgradePoller {
 
 ### 4.7 Migration Path
 
-**Phase 1: Server Foundation (Week 1)**
-- Set up Node.js server with Express/Fastify
-- Implement auth endpoints (login, status, refresh)
-- Implement API proxy for all CodexFit endpoints
-- Set up SQLite database with user schema
-- Deploy to Railway/Render
+> **All phases complete.** The server + PWA is functional and deployed.
 
-**Phase 2: PWA Shell (Week 2)**
-- Create PWA with service worker and manifest
-- Port login screen
-- Port timetable tab (filters, date carousel, event grid)
-- Port My Bookings tab
-- Connect to server API proxy
+**Phase 1: Server Foundation ✅**
+- Node.js + Express server with auth endpoints (login, status, delete)
+- API proxy for all CodexFit endpoints with auto-relogin on 401
+- SQLite database with 8-table schema (users, auto_bookings, auto_upgrades, studio_preferences, settings, push_subscriptions, booking_cache, sent_notifications, server_kv)
+- AES-256-GCM credential encryption
+- Deployed to Raspberry Pi via Docker
 
-**Phase 3: Auto-Book Server-Side (Week 3)**
-- Implement auto-book scheduler on server
-- Port auto-book UI (queue management, countdown display)
-- Implement push notifications for booking results
-- Port settings and preferences
+**Phase 2: PWA Shell ✅**
+- Vite PWA with service worker (push + offline cache) and manifest
+- Login screen (email + password → server BFF)
+- 6-tab SPA: Class Timetable, My Bookings, Auto-Book, Buy Credits, Settings, About
+- IndexedDB 4hr TTL caching with Monday 12PM force-refresh
 
-**Phase 4: Auto-Upgrade Server-Side (Week 4)**
-- Implement auto-upgrade poller on server
-- Port auto-upgrade UI
-- Port studio preference editor
-- Port Buy Credits tab
+**Phase 3: Auto-Book Server-Side ✅**
+- Precision scheduler: setTimeout → T-5s → 10ms setInterval polling Date.now()
+- T-30s slot prefetch, T-0 parallel dispatch with 500ms per-slot cooldown
+- SSE live status stream (Planning → Attempting → Success/Failed)
+- Push notifications for booking results
+- Shared studio spot map (one map per studio, live-resolved at execution)
 
-**Phase 5: Polish & Launch (Week 5)**
-- iOS Safari PWA testing and optimization
+**Phase 4: Auto-Upgrade Server-Side ✅**
+- node-cron polling engine (every minute, respects per-monitor interval)
+- 12h cutoff with keepOriginalOnCutoff option, 1h hard stop
+- Auto-register after booking if `autoUpgradeByDefault` setting is on
+- Cancellation reminders (24h/14h) + booking window reminders (Mon 11AM)
+
+**Phase 5: Polish & Launch ✅**
+- iOS Safari PWA testing
 - Push notification testing on iOS 16.4+
-- Export/Import preferences from extension
-- Performance optimization
-- Error handling and edge cases
+- Export/Import preferences from extension (compatible format)
+- Profile Explorer with Konami-code edit mode
+- Notification preferences modal (per-type toggles + scope/timing)
+- Debug mode: per-class diagnostics, debug log terminal, simulate release
+
+**Remaining work** (not in original plan):
+- Auto-Book Favourites weekly auto-sync (UI exists, server doesn't consume the list)
+- Mobile/iOS full-screen layout (still uses floating-panel heritage dimensions)
+- Touch support for hover tooltips
+- `.ics` calendar download from My Bookings
+- First-run onboarding for spot maps
+- Proactive "Add to Home Screen" prompt
 
 ### 4.8 Extension Coexistence
 
@@ -761,19 +787,23 @@ No App Store fees. No Apple Developer account. No Google Play account. The PWA i
 
 ---
 
-## 5. Key Differences: Extension vs PWA
+## 5. Key Differences: Extension vs PWA (as implemented)
 
 | Aspect | Chrome Extension | Server + PWA |
 |--------|-----------------|---------------|
-| **Auth** | Reads `codex_bearer_token` cookie from browser | Direct login via `POST /auth/login`; server stores JWT |
-| **Auto-Book** | 200ms `setInterval` in content script | Server-side `setTimeout` with ms precision |
-| **Auto-Upgrade** | `setInterval` polling in content script | Server-side `node-cron` + `setTimeout` |
+| **Auth** | Reads `codex_bearer_token` cookie from browser | Direct login via `POST /auth/login`; server stores encrypted creds + JWT |
+| **Auto-Book** | 200ms `setInterval` in content script | Server-side `setTimeout` → T-5s → 10ms `setInterval` polling `Date.now()` |
+| **Auto-Upgrade** | `setInterval` polling in content script | Server-side `node-cron` every minute, per-monitor interval gating |
 | **Background Operation** | Requires open browser tab | Runs 24/7 on server |
-| **iOS Support** | None | Full support via PWA |
-| **Push Notifications** | None | Web Push (iOS 16.4+, Android) |
-| **Token Refresh** | None (user must re-login on website) | Automatic re-authentication with stored credentials |
-| **Data Storage** | `chrome.storage.local` | Server database + `localStorage` |
-| **UI Framework** | Vanilla HTML/CSS/JS injected into page | Same UI, served as standalone PWA |
+| **iOS Support** | None | Full support via PWA (iOS 16.4+) |
+| **Push Notifications** | None | Web Push (VAPID), 5 types, per-user prefs, deduped |
+| **Token Refresh** | None (user must re-login on website) | Automatic re-authentication with stored credentials on 401 |
+| **Data Storage** | `chrome.storage.local` | Server SQLite (8 tables) + `localStorage` + IndexedDB |
+| **Spot Preferences** | Per-entry preferences stored separately | One shared spot map per studio, live-resolved by all features |
+| **UI Framework** | Vanilla HTML/CSS/JS injected into page | Same aesthetic, served as standalone Vite PWA |
 | **Distribution** | Chrome Web Store | URL — "Add to Home Screen" |
-| **Cost** | Free (Chrome Web Store) | ~$5/mo server |
-| **Offline Support** | None | Service worker caching for read-only views |
+| **Cost** | Free (Chrome Web Store) | ~$5/mo self-hosted (Raspberry Pi) |
+| **Offline Support** | None | Service worker network-first caching for shell assets |
+| **Live Status** | None | SSE stream for real-time auto-book execution updates |
+| **Reminders** | None | Cancellation reminders (24h/14h) + booking window reminder (Mon 11AM) |
+| **Profile Editing** | Raw JSON inspector | Categorized Profile Explorer + Konami-code edit mode |

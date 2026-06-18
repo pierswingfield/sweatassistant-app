@@ -588,6 +588,55 @@ document.addEventListener('DOMContentLoaded', () => {
   checkAuth();
   initTooltips();
 
+  // Global Esc-to-close for all modals
+  document.addEventListener('keydown', (e) => {
+    if (e.key !== 'Escape') return;
+
+    // Collect all visible modal candidates with their z-index
+    const candidates = [];
+
+    // Static .psycle-modal elements (booking, profile explorer, debug)
+    document.querySelectorAll('.psycle-modal').forEach(m => {
+      if (m.classList.contains('show') || m.style.display === 'flex') {
+        const z = parseInt(getComputedStyle(m).zIndex) || 0;
+        candidates.push({ el: m, z, type: 'static' });
+      }
+    });
+
+    // Dynamic overlay divs (spot maps, auto-book favourites — direct children of body)
+    document.body.querySelectorAll(':scope > div').forEach(d => {
+      if (d.classList.contains('psycle-modal')) return;
+      const s = d.style;
+      if (s.position === 'fixed' && s.display !== 'none' && s.zIndex) {
+        const z = parseInt(s.zIndex) || 0;
+        if (z > 0) candidates.push({ el: d, z, type: 'dynamic' });
+      }
+    });
+
+    if (candidates.length === 0) return;
+
+    // Close the topmost modal (highest z-index)
+    candidates.sort((a, b) => b.z - a.z);
+    const top = candidates[0];
+
+    if (top.type === 'static') {
+      // Click the close button to trigger existing cleanup handlers (state reset, etc.)
+      const closeBtn = top.el.querySelector('.psycle-modal-close-btn');
+      if (closeBtn) {
+        closeBtn.click();
+      } else {
+        top.el.classList.remove('show');
+        setTimeout(() => { top.el.style.display = 'none'; }, 300);
+      }
+    } else {
+      // Dynamic overlay — remove from DOM
+      top.el.remove();
+    }
+
+    e.preventDefault();
+    e.stopPropagation();
+  });
+
   // Restore tab from URL hash (e.g. after page refresh)
   const hash = location.hash.replace('#', '');
   if (VALID_TABS.includes(hash)) {

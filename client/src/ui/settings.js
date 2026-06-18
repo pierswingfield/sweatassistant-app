@@ -980,16 +980,18 @@ function setupNotificationPrefs() {
   const openBtn = document.getElementById('psycle-notif-prefs-btn');
   const modal = document.getElementById('psycle-notif-prefs-modal');
   const closeBtn = document.getElementById('psycle-notif-prefs-close');
+  console.log('[setupNotificationPrefs] openBtn:', openBtn, 'modal:', modal, 'closeBtn:', closeBtn);
   if (openBtn && !openBtn.dataset.listener) {
     openBtn.dataset.listener = 'true';
     openBtn.addEventListener('click', () => {
+      console.log('[notif-btn-click] renderNotifPrefs and showing modal');
       renderNotifPrefs();
-      modal.style.display = 'flex';
+      modal.classList.add('show');
     });
   }
   if (closeBtn && !closeBtn.dataset.listener) {
     closeBtn.dataset.listener = 'true';
-    const close = () => { modal.style.display = 'none'; };
+    const close = () => { modal.classList.remove('show'); };
     closeBtn.addEventListener('click', close);
     modal.querySelector('.psycle-modal-overlay').addEventListener('click', close);
   }

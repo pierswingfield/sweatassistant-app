@@ -140,7 +140,8 @@ Per bundle the table/detail computes:
 
 > **PWA note**: The PWA has a server cart endpoint, so "arm/sniff" UX is replaced by a direct
 > add-to-cart, but the bundle list, filters, badges, detail card, and copy must match. The
-> **credit bundle handle** must be shown on the bundle card (current PWA bug: missing).
+> **credit bundle handle** is shown on the bundle card in the PWA (`credits.js` → `createBundleCard`
+> renders `${b.handle} (ID: ${b.id})`).
 
 ---
 
@@ -185,9 +186,13 @@ Per bundle the table/detail computes:
 
 ---
 
-## 4. Spot Map Editor (Preferred Spots) — **currently broken in PWA**
+## 4. Spot Map Editor (Preferred Spots)
 
 A reusable floor-plan editor. Appears in **two contexts** with shared rendering logic.
+In the PWA, this is implemented as `client/src/ui/spotmap.js` (`renderStudioFloorPlan`),
+reused by Settings → Manage Maps, the Auto-Book/Quick-Book config modal, and the
+Auto-Upgrade config modal. The PWA uses **one shared map per studio** (not per-entry
+preferences like the extension).
 
 ### 4.1 Data model
 `psycleStudioPreferences[studioId] = { preferredSlots: number[], preferredRows: number[] }`
@@ -239,10 +244,14 @@ Same floor plan + row logic, but additionally:
 
 ---
 
-## 5. Auto-Book / Quick-Book config modal — **currently broken in PWA**
+## 5. Auto-Book / Quick-Book config modal
 
 `showAutoBookSelection(eventId, forceAutoBookTitle, forceAutoBookSave)` (L7479). **One modal**
 serves both flows; mode is decided by whether the booking window is open.
+In the PWA, this is implemented as `timetable.js` → `openBookingModal(event, mode)` with
+three modes: `'book'` (simple seat selector), `'quickbook'` (preference setter + book),
+`'autobook'` (preference setter + schedule). All three render the shared floor-plan editor
+from `spotmap.js`.
 
 ### 5.1 Access
 - Timetable card **⚙ gear** button (seat-map classes), or **Auto-Book** button (beyond cutoff),
@@ -309,6 +318,10 @@ Used by Quick-Book-now AND the scheduler at release:
 - **Auto-Book Favourites** (§7.4 / Auto-Book tab): syncs all bookmarked recurring classes in
   the loaded timetable into the auto-book queue (`syncBookmarkedAutoBookings`, L1813;
   `showAutoBookBookmarksModal`, L8104).
+  > ⚠️ **PWA gap**: The PWA's Auto-Book Favourites modal (`autobook.js` → `openFavouritesModal`)
+  > saves `autoBookFavourites` (a list of bookmark identifiers) to user settings, but nothing in
+  > `server/scheduler.js` consumes this list to auto-create queue entries each week. The
+  > extension's `syncBookmarkedAutoBookings` logic has not been ported.
 
 ---
 
@@ -365,8 +378,9 @@ Used by Quick-Book-now AND the scheduler at release:
 - **Add to calendar**: `.ics` download (`downloadICS`, L1511).
 - **Auto-Upgrade setup**: per booking with a seat map, an entry point to configure auto-upgrade
   (`openAutoUpgradeModal`, L9662); `autoUpgradeCache` drives "Upgrading…" labels.
-- ⚠️ *Current PWA bug*: crash "Cannot read properties of undefined (reading 'start_at')" —
-  defend against missing event/relation data when rendering bookings + waitlists.
+- In the PWA, bookings rendering is defensive against missing event/relation data
+  (guards with `if (!event || !event.start_at) return;`). Auto-upgrade setup uses the
+  shared floor-plan editor via `bookings.js` → `openUpgradeConfigModal`.
 
 ---
 

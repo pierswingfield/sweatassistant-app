@@ -251,8 +251,8 @@ export function renderBundles() {
 
   // Render Favorites Section
   const favs = filtered.filter(b => favorites.includes(b.id));
-  if (favsOnly || favs.length === 0) {
-    // favsOnly mode or no favorites: show everything in a single grid
+  if (favs.length === 0) {
+    // No favorites: show everything in a single grid
     const allGrid = document.createElement('div');
     allGrid.className = 'psycle-favorites-grid';
     filtered.forEach(b => {

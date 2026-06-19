@@ -39,6 +39,7 @@
   --feat-autoupgrade: #a78bfa; /* violet (demoted from primary) */
   --feat-quickbook: #fbbf24;  /* amber */
   --feat-waitlist: #60a5fa;   /* slate-blue */
+  --orange: #f97316; /* orange */
 
   /* Semantic */
   --success: #34d399;
@@ -85,6 +86,7 @@
     --feat-autoupgrade: #7c5cdb;
     --feat-quickbook: #c2870a;
     --feat-waitlist: #3b82f6;
+    --orange: #ea580c;
 
     --success: #059669;
     --warning: #c2870a;
@@ -121,6 +123,7 @@
   --feat-autoupgrade: #7c5cdb;
   --feat-quickbook: #c2870a;
   --feat-waitlist: #3b82f6;
+  --orange: #ea580c;
 
   --success: #059669;
   --warning: #c2870a;
@@ -2977,13 +2980,13 @@
 }
 .psycle-native-btn-quickbook:hover { background: color-mix(in srgb, var(--success) 80%, #fff); }
 
-/* Waitlist button — pastel amber */
+/* Waitlist button — pastel orange */
 .psycle-native-btn-waitlist {
-  background: color-mix(in srgb, var(--warning) 65%, #fff);
-  color: color-mix(in srgb, var(--warning) 100%, #000);
-  border: 1px solid color-mix(in srgb, var(--warning) 30%, transparent);
+  background: color-mix(in srgb, var(--orange) 65%, #fff);
+  color: color-mix(in srgb, var(--orange) 100%, #000);
+  border: 1px solid color-mix(in srgb, var(--orange) 30%, transparent);
 }
-.psycle-native-btn-waitlist:hover { background: color-mix(in srgb, var(--warning) 75%, #fff); }
+.psycle-native-btn-waitlist:hover { background: color-mix(in srgb, var(--orange) 75%, #fff); }
 
 /* Auto Book button — pastel purple */
 .psycle-native-btn-autobook {
@@ -4270,16 +4273,16 @@
   background: color-mix(in srgb, var(--success) 80%, #fff) !important;
 }
 
-/* Amber waitlist button — pastel */
+/* Orange waitlist button — pastel */
 #psycle-helper-container .psycle-timetable-waitlist-btn {
-  background: color-mix(in srgb, var(--warning) 65%, #fff) !important;
-  color: color-mix(in srgb, var(--warning) 100%, #000) !important;
-  border: 1px solid color-mix(in srgb, var(--warning) 30%, transparent) !important;
+  background: color-mix(in srgb, var(--orange) 65%, #fff) !important;
+  color: color-mix(in srgb, var(--orange) 100%, #000) !important;
+  border: 1px solid color-mix(in srgb, var(--orange) 30%, transparent) !important;
   box-shadow: none !important;
 }
 
 #psycle-helper-container .psycle-timetable-waitlist-btn:hover {
-  background: color-mix(in srgb, var(--warning) 75%, #fff) !important;
+  background: color-mix(in srgb, var(--orange) 75%, #fff) !important;
 }
 
 /* Red buy credits button — pastel */

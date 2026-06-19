@@ -66,8 +66,8 @@ export function initTooltips() {
             ${keywords ? `<div class="psycle-tooltip-keywords">${keywords}</div>` : ''}
           </div>
         </div>
-        ${description ? `<p style="margin: 6px 0 0 0; display: -webkit-box; -webkit-line-clamp: 4; -webkit-box-orient: vertical; overflow: hidden; opacity: 0.85; color: #94a3b8; font-size: 11px; line-height: 1.4;">${description}</p>` : ''}
-        ${(instagramHtml || spotifyHtml) ? `<div class="psycle-tooltip-socials" style="margin-top: 10px; display: flex; gap: 12px; font-size: 10px; color: #a78bfa;">${instagramHtml}${spotifyHtml}</div>` : ''}
+        ${description ? `<p style="margin: 6px 0 0 0; display: -webkit-box; -webkit-line-clamp: 4; -webkit-box-orient: vertical; overflow: hidden; color: var(--text); font-size: 11px; line-height: 1.4;">${description}</p>` : ''}
+        ${(instagramHtml || spotifyHtml) ? `<div class="psycle-tooltip-socials" style="margin-top: 10px;">${instagramHtml}${spotifyHtml}</div>` : ''}
       `;
 
       instructorTooltip.style.display = 'block';
@@ -141,8 +141,8 @@ export function initTooltips() {
         renderMinimap(eventDetailsCache.get(eventId), occupancyTooltip);
       } else {
         occupancyTooltip.innerHTML = `
-          <div style="display:flex; align-items:center; justify-content:center; padding:15px; color:#cbd5e1; font-size:11px;">
-            <svg class="psycle-spinner-svg" viewBox="0 0 24 24" style="animation: spin 1s linear infinite; width: 14px; height: 14px; margin-right: 8px; color: #a78bfa; display: inline-block;">
+          <div style="display:flex; align-items:center; justify-content:center; padding:15px; color:var(--text); font-size:11px;">
+            <svg class="psycle-spinner-svg" viewBox="0 0 24 24" style="animation: spin 1s linear infinite; width: 14px; height: 14px; margin-right: 8px; color: var(--feat-autoupgrade); display: inline-block;">
               <circle cx="12" cy="12" r="10" stroke="rgba(255,255,255,0.15)" stroke-width="3" fill="none"></circle>
               <path d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" fill="currentColor"></path>
             </svg>
@@ -161,7 +161,7 @@ export function initTooltips() {
           console.error('[Timetable] Failed to fetch event slots for minimap:', err);
           if (activeOccupancyHoverTarget === target) {
             occupancyTooltip.innerHTML = `
-              <div style="padding: 10px; color: #ef4444; font-size: 11px; text-align: center; font-weight: 500;">
+              <div style="padding: 10px; color: var(--danger); font-size: 11px; text-align: center; font-weight: 500;">
                 Failed to load slot layout.
               </div>
             `;

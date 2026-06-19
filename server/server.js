@@ -534,7 +534,7 @@ app.post('/api/cart/add-bundle/:bundleId', authenticateToken, async (req, res) =
     let lastCartData = null;
     for (let i = 0; i < qty; i++) {
       const url = `/cart/add_bundle/${bundleId}${instanceId ? '?instance=' + instanceId : ''}`;
-      const addRes = await proxyRequest(req.userId, url, 'GET', null);
+      const addRes = await proxyRequest(req.userId, url, 'POST', {});
       if (!addRes.ok) {
         const errData = await addRes.json().catch(() => ({}));
         // If instance expired, try creating a new one
@@ -548,7 +548,7 @@ app.post('/api/cart/add-bundle/:bundleId', authenticateToken, async (req, res) =
           }
           // Retry with new instance
           const retryUrl = `/cart/add_bundle/${bundleId}${instanceId ? '?instance=' + instanceId : ''}`;
-          const retryRes = await proxyRequest(req.userId, retryUrl, 'GET', null);
+          const retryRes = await proxyRequest(req.userId, retryUrl, 'POST', {});
           lastCartData = await retryRes.json();
         } else {
           return res.status(addRes.status).json(errData);

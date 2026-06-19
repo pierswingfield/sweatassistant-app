@@ -60,15 +60,17 @@ function getFilterEls() {
 
 function setupFilterListeners() {
   const searchInput = document.getElementById('psycle-bundle-search');
-  const favToggle = document.getElementById('psycle-bundle-favorites-only');
 
   if (searchInput && !searchInput.dataset.listenerAttached) {
     searchInput.dataset.listenerAttached = 'true';
-    searchInput.addEventListener('input', renderBundles);
-  }
-  if (favToggle && !favToggle.dataset.listenerAttached) {
-    favToggle.dataset.listenerAttached = 'true';
-    favToggle.addEventListener('change', renderBundles);
+    searchInput.addEventListener('input', () => {
+      renderBundles();
+      // Auto-expand All Credits when searching
+      const allSection = document.querySelector('[data-section-id="all"]');
+      if (searchInput.value.trim() && allSection) {
+        allSection.classList.add('expanded');
+      }
+    });
   }
 
   // Lazy-init filter toggle button + checkbox listeners on first interaction
@@ -214,10 +216,8 @@ function matchesFilterRules(b) {
 export function renderBundles() {
   const container = document.getElementById('psycle-bundles-container');
   const searchInput = document.getElementById('psycle-bundle-search');
-  const favToggle = document.getElementById('psycle-bundle-favorites-only');
 
   const term = searchInput ? searchInput.value.toLowerCase().trim() : '';
-  const favsOnly = favToggle ? favToggle.checked : false;
 
   if (!container) return;
 
@@ -229,9 +229,6 @@ export function renderBundles() {
     // Search term matching name, id, or handle (matching extension logic)
     const matchesSearch = b.name.toLowerCase().includes(term) || String(b.id).includes(term) || (b.handle && b.handle.toLowerCase().includes(term));
     if (!matchesSearch) return false;
-
-    // Favorites only filter
-    if (favsOnly && !favorites.includes(b.id)) return false;
 
     return true;
   });
@@ -266,7 +263,7 @@ export function renderBundles() {
     // Show favorites grid + All Credits collapsible section
     const favHeader = document.createElement('div');
     favHeader.className = 'psycle-section-subheader';
-    favHeader.innerHTML = '<h4>Pinned Favourites</h4>';
+    favHeader.innerHTML = '<h4>Favourite Bundles</h4>';
     container.appendChild(favHeader);
 
     const favGrid = document.createElement('div');

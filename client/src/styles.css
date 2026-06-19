@@ -50,8 +50,8 @@
   --radius-card: 16px;
   --radius-control: 12px;
   --radius-sheet: 24px;
-  --shadow-card: 0 8px 24px rgba(0, 0, 0, 0.35);
-  --shadow-sheet: 0 35px 80px rgba(0, 0, 0, 0.4);
+  --shadow-card: 0 4px 12px rgba(0, 0, 0, 0.15);
+  --shadow-sheet: 0 16px 40px rgba(0, 0, 0, 0.2);
 
   /* Typography */
   --font-serif: 'Fraunces', 'Source Serif 4', Georgia, 'Times New Roman', serif;
@@ -91,8 +91,8 @@
     --danger: #dc2626;
     --info: #3b82f6;
 
-    --shadow-card: 0 8px 24px rgba(31, 27, 22, 0.10);
-    --shadow-sheet: 0 35px 80px rgba(31, 27, 22, 0.18);
+    --shadow-card: 0 4px 12px rgba(31, 27, 22, 0.08);
+    --shadow-sheet: 0 16px 40px rgba(31, 27, 22, 0.12);
   }
 }
 
@@ -127,8 +127,8 @@
   --danger: #dc2626;
   --info: #3b82f6;
 
-  --shadow-card: 0 8px 24px rgba(31, 27, 22, 0.10);
-  --shadow-sheet: 0 35px 80px rgba(31, 27, 22, 0.18);
+  --shadow-card: 0 4px 12px rgba(31, 27, 22, 0.08);
+  --shadow-sheet: 0 16px 40px rgba(31, 27, 22, 0.12);
 }
 /* (dark override [data-theme="dark"] simply uses the :root defaults above) */
 
@@ -2221,8 +2221,7 @@
   height: 48px;
   border-radius: 50%;
   object-fit: cover;
-  border: 2px solid color-mix(in srgb, var(--accent) 60%, transparent);
-  box-shadow: 0 0 12px color-mix(in srgb, var(--accent) 30%, transparent);
+  border: 2px solid color-mix(in srgb, var(--accent) 40%, transparent);
 }
 
 .psycle-tooltip-name {
@@ -2237,7 +2236,7 @@
 
 .psycle-tooltip-keywords {
   font-size: 10px;
-  color: var(--accent);
+  color: color-mix(in srgb, var(--accent) 80%, var(--text) 20%);
   font-weight: 500;
   margin-top: 2px;
   overflow: hidden;
@@ -2250,7 +2249,7 @@
   display: flex;
   gap: 12px;
   font-size: 10px;
-  color: var(--accent);
+  color: color-mix(in srgb, var(--accent) 80%, var(--text) 20%);
 }
 
 .psycle-tooltip-socials span {
@@ -2326,7 +2325,7 @@
   font-size: 11px;
   color: var(--text-secondary);
   cursor: pointer;
-  padding: 6px 8px !important;
+  padding: 8px 12px !important;
   border-radius: 8px;
   transition: all 0.2s ease;
   user-select: none;
@@ -2970,29 +2969,29 @@
   line-height: 1.4;
 }
 
-/* Quick Book button — green */
+/* Quick Book button — pastel green */
 .psycle-native-btn-quickbook {
-  background: var(--success);
-  color: var(--on-accent);
+  background: color-mix(in srgb, var(--success) 70%, #fff);
+  color: color-mix(in srgb, var(--success) 100%, #000);
   border: 1px solid color-mix(in srgb, var(--success) 30%, transparent);
 }
-.psycle-native-btn-quickbook:hover { background: color-mix(in srgb, var(--success) 85%, #000); }
+.psycle-native-btn-quickbook:hover { background: color-mix(in srgb, var(--success) 80%, #fff); }
 
-/* Waitlist button — amber */
+/* Waitlist button — pastel amber */
 .psycle-native-btn-waitlist {
-  background: var(--warning);
-  color: var(--on-accent);
+  background: color-mix(in srgb, var(--warning) 65%, #fff);
+  color: color-mix(in srgb, var(--warning) 100%, #000);
   border: 1px solid color-mix(in srgb, var(--warning) 30%, transparent);
 }
-.psycle-native-btn-waitlist:hover { background: color-mix(in srgb, var(--warning) 85%, #000); }
+.psycle-native-btn-waitlist:hover { background: color-mix(in srgb, var(--warning) 75%, #fff); }
 
-/* Auto Book button — purple */
+/* Auto Book button — pastel purple */
 .psycle-native-btn-autobook {
-  background: var(--feat-autoupgrade);
-  color: var(--on-accent);
+  background: color-mix(in srgb, var(--feat-autoupgrade) 65%, #fff);
+  color: color-mix(in srgb, var(--feat-autoupgrade) 100%, #000);
   border: 1px solid color-mix(in srgb, var(--feat-autoupgrade) 30%, transparent);
 }
-.psycle-native-btn-autobook:hover { background: color-mix(in srgb, var(--feat-autoupgrade) 85%, #000); }
+.psycle-native-btn-autobook:hover { background: color-mix(in srgb, var(--feat-autoupgrade) 75%, #fff); }
 
 /* Booked badge — green outline */
 .psycle-native-btn-booked {
@@ -3180,36 +3179,36 @@
   padding: 0 6px;
 }
 
-/* Green split (Quick Book) */
+/* Green split (Quick Book) — pastel */
 .psycle-native-split-group.quickbook .psycle-native-split-main {
-  background: var(--success);
-  color: var(--on-accent);
+  background: color-mix(in srgb, var(--success) 70%, #fff);
+  color: color-mix(in srgb, var(--success) 100%, #000);
 }
 .psycle-native-split-group.quickbook .psycle-native-split-main:hover {
-  background: color-mix(in srgb, var(--success) 85%, #000);
+  background: color-mix(in srgb, var(--success) 80%, #fff);
 }
 .psycle-native-split-group.quickbook .psycle-native-split-cog {
-  background: color-mix(in srgb, var(--success) 85%, #000);
-  color: var(--on-accent);
+  background: color-mix(in srgb, var(--success) 80%, #fff);
+  color: color-mix(in srgb, var(--success) 100%, #000);
 }
 .psycle-native-split-group.quickbook .psycle-native-split-cog:hover {
-  background: color-mix(in srgb, var(--success) 70%, #000);
+  background: color-mix(in srgb, var(--success) 75%, #fff);
 }
 
-/* Purple split (Auto Book) */
+/* Purple split (Auto Book) — pastel */
 .psycle-native-split-group.autobook .psycle-native-split-main {
-  background: var(--feat-autoupgrade);
-  color: var(--on-accent);
+  background: color-mix(in srgb, var(--feat-autoupgrade) 65%, #fff);
+  color: color-mix(in srgb, var(--feat-autoupgrade) 100%, #000);
 }
 .psycle-native-split-group.autobook .psycle-native-split-main:hover {
-  background: color-mix(in srgb, var(--feat-autoupgrade) 85%, #000);
+  background: color-mix(in srgb, var(--feat-autoupgrade) 75%, #fff);
 }
 .psycle-native-split-group.autobook .psycle-native-split-cog {
-  background: color-mix(in srgb, var(--feat-autoupgrade) 85%, #000);
-  color: var(--on-accent);
+  background: color-mix(in srgb, var(--feat-autoupgrade) 75%, #fff);
+  color: color-mix(in srgb, var(--feat-autoupgrade) 100%, #000);
 }
 .psycle-native-split-group.autobook .psycle-native-split-cog:hover {
-  background: color-mix(in srgb, var(--feat-autoupgrade) 70%, #000);
+  background: color-mix(in srgb, var(--feat-autoupgrade) 70%, #fff);
 }
 
 /* Scheduled state (already auto-booked) */
@@ -3850,7 +3849,7 @@
    ========================================================= */
 
 #psycle-helper-container .psycle-filters-card {
-  padding: 10px 36px;
+  padding: 12px 36px;
   border-bottom: 1px solid var(--separator);
   background: var(--surface-inset);
   flex-shrink: 0;
@@ -3859,11 +3858,29 @@
 #psycle-helper-container .psycle-bundles-filters {
   display: flex;
   align-items: center;
+  flex-wrap: wrap;
   gap: 12px;
-  padding: 10px 36px;
+  padding: 12px 36px;
   border-bottom: 1px solid var(--separator);
   background: var(--surface-inset);
   flex-shrink: 0;
+}
+
+#psycle-helper-container .psycle-bundles-filters .psycle-checkbox-filters {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+  align-items: center;
+  background: transparent;
+  padding: 0;
+  border: none;
+  max-width: none;
+  animation: none;
+}
+
+#psycle-helper-container .psycle-bundles-filters .psycle-checkbox-label {
+  font-size: 10px;
+  gap: 6px;
 }
 
 /* My Bookings, Auto-Book, Settings, Credits — scroll the whole panel */
@@ -4241,40 +4258,40 @@
   transform: translateY(0px);
 }
 
-/* Green book button */
+/* Green book button — pastel */
 #psycle-helper-container .psycle-timetable-book-btn {
-  background: var(--success) !important;
-  border: 1px solid color-mix(in srgb, var(--success) 40%, transparent) !important;
-  box-shadow: 0 4px 14px color-mix(in srgb, var(--success) 40%, transparent) !important;
+  background: color-mix(in srgb, var(--success) 70%, #fff) !important;
+  color: color-mix(in srgb, var(--success) 100%, #000) !important;
+  border: 1px solid color-mix(in srgb, var(--success) 30%, transparent) !important;
+  box-shadow: none !important;
 }
 
 #psycle-helper-container .psycle-timetable-book-btn:hover {
-  background: color-mix(in srgb, var(--success) 85%, #fff) !important;
-  box-shadow: 0 6px 20px color-mix(in srgb, var(--success) 55%, transparent) !important;
+  background: color-mix(in srgb, var(--success) 80%, #fff) !important;
 }
 
-/* Amber waitlist button */
+/* Amber waitlist button — pastel */
 #psycle-helper-container .psycle-timetable-waitlist-btn {
-  background: var(--warning) !important;
-  border: 1px solid color-mix(in srgb, var(--warning) 40%, transparent) !important;
-  box-shadow: 0 4px 14px color-mix(in srgb, var(--warning) 40%, transparent) !important;
+  background: color-mix(in srgb, var(--warning) 65%, #fff) !important;
+  color: color-mix(in srgb, var(--warning) 100%, #000) !important;
+  border: 1px solid color-mix(in srgb, var(--warning) 30%, transparent) !important;
+  box-shadow: none !important;
 }
 
 #psycle-helper-container .psycle-timetable-waitlist-btn:hover {
-  background: color-mix(in srgb, var(--warning) 85%, #fff) !important;
-  box-shadow: 0 6px 20px color-mix(in srgb, var(--warning) 55%, transparent) !important;
+  background: color-mix(in srgb, var(--warning) 75%, #fff) !important;
 }
 
-/* Red buy credits button */
+/* Red buy credits button — pastel */
 #psycle-helper-container button.psycle-btn-mini[style*="ef4444"][onclick*="buy-credits"] {
-  background: var(--danger) !important;
-  border: 1px solid color-mix(in srgb, var(--danger) 40%, transparent) !important;
-  box-shadow: 0 4px 14px color-mix(in srgb, var(--danger) 35%, transparent) !important;
+  background: color-mix(in srgb, var(--danger) 65%, #fff) !important;
+  color: color-mix(in srgb, var(--danger) 100%, #000) !important;
+  border: 1px solid color-mix(in srgb, var(--danger) 30%, transparent) !important;
+  box-shadow: none !important;
 }
 
 #psycle-helper-container button.psycle-btn-mini[style*="ef4444"][onclick*="buy-credits"]:hover {
-  background: color-mix(in srgb, var(--danger) 85%, #fff) !important;
-  box-shadow: 0 6px 20px color-mix(in srgb, var(--danger) 50%, transparent) !important;
+  background: color-mix(in srgb, var(--danger) 75%, #fff) !important;
 }
 
 /* Cancel booking button enhancements */

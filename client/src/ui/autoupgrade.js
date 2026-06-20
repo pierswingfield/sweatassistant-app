@@ -26,22 +26,31 @@ export async function renderAutoUpgrades() {
   const container = document.getElementById('psycle-autoupgrade-list-container');
   if (!container) return;
 
-  container.innerHTML = `<div class="psycle-spinner" style="margin: 30px auto;"></div>`;
+  // Show cached data immediately if available (from prefetch)
+  const hasCache = cache.upgrades !== undefined && cache.studioPrefs !== null;
+  if (hasCache) {
+    renderUpgradeList(cache.upgrades, cache.studioPrefs);
+  } else {
+    container.innerHTML = `<div class="psycle-spinner" style="margin: 30px auto;"></div>`;
+  }
 
+  // Fetch fresh data in the background
   try {
-    // Refresh credits when viewing auto-upgrades
-    await refreshUserData();
+    refreshUserData(); // Fire-and-forget — don't block render
 
     const [res, studioPrefs] = await Promise.all([
       api.getAutoUpgrades(),
       api.getStudioPreferences().catch(() => ({}))
     ]);
     cache.upgrades = res || [];
+    cache.studioPrefs = studioPrefs || {};
 
     renderUpgradeList(res, studioPrefs || {});
   } catch (err) {
     console.error('[AutoUpgrade] Failed to load:', err);
-    container.innerHTML = `<div class="psycle-card-error">Error: ${err.message}</div>`;
+    if (!hasCache) {
+      container.innerHTML = `<div class="psycle-card-error">Error: ${err.message}</div>`;
+    }
   }
 }
 

@@ -23,19 +23,21 @@ export async function initBundles() {
   // Add search/filter listeners if we're rendering first time
   setupFilterListeners();
 
-  // Alert about experimental checkout
-  const alertDiv = document.createElement('div');
-  alertDiv.className = 'psycle-credits-alert';
-  alertDiv.innerHTML = `
-    <div style="display:flex; gap:10px; align-items:flex-start; padding:12px 14px; background:#fef3c7; border:1px solid #fcd34d; border-radius:10px; margin-bottom:16px;">
-      <div style="font-size:20px; flex-shrink:0; line-height:1;">⚠</div>
-      <div style="flex:1; font-size:12px; color:#78350f; line-height:1.5;">
-        <div style="font-weight:700; margin-bottom:4px;">EXPERIMENTAL</div>
-        <div>Purchasing bundles here works but is not robustly tested. Because the Psycle purchase cart is specific to your browser instance, I have implemented a flow that sends the order directly to the payment processor using saved payment methods. This app never sees your payment data. It doesn't support 3-D Secure yet, so payments might fail.</div>
+  // Alert about experimental checkout (only insert once)
+  if (!document.querySelector('.psycle-credits-alert')) {
+    const alertDiv = document.createElement('div');
+    alertDiv.className = 'psycle-credits-alert';
+    alertDiv.innerHTML = `
+      <div style="display:flex; gap:10px; align-items:flex-start; padding:12px 14px; background:color-mix(in srgb, var(--warning) 15%, transparent); border:1px solid var(--warning); border-radius:10px; margin-bottom:16px;">
+        <div style="font-size:20px; flex-shrink:0; line-height:1;">⚠</div>
+        <div style="flex:1; font-size:12px; color:color-mix(in srgb, var(--warning) 100%, #000); line-height:1.5;">
+          <div style="font-weight:700; margin-bottom:4px;">EXPERIMENTAL</div>
+          <div>Purchasing bundles here works but is not robustly tested. Because the Psycle purchase cart is specific to your browser instance, I have implemented a flow that sends the order directly to the payment processor using saved payment methods. Psycle Assistant never sees your payment data. It doesn't support 3-D Secure yet, so payments might fail.</div>
+        </div>
       </div>
-    </div>
-  `;
-  container.parentElement.insertBefore(alertDiv, container);
+    `;
+    container.parentElement.insertBefore(alertDiv, container);
+  }
 
   container.innerHTML = `
     <div class="psycle-loading-spinner-container">
@@ -329,7 +331,7 @@ function createBundleCard(b, isFavSection) {
     <div class="fav-card-header">
       <div>
         <div class="fav-card-title">${b.name}</div>
-        <div class="fav-card-handle" style="font-size: 11px; color: var(--text-tertiary); margin-top: 2px;">${b.handle} (ID: ${b.id})</div>
+        <div class="fav-card-handle" style="font-size: 12px; color: var(--text-tertiary); margin-top: 2px;">${b.handle} (ID: ${b.id})</div>
       </div>
       <button class="fav-card-star-btn ${isFav ? 'active' : ''}" title="${isFav ? 'Unpin' : 'Pin to favorites'}">
         ${isFav ? '★' : '☆'}

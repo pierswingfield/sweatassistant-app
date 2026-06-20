@@ -75,12 +75,12 @@ function isScalar(val) {
 }
 
 function formatVal(val) {
-  if (val === null || val === undefined) return '<span style="color:#64748b;font-style:italic;">null</span>';
+  if (val === null || val === undefined) return '<span style="color:var(--text-tertiary);font-style:italic;">null</span>';
   if (typeof val === 'object') {
-    return `<pre style="margin:0;background:rgba(0,0,0,0.3);padding:6px;border-radius:6px;font-family:monospace;font-size:11px;white-space:pre-wrap;word-break:break-all;color:#e2e8f0;text-align:left;">${JSON.stringify(val, null, 2)}</pre>`;
+    return `<pre style="margin:0;background:var(--surface-inset);padding:6px;border-radius:6px;font-family:monospace;font-size:12px;white-space:pre-wrap;word-break:break-all;color:var(--text);text-align:left;">${JSON.stringify(val, null, 2)}</pre>`;
   }
   if (typeof val === 'boolean') {
-    return val ? '<span style="color:#34d399;font-weight:700;">true</span>' : '<span style="color:#f87171;font-weight:700;">false</span>';
+    return val ? '<span style="color:var(--success);font-weight:700;">true</span>' : '<span style="color:var(--danger);font-weight:700;">false</span>';
   }
   return `<span style="color:#ffffff;font-weight:600;">${String(val)}</span>`;
 }
@@ -88,34 +88,34 @@ function formatVal(val) {
 // ─── Special Section Renderers ──────────────────────────────────────────────
 
 function renderCreditsHtml(credits) {
-  if (!credits || credits.length === 0) return '<div style="color:#94a3b8;font-style:italic;text-align:center;font-size:12px;">No active credits.</div>';
+  if (!credits || credits.length === 0) return '<div style="color:var(--text-secondary);font-style:italic;text-align:center;font-size:12px;">No active credits.</div>';
   return credits.map(c => `
-    <div style="background:rgba(139,92,246,0.08);border:1px solid rgba(139,92,246,0.2);border-radius:10px;padding:10px 14px;display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;">
+    <div style="background:color-mix(in srgb, var(--feat-autoupgrade) 8%, transparent);border:1px solid color-mix(in srgb, var(--feat-autoupgrade) 20%, transparent);border-radius:10px;padding:10px 14px;display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;">
       <div style="display:flex;flex-direction:column;gap:2px;">
         <strong style="color:#fff;font-size:13px;">${c.credit_type?.name || 'Unknown'}</strong>
-        <span style="font-size:10px;color:#94a3b8;">Handle: ${c.credit_type?.handle || '—'}</span>
+        <span style="font-size:12px;color:var(--text-secondary);">Handle: ${c.credit_type?.handle || '—'}</span>
       </div>
-      <span style="background:#8b5cf6;color:#fff;border-radius:12px;padding:4px 10px;font-size:11px;font-weight:700;box-shadow:0 2px 4px rgba(139,92,246,0.3);border:1px solid rgba(255,255,255,0.1);">${c.count} Left</span>
+      <span style="background:var(--feat-autoupgrade);color:#fff;border-radius:12px;padding:4px 10px;font-size:12px;font-weight:700;box-shadow:0 2px 4px color-mix(in srgb, var(--feat-autoupgrade) 30%, transparent);border:1px solid color-mix(in srgb, var(--text) 10%, transparent);">${c.count} Left</span>
     </div>
   `).join('');
 }
 
 function renderSubsHtml(subs, statuses) {
   const allSubs = [...(subs || []), ...(statuses || [])];
-  if (allSubs.length === 0) return '<div style="color:#94a3b8;font-style:italic;text-align:center;font-size:12px;">No subscription plans found.</div>';
+  if (allSubs.length === 0) return '<div style="color:var(--text-secondary);font-style:italic;text-align:center;font-size:12px;">No subscription plans found.</div>';
   return allSubs.map(s => {
     const status = s.status || 'inactive';
     const isCancelled = status === 'cancelled';
-    const statusBg = isCancelled ? 'rgba(239,68,68,0.15)' : 'rgba(16,185,129,0.15)';
-    const statusBorder = isCancelled ? 'rgba(239,68,68,0.3)' : 'rgba(16,185,129,0.3)';
-    const statusColor = isCancelled ? '#f87171' : '#34d399';
+    const statusBg = isCancelled ? 'color-mix(in srgb, var(--danger) 15%, transparent)' : 'color-mix(in srgb, var(--success) 15%, transparent)';
+    const statusBorder = isCancelled ? 'color-mix(in srgb, var(--danger) 30%, transparent)' : 'color-mix(in srgb, var(--success) 30%, transparent)';
+    const statusColor = isCancelled ? 'var(--danger)' : 'var(--success)';
     return `
-      <div style="background:rgba(255,255,255,0.02);border:1px solid rgba(255,255,255,0.06);border-radius:10px;padding:10px 14px;display:flex;justify-content:space-between;align-items:center;gap:12px;margin-bottom:8px;">
+      <div style="background:color-mix(in srgb, var(--text) 2%, transparent);border:1px solid color-mix(in srgb, var(--text) 6%, transparent);border-radius:10px;padding:10px 14px;display:flex;justify-content:space-between;align-items:center;gap:12px;margin-bottom:8px;">
         <div style="display:flex;flex-direction:column;gap:2px;flex:1;">
           <span style="font-weight:600;color:#fff;font-size:12px;line-height:1.4;">${s.name || '—'}</span>
-          <span style="font-size:10px;color:#94a3b8;">Plan: ${s.handle || '—'}</span>
+          <span style="font-size:12px;color:var(--text-secondary);">Plan: ${s.handle || '—'}</span>
         </div>
-        <span style="background:${statusBg};border:1px solid ${statusBorder};color:${statusColor};border-radius:6px;padding:3px 8px;font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:0.5px;">${status}</span>
+        <span style="background:${statusBg};border:1px solid ${statusBorder};color:${statusColor};border-radius:6px;padding:3px 8px;font-size:12px;font-weight:700;text-transform:uppercase;letter-spacing:0.5px;">${status}</span>
       </div>
     `;
   }).join('');
@@ -210,7 +210,7 @@ async function openProfileExplorerModal() {
   // Show loading state — use .show class for opacity transition (matches booking/debug modal convention)
   modal.style.display = 'flex';
   setTimeout(() => modal.classList.add('show'), 10);
-  body.innerHTML = '<div style="text-align:center;padding:40px;"><div class="psycle-spinner" style="margin:0 auto;"></div><div style="color:#94a3b8;margin-top:10px;font-size:13px;">Loading profile…</div></div>';
+  body.innerHTML = '<div style="text-align:center;padding:40px;"><div class="psycle-spinner" style="margin:0 auto;"></div><div style="color:var(--text-secondary);margin-top:10px;font-size:13px;">Loading profile…</div></div>';
 
   // Set up close handlers
   setupExplorerModalClose(modal);
@@ -300,9 +300,9 @@ function renderExplorerBody(body) {
 
   // Edit mode banner
   if (editMode) {
-    html += `<div style="background:rgba(245,158,11,0.1);border:1px solid rgba(245,158,11,0.3);border-radius:8px;padding:10px 14px;margin-bottom:12px;display:flex;justify-content:space-between;align-items:center;">
-      <span style="color:#fbbf24;font-weight:600;font-size:13px;">🔓 Edit Mode Enabled — modify fields and click Save Changes</span>
-      <span style="color:#94a3b8;font-size:11px;">Enter konami code again to exit</span>
+    html += `<div style="background:color-mix(in srgb, var(--warning) 10%, transparent);border:1px solid color-mix(in srgb, var(--warning) 30%, transparent);border-radius:8px;padding:10px 14px;margin-bottom:12px;display:flex;justify-content:space-between;align-items:center;">
+      <span style="color:var(--warning);font-weight:600;font-size:13px;">🔓 Edit Mode Enabled — modify fields and click Save Changes</span>
+      <span style="color:var(--text-secondary);font-size:12px;">Enter konami code again to exit</span>
     </div>`;
   }
 
@@ -316,18 +316,18 @@ function renderExplorerBody(body) {
   if (editMode) {
     const logEntriesHtml = renderLogEntriesHtml();
     html += `
-      <div class="psycle-profile-log-panel" style="margin-top:12px;border:1px solid rgba(255,255,255,0.08);border-radius:12px;overflow:hidden;">
-        <div class="psycle-profile-section-header" id="psycle-explorer-log-header" style="background:rgba(255,255,255,0.03);padding:10px 16px;display:flex;justify-content:space-between;align-items:center;cursor:pointer;user-select:none;">
-          <span style="font-weight:700;font-size:13px;color:#fff;display:flex;align-items:center;gap:6px;">📝 Change Log <span id="psycle-explorer-log-count" style="font-weight:400;font-size:11px;color:#94a3b8;">(${changeLog.length})</span></span>
-          <span class="psycle-accordion-arrow" id="psycle-explorer-log-arrow" style="font-size:11px;color:#94a3b8;transition:transform 0.2s;">▲</span>
+      <div class="psycle-profile-log-panel" style="margin-top:12px;border:1px solid color-mix(in srgb, var(--text) 8%, transparent);border-radius:12px;overflow:hidden;">
+        <div class="psycle-profile-section-header" id="psycle-explorer-log-header" style="background:color-mix(in srgb, var(--text) 3%, transparent);padding:10px 16px;display:flex;justify-content:space-between;align-items:center;cursor:pointer;user-select:none;">
+          <span style="font-weight:700;font-size:13px;color:#fff;display:flex;align-items:center;gap:6px;">📝 Change Log <span id="psycle-explorer-log-count" style="font-weight:400;font-size:12px;color:var(--text-secondary);">(${changeLog.length})</span></span>
+          <span class="psycle-accordion-arrow" id="psycle-explorer-log-arrow" style="font-size:12px;color:var(--text-secondary);transition:transform 0.2s;">▲</span>
         </div>
-        <div id="psycle-explorer-log-container" style="max-height:200px;overflow-y:auto;padding:8px;background:rgba(0,0,0,0.15);border-top:1px solid rgba(255,255,255,0.05);">
+        <div id="psycle-explorer-log-container" style="max-height:200px;overflow-y:auto;padding:8px;background:var(--surface-inset);border-top:1px solid color-mix(in srgb, var(--text) 5%, transparent);">
           ${logEntriesHtml}
         </div>
       </div>
     `;
     // Save Changes button
-    html += `<button id="psycle-profile-save-btn" class="psycle-btn" style="width:100%;margin-top:12px;background:rgba(167,139,250,0.2);border:1px solid rgba(167,139,250,0.4);color:#a78bfa;font-weight:700;display:none;">💾 Save Changes</button>`;
+    html += `<button id="psycle-profile-save-btn" class="psycle-btn" style="width:100%;margin-top:12px;background:color-mix(in srgb, var(--feat-autoupgrade) 20%, transparent);border:1px solid color-mix(in srgb, var(--feat-autoupgrade) 40%, transparent);color:var(--feat-autoupgrade);font-weight:700;display:none;">💾 Save Changes</button>`;
   }
 
   body.innerHTML = html;
@@ -386,21 +386,21 @@ function renderSectionAccordion(section, idx, isSpecial) {
         const isBool = typeof field.value === 'boolean';
         let inputHtml;
         if (isBool) {
-          inputHtml = `<input type="checkbox" class="psycle-profile-edit-input" data-path="${field.path}" ${field.value ? 'checked' : ''} style="width:16px;height:16px;cursor:pointer;accent-color:#a78bfa;">`;
+          inputHtml = `<input type="checkbox" class="psycle-profile-edit-input" data-path="${field.path}" ${field.value ? 'checked' : ''} style="width:16px;height:16px;cursor:pointer;accent-color:var(--feat-autoupgrade);">`;
         } else {
           const val = field.value !== null && field.value !== undefined ? String(field.value) : '';
-          inputHtml = `<input type="text" class="psycle-profile-edit-input" data-path="${field.path}" value="${val.replace(/"/g, '&quot;')}" placeholder="${field.value === null ? 'null' : ''}" style="flex:1;background:rgba(0,0,0,0.4);border:1px solid rgba(255,255,255,0.1);border-radius:5px;padding:4px 8px;font-size:11px;color:#e2e8f0;font-family:inherit;">`;
+          inputHtml = `<input type="text" class="psycle-profile-edit-input" data-path="${field.path}" value="${val.replace(/"/g, '&quot;')}" placeholder="${field.value === null ? 'null' : ''}" style="flex:1;background:var(--surface-inset);border:1px solid color-mix(in srgb, var(--text) 10%, transparent);border-radius:5px;padding:4px 8px;font-size:12px;color:var(--text);font-family:inherit;">`;
         }
         contentHtml += `
-          <div class="psycle-profile-field-row" data-path="${field.path}" style="display:flex;align-items:center;gap:8px;padding:5px 0;border-bottom:1px dashed rgba(255,255,255,0.05);">
-            <span style="color:#94a3b8;font-size:12px;font-weight:500;flex:0 0 160px;">${label}</span>
+          <div class="psycle-profile-field-row" data-path="${field.path}" style="display:flex;align-items:center;gap:8px;padding:5px 0;border-bottom:1px dashed color-mix(in srgb, var(--text) 5%, transparent);">
+            <span style="color:var(--text-secondary);font-size:12px;font-weight:500;flex:0 0 160px;">${label}</span>
             ${inputHtml}
           </div>
         `;
       } else {
         contentHtml += `
-          <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:16px;border-bottom:1px dashed rgba(255,255,255,0.05);padding-bottom:6px;">
-            <span style="color:#94a3b8;font-size:12px;font-weight:500;padding-top:1px;">${label}</span>
+          <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:16px;border-bottom:1px dashed color-mix(in srgb, var(--text) 5%, transparent);padding-bottom:6px;">
+            <span style="color:var(--text-secondary);font-size:12px;font-weight:500;padding-top:1px;">${label}</span>
             <div style="font-size:12px;text-align:right;max-width:65%;word-break:break-word;">${formatVal(field.value)}</div>
           </div>
         `;
@@ -412,16 +412,16 @@ function renderSectionAccordion(section, idx, isSpecial) {
   // For special sections in edit mode, add a read-only badge
   let titleSuffix = '';
   if (editMode && isSpecial) {
-    titleSuffix = ' <span style="font-size:10px;color:#64748b;font-weight:400;">(read-only)</span>';
+    titleSuffix = ' <span style="font-size:12px;color:var(--text-tertiary);font-weight:400;">(read-only)</span>';
   }
 
   return `
-    <div class="psycle-profile-section" style="border:1px solid rgba(255,255,255,0.08);border-radius:12px;overflow:hidden;flex-shrink:0;margin-bottom:10px;">
-      <div class="psycle-profile-section-header" style="background:rgba(255,255,255,0.03);padding:12px 16px;display:flex;justify-content:space-between;align-items:center;cursor:pointer;user-select:none;">
+    <div class="psycle-profile-section" style="border:1px solid color-mix(in srgb, var(--text) 8%, transparent);border-radius:12px;overflow:hidden;flex-shrink:0;margin-bottom:10px;">
+      <div class="psycle-profile-section-header" style="background:color-mix(in srgb, var(--text) 3%, transparent);padding:12px 16px;display:flex;justify-content:space-between;align-items:center;cursor:pointer;user-select:none;">
         <span style="font-weight:700;font-size:13px;color:#fff;display:flex;align-items:center;gap:6px;">${section.emoji} ${section.title}${titleSuffix}</span>
-        <span class="psycle-accordion-arrow" style="font-size:11px;color:#94a3b8;transition:transform 0.2s;">▼</span>
+        <span class="psycle-accordion-arrow" style="font-size:12px;color:var(--text-secondary);transition:transform 0.2s;">▼</span>
       </div>
-      <div class="psycle-profile-section-content" style="display:none;padding:14px;background:rgba(0,0,0,0.15);border-top:1px solid rgba(255,255,255,0.05);">
+      <div class="psycle-profile-section-content" style="display:none;padding:14px;background:var(--surface-inset);border-top:1px solid color-mix(in srgb, var(--text) 5%, transparent);">
         ${contentHtml}
       </div>
     </div>
@@ -465,7 +465,7 @@ function setupEditListeners(body) {
 // Render log entries HTML from the module-level changeLog (used by renderExplorerBody and saveProfileChanges)
 function renderLogEntriesHtml() {
   if (changeLog.length === 0) {
-    return '<div style="padding:12px;text-align:center;color:#64748b;font-style:italic;font-size:12px;">No changes yet.</div>';
+    return '<div style="padding:12px;text-align:center;color:var(--text-tertiary);font-style:italic;font-size:12px;">No changes yet.</div>';
   }
   const reversed = [...changeLog].reverse();
   return reversed.map(e => {
@@ -473,11 +473,11 @@ function renderLogEntriesHtml() {
     const oldS = e.oldValue == null ? 'null' : String(e.oldValue);
     const newS = e.newValue == null ? 'null' : String(e.newValue);
     const icon = e.status === 'verified' ? '✅' : e.status === 'sent' ? '⚠️' : e.status === 'failed' ? '❌' : '🔙';
-    const color = e.status === 'verified' ? '#34d399' : e.status === 'sent' ? '#fbbf24' : e.status === 'failed' ? '#f87171' : '#94a3b8';
-    return `<div style="display:flex;align-items:center;gap:8px;padding:6px 10px;border-bottom:1px solid rgba(255,255,255,0.04);font-size:11px;">
-      <span style="color:#64748b;flex-shrink:0;">${ts}</span>
-      <span style="color:#c084fc;flex-shrink:0;">${e.fieldPath}</span>
-      <span style="color:#94a3b8;flex:1;">${oldS} → <span style="color:#e2e8f0;">${newS}</span></span>
+    const color = e.status === 'verified' ? 'var(--success)' : e.status === 'sent' ? 'var(--warning)' : e.status === 'failed' ? 'var(--danger)' : 'var(--text-secondary)';
+    return `<div style="display:flex;align-items:center;gap:8px;padding:6px 10px;border-bottom:1px solid color-mix(in srgb, var(--text) 4%, transparent);font-size:12px;">
+      <span style="color:var(--text-tertiary);flex-shrink:0;">${ts}</span>
+      <span style="color:var(--feat-autoupgrade);flex-shrink:0;">${e.fieldPath}</span>
+      <span style="color:var(--text-secondary);flex:1;">${oldS} → <span style="color:var(--text);">${newS}</span></span>
       <span style="color:${color};">${icon}</span>
     </div>`;
   }).join('');
@@ -636,18 +636,18 @@ async function getActiveStudioIds() {
 
 async function openManageSpotMapsModal() {
   const overlay = document.createElement('div');
-  overlay.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,0.75);z-index:2000;display:flex;align-items:center;justify-content:center;padding:16px;';
+  overlay.style.cssText = 'position:fixed;inset:0;background:color-mix(in srgb, var(--bg) 60%, transparent);z-index:2000;display:flex;align-items:center;justify-content:center;padding:16px;';
 
   const modal = document.createElement('div');
-  modal.style.cssText = 'background:#0f172a;border:1px solid rgba(255,255,255,0.12);border-radius:16px;width:100%;max-width:500px;max-height:90vh;display:flex;flex-direction:column;overflow:hidden;';
+  modal.style.cssText = 'background:var(--bg);border:1px solid color-mix(in srgb, var(--text) 12%, transparent);border-radius:16px;width:100%;max-width:500px;max-height:90vh;display:flex;flex-direction:column;overflow:hidden;';
 
   const header = document.createElement('div');
-  header.style.cssText = 'display:flex;justify-content:space-between;align-items:center;padding:14px 18px;border-bottom:1px solid rgba(255,255,255,0.08);flex-shrink:0;';
-  header.innerHTML = `<h3 style="margin:0;font-size:16px;font-weight:700;color:#f1f5f9;">Preferred Spot Maps</h3><button style="background:none;border:none;color:#94a3b8;font-size:22px;cursor:pointer;padding:0;line-height:1;" id="manage-modal-close">×</button>`;
+  header.style.cssText = 'display:flex;justify-content:space-between;align-items:center;padding:14px 18px;border-bottom:1px solid color-mix(in srgb, var(--text) 8%, transparent);flex-shrink:0;';
+  header.innerHTML = `<h3 style="margin:0;font-size:16px;font-weight:700;color:var(--text);">Preferred Spot Maps</h3><button style="background:none;border:none;color:var(--text-secondary);font-size:22px;cursor:pointer;padding:0;line-height:1;" id="manage-modal-close">×</button>`;
 
   const body = document.createElement('div');
   body.style.cssText = 'flex:1;overflow-y:auto;padding:16px;';
-  body.innerHTML = '<div style="text-align:center;padding:24px;"><div class="psycle-spinner" style="margin:0 auto;"></div><div style="color:#94a3b8;margin-top:10px;font-size:13px;">Loading studios…</div></div>';
+  body.innerHTML = '<div style="text-align:center;padding:24px;"><div class="psycle-spinner" style="margin:0 auto;"></div><div style="color:var(--text-secondary);margin-top:10px;font-size:13px;">Loading studios…</div></div>';
 
   modal.appendChild(header);
   modal.appendChild(body);
@@ -710,7 +710,7 @@ function renderManageSpotMapsModal(prefs, studios, locations, container, onClose
 
   if (sortedLocs.length === 0) {
     const noTimetable = activeStudioIds === null;
-    container.innerHTML = `<div style="text-align:center;padding:24px;color:#94a3b8;"><div style="font-size:32px;margin-bottom:12px;">🗺️</div><p style="margin:0;">${noTimetable ? 'No Timetable Data' : 'No Active Studios'}</p><p style="font-size:12px;margin:8px 0 0 0;">${noTimetable ? 'Please open the Timetable tab first to load classes, then return here.' : 'No studios with layouts match the current timetable.'}</p></div>`;
+    container.innerHTML = `<div style="text-align:center;padding:24px;color:var(--text-secondary);"><div style="font-size:32px;margin-bottom:12px;">🗺️</div><p style="margin:0;">${noTimetable ? 'No Timetable Data' : 'No Active Studios'}</p><p style="font-size:12px;margin:8px 0 0 0;">${noTimetable ? 'Please open the Timetable tab first to load classes, then return here.' : 'No studios with layouts match the current timetable.'}</p></div>`;
     return;
   }
 
@@ -719,7 +719,7 @@ function renderManageSpotMapsModal(prefs, studios, locations, container, onClose
     locSection.style.cssText = 'margin-bottom:14px;';
 
     const locHeader = document.createElement('div');
-    locHeader.style.cssText = 'font-size:12px;font-weight:700;color:#94a3b8;text-transform:uppercase;letter-spacing:0.5px;padding:8px 0 6px 0;cursor:pointer;user-select:none;display:flex;justify-content:space-between;align-items:center;';
+    locHeader.style.cssText = 'font-size:12px;font-weight:700;color:var(--text-secondary);text-transform:uppercase;letter-spacing:0.5px;padding:8px 0 6px 0;cursor:pointer;user-select:none;display:flex;justify-content:space-between;align-items:center;';
     const chevron = document.createElement('span');
     chevron.textContent = '▼';
     chevron.style.cssText = 'transition:transform 0.2s;';
@@ -734,19 +734,19 @@ function renderManageSpotMapsModal(prefs, studios, locations, container, onClose
       const hasPrefs = studioPrefs && (studioPrefs.preferredSlots?.length > 0 || studioPrefs.preferredRows?.length > 0);
 
       const row = document.createElement('div');
-      row.style.cssText = 'display:flex;justify-content:space-between;align-items:center;padding:8px 12px;background:rgba(255,255,255,0.03);border:1px solid rgba(255,255,255,0.06);border-radius:8px;';
+      row.style.cssText = 'display:flex;justify-content:space-between;align-items:center;padding:8px 12px;background:color-mix(in srgb, var(--text) 3%, transparent);border:1px solid color-mix(in srgb, var(--text) 6%, transparent);border-radius:8px;';
 
       const info = document.createElement('div');
       info.style.cssText = 'flex:1;';
 
       const name = document.createElement('div');
-      name.style.cssText = 'font-size:13px;font-weight:500;color:#e2e8f0;';
+      name.style.cssText = 'font-size:13px;font-weight:500;color:var(--text);';
       name.textContent = studio.name;
       info.appendChild(name);
 
       if (hasPrefs) {
         const detail = document.createElement('div');
-        detail.style.cssText = 'font-size:11px;color:#64748b;margin-top:2px;';
+        detail.style.cssText = 'font-size:12px;color:var(--text-tertiary);margin-top:2px;';
         const parts = [];
         if (studioPrefs.preferredSlots?.length > 0) parts.push(`${studioPrefs.preferredSlots.length} preferred spot${studioPrefs.preferredSlots.length > 1 ? 's' : ''}`);
         if (studioPrefs.preferredRows?.length > 0) parts.push(`${studioPrefs.preferredRows.length} preferred row${studioPrefs.preferredRows.length > 1 ? 's' : ''}`);
@@ -760,7 +760,7 @@ function renderManageSpotMapsModal(prefs, studios, locations, container, onClose
 
       const editBtn = document.createElement('button');
       editBtn.className = 'psycle-btn-mini';
-      editBtn.style.cssText = 'font-size:11px;padding:4px 10px;';
+      editBtn.style.cssText = 'font-size:12px;padding:4px 10px;';
       editBtn.textContent = hasPrefs ? 'Edit Spots' : 'Choose Spots';
       editBtn.addEventListener('click', () => openStudioFloorPlanEditor(studio.id, studio.name, () => openManageSpotMapsModal()));
       btns.appendChild(editBtn);
@@ -768,7 +768,7 @@ function renderManageSpotMapsModal(prefs, studios, locations, container, onClose
       if (hasPrefs) {
         const removeBtn = document.createElement('button');
         removeBtn.className = 'psycle-btn-mini';
-        removeBtn.style.cssText = 'font-size:11px;padding:4px 10px;background:rgba(239,68,68,0.1);border-color:rgba(239,68,68,0.25);color:#f87171;';
+        removeBtn.style.cssText = 'font-size:12px;padding:4px 10px;background:color-mix(in srgb, var(--danger) 10%, transparent);border-color:color-mix(in srgb, var(--danger) 25%, transparent);color:var(--danger);';
         removeBtn.textContent = 'Remove';
         removeBtn.addEventListener('click', async () => {
           if (!confirm('Confirm remove?')) return;
@@ -812,18 +812,18 @@ function renderManageSpotMapsModal(prefs, studios, locations, container, onClose
 async function openStudioFloorPlanEditor(studioId, studioName, onSaved) {
   // Build modal overlay
   const overlay = document.createElement('div');
-  overlay.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,0.75);z-index:2000;display:flex;align-items:center;justify-content:center;padding:16px;';
+  overlay.style.cssText = 'position:fixed;inset:0;background:color-mix(in srgb, var(--bg) 60%, transparent);z-index:2000;display:flex;align-items:center;justify-content:center;padding:16px;';
 
   const modal = document.createElement('div');
-  modal.style.cssText = 'background:#0f172a;border:1px solid rgba(255,255,255,0.12);border-radius:16px;width:100%;max-width:560px;max-height:90vh;display:flex;flex-direction:column;overflow:hidden;';
+  modal.style.cssText = 'background:var(--bg);border:1px solid color-mix(in srgb, var(--text) 12%, transparent);border-radius:16px;width:100%;max-width:560px;max-height:90vh;display:flex;flex-direction:column;overflow:hidden;';
 
   const header = document.createElement('div');
-  header.style.cssText = 'display:flex;justify-content:space-between;align-items:center;padding:14px 18px;border-bottom:1px solid rgba(255,255,255,0.08);flex-shrink:0;';
-  header.innerHTML = `<div><div style="font-size:15px;font-weight:700;color:#f1f5f9;">Spot Map</div><div style="font-size:12px;color:#64748b;margin-top:2px;">${studioName}</div></div><button style="background:none;border:none;color:#94a3b8;font-size:22px;cursor:pointer;padding:0;line-height:1;" id="spot-editor-close">×</button>`;
+  header.style.cssText = 'display:flex;justify-content:space-between;align-items:center;padding:14px 18px;border-bottom:1px solid color-mix(in srgb, var(--text) 8%, transparent);flex-shrink:0;';
+  header.innerHTML = `<div><div style="font-size:15px;font-weight:700;color:var(--text);">Spot Map</div><div style="font-size:12px;color:var(--text-tertiary);margin-top:2px;">${studioName}</div></div><button style="background:none;border:none;color:var(--text-secondary);font-size:22px;cursor:pointer;padding:0;line-height:1;" id="spot-editor-close">×</button>`;
 
   const body = document.createElement('div');
   body.style.cssText = 'flex:1;overflow-y:auto;padding:16px;';
-  body.innerHTML = '<div style="text-align:center;padding:24px;"><div class="psycle-spinner" style="margin:0 auto;"></div><div style="color:#94a3b8;margin-top:10px;font-size:13px;">Loading floor plan…</div></div>';
+  body.innerHTML = '<div style="text-align:center;padding:24px;"><div class="psycle-spinner" style="margin:0 auto;"></div><div style="color:var(--text-secondary);margin-top:10px;font-size:13px;">Loading floor plan…</div></div>';
 
   modal.appendChild(header);
   modal.appendChild(body);
@@ -857,11 +857,11 @@ async function openStudioFloorPlanEditor(studioId, studioName, onSaved) {
 
     if (layoutSlots.length === 0) {
       body.innerHTML = `
-        <div style="padding:20px;text-align:center;color:#94a3b8;">
+        <div style="padding:20px;text-align:center;color:var(--text-secondary);">
           <div style="font-size:32px;margin-bottom:12px;">🗺️</div>
-          <p style="margin:0 0 8px;color:#e2e8f0;font-weight:500;">No floor map available</p>
+          <p style="margin:0 0 8px;color:var(--text);font-weight:500;">No floor map available</p>
           <p style="font-size:12px;margin:0 0 20px;">Preferences will apply to any available spot when booking at this studio.</p>
-          <button class="psycle-btn" id="spot-save-any" style="background:#a78bfa;color:#fff;">Save (Any Spot Preference)</button>
+          <button class="psycle-btn" id="spot-save-any" style="background:var(--feat-autoupgrade);color:#fff;">Save (Any Spot Preference)</button>
         </div>
       `;
       body.querySelector('#spot-save-any').onclick = () => onSave([], existing.preferredRows || []);
@@ -869,7 +869,7 @@ async function openStudioFloorPlanEditor(studioId, studioName, onSaved) {
     }
 
     renderStudioFloorPlan(body, layoutSlots, existing.preferredSlots || [], existing.preferredRows || [], onSave, {
-      bannerHtml: `<div style="font-size:11px;color:#a5b4fc;background:rgba(99,102,241,0.08);border:1px solid rgba(99,102,241,0.18);border-radius:8px;padding:8px 10px;margin-bottom:12px;line-height:1.5;">This is the one shared preferred spot map for <strong>${studioName}</strong>. Quick-Book, Auto-Book, and Auto-Upgrade at this studio all use it — changes apply everywhere.</div>`
+      bannerHtml: `<div style="font-size:12px;color:var(--feat-autoupgrade);background:color-mix(in srgb, var(--feat-autoupgrade) 8%, transparent);border:1px solid color-mix(in srgb, var(--feat-autoupgrade) 18%, transparent);border-radius:8px;padding:8px 10px;margin-bottom:12px;line-height:1.5;">This is the one shared preferred spot map for <strong>${studioName}</strong>. Quick-Book, Auto-Book, and Auto-Upgrade at this studio all use it — changes apply everywhere.</div>`
     });
   } catch (err) {
     body.innerHTML = `<div class="psycle-card-error" style="padding:16px;">Error loading floor plan: ${err.message}</div>`;
@@ -944,7 +944,7 @@ function renderNotifPrefs() {
   const prefs = getNotifPrefs();
 
   body.innerHTML = `
-    <p style="font-size:12px;color:#94a3b8;margin:0 0 16px;line-height:1.5;">Choose which push notifications you receive. Changes apply to all your devices.</p>
+    <p style="font-size:12px;color:var(--text-secondary);margin:0 0 16px;line-height:1.5;">Choose which push notifications you receive. Changes apply to all your devices.</p>
     ${NOTIF_ROWS.map(row => {
       const p = prefs[row.key];
       const dd = row.dropdown ? `
@@ -952,11 +952,11 @@ function renderNotifPrefs() {
           ${row.dropdown.options.map(([val, label]) => `<option value="${val}" ${p[row.dropdown.prop] === val ? 'selected' : ''}>${label}</option>`).join('')}
         </select>` : '';
       return `
-        <div style="border:1px solid rgba(255,255,255,0.08);border-radius:10px;padding:12px 14px;margin-bottom:10px;background:rgba(255,255,255,0.02);">
+        <div style="border:1px solid color-mix(in srgb, var(--text) 8%, transparent);border-radius:10px;padding:12px 14px;margin-bottom:10px;background:color-mix(in srgb, var(--text) 2%, transparent);">
           <div style="display:flex;justify-content:space-between;align-items:center;gap:12px;">
             <div style="flex:1;min-width:0;">
-              <div style="font-size:13px;font-weight:600;color:#e2e8f0;">${row.title}</div>
-              <div style="font-size:11px;color:#94a3b8;margin-top:2px;line-height:1.4;">${row.desc}</div>
+              <div style="font-size:13px;font-weight:600;color:var(--text);">${row.title}</div>
+              <div style="font-size:12px;color:var(--text-secondary);margin-top:2px;line-height:1.4;">${row.desc}</div>
             </div>
             <label class="psycle-switch" style="flex-shrink:0;">
               <input type="checkbox" class="notif-toggle" data-key="${row.key}" ${p.enabled ? 'checked' : ''}>
@@ -1242,9 +1242,9 @@ function setupSettingsListeners() {
       if (deleteDataBtn.dataset.confirmState !== 'confirm') {
         deleteDataBtn.dataset.confirmState = 'confirm';
         deleteDataBtn.textContent = 'Are you sure? Click again to confirm.';
-        deleteDataBtn.style.background = '#ef4444';
+        deleteDataBtn.style.background = 'var(--danger)';
         deleteDataBtn.style.color = '#fff';
-        deleteDataBtn.style.borderColor = '#ef4444';
+        deleteDataBtn.style.borderColor = 'var(--danger)';
         setTimeout(() => {
           if (deleteDataBtn.dataset.confirmState === 'confirm') {
             delete deleteDataBtn.dataset.confirmState;

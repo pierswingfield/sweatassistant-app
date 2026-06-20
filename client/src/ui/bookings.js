@@ -26,13 +26,19 @@ export async function renderBookings() {
   const bookingsBody = document.getElementById('psycle-bookings-table-body');
   const waitlistsBody = document.getElementById('psycle-waitlists-table-body');
 
-  // Show cached data immediately if available
-  if (cache.bookings?.length > 0 && cache.upgrades) {
-    renderBookingsTable(cache.bookings, cache.upgrades || []);
-  } else if (cache.waitlists?.length > 0) {
-    renderWaitlistsTable(cache.waitlists);
+  // Show refreshing indicators
+  const bookingsRefreshing = document.getElementById('psycle-bookings-refreshing');
+  const waitlistsRefreshing = document.getElementById('psycle-waitlists-refreshing');
+  if (bookingsRefreshing) bookingsRefreshing.style.display = '';
+  if (waitlistsRefreshing) waitlistsRefreshing.style.display = '';
+
+  // Show cached data immediately if available (cache.upgrades is set after first load)
+  const hasLoadedBefore = cache.upgrades !== undefined;
+  if (hasLoadedBefore) {
+    renderBookingsTable(cache.bookings || [], cache.upgrades || []);
+    renderWaitlistsTable(cache.waitlists || []);
   } else {
-    // Only show loading state if no cached data
+    // First visit — no cached data yet
     if (bookingsBody) {
       bookingsBody.innerHTML = `
         <tr>
@@ -127,12 +133,18 @@ export async function renderBookings() {
     renderBookingsTable(bookings, upgrades);
     renderWaitlistsTable(waitlists);
 
+    // Hide refreshing indicators
+    if (bookingsRefreshing) bookingsRefreshing.style.display = 'none';
+    if (waitlistsRefreshing) waitlistsRefreshing.style.display = 'none';
+
     // Keep the server's reminder cache warm using data we already fetched (no extra CodexFit calls).
     syncBookingCache(bookings);
   } catch (err) {
     console.error('[Bookings] Loading failed:', err);
     if (bookingsBody) bookingsBody.innerHTML = `<tr><td colspan="6" class="psycle-table-error">Error: ${err.message}</td></tr>`;
     if (waitlistsBody) waitlistsBody.innerHTML = `<tr><td colspan="5" class="psycle-table-error">Error: ${err.message}</td></tr>`;
+    if (bookingsRefreshing) bookingsRefreshing.style.display = 'none';
+    if (waitlistsRefreshing) waitlistsRefreshing.style.display = 'none';
   }
 }
 
@@ -214,13 +226,11 @@ function renderBookingsTable(bookings, upgrades) {
     if (activeUpgrade) {
       if (activeUpgrade.status === 'paused_no_credits' || hasInsufficientCredits) {
         actionButtonsHtml = `
-          <button class="psycle-action-btn-mini variant-warning upgrade-status-btn" data-upgrade-id="${activeUpgrade.id}" data-event-id="${event.id}" data-booking-id="${b.id}" data-slot-id="${resolvedSlotId}" data-studio-id="${event.studio_id || ''}">⚠ Auto-Upgrade: Insufficient Credits</button>
-          <button class="psycle-action-btn-mini variant-danger cancel-upgrade-btn" data-upgrade-id="${activeUpgrade.id}" style="margin-left: 4px;">Stop</button>
+          <button class="psycle-action-btn-mini variant-warning upgrade-status-btn" data-upgrade-id="${activeUpgrade.id}" data-event-id="${event.id}" data-booking-id="${b.id}" data-slot-id="${resolvedSlotId}" data-studio-id="${event.studio_id || ''}" style="width: auto; min-width: 110px;">⚠ Auto-Upgrade: Insufficient Credits</button>
         `;
       } else {
         actionButtonsHtml = `
-          <button class="psycle-action-btn-mini variant-success-muted upgrade-status-btn" data-upgrade-id="${activeUpgrade.id}" data-event-id="${event.id}" data-booking-id="${b.id}" data-slot-id="${resolvedSlotId}" data-studio-id="${event.studio_id || ''}">Auto-Upgrade On</button>
-          <button class="psycle-action-btn-mini variant-danger cancel-upgrade-btn" data-upgrade-id="${activeUpgrade.id}" style="margin-left: 4px;">Stop</button>
+          <button class="psycle-action-btn-mini variant-success-muted upgrade-status-btn" data-upgrade-id="${activeUpgrade.id}" data-event-id="${event.id}" data-booking-id="${b.id}" data-slot-id="${resolvedSlotId}" data-studio-id="${event.studio_id || ''}" style="width: auto; min-width: 110px;">Auto-Upgrade On ↗</button>
         `;
       }
     } else {
@@ -229,7 +239,7 @@ function renderBookingsTable(bookings, upgrades) {
       `;
     }
 
-    const cancelClass = isUnderPenalty ? 'cancel-btn penalty' : 'cancel-btn';
+    const cancelClass = isUnderPenalty ? 'cancel-btn penalty variant-danger-strong' : 'cancel-btn variant-danger';
     const cancelLabel = isUnderPenalty ? 'Cancel (Penalty)' : 'Cancel';
 
     row.innerHTML = `
@@ -538,7 +548,7 @@ export async function openUpgradeConfigModal({ eventId, bookingId, currentSlotId
     const editorContainer = body.querySelector('#psycle-upgrade-editor');
 
     const bannerHtml = `
-      <div style="font-size:11px;color:var(--feat-autoupgrade);background:color-mix(in srgb,var(--feat-autoupgrade) 8%,transparent);border:1px solid color-mix(in srgb,var(--feat-autoupgrade) 18%,transparent);border-radius:8px;padding:8px 10px;margin-bottom:10px;line-height:1.5;">
+      <div style="font-size:12px;color:var(--feat-autoupgrade);background:color-mix(in srgb,var(--feat-autoupgrade) 8%,transparent);border:1px solid color-mix(in srgb,var(--feat-autoupgrade) 18%,transparent);border-radius:8px;padding:8px 10px;margin-bottom:10px;line-height:1.5;">
         This is the one shared preferred spot map for <strong>${studioName}</strong>. Auto-Upgrade aims for these spots in priority order — and Quick-Book &amp; Auto-Book here use the same map. Your current seat is <strong>${currentSlotLabel}</strong>.
       </div>${creditWarningHtml}`;
 
@@ -547,7 +557,7 @@ export async function openUpgradeConfigModal({ eventId, bookingId, currentSlotId
         <input type="checkbox" id="upgrade-keep-original" ${seedKeepOriginal ? 'checked' : ''} style="margin-top:2px;accent-color:var(--feat-autoupgrade);">
         <span>
           <strong>Continue past 12h cutoff</strong><br>
-          <span style="font-size:11px;color:var(--text-tertiary);">Within 12h of class, make one final upgrade attempt without cancelling your original seat — you'll need to ask Psycle to release it. Without this, monitoring stops at 12h.</span>
+          <span style="font-size:12px;color:var(--text-tertiary);">Within 12h of class, make one final upgrade attempt without cancelling your original seat — you'll need to ask Psycle to release it. Without this, monitoring stops at 12h.</span>
         </span>
       </label>`;
 

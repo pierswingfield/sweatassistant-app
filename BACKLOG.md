@@ -1,5 +1,26 @@
 # Backlog
 
+## In-app 3-D Secure support for credit purchases
+
+### Context
+- In-app credit checkout is fully server-driven via the BFF proxy (`POST /api/cart/checkout/init/:bundleId` + `POST /api/cart/checkout/confirm` in `server/server.js`). It charges a saved card off-session and polls `GET /orders/:id` until `Paid`.
+- **Gap**: 3-D Secure is not supported. When the saved-card off-session charge requires authentication, Stripe returns `last_payment_error.code = authentication_required` (or the order never leaves `Payment pending`). We currently detect this, return `status: 'requires_action'`, and show a graceful error + website fallback + "tips to avoid 3-D Secure" (`renderPurchaseError(..., secureTips=true)` in `client/src/ui/credits.js`).
+
+### Problem
+- A meaningful share of UK cards (esp. Visa/Mastercard under PSD2 SCA) will trigger a challenge on first purchase, so those users are bounced to the website.
+
+### Solution
+- The order/payment-intent response already exposes everything needed: `metadata.intent_secret` / `payment_intent.client_secret` (e.g. `pi_..._secret_...`) and the live PaymentIntent.
+- Embed **Stripe.js** in the client (publishable key = the org's Stripe account; confirm which from the `pmc_1LVawB2G0LU8CI0RFBqoKtbu` config).
+- Flow change:
+  1. After `ajaxCheckoutProcess`, when polling yields `requires_action`, return `client_secret` to the client.
+  2. Client calls `stripe.confirmCardPayment(clientSecret, { payment_method: pmId })` — this renders the 3-D Secure modal.
+  3. On success, re-poll `GET /orders/:id` until `Paid`.
+- **Files**: `server/server.js` (return `client_secret` from `/checkout/confirm` on `requires_action`; reuse the poll loop), `client/src/ui/credits.js` (load Stripe.js, run `confirmCardPayment`, re-poll), `client/src/api.js`.
+- **Complexity**: M. **Dependencies**: confirm Stripe publishable key; verify the PaymentIntent (not the SetupIntent) is the one to confirm.
+
+---
+
 ## Cache event data across users + prioritise same-spot contention
 
 ### Problem

@@ -18,7 +18,10 @@ export let cache = {
   bookings: [],
   waitlists: [],
   bundles: [],
-  timetable: {} // keyed by date string
+  timetable: {}, // keyed by date string
+  autoBookings: null, // prefetch target for Auto-Book tab
+  upgrades: undefined, // prefetch target for Auto-Book/Auto-Upgrade
+  studioPrefs: null // prefetch target for Auto-Book/Auto-Upgrade
 };
 
 // --- THEME (Auto / Light / Dark) ---
@@ -87,19 +90,19 @@ export function debugLog(message, type = 'info') {
   
   const timestamp = new Date().toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit', second: '2-digit' });
   const colors = {
-    info: '#94a3b8',
-    success: '#34d399',
-    error: '#f87171',
-    warning: '#fbbf24',
-    network: '#60a5fa',
-    action: '#a78bfa'
+    info: 'var(--text-secondary)',
+    success: 'var(--success)',
+    error: 'var(--danger)',
+    warning: 'var(--warning)',
+    network: 'var(--info)',
+    action: 'var(--feat-autoupgrade)'
   };
   const color = colors[type] || colors.info;
   const prefix = type === 'network' ? '→' : type === 'action' ? '⚡' : type === 'error' ? '✕' : type === 'success' ? '✓' : '•';
   
   const line = document.createElement('div');
   line.style.cssText = `margin: 2px 0; line-height: 1.4; word-break: break-all;`;
-  line.innerHTML = `<span style="color: #64748b;">${timestamp}</span> <span style="color: ${color};">${prefix}</span> <span style="color: ${color};">${message}</span>`;
+  line.innerHTML = `<span style="color: var(--text-tertiary);">${timestamp}</span> <span style="color: ${color};">${prefix}</span> <span style="color: ${color};">${message}</span>`;
   logEl.appendChild(line);
   
   // Keep max 200 entries
@@ -130,13 +133,14 @@ const VALID_TABS = ['class-timetable', 'my-bookings', 'auto-book', 'buy-credits'
 function switchTab(tabId) {
   const targetPanelId = `psycle-panel-${tabId}`;
 
-  // Update nav buttons
+  // Update nav buttons (top, bottom, and subnav share the .psycle-nav-btn class).
+  // data-tab-group lets one button (e.g. the merged mobile Settings tab) stay
+  // active across several tab ids (settings + about).
   tabButtons.forEach(btn => {
-    if (btn.getAttribute('data-tab') === tabId) {
-      btn.classList.add('active');
-    } else {
-      btn.classList.remove('active');
-    }
+    const group = btn.getAttribute('data-tab-group');
+    const match = btn.getAttribute('data-tab') === tabId
+      || (group && group.split(' ').includes(tabId));
+    btn.classList.toggle('active', match);
   });
 
   // Update panels
@@ -167,9 +171,7 @@ async function triggerTabRender(tabId) {
       renderBookings();
     } else if (tabId === 'auto-book') {
       const { initAutoBook } = await import('./ui/autobook');
-      const { renderAutoUpgrades } = await import('./ui/autoupgrade');
       initAutoBook();
-      renderAutoUpgrades();
     } else if (tabId === 'buy-credits') {
       const { initBundles } = await import('./ui/credits');
       initBundles();
@@ -349,13 +351,13 @@ export function updateCreditBadge(availableCredits = null) {
   mainBadge.className = 'psycle-credit-badge';
   mainBadge.style.cssText = `
     cursor: pointer;
-    background: rgba(167, 139, 250, 0.15);
-    border: 1px solid rgba(167, 139, 250, 0.3);
+    background: color-mix(in srgb, var(--feat-autoupgrade) 15%, transparent);
+    border: 1px solid color-mix(in srgb, var(--feat-autoupgrade) 30%, transparent);
     border-radius: 8px;
     padding: 6px 12px;
     font-size: 12px;
     font-weight: 600;
-    color: #c4b5fd;
+    color: var(--feat-autoupgrade);
   `;
   mainBadge.innerHTML = `<strong>${totalCredits}</strong> Credit${totalCredits !== 1 ? 's' : ''} available`;
   mainBadge.onclick = () => { if (totalCredits > 0) showCreditDetailsModal(credits); };
@@ -374,7 +376,7 @@ async function showCreditDetailsModal(credits) {
     left: 0;
     width: 100%;
     height: 100%;
-    background: rgba(0, 0, 0, 0.5);
+    background: color-mix(in srgb, var(--bg) 60%, transparent);
     display: flex;
     align-items: center;
     justify-content: center;
@@ -383,17 +385,17 @@ async function showCreditDetailsModal(credits) {
 
   const content = document.createElement('div');
   content.style.cssText = `
-    background: rgba(15, 23, 42, 0.95);
-    border: 1px solid rgba(255, 255, 255, 0.1);
+    background: color-mix(in srgb, var(--bg) 95%, transparent);
+    border: 1px solid color-mix(in srgb, var(--text) 10%, transparent);
     border-radius: 16px;
     padding: 24px;
     max-width: 450px;
     max-height: 80vh;
     overflow-y: auto;
-    color: #e2e8f0;
+    color: var(--text);
   `;
 
-  let html = `<h2 style="margin-top: 0; color: #c4b5fd; font-size: 18px;">Credit Details</h2>`;
+  let html = `<h2 style="margin-top: 0; color: var(--feat-autoupgrade); font-size: 18px;">Credit Details</h2>`;
   html += `<div class="psycle-spinner" style="margin: 20px auto;"></div>`;
 
   content.innerHTML = html;
@@ -406,10 +408,10 @@ async function showCreditDetailsModal(credits) {
     const creditsData = res.data || [];
     const creditTypes = res.relations?.credit_types || {};
 
-    content.innerHTML = `<h2 style="margin-top: 0; color: #c4b5fd; font-size: 18px;">Credit Details</h2>`;
+    content.innerHTML = `<h2 style="margin-top: 0; color: var(--feat-autoupgrade); font-size: 18px;">Credit Details</h2>`;
 
     if (!creditsData || creditsData.length === 0) {
-      content.innerHTML += `<p style="color: #94a3b8;">No credits available.</p>`;
+      content.innerHTML += `<p style="color: var(--text-secondary);">No credits available.</p>`;
     } else {
       // Group credits by type
       const groupedCredits = {};
@@ -428,15 +430,15 @@ async function showCreditDetailsModal(credits) {
       Object.entries(groupedCredits).forEach(([typeName, typeCredits]) => {
         const total = typeCredits.length;
         const html_section = `
-          <div style="margin-bottom: 16px; padding: 12px; background: rgba(99, 102, 241, 0.05); border-radius: 8px; border-left: 3px solid #a78bfa;">
-            <div style="font-weight: 600; color: #c4b5fd; margin-bottom: 8px;">${typeName}: <strong>${total}</strong></div>
-            <div style="font-size: 11px; color: #94a3b8;">
+          <div style="margin-bottom: 16px; padding: 12px; background: color-mix(in srgb, var(--feat-autoupgrade) 5%, transparent); border-radius: 8px; border-left: 3px solid var(--feat-autoupgrade);">
+            <div style="font-weight: 600; color: var(--feat-autoupgrade); margin-bottom: 8px;">${typeName}: <strong>${total}</strong></div>
+            <div style="font-size: 12px; color: var(--text-secondary);">
               ${typeCredits.map(c => {
                 const expiryDate = c.expires_at
                   ? new Date(c.expires_at).toLocaleDateString('en-GB', { year: 'numeric', month: 'short', day: 'numeric' })
                   : 'No expiry';
                 const isExpired = c.expires_at && new Date(c.expires_at) < new Date();
-                const expiryColor = isExpired ? '#f87171' : '#94a3b8';
+                const expiryColor = isExpired ? 'var(--danger)' : 'var(--text-secondary)';
                 return `<div style="margin-bottom: 6px; color: ${expiryColor};">• 1 credit (Expires: ${expiryDate})</div>`;
               }).join('')}
             </div>
@@ -446,14 +448,14 @@ async function showCreditDetailsModal(credits) {
       });
     }
 
-    content.innerHTML += `<button id="close-credit-modal" class="psycle-btn" style="width: 100%; margin-top: 16px; background: rgba(255, 255, 255, 0.06); border: 1px solid rgba(255, 255, 255, 0.15); color: #e2e8f0;">Close</button>`;
+    content.innerHTML += `<button id="close-credit-modal" class="psycle-btn" style="width: 100%; margin-top: 16px; background: color-mix(in srgb, var(--text) 6%, transparent); border: 1px solid color-mix(in srgb, var(--text) 15%, transparent); color: var(--text);">Close</button>`;
 
   } catch (err) {
     console.error('[Credits] Failed to load details:', err);
     content.innerHTML = `
-      <h2 style="margin-top: 0; color: #c4b5fd; font-size: 18px;">Credit Details</h2>
-      <p style="color: #f87171;">Failed to load credit details: ${err.message}</p>
-      <button id="close-credit-modal" class="psycle-btn" style="width: 100%; margin-top: 16px; background: rgba(255, 255, 255, 0.06); border: 1px solid rgba(255, 255, 255, 0.15); color: #e2e8f0;">Close</button>
+      <h2 style="margin-top: 0; color: var(--feat-autoupgrade); font-size: 18px;">Credit Details</h2>
+      <p style="color: var(--danger);">Failed to load credit details: ${err.message}</p>
+      <button id="close-credit-modal" class="psycle-btn" style="width: 100%; margin-top: 16px; background: color-mix(in srgb, var(--text) 6%, transparent); border: 1px solid color-mix(in srgb, var(--text) 15%, transparent); color: var(--text);">Close</button>
     `;
   }
 
@@ -504,6 +506,9 @@ async function initApp() {
   document.body.className = 'psycle-helper-expanded';
 
   await refreshUserData();
+
+  // Prefetch auto-book tab data in the background for instant tab load
+  import('./ui/autobook').then(m => m.prefetchAutoBookData()).catch(() => {});
 
   // Setup debug terminal
   updateDebugTerminalVisibility();

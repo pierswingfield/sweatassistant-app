@@ -117,6 +117,30 @@ function handleMockRequest(pathName, method, body) {
     return createFakeResponse(bundles);
   }
 
+  // In-app checkout mocks (dev@psycle.com) — let the UI run end to end.
+  if (pathName.startsWith('/cart/add_bundle/')) {
+    return createFakeResponse({ instance: 'mock-instance-0001' });
+  }
+  if (pathName.startsWith('/cart/get_payment_methods')) {
+    return createFakeResponse({
+      success: true,
+      methods: [
+        { id: 'pm_mock_amex', brand: 'amex', last4: '3003', default: true, exp_month: 10, exp_year: 2029 },
+        { id: 'pm_mock_visa', brand: 'visa', last4: '4242', default: false, exp_month: 3, exp_year: 2027 },
+      ],
+    });
+  }
+  if (pathName.startsWith('/cart/set_payment_method/')) {
+    return createFakeResponse({ success: true, intent: { id: 'pi_mock', status: 'requires_payment_method' } });
+  }
+  if (pathName.startsWith('/cart/ajaxCheckoutProcess')) {
+    return createFakeResponse({ success: true, order: { id: 9000001, status: 'Payment pending' } });
+  }
+  if (pathName.startsWith('/orders/')) {
+    // Mock settles immediately as Paid. Real API wraps the order in { data: ... }.
+    return createFakeResponse({ data: { id: 9000001, status: 'Paid' } });
+  }
+
   if (pathName.startsWith('/events/')) {
     const parts = pathName.split('/');
     const eventId = parseInt(parts[parts.length - 1]);

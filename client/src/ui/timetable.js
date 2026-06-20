@@ -75,6 +75,8 @@ let locationMap = new Map();
 let studioMap = new Map();
 let studioObjMap = new Map(); // full studio object for location_id lookup
 let instructorMap = new Map();
+// Session-level studio layout cache keyed by studio_id — layouts rarely change mid-session
+const studioLayoutCache = new Map();
 let eventTypeMap = new Map();
 let eventTypeGroupMap = new Map(); // eventTypeId -> group name
 
@@ -373,30 +375,38 @@ async function prefetchTimetableData(force = false) {
 }
 
 // Generate the dropdown filter option checklists
-function setupDropdownFilters(activeIds = null) {
+// activeIds: { locationIds, instructorIds, classTypeIds } — each a Set of IDs from interdependently-filtered events
+function setupDropdownFilters({ locationIds, instructorIds, classTypeIds } = {}) {
   const container = document.getElementById('psycle-timetable-filters-container');
   if (!container) return;
 
-  // Locations, instructors, and event types filtered to only show values present in current events
-  const locationsToRender = (!activeIds?.locations || activeIds.locations.size === 0)
+  const locationsToRender = (!locationIds || locationIds.size === 0)
     ? metadata.locations
-    : metadata.locations.filter(l => activeIds.locations.has(Number(l.id)));
-  const instructorsToRender = (!activeIds?.instructors || activeIds.instructors.size === 0)
+    : metadata.locations.filter(l => locationIds.has(Number(l.id)));
+
+  // Instructors filtered to timetable data, sorted alphabetically
+  const instructorPool = (!instructorIds || instructorIds.size === 0)
     ? metadata.instructors
-    : metadata.instructors.filter(i => activeIds.instructors.has(Number(i.id)));
-  const eventTypesToRender = (!activeIds?.eventTypes || activeIds.eventTypes.size === 0)
+    : metadata.instructors.filter(i => instructorIds.has(Number(i.id)));
+  const instructorsToRender = [...instructorPool].sort((a, b) => {
+    const nameA = (a.full_name || a.name || '').toLowerCase();
+    const nameB = (b.full_name || b.name || '').toLowerCase();
+    return nameA.localeCompare(nameB);
+  });
+
+  const eventTypesToRender = (!classTypeIds || classTypeIds.size === 0)
     ? metadata.eventTypes
-    : metadata.eventTypes.filter(t => activeIds.eventTypes.has(Number(t.id)));
-  
+    : metadata.eventTypes.filter(t => classTypeIds.has(Number(t.id)));
+
   populateOptionsList('psycle-ms-location', locationsToRender, selectedLocations, 'location');
   populateOptionsList('psycle-ms-instructor', instructorsToRender, selectedInstructors, 'instructor', 'full_name');
-  
+
   // Event Type groups (Ride, Strength, etc.)
   const eventTypeGroups = Array.from(new Set(eventTypesToRender.map(t => t.group ? JSON.stringify({ id: t.group.id, name: t.group.name }) : null)))
     .filter(Boolean)
     .map(str => JSON.parse(str))
     .sort((a, b) => a.name.localeCompare(b.name));
-  
+
   populateOptionsList('psycle-ms-class-type', eventTypeGroups, selectedEventTypes, 'class-type');
   
   // Set labels
@@ -423,8 +433,28 @@ function setupDropdownFilters(activeIds = null) {
 function populateOptionsList(dropdownId, items, selectedArray, type, labelField = 'name') {
   const dropdown = document.getElementById(dropdownId);
   if (!dropdown) return;
+  const menu = dropdown.querySelector('.psycle-ms-menu');
   const list = dropdown.querySelector('.psycle-ms-options-list');
   if (!list) return;
+
+  // Instructor dropdown: inject instant-search input once, then wire it
+  if (dropdownId === 'psycle-ms-instructor' && menu) {
+    let searchInput = menu.querySelector('.psycle-ms-search');
+    if (!searchInput) {
+      searchInput = document.createElement('input');
+      searchInput.type = 'text';
+      searchInput.className = 'psycle-ms-search';
+      searchInput.placeholder = 'Search instructors…';
+      menu.insertBefore(searchInput, list);
+    }
+    searchInput.oninput = () => {
+      const q = searchInput.value.toLowerCase();
+      list.querySelectorAll('.psycle-ms-option-label').forEach(label => {
+        const text = label.querySelector('span')?.textContent?.toLowerCase() || '';
+        label.style.display = text.includes(q) ? '' : 'none';
+      });
+    };
+  }
 
   list.innerHTML = '';
   items.forEach(item => {
@@ -663,17 +693,36 @@ async function renderTimetableGrid() {
   const ttGrid = document.getElementById('psycle-timetable-grid');
   if (!ttGrid) return;
 
-  // Compute active filter IDs from current events to scope dropdowns to relevant options only
-  // Events don't have location_id directly — derive it from the studio's location_id
-  const activeIds = {
-    locations: new Set(psycleEvents.map(e => {
-      const studio = metadata.studios.find(s => s.id === e.studio_id);
-      return studio ? studio.location_id : null;
-    }).filter(Boolean)),
-    instructors: new Set(psycleEvents.map(e => e.instructor_id).filter(Boolean)),
-    eventTypes: new Set(psycleEvents.map(e => e.event_type_id).filter(Boolean))
-  };
-  setupDropdownFilters(activeIds);
+  // Compute interdependent dropdown options: each filter shows only values present in events
+  // that match ALL OTHER active filters (but not the filter for that dropdown itself).
+  const now = new Date();
+  const futureEvents = psycleEvents.filter(e => new Date(e.start_at) >= now);
+
+  function eventsExcluding(excludeFilter) {
+    return futureEvents.filter(e => {
+      if (excludeFilter !== 'location' && selectedLocations.length > 0) {
+        const studioObj = e.studio || studioObjMap.get(e.studio_id);
+        const locId = String(studioObj?.location_id || studioObj?.location?.id || e.location_id || '');
+        if (!locId || !selectedLocations.includes(locId)) return false;
+      }
+      if (excludeFilter !== 'instructor' && selectedInstructors.length > 0 && !selectedInstructors.includes(String(e.instructor_id))) return false;
+      if (excludeFilter !== 'class-type' && selectedEventTypes.length > 0) {
+        const et = metadata.eventTypes.find(t => t.id === e.event_type_id);
+        const etGroupId = et?.group?.id != null ? String(et.group.id) : null;
+        if (!etGroupId || !selectedEventTypes.includes(etGroupId)) return false;
+      }
+      return true;
+    });
+  }
+
+  const locationIds = new Set(eventsExcluding('location').map(e => {
+    const studio = metadata.studios.find(s => s.id === e.studio_id);
+    return studio ? studio.location_id : null;
+  }).filter(Boolean));
+  const instructorIds = new Set(eventsExcluding('instructor').map(e => e.instructor_id).filter(Boolean));
+  const classTypeIds = new Set(eventsExcluding('class-type').map(e => e.event_type_id).filter(Boolean));
+
+  setupDropdownFilters({ locationIds, instructorIds, classTypeIds });
 
   // === MOBILE TIMETABLE — inject filter hamburger (added Jun 2026; part of mobile block) ===
   if (window.matchMedia('(max-width: 768px)').matches) {
@@ -882,7 +931,7 @@ async function renderTimetableGrid() {
           actionBtn = `<button class="psycle-btn-mini psycle-btn-manage-bookings variant-autoupgrade" onclick="window.switchTab('my-bookings')">Manage</button>`;
         }
       } else if (isOnWaitlist) {
-        statusBadge = `<span class="badge-pill no psycle-occupancy-hover" data-id="${event.id}" style="cursor: pointer;">Waitlist</span>`;
+        statusBadge = `<span class="badge-pill no psycle-occupancy-hover" data-id="${event.id}" style="cursor: pointer;">Waitlisted</span>`;
 
         // Find waitlist ID to leave it
         const waitlistEntry = userWaitlists.find(w => w.event_id === event.id || w.event?.id === event.id);
@@ -893,8 +942,8 @@ async function renderTimetableGrid() {
         }
       } else if (isFullyBooked) {
         if (canWaitlist) {
-          statusBadge = `<span class="badge-pill no psycle-occupancy-hover" data-id="${event.id}" style="cursor: pointer;">Waitlist</span>`;
-          actionBtn = `<button class="psycle-btn-mini psycle-timetable-waitlist-btn variant-warning-solid" data-id="${event.id}">Waitlist</button>`;
+          statusBadge = `<span class="badge-pill no psycle-occupancy-hover" data-id="${event.id}" style="cursor: pointer;">Waitlisted</span>`;
+          actionBtn = `<button class="psycle-btn-mini psycle-timetable-waitlist-btn variant-warning-solid" data-id="${event.id}">Join Waitlist</button>`;
         } else {
           statusBadge = `<span class="badge-pill no fully-booked psycle-occupancy-hover" data-id="${event.id}">Fully Booked</span>`;
           actionBtn = `<button class="psycle-btn-mini" disabled>Full</button>`;
@@ -902,7 +951,7 @@ async function renderTimetableGrid() {
       } else {
         const hasCredit = hasUsableCredit(event);
         if (!hasCredit) {
-          statusBadge = `<span class="badge-pill yes psycle-occupancy-hover" data-id="${event.id}" style="cursor: pointer;">${spotsText}</span><div style="color:var(--danger); font-size:9px; font-weight:600; margin-top:3px; white-space:nowrap;">No eligible credits</div>`;
+          statusBadge = `<span class="badge-pill yes psycle-occupancy-hover" data-id="${event.id}" style="cursor: pointer;">${spotsText}</span><div style="color:var(--danger); font-size:12px; font-weight:600; margin-top:3px; white-space:nowrap;">No eligible credits</div>`;
           actionBtn = `<button class="psycle-btn-mini variant-danger" onclick="window.switchTab('buy-credits')">Buy Credits</button>`;
         } else {
           statusBadge = `<span class="badge-pill yes psycle-occupancy-hover" data-id="${event.id}" style="cursor: pointer;">${spotsText}</span>`;
@@ -945,7 +994,7 @@ async function renderTimetableGrid() {
       <td class="col-instructor"><span class="psycle-instructor-hover" data-id="${event.instructor_id}">${instrName}</span></td>
       <td class="col-location">
         <span style="font-weight:600; display:block; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">${locName.replace(/^Psycle\s*/i, '')}</span>
-        <span style="font-size:11px; color:var(--text-secondary); display:block; margin-top:2px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">${studioName}</span>
+        <span style="font-size:12px; color:var(--text-secondary); display:block; margin-top:2px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">${studioName}</span>
       </td>
       <td class="col-status">${statusBadge}</td>
       <td class="col-actions">
@@ -1164,7 +1213,7 @@ async function renderTimetableGrid() {
         } catch (err) {
           showToast(`Waitlist failed: ${err.message}`, 'error');
           wlBtn.disabled = false;
-          wlBtn.innerHTML = 'Waitlist';
+          wlBtn.innerHTML = 'Join Waitlist';
         }
       };
     }
@@ -1686,7 +1735,7 @@ function getSplitButtonHtml(eventId, isNotLive, isScheduled) {
   const hasSeatMap = studio && studio.layout && studio.layout.slots && studio.layout.slots.length > 0;
   
   if (!hasSeatMap) {
-    const borderRightStyle = isScheduled ? '1px solid rgba(139, 92, 246, 0.3)' : 'none';
+    const borderRightStyle = isScheduled ? '1px solid color-mix(in srgb, var(--feat-autoupgrade) 30%, transparent)' : 'none';
     return `
       <div class="psycle-split-btn-group" data-id="${eventId}" data-type="${type}" style="position:relative;">
         <button class="${mainClass}" data-id="${eventId}" data-type="${type}" style="border-radius: 6px !important; padding: 0 16px; border-right: ${borderRightStyle};">${mainText}</button>
@@ -1865,10 +1914,17 @@ async function openBookingModal(c, mode) {
   if (!modal || !body || !title) return;
 
   title.textContent = isAutoBookMode ? 'Configure Auto-Book' : (isQuickBookMode ? 'Select a spot in the studio' : 'Select a spot in the studio');
+
+  // Use cached layout if available — layouts don't change mid-session
+  const cachedStudio = studioLayoutCache.get(c.studio_id)
+    || studioObjMap.get(c.studio_id)
+    || metadata.studios.find(s => s.id === c.studio_id);
+  const hasLayout = cachedStudio?.layout?.slots?.length > 0;
+
   body.innerHTML = `
     <div class="psycle-loading-spinner-container" style="padding: 40px 0;">
       <div class="psycle-spinner"></div>
-      <span>Fetching studio floor map...</span>
+      <span>${hasLayout ? 'Checking availability…' : 'Fetching studio floor map…'}</span>
     </div>
   `;
 
@@ -1892,7 +1948,15 @@ async function openBookingModal(c, mode) {
   try {
     const res = await api.proxyGet(`/events/${c.id}`);
     const eventDetails = res.data || res;
-    const studio = res.relations?.studios?.[0] || eventDetails.relations?.studios?.[0] || eventDetails.studio || {};
+    const studioFromEvent = res.relations?.studios?.[0] || eventDetails.relations?.studios?.[0] || eventDetails.studio || {};
+    // Prefer cached layout (it may have been preloaded from /studios at startup)
+    const studio = (hasLayout && cachedStudio.layout?.slots?.length >= (studioFromEvent.layout?.slots?.length || 0))
+      ? { ...studioFromEvent, layout: cachedStudio.layout }
+      : studioFromEvent;
+    // Cache the layout for future opens (keyed by studio_id)
+    if (studio?.layout?.slots?.length > 0) {
+      studioLayoutCache.set(c.studio_id, { layout: studio.layout });
+    }
     const layoutSlots = studio?.layout?.slots || [];
     const availableSlots = (res.slots || eventDetails.slots || []).map(Number);
 
@@ -1909,8 +1973,10 @@ async function openBookingModal(c, mode) {
 
     if (isAutoBookMode) {
       title.textContent = `Auto-Book: ${timeStr} ${groupName}${instrName ? ' with ' + instrName : ''}`;
+    } else if (isQuickBookMode) {
+      title.textContent = `Configure Quick-Book for ${studioName}: ${timeStr} ${groupName}${instrName ? ' with ' + instrName : ''}`;
     } else {
-      title.textContent = `Quick-Book: ${timeStr} ${groupName}${instrName ? ' with ' + instrName : ''}`;
+      title.textContent = `Choose a spot for ${timeStr} ${groupName}${instrName ? ' with ' + instrName : ''}`;
     }
 
     if (layoutSlots.length === 0) {
@@ -1962,7 +2028,7 @@ async function openBookingModal(c, mode) {
       const top = heightRange === 0 ? 10 : ((obj.y - minY) / heightRange) * 75 + 10;
       const stage = document.createElement('div');
       stage.className = 'psycle-minimap-stage';
-      stage.style.cssText = `position: absolute; left: ${left}%; top: ${top}%; transform: translate(-50%, -50%); background: rgba(255,255,255,0.15); border: 1px solid rgba(255,255,255,0.3); padding: 4px 16px; border-radius: 6px; font-size: 10px; font-weight: bold; color: #fff; letter-spacing: 0.5px;`;
+      stage.style.cssText = `position: absolute; left: ${left}%; top: ${top}%; transform: translate(-50%, -50%); background: color-mix(in srgb, var(--text) 15%, transparent); border: 1px solid color-mix(in srgb, var(--text) 30%, transparent); padding: 4px 16px; border-radius: 6px; font-size: 12px; font-weight: bold; color: #fff; letter-spacing: 0.5px;`;
       stage.textContent = 'STAGE';
       floorGrid.appendChild(stage);
     });
@@ -2019,7 +2085,7 @@ async function openBookingModal(c, mode) {
         const height = heightRange === 0 ? 70 : ((maxYinRow - minYinRow) / heightRange) * 72 + 8;
 
         const backdrop = document.createElement('div');
-        backdrop.style.cssText = `position:absolute;left:${left}%;top:${top}%;width:${width}%;height:${height}%;background:rgba(6,182,212,0.1);border:2px solid rgba(6,182,212,0.3);border-radius:12px;pointer-events:none;z-index:0;`;
+        backdrop.style.cssText = `position:absolute;left:${left}%;top:${top}%;width:${width}%;height:${height}%;background:color-mix(in srgb, var(--info) 10%, transparent);border:2px solid color-mix(in srgb, var(--info) 30%, transparent);border-radius:12px;pointer-events:none;z-index:0;`;
         floorGrid.appendChild(backdrop);
       });
 
@@ -2066,9 +2132,9 @@ async function openBookingModal(c, mode) {
           }
         } else if (inRow) {
           // In selected row — cyan is a floor-plan-specific indicator, kept literal
-          bubble.style.background = 'rgba(6,182,212,0.25)';
-          bubble.style.border = '1px solid rgba(6,182,212,0.5)';
-          bubble.style.color = '#22d3ee';
+          bubble.style.background = 'color-mix(in srgb, var(--info) 25%, transparent)';
+          bubble.style.border = '1px solid color-mix(in srgb, var(--info) 50%, transparent)';
+          bubble.style.color = 'var(--info)';
           bubble.textContent = label;
         } else if (isAvailable) {
           // Available, not selected
@@ -2113,8 +2179,8 @@ async function openBookingModal(c, mode) {
         floorGrid.appendChild(bubble);
       });
 
-      // Row +/- buttons (overlaid on right edge)
-      if (rowYs.length > 1) {
+      // Row +/- buttons (overlaid on right edge) — only for preference modes, not simple book
+      if (rowYs.length > 1 && !isSimpleBookMode) {
         rowYs.forEach((y, idx) => {
           const isOn = state.selectedRows.has(y);
           const rowSlots = slotsByRow.get(y) || [];
@@ -2123,7 +2189,7 @@ async function openBookingModal(c, mode) {
 
           const top = heightRange === 0 ? 50 : ((midY - minY) / heightRange) * 72 + 14;
           const btn = document.createElement('button');
-          btn.style.cssText = `position:absolute;left:95.5%;top:${top}%;transform:translate(-50%,-50%);width:26px;height:26px;padding:0;border-radius:50%;background:${isOn ? 'rgba(6,182,212,0.3)' : 'var(--surface-inset)'};border:1px solid ${isOn ? 'rgba(6,182,212,0.5)' : 'var(--border-strong)'};color:${isOn ? '#22d3ee' : 'var(--text-secondary)'};font-size:16px;font-weight:700;cursor:pointer;display:flex;align-items:center;justify-content:center;transition:all 0.1s;z-index:2;`;
+          btn.style.cssText = `position:absolute;left:95.5%;top:${top}%;transform:translate(-50%,-50%);width:26px;height:26px;padding:0;border-radius:50%;background:${isOn ? 'color-mix(in srgb, var(--info) 30%, transparent)' : 'var(--surface-inset)'};border:1px solid ${isOn ? 'color-mix(in srgb, var(--info) 50%, transparent)' : 'var(--border-strong)'};color:${isOn ? 'var(--info)' : 'var(--text-secondary)'};font-size:16px;font-weight:700;cursor:pointer;display:flex;align-items:center;justify-content:center;transition:all 0.1s;z-index:2;`;
           btn.textContent = isOn ? '−' : '+';
           btn.title = isOn ? `Remove Row ${idx + 1}` : `Add Row ${idx + 1}`;
           btn.addEventListener('click', (e) => {
@@ -2188,9 +2254,9 @@ async function openBookingModal(c, mode) {
 
         controls.innerHTML = `
           <div style="display:flex;flex-direction:column;gap:12px;background:var(--surface-inset);padding:14px;border-radius:12px;border:1px solid var(--border);">
-            <div style="font-size:11px;color:var(--feat-autoupgrade);background:color-mix(in srgb,var(--feat-autoupgrade) 8%,transparent);border:1px solid color-mix(in srgb,var(--feat-autoupgrade) 18%,transparent);border-radius:8px;padding:8px 10px;line-height:1.5;">Spots here are your one shared preferred map for <strong>${studioName}</strong>. Scheduling updates it for Quick-Book and Auto-Upgrade too.</div>
+            <div style="font-size:12px;color:var(--feat-autoupgrade);background:color-mix(in srgb,var(--feat-autoupgrade) 8%,transparent);border:1px solid color-mix(in srgb,var(--feat-autoupgrade) 18%,transparent);border-radius:8px;padding:8px 10px;line-height:1.5;">Spots here are your one shared preferred map for <strong>${studioName}</strong>. Scheduling updates it for Quick-Book and Auto-Upgrade too.</div>
             <div style="font-size:12px;color:var(--text-secondary);font-style:italic;">Click on the spots to set your priority order. Click the <strong>+</strong> button on the right to prefer entire rows.</div>
-            ${unmappedSlots.length > 0 ? `<div id="psycle-unmapped-warning" style="font-size:11px;color:var(--warning);background:color-mix(in srgb,var(--warning) 8%,transparent);border:1px solid color-mix(in srgb,var(--warning) 20%,transparent);border-radius:6px;padding:6px 10px;"></div>` : ''}
+            ${unmappedSlots.length > 0 ? `<div id="psycle-unmapped-warning" style="font-size:12px;color:var(--warning);background:color-mix(in srgb,var(--warning) 8%,transparent);border:1px solid color-mix(in srgb,var(--warning) 20%,transparent);border-radius:6px;padding:6px 10px;"></div>` : ''}
             ${creditWarning ? `<div style="font-size:12px;color:var(--danger);background:color-mix(in srgb,var(--danger) 10%,transparent);border:1px solid color-mix(in srgb,var(--danger) 20%,transparent);border-radius:8px;padding:10px;line-height:1.5;">${creditWarning}</div>` : ''}
             <div style="display:flex;gap:14px;align-items:center;border-top:1px solid var(--separator);padding-top:12px;">
               <div style="width:110px;">
@@ -2208,9 +2274,9 @@ async function openBookingModal(c, mode) {
             </div>
             <div style="display:flex;gap:8px;">
               <button class="psycle-btn" id="btn-save-autobook" style="flex:2;background:var(--feat-autoupgrade);color:var(--on-accent);">Schedule Auto-Book</button>
-              <button class="psycle-btn" id="btn-save-studio-default" style="flex:1;background:var(--surface-2);border:1px solid var(--border-strong);color:var(--text);font-size:11px;">Save as Default</button>
+              <button class="psycle-btn" id="btn-save-studio-default" style="flex:1;background:var(--surface-2);border:1px solid var(--border-strong);color:var(--text);font-size:12px;">Save as Default</button>
             </div>
-            <div style="font-size:11px;text-align:center;color:${isLive ? 'var(--success)' : 'var(--text-tertiary)'};">
+            <div style="font-size:12px;text-align:center;color:${isLive ? 'var(--success)' : 'var(--text-tertiary)'};">
               ${isLive ? '✓ Booking window is open' : `Booking opens: <span style="color:var(--text-secondary);">${releaseStr}</span>`}
             </div>
           </div>
@@ -2333,7 +2399,7 @@ async function openBookingModal(c, mode) {
         controls.innerHTML = `
           <div style="display:flex;flex-direction:column;gap:12px;background:var(--surface-inset);padding:14px;border-radius:12px;border:1px solid var(--border);">
             ${hasExistingPrefs
-              ? `<div style="font-size:11px;color:var(--feat-autoupgrade);background:color-mix(in srgb,var(--feat-autoupgrade) 8%,transparent);border:1px solid color-mix(in srgb,var(--feat-autoupgrade) 18%,transparent);border-radius:8px;padding:8px 10px;line-height:1.5;">This is your shared preferred spot map for <strong>${studioName}</strong>. Changes here apply to Quick-Book, Auto-Book, and Auto-Upgrade at this studio.</div>`
+              ? `<div style="font-size:12px;color:var(--feat-autoupgrade);background:color-mix(in srgb,var(--feat-autoupgrade) 8%,transparent);border:1px solid color-mix(in srgb,var(--feat-autoupgrade) 18%,transparent);border-radius:8px;padding:8px 10px;line-height:1.5;">This is your shared preferred spot map for <strong>${studioName}</strong>. Changes here apply to Quick-Book, Auto-Book, and Auto-Upgrade at this studio.</div>`
               : `<div style="font-size:12px;color:var(--text-tertiary);background:color-mix(in srgb,var(--feat-autoupgrade) 7%,transparent);border:1px solid color-mix(in srgb,var(--feat-autoupgrade) 15%,transparent);border-radius:8px;padding:10px 12px;line-height:1.5;">First time setup: Quick-Book grabs a preferred spot in any class in one click. Set your preferred spots for <strong style="color:var(--feat-autoupgrade);">${studioName}</strong> once and they'll apply everywhere.</div>`
             }
             <div style="font-size:12px;color:var(--text-secondary);font-style:italic;">Click on the spots to set your priority order. Click the <strong>+</strong> button on the right to prefer entire rows.</div>
@@ -2353,8 +2419,8 @@ async function openBookingModal(c, mode) {
               </div>
             </div>
             <div style="display:flex;gap:8px;">
-              <button class="psycle-btn" id="btn-submit-quickbook" style="flex:2;background:var(--success);color:var(--on-accent);">Quick Book Selected Spots</button>
-              <button class="psycle-btn" id="btn-save-quickbook-default" style="flex:1;background:var(--surface-2);border:1px solid var(--border-strong);color:var(--text);font-size:11px;">Save as Default</button>
+              <button class="psycle-btn" id="btn-submit-quickbook" style="flex:2;background:var(--success);color:var(--on-accent);">Book and save ${studioName} preferences</button>
+              <button class="psycle-btn" id="btn-save-quickbook-default" style="flex:1;background:var(--surface-2);border:1px solid var(--border-strong);color:var(--text);font-size:12px;">Save as Default</button>
             </div>
           </div>
         `;
@@ -2372,7 +2438,7 @@ async function openBookingModal(c, mode) {
             setTimeout(() => {
               if (btn.dataset.confirmState === 'confirm') {
                 delete btn.dataset.confirmState;
-                btn.textContent = 'Quick Book Selected Spots';
+                btn.textContent = `Configure Quick-Book for ${studioName}`;
                 btn.style.background = '';
               }
             }, 4000);
@@ -2395,7 +2461,7 @@ async function openBookingModal(c, mode) {
             showToast(`Quick Book error: ${err.message}`, 'error');
           } finally {
             btn.disabled = false;
-            btn.textContent = 'Quick Book Selected Spots';
+            btn.textContent = `Configure Quick-Book for ${studioName}`;
           }
         };
 
@@ -2733,7 +2799,7 @@ export async function openDebugModal(event) {
         let rowsHtml = rows.map((y, idx) => {
           const rowSlots = layoutSlots.filter(s => s.y === y);
           const rowAvail = rowSlots.filter(s => availableSlots.includes(Number(s.id)));
-          return `<tr style="font-size:11px;"><td style="padding:3px 8px;color:var(--text-secondary);">Row ${idx+1}</td><td style="padding:3px 8px;color:var(--text);">${rowSlots.length} seats</td><td style="padding:3px 8px;color:var(--success);">${rowAvail.length} available</td><td style="padding:3px 8px;color:var(--danger);">${rowSlots.length - rowAvail.length} occupied</td></tr>`;
+          return `<tr style="font-size:12px;"><td style="padding:3px 8px;color:var(--text-secondary);">Row ${idx+1}</td><td style="padding:3px 8px;color:var(--text);">${rowSlots.length} seats</td><td style="padding:3px 8px;color:var(--success);">${rowAvail.length} available</td><td style="padding:3px 8px;color:var(--danger);">${rowSlots.length - rowAvail.length} occupied</td></tr>`;
         }).join('');
 
         contentArea.innerHTML = `
@@ -2747,9 +2813,9 @@ export async function openDebugModal(event) {
               <span style="color:var(--text-secondary);">Occupancy:</span><span style="color:var(--text);font-weight:600;">${event.occupancy ?? 'N/A'}</span><span></span>
             </div>
           </div>
-          ${unmapped.length > 0 ? `<div style="font-size:11px;color:var(--warning);background:color-mix(in srgb, var(--warning) 8%, transparent);border:1px solid color-mix(in srgb, var(--warning) 20%, transparent);border-radius:6px;padding:8px 12px;margin-bottom:12px;">⚠ ${unmapped.length} available slot${unmapped.length>1?'s are':' is'} not on the layout map — IDs: ${unmapped.join(', ')}</div>` : ''}
-          ${rows.length > 0 ? `<table style="width:100%;border-collapse:collapse;"><thead><tr style="font-size:11px;color:var(--text-tertiary);"><th style="padding:3px 8px;text-align:left;">Row</th><th style="padding:3px 8px;text-align:left;">Total</th><th style="padding:3px 8px;text-align:left;">Available</th><th style="padding:3px 8px;text-align:left;">Occupied</th></tr></thead><tbody>${rowsHtml}</tbody></table>` : ''}
-          <div style="margin-top:12px;"><h5 style="color:var(--feat-autoupgrade);margin:0 0 6px 0;font-size:12px;font-weight:600;text-transform:uppercase;letter-spacing:0.5px;">Available Slot IDs</h5><pre style="background:var(--surface-inset);border:1px solid var(--border);border-radius:8px;padding:10px;font-size:11px;color:var(--text);white-space:pre-wrap;word-break:break-all;margin:0;">${JSON.stringify(availableSlots)}</pre></div>
+          ${unmapped.length > 0 ? `<div style="font-size:12px;color:var(--warning);background:color-mix(in srgb, var(--warning) 8%, transparent);border:1px solid color-mix(in srgb, var(--warning) 20%, transparent);border-radius:6px;padding:8px 12px;margin-bottom:12px;">⚠ ${unmapped.length} available slot${unmapped.length>1?'s are':' is'} not on the layout map — IDs: ${unmapped.join(', ')}</div>` : ''}
+          ${rows.length > 0 ? `<table style="width:100%;border-collapse:collapse;"><thead><tr style="font-size:12px;color:var(--text-tertiary);"><th style="padding:3px 8px;text-align:left;">Row</th><th style="padding:3px 8px;text-align:left;">Total</th><th style="padding:3px 8px;text-align:left;">Available</th><th style="padding:3px 8px;text-align:left;">Occupied</th></tr></thead><tbody>${rowsHtml}</tbody></table>` : ''}
+          <div style="margin-top:12px;"><h5 style="color:var(--feat-autoupgrade);margin:0 0 6px 0;font-size:12px;font-weight:600;text-transform:uppercase;letter-spacing:0.5px;">Available Slot IDs</h5><pre style="background:var(--surface-inset);border:1px solid var(--border);border-radius:8px;padding:10px;font-size:12px;color:var(--text);white-space:pre-wrap;word-break:break-all;margin:0;">${JSON.stringify(availableSlots)}</pre></div>
         `;
         return;
       }
@@ -2813,7 +2879,7 @@ export async function openDebugModal(event) {
         ${relationsMapHtml}
         <div class="psycle-debug-json-block">
           <h5 style="color:var(--feat-autoupgrade); margin:0 0 8px 0; font-size:12px; font-weight:600; text-transform:uppercase; letter-spacing:0.5px;">${tabLabel}</h5>
-          <pre style="background:var(--surface-inset); border:1px solid var(--border); border-radius:8px; padding:14px; font-size:11px; line-height:1.5; color:var(--text); max-height:440px; overflow:auto; white-space:pre-wrap; word-break:break-all; margin:0;">${escapeHtml(JSON.stringify(jsonData, null, 2))}</pre>
+          <pre style="background:var(--surface-inset); border:1px solid var(--border); border-radius:8px; padding:14px; font-size:12px; line-height:1.5; color:var(--text); max-height:440px; overflow:auto; white-space:pre-wrap; word-break:break-all; margin:0;">${escapeHtml(JSON.stringify(jsonData, null, 2))}</pre>
         </div>
       `;
     }
@@ -2827,10 +2893,10 @@ export async function openDebugModal(event) {
       const studioList = rels.studios || [];
       html += '<div style="margin-bottom:8px;"><strong style="color:var(--text); font-size:12px;">Studios:</strong>';
       if (studioList.length === 0) {
-        html += '<span style="color:var(--text-secondary); font-size:11px; margin-left:6px;">None</span>';
+        html += '<span style="color:var(--text-secondary); font-size:12px; margin-left:6px;">None</span>';
       } else {
         studioList.forEach(s => {
-          html += `<div style="margin-left:12px; font-size:11px; color:var(--text-secondary);">• ${s.name || 'Unnamed'} (ID: ${s.id}, Location ID: ${s.location_id})</div>`;
+          html += `<div style="margin-left:12px; font-size:12px; color:var(--text-secondary);">• ${s.name || 'Unnamed'} (ID: ${s.id}, Location ID: ${s.location_id})</div>`;
         });
       }
       html += '</div>';
@@ -2839,10 +2905,10 @@ export async function openDebugModal(event) {
       const locList = rels.locations || [];
       html += '<div style="margin-bottom:8px;"><strong style="color:var(--text); font-size:12px;">Locations:</strong>';
       if (locList.length === 0) {
-        html += '<span style="color:var(--text-secondary); font-size:11px; margin-left:6px;">None</span>';
+        html += '<span style="color:var(--text-secondary); font-size:12px; margin-left:6px;">None</span>';
       } else {
         locList.forEach(l => {
-          html += `<div style="margin-left:12px; font-size:11px; color:var(--text-secondary);">• ${l.name || 'Unnamed'} (ID: ${l.id})</div>`;
+          html += `<div style="margin-left:12px; font-size:12px; color:var(--text-secondary);">• ${l.name || 'Unnamed'} (ID: ${l.id})</div>`;
         });
       }
       html += '</div>';
@@ -2851,10 +2917,10 @@ export async function openDebugModal(event) {
       const instrList = rels.instructors || [];
       html += '<div style="margin-bottom:8px;"><strong style="color:var(--text); font-size:12px;">Instructors:</strong>';
       if (instrList.length === 0) {
-        html += '<span style="color:var(--text-secondary); font-size:11px; margin-left:6px;">None</span>';
+        html += '<span style="color:var(--text-secondary); font-size:12px; margin-left:6px;">None</span>';
       } else {
         instrList.forEach(i => {
-          html += `<div style="margin-left:12px; font-size:11px; color:var(--text-secondary);">• ${i.full_name || i.name || 'Unnamed'} (ID: ${i.id})</div>`;
+          html += `<div style="margin-left:12px; font-size:12px; color:var(--text-secondary);">• ${i.full_name || i.name || 'Unnamed'} (ID: ${i.id})</div>`;
         });
       }
       html += '</div>';
@@ -2863,11 +2929,11 @@ export async function openDebugModal(event) {
       const etList = rels.event_types || [];
       html += '<div style="margin-bottom:4px;"><strong style="color:var(--text); font-size:12px;">Event Types:</strong>';
       if (etList.length === 0) {
-        html += '<span style="color:var(--text-secondary); font-size:11px; margin-left:6px;">None</span>';
+        html += '<span style="color:var(--text-secondary); font-size:12px; margin-left:6px;">None</span>';
       } else {
         etList.forEach(et => {
           const groupName = et.group ? et.group.name : '';
-          html += `<div style="margin-left:12px; font-size:11px; color:var(--text-secondary);">• ${et.name || 'Unnamed'} (ID: ${et.id}${groupName ? `, Group: ${groupName}` : ''})</div>`;
+          html += `<div style="margin-left:12px; font-size:12px; color:var(--text-secondary);">• ${et.name || 'Unnamed'} (ID: ${et.id}${groupName ? `, Group: ${groupName}` : ''})</div>`;
         });
       }
       html += '</div>';

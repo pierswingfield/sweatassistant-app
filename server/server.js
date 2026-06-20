@@ -412,6 +412,13 @@ app.post('/api/config/import', authenticateToken, (req, res) => {
 // CODEXFIT PROXY WITH AUTO-REAUTH INTERCEPTOR
 // -------------------------------------------------------------
 
+// Convenience wrapper: run a proxied CodexFit call and return parsed JSON + status.
+async function proxyJson(userId, pathName, method, body) {
+  const response = await proxyRequest(userId, pathName, method, body);
+  const data = await response.json().catch(() => ({}));
+  return { ok: response.ok, status: response.status, data };
+}
+
 async function proxyRequest(userId, pathName, method, body) {
   const user = db.getUserById(userId);
   if (!user || !user.jwt) {
@@ -436,9 +443,11 @@ async function proxyRequest(userId, pathName, method, body) {
       }
     };
 
-    if (['POST', 'PUT', 'DELETE'].includes(method) && body && Object.keys(body).length > 0) {
+    if (['POST', 'PUT', 'DELETE'].includes(method)) {
       options.headers['content-type'] = 'application/json';
-      options.body = JSON.stringify(body);
+      if (body && Object.keys(body).length > 0) {
+        options.body = JSON.stringify(body);
+      }
     }
 
     return fetch(url, options);
@@ -491,73 +500,38 @@ app.all('/api/proxy/*', authenticateToken, async (req, res) => {
 // CART MANAGEMENT (CodexFit Cart Proxy)
 // -------------------------------------------------------------
 
-// Create or get a cart instance for the user
-app.post('/api/cart/create', authenticateToken, async (req, res) => {
-  try {
-    const response = await proxyRequest(req.userId, '/cart', 'POST', {});
-    const data = await response.json();
-    // Store the instance ID in the user's settings for future use
-    if (data.uuid || data.instance) {
-      const settings = db.getUserSettings(req.userId) || {};
-      settings.cartInstanceId = data.uuid || data.instance;
-      db.setUserSettings(req.userId, settings);
-    }
-    res.json(data);
-  } catch (err) {
-    res.status(500).json({ message: err.message });
-  }
-});
 
-// Add a bundle to the user's cart
+const { randomUUID } = require('crypto');
+
+// Pull the cart "instance" UUID out of whatever shape add_bundle returns.
+function extractInstance(data) {
+  return (
+    data?.instance || data?.uuid ||
+    data?.cart?.instance || data?.cart?.uuid ||
+    data?.data?.instance || data?.data?.uuid ||
+    null
+  );
+}
+
+// Add a bundle to the user's cart (kept for the legacy "open website cart" fallback).
 app.post('/api/cart/add-bundle/:bundleId', authenticateToken, async (req, res) => {
   const { bundleId } = req.params;
   const { quantity } = req.body || {};
   const qty = quantity || 1;
 
   try {
-    // Get or create cart instance
-    let settings = db.getUserSettings(req.userId) || {};
-    let instanceId = settings.cartInstanceId;
-
-    if (!instanceId) {
-      // Create a new cart instance
-      const createRes = await proxyRequest(req.userId, '/cart', 'POST', {});
-      const createData = await createRes.json();
-      instanceId = createData.uuid || createData.instance;
-      if (instanceId) {
-        settings.cartInstanceId = instanceId;
-        db.setUserSettings(req.userId, settings);
-      }
-    }
-
-    // Add bundle to cart (repeat for quantity)
     let lastCartData = null;
     for (let i = 0; i < qty; i++) {
-      const url = `/cart/add_bundle/${bundleId}${instanceId ? '?instance=' + instanceId : ''}`;
-      const addRes = await proxyRequest(req.userId, url, 'POST', {});
+      const addRes = await proxyRequest(req.userId, `/cart/add_bundle/${bundleId}`, 'POST', {});
+      const addData = await addRes.json();
+      console.log('[Cart] add_bundle response:', JSON.stringify(addData));
       if (!addRes.ok) {
-        const errData = await addRes.json().catch(() => ({}));
-        // If instance expired, try creating a new one
-        if (addRes.status === 404 || addRes.status === 410) {
-          const newCreateRes = await proxyRequest(req.userId, '/cart', 'POST', {});
-          const newCreateData = await newCreateRes.json();
-          instanceId = newCreateData.uuid || newCreateData.instance;
-          if (instanceId) {
-            settings.cartInstanceId = instanceId;
-            db.setUserSettings(req.userId, settings);
-          }
-          // Retry with new instance
-          const retryUrl = `/cart/add_bundle/${bundleId}${instanceId ? '?instance=' + instanceId : ''}`;
-          const retryRes = await proxyRequest(req.userId, retryUrl, 'POST', {});
-          lastCartData = await retryRes.json();
-        } else {
-          return res.status(addRes.status).json(errData);
-        }
-      } else {
-        lastCartData = await addRes.json();
+        return res.status(addRes.status).json(addData);
       }
+      lastCartData = addData;
     }
 
+    const instanceId = extractInstance(lastCartData);
     res.json({ success: true, cart: lastCartData, instanceId });
   } catch (err) {
     console.error('[Cart] Add bundle error:', err.message);
@@ -565,24 +539,99 @@ app.post('/api/cart/add-bundle/:bundleId', authenticateToken, async (req, res) =
   }
 });
 
-// Get current cart
-app.get('/api/cart', authenticateToken, async (req, res) => {
-  try {
-    const settings = db.getUserSettings(req.userId) || {};
-    const instanceId = settings.cartInstanceId;
+// -------------------------------------------------------------
+// IN-APP CHECKOUT (no redirect to psyclelondon.com)
+// -------------------------------------------------------------
+// The whole transaction is driven server-side with the user's JWT, so the
+// browser-specific Shopify cart instance is never needed. NOTE: 3-D Secure is
+// NOT supported here — if the saved card requires authentication the off-session
+// charge fails and we surface a graceful error (see BACKLOG: "In-app 3-D Secure").
 
-    if (!instanceId) {
-      return res.json({ items: [], total: 0 });
+// Step 1: add the bundle to a fresh cart (qty times) and list the customer's saved cards.
+app.post('/api/cart/checkout/init/:bundleId', authenticateToken, async (req, res) => {
+  const { bundleId } = req.params;
+  const qty = Math.max(1, Math.min(10, parseInt(req.body?.quantity) || 1));
+  const generatedInstance = randomUUID();
+
+  try {
+    let instance = generatedInstance;
+    for (let i = 0; i < qty; i++) {
+      const add = await proxyJson(req.userId, `/cart/add_bundle/${bundleId}`, 'POST', { instance });
+      if (!add.ok) {
+        return res.status(add.status).json({ message: add.data?.message || 'Failed to add bundle to cart' });
+      }
+      instance = extractInstance(add.data) || instance;
     }
 
-    const url = `/cart?instance=${instanceId}`;
-    const response = await proxyRequest(req.userId, url, 'GET', null);
-    const data = await response.json();
-    res.json(data);
+    const pm = await proxyJson(req.userId, `/cart/get_payment_methods?instance=${instance}`, 'GET');
+    if (!pm.ok || !pm.data?.success) {
+      return res.status(pm.status || 502).json({ message: pm.data?.message || 'Could not load saved cards' });
+    }
+
+    res.json({ success: true, instance, methods: pm.data.methods || [] });
   } catch (err) {
+    console.error('[Checkout] init error:', err.message);
     res.status(500).json({ message: err.message });
   }
 });
+
+// Step 2: set the chosen card, place the order, and poll until Stripe settles.
+app.post('/api/cart/checkout/confirm', authenticateToken, async (req, res) => {
+  const { instance, paymentMethodId } = req.body || {};
+  if (!instance || !paymentMethodId) {
+    return res.status(400).json({ message: 'instance and paymentMethodId are required' });
+  }
+
+  try {
+    const setPm = await proxyJson(req.userId, `/cart/set_payment_method/${paymentMethodId}`, 'POST', { instance });
+    if (!setPm.ok || !setPm.data?.success) {
+      return res.status(setPm.status || 502).json({ message: setPm.data?.message || 'Failed to set payment method' });
+    }
+
+    const checkout = await proxyJson(req.userId, '/cart/ajaxCheckoutProcess', 'POST', { instance });
+    if (!checkout.ok || !checkout.data?.success) {
+      return res.status(checkout.status || 502).json({ message: checkout.data?.message || 'Checkout failed' });
+    }
+
+    const orderId = checkout.data.order?.id;
+    if (!orderId) {
+      return res.status(502).json({ message: 'Order was created but no order ID was returned' });
+    }
+
+    // Poll the order. Off-session charge resolves to Paid, or fails (decline /
+    // 3-D Secure required), or hangs in "Payment pending" past our window.
+    const maxAttempts = 40; // ~40s
+    for (let attempt = 0; attempt < maxAttempts; attempt++) {
+      const ord = await proxyJson(req.userId, `/orders/${orderId}`, 'GET');
+      const order = ord.data?.data;
+
+      if (order?.status === 'Paid') {
+        return res.json({ status: 'paid', orderId });
+      }
+
+      const payErr = order?.metadata?.payment_intent?.last_payment_error;
+      if (payErr) {
+        const needsAuth = payErr.code === 'authentication_required'
+          || payErr.decline_code === 'authentication_required';
+        return res.json({
+          status: needsAuth ? 'requires_action' : 'failed',
+          orderId,
+          error: payErr.message || 'The card was declined.',
+        });
+      }
+
+      await new Promise(r => setTimeout(r, 1000));
+    }
+
+    // Never settled in our window — almost always a 3-D Secure challenge the
+    // saved-card off-session flow can't complete.
+    res.json({ status: 'requires_action', orderId, error: 'Payment requires authentication.' });
+  } catch (err) {
+    console.error('[Checkout] confirm error:', err.message);
+    res.status(500).json({ message: err.message });
+  }
+});
+
 
 // -------------------------------------------------------------
 // SPA FALLBACK

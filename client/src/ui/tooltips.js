@@ -43,7 +43,7 @@ export function initTooltips() {
       const photoUrl = instructor.photo || instructor.image_1 || '';
       const avatarHtml = photoUrl 
         ? `<img src="${photoUrl}" class="psycle-tooltip-avatar" alt="${instructor.full_name || instructor.name}">` 
-        : `<div class="psycle-tooltip-avatar" style="display:flex; align-items:center; justify-content:center; background:rgba(255,255,255,0.08); font-weight:bold; font-size:16px; color:#fff;">${(instructor.full_name || instructor.name || '?')[0]}</div>`;
+        : `<div class="psycle-tooltip-avatar" style="display:flex; align-items:center; justify-content:center; background:color-mix(in srgb, var(--text) 8%, transparent); font-weight:bold; font-size:16px; color:#fff;">${(instructor.full_name || instructor.name || '?')[0]}</div>`;
         
       const name = instructor.full_name || instructor.name || 'Instructor';
       const keywords = instructor.metafields?.keywords ? instructor.metafields.keywords.replace(/\|/g, ' • ') : '';
@@ -66,7 +66,7 @@ export function initTooltips() {
             ${keywords ? `<div class="psycle-tooltip-keywords">${keywords}</div>` : ''}
           </div>
         </div>
-        ${description ? `<p style="margin: 6px 0 0 0; display: -webkit-box; -webkit-line-clamp: 4; -webkit-box-orient: vertical; overflow: hidden; color: var(--text); font-size: 11px; line-height: 1.4;">${description}</p>` : ''}
+        ${description ? `<p style="margin: 6px 0 0 0; display: -webkit-box; -webkit-line-clamp: 4; -webkit-box-orient: vertical; overflow: hidden; color: var(--text); font-size: 12px; line-height: 1.4;">${description}</p>` : ''}
         ${(instagramHtml || spotifyHtml) ? `<div class="psycle-tooltip-socials" style="margin-top: 10px;">${instagramHtml}${spotifyHtml}</div>` : ''}
       `;
 
@@ -141,9 +141,9 @@ export function initTooltips() {
         renderMinimap(eventDetailsCache.get(eventId), occupancyTooltip);
       } else {
         occupancyTooltip.innerHTML = `
-          <div style="display:flex; align-items:center; justify-content:center; padding:15px; color:var(--text); font-size:11px;">
+          <div style="display:flex; align-items:center; justify-content:center; padding:15px; color:var(--text); font-size:12px;">
             <svg class="psycle-spinner-svg" viewBox="0 0 24 24" style="animation: spin 1s linear infinite; width: 14px; height: 14px; margin-right: 8px; color: var(--feat-autoupgrade); display: inline-block;">
-              <circle cx="12" cy="12" r="10" stroke="rgba(255,255,255,0.15)" stroke-width="3" fill="none"></circle>
+              <circle cx="12" cy="12" r="10" stroke="color-mix(in srgb, var(--text) 15%, transparent)" stroke-width="3" fill="none"></circle>
               <path d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" fill="currentColor"></path>
             </svg>
             <span style="margin-left: 6px;">Loading layout...</span>
@@ -161,7 +161,7 @@ export function initTooltips() {
           console.error('[Timetable] Failed to fetch event slots for minimap:', err);
           if (activeOccupancyHoverTarget === target) {
             occupancyTooltip.innerHTML = `
-              <div style="padding: 10px; color: var(--danger); font-size: 11px; text-align: center; font-weight: 500;">
+              <div style="padding: 10px; color: var(--danger); font-size: 12px; text-align: center; font-weight: 500;">
                 Failed to load slot layout.
               </div>
             `;
@@ -277,7 +277,7 @@ export function renderMinimap(payload, occupancyTooltip) {
     let extraSlotsHtml = '';
     if (unmappedAvailableSlots.length > 0) {
       extraSlotsHtml += `
-        <div style="font-size: 8px; color: #94a3b8; text-align: center; margin-top: 4px; border-top: 1px solid rgba(255,255,255,0.06); padding-top: 4px;">
+        <div style="font-size: 12px; color: var(--text-secondary); text-align: center; margin-top: 4px; border-top: 1px solid color-mix(in srgb, var(--text) 6%, transparent); padding-top: 4px;">
           + ${unmappedAvailableSlots.length} unmapped open spots
         </div>
       `;
@@ -292,20 +292,20 @@ export function renderMinimap(payload, occupancyTooltip) {
     `;
   } else {
     minimapContentHtml = `
-      <div style="padding: 20px 10px; color: #94a3b8; font-size: 11px; text-align: center; font-style: italic;">
+      <div style="padding: 20px 10px; color: var(--text-secondary); font-size: 12px; text-align: center; font-style: italic;">
         No floor map layout available.
       </div>
     `;
   }
 
   occupancyTooltip.innerHTML = `
-    <div style="font-size: 11px; font-weight: 700; color: #ffffff; text-align: center; margin-bottom: 4px;">
+    <div style="font-size: 12px; font-weight: 700; color: var(--text); text-align: center; margin-bottom: 4px;">
       Studio Occupancy
     </div>
-    <div style="font-size: 10px; color: #cbd5e1; display: flex; justify-content: space-between; margin-bottom: 6px; border-bottom: 1px solid rgba(255,255,255,0.08); padding-bottom: 4px;">
+    <div style="font-size: 12px; color: var(--text-secondary); display: flex; justify-content: space-between; margin-bottom: 6px; border-bottom: 1px solid color-mix(in srgb, var(--text) 8%, transparent); padding-bottom: 4px;">
       <span>Total: ${totalSlots || 'N/A'}</span>
-      <span style="color:#10b981;">Open: ${openSlots}</span>
-      <span style="color:#ef4444;">Booked: ${occupiedSlots}</span>
+      <span style="color:var(--success);">Open: ${openSlots}</span>
+      <span style="color:var(--danger);">Booked: ${occupiedSlots}</span>
     </div>
     ${minimapContentHtml}
     <div class="psycle-minimap-legend">

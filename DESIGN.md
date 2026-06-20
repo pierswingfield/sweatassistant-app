@@ -89,6 +89,40 @@ These are canonical colors for specific product features. They must not bleed in
 
 **Rule:** Violet (`--feat-autoupgrade`) is strictly reserved for Auto-Upgrade UI. Do not use it as a general accent or action color.
 
+### 3.6a Auto-Functions Plum & Discipline Tags
+
+**Auto-functions brand (plum).** The redesigned Auto-Book panel uses a plum
+purple as the shared brand for *automation* surfaces (the release-countdown
+banner, per-class countdown chips, "spots required" pills). It is intentionally
+distinct from the clay `--accent` so automation reads as its own family. Per
+product direction this plum is the shared auto colour for both Auto-Book and
+Auto-Upgrade.
+
+| Token | Dark | Light | Usage |
+|---|---|---|---|
+| `--auto` | `#c9aed6` | `#6d4c7d` | Tint/chip text on standard surfaces (countdown chip, spots pill) |
+| `--auto-banner` | `#5a3e63` | `#5a3e63` | Filled banner surface (white text) |
+| `--on-auto` | `#ffffff` | `#ffffff` | Text/icon on the filled `--auto-banner` |
+
+**Discipline tags.** Each queued/history class shows a pastel tag coloured by its
+workout discipline, derived from `group_name` (falls back to `class_name`). Tags
+follow the badge tint pattern: text = token, background `14%`, border `24%`.
+Purple is **not** used here — it is reserved for the auto-functions above.
+
+| Token | Dark | Light | Discipline (name match) |
+|---|---|---|---|
+| `--disc-ride` | `#5ec6c6` | `#2f8f8f` | Ride / cycle / spin (teal) |
+| `--disc-barre` | `#e8a0b4` | `#c25d7a` | Barre (pink) |
+| `--disc-strength` | `#e0aa5a` | `#a9761a` | Strength / tone / sculpt / HIIT / Signature (amber) |
+| `--disc-infrared` | `#f0907e` | `#cc5340` | Infrared / hot / sweat (coral) |
+| `--disc-reformer` | `#85aadb` | `#4775ad` | Reformer / pilates (blue) |
+| `--disc-yoga` | `#8fc98f` | `#4f9b5f` | Yoga / flow / mind (sage) |
+| `--disc-other` | `#b3a99f` | `#857a6e` | Fallback (warm grey) |
+
+Tags and rail/footer controls render their glyphs as **inline SVG** themed via
+`currentColor` (the icon set lives in `client/src/ui/autobook.js`), not an icon
+font.
+
 ### 3.7 Shape & Shadow
 
 | Token | Dark value | Light value | Usage |
@@ -117,15 +151,41 @@ These are canonical colors for specific product features. They must not bleed in
 
 ### 4.2 Type Scale
 
-| Role | Size | Weight | Font | Usage |
-|---|---|---|---|---|
-| Panel title | 22px | 600 | Serif | Main tab/panel heading |
-| Section header | 18px | 600 | Serif | `h3` inside sections |
-| Card heading | 14–16px | 600–700 | Serif | `h4` in cards |
-| Body | 13–14px | 400–500 | Sans | Copy, table cells |
-| Label | 11–12px | 500–600 | Sans | Filter labels, meta |
-| Caption | 10–11px | 400–500 | Sans | Helper text, secondary info |
-| Mono | 10–12px | 400 | Mono | Timestamps, booking IDs |
+**Accessibility floor: 12px.** No rendered text may be smaller than 12px. The
+scale below was raised from earlier 10–11px lows to meet this floor; hierarchy is
+carried by weight, colour, and serif/sans contrast rather than by sub-12px sizing.
+Sizes are tokenised in `styles.css` (`--text-xs`…`--text-2xl`) — use the tokens,
+never a raw `px` for type.
+
+| Role | Token | Size | Weight | Font | Usage |
+|---|---|---|---|---|---|
+| Panel title | `--text-2xl` | 22px | 600 | Serif | Main tab/panel heading |
+| Section header | `--text-xl` | 18px | 600 | Serif | `h3` inside sections |
+| Card heading | `--text-lg` | 16px | 600–700 | Serif | `h4` in cards / sub-headers |
+| Large body | `--text-md` | 15px | 500 | Sans | Emphasised copy |
+| Body | `--text-base` | 14px | 400–500 | Sans | Copy, table cells |
+| Compact body | `--text-sm` | 13px | 400–500 | Sans | Dense copy |
+| Label / Caption / Mono | `--text-xs` | 12px | 500–600 | Sans/Mono | Filter labels, meta, helper, timestamps, IDs — **floor** |
+
+### 4.3 Tap Targets & Focus (Accessibility)
+
+- **44px minimum hit target** (WCAG 2.5.5) on all primary action controls —
+  nav buttons, segmented buttons, primary/mini/action buttons, day pills,
+  timetable book/waitlist/cancel/leave buttons, split-button groups, dropdown
+  triggers, inputs, and selects. Enforced via `--tap-min: 44px` on every viewport.
+- **Exemption:** spacing-constrained controls inside the studio/spot map (slot
+  bubbles, row-select dots) are exempt per WCAG 2.5.5's essential-spacing clause.
+  They keep their compact size; where a larger hit area is needed they opt into
+  `.tap-compact`, which expands the *hit area* to 44px without changing visual size.
+- **Visible focus:** every interactive element shows a `:focus-visible` outline
+  (`2px solid var(--accent)`, `outline-offset: 2px`). Border-colour change alone
+  is not sufficient for keyboard accessibility.
+- **Checkboxes/radios** are sized 20px for tappability.
+
+> **Note:** `client/src/panel-layout.css` is **not loaded** by the app (nothing
+> imports it; Vite ships only `styles.css`). Treat `styles.css` as the single
+> rendered stylesheet. `panel-layout.css` is stale and should be deleted or wired
+> in deliberately — do not assume its rules apply.
 
 ---
 

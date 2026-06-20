@@ -2,6 +2,7 @@ import { api } from '../api';
 import { showToast, cache, userSettings, refreshUserData } from '../main';
 import { getClassReleaseTime, getNextMondayNoonLondon } from '../lib';
 import { renderStudioFloorPlan } from './spotmap';
+import { setupPullToRefresh } from './pulltorefresh';
 
 let countdownInterval = null;
 let sseEventSource = null;
@@ -114,6 +115,14 @@ export async function initAutoBook() {
   if (countdownInterval) clearInterval(countdownInterval);
   updateCountdowns();
   countdownInterval = setInterval(updateCountdowns, 1000);
+
+  // Setup pull-to-refresh on the auto-book scroll container
+  const scrollEl = document.querySelector('#psycle-panel-auto-book .ab-body');
+  if (scrollEl && !scrollEl._pullToRefresh) {
+    scrollEl._pullToRefresh = setupPullToRefresh(scrollEl, async () => {
+      await Promise.all([renderAutoBookTab(), refreshUserData()]);
+    });
+  }
 }
 
 function connectToAutoBookStream() {

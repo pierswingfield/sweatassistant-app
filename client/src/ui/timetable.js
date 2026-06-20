@@ -2,6 +2,7 @@ import { api } from '../api';
 import { showToast, currentUser, userSettings, refreshUserData, updateCreditBadge, cache } from '../main';
 import { getClassReleaseTime, getNextMondayNoonLondon } from '../lib';
 import { DateTime } from 'luxon';
+import { setupPullToRefresh } from './pulltorefresh';
 // === MOBILE TIMETABLE — import renderMinimap (added Jun 2026; delete this block to revert) ===
 import { renderMinimap } from './tooltips.js';
 // === END MOBILE TIMETABLE BLOCK ===
@@ -180,6 +181,12 @@ export async function initTimetable() {
   await loadMetadata();
   setupDropdownFilters();
   await prefetchTimetableData();
+
+  // Setup pull-to-refresh on the timetable scroll container
+  const scrollEl = document.getElementById('psycle-timetable-grid');
+  if (scrollEl && !scrollEl._pullToRefresh) {
+    scrollEl._pullToRefresh = setupPullToRefresh(scrollEl, () => prefetchTimetableData(true));
+  }
 }
 
 // Load default filter selections from localStorage
@@ -236,7 +243,7 @@ const CACHE_KEY_META = 'psycleCacheMeta';
 const CACHE_KEY_TIME = 'psycleCacheTime';
 const CACHE_TTL_MS = 4 * 60 * 60 * 1000; // 4 hours
 
-async function prefetchTimetableData(force = false) {
+export async function prefetchTimetableData(force = false) {
   if (isPrefetching) return;
   
   const ttContainer = document.getElementById('psycle-timetable-grid');

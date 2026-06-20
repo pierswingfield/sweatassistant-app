@@ -1,6 +1,7 @@
 import { api } from '../api';
 import { showToast, cache, refreshUserData, updateCreditBadge } from '../main';
 import { renderStudioFloorPlan } from './spotmap';
+import { setupPullToRefresh } from './pulltorefresh';
 
 function getAvailableCreditsForEvent(event) {
   if (!cache.profile || !cache.profile.available_credits) return 0;
@@ -145,6 +146,12 @@ export async function renderBookings() {
     if (waitlistsBody) waitlistsBody.innerHTML = `<tr><td colspan="5" class="psycle-table-error">Error: ${err.message}</td></tr>`;
     if (bookingsRefreshing) bookingsRefreshing.style.display = 'none';
     if (waitlistsRefreshing) waitlistsRefreshing.style.display = 'none';
+  }
+
+  // Setup pull-to-refresh on the bookings panel (only once)
+  const panel = document.getElementById('psycle-panel-my-bookings');
+  if (panel && !panel._pullToRefresh) {
+    panel._pullToRefresh = setupPullToRefresh(panel, () => renderBookings());
   }
 }
 

@@ -710,6 +710,35 @@ html, body {
   margin: 0;
 }
 
+/* ── Pull-to-refresh indicator ─────────────────────────────────── */
+#psycle-helper-container .psycle-pull-indicator {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  height: 56px;
+  flex-shrink: 0;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--text-secondary);
+  background: var(--surface-inset);
+  border-bottom: 1px solid var(--border);
+  transition: transform 0.3s cubic-bezier(0.25, 1, 0.5, 1);
+  will-change: transform;
+  overflow: hidden;
+}
+
+#psycle-helper-container .psycle-pull-indicator .psycle-spinner {
+  width: 14px;
+  height: 14px;
+  border-width: 2px;
+  margin: 0;
+}
+
+#psycle-helper-container .psycle-pull-indicator .psycle-pull-text {
+  white-space: nowrap;
+}
+
 /* Pinned Favorites Layout */
 #psycle-helper-container .psycle-favorites-grid {
   display: grid;

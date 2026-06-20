@@ -484,9 +484,9 @@ function renderQueue(queue) {
             <span class="ab-card-date">${dateStr.toUpperCase()}</span>
             <span class="ab-card-time">${timeOnly}</span>
           </div>
-          ${disciplineTag(q.group_name || q.class_name)}
         </div>
         <div class="ab-card-meta">
+          ${disciplineTag(q.group_name || q.class_name)}
           <span class="ab-card-class">${className}</span>
           <span class="ab-meta-dot">·</span>
           <span class="ab-card-instructor">${q.instructor_name || 'TBA'}</span>

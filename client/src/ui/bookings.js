@@ -1,7 +1,20 @@
 import { api } from '../api';
 import { showToast, cache, refreshUserData, updateCreditBadge } from '../main';
 import { renderStudioFloorPlan } from './spotmap';
-import { setupPullToRefresh } from './pulltorefresh';
+import { icon, disciplineTag, trimLocation } from './cards';
+
+// Class starts within the free-cancel cutoff (12h). Edit is hidden inside this
+// window; Cancel stays available but warns about the penalty.
+function isWithin12Hours(startAt) {
+  if (!startAt) return false;
+  const diff = new Date(startAt) - new Date();
+  return diff > 0 && diff <= 12 * 60 * 60 * 1000;
+}
+
+function totalAvailableCredits() {
+  if (!cache.profile?.available_credits) return 0;
+  return cache.profile.available_credits.reduce((sum, c) => sum + (c.count || 0), 0);
+}
 
 function getAvailableCreditsForEvent(event) {
   if (!cache.profile || !cache.profile.available_credits) return 0;
@@ -24,8 +37,8 @@ function getAvailableCreditsForEvent(event) {
 }
 
 export async function renderBookings() {
-  const bookingsBody = document.getElementById('psycle-bookings-table-body');
-  const waitlistsBody = document.getElementById('psycle-waitlists-table-body');
+  const bookingsList = document.getElementById('psycle-bookings-list');
+  const waitlistsList = document.getElementById('psycle-waitlists-list');
 
   // Show refreshing indicators
   const bookingsRefreshing = document.getElementById('psycle-bookings-refreshing');
@@ -36,30 +49,12 @@ export async function renderBookings() {
   // Show cached data immediately if available (cache.upgrades is set after first load)
   const hasLoadedBefore = cache.upgrades !== undefined;
   if (hasLoadedBefore) {
-    renderBookingsTable(cache.bookings || [], cache.upgrades || []);
-    renderWaitlistsTable(cache.waitlists || []);
+    renderBookingsCards(cache.bookings || [], cache.upgrades || []);
+    renderWaitlistsCards(cache.waitlists || []);
   } else {
     // First visit — no cached data yet
-    if (bookingsBody) {
-      bookingsBody.innerHTML = `
-        <tr>
-          <td colspan="6" class="psycle-table-empty">
-            <div class="psycle-spinner" style="margin: 10px auto;"></div>
-            Loading bookings...
-          </td>
-        </tr>
-      `;
-    }
-    if (waitlistsBody) {
-      waitlistsBody.innerHTML = `
-        <tr>
-          <td colspan="5" class="psycle-table-empty">
-            <div class="psycle-spinner" style="margin: 10px auto;"></div>
-            Loading waitlists...
-          </td>
-        </tr>
-      `;
-    }
+    if (bookingsList) bookingsList.innerHTML = `<div class="fav-empty-state" style="padding:30px 0;"><div class="psycle-spinner" style="margin:0 auto 10px;"></div>Loading bookings...</div>`;
+    if (waitlistsList) waitlistsList.innerHTML = `<div class="fav-empty-state" style="padding:30px 0;"><div class="psycle-spinner" style="margin:0 auto 10px;"></div>Loading waitlists...</div>`;
   }
 
   try {
@@ -131,8 +126,8 @@ export async function renderBookings() {
     cache.waitlists = waitlists;
     cache.upgrades = upgrades;
 
-    renderBookingsTable(bookings, upgrades);
-    renderWaitlistsTable(waitlists);
+    renderBookingsCards(bookings, upgrades);
+    renderWaitlistsCards(waitlists);
 
     // Hide refreshing indicators
     if (bookingsRefreshing) bookingsRefreshing.style.display = 'none';
@@ -142,16 +137,10 @@ export async function renderBookings() {
     syncBookingCache(bookings);
   } catch (err) {
     console.error('[Bookings] Loading failed:', err);
-    if (bookingsBody) bookingsBody.innerHTML = `<tr><td colspan="6" class="psycle-table-error">Error: ${err.message}</td></tr>`;
-    if (waitlistsBody) waitlistsBody.innerHTML = `<tr><td colspan="5" class="psycle-table-error">Error: ${err.message}</td></tr>`;
+    if (bookingsList) bookingsList.innerHTML = `<div class="psycle-card-error">Error: ${err.message}</div>`;
+    if (waitlistsList) waitlistsList.innerHTML = `<div class="psycle-card-error">Error: ${err.message}</div>`;
     if (bookingsRefreshing) bookingsRefreshing.style.display = 'none';
     if (waitlistsRefreshing) waitlistsRefreshing.style.display = 'none';
-  }
-
-  // Setup pull-to-refresh on the bookings panel (only once)
-  const panel = document.getElementById('psycle-panel-my-bookings');
-  if (panel && !panel._pullToRefresh) {
-    panel._pullToRefresh = setupPullToRefresh(panel, () => renderBookings());
   }
 }
 
@@ -180,249 +169,486 @@ function syncBookingCache(bookings) {
   } catch (_) { /* best-effort */ }
 }
 
-function renderBookingsTable(bookings, upgrades) {
-  const tbody = document.getElementById('psycle-bookings-table-body');
-  if (!tbody) return;
+// ── My Bookings cards ────────────────────────────────────────────────
+// One card per class: a class booked with multiple spots stores one booking
+// record per spot, so we group those records into a single card.
+function renderBookingsCards(bookings, upgrades) {
+  const container = document.getElementById('psycle-bookings-list');
+  if (!container) return;
 
-  if (bookings.length === 0) {
-    tbody.innerHTML = '<tr><td colspan="6" class="psycle-table-empty">No active bookings found.</td></tr>';
+  const groups = new Map();
+  bookings.forEach(b => {
+    const event = b.event || null;
+    if (!event || !event.start_at) return;
+    const key = event.id || b.event_id;
+    if (!groups.has(key)) groups.set(key, { eventId: key, event, bookings: [] });
+    groups.get(key).bookings.push(b);
+  });
+
+  if (groups.size === 0) {
+    container.innerHTML = '<div class="fav-empty-state" style="padding:30px 0;">No active bookings found.</div>';
     return;
   }
 
-  tbody.innerHTML = '';
-  bookings.forEach(b => {
-    // Defensive: skip if event data is missing
-    const event = b.event || null;
-    if (!event || !event.start_at) return;
+  const sorted = [...groups.values()].sort((a, b) => new Date(a.event.start_at) - new Date(b.event.start_at));
+  container.innerHTML = '';
+  sorted.forEach(group => container.appendChild(buildBookingCard(group, upgrades)));
+}
 
-    // Check if an upgrade monitor is active for this booking
-    const activeUpgrade = upgrades.find(u => 
-      (u.booking_id === b.id || u.event_id === b.event_id) && 
+function buildBookingCard(group, upgrades) {
+  const event = group.event;
+  const startDt = new Date(event.start_at);
+  const dateStr = startDt.toLocaleString('en-GB', { weekday: 'short', day: 'numeric', month: 'short', timeZone: 'Europe/London' });
+  const timeOnly = startDt.toLocaleString('en-GB', { hour: '2-digit', minute: '2-digit', hour12: false, timeZone: 'Europe/London' });
+
+  const className = event.event_type?.name || 'Class';
+  const groupName = event.event_type?.group?.name || className;
+  const instructorName = event.instructor?.full_name || 'TBA';
+  const locationLine = [event.studio?.name, trimLocation(event.studio?.location?.name)].filter(Boolean).join(', ');
+
+  const slotInfos = group.bookings.map(b => ({
+    bookingId: b.id,
+    slotId: Number(b.studio_slot?.id ?? b.studio_slot_id ?? b.slot_id ?? b.slot),
+    label: b.studio_slot?.label ?? b.slot ?? b.studio_slot_id ?? b.slot_id ?? '?'
+  }));
+  const isSingle = slotInfos.length === 1;
+  const spotsLabel = isSingle ? `Spot ${slotInfos[0].label}` : `Spots ${slotInfos.map(s => s.label).join(', ')}`;
+
+  const within12h = isWithin12Hours(event.start_at);
+
+  // Auto-upgrade control lives in the footer — single-spot cards only, since an
+  // upgrade monitor targets one specific seat.
+  let upgradeHtml = '';
+  let activeUpgrade = null;
+  if (isSingle) {
+    const b = group.bookings[0];
+    activeUpgrade = upgrades.find(u =>
+      (u.booking_id === b.id || u.event_id === group.eventId) &&
       ['active', 'paused_no_credits'].includes(u.status)
     );
-
-    const startDt = new Date(event.start_at);
-    const timeStr = startDt.toLocaleString('en-GB', { 
-      weekday: 'short', 
-      day: 'numeric', 
-      month: 'short', 
-      hour: '2-digit', 
-      minute: '2-digit',
-      hour12: false,
-      timeZone: 'Europe/London'
-    });
-
-    // Check 12-hour penalty cutoff window
-    const now = new Date();
-    const hoursUntilClass = (startDt - now) / (1000 * 60 * 60);
-    const isUnderPenalty = hoursUntilClass > 0 && hoursUntilClass <= 12;
-
-    const row = document.createElement('tr');
-    
-    // Resolve slot ID from whichever field the API returns it in
-    const resolvedSlotId = b.studio_slot?.id ?? b.studio_slot_id ?? b.slot_id ?? b.slot ?? '';
-
-    // Check if insufficient credits (client-side backup check)
-    let totalAvailableCredits = 0;
-    if (cache.profile?.available_credits) {
-      totalAvailableCredits = cache.profile.available_credits.reduce((sum, c) => sum + (c.count || 0), 0);
-    }
-    const hasInsufficientCredits = totalAvailableCredits < 1;
-
-    let actionButtonsHtml = '';
     if (activeUpgrade) {
-      if (activeUpgrade.status === 'paused_no_credits' || hasInsufficientCredits) {
-        actionButtonsHtml = `
-          <button class="psycle-action-btn-mini variant-warning upgrade-status-btn" data-upgrade-id="${activeUpgrade.id}" data-event-id="${event.id}" data-booking-id="${b.id}" data-slot-id="${resolvedSlotId}" data-studio-id="${event.studio_id || ''}" style="width: auto; min-width: 110px;">⚠ Auto-Upgrade: Insufficient Credits</button>
-        `;
+      if (activeUpgrade.status === 'paused_no_credits' || totalAvailableCredits() < 1) {
+        upgradeHtml = `<button class="bk-upgrade-btn psycle-upgrade-status-chip state-warning">⚠ Upgrade: No Credits</button>`;
       } else {
-        actionButtonsHtml = `
-          <button class="psycle-action-btn-mini variant-success-muted upgrade-status-btn" data-upgrade-id="${activeUpgrade.id}" data-event-id="${event.id}" data-booking-id="${b.id}" data-slot-id="${resolvedSlotId}" data-studio-id="${event.studio_id || ''}" style="width: auto; min-width: 110px;">Auto-Upgrade On ↗</button>
-        `;
+        upgradeHtml = `<button class="bk-upgrade-btn psycle-upgrade-status-chip state-active">Auto-Upgrade On ↗</button>`;
       }
     } else {
-      actionButtonsHtml = `
-        <button class="psycle-action-btn-mini variant-neutral upgrade-status-btn" data-event-id="${event.id}" data-booking-id="${b.id}" data-slot-id="${resolvedSlotId}" data-studio-id="${event.studio_id || ''}">Auto-Upgrade Off</button>
-      `;
+      upgradeHtml = `<button class="bk-upgrade-btn psycle-upgrade-status-chip state-stopped">Auto-Upgrade Off</button>`;
     }
+  }
 
-    const cancelClass = isUnderPenalty ? 'cancel-btn penalty variant-danger-strong' : 'cancel-btn variant-danger';
-    const cancelLabel = isUnderPenalty ? 'Cancel (Penalty)' : 'Cancel';
+  const editBtnHtml = within12h ? '' :
+    `<button class="ab-rail-btn bk-edit-btn" aria-label="Edit spots">${icon('edit', 17)}<span>Edit</span></button>`;
 
-    row.innerHTML = `
-      <td><strong>${event.event_type?.name || 'Ride'}</strong></td>
-      <td>${event.instructor?.full_name || 'Instructor'}</td>
-      <td>${event.studio?.name || 'Studio'} (${event.studio?.location?.name || 'Location'})</td>
-      <td>${timeStr}</td>
-      <td>Spot ${b.studio_slot?.label || b.slot || b.studio_slot_id || b.slot_id || '?'}</td>
-      <td>
-        <div style="display: flex; gap: 6px; align-items: center;">
-          ${actionButtonsHtml}
-          <button class="psycle-action-btn-mini ${cancelClass}" data-id="${b.id}" style="margin-left: 6px;">${cancelLabel}</button>
+  const card = document.createElement('div');
+  card.className = 'psycle-autobook-card ab-card';
+  card.setAttribute('data-event-id', group.eventId);
+  card.innerHTML = `
+    <div class="ab-card-main">
+      <div class="ab-card-toprow">
+        <div class="ab-card-when">
+          <span class="ab-card-date">${dateStr.toUpperCase()}</span>
+          <span class="ab-card-time">${timeOnly}</span>
         </div>
-      </td>
-    `;
+      </div>
+      <div class="ab-card-meta">
+        ${disciplineTag(groupName)}
+        <span class="ab-card-class">${className}</span>
+        <span class="ab-meta-dot">·</span>
+        <span class="ab-card-instructor">${instructorName}</span>
+        ${locationLine ? `<span class="ab-card-location">${locationLine}</span>` : ''}
+      </div>
+      <div class="ab-card-footer">
+        <span class="ab-spots-pill">${spotsLabel}</span>
+        ${upgradeHtml}
+      </div>
+    </div>
+    <div class="ab-card-rail">
+      ${editBtnHtml}
+      <button class="ab-rail-btn danger bk-cancel-btn" aria-label="Cancel booking">${icon('close', 17)}<span>Cancel</span></button>
+    </div>
+  `;
 
-    // Event listener: Auto-upgrade status button (opens modal)
-    const statusBtn = row.querySelector('.upgrade-status-btn');
-    if (statusBtn) {
-      statusBtn.addEventListener('click', () => {
-        handleUpgradeClick({
-          eventId: parseInt(statusBtn.dataset.eventId),
-          bookingId: parseInt(statusBtn.dataset.bookingId),
-          currentSlotId: parseInt(statusBtn.dataset.slotId),
-          studioId: parseInt(statusBtn.dataset.studioId) || null,
-          className: event.event_type?.name || 'Ride',
-          groupName: event.event_type?.group?.name || '',
-          instructorName: event.instructor?.full_name || 'Instructor',
-          studioName: event.studio?.name || 'Studio',
-          locationName: event.studio?.location?.name || 'Location',
-          startAt: event.start_at,
-          existingUpgradeId: activeUpgrade?.id || null,
-          existingPrefs: activeUpgrade?.preferences || null
-        });
-      });
+  // Edit spots
+  const editBtn = card.querySelector('.bk-edit-btn');
+  if (editBtn) editBtn.addEventListener('click', () => openEditBookingModal(group));
+
+  // Auto-upgrade (single-spot cards)
+  const upBtn = card.querySelector('.bk-upgrade-btn');
+  if (upBtn && isSingle) {
+    const b = group.bookings[0];
+    upBtn.addEventListener('click', () => handleUpgradeClick({
+      eventId: group.eventId,
+      bookingId: b.id,
+      currentSlotId: slotInfos[0].slotId,
+      studioId: event.studio_id || event.studio?.id || null,
+      className,
+      groupName: event.event_type?.group?.name || '',
+      instructorName,
+      studioName: event.studio?.name || 'Studio',
+      locationName: event.studio?.location?.name || 'Location',
+      startAt: event.start_at,
+      existingUpgradeId: activeUpgrade?.id || null,
+      existingPrefs: activeUpgrade?.preferences || null
+    }));
+  }
+
+  // Cancel (two-tap confirm) — cancels every spot booked for the class.
+  wireCancelBooking(card.querySelector('.bk-cancel-btn'), card, group, within12h);
+
+  return card;
+}
+
+// Two-tap confirm cancel for a whole class (all its booking records).
+function wireCancelBooking(btn, card, group, within12h) {
+  if (!btn) return;
+  const labelSpan = btn.querySelector('span');
+  let confirmState = false;
+
+  btn.addEventListener('click', async () => {
+    if (!confirmState) {
+      confirmState = true;
+      labelSpan.textContent = within12h ? 'Penalty?' : 'Confirm?';
+      btn.classList.add('confirming');
+      setTimeout(() => {
+        confirmState = false;
+        labelSpan.textContent = 'Cancel';
+        btn.classList.remove('confirming');
+      }, 3000);
+      return;
     }
-
-    // Event listener: Cancel Upgrade Monitor
-    const cancelUpgradeBtn = row.querySelector('.cancel-upgrade-btn');
-    if (cancelUpgradeBtn) {
-      cancelUpgradeBtn.addEventListener('click', async () => {
-        try {
-          showToast('Stopping upgrade monitor...', 'info');
-          await api.deleteAutoUpgrade(parseInt(cancelUpgradeBtn.dataset.upgradeId));
-          showToast('Upgrade monitor stopped.', 'success');
-          renderBookings();
-        } catch (err) {
-          showToast(`Error: ${err.message}`, 'error');
-        }
-      });
+    confirmState = false;
+    btn.classList.remove('confirming');
+    card.style.opacity = '0.6';
+    card.querySelectorAll('button').forEach(b => b.disabled = true);
+    labelSpan.textContent = '…';
+    try {
+      showToast('Cancelling booking...', 'info');
+      for (const b of group.bookings) {
+        await api.proxyDelete(`/bookings/${b.id}`);
+        const up = (cache.upgrades || []).find(u => String(u.booking_id) === String(b.id) && ['active', 'paused_no_credits'].includes(u.status));
+        if (up) { try { await api.deleteAutoUpgrade(up.id); } catch (_) {} }
+      }
+      showToast('Booking cancelled.', 'success');
+      await refreshUserData();
+      renderBookings();
+    } catch (err) {
+      showToast(`Cancellation failed: ${err.message}`, 'error');
+      card.style.opacity = '1';
+      card.querySelectorAll('button').forEach(b => b.disabled = false);
+      labelSpan.textContent = 'Cancel';
     }
-
-    // Event listener: Cancel Booking (Double Click Confirm pattern)
-    const cancelBtn = row.querySelector('.cancel-btn');
-    if (cancelBtn) {
-      let confirmState = false;
-      cancelBtn.addEventListener('click', async () => {
-        if (!confirmState) {
-          confirmState = true;
-          cancelBtn.textContent = isUnderPenalty ? 'Confirm penalty cancel?' : 'Confirm cancel?';
-          cancelBtn.style.background = 'var(--danger)';
-          cancelBtn.style.color = 'var(--on-accent)';
-          setTimeout(() => {
-            confirmState = false;
-            cancelBtn.textContent = cancelLabel;
-            cancelBtn.style.background = '';
-            cancelBtn.style.color = '';
-          }, 3000);
-        } else {
-          try {
-            // Show cancelling state on row
-            row.style.opacity = '0.6';
-            row.querySelectorAll('button').forEach(btn => btn.disabled = true);
-            cancelBtn.textContent = 'Cancelling...';
-
-            showToast('Cancelling booking...', 'info');
-            await api.proxyDelete(`/bookings/${b.id}`);
-            showToast('Booking cancelled successfully.', 'success');
-            if (activeUpgrade) {
-              try { await api.deleteAutoUpgrade(activeUpgrade.id); } catch (_) {}
-            }
-            await refreshUserData();
-            renderBookings();
-          } catch (err) {
-            showToast(`Cancellation failed: ${err.message}`, 'error');
-            row.style.opacity = '1';
-            row.querySelectorAll('button').forEach(btn => btn.disabled = false);
-            cancelBtn.textContent = cancelLabel;
-            confirmState = false;
-          }
-        }
-      });
-    }
-
-    tbody.appendChild(row);
   });
 }
 
-function renderWaitlistsTable(waitlists) {
-  const tbody = document.getElementById('psycle-waitlists-table-body');
-  if (!tbody) return;
+// Edit-spots modal: a live seat picker pre-seeded with the user's current spots.
+// CodexFit has no "move seat" call, so saving releases removed spots (refunding
+// their credits and freeing the seats) and then books the added spots.
+async function openEditBookingModal(group) {
+  const modal = document.getElementById('psycle-booking-modal');
+  const body = document.getElementById('psycle-booking-modal-body');
+  const title = document.getElementById('psycle-booking-modal-title');
+  if (!modal || !body || !title) return;
 
-  if (waitlists.length === 0) {
-    tbody.innerHTML = '<tr><td colspan="5" class="psycle-table-empty">No active waitlists found.</td></tr>';
+  const event = group.event;
+  const className = event.event_type?.name || 'Class';
+
+  title.textContent = `Edit spots: ${className}`;
+  body.innerHTML = `<div class="psycle-loading-spinner-container" style="padding:40px 0;"><div class="psycle-spinner"></div><span>Loading studio floor map…</span></div>`;
+  modal.style.display = 'flex';
+  setTimeout(() => modal.classList.add('show'), 10);
+
+  const closeBtn = document.getElementById('psycle-booking-modal-close');
+  const overlay = modal.querySelector('.psycle-modal-overlay');
+  const closeModal = () => {
+    modal.classList.remove('show');
+    setTimeout(() => modal.style.display = 'none', 300);
+  };
+  closeBtn.onclick = closeModal;
+  overlay.onclick = closeModal;
+
+  await refreshUserData();
+
+  try {
+    const res = await api.proxyGet(`/events/${group.eventId}`);
+    const eventDetails = res.data || res;
+    const studio = res.relations?.studios?.[0] || eventDetails.relations?.studios?.[0] || eventDetails.studio || event.studio || {};
+    const layoutSlots = studio?.layout?.slots || [];
+    const availableSlots = (res.slots || eventDetails.slots || []).map(Number);
+
+    // Current booked slots → booking IDs (so removals can target the right record)
+    const slotToBooking = new Map();
+    group.bookings.forEach(b => {
+      const sid = Number(b.studio_slot?.id ?? b.studio_slot_id ?? b.slot_id ?? b.slot);
+      if (!isNaN(sid)) slotToBooking.set(sid, b.id);
+    });
+    const currentSlots = [...slotToBooking.keys()];
+
+    if (layoutSlots.length === 0) {
+      body.innerHTML = `<div style="padding:24px;text-align:center;color:var(--text-secondary);">No floor map is available for this studio, so spots can't be changed here. Use Cancel to release the booking.</div>`;
+      return;
+    }
+
+    let minX = Infinity, maxX = -Infinity, minY = Infinity, maxY = -Infinity;
+    layoutSlots.forEach(s => { if (s.x < minX) minX = s.x; if (s.x > maxX) maxX = s.x; if (s.y < minY) minY = s.y; if (s.y > maxY) maxY = s.y; });
+    const widthRange = maxX - minX || 1;
+    const heightRange = maxY - minY || 1;
+    const rowCount = new Set(layoutSlots.map(s => s.y)).size;
+    const minMapHeight = Math.max(340, rowCount * 56);
+
+    const selected = new Set(currentSlots);
+    const labelFor = id => { const s = layoutSlots.find(ls => Number(ls.id) === id); return s?.label || s?.slot || String(id); };
+
+    body.innerHTML = `
+      <div style="font-size:12px;color:var(--text-secondary);background:var(--surface-inset);border:1px solid var(--border);border-radius:8px;padding:8px 10px;margin-bottom:10px;line-height:1.5;">
+        Tap to change your spots. <strong style="color:var(--feat-autoupgrade);">Highlighted</strong> spots are yours — deselect to release them, tap a free seat to add it. Saving releases removed spots first, then books the added ones.
+      </div>
+      <div class="psycle-floor-plan-container" style="position:relative;height:${minMapHeight}px;background:var(--surface-inset);border:1px solid var(--border);border-radius:12px;margin-bottom:10px;overflow:hidden;">
+        <div id="psycle-edit-floor-grid" style="width:100%;height:100%;"></div>
+      </div>
+      <div id="psycle-edit-summary" style="font-size:12px;color:var(--text-secondary);margin-bottom:12px;min-height:16px;"></div>
+      <div id="psycle-edit-controls"></div>
+    `;
+
+    const floorGrid = body.querySelector('#psycle-edit-floor-grid');
+    const summaryEl = body.querySelector('#psycle-edit-summary');
+    const controls = body.querySelector('#psycle-edit-controls');
+
+    // Stage marker(s)
+    (studio?.layout?.objects || []).forEach(obj => {
+      const left = widthRange === 0 ? 50 : ((obj.x - minX) / widthRange) * 80 + 10;
+      const top = heightRange === 0 ? 10 : ((obj.y - minY) / heightRange) * 75 + 10;
+      const stage = document.createElement('div');
+      stage.style.cssText = `position:absolute;left:${left}%;top:${top}%;transform:translate(-50%,-50%);background:color-mix(in srgb,var(--text) 15%,transparent);border:1px solid color-mix(in srgb,var(--text) 30%,transparent);padding:4px 16px;border-radius:6px;font-size:12px;font-weight:bold;color:#fff;letter-spacing:0.5px;`;
+      stage.textContent = 'STAGE';
+      floorGrid.appendChild(stage);
+    });
+
+    const renderControls = () => {
+      const desired = [...selected];
+      const toRemove = currentSlots.filter(s => !selected.has(s));
+      const toAdd = desired.filter(s => !currentSlots.includes(s));
+      const changed = toRemove.length > 0 || toAdd.length > 0;
+      // Removals refund credits before the additions are booked.
+      const creditsAfterRefund = totalAvailableCredits() + toRemove.length;
+      const shortfall = Math.max(0, toAdd.length - creditsAfterRefund);
+
+      let msg = '';
+      if (!changed) {
+        msg = `<div style="font-size:12px;color:var(--text-tertiary);">No changes yet.</div>`;
+      } else if (desired.length === 0) {
+        msg = `<div style="font-size:12px;color:var(--danger);background:color-mix(in srgb,var(--danger) 10%,transparent);border:1px solid color-mix(in srgb,var(--danger) 20%,transparent);border-radius:8px;padding:10px;">This releases all your spots and cancels the booking.</div>`;
+      } else if (shortfall > 0) {
+        msg = `<div style="font-size:12px;color:var(--danger);background:color-mix(in srgb,var(--danger) 10%,transparent);border:1px solid color-mix(in srgb,var(--danger) 20%,transparent);border-radius:8px;padding:10px;">You need ${shortfall} more credit${shortfall !== 1 ? 's' : ''} to add ${toAdd.length} spot${toAdd.length !== 1 ? 's' : ''}.</div>`;
+      }
+
+      const parts = [];
+      if (toAdd.length) parts.push(`<span style="color:var(--success);font-weight:700;">+${toAdd.map(labelFor).join(', ')}</span>`);
+      if (toRemove.length) parts.push(`<span style="color:var(--danger);font-weight:700;">−${toRemove.map(labelFor).join(', ')}</span>`);
+      summaryEl.innerHTML = parts.length
+        ? `<span style="color:var(--text-tertiary);text-transform:uppercase;font-size:11px;letter-spacing:0.05em;margin-right:6px;">Changes</span>${parts.join('&nbsp;&nbsp;')}`
+        : `<span style="color:var(--text-tertiary);">${desired.length} spot${desired.length !== 1 ? 's' : ''} selected</span>`;
+
+      controls.innerHTML = `
+        <div style="display:flex;flex-direction:column;gap:10px;background:var(--surface-inset);padding:14px;border-radius:12px;border:1px solid var(--border);">
+          ${msg}
+          <div style="display:flex;gap:8px;">
+            <button class="psycle-btn" id="bk-edit-close" style="flex:1;background:color-mix(in srgb,var(--text) 6%,transparent);border:1px solid color-mix(in srgb,var(--text) 12%,transparent);color:var(--text);">Close</button>
+            <button class="psycle-btn" id="bk-edit-save" style="flex:2;background:var(--feat-autoupgrade);color:var(--on-accent);" ${(!changed || shortfall > 0) ? 'disabled' : ''}>Save Changes</button>
+          </div>
+        </div>`;
+
+      controls.querySelector('#bk-edit-close').onclick = closeModal;
+      controls.querySelector('#bk-edit-save').onclick = () => saveEdit(toRemove, toAdd);
+    };
+
+    const renderGrid = () => {
+      floorGrid.querySelectorAll('.bk-edit-slot').forEach(e => e.remove());
+      layoutSlots.forEach(slot => {
+        const slotId = Number(slot.id);
+        const isAvailable = availableSlots.includes(slotId);
+        const isCurrent = currentSlots.includes(slotId);
+        const isSelected = selected.has(slotId);
+        const left = widthRange === 0 ? 50 : ((slot.x - minX) / widthRange) * 78 + 8;
+        const top = heightRange === 0 ? 50 : ((slot.y - minY) / heightRange) * 72 + 14;
+
+        const el = document.createElement('div');
+        el.className = 'bk-edit-slot';
+        el.style.cssText = `position:absolute;left:${left}%;top:${top}%;transform:translate(-50%,-50%);width:28px;height:28px;border-radius:6px;display:flex;align-items:center;justify-content:center;font-size:10px;font-weight:700;user-select:none;transition:all 0.1s;box-sizing:border-box;z-index:1;`;
+        el.textContent = slot.label || slot.slot || String(slotId);
+        const clickable = isSelected || isCurrent || isAvailable;
+        el.style.cursor = clickable ? 'pointer' : 'default';
+        el.title = `Spot ${slot.label || slotId}`;
+
+        if (isSelected) {
+          el.style.background = 'var(--feat-autoupgrade)';
+          el.style.border = '2px solid color-mix(in srgb,var(--feat-autoupgrade) 70%,#000)';
+          el.style.color = '#fff';
+        } else if (isCurrent) {
+          // Your seat, deselected → pending release
+          el.style.background = 'color-mix(in srgb,var(--danger) 15%,transparent)';
+          el.style.border = '1px dashed var(--danger)';
+          el.style.color = 'var(--danger)';
+        } else if (isAvailable) {
+          el.style.background = 'color-mix(in srgb,var(--success) 15%,transparent)';
+          el.style.border = '1px solid color-mix(in srgb,var(--success) 35%,transparent)';
+          el.style.color = 'var(--success)';
+        } else {
+          el.style.background = 'var(--surface-inset)';
+          el.style.border = '1px solid var(--border)';
+          el.style.color = 'var(--text-tertiary)';
+        }
+
+        if (clickable) el.addEventListener('click', () => {
+          if (selected.has(slotId)) selected.delete(slotId);
+          else if (isCurrent || isAvailable) selected.add(slotId);
+          else { showToast('That spot is occupied.', 'warning'); return; }
+          renderGrid();
+          renderControls();
+        });
+
+        floorGrid.appendChild(el);
+      });
+    };
+
+    const saveEdit = async (toRemove, toAdd) => {
+      const saveBtn = controls.querySelector('#bk-edit-save');
+      const closeBtnEl = controls.querySelector('#bk-edit-close');
+      if (saveBtn) { saveBtn.disabled = true; saveBtn.textContent = 'Saving…'; }
+      if (closeBtnEl) closeBtnEl.disabled = true;
+      try {
+        // 1. Release removed spots first (refunds credits, frees the seats).
+        for (const sid of toRemove) {
+          const bid = slotToBooking.get(sid);
+          await api.proxyDelete(`/bookings/${bid}`);
+          const up = (cache.upgrades || []).find(u => String(u.booking_id) === String(bid) && ['active', 'paused_no_credits'].includes(u.status));
+          if (up) { try { await api.deleteAutoUpgrade(up.id); } catch (_) {} }
+        }
+        // 2. Book added spots.
+        if (toAdd.length) {
+          await api.proxyPost('/bookings', { event_id: group.eventId, slots: toAdd });
+          api.notifyBookingSuccess({
+            source: 'manual', eventId: group.eventId, className,
+            groupName: event.event_type?.group?.name || '',
+            instructorName: event.instructor?.full_name || '',
+            startAt: event.start_at, slots: toAdd.map(labelFor),
+          }).catch(() => {});
+        }
+        showToast('Spots updated.', 'success');
+        closeModal();
+        await refreshUserData();
+        renderBookings();
+      } catch (err) {
+        // Cancel-then-book is not atomic: if the new booking fails after a release,
+        // surface it clearly so the user knows the old seat is gone.
+        const partial = toRemove.length && toAdd.length;
+        showToast(partial
+          ? `Released your old spot(s) but couldn't book the new one: ${err.message}. It may have been taken — check your bookings.`
+          : `Couldn't update spots: ${err.message}`, 'error');
+        closeModal();
+        await refreshUserData();
+        renderBookings();
+      }
+    };
+
+    renderGrid();
+    renderControls();
+  } catch (err) {
+    console.error('[Bookings] Edit modal failed:', err);
+    body.innerHTML = `<div class="psycle-card-error" style="color:var(--danger);padding:20px 0;text-align:center;">Error loading layout: ${err.message}</div>`;
+  }
+}
+
+// ── Waitlist cards ───────────────────────────────────────────────────
+// Same card design as bookings; a waitlist entry has no spot and no upgrade,
+// so the only rail action is Leave (two-tap confirm).
+function renderWaitlistsCards(waitlists) {
+  const container = document.getElementById('psycle-waitlists-list');
+  if (!container) return;
+
+  const valid = (waitlists || []).filter(w => w.event && w.event.start_at);
+  if (valid.length === 0) {
+    container.innerHTML = '<div class="fav-empty-state" style="padding:30px 0;">No active waitlists found.</div>';
     return;
   }
 
-  tbody.innerHTML = '';
-  waitlists.forEach(w => {
-    // Defensive: skip if event data is missing
-    const event = w.event || null;
-    if (!event || !event.start_at) return;
+  valid.sort((a, b) => new Date(a.event.start_at) - new Date(b.event.start_at));
+  container.innerHTML = '';
+  valid.forEach(w => container.appendChild(buildWaitlistCard(w)));
+}
 
-    const startDt = new Date(event.start_at);
-    const timeStr = startDt.toLocaleString('en-GB', { 
-      weekday: 'short', 
-      day: 'numeric', 
-      month: 'short', 
-      hour: '2-digit', 
-      minute: '2-digit',
-      hour12: false,
-      timeZone: 'Europe/London'
-    });
+function buildWaitlistCard(w) {
+  const event = w.event;
+  const startDt = new Date(event.start_at);
+  const dateStr = startDt.toLocaleString('en-GB', { weekday: 'short', day: 'numeric', month: 'short', timeZone: 'Europe/London' });
+  const timeOnly = startDt.toLocaleString('en-GB', { hour: '2-digit', minute: '2-digit', hour12: false, timeZone: 'Europe/London' });
+  const className = event.event_type?.name || 'Class';
+  const groupName = event.event_type?.group?.name || className;
+  const instructorName = event.instructor?.full_name || 'TBA';
+  const locationLine = [event.studio?.name, trimLocation(event.studio?.location?.name)].filter(Boolean).join(', ');
 
-    const row = document.createElement('tr');
-    row.innerHTML = `
-      <td><strong>${event.event_type?.name || 'Ride'}</strong></td>
-      <td>${event.instructor?.full_name || 'Instructor'}</td>
-      <td>${event.studio?.name || 'Studio'} (${event.studio?.location?.name || 'Location'})</td>
-      <td>${timeStr}</td>
-      <td>
-        <button class="psycle-action-btn-mini cancel-wl-btn" data-event-id="${event.id}">Leave Waitlist</button>
-      </td>
-    `;
+  const card = document.createElement('div');
+  card.className = 'psycle-autobook-card ab-card';
+  card.setAttribute('data-event-id', event.id);
+  card.innerHTML = `
+    <div class="ab-card-main">
+      <div class="ab-card-toprow">
+        <div class="ab-card-when">
+          <span class="ab-card-date">${dateStr.toUpperCase()}</span>
+          <span class="ab-card-time">${timeOnly}</span>
+        </div>
+      </div>
+      <div class="ab-card-meta">
+        ${disciplineTag(groupName)}
+        <span class="ab-card-class">${className}</span>
+        <span class="ab-meta-dot">·</span>
+        <span class="ab-card-instructor">${instructorName}</span>
+        ${locationLine ? `<span class="ab-card-location">${locationLine}</span>` : ''}
+      </div>
+      <div class="ab-card-footer">
+        <span class="ab-spots-pill" style="gap:5px;color:var(--warning);background:color-mix(in srgb,var(--warning) 12%,transparent);">${icon('clock', 12)} Waitlisted</span>
+      </div>
+    </div>
+    <div class="ab-card-rail">
+      <button class="ab-rail-btn danger leave-wl-btn" aria-label="Leave waitlist">${icon('close', 17)}<span>Leave</span></button>
+    </div>
+  `;
 
-    // Leave waitlist button double click confirm
-    const leaveBtn = row.querySelector('.cancel-wl-btn');
-    if (leaveBtn) {
-      let confirmState = false;
-      leaveBtn.addEventListener('click', async () => {
-        if (!confirmState) {
-          confirmState = true;
-          leaveBtn.textContent = 'Confirm Leave?';
-          leaveBtn.style.background = 'var(--danger)';
-          leaveBtn.style.color = 'var(--on-accent)';
-          setTimeout(() => {
-            confirmState = false;
-            leaveBtn.textContent = 'Leave Waitlist';
-            leaveBtn.style.background = '';
-            leaveBtn.style.color = '';
-          }, 3000);
-        } else {
-          try {
-            // Show leaving state on row
-            row.style.opacity = '0.6';
-            row.querySelectorAll('button').forEach(btn => btn.disabled = true);
-            leaveBtn.textContent = 'Leaving...';
-
-            showToast('Leaving waitlist...', 'info');
-            await api.proxyDelete(`/waitlists/${event.id}`);
-            showToast('Successfully left waitlist.', 'success');
-            await refreshUserData();
-            renderBookings();
-          } catch (err) {
-            showToast(`Error: ${err.message}`, 'error');
-            row.style.opacity = '1';
-            row.querySelectorAll('button').forEach(btn => btn.disabled = false);
-            leaveBtn.textContent = 'Leave Waitlist';
-            confirmState = false;
-          }
-        }
-      });
+  const leaveBtn = card.querySelector('.leave-wl-btn');
+  const labelSpan = leaveBtn.querySelector('span');
+  let confirmState = false;
+  leaveBtn.addEventListener('click', async () => {
+    if (!confirmState) {
+      confirmState = true;
+      labelSpan.textContent = 'Confirm?';
+      leaveBtn.classList.add('confirming');
+      setTimeout(() => {
+        confirmState = false;
+        labelSpan.textContent = 'Leave';
+        leaveBtn.classList.remove('confirming');
+      }, 3000);
+      return;
     }
-
-    tbody.appendChild(row);
+    confirmState = false;
+    leaveBtn.classList.remove('confirming');
+    card.style.opacity = '0.6';
+    card.querySelectorAll('button').forEach(b => b.disabled = true);
+    labelSpan.textContent = '…';
+    try {
+      showToast('Leaving waitlist...', 'info');
+      await api.proxyDelete(`/waitlists/${event.id}`);
+      showToast('Left waitlist.', 'success');
+      await refreshUserData();
+      renderBookings();
+    } catch (err) {
+      showToast(`Error: ${err.message}`, 'error');
+      card.style.opacity = '1';
+      card.querySelectorAll('button').forEach(b => b.disabled = false);
+      labelSpan.textContent = 'Leave';
+    }
   });
+
+  return card;
 }
 
 // Auto-upgrade needs at least one spare credit to book the upgraded seat before

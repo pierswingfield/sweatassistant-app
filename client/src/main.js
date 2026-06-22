@@ -1,5 +1,6 @@
 import { api, setToken, isLoggedIn } from './api';
 import { initTooltips } from './ui/tooltips';
+import { setupPullToRefresh } from './ui/pulltorefresh';
 
 // Global App State
 export let currentUser = null;
@@ -130,7 +131,11 @@ window.switchTab = switchTab;
 
 const VALID_TABS = ['class-timetable', 'my-bookings', 'auto-book', 'buy-credits', 'settings', 'about'];
 
+// The currently active tab — used by the shared pull-to-refresh dispatcher.
+let currentTabId = null;
+
 function switchTab(tabId) {
+  currentTabId = tabId;
   const targetPanelId = `psycle-panel-${tabId}`;
 
   // Update nav buttons (top, bottom, and subnav share the .psycle-nav-btn class).
@@ -192,6 +197,36 @@ tabButtons.forEach(btn => {
     switchTab(tabId);
   });
 });
+
+// --- PULL-TO-REFRESH ---
+// On mobile the whole app scrolls inside a single <main class="psycle-body"> — the
+// individual tab panels (#psycle-timetable-grid etc.) grow to fit content and never
+// scroll themselves, so their scrollTop is always 0. Attaching pull-to-refresh to
+// those panels made every downward drag read as "at the top" and fire a refresh.
+// Instead, attach ONE pull-to-refresh to the real scroll container and dispatch the
+// refresh action based on which tab is active.
+async function refreshActiveTab() {
+  try {
+    if (currentTabId === 'class-timetable') {
+      const { prefetchTimetableData } = await import('./ui/timetable');
+      await prefetchTimetableData(true);
+    } else if (currentTabId === 'my-bookings') {
+      const { renderBookings } = await import('./ui/bookings');
+      await renderBookings();
+    } else if (currentTabId === 'auto-book') {
+      const { refreshAutoBookTab } = await import('./ui/autobook');
+      await refreshAutoBookTab();
+    }
+    // buy-credits / settings / about: no pull-to-refresh action (indicator snaps back)
+  } catch (err) {
+    console.error('[PullToRefresh] refreshActiveTab failed:', err);
+  }
+}
+
+const scrollBody = document.querySelector('main.psycle-body');
+if (scrollBody) {
+  setupPullToRefresh(scrollBody, refreshActiveTab);
+}
 
 // --- SERVICE WORKER & PUSH REGISTRATION ---
 let serviceWorkerRegistration = null;

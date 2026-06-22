@@ -2,7 +2,6 @@ import { api } from '../api';
 import { showToast, currentUser, userSettings, refreshUserData, updateCreditBadge, cache } from '../main';
 import { getClassReleaseTime, getNextMondayNoonLondon } from '../lib';
 import { DateTime } from 'luxon';
-import { setupPullToRefresh } from './pulltorefresh';
 // === MOBILE TIMETABLE — import renderMinimap (added Jun 2026; delete this block to revert) ===
 import { renderMinimap } from './tooltips.js';
 // === END MOBILE TIMETABLE BLOCK ===
@@ -181,12 +180,8 @@ export async function initTimetable() {
   await loadMetadata();
   setupDropdownFilters();
   await prefetchTimetableData();
-
-  // Setup pull-to-refresh on the timetable scroll container
-  const scrollEl = document.getElementById('psycle-timetable-grid');
-  if (scrollEl && !scrollEl._pullToRefresh) {
-    scrollEl._pullToRefresh = setupPullToRefresh(scrollEl, () => prefetchTimetableData(true));
-  }
+  // Pull-to-refresh is handled centrally in main.js (attached to the shared
+  // <main class="psycle-body"> scroller, dispatched by active tab).
 }
 
 // Load default filter selections from localStorage
@@ -843,8 +838,12 @@ async function renderTimetableGrid() {
   // Remove any body-appended mobile menus from the previous render
   document.querySelectorAll('body > .psycle-mobile-menu').forEach(m => m.remove());
 
+  // The outer #psycle-timetable-grid (.psycle-timetable-list) is the single scroll
+  // container — see initTimetableTab for the pull-to-refresh wiring. The inner
+  // container must NOT scroll, otherwise iOS has two nested scrollers and the
+  // outer grid's scrollTop stays 0 (breaking the at-top check for pull-to-refresh).
   ttGrid.innerHTML = `
-    <div class="psycle-table-container" style="flex: 1; min-height: 0; overflow-y: auto;">
+    <div class="psycle-table-container">
       <table class="psycle-table" style="width: 100%; border-collapse: collapse; text-align: left; table-layout: fixed;">
         <thead>
           <tr>
@@ -2018,10 +2017,18 @@ async function openBookingModal(c, mode) {
     const widthRange = maxX - minX || 1;
     const heightRange = maxY - minY || 1;
 
+    // Slots are positioned across 72% of the map height and are 28px tall. To keep a
+    // minimum gap between rows (so they never overlap), give the map a minimum height
+    // informed by the row count: ~56px per row (28px slot + 12px gap over the 72% span).
+    const rowCount = new Set(layoutSlots.map(s => s.y)).size;
+    const minMapHeight = Math.max(340, rowCount * 56);
+
     body.innerHTML = `
-      <div class="psycle-floor-plan-container" style="position:relative;height:340px;background:var(--surface-inset);border:1px solid var(--border);border-radius:12px;margin-bottom:10px;overflow:hidden;">
+      <div id="psycle-modal-info-banner" style="margin-bottom:10px;"></div>
+      <div class="psycle-floor-plan-container" style="position:relative;height:${minMapHeight}px;background:var(--surface-inset);border:1px solid var(--border);border-radius:12px;margin-bottom:10px;overflow:hidden;">
         <div id="psycle-floor-plan-grid" style="width:100%;height:100%;"></div>
       </div>
+      <div id="psycle-map-edit-toggle"></div>
       <div id="psycle-slot-summary" style="font-size:12px;color:var(--text-secondary);margin-bottom:12px;min-height:16px;"></div>
       <div id="psycle-modal-controls-container"></div>
     `;
@@ -2065,13 +2072,30 @@ async function openBookingModal(c, mode) {
       } catch (e) {}
     }
 
+    // Quick-Book shows the saved map read-only until the user explicitly unlocks it.
+    // First-time setup (no saved prefs) starts editable since there's nothing to lock.
+    let mapEditing = !((isQuickBookMode || isAutoBookMode) && hasExistingPrefs);
+
+    // Snapshot so we can detect whether the user changed the spot map from its saved state.
+    const initialSlots = [...state.selectedSlots];
+    const initialRowsArr = [...state.selectedRows];
+    const mapChanged = () => {
+      if (state.selectedSlots.length !== initialSlots.length) return true;
+      if (state.selectedSlots.some((id, i) => id !== initialSlots[i])) return true;
+      if (state.selectedRows.size !== initialRowsArr.length) return true;
+      for (const r of state.selectedRows) if (!initialRowsArr.includes(r)) return true;
+      return false;
+    };
+
     // ── Render floor plan with row selection overlay ──────────────────
     const rowYs = [...new Set(layoutSlots.map(s => s.y))].sort((a, b) => a - b);
     const slotsByRow = new Map(); // y → slots
     rowYs.forEach(y => { slotsByRow.set(y, layoutSlots.filter(s => s.y === y)); });
 
-    // Define updateSimpleBookControls function so it can be called from render
+    // Hoisted so the read-only map's edit toggle can refresh banners/controls
     let updateSimpleBookControls = null;
+    let updateQuickBookControls = null;
+    let updateAutoBookControls = null;
 
     const render = () => {
       floorGrid.innerHTML = '';
@@ -2120,7 +2144,7 @@ async function openBookingModal(c, mode) {
         bubble.style.justifyContent = 'center';
         bubble.style.fontSize = '10px';
         bubble.style.fontWeight = '700';
-        bubble.style.cursor = 'pointer';
+        bubble.style.cursor = mapEditing ? 'pointer' : 'default';
         bubble.style.userSelect = 'none';
         bubble.style.transition = 'all 0.1s';
         bubble.style.boxSizing = 'border-box';
@@ -2157,7 +2181,7 @@ async function openBookingModal(c, mode) {
           bubble.textContent = label;
         }
 
-        bubble.addEventListener('click', () => {
+        if (mapEditing) bubble.addEventListener('click', () => {
           const idx = state.selectedSlots.indexOf(slotId);
           if (idx !== -1) {
             // Already selected — deselect
@@ -2186,8 +2210,8 @@ async function openBookingModal(c, mode) {
         floorGrid.appendChild(bubble);
       });
 
-      // Row +/- buttons (overlaid on right edge) — only for preference modes, not simple book
-      if (rowYs.length > 1 && !isSimpleBookMode) {
+      // Row +/- buttons (overlaid on right edge) — only for preference modes, not simple book, and only while editing
+      if (rowYs.length > 1 && !isSimpleBookMode && mapEditing) {
         rowYs.forEach((y, idx) => {
           const isOn = state.selectedRows.has(y);
           const rowSlots = slotsByRow.get(y) || [];
@@ -2219,10 +2243,20 @@ async function openBookingModal(c, mode) {
           const idx = rowYs.indexOf(y);
           return idx >= 0 ? String(idx + 1) : String(y);
         });
-        const parts = [];
-        if (spotLabels.length > 0) parts.push(`Spots [${spotLabels.join(', ')}]`);
-        if (rowLabels.length > 0) parts.push(`Rows [${rowLabels.join(', ')}]`);
-        summaryEl.textContent = parts.length ? `Selected Preferences: ${parts.join(' > ')}` : '(None selected yet)';
+        if (spotLabels.length === 0 && rowLabels.length === 0) {
+          summaryEl.innerHTML = '<span style="color:var(--text-tertiary);font-style:italic;">(None selected yet)</span>';
+        } else {
+          const fmt = (labels, noun) => {
+            const shown = labels.slice(0, 3);
+            const rest = labels.length > 3 ? ` <span style="color:var(--text-tertiary);">+${labels.length - 3} more</span>` : '';
+            return `<span style="color:var(--text-secondary);font-size:11px;text-transform:uppercase;letter-spacing:0.05em;">${noun}</span> <span style="color:var(--text);font-weight:700;">${shown.join(', ')}</span>${rest}`;
+          };
+          const parts = [];
+          if (spotLabels.length > 0) parts.push(fmt(spotLabels, 'Spots'));
+          if (rowLabels.length > 0) parts.push(fmt(rowLabels, 'Rows'));
+          const sep = ' <span style="color:var(--text-tertiary);margin:0 4px;">›</span> ';
+          summaryEl.innerHTML = `<span style="color:var(--text-tertiary);font-size:11px;text-transform:uppercase;letter-spacing:0.05em;margin-right:6px;">Preferred</span>${parts.join(sep)}`;
+        }
       }
 
       // Unmapped warning
@@ -2244,6 +2278,26 @@ async function openBookingModal(c, mode) {
       }
     };
 
+    // Wide "edit preferred spots" button attached beneath the map (Quick-Book read-only mode)
+    const updateMapEditToggle = () => {
+      const toggle = body.querySelector('#psycle-map-edit-toggle');
+      if (!toggle) return;
+      toggle.innerHTML = '';
+      if ((!isQuickBookMode && !isAutoBookMode) || mapEditing) return;
+      const editBtn = document.createElement('button');
+      editBtn.className = 'psycle-btn';
+      editBtn.style.cssText = 'width:100%;margin-bottom:12px;background:color-mix(in srgb, var(--feat-autoupgrade) 12%, transparent);border:1px solid color-mix(in srgb, var(--feat-autoupgrade) 30%, transparent);color:var(--feat-autoupgrade);';
+      editBtn.textContent = `Edit preferred spots for ${studioName}`;
+      editBtn.onclick = () => {
+        mapEditing = true;
+        render();
+        updateMapEditToggle();
+        if (typeof updateQuickBookControls === 'function') updateQuickBookControls();
+        if (typeof updateAutoBookControls === 'function') updateAutoBookControls();
+      };
+      toggle.appendChild(editBtn);
+    };
+
     // ── Auto-Book controls ─────────────────────────────────────────────
     if (isAutoBookMode) {
       const controls = body.querySelector('#psycle-modal-controls-container');
@@ -2251,7 +2305,7 @@ async function openBookingModal(c, mode) {
       const unmappedSlots = availableSlots.filter(id => !layoutSlotIds.has(id));
       const releaseStr = isLive ? '' : classReleaseTime.toFormat('EEE d MMM, HH:mm');
 
-      const updateAutoBookControls = () => {
+      updateAutoBookControls = () => {
         const selectedQty = parseInt(controls.querySelector('#autobook-qty')?.value || state.qty) || 1;
         const creditsNeeded = selectedQty;
         const hasEnoughCredits = availableCredits >= creditsNeeded;
@@ -2259,10 +2313,24 @@ async function openBookingModal(c, mode) {
           ? `In order for Auto-Book to work, you need to purchase ${creditsNeeded - availableCredits} more credit${creditsNeeded - availableCredits !== 1 ? 's' : ''}.`
           : '';
 
+        body.querySelector('#psycle-modal-info-banner').innerHTML = mapEditing
+          ? `<div style="font-size:12px;color:var(--feat-autoupgrade);background:color-mix(in srgb,var(--feat-autoupgrade) 8%,transparent);border:1px solid color-mix(in srgb,var(--feat-autoupgrade) 18%,transparent);border-radius:8px;padding:8px 10px;line-height:1.5;">You are editing your preferred spot map for <strong>${studioName}</strong>. Changes here apply to Quick-Book and Auto-Upgrade too.</div>`
+          : `<div style="font-size:12px;color:var(--feat-autoupgrade);background:color-mix(in srgb,var(--feat-autoupgrade) 8%,transparent);border:1px solid color-mix(in srgb,var(--feat-autoupgrade) 18%,transparent);border-radius:8px;padding:8px 10px;line-height:1.5;">Spots here are your one shared preferred map for <strong>${studioName}</strong>. Scheduling updates it for Quick-Book and Auto-Upgrade too.</div>`;
+
+        const toggleEl = body.querySelector('#psycle-map-edit-toggle');
+        if (toggleEl && mapEditing) {
+          const hint = toggleEl.querySelector('.ab-map-hint');
+          if (!hint) {
+            const h = document.createElement('div');
+            h.className = 'ab-map-hint';
+            h.style.cssText = 'font-size:12px;color:var(--text-secondary);font-style:italic;margin:8px 0 4px;';
+            h.innerHTML = 'Click on the spots to set your priority order. Click the <strong>+</strong> button on the right to prefer entire rows.';
+            toggleEl.appendChild(h);
+          }
+        }
+
         controls.innerHTML = `
           <div style="display:flex;flex-direction:column;gap:12px;background:var(--surface-inset);padding:14px;border-radius:12px;border:1px solid var(--border);">
-            <div style="font-size:12px;color:var(--feat-autoupgrade);background:color-mix(in srgb,var(--feat-autoupgrade) 8%,transparent);border:1px solid color-mix(in srgb,var(--feat-autoupgrade) 18%,transparent);border-radius:8px;padding:8px 10px;line-height:1.5;">Spots here are your one shared preferred map for <strong>${studioName}</strong>. Scheduling updates it for Quick-Book and Auto-Upgrade too.</div>
-            <div style="font-size:12px;color:var(--text-secondary);font-style:italic;">Click on the spots to set your priority order. Click the <strong>+</strong> button on the right to prefer entire rows.</div>
             ${unmappedSlots.length > 0 ? `<div id="psycle-unmapped-warning" style="font-size:12px;color:var(--warning);background:color-mix(in srgb,var(--warning) 8%,transparent);border:1px solid color-mix(in srgb,var(--warning) 20%,transparent);border-radius:6px;padding:6px 10px;"></div>` : ''}
             ${creditWarning ? `<div style="font-size:12px;color:var(--danger);background:color-mix(in srgb,var(--danger) 10%,transparent);border:1px solid color-mix(in srgb,var(--danger) 20%,transparent);border-radius:8px;padding:10px;line-height:1.5;">${creditWarning}</div>` : ''}
             <div style="display:flex;gap:14px;align-items:center;border-top:1px solid var(--separator);padding-top:12px;">
@@ -2279,10 +2347,7 @@ async function openBookingModal(c, mode) {
                 </label>
               </div>
             </div>
-            <div style="display:flex;gap:8px;">
-              <button class="psycle-btn" id="btn-save-autobook" style="flex:2;background:var(--feat-autoupgrade);color:var(--on-accent);">Schedule Auto-Book</button>
-              <button class="psycle-btn" id="btn-save-studio-default" style="flex:1;background:var(--surface-2);border:1px solid var(--border-strong);color:var(--text);font-size:12px;">Save as Default</button>
-            </div>
+            <button class="psycle-btn" id="btn-save-autobook" style="width:100%;background:var(--feat-autoupgrade);color:var(--on-accent);">${mapChanged() ? 'Save map and ' : ''}Schedule Auto-Book</button>
             <div style="font-size:12px;text-align:center;color:${isLive ? 'var(--success)' : 'var(--text-tertiary)'};">
               ${isLive ? '✓ Booking window is open' : `Booking opens: <span style="color:var(--text-secondary);">${releaseStr}</span>`}
             </div>
@@ -2303,15 +2368,6 @@ async function openBookingModal(c, mode) {
           saveAutoBookPreferences(c, preferredSlots, preferredRows, qty, fallbackAny, closeModal, isLive);
         };
 
-        controls.querySelector('#btn-save-studio-default').onclick = async () => {
-          try {
-            showToast('Saving studio defaults...', 'info');
-            await api.updateStudioPreferences(c.studio_id, { preferredSlots: [...state.selectedSlots], preferredRows: [...state.selectedRows] });
-            showToast('Studio defaults saved successfully!', 'success');
-          } catch (err) {
-            showToast(`Save failed: ${err.message}`, 'error');
-          }
-        };
       };
 
       updateAutoBookControls();
@@ -2395,7 +2451,7 @@ async function openBookingModal(c, mode) {
       // ── Quick-Book controls (preference setter) ────────────────────────────────────────
       const controls = body.querySelector('#psycle-modal-controls-container');
 
-      const updateQuickBookControls = () => {
+      updateQuickBookControls = () => {
         const selectedQty = parseInt(controls.querySelector('#quickbook-qty')?.value || state.qty) || 1;
         const creditsNeeded = selectedQty;
         const hasEnoughCredits = availableCredits >= creditsNeeded;
@@ -2403,13 +2459,26 @@ async function openBookingModal(c, mode) {
           ? `In order for Quick-Book to work, you need to purchase ${creditsNeeded - availableCredits} more credit${creditsNeeded - availableCredits !== 1 ? 's' : ''}.`
           : '';
 
+        body.querySelector('#psycle-modal-info-banner').innerHTML = !mapEditing
+          ? `<div style="font-size:12px;color:var(--feat-autoupgrade);background:color-mix(in srgb,var(--feat-autoupgrade) 8%,transparent);border:1px solid color-mix(in srgb,var(--feat-autoupgrade) 18%,transparent);border-radius:8px;padding:8px 10px;line-height:1.5;">Quick-Book uses your preferred spot map to book the best spot it can. You can edit your preferred spots any time in Settings.</div>`
+          : (hasExistingPrefs
+            ? `<div style="font-size:12px;color:var(--feat-autoupgrade);background:color-mix(in srgb,var(--feat-autoupgrade) 8%,transparent);border:1px solid color-mix(in srgb,var(--feat-autoupgrade) 18%,transparent);border-radius:8px;padding:8px 10px;line-height:1.5;">You are editing your preferred spot map for <strong>${studioName}</strong>. Changes here apply to Auto-Book and Auto-Upgrade too.</div>`
+            : `<div style="font-size:12px;color:var(--text-tertiary);background:color-mix(in srgb,var(--feat-autoupgrade) 7%,transparent);border:1px solid color-mix(in srgb,var(--feat-autoupgrade) 15%,transparent);border-radius:8px;padding:10px 12px;line-height:1.5;">First time setup: Quick-Book grabs a preferred spot in any class in one click. Set your preferred spots for <strong style="color:var(--feat-autoupgrade);">${studioName}</strong> once and they'll apply everywhere.</div>`);
+
+        const qbToggleEl = body.querySelector('#psycle-map-edit-toggle');
+        if (qbToggleEl && mapEditing && !qbToggleEl.querySelector('.ab-map-hint')) {
+          const h = document.createElement('div');
+          h.className = 'ab-map-hint';
+          h.style.cssText = 'font-size:12px;color:var(--text-secondary);font-style:italic;margin:8px 0 4px;';
+          h.innerHTML = 'Click on the spots to set your priority order. Click the <strong>+</strong> button on the right to prefer entire rows.';
+          qbToggleEl.appendChild(h);
+        } else if (qbToggleEl && !mapEditing) {
+          const existing = qbToggleEl.querySelector('.ab-map-hint');
+          if (existing) existing.remove();
+        }
+
         controls.innerHTML = `
           <div style="display:flex;flex-direction:column;gap:12px;background:var(--surface-inset);padding:14px;border-radius:12px;border:1px solid var(--border);">
-            ${hasExistingPrefs
-              ? `<div style="font-size:12px;color:var(--feat-autoupgrade);background:color-mix(in srgb,var(--feat-autoupgrade) 8%,transparent);border:1px solid color-mix(in srgb,var(--feat-autoupgrade) 18%,transparent);border-radius:8px;padding:8px 10px;line-height:1.5;">This is your shared preferred spot map for <strong>${studioName}</strong>. Changes here apply to Quick-Book, Auto-Book, and Auto-Upgrade at this studio.</div>`
-              : `<div style="font-size:12px;color:var(--text-tertiary);background:color-mix(in srgb,var(--feat-autoupgrade) 7%,transparent);border:1px solid color-mix(in srgb,var(--feat-autoupgrade) 15%,transparent);border-radius:8px;padding:10px 12px;line-height:1.5;">First time setup: Quick-Book grabs a preferred spot in any class in one click. Set your preferred spots for <strong style="color:var(--feat-autoupgrade);">${studioName}</strong> once and they'll apply everywhere.</div>`
-            }
-            <div style="font-size:12px;color:var(--text-secondary);font-style:italic;">Click on the spots to set your priority order. Click the <strong>+</strong> button on the right to prefer entire rows.</div>
             ${creditWarning ? `<div style="font-size:12px;color:var(--danger);background:color-mix(in srgb,var(--danger) 10%,transparent);border:1px solid color-mix(in srgb,var(--danger) 20%,transparent);border-radius:8px;padding:10px;line-height:1.5;">${creditWarning}</div>` : ''}
             <div style="display:flex;gap:14px;align-items:center;border-top:1px solid var(--separator);padding-top:12px;">
               <div style="width:110px;">
@@ -2425,10 +2494,7 @@ async function openBookingModal(c, mode) {
                 </label>
               </div>
             </div>
-            <div style="display:flex;gap:8px;">
-              <button class="psycle-btn" id="btn-submit-quickbook" style="flex:2;background:var(--success);color:var(--on-accent);">Book and save ${studioName} preferences</button>
-              <button class="psycle-btn" id="btn-save-quickbook-default" style="flex:1;background:var(--surface-2);border:1px solid var(--border-strong);color:var(--text);font-size:12px;">Save as Default</button>
-            </div>
+            <button class="psycle-btn" id="btn-submit-quickbook" style="width:100%;background:var(--success);color:var(--on-accent);">${mapChanged() ? 'Save map and ' : ''}Quick-Book</button>
           </div>
         `;
 
@@ -2438,6 +2504,7 @@ async function openBookingModal(c, mode) {
             return;
           }
           const btn = controls.querySelector('#btn-submit-quickbook');
+          const baseLabel = `${mapChanged() ? 'Save map and ' : ''}Quick-Book`;
           if (isWithin12Hours(c.start_at) && btn.dataset.confirmState !== 'confirm') {
             btn.dataset.confirmState = 'confirm';
             btn.textContent = 'Class starts soon. Confirm?';
@@ -2445,7 +2512,7 @@ async function openBookingModal(c, mode) {
             setTimeout(() => {
               if (btn.dataset.confirmState === 'confirm') {
                 delete btn.dataset.confirmState;
-                btn.textContent = `Configure Quick-Book for ${studioName}`;
+                btn.textContent = baseLabel;
                 btn.style.background = '';
               }
             }, 4000);
@@ -2457,9 +2524,14 @@ async function openBookingModal(c, mode) {
           try {
             const qty = parseInt(controls.querySelector('#quickbook-qty').value) || 1;
             const fallbackAny = controls.querySelector('#quickbook-fallback-any').checked;
+            const slots = [...state.selectedSlots];
+            const rows = [...state.selectedRows];
+            if (mapChanged() && c.studio_id) {
+              await api.updateStudioPreferences(c.studio_id, { preferredSlots: slots, preferredRows: rows });
+            }
             await quickBookClass(c.id, {
-              preferredSlots: [...state.selectedSlots],
-              preferredRows: [...state.selectedRows],
+              preferredSlots: slots,
+              preferredRows: rows,
               requiredCount: qty,
               bookAny: fallbackAny
             }, null);
@@ -2468,7 +2540,7 @@ async function openBookingModal(c, mode) {
             showToast(`Quick Book error: ${err.message}`, 'error');
           } finally {
             btn.disabled = false;
-            btn.textContent = `Configure Quick-Book for ${studioName}`;
+            btn.textContent = baseLabel;
           }
         };
 
@@ -2477,22 +2549,13 @@ async function openBookingModal(c, mode) {
           state.qty = parseInt(quickbookQtySelector.value) || 1;
           updateQuickBookControls();
         };
-
-        controls.querySelector('#btn-save-quickbook-default').onclick = async () => {
-          try {
-            showToast('Saving studio defaults...', 'info');
-            await api.updateStudioPreferences(c.studio_id, { preferredSlots: [...state.selectedSlots], preferredRows: [...state.selectedRows] });
-            showToast('Studio defaults saved successfully!', 'success');
-          } catch (err) {
-            showToast(`Save failed: ${err.message}`, 'error');
-          }
-        };
       };
 
       updateQuickBookControls();
     }
 
     render();
+    updateMapEditToggle();
   } catch (err) {
     console.error('[Timetable] Modal load floor map failed:', err);
     body.innerHTML = `<div class="psycle-card-error" style="color: var(--danger); padding: 20px 0; text-align: center;">Error loading layout: ${err.message}</div>`;
@@ -2592,28 +2655,26 @@ function isWithin12Hours(startAt) {
   return diff > 0 && diff <= 12 * 60 * 60 * 1000;
 }
 
-// Cancel Booking direct, warning if inside 12-hour penalty period
+// Cancel Booking direct — always requires a second click to confirm
 async function cancelBookingDirect(bookingId, isPenalty, btn) {
-  if (isPenalty) {
-    if (btn.dataset.confirmState !== 'confirm') {
-      btn.dataset.confirmState = 'confirm';
-      btn.textContent = 'Confirm penalty cancel?';
-      btn.style.background = 'var(--danger)';
-      btn.style.borderColor = 'var(--danger)';
-      btn.style.color = 'var(--on-accent)';
+  if (btn.dataset.confirmState !== 'confirm') {
+    btn.dataset.confirmState = 'confirm';
+    btn.textContent = isPenalty ? 'Confirm penalty cancel?' : 'Confirm cancel?';
+    btn.style.background = 'var(--danger)';
+    btn.style.borderColor = 'var(--danger)';
+    btn.style.color = 'var(--on-accent)';
 
-      // Auto-reset confirmation state after 4 seconds
-      setTimeout(() => {
-        if (btn.dataset.confirmState === 'confirm') {
-          btn.removeAttribute('data-confirm-state');
-          btn.textContent = 'Cancel';
-          btn.style.background = '';
-          btn.style.borderColor = '';
-          btn.style.color = '';
-        }
-      }, 4000);
-      return;
-    }
+    // Auto-reset confirmation state after 4 seconds
+    setTimeout(() => {
+      if (btn.dataset.confirmState === 'confirm') {
+        btn.removeAttribute('data-confirm-state');
+        btn.textContent = 'Cancel';
+        btn.style.background = '';
+        btn.style.borderColor = '';
+        btn.style.color = '';
+      }
+    }, 4000);
+    return;
   }
 
   btn.removeAttribute('data-confirm-state');

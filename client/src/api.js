@@ -113,6 +113,10 @@ export const api = {
       const err = await res.json().catch(() => ({}));
       throw new Error(err.message || `Proxy DELETE failed: ${res.status}`);
     }
+    // Handle 204 No Content (no response body)
+    if (res.status === 204) {
+      return {};
+    }
     return res.json();
   },
 

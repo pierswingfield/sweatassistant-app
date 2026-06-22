@@ -2,71 +2,11 @@ import { api } from '../api';
 import { showToast, cache, userSettings, refreshUserData } from '../main';
 import { getClassReleaseTime, getNextMondayNoonLondon } from '../lib';
 import { renderStudioFloorPlan } from './spotmap';
-import { setupPullToRefresh } from './pulltorefresh';
+import { icon, disciplineTag, trimLocation } from './cards';
 
 let countdownInterval = null;
 let sseEventSource = null;
 const statusCache = new Map(); // eventId → current status
-
-// ── Inline SVG icon set (themeable via currentColor) ─────────────────
-const SVG_PATHS = {
-  clock: '<circle cx="8" cy="8" r="6.25"/><path d="M8 4.5V8l2.5 1.5"/>',
-  edit: '<path d="M11 2.5 13.5 5 6 12.5 3 13l.5-3L11 2.5Z"/>',
-  close: '<path d="M4 4l8 8M12 4l-8 8"/>',
-  check: '<path d="M3.5 8.5 6.5 11.5 12.5 4.5"/>',
-  checkCircle: '<circle cx="8" cy="8" r="6.25"/><path d="M5.3 8.2 7 9.9l3.7-3.9"/>',
-  error: '<circle cx="8" cy="8" r="6.25"/><path d="M8 5v3.5M8 11h.01"/>',
-  bang: '<path d="M8 4v5M8 11.5h.01"/>',
-  history: '<path d="M3 8a5 5 0 1 0 1.6-3.7M3 3v2.2h2.2M8 5.5V8l2 1.2"/>',
-  chevron: '<path d="M4 6l4 4 4-4"/>',
-  pause: '<path d="M6 4v8M10 4v8"/>',
-  play: '<path d="M5.5 4l6 4-6 4z"/>',
-  heart: '<path d="M8 13.5S2.5 10 2.5 6.2A2.7 2.7 0 0 1 8 5a2.7 2.7 0 0 1 5.5 1.2C13.5 10 8 13.5 8 13.5Z"/>',
-  bolt: '<path d="M8.5 1.5 3.5 9h3.5l-1 5.5L13 6.5H9z"/>',
-  warning: '<path d="M8 2 14.5 13.5h-13L8 2Z"/><path d="M8 6.5v3M8 11.8h.01"/>',
-  // discipline glyphs
-  ride: '<circle cx="4.3" cy="11" r="2.5"/><circle cx="11.7" cy="11" r="2.5"/><path d="M4.3 11 7 5.5h2.5l2.2 5.5M7 5.5 6.2 4H4.5"/>',
-  barre: '<path d="M2 8h12M3.5 6v4M12.5 6v4"/>',
-  strength: '<path d="M2.5 6v4M4.2 5v6M11.8 5v6M13.5 6v4M4.2 8h7.6"/>',
-  infrared: '<path d="M8 2c1.8 2.2 3 3.7 3 6a3 3 0 1 1-6 0c0-1 .4-1.8 1-2.5.2 1 .8 1.5 1.3 1.5-.5-1.7.7-4 .7-5Z"/>',
-  reformer: '<path d="M2 5h12M2 11h12M5 5v6M11 5v6"/>',
-  yoga: '<circle cx="8" cy="3.7" r="1.8"/><path d="M8 6.5v3M3.5 13c1.2-2.5 7.8-2.5 9 0"/>',
-  other: '<circle cx="8" cy="8" r="2.6"/>',
-};
-const FILLED_ICONS = new Set(['play', 'heart', 'bolt']);
-
-function icon(name, size = 14) {
-  const inner = SVG_PATHS[name] || SVG_PATHS.other;
-  const filled = FILLED_ICONS.has(name);
-  return `<svg class="ab-ico" width="${size}" height="${size}" viewBox="0 0 16 16" `
-    + `fill="${filled ? 'currentColor' : 'none'}" stroke="${filled ? 'none' : 'currentColor'}" `
-    + `stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${inner}</svg>`;
-}
-
-// Derive a class discipline (token + label + glyph) from the group/class name.
-function getDiscipline(name = '') {
-  const s = String(name).toLowerCase();
-  const D = (key, label) => ({ key, label, icon: SVG_PATHS[key] ? key : 'other' });
-  if (/ride|cycle|spin/.test(s)) return D('ride', 'Ride');
-  if (/barre/.test(s)) return D('barre', 'Barre');
-  if (/reformer|pilates/.test(s)) return D('reformer', 'Reformer');
-  if (/infrared|hot|sweat/.test(s)) return D('infrared', 'Infrared');
-  if (/yoga|flow|mind|meditat/.test(s)) return D('yoga', 'Yoga');
-  if (/strength|tone|sculpt|hiit|abs|arms|signature/.test(s)) return D('strength', 'Strength');
-  const label = name ? String(name).replace(/\b\w/g, c => c.toUpperCase()) : 'Class';
-  return { key: 'other', label, icon: 'other' };
-}
-
-// Render a discipline tag chip (coloured pastel pill with glyph).
-function disciplineTag(name) {
-  const d = getDiscipline(name);
-  return `<span class="ab-disc-tag" data-disc="${d.key}">${icon(d.icon, 11)}${d.label}</span>`;
-}
-
-// Strip the "Psycle " prefix from a location name (matches the timetable filters).
-function trimLocation(name = '') {
-  return String(name).replace(/^Psycle\s*/i, '');
-}
 
 function getAvailableCreditsForEvent(event) {
   if (!cache.profile || !cache.profile.available_credits) return 0;
@@ -115,14 +55,12 @@ export async function initAutoBook() {
   if (countdownInterval) clearInterval(countdownInterval);
   updateCountdowns();
   countdownInterval = setInterval(updateCountdowns, 1000);
+}
 
-  // Setup pull-to-refresh on the auto-book scroll container
-  const scrollEl = document.querySelector('#psycle-panel-auto-book .ab-body');
-  if (scrollEl && !scrollEl._pullToRefresh) {
-    scrollEl._pullToRefresh = setupPullToRefresh(scrollEl, async () => {
-      await Promise.all([renderAutoBookTab(), refreshUserData()]);
-    });
-  }
+// Pull-to-refresh action for the Auto-Book tab — dispatched by the shared
+// pull-to-refresh handler in main.js (attached to <main class="psycle-body">).
+export async function refreshAutoBookTab() {
+  await Promise.all([renderAutoBookTab(), refreshUserData()]);
 }
 
 function connectToAutoBookStream() {
@@ -247,14 +185,7 @@ function renderAutoBookControls() {
     }
   });
 
-  // Favourites button
-  const favsBtn = document.createElement('button');
-  favsBtn.className = 'ab-footer-btn';
-  favsBtn.innerHTML = `${icon('heart', 14)}<span>Favourites</span>`;
-  favsBtn.addEventListener('click', () => openFavouritesModal());
-
   bar.appendChild(pauseBtn);
-  bar.appendChild(favsBtn);
 
   // Simulate button (debug mode only)
   if (userSettings.debugMode) {
@@ -383,7 +314,6 @@ async function renderAutoBookTab() {
     const history = cached.filter(x => x.executed_at);
     renderQueue(active);
     renderHistory(history);
-    setupHistoryToggle();
   } else {
     // First visit — no cached data yet
     if (queueContainer) {
@@ -405,7 +335,6 @@ async function renderAutoBookTab() {
 
     renderQueue(active);
     renderHistory(history);
-    setupHistoryToggle();
   } catch (err) {
     console.error('[AutoBook] Failed to load:', err);
     if (queueContainer && !cache.autoBookings) {
@@ -414,19 +343,6 @@ async function renderAutoBookTab() {
   }
 }
 
-function setupHistoryToggle() {
-  const historyToggle = document.getElementById('psycle-autobook-history-toggle');
-  const historyContent = document.getElementById('psycle-autobook-history-content');
-
-  if (historyToggle && !historyToggle.dataset.listener) {
-    historyToggle.dataset.listener = 'true';
-    historyToggle.addEventListener('click', () => {
-      const isOpen = historyContent.style.display !== 'none';
-      historyContent.style.display = isOpen ? 'none' : 'block';
-      historyToggle.classList.toggle('is-open', !isOpen);
-    });
-  }
-}
 
 function renderQueue(queue) {
   const container = document.getElementById('psycle-autobook-queue-container');
@@ -441,8 +357,10 @@ function renderQueue(queue) {
     return;
   }
 
+  // Sort chronologically by class start time
+  const sorted = [...queue].sort((a, b) => new Date(a.start_at) - new Date(b.start_at));
   container.innerHTML = '';
-  queue.forEach(q => {
+  sorted.forEach(q => {
     const card = document.createElement('div');
     card.className = 'psycle-autobook-card ab-card';
     card.setAttribute('data-event-id', q.event_id);
@@ -496,7 +414,7 @@ function renderQueue(queue) {
           <span class="ab-countdown state-pending" data-start-at="${q.start_at}">
             ${icon('clock', 13)}<span class="ab-countdown-val">…</span>
           </span>
-          <span class="ab-spots-pill">${creditsNeeded} Spot${creditsNeeded !== 1 ? 's' : ''} Required</span>
+          <span class="ab-spots-pill">${creditsNeeded} Spot${creditsNeeded !== 1 ? 's' : ''}</span>
         </div>
         ${creditWarning}
       </div>
@@ -621,7 +539,12 @@ async function openAutoBookEditModal(q) {
 
     const bannerHtml = `
       <div style="font-size:12px;color:var(--feat-autoupgrade);background:color-mix(in srgb,var(--feat-autoupgrade) 8%,transparent);border:1px solid color-mix(in srgb,var(--feat-autoupgrade) 18%,transparent);border-radius:8px;padding:8px 10px;margin-bottom:10px;line-height:1.5;">
-        This is the one shared preferred spot map for <strong>${studioName}</strong>. Changes here apply to Quick-Book and Auto-Upgrade too.
+        Auto-Book uses your preferred spot map to book the best spot it can. You can edit your preferred spots any time in Settings.
+      </div>`;
+
+    const bannerHtmlEdit = `
+      <div style="font-size:12px;color:var(--feat-autoupgrade);background:color-mix(in srgb,var(--feat-autoupgrade) 8%,transparent);border:1px solid color-mix(in srgb,var(--feat-autoupgrade) 18%,transparent);border-radius:8px;padding:8px 10px;margin-bottom:10px;line-height:1.5;">
+        You are editing your preferred spot map for <strong>${studioName}</strong>. Changes here apply to Quick-Book and Auto-Upgrade too.
       </div>`;
 
     const extraControlsHtml = `
@@ -649,7 +572,11 @@ async function openAutoBookEditModal(q) {
     }, {
       saveLabel: 'Save Changes',
       bannerHtml,
-      extraControlsHtml
+      bannerHtmlEdit,
+      extraControlsHtml,
+      readOnly: true,
+      editLabel: `Edit preferred spots for ${studioName}`,
+      hideClear: true
     });
   } catch (err) {
     console.error('[AutoBook] Edit modal failed:', err);
@@ -687,68 +614,96 @@ async function saveAutoBookEdit(entryId, studioId, slots, rows, qty, bookAny, cl
   }
 }
 
-function renderHistory(history) {
-  // Set the collapsible header glyphs (cheap; runs once per render)
-  const histIcon = document.querySelector('.ab-history-icon');
-  if (histIcon) histIcon.innerHTML = icon('history', 20);
-  const chevron = document.getElementById('psycle-autobook-history-chevron');
-  if (chevron) chevron.innerHTML = icon('chevron', 18);
+const HISTORY_PAGE_SIZE = 10;
+let _historyAll = [];
+let _historyPage = 0;
 
+function renderHistory(history) {
+  // Wire the collapsible toggle once
+  const toggle = document.getElementById('psycle-autobook-history-toggle');
+  const content = document.getElementById('psycle-autobook-history-content');
+  const chevron = document.getElementById('psycle-autobook-history-chevron');
+  const histIcon = document.querySelector('.ab-history-icon');
+  if (histIcon) histIcon.innerHTML = icon('history', 18);
+  if (chevron) chevron.innerHTML = icon('chevron', 18);
+  if (toggle && !toggle.dataset.listener) {
+    toggle.dataset.listener = 'true';
+    toggle.addEventListener('click', () => {
+      const open = content.style.display !== 'none';
+      content.style.display = open ? 'none' : 'block';
+      toggle.classList.toggle('is-open', !open);
+    });
+  }
+
+  history.sort((a, b) => new Date(b.executed_at) - new Date(a.executed_at));
+  _historyAll = history;
+  _historyPage = 0;
+  renderHistoryPage();
+}
+
+function renderHistoryPage() {
   const list = document.getElementById('psycle-autobook-history-list');
+  const paginationEl = document.getElementById('psycle-autobook-history-pagination');
   if (!list) return;
 
-  if (history.length === 0) {
+  if (_historyAll.length === 0) {
     list.innerHTML = '<div class="psycle-table-empty">No execution history recorded in the last 24h.</div>';
+    if (paginationEl) paginationEl.innerHTML = '';
     return;
   }
 
-  // Sort: most recent first
-  history.sort((a, b) => new Date(b.executed_at) - new Date(a.executed_at));
+  const start = _historyPage * HISTORY_PAGE_SIZE;
+  const page = _historyAll.slice(start, start + HISTORY_PAGE_SIZE);
+  const totalPages = Math.ceil(_historyAll.length / HISTORY_PAGE_SIZE);
 
   list.innerHTML = '';
-  history.forEach(h => {
+  page.forEach(h => {
     const executedDt = new Date(h.executed_at);
+    const dateStr = executedDt.toLocaleString('en-GB', {
+      weekday: 'short', day: 'numeric', month: 'short', timeZone: 'Europe/London'
+    });
     const timeStr = executedDt.toLocaleString('en-GB', {
-      day: 'numeric',
-      month: 'short',
-      hour: '2-digit',
-      minute: '2-digit',
-      hour12: false,
-      timeZone: 'Europe/London'
+      hour: '2-digit', minute: '2-digit', hour12: false, timeZone: 'Europe/London'
     });
 
-    // status → { state class, pill text, glyph }
-    let state, statusText, glyph;
-    if (h.status === 'success') {
-      state = 'success'; statusText = 'Successfully booked'; glyph = 'check';
-    } else if (h.status === 'waitlist') {
-      state = 'waitlist'; statusText = 'Joined waitlist'; glyph = 'clock';
-    } else {
-      state = 'failed'; statusText = h.execution_message || 'Failed'; glyph = 'bang';
-    }
+    let state, statusText, statusGlyph;
+    if (h.status === 'success')      { state = 'success';  statusText = 'Booked';     statusGlyph = 'checkCircle'; }
+    else if (h.status === 'waitlist') { state = 'waitlist'; statusText = 'Waitlisted'; statusGlyph = 'clock'; }
+    else                              { state = 'failed';   statusText = 'Failed';     statusGlyph = 'error'; }
 
-    const locationLine = [h.studio_name, trimLocation(h.location_name)].filter(Boolean).join(' · ');
+    const className = h.class_name || h.group_name || 'Class';
+    const details = [
+      `${dateStr} · ${timeStr}`,
+      h.instructor_name,
+      [h.studio_name, trimLocation(h.location_name)].filter(Boolean).join(', ')
+    ].filter(Boolean).join(' · ');
 
-    const row = document.createElement('div');
-    row.className = `ab-history-row state-${state}`;
-    row.innerHTML = `
-      <div class="ab-history-row-main">
-        <div class="ab-history-row-head">
-          ${disciplineTag(h.group_name || h.class_name)}
-          <span class="ab-history-class">${h.class_name || 'Class'}</span>
-        </div>
-        <div class="ab-history-row-sub">
-          ${h.instructor_name ? `<strong>${h.instructor_name}</strong>` : ''}${locationLine ? ` — ${locationLine}` : ''}
-        </div>
-        <span class="ab-history-status state-${state}">${statusText}</span>
+    const card = document.createElement('div');
+    card.className = `ab-hist-card state-${state}`;
+    card.innerHTML = `
+      <div class="ab-hist-row1">
+        <div class="ab-hist-name">${disciplineTag(h.group_name || h.class_name)}<span class="ab-card-class">${className}</span></div>
+        <span class="ab-history-status state-${state}">${icon(statusGlyph, 12)} ${statusText}</span>
       </div>
-      <div class="ab-history-row-end">
-        <span class="ab-history-time">${timeStr}</span>
-        <span class="ab-history-glyph state-${state}">${icon(glyph, 18)}</span>
-      </div>
+      <div class="ab-hist-row2">${details}</div>
     `;
-    list.appendChild(row);
+    list.appendChild(card);
   });
+
+  // Pagination controls
+  if (paginationEl) {
+    if (totalPages <= 1) {
+      paginationEl.innerHTML = '';
+    } else {
+      paginationEl.innerHTML = `
+        <button class="ab-hist-page-btn" id="ab-hist-prev" ${_historyPage === 0 ? 'disabled' : ''}>${icon('chevron', 14)} Prev</button>
+        <span class="ab-hist-page-info">${_historyPage + 1} / ${totalPages}</span>
+        <button class="ab-hist-page-btn" id="ab-hist-next" ${_historyPage >= totalPages - 1 ? 'disabled' : ''}>Next ${icon('chevron', 14)}</button>
+      `;
+      paginationEl.querySelector('#ab-hist-prev')?.addEventListener('click', () => { _historyPage--; renderHistoryPage(); });
+      paginationEl.querySelector('#ab-hist-next')?.addEventListener('click', () => { _historyPage++; renderHistoryPage(); });
+    }
+  }
 }
 
 // Banner countdown: drop precision as the target nears.
@@ -787,7 +742,7 @@ function updateCountdowns() {
   // 1. Update global Monday 12PM countdown (colour handled by banner state classes)
   if (mainCountdown) {
     let paused = false, urgent = false, active = false;
-    let statusGlyph = 'checkCircle', statusLabel = 'Ready to book';
+    let statusGlyph = 'checkCircle', statusLabel = 'Standing by to book';
     if (userSettings.autoBookPaused) {
       mainCountdown.textContent = 'Paused';
       paused = true;

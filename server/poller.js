@@ -249,7 +249,7 @@ async function executeAutoUpgradeChecks() {
 
       // Class already started or ≤1h away — hard stop
       if (hoursUntilClass <= 1) {
-        db.updateAutoUpgrade(upgrade.id, upgrade.user_id, 'stopped', 'Class is within 1 hour — monitoring stopped.', { lastCheckedAt: now.toISOString() });
+        db.updateAutoUpgrade(upgrade.id, upgrade.user_id, 'stopped', 'Class is within 1 hour — monitoring stopped.', { lastCheckedAt: now.toISO() });
         continue;
       }
 
@@ -264,16 +264,16 @@ async function executeAutoUpgradeChecks() {
             prefs.cutoffAttempted = true;
             db.updateAutoUpgrade(upgrade.id, upgrade.user_id, 'active', 'Running final upgrade attempt within 12h window...', {
               preferences: prefs,
-              lastCheckedAt: now.toISOString()
+              lastCheckedAt: now.toISO()
             });
             await attemptUpgradeSlot(upgrade, true);
           } else {
             // Already ran the one cutoff attempt — stop
-            db.updateAutoUpgrade(upgrade.id, upgrade.user_id, 'stopped', 'Final 12h upgrade attempt already made. Monitoring stopped.', { lastCheckedAt: now.toISOString() });
+            db.updateAutoUpgrade(upgrade.id, upgrade.user_id, 'stopped', 'Final 12h upgrade attempt already made. Monitoring stopped.', { lastCheckedAt: now.toISO() });
           }
         } else {
           // Not opted in — stop at 12h, no attempt
-          db.updateAutoUpgrade(upgrade.id, upgrade.user_id, 'stopped', 'Stopped at 12h cutoff to avoid cancellation penalty.', { lastCheckedAt: now.toISOString() });
+          db.updateAutoUpgrade(upgrade.id, upgrade.user_id, 'stopped', 'Stopped at 12h cutoff to avoid cancellation penalty.', { lastCheckedAt: now.toISO() });
           pushService.sendNotification(upgrade.user_id, 'Upgrade Monitor Stopped ⏳', `No better seat found for ${upgrade.class_name} before the 12h cutoff.`);
         }
         continue;

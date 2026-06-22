@@ -184,24 +184,8 @@
             <h3>Active Bookings</h3>
             <span id="psycle-bookings-refreshing" class="psycle-refreshing-chip" style="display: none;"><span class="psycle-spinner"></span> Refreshing...</span>
           </div>
-          <div class="psycle-table-wrapper">
-            <table class="psycle-table">
-              <thead>
-                <tr>
-                  <th>Class</th>
-                  <th>Instructor</th>
-                  <th>Studio / Location</th>
-                  <th>Start Time</th>
-                  <th>Slot</th>
-                  <th>Actions</th>
-                </tr>
-              </thead>
-              <tbody id="psycle-bookings-table-body">
-                <tr>
-                  <td colspan="6" class="psycle-table-empty">No active bookings found.</td>
-                </tr>
-              </tbody>
-            </table>
+          <div id="psycle-bookings-list" class="psycle-bookings-list">
+            <div class="fav-empty-state" style="padding: 30px 0;">No active bookings found.</div>
           </div>
         </div>
 
@@ -210,23 +194,8 @@
             <h3>Active Waitlists</h3>
             <span id="psycle-waitlists-refreshing" class="psycle-refreshing-chip" style="display: none;"><span class="psycle-spinner"></span> Refreshing...</span>
           </div>
-          <div class="psycle-table-wrapper">
-            <table class="psycle-table">
-              <thead>
-                <tr>
-                  <th>Class</th>
-                  <th>Instructor</th>
-                  <th>Studio / Location</th>
-                  <th>Start Time</th>
-                  <th>Actions</th>
-                </tr>
-              </thead>
-              <tbody id="psycle-waitlists-table-body">
-                <tr>
-                  <td colspan="5" class="psycle-table-empty">No active waitlists found.</td>
-                </tr>
-              </tbody>
-            </table>
+          <div id="psycle-waitlists-list" class="psycle-bookings-list">
+            <div class="fav-empty-state" style="padding: 30px 0;">No active waitlists found.</div>
           </div>
         </div>
 
@@ -251,28 +220,27 @@
         </div>
 
         <!-- Scrollable body (queue + history) -->
-        <div class="psycle-body ab-body">
+        <div class="ab-body">
           <!-- Queue -->
           <div class="ab-queue-section">
-            <h2 class="ab-page-title">Auto-Book Queue</h2>
+            <h2 class="ab-page-title">⚡︎ Auto-Book Queue</h2>
             <div class="psycle-queue-list ab-queue-list" id="psycle-autobook-queue-container">
               <!-- Scheduled bookings will be rendered here as list cards -->
             </div>
           </div>
 
-          <!-- History -->
+          <!-- History (collapsible, closed by default) -->
           <div class="ab-history-card">
             <button id="psycle-autobook-history-toggle" class="ab-history-toggle" type="button">
               <span class="ab-history-toggle-label">
                 <span class="ab-history-icon" aria-hidden="true"></span>
-                <h3>History</h3>
+                <h2 class="ab-page-title" style="margin:0;">History</h2>
               </span>
               <span id="psycle-autobook-history-chevron" class="ab-history-chevron" aria-hidden="true"></span>
             </button>
-            <div id="psycle-autobook-history-content" style="display: none;">
-              <div class="ab-history-list" id="psycle-autobook-history-list">
-                <div class="psycle-table-empty">No execution history recorded in the last 24h.</div>
-              </div>
+            <div id="psycle-autobook-history-content" style="display:none;">
+              <div class="ab-history-list" id="psycle-autobook-history-list"></div>
+              <div class="ab-history-pagination" id="psycle-autobook-history-pagination"></div>
             </div>
           </div>
         </div>

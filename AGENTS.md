@@ -8,15 +8,16 @@ Server + PWA migration of the [Psycle Chrome Extension](https://github.com/piers
 
 ## Key Reference
 
-- `PROJECT.md` — Complete architecture, API reference, data structures, auth flow, migration plan. Read this first.
-- `EXTENSION_SPEC.md` — Feature-by-feature spec of the Chrome extension with exact logic and copy. The PWA must replicate this (function, UX, logic, and wording).
+- `Documentation/PROJECT.md` — Complete architecture, API reference, data structures, auth flow, migration plan. Read this first.
+- `Documentation/EXTENSION_SPEC.md` — Feature-by-feature spec of the Chrome extension with exact logic and copy. The PWA must replicate this (function, UX, logic, and wording).
+- `Documentation/marianatek.md` — Mariana Tek platform research, feature gap analysis, multi-provider architecture plan, and level-of-effort estimate for supporting studios on Mariana Tek.
 - Parent `../browser_extension/` — Chrome Extension source code (the system being ported). Key files:
   - `content.js` (~10k lines) — All extension UI and logic, runs in ISOLATED world
   - `interceptor.js` — Network interceptor + Vue bridge, runs in MAIN world
   - `styles.css` (~3.2k lines) — Liquid glass UI styles
   - `manifest.json` — V3 manifest, content script config
-- Parent `../api_documentation.md` — CodexFit API endpoint reference
-- Parent `../website_function_documentation.md` — How the native website renders the timetable
+- `Documentation/api_documentation.md` — CodexFit API endpoint reference
+- `Documentation/website_function_documentation.md` — How the native website renders the timetable
 
 ## Project Structure
 

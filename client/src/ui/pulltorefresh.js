@@ -18,6 +18,7 @@
 const PULL_THRESHOLD = 80; // px needed to trigger refresh
 const RESISTANCE = 0.5; // pull feels like half the actual drag distance
 const MAX_PULL = 120; // cap visual displacement
+const INDICATOR_HEIGHT = 56; // must match .psycle-pull-indicator height in CSS
 
 export function setupPullToRefresh(scrollEl, onRefresh) {
   if (!scrollEl) return () => {};
@@ -29,6 +30,18 @@ export function setupPullToRefresh(scrollEl, onRefresh) {
   let isRefreshing = false;
   let indicator = null;
 
+  // iOS momentum scroll can carry scrollTop to 0 while the finger is still moving.
+  // Track recent scroll activity so we don't misfire pull-to-refresh when the user
+  // was scrolling upward and momentum just hit the top.
+  let wasScrolling = false;
+  let scrollCooldownTimer = null;
+  function onScroll() {
+    wasScrolling = true;
+    clearTimeout(scrollCooldownTimer);
+    scrollCooldownTimer = setTimeout(() => { wasScrolling = false; }, 200);
+  }
+  scrollEl.addEventListener('scroll', onScroll, { passive: true });
+
   // Create the pull indicator element (inserted above scroll content)
   function createIndicator() {
     if (indicator) return indicator;
@@ -38,7 +51,10 @@ export function setupPullToRefresh(scrollEl, onRefresh) {
       <div class="psycle-spinner"></div>
       <span class="psycle-pull-text">Pull to refresh</span>
     `;
-    indicator.style.transform = 'translateY(-100%)';
+    // Start fully hidden above with no layout footprint (margin-top = -height).
+    // Transition is disabled here; it's re-enabled on release for snap animations.
+    indicator.style.transition = 'none';
+    indicator.style.marginTop = `-${INDICATOR_HEIGHT}px`;
     // Insert as first child of the scroll element so it scrolls with content
     scrollEl.insertBefore(indicator, scrollEl.firstChild);
     return indicator;
@@ -50,17 +66,24 @@ export function setupPullToRefresh(scrollEl, onRefresh) {
     const spinner = ind.querySelector('.psycle-spinner');
 
     if (isRefreshing) {
-      ind.style.transform = `translateY(0)`;
+      // Re-enable CSS transition for the snap-to-visible animation
+      ind.style.transition = '';
+      ind.style.marginTop = '0px';
       text.textContent = 'Refreshing...';
       spinner.style.display = '';
     } else if (delta >= PULL_THRESHOLD) {
-      ind.style.transform = `translateY(0)`;
+      // Past threshold — fully revealed, no transition so it follows the finger
+      ind.style.transition = 'none';
+      ind.style.marginTop = '0px';
       text.textContent = 'Release to refresh';
       spinner.style.display = 'none';
     } else {
-      // Move indicator down proportionally (peeks out from top)
+      // Proportionally reveal as the user pulls: margin-top goes from
+      // -INDICATOR_HEIGHT (hidden) toward 0 (fully visible) as delta → PULL_THRESHOLD.
+      // No transition — must track the finger in real time.
+      ind.style.transition = 'none';
       const progress = delta / PULL_THRESHOLD;
-      ind.style.transform = `translateY(${-100 + progress * 100}%)`;
+      ind.style.marginTop = `${-INDICATOR_HEIGHT + progress * INDICATOR_HEIGHT}px`;
       text.textContent = 'Pull to refresh';
       spinner.style.display = 'none';
     }
@@ -68,8 +91,10 @@ export function setupPullToRefresh(scrollEl, onRefresh) {
 
   function removeIndicator() {
     if (indicator) {
-      indicator.style.transform = 'translateY(-100%)';
-      // Remove after transition
+      // Re-enable CSS transition so the snap-back animates smoothly
+      indicator.style.transition = '';
+      indicator.style.marginTop = `-${INDICATOR_HEIGHT}px`;
+      // Remove after transition completes
       setTimeout(() => {
         if (indicator && indicator.parentNode) {
           indicator.parentNode.removeChild(indicator);
@@ -83,8 +108,10 @@ export function setupPullToRefresh(scrollEl, onRefresh) {
     if (isRefreshing) return;
     // Only track single-finger touches
     if (e.touches.length !== 1) return;
-    // Only start pull tracking if at the top of the scroll container
-    if (scrollEl.scrollTop > 0) {
+    // Only start pull tracking if at the top AND not still decelerating there.
+    // wasScrolling stays true for 200ms after the last scroll event, which covers
+    // the window where iOS momentum may have just carried scrollTop to 0.
+    if (scrollEl.scrollTop > 0 || wasScrolling) {
       isPulling = false;
       return;
     }
@@ -159,6 +186,8 @@ export function setupPullToRefresh(scrollEl, onRefresh) {
     scrollEl.removeEventListener('touchmove', onTouchMove);
     scrollEl.removeEventListener('touchend', onTouchEnd);
     scrollEl.removeEventListener('touchcancel', onTouchEnd);
+    scrollEl.removeEventListener('scroll', onScroll);
+    clearTimeout(scrollCooldownTimer);
     if (indicator && indicator.parentNode) {
       indicator.parentNode.removeChild(indicator);
     }

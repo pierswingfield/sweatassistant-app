@@ -620,7 +620,10 @@ async function getActiveStudioIds() {
     const events = await cacheGet('psycleCacheEvents');
     if (events && Array.isArray(events) && events.length > 0) {
       const ids = new Set();
-      events.forEach(ev => { if (ev.studio_id) ids.add(ev.studio_id); });
+      events.forEach(ev => {
+        const id = ev.studio_id || ev.studio?.id;
+        if (id) ids.add(id);
+      });
       // Persist to localStorage
       localStorage.setItem(ACTIVE_STUDIO_IDS_KEY, JSON.stringify([...ids]));
       localStorage.setItem(ACTIVE_STUDIO_IDS_TIME_KEY, String(Date.now()));
@@ -659,17 +662,27 @@ async function openManageSpotMapsModal() {
   overlay.addEventListener('click', e => { if (e.target === overlay) close(); });
 
   try {
-    const [prefs, studiosRes, activeStudioIds] = await Promise.all([
+    const [prefs, cachedMeta, cachedEvents] = await Promise.all([
       api.getStudioPreferences(),
-      cache.studios?.length > 0 ? Promise.resolve(cache.studios) : api.proxyGet('/studios').then(r => {
-        const s = r.data || r || [];
-        cache.studios = s;
-        return s;
-      }),
-      getActiveStudioIds()
+      cacheGet('psycleCacheMeta'),
+      cacheGet('psycleCacheEvents')
     ]);
 
-    let locations = cache.locations || [];
+    // Studios from the timetable metadata cache (built from event relations) include full
+    // layout.slots data — the /studios list endpoint omits slots for some studios (e.g. Reformer).
+    const studios = cachedMeta?.studios || [];
+
+    // Build a set of studio IDs that actually have upcoming events, to exclude defunct studios
+    // that appear in API relations but no longer have any classes scheduled.
+    const activeStudioIds = new Set();
+    if (cachedEvents?.length > 0) {
+      cachedEvents.forEach(ev => {
+        const id = ev.studio_id || ev.studio?.id;
+        if (id) activeStudioIds.add(id);
+      });
+    }
+
+    let locations = cachedMeta?.locations || cache.locations || [];
     if (!locations.length) {
       try {
         const locRes = await api.proxyGet('/locations');
@@ -680,7 +693,6 @@ async function openManageSpotMapsModal() {
       }
     }
 
-    const studios = studiosRes || cache.studios || [];
     renderManageSpotMapsModal(prefs, studios, locations, body, close, activeStudioIds);
   } catch (err) {
     body.innerHTML = `<div class="psycle-card-error" style="padding:16px;">Error loading studios: ${err.message}</div>`;
@@ -691,15 +703,12 @@ function renderManageSpotMapsModal(prefs, studios, locations, container, onClose
   const locMap = {};
   locations.forEach(loc => { locMap[loc.id] = loc.name; });
 
-  // Filter to only studios with active classes in the timetable.
-  // activeStudioIds is a Set of studio IDs (from cached timetable events, 24h TTL).
-  // If null, no timetable data is available — show a prompt instead of all studios.
-  const hasActiveFilter = activeStudioIds !== null && activeStudioIds.size > 0;
+  const hasActiveFilter = activeStudioIds && activeStudioIds.size > 0;
 
   const grouped = {};
   studios.forEach(studio => {
-    if (!studio.layout?.slots || studio.layout.slots.length === 0) return; // only studios with layouts
-    if (hasActiveFilter && !activeStudioIds.has(studio.id)) return; // only studios with active classes
+    if (!studio.layout?.slots || studio.layout.slots.length === 0) return; // only studios with seat maps
+    if (hasActiveFilter && !activeStudioIds.has(studio.id)) return; // exclude defunct studios
     const locName = locMap[studio.location_id] || 'Unknown Location';
     if (!grouped[locName]) grouped[locName] = [];
     grouped[locName].push(studio);
@@ -709,8 +718,8 @@ function renderManageSpotMapsModal(prefs, studios, locations, container, onClose
   container.innerHTML = '';
 
   if (sortedLocs.length === 0) {
-    const noTimetable = activeStudioIds === null;
-    container.innerHTML = `<div style="text-align:center;padding:24px;color:var(--text-secondary);"><div style="font-size:32px;margin-bottom:12px;">🗺️</div><p style="margin:0;">${noTimetable ? 'No Timetable Data' : 'No Active Studios'}</p><p style="font-size:12px;margin:8px 0 0 0;">${noTimetable ? 'Please open the Timetable tab first to load classes, then return here.' : 'No studios with layouts match the current timetable.'}</p></div>`;
+    const noData = studios.length === 0;
+    container.innerHTML = `<div style="text-align:center;padding:24px;color:var(--text-secondary);"><div style="font-size:32px;margin-bottom:12px;">🗺️</div><p style="margin:0;">${noData ? 'No Timetable Data' : 'No Studios With Seat Maps'}</p><p style="font-size:12px;margin:8px 0 0 0;">${noData ? 'Please open the Timetable tab first to load classes, then return here.' : 'No studios with seat layouts were found in the current timetable.'}</p></div>`;
     return;
   }
 
@@ -791,10 +800,9 @@ function renderManageSpotMapsModal(prefs, studios, locations, container, onClose
       studioList.appendChild(row);
     });
 
-    // Collapsible toggle
-    const isOpen = locIdx === 0; // First location open by default
-    studioList.style.display = isOpen ? 'flex' : 'none';
-    if (!isOpen) chevron.style.transform = 'rotate(-90deg)';
+    // Collapsible toggle — all sections start closed
+    studioList.style.display = 'none';
+    chevron.style.transform = 'rotate(-90deg)';
 
     locHeader.addEventListener('click', () => {
       const shown = studioList.style.display !== 'none';

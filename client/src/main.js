@@ -525,11 +525,7 @@ function showOfflineBanner(reason) {
   if (!banner) return;
   const textSpan = banner.querySelector('.offline-text');
   if (textSpan) {
-    if (reason === 'captive-portal' || reason === 'network-error') {
-      textSpan.textContent = "Limited connectivity — check your network. Showing cached data.";
-    } else {
-      textSpan.textContent = "You're offline — showing cached data. Actions are disabled.";
-    }
+    textSpan.textContent = "You're offline! Some features are unavailable.";
   }
   if (banner.style.display === 'flex') return;
   banner.style.display = 'flex';

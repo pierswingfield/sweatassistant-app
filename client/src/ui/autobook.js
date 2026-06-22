@@ -1,4 +1,4 @@
-import { api, isLastResponseStale } from '../api';
+import { api } from '../api';
 import { showToast, cache, userSettings, refreshUserData } from '../main';
 import { getClassReleaseTime, getNextMondayNoonLondon } from '../lib';
 import { renderStudioFloorPlan } from './spotmap';
@@ -86,9 +86,6 @@ function connectToAutoBookStream() {
         const history = data.filter(x => x.executed_at);
         renderQueue(active);
         renderHistory(history);
-        // Update stale badge visibility
-        const badge = document.querySelector('.ab-queue-section .psycle-stale-badge');
-        if (badge) badge.classList.toggle('show', isLastResponseStale());
       }
     }).catch(() => { /* offline — silently ignore, native reconnect will retry */ });
   };
@@ -355,19 +352,6 @@ async function renderAutoBookTab() {
     }
   }
 
-  // Stale badge — toggle visibility based on cache staleness
-  const queueSection = document.querySelector('.ab-queue-section');
-  if (queueSection) {
-    let badge = queueSection.querySelector('.psycle-stale-badge');
-    if (!badge) {
-      badge = document.createElement('span');
-      badge.className = 'psycle-stale-badge';
-      badge.textContent = 'Cached';
-      const title = queueSection.querySelector('h2');
-      if (title) title.after(badge);
-    }
-    badge.classList.toggle('show', isLastResponseStale());
-  }
 }
 
 

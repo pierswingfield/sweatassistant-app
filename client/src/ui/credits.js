@@ -1,4 +1,4 @@
-import { api, isLoggedIn, isLastResponseStale } from '../api';
+import { api, isLoggedIn } from '../api';
 import { showToast, cache } from '../main';
 
 // Use same localStorage key as Chrome Extension for cross-compatibility.
@@ -60,20 +60,6 @@ export async function initBundles() {
     }
   }
 
-  // Stale badge — toggle visibility based on cache staleness
-  const tabHeader = document.querySelector('#psycle-panel-buy-credits .psycle-tab-header');
-  if (tabHeader) {
-    let badge = tabHeader.querySelector('.psycle-stale-badge');
-    if (!badge) {
-      badge = document.createElement('span');
-      badge.className = 'psycle-stale-badge';
-      badge.textContent = 'Cached';
-      const p = tabHeader.querySelector('p');
-      if (p) p.after(badge);
-      else tabHeader.appendChild(badge);
-    }
-    badge.classList.toggle('show', isLastResponseStale());
-  }
 }
 
 function getFilterEls() {

@@ -152,7 +152,7 @@ export function initTooltips() {
         positionTooltip(target, occupancyTooltip);
 
         try {
-          const res = await api.proxyGet(`/events/${eventId}`);
+          const res = await api.proxyGet(`/events/${eventId}`, { ttlMs: 120000 });
           eventDetailsCache.set(eventId, res);
           if (activeOccupancyHoverTarget === target) {
             renderMinimap(res, occupancyTooltip);

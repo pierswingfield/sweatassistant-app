@@ -10,4 +10,5 @@ node_modules/
 *.sqlite-shm
 *.sqlite-wal
 client/dist/
+server/public/
 .DS_Store

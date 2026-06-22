@@ -1,4 +1,5 @@
 import { debugLog } from './main.js';
+import { getCachedSWR, clearApiCache, setCacheKeyPrefix, invalidateApiCache } from './cache.js';
 
 // API Abstraction layer for communicating with the Psycle PWA server
 
@@ -19,6 +20,20 @@ export function getToken() {
 
 export function isLoggedIn() {
   return !!localToken;
+}
+
+  // Cache staleness tracking — last cached GET response was stale
+let lastResponseStale = false;
+export function isLastResponseStale() { return lastResponseStale; }
+
+// Invalidate cached proxy GET responses for a given path after a mutation.
+// Extracts the base resource (e.g., '/bookings' from '/bookings/123') and
+// invalidates all cached entries under '/api/proxy/bookings'.
+function invalidateProxyCache(path) {
+  const cleanPath = path.split('?')[0];
+  const segments = cleanPath.split('/').filter(Boolean);
+  const base = segments.length > 0 ? '/' + segments[0] : '';
+  invalidateApiCache('/api/proxy' + base).catch(() => {});
 }
 
 // Global fetch wrapper with local auth and Cloudflare Zero Trust Access support
@@ -45,7 +60,15 @@ export async function apiFetch(endpoint, options = {}) {
     credentials: 'same-origin'
   };
 
-  const res = await fetch(url, fetchOptions);
+  let res;
+  try {
+    res = await fetch(url, fetchOptions);
+  } catch (err) {
+    window.dispatchEvent(new CustomEvent('psycle-network-fail'));
+    throw err;
+  }
+
+  window.dispatchEvent(new CustomEvent('psycle-network-ok'));
 
   if (res.status === 401 && localToken) {
     // Session expired locally or backend CodexFit token expired
@@ -81,8 +104,14 @@ export const api = {
   },
 
   // CodexFit API Proxy
-  async proxyGet(path) {
+  async proxyGet(path, options = {}) {
+    const { ttlMs } = options;
     debugLog(`GET ${path}`, 'network');
+    if (ttlMs) {
+      const result = await getCachedSWR(`/api/proxy${path}`, { ttlMs, fetcher: apiFetch });
+      lastResponseStale = result.stale;
+      return result.data;
+    }
     const res = await apiFetch(`/api/proxy${path}`);
     if (!res.ok) {
       const err = await res.json().catch(() => ({}));
@@ -101,6 +130,7 @@ export const api = {
       const err = await res.json().catch(() => ({}));
       throw new Error(err.message || `Proxy POST failed: ${res.status}`);
     }
+    invalidateProxyCache(path);
     return res.json();
   },
 
@@ -115,8 +145,10 @@ export const api = {
     }
     // Handle 204 No Content (no response body)
     if (res.status === 204) {
+      invalidateProxyCache(path);
       return {};
     }
+    invalidateProxyCache(path);
     return res.json();
   },
 
@@ -130,13 +162,15 @@ export const api = {
       const err = await res.json().catch(() => ({}));
       throw new Error(err.message || `Proxy PUT failed: ${res.status}`);
     }
+    invalidateProxyCache(path);
     return res.json();
   },
 
   // Auto-Book Queue
   async getAutoBookings() {
-    const res = await apiFetch('/api/auto-book');
-    return res.json();
+    const result = await getCachedSWR('/api/auto-book', { ttlMs: 30000, fetcher: apiFetch });
+    lastResponseStale = result.stale;
+    return result.data;
   },
 
   async addAutoBooking(bookingData) {
@@ -144,6 +178,7 @@ export const api = {
       method: 'POST',
       body: JSON.stringify(bookingData)
     });
+    if (res.ok) invalidateApiCache('/api/auto-book').catch(() => {});
     return res.json();
   },
 
@@ -152,6 +187,7 @@ export const api = {
       method: 'PUT',
       body: JSON.stringify({ preferences })
     });
+    if (res.ok) invalidateApiCache('/api/auto-book').catch(() => {});
     return res.json();
   },
 
@@ -159,6 +195,7 @@ export const api = {
     const res = await apiFetch(`/api/auto-book/${id}`, {
       method: 'DELETE'
     });
+    if (res.ok) invalidateApiCache('/api/auto-book').catch(() => {});
     return res.json();
   },
 
@@ -169,8 +206,9 @@ export const api = {
 
   // Auto-Upgrade
   async getAutoUpgrades() {
-    const res = await apiFetch('/api/auto-upgrade');
-    return res.json();
+    const result = await getCachedSWR('/api/auto-upgrade', { ttlMs: 30000, fetcher: apiFetch });
+    lastResponseStale = result.stale;
+    return result.data;
   },
 
   async addAutoUpgrade(upgradeData) {
@@ -182,6 +220,7 @@ export const api = {
       const err = await res.json().catch(() => ({}));
       throw new Error(err.message || 'Failed to add auto-upgrade monitor');
     }
+    invalidateApiCache('/api/auto-upgrade').catch(() => {});
     return res.json();
   },
 
@@ -194,6 +233,7 @@ export const api = {
       const err = await res.json().catch(() => ({}));
       throw new Error(err.message || 'Failed to update auto-upgrade monitor');
     }
+    invalidateApiCache('/api/auto-upgrade').catch(() => {});
     return res.json();
   },
 
@@ -201,13 +241,15 @@ export const api = {
     const res = await apiFetch(`/api/auto-upgrade/${id}`, {
       method: 'DELETE'
     });
+    if (res.ok) invalidateApiCache('/api/auto-upgrade').catch(() => {});
     return res.json();
   },
 
   // Settings & Preferences
   async getSettings() {
-    const res = await apiFetch('/api/settings');
-    return res.json();
+    const result = await getCachedSWR('/api/settings', { ttlMs: 300000, fetcher: apiFetch });
+    lastResponseStale = result.stale;
+    return result.data;
   },
 
   async updateSettings(settings) {
@@ -215,12 +257,14 @@ export const api = {
       method: 'PUT',
       body: JSON.stringify(settings)
     });
+    if (res.ok) invalidateApiCache('/api/settings').catch(() => {});
     return res.json();
   },
 
   async getStudioPreferences() {
-    const res = await apiFetch('/api/studio-preferences');
-    return res.json();
+    const result = await getCachedSWR('/api/studio-preferences', { ttlMs: 300000, fetcher: apiFetch });
+    lastResponseStale = result.stale;
+    return result.data;
   },
 
   async updateStudioPreferences(studioId, preferences) {
@@ -228,6 +272,7 @@ export const api = {
       method: 'PUT',
       body: JSON.stringify({ preferences })
     });
+    if (res.ok) invalidateApiCache('/api/studio-preferences').catch(() => {});
     return res.json();
   },
 
@@ -242,6 +287,7 @@ export const api = {
       method: 'POST',
       body: JSON.stringify(configData)
     });
+    if (res.ok) invalidateApiCache('').catch(() => {});
     return res.json();
   },
 
@@ -315,12 +361,14 @@ export const api = {
       const err = await res.json().catch(() => ({}));
       throw new Error(err.message || 'Failed to add bundle to cart');
     }
+    invalidateApiCache('/api/cart').catch(() => {});
     return res.json();
   },
 
   async getCart() {
-    const res = await apiFetch('/api/cart');
-    return res.json();
+    const result = await getCachedSWR('/api/cart', { ttlMs: 120000, fetcher: apiFetch });
+    lastResponseStale = result.stale;
+    return result.data;
   },
 
   // In-app checkout: add bundle (qty times) + fetch saved cards
@@ -350,3 +398,9 @@ export const api = {
     return res.json();
   }
 };
+
+// Clear API response cache on logout to prevent cross-user data leakage
+window.addEventListener('psycle-logout-triggered', () => {
+  setCacheKeyPrefix('');
+  clearApiCache().catch(() => {});
+});

@@ -1,9 +1,22 @@
-import { api, apiFetch } from '../api';
+import { api, apiFetch, isLastResponseStale } from '../api';
 import { showToast, togglePushSubscription, updatePushStatusUI, userSettings, cache, getTheme, setTheme } from '../main';
 import { renderStudioFloorPlan } from './spotmap';
 import { cacheGet } from './timetable';
+import { clearApiCache } from '../cache.js';
 
 let loadedProfile = null;
+
+// Module-level stale badge reference — created once in initSettings, toggled after proxyGet calls
+let staleBadge = null;
+
+function updateStaleBadge() {
+  if (!staleBadge) return;
+  if (isLastResponseStale()) {
+    staleBadge.classList.add('show');
+  } else {
+    staleBadge.classList.remove('show');
+  }
+}
 
 // ─── Profile Explorer — Unified Implementation ─────────────────────────────
 
@@ -219,11 +232,12 @@ async function openProfileExplorerModal() {
   setupExplorerKonamiListener();
 
   try {
-    const res = await api.proxyGet('/profile');
+    const res = await api.proxyGet('/profile', { ttlMs: 300000 });
     loadedProfile = res.data || res;
+    updateStaleBadge();
     renderExplorerBody(body);
   } catch (err) {
-    body.innerHTML = `<div class="psycle-card-error">Failed to load profile: ${err.message}</div>`;
+    body.innerHTML = `<div class="psycle-card-error">Unable to load profile data. Connect to the internet to sync. (${err.message})</div>`;
   }
 }
 
@@ -685,9 +699,10 @@ async function openManageSpotMapsModal() {
     let locations = cachedMeta?.locations || cache.locations || [];
     if (!locations.length) {
       try {
-        const locRes = await api.proxyGet('/locations');
+        const locRes = await api.proxyGet('/locations', { ttlMs: 3600000 });
         locations = locRes.data || locRes || [];
         cache.locations = locations;
+        updateStaleBadge();
       } catch (e) {
         locations = [];
       }
@@ -695,7 +710,7 @@ async function openManageSpotMapsModal() {
 
     renderManageSpotMapsModal(prefs, studios, locations, body, close, activeStudioIds);
   } catch (err) {
-    body.innerHTML = `<div class="psycle-card-error" style="padding:16px;">Error loading studios: ${err.message}</div>`;
+    body.innerHTML = `<div class="psycle-card-error" style="padding:16px;">Unable to load studios. Connect to the internet to sync. (${err.message})</div>`;
   }
 }
 
@@ -844,9 +859,10 @@ async function openStudioFloorPlanEditor(studioId, studioName, onSaved) {
 
   try {
     const [studioRes, allPrefs] = await Promise.all([
-      api.proxyGet(`/studios/${studioId}`),
+      api.proxyGet(`/studios/${studioId}`, { ttlMs: 3600000 }),
       api.getStudioPreferences()
     ]);
+    updateStaleBadge();
 
     const studio = studioRes.data || studioRes;
     const layoutSlots = studio?.layout?.slots || [];
@@ -880,7 +896,7 @@ async function openStudioFloorPlanEditor(studioId, studioName, onSaved) {
       bannerHtml: `<div style="font-size:12px;color:var(--feat-autoupgrade);background:color-mix(in srgb, var(--feat-autoupgrade) 8%, transparent);border:1px solid color-mix(in srgb, var(--feat-autoupgrade) 18%, transparent);border-radius:8px;padding:8px 10px;margin-bottom:12px;line-height:1.5;">This is the one shared preferred spot map for <strong>${studioName}</strong>. Quick-Book, Auto-Book, and Auto-Upgrade at this studio all use it — changes apply everywhere.</div>`
     });
   } catch (err) {
-    body.innerHTML = `<div class="psycle-card-error" style="padding:16px;">Error loading floor plan: ${err.message}</div>`;
+    body.innerHTML = `<div class="psycle-card-error" style="padding:16px;">Unable to load floor plan. Connect to the internet to sync. (${err.message})</div>`;
   }
 }
 
@@ -893,6 +909,19 @@ export async function initSettings() {
   // Konami listener is attached on first profile explorer modal open via setupExplorerKonamiListener()
   updatePushStatusUI();
   // Spot Maps section is ready; button opens the modal
+
+  // Stale badge in the tab header — created once, toggled after proxyGet calls
+  const tabHeader = document.querySelector('#psycle-panel-settings .psycle-tab-header');
+  if (tabHeader) {
+    staleBadge = tabHeader.querySelector('.psycle-stale-badge');
+    if (!staleBadge) {
+      staleBadge = document.createElement('span');
+      staleBadge.className = 'psycle-stale-badge';
+      staleBadge.textContent = 'Cached';
+      tabHeader.appendChild(staleBadge);
+    }
+  }
+  updateStaleBadge();
 }
 
 // ─── Theme toggle (Auto / Light / Dark) ──────────────────────────────────────
@@ -1237,8 +1266,10 @@ function setupSettingsListeners() {
     logoutBtn.dataset.listener = 'true';
     logoutBtn.addEventListener('click', () => {
       showToast('Logging out...', 'info');
-      localStorage.removeItem('psycleLocalToken');
-      setTimeout(() => { window.location.reload(); }, 500);
+      clearApiCache().catch(() => {}).finally(() => {
+        localStorage.removeItem('psycleLocalToken');
+        window.location.reload();
+      });
     });
   }
 

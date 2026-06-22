@@ -1,35 +1,17 @@
-import { api } from '../api';
+import { api, isLastResponseStale } from '../api';
 import { showToast, currentUser, userSettings, refreshUserData, updateCreditBadge, cache } from '../main';
 import { getClassReleaseTime, getNextMondayNoonLondon } from '../lib';
 import { DateTime } from 'luxon';
 // === MOBILE TIMETABLE — import renderMinimap (added Jun 2026; delete this block to revert) ===
 import { renderMinimap } from './tooltips.js';
 // === END MOBILE TIMETABLE BLOCK ===
-
-// --- IndexedDB Cache Helper (replaces localStorage for large data) ---
-const CACHE_DB_NAME = 'psycle-cache';
-const CACHE_DB_VERSION = 1;
-const CACHE_STORE = 'cache';
-
-function openCacheDB() {
-  return new Promise((resolve, reject) => {
-    const req = indexedDB.open(CACHE_DB_NAME, CACHE_DB_VERSION);
-    req.onupgradeneeded = () => {
-      const db = req.result;
-      if (!db.objectStoreNames.contains(CACHE_STORE)) {
-        db.createObjectStore(CACHE_STORE);
-      }
-    };
-    req.onsuccess = () => resolve(req.result);
-    req.onerror = () => reject(req.error);
-  });
-}
+import { openDB } from '../cache.js';
 
 async function cacheSet(key, value) {
   try {
-    const db = await openCacheDB();
-    const tx = db.transaction(CACHE_STORE, 'readwrite');
-    tx.objectStore(CACHE_STORE).put(value, key);
+    const db = await openDB();
+    const tx = db.transaction('cache', 'readwrite');
+    tx.objectStore('cache').put(value, key);
     await new Promise((res, rej) => { tx.oncomplete = res; tx.onerror = rej; });
   } catch (e) {
     // Fallback to localStorage for small values
@@ -43,9 +25,9 @@ async function cacheSet(key, value) {
 
 export async function cacheGet(key) {
   try {
-    const db = await openCacheDB();
-    const tx = db.transaction(CACHE_STORE, 'readonly');
-    const req = tx.objectStore(CACHE_STORE).get(key);
+    const db = await openDB();
+    const tx = db.transaction('cache', 'readonly');
+    const req = tx.objectStore('cache').get(key);
     return new Promise((resolve) => {
       req.onsuccess = () => resolve(req.result || null);
       req.onerror = () => resolve(null);
@@ -162,6 +144,7 @@ let isPrefetching = false;
 let prefetchError = null;
 
 let openDropdownId = null;
+let staleBadge = null;
 
 // === MOBILE TIMETABLE — resize listener (added Jun 2026; delete this block to revert) ===
 let lastMobileState = window.matchMedia('(max-width: 768px)').matches;
@@ -179,6 +162,14 @@ export async function initTimetable() {
   loadStoredFilters();
   await loadMetadata();
   setupDropdownFilters();
+  // Create stale badge in tab header
+  const headerEl = document.querySelector('.psycle-tab-header');
+  if (headerEl && !staleBadge) {
+    staleBadge = document.createElement('span');
+    staleBadge.className = 'psycle-stale-badge';
+    staleBadge.textContent = 'Cached';
+    headerEl.appendChild(staleBadge);
+  }
   await prefetchTimetableData();
   // Pull-to-refresh is handled centrally in main.js (attached to the shared
   // <main class="psycle-body"> scroller, dispatched by active tab).
@@ -205,22 +196,22 @@ async function loadMetadata() {
   try {
     const promises = [];
     if (metadata.locations.length === 0) {
-      promises.push(api.proxyGet('/locations').then(res => {
+      promises.push(api.proxyGet('/locations', { ttlMs: 3600000 }).then(res => {
         metadata.locations = Array.isArray(res) ? res : (res.data || []);
       }));
     }
     if (metadata.instructors.length === 0) {
-      promises.push(api.proxyGet('/instructors').then(res => {
+      promises.push(api.proxyGet('/instructors', { ttlMs: 3600000 }).then(res => {
         metadata.instructors = Array.isArray(res) ? res : (res.data || []);
       }));
     }
     if (metadata.eventTypes.length === 0) {
-      promises.push(api.proxyGet('/event-types').then(res => {
+      promises.push(api.proxyGet('/event-types', { ttlMs: 3600000 }).then(res => {
         metadata.eventTypes = Array.isArray(res) ? res : (res.data || []);
       }));
     }
     if (metadata.studios.length === 0) {
-      promises.push(api.proxyGet('/studios').then(res => {
+      promises.push(api.proxyGet('/studios', { ttlMs: 3600000 }).then(res => {
         metadata.studios = Array.isArray(res) ? res : (res.data || []);
       }));
     }
@@ -275,16 +266,24 @@ export async function prefetchTimetableData(force = false) {
         
         // Still refresh bookings/waitlists (they change frequently)
         const [bookingsRes, waitlistsRes] = await Promise.all([
-          api.proxyGet('/bookings?limit=100&page=1'),
-          api.proxyGet('/waitlists?limit=100&page=1')
+          api.proxyGet('/bookings?limit=100&page=1', { ttlMs: 120000 }),
+          api.proxyGet('/waitlists?limit=100&page=1', { ttlMs: 120000 })
         ]);
         userBookings = bookingsRes.data || bookingsRes || [];
         userWaitlists = waitlistsRes.data || waitlistsRes || [];
         cache.bookings = userBookings;
         cache.waitlists = userWaitlists;
-        
+
         isPrefetching = false;
         renderTimetableGrid();
+        // Toggle stale badge after render
+        if (staleBadge) {
+          if (isLastResponseStale()) {
+            staleBadge.classList.add('show');
+          } else {
+            staleBadge.classList.remove('show');
+          }
+        }
         return;
       }
     } catch (e) {
@@ -305,8 +304,8 @@ export async function prefetchTimetableData(force = false) {
   try {
     // 1. Fetch user bookings and waitlists to keep action buttons in sync
     const [bookingsRes, waitlistsRes] = await Promise.all([
-      api.proxyGet('/bookings?limit=100&page=1'),
-      api.proxyGet('/waitlists?limit=100&page=1')
+      api.proxyGet('/bookings?limit=100&page=1', { ttlMs: 120000 }),
+      api.proxyGet('/waitlists?limit=100&page=1', { ttlMs: 120000 })
     ]);
     userBookings = bookingsRes.data || bookingsRes || [];
     userWaitlists = waitlistsRes.data || waitlistsRes || [];
@@ -359,14 +358,23 @@ export async function prefetchTimetableData(force = false) {
     
     isPrefetching = false;
     renderTimetableGrid();
+    // Toggle stale badge after render
+    if (staleBadge) {
+      if (isLastResponseStale()) {
+        staleBadge.classList.add('show');
+      } else {
+        staleBadge.classList.remove('show');
+      }
+    }
   } catch (err) {
     isPrefetching = false;
     prefetchError = err.message;
     console.error('[Timetable] Prefetch failed:', err);
     ttContainer.innerHTML = `
-      <div style="padding: 40px 20px; text-align: center; color: var(--danger);">
-        <p>Error loading timetable: ${err.message}</p>
-        <button id="psycle-timetable-retry-btn" class="psycle-btn variant-danger" style="margin-top: 12px; display: inline-block; width: auto; padding: 8px 16px; border-radius: 8px;">Retry Fetch</button>
+      <div style="padding: 40px 20px; text-align: center; color: var(--text-secondary);">
+        <p style="font-size:16px;margin-bottom:8px">No cached timetable available</p>
+        <p style="font-size:13px;color:var(--text-tertiary)">Connect to the internet to load the timetable.</p>
+        <button id="psycle-timetable-retry-btn" class="psycle-btn variant-danger" style="margin-top: 12px; display: inline-block; width: auto; padding: 8px 16px; border-radius: 8px;">Retry</button>
       </div>
     `;
     const retryBtn = document.getElementById('psycle-timetable-retry-btn');
@@ -1622,7 +1630,7 @@ async function openOccupancyModal(event) {
   modalOverlay.onclick = closeModal;
 
   try {
-    const res = await api.proxyGet(`/events/${event.id}`);
+    const res = await api.proxyGet(`/events/${event.id}`, { ttlMs: 120000 });
     body.innerHTML = '';
     renderMinimap(res, body);
   } catch (err) {
@@ -1795,7 +1803,7 @@ async function quickBookClass(eventId, prefs, btn) {
   const bookAny = prefs.bookAny !== false;
 
   try {
-    const res = await api.proxyGet(`/events/${eventId}`);
+    const res = await api.proxyGet(`/events/${eventId}`, { ttlMs: 120000 });
     const eventData = res.data || res;
     if (!eventData) {
       showToast('Could not load class data.', 'error');
@@ -1952,7 +1960,7 @@ async function openBookingModal(c, mode) {
   await refreshUserData();
 
   try {
-    const res = await api.proxyGet(`/events/${c.id}`);
+    const res = await api.proxyGet(`/events/${c.id}`, { ttlMs: 120000 });
     const eventDetails = res.data || res;
     const studioFromEvent = res.relations?.studios?.[0] || eventDetails.relations?.studios?.[0] || eventDetails.studio || {};
     // Prefer cached layout (it may have been preloaded from /studios at startup)
@@ -2812,7 +2820,7 @@ export async function openDebugModal(event) {
 
   try {
     // Fetch full event data from proxy
-    const res = await api.proxyGet(`/events/${event.id}`);
+    const res = await api.proxyGet(`/events/${event.id}`, { ttlMs: 120000 });
     const eventData = res.data || res;
     const relations = res.relations || eventData.relations || {};
 

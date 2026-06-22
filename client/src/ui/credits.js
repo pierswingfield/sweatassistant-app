@@ -1,4 +1,4 @@
-import { api, isLoggedIn } from '../api';
+import { api, isLoggedIn, isLastResponseStale } from '../api';
 import { showToast, cache } from '../main';
 
 // Use same localStorage key as Chrome Extension for cross-compatibility.
@@ -48,14 +48,31 @@ export async function initBundles() {
 
   try {
     if (cache.bundles.length === 0) {
-      const res = await api.proxyGet('/bundles');
+      const res = await api.proxyGet('/bundles', { ttlMs: 3600000 });
       cache.bundles = res.data || res || [];
     }
     
     renderBundles();
   } catch (err) {
     console.error('Failed to load bundles:', err);
-    container.innerHTML = `<div class="psycle-card-error">Failed to load bundles: ${err.message}</div>`;
+    if (cache.bundles.length === 0) {
+      container.innerHTML = '<div class="psycle-empty-state" style="text-align:center;padding:40px 20px;color:var(--text-secondary)"><p style="font-size:16px;margin-bottom:8px">No cached data available</p><p style="font-size:13px;color:var(--text-tertiary)">Connect to the internet to load credit bundles.</p></div>';
+    }
+  }
+
+  // Stale badge — toggle visibility based on cache staleness
+  const tabHeader = document.querySelector('#psycle-panel-buy-credits .psycle-tab-header');
+  if (tabHeader) {
+    let badge = tabHeader.querySelector('.psycle-stale-badge');
+    if (!badge) {
+      badge = document.createElement('span');
+      badge.className = 'psycle-stale-badge';
+      badge.textContent = 'Cached';
+      const p = tabHeader.querySelector('p');
+      if (p) p.after(badge);
+      else tabHeader.appendChild(badge);
+    }
+    badge.classList.toggle('show', isLastResponseStale());
   }
 }
 

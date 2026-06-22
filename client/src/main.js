@@ -1,6 +1,7 @@
 import { api, setToken, isLoggedIn } from './api';
 import { initTooltips } from './ui/tooltips';
 import { setupPullToRefresh } from './ui/pulltorefresh';
+import { setCacheKeyPrefix, clearApiCache } from './cache.js';
 
 // Global App State
 export let currentUser = null;
@@ -499,13 +500,114 @@ async function showCreditDetailsModal(credits) {
   modal.onclick = (e) => { if (e.target === modal) modal.remove(); };
 }
 
+// --- OFFLINE CONNECTIVITY ---
+let isOffline = false;
+let probeTimeout = null;
+
+function setOffline(reason) {
+  if (isOffline) return;
+  isOffline = true;
+  document.documentElement.classList.add('psycle-offline');
+  showOfflineBanner(reason);
+  debugLog(`Offline: ${reason}`, 'warning');
+}
+
+function setOnline() {
+  if (!isOffline) return;
+  isOffline = false;
+  document.documentElement.classList.remove('psycle-offline');
+  hideOfflineBanner();
+  debugLog('Back online', 'success');
+}
+
+function showOfflineBanner(reason) {
+  const banner = document.getElementById('psycle-offline-banner');
+  if (!banner) return;
+  const textSpan = banner.querySelector('.offline-text');
+  if (textSpan) {
+    if (reason === 'captive-portal' || reason === 'network-error') {
+      textSpan.textContent = "Limited connectivity — check your network. Showing cached data.";
+    } else {
+      textSpan.textContent = "You're offline — showing cached data. Actions are disabled.";
+    }
+  }
+  if (banner.style.display === 'flex') return;
+  banner.style.display = 'flex';
+  void banner.offsetHeight;
+  banner.classList.add('show');
+}
+
+function hideOfflineBanner() {
+  const banner = document.getElementById('psycle-offline-banner');
+  if (!banner) return;
+  banner.classList.remove('show');
+  setTimeout(() => {
+    if (!isOffline) {
+      banner.style.display = 'none';
+    }
+  }, 350);
+}
+
+function probeConnectivity() {
+  if (probeTimeout) {
+    clearTimeout(probeTimeout);
+  }
+  probeTimeout = setTimeout(async () => {
+    const token = localStorage.getItem('psycleLocalToken');
+    if (!token) {
+      if (navigator.onLine) setOnline();
+      return;
+    }
+    try {
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), 3000);
+      const res = await fetch('/api/auth/status', {
+        headers: { Authorization: 'Bearer ' + token },
+        signal: controller.signal
+      });
+      clearTimeout(timeoutId);
+      if (res.ok) {
+        setOnline();
+      }
+    } catch (err) {
+      // Stay offline — probe failed
+    }
+  }, 500);
+}
+
+export function getIsOffline() {
+  return isOffline;
+}
+
+function initConnectivity() {
+  const container = document.getElementById('psycle-app-container');
+  if (!container) return;
+  if (document.getElementById('psycle-offline-banner')) return;
+
+  const banner = document.createElement('div');
+  banner.className = 'psycle-offline-banner';
+  banner.id = 'psycle-offline-banner';
+  banner.style.display = 'none';
+  banner.innerHTML = '<span class="offline-icon">⚠</span><span class="offline-text"></span>';
+  container.insertBefore(banner, container.firstChild);
+
+  window.addEventListener('offline', () => setOffline('browser'));
+  window.addEventListener('online', () => probeConnectivity());
+  window.addEventListener('psycle-network-fail', () => setOffline('network-error'));
+  window.addEventListener('psycle-network-ok', () => probeConnectivity());
+
+  if (!navigator.onLine) {
+    setOffline('initial');
+  }
+}
+
 // --- INITIALIZATION & USER SESSION ---
 
 // Fetch core user data and update UI header
 export async function refreshUserData() {
   try {
     // 1. Fetch user profile from CodexFit via proxy
-    const res = await api.proxyGet('/profile');
+    const res = await api.proxyGet('/profile', { ttlMs: 300000 });
     const profile = res.data || res;
     cache.profile = profile;
 
@@ -581,12 +683,33 @@ async function initApp() {
 // Check auth status on launch
 async function checkAuth() {
   if (isLoggedIn()) {
+    // Restore per-user cache key prefix from localStorage so cached data
+    // is found on reload (the prefix was set during login but is lost on reload).
+    const storedUserId = localStorage.getItem('psycleUserId');
+    if (storedUserId) setCacheKeyPrefix(storedUserId);
+
     try {
-      await api.getStatus();
+      const status = await api.getStatus();
+      currentUser = { id: status.userId, email: status.email };
+      setCacheKeyPrefix(currentUser.id);
+      localStorage.setItem('psycleUserId', currentUser.id);
       initApp();
     } catch (err) {
-      // Local token expired or invalid
-      showLogin();
+      // Distinguish auth failure (401) from network error (offline).
+      // 401 errors fire 'psycle-logout-triggered' which already calls showLogin() + clears cache.
+      // Network errors (offline) should NOT log out — the token may still be valid.
+      const isAuthError = err.message && err.message.includes('session has expired');
+      if (isAuthError) {
+        // 401 — showLogin() already called by psycle-logout-triggered handler
+      } else if (getIsOffline()) {
+        // Network error (server unreachable) with valid token — init app with cached data.
+        // The offline banner is already showing via the psycle-network-fail event handler.
+        // Cache prefix was restored above from localStorage.
+        initApp();
+      } else {
+        // Online but getStatus failed for unknown reason — show login as fallback
+        showLogin();
+      }
     }
   } else {
     showLogin();
@@ -594,6 +717,9 @@ async function checkAuth() {
 }
 
 function showLogin() {
+  setCacheKeyPrefix('');
+  clearApiCache().catch(() => {});
+  localStorage.removeItem('psycleUserId');
   document.body.id = 'psycle-helper-container';
   document.body.className = 'psycle-helper-expanded';
   document.getElementById('psycle-app-container').style.display = 'none';
@@ -613,7 +739,10 @@ if (loginForm) {
       submitBtn.disabled = true;
       submitBtn.querySelector('span').textContent = 'Logging in...';
       
-      await api.login(email, password);
+      const user = await api.login(email, password);
+      currentUser = user;
+      setCacheKeyPrefix(currentUser.id);
+      localStorage.setItem('psycleUserId', currentUser.id);
       showToast('Logged in successfully!', 'success');
       
       // Trigger App startup
@@ -638,6 +767,8 @@ if (loginForm) {
 
 // Listen for global logout triggers (e.g. from api.js 401 interceptor)
 window.addEventListener('psycle-logout-triggered', () => {
+  setCacheKeyPrefix('');
+  clearApiCache().catch(() => {});
   showToast('Session expired. Please log in again.', 'warning');
   showLogin();
 });
@@ -651,6 +782,7 @@ window.addEventListener('popstate', () => {
 // App Launch
 document.addEventListener('DOMContentLoaded', () => {
   registerServiceWorker();
+  initConnectivity();  // Set up offline listeners BEFORE checkAuth so psycle-network-fail is caught
   checkAuth();
   initTooltips();
 

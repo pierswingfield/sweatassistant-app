@@ -1,4 +1,4 @@
-import { api } from '../api';
+import { api, isLastResponseStale } from '../api';
 import { showToast, cache, refreshUserData, updateCreditBadge } from '../main';
 import { renderStudioFloorPlan } from './spotmap';
 import { icon, disciplineTag, trimLocation } from './cards';
@@ -46,6 +46,16 @@ export async function renderBookings() {
   if (bookingsRefreshing) bookingsRefreshing.style.display = '';
   if (waitlistsRefreshing) waitlistsRefreshing.style.display = '';
 
+  // Stale badge in the tab header — created once, toggled after each refresh
+  const tabHeader = document.querySelector('#psycle-panel-my-bookings .psycle-tab-header');
+  let staleBadge = tabHeader ? tabHeader.querySelector('.psycle-stale-badge') : null;
+  if (tabHeader && !staleBadge) {
+    staleBadge = document.createElement('span');
+    staleBadge.className = 'psycle-stale-badge';
+    staleBadge.textContent = 'Cached';
+    tabHeader.appendChild(staleBadge);
+  }
+
   // Show cached data immediately if available (cache.upgrades is set after first load)
   const hasLoadedBefore = cache.upgrades !== undefined;
   if (hasLoadedBefore) {
@@ -59,8 +69,8 @@ export async function renderBookings() {
 
   try {
     const [bookingsRes, waitlistsRes, upgradesRes] = await Promise.all([
-      api.proxyGet('/bookings?limit=100&page=1'),
-      api.proxyGet('/waitlists?page=1'),
+      api.proxyGet('/bookings?limit=100&page=1', { ttlMs: 120000 }),
+      api.proxyGet('/waitlists?page=1', { ttlMs: 120000 }),
       api.getAutoUpgrades()
     ]);
 
@@ -73,7 +83,7 @@ export async function renderBookings() {
     bookings = await Promise.all(bookings.map(async (b) => {
       if (b.event && b.event.start_at) return b;
       try {
-        const res = await api.proxyGet(`/events/${b.event_id}`);
+        const res = await api.proxyGet(`/events/${b.event_id}`, { ttlMs: 120000 });
         const eventData = res.data || res;
         const relations = res.relations || {};
         // Merge related entities into the event object for template access
@@ -100,7 +110,7 @@ export async function renderBookings() {
     waitlists = await Promise.all(waitlists.map(async (w) => {
       if (w.event && w.event.start_at) return w;
       try {
-        const res = await api.proxyGet(`/events/${w.event_id}`);
+        const res = await api.proxyGet(`/events/${w.event_id}`, { ttlMs: 120000 });
         const eventData = res.data || res;
         const relations = res.relations || {};
         if (relations.instructors?.length) {
@@ -135,12 +145,37 @@ export async function renderBookings() {
 
     // Keep the server's reminder cache warm using data we already fetched (no extra CodexFit calls).
     syncBookingCache(bookings);
+
+    // Toggle stale badge based on whether SWR served cached data
+    if (staleBadge) {
+      if (isLastResponseStale()) {
+        staleBadge.classList.add('show');
+      } else {
+        staleBadge.classList.remove('show');
+      }
+    }
   } catch (err) {
     console.error('[Bookings] Loading failed:', err);
-    if (bookingsList) bookingsList.innerHTML = `<div class="psycle-card-error">Error: ${err.message}</div>`;
-    if (waitlistsList) waitlistsList.innerHTML = `<div class="psycle-card-error">Error: ${err.message}</div>`;
+
+    // Show a friendly empty state when offline and no cached data is available
+    if (bookingsList && !cache.bookings) {
+      bookingsList.innerHTML = '<div class="psycle-empty-state" style="text-align:center;padding:40px 20px;color:var(--text-secondary)"><p style="font-size:16px;margin-bottom:8px">No cached data available</p><p style="font-size:13px;color:var(--text-tertiary)">Connect to the internet to load your bookings.</p></div>';
+    } else if (bookingsList) {
+      bookingsList.innerHTML = `<div class="psycle-card-error">Error: ${err.message}</div>`;
+    }
+    if (waitlistsList && !cache.waitlists) {
+      waitlistsList.innerHTML = '<div class="psycle-empty-state" style="text-align:center;padding:40px 20px;color:var(--text-secondary)"><p style="font-size:16px;margin-bottom:8px">No cached data available</p><p style="font-size:13px;color:var(--text-tertiary)">Connect to the internet to load your waitlists.</p></div>';
+    } else if (waitlistsList) {
+      waitlistsList.innerHTML = `<div class="psycle-card-error">Error: ${err.message}</div>`;
+    }
+
     if (bookingsRefreshing) bookingsRefreshing.style.display = 'none';
     if (waitlistsRefreshing) waitlistsRefreshing.style.display = 'none';
+
+    // In the error path, keep the stale badge visible if we're displaying cached data
+    if (staleBadge && (cache.bookings || cache.waitlists)) {
+      staleBadge.classList.add('show');
+    }
   }
 }
 
@@ -370,7 +405,7 @@ async function openEditBookingModal(group) {
   await refreshUserData();
 
   try {
-    const res = await api.proxyGet(`/events/${group.eventId}`);
+    const res = await api.proxyGet(`/events/${group.eventId}`, { ttlMs: 120000 });
     const eventDetails = res.data || res;
     const studio = res.relations?.studios?.[0] || eventDetails.relations?.studios?.[0] || eventDetails.studio || event.studio || {};
     const layoutSlots = studio?.layout?.slots || [];
@@ -746,7 +781,7 @@ export async function openUpgradeConfigModal({ eventId, bookingId, currentSlotId
   try {
     // Fetch event + studio layout, and the live shared studio map in parallel
     const [res, allPrefs] = await Promise.all([
-      api.proxyGet(`/events/${eventId}`),
+      api.proxyGet(`/events/${eventId}`, { ttlMs: 120000 }),
       api.getStudioPreferences()
     ]);
 

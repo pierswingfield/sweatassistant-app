@@ -1,4 +1,4 @@
-import { api } from '../api';
+import { api, isLastResponseStale } from '../api';
 import { showToast, cache, userSettings, refreshUserData } from '../main';
 import { getClassReleaseTime, getNextMondayNoonLondon } from '../lib';
 import { renderStudioFloorPlan } from './spotmap';
@@ -77,6 +77,20 @@ function connectToAutoBookStream() {
 
   sseEventSource.onopen = () => {
     console.log('[AutoBook] SSE stream connected');
+    // Sync any missed state by fetching the latest auto-book data.
+    // This fires on initial connection AND on reconnect after a network interruption.
+    api.getAutoBookings().then(data => {
+      if (Array.isArray(data)) {
+        cache.autoBookings = data;
+        const active = data.filter(x => !x.executed_at);
+        const history = data.filter(x => x.executed_at);
+        renderQueue(active);
+        renderHistory(history);
+        // Update stale badge visibility
+        const badge = document.querySelector('.ab-queue-section .psycle-stale-badge');
+        if (badge) badge.classList.toggle('show', isLastResponseStale());
+      }
+    }).catch(() => { /* offline — silently ignore, native reconnect will retry */ });
   };
 
   sseEventSource.onmessage = (event) => {
@@ -95,10 +109,9 @@ function connectToAutoBookStream() {
   };
 
   sseEventSource.onerror = (err) => {
-    console.error('[AutoBook] SSE stream error:', err);
-    sseEventSource.close();
-    // Optionally reconnect after a delay
-    setTimeout(() => connectToAutoBookStream(), 5000);
+    console.warn('[AutoBook] SSE stream error — browser will auto-reconnect:', err);
+    // Do NOT close — EventSource reconnects automatically with native exponential backoff.
+    // Closing and manually reconnecting loses the retry timer and adds downtime.
   };
 }
 
@@ -338,8 +351,22 @@ async function renderAutoBookTab() {
   } catch (err) {
     console.error('[AutoBook] Failed to load:', err);
     if (queueContainer && !cache.autoBookings) {
-      queueContainer.innerHTML = `<div class="psycle-card-error">Error: ${err.message}</div>`;
+      queueContainer.innerHTML = '<div class="psycle-empty-state" style="text-align:center;padding:40px 20px;color:var(--text-secondary)"><p style="font-size:16px;margin-bottom:8px">No cached data available</p><p style="font-size:13px;color:var(--text-tertiary)">Connect to the internet to load your auto-book queue.</p></div>';
     }
+  }
+
+  // Stale badge — toggle visibility based on cache staleness
+  const queueSection = document.querySelector('.ab-queue-section');
+  if (queueSection) {
+    let badge = queueSection.querySelector('.psycle-stale-badge');
+    if (!badge) {
+      badge = document.createElement('span');
+      badge.className = 'psycle-stale-badge';
+      badge.textContent = 'Cached';
+      const title = queueSection.querySelector('h2');
+      if (title) title.after(badge);
+    }
+    badge.classList.toggle('show', isLastResponseStale());
   }
 }
 
@@ -482,7 +509,7 @@ async function openAutoBookEditModal(q) {
   try {
     // Fetch event + studio layout, and the live shared studio map in parallel
     const [res, allPrefs] = await Promise.all([
-      api.proxyGet(`/events/${q.event_id}`),
+      api.proxyGet(`/events/${q.event_id}`, { ttlMs: 120000 }),
       api.getStudioPreferences()
     ]);
 

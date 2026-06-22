@@ -23,6 +23,22 @@ export async function initBundles() {
   // Add search/filter listeners if we're rendering first time
   setupFilterListeners();
 
+  // Alert about experimental checkout (only insert once)
+  if (!document.querySelector('.psycle-credits-alert')) {
+    const alertDiv = document.createElement('div');
+    alertDiv.className = 'psycle-credits-alert';
+    alertDiv.innerHTML = `
+      <div style="display:flex; gap:10px; align-items:flex-start; padding:12px 14px; background:color-mix(in srgb, var(--warning) 15%, transparent); border:1px solid var(--warning); border-radius:10px; margin-bottom:16px;">
+        <div style="font-size:20px; flex-shrink:0; line-height:1;">⚠</div>
+        <div style="flex:1; font-size:12px; color:color-mix(in srgb, var(--warning) 100%, #000); line-height:1.5;">
+          <div style="font-weight:700; margin-bottom:4px;">EXPERIMENTAL</div>
+          <div>Purchasing bundles here works but is not robustly tested. Because the Psycle purchase cart is specific to your browser instance, I have implemented a flow that sends the order directly to the payment processor using saved payment methods. Psycle Assistant never sees your payment data. It doesn't support 3-D Secure yet, so payments might fail.</div>
+        </div>
+      </div>
+    `;
+    container.parentElement.insertBefore(alertDiv, container);
+  }
+
   container.innerHTML = `
     <div class="psycle-loading-spinner-container">
       <div class="psycle-spinner"></div>
@@ -60,15 +76,17 @@ function getFilterEls() {
 
 function setupFilterListeners() {
   const searchInput = document.getElementById('psycle-bundle-search');
-  const favToggle = document.getElementById('psycle-bundle-favorites-only');
 
   if (searchInput && !searchInput.dataset.listenerAttached) {
     searchInput.dataset.listenerAttached = 'true';
-    searchInput.addEventListener('input', renderBundles);
-  }
-  if (favToggle && !favToggle.dataset.listenerAttached) {
-    favToggle.dataset.listenerAttached = 'true';
-    favToggle.addEventListener('change', renderBundles);
+    searchInput.addEventListener('input', () => {
+      renderBundles();
+      // Auto-expand All Credits when searching
+      const allSection = document.querySelector('[data-section-id="all"]');
+      if (searchInput.value.trim() && allSection) {
+        allSection.classList.add('expanded');
+      }
+    });
   }
 
   // Lazy-init filter toggle button + checkbox listeners on first interaction
@@ -214,10 +232,8 @@ function matchesFilterRules(b) {
 export function renderBundles() {
   const container = document.getElementById('psycle-bundles-container');
   const searchInput = document.getElementById('psycle-bundle-search');
-  const favToggle = document.getElementById('psycle-bundle-favorites-only');
 
   const term = searchInput ? searchInput.value.toLowerCase().trim() : '';
-  const favsOnly = favToggle ? favToggle.checked : false;
 
   if (!container) return;
 
@@ -229,9 +245,6 @@ export function renderBundles() {
     // Search term matching name, id, or handle (matching extension logic)
     const matchesSearch = b.name.toLowerCase().includes(term) || String(b.id).includes(term) || (b.handle && b.handle.toLowerCase().includes(term));
     if (!matchesSearch) return false;
-
-    // Favorites only filter
-    if (favsOnly && !favorites.includes(b.id)) return false;
 
     return true;
   });
@@ -254,8 +267,8 @@ export function renderBundles() {
 
   // Render Favorites Section
   const favs = filtered.filter(b => favorites.includes(b.id));
-  if (favsOnly || favs.length === 0) {
-    // favsOnly mode or no favorites: show everything in a single grid
+  if (favs.length === 0) {
+    // No favorites: show everything in a single grid
     const allGrid = document.createElement('div');
     allGrid.className = 'psycle-favorites-grid';
     filtered.forEach(b => {
@@ -266,7 +279,7 @@ export function renderBundles() {
     // Show favorites grid + All Credits collapsible section
     const favHeader = document.createElement('div');
     favHeader.className = 'psycle-section-subheader';
-    favHeader.innerHTML = '<h4>Pinned Favourites</h4>';
+    favHeader.innerHTML = '<h4>Favourite Bundles</h4>';
     container.appendChild(favHeader);
 
     const favGrid = document.createElement('div');
@@ -318,7 +331,7 @@ function createBundleCard(b, isFavSection) {
     <div class="fav-card-header">
       <div>
         <div class="fav-card-title">${b.name}</div>
-        <div class="fav-card-handle" style="font-size: 11px; color: #64748b; margin-top: 2px;">${b.handle} (ID: ${b.id})</div>
+        <div class="fav-card-handle" style="font-size: 12px; color: var(--text-tertiary); margin-top: 2px;">${b.handle} (ID: ${b.id})</div>
       </div>
       <button class="fav-card-star-btn ${isFav ? 'active' : ''}" title="${isFav ? 'Unpin' : 'Pin to favorites'}">
         ${isFav ? '★' : '☆'}
@@ -332,11 +345,11 @@ function createBundleCard(b, isFavSection) {
       <span class="badge-pill" style="text-transform:none;">${b.total_credits} Credits</span>
       <span class="badge-pill ${allStudios ? 'valid' : 'invalid'}">${allStudios ? 'All Studios' : 'Select Studios'}</span>
       <span class="badge-pill ${allClasses ? 'valid' : 'invalid'}">${allClasses ? 'All Workouts' : 'Excl. Lagree'}</span>
-      <span class="badge-pill" style="text-transform:none; ${b.is_first_purchase_only ? 'background:rgba(239,68,68,0.12);color:#f87171;border:1px solid rgba(239,68,68,0.3);' : 'background:rgba(16,185,129,0.12);color:#34d399;border:1px solid rgba(16,185,129,0.3);'}">${b.is_first_purchase_only ? '1st Only' : '✔ Returning'}</span>
-      <span class="badge-pill" style="text-transform:none; ${b.is_one_time_purchase_only ? 'background:rgba(239,68,68,0.12);color:#f87171;border:1px solid rgba(239,68,68,0.3);' : 'background:rgba(16,185,129,0.12);color:#34d399;border:1px solid rgba(16,185,129,0.3);'}">${b.is_one_time_purchase_only ? '1-Time' : '✔ Repeat'}</span>
+      <span class="badge-pill ${b.is_first_purchase_only ? 'badge-restricted' : 'badge-available'}">${b.is_first_purchase_only ? '1st Only' : '✔ Returning'}</span>
+      <span class="badge-pill ${b.is_one_time_purchase_only ? 'badge-restricted' : 'badge-available'}">${b.is_one_time_purchase_only ? '1-Time' : '✔ Repeat'}</span>
     </div>
     <button class="psycle-btn-primary fav-card-buy-btn" style="margin-top: 12px; padding: 8px;">
-      Buy on Website
+      Buy ${formattedPrice}
     </button>
   `;
 
@@ -346,44 +359,196 @@ function createBundleCard(b, isFavSection) {
     toggleFavorite(b.id);
   });
 
-  // Add to cart flow: first click adds to cart, second redirects to checkout
-  card.querySelector('.fav-card-buy-btn').addEventListener('click', async () => {
-    const buyBtn = card.querySelector('.fav-card-buy-btn');
+  // In-app purchase: charge a saved card without leaving the app.
+  card.querySelector('.fav-card-buy-btn').addEventListener('click', () => openPurchaseModal(b));
 
-    if (buyBtn.dataset.cartState === 'added') {
-      // Already added — redirect to checkout
-      const settings = await api.getSettings();
-      const instanceId = settings?.cartInstanceId;
-      if (instanceId) {
-        window.open(`https://psyclelondon.com/cart?instance=${instanceId}`, '_blank');
-      } else {
-        window.open('https://psyclelondon.com/cart', '_blank');
-      }
+  return card;
+}
+
+// In-app checkout modal. Two steps:
+//   1. Cart — bundle name, qty stepper, line total. No API call yet.
+//   2. Payment — load saved cards, select, pay.
+// 3-D Secure is not supported: if the off-session charge needs authentication
+// we surface a graceful error with tips and a website fallback.
+function openPurchaseModal(b) {
+  const unitPence = b.price;
+  const unitLabel = `£${(unitPence / 100).toFixed(2)}`;
+
+  const overlay = document.createElement('div');
+  overlay.className = 'psycle-modal psycle-purchase-modal';
+  overlay.innerHTML = `
+    <div class="psycle-modal-overlay"></div>
+    <div class="psycle-modal-card" style="width:420px; max-width:92vw;">
+      <div class="psycle-modal-header" style="padding:14px 20px; display:flex; justify-content:space-between; align-items:center; border-bottom:1px solid var(--border-subtle);">
+        <h4 class="psycle-checkout-title" style="margin:0; font-size:15px; font-weight:700; color:var(--text-primary);">Cart</h4>
+        <button class="psycle-modal-close-btn" aria-label="Close">×</button>
+      </div>
+      <div class="psycle-purchase-body" style="padding:20px;"></div>
+    </div>
+  `;
+  document.body.appendChild(overlay);
+  setTimeout(() => overlay.classList.add('show'), 10);
+
+  const closeModal = () => {
+    overlay.classList.remove('show');
+    setTimeout(() => overlay.remove(), 300);
+  };
+
+  overlay.querySelector('.psycle-modal-overlay').addEventListener('click', closeModal);
+  overlay.querySelector('.psycle-modal-close-btn').addEventListener('click', closeModal);
+
+  const body = overlay.querySelector('.psycle-purchase-body');
+  const titleEl = overlay.querySelector('.psycle-checkout-title');
+
+  // ── Step 1: Cart ──────────────────────────────────────────────────────────
+  let qty = 1;
+
+  function renderCart() {
+    const total = `£${((unitPence * qty) / 100).toFixed(2)}`;
+    body.innerHTML = `
+      <div style="display:flex; justify-content:space-between; align-items:flex-start; margin-bottom:16px;">
+        <div style="flex:1; min-width:0; padding-right:12px;">
+          <div style="font-weight:700; color:var(--text-primary); white-space:nowrap; overflow:hidden; text-overflow:ellipsis;">${b.name}</div>
+          <div style="font-size:12px; color:var(--text-tertiary); margin-top:3px;">${b.total_credits} credit${b.total_credits !== 1 ? 's' : ''} · ${unitLabel} each</div>
+        </div>
+        <div style="display:flex; align-items:center; gap:8px; flex-shrink:0;">
+          <button class="psycle-qty-btn psycle-qty-dec" style="width:28px; height:28px; border-radius:6px; border:1px solid var(--border-subtle); background:var(--surface-raised); color:var(--text-primary); font-size:16px; cursor:pointer; line-height:1;">−</button>
+          <span class="psycle-qty-val" style="min-width:20px; text-align:center; font-weight:700; color:var(--text-primary);">${qty}</span>
+          <button class="psycle-qty-btn psycle-qty-inc" style="width:28px; height:28px; border-radius:6px; border:1px solid var(--border-subtle); background:var(--surface-raised); color:var(--text-primary); font-size:16px; cursor:pointer; line-height:1;">+</button>
+          <button class="psycle-qty-remove" title="Remove" style="margin-left:4px; background:none; border:none; color:var(--text-tertiary); font-size:18px; cursor:pointer; padding:2px 4px;">✕</button>
+        </div>
+      </div>
+      <div style="border-top:1px solid var(--border-subtle); padding-top:12px; margin-bottom:16px; display:flex; justify-content:space-between; align-items:center;">
+        <span style="font-size:13px; color:var(--text-secondary);">Total (inc. VAT)</span>
+        <span class="psycle-cart-total" style="font-weight:700; font-size:16px; color:var(--text-primary);">${total}</span>
+      </div>
+      <button class="psycle-btn-primary psycle-checkout-btn" style="width:100%; padding:11px;">Continue to Payment →</button>
+    `;
+
+    body.querySelector('.psycle-qty-dec').addEventListener('click', () => {
+      if (qty > 1) { qty--; renderCart(); }
+    });
+    body.querySelector('.psycle-qty-inc').addEventListener('click', () => {
+      if (qty < 10) { qty++; renderCart(); }
+    });
+    body.querySelector('.psycle-qty-remove').addEventListener('click', closeModal);
+    body.querySelector('.psycle-checkout-btn').addEventListener('click', () => proceedToPayment());
+  }
+
+  // ── Step 2: Payment ───────────────────────────────────────────────────────
+  async function proceedToPayment() {
+    titleEl.textContent = 'Payment';
+    body.innerHTML = `
+      <div class="psycle-loading-spinner-container">
+        <div class="psycle-spinner"></div>
+        <span>Loading saved cards…</span>
+      </div>
+    `;
+
+    let instance, methods;
+    try {
+      const init = await api.checkoutInit(b.id, qty);
+      instance = init.instance;
+      methods = init.methods || [];
+    } catch (err) {
+      renderPurchaseError(body, b, `Couldn't load payment options: ${err.message}`);
       return;
     }
 
-    // Add to cart
-    buyBtn.disabled = true;
-    buyBtn.textContent = 'Adding...';
-    try {
-      const result = await api.addBundleToCart(b.id);
-      showToast(`Added "${b.name}" to cart!`, 'success');
-      buyBtn.textContent = 'Checkout →';
-      buyBtn.style.background = '#10b981';
-      buyBtn.style.borderColor = '#10b981';
-      buyBtn.dataset.cartState = 'added';
-    } catch (err) {
-      showToast(`Failed to add to cart: ${err.message}`, 'error');
-      // Fallback: open product page directly
-      buyBtn.textContent = 'Buy on Website';
-      const handle = b.handle || '';
-      window.open(`https://psyclelondon.com/products/${handle}`, '_blank');
-    } finally {
-      buyBtn.disabled = false;
+    if (methods.length === 0) {
+      renderPurchaseError(body, b, 'No saved card found on your Psycle account.', 'Add a card on the Psycle website, then try again.');
+      return;
     }
-  });
 
-  return card;
+    const totalPence = unitPence * qty;
+    const totalLabel = `£${(totalPence / 100).toFixed(2)}`;
+    const defaultPm = methods.find(m => m.default) || methods[0];
+
+    const cardOptions = methods.map(m => `
+      <label class="psycle-pm-row" style="display:flex; align-items:center; gap:10px; padding:10px 12px; border:1px solid var(--border-subtle); border-radius:10px; margin-bottom:8px; cursor:pointer;">
+        <input type="radio" name="psycle-pm" value="${m.id}" ${m.id === defaultPm.id ? 'checked' : ''}>
+        <span style="text-transform:capitalize; font-weight:600; color:var(--text-primary);">${m.brand}</span>
+        <span style="color:var(--text-secondary);">•••• ${m.last4}</span>
+        <span style="margin-left:auto; font-size:12px; color:var(--text-tertiary);">${String(m.exp_month).padStart(2,'0')}/${m.exp_year}</span>
+      </label>
+    `).join('');
+
+    body.innerHTML = `
+      <div style="font-size:12px; color:var(--text-tertiary); margin-bottom:8px;">Pay with</div>
+      ${cardOptions}
+      <div style="border-top:1px solid var(--border-subtle); margin:12px 0; padding-top:12px; display:flex; justify-content:space-between;">
+        <span style="font-size:13px; color:var(--text-secondary);">${qty > 1 ? `${qty}× ${b.name}` : b.name}</span>
+        <span style="font-weight:700; color:var(--text-primary);">${totalLabel}</span>
+      </div>
+      <button class="psycle-btn-primary psycle-pay-btn" style="width:100%; padding:11px;">Pay ${totalLabel}</button>
+    `;
+
+    body.querySelector('.psycle-pay-btn').addEventListener('click', async () => {
+      const pmId = body.querySelector('input[name="psycle-pm"]:checked')?.value;
+      if (!pmId) return;
+
+      body.innerHTML = `
+        <div class="psycle-loading-spinner-container">
+          <div class="psycle-spinner"></div>
+          <span>Processing payment…</span>
+        </div>
+      `;
+
+      try {
+        const result = await api.checkoutConfirm(instance, pmId);
+        if (result.status === 'paid') {
+          body.innerHTML = `
+            <div style="text-align:center; padding:16px 0;">
+              <div style="font-size:40px; margin-bottom:8px;">✅</div>
+              <div style="font-weight:700; color:var(--text-primary);">Payment complete</div>
+              <div style="font-size:13px; color:var(--text-secondary); margin-top:4px;">${b.total_credits * qty} credits added to your account.</div>
+              <button class="psycle-btn-primary psycle-done-btn" style="margin-top:16px; padding:10px 24px;">Done</button>
+            </div>
+          `;
+          body.querySelector('.psycle-done-btn').addEventListener('click', closeModal);
+          showToast('Credits purchased!', 'success');
+        } else if (result.status === 'requires_action') {
+          renderPurchaseError(body, b,
+            "This card needs 3-D Secure authentication, which isn't supported in-app yet.",
+            null, true
+          );
+        } else {
+          renderPurchaseError(body, b, result.error || 'The payment was declined.');
+        }
+      } catch (err) {
+        renderPurchaseError(body, b, err.message);
+      }
+    });
+  }
+
+  renderCart();
+}
+
+// Error state — shown inline inside the modal body.
+// secureTips=true adds concise guidance for 3DS issues + website fallback.
+function renderPurchaseError(body, b, message, hint, secureTips) {
+  const tips = secureTips ? `
+    <div style="text-align:left; background:var(--surface-raised); border:1px solid var(--border-subtle); border-radius:10px; padding:12px; margin-top:14px; font-size:12px; color:var(--text-secondary); line-height:1.6;">
+      <div style="font-weight:700; color:var(--text-primary); margin-bottom:6px;">Tips to avoid 3-D Secure</div>
+      • Use a card your bank already trusts for Psycle.<br>
+      • Complete one purchase on the Psycle website first — banks usually stop challenging after that.<br>
+      • Amex cards are challenged less often than Visa/Mastercard.
+    </div>
+  ` : (hint ? `<div style="font-size:12px; color:var(--text-tertiary); margin-top:8px;">${hint}</div>` : '');
+
+  body.innerHTML = `
+    <div style="text-align:center; padding:8px 0;">
+      <div style="font-size:36px; margin-bottom:8px;">⚠️</div>
+      <div style="font-weight:700; color:var(--text-primary);">Payment not completed</div>
+      <div style="font-size:13px; color:var(--text-secondary); margin-top:4px;">${message}</div>
+      ${tips}
+      <button class="psycle-btn-primary psycle-website-btn" style="margin-top:16px; padding:10px 20px;">Finish on Website</button>
+    </div>
+  `;
+  body.querySelector('.psycle-website-btn').addEventListener('click', () => {
+    const handle = b.handle || '';
+    window.open(handle ? `https://psyclelondon.com/products/${handle}` : 'https://psyclelondon.com/', '_blank');
+  });
 }
 
 function toggleFavorite(id) {

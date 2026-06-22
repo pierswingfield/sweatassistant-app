@@ -113,6 +113,10 @@ export const api = {
       const err = await res.json().catch(() => ({}));
       throw new Error(err.message || `Proxy DELETE failed: ${res.status}`);
     }
+    // Handle 204 No Content (no response body)
+    if (res.status === 204) {
+      return {};
+    }
     return res.json();
   },
 
@@ -316,6 +320,33 @@ export const api = {
 
   async getCart() {
     const res = await apiFetch('/api/cart');
+    return res.json();
+  },
+
+  // In-app checkout: add bundle (qty times) + fetch saved cards
+  async checkoutInit(bundleId, quantity = 1) {
+    const res = await apiFetch(`/api/cart/checkout/init/${bundleId}`, {
+      method: 'POST',
+      body: JSON.stringify({ quantity })
+    });
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({}));
+      throw new Error(err.message || 'Failed to start checkout');
+    }
+    return res.json();
+  },
+
+  // In-app checkout: set card, place order, await Stripe settlement.
+  // Returns { status: 'paid' | 'failed' | 'requires_action', orderId, error }
+  async checkoutConfirm(instance, paymentMethodId) {
+    const res = await apiFetch('/api/cart/checkout/confirm', {
+      method: 'POST',
+      body: JSON.stringify({ instance, paymentMethodId })
+    });
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({}));
+      throw new Error(err.message || 'Checkout failed');
+    }
     return res.json();
   }
 };

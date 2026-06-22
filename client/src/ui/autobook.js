@@ -1,7 +1,8 @@
 import { api } from '../api';
 import { showToast, cache, userSettings, refreshUserData } from '../main';
-import { getClassReleaseTime, getNextMondayNoonLondon, formatFullCountdown, formatCountdown } from '../lib';
-import { DateTime } from 'luxon';
+import { getClassReleaseTime, getNextMondayNoonLondon } from '../lib';
+import { renderStudioFloorPlan } from './spotmap';
+import { icon, disciplineTag, trimLocation } from './cards';
 
 let countdownInterval = null;
 let sseEventSource = null;
@@ -27,8 +28,25 @@ function getAvailableCreditsForEvent(event) {
   }, 0);
 }
 
+// Prefetch all data needed for the Auto-Book tab so it loads instantly on navigation.
+// Called fire-and-forget from initApp() right after login.
+export async function prefetchAutoBookData() {
+  try {
+    const [autoBookings, upgrades, studioPrefs] = await Promise.all([
+      api.getAutoBookings(),
+      api.getAutoUpgrades(),
+      api.getStudioPreferences().catch(() => ({}))
+    ]);
+    cache.autoBookings = autoBookings;
+    cache.upgrades = upgrades || [];
+    cache.studioPrefs = studioPrefs || {};
+  } catch (err) {
+    console.warn('[AutoBook] Prefetch failed:', err.message);
+  }
+}
+
 export async function initAutoBook() {
-  await refreshUserData(); // Refresh credits when opening Auto-Book tab
+  refreshUserData(); // Fire-and-forget — don't block tab render (already prefetched in initApp)
   await renderAutoBookTab();
   renderAutoBookControls();
   connectToAutoBookStream();
@@ -37,6 +55,12 @@ export async function initAutoBook() {
   if (countdownInterval) clearInterval(countdownInterval);
   updateCountdowns();
   countdownInterval = setInterval(updateCountdowns, 1000);
+}
+
+// Pull-to-refresh action for the Auto-Book tab — dispatched by the shared
+// pull-to-refresh handler in main.js (attached to <main class="psycle-body">).
+export async function refreshAutoBookTab() {
+  await Promise.all([renderAutoBookTab(), refreshUserData()]);
 }
 
 function connectToAutoBookStream() {
@@ -91,42 +115,41 @@ function updateQueueDisplayForEvent(eventId, update) {
   if (!statusEl) {
     statusEl = document.createElement('div');
     statusEl.className = 'autobook-status-line';
-    statusEl.style.cssText = 'font-size:11px;color:#64748b;margin-top:8px;padding:6px;background:rgba(99,102,241,0.05);border-left:2px solid rgba(99,102,241,0.3);border-radius:4px;';
-    card.appendChild(statusEl);
+    (card.querySelector('.ab-card-main') || card).appendChild(statusEl);
   }
 
   // Update status text and color based on status type
-  let statusColor = '#94a3b8';
+  let statusColor = 'var(--text-secondary)';
   let statusIcon = '⏳';
 
   if (update.status === 'prefetching') {
     statusIcon = '📊';
-    statusColor = '#64748b';
+    statusColor = 'var(--text-tertiary)';
   } else if (update.status === 'planning') {
     statusIcon = '📋';
-    statusColor = '#a5b4fc';
+    statusColor = 'var(--feat-autoupgrade)';
     if (update.plannedSlots) {
       statusEl.innerHTML = `${statusIcon} Planning: attempting slots <strong>[${update.plannedSlots.join(', ')}]</strong>`;
     }
   } else if (update.status === 'attempting') {
     statusIcon = '🎯';
-    statusColor = '#fbbf24';
+    statusColor = 'var(--warning)';
     statusEl.innerHTML = `${statusIcon} Attempting slot <strong>${update.attemptingSlot}</strong> (${update.isPreferred ? 'preferred' : 'fallback'})...`;
   } else if (update.status === 'success') {
     statusIcon = '✅';
-    statusColor = '#34d399';
+    statusColor = 'var(--success)';
     statusEl.innerHTML = `${statusIcon} Success! Booked slots <strong>[${update.bookedSlots.join(', ')}]</strong>`;
   } else if (update.status === 'waitlist-fallback') {
     statusIcon = '📋';
-    statusColor = '#f59e0b';
+    statusColor = 'var(--warning)';
   } else if (update.status === 'waitlist-success') {
     statusIcon = '✅';
-    statusColor = '#fbbf24';
+    statusColor = 'var(--warning)';
     statusEl.innerHTML = `${statusIcon} Joined waitlist`;
   } else if (update.status === 'failed') {
     statusIcon = '❌';
-    statusColor = '#f87171';
-    statusEl.innerHTML = `${statusIcon} <span style="color:#f87171;"><strong>Failed:</strong> ${update.message}</span>`;
+    statusColor = 'var(--danger)';
+    statusEl.innerHTML = `${statusIcon} <span style="color:var(--danger);"><strong>Failed:</strong> ${update.message}</span>`;
   }
 
   statusEl.style.color = statusColor;
@@ -134,27 +157,19 @@ function updateQueueDisplayForEvent(eventId, update) {
 }
 
 function renderAutoBookControls() {
-  // Insert Pause/Resume + Favourites + Simulate buttons near the countdown banner
-  const banner = document.querySelector('.psycle-countdown-banner');
-  if (!banner) return;
-
-  // Remove existing controls bar if re-rendered
-  const existing = document.getElementById('psycle-autobook-controls-bar');
-  if (existing) existing.remove();
-
-  const bar = document.createElement('div');
-  bar.id = 'psycle-autobook-controls-bar';
-  bar.style.cssText = 'display:flex;gap:8px;align-items:center;margin-top:10px;flex-wrap:wrap;';
+  // Populate the segmented footer baked into the countdown banner
+  const bar = document.getElementById('psycle-autobook-controls-bar');
+  if (!bar) return;
+  bar.innerHTML = '';
 
   const isPaused = !!userSettings.autoBookPaused;
 
   // Pause / Resume button
   const pauseBtn = document.createElement('button');
-  pauseBtn.className = 'psycle-btn-mini';
-  pauseBtn.style.cssText = isPaused
-    ? 'background:rgba(52,211,153,0.15);border-color:rgba(52,211,153,0.3);color:#34d399;'
-    : 'background:rgba(239,68,68,0.12);border-color:rgba(239,68,68,0.25);color:#f87171;';
-  pauseBtn.textContent = isPaused ? '▶ Resume Auto-Book' : '⏸ Pause Auto-Book';
+  pauseBtn.className = `ab-footer-btn ${isPaused ? 'state-paused' : ''}`;
+  pauseBtn.innerHTML = isPaused
+    ? `${icon('play', 14)}<span>Resume Auto-Book</span>`
+    : `${icon('pause', 14)}<span>Pause Auto-Book</span>`;
   pauseBtn.addEventListener('click', async () => {
     pauseBtn.disabled = true;
     try {
@@ -170,25 +185,16 @@ function renderAutoBookControls() {
     }
   });
 
-  // Favourites button
-  const favsBtn = document.createElement('button');
-  favsBtn.className = 'psycle-btn-mini';
-  favsBtn.style.cssText = 'background:rgba(251,191,36,0.1);border-color:rgba(251,191,36,0.25);color:#fbbf24;';
-  favsBtn.textContent = '♥ Auto-Book Favourites';
-  favsBtn.addEventListener('click', () => openFavouritesModal());
-
   bar.appendChild(pauseBtn);
-  bar.appendChild(favsBtn);
 
   // Simulate button (debug mode only)
   if (userSettings.debugMode) {
     const simBtn = document.createElement('button');
-    simBtn.className = 'psycle-btn-mini';
-    simBtn.style.cssText = 'background:rgba(139,92,246,0.12);border-color:rgba(139,92,246,0.3);color:#a78bfa;';
-    simBtn.textContent = '⚡ Simulate Release';
+    simBtn.className = 'ab-footer-btn';
+    simBtn.innerHTML = `${icon('bolt', 14)}<span>Simulate Release</span>`;
     simBtn.addEventListener('click', async () => {
       simBtn.disabled = true;
-      simBtn.textContent = 'Firing...';
+      simBtn.innerHTML = `${icon('bolt', 14)}<span>Firing…</span>`;
       try {
         await api.simulateRelease();
         showToast('Simulated release fired — all pending bookings executing now. Check history shortly.', 'success');
@@ -198,13 +204,11 @@ function renderAutoBookControls() {
         showToast(`Failed: ${err.message}`, 'error');
       } finally {
         simBtn.disabled = false;
-        simBtn.textContent = '⚡ Simulate Release';
+        simBtn.innerHTML = `${icon('bolt', 14)}<span>Simulate Release</span>`;
       }
     });
     bar.appendChild(simBtn);
   }
-
-  banner.insertAdjacentElement('afterend', bar);
 }
 
 function parseBookmark(bm) {
@@ -224,44 +228,44 @@ function openFavouritesModal() {
   const bookmarks = cache.profile?.metafields?.public?.bookmarks?.events || [];
 
   const overlay = document.createElement('div');
-  overlay.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,0.75);z-index:2000;display:flex;align-items:center;justify-content:center;padding:16px;';
+  overlay.style.cssText = 'position:fixed;inset:0;background:color-mix(in srgb, var(--bg) 60%, transparent);z-index:2000;display:flex;align-items:center;justify-content:center;padding:16px;';
 
   const modal = document.createElement('div');
-  modal.style.cssText = 'background:#0f172a;border:1px solid rgba(255,255,255,0.12);border-radius:16px;width:100%;max-width:480px;max-height:90vh;display:flex;flex-direction:column;overflow:hidden;';
+  modal.style.cssText = 'background:var(--surface);border:1px solid var(--border-strong);border-radius:16px;width:100%;max-width:480px;max-height:90vh;display:flex;flex-direction:column;overflow:hidden;';
 
   const header = document.createElement('div');
-  header.style.cssText = 'display:flex;justify-content:space-between;align-items:center;padding:14px 18px;border-bottom:1px solid rgba(255,255,255,0.08);flex-shrink:0;';
-  header.innerHTML = `<h3 style="margin:0;font-size:15px;font-weight:700;color:#f1f5f9;">♥ Auto-Book Favourites</h3><button style="background:none;border:none;color:#94a3b8;font-size:22px;cursor:pointer;padding:0;" id="favs-modal-close">×</button>`;
+  header.style.cssText = 'display:flex;justify-content:space-between;align-items:center;padding:14px 18px;border-bottom:1px solid var(--border);flex-shrink:0;';
+  header.innerHTML = `<h3 style="margin:0;font-size:15px;font-weight:700;color:var(--text);">♥ Auto-Book Favourites</h3><button style="background:none;border:none;color:var(--text-secondary);font-size:22px;cursor:pointer;padding:0;" id="favs-modal-close">×</button>`;
 
   const body = document.createElement('div');
   body.style.cssText = 'flex:1;overflow-y:auto;padding:16px;';
 
   if (bookmarks.length === 0) {
-    body.innerHTML = '<div style="text-align:center;padding:24px;color:#94a3b8;font-size:13px;">No bookmarked classes found.<br>Bookmark classes from the timetable to set up recurring auto-book.</div>';
+    body.innerHTML = '<div style="text-align:center;padding:24px;color:var(--text-secondary);font-size:13px;">No bookmarked classes found.<br>Bookmark classes from the timetable to set up recurring auto-book.</div>';
   } else {
     const parsed = bookmarks.map(parseBookmark);
     const enabled = new Set(userSettings.autoBookFavourites || []);
 
-    body.innerHTML = '<p style="font-size:12px;color:#94a3b8;margin:0 0 12px;">Select which favourites to auto-book each week:</p>';
+    body.innerHTML = '<p style="font-size:12px;color:var(--text-secondary);margin:0 0 12px;">Select which favourites to auto-book each week:</p>';
 
     parsed.forEach(bm => {
       const row = document.createElement('div');
-      row.style.cssText = 'display:flex;align-items:center;gap:10px;padding:8px 10px;border:1px solid rgba(255,255,255,0.06);border-radius:8px;margin-bottom:6px;';
+      row.style.cssText = 'display:flex;align-items:center;gap:10px;padding:8px 10px;border:1px solid var(--border);border-radius:8px;margin-bottom:6px;';
 
       const cb = document.createElement('input');
       cb.type = 'checkbox';
       cb.checked = enabled.has(bm.raw);
-      cb.style.cssText = 'width:16px;height:16px;accent-color:#a78bfa;cursor:pointer;flex-shrink:0;';
+      cb.style.cssText = 'width:16px;height:16px;accent-color:var(--feat-autoupgrade);cursor:pointer;flex-shrink:0;';
       cb.addEventListener('change', () => {
         if (cb.checked) enabled.add(bm.raw);
         else enabled.delete(bm.raw);
       });
 
       const label = document.createElement('div');
-      label.style.cssText = 'flex:1;font-size:12px;color:#e2e8f0;';
+      label.style.cssText = 'flex:1;font-size:12px;color:var(--text);';
       label.innerHTML = bm.studioId
         ? `<strong>Studio ${bm.studioId}</strong> · ${bm.dayOfWeek} ${bm.time}`
-        : `<span style="color:#94a3b8;">${bm.raw}</span>`;
+        : `<span style="color:var(--text-secondary);">${bm.raw}</span>`;
 
       row.appendChild(cb);
       row.appendChild(label);
@@ -270,7 +274,7 @@ function openFavouritesModal() {
 
     const saveBtn = document.createElement('button');
     saveBtn.className = 'psycle-btn';
-    saveBtn.style.cssText = 'width:100%;margin-top:12px;background:#a78bfa;color:#fff;';
+    saveBtn.style.cssText = 'width:100%;margin-top:12px;background:var(--feat-autoupgrade);color:#fff;';
     saveBtn.textContent = 'Save Favourites';
     saveBtn.addEventListener('click', async () => {
       saveBtn.disabled = true;
@@ -301,46 +305,44 @@ function openFavouritesModal() {
 
 async function renderAutoBookTab() {
   const queueContainer = document.getElementById('psycle-autobook-queue-container');
-  const historyBody = document.getElementById('psycle-autobook-history-table-body');
+  const historyList = document.getElementById('psycle-autobook-history-list');
 
-  if (queueContainer) {
-    queueContainer.innerHTML = `<div class="psycle-spinner" style="margin: 30px auto;"></div>`;
-  }
-  if (historyBody) {
-    historyBody.innerHTML = `<tr><td colspan="5" class="psycle-table-empty">Loading history...</td></tr>`;
+  // Show cached data immediately if available (from prefetch)
+  if (cache.autoBookings) {
+    const cached = cache.autoBookings;
+    const active = cached.filter(x => !x.executed_at);
+    const history = cached.filter(x => x.executed_at);
+    renderQueue(active);
+    renderHistory(history);
+  } else {
+    // First visit — no cached data yet
+    if (queueContainer) {
+      queueContainer.innerHTML = `<div class="psycle-spinner" style="margin: 30px auto;"></div>`;
+    }
+    if (historyList) {
+      historyList.innerHTML = `<div class="psycle-table-empty">Loading history...</div>`;
+    }
   }
 
+  // Fetch fresh data in the background
   try {
     const res = await api.getAutoBookings();
-    
+    cache.autoBookings = res;
+
     // Separate active vs executed (history)
     const active = res.filter(x => !x.executed_at);
     const history = res.filter(x => x.executed_at);
 
     renderQueue(active);
     renderHistory(history);
-
-    // History section toggle
-    const historyToggle = document.getElementById('psycle-autobook-history-toggle');
-    const historyContent = document.getElementById('psycle-autobook-history-content');
-    const historyChevron = document.getElementById('psycle-autobook-history-chevron');
-
-    if (historyToggle && !historyToggle.dataset.listener) {
-      historyToggle.dataset.listener = 'true';
-      historyToggle.addEventListener('click', () => {
-        const isOpen = historyContent.style.display !== 'none';
-        historyContent.style.display = isOpen ? 'none' : 'block';
-        if (historyChevron) {
-          historyChevron.textContent = isOpen ? '▶' : '▼';
-          historyChevron.style.transform = isOpen ? '' : 'rotate(180deg)';
-        }
-      });
-    }
   } catch (err) {
     console.error('[AutoBook] Failed to load:', err);
-    if (queueContainer) queueContainer.innerHTML = `<div class="psycle-card-error">Error: ${err.message}</div>`;
+    if (queueContainer && !cache.autoBookings) {
+      queueContainer.innerHTML = `<div class="psycle-card-error">Error: ${err.message}</div>`;
+    }
   }
 }
+
 
 function renderQueue(queue) {
   const container = document.getElementById('psycle-autobook-queue-container');
@@ -355,25 +357,22 @@ function renderQueue(queue) {
     return;
   }
 
+  // Sort chronologically by class start time
+  const sorted = [...queue].sort((a, b) => new Date(a.start_at) - new Date(b.start_at));
   container.innerHTML = '';
-  queue.forEach(q => {
+  sorted.forEach(q => {
     const card = document.createElement('div');
-    card.className = 'psycle-autobook-card';
+    card.className = 'psycle-autobook-card ab-card';
     card.setAttribute('data-event-id', q.event_id);
-    card.style.background = 'rgba(255,255,255,0.03)';
-    card.style.border = '1px solid rgba(255,255,255,0.08)';
-    card.style.borderRadius = '16px';
-    card.style.padding = '16px';
-    card.style.marginBottom = '12px';
-    card.style.display = 'flex';
-    card.style.flexDirection = 'column';
-    card.style.gap = '10px';
 
     const startDt = new Date(q.start_at);
-    const timeStr = startDt.toLocaleString('en-GB', {
+    const dateStr = startDt.toLocaleString('en-GB', {
       weekday: 'short',
       day: 'numeric',
       month: 'short',
+      timeZone: 'Europe/London'
+    });
+    const timeOnly = startDt.toLocaleString('en-GB', {
       hour: '2-digit',
       minute: '2-digit',
       hour12: false,
@@ -381,16 +380,9 @@ function renderQueue(queue) {
     });
 
     const prefs = q.preferences || {};
-    const preferredSlots = prefs.preferredSlots || [];
-    const preferredRows = prefs.preferredRows || [];
     const creditsNeeded = prefs.requiredCount || 1;
-
-    let preferencesLabel = 'Any Available Spot';
-    if (preferredSlots.length > 0) {
-      preferencesLabel = `Spots: ${preferredSlots.join(', ')}`;
-    } else if (preferredRows.length > 0) {
-      preferencesLabel = `Rows: ${preferredRows.map(r => `Row ${Math.round(r)}`).join(', ')}`;
-    }
+    const className = q.class_name || q.group_name || 'Class';
+    const locationLine = [q.studio_name, trimLocation(q.location_name)].filter(Boolean).join(', ');
 
     // Calculate total available credits from profile
     let totalAvailableCredits = 0;
@@ -400,28 +392,35 @@ function renderQueue(queue) {
     const hasInsufficientCredits = totalAvailableCredits < creditsNeeded;
 
     const creditWarning = hasInsufficientCredits
-      ? `<div style="font-size: 11px; font-weight: 700; color: #f59e0b; padding: 4px 8px; border-radius: 6px; background: rgba(245, 158, 11, 0.15); border: 1px solid rgba(245, 158, 11, 0.3); text-align: center;">⚠ Insufficient Credits</div>`
+      ? `<div class="ab-credit-warning">${icon('warning', 13)}<span>Insufficient Credits</span></div>`
       : '';
 
     card.innerHTML = `
-      <div style="display: flex; justify-content: space-between; align-items: flex-start;">
-        <div>
-          <h4 style="margin: 0; font-family: 'Outfit'; font-size: 16px; font-weight: 700;">${q.class_name}</h4>
-          <span style="font-size: 12px; color: #94a3b8;">with ${q.instructor_name}</span>
+      <div class="ab-card-main">
+        <div class="ab-card-toprow">
+          <div class="ab-card-when">
+            <span class="ab-card-date">${dateStr.toUpperCase()}</span>
+            <span class="ab-card-time">${timeOnly}</span>
+          </div>
         </div>
-        <span class="psycle-autobook-card-countdown" data-start-at="${q.start_at}" style="font-size: 11px; font-weight: 700; padding: 4px 10px; border-radius: 8px; border: 1px solid; text-transform: uppercase;">
-          00:00:00
-        </span>
+        <div class="ab-card-meta">
+          ${disciplineTag(q.group_name || q.class_name)}
+          <span class="ab-card-class">${className}</span>
+          <span class="ab-meta-dot">·</span>
+          <span class="ab-card-instructor">${q.instructor_name || 'TBA'}</span>
+          ${locationLine ? `<span class="ab-card-location">${locationLine}</span>` : ''}
+        </div>
+        <div class="ab-card-footer">
+          <span class="ab-countdown state-pending" data-start-at="${q.start_at}">
+            ${icon('clock', 13)}<span class="ab-countdown-val">…</span>
+          </span>
+          <span class="ab-spots-pill">${creditsNeeded} Spot${creditsNeeded !== 1 ? 's' : ''}</span>
+        </div>
+        ${creditWarning}
       </div>
-      <div style="font-size: 13px; color: #cbd5e1; display: flex; flex-direction: column; gap: 4px;">
-        <div><strong>Time:</strong> ${timeStr}</div>
-        <div><strong>Studio:</strong> ${q.studio_name} (${q.location_name})</div>
-        <div><strong>Spot Preference:</strong> ${preferencesLabel} ${prefs.bookAny ? '(or fallback)' : '(strict)'}</div>
-        <div><strong>Credits Needed:</strong> ${creditsNeeded}</div>
-      </div>
-      ${creditWarning}
-      <div style="display: flex; gap: 10px; margin-top: 6px;">
-        <button class="psycle-action-btn-mini delete-autobook-btn" data-id="${q.id}" style="background: rgba(239, 68, 68, 0.1); border-color: rgba(239, 68, 68, 0.2); color: #f87171;">Delete</button>
+      <div class="ab-card-rail">
+        <button class="ab-rail-btn edit-autobook-btn" data-id="${q.id}" aria-label="Edit">${icon('edit', 17)}<span>Edit</span></button>
+        <button class="ab-rail-btn danger delete-autobook-btn" data-id="${q.id}" aria-label="Cancel">${icon('close', 17)}<span>Cancel</span></button>
       </div>
     `;
 
@@ -437,86 +436,342 @@ function renderQueue(queue) {
       }
     });
 
+    // Edit click listener
+    card.querySelector('.edit-autobook-btn').addEventListener('click', () => {
+      openAutoBookEditModal(q);
+    });
+
     container.appendChild(card);
   });
 }
 
-function renderHistory(history) {
-  const tbody = document.getElementById('psycle-autobook-history-table-body');
-  if (!tbody) return;
+// Edit modal for updating an existing auto-book queue entry's configuration
+// (spot preferences, quantity, fallback toggle). Reuses the shared booking modal.
+async function openAutoBookEditModal(q) {
+  const modal = document.getElementById('psycle-booking-modal');
+  const body = document.getElementById('psycle-booking-modal-body');
+  const title = document.getElementById('psycle-booking-modal-title');
+  if (!modal || !body || !title) return;
 
-  if (history.length === 0) {
-    tbody.innerHTML = '<tr><td colspan="5" class="psycle-table-empty">No execution history recorded in the last 24h.</td></tr>';
+  const prefs = q.preferences || {};
+  const currentQty = prefs.requiredCount || 1;
+  const currentBookAny = prefs.bookAny ?? false;
+
+  title.textContent = `Edit Auto-Book: ${q.group_name || q.class_name || 'Class'}`;
+  body.innerHTML = `
+    <div class="psycle-loading-spinner-container" style="padding: 40px 0;">
+      <div class="psycle-spinner"></div>
+      <span>Fetching studio floor map...</span>
+    </div>
+  `;
+
+  modal.style.display = 'flex';
+  setTimeout(() => modal.classList.add('show'), 10);
+
+  const closeBtn = document.getElementById('psycle-booking-modal-close');
+  const overlay = modal.querySelector('.psycle-modal-overlay');
+
+  const closeModal = () => {
+    modal.classList.remove('show');
+    setTimeout(() => modal.style.display = 'none', 300);
+  };
+
+  closeBtn.onclick = closeModal;
+  overlay.onclick = closeModal;
+
+  try {
+    // Fetch event + studio layout, and the live shared studio map in parallel
+    const [res, allPrefs] = await Promise.all([
+      api.proxyGet(`/events/${q.event_id}`),
+      api.getStudioPreferences()
+    ]);
+
+    const eventDetails = res.data || res;
+    const studio = res.relations?.studios?.[0] || eventDetails.relations?.studios?.[0] || eventDetails.studio || {};
+    const layoutSlots = studio?.layout?.slots || [];
+    const resolvedStudioId = q.studio_id || studio.id;
+    const studioPrefs = resolvedStudioId ? allPrefs[resolvedStudioId] : null;
+
+    // Seed from the shared studio map (live source of truth), fall back to entry prefs
+    const seedSlots = (studioPrefs?.preferredSlots || prefs.preferredSlots || []).map(Number);
+    const seedRows = studioPrefs?.preferredRows || prefs.preferredRows || [];
+    const studioName = q.studio_name || studio?.name || 'this studio';
+
+    if (layoutSlots.length === 0) {
+      body.innerHTML = `
+        <div style="padding: 24px; text-align: center; color: var(--text-secondary);">
+          <p style="margin-bottom: 16px;">No floor map layout available for this studio.</p>
+          <p style="font-size: 12px; color: var(--text-tertiary);">You can still update the number of spots and fallback option below.</p>
+        </div>
+      `;
+      // Render minimal controls without floor plan
+      const controlsDiv = document.createElement('div');
+      controlsDiv.style.cssText = 'display:flex;flex-direction:column;gap:12px;background:var(--surface-inset);padding:14px;border-radius:12px;border:1px solid var(--border);';
+      controlsDiv.innerHTML = `
+        <div style="display:flex;gap:14px;align-items:center;border-top:1px solid var(--separator);padding-top:12px;">
+          <div style="width:110px;">
+            <label style="display:block;font-size:12px;color:var(--text-secondary);margin-bottom:4px;">Slots to book:</label>
+            <select id="autobook-edit-qty" class="psycle-select" style="width:100%;padding:6px 8px;font-size:13px;">
+              ${[1,2,3,4].map(n => `<option value="${n}" ${currentQty===n?'selected':''}>${n}</option>`).join('')}
+            </select>
+          </div>
+          <div style="flex:1;padding-top:14px;">
+            <label style="display:flex;align-items:center;gap:8px;font-size:13px;cursor:pointer;color:var(--text-secondary);user-select:none;">
+              <input type="checkbox" id="autobook-edit-fallback" ${currentBookAny ? 'checked' : ''}>
+              <span>Book any slot if preferred is unavailable</span>
+            </label>
+          </div>
+        </div>
+        <button class="psycle-btn" id="btn-save-autobook-edit" style="background:var(--feat-autoupgrade);color:var(--on-accent);">Save Changes</button>
+      `;
+      body.appendChild(controlsDiv);
+
+      controlsDiv.querySelector('#btn-save-autobook-edit').onclick = async () => {
+        const qty = parseInt(controlsDiv.querySelector('#autobook-edit-qty').value) || 1;
+        const fallbackAny = controlsDiv.querySelector('#autobook-edit-fallback').checked;
+        await saveAutoBookEdit(q.id, resolvedStudioId, [], [], qty, fallbackAny, closeModal);
+      };
+      return;
+    }
+
+    body.innerHTML = `<div id="psycle-autobook-edit-editor"></div>`;
+    const editorContainer = body.querySelector('#psycle-autobook-edit-editor');
+
+    const bannerHtml = `
+      <div style="font-size:12px;color:var(--feat-autoupgrade);background:color-mix(in srgb,var(--feat-autoupgrade) 8%,transparent);border:1px solid color-mix(in srgb,var(--feat-autoupgrade) 18%,transparent);border-radius:8px;padding:8px 10px;margin-bottom:10px;line-height:1.5;">
+        Auto-Book uses your preferred spot map to book the best spot it can. You can edit your preferred spots any time in Settings.
+      </div>`;
+
+    const bannerHtmlEdit = `
+      <div style="font-size:12px;color:var(--feat-autoupgrade);background:color-mix(in srgb,var(--feat-autoupgrade) 8%,transparent);border:1px solid color-mix(in srgb,var(--feat-autoupgrade) 18%,transparent);border-radius:8px;padding:8px 10px;margin-bottom:10px;line-height:1.5;">
+        You are editing your preferred spot map for <strong>${studioName}</strong>. Changes here apply to Quick-Book and Auto-Upgrade too.
+      </div>`;
+
+    const extraControlsHtml = `
+      <div style="display:flex;flex-direction:column;gap:12px;background:var(--surface-inset);padding:14px;border-radius:12px;border:1px solid var(--border);">
+        <div style="display:flex;gap:14px;align-items:center;border-top:1px solid var(--separator);padding-top:12px;">
+          <div style="width:110px;">
+            <label style="display:block;font-size:12px;color:var(--text-secondary);margin-bottom:4px;">Slots to book:</label>
+            <select id="autobook-edit-qty" class="psycle-select" style="width:100%;padding:6px 8px;font-size:13px;">
+              ${[1,2,3,4].map(n => `<option value="${n}" ${currentQty===n?'selected':''}>${n}</option>`).join('')}
+            </select>
+          </div>
+          <div style="flex:1;padding-top:14px;">
+            <label style="display:flex;align-items:center;gap:8px;font-size:13px;cursor:pointer;color:var(--text-secondary);user-select:none;">
+              <input type="checkbox" id="autobook-edit-fallback" ${currentBookAny ? 'checked' : ''}>
+              <span>Book any slot if preferred is unavailable</span>
+            </label>
+          </div>
+        </div>
+      </div>`;
+
+    renderStudioFloorPlan(editorContainer, layoutSlots, seedSlots, seedRows, async (slots, rows, container) => {
+      const qty = parseInt(container.querySelector('#autobook-edit-qty')?.value || currentQty) || 1;
+      const fallbackAny = container.querySelector('#autobook-edit-fallback')?.checked ?? currentBookAny;
+      await saveAutoBookEdit(q.id, resolvedStudioId, slots, rows, qty, fallbackAny, closeModal);
+    }, {
+      saveLabel: 'Save Changes',
+      bannerHtml,
+      bannerHtmlEdit,
+      extraControlsHtml,
+      readOnly: true,
+      editLabel: `Edit preferred spots for ${studioName}`,
+      hideClear: true
+    });
+  } catch (err) {
+    console.error('[AutoBook] Edit modal failed:', err);
+    body.innerHTML = `<div style="padding: 24px; text-align: center; color: var(--danger);">Failed to load studio layout: ${err.message}</div>`;
+  }
+}
+
+// Save updated auto-book preferences (updates both the queue entry and the shared studio map)
+async function saveAutoBookEdit(entryId, studioId, slots, rows, qty, bookAny, closeModal) {
+  try {
+    showToast('Saving auto-book changes...', 'info');
+
+    // 1. Update the shared studio map (live source of truth for all features)
+    if (studioId && (slots.length > 0 || rows.length > 0)) {
+      try {
+        await api.updateStudioPreferences(studioId, { preferredSlots: slots, preferredRows: rows });
+      } catch (e) {
+        console.warn('[AutoBook] Could not persist studio map:', e.message);
+      }
+    }
+
+    // 2. Update the auto-book queue entry preferences
+    await api.updateAutoBooking(entryId, {
+      preferredSlots: slots,
+      preferredRows: rows,
+      requiredCount: qty,
+      bookAny
+    });
+
+    showToast('Auto-book configuration updated!', 'success');
+    closeModal();
+    renderAutoBookTab();
+  } catch (err) {
+    showToast(`Failed: ${err.message}`, 'error');
+  }
+}
+
+const HISTORY_PAGE_SIZE = 10;
+let _historyAll = [];
+let _historyPage = 0;
+
+function renderHistory(history) {
+  // Wire the collapsible toggle once
+  const toggle = document.getElementById('psycle-autobook-history-toggle');
+  const content = document.getElementById('psycle-autobook-history-content');
+  const chevron = document.getElementById('psycle-autobook-history-chevron');
+  const histIcon = document.querySelector('.ab-history-icon');
+  if (histIcon) histIcon.innerHTML = icon('history', 18);
+  if (chevron) chevron.innerHTML = icon('chevron', 18);
+  if (toggle && !toggle.dataset.listener) {
+    toggle.dataset.listener = 'true';
+    toggle.addEventListener('click', () => {
+      const open = content.style.display !== 'none';
+      content.style.display = open ? 'none' : 'block';
+      toggle.classList.toggle('is-open', !open);
+    });
+  }
+
+  history.sort((a, b) => new Date(b.executed_at) - new Date(a.executed_at));
+  _historyAll = history;
+  _historyPage = 0;
+  renderHistoryPage();
+}
+
+function renderHistoryPage() {
+  const list = document.getElementById('psycle-autobook-history-list');
+  const paginationEl = document.getElementById('psycle-autobook-history-pagination');
+  if (!list) return;
+
+  if (_historyAll.length === 0) {
+    list.innerHTML = '<div class="psycle-table-empty">No execution history recorded in the last 24h.</div>';
+    if (paginationEl) paginationEl.innerHTML = '';
     return;
   }
 
-  // Sort: most recent first
-  history.sort((a,b) => new Date(b.executed_at) - new Date(a.executed_at));
+  const start = _historyPage * HISTORY_PAGE_SIZE;
+  const page = _historyAll.slice(start, start + HISTORY_PAGE_SIZE);
+  const totalPages = Math.ceil(_historyAll.length / HISTORY_PAGE_SIZE);
 
-  tbody.innerHTML = '';
-  history.forEach(h => {
+  list.innerHTML = '';
+  page.forEach(h => {
     const executedDt = new Date(h.executed_at);
-    const timeStr = executedDt.toLocaleString('en-GB', { 
-      day: 'numeric', 
-      month: 'short', 
-      hour: '2-digit', 
-      minute: '2-digit',
-      hour12: false,
-      timeZone: 'Europe/London'
+    const dateStr = executedDt.toLocaleString('en-GB', {
+      weekday: 'short', day: 'numeric', month: 'short', timeZone: 'Europe/London'
+    });
+    const timeStr = executedDt.toLocaleString('en-GB', {
+      hour: '2-digit', minute: '2-digit', hour12: false, timeZone: 'Europe/London'
     });
 
-    let statusBadge = '';
-    if (h.status === 'success') {
-      statusBadge = '<span class="status-cell yes">Booked</span>';
-    } else if (h.status === 'waitlist') {
-      statusBadge = '<span class="status-cell warning" style="color:#fbbf24; border-color:rgba(245,158,11,0.2);">Waitlist</span>';
-    } else {
-      statusBadge = '<span class="status-cell no">Failed</span>';
-    }
+    let state, statusText, statusGlyph;
+    if (h.status === 'success')      { state = 'success';  statusText = 'Booked';     statusGlyph = 'checkCircle'; }
+    else if (h.status === 'waitlist') { state = 'waitlist'; statusText = 'Waitlisted'; statusGlyph = 'clock'; }
+    else                              { state = 'failed';   statusText = 'Failed';     statusGlyph = 'error'; }
 
-    const row = document.createElement('tr');
-    row.innerHTML = `
-      <td><strong>${h.class_name}</strong><br><small style="color:#94a3b8;">with ${h.instructor_name}</small></td>
-      <td>${h.studio_name}<br><small style="color:#94a3b8;">${h.location_name}</small></td>
-      <td>${timeStr}</td>
-      <td>${statusBadge}</td>
-      <td style="font-size:12px; color:#cbd5e1; max-width:250px; overflow:hidden; text-overflow:ellipsis;" title="${h.execution_message || ''}">
-        ${h.execution_message || 'No details recorded.'}
-      </td>
+    const className = h.class_name || h.group_name || 'Class';
+    const details = [
+      `${dateStr} · ${timeStr}`,
+      h.instructor_name,
+      [h.studio_name, trimLocation(h.location_name)].filter(Boolean).join(', ')
+    ].filter(Boolean).join(' · ');
+
+    const card = document.createElement('div');
+    card.className = `ab-hist-card state-${state}`;
+    card.innerHTML = `
+      <div class="ab-hist-row1">
+        <div class="ab-hist-name">${disciplineTag(h.group_name || h.class_name)}<span class="ab-card-class">${className}</span></div>
+        <span class="ab-history-status state-${state}">${icon(statusGlyph, 12)} ${statusText}</span>
+      </div>
+      <div class="ab-hist-row2">${details}</div>
     `;
-    tbody.appendChild(row);
+    list.appendChild(card);
   });
+
+  // Pagination controls
+  if (paginationEl) {
+    if (totalPages <= 1) {
+      paginationEl.innerHTML = '';
+    } else {
+      paginationEl.innerHTML = `
+        <button class="ab-hist-page-btn" id="ab-hist-prev" ${_historyPage === 0 ? 'disabled' : ''}>${icon('chevron', 14)} Prev</button>
+        <span class="ab-hist-page-info">${_historyPage + 1} / ${totalPages}</span>
+        <button class="ab-hist-page-btn" id="ab-hist-next" ${_historyPage >= totalPages - 1 ? 'disabled' : ''}>Next ${icon('chevron', 14)}</button>
+      `;
+      paginationEl.querySelector('#ab-hist-prev')?.addEventListener('click', () => { _historyPage--; renderHistoryPage(); });
+      paginationEl.querySelector('#ab-hist-next')?.addEventListener('click', () => { _historyPage++; renderHistoryPage(); });
+    }
+  }
+}
+
+// Banner countdown: drop precision as the target nears.
+//   > 24h  → "3d 22h"      (days + hours)
+//   12–24h → "18h 40m"     (hours + minutes)
+//   < 12h  → "8h 40m 12s"  (hours + minutes + seconds)
+function formatBannerCountdown(ms) {
+  const totalSec = Math.max(0, Math.floor(ms / 1000));
+  const days = Math.floor(totalSec / 86400);
+  const hours = Math.floor((totalSec % 86400) / 3600);
+  const mins = Math.floor((totalSec % 3600) / 60);
+  const secs = totalSec % 60;
+  if (ms > 24 * 3600e3) return `${days}d ${hours}h`;
+  if (ms > 12 * 3600e3) return `${hours}h ${mins}m`;
+  return `${hours}h ${mins}m ${secs}s`;
+}
+
+// Friendly relative phrasing for per-card release countdowns ("Opens in 3 days").
+function formatOpensIn(ms) {
+  const totalMin = Math.floor(ms / 60000);
+  const days = Math.floor(totalMin / 1440);
+  const hours = Math.floor((totalMin % 1440) / 60);
+  const mins = totalMin % 60;
+  if (days >= 1) return `Opens in ${days} day${days !== 1 ? 's' : ''}`;
+  if (hours >= 1) return `Opens in ${hours} hour${hours !== 1 ? 's' : ''}`;
+  return `Opens in ${mins} min${mins !== 1 ? 's' : ''}`;
 }
 
 // Tick loop updates countdown texts on the screen
 function updateCountdowns() {
+  const banner = document.querySelector('.ab-banner');
   const mainCountdown = document.getElementById('psycle-autobook-countdown');
-  const mainTarget = document.getElementById('psycle-autobook-target-time');
+  const statusIcon = document.querySelector('.ab-status-icon');
+  const statusText = document.querySelector('.ab-status-text');
 
-  // 1. Update global Monday 12PM Countdown
-  if (mainCountdown && mainTarget) {
+  // 1. Update global Monday 12PM countdown (colour handled by banner state classes)
+  if (mainCountdown) {
+    let paused = false, urgent = false, active = false;
+    let statusGlyph = 'checkCircle', statusLabel = 'Standing by to book';
     if (userSettings.autoBookPaused) {
-      mainCountdown.textContent = "PAUSED";
-      mainCountdown.style.color = "#f87171";
-      mainTarget.textContent = "Auto-book is paused";
+      mainCountdown.textContent = 'Paused';
+      paused = true;
+      statusGlyph = 'pause'; statusLabel = 'Auto-book paused';
     } else {
-      const targetRelease = getNextMondayNoonLondon();
-      const diffMs = targetRelease.toMillis() - Date.now();
-      mainTarget.textContent = `Target Release: ${targetRelease.toLocaleString(DateTime.DATETIME_FULL_WITH_ZONE)}`;
+      const diffMs = getNextMondayNoonLondon().toMillis() - Date.now();
       if (diffMs <= 0) {
-        mainCountdown.textContent = "RELEASE ACTIVE!";
-        mainCountdown.style.color = "#34d399";
+        mainCountdown.textContent = 'Open now';
+        active = true;
+        statusGlyph = 'bolt'; statusLabel = 'Booking window open';
       } else {
-        mainCountdown.textContent = formatFullCountdown(diffMs);
-        mainCountdown.style.color = diffMs <= 30000 ? "#f87171" : "#fff";
+        mainCountdown.textContent = formatBannerCountdown(diffMs);
+        urgent = diffMs <= 30000;
       }
+    }
+    if (statusIcon) statusIcon.innerHTML = icon(statusGlyph, 13);
+    if (statusText) statusText.textContent = statusLabel;
+    if (banner) {
+      banner.classList.toggle('is-paused', paused);
+      banner.classList.toggle('is-urgent', urgent);
+      banner.classList.toggle('is-active', active);
     }
   }
 
   // 2. Update individual card countdowns
-  document.querySelectorAll('.psycle-autobook-card-countdown').forEach(el => {
+  document.querySelectorAll('.ab-countdown').forEach(el => {
     const startAt = el.getAttribute('data-start-at');
     if (!startAt) return;
+    const valEl = el.querySelector('.ab-countdown-val') || el;
 
     // Use default settings (or we can inject active user settings)
     const settings = {
@@ -528,15 +783,13 @@ function updateCountdowns() {
     const diff = classRelease.toMillis() - Date.now();
 
     if (diff <= 0) {
-      el.textContent = "Active";
-      el.style.color = '#34d399';
-      el.style.background = 'rgba(16, 185, 129, 0.1)';
-      el.style.borderColor = 'rgba(16, 185, 129, 0.2)';
+      valEl.textContent = 'Booking now';
+      el.classList.remove('state-pending');
+      el.classList.add('state-active');
     } else {
-      el.textContent = formatCountdown(diff);
-      el.style.color = '#c084fc';
-      el.style.background = 'rgba(139, 92, 246, 0.1)';
-      el.style.borderColor = 'rgba(139, 92, 246, 0.2)';
+      valEl.textContent = formatOpensIn(diff);
+      el.classList.remove('state-active');
+      el.classList.add('state-pending');
     }
   });
 }

@@ -103,10 +103,14 @@ async function fetchCodexFit(userId, url, options = {}) {
   return res;
 }
 
-// Prefetch slots map for active bookings (triggered 30s before release)
-async function prefetchAutoBookSlots(bookings) {
-  console.log(`[Scheduler] T-30s prefetch triggered for ${bookings.length} bookings.`);
+// Prefetch slots map for active bookings. Each user is staggered randomly within
+// a window so all fetches complete before T-30s. windowMs is the total stagger
+// budget (default 18s → start at T-50s, finish by ~T-30s).
+async function prefetchAutoBookSlots(bookings, windowMs = 18000) {
+  console.log(`[Scheduler] Prefetch triggered for ${bookings.length} booking(s), staggered over ${windowMs / 1000}s window.`);
   const promises = bookings.map(async (booking) => {
+    const delay = Math.floor(Math.random() * windowMs);
+    await new Promise(r => setTimeout(r, delay));
     try {
       emitStatusUpdate(booking.user_id, {
         eventId: booking.event_id,
@@ -257,8 +261,7 @@ async function executeAutoBookForClass(booking) {
 
       attemptIdx++;
       if (bookedCount < requiredCount && attemptIdx < slotsToTry.length) {
-        // 500ms cooldown between slot attempts within the same class
-        await new Promise(resolve => setTimeout(resolve, 500));
+        await new Promise(resolve => setTimeout(resolve, 400 + Math.floor(Math.random() * 400)));
       }
     }
 
@@ -397,8 +400,9 @@ function scheduleReleaseWindow() {
 
   console.log(`[Scheduler] Next release scheduled for: ${targetRelease.toLocaleString(DateTime.DATETIME_FULL_WITH_ZONE)} (in ${(diffMs / 3600000).toFixed(2)} hours)`);
 
-  // 1. Set Prefetch Timeout at T-30s
-  const prefetchDelay = diffMs - 30000;
+  // 1. Set Prefetch Timeout at T-50s; individual fetches are staggered randomly
+  //    within an 18s window so all complete before T-30s.
+  const prefetchDelay = diffMs - 50000;
   if (prefetchDelay > 0) {
     prefetchTimeout = setTimeout(async () => {
       const pending = db.getPendingAutoBookings();

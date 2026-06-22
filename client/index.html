@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
-  <title>Psycle PWA</title>
+  <title>Psycle Assistant</title>
   
   <!-- Web App Manifest for PWA Home Screen Installation -->
   <link rel="manifest" href="/manifest.json">
@@ -11,8 +11,11 @@
   <link rel="apple-touch-icon" href="/icons/icon-192.png">
   <meta name="mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-capable" content="yes">
-  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <meta name="apple-mobile-web-app-status-bar-style" content="default">
   <meta name="apple-mobile-web-app-title" content="Psycle">
+  <!-- Status bar / notch + home-indicator safe-area colour (matches app background per theme) -->
+  <meta name="theme-color" content="#f5f2ec" media="(prefers-color-scheme: light)">
+  <meta name="theme-color" content="#090d16" media="(prefers-color-scheme: dark)">
   
   <!-- Web Fonts -->
   <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -54,7 +57,7 @@
 
   <!-- 2. MAIN APPLICATION SHELL -->
   <div id="psycle-app-container" class="psycle-panel" style="display: none;">
-    
+      
     <!-- Top Action Bar -->
     <header class="psycle-header">
       <div class="psycle-title-area">
@@ -67,7 +70,7 @@
         </div>
       </div>
       <div class="psycle-header-actions" id="psycle-header-user-status">
-        <span class="psycle-user-email" style="font-size: 13px; font-weight: 500; color: #94a3b8;">Loading...</span>
+        <span class="psycle-user-email" style="font-size: 13px; font-weight: 500; color: var(--text-secondary);">Loading...</span>
         <div class="psycle-credit-badges" id="psycle-header-credits" style="display: flex; gap: 8px;"></div>
       </div>
     </header>
@@ -100,12 +103,12 @@
             <div class="psycle-ms-dropdown" id="psycle-ms-location" style="flex: 1; min-width: 170px; position: relative;">
               <button class="psycle-ms-trigger" style="width: 100%; display: flex; justify-content: space-between; align-items: center; height: 40px !important;">
                 <span class="psycle-ms-trigger-text">All Locations</span>
-                <span class="psycle-ms-arrow" style="font-size: 8px; transition: transform 0.2s;">▼</span>
+                <span class="psycle-ms-arrow" style="font-size: 12px; transition: transform 0.2s;">▼</span>
               </button>
-              <div class="psycle-ms-menu" style="display: none; position: absolute; top: 105%; left: 0; width: 100%; z-index: 10000; background: rgba(20,24,38,0.95); border: 1px solid rgba(255,255,255,0.15); border-radius: 12px; backdrop-filter: blur(15px); -webkit-backdrop-filter: blur(15px); box-shadow: 0 10px 25px rgba(0,0,0,0.5); max-height: 200px; overflow-y: auto; padding: 8px;">
-                <div style="display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid rgba(255,255,255,0.08); padding-bottom: 6px; margin-bottom: 6px;">
-                  <span style="font-size: 10px; color: #94a3b8; font-weight: 700;">LOCATIONS</span>
-                  <button class="psycle-ms-clear-btn" style="background: transparent; border: none; color: #a78bfa; font-size: 10px; cursor: pointer; font-weight: 600; padding: 0;">Clear</button>
+              <div class="psycle-ms-menu" style="display: none;">
+                <div style="display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid color-mix(in srgb, var(--text) 8%, transparent); padding-bottom: 6px; margin-bottom: 6px;">
+                  <span style="font-size: 12px; color: var(--text-secondary); font-weight: 700;">LOCATIONS</span>
+                  <button class="psycle-ms-clear-btn" style="background: transparent; border: none; color: var(--feat-autoupgrade); font-size: 12px; cursor: pointer; font-weight: 600; padding: 0;">Clear</button>
                 </div>
                 <div class="psycle-ms-options-list" style="display: flex; flex-direction: column; gap: 6px;"></div>
               </div>
@@ -115,12 +118,12 @@
             <div class="psycle-ms-dropdown" id="psycle-ms-instructor" style="flex: 1; min-width: 170px; position: relative;">
               <button class="psycle-ms-trigger" style="width: 100%; display: flex; justify-content: space-between; align-items: center; height: 40px !important;">
                 <span class="psycle-ms-trigger-text">All Instructors</span>
-                <span class="psycle-ms-arrow" style="font-size: 8px; transition: transform 0.2s;">▼</span>
+                <span class="psycle-ms-arrow" style="font-size: 12px; transition: transform 0.2s;">▼</span>
               </button>
-              <div class="psycle-ms-menu" style="display: none; position: absolute; top: 105%; left: 0; width: 100%; z-index: 10000; background: rgba(20,24,38,0.95); border: 1px solid rgba(255,255,255,0.15); border-radius: 12px; backdrop-filter: blur(15px); -webkit-backdrop-filter: blur(15px); box-shadow: 0 10px 25px rgba(0,0,0,0.5); max-height: 200px; overflow-y: auto; padding: 8px;">
-                <div style="display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid rgba(255,255,255,0.08); padding-bottom: 6px; margin-bottom: 6px;">
-                  <span style="font-size: 10px; color: #94a3b8; font-weight: 700;">INSTRUCTORS</span>
-                  <button class="psycle-ms-clear-btn" style="background: transparent; border: none; color: #a78bfa; font-size: 10px; cursor: pointer; font-weight: 600; padding: 0;">Clear</button>
+              <div class="psycle-ms-menu" style="display: none;">
+                <div style="display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid color-mix(in srgb, var(--text) 8%, transparent); padding-bottom: 6px; margin-bottom: 6px;">
+                  <span style="font-size: 12px; color: var(--text-secondary); font-weight: 700;">INSTRUCTORS</span>
+                  <button class="psycle-ms-clear-btn" style="background: transparent; border: none; color: var(--feat-autoupgrade); font-size: 12px; cursor: pointer; font-weight: 600; padding: 0;">Clear</button>
                 </div>
                 <div class="psycle-ms-options-list" style="display: flex; flex-direction: column; gap: 6px;"></div>
               </div>
@@ -130,26 +133,26 @@
             <div class="psycle-ms-dropdown" id="psycle-ms-class-type" style="flex: 1; min-width: 170px; position: relative;">
               <button class="psycle-ms-trigger" style="width: 100%; display: flex; justify-content: space-between; align-items: center; height: 40px !important;">
                 <span class="psycle-ms-trigger-text">All Types</span>
-                <span class="psycle-ms-arrow" style="font-size: 8px; transition: transform 0.2s;">▼</span>
+                <span class="psycle-ms-arrow" style="font-size: 12px; transition: transform 0.2s;">▼</span>
               </button>
-              <div class="psycle-ms-menu" style="display: none; position: absolute; top: 105%; left: 0; width: 100%; z-index: 10000; background: rgba(20,24,38,0.95); border: 1px solid rgba(255,255,255,0.15); border-radius: 12px; backdrop-filter: blur(15px); -webkit-backdrop-filter: blur(15px); box-shadow: 0 10px 25px rgba(0,0,0,0.5); max-height: 200px; overflow-y: auto; padding: 8px;">
-                <div style="display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid rgba(255,255,255,0.08); padding-bottom: 6px; margin-bottom: 6px;">
-                  <span style="font-size: 10px; color: #94a3b8; font-weight: 700;">WORKOUT TYPES</span>
-                  <button class="psycle-ms-clear-btn" style="background: transparent; border: none; color: #a78bfa; font-size: 10px; cursor: pointer; font-weight: 600; padding: 0;">Clear</button>
+              <div class="psycle-ms-menu" style="display: none;">
+                <div style="display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid color-mix(in srgb, var(--text) 8%, transparent); padding-bottom: 6px; margin-bottom: 6px;">
+                  <span style="font-size: 12px; color: var(--text-secondary); font-weight: 700;">WORKOUT TYPES</span>
+                  <button class="psycle-ms-clear-btn" style="background: transparent; border: none; color: var(--feat-autoupgrade); font-size: 12px; cursor: pointer; font-weight: 600; padding: 0;">Clear</button>
                 </div>
                 <div class="psycle-ms-options-list" style="display: flex; flex-direction: column; gap: 6px;"></div>
               </div>
             </div>
 
             <!-- Bookmarked Filter Toggle -->
-            <button id="psycle-filter-favorites-only" class="psycle-btn-mini" style="background: rgba(239, 68, 68, 0.15); border: 1px solid rgba(239, 68, 68, 0.3); color: #f43f5e; height: 40px !important; padding: 0 16px !important; border-radius: 12px !important; font-weight: 600; cursor: pointer;">
+            <button id="psycle-filter-favorites-only" class="psycle-btn-mini" style="height: 40px !important; padding: 0 16px !important; border-radius: 12px !important; font-weight: 600; cursor: pointer;">
               ♡ Bookmarked
             </button>
 
             <!-- Save/Clear controls -->
             <div style="display: flex; gap: 6px; flex-shrink: 0; align-items: center; height: 40px !important;">
-              <button id="psycle-btn-clear-all-filters" class="psycle-btn-mini" style="background: rgba(239, 68, 68, 0.15); border: 1px solid rgba(239, 68, 68, 0.3); color: #f87171; height: 40px !important; padding: 0 16px !important; border-radius: 12px !important; font-weight: 600; cursor: pointer;" title="Clear All Filters">Clear</button>
-              <button id="psycle-btn-save-default-filters" class="psycle-btn-mini" style="background: rgba(16, 185, 129, 0.15); border: 1px solid rgba(16, 185, 129, 0.3); color: #34d399; height: 40px !important; padding: 0 16px !important; border-radius: 12px !important; font-weight: 600; cursor: pointer;" title="Save current filters as default">Save</button>
+              <button id="psycle-btn-clear-all-filters" class="psycle-btn-mini" style="background: color-mix(in srgb, var(--danger) 15%, transparent); border: 1px solid color-mix(in srgb, var(--danger) 30%, transparent); color: var(--danger); height: 40px !important; padding: 0 16px !important; border-radius: 12px !important; font-weight: 600; cursor: pointer;" title="Clear All Filters">Clear</button>
+              <button id="psycle-btn-save-default-filters" class="psycle-btn-mini" style="background: color-mix(in srgb, var(--success) 15%, transparent); border: 1px solid color-mix(in srgb, var(--success) 30%, transparent); color: var(--success); height: 40px !important; padding: 0 16px !important; border-radius: 12px !important; font-weight: 600; cursor: pointer;" title="Save current filters as default">Save</button>
             </div>
 
           </div>
@@ -177,47 +180,22 @@
         </div>
 
         <div class="psycle-section">
-          <h3>Active Bookings</h3>
-          <div class="psycle-table-wrapper">
-            <table class="psycle-table">
-              <thead>
-                <tr>
-                  <th>Class</th>
-                  <th>Instructor</th>
-                  <th>Studio / Location</th>
-                  <th>Start Time</th>
-                  <th>Slot</th>
-                  <th>Actions</th>
-                </tr>
-              </thead>
-              <tbody id="psycle-bookings-table-body">
-                <tr>
-                  <td colspan="6" class="psycle-table-empty">No active bookings found.</td>
-                </tr>
-              </tbody>
-            </table>
+          <div class="psycle-section-header">
+            <h3>Active Bookings</h3>
+            <span id="psycle-bookings-refreshing" class="psycle-refreshing-chip" style="display: none;"><span class="psycle-spinner"></span> Refreshing...</span>
+          </div>
+          <div id="psycle-bookings-list" class="psycle-bookings-list">
+            <div class="fav-empty-state" style="padding: 30px 0;">No active bookings found.</div>
           </div>
         </div>
 
         <div class="psycle-section" style="margin-top: 24px;">
-          <h3>Active Waitlists</h3>
-          <div class="psycle-table-wrapper">
-            <table class="psycle-table">
-              <thead>
-                <tr>
-                  <th>Class</th>
-                  <th>Instructor</th>
-                  <th>Studio / Location</th>
-                  <th>Start Time</th>
-                  <th>Actions</th>
-                </tr>
-              </thead>
-              <tbody id="psycle-waitlists-table-body">
-                <tr>
-                  <td colspan="5" class="psycle-table-empty">No active waitlists found.</td>
-                </tr>
-              </tbody>
-            </table>
+          <div class="psycle-section-header">
+            <h3>Active Waitlists</h3>
+            <span id="psycle-waitlists-refreshing" class="psycle-refreshing-chip" style="display: none;"><span class="psycle-spinner"></span> Refreshing...</span>
+          </div>
+          <div id="psycle-waitlists-list" class="psycle-bookings-list">
+            <div class="fav-empty-state" style="padding: 30px 0;">No active waitlists found.</div>
           </div>
         </div>
 
@@ -225,63 +203,44 @@
 
       <!-- AUTO-BOOK TAB PANEL -->
       <section id="psycle-panel-auto-book" class="psycle-tab-content" style="display: none;">
-        <div class="psycle-tab-header">
-          <h3>Precision Auto-Book Queue</h3>
-          <p>Classes scheduled to book instantly the millisecond they are released.</p>
+        <!-- Global Release Countdown banner -->
+        <div class="psycle-countdown-banner ab-banner">
+          <div class="ab-banner-body">
+            <div class="ab-banner-headline">
+              <span class="ab-banner-label">Booking Opens</span>
+              <span id="psycle-autobook-countdown" class="ab-banner-time">—</span>
+            </div>
+            <div class="ab-banner-status" id="psycle-countdown-status-indicator">
+              <span class="ab-status-icon" aria-hidden="true"></span>
+              <span class="ab-status-text">Ready to book</span>
+            </div>
+          </div>
+          <!-- Pause / Favourites / Simulate controls injected here by renderAutoBookControls -->
+          <div class="ab-banner-footer" id="psycle-autobook-controls-bar"></div>
         </div>
 
-        <!-- Global Release Countdown widget -->
-        <div class="psycle-countdown-banner">
-          <div class="psycle-countdown-text">
-            <span class="psycle-countdown-title">Next Monday Release Countdown</span>
-            <h1 id="psycle-autobook-countdown" class="psycle-countdown-time">0d 00h 00m 00s</h1>
-            <p id="psycle-autobook-target-time" class="psycle-countdown-target">Target: Monday 12:00 PM</p>
+        <!-- Scrollable body (queue + history) -->
+        <div class="ab-body">
+          <!-- Queue -->
+          <div class="ab-queue-section">
+            <h2 class="ab-page-title">⚡︎ Auto-Book Queue</h2>
+            <div class="psycle-queue-list ab-queue-list" id="psycle-autobook-queue-container">
+              <!-- Scheduled bookings will be rendered here as list cards -->
+            </div>
           </div>
-          <div class="psycle-countdown-status" id="psycle-countdown-status-indicator">
-            <div class="psycle-pulse-dot"></div>
-            <span>Server Monitoring Active</span>
-          </div>
-        </div>
 
-        <div class="psycle-section" style="margin-top: 24px;">
-          <h3>Scheduled Release Queue</h3>
-          <div class="psycle-queue-list" id="psycle-autobook-queue-container">
-            <!-- Scheduled bookings will be rendered here as list cards -->
-          </div>
-        </div>
-
-        <!-- AUTO-UPGRADE MONITORS -->
-        <div class="psycle-section" style="margin-top: 24px;">
-          <h3>Active Upgrade Monitors</h3>
-          <p style="font-size: 12px; color: #94a3b8; margin: 0 0 12px 0;">Background seat-upgrade checks. Set up from My Bookings after booking a class.</p>
-          <div class="psycle-upgrade-list" id="psycle-autoupgrade-list-container">
-            <!-- Active upgrade monitors will be listed here -->
-          </div>
-        </div>
-
-        <div class="psycle-section" style="margin-top: 24px;">
-          <div id="psycle-autobook-history-toggle" style="cursor: pointer; display: flex; justify-content: space-between; align-items: center; padding: 8px 0;">
-            <h3 style="margin: 0;">Execution History (24h)</h3>
-            <span id="psycle-autobook-history-chevron" style="font-size: 12px; color: #94a3b8; transition: transform 0.2s;">▶</span>
-          </div>
-          <div id="psycle-autobook-history-content" style="display: none;">
-            <div class="psycle-table-wrapper">
-              <table class="psycle-table">
-                <thead>
-                  <tr>
-                    <th>Class</th>
-                    <th>Instructor</th>
-                    <th>Target Release</th>
-                    <th>Status</th>
-                    <th>Execution Details</th>
-                  </tr>
-                </thead>
-                <tbody id="psycle-autobook-history-table-body">
-                  <tr>
-                    <td colspan="5" class="psycle-table-empty">No execution history recorded in the last 24h.</td>
-                  </tr>
-                </tbody>
-              </table>
+          <!-- History (collapsible, closed by default) -->
+          <div class="ab-history-card">
+            <button id="psycle-autobook-history-toggle" class="ab-history-toggle" type="button">
+              <span class="ab-history-toggle-label">
+                <span class="ab-history-icon" aria-hidden="true"></span>
+                <h2 class="ab-page-title" style="margin:0;">History</h2>
+              </span>
+              <span id="psycle-autobook-history-chevron" class="ab-history-chevron" aria-hidden="true"></span>
+            </button>
+            <div id="psycle-autobook-history-content" style="display:none;">
+              <div class="ab-history-list" id="psycle-autobook-history-list"></div>
+              <div class="ab-history-pagination" id="psycle-autobook-history-pagination"></div>
             </div>
           </div>
         </div>
@@ -302,53 +261,49 @@
             </svg>
             <input type="text" id="psycle-bundle-search" placeholder="Search bundles (e.g. 5 pack, Clapham, Ride)...">
           </div>
-          <div class="psycle-favorites-filter-toggle">
-            <input type="checkbox" id="psycle-bundle-favorites-only">
-            <label for="psycle-bundle-favorites-only">Favorites Pin Only</label>
+          <button id="psycle-toggle-bundle-filters" class="psycle-btn-mini" style="background: color-mix(in srgb, var(--feat-autoupgrade) 15%, transparent); border: 1px solid color-mix(in srgb, var(--feat-autoupgrade) 30%, transparent); color: var(--feat-autoupgrade); font-size: 12px; padding: 4px 10px; border-radius: 8px; cursor: pointer; flex-shrink: 0;">Filters</button>
+          <div class="psycle-checkbox-filters" id="psycle-bundles-checkbox-filters" style="display: none; margin-left: auto; flex: 1; padding: 0 12px; background: transparent; border: none;">
+            <label class="psycle-checkbox-label">
+              <input type="checkbox" id="psycle-filter-returning" checked />
+              <span class="custom-checkbox"></span>
+              <span title="Excludes packages with 'Intro Pack' or 'is_first_purchase_only'">Returning Only</span>
+            </label>
+            <label class="psycle-checkbox-label">
+              <input type="checkbox" id="psycle-filter-studios" checked />
+              <span class="custom-checkbox"></span>
+              <span title="Excludes studio-specific bundles">All Studios</span>
+            </label>
+            <label class="psycle-checkbox-label">
+              <input type="checkbox" id="psycle-filter-home" checked />
+              <span class="custom-checkbox"></span>
+              <span>Hide At Home</span>
+            </label>
+            <label class="psycle-checkbox-label">
+              <input type="checkbox" id="psycle-filter-student" checked />
+              <span class="custom-checkbox"></span>
+              <span>Hide Student/Member</span>
+            </label>
+            <label class="psycle-checkbox-label">
+              <input type="checkbox" id="psycle-filter-topup" checked />
+              <span class="custom-checkbox"></span>
+              <span>Hide Top-Ups</span>
+            </label>
+            <label class="psycle-checkbox-label">
+              <input type="checkbox" id="psycle-filter-unlimited" checked />
+              <span class="custom-checkbox"></span>
+              <span>Hide Unlimited</span>
+            </label>
+            <label class="psycle-checkbox-label">
+              <input type="checkbox" id="psycle-filter-weird" checked />
+              <span class="custom-checkbox"></span>
+              <span title="Excludes test, staff, friends & family, not customer facing, gym flex, sale, and out-of-date items">Hide Weird</span>
+            </label>
+            <label class="psycle-checkbox-label">
+              <input type="checkbox" id="psycle-filter-location" checked />
+              <span class="custom-checkbox"></span>
+              <span title="Excludes location-specific bundles (Victoria, Clapham, Shoreditch, Bank, etc.)">Hide Location-Specific</span>
+            </label>
           </div>
-          <button id="psycle-toggle-bundle-filters" class="psycle-btn-mini" style="background: rgba(139, 92, 246, 0.15); border: 1px solid rgba(139, 92, 246, 0.3); color: #a78bfa; font-size: 11px; padding: 4px 10px; border-radius: 8px; cursor: pointer; flex-shrink: 0;">Filters</button>
-        </div>
-        <div class="psycle-checkbox-filters" id="psycle-bundles-checkbox-filters" style="display: none; padding: 8px 36px; background: rgba(0,0,0,0.1); border-bottom: 1px solid rgba(255,255,255,0.04);">
-          <label class="psycle-checkbox-label">
-            <input type="checkbox" id="psycle-filter-returning" checked />
-            <span class="custom-checkbox"></span>
-            <span title="Excludes packages with 'Intro Pack' or 'is_first_purchase_only'">Returning Only</span>
-          </label>
-          <label class="psycle-checkbox-label">
-            <input type="checkbox" id="psycle-filter-studios" checked />
-            <span class="custom-checkbox"></span>
-            <span title="Excludes studio-specific bundles">All Studios</span>
-          </label>
-          <label class="psycle-checkbox-label">
-            <input type="checkbox" id="psycle-filter-home" checked />
-            <span class="custom-checkbox"></span>
-            <span>Hide At Home</span>
-          </label>
-          <label class="psycle-checkbox-label">
-            <input type="checkbox" id="psycle-filter-student" checked />
-            <span class="custom-checkbox"></span>
-            <span>Hide Student/Member</span>
-          </label>
-          <label class="psycle-checkbox-label">
-            <input type="checkbox" id="psycle-filter-topup" checked />
-            <span class="custom-checkbox"></span>
-            <span>Hide Top-Ups</span>
-          </label>
-          <label class="psycle-checkbox-label">
-            <input type="checkbox" id="psycle-filter-unlimited" checked />
-            <span class="custom-checkbox"></span>
-            <span>Hide Unlimited</span>
-          </label>
-          <label class="psycle-checkbox-label">
-            <input type="checkbox" id="psycle-filter-weird" checked />
-            <span class="custom-checkbox"></span>
-            <span title="Excludes test, staff, friends & family, not customer facing, gym flex, sale, and out-of-date items">Hide Weird</span>
-          </label>
-          <label class="psycle-checkbox-label">
-            <input type="checkbox" id="psycle-filter-location" checked />
-            <span class="custom-checkbox"></span>
-            <span title="Excludes location-specific bundles (Victoria, Clapham, Shoreditch, Bank, etc.)">Hide Location-Specific</span>
-          </label>
         </div>
 
         <div class="psycle-bundles-grid" id="psycle-bundles-container">
@@ -358,14 +313,18 @@
 
       <!-- ABOUT TAB PANEL -->
       <section id="psycle-panel-about" class="psycle-tab-content" style="display: none;">
+        <div class="psycle-subnav" role="tablist" aria-label="Settings sections">
+          <button class="psycle-nav-btn psycle-subnav-btn" data-tab="settings" role="tab">Settings</button>
+          <button class="psycle-nav-btn psycle-subnav-btn active" data-tab="about" role="tab">About</button>
+        </div>
         <div class="psycle-tab-header">
-          <h3>About Psycle App</h3>
-          <p>An unofficial companion app for Psycle London, built for personal use.</p>
+          <h3>About Psycle Assistant</h3>
+          <p>Psycle Assistant — an unofficial companion for Psycle London, built for personal use.</p>
         </div>
         <div class="psycle-settings-grid">
           <div class="psycle-settings-card">
             <h4>What is this?</h4>
-            <p class="psycle-card-desc" style="line-height:1.7;">This is an unofficial personal tool — not affiliated with or endorsed by Psycle London or CodexFit. It uses your CodexFit credentials to interact with the same API that powers the Psycle website.</p>
+            <p class="psycle-card-desc" style="line-height:1.7;">Psycle Assistant is an unofficial personal tool — not affiliated with or endorsed by Psycle London or CodexFit. It uses your CodexFit credentials to interact with the same API that powers the Psycle website.</p>
             <p class="psycle-card-desc" style="line-height:1.7;margin-top:8px;">Your login credentials are encrypted with AES-256-GCM and stored only on your private server. They are never transmitted to any third party.</p>
           </div>
           <div class="psycle-settings-card">
@@ -373,46 +332,61 @@
             <div style="display:flex;flex-direction:column;gap:10px;margin-top:4px;">
               <div style="display:flex;gap:10px;align-items:flex-start;">
                 <span style="font-size:16px;flex-shrink:0;">📅</span>
-                <div><strong style="color:#e2e8f0;font-size:13px;">Auto-Book</strong><p class="psycle-card-desc" style="margin:2px 0 0;">Schedules a booking to fire at the exact millisecond a class is released (Monday 12PM), giving you priority access.</p></div>
+                <div><strong style="color:var(--text);font-size:13px;">Auto-Book</strong><p class="psycle-card-desc" style="margin:2px 0 0;">Schedules a booking to fire at the exact millisecond a class is released (Monday 12PM), giving you priority access.</p></div>
               </div>
               <div style="display:flex;gap:10px;align-items:flex-start;">
                 <span style="font-size:16px;flex-shrink:0;">⬆️</span>
-                <div><strong style="color:#e2e8f0;font-size:13px;">Auto-Upgrade</strong><p class="psycle-card-desc" style="margin:2px 0 0;">Continuously monitors your booked class and upgrades you to a better spot if one becomes available.</p></div>
+                <div><strong style="color:var(--text);font-size:13px;">Auto-Upgrade</strong><p class="psycle-card-desc" style="margin:2px 0 0;">Continuously monitors your booked class and upgrades you to a better spot if one becomes available.</p></div>
               </div>
               <div style="display:flex;gap:10px;align-items:flex-start;">
                 <span style="font-size:16px;flex-shrink:0;">⚡</span>
-                <div><strong style="color:#e2e8f0;font-size:13px;">Quick-Book</strong><p class="psycle-card-desc" style="margin:2px 0 0;">Books your preferred spot in any class in one click, using your saved seat preferences per studio.</p></div>
+                <div><strong style="color:var(--text);font-size:13px;">Quick-Book</strong><p class="psycle-card-desc" style="margin:2px 0 0;">Books your preferred spot in any class in one click, using your saved seat preferences per studio.</p></div>
               </div>
               <div style="display:flex;gap:10px;align-items:flex-start;">
                 <span style="font-size:16px;flex-shrink:0;">🗺️</span>
-                <div><strong style="color:#e2e8f0;font-size:13px;">Preferred Spot Maps</strong><p class="psycle-card-desc" style="margin:2px 0 0;">Save your favourite seat positions per studio — used automatically by Quick-Book, Auto-Book, and Auto-Upgrade.</p></div>
+                <div><strong style="color:var(--text);font-size:13px;">Preferred Spot Maps</strong><p class="psycle-card-desc" style="margin:2px 0 0;">Save your favourite seat positions per studio — used automatically by Quick-Book, Auto-Book, and Auto-Upgrade.</p></div>
               </div>
               <div style="display:flex;gap:10px;align-items:flex-start;">
                 <span style="font-size:16px;flex-shrink:0;">🔔</span>
-                <div><strong style="color:#e2e8f0;font-size:13px;">Push Notifications</strong><p class="psycle-card-desc" style="margin:2px 0 0;">Receive instant alerts on your device when Auto-Book or Auto-Upgrade takes action.</p></div>
+                <div><strong style="color:var(--text);font-size:13px;">Push Notifications</strong><p class="psycle-card-desc" style="margin:2px 0 0;">Receive instant alerts on your device when Auto-Book or Auto-Upgrade takes action.</p></div>
               </div>
             </div>
           </div>
           <div class="psycle-settings-card">
             <h4>Privacy & Data</h4>
-            <p class="psycle-card-desc" style="line-height:1.7;">All data is stored exclusively on your own server. The app stores your encrypted credentials, booking queue, spot preferences, and notification subscriptions — nothing else. You can delete all stored data at any time from the Settings tab.</p>
+            <p class="psycle-card-desc" style="line-height:1.7;">All data is stored exclusively on your own server. Psycle Assistant stores your encrypted credentials, booking queue, spot preferences, and notification subscriptions — nothing else. You can delete all stored data at any time from the Settings tab.</p>
           </div>
         </div>
       </section>
 
       <!-- SETTINGS TAB PANEL -->
       <section id="psycle-panel-settings" class="psycle-tab-content" style="display: none;">
+        <div class="psycle-subnav" role="tablist" aria-label="Settings sections">
+          <button class="psycle-nav-btn psycle-subnav-btn active" data-tab="settings" role="tab">Settings</button>
+          <button class="psycle-nav-btn psycle-subnav-btn" data-tab="about" role="tab">About</button>
+        </div>
         <div class="psycle-tab-header">
           <h3>System Settings</h3>
           <p>Configure release schedules, push notifications, and backup preferences.</p>
         </div>
 
         <div class="psycle-settings-grid">
-          
+
+          <!-- Appearance -->
+          <div class="psycle-settings-card">
+            <h4>Appearance</h4>
+            <p class="psycle-card-desc">Choose light or dark, or follow your device automatically.</p>
+            <div class="psycle-segmented" id="psycle-theme-segmented" role="group" aria-label="Theme">
+              <button class="psycle-segmented-btn" data-theme-mode="auto">Auto</button>
+              <button class="psycle-segmented-btn" data-theme-mode="light">Light</button>
+              <button class="psycle-segmented-btn" data-theme-mode="dark">Dark</button>
+            </div>
+          </div>
+
           <!-- Booking Privileges -->
           <div class="psycle-settings-card">
             <h4>Booking & Cutoff Modifiers</h4>
-            <p class="psycle-card-desc">Tells the app when your classes are released based on your membership privileges.</p>
+            <p class="psycle-card-desc">Tells Psycle Assistant when your classes are released based on your membership privileges.</p>
             <div class="psycle-setting-row">
               <div class="psycle-setting-label">
                 <span>Advanced Booking Privileges (+1 week)</span>
@@ -472,8 +446,8 @@
           </div>
 
           <!-- Test Notifications (debug only) -->
-          <div class="psycle-settings-card" id="psycle-test-notif-card" style="display: none; border-color: rgba(245,158,11,0.3);">
-            <h4 style="color:#fbbf24;">🔔 Test Notifications</h4>
+          <div class="psycle-settings-card" id="psycle-test-notif-card" style="display: none; border-color: color-mix(in srgb, var(--warning) 30%, transparent);">
+            <h4 style="color:var(--warning);">🔔 Test Notifications</h4>
             <p class="psycle-card-desc">Send a sample of each notification to all your signed-in devices.</p>
             <div id="psycle-test-notif-buttons" style="display:flex; flex-direction:column; gap:6px;">
               <button class="psycle-btn-mini test-notif-btn" data-type="booking" style="width:100%;">Spot Booked</button>
@@ -551,23 +525,57 @@
           </div>
 
           <!-- User Session -->
-          <div class="psycle-settings-card" style="border-color: rgba(239, 68, 68, 0.2);">
-            <h4 style="color: #f87171;">Account Session</h4>
+          <div class="psycle-settings-card" style="border-color: color-mix(in srgb, var(--danger) 20%, transparent);">
+            <h4 style="color: var(--danger);">Account Session</h4>
             <p class="psycle-card-desc">Logout from the server. This deletes local session tokens and revokes credentials encryption keys.</p>
-            <button id="psycle-logout-btn" class="psycle-btn" style="background: rgba(239, 68, 68, 0.1); border-color: rgba(239, 68, 68, 0.25); color: #f87171;">Log Out</button>
+            <button id="psycle-logout-btn" class="psycle-btn" style="background: color-mix(in srgb, var(--danger) 10%, transparent); border-color: color-mix(in srgb, var(--danger) 25%, transparent); color: var(--danger);">Log Out</button>
           </div>
 
           <!-- Delete All Data -->
-          <div class="psycle-settings-card" style="border-color: rgba(239, 68, 68, 0.3);">
-            <h4 style="color: #f87171;">Delete All My Data</h4>
+          <div class="psycle-settings-card" style="border-color: color-mix(in srgb, var(--danger) 30%, transparent);">
+            <h4 style="color: var(--danger);">Delete All My Data</h4>
             <p class="psycle-card-desc">Permanently deletes your account, encrypted credentials, booking queue, upgrade monitors, spot preferences, and push subscriptions from the server. This cannot be undone.</p>
-            <button id="psycle-delete-data-btn" class="psycle-btn" style="background: rgba(239, 68, 68, 0.15); border-color: rgba(239, 68, 68, 0.4); color: #f87171;">Delete All My Data</button>
+            <button id="psycle-delete-data-btn" class="psycle-btn" style="background: color-mix(in srgb, var(--danger) 15%, transparent); border-color: color-mix(in srgb, var(--danger) 40%, transparent); color: var(--danger);">Delete All My Data</button>
           </div>
 
         </div>
       </section>
 
     </main>
+
+    <!-- Mobile Bottom Tab Bar (iOS-style — hidden on desktop, replaces top nav on mobile) -->
+    <nav class="psycle-bottom-nav" aria-label="Primary">
+      <button class="psycle-nav-btn psycle-bottom-nav-btn active" data-tab="class-timetable" aria-label="Timetable">
+        <svg class="psycle-bn-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+          <rect x="3" y="4.5" width="18" height="16" rx="2.5"/><path d="M3 9h18"/><path d="M8 3v3M16 3v3"/>
+        </svg>
+        <span>Timetable</span>
+      </button>
+      <button class="psycle-nav-btn psycle-bottom-nav-btn" data-tab="my-bookings" aria-label="Bookings">
+        <svg class="psycle-bn-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+          <path d="M3 8a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2 2 2 0 0 0 0 4 2 2 0 0 1 0 4 2 2 0 0 1-2 2H5a2 2 0 0 1-2-2 2 2 0 0 0 0-4 2 2 0 0 1 0-4z"/><path d="M14 6.5v11"/>
+        </svg>
+        <span>Bookings</span>
+      </button>
+      <button class="psycle-nav-btn psycle-bottom-nav-btn" data-tab="auto-book" aria-label="Auto-Book">
+        <svg class="psycle-bn-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+          <path d="M13 2 4 14h7l-1 8 9-12h-7z"/>
+        </svg>
+        <span>Auto-Book</span>
+      </button>
+      <button class="psycle-nav-btn psycle-bottom-nav-btn" data-tab="buy-credits" aria-label="Buy Credits">
+        <svg class="psycle-bn-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+          <rect x="3" y="6" width="18" height="13" rx="2.5"/><path d="M3 10h18"/><circle cx="16.5" cy="14.5" r="1.2"/>
+        </svg>
+        <span>Buy</span>
+      </button>
+      <button class="psycle-nav-btn psycle-bottom-nav-btn" data-tab="settings" data-tab-group="settings about" aria-label="Settings">
+        <svg class="psycle-bn-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+          <circle cx="12" cy="12" r="3.2"/><path d="M12 2.5v2.2M12 19.3v2.2M21.5 12h-2.2M4.7 12H2.5M18.7 5.3l-1.6 1.6M6.9 17.1l-1.6 1.6M18.7 18.7l-1.6-1.6M6.9 6.9 5.3 5.3"/>
+        </svg>
+        <span>Settings</span>
+      </button>
+    </nav>
 
   </div>
 
@@ -616,7 +624,7 @@
   </div>
 
   <!-- 6. NOTIFICATION PREFERENCES MODAL -->
-  <div id="psycle-notif-prefs-modal" class="psycle-modal" style="display: none;">
+  <div id="psycle-notif-prefs-modal" class="psycle-modal">
     <div class="psycle-modal-overlay"></div>
     <div class="psycle-modal-content" style="max-width: 560px; width: 100%; max-height: 90vh; display: flex; flex-direction: column;">
       <div class="psycle-modal-header">
@@ -634,19 +642,19 @@
   <div id="psycle-occupancy-tooltip" class="psycle-tooltip" style="display: none;"></div>
 
   <!-- Debug Log Terminal -->
-  <div id="psycle-debug-terminal" style="display: none; position: fixed; bottom: 30px; right: 12px; width: 420px; max-height: 280px; background: rgba(10, 15, 30, 0.95); border: 1px solid rgba(139, 92, 246, 0.3); border-radius: 12px; z-index: 10000; font-family: 'SF Mono', 'Fira Code', 'Consolas', monospace; font-size: 11px; color: #e2e8f0; overflow: hidden; box-shadow: 0 8px 32px rgba(0,0,0,0.5);">
-    <div style="display: flex; justify-content: space-between; align-items: center; padding: 6px 12px; background: rgba(139, 92, 246, 0.15); border-bottom: 1px solid rgba(139, 92, 246, 0.2); cursor: pointer;" id="psycle-debug-terminal-header">
-      <span style="font-weight: 700; font-size: 11px; color: #a78bfa;">Debug Log</span>
+  <div id="psycle-debug-terminal" style="display: none; position: fixed; bottom: 30px; right: 12px; width: 420px; max-height: 280px; background: color-mix(in srgb, var(--bg) 95%, transparent); border: 1px solid color-mix(in srgb, var(--feat-autoupgrade) 30%, transparent); border-radius: 12px; z-index: 10000; font-family: 'SF Mono', 'Fira Code', 'Consolas', monospace; font-size: 12px; color: var(--text); overflow: hidden; box-shadow: 0 8px 32px color-mix(in srgb, var(--bg) 50%, transparent);">
+    <div style="display: flex; justify-content: space-between; align-items: center; padding: 6px 12px; background: color-mix(in srgb, var(--feat-autoupgrade) 15%, transparent); border-bottom: 1px solid color-mix(in srgb, var(--feat-autoupgrade) 20%, transparent); cursor: pointer;" id="psycle-debug-terminal-header">
+      <span style="font-weight: 700; font-size: 12px; color: var(--feat-autoupgrade);">Debug Log</span>
       <div style="display: flex; gap: 8px; align-items: center;">
-        <button id="psycle-debug-clear-btn" style="background: none; border: 1px solid rgba(255,255,255,0.15); color: #94a3b8; font-size: 10px; padding: 2px 8px; border-radius: 4px; cursor: pointer;">Clear</button>
-        <span id="psycle-debug-toggle-icon" style="color: #94a3b8; font-size: 14px;">▼</span>
+        <button id="psycle-debug-clear-btn" style="background: none; border: 1px solid color-mix(in srgb, var(--text) 15%, transparent); color: var(--text-secondary); font-size: 12px; padding: 2px 8px; border-radius: 4px; cursor: pointer;">Clear</button>
+        <span id="psycle-debug-toggle-icon" style="color: var(--text-secondary); font-size: 14px;">▼</span>
       </div>
     </div>
     <div id="psycle-debug-log" style="padding: 8px 12px; overflow-y: auto; max-height: 230px; min-height: 40px;"></div>
   </div>
 
   <!-- Version Stamp -->
-  <div id="psycle-version-stamp" style="position: fixed; bottom: 8px; right: 12px; font-size: 10px; color: rgba(255,255,255,0.25); font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; pointer-events: none; z-index: 9999; user-select: none;">
+  <div id="psycle-version-stamp" style="position: fixed; bottom: 8px; right: 12px; font-size: 12px; color: color-mix(in srgb, var(--text) 25%, transparent); font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; pointer-events: none; z-index: 9999; user-select: none;">
     v1.3.0 · <span id="psycle-build-time"></span>
   </div>
 

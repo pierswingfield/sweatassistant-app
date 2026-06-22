@@ -8,17 +8,35 @@
 //   onSave(selectedSlots, selectedRows, container) — called when the user saves.
 //   options.saveLabel     — text for the primary save button (default "Save Defaults").
 //   options.bannerHtml    — optional HTML shown above the floor plan (e.g. shared-map notice).
+//   options.bannerHtmlEdit — optional HTML that replaces bannerHtml once the user enters
+//                            edit mode (only used when readOnly is set).
 //   options.extraControlsHtml — optional HTML inserted just above the action buttons
 //                               (e.g. a per-entry toggle). Read it back in onSave via the
 //                               container reference.
 //   options.onDisable     — optional callback for a disable button.
 //   options.disableLabel  — text for the disable button (shown if onDisable is provided).
+//   options.readOnly      — when true, the map starts locked (slots not clickable, no row
+//                            +/- buttons) and a wide edit button is shown beneath the map.
+//                            Clicking it unlocks editing.
+//   options.editLabel     — text for the unlock button shown in read-only mode.
+//   options.hideClear     — when true, the "Clear Defaults" action button is omitted.
 
 export function renderStudioFloorPlan(container, layoutSlots, initialSlots, initialRows, onSave, options = {}) {
-  const { saveLabel = 'Save Defaults', bannerHtml = '', extraControlsHtml = '', onDisable = null, disableLabel = 'Disable' } = options;
+  const { saveLabel = 'Save Defaults', bannerHtml = '', bannerHtmlEdit = '', extraControlsHtml = '', onDisable = null, disableLabel = 'Disable', readOnly = false, editLabel = 'Edit preferred spots', hideClear = false } = options;
+
+  // In read-only mode the map starts locked until the user clicks the edit button.
+  let editing = !readOnly;
 
   const selectedSlots = [...initialSlots];
   const selectedRows = new Set(initialRows);
+
+  const mapChanged = () => {
+    if (selectedSlots.length !== initialSlots.length) return true;
+    if (selectedSlots.some((id, i) => id !== initialSlots[i])) return true;
+    if (selectedRows.size !== initialRows.length) return true;
+    for (const r of selectedRows) if (!initialRows.includes(r)) return true;
+    return false;
+  };
 
   let minX = Infinity, maxX = -Infinity, minY = Infinity, maxY = -Infinity;
   layoutSlots.forEach(s => {
@@ -36,16 +54,17 @@ export function renderStudioFloorPlan(container, layoutSlots, initialSlots, init
   const render = () => {
     container.innerHTML = '';
 
-    // Optional banner (e.g. shared-map notice)
-    if (bannerHtml) {
+    // Optional banner (e.g. shared-map notice). Swaps to the edit-mode banner once unlocked.
+    const activeBanner = editing && bannerHtmlEdit ? bannerHtmlEdit : bannerHtml;
+    if (activeBanner) {
       const banner = document.createElement('div');
-      banner.innerHTML = bannerHtml;
+      banner.innerHTML = activeBanner;
       container.appendChild(banner);
     }
 
     // Summary line
     const summary = document.createElement('div');
-    summary.style.cssText = 'font-size:12px;color:#94a3b8;margin-bottom:10px;min-height:16px;';
+    summary.style.cssText = 'font-size:12px;margin-bottom:10px;min-height:16px;';
     const spotLabels = selectedSlots.map(id => {
       const slot = layoutSlots.find(s => Number(s.id) === id);
       return slot?.label || slot?.slot || String(id);
@@ -54,16 +73,30 @@ export function renderStudioFloorPlan(container, layoutSlots, initialSlots, init
       const idx = rowYs.indexOf(y);
       return idx >= 0 ? String(idx + 1) : String(y);
     });
-    const parts = [];
-    if (spotLabels.length > 0) parts.push(`Spots [${spotLabels.join(', ')}]`);
-    if (rowLabels.length > 0) parts.push(`Rows [${rowLabels.join(', ')}]`);
-    summary.textContent = parts.length ? `Selected Preferences: ${parts.join(' > ')}` : '(None selected yet)';
+    if (spotLabels.length === 0 && rowLabels.length === 0) {
+      summary.innerHTML = '<span style="color:var(--text-tertiary);font-style:italic;">(None selected yet)</span>';
+    } else {
+      const fmt = (labels, noun) => {
+        const shown = labels.slice(0, 3);
+        const rest = labels.length > 3 ? ` <span style="color:var(--text-tertiary);">+${labels.length - 3} more</span>` : '';
+        return `<span style="color:var(--text-secondary);font-size:11px;text-transform:uppercase;letter-spacing:0.05em;">${noun}</span> <span style="color:var(--text);font-weight:700;">${shown.join(', ')}</span>${rest}`;
+      };
+      const parts = [];
+      if (spotLabels.length > 0) parts.push(fmt(spotLabels, 'Spots'));
+      if (rowLabels.length > 0) parts.push(fmt(rowLabels, 'Rows'));
+      const sep = ' <span style="color:var(--text-tertiary);margin:0 4px;">›</span> ';
+      summary.innerHTML = `<span style="color:var(--text-secondary);font-size:11px;text-transform:uppercase;letter-spacing:0.05em;margin-right:6px;">Preferred</span>${parts.join(sep)}`;
+    }
     container.appendChild(summary);
 
-    // Floor plan
+    // Floor plan. The aspect-ratio padding sizes the map relative to its width, but a
+    // wide layout with many rows would collapse too short and overlap rows. Slots sit
+    // across 72% of the height and are 28px tall, so enforce a minimum height of ~56px
+    // per row (28px slot + 12px gap over the 72% span) to guarantee a gap between rows.
     const aspectPct = (heightRange / widthRange * 90).toFixed(1);
+    const minMapHeight = Math.max(220, rowYs.length * 56);
     const floor = document.createElement('div');
-    floor.style.cssText = `position:relative;width:100%;padding-bottom:${aspectPct}%;background:rgba(15,23,42,0.6);border:1px solid rgba(255,255,255,0.08);border-radius:8px;margin-bottom:14px;`;
+    floor.style.cssText = `position:relative;width:100%;padding-bottom:${aspectPct}%;min-height:${minMapHeight}px;background:color-mix(in srgb, var(--bg) 60%, transparent);border:1px solid color-mix(in srgb, var(--text) 8%, transparent);border-radius:8px;margin-bottom:14px;`;
 
     // Row backdrops
     selectedRows.forEach(y => {
@@ -80,7 +113,7 @@ export function renderStudioFloorPlan(container, layoutSlots, initialSlots, init
       const height = heightRange === 0 ? 70 : ((maxYinRow - minYinRow) / heightRange) * 72 + 8;
 
       const backdrop = document.createElement('div');
-      backdrop.style.cssText = `position:absolute;left:${left}%;top:${top}%;width:${width}%;height:${height}%;background:rgba(6,182,212,0.1);border:2px solid rgba(6,182,212,0.3);border-radius:12px;pointer-events:none;z-index:0;`;
+      backdrop.style.cssText = `position:absolute;left:${left}%;top:${top}%;width:${width}%;height:${height}%;background:color-mix(in srgb, var(--info) 10%, transparent);border:2px solid color-mix(in srgb, var(--info) 30%, transparent);border-radius:12px;pointer-events:none;z-index:0;`;
       floor.appendChild(backdrop);
     });
 
@@ -95,38 +128,40 @@ export function renderStudioFloorPlan(container, layoutSlots, initialSlots, init
       const label = slot.label || slot.slot || String(slotId);
 
       const el = document.createElement('div');
-      el.style.cssText = `position:absolute;left:${left}%;top:${top}%;transform:translate(-50%,-50%);width:28px;height:28px;border-radius:6px;display:flex;align-items:center;justify-content:center;font-size:10px;font-weight:700;cursor:pointer;user-select:none;transition:all 0.1s;box-sizing:border-box;z-index:1;`;
+      el.style.cssText = `position:absolute;left:${left}%;top:${top}%;transform:translate(-50%,-50%);width:28px;height:28px;border-radius:6px;display:flex;align-items:center;justify-content:center;font-size:12px;font-weight:700;cursor:${editing ? 'pointer' : 'default'};user-select:none;transition:all 0.1s;box-sizing:border-box;z-index:1;`;
       el.title = `Spot${label}`;
 
       if (priority > 0) {
-        el.style.background = '#a78bfa';
-        el.style.border = '2px solid #7c3aed';
+        el.style.background = 'var(--feat-autoupgrade)';
+        el.style.border = '2px solid var(--feat-autoupgrade)';
         el.style.color = '#fff';
         el.textContent = String(priority);
       } else if (inRow) {
-        el.style.background = 'rgba(6,182,212,0.25)';
-        el.style.border = '1px solid rgba(6,182,212,0.5)';
-        el.style.color = '#22d3ee';
+        el.style.background = 'color-mix(in srgb, var(--info) 25%, transparent)';
+        el.style.border = '1px solid color-mix(in srgb, var(--info) 50%, transparent)';
+        el.style.color = 'var(--info)';
         el.textContent = label;
       } else {
-        el.style.background = 'rgba(255,255,255,0.05)';
-        el.style.border = '1px solid rgba(255,255,255,0.08)';
-        el.style.color = '#64748b';
+        el.style.background = 'color-mix(in srgb, var(--text) 5%, transparent)';
+        el.style.border = '1px solid color-mix(in srgb, var(--text) 8%, transparent)';
+        el.style.color = 'var(--text-tertiary)';
         el.textContent = label;
       }
 
-      el.addEventListener('click', () => {
-        const idx = selectedSlots.indexOf(slotId);
-        if (idx !== -1) selectedSlots.splice(idx, 1);
-        else selectedSlots.push(slotId);
-        render();
-      });
+      if (editing) {
+        el.addEventListener('click', () => {
+          const idx = selectedSlots.indexOf(slotId);
+          if (idx !== -1) selectedSlots.splice(idx, 1);
+          else selectedSlots.push(slotId);
+          render();
+        });
+      }
 
       floor.appendChild(el);
     });
 
-    // Row +/- buttons
-    if (rowYs.length > 1) {
+    // Row +/- buttons (only while editing)
+    if (editing && rowYs.length > 1) {
       rowYs.forEach((y, idx) => {
         const isOn = selectedRows.has(y);
         const rowSlots = slotsByRow.get(y) || [];
@@ -135,7 +170,7 @@ export function renderStudioFloorPlan(container, layoutSlots, initialSlots, init
 
         const top = heightRange === 0 ? 50 : ((midY - minY) / heightRange) * 72 + 14;
         const btn = document.createElement('button');
-        btn.style.cssText = `position:absolute;left:95.5%;top:${top}%;transform:translate(-50%,-50%);width:26px;height:26px;padding:0;border-radius:50%;background:${isOn ? 'rgba(6,182,212,0.3)' : 'rgba(255,255,255,0.08)'};border:1px solid ${isOn ? 'rgba(6,182,212,0.5)' : 'rgba(255,255,255,0.15)'};color:${isOn ? '#22d3ee' : '#94a3b8'};font-size:16px;font-weight:700;cursor:pointer;display:flex;align-items:center;justify-content:center;transition:all 0.1s;z-index:2;`;
+        btn.style.cssText = `position:absolute;left:95.5%;top:${top}%;transform:translate(-50%,-50%);width:26px;height:26px;padding:0;border-radius:50%;background:${isOn ? 'color-mix(in srgb, var(--info) 30%, transparent)' : 'color-mix(in srgb, var(--text) 8%, transparent)'};border:1px solid ${isOn ? 'color-mix(in srgb, var(--info) 50%, transparent)' : 'color-mix(in srgb, var(--text) 15%, transparent)'};color:${isOn ? 'var(--info)' : 'var(--text-secondary)'};font-size:16px;font-weight:700;cursor:pointer;display:flex;align-items:center;justify-content:center;transition:all 0.1s;z-index:2;`;
         btn.textContent = isOn ? '−' : '+';
         btn.title = isOn ? `Remove Row ${idx + 1}` : `Add Row ${idx + 1}`;
         btn.addEventListener('click', (e) => {
@@ -150,6 +185,24 @@ export function renderStudioFloorPlan(container, layoutSlots, initialSlots, init
 
     container.appendChild(floor);
 
+    // Read-only unlock button, attached beneath the map.
+    if (!editing) {
+      const editBtn = document.createElement('button');
+      editBtn.className = 'psycle-btn';
+      editBtn.style.cssText = 'width:100%;margin-bottom:14px;background:color-mix(in srgb, var(--feat-autoupgrade) 12%, transparent);border:1px solid color-mix(in srgb, var(--feat-autoupgrade) 30%, transparent);color:var(--feat-autoupgrade);';
+      editBtn.textContent = editLabel;
+      editBtn.onclick = () => { editing = true; render(); };
+      container.appendChild(editBtn);
+    }
+
+    // Hint text shown directly under the map when in edit mode
+    if (editing) {
+      const hint = document.createElement('div');
+      hint.style.cssText = 'font-size:12px;color:var(--text-secondary);font-style:italic;margin-bottom:12px;';
+      hint.innerHTML = 'Click on the spots to set your priority order. Click the <strong>+</strong> button on the right to prefer entire rows.';
+      container.appendChild(hint);
+    }
+
     // Optional extra controls (e.g. a per-entry toggle)
     if (extraControlsHtml) {
       const extra = document.createElement('div');
@@ -162,36 +215,33 @@ export function renderStudioFloorPlan(container, layoutSlots, initialSlots, init
     const actions = document.createElement('div');
     actions.style.cssText = 'display:flex;gap:8px;';
 
-    const clearBtn = document.createElement('button');
-    clearBtn.className = 'psycle-btn';
-    clearBtn.style.cssText = 'flex:1;background:rgba(255,255,255,0.06);border:1px solid rgba(255,255,255,0.12);color:#e2e8f0;';
-    clearBtn.textContent = 'Clear Defaults';
-    clearBtn.onclick = () => { selectedSlots.length = 0; selectedRows.clear(); render(); };
+    if (!hideClear) {
+      const clearBtn = document.createElement('button');
+      clearBtn.className = 'psycle-btn';
+      clearBtn.style.cssText = 'flex:1;background:color-mix(in srgb, var(--text) 6%, transparent);border:1px solid color-mix(in srgb, var(--text) 12%, transparent);color:var(--text);';
+      clearBtn.textContent = 'Clear Defaults';
+      clearBtn.onclick = () => { selectedSlots.length = 0; selectedRows.clear(); render(); };
+      actions.appendChild(clearBtn);
+    }
 
     const saveBtn = document.createElement('button');
     saveBtn.className = 'psycle-btn';
-    saveBtn.style.cssText = `flex:${onDisable ? '1' : '2'};background:#a78bfa;color:#fff;`;
-    saveBtn.textContent = saveLabel;
+    saveBtn.style.cssText = `flex:${onDisable && !hideClear ? '1' : '2'};background:var(--feat-autoupgrade);color:#fff;`;
+    saveBtn.textContent = mapChanged() ? `Save map and ${saveLabel}` : saveLabel;
     saveBtn.onclick = () => onSave([...selectedSlots], [...selectedRows], container);
 
-    actions.appendChild(clearBtn);
     actions.appendChild(saveBtn);
 
     if (onDisable) {
       const disableBtn = document.createElement('button');
       disableBtn.className = 'psycle-btn';
-      disableBtn.style.cssText = 'flex:1;background:rgba(239,68,68,0.1);border:1px solid rgba(239,68,68,0.2);color:#f87171;';
+      disableBtn.style.cssText = 'flex:1;background:color-mix(in srgb, var(--danger) 10%, transparent);border:1px solid color-mix(in srgb, var(--danger) 20%, transparent);color:var(--danger);';
       disableBtn.textContent = disableLabel;
       disableBtn.onclick = () => onDisable(container);
       actions.appendChild(disableBtn);
     }
 
     container.appendChild(actions);
-
-    const hint = document.createElement('div');
-    hint.style.cssText = 'font-size:11px;color:#475569;margin-top:8px;text-align:center;';
-    hint.textContent = 'Click on the spots to set your priority order. Click the + button on the right to prefer entire rows.';
-    container.appendChild(hint);
   };
 
   render();

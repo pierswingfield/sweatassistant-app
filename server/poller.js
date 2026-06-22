@@ -60,7 +60,13 @@ async function apiCancelBooking(userId, bookingId) {
   }
 }
 
-// Check if polling interval has elapsed
+// Returns a stable per-monitor jitter offset in seconds (0–55), derived from the
+// monitor's ID so it's consistent across restarts without storing it in the DB.
+function upgradeJitterSeconds(upgradeId) {
+  return (upgradeId * 7919) % 56; // 7919 is prime; result in [0, 55]
+}
+
+// Check if polling interval has elapsed (with per-monitor jitter baked into the threshold)
 function shouldCheckUpgrade(upgrade, settings) {
   if (!upgrade.last_checked_at) return true;
 
@@ -68,13 +74,14 @@ function shouldCheckUpgrade(upgrade, settings) {
   const lastChecked = DateTime.fromISO(upgrade.last_checked_at);
   const now = DateTime.now();
 
-  let diffMinutes = now.diff(lastChecked, 'minutes').minutes;
+  const diffMinutes = now.diff(lastChecked, 'minutes').minutes;
+  const jitterMinutes = upgradeJitterSeconds(upgrade.id) / 60;
 
-  if (interval === '1min') return diffMinutes >= 1.0;
-  if (interval === '15min') return diffMinutes >= 15.0;
-  if (interval === '1hr') return diffMinutes >= 60.0;
-  
-  return diffMinutes >= 15.0;
+  if (interval === '1min') return diffMinutes >= 1.0 + jitterMinutes;
+  if (interval === '15min') return diffMinutes >= 15.0 + jitterMinutes;
+  if (interval === '1hr') return diffMinutes >= 60.0 + jitterMinutes;
+
+  return diffMinutes >= 15.0 + jitterMinutes;
 }
 
 // Attempt upgrade for a single active upgrade monitor
@@ -125,6 +132,7 @@ async function attemptUpgradeSlot(upgrade, isCutoffMode) {
         console.log(`[Poller] Better slot ${candidateSlot} available for event ${eventId} (current: ${currentSlotId}). Upgrading...`);
 
         // Check if user has credits
+        await new Promise(r => setTimeout(r, 300 + Math.floor(Math.random() * 600)));
         const profileUrl = 'https://psycle.codexfit.com/api/v1/customer/profile';
         const profileRes = await fetchCodexFit(userId, profileUrl);
         if (!profileRes.ok) return;
@@ -141,6 +149,7 @@ async function attemptUpgradeSlot(upgrade, isCutoffMode) {
         }
 
         // Book the new slot
+        await new Promise(r => setTimeout(r, 300 + Math.floor(Math.random() * 600)));
         const bookUrl = 'https://psycle.codexfit.com/api/v1/customer/bookings';
         const bookRes = await fetchCodexFit(userId, bookUrl, {
           method: 'POST',
@@ -240,7 +249,7 @@ async function executeAutoUpgradeChecks() {
 
       // Class already started or ≤1h away — hard stop
       if (hoursUntilClass <= 1) {
-        db.updateAutoUpgrade(upgrade.id, upgrade.user_id, 'stopped', 'Class is within 1 hour — monitoring stopped.', { lastCheckedAt: now.toISOString() });
+        db.updateAutoUpgrade(upgrade.id, upgrade.user_id, 'stopped', 'Class is within 1 hour — monitoring stopped.', { lastCheckedAt: now.toISO() });
         continue;
       }
 
@@ -255,16 +264,16 @@ async function executeAutoUpgradeChecks() {
             prefs.cutoffAttempted = true;
             db.updateAutoUpgrade(upgrade.id, upgrade.user_id, 'active', 'Running final upgrade attempt within 12h window...', {
               preferences: prefs,
-              lastCheckedAt: now.toISOString()
+              lastCheckedAt: now.toISO()
             });
             await attemptUpgradeSlot(upgrade, true);
           } else {
             // Already ran the one cutoff attempt — stop
-            db.updateAutoUpgrade(upgrade.id, upgrade.user_id, 'stopped', 'Final 12h upgrade attempt already made. Monitoring stopped.', { lastCheckedAt: now.toISOString() });
+            db.updateAutoUpgrade(upgrade.id, upgrade.user_id, 'stopped', 'Final 12h upgrade attempt already made. Monitoring stopped.', { lastCheckedAt: now.toISO() });
           }
         } else {
           // Not opted in — stop at 12h, no attempt
-          db.updateAutoUpgrade(upgrade.id, upgrade.user_id, 'stopped', 'Stopped at 12h cutoff to avoid cancellation penalty.', { lastCheckedAt: now.toISOString() });
+          db.updateAutoUpgrade(upgrade.id, upgrade.user_id, 'stopped', 'Stopped at 12h cutoff to avoid cancellation penalty.', { lastCheckedAt: now.toISO() });
           pushService.sendNotification(upgrade.user_id, 'Upgrade Monitor Stopped ⏳', `No better seat found for ${upgrade.class_name} before the 12h cutoff.`);
         }
         continue;
@@ -308,6 +317,7 @@ async function refreshBookingCaches() {
       const prefs = notifications.getPrefs(userId);
       if (!prefs.cancellationReminder.enabled) continue;
 
+      await new Promise(r => setTimeout(r, 2000 + Math.floor(Math.random() * 6000)));
       const url = 'https://psycle.codexfit.com/api/v1/customer/bookings?limit=100&page=1';
       const res = await fetchCodexFit(userId, url);
       if (!res.ok) continue;
@@ -377,6 +387,7 @@ async function checkBookingWindowReminder() {
       if (!prefs.bookingWindow.enabled) continue;
       if (db.wasNotificationSent(userId, key)) continue;
       db.markNotificationSent(userId, key);
+      await new Promise(r => setTimeout(r, Math.floor(Math.random() * 30000)));
       await sendBookingWindowTip(userId);
     } catch (err) {
       console.error(`[Reminders] Booking-window reminder failed for user ${userId}:`, err.message);
@@ -433,8 +444,8 @@ module.exports = {
       console.log('[Reminders] Running booking-cache discovery poll...');
       await refreshBookingCaches();
     });
-    // Warm the cache shortly after startup.
-    setTimeout(() => { refreshBookingCaches().catch(() => {}); }, 60 * 1000);
+    // Warm the cache shortly after startup with a small random offset.
+    setTimeout(() => { refreshBookingCaches().catch(() => {}); }, 45000 + Math.floor(Math.random() * 45000));
   },
   executeAutoUpgradeChecks,
   refreshBookingCaches

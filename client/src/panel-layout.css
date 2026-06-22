@@ -590,6 +590,17 @@
   #psycle-helper-container .psycle-settings-grid {
     grid-template-columns: 1fr;
   }
+
+  /* On mobile, main.psycle-body is the sole scroll container (pull-to-refresh
+     target). These panels must NOT scroll themselves, otherwise iOS has two
+     nested scrollers and the outer scrollTop stays 0, breaking scroll-up and
+     misfiring pull-to-refresh. Same fix as the timetable inner container. */
+  #psycle-helper-container #psycle-panel-my-bookings,
+  #psycle-helper-container #psycle-panel-auto-book,
+  #psycle-helper-container #psycle-panel-settings,
+  #psycle-helper-container #psycle-panel-buy-credits {
+    overflow-y: visible;
+  }
 }
 
 /* =========================================================

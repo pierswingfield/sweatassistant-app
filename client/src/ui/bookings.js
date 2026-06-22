@@ -1,4 +1,4 @@
-import { api, isLastResponseStale } from '../api';
+import { api } from '../api';
 import { showToast, cache, refreshUserData, updateCreditBadge } from '../main';
 import { renderStudioFloorPlan } from './spotmap';
 import { icon, disciplineTag, trimLocation } from './cards';
@@ -45,16 +45,6 @@ export async function renderBookings() {
   const waitlistsRefreshing = document.getElementById('psycle-waitlists-refreshing');
   if (bookingsRefreshing) bookingsRefreshing.style.display = '';
   if (waitlistsRefreshing) waitlistsRefreshing.style.display = '';
-
-  // Stale badge in the tab header — created once, toggled after each refresh
-  const tabHeader = document.querySelector('#psycle-panel-my-bookings .psycle-tab-header');
-  let staleBadge = tabHeader ? tabHeader.querySelector('.psycle-stale-badge') : null;
-  if (tabHeader && !staleBadge) {
-    staleBadge = document.createElement('span');
-    staleBadge.className = 'psycle-stale-badge';
-    staleBadge.textContent = 'Cached';
-    tabHeader.appendChild(staleBadge);
-  }
 
   // Show cached data immediately if available (cache.upgrades is set after first load)
   const hasLoadedBefore = cache.upgrades !== undefined;
@@ -146,14 +136,6 @@ export async function renderBookings() {
     // Keep the server's reminder cache warm using data we already fetched (no extra CodexFit calls).
     syncBookingCache(bookings);
 
-    // Toggle stale badge based on whether SWR served cached data
-    if (staleBadge) {
-      if (isLastResponseStale()) {
-        staleBadge.classList.add('show');
-      } else {
-        staleBadge.classList.remove('show');
-      }
-    }
   } catch (err) {
     console.error('[Bookings] Loading failed:', err);
 
@@ -171,11 +153,6 @@ export async function renderBookings() {
 
     if (bookingsRefreshing) bookingsRefreshing.style.display = 'none';
     if (waitlistsRefreshing) waitlistsRefreshing.style.display = 'none';
-
-    // In the error path, keep the stale badge visible if we're displaying cached data
-    if (staleBadge && (cache.bookings || cache.waitlists)) {
-      staleBadge.classList.add('show');
-    }
   }
 }
 

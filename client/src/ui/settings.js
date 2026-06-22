@@ -1,22 +1,10 @@
-import { api, apiFetch, isLastResponseStale } from '../api';
+import { api, apiFetch } from '../api';
 import { showToast, togglePushSubscription, updatePushStatusUI, userSettings, cache, getTheme, setTheme } from '../main';
 import { renderStudioFloorPlan } from './spotmap';
 import { cacheGet } from './timetable';
 import { clearApiCache } from '../cache.js';
 
 let loadedProfile = null;
-
-// Module-level stale badge reference — created once in initSettings, toggled after proxyGet calls
-let staleBadge = null;
-
-function updateStaleBadge() {
-  if (!staleBadge) return;
-  if (isLastResponseStale()) {
-    staleBadge.classList.add('show');
-  } else {
-    staleBadge.classList.remove('show');
-  }
-}
 
 // ─── Profile Explorer — Unified Implementation ─────────────────────────────
 
@@ -234,7 +222,6 @@ async function openProfileExplorerModal() {
   try {
     const res = await api.proxyGet('/profile', { ttlMs: 300000 });
     loadedProfile = res.data || res;
-    updateStaleBadge();
     renderExplorerBody(body);
   } catch (err) {
     body.innerHTML = `<div class="psycle-card-error">Unable to load profile data. Connect to the internet to sync. (${err.message})</div>`;
@@ -702,7 +689,6 @@ async function openManageSpotMapsModal() {
         const locRes = await api.proxyGet('/locations', { ttlMs: 3600000 });
         locations = locRes.data || locRes || [];
         cache.locations = locations;
-        updateStaleBadge();
       } catch (e) {
         locations = [];
       }
@@ -862,8 +848,6 @@ async function openStudioFloorPlanEditor(studioId, studioName, onSaved) {
       api.proxyGet(`/studios/${studioId}`, { ttlMs: 3600000 }),
       api.getStudioPreferences()
     ]);
-    updateStaleBadge();
-
     const studio = studioRes.data || studioRes;
     const layoutSlots = studio?.layout?.slots || [];
     const existing = allPrefs[studioId] || {};
@@ -909,19 +893,6 @@ export async function initSettings() {
   // Konami listener is attached on first profile explorer modal open via setupExplorerKonamiListener()
   updatePushStatusUI();
   // Spot Maps section is ready; button opens the modal
-
-  // Stale badge in the tab header — created once, toggled after proxyGet calls
-  const tabHeader = document.querySelector('#psycle-panel-settings .psycle-tab-header');
-  if (tabHeader) {
-    staleBadge = tabHeader.querySelector('.psycle-stale-badge');
-    if (!staleBadge) {
-      staleBadge = document.createElement('span');
-      staleBadge.className = 'psycle-stale-badge';
-      staleBadge.textContent = 'Cached';
-      tabHeader.appendChild(staleBadge);
-    }
-  }
-  updateStaleBadge();
 }
 
 // ─── Theme toggle (Auto / Light / Dark) ──────────────────────────────────────

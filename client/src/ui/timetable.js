@@ -1,4 +1,4 @@
-import { api, isLastResponseStale } from '../api';
+import { api } from '../api';
 import { showToast, currentUser, userSettings, refreshUserData, updateCreditBadge, cache } from '../main';
 import { getClassReleaseTime, getNextMondayNoonLondon } from '../lib';
 import { DateTime } from 'luxon';
@@ -144,8 +144,6 @@ let isPrefetching = false;
 let prefetchError = null;
 
 let openDropdownId = null;
-let staleBadge = null;
-
 // === MOBILE TIMETABLE — resize listener (added Jun 2026; delete this block to revert) ===
 let lastMobileState = window.matchMedia('(max-width: 768px)').matches;
 window.addEventListener('resize', () => {
@@ -162,14 +160,6 @@ export async function initTimetable() {
   loadStoredFilters();
   await loadMetadata();
   setupDropdownFilters();
-  // Create stale badge in tab header
-  const headerEl = document.querySelector('.psycle-tab-header');
-  if (headerEl && !staleBadge) {
-    staleBadge = document.createElement('span');
-    staleBadge.className = 'psycle-stale-badge';
-    staleBadge.textContent = 'Cached';
-    headerEl.appendChild(staleBadge);
-  }
   await prefetchTimetableData();
   // Pull-to-refresh is handled centrally in main.js (attached to the shared
   // <main class="psycle-body"> scroller, dispatched by active tab).
@@ -276,14 +266,6 @@ export async function prefetchTimetableData(force = false) {
 
         isPrefetching = false;
         renderTimetableGrid();
-        // Toggle stale badge after render
-        if (staleBadge) {
-          if (isLastResponseStale()) {
-            staleBadge.classList.add('show');
-          } else {
-            staleBadge.classList.remove('show');
-          }
-        }
         return;
       }
     } catch (e) {
@@ -332,44 +314,65 @@ export async function prefetchTimetableData(force = false) {
     });
 
     const results = await Promise.all(eventPromises);
-    psycleEvents = [];
+    const freshEvents = [];
+    let hasData = false;
     for (const payload of results) {
       if (!payload) continue;
+      hasData = true;
       const events = payload.data || (Array.isArray(payload) ? payload : []);
-      psycleEvents.push(...events);
+      freshEvents.push(...events);
       // Merge embedded relations into metadata — this is the key fix
       if (payload.relations) mergeRelations(payload.relations);
     }
+    if (hasData) {
+      psycleEvents = freshEvents;
+    }
     buildMetaMaps(); // Rebuild maps with all merged metadata
     
-    // Cache events + metadata for smart TTL
-    try {
-      await cacheSet(CACHE_KEY_EVENTS, psycleEvents);
-      await cacheSet(CACHE_KEY_META, {
-        locations: metadata.locations,
-        studios: metadata.studios,
-        instructors: metadata.instructors,
-        eventTypes: metadata.eventTypes
-      });
-      localStorage.setItem(CACHE_KEY_TIME, String(Date.now()));
-    } catch (e) {
-      console.warn('[Timetable] Failed to cache events:', e);
+    // Cache events + metadata for smart TTL (only if we got fresh data)
+    if (hasData) {
+      try {
+        await cacheSet(CACHE_KEY_EVENTS, psycleEvents);
+        await cacheSet(CACHE_KEY_META, {
+          locations: metadata.locations,
+          studios: metadata.studios,
+          instructors: metadata.instructors,
+          eventTypes: metadata.eventTypes
+        });
+        localStorage.setItem(CACHE_KEY_TIME, String(Date.now()));
+      } catch (e) {
+        console.warn('[Timetable] Failed to cache events:', e);
+      }
     }
     
     isPrefetching = false;
     renderTimetableGrid();
-    // Toggle stale badge after render
-    if (staleBadge) {
-      if (isLastResponseStale()) {
-        staleBadge.classList.add('show');
-      } else {
-        staleBadge.classList.remove('show');
-      }
-    }
   } catch (err) {
     isPrefetching = false;
     prefetchError = err.message;
     console.error('[Timetable] Prefetch failed:', err);
+
+    // Try to re-hydrate from IDB cache before showing error
+    try {
+      const cachedEvents = await cacheGet(CACHE_KEY_EVENTS);
+      const cachedMeta = await cacheGet(CACHE_KEY_META);
+      if (cachedEvents && cachedEvents.length > 0) {
+        psycleEvents = cachedEvents;
+        if (cachedMeta) {
+          if (cachedMeta.locations?.length) metadata.locations = cachedMeta.locations;
+          if (cachedMeta.studios?.length) metadata.studios = cachedMeta.studios;
+          if (cachedMeta.instructors?.length) metadata.instructors = cachedMeta.instructors;
+          if (cachedMeta.eventTypes?.length) metadata.eventTypes = cachedMeta.eventTypes;
+        }
+        buildMetaMaps();
+        renderTimetableGrid();
+        return;
+      }
+    } catch (cacheErr) {
+      console.warn('[Timetable] Cache re-hydration failed:', cacheErr);
+    }
+
+    // Only show error if there's genuinely no cached data
     ttContainer.innerHTML = `
       <div style="padding: 40px 20px; text-align: center; color: var(--text-secondary);">
         <p style="font-size:16px;margin-bottom:8px">No cached timetable available</p>

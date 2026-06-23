@@ -189,7 +189,7 @@ const panels = document.querySelectorAll('.psycle-tab-content');
 // Expose on window so inline onclick handlers (e.g. "Buy Credits" button in timetable) can call it
 window.switchTab = switchTab;
 
-const VALID_TABS = ['class-timetable', 'my-bookings', 'auto-book', 'buy-credits', 'settings', 'about'];
+const VALID_TABS = ['class-timetable', 'my-bookings', 'auto-book', 'buy-credits', 'settings'];
 
 // The currently active tab — used by the shared pull-to-refresh dispatcher.
 let currentTabId = null;
@@ -311,7 +311,6 @@ async function refreshActiveTab() {
       const { initSettings } = await import('./ui/settings');
       await initSettings();
     }
-    // about: static content, no refresh action
   } catch (err) {
     console.error('[PullToRefresh] refreshActiveTab failed:', err);
   }
@@ -830,7 +829,8 @@ export async function initApp() {
 
   // Restore tab from URL hash if available, otherwise default to Timetable
   const hash = location.hash.replace('#', '');
-  const initialTab = VALID_TABS.includes(hash) ? hash : 'class-timetable';
+  let initialTab = VALID_TABS.includes(hash) ? hash : 'class-timetable';
+  if (hash === 'about') initialTab = 'settings';
   switchTab(initialTab);
 }
 
@@ -949,7 +949,11 @@ window.addEventListener('psycle-logout-triggered', () => {
 // Restore tab from URL hash on back/forward navigation
 window.addEventListener('popstate', () => {
   const hash = location.hash.replace('#', '');
-  if (VALID_TABS.includes(hash)) switchTab(hash);
+  if (VALID_TABS.includes(hash)) {
+    switchTab(hash);
+  } else if (hash === 'about') {
+    switchTab('settings');
+  }
 });
 
 // App Launch
@@ -1010,8 +1014,9 @@ document.addEventListener('DOMContentLoaded', () => {
 
   // Restore tab from URL hash (e.g. after page refresh)
   const hash = location.hash.replace('#', '');
-  if (VALID_TABS.includes(hash)) {
+  if (VALID_TABS.includes(hash) || hash === 'about') {
+    const targetTab = hash === 'about' ? 'settings' : hash;
     // Defer until after checkAuth initialises the app
-    setTimeout(() => switchTab(hash), 0);
+    setTimeout(() => switchTab(targetTab), 0);
   }
 });

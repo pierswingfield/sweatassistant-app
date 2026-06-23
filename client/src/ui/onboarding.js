@@ -373,7 +373,7 @@ async function stepCalendar() {
       eyebrow: 'Stay organised',
       title: 'Add classes to your calendar',
       body: `<div class="psycle-onb-icon" style="color: var(--accent);">${ICON.calendar}</div>
-        <p class="psycle-onb-lead">Get your booked classes in ${ios ? 'Apple' : 'your'} or Google Calendar, kept in sync automatically — bookings, upgrades and cancellations all update on their own. No install needed.</p>`,
+        <p class="psycle-onb-lead">Get your booked or tentative classes in ${ios ? 'Apple' : 'your'} Calendar, kept in sync automatically — bookings, upgrades and cancellations all update on their own.</p>`,
       footer: `<button class="psycle-btn-primary psycle-onb-cal-enable" type="button"><span>Enable calendar</span></button>
         <button class="psycle-btn-mini psycle-onb-skip-inline" type="button">Set up later</button>`,
     });

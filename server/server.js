@@ -2,12 +2,15 @@ require('dotenv').config();
 const express = require('express');
 const cors = require('cors');
 const path = require('path');
+const rateLimit = require('express-rate-limit');
+const { ipKeyGenerator } = require('express-rate-limit');
 const db = require('./db');
 const { handleLogin, authenticateToken, authenticateTokenSSE, triggerAutoRelogin } = require('./auth');
 const pushService = require('./push');
 const notifications = require('./notifications');
 const scheduler = require('./scheduler');
 const poller = require('./poller');
+const adminRouter = require('./admin');
 const { appName } = require('../app.config.json');
 
 const app = express();
@@ -16,10 +19,43 @@ const PORT = process.env.PORT || 3000;
 app.use(cors());
 app.use(express.json());
 
+// Per-user rate limiters (keyed on userId set by authenticateToken, not IP —
+// all users share the Pi's egress IP so IP-based limiting would be wrong).
+const proxyLimiter = rateLimit({
+  windowMs: 60 * 1000,
+  max: 60,
+  standardHeaders: true,
+  legacyHeaders: false,
+  keyGenerator: (req) => req.userId ? String(req.userId) : ipKeyGenerator(req),
+  message: { message: 'Too many requests — please slow down.' },
+  skip: (req) => process.env.NODE_ENV !== 'production', // no limits in dev
+});
+
+const bookingMutationLimiter = rateLimit({
+  windowMs: 60 * 1000,
+  max: 10,
+  standardHeaders: true,
+  legacyHeaders: false,
+  keyGenerator: (req) => req.userId ? String(req.userId) : ipKeyGenerator(req),
+  message: { message: 'Too many booking requests — please wait before retrying.' },
+  skip: (req) => process.env.NODE_ENV !== 'production',
+});
+
 // Serves the client SPA files in production Docker container
 if (process.env.NODE_ENV === 'production') {
   app.use(express.static(path.join(__dirname, 'public')));
 }
+
+// -------------------------------------------------------------
+// ADMIN PANEL
+// Requires ADMIN_PASSWORD env var. All routes protected by admin JWT.
+// -------------------------------------------------------------
+
+app.get('/admin', (req, res) => {
+  res.sendFile(path.join(__dirname, 'admin.html'));
+});
+
+app.use('/api/admin', adminRouter);
 
 // -------------------------------------------------------------
 // BFF AUTHENTICATION
@@ -138,12 +174,16 @@ app.get('/api/auto-book', authenticateToken, (req, res) => {
   }
 });
 
-app.post('/api/auto-book', authenticateToken, (req, res) => {
+app.post('/api/auto-book', authenticateToken, bookingMutationLimiter, (req, res) => {
   const { eventId, studioId, className, instructorName, studioName, locationName, startAt, preferences, skipImmediate, groupName, creditShortfall } = req.body;
   if (!eventId || !preferences) {
     return res.status(400).json({ message: 'eventId and preferences are required' });
   }
   try {
+    const pendingCount = db.countPendingAutoBookings(req.userId);
+    if (pendingCount >= 15) {
+      return res.status(429).json({ message: 'Auto-book queue limit reached (15 pending entries). Please remove some entries before adding more.' });
+    }
     const id = db.addAutoBooking(req.userId, eventId, className, instructorName, studioName, locationName, startAt, preferences, studioId ?? null, groupName ?? null);
 
     // Warn (via push) if the user set this up without enough credits.
@@ -166,7 +206,7 @@ app.post('/api/auto-book', authenticateToken, (req, res) => {
   }
 });
 
-app.post('/api/simulate-release', authenticateToken, (req, res) => {
+app.post('/api/simulate-release', authenticateToken, bookingMutationLimiter, (req, res) => {
   try {
     console.log(`[Server] Simulated release triggered by user ${req.userId}`);
     scheduler.runAllPendingBookings(req.userId);
@@ -241,12 +281,18 @@ app.get('/api/auto-upgrade', authenticateToken, (req, res) => {
   }
 });
 
-app.post('/api/auto-upgrade', authenticateToken, (req, res) => {
+app.post('/api/auto-upgrade', authenticateToken, bookingMutationLimiter, (req, res) => {
   const { eventId, studioId, bookingId, currentSlotId, className, instructorName, studioName, locationName, startAt, preferences, groupName, creditShortfall } = req.body;
   if (eventId == null || bookingId == null || currentSlotId == null || isNaN(Number(currentSlotId)) || !preferences) {
     return res.status(400).json({ message: 'Missing required auto-upgrade fields' });
   }
   try {
+    // Quota: cap active monitors per user
+    const activeCount = db.countActiveAutoUpgrades(req.userId);
+    if (activeCount >= 10) {
+      return res.status(429).json({ message: 'Auto-upgrade monitor limit reached (10 active monitors). Please cancel some before adding more.' });
+    }
+
     // Check if an active auto-upgrade already exists for this event
     const activeUpgrades = db.getUserAutoUpgrades(req.userId).filter(u => u.event_id === eventId && u.status === 'active');
     if (activeUpgrades.length > 0) {
@@ -472,7 +518,7 @@ async function proxyRequest(userId, pathName, method, body) {
   return response;
 }
 
-app.all('/api/proxy/*', authenticateToken, async (req, res) => {
+app.all('/api/proxy/*', authenticateToken, proxyLimiter, async (req, res) => {
   const pathWithQuery = req.url.slice('/api/proxy'.length);
   const method = req.method;
   const body = req.body;

@@ -610,6 +610,7 @@ async function openAutoBookEditModal(q) {
       await saveAutoBookEdit(q.id, resolvedStudioId, slots, rows, qty, fallbackAny, closeModal);
     }, {
       saveLabel: 'Save Changes',
+      layoutObjects: studio?.layout?.objects || [],
       bannerHtml,
       bannerHtmlEdit,
       extraControlsHtml,

@@ -1,7 +1,8 @@
 import { api } from '../api';
 import { showToast, cache, refreshUserData, updateCreditBadge } from '../main';
 import { renderStudioFloorPlan } from './spotmap';
-import { icon, disciplineTag, trimLocation, seatNoun } from './cards';
+import { icon, disciplineTag, trimLocation, seatNoun, stripClassNamePrefix } from './cards';
+import { isInGracePeriod, GRACE_PERIOD_MS, startGraceCountdown } from '../lib';
 
 // Class starts within the free-cancel cutoff (12h). Edit is hidden inside this
 // window; Cancel stays available but warns about the penalty.
@@ -213,7 +214,7 @@ function buildBookingCard(group, upgrades) {
   const dateStr = startDt.toLocaleString('en-GB', { weekday: 'short', day: 'numeric', month: 'short', timeZone: 'Europe/London' });
   const timeOnly = startDt.toLocaleString('en-GB', { hour: '2-digit', minute: '2-digit', hour12: false, timeZone: 'Europe/London' });
 
-  const className = event.event_type?.name || 'Class';
+  const className = stripClassNamePrefix(event.event_type?.name || 'Class', event.event_type?.group?.name);
   const groupName = event.event_type?.group?.name || className;
   const instructorName = event.instructor?.full_name || 'TBA';
   const locationLine = [event.studio?.name, trimLocation(event.studio?.location?.name)].filter(Boolean).join(', ');
@@ -296,7 +297,7 @@ function buildBookingCard(group, upgrades) {
       studioId: event.studio_id || event.studio?.id || null,
       className,
       groupName: event.event_type?.group?.name || '',
-      instructorName,
+      instructorName: event.instructor?.full_name || '',
       studioName: event.studio?.name || 'Studio',
       locationName: event.studio?.location?.name || 'Location',
       startAt: event.start_at,
@@ -306,18 +307,55 @@ function buildBookingCard(group, upgrades) {
   }
 
   // Cancel (two-tap confirm) — cancels every spot booked for the class.
-  wireCancelBooking(card.querySelector('.bk-cancel-btn'), card, group, within12h);
+  const cancelBtn = card.querySelector('.bk-cancel-btn');
+  const bookedAt = group.bookings[0]?.booked_at;
+  if (bookedAt && isInGracePeriod(bookedAt)) {
+    cancelBtn.setAttribute('data-grace-deadline', new Date(bookedAt).getTime() + GRACE_PERIOD_MS);
+    cancelBtn.classList.add('grace-cancel');
+    startGraceCountdown();
+  }
+  wireCancelBooking(cancelBtn, card, group, within12h);
 
   return card;
 }
 
 // Two-tap confirm cancel for a whole class (all its booking records).
+// During the 60s grace period (data-grace-deadline attribute present), the
+// cancel fires immediately without confirmation.
 function wireCancelBooking(btn, card, group, within12h) {
   if (!btn) return;
   const labelSpan = btn.querySelector('span');
   let confirmState = false;
 
+  const performCancel = async () => {
+    card.style.opacity = '0.6';
+    card.querySelectorAll('button').forEach(b => b.disabled = true);
+    labelSpan.textContent = '…';
+    try {
+      showToast('Cancelling booking...', 'info');
+      for (const b of group.bookings) {
+        await api.proxyDelete(`/bookings/${b.id}`);
+        const up = (cache.upgrades || []).find(u => String(u.booking_id) === String(b.id) && ['active', 'paused_no_credits'].includes(u.status));
+        if (up) { try { await api.deleteAutoUpgrade(up.id); } catch (_) {} }
+      }
+      showToast('Booking cancelled.', 'success');
+      await refreshUserData(true);
+      renderBookings();
+    } catch (err) {
+      showToast(`Cancellation failed: ${err.message}`, 'error');
+      card.style.opacity = '1';
+      card.querySelectorAll('button').forEach(b => b.disabled = false);
+      labelSpan.textContent = 'Cancel';
+    }
+  };
+
   btn.addEventListener('click', async () => {
+    // 60s grace period: cancel immediately, no confirmation
+    if (btn.hasAttribute('data-grace-deadline')) {
+      btn.removeAttribute('data-grace-deadline');
+      await performCancel();
+      return;
+    }
     if (!confirmState) {
       confirmState = true;
       labelSpan.textContent = within12h ? 'Penalty?' : 'Confirm?';
@@ -331,25 +369,7 @@ function wireCancelBooking(btn, card, group, within12h) {
     }
     confirmState = false;
     btn.classList.remove('confirming');
-    card.style.opacity = '0.6';
-    card.querySelectorAll('button').forEach(b => b.disabled = true);
-    labelSpan.textContent = '…';
-    try {
-      showToast('Cancelling booking...', 'info');
-      for (const b of group.bookings) {
-        await api.proxyDelete(`/bookings/${b.id}`);
-        const up = (cache.upgrades || []).find(u => String(u.booking_id) === String(b.id) && ['active', 'paused_no_credits'].includes(u.status));
-        if (up) { try { await api.deleteAutoUpgrade(up.id); } catch (_) {} }
-      }
-      showToast('Booking cancelled.', 'success');
-      await refreshUserData();
-      renderBookings();
-    } catch (err) {
-      showToast(`Cancellation failed: ${err.message}`, 'error');
-      card.style.opacity = '1';
-      card.querySelectorAll('button').forEach(b => b.disabled = false);
-      labelSpan.textContent = 'Cancel';
-    }
+    await performCancel();
   });
 }
 
@@ -363,7 +383,7 @@ export async function openEditBookingModal(group, onChange = renderBookings) {
   if (!modal || !body || !title) return;
 
   const event = group.event;
-  const className = event.event_type?.name || 'Class';
+  const className = stripClassNamePrefix(event.event_type?.name || 'Class', event.event_type?.group?.name);
   const groupName = event.event_type?.group?.name || event.event_type?.name || 'Class';
   const noun = seatNoun(groupName);
   const nounCap = noun[0].toUpperCase() + noun.slice(1);
@@ -382,8 +402,7 @@ export async function openEditBookingModal(group, onChange = renderBookings) {
   closeBtn.onclick = closeModal;
   overlay.onclick = closeModal;
 
-  await refreshUserData();
-
+  await refreshUserData(true);
   try {
     const res = await api.proxyGet(`/events/${group.eventId}`, { ttlMs: 120000 });
     const eventDetails = res.data || res;
@@ -551,7 +570,7 @@ export async function openEditBookingModal(group, onChange = renderBookings) {
         }
         showToast(`${nounCap}s updated.`, 'success');
         closeModal();
-        await refreshUserData();
+        await refreshUserData(true);
         onChange();
       } catch (err) {
         // Cancel-then-book is not atomic: if the new booking fails after a release,
@@ -561,7 +580,7 @@ export async function openEditBookingModal(group, onChange = renderBookings) {
           ? `Released your old ${noun}(s) but couldn't book the new one: ${err.message}. It may have been taken — check your bookings.`
           : `Couldn't update ${noun}s: ${err.message}`, 'error');
         closeModal();
-        await refreshUserData();
+        await refreshUserData(true);
         onChange();
       }
     };
@@ -597,7 +616,7 @@ function buildWaitlistCard(w) {
   const startDt = new Date(event.start_at);
   const dateStr = startDt.toLocaleString('en-GB', { weekday: 'short', day: 'numeric', month: 'short', timeZone: 'Europe/London' });
   const timeOnly = startDt.toLocaleString('en-GB', { hour: '2-digit', minute: '2-digit', hour12: false, timeZone: 'Europe/London' });
-  const className = event.event_type?.name || 'Class';
+  const className = stripClassNamePrefix(event.event_type?.name || 'Class', event.event_type?.group?.name);
   const groupName = event.event_type?.group?.name || className;
   const instructorName = event.instructor?.full_name || 'TBA';
   const locationLine = [event.studio?.name, trimLocation(event.studio?.location?.name)].filter(Boolean).join(', ');
@@ -653,7 +672,7 @@ function buildWaitlistCard(w) {
       showToast('Leaving waitlist...', 'info');
       await api.proxyDelete(`/waitlists/${event.id}`);
       showToast('Left waitlist.', 'success');
-      await refreshUserData();
+      await refreshUserData(true);
       renderBookings();
     } catch (err) {
       showToast(`Error: ${err.message}`, 'error');
@@ -859,6 +878,7 @@ export async function openUpgradeConfigModal({ eventId, bookingId, currentSlotId
       }
     }, {
       saveLabel: isEditing ? 'Save Changes' : 'Start Monitoring',
+      layoutObjects: studio?.layout?.objects || [],
       bannerHtml,
       extraControlsHtml,
       onDisable,

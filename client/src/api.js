@@ -366,6 +366,31 @@ export const api = {
     return res.json();
   },
 
+  // Calendar feed
+  async getCalendarStatus() {
+    const res = await apiFetch('/api/calendar/status');
+    return res.json();
+  },
+  async enableCalendar(opts = {}) {
+    const res = await apiFetch('/api/calendar/enable', {
+      method: 'POST',
+      body: JSON.stringify(opts)
+    });
+    return res.json();
+  },
+  async disableCalendar() {
+    const res = await apiFetch('/api/calendar/disable', { method: 'POST' });
+    return res.json();
+  },
+  async rotateCalendar() {
+    const res = await apiFetch('/api/calendar/rotate', { method: 'POST' });
+    return res.json();
+  },
+  async refreshCalendar() {
+    const res = await apiFetch('/api/calendar/refresh', { method: 'POST' });
+    return res.json();
+  },
+
   // Cart
   async addBundleToCart(bundleId, quantity = 1) {
     const res = await apiFetch(`/api/cart/add-bundle/${bundleId}`, {

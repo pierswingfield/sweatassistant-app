@@ -19,9 +19,10 @@ import { openManageSpotMapsModal } from './settings';
 const COMPLETE_KEY = 'psycleOnboardingComplete';
 const STEP_KEY = 'psycleOnboardingStep';
 // Bump to re-trigger onboarding for all users after a significant change.
-const ONBOARDING_VERSION = '1';
+// v2: added the Calendar step.
+const ONBOARDING_VERSION = '2';
 
-const STEPS = ['intro', 'install', 'login', 'notifications', 'spotmaps'];
+const STEPS = ['intro', 'install', 'login', 'notifications', 'calendar', 'spotmaps'];
 
 // --- platform / capability detection (mirrors main.js:279) ---
 const isIOS = () => /iPad|iPhone|iPod/.test(navigator.userAgent) && !window.MSStream;
@@ -120,20 +121,23 @@ function renderSheet({ eyebrow, title, body, footer }) {
 
 // ---- feature icons (inline SVG, themed via currentColor) ----
 const ICON = {
-  autobook: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M10 2c0 3.5 1.5 5 5 5-3.5 0-5 1.5-5 5 0-3.5-1.5-5-5-5 3.5 0 5-1.5 5-5z"/><path d="M18 7c0 2 1 3 3 3-2 0-3 1-3 3 0-2-1-3-3-3 2 0 3-1 3-3z"/><path d="M6 14c0 1.5.5 2 2 2-1.5 0-2 .5-2 2 0-1.5-.5-2-2-2 1.5 0 2-.5 2-2z"/></svg>',
+  autobook: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10 2c0 3.5 1.5 5 5 5-3.5 0-5 1.5-5 5 0-3.5-1.5-5-5-5 3.5 0 5-1.5 5-5z"/><path d="M18 7c0 2 1 3 3 3-2 0-3 1-3 3 0-2-1-3-3-3 2 0 3-1 3-3z"/><path d="M6 14c0 1.5.5 2 2 2-1.5 0-2 .5-2 2 0-1.5-.5-2-2-2 1.5 0 2-.5 2-2z"/></svg>',
   autoupgrade: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 19V5"/><path d="m6 11 6-6 6 6"/></svg>',
   quickbook: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M13 2 4 14h7l-1 8 9-12h-7z"/></svg>',
-  offline: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M1 1v22M23 1V23M5 13a10.9 10.9 0 0 1 14 0M8.5 16.5a5 5 0 0 1 7 0"/><circle cx="12" cy="20" r="1" fill="currentColor"/></svg>',
+  offline: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 11a9 9 0 0 1 18 0M7 15a5 5 0 0 1 10 0"/><circle cx="12" cy="20" r="1" fill="currentColor"/></svg>',
   push: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 8a6 6 0 0 1 12 0c0 7 3 9 3 9H3s3-2 3-9"/><path d="M10.3 21a1.94 1.94 0 0 0 3.4 0"/></svg>',
+  calendar: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="18" rx="2"/><path d="M16 2v4M8 2v4M3 10h18"/></svg>',
+  calendarSync: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="18" rx="2"/><path d="M16 2v4M8 2v4M3 10h18"/><path d="M8 16.5A2.5 2.5 0 0 1 13 15"/><path d="M16 15.5A2.5 2.5 0 0 1 11 17"/><path d="M13 13.5v2h2"/><path d="M11 18.5v-2H9"/></svg>',
 };
 
 const SLIDES = [
-  { welcome: true, title: 'Psycle Assistant', text: 'Your personal Psycle companion — auto-booking, smart upgrades, and your favourite spots, taken care of.' },
+  { welcome: true, title: 'Unofficial client', text: 'Your personal Psycle companion — auto-booking, smart upgrades, and your favourite spots, taken care of.' },
   { feat: 'autobook', icon: ICON.autobook, title: 'Auto-Book', text: 'No more Monday 12:00PM rush! Queue the classes you want and Psycle Assistant books them the instant they\'re released. You can even set your favourite spots in each studio.' },
   { feat: 'autoupgrade', icon: ICON.autoupgrade, title: 'Auto-Upgrade', text: 'Didn\'t get your favourite spot? Psycle Assistant can monitor for a better one from your preferred spot map, and move you up automatically.' },
   { feat: 'quickbook', icon: ICON.quickbook, title: 'Quick-Book', text: 'Once you\'ve set your favourite spots, booking happens in a single tap.' },
   { feat: 'offline', icon: ICON.offline, title: 'Works Offline', text: 'Your timetable and bookings stay readable on the tube or anywhere signal drops.' },
   { feat: 'push', icon: ICON.push, title: 'Stay Notified', text: 'Get a push when you\'re booked in, upgraded, or to remind you about an upcoming class.' },
+  { feat: 'calendar', icon: ICON.calendarSync, title: 'Calendar Sync', text: 'Automatically sync your classes to your calendar, so you never forget your birthday ride.' },
 ];
 
 // ---- STEP: intro carousel ----
@@ -147,9 +151,10 @@ function stepIntro() {
           <div class="psycle-onb-track">
             ${SLIDES.map((s) => s.welcome ? `
               <div class="psycle-onb-slide psycle-onb-slide-welcome">
-                <div class="psycle-onb-wordmark">PSYCLE</div>
+                <div class="psycle-onb-wordmark">Psycle Assistant</div>
                 <h2 class="psycle-onb-title psycle-onb-welcome-title">${s.title}</h2>
                 <p class="psycle-onb-slide-text">${s.text}</p>
+                <p class="psycle-onb-secondary-note">This app needs to securely store your Psycle login to work in the background. You could alternatively use this <a href="https://github.com/piersjones/psycle-chrome">chrome extension</a> for similar functionality, but it requires the Psycle website to be open for automatic features to work.</p>
               </div>` : `
               <div class="psycle-onb-slide">
                 <div class="psycle-onb-icon" style="color: var(--feat-${s.feat}, var(--accent));">${s.icon}</div>
@@ -314,6 +319,79 @@ function stepNotifications() {
   });
 }
 
+// ---- STEP: calendar feed ----
+// Unlike push, a subscribed calendar works in any browser context, so this step
+// runs whether or not the PWA is installed — and always shows (so a replay still
+// offers the subscribe links even when the feed is already enabled server-side).
+// Phase 1: prompt to enable. Phase 2: offer Apple/Google + note Settings options.
+async function stepCalendar() {
+  let status = null;
+  try { status = await api.getCalendarStatus(); } catch (_) { status = null; }
+
+  const ios = isIOS();
+  return new Promise((resolve) => {
+    // --- Phase 2: subscribe options ---
+    const showSubscribe = (links) => {
+      const sheet = renderSheet({
+        eyebrow: 'Calendar on',
+        title: 'Subscribe to your class calendar',
+        body: `<div class="psycle-onb-icon" style="color: var(--accent);">${ICON.calendar}</div>
+          <p class="psycle-onb-lead">Pick your calendar below. Your classes will keep themselves in sync from now on.</p>
+          <p class="psycle-onb-secondary-note">You can turn on reminders and change other options anytime in <strong>Settings → Calendar</strong>.</p>`,
+        footer: `<div class="psycle-onb-cal-actions" style="display:flex;flex-direction:column;gap:8px;width:100%;">
+            <button class="psycle-btn-primary psycle-onb-cal-apple" type="button"><span>Add to Apple Calendar</span></button>
+            <button class="psycle-btn-primary psycle-onb-cal-google" type="button"><span>Add to Google Calendar</span></button>
+          </div>
+          <button class="psycle-btn-mini psycle-onb-skip-inline" type="button">Done</button>`,
+      });
+
+      const apple = sheet.querySelector('.psycle-onb-cal-apple');
+      const google = sheet.querySelector('.psycle-onb-cal-google');
+      if (!ios && apple && google) { apple.style.order = '1'; google.style.order = '0'; }
+
+      apple?.addEventListener('click', () => {
+        if (links?.webcal) window.location.href = links.webcal;
+      });
+      google?.addEventListener('click', () => {
+        if (links?.google) {
+          const a = document.createElement('a');
+          a.href = links.google; a.target = '_blank'; a.rel = 'noopener noreferrer';
+          document.body.appendChild(a); a.click(); a.remove();
+        }
+      });
+      sheet.querySelector('.psycle-onb-skip-inline').addEventListener('click', resolve);
+    };
+
+    // Already enabled (e.g. onboarding replay) → jump straight to the subscribe options.
+    if (status && status.enabled && status.links) {
+      showSubscribe(status.links);
+      return;
+    }
+
+    // --- Phase 1: enable prompt ---
+    const sheet = renderSheet({
+      eyebrow: 'Stay organised',
+      title: 'Add classes to your calendar',
+      body: `<div class="psycle-onb-icon" style="color: var(--accent);">${ICON.calendar}</div>
+        <p class="psycle-onb-lead">Get your booked classes in ${ios ? 'Apple' : 'your'} or Google Calendar, kept in sync automatically — bookings, upgrades and cancellations all update on their own. No install needed.</p>`,
+      footer: `<button class="psycle-btn-primary psycle-onb-cal-enable" type="button"><span>Enable calendar</span></button>
+        <button class="psycle-btn-mini psycle-onb-skip-inline" type="button">Set up later</button>`,
+    });
+
+    const enableBtn = sheet.querySelector('.psycle-onb-cal-enable');
+    enableBtn.addEventListener('click', async () => {
+      enableBtn.disabled = true;
+      try {
+        const res = await api.enableCalendar({});
+        showSubscribe(res.links || null);
+      } catch (_) {
+        resolve();
+      }
+    });
+    sheet.querySelector('.psycle-onb-skip-inline').addEventListener('click', resolve);
+  });
+}
+
 // ---- STEP: spot-map nudge ----
 async function stepSpotMaps(ctx) {
   let prefs = {};
@@ -344,5 +422,6 @@ const STEP_HANDLERS = {
   install: stepInstall,
   login: stepLogin,
   notifications: stepNotifications,
+  calendar: stepCalendar,
   spotmaps: stepSpotMaps,
 };

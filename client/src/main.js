@@ -1,7 +1,7 @@
 import { api, setToken, isLoggedIn } from './api';
 import { initTooltips } from './ui/tooltips';
 import { setupPullToRefresh } from './ui/pulltorefresh';
-import { setCacheKeyPrefix, clearApiCache } from './cache.js';
+import { setCacheKeyPrefix, clearApiCache, invalidateApiCache } from './cache.js';
 import { appName } from '../../app.config.json';
 import { shouldShowOnboarding, resumeOnboarding, isOnboardingActive, advanceAfterLogin } from './ui/onboarding';
 import { detectBookingWindow } from './lib';
@@ -238,6 +238,7 @@ async function triggerTabRender(tabId) {
       const { initAutoBook } = await import('./ui/autobook');
       initAutoBook();
     } else if (tabId === 'buy-credits') {
+      refreshUserData(true); // fire-and-forget — update credit badge with fresh counts
       const { initBundles } = await import('./ui/credits');
       initBundles();
     } else if (tabId === 'settings') {
@@ -268,16 +269,49 @@ tabButtons.forEach(btn => {
 async function refreshActiveTab() {
   try {
     if (currentTabId === 'class-timetable') {
+      // Events are fetched without TTL (always fresh), but bookings/waitlists
+      // use a 2-min API cache — invalidate so the refresh is a true reload.
+      // Profile too, so the credit badge updates on refresh.
+      await invalidateApiCache('/api/proxy/bookings');
+      await invalidateApiCache('/api/proxy/waitlists');
+      await invalidateApiCache('/api/proxy/profile');
       const { prefetchTimetableData } = await import('./ui/timetable');
       await prefetchTimetableData(true);
+      refreshUserData(true); // fire-and-forget badge update
     } else if (currentTabId === 'my-bookings') {
+      await invalidateApiCache('/api/proxy/bookings');
+      await invalidateApiCache('/api/proxy/waitlists');
+      await invalidateApiCache('/api/auto-upgrade');
+      await invalidateApiCache('/api/proxy/profile');
       const { renderBookings } = await import('./ui/bookings');
       await renderBookings();
+      refreshUserData(true); // fire-and-forget badge update
     } else if (currentTabId === 'auto-book') {
+      await invalidateApiCache('/api/auto-book');
+      await invalidateApiCache('/api/auto-upgrade');
+      await invalidateApiCache('/api/proxy/profile');
+      await invalidateApiCache('/api/settings');
       const { refreshAutoBookTab } = await import('./ui/autobook');
       await refreshAutoBookTab();
+    } else if (currentTabId === 'buy-credits') {
+      await invalidateApiCache('/api/proxy/bundles');
+      await invalidateApiCache('/api/proxy/profile');
+      cache.bundles = [];
+      const { initBundles } = await import('./ui/credits');
+      await initBundles();
+      refreshUserData(true); // fire-and-forget badge update
+    } else if (currentTabId === 'settings') {
+      // Re-fetch settings from the server so the refresh is a true data reload,
+      // not just a re-application of in-memory state.
+      await invalidateApiCache('/api/settings');
+      const settings = await api.getSettings();
+      if (settings && Object.keys(settings).length > 0) {
+        Object.assign(userSettings, settings);
+      }
+      const { initSettings } = await import('./ui/settings');
+      await initSettings();
     }
-    // buy-credits / settings / about: no pull-to-refresh action (indicator snaps back)
+    // about: static content, no refresh action
   } catch (err) {
     console.error('[PullToRefresh] refreshActiveTab failed:', err);
   }
@@ -287,6 +321,19 @@ const scrollBody = document.querySelector('main.psycle-body');
 if (scrollBody) {
   setupPullToRefresh(scrollBody, refreshActiveTab);
 }
+
+// --- TAB REFRESH BUTTONS ---
+document.querySelectorAll('.psycle-tab-refresh-btn').forEach(btn => {
+  btn.addEventListener('click', async () => {
+    if (btn.classList.contains('refreshing')) return;
+    btn.classList.add('refreshing');
+    try {
+      await refreshActiveTab();
+    } finally {
+      btn.classList.remove('refreshing');
+    }
+  });
+});
 
 // --- SERVICE WORKER & PUSH REGISTRATION ---
 let serviceWorkerRegistration = null;
@@ -658,9 +705,14 @@ function initConnectivity() {
 
 // --- INITIALIZATION & USER SESSION ---
 
-// Fetch core user data and update UI header
-export async function refreshUserData() {
+// Fetch core user data and update UI header. Pass force=true after mutations
+// (booking, cancellation, spot edits) to bypass the 5-min profile cache and
+// fetch fresh credit counts from CodexFit.
+export async function refreshUserData(force = false) {
   try {
+    if (force) {
+      await invalidateApiCache('/api/proxy/profile');
+    }
     // 1. Fetch user profile from CodexFit via proxy
     const res = await api.proxyGet('/profile', { ttlMs: 300000 });
     const profile = res.data || res;
@@ -701,8 +753,12 @@ async function syncDetectedBookingWindow(profile, credits) {
     if (!detected) return;
     cache.bookingWindow = detected;
 
-    if (userSettings.detectedBookingOffset !== detected.offsetDays) {
-      const newSettings = { ...userSettings, detectedBookingOffset: detected.offsetDays };
+    // Persist the offset (read by the server scheduler) plus the full detection result
+    // (so the admin panel can render the same window the user sees). Re-persist when
+    // either the offset or the serialised window changes.
+    const windowChanged = JSON.stringify(userSettings.bookingWindow) !== JSON.stringify(detected);
+    if (userSettings.detectedBookingOffset !== detected.offsetDays || windowChanged) {
+      const newSettings = { ...userSettings, detectedBookingOffset: detected.offsetDays, bookingWindow: detected };
       await api.updateSettings(newSettings);
       Object.assign(userSettings, newSettings);
       console.log(`[App] Detected booking window: ${detected.weeks} week(s) / ${detected.offsetDays}d (${detected.source})`);

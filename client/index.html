@@ -113,6 +113,9 @@
         <div class="psycle-tab-header">
           <h3>Class Timetable</h3>
           <p>Book classes directly or schedule them for the Monday 12PM release.</p>
+          <button class="psycle-tab-refresh-btn" data-refresh-tab="class-timetable" aria-label="Refresh timetable" title="Refresh">
+            <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="23 4 23 10 17 10"/><path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10"/></svg>
+          </button>
         </div>
         
         <!-- Filters Area -->
@@ -197,6 +200,9 @@
         <div class="psycle-tab-header">
           <h3>My Bookings & Waitlists</h3>
           <p>Manage your active slots, waiting list status, and seat upgrade preferences.</p>
+          <button class="psycle-tab-refresh-btn" data-refresh-tab="my-bookings" aria-label="Refresh bookings" title="Refresh">
+            <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="23 4 23 10 17 10"/><path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10"/></svg>
+          </button>
         </div>
 
         <div class="psycle-section">
@@ -225,6 +231,9 @@
       <section id="psycle-panel-auto-book" class="psycle-tab-content" style="display: none;">
         <!-- Global Release Countdown banner -->
         <div class="psycle-countdown-banner ab-banner">
+          <button class="psycle-tab-refresh-btn" data-refresh-tab="auto-book" aria-label="Refresh auto-book queue" title="Refresh">
+            <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="23 4 23 10 17 10"/><path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10"/></svg>
+          </button>
           <div class="ab-banner-body">
             <div class="ab-banner-headline">
               <span class="ab-banner-label">Booking Opens</span>
@@ -271,6 +280,9 @@
         <div class="psycle-tab-header">
           <h3>Credit Bundles</h3>
           <p>View and purchase credit bundles directly from Shopify CodexFit.</p>
+          <button class="psycle-tab-refresh-btn" data-refresh-tab="buy-credits" aria-label="Refresh credit bundles" title="Refresh">
+            <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="23 4 23 10 17 10"/><path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10"/></svg>
+          </button>
         </div>
 
         <!-- Buy Credits bundle list -->
@@ -368,6 +380,9 @@
         <div class="psycle-tab-header">
           <h3>System Settings</h3>
           <p>Configure release schedules, push notifications, and backup preferences.</p>
+          <button class="psycle-tab-refresh-btn" data-refresh-tab="settings" aria-label="Refresh settings" title="Refresh">
+            <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="23 4 23 10 17 10"/><path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10"/></svg>
+          </button>
         </div>
 
         <div class="psycle-settings-grid">
@@ -528,6 +543,54 @@
               <button id="psycle-push-toggle-btn" class="psycle-btn-mini" style="width: auto;">Enable Push</button>
             </div>
             <button id="psycle-notif-prefs-btn" class="psycle-btn" style="width: 100%; margin-top: 12px;">Customise Notifications</button>
+          </div>
+
+          <!-- Calendar Feed -->
+          <div class="psycle-settings-card" id="psycle-calendar-card">
+            <h4>Calendar</h4>
+            <p class="psycle-card-desc">Add your classes to Apple or Google Calendar. They stay in sync automatically — bookings, upgrades and cancellations update on their own.</p>
+
+            <div class="psycle-setting-row">
+              <div class="psycle-setting-label">
+                <span>Calendar feed</span>
+                <small id="psycle-calendar-status-desc">Turn on to get a personal calendar link.</small>
+              </div>
+              <button id="psycle-calendar-toggle-btn" class="psycle-btn-mini" style="width: auto;">Turn on</button>
+            </div>
+
+            <div id="psycle-calendar-options" style="display:none;margin-top:12px;">
+              <div class="psycle-setting-row">
+                <div class="psycle-setting-label">
+                  <span>Include unconfirmed classes</span>
+                  <small>Show classes pending Auto-Book or a waitlist.</small>
+                </div>
+                <label class="psycle-switch">
+                  <input type="checkbox" id="psycle-calendar-tentative">
+                  <span class="psycle-slider"></span>
+                </label>
+              </div>
+
+              <div class="psycle-setting-row">
+                <div class="psycle-setting-label">
+                  <span>Reminders for booked classes</span>
+                  <small>Add a calendar alert before each confirmed class.</small>
+                </div>
+                <select id="psycle-calendar-alarm" class="psycle-select" style="width:auto;font-size:12px;">
+                  <option value="none">Off</option>
+                  <option value="2h">2 hours before class</option>
+                  <option value="penalty">Before penalty cancellation</option>
+                  <option value="both">Both</option>
+                </select>
+              </div>
+
+              <div class="psycle-settings-btn-row" style="margin-top:12px;">
+                <button id="psycle-calendar-apple-btn" class="psycle-btn">Add to Apple Calendar</button>
+                <button id="psycle-calendar-google-btn" class="psycle-btn">Add to Google Calendar</button>
+                <button id="psycle-calendar-copy-btn" class="psycle-btn">Copy feed link</button>
+              </div>
+
+              <button id="psycle-calendar-disable-btn" class="psycle-btn" style="width:100%;margin-top:12px;background: color-mix(in srgb, var(--danger) 10%, transparent); border-color: color-mix(in srgb, var(--danger) 25%, transparent); color: var(--danger);">Turn off calendar feed</button>
+            </div>
           </div>
 
           <!-- Backup & Migration -->

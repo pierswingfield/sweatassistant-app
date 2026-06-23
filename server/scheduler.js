@@ -384,6 +384,9 @@ async function executeAutoBookForClass(booking) {
         slots: bookedLabels,
       });
 
+      // Refresh the calendar feed so the new booking shows immediately.
+      try { require('./calendar').regenerateSnapshot(userId); } catch (_) {}
+
       // Automatically register auto-upgrade if studio layout exists
       if (layoutSlots.length > 0) {
         const settings = db.getUserSettings(userId) || {};

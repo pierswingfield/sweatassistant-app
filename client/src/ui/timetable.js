@@ -1,6 +1,6 @@
 import { api } from '../api';
 import { showToast, currentUser, userSettings, refreshUserData, updateCreditBadge, cache } from '../main';
-import { getClassReleaseTime, getNextMondayNoonLondon } from '../lib';
+import { getClassReleaseTime, getNextMondayNoonLondon, isInGracePeriod, GRACE_PERIOD_MS, startGraceCountdown } from '../lib';
 import { DateTime } from 'luxon';
 // === MOBILE TIMETABLE — import renderMinimap (added Jun 2026; delete this block to revert) ===
 import { renderMinimap } from './tooltips.js';
@@ -938,7 +938,7 @@ async function renderTimetableGrid() {
     // ── Status badge (kept as a restyled column) + shared action model ──
     let statusBadge = '';
     let rowClass = 'psycle-table-row';
-    let bookingId = null, isPenalty = false, slotsBookedCount = 0, waitlistId = null;
+    let bookingId = null, isPenalty = false, slotsBookedCount = 0, waitlistId = null, graceDeadline = null;
     const hasCredit = hasUsableCredit(event);
 
     if (!isLive) {
@@ -950,8 +950,12 @@ async function renderTimetableGrid() {
       statusBadge = `<span class="badge-pill yes psycle-occupancy-hover" data-id="${event.id}" style="cursor: pointer;">Booked${slotsBookedCount > 1 ? ` (${slotsBookedCount})` : ''}</span>`;
       if (slotsBookedCount === 1) {
         bookingId = eventBookings[0].id;
+        const bookedAt = eventBookings[0].booked_at;
         const diffHours = (startDate - new Date()) / (1000 * 60 * 60);
         isPenalty = diffHours < 12 && diffHours > 0;
+        if (bookedAt && isInGracePeriod(bookedAt)) {
+          graceDeadline = new Date(bookedAt).getTime() + GRACE_PERIOD_MS;
+        }
       }
     } else if (isOnWaitlist) {
       statusBadge = `<span class="badge-pill no psycle-occupancy-hover" data-id="${event.id}" style="cursor: pointer;">Waitlisted</span>`;
@@ -970,7 +974,7 @@ async function renderTimetableGrid() {
     const actionModel = buildActionModel(event, {
       isLive, isBooked, isOnWaitlist, isFullyBooked, canWaitlist, hasCredit,
       isScheduled: autoBookedIds.has(event.id),
-      bookingId, isPenalty, slotsBookedCount, waitlistId,
+      bookingId, isPenalty, slotsBookedCount, waitlistId, graceDeadline,
     });
 
     // === MOBILE TIMETABLE — PWA MOBILE LAYOUT (added Jun 2026; delete this block to revert) ===
@@ -1057,7 +1061,7 @@ function twoTapConfirm(btn, confirmLabel, run) {
 function buildActionModel(event, ctx) {
   const {
     isLive, isBooked, isOnWaitlist, isFullyBooked, canWaitlist, hasCredit,
-    isScheduled, bookingId, isPenalty, slotsBookedCount, waitlistId,
+    isScheduled, bookingId, isPenalty, slotsBookedCount, waitlistId, graceDeadline,
   } = ctx;
   const { hasMap, hasPrefs } = getStudioMapInfo(event);
 
@@ -1078,10 +1082,14 @@ function buildActionModel(event, ctx) {
   if (isBooked) {
     const primary = { label: 'Edit', variant: 'autoupgrade', run: () => doEditBooking(event) };
     if (slotsBookedCount === 1 && bookingId) {
+      const cancelLabel = graceDeadline
+        ? `Cancel (${Math.ceil((graceDeadline - Date.now()) / 1000)}s)`
+        : 'Cancel';
       return {
         primary, config: null,
         secondary: {
-          label: 'Cancel', variant: isPenalty ? 'danger-strong' : 'danger', isCancel: true,
+          label: cancelLabel, variant: isPenalty ? 'danger-strong' : 'danger', isCancel: true,
+          graceDeadline,
           run: (btn) => cancelBookingDirect(bookingId, isPenalty, btn),
         },
       };
@@ -1142,11 +1150,11 @@ function buildActionModel(event, ctx) {
       secondary: { label: 'Book', variant: 'success-muted', run: () => openBookingModal(event, 'book') },
     };
   }
-  // Seat map but no saved prefs → Book primary, Quick-Book setup as secondary
+  // Seat map but no saved prefs → Quick-Book primary (setup), Book as secondary
   return {
-    primary: { label: 'Book', variant: 'success', run: () => openBookingModal(event, 'book') },
+    primary: { label: 'Quick Book', variant: 'success', run: () => openBookingModal(event, 'quickbook') },
     config: null,
-    secondary: { label: 'Quick Book', variant: 'success-muted', run: () => openBookingModal(event, 'quickbook') },
+    secondary: { label: 'Book', variant: 'success-muted', run: () => openBookingModal(event, 'book') },
   };
 }
 
@@ -1225,6 +1233,28 @@ async function doEditBooking(event) {
   );
 }
 
+// Lightweight refresh of booking/waitlist state + re-render the grid.
+// Re-fetches only /bookings and /waitlists (the data behind action-button
+// state) so buttons flip immediately (Book ↔ Edit/Cancel, Join ↔ Leave WL)
+// after a mutation, without a full timetable re-fetch or loading spinner.
+// Mutations (proxyPost/proxyDelete/proxyPut) already invalidate the proxy
+// cache for these resources, so the GETs return fresh data.
+async function refreshBookingState() {
+  try {
+    const [bookingsRes, waitlistsRes] = await Promise.all([
+      api.proxyGet('/bookings?limit=100&page=1', { ttlMs: 120000 }),
+      api.proxyGet('/waitlists?limit=100&page=1', { ttlMs: 120000 })
+    ]);
+    userBookings = bookingsRes.data || bookingsRes || [];
+    userWaitlists = waitlistsRes.data || waitlistsRes || [];
+    cache.bookings = userBookings;
+    cache.waitlists = userWaitlists;
+  } catch (e) {
+    console.warn('[Timetable] refreshBookingState failed:', e);
+  }
+  renderTimetableGrid();
+}
+
 async function doJoinWaitlist(event, btn) {
   btn.disabled = true;
   const orig = btn.textContent;
@@ -1247,8 +1277,8 @@ async function doLeaveWaitlist(waitlistId, btn) {
   try {
     await api.proxyDelete(`/waitlists/${waitlistId}`);
     showToast('Left waitlist successfully!', 'success');
-    await refreshUserData();
-    renderTimetableGrid();
+    await refreshUserData(true);
+    await refreshBookingState();
   } catch (err) {
     showToast(`Error leaving waitlist: ${err.message}`, 'error');
     btn.disabled = false;
@@ -1303,6 +1333,11 @@ function buildDesktopActions(model, event, debugMode) {
     setSegLabel(sbtn, model.secondary.label);
     if (model.secondary.disabled) sbtn.disabled = true;
     else if (model.secondary.run) sbtn.onclick = (e) => { e.stopPropagation(); model.secondary.run(sbtn); };
+    if (model.secondary.graceDeadline) {
+      sbtn.setAttribute('data-grace-deadline', model.secondary.graceDeadline);
+      sbtn.classList.add('grace-cancel');
+      startGraceCountdown();
+    }
     wrap.appendChild(sbtn);
   }
 
@@ -1465,6 +1500,7 @@ function buildMobileClassRow(event, ctx, model) {
       label: model.secondary.label,
       variant: model.secondary.isCancel ? 'danger' : (isBookish ? 'book' : ''),
       keepOpen: !!model.secondary.isCancel, // cancel runs its own two-tap confirm in place
+      graceDeadline: model.secondary.graceDeadline,
       action: (el) => model.secondary.run(el),
     });
   }
@@ -1490,6 +1526,11 @@ function buildMobileClassRow(event, ctx, model) {
     div.className = 'psycle-mobile-menu-item';
     div.textContent = item.label;
     if (item.variant) div.setAttribute('data-variant', item.variant);
+    if (item.graceDeadline) {
+      div.setAttribute('data-grace-deadline', item.graceDeadline);
+      div.classList.add('grace-cancel');
+      startGraceCountdown();
+    }
     div.onclick = (e) => {
       e.stopPropagation();
       if (item.keepOpen) { item.action(div); return; }
@@ -1772,8 +1813,8 @@ async function quickBookClass(eventId, prefs, btn) {
         startAt: eventData.start_at, slots: bookedSlotLabels,
       }).catch(() => {});
       if (lastBookedSlot !== null) await tryAutoRegisterUpgrade(eventData, lastBookedSlot, lastBookingRes);
-      await refreshUserData();
-      renderTimetableGrid();
+      await refreshUserData(true);
+      await refreshBookingState();
       setTimeout(() => {
         if (!userSettings.autoUpgradeByDefault) {
           showToast('💡 Tip: Enable "Auto-upgrade spots by default" in Settings to monitor for better slots automatically!', 'info');
@@ -1834,8 +1875,8 @@ async function openBookingModal(c, mode) {
   closeBtn.onclick = closeModal;
   overlay.onclick = closeModal;
 
-  // Refresh credits when opening booking modal
-  await refreshUserData();
+  // Refresh credits when opening booking modal (force — user needs accurate counts)
+  await refreshUserData(true);
 
   try {
     const res = await api.proxyGet(`/events/${c.id}`, { ttlMs: 120000 });
@@ -1941,7 +1982,7 @@ async function openBookingModal(c, mode) {
     const state = {
       selectedSlots: [],    // ordered array of slot IDs (index 0 = priority 1)
       selectedRows: new Set(),
-      qty: isAutoBookMode ? 1 : maxBookableSlots,  // simple/quick-book: allow selecting up to max available; auto-book: qty selector controls this
+      qty: isSimpleBookMode ? maxBookableSlots : 1,  // simple-book: limit selection to max available; quick-book/auto-book: qty selector controls this
       bookAny: true
     };
 
@@ -2082,8 +2123,10 @@ async function openBookingModal(c, mode) {
             if (isAutoBookMode && !isAvailable) {
               showToast('⚠ Currently occupied — will be targeted when booking fires.', 'info');
             }
-            // In quick-book: limit to qty; in auto-book: unlimited preferences
-            const qtyLimit = isAutoBookMode ? Infinity : state.qty;
+            // Simple-book: limit selection to qty (credits/max-spots). Quick-book &
+            // auto-book are preference setters — the spot map is unlimited; only the
+            // "Slots to book" dropdown is policed by credits (via credit warning).
+            const qtyLimit = isSimpleBookMode ? state.qty : Infinity;
             if (state.selectedSlots.length < qtyLimit) {
               state.selectedSlots.push(slotId);
             } else {
@@ -2323,8 +2366,8 @@ async function openBookingModal(c, mode) {
             }).catch(() => {});
             closeModal();
             if (state.selectedSlots.length === 1) await tryAutoRegisterUpgrade(c, state.selectedSlots[0], bookingRes);
-            await refreshUserData();
-            renderTimetableGrid();
+            await refreshUserData(true);
+            await refreshBookingState();
           } catch (err) {
             showToast(`Booking failed: ${err.message}`, 'error');
             btn.disabled = false;
@@ -2503,7 +2546,7 @@ async function tryAutoRegisterUpgrade(event, bookedSlotId, bookingRes) {
       bookingId,
       currentSlotId: bookedSlotId,
       className: event.event_type?.name || 'Ride',
-      instructorName: event.instructor?.full_name || 'Instructor',
+      instructorName: event.instructor?.full_name || '',
       studioName: event.studio?.name || '',
       locationName: event.studio?.location?.name || '',
       startAt: event.start_at,
@@ -2529,7 +2572,7 @@ async function bookSeatDirect(eventId, slotId, callback, event) {
     showToast('Seat booked successfully! 🎉', 'success');
     callback();
     if (event) await tryAutoRegisterUpgrade(event, slotId, bookingRes);
-    await refreshUserData();
+    await refreshUserData(true);
     prefetchTimetableData(true);
   } catch (err) {
     showToast(`Booking failed: ${err.message}`, 'error');
@@ -2542,8 +2585,50 @@ function isWithin12Hours(startAt) {
   return diff > 0 && diff <= 12 * 60 * 60 * 1000;
 }
 
-// Cancel Booking direct — always requires a second click to confirm
+// Cancel Booking direct — requires a second click to confirm, unless within
+// the 60s grace period (data-grace-deadline attribute present), in which case
+// the cancel fires immediately without confirmation.
 async function cancelBookingDirect(bookingId, isPenalty, btn) {
+  const performCancel = async () => {
+    btn.disabled = true;
+    btn.textContent = 'Cancelling...';
+    try {
+      showToast('Cancelling booking...', 'info');
+      await api.proxyDelete(`/bookings/${bookingId}`);
+      showToast('Booking cancelled successfully!', 'success');
+
+      // Remove any active upgrade monitor for this booking
+      const activeUpgrade = cache.upgrades?.find(u =>
+        String(u.booking_id) === String(bookingId) &&
+        ['active', 'paused_no_credits'].includes(u.status)
+      );
+      if (activeUpgrade) {
+        try {
+          await api.deleteAutoUpgrade(activeUpgrade.id);
+        } catch (e) {
+          console.warn('[Cancel] Could not remove upgrade monitor:', e.message);
+        }
+      }
+
+      await refreshUserData(true);
+      await refreshBookingState();
+    } catch (err) {
+      showToast(`Cancel failed: ${err.message}`, 'error');
+      btn.disabled = false;
+      btn.textContent = 'Cancel';
+      btn.style.background = '';
+      btn.style.borderColor = '';
+      btn.style.color = '';
+    }
+  };
+
+  // 60s grace period: cancel immediately, no confirmation
+  if (btn.hasAttribute('data-grace-deadline')) {
+    btn.removeAttribute('data-grace-deadline');
+    await performCancel();
+    return;
+  }
+
   if (btn.dataset.confirmState !== 'confirm') {
     btn.dataset.confirmState = 'confirm';
     btn.textContent = isPenalty ? 'Confirm penalty cancel?' : 'Confirm cancel?';
@@ -2565,37 +2650,7 @@ async function cancelBookingDirect(bookingId, isPenalty, btn) {
   }
 
   btn.removeAttribute('data-confirm-state');
-  btn.disabled = true;
-  btn.textContent = 'Cancelling...';
-
-  try {
-    showToast('Cancelling booking...', 'info');
-    await api.proxyDelete(`/bookings/${bookingId}`);
-    showToast('Booking cancelled successfully!', 'success');
-
-    // Remove any active upgrade monitor for this booking
-    const activeUpgrade = cache.upgrades?.find(u =>
-      String(u.booking_id) === String(bookingId) &&
-      ['active', 'paused_no_credits'].includes(u.status)
-    );
-    if (activeUpgrade) {
-      try {
-        await api.deleteAutoUpgrade(activeUpgrade.id);
-      } catch (e) {
-        console.warn('[Cancel] Could not remove upgrade monitor:', e.message);
-      }
-    }
-
-    await refreshUserData();
-    renderTimetableGrid();
-  } catch (err) {
-    showToast(`Cancel failed: ${err.message}`, 'error');
-    btn.disabled = false;
-    btn.textContent = 'Cancel';
-    btn.style.background = '';
-    btn.style.borderColor = '';
-    btn.style.color = '';
-  }
+  await performCancel();
 }
 
 // Save scheduled auto-booking record to database
@@ -2900,10 +2955,14 @@ export async function openDebugModal(event) {
     // Build the modal UI
     body.innerHTML = `
       <div style="display:flex; flex-direction:column; gap:4px;">
-        <!-- Quick-Book / Auto-Book buttons -->
-        <div id="psycle-debug-action-bar" style="display:flex; gap:8px; padding-bottom:12px; border-bottom:1px solid var(--border); margin-bottom:4px;">
+        <!-- Quick-Book / Auto-Book / native page buttons -->
+        <div id="psycle-debug-action-bar" style="display:flex; gap:8px; padding-bottom:12px; border-bottom:1px solid var(--border); margin-bottom:4px; flex-wrap:wrap;">
           <button id="psycle-debug-quick-book-btn" class="psycle-btn-mini variant-success-muted">Quick-Book</button>
           <button id="psycle-debug-auto-book-btn" class="psycle-btn-mini variant-neutral">Auto-Book Config</button>
+          <a href="https://psyclelondon.com/pages/class/${event.id}" target="_blank" rel="noopener noreferrer" class="psycle-btn-mini" style="display:inline-flex; align-items:center; gap:5px; background:color-mix(in srgb, var(--info) 14%, transparent); border-color:color-mix(in srgb, var(--info) 30%, transparent); color:var(--info); text-decoration:none;">
+            <svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/><polyline points="15 3 21 3 21 9"/><line x1="10" y1="14" x2="21" y2="3"/></svg>
+            Open native booking page
+          </a>
         </div>
         <!-- Tab bar -->
         <div class="psycle-debug-tab-bar" style="display:flex; gap:4px; border-bottom:1px solid var(--border); padding-bottom:8px; margin-bottom:12px; flex-wrap:wrap;">

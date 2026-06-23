@@ -145,9 +145,9 @@ async function attemptUpgradeSlot(upgrade, isCutoffMode) {
 
         const profileData = await profileRes.json();
         const profile = profileData.data || profileData;
-        // Backfill display_name if not yet cached (e.g. user registered before this field existed)
-        const upgradeDisplayName = [profile.first_name, profile.last_name].filter(Boolean).join(' ');
-        if (upgradeDisplayName) try { db.updateUserDisplayName(userId, upgradeDisplayName); } catch (_) {}
+        // Cache the full profile (also backfills display_name) so the admin view stays
+        // warm even while the user's app is closed.
+        try { db.cacheUserProfile(userId, profile); } catch (_) {}
         const hasCredits = profile.available_credits && profile.available_credits.some(c => c.count > 0);
 
         if (!hasCredits) {
@@ -227,6 +227,8 @@ async function attemptUpgradeSlot(upgrade, isCutoffMode) {
             keptOriginal: false,
           });
         }
+        // Refresh the calendar feed so the upgraded seat shows immediately.
+        try { require('./calendar').regenerateSnapshot(userId); } catch (_) {}
         return; // Success! Exit check loop
       }
     }
@@ -325,6 +327,10 @@ async function refreshBookingCaches() {
     try {
       const prefs = notifications.getPrefs(userId);
       if (!prefs.cancellationReminder.enabled) continue;
+      // Calendar-enabled users have their booking_cache kept fresh (and correctly
+      // event-enriched) by calendar.js — skip here so we don't overwrite it.
+      const settings = db.getUserSettings(userId);
+      if (settings && settings.calendar && settings.calendar.enabled) continue;
 
       await new Promise(r => setTimeout(r, 2000 + Math.floor(Math.random() * 6000)));
       const url = 'https://psycle.codexfit.com/api/v1/customer/bookings?limit=100&page=1';
@@ -417,9 +423,8 @@ async function sendBookingWindowTip(userId) {
       if (res.ok) {
         const payload = await res.json();
         const profile = payload.data || payload;
-        // Backfill display_name if not yet cached
-        const tipDisplayName = [profile.first_name, profile.last_name].filter(Boolean).join(' ');
-        if (tipDisplayName) try { db.updateUserDisplayName(userId, tipDisplayName); } catch (_) {}
+        // Cache the full profile (also backfills display_name) for the admin view.
+        try { db.cacheUserProfile(userId, profile); } catch (_) {}
         const totalCredits = (profile.available_credits || []).reduce((s, c) => s + (c.count || 0), 0);
         const needed = pending.reduce((s, b) => {
           let p = {};
@@ -460,5 +465,7 @@ module.exports = {
     setTimeout(() => { refreshBookingCaches().catch(() => {}); }, 45000 + Math.floor(Math.random() * 45000));
   },
   executeAutoUpgradeChecks,
-  refreshBookingCaches
+  refreshBookingCaches,
+  fetchCodexFit,
+  normalizeBooking
 };

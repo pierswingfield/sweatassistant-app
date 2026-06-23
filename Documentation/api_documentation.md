@@ -101,6 +101,139 @@ These endpoints dictate the user's booking privileges, current bookings, and act
 
 ---
 
+## Heartbeat Endpoint (Cache Invalidation)
+
+> **Discovery method:** Browser network inspection of the authenticated psyclelondon.com website. The CodexFit Vue app (`api-v2.codexfit.com/latest/app.js`) calls this endpoint once on page load to determine which data types need re-fetching.
+
+### Endpoint
+- **URL:** `GET https://psycle.codexfit.com/api/v1/customer/heartbeat`
+- **Auth:** Works with or without JWT. Without auth, returns public data types only + `logged-in: false`. With auth, adds user-specific data types + `logged-in: true`.
+- **Headers:** Same as all customer endpoints (`Authorization`, `x-organisation`, `accept`, `origin`, `referer`).
+
+### Response (Authenticated)
+```json
+{
+  "data": {
+    "bundles": "2026-06-23T14:00:51.348759Z",
+    "bundle-types": "2026-06-23T14:00:51.348759Z",
+    "credit-types": "2026-06-23T14:00:51.348759Z",
+    "events": "2026-06-23T14:00:51.348759Z",
+    "event-type-groups": "2026-06-23T14:00:51.348759Z",
+    "event-types": "2026-06-23T14:00:51.348759Z",
+    "instructors": "2026-06-23T14:00:51.348759Z",
+    "locations": "2026-06-23T14:00:51.348759Z",
+    "plans": "2026-06-23T14:00:51.348759Z",
+    "products": "2026-06-23T14:00:51.348759Z",
+    "product-variants": "2026-06-23T14:00:51.348759Z",
+    "studios": "2026-06-23T14:00:51.348759Z",
+    "videos": "2026-06-23T14:00:51.348759Z",
+    "videos-collections": "2026-06-23T14:00:51.348759Z",
+    "logged-in": true,
+    "bookings": "2026-06-23T14:00:51.348759Z",
+    "charges": "2026-06-23T14:00:51.348759Z",
+    "credits": "2026-06-23T14:00:51.348759Z",
+    "subscriptions": "2026-06-23T14:00:51.348759Z"
+  }
+}
+```
+
+### Response (Unauthenticated)
+Same structure but:
+- `"logged-in": false`
+- Omits `bookings`, `charges`, `credits`, `subscriptions` (user-specific data types)
+
+### Data Types
+
+**Public (always returned):**
+
+| Key | Description | Maps to endpoint |
+|-----|-------------|-----------------|
+| `bundles` | Credit bundles available for purchase | `GET /bundles` |
+| `bundle-types` | Bundle categories | — |
+| `credit-types` | Credit type definitions | — |
+| `events` | Class timetable events | `GET /events` |
+| `event-type-groups` | Event type groupings | `GET /event-type-groups` |
+| `event-types` | Event type definitions | `GET /event-types` |
+| `instructors` | Instructor profiles | `GET /instructors` |
+| `locations` | Studio locations | `GET /locations` |
+| `plans` | Membership plans | `GET /plans` |
+| `products` | Shopify products | — |
+| `product-variants` | Product variants | — |
+| `studios` | Studio rooms | `GET /studios` |
+| `videos` | Video content | — |
+| `videos-collections` | Video collections | — |
+
+**Authenticated only:**
+
+| Key | Description | Maps to endpoint |
+|-----|-------------|-----------------|
+| `bookings` | User's active bookings | `GET /bookings` |
+| `charges` | User's payment history | — |
+| `credits` | User's credit balance | `GET /credits` |
+| `subscriptions` | User's memberships | `GET /subscriptions` |
+| `logged-in` | Authentication status (boolean, not a timestamp) | — |
+
+Each value (except `logged-in`) is an ISO 8601 UTC timestamp representing the server's last-modified time for that data type. All timestamps are typically identical (set to the current request time), suggesting the server returns the current time rather than actual per-type modification times — meaning **every page load marks all data as stale** unless the client has a pre-existing local timestamp from a prior fetch in the same session.
+
+### Purpose: Smart Cache Invalidation
+
+The heartbeat is a **cache invalidation mechanism**. Instead of blindly re-fetching all data on page load, the client:
+
+1. Calls `GET /heartbeat` to get the server's latest timestamps for each data type
+2. Compares each `remote` timestamp against its `local` cached timestamp (using moment.js `isAfter()`)
+3. Marks data types as `stale: true` if the server timestamp is newer than local (or if no local cache exists)
+4. Re-fetches only the stale data types
+5. After each successful fetch, dispatches `heartbeat/update` which copies `remote[key] → local[key]` and sets `stale[key] = false`
+
+### Client-Side Implementation (CodexFit Vue App)
+
+The heartbeat is a **Vuex store module** (`heartbeat`) registered in the root store:
+
+**State:**
+```javascript
+{
+  loading: false,        // whether a heartbeat request is in flight
+  stale: { ... },        // map: data type → boolean (needs re-fetch?)
+  local: { ... },        // map: data type → timestamp (client's last fetch time)
+  remote: { ... }        // map: data type → timestamp (server's latest update time)
+}
+```
+
+**Mutations:**
+- `loading(state, val)` — sets `state.loading`
+- `stale(state, { key, value })` — sets `state.stale[key] = value`
+- `remote(state, data)` — sets `state.remote = data`
+- `updateLocal(state, key)` — sets `state.local[key] = state.remote[key]` and `state.stale[key] = false`
+
+**Actions:**
+- `load` — Fetches `GET /heartbeat`, stores response in `remote`, then for each key:
+  - If `local[key]` exists: compares `moment(remote[key]).isAfter(moment(local[key]))` → `stale[key] = true/false`
+  - If `local[key]` doesn't exist: `stale[key] = true` (no local cache → always stale)
+  - Checks `logged-in`: if server says `false`/`0` but client has a customer → triggers logout
+  - Guarded by `loading` flag to prevent concurrent requests
+- `update(key)` — Called after any data type is successfully fetched. Commits `updateLocal` to mark the data type as fresh.
+
+**Trigger:**
+- Called **once** in the root Vue component's `beforeCreate` hook: `this.$store.dispatch("heartbeat/load")`
+- **Not periodic** — no `setInterval`/`setTimeout`. Only fires on page load / full navigation.
+- The Vuex state is persisted to `localStorage` under `codex-store` (key: `heartbeat`), so the `local` timestamps survive page reloads, enabling cross-session stale detection.
+
+### Response Headers
+- `content-type: application/json`
+- `cache-control: no-cache, private`
+- `content-encoding: zstd` (compressed)
+- CORS: `access-control-allow-origin: https://psyclelondon.com`, `access-control-allow-credentials: true`, `access-control-allow-methods: GET`
+
+### Relevance to PWA
+
+The PWA does not currently use the heartbeat endpoint. It uses its own caching strategy (IndexedDB with 4hr TTL + Monday 12PM force-refresh). Potential uses:
+
+1. **Optimize cache freshness** — Replace the fixed 4hr TTL with a heartbeat check to only re-fetch data types that have actually changed on the server
+2. **Lightweight session validation** — The `logged-in` field is a cheaper session check than fetching the full profile (currently the PWA's `triggerAutoRelogin` on 401 is reactive rather than proactive)
+3. **Selective refresh** — After a booking/cancel action, call heartbeat to see if `bookings` or `credits` timestamps changed, then refresh only those
+
+---
+
 ## Action Endpoints (Auth Required)
 
 ### 1. Book a Class

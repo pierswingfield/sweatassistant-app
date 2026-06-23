@@ -13,6 +13,30 @@ let activeHoverTarget = null;
 // Build the instructor tooltip inner HTML for a given instructor id.
 // Returns null if the instructor isn't in metadata yet. Shared by the hover
 // (desktop) and tap (touch) code paths.
+
+// Instagram: expect "username" or "@username" → https://instagram.com/username
+function parseInstagramHandle(raw) {
+  if (!raw) return null;
+  const handle = String(raw).trim().replace(/^@/, '');
+  return handle || null;
+}
+
+// Spotify: values arrive in several shapes — extract the user id and build
+// https://open.spotify.com/user/<id>. Examples handled:
+//   "pjowsey?si=…"                       → pjowsey
+//   "/user/21wetvc4kmvw4ao3h5la663my"    → 21wetvc4kmvw4ao3h5la663my
+//   "@21iklhksmh5l6wkvrza7egzuy?si=…"   → 21iklhksmh5l6wkvrza7egzuy
+//   "@hazel_leishman"                    → hazel_leishman
+function parseSpotifyUserId(raw) {
+  if (!raw) return null;
+  const s = String(raw).trim();
+  // Full path or URL containing /user/<id>
+  const userMatch = s.match(/\/user\/([^?\/]+)/);
+  if (userMatch) return userMatch[1];
+  // Otherwise strip a leading @ and drop any query string
+  return s.replace(/^@/, '').split('?')[0] || null;
+}
+
 function instructorTooltipHTML(instructorIdRaw) {
   const instructorId = parseInt(instructorIdRaw);
   const instructor = metadata.instructors.find(i => i.id === instructorId);
@@ -28,12 +52,16 @@ function instructorTooltipHTML(instructorIdRaw) {
   const description = instructor.metafields?.description || '';
 
   let instagramHtml = '';
-  if (instructor.metafields?.instagram_handle || instructor.instagram_handle) {
-    instagramHtml = `<span>📸 @${instructor.metafields?.instagram_handle || instructor.instagram_handle}</span>`;
+  const igRaw = instructor.metafields?.instagram_handle || instructor.instagram_handle;
+  const igHandle = parseInstagramHandle(igRaw);
+  if (igHandle) {
+    instagramHtml = `<a class="psycle-tooltip-social-link" href="https://instagram.com/${igHandle}" target="_blank" rel="noopener noreferrer">📸 @${igHandle}</a>`;
   }
   let spotifyHtml = '';
-  if (instructor.metafields?.spotify_handle || instructor.spotify_handle) {
-    spotifyHtml = `<span>🎵 @${instructor.metafields?.spotify_handle || instructor.spotify_handle}</span>`;
+  const spRaw = instructor.metafields?.spotify_handle || instructor.spotify_handle;
+  const spId = parseSpotifyUserId(spRaw);
+  if (spId) {
+    spotifyHtml = `<a class="psycle-tooltip-social-link" href="https://open.spotify.com/user/${spId}" target="_blank" rel="noopener noreferrer">🎵 @${spId}</a>`;
   }
 
   return `

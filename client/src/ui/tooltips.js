@@ -10,6 +10,45 @@ let hoverTimeout = null;
 let hideTimeout = null;
 let activeHoverTarget = null;
 
+// Build the instructor tooltip inner HTML for a given instructor id.
+// Returns null if the instructor isn't in metadata yet. Shared by the hover
+// (desktop) and tap (touch) code paths.
+function instructorTooltipHTML(instructorIdRaw) {
+  const instructorId = parseInt(instructorIdRaw);
+  const instructor = metadata.instructors.find(i => i.id === instructorId);
+  if (!instructor) return null;
+
+  const photoUrl = instructor.photo || instructor.image_1 || '';
+  const avatarHtml = photoUrl
+    ? `<img src="${photoUrl}" class="psycle-tooltip-avatar" alt="${instructor.full_name || instructor.name}">`
+    : `<div class="psycle-tooltip-avatar" style="display:flex; align-items:center; justify-content:center; background:color-mix(in srgb, var(--text) 8%, transparent); font-weight:bold; font-size:16px; color:#fff;">${(instructor.full_name || instructor.name || '?')[0]}</div>`;
+
+  const name = instructor.full_name || instructor.name || 'Instructor';
+  const keywords = instructor.metafields?.keywords ? instructor.metafields.keywords.replace(/\|/g, ' • ') : '';
+  const description = instructor.metafields?.description || '';
+
+  let instagramHtml = '';
+  if (instructor.metafields?.instagram_handle || instructor.instagram_handle) {
+    instagramHtml = `<span>📸 @${instructor.metafields?.instagram_handle || instructor.instagram_handle}</span>`;
+  }
+  let spotifyHtml = '';
+  if (instructor.metafields?.spotify_handle || instructor.spotify_handle) {
+    spotifyHtml = `<span>🎵 @${instructor.metafields?.spotify_handle || instructor.spotify_handle}</span>`;
+  }
+
+  return `
+    <div class="psycle-tooltip-header">
+      ${avatarHtml}
+      <div style="min-width: 0; flex: 1;">
+        <h4 class="psycle-tooltip-name">${name}</h4>
+        ${keywords ? `<div class="psycle-tooltip-keywords">${keywords}</div>` : ''}
+      </div>
+    </div>
+    ${description ? `<p style="margin: 6px 0 0 0; display: -webkit-box; -webkit-line-clamp: 4; -webkit-box-orient: vertical; overflow: hidden; color: var(--text); font-size: 12px; line-height: 1.4;">${description}</p>` : ''}
+    ${(instagramHtml || spotifyHtml) ? `<div class="psycle-tooltip-socials" style="margin-top: 10px;">${instagramHtml}${spotifyHtml}</div>` : ''}
+  `;
+}
+
 export function initTooltips() {
   const instructorTooltip = document.getElementById('psycle-instructor-tooltip');
   const occupancyTooltip = document.getElementById('psycle-occupancy-tooltip');
@@ -36,46 +75,47 @@ export function initTooltips() {
     if (hoverTimeout) clearTimeout(hoverTimeout);
 
     hoverTimeout = setTimeout(() => {
-      const instructorId = parseInt(target.getAttribute('data-id'));
-      const instructor = metadata.instructors.find(i => i.id === instructorId);
-      if (!instructor) return;
-
-      const photoUrl = instructor.photo || instructor.image_1 || '';
-      const avatarHtml = photoUrl 
-        ? `<img src="${photoUrl}" class="psycle-tooltip-avatar" alt="${instructor.full_name || instructor.name}">` 
-        : `<div class="psycle-tooltip-avatar" style="display:flex; align-items:center; justify-content:center; background:color-mix(in srgb, var(--text) 8%, transparent); font-weight:bold; font-size:16px; color:#fff;">${(instructor.full_name || instructor.name || '?')[0]}</div>`;
-        
-      const name = instructor.full_name || instructor.name || 'Instructor';
-      const keywords = instructor.metafields?.keywords ? instructor.metafields.keywords.replace(/\|/g, ' • ') : '';
-      const description = instructor.metafields?.description || '';
-      
-      let instagramHtml = '';
-      if (instructor.metafields?.instagram_handle || instructor.instagram_handle) {
-        instagramHtml = `<span>📸 @${instructor.metafields?.instagram_handle || instructor.instagram_handle}</span>`;
-      }
-      let spotifyHtml = '';
-      if (instructor.metafields?.spotify_handle || instructor.spotify_handle) {
-        spotifyHtml = `<span>🎵 @${instructor.metafields?.spotify_handle || instructor.spotify_handle}</span>`;
-      }
-
-      instructorTooltip.innerHTML = `
-        <div class="psycle-tooltip-header">
-          ${avatarHtml}
-          <div style="min-width: 0; flex: 1;">
-            <h4 class="psycle-tooltip-name">${name}</h4>
-            ${keywords ? `<div class="psycle-tooltip-keywords">${keywords}</div>` : ''}
-          </div>
-        </div>
-        ${description ? `<p style="margin: 6px 0 0 0; display: -webkit-box; -webkit-line-clamp: 4; -webkit-box-orient: vertical; overflow: hidden; color: var(--text); font-size: 12px; line-height: 1.4;">${description}</p>` : ''}
-        ${(instagramHtml || spotifyHtml) ? `<div class="psycle-tooltip-socials" style="margin-top: 10px;">${instagramHtml}${spotifyHtml}</div>` : ''}
-      `;
-
+      const html = instructorTooltipHTML(target.getAttribute('data-id'));
+      if (!html) return;
+      instructorTooltip.innerHTML = html;
       instructorTooltip.style.display = 'block';
       positionTooltip(target, instructorTooltip);
       instructorTooltip.offsetHeight;
       instructorTooltip.classList.add('show');
     }, 1000); // 1s delay
   });
+
+  // Touch devices have no hover — tap an instructor name to toggle the tooltip,
+  // and tap anywhere else to dismiss it.
+  if (window.matchMedia('(hover: none)').matches) {
+    const hideInstructor = () => {
+      activeHoverTarget = null;
+      instructorTooltip.classList.remove('show');
+      instructorTooltip.style.display = 'none';
+    };
+    document.body.addEventListener('click', (e) => {
+      const target = e.target.closest('.psycle-instructor-hover');
+      if (!target) {
+        if (instructorTooltip.classList.contains('show')) hideInstructor();
+        return;
+      }
+      e.preventDefault();
+      e.stopPropagation();
+      // Tapping the open instructor again closes it.
+      if (activeHoverTarget === target && instructorTooltip.classList.contains('show')) {
+        hideInstructor();
+        return;
+      }
+      const html = instructorTooltipHTML(target.getAttribute('data-id'));
+      if (!html) return;
+      activeHoverTarget = target;
+      instructorTooltip.innerHTML = html;
+      instructorTooltip.style.display = 'block';
+      positionTooltip(target, instructorTooltip);
+      instructorTooltip.offsetHeight;
+      instructorTooltip.classList.add('show');
+    });
+  }
 
   document.body.addEventListener('mouseout', (e) => {
     const target = e.target.closest('.psycle-instructor-hover');

@@ -8,6 +8,7 @@ const pushService = require('./push');
 const notifications = require('./notifications');
 const scheduler = require('./scheduler');
 const poller = require('./poller');
+const { appName } = require('../app.config.json');
 
 const app = express();
 const PORT = process.env.PORT || 3000;
@@ -77,7 +78,7 @@ app.post('/api/push/unsubscribe', authenticateToken, (req, res) => {
 // For testing push notifications manually
 app.post('/api/push/test', authenticateToken, async (req, res) => {
   try {
-    await pushService.sendNotification(req.userId, 'Test Notification 🔔', 'Your Psycle server is ready to notify you!');
+    await pushService.sendNotification(req.userId, 'Test Notification 🔔', `Your ${appName} server is ready to notify you!`);
     res.json({ success: true });
   } catch (err) {
     res.status(500).json({ message: err.message });
@@ -444,8 +445,8 @@ async function proxyRequest(userId, pathName, method, body) {
     };
 
     if (['POST', 'PUT', 'DELETE'].includes(method)) {
-      options.headers['content-type'] = 'application/json';
       if (body && Object.keys(body).length > 0) {
+        options.headers['content-type'] = 'application/json';
         options.body = JSON.stringify(body);
       }
     }
@@ -483,11 +484,24 @@ app.all('/api/proxy/*', authenticateToken, async (req, res) => {
     res.status(response.status);
 
     if (contentType && contentType.includes('application/json')) {
-      const data = await response.json();
-      res.json(data);
+      try {
+        const data = await response.json();
+        res.json(data);
+      } catch {
+        // CodexFit sometimes returns content-type: application/json with an
+        // empty body (e.g. DELETE on a metafield). Parsing throws, which
+        // would surface as a 500 to the client and break the mutation flow.
+        // Send an empty object instead so the client can proceed.
+        res.json({});
+      }
     } else {
       const text = await response.text();
-      res.send(text);
+      if (text) {
+        res.send(text);
+      } else {
+        // Empty body, non-JSON content-type — end the response cleanly.
+        res.end();
+      }
     }
   } catch (err) {
     console.error(`[Proxy Error] ${method} ${pathWithQuery}:`, err.message);

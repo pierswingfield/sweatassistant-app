@@ -4,7 +4,7 @@ self.addEventListener('push', (event) => {
   try {
     const payload = event.data.json();
     const notification = payload.notification || {};
-    const title = notification.title || 'Psycle Alert';
+    const title = notification.title || 'Psycle Assistant Alert';
     
     const options = {
       body: notification.body || '',

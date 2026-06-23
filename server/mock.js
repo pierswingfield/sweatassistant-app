@@ -69,8 +69,25 @@ const bundles = [
   }
 ];
 
+// Mutable bookmark state so fav/unfav works end-to-end in dev mode.
+// Starts empty — favourite classes from the timetable to populate it.
+let mockBookmarks = [];
+
 function handleMockRequest(pathName, method, body) {
   console.log(`[Mock Server] Intercepted ${method} ${pathName}`);
+
+  // Bookmark mutations: PUT adds, DELETE removes a single bookmark identifier.
+  if (pathName.startsWith('/profile/metafields/bookmarks.events.')) {
+    const identifier = pathName.split('bookmarks.events.')[1];
+    if (method === 'PUT') {
+      if (!mockBookmarks.includes(identifier)) {
+        mockBookmarks.push(identifier);
+      }
+    } else if (method === 'DELETE') {
+      mockBookmarks = mockBookmarks.filter(b => b !== identifier);
+    }
+    return createFakeResponse({ success: true });
+  }
 
   if (pathName.startsWith('/profile')) {
     return createFakeResponse({
@@ -83,7 +100,7 @@ function handleMockRequest(pathName, method, body) {
       metafields: {
         public: {
           bookmarks: {
-            events: ["1380000100001930"]
+            events: [...mockBookmarks]
           }
         }
       }

@@ -978,3 +978,33 @@
   border: 1px solid rgba(245, 158, 11, 0.2);
   box-shadow: 0 0 8px rgba(245, 158, 11, 0.1);
 }
+
+/* --- SHARED SPOT-MAP FLOOR PLAN — pannable, min-gap, edge-to-edge on mobile --- */
+.psycle-floor-scroll {
+  overflow: auto;
+  -webkit-overflow-scrolling: touch;
+  touch-action: pan-x pan-y;
+  width: 100%;
+  max-height: min(60vh, 460px);
+  margin-bottom: 14px;
+  border-radius: 8px;
+}
+
+.psycle-floor {
+  position: relative;
+  margin: 0 auto;
+  flex-shrink: 0;
+  background: color-mix(in srgb, var(--bg) 60%, transparent);
+  border: 1px solid color-mix(in srgb, var(--text) 8%, transparent);
+  border-radius: 8px;
+}
+
+/* Narrow screens: break out of the modal-body padding so the map reaches nearly
+   the full modal width (as close to the screen edges as possible). */
+@media (max-width: 768px) {
+  .psycle-modal-body .psycle-floor-scroll {
+    margin-left: -18px;
+    margin-right: -18px;
+    width: calc(100% + 36px);
+  }
+}

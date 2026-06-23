@@ -2,10 +2,44 @@ import { api, setToken, isLoggedIn } from './api';
 import { initTooltips } from './ui/tooltips';
 import { setupPullToRefresh } from './ui/pulltorefresh';
 import { setCacheKeyPrefix, clearApiCache } from './cache.js';
+import { appName } from '../../app.config.json';
+import { shouldShowOnboarding, resumeOnboarding, isOnboardingActive, advanceAfterLogin } from './ui/onboarding';
 
-// Global App State
-export let currentUser = null;
-export let userSettings = {
+// --- PWA install prompt capture ---
+// Android/desktop Chromium fire `beforeinstallprompt` before the page is ready
+// to act on it. Stash the event so the onboarding install step can trigger a
+// native one-tap install. iOS never fires this — that path uses manual steps.
+let installPromptEvent = null;
+window.addEventListener('beforeinstallprompt', (e) => {
+  e.preventDefault();
+  installPromptEvent = e;
+});
+// Returns the captured prompt event once, then clears it (it's single-use).
+export function consumeInstallPrompt() {
+  const e = installPromptEvent;
+  installPromptEvent = null;
+  return e;
+}
+
+// Warm the caches the app needs to feel instant after onboarding: timetable
+// (also feeds the active-studio list for spot maps) and the Auto-Book tab data.
+export async function warmCaches() {
+  try {
+    const { prefetchTimetableData } = await import('./ui/timetable');
+    prefetchTimetableData().catch(() => {});
+  } catch (_) {}
+  import('./ui/autobook').then(m => m.prefetchAutoBookData()).catch(() => {});
+}
+
+// Propagate the app name from the single source of truth (app.config.json) to
+// all user-visible static surfaces that can't import it at runtime.
+document.title = appName;
+const appleMeta = document.querySelector('meta[name="apple-mobile-web-app-title"]');
+if (appleMeta) appleMeta.setAttribute('content', appName);
+
+// Default settings — the single source of truth for new-user defaults.
+// Reset to this on logout so a new user never inherits the previous user's settings.
+const DEFAULT_SETTINGS = {
   advancedBooking: false,
   autoUpgradeEnabled: true,
   autoUpgradeInterval: '15min',
@@ -13,6 +47,10 @@ export let userSettings = {
   debugMode: false,
   prefetchWeeks: 4
 };
+
+// Global App State
+export let currentUser = null;
+export let userSettings = { ...DEFAULT_SETTINGS };
 
 // UI Cache data to avoid constant reloading
 export let cache = {
@@ -36,11 +74,23 @@ export function getTheme() {
 
 export function applyTheme(mode = getTheme()) {
   const root = document.documentElement;
+  let effective;
   if (mode === 'light' || mode === 'dark') {
     root.setAttribute('data-theme', mode);
+    effective = mode;
   } else {
     root.removeAttribute('data-theme'); // auto → CSS prefers-color-scheme decides
+    effective = window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
   }
+  // Sync all theme-color meta tags with the app's actual (possibly overridden)
+  // theme so the iOS notch / status-bar area matches the app background instead
+  // of the OS theme. Without this, a user in light mode on a dark-mode phone
+  // gets a black notch over a light app. The media-query-based tags in
+  // index.html handle the initial render; this JS override keeps them in sync
+  // for manual light/dark modes and OS-theme changes.
+  const metas = document.querySelectorAll('meta[name="theme-color"]');
+  const color = effective === 'dark' ? '#090d16' : '#f5f2ec';
+  metas.forEach(m => m.setAttribute('content', color));
 }
 
 export function setTheme(mode) {
@@ -51,6 +101,12 @@ export function setTheme(mode) {
 
 // Apply persisted choice immediately (before first paint of the app shell).
 applyTheme();
+
+// Re-sync theme-color when the OS theme changes (only matters in 'auto' mode,
+// where the app follows the system and the notch colour must follow too).
+window.matchMedia('(prefers-color-scheme: dark)').addEventListener('change', () => {
+  if (getTheme() === 'auto') applyTheme('auto');
+});
 
 // --- TOAST NOTIFICATIONS ---
 export function showToast(message, type = 'info') {
@@ -630,7 +686,7 @@ export async function refreshUserData() {
   }
 }
 
-async function initApp() {
+export async function initApp() {
   document.getElementById('psycle-login-container').style.display = 'none';
   document.getElementById('psycle-app-container').style.display = 'flex';
   
@@ -645,19 +701,39 @@ async function initApp() {
 
   // Setup debug terminal
   updateDebugTerminalVisibility();
+  const terminal = document.getElementById('psycle-debug-terminal');
   const debugHeader = document.getElementById('psycle-debug-terminal-header');
   const debugLog = document.getElementById('psycle-debug-log');
   const debugClearBtn = document.getElementById('psycle-debug-clear-btn');
   const debugToggleIcon = document.getElementById('psycle-debug-toggle-icon');
-  
+  const debugFab = document.getElementById('psycle-debug-fab');
+
+  // Minimize: collapse to a tiny "D" circle. Expand: restore full panel.
+  function setDebugMinimized(minimized) {
+    debugLogExpanded = !minimized;
+    if (minimized) {
+      terminal.classList.add('psycle-debug-minimized');
+      debugLog.style.maxHeight = '0';
+      debugLog.style.padding = '0 12px';
+      if (debugToggleIcon) debugToggleIcon.textContent = '▶';
+    } else {
+      terminal.classList.remove('psycle-debug-minimized');
+      debugLog.style.maxHeight = '230px';
+      debugLog.style.padding = '8px 12px';
+      if (debugToggleIcon) debugToggleIcon.textContent = '▼';
+    }
+  }
+
+  // Header click → toggle minimize (but not when clicking Clear)
   if (debugHeader) {
     debugHeader.addEventListener('click', (e) => {
       if (e.target === debugClearBtn) return;
-      debugLogExpanded = !debugLogExpanded;
-      debugLog.style.maxHeight = debugLogExpanded ? '230px' : '0';
-      debugLog.style.padding = debugLogExpanded ? '8px 12px' : '0 12px';
-      debugToggleIcon.textContent = debugLogExpanded ? '▼' : '▶';
+      setDebugMinimized(debugLogExpanded);
     });
+  }
+  // FAB circle click → expand
+  if (debugFab) {
+    debugFab.addEventListener('click', () => setDebugMinimized(false));
   }
   if (debugClearBtn) {
     debugClearBtn.addEventListener('click', (e) => {
@@ -707,6 +783,11 @@ async function checkAuth() {
         showLogin();
       }
     }
+  } else if (shouldShowOnboarding()) {
+    // First run (or onboarding not yet completed) — run the guided flow, which
+    // shows the login form at the right step. Resumes mid-flow on iOS after the
+    // install relaunch.
+    resumeOnboarding();
   } else {
     showLogin();
   }
@@ -716,10 +797,34 @@ function showLogin() {
   setCacheKeyPrefix('');
   clearApiCache().catch(() => {});
   localStorage.removeItem('psycleUserId');
+  // Reset settings to defaults so a new user doesn't inherit the previous
+  // user's settings (e.g. debugMode). The server returns {} for a brand-new
+  // user, which would skip the Object.assign merge and leave stale values.
+  Object.keys(userSettings).forEach(k => delete userSettings[k]);
+  Object.assign(userSettings, DEFAULT_SETTINGS);
   document.body.id = 'psycle-helper-container';
   document.body.className = 'psycle-helper-expanded';
   document.getElementById('psycle-app-container').style.display = 'none';
   document.getElementById('psycle-login-container').style.display = 'flex';
+}
+
+// Shared post-login routing. During onboarding we hand control back to the flow
+// (which calls initApp() at its finish step); otherwise we boot the app directly.
+async function onLoginSuccess() {
+  if (isOnboardingActive()) {
+    advanceAfterLogin();
+    return;
+  }
+
+  await initApp();
+
+  // Auto-enable push if the user has already granted notification permission.
+  if (serviceWorkerRegistration) {
+    const permission = await navigator.permissions?.query({ name: 'notifications' });
+    if (permission?.state === 'granted') {
+      togglePushSubscription();
+    }
+  }
 }
 
 // Login Form Submit Listener
@@ -740,18 +845,8 @@ if (loginForm) {
       setCacheKeyPrefix(currentUser.id);
       localStorage.setItem('psycleUserId', currentUser.id);
       showToast('Logged in successfully!', 'success');
-      
-      // Trigger App startup
-      await initApp();
-      
-      // Register push automatically
-      if (serviceWorkerRegistration) {
-        // Try enabling push automatically if permissions are already granted
-        const permission = await navigator.permissions?.query({ name: 'notifications' });
-        if (permission?.state === 'granted') {
-          togglePushSubscription();
-        }
-      }
+
+      await onLoginSuccess();
     } catch (err) {
       showToast(`Auth Failed: ${err.message}`, 'error');
     } finally {

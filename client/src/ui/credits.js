@@ -196,11 +196,11 @@ function bundleGroup(b) {
 function matchesFilterRules(b, searching = false) {
   const name = b.name.toLowerCase();
 
-  // Truly internal — never shown, even when searching.
+  // Truly internal — never shown, even when searching or favourited.
   if (name.includes('not customer facing')) return false;
 
-  // A search reveals everything customer-facing, regardless of toggle state.
-  if (searching) return true;
+  // Search and pinned favourites both reveal everything customer-facing.
+  if (searching || favorites.includes(b.id)) return true;
 
   // Default browse: show general/class-specific/advanced-booking bundles. Anything in a
   // gated group is hidden unless the user has flipped that group's "Show X" toggle on.

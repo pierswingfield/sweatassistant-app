@@ -115,6 +115,12 @@ async function handleLogin(email, password) {
     db.updateUserJWT(userId, codexToken, jwtExpiresAt);
   }
 
+  // 3b. Cache display name for admin panel (best-effort — don't fail login if this errors)
+  const displayName = [codexUser.first_name, codexUser.last_name].filter(Boolean).join(' ');
+  if (displayName) {
+    try { db.updateUserDisplayName(userId, displayName); } catch (_) {}
+  }
+
   // 4. Issue local signed JWT token for the PWA
   const localToken = jwt.sign(
     { userId, email },

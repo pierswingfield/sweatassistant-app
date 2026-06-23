@@ -4,6 +4,7 @@ const db = require('./db');
 const pushService = require('./push');
 const notifications = require('./notifications');
 const { triggerAutoRelogin } = require('./auth');
+const { getCachedEvent, setCachedEvent } = require('./scheduler');
 
 // Calculate booking offset/headers like scheduler
 function getCodexFitHeaders(token, isJSON = false) {
@@ -105,12 +106,17 @@ async function attemptUpgradeSlot(upgrade, isCutoffMode) {
   }
 
   try {
-    // 1. Fetch live slot availability
-    const url = `https://psycle.codexfit.com/api/v1/customer/events/${eventId}`;
-    const res = await fetchCodexFit(userId, url);
-    if (!res.ok) return;
-
-    const payload = await res.json();
+    // 1. Get live slot availability — use shared cache to avoid N fetches/min for the same class
+    let payload = getCachedEvent(eventId);
+    if (payload) {
+      console.log(`[Poller] Cache hit for event ${eventId} (user ${userId}).`);
+    } else {
+      const url = `https://psycle.codexfit.com/api/v1/customer/events/${eventId}`;
+      const res = await fetchCodexFit(userId, url);
+      if (!res.ok) return;
+      payload = await res.json();
+      setCachedEvent(eventId, payload, 60000);
+    }
     const eventData = payload.data || payload;
     const availableSlots = (payload.slots || eventData.slots || []).map(id => Number(id));
     const upgradeStudio = payload.relations?.studios?.[0] || eventData.relations?.studios?.[0] || eventData.studio;
@@ -139,6 +145,9 @@ async function attemptUpgradeSlot(upgrade, isCutoffMode) {
 
         const profileData = await profileRes.json();
         const profile = profileData.data || profileData;
+        // Backfill display_name if not yet cached (e.g. user registered before this field existed)
+        const upgradeDisplayName = [profile.first_name, profile.last_name].filter(Boolean).join(' ');
+        if (upgradeDisplayName) try { db.updateUserDisplayName(userId, upgradeDisplayName); } catch (_) {}
         const hasCredits = profile.available_credits && profile.available_credits.some(c => c.count > 0);
 
         if (!hasCredits) {
@@ -408,6 +417,9 @@ async function sendBookingWindowTip(userId) {
       if (res.ok) {
         const payload = await res.json();
         const profile = payload.data || payload;
+        // Backfill display_name if not yet cached
+        const tipDisplayName = [profile.first_name, profile.last_name].filter(Boolean).join(' ');
+        if (tipDisplayName) try { db.updateUserDisplayName(userId, tipDisplayName); } catch (_) {}
         const totalCredits = (profile.available_credits || []).reduce((s, c) => s + (c.count || 0), 0);
         const needed = pending.reduce((s, b) => {
           let p = {};

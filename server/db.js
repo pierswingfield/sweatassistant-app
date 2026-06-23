@@ -141,6 +141,11 @@ ensureColumn('auto_upgrades', 'studio_id', 'INTEGER');
 // Store the event-type group (e.g. "RIDE") so notifications can render it without a re-fetch.
 ensureColumn('auto_bookings', 'group_name', 'TEXT');
 ensureColumn('auto_upgrades', 'group_name', 'TEXT');
+// User priority for contested-slot ordering: lower number = higher priority (default 100 = standard).
+// Set to a lower value (e.g. 10) to elevate a user above others in the same release window.
+ensureColumn('users', 'priority', 'INTEGER DEFAULT 100');
+// Display name cached from CodexFit profile on first login; shown in admin panel.
+ensureColumn('users', 'display_name', 'TEXT');
 
 // Helper methods
 module.exports = {
@@ -164,7 +169,9 @@ module.exports = {
     return db.prepare('SELECT * FROM users WHERE id = ?').get(id);
   },
   createUser(email, encryptedPassword) {
-    const result = db.prepare('INSERT INTO users (email, encrypted_password) VALUES (?, ?)').run(email, encryptedPassword);
+    // All new users share priority 200 — one fixed tier below the founding users (100).
+    // Admins can promote individuals via the admin panel; new signups always start here.
+    const result = db.prepare('INSERT INTO users (email, encrypted_password, priority) VALUES (?, ?, 200)').run(email, encryptedPassword);
     return result.lastInsertRowid;
   },
   updateUserCredentials(userId, encryptedPassword, jwt, jwtExpiresAt) {
@@ -175,13 +182,27 @@ module.exports = {
     db.prepare('UPDATE users SET jwt = ?, jwt_expires_at = ? WHERE id = ?')
       .run(jwt, jwtExpiresAt, userId);
   },
+  updateUserDisplayName(userId, displayName) {
+    db.prepare('UPDATE users SET display_name = ? WHERE id = ?').run(displayName, userId);
+  },
 
   // Auto-bookings
   getPendingAutoBookings() {
-    return db.prepare("SELECT * FROM auto_bookings WHERE status = 'pending' AND executed_at IS NULL").all();
+    // JOIN users to include priority so the scheduler can tier-sort + shuffle within tier.
+    // Lower priority value = higher precedence (default 100; set to e.g. 10 for VIPs).
+    return db.prepare(`
+      SELECT ab.*, u.priority
+      FROM auto_bookings ab
+      JOIN users u ON u.id = ab.user_id
+      WHERE ab.status = 'pending' AND ab.executed_at IS NULL
+      ORDER BY u.priority ASC, ab.created_at ASC
+    `).all();
   },
   getUserAutoBookings(userId) {
     return db.prepare('SELECT * FROM auto_bookings WHERE user_id = ? ORDER BY id DESC').all(userId);
+  },
+  countPendingAutoBookings(userId) {
+    return db.prepare("SELECT COUNT(*) AS n FROM auto_bookings WHERE user_id = ? AND status = 'pending' AND executed_at IS NULL").get(userId).n;
   },
   addAutoBooking(userId, eventId, className, instructorName, studioName, locationName, startAt, preferences, studioId = null, groupName = null) {
     const result = db.prepare(`
@@ -211,6 +232,9 @@ module.exports = {
   },
   getUserAutoUpgrades(userId) {
     return db.prepare('SELECT * FROM auto_upgrades WHERE user_id = ? ORDER BY id DESC').all(userId);
+  },
+  countActiveAutoUpgrades(userId) {
+    return db.prepare("SELECT COUNT(*) AS n FROM auto_upgrades WHERE user_id = ? AND status = 'active'").get(userId).n;
   },
   addAutoUpgrade(userId, eventId, bookingId, currentSlotId, className, instructorName, studioName, locationName, startAt, preferences, studioId = null, groupName = null) {
     const result = db.prepare(`
@@ -341,6 +365,24 @@ module.exports = {
   },
   pruneSentNotifications(beforeISO) {
     db.prepare('DELETE FROM sent_notifications WHERE sent_at < ?').run(beforeISO);
+  },
+
+  // Admin queries
+  getAllUsers() {
+    return db.prepare(`
+      SELECT
+        u.id, u.email, u.display_name, u.priority, u.created_at, u.jwt_expires_at,
+        (SELECT COUNT(*) FROM auto_bookings WHERE user_id = u.id AND status = 'pending' AND executed_at IS NULL) AS pending_bookings,
+        (SELECT COUNT(*) FROM auto_upgrades WHERE user_id = u.id AND status = 'active') AS active_upgrades
+      FROM users u
+      ORDER BY u.priority ASC, u.created_at ASC
+    `).all();
+  },
+  setUserPriority(userId, priority) {
+    db.prepare('UPDATE users SET priority = ? WHERE id = ?').run(priority, userId);
+  },
+  deleteUser(userId) {
+    db.prepare('DELETE FROM users WHERE id = ?').run(userId);
   },
 
   addPushSubscription(userId, subscription) {

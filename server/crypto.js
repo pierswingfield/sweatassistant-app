@@ -1,21 +1,25 @@
 const crypto = require('crypto');
-const db = require('./db');
 
 const ALGORITHM = 'aes-256-gcm';
 const IV_LENGTH = 12;
 
+// ENCRYPTION_KEY must be set in the environment (e.g. via .env or docker secret).
+// The old DB-stored fallback has been removed: storing the key next to the ciphertext
+// in the same SQLite file defeats the purpose of encryption entirely.
+//
+// Migration: if you were running without ENCRYPTION_KEY previously, the server was
+// using an auto-generated key stored in the server_kv table. To migrate:
+//   1. Run: sqlite3 <db> "SELECT value FROM server_kv WHERE key='server_encryption_key';"
+//   2. Add ENCRYPTION_KEY=<that value> to your .env before deploying.
+const ENCRYPTION_KEY_RAW = process.env.ENCRYPTION_KEY;
+if (!ENCRYPTION_KEY_RAW) {
+  console.error('[crypto] FATAL: ENCRYPTION_KEY environment variable is required but not set. Refusing to start.');
+  process.exit(1);
+}
+
 function getEncryptionKey() {
-  let key = process.env.ENCRYPTION_KEY;
-  if (!key) {
-    // Fallback to DB stored random key if not configured in environment
-    key = db.getKV('server_encryption_key');
-    if (!key) {
-      key = crypto.randomBytes(32).toString('hex');
-      db.setKV('server_encryption_key', key);
-    }
-  }
-  // Hash the key using SHA-256 to guarantee a robust 32-byte key regardless of input format
-  return crypto.createHash('sha256').update(key).digest();
+  // SHA-256 of the raw key → guaranteed 32-byte AES key regardless of input length/format
+  return crypto.createHash('sha256').update(ENCRYPTION_KEY_RAW).digest();
 }
 
 function encrypt(text) {

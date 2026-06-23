@@ -6,6 +6,8 @@ import { DateTime } from 'luxon';
 import { renderMinimap } from './tooltips.js';
 // === END MOBILE TIMETABLE BLOCK ===
 import { openDB } from '../cache.js';
+import { disciplineTag, seatNoun } from './cards';
+import { openEditBookingModal } from './bookings';
 
 async function cacheSet(key, value) {
   try {
@@ -137,6 +139,9 @@ let selectedEventTypes = [];
 let showBookmarksOnly = false;
 
 let selectedTimetableDate = null;
+// Live shared studio preference maps, refreshed each grid render so the action
+// model can synchronously decide Quick-Book vs Book per studio.
+let studioPrefsMap = {};
 let psycleEvents = [];
 let userBookings = [];
 let userWaitlists = [];
@@ -737,12 +742,6 @@ async function renderTimetableGrid() {
 
   setupDropdownFilters({ locationIds, instructorIds, classTypeIds });
 
-  // === MOBILE TIMETABLE — inject filter hamburger (added Jun 2026; part of mobile block) ===
-  if (window.matchMedia('(max-width: 768px)').matches) {
-    injectMobileFilterHamburger();
-  }
-  // === END MOBILE TIMETABLE BLOCK ===
-
   // Load auto bookings to check Scheduled indicator
   let autoBookedIds = new Set();
   try {
@@ -750,6 +749,15 @@ async function renderTimetableGrid() {
     autoBookedIds = new Set((autoBookings.data || autoBookings || []).map(x => x.eventId));
   } catch (err) {
     console.warn('[Timetable] Failed to fetch auto bookings for scheduling synchronization:', err.message);
+  }
+
+  // Refresh the live shared studio preference maps so each row can synchronously
+  // decide whether the primary action is Quick-Book (prefs exist) or Book.
+  try {
+    studioPrefsMap = await api.getStudioPreferences() || {};
+    cache.studioPrefs = studioPrefsMap;
+  } catch (err) {
+    studioPrefsMap = cache.studioPrefs || {};
   }
 
   // 1. Filter events by selected dropdown metadata arrays
@@ -834,6 +842,15 @@ async function renderTimetableGrid() {
     }
   }
 
+  // Remove any body-appended mobile menus from the previous render, then inject
+  // the mobile filter ellipsis + its menu. Both run BEFORE the table render (and
+  // before the no-results early return) so the filter menu survives the purge
+  // and is available even when no classes match the current filters.
+  document.querySelectorAll('body > .psycle-mobile-menu').forEach(m => m.remove());
+  if (window.matchMedia('(max-width: 768px)').matches) {
+    injectMobileFilterHamburger();
+  }
+
   // 6. Render the Class Timetable Grid Table
   if (!selectedTimetableDate) {
     ttGrid.innerHTML = `
@@ -846,9 +863,6 @@ async function renderTimetableGrid() {
 
   const finalEvents = sortedEvents.filter(e => e.start_at.startsWith(selectedTimetableDate));
 
-  // Remove any body-appended mobile menus from the previous render
-  document.querySelectorAll('body > .psycle-mobile-menu').forEach(m => m.remove());
-
   // The outer #psycle-timetable-grid (.psycle-timetable-list) is the single scroll
   // container — see initTimetableTab for the pull-to-refresh wiring. The inner
   // container must NOT scroll, otherwise iOS has two nested scrollers and the
@@ -858,12 +872,12 @@ async function renderTimetableGrid() {
       <table class="psycle-table" style="width: 100%; border-collapse: collapse; text-align: left; table-layout: fixed;">
         <thead>
           <tr>
-            <th style="width: 8%;">Time</th>
-            <th style="width: 36%;">Class</th>
+            <th style="width: 7%;">Time</th>
+            <th style="width: 30%;">Class</th>
             <th style="width: 11%;">Instructor</th>
-            <th style="width: 16%;">Location / Studio</th>
-            <th style="width: 13%;">Status</th>
-            <th style="width: 16%; text-align: center;">Actions</th>
+            <th style="width: 15%;">Location / Studio</th>
+            <th style="width: 11%;">Status</th>
+            <th style="width: 26%; text-align: right;">Actions</th>
           </tr>
         </thead>
         <tbody id="psycle-timetable-rows"></tbody>
@@ -921,78 +935,50 @@ async function renderTimetableGrid() {
     const heartChar = isBookmarked ? '♥' : '♡';
     const heartClass = isBookmarked ? 'psycle-timetable-heart bookmarked' : 'psycle-timetable-heart unbookmarked';
 
+    // ── Status badge (kept as a restyled column) + shared action model ──
     let statusBadge = '';
-    let actionBtn = '';
     let rowClass = 'psycle-table-row';
+    let bookingId = null, isPenalty = false, slotsBookedCount = 0, waitlistId = null;
+    const hasCredit = hasUsableCredit(event);
 
     if (!isLive) {
       rowClass = 'psycle-table-row row-beyond-cutoff';
       statusBadge = `<span class="badge-pill not-live psycle-occupancy-hover" data-id="${event.id}">Not Live</span>`;
-      actionBtn = getSplitButtonHtml(event.id, true, autoBookedIds.has(event.id));
-    } else {
-      if (isBooked) {
-        const eventBookings = userBookings.filter(b => b.event_id === event.id || b.event?.id === event.id);
-        const slotsBookedCount = eventBookings.length;
-        statusBadge = `<span class="badge-pill yes psycle-occupancy-hover" data-id="${event.id}" style="cursor: pointer;">Booked${slotsBookedCount > 1 ? ` (${slotsBookedCount})` : ''}</span>`;
-
-        if (slotsBookedCount === 1) {
-          const booking = eventBookings[0];
-          const diffMs = startDate - new Date();
-          const diffHours = diffMs / (1000 * 60 * 60);
-          const closePenalty = diffHours < 12 && diffHours > 0;
-          const mediumPenalty = diffHours < 24 && diffHours >= 12;
-
-          const cancelVariant = closePenalty ? 'variant-danger-strong' : mediumPenalty ? 'variant-warning' : 'variant-danger';
-          actionBtn = `<button class="psycle-btn-mini psycle-timetable-cancel-booking-btn ${cancelVariant}" data-booking-id="${booking.id}" data-penalty="${closePenalty}">Cancel</button>`;
-        } else {
-          actionBtn = `<button class="psycle-btn-mini psycle-btn-manage-bookings variant-autoupgrade" onclick="window.switchTab('my-bookings')">Manage</button>`;
-        }
-      } else if (isOnWaitlist) {
-        statusBadge = `<span class="badge-pill no psycle-occupancy-hover" data-id="${event.id}" style="cursor: pointer;">Waitlisted</span>`;
-
-        // Find waitlist ID to leave it
-        const waitlistEntry = userWaitlists.find(w => w.event_id === event.id || w.event?.id === event.id);
-        if (waitlistEntry) {
-          actionBtn = `<button class="psycle-btn-mini psycle-timetable-leave-waitlist-btn variant-danger" data-waitlist-id="${waitlistEntry.id}">Leave WL</button>`;
-        } else {
-          actionBtn = `<button class="psycle-btn-mini" disabled>On Waitlist</button>`;
-        }
-      } else if (isFullyBooked) {
-        if (canWaitlist) {
-          statusBadge = `<span class="badge-pill no psycle-occupancy-hover" data-id="${event.id}" style="cursor: pointer;">Waitlisted</span>`;
-          actionBtn = `<button class="psycle-btn-mini psycle-timetable-waitlist-btn variant-warning-solid" data-id="${event.id}">Join Waitlist</button>`;
-        } else {
-          statusBadge = `<span class="badge-pill no fully-booked psycle-occupancy-hover" data-id="${event.id}">Fully Booked</span>`;
-          actionBtn = `<button class="psycle-btn-mini" disabled>Full</button>`;
-        }
-      } else {
-        const hasCredit = hasUsableCredit(event);
-        if (!hasCredit) {
-          statusBadge = `<span class="badge-pill yes psycle-occupancy-hover" data-id="${event.id}" style="cursor: pointer;">${spotsText}</span><div style="color:var(--danger); font-size:12px; font-weight:600; margin-top:3px; white-space:nowrap;">No eligible credits</div>`;
-          actionBtn = `<button class="psycle-btn-mini variant-danger" onclick="window.switchTab('buy-credits')">Buy Credits</button>`;
-        } else {
-          statusBadge = `<span class="badge-pill yes psycle-occupancy-hover" data-id="${event.id}" style="cursor: pointer;">${spotsText}</span>`;
-          actionBtn = `
-            <div style="display: flex; gap: 4px; align-items: center;">
-              <button class="psycle-btn-mini psycle-timetable-book-btn variant-success" data-id="${event.id}">Book</button>
-              ${getSplitButtonHtml(event.id, false, false)}
-            </div>
-          `;
-        }
+    } else if (isBooked) {
+      const eventBookings = userBookings.filter(b => b.event_id === event.id || b.event?.id === event.id);
+      slotsBookedCount = eventBookings.length;
+      statusBadge = `<span class="badge-pill yes psycle-occupancy-hover" data-id="${event.id}" style="cursor: pointer;">Booked${slotsBookedCount > 1 ? ` (${slotsBookedCount})` : ''}</span>`;
+      if (slotsBookedCount === 1) {
+        bookingId = eventBookings[0].id;
+        const diffHours = (startDate - new Date()) / (1000 * 60 * 60);
+        isPenalty = diffHours < 12 && diffHours > 0;
       }
+    } else if (isOnWaitlist) {
+      statusBadge = `<span class="badge-pill no psycle-occupancy-hover" data-id="${event.id}" style="cursor: pointer;">Waitlisted</span>`;
+      const waitlistEntry = userWaitlists.find(w => w.event_id === event.id || w.event?.id === event.id);
+      if (waitlistEntry) waitlistId = waitlistEntry.id;
+    } else if (isFullyBooked) {
+      statusBadge = canWaitlist
+        ? `<span class="badge-pill no psycle-occupancy-hover" data-id="${event.id}" style="cursor: pointer;">Waitlist open</span>`
+        : `<span class="badge-pill no fully-booked psycle-occupancy-hover" data-id="${event.id}">Fully Booked</span>`;
+    } else if (!hasCredit) {
+      statusBadge = `<span class="badge-pill yes psycle-occupancy-hover" data-id="${event.id}" style="cursor: pointer;">${spotsText}</span><div style="color:var(--danger); font-size:12px; font-weight:600; margin-top:3px; white-space:nowrap;">No eligible credits</div>`;
+    } else {
+      statusBadge = `<span class="badge-pill yes psycle-occupancy-hover" data-id="${event.id}" style="cursor: pointer;">${spotsText}</span>`;
     }
 
-    const debugBtnHtml = userSettings.debugMode
-      ? `<button class="psycle-btn-mini psycle-debug-btn variant-debug" data-event-id="${event.id}">Debug</button>`
-      : '';
+    const actionModel = buildActionModel(event, {
+      isLive, isBooked, isOnWaitlist, isFullyBooked, canWaitlist, hasCredit,
+      isScheduled: autoBookedIds.has(event.id),
+      bookingId, isPenalty, slotsBookedCount, waitlistId,
+    });
 
     // === MOBILE TIMETABLE — PWA MOBILE LAYOUT (added Jun 2026; delete this block to revert) ===
     if (window.matchMedia('(max-width: 768px)').matches) {
       tbody.appendChild(buildMobileClassRow(event, {
-        timeStr, groupName, strippedClassName, instrName, locName, studioName,
-        isLive, isBooked, isOnWaitlist, isFullyBooked, canWaitlist, spotsText,
+        timeStr, groupName, strippedClassName, instrName, locName,
         isBookmarked, heartChar, heartClass, rowClass
-      }));
+      }, actionModel));
       return; // skip desktop rendering for this row
     }
     // === END MOBILE TIMETABLE BLOCK ===
@@ -1002,10 +988,10 @@ async function renderTimetableGrid() {
     row.innerHTML = `
       <td class="col-time"><strong>${timeStr}</strong></td>
       <td class="col-class">
-        <div style="display: flex; align-items: center; gap: 6px; flex-wrap: nowrap; overflow: hidden;">
-          <span class="${heartClass}" data-event-id="${event.id}" title="${isBookmarked ? 'Remove Bookmark' : 'Bookmark Class'}" style="flex-shrink:0;">${heartChar}</span>
-          <span class="psycle-class-type-chip">${groupName}</span>
-          <span style="overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">${strippedClassName}</span>
+        <div class="psycle-tt-class-cell">
+          <span class="${heartClass}" data-event-id="${event.id}" title="${isBookmarked ? 'Remove Bookmark' : 'Bookmark Class'}">${heartChar}</span>
+          ${disciplineTag(groupName)}
+          <span class="psycle-tt-class-name">${strippedClassName}</span>
         </div>
       </td>
       <td class="col-instructor"><span class="psycle-instructor-hover" data-id="${event.instructor_id}">${instrName}</span></td>
@@ -1014,13 +1000,10 @@ async function renderTimetableGrid() {
         <span style="font-size:12px; color:var(--text-secondary); display:block; margin-top:2px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">${studioName}</span>
       </td>
       <td class="col-status">${statusBadge}</td>
-      <td class="col-actions">
-        <div style="display:flex; align-items:center; justify-content:center; gap:4px;">
-          ${actionBtn}
-          ${debugBtnHtml}
-        </div>
-      </td>
+      <td class="col-actions"></td>
     `;
+
+    row.querySelector('.col-actions').appendChild(buildDesktopActions(actionModel, event, userSettings.debugMode));
 
     // Heart click listener
     row.querySelector('.psycle-timetable-heart').onclick = (e) => {
@@ -1028,247 +1011,356 @@ async function renderTimetableGrid() {
       toggleNativeBookmark(event, e.target);
     };
 
-    // Direct book click listener
-    const splitMainBtn = row.querySelector('.psycle-split-main-btn');
-    if (splitMainBtn) {
-      splitMainBtn.onclick = async (e) => {
-        e.stopPropagation();
-        const type = splitMainBtn.getAttribute('data-type');
-        if (type === 'quickbook') {
-          if (isWithin12Hours(event.start_at) && splitMainBtn.dataset.confirmState !== 'confirm') {
-            splitMainBtn.dataset.confirmState = 'confirm';
-            const origHtml = splitMainBtn.innerHTML;
-            splitMainBtn.innerHTML = 'Class starts soon. Confirm?';
-            splitMainBtn.style.background = 'var(--warning)';
-            setTimeout(() => {
-              if (splitMainBtn.dataset.confirmState === 'confirm') {
-                delete splitMainBtn.dataset.confirmState;
-                splitMainBtn.innerHTML = origHtml;
-                splitMainBtn.style.background = '';
-              }
-            }, 4000);
-            return;
-          }
-          delete splitMainBtn.dataset.confirmState;
-          // Get studio preferences from settings
-          try {
-            const studioPrefs = await api.getStudioPreferences();
-            const studioId = event.studio_id;
-            const prefs = studioPrefs[studioId] || {};
-
-            // If no studio prefs exist, open modal to set them first
-            if (!prefs.preferredSlots || prefs.preferredSlots.length === 0) {
-              if (!prefs.preferredRows || prefs.preferredRows.length === 0) {
-                openBookingModal(event, 'quickbook');
-                return;
-              }
-            }
-
-            quickBookClass(event.id, {
-              preferredSlots: prefs.preferredSlots || [],
-              preferredRows: prefs.preferredRows || [],
-              requiredCount: 1,
-              bookAny: true
-            }, splitMainBtn);
-          } catch (err) {
-            // On error getting prefs, open modal to let user set them
-            openBookingModal(event, 'quickbook');
-          }
-        } else if (type === 'autobook') {
-          if (splitMainBtn.classList.contains('scheduled')) {
-            // Unschedule auto-book directly
-            try {
-              showToast('Removing scheduled booking...', 'info');
-              const autoBookings = await api.getAutoBookings();
-              const existing = (autoBookings.data || autoBookings || []).find(x => x.eventId === event.id);
-              if (existing) {
-                await api.deleteAutoBooking(existing.id);
-                showToast('Scheduled auto-book cancelled.', 'info');
-                renderTimetableGrid();
-              }
-            } catch (err) {
-              showToast(`Error: ${err.message}`, 'error');
-            }
-          } else {
-            // One-click setup: if prefs exist, register auto-book directly; else open modal
-            try {
-              const studioPrefs = await api.getStudioPreferences();
-              const studioId = event.studio_id;
-              const prefs = studioPrefs[studioId] || {};
-
-              if (prefs.preferredSlots?.length > 0 || prefs.preferredRows?.length > 0) {
-                // Prefs exist — quick-register auto-book
-                saveAutoBookPreferences(event, prefs.preferredSlots || [], prefs.preferredRows || [], 1, true, () => {});
-              } else {
-                // No prefs — open modal to set them first
-                openBookingModal(event, 'autobook');
-              }
-            } catch (err) {
-              openBookingModal(event, 'autobook');
-            }
-          }
-        }
-      };
-    }
-
-    // Split toggle ⚙ click → open config modal
-    const splitToggleBtn = row.querySelector('.psycle-split-context-toggle');
-    if (splitToggleBtn) {
-      splitToggleBtn.onclick = (e) => {
-        e.stopPropagation();
-        const type = splitToggleBtn.getAttribute('data-type');
-        const mode = type === 'autobook' ? 'autobook' : 'quickbook';
-        openBookingModal(event, mode);
-      };
-    }
-
-    // Split dropdown item click handlers
-    const dropdownEl = row.querySelector('.psycle-split-dropdown');
-    if (dropdownEl) {
-      dropdownEl.onclick = async (e) => {
-        e.stopPropagation();
-        const item = e.target.closest('.psycle-split-dropdown-item');
-        if (!item) return;
-        const action = item.getAttribute('data-action');
-        const eid = item.getAttribute('data-id');
-
-        // Close the dropdown
-        dropdownEl.style.display = 'none';
-
-        if (action === 'quickbook') {
-          try {
-            const studioPrefs = await api.getStudioPreferences();
-            const studioId = event.studio_id;
-            const prefs = studioPrefs[studioId] || {};
-            quickBookClass(event.id, {
-              preferredSlots: prefs.preferredSlots || [],
-              preferredRows: prefs.preferredRows || [],
-              requiredCount: 1,
-              bookAny: true
-            }, null);
-          } catch (err) {
-            quickBookClass(event.id, { preferredSlots: [], preferredRows: [], requiredCount: 1, bookAny: true }, null);
-          }
-        } else if (action === 'autobook') {
-          try {
-            const studioPrefs = await api.getStudioPreferences();
-            const studioId = event.studio_id;
-            const prefs = studioPrefs[studioId] || {};
-            saveAutoBookPreferences(event, prefs.preferredSlots || [], prefs.preferredRows || [], 1, true, () => {});
-          } catch (err) {
-            saveAutoBookPreferences(event, [], [], 1, true, () => {});
-          }
-        } else if (action === 'waitlist') {
-          item.disabled = true;
-          item.textContent = 'Joining...';
-          try {
-            await api.proxyPut(`/waitlists/${eid}`);
-            showToast('Successfully joined waitlist!', 'success');
-            await refreshUserData();
-            renderTimetableGrid();
-          } catch (err) {
-            showToast(`Waitlist failed: ${err.message}`, 'error');
-            item.disabled = false;
-            item.textContent = 'Waitlist';
-          }
-        }
-      };
-    }
-
-    // Book button click → open booking modal (spot selection)
-    const bookBtn = row.querySelector('.psycle-timetable-book-btn');
-    if (bookBtn) {
-      bookBtn.onclick = (e) => {
-        e.stopPropagation();
-        openBookingModal(event, 'book');
-      };
-    }
-
-    // Cancel Booking click listener
-    const cancelBtn = row.querySelector('.psycle-timetable-cancel-booking-btn');
-    if (cancelBtn) {
-      cancelBtn.onclick = (e) => {
-        e.stopPropagation();
-        const bookingId = cancelBtn.getAttribute('data-booking-id');
-        const isPenalty = cancelBtn.getAttribute('data-penalty') === 'true';
-        cancelBookingDirect(bookingId, isPenalty, cancelBtn);
-      };
-    }
-
-    // Leave Waitlist click listener
-    const leaveWlBtn = row.querySelector('.psycle-timetable-leave-waitlist-btn');
-    if (leaveWlBtn) {
-      leaveWlBtn.onclick = async (e) => {
-        e.stopPropagation();
-        const waitlistId = leaveWlBtn.getAttribute('data-waitlist-id');
-        leaveWlBtn.disabled = true;
-        leaveWlBtn.innerHTML = 'Leaving...';
-        try {
-          await api.proxyDelete(`/waitlists/${waitlistId}`);
-          showToast('Left waitlist successfully!', 'success');
-          await refreshUserData();
-          renderTimetableGrid();
-        } catch (err) {
-          showToast(`Error leaving waitlist: ${err.message}`, 'error');
-          leaveWlBtn.disabled = false;
-          leaveWlBtn.innerHTML = 'Leave WL';
-        }
-      };
-    }
-
-    // Waitlist Join click listener
-    const wlBtn = row.querySelector('.psycle-timetable-waitlist-btn');
-    if (wlBtn) {
-      wlBtn.onclick = async (e) => {
-        e.stopPropagation();
-        wlBtn.disabled = true;
-        wlBtn.innerHTML = 'Joining...';
-        try {
-          await api.proxyPut(`/waitlists/${event.id}`);
-          showToast('Successfully joined waitlist!', 'success');
-          prefetchTimetableData(true);
-        } catch (err) {
-          showToast(`Waitlist failed: ${err.message}`, 'error');
-          wlBtn.disabled = false;
-          wlBtn.innerHTML = 'Join Waitlist';
-        }
-      };
-    }
-
-    // Debug button click listener
-    const debugBtn = row.querySelector('.psycle-debug-btn');
-    if (debugBtn) {
-      debugBtn.onclick = (e) => {
-        e.stopPropagation();
-        openDebugModal(event);
-      };
-    }
-
     tbody.appendChild(row);
   });
+}
 
-  // Close split dropdowns when clicking outside any split button group
-  const closeSplitDropdowns = (e) => {
-    if (!e.target.closest('.psycle-split-btn-group')) {
-      document.querySelectorAll('.psycle-split-dropdown').forEach(d => d.style.display = 'none');
+// ═══════════════════════════════════════════════════════════════════════
+//  Unified class-row action model — shared by the desktop table and the
+//  mobile card so the primary/secondary/config logic lives in one place.
+// ═══════════════════════════════════════════════════════════════════════
+
+// Does this studio have a seat-map layout, and does the user have a saved
+// preferred-spot map for it? Read synchronously from the live shared maps.
+function getStudioMapInfo(event) {
+  const studio = event.studio || studioObjMap.get(event.studio_id) || metadata.studios.find(s => s.id === event.studio_id);
+  const hasMap = !!(studio?.layout?.slots?.length);
+  const prefs = (studioPrefsMap && studioPrefsMap[event.studio_id]) || {};
+  const hasPrefs = (prefs.preferredSlots?.length > 0) || (prefs.preferredRows?.length > 0);
+  return { hasMap, hasPrefs };
+}
+
+// Generic two-tap inline confirm: first tap swaps the label, second tap runs.
+function twoTapConfirm(btn, confirmLabel, run) {
+  if (btn.dataset.confirmState === 'confirm') {
+    delete btn.dataset.confirmState;
+    btn.classList.remove('confirming');
+    if (btn.dataset.origLabel != null) { btn.textContent = btn.dataset.origLabel; delete btn.dataset.origLabel; }
+    run();
+    return;
+  }
+  btn.dataset.confirmState = 'confirm';
+  btn.dataset.origLabel = btn.textContent;
+  btn.textContent = confirmLabel;
+  btn.classList.add('confirming');
+  setTimeout(() => {
+    if (btn.dataset.confirmState === 'confirm') {
+      delete btn.dataset.confirmState;
+      if (btn.dataset.origLabel != null) { btn.textContent = btn.dataset.origLabel; delete btn.dataset.origLabel; }
+      btn.classList.remove('confirming');
+    }
+  }, 4000);
+}
+
+// Resolve the primary action, optional secondary action, and optional config
+// (⚙ split / "Configure …" menu item) for a class given its current state.
+function buildActionModel(event, ctx) {
+  const {
+    isLive, isBooked, isOnWaitlist, isFullyBooked, canWaitlist, hasCredit,
+    isScheduled, bookingId, isPenalty, slotsBookedCount, waitlistId,
+  } = ctx;
+  const { hasMap, hasPrefs } = getStudioMapInfo(event);
+
+  // Not yet live → Auto-Book (configurable via the spot map)
+  if (!isLive) {
+    return {
+      primary: {
+        label: isScheduled ? 'Scheduled' : 'Auto-Book',
+        variant: 'autoupgrade', scheduled: isScheduled,
+        run: (btn) => doAutoBookToggle(event, btn, isScheduled),
+      },
+      config: hasMap ? 'autobook' : null,
+      secondary: null,
+    };
+  }
+
+  // Already booked → Edit (+ Cancel as secondary)
+  if (isBooked) {
+    const primary = { label: 'Edit', variant: 'autoupgrade', run: () => doEditBooking(event) };
+    if (slotsBookedCount === 1 && bookingId) {
+      return {
+        primary, config: null,
+        secondary: {
+          label: 'Cancel', variant: isPenalty ? 'danger-strong' : 'danger', isCancel: true,
+          run: (btn) => cancelBookingDirect(bookingId, isPenalty, btn),
+        },
+      };
+    }
+    // Multiple spots booked → manage in My Bookings
+    return {
+      primary, config: null,
+      secondary: { label: 'Manage', variant: 'autoupgrade', run: () => window.switchTab('my-bookings') },
+    };
+  }
+
+  // On the waitlist → Leave (confirmed)
+  if (isOnWaitlist) {
+    if (waitlistId) {
+      return {
+        primary: {
+          label: 'Leave WL', variant: 'danger', isCancel: true,
+          run: (btn) => twoTapConfirm(btn, 'Confirm leave?', () => doLeaveWaitlist(waitlistId, btn)),
+        },
+        secondary: null, config: null,
+      };
+    }
+    return { primary: { label: 'On Waitlist', variant: 'neutral', disabled: true }, secondary: null, config: null };
+  }
+
+  // Full → join waitlist if possible
+  if (isFullyBooked) {
+    if (canWaitlist) {
+      return {
+        primary: { label: 'Join Waitlist', variant: 'warning-solid', run: (btn) => doJoinWaitlist(event, btn) },
+        secondary: null, config: null,
+      };
+    }
+    return { primary: { label: 'Full', variant: 'neutral', disabled: true }, secondary: null, config: null };
+  }
+
+  // No eligible credits → send to Buy Credits
+  if (!hasCredit) {
+    return {
+      primary: { label: 'Buy Credits', variant: 'danger', run: () => window.switchTab('buy-credits') },
+      secondary: null, config: null,
+    };
+  }
+
+  // Bookable now
+  if (!hasMap) {
+    // No seat map for this studio → Quick-Book books any open spot
+    return {
+      primary: { label: 'Quick Book', variant: 'success', run: (btn) => doQuickBook(event, btn) },
+      secondary: null, config: null,
+    };
+  }
+  if (hasPrefs) {
+    // Saved preferred map → Quick-Book primary (configurable), Book secondary
+    return {
+      primary: { label: 'Quick Book', variant: 'success', run: (btn) => doQuickBook(event, btn) },
+      config: 'quickbook',
+      secondary: { label: 'Book', variant: 'success-muted', run: () => openBookingModal(event, 'book') },
+    };
+  }
+  // Seat map but no saved prefs → Book primary, Quick-Book setup as secondary
+  return {
+    primary: { label: 'Book', variant: 'success', run: () => openBookingModal(event, 'book') },
+    config: null,
+    secondary: { label: 'Quick Book', variant: 'success-muted', run: () => openBookingModal(event, 'quickbook') },
+  };
+}
+
+// ── Shared action handlers ──────────────────────────────────────────────
+function doQuickBook(event, btn) {
+  const run = async () => {
+    try {
+      const prefs = (await api.getStudioPreferences())[event.studio_id] || {};
+      const { hasMap } = getStudioMapInfo(event);
+      const noPrefs = (!prefs.preferredSlots || !prefs.preferredSlots.length)
+        && (!prefs.preferredRows || !prefs.preferredRows.length);
+      if (noPrefs && hasMap) { openBookingModal(event, 'quickbook'); return; }
+      quickBookClass(event.id, {
+        preferredSlots: prefs.preferredSlots || [],
+        preferredRows: prefs.preferredRows || [],
+        requiredCount: 1, bookAny: true,
+      }, btn);
+    } catch (err) {
+      openBookingModal(event, 'quickbook');
     }
   };
-  document.removeEventListener('click', closeSplitDropdowns);
-  document.addEventListener('click', closeSplitDropdowns);
+  // Booking within 12h of start needs an explicit confirm.
+  if (isWithin12Hours(event.start_at)) twoTapConfirm(btn, 'Starts soon — confirm?', run);
+  else run();
+}
+
+async function doAutoBookToggle(event, btn, isScheduled) {
+  if (isScheduled) {
+    try {
+      showToast('Removing scheduled booking...', 'info');
+      const autoBookings = await api.getAutoBookings();
+      const existing = (autoBookings.data || autoBookings || []).find(x => x.eventId === event.id);
+      if (existing) {
+        await api.deleteAutoBooking(existing.id);
+        showToast('Scheduled auto-book cancelled.', 'info');
+        renderTimetableGrid();
+      }
+    } catch (err) {
+      showToast(`Error: ${err.message}`, 'error');
+    }
+    return;
+  }
+  try {
+    const prefs = (await api.getStudioPreferences())[event.studio_id] || {};
+    if (prefs.preferredSlots?.length > 0 || prefs.preferredRows?.length > 0) {
+      saveAutoBookPreferences(event, prefs.preferredSlots || [], prefs.preferredRows || [], 1, true, () => {});
+    } else {
+      openBookingModal(event, 'autobook');
+    }
+  } catch (err) {
+    openBookingModal(event, 'autobook');
+  }
+}
+
+// Edit a booked class — reuses the My Bookings edit-spots modal. Builds the
+// booking "group" it expects from the timetable's cached bookings + metadata.
+async function doEditBooking(event) {
+  const eventBookings = userBookings.filter(b => b.event_id === event.id || b.event?.id === event.id);
+  if (!eventBookings.length) { showToast('Booking not found — refresh and try again.', 'error'); return; }
+
+  const eventTypeName = event.event_type?.name || eventTypeMap.get(event.event_type_id) || 'Class';
+  const groupName = event.event_type?.group?.name || eventTypeGroupMap.get(event.event_type_id) || eventTypeName;
+  const instrName = event.instructor?.full_name || event.instructor?.name || instructorMap.get(event.instructor_id) || '';
+  const studioObj = event.studio || studioObjMap.get(event.studio_id);
+
+  const enrichedEvent = {
+    ...event,
+    event_type: event.event_type || { name: eventTypeName, group: { name: groupName } },
+    instructor: event.instructor || { full_name: instrName },
+    studio: studioObj,
+  };
+
+  openEditBookingModal(
+    { eventId: event.id, event: enrichedEvent, bookings: eventBookings },
+    () => prefetchTimetableData(true), // refresh the timetable after spots change
+  );
+}
+
+async function doJoinWaitlist(event, btn) {
+  btn.disabled = true;
+  const orig = btn.textContent;
+  btn.textContent = 'Joining...';
+  try {
+    await api.proxyPut(`/waitlists/${event.id}`);
+    showToast('Successfully joined waitlist!', 'success');
+    prefetchTimetableData(true);
+  } catch (err) {
+    showToast(`Waitlist failed: ${err.message}`, 'error');
+    btn.disabled = false;
+    btn.textContent = orig;
+  }
+}
+
+async function doLeaveWaitlist(waitlistId, btn) {
+  btn.disabled = true;
+  const orig = btn.textContent;
+  btn.textContent = 'Leaving...';
+  try {
+    await api.proxyDelete(`/waitlists/${waitlistId}`);
+    showToast('Left waitlist successfully!', 'success');
+    await refreshUserData();
+    renderTimetableGrid();
+  } catch (err) {
+    showToast(`Error leaving waitlist: ${err.message}`, 'error');
+    btn.disabled = false;
+    btn.textContent = orig;
+  }
+}
+
+// Unicode (non-emoji) glyph that prefixes certain action labels.
+//   Quick Book → lightning bolt (text-presentation)   Auto Book → ✦
+function actionGlyph(label) {
+  if (label === 'Quick-Book' || label === 'Quick Book') return '⚡︎';
+  if (label === 'Auto-Book' || label === 'Auto Book' || label === 'Scheduled') return '✦';
+  return '';
+}
+
+// Set a button's label with an optional leading glyph icon.
+function setSegLabel(btn, label) {
+  const glyph = actionGlyph(label);
+  if (glyph) btn.innerHTML = `<span class="psycle-seg-ico" aria-hidden="true">${glyph}</span>${label}`;
+  else btn.textContent = label;
+}
+
+// Build the desktop actions cell: full-height side-by-side segments
+// (primary [+ ⚙ config split] | secondary | debug).
+function buildDesktopActions(model, event, debugMode) {
+  const wrap = document.createElement('div');
+  wrap.className = 'psycle-tt-actions';
+
+  const group = document.createElement('div');
+  group.className = 'psycle-tt-seg-group' + (model.config ? ' has-caret' : '');
+
+  const pbtn = document.createElement('button');
+  pbtn.className = `psycle-tt-seg primary variant-${model.primary.variant}` + (model.primary.scheduled ? ' scheduled' : '');
+  setSegLabel(pbtn, model.primary.label);
+  if (model.primary.disabled) pbtn.disabled = true;
+  else if (model.primary.run) pbtn.onclick = (e) => { e.stopPropagation(); model.primary.run(pbtn); };
+  group.appendChild(pbtn);
+
+  if (model.config) {
+    const caret = document.createElement('button');
+    caret.className = 'psycle-tt-seg-caret';
+    caret.innerHTML = '⚙';
+    caret.title = model.config === 'autobook' ? 'Configure auto-book' : 'Configure quick-book';
+    caret.onclick = (e) => { e.stopPropagation(); openBookingModal(event, model.config); };
+    group.appendChild(caret);
+  }
+  wrap.appendChild(group);
+
+  if (model.secondary) {
+    const sbtn = document.createElement('button');
+    sbtn.className = `psycle-tt-seg secondary variant-${model.secondary.variant}`;
+    setSegLabel(sbtn, model.secondary.label);
+    if (model.secondary.disabled) sbtn.disabled = true;
+    else if (model.secondary.run) sbtn.onclick = (e) => { e.stopPropagation(); model.secondary.run(sbtn); };
+    wrap.appendChild(sbtn);
+  }
+
+  if (debugMode) {
+    const dbtn = document.createElement('button');
+    dbtn.className = 'psycle-tt-seg variant-debug';
+    dbtn.textContent = 'Debug';
+    dbtn.onclick = (e) => { e.stopPropagation(); openDebugModal(event); };
+    wrap.appendChild(dbtn);
+  }
+  return wrap;
+}
+
+// Toggle a body-appended fixed context menu anchored under a button.
+function wireMobileMenuToggle(btn, menu, onOpen) {
+  btn.onclick = (e) => {
+    e.stopPropagation();
+    const wasOpen = menu.style.display === 'block';
+    document.querySelectorAll('.psycle-mobile-menu').forEach(m => { if (m !== menu) m.style.display = 'none'; });
+    if (wasOpen) { menu.style.display = 'none'; return; }
+    if (onOpen) onOpen();
+    const rect = btn.getBoundingClientRect();
+    menu.style.position = 'fixed';
+    menu.style.top = `${rect.bottom + 6}px`;
+    menu.style.right = `${window.innerWidth - rect.right}px`;
+    menu.style.left = 'auto';
+    menu.style.display = 'block';
+    const close = (ev) => {
+      if (!menu.contains(ev.target) && !btn.contains(ev.target)) {
+        menu.style.display = 'none';
+        document.removeEventListener('click', close);
+        window.removeEventListener('scroll', close, true);
+        window.removeEventListener('resize', close);
+      }
+    };
+    setTimeout(() => {
+      document.addEventListener('click', close);
+      window.addEventListener('scroll', close, true);
+      window.addEventListener('resize', close);
+    }, 0);
+  };
 }
 
 // === MOBILE TIMETABLE — injectMobileFilterHamburger (added Jun 2026; delete this block to revert) ===
 function injectMobileFilterHamburger() {
-  if (document.getElementById('psycle-mobile-filter-hamburger')) return;
-
   const filtersRow = document.querySelector('#psycle-timetable-filters-container .psycle-filters-row');
   if (!filtersRow) return;
 
-  const hamburger = document.createElement('button');
-  hamburger.id = 'psycle-mobile-filter-hamburger';
-  hamburger.className = 'psycle-mobile-hamburger';
-  hamburger.innerHTML = '&#9776;';
-  hamburger.style.flexShrink = '0';
+  // Rebuild the trigger + menu every render. The grid clears all body-appended
+  // .psycle-mobile-menu nodes on each render (see renderTimetableGrid), which
+  // would otherwise orphan a once-created menu and silently break opening.
+  document.getElementById('psycle-mobile-filter-trigger')?.remove();
+
+  const trigger = document.createElement('button');
+  trigger.id = 'psycle-mobile-filter-trigger';
+  trigger.className = 'psycle-mobile-ellipsis psycle-mobile-filter-ellipsis';
+  trigger.innerHTML = '\u22ef';
+  trigger.setAttribute('aria-label', 'Filter options');
 
   const menu = document.createElement('div');
   menu.className = 'psycle-mobile-menu';
@@ -1279,24 +1371,14 @@ function injectMobileFilterHamburger() {
   const saveBtn = document.getElementById('psycle-btn-save-default-filters');
 
   const items = [];
-  if (favBtn) {
-    items.push({
-      label: () => showBookmarksOnly ? '\u2665 Bookmarked (on)' : '\u2661 Bookmarked',
-      variant: 'favourite',
-      action: () => favBtn.click()
-    });
-  }
-  if (clearBtn) {
-    items.push({ label: () => 'Clear Filters', variant: 'danger', action: () => clearBtn.click() });
-  }
-  if (saveBtn) {
-    items.push({ label: () => 'Save Defaults', variant: 'success', action: () => saveBtn.click() });
-  }
+  if (favBtn) items.push({ label: showBookmarksOnly ? '\u2665 Bookmarked (on)' : '\u2661 Bookmarked', variant: 'favourite', action: () => favBtn.click() });
+  if (clearBtn) items.push({ label: 'Clear Filters', variant: 'danger', action: () => clearBtn.click() });
+  if (saveBtn) items.push({ label: 'Save Defaults', variant: 'success', action: () => saveBtn.click() });
 
   items.forEach(item => {
     const div = document.createElement('div');
     div.className = 'psycle-mobile-menu-item';
-    div.textContent = item.label();
+    div.textContent = item.label;
     if (item.variant) div.setAttribute('data-variant', item.variant);
     div.onclick = (e) => {
       e.stopPropagation();
@@ -1306,51 +1388,17 @@ function injectMobileFilterHamburger() {
     menu.appendChild(div);
   });
 
-  filtersRow.appendChild(hamburger);
+  filtersRow.appendChild(trigger);
   document.body.appendChild(menu);
-
-  hamburger.onclick = (e) => {
-    e.stopPropagation();
-    const wasOpen = menu.style.display === 'block';
-    document.querySelectorAll('.psycle-mobile-menu').forEach(m => {
-      if (m !== menu) m.style.display = 'none';
-    });
-    if (!wasOpen) {
-      // Refresh labels (bookmark state may have changed)
-      const itemEls = menu.querySelectorAll('.psycle-mobile-menu-item');
-      items.forEach((item, i) => {
-        if (itemEls[i]) itemEls[i].textContent = item.label();
-      });
-      const rect = hamburger.getBoundingClientRect();
-      menu.style.position = 'fixed';
-      menu.style.top = `${rect.bottom + 4}px`;
-      menu.style.right = `${window.innerWidth - rect.right}px`;
-      menu.style.left = 'auto';
-      menu.style.display = 'block';
-      const closeMenu = (ev) => {
-        if (!menu.contains(ev.target) && !hamburger.contains(ev.target)) {
-          menu.style.display = 'none';
-          document.removeEventListener('click', closeMenu);
-          window.removeEventListener('scroll', closeMenu, true);
-          window.removeEventListener('resize', closeMenu);
-        }
-      };
-      setTimeout(() => {
-        document.addEventListener('click', closeMenu);
-        window.addEventListener('scroll', closeMenu, true);
-        window.addEventListener('resize', closeMenu);
-      }, 0);
-    }
-  };
+  wireMobileMenuToggle(trigger, menu);
 }
 // === END MOBILE TIMETABLE BLOCK ===
 
 // === MOBILE TIMETABLE — buildMobileClassRow (added Jun 2026; delete this block to revert) ===
-function buildMobileClassRow(event, ctx) {
+function buildMobileClassRow(event, ctx, model) {
   const {
     timeStr, groupName, strippedClassName, instrName, locName,
-    isLive, isBooked, isOnWaitlist, isFullyBooked, canWaitlist,
-    spotsText, isBookmarked, heartChar, heartClass, rowClass
+    isBookmarked, heartChar, heartClass, rowClass
   } = ctx;
 
   const tr = document.createElement('tr');
@@ -1364,131 +1412,20 @@ function buildMobileClassRow(event, ctx) {
 
   const displayLoc = locName.replace(/^Psycle\s*/i, '');
 
-  let bookingId = null;
-  let isPenalty = false;
-  if (isBooked) {
-    const eventBookings = userBookings.filter(b => b.event_id === event.id || b.event?.id === event.id);
-    if (eventBookings.length === 1) {
-      bookingId = eventBookings[0].id;
-      const diffMs = new Date(event.start_at) - new Date();
-      const diffHours = diffMs / (1000 * 60 * 60);
-      isPenalty = diffHours < 12 && diffHours > 0;
-    }
-  }
-
-  let waitlistId = null;
-  if (isOnWaitlist) {
-    const entry = userWaitlists.find(w => w.event_id === event.id || w.event?.id === event.id);
-    if (entry) waitlistId = entry.id;
-  }
-
-  const hasCredit = hasUsableCredit(event);
-
-  let primaryBtnHtml = '';
-  let primaryAction = null;
-
-  if (!isLive) {
-    primaryBtnHtml = `<button class="psycle-btn-mini psycle-mobile-primary-btn variant-autoupgrade">Auto book</button>`;
-    primaryAction = () => openBookingModal(event, 'autobook');
-  } else if (isBooked) {
-    const eventBookings = userBookings.filter(b => b.event_id === event.id || b.event?.id === event.id);
-    if (eventBookings.length === 1) {
-      const cancelVariant = isPenalty ? 'variant-danger-strong' : 'variant-danger';
-      primaryBtnHtml = `<button class="psycle-btn-mini psycle-mobile-primary-btn ${cancelVariant}" data-booking-id="${bookingId}" data-penalty="${isPenalty}">Cancel</button>`;
-      primaryAction = (btn) => cancelBookingDirect(bookingId, isPenalty, btn);
-    } else {
-      primaryBtnHtml = `<button class="psycle-btn-mini psycle-mobile-primary-btn variant-autoupgrade" onclick="window.switchTab('my-bookings')">Manage</button>`;
-    }
-  } else if (isOnWaitlist) {
-    if (waitlistId) {
-      primaryBtnHtml = `<button class="psycle-btn-mini psycle-mobile-primary-btn variant-danger" data-waitlist-id="${waitlistId}">Leave WL</button>`;
-      primaryAction = async (btn) => {
-        btn.disabled = true;
-        btn.textContent = 'Leaving...';
-        try {
-          await api.proxyDelete(`/waitlists/${waitlistId}`);
-          showToast('Left waitlist successfully!', 'success');
-          await refreshUserData();
-          renderTimetableGrid();
-        } catch (err) {
-          showToast(`Error leaving waitlist: ${err.message}`, 'error');
-          btn.disabled = false;
-          btn.textContent = 'Leave WL';
-        }
-      };
-    } else {
-      primaryBtnHtml = `<button class="psycle-btn-mini psycle-mobile-primary-btn" disabled>On Waitlist</button>`;
-    }
-  } else if (isFullyBooked) {
-    if (canWaitlist) {
-      primaryBtnHtml = `<button class="psycle-btn-mini psycle-mobile-primary-btn psycle-timetable-waitlist-btn variant-warning-solid" data-id="${event.id}">Join Waitlist</button>`;
-      primaryAction = async (btn) => {
-        btn.disabled = true;
-        btn.textContent = 'Joining...';
-        try {
-          await api.proxyPut(`/waitlists/${event.id}`);
-          showToast('Successfully joined waitlist!', 'success');
-          prefetchTimetableData(true);
-        } catch (err) {
-          showToast(`Waitlist failed: ${err.message}`, 'error');
-          btn.disabled = false;
-          btn.textContent = 'Join Waitlist';
-        }
-      };
-    } else {
-      primaryBtnHtml = `<button class="psycle-btn-mini psycle-mobile-primary-btn" disabled>Full</button>`;
-    }
-  } else if (!hasCredit) {
-    primaryBtnHtml = `<button class="psycle-btn-mini psycle-mobile-primary-btn variant-danger" onclick="window.switchTab('buy-credits')">Buy Credits</button>`;
-  } else {
-    primaryBtnHtml = `<button class="psycle-btn-mini psycle-mobile-primary-btn psycle-timetable-book-btn variant-success" data-id="${event.id}">Quick Book</button>`;
-    primaryAction = async (btn) => {
-      if (isWithin12Hours(event.start_at) && btn.dataset.confirmState !== 'confirm') {
-        btn.dataset.confirmState = 'confirm';
-        const origText = btn.textContent;
-        btn.textContent = 'Confirm?';
-        btn.style.background = 'var(--warning)';
-        setTimeout(() => {
-          if (btn.dataset.confirmState === 'confirm') {
-            delete btn.dataset.confirmState;
-            btn.textContent = origText;
-            btn.style.background = '';
-          }
-        }, 4000);
-        return;
-      }
-      delete btn.dataset.confirmState;
-      try {
-        const studioPrefs = await api.getStudioPreferences();
-        const studioId = event.studio_id;
-        const prefs = studioPrefs[studioId] || {};
-        if ((!prefs.preferredSlots || prefs.preferredSlots.length === 0) && (!prefs.preferredRows || prefs.preferredRows.length === 0)) {
-          openBookingModal(event, 'quickbook');
-          return;
-        }
-        quickBookClass(event.id, {
-          preferredSlots: prefs.preferredSlots || [],
-          preferredRows: prefs.preferredRows || [],
-          requiredCount: 1,
-          bookAny: true
-        }, btn);
-      } catch (err) {
-        openBookingModal(event, 'quickbook');
-      }
-    };
-  }
-
-  const heartEl = document.createElement('span');
-  heartEl.className = heartClass;
-  heartEl.textContent = heartChar;
-  heartEl.style.display = 'none';
+  // Favourite heart is a non-interactive indicator on mobile (only shown when
+  // bookmarked), sitting between the time and the discipline chip. Toggling
+  // happens through the context menu instead.
+  const favIndicator = isBookmarked
+    ? `<span class="psycle-mobile-fav-indicator" aria-label="Favourited">${heartChar}</span>`
+    : '';
 
   card.innerHTML = `
     <div class="psycle-mobile-content">
       <div class="psycle-mobile-top-line">
         <strong>${timeStr}</strong>
-        <span class="psycle-class-type-chip">${groupName}</span>
-        <span class="psycle-mobile-instructor">${instrName}</span>
+        ${favIndicator}
+        ${disciplineTag(groupName)}
+        <span class="psycle-mobile-instructor psycle-instructor-hover" data-id="${event.instructor_id}">${instrName}</span>
       </div>
       <div class="psycle-mobile-bottom-line">
         <span class="psycle-mobile-class-name">${strippedClassName}</span>
@@ -1496,26 +1433,52 @@ function buildMobileClassRow(event, ctx) {
         <span class="psycle-mobile-location">${displayLoc}</span>
       </div>
     </div>
-    <div class="psycle-mobile-actions">
-      ${primaryBtnHtml}
-      <button class="psycle-mobile-hamburger">&#9776;</button>
-    </div>
+    <div class="psycle-mobile-rail"></div>
   `;
 
-  card.appendChild(heartEl);
+  const rail = card.querySelector('.psycle-mobile-rail');
+
+  // Primary action — a full-height segment flush to the card edge (mirrors the
+  // desktop primary segment and the My Bookings rail, but laid out horizontally).
+  const pbtn = document.createElement('button');
+  pbtn.className = `psycle-mobile-seg primary variant-${model.primary.variant}` + (model.primary.scheduled ? ' scheduled' : '');
+  setSegLabel(pbtn, model.primary.label);
+  if (model.primary.disabled) pbtn.disabled = true;
+  else if (model.primary.run) pbtn.onclick = (e) => { e.stopPropagation(); model.primary.run(pbtn); };
+  rail.appendChild(pbtn);
+
+  // Secondary action + extras collapse into the ellipsis context menu.
+  const ellipsis = document.createElement('button');
+  ellipsis.className = 'psycle-mobile-seg ellipsis';
+  ellipsis.innerHTML = '⋯';
+  ellipsis.setAttribute('aria-label', 'More actions');
+  rail.appendChild(ellipsis);
 
   const menu = document.createElement('div');
   menu.className = 'psycle-mobile-menu';
   menu.style.display = 'none';
 
   const menuItems = [];
-  if (isLive && !isBooked && !isOnWaitlist && !isFullyBooked && hasCredit) {
-    menuItems.push({ label: 'Book', variant: 'book', action: () => openBookingModal(event, 'book') });
+  if (model.secondary && !model.secondary.disabled && model.secondary.run) {
+    const isBookish = model.secondary.label === 'Book' || model.secondary.label === 'Quick Book';
+    menuItems.push({
+      label: model.secondary.label,
+      variant: model.secondary.isCancel ? 'danger' : (isBookish ? 'book' : ''),
+      keepOpen: !!model.secondary.isCancel, // cancel runs its own two-tap confirm in place
+      action: (el) => model.secondary.run(el),
+    });
+  }
+  if (model.config) {
+    menuItems.push({
+      label: model.config === 'autobook' ? 'Configure Auto-Book' : 'Configure Quick-Book',
+      variant: '',
+      action: () => openBookingModal(event, model.config),
+    });
   }
   menuItems.push({
     label: isBookmarked ? 'Unfavourite' : 'Favourite',
     variant: 'favourite',
-    action: () => toggleNativeBookmark(event, heartEl)
+    action: () => toggleNativeBookmark(event, null),
   });
   menuItems.push({ label: 'Studio Occupancy', variant: '', action: () => openOccupancyModal(event) });
   if (userSettings.debugMode) {
@@ -1529,55 +1492,17 @@ function buildMobileClassRow(event, ctx) {
     if (item.variant) div.setAttribute('data-variant', item.variant);
     div.onclick = (e) => {
       e.stopPropagation();
+      if (item.keepOpen) { item.action(div); return; }
       menu.style.display = 'none';
-      item.action();
+      item.action(div);
     };
     menu.appendChild(div);
   });
 
   // Append menu to body (not card) so position:fixed escapes the card's
-  // backdrop-filter containing block and renders above sibling rows
+  // backdrop-filter containing block and renders above sibling rows.
   document.body.appendChild(menu);
-
-  const hamburger = card.querySelector('.psycle-mobile-hamburger');
-  if (hamburger) {
-    hamburger.onclick = (e) => {
-      e.stopPropagation();
-      const wasOpen = menu.style.display === 'block';
-      document.querySelectorAll('.psycle-mobile-menu').forEach(m => {
-        if (m !== menu) m.style.display = 'none';
-      });
-      if (!wasOpen) {
-        const rect = hamburger.getBoundingClientRect();
-        menu.style.position = 'fixed';
-        menu.style.top = `${rect.bottom + 4}px`;
-        menu.style.right = `${window.innerWidth - rect.right}px`;
-        menu.style.left = 'auto';
-        menu.style.display = 'block';
-        const closeMenu = (ev) => {
-          if (!menu.contains(ev.target) && !hamburger.contains(ev.target)) {
-            menu.style.display = 'none';
-            document.removeEventListener('click', closeMenu);
-            window.removeEventListener('scroll', closeMenu, true);
-            window.removeEventListener('resize', closeMenu);
-          }
-        };
-        setTimeout(() => {
-          document.addEventListener('click', closeMenu);
-          window.addEventListener('scroll', closeMenu, true);
-          window.addEventListener('resize', closeMenu);
-        }, 0);
-      }
-    };
-  }
-
-  const primaryBtn = card.querySelector('.psycle-mobile-primary-btn');
-  if (primaryBtn && primaryAction) {
-    primaryBtn.onclick = (e) => {
-      e.stopPropagation();
-      primaryAction(primaryBtn);
-    };
-  }
+  wireMobileMenuToggle(ellipsis, menu);
 
   td.appendChild(card);
   tr.appendChild(td);
@@ -1741,58 +1666,6 @@ async function toggleNativeBookmark(event, heartEl) {
   }
 }
 
-// Construct split buttons with dropdown menu
-function getSplitButtonHtml(eventId, isNotLive, isScheduled) {
-  const mainClass = isScheduled ? 'psycle-split-main-btn scheduled' : 'psycle-split-main-btn';
-  const mainText = isNotLive ? (isScheduled ? 'Scheduled' : 'Auto book') : 'Quick Book';
-  const type = isNotLive ? 'autobook' : 'quickbook';
-  
-  const event = psycleEvents.find(e => e.id === eventId);
-  const studio = event ? metadata.studios.find(s => s.id === event.studio_id) : null;
-  const hasSeatMap = studio && studio.layout && studio.layout.slots && studio.layout.slots.length > 0;
-  
-  if (!hasSeatMap) {
-    const borderRightStyle = isScheduled ? '1px solid color-mix(in srgb, var(--feat-autoupgrade) 30%, transparent)' : 'none';
-    return `
-      <div class="psycle-split-btn-group" data-id="${eventId}" data-type="${type}" style="position:relative;">
-        <button class="${mainClass}" data-id="${eventId}" data-type="${type}" style="border-radius: 6px !important; padding: 0 16px; border-right: ${borderRightStyle};">${mainText}</button>
-      </div>
-    `;
-  }
-  
-  const contextClass = isScheduled ? 'psycle-split-context-btn scheduled' : 'psycle-split-context-btn';
-  const dropdownItemsHtml = getDropdownItemsHtml(eventId, isNotLive);
-  return `
-    <div class="psycle-split-btn-group" data-id="${eventId}" data-type="${type}" style="position:relative;">
-      <button class="${mainClass}" data-id="${eventId}" data-type="${type}">${mainText}</button>
-      <button class="${contextClass} psycle-split-context-toggle" data-id="${eventId}" data-type="${type}">⚙</button>
-      <div class="psycle-split-dropdown" data-id="${eventId}" style="display:none;">
-        ${dropdownItemsHtml}
-      </div>
-    </div>
-  `;
-}
-
-/** Generate dropdown items for the split button ⚙ menu */
-function getDropdownItemsHtml(eventId, isNotLive) {
-  let items = '';
-  
-  // Quick Book — only for live classes
-  if (!isNotLive) {
-    items += `<button class="psycle-split-dropdown-item" data-action="quickbook" data-id="${eventId}">Quick Book</button>`;
-  }
-
-  // Auto-Book — always available (schedule for release or upgrade)
-  items += `<button class="psycle-split-dropdown-item" data-action="autobook" data-id="${eventId}">Auto-Book</button>`;
-
-  // Waitlist — only for live classes
-  if (!isNotLive) {
-    items += `<button class="psycle-split-dropdown-item" data-action="waitlist" data-id="${eventId}">Waitlist</button>`;
-  }
-  
-  return items;
-}
-
 // Perform instant booking using preferred seat priorities
 async function quickBookClass(eventId, prefs, btn) {
   if (btn) {
@@ -1863,6 +1736,7 @@ async function quickBookClass(eventId, prefs, btn) {
     let lastBookedSlot = null;
     let lastBookingRes = null;
     const bookedSlotLabels = [];
+    const qbNoun = seatNoun((res.relations?.event_types?.find(t => t.id === eventData.event_type_id) || eventData.event_type)?.group?.name);
     while (bookedCount < requiredCount && attemptIdx < slotsToTry.length) {
       const targetSlot = slotsToTry[attemptIdx];
       try {
@@ -1875,7 +1749,7 @@ async function quickBookClass(eventId, prefs, btn) {
         lastBookingRes = bookRes;
         const ls = layoutSlots.find(s => Number(s.id) === Number(targetSlot));
         bookedSlotLabels.push(ls?.label ?? targetSlot);
-        showToast(`Quick-booked spot ${ls?.label ?? targetSlot}! 🎉`, 'success');
+        showToast(`Quick-booked ${qbNoun} ${ls?.label ?? targetSlot}! 🎉`, 'success');
       } catch (err) {
         console.error(`Quick book failed for slot ${targetSlot}:`, err.message);
       }
@@ -1930,7 +1804,8 @@ async function openBookingModal(c, mode) {
   const title = document.getElementById('psycle-booking-modal-title');
   if (!modal || !body || !title) return;
 
-  title.textContent = isAutoBookMode ? 'Configure Auto-Book' : (isQuickBookMode ? 'Select a spot in the studio' : 'Select a spot in the studio');
+  const noun = seatNoun(c.event_type?.group?.name);
+  title.textContent = isAutoBookMode ? 'Configure Auto-Book' : (isQuickBookMode ? `Select a ${noun} in the studio` : `Select a ${noun} in the studio`);
 
   // Use cached layout if available — layouts don't change mid-session
   const cachedStudio = studioLayoutCache.get(c.studio_id)
@@ -1984,6 +1859,7 @@ async function openBookingModal(c, mode) {
     const instrName = metadata.instructors.find(i => i.id === c.instructor_id)?.full_name || '';
     const eventType = metadata.eventTypes.find(t => t.id === c.event_type_id);
     const groupName = c.event_type?.group?.name || eventType?.group?.name || eventType?.name || 'Class';
+    const nounCap = seatNoun(groupName)[0].toUpperCase() + seatNoun(groupName).slice(1);
     const startDate = new Date(c.start_at);
     const timeStr = startDate.toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' });
     const studioName = studio?.name || studioMap.get(c.studio_id) || 'this studio';
@@ -1993,7 +1869,7 @@ async function openBookingModal(c, mode) {
     } else if (isQuickBookMode) {
       title.textContent = `Configure Quick-Book for ${studioName}: ${timeStr} ${groupName}${instrName ? ' with ' + instrName : ''}`;
     } else {
-      title.textContent = `Choose a spot for ${timeStr} ${groupName}${instrName ? ' with ' + instrName : ''}`;
+      title.textContent = `Choose a ${seatNoun(groupName)} for ${timeStr} ${groupName}${instrName ? ' with ' + instrName : ''}`;
     }
 
     if (layoutSlots.length === 0) {
@@ -2002,7 +1878,7 @@ async function openBookingModal(c, mode) {
           <p style="margin-bottom: 16px;">No floor map layout available for this studio.</p>
           ${isAutoBookMode
             ? `<button class="psycle-btn" id="btn-save-simple-autobook" style="background: var(--feat-autoupgrade); color:var(--on-accent);">Schedule Auto-Book (Any Seat)</button>`
-            : `<button class="psycle-btn" id="btn-book-any" style="background: var(--success); color:var(--on-accent);">Book Any Available Spot</button>`
+            : `<button class="psycle-btn" id="btn-book-any" style="background: var(--success); color:var(--on-accent);">Book Any Available ${nounCap}</button>`
           }
         </div>
       `;
@@ -2200,7 +2076,7 @@ async function openBookingModal(c, mode) {
           } else {
             // Not selected — try to select
             if (!isAutoBookMode && !isAvailable) {
-              showToast('⚠ This spot is occupied or unavailable.', 'warning');
+              showToast(`⚠ This ${seatNoun(groupName)} is occupied or unavailable.`, 'warning');
               return;
             }
             if (isAutoBookMode && !isAvailable) {
@@ -2211,7 +2087,7 @@ async function openBookingModal(c, mode) {
             if (state.selectedSlots.length < qtyLimit) {
               state.selectedSlots.push(slotId);
             } else {
-              showToast(`You can select up to ${state.qty} spot${state.qty !== 1 ? 's' : ''}.`, 'info');
+              showToast(`You can select up to ${state.qty} ${seatNoun(groupName)}${state.qty !== 1 ? 's' : ''}.`, 'info');
               return;
             }
           }
@@ -2397,21 +2273,21 @@ async function openBookingModal(c, mode) {
 
         controls.innerHTML = `
           <div style="display:flex;flex-direction:column;gap:12px;background:var(--surface-inset);padding:14px;border-radius:12px;border:1px solid var(--border);">
-            <div style="font-size:12px;color:var(--text-secondary);font-style:italic;">Select the spot(s) you want to book for this class. You have <strong>${isDataLoaded ? availableCredits : '?'}</strong> credit${availableCredits !== 1 ? 's' : ''} available.</div>
+            <div style="font-size:12px;color:var(--text-secondary);font-style:italic;">Select the ${seatNoun(groupName)}(s) you want to book for this class. You have <strong>${isDataLoaded ? availableCredits : '?'}</strong> credit${availableCredits !== 1 ? 's' : ''} available.</div>
             ${creditWarning ? `<div style="font-size:12px;color:var(--danger);background:color-mix(in srgb,var(--danger) 10%,transparent);border:1px solid color-mix(in srgb,var(--danger) 20%,transparent);border-radius:8px;padding:10px;line-height:1.5;">${creditWarning}</div>` : ''}
             <div style="display:flex;gap:8px;">
-              <button class="psycle-btn" id="btn-book-simple" style="flex:1;background:var(--success);color:var(--on-accent);" ${!isDataLoaded || !hasEnoughCredits ? 'disabled' : ''}>Book Selected Spots</button>
+              <button class="psycle-btn" id="btn-book-simple" style="flex:1;background:var(--success);color:var(--on-accent);" ${!isDataLoaded || !hasEnoughCredits ? 'disabled' : ''}>Book Selected ${nounCap}s</button>
             </div>
           </div>
         `;
 
         controls.querySelector('#btn-book-simple').onclick = async () => {
           if (state.selectedSlots.length === 0) {
-            showToast('Please select at least one spot to book.', 'warning');
+            showToast(`Please select at least one ${seatNoun(groupName)} to book.`, 'warning');
             return;
           }
           if (state.selectedSlots.length > availableCredits) {
-            showToast(`You only have ${availableCredits} credit${availableCredits !== 1 ? 's' : ''} available, but selected ${state.selectedSlots.length} spot${state.selectedSlots.length !== 1 ? 's' : ''}.`, 'warning');
+            showToast(`You only have ${availableCredits} credit${availableCredits !== 1 ? 's' : ''} available, but selected ${state.selectedSlots.length} ${seatNoun(groupName)}${state.selectedSlots.length !== 1 ? 's' : ''}.`, 'warning');
             return;
           }
           const btn = controls.querySelector('#btn-book-simple');
@@ -2422,7 +2298,7 @@ async function openBookingModal(c, mode) {
             setTimeout(() => {
               if (btn.dataset.confirmState === 'confirm') {
                 delete btn.dataset.confirmState;
-                btn.textContent = 'Book Selected Spots';
+                btn.textContent = `Book Selected ${nounCap}s`;
                 btn.style.background = '';
               }
             }, 4000);
@@ -2436,7 +2312,7 @@ async function openBookingModal(c, mode) {
               event_id: c.id,
               slots: state.selectedSlots
             });
-            showToast(`Successfully booked ${state.selectedSlots.length} spot${state.selectedSlots.length > 1 ? 's' : ''}! 🎉`, 'success');
+            showToast(`Successfully booked ${state.selectedSlots.length} ${seatNoun(groupName)}${state.selectedSlots.length > 1 ? 's' : ''}! 🎉`, 'success');
             const bookedLabels = state.selectedSlots.map(id => {
               const s = layoutSlots.find(ls => Number(ls.id) === Number(id));
               return s?.label ?? id;
@@ -2452,7 +2328,7 @@ async function openBookingModal(c, mode) {
           } catch (err) {
             showToast(`Booking failed: ${err.message}`, 'error');
             btn.disabled = false;
-            btn.textContent = 'Book Selected Spots';
+            btn.textContent = `Book Selected ${nounCap}s`;
           }
         };
       };
@@ -2511,7 +2387,7 @@ async function openBookingModal(c, mode) {
 
         controls.querySelector('#btn-submit-quickbook').onclick = async () => {
           if (state.selectedSlots.length === 0 && state.selectedRows.size === 0) {
-            showToast('Please select at least one spot or row to book.', 'warning');
+            showToast(`Please select at least one ${seatNoun(groupName)} or row to book.`, 'warning');
             return;
           }
           const btn = controls.querySelector('#btn-submit-quickbook');

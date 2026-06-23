@@ -51,6 +51,17 @@ export function renderStudioFloorPlan(container, layoutSlots, initialSlots, init
   const slotsByRow = new Map();
   rowYs.forEach(y => { slotsByRow.set(y, layoutSlots.filter(s => s.y === y)); });
 
+  // --- Floor-plan geometry (pixel-based to guarantee minimum gaps) ---
+  const SLOT_SIZE = 28;
+  const MIN_GAP = 32;   // min center-to-center px — just enough so 28px slots don't overlap (4px edge gap)
+  const EDGE_PAD = 14;  // padding inside the floor around the slot field
+  const isMobile = window.matchMedia('(max-width: 768px)').matches;
+  const colXs = [...new Set(layoutSlots.map(s => s.x))].sort((a, b) => a - b);
+  const minColSpacing = colXs.length > 1 ? Math.min(...colXs.slice(1).map((x, i) => x - colXs[i])) : 1;
+  const minRowSpacing = rowYs.length > 1 ? Math.min(...rowYs.slice(1).map((y, i) => y - rowYs[i])) : 1;
+  // Pixels per coordinate unit needed to guarantee MIN_GAP on both axes.
+  const minGapScale = Math.max(MIN_GAP / minColSpacing, MIN_GAP / minRowSpacing);
+
   const render = () => {
     container.innerHTML = '';
 
@@ -89,31 +100,42 @@ export function renderStudioFloorPlan(container, layoutSlots, initialSlots, init
     }
     container.appendChild(summary);
 
-    // Floor plan. The aspect-ratio padding sizes the map relative to its width, but a
-    // wide layout with many rows would collapse too short and overlap rows. Slots sit
-    // across 72% of the height and are 28px tall, so enforce a minimum height of ~56px
-    // per row (28px slot + 12px gap over the 72% span) to guarantee a gap between rows.
-    const aspectPct = (heightRange / widthRange * 90).toFixed(1);
-    const minMapHeight = Math.max(220, rowYs.length * 56);
+    // --- Floor plan ---
+    // Pixel-based layout: the scale fills the available width but never drops below
+    // the min-gap scale, so adjacent slots always keep >= MIN_GAP px between centres
+    // (no overlap). When the min-gap width exceeds the viewport the map pans.
+    const scroll = document.createElement('div');
+    scroll.className = 'psycle-floor-scroll';
+    container.appendChild(scroll); // append now to measure its real width (CSS breakout on mobile)
+
+    const availW = scroll.clientWidth || (window.innerWidth - 80);
+    const fillScale = widthRange > 0 ? (availW - SLOT_SIZE - EDGE_PAD * 2) / widthRange : minGapScale;
+    // On mobile, don't stretch to fill — use the minimum scale so gaps stay
+    // tight (just enough to avoid overlap) and any overflow pans inside the
+    // scroll container. On desktop, fill the available width for a roomier map.
+    const scale = isMobile ? minGapScale : Math.max(fillScale, minGapScale);
+    const floorW = Math.ceil(widthRange * scale + SLOT_SIZE + EDGE_PAD * 2);
+    const floorH = Math.ceil(heightRange * scale + SLOT_SIZE + EDGE_PAD * 2);
+
     const floor = document.createElement('div');
-    floor.style.cssText = `position:relative;width:100%;padding-bottom:${aspectPct}%;min-height:${minMapHeight}px;background:color-mix(in srgb, var(--bg) 60%, transparent);border:1px solid color-mix(in srgb, var(--text) 8%, transparent);border-radius:8px;margin-bottom:14px;`;
+    floor.className = 'psycle-floor';
+    floor.style.width = floorW + 'px';
+    floor.style.height = floorH + 'px';
+    scroll.appendChild(floor);
+
+    const pxX = x => (x - minX) * scale + EDGE_PAD + SLOT_SIZE / 2;
+    const pxY = y => (y - minY) * scale + EDGE_PAD + SLOT_SIZE / 2;
 
     // Row backdrops
     selectedRows.forEach(y => {
       const rowSlots = slotsByRow.get(y) || [];
       if (rowSlots.length === 0) return;
-      const minYinRow = Math.min(...rowSlots.map(s => s.y));
-      const maxYinRow = Math.max(...rowSlots.map(s => s.y));
       const minXinRow = Math.min(...rowSlots.map(s => s.x));
       const maxXinRow = Math.max(...rowSlots.map(s => s.x));
-
-      const left = widthRange === 0 ? 5 : ((minXinRow - minX) / widthRange) * 78 + 5;
-      const top = heightRange === 0 ? 10 : ((minYinRow - minY) / heightRange) * 72 + 10;
-      const width = widthRange === 0 ? 70 : ((maxXinRow - minXinRow) / widthRange) * 78 + 8;
-      const height = heightRange === 0 ? 70 : ((maxYinRow - minYinRow) / heightRange) * 72 + 8;
-
+      const minYinRow = Math.min(...rowSlots.map(s => s.y));
+      const maxYinRow = Math.max(...rowSlots.map(s => s.y));
       const backdrop = document.createElement('div');
-      backdrop.style.cssText = `position:absolute;left:${left}%;top:${top}%;width:${width}%;height:${height}%;background:color-mix(in srgb, var(--info) 10%, transparent);border:2px solid color-mix(in srgb, var(--info) 30%, transparent);border-radius:12px;pointer-events:none;z-index:0;`;
+      backdrop.style.cssText = `position:absolute;left:${pxX(minXinRow) - SLOT_SIZE / 2}px;top:${pxY(minYinRow) - SLOT_SIZE / 2}px;width:${(maxXinRow - minXinRow) * scale + SLOT_SIZE}px;height:${(maxYinRow - minYinRow) * scale + SLOT_SIZE}px;background:color-mix(in srgb, var(--info) 10%, transparent);border:2px solid color-mix(in srgb, var(--info) 30%, transparent);border-radius:12px;pointer-events:none;z-index:0;`;
       floor.appendChild(backdrop);
     });
 
@@ -122,14 +144,11 @@ export function renderStudioFloorPlan(container, layoutSlots, initialSlots, init
       const slotId = Number(slot.id);
       const priority = selectedSlots.indexOf(slotId) + 1;
       const inRow = selectedRows.has(slot.y);
-
-      const left = widthRange === 0 ? 50 : ((slot.x - minX) / widthRange) * 78 + 8;
-      const top = heightRange === 0 ? 50 : ((slot.y - minY) / heightRange) * 72 + 14;
       const label = slot.label || slot.slot || String(slotId);
 
       const el = document.createElement('div');
-      el.style.cssText = `position:absolute;left:${left}%;top:${top}%;transform:translate(-50%,-50%);width:28px;height:28px;border-radius:6px;display:flex;align-items:center;justify-content:center;font-size:12px;font-weight:700;cursor:${editing ? 'pointer' : 'default'};user-select:none;transition:all 0.1s;box-sizing:border-box;z-index:1;`;
-      el.title = `Spot${label}`;
+      el.style.cssText = `position:absolute;left:${pxX(slot.x)}px;top:${pxY(slot.y)}px;transform:translate(-50%,-50%);width:${SLOT_SIZE}px;height:${SLOT_SIZE}px;border-radius:6px;display:flex;align-items:center;justify-content:center;font-size:12px;font-weight:700;cursor:${editing ? 'pointer' : 'default'};user-select:none;transition:all 0.1s;box-sizing:border-box;z-index:1;`;
+      el.title = `Spot ${label}`;
 
       if (priority > 0) {
         el.style.background = 'var(--feat-autoupgrade)';
@@ -168,9 +187,8 @@ export function renderStudioFloorPlan(container, layoutSlots, initialSlots, init
         if (rowSlots.length === 0) return;
         const midY = (Math.min(...rowSlots.map(s => s.y)) + Math.max(...rowSlots.map(s => s.y))) / 2;
 
-        const top = heightRange === 0 ? 50 : ((midY - minY) / heightRange) * 72 + 14;
         const btn = document.createElement('button');
-        btn.style.cssText = `position:absolute;left:95.5%;top:${top}%;transform:translate(-50%,-50%);width:26px;height:26px;padding:0;border-radius:50%;background:${isOn ? 'color-mix(in srgb, var(--info) 30%, transparent)' : 'color-mix(in srgb, var(--text) 8%, transparent)'};border:1px solid ${isOn ? 'color-mix(in srgb, var(--info) 50%, transparent)' : 'color-mix(in srgb, var(--text) 15%, transparent)'};color:${isOn ? 'var(--info)' : 'var(--text-secondary)'};font-size:16px;font-weight:700;cursor:pointer;display:flex;align-items:center;justify-content:center;transition:all 0.1s;z-index:2;`;
+        btn.style.cssText = `position:absolute;left:${floorW - EDGE_PAD - SLOT_SIZE / 2}px;top:${pxY(midY)}px;transform:translate(-50%,-50%);width:26px;height:26px;padding:0;border-radius:50%;background:${isOn ? 'color-mix(in srgb, var(--info) 30%, transparent)' : 'color-mix(in srgb, var(--text) 8%, transparent)'};border:1px solid ${isOn ? 'color-mix(in srgb, var(--info) 50%, transparent)' : 'color-mix(in srgb, var(--text) 15%, transparent)'};color:${isOn ? 'var(--info)' : 'var(--text-secondary)'};font-size:16px;font-weight:700;cursor:pointer;display:flex;align-items:center;justify-content:center;transition:all 0.1s;z-index:2;`;
         btn.textContent = isOn ? '−' : '+';
         btn.title = isOn ? `Remove Row ${idx + 1}` : `Add Row ${idx + 1}`;
         btn.addEventListener('click', (e) => {
@@ -183,7 +201,13 @@ export function renderStudioFloorPlan(container, layoutSlots, initialSlots, init
       });
     }
 
-    container.appendChild(floor);
+    // "Drag to pan" hint when the map overflows the scroll viewport
+    if (floorW > scroll.clientWidth + 1 || floorH > scroll.clientHeight + 1) {
+      const panHint = document.createElement('div');
+      panHint.style.cssText = 'font-size:11px;color:var(--text-tertiary);font-style:italic;margin:-4px 0 10px;text-align:center;';
+      panHint.textContent = 'Drag to pan the map';
+      container.appendChild(panHint);
+    }
 
     // Read-only unlock button, attached beneath the map.
     if (!editing) {
@@ -245,4 +269,18 @@ export function renderStudioFloorPlan(container, layoutSlots, initialSlots, init
   };
 
   render();
+
+  // Re-fit when the container width changes (orientation change, modal resize).
+  // Only width matters — height changes from our own content are ignored to
+  // avoid render loops.
+  let lastWidth = container.clientWidth;
+  let resizeRaf = 0;
+  const ro = new ResizeObserver(() => {
+    const w = container.clientWidth;
+    if (w === lastWidth || w === 0) return;
+    lastWidth = w;
+    if (resizeRaf) cancelAnimationFrame(resizeRaf);
+    resizeRaf = requestAnimationFrame(() => render());
+  });
+  ro.observe(container);
 }

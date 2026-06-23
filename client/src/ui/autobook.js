@@ -2,7 +2,7 @@ import { api } from '../api';
 import { showToast, cache, userSettings, refreshUserData } from '../main';
 import { getClassReleaseTime, getNextMondayNoonLondon } from '../lib';
 import { renderStudioFloorPlan } from './spotmap';
-import { icon, disciplineTag, trimLocation } from './cards';
+import { icon, disciplineTag, trimLocation, seatNoun } from './cards';
 
 let countdownInterval = null;
 let sseEventSource = null;
@@ -425,7 +425,7 @@ function renderQueue(queue) {
           <span class="ab-countdown state-pending" data-start-at="${q.start_at}">
             ${icon('clock', 13)}<span class="ab-countdown-val">…</span>
           </span>
-          <span class="ab-spots-pill">${creditsNeeded} Spot${creditsNeeded !== 1 ? 's' : ''}</span>
+          <span class="ab-spots-pill">${creditsNeeded} ${seatNoun(q.group_name)[0].toUpperCase() + seatNoun(q.group_name).slice(1)}${creditsNeeded !== 1 ? 's' : ''}</span>
         </div>
         ${creditWarning}
       </div>
@@ -435,17 +435,8 @@ function renderQueue(queue) {
       </div>
     `;
 
-    // Delete click listener
-    card.querySelector('.delete-autobook-btn').addEventListener('click', async () => {
-      try {
-        showToast('Removing scheduled booking...', 'info');
-        await api.deleteAutoBooking(q.id);
-        showToast('Class removed from queue.', 'success');
-        renderAutoBookTab();
-      } catch (err) {
-        showToast(`Failed: ${err.message}`, 'error');
-      }
-    });
+    // Delete click listener (two-tap confirm — mirrors booking cancellation)
+    wireCancelAutoBook(card.querySelector('.delete-autobook-btn'), card, q);
 
     // Edit click listener
     card.querySelector('.edit-autobook-btn').addEventListener('click', () => {
@@ -453,6 +444,43 @@ function renderQueue(queue) {
     });
 
     container.appendChild(card);
+  });
+}
+
+// Two-tap confirm cancel for an auto-book queue entry (mirrors booking cancellation).
+function wireCancelAutoBook(btn, card, q) {
+  if (!btn) return;
+  const labelSpan = btn.querySelector('span');
+  let confirmState = false;
+
+  btn.addEventListener('click', async () => {
+    if (!confirmState) {
+      confirmState = true;
+      labelSpan.textContent = 'Confirm?';
+      btn.classList.add('confirming');
+      setTimeout(() => {
+        confirmState = false;
+        labelSpan.textContent = 'Cancel';
+        btn.classList.remove('confirming');
+      }, 3000);
+      return;
+    }
+    confirmState = false;
+    btn.classList.remove('confirming');
+    card.style.opacity = '0.6';
+    card.querySelectorAll('button').forEach(b => b.disabled = true);
+    labelSpan.textContent = '…';
+    try {
+      showToast('Removing scheduled booking...', 'info');
+      await api.deleteAutoBooking(q.id);
+      showToast('Class removed from queue.', 'success');
+      renderAutoBookTab();
+    } catch (err) {
+      showToast(`Failed: ${err.message}`, 'error');
+      card.style.opacity = '1';
+      card.querySelectorAll('button').forEach(b => b.disabled = false);
+      labelSpan.textContent = 'Cancel';
+    }
   });
 }
 

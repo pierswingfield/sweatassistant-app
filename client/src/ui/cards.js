@@ -61,3 +61,12 @@ export function disciplineTag(name) {
 export function trimLocation(name = '') {
   return String(name).replace(/^Psycle\s*/i, '');
 }
+
+// Returns "bike" when the class group is Ride, otherwise "spot".
+// Use for user-facing copy in single-class contexts (booking modals, edit modals,
+// auto-upgrade cards, auto-book queue cards). Do NOT use for studio-wide spot-map
+// editor text — the shared map serves all class types at a studio.
+// Capitalise the first letter when the word starts a sentence/label/title.
+export function seatNoun(groupName = '') {
+  return /^ride$/i.test(String(groupName)) ? 'bike' : 'spot';
+}

@@ -1,6 +1,6 @@
 {
-  "name": "Psycle App",
-  "short_name": "Psycle",
+  "name": "Psycle Assistant",
+  "short_name": "Psycle Assistant",
   "description": "Progressive Web App for auto-booking and monitoring Psycle classes.",
   "start_url": "/",
   "display": "standalone",

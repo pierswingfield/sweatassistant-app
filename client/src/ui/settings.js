@@ -638,7 +638,7 @@ async function getActiveStudioIds() {
   return null;
 }
 
-async function openManageSpotMapsModal() {
+export async function openManageSpotMapsModal() {
   const overlay = document.createElement('div');
   overlay.style.cssText = 'position:fixed;inset:0;background:color-mix(in srgb, var(--bg) 60%, transparent);z-index:2000;display:flex;align-items:center;justify-content:center;padding:16px;';
 
@@ -1229,6 +1229,18 @@ function setupSettingsListeners() {
   if (spotMapsBtn && !spotMapsBtn.dataset.listener) {
     spotMapsBtn.dataset.listener = 'true';
     spotMapsBtn.addEventListener('click', openManageSpotMapsModal);
+  }
+
+  // Replay onboarding button
+  const replayBtn = document.getElementById('psycle-replay-onboarding-btn');
+  if (replayBtn && !replayBtn.dataset.listener) {
+    replayBtn.dataset.listener = 'true';
+    replayBtn.addEventListener('click', async () => {
+      const { startOnboarding } = await import('./onboarding');
+      localStorage.removeItem('psycleOnboardingComplete');
+      localStorage.removeItem('psycleOnboardingStep');
+      startOnboarding();
+    });
   }
 
   // Logout button

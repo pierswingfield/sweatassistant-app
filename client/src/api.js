@@ -29,11 +29,14 @@ export function isLastResponseStale() { return lastResponseStale; }
 // Invalidate cached proxy GET responses for a given path after a mutation.
 // Extracts the base resource (e.g., '/bookings' from '/bookings/123') and
 // invalidates all cached entries under '/api/proxy/bookings'.
+// Returns a promise — callers MUST await it before reading the cache again,
+// otherwise getCachedSWR may return stale data (e.g. profile still showing
+// a deleted bookmark).
 function invalidateProxyCache(path) {
   const cleanPath = path.split('?')[0];
   const segments = cleanPath.split('/').filter(Boolean);
   const base = segments.length > 0 ? '/' + segments[0] : '';
-  invalidateApiCache('/api/proxy' + base).catch(() => {});
+  return invalidateApiCache('/api/proxy' + base).catch(() => {});
 }
 
 // Global fetch wrapper with local auth and Cloudflare Zero Trust Access support
@@ -130,7 +133,7 @@ export const api = {
       const err = await res.json().catch(() => ({}));
       throw new Error(err.message || `Proxy POST failed: ${res.status}`);
     }
-    invalidateProxyCache(path);
+    await invalidateProxyCache(path);
     return res.json();
   },
 
@@ -143,13 +146,18 @@ export const api = {
       const err = await res.json().catch(() => ({}));
       throw new Error(err.message || `Proxy DELETE failed: ${res.status}`);
     }
-    // Handle 204 No Content (no response body)
-    if (res.status === 204) {
-      invalidateProxyCache(path);
+    await invalidateProxyCache(path);
+    // CodexFit DELETEs (e.g. bookmark removal) often return 200/204 with an
+    // empty or non-JSON body. The extension deliberately ignores the body;
+    // we must too — calling res.json() on an empty body throws SyntaxError,
+    // which would prevent refreshUserData() from running and leave the UI
+    // showing the stale (still-bookmarked) state.
+    if (res.status === 204) return {};
+    try {
+      return await res.json();
+    } catch {
       return {};
     }
-    invalidateProxyCache(path);
-    return res.json();
   },
 
   async proxyPut(path, body = {}) {
@@ -162,8 +170,15 @@ export const api = {
       const err = await res.json().catch(() => ({}));
       throw new Error(err.message || `Proxy PUT failed: ${res.status}`);
     }
-    invalidateProxyCache(path);
-    return res.json();
+    await invalidateProxyCache(path);
+    // Some CodexFit PUTs (e.g. bookmark add) may return an empty or non-JSON
+    // body — tolerate it so the caller's await doesn't throw and block the
+    // subsequent refreshUserData() / re-render.
+    try {
+      return await res.json();
+    } catch {
+      return {};
+    }
   },
 
   // Auto-Book Queue

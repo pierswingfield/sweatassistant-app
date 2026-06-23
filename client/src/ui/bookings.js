@@ -1,7 +1,7 @@
 import { api } from '../api';
 import { showToast, cache, refreshUserData, updateCreditBadge } from '../main';
 import { renderStudioFloorPlan } from './spotmap';
-import { icon, disciplineTag, trimLocation } from './cards';
+import { icon, disciplineTag, trimLocation, seatNoun } from './cards';
 
 // Class starts within the free-cancel cutoff (12h). Edit is hidden inside this
 // window; Cancel stays available but warns about the penalty.
@@ -356,7 +356,7 @@ function wireCancelBooking(btn, card, group, within12h) {
 // Edit-spots modal: a live seat picker pre-seeded with the user's current spots.
 // CodexFit has no "move seat" call, so saving releases removed spots (refunding
 // their credits and freeing the seats) and then books the added spots.
-async function openEditBookingModal(group) {
+export async function openEditBookingModal(group, onChange = renderBookings) {
   const modal = document.getElementById('psycle-booking-modal');
   const body = document.getElementById('psycle-booking-modal-body');
   const title = document.getElementById('psycle-booking-modal-title');
@@ -364,8 +364,11 @@ async function openEditBookingModal(group) {
 
   const event = group.event;
   const className = event.event_type?.name || 'Class';
+  const groupName = event.event_type?.group?.name || event.event_type?.name || 'Class';
+  const noun = seatNoun(groupName);
+  const nounCap = noun[0].toUpperCase() + noun.slice(1);
 
-  title.textContent = `Edit spots: ${className}`;
+  title.textContent = `Edit ${nounCap}s: ${className}`;
   body.innerHTML = `<div class="psycle-loading-spinner-container" style="padding:40px 0;"><div class="psycle-spinner"></div><span>Loading studio floor map…</span></div>`;
   modal.style.display = 'flex';
   setTimeout(() => modal.classList.add('show'), 10);
@@ -397,7 +400,7 @@ async function openEditBookingModal(group) {
     const currentSlots = [...slotToBooking.keys()];
 
     if (layoutSlots.length === 0) {
-      body.innerHTML = `<div style="padding:24px;text-align:center;color:var(--text-secondary);">No floor map is available for this studio, so spots can't be changed here. Use Cancel to release the booking.</div>`;
+      body.innerHTML = `<div style="padding:24px;text-align:center;color:var(--text-secondary);">No floor map is available for this studio, so ${noun}s can't be changed here. Use Cancel to release the booking.</div>`;
       return;
     }
 
@@ -413,7 +416,7 @@ async function openEditBookingModal(group) {
 
     body.innerHTML = `
       <div style="font-size:12px;color:var(--text-secondary);background:var(--surface-inset);border:1px solid var(--border);border-radius:8px;padding:8px 10px;margin-bottom:10px;line-height:1.5;">
-        Tap to change your spots. <strong style="color:var(--feat-autoupgrade);">Highlighted</strong> spots are yours — deselect to release them, tap a free seat to add it. Saving releases removed spots first, then books the added ones.
+        Tap to change your ${noun}s. <strong style="color:var(--feat-autoupgrade);">Highlighted</strong> ${noun}s are yours — deselect to release them, tap a free seat to add it. Saving releases removed ${noun}s first, then books the added ones.
       </div>
       <div class="psycle-floor-plan-container" style="position:relative;height:${minMapHeight}px;background:var(--surface-inset);border:1px solid var(--border);border-radius:12px;margin-bottom:10px;overflow:hidden;">
         <div id="psycle-edit-floor-grid" style="width:100%;height:100%;"></div>
@@ -449,9 +452,9 @@ async function openEditBookingModal(group) {
       if (!changed) {
         msg = `<div style="font-size:12px;color:var(--text-tertiary);">No changes yet.</div>`;
       } else if (desired.length === 0) {
-        msg = `<div style="font-size:12px;color:var(--danger);background:color-mix(in srgb,var(--danger) 10%,transparent);border:1px solid color-mix(in srgb,var(--danger) 20%,transparent);border-radius:8px;padding:10px;">This releases all your spots and cancels the booking.</div>`;
+        msg = `<div style="font-size:12px;color:var(--danger);background:color-mix(in srgb,var(--danger) 10%,transparent);border:1px solid color-mix(in srgb,var(--danger) 20%,transparent);border-radius:8px;padding:10px;">This releases all your ${noun}s and cancels the booking.</div>`;
       } else if (shortfall > 0) {
-        msg = `<div style="font-size:12px;color:var(--danger);background:color-mix(in srgb,var(--danger) 10%,transparent);border:1px solid color-mix(in srgb,var(--danger) 20%,transparent);border-radius:8px;padding:10px;">You need ${shortfall} more credit${shortfall !== 1 ? 's' : ''} to add ${toAdd.length} spot${toAdd.length !== 1 ? 's' : ''}.</div>`;
+        msg = `<div style="font-size:12px;color:var(--danger);background:color-mix(in srgb,var(--danger) 10%,transparent);border:1px solid color-mix(in srgb,var(--danger) 20%,transparent);border-radius:8px;padding:10px;">You need ${shortfall} more credit${shortfall !== 1 ? 's' : ''} to add ${toAdd.length} ${noun}${toAdd.length !== 1 ? 's' : ''}.</div>`;
       }
 
       const parts = [];
@@ -459,7 +462,7 @@ async function openEditBookingModal(group) {
       if (toRemove.length) parts.push(`<span style="color:var(--danger);font-weight:700;">−${toRemove.map(labelFor).join(', ')}</span>`);
       summaryEl.innerHTML = parts.length
         ? `<span style="color:var(--text-tertiary);text-transform:uppercase;font-size:11px;letter-spacing:0.05em;margin-right:6px;">Changes</span>${parts.join('&nbsp;&nbsp;')}`
-        : `<span style="color:var(--text-tertiary);">${desired.length} spot${desired.length !== 1 ? 's' : ''} selected</span>`;
+        : `<span style="color:var(--text-tertiary);">${desired.length} ${noun}${desired.length !== 1 ? 's' : ''} selected</span>`;
 
       controls.innerHTML = `
         <div style="display:flex;flex-direction:column;gap:10px;background:var(--surface-inset);padding:14px;border-radius:12px;border:1px solid var(--border);">
@@ -490,7 +493,7 @@ async function openEditBookingModal(group) {
         el.textContent = slot.label || slot.slot || String(slotId);
         const clickable = isSelected || isCurrent || isAvailable;
         el.style.cursor = clickable ? 'pointer' : 'default';
-        el.title = `Spot ${slot.label || slotId}`;
+        el.title = `${nounCap} ${slot.label || slotId}`;
 
         if (isSelected) {
           el.style.background = 'var(--feat-autoupgrade)';
@@ -514,7 +517,7 @@ async function openEditBookingModal(group) {
         if (clickable) el.addEventListener('click', () => {
           if (selected.has(slotId)) selected.delete(slotId);
           else if (isCurrent || isAvailable) selected.add(slotId);
-          else { showToast('That spot is occupied.', 'warning'); return; }
+          else { showToast(`That ${noun} is occupied.`, 'warning'); return; }
           renderGrid();
           renderControls();
         });
@@ -546,20 +549,20 @@ async function openEditBookingModal(group) {
             startAt: event.start_at, slots: toAdd.map(labelFor),
           }).catch(() => {});
         }
-        showToast('Spots updated.', 'success');
+        showToast(`${nounCap}s updated.`, 'success');
         closeModal();
         await refreshUserData();
-        renderBookings();
+        onChange();
       } catch (err) {
         // Cancel-then-book is not atomic: if the new booking fails after a release,
         // surface it clearly so the user knows the old seat is gone.
         const partial = toRemove.length && toAdd.length;
         showToast(partial
-          ? `Released your old spot(s) but couldn't book the new one: ${err.message}. It may have been taken — check your bookings.`
-          : `Couldn't update spots: ${err.message}`, 'error');
+          ? `Released your old ${noun}(s) but couldn't book the new one: ${err.message}. It may have been taken — check your bookings.`
+          : `Couldn't update ${noun}s: ${err.message}`, 'error');
         closeModal();
         await refreshUserData();
-        renderBookings();
+        onChange();
       }
     };
 
@@ -763,6 +766,9 @@ export async function openUpgradeConfigModal({ eventId, bookingId, currentSlotId
     ]);
 
     const eventDetails = res.data || res;
+    const groupName = eventDetails.event_type?.group?.name || eventDetails.event_type?.name || 'Class';
+    const noun = seatNoun(groupName);
+    const nounCap = noun[0].toUpperCase() + noun.slice(1);
     const studio = res.relations?.studios?.[0] || eventDetails.relations?.studios?.[0] || eventDetails.studio || {};
     const layoutSlots = studio?.layout?.slots || [];
     const resolvedStudioId = studioId || studio.id;
@@ -786,7 +792,7 @@ export async function openUpgradeConfigModal({ eventId, bookingId, currentSlotId
     const upgradeCreditsNeeded = 1; // Auto-upgrade needs 1 credit for the additional spot
     const hasEnoughCredits = availableCredits >= upgradeCreditsNeeded;
     const creditWarningHtml = !hasEnoughCredits
-      ? `<div style="font-size:12px;color:var(--danger);background:color-mix(in srgb,var(--danger) 10%,transparent);border:1px solid color-mix(in srgb,var(--danger) 20%,transparent);border-radius:8px;padding:10px;margin-bottom:10px;line-height:1.5;">In order for Auto-Upgrade to work, you need to purchase ${upgradeCreditsNeeded - availableCredits} more credit${upgradeCreditsNeeded - availableCredits !== 1 ? 's' : ''}. Auto-Upgrade books an additional spot before cancelling your current one.</div>`
+      ? `<div style="font-size:12px;color:var(--danger);background:color-mix(in srgb,var(--danger) 10%,transparent);border:1px solid color-mix(in srgb,var(--danger) 20%,transparent);border-radius:8px;padding:10px;margin-bottom:10px;line-height:1.5;">In order for Auto-Upgrade to work, you need to purchase ${upgradeCreditsNeeded - availableCredits} more credit${upgradeCreditsNeeded - availableCredits !== 1 ? 's' : ''}. Auto-Upgrade books an additional ${noun} before cancelling your current one.</div>`
       : '';
 
     body.innerHTML = `<div id="psycle-upgrade-editor"></div>`;
@@ -794,7 +800,7 @@ export async function openUpgradeConfigModal({ eventId, bookingId, currentSlotId
 
     const bannerHtml = `
       <div style="font-size:12px;color:var(--feat-autoupgrade);background:color-mix(in srgb,var(--feat-autoupgrade) 8%,transparent);border:1px solid color-mix(in srgb,var(--feat-autoupgrade) 18%,transparent);border-radius:8px;padding:8px 10px;margin-bottom:10px;line-height:1.5;">
-        This is the one shared preferred spot map for <strong>${studioName}</strong>. Auto-Upgrade aims for these spots in priority order — and Quick-Book &amp; Auto-Book here use the same map. Your current seat is <strong>${currentSlotLabel}</strong>.
+        This is the one shared preferred spot map for <strong>${studioName}</strong>. Auto-Upgrade aims for these ${noun}s in priority order — and Quick-Book &amp; Auto-Book here use the same map. Your current seat is <strong>${currentSlotLabel}</strong>.
       </div>${creditWarningHtml}`;
 
     const extraControlsHtml = `
@@ -820,7 +826,7 @@ export async function openUpgradeConfigModal({ eventId, bookingId, currentSlotId
 
     renderStudioFloorPlan(editorContainer, layoutSlots, seedSlots, seedRows, async (slots, rows, container) => {
       if (slots.length === 0 && rows.length === 0) {
-        showToast('Select at least one preferred spot for the upgrade to aim at.', 'warning');
+        showToast(`Select at least one preferred ${noun} for the upgrade to aim at.`, 'warning');
         return;
       }
 

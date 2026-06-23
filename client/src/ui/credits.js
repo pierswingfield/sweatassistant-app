@@ -28,11 +28,11 @@ export async function initBundles() {
     const alertDiv = document.createElement('div');
     alertDiv.className = 'psycle-credits-alert';
     alertDiv.innerHTML = `
-      <div style="display:flex; gap:10px; align-items:flex-start; padding:12px 14px; background:color-mix(in srgb, var(--warning) 15%, transparent); border:1px solid var(--warning); border-radius:10px; margin-bottom:16px;">
+      <div style="display:flex; gap:10px; align-items:flex-start; padding:12px 14px; background:color-mix(in srgb, var(--warning) 15%, transparent); border:1px solid var(--warning); border-radius:10px;">
         <div style="font-size:20px; flex-shrink:0; line-height:1;">⚠</div>
         <div style="flex:1; font-size:12px; color:color-mix(in srgb, var(--warning) 100%, #000); line-height:1.5;">
           <div style="font-weight:700; margin-bottom:4px;">EXPERIMENTAL</div>
-          <div>Purchasing bundles here works but is not robustly tested. Because the Psycle purchase cart is specific to your browser instance, I have implemented a flow that sends the order directly to the payment processor using saved payment methods. Psycle Assistant never sees your payment data. It doesn't support 3-D Secure yet, so payments might fail.</div>
+          <div>Purchasing bundles works but is not well-tested. This app sends the order directly to Psycle using your saved cards, so it never sees your payment data. It doesn't support 3-D Secure, so payments might fail.</div>
         </div>
       </div>
     `;
@@ -294,10 +294,7 @@ export function renderBundles() {
 
     const allHeader = document.createElement('div');
     allHeader.className = 'psycle-section-subheader';
-    allHeader.style.marginTop = '24px';
-    allHeader.style.cursor = 'pointer';
-    allHeader.style.userSelect = 'none';
-    allHeader.innerHTML = '<h4>All Credits <span class="all-credits-chevron" style="font-size:12px; margin-left:8px;">▶</span></h4>';
+    allHeader.innerHTML = '<h4>All Credits <span class="all-credits-chevron" style="font-size:12px; margin-left:8px;">▶&#xFE0E;</span></h4>';
     container.appendChild(allHeader);
 
     // Render Grid — collapsed by default
@@ -316,7 +313,7 @@ export function renderBundles() {
       const isHidden = allGrid.style.display === 'none';
       allGrid.style.display = isHidden ? '' : 'none';
       const chevron = allHeader.querySelector('.all-credits-chevron');
-      if (chevron) chevron.textContent = isHidden ? '▼' : '▶';
+      if (chevron) chevron.textContent = isHidden ? '▼&#xFE0E;' : '▶&#xFE0E;';
     });
   }
 }
@@ -348,8 +345,8 @@ function createBundleCard(b, isFavSection) {
       <span class="badge-pill" style="text-transform:none;">${b.total_credits} Credits</span>
       <span class="badge-pill ${allStudios ? 'valid' : 'invalid'}">${allStudios ? 'All Studios' : 'Select Studios'}</span>
       <span class="badge-pill ${allClasses ? 'valid' : 'invalid'}">${allClasses ? 'All Workouts' : 'Excl. Lagree'}</span>
-      <span class="badge-pill ${b.is_first_purchase_only ? 'badge-restricted' : 'badge-available'}">${b.is_first_purchase_only ? '1st Only' : '✔ Returning'}</span>
-      <span class="badge-pill ${b.is_one_time_purchase_only ? 'badge-restricted' : 'badge-available'}">${b.is_one_time_purchase_only ? '1-Time' : '✔ Repeat'}</span>
+      <span class="badge-pill ${b.is_first_purchase_only ? 'badge-restricted' : 'badge-available'}">${b.is_first_purchase_only ? '1st Only' : '✔ Rtn Customer'}</span>
+      <span class="badge-pill ${b.is_one_time_purchase_only ? 'badge-restricted' : 'badge-available'}">${b.is_one_time_purchase_only ? '1-Time' : '✔ Rpt Purchase'}</span>
     </div>
     <button class="psycle-btn-primary fav-card-buy-btn" style="margin-top: 12px; padding: 8px;">
       Buy ${formattedPrice}

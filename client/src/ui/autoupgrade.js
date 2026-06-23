@@ -1,6 +1,7 @@
 import { api } from '../api';
 import { showToast, cache, refreshUserData } from '../main';
 import { openUpgradeConfigModal } from './bookings';
+import { seatNoun } from './cards';
 
 function getAvailableCreditsForEvent(event) {
   if (!cache.profile || !cache.profile.available_credits) return 0;
@@ -133,7 +134,7 @@ function renderUpgradeList(upgrades, studioPrefs = {}) {
           <span style="color: var(--text-tertiary);">•</span>
           <span>${job.instructor_name}</span>
           <span style="color: var(--text-tertiary);">•</span>
-          <span style="font-weight: 600; color: var(--success);">Spot ${currentSpotLabel}</span>
+          <span style="font-weight: 600; color: var(--success);">${seatNoun(groupName)[0].toUpperCase() + seatNoun(groupName).slice(1)} ${currentSpotLabel}</span>
         </div>
         <div class="psycle-upgrade-status-chip ${statusChipClass}">${statusText}</div>
       </div>

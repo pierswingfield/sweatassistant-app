@@ -812,13 +812,8 @@ function updateCountdowns() {
     if (!startAt) return;
     const valEl = el.querySelector('.ab-countdown-val') || el;
 
-    // Use default settings (or we can inject active user settings)
-    const settings = {
-      advancedBooking: document.getElementById('psycle-setting-advanced-booking')?.checked || false,
-      advancedBookingCredit: document.getElementById('psycle-setting-advanced-booking-credit')?.checked || false
-    };
-
-    const classRelease = getClassReleaseTime(startAt, settings);
+    // Use the live user settings (auto-detected booking window + any debug override).
+    const classRelease = getClassReleaseTime(startAt, userSettings);
     const diff = classRelease.toMillis() - Date.now();
 
     if (diff <= 0) {

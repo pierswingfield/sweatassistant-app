@@ -4,6 +4,7 @@ import { setupPullToRefresh } from './ui/pulltorefresh';
 import { setCacheKeyPrefix, clearApiCache } from './cache.js';
 import { appName } from '../../app.config.json';
 import { shouldShowOnboarding, resumeOnboarding, isOnboardingActive, advanceAfterLogin } from './ui/onboarding';
+import { detectBookingWindow } from './lib';
 
 // --- PWA install prompt capture ---
 // Android/desktop Chromium fire `beforeinstallprompt` before the page is ready
@@ -40,7 +41,8 @@ if (appleMeta) appleMeta.setAttribute('content', appName);
 // Default settings — the single source of truth for new-user defaults.
 // Reset to this on logout so a new user never inherits the previous user's settings.
 const DEFAULT_SETTINGS = {
-  advancedBooking: false,
+  detectedBookingOffset: null,    // auto-detected booking window in days (null until detected)
+  manualBookingWindowWeeks: null, // debug-only override (1-4 weeks), null = use detected
   autoUpgradeEnabled: true,
   autoUpgradeInterval: '15min',
   autoUpgradeByDefault: false,
@@ -61,7 +63,8 @@ export let cache = {
   timetable: {}, // keyed by date string
   autoBookings: null, // prefetch target for Auto-Book tab
   upgrades: undefined, // prefetch target for Auto-Book/Auto-Upgrade
-  studioPrefs: null // prefetch target for Auto-Book/Auto-Upgrade
+  studioPrefs: null, // prefetch target for Auto-Book/Auto-Upgrade
+  bookingWindow: null // last detected booking window { offsetDays, weeks, cutoffISO, ... }
 };
 
 // --- THEME (Auto / Light / Dark) ---
@@ -681,8 +684,31 @@ export async function refreshUserData() {
     // Update credit badge in header
     updateCreditBadge(availableCredits);
 
+    // 4. Auto-detect the user's booking window from profile cutoffs + credit inventory.
+    // Persist the detected day-offset so the server scheduler reads the same window.
+    await syncDetectedBookingWindow(profile, availableCredits);
+
   } catch (err) {
     console.error('[App] Failed to refresh user credentials:', err);
+  }
+}
+
+// Detect the booking window and persist it to settings when it changes. Stores the
+// full detection result on cache.bookingWindow for the Settings indicator to render.
+async function syncDetectedBookingWindow(profile, credits) {
+  try {
+    const detected = detectBookingWindow(profile, credits);
+    if (!detected) return;
+    cache.bookingWindow = detected;
+
+    if (userSettings.detectedBookingOffset !== detected.offsetDays) {
+      const newSettings = { ...userSettings, detectedBookingOffset: detected.offsetDays };
+      await api.updateSettings(newSettings);
+      Object.assign(userSettings, newSettings);
+      console.log(`[App] Detected booking window: ${detected.weeks} week(s) / ${detected.offsetDays}d (${detected.source})`);
+    }
+  } catch (err) {
+    console.warn('[App] Booking window detection failed:', err.message);
   }
 }
 

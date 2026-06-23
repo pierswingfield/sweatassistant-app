@@ -1,5 +1,6 @@
 import { api, apiFetch } from '../api';
 import { showToast, togglePushSubscription, updatePushStatusUI, userSettings, cache, getTheme, setTheme } from '../main';
+import { getBookingOffset, describeBookingWindow } from '../lib';
 import { renderStudioFloorPlan } from './spotmap';
 import { cacheGet } from './timetable';
 import { clearApiCache } from '../cache.js';
@@ -1053,24 +1054,45 @@ function updateTestNotifCardVisibility() {
   if (card) card.style.display = userSettings.debugMode ? 'block' : 'none';
 }
 
+// Render the detected booking-window indicator and show/hide the debug manual override.
+function updateBookingWindowUI() {
+  const indicator = document.getElementById('psycle-booking-window-indicator');
+  const manualRow = document.getElementById('psycle-manual-window-row');
+
+  if (indicator) {
+    const offsetDays = getBookingOffset(userSettings);
+    const cutoffISO = cache.bookingWindow?.cutoffISO || null;
+    indicator.textContent = describeBookingWindow(offsetDays, cutoffISO);
+    const isManual = !!(userSettings.debugMode && userSettings.manualBookingWindowWeeks);
+    indicator.classList.toggle('warning', isManual);
+    indicator.classList.toggle('info', !isManual);
+    indicator.title = isManual ? 'Manual override active (debug)' : 'Auto-detected from your membership';
+  }
+
+  // Manual override is only visible (and only effective) in debug mode.
+  if (manualRow) manualRow.style.display = userSettings.debugMode ? 'flex' : 'none';
+}
+
 function loadSettingsInputs() {
-  const advBooking = document.getElementById('psycle-setting-advanced-booking');
+  const manualWindow = document.getElementById('psycle-setting-manual-window');
   const upgradeEnabled = document.getElementById('psycle-setting-autoupgrade-enabled');
   const upgradeDefault = document.getElementById('psycle-setting-autoupgrade-default');
   const upgradeInterval = document.getElementById('psycle-setting-autoupgrade-interval');
   const debugMode = document.getElementById('psycle-setting-debug-mode');
   const prefetchWeeks = document.getElementById('psycle-setting-prefetch-weeks');
 
-  if (advBooking) advBooking.checked = !!userSettings.advancedBooking;
+  if (manualWindow) manualWindow.value = userSettings.manualBookingWindowWeeks ? String(userSettings.manualBookingWindowWeeks) : '';
   if (upgradeEnabled) upgradeEnabled.checked = userSettings.autoUpgradeEnabled !== false;
   if (upgradeDefault) upgradeDefault.checked = !!userSettings.autoUpgradeByDefault;
   if (upgradeInterval) upgradeInterval.value = userSettings.autoUpgradeInterval || '15min';
   if (debugMode) debugMode.checked = !!userSettings.debugMode;
   if (prefetchWeeks) prefetchWeeks.value = String(userSettings.prefetchWeeks || 4);
+
+  updateBookingWindowUI();
 }
 
 function setupSettingsListeners() {
-  const advBooking = document.getElementById('psycle-setting-advanced-booking');
+  const manualWindow = document.getElementById('psycle-setting-manual-window');
   const upgradeEnabled = document.getElementById('psycle-setting-autoupgrade-enabled');
   const upgradeDefault = document.getElementById('psycle-setting-autoupgrade-default');
   const upgradeInterval = document.getElementById('psycle-setting-autoupgrade-interval');
@@ -1078,10 +1100,11 @@ function setupSettingsListeners() {
   const prefetchWeeks = document.getElementById('psycle-setting-prefetch-weeks');
 
   const saveSettings = async () => {
-    // Spread existing settings first so unmanaged keys (notifications, cartInstanceId) survive.
+    // Spread existing settings first so unmanaged keys (notifications, cartInstanceId,
+    // detectedBookingOffset) survive.
     const newSettings = {
       ...userSettings,
-      advancedBooking: advBooking ? advBooking.checked : false,
+      manualBookingWindowWeeks: manualWindow && manualWindow.value ? parseInt(manualWindow.value) : null,
       autoUpgradeEnabled: upgradeEnabled ? upgradeEnabled.checked : true,
       autoUpgradeByDefault: upgradeDefault ? upgradeDefault.checked : false,
       autoUpgradeInterval: upgradeInterval ? upgradeInterval.value : '15min',
@@ -1093,15 +1116,16 @@ function setupSettingsListeners() {
       await api.updateSettings(newSettings);
       Object.assign(userSettings, newSettings);
       updateTestNotifCardVisibility();
+      updateBookingWindowUI();
       showToast('Settings saved successfully.', 'success');
     } catch (err) {
       showToast(`Error saving settings: ${err.message}`, 'error');
     }
   };
 
-  if (advBooking && !advBooking.dataset.listener) {
-    advBooking.dataset.listener = 'true';
-    advBooking.addEventListener('change', saveSettings);
+  if (manualWindow && !manualWindow.dataset.listener) {
+    manualWindow.dataset.listener = 'true';
+    manualWindow.addEventListener('change', saveSettings);
   }
   if (upgradeEnabled && !upgradeEnabled.dataset.listener) {
     upgradeEnabled.dataset.listener = 'true';

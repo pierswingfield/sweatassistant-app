@@ -281,47 +281,27 @@
             </svg>
             <input type="text" id="psycle-bundle-search" placeholder="Search bundles (e.g. 5 pack, Clapham, Ride)...">
           </div>
-          <button id="psycle-toggle-bundle-filters" class="psycle-btn-mini" style="background: color-mix(in srgb, var(--feat-autoupgrade) 15%, transparent); border: 1px solid color-mix(in srgb, var(--feat-autoupgrade) 30%, transparent); color: var(--feat-autoupgrade); font-size: 12px; padding: 4px 10px; border-radius: 8px; cursor: pointer; flex-shrink: 0;">Filters</button>
+          <button id="psycle-toggle-bundle-filters" class="psycle-btn-mini" style="background: color-mix(in srgb, var(--feat-autoupgrade) 15%, transparent); border: 1px solid color-mix(in srgb, var(--feat-autoupgrade) 30%, transparent); color: var(--feat-autoupgrade); font-size: 12px; padding: 4px 10px; border-radius: 8px; cursor: pointer; flex-shrink: 0;">Categories</button>
           <div class="psycle-checkbox-filters" id="psycle-bundles-checkbox-filters" style="display: none; margin-left: auto; flex: 1; padding: 0 12px; background: transparent; border: none;">
             <label class="psycle-checkbox-label">
-              <input type="checkbox" id="psycle-filter-returning" checked />
+              <input type="checkbox" id="psycle-show-single-topup" />
               <span class="custom-checkbox"></span>
-              <span title="Excludes packages with 'Intro Pack' or 'is_first_purchase_only'">Returning Only</span>
+              <span title="Single-class credits and top-up / add-on packs">Single credits &amp; top-ups</span>
             </label>
             <label class="psycle-checkbox-label">
-              <input type="checkbox" id="psycle-filter-studios" checked />
+              <input type="checkbox" id="psycle-show-studio-location" />
               <span class="custom-checkbox"></span>
-              <span title="Excludes studio-specific bundles">All Studios</span>
+              <span title="Bundles tied to a specific studio/location (Victoria, Clapham, Shoreditch, Bank…) and at-home/online">Studio &amp; location-specific</span>
             </label>
             <label class="psycle-checkbox-label">
-              <input type="checkbox" id="psycle-filter-home" checked />
+              <input type="checkbox" id="psycle-show-member-student" />
               <span class="custom-checkbox"></span>
-              <span>Hide At Home</span>
+              <span title="Student, member, corporate, graduate and unlimited/membership bundles">Member, student &amp; corporate</span>
             </label>
             <label class="psycle-checkbox-label">
-              <input type="checkbox" id="psycle-filter-student" checked />
+              <input type="checkbox" id="psycle-show-intro-promo" />
               <span class="custom-checkbox"></span>
-              <span>Hide Student/Member</span>
-            </label>
-            <label class="psycle-checkbox-label">
-              <input type="checkbox" id="psycle-filter-topup" checked />
-              <span class="custom-checkbox"></span>
-              <span>Hide Top-Ups</span>
-            </label>
-            <label class="psycle-checkbox-label">
-              <input type="checkbox" id="psycle-filter-unlimited" checked />
-              <span class="custom-checkbox"></span>
-              <span>Hide Unlimited</span>
-            </label>
-            <label class="psycle-checkbox-label">
-              <input type="checkbox" id="psycle-filter-weird" checked />
-              <span class="custom-checkbox"></span>
-              <span title="Excludes test, staff, friends & family, not customer facing, gym flex, sale, and out-of-date items">Hide Weird</span>
-            </label>
-            <label class="psycle-checkbox-label">
-              <input type="checkbox" id="psycle-filter-location" checked />
-              <span class="custom-checkbox"></span>
-              <span title="Excludes location-specific bundles (Victoria, Clapham, Shoreditch, Bank, etc.)">Hide Location-Specific</span>
+              <span title="Intro/welcome offers, partner, event, promotional, free/test and expired bundles">Intro, promo &amp; other</span>
             </label>
           </div>
         </div>
@@ -409,13 +389,23 @@
             <p class="psycle-card-desc">Tells Psycle Assistant when your classes are released based on your membership privileges.</p>
             <div class="psycle-setting-row">
               <div class="psycle-setting-label">
-                <span>Advanced Booking Privileges (+1 week)</span>
-                <small>Enable if you can book classes 15 days in advance (e.g., VIP/Studio Memberships).</small>
+                <span>Your booking window</span>
+                <small>Auto-detected from your membership cutoffs and booking credits.</small>
               </div>
-              <label class="psycle-switch">
-                <input type="checkbox" id="psycle-setting-advanced-booking">
-                <span class="psycle-slider"></span>
-              </label>
+              <span id="psycle-booking-window-indicator" class="psycle-badge info">Detecting…</span>
+            </div>
+            <div class="psycle-setting-row" id="psycle-manual-window-row" style="margin-top: 16px; display: none;">
+              <div class="psycle-setting-label">
+                <span>Manual window override (debug)</span>
+                <small>Force a booking window for testing. Overrides auto-detection.</small>
+              </div>
+              <select id="psycle-setting-manual-window" class="psycle-select">
+                <option value="">Auto (detected)</option>
+                <option value="1">1 week</option>
+                <option value="2">2 weeks</option>
+                <option value="3">3 weeks</option>
+                <option value="4">4 weeks</option>
+              </select>
             </div>
             <div class="psycle-setting-row" style="margin-top: 16px;">
               <div class="psycle-setting-label">

@@ -1,12 +1,119 @@
 // Shared client-side utilities that need London timezone awareness
 import { DateTime } from 'luxon';
 
-// Calculate booking offset in days based on settings
+// Booking-window tiers. The base standard window is 8 days from the release Monday
+// (≈1 week); each extra booking week adds 7 days. So 1→8, 2→15, 3→22, 4→29.
+export function weeksToOffsetDays(weeks) {
+  const w = Math.min(4, Math.max(1, Math.round(weeks) || 1));
+  return 8 + (w - 1) * 7;
+}
+
+// Inverse of weeksToOffsetDays — snap an offset in days to a whole-week tier (1..4).
+export function offsetDaysToWeeks(days) {
+  return Math.min(4, Math.max(1, Math.round((days - 8) / 7) + 1));
+}
+
+// Calculate booking offset in days based on settings.
+// Priority: debug manual override → auto-detected window → legacy manual toggles.
 export function getBookingOffset(settings = {}) {
+  // Debug-only manual override for testing a specific window (1-4 weeks).
+  if (settings.debugMode && settings.manualBookingWindowWeeks) {
+    return weeksToOffsetDays(settings.manualBookingWindowWeeks);
+  }
+  // Auto-detected from membership cutoffs + credit inventory (see detectBookingWindow).
+  if (typeof settings.detectedBookingOffset === 'number' && settings.detectedBookingOffset > 0) {
+    return settings.detectedBookingOffset;
+  }
+  // Legacy fallback (manual toggles, pre-auto-detection).
   let days = 8;
   if (settings.advancedBooking) days += 7;
   if (settings.advancedBookingCredit) days += 7;
   return days;
+}
+
+// The most recent Monday 12:00 PM London time that has already passed (the current
+// release Monday). Booking cutoffs are expressed relative to this release.
+export function getMostRecentReleaseMonday(now = DateTime.now().setZone('Europe/London')) {
+  let M = now.set({ weekday: 1, hour: 12, minute: 0, second: 0, millisecond: 0 });
+  if (now < M) M = M.minus({ weeks: 1 });
+  return M;
+}
+
+// CodexFit credit_type id for "Advanced Booking Credit" (e.g. bundle 361). Holding any
+// such credit grants a 2-week (15-day) booking window.
+const ADVANCED_BOOKING_CREDIT_TYPE_ID = 8;
+
+// Count Advanced Booking credits in the user's inventory. Holding any grants a 2-week
+// (15-day) window — it does NOT add a week on top of an account that already books in
+// advance, and credits do not stack into a 3rd week.
+function countExtendedBookingCredits(credits) {
+  if (!Array.isArray(credits)) return 0;
+  let count = 0;
+  for (const c of credits) {
+    const typeId = c?.credit_type_id ?? c?.credit_type?.id ?? c?.credit_type;
+    const name = (c?.credit_type?.name || c?.name || c?.credit_type_name || '').toString();
+    const isAdvanced = String(typeId) === String(ADVANCED_BOOKING_CREDIT_TYPE_ID)
+      || (/advance/i.test(name) && /book/i.test(name));
+    if (isAdvanced) count += Number(c?.count ?? c?.quantity ?? c?.qty ?? 1) || 1;
+  }
+  return count;
+}
+
+// Detect a user's booking window from their CodexFit profile cutoffs + credit inventory.
+// Returns null if the profile lacks the data needed to detect (caller should fall back).
+// Result: { offsetDays, weeks, cutoffISO, extendedAllowed, extendedCredits, source }
+export function detectBookingWindow(profile, credits) {
+  if (!profile) return null;
+
+  const bookingCutoff = profile.booking_cutoff || null;
+  const extendedCutoff = profile.extended_cutoff || null;
+  const mf = profile.metafields || {};
+  const extendedAllowed = !!(mf.extended_booking_allowed ?? mf.public?.extended_booking_allowed)
+    || (!!extendedCutoff && !!bookingCutoff && extendedCutoff > bookingCutoff);
+
+  const effectiveCutoff = (extendedAllowed && extendedCutoff) ? extendedCutoff : bookingCutoff;
+  if (!effectiveCutoff) return null;
+
+  const cutoffDt = DateTime.fromISO(effectiveCutoff, { zone: 'Europe/London' });
+  if (!cutoffDt.isValid) return null;
+
+  const release = getMostRecentReleaseMonday();
+  let offsetDays = Math.round(cutoffDt.diff(release, 'days').days);
+
+  // Holding extended-booking credits guarantees a 2-week (15-day) window. It is a floor,
+  // not additive — credits never extend an already-extended account or stack to 3 weeks.
+  const extendedCredits = countExtendedBookingCredits(credits);
+  const creditFloorApplied = extendedCredits > 0 && offsetDays < 15;
+  if (creditFloorApplied) offsetDays = 15;
+
+  // Snap to a whole-week tier (1..4) for robustness against DST / time-of-day drift.
+  const weeks = offsetDaysToWeeks(offsetDays);
+
+  return {
+    offsetDays: weeksToOffsetDays(weeks),
+    weeks,
+    // When the credit floor overrides the account cutoff, the profile cutoff no longer
+    // matches the effective window — let the label derive the date from release + offset.
+    cutoffISO: creditFloorApplied ? null : effectiveCutoff,
+    extendedAllowed,
+    extendedCredits,
+    source: creditFloorApplied ? 'credits' : (extendedAllowed ? 'extended' : 'standard')
+  };
+}
+
+// Human label for a booking window, e.g. "2 weeks · books through Mon 29 Jun".
+export function describeBookingWindow(offsetDays, cutoffISO) {
+  const weeks = offsetDaysToWeeks(offsetDays);
+  const wordLabel = `${weeks} week${weeks === 1 ? '' : 's'}`;
+  let through = null;
+  if (cutoffISO) {
+    const dt = DateTime.fromISO(cutoffISO, { zone: 'Europe/London' });
+    if (dt.isValid) through = dt.toFormat('ccc d LLL');
+  } else {
+    const dt = getMostRecentReleaseMonday().plus({ days: offsetDays });
+    through = dt.toFormat('ccc d LLL');
+  }
+  return through ? `${wordLabel} · books through ${through}` : wordLabel;
 }
 
 // Calculate when booking opens for a specific class date (London timezone)

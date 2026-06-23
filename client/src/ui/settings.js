@@ -886,6 +886,65 @@ async function openStudioFloorPlanEditor(studioId, studioName, onSaved) {
   }
 }
 
+function setupSettingsNavigation() {
+  const layout = document.getElementById('psycle-settings-layout-wrapper');
+  if (!layout || layout.dataset.navListener) return;
+  layout.dataset.navListener = 'true';
+
+  const menuItems = layout.querySelectorAll('.psycle-settings-menu-item');
+  const panes = layout.querySelectorAll('.psycle-settings-section-pane');
+  const sectionTitle = document.getElementById('psycle-settings-section-title');
+  const backBtn = document.getElementById('psycle-settings-back-btn');
+
+  // Handle URL hash to select target section initially if hash contains a specific settings target
+  const hash = location.hash.replace('#', '');
+  let initialSection = 'about';
+  if (['booking', 'experience', 'advanced'].includes(hash)) {
+    initialSection = hash;
+  }
+
+  const activateSection = (sectionId) => {
+    menuItems.forEach(item => {
+      const match = item.getAttribute('data-settings-section') === sectionId;
+      item.classList.toggle('active', match);
+      if (match && sectionTitle) {
+        sectionTitle.textContent = item.querySelector('.menu-item-text')?.textContent || sectionId;
+      }
+    });
+
+    panes.forEach(pane => {
+      const paneId = `psycle-settings-pane-${sectionId}`;
+      pane.classList.toggle('active', pane.id === paneId);
+    });
+
+    // On mobile, drill down
+    layout.classList.add('show-pane');
+  };
+
+  // Attach menu click listeners
+  menuItems.forEach(item => {
+    item.addEventListener('click', () => {
+      const sectionId = item.getAttribute('data-settings-section');
+      activateSection(sectionId);
+    });
+  });
+
+  // Attach mobile back button listener
+  if (backBtn) {
+    backBtn.addEventListener('click', () => {
+      layout.classList.remove('show-pane');
+    });
+  }
+
+  // Set initial state
+  activateSection(initialSection);
+  // Remove show-pane class initially so list displays first on mobile,
+  // EXCEPT if the hash explicitly requested a section
+  if (!['booking', 'experience', 'advanced'].includes(hash)) {
+    layout.classList.remove('show-pane');
+  }
+}
+
 export async function initSettings() {
   loadSettingsInputs();
   setupSettingsListeners();
@@ -896,6 +955,7 @@ export async function initSettings() {
   updatePushStatusUI();
   setupCalendarCard();
   // Spot Maps section is ready; button opens the modal
+  setupSettingsNavigation();
 }
 
 // ─── Calendar feed card ───────────────────────────────────────────────────────

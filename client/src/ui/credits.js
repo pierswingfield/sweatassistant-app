@@ -16,6 +16,10 @@ try {
   favorites = [792];
 }
 
+// bundle_type relations (id → { handle, name }), populated from the /bundles response.
+// Used to categorise bundles structurally for the "Show X" reveal toggles.
+let bundleTypes = [];
+
 export async function initBundles() {
   const container = document.getElementById('psycle-bundles-container');
   if (!container) return;
@@ -50,8 +54,10 @@ export async function initBundles() {
     if (cache.bundles.length === 0) {
       const res = await api.proxyGet('/bundles', { ttlMs: 3600000 });
       cache.bundles = res.data || res || [];
+      // Keep the bundle_type relations — their handles drive category detection.
+      if (res.relations?.bundle_types) bundleTypes = res.relations.bundle_types;
     }
-    
+
     renderBundles();
   } catch (err) {
     console.error('Failed to load bundles:', err);
@@ -62,16 +68,21 @@ export async function initBundles() {
 
 }
 
+// The four "Show X" reveal toggles. Each is OFF by default, so its category is hidden
+// until the user opts to show it. Keyed by the group returned from bundleGroup().
+const SHOW_TOGGLE_IDS = {
+  singleTopup: 'psycle-show-single-topup',
+  studioLocation: 'psycle-show-studio-location',
+  memberStudent: 'psycle-show-member-student',
+  introPromo: 'psycle-show-intro-promo',
+};
+
 function getFilterEls() {
   return {
-    returning: document.getElementById('psycle-filter-returning'),
-    studios: document.getElementById('psycle-filter-studios'),
-    home: document.getElementById('psycle-filter-home'),
-    student: document.getElementById('psycle-filter-student'),
-    topup: document.getElementById('psycle-filter-topup'),
-    unlimited: document.getElementById('psycle-filter-unlimited'),
-    weird: document.getElementById('psycle-filter-weird'),
-    location: document.getElementById('psycle-filter-location'),
+    singleTopup: document.getElementById(SHOW_TOGGLE_IDS.singleTopup),
+    studioLocation: document.getElementById(SHOW_TOGGLE_IDS.studioLocation),
+    memberStudent: document.getElementById(SHOW_TOGGLE_IDS.memberStudent),
+    introPromo: document.getElementById(SHOW_TOGGLE_IDS.introPromo),
     toggleBtn: document.getElementById('psycle-toggle-bundle-filters'),
     filtersContainer: document.getElementById('psycle-bundles-checkbox-filters'),
   };
@@ -101,13 +112,12 @@ function setupFilterListeners() {
       if (!container) return;
       const shown = container.style.display !== 'none';
       container.style.display = shown ? 'none' : 'flex';
-      els.toggleBtn.textContent = shown ? 'Filters' : 'Hide Filters';
+      els.toggleBtn.textContent = shown ? 'Categories' : 'Hide Categories';
     });
   }
 
-  // Attach change listeners to all filter checkboxes
-  const filterIds = ['returning', 'studios', 'home', 'student', 'topup', 'unlimited', 'weird', 'location'];
-  filterIds.forEach(key => {
+  // Attach change listeners to the "Show X" reveal toggles.
+  Object.keys(SHOW_TOGGLE_IDS).forEach(key => {
     const cb = els[key];
     if (cb && !cb.dataset.listenerAttached) {
       cb.dataset.listenerAttached = 'true';
@@ -125,111 +135,78 @@ function isValidAllClasses(b) {
   return !b.class_type_id && (!b.class_types || b.class_types.length === 0);
 }
 
-function matchesFilterRules(b) {
+// Resolve a bundle's bundle_type handle (e.g. 'top-up', 'student', 'oxford-circus').
+// Empty string if relations are unavailable — callers fall back to text matching.
+function bundleTypeHandle(b) {
+  const t = bundleTypes.find(t => t.id === b.bundle_type_id);
+  return (t?.handle || '').toLowerCase();
+}
+
+// Location-specific bundle_type handles (one per studio).
+const LOCATION_HANDLES = ['oxford-circus', 'notting-hill', 'clapham', 'shoreditch', 'victoria', 'bank', 'london-bridge'];
+const LOCATION_KEYWORDS = ['victoria', 'clapham', 'notting hill', 'shoreditch', 'bank', 'oxford circus', 'london bridge', 'belgravia', 'london heritage'];
+
+// Categorise a bundle into one of the four gated "Show X" groups, or null if it belongs
+// in the default view (general PAYG packs, class-specific credits, advanced booking).
+// Primary signal is the structural bundle_type handle; text rules are a fallback.
+// Order matters — the first matching group wins.
+function bundleGroup(b) {
   const name = b.name.toLowerCase();
   const handle = b.handle ? b.handle.toLowerCase() : '';
   const desc = b.description ? b.description.toLowerCase() : '';
   const terms = b.metafields?.terms ? b.metafields.terms.toLowerCase() : '';
   const textScope = `${name} ${handle} ${desc} ${terms}`;
+  // name+handle only — avoids restriction notes like "Not valid on Lagree" false-positiving.
+  const nameScope = `${name} ${handle}`;
+  const th = bundleTypeHandle(b);
 
-  const filters = getFilterEls();
+  // Single credits & top-ups
+  if (th === 'top-up' || nameScope.includes('single credit') || nameScope.includes('top up')
+      || nameScope.includes('top-up') || nameScope.includes('addon')) {
+    return 'singleTopup';
+  }
 
-  // === ALWAYS-ON RULES (no checkbox — always hide these from the view) ===
+  // Studio & location-specific (incl. at-home / online)
+  if (LOCATION_HANDLES.includes(th) || LOCATION_KEYWORDS.some(k => nameScope.includes(k))
+      || nameScope.includes('at home') || nameScope.includes('at-home') || nameScope.includes('online')) {
+    return 'studioLocation';
+  }
 
-  // NOT CUSTOMER FACING (direct name check for robustness — catches bundle ID 792)
+  // Member, student & corporate
+  if (['student', 'staff', 'corporate-offers-1', 'members'].includes(th)
+      || /student|u27|member|corp|graduate|unlimited|membership/.test(textScope)
+      || b.is_unlimited) {
+    return 'memberStudent';
+  }
+
+  // Intro, promo & other (welcome offers, partners, events, test/staff/free, expired, £0)
+  const isExpired = b.available_until && new Date(b.available_until) < new Date();
+  if (['intro', 'promotion-credits', 'seasonal-promotion', 'key-worker', 'crm', 'partners'].includes(th)
+      || b.is_first_purchase_only || b.price === 0 || isExpired
+      || /introductory offer|intro credit|intro pack|intro offer|welcome offer/.test(nameScope)
+      || /soho house|trade partners|itsu/.test(nameScope)
+      || /barre & brunch|ride & rosé|ride lounge|move & meet/.test(nameScope)
+      || /\btest\b|\bdummy\b|\bfree\b|friends & family|friends and family|gym flex|office|global coach|headliner|sale:/.test(textScope)) {
+    return 'introPromo';
+  }
+
+  return null; // default-visible
+}
+
+function matchesFilterRules(b, searching = false) {
+  const name = b.name.toLowerCase();
+
+  // Truly internal — never shown, even when searching.
   if (name.includes('not customer facing')) return false;
 
-  // Intro/welcome offers
-  if (textScope.includes('introductory offer') || textScope.includes('intro credit') || textScope.includes('welcome offer')) return false;
+  // A search reveals everything customer-facing, regardless of toggle state.
+  if (searching) return true;
 
-  // Advanced Booking Credit (special credit type, not a regular bundle)
-  if (textScope.includes('advanced booking credit') || textScope.includes('advanced booking')) return false;
-
-  // Single Credit full-price bundles (hide single-class purchases, keep offers like £15 First Class)
-  if (textScope.includes('single credit')) return false;
-
-  // Partner bundles
-  if (textScope.includes('soho house') || textScope.includes('trade partners') || textScope.includes('itsu')) return false;
-
-  // Class-specific bundles
-  if (textScope.includes('ride credit') || textScope.includes('barre credit') || textScope.includes('yoga credit') || textScope.includes('strength credit') || textScope.includes('lagree')) return false;
-
-  // Event-specific bundles
-  if (textScope.includes('barre & brunch') || textScope.includes('ride & rosé') || textScope.includes('ride lounge') || textScope.includes('move & meet')) return false;
-
-  // 1. Returning customers only (Excludes intro packs, is_first_purchase_only)
-  if (filters.returning?.checked) {
-    if (b.is_first_purchase_only || name.includes('intro pack') || name.includes('intro offer') || name.includes('welcome offer')) {
-      return false;
-    }
-  }
-
-  // 2. All studios only (Excludes studio-specific bundles)
-  if (filters.studios?.checked) {
-    if (!isValidAllStudios(b)) return false;
-  }
-
-  // 3. Hide At-Home / Online credits
-  if (filters.home?.checked) {
-    if (name.includes('at home') || name.includes('at-home') || handle.includes('home') || name.includes('online')) {
-      return false;
-    }
-  }
-
-  // 4. Hide student / member / graduate / corp credits
-  if (filters.student?.checked) {
-    if (textScope.includes('student') || textScope.includes('u27') || textScope.includes('member') || textScope.includes('corp') || textScope.includes('graduate')) {
-      return false;
-    }
-  }
-
-  // 5. Hide Top ups / addons
-  if (filters.topup?.checked) {
-    if (textScope.includes('top up') || textScope.includes('top-up') || textScope.includes('addon')) {
-      return false;
-    }
-  }
-
-  // 6. Hide Unlimited / membership
-  if (filters.unlimited?.checked) {
-    if (b.is_unlimited || textScope.includes('unlimited') || textScope.includes('membership')) {
-      return false;
-    }
-  }
-
-  // 8. Hide Location-Specific bundles
-  if (filters.location?.checked) {
-    const locKeywords = ['victoria', 'clapham', 'notting hill', 'shoreditch', 'bank', 'oxford circus', 'london bridge', 'belgravia', 'london heritage'];
-    for (const kw of locKeywords) {
-      if (textScope.includes(kw)) return false;
-    }
-  }
-
-  // 7. Hide weird / test / restricted / event / promotional bundles
-  if (filters.weird?.checked) {
-    if (b.price === 0) return false;
-
-    const keywords = [
-      'test', 'staff', 'dummy', 'free',
-      'friends & family', 'friends and family',
-      'not customer facing',
-      'gym flex', 'office',
-      'global coach', 'headliner',
-      'key worker',
-      'sale:',
-    ];
-    for (const kw of keywords) {
-      if (textScope.includes(kw)) return false;
-    }
-
-    // Past expiry date check (available_until field)
-    if (b.available_until) {
-      const availableDate = new Date(b.available_until);
-      if (availableDate < new Date()) return false;
-    }
-  }
-
-  return true;
+  // Default browse: show general/class-specific/advanced-booking bundles. Anything in a
+  // gated group is hidden unless the user has flipped that group's "Show X" toggle on.
+  const group = bundleGroup(b);
+  if (!group) return true;
+  return !!getFilterEls()[group]?.checked;
 }
 
 export function renderBundles() {
@@ -240,10 +217,11 @@ export function renderBundles() {
 
   if (!container) return;
 
-  // Filter
+  // Filter. An active search bypasses the curated browse declutter so any bundle is findable.
+  const searching = term.length > 0;
   let filtered = cache.bundles.filter(b => {
     // Basic clean filter
-    if (!matchesFilterRules(b)) return false;
+    if (!matchesFilterRules(b, searching)) return false;
 
     // Search term matching name, id, or handle (matching extension logic)
     const matchesSearch = b.name.toLowerCase().includes(term) || String(b.id).includes(term) || (b.handle && b.handle.toLowerCase().includes(term));

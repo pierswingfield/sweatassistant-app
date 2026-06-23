@@ -589,6 +589,7 @@ html, body {
 }
 #psycle-helper-container .psycle-badge.success { background: color-mix(in srgb, var(--success) 15%, transparent); color: var(--success); border: 1px solid color-mix(in srgb, var(--success) 25%, transparent); }
 #psycle-helper-container .psycle-badge.warning { background: color-mix(in srgb, var(--warning) 15%, transparent); color: var(--warning); border: 1px solid color-mix(in srgb, var(--warning) 25%, transparent); }
+#psycle-helper-container .psycle-badge.info { background: color-mix(in srgb, var(--accent) 15%, transparent); color: var(--accent); border: 1px solid color-mix(in srgb, var(--accent) 25%, transparent); white-space: nowrap; }
 
 /* Navigation Tabs */
 #psycle-helper-container .psycle-nav-bar {

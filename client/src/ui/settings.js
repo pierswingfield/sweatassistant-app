@@ -639,9 +639,12 @@ async function getActiveStudioIds() {
   return null;
 }
 
-export async function openManageSpotMapsModal() {
+export async function openManageSpotMapsModal(options = {}) {
+  const zIndex = options.zIndex ?? 2000;
+  const onDone = options.onDone ?? null;
+
   const overlay = document.createElement('div');
-  overlay.style.cssText = 'position:fixed;inset:0;background:color-mix(in srgb, var(--bg) 60%, transparent);z-index:2000;display:flex;align-items:center;justify-content:center;padding:16px;';
+  overlay.style.cssText = `position:fixed;inset:0;background:color-mix(in srgb, var(--bg) 60%, transparent);z-index:${zIndex};display:flex;align-items:center;justify-content:center;padding:16px;`;
 
   const modal = document.createElement('div');
   modal.style.cssText = 'background:var(--bg);border:1px solid color-mix(in srgb, var(--text) 12%, transparent);border-radius:16px;width:100%;max-width:500px;max-height:90vh;display:flex;flex-direction:column;overflow:hidden;';
@@ -656,10 +659,24 @@ export async function openManageSpotMapsModal() {
 
   modal.appendChild(header);
   modal.appendChild(body);
+
+  const close = () => overlay.remove();
+
+  if (onDone) {
+    const footer = document.createElement('div');
+    footer.style.cssText = 'padding:12px 16px;border-top:1px solid color-mix(in srgb, var(--text) 8%, transparent);flex-shrink:0;';
+    const doneBtn = document.createElement('button');
+    doneBtn.className = 'psycle-btn-primary';
+    doneBtn.style.cssText = 'width:100%;';
+    doneBtn.textContent = 'Done';
+    doneBtn.addEventListener('click', () => { close(); onDone(); });
+    footer.appendChild(doneBtn);
+    modal.appendChild(footer);
+  }
+
   overlay.appendChild(modal);
   document.body.appendChild(overlay);
 
-  const close = () => overlay.remove();
   header.querySelector('#manage-modal-close').onclick = close;
   overlay.addEventListener('click', e => { if (e.target === overlay) close(); });
 
@@ -695,13 +712,13 @@ export async function openManageSpotMapsModal() {
       }
     }
 
-    renderManageSpotMapsModal(prefs, studios, locations, body, close, activeStudioIds);
+    renderManageSpotMapsModal(prefs, studios, locations, body, close, activeStudioIds, options);
   } catch (err) {
     body.innerHTML = `<div class="psycle-card-error" style="padding:16px;">Unable to load studios. Connect to the internet to sync. (${err.message})</div>`;
   }
 }
 
-function renderManageSpotMapsModal(prefs, studios, locations, container, onClose, activeStudioIds) {
+function renderManageSpotMapsModal(prefs, studios, locations, container, onClose, activeStudioIds, options = {}) {
   const locMap = {};
   locations.forEach(loc => { locMap[loc.id] = loc.name; });
 
@@ -773,7 +790,7 @@ function renderManageSpotMapsModal(prefs, studios, locations, container, onClose
       editBtn.className = 'psycle-btn-mini';
       editBtn.style.cssText = 'font-size:12px;padding:4px 10px;';
       editBtn.textContent = hasPrefs ? 'Edit Spots' : 'Choose Spots';
-      editBtn.addEventListener('click', () => openStudioFloorPlanEditor(studio.id, studio.name, () => openManageSpotMapsModal()));
+      editBtn.addEventListener('click', () => openStudioFloorPlanEditor(studio.id, studio.name, () => openManageSpotMapsModal(options), options));
       btns.appendChild(editBtn);
 
       if (hasPrefs) {
@@ -788,7 +805,7 @@ function renderManageSpotMapsModal(prefs, studios, locations, container, onClose
           try {
             await api.updateStudioPreferences(studio.id, { preferredSlots: [], preferredRows: [] });
             showToast(`Studio defaults removed!`, 'success');
-            openManageSpotMapsModal();
+            openManageSpotMapsModal(options);
           } catch (err) {
             showToast(`Failed: ${err.message}`, 'error');
             removeBtn.disabled = false;
@@ -819,10 +836,11 @@ function renderManageSpotMapsModal(prefs, studios, locations, container, onClose
 }
 
 
-async function openStudioFloorPlanEditor(studioId, studioName, onSaved) {
+export async function openStudioFloorPlanEditor(studioId, studioName, onSaved, options = {}) {
   // Build modal overlay
+  const zIndex = (options.zIndex ?? 2000) + 1;
   const overlay = document.createElement('div');
-  overlay.style.cssText = 'position:fixed;inset:0;background:color-mix(in srgb, var(--bg) 60%, transparent);z-index:2000;display:flex;align-items:center;justify-content:center;padding:16px;';
+  overlay.style.cssText = `position:fixed;inset:0;background:color-mix(in srgb, var(--bg) 60%, transparent);z-index:${zIndex};display:flex;align-items:center;justify-content:center;padding:16px;`;
 
   const modal = document.createElement('div');
   modal.style.cssText = 'background:var(--bg);border:1px solid color-mix(in srgb, var(--text) 12%, transparent);border-radius:16px;width:100%;max-width:560px;max-height:90vh;display:flex;flex-direction:column;overflow:hidden;';
@@ -1277,6 +1295,7 @@ function loadSettingsInputs() {
   const manualWindow = document.getElementById('psycle-setting-manual-window');
   const upgradeEnabled = document.getElementById('psycle-setting-autoupgrade-enabled');
   const upgradeDefault = document.getElementById('psycle-setting-autoupgrade-default');
+  const upgradeKeepOriginal = document.getElementById('psycle-setting-autoupgrade-keeporiginal-default');
   const upgradeInterval = document.getElementById('psycle-setting-autoupgrade-interval');
   const debugMode = document.getElementById('psycle-setting-debug-mode');
   const prefetchWeeks = document.getElementById('psycle-setting-prefetch-weeks');
@@ -1284,6 +1303,7 @@ function loadSettingsInputs() {
   if (manualWindow) manualWindow.value = userSettings.manualBookingWindowWeeks ? String(userSettings.manualBookingWindowWeeks) : '';
   if (upgradeEnabled) upgradeEnabled.checked = userSettings.autoUpgradeEnabled !== false;
   if (upgradeDefault) upgradeDefault.checked = !!userSettings.autoUpgradeByDefault;
+  if (upgradeKeepOriginal) upgradeKeepOriginal.checked = !!userSettings.autoUpgradeKeepOriginalByDefault;
   if (upgradeInterval) upgradeInterval.value = userSettings.autoUpgradeInterval || '15min';
   if (debugMode) debugMode.checked = !!userSettings.debugMode;
   if (prefetchWeeks) prefetchWeeks.value = String(userSettings.prefetchWeeks || 4);
@@ -1295,6 +1315,7 @@ function setupSettingsListeners() {
   const manualWindow = document.getElementById('psycle-setting-manual-window');
   const upgradeEnabled = document.getElementById('psycle-setting-autoupgrade-enabled');
   const upgradeDefault = document.getElementById('psycle-setting-autoupgrade-default');
+  const upgradeKeepOriginal = document.getElementById('psycle-setting-autoupgrade-keeporiginal-default');
   const upgradeInterval = document.getElementById('psycle-setting-autoupgrade-interval');
   const debugMode = document.getElementById('psycle-setting-debug-mode');
   const prefetchWeeks = document.getElementById('psycle-setting-prefetch-weeks');
@@ -1307,6 +1328,7 @@ function setupSettingsListeners() {
       manualBookingWindowWeeks: manualWindow && manualWindow.value ? parseInt(manualWindow.value) : null,
       autoUpgradeEnabled: upgradeEnabled ? upgradeEnabled.checked : true,
       autoUpgradeByDefault: upgradeDefault ? upgradeDefault.checked : false,
+      autoUpgradeKeepOriginalByDefault: upgradeKeepOriginal ? upgradeKeepOriginal.checked : false,
       autoUpgradeInterval: upgradeInterval ? upgradeInterval.value : '15min',
       debugMode: debugMode ? debugMode.checked : false,
       prefetchWeeks: prefetchWeeks ? parseInt(prefetchWeeks.value) : 4
@@ -1334,6 +1356,10 @@ function setupSettingsListeners() {
   if (upgradeDefault && !upgradeDefault.dataset.listener) {
     upgradeDefault.dataset.listener = 'true';
     upgradeDefault.addEventListener('change', saveSettings);
+  }
+  if (upgradeKeepOriginal && !upgradeKeepOriginal.dataset.listener) {
+    upgradeKeepOriginal.dataset.listener = 'true';
+    upgradeKeepOriginal.addEventListener('change', saveSettings);
   }
   if (upgradeInterval && !upgradeInterval.dataset.listener) {
     upgradeInterval.dataset.listener = 'true';

@@ -12,7 +12,8 @@ const scheduler = require('./scheduler');
 const poller = require('./poller');
 const calendar = require('./calendar');
 const adminRouter = require('./admin');
-const { appName } = require('../app.config.json');
+const config = require('./config');
+const { appName } = config;
 
 const app = express();
 const PORT = process.env.PORT || 3000;
@@ -54,8 +55,56 @@ const calendarFeedLimiter = rateLimit({
   skip: (req) => process.env.NODE_ENV !== 'production',
 });
 
-// Serves the client SPA files in production Docker container
+// -------------------------------------------------------------
+// PUBLIC CONFIG (no auth — needed before login for app name in UI)
+// -------------------------------------------------------------
+
+app.get('/api/config', (req, res) => {
+  res.json({ appName: config.appName, publicHost: config.publicHost });
+});
+
+// -------------------------------------------------------------
+// TEMPLATED STATIC FILES
+// In production, intercept specific static files that contain the app name
+// and replace the default "Psycle Assistant" with the configured value.
+// This lets the same built client serve under a different name without a
+// rebuild. Files are read once and cached; the replace is a no-op when the
+// configured name equals the default.
+// -------------------------------------------------------------
+
+const fs = require('fs');
+const fileCache = {};
+
+function sendTemplated(filePath, res, contentType) {
+  if (!fileCache[filePath]) {
+    try {
+      fileCache[filePath] = fs.readFileSync(filePath, 'utf8');
+    } catch {
+      return res.status(404).send('Not found');
+    }
+  }
+  let content = fileCache[filePath];
+  if (config.appName !== 'Psycle Assistant') {
+    content = content.replaceAll('Psycle Assistant', config.appName);
+  }
+  res.type(contentType).send(content);
+}
+
+// Serves the client SPA files in production Docker container.
+// index.html, manifest.json and sw.js are served via templated routes so the
+// app name can be injected; everything else goes through express.static.
 if (process.env.NODE_ENV === 'production') {
+  // Intercept index.html (both '/' and '/index.html') before express.static
+  // so the app name can be template-replaced.
+  app.get(['/', '/index.html'], (req, res) => {
+    sendTemplated(path.join(__dirname, 'public', 'index.html'), res, 'text/html');
+  });
+  app.get('/manifest.json', (req, res) => {
+    sendTemplated(path.join(__dirname, 'public', 'manifest.json'), res, 'application/manifest+json');
+  });
+  app.get('/sw.js', (req, res) => {
+    sendTemplated(path.join(__dirname, 'public', 'sw.js'), res, 'application/javascript');
+  });
   app.use(express.static(path.join(__dirname, 'public')));
 }
 
@@ -65,7 +114,7 @@ if (process.env.NODE_ENV === 'production') {
 // -------------------------------------------------------------
 
 app.get('/admin', (req, res) => {
-  res.sendFile(path.join(__dirname, 'admin.html'));
+  sendTemplated(path.join(__dirname, 'admin.html'), res, 'text/html');
 });
 
 app.use('/api/admin', adminRouter);
@@ -310,8 +359,8 @@ app.post('/api/auto-upgrade', authenticateToken, bookingMutationLimiter, (req, r
       return res.status(429).json({ message: 'Auto-upgrade monitor limit reached (10 active monitors). Please cancel some before adding more.' });
     }
 
-    // Check if an active auto-upgrade already exists for this event
-    const activeUpgrades = db.getUserAutoUpgrades(req.userId).filter(u => u.event_id === eventId && u.status === 'active');
+    // Check if an active auto-upgrade already exists for this booking
+    const activeUpgrades = db.getUserAutoUpgrades(req.userId).filter(u => Number(u.booking_id) === Number(bookingId) && u.status === 'active');
     if (activeUpgrades.length > 0) {
       return res.status(400).json({ message: 'An active auto-upgrade monitor already exists for this booking.' });
     }
@@ -619,7 +668,7 @@ async function proxyRequest(userId, pathName, method, body) {
       }
     };
 
-    if (['POST', 'PUT', 'DELETE'].includes(method)) {
+    if (['POST', 'PUT', 'PATCH', 'DELETE'].includes(method)) {
       if (body && Object.keys(body).length > 0) {
         options.headers['content-type'] = 'application/json';
         options.body = JSON.stringify(body);
@@ -843,7 +892,7 @@ app.post('/api/cart/checkout/confirm', authenticateToken, async (req, res) => {
 // Fallback index.html for SPA router in production
 if (process.env.NODE_ENV === 'production') {
   app.get('*', (req, res) => {
-    res.sendFile(path.join(__dirname, 'public', 'index.html'));
+    sendTemplated(path.join(__dirname, 'public', 'index.html'), res, 'text/html');
   });
 }
 

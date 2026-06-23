@@ -391,21 +391,28 @@ async function executeAutoBookForClass(booking) {
       if (layoutSlots.length > 0) {
         const settings = db.getUserSettings(userId) || {};
         if (settings.autoUpgradeEnabled !== false) {
-          console.log(`[Scheduler] Auto-registering Auto-Upgrade monitoring for booking ${eventId}`);
-          db.addAutoUpgrade(
-            userId,
-            eventId,
-            newBookingId, // Use the actual booking ID we just got
-            bookedSlots[0],
-            booking.class_name,
-            booking.instructor_name,
-            booking.studio_name,
-            booking.location_name,
-            booking.start_at,
-            { keepOriginalOnCutoff: true },
-            booking.studio_id,
-            booking.group_name
-          );
+          const wantAutoUpgrade = prefs.autoUpgrade !== undefined
+            ? prefs.autoUpgrade
+            : settings.autoUpgradeByDefault;
+          if (wantAutoUpgrade) {
+            console.log(`[Scheduler] Auto-registering Auto-Upgrade monitoring for booking ${eventId}`);
+            db.addAutoUpgrade(
+              userId,
+              eventId,
+              newBookingId, // Use the actual booking ID we just got
+              bookedSlots[0],
+              booking.class_name,
+              booking.instructor_name,
+              booking.studio_name,
+              booking.location_name,
+              booking.start_at,
+              { keepOriginalOnCutoff: true },
+              booking.studio_id,
+              booking.group_name
+            );
+          } else {
+            console.log(`[Scheduler] Skipping auto-upgrade for booking ${eventId} because user disabled it for this booking/by default.`);
+          }
         }
       }
     } else {

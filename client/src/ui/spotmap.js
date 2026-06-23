@@ -22,7 +22,20 @@
 //   options.hideClear     — when true, the "Clear Defaults" action button is omitted.
 
 export function renderStudioFloorPlan(container, layoutSlots, initialSlots, initialRows, onSave, options = {}) {
-  const { saveLabel = 'Save Defaults', bannerHtml = '', bannerHtmlEdit = '', extraControlsHtml = '', onDisable = null, disableLabel = 'Disable', readOnly = false, editLabel = 'Edit preferred spots', hideClear = false, layoutObjects = [] } = options;
+  const {
+    saveLabel = 'Save Defaults',
+    bannerHtml = '',
+    bannerHtmlEdit = '',
+    extraControlsHtml = '',
+    onDisable = null,
+    disableLabel = 'Disable',
+    readOnly = false,
+    editLabel = 'Edit preferred spots',
+    hideClear = false,
+    layoutObjects = [],
+    availableSlots = null,
+    currentSlotId = null
+  } = options;
 
   // In read-only mode the map starts locked until the user clicks the edit button.
   let editing = !readOnly;
@@ -143,8 +156,29 @@ export function renderStudioFloorPlan(container, layoutSlots, initialSlots, init
     // tight (just enough to avoid overlap) and any overflow pans inside the
     // scroll container. On desktop, fill the available box for a roomier map.
     const scale = isMobile ? minGapScale : Math.max(fillScale, minGapScale);
-    const floorW = Math.ceil(widthRange * scale + SLOT_SIZE + EDGE_PAD * 2 + rowLaneW);
-    const floorH = Math.ceil(heightRange * scale + SLOT_SIZE + EDGE_PAD * 2);
+
+    // Scale X-axis and Y-axis independently if Y-axis gaps are too large and make the map spill.
+    const scaleX = scale;
+    let scaleY = scale;
+    const maxFieldH = availH - SLOT_SIZE - EDGE_PAD * 2;
+    if (heightRange > 0 && scaleY * heightRange > maxFieldH) {
+      scaleY = maxFieldH / heightRange;
+      // Guarantee vertical slots do not overlap by checking min vertical coordinate diff
+      let minVerticalDist = Infinity;
+      for (let i = 0; i < layoutSlots.length; i++) {
+        for (let j = i + 1; j < layoutSlots.length; j++) {
+          const dy = Math.abs(layoutSlots[i].y - layoutSlots[j].y);
+          if (dy > 0.01 && dy < minVerticalDist) minVerticalDist = dy;
+        }
+      }
+      if (isFinite(minVerticalDist) && minVerticalDist > 0) {
+        const minVerticalScale = MIN_GAP / minVerticalDist;
+        if (scaleY < minVerticalScale) scaleY = minVerticalScale;
+      }
+    }
+
+    const floorW = Math.ceil(widthRange * scaleX + SLOT_SIZE + EDGE_PAD * 2 + rowLaneW);
+    const floorH = Math.ceil(heightRange * scaleY + SLOT_SIZE + EDGE_PAD * 2);
 
     const floor = document.createElement('div');
     floor.className = 'psycle-floor';
@@ -152,8 +186,8 @@ export function renderStudioFloorPlan(container, layoutSlots, initialSlots, init
     floor.style.height = floorH + 'px';
     scroll.appendChild(floor);
 
-    const pxX = x => (x - minX) * scale + EDGE_PAD + SLOT_SIZE / 2;
-    const pxY = y => (y - minY) * scale + EDGE_PAD + SLOT_SIZE / 2;
+    const pxX = x => (x - minX) * scaleX + EDGE_PAD + SLOT_SIZE / 2;
+    const pxY = y => (y - minY) * scaleY + EDGE_PAD + SLOT_SIZE / 2;
 
     // Row backdrops
     selectedRows.forEach(y => {
@@ -164,7 +198,7 @@ export function renderStudioFloorPlan(container, layoutSlots, initialSlots, init
       const minYinRow = Math.min(...rowSlots.map(s => s.y));
       const maxYinRow = Math.max(...rowSlots.map(s => s.y));
       const backdrop = document.createElement('div');
-      backdrop.style.cssText = `position:absolute;left:${pxX(minXinRow) - SLOT_SIZE / 2}px;top:${pxY(minYinRow) - SLOT_SIZE / 2}px;width:${(maxXinRow - minXinRow) * scale + SLOT_SIZE}px;height:${(maxYinRow - minYinRow) * scale + SLOT_SIZE}px;background:color-mix(in srgb, var(--info) 10%, transparent);border:2px solid color-mix(in srgb, var(--info) 30%, transparent);border-radius:12px;pointer-events:none;z-index:0;`;
+      backdrop.style.cssText = `position:absolute;left:${pxX(minXinRow) - SLOT_SIZE / 2}px;top:${pxY(minYinRow) - SLOT_SIZE / 2}px;width:${(maxXinRow - minXinRow) * scaleX + SLOT_SIZE}px;height:${(maxYinRow - minYinRow) * scaleY + SLOT_SIZE}px;background:color-mix(in srgb, var(--info) 10%, transparent);border:2px solid color-mix(in srgb, var(--info) 30%, transparent);border-radius:12px;pointer-events:none;z-index:0;`;
       floor.appendChild(backdrop);
     });
 
@@ -175,19 +209,49 @@ export function renderStudioFloorPlan(container, layoutSlots, initialSlots, init
       const inRow = selectedRows.has(slot.y);
       const label = slot.label || slot.slot || String(slotId);
 
+      const hasAvailability = !!availableSlots;
+      const isAvailable = !hasAvailability || availableSlots.includes(slotId);
+      const isCurrent = currentSlotId !== null && Number(currentSlotId) === slotId;
+
       const el = document.createElement('div');
       el.style.cssText = `position:absolute;left:${pxX(slot.x)}px;top:${pxY(slot.y)}px;transform:translate(-50%,-50%);width:${SLOT_SIZE}px;height:${SLOT_SIZE}px;border-radius:6px;display:flex;align-items:center;justify-content:center;font-size:12px;font-weight:700;cursor:${editing ? 'pointer' : 'default'};user-select:none;transition:all 0.1s;box-sizing:border-box;z-index:1;`;
       el.title = `Spot ${label}`;
 
-      if (priority > 0) {
+      if (isCurrent) {
+        el.style.background = 'color-mix(in srgb, var(--feat-autoupgrade) 15%, transparent)';
+        el.style.border = '2px dashed var(--feat-autoupgrade)';
+        el.style.color = 'var(--feat-autoupgrade)';
+        el.textContent = label;
+        el.title = `Spot ${label} (Your current seat)`;
+        if (priority > 0) {
+          el.style.background = 'var(--feat-autoupgrade)';
+          el.style.border = '2px dashed #fff';
+          el.style.color = '#fff';
+          el.textContent = String(priority);
+        }
+      } else if (priority > 0) {
         el.style.background = 'var(--feat-autoupgrade)';
         el.style.border = '2px solid var(--feat-autoupgrade)';
         el.style.color = '#fff';
         el.textContent = String(priority);
+        if (hasAvailability && !isAvailable) {
+          el.style.boxShadow = '0 0 0 2px var(--danger)';
+          el.title = `Spot ${label} (Occupied but preferred)`;
+        }
       } else if (inRow) {
         el.style.background = 'color-mix(in srgb, var(--info) 25%, transparent)';
         el.style.border = '1px solid color-mix(in srgb, var(--info) 50%, transparent)';
         el.style.color = 'var(--info)';
+        el.textContent = label;
+      } else if (hasAvailability && isAvailable) {
+        el.style.background = 'color-mix(in srgb, var(--success) 15%, transparent)';
+        el.style.border = '1px solid color-mix(in srgb, var(--success) 35%, transparent)';
+        el.style.color = 'var(--success)';
+        el.textContent = label;
+      } else if (hasAvailability && !isAvailable) {
+        el.style.background = 'var(--surface-inset)';
+        el.style.border = '1px solid var(--border)';
+        el.style.color = 'var(--text-tertiary)';
         el.textContent = label;
       } else {
         el.style.background = 'color-mix(in srgb, var(--text) 5%, transparent)';
@@ -283,7 +347,7 @@ export function renderStudioFloorPlan(container, layoutSlots, initialSlots, init
       const clearBtn = document.createElement('button');
       clearBtn.className = 'psycle-btn';
       clearBtn.style.cssText = 'flex:1;background:color-mix(in srgb, var(--text) 6%, transparent);border:1px solid color-mix(in srgb, var(--text) 12%, transparent);color:var(--text);';
-      clearBtn.textContent = 'Clear Defaults';
+      clearBtn.textContent = 'Clear Preferences';
       clearBtn.onclick = () => { selectedSlots.length = 0; selectedRows.clear(); render(); };
       actions.appendChild(clearBtn);
     }

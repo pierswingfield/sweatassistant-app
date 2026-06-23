@@ -120,7 +120,7 @@ Purple is **not** used here — it is reserved for the auto-functions above.
 | `--disc-other` | `#b3a99f` | `#857a6e` | Fallback (warm grey) |
 
 Tags and rail/footer controls render their glyphs as **inline SVG** themed via
-`currentColor` (the icon set lives in `client/src/ui/autobook.js`), not an icon
+`currentColor` (the shared icon set lives in `client/src/ui/cards.js`), not an icon
 font.
 
 ### 3.7 Shape & Shadow
@@ -582,11 +582,19 @@ No bounce. No elastic. No overshoot. Transitions should be felt, not noticed.
 
 | File | Role |
 |---|---|
-| `client/src/styles.css` | All tokens, all component CSS |
-| `client/index.html` | Panel/section HTML structure |
-| `client/src/ui/timetable.js` | Timetable row/button rendering |
-| `client/src/ui/bookings.js` | My Bookings panel, cancel/leave logic |
-| `client/src/ui/credits.js` | Buy Credits panel, bundle cards |
-| `client/src/ui/autobook.js` | Auto-Book queue/history rendering |
-| `client/src/ui/tooltips.js` | Instructor and occupancy tooltip HTML |
-| `client/src/ui/settings.js` | Settings panel, theme toggle |
+| `client/src/styles.css` | All tokens, all component CSS (the only stylesheet loaded by the app) |
+| `client/index.html` | Panel/section HTML structure, modals, iOS bottom nav |
+| `client/src/ui/timetable.js` | Timetable row/button rendering, filters, booking modal, mobile cards |
+| `client/src/ui/bookings.js` | My Bookings panel, cancel/leave logic, edit-spots + upgrade modals |
+| `client/src/ui/credits.js` | Buy Credits panel, bundle cards, in-app cart + Stripe checkout |
+| `client/src/ui/autobook.js` | Auto-Book queue/history rendering, SSE stream, countdown, favourites |
+| `client/src/ui/autoupgrade.js` | Auto-Upgrade monitor list (rendered inside Auto-Book tab) |
+| `client/src/ui/settings.js` | Settings panel (4 subnav sections), theme toggle, calendar card, notif prefs, Profile Explorer, spot-map manager |
+| `client/src/ui/spotmap.js` | Shared studio floor-plan editor (reused by all booking flows + settings) |
+| `client/src/ui/tooltips.js` | Instructor + occupancy tooltip HTML (hover + touch tap-to-toggle) |
+| `client/src/ui/onboarding.js` | First-run 6-step guided flow |
+| `client/src/ui/pulltorefresh.js` | Reusable pull-to-refresh for scroll containers |
+| `client/src/ui/cards.js` | Shared SVG icon set, discipline tags, card text helpers |
+| `client/src/main.js` | App bootstrap, auth, tab routing, push, theme, offline, pull-to-refresh |
+
+> **Note:** `client/src/panel-layout.css` exists but is **not loaded** by the app (only `styles.css` is imported in `index.html`). Do not assume its rules apply.

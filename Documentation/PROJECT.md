@@ -2,7 +2,7 @@
 
 > **Goal**: Migrate the Psycle Chrome Extension's core scheduling and booking features to a server-backed Progressive Web App so that auto-book, auto-upgrade, and other background features work reliably without requiring an open browser tab. The PWA will run on iOS via "Add to Home Screen" and receive push notifications.
 
-> **Status**: ✅ Implemented and deployed. All core features working — auto-book (server-side precision scheduler), auto-upgrade (cron polling), quick-book, timetable, bookings, buy credits, push notifications (5 types), shared spot maps, Profile Explorer, notification preferences. See `AGENTS.md` for the current feature parity table and known issues. The sections below document the original architecture proposal; §4.5 and §4.7 have been updated to reflect what was actually built.
+> **Status**: ✅ Implemented and deployed. All core features working — auto-book (server-side precision scheduler with priority tiers), auto-upgrade (cron polling), quick-book, timetable, bookings, buy credits (in-app Stripe checkout), push notifications (5 types), shared spot maps, calendar feed (.ics via webcal/Google), first-run onboarding, offline support, pull-to-refresh, admin panel, per-user rate limiting. See `AGENTS.md` for the current feature parity table and known issues. The sections below document the original architecture proposal; §4.5 and §4.7 have been updated to reflect what was actually built.
 
 ---
 
@@ -604,6 +604,17 @@ The extension's existing HTML/CSS/JS can be directly ported to the PWA. The Liqu
 **API Routes** (implemented):
 
 ```
+# Public Config (no auth)
+GET    /api/config                # Returns { appName, publicHost } — needed before login to render UI
+
+# Admin Panel
+GET    /admin                     # Serves admin.html (standalone admin SPA)
+POST   /api/admin/login           # Verify ADMIN_PASSWORD, issue 1h admin JWT
+GET    /api/admin/users           # List all users with queue counts + priority
+GET    /api/admin/users/:id       # Full user detail (profile, credits, bookings, queue, monitors, spot maps)
+PUT    /api/admin/users/:id/priority  # Update a user's priority tier (1–999)
+DELETE /api/admin/users/:id       # Delete user + all CASCADE data
+
 # Auth
 POST   /api/auth/login              # Login → CodexFit BFF, returns local JWT
 GET    /api/auth/status             # Check local JWT validity
@@ -632,14 +643,22 @@ PUT    /api/settings                # Update user settings
 GET    /api/studio-preferences      # Get all studio preference maps
 PUT    /api/studio-preferences/:id  # Update studio preference map
 
+# Calendar Feed
+GET    /api/calendar/:token.ics     # Public-by-token iCalendar feed (rate-limited 60/min by IP)
+GET    /api/calendar/status         # Feed status, links, last-generated timestamp
+POST   /api/calendar/enable         # Enable feed, generate/rotate token, rebuild snapshot
+POST   /api/calendar/disable        # Disable feed, revoke token
+POST   /api/calendar/rotate         # Rotate token + republish snapshot
+POST   /api/calendar/refresh        # Debounced async refresh (60s delay)
+
 # Backup & Migration
 GET    /api/config/export           # Export all preferences as JSON
 POST   /api/config/import           # Import preferences from JSON (deduplicates auto-book)
 
-# Cart
-POST   /api/cart/create             # Create CodexFit cart instance, store cartInstanceId in settings
-POST   /api/cart/add-bundle/:id     # Add bundle to cart (recreates cart on 404/410)
-GET    /api/cart                    # Get current cart
+# Cart (Legacy + In-App Checkout)
+POST   /api/cart/add-bundle/:id     # Add bundle to cart (legacy fallback)
+POST   /api/cart/checkout/init/:bundleId  # In-app checkout step 1: add bundle + list saved cards
+POST   /api/cart/checkout/confirm         # In-app checkout step 2: place order, poll Stripe, return status
 
 # Push Notifications
 GET    /api/push/vapid-public-key   # Get VAPID public key
@@ -652,6 +671,8 @@ POST   /api/push/test/:type         # Send typed sample notification (debug)
 POST   /api/notify/booking-success  # Client reports manual/quick booking → server fans out push
 POST   /api/bookings/sync           # Client pushes bookings to warm server reminder cache
 ```
+
+> **Beyond the original proposal**, the implemented server also includes: per-user **rate limiting** (3 `express-rate-limit` limiters — proxy 60/min, booking mutations 10/min, calendar feed 60/min — production-only), per-user **quotas** (auto-book ≤15 pending, auto-upgrade ≤10 active, 429 on exceed), **priority tiers** (`users.priority` drives Monday-noon dispatch ordering with Fisher-Yates shuffle within tiers + 80ms stagger + cross-user slot coordination), a **calendar feed** module (`calendar.js`, 3-hourly poll + debounced refresh + RFC 5545 .ics), an **admin panel** (`admin.js` + `admin.html` at `/admin`), and **in-app Stripe checkout** (saved-card charge with 3-D Secure detection + website fallback). The `ENCRYPTION_KEY` env var is now **required** (no DB fallback — the server exits on boot if absent).
 
 **Auto-Book Scheduler**:
 ```javascript
@@ -716,14 +737,15 @@ class AutoUpgradePoller {
 **Phase 1: Server Foundation ✅**
 - Node.js + Express server with auth endpoints (login, status, delete)
 - API proxy for all CodexFit endpoints with auto-relogin on 401
-- SQLite database with 8-table schema (users, auto_bookings, auto_upgrades, studio_preferences, settings, push_subscriptions, booking_cache, sent_notifications, server_kv)
-- AES-256-GCM credential encryption
+- SQLite database with 12-table schema (users, auto_bookings, auto_upgrades, studio_preferences, settings, push_subscriptions, booking_cache, waitlist_cache, sent_notifications, calendar_classes, calendar_snapshots, server_kv)
+- AES-256-GCM credential encryption (env-key required, no DB fallback)
+- Per-user rate limiting + quotas, admin panel, priority tiers
 - Deployed to Raspberry Pi via Docker
 
 **Phase 2: PWA Shell ✅**
 - Vite PWA with service worker (push + offline cache) and manifest
 - Login screen (email + password → server BFF)
-- 6-tab SPA: Class Timetable, My Bookings, Auto-Book, Buy Credits, Settings, About
+- 5-tab SPA: Class Timetable, My Bookings, Auto-Book, Buy Credits, Settings (About is a Settings subnav section); iOS bottom nav mirrors the top nav on mobile
 - IndexedDB 4hr TTL caching with Monday 12PM force-refresh
 
 **Phase 3: Auto-Book Server-Side ✅**
@@ -746,14 +768,19 @@ class AutoUpgradePoller {
 - Profile Explorer with Konami-code edit mode
 - Notification preferences modal (per-type toggles + scope/timing)
 - Debug mode: per-class diagnostics, debug log terminal, simulate release
+- First-run onboarding (6-step: intro → install → login → notifs → calendar → spot maps)
+- Offline support (SW network-first shell + cache-first assets, offline banner)
+- Pull-to-refresh on scroll containers
+- Calendar feed (.ics via webcal/Google, token auth, 3-hourly poll, VALARM)
+- In-app Stripe checkout (saved-card charge, 3-D Secure detection + website fallback)
+- Theme toggle (Auto/Light/Dark), tooltip touch support, refresh buttons on every tab
 
 **Remaining work** (not in original plan):
 - Auto-Book Favourites weekly auto-sync (UI exists, server doesn't consume the list)
-- Mobile/iOS full-screen layout (still uses floating-panel heritage dimensions)
-- Touch support for hover tooltips
-- `.ics` calendar download from My Bookings
-- First-run onboarding for spot maps
-- Proactive "Add to Home Screen" prompt
+- Mobile/iOS full-screen layout (responsive media queries + bottom nav added, but base still uses floating-panel heritage dimensions)
+- Full in-app 3-D Secure challenge flow (Stripe.js `confirmCardPayment` — see BACKLOG.md)
+- Health/metrics endpoint + scheduler crash alerting (see BACKLOG.md P0 #4)
+- `.ics` one-off file download from My Bookings (a live calendar *feed* is provided instead)
 
 ### 4.8 Extension Coexistence
 
@@ -798,7 +825,7 @@ No App Store fees. No Apple Developer account. No Google Play account. The PWA i
 | **iOS Support** | None | Full support via PWA (iOS 16.4+) |
 | **Push Notifications** | None | Web Push (VAPID), 5 types, per-user prefs, deduped |
 | **Token Refresh** | None (user must re-login on website) | Automatic re-authentication with stored credentials on 401 |
-| **Data Storage** | `chrome.storage.local` | Server SQLite (8 tables) + `localStorage` + IndexedDB |
+| **Data Storage** | `chrome.storage.local` | Server SQLite (12 tables) + `localStorage` + IndexedDB |
 | **Spot Preferences** | Per-entry preferences stored separately | One shared spot map per studio, live-resolved by all features |
 | **UI Framework** | Vanilla HTML/CSS/JS injected into page | Same aesthetic, served as standalone Vite PWA |
 | **Distribution** | Chrome Web Store | URL — "Add to Home Screen" |
@@ -807,3 +834,9 @@ No App Store fees. No Apple Developer account. No Google Play account. The PWA i
 | **Live Status** | None | SSE stream for real-time auto-book execution updates |
 | **Reminders** | None | Cancellation reminders (24h/14h) + booking window reminder (Mon 11AM) |
 | **Profile Editing** | Raw JSON inspector | Categorized Profile Explorer + Konami-code edit mode |
+| **Calendar** | One-off `.ics` download from My Bookings | Live per-user `.ics` feed (webcal/Google), token auth, 3-hourly poll |
+| **Credit Purchases** | Website cart only | In-app Stripe checkout (saved-card charge; website fallback for 3-D Secure) |
+| **First-run UX** | None | 6-step onboarding (install → login → notifs → calendar → spot maps) |
+| **Admin / Multi-user** | Single user | Admin panel at `/admin`, priority tiers, per-user rate limiting + quotas |
+| **Theme** | Dark only | Auto/Light/Dark toggle |
+| **Mobile Nav** | Desktop only | iOS bottom nav + responsive panel |

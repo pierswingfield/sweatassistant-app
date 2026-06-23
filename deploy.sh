@@ -67,6 +67,8 @@ PORT=3000
 JWT_SECRET=${JWT_SECRET}
 ENCRYPTION_KEY=${ENCRYPTION_KEY}
 VAPID_EMAIL=mailto:piers@wingfield.tech
+APP_NAME=Psycle Assistant
+PUBLIC_HOST=psycle.wingfield.tech
 EOF
 )
     

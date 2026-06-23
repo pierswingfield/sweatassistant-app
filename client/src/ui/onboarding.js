@@ -15,6 +15,7 @@
 import { api, isLoggedIn } from '../api';
 import { consumeInstallPrompt, initApp, togglePushSubscription, warmCaches } from '../main';
 import { openManageSpotMapsModal } from './settings';
+import { appConfig } from '../config';
 
 const COMPLETE_KEY = 'psycleOnboardingComplete';
 const STEP_KEY = 'psycleOnboardingStep';
@@ -22,7 +23,7 @@ const STEP_KEY = 'psycleOnboardingStep';
 // v2: added the Calendar step.
 const ONBOARDING_VERSION = '2';
 
-const STEPS = ['intro', 'install', 'login', 'notifications', 'calendar', 'spotmaps'];
+const STEPS = ['intro', 'install', 'login', 'notifications', 'spotmaps', 'calendar'];
 
 // --- platform / capability detection (mirrors main.js:279) ---
 const isIOS = () => /iPad|iPhone|iPod/.test(navigator.userAgent) && !window.MSStream;
@@ -80,28 +81,24 @@ export function resumeOnboarding() {
 
 async function runFrom(startIndex) {
   active = true;
-  const ctx = { openMapsAfter: false };
   try {
     for (let i = startIndex; i < STEPS.length; i++) {
       const step = STEPS[i];
       localStorage.setItem(STEP_KEY, step);
-      await STEP_HANDLERS[step](ctx);
+      await STEP_HANDLERS[step]();
     }
   } finally {
     active = false;
   }
-  await finish(ctx);
+  await finish();
 }
 
-async function finish(ctx) {
+async function finish() {
   localStorage.setItem(COMPLETE_KEY, ONBOARDING_VERSION);
   localStorage.removeItem(STEP_KEY);
   container().style.display = 'none';
   container().innerHTML = '';
   await initApp();
-  if (ctx.openMapsAfter) {
-    try { openManageSpotMapsModal(); } catch (_) {}
-  }
 }
 
 // ---- shared layout helpers ----
@@ -121,7 +118,7 @@ function renderSheet({ eyebrow, title, body, footer }) {
 
 // ---- feature icons (inline SVG, themed via currentColor) ----
 const ICON = {
-  autobook: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10 2c0 3.5 1.5 5 5 5-3.5 0-5 1.5-5 5 0-3.5-1.5-5-5-5 3.5 0 5-1.5 5-5z"/><path d="M18 7c0 2 1 3 3 3-2 0-3 1-3 3 0-2-1-3-3-3 2 0 3-1 3-3z"/><path d="M6 14c0 1.5.5 2 2 2-1.5 0-2 .5-2 2 0-1.5-.5-2-2-2 1.5 0 2-.5 2-2z"/></svg>',
+  autobook: '<svg viewBox="0 0 32 32" fill="currentColor"><g data-name="Layer 2" id="Layer_2"><path d="M18,11a1,1,0,0,1-1,1,5,5,0,0,0-5,5,1,1,0,0,1-2,0,5,5,0,0,0-5-5,1,1,0,0,1,0-2,5,5,0,0,0,5-5,1,1,0,0,1,2,0,5,5,0,0,0,5,5A1,1,0,0,1,18,11Z"/><path d="M19,24a1,1,0,0,1-1,1,2,2,0,0,0-2,2,1,1,0,0,1-2,0,2,2,0,0,0-2-2,1,1,0,0,1,0-2,2,2,0,0,0,2-2,1,1,0,0,1,2,0,2,2,0,0,0,2,2A1,1,0,0,1,19,24Z"/><path d="M28,17a1,1,0,0,1-1,1,4,4,0,0,0-4,4,1,1,0,0,1-2,0,4,4,0,0,0-4-4,1,1,0,0,1,0-2,4,4,0,0,0,4-4,1,1,0,0,1,2,0,4,4,0,0,0,4,4A1,1,0,0,1,28,17Z"/></g></svg>',
   autoupgrade: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 19V5"/><path d="m6 11 6-6 6 6"/></svg>',
   quickbook: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M13 2 4 14h7l-1 8 9-12h-7z"/></svg>',
   offline: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 11a9 9 0 0 1 18 0M7 15a5 5 0 0 1 10 0"/><circle cx="12" cy="20" r="1" fill="currentColor"/></svg>',
@@ -130,28 +127,34 @@ const ICON = {
   calendarSync: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="18" rx="2"/><path d="M16 2v4M8 2v4M3 10h18"/><path d="M8 16.5A2.5 2.5 0 0 1 13 15"/><path d="M16 15.5A2.5 2.5 0 0 1 11 17"/><path d="M13 13.5v2h2"/><path d="M11 18.5v-2H9"/></svg>',
 };
 
-const SLIDES = [
-  { welcome: true, title: 'Unofficial client', text: 'Your personal Psycle companion — auto-booking, smart upgrades, and your favourite spots, taken care of.' },
-  { feat: 'autobook', icon: ICON.autobook, title: 'Auto-Book', text: 'No more Monday 12:00PM rush! Queue the classes you want and Psycle Assistant books them the instant they\'re released. You can even set your favourite spots in each studio.' },
-  { feat: 'autoupgrade', icon: ICON.autoupgrade, title: 'Auto-Upgrade', text: 'Didn\'t get your favourite spot? Psycle Assistant can monitor for a better one from your preferred spot map, and move you up automatically.' },
-  { feat: 'quickbook', icon: ICON.quickbook, title: 'Quick-Book', text: 'Once you\'ve set your favourite spots, booking happens in a single tap.' },
-  { feat: 'offline', icon: ICON.offline, title: 'Works Offline', text: 'Your timetable and bookings stay readable on the tube or anywhere signal drops.' },
-  { feat: 'push', icon: ICON.push, title: 'Stay Notified', text: 'Get a push when you\'re booked in, upgraded, or to remind you about an upcoming class.' },
-  { feat: 'calendar', icon: ICON.calendarSync, title: 'Calendar Sync', text: 'Automatically sync your classes to your calendar, so you never forget your birthday ride.' },
-];
+// Lazy getter — reads appConfig.appName at render time, not at module load,
+// so it picks up the runtime value from /api/config (initConfig runs before
+// onboarding starts).
+function getSlides() {
+  return [
+    { welcome: true, title: 'Unofficial client', text: 'Your personal Psycle companion — auto-booking, smart upgrades, and your favourite spots, taken care of.' },
+    { feat: 'autobook', icon: ICON.autobook, title: 'Auto-Book', text: `No more Monday 12:00PM rush! Queue the classes you want and ${appConfig.appName} books them the instant they're released. You can even set your favourite spots in each studio.` },
+    { feat: 'autoupgrade', icon: ICON.autoupgrade, title: 'Auto-Upgrade', text: `Didn't get your favourite spot? ${appConfig.appName} can monitor for a better one from your preferred spot map, and move you up automatically.` },
+    { feat: 'quickbook', icon: ICON.quickbook, title: 'Quick-Book', text: 'Once you\'ve set your favourite spots, booking happens in a single tap.' },
+    { feat: 'offline', icon: ICON.offline, title: 'Works Offline', text: 'Your timetable and bookings stay readable on the tube or anywhere signal drops.' },
+    { feat: 'push', icon: ICON.push, title: 'Stay Notified', text: 'Get a push when you\'re booked in, upgraded, or to remind you about an upcoming class.' },
+    { feat: 'calendar', icon: ICON.calendarSync, title: 'Calendar Sync', text: 'Automatically sync your classes to your calendar, so you never forget your birthday ride.' },
+  ];
+}
 
 // ---- STEP: intro carousel ----
 function stepIntro() {
   return new Promise((resolve) => {
+    const slides = getSlides();
     const c = show();
     c.innerHTML = `
       <div class="psycle-onb-sheet psycle-onb-intro" role="dialog" aria-modal="true">
         <button class="psycle-onb-skip" type="button" aria-label="Skip introduction">Skip</button>
         <div class="psycle-onb-carousel">
           <div class="psycle-onb-track">
-            ${SLIDES.map((s) => s.welcome ? `
+            ${slides.map((s) => s.welcome ? `
               <div class="psycle-onb-slide psycle-onb-slide-welcome">
-                <div class="psycle-onb-wordmark">Psycle Assistant</div>
+                <div class="psycle-onb-wordmark">${appConfig.appName}</div>
                 <h2 class="psycle-onb-title psycle-onb-welcome-title">${s.title}</h2>
                 <p class="psycle-onb-slide-text">${s.text}</p>
                 <p class="psycle-onb-secondary-note">This app needs to securely store your Psycle login to work in the background. You could alternatively use this <a href="https://github.com/piersjones/psycle-chrome">chrome extension</a> for similar functionality, but it requires the Psycle website to be open for automatic features to work.</p>
@@ -164,7 +167,7 @@ function stepIntro() {
           </div>
         </div>
         <div class="psycle-onb-dots">
-          ${SLIDES.map((_, i) => `<button class="psycle-onb-dot${i === 0 ? ' is-active' : ''}" type="button" aria-label="Go to slide ${i + 1}"></button>`).join('')}
+          ${slides.map((_, i) => `<button class="psycle-onb-dot${i === 0 ? ' is-active' : ''}" type="button" aria-label="Go to slide ${i + 1}"></button>`).join('')}
         </div>
         <div class="psycle-onb-footer">
           <button class="psycle-btn-primary psycle-onb-next" type="button"><span>Next</span></button>
@@ -178,14 +181,14 @@ function stepIntro() {
     let index = 0;
 
     const goto = (i) => {
-      index = Math.max(0, Math.min(SLIDES.length - 1, i));
+      index = Math.max(0, Math.min(slides.length - 1, i));
       track.style.transform = `translateX(-${index * 100}%)`;
       dots.forEach((d, di) => d.classList.toggle('is-active', di === index));
-      nextLabel.textContent = index === SLIDES.length - 1 ? 'Get started' : 'Next';
+      nextLabel.textContent = index === slides.length - 1 ? 'Get started' : 'Next';
     };
 
     nextBtn.addEventListener('click', () => {
-      if (index === SLIDES.length - 1) resolve();
+      if (index === slides.length - 1) resolve();
       else goto(index + 1);
     });
     dots.forEach((d, di) => d.addEventListener('click', () => goto(di)));
@@ -224,19 +227,19 @@ function stepInstall() {
     let primary;
     if (promptEvent) {
       // Android / desktop Chromium — native one-tap install
-      body = `<p class="psycle-onb-lead">Add Psycle Assistant to your device for the full experience.</p>${reasoning}`;
+      body = `<p class="psycle-onb-lead">Add ${appConfig.appName} to your device for the full experience.</p>${reasoning}`;
       primary = `<button class="psycle-btn-primary psycle-onb-install" type="button"><span>Install app</span></button>`;
     } else if (ios) {
-      body = `<p class="psycle-onb-lead">Add Psycle Assistant to your Home Screen for the full experience.</p>${reasoning}
+      body = `<p class="psycle-onb-lead">Add ${appConfig.appName} to your Home Screen for the full experience.</p>${reasoning}
         <ol class="psycle-onb-steps">
 <li>Tap the <strong>Share</strong> button <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="width: 1.1em; height: 1.1em; display: inline-block; vertical-align: middle; margin: 0 2px;"><path d="M4 12v7a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-7"/><polyline points="16 6 12 2 8 6"/><line x1="12" y1="2" x2="12" y2="15"/></svg> in Safari’s toolbar.</li>
           <li>Scroll down and tap <strong>Add to Home Screen</strong>.</li>
-          <li>Open Psycle Assistant from your new icon to continue.</li>
+          <li>Open ${appConfig.appName} from your new icon to continue.</li>
         </ol>`;
       primary = '';
     } else {
       // Android browser without beforeinstallprompt, or other
-      body = `<p class="psycle-onb-lead">Add Psycle Assistant to your device for the full experience.</p>${reasoning}
+      body = `<p class="psycle-onb-lead">Add ${appConfig.appName} to your device for the full experience.</p>${reasoning}
         <ol class="psycle-onb-steps">
           <li>Open your browser’s <strong>⋮ menu</strong>.</li>
           <li>Tap <strong>Install app</strong> or <strong>Add to Home screen</strong>.</li>
@@ -246,7 +249,7 @@ function stepInstall() {
 
     const sheet = renderSheet({
       eyebrow: 'Get the full experience',
-      title: 'Install Psycle Assistant',
+      title: `Install ${appConfig.appName}`,
       body,
       footer: `${primary}<button class="psycle-btn-mini psycle-onb-skip-inline" type="button">Continue in browser</button>`,
     });
@@ -293,7 +296,7 @@ function stepNotifications() {
       const sheet = renderSheet({
         eyebrow: 'Notifications',
         title: 'One more step on iPhone',
-        body: `<p class="psycle-onb-lead">To get push alerts on iOS, open Psycle Assistant from your Home Screen icon, then enable notifications from Settings.</p>`,
+        body: `<p class="psycle-onb-lead">To get push alerts on iOS, open ${appConfig.appName} from your Home Screen icon, then enable notifications from Settings.</p>`,
         footer: `<button class="psycle-btn-primary psycle-onb-continue" type="button"><span>Continue</span></button>`,
       });
       sheet.querySelector('.psycle-onb-continue').addEventListener('click', resolve);
@@ -304,7 +307,7 @@ function stepNotifications() {
       eyebrow: 'Notifications',
       title: 'Never miss a booking',
       body: `<div class="psycle-onb-icon" style="color: var(--accent);">${ICON.push}</div>
-        <p class="psycle-onb-lead">Get a push the moment an auto-book lands, an upgrade succeeds, or a free-cancel window opens. You can fine-tune which alerts you get later in Settings.</p>`,
+        <p class="psycle-onb-lead">Get a push the moment a class is <b>Auto-Booked</b>, your booking is successfully <b>Auto-Upgraded</b>, or when booking is about to open. You can fine-tune which alerts you get later in Settings.</p>`,
       footer: `<button class="psycle-btn-primary psycle-onb-enable" type="button"><span>Enable notifications</span></button>
         <button class="psycle-btn-mini psycle-onb-skip-inline" type="button">Maybe later</button>`,
     });
@@ -392,27 +395,25 @@ async function stepCalendar() {
   });
 }
 
-// ---- STEP: spot-map nudge ----
-async function stepSpotMaps(ctx) {
+// ---- STEP: spot-map setup ----
+async function stepSpotMaps() {
   let prefs = {};
   try { prefs = await api.getStudioPreferences(); } catch (_) { prefs = {}; }
   if (prefs && Object.keys(prefs).length > 0) return; // already has maps — skip
 
   return new Promise((resolve) => {
     const sheet = renderSheet({
-      eyebrow: 'Almost there',
-      title: 'Set your preferred spots',
+      eyebrow: 'Your favourite spots',
+      title: 'Set up your preferred spots and bikes',
       body: `<div class="psycle-onb-icon" style="color: var(--feat-quickbook, var(--accent));">${ICON.quickbook}</div>
-        <p class="psycle-onb-lead">Pick your favourite seats for each studio once, and Quick-Book, Auto-Book and Auto-Upgrade will all aim for them automatically. You can always do this later in Settings.</p>`,
-      footer: `<button class="psycle-btn-primary psycle-onb-setup" type="button"><span>Set up my spots</span></button>
-        <button class="psycle-btn-mini psycle-onb-skip-inline" type="button">Set up later</button>`,
+        <p class="psycle-onb-lead">Set up your preferred spots in each studio so <b>Auto-Book</b>, <b>Quick-Book</b> and <b>Auto-Upgrade</b> can do the hard work for you. You can change your spots any time in Settings.</p>`,
+      footer: `<button class="psycle-btn-primary psycle-onb-setup" type="button"><span>Set up now</span></button>
+        <button class="psycle-btn-mini psycle-onb-skip-inline" type="button">Maybe later</button>`,
     });
 
     sheet.querySelector('.psycle-onb-skip-inline').addEventListener('click', resolve);
     sheet.querySelector('.psycle-onb-setup').addEventListener('click', () => {
-      // Finish onboarding into the app, then open the spot-maps manager on top.
-      ctx.openMapsAfter = true;
-      resolve();
+      openManageSpotMapsModal({ zIndex: 1000000, onDone: resolve });
     });
   });
 }

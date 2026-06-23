@@ -2718,6 +2718,13 @@ html, body {
   transform: rotate(45deg);
 }
 
+#psycle-helper-container .psycle-ms-checkbox:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+  border-color: var(--border);
+  background: var(--surface-inset);
+}
+
 /* Animation for graceful entrance of Studio multi-select */
 @keyframes fadeInMs {
   from {
@@ -2763,6 +2770,18 @@ html, body {
 
 #psycle-helper-container .psycle-table tr:hover {
   background: color-mix(in srgb, var(--text) 4%, transparent) !important;
+}
+
+#psycle-helper-container #psycle-timetable-rows {
+  background: var(--surface) !important;
+}
+
+#psycle-helper-container #psycle-timetable-rows tr {
+  background: var(--surface) !important;
+}
+
+#psycle-helper-container #psycle-timetable-rows tr:hover {
+  background: color-mix(in srgb, var(--text) 4%, var(--surface)) !important;
 }
 
 #psycle-helper-container .psycle-table th {
@@ -5558,15 +5577,15 @@ html, body {
   letter-spacing: 0.03em;
   white-space: nowrap;
   color: var(--disc-other);
-  background: color-mix(in srgb, var(--disc-other) 14%, transparent);
+  background: transparent !important;
   border: 1px solid color-mix(in srgb, var(--disc-other) 24%, transparent);
 }
-.ab-disc-tag[data-disc="ride"]     { color: var(--disc-ride);     background: color-mix(in srgb, var(--disc-ride) 14%, transparent);     border-color: color-mix(in srgb, var(--disc-ride) 24%, transparent); }
-.ab-disc-tag[data-disc="barre"]    { color: var(--disc-barre);    background: color-mix(in srgb, var(--disc-barre) 14%, transparent);    border-color: color-mix(in srgb, var(--disc-barre) 24%, transparent); }
-.ab-disc-tag[data-disc="strength"] { color: var(--disc-strength); background: color-mix(in srgb, var(--disc-strength) 14%, transparent); border-color: color-mix(in srgb, var(--disc-strength) 24%, transparent); }
-.ab-disc-tag[data-disc="infrared"] { color: var(--disc-infrared); background: color-mix(in srgb, var(--disc-infrared) 14%, transparent); border-color: color-mix(in srgb, var(--disc-infrared) 24%, transparent); }
-.ab-disc-tag[data-disc="reformer"] { color: var(--disc-reformer); background: color-mix(in srgb, var(--disc-reformer) 14%, transparent); border-color: color-mix(in srgb, var(--disc-reformer) 24%, transparent); }
-.ab-disc-tag[data-disc="yoga"]     { color: var(--disc-yoga);     background: color-mix(in srgb, var(--disc-yoga) 14%, transparent);     border-color: color-mix(in srgb, var(--disc-yoga) 24%, transparent); }
+.ab-disc-tag[data-disc="ride"]     { color: var(--disc-ride);     background: transparent !important; border-color: color-mix(in srgb, var(--disc-ride) 24%, transparent); }
+.ab-disc-tag[data-disc="barre"]    { color: var(--disc-barre);    background: transparent !important; border-color: color-mix(in srgb, var(--disc-barre) 24%, transparent); }
+.ab-disc-tag[data-disc="strength"] { color: var(--disc-strength); background: transparent !important; border-color: color-mix(in srgb, var(--disc-strength) 24%, transparent); }
+.ab-disc-tag[data-disc="infrared"] { color: var(--disc-infrared); background: transparent !important; border-color: color-mix(in srgb, var(--disc-infrared) 24%, transparent); }
+.ab-disc-tag[data-disc="reformer"] { color: var(--disc-reformer); background: transparent !important; border-color: color-mix(in srgb, var(--disc-reformer) 24%, transparent); }
+.ab-disc-tag[data-disc="yoga"]     { color: var(--disc-yoga);     background: transparent !important; border-color: color-mix(in srgb, var(--disc-yoga) 24%, transparent); }
 
 .ab-card-meta {
   display: flex;
@@ -5668,6 +5687,53 @@ html, body {
 /* footer auto-upgrade control reuses the upgrade status chip look */
 .bk-upgrade-btn { cursor: pointer; font-family: var(--font-sans); }
 .bk-upgrade-btn:hover { filter: brightness(1.08); }
+
+#psycle-helper-container .ab-spot-upgrade-chip {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+  padding: 3px 10px;
+  border-radius: 999px;
+  font-size: var(--text-xs);
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+  white-space: nowrap;
+  color: var(--auto);
+  background: color-mix(in srgb, var(--auto) 11%, transparent);
+  border: 1px solid transparent;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  font-family: inherit;
+}
+
+#psycle-helper-container .ab-spot-upgrade-chip:hover {
+  background: color-mix(in srgb, var(--auto) 20%, transparent);
+  border-color: color-mix(in srgb, var(--auto) 30%, transparent);
+}
+
+#psycle-helper-container .ab-spot-upgrade-chip.state-active {
+  color: var(--success);
+  background: color-mix(in srgb, var(--success) 13%, transparent);
+  border-color: color-mix(in srgb, var(--success) 20%, transparent);
+}
+
+#psycle-helper-container .ab-spot-upgrade-chip.state-active:hover {
+  background: color-mix(in srgb, var(--success) 22%, transparent);
+  border-color: color-mix(in srgb, var(--success) 40%, transparent);
+}
+
+#psycle-helper-container .ab-spot-upgrade-chip.state-warning {
+  color: var(--warning);
+  background: color-mix(in srgb, var(--warning) 13%, transparent);
+  border-color: color-mix(in srgb, var(--warning) 20%, transparent);
+}
+
+#psycle-helper-container .ab-spot-upgrade-chip.state-warning:hover {
+  background: color-mix(in srgb, var(--warning) 22%, transparent);
+  border-color: color-mix(in srgb, var(--warning) 40%, transparent);
+}
 
 /* ── History (collapsible card with rich rows) ─────────────────── */
 /* History collapsible wrapper */

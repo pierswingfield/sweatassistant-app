@@ -16,7 +16,7 @@ const { DateTime } = require('luxon');
 const db = require('./db');
 const poller = require('./poller');
 
-const APP_HOST = process.env.PUBLIC_HOST || 'psycle.wingfield.tech';
+const { appName, publicHost: APP_HOST } = require('./config');
 const PAST_CLASS_CAP = 100;            // rolling history kept per user
 const LOCATIONS_TTL_MS = 7 * 24 * 60 * 60 * 1000;
 const DEFAULT_DURATION_MIN = 45;
@@ -338,7 +338,7 @@ function buildDescription(row) {
   lines.push(`Studio: ${[row.studio_name, row.location_name].filter(Boolean).join(', ')}`);
   if (start.isValid) lines.push(`Starts: ${start.toFormat('ccc d LLL, HH:mm')} (${dur} min)`);
   lines.push('');                       // blank line before footer block
-  lines.push(`Psycle Assistant · https://${APP_HOST}`);
+  lines.push(`${appName} · https://${APP_HOST}`);
   lines.push('Managed automatically — edits here won\'t sync back.');
   return lines.join('\n');
 }
@@ -386,10 +386,10 @@ function serializeCalendar(userId, rows, addrMap, alarm) {
   const out = [
     'BEGIN:VCALENDAR',
     'VERSION:2.0',
-    'PRODID:-//Psycle Assistant//Calendar Feed//EN',
+    `PRODID:-//${appName}//Calendar Feed//EN`,
     'CALSCALE:GREGORIAN',
     'METHOD:PUBLISH',
-    'X-WR-CALNAME:Psycle Assistant',
+    `X-WR-CALNAME:${appName}`,
     'X-WR-TIMEZONE:Europe/London',
     'X-PUBLISHED-TTL:PT3H',
     'REFRESH-INTERVAL;VALUE=DURATION:PT3H',

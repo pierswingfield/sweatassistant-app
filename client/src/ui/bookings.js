@@ -1,8 +1,9 @@
 import { api } from '../api';
-import { showToast, cache, refreshUserData, updateCreditBadge } from '../main';
+import { showToast, cache, refreshUserData, updateCreditBadge, userSettings } from '../main';
 import { renderStudioFloorPlan } from './spotmap';
-import { icon, disciplineTag, trimLocation, seatNoun, stripClassNamePrefix } from './cards';
+import { icon, disciplineTag, trimLocation, seatNoun, stripClassNamePrefix, trendingUpIcon } from './cards';
 import { isInGracePeriod, GRACE_PERIOD_MS, startGraceCountdown } from '../lib';
+import { invalidateApiCache } from '../cache';
 
 // Class starts within the free-cancel cutoff (12h). Edit is hidden inside this
 // window; Cancel stays available but warns about the penalty.
@@ -219,36 +220,43 @@ function buildBookingCard(group, upgrades) {
   const instructorName = event.instructor?.full_name || 'TBA';
   const locationLine = [event.studio?.name, trimLocation(event.studio?.location?.name)].filter(Boolean).join(', ');
 
-  const slotInfos = group.bookings.map(b => ({
-    bookingId: b.id,
-    slotId: Number(b.studio_slot?.id ?? b.studio_slot_id ?? b.slot_id ?? b.slot),
-    label: b.studio_slot?.label ?? b.slot ?? b.studio_slot_id ?? b.slot_id ?? '?'
-  }));
-  const isSingle = slotInfos.length === 1;
-  const spotsLabel = isSingle ? `Spot ${slotInfos[0].label}` : `Spots ${slotInfos.map(s => s.label).join(', ')}`;
-
   const within12h = isWithin12Hours(event.start_at);
 
-  // Auto-upgrade control lives in the footer — single-spot cards only, since an
-  // upgrade monitor targets one specific seat.
-  let upgradeHtml = '';
-  let activeUpgrade = null;
-  if (isSingle) {
-    const b = group.bookings[0];
-    activeUpgrade = upgrades.find(u =>
-      (u.booking_id === b.id || u.event_id === group.eventId) &&
+  const chipsHtml = group.bookings.map(b => {
+    const slotId = Number(b.studio_slot?.id ?? b.studio_slot_id ?? b.slot_id ?? b.slot);
+    const slotLabel = b.studio_slot?.label ?? b.slot ?? b.studio_slot_id ?? b.slot_id ?? '?';
+    
+    // Find active upgrade for this specific booking
+    const activeUpgrade = upgrades.find(u =>
+      Number(u.booking_id) === Number(b.id) &&
       ['active', 'paused_no_credits'].includes(u.status)
     );
+    
+    let chipClass = 'ab-spot-upgrade-chip';
+    let iconHtml = '';
+    
     if (activeUpgrade) {
       if (activeUpgrade.status === 'paused_no_credits' || totalAvailableCredits() < 1) {
-        upgradeHtml = `<button class="bk-upgrade-btn psycle-upgrade-status-chip state-warning">⚠ Upgrade: No Credits</button>`;
+        chipClass += ' state-warning';
+        iconHtml = '<span style="margin-right:4px;">⚠</span>';
       } else {
-        upgradeHtml = `<button class="bk-upgrade-btn psycle-upgrade-status-chip state-active">Auto-Upgrade On ↗</button>`;
+        chipClass += ' state-active';
+        iconHtml = trendingUpIcon(12, 'currentColor', 2) + '&nbsp;';
       }
-    } else {
-      upgradeHtml = `<button class="bk-upgrade-btn psycle-upgrade-status-chip state-stopped">Auto-Upgrade Off</button>`;
     }
-  }
+    
+    const noun = seatNoun(groupName);
+    const nounCap = noun.charAt(0).toUpperCase() + noun.slice(1);
+    
+    return `<button class="${chipClass}" 
+                    data-booking-id="${b.id}" 
+                    data-slot-id="${slotId}" 
+                    data-slot-label="${slotLabel}"
+                    data-upgrade-id="${activeUpgrade?.id || ''}"
+                    title="${activeUpgrade ? 'Configure/disable auto-upgrade' : 'Configure/enable auto-upgrade'}">
+              ${iconHtml}${nounCap} ${slotLabel}
+            </button>`;
+  }).join('');
 
   const editBtnHtml = within12h ? '' :
     `<button class="ab-rail-btn bk-edit-btn" aria-label="Edit spots">${icon('edit', 17)}<span>Edit</span></button>`;
@@ -271,9 +279,8 @@ function buildBookingCard(group, upgrades) {
         <span class="ab-card-instructor">${instructorName}</span>
         ${locationLine ? `<span class="ab-card-location">${locationLine}</span>` : ''}
       </div>
-      <div class="ab-card-footer">
-        <span class="ab-spots-pill">${spotsLabel}</span>
-        ${upgradeHtml}
+      <div class="ab-card-footer" style="display:flex;flex-wrap:wrap;gap:6px;align-items:center;justify-content:flex-start;">
+        ${chipsHtml}
       </div>
     </div>
     <div class="ab-card-rail">
@@ -286,25 +293,33 @@ function buildBookingCard(group, upgrades) {
   const editBtn = card.querySelector('.bk-edit-btn');
   if (editBtn) editBtn.addEventListener('click', () => openEditBookingModal(group));
 
-  // Auto-upgrade (single-spot cards)
-  const upBtn = card.querySelector('.bk-upgrade-btn');
-  if (upBtn && isSingle) {
-    const b = group.bookings[0];
-    upBtn.addEventListener('click', () => handleUpgradeClick({
-      eventId: group.eventId,
-      bookingId: b.id,
-      currentSlotId: slotInfos[0].slotId,
-      studioId: event.studio_id || event.studio?.id || null,
-      className,
-      groupName: event.event_type?.group?.name || '',
-      instructorName: event.instructor?.full_name || '',
-      studioName: event.studio?.name || 'Studio',
-      locationName: event.studio?.location?.name || 'Location',
-      startAt: event.start_at,
-      existingUpgradeId: activeUpgrade?.id || null,
-      existingPrefs: activeUpgrade?.preferences || null
-    }));
-  }
+  // Auto-upgrade click listeners for each spot chip
+  card.querySelectorAll('.ab-spot-upgrade-chip').forEach(btn => {
+    btn.addEventListener('click', () => {
+      const bid = Number(btn.getAttribute('data-booking-id'));
+      const slotId = Number(btn.getAttribute('data-slot-id'));
+      const slotLabel = btn.getAttribute('data-slot-label');
+      const upgradeId = btn.getAttribute('data-upgrade-id') ? Number(btn.getAttribute('data-upgrade-id')) : null;
+      
+      const matchingUpgrade = upgrades.find(u => Number(u.id) === upgradeId);
+      const existingPrefs = matchingUpgrade?.preferences || null;
+
+      handleUpgradeClick({
+        eventId: group.eventId,
+        bookingId: bid,
+        currentSlotId: slotId,
+        studioId: event.studio_id || event.studio?.id || null,
+        className,
+        groupName: event.event_type?.group?.name || '',
+        instructorName: event.instructor?.full_name || '',
+        studioName: event.studio?.name || 'Studio',
+        locationName: event.studio?.location?.name || 'Location',
+        startAt: event.start_at,
+        existingUpgradeId: upgradeId,
+        existingPrefs
+      });
+    });
+  });
 
   // Cancel (two-tap confirm) — cancels every spot booked for the class.
   const cancelBtn = card.querySelector('.bk-cancel-btn');
@@ -338,6 +353,8 @@ function wireCancelBooking(btn, card, group, within12h) {
         const up = (cache.upgrades || []).find(u => String(u.booking_id) === String(b.id) && ['active', 'paused_no_credits'].includes(u.status));
         if (up) { try { await api.deleteAutoUpgrade(up.id); } catch (_) {} }
       }
+      await invalidateApiCache('/api/proxy/bookings');
+      await invalidateApiCache('/api/proxy/waitlists');
       showToast('Booking cancelled.', 'success');
       await refreshUserData(true);
       renderBookings();
@@ -568,6 +585,8 @@ export async function openEditBookingModal(group, onChange = renderBookings) {
             startAt: event.start_at, slots: toAdd.map(labelFor),
           }).catch(() => {});
         }
+        await invalidateApiCache('/api/proxy/bookings');
+        await invalidateApiCache('/api/proxy/waitlists');
         showToast(`${nounCap}s updated.`, 'success');
         closeModal();
         await refreshUserData(true);
@@ -802,7 +821,7 @@ export async function openUpgradeConfigModal({ eventId, bookingId, currentSlotId
     // directly. Seed from the shared map (or the existing monitor as a fallback).
     const seedSlots = (studioPrefs?.preferredSlots || existingPrefs?.preferredSlots || []).map(Number);
     const seedRows = studioPrefs?.preferredRows || [];
-    const seedKeepOriginal = existingPrefs?.keepOriginalOnCutoff ?? true;
+    const seedKeepOriginal = existingPrefs?.keepOriginalOnCutoff ?? (userSettings.autoUpgradeKeepOriginalByDefault ?? false);
 
     const currentSlotLabel = layoutSlots.find(s => Number(s.id) === currentSlotId)?.label || String(currentSlotId);
 
@@ -824,7 +843,7 @@ export async function openUpgradeConfigModal({ eventId, bookingId, currentSlotId
 
     const extraControlsHtml = `
       <label style="display:flex;align-items:flex-start;gap:10px;font-size:13px;cursor:pointer;line-height:1.4;background:var(--surface-inset);border:1px solid var(--border);border-radius:10px;padding:12px;">
-        <input type="checkbox" id="upgrade-keep-original" ${seedKeepOriginal ? 'checked' : ''} style="margin-top:2px;accent-color:var(--feat-autoupgrade);">
+        <input type="checkbox" class="psycle-ms-checkbox" id="upgrade-keep-original" ${seedKeepOriginal ? 'checked' : ''} style="margin-top:2px;">
         <span>
           <strong>Continue past 12h cutoff</strong><br>
           <span style="font-size:12px;color:var(--text-tertiary);">Within 12h of class, make one final upgrade attempt without cancelling your original seat — you'll need to ask Psycle to release it. Without this, monitoring stops at 12h.</span>
@@ -882,7 +901,9 @@ export async function openUpgradeConfigModal({ eventId, bookingId, currentSlotId
       bannerHtml,
       extraControlsHtml,
       onDisable,
-      disableLabel: 'Disable Auto-Upgrade'
+      disableLabel: 'Disable Auto-Upgrade',
+      availableSlots: (res.slots || eventDetails.slots || []).map(Number),
+      currentSlotId
     });
 
   } catch (err) {
@@ -890,3 +911,18 @@ export async function openUpgradeConfigModal({ eventId, bookingId, currentSlotId
     body.innerHTML = `<div class="psycle-card-error">Error loading seat layout: ${err.message}</div>`;
   }
 }
+
+// Re-render bookings when background SWR fetch updates IndexedDB cache.
+window.addEventListener('psycle-data-refreshed', (e) => {
+  const { endpoint } = e.detail;
+  if (
+    endpoint.startsWith('/api/proxy/bookings') || 
+    endpoint.startsWith('/api/proxy/waitlists') || 
+    endpoint.startsWith('/api/auto-upgrade')
+  ) {
+    const bookingsPanel = document.getElementById('psycle-panel-my-bookings');
+    if (bookingsPanel && bookingsPanel.style.display !== 'none') {
+      renderBookings().catch(() => {});
+    }
+  }
+});

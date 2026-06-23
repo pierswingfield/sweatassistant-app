@@ -6,8 +6,9 @@ import { DateTime } from 'luxon';
 import { renderMinimap } from './tooltips.js';
 // === END MOBILE TIMETABLE BLOCK ===
 import { openDB } from '../cache.js';
-import { disciplineTag, seatNoun } from './cards';
+import { disciplineTag, seatNoun, sparklesIcon, trendingUpIcon } from './cards';
 import { openEditBookingModal } from './bookings';
+import { openStudioFloorPlanEditor } from './settings';
 
 async function cacheSet(key, value) {
   try {
@@ -1287,10 +1288,9 @@ async function doLeaveWaitlist(waitlistId, btn) {
 }
 
 // Unicode (non-emoji) glyph that prefixes certain action labels.
-//   Quick Book → lightning bolt (text-presentation)   Auto Book → ✦
 function actionGlyph(label) {
   if (label === 'Quick-Book' || label === 'Quick Book') return '⚡︎';
-  if (label === 'Auto-Book' || label === 'Auto Book' || label === 'Scheduled') return '✦';
+  if (label === 'Auto-Book' || label === 'Auto Book' || label === 'Scheduled') return sparklesIcon(12, 'currentColor');
   return '';
 }
 
@@ -1718,6 +1718,7 @@ async function quickBookClass(eventId, prefs, btn) {
   const preferredRows = prefs.preferredRows || [];
   const requiredCount = prefs.requiredCount || 1;
   const bookAny = prefs.bookAny !== false;
+  const autoUpgrade = prefs.autoUpgrade !== false;
 
   try {
     const res = await api.proxyGet(`/events/${eventId}`, { ttlMs: 120000 });
@@ -1812,7 +1813,7 @@ async function quickBookClass(eventId, prefs, btn) {
         instructorName: qbInstructor?.full_name || qbInstructor?.name || '',
         startAt: eventData.start_at, slots: bookedSlotLabels,
       }).catch(() => {});
-      if (lastBookedSlot !== null) await tryAutoRegisterUpgrade(eventData, lastBookedSlot, lastBookingRes);
+      if (lastBookedSlot !== null) await tryAutoRegisterUpgrade(eventData, lastBookedSlot, lastBookingRes, autoUpgrade);
       await refreshUserData(true);
       await refreshBookingState();
       setTimeout(() => {
@@ -1918,7 +1919,7 @@ async function openBookingModal(c, mode) {
         <div style="padding: 24px; text-align: center; color: var(--text-secondary);">
           <p style="margin-bottom: 16px;">No floor map layout available for this studio.</p>
           ${isAutoBookMode
-            ? `<button class="psycle-btn" id="btn-save-simple-autobook" style="background: var(--feat-autoupgrade); color:var(--on-accent);">Schedule Auto-Book (Any Seat)</button>`
+            ? `<button class="psycle-btn" id="btn-save-simple-autobook" style="background: var(--feat-autoupgrade); color:var(--on-accent); display:flex; align-items:center; justify-content:center; gap:6px;">${sparklesIcon(14, 'currentColor')} Schedule Auto-Book (Any Seat)</button>`
             : `<button class="psycle-btn" id="btn-book-any" style="background: var(--success); color:var(--on-accent);">Book Any Available ${nounCap}</button>`
           }
         </div>
@@ -1988,17 +1989,17 @@ async function openBookingModal(c, mode) {
 
     // Pre-populate from saved studio prefs (auto-book and quick-book modes)
     let hasExistingPrefs = false;
-    if (isAutoBookMode || isQuickBookMode) {
-      try {
-        const studioPrefs = await api.getStudioPreferences();
-        const prefs = studioPrefs[c.studio_id] || {};
+    try {
+      const studioPrefs = await api.getStudioPreferences();
+      const prefs = studioPrefs[c.studio_id] || {};
+      hasExistingPrefs = (prefs.preferredSlots?.length > 0) || (prefs.preferredRows?.length > 0);
+      if (isAutoBookMode || isQuickBookMode) {
         (prefs.preferredSlots || []).forEach(s => state.selectedSlots.push(Number(s)));
         (prefs.preferredRows || []).forEach(r => state.selectedRows.add(Number(r)));
         state.qty = prefs.requiredCount || 1;
         state.bookAny = prefs.bookAny !== false;
-        hasExistingPrefs = (prefs.preferredSlots?.length > 0) || (prefs.preferredRows?.length > 0);
-      } catch (e) {}
-    }
+      }
+    } catch (e) {}
 
     // Quick-Book shows the saved map read-only until the user explicitly unlocks it.
     // First-time setup (no saved prefs) starts editable since there's nothing to lock.
@@ -2263,7 +2264,7 @@ async function openBookingModal(c, mode) {
           <div style="display:flex;flex-direction:column;gap:12px;background:var(--surface-inset);padding:14px;border-radius:12px;border:1px solid var(--border);">
             ${unmappedSlots.length > 0 ? `<div id="psycle-unmapped-warning" style="font-size:12px;color:var(--warning);background:color-mix(in srgb,var(--warning) 8%,transparent);border:1px solid color-mix(in srgb,var(--warning) 20%,transparent);border-radius:6px;padding:6px 10px;"></div>` : ''}
             ${creditWarning ? `<div style="font-size:12px;color:var(--danger);background:color-mix(in srgb,var(--danger) 10%,transparent);border:1px solid color-mix(in srgb,var(--danger) 20%,transparent);border-radius:8px;padding:10px;line-height:1.5;">${creditWarning}</div>` : ''}
-            <div style="display:flex;gap:14px;align-items:center;border-top:1px solid var(--separator);padding-top:12px;">
+            <div style="display:flex;gap:14px;align-items:center;">
               <div style="width:110px;">
                 <label style="display:block;font-size:12px;color:var(--text-secondary);margin-bottom:4px;">Slots to book:</label>
                 <select id="autobook-qty" class="psycle-select" style="width:100%;padding:6px 8px;font-size:13px;">
@@ -2272,12 +2273,27 @@ async function openBookingModal(c, mode) {
               </div>
               <div style="flex:1;padding-top:14px;">
                 <label style="display:flex;align-items:center;gap:8px;font-size:13px;cursor:pointer;color:var(--text-secondary);user-select:none;">
-                  <input type="checkbox" id="autobook-fallback-any" ${state.bookAny ? 'checked' : ''}>
+                  <input type="checkbox" class="psycle-ms-checkbox" id="autobook-fallback-any" ${state.bookAny ? 'checked' : ''}>
                   <span>Book any slot if preferred is unavailable</span>
                 </label>
               </div>
             </div>
-            <button class="psycle-btn" id="btn-save-autobook" style="width:100%;background:var(--feat-autoupgrade);color:var(--on-accent);">${mapChanged() ? 'Save map and ' : ''}Schedule Auto-Book</button>
+            ${(() => {
+              const hasLayout = layoutSlots.length > 0;
+              const hasPrefs = state.selectedSlots.length > 0 || state.selectedRows.size > 0;
+              if (!hasLayout) return '';
+              if (!hasPrefs) return `
+                <label style="display:flex;align-items:center;gap:8px;font-size:13px;color:var(--text-tertiary);user-select:none;cursor:not-allowed;">
+                  <input type="checkbox" class="psycle-ms-checkbox" id="autobook-auto-upgrade" disabled>
+                  <span style="display:flex;align-items:center;gap:4px;">${trendingUpIcon(12, 'currentColor', 2)} Auto-Upgrade: Please configure your preferred spots for this studio first.</span>
+                </label>`;
+              return `
+                <label style="display:flex;align-items:center;gap:8px;font-size:13px;cursor:pointer;color:var(--text-secondary);user-select:none;">
+                  <input type="checkbox" class="psycle-ms-checkbox" id="autobook-auto-upgrade" ${userSettings.autoUpgradeByDefault ? 'checked' : ''}>
+                  <span style="display:flex;align-items:center;gap:4px;">${trendingUpIcon(12, 'currentColor', 2)} Auto-Upgrade: Keep searching for a better spot for me</span>
+                </label>`;
+            })()}
+            <button class="psycle-btn" id="btn-save-autobook" style="width:100%;background:var(--feat-autoupgrade);color:var(--on-accent);display:flex;align-items:center;justify-content:center;gap:6px;">${sparklesIcon(14, 'currentColor')} ${mapChanged() ? 'Save map and ' : ''}Schedule Auto-Book</button>
             <div style="font-size:12px;text-align:center;color:${isLive ? 'var(--success)' : 'var(--text-tertiary)'};">
               ${isLive ? '✓ Booking window is open' : `Booking opens: <span style="color:var(--text-secondary);">${releaseStr}</span>`}
             </div>
@@ -2293,9 +2309,10 @@ async function openBookingModal(c, mode) {
         controls.querySelector('#btn-save-autobook').onclick = () => {
           const qty = parseInt(controls.querySelector('#autobook-qty').value) || 1;
           const fallbackAny = controls.querySelector('#autobook-fallback-any').checked;
+          const autoUpgrade = controls.querySelector('#autobook-auto-upgrade')?.checked ?? false;
           const preferredSlots = [...state.selectedSlots];
           const preferredRows = [...state.selectedRows];
-          saveAutoBookPreferences(c, preferredSlots, preferredRows, qty, fallbackAny, closeModal, isLive);
+          saveAutoBookPreferences(c, preferredSlots, preferredRows, qty, fallbackAny, closeModal, isLive, autoUpgrade);
         };
 
       };
@@ -2318,11 +2335,41 @@ async function openBookingModal(c, mode) {
           <div style="display:flex;flex-direction:column;gap:12px;background:var(--surface-inset);padding:14px;border-radius:12px;border:1px solid var(--border);">
             <div style="font-size:12px;color:var(--text-secondary);font-style:italic;">Select the ${seatNoun(groupName)}(s) you want to book for this class. You have <strong>${isDataLoaded ? availableCredits : '?'}</strong> credit${availableCredits !== 1 ? 's' : ''} available.</div>
             ${creditWarning ? `<div style="font-size:12px;color:var(--danger);background:color-mix(in srgb,var(--danger) 10%,transparent);border:1px solid color-mix(in srgb,var(--danger) 20%,transparent);border-radius:8px;padding:10px;line-height:1.5;">${creditWarning}</div>` : ''}
+            ${(() => {
+              const hasLayout = layoutSlots.length > 0;
+              const hasPrefs = hasExistingPrefs;
+              if (!hasLayout) return '';
+              if (!hasPrefs) return `
+                <label style="display:flex;align-items:center;gap:8px;font-size:13px;color:var(--text-tertiary);user-select:none;cursor:not-allowed;font-weight:500;">
+                  <input type="checkbox" class="psycle-ms-checkbox" id="simplebook-auto-upgrade" disabled>
+                  <span style="display:flex;align-items:center;gap:4px;flex-wrap:wrap;">${trendingUpIcon(12, 'currentColor', 2)} Auto-Upgrade: Please <a href="#" id="simplebook-configure-link" style="color:var(--feat-autoupgrade);text-decoration:underline;cursor:pointer;">configure your preferred spots</a> for <strong>${studioName}</strong> first.</span>
+                </label>`;
+              return `
+                <label style="display:flex;align-items:center;gap:8px;font-size:13px;cursor:pointer;color:var(--text-secondary);user-select:none;font-weight:500;">
+                  <input type="checkbox" class="psycle-ms-checkbox" id="simplebook-auto-upgrade" ${userSettings.autoUpgradeByDefault ? 'checked' : ''}>
+                  <span style="display:flex;align-items:center;gap:4px;">${trendingUpIcon(12, 'currentColor', 2)} Auto-Upgrade: Keep searching for a better spot for me</span>
+                </label>`;
+            })()}
             <div style="display:flex;gap:8px;">
               <button class="psycle-btn" id="btn-book-simple" style="flex:1;background:var(--success);color:var(--on-accent);" ${!isDataLoaded || !hasEnoughCredits ? 'disabled' : ''}>Book Selected ${nounCap}s</button>
             </div>
           </div>
         `;
+
+        const configLink = controls.querySelector('#simplebook-configure-link');
+        if (configLink) {
+          configLink.onclick = (e) => {
+            e.preventDefault();
+            // Close the booking modal synchronously to avoid transition race conditions
+            modal.classList.remove('show');
+            modal.style.display = 'none';
+            // Open the dedicated studio floor plan editor from settings
+            openStudioFloorPlanEditor(c.studio_id, studioName, () => {
+              // Re-open the simple booking modal when the preferences are saved
+              openBookingModal(c, 'book');
+            });
+          };
+        }
 
         controls.querySelector('#btn-book-simple').onclick = async () => {
           if (state.selectedSlots.length === 0) {
@@ -2364,8 +2411,9 @@ async function openBookingModal(c, mode) {
               source: 'manual', eventId: c.id, className: c.name || groupName, groupName,
               instructorName: instrName, startAt: c.start_at, slots: bookedLabels,
             }).catch(() => {});
+            const autoUpgrade = controls.querySelector('#simplebook-auto-upgrade')?.checked ?? false;
             closeModal();
-            if (state.selectedSlots.length === 1) await tryAutoRegisterUpgrade(c, state.selectedSlots[0], bookingRes);
+            if (state.selectedSlots.length === 1) await tryAutoRegisterUpgrade(c, state.selectedSlots[0], bookingRes, autoUpgrade);
             await refreshUserData(true);
             await refreshBookingState();
           } catch (err) {
@@ -2410,7 +2458,7 @@ async function openBookingModal(c, mode) {
         controls.innerHTML = `
           <div style="display:flex;flex-direction:column;gap:12px;background:var(--surface-inset);padding:14px;border-radius:12px;border:1px solid var(--border);">
             ${creditWarning ? `<div style="font-size:12px;color:var(--danger);background:color-mix(in srgb,var(--danger) 10%,transparent);border:1px solid color-mix(in srgb,var(--danger) 20%,transparent);border-radius:8px;padding:10px;line-height:1.5;">${creditWarning}</div>` : ''}
-            <div style="display:flex;gap:14px;align-items:center;border-top:1px solid var(--separator);padding-top:12px;">
+            <div style="display:flex;gap:14px;align-items:center;">
               <div style="width:110px;">
                 <label style="display:block;font-size:12px;color:var(--text-secondary);margin-bottom:4px;">Slots to book:</label>
                 <select id="quickbook-qty" class="psycle-select" style="width:100%;padding:6px 8px;font-size:13px;">
@@ -2419,11 +2467,26 @@ async function openBookingModal(c, mode) {
               </div>
               <div style="flex:1;padding-top:14px;">
                 <label style="display:flex;align-items:center;gap:8px;font-size:13px;cursor:pointer;color:var(--text-secondary);user-select:none;">
-                  <input type="checkbox" id="quickbook-fallback-any" ${state.bookAny ? 'checked' : ''}>
+                  <input type="checkbox" class="psycle-ms-checkbox" id="quickbook-fallback-any" ${state.bookAny ? 'checked' : ''}>
                   <span>Book any slot if preferred is unavailable</span>
                 </label>
               </div>
             </div>
+            ${(() => {
+              const hasLayout = layoutSlots.length > 0;
+              const hasPrefs = state.selectedSlots.length > 0 || state.selectedRows.size > 0;
+              if (!hasLayout) return '';
+              if (!hasPrefs) return `
+                <label style="display:flex;align-items:center;gap:8px;font-size:13px;color:var(--text-tertiary);user-select:none;cursor:not-allowed;">
+                  <input type="checkbox" class="psycle-ms-checkbox" id="quickbook-auto-upgrade" disabled>
+                  <span style="display:flex;align-items:center;gap:4px;">${trendingUpIcon(12, 'currentColor', 2)} Auto-Upgrade: Please configure your preferred spots for this studio first.</span>
+                </label>`;
+              return `
+                <label style="display:flex;align-items:center;gap:8px;font-size:13px;cursor:pointer;color:var(--text-secondary);user-select:none;">
+                  <input type="checkbox" class="psycle-ms-checkbox" id="quickbook-auto-upgrade" ${userSettings.autoUpgradeByDefault ? 'checked' : ''}>
+                  <span style="display:flex;align-items:center;gap:4px;">${trendingUpIcon(12, 'currentColor', 2)} Auto-Upgrade: Keep searching for a better spot for me</span>
+                </label>`;
+            })()}
             <button class="psycle-btn" id="btn-submit-quickbook" style="width:100%;background:var(--success);color:var(--on-accent);">${mapChanged() ? 'Save map and ' : ''}Quick-Book</button>
           </div>
         `;
@@ -2454,6 +2517,7 @@ async function openBookingModal(c, mode) {
           try {
             const qty = parseInt(controls.querySelector('#quickbook-qty').value) || 1;
             const fallbackAny = controls.querySelector('#quickbook-fallback-any').checked;
+            const autoUpgrade = controls.querySelector('#quickbook-auto-upgrade')?.checked ?? false;
             const slots = [...state.selectedSlots];
             const rows = [...state.selectedRows];
             if (mapChanged() && c.studio_id) {
@@ -2463,7 +2527,8 @@ async function openBookingModal(c, mode) {
               preferredSlots: slots,
               preferredRows: rows,
               requiredCount: qty,
-              bookAny: fallbackAny
+              bookAny: fallbackAny,
+              autoUpgrade
             }, null);
             closeModal();
           } catch (err) {
@@ -2493,10 +2558,11 @@ async function openBookingModal(c, mode) {
 }
 
 // Auto-register upgrade monitor after a successful booking if the setting is on
-async function tryAutoRegisterUpgrade(event, bookedSlotId, bookingRes) {
-  console.log('[AutoUpgrade] tryAutoRegisterUpgrade called', { autoUpgradeByDefault: userSettings.autoUpgradeByDefault, bookedSlotId, eventId: event?.id });
-  if (!userSettings.autoUpgradeByDefault) {
-    console.log('[AutoUpgrade] Skipping — autoUpgradeByDefault is off. userSettings:', JSON.stringify(userSettings));
+async function tryAutoRegisterUpgrade(event, bookedSlotId, bookingRes, enableOverride) {
+  const shouldRegister = enableOverride !== undefined ? enableOverride : userSettings.autoUpgradeByDefault;
+  console.log('[AutoUpgrade] tryAutoRegisterUpgrade called', { shouldRegister, bookedSlotId, eventId: event?.id });
+  if (!shouldRegister) {
+    console.log('[AutoUpgrade] Skipping — auto-upgrade is disabled. userSettings:', JSON.stringify(userSettings));
     return;
   }
   try {
@@ -2654,7 +2720,7 @@ async function cancelBookingDirect(bookingId, isPenalty, btn) {
 }
 
 // Save scheduled auto-booking record to database
-async function saveAutoBookPreferences(c, slots, rows, qty, bookAny, callback, skipImmediate = false) {
+async function saveAutoBookPreferences(c, slots, rows, qty, bookAny, callback, skipImmediate = false, autoUpgrade = false) {
   const instructor = metadata.instructors.find(i => i.id === c.instructor_id) || { full_name: 'Instructor' };
   const studio = metadata.studios.find(s => s.id === c.studio_id) || { name: 'Studio' };
   const classType = metadata.eventTypes.find(t => t.id === c.event_type_id) || { name: 'Class' };
@@ -2701,7 +2767,8 @@ async function saveAutoBookPreferences(c, slots, rows, qty, bookAny, callback, s
         preferredSlots: slots,
         preferredRows: rows,
         requiredCount: qty,
-        bookAny
+        bookAny,
+        autoUpgrade
       }
     });
 

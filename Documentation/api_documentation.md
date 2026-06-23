@@ -303,9 +303,11 @@ function generateBookmarkIdentifier(event) {
 
 ---
 
-## Undocumented Endpoints — Spot Swapping (Experimental)
+## Undocumented Endpoints — Spot Swapping (Confirmed Not Supported)
 
 > **Discovery method:** Unauthenticated probing of the CodexFit Laravel backend. Laravel resolves routes before the auth middleware runs, so a route that exists returns `401 Unauthenticated` while a non-existent route returns `404`. The `OPTIONS` method returns an `Allow:` header listing all HTTP verbs a route accepts. ~70 endpoints were probed with 2–5s random jitter between requests.
+>
+> **Update — authenticated testing completed:** All recommended authenticated tests were run against a real booking (via a since-removed debug tool). **Every `GET`, `PUT`, and `PATCH` call returned HTTP 500 `BadMethodCallException`** with the message `Method App\Http\Controllers\Api\Customer\BookingController::show does not exist` (for GET) / `::update does not exist` (for PUT/PATCH). The routes are registered (Laravel `Route::resource` boilerplate) but the controller methods are **not implemented**. There is no atomic spot-swap API. Cancel-then-rebook is the only option.
 
 ### Background: Current spot-swap approach
 
@@ -328,23 +330,27 @@ The documented API only describes `POST /bookings` (create) and `DELETE /booking
 
 These methods likely come from a Laravel resource controller (`Route::resource('bookings', ...)`) which auto-registers `GET/{id}` (show), `PUT/{id}` (full replace), and `PATCH/{id}` (partial update).
 
-### What this could enable
+### What this could have enabled (not possible — confirmed)
 
-If `PATCH /bookings/{id}` accepts a slot change payload (e.g. `{"slots": [newSlotId]}` or `{"slot_id": newSlotId}`), it would allow **atomic spot swapping** — changing bikes in a single request without the cancel-then-rebook race condition. This would be a significant improvement for:
+If `PATCH /bookings/{id}` had accepted a slot change payload, it would have allowed **atomic spot swapping** — changing bikes in a single request without the cancel-then-rebook race condition. This would have been a significant improvement for:
 
 - **Auto-Upgrade**: Currently cancels + rebooks. An atomic swap would eliminate the race window and potentially avoid the penalty check entirely.
 - **Manual spot changes** in the PWA's booking modal (the extension's edit-booking flow at `content.js:5452` does cancel-then-rebook in a loop).
 - **Quick-Book** when a user already has a booking for the same class and wants to move spots.
 
+**Confirmed not possible** — see "Authenticated test results" below. The controller methods don't exist.
+
 ### Endpoints confirmed to exist (return 401 unauthenticated)
 
-| Method | Endpoint | Documented? | Used by native app? |
-|--------|----------|-------------|---------------------|
-| `GET` | `/api/v1/customer/bookings/{id}` | No | No |
-| `PUT` | `/api/v1/customer/bookings/{id}` | No | No |
-| `PATCH` | `/api/v1/customer/bookings/{id}` | No | No |
-| `DELETE` | `/api/v1/customer/bookings/{id}` | Yes | Yes |
-| `POST` | `/api/v1/customer/bookings` | Yes | Yes |
+> **Note:** "Exists" here means the **route** is registered (Laravel resolves it before auth, returning 401). Authenticated testing (see "Authenticated test results" below) confirmed that while the `GET`/`PUT`/`PATCH` **routes** exist, the `BookingController` **methods** (`show`, `update`) are **not implemented** — they return 500 `BadMethodCallException` when called with a valid JWT. Only `DELETE` (cancel) and `POST` (create) actually work.
+
+| Method | Endpoint | Documented? | Used by native app? | Method implemented? |
+|--------|----------|-------------|---------------------|---------------------|
+| `GET` | `/api/v1/customer/bookings/{id}` | No | No | ❌ No (`show` missing) |
+| `PUT` | `/api/v1/customer/bookings/{id}` | No | No | ❌ No (`update` missing) |
+| `PATCH` | `/api/v1/customer/bookings/{id}` | No | No | ❌ No (`update` missing) |
+| `DELETE` | `/api/v1/customer/bookings/{id}` | Yes | Yes | ✅ Yes (`destroy`) |
+| `POST` | `/api/v1/customer/bookings` | Yes | Yes | ✅ Yes (`store`) |
 
 ### Endpoints confirmed NOT to exist (return 404)
 
@@ -372,21 +378,24 @@ There is no separate endpoint for penalty-free cancellation. The only cancel mec
 | `PUT`/`PATCH` | `/api/v1/customer/credits/{id}` | 401 (exists) | Credit update |
 | `GET` | `/api/v1/customer/cancel_reasons` | **200 (public)** | Returns cancel reason list — but for **subscription** cancels, not bookings |
 
-### Recommended authenticated tests
+### Authenticated test results (confirmed)
 
-The following require a valid JWT to investigate further. Test against a real booking ID (ideally one > 12h out to avoid accidental penalties):
+All of the following were run against a real authenticated booking (ID `8273305`, event `206805`, target slot `50`). **Every call returned HTTP 500 `BadMethodCallException`:**
 
-1. **`GET /api/v1/customer/bookings/{realBookingId}`** — Inspect the response shape. Does it include penalty status, cancellation window, or slot details? This tells us what data is available.
-2. **`PATCH /api/v1/customer/bookings/{realBookingId}`** with `{"slots": [newSlotId]}` — Does it atomically swap the spot? If successful, this is the holy grail for auto-upgrade.
-3. **`PUT /api/v1/customer/bookings/{realBookingId}`** with `{"event_id": ..., "slots": [newSlotId]}` — Full replace variant. May require the full booking object.
-4. **`PATCH /api/v1/customer/bookings/{realBookingId}`** with `{"slot_id": newSlotId}` — Alternative payload shape (singular vs array).
-5. **`DELETE /api/v1/customer/bookings/{realBookingId}?grace=true`** — Verify whether the controller reads the query param (low probability, but cheap to test).
+| Method | Path | Body | Result |
+|--------|------|------|--------|
+| `GET` | `/bookings/{id}` | — | 500 — `BookingController::show does not exist` |
+| `PATCH` | `/bookings/{id}` | `{"slots":[50]}` | 500 — `BookingController::update does not exist` |
+| `PATCH` | `/bookings/{id}` | `{"slot_id":50}` | 500 — `BookingController::update does not exist` |
+| `PATCH` | `/bookings/{id}` | `{"slot":50}` | 500 — `BookingController::update does not exist` |
+| `PUT` | `/bookings/{id}` | `{"event_id":206805,"slots":[50]}` | 500 — `BookingController::update does not exist` |
+| `PUT` | `/bookings/{id}` | `{"slots":[50]}` | 500 — `BookingController::update does not exist` |
 
-### Implementation notes for an agent attempting this
+**Conclusion:** The `BookingController` only implements `index` (list), `store` (create), and `destroy` (cancel). The `show` and `update` methods are not defined on the controller — the routes exist only because `Route::resource('bookings', ...)` auto-registers them, but the methods are unimplemented boilerplate. **There is no atomic spot-swap API and no single-booking GET.** The cancel-then-rebook pattern is the only way to change spots.
 
-- **Test safely first:** Use `GET /bookings/{id}` to inspect the response shape before attempting any mutation. Use a booking that is > 12 hours away to avoid penalties during testing.
-- **Payload shapes are unknown:** The `PATCH`/`PUT` body format is undocumented. Try `{"slots": [id]}` first (matches the `POST /bookings` shape), then `{"slot_id": id}`, then `{"slot": id}`. Inspect error responses (422 validation errors often reveal expected field names).
-- **Check for penalty bypass:** If `PATCH` succeeds for a booking within 12h of class start, compare credit balance before/after to determine if the penalty was waived (swap) or still applied.
-- **Server integration:** If atomic swap works, `server/poller.js` `attemptUpgradeSlot()` and the client's edit-booking modal (`client/src/ui/timetable.js` / `bookings.js`) should be updated to use `PATCH /bookings/{id}` instead of cancel-then-rebook. The proxy in `server/server.js` (`/api/proxy/*`) already supports arbitrary methods.
-- **Fallback:** Keep the cancel-then-rebook path as a fallback if `PATCH` returns 405/422/403 for slot changes — the endpoint may exist but not accept slot modifications.
+### Implications for the codebase
+
+- **Edit-spots modal** (`bookings.js` `openEditBookingModal`): correctly uses cancel-then-rebook — releases removed spots via `DELETE /bookings/{id}`, then books added spots via `POST /bookings`. No change needed.
+- **Auto-Upgrade** (`poller.js` `attemptUpgradeSlot`): correctly uses cancel-then-rebook. No atomic swap path to migrate to.
+- **No `GET /bookings/{id}`**: code that needs booking details should use `GET /bookings` (list) and filter, or `GET /events/{id}` for slot/layout info.
 

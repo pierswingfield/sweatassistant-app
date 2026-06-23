@@ -4,7 +4,7 @@
 
 Server + PWA migration of the [Psycle Chrome Extension](https://github.com/piersjones/psycle-chrome). The extension's scheduling features (auto-book, auto-upgrade) previously required an open browser tab; this project moves them to a server so they run 24/7 and adds iOS support via PWA + Web Push.
 
-**Status**: Server and PWA are functional. All core features working — auto-book, auto-upgrade, quick-book, timetable, bookings, buy credits, push notifications, spot maps. See Feature Parity section for details.
+**Status**: Server and PWA are functional and deployed. All core features working — auto-book (server-side precision scheduler with priority tiers), auto-upgrade (cron polling), quick-book, timetable, bookings, buy credits (in-app Stripe checkout), push notifications (5 types), shared spot maps, calendar feed (.ics via webcal/Google), first-run onboarding, offline support, pull-to-refresh, admin panel, per-user rate limiting. See Feature Parity section for details.
 
 ## Key Reference
 
@@ -24,37 +24,46 @@ Server + PWA migration of the [Psycle Chrome Extension](https://github.com/piers
 ```
 App/
 ├── server/                  # Express.js backend
-│   ├── server.js            # Main server — routes, proxy, cart endpoints, SSE
+│   ├── server.js            # Main server — routes, proxy, cart/checkout, SSE, rate limiters
 │   ├── auth.js              # CodexFit login, JWT issuance, auto-relogin on 401
-│   ├── db.js                # SQLite schema + CRUD (better-sqlite3, 8 tables)
-│   ├── crypto.js            # AES-256-GCM encrypt/decrypt for credentials
-│   ├── scheduler.js         # Monday 12PM London auto-book precision scheduler
-│   ├── poller.js            # Auto-upgrade polling + cancellation/window reminders
+│   ├── db.js                # SQLite schema + CRUD (better-sqlite3, 12 tables)
+│   ├── crypto.js            # AES-256-GCM encrypt/decrypt for credentials (env key required)
+│   ├── scheduler.js         # Monday 12PM London auto-book precision scheduler, priority tiers, SSE
+│   ├── poller.js            # Auto-upgrade polling + cancellation/window reminders + cache refresh
 │   ├── push.js              # Web Push (VAPID) notification fan-out service
 │   ├── notifications.js     # Notification dispatch layer (5 types, per-user prefs)
+│   ├── calendar.js          # iCalendar (.ics) feed generation, token auth, 3-hourly poll
+│   ├── admin.js             # Admin panel API router (user list, detail, priority tiers, delete)
+│   ├── admin.html           # Standalone admin SPA served at /admin
+│   ├── config.js            # Central env config (appName, publicHost) — single source of truth
 │   ├── mock.js              # Dev-mode mock CodexFit API (dev@psycle.com)
 │   └── test-auth-and-proxy.js  # Basic integration tests
 ├── client/                  # Vite PWA frontend
-│   ├── index.html           # SPA shell with 6 tab panels + modals
+│   ├── index.html           # SPA shell with 5 tab panels + modals + iOS bottom nav
 │   ├── src/
-│   │   ├── main.js          # App init, auth, tab routing, push registration, credit badge
+│   │   ├── main.js          # App init, auth, tab routing, push, theme, offline, pull-to-refresh, credit badge
 │   │   ├── api.js           # API abstraction layer (all server calls)
-│   │   ├── lib.js           # Shared utilities (Luxon timezone, countdown, release time)
-│   │   ├── styles.css       # Glassmorphic dark theme (~4400 lines)
-│   │   ├── panel-layout.css # Panel/tab/table/card layout + responsive (~970 lines)
+│   │   ├── lib.js           # Shared utilities (Luxon timezone, countdown, release time, booking-window detect)
+│   │   ├── cache.js         # IndexedDB v2 wrapper (cache + api-responses stores, per-user key prefix)
+│   │   ├── config.js        # Build-time + runtime app config (appName, publicHost via /api/config)
+│   │   ├── styles.css       # Design tokens + glassmorphic theme, light/dark parity (~4900 lines)
+│   │   ├── panel-layout.css # Panel/tab/table/card layout + responsive (~970 lines) — ⚠️ NOT loaded by the app; see DESIGN.md
 │   │   └── ui/
-│   │       ├── timetable.js   # Class timetable, filters, booking modal, quick-book, floor plan
-│   │       ├── bookings.js    # My Bookings + Waitlists + Auto-Upgrade setup modal
-│   │       ├── autobook.js    # Auto-Book queue, countdown, SSE stream, favourites
+│   │       ├── timetable.js   # Class timetable, filters, booking modal, quick-book, floor plan, mobile cards
+│   │       ├── bookings.js    # My Bookings + Waitlists + Auto-Upgrade setup + edit-spots modal
+│   │       ├── autobook.js    # Auto-Book queue, countdown, SSE stream, favourites, edit modal
 │   │       ├── autoupgrade.js # Auto-Upgrade monitor list (rendered in Auto-Book tab)
-│   │       ├── credits.js     # Buy Credits bundle cards, filters, cart flow
-│   │       ├── settings.js    # Settings pane, Profile Explorer, Spot Maps manager, notif prefs
-│   │       ├── spotmap.js     # Shared studio floor-plan editor (reused by bookings/timetable/settings)
-│   │       └── tooltips.js    # Instructor + occupancy hover tooltips
+│   │       ├── credits.js     # Buy Credits bundle cards, filters, in-app cart + Stripe checkout
+│   │       ├── settings.js    # Settings pane (4 subnav sections), Profile Explorer, Spot Maps, notif prefs, calendar card
+│   │       ├── spotmap.js     # Shared studio floor-plan editor (reused by bookings/timetable/settings/autobook/upgrade)
+│   │       ├── tooltips.js    # Instructor + occupancy tooltips (hover + touch tap-to-toggle)
+│   │       ├── onboarding.js  # First-run 6-step guided flow (intro → install → login → notifs → calendar → spot maps)
+│   │       ├── pulltorefresh.js # Reusable pull-to-refresh for scroll containers
+│   │       └── cards.js       # Shared SVG icon set + discipline tags + card text helpers
 │   └── public/
-│       ├── manifest.json    # PWA manifest
-│       ├── sw.js             # Service worker (push + offline cache, network-first)
-│       └── icons/            # App icons (128, 192, 512)
+│       ├── manifest.json    # PWA manifest (name: "Psycle Assistant", standalone, portrait)
+│       ├── sw.js             # Service worker (push + offline cache, network-first shell, cache-first assets)
+│       └── icons/            # App icons (128, 192, 512 — any + maskable)
 ├── Dockerfile               # Multi-stage build (client → server/public)
 ├── docker-compose.yml       # Single-container deployment (port 3005→3000)
 ├── deploy.sh                # Pi deployment script (SSH + rsync + docker compose)
@@ -84,16 +93,21 @@ Server runs on port 3000. Vite dev server proxies `/api` to `localhost:3000`.
 - **Booking window**: Rolling Monday 12:00 PM London time release. `booking_cutoff` and `extended_cutoff` fields on user profile control access. `is_always_bookable` bypasses cutoffs.
 - **Booking offset**: Standard window is 8 days from Monday noon (Mon → following Tue); membership tiers extend it (2wk→15, 3wk→22). **Auto-detected** per user from profile `booking_cutoff`/`extended_cutoff` + `extended_booking_allowed`. Holding **extended-booking credits** in inventory applies a 15-day (2-week) *floor* — not additive: credits never extend an already-extended account or stack to a 3rd week. See `detectBookingWindow()` in `client/src/lib.js`, persisted to `settings.detectedBookingOffset` by `syncDetectedBookingWindow()` in `main.js`. `getBookingOffset()` priority: debug `manualBookingWindowWeeks` override (Settings, debug only) → `detectedBookingOffset` → legacy `advancedBooking`/`advancedBookingCredit` toggles. Mirrored in `server/scheduler.js` and `client/src/lib.js`.
 - **Bookmark identifier formula**: `studioId + "0000" + dayOfWeek + "0000" + HHmm` (e.g., studio 138, Monday 19:30 → `"1380000100001930"`).
-- **Cart API**: `GET /cart/add_bundle/{bundleId}?instance={instanceId}` adds bundles to a CodexFit cart. The instance ID is created via `POST /cart` and stored in user settings (`cartInstanceId`).
+- **Cart API**: `POST /cart/add_bundle/{bundleId}?instance={instanceId}` adds bundles to a CodexFit cart. The instance ID is created via `POST /cart` and stored in user settings (`cartInstanceId`). The PWA's in-app checkout wraps this: `POST /api/cart/checkout/init/:bundleId` (add bundle + list saved cards) → `POST /api/cart/checkout/confirm` (place order, poll Stripe `GET /orders/:id` until `Paid`). When a saved-card charge requires 3-D Secure, the server returns `status: 'requires_action'` and the client falls back to the website checkout with tips (full in-app 3DS challenge flow not yet built — see BACKLOG.md).
 - **Booking response shape**: `POST /bookings` returns `{ success: true, bookings: { "8255409": 53 } }` — the key is the booking ID, value is the slot ID. The client's `tryAutoRegisterUpgrade` extracts the booking ID from this.
+- **No booking show/update endpoint**: `GET /bookings/{id}` and `PUT/PATCH /bookings/{id}` all return HTTP 500 `BadMethodCallException` (`BookingController::show`/`::update` does not exist). The routes exist (Laravel `Route::resource` boilerplate) but the methods are unimplemented. `BookingController` only implements `index` (list), `store` (create), `destroy` (cancel). **There is no atomic spot-swap API** — changing spots requires cancel-then-rebook (`DELETE /bookings/{id}` + `POST /bookings`). Confirmed via authenticated API testing; see `api_documentation.md` "Spot Swapping (Confirmed Not Supported)".
 
 ## Architecture Constraints
 
-- **Server must handle all background work** (auto-book scheduling, auto-upgrade polling, reminders). The PWA is just a UI + push notification receiver.
-- **Auto-book precision**: Targets Monday 12:00 PM London time with T-30s prefetch and T-0 dispatch. Server uses `setTimeout` → T-5s → `setInterval` every 10ms polling `Date.now()` until `>= targetRelease`. Replaces the extension's 200ms `setInterval`.
+- **Server must handle all background work** (auto-book scheduling, auto-upgrade polling, reminders, calendar feed polling). The PWA is just a UI + push notification receiver.
+- **Auto-book precision**: Targets Monday 12:00 PM London time with T-50s staggered prefetch and T-0 dispatch. Server uses `setTimeout` → T-5s → `setInterval` every 10ms polling `Date.now()` until `>= targetRelease`. Replaces the extension's 200ms `setInterval`.
+- **Priority tiers + fair dispatch**: `users.priority` (lower = higher precedence; default 100, new users get 200) drives Monday-noon dispatch ordering. `getPendingAutoBookings()` JOINs `users.priority` and sorts `ORDER BY priority ASC, created_at ASC`; Fisher-Yates shuffle within each tier gives statistical fairness over weeks. `CLAIM_STAGGER_MS = 80ms` staggers consecutive users in the same class. Cross-user `claimedSlots`/`burnedSlots` Sets prevent duplicate `POST /bookings` across concurrent users targeting the same event/slot. Admin-editable via `PUT /api/admin/users/:id/priority`.
 - **Auto-upgrade**: Configurable polling (1min/15min/1hr) via `node-cron` every minute. Stops at 12h before class start (or one final "keep original" attempt if `keepOriginalOnCutoff`). Hard stop at 1h.
-- **Credential storage**: AES-256-GCM encryption at rest. Server-side key in env vars (`ENCRYPTION_KEY`), falls back to DB key-value store. Never in DB as plaintext.
-- **PWA must work on iOS 16.4+** via "Add to Home Screen". No background sync on iOS — server handles everything. Push notifications require the PWA to be installed to home screen.
+- **Rate limiting**: Three `express-rate-limit` limiters (production-only, skipped in dev): `proxyLimiter` (60/min per user on `/api/proxy/*`), `bookingMutationLimiter` (10/min per user on auto-book/upgrade writes), `calendarFeedLimiter` (60/min per IP on the public calendar URL). Per-user quotas cap auto-book at 15 pending entries and auto-upgrade at 10 active monitors (429 on exceed).
+- **Credential storage**: AES-256-GCM encryption at rest. Master key MUST come from the `ENCRYPTION_KEY` env var — the server refuses to start if it is absent (no DB fallback). Never in DB as plaintext.
+- **Calendar feed**: Per-user rotatable token (`users.calendar_token`) authenticates the public `.ics` URL. A 3-hourly cron polls CodexFit bookings/waitlists and regenerates each enabled user's snapshot; booking mutations trigger a debounced (60s) refresh. RFC 5545 serialization with `Europe/London` VTIMEZONE and optional VALARM.
+- **Admin panel**: Standalone SPA at `/admin`, gated by `ADMIN_PASSWORD` env var (503 if absent) + 1h admin JWT. Read-only user list/detail plus inline priority-tier editing and user deletion.
+- **PWA must work on iOS 16.4+** via "Add to Home Screen". No background sync on iOS — server handles everything. Push notifications require the PWA to be installed to home screen. First-run onboarding guides install + login + notifications + calendar + spot maps.
 - **Timezone**: All cutoff/release calculations must use `Europe/London` timezone. The server uses Luxon; the client uses Luxon via `src/lib.js`. Never use bare `new Date()` for booking window math.
 - **Shared spot map**: One preference map per studio (`studio_preferences[studioId] = { preferredSlots[], preferredRows[] }`) is the single source of truth for Quick-Book, Auto-Book, and Auto-Upgrade. All three read it live from the server. The floor-plan editor in `spotmap.js` is reused everywhere the map is edited.
 
@@ -134,15 +148,15 @@ Five notification types, all server-side, all deduped via the `sent_notification
 | Login/Auth | Cookie-based | ✅ Working | Server BFF + JWT, direct login + auto-relogin on 401 |
 | Timetable | Full grid | ✅ Working | Filters, date carousel, status badges, IndexedDB 4hr TTL cache |
 | Studio floor plan | Hover minimap | ✅ Working | Occupancy tooltip + booking modal with spot selection |
-| Instructor tooltip | Photo + bio | ✅ Working | Hover tooltip (1s delay) — ⚠️ no touch support yet |
+| Instructor tooltip | Photo + bio | ✅ Working | Hover tooltip (1s delay) + touch tap-to-toggle; Instagram/Spotify links |
 | Quick Book | Single slot | ✅ Working | One-click if prefs exist, else opens floor-plan modal |
-| Auto-Book | 200ms interval | ✅ Working | Server-side precision scheduler + SSE live status stream |
+| Auto-Book | 200ms interval | ✅ Working | Server-side precision scheduler + priority tiers + SSE live status stream |
 | Auto-Upgrade | setInterval polling | ✅ Working | Server-side cron + 12h/1h cutoff + auto-register after booking |
 | My Bookings | Table + cancel | ✅ Working | Penalty warning, double-click confirm, auto-upgrade toggle per row |
 | Waitlists | Join/leave | ✅ Working | Join from timetable, leave from bookings, double-click confirm |
 | Bookmarks | ♡/♥ toggle | ✅ Working | Native CodexFit bookmarks, "favourites only" filter |
-| Buy Credits | Bundle table + cart | ✅ Working | Bundle cards, 8 filters, two-click cart → website checkout |
-| Settings | All toggles | ✅ Working | 10 cards: booking, upgrade, push, notif prefs, export/import, debug, profile explorer, spot maps, delete data |
+| Buy Credits | Bundle table + cart | ✅ Working | Bundle cards, 8 filters, two-click cart → in-app Stripe checkout (website fallback for 3DS) |
+| Settings | All toggles | ✅ Working | 4 subnav sections (About, Booking, Experience, Advanced): spot maps, upgrade, push, notif prefs, calendar, theme, export/import, debug, profile explorer, delete data |
 | Debug Mode | Raw JSON diagnostics | ✅ Working | Per-class debug modal, debug log terminal, simulate release |
 | Push Notifications | N/A | ✅ Working | VAPID, 5 types, per-user prefs, auto-generated keys |
 | Config Export/Import | JSON file | ✅ Working | Chrome Extension compatible format |
@@ -156,22 +170,39 @@ Five notification types, all server-side, all deduped via the `sent_notification
 | Booking Window Reminder | N/A | ✅ PWA-only | 1hr before Monday release, contextual tip |
 | SSE Live Status | N/A | ✅ PWA-only | Real-time auto-book execution updates via Server-Sent Events |
 | Booking Cache Sync | N/A | ✅ PWA-only | Client pushes bookings to server for reminder cache |
+| Calendar Feed | N/A | ✅ PWA-only | Per-user .ics feed (webcal/Google), token auth, 3-hourly poll, VALARM, Europe/London VTIMEZONE |
+| First-run Onboarding | N/A | ✅ PWA-only | 6-step guided flow (intro → install → login → notifs → calendar → spot maps) |
+| Offline Support | N/A | ✅ PWA-only | SW network-first shell + cache-first assets, offline banner, button disabling |
+| Pull-to-refresh | N/A | ✅ PWA-only | Reusable pull-to-refresh on scroll containers (timetable, bookings, auto-book) |
+| Theme Toggle | N/A | ✅ PWA-only | Auto/Light/Dark segmented control, persisted to localStorage |
+| Admin Panel | N/A | ✅ PWA-only | Standalone SPA at /admin, user list/detail, priority-tier editing, delete |
+| Rate Limiting + Quotas | N/A | ✅ PWA-only | 3 per-user limiters + auto-book (15) / auto-upgrade (10) quotas |
 | Auto-Book Favourites | Syncs bookmarks → queue | ⚠️ Incomplete | UI saves favourite list to settings, but server doesn't auto-populate queue from it |
-| .ics Calendar Download | From My Bookings | ❌ Missing | Extension had `downloadICS`; PWA does not |
+| .ics File Download | From My Bookings | ❌ Missing | Extension had `downloadICS`; PWA has a live calendar *feed* instead (no one-off file download) |
 | Native timetable augmentation | Injected buttons | N/A | Extension-only; PWA is standalone |
 
 ## Known Bugs / Issues
 
 - **Auto-Book Favourites incomplete** — The Auto-Book tab has a "♥ Auto-Book Favourites" modal that saves `autoBookFavourites` (a list of bookmark identifiers) to user settings, but nothing in `scheduler.js` consumes this list to auto-create queue entries each week. The extension's `syncBookmarkedAutoBookings` logic has not been ported.
-- **Mobile/iOS layout not full-screen** — The root panel uses `width: 1080px; max-height: 85vh; border-radius: 28px` (extension floating-panel heritage). On iOS installed to home screen, this doesn't feel native. Needs a mobile media query to make `.psycle-panel` full-viewport on small screens.
-- **Hover tooltips don't work on touch** — Instructor + occupancy tooltips use `mouseover`/`mouseout` with delays. iOS users get nothing. Needs tap-to-toggle for touch devices.
-- **Inline styles everywhere** — UI modules build elements with large `style="..."` strings instead of CSS classes, making maintenance and responsive tweaks painful (can't media-query inline styles). Should be migrated to `styles.css` / `panel-layout.css` classes over time.
-- **No first-run onboarding** — New users log in to the timetable with no spot maps; every Quick-Book opens the modal. No "set your preferred spots" prompt.
-- **No "Add to Home Screen" prompt** — iOS push requires install. The push settings card mentions it reactively, but there's no proactive install banner on first visit.
+- **Mobile/iOS layout still uses floating-panel heritage** — The root panel base is still `width: 1080px; max-height: 85vh; border-radius: 28px` (extension floating-panel heritage). Responsive media queries (`@media max-width: 1100px/480px`) now make it full-width on small screens and an iOS bottom nav was added, but the base dimensions mean it doesn't feel fully native on iOS installed to home screen. A dedicated mobile-first layout pass would improve this.
+- **Inline styles everywhere** — UI modules build elements with large `style="..."` strings instead of CSS classes, making maintenance and responsive tweaks painful (can't media-query inline styles). `cards.js` extracts some shared helpers, but most modules still inline. Should be migrated to `styles.css` classes over time. (Note: `panel-layout.css` exists but is NOT loaded by the app — only `styles.css` is imported in `index.html`.)
+- **3-D Secure not handled in-app** — In-app credit checkout charges a saved card off-session. When the charge requires 3-D Secure authentication, the server returns `status: 'requires_action'` and the client falls back to the website checkout with tips. The full Stripe.js `confirmCardPayment` challenge flow is not yet built (see BACKLOG.md).
+- **No health/metrics endpoint** — There is no `/api/health` route or scheduler crash alerting. If the scheduler silently crashes, no one knows until users miss their Monday bookings (see BACKLOG.md P0 #4).
 
 ## Server API Routes
 
 ```
+# Public Config (no auth)
+GET    /api/config                # Returns { appName, publicHost } — needed before login to render UI
+
+# Admin Panel
+GET    /admin                     # Serves admin.html (standalone admin SPA)
+POST   /api/admin/login           # Verify ADMIN_PASSWORD, issue 1h admin JWT
+GET    /api/admin/users           # List all users with queue counts + priority
+GET    /api/admin/users/:id       # Full user detail (profile, credits, bookings, queue, monitors, spot maps)
+PUT    /api/admin/users/:id/priority  # Update a user's priority tier (1–999)
+DELETE /api/admin/users/:id       # Delete user + all CASCADE data
+
 # Auth
 POST   /api/auth/login              # Login → CodexFit BFF, returns local JWT
 GET    /api/auth/status             # Check local JWT validity
@@ -200,14 +231,22 @@ PUT    /api/settings                # Update user settings
 GET    /api/studio-preferences      # Get all studio preference maps
 PUT    /api/studio-preferences/:id  # Update studio preference map
 
+# Calendar Feed
+GET    /api/calendar/:token.ics     # Public-by-token iCalendar feed (rate-limited 60/min by IP)
+GET    /api/calendar/status         # Feed status, links, last-generated timestamp
+POST   /api/calendar/enable         # Enable feed, generate/rotate token, rebuild snapshot
+POST   /api/calendar/disable        # Disable feed, revoke token
+POST   /api/calendar/rotate         # Rotate token + republish snapshot
+POST   /api/calendar/refresh        # Debounced async refresh (60s delay)
+
 # Backup & Migration
 GET    /api/config/export           # Export all preferences as JSON
 POST   /api/config/import           # Import preferences from JSON (deduplicates auto-book)
 
-# Cart
-POST   /api/cart/create             # Create CodexFit cart instance, store cartInstanceId in settings
-POST   /api/cart/add-bundle/:id     # Add bundle to cart (recreates cart on 404/410)
-GET    /api/cart                    # Get current cart
+# Cart (Legacy + In-App Checkout)
+POST   /api/cart/add-bundle/:id     # Add bundle to cart (legacy fallback)
+POST   /api/cart/checkout/init/:bundleId  # In-app checkout step 1: add bundle + list saved cards
+POST   /api/cart/checkout/confirm         # In-app checkout step 2: place order, poll Stripe, return status
 
 # Push Notifications
 GET    /api/push/vapid-public-key   # Get VAPID public key
@@ -221,19 +260,22 @@ POST   /api/notify/booking-success  # Client reports manual/quick booking → se
 POST   /api/bookings/sync           # Client pushes bookings to warm server reminder cache
 ```
 
-## SQLite Schema (8 tables)
+## SQLite Schema (12 tables)
 
 | Table | Purpose | Key columns |
 |-------|---------|-------------|
-| `users` | Accounts + encrypted creds | `email`, `encrypted_password`, `jwt`, `jwt_expires_at` |
+| `users` | Accounts + encrypted creds | `email`, `encrypted_password`, `jwt`, `jwt_expires_at`, `priority` (tier, default 100), `display_name`, `profile_json`, `calendar_token` |
 | `auto_bookings` | Auto-book queue + history | `event_id`, `preferences` (JSON), `status`, `executed_at`, `studio_id`, `group_name` |
-| `auto_upgrades` | Auto-upgrade monitors | `event_id`, `booking_id`, `current_slot_id`, `preferences` (JSON), `status`, `upgraded_slot_id` |
+| `auto_upgrades` | Auto-upgrade monitors | `event_id`, `booking_id`, `current_slot_id`, `preferences` (JSON), `status`, `upgraded_slot_id`, `studio_id`, `original_slot_id` |
 | `studio_preferences` | Shared spot maps | `studio_id`, `preferences` (JSON: `{preferredSlots[], preferredRows[]}`), `UNIQUE(user_id, studio_id)` |
 | `settings` | Per-user settings | `preferences` (JSON blob — all settings + notification prefs + cartInstanceId) |
 | `push_subscriptions` | Web Push endpoints | `subscription` (JSON string) |
-| `booking_cache` | Reminder cache (client-synced) | `booking_id`, `event_id`, `start_at`, `slot_label`, `UNIQUE(user_id, booking_id)` |
+| `booking_cache` | Reminder cache (client-synced) | `booking_id`, `event_id`, `start_at`, `slot_label`, `duration_min`, `location_address`, `UNIQUE(user_id, booking_id)` |
+| `waitlist_cache` | Waitlist reminder cache (client-synced) | `event_id`, `start_at`, `studio_id`, `location_address`, `UNIQUE(user_id, event_id)` |
 | `sent_notifications` | Notification dedupe | `dedupe_key`, `UNIQUE(user_id, dedupe_key)` |
-| `server_kv` | Key-value store | `jwt_secret`, `server_encryption_key`, `vapid_public_key`, `vapid_private_key` |
+| `calendar_classes` | Per-user calendar event rows | `event_id`, `start_at`, `class_name`, `slot_label`, `status`, `upgrade_note`, `sequence`, `content_hash`, `UNIQUE(user_id, event_id)` |
+| `calendar_snapshots` | Generated .ics per user | `ics`, `etag`, `class_count`, `generated_at` (PK `user_id`) |
+| `server_kv` | Key-value store | `jwt_secret`, `vapid_public_key`, `vapid_private_key`, `locations_json`, `studio_name_map` (`server_encryption_key` is legacy/unused — encryption key now env-only) |
 
 ## Storage Keys (Extension → PWA Mapping)
 
@@ -253,10 +295,16 @@ POST   /api/bookings/sync           # Client pushes bookings to warm server remi
 | Key | Location | Purpose |
 |-----|----------|---------|
 | `psycleLocalToken` | `localStorage` | Local JWT (30-day, issued by server BFF) |
+| `psycleUserId` | `localStorage` | Per-user cache key prefix, set after login |
+| `psycleTheme` | `localStorage` | Theme preference: `auto` \| `light` \| `dark` |
 | `psycleDefaultFilters` | `localStorage` | Saved timetable filter selections (locations, instructors, eventTypes, bookmarks) |
 | `psycleCacheEvents` / `psycleCacheMeta` | IndexedDB | Cached timetable events + metadata |
 | `psycleCacheTime` | `localStorage` | Cache timestamp for TTL check |
 | `psycleActiveStudioIds` / `psycleActiveStudioIdsTime` | `localStorage` | Active studio IDs for Spot Maps manager (24h TTL) |
+| `psycleOnboardingComplete` | `localStorage` | Onboarding completion flag (value = version string) |
+| `psycleOnboardingStep` | `localStorage` | Current onboarding step (resumable on iOS after install relaunch) |
+
+IndexedDB database `psycle-cache` (v2) has two stores: `cache` (raw timetable events + metadata) and `api-responses` (all API GET response caching, per-user key prefix isolation).
 
 ## Environment Variables
 
@@ -265,8 +313,11 @@ POST   /api/bookings/sync           # Client pushes bookings to warm server remi
 | `PORT` | `server.js` | HTTP server port (default 3000) |
 | `NODE_ENV` | `server.js` | If `production`, serves SPA static files |
 | `DB_PATH` | `db.js` | SQLite database file path |
-| `JWT_SECRET` | `auth.js` | Secret for signing local PWA JWTs (auto-generated + DB-stored fallback) |
-| `ENCRYPTION_KEY` | `crypto.js` | Master key for AES-256-GCM password encryption (auto-generated + DB-stored fallback) |
+| `JWT_SECRET` | `auth.js`, `admin.js` | Secret for signing local PWA JWTs and admin JWTs (auto-generated + DB-stored fallback) |
+| `ENCRYPTION_KEY` | `crypto.js` | **Required.** Master key for AES-256-GCM password encryption. Server refuses to start if absent (no DB fallback). |
 | `VAPID_PUBLIC_KEY` | `push.js` | VAPID public key for Web Push (auto-generated + DB-stored fallback) |
 | `VAPID_PRIVATE_KEY` | `push.js` | VAPID private key for Web Push (auto-generated + DB-stored fallback) |
 | `VAPID_EMAIL` | `push.js` | `mailto:` VAPID contact (default: `mailto:admin@psycle.wingfield.tech`) |
+| `ADMIN_PASSWORD` | `admin.js` | Password for admin panel login. If absent, all `/api/admin/*` routes return 503. |
+| `APP_NAME` | `server/config.js` → all server modules + client via `/api/config` | App display name (default: `Psycle Assistant`). Server template-replaces static HTML/manifest/sw.js; client fetches `/api/config` for JS-rendered text. |
+| `PUBLIC_HOST` | `server/config.js` → `calendar.js`, client via `/api/config` | Public domain for calendar feed URLs and UID generation (default: `psycle.wingfield.tech`). |

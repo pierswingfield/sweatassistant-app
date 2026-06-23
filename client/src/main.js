@@ -2,7 +2,7 @@ import { api, setToken, isLoggedIn } from './api';
 import { initTooltips } from './ui/tooltips';
 import { setupPullToRefresh } from './ui/pulltorefresh';
 import { setCacheKeyPrefix, clearApiCache, invalidateApiCache } from './cache.js';
-import { appName } from '../../app.config.json';
+import { appConfig, initConfig } from './config';
 import { shouldShowOnboarding, resumeOnboarding, isOnboardingActive, advanceAfterLogin } from './ui/onboarding';
 import { detectBookingWindow } from './lib';
 
@@ -32,11 +32,13 @@ export async function warmCaches() {
   import('./ui/autobook').then(m => m.prefetchAutoBookData()).catch(() => {});
 }
 
-// Propagate the app name from the single source of truth (app.config.json) to
-// all user-visible static surfaces that can't import it at runtime.
-document.title = appName;
+// Propagate the app name from the single source of truth (app.config.json at
+// build time, /api/config at runtime) to all user-visible static surfaces that
+// can't import it at runtime. initConfig() is called in checkAuth() to override
+// the build-time default with the server's configured value.
+document.title = appConfig.appName;
 const appleMeta = document.querySelector('meta[name="apple-mobile-web-app-title"]');
-if (appleMeta) appleMeta.setAttribute('content', appName);
+if (appleMeta) appleMeta.setAttribute('content', appConfig.appName);
 
 // Default settings — the single source of truth for new-user defaults.
 // Reset to this on logout so a new user never inherits the previous user's settings.
@@ -46,6 +48,7 @@ const DEFAULT_SETTINGS = {
   autoUpgradeEnabled: true,
   autoUpgradeInterval: '15min',
   autoUpgradeByDefault: false,
+  autoUpgradeKeepOriginalByDefault: false,
   debugMode: false,
   prefetchWeeks: 4
 };
@@ -836,6 +839,12 @@ export async function initApp() {
 
 // Check auth status on launch
 async function checkAuth() {
+  // Fetch runtime config (app name, public host) before any UI renders so
+  // onboarding, login, and the app shell all show the correct name.
+  await initConfig();
+  document.title = appConfig.appName;
+  if (appleMeta) appleMeta.setAttribute('content', appConfig.appName);
+
   if (isLoggedIn()) {
     // Restore per-user cache key prefix from localStorage so cached data
     // is found on reload (the prefix was set during login but is lost on reload).

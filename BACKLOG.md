@@ -1,6 +1,32 @@
 # Backlog
 
+## Status Summary
+
+| Item | Status | Note |
+|------|--------|------|
+| In-app 3-D Secure support | ❌ Open (partial) | Detection server-side done; Stripe.js `confirmCardPayment` challenge flow not built |
+| Cache event data + slot contention | ✅ Done | Event cache (scheduler.js), priority tiers + Fisher-Yates shuffle + CLAIM_STAGGER_MS (refined via P1 #6), `created_at` column kept |
+| P0 #1 Per-user rate limiting | ✅ Done | 3 limiters in server.js (proxy 60/min, booking 10/min, calendar 60/min) |
+| P0 #2 Per-user quotas | ✅ Done | 15 auto-book / 10 auto-upgrade caps (db.js count queries, server.js 429) |
+| P0 #3 Remove encryption key DB fallback | ✅ Done | crypto.js requires `ENCRYPTION_KEY` env var, exits on missing |
+| P0 #4 Health check + alerting | ❌ Open | Not implemented |
+| P1 #5 Per-user dispatch jitter | ✅ Done | Implemented as priority-tier ordering + CLAIM_STAGGER_MS 80ms (not flat random jitter) |
+| P1 #6 Per-class serial dispatch + shuffle | ✅ Done | Groups by event_id, Fisher-Yates shuffle, serial dispatch within class, parallel across classes; `claimedSlots`/`burnedSlots` Sets prevent duplicate POSTs |
+| P1 #7 CodexFit 429/403 abort | ❌ Open | Not implemented |
+| P1 #8 Admin dashboard | ✅ Done | server/admin.js + admin.html (standalone SPA), includes priority-tier editing (beyond read-only) |
+| P1 #9 Track last_relogin_failure | ❌ Open | No failure columns on `users` table |
+| P1 #10 DB backup mechanism | ❌ Open | Not implemented |
+| P2 #11 Per-user key derivation | ❌ Open | Not implemented |
+| P2 #12 Priority-tier queue dispatch | ⚠️ Partial | Priority tiers exist (`users.priority`) and drive ordering; no central serial global worker queue |
+| P2 #13 PostgreSQL migration | ❌ Open | Not implemented |
+| P2 #14 Competing-booking detection + odds | ❌ Open | Not implemented |
+| P2 #15 Structured JSON logging + metrics | ❌ Open | Not implemented |
+
+---
+
 ## In-app 3-D Secure support for credit purchases
+
+**Status: ❌ Open (partial)** — The server DETECTS the 3-D Secure requirement: when a saved-card off-session charge needs authentication, `/api/cart/checkout/confirm` returns `status: 'requires_action'` (server.js ~line 869/880) and the client shows a graceful error + website fallback + "tips to avoid 3-D Secure". But the actual Stripe.js `confirmCardPayment` flow that would complete the challenge in-app is NOT implemented. Keep the full proposal below.
 
 ### Context
 - In-app credit checkout is fully server-driven via the BFF proxy (`POST /api/cart/checkout/init/:bundleId` + `POST /api/cart/checkout/confirm` in `server/server.js`). It charges a saved card off-session and polls `GET /orders/:id` until `Paid`.
@@ -22,6 +48,14 @@
 ---
 
 ## Cache event data across users + prioritise same-spot contention
+
+**Status: ✅ Done** — All three sub-items complete (see Implementation notes below).
+
+**Implementation:**
+- **Shared Event Cache (subsection 1)**: ✅ Done — `eventCache` Map in `server/scheduler.js` (module-level, 30s TTL during prefetch window, 60s TTL for upgrade checks). Used by `prefetchAutoBookSlots()` and `attemptUpgradeSlot()`.
+- **Slot Contention Priority Ordering (subsection 2)**: ✅ Done but SUPERSEDED differently than proposed — instead of `created_at`-sorted 50–100ms stagger, the scheduler now uses **priority tiers** (`users.priority` column, lower = higher precedence, default 100, new users get 200) with **Fisher-Yates shuffle within each tier** for fairness, plus `CLAIM_STAGGER_MS = 80ms` stagger between consecutive users in the same class, plus cross-user slot coordination via `claimedSlots`/`burnedSlots` Sets to prevent duplicate POSTs. See `getPendingAutoBookings()` in db.js (JOINs users.priority, ORDER BY priority ASC, created_at ASC) and `executeAutoBookQueue` in scheduler.js.
+- **DB schema (subsection 3)**: ✅ Done — `created_at` exists on `auto_bookings` (kept as audit/tie-break field as the backlog itself recommended).
+- Note that backlog item #6 below already described this supersession; reconcile so the two entries don't contradict (the #6 "per-class serial dispatch with shuffle" approach is what was built, refined via priority tiers).
 
 ### Problem
 - Multiple users may auto-book or auto-upgrade the same Psycle class, causing N identical `GET /events/:id` requests.
@@ -131,6 +165,8 @@ Work is split into priority tiers. Each item lists **What / Why (risk mitigated)
 
 ##### 1. Per-user rate limiting on proxy + booking endpoints
 
+**Status: ✅ Done** — implemented in `server/server.js` with 3 limiters: `proxyLimiter` (60 req/min per user, applied to `/api/proxy/*`), `bookingMutationLimiter` (10 req/min, applied to auto-book/upgrade/ simulate-release writes), and `calendarFeedLimiter` (60 req/min per IP on the public calendar feed). All use `express-rate-limit`, skip in dev, active in production.
+
 - **What**: Add `express-rate-limit` keyed on `req.userId` (not IP — all users share the Pi egress IP from the client side, but the server sees distinct `userId`s). Apply to `/api/proxy/*` and the booking endpoints (`POST /api/auto-book`, `POST /api/auto-upgrade`, `POST /api/simulate-release`).
 - **Why**: One user looping requests can get the shared CodexFit IP banned, taking out all users. Per-user limiting contains the blast radius.
 - **Files**: `server/server.js` (middleware on proxy + booking routes).
@@ -156,6 +192,8 @@ app.use('/api/proxy', perUserLimiter);
 
 ##### 2. Per-user quotas: cap auto-book and auto-upgrade entries
 
+**Status: ✅ Done** — `countAutoBookings()` in `server/db.js` caps at 15 pending entries, `countActiveAutoUpgrades()` caps at 10 active monitors. `server/server.js` returns HTTP 429 when exceeded (lines ~251 and ~357-359).
+
 - **What**: Reject `POST /api/auto-book` when the user already has ≥15 entries; reject `POST /api/auto-upgrade` when ≥10 active monitors. Add count queries in `db.js`.
 - **Why**: Unbounded queue growth = unbounded Monday-noon load and poller load. Quotas cap worst-case scheduler/poller fan-out per user.
 - **Files**: `server/server.js` (`POST /api/auto-book`, `POST /api/auto-upgrade` handlers), `server/db.js` (count queries).
@@ -175,6 +213,8 @@ function countActiveAutoUpgrades(userId) {
 ---
 
 ##### 3. Remove encryption key DB fallback — env var only
+
+**Status: ✅ Done** — `server/crypto.js` now requires `ENCRYPTION_KEY` env var and calls `process.exit(1)` if absent; no DB fallback. (Note: AGENTS.md still mentions a DB fallback — that is now stale.)
 
 - **What**: Delete the `server_kv` fallback in `crypto.js:10-14`. `ENCRYPTION_KEY` must come from env; if missing, throw on boot instead of silently generating/storing a key in the same DB as the ciphertext.
 - **Why**: Key-in-DB-next-to-ciphertext defeats the entire encryption scheme. A single DB file leak = every user's CodexFit password decrypted.
@@ -197,6 +237,8 @@ if (!key) {
 ---
 
 ##### 4. Health check endpoint + scheduler crash alerting
+
+**Status: ❌ Open** — Not implemented.
 
 - **What**: `GET /api/health` returns JSON: `{ schedulerNextFire, pollerLastRun, activeUserCount, pendingBookingCount, uptime }`. Wrap `executeAutoBookQueue` in try/catch with failure logging. Add a watchdog cron (daily) that alerts (console.error + optional push to admin) if `schedulerNextFire` is more than 7 days stale.
 - **Why**: Scheduler can silently crash and no one knows until users miss their Monday bookings. Observability baseline.
@@ -223,6 +265,8 @@ app.get('/api/health', (req, res) => {
 
 ##### 5. Per-user dispatch jitter (0–2000ms) before POST /bookings
 
+**Status: ✅ Done** — Implemented differently from the proposal: instead of a flat 0–2000ms random jitter, the scheduler uses **priority-tier ordering** (users sorted by `users.priority` ASC, `created_at` ASC) combined with `CLAIM_STAGGER_MS = 80ms` consecutive-user stagger within a class. Cross-user `claimedSlots`/`burnedSlots` Sets prevent duplicate POSTs. See `server/scheduler.js` lines ~460-530.
+
 - **What**: In `executeAutoBookQueue`, before each user's booking fires, sleep a per-user random `0–2000ms`. Spreads the landrush over ~2s instead of ~50ms.
 - **Why**: Reduces CodexFit instantaneous load and IP-ban risk at the release moment. Cheap, ~5 lines, no architectural change.
 - **Files**: `server/scheduler.js:368-378`.
@@ -237,6 +281,8 @@ await new Promise(r => setTimeout(r, jitterMs));
 ---
 
 ##### 6. Per-class serial dispatch with shuffle — SUPERSEDES the existing backlog entry's "Slot Contention Priority Ordering" subsection
+
+**Status: ✅ Done** — Bookings grouped by `event_id`, Fisher-Yates shuffle within priority tiers, serial dispatch within a class (each result observed before next attempt), parallel across different classes. Cross-user `claimedSlots`/`burnedSlots` Sets short-circuit duplicate slot attempts without POSTing. See `server/scheduler.js` `executeAutoBookQueue()` (~line 495).
 
 > **Note — relationship to prior art**: The existing backlog entry "Cache event data across users + prioritise same-slot contention" → subsection **"2. Slot Contention Priority Ordering"** proposed a `created_at`-sorted 50–100ms stagger across all bookings. This item **supersedes** that stagger approach: instead of a flat global stagger biased by creation time, we group by `event_id` and process same-class bookings **serially with a random shuffle**, while different classes stay parallel. The existing entry is left intact as prior art; this refines it.
 >
@@ -286,6 +332,8 @@ async function executeAutoBookQueue(bookings) {
 
 ##### 7. CodexFit response monitoring + abort-on-429/403
 
+**Status: ❌ Open** — No 429/403 distress-flag + abort logic found in scheduler.js.
+
 - **What**: After each `POST /bookings`, log the CodexFit status code. If CodexFit returns 429 (rate-limited) or 403 (blocked), set a global "CodexFit distressed" flag, stop all in-flight bookings in the current queue, and push-notify affected users that their auto-book was aborted due to upstream throttling.
 - **Why**: Prevents making an IP ban worse by continuing to fire after CodexFit has signalled distress; gives users an actionable notification instead of a silent failure.
 - **Files**: `server/scheduler.js:248-257` (booking call site), `server/notifications.js` (new abort notification type or reuse `booking` with an `aborted` context).
@@ -295,6 +343,8 @@ async function executeAutoBookQueue(bookings) {
 ---
 
 ##### 8. Read-only admin dashboard
+
+**Status: ✅ Done** — `server/admin.js` + `server/admin.html` standalone SPA at `/admin`, admin JWT auth via `ADMIN_PASSWORD` env var. Routes: list users, user detail drawer (live CodexFit bookings, credits, queue, monitors, spot maps), inline priority-tier editing (`PUT /api/admin/users/:id/priority`), and delete user (`DELETE /api/admin/users/:id`). The implementation goes beyond "read-only" — it includes priority-tier editing and user deletion.
 
 - **What**: New `server/admin.js` module + an admin auth middleware (admin flag column on `users` table, or a separate admin allow-list). Routes (read-only, no writes yet):
   - `GET /api/admin/health` — same as #4 but cross-user.
@@ -310,6 +360,8 @@ async function executeAutoBookQueue(bookings) {
 
 ##### 9. Track `last_relogin_failure` per user
 
+**Status: ❌ Open** — No `last_relogin_failure` / `relogin_failure_count` columns exist on the `users` table. Verified: only `priority`, `display_name`, `profile_json`, `profile_synced_at`, `last_seen_at`, `calendar_token` were added.
+
 - **What**: Add a `last_relogin_failure` (DATETIME, nullable) + `relogin_failure_count` (INT) to the `users` table. Record a failure in `auth.js` `triggerAutoRelogin()` when CodexFit re-auth fails.
 - **Why**: Lets the admin dashboard (#8) proactively surface users whose stored credentials have stopped working (e.g. password changed on the website) before they miss a Monday booking.
 - **Files**: `server/db.js` (schema migration + CRUD), `server/auth.js` (record failures on catch).
@@ -324,6 +376,8 @@ ALTER TABLE users ADD COLUMN relogin_failure_count INTEGER DEFAULT 0;
 ---
 
 ##### 10. DB backup mechanism
+
+**Status: ❌ Open** — No backup script/cron found.
 
 - **What**: Cron job running `sqlite3 .backup` to a mounted volume (e.g. `/backups/psycle-$(date +%F).db`), retained N days.
 - **Why**: SQLite is a single file; without backups a disk/accident event is catastrophic data loss (all users' queues, prefs, encrypted creds).
@@ -343,6 +397,8 @@ find /backups -name 'psycle-*.db' -mtime +14 -delete
 
 ##### 11. Per-user key derivation
 
+**Status: ❌ Open** — Not implemented.
+
 - **What**: Derive each user's encryption key from the master `ENCRYPTION_KEY` + a per-user salt (stored on the `users` row) via HKDF, instead of using one global key for all ciphertexts.
 - **Why**: Limits blast radius — compromise of the master key alone (without salts) is not enough; compromise of one user's salt doesn't help attack others.
 - **Files**: `server/crypto.js`, `server/db.js` (salt column).
@@ -352,6 +408,8 @@ find /backups -name 'psycle-*.db' -mtime +14 -delete
 ---
 
 ##### 12. Priority-tier queue dispatch
+
+**Status: ⚠️ Partial** — Priority tiers exist (`users.priority` column, default 100, new users get 200) and drive dispatch ordering in `getPendingAutoBookings()` (ORDER BY u.priority ASC, ab.created_at ASC). But there is no central serial global worker queue; dispatch is still per-release grouped parallel. The existing priority tiers + Fisher-Yates shuffle + CLAIM_STAGGER_MS partially address the intent.
 
 - **What**: Replace the per-release `executeAutoBookQueue` fan-out with a central booking queue that has tiers (e.g. paid / free / trial), FIFO within a tier, processed serially with a global worker.
 - **Why**: Lets the operator prioritise users and guarantees a single in-flight `POST /bookings` globally, eliminating all self-competition. Only justified once #5/#6 are insufficient.
@@ -363,6 +421,8 @@ find /backups -name 'psycle-*.db' -mtime +14 -delete
 
 ##### 13. PostgreSQL migration
 
+**Status: ❌ Open** — Not implemented.
+
 - **What**: Migrate `db.js` from `better-sqlite3` to Postgres (connection pooling, better concurrent writes, mature backup tooling). Update `Dockerfile` + `docker-compose.yml` to run Postgres.
 - **Why**: SQLite's single-writer model and single-file nature become friction at high concurrency and for managed backups.
 - **Files**: `server/db.js`, `Dockerfile`, `docker-compose.yml`.
@@ -372,6 +432,8 @@ find /backups -name 'psycle-*.db' -mtime +14 -delete
 ---
 
 ##### 14. Competing-booking detection + user-facing odds warning
+
+**Status: ❌ Open** — Not implemented.
 
 - **What**: Before T-0, detect multiple users targeting the same `(event_id, slot)` and warn them via the SSE stream (`client/src/ui/autobook.js`); optionally let users set a conflict priority.
 - **Why**: Transparency — users currently can't see that 5 people are all aiming at slot 42. Lets them pick a less-contested fallback slot ahead of time.
@@ -383,6 +445,8 @@ find /backups -name 'psycle-*.db' -mtime +14 -delete
 
 ##### 15. Structured JSON logging + Prometheus metrics
 
+**Status: ❌ Open** — Not implemented.
+
 - **What**: Replace ad-hoc `console.error`/`console.log` with structured JSON (timestamps, user IDs, event IDs, statuses). Expose `GET /metrics` (Prometheus format) for booking success rate, CodexFit API latency, queue depth.
 - **Why**: Proper observability for a multi-user service; enables dashboards and alerting beyond the basic #4 health endpoint.
 - **Files**: all `server/*.js`.
@@ -393,12 +457,42 @@ find /backups -name 'psycle-*.db' -mtime +14 -delete
 
 #### Implementation order
 
-1. **P0 #3** (remove key fallback) + deploy coordination — security baseline; ship only once `ENCRYPTION_KEY` is guaranteed in prod.
-2. **P0 #1, #2** (rate limit + quotas) — abuse prevention.
-3. **P0 #4** (health + alerting) — observability baseline.
-4. **P1 #5 + #6 together** (jitter + per-class serial dispatch) — landrush fix; this **supersedes** the existing entry's 50–100ms `created_at` stagger while keeping its `created_at` column for audit/tie-break.
-5. **P1 #7** (CodexFit response monitoring + abort-on-429) — builds on #4's alerting.
-6. **P1 #9** (relogin failure tracking) — feeds the admin dashboard.
-7. **P1 #8** (read-only admin dashboard) — consumes #4 and #9.
-8. **P1 #10** (DB backup) — independent; schedule anytime during P1.
-9. **P2 items** as scale demands (#11 first since it hardens creds, then #15, then #12/#13/#14 if concurrency justifies).
+1. ✅ P0 #3 (remove key fallback) — Done (was actually the first step; deploy.sh/docker-compose.yml updated with ENCRYPTION_KEY).
+2. ✅ P0 #1, #2 (rate limit + quotas) — Done.
+3. ❌ P0 #4 (health + alerting) — Not implemented.
+4. ✅ P1 #5 + #6 together (jitter + per-class serial dispatch) — Done (implements the proposed logic, refined with priority tiers + 80ms stagger + claimedSlots/burnedSlots).
+5. ❌ P1 #7 (CodexFit response monitoring + abort-on-429) — Not implemented.
+6. ❌ P1 #9 (relogin failure tracking) — Not implemented.
+7. ✅ P1 #8 (read-only admin dashboard) — Done (and extended beyond read-only with priority-tier editing + delete user).
+8. ❌ P1 #10 (DB backup) — Not implemented.
+9. ⚠️ P2 items as scale demands — P2 #12 (priority-tier queue dispatch) partially addressed by the priority column + shuffle implementation. All other P2 items remain not implemented.
+
+Note: The implementation order was largely followed for P0/P1 completed items (P0 #3 first, then P0 #1/#2, then P1 #5/#6, then P1 #8). P0 #4 and P1 #7/#9/#10 remain open.
+
+---
+
+## Newly completed since this backlog was written
+
+The following features were built but were NOT part of this backlog's planning. They are listed here so the backlog does not claim credit for their conception.
+
+- **Calendar feed (.ics via webcal/Google)** — `server/calendar.js` generates a standard .ics feed keyed per-user by a rotatable `calendar_token`. Mounted at `GET /api/calendar/:token.ics` behind a 60/min IP rate limiter. Google Calendar and Apple Calendar subscribe via webcal/HTTPS URLs. A 3-hourly cron polls CodexFit and regenerates each enabled user's snapshot; booking mutations trigger a debounced (60s) refresh. Token is regeneratable from Settings. See `server/calendar.js` and `client/src/ui/settings.js`.
+
+- **First-run onboarding** — `client/src/ui/onboarding.js` renders a 6-step guided flow (intro → install → login → notifications → calendar → spot maps) shown once on first login. Versioned (`ONBOARDING_VERSION`), persisted to `localStorage` (`psycleOnboardingComplete` / `psycleOnboardingStep`), resumable on iOS after install relaunch. Triggered from `main.js` after auth.
+
+- **Offline support** — Service worker (`public/sw.js`) caches the SPA shell (network-first) and assets (cache-first); all `/api/*` routes pass through uncached. An offline banner + button disabling is driven by `navigator.onLine` events in `main.js`.
+
+- **Pull-to-refresh** — `client/src/ui/pulltorefresh.js` implements a reusable pull-down gesture (80px threshold, 0.5 resistance, iOS momentum guard) wired to the main scroll container in `main.js` and dispatched per active tab (timetable, bookings, auto-book).
+
+- **In-app Stripe checkout** — Saved-card off-session charge flow in `server/server.js`: `POST /api/cart/checkout/init/:bundleId` (add bundle + list saved cards) → `POST /api/cart/checkout/confirm` (place order, poll Stripe `GET /orders/:id` until `Paid`). When the charge requires 3-D Secure, the server returns `status: 'requires_action'` and the client falls back to the website checkout with tips. (The full in-app 3DS challenge flow is the open 3-D Secure item above.)
+
+- **iOS bottom nav + responsive panel** — The floating-panel base (`width: 1080px; max-height: 85vh; border-radius: 28px`) was adapted with responsive media queries in `styles.css` (`@media max-width: 1100px/480px`) so the panel fills the viewport on small screens, plus an iOS bottom tab bar (`<nav class="psycle-bottom-nav">` in `index.html`) that mirrors the top nav. (Note: `panel-layout.css` exists but is NOT loaded by the app.)
+
+- **Theme toggle (light / dark / auto)** — Settings segmented control with three options: auto (follows system via `prefers-color-scheme`), light, dark. Applied via `<html data-theme>` attribute; persisted to `localStorage` key `psycleTheme`. See `main.js` and `client/src/ui/settings.js`.
+
+- **Tooltip touch support** — Instructor + occupancy tooltips (`tooltips.js`) now support touch devices via tap-to-toggle (tap an instructor name to show, tap elsewhere to dismiss), in addition to the desktop hover path (1s delay).
+
+- **Refresh buttons on every tab** — Each tab panel header has a `.psycle-tab-refresh-btn` wired to `refreshActiveTab()` in `main.js` (cache-busting re-fetch for timetable, re-poll for others).
+
+- **Credit balance refresh** — The credit badge in the header re-fetches the user's CodexFit credit balance (via the existing proxy `GET /credits`) and updates in-app without a full reload; triggered after bookings/checkout and on tab refresh.
+
+- **Admin panel with priority-tier editing** — `server/admin.js` + `server/admin.html` standalone SPA at `/admin`, gated by `ADMIN_PASSWORD` env var + 1h admin JWT. Goes beyond the "read-only" scope proposed in P1 #8; includes inline editing of `users.priority` tier (range 1–999) via `PUT /api/admin/users/:id/priority` and user deletion with full CASCADE cleanup.

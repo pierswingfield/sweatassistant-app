@@ -99,7 +99,14 @@
     <div class="psycle-nav-bar">
       <button class="psycle-nav-btn active" data-tab="class-timetable">Class Timetable</button>
       <button class="psycle-nav-btn" data-tab="my-bookings">My Bookings</button>
-      <button class="psycle-nav-btn" data-tab="auto-book">Auto-Book</button>
+      <button class="psycle-nav-btn" data-tab="auto-book">
+        <svg fill="currentColor" viewBox="0 0 32 32" xmlns="http://www.w3.org/2000/svg" aria-hidden="true" style="display:inline-block;vertical-align:middle;margin-right:4px;width:15px;height:15px;position:relative;top:-2px;">
+          <g data-name="Layer 2" id="Layer_2">
+            <path d="M18,11a1,1,0,0,1-1,1,5,5,0,0,0-5,5,1,1,0,0,1-2,0,5,5,0,0,0-5-5,1,1,0,0,1,0-2,5,5,0,0,0,5-5,1,1,0,0,1,2,0,5,5,0,0,0,5,5A1,1,0,0,1,18,11Z"/>
+            <path d="M19,24a1,1,0,0,1-1,1,2,2,0,0,0-2,2,1,1,0,0,1-2,0,2,2,0,0,0-2-2,1,1,0,0,1,0-2,2,2,0,0,0,2-2,1,1,0,0,1,2,0,2,2,0,0,0,2,2A1,1,0,0,1,19,24Z"/>
+            <path d="M28,17a1,1,0,0,1-1,1,4,4,0,0,0-4,4,1,1,0,0,1-2,0,4,4,0,0,0-4-4,1,1,0,0,1,0-2,4,4,0,0,0,4-4,1,1,0,0,1,2,0,4,4,0,0,0,4,4A1,1,0,0,1,28,17Z"/>
+          </g>
+        </svg>Auto-Book</button>
       <button class="psycle-nav-btn" data-tab="buy-credits">Buy Credits</button>
       <button class="psycle-nav-btn" data-tab="settings">Settings</button>
     </div>
@@ -251,7 +258,14 @@
         <div class="ab-body">
           <!-- Queue -->
           <div class="ab-queue-section">
-            <h2 class="ab-page-title">⚡︎ Auto-Book Queue</h2>
+            <h2 class="ab-page-title" style="display:flex;align-items:center;gap:6px;">
+              <svg fill="currentColor" viewBox="0 0 32 32" xmlns="http://www.w3.org/2000/svg" aria-hidden="true" style="display:inline-block;vertical-align:middle;width:24px;height:24px;margin-top:-1px;">
+                <g data-name="Layer 2" id="Layer_2">
+                  <path d="M18,11a1,1,0,0,1-1,1,5,5,0,0,0-5,5,1,1,0,0,1-2,0,5,5,0,0,0-5-5,1,1,0,0,1,0-2,5,5,0,0,0,5-5,1,1,0,0,1,2,0,5,5,0,0,0,5,5A1,1,0,0,1,18,11Z"/>
+                  <path d="M19,24a1,1,0,0,1-1,1,2,2,0,0,0-2,2,1,1,0,0,1-2,0,2,2,0,0,0-2-2,1,1,0,0,1,0-2,2,2,0,0,0,2-2,1,1,0,0,1,2,0,2,2,0,0,0,2,2A1,1,0,0,1,19,24Z"/>
+                  <path d="M28,17a1,1,0,0,1-1,1,4,4,0,0,0-4,4,1,1,0,0,1-2,0,4,4,0,0,0-4-4,1,1,0,0,1,0-2,4,4,0,0,0,4-4,1,1,0,0,1,2,0,4,4,0,0,0,4,4A1,1,0,0,1,28,17Z"/>
+                </g>
+              </svg>Auto-Book Queue</h2>
             <div class="psycle-queue-list ab-queue-list" id="psycle-autobook-queue-container">
               <!-- Scheduled bookings will be rendered here as list cards -->
             </div>
@@ -451,6 +465,16 @@
                       </div>
                       <label class="psycle-switch">
                         <input type="checkbox" id="psycle-setting-autoupgrade-default">
+                        <span class="psycle-slider"></span>
+                      </label>
+                    </div>
+                    <div class="psycle-setting-row" style="margin-top: 16px;">
+                      <div class="psycle-setting-label">
+                        <span>Continue past 12h cutoff by default</span>
+                        <small>Within 12h of class, keep monitoring without cancelling your original seat (you'll need to ask Psycle to release it). Without this, monitors stop at 12h.</small>
+                      </div>
+                      <label class="psycle-switch">
+                        <input type="checkbox" id="psycle-setting-autoupgrade-keeporiginal-default">
                         <span class="psycle-slider"></span>
                       </label>
                     </div>
@@ -683,8 +707,12 @@
         <span>Bookings</span>
       </button>
       <button class="psycle-nav-btn psycle-bottom-nav-btn" data-tab="auto-book" aria-label="Auto-Book">
-        <svg class="psycle-bn-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
-          <path d="M13 2 4 14h7l-1 8 9-12h-7z"/>
+        <svg class="psycle-bn-icon" fill="currentColor" viewBox="0 0 32 32" xmlns="http://www.w3.org/2000/svg" aria-hidden="true" style="display:inline-block;vertical-align:middle;width:27px;height:27px;position:relative;top:-3px;">
+          <g data-name="Layer 2" id="Layer_2">
+            <path d="M18,11a1,1,0,0,1-1,1,5,5,0,0,0-5,5,1,1,0,0,1-2,0,5,5,0,0,0-5-5,1,1,0,0,1,0-2,5,5,0,0,0,5-5,1,1,0,0,1,2,0,5,5,0,0,0,5,5A1,1,0,0,1,18,11Z"/>
+            <path d="M19,24a1,1,0,0,1-1,1,2,2,0,0,0-2,2,1,1,0,0,1-2,0,2,2,0,0,0-2-2,1,1,0,0,1,0-2,2,2,0,0,0,2-2,1,1,0,0,1,2,0,2,2,0,0,0,2,2A1,1,0,0,1,19,24Z"/>
+            <path d="M28,17a1,1,0,0,1-1,1,4,4,0,0,0-4,4,1,1,0,0,1-2,0,4,4,0,0,0-4-4,1,1,0,0,1,0-2,4,4,0,0,0,4-4,1,1,0,0,1,2,0,4,4,0,0,0,4,4A1,1,0,0,1,28,17Z"/>
+          </g>
         </svg>
         <span>Auto-Book</span>
       </button>

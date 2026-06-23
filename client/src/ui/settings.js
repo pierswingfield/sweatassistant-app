@@ -84,7 +84,7 @@ function formatVal(val) {
   if (typeof val === 'boolean') {
     return val ? '<span style="color:var(--success);font-weight:700;">true</span>' : '<span style="color:var(--danger);font-weight:700;">false</span>';
   }
-  return `<span style="color:#ffffff;font-weight:600;">${String(val)}</span>`;
+  return `<span style="color:var(--text);font-weight:600;">${String(val)}</span>`;
 }
 
 // ─── Special Section Renderers ──────────────────────────────────────────────
@@ -94,10 +94,10 @@ function renderCreditsHtml(credits) {
   return credits.map(c => `
     <div style="background:color-mix(in srgb, var(--feat-autoupgrade) 8%, transparent);border:1px solid color-mix(in srgb, var(--feat-autoupgrade) 20%, transparent);border-radius:10px;padding:10px 14px;display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;">
       <div style="display:flex;flex-direction:column;gap:2px;">
-        <strong style="color:#fff;font-size:13px;">${c.credit_type?.name || 'Unknown'}</strong>
+        <strong style="color:var(--text);font-size:13px;">${c.credit_type?.name || 'Unknown'}</strong>
         <span style="font-size:12px;color:var(--text-secondary);">Handle: ${c.credit_type?.handle || '—'}</span>
       </div>
-      <span style="background:var(--feat-autoupgrade);color:#fff;border-radius:12px;padding:4px 10px;font-size:12px;font-weight:700;box-shadow:0 2px 4px color-mix(in srgb, var(--feat-autoupgrade) 30%, transparent);border:1px solid color-mix(in srgb, var(--text) 10%, transparent);">${c.count} Left</span>
+      <span style="background:var(--feat-autoupgrade);color:var(--on-accent);border-radius:12px;padding:4px 10px;font-size:12px;font-weight:700;box-shadow:0 2px 4px color-mix(in srgb, var(--feat-autoupgrade) 30%, transparent);border:1px solid color-mix(in srgb, var(--text) 10%, transparent);">${c.count} Left</span>
     </div>
   `).join('');
 }
@@ -114,7 +114,7 @@ function renderSubsHtml(subs, statuses) {
     return `
       <div style="background:color-mix(in srgb, var(--text) 2%, transparent);border:1px solid color-mix(in srgb, var(--text) 6%, transparent);border-radius:10px;padding:10px 14px;display:flex;justify-content:space-between;align-items:center;gap:12px;margin-bottom:8px;">
         <div style="display:flex;flex-direction:column;gap:2px;flex:1;">
-          <span style="font-weight:600;color:#fff;font-size:12px;line-height:1.4;">${s.name || '—'}</span>
+          <span style="font-weight:600;color:var(--text);font-size:12px;line-height:1.4;">${s.name || '—'}</span>
           <span style="font-size:12px;color:var(--text-secondary);">Plan: ${s.handle || '—'}</span>
         </div>
         <span style="background:${statusBg};border:1px solid ${statusBorder};color:${statusColor};border-radius:6px;padding:3px 8px;font-size:12px;font-weight:700;text-transform:uppercase;letter-spacing:0.5px;">${status}</span>
@@ -320,7 +320,7 @@ function renderExplorerBody(body) {
     html += `
       <div class="psycle-profile-log-panel" style="margin-top:12px;border:1px solid color-mix(in srgb, var(--text) 8%, transparent);border-radius:12px;overflow:hidden;">
         <div class="psycle-profile-section-header" id="psycle-explorer-log-header" style="background:color-mix(in srgb, var(--text) 3%, transparent);padding:10px 16px;display:flex;justify-content:space-between;align-items:center;cursor:pointer;user-select:none;">
-          <span style="font-weight:700;font-size:13px;color:#fff;display:flex;align-items:center;gap:6px;">📝 Change Log <span id="psycle-explorer-log-count" style="font-weight:400;font-size:12px;color:var(--text-secondary);">(${changeLog.length})</span></span>
+          <span style="font-weight:700;font-size:13px;color:var(--text);display:flex;align-items:center;gap:6px;">📝 Change Log <span id="psycle-explorer-log-count" style="font-weight:400;font-size:12px;color:var(--text-secondary);">(${changeLog.length})</span></span>
           <span class="psycle-accordion-arrow" id="psycle-explorer-log-arrow" style="font-size:12px;color:var(--text-secondary);transition:transform 0.2s;">▲</span>
         </div>
         <div id="psycle-explorer-log-container" style="max-height:200px;overflow-y:auto;padding:8px;background:var(--surface-inset);border-top:1px solid color-mix(in srgb, var(--text) 5%, transparent);">
@@ -420,7 +420,7 @@ function renderSectionAccordion(section, idx, isSpecial) {
   return `
     <div class="psycle-profile-section" style="border:1px solid color-mix(in srgb, var(--text) 8%, transparent);border-radius:12px;overflow:hidden;flex-shrink:0;margin-bottom:10px;">
       <div class="psycle-profile-section-header" style="background:color-mix(in srgb, var(--text) 3%, transparent);padding:12px 16px;display:flex;justify-content:space-between;align-items:center;cursor:pointer;user-select:none;">
-        <span style="font-weight:700;font-size:13px;color:#fff;display:flex;align-items:center;gap:6px;">${section.emoji} ${section.title}${titleSuffix}</span>
+        <span style="font-weight:700;font-size:13px;color:var(--text);display:flex;align-items:center;gap:6px;">${section.emoji} ${section.title}${titleSuffix}</span>
         <span class="psycle-accordion-arrow" style="font-size:12px;color:var(--text-secondary);transition:transform 0.2s;">▼</span>
       </div>
       <div class="psycle-profile-section-content" style="display:none;padding:14px;background:var(--surface-inset);border-top:1px solid color-mix(in srgb, var(--text) 5%, transparent);">
@@ -870,7 +870,7 @@ async function openStudioFloorPlanEditor(studioId, studioName, onSaved) {
           <div style="font-size:32px;margin-bottom:12px;">🗺️</div>
           <p style="margin:0 0 8px;color:var(--text);font-weight:500;">No floor map available</p>
           <p style="font-size:12px;margin:0 0 20px;">Preferences will apply to any available spot when booking at this studio.</p>
-          <button class="psycle-btn" id="spot-save-any" style="background:var(--feat-autoupgrade);color:#fff;">Save (Any Spot Preference)</button>
+          <button class="psycle-btn" id="spot-save-any" style="background:var(--feat-autoupgrade);color:var(--on-accent);">Save (Any Spot Preference)</button>
         </div>
       `;
       body.querySelector('#spot-save-any').onclick = () => onSave([], existing.preferredRows || []);
@@ -878,6 +878,7 @@ async function openStudioFloorPlanEditor(studioId, studioName, onSaved) {
     }
 
     renderStudioFloorPlan(body, layoutSlots, existing.preferredSlots || [], existing.preferredRows || [], onSave, {
+      layoutObjects: studio?.layout?.objects || [],
       bannerHtml: `<div style="font-size:12px;color:var(--feat-autoupgrade);background:color-mix(in srgb, var(--feat-autoupgrade) 8%, transparent);border:1px solid color-mix(in srgb, var(--feat-autoupgrade) 18%, transparent);border-radius:8px;padding:8px 10px;margin-bottom:12px;line-height:1.5;">This is the one shared preferred spot map for <strong>${studioName}</strong>. Quick-Book, Auto-Book, and Auto-Upgrade at this studio all use it — changes apply everywhere.</div>`
     });
   } catch (err) {
@@ -893,7 +894,146 @@ export async function initSettings() {
   updateTestNotifCardVisibility();
   // Konami listener is attached on first profile explorer modal open via setupExplorerKonamiListener()
   updatePushStatusUI();
+  setupCalendarCard();
   // Spot Maps section is ready; button opens the modal
+}
+
+// ─── Calendar feed card ───────────────────────────────────────────────────────
+let calendarLinks = null;
+
+function isIOSDevice() {
+  return /iPad|iPhone|iPod/.test(navigator.userAgent) && !window.MSStream;
+}
+
+// Open an external URL from inside the installed PWA. window.open('_blank') leaves a
+// blank standalone window on iOS; a transient anchor click hands off to Safari cleanly.
+function openExternal(url) {
+  const a = document.createElement('a');
+  a.href = url;
+  a.target = '_blank';
+  a.rel = 'noopener noreferrer';
+  document.body.appendChild(a);
+  a.click();
+  a.remove();
+}
+
+function renderCalendarCardState(status) {
+  const desc = document.getElementById('psycle-calendar-status-desc');
+  const toggleBtn = document.getElementById('psycle-calendar-toggle-btn');
+  const options = document.getElementById('psycle-calendar-options');
+  const tentative = document.getElementById('psycle-calendar-tentative');
+  const alarm = document.getElementById('psycle-calendar-alarm');
+  const apple = document.getElementById('psycle-calendar-apple-btn');
+  const google = document.getElementById('psycle-calendar-google-btn');
+  if (!desc || !toggleBtn || !options) return;
+
+  calendarLinks = status && status.links ? status.links : null;
+
+  if (status && status.enabled) {
+    toggleBtn.style.display = 'none';
+    options.style.display = 'block';
+    if (tentative) tentative.checked = !!status.includeTentative;
+    if (alarm) alarm.value = status.alarm || 'none';
+    const when = status.generatedAt
+      ? new Date(status.generatedAt).toLocaleString(undefined, { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit', timeZoneName: 'short' })
+      : 'just now';
+    const n = status.classCount || 0;
+    desc.innerHTML = `Feed active · ${n} class${n === 1 ? '' : 'es'} · updated ${when} <button id="psycle-calendar-refresh-btn" title="Refresh now" style="background:none;border:none;cursor:pointer;color:var(--text-secondary);font-size:14px;padding:0 2px;vertical-align:middle;line-height:1;" aria-label="Refresh calendar feed">↻</button>`;
+    // Lead with the platform-native option.
+    if (apple && google && isIOSDevice()) { apple.style.order = '0'; google.style.order = '1'; }
+  } else {
+    toggleBtn.style.display = '';
+    toggleBtn.textContent = 'Turn on';
+    options.style.display = 'none';
+    desc.textContent = 'Turn on to get a personal calendar link.';
+  }
+}
+
+async function refreshCalendarCard() {
+  try {
+    const status = await api.getCalendarStatus();
+    renderCalendarCardState(status);
+  } catch (_) { /* card stays in default state */ }
+}
+
+function setupCalendarCard() {
+  const card = document.getElementById('psycle-calendar-card');
+  if (!card || card.dataset.listener) { refreshCalendarCard(); return; }
+  card.dataset.listener = 'true';
+
+  const toggleBtn = document.getElementById('psycle-calendar-toggle-btn');
+  const disableBtn = document.getElementById('psycle-calendar-disable-btn');
+  const tentative = document.getElementById('psycle-calendar-tentative');
+  const alarm = document.getElementById('psycle-calendar-alarm');
+  const apple = document.getElementById('psycle-calendar-apple-btn');
+  const google = document.getElementById('psycle-calendar-google-btn');
+  const copy = document.getElementById('psycle-calendar-copy-btn');
+
+  toggleBtn?.addEventListener('click', async () => {
+    toggleBtn.disabled = true;
+    try {
+      const res = await api.enableCalendar({
+        includeTentative: tentative ? tentative.checked : false,
+        alarm: alarm ? alarm.value : 'none',
+      });
+      calendarLinks = res.links || null;
+      await refreshCalendarCard();
+      showToast('Calendar feed turned on. Add it to your calendar below.', 'success');
+    } catch (err) {
+      showToast(`Couldn't turn on calendar: ${err.message}`, 'error');
+    } finally {
+      toggleBtn.disabled = false;
+    }
+  });
+
+  disableBtn?.addEventListener('click', async () => {
+    disableBtn.disabled = true;
+    try {
+      await api.disableCalendar();
+      calendarLinks = null;
+      await refreshCalendarCard();
+      showToast('Calendar feed turned off. Remove the “Psycle Classes” calendar from your calendar app to clear it.', 'info');
+    } catch (err) {
+      showToast(`Couldn't turn off calendar: ${err.message}`, 'error');
+    } finally {
+      disableBtn.disabled = false;
+    }
+  });
+
+  const saveCalendarPrefs = async () => {
+    try {
+      userSettings.calendar = {
+        ...(userSettings.calendar || {}),
+        enabled: true,
+        includeTentative: tentative ? tentative.checked : false,
+        alarm: alarm ? alarm.value : 'none',
+      };
+      await api.updateSettings(userSettings);
+      refreshCalendarCard();
+    } catch (err) {
+      showToast(`Couldn't save calendar settings: ${err.message}`, 'error');
+    }
+  };
+  tentative?.addEventListener('change', saveCalendarPrefs);
+  alarm?.addEventListener('change', saveCalendarPrefs);
+
+  apple?.addEventListener('click', () => {
+    if (calendarLinks?.webcal) window.location.href = calendarLinks.webcal;
+  });
+  google?.addEventListener('click', () => {
+    if (calendarLinks?.google) openExternal(calendarLinks.google);
+  });
+  copy?.addEventListener('click', async () => {
+    if (!calendarLinks?.https) return;
+    try {
+      await navigator.clipboard.writeText(calendarLinks.https);
+      showToast('Feed link copied to clipboard.', 'success');
+    } catch (_) {
+      showToast(calendarLinks.https, 'info');
+    }
+  });
+
+  refreshCalendarCard();
 }
 
 // ─── Theme toggle (Auto / Light / Dark) ──────────────────────────────────────
@@ -1289,7 +1429,7 @@ function setupSettingsListeners() {
         deleteDataBtn.dataset.confirmState = 'confirm';
         deleteDataBtn.textContent = 'Are you sure? Click again to confirm.';
         deleteDataBtn.style.background = 'var(--danger)';
-        deleteDataBtn.style.color = '#fff';
+        deleteDataBtn.style.color = 'var(--on-accent)';
         deleteDataBtn.style.borderColor = 'var(--danger)';
         setTimeout(() => {
           if (deleteDataBtn.dataset.confirmState === 'confirm') {

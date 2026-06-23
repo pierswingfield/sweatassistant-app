@@ -176,3 +176,55 @@ export function formatFullCountdown(diffMs) {
 
   return `${days}d ${String(hours).padStart(2, '0')}h ${String(mins).padStart(2, '0')}m ${String(secs).padStart(2, '0')}s`;
 }
+
+// ── 60-second cancellation grace period ──────────────────────────────
+// CodexFit bookings carry a `booked_at` timestamp. For the first 60 seconds
+// after booking, the cancel is free (no penalty) and requires no confirmation.
+// The UI shows a live countdown on the cancel button: "Cancel (54s)".
+
+export const GRACE_PERIOD_MS = 60 * 1000;
+
+export function getGraceRemaining(bookedAt) {
+  if (!bookedAt) return 0;
+  const elapsed = Date.now() - new Date(bookedAt).getTime();
+  return Math.max(0, GRACE_PERIOD_MS - elapsed);
+}
+
+export function isInGracePeriod(bookedAt) {
+  return getGraceRemaining(bookedAt) > 0;
+}
+
+// Shared countdown manager — a single setInterval ticks every 1s and updates
+// all [data-grace-deadline] elements in the DOM. The attribute value is the
+// deadline epoch-ms. When the deadline passes the label reverts to "Cancel"
+// and the attribute is removed. Auto-stops when no grace elements remain.
+// Call startGraceCountdown() after rendering any button with data-grace-deadline.
+let _graceInterval = null;
+
+function _tickGraceCountdown() {
+  const els = document.querySelectorAll('[data-grace-deadline]');
+  if (els.length === 0) {
+    if (_graceInterval) { clearInterval(_graceInterval); _graceInterval = null; }
+    return;
+  }
+  for (const el of els) {
+    const deadline = Number(el.getAttribute('data-grace-deadline'));
+    const remaining = Math.max(0, Math.ceil((deadline - Date.now()) / 1000));
+    // For buttons with an icon + <span> label, update the span; otherwise
+    // update the element's own textContent (e.g. timetable segment buttons).
+    const labelEl = el.querySelector('span') || el;
+    if (remaining > 0) {
+      labelEl.textContent = `Cancel (${remaining}s)`;
+    } else {
+      el.removeAttribute('data-grace-deadline');
+      el.classList.remove('grace-cancel');
+      labelEl.textContent = 'Cancel';
+    }
+  }
+}
+
+export function startGraceCountdown() {
+  if (_graceInterval) return;
+  _tickGraceCountdown();
+  _graceInterval = setInterval(_tickGraceCountdown, 1000);
+}

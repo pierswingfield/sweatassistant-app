@@ -62,6 +62,20 @@ export function trimLocation(name = '') {
   return String(name).replace(/^Psycle\s*/i, '');
 }
 
+// Strip a leading group/discipline prefix from a class name so we don't render
+// "RIDE: Signature 45" when the group tag already shows "Ride". Mirrors the
+// server-side cleanClassName() in calendar.js — case-insensitive, handles
+// ":", "-", and "–" separators with optional whitespace. Falls back to the
+// original name if trimming would leave an empty string.
+export function stripClassNamePrefix(name = '', group = '') {
+  let n = String(name || '').trim();
+  if (group) {
+    const g = String(group).trim().replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+    n = n.replace(new RegExp(`^${g}\\s*[:\\-–]?\\s*`, 'i'), '').trim();
+  }
+  return n || String(name || '');
+}
+
 // Returns "bike" when the class group is Ride, otherwise "spot".
 // Use for user-facing copy in single-class contexts (booking modals, edit modals,
 // auto-upgrade cards, auto-book queue cards). Do NOT use for studio-wide spot-map

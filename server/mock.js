@@ -2,6 +2,7 @@
 function createFakeResponse(data, status = 200) {
   return {
     status,
+    ok: status >= 200 && status < 300,
     headers: {
       get(name) {
         if (name.toLowerCase() === 'content-type') return 'application/json';
@@ -95,8 +96,26 @@ function handleMockRequest(pathName, method, body) {
       email: "dev@psycle.com",
       first_name: "Dev",
       last_name: "User",
+      telephone: "+44 7700 900123",
+      created_at: new Date(Date.now() - 420 * 24 * 60 * 60 * 1000).toISOString(),
       booking_cutoff: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString(),
       extended_cutoff: new Date(Date.now() + 14 * 24 * 60 * 60 * 1000).toISOString(),
+      stats: {
+        total_bookings: 142,
+        total_unique_bookings: 138,
+        total_unique_bookings_attended: 129,
+        credits_remaining: 4,
+        total_attended_minutes: 6450
+      },
+      available_credits: [
+        { count: 3, credit_type: { name: "Ride Credit" }, expires_at: new Date(Date.now() + 60 * 24 * 60 * 60 * 1000).toISOString() },
+        { count: 1, credit_type: { name: "Strength Credit" } },
+        { count: 2, credit_type: { id: 8, name: "Advanced Booking Credit" } }
+      ],
+      subscriptions: [
+        { name: "Unlimited Monthly", status: "active", renews_at: new Date(Date.now() + 18 * 24 * 60 * 60 * 1000).toISOString() }
+      ],
+      subscription_statuses: ["active"],
       metafields: {
         public: {
           bookmarks: {
@@ -156,6 +175,38 @@ function handleMockRequest(pathName, method, body) {
   if (pathName.startsWith('/orders/')) {
     // Mock settles immediately as Paid. Real API wraps the order in { data: ... }.
     return createFakeResponse({ data: { id: 9000001, status: 'Paid' } });
+  }
+
+  if (pathName.startsWith('/bookings')) {
+    const now = new Date();
+    const d1 = new Date(now.getTime() + 2 * 864e5).toISOString();
+    const d2 = new Date(now.getTime() + 5 * 864e5).toISOString();
+    return createFakeResponse([
+      {
+        id: 8255401,
+        event_id: 1000,
+        booked_at: new Date().toISOString(),
+        studio_slot: { label: '23' },
+        event: {
+          id: 1000, name: 'Ride 45', start_at: d1,
+          event_type: { id: 20, name: 'RIDE: Ride 45', group: { id: 1, name: 'Ride' } },
+          instructor: { id: 10, name: 'ADAM', full_name: 'Adam' },
+          studio: { id: 138, name: 'Ride Studio', location: { id: 13, name: 'Mortimer Street' } }
+        }
+      },
+      {
+        id: 8255402,
+        event_id: 1003,
+        booked_at: new Date(Date.now() - 120000).toISOString(),
+        studio_slot: { label: '11' },
+        event: {
+          id: 1003, name: 'Barre 55', start_at: d2,
+          event_type: { id: 21, name: 'BARRE: Barre 55', group: { id: 2, name: 'Barre' } },
+          instructor: { id: 11, name: 'BECKY', full_name: 'Becky' },
+          studio: { id: 139, name: 'Barre Studio', location: { id: 13, name: 'Mortimer Street' } }
+        }
+      }
+    ]);
   }
 
   if (pathName.startsWith('/events/')) {

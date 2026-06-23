@@ -28,7 +28,8 @@ function getPrefs(userId) {
 
 function firstName(fullName) {
   if (!fullName) return 'your instructor';
-  return String(fullName).trim().split(/\s+/)[0];
+  const first = String(fullName).trim().split(/\s+/)[0];
+  return first || 'your instructor';
 }
 
 function groupToken(groupName, className) {

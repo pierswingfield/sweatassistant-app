@@ -2,12 +2,16 @@ require('dotenv').config();
 const express = require('express');
 const cors = require('cors');
 const path = require('path');
+const rateLimit = require('express-rate-limit');
+const { ipKeyGenerator } = require('express-rate-limit');
 const db = require('./db');
 const { handleLogin, authenticateToken, authenticateTokenSSE, triggerAutoRelogin } = require('./auth');
 const pushService = require('./push');
 const notifications = require('./notifications');
 const scheduler = require('./scheduler');
 const poller = require('./poller');
+const calendar = require('./calendar');
+const adminRouter = require('./admin');
 const { appName } = require('../app.config.json');
 
 const app = express();
@@ -16,10 +20,55 @@ const PORT = process.env.PORT || 3000;
 app.use(cors());
 app.use(express.json());
 
+// Per-user rate limiters (keyed on userId set by authenticateToken, not IP —
+// all users share the Pi's egress IP so IP-based limiting would be wrong).
+const proxyLimiter = rateLimit({
+  windowMs: 60 * 1000,
+  max: 60,
+  standardHeaders: true,
+  legacyHeaders: false,
+  keyGenerator: (req) => req.userId ? String(req.userId) : ipKeyGenerator(req),
+  message: { message: 'Too many requests — please slow down.' },
+  skip: (req) => process.env.NODE_ENV !== 'production', // no limits in dev
+});
+
+const bookingMutationLimiter = rateLimit({
+  windowMs: 60 * 1000,
+  max: 10,
+  standardHeaders: true,
+  legacyHeaders: false,
+  keyGenerator: (req) => req.userId ? String(req.userId) : ipKeyGenerator(req),
+  message: { message: 'Too many booking requests — please wait before retrying.' },
+  skip: (req) => process.env.NODE_ENV !== 'production',
+});
+
+// Public calendar feed is keyed by IP (no userId — it's token-by-URL). Generous
+// limit; calendar clients poll infrequently but several apps may share an IP.
+const calendarFeedLimiter = rateLimit({
+  windowMs: 60 * 1000,
+  max: 60,
+  standardHeaders: true,
+  legacyHeaders: false,
+  keyGenerator: (req) => ipKeyGenerator(req),
+  message: 'Too many requests.',
+  skip: (req) => process.env.NODE_ENV !== 'production',
+});
+
 // Serves the client SPA files in production Docker container
 if (process.env.NODE_ENV === 'production') {
   app.use(express.static(path.join(__dirname, 'public')));
 }
+
+// -------------------------------------------------------------
+// ADMIN PANEL
+// Requires ADMIN_PASSWORD env var. All routes protected by admin JWT.
+// -------------------------------------------------------------
+
+app.get('/admin', (req, res) => {
+  res.sendFile(path.join(__dirname, 'admin.html'));
+});
+
+app.use('/api/admin', adminRouter);
 
 // -------------------------------------------------------------
 // BFF AUTHENTICATION
@@ -103,6 +152,8 @@ app.post('/api/notify/booking-success', authenticateToken, async (req, res) => {
     await notifications.notify(req.userId, 'booking', {
       source: source || 'manual', eventId, className, groupName, instructorName, startAt, slots,
     });
+    // Refresh the calendar feed shortly after a manual/quick booking.
+    try { calendar.scheduleRefresh(req.userId); } catch (_) {}
     res.json({ success: true });
   } catch (err) {
     res.status(500).json({ message: err.message });
@@ -114,6 +165,8 @@ app.post('/api/bookings/sync', authenticateToken, (req, res) => {
   try {
     const { bookings } = req.body;
     db.replaceBookingCache(req.userId, Array.isArray(bookings) ? bookings : []);
+    // Keep the calendar feed current the moment the client reports a change.
+    try { calendar.regenerateSnapshot(req.userId); } catch (_) {}
     res.json({ success: true });
   } catch (err) {
     res.status(500).json({ message: err.message });
@@ -138,12 +191,16 @@ app.get('/api/auto-book', authenticateToken, (req, res) => {
   }
 });
 
-app.post('/api/auto-book', authenticateToken, (req, res) => {
+app.post('/api/auto-book', authenticateToken, bookingMutationLimiter, (req, res) => {
   const { eventId, studioId, className, instructorName, studioName, locationName, startAt, preferences, skipImmediate, groupName, creditShortfall } = req.body;
   if (!eventId || !preferences) {
     return res.status(400).json({ message: 'eventId and preferences are required' });
   }
   try {
+    const pendingCount = db.countPendingAutoBookings(req.userId);
+    if (pendingCount >= 15) {
+      return res.status(429).json({ message: 'Auto-book queue limit reached (15 pending entries). Please remove some entries before adding more.' });
+    }
     const id = db.addAutoBooking(req.userId, eventId, className, instructorName, studioName, locationName, startAt, preferences, studioId ?? null, groupName ?? null);
 
     // Warn (via push) if the user set this up without enough credits.
@@ -166,7 +223,7 @@ app.post('/api/auto-book', authenticateToken, (req, res) => {
   }
 });
 
-app.post('/api/simulate-release', authenticateToken, (req, res) => {
+app.post('/api/simulate-release', authenticateToken, bookingMutationLimiter, (req, res) => {
   try {
     console.log(`[Server] Simulated release triggered by user ${req.userId}`);
     scheduler.runAllPendingBookings(req.userId);
@@ -241,12 +298,18 @@ app.get('/api/auto-upgrade', authenticateToken, (req, res) => {
   }
 });
 
-app.post('/api/auto-upgrade', authenticateToken, (req, res) => {
+app.post('/api/auto-upgrade', authenticateToken, bookingMutationLimiter, (req, res) => {
   const { eventId, studioId, bookingId, currentSlotId, className, instructorName, studioName, locationName, startAt, preferences, groupName, creditShortfall } = req.body;
   if (eventId == null || bookingId == null || currentSlotId == null || isNaN(Number(currentSlotId)) || !preferences) {
     return res.status(400).json({ message: 'Missing required auto-upgrade fields' });
   }
   try {
+    // Quota: cap active monitors per user
+    const activeCount = db.countActiveAutoUpgrades(req.userId);
+    if (activeCount >= 10) {
+      return res.status(429).json({ message: 'Auto-upgrade monitor limit reached (10 active monitors). Please cancel some before adding more.' });
+    }
+
     // Check if an active auto-upgrade already exists for this event
     const activeUpgrades = db.getUserAutoUpgrades(req.userId).filter(u => u.event_id === eventId && u.status === 'active');
     if (activeUpgrades.length > 0) {
@@ -308,7 +371,119 @@ app.get('/api/settings', authenticateToken, (req, res) => {
 app.put('/api/settings', authenticateToken, (req, res) => {
   try {
     db.setUserSettings(req.userId, req.body);
+    // Calendar prefs (includeTentative / alarm) live in settings — republish on change.
+    try { if (req.body && req.body.calendar) calendar.regenerateSnapshot(req.userId); } catch (_) {}
     res.json({ success: true });
+  } catch (err) {
+    res.status(500).json({ message: err.message });
+  }
+});
+
+// -------------------------------------------------------------
+// CALENDAR FEED
+// -------------------------------------------------------------
+
+// Public-by-token feed. MUST be excluded from Cloudflare Access (see
+// Documentation/CALENDAR_FEED_PLAN.md §7) — calendar clients can't pass Access auth.
+app.get('/api/calendar/:token.ics', calendarFeedLimiter, (req, res) => {
+  try {
+    const token = req.params.token;
+    const user = db.getUserByCalendarToken(token);
+    if (!user) return res.status(410).type('text/plain').send('This calendar feed has been turned off.');
+
+    const settings = db.getUserSettings(user.id) || {};
+    if (!settings.calendar || !settings.calendar.enabled) {
+      return res.status(410).type('text/plain').send('This calendar feed has been turned off.');
+    }
+
+    let snap = db.getCalendarSnapshot(user.id);
+    if (!snap || !snap.ics) {
+      calendar.regenerateSnapshot(user.id);
+      snap = db.getCalendarSnapshot(user.id);
+    }
+    if (!snap || !snap.ics) return res.status(503).type('text/plain').send('Calendar not ready yet, try again shortly.');
+
+    if (req.headers['if-none-match'] && req.headers['if-none-match'] === snap.etag) {
+      return res.status(304).end();
+    }
+
+    res.set('Content-Type', 'text/calendar; charset=utf-8');
+    res.set('Content-Disposition', 'inline; filename="psycle.ics"');
+    res.set('ETag', snap.etag);
+    res.set('Cache-Control', 'no-cache, max-age=0');
+    res.send(snap.ics);
+  } catch (err) {
+    res.status(500).type('text/plain').send('Error generating calendar.');
+  }
+});
+
+app.get('/api/calendar/status', authenticateToken, (req, res) => {
+  try {
+    const settings = db.getUserSettings(req.userId) || {};
+    const cal = settings.calendar || {};
+    const token = db.getCalendarToken(req.userId);
+    const snap = db.getCalendarSnapshot(req.userId);
+    res.json({
+      enabled: !!cal.enabled,
+      includeTentative: !!cal.includeTentative,
+      alarm: cal.alarm || 'none',
+      links: token ? calendar.buildLinks(token) : null,
+      generatedAt: snap ? snap.generated_at : null,
+      classCount: snap ? snap.class_count : 0,
+    });
+  } catch (err) {
+    res.status(500).json({ message: err.message });
+  }
+});
+
+app.post('/api/calendar/enable', authenticateToken, (req, res) => {
+  try {
+    const token = calendar.ensureToken(req.userId);
+    const settings = db.getUserSettings(req.userId) || {};
+    settings.calendar = { ...(settings.calendar || {}), enabled: true };
+    if (typeof req.body?.includeTentative === 'boolean') settings.calendar.includeTentative = req.body.includeTentative;
+    if (typeof req.body?.alarm === 'string') settings.calendar.alarm = req.body.alarm;
+    db.setUserSettings(req.userId, settings);
+    calendar.regenerateSnapshot(req.userId);
+    // Warm the location-address cache + pull fresh bookings/waitlists shortly after,
+    // so the feed gains addresses and the latest classes without waiting for the cycle.
+    try { calendar.scheduleRefresh(req.userId, 2000); } catch (_) {}
+    res.json({ success: true, links: calendar.buildLinks(token) });
+  } catch (err) {
+    res.status(500).json({ message: err.message });
+  }
+});
+
+app.post('/api/calendar/disable', authenticateToken, (req, res) => {
+  try {
+    const settings = db.getUserSettings(req.userId) || {};
+    settings.calendar = { ...(settings.calendar || {}), enabled: false };
+    db.setUserSettings(req.userId, settings);
+    // Revoke the token so the public URL stops working (device subscription goes stale).
+    db.setCalendarToken(req.userId, null);
+    res.json({ success: true });
+  } catch (err) {
+    res.status(500).json({ message: err.message });
+  }
+});
+
+app.post('/api/calendar/rotate', authenticateToken, (req, res) => {
+  try {
+    const token = calendar.rotateToken(req.userId);
+    calendar.regenerateSnapshot(req.userId);
+    res.json({ success: true, links: calendar.buildLinks(token) });
+  } catch (err) {
+    res.status(500).json({ message: err.message });
+  }
+});
+
+app.post('/api/calendar/refresh', authenticateToken, (req, res) => {
+  try {
+    const settings = db.getUserSettings(req.userId);
+    const cal = settings.calendar || {};
+    if (!cal.enabled) return res.status(400).json({ message: 'Calendar feed is not enabled.' });
+    calendar.scheduleRefresh(req.userId, 5000);
+    res.json({ ok: true });
   } catch (err) {
     res.status(500).json({ message: err.message });
   }
@@ -472,20 +647,34 @@ async function proxyRequest(userId, pathName, method, body) {
   return response;
 }
 
-app.all('/api/proxy/*', authenticateToken, async (req, res) => {
+app.all('/api/proxy/*', authenticateToken, proxyLimiter, async (req, res) => {
   const pathWithQuery = req.url.slice('/api/proxy'.length);
   const method = req.method;
   const body = req.body;
 
+  // Stamp "last seen" on any client activity through the proxy.
+  try { db.touchUserLastSeen(req.userId); } catch (_) {}
+
   try {
     const response = await proxyRequest(req.userId, pathWithQuery, method, body);
     const contentType = response.headers.get('content-type');
-    
+
+    // A booking/waitlist mutation in the web app → refresh the calendar feed ~1 min
+    // later (debounced) so the change shows without waiting for the 3-hourly cycle.
+    if (response.ok && (method === 'POST' || method === 'DELETE') && /^\/(bookings|waitlists)\b/.test(pathWithQuery)) {
+      try { calendar.scheduleRefresh(req.userId); } catch (_) {}
+    }
+
     res.status(response.status);
 
     if (contentType && contentType.includes('application/json')) {
       try {
         const data = await response.json();
+        // Cache the full profile snapshot for the admin detail view (GET /profile only,
+        // not /profile/metafields/* sub-paths).
+        if (method === 'GET' && response.ok && /^\/profile(\?|$)/.test(pathWithQuery)) {
+          try { db.cacheUserProfile(req.userId, data.data || data); } catch (_) {}
+        }
         res.json(data);
       } catch {
         // CodexFit sometimes returns content-type: application/json with an
@@ -665,4 +854,5 @@ app.listen(PORT, () => {
   // Start schedulers
   scheduler.init();
   poller.init();
+  calendar.init();
 });

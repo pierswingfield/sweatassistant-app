@@ -1,0 +1,953 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Psycle Assistant — Admin</title>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    :root {
+      --bg: #0f0e0d;
+      --surface: #1a1816;
+      --surface-2: #252220;
+      --border: #2e2b28;
+      --text: #e8e0d5;
+      --text-muted: #8a8278;
+      --accent: #e87d3e;
+      --accent-dim: rgba(232,125,62,0.15);
+      --green: #5aab6e;
+      --red: #c9534f;
+      --red-dim: rgba(201,83,79,0.15);
+      --radius: 8px;
+      --mono: 'SF Mono', 'Fira Code', monospace;
+    }
+
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+      background: var(--bg);
+      color: var(--text);
+      min-height: 100vh;
+      padding: 0;
+    }
+
+    header {
+      background: var(--surface);
+      border-bottom: 1px solid var(--border);
+      padding: 14px 24px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+    }
+    header h1 { font-size: 15px; font-weight: 600; letter-spacing: 0.02em; color: var(--text); }
+    header span { font-size: 11px; color: var(--text-muted); font-family: var(--mono); background: var(--surface-2); padding: 3px 8px; border-radius: 4px; border: 1px solid var(--border); }
+
+    /* Login screen */
+    #login-screen {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      min-height: calc(100vh - 53px);
+    }
+    .login-card {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      padding: 32px;
+      width: 320px;
+    }
+    .login-card h2 { font-size: 16px; margin-bottom: 20px; }
+    .login-card label { display: block; font-size: 12px; color: var(--text-muted); margin-bottom: 6px; }
+    .login-card input[type=password] {
+      width: 100%;
+      background: var(--surface-2);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      color: var(--text);
+      padding: 10px 12px;
+      font-size: 14px;
+      outline: none;
+      margin-bottom: 16px;
+    }
+    .login-card input[type=password]:focus { border-color: var(--accent); }
+    .btn {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      padding: 8px 16px;
+      border-radius: var(--radius);
+      font-size: 13px;
+      font-weight: 500;
+      border: none;
+      cursor: pointer;
+      transition: opacity 0.15s;
+    }
+    .btn:disabled { opacity: 0.4; cursor: default; }
+    .btn-primary { background: var(--accent); color: #fff; width: 100%; justify-content: center; padding: 10px; }
+    .btn-primary:hover:not(:disabled) { opacity: 0.85; }
+    .btn-danger { background: var(--red-dim); color: var(--red); border: 1px solid rgba(201,83,79,0.3); font-size: 12px; padding: 4px 10px; }
+    .btn-danger:hover:not(:disabled) { background: var(--red); color: #fff; }
+    .error-msg { color: var(--red); font-size: 12px; margin-top: 10px; display: none; }
+
+    /* Main panel */
+    #admin-screen { display: none; padding: 24px; }
+    .panel-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      margin-bottom: 20px;
+    }
+    .panel-header h2 { font-size: 14px; color: var(--text-muted); font-weight: 500; }
+    .stats { display: flex; gap: 12px; }
+    .stat { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); padding: 6px 14px; font-size: 12px; color: var(--text-muted); }
+    .stat strong { color: var(--text); font-size: 14px; display: block; }
+
+    /* Table */
+    .table-wrap { overflow-x: auto; }
+    table { width: 100%; border-collapse: collapse; font-size: 13px; }
+    thead th {
+      text-align: left;
+      padding: 8px 12px;
+      font-size: 11px;
+      font-weight: 600;
+      letter-spacing: 0.06em;
+      text-transform: uppercase;
+      color: var(--text-muted);
+      border-bottom: 1px solid var(--border);
+      white-space: nowrap;
+    }
+    tbody tr { border-bottom: 1px solid var(--border); }
+    tbody tr:hover { background: var(--surface); }
+    tbody td { padding: 10px 12px; vertical-align: middle; }
+
+    .name { font-weight: 500; }
+    .email { font-size: 11px; color: var(--text-muted); font-family: var(--mono); }
+    .badge {
+      display: inline-block;
+      padding: 2px 8px;
+      border-radius: 4px;
+      font-size: 11px;
+      font-weight: 600;
+      font-family: var(--mono);
+    }
+    .badge-pending { background: var(--accent-dim); color: var(--accent); }
+    .badge-upgrades { background: rgba(90,171,110,0.15); color: var(--green); }
+    .badge-zero { color: var(--text-muted); }
+
+    /* Inline priority editor */
+    .priority-cell { display: flex; align-items: center; gap: 6px; }
+    .priority-input {
+      width: 56px;
+      background: var(--surface-2);
+      border: 1px solid var(--border);
+      border-radius: 4px;
+      color: var(--text);
+      padding: 4px 8px;
+      font-size: 13px;
+      font-family: var(--mono);
+      text-align: center;
+      outline: none;
+    }
+    .priority-input:focus { border-color: var(--accent); }
+    .priority-input.saving { opacity: 0.5; }
+    .priority-vip { border-color: var(--accent); background: var(--accent-dim); }
+
+    .created { font-size: 11px; color: var(--text-muted); font-family: var(--mono); }
+
+    .loading { padding: 40px; text-align: center; color: var(--text-muted); }
+    .logout-btn {
+      background: none;
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      color: var(--text-muted);
+      font-size: 12px;
+      padding: 5px 12px;
+      cursor: pointer;
+    }
+    .logout-btn:hover { border-color: var(--text-muted); color: var(--text); }
+
+    .confirm-overlay {
+      position: fixed; inset: 0;
+      background: rgba(0,0,0,0.6);
+      display: none;
+      align-items: center;
+      justify-content: center;
+      z-index: 100;
+    }
+    .confirm-overlay.open { display: flex; }
+    .confirm-card {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      padding: 24px;
+      width: 340px;
+    }
+    .confirm-card h3 { font-size: 15px; margin-bottom: 8px; }
+    .confirm-card p { font-size: 13px; color: var(--text-muted); margin-bottom: 20px; line-height: 1.5; }
+    .confirm-actions { display: flex; gap: 10px; justify-content: flex-end; }
+    .btn-ghost { background: none; border: 1px solid var(--border); color: var(--text-muted); }
+    .btn-ghost:hover { border-color: var(--text-muted); color: var(--text); }
+
+    /* Clickable user name */
+    .name-btn { background: none; border: none; padding: 0; color: var(--text); font: inherit; font-weight: 500; cursor: pointer; text-align: left; }
+    .name-btn:hover { color: var(--accent); }
+    .last-seen { font-size: 11px; color: var(--text-muted); font-family: var(--mono); }
+    .last-seen.stale { color: var(--red); }
+
+    /* Detail drawer */
+    .drawer-overlay {
+      position: fixed; inset: 0;
+      background: rgba(0,0,0,0.5);
+      display: none; z-index: 80;
+    }
+    .drawer-overlay.open { display: block; }
+    .drawer {
+      position: fixed; top: 0; right: 0; bottom: 0;
+      width: 560px; max-width: 92vw;
+      background: var(--bg);
+      border-left: 1px solid var(--border);
+      box-shadow: -8px 0 32px rgba(0,0,0,0.4);
+      transform: translateX(100%);
+      transition: transform 0.22s cubic-bezier(0.25,1,0.5,1);
+      z-index: 90;
+      display: flex; flex-direction: column;
+    }
+    .drawer.open { transform: translateX(0); }
+    .drawer-head {
+      display: flex; align-items: flex-start; justify-content: space-between;
+      padding: 18px 22px; border-bottom: 1px solid var(--border);
+      background: var(--surface); position: sticky; top: 0;
+    }
+    .drawer-head h2 { font-size: 17px; font-weight: 600; }
+    .drawer-head .email { margin-top: 3px; }
+    .drawer-close {
+      background: none; border: 1px solid var(--border); border-radius: var(--radius);
+      color: var(--text-muted); width: 30px; height: 30px; cursor: pointer; font-size: 16px; line-height: 1;
+      flex-shrink: 0;
+    }
+    .drawer-close:hover { border-color: var(--text-muted); color: var(--text); }
+    .drawer-body { overflow-y: auto; padding: 20px 22px; flex: 1; }
+    .drawer-body.loading { display: flex; align-items: center; justify-content: center; color: var(--text-muted); }
+
+    .section { margin-bottom: 26px; }
+    .section-title {
+      font-size: 11px; font-weight: 600; letter-spacing: 0.07em; text-transform: uppercase;
+      color: var(--text-muted); margin-bottom: 10px; display: flex; align-items: center; gap: 8px;
+    }
+    .section-title .count {
+      background: var(--surface-2); border: 1px solid var(--border); border-radius: 10px;
+      padding: 1px 7px; font-size: 10px; font-family: var(--mono); color: var(--text-muted);
+    }
+    .kv-grid { display: grid; grid-template-columns: auto 1fr; gap: 7px 16px; font-size: 13px; }
+    .kv-grid dt { color: var(--text-muted); white-space: nowrap; }
+    .kv-grid dd { color: var(--text); text-align: right; font-variant-numeric: tabular-nums; }
+
+    .stat-row { display: flex; flex-wrap: wrap; gap: 8px; }
+    .stat-box {
+      background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius);
+      padding: 8px 12px; flex: 1; min-width: 110px;
+    }
+    .stat-box .v { font-size: 18px; font-weight: 600; color: var(--text); font-variant-numeric: tabular-nums; }
+    .stat-box .l { font-size: 11px; color: var(--text-muted); margin-top: 2px; }
+
+    .item {
+      background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius);
+      padding: 10px 12px; margin-bottom: 8px; font-size: 13px;
+    }
+    .item-head { display: flex; align-items: center; justify-content: space-between; gap: 10px; }
+    .item-title { font-weight: 500; }
+    .item-sub { font-size: 11px; color: var(--text-muted); margin-top: 3px; font-family: var(--mono); }
+    .item-meta { font-size: 11px; color: var(--text-muted); margin-top: 4px; }
+
+    .pill {
+      display: inline-block; padding: 2px 8px; border-radius: 10px;
+      font-size: 10px; font-weight: 600; font-family: var(--mono); white-space: nowrap;
+    }
+    .pill-green { background: rgba(90,171,110,0.15); color: var(--green); }
+    .pill-accent { background: var(--accent-dim); color: var(--accent); }
+    .pill-red { background: var(--red-dim); color: var(--red); }
+    .pill-muted { background: var(--surface-2); color: var(--text-muted); }
+
+    .chip-row { display: flex; flex-wrap: wrap; gap: 5px; margin-top: 6px; }
+    .chip {
+      background: var(--surface-2); border: 1px solid var(--border); border-radius: 6px;
+      padding: 2px 7px; font-size: 11px; font-family: var(--mono); color: var(--text);
+    }
+    .chip.rank { background: var(--accent-dim); color: var(--accent); border-color: transparent; }
+
+    .empty { font-size: 12px; color: var(--text-muted); font-style: italic; padding: 4px 0; }
+    .err-banner { color: var(--red); font-size: 13px; }
+
+    .history-toggle {
+      background: var(--surface-2); border: 1px solid var(--border); color: var(--text-muted);
+      border-radius: var(--radius); padding: 6px 12px; font-size: 12px; cursor: pointer; margin-top: 10px;
+      width: 100%; text-align: center;
+    }
+    .history-toggle:hover { border-color: var(--text-muted); color: var(--text); }
+    .history-block { display: none; margin-top: 10px; }
+    .history-block.open { display: block; }
+    .history-block .empty { text-align: center; padding: 10px 0; }
+    .pager { display: flex; align-items: center; gap: 10px; justify-content: center; margin-top: 10px; font-size: 12px; color: var(--text-muted); }
+    .pager button {
+      background: var(--surface-2); border: 1px solid var(--border); color: var(--text-muted);
+      border-radius: 4px; padding: 3px 10px; cursor: pointer; font-size: 12px;
+    }
+    .pager button:disabled { opacity: 0.4; cursor: default; }
+  </style>
+</head>
+<body>
+
+<header>
+  <h1>Psycle Assistant — Admin</h1>
+  <span id="session-label"></span>
+</header>
+
+<!-- Login -->
+<div id="login-screen">
+  <div class="login-card">
+    <h2>Admin Login</h2>
+    <label for="pw">Password</label>
+    <input type="password" id="pw" autocomplete="current-password" placeholder="Admin password">
+    <button class="btn btn-primary" id="login-btn">Sign in</button>
+    <div class="error-msg" id="login-error"></div>
+  </div>
+</div>
+
+<!-- Main -->
+<div id="admin-screen">
+  <div class="panel-header">
+    <h2>Users</h2>
+    <div style="display:flex;gap:10px;align-items:center">
+      <div class="stats" id="stats"></div>
+      <button class="logout-btn" id="logout-btn">Log out</button>
+    </div>
+  </div>
+  <div class="table-wrap">
+    <table id="user-table">
+      <thead>
+        <tr>
+          <th>Name / Email</th>
+          <th>Priority</th>
+          <th>Auto-Books</th>
+          <th>Upgrades</th>
+          <th>Last seen</th>
+          <th>Joined</th>
+          <th></th>
+        </tr>
+      </thead>
+      <tbody id="user-tbody"><tr><td colspan="7" class="loading">Loading…</td></tr></tbody>
+    </table>
+  </div>
+</div>
+
+<!-- User detail drawer -->
+<div class="drawer-overlay" id="drawer-overlay"></div>
+<div class="drawer" id="drawer">
+  <div class="drawer-head">
+    <div>
+      <h2 id="drawer-name">—</h2>
+      <div class="email" id="drawer-email"></div>
+    </div>
+    <button class="drawer-close" id="drawer-close" aria-label="Close">&times;</button>
+  </div>
+  <div class="drawer-body" id="drawer-body"></div>
+</div>
+
+<!-- Delete confirm modal -->
+<div class="confirm-overlay" id="confirm-overlay">
+  <div class="confirm-card">
+    <h3>Delete user?</h3>
+    <p id="confirm-text"></p>
+    <div class="confirm-actions">
+      <button class="btn btn-ghost" id="confirm-cancel">Cancel</button>
+      <button class="btn btn-danger" id="confirm-ok">Delete</button>
+    </div>
+  </div>
+</div>
+
+<script>
+  const TOKEN_KEY = 'psycleAdminToken';
+  let adminToken = localStorage.getItem(TOKEN_KEY);
+  let pendingDelete = null;
+  let currentDetail = null;
+  let abHistoryPage = 0, auHistoryPage = 0;
+  const HISTORY_PAGE_SIZE = 5;
+
+  // ── Auth ──────────────────────────────────────────────────────────────────
+
+  function setToken(t) {
+    adminToken = t;
+    if (t) localStorage.setItem(TOKEN_KEY, t);
+    else localStorage.removeItem(TOKEN_KEY);
+  }
+
+  function showLogin(msg) {
+    document.getElementById('login-screen').style.display = 'flex';
+    document.getElementById('admin-screen').style.display = 'none';
+    document.getElementById('session-label').textContent = '';
+    if (msg) {
+      const el = document.getElementById('login-error');
+      el.textContent = msg;
+      el.style.display = 'block';
+    }
+  }
+
+  function showAdmin() {
+    document.getElementById('login-screen').style.display = 'none';
+    document.getElementById('admin-screen').style.display = 'block';
+    document.getElementById('session-label').textContent = 'admin session';
+    loadUsers();
+  }
+
+  async function doLogin() {
+    const pw = document.getElementById('pw').value;
+    const btn = document.getElementById('login-btn');
+    const errEl = document.getElementById('login-error');
+    errEl.style.display = 'none';
+    btn.disabled = true;
+    btn.textContent = 'Signing in…';
+    try {
+      const res = await fetch('/api/admin/login', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ password: pw })
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.message || 'Login failed');
+      setToken(data.token);
+      showAdmin();
+    } catch (e) {
+      errEl.textContent = e.message;
+      errEl.style.display = 'block';
+    } finally {
+      btn.disabled = false;
+      btn.textContent = 'Sign in';
+    }
+  }
+
+  function doLogout() {
+    setToken(null);
+    showLogin();
+  }
+
+  // ── Users ─────────────────────────────────────────────────────────────────
+
+  async function apiFetch(url, opts = {}) {
+    const res = await fetch(url, {
+      ...opts,
+      headers: { 'Authorization': `Bearer ${adminToken}`, 'Content-Type': 'application/json', ...(opts.headers || {}) }
+    });
+    if (res.status === 401 || res.status === 403) {
+      setToken(null);
+      showLogin('Session expired — please log in again.');
+      throw new Error('Session expired');
+    }
+    return res;
+  }
+
+  async function loadUsers() {
+    const tbody = document.getElementById('user-tbody');
+    tbody.innerHTML = '<tr><td colspan="7" class="loading">Loading…</td></tr>';
+    try {
+      const res = await apiFetch('/api/admin/users');
+      const { users } = await res.json();
+      renderUsers(users);
+    } catch (e) {
+      if (adminToken) tbody.innerHTML = `<tr><td colspan="7" class="loading" style="color:var(--red)">${e.message}</td></tr>`;
+    }
+  }
+
+  function renderUsers(users) {
+    const tbody = document.getElementById('user-tbody');
+    const statsEl = document.getElementById('stats');
+
+    const totalPending = users.reduce((s, u) => s + (u.pending_bookings || 0), 0);
+    const totalUpgrades = users.reduce((s, u) => s + (u.active_upgrades || 0), 0);
+    statsEl.innerHTML = `
+      <div class="stat"><strong>${users.length}</strong> users</div>
+      <div class="stat"><strong>${totalPending}</strong> pending books</div>
+      <div class="stat"><strong>${totalUpgrades}</strong> active upgrades</div>
+    `;
+
+    if (users.length === 0) {
+      tbody.innerHTML = '<tr><td colspan="7" class="loading">No users yet.</td></tr>';
+      return;
+    }
+
+    tbody.innerHTML = users.map(u => {
+      const name = u.display_name || '—';
+      const joined = u.created_at ? new Date(u.created_at).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' }) : '—';
+      const isVip = (u.priority || 100) < 100;
+      const pendingBadge = u.pending_bookings > 0
+        ? `<span class="badge badge-pending">${u.pending_bookings}</span>`
+        : `<span class="badge-zero">—</span>`;
+      const upgradesBadge = u.active_upgrades > 0
+        ? `<span class="badge badge-upgrades">${u.active_upgrades}</span>`
+        : `<span class="badge-zero">—</span>`;
+      const seen = relativeTime(u.last_seen_at);
+      const seenStale = u.last_seen_at && (Date.now() - new Date(u.last_seen_at).getTime()) > 14 * 864e5;
+      return `<tr data-id="${u.id}">
+        <td>
+          <button class="name-btn" data-detail-id="${u.id}">${escHtml(name)}</button>
+          <div class="email">${escHtml(u.email)}</div>
+        </td>
+        <td>
+          <div class="priority-cell">
+            <input
+              type="number"
+              min="1" max="999"
+              class="priority-input${isVip ? ' priority-vip' : ''}"
+              value="${u.priority || 100}"
+              data-user-id="${u.id}"
+              data-original="${u.priority || 100}"
+              title="Lower = higher priority. Default 100."
+            >
+          </div>
+        </td>
+        <td>${pendingBadge}</td>
+        <td>${upgradesBadge}</td>
+        <td><span class="last-seen${seenStale ? ' stale' : ''}">${seen}</span></td>
+        <td><span class="created">${joined}</span></td>
+        <td>
+          <button class="btn btn-danger delete-btn" data-user-id="${u.id}" data-name="${escHtml(name)}" data-email="${escHtml(u.email)}">
+            Delete
+          </button>
+        </td>
+      </tr>`;
+    }).join('');
+
+    // Priority save on blur or Enter
+    tbody.querySelectorAll('.priority-input').forEach(input => {
+      async function savePriority() {
+        const userId = parseInt(input.dataset.userId, 10);
+        const val = parseInt(input.value, 10);
+        const original = parseInt(input.dataset.original, 10);
+        if (isNaN(val) || val === original) return;
+        input.classList.add('saving');
+        try {
+          const res = await apiFetch(`/api/admin/users/${userId}/priority`, {
+            method: 'PUT',
+            body: JSON.stringify({ priority: val })
+          });
+          if (!res.ok) { const d = await res.json(); throw new Error(d.message); }
+          input.dataset.original = val;
+          input.classList.toggle('priority-vip', val < 100);
+        } catch (e) {
+          input.value = original;
+          alert(e.message);
+        } finally {
+          input.classList.remove('saving');
+        }
+      }
+      input.addEventListener('blur', savePriority);
+      input.addEventListener('keydown', e => { if (e.key === 'Enter') { e.preventDefault(); input.blur(); } });
+    });
+
+    // Delete buttons
+    tbody.querySelectorAll('.delete-btn').forEach(btn => {
+      btn.addEventListener('click', () => {
+        pendingDelete = { id: parseInt(btn.dataset.userId, 10), name: btn.dataset.name, email: btn.dataset.email };
+        document.getElementById('confirm-text').textContent =
+          `This will permanently delete "${pendingDelete.name}" (${pendingDelete.email}) and all their data — bookings, upgrades, preferences, credentials. This cannot be undone.`;
+        document.getElementById('confirm-overlay').classList.add('open');
+      });
+    });
+
+    // Name → open detail drawer
+    tbody.querySelectorAll('.name-btn').forEach(btn => {
+      btn.addEventListener('click', () => openDetail(parseInt(btn.dataset.detailId, 10)));
+    });
+  }
+
+  // ── Detail drawer ───────────────────────────────────────────────────────────
+
+  function openDrawer() { document.getElementById('drawer-overlay').classList.add('open'); document.getElementById('drawer').classList.add('open'); }
+  function closeDrawer() { document.getElementById('drawer-overlay').classList.remove('open'); document.getElementById('drawer').classList.remove('open'); }
+
+  async function openDetail(userId) {
+    const body = document.getElementById('drawer-body');
+    document.getElementById('drawer-name').textContent = '—';
+    document.getElementById('drawer-email').textContent = '';
+    body.className = 'drawer-body loading';
+    body.textContent = 'Loading…';
+    openDrawer();
+    try {
+      const res = await apiFetch(`/api/admin/users/${userId}`);
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.message || 'Failed to load user.');
+      renderDetail(data);
+    } catch (e) {
+      body.className = 'drawer-body';
+      body.innerHTML = `<div class="err-banner">${escHtml(e.message)}</div>`;
+    }
+  }
+
+  function renderDetail(d) {
+    currentDetail = d;
+    abHistoryPage = 0;
+    auHistoryPage = 0;
+    const fullName = [d.profile.firstName, d.profile.lastName].filter(Boolean).join(' ') || d.user.display_name || '—';
+    document.getElementById('drawer-name').textContent = fullName;
+    document.getElementById('drawer-email').innerHTML = `<span class="email">${escHtml(d.user.email)}</span>`;
+
+    const body = document.getElementById('drawer-body');
+    body.className = 'drawer-body';
+    body.innerHTML = [
+      sectionOverview(d),
+      sectionBookingWindow(d),
+      sectionStats(d),
+      sectionCredits(d),
+      sectionSubscriptions(d),
+      sectionBookings(d),
+      sectionAutoBook(d),
+      sectionAutoUpgrade(d),
+      sectionSpotMaps(d),
+    ].join('');
+    wireHistoryControls();
+  }
+
+  // ── Drawer sections ───────────────────────────────────────────────────────
+
+  function sectionOverview(d) {
+    const p = d.profile, u = d.user;
+    const rows = [
+      ['Priority', (u.priority || 100) < 100 ? `<span class="pill pill-accent">${u.priority} · VIP</span>` : (u.priority || 100)],
+      ['CodexFit ID', p.id ?? '—'],
+      ['Phone', p.telephone ? escHtml(p.telephone) : '—'],
+      ['Account created', fmtDate(p.createdAt) || '—'],
+      ['Signed up here', fmtDate(u.created_at) || '—'],
+      ['Last seen', u.last_seen_at ? `${relativeTime(u.last_seen_at)} · ${fmtDateTime(u.last_seen_at)}` : '—'],
+      ['Profile cached', u.profile_synced_at ? `${relativeTime(u.profile_synced_at)}` : '<span class="pill pill-muted">never</span>'],
+      ['Session valid until', fmtDateTime(u.jwt_expires_at) || '—'],
+    ];
+    return section('Overview', `<dl class="kv-grid">${rows.map(([k, v]) => `<dt>${k}</dt><dd>${v}</dd>`).join('')}</dl>`);
+  }
+
+  function sectionBookingWindow(d) {
+    const w = d.bookingWindow;
+    if (!w && d.detectedBookingOffset == null) {
+      return section('Booking window', `<div class="empty">Not detected yet (user hasn't synced their profile).</div>`);
+    }
+    const offset = w ? w.offsetDays : d.detectedBookingOffset;
+    const weeks = w ? w.weeks : Math.max(1, Math.round(offset / 7));
+    const label = describeWindow(offset, w && w.cutoffISO);
+    const src = w && w.source ? `<span class="pill pill-muted">${escHtml(w.source)}</span>` : '';
+    const credits = w && w.extendedCredits ? ` · ${w.extendedCredits} advance-booking credit(s)` : '';
+    return section('Booking window',
+      `<dl class="kv-grid">
+        <dt>Window</dt><dd>${weeks} week${weeks === 1 ? '' : 's'} ${src}</dd>
+        <dt>Detail</dt><dd>${escHtml(label)}${credits}</dd>
+        <dt>Offset</dt><dd>${offset} days</dd>
+      </dl>`);
+  }
+
+  function sectionStats(d) {
+    const s = d.stats;
+    const boxes = [
+      ['Unique attended', s.totalUniqueBookingsAttended],
+      ['Unique booked', s.totalUniqueBookings],
+      ['Total bookings', s.totalBookings],
+      ['Credits left', s.creditsRemaining],
+      ['Minutes ridden', s.totalAttendedMinutes],
+    ].filter(([, v]) => v != null && v !== '');
+    if (boxes.length === 0) return section('Stats', `<div class="empty">No stats in cached profile.</div>`);
+    return section('Stats',
+      `<div class="stat-row">${boxes.map(([l, v]) => `<div class="stat-box"><div class="v">${escHtml(String(v))}</div><div class="l">${l}</div></div>`).join('')}</div>`);
+  }
+
+  function sectionCredits(d) {
+    if (!d.credits.length) return section('Credits', `<div class="empty">No credits on file.</div>`, 0);
+    const items = d.credits.map(c => {
+      const name = c.credit_type?.name || c.name || 'Credit';
+      const count = c.count ?? c.quantity ?? 0;
+      const expiry = c.expires_at || c.expiry_date;
+      return `<div class="item"><div class="item-head"><span class="item-title">${escHtml(name)}</span>
+        <span class="pill ${count > 0 ? 'pill-green' : 'pill-muted'}">${count} left</span></div>
+        ${expiry ? `<div class="item-meta">Expires ${fmtDate(expiry)}</div>` : ''}</div>`;
+    }).join('');
+    return section('Credits', items, d.credits.length);
+  }
+
+  function sectionSubscriptions(d) {
+    const subs = d.subscriptions || [];
+    const statuses = d.subscriptionStatuses || [];
+    let entries;
+    if (subs.length) entries = subs;
+    else if (statuses.length) entries = statuses;
+    else return section('Subscriptions', `<div class="empty">No subscriptions.</div>`, 0);
+    const items = entries.map(entry => {
+      const status = typeof entry === 'string' ? entry : (entry.status || entry.state || '');
+      const name = typeof entry === 'string' ? 'Subscription' : (entry.name || entry.plan?.name || entry.product?.name || 'Subscription');
+      const renews = typeof entry === 'string' ? null : (entry.renews_at || entry.current_period_end || entry.next_billing_at);
+      const isActive = /activ/.test(String(status).toLowerCase()) && !/inactiv|cancel/.test(String(status).toLowerCase());
+      const pillCls = isActive ? 'pill-green' : 'pill-red';
+      const pillText = isActive ? 'Active' : 'Inactive';
+      return `<div class="item"><div class="item-head"><span class="item-title">${escHtml(name)}</span>
+        <span class="pill ${pillCls}">${pillText}</span></div>
+        ${renews ? `<div class="item-meta">Renews ${fmtDate(renews)}</div>` : ''}</div>`;
+    }).join('');
+    return section('Subscriptions', items, entries.length);
+  }
+
+  function sectionBookings(d) {
+    if (!d.bookings.length) return section('Booked classes', `<div class="empty">No upcoming bookings.</div>`, 0);
+    const items = d.bookings.map(b => {
+      const title = [b.group_name, b.class_name].filter(Boolean).join(' · ') || b.class_name || 'Class';
+      const when = fmtDateTime(b.start_at);
+      const where = [b.studio_name, b.location_name].filter(Boolean).join(', ');
+      const spot = b.slot_label ? `<span class="pill pill-muted">Spot ${escHtml(String(b.slot_label))}</span>` : '';
+      let upgrade = '<span class="pill pill-muted">no upgrade</span>';
+      if (b.upgrade) {
+        const st = b.upgrade.status;
+        const cls = st === 'active' ? 'pill-accent' : (st === 'upgraded' || st === 'cutoff_booked' ? 'pill-green' : 'pill-muted');
+        upgrade = `<span class="pill ${cls}">⬆ ${escHtml(st)}</span>`;
+      }
+      return `<div class="item">
+        <div class="item-head"><span class="item-title">${escHtml(title)}</span><span style="display:flex;gap:5px">${spot}${upgrade}</span></div>
+        <div class="item-sub">${escHtml(when || '')}${b.instructor_name ? ' · ' + escHtml(b.instructor_name) : ''}</div>
+        ${where ? `<div class="item-meta">${escHtml(where)}</div>` : ''}</div>`;
+    }).join('');
+    return section('Booked classes', items, d.bookings.length);
+  }
+
+  function autoBookItemHtml(a) {
+    const title = [a.group_name, a.class_name].filter(Boolean).join(' · ') || a.class_name || 'Class';
+    const cls = a.status === 'pending' ? 'pill-accent' : (a.status === 'success' ? 'pill-green' : (a.status === 'failed' ? 'pill-red' : 'pill-muted'));
+    const prefs = a.preferences || {};
+    const slots = (prefs.preferredSlots || []).map((s, i) => `<span class="chip rank">${i + 1}: ${escHtml(String(s))}</span>`).join('');
+    const qty = prefs.requiredCount ? `<span class="chip">×${prefs.requiredCount}</span>` : '';
+    return `<div class="item">
+      <div class="item-head"><span class="item-title">${escHtml(title)}</span><span class="pill ${cls}">${escHtml(a.status)}</span></div>
+      <div class="item-sub">${escHtml(fmtDateTime(a.start_at) || '')}${a.instructor_name ? ' · ' + escHtml(a.instructor_name) : ''}</div>
+      ${a.studio_name ? `<div class="item-meta">${escHtml(a.studio_name)}</div>` : ''}
+      ${(slots || qty) ? `<div class="chip-row">${qty}${slots}</div>` : ''}
+      ${a.execution_message ? `<div class="item-meta">${escHtml(a.execution_message)}</div>` : ''}</div>`;
+  }
+
+  function autoUpgradeItemHtml(u) {
+    const title = [u.group_name, u.class_name].filter(Boolean).join(' · ') || u.class_name || 'Class';
+    const cls = u.status === 'active' ? 'pill-accent' : (u.status === 'upgraded' || u.status === 'cutoff_booked' ? 'pill-green' : 'pill-muted');
+    const prefs = u.preferences || {};
+    const slots = (prefs.preferredSlots || []).map((s, i) => `<span class="chip rank">${i + 1}: ${escHtml(String(s))}</span>`).join('');
+    return `<div class="item">
+      <div class="item-head"><span class="item-title">${escHtml(title)}</span><span class="pill ${cls}">${escHtml(u.status)}</span></div>
+      <div class="item-sub">${escHtml(fmtDateTime(u.start_at) || '')} · current slot ${escHtml(String(u.current_slot_id))}</div>
+      ${slots ? `<div class="chip-row">${slots}</div>` : ''}
+      ${u.status_message ? `<div class="item-meta">${escHtml(u.status_message)}</div>` : ''}</div>`;
+  }
+
+  function renderHistoryPage(itemsContainerId, list, page, itemFn) {
+    const el = document.getElementById(itemsContainerId);
+    if (!el) return;
+    const totalPages = Math.max(1, Math.ceil(list.length / HISTORY_PAGE_SIZE));
+    const slice = list.slice(page * HISTORY_PAGE_SIZE, page * HISTORY_PAGE_SIZE + HISTORY_PAGE_SIZE);
+    el.innerHTML = slice.length ? slice.map(itemFn).join('') : '<div class="empty">No history.</div>';
+    const label = document.getElementById(itemsContainerId + '-label');
+    const prev = document.getElementById(itemsContainerId + '-prev');
+    const next = document.getElementById(itemsContainerId + '-next');
+    if (label) label.textContent = `Page ${page + 1} of ${totalPages}`;
+    if (prev) prev.disabled = page === 0;
+    if (next) next.disabled = page >= totalPages - 1;
+  }
+
+  function wireHistoryControls() {
+    const d = currentDetail;
+    if (!d) return;
+    // Auto-book history
+    const abToggle = document.getElementById('ab-history-toggle');
+    if (abToggle) {
+      const abHistory = (d.autoBookings || []).filter(a => a.status !== 'pending').sort((a, b) => b.id - a.id);
+      abToggle.addEventListener('click', () => {
+        const block = document.getElementById('ab-history-block');
+        const open = block.classList.toggle('open');
+        abToggle.textContent = open ? 'Hide history' : `Show history (${abHistory.length})`;
+        if (open) renderHistoryPage('ab-history-items', abHistory, abHistoryPage, autoBookItemHtml);
+      });
+      document.getElementById('ab-history-items-prev')?.addEventListener('click', () => {
+        abHistoryPage = Math.max(0, abHistoryPage - 1);
+        renderHistoryPage('ab-history-items', abHistory, abHistoryPage, autoBookItemHtml);
+      });
+      document.getElementById('ab-history-items-next')?.addEventListener('click', () => {
+        const maxPage = Math.max(0, Math.ceil(abHistory.length / HISTORY_PAGE_SIZE) - 1);
+        abHistoryPage = Math.min(maxPage, abHistoryPage + 1);
+        renderHistoryPage('ab-history-items', abHistory, abHistoryPage, autoBookItemHtml);
+      });
+    }
+    // Auto-upgrade history
+    const auToggle = document.getElementById('au-history-toggle');
+    if (auToggle) {
+      const auHistory = (d.autoUpgrades || []).filter(u => u.status !== 'active').sort((a, b) => b.id - a.id);
+      auToggle.addEventListener('click', () => {
+        const block = document.getElementById('au-history-block');
+        const open = block.classList.toggle('open');
+        auToggle.textContent = open ? 'Hide history' : `Show history (${auHistory.length})`;
+        if (open) renderHistoryPage('au-history-items', auHistory, auHistoryPage, autoUpgradeItemHtml);
+      });
+      document.getElementById('au-history-items-prev')?.addEventListener('click', () => {
+        auHistoryPage = Math.max(0, auHistoryPage - 1);
+        renderHistoryPage('au-history-items', auHistory, auHistoryPage, autoUpgradeItemHtml);
+      });
+      document.getElementById('au-history-items-next')?.addEventListener('click', () => {
+        const maxPage = Math.max(0, Math.ceil(auHistory.length / HISTORY_PAGE_SIZE) - 1);
+        auHistoryPage = Math.min(maxPage, auHistoryPage + 1);
+        renderHistoryPage('au-history-items', auHistory, auHistoryPage, autoUpgradeItemHtml);
+      });
+    }
+  }
+
+  function sectionAutoBook(d) {
+    const list = d.autoBookings || [];
+    const pending = list.filter(a => a.status === 'pending');
+    const history = list.filter(a => a.status !== 'pending').sort((a, b) => b.id - a.id);
+    const pendingHtml = pending.length ? pending.map(autoBookItemHtml).join('') : '<div class="empty">No pending auto-books.</div>';
+    const historyHtml = history.length ? `
+      <button class="history-toggle" id="ab-history-toggle">Show history (${history.length})</button>
+      <div class="history-block" id="ab-history-block">
+        <div id="ab-history-items"></div>
+        <div class="pager">
+          <button id="ab-history-items-prev">←</button>
+          <span id="ab-history-items-label">Page 1 of 1</span>
+          <button id="ab-history-items-next">→</button>
+        </div>
+      </div>` : '';
+    return section('Auto-book queue', `${pendingHtml}${historyHtml}`, pending.length);
+  }
+
+  function sectionAutoUpgrade(d) {
+    const list = d.autoUpgrades || [];
+    const active = list.filter(u => u.status === 'active');
+    const history = list.filter(u => u.status !== 'active').sort((a, b) => b.id - a.id);
+    const activeHtml = active.length ? active.map(autoUpgradeItemHtml).join('') : '<div class="empty">No active upgrade monitors.</div>';
+    const historyHtml = history.length ? `
+      <button class="history-toggle" id="au-history-toggle">Show history (${history.length})</button>
+      <div class="history-block" id="au-history-block">
+        <div id="au-history-items"></div>
+        <div class="pager">
+          <button id="au-history-items-prev">←</button>
+          <span id="au-history-items-label">Page 1 of 1</span>
+          <button id="au-history-items-next">→</button>
+        </div>
+      </div>` : '';
+    return section('Auto-upgrade monitors', `${activeHtml}${historyHtml}`, active.length);
+  }
+
+  function sectionSpotMaps(d) {
+    const names = d.studioNames || {};
+    const list = (d.studioPreferences || []).filter(m => {
+      const p = m.preferences || {};
+      return (p.preferredSlots || []).length > 0 || (p.preferredRows || []).length > 0;
+    });
+    if (!list.length) return section('Preferred spot maps', `<div class="empty">No spot maps saved.</div>`, 0);
+    const items = list.map(m => {
+      const prefs = m.preferences || {};
+      const slots = (prefs.preferredSlots || []).map((s, i) => `<span class="chip rank">${i + 1}: ${escHtml(String(s))}</span>`).join('');
+      const rows = (prefs.preferredRows || []).map(r => `<span class="chip">row ${escHtml(String(r))}</span>`).join('');
+      const inner = (slots || rows)
+        ? `<div class="chip-row">${slots}${rows}</div>`
+        : `<div class="item-meta">Any available spot</div>`;
+      const title = names[String(m.studio_id)] || `Studio ${m.studio_id}`;
+      return `<div class="item"><div class="item-title">${escHtml(String(title))}</div>${inner}</div>`;
+    }).join('');
+    return section('Preferred spot maps', items, list.length);
+  }
+
+  // ── Drawer helpers ──────────────────────────────────────────────────────────
+
+  function section(title, inner, count) {
+    const badge = (count !== undefined) ? `<span class="count">${count}</span>` : '';
+    return `<div class="section"><div class="section-title">${title}${badge}</div>${inner}</div>`;
+  }
+
+  function fmtDate(iso) {
+    if (!iso) return '';
+    const dt = new Date(iso);
+    if (isNaN(dt)) return '';
+    return dt.toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' });
+  }
+  function fmtDateTime(iso) {
+    if (!iso) return '';
+    const dt = new Date(iso);
+    if (isNaN(dt)) return '';
+    return dt.toLocaleString('en-GB', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' });
+  }
+  function relativeTime(iso) {
+    if (!iso) return 'never';
+    const dt = new Date(iso);
+    if (isNaN(dt)) return '—';
+    const diff = Date.now() - dt.getTime();
+    const min = Math.round(diff / 60000);
+    if (min < 1) return 'just now';
+    if (min < 60) return `${min}m ago`;
+    const hr = Math.round(min / 60);
+    if (hr < 24) return `${hr}h ago`;
+    const days = Math.round(hr / 24);
+    if (days < 30) return `${days}d ago`;
+    return fmtDate(iso);
+  }
+  // Mirror of client lib.js describeBookingWindow (kept minimal — admin is standalone).
+  function describeWindow(offsetDays, cutoffISO) {
+    const weeks = Math.max(1, Math.round(offsetDays / 7));
+    const wordLabel = `${weeks} week${weeks === 1 ? '' : 's'}`;
+    let through = cutoffISO ? fmtDate(cutoffISO) : '';
+    if (!through) {
+      // Derive from the most recent Monday-noon release + offset.
+      const now = new Date();
+      const release = new Date(now);
+      const day = (release.getDay() + 6) % 7; // 0 = Monday
+      release.setDate(release.getDate() - day);
+      release.setHours(12, 0, 0, 0);
+      if (release > now) release.setDate(release.getDate() - 7);
+      release.setDate(release.getDate() + offsetDays);
+      through = fmtDate(release.toISOString());
+    }
+    return through ? `${wordLabel} · books through ${through}` : wordLabel;
+  }
+
+  function escHtml(str) {
+    return String(str).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+  }
+
+  // ── Event wiring ──────────────────────────────────────────────────────────
+
+  document.getElementById('login-btn').addEventListener('click', doLogin);
+  document.getElementById('pw').addEventListener('keydown', e => { if (e.key === 'Enter') doLogin(); });
+  document.getElementById('logout-btn').addEventListener('click', doLogout);
+
+  document.getElementById('drawer-close').addEventListener('click', closeDrawer);
+  document.getElementById('drawer-overlay').addEventListener('click', closeDrawer);
+  document.addEventListener('keydown', e => { if (e.key === 'Escape') closeDrawer(); });
+
+  document.getElementById('confirm-cancel').addEventListener('click', () => {
+    document.getElementById('confirm-overlay').classList.remove('open');
+    pendingDelete = null;
+  });
+
+  document.getElementById('confirm-ok').addEventListener('click', async () => {
+    if (!pendingDelete) return;
+    const btn = document.getElementById('confirm-ok');
+    btn.disabled = true;
+    btn.textContent = 'Deleting…';
+    try {
+      const res = await apiFetch(`/api/admin/users/${pendingDelete.id}`, { method: 'DELETE' });
+      if (!res.ok) { const d = await res.json(); throw new Error(d.message); }
+      document.getElementById('confirm-overlay').classList.remove('open');
+      pendingDelete = null;
+      loadUsers();
+    } catch (e) {
+      alert(e.message);
+    } finally {
+      btn.disabled = false;
+      btn.textContent = 'Delete';
+    }
+  });
+
+  // ── Init ──────────────────────────────────────────────────────────────────
+
+  if (adminToken) {
+    showAdmin();
+  } else {
+    showLogin();
+  }
+</script>
+</body>
+</html>

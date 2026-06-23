@@ -22,7 +22,7 @@
 //   options.hideClear     — when true, the "Clear Defaults" action button is omitted.
 
 export function renderStudioFloorPlan(container, layoutSlots, initialSlots, initialRows, onSave, options = {}) {
-  const { saveLabel = 'Save Defaults', bannerHtml = '', bannerHtmlEdit = '', extraControlsHtml = '', onDisable = null, disableLabel = 'Disable', readOnly = false, editLabel = 'Edit preferred spots', hideClear = false } = options;
+  const { saveLabel = 'Save Defaults', bannerHtml = '', bannerHtmlEdit = '', extraControlsHtml = '', onDisable = null, disableLabel = 'Disable', readOnly = false, editLabel = 'Edit preferred spots', hideClear = false, layoutObjects = [] } = options;
 
   // In read-only mode the map starts locked until the user clicks the edit button.
   let editing = !readOnly;
@@ -38,8 +38,10 @@ export function renderStudioFloorPlan(container, layoutSlots, initialSlots, init
     return false;
   };
 
+  // Bounds include podium/stage objects so the floor expands to fit them (the
+  // scale below still measures slot spacing only — a podium isn't a seat).
   let minX = Infinity, maxX = -Infinity, minY = Infinity, maxY = -Infinity;
-  layoutSlots.forEach(s => {
+  [...layoutSlots, ...layoutObjects].forEach(s => {
     if (s.x < minX) minX = s.x;
     if (s.x > maxX) maxX = s.x;
     if (s.y < minY) minY = s.y;
@@ -56,11 +58,23 @@ export function renderStudioFloorPlan(container, layoutSlots, initialSlots, init
   const MIN_GAP = 32;   // min center-to-center px — just enough so 28px slots don't overlap (4px edge gap)
   const EDGE_PAD = 14;  // padding inside the floor around the slot field
   const isMobile = window.matchMedia('(max-width: 768px)').matches;
-  const colXs = [...new Set(layoutSlots.map(s => s.x))].sort((a, b) => a - b);
-  const minColSpacing = colXs.length > 1 ? Math.min(...colXs.slice(1).map((x, i) => x - colXs[i])) : 1;
-  const minRowSpacing = rowYs.length > 1 ? Math.min(...rowYs.slice(1).map((y, i) => y - rowYs[i])) : 1;
-  // Pixels per coordinate unit needed to guarantee MIN_GAP on both axes.
-  const minGapScale = Math.max(MIN_GAP / minColSpacing, MIN_GAP / minRowSpacing);
+  // Smallest centre-to-centre distance between any two slots, in coordinate units.
+  // Ride studios stagger alternate rows, so two slots can share a near-identical X
+  // while sitting in different rows (far apart in 2D). Measuring true 2D nearest-
+  // neighbour distance — not per-axis spacing — stops that half-bike X stagger from
+  // being mistaken for an adjacent-seat gap and blowing the scale up (which made the
+  // floor render thousands of px wide and spill past the card).
+  let minNeighbourDist = Infinity;
+  for (let i = 0; i < layoutSlots.length; i++) {
+    for (let j = i + 1; j < layoutSlots.length; j++) {
+      const d = Math.hypot(layoutSlots[i].x - layoutSlots[j].x, layoutSlots[i].y - layoutSlots[j].y);
+      if (d > 0 && d < minNeighbourDist) minNeighbourDist = d;
+    }
+  }
+  if (!isFinite(minNeighbourDist) || minNeighbourDist <= 0) minNeighbourDist = 1;
+  // Pixels per coordinate unit so the closest pair of slots keeps MIN_GAP between
+  // centres (>= SLOT_SIZE, so adjacent 28px slots never overlap).
+  const minGapScale = MIN_GAP / minNeighbourDist;
 
   const render = () => {
     container.innerHTML = '';
@@ -108,13 +122,28 @@ export function renderStudioFloorPlan(container, layoutSlots, initialSlots, init
     scroll.className = 'psycle-floor-scroll';
     container.appendChild(scroll); // append now to measure its real width (CSS breakout on mobile)
 
+    // Reserve a lane on the right for the row +/- buttons so they sit beside the
+    // slot field rather than on top of the rightmost slot column (which hid them).
+    const ROW_BTN = 26;
+    const hasRowButtons = editing && rowYs.length > 1;
+    const rowLaneW = hasRowButtons ? ROW_BTN + 8 : 0;
+
     const availW = scroll.clientWidth || (window.innerWidth - 80);
-    const fillScale = widthRange > 0 ? (availW - SLOT_SIZE - EDGE_PAD * 2) / widthRange : minGapScale;
+    // Mirror .psycle-floor-scroll's max-height (min(60vh, 460px)) so we can fit
+    // the map within the box's height too, not just its width.
+    const availH = Math.min(window.innerHeight * 0.6, 460);
+    const fillScaleW = widthRange > 0 ? (availW - SLOT_SIZE - EDGE_PAD * 2 - rowLaneW) / widthRange : minGapScale;
+    const fillScaleH = heightRange > 0 ? (availH - SLOT_SIZE - EDGE_PAD * 2 - 2) / heightRange : minGapScale;
+    // Contain: fill the available box on whichever axis is tighter. Scaling is
+    // uniform, so stretching a few-column studio (e.g. Reformer) to fill the full
+    // width also blew its row spacing up and forced vertical panning. Fitting the
+    // height instead keeps the rows compact and the whole map on screen.
+    const fillScale = Math.min(fillScaleW, fillScaleH);
     // On mobile, don't stretch to fill — use the minimum scale so gaps stay
     // tight (just enough to avoid overlap) and any overflow pans inside the
-    // scroll container. On desktop, fill the available width for a roomier map.
+    // scroll container. On desktop, fill the available box for a roomier map.
     const scale = isMobile ? minGapScale : Math.max(fillScale, minGapScale);
-    const floorW = Math.ceil(widthRange * scale + SLOT_SIZE + EDGE_PAD * 2);
+    const floorW = Math.ceil(widthRange * scale + SLOT_SIZE + EDGE_PAD * 2 + rowLaneW);
     const floorH = Math.ceil(heightRange * scale + SLOT_SIZE + EDGE_PAD * 2);
 
     const floor = document.createElement('div');
@@ -179,8 +208,19 @@ export function renderStudioFloorPlan(container, layoutSlots, initialSlots, init
       floor.appendChild(el);
     });
 
-    // Row +/- buttons (only while editing)
-    if (editing && rowYs.length > 1) {
+    // Podium / stage objects (e.g. the instructor podium). Flat-coloured "P"
+    // markers — not seats, so they're non-interactive (no click, no pointer).
+    layoutObjects.forEach(obj => {
+      const el = document.createElement('div');
+      el.style.cssText = `position:absolute;left:${pxX(obj.x)}px;top:${pxY(obj.y)}px;transform:translate(-50%,-50%);width:${SLOT_SIZE + 14}px;height:${SLOT_SIZE}px;border-radius:6px;display:flex;align-items:center;justify-content:center;font-size:12px;font-weight:700;background:var(--text-secondary);color:var(--bg);user-select:none;pointer-events:none;box-sizing:border-box;z-index:1;`;
+      el.textContent = 'P';
+      el.title = 'Podium';
+      floor.appendChild(el);
+    });
+
+    // Row +/- buttons (only while editing) — placed in the reserved right-hand lane.
+    if (hasRowButtons) {
+      const rowBtnX = floorW - EDGE_PAD - rowLaneW / 2;
       rowYs.forEach((y, idx) => {
         const isOn = selectedRows.has(y);
         const rowSlots = slotsByRow.get(y) || [];
@@ -188,7 +228,7 @@ export function renderStudioFloorPlan(container, layoutSlots, initialSlots, init
         const midY = (Math.min(...rowSlots.map(s => s.y)) + Math.max(...rowSlots.map(s => s.y))) / 2;
 
         const btn = document.createElement('button');
-        btn.style.cssText = `position:absolute;left:${floorW - EDGE_PAD - SLOT_SIZE / 2}px;top:${pxY(midY)}px;transform:translate(-50%,-50%);width:26px;height:26px;padding:0;border-radius:50%;background:${isOn ? 'color-mix(in srgb, var(--info) 30%, transparent)' : 'color-mix(in srgb, var(--text) 8%, transparent)'};border:1px solid ${isOn ? 'color-mix(in srgb, var(--info) 50%, transparent)' : 'color-mix(in srgb, var(--text) 15%, transparent)'};color:${isOn ? 'var(--info)' : 'var(--text-secondary)'};font-size:16px;font-weight:700;cursor:pointer;display:flex;align-items:center;justify-content:center;transition:all 0.1s;z-index:2;`;
+        btn.style.cssText = `position:absolute;left:${rowBtnX}px;top:${pxY(midY)}px;transform:translate(-50%,-50%);width:26px;height:26px;padding:0;border-radius:50%;background:${isOn ? 'color-mix(in srgb, var(--info) 30%, transparent)' : 'color-mix(in srgb, var(--text) 8%, transparent)'};border:1px solid ${isOn ? 'color-mix(in srgb, var(--info) 50%, transparent)' : 'color-mix(in srgb, var(--text) 15%, transparent)'};color:${isOn ? 'var(--info)' : 'var(--text-secondary)'};font-size:16px;font-weight:700;cursor:pointer;display:flex;align-items:center;justify-content:center;transition:all 0.1s;z-index:2;`;
         btn.textContent = isOn ? '−' : '+';
         btn.title = isOn ? `Remove Row ${idx + 1}` : `Add Row ${idx + 1}`;
         btn.addEventListener('click', (e) => {

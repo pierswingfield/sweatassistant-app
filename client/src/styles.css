@@ -1071,8 +1071,8 @@ html, body {
 #psycle-helper-container .psycle-checkbox-label input[type="checkbox"]:checked + .custom-checkbox::after {
   content: "";
   position: absolute;
-  left: 4px;
-  top: 1px;
+  left: 5px;
+  top: 3px;
   width: 4px;
   height: 7px;
   border: solid var(--on-accent);
@@ -1979,6 +1979,40 @@ html, body {
   max-height: 80vh;      /* optional safety max-height */
 }
 
+/* --- SHARED SPOT-MAP FLOOR PLAN — pannable, min-gap, edge-to-edge on mobile ---
+   spotmap.js builds a fixed-pixel floor of absolutely-positioned slots inside
+   .psycle-floor and measures .psycle-floor-scroll's width to pick a scale.
+   These rules are load-bearing: without position:relative the slots escape
+   their box, and without overflow/max-height the map spills past the card. */
+.psycle-floor-scroll {
+  overflow: auto;
+  -webkit-overflow-scrolling: touch;
+  touch-action: pan-x pan-y;
+  width: 100%;
+  max-height: min(60vh, 460px);
+  margin-bottom: 14px;
+  border-radius: 8px;
+}
+
+.psycle-floor {
+  position: relative;
+  margin: 0 auto;
+  flex-shrink: 0;
+  background: color-mix(in srgb, var(--bg) 60%, transparent);
+  border: 1px solid color-mix(in srgb, var(--text) 8%, transparent);
+  border-radius: 8px;
+}
+
+/* Narrow screens: break out of the modal-body padding so the map reaches nearly
+   the full modal width (as close to the screen edges as possible). */
+@media (max-width: 768px) {
+  .psycle-modal-body .psycle-floor-scroll {
+    margin-left: -18px;
+    margin-right: -18px;
+    width: calc(100% + 36px);
+  }
+}
+
 /* Debug list classes */
 .debug-section-title {
   font-weight: 700;
@@ -2552,10 +2586,24 @@ html, body {
   color: color-mix(in srgb, var(--accent) 80%, var(--text) 20%);
 }
 
-.psycle-tooltip-socials span {
+.psycle-tooltip-socials span,
+.psycle-tooltip-socials .psycle-tooltip-social-link {
   display: flex;
   align-items: center;
   gap: 4px;
+}
+
+.psycle-tooltip-socials .psycle-tooltip-social-link {
+  text-decoration: none;
+  color: inherit;
+  cursor: pointer;
+  border-radius: 4px;
+  transition: color 0.15s, text-decoration 0.15s;
+}
+
+.psycle-tooltip-socials .psycle-tooltip-social-link:hover {
+  color: var(--accent);
+  text-decoration: underline;
 }
 
 /* Interactive JSON Explorer */
@@ -2661,8 +2709,8 @@ html, body {
 #psycle-helper-container .psycle-ms-checkbox:checked::after {
   content: "";
   position: absolute;
-  left: 4px;
-  top: 1px;
+  left: 5px;
+  top: 3px;
   width: 4px;
   height: 7px;
   border: solid var(--on-accent);
@@ -4047,7 +4095,7 @@ html, body {
 }
 
 .psycle-login-card {
-  width: 420px;
+  width: 460px;
   padding: 40px;
   border-radius: var(--radius-sheet);
   background: var(--surface);
@@ -4057,6 +4105,7 @@ html, body {
   box-shadow: var(--shadow-sheet);
   display: flex;
   flex-direction: column;
+  align-items: center;
   gap: 28px;
   animation: slideIn 0.4s cubic-bezier(0.25, 1, 0.5, 1);
 }
@@ -4084,6 +4133,8 @@ html, body {
   display: flex;
   flex-direction: column;
   gap: 20px;
+  width: 100%;
+  max-width: 380px;
 }
 
 .psycle-form-group {
@@ -4102,6 +4153,7 @@ html, body {
 
 .psycle-form-group input {
   width: 100%;
+  box-sizing: border-box;
   padding: 12px 16px;
   border-radius: var(--radius-control);
   background: var(--surface-inset);
@@ -4447,6 +4499,70 @@ html, body {
   color: var(--text-secondary);
   margin: 0;
   font-weight: 500;
+}
+
+/* ---- Tab refresh button ---- */
+#psycle-helper-container .psycle-tab-header {
+  position: relative;
+}
+
+#psycle-helper-container .psycle-tab-refresh-btn {
+  position: absolute;
+  right: 36px;
+  top: 50%;
+  transform: translateY(-50%);
+  width: 36px;
+  height: 36px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: transparent;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-control);
+  color: var(--text-secondary);
+  cursor: pointer;
+  transition: color 0.15s, background 0.15s, border-color 0.15s;
+  padding: 0;
+  flex-shrink: 0;
+}
+
+#psycle-helper-container .psycle-tab-refresh-btn:hover {
+  color: var(--text);
+  background: color-mix(in srgb, var(--text) 8%, transparent);
+  border-color: var(--border-strong);
+}
+
+#psycle-helper-container .psycle-tab-refresh-btn.refreshing {
+  pointer-events: none;
+  opacity: 0.55;
+}
+
+#psycle-helper-container .psycle-tab-refresh-btn.refreshing svg {
+  animation: tab-refresh-spin 0.8s linear infinite;
+}
+
+@keyframes tab-refresh-spin {
+  from { transform: rotate(0deg); }
+  to { transform: rotate(360deg); }
+}
+
+/* Auto-book banner variant — sits over the plum background */
+#psycle-helper-container .psycle-countdown-banner.ab-banner {
+  position: relative;
+}
+
+#psycle-helper-container .ab-banner .psycle-tab-refresh-btn {
+  top: 14px;
+  right: 14px;
+  transform: none;
+  color: color-mix(in srgb, var(--on-auto) 55%, transparent);
+  border-color: color-mix(in srgb, var(--on-auto) 18%, transparent);
+}
+
+#psycle-helper-container .ab-banner .psycle-tab-refresh-btn:hover {
+  color: var(--on-auto);
+  background: color-mix(in srgb, var(--on-auto) 10%, transparent);
+  border-color: color-mix(in srgb, var(--on-auto) 35%, transparent);
 }
 
 /* ---- Buy Credits — tightened vertical rhythm ----
@@ -5982,6 +6098,11 @@ html, body {
     margin: 0 !important;
   }
 
+  /* Pull-to-refresh covers mobile, so the refresh button is redundant. */
+  #psycle-helper-container .psycle-tab-refresh-btn {
+    display: none !important;
+  }
+
   /* Reduce section gaps on mobile */
   #psycle-helper-container .psycle-section {
     gap: 8px !important;
@@ -6602,13 +6723,14 @@ html, body {
   width: 56px;
   height: 56px;
   margin: 0 auto;
+  align-self: center;
   display: flex;
   align-items: center;
   justify-content: center;
   border-radius: var(--radius-card);
   background: color-mix(in srgb, currentColor 12%, transparent);
 }
-.psycle-onb-icon svg { width: 30px; height: 30px; }
+.psycle-onb-icon svg { width: 44px; height: 44px; }
 
 /* --- Intro carousel --- */
 .psycle-onb-intro { text-align: center; width: 100%; }
@@ -6679,6 +6801,26 @@ html, body {
   color: var(--text-secondary);
   margin: 0;
   text-align: center;
+}
+
+.psycle-onb-secondary-note {
+  font-family: var(--font-sans);
+  font-size: var(--text-sm);
+  line-height: 1.6;
+  color: var(--text-secondary);
+  font-style: italic;
+  margin: 0;
+  text-align: center;
+}
+
+.psycle-onb-secondary-note a {
+  color: var(--accent);
+  text-decoration: none;
+  transition: color 0.15s ease;
+}
+
+.psycle-onb-secondary-note a:hover {
+  color: var(--accent-hover);
 }
 
 .psycle-onb-dots {

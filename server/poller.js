@@ -4,6 +4,7 @@ const db = require('./db');
 const pushService = require('./push');
 const notifications = require('./notifications');
 const { triggerAutoRelogin } = require('./auth');
+const { getCachedEvent, setCachedEvent } = require('./scheduler');
 
 // Calculate booking offset/headers like scheduler
 function getCodexFitHeaders(token, isJSON = false) {
@@ -105,12 +106,17 @@ async function attemptUpgradeSlot(upgrade, isCutoffMode) {
   }
 
   try {
-    // 1. Fetch live slot availability
-    const url = `https://psycle.codexfit.com/api/v1/customer/events/${eventId}`;
-    const res = await fetchCodexFit(userId, url);
-    if (!res.ok) return;
-
-    const payload = await res.json();
+    // 1. Get live slot availability — use shared cache to avoid N fetches/min for the same class
+    let payload = getCachedEvent(eventId);
+    if (payload) {
+      console.log(`[Poller] Cache hit for event ${eventId} (user ${userId}).`);
+    } else {
+      const url = `https://psycle.codexfit.com/api/v1/customer/events/${eventId}`;
+      const res = await fetchCodexFit(userId, url);
+      if (!res.ok) return;
+      payload = await res.json();
+      setCachedEvent(eventId, payload, 60000);
+    }
     const eventData = payload.data || payload;
     const availableSlots = (payload.slots || eventData.slots || []).map(id => Number(id));
     const upgradeStudio = payload.relations?.studios?.[0] || eventData.relations?.studios?.[0] || eventData.studio;
@@ -139,6 +145,9 @@ async function attemptUpgradeSlot(upgrade, isCutoffMode) {
 
         const profileData = await profileRes.json();
         const profile = profileData.data || profileData;
+        // Cache the full profile (also backfills display_name) so the admin view stays
+        // warm even while the user's app is closed.
+        try { db.cacheUserProfile(userId, profile); } catch (_) {}
         const hasCredits = profile.available_credits && profile.available_credits.some(c => c.count > 0);
 
         if (!hasCredits) {
@@ -218,6 +227,8 @@ async function attemptUpgradeSlot(upgrade, isCutoffMode) {
             keptOriginal: false,
           });
         }
+        // Refresh the calendar feed so the upgraded seat shows immediately.
+        try { require('./calendar').regenerateSnapshot(userId); } catch (_) {}
         return; // Success! Exit check loop
       }
     }
@@ -316,6 +327,10 @@ async function refreshBookingCaches() {
     try {
       const prefs = notifications.getPrefs(userId);
       if (!prefs.cancellationReminder.enabled) continue;
+      // Calendar-enabled users have their booking_cache kept fresh (and correctly
+      // event-enriched) by calendar.js — skip here so we don't overwrite it.
+      const settings = db.getUserSettings(userId);
+      if (settings && settings.calendar && settings.calendar.enabled) continue;
 
       await new Promise(r => setTimeout(r, 2000 + Math.floor(Math.random() * 6000)));
       const url = 'https://psycle.codexfit.com/api/v1/customer/bookings?limit=100&page=1';
@@ -408,6 +423,8 @@ async function sendBookingWindowTip(userId) {
       if (res.ok) {
         const payload = await res.json();
         const profile = payload.data || payload;
+        // Cache the full profile (also backfills display_name) for the admin view.
+        try { db.cacheUserProfile(userId, profile); } catch (_) {}
         const totalCredits = (profile.available_credits || []).reduce((s, c) => s + (c.count || 0), 0);
         const needed = pending.reduce((s, b) => {
           let p = {};
@@ -448,5 +465,7 @@ module.exports = {
     setTimeout(() => { refreshBookingCaches().catch(() => {}); }, 45000 + Math.floor(Math.random() * 45000));
   },
   executeAutoUpgradeChecks,
-  refreshBookingCaches
+  refreshBookingCaches,
+  fetchCodexFit,
+  normalizeBooking
 };

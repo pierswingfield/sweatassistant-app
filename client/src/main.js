@@ -47,7 +47,7 @@ const DEFAULT_SETTINGS = {
   manualBookingWindowWeeks: null, // debug-only override (1-4 weeks), null = use detected
   autoUpgradeEnabled: true,
   autoUpgradeInterval: '15min',
-  autoUpgradeByDefault: false,
+  autoUpgradeByDefault: true,     // auto-upgrade spots after every booking by default
   autoUpgradeKeepOriginalByDefault: false,
   debugMode: false,
   prefetchWeeks: 4

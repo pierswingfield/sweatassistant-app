@@ -927,10 +927,13 @@ if (loginForm) {
     const password = document.getElementById('psycle-login-password').value;
     const submitBtn = document.getElementById('psycle-login-submit-btn');
 
+    const errorEl = document.getElementById('psycle-login-error');
+    if (errorEl) errorEl.style.display = 'none';
+
     try {
       submitBtn.disabled = true;
       submitBtn.querySelector('span').textContent = 'Logging in...';
-      
+
       const user = await api.login(email, password);
       currentUser = user;
       setCacheKeyPrefix(currentUser.id);
@@ -939,7 +942,12 @@ if (loginForm) {
 
       await onLoginSuccess();
     } catch (err) {
-      showToast(`Auth Failed: ${err.message}`, 'error');
+      const isNetworkErr = err instanceof TypeError;
+      const msg = isNetworkErr
+        ? 'Unable to connect. Check your internet connection.'
+        : 'Incorrect email or password. Please try again.';
+      if (errorEl) { errorEl.textContent = msg; errorEl.style.display = 'block'; }
+      else showToast(msg, 'error');
     } finally {
       submitBtn.disabled = false;
       submitBtn.querySelector('span').textContent = 'Log In to CodexFit';

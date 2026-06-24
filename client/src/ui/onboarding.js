@@ -81,6 +81,10 @@ export function resumeOnboarding() {
 
 async function runFrom(startIndex) {
   active = true;
+  // Apply the body id that unlocks all #psycle-helper-container-scoped CSS
+  // (font-family, .psycle-btn-mini, etc.) so modals opened during onboarding
+  // look identical to those opened from the main app.
+  document.body.id = 'psycle-helper-container';
   try {
     for (let i = startIndex; i < STEPS.length; i++) {
       const step = STEPS[i];

@@ -272,7 +272,7 @@ export function renderBundles() {
 
     const allHeader = document.createElement('div');
     allHeader.className = 'psycle-section-subheader';
-    allHeader.innerHTML = '<h4>All Credits <span class="all-credits-chevron" style="font-size:12px; margin-left:8px;">▶&#xFE0E;</span></h4>';
+    allHeader.innerHTML = '<h4>All Credits <span class="all-credits-chevron" style="font-size:12px; margin-left:8px;">▶\uFE0E</span></h4>';
     container.appendChild(allHeader);
 
     // Render Grid — collapsed by default
@@ -291,7 +291,7 @@ export function renderBundles() {
       const isHidden = allGrid.style.display === 'none';
       allGrid.style.display = isHidden ? '' : 'none';
       const chevron = allHeader.querySelector('.all-credits-chevron');
-      if (chevron) chevron.textContent = isHidden ? '▼&#xFE0E;' : '▶&#xFE0E;';
+      if (chevron) chevron.textContent = isHidden ? '▼\uFE0E' : '▶\uFE0E';
     });
   }
 }

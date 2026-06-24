@@ -113,7 +113,7 @@ export function describeBookingWindow(offsetDays, cutoffISO) {
     const dt = getMostRecentReleaseMonday().plus({ days: offsetDays });
     through = dt.toFormat('ccc d LLL');
   }
-  return through ? `${wordLabel} · books through ${through}` : wordLabel;
+  return through ? `${wordLabel} · up to ${through}` : wordLabel;
 }
 
 // Calculate when booking opens for a specific class date (London timezone)

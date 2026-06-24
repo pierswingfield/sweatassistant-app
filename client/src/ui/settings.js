@@ -692,34 +692,50 @@ export async function openManageSpotMapsModal(options = {}) {
     // Fall back to fetching directly from the API when there is no timetable cache yet
     // (e.g. first-run onboarding before the user has loaded the timetable).
     let studios = cachedMeta?.studios || [];
-    if (!studios.length) {
+    let events = cachedEvents || [];
+    let locations = cachedMeta?.locations || cache.locations || [];
+
+    if (!studios.length || !events.length || !locations.length) {
       try {
-        const studiosRes = await api.proxyGet('/studios', { ttlMs: 3600000 });
-        studios = studiosRes.data || studiosRes || [];
+        const studiosRes = !studios.length ? await api.proxyGet('/studios', { ttlMs: 3600000 }) : null;
+        if (studiosRes && !studios.length) studios = studiosRes.data || studiosRes || [];
+
+        // Fetch locations if needed
+        if (!locations.length) {
+          const locRes = await api.proxyGet('/locations', { ttlMs: 3600000 });
+          locations = locRes.data || locRes || [];
+          cache.locations = locations;
+        }
+
+        // Fetch events for all locations to build activeStudioIds filter
+        if (!events.length && locations.length) {
+          const now = new Date();
+          const startDate = now.toISOString().split('T')[0];
+          const endDate = new Date(now.getTime() + 28 * 24 * 60 * 60 * 1000).toISOString().split('T')[0];
+
+          try {
+            const eventPromises = locations.map(loc =>
+              api.proxyGet(`/events?location=${loc.id}&start=${encodeURIComponent(startDate)}&end=${encodeURIComponent(endDate)}`, { ttlMs: 3600000 })
+            );
+            const eventResults = await Promise.all(eventPromises);
+            events = eventResults.flatMap(res => res.data || res || []);
+          } catch (_) {
+            // If events fetch fails, events stays empty (no filtering)
+          }
+        }
       } catch (_) {
-        studios = [];
+        // If any fetch fails, proceed with what we have
       }
     }
 
     // Build a set of studio IDs that actually have upcoming events, to exclude defunct studios
     // that appear in API relations but no longer have any classes scheduled.
     const activeStudioIds = new Set();
-    if (cachedEvents?.length > 0) {
-      cachedEvents.forEach(ev => {
+    if (events?.length > 0) {
+      events.forEach(ev => {
         const id = ev.studio_id || ev.studio?.id;
         if (id) activeStudioIds.add(id);
       });
-    }
-
-    let locations = cachedMeta?.locations || cache.locations || [];
-    if (!locations.length) {
-      try {
-        const locRes = await api.proxyGet('/locations', { ttlMs: 3600000 });
-        locations = locRes.data || locRes || [];
-        cache.locations = locations;
-      } catch (e) {
-        locations = [];
-      }
     }
 
     renderManageSpotMapsModal(prefs, studios, locations, body, close, activeStudioIds, options);

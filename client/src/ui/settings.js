@@ -689,7 +689,17 @@ export async function openManageSpotMapsModal(options = {}) {
 
     // Studios from the timetable metadata cache (built from event relations) include full
     // layout.slots data — the /studios list endpoint omits slots for some studios (e.g. Reformer).
-    const studios = cachedMeta?.studios || [];
+    // Fall back to fetching directly from the API when there is no timetable cache yet
+    // (e.g. first-run onboarding before the user has loaded the timetable).
+    let studios = cachedMeta?.studios || [];
+    if (!studios.length) {
+      try {
+        const studiosRes = await api.proxyGet('/studios', { ttlMs: 3600000 });
+        studios = studiosRes.data || studiosRes || [];
+      } catch (_) {
+        studios = [];
+      }
+    }
 
     // Build a set of studio IDs that actually have upcoming events, to exclude defunct studios
     // that appear in API relations but no longer have any classes scheduled.

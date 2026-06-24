@@ -1,5 +1,5 @@
 import { api } from '../api';
-import { showToast, cache, userSettings, refreshUserData } from '../main';
+import { showToast, cache, userSettings, refreshUserData, debugConsole } from '../main';
 import { getClassReleaseTime, getNextMondayNoonLondon } from '../lib';
 import { renderStudioFloorPlan } from './spotmap';
 import { icon, disciplineTag, trimLocation, seatNoun } from './cards';
@@ -76,7 +76,7 @@ function connectToAutoBookStream() {
   sseEventSource = new EventSource(url);
 
   sseEventSource.onopen = () => {
-    console.log('[AutoBook] SSE stream connected');
+    debugConsole('[AutoBook] SSE stream connected');
     // Sync any missed state by fetching the latest auto-book data.
     // This fires on initial connection AND on reconnect after a network interruption.
     api.getAutoBookings().then(data => {

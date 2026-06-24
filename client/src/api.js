@@ -23,8 +23,6 @@ export function isLoggedIn() {
 }
 
   // Cache staleness tracking — last cached GET response was stale
-let lastResponseStale = false;
-export function isLastResponseStale() { return lastResponseStale; }
 
 // Invalidate cached proxy GET responses for a given path after a mutation.
 // Extracts the base resource (e.g., '/bookings' from '/bookings/123') and
@@ -112,7 +110,6 @@ export const api = {
     debugLog(`GET ${path}`, 'network');
     if (ttlMs) {
       const result = await getCachedSWR(`/api/proxy${path}`, { ttlMs, fetcher: apiFetch });
-      lastResponseStale = result.stale;
       return result.data;
     }
     const res = await apiFetch(`/api/proxy${path}`);
@@ -184,7 +181,6 @@ export const api = {
   // Auto-Book Queue
   async getAutoBookings() {
     const result = await getCachedSWR('/api/auto-book', { ttlMs: 30000, fetcher: apiFetch });
-    lastResponseStale = result.stale;
     return result.data;
   },
 
@@ -222,7 +218,6 @@ export const api = {
   // Auto-Upgrade
   async getAutoUpgrades() {
     const result = await getCachedSWR('/api/auto-upgrade', { ttlMs: 30000, fetcher: apiFetch });
-    lastResponseStale = result.stale;
     return result.data;
   },
 
@@ -263,7 +258,6 @@ export const api = {
   // Settings & Preferences
   async getSettings() {
     const result = await getCachedSWR('/api/settings', { ttlMs: 300000, fetcher: apiFetch });
-    lastResponseStale = result.stale;
     return result.data;
   },
 
@@ -278,7 +272,6 @@ export const api = {
 
   async getStudioPreferences() {
     const result = await getCachedSWR('/api/studio-preferences', { ttlMs: 300000, fetcher: apiFetch });
-    lastResponseStale = result.stale;
     return result.data;
   },
 
@@ -407,7 +400,6 @@ export const api = {
 
   async getCart() {
     const result = await getCachedSWR('/api/cart', { ttlMs: 120000, fetcher: apiFetch });
-    lastResponseStale = result.stale;
     return result.data;
   },
 

@@ -1,5 +1,5 @@
 import { api, apiFetch } from '../api';
-import { showToast, togglePushSubscription, updatePushStatusUI, userSettings, cache, getTheme, setTheme } from '../main';
+import { showToast, togglePushSubscription, updatePushStatusUI, userSettings, cache, getTheme, setTheme, debugConsole } from '../main';
 import { getBookingOffset, describeBookingWindow } from '../lib';
 import { renderStudioFloorPlan } from './spotmap';
 import { cacheGet } from './timetable';
@@ -1256,11 +1256,11 @@ function setupNotificationPrefs() {
   const openBtn = document.getElementById('psycle-notif-prefs-btn');
   const modal = document.getElementById('psycle-notif-prefs-modal');
   const closeBtn = document.getElementById('psycle-notif-prefs-close');
-  console.log('[setupNotificationPrefs] openBtn:', openBtn, 'modal:', modal, 'closeBtn:', closeBtn);
+  debugConsole('[setupNotificationPrefs] openBtn:', openBtn, 'modal:', modal, 'closeBtn:', closeBtn);
   if (openBtn && !openBtn.dataset.listener) {
     openBtn.dataset.listener = 'true';
     openBtn.addEventListener('click', () => {
-      console.log('[notif-btn-click] renderNotifPrefs and showing modal');
+      debugConsole('[notif-btn-click] renderNotifPrefs and showing modal');
       renderNotifPrefs();
       modal.classList.add('show');
     });

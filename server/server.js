@@ -18,8 +18,50 @@ const { appName } = config;
 const app = express();
 const PORT = process.env.PORT || 3000;
 
-app.use(cors());
+// CORS allowlist. The PWA is served same-origin in production, so only the
+// configured public host (and localhost in dev) are permitted. Requests with no
+// Origin header (curl, server-to-server, same-origin navigations, native
+// calendar clients hitting the .ics feed) are allowed through.
+const allowedOrigins = new Set(config.corsOrigins);
+if (process.env.NODE_ENV !== 'production') {
+  ['http://localhost:5173', 'http://localhost:3000', 'http://127.0.0.1:5173', 'http://127.0.0.1:3000']
+    .forEach((o) => allowedOrigins.add(o));
+}
+app.use(cors({
+  origin(origin, cb) {
+    // Allow listed origins (and requests with no Origin: curl, native calendar
+    // clients, same-origin navigations). For a disallowed origin, omit the CORS
+    // headers rather than throwing — the browser then blocks the response, and
+    // we avoid leaking a 500 + stack trace to non-browser callers.
+    cb(null, !origin || allowedOrigins.has(origin));
+  },
+}));
 app.use(express.json());
+
+// Strict brute-force limiters for the two password endpoints, keyed by IP.
+// Active in production only (consistent with the other limiters); dev login
+// (dev@psycle.com) stays frictionless.
+// No custom keyGenerator — the library's default keys by client IP with correct
+// IPv6 subnet handling (in v8 the `ipKeyGenerator` helper takes an IP string,
+// not a req, so a hand-rolled key here would mis-key every request and never
+// accumulate a count).
+const authLoginLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  max: 10,
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: { message: 'Too many login attempts — please try again later.' },
+  skip: () => process.env.NODE_ENV !== 'production',
+});
+
+const adminLoginLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  max: 5,
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: { message: 'Too many admin login attempts — please try again later.' },
+  skip: () => process.env.NODE_ENV !== 'production',
+});
 
 // Per-user rate limiters (keyed on userId set by authenticateToken, not IP —
 // all users share the Pi's egress IP so IP-based limiting would be wrong).
@@ -28,7 +70,7 @@ const proxyLimiter = rateLimit({
   max: 60,
   standardHeaders: true,
   legacyHeaders: false,
-  keyGenerator: (req) => req.userId ? String(req.userId) : ipKeyGenerator(req),
+  keyGenerator: (req) => req.userId ? String(req.userId) : ipKeyGenerator(req.ip),
   message: { message: 'Too many requests — please slow down.' },
   skip: (req) => process.env.NODE_ENV !== 'production', // no limits in dev
 });
@@ -38,19 +80,20 @@ const bookingMutationLimiter = rateLimit({
   max: 10,
   standardHeaders: true,
   legacyHeaders: false,
-  keyGenerator: (req) => req.userId ? String(req.userId) : ipKeyGenerator(req),
+  keyGenerator: (req) => req.userId ? String(req.userId) : ipKeyGenerator(req.ip),
   message: { message: 'Too many booking requests — please wait before retrying.' },
   skip: (req) => process.env.NODE_ENV !== 'production',
 });
 
 // Public calendar feed is keyed by IP (no userId — it's token-by-URL). Generous
 // limit; calendar clients poll infrequently but several apps may share an IP.
+// Uses the library's default IP keyGenerator (correct IPv6 handling in v8) — a
+// hand-rolled `ipKeyGenerator(req)` mis-keys every request and never limits.
 const calendarFeedLimiter = rateLimit({
   windowMs: 60 * 1000,
   max: 60,
   standardHeaders: true,
   legacyHeaders: false,
-  keyGenerator: (req) => ipKeyGenerator(req),
   message: 'Too many requests.',
   skip: (req) => process.env.NODE_ENV !== 'production',
 });
@@ -61,6 +104,56 @@ const calendarFeedLimiter = rateLimit({
 
 app.get('/api/config', (req, res) => {
   res.json({ appName: config.appName, publicHost: config.publicHost });
+});
+
+// -------------------------------------------------------------
+// HEALTH CHECK (no auth)
+// Liveness probe for the background services. Each service (scheduler, poller,
+// calendar) writes a heartbeat timestamp to server_kv on a fixed cadence; a
+// plain HTTP 200 only proves Express is up, so we check those heartbeats to
+// detect a silently-crashed in-process timer/cron. Returns 200 when every
+// service is fresh, 503 when any is stale — so an uptime monitor watching the
+// status code alerts automatically. See AGENTS.md "Health Check & Uptime
+// Monitoring" for wiring instructions.
+// -------------------------------------------------------------
+
+// Max age (ms) before a service's heartbeat is considered stale. Scheduler and
+// poller tick every 60s; calendar polls every 3h.
+const HEARTBEAT_LIMITS = {
+  scheduler: 3 * 60 * 1000,
+  poller: 3 * 60 * 1000,
+  calendar: 3.5 * 60 * 60 * 1000,
+};
+
+app.get('/api/health', (req, res) => {
+  const now = Date.now();
+  const services = {};
+  let allHealthy = true;
+
+  for (const [name, limit] of Object.entries(HEARTBEAT_LIMITS)) {
+    const raw = db.getKV(`heartbeat:${name}`);
+    const last = raw ? Number(raw) : null;
+    const ageMs = last ? now - last : null;
+    const healthy = last != null && ageMs <= limit;
+    if (!healthy) allHealthy = false;
+    services[name] = {
+      healthy,
+      lastHeartbeatAgoSec: ageMs != null ? Math.round(ageMs / 1000) : null,
+      staleAfterSec: Math.round(limit / 1000),
+    };
+  }
+
+  // Surface the next armed auto-book release so you can confirm a Monday window
+  // is actually scheduled (not just that the scheduler process is ticking).
+  const nextRelease = db.getKV('scheduler_next_release') || null;
+
+  res.status(allHealthy ? 200 : 503).json({
+    status: allHealthy ? 'ok' : 'degraded',
+    time: new Date(now).toISOString(),
+    uptimeSec: Math.round(process.uptime()),
+    nextReleaseAt: nextRelease,
+    services,
+  });
 });
 
 // -------------------------------------------------------------
@@ -117,13 +210,14 @@ app.get('/admin', (req, res) => {
   sendTemplated(path.join(__dirname, 'admin.html'), res, 'text/html');
 });
 
+app.use('/api/admin/login', adminLoginLimiter);
 app.use('/api/admin', adminRouter);
 
 // -------------------------------------------------------------
 // BFF AUTHENTICATION
 // -------------------------------------------------------------
 
-app.post('/api/auth/login', async (req, res) => {
+app.post('/api/auth/login', authLoginLimiter, async (req, res) => {
   const { email, password } = req.body;
   try {
     const result = await handleLogin(email, password);

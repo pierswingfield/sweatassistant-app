@@ -559,6 +559,7 @@ function scheduleReleaseWindow() {
   const diffMs = targetRelease.diff(now).milliseconds;
 
   console.log(`[Scheduler] Next release scheduled for: ${targetRelease.toLocaleString(DateTime.DATETIME_FULL_WITH_ZONE)} (in ${(diffMs / 3600000).toFixed(2)} hours)`);
+  db.setKV('scheduler_next_release', targetRelease.toISO());
 
   // 1. Set Prefetch Timeout at T-50s; individual fetches are staggered randomly
   //    within an 18s window so all complete before T-30s.
@@ -683,6 +684,10 @@ function unregisterSSEClient(userId, res) {
 module.exports = {
   init() {
     console.log('[Scheduler] Precision Auto-Book Scheduler initialized.');
+    // Liveness heartbeat for /api/health — proves the scheduler process is alive
+    // even between weekly release windows (it's otherwise timer-driven and idle).
+    db.setKV('heartbeat:scheduler', Date.now().toString());
+    setInterval(() => db.setKV('heartbeat:scheduler', Date.now().toString()), 60000);
     scheduleReleaseWindow();
   },
   getClassReleaseTime,

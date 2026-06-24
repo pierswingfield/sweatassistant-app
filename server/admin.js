@@ -1,7 +1,17 @@
 const express = require('express');
 const jwt = require('jsonwebtoken');
+const crypto = require('crypto');
 const db = require('./db');
 const { triggerAutoRelogin } = require('./auth');
+
+// Constant-time string comparison via fixed-length SHA-256 digests, so the
+// comparison time doesn't leak how many leading characters matched (and length
+// differences don't throw, unlike a raw timingSafeEqual on the buffers).
+function safeEqual(a, b) {
+  const ha = crypto.createHash('sha256').update(String(a)).digest();
+  const hb = crypto.createHash('sha256').update(String(b)).digest();
+  return crypto.timingSafeEqual(ha, hb);
+}
 
 const router = express.Router();
 
@@ -85,7 +95,7 @@ function normalizeBooking(b) {
 router.post('/login', (req, res) => {
   if (!process.env.ADMIN_PASSWORD) return adminUnavailable(res);
   const { password } = req.body;
-  if (!password || password !== process.env.ADMIN_PASSWORD) {
+  if (!password || !safeEqual(password, process.env.ADMIN_PASSWORD)) {
     return res.status(401).json({ message: 'Invalid admin password.' });
   }
   const token = jwt.sign({ admin: true }, JWT_SECRET, { expiresIn: '1h' });

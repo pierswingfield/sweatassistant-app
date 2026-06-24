@@ -46,8 +46,7 @@ App/
 │   │   ├── lib.js           # Shared utilities (Luxon timezone, countdown, release time, booking-window detect)
 │   │   ├── cache.js         # IndexedDB v2 wrapper (cache + api-responses stores, per-user key prefix)
 │   │   ├── config.js        # Build-time + runtime app config (appName, publicHost via /api/config)
-│   │   ├── styles.css       # Design tokens + glassmorphic theme, light/dark parity (~4900 lines)
-│   │   ├── panel-layout.css # Panel/tab/table/card layout + responsive (~970 lines) — ⚠️ NOT loaded by the app; see DESIGN.md
+│   │   ├── styles.css       # Design tokens + glassmorphic theme, light/dark parity (~4900 lines) — the only stylesheet loaded
 │   │   └── ui/
 │   │       ├── timetable.js   # Class timetable, filters, booking modal, quick-book, floor plan, mobile cards
 │   │       ├── bookings.js    # My Bookings + Waitlists + Auto-Upgrade setup + edit-spots modal
@@ -103,7 +102,9 @@ Server runs on port 3000. Vite dev server proxies `/api` to `localhost:3000`.
 - **Auto-book precision**: Targets Monday 12:00 PM London time with T-50s staggered prefetch and T-0 dispatch. Server uses `setTimeout` → T-5s → `setInterval` every 10ms polling `Date.now()` until `>= targetRelease`. Replaces the extension's 200ms `setInterval`.
 - **Priority tiers + fair dispatch**: `users.priority` (lower = higher precedence; default 100, new users get 200) drives Monday-noon dispatch ordering. `getPendingAutoBookings()` JOINs `users.priority` and sorts `ORDER BY priority ASC, created_at ASC`; Fisher-Yates shuffle within each tier gives statistical fairness over weeks. `CLAIM_STAGGER_MS = 80ms` staggers consecutive users in the same class. Cross-user `claimedSlots`/`burnedSlots` Sets prevent duplicate `POST /bookings` across concurrent users targeting the same event/slot. Admin-editable via `PUT /api/admin/users/:id/priority`.
 - **Auto-upgrade**: Configurable polling (1min/15min/1hr) via `node-cron` every minute. Stops at 12h before class start (or one final "keep original" attempt if `keepOriginalOnCutoff`). Hard stop at 1h.
-- **Rate limiting**: Three `express-rate-limit` limiters (production-only, skipped in dev): `proxyLimiter` (60/min per user on `/api/proxy/*`), `bookingMutationLimiter` (10/min per user on auto-book/upgrade writes), `calendarFeedLimiter` (60/min per IP on the public calendar URL). Per-user quotas cap auto-book at 15 pending entries and auto-upgrade at 10 active monitors (429 on exceed).
+- **Rate limiting**: Five `express-rate-limit` limiters (production-only, skipped in dev): `proxyLimiter` (60/min per user on `/api/proxy/*`), `bookingMutationLimiter` (10/min per user on auto-book/upgrade writes), `calendarFeedLimiter` (60/min per IP on the public calendar URL), `authLoginLimiter` (10/15min per IP on `/api/auth/login`), `adminLoginLimiter` (5/15min per IP on `/api/admin/login`). Per-user quotas cap auto-book at 15 pending entries and auto-upgrade at 10 active monitors (429 on exceed).
+- **CORS**: Browser-origin allowlist (`config.corsOrigins`, override via `CORS_ORIGINS`). The PWA is served same-origin in production, so only the public host is allowed; localhost dev origins are added when `NODE_ENV !== 'production'`. Requests with no `Origin` header (curl, native calendar clients, same-origin nav) pass through; disallowed origins get no CORS headers (browser blocks them) rather than a 500.
+- **Admin auth**: `/api/admin/login` compares the password in constant time (`crypto.timingSafeEqual` over SHA-256 digests) to avoid timing leaks, and is brute-force-limited (5/15min per IP).
 - **Credential storage**: AES-256-GCM encryption at rest. Master key MUST come from the `ENCRYPTION_KEY` env var — the server refuses to start if it is absent (no DB fallback). Never in DB as plaintext.
 - **Calendar feed**: Per-user rotatable token (`users.calendar_token`) authenticates the public `.ics` URL. A 3-hourly cron polls CodexFit bookings/waitlists and regenerates each enabled user's snapshot; booking mutations trigger a debounced (60s) refresh. RFC 5545 serialization with `Europe/London` VTIMEZONE and optional VALARM.
 - **Admin panel**: Standalone SPA at `/admin`, gated by `ADMIN_PASSWORD` env var (503 if absent) + 1h admin JWT. Read-only user list/detail plus inline priority-tier editing and user deletion.
@@ -140,6 +141,35 @@ Five notification types, all server-side, all deduped via the `sent_notification
 - **Dedupe**: `sent_notifications` table with `UNIQUE(user_id, dedupe_key)` — e.g. `cancel:123:24h`, `window:2026-06-22`.
 - **Client prefs UI**: Settings → "Customise Notifications" modal (`settings.js` `renderNotifPrefs`) — per-type toggles + dropdowns for scope/timing.
 - **Debug testing**: Settings → Test Notifications card (debug mode only) — 9 sample buttons via `POST /api/push/test/:type`.
+
+## Health Check & Uptime Monitoring
+
+The background services (auto-book scheduler, auto-upgrade poller, calendar feed) run as in-process timers/cron. A plain "is the port open?" check only proves Express is alive — the scheduler can silently die while HTTP keeps serving, and nobody notices until Monday bookings are missed. `GET /api/health` solves this with a **liveness heartbeat** per service.
+
+- **How it works**: each service writes `heartbeat:<service>` (epoch-ms) to the `server_kv` table on a fixed cadence — scheduler every 60s (`setInterval` in `scheduler.init`), poller every 60s (inside its `* * * * *` cron), calendar every 3h (inside its `0 */3 * * *` cron). All three are seeded at `init()` so a freshly-booted server is immediately healthy.
+- **The endpoint** (`server.js`, no auth) reads those heartbeats and compares each against its staleness limit (`HEARTBEAT_LIMITS`: scheduler/poller 180s, calendar 12600s/3.5h). It returns **HTTP 200** with `{ status: 'ok', ... }` when every service is fresh, and **HTTP 503** with `{ status: 'degraded', ... }` if any heartbeat is stale or missing. `nextReleaseAt` echoes the armed Monday-noon release so you can confirm a window is actually scheduled, not just that the process ticks.
+- **Sample healthy response**:
+  ```json
+  { "status": "ok", "uptimeSec": 3, "nextReleaseAt": "2026-06-29T12:00:00.000+01:00",
+    "services": { "scheduler": { "healthy": true, "lastHeartbeatAgoSec": 2, "staleAfterSec": 180 },
+                  "poller":    { "healthy": true, "lastHeartbeatAgoSec": 2, "staleAfterSec": 180 },
+                  "calendar":  { "healthy": true, "lastHeartbeatAgoSec": 2, "staleAfterSec": 12600 } } }
+  ```
+
+### Connecting a 3rd-party uptime monitor
+
+Point any HTTP monitor at `https://<your-host>/api/health` and alert on **non-2xx** — the 503-on-degraded is the whole mechanism, so a status-code check is enough (no keyword/JSON parsing needed).
+
+- **UptimeRobot / Better Uptime / Pingdom / Healthchecks.io**: create an *HTTP(s)* monitor, URL `https://<your-host>/api/health`, interval 5 min. These flag any 5xx as down by default, so a stale heartbeat → 503 → alert. Optionally add a keyword check for `"status":"ok"` for belt-and-braces.
+- **Docker `HEALTHCHECK`** (in `Dockerfile` / `docker-compose.yml`):
+  ```
+  HEALTHCHECK --interval=60s --timeout=5s --retries=3 \
+    CMD wget -qO- http://localhost:3000/api/health || exit 1
+  ```
+  (`wget`/`curl` exit non-zero on 503, marking the container unhealthy.)
+- **Self-hosted cron on the Pi** (no external dependency): `*/5 * * * * curl -fsS https://<host>/api/health > /dev/null || <notify>` — `curl -f` returns non-zero on 503.
+
+The endpoint is unauthenticated and leaks no user data (only service liveness + uptime), so it's safe to expose publicly to a monitor.
 
 ## Feature Parity Status
 
@@ -185,15 +215,15 @@ Five notification types, all server-side, all deduped via the `sent_notification
 
 - **Auto-Book Favourites incomplete** — The Auto-Book tab has a "♥ Auto-Book Favourites" modal that saves `autoBookFavourites` (a list of bookmark identifiers) to user settings, but nothing in `scheduler.js` consumes this list to auto-create queue entries each week. The extension's `syncBookmarkedAutoBookings` logic has not been ported.
 - **Mobile/iOS layout still uses floating-panel heritage** — The root panel base is still `width: 1080px; max-height: 85vh; border-radius: 28px` (extension floating-panel heritage). Responsive media queries (`@media max-width: 1100px/480px`) now make it full-width on small screens and an iOS bottom nav was added, but the base dimensions mean it doesn't feel fully native on iOS installed to home screen. A dedicated mobile-first layout pass would improve this.
-- **Inline styles everywhere** — UI modules build elements with large `style="..."` strings instead of CSS classes, making maintenance and responsive tweaks painful (can't media-query inline styles). `cards.js` extracts some shared helpers, but most modules still inline. Should be migrated to `styles.css` classes over time. (Note: `panel-layout.css` exists but is NOT loaded by the app — only `styles.css` is imported in `index.html`.)
+- **Inline styles everywhere** — UI modules build elements with large `style="..."` strings instead of CSS classes, making maintenance and responsive tweaks painful (can't media-query inline styles). `cards.js` extracts some shared helpers, but most modules still inline. Should be migrated to `styles.css` classes over time. (`styles.css` is the only stylesheet imported in `index.html`.)
 - **3-D Secure not handled in-app** — In-app credit checkout charges a saved card off-session. When the charge requires 3-D Secure authentication, the server returns `status: 'requires_action'` and the client falls back to the website checkout with tips. The full Stripe.js `confirmCardPayment` challenge flow is not yet built (see BACKLOG.md).
-- **No health/metrics endpoint** — There is no `/api/health` route or scheduler crash alerting. If the scheduler silently crashes, no one knows until users miss their Monday bookings (see BACKLOG.md P0 #4).
 
 ## Server API Routes
 
 ```
-# Public Config (no auth)
+# Public Config + Health (no auth)
 GET    /api/config                # Returns { appName, publicHost } — needed before login to render UI
+GET    /api/health                # Liveness probe — 200 when scheduler/poller/calendar heartbeats are fresh, 503 if any is stale
 
 # Admin Panel
 GET    /admin                     # Serves admin.html (standalone admin SPA)
@@ -321,3 +351,4 @@ IndexedDB database `psycle-cache` (v2) has two stores: `cache` (raw timetable ev
 | `ADMIN_PASSWORD` | `admin.js` | Password for admin panel login. If absent, all `/api/admin/*` routes return 503. |
 | `APP_NAME` | `server/config.js` → all server modules + client via `/api/config` | App display name (default: `Psycle Assistant`). Server template-replaces static HTML/manifest/sw.js; client fetches `/api/config` for JS-rendered text. |
 | `PUBLIC_HOST` | `server/config.js` → `calendar.js`, client via `/api/config` | Public domain for calendar feed URLs and UID generation (default: `psycle.wingfield.tech`). |
+| `CORS_ORIGINS` | `server/config.js` → `server.js` | Comma-separated browser-origin allowlist for CORS. Defaults to `https://$PUBLIC_HOST` + `http://$PUBLIC_HOST`. Localhost dev origins are auto-added when `NODE_ENV !== 'production'`. |

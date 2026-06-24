@@ -445,8 +445,11 @@ async function sendBookingWindowTip(userId) {
 module.exports = {
   init() {
     console.log('[Poller] Auto-Upgrade Poller initialized.');
+    // Liveness heartbeat for /api/health (seed now, refresh each cron tick).
+    db.setKV('heartbeat:poller', Date.now().toString());
     // Auto-upgrade checks every minute (respects each monitor's own interval).
     cron.schedule('* * * * *', async () => {
+      db.setKV('heartbeat:poller', Date.now().toString());
       console.log('[Poller] Running auto-upgrade check cycle...');
       await executeAutoUpgradeChecks();
     });

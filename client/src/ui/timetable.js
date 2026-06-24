@@ -1,5 +1,5 @@
 import { api } from '../api';
-import { showToast, currentUser, userSettings, refreshUserData, updateCreditBadge, cache } from '../main';
+import { showToast, currentUser, userSettings, refreshUserData, updateCreditBadge, cache, debugConsole } from '../main';
 import { getClassReleaseTime, getNextMondayNoonLondon, isInGracePeriod, GRACE_PERIOD_MS, startGraceCountdown } from '../lib';
 import { DateTime } from 'luxon';
 // === MOBILE TIMETABLE — import renderMinimap (added Jun 2026; delete this block to revert) ===
@@ -2560,45 +2560,45 @@ async function openBookingModal(c, mode) {
 // Auto-register upgrade monitor after a successful booking if the setting is on
 async function tryAutoRegisterUpgrade(event, bookedSlotId, bookingRes, enableOverride) {
   const shouldRegister = enableOverride !== undefined ? enableOverride : userSettings.autoUpgradeByDefault;
-  console.log('[AutoUpgrade] tryAutoRegisterUpgrade called', { shouldRegister, bookedSlotId, eventId: event?.id });
+  debugConsole('[AutoUpgrade] tryAutoRegisterUpgrade called', { shouldRegister, bookedSlotId, eventId: event?.id });
   if (!shouldRegister) {
-    console.log('[AutoUpgrade] Skipping — auto-upgrade is disabled. userSettings:', JSON.stringify(userSettings));
+    debugConsole('[AutoUpgrade] Skipping — auto-upgrade is disabled. userSettings:', JSON.stringify(userSettings));
     return;
   }
   try {
     const studioId = event.studio_id;
-    console.log('[AutoUpgrade] Studio ID:', studioId, '| event.studio:', event.studio);
+    debugConsole('[AutoUpgrade] Studio ID:', studioId, '| event.studio:', event.studio);
 
     // Check preferred spot map exists for this studio
     let prefs = cache.studioPreferences?.[studioId];
-    console.log('[AutoUpgrade] Cached prefs:', prefs);
+    debugConsole('[AutoUpgrade] Cached prefs:', prefs);
     if (!prefs) {
       const allPrefs = await api.getStudioPreferences();
       cache.studioPreferences = allPrefs;
       prefs = allPrefs[studioId];
-      console.log('[AutoUpgrade] Fetched all prefs, studioId prefs:', prefs);
+      debugConsole('[AutoUpgrade] Fetched all prefs, studioId prefs:', prefs);
     }
     if (!prefs?.preferredSlots?.length && !prefs?.preferredRows?.length) {
       const studioName = event.studio?.name || studioMap.get(studioId) || 'this studio';
-      console.log('[AutoUpgrade] No preferred spot map for studio:', studioName, '| prefs:', prefs);
+      debugConsole('[AutoUpgrade] No preferred spot map for studio:', studioName, '| prefs:', prefs);
       showToast(`Can't set auto-upgrade because you don't have a preferred spot map for ${studioName}. Please configure one!`, 'warning');
       return;
     }
 
     // Resolve booking ID from various response shapes
-    console.log('[AutoUpgrade] Raw bookingRes:', JSON.stringify(bookingRes));
+    debugConsole('[AutoUpgrade] Raw bookingRes:', JSON.stringify(bookingRes));
     let bookingId;
 
     // CodexFit returns: { success: true, bookings: { "8255409": 53 } }
     // The key is the booking ID, value is the slot ID
     if (bookingRes?.bookings && typeof bookingRes.bookings === 'object') {
       bookingId = Object.keys(bookingRes.bookings)[0];
-      console.log('[AutoUpgrade] Extracted from bookings object:', bookingId);
+      debugConsole('[AutoUpgrade] Extracted from bookings object:', bookingId);
     } else {
       // Fallback for other response shapes
       const dataObj = Array.isArray(bookingRes?.data) ? bookingRes.data[0] : bookingRes?.data;
       bookingId = dataObj?.id || bookingRes?.id;
-      console.log('[AutoUpgrade] Fallback extraction:', bookingId, '| dataObj:', dataObj);
+      debugConsole('[AutoUpgrade] Fallback extraction:', bookingId, '| dataObj:', dataObj);
     }
 
     if (!bookingId) {
@@ -2618,10 +2618,10 @@ async function tryAutoRegisterUpgrade(event, bookedSlotId, bookingRes, enableOve
       startAt: event.start_at,
       preferences: { keepOriginalOnCutoff: true }
     };
-    console.log('[AutoUpgrade] Sending addAutoUpgrade payload:', JSON.stringify(payload));
+    debugConsole('[AutoUpgrade] Sending addAutoUpgrade payload:', JSON.stringify(payload));
     await api.addAutoUpgrade(payload);
     showToast('Auto-upgrade monitor started for better spot availability.', 'info');
-    console.log('[AutoUpgrade] Monitor registered successfully.');
+    debugConsole('[AutoUpgrade] Monitor registered successfully.');
   } catch (err) {
     console.warn('[AutoUpgrade] Failed to auto-register:', err.message, err);
   }

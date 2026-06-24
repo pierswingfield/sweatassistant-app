@@ -165,18 +165,6 @@ export function formatCountdown(diffMs) {
   return `${String(hours).padStart(2, '0')}:${String(mins).padStart(2, '0')}:${String(secs).padStart(2, '0')}`;
 }
 
-// Format a full countdown with days
-export function formatFullCountdown(diffMs) {
-  if (diffMs <= 0) return 'RELEASE ACTIVE!';
-
-  const days = Math.floor(diffMs / (24 * 3600 * 1000));
-  const hours = Math.floor((diffMs % (24 * 3600 * 1000)) / (3600 * 1000));
-  const mins = Math.floor((diffMs % (3600 * 1000)) / (60 * 1000));
-  const secs = Math.floor((diffMs % (60 * 1000)) / 1000);
-
-  return `${days}d ${String(hours).padStart(2, '0')}h ${String(mins).padStart(2, '0')}m ${String(secs).padStart(2, '0')}s`;
-}
-
 // ── 60-second cancellation grace period ──────────────────────────────
 // CodexFit bookings carry a `booked_at` timestamp. For the first 60 seconds
 // after booking, the cancel is free (no penalty) and requires no confirmation.
@@ -184,7 +172,7 @@ export function formatFullCountdown(diffMs) {
 
 export const GRACE_PERIOD_MS = 60 * 1000;
 
-export function getGraceRemaining(bookedAt) {
+function getGraceRemaining(bookedAt) {
   if (!bookedAt) return 0;
   const elapsed = Date.now() - new Date(bookedAt).getTime();
   return Math.max(0, GRACE_PERIOD_MS - elapsed);

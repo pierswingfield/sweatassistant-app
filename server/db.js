@@ -411,9 +411,6 @@ module.exports = {
   },
 
   // User lookups (for background notification jobs)
-  getAllUserIds() {
-    return db.prepare('SELECT id FROM users').all().map(r => r.id);
-  },
   getUserIdsWithPushSubs() {
     return db.prepare('SELECT DISTINCT user_id FROM push_subscriptions').all().map(r => r.user_id);
   },

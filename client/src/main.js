@@ -36,9 +36,21 @@ export async function warmCaches() {
 // build time, /api/config at runtime) to all user-visible static surfaces that
 // can't import it at runtime. initConfig() is called in checkAuth() to override
 // the build-time default with the server's configured value.
-document.title = appConfig.appName;
 const appleMeta = document.querySelector('meta[name="apple-mobile-web-app-title"]');
-if (appleMeta) appleMeta.setAttribute('content', appConfig.appName);
+
+// Propagate the configured app name to the document title, the iOS web-app
+// title meta, and every static [data-app-name] span in the SPA shell. The
+// variable is the primary source; the server-side template-replace of the
+// literal "Psycle Assistant" remains only as a no-JS fallback.
+function applyAppName() {
+  document.title = appConfig.appName;
+  if (appleMeta) appleMeta.setAttribute('content', appConfig.appName);
+  document.querySelectorAll('[data-app-name]').forEach((el) => {
+    el.textContent = appConfig.appName;
+  });
+}
+
+applyAppName();
 
 // Default settings — the single source of truth for new-user defaults.
 // Reset to this on logout so a new user never inherits the previous user's settings.
@@ -177,6 +189,13 @@ export function debugLog(message, type = 'info') {
   if (debugLogExpanded) {
     logEl.scrollTop = logEl.scrollHeight;
   }
+}
+
+// Developer console logging, gated behind debug mode so production consoles
+// stay quiet. Use for diagnostics that don't belong in the on-screen debug
+// terminal (e.g. raw payload dumps during the auto-upgrade flow).
+export function debugConsole(...args) {
+  if (userSettings.debugMode) console.log(...args);
 }
 
 export function updateDebugTerminalVisibility() {
@@ -345,7 +364,7 @@ async function registerServiceWorker() {
   try {
     const reg = await navigator.serviceWorker.register('/sw.js', { scope: '/' });
     serviceWorkerRegistration = reg;
-    console.log('[SW] Service Worker registered successfully scope:', reg.scope);
+    debugConsole('[SW] Service Worker registered successfully scope:', reg.scope);
     updatePushStatusUI();
   } catch (err) {
     console.error('[SW] Service Worker registration failed:', err);
@@ -763,7 +782,7 @@ async function syncDetectedBookingWindow(profile, credits) {
       const newSettings = { ...userSettings, detectedBookingOffset: detected.offsetDays, bookingWindow: detected };
       await api.updateSettings(newSettings);
       Object.assign(userSettings, newSettings);
-      console.log(`[App] Detected booking window: ${detected.weeks} week(s) / ${detected.offsetDays}d (${detected.source})`);
+      debugConsole(`[App] Detected booking window: ${detected.weeks} week(s) / ${detected.offsetDays}d (${detected.source})`);
     }
   } catch (err) {
     console.warn('[App] Booking window detection failed:', err.message);
@@ -842,8 +861,7 @@ async function checkAuth() {
   // Fetch runtime config (app name, public host) before any UI renders so
   // onboarding, login, and the app shell all show the correct name.
   await initConfig();
-  document.title = appConfig.appName;
-  if (appleMeta) appleMeta.setAttribute('content', appConfig.appName);
+  applyAppName();
 
   if (isLoggedIn()) {
     // Restore per-user cache key prefix from localStorage so cached data

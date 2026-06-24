@@ -489,7 +489,10 @@ async function pollAndPublishAll() {
 module.exports = {
   init() {
     console.log('[Calendar] Calendar feed service initialized.');
+    // Liveness heartbeat for /api/health (seed now, refresh each cron tick).
+    db.setKV('heartbeat:calendar', Date.now().toString());
     cron.schedule('0 */3 * * *', async () => {
+      db.setKV('heartbeat:calendar', Date.now().toString());
       console.log('[Calendar] Running 3-hourly poll + publish cycle...');
       await pollAndPublishAll();
     });

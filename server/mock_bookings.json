@@ -1,22 +1,22 @@
 [
   {
-    "id": 8255978,
-    "event_id": 207540,
-    "booked_at": "2026-07-01T20:34:36.550Z",
+    "id": 8258257,
+    "event_id": 208281,
+    "booked_at": "2026-07-01T20:40:03.870Z",
     "studio_slot": {
-      "id": 34,
-      "label": "34"
+      "id": 17,
+      "label": "17"
     },
     "event": {
-      "id": 207540,
-      "name": "Ride 45",
-      "start_at": "2026-07-04T20:34:36.550Z",
+      "id": 208281,
+      "name": "Barre 55",
+      "start_at": "2026-07-04T20:40:03.870Z",
       "event_type": {
-        "id": 20,
-        "name": "Ride 45",
+        "id": 21,
+        "name": "Barre 55",
         "group": {
-          "id": 1,
-          "name": "Ride"
+          "id": 2,
+          "name": "Barre"
         }
       },
       "instructor": {
@@ -25,30 +25,30 @@
         "full_name": "Adam"
       },
       "studio": {
-        "id": 138,
-        "name": "Ride Studio",
+        "id": 139,
+        "name": "Barre Studio",
         "location_id": 13
       }
     }
   },
   {
-    "id": 8258882,
-    "event_id": 207540,
-    "booked_at": "2026-07-01T20:34:36.550Z",
+    "id": 8256000,
+    "event_id": 208281,
+    "booked_at": "2026-07-01T20:41:02.114Z",
     "studio_slot": {
-      "id": 33,
-      "label": "33"
+      "id": 17,
+      "label": "17"
     },
     "event": {
-      "id": 207540,
-      "name": "Ride 45",
-      "start_at": "2026-07-04T20:34:36.550Z",
+      "id": 208281,
+      "name": "Barre 55",
+      "start_at": "2026-07-04T20:41:02.114Z",
       "event_type": {
-        "id": 20,
-        "name": "Ride 45",
+        "id": 21,
+        "name": "Barre 55",
         "group": {
-          "id": 1,
-          "name": "Ride"
+          "id": 2,
+          "name": "Barre"
         }
       },
       "instructor": {
@@ -57,24 +57,24 @@
         "full_name": "Adam"
       },
       "studio": {
-        "id": 138,
-        "name": "Ride Studio",
+        "id": 139,
+        "name": "Barre Studio",
         "location_id": 13
       }
     }
   },
   {
-    "id": 8263061,
-    "event_id": 207540,
-    "booked_at": "2026-07-01T20:36:03.211Z",
+    "id": 8263555,
+    "event_id": 207520,
+    "booked_at": "2026-07-01T20:42:01.286Z",
     "studio_slot": {
-      "id": 4,
-      "label": "4"
+      "id": 11,
+      "label": "11"
     },
     "event": {
-      "id": 207540,
+      "id": 207520,
       "name": "Ride 45",
-      "start_at": "2026-07-04T20:36:03.211Z",
+      "start_at": "2026-07-04T20:42:01.286Z",
       "event_type": {
         "id": 20,
         "name": "Ride 45",

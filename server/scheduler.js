@@ -118,8 +118,14 @@ function getCodexFitHeaders(token, isJSON = false) {
 
 // Fetch public (no-auth) CodexFit endpoints (events, locations, studios, instructors).
 // These are documented as public — no Bearer token required.
-async function fetchCodexFitPublic(url) {
-  const isMock = /\/events\/\d{4}(\b|$)/.test(url) || url.includes('/locations') || url.includes('/studios');
+async function fetchCodexFitPublic(userId, url) {
+  // If url is passed as first parameter for backward compatibility
+  if (typeof userId === 'string' && !url) {
+    url = userId;
+    userId = null;
+  }
+  const user = userId ? db.getUserById(userId) : null;
+  const isMock = (user && user.email === 'dev@psycle.com') || /\/events\/\d{4}(\b|$)/.test(url) || url.includes('/locations') || url.includes('/studios');
   if (isMock) {
     const mock = require('./mock');
     const pathName = url.replace('https://psycle.codexfit.com/api/v1/customer', '');
@@ -202,7 +208,7 @@ async function prefetchAutoBookSlots(bookings, windowMs = 18000) {
       }
       // /events/:id is a public CodexFit endpoint — no Bearer token needed
       const url = `https://psycle.codexfit.com/api/v1/customer/events/${booking.event_id}`;
-      const res = await fetchCodexFitPublic(url);
+      const res = await fetchCodexFitPublic(booking.user_id, url);
       if (res.ok) {
         const payload = await res.json();
         const eventData = payload.data || payload;
@@ -255,7 +261,7 @@ async function executeAutoBookForClass(booking) {
     } else {
       // /events/:id is a public CodexFit endpoint — no Bearer token needed
       const url = `https://psycle.codexfit.com/api/v1/customer/events/${eventId}`;
-      const res = await fetchCodexFitPublic(url);
+      const res = await fetchCodexFitPublic(userId, url);
       if (!res.ok) {
         throw new Error(`Failed to load event data. Status: ${res.status}`);
       }

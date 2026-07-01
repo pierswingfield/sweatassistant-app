@@ -177,8 +177,8 @@ function sendTemplated(filePath, res, contentType) {
     }
   }
   let content = fileCache[filePath];
-  if (config.appName !== 'Psycle Assistant') {
-    content = content.replaceAll('Psycle Assistant', config.appName);
+  if (config.appName !== 'Sweat Assistant') {
+    content = content.replaceAll('Sweat Assistant', config.appName);
   }
   res.type(contentType).send(content);
 }
@@ -453,10 +453,14 @@ app.post('/api/auto-upgrade', authenticateToken, bookingMutationLimiter, (req, r
       return res.status(429).json({ message: 'Auto-upgrade monitor limit reached (10 active monitors). Please cancel some before adding more.' });
     }
 
-    // Check if an active auto-upgrade already exists for this booking
-    const activeUpgrades = db.getUserAutoUpgrades(req.userId).filter(u => Number(u.booking_id) === Number(bookingId) && u.status === 'active');
+    // Check if an active auto-upgrade already exists for this slot in this class
+    const activeUpgrades = db.getUserAutoUpgrades(req.userId).filter(u =>
+      Number(u.event_id) === Number(eventId) &&
+      Number(u.current_slot_id) === Number(currentSlotId) &&
+      u.status === 'active'
+    );
     if (activeUpgrades.length > 0) {
-      return res.status(400).json({ message: 'An active auto-upgrade monitor already exists for this booking.' });
+      return res.status(400).json({ message: 'An active auto-upgrade monitor already exists for this slot.' });
     }
 
     const id = db.addAutoUpgrade(req.userId, eventId, bookingId, currentSlotId, className, instructorName, studioName, locationName, startAt, preferences, studioId ?? null, groupName ?? null);
@@ -797,6 +801,31 @@ app.all('/api/proxy/*', authenticateToken, proxyLimiter, async (req, res) => {
 
   // Stamp "last seen" on any client activity through the proxy.
   try { db.touchUserLastSeen(req.userId); } catch (_) {}
+
+  // Public CodexFit endpoints (documented: no Bearer token required).
+  // Strip auth and forward directly to avoid unnecessary JWT exposure.
+  const PUBLIC_PATHS = /^\/(events|locations|studios|instructors|event-types|event-type-groups|bundles)(\/|$|\?)/;
+  if (method === 'GET' && PUBLIC_PATHS.test(pathWithQuery) && req.email !== 'dev@psycle.com') {
+    try {
+      const upstream = `https://psycle.codexfit.com/api/v1/customer${pathWithQuery}`;
+      const publicRes = await fetch(upstream, {
+        headers: {
+          'accept': 'application/json',
+          'origin': 'https://psyclelondon.com',
+          'referer': 'https://psyclelondon.com/',
+          'x-organisation': '[object Object]'
+        }
+      });
+      res.status(publicRes.status);
+      const ct = publicRes.headers.get('content-type');
+      if (ct) res.set('Content-Type', ct);
+      const text = await publicRes.text();
+      return res.send(text);
+    } catch (err) {
+      console.error('[Proxy] Public endpoint error:', err.message);
+      return res.status(502).json({ error: 'Upstream request failed.' });
+    }
+  }
 
   try {
     const response = await proxyRequest(req.userId, pathWithQuery, method, body);

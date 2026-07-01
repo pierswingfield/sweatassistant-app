@@ -13,7 +13,7 @@ const corsOrigins = process.env.CORS_ORIGINS
   : [`https://${publicHost}`, `http://${publicHost}`];
 
 module.exports = {
-  appName: process.env.APP_NAME || 'Psycle Assistant',
+  appName: process.env.APP_NAME || 'Sweat Assistant',
   publicHost,
   corsOrigins,
 };

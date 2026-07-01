@@ -2,7 +2,7 @@ import { api } from '../api';
 import { showToast, cache, userSettings, refreshUserData, debugConsole } from '../main';
 import { getClassReleaseTime, getNextMondayNoonLondon } from '../lib';
 import { renderStudioFloorPlan } from './spotmap';
-import { icon, disciplineTag, trimLocation, seatNoun } from './cards';
+import { icon, disciplineTag, trimLocation, seatNoun, pulseIcon } from './cards';
 
 let countdownInterval = null;
 let sseEventSource = null;
@@ -798,8 +798,16 @@ function updateCountdowns() {
         urgent = diffMs <= 30000;
       }
     }
-    if (statusIcon) statusIcon.innerHTML = icon(statusGlyph, 13);
-    if (statusText) statusText.textContent = statusLabel;
+    if (statusText && statusText.textContent !== statusLabel) {
+      statusText.textContent = statusLabel;
+      if (statusIcon) {
+        if (statusGlyph === 'checkCircle') {
+          statusIcon.innerHTML = pulseIcon(13);
+        } else {
+          statusIcon.innerHTML = icon(statusGlyph, 13);
+        }
+      }
+    }
     if (banner) {
       banner.classList.toggle('is-paused', paused);
       banner.classList.toggle('is-urgent', urgent);

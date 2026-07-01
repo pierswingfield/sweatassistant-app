@@ -1,3 +1,6 @@
+const fs = require('fs');
+const path = require('path');
+
 // To be fully safe and compatible with all node versions, let's write a simple custom Response-like object.
 function createFakeResponse(data, status = 200) {
   return {
@@ -70,9 +73,64 @@ const bundles = [
   }
 ];
 
-// Mutable bookmark state so fav/unfav works end-to-end in dev mode.
-// Starts empty — favourite classes from the timetable to populate it.
 let mockBookmarks = [];
+
+const mockNow = new Date();
+const mockD1 = new Date(mockNow.getTime() + 2 * 864e5).toISOString();
+const mockD2 = new Date(mockNow.getTime() + 5 * 864e5).toISOString();
+
+const mockBookingsPath = path.join(__dirname, 'mock_bookings.dbjson');
+let mockBookings = [];
+
+function loadMockBookings() {
+  if (fs.existsSync(mockBookingsPath)) {
+    try {
+      mockBookings = JSON.parse(fs.readFileSync(mockBookingsPath, 'utf8'));
+      return;
+    } catch (e) {
+      console.warn('[Mock Server] Failed to parse mock_bookings.json:', e.message);
+    }
+  }
+  // Initialize default mock bookings
+  mockBookings = [
+    {
+      id: 8255401,
+      event_id: 1000,
+      booked_at: new Date().toISOString(),
+      studio_slot: { id: 23, label: '23' },
+      event: {
+        id: 1000, name: 'Ride 45', start_at: mockD1,
+        event_type: { id: 20, name: 'RIDE: Ride 45', group: { id: 1, name: 'Ride' } },
+        instructor: { id: 10, name: 'ADAM', full_name: 'Adam' },
+        studio: { id: 138, name: 'Ride Studio', location: { id: 13, name: 'Mortimer Street' } }
+      }
+    },
+    {
+      id: 8255402,
+      event_id: 1003,
+      booked_at: new Date(Date.now() - 120000).toISOString(),
+      studio_slot: { id: 11, label: '11' },
+      event: {
+        id: 1003, name: 'Barre 55', start_at: mockD2,
+        event_type: { id: 21, name: 'BARRE: Barre 55', group: { id: 2, name: 'Barre' } },
+        instructor: { id: 11, name: 'BECKY', full_name: 'Becky' },
+        studio: { id: 139, name: 'Barre Studio', location: { id: 13, name: 'Mortimer Street' } }
+      }
+    }
+  ];
+  saveMockBookings();
+}
+
+function saveMockBookings() {
+  try {
+    fs.writeFileSync(mockBookingsPath, JSON.stringify(mockBookings, null, 2), 'utf8');
+  } catch (e) {
+    console.error('[Mock Server] Failed to write mock_bookings.json:', e.message);
+  }
+}
+
+// Load initially
+loadMockBookings();
 
 function handleMockRequest(pathName, method, body) {
   console.log(`[Mock Server] Intercepted ${method} ${pathName}`);
@@ -110,7 +168,7 @@ function handleMockRequest(pathName, method, body) {
       available_credits: [
         { count: 3, credit_type: { name: "Ride Credit" }, expires_at: new Date(Date.now() + 60 * 24 * 60 * 60 * 1000).toISOString() },
         { count: 1, credit_type: { name: "Strength Credit" } },
-        { count: 2, credit_type: { id: 8, name: "Advanced Booking Credit" } }
+        { count: 10, credit_type: { id: 8, name: "Advanced Booking Credit" } }
       ],
       subscriptions: [
         { name: "Unlimited Monthly", status: "active", renews_at: new Date(Date.now() + 18 * 24 * 60 * 60 * 1000).toISOString() }
@@ -178,40 +236,82 @@ function handleMockRequest(pathName, method, body) {
   }
 
   if (pathName.startsWith('/bookings')) {
-    const now = new Date();
-    const d1 = new Date(now.getTime() + 2 * 864e5).toISOString();
-    const d2 = new Date(now.getTime() + 5 * 864e5).toISOString();
-    return createFakeResponse([
-      {
-        id: 8255401,
-        event_id: 1000,
-        booked_at: new Date().toISOString(),
-        studio_slot: { label: '23' },
-        event: {
-          id: 1000, name: 'Ride 45', start_at: d1,
-          event_type: { id: 20, name: 'RIDE: Ride 45', group: { id: 1, name: 'Ride' } },
-          instructor: { id: 10, name: 'ADAM', full_name: 'Adam' },
-          studio: { id: 138, name: 'Ride Studio', location: { id: 13, name: 'Mortimer Street' } }
-        }
-      },
-      {
-        id: 8255402,
-        event_id: 1003,
-        booked_at: new Date(Date.now() - 120000).toISOString(),
-        studio_slot: { label: '11' },
-        event: {
-          id: 1003, name: 'Barre 55', start_at: d2,
-          event_type: { id: 21, name: 'BARRE: Barre 55', group: { id: 2, name: 'Barre' } },
-          instructor: { id: 11, name: 'BECKY', full_name: 'Becky' },
-          studio: { id: 139, name: 'Barre Studio', location: { id: 13, name: 'Mortimer Street' } }
-        }
+    // DELETE booking
+    if (method === 'DELETE') {
+      const parts = pathName.split('/');
+      const bookingId = parseInt(parts[parts.length - 1]);
+      console.log(`[Mock Server] Cancelling booking ID: ${bookingId}`);
+      mockBookings = mockBookings.filter(b => b.id !== bookingId);
+      saveMockBookings();
+      return createFakeResponse({ success: true });
+    }
+
+    // POST (create) booking
+    if (method === 'POST') {
+      const slots = body?.slots || [];
+      const eventId = Number(body?.event_id || 1000);
+      const bookingsObj = {};
+      
+      // Calculate dynamic event details matching the mock timetable generation
+      let eventDetails;
+      if (eventId >= 1000 && eventId < 2000) {
+        const offsetDays = Math.floor((eventId - 1000) / 2);
+        const isEvening = (eventId - 1000) % 2 === 1;
+        const date = new Date(mockNow.getTime() + offsetDays * 24 * 60 * 60 * 1000);
+        const yyyymmdd = date.toISOString().split('T')[0];
+        
+        eventDetails = {
+          id: eventId,
+          name: isEvening ? "Barre 55" : "Ride 45",
+          start_at: isEvening ? `${yyyymmdd}T18:30:00.000Z` : `${yyyymmdd}T08:30:00.000Z`,
+          event_type: isEvening ? eventTypes[1] : eventTypes[0],
+          instructor: instructors[(offsetDays % 4)],
+          studio: isEvening ? studios[1] : studios[0]
+        };
+      } else {
+        const isEven = eventId % 2 === 0;
+        eventDetails = {
+          id: eventId,
+          name: isEven ? "Ride 45" : "Barre 55",
+          start_at: new Date(new Date().setUTCHours(isEven ? 8 : 18, 30, 0, 0) + 3 * 864e5).toISOString(),
+          event_type: isEven ? eventTypes[0] : eventTypes[1],
+          instructor: instructors[0],
+          studio: isEven ? studios[0] : studios[1],
+          max_bookable_slots: 10
+        };
       }
-    ]);
+
+      slots.forEach(slot => {
+        const mockId = 8255400 + Math.floor(Math.random() * 10000);
+        bookingsObj[String(mockId)] = Number(slot);
+        
+        // Add to our mutable dev bookings array
+        mockBookings.push({
+          id: mockId,
+          event_id: eventId,
+          booked_at: new Date().toISOString(),
+          studio_slot: { id: Number(slot), label: String(slot) },
+          event: eventDetails
+        });
+      });
+      
+      saveMockBookings();
+      return createFakeResponse({
+        success: true,
+        bookings: bookingsObj
+      });
+    }
+
+    // GET bookings list
+    return createFakeResponse(mockBookings);
   }
 
   if (pathName.startsWith('/events/')) {
     const parts = pathName.split('/');
     const eventId = parseInt(parts[parts.length - 1]);
+    const isEven = eventId % 2 === 0;
+    const studioId = isEven ? 138 : 139;
+    const studioName = isEven ? "Ride Studio" : "Barre Studio";
     
     // Generate layout slots
     const layoutSlots = [];
@@ -227,7 +327,14 @@ function handleMockRequest(pathName, method, body) {
       }
     }
 
-    const availableSlots = [11, 12, 13, 21, 22, 23, 31, 32, 33, 41, 42, 43, 51, 52, 53];
+    // For mock testing upgrades, make a wide range of slots available
+    // so that whatever spot the user maps as preferred is likely available.
+    const availableSlots = [];
+    for (let r = 1; r <= 8; r++) {
+      for (let c = 1; c <= 8; c++) {
+        availableSlots.push(r * 10 + c);
+      }
+    }
 
     return createFakeResponse({
       id: eventId,
@@ -235,8 +342,8 @@ function handleMockRequest(pathName, method, body) {
       relations: {
         studios: [
           {
-            id: 138,
-            name: "Ride Studio",
+            id: studioId,
+            name: studioName,
             layout: {
               slots: layoutSlots
             }
@@ -273,6 +380,7 @@ function handleMockRequest(pathName, method, body) {
         is_always_bookable: false,
         instructor: instructors[(i % 4)],
         event_type: eventTypes[0],
+        max_bookable_slots: 10,
         studio: { 
           id: 138, 
           name: "Ride Studio", 
@@ -299,6 +407,7 @@ function handleMockRequest(pathName, method, body) {
         is_always_bookable: false,
         instructor: instructors[((i + 1) % 4)],
         event_type: eventTypes[1],
+        max_bookable_slots: 10,
         studio: { 
           id: 139, 
           name: "Barre Studio", 

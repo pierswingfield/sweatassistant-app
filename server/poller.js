@@ -6,6 +6,9 @@ const notifications = require('./notifications');
 const { triggerAutoRelogin } = require('./auth');
 const { getCachedEvent, setCachedEvent } = require('./scheduler');
 
+// Track slots upgraded in the current poller check cycle to prevent double-booking/race conditions
+const claimedSlots = new Set();
+
 // Calculate booking offset/headers like scheduler
 function getCodexFitHeaders(token, isJSON = false) {
   const headers = {
@@ -21,10 +24,41 @@ function getCodexFitHeaders(token, isJSON = false) {
   return headers;
 }
 
+// Fetch public (no-auth) CodexFit endpoints (events, locations, studios, instructors).
+// These are documented as public — no Bearer token required.
+async function fetchCodexFitPublic(userId, url) {
+  // If url is passed as first parameter for backward compatibility
+  if (typeof userId === 'string' && !url) {
+    url = userId;
+    userId = null;
+  }
+  const user = userId ? db.getUserById(userId) : null;
+  const isMock = (user && user.email === 'dev@psycle.com') || /\/events\/\d{4}(\b|$)/.test(url) || url.includes('/locations') || url.includes('/studios');
+  if (isMock) {
+    const mock = require('./mock');
+    const pathName = url.replace('https://psycle.codexfit.com/api/v1/customer', '');
+    return mock.handleMockRequest(pathName, 'GET', null);
+  }
+
+  const headers = {
+    'accept': 'application/json',
+    'origin': 'https://psyclelondon.com',
+    'referer': 'https://psyclelondon.com/',
+    'x-organisation': '[object Object]'
+  };
+  return fetch(url, { headers });
+}
+
 async function fetchCodexFit(userId, url, options = {}) {
   const user = db.getUserById(userId);
   if (!user || !user.jwt) {
     throw new Error('User has no active session. Please log in.');
+  }
+
+  if (user.email === 'dev@psycle.com') {
+    const mock = require('./mock');
+    const pathName = url.replace('https://psycle.codexfit.com/api/v1/customer', '');
+    return mock.handleMockRequest(pathName, options.method || 'GET', options.body ? JSON.parse(options.body) : null);
   }
 
   const runFetch = async (token) => {
@@ -92,18 +126,11 @@ async function attemptUpgradeSlot(upgrade, isCutoffMode) {
   const currentSlotId = Number(upgrade.current_slot_id);
   const prefs = JSON.parse(upgrade.preferences) || {};
   // Preferred slots come from the LIVE shared studio map; fall back to snapshot for legacy records.
-  const liveMap = db.getStudioPreference(userId, upgrade.studio_id);
-  const sourceSlots = (liveMap && liveMap.preferredSlots?.length) ? liveMap.preferredSlots : (prefs.preferredSlots || []);
-  const preferredSlots = sourceSlots.map(Number);
+  const liveMap = db.getStudioPreference(userId, upgrade.studio_id) || {};
+  const preferredSlots = (liveMap.preferredSlots || prefs.preferredSlots || []).map(Number);
+  const preferredRows = liveMap.preferredRows || prefs.preferredRows || [];
 
-  if (preferredSlots.length === 0) return;
-
-  const currentIndex = preferredSlots.indexOf(currentSlotId);
-  // If current slot is already the absolute best, nothing to upgrade
-  if (currentIndex === 0) {
-    db.updateAutoUpgrade(upgrade.id, userId, 'stopped', 'Already in the most preferred slot.', { lastCheckedAt: new Date().toISOString() });
-    return;
-  }
+  if (preferredSlots.length === 0 && preferredRows.length === 0) return;
 
   try {
     // 1. Get live slot availability — use shared cache to avoid N fetches/min for the same class
@@ -111,8 +138,9 @@ async function attemptUpgradeSlot(upgrade, isCutoffMode) {
     if (payload) {
       console.log(`[Poller] Cache hit for event ${eventId} (user ${userId}).`);
     } else {
+      // /events/:id is a public CodexFit endpoint — no Bearer token needed
       const url = `https://psycle.codexfit.com/api/v1/customer/events/${eventId}`;
-      const res = await fetchCodexFit(userId, url);
+      const res = await fetchCodexFitPublic(userId, url);
       if (!res.ok) return;
       payload = await res.json();
       setCachedEvent(eventId, payload, 60000);
@@ -126,52 +154,88 @@ async function attemptUpgradeSlot(upgrade, isCutoffMode) {
       return s?.label ?? id;
     };
 
+    // Combine preferred slots and resolve row preferences
+    const combinedPreferredSlots = [...preferredSlots];
+    if (preferredRows.length > 0 && upgradeLayout.length > 0) {
+      preferredRows.forEach(ry => {
+        const slotsInRow = upgradeLayout.filter(s => Math.round(s.y * 10) / 10 === Number(ry));
+        const rowSlotIds = slotsInRow.map(s => Number(s.id));
+        rowSlotIds.forEach(id => {
+          if (!combinedPreferredSlots.includes(id)) {
+            combinedPreferredSlots.push(id);
+          }
+        });
+      });
+    }
+
+    if (combinedPreferredSlots.length === 0) return;
+
+    const currentIndex = combinedPreferredSlots.indexOf(currentSlotId);
+    // If current slot is already the absolute best, nothing to upgrade
+    if (currentIndex === 0) {
+      db.updateAutoUpgrade(upgrade.id, userId, 'stopped', 'Already in the most preferred slot.', { lastCheckedAt: new Date().toISOString() });
+      return;
+    }
+
     // 2. Iterate preferred slots to find a better one
-    for (let i = 0; i < preferredSlots.length; i++) {
-      const candidateSlot = preferredSlots[i];
+    for (let i = 0; i < combinedPreferredSlots.length; i++) {
+      const candidateSlot = combinedPreferredSlots[i];
 
       // If we've hit our current slot or worse, stop checking
       if (currentIndex !== -1 && i >= currentIndex) break;
 
       // Candidate slot is available! Let's upgrade
-      if (availableSlots.includes(candidateSlot)) {
+      const claimKey = `${eventId}:${candidateSlot}`;
+      if (availableSlots.includes(candidateSlot) && !claimedSlots.has(claimKey)) {
         console.log(`[Poller] Better slot ${candidateSlot} available for event ${eventId} (current: ${currentSlotId}). Upgrading...`);
+        claimedSlots.add(claimKey);
 
-        // Check if user has credits
-        await new Promise(r => setTimeout(r, 300 + Math.floor(Math.random() * 600)));
-        const profileUrl = 'https://psycle.codexfit.com/api/v1/customer/profile';
-        const profileRes = await fetchCodexFit(userId, profileUrl);
-        if (!profileRes.ok) return;
+        let bookRes;
+        try {
+          // Check if user has credits
+          await new Promise(r => setTimeout(r, 300 + Math.floor(Math.random() * 600)));
+          const profileUrl = 'https://psycle.codexfit.com/api/v1/customer/profile';
+          const profileRes = await fetchCodexFit(userId, profileUrl);
+          if (!profileRes.ok) {
+            claimedSlots.delete(claimKey);
+            return;
+          }
 
-        const profileData = await profileRes.json();
-        const profile = profileData.data || profileData;
-        // Cache the full profile (also backfills display_name) so the admin view stays
-        // warm even while the user's app is closed.
-        try { db.cacheUserProfile(userId, profile); } catch (_) {}
-        const hasCredits = profile.available_credits && profile.available_credits.some(c => c.count > 0);
+          const profileData = await profileRes.json();
+          const profile = profileData.data || profileData;
+          // Cache the full profile (also backfills display_name) so the admin view stays
+          // warm even while the user's app is closed.
+          try { db.cacheUserProfile(userId, profile); } catch (_) {}
+          const hasCredits = profile.available_credits && profile.available_credits.some(c => c.count > 0);
 
-        if (!hasCredits) {
-          console.log(`[Poller] Auto-upgrade paused for user ${userId}: No available credits.`);
-          db.updateAutoUpgrade(upgrade.id, userId, 'paused_no_credits', 'No credits available to claim upgraded slot.', { lastCheckedAt: new Date().toISOString() });
-          pushService.sendNotification(userId, 'Upgrade Paused ⏳', `No credits available to upgrade ${upgrade.class_name}.`);
-          return;
-        }
+          if (!hasCredits) {
+            console.log(`[Poller] Auto-upgrade paused for user ${userId}: No available credits.`);
+            db.updateAutoUpgrade(upgrade.id, userId, 'paused_no_credits', 'No credits available to claim upgraded slot.', { lastCheckedAt: new Date().toISOString() });
+            pushService.sendNotification(userId, 'Upgrade Paused ⏳', `No credits available to upgrade ${upgrade.class_name}.`);
+            claimedSlots.delete(claimKey);
+            return;
+          }
 
-        // Book the new slot
-        await new Promise(r => setTimeout(r, 300 + Math.floor(Math.random() * 600)));
-        const bookUrl = 'https://psycle.codexfit.com/api/v1/customer/bookings';
-        const bookRes = await fetchCodexFit(userId, bookUrl, {
-          method: 'POST',
-          body: JSON.stringify({
-            event_id: eventId,
-            slots: [candidateSlot]
-          })
-        });
+          // Book the new slot
+          await new Promise(r => setTimeout(r, 300 + Math.floor(Math.random() * 600)));
+          const bookUrl = 'https://psycle.codexfit.com/api/v1/customer/bookings';
+          bookRes = await fetchCodexFit(userId, bookUrl, {
+            method: 'POST',
+            body: JSON.stringify({
+              event_id: eventId,
+              slots: [candidateSlot]
+            })
+          });
 
-        if (!bookRes.ok) {
-          const errData = await bookRes.json().catch(() => ({}));
-          console.warn(`[Poller] Auto-upgrade slot booking failed:`, errData.message || bookRes.status);
-          return; // Retry next time
+          if (!bookRes.ok) {
+            const errData = await bookRes.json().catch(() => ({}));
+            console.warn(`[Poller] Auto-upgrade slot booking failed:`, errData.message || bookRes.status);
+            claimedSlots.delete(claimKey);
+            return; // Retry next time
+          }
+        } catch (err) {
+          claimedSlots.delete(claimKey);
+          throw err;
         }
 
         const bookData = await bookRes.json().catch(() => ({}));
@@ -243,6 +307,7 @@ async function attemptUpgradeSlot(upgrade, isCutoffMode) {
 
 // Orchestrate all upgrades checks
 async function executeAutoUpgradeChecks() {
+  claimedSlots.clear();
   const active = db.getActiveAutoUpgrades();
   if (active.length === 0) return;
 
@@ -266,8 +331,10 @@ async function executeAutoUpgradeChecks() {
 
       const prefs = JSON.parse(upgrade.preferences) || {};
 
-      // 12h cutoff boundary
-      if (hoursUntilClass <= 12) {
+      // 12h cutoff boundary — trigger 5 seconds early to avoid race conditions
+      // at the exact cancel-free boundary that could incur a late-cancel penalty.
+      const CUTOFF_BUFFER_S = 5;
+      if (classStart.diff(now, 'seconds').seconds <= 12 * 3600 + CUTOFF_BUFFER_S) {
         if (prefs.keepOriginalOnCutoff) {
           // User opted in to continue past 12h: one final attempt (no cancel), then stop
           if (!prefs.cutoffAttempted) {

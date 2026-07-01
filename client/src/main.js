@@ -365,6 +365,28 @@ async function registerServiceWorker() {
     const reg = await navigator.serviceWorker.register('/sw.js', { scope: '/' });
     serviceWorkerRegistration = reg;
     debugConsole('[SW] Service Worker registered successfully scope:', reg.scope);
+    
+    // Listen for messages from the service worker (e.g. push notification deep links)
+    navigator.serviceWorker.addEventListener('message', async (event) => {
+      if (!event.data) return;
+      if (event.data.type === 'NAVIGATE') {
+        window.location.hash = event.data.hash;
+      } else if (event.data.type === 'PUSH_RECEIVED') {
+        // If we are on the bookings tab, refresh it automatically so they see the new spot
+        if (window.location.hash === '#my-bookings') {
+          try {
+            const { invalidateApiCache } = await import('./cache');
+            await invalidateApiCache('/api/proxy/bookings').catch(() => {});
+            await invalidateApiCache('/api/auto-upgrade').catch(() => {});
+            const { renderBookings } = await import('./ui/bookings');
+            renderBookings();
+          } catch (e) {
+            console.warn('[App] Failed to auto-refresh bookings after push', e);
+          }
+        }
+      }
+    });
+    
     updatePushStatusUI();
   } catch (err) {
     console.error('[SW] Service Worker registration failed:', err);
@@ -514,13 +536,11 @@ export function updateCreditBadge(availableCredits = null) {
   mainBadge.className = 'psycle-credit-badge';
   mainBadge.style.cssText = `
     cursor: pointer;
-    background: color-mix(in srgb, var(--feat-autoupgrade) 15%, transparent);
-    border: 1px solid color-mix(in srgb, var(--feat-autoupgrade) 30%, transparent);
     border-radius: 8px;
     padding: 6px 12px;
     font-size: 12px;
     font-weight: 600;
-    color: var(--feat-autoupgrade);
+    border: none;
   `;
   mainBadge.innerHTML = `<strong>${totalCredits}</strong> Credit${totalCredits !== 1 ? 's' : ''} available`;
   mainBadge.onclick = () => { if (totalCredits > 0) showCreditDetailsModal(credits); };

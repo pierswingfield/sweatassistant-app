@@ -33,6 +33,24 @@
   --accent: #d2876b;
   --accent-hover: #c9785c;
   --on-accent: #1a1815;
+  --accent-btn-bg: #256996;
+  --on-accent-button: #D3E1EA;
+
+  /* Custom additions for timetable redesign */
+  --on-auto-pill: #c9aed6;
+  --auto-not-scheduled: #3d2642;
+  --on-auto-not-scheduled: #c9aed6;
+
+  --waitlist-btn-bg: #0b202e;
+  --on-waitlist-btn: #a8c3d5;
+
+  --buy-credits-bg: #0b202e;
+  --on-buy-credits: #a8c3d5;
+  --no-credits-warning-color: #E6AA9C;
+
+  /* Header credits badge colors */
+  --header-credits-bg: #143A53;
+  --on-header-credits: #A8C3D5;
 
   /* Feature identity */
   --feat-autobook: #d2876b;   /* clay (primary) */
@@ -115,6 +133,22 @@
     --accent: #c9785c;
     --accent-hover: #b5694e;
     --on-accent: #ffffff;
+    --accent-btn-bg: var(--accent);
+    --on-accent-button: #FEF1E9;
+
+    --on-auto-pill: #E2D1DD;
+    --auto-not-scheduled: #D2BDD9;
+    --on-auto-not-scheduled: #5A3E63;
+
+    --waitlist-btn-bg: #825f58;
+    --on-waitlist-btn: #FEF1E9;
+
+    --buy-credits-bg: #5E382B;
+    --on-buy-credits: #FEF1E9;
+    --no-credits-warning-color: #5E382B;
+
+    --header-credits-bg: #825f58;
+    --on-header-credits: #FEF1E9;
 
     --feat-autobook: #c9785c;
     --feat-autoupgrade: #7c5cdb;
@@ -164,6 +198,22 @@
   --accent: #c9785c;
   --accent-hover: #b5694e;
   --on-accent: #ffffff;
+  --accent-btn-bg: var(--accent);
+  --on-accent-button: #FEF1E9;
+
+  --on-auto-pill: #E2D1DD;
+  --auto-not-scheduled: #D2BDD9;
+  --on-auto-not-scheduled: #5A3E63;
+
+  --waitlist-btn-bg: #825f58;
+  --on-waitlist-btn: #FEF1E9;
+
+  --buy-credits-bg: #5E382B;
+  --on-buy-credits: #FEF1E9;
+  --no-credits-warning-color: #5E382B;
+
+  --header-credits-bg: #825f58;
+  --on-header-credits: #FEF1E9;
 
   --feat-autobook: #c9785c;
   --feat-autoupgrade: #7c5cdb;
@@ -4691,38 +4741,65 @@ html, body {
   border-left-color: color-mix(in srgb, var(--text-secondary) 30%, transparent);
 }
 
+#psycle-helper-container .psycle-table-wrapper .psycle-table tbody tr.row-scheduled {
+  background: color-mix(in srgb, var(--feat-autoupgrade) 4%, transparent);
+}
+#psycle-helper-container .psycle-table-wrapper .psycle-table tbody tr.row-scheduled:hover {
+  background: color-mix(in srgb, var(--feat-autoupgrade) 10%, transparent) !important;
+  border-left-color: color-mix(in srgb, var(--feat-autoupgrade) 60%, transparent) !important;
+}
+
 /* --- 2. STATUS BADGES — Pill styling with color coding --- */
 #psycle-helper-container .badge-pill {
   backdrop-filter: blur(4px);
   -webkit-backdrop-filter: blur(4px);
   box-shadow: none;
   transition: all 0.2s ease;
+  border: none !important;
 }
 
 #psycle-helper-container .badge-pill.yes {
   background: color-mix(in srgb, var(--success) 12%, transparent) !important;
   color: var(--success) !important;
-  border: 1px solid color-mix(in srgb, var(--success) 30%, transparent) !important;
+  border: none !important;
 }
 
 #psycle-helper-container .badge-pill.no {
   background: color-mix(in srgb, var(--warning) 12%, transparent) !important;
   color: var(--warning) !important;
-  border: 1px solid color-mix(in srgb, var(--warning) 30%, transparent) !important;
+  border: none !important;
+}
+
+#psycle-helper-container .badge-pill.waitlisted,
+#psycle-helper-container .badge-pill.waitlist-open {
+  background: var(--waitlist-btn-bg) !important;
+  color: var(--on-waitlist-btn) !important;
+  border: none !important;
 }
 
 /* Fully booked red variant */
-#psycle-helper-container .col-status .badge-pill[style*="239, 68, 68"] {
+#psycle-helper-container .col-status .badge-pill[style*="239, 68, 68"],
+#psycle-helper-container .badge-pill.fully-booked {
   background: color-mix(in srgb, var(--danger) 12%, transparent) !important;
   color: var(--danger) !important;
-  border: 1px solid color-mix(in srgb, var(--danger) 35%, transparent) !important;
+  border: none !important;
 }
 
 /* Not live gray variant */
-#psycle-helper-container .col-status .badge-pill[style*="94a3b8"] {
+#psycle-helper-container .col-status .badge-pill[style*="94a3b8"],
+#psycle-helper-container .badge-pill.not-live {
   background: color-mix(in srgb, var(--text-secondary) 10%, transparent) !important;
   color: var(--text-secondary) !important;
-  border: 1px solid color-mix(in srgb, var(--text-secondary) 20%, transparent) !important;
+  border: none !important;
+}
+
+#psycle-helper-container .badge-pill.scheduled {
+  background: var(--auto-banner) !important;
+  color: var(--on-auto-pill) !important;
+  border: none !important;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
 }
 
 /* Occupancy hover */
@@ -4732,19 +4809,21 @@ html, body {
 }
 
 /* No eligible credits warning text */
-#psycle-helper-container .col-status div[style*="ef4444"] {
-  background: color-mix(in srgb, var(--danger) 10%, transparent);
-  border: 1px solid color-mix(in srgb, var(--danger) 20%, transparent);
+#psycle-helper-container .psycle-no-credits-warning {
+  color: var(--no-credits-warning-color) !important;
+  background: color-mix(in srgb, var(--no-credits-warning-color) 10%, transparent) !important;
   border-radius: 6px;
   padding: 3px 8px;
   display: inline-block;
   margin-top: 4px;
-  font-size: 12px;
+  margin-left: 8px;
+  font-size: 11px;
   font-weight: 700;
   text-transform: uppercase;
   letter-spacing: 0.4px;
   backdrop-filter: blur(4px);
   -webkit-backdrop-filter: blur(4px);
+  white-space: nowrap;
 }
 
 /* --- 3. ACTION BUTTONS — flat, token-driven (no glow per design.md §10) --- */
@@ -5194,11 +5273,18 @@ html, body {
   background: color-mix(in srgb, var(--text) 5%, transparent);
   color: var(--text-tertiary);
   cursor: pointer;
+  border: none !important;
+}
+.badge-pill.scheduled {
+  background: var(--auto-banner) !important;
+  color: var(--on-auto-pill) !important;
+  border: none !important;
+  cursor: pointer;
 }
 .badge-pill.fully-booked {
   background: color-mix(in srgb, var(--danger) 15%, transparent);
   color: var(--danger);
-  border: 1px solid color-mix(in srgb, var(--danger) 30%, transparent);
+  border: none !important;
   cursor: pointer;
 }
 
@@ -5295,14 +5381,16 @@ html, body {
 }
 .psycle-tt-seg {
   display: flex;
-  flex-direction: column;
+  flex-direction: row;
   align-items: center;
   justify-content: center;
-  gap: 3px;
-  padding: 0 6px;
+  gap: 5px;
+  padding: 0 8px;
   min-width: 62px;
-  min-height: 44px;
-  border: 1px solid var(--border-strong);
+  height: 44px;
+  box-sizing: border-box;
+  margin: 0;
+  border: none;
   border-radius: 10px;
   background: var(--surface-inset);
   color: var(--text);
@@ -5315,40 +5403,108 @@ html, body {
 }
 .psycle-tt-seg:hover:not(:disabled) { filter: brightness(1.08); }
 .psycle-tt-seg:disabled { opacity: .5; cursor: default; }
-.psycle-tt-seg-group.has-caret .psycle-tt-seg {
-  border-top-right-radius: 0;
-  border-bottom-right-radius: 0;
+.psycle-tt-seg-group.has-caret .psycle-tt-seg:first-child {
+  border-top-right-radius: 0 !important;
+  border-bottom-right-radius: 0 !important;
 }
 .psycle-tt-seg-caret {
-  display: inline-flex;
+  display: flex;
+  flex-direction: row;
   align-items: center;
   justify-content: center;
-  padding: 0 9px;
-  border: 1px solid var(--border-strong);
-  border-left: none;
-  border-top-right-radius: 10px;
-  border-bottom-right-radius: 10px;
-  background: var(--surface-inset);
-  color: var(--text-secondary);
-  font-size: 13px;
+  padding: 0 8px;
+  min-width: unset;
+  height: 44px;
+  box-sizing: border-box;
+  margin: 0;
+  border: none;
+  border-left: 1px solid currentColor !important;
+  border-top-left-radius: 0 !important;
+  border-bottom-left-radius: 0 !important;
+  border-top-right-radius: 10px !important;
+  border-bottom-right-radius: 10px !important;
   cursor: pointer;
   transition: background .12s, color .12s;
+  font-size: 16px !important;
 }
-.psycle-tt-seg-caret:hover {
+.psycle-tt-seg-caret:not(.primary):hover {
   background: color-mix(in srgb, var(--text) 8%, transparent);
   color: var(--text);
+}
+.psycle-credit-badge {
+  background: var(--header-credits-bg) !important;
+  color: var(--on-header-credits) !important;
+  border: none !important;
+  transition: background .12s, filter .12s;
+}
+.psycle-credit-badge:hover {
+  filter: brightness(1.08);
+}
+
+/* Animated Pulse Icon */
+.psycle-pulse-icon {
+  width: 14px;
+  height: 14px;
+  display: inline-block;
+  vertical-align: middle;
+  overflow: visible;
+}
+.psycle-pulse-icon .core {
+  fill: currentColor;
+  transform-origin: center;
+  animation: pulse1 1.5s ease-in-out infinite;
+}
+.psycle-pulse-icon .radar {
+  fill: currentColor;
+  opacity: 0.5;
+  transform-origin: center;
+  animation: pulse2 1.5s ease-in-out infinite;
+}
+
+@keyframes pulse1 {
+  0% {
+    opacity: 0;
+    transform: scale(0);
+  }
+  30% {
+    opacity: 1;
+    transform: scale(1.5);
+  }
+  60% {
+    opacity: 1;
+    transform: scale(2);
+  }
+  100% {
+    opacity: 0;
+    transform: scale(2);
+  }
+}
+
+@keyframes pulse2 {
+  0% {
+    transform: scale(1, 1);
+    opacity: 0;
+  }
+  50% {
+    opacity: 1;
+  }
+  100% {
+    transform: scale(6, 6);
+    opacity: 0;
+  }
 }
 .psycle-tt-seg.confirming {
   background: var(--danger) !important;
   color: var(--on-accent) !important;
-  border-color: var(--danger) !important;
+  border: none !important;
 }
 /* Leading glyph icon on action segments (lightning / ✦). Force text (not
    emoji) presentation where the browser supports it. Stacked above the label. */
 .psycle-seg-ico {
   font-size: 1.4em;
   line-height: 1;
-  display: block;
+  display: inline-flex;
+  align-items: center;
   font-variant-emoji: text;
   flex-shrink: 0;
 }
@@ -5356,25 +5512,29 @@ html, body {
 /* Segment colour variants — shared by the desktop table segments and the
    mobile rail. Base = tinted (secondary actions); .primary = solid fill so the
    main action reads clearly against the panel background. */
-.psycle-tt-seg.variant-success,       .psycle-mobile-seg.variant-success       { background: color-mix(in srgb, var(--success) 16%, transparent); color: var(--success); border-color: color-mix(in srgb, var(--success) 34%, transparent); }
-.psycle-tt-seg.variant-success-muted, .psycle-mobile-seg.variant-success-muted { background: color-mix(in srgb, var(--success) 14%, transparent); color: var(--success); border-color: color-mix(in srgb, var(--success) 30%, transparent); }
-.psycle-tt-seg.variant-autoupgrade,   .psycle-mobile-seg.variant-autoupgrade   { background: color-mix(in srgb, var(--feat-autoupgrade) 16%, transparent); color: var(--feat-autoupgrade); border-color: color-mix(in srgb, var(--feat-autoupgrade) 34%, transparent); }
-.psycle-tt-seg.variant-danger,        .psycle-mobile-seg.variant-danger        { background: color-mix(in srgb, var(--danger) 12%, transparent); color: var(--danger); border-color: color-mix(in srgb, var(--danger) 30%, transparent); }
-.psycle-tt-seg.variant-danger-strong, .psycle-mobile-seg.variant-danger-strong { background: color-mix(in srgb, var(--danger) 22%, transparent); color: var(--danger); border-color: var(--danger); font-weight: 800; }
-.psycle-tt-seg.variant-warning-solid, .psycle-mobile-seg.variant-warning-solid { background: var(--warning); color: var(--on-accent); border-color: transparent; }
-.psycle-tt-seg.variant-neutral,       .psycle-mobile-seg.variant-neutral       { background: var(--surface-inset); color: var(--text-tertiary); border-color: var(--border); }
-.psycle-tt-seg.variant-debug,         .psycle-mobile-seg.variant-debug         { background: color-mix(in srgb, var(--feat-autoupgrade) 22%, transparent); color: var(--feat-autoupgrade); border-color: color-mix(in srgb, var(--feat-autoupgrade) 40%, transparent); }
+.psycle-tt-seg.variant-success,                       .psycle-mobile-seg.variant-success                       { background: color-mix(in srgb, var(--success) 16%, transparent) !important; color: var(--success) !important; border: none !important; }
+.psycle-tt-seg.variant-success-muted,                 .psycle-mobile-seg.variant-success-muted,
+.psycle-tt-seg.primary.variant-success,                 .psycle-mobile-seg.primary.variant-success                 { background: var(--accent-btn-bg) !important; color: var(--on-accent-button) !important; border: none !important; }
+.psycle-tt-seg.variant-autoupgrade,                   .psycle-mobile-seg.variant-autoupgrade                   { background: color-mix(in srgb, var(--feat-autoupgrade) 16%, transparent) !important; color: var(--feat-autoupgrade) !important; border: none !important; }
+.psycle-tt-seg.primary.variant-autoupgrade,             .psycle-mobile-seg.primary.variant-autoupgrade             { background: var(--auto-not-scheduled) !important; color: var(--on-auto-not-scheduled) !important; border: none !important; }
+.psycle-tt-seg.primary.variant-autoupgrade.scheduled,   .psycle-mobile-seg.primary.variant-autoupgrade.scheduled   { background: var(--auto-banner) !important; color: var(--on-auto-pill) !important; border: none !important; }
+.psycle-tt-seg.variant-warning-solid,                   .psycle-mobile-seg.variant-warning-solid,
+.psycle-tt-seg.primary.variant-warning-solid,           .psycle-mobile-seg.primary.variant-warning-solid           { background: var(--waitlist-btn-bg) !important; color: var(--on-waitlist-btn) !important; border: none !important; }
+.psycle-tt-seg.variant-danger,                        .psycle-mobile-seg.variant-danger                        { background: color-mix(in srgb, var(--danger) 12%, transparent) !important; color: var(--danger) !important; border: none !important; }
+.psycle-tt-seg.primary.variant-danger,                  .psycle-mobile-seg.primary.variant-danger                  { background: var(--buy-credits-bg) !important; color: var(--on-buy-credits) !important; border: none !important; }
+.psycle-tt-seg.primary.variant-danger-strong,           .psycle-mobile-seg.primary.variant-danger-strong           { background: color-mix(in srgb, var(--danger) 30%, transparent) !important; color: var(--danger) !important; border: none !important; font-weight: 800; }
+.psycle-tt-seg.variant-neutral,                       .psycle-mobile-seg.variant-neutral                       { background: var(--surface-inset) !important; color: var(--text-tertiary) !important; border: none !important; }
+.psycle-tt-seg.primary.variant-neutral,                 .psycle-mobile-seg.primary.variant-neutral                 { background: var(--surface-2) !important; color: var(--text-tertiary) !important; border: none !important; }
+.psycle-tt-seg.variant-debug,                         .psycle-mobile-seg.variant-debug                         { background: color-mix(in srgb, var(--feat-autoupgrade) 22%, transparent) !important; color: var(--feat-autoupgrade) !important; border: none !important; }
 
-/* Medium-weight fills for the PRIMARY action segment — prominent against the
-   panel but softer than a fully-saturated block. Brand-colour text on a
-   ~26% tint of the same colour with a defined border. */
-.psycle-tt-seg.primary.variant-success,                 .psycle-mobile-seg.primary.variant-success                 { background: color-mix(in srgb, var(--success) 26%, transparent); color: var(--success); border-color: color-mix(in srgb, var(--success) 55%, transparent); }
-.psycle-tt-seg.primary.variant-autoupgrade,             .psycle-mobile-seg.primary.variant-autoupgrade             { background: color-mix(in srgb, var(--feat-autoupgrade) 26%, transparent); color: var(--feat-autoupgrade); border-color: color-mix(in srgb, var(--feat-autoupgrade) 55%, transparent); }
-.psycle-tt-seg.primary.variant-autoupgrade.scheduled,   .psycle-mobile-seg.primary.variant-autoupgrade.scheduled   { background: color-mix(in srgb, var(--feat-autoupgrade) 40%, transparent); color: var(--feat-autoupgrade); }
-.psycle-tt-seg.primary.variant-warning-solid,           .psycle-mobile-seg.primary.variant-warning-solid           { background: color-mix(in srgb, var(--warning) 28%, transparent); color: var(--warning); border-color: color-mix(in srgb, var(--warning) 55%, transparent); }
-.psycle-tt-seg.primary.variant-danger,                  .psycle-mobile-seg.primary.variant-danger                  { background: color-mix(in srgb, var(--danger) 24%, transparent); color: var(--danger); border-color: color-mix(in srgb, var(--danger) 52%, transparent); }
-.psycle-tt-seg.primary.variant-danger-strong,           .psycle-mobile-seg.primary.variant-danger-strong           { background: color-mix(in srgb, var(--danger) 30%, transparent); color: var(--danger); border-color: var(--danger); font-weight: 800; }
-.psycle-tt-seg.primary.variant-neutral,                 .psycle-mobile-seg.primary.variant-neutral                 { background: var(--surface-2); color: var(--text-tertiary); }
+/* Restore the divider line on the caret (config) button regardless of which variant
+   set border:none above — must come after all variant rules so it wins. */
+#psycle-helper-container .psycle-tt-seg.psycle-tt-seg-caret {
+  border-top: none !important;
+  border-right: none !important;
+  border-bottom: none !important;
+  border-left: 1px solid color-mix(in srgb, currentColor 40%, transparent) !important;
+}
 
 /* ── Auto-book / Auto-upgrade cards ────────────────────────────── */
 .psycle-autobook-card {
@@ -6321,6 +6481,11 @@ html, body {
     -webkit-backdrop-filter: blur(10px);
   }
 
+  #psycle-helper-container .psycle-table .psycle-mobile-row.row-scheduled .psycle-mobile-class-card {
+    background: color-mix(in srgb, var(--feat-autoupgrade) 4%, transparent);
+    border-color: color-mix(in srgb, var(--feat-autoupgrade) 25%, transparent);
+  }
+
   .psycle-mobile-content {
     flex: 1;
     min-width: 0;
@@ -6601,7 +6766,7 @@ html, body {
   }
 
   #psycle-helper-container .psycle-ms-trigger-text {
-    font-size: 12px !important;
+    font-size: 14px !important;
     white-space: nowrap;
     overflow: hidden;
     text-overflow: ellipsis;

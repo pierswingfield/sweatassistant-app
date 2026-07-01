@@ -116,11 +116,42 @@ function getCodexFitHeaders(token, isJSON = false) {
   return headers;
 }
 
+// Fetch public (no-auth) CodexFit endpoints (events, locations, studios, instructors).
+// These are documented as public — no Bearer token required.
+async function fetchCodexFitPublic(userId, url) {
+  // If url is passed as first parameter for backward compatibility
+  if (typeof userId === 'string' && !url) {
+    url = userId;
+    userId = null;
+  }
+  const user = userId ? db.getUserById(userId) : null;
+  const isMock = (user && user.email === 'dev@psycle.com') || /\/events\/\d{4}(\b|$)/.test(url) || url.includes('/locations') || url.includes('/studios');
+  if (isMock) {
+    const mock = require('./mock');
+    const pathName = url.replace('https://psycle.codexfit.com/api/v1/customer', '');
+    return mock.handleMockRequest(pathName, 'GET', null);
+  }
+
+  const headers = {
+    'accept': 'application/json',
+    'origin': 'https://psyclelondon.com',
+    'referer': 'https://psyclelondon.com/',
+    'x-organisation': '[object Object]'
+  };
+  return fetch(url, { headers });
+}
+
 // Perform a request to CodexFit API with automatic re-login on 401
 async function fetchCodexFit(userId, url, options = {}) {
   const user = db.getUserById(userId);
   if (!user || !user.jwt) {
     throw new Error('User has no active session. Please log in.');
+  }
+
+  if (user.email === 'dev@psycle.com') {
+    const mock = require('./mock');
+    const pathName = url.replace('https://psycle.codexfit.com/api/v1/customer', '');
+    return mock.handleMockRequest(pathName, options.method || 'GET', options.body ? JSON.parse(options.body) : null);
   }
 
   const runFetch = async (token) => {
@@ -175,8 +206,9 @@ async function prefetchAutoBookSlots(bookings, windowMs = 18000) {
           });
         }
       }
+      // /events/:id is a public CodexFit endpoint — no Bearer token needed
       const url = `https://psycle.codexfit.com/api/v1/customer/events/${booking.event_id}`;
-      const res = await fetchCodexFit(booking.user_id, url);
+      const res = await fetchCodexFitPublic(booking.user_id, url);
       if (res.ok) {
         const payload = await res.json();
         const eventData = payload.data || payload;
@@ -227,8 +259,9 @@ async function executeAutoBookForClass(booking) {
     if (payload) {
       console.log(`[Scheduler] Cache hit for event ${eventId} (user ${userId}).`);
     } else {
+      // /events/:id is a public CodexFit endpoint — no Bearer token needed
       const url = `https://psycle.codexfit.com/api/v1/customer/events/${eventId}`;
-      const res = await fetchCodexFit(userId, url);
+      const res = await fetchCodexFitPublic(userId, url);
       if (!res.ok) {
         throw new Error(`Failed to load event data. Status: ${res.status}`);
       }
@@ -272,7 +305,7 @@ async function executeAutoBookForClass(booking) {
 
     let bookedCount = 0;
     const bookedSlots = [];
-    let newBookingId = 0;
+    const bookedPairs = []; // array of { bookingId, slotId }
     let attemptIdx = 0;
 
     console.log(`[Scheduler] Event ${eventId}: planning to attempt slots in order: [${slotsToTry.join(', ')}]`);
@@ -290,15 +323,14 @@ async function executeAutoBookForClass(booking) {
     //   burnedSlots  — slot POST already failed for another user this window → skip (externally taken)
     // Both short-circuit without a network call, letting subsequent users reach live slots faster.
     while (bookedCount < requiredCount && attemptIdx < slotsToTry.length) {
-      const targetSlot = slotsToTry[attemptIdx];
+      const targetSlot = slotsToTry[attemptIdx++];
       const claimKey = `${eventId}:${targetSlot}`;
-      attemptIdx++;
 
       if (claimedSlots.has(claimKey)) {
         console.log(`[Scheduler] Slot ${targetSlot} (event ${eventId}) claimed by another user — skipping.`);
         emitStatusUpdate(userId, {
           eventId, status: 'slot-claimed', skippedSlot: targetSlot,
-          message: `Slot ${targetSlot} taken by another user — trying next.`
+          message: `Slot ${targetSlot} is being claimed by another user — trying next.`
         });
         continue;
       }
@@ -337,8 +369,17 @@ async function executeAutoBookForClass(booking) {
           bookedCount++;
           bookedSlots.push(targetSlot);
           const bookData = await bookRes.json().catch(() => ({}));
-          newBookingId = bookData?.id || bookData?.data?.id || 0;
-          console.log(`[Scheduler] Successfully booked slot ${targetSlot} for event ${eventId} (booking ID: ${newBookingId})`);
+          const bookingsMap = bookData?.bookings || {};
+          const bookingIds = Object.keys(bookingsMap);
+          let thisBookingId = 0;
+          if (bookingIds.length > 0) {
+            const matchingKey = bookingIds.find(k => Number(bookingsMap[k]) === Number(targetSlot));
+            thisBookingId = matchingKey ? Number(matchingKey) : Number(bookingIds[0]);
+          } else {
+            thisBookingId = bookData?.id || bookData?.data?.id || 0;
+          }
+          bookedPairs.push({ bookingId: thisBookingId, slotId: targetSlot });
+          console.log(`[Scheduler] Successfully booked slot ${targetSlot} for event ${eventId} (booking ID: ${thisBookingId})`);
           // Claim stays in claimedSlots — other users see it and skip without POSTing
         } else {
           const errData = await bookRes.json().catch(() => ({}));
@@ -388,28 +429,30 @@ async function executeAutoBookForClass(booking) {
       try { require('./calendar').regenerateSnapshot(userId); } catch (_) {}
 
       // Automatically register auto-upgrade if studio layout exists
-      if (layoutSlots.length > 0) {
+      if (layoutSlots.length > 0 && bookedPairs.length > 0) {
         const settings = db.getUserSettings(userId) || {};
         if (settings.autoUpgradeEnabled !== false) {
           const wantAutoUpgrade = prefs.autoUpgrade !== undefined
             ? prefs.autoUpgrade
             : settings.autoUpgradeByDefault;
           if (wantAutoUpgrade) {
-            console.log(`[Scheduler] Auto-registering Auto-Upgrade monitoring for booking ${eventId}`);
-            db.addAutoUpgrade(
-              userId,
-              eventId,
-              newBookingId, // Use the actual booking ID we just got
-              bookedSlots[0],
-              booking.class_name,
-              booking.instructor_name,
-              booking.studio_name,
-              booking.location_name,
-              booking.start_at,
-              { keepOriginalOnCutoff: true },
-              booking.studio_id,
-              booking.group_name
-            );
+            console.log(`[Scheduler] Auto-registering Auto-Upgrade monitoring for ${bookedPairs.length} booking(s) for event ${eventId}`);
+            for (const pair of bookedPairs) {
+              db.addAutoUpgrade(
+                userId,
+                eventId,
+                pair.bookingId,
+                pair.slotId,
+                booking.class_name,
+                booking.instructor_name,
+                booking.studio_name,
+                booking.location_name,
+                booking.start_at,
+                { keepOriginalOnCutoff: true },
+                booking.studio_id,
+                booking.group_name
+              );
+            }
           } else {
             console.log(`[Scheduler] Skipping auto-upgrade for booking ${eventId} because user disabled it for this booking/by default.`);
           }

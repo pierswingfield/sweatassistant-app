@@ -6,7 +6,7 @@ import { DateTime } from 'luxon';
 import { renderMinimap } from './tooltips.js';
 // === END MOBILE TIMETABLE BLOCK ===
 import { openDB } from '../cache.js';
-import { disciplineTag, seatNoun, sparklesIcon, trendingUpIcon } from './cards';
+import { disciplineTag, seatNoun, sparklesIcon, trendingUpIcon, icon, pulseIcon } from './cards';
 import { openEditBookingModal } from './bookings';
 import { openStudioFloorPlanEditor } from './settings';
 
@@ -747,7 +747,15 @@ async function renderTimetableGrid() {
   let autoBookedIds = new Set();
   try {
     const autoBookings = await api.getAutoBookings();
-    autoBookedIds = new Set((autoBookings.data || autoBookings || []).map(x => x.eventId));
+    const list = autoBookings.data || autoBookings || [];
+    list.forEach(x => {
+      const id = x.event_id || x.eventId;
+      if (id != null) {
+        autoBookedIds.add(id);
+        autoBookedIds.add(Number(id));
+        autoBookedIds.add(String(id));
+      }
+    });
   } catch (err) {
     console.warn('[Timetable] Failed to fetch auto bookings for scheduling synchronization:', err.message);
   }
@@ -942,9 +950,16 @@ async function renderTimetableGrid() {
     let bookingId = null, isPenalty = false, slotsBookedCount = 0, waitlistId = null, graceDeadline = null;
     const hasCredit = hasUsableCredit(event);
 
+    const isScheduled = autoBookedIds.has(event.id) || autoBookedIds.has(Number(event.id)) || autoBookedIds.has(String(event.id));
+
     if (!isLive) {
-      rowClass = 'psycle-table-row row-beyond-cutoff';
-      statusBadge = `<span class="badge-pill not-live psycle-occupancy-hover" data-id="${event.id}">Not Live</span>`;
+      if (isScheduled) {
+        rowClass = 'psycle-table-row row-beyond-cutoff row-scheduled';
+        statusBadge = `<span class="badge-pill scheduled psycle-occupancy-hover" data-id="${event.id}">${pulseIcon(12)}AUTO-BOOK</span>`;
+      } else {
+        rowClass = 'psycle-table-row row-beyond-cutoff';
+        statusBadge = `<span class="badge-pill not-live psycle-occupancy-hover" data-id="${event.id}">Not Live</span>`;
+      }
     } else if (isBooked) {
       const eventBookings = userBookings.filter(b => b.event_id === event.id || b.event?.id === event.id);
       slotsBookedCount = eventBookings.length;
@@ -959,22 +974,22 @@ async function renderTimetableGrid() {
         }
       }
     } else if (isOnWaitlist) {
-      statusBadge = `<span class="badge-pill no psycle-occupancy-hover" data-id="${event.id}" style="cursor: pointer;">Waitlisted</span>`;
+      statusBadge = `<span class="badge-pill waitlisted psycle-occupancy-hover" data-id="${event.id}" style="cursor: pointer;">Waitlisted</span>`;
       const waitlistEntry = userWaitlists.find(w => w.event_id === event.id || w.event?.id === event.id);
       if (waitlistEntry) waitlistId = waitlistEntry.id;
     } else if (isFullyBooked) {
       statusBadge = canWaitlist
-        ? `<span class="badge-pill no psycle-occupancy-hover" data-id="${event.id}" style="cursor: pointer;">Waitlist open</span>`
+        ? `<span class="badge-pill waitlist-open psycle-occupancy-hover" data-id="${event.id}" style="cursor: pointer;">Waitlist open</span>`
         : `<span class="badge-pill no fully-booked psycle-occupancy-hover" data-id="${event.id}">Fully Booked</span>`;
     } else if (!hasCredit) {
-      statusBadge = `<span class="badge-pill yes psycle-occupancy-hover" data-id="${event.id}" style="cursor: pointer;">${spotsText}</span><div style="color:var(--danger); font-size:12px; font-weight:600; margin-top:3px; white-space:nowrap;">No eligible credits</div>`;
+      statusBadge = `<span class="badge-pill yes psycle-occupancy-hover" data-id="${event.id}" style="cursor: pointer;">${spotsText}</span><div class="psycle-no-credits-warning">No credits</div>`;
     } else {
       statusBadge = `<span class="badge-pill yes psycle-occupancy-hover" data-id="${event.id}" style="cursor: pointer;">${spotsText}</span>`;
     }
 
     const actionModel = buildActionModel(event, {
       isLive, isBooked, isOnWaitlist, isFullyBooked, canWaitlist, hasCredit,
-      isScheduled: autoBookedIds.has(event.id),
+      isScheduled,
       bookingId, isPenalty, slotsBookedCount, waitlistId, graceDeadline,
     });
 
@@ -1187,7 +1202,7 @@ async function doAutoBookToggle(event, btn, isScheduled) {
     try {
       showToast('Removing scheduled booking...', 'info');
       const autoBookings = await api.getAutoBookings();
-      const existing = (autoBookings.data || autoBookings || []).find(x => x.eventId === event.id);
+      const existing = (autoBookings.data || autoBookings || []).find(x => String(x.event_id || x.eventId) === String(event.id));
       if (existing) {
         await api.deleteAutoBooking(existing.id);
         showToast('Scheduled auto-book cancelled.', 'info');
@@ -1290,7 +1305,7 @@ async function doLeaveWaitlist(waitlistId, btn) {
 // Unicode (non-emoji) glyph that prefixes certain action labels.
 function actionGlyph(label) {
   if (label === 'Quick-Book' || label === 'Quick Book') return '⚡︎';
-  if (label === 'Auto-Book' || label === 'Auto Book' || label === 'Scheduled') return sparklesIcon(12, 'currentColor');
+  if (label === 'Auto-Book' || label === 'Auto Book' || label === 'Scheduled' || label === 'Sched.') return sparklesIcon(16, 'currentColor');
   return '';
 }
 
@@ -1319,7 +1334,7 @@ function buildDesktopActions(model, event, debugMode) {
 
   if (model.config) {
     const caret = document.createElement('button');
-    caret.className = 'psycle-tt-seg-caret';
+    caret.className = `psycle-tt-seg psycle-tt-seg-caret primary variant-${model.primary.variant}` + (model.primary.scheduled ? ' scheduled' : '');
     caret.innerHTML = '⚙';
     caret.title = model.config === 'autobook' ? 'Configure auto-book' : 'Configure quick-book';
     caret.onclick = (e) => { e.stopPropagation(); openBookingModal(event, model.config); };
@@ -1477,7 +1492,12 @@ function buildMobileClassRow(event, ctx, model) {
   // desktop primary segment and the My Bookings rail, but laid out horizontally).
   const pbtn = document.createElement('button');
   pbtn.className = `psycle-mobile-seg primary variant-${model.primary.variant}` + (model.primary.scheduled ? ' scheduled' : '');
-  setSegLabel(pbtn, model.primary.label);
+  if (model.primary.scheduled && model.primary.variant === 'autoupgrade') {
+    // "Scheduled" is too wide for 52px — abbreviate it.
+    setSegLabel(pbtn, 'Sched.');
+  } else {
+    setSegLabel(pbtn, model.primary.label);
+  }
   if (model.primary.disabled) pbtn.disabled = true;
   else if (model.primary.run) pbtn.onclick = (e) => { e.stopPropagation(); model.primary.run(pbtn); };
   rail.appendChild(pbtn);
@@ -2413,7 +2433,7 @@ async function openBookingModal(c, mode) {
             }).catch(() => {});
             const autoUpgrade = controls.querySelector('#simplebook-auto-upgrade')?.checked ?? false;
             closeModal();
-            if (state.selectedSlots.length === 1) await tryAutoRegisterUpgrade(c, state.selectedSlots[0], bookingRes, autoUpgrade);
+            await tryAutoRegisterUpgrade(c, state.selectedSlots[0], bookingRes, autoUpgrade);
             await refreshUserData(true);
             await refreshBookingState();
           } catch (err) {
@@ -2585,43 +2605,57 @@ async function tryAutoRegisterUpgrade(event, bookedSlotId, bookingRes, enableOve
       return;
     }
 
-    // Resolve booking ID from various response shapes
-    debugConsole('[AutoUpgrade] Raw bookingRes:', JSON.stringify(bookingRes));
-    let bookingId;
-
-    // CodexFit returns: { success: true, bookings: { "8255409": 53 } }
-    // The key is the booking ID, value is the slot ID
+    // Resolve booking IDs and slot IDs from response
+    const registerPromises = [];
+    
+    // CodexFit returns: { success: true, bookings: { "booking_id": slot_id } }
     if (bookingRes?.bookings && typeof bookingRes.bookings === 'object') {
-      bookingId = Object.keys(bookingRes.bookings)[0];
-      debugConsole('[AutoUpgrade] Extracted from bookings object:', bookingId);
+      const bookingsMap = bookingRes.bookings;
+      for (const bookingId of Object.keys(bookingsMap)) {
+        const slotId = Number(bookingsMap[bookingId]);
+        const payload = {
+          eventId: event.id,
+          studioId: studioId || null,
+          bookingId: Number(bookingId),
+          currentSlotId: slotId,
+          className: event.event_type?.name || 'Ride',
+          instructorName: event.instructor?.full_name || '',
+          studioName: event.studio?.name || '',
+          locationName: event.studio?.location?.name || '',
+          startAt: event.start_at,
+          preferences: { keepOriginalOnCutoff: true }
+        };
+        registerPromises.push(api.addAutoUpgrade(payload));
+      }
     } else {
-      // Fallback for other response shapes
+      // Fallback for single booking response shapes
       const dataObj = Array.isArray(bookingRes?.data) ? bookingRes.data[0] : bookingRes?.data;
-      bookingId = dataObj?.id || bookingRes?.id;
-      debugConsole('[AutoUpgrade] Fallback extraction:', bookingId, '| dataObj:', dataObj);
+      const bookingId = dataObj?.id || bookingRes?.id;
+      if (bookingId) {
+        const payload = {
+          eventId: event.id,
+          studioId: studioId || null,
+          bookingId: Number(bookingId),
+          currentSlotId: bookedSlotId,
+          className: event.event_type?.name || 'Ride',
+          instructorName: event.instructor?.full_name || '',
+          studioName: event.studio?.name || '',
+          locationName: event.studio?.location?.name || '',
+          startAt: event.start_at,
+          preferences: { keepOriginalOnCutoff: true }
+        };
+        registerPromises.push(api.addAutoUpgrade(payload));
+      }
     }
 
-    if (!bookingId) {
-      console.warn('[AutoUpgrade] Could not resolve booking ID — giving up. Full response:', bookingRes);
+    if (registerPromises.length === 0) {
+      console.warn('[AutoUpgrade] Could not resolve any booking IDs — giving up. Response:', bookingRes);
       return;
     }
 
-    const payload = {
-      eventId: event.id,
-      studioId: studioId || null,
-      bookingId,
-      currentSlotId: bookedSlotId,
-      className: event.event_type?.name || 'Ride',
-      instructorName: event.instructor?.full_name || '',
-      studioName: event.studio?.name || '',
-      locationName: event.studio?.location?.name || '',
-      startAt: event.start_at,
-      preferences: { keepOriginalOnCutoff: true }
-    };
-    debugConsole('[AutoUpgrade] Sending addAutoUpgrade payload:', JSON.stringify(payload));
-    await api.addAutoUpgrade(payload);
-    showToast('Auto-upgrade monitor started for better spot availability.', 'info');
-    debugConsole('[AutoUpgrade] Monitor registered successfully.');
+    await Promise.all(registerPromises);
+    showToast(`Auto-upgrade monitor started for ${registerPromises.length} spot(s).`, 'info');
+    debugConsole('[AutoUpgrade] Monitors registered successfully.');
   } catch (err) {
     console.warn('[AutoUpgrade] Failed to auto-register:', err.message, err);
   }

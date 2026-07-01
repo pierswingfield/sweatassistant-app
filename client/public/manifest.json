@@ -1,6 +1,6 @@
 {
-  "name": "Psycle Assistant",
-  "short_name": "Psycle Assistant",
+  "name": "Sweat Assistant",
+  "short_name": "Sweat Assistant",
   "description": "Progressive Web App for auto-booking and monitoring Psycle classes.",
   "start_url": "/",
   "display": "standalone",

@@ -6,6 +6,9 @@ const notifications = require('./notifications');
 const { triggerAutoRelogin } = require('./auth');
 const { getCachedEvent, setCachedEvent } = require('./scheduler');
 
+// Track slots upgraded in the current poller check cycle to prevent double-booking/race conditions
+const claimedSlots = new Set();
+
 // Calculate booking offset/headers like scheduler
 function getCodexFitHeaders(token, isJSON = false) {
   const headers = {
@@ -176,44 +179,56 @@ async function attemptUpgradeSlot(upgrade, isCutoffMode) {
       if (currentIndex !== -1 && i >= currentIndex) break;
 
       // Candidate slot is available! Let's upgrade
-      if (availableSlots.includes(candidateSlot)) {
+      const claimKey = `${eventId}:${candidateSlot}`;
+      if (availableSlots.includes(candidateSlot) && !claimedSlots.has(claimKey)) {
         console.log(`[Poller] Better slot ${candidateSlot} available for event ${eventId} (current: ${currentSlotId}). Upgrading...`);
+        claimedSlots.add(claimKey);
 
-        // Check if user has credits
-        await new Promise(r => setTimeout(r, 300 + Math.floor(Math.random() * 600)));
-        const profileUrl = 'https://psycle.codexfit.com/api/v1/customer/profile';
-        const profileRes = await fetchCodexFit(userId, profileUrl);
-        if (!profileRes.ok) return;
+        try {
+          // Check if user has credits
+          await new Promise(r => setTimeout(r, 300 + Math.floor(Math.random() * 600)));
+          const profileUrl = 'https://psycle.codexfit.com/api/v1/customer/profile';
+          const profileRes = await fetchCodexFit(userId, profileUrl);
+          if (!profileRes.ok) {
+            claimedSlots.delete(claimKey);
+            return;
+          }
 
-        const profileData = await profileRes.json();
-        const profile = profileData.data || profileData;
-        // Cache the full profile (also backfills display_name) so the admin view stays
-        // warm even while the user's app is closed.
-        try { db.cacheUserProfile(userId, profile); } catch (_) {}
-        const hasCredits = profile.available_credits && profile.available_credits.some(c => c.count > 0);
+          const profileData = await profileRes.json();
+          const profile = profileData.data || profileData;
+          // Cache the full profile (also backfills display_name) so the admin view stays
+          // warm even while the user's app is closed.
+          try { db.cacheUserProfile(userId, profile); } catch (_) {}
+          const hasCredits = profile.available_credits && profile.available_credits.some(c => c.count > 0);
 
-        if (!hasCredits) {
-          console.log(`[Poller] Auto-upgrade paused for user ${userId}: No available credits.`);
-          db.updateAutoUpgrade(upgrade.id, userId, 'paused_no_credits', 'No credits available to claim upgraded slot.', { lastCheckedAt: new Date().toISOString() });
-          pushService.sendNotification(userId, 'Upgrade Paused ⏳', `No credits available to upgrade ${upgrade.class_name}.`);
-          return;
-        }
+          if (!hasCredits) {
+            console.log(`[Poller] Auto-upgrade paused for user ${userId}: No available credits.`);
+            db.updateAutoUpgrade(upgrade.id, userId, 'paused_no_credits', 'No credits available to claim upgraded slot.', { lastCheckedAt: new Date().toISOString() });
+            pushService.sendNotification(userId, 'Upgrade Paused ⏳', `No credits available to upgrade ${upgrade.class_name}.`);
+            claimedSlots.delete(claimKey);
+            return;
+          }
 
-        // Book the new slot
-        await new Promise(r => setTimeout(r, 300 + Math.floor(Math.random() * 600)));
-        const bookUrl = 'https://psycle.codexfit.com/api/v1/customer/bookings';
-        const bookRes = await fetchCodexFit(userId, bookUrl, {
-          method: 'POST',
-          body: JSON.stringify({
-            event_id: eventId,
-            slots: [candidateSlot]
-          })
-        });
+          // Book the new slot
+          await new Promise(r => setTimeout(r, 300 + Math.floor(Math.random() * 600)));
+          const bookUrl = 'https://psycle.codexfit.com/api/v1/customer/bookings';
+          const bookRes = await fetchCodexFit(userId, bookUrl, {
+            method: 'POST',
+            body: JSON.stringify({
+              event_id: eventId,
+              slots: [candidateSlot]
+            })
+          });
 
-        if (!bookRes.ok) {
-          const errData = await bookRes.json().catch(() => ({}));
-          console.warn(`[Poller] Auto-upgrade slot booking failed:`, errData.message || bookRes.status);
-          return; // Retry next time
+          if (!bookRes.ok) {
+            const errData = await bookRes.json().catch(() => ({}));
+            console.warn(`[Poller] Auto-upgrade slot booking failed:`, errData.message || bookRes.status);
+            claimedSlots.delete(claimKey);
+            return; // Retry next time
+          }
+        } catch (err) {
+          claimedSlots.delete(claimKey);
+          throw err;
         }
 
         const bookData = await bookRes.json().catch(() => ({}));
@@ -285,6 +300,7 @@ async function attemptUpgradeSlot(upgrade, isCutoffMode) {
 
 // Orchestrate all upgrades checks
 async function executeAutoUpgradeChecks() {
+  claimedSlots.clear();
   const active = db.getActiveAutoUpgrades();
   if (active.length === 0) return;
 

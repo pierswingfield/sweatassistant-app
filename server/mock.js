@@ -1,3 +1,6 @@
+const fs = require('fs');
+const path = require('path');
+
 // To be fully safe and compatible with all node versions, let's write a simple custom Response-like object.
 function createFakeResponse(data, status = 200) {
   return {
@@ -76,32 +79,58 @@ const mockNow = new Date();
 const mockD1 = new Date(mockNow.getTime() + 2 * 864e5).toISOString();
 const mockD2 = new Date(mockNow.getTime() + 5 * 864e5).toISOString();
 
-let mockBookings = [
-  {
-    id: 8255401,
-    event_id: 1000,
-    booked_at: new Date().toISOString(),
-    studio_slot: { id: 23, label: '23' },
-    event: {
-      id: 1000, name: 'Ride 45', start_at: mockD1,
-      event_type: { id: 20, name: 'RIDE: Ride 45', group: { id: 1, name: 'Ride' } },
-      instructor: { id: 10, name: 'ADAM', full_name: 'Adam' },
-      studio: { id: 138, name: 'Ride Studio', location: { id: 13, name: 'Mortimer Street' } }
-    }
-  },
-  {
-    id: 8255402,
-    event_id: 1003,
-    booked_at: new Date(Date.now() - 120000).toISOString(),
-    studio_slot: { id: 11, label: '11' },
-    event: {
-      id: 1003, name: 'Barre 55', start_at: mockD2,
-      event_type: { id: 21, name: 'BARRE: Barre 55', group: { id: 2, name: 'Barre' } },
-      instructor: { id: 11, name: 'BECKY', full_name: 'Becky' },
-      studio: { id: 139, name: 'Barre Studio', location: { id: 13, name: 'Mortimer Street' } }
+const mockBookingsPath = path.join(__dirname, 'mock_bookings.json');
+let mockBookings = [];
+
+function loadMockBookings() {
+  if (fs.existsSync(mockBookingsPath)) {
+    try {
+      mockBookings = JSON.parse(fs.readFileSync(mockBookingsPath, 'utf8'));
+      return;
+    } catch (e) {
+      console.warn('[Mock Server] Failed to parse mock_bookings.json:', e.message);
     }
   }
-];
+  // Initialize default mock bookings
+  mockBookings = [
+    {
+      id: 8255401,
+      event_id: 1000,
+      booked_at: new Date().toISOString(),
+      studio_slot: { id: 23, label: '23' },
+      event: {
+        id: 1000, name: 'Ride 45', start_at: mockD1,
+        event_type: { id: 20, name: 'RIDE: Ride 45', group: { id: 1, name: 'Ride' } },
+        instructor: { id: 10, name: 'ADAM', full_name: 'Adam' },
+        studio: { id: 138, name: 'Ride Studio', location: { id: 13, name: 'Mortimer Street' } }
+      }
+    },
+    {
+      id: 8255402,
+      event_id: 1003,
+      booked_at: new Date(Date.now() - 120000).toISOString(),
+      studio_slot: { id: 11, label: '11' },
+      event: {
+        id: 1003, name: 'Barre 55', start_at: mockD2,
+        event_type: { id: 21, name: 'BARRE: Barre 55', group: { id: 2, name: 'Barre' } },
+        instructor: { id: 11, name: 'BECKY', full_name: 'Becky' },
+        studio: { id: 139, name: 'Barre Studio', location: { id: 13, name: 'Mortimer Street' } }
+      }
+    }
+  ];
+  saveMockBookings();
+}
+
+function saveMockBookings() {
+  try {
+    fs.writeFileSync(mockBookingsPath, JSON.stringify(mockBookings, null, 2), 'utf8');
+  } catch (e) {
+    console.error('[Mock Server] Failed to write mock_bookings.json:', e.message);
+  }
+}
+
+// Load initially
+loadMockBookings();
 
 function handleMockRequest(pathName, method, body) {
   console.log(`[Mock Server] Intercepted ${method} ${pathName}`);
@@ -213,6 +242,7 @@ function handleMockRequest(pathName, method, body) {
       const bookingId = parseInt(parts[parts.length - 1]);
       console.log(`[Mock Server] Cancelling booking ID: ${bookingId}`);
       mockBookings = mockBookings.filter(b => b.id !== bookingId);
+      saveMockBookings();
       return createFakeResponse({ success: true });
     }
 
@@ -243,6 +273,7 @@ function handleMockRequest(pathName, method, body) {
         });
       });
       
+      saveMockBookings();
       return createFakeResponse({
         success: true,
         bookings: bookingsObj

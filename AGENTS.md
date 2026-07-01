@@ -4,7 +4,7 @@
 
 Server + PWA assistant for Psycle London (and future gym providers). It moves scheduling features (auto-book, auto-upgrade) to a background server so they run 24/7 and adds iOS support via Progressive Web App (PWA) and Web Push notifications.
 
-**Status**: Server and PWA are functional and deployed. All core features working — auto-book (server-side precision scheduler with priority tiers), auto-upgrade (cron polling), quick-book, timetable, bookings, buy credits (in-app Stripe checkout), push notifications (5 types), shared spot maps, calendar feed (.ics via webcal/Google), first-run onboarding, offline support, pull-to-refresh, admin panel, per-user rate limiting. See Feature Status section for details.
+**Status**: Server and PWA are functional and deployed. All core features working — auto-book (server-side precision scheduler with priority tiers), auto-upgrade (cron polling), quick-book, timetable, bookings (with unique slot-upgrade chips and push-broadcast auto-refresh), buy credits (in-app Stripe checkout), push notifications (5 types + deep linking), shared spot maps, calendar feed (.ics via webcal/Google), first-run onboarding, offline support, pull-to-refresh, admin panel, per-user rate limiting. See Feature Status section for details.
 
 ## Key References
 
@@ -164,7 +164,7 @@ The background services (auto-book scheduler, auto-upgrade poller, calendar feed
 | **Buy Credits** | ✅ Functional | Bundle cards, 8 filters, two-click cart → in-app Stripe checkout (website fallback for 3DS) |
 | **Settings** | ✅ Functional | 4 subnav sections (About, Booking, Experience, Advanced): spot maps, upgrade, push, notif prefs, calendar, theme, export/import, debug, profile explorer, delete data |
 | **Debug Mode** | ✅ Functional | Per-class debug modal, debug log terminal, simulate release |
-| **Push Notifications** | ✅ Functional | VAPID, 5 types, per-user prefs, auto-generated keys |
+| **Push Notifications** | ✅ Functional | VAPID, 5 types, per-user prefs, auto-generated keys, click deep-linking, open-app auto-refresh |
 | **Config Export/Import**| ✅ Functional | JSON configuration backup and restore |
 | **Smart Caching** | ✅ Functional | IndexedDB 4hr TTL with Monday 12PM force-refresh |
 | **Prefetch Weeks Setting**| ✅ Functional | 1-8 weeks dropdown in Settings |

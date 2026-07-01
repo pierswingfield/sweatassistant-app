@@ -5,27 +5,8 @@ This document tracks all open feature requests, bugs, technical debt, and future
 ---
 
 ## 1. Deferred Immediate Fixes
-These are immediate bug fixes and enhancements prioritized by the user, to be addressed in the next coding phase.
 
-### Timetable Scheduled Indicators (Bug)
-* **Description**: Classes that are already queued for Auto-Book do not display the "Scheduled" indicator in the timetable view.
-* **Details**: Fix the mapping issue in `client/src/ui/timetable.js` where `autoBookedIds` Set matches on `x.eventId` instead of the DB schema's `x.event_id` field.
-
-### Deep Link Notifications (Feature)
-* **Description**: Support deep linking when clicking Web Push notifications.
-* **Details**: Clicking a booking or upgrade notification should automatically navigate the client PWA to the "My Bookings" tab, rather than just reloading the main page.
-
-### Multi-spot Auto-Upgrades (Bug)
-* **Description**: Ensure booking multiple spots in the same class correctly registers individual upgrade monitors for each slot.
-* **Details**: Currently, the server maps multiple upgrades by the same `booking_id` (or maps them with ID `0`), leading the poller to only track a single active monitor. Reconcile booking ID resolution in `scheduler.js` and active monitor mapping in `admin.js`.
-
-### Auto-Upgrade Poller Cancel Boundary (Enhancement)
-* **Description**: Stop auto-upgrade polling 5 seconds before the 12-hour free cancellation boundary.
-* **Details**: Prevents the poller from attempting a spot swap right at the boundary where a cancel-then-rebook could fail and trigger a late cancellation penalty.
-
-### Unauthenticated Public API Requests (Security)
-* **Description**: Query class and studio availability details without Bearer JWT headers for tooltips and poller checks.
-* **Details**: Reduces account-flagging risk by limiting the exposure and rate of authorized token hits on CodexFit.
+*No immediate fixes are currently deferred. All core items have been successfully resolved and verified.*
 
 ---
 
@@ -68,3 +49,27 @@ These are immediate bug fixes and enhancements prioritized by the user, to be ad
 ### Structured Logging & Metrics (Telemetry)
 * **Status**: ❌ Open
 * **Summary**: Replace standard `console.log` statements with structured JSON logging and expose a Prometheus metrics endpoint to monitor success rates and API latencies.
+
+---
+
+## 3. Completed Items (Recent)
+
+### Timetable Scheduled Indicators (Bug)
+* **Status**: ✅ Completed
+* **Resolution**: Standardized the event ID resolution in `client/src/ui/timetable.js` mapping `autoBookedIds` correctly to `x.event_id || x.eventId` (DB schema mapping) to ensure scheduled status is shown accurately.
+
+### Deep Link Notifications (Feature)
+* **Status**: ✅ Completed
+* **Resolution**: Updated `client/public/sw.js` and `client/src/main.js` to support deep linking on Web Push notifications. Clicking a booking or upgrade notification now focuses the open PWA window and navigates to the `#my-bookings` tab.
+
+### Multi-spot Auto-Upgrades (Bug)
+* **Status**: ✅ Completed
+* **Resolution**: Solved concurrent booking ID mapping in `scheduler.js` and active monitor mapping in `admin.js`. The scheduler maps each spot individually, and the database stores unique `booking_id` properties for each slot, allowing the poller to track multiple upgrade monitors for the same class concurrently.
+
+### Auto-Upgrade Poller Cancel Boundary (Enhancement)
+* **Status**: ✅ Completed
+* **Resolution**: Implemented a `CUTOFF_BUFFER_S` of 5 seconds in `server/poller.js`. Auto-upgrade polling now stops 5 seconds before the 12-hour free cancellation boundary to avoid race conditions that could lead to late cancellation penalties.
+
+### Unauthenticated Public API Requests (Security)
+* **Status**: ✅ Completed
+* **Resolution**: Modified `server/server.js` public paths GET requests (e.g. `/events`, `/studios`) to query CodexFit directly without passing authentication tokens, limiting authorized token hits. Added a safety bypass for `dev@psycle.com` to prevent production leakage into mock environments. Also updated client-side receive listener in `main.js` to clear IndexedDB cache immediately on push, avoiding flash-of-stale-content visual bugs.

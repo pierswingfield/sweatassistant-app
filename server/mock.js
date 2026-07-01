@@ -287,6 +287,9 @@ function handleMockRequest(pathName, method, body) {
   if (pathName.startsWith('/events/')) {
     const parts = pathName.split('/');
     const eventId = parseInt(parts[parts.length - 1]);
+    const isEven = eventId % 2 === 0;
+    const studioId = isEven ? 138 : 139;
+    const studioName = isEven ? "Ride Studio" : "Barre Studio";
     
     // Generate layout slots
     const layoutSlots = [];
@@ -310,8 +313,8 @@ function handleMockRequest(pathName, method, body) {
       relations: {
         studios: [
           {
-            id: 138,
-            name: "Ride Studio",
+            id: studioId,
+            name: studioName,
             layout: {
               slots: layoutSlots
             }

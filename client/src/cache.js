@@ -107,9 +107,9 @@ async function idbWrite(key, value) {
 async function idbClearStore() {
   try {
     const db = await openDB();
-    const tx = db.transaction(STORE, 'readwrite');
-    const store = tx.objectStore(STORE);
-    store.clear();
+    const tx = db.transaction([STORE, 'cache'], 'readwrite');
+    tx.objectStore(STORE).clear();
+    tx.objectStore('cache').clear();
     await new Promise((resolve, reject) => {
       tx.oncomplete = () => { db.close(); resolve(); };
       tx.onerror = () => { db.close(); reject(tx.error); };

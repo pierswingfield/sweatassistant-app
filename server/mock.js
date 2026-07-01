@@ -70,9 +70,38 @@ const bundles = [
   }
 ];
 
-// Mutable bookmark state so fav/unfav works end-to-end in dev mode.
-// Starts empty — favourite classes from the timetable to populate it.
 let mockBookmarks = [];
+
+const mockNow = new Date();
+const mockD1 = new Date(mockNow.getTime() + 2 * 864e5).toISOString();
+const mockD2 = new Date(mockNow.getTime() + 5 * 864e5).toISOString();
+
+let mockBookings = [
+  {
+    id: 8255401,
+    event_id: 1000,
+    booked_at: new Date().toISOString(),
+    studio_slot: { id: 23, label: '23' },
+    event: {
+      id: 1000, name: 'Ride 45', start_at: mockD1,
+      event_type: { id: 20, name: 'RIDE: Ride 45', group: { id: 1, name: 'Ride' } },
+      instructor: { id: 10, name: 'ADAM', full_name: 'Adam' },
+      studio: { id: 138, name: 'Ride Studio', location: { id: 13, name: 'Mortimer Street' } }
+    }
+  },
+  {
+    id: 8255402,
+    event_id: 1003,
+    booked_at: new Date(Date.now() - 120000).toISOString(),
+    studio_slot: { id: 11, label: '11' },
+    event: {
+      id: 1003, name: 'Barre 55', start_at: mockD2,
+      event_type: { id: 21, name: 'BARRE: Barre 55', group: { id: 2, name: 'Barre' } },
+      instructor: { id: 11, name: 'BECKY', full_name: 'Becky' },
+      studio: { id: 139, name: 'Barre Studio', location: { id: 13, name: 'Mortimer Street' } }
+    }
+  }
+];
 
 function handleMockRequest(pathName, method, body) {
   console.log(`[Mock Server] Intercepted ${method} ${pathName}`);
@@ -178,48 +207,50 @@ function handleMockRequest(pathName, method, body) {
   }
 
   if (pathName.startsWith('/bookings')) {
+    // DELETE booking
+    if (method === 'DELETE') {
+      const parts = pathName.split('/');
+      const bookingId = parseInt(parts[parts.length - 1]);
+      console.log(`[Mock Server] Cancelling booking ID: ${bookingId}`);
+      mockBookings = mockBookings.filter(b => b.id !== bookingId);
+      return createFakeResponse({ success: true });
+    }
+
+    // POST (create) booking
     if (method === 'POST') {
       const slots = body?.slots || [];
+      const eventId = Number(body?.event_id || 1000);
       const bookingsObj = {};
+      
       slots.forEach(slot => {
         const mockId = 8255400 + Math.floor(Math.random() * 10000);
         bookingsObj[String(mockId)] = Number(slot);
+        
+        // Add to our mutable dev bookings array
+        mockBookings.push({
+          id: mockId,
+          event_id: eventId,
+          booked_at: new Date().toISOString(),
+          studio_slot: { id: Number(slot), label: String(slot) },
+          event: {
+            id: eventId,
+            name: eventId % 2 === 0 ? "Ride 45" : "Barre 55",
+            start_at: new Date(Date.now() + 3 * 864e5).toISOString(), // 3 days in future
+            event_type: eventId % 2 === 0 ? eventTypes[0] : eventTypes[1],
+            instructor: instructors[0],
+            studio: eventId % 2 === 0 ? studios[0] : studios[1]
+          }
+        });
       });
+      
       return createFakeResponse({
         success: true,
         bookings: bookingsObj
       });
     }
 
-    const now = new Date();
-    const d1 = new Date(now.getTime() + 2 * 864e5).toISOString();
-    const d2 = new Date(now.getTime() + 5 * 864e5).toISOString();
-    return createFakeResponse([
-      {
-        id: 8255401,
-        event_id: 1000,
-        booked_at: new Date().toISOString(),
-        studio_slot: { id: 23, label: '23' },
-        event: {
-          id: 1000, name: 'Ride 45', start_at: d1,
-          event_type: { id: 20, name: 'RIDE: Ride 45', group: { id: 1, name: 'Ride' } },
-          instructor: { id: 10, name: 'ADAM', full_name: 'Adam' },
-          studio: { id: 138, name: 'Ride Studio', location: { id: 13, name: 'Mortimer Street' } }
-        }
-      },
-      {
-        id: 8255402,
-        event_id: 1003,
-        booked_at: new Date(Date.now() - 120000).toISOString(),
-        studio_slot: { id: 11, label: '11' },
-        event: {
-          id: 1003, name: 'Barre 55', start_at: d2,
-          event_type: { id: 21, name: 'BARRE: Barre 55', group: { id: 2, name: 'Barre' } },
-          instructor: { id: 11, name: 'BECKY', full_name: 'Becky' },
-          studio: { id: 139, name: 'Barre Studio', location: { id: 13, name: 'Mortimer Street' } }
-        }
-      }
-    ]);
+    // GET bookings list
+    return createFakeResponse(mockBookings);
   }
 
   if (pathName.startsWith('/events/')) {

@@ -798,6 +798,31 @@ app.all('/api/proxy/*', authenticateToken, proxyLimiter, async (req, res) => {
   // Stamp "last seen" on any client activity through the proxy.
   try { db.touchUserLastSeen(req.userId); } catch (_) {}
 
+  // Public CodexFit endpoints (documented: no Bearer token required).
+  // Strip auth and forward directly to avoid unnecessary JWT exposure.
+  const PUBLIC_PATHS = /^\/(events|locations|studios|instructors|event-types|event-type-groups|bundles)(\/|$|\?)/;
+  if (method === 'GET' && PUBLIC_PATHS.test(pathWithQuery)) {
+    try {
+      const upstream = `https://psycle.codexfit.com/api/v1/customer${pathWithQuery}`;
+      const publicRes = await fetch(upstream, {
+        headers: {
+          'accept': 'application/json',
+          'origin': 'https://psyclelondon.com',
+          'referer': 'https://psyclelondon.com/',
+          'x-organisation': '[object Object]'
+        }
+      });
+      res.status(publicRes.status);
+      const ct = publicRes.headers.get('content-type');
+      if (ct) res.set('Content-Type', ct);
+      const text = await publicRes.text();
+      return res.send(text);
+    } catch (err) {
+      console.error('[Proxy] Public endpoint error:', err.message);
+      return res.status(502).json({ error: 'Upstream request failed.' });
+    }
+  }
+
   try {
     const response = await proxyRequest(req.userId, pathWithQuery, method, body);
     const contentType = response.headers.get('content-type');

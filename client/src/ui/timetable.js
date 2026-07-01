@@ -982,7 +982,7 @@ async function renderTimetableGrid() {
         ? `<span class="badge-pill waitlist-open psycle-occupancy-hover" data-id="${event.id}" style="cursor: pointer;">Waitlist open</span>`
         : `<span class="badge-pill no fully-booked psycle-occupancy-hover" data-id="${event.id}">Fully Booked</span>`;
     } else if (!hasCredit) {
-      statusBadge = `<div style="display:flex; flex-direction:column; align-items:center; gap:4px;"><span class="badge-pill yes psycle-occupancy-hover" data-id="${event.id}" style="cursor: pointer;">${spotsText}</span><div class="psycle-no-credits-warning">No eligible credits</div></div>`;
+      statusBadge = `<span class="badge-pill yes psycle-occupancy-hover" data-id="${event.id}" style="cursor: pointer;">${spotsText}</span><div class="psycle-no-credits-warning">No credits</div>`;
     } else {
       statusBadge = `<span class="badge-pill yes psycle-occupancy-hover" data-id="${event.id}" style="cursor: pointer;">${spotsText}</span>`;
     }
@@ -1305,7 +1305,7 @@ async function doLeaveWaitlist(waitlistId, btn) {
 // Unicode (non-emoji) glyph that prefixes certain action labels.
 function actionGlyph(label) {
   if (label === 'Quick-Book' || label === 'Quick Book') return '⚡︎';
-  if (label === 'Auto-Book' || label === 'Auto Book' || label === 'Scheduled') return sparklesIcon(12, 'currentColor');
+  if (label === 'Auto-Book' || label === 'Auto Book' || label === 'Scheduled' || label === 'Sched.') return sparklesIcon(16, 'currentColor');
   return '';
 }
 
@@ -1492,7 +1492,12 @@ function buildMobileClassRow(event, ctx, model) {
   // desktop primary segment and the My Bookings rail, but laid out horizontally).
   const pbtn = document.createElement('button');
   pbtn.className = `psycle-mobile-seg primary variant-${model.primary.variant}` + (model.primary.scheduled ? ' scheduled' : '');
-  setSegLabel(pbtn, model.primary.label);
+  if (model.primary.scheduled && model.primary.variant === 'autoupgrade') {
+    // "Scheduled" is too wide for 52px — abbreviate it.
+    setSegLabel(pbtn, 'Sched.');
+  } else {
+    setSegLabel(pbtn, model.primary.label);
+  }
   if (model.primary.disabled) pbtn.disabled = true;
   else if (model.primary.run) pbtn.onclick = (e) => { e.stopPropagation(); model.primary.run(pbtn); };
   rail.appendChild(pbtn);

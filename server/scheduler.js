@@ -116,6 +116,18 @@ function getCodexFitHeaders(token, isJSON = false) {
   return headers;
 }
 
+// Fetch public (no-auth) CodexFit endpoints (events, locations, studios, instructors).
+// These are documented as public — no Bearer token required.
+async function fetchCodexFitPublic(url) {
+  const headers = {
+    'accept': 'application/json',
+    'origin': 'https://psyclelondon.com',
+    'referer': 'https://psyclelondon.com/',
+    'x-organisation': '[object Object]'
+  };
+  return fetch(url, { headers });
+}
+
 // Perform a request to CodexFit API with automatic re-login on 401
 async function fetchCodexFit(userId, url, options = {}) {
   const user = db.getUserById(userId);
@@ -175,8 +187,9 @@ async function prefetchAutoBookSlots(bookings, windowMs = 18000) {
           });
         }
       }
+      // /events/:id is a public CodexFit endpoint — no Bearer token needed
       const url = `https://psycle.codexfit.com/api/v1/customer/events/${booking.event_id}`;
-      const res = await fetchCodexFit(booking.user_id, url);
+      const res = await fetchCodexFitPublic(url);
       if (res.ok) {
         const payload = await res.json();
         const eventData = payload.data || payload;
@@ -227,8 +240,9 @@ async function executeAutoBookForClass(booking) {
     if (payload) {
       console.log(`[Scheduler] Cache hit for event ${eventId} (user ${userId}).`);
     } else {
+      // /events/:id is a public CodexFit endpoint — no Bearer token needed
       const url = `https://psycle.codexfit.com/api/v1/customer/events/${eventId}`;
-      const res = await fetchCodexFit(userId, url);
+      const res = await fetchCodexFitPublic(url);
       if (!res.ok) {
         throw new Error(`Failed to load event data. Status: ${res.status}`);
       }

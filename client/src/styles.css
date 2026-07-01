@@ -44,8 +44,8 @@
   --waitlist-btn-bg: #0b202e;
   --on-waitlist-btn: #a8c3d5;
 
-  --buy-credits-bg: #301712;
-  --on-buy-credits: #e8a287;
+  --buy-credits-bg: #0b202e;
+  --on-buy-credits: #a8c3d5;
   --no-credits-warning-color: #E6AA9C;
 
   /* Header credits badge colors */
@@ -4816,6 +4816,7 @@ html, body {
   padding: 3px 8px;
   display: inline-block;
   margin-top: 4px;
+  margin-left: 8px;
   font-size: 11px;
   font-weight: 700;
   text-transform: uppercase;
@@ -5380,11 +5381,11 @@ html, body {
 }
 .psycle-tt-seg {
   display: flex;
-  flex-direction: column;
+  flex-direction: row;
   align-items: center;
   justify-content: center;
-  gap: 0;
-  padding: 0 6px;
+  gap: 5px;
+  padding: 0 8px;
   min-width: 62px;
   height: 44px;
   box-sizing: border-box;
@@ -5411,7 +5412,7 @@ html, body {
   flex-direction: row;
   align-items: center;
   justify-content: center;
-  padding: 0 10px;
+  padding: 0 8px;
   min-width: unset;
   height: 44px;
   box-sizing: border-box;
@@ -5424,7 +5425,7 @@ html, body {
   border-bottom-right-radius: 10px !important;
   cursor: pointer;
   transition: background .12s, color .12s;
-  font-size: 18px !important;
+  font-size: 16px !important;
 }
 .psycle-tt-seg-caret:not(.primary):hover {
   background: color-mix(in srgb, var(--text) 8%, transparent);
@@ -5502,7 +5503,8 @@ html, body {
 .psycle-seg-ico {
   font-size: 1.4em;
   line-height: 1;
-  display: block;
+  display: inline-flex;
+  align-items: center;
   font-variant-emoji: text;
   flex-shrink: 0;
 }
@@ -5524,6 +5526,15 @@ html, body {
 .psycle-tt-seg.variant-neutral,                       .psycle-mobile-seg.variant-neutral                       { background: var(--surface-inset) !important; color: var(--text-tertiary) !important; border: none !important; }
 .psycle-tt-seg.primary.variant-neutral,                 .psycle-mobile-seg.primary.variant-neutral                 { background: var(--surface-2) !important; color: var(--text-tertiary) !important; border: none !important; }
 .psycle-tt-seg.variant-debug,                         .psycle-mobile-seg.variant-debug                         { background: color-mix(in srgb, var(--feat-autoupgrade) 22%, transparent) !important; color: var(--feat-autoupgrade) !important; border: none !important; }
+
+/* Restore the divider line on the caret (config) button regardless of which variant
+   set border:none above — must come after all variant rules so it wins. */
+#psycle-helper-container .psycle-tt-seg.psycle-tt-seg-caret {
+  border-top: none !important;
+  border-right: none !important;
+  border-bottom: none !important;
+  border-left: 1px solid color-mix(in srgb, currentColor 40%, transparent) !important;
+}
 
 /* ── Auto-book / Auto-upgrade cards ────────────────────────────── */
 .psycle-autobook-card {
@@ -6755,7 +6766,7 @@ html, body {
   }
 
   #psycle-helper-container .psycle-ms-trigger-text {
-    font-size: 12px !important;
+    font-size: 14px !important;
     white-space: nowrap;
     overflow: hidden;
     text-overflow: ellipsis;

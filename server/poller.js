@@ -21,6 +21,18 @@ function getCodexFitHeaders(token, isJSON = false) {
   return headers;
 }
 
+// Fetch public (no-auth) CodexFit endpoints (events, locations, studios, instructors).
+// These are documented as public — no Bearer token required.
+async function fetchCodexFitPublic(url) {
+  const headers = {
+    'accept': 'application/json',
+    'origin': 'https://psyclelondon.com',
+    'referer': 'https://psyclelondon.com/',
+    'x-organisation': '[object Object]'
+  };
+  return fetch(url, { headers });
+}
+
 async function fetchCodexFit(userId, url, options = {}) {
   const user = db.getUserById(userId);
   if (!user || !user.jwt) {
@@ -111,8 +123,9 @@ async function attemptUpgradeSlot(upgrade, isCutoffMode) {
     if (payload) {
       console.log(`[Poller] Cache hit for event ${eventId} (user ${userId}).`);
     } else {
+      // /events/:id is a public CodexFit endpoint — no Bearer token needed
       const url = `https://psycle.codexfit.com/api/v1/customer/events/${eventId}`;
-      const res = await fetchCodexFit(userId, url);
+      const res = await fetchCodexFitPublic(url);
       if (!res.ok) return;
       payload = await res.json();
       setCachedEvent(eventId, payload, 60000);
@@ -266,8 +279,10 @@ async function executeAutoUpgradeChecks() {
 
       const prefs = JSON.parse(upgrade.preferences) || {};
 
-      // 12h cutoff boundary
-      if (hoursUntilClass <= 12) {
+      // 12h cutoff boundary — trigger 5 seconds early to avoid race conditions
+      // at the exact cancel-free boundary that could incur a late-cancel penalty.
+      const CUTOFF_BUFFER_S = 5;
+      if (classStart.diff(now, 'seconds').seconds <= 12 * 3600 + CUTOFF_BUFFER_S) {
         if (prefs.keepOriginalOnCutoff) {
           // User opted in to continue past 12h: one final attempt (no cancel), then stop
           if (!prefs.cutoffAttempted) {

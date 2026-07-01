@@ -1,0 +1,98 @@
+[
+  {
+    "id": 8255978,
+    "event_id": 207540,
+    "booked_at": "2026-07-01T20:34:36.550Z",
+    "studio_slot": {
+      "id": 34,
+      "label": "34"
+    },
+    "event": {
+      "id": 207540,
+      "name": "Ride 45",
+      "start_at": "2026-07-04T20:34:36.550Z",
+      "event_type": {
+        "id": 20,
+        "name": "Ride 45",
+        "group": {
+          "id": 1,
+          "name": "Ride"
+        }
+      },
+      "instructor": {
+        "id": 10,
+        "name": "ADAM",
+        "full_name": "Adam"
+      },
+      "studio": {
+        "id": 138,
+        "name": "Ride Studio",
+        "location_id": 13
+      }
+    }
+  },
+  {
+    "id": 8258882,
+    "event_id": 207540,
+    "booked_at": "2026-07-01T20:34:36.550Z",
+    "studio_slot": {
+      "id": 33,
+      "label": "33"
+    },
+    "event": {
+      "id": 207540,
+      "name": "Ride 45",
+      "start_at": "2026-07-04T20:34:36.550Z",
+      "event_type": {
+        "id": 20,
+        "name": "Ride 45",
+        "group": {
+          "id": 1,
+          "name": "Ride"
+        }
+      },
+      "instructor": {
+        "id": 10,
+        "name": "ADAM",
+        "full_name": "Adam"
+      },
+      "studio": {
+        "id": 138,
+        "name": "Ride Studio",
+        "location_id": 13
+      }
+    }
+  },
+  {
+    "id": 8263061,
+    "event_id": 207540,
+    "booked_at": "2026-07-01T20:36:03.211Z",
+    "studio_slot": {
+      "id": 4,
+      "label": "4"
+    },
+    "event": {
+      "id": 207540,
+      "name": "Ride 45",
+      "start_at": "2026-07-04T20:36:03.211Z",
+      "event_type": {
+        "id": 20,
+        "name": "Ride 45",
+        "group": {
+          "id": 1,
+          "name": "Ride"
+        }
+      },
+      "instructor": {
+        "id": 10,
+        "name": "ADAM",
+        "full_name": "Adam"
+      },
+      "studio": {
+        "id": 138,
+        "name": "Ride Studio",
+        "location_id": 13
+      }
+    }
+  }
+]

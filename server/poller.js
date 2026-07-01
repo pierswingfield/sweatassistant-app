@@ -184,6 +184,7 @@ async function attemptUpgradeSlot(upgrade, isCutoffMode) {
         console.log(`[Poller] Better slot ${candidateSlot} available for event ${eventId} (current: ${currentSlotId}). Upgrading...`);
         claimedSlots.add(claimKey);
 
+        let bookRes;
         try {
           // Check if user has credits
           await new Promise(r => setTimeout(r, 300 + Math.floor(Math.random() * 600)));
@@ -212,7 +213,7 @@ async function attemptUpgradeSlot(upgrade, isCutoffMode) {
           // Book the new slot
           await new Promise(r => setTimeout(r, 300 + Math.floor(Math.random() * 600)));
           const bookUrl = 'https://psycle.codexfit.com/api/v1/customer/bookings';
-          const bookRes = await fetchCodexFit(userId, bookUrl, {
+          bookRes = await fetchCodexFit(userId, bookUrl, {
             method: 'POST',
             body: JSON.stringify({
               event_id: eventId,

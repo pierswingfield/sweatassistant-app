@@ -117,18 +117,11 @@ async function attemptUpgradeSlot(upgrade, isCutoffMode) {
   const currentSlotId = Number(upgrade.current_slot_id);
   const prefs = JSON.parse(upgrade.preferences) || {};
   // Preferred slots come from the LIVE shared studio map; fall back to snapshot for legacy records.
-  const liveMap = db.getStudioPreference(userId, upgrade.studio_id);
-  const sourceSlots = (liveMap && liveMap.preferredSlots?.length) ? liveMap.preferredSlots : (prefs.preferredSlots || []);
-  const preferredSlots = sourceSlots.map(Number);
+  const liveMap = db.getStudioPreference(userId, upgrade.studio_id) || {};
+  const preferredSlots = (liveMap.preferredSlots || prefs.preferredSlots || []).map(Number);
+  const preferredRows = liveMap.preferredRows || prefs.preferredRows || [];
 
-  if (preferredSlots.length === 0) return;
-
-  const currentIndex = preferredSlots.indexOf(currentSlotId);
-  // If current slot is already the absolute best, nothing to upgrade
-  if (currentIndex === 0) {
-    db.updateAutoUpgrade(upgrade.id, userId, 'stopped', 'Already in the most preferred slot.', { lastCheckedAt: new Date().toISOString() });
-    return;
-  }
+  if (preferredSlots.length === 0 && preferredRows.length === 0) return;
 
   try {
     // 1. Get live slot availability — use shared cache to avoid N fetches/min for the same class
@@ -152,9 +145,32 @@ async function attemptUpgradeSlot(upgrade, isCutoffMode) {
       return s?.label ?? id;
     };
 
+    // Combine preferred slots and resolve row preferences
+    const combinedPreferredSlots = [...preferredSlots];
+    if (preferredRows.length > 0 && upgradeLayout.length > 0) {
+      preferredRows.forEach(ry => {
+        const slotsInRow = upgradeLayout.filter(s => Math.round(s.y * 10) / 10 === Number(ry));
+        const rowSlotIds = slotsInRow.map(s => Number(s.id));
+        rowSlotIds.forEach(id => {
+          if (!combinedPreferredSlots.includes(id)) {
+            combinedPreferredSlots.push(id);
+          }
+        });
+      });
+    }
+
+    if (combinedPreferredSlots.length === 0) return;
+
+    const currentIndex = combinedPreferredSlots.indexOf(currentSlotId);
+    // If current slot is already the absolute best, nothing to upgrade
+    if (currentIndex === 0) {
+      db.updateAutoUpgrade(upgrade.id, userId, 'stopped', 'Already in the most preferred slot.', { lastCheckedAt: new Date().toISOString() });
+      return;
+    }
+
     // 2. Iterate preferred slots to find a better one
-    for (let i = 0; i < preferredSlots.length; i++) {
-      const candidateSlot = preferredSlots[i];
+    for (let i = 0; i < combinedPreferredSlots.length; i++) {
+      const candidateSlot = combinedPreferredSlots[i];
 
       // If we've hit our current slot or worse, stop checking
       if (currentIndex !== -1 && i >= currentIndex) break;

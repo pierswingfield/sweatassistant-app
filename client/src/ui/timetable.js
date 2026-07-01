@@ -2433,7 +2433,7 @@ async function openBookingModal(c, mode) {
             }).catch(() => {});
             const autoUpgrade = controls.querySelector('#simplebook-auto-upgrade')?.checked ?? false;
             closeModal();
-            if (state.selectedSlots.length === 1) await tryAutoRegisterUpgrade(c, state.selectedSlots[0], bookingRes, autoUpgrade);
+            await tryAutoRegisterUpgrade(c, state.selectedSlots[0], bookingRes, autoUpgrade);
             await refreshUserData(true);
             await refreshBookingState();
           } catch (err) {
@@ -2605,43 +2605,57 @@ async function tryAutoRegisterUpgrade(event, bookedSlotId, bookingRes, enableOve
       return;
     }
 
-    // Resolve booking ID from various response shapes
-    debugConsole('[AutoUpgrade] Raw bookingRes:', JSON.stringify(bookingRes));
-    let bookingId;
-
-    // CodexFit returns: { success: true, bookings: { "8255409": 53 } }
-    // The key is the booking ID, value is the slot ID
+    // Resolve booking IDs and slot IDs from response
+    const registerPromises = [];
+    
+    // CodexFit returns: { success: true, bookings: { "booking_id": slot_id } }
     if (bookingRes?.bookings && typeof bookingRes.bookings === 'object') {
-      bookingId = Object.keys(bookingRes.bookings)[0];
-      debugConsole('[AutoUpgrade] Extracted from bookings object:', bookingId);
+      const bookingsMap = bookingRes.bookings;
+      for (const bookingId of Object.keys(bookingsMap)) {
+        const slotId = Number(bookingsMap[bookingId]);
+        const payload = {
+          eventId: event.id,
+          studioId: studioId || null,
+          bookingId: Number(bookingId),
+          currentSlotId: slotId,
+          className: event.event_type?.name || 'Ride',
+          instructorName: event.instructor?.full_name || '',
+          studioName: event.studio?.name || '',
+          locationName: event.studio?.location?.name || '',
+          startAt: event.start_at,
+          preferences: { keepOriginalOnCutoff: true }
+        };
+        registerPromises.push(api.addAutoUpgrade(payload));
+      }
     } else {
-      // Fallback for other response shapes
+      // Fallback for single booking response shapes
       const dataObj = Array.isArray(bookingRes?.data) ? bookingRes.data[0] : bookingRes?.data;
-      bookingId = dataObj?.id || bookingRes?.id;
-      debugConsole('[AutoUpgrade] Fallback extraction:', bookingId, '| dataObj:', dataObj);
+      const bookingId = dataObj?.id || bookingRes?.id;
+      if (bookingId) {
+        const payload = {
+          eventId: event.id,
+          studioId: studioId || null,
+          bookingId: Number(bookingId),
+          currentSlotId: bookedSlotId,
+          className: event.event_type?.name || 'Ride',
+          instructorName: event.instructor?.full_name || '',
+          studioName: event.studio?.name || '',
+          locationName: event.studio?.location?.name || '',
+          startAt: event.start_at,
+          preferences: { keepOriginalOnCutoff: true }
+        };
+        registerPromises.push(api.addAutoUpgrade(payload));
+      }
     }
 
-    if (!bookingId) {
-      console.warn('[AutoUpgrade] Could not resolve booking ID — giving up. Full response:', bookingRes);
+    if (registerPromises.length === 0) {
+      console.warn('[AutoUpgrade] Could not resolve any booking IDs — giving up. Response:', bookingRes);
       return;
     }
 
-    const payload = {
-      eventId: event.id,
-      studioId: studioId || null,
-      bookingId,
-      currentSlotId: bookedSlotId,
-      className: event.event_type?.name || 'Ride',
-      instructorName: event.instructor?.full_name || '',
-      studioName: event.studio?.name || '',
-      locationName: event.studio?.location?.name || '',
-      startAt: event.start_at,
-      preferences: { keepOriginalOnCutoff: true }
-    };
-    debugConsole('[AutoUpgrade] Sending addAutoUpgrade payload:', JSON.stringify(payload));
-    await api.addAutoUpgrade(payload);
-    showToast('Auto-upgrade monitor started for better spot availability.', 'info');
-    debugConsole('[AutoUpgrade] Monitor registered successfully.');
+    await Promise.all(registerPromises);
+    showToast(`Auto-upgrade monitor started for ${registerPromises.length} spot(s).`, 'info');
+    debugConsole('[AutoUpgrade] Monitors registered successfully.');
   } catch (err) {
     console.warn('[AutoUpgrade] Failed to auto-register:', err.message, err);
   }

@@ -79,7 +79,7 @@ const mockNow = new Date();
 const mockD1 = new Date(mockNow.getTime() + 2 * 864e5).toISOString();
 const mockD2 = new Date(mockNow.getTime() + 5 * 864e5).toISOString();
 
-const mockBookingsPath = path.join(__dirname, 'mock_bookings.json');
+const mockBookingsPath = path.join(__dirname, 'mock_bookings.dbjson');
 let mockBookings = [];
 
 function loadMockBookings() {

@@ -365,6 +365,25 @@ async function registerServiceWorker() {
     const reg = await navigator.serviceWorker.register('/sw.js', { scope: '/' });
     serviceWorkerRegistration = reg;
     debugConsole('[SW] Service Worker registered successfully scope:', reg.scope);
+    
+    // Listen for messages from the service worker (e.g. push notification deep links)
+    navigator.serviceWorker.addEventListener('message', async (event) => {
+      if (!event.data) return;
+      if (event.data.type === 'NAVIGATE') {
+        window.location.hash = event.data.hash;
+      } else if (event.data.type === 'PUSH_RECEIVED') {
+        // If we are on the bookings tab, refresh it automatically so they see the new spot
+        if (window.location.hash === '#my-bookings') {
+          try {
+            const { renderBookings } = await import('./ui/bookings');
+            renderBookings();
+          } catch (e) {
+            console.warn('[App] Failed to auto-refresh bookings after push', e);
+          }
+        }
+      }
+    });
+    
     updatePushStatusUI();
   } catch (err) {
     console.error('[SW] Service Worker registration failed:', err);

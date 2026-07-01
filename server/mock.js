@@ -168,7 +168,7 @@ function handleMockRequest(pathName, method, body) {
       available_credits: [
         { count: 3, credit_type: { name: "Ride Credit" }, expires_at: new Date(Date.now() + 60 * 24 * 60 * 60 * 1000).toISOString() },
         { count: 1, credit_type: { name: "Strength Credit" } },
-        { count: 2, credit_type: { id: 8, name: "Advanced Booking Credit" } }
+        { count: 10, credit_type: { id: 8, name: "Advanced Booking Credit" } }
       ],
       subscriptions: [
         { name: "Unlimited Monthly", status: "active", renews_at: new Date(Date.now() + 18 * 24 * 60 * 60 * 1000).toISOString() }
@@ -273,10 +273,11 @@ function handleMockRequest(pathName, method, body) {
         eventDetails = {
           id: eventId,
           name: isEven ? "Ride 45" : "Barre 55",
-          start_at: new Date(Date.now() + 3 * 864e5).toISOString(),
+          start_at: new Date(new Date().setUTCHours(isEven ? 8 : 18, 30, 0, 0) + 3 * 864e5).toISOString(),
           event_type: isEven ? eventTypes[0] : eventTypes[1],
           instructor: instructors[0],
-          studio: isEven ? studios[0] : studios[1]
+          studio: isEven ? studios[0] : studios[1],
+          max_bookable_slots: 10
         };
       }
 
@@ -326,7 +327,14 @@ function handleMockRequest(pathName, method, body) {
       }
     }
 
-    const availableSlots = [11, 12, 13, 21, 22, 23, 31, 32, 33, 41, 42, 43, 51, 52, 53];
+    // For mock testing upgrades, make a wide range of slots available
+    // so that whatever spot the user maps as preferred is likely available.
+    const availableSlots = [];
+    for (let r = 1; r <= 8; r++) {
+      for (let c = 1; c <= 8; c++) {
+        availableSlots.push(r * 10 + c);
+      }
+    }
 
     return createFakeResponse({
       id: eventId,
@@ -372,6 +380,7 @@ function handleMockRequest(pathName, method, body) {
         is_always_bookable: false,
         instructor: instructors[(i % 4)],
         event_type: eventTypes[0],
+        max_bookable_slots: 10,
         studio: { 
           id: 138, 
           name: "Ride Studio", 
@@ -398,6 +407,7 @@ function handleMockRequest(pathName, method, body) {
         is_always_bookable: false,
         instructor: instructors[((i + 1) % 4)],
         event_type: eventTypes[1],
+        max_bookable_slots: 10,
         studio: { 
           id: 139, 
           name: "Barre Studio", 

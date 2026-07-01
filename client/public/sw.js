@@ -14,7 +14,13 @@ self.addEventListener('push', (event) => {
     };
 
     event.waitUntil(
-      self.registration.showNotification(title, options)
+      self.registration.showNotification(title, options).then(() => {
+        return self.clients.matchAll({ type: 'window' }).then(clientList => {
+          for (const client of clientList) {
+            client.postMessage({ type: 'PUSH_RECEIVED', payload });
+          }
+        });
+      })
     );
   } catch (err) {
     console.error('[Service Worker] Error displaying push notification:', err);
@@ -30,12 +36,14 @@ self.addEventListener('notificationclick', (event) => {
       // If a window is already open, focus it
       for (const client of clientList) {
         if (new URL(client.url).pathname === '/' && 'focus' in client) {
-          return client.focus();
+          return client.focus().then(c => {
+            c.postMessage({ type: 'NAVIGATE', hash: '#my-bookings' });
+          });
         }
       }
       // Otherwise, open a new window
       if (clients.openWindow) {
-        return clients.openWindow('/');
+        return clients.openWindow('/#my-bookings');
       }
     })
   );

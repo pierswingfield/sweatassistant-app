@@ -805,7 +805,7 @@ app.all('/api/proxy/*', authenticateToken, proxyLimiter, async (req, res) => {
   // Public CodexFit endpoints (documented: no Bearer token required).
   // Strip auth and forward directly to avoid unnecessary JWT exposure.
   const PUBLIC_PATHS = /^\/(events|locations|studios|instructors|event-types|event-type-groups|bundles)(\/|$|\?)/;
-  if (method === 'GET' && PUBLIC_PATHS.test(pathWithQuery)) {
+  if (method === 'GET' && PUBLIC_PATHS.test(pathWithQuery) && req.email !== 'dev@psycle.com') {
     try {
       const upstream = `https://psycle.codexfit.com/api/v1/customer${pathWithQuery}`;
       const publicRes = await fetch(upstream, {

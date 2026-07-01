@@ -375,6 +375,9 @@ async function registerServiceWorker() {
         // If we are on the bookings tab, refresh it automatically so they see the new spot
         if (window.location.hash === '#my-bookings') {
           try {
+            const { invalidateApiCache } = await import('./cache');
+            await invalidateApiCache('/api/proxy/bookings').catch(() => {});
+            await invalidateApiCache('/api/auto-upgrade').catch(() => {});
             const { renderBookings } = await import('./ui/bookings');
             renderBookings();
           } catch (e) {

@@ -24,6 +24,13 @@ function getCodexFitHeaders(token, isJSON = false) {
 // Fetch public (no-auth) CodexFit endpoints (events, locations, studios, instructors).
 // These are documented as public — no Bearer token required.
 async function fetchCodexFitPublic(url) {
+  const isMock = /\/events\/\d{4}(\b|$)/.test(url) || url.includes('/locations') || url.includes('/studios');
+  if (isMock) {
+    const mock = require('./mock');
+    const pathName = url.replace('https://psycle.codexfit.com/api/v1/customer', '');
+    return mock.handleMockRequest(pathName, 'GET', null);
+  }
+
   const headers = {
     'accept': 'application/json',
     'origin': 'https://psyclelondon.com',
@@ -37,6 +44,12 @@ async function fetchCodexFit(userId, url, options = {}) {
   const user = db.getUserById(userId);
   if (!user || !user.jwt) {
     throw new Error('User has no active session. Please log in.');
+  }
+
+  if (user.email === 'dev@psycle.com') {
+    const mock = require('./mock');
+    const pathName = url.replace('https://psycle.codexfit.com/api/v1/customer', '');
+    return mock.handleMockRequest(pathName, options.method || 'GET', options.body ? JSON.parse(options.body) : null);
   }
 
   const runFetch = async (token) => {

@@ -453,10 +453,14 @@ app.post('/api/auto-upgrade', authenticateToken, bookingMutationLimiter, (req, r
       return res.status(429).json({ message: 'Auto-upgrade monitor limit reached (10 active monitors). Please cancel some before adding more.' });
     }
 
-    // Check if an active auto-upgrade already exists for this booking
-    const activeUpgrades = db.getUserAutoUpgrades(req.userId).filter(u => Number(u.booking_id) === Number(bookingId) && u.status === 'active');
+    // Check if an active auto-upgrade already exists for this slot in this class
+    const activeUpgrades = db.getUserAutoUpgrades(req.userId).filter(u =>
+      Number(u.event_id) === Number(eventId) &&
+      Number(u.current_slot_id) === Number(currentSlotId) &&
+      u.status === 'active'
+    );
     if (activeUpgrades.length > 0) {
-      return res.status(400).json({ message: 'An active auto-upgrade monitor already exists for this booking.' });
+      return res.status(400).json({ message: 'An active auto-upgrade monitor already exists for this slot.' });
     }
 
     const id = db.addAutoUpgrade(req.userId, eventId, bookingId, currentSlotId, className, instructorName, studioName, locationName, startAt, preferences, studioId ?? null, groupName ?? null);

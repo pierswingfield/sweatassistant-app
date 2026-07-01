@@ -178,6 +178,19 @@ function handleMockRequest(pathName, method, body) {
   }
 
   if (pathName.startsWith('/bookings')) {
+    if (method === 'POST') {
+      const slots = body?.slots || [];
+      const bookingsObj = {};
+      slots.forEach(slot => {
+        const mockId = 8255400 + Math.floor(Math.random() * 10000);
+        bookingsObj[String(mockId)] = Number(slot);
+      });
+      return createFakeResponse({
+        success: true,
+        bookings: bookingsObj
+      });
+    }
+
     const now = new Date();
     const d1 = new Date(now.getTime() + 2 * 864e5).toISOString();
     const d2 = new Date(now.getTime() + 5 * 864e5).toISOString();
@@ -186,7 +199,7 @@ function handleMockRequest(pathName, method, body) {
         id: 8255401,
         event_id: 1000,
         booked_at: new Date().toISOString(),
-        studio_slot: { label: '23' },
+        studio_slot: { id: 23, label: '23' },
         event: {
           id: 1000, name: 'Ride 45', start_at: d1,
           event_type: { id: 20, name: 'RIDE: Ride 45', group: { id: 1, name: 'Ride' } },
@@ -198,7 +211,7 @@ function handleMockRequest(pathName, method, body) {
         id: 8255402,
         event_id: 1003,
         booked_at: new Date(Date.now() - 120000).toISOString(),
-        studio_slot: { label: '11' },
+        studio_slot: { id: 11, label: '11' },
         event: {
           id: 1003, name: 'Barre 55', start_at: d2,
           event_type: { id: 21, name: 'BARRE: Barre 55', group: { id: 2, name: 'Barre' } },

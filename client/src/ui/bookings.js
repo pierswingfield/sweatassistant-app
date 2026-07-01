@@ -1,7 +1,7 @@
 import { api } from '../api';
 import { showToast, cache, refreshUserData, updateCreditBadge, userSettings } from '../main';
 import { renderStudioFloorPlan } from './spotmap';
-import { icon, disciplineTag, trimLocation, seatNoun, stripClassNamePrefix, trendingUpIcon } from './cards';
+import { icon, disciplineTag, trimLocation, seatNoun, stripClassNamePrefix, trendingUpIcon, pulseIcon } from './cards';
 import { isInGracePeriod, GRACE_PERIOD_MS, startGraceCountdown } from '../lib';
 import { invalidateApiCache } from '../cache';
 
@@ -241,7 +241,7 @@ function buildBookingCard(group, upgrades) {
         iconHtml = '<span style="margin-right:4px;">⚠</span>';
       } else {
         chipClass += ' state-active';
-        iconHtml = trendingUpIcon(12, 'currentColor', 2) + '&nbsp;';
+        iconHtml = pulseIcon(12) + '&nbsp;';
       }
     }
     

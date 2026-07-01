@@ -177,8 +177,8 @@ function sendTemplated(filePath, res, contentType) {
     }
   }
   let content = fileCache[filePath];
-  if (config.appName !== 'Psycle Assistant') {
-    content = content.replaceAll('Psycle Assistant', config.appName);
+  if (config.appName !== 'Sweat Assistant') {
+    content = content.replaceAll('Sweat Assistant', config.appName);
   }
   res.type(contentType).send(content);
 }

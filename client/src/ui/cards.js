@@ -18,6 +18,7 @@ export const SVG_PATHS = {
   heart: '<path d="M8 13.5S2.5 10 2.5 6.2A2.7 2.7 0 0 1 8 5a2.7 2.7 0 0 1 5.5 1.2C13.5 10 8 13.5 8 13.5Z"/>',
   bolt: '<path d="M8.5 1.5 3.5 9h3.5l-1 5.5L13 6.5H9z"/>',
   warning: '<path d="M8 2 14.5 13.5h-13L8 2Z"/><path d="M8 6.5v3M8 11.8h.01"/>',
+  star: '<path d="M8 1.5l2.12 4.3 4.75.69-3.44 3.35.81 4.73L8 12.33l-4.24 2.24.81-4.73L1.13 6.49l4.75-.69L8 1.5z"/>',
   // discipline glyphs
   ride: '<circle cx="4.3" cy="11" r="2.5"/><circle cx="11.7" cy="11" r="2.5"/><path d="M4.3 11 7 5.5h2.5l2.2 5.5M7 5.5 6.2 4H4.5"/>',
   barre: '<path d="M2 8h12M3.5 6v4M12.5 6v4"/>',
@@ -27,7 +28,7 @@ export const SVG_PATHS = {
   yoga: '<circle cx="8" cy="3.7" r="1.8"/><path d="M8 6.5v3M3.5 13c1.2-2.5 7.8-2.5 9 0"/>',
   other: '<circle cx="8" cy="8" r="2.6"/>',
 };
-const FILLED_ICONS = new Set(['play', 'heart', 'bolt']);
+const FILLED_ICONS = new Set(['play', 'heart', 'bolt', 'star']);
 
 export function icon(name, size = 14) {
   const inner = SVG_PATHS[name] || SVG_PATHS.other;
@@ -100,4 +101,11 @@ export function trendingUpIcon(size = 14, color = 'currentColor', strokeWidth = 
 <polyline points="23 6 13.5 15.5 8.5 10.5 1 18"></polyline>
 <polyline points="17 6 23 6 23 12"></polyline>
 </svg>`;
+}
+
+export function pulseIcon(size = 14) {
+  return `<svg class="psycle-pulse-icon" width="${size}" height="${size}" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg" aria-hidden="true" style="display:inline-block;vertical-align:middle;margin-right:4px;">
+    <circle class="radar" cx="12" cy="12" r="2" />
+    <circle class="core" cx="12" cy="12" r="2" />
+  </svg>`;
 }

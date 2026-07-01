@@ -514,13 +514,11 @@ export function updateCreditBadge(availableCredits = null) {
   mainBadge.className = 'psycle-credit-badge';
   mainBadge.style.cssText = `
     cursor: pointer;
-    background: color-mix(in srgb, var(--feat-autoupgrade) 15%, transparent);
-    border: 1px solid color-mix(in srgb, var(--feat-autoupgrade) 30%, transparent);
     border-radius: 8px;
     padding: 6px 12px;
     font-size: 12px;
     font-weight: 600;
-    color: var(--feat-autoupgrade);
+    border: none;
   `;
   mainBadge.innerHTML = `<strong>${totalCredits}</strong> Credit${totalCredits !== 1 ? 's' : ''} available`;
   mainBadge.onclick = () => { if (totalCredits > 0) showCreditDetailsModal(credits); };

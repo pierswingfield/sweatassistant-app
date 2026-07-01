@@ -104,6 +104,25 @@ Auto-Upgrade.
 | `--auto-banner` | `#5a3e63` | `#5a3e63` | Filled banner surface (white text) |
 | `--on-auto` | `#ffffff` | `#ffffff` | Text/icon on the filled `--auto-banner` |
 
+### 3.6b Timetable Redesign & Button Styles
+
+To support the mid-2026 timetable button visual clean-up, the following variables and colors are established. These styles prioritize borderless designs and clear typographic contrasts.
+
+| Token | Dark | Light | Target / Component |
+|---|---|---|---|
+| `--accent-btn-bg` | `#402418` | `var(--accent)` | Background of Book and Quick-Book primary action buttons |
+| `--on-accent-button` | `#e8a287` | `#FEF1E9` | Text/cog on Book and Quick-Book buttons |
+| `--on-auto-pill` | `#c9aed6` | `#E2D1DD` | Text/cog on Scheduled Auto-Book button and status badge |
+| `--auto-not-scheduled` | `#3d2642` | `#D2BDD9` | Background of Auto-Book button when NOT scheduled |
+| `--on-auto-not-scheduled` | `#c9aed6` | `#5A3E63` | Text/cog of Auto-Book button when NOT scheduled |
+| `--waitlist-btn-bg` | `#2e1d1a` | `#825f58` | Background of Join Waitlist action button and Waitlisted status badge |
+| `--on-waitlist-btn` | `#c9a49e` | `#FEF1E9` | Text on Join Waitlist button and Waitlisted status badge |
+| `--buy-credits-bg` | `#301712` | `#5E382B` | Background of Buy Credits primary action button |
+| `--on-buy-credits` | `#e8a287` | `#FEF1E9` | Text on Buy Credits button |
+| `--no-credits-warning-color` | `#E6AA9C` | `#5E382B` | Color of "No eligible credits" warning in status column |
+
+**Rule:** Timetable action buttons and status badges must be borderless (`border: none`). Desktop action groups with a configuration caret (⚙) are separated by a 1px vertical divider line colored dynamically matching `currentColor` at 20% opacity.
+
 **Discipline tags.** Each queued/history class shows a pastel tag coloured by its
 workout discipline, derived from `group_name` (falls back to `class_name`). Tags
 follow the badge tint pattern: text = token, background `14%`, border `24%`.

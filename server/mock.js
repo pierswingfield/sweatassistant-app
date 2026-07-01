@@ -252,6 +252,34 @@ function handleMockRequest(pathName, method, body) {
       const eventId = Number(body?.event_id || 1000);
       const bookingsObj = {};
       
+      // Calculate dynamic event details matching the mock timetable generation
+      let eventDetails;
+      if (eventId >= 1000 && eventId < 2000) {
+        const offsetDays = Math.floor((eventId - 1000) / 2);
+        const isEvening = (eventId - 1000) % 2 === 1;
+        const date = new Date(mockNow.getTime() + offsetDays * 24 * 60 * 60 * 1000);
+        const yyyymmdd = date.toISOString().split('T')[0];
+        
+        eventDetails = {
+          id: eventId,
+          name: isEvening ? "Barre 55" : "Ride 45",
+          start_at: isEvening ? `${yyyymmdd}T18:30:00.000Z` : `${yyyymmdd}T08:30:00.000Z`,
+          event_type: isEvening ? eventTypes[1] : eventTypes[0],
+          instructor: instructors[(offsetDays % 4)],
+          studio: isEvening ? studios[1] : studios[0]
+        };
+      } else {
+        const isEven = eventId % 2 === 0;
+        eventDetails = {
+          id: eventId,
+          name: isEven ? "Ride 45" : "Barre 55",
+          start_at: new Date(Date.now() + 3 * 864e5).toISOString(),
+          event_type: isEven ? eventTypes[0] : eventTypes[1],
+          instructor: instructors[0],
+          studio: isEven ? studios[0] : studios[1]
+        };
+      }
+
       slots.forEach(slot => {
         const mockId = 8255400 + Math.floor(Math.random() * 10000);
         bookingsObj[String(mockId)] = Number(slot);
@@ -262,14 +290,7 @@ function handleMockRequest(pathName, method, body) {
           event_id: eventId,
           booked_at: new Date().toISOString(),
           studio_slot: { id: Number(slot), label: String(slot) },
-          event: {
-            id: eventId,
-            name: eventId % 2 === 0 ? "Ride 45" : "Barre 55",
-            start_at: new Date(Date.now() + 3 * 864e5).toISOString(), // 3 days in future
-            event_type: eventId % 2 === 0 ? eventTypes[0] : eventTypes[1],
-            instructor: instructors[0],
-            studio: eventId % 2 === 0 ? studios[0] : studios[1]
-          }
+          event: eventDetails
         });
       });
       

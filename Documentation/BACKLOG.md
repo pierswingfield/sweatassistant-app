@@ -6,25 +6,57 @@ Finished work is archived in [Backlog/COMPLETED.md](file:///Users/pierswingfield
 
 ---
 
-## 1. Deferred Immediate Fixes
+## 1. Immediate Fixes & Backlog (2026-09-02 Feedback)
 
-### Gym setup step in signup / onboarding (Multi-Gym Sequential Linking)
+### Auto-Upgrade for MarianaTek & Unmetered Gyms (Bug B4)
 * **Status**: ❌ Open
-* **Why**: signup now creates a Sweat Assistant account with no gym attached (Decision D4), so a new user lands in an app that can't show them anything. There is a stopgap "Connect a gym" screen, but it sits outside the 6-step first-run onboarding flow in [onboarding.js](file:///Users/pierswingfield/Desktop/AI%20Projects/psycle%20chrome/App/client/src/ui/onboarding.js) rather than being part of it.
-* **What**: add a **gym setup step** to onboarding — pick a gym from the enabled catalogue, sign in with that gym's credentials, confirm it linked, and **allow linking multiple gyms in a row** (with an "Add another gym" option before continuing to the app) rather than forcing the user into Settings later. Enforce **maximum of one per-gym account per Sweat Assistant account**. Positioned after account creation and before notifications/calendar/spot-maps. Existing onboarding is `intro → install → login → notifs → calendar → spot maps`; the new shape is `intro → install → account → **connect gym(s)** → notifs → calendar → spot maps`.
-* **Notes**: the onboarding flow is resumable via `psycleOnboardingStep` (iOS relaunches after Add to Home Screen), so the new step needs to survive that. Should also handle "linked a gym that then failed" and offer to retry rather than dead-ending.
+* **Why**: Auto-upgrade did not trigger for Saturday 5 Sep 08:30 JAB class despite preferred spots being open.
+* **Root Causes**:
+  1. `poller.js` called raw `fetchPublicFromGym(userId, gymId, '/events/' + eventId)` which 404s on MarianaTek (`/classes/:id`). Must use adapter `provider.fetchEventDetails(eventId, session)`.
+  2. `poller.js` checked `profile.available_credits` and paused upgrades with `paused_no_credits` on membership/unmetered gyms where credits are null or unmetered (and atomic swaps don't consume credits anyway).
+  3. `poller.js` cast spot IDs with `Number(slotId)`, turning alphanumeric MarianaTek spot IDs into `NaN`.
+* **Fix**: Update `poller.js` to use `provider.fetchEventDetails()`, check `gym.capabilities.metered` / `atomicSwap` before credit assertions, and preserve string spot IDs throughout candidate checks.
 
-### Active Bookings & Auto-Upgrade for MarianaTek (Bug)
+### Occupancy Tooltip & Minimap for Recovery / FCFS Classes (Bug B5)
 * **Status**: ❌ Open
-* **Why**: Live test (2026-09-02) revealed that successfully booked JAB classes do not appear in **My Bookings > Active Bookings**, and spot-upgrade chips cannot attach.
-* **Root Cause**: `bookings.js` line 58 (`toLegacy`) and line 138 check raw CodexFit `event.start_at`, `event.event_type.name`, etc. MarianaTek reservations use `start_datetime`, `class_type`, etc., so `if (!event || !event.start_at) return;` silently discards all MarianaTek bookings.
-* **Fix**: Migrate `bookings.js` to consume `NormalizedEvent` fields (`startAt`, `name`, `discipline`, `instructors`, `locationName`, `studioName`) directly, matching the WP-D15 timetable migration.
+* **Why**: Hovering status on recovery room or FCFS classes showed `Total: N/A Open: 0 Booked: 0` with an empty floor map box.
+* **Root Causes**: `tooltips.js` checked `payload.slots.some(s => typeof s === 'object')`, which is `false` for FCFS classes where `slots: []`. It fell into legacy parsing where `event.capacity` was undefined.
+* **Fix**: In `tooltips.js renderMinimap`, read `payload.event.capacity` and `payload.event.availableCount`. For classes where `hasLayout === false` (recovery, boxing, FCFS), render a clean occupancy card without an empty floor plan container or legend.
 
-### Timetable Pagination for MarianaTek (Bug)
+### Recovery Classes Timetable Placeholder Labels (Bug B6)
 * **Status**: ❌ Open
-* **Why**: Only a few days of classes are visible in the timetable for JAB.
-* **Root Cause**: `providers/marianatek.js fetchTimetable()` requests single page (`page_size=100`) without following `links.next` pagination. Across multiple studios/days, 100 classes only covers ~3–5 days.
-* **Fix**: Follow MarianaTek `data.links.next` / pagination loop in `fetchTimetable()` until the requested `endDate` range is satisfied.
+* **Why**: Classes without an assigned instructor or distinct studio (e.g. self-guided recovery room) display literal `"Instructor"` and `"Studio"` labels.
+* **Fix**: Update `timetable.js` desktop table rows and mobile cards to render nothing / hide instructor and studio pills when those fields are empty.
+
+### Instructor Photos & Rich Bios Mapping (Bug B7)
+* **Status**: ❌ Open
+* **Why**: Instructor hover tooltip did not show photos, instagram links, or bios for MarianaTek instructors.
+* **Root Causes**: `tooltips.js` checked legacy fields (`instructor.photo`, `instructor.metafields.description`, `instructor.metafields.instagram_handle`). `NormalizedInstructor` uses `imageUrl`, `bio`, `instagramUrl`, `instagramHandle`.
+* **Fix**: Update `tooltips.js` to consume normalized fields (`imageUrl`, `bio`, `instagramUrl`, `instagramHandle`), and ensure `marianatek.js` maps `photo_urls.large_url || photo_urls.thumbnail_url` to `imageUrl`.
+
+### Onboarding Trigger on Upgrade & Gym Name Display (Bug B8)
+* **Status**: ❌ Open
+* **Why**: Bumping `ONBOARDING_VERSION` re-triggered onboarding for already configured accounts, and gym names rendered as `"undefined"`.
+* **Root Causes**:
+  1. `shouldShowOnboarding()` only checked `localStorage.psycleOnboardingComplete !== ONBOARDING_VERSION`. If a user is already authenticated with linked gyms, it should not hijack their session.
+  2. `stepGyms` had a field mismatch between `{ id, name }` (from `allGyms`) and `{ gymId, name }` (from `myGyms`).
+* **Fix**: Guard `shouldShowOnboarding()` against logged-in users with linked gyms, and fix gym name key resolution in `stepGyms`.
+
+### Theme & Palette Overhaul for JAB Boxing / Navy (UX1)
+* **Status**: ❌ Open
+* **Why**: The `#18214D` navy accent lacks contrast and visual polish against dark mode surfaces and button tokens.
+* **Fix**: Refine theme tokens in `gyms.config.js` and `styles.css` for JAB Boxing to provide crisp contrast, modern styling, and parity with Sweat Assistant design standards.
+
+### User-Agnostic Timetable & Real-Time Occupancy Caching (Architecture A1)
+* **Status**: ❌ Open
+* **Summary**:
+  - **Schedule Layer** (catalogue, instructors, timetable dates): Globally cached per gym on server with ~5–15m TTL and opportunistic write-through when any user queries the timetable.
+  - **Occupancy / Spot Layer**: Short TTL (~15–30s) server cache shared across users viewing the same class; client pulls fresh on booking/modal open.
+  - **Poller / Scheduler Integration**: Background cron periodically warms enabled gym timetables.
+
+---
+
+## 2. Structural & Multi-Gym Parity (Workstreams)
 
 ### Unified Parallel Multi-Gym Views (Architecture / Workstream P1)
 * **Status**: ❌ Open (refined 2026-09-02)

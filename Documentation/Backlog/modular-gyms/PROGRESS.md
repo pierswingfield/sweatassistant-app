@@ -111,6 +111,31 @@
 
 ## Handoff Log
 
+### 2026-09-02 (Evening) · piers & antigravity · User Testing Feedback Catalogued & Root Causes Analyzed
+- **Status:** Shipped B1 (bookings normalization), B2 (timetable pagination), B3 (sequential multi-gym onboarding). User tested on live staging and catalogued 7 items.
+- **Feedback & Root Causes:**
+  1. **Auto-Upgrade not executing for JAB class (Sat 5 Sep 08:30)**:
+     - *Root cause 1*: `poller.js` called raw `/events/:id` (404s on MarianaTek `/classes/:id`). Must call `provider.fetchEventDetails()`.
+     - *Root cause 2*: `poller.js` paused upgrades when `profile.available_credits` was empty/missing, which happens on all unmetered gyms.
+     - *Root cause 3*: `poller.js` coerced spot IDs via `Number(slotId)`, converting string IDs to `NaN`.
+  2. **Recovery / FCFS classes occupancy tooltip (`Total: N/A Open: 0 Booked: 0` + empty map box)**:
+     - *Root cause*: `tooltips.js` checked `payload.slots.some(s => typeof s === 'object')`, which is `false` for FCFS classes (`slots: []`), causing it to fall through to legacy parsing without reading `event.capacity` or `event.availableCount`.
+  3. **Recovery classes showing "Instructor" and "Studio" placeholders in timetable**:
+     - *Root cause*: `timetable.js` fallback rendered literal string `'Instructor'` and `'Studio'` when unassigned.
+  4. **Instructor photos & bios not showing in tooltip**:
+     - *Root cause*: `tooltips.js` looked for legacy `instructor.photo` / `instructor.metafields` instead of normalized `imageUrl`, `bio`, `instagramUrl`.
+  5. **Onboarding showing on upgrade & "undefined" gym name**:
+     - *Root cause 1*: `ONBOARDING_VERSION` bump triggered `shouldShowOnboarding()` unconditionally without checking if the user already had an active, linked session.
+     - *Root cause 2*: `stepGyms` read `g.name || g.gymId` when object structures varied between `allGyms` and `myGyms`.
+  6. **UX / Navy color contrast**:
+     - *Issue*: `#18214D` primary accent lacks contrast against dark mode surfaces and button backgrounds.
+  7. **User-Agnostic Timetable & Real-Time Occupancy Caching (Architecture A1)**:
+     - *Agreed architecture*: Server-side multi-tier cache (static timetable/schedule ~5–15m TTL with opportunistic write-through; dynamic occupancy/spot availability ~15–30s TTL; live bypass on booking modal).
+- **Recommended Order of Execution**:
+  1. **Phase A (Core Functional & Polish)**: Fix B4 (Auto-Upgrade in `poller.js`), B5 (Recovery tooltip & minimap in `tooltips.js`), B6 (Timetable placeholder labels), B7 (Instructor photos/bios in `tooltips.js`), B8 (Onboarding guard & name display).
+  2. **Phase B (UX / Theming)**: UX1 (Navy & theme token overhaul for JAB Boxing).
+  3. **Phase C (Architecture & Multi-Gym)**: A1 (Server-side user-agnostic timetable & real-time occupancy caching) followed by P1 (Unified Parallel Multi-Gym Views).
+
 ### 2026-09-02 · piers & claude · Workstream H proven live! JAB booking succeeded, spot maps working; 3 issues catalogued
 - **Status:** Major milestone achieved — **Live MarianaTek booking write path confirmed working end-to-end against production JAB account.**
 - **What succeeded live:**

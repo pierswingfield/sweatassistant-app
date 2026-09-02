@@ -10,7 +10,7 @@
  * Usage:
  *   1. Set `enabled: true` on jab-boxing in gyms.config.js  (the rollout gate)
  *   2. npm run dev
- *   3. node server/dev-setup-jab.js            # or: --gym psycle-london
+ *   3. node server/dev-setup-jab.js            # or: --gym <gymId>
  *   4. Paste the printed localStorage lines into the browser console, reload
  *   5. REVERT the gate when done
  *
@@ -20,12 +20,24 @@
 const BASE = process.env.SA_BASE || 'http://localhost:3000';
 const SA_EMAIL = 'dev@psycle.com';
 const SA_PASSWORD = 'devpassword';
-const JAB_EMAIL = 'dev@jabboxing.mock';
 
-const argGym = (() => {
+// Which gym to set up. No gym id is hardcoded here — test-no-gym-privilege.js
+// scans for that and is right to: a literal would need editing the day a third
+// gym arrives, which is the property this phase exists to protect. With no
+// --gym, target the first enabled gym that ISN'T the default, which is exactly
+// "the one we are trying out".
+const argGymArg = (() => {
   const i = process.argv.indexOf('--gym');
-  return i > -1 ? process.argv[i + 1] : 'jab-boxing';
+  return i > -1 ? process.argv[i + 1] : null;
 })();
+
+// Mock gym logins, keyed by PLATFORM rather than by gym: the dev mocks are per
+// platform (mock.js for CodexFit, mock-marianatek.js for MarianaTek), so this
+// keeps working for a second gym on either one.
+const MOCK_LOGIN_BY_PROVIDER = {
+  codexfit: SA_EMAIL,
+  marianatek: 'dev@jabboxing.mock',
+};
 
 async function json(res) {
   const text = await res.text();
@@ -55,7 +67,27 @@ function die(msg, detail) {
   // 2. Is the gym even enabled? This is the gate, and forgetting it is the most
   //    common reason the next step 403s.
   const cat = await json(await fetch(`${BASE}/api/gyms`));
-  const target = (cat.gyms || []).find((g) => g.id === argGym);
+  const cfg = require('./gyms.config');
+  const gyms = cat.gyms || [];
+  // With no --gym, target the first enabled gym that ISN'T the default — that is
+  // "the one we are trying out". Do NOT silently fall back to the default when
+  // none is enabled: the whole point of running this is to exercise the other
+  // gym, and quietly setting up the default instead looks like success while
+  // testing nothing. Say the gate is shut.
+  const candidate = gyms.find((g) => g.enabled && g.id !== cfg.DEFAULT_GYM_ID);
+  if (!argGymArg && !candidate) {
+    const others = gyms.filter((g) => g.id !== cfg.DEFAULT_GYM_ID);
+    die(others.length
+      ? `No non-default gym is enabled — the rollout gate is shut.`
+      : `Only the default gym (${cfg.DEFAULT_GYM_ID}) is configured; nothing to try out.`,
+    others.length
+      ? `Set enabled: true on one of: ${others.map((g) => g.id).join(', ')} in server/gyms.config.js, `
+        + `restart the server, and re-run. REVERT IT AFTERWARDS. `
+        + `(Pass --gym ${cfg.DEFAULT_GYM_ID} if you really did want the default.)`
+      : undefined);
+  }
+  const argGym = argGymArg || candidate.id;
+  const target = gyms.find((g) => g.id === argGym);
   if (!target) {
     die(`Gym "${argGym}" is not in the catalogue.`,
       `Configured: ${(cat.gyms || []).map((g) => `${g.id}(${g.enabled ? 'on' : 'OFF'})`).join(', ')}`);
@@ -83,10 +115,13 @@ function die(msg, detail) {
 
   // 4. Link the gym, unless already linked. Linking is idempotent — it doubles
   //    as "re-authenticate a stale credential" — so this is safe to re-run.
-  if (argGym !== 'psycle-london') {
+  if (argGym !== cfg.DEFAULT_GYM_ID) {
+    const gymEmail = MOCK_LOGIN_BY_PROVIDER[target.provider];
+    if (!gymEmail) die(`No dev mock login known for provider "${target.provider}".`,
+      'Add it to MOCK_LOGIN_BY_PROVIDER, or pass an account that exists in that mock.');
     const link = await json(await fetch(`${BASE}/api/my-gyms/link`, {
       method: 'POST', headers: H,
-      body: JSON.stringify({ gymId: argGym, email: JAB_EMAIL, password: 'x' }),
+      body: JSON.stringify({ gymId: argGym, email: gymEmail, password: 'x' }),
     }));
     if (!link.gym) die(`Linking ${argGym} failed.`, link);
     console.log(`✓ linked ${argGym} as ${link.gym.gym_email}`);
@@ -118,6 +153,6 @@ function die(msg, detail) {
   console.log(`localStorage.setItem('psycleUserId', ${JSON.stringify(String(userId))});`);
   console.log(`localStorage.setItem('sweatActiveGymId', ${JSON.stringify(argGym)});`);
   console.log(`location.reload();`);
-  console.log(`\nSwitch back with:  node server/dev-setup-jab.js --gym psycle-london`);
+  console.log(`\nSwitch back with:  node server/dev-setup-jab.js --gym ${cfg.DEFAULT_GYM_ID}`);
   console.log(`Remember to revert enabled:false on jab-boxing when you finish.\n`);
 })().catch((err) => die('Unexpected error.', err.stack || err.message));

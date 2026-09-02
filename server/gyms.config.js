@@ -99,7 +99,10 @@ const GYMS = {
     // MarianaTek returns offset-bearing ISO timestamps, so this is used for
     // display grouping rather than for parsing.
     timezone: 'Europe/London',
-    enabled: false,            // ships dark until Phase 4/7 (WP-T4 flips this)
+    // Keep JAB dark by default. Staging can opt in with JAB_BOXING_ENABLED=true
+    // for live account verification without making a future production deploy
+    // expose an unfinished provider integration by accident.
+    enabled: process.env.JAB_BOXING_ENABLED === 'true',
     tenant: 'jabboxingclub',
     apiBaseUrl: 'https://jabboxingclub.marianatek.com/api/customer/v1',
     oauthBaseUrl: 'https://jabboxingclub.marianatek.com/o',

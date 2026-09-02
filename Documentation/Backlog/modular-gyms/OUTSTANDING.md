@@ -146,8 +146,18 @@ This is the largest remaining piece and it changes assumptions on both sides:
 - Caches are gym-scoped by key (WP-G) — a merged view reads several and must not re-introduce a
   single global key to hold the merged result.
 
-**Decide first:** is the merged view the *default* or opt-in? Whether a single-gym user sees any
-change at all depends on that, and so does how much of the above is load-bearing.
+**Decided (D8, 2026-09-02): merged is the DEFAULT — and a single-gym account must not pay for
+it.** Some users will only ever link one gym, so **n=1 must look and behave exactly as it does
+today**: no gym badges, no gym filter, no extra fan-out latency, same requests. So gate the merge
+on *how many gyms the account has linked*, not on a user preference — the merged affordances
+appear from the second link onward.
+
+Two consequences worth stating plainly:
+- Everything above still has to be built (per-row theming, per-row gating, id disambiguation) —
+  n=1 degrading to today's behaviour is a **rendering** decision, not a way to avoid the work.
+- It is also the cheapest protection for the live product: if n=1 is genuinely unchanged, the
+  Round 4 Psycle regression is mostly insulated from this entire workstream. Assert that with a
+  test, don't assume it.
 
 ### P2 — Gym-neutral copy & design audit *(~1 day)*
 
@@ -392,6 +402,10 @@ The only way to catch the traps above. `npm test` cannot.
 npm run dev
 # wait for /api/health to answer before loading the page
 ```
+
+**Fastest path — `node server/dev-setup-jab.js`** does steps 1, 3 and 4 for you (polls
+`/api/health` first, refuses with a clear message if the gate is still closed, prints the
+`localStorage` lines to paste). `--gym psycle-london` switches back. Manual equivalent:
 
 1. Log in as `dev@psycle.com` (any password).
 2. **Temporarily** set `enabled: true` on `jab-boxing` in `gyms.config.js`, restart the server.

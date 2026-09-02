@@ -9,7 +9,7 @@ services:
     ports:
       - "3005:3000"
     volumes:
-      - psycle-data:/data
+      - ./data:/data
     env_file:
       - .env
     restart: unless-stopped

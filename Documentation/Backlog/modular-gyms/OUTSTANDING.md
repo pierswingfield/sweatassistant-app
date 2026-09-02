@@ -68,24 +68,38 @@ build a merged view at all — the answer is yes.
 
 | | Workstream | Blocks the flip? | Rough size |
 |---|---|---|---|
-| **H** | No live MarianaTek booking has ever succeeded | **Yes** | blocked on a funded account |
+| **H** | Live MarianaTek booking write path | ✅ **Done** | Verified live on production JAB account (2026-09-02) |
+| **B1** | Bug: Booked classes not shown in My Bookings | Yes | ~2 hours (`bookings.js` raw field migration) |
+| **B2** | Bug: Timetable truncates after ~100 classes | Yes | ~1 hour (`marianatek.js` pagination loop) |
+| **B3** | Onboarding: Sequential multi-gym link flow (max 1/gym) | Yes | ~half a day (`onboarding.js`) |
 | **J** | No eligibility concept — "can this account book here?" | Yes | ~half a day |
 | **P1** | Parallel multi-gym views + timetable gym filter | Yes (new scope) | 2–4 days |
 | **P2** | Gym-neutral copy & design audit | Yes (new scope) | ~1 day |
 | **P3** | Remaining feature parity gaps (spot maps, upgrade cutoff, proxy removal) | Partly | 2–3 days |
 
-### H — No live MarianaTek booking has ever succeeded *(blocked on access)*
+### H — Live MarianaTek booking *(✅ Done 2026-09-02)*
 
-Every write path is **mock-verified only** (`dev@jabboxing.mock` → `mock-marianatek.js`). Error
-paths were exercised against the live JAB API; success paths are a well-modelled assumption,
-because the test account has **no credits and no membership**.
+**Passed live in production.** A real JAB Boxing class was successfully booked via `POST /api/book` (`POST /me/reservations`). Floor plan / spot maps and spot preferences for JAB were also verified working live.
 
-**This is the one item code cannot close.** It needs an account that can actually book, runs in
-parallel with everything else, and gates the flip regardless of how finished the code is.
+Remaining write checks to complete: cancel within/outside penalty window, waitlist join/auto-fill, and native spot swap.
 
-What to capture when an account exists: a successful `POST /me/reservations` (book), a
-`swap_spots` (the poller's atomic-swap path, never live-tested), a `cancel_penalty` response
-where `is_penalty_cancel: true`, and a waitlist join that later auto-fills.
+### B1 — Bug: Active bookings not shown in My Bookings *(~2 hours)*
+
+**Found 2026-09-02.** Booked JAB classes do not render under "My Bookings > Active Bookings", and spot-upgrade chips cannot attach.
+- **Root cause**: `bookings.js:58` `toLegacy()` unwraps to `nb.event.raw`, and `bookings.js:138` checks `event.start_at` (CodexFit field name) and raw fields like `event.event_type.name`. MarianaTek objects use `start_datetime`, `class_type`, etc., so `if (!event || !event.start_at) return;` silently discards every JAB booking.
+- **Fix**: Migrate `bookings.js` to consume `NormalizedEvent` fields (`event.startAt`, `event.name`, `event.discipline`, `event.instructors`, `event.locationName`, `event.studioName`) directly, mirroring WP-D15.
+
+### B2 — Bug: Only a few days of classes visible in Timetable *(~1 hour)*
+
+**Found 2026-09-02.** Timetable only renders ~3–5 days of classes.
+- **Root cause**: `providers/marianatek.js fetchTimetable()` requests a single page (`page_size=100`) without following pagination. Across multiple studios/days, 100 classes covers only a few days.
+- **Fix**: Loop over MarianaTek's pagination (`data.links.next` or page counter) in `fetchTimetable()` until the requested date window is retrieved.
+
+### B3 — Onboarding: Sequential multi-gym linking UX *(~half a day)*
+
+**Found 2026-09-02.** Onboarding currently directs user straight to timetable after connecting one gym, requiring Settings to add a second gym.
+- **Requirement**: Allow connecting multiple gyms in a row during first-run onboarding (prompt: "Add another gym" or "Continue to app").
+- **Constraint**: Enforce a maximum of one per-gym account per Sweat Assistant account.
 
 ### J — There is no eligibility concept *(~half a day)*
 
@@ -137,6 +151,7 @@ This is the largest remaining piece and it changes assumptions on both sides:
   (badge or accent). Saved filters are already gym-keyed — a **merged** view needs a filter model
   that is not scoped to one gym, so `psycleDefaultFilters:<gymId>` needs rethinking here.
 - Bookings / Auto-Book / Auto-Upgrade: merged lists, grouped or badged by gym.
+- **Buy Credits Tab**: permanently visible when any linked gym supports credit purchases. Inside the tab, a gym selector / submenu allows picking which gym to buy for, filtering to only display linked gyms where `creditPurchase: true` (e.g. Psycle London present, JAB Boxing omitted).
 - **Theming becomes per-row, not per-document.** `applyGymTheme()` currently stamps `data-gym` on
   `<html>` and the palette follows. With two gyms on screen there is no single active accent —
   needs a per-card scope, and a decision on what the chrome uses.
@@ -228,7 +243,7 @@ running app. **Items marked 🔑 need the funded JAB account from H** and cannot
 | 3 | Navy theme applies; console clean on every tab | ✅ done |
 | 4 | Auto-Book shows a **per-class** countdown, never a Monday one | ✅ done |
 | 5 | Gym switch serves the right gym's data with no manual cache clearing | ✅ done |
-| 6 | Floor plan / spot map opens for a JAB studio and saves a preference | ⬜ |
+| 6 | Floor plan / spot map opens for a JAB studio and saves a preference | ✅ done |
 | 7 | Onboarding flow, start to finish, as a **new** JAB user | ⬜ |
 | 8 | Settings: all four subnav sections, Manage Maps, notification prefs, calendar card | ⬜ |
 | 9 | Calendar feed: enable, open the `.ics`, confirm JAB classes and correct times | ⬜ |
@@ -239,15 +254,15 @@ running app. **Items marked 🔑 need the funded JAB account from H** and cannot
 
 ### Round 2 — live JAB booking 🔑 *(the H gate)*
 
-| | Check |
-|---|---|
-| 14 | Book a real JAB class end-to-end; confirm it appears in JAB's own app |
-| 15 | Cancel it; confirm the membership allowance is restored |
-| 16 | Cancel **inside** the penalty window; capture the `cancel_penalty` response |
-| 17 | Join a waitlist; confirm MT's native auto-fill promotes it without our help |
-| 18 | Auto-upgrade via native `swap_spots` — confirm no cancel-then-rebook occurs |
-| 19 | Queue an auto-book for a not-yet-released JAB class and let it fire unattended |
-| 20 | Confirm the Psycle Monday-noon dispatch still works in the same week |
+| | Check | Status |
+|---|---|---|
+| 14 | Book a real JAB class end-to-end; confirm it appears in JAB's own app | ✅ **Passed (2026-09-02)** |
+| 15 | Cancel it; confirm the membership allowance is restored | ⬜ |
+| 16 | Cancel **inside** the penalty window; capture the `cancel_penalty` response | ⬜ |
+| 17 | Join a waitlist; confirm MT's native auto-fill promotes it without our help | ⬜ |
+| 18 | Auto-upgrade via native `swap_spots` — confirm no cancel-then-rebook occurs | ⬜ (blocked on B1) |
+| 19 | Queue an auto-book for a not-yet-released JAB class and let it fire unattended | ⬜ |
+| 20 | Confirm the Psycle Monday-noon dispatch still works in the same week | ⬜ |
 
 ### Round 3 — as a multi-gym user (needs P1)
 

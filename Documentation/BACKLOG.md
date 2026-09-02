@@ -8,11 +8,31 @@ Finished work is archived in [Backlog/COMPLETED.md](file:///Users/pierswingfield
 
 ## 1. Deferred Immediate Fixes
 
-### Gym setup step in signup / onboarding
+### Gym setup step in signup / onboarding (Multi-Gym Sequential Linking)
 * **Status**: ❌ Open
 * **Why**: signup now creates a Sweat Assistant account with no gym attached (Decision D4), so a new user lands in an app that can't show them anything. There is a stopgap "Connect a gym" screen, but it sits outside the 6-step first-run onboarding flow in [onboarding.js](file:///Users/pierswingfield/Desktop/AI%20Projects/psycle%20chrome/App/client/src/ui/onboarding.js) rather than being part of it.
-* **What**: add a **gym setup step** to onboarding — pick a gym from the enabled catalogue, sign in with that gym's credentials, confirm it linked — positioned after account creation and before notifications/calendar/spot-maps (those are meaningless without a gym). Existing onboarding is `intro → install → login → notifs → calendar → spot maps`; the new shape is roughly `intro → install → account → **gym** → notifs → calendar → spot maps`.
-* **Notes**: the onboarding flow is resumable via `psycleOnboardingStep` (iOS relaunches after Add to Home Screen), so the new step needs to survive that. Should also handle "linked a gym that then failed" and offer to retry rather than dead-ending. Reuse `api.linkGym()` and the markup already written for the interim Connect-a-gym screen in `main.js` (`showNoGymScreen`) rather than writing a third variant.
+* **What**: add a **gym setup step** to onboarding — pick a gym from the enabled catalogue, sign in with that gym's credentials, confirm it linked, and **allow linking multiple gyms in a row** (with an "Add another gym" option before continuing to the app) rather than forcing the user into Settings later. Enforce **maximum of one per-gym account per Sweat Assistant account**. Positioned after account creation and before notifications/calendar/spot-maps. Existing onboarding is `intro → install → login → notifs → calendar → spot maps`; the new shape is `intro → install → account → **connect gym(s)** → notifs → calendar → spot maps`.
+* **Notes**: the onboarding flow is resumable via `psycleOnboardingStep` (iOS relaunches after Add to Home Screen), so the new step needs to survive that. Should also handle "linked a gym that then failed" and offer to retry rather than dead-ending.
+
+### Active Bookings & Auto-Upgrade for MarianaTek (Bug)
+* **Status**: ❌ Open
+* **Why**: Live test (2026-09-02) revealed that successfully booked JAB classes do not appear in **My Bookings > Active Bookings**, and spot-upgrade chips cannot attach.
+* **Root Cause**: `bookings.js` line 58 (`toLegacy`) and line 138 check raw CodexFit `event.start_at`, `event.event_type.name`, etc. MarianaTek reservations use `start_datetime`, `class_type`, etc., so `if (!event || !event.start_at) return;` silently discards all MarianaTek bookings.
+* **Fix**: Migrate `bookings.js` to consume `NormalizedEvent` fields (`startAt`, `name`, `discipline`, `instructors`, `locationName`, `studioName`) directly, matching the WP-D15 timetable migration.
+
+### Timetable Pagination for MarianaTek (Bug)
+* **Status**: ❌ Open
+* **Why**: Only a few days of classes are visible in the timetable for JAB.
+* **Root Cause**: `providers/marianatek.js fetchTimetable()` requests single page (`page_size=100`) without following `links.next` pagination. Across multiple studios/days, 100 classes only covers ~3–5 days.
+* **Fix**: Follow MarianaTek `data.links.next` / pagination loop in `fetchTimetable()` until the requested `endDate` range is satisfied.
+
+### Unified Parallel Multi-Gym Views (Architecture / Workstream P1)
+* **Status**: ❌ Open (refined 2026-09-02)
+* **Summary**: Eliminate active-gym switching as the primary UX. Instead, **show all linked gyms together**:
+  - **Timetable**: Aggregated parallel class list across all linked gyms, with a gym filter alongside location/instructor/type filters.
+  - **Auto-Book Queue**: Combined queue across all linked gyms.
+  - **My Bookings**: Combined active bookings & waitlists across all linked gyms.
+  - **Buy Credits Tab**: Permanently visible when multiple gyms are linked, with a submenu/dropdown to select which gym to buy credits for (only displaying gyms where `creditPurchase: true`, e.g. Psycle London enabled, JAB Boxing hidden).
 
 ### Account recovery — self-service mechanism (admin reset is the interim)
 * **Status**: 🟡 Admin reset built 2026-08-31. **No self-service reset** — mechanism still to be chosen.

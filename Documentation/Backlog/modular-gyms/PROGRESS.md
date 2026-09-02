@@ -111,6 +111,28 @@
 
 ## Handoff Log
 
+### 2026-09-02 · piers & claude · Workstream H proven live! JAB booking succeeded, spot maps working; 3 issues catalogued
+- **Status:** Major milestone achieved — **Live MarianaTek booking write path confirmed working end-to-end against production JAB account.**
+- **What succeeded live:**
+  1. **Live Booking (Workstream H)**: Booked a real JAB class end-to-end via `POST /api/book` (`POST /me/reservations`). The reservation registered on MarianaTek.
+  2. **Spot Maps & Occupancy**: Floor plans and occupancy maps render correctly for JAB classrooms.
+  3. **Spot Preferences Saved**: Saving studio spot map preferences for JAB works.
+  4. **Capability Gating**: Buy credits tab and credit badges are properly hidden for JAB.
+- **Issues identified & root causes:**
+  1. **Active Bookings not showing in My Bookings**: Booked classes don't render under "Active Bookings" and auto-upgrade chips cannot attach.
+     - *Root cause*: `bookings.js:58` `toLegacy` unwraps to `nb.event.raw` and `bookings.js:138` checks `event.start_at` (CodexFit field name) and `event.event_type.name`. MarianaTek objects use `start_datetime`, `class_type`, etc., so `if (!event || !event.start_at) return;` silently discards all MarianaTek bookings.
+     - *Fix*: Migrate `bookings.js` to consume `NormalizedEvent` fields (`startAt`, `name`, `discipline`, `instructors`, `locationName`, `studioName`) directly, matching WP-D15.
+  2. **Timetable only displays ~3–5 days**:
+     - *Root cause*: `providers/marianatek.js fetchTimetable()` requests single page (`page_size=100`) without following `links.next` pagination. Across multiple studios/days, 100 classes only covers a few days.
+     - *Fix*: Follow MarianaTek `data.links.next` / pagination loop in `fetchTimetable()` until the requested `endDate` range is satisfied.
+  3. **Sequential Onboarding Multi-Gym Linking**:
+     - *Requirement*: Allow user to link multiple gyms in a row during onboarding (prompt: "Add another gym" or "Continue to app") instead of linking one and being sent directly to the timetable.
+     - *Constraint*: Enforce maximum of one per-gym account per Sweat Assistant account.
+  4. **Unified / Aggregated Multi-Gym Views (P1 refined)**:
+     - End state: Instead of switching between gyms in Settings, show all linked gyms together in timetable, autobook queue, and My Bookings.
+     - Buy Credits tab permanently visible when multiple gyms are linked, with a sub-menu / selector for purchase-enabled gyms only (`creditPurchase: true`).
+- **Untested live yet**: Waitlist join + native auto-fill promotion, and spot swap.
+
 ### 2026-09-02 · claude · JAB browser smoke test — 3 bugs found and fixed, none of which any suite could catch
 - **Status:** Done. Smoke-tested as a real JAB user end-to-end. **JAB gate reverted to `enabled: false`** — `gyms.config.js` verified byte-identical to its pre-session state.
 - **What passed straight away:** capability gating is solid — navy theme, no Buy Credits tab, no credit badge, no Bookmarked filter, no bookmark hearts, and the MarianaTek timetable rendered (TRAIN / RECOVERY / BOXING, George Davies, SW1, occupancy chips). `gym_email` on the link is `dev@jabboxing.mock` while `users.email` stays `dev@psycle.com` (D5 working). Zero console errors on every tab. **Layer I confirmed client-side too:** the Auto-Book banner showed `BOOKING OPENS 2d 19h · NEXT: RECOVERY (MEMBERS)` for a per-class release of Sat 09:47, and "Nothing queued" with an empty queue — never a Monday countdown.

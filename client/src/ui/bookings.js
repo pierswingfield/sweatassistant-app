@@ -55,15 +55,14 @@ export async function renderBookings() {
     // (`{...raw booking row, event: <raw resolved event>}`) so every existing
     // field read below (many layers deep in renderBookingsCards/
     // renderWaitlistsCards) keeps working unmodified.
-    const toLegacy = (nb) => ({ ...nb.raw, event: nb.event ? nb.event.raw : undefined });
     const [normalizedBookings, normalizedWaitlists, upgradesRes] = await Promise.all([
       api.getBookings(),
       api.getWaitlists(),
       api.getAutoUpgrades()
     ]);
 
-    const bookings = (normalizedBookings || []).map(toLegacy);
-    const waitlists = (normalizedWaitlists || []).map(toLegacy);
+    const bookings = normalizedBookings || [];
+    const waitlists = normalizedWaitlists || [];
     const upgrades = upgradesRes || [];
 
     cache.bookings = bookings;
@@ -107,18 +106,24 @@ function syncBookingCache(bookings) {
     const now = Date.now();
     const normalized = (bookings || []).map(b => {
       const event = b.event || {};
-      const startAt = event.start_at || b.start_at;
+      const startAt = event.startAt || event.start_at || b.start_at;
       if (!startAt || new Date(startAt).getTime() < now) return null;
+      const rawClassName = event.name || event.event_type?.name || 'Class';
+      const groupName = event.discipline || event.event_type?.group?.name || rawClassName;
+      const className = stripClassNamePrefix(rawClassName, groupName);
+      const instructorName = event.instructors?.[0]?.name || event.instructor?.full_name || event.instructor?.name || '';
+      const studioName = event.studioName || event.studio?.name || '';
+      const locationName = event.locationName || event.studio?.location?.name || '';
       return {
         bookingId: bookingIdOf(b),
         eventId: event.id || b.eventId || b.event_id || null,
         startAt,
-        className: event.event_type?.name || event.name || 'Class',
-        groupName: event.event_type?.group?.name || '',
-        instructorName: event.instructor?.full_name || event.instructor?.name || '',
-        studioName: event.studio?.name || '',
-        locationName: event.studio?.location?.name || '',
-        slotLabel: b.studio_slot?.label ?? b.slot ?? b.studio_slot_id ?? b.slot_id ?? '',
+        className,
+        groupName,
+        instructorName,
+        studioName,
+        locationName,
+        slotLabel: b.raw?.spot?.name ?? b.studio_slot?.label ?? b.slot ?? b.studio_slot_id ?? b.slot_id ?? b.slotId ?? '',
       };
     }).filter(Boolean);
     api.syncBookings(normalized).catch(() => {});
@@ -135,8 +140,9 @@ function renderBookingsCards(bookings, upgrades) {
   const groups = new Map();
   bookings.forEach(b => {
     const event = b.event || null;
-    if (!event || !event.start_at) return;
-    const key = event.id || b.eventId || b.event_id;
+    const startAt = event?.startAt || event?.start_at;
+    if (!event || !startAt) return;
+    const key = String(event.id || b.eventId || b.event_id);
     if (!groups.has(key)) groups.set(key, { eventId: key, event, bookings: [] });
     groups.get(key).bookings.push(b);
   });
@@ -146,27 +152,29 @@ function renderBookingsCards(bookings, upgrades) {
     return;
   }
 
-  const sorted = [...groups.values()].sort((a, b) => new Date(a.event.start_at) - new Date(b.event.start_at));
+  const sorted = [...groups.values()].sort((a, b) => new Date(a.event.startAt || a.event.start_at) - new Date(b.event.startAt || b.event.start_at));
   container.innerHTML = '';
   sorted.forEach(group => container.appendChild(buildBookingCard(group, upgrades)));
 }
 
 function buildBookingCard(group, upgrades) {
   const event = group.event;
-  const startDt = new Date(event.start_at);
+  const startAt = event.startAt || event.start_at;
+  const startDt = new Date(startAt);
   const dateStr = startDt.toLocaleString('en-GB', { weekday: 'short', day: 'numeric', month: 'short', timeZone: 'Europe/London' });
   const timeOnly = startDt.toLocaleString('en-GB', { hour: '2-digit', minute: '2-digit', hour12: false, timeZone: 'Europe/London' });
 
-  const className = stripClassNamePrefix(event.event_type?.name || 'Class', event.event_type?.group?.name);
-  const groupName = event.event_type?.group?.name || className;
-  const instructorName = event.instructor?.full_name || 'TBA';
-  const locationLine = [event.studio?.name, trimLocation(event.studio?.location?.name, getGymContext().name)].filter(Boolean).join(', ');
+  const rawClassName = event.name || event.event_type?.name || 'Class';
+  const groupName = event.discipline || event.event_type?.group?.name || rawClassName;
+  const className = stripClassNamePrefix(rawClassName, groupName);
+  const instructorName = event.instructors?.[0]?.name || event.instructor?.full_name || 'TBA';
+  const locationLine = [event.studioName || event.studio?.name, trimLocation(event.locationName || event.studio?.location?.name, getGymContext().name)].filter(Boolean).join(', ');
 
-  const within12h = isWithin12Hours(event.start_at);
+  const within12h = isWithin12Hours(startAt);
 
   const chipsHtml = group.bookings.map(b => {
-    const slotId = Number(slotIdOf(b));
-    const slotLabel = b.studio_slot?.label ?? b.slot ?? b.studio_slot_id ?? b.slot_id ?? '?';
+    const slotId = slotIdOf(b);
+    const slotLabel = b.raw?.spot?.name ?? b.studio_slot?.label ?? b.slot ?? b.studio_slot_id ?? b.slot_id ?? slotId ?? '?';
     
     // Find active upgrade for this specific booking
     const activeUpgrade = upgrades.find(u =>
@@ -239,7 +247,7 @@ function buildBookingCard(group, upgrades) {
   card.querySelectorAll('.ab-spot-upgrade-chip').forEach(btn => {
     btn.addEventListener('click', () => {
       const bid = Number(btn.getAttribute('data-booking-id'));
-      const slotId = Number(btn.getAttribute('data-slot-id'));
+      const slotId = btn.getAttribute('data-slot-id');
       const slotLabel = btn.getAttribute('data-slot-label');
       const upgradeId = btn.getAttribute('data-upgrade-id') ? Number(btn.getAttribute('data-upgrade-id')) : null;
       
@@ -250,13 +258,13 @@ function buildBookingCard(group, upgrades) {
         eventId: group.eventId,
         bookingId: bid,
         currentSlotId: slotId,
-        studioId: event.studio_id || event.studio?.id || null,
+        studioId: event.studioId || event.studio_id || event.studio?.id || null,
         className,
-        groupName: event.event_type?.group?.name || '',
-        instructorName: event.instructor?.full_name || '',
-        studioName: event.studio?.name || 'Studio',
-        locationName: event.studio?.location?.name || 'Location',
-        startAt: event.start_at,
+        groupName,
+        instructorName,
+        studioName: event.studioName || event.studio?.name || 'Studio',
+        locationName: event.locationName || event.studio?.location?.name || 'Location',
+        startAt,
         existingUpgradeId: upgradeId,
         existingPrefs
       });
@@ -265,7 +273,7 @@ function buildBookingCard(group, upgrades) {
 
   // Cancel (two-tap confirm) — cancels every spot booked for the class.
   const cancelBtn = card.querySelector('.bk-cancel-btn');
-  const bookedAt = group.bookings[0]?.booked_at;
+  const bookedAt = group.bookings[0]?.bookedAt || group.bookings[0]?.booked_at;
   if (bookedAt && isInGracePeriod(bookedAt)) {
     cancelBtn.setAttribute('data-grace-deadline', new Date(bookedAt).getTime() + GRACE_PERIOD_MS);
     cancelBtn.classList.add('grace-cancel');
@@ -349,8 +357,9 @@ export async function openEditBookingModal(group, onChange = renderBookings) {
   if (!modal || !body || !title) return;
 
   const event = group.event;
-  const className = stripClassNamePrefix(event.event_type?.name || 'Class', event.event_type?.group?.name);
-  const groupName = event.event_type?.group?.name || event.event_type?.name || 'Class';
+  const rawClassName = event.name || event.event_type?.name || 'Class';
+  const groupName = event.discipline || event.event_type?.group?.name || rawClassName;
+  const className = stripClassNamePrefix(rawClassName, groupName);
   const noun = seatNoun(groupName);
   const nounCap = noun[0].toUpperCase() + noun.slice(1);
 
@@ -523,25 +532,19 @@ export async function openEditBookingModal(group, onChange = renderBookings) {
       });
     };
 
-    const saveEdit = async (toRemove, toAdd) => {
-      const saveBtn = controls.querySelector('#bk-edit-save');
-      const closeBtnEl = controls.querySelector('#bk-edit-close');
+    const saveChanges = async (toAdd, toRemove) => {
+      const saveBtn = body.querySelector('#bk-edit-save-btn');
       if (saveBtn) { saveBtn.disabled = true; saveBtn.textContent = 'Saving…'; }
-      if (closeBtnEl) closeBtnEl.disabled = true;
       try {
-        // 1. Release removed spots first (refunds credits, frees the seats).
-        for (const sid of toRemove) {
-          const bid = slotToBooking.get(sid);
-          await api.cancel(bid);
-          const up = (cache.upgrades || []).find(u => String(u.booking_id) === String(bid) && ['active', 'paused_no_credits'].includes(u.status));
+        // 1. Release removed spots.
+        for (const slotId of toRemove) {
+          const bookingId = slotToBooking.get(slotId);
+          if (bookingId) await api.cancel(bookingId);
+          const up = (cache.upgrades || []).find(u => String(u.booking_id) === String(bookingId) && ['active', 'paused_no_credits'].includes(u.status));
           if (up) { try { await api.deleteAutoUpgrade(up.id); } catch (_) {} }
         }
         // 2. Book added spots.
         if (toAdd.length) {
-          // One request per spot — api.book() books exactly one (see
-          // providers/base.js). We have just cancelled the old spots, so a
-          // failure part-way through leaves the user short; report which
-          // actually landed rather than implying all of them did.
           const added = [];
           for (const slotId of toAdd) {
             const r = await api.book(group.eventId, [slotId]);
@@ -554,9 +557,9 @@ export async function openEditBookingModal(group, onChange = renderBookings) {
           }
           api.notifyBookingSuccess({
             source: 'manual', eventId: group.eventId, className,
-            groupName: event.event_type?.group?.name || '',
-            instructorName: event.instructor?.full_name || '',
-            startAt: event.start_at, slots: toAdd.map(labelFor),
+            groupName,
+            instructorName: event.instructors?.[0]?.name || event.instructor?.full_name || '',
+            startAt: event.startAt || event.start_at, slots: toAdd.map(labelFor),
           }).catch(() => {});
         }
         await invalidateApiCache('/api/bookings');
@@ -566,12 +569,7 @@ export async function openEditBookingModal(group, onChange = renderBookings) {
         await refreshUserData(true);
         onChange();
       } catch (err) {
-        // Cancel-then-book is not atomic: if the new booking fails after a release,
-        // surface it clearly so the user knows the old seat is gone.
-        const partial = toRemove.length && toAdd.length;
-        showToast(partial
-          ? `Released your old ${noun}(s) but couldn't book the new one: ${err.message}. It may have been taken — check your bookings.`
-          : `Couldn't update ${noun}s: ${err.message}`, 'error');
+        showToast(`Couldn't update ${noun}s: ${err.message}`, 'error');
         closeModal();
         await refreshUserData(true);
         onChange();
@@ -593,26 +591,28 @@ function renderWaitlistsCards(waitlists) {
   const container = document.getElementById('psycle-waitlists-list');
   if (!container) return;
 
-  const valid = (waitlists || []).filter(w => w.event && w.event.start_at);
+  const valid = (waitlists || []).filter(w => w.event && (w.event.startAt || w.event.start_at));
   if (valid.length === 0) {
     container.innerHTML = '<div class="fav-empty-state" style="padding:30px 0;">No active waitlists found.</div>';
     return;
   }
 
-  valid.sort((a, b) => new Date(a.event.start_at) - new Date(b.event.start_at));
+  valid.sort((a, b) => new Date(a.event.startAt || a.event.start_at) - new Date(b.event.startAt || b.event.start_at));
   container.innerHTML = '';
   valid.forEach(w => container.appendChild(buildWaitlistCard(w)));
 }
 
 function buildWaitlistCard(w) {
   const event = w.event;
-  const startDt = new Date(event.start_at);
+  const startAt = event.startAt || event.start_at;
+  const startDt = new Date(startAt);
   const dateStr = startDt.toLocaleString('en-GB', { weekday: 'short', day: 'numeric', month: 'short', timeZone: 'Europe/London' });
   const timeOnly = startDt.toLocaleString('en-GB', { hour: '2-digit', minute: '2-digit', hour12: false, timeZone: 'Europe/London' });
-  const className = stripClassNamePrefix(event.event_type?.name || 'Class', event.event_type?.group?.name);
-  const groupName = event.event_type?.group?.name || className;
-  const instructorName = event.instructor?.full_name || 'TBA';
-  const locationLine = [event.studio?.name, trimLocation(event.studio?.location?.name, getGymContext().name)].filter(Boolean).join(', ');
+  const rawClassName = event.name || event.event_type?.name || 'Class';
+  const groupName = event.discipline || event.event_type?.group?.name || rawClassName;
+  const className = stripClassNamePrefix(rawClassName, groupName);
+  const instructorName = event.instructors?.[0]?.name || event.instructor?.full_name || 'TBA';
+  const locationLine = [event.studioName || event.studio?.name, trimLocation(event.locationName || event.studio?.location?.name, getGymContext().name)].filter(Boolean).join(', ');
 
   const card = document.createElement('div');
   card.className = 'psycle-autobook-card ab-card';

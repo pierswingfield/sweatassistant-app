@@ -587,6 +587,35 @@ check('derived studios report hasLayout from the class layout format', async () 
   assert.ok(m.studios.some((st) => !st.hasLayout), 'an FCFS room reports none');
 });
 
+check('MarianaTek: fetchTimetable follows links.next pagination across multiple pages', async () => {
+  const mt = getProvider('jab-boxing');
+  const page1 = {
+    results: [
+      { id: '101', name: 'Boxing 1', start_date: '2026-09-02', start_time: '09:00:00', start_datetime: '2026-09-02T09:00:00Z', capacity: 20, class_type: { name: 'Boxing', duration: 45 }, classroom: { id: 'c1', name: 'Room 1' }, instructors: [] }
+    ],
+    links: { next: 'https://jabboxingclub.marianatek.com/api/customer/v1/classes?page=2' }
+  };
+  const page2 = {
+    results: [
+      { id: '102', name: 'Boxing 2', start_date: '2026-09-03', start_time: '10:00:00', start_datetime: '2026-09-03T10:00:00Z', capacity: 20, class_type: { name: 'Boxing', duration: 45 }, classroom: { id: 'c1', name: 'Room 1' }, instructors: [] }
+    ],
+    links: { next: null }
+  };
+
+  const calledPaths = [];
+  await withStub(mt, 'publicRequest', async (path) => {
+    calledPaths.push(path);
+    if (path.includes('page=2')) return fakeRes(page2);
+    return fakeRes(page1);
+  }, async () => {
+    const events = await mt.fetchTimetable({ startDate: '2026-09-02', endDate: '2026-09-30' });
+    assert.strictEqual(events.length, 2, 'retrieved classes across both pages');
+    assert.strictEqual(events[0].id, '101');
+    assert.strictEqual(events[1].id, '102');
+    assert.strictEqual(calledPaths.length, 2, 'made 2 paginated requests');
+  });
+});
+
 (async () => {
   console.log('\n🧪 Provider adapter unit tests (WP-T1)\n');
   let failed = 0;

@@ -353,19 +353,57 @@ class MarianaTekProvider extends GymProvider {
    * @returns {Promise<import('./base').NormalizedEvent[]>}
    */
   async fetchTimetable(params = {}, session) {
+    if (params.page) {
+      const qs = new URLSearchParams();
+      if (params.startDate) qs.set('min_start_date', params.startDate);
+      if (params.endDate) qs.set('max_start_date', params.endDate);
+      if (params.locationId) qs.set('location', params.locationId);
+      qs.set('page_size', String(params.pageSize || 100));
+      qs.set('page', String(params.page));
+
+      const res = session
+        ? await this.request(`/classes?${qs}`, { token: session.accessToken })
+        : await this.publicRequest(`/classes?${qs}`);
+      if (!res.ok) throw new Error(`fetchTimetable failed: ${res.status}`);
+      const data = await res.json();
+      return (data.results || []).map((c) => this.mapClassToEvent(c));
+    }
+
     const qs = new URLSearchParams();
     if (params.startDate) qs.set('min_start_date', params.startDate);
     if (params.endDate) qs.set('max_start_date', params.endDate);
     if (params.locationId) qs.set('location', params.locationId);
     qs.set('page_size', String(params.pageSize || 100));
-    if (params.page) qs.set('page', String(params.page));
 
-    const res = session
-      ? await this.request(`/classes?${qs}`, { token: session.accessToken })
-      : await this.publicRequest(`/classes?${qs}`);
-    if (!res.ok) throw new Error(`fetchTimetable failed: ${res.status}`);
-    const data = await res.json();
-    return (data.results || []).map((c) => this.mapClassToEvent(c));
+    let path = `/classes?${qs}`;
+    const allResults = [];
+    let pageCount = 0;
+    const maxPages = 10; // Safety cap (up to 1,000 classes)
+
+    while (path && pageCount < maxPages) {
+      pageCount++;
+      const res = session
+        ? await this.request(path, { token: session.accessToken })
+        : await this.publicRequest(path);
+      if (!res.ok) throw new Error(`fetchTimetable failed: ${res.status}`);
+      const data = await res.json();
+      if (Array.isArray(data.results)) {
+        allResults.push(...data.results);
+      }
+      const nextLink = (data.links && data.links.next) || data.next;
+      if (nextLink) {
+        try {
+          const nextUrl = new URL(nextLink, this.gym.apiBaseUrl);
+          path = `${nextUrl.pathname.replace(/^\/api\/customer\/v1/, '')}${nextUrl.search}`;
+        } catch (_) {
+          path = null;
+        }
+      } else {
+        path = null;
+      }
+    }
+
+    return allResults.map((c) => this.mapClassToEvent(c));
   }
 
   /**

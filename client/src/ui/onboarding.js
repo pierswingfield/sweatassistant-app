@@ -13,17 +13,17 @@
 // the `/* === ONBOARDING === */` section of styles.css. No inline colours here.
 
 import { api, isLoggedIn } from '../api';
-import { consumeInstallPrompt, initApp, togglePushSubscription, warmCaches } from '../main';
+import { consumeInstallPrompt, initApp, togglePushSubscription, warmCaches, showToast } from '../main';
 import { openManageSpotMapsModal } from './settings';
 import { appConfig } from '../config';
 
 const COMPLETE_KEY = 'psycleOnboardingComplete';
 const STEP_KEY = 'psycleOnboardingStep';
 // Bump to re-trigger onboarding for all users after a significant change.
-// v2: added the Calendar step.
-const ONBOARDING_VERSION = '2';
+// v3: added sequential multi-gym connection step.
+const ONBOARDING_VERSION = '3';
 
-const STEPS = ['intro', 'install', 'login', 'notifications', 'spotmaps', 'calendar'];
+const STEPS = ['intro', 'install', 'login', 'gyms', 'notifications', 'spotmaps', 'calendar'];
 
 // --- platform / capability detection (mirrors main.js:279) ---
 const isIOS = () => /iPad|iPhone|iPod/.test(navigator.userAgent) && !window.MSStream;
@@ -290,6 +290,155 @@ function stepLogin() {
   });
 }
 
+// ---- STEP: gym linking (sequential multi-gym setup) ----
+function stepGyms() {
+  return new Promise(async (resolve) => {
+    let allGyms = [];
+    let myGyms = [];
+
+    const loadData = async () => {
+      try {
+        const [gymsRes, mineRes] = await Promise.all([
+          api.getGyms(),
+          api.getMyGyms(),
+        ]);
+        allGyms = (gymsRes || []).filter((g) => g.enabled);
+        myGyms = mineRes.gyms || [];
+      } catch (_) {
+        allGyms = [];
+        myGyms = [];
+      }
+    };
+
+    await loadData();
+
+    // If no enabled gyms exist in system, auto-advance
+    if (allGyms.length === 0) return resolve();
+
+    const render = () => {
+      const linkedGymIds = new Set(myGyms.map((g) => g.gymId || g.id));
+      const unlinkedGyms = allGyms.filter((g) => !linkedGymIds.has(g.id));
+      const hasLinked = myGyms.length > 0;
+
+      const connectedListHtml = hasLinked
+        ? `<div class="psycle-onb-connected-gyms" style="margin-bottom:16px;">
+            <div style="font-size:12px;font-weight:600;text-transform:uppercase;letter-spacing:0.5px;color:var(--text-tertiary);margin-bottom:8px;">Connected Gyms</div>
+            <div style="display:flex;flex-direction:column;gap:8px;">
+              ${myGyms.map(g => `
+                <div style="display:flex;align-items:center;justify-content:space-between;padding:10px 14px;background:var(--surface-inset);border:1px solid var(--border);border-radius:10px;">
+                  <div style="display:flex;align-items:center;gap:10px;">
+                    <span style="color:var(--success, #10b981);font-weight:bold;font-size:16px;">✓</span>
+                    <div>
+                      <div style="font-size:14px;font-weight:600;">${g.name || g.gymId}</div>
+                      <div style="font-size:12px;color:var(--text-tertiary);">${g.gymEmail || ''}</div>
+                    </div>
+                  </div>
+                  <span class="psycle-badge" style="font-size:11px;background:color-mix(in srgb,var(--success) 15%,transparent);color:var(--success);">Connected</span>
+                </div>
+              `).join('')}
+            </div>
+          </div>`
+        : '';
+
+      let formHtml = '';
+      if (unlinkedGyms.length > 0) {
+        formHtml = `
+          <div class="psycle-onb-link-form" style="display:flex;flex-direction:column;gap:12px;background:var(--surface-inset);border:1px solid var(--border);border-radius:12px;padding:16px;">
+            <div style="font-size:13px;font-weight:600;color:var(--text-secondary);">
+              ${hasLinked ? 'Connect Another Gym' : 'Connect Your Gym Account'}
+            </div>
+            <div>
+              <label style="font-size:12px;color:var(--text-tertiary);display:block;margin-bottom:4px;">Select Gym</label>
+              <select id="psycle-onb-gym-select" class="psycle-select" style="width:100%;">
+                ${unlinkedGyms.map(g => `<option value="${g.id}">${g.name}</option>`).join('')}
+              </select>
+            </div>
+            <div>
+              <label style="font-size:12px;color:var(--text-tertiary);display:block;margin-bottom:4px;">Gym Login Email</label>
+              <input type="email" id="psycle-onb-gym-email" placeholder="name@example.com" autocomplete="off" style="width:100%;box-sizing:border-box;">
+            </div>
+            <div>
+              <label style="font-size:12px;color:var(--text-tertiary);display:block;margin-bottom:4px;">Gym Password</label>
+              <input type="password" id="psycle-onb-gym-password" placeholder="••••••••" autocomplete="off" style="width:100%;box-sizing:border-box;">
+            </div>
+            <div id="psycle-onb-gym-error" class="psycle-login-error" style="display:none;margin-top:4px;"></div>
+            <button type="button" id="psycle-onb-gym-submit" class="psycle-btn-primary" style="margin-top:4px;"><span>${hasLinked ? 'Connect Another Gym' : 'Connect Gym'}</span></button>
+          </div>
+        `;
+      } else {
+        formHtml = `
+          <div style="padding:16px;text-align:center;background:color-mix(in srgb,var(--success) 10%,transparent);border:1px solid color-mix(in srgb,var(--success) 20%,transparent);border-radius:12px;color:var(--text-primary);margin-bottom:12px;">
+            <strong style="color:var(--success);">All available gyms are connected!</strong><br>
+            <span style="font-size:12px;color:var(--text-secondary);">You're all set to book across your connected gyms.</span>
+          </div>
+        `;
+      }
+
+      const continueBtnHtml = hasLinked
+        ? `<button class="psycle-btn-primary psycle-onb-continue" type="button" style="${unlinkedGyms.length > 0 ? 'background:var(--surface-inset);border:1px solid var(--border);color:var(--text-primary);' : ''}"><span>Continue</span></button>`
+        : `<button class="psycle-btn-mini psycle-onb-skip-inline" type="button">Connect later in Settings</button>`;
+
+      const sheet = renderSheet({
+        eyebrow: 'Your Gyms',
+        title: 'Connect your gym accounts',
+        body: `
+          <p class="psycle-onb-lead" style="margin-bottom:16px;">Sweat Assistant connects directly to your gym accounts to automate bookings, spot selections, and upgrades.</p>
+          ${connectedListHtml}
+          ${formHtml}
+        `,
+        footer: continueBtnHtml,
+      });
+
+      const continueBtn = sheet.querySelector('.psycle-onb-continue');
+      if (continueBtn) {
+        continueBtn.addEventListener('click', resolve);
+      }
+      const skipBtn = sheet.querySelector('.psycle-onb-skip-inline');
+      if (skipBtn) {
+        skipBtn.addEventListener('click', resolve);
+      }
+
+      const submitBtn = sheet.querySelector('#psycle-onb-gym-submit');
+      if (submitBtn) {
+        submitBtn.addEventListener('click', async () => {
+          const gymSelect = sheet.querySelector('#psycle-onb-gym-select');
+          const emailInput = sheet.querySelector('#psycle-onb-gym-email');
+          const passInput = sheet.querySelector('#psycle-onb-gym-password');
+          const errorEl = sheet.querySelector('#psycle-onb-gym-error');
+
+          const gymId = gymSelect?.value;
+          const email = emailInput?.value?.trim();
+          const password = passInput?.value;
+
+          if (!gymId || !email || !password) {
+            errorEl.textContent = 'Please enter your gym email and password.';
+            errorEl.style.display = 'block';
+            return;
+          }
+
+          errorEl.style.display = 'none';
+          submitBtn.disabled = true;
+          submitBtn.querySelector('span').textContent = 'Connecting…';
+
+          try {
+            await api.linkGym(gymId, email, password);
+            showToast('Gym connected successfully!', 'success');
+            await loadData();
+            render();
+          } catch (err) {
+            errorEl.textContent = err.message || 'Connection failed';
+            errorEl.style.display = 'block';
+            submitBtn.disabled = false;
+            submitBtn.querySelector('span').textContent = hasLinked ? 'Connect Another Gym' : 'Connect Gym';
+          }
+        });
+      }
+    };
+
+    render();
+  });
+}
+
 // ---- STEP: notifications ----
 function stepNotifications() {
   return new Promise((resolve) => {
@@ -308,19 +457,19 @@ function stepNotifications() {
     }
 
     const sheet = renderSheet({
-      eyebrow: 'Notifications',
-      title: 'Never miss a booking',
-      body: `<div class="psycle-onb-icon" style="color: var(--accent);">${ICON.push}</div>
-        <p class="psycle-onb-lead">Get a push the moment a class is <b>Auto-Booked</b>, your booking is successfully <b>Auto-Upgraded</b>, or when booking is about to open. You can fine-tune which alerts you get later in Settings.</p>`,
-      footer: `<button class="psycle-btn-primary psycle-onb-enable" type="button"><span>Enable notifications</span></button>
+      eyebrow: 'Stay in the loop',
+      title: 'Enable push notifications',
+      body: `<div class="psycle-onb-icon" style="color: var(--feat-push, var(--accent));">${ICON.push}</div>
+        <p class="psycle-onb-lead">Get instant alerts when your auto-bookings succeed, upgrades go through, or cancellation reminders fire.</p>`,
+      footer: `<button class="psycle-btn-primary psycle-onb-notif-enable" type="button"><span>Enable notifications</span></button>
         <button class="psycle-btn-mini psycle-onb-skip-inline" type="button">Maybe later</button>`,
     });
 
     sheet.querySelector('.psycle-onb-skip-inline').addEventListener('click', resolve);
-    const enableBtn = sheet.querySelector('.psycle-onb-enable');
-    enableBtn.addEventListener('click', async () => {
-      enableBtn.disabled = true;
-      try { await togglePushSubscription(); } catch (_) {}
+    sheet.querySelector('.psycle-onb-notif-enable').addEventListener('click', async () => {
+      try {
+        await togglePushSubscription();
+      } catch (_) {}
       resolve();
     });
   });
@@ -332,50 +481,45 @@ function stepNotifications() {
 // offers the subscribe links even when the feed is already enabled server-side).
 // Phase 1: prompt to enable. Phase 2: offer Apple/Google + note Settings options.
 async function stepCalendar() {
-  let status = null;
-  try { status = await api.getCalendarStatus(); } catch (_) { status = null; }
+  return new Promise(async (resolve) => {
+    const isEnabled = await api.isCalendarEnabled();
+    if (isEnabled) return resolve(); // already enabled — skip
 
-  const ios = isIOS();
-  return new Promise((resolve) => {
-    // --- Phase 2: subscribe options ---
+    const ios = isIOS();
+
     const showSubscribe = (links) => {
+      const webcalUrl = links?.webcal || '';
+      const gcalUrl = links?.google || '';
+      const icsUrl = links?.ics || '';
+
       const sheet = renderSheet({
-        eyebrow: 'Calendar on',
-        title: 'Subscribe to your class calendar',
-        body: `<div class="psycle-onb-icon" style="color: var(--accent);">${ICON.calendar}</div>
-          <p class="psycle-onb-lead">Pick your calendar below. Your classes will keep themselves in sync from now on.</p>
-          <p class="psycle-onb-secondary-note">You can turn on reminders and change other options anytime in <strong>Settings → Calendar</strong>.</p>`,
-        footer: `<div class="psycle-onb-cal-actions" style="display:flex;flex-direction:column;gap:8px;width:100%;">
-            <button class="psycle-btn-primary psycle-onb-cal-apple" type="button"><span>Add to Apple Calendar</span></button>
-            <button class="psycle-btn-primary psycle-onb-cal-google" type="button"><span>Add to Google Calendar</span></button>
-          </div>
-          <button class="psycle-btn-mini psycle-onb-skip-inline" type="button">Done</button>`,
+        eyebrow: 'Calendar enabled',
+        title: 'Subscribe in your calendar app',
+        body: `
+          <div class="psycle-onb-icon" style="color: var(--accent);">${ICON.calendar}</div>
+          <p class="psycle-onb-lead">Tap below to add the live feed to your calendar.</p>
+          <div class="psycle-onb-cal-links">
+            ${webcalUrl ? `<a href="${webcalUrl}" class="psycle-btn-primary" style="display:block;text-align:center;text-decoration:none;margin-bottom:8px;"><span>${ios ? 'Add to Apple Calendar' : 'Subscribe via Webcal'}</span></a>` : ''}
+            ${gcalUrl && !ios ? `<a href="${gcalUrl}" target="_blank" rel="noopener noreferrer" class="psycle-btn-secondary" style="display:block;text-align:center;text-decoration:none;margin-bottom:8px;"><span>Add to Google Calendar</span></a>` : ''}
+            ${icsUrl ? `<button class="psycle-btn-mini psycle-onb-copy-ics" type="button" style="width:100%;">Copy feed URL</button>` : ''}
+          </div>`,
+        footer: `<button class="psycle-btn-primary psycle-onb-continue" type="button"><span>Done</span></button>`,
       });
 
-      const apple = sheet.querySelector('.psycle-onb-cal-apple');
-      const google = sheet.querySelector('.psycle-onb-cal-google');
-      if (!ios && apple && google) { apple.style.order = '1'; google.style.order = '0'; }
+      const copyBtn = sheet.querySelector('.psycle-onb-copy-ics');
+      if (copyBtn && icsUrl) {
+        copyBtn.addEventListener('click', async () => {
+          try {
+            await navigator.clipboard.writeText(icsUrl);
+            copyBtn.textContent = 'Copied!';
+            setTimeout(() => { copyBtn.textContent = 'Copy feed URL'; }, 2000);
+          } catch (_) {}
+        });
+      }
 
-      apple?.addEventListener('click', () => {
-        if (links?.webcal) window.location.href = links.webcal;
-      });
-      google?.addEventListener('click', () => {
-        if (links?.google) {
-          const a = document.createElement('a');
-          a.href = links.google; a.target = '_blank'; a.rel = 'noopener noreferrer';
-          document.body.appendChild(a); a.click(); a.remove();
-        }
-      });
-      sheet.querySelector('.psycle-onb-skip-inline').addEventListener('click', resolve);
+      sheet.querySelector('.psycle-onb-continue').addEventListener('click', resolve);
     };
 
-    // Already enabled (e.g. onboarding replay) → jump straight to the subscribe options.
-    if (status && status.enabled && status.links) {
-      showSubscribe(status.links);
-      return;
-    }
-
-    // --- Phase 1: enable prompt ---
     const sheet = renderSheet({
       eyebrow: 'Stay organised',
       title: 'Add classes to your calendar',
@@ -426,6 +570,7 @@ const STEP_HANDLERS = {
   intro: stepIntro,
   install: stepInstall,
   login: stepLogin,
+  gyms: stepGyms,
   notifications: stepNotifications,
   calendar: stepCalendar,
   spotmaps: stepSpotMaps,

@@ -1,0 +1,91 @@
+{
+  "id": "79103",
+  "available_spot_count": 5,
+  "booking_start_datetime": "2026-06-25T06:30:00+01:00",
+  "is_late_cancel_overridden": false,
+  "capacity": 5,
+  "class_tags": [
+    {
+      "id": "4942",
+      "name": "Peak Member",
+      "slug": "peak-member"
+    }
+  ],
+  "class_type": {
+    "id": "5973",
+    "description": "A dedicated recovery suite featuring hot and cold therapies, to reduce inflammation and stress in your body, improving your everyday performance. \nBooking slots are 45 minutes.",
+    "duration": 45,
+    "duration_formatted": "45 minutes",
+    "is_live_stream": false,
+    "name": "RECOVERY (Members)"
+  },
+  "classroom": {
+    "id": "6447",
+    "name": "RECOVERY 2.0"
+  },
+  "classroom_name": "RECOVERY 2.0",
+  "geo_check_in_end_datetime": null,
+  "geo_check_in_start_datetime": null,
+  "instructors": [],
+  "in_live_stream_window": false,
+  "is_cancelled": false,
+  "is_remaining_spot_count_public": false,
+  "is_user_guest_reserved": false,
+  "is_user_reserved": false,
+  "is_user_waitlisted": false,
+  "is_free_class": false,
+  "layout_format": "first-come-first-serve",
+  "location": {
+    "id": "48751",
+    "address_line_one": "Unit 5, Colonnade Walk, 151 Buckingham Palace Road",
+    "address_line_two": "",
+    "address_line_three": "",
+    "address_sorting_code": null,
+    "city": "London",
+    "currency_code": "GBP",
+    "description": "",
+    "email": "info@jabboxing.club",
+    "gate_geo_check_in_by_distance": false,
+    "geo_check_in_distance": 10,
+    "is_newsletter_subscription_pre_checked": true,
+    "latitude": "51.5000000",
+    "longitude": "-0.1666700",
+    "primary_language": "en-GB",
+    "name": "SW1",
+    "payment_gateway_type": "stripe",
+    "phone_number": "+02046184605",
+    "postal_code": "SW1W9SZ",
+    "state_province": "Greater London",
+    "timezone": "Europe/London",
+    "formatted_address": [
+      "Unit 5, Colonnade Walk, 151 Buckingham Palace Road",
+      "London",
+      "SW1W9SZ",
+      "United Kingdom"
+    ],
+    "listed": true,
+    "region": {
+      "id": "48575",
+      "name": "Southeast"
+    }
+  },
+  "name": "RECOVERY (Members)",
+  "should_show_studio_address": true,
+  "spot_options": {
+    "primary_availability": 5,
+    "primary_capacity": 5,
+    "secondary_availability": 0,
+    "secondary_capacity": 0,
+    "standby_availability": 0,
+    "standby_capacity": 0,
+    "waitlist_availability": 30,
+    "waitlist_capacity": 30
+  },
+  "start_date": "2026-07-02",
+  "start_time": "06:30:00",
+  "start_datetime": "2026-07-02T05:30:00Z",
+  "status": null,
+  "waitlist_count": null,
+  "reservations": [],
+  "layout": null
+}

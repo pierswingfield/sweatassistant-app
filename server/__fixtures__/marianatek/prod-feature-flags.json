@@ -1,0 +1,24 @@
+{
+  "_fixture_note": "NEW endpoint, client-side feature flags for the MT web-integrations SPA (not the Customer API — different domain: {tenant}.marianaiframes.com/feature-flags?userId={id}). Not part of the provider adapter's concern (this is MT's own frontend's flag service, not something our backend needs to call), but documented for completeness. Production account, 2026-07-02.",
+  "method": "GET",
+  "path": "https://{tenant}.marianaiframes.com/feature-flags?userId={userId}",
+  "response_status": 200,
+  "response_body": {
+    "features": {
+      "enableRequireGuestEmail": false,
+      "enableUserPronouns": true,
+      "enableUserPhotoUpload": true,
+      "allowSigningWithoutCC": true,
+      "enableApplePay": true,
+      "enableCancelMembership": true,
+      "enableGooglePay": true,
+      "enableMobilePay": true,
+      "enableOffSessionRenewalRecovery": true,
+      "enableStripeSavedCardCheckout": true,
+      "enableStripeSepaDebitCheckout": false,
+      "enableTransactionalSmsOptIn": true,
+      "showSocialProof": true
+    }
+  },
+  "adapter_implication": "None directly — this gates MT's own web UI, not the Customer API. Interesting only as confirmation that Apple Pay / Google Pay / saved-card Stripe checkout are live features on this tenant, relevant background if Phase 4/purchases work ever gets un-deferred for JAB."
+}

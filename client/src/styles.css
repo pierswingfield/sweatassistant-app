@@ -9,6 +9,13 @@
      2. manual override: <html data-theme="light|dark">
    ========================================================= */
 
+/* The `hidden` attribute must actually hide (WP-D14).
+   The UA stylesheet's `[hidden] { display: none }` is beaten by ANY inline
+   `display`, and several elements in index.html carry one. Capability gates set
+   `hidden`, so without this a gated feature stays fully visible — which is how
+   "0 Credits available" survived being gated off for a membership gym. */
+[hidden] { display: none !important; }
+
 /* ---- Dark theme (default) ---- */
 :root {
   color-scheme: dark;
@@ -242,6 +249,90 @@
   --shadow-sheet: 0 16px 40px rgba(31, 27, 22, 0.12);
 }
 /* (dark override [data-theme="dark"] simply uses the :root defaults above) */
+
+/* =========================================================
+   PER-GYM THEMING (WP-D14)
+
+   The base palette above is deliberately gym-NEUTRAL. Each gym, including
+   Psycle, supplies its own accent as an override here — the point of this phase
+   is that no gym is the base case, and a palette baked into `:root` would make
+   the first gym exactly that.
+
+   `data-gym` is stamped on <html> by gym-context.js. These blocks sit AFTER the
+   light/dark token definitions so they win on the accent, while inheriting every
+   surface, text and semantic token from whichever theme is active — a gym
+   overrides its brand colour, not the whole design system.
+
+   Adding a gym: add a block here plus its `theme` entry in gyms.config.js. No
+   JavaScript changes.
+   ========================================================= */
+
+/* Psycle London — clay/violet. */
+:root[data-gym="psycle-london"] {
+  --accent: #d2876b;
+  --accent-hover: #c9785c;
+  --feat-autobook: #d2876b;
+}
+@media (prefers-color-scheme: light) {
+  :root[data-gym="psycle-london"]:not([data-theme="dark"]) {
+    --accent: #c9785c;
+    --accent-hover: #b5694e;
+    --feat-autobook: #c9785c;
+  }
+}
+:root[data-gym="psycle-london"][data-theme="light"] {
+  --accent: #c9785c;
+  --accent-hover: #b5694e;
+  --feat-autobook: #c9785c;
+}
+
+/* JAB Boxing Club — navy (#18214D), lifted on dark grounds so it stays legible
+   against the dark surface tokens rather than disappearing into them. */
+:root[data-gym="jab-boxing"] {
+  --accent: #8CA0E8;
+  --accent-hover: #A3B4EE;
+  --on-accent: #10152E;
+  --feat-autobook: #8CA0E8;
+  --auto: #A3B4EE;
+  --auto-banner: #232C57;
+  --font-sans: 'Gothic A1', 'Inter', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+}
+@media (prefers-color-scheme: light) {
+  :root[data-gym="jab-boxing"]:not([data-theme="dark"]) {
+    --accent: #18214D;
+    --accent-hover: #232C57;
+    --on-accent: #FFFFFF;
+    --feat-autobook: #18214D;
+    --auto: #2E3A73;
+    --auto-banner: #18214D;
+  }
+}
+:root[data-gym="jab-boxing"][data-theme="light"] {
+  --accent: #18214D;
+  --accent-hover: #232C57;
+  --on-accent: #FFFFFF;
+  --feat-autobook: #18214D;
+  --auto: #2E3A73;
+  --auto-banner: #18214D;
+}
+
+/* Discipline colours are per-gym too: "Ride" and "Barre" mean nothing at a
+   boxing gym. The base set below stays as a neutral fallback; a gym adds only
+   the disciplines it actually runs. `--disc-other` is what an unmapped
+   discipline lands on, so it must always read as deliberate, not broken. */
+:root[data-gym="jab-boxing"] {
+  --disc-boxing: #e0806b;
+  --disc-strength: #e0aa5a;
+  --disc-conditioning: #85aadb;
+}
+@media (prefers-color-scheme: light) {
+  :root[data-gym="jab-boxing"]:not([data-theme="dark"]) {
+    --disc-boxing: #c2543c;
+    --disc-strength: #a9761a;
+    --disc-conditioning: #4775ad;
+  }
+}
+
 
 /* ---- Segmented control (theme toggle) ---- */
 #psycle-helper-container .psycle-segmented {
@@ -5759,6 +5850,8 @@ html, body {
 .ab-disc-tag[data-disc="infrared"] { color: var(--disc-infrared); background: transparent !important; border-color: color-mix(in srgb, var(--disc-infrared) 24%, transparent); }
 .ab-disc-tag[data-disc="reformer"] { color: var(--disc-reformer); background: transparent !important; border-color: color-mix(in srgb, var(--disc-reformer) 24%, transparent); }
 .ab-disc-tag[data-disc="yoga"]     { color: var(--disc-yoga);     background: transparent !important; border-color: color-mix(in srgb, var(--disc-yoga) 24%, transparent); }
+.ab-disc-tag[data-disc="boxing"]       { color: var(--disc-boxing, var(--disc-other));       background: transparent !important; border-color: color-mix(in srgb, var(--disc-boxing, var(--disc-other)) 24%, transparent); }
+.ab-disc-tag[data-disc="conditioning"] { color: var(--disc-conditioning, var(--disc-other)); background: transparent !important; border-color: color-mix(in srgb, var(--disc-conditioning, var(--disc-other)) 24%, transparent); }
 
 .ab-card-meta {
   display: flex;

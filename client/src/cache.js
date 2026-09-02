@@ -10,18 +10,59 @@ const DB_NAME = 'psycle-cache';
 const DB_VERSION = 2;
 const STORE = 'api-responses';
 
-// --- Per-user key prefix ---
-// Set via setCacheKeyPrefix() after login (e.g. to currentUser.id).
-// All keys stored in api-responses are prefixed with `${keyPrefix}:` so data
-// from different users never overlaps. cacheKey() is used for every read/write.
+// --- Per-user, per-gym key prefix ---
+// The user segment is set via setCacheKeyPrefix() after login (e.g. to
+// currentUser.id). The GYM segment (WP-G) is read from localStorage on every key
+// build rather than being pushed in by a caller: a normalized response body is
+// gym-specific (one gym's timetable, bookings, studio layouts), and relying on
+// applyGymSwitch() remembering to clear the store means one forgotten transition
+// serves the wrong gym's data. Deriving the segment makes the collision
+// impossible instead of merely avoided.
+//
+// Read directly from localStorage rather than importing api.js — api.js imports
+// this module, so the dependency only goes one way.
 let keyPrefix = '';
 
 export function setCacheKeyPrefix(prefix) {
   keyPrefix = prefix || '';
 }
 
+function activeGymSegment() {
+  try {
+    return localStorage.getItem('sweatActiveGymId') || '';
+  } catch (_) {
+    return '';
+  }
+}
+
+// Exported for the clear-by-pattern cursor scan below and for unit tests.
+export function cacheKeyPrefix() {
+  const gym = activeGymSegment();
+  if (keyPrefix && gym) return `${keyPrefix}@${gym}`;
+  return keyPrefix || gym;
+}
+
 function cacheKey(endpoint) {
-  return keyPrefix ? `${keyPrefix}:${endpoint}` : endpoint;
+  const prefix = cacheKeyPrefix();
+  return prefix ? `${prefix}:${endpoint}` : endpoint;
+}
+
+// Gym-scope a caller's OWN cache key (WP-G).
+//
+// The `api-responses` store above is not the only cache. `timetable.js` keeps
+// raw events and metadata in the sibling `cache` store under its own key names,
+// and both it and `settings.js` keep TTL stamps and derived studio ids in
+// localStorage. Those hold one gym's events, one gym's studios — and they were
+// left unqualified, so a JAB user was served Psycle's timetable from a warm
+// cache while every network call correctly returned MarianaTek data. Caught only
+// by a browser smoke test: the page renders, the console is clean, and the
+// classes are simply the wrong gym's.
+//
+// Call this at USE time, not at module load, so the key follows the active gym
+// rather than whatever it was when the module was first imported.
+export function gymScopedKey(base) {
+  const gym = activeGymSegment();
+  return gym ? `${base}:${gym}` : base;
 }
 
 // --- Database ---
@@ -275,9 +316,10 @@ export async function invalidateApiCache(pattern) {
       req.onsuccess = () => {
         const cursor = req.result;
         if (cursor) {
-          const key = cursor.key; // e.g. "user123:/api/auto-book"
-          // Only delete entries for the current user
-          const prefixStr = keyPrefix ? keyPrefix + ':' : '';
+          const key = cursor.key; // e.g. "user123@psycle-london:/api/auto-book"
+          // Only delete entries for the current user AND gym
+          const prefix = cacheKeyPrefix();
+          const prefixStr = prefix ? prefix + ':' : '';
           if (key.startsWith(prefixStr)) {
             const unprefixed = key.slice(prefixStr.length);
             if (unprefixed.startsWith(pattern)) {

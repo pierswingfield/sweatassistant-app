@@ -1,4 +1,6 @@
 import { api } from '../api';
+import { getGymContext } from '../gym-context.js';
+import { getAvailableCreditsForEvent, getTotalCredits } from './credit-allowance.js';
 import { showToast, cache, refreshUserData, updateCreditBadge, userSettings } from '../main';
 import { renderStudioFloorPlan } from './spotmap';
 import { icon, disciplineTag, trimLocation, seatNoun, stripClassNamePrefix, trendingUpIcon, pulseIcon } from './cards';
@@ -13,30 +15,10 @@ function isWithin12Hours(startAt) {
   return diff > 0 && diff <= 12 * 60 * 60 * 1000;
 }
 
-function totalAvailableCredits() {
-  if (!cache.profile?.available_credits) return 0;
-  return cache.profile.available_credits.reduce((sum, c) => sum + (c.count || 0), 0);
-}
+// Delegates so the unmetered case is decided in one place (Infinity on a
+// membership gym) rather than summing an empty balance to a misleading 0.
+const totalAvailableCredits = () => getTotalCredits();
 
-function getAvailableCreditsForEvent(event) {
-  if (!cache.profile || !cache.profile.available_credits) return 0;
-
-  // Map event credit_types to numeric IDs
-  const acceptedIds = (event.credit_types || []).map(c => {
-    const raw = c.credit_type ?? c.id ?? c;
-    return Number(typeof raw === 'object' ? raw.id : raw);
-  }).filter(id => !isNaN(id));
-
-  if (acceptedIds.length === 0) return Infinity; // no credit types required, assume unlimited
-
-  return cache.profile.available_credits.reduce((total, credit) => {
-    const creditTypeId = Number(credit.credit_type?.id ?? credit.credit_type);
-    if (acceptedIds.includes(creditTypeId)) {
-      return total + (credit.count || 0);
-    }
-    return total;
-  }, 0);
-}
 
 export async function renderBookings() {
   const bookingsList = document.getElementById('psycle-bookings-list');
@@ -60,69 +42,29 @@ export async function renderBookings() {
   }
 
   try {
-    const [bookingsRes, waitlistsRes, upgradesRes] = await Promise.all([
-      api.proxyGet('/bookings?limit=100&page=1', { ttlMs: 120000 }),
-      api.proxyGet('/waitlists?page=1', { ttlMs: 120000 }),
+    // WP-C1: bookings/waitlists + their event enrichment now come from the
+    // normalized endpoints (api.getBookings/getWaitlists) instead of a raw
+    // list fetch plus a hand-rolled per-item `/events/{id}` + relations-join
+    // loop. `codexfit.listBookings()`/`listWaitlists()` (server side) already
+    // do that exact join — inline `b.event`/`w.event` when present (mock
+    // convention), else resolve via the response's `relations` block (real
+    // API convention) — so this is a straight simplification, not a behavior
+    // change, and it also removes what used to be up to 2×N extra HTTP calls
+    // (one per unenriched booking/waitlist) on every bookings-tab load.
+    // Each NormalizedBooking is unwrapped back to a legacy-compatible shape
+    // (`{...raw booking row, event: <raw resolved event>}`) so every existing
+    // field read below (many layers deep in renderBookingsCards/
+    // renderWaitlistsCards) keeps working unmodified.
+    const toLegacy = (nb) => ({ ...nb.raw, event: nb.event ? nb.event.raw : undefined });
+    const [normalizedBookings, normalizedWaitlists, upgradesRes] = await Promise.all([
+      api.getBookings(),
+      api.getWaitlists(),
       api.getAutoUpgrades()
     ]);
 
-    let bookings = bookingsRes.data || bookingsRes || [];
-    let waitlists = waitlistsRes.data || waitlistsRes || [];
+    const bookings = (normalizedBookings || []).map(toLegacy);
+    const waitlists = (normalizedWaitlists || []).map(toLegacy);
     const upgrades = upgradesRes || [];
-
-    // Enrich bookings with event data if API returns flat objects (no nested `event`)
-    // CodexFit returns relations separately; we merge them into the event object
-    bookings = await Promise.all(bookings.map(async (b) => {
-      if (b.event && b.event.start_at) return b;
-      try {
-        const res = await api.proxyGet(`/events/${b.event_id}`, { ttlMs: 120000 });
-        const eventData = res.data || res;
-        const relations = res.relations || {};
-        // Merge related entities into the event object for template access
-        if (relations.instructors?.length) {
-          eventData.instructor = relations.instructors.find(i => i.id === eventData.instructor_id) || relations.instructors[0];
-        }
-        if (relations.event_types?.length) {
-          eventData.event_type = relations.event_types.find(t => t.id === eventData.event_type_id) || relations.event_types[0];
-        }
-        if (relations.studios?.length) {
-          eventData.studio = relations.studios.find(s => s.id === eventData.studio_id) || relations.studios[0];
-        }
-        if (relations.locations?.length && eventData.studio) {
-          eventData.studio.location = relations.locations.find(l => l.id === eventData.studio.location_id) || relations.locations[0];
-        }
-        b.event = eventData;
-      } catch (e) {
-        console.warn(`[Bookings] Could not fetch event ${b.event_id}:`, e.message);
-      }
-      return b;
-    }));
-
-    // Enrich waitlists with event data if API returns flat objects
-    waitlists = await Promise.all(waitlists.map(async (w) => {
-      if (w.event && w.event.start_at) return w;
-      try {
-        const res = await api.proxyGet(`/events/${w.event_id}`, { ttlMs: 120000 });
-        const eventData = res.data || res;
-        const relations = res.relations || {};
-        if (relations.instructors?.length) {
-          eventData.instructor = relations.instructors.find(i => i.id === eventData.instructor_id) || relations.instructors[0];
-        }
-        if (relations.event_types?.length) {
-          eventData.event_type = relations.event_types.find(t => t.id === eventData.event_type_id) || relations.event_types[0];
-        }
-        if (relations.studios?.length) {
-          eventData.studio = relations.studios.find(s => s.id === eventData.studio_id) || relations.studios[0];
-        }
-        if (relations.locations?.length && eventData.studio) {
-          eventData.studio.location = relations.locations.find(l => l.id === eventData.studio.location_id) || relations.locations[0];
-        }
-        w.event = eventData;
-      } catch (e) {
-        console.warn(`[Bookings] Could not fetch event ${w.event_id}:`, e.message);
-      }
-      return w;
-    }));
 
     cache.bookings = bookings;
     cache.waitlists = waitlists;
@@ -168,8 +110,8 @@ function syncBookingCache(bookings) {
       const startAt = event.start_at || b.start_at;
       if (!startAt || new Date(startAt).getTime() < now) return null;
       return {
-        bookingId: b.id,
-        eventId: event.id || b.event_id || null,
+        bookingId: bookingIdOf(b),
+        eventId: event.id || b.eventId || b.event_id || null,
         startAt,
         className: event.event_type?.name || event.name || 'Class',
         groupName: event.event_type?.group?.name || '',
@@ -194,7 +136,7 @@ function renderBookingsCards(bookings, upgrades) {
   bookings.forEach(b => {
     const event = b.event || null;
     if (!event || !event.start_at) return;
-    const key = event.id || b.event_id;
+    const key = event.id || b.eventId || b.event_id;
     if (!groups.has(key)) groups.set(key, { eventId: key, event, bookings: [] });
     groups.get(key).bookings.push(b);
   });
@@ -218,17 +160,17 @@ function buildBookingCard(group, upgrades) {
   const className = stripClassNamePrefix(event.event_type?.name || 'Class', event.event_type?.group?.name);
   const groupName = event.event_type?.group?.name || className;
   const instructorName = event.instructor?.full_name || 'TBA';
-  const locationLine = [event.studio?.name, trimLocation(event.studio?.location?.name)].filter(Boolean).join(', ');
+  const locationLine = [event.studio?.name, trimLocation(event.studio?.location?.name, getGymContext().name)].filter(Boolean).join(', ');
 
   const within12h = isWithin12Hours(event.start_at);
 
   const chipsHtml = group.bookings.map(b => {
-    const slotId = Number(b.studio_slot?.id ?? b.studio_slot_id ?? b.slot_id ?? b.slot);
+    const slotId = Number(slotIdOf(b));
     const slotLabel = b.studio_slot?.label ?? b.slot ?? b.studio_slot_id ?? b.slot_id ?? '?';
     
     // Find active upgrade for this specific booking
     const activeUpgrade = upgrades.find(u =>
-      Number(u.booking_id) === Number(b.id) &&
+      Number(u.booking_id) === Number(bookingIdOf(b)) &&
       ['active', 'paused_no_credits'].includes(u.status)
     );
     
@@ -249,7 +191,7 @@ function buildBookingCard(group, upgrades) {
     const nounCap = noun.charAt(0).toUpperCase() + noun.slice(1);
     
     return `<button class="${chipClass}" 
-                    data-booking-id="${b.id}" 
+                    data-booking-id="${bookingIdOf(b)}" 
                     data-slot-id="${slotId}" 
                     data-slot-label="${slotLabel}"
                     data-upgrade-id="${activeUpgrade?.id || ''}"
@@ -337,6 +279,13 @@ function buildBookingCard(group, upgrades) {
 // Two-tap confirm cancel for a whole class (all its booking records).
 // During the 60s grace period (data-grace-deadline attribute present), the
 // cancel fires immediately without confirmation.
+// A NormalizedBooking exposes `bookingId` and `slotId`; the pre-D9 raw CodexFit
+// shape used `id` and a family of slot fields. Both are read here so a stale
+// client cache degrades rather than cancelling `undefined` — which is exactly
+// what happened when only the read path was migrated (WP-D9).
+const bookingIdOf = (b) => b?.bookingId ?? b?.id;
+const slotIdOf = (b) => b?.slotId ?? b?.studio_slot?.id ?? b?.studio_slot_id ?? b?.slot_id ?? b?.slot;
+
 function wireCancelBooking(btn, card, group, within12h) {
   if (!btn) return;
   const labelSpan = btn.querySelector('span');
@@ -349,12 +298,12 @@ function wireCancelBooking(btn, card, group, within12h) {
     try {
       showToast('Cancelling booking...', 'info');
       for (const b of group.bookings) {
-        await api.proxyDelete(`/bookings/${b.id}`);
-        const up = (cache.upgrades || []).find(u => String(u.booking_id) === String(b.id) && ['active', 'paused_no_credits'].includes(u.status));
+        await api.cancel(bookingIdOf(b));
+        const up = (cache.upgrades || []).find(u => String(u.booking_id) === String(bookingIdOf(b)) && ['active', 'paused_no_credits'].includes(u.status));
         if (up) { try { await api.deleteAutoUpgrade(up.id); } catch (_) {} }
       }
-      await invalidateApiCache('/api/proxy/bookings');
-      await invalidateApiCache('/api/proxy/waitlists');
+      await invalidateApiCache('/api/bookings');
+      await invalidateApiCache('/api/waitlists');
       showToast('Booking cancelled.', 'success');
       await refreshUserData(true);
       renderBookings();
@@ -421,22 +370,34 @@ export async function openEditBookingModal(group, onChange = renderBookings) {
 
   await refreshUserData(true);
   try {
-    const res = await api.proxyGet(`/events/${group.eventId}`, { ttlMs: 120000 });
-    const eventDetails = res.data || res;
-    const studio = res.relations?.studios?.[0] || eventDetails.relations?.studios?.[0] || eventDetails.studio || event.studio || {};
-    const layoutSlots = studio?.layout?.slots || [];
-    const availableSlots = (res.slots || eventDetails.slots || []).map(Number);
+    // WP-C5: this renderer now consumes NormalizedSlot[] / NormalizedLayoutObject[]
+    // straight from the adapter — no raw `studio.layout` access anywhere below,
+    // so a MarianaTek layout (a completely different raw shape) renders here
+    // unchanged. `.id` arrives as a string and is coerced to Number for the
+    // slot-id comparisons, matching how bookings/preferences store slot ids.
+    const { event: normalizedEvent, slots: layoutSlots, objects: layoutObjects } =
+      await api.getEventDetails(group.eventId);
+    const availableSlots = layoutSlots.filter(s => s.isAvailable).map(s => Number(s.id));
 
     // Current booked slots → booking IDs (so removals can target the right record)
     const slotToBooking = new Map();
     group.bookings.forEach(b => {
-      const sid = Number(b.studio_slot?.id ?? b.studio_slot_id ?? b.slot_id ?? b.slot);
-      if (!isNaN(sid)) slotToBooking.set(sid, b.id);
+      const sid = Number(slotIdOf(b));
+      if (!isNaN(sid)) slotToBooking.set(sid, bookingIdOf(b));
     });
     const currentSlots = [...slotToBooking.keys()];
 
-    if (layoutSlots.length === 0) {
-      body.innerHTML = `<div style="padding:24px;text-align:center;color:var(--text-secondary);">No floor map is available for this studio, so ${noun}s can't be changed here. Use Cancel to release the booking.</div>`;
+    // WP-C5: first-come-first-serve is now an explicit `layoutFormat` check
+    // rather than being inferred from an empty slot list. Both cases end up
+    // hiding the picker, but only FCFS means "this class genuinely has no
+    // assigned spots" — an empty list on a pick-a-spot class means the studio's
+    // floor map is missing, which is a different thing to tell the user.
+    const isFcfs = normalizedEvent.layoutFormat === 'first-come-first-serve';
+    if (isFcfs || layoutSlots.length === 0) {
+      const why = isFcfs
+        ? `This class doesn't use assigned ${noun}s, so there's nothing to change here.`
+        : `No floor map is available for this studio, so ${noun}s can't be changed here.`;
+      body.innerHTML = `<div style="padding:24px;text-align:center;color:var(--text-secondary);">${why} Use Cancel to release the booking.</div>`;
       return;
     }
 
@@ -448,7 +409,7 @@ export async function openEditBookingModal(group, onChange = renderBookings) {
     const minMapHeight = Math.max(340, rowCount * 56);
 
     const selected = new Set(currentSlots);
-    const labelFor = id => { const s = layoutSlots.find(ls => Number(ls.id) === id); return s?.label || s?.slot || String(id); };
+    const labelFor = id => { const s = layoutSlots.find(ls => Number(ls.id) === id); return s?.label || String(id); };
 
     body.innerHTML = `
       <div style="font-size:12px;color:var(--text-secondary);background:var(--surface-inset);border:1px solid var(--border);border-radius:8px;padding:8px 10px;margin-bottom:10px;line-height:1.5;">
@@ -465,8 +426,8 @@ export async function openEditBookingModal(group, onChange = renderBookings) {
     const summaryEl = body.querySelector('#psycle-edit-summary');
     const controls = body.querySelector('#psycle-edit-controls');
 
-    // Stage marker(s)
-    (studio?.layout?.objects || []).forEach(obj => {
+    // Stage marker(s) — NormalizedLayoutObject[]; empty for providers with none.
+    layoutObjects.forEach(obj => {
       const left = widthRange === 0 ? 50 : ((obj.x - minX) / widthRange) * 80 + 10;
       const top = heightRange === 0 ? 10 : ((obj.y - minY) / heightRange) * 75 + 10;
       const stage = document.createElement('div');
@@ -526,7 +487,7 @@ export async function openEditBookingModal(group, onChange = renderBookings) {
         const el = document.createElement('div');
         el.className = 'bk-edit-slot';
         el.style.cssText = `position:absolute;left:${left}%;top:${top}%;transform:translate(-50%,-50%);width:28px;height:28px;border-radius:6px;display:flex;align-items:center;justify-content:center;font-size:10px;font-weight:700;user-select:none;transition:all 0.1s;box-sizing:border-box;z-index:1;`;
-        el.textContent = slot.label || slot.slot || String(slotId);
+        el.textContent = slot.label || String(slotId);
         const clickable = isSelected || isCurrent || isAvailable;
         el.style.cursor = clickable ? 'pointer' : 'default';
         el.title = `${nounCap} ${slot.label || slotId}`;
@@ -571,13 +532,26 @@ export async function openEditBookingModal(group, onChange = renderBookings) {
         // 1. Release removed spots first (refunds credits, frees the seats).
         for (const sid of toRemove) {
           const bid = slotToBooking.get(sid);
-          await api.proxyDelete(`/bookings/${bid}`);
+          await api.cancel(bid);
           const up = (cache.upgrades || []).find(u => String(u.booking_id) === String(bid) && ['active', 'paused_no_credits'].includes(u.status));
           if (up) { try { await api.deleteAutoUpgrade(up.id); } catch (_) {} }
         }
         // 2. Book added spots.
         if (toAdd.length) {
-          await api.proxyPost('/bookings', { event_id: group.eventId, slots: toAdd });
+          // One request per spot — api.book() books exactly one (see
+          // providers/base.js). We have just cancelled the old spots, so a
+          // failure part-way through leaves the user short; report which
+          // actually landed rather than implying all of them did.
+          const added = [];
+          for (const slotId of toAdd) {
+            const r = await api.book(group.eventId, [slotId]);
+            if (!r.ok) {
+              throw new Error(added.length
+                ? `Re-booked ${added.length} of ${toAdd.length} spots — ${r.error || 'the rest were declined'}`
+                : (r.error || 'Re-booking was declined'));
+            }
+            added.push(r);
+          }
           api.notifyBookingSuccess({
             source: 'manual', eventId: group.eventId, className,
             groupName: event.event_type?.group?.name || '',
@@ -585,8 +559,8 @@ export async function openEditBookingModal(group, onChange = renderBookings) {
             startAt: event.start_at, slots: toAdd.map(labelFor),
           }).catch(() => {});
         }
-        await invalidateApiCache('/api/proxy/bookings');
-        await invalidateApiCache('/api/proxy/waitlists');
+        await invalidateApiCache('/api/bookings');
+        await invalidateApiCache('/api/waitlists');
         showToast(`${nounCap}s updated.`, 'success');
         closeModal();
         await refreshUserData(true);
@@ -638,7 +612,7 @@ function buildWaitlistCard(w) {
   const className = stripClassNamePrefix(event.event_type?.name || 'Class', event.event_type?.group?.name);
   const groupName = event.event_type?.group?.name || className;
   const instructorName = event.instructor?.full_name || 'TBA';
-  const locationLine = [event.studio?.name, trimLocation(event.studio?.location?.name)].filter(Boolean).join(', ');
+  const locationLine = [event.studio?.name, trimLocation(event.studio?.location?.name, getGymContext().name)].filter(Boolean).join(', ');
 
   const card = document.createElement('div');
   card.className = 'psycle-autobook-card ab-card';
@@ -689,7 +663,7 @@ function buildWaitlistCard(w) {
     labelSpan.textContent = '…';
     try {
       showToast('Leaving waitlist...', 'info');
-      await api.proxyDelete(`/waitlists/${event.id}`);
+      await api.leaveWaitlist(event.id);
       showToast('Left waitlist.', 'success');
       await refreshUserData(true);
       renderBookings();
@@ -707,11 +681,7 @@ function buildWaitlistCard(w) {
 // Auto-upgrade needs at least one spare credit to book the upgraded seat before
 // releasing the old one. Returns 1 if the user has none spare, else 0.
 function upgradeCreditShortfall() {
-  let total = 0;
-  if (cache.profile?.available_credits) {
-    total = cache.profile.available_credits.reduce((sum, c) => sum + (c.count || 0), 0);
-  }
-  return total < 1 ? 1 : 0;
+  return getTotalCredits() < 1 ? 1 : 0;
 }
 
 // Quick-register or open modal, like the auto-book flow
@@ -797,23 +767,32 @@ export async function openUpgradeConfigModal({ eventId, bookingId, currentSlotId
   title.textContent = isEditing ? `Edit Auto-Upgrade` : `Auto-Upgrade: ${className}`;
 
   try {
-    // Fetch event + studio layout, and the live shared studio map in parallel
-    const [res, allPrefs] = await Promise.all([
-      api.proxyGet(`/events/${eventId}`, { ttlMs: 120000 }),
+    // WP-C5: the floor plan below is driven entirely by NormalizedSlot[] /
+    // NormalizedLayoutObject[] from the adapter — no raw `studio.layout` access
+    // — so a MarianaTek layout renders here unchanged. `eventDetails`
+    // (= `event.raw`) is still read, but only for CodexFit-specific *credit*
+    // metadata (`.credit_types`, via getAvailableCreditsForEvent), which has no
+    // normalized equivalent yet and is out of C5's scope.
+    const [{ event, slots: layoutSlots, objects: layoutObjects }, allPrefs] = await Promise.all([
+      api.getEventDetails(eventId),
       api.getStudioPreferences()
     ]);
 
-    const eventDetails = res.data || res;
-    const groupName = eventDetails.event_type?.group?.name || eventDetails.event_type?.name || 'Class';
+    const eventDetails = event.raw;
+    const groupName = event.discipline || event.name || 'Class';
     const noun = seatNoun(groupName);
     const nounCap = noun[0].toUpperCase() + noun.slice(1);
-    const studio = res.relations?.studios?.[0] || eventDetails.relations?.studios?.[0] || eventDetails.studio || {};
-    const layoutSlots = studio?.layout?.slots || [];
-    const resolvedStudioId = studioId || studio.id;
+    const resolvedStudioId = studioId || event.studioId;
     const studioPrefs = resolvedStudioId ? allPrefs[resolvedStudioId] : null;
 
-    if (layoutSlots.length === 0) {
-      body.innerHTML = `<div style="padding: 24px; text-align: center; color: var(--text-secondary);">No floor map available for this studio. Auto-upgrade requires a spot map.</div>`;
+    // Explicit FCFS check rather than inferring it from an empty slot list —
+    // the two mean different things (see openEditBookingModal's equivalent).
+    const isFcfs = event.layoutFormat === 'first-come-first-serve';
+    if (isFcfs || layoutSlots.length === 0) {
+      const why = isFcfs
+        ? `This class doesn't use assigned ${noun}s, so there's nothing to upgrade to.`
+        : 'No floor map available for this studio. Auto-upgrade requires a spot map.';
+      body.innerHTML = `<div style="padding: 24px; text-align: center; color: var(--text-secondary);">${why}</div>`;
       return;
     }
 
@@ -897,12 +876,12 @@ export async function openUpgradeConfigModal({ eventId, bookingId, currentSlotId
       }
     }, {
       saveLabel: isEditing ? 'Save Changes' : 'Start Monitoring',
-      layoutObjects: studio?.layout?.objects || [],
+      layoutObjects,
       bannerHtml,
       extraControlsHtml,
       onDisable,
       disableLabel: 'Disable Auto-Upgrade',
-      availableSlots: (res.slots || eventDetails.slots || []).map(Number),
+      availableSlots: layoutSlots.filter(s => s.isAvailable).map(s => Number(s.id)),
       currentSlotId
     });
 
@@ -916,8 +895,8 @@ export async function openUpgradeConfigModal({ eventId, bookingId, currentSlotId
 window.addEventListener('psycle-data-refreshed', (e) => {
   const { endpoint } = e.detail;
   if (
-    endpoint.startsWith('/api/proxy/bookings') || 
-    endpoint.startsWith('/api/proxy/waitlists') || 
+    endpoint.startsWith('/api/bookings') || 
+    endpoint.startsWith('/api/waitlists') || 
     endpoint.startsWith('/api/auto-upgrade')
   ) {
     const bookingsPanel = document.getElementById('psycle-panel-my-bookings');

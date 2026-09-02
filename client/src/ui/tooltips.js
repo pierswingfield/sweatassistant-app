@@ -39,7 +39,8 @@ function parseSpotifyUserId(raw) {
 
 function instructorTooltipHTML(instructorIdRaw) {
   const instructorId = parseInt(instructorIdRaw);
-  const instructor = metadata.instructors.find(i => i.id === instructorId);
+  // Normalized ids are strings; instructorId comes off a raw event as a number.
+  const instructor = metadata.instructors.find(i => String(i.id) === String(instructorId));
   if (!instructor) return null;
 
   const photoUrl = instructor.photo || instructor.image_1 || '';
@@ -220,7 +221,7 @@ export function initTooltips() {
         positionTooltip(target, occupancyTooltip);
 
         try {
-          const res = await api.proxyGet(`/events/${eventId}`, { ttlMs: 120000 });
+          const res = await api.getEventDetails(eventId);
           eventDetailsCache.set(eventId, res);
           if (activeOccupancyHoverTarget === target) {
             renderMinimap(res, occupancyTooltip);
@@ -291,15 +292,35 @@ function positionTooltip(target, tooltipEl) {
 }
 
 // === MOBILE TIMETABLE — export renderMinimap (added Jun 2026; delete 'export' to revert) ===
+// Takes the normalized event-details payload from api.getEventDetails():
+//   { event, slots: NormalizedSlot[], objects: NormalizedLayoutObject[] }
+//
+// Each slot carries its own `isAvailable`, so there is no separate "available
+// ids" list to intersect — that was a CodexFit response quirk (a sibling `slots`
+// array of bare ids next to the studio's full layout), and no other platform
+// emits it. Raw payloads are still accepted so a stale IndexedDB entry renders
+// rather than throwing.
 export function renderMinimap(payload, occupancyTooltip) {
-  const eventData = payload.data || payload;
-  const studio = payload.relations?.studios?.[0] || eventData.relations?.studios?.[0] || eventData.studio || {};
-  const layoutSlots = studio?.layout?.slots || [];
-  const availableSlots = payload.slots || eventData.slots || []; 
-  const availableSlotIds = new Set(availableSlots.map(id => Number(id)));
+  const isNormalized = Array.isArray(payload?.slots) && payload.slots.some((s) => s && typeof s === 'object');
 
-  const totalSlots = eventData.capacity || layoutSlots.length || 0;
-  const openSlots = availableSlots.length;
+  let layoutSlots, layoutObjects, availableSlotIds, totalSlots, openSlots;
+  if (isNormalized) {
+    layoutSlots = payload.slots;
+    layoutObjects = payload.objects || [];
+    availableSlotIds = new Set(layoutSlots.filter((s) => s.isAvailable).map((s) => Number(s.id)));
+    openSlots = availableSlotIds.size;
+    totalSlots = payload.event?.capacity || layoutSlots.length || 0;
+  } else {
+    const eventData = payload.data || payload;
+    const studio = payload.relations?.studios?.[0] || eventData.relations?.studios?.[0] || eventData.studio || {};
+    layoutSlots = studio?.layout?.slots || [];
+    layoutObjects = studio?.layout?.objects || [];
+    const availableSlots = payload.slots || eventData.slots || [];
+    availableSlotIds = new Set(availableSlots.map((id) => Number(id)));
+    totalSlots = eventData.capacity || layoutSlots.length || 0;
+    openSlots = availableSlots.length;
+  }
+
   const occupiedSlots = Math.max(0, totalSlots - openSlots);
 
   let minimapContentHtml = '';
@@ -316,7 +337,6 @@ export function renderMinimap(payload, occupancyTooltip) {
     const widthRange = maxX - minX || 1;
     const heightRange = maxY - minY || 1;
 
-    const layoutObjects = studio?.layout?.objects || [];
     let stageHtml = '';
     layoutObjects.forEach(obj => {
       const left = widthRange === 0 ? 50 : ((obj.x - minX) / widthRange) * 80 + 10;
@@ -340,13 +360,18 @@ export function renderMinimap(payload, occupancyTooltip) {
       `;
     });
 
+    // Open spots the studio layout has no position for. On the normalized shape
+    // every available slot IS a layout slot (they are the same objects), so this
+    // is always zero — it only ever meant something for CodexFit's split
+    // "layout here, available ids there" response. Computed from the shared
+    // `availableSlotIds` set so it works for both shapes.
     const layoutSlotIds = new Set(layoutSlots.map(s => Number(s.id)));
-    const unmappedAvailableSlots = availableSlots.filter(id => !layoutSlotIds.has(Number(id)));
+    const unmappedCount = [...availableSlotIds].filter(id => !layoutSlotIds.has(id)).length;
     let extraSlotsHtml = '';
-    if (unmappedAvailableSlots.length > 0) {
+    if (unmappedCount > 0) {
       extraSlotsHtml += `
         <div style="font-size: 12px; color: var(--text-secondary); text-align: center; margin-top: 4px; border-top: 1px solid color-mix(in srgb, var(--text) 6%, transparent); padding-top: 4px;">
-          + ${unmappedAvailableSlots.length} unmapped open spots
+          + ${unmappedCount} unmapped open spots
         </div>
       `;
     }

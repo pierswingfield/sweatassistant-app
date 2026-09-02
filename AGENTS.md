@@ -13,6 +13,9 @@ Server + PWA assistant for Psycle London (and future gym providers). It moves sc
 - [psycle_codexfit.md](file:///Users/pierswingfield/Desktop/AI%20Projects/psycle%20chrome/App/Documentation/Services/psycle_codexfit.md) — CodexFit/Psycle API integration and native website timetable behavior.
 - [marianatek.md](file:///Users/pierswingfield/Desktop/AI%20Projects/psycle%20chrome/App/Documentation/Services/marianatek.md) — Mariana Tek provider platform research and integration notes.
 - [Backlog/](file:///Users/pierswingfield/Desktop/AI%20Projects/psycle%20chrome/App/Documentation/Backlog/) — Specific design and specs documents for complex backlog items.
+- [Backlog/COMPLETED.md](file:///Users/pierswingfield/Desktop/AI%20Projects/psycle%20chrome/App/Documentation/Backlog/COMPLETED.md) — Archive of finished work. **Not actionable** — read only for "why is it like this?" BACKLOG.md is kept short because it loads into context every session.
+- [TESTING.md](file:///Users/pierswingfield/Desktop/AI%20Projects/psycle%20chrome/App/Documentation/TESTING.md) — **`npm test` runs everything.** Three layers (server suites, client vitest units, browser smoke via Claude for Chrome) and what each can and cannot catch. Read before adding a test.
+- [Backlog/modular-gyms/OUTSTANDING.md](file:///Users/pierswingfield/Desktop/AI%20Projects/psycle%20chrome/App/Documentation/Backlog/modular-gyms/OUTSTANDING.md) — **What blocks enabling JAB Boxing.** Answers "is the second gym ready?" in one read.
 
 ## Backlog Management Process
 
@@ -30,9 +33,10 @@ App/
 ├── server/                  # Express.js backend
 │   ├── server.js            # Main server — routes, proxy, cart/checkout, SSE, rate limiters
 │   ├── auth.js              # CodexFit login, JWT issuance, auto-relogin on 401
-│   ├── db.js                # SQLite schema + CRUD (better-sqlite3, 12 tables)
+│   ├── db.js                # SQLite schema + CRUD (better-sqlite3, 15 tables)
 │   ├── crypto.js            # AES-256-GCM encrypt/decrypt for credentials (env key required)
-│   ├── scheduler.js         # Monday 12PM London auto-book precision scheduler, priority tiers, SSE
+│   ├── scheduler.js         # Auto-book precision scheduler — queue-driven wake clock
+│   │                        #   (WP-I), priority tiers, SSE
 │   ├── poller.js            # Auto-upgrade polling + cancellation/window reminders + cache refresh
 │   ├── push.js              # Web Push (VAPID) notification fan-out service
 │   ├── notifications.js     # Notification dispatch layer (5 types, per-user prefs)
@@ -40,17 +44,35 @@ App/
 │   ├── admin.js             # Admin panel API router (user list, detail, priority tiers, delete)
 │   ├── admin.html           # Standalone admin SPA served at /admin
 │   ├── config.js            # Central env config (appName, publicHost) — single source of truth
+│   ├── gyms.config.js       # ★ Gym registry — the single source of gym truth (URLs,
+│   │                        #   headers, theme, capabilities, booking-window POLICY)
+│   ├── routes-normalized.js # Gym-agnostic API surface (/api/timetable, /api/metadata,
+│   │                        #   /api/book, …) — what the client should use
+│   ├── providers/           # ★ Platform adapters — the ONLY gym-aware code
+│   │   ├── base.js          #   GymProvider contract + Normalized* typedefs
+│   │   ├── index.js         #   getProvider(gymId) → an adapter instance
+│   │   ├── normalize.js     #   makeEvent/makeSlot/makeMetadata/… shape builders
+│   │   ├── booking-window.js#   Policy evaluator (platform- AND gym-agnostic)
+│   │   ├── codexfit.js      #   CodexFit protocol (Psycle's platform)
+│   │   └── marianatek.js    #   MarianaTek protocol (JAB's platform)
 │   ├── mock.js              # Dev-mode mock CodexFit API (dev@psycle.com)
-│   └── test-auth-and-proxy.js  # Basic integration tests
+│   ├── mock-marianatek.js   # Dev-mode mock MarianaTek API (dev@jabboxing.mock)
+│   ├── run-tests.js         # Test runner — discovers server/test-*.js by filename
+│   └── test-*.js            # 16 suites; see Documentation/TESTING.md
 ├── client/                  # Vite PWA frontend
 │   ├── index.html           # SPA shell with 5 tab panels + modals + iOS bottom nav
 │   ├── src/
 │   │   ├── main.js          # App init, auth, tab routing, push, theme, offline, pull-to-refresh, credit badge
 │   │   ├── api.js           # API abstraction layer (all server calls)
 │   │   ├── lib.js           # Shared utilities (Luxon timezone, countdown, release time, booking-window detect)
-│   │   ├── cache.js         # IndexedDB v2 wrapper (cache + api-responses stores, per-user key prefix)
+│   │   ├── cache.js         # IndexedDB v2 wrapper (cache + api-responses stores);
+│   │   │                    #   per-user+gym key prefix + gymScopedKey() (WP-G)
 │   │   ├── config.js        # Build-time + runtime app config (appName, publicHost via /api/config)
-│   │   ├── styles.css       # Design tokens + glassmorphic theme, light/dark parity (~4900 lines) — the only stylesheet loaded
+│   │   ├── styles.css       # Design tokens, light/dark parity (~7300 lines) — the only stylesheet loaded
+│   │   ├── lib.test.js      # Client unit tests (vitest) — see Documentation/TESTING.md
+│   │   ├── cache.test.js    # Gym-scoped cache-key isolation (WP-G)
+│   │   ├── gym-context.js   # ★ Active gym's capabilities/theme/labels — what the UI gates on
+│   │   ├── gym-context.test.js
 │   │   └── ui/
 │   │       ├── timetable.js   # Class timetable, filters, booking modal, quick-book, floor plan, mobile cards
 │   │       ├── bookings.js    # My Bookings + Waitlists + Auto-Upgrade setup + edit-spots modal
@@ -62,6 +84,8 @@ App/
 │   │       ├── tooltips.js    # Instructor + occupancy tooltips (hover + touch tap-to-toggle)
 │   │       ├── onboarding.js  # First-run 6-step guided flow (intro → install → login → notifs → calendar → spot maps)
 │   │       ├── pulltorefresh.js # Reusable pull-to-refresh for scroll containers
+│   │       ├── credit-allowance.js # ★ The ONLY credit arithmetic — Infinity when unmetered
+│   │       ├── credit-allowance.test.js
 │   │       └── cards.js       # Shared SVG icon set + discipline tags + card text helpers
 │   └── public/
 │       ├── manifest.json    # PWA manifest (name: "Sweat Assistant", standalone, portrait)
@@ -82,11 +106,21 @@ npm run dev:server           # Start server only (port 3000)
 npm run dev:client           # Start Vite dev server only (port 5173, proxies /api)
 npm run build:client         # Production build of client
 npm start                    # Production start (server serves built client)
+
+npm test                     # EVERYTHING: 14 server suites + the client suite
+npm run test:server          # Server only
+npm run test:client          # Client only (vitest)
 ```
+
+See [TESTING.md](file:///Users/pierswingfield/Desktop/AI%20Projects/psycle%20chrome/App/Documentation/TESTING.md)
+for the three testing layers and what each can and cannot catch. A browser smoke test is the
+third layer and is **not** covered by `npm test` — run it before deploying client changes.
 
 Server runs on port 3000. Vite dev server proxies `/api` to `localhost:3000`.
 
-**Dev mode**: Login with `dev@psycle.com` (any password) to use `mock.js` — no CodexFit calls, realistic fake data (4 locations, 4 studios, 28 classes, 3 bundles). No mock for booking/waitlist/cancel actions.
+**Dev mode**: two mock gyms, one per platform.
+- `dev@psycle.com` (any password) → `mock.js`, the CodexFit mock: 4 locations, 4 studios, 28 classes, 3 bundles. No mock for booking/waitlist/cancel actions.
+- `dev@jabboxing.mock` → `mock-marianatek.js`, the MarianaTek mock, reached via `linkGymAccount`. Unlike the CodexFit mock it **does** cover the write paths (book/cancel/waitlist/swap), because the live JAB test account has no credits to exercise them with.
 
 ## Critical CodexFit API Gotchas
 
@@ -94,17 +128,39 @@ Server runs on port 3000. Vite dev server proxies `/api` to `localhost:3000`.
 - **Direct login** (`POST /api/v1/customer/auth/login` with `{ email, password }`) works but is not used by the website (which uses Shopify multipass SSO). This is the key enabler for the PWA.
 - **Required headers** on all CodexFit requests: `origin: https://psyclelondon.com`, `referer: https://psyclelondon.com/`, `accept: application/json`, `x-organisation: [object Object]` (yes, literally the string `[object Object]`).
 - **Booking window**: Rolling Monday 12:00 PM London time release. `booking_cutoff` and `extended_cutoff` fields on user profile control access. `is_always_bookable` bypasses cutoffs.
-- **Booking offset**: Standard window is 8 days from Monday noon (Mon → following Tue); membership tiers extend it (2wk→15, 3wk→22). **Auto-detected** per user from profile `booking_cutoff`/`extended_cutoff` + `extended_booking_allowed`. Holding **extended-booking credits** in inventory applies a 15-day (2-week) *floor* — not additive: credits never extend an already-extended account or stack to a 3rd week. See `detectBookingWindow()` in `client/src/lib.js`, persisted to `settings.detectedBookingOffset` by `syncDetectedBookingWindow()` in `main.js`. `getBookingOffset()` priority: debug `manualBookingWindowWeeks` override (Settings, debug only) → `detectedBookingOffset` → legacy settings. Mirrored in `server/scheduler.js` and `client/src/lib.js`.
+- **No advanced-booking credits (2026-09-01)**: Psycle no longer issues them. The window is the 15-day base plus the member tier's extra days, and **the tier's extra days already arrive on the profile cutoff**, so no tier table exists anywhere in the code — encoding one would be a second source of truth that drifts the moment Psycle changes a tier. The old 15-day credit floor is removed from `providers/booking-window.js` entirely. **Any future per-gym window adjustment belongs in that gym's adapter** (`codexfit.js resolveBookingWindow` is the seam), never back in the shared evaluator, where it looked platform-neutral while encoding one gym's promotion.
+- **Booking offset (Psycle)**: Standard window is **15 days** from the release Monday. The cutoff always lands on a **Tuesday** — booking for any given Tuesday opens on the Monday, so `releaseMonday + 15` (M+14 would be a Monday). The retired 8-day base had the same alignment (M+8 is also a Tuesday). *Corrected 2026-09-01: a brief 14 would have held Tuesday classes back a whole extra week for standard-tier members.* Membership tiers extend it by **days, not weeks**: Psycle 10 +2, Psycle 15 +3, Unlimited +8 — confirmed with a member 2026-08-31. **Never snap a window to a whole-week tier** — that was the pre-2026-08-31 model and it mis-computed 3 of the 4 current tiers in both directions. **Auto-detected** per user from profile `booking_cutoff`/`extended_cutoff` + `extended_booking_allowed`, used verbatim (clamped 1–35 days), so the base only bites on a cold start. The **extended-booking credit floor of 15 days is now a no-op** for standard members (it equals the base) — it dates from when the base was 8 and needs validating against a real account holding one. All of this is **policy and lives in `gyms.config.js → psycle-london.bookingWindow`**, not in `providers/codexfit.js` (WP-D8). `server/test-booking-window-policy.js` pins the Tuesday alignment and 10,000+ equivalence cases.
 - **Bookmark identifier formula**: `studioId + "0000" + dayOfWeek + "0000" + HHmm` (e.g., studio 138, Monday 19:30 → `"1380000100001930"`).
 - **Cart API**: `POST /cart/add_bundle/{bundleId}?instance={instanceId}` adds bundles to a CodexFit cart. The instance ID is created via `POST /cart` and stored in user settings (`cartInstanceId`). The PWA's in-app checkout wraps this: `POST /api/cart/checkout/init/:bundleId` (add bundle + list saved cards) → `POST /api/cart/checkout/confirm` (place order, poll Stripe `GET /orders/:id` until `Paid`). When a saved-card charge requires 3-D Secure, the server returns `status: 'requires_action'` and the client falls back to the website checkout with tips (full in-app 3DS challenge flow not yet built — see [3d_secure_checkout.md](file:///Users/pierswingfield/Desktop/AI%20Projects/psycle%20chrome/App/Documentation/Backlog/3d_secure_checkout.md)).
 - **Booking response shape**: `POST /bookings` returns `{ success: true, bookings: { "8255409": 53 } }` — the key is the booking ID, value is the slot ID. The client's `tryAutoRegisterUpgrade` extracts the booking ID from this.
 - **No booking show/update endpoint**: `GET /bookings/{id}` and `PUT/PATCH /bookings/{id}` all return HTTP 500 `BadMethodCallException` (`BookingController::show`/`::update` does not exist). The routes exist (Laravel `Route::resource` boilerplate) but the methods are unimplemented. `BookingController` only implements `index` (list), `store` (create), `destroy` (cancel). **There is no atomic spot-swap API** — changing spots requires cancel-then-rebook (`DELETE /bookings/{id}` + `POST /bookings`). Confirmed via authenticated API testing; see [psycle_codexfit.md](file:///Users/pierswingfield/Desktop/AI%20Projects/psycle%20chrome/App/Documentation/Services/psycle_codexfit.md) "Spot Swapping Limitations".
 
+- **Sweat Assistant account identity (Decision D4)**: an SA login is no longer a gym login. `users.password_hash` (scrypt, per-user salt, `scrypt$N$r$p$salt$hash`) is the account's own credential, independent of any gym's. A migrated account authenticates **locally** — no gym round-trip — so login survives a gym API outage or a lapsed membership, which is the point. Existing accounts have `password_hash` NULL and fall through to the gym login, which then seeds the hash from the password just proven: a silent migration, no prompt, no reset. A failed SA password does **not** fall back to gym auth (that would let a stale gym password bypass a changed SA password). Unlinking every gym is allowed — the account survives.
+- **Account setup**: signup (`POST /api/auth/signup`) creates a Sweat Assistant account with **no gym attached** — gyms are linked afterwards via `POST /api/my-gyms/link`.
+- **Gym login identity lives on the link, not the account (WP-D5)**: `user_gyms.gym_email` is the address this account authenticates to *that* gym with. It is a **separate field from `users.email`**, which is the Sweat Assistant identity — conflating them is precisely the coupling D4 exists to break. `linkGymAccount()` stores it (lower-cased) alongside the password, both having just been proven against the gym; `mergeUserWithGym` exposes it as `user.gym_email`. **NULL means "not captured" and must never fall back to `users.email`** — that fallback works for every account today (all default-gym links where the two happen to match) and would silently re-couple the account to the gym, invisibly, until a user with different addresses hits it. Treat NULL as "cannot re-authenticate unattended; the user must re-link". Existing `psycle-london` links were backfilled from `users.email` because there it is provable (pre-D4 an SA login *was* a CodexFit login); links to any other gym were left NULL rather than guessed. Asserted by `server/test-gym-identity.js`.
+- **Account recovery: admin-only.** `POST /api/admin/users/:id/reset-password` generates a strong temporary password server-side and returns it **once** for the admin to relay out-of-band (the admin never chooses it; it is not stored in plaintext). Clears stored gym credentials by default — opt out with `{ resetGymCredentials: false }`. There is **no self-service reset**; the mechanism is an open decision (BACKLOG.md).
+- **Never make a gym credential a recovery factor.** A gym-login recovery flow was built and removed on 2026-08-31 (Decision D5): it re-coupled the account to the gym — cancel the membership and you lose the account — and silently promoted the gym password to a master key for the Sweat Assistant account. `POST /api/auth/recover/*` are gone and a regression test asserts they stay gone. Whatever eventually proves identity, a successful recovery must reset **all** stored gym credentials via `db.resetGymCredentials()` (links, queues, spot maps and priority tiers survive; the user re-authenticates each gym).
+- **No-gym state**: gym-scoped routes return **409 with `code: 'NO_GYM_LINKED'`**, not 401. A gym-less account is legitimate, and a 401 would send the client round a login loop it cannot win. The client routes that state to a "Connect a gym" screen.
+- **Active gym resolution**: `db.resolveActiveGymId(userId)` decides which gym's session, credentials, priority and calendar token every db.js read resolves. Order: per-request gym (from the `x-gym-id` header, **only after `db.isGymLinked()` passes** — an unlinked or unknown gym is a 403, never a silent fallback) → the user's stored `users.active_gym_id` (ignored if they're no longer linked to it) → their sole linked gym → `DEFAULT_GYM_ID`. The request gym travels via `AsyncLocalStorage` (`db.runWithGymContext`), established in `auth.js`'s `authenticateToken`/`authenticateTokenSSE`, so the ~10 internal call sites and all their callers stay untouched. It is scoped to its own user id — an admin request reading another account resolves *that* account's gym, not the admin's. Background cron has no context and uses the persisted path. `resolveActiveGymId` deliberately does **not** check `gyms.enabled`: disabling a gym must not silently move an account already on it onto a different gym's data. The rollout gate lives at selection time (`db.setActiveGym`).
+- **No gym is privileged above the adapter layer (WP-D7)**. There are **three** layers, not two: the **platform module** (`providers/codexfit.js`, `providers/marianatek.js`) owns the *protocol* and is shared by every tenant on that platform; a **gym config** entry in `gyms.config.js` owns the *instance and its policy* (URLs, theme, capability flags, and per-gym rules like the booking window); everything above `providers/` knows only normalized types and capability flags. MarianaTek is a platform many gyms use, JAB being one — it is **not** an extension of CodexFit. Practical rules: no module-level `getProvider(...)` const (resolve per request from the active gym, or per row from `row.gym_id`); never `getProvider('some-gym')` with a literal; pass **paths**, not absolute URLs, so the provider prepends its own `apiBaseUrl`; don't name an identifier after one platform. A rule true of Psycle but not of every CodexFit gym belongs in the gym config, not the platform module. `server/test-no-gym-privilege.js` enforces all of this by scanning the source.
+- **Booking windows: protocol vs policy (WP-D8)**. Every gym has a booking window; what differs is how it is determined, and **the shapes are genuinely different — not variants of one another**. Three kinds, declared per gym as `bookingWindow.kind`:
+  - **`per-class`** — the API publishes a release instant per class. MarianaTek resolves whichever rule the studio uses (interval *or* rolling, per membership tier) **server-side** and publishes `booking_start_datetime`; confirmed against two production captures (marianatek.md §1). **Read it, never compute it.**
+  - **`rolling-continuous`** — release = class start minus a fixed span, **exact to the minute**. At 13:30 on 1 Sep with a 14-day window, the 13:30 class on 15 Sep is open and the 14:00 class the same day is not. This is JAB's actual rule, and it is what a `per-class` gym falls back to when a payload omits the field (`bookingWindow.fallback`).
+  - **`rolling-weekly`** — a fixed weekday and hour, plus a per-member day offset read from their profile cutoff. Psycle: Monday 12:00, 14-day base, tiers extending it by days. **Different members see different opening dates for the same class**, which is why the offset is resolved per user and never hardcoded.
+  A missing release resolves to **null**, never to "now" — `getClassReleaseTime()` returns null and every scheduler call site treats that as "skip", because assuming a class is open fires auto-book weeks early and burns the queue entry. **Psycle's numbers — Monday 12:00, 14-day base, credit type 8 with a 15-day floor — live in `gyms.config.js`, not in `providers/codexfit.js`**: CodexFit is a platform many gyms use, and another could release Sundays at 09:00. The adapter only knows *where* its API exposes the cutoff (`resolveBookingWindow`) and how to compose an instant from a policy (`releaseAtFor`); `providers/booking-window.js` evaluates the policy. `routes-normalized.js` stamps `releaseAt` on every event so **the client reads a timestamp and computes nothing**. The Auto-Book tab therefore shows a **per-class** countdown (`data-release-at` on each card) and a banner counting to the soonest queued release — not one fixed weekly instant, which was only ever right for Psycle and only for one membership tier, and `auto_bookings.release_at` captures it at queue time because a per-class gym has no rule to recompute it from later. `server/test-booking-window-policy.js` pins bit-identical equivalence to the pre-split algorithm over 10,000+ cases. Note `gym.timezone` is also a gym-config field — CodexFit serves timezone-naive datetimes, but which zone they are naive in belongs to the gym.
+- **Session renewal is the adapter's job (WP-D7)**: `triggerAutoRelogin(userId, gymId?)` resolves the gym (background callers pass the row's own, since a gym the user isn't looking at still needs renewing) and calls `provider.refreshSession(session, credentials)`. The adapter owns the ladder — refresh token where the platform has one, straight to re-login where it doesn't. **Never branch on the platform at the call site**; that is how "MarianaTek as an extension of CodexFit" creeps back. On failure the session is cleared and the link is flagged `needs_relogin`, but the link itself survives — a transient outage must not cost someone their queue, spot maps and calendar token.
+- **The client consumes `Normalized*` types, never `.raw` (WP-D15)**. `NormalizedEvent.raw` exists for the debug panel and nothing else. The timetable used to fetch normalized events then immediately `map(ne => ne.raw)`, which worked only because `.raw` IS a CodexFit event for Psycle — for MarianaTek it is a class with `start_datetime` and the grid threw on first render. Field names to use: `startAt`/`endAt`/`durationMin`, `discipline` (the group), `instructors[0].name`, `studioId`/`studioName`, `locationId`/`locationName`/`locationAddress`, `capacity`/`availableCount`, `isFull`, `waitlistAvailable`, `alwaysBookable`, `layoutFormat`, `releaseAt`.
+- **Gym-scoped data: two rules, opposite directions (WP-D6)**. Every per-user table carries `gym_id`, and the DDL default is **gone** — a forgotten `gym_id` is now `NOT NULL constraint failed`, not a silent Psycle row. (1) **Per-user accessors scope to `db.resolveActiveGymId(userId)`.** Several of these tables key on *provider* ids — `studio_id`, `event_id`, `booking_id` — which are unique only within a gym, so an unscoped read hands one gym's spot map to another's booking flow. (2) **Cross-user background scanners must NOT filter by gym** — `getPendingAutoBookings()`, `getActiveAutoUpgrades()`, `getAllBookingCache()`. A user's JAB auto-book has to fire while their *active* gym is Psycle; filtering these silently stops background work for every non-active gym. They select `gym_id` so the caller routes per row, which is why `markAutoBookingExecuted()` takes an explicit `gymId` (from the row) rather than resolving one. Both directions are pinned by `server/test-gym-isolation.js` — the only suite that is multi-gym, so it is the only place a missing `AND gym_id = ?` shows up as red.
+- **Gym scoping is not only a database concern (WP-G)**. `gym_id` on every table made the DB safe and *hid* the fact that runtime state collided: any **process-local Map/Set or client cache key built from a provider id** is a cross-gym collision, because two gyms can both publish event 12345 slot 7. No SQL predicate can catch it — `test-gym-isolation.js` section 8 exists for exactly this and is the only place it goes red. Now gym-qualified: `scheduler.js`'s `claimedSlots`/`burnedSlots` (`gymId:eventId:slotId`), its shared `eventCache` (via `eventCacheKey(gymId, eventId)` — so `getCachedEvent`/`setCachedEvent`, which `poller.js` also uses, take `gymId` first), `client/src/cache.js`'s API-response prefix (`userId@gymId`), and — via the shared `gymScopedKey(base)` helper — `psycleCacheEvents`/`psycleCacheMeta` in the sibling `cache` store, `psycleCacheTime`, `psycleActiveStudioIds{,Time}` and `psycleDefaultFilters`. **`api-responses` is not the only cache**: `timetable.js` keeps raw events and metadata in its own store under its own key names, and missing those left a JAB user looking at Psycle's timetable while every network call correctly returned MarianaTek data — caught only by a browser smoke test, because nothing throws and the console is clean. Call `gymScopedKey()` at **use** time, never at module load, so the key follows the active gym. **Put `gymId` in the key rather than clearing state on transitions** — the client cache previously relied on `applyGymSwitch()` remembering to clear it, which is a correctness guarantee resting on a habit. `cache.js` therefore derives its gym segment from `localStorage` at key-build time instead of accepting it from a caller (and reads `localStorage` directly, because `api.js` imports `cache.js`). The `eventCache` was the sharpest case: a cross-gym hit served one gym's floor plan as another's, so the scheduler booked against slots that don't exist in the room. Note **auto-book/upgrade quotas are per-gym on purpose** (`MAX_*_PER_GYM` in `server.js`; both counters scope by `resolveActiveGymId`) — the cost they bound is per-gym too. And `psycleDefaultFilters` has **no fallback** from the gym-qualified key to the bare one: that would hand a gym with no saved filters the previous gym's provider ids, which is the bug.
+- **Settings are split by scope (WP-D6)**: `account_settings` holds the keys that belong to the person, `settings` holds one row per gym. `db.getUserSettings()` merges them and `setUserSettings()` fans out, so every caller still sees one flat blob. **Keys default to gym-scoped**; only those in `ACCOUNT_SCOPED_SETTING_KEYS` (notifications, debugMode, autoUpgrade*, prefetchWeeks, theme) are shared. The default runs that way on purpose — the gym-scoped set is the one that grows with each provider capability, and a missed gym key leaks across gyms invisibly whereas a missed account key merely gets set twice. Note `calendar` is deliberately **gym**-scoped: the feed token lives on `user_gyms`, so `calendar.enabled` describes one gym's feed, and classifying it account-scoped makes `getCalendarEnabledUserIds()` find nobody and silently stop the feed cron.
+- **`GET /events` returns events BY REFERENCE**: the list response is `{ data, relations }` — each event carries `event_type_id`/`instructor_id`/`studio_id`, and the sibling `relations` bag holds the entities. It does **not** embed them inline. `codexfit.js`'s `resolveEventRelations()` must be applied to every list event; skipping it produces normalized events with no discipline/studio/location/instructor and makes the UI render a generic "CLASS" pill. `mock.js` mirrors this envelope deliberately — it used to inline the relations, which hid exactly this bug from every test.
+
 ## Architecture Constraints
 
 - **Server must handle all background work** (auto-book scheduling, auto-upgrade polling, reminders, calendar feed polling). The PWA is just a UI + push notification receiver.
-- **Auto-book precision**: Targets Monday 12:00 PM London time with T-50s staggered prefetch and T-0 dispatch. Server uses `setTimeout` → T-5s → `setInterval` every 10ms polling `Date.now()` until `>= targetRelease`.
-- **Priority tiers + fair dispatch**: `users.priority` (lower = higher precedence; default 100, new users get 200) drives Monday-noon dispatch ordering. `getPendingAutoBookings()` JOINs `users.priority` and sorts `ORDER BY priority ASC, created_at ASC`; Fisher-Yates shuffle within each tier gives statistical fairness over weeks. `CLAIM_STAGGER_MS = 80ms` staggers consecutive users in the same class. Cross-user `claimedSlots`/`burnedSlots` Sets prevent duplicate `POST /bookings` across concurrent users targeting the same event/slot. Admin-editable via `PUT /api/admin/users/:id/priority`.
+- **Auto-book precision**: T-50s staggered prefetch → T-5s `setTimeout` → `setInterval` every 10ms polling `Date.now()` until `>= targetRelease`.
+- **The QUEUE is the wake clock, not a weekday (WP-I)**. `scheduleReleaseWindow()` arms against `getNextReleaseInstant()` — the soonest **future** release among all pending entries, each resolved by `getClassReleaseTime()` from its own gym's policy or published per-class time. It re-arms after every dispatch and via `scheduler.rearm()` on queue mutation (`server.js` POST/DELETE `/api/auto-book`), because a newly queued class can release sooner than what is armed. **`getNextMondayNoonLondon()` is gone from the server** — it was Psycle policy sitting in the orchestrator, and it made a per-class gym's auto-book fail *twice over*: the process never woke at the right instant, and the release-group filter then rejected the class for not matching the wrong instant (measured 50.2h off — the entry simply never fired). Psycle is unchanged in effect: its entries still resolve to Monday 12:00 London and its priority cohort still dispatches together, since the `|release - target| < 10s` group predicate is untouched. Corollaries: an **empty queue arms nothing** and clears `scheduler_next_release`, so `/api/health` reports `nextReleaseAt: null` when idle (correct, not a fault) and the value is **no longer always a Monday**; an entry with an unresolvable release is **dropped, never treated as "now"** — `getClassReleaseTime()` returns `null` for a row with neither `release_at` nor `start_at`, where it previously returned `DateTime.now()`; that was survivable only because the old Monday-noon filter rejected a "releases now" row, and the queue-driven clock made it dispatch instantly instead; and missed-release recovery reads the queue instead of guessing `Monday - 1 week`. Pinned by `server/test-wake-clock.js`, which asserts the *chosen wake instant* — the assertion whose absence let the hardcoded Monday survive WP-D8. **Note `client/src/lib.js` still has its own `getNextMondayNoonLondon()`** (used by `timetable.js`); that is now the last copy of the constant.
+- **Priority tiers + fair dispatch**: `users.priority` (lower = higher precedence; default 100, new users get 200) drives dispatch ordering within a release group. `getPendingAutoBookings()` JOINs `users.priority` and sorts `ORDER BY priority ASC, created_at ASC`; Fisher-Yates shuffle within each tier gives statistical fairness over weeks. `CLAIM_STAGGER_MS = 80ms` staggers consecutive users in the same class. Cross-user `claimedSlots`/`burnedSlots` Sets prevent duplicate `POST /bookings` across concurrent users targeting the same event/slot. Admin-editable via `PUT /api/admin/users/:id/priority`.
 - **Auto-upgrade**: Configurable polling (1min/15min/1hr) via `node-cron` every minute. Stops at 12h before class start (or one final "keep original" attempt if `keepOriginalOnCutoff`). Hard stop at 1h.
 - **Rate limiting**: Five `express-rate-limit` limiters (production-only, skipped in dev): `proxyLimiter` (60/min per user on `/api/proxy/*`), `bookingMutationLimiter` (10/min per user on auto-book/upgrade writes), `calendarFeedLimiter` (60/min per IP on the public calendar URL), `authLoginLimiter` (10/15min per IP on `/api/auth/login`), `adminLoginLimiter` (5/15min per IP on `/api/admin/login`). Per-user quotas cap auto-book at 15 pending entries and auto-upgrade at 10 active monitors (429 on exceed).
 - **CORS**: Browser-origin allowlist (`config.corsOrigins`, override via `CORS_ORIGINS`). The PWA is served same-origin in production, so only the public host is allowed; localhost dev origins are added when `NODE_ENV !== 'production'`. Requests with no `Origin` header (curl, native calendar clients, same-origin nav) pass through; disallowed origins get no CORS headers (browser blocks them) rather than a 500.
@@ -188,6 +244,14 @@ The background services (auto-book scheduler, auto-upgrade poller, calendar feed
 
 ## Known Bugs / Issues
 
+- **Three separate questions, not two — `metered`, `creditPurchase`, and eligibility.** `metered` is "a class draws down a credit balance", `creditPurchase` is "we can sell top-ups in-app", and **"can this account book here at all" is a third thing that does not yet exist in the model.** Psycle answers the first two yes; JAB answers both no *and yet a JAB account with no active membership still cannot book*. Before 2026-09-02 that case was covered by accident: credit arithmetic summed an empty `available_credits` to 0 and warned — the right conclusion from the wrong input, since it warned identically for a JAB user *with* a valid membership. `providers/marianatek.js` has `getMemberships()` but it is **wired to no route**, `NormalizedProfile` has no eligibility field, and no client code consumes it. **Do not re-derive eligibility from credits** to fill the gap; add the concept. Until then a JAB user with no membership gets no warning and simply fails at the booking attempt.
+- **`metered` vs `creditPurchase` are different questions** — `metered` is "a class draws down a credit balance", `creditPurchase` is "we can sell top-ups in-app". Psycle is both; JAB is neither; a gym could be metered without us being able to top it up. Credit arithmetic lives in ONE place (`client/src/ui/credit-allowance.js`) and returns `Infinity` when unmetered — returning **0** reads as "cannot book" rather than "nothing to charge". **The consolidation was incomplete twice over:** WP-D12 moved the per-event arithmetic but left the *total-balance* `available_credits.reduce()` inlined in four call sites (`autobook.js`, `autoupgrade.js`, twice in `bookings.js`), each therefore skipping the `isMetered()` guard and rendering "⚠ Insufficient Credits" on every JAB card. Use `getTotalCredits()` / `getAvailableCreditsForEvent()`; `grep -rn "available_credits.reduce" client/src` outside that module must stay empty. Pinned by `credit-allowance.test.js`.
+- **`/api/proxy` has 3 callers left, all CodexFit-only features** — bookmarks ×2, `/bundles`, and the Konami debug `/account/update`. These should be **capability-gated out of existence** (layer F), not normalized: MarianaTek has no bookmarks API and JAB is membership-based, so there is no cross-gym concept to normalize. Everything a JAB user would actually do is already on normalized routes. Tracked as layer D in [OUTSTANDING.md](file:///Users/pierswingfield/Desktop/AI%20Projects/psycle%20chrome/App/Documentation/Backlog/modular-gyms/OUTSTANDING.md).
+- **Capability-gating markup means gating its event wiring too** — the bookmark heart's HTML was gated on `capabilities.bookmarks` but `row.querySelector('.psycle-timetable-heart').onclick` was not, so it threw on every row and emptied the **entire** timetable for a gym without bookmarks. Gate both, or neither.
+- **`[hidden]` loses to an inline `display`** — several elements in `index.html` carry one, so gated features stayed fully visible. `styles.css` has `[hidden] { display: none !important; }`; don't remove it.
+- **An unknown capability flag must default to ON** — hiding a feature a gym *has* is permanent and silent; briefly showing one it hasn't self-corrects when the catalogue loads. See `client/src/gym-context.js`.
+- **Normalized ids are STRINGS, raw event fields are numbers** — `metadata.studios.find(s => s.id === e.studio_id)` is silently false, not an error. Use `sameId()`/`String()`. This shipped twice during WP-D9: once caught by tests, once only by a browser smoke test (the location filter rendered an empty dropdown).
+- **`detectBookingWindow()` duplicated in the client** — `client/src/lib.js` still reimplements what `providers/codexfit.js resolveBookingWindow()` does server-side. Off the correctness path (the server stamps `releaseAt`), but it is Psycle policy in shared client code and should move.
 - **Auto-Book Favourites incomplete** — The Auto-Book tab has a "♥ Auto-Book Favourites" modal that saves `autoBookFavourites` (a list of bookmark identifiers) to user settings, but nothing in `scheduler.js` consumes this list to auto-create queue entries each week. The auto-sync logic for autoBookFavourites has not yet been built.
 - **Mobile/iOS layout uses fixed dimension layout** — The root panel base is still `width: 1080px; max-height: 85vh; border-radius: 28px` (desktop design heritage). Responsive media queries (`@media max-width: 1100px/480px`) now make it full-width on small screens and an iOS bottom nav was added, but the base dimensions mean it doesn't feel fully native on iOS installed to home screen. A dedicated mobile-first layout pass would improve this.
 - **Inline styles everywhere** — UI modules build elements with large `style="..."` strings instead of CSS classes, making maintenance and responsive tweaks painful (can't media-query inline styles). `cards.js` extracts some shared helpers, but most modules still inline. Should be migrated to `styles.css` classes over time. (`styles.css` is the only stylesheet imported in `index.html`.)
@@ -209,6 +273,8 @@ POST   /api/admin/login           # Verify ADMIN_PASSWORD, issue 1h admin JWT
 GET    /api/admin/users           # List all users with queue counts + priority
 GET    /api/admin/users/:id       # Full user detail (profile, credits, bookings, queue, monitors, spot maps)
 PUT    /api/admin/users/:id/priority  # Update a user's priority tier (1–999)
+POST   /api/admin/users/:id/reset-password  # Generate a temp password (shown once); clears gym creds by default
+POST   /api/admin/users/:id/link-gym  # Link a gym to a user (no credential verification — DB link only)
 DELETE /api/admin/users/:id       # Delete user + all CASCADE data
 
 # Auth
@@ -216,8 +282,42 @@ POST   /api/auth/login              # Login → CodexFit BFF, returns local JWT
 GET    /api/auth/status             # Check local JWT validity
 DELETE /api/auth/me                 # Delete all user data (account, creds, queue, prefs, push)
 
-# CodexFit Proxy
-ALL    /api/proxy/*                 # Proxy to CodexFit with stored JWT, auto-relogin on 401
+# Normalized gym-agnostic API (WP-N1/D9) — WHAT NEW CODE SHOULD USE
+# Every route below returns Normalized* shapes (see providers/base.js) and works
+# for any gym. Backed by routes-normalized.js → a provider adapter.
+GET    /api/timetable               # NormalizedEvent[] (releaseAt stamped per event)
+GET    /api/metadata                # { locations, studios, instructors, classTypes }
+GET    /api/events/:id              # { event, slots, objects, maxBookableSlots }
+GET    /api/studios/:id/layout      # { slots, objects } — empty slots = no floor map
+GET    /api/bookings                # NormalizedBooking[]
+GET    /api/waitlists               # NormalizedBooking[]
+GET    /api/profile                 # NormalizedProfile
+GET    /api/credits                 # Credit inventory (empty for membership-based gyms)
+GET    /api/cancel-penalty/:id      # Whether cancelling incurs a penalty
+POST   /api/book                    # NormalizedBookingResult
+POST   /api/cancel
+POST   /api/swap                    # Atomic spot swap (gyms with capabilities.atomicSwap)
+POST   /api/waitlist/join
+POST   /api/waitlist/leave
+
+# CodexFit Proxy — ⚠️ DEPRECATED, being removed (WP-D9)
+# Pinned to whatever provider the CALLING USER's active gym resolves to, but the
+# PATHS and response shapes are raw CodexFit, so it only works for CodexFit gyms.
+# Do not add callers. Its deletion is the acceptance criterion for layer D — see
+# Backlog/modular-gyms/OUTSTANDING.md.
+ALL    /api/proxy/*                 # Raw provider passthrough, auto-relogin on 401
+
+# Gyms (multi-gym)
+GET    /api/gyms                    # Public catalogue of configured gyms + capability flags
+GET    /api/my-gyms                 # Gyms THIS account is linked to + activeGymId
+POST   /api/my-gyms/active          # Persist the user's gym choice (403 if unlinked/disabled/unknown)
+POST   /api/my-gyms/link            # Link a gym, or re-authenticate a stale credential (same op)
+DELETE /api/my-gyms/:gymId          # Unlink a gym; the SA account survives (D4)
+POST   /api/account/password        # Change the Sweat Assistant password (independent of any gym)
+
+# Account setup (no auth)
+POST   /api/auth/signup             # Create an SA account (no gym attached) — returns { token, needsGym }
+# NOTE: no recovery endpoints — the gym-login mechanism was removed (see above)
 
 # Auto-Book
 GET    /api/auto-book               # List user's auto-book queue
@@ -268,15 +368,18 @@ POST   /api/notify/booking-success  # Client reports manual/quick booking → se
 POST   /api/bookings/sync           # Client pushes bookings to warm server reminder cache
 ```
 
-## SQLite Schema (12 tables)
+## SQLite Schema (15 tables)
 
 | Table | Purpose | Key columns |
 |-------|---------|-------------|
-| `users` | Accounts + encrypted creds | `email`, `encrypted_password`, `jwt`, `jwt_expires_at`, `priority` (tier, default 100), `display_name`, `profile_json`, `calendar_token` |
+| `users` | SA account identity | `email` (**the SA login, never a gym's**), `password_hash` (scrypt, the SA credential — D4), `active_gym_id` (last-selected gym), plus vestigial dual-written `encrypted_password`/`jwt`/`priority`/`display_name`/`profile_json`/`calendar_token` columns that `user_gyms` superseded in WP-D3 |
+| `gyms` | Registry mirror of `gyms.config.js` | `id`, `name`, `provider`, `enabled`. Synced from the config on every boot — the **config file is authoritative**, this exists for referential integrity + admin display |
+| `user_gyms` | One row per (account, gym) link — the real source of truth for auth/session/priority/calendar since WP-D3 | `gym_email` (**that gym's login, distinct from `users.email` — D5**), `encrypted_password`, `session_json` (AuthSession incl. refresh token), `calendar_token`, `priority`, `status`, `UNIQUE(user_id, gym_id)` |
 | `auto_bookings` | Auto-book queue + history | `event_id`, `preferences` (JSON), `status`, `executed_at`, `studio_id`, `group_name` |
 | `auto_upgrades` | Auto-upgrade monitors | `event_id`, `booking_id`, `current_slot_id`, `preferences` (JSON), `status`, `upgraded_slot_id`, `studio_id`, `original_slot_id` |
 | `studio_preferences` | Shared spot maps | `studio_id`, `preferences` (JSON: `{preferredSlots[], preferredRows[]}`), `UNIQUE(user_id, studio_id)` |
-| `settings` | Per-user settings | `preferences` (JSON blob — all settings + notification prefs + cartInstanceId) |
+| `settings` | Per-**gym** settings | `gym_id`, `preferences` (JSON blob — the gym-scoped keys: detectedBookingOffset, cartInstanceId, calendar, autoBookFavourites…), `UNIQUE(user_id, gym_id)` |
+| `account_settings` | Per-**account** settings (WP-D6) | `preferences` (JSON blob — `ACCOUNT_SCOPED_SETTING_KEYS` only: notifications, debugMode, autoUpgrade*, prefetchWeeks, theme). Merged with the gym row by `getUserSettings()` |
 | `push_subscriptions` | Web Push endpoints | `subscription` (JSON string) |
 | `booking_cache` | Reminder cache (client-synced) | `booking_id`, `event_id`, `start_at`, `slot_label`, `duration_min`, `location_address`, `UNIQUE(user_id, booking_id)` |
 | `waitlist_cache` | Waitlist reminder cache (client-synced) | `event_id`, `start_at`, `studio_id`, `location_address`, `UNIQUE(user_id, event_id)` |

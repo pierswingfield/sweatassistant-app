@@ -3,6 +3,15 @@ const db = require('./db');
 const pushService = require('./push');
 const notifications = require('./notifications');
 const { triggerAutoRelogin } = require('./auth');
+const { getProvider } = require('./providers');
+const { getGymConfig, DEFAULT_GYM_ID } = require('./gyms.config');
+
+// Interim single-gym bridge: until multi-gym login lands (WP-D3), the
+// scheduler only dispatches CodexFit / Psycle London bookings. See
+// server/auth.js for the same bridge.
+// No module-level provider (WP-D7). Every fetch below resolves its gym — from
+// the ROW being processed where there is one (background work must run for a gym
+// the user isn't currently looking at), otherwise from the user's active gym.
 
 let mainTimeout = null;
 let prefetchTimeout = null;
@@ -16,19 +25,29 @@ const sseClients = new Map();
 // TTL: 30s during the booking window (covers all T-0 dispatch); 60s for upgrade polling.
 const eventCache = new Map();
 
-// Cross-user slot coordination for the current release window — both keyed "eventId:slotId".
+// Cross-user slot coordination for the current release window — both keyed
+// "gymId:eventId:slotId" (WP-G). Event and slot ids are PROVIDER ids, unique only
+// within a gym: two gyms can both publish event 12345 slot 7, and an unqualified
+// key would make one gym's claim silently suppress the other gym's POST.
 // claimedSlots: slot is in-flight or successfully booked by one of our users → others skip (no POST).
 // burnedSlots:  slot POST failed (external user took it) → others skip without attempting.
 // Both are cleared at the start of each release window dispatch.
 const claimedSlots = new Set();
 const burnedSlots = new Set();
 
-function setCachedEvent(eventId, payload, ttlMs) {
-  eventCache.set(String(eventId), { payload, expiresAt: Date.now() + ttlMs });
+// Same reasoning as the claim sets: an event id alone is not unique across gyms,
+// and a collision here is worse than a skipped booking — it serves one gym's slot
+// occupancy as another gym's, so the scheduler books against the wrong floor plan.
+function eventCacheKey(gymId, eventId) {
+  return `${gymId}:${eventId}`;
 }
 
-function getCachedEvent(eventId) {
-  const entry = eventCache.get(String(eventId));
+function setCachedEvent(gymId, eventId, payload, ttlMs) {
+  eventCache.set(eventCacheKey(gymId, eventId), { payload, expiresAt: Date.now() + ttlMs });
+}
+
+function getCachedEvent(gymId, eventId) {
+  const entry = eventCache.get(eventCacheKey(gymId, eventId));
   if (!entry || Date.now() > entry.expiresAt) return null;
   return entry.payload;
 }
@@ -53,96 +72,143 @@ function emitStatusUpdate(userId, update) {
   });
 }
 
-// Booking-window tiers: 8 days base (≈1 week), +7 per extra week. 1→8, 2→15, 3→22, 4→29.
-// Mirrors client/src/lib.js weeksToOffsetDays.
+// Sane bounds for a booking-window offset, in days after the release Monday.
+// A guard against a garbled offset, NOT a set of allowed tiers.
+// Mirrors client/src/lib.js MIN_OFFSET_DAYS / MAX_OFFSET_DAYS.
+const MIN_OFFSET_DAYS = 1;
+const MAX_OFFSET_DAYS = 35;
+
+// LEGACY / DEBUG ONLY — whole-week tiers (1→8, 2→15, 3→22, 4→29).
+// Psycle's window is no longer whole weeks (confirmed 2026-08-31: standard moved
+// to a fortnight, membership tiers extend by DAYS — +2/+3/+8). Detection no
+// longer snaps to these; they survive only for the debug week-override and the
+// pre-detection legacy path. Mirrors client/src/lib.js weeksToOffsetDays.
 function weeksToOffsetDays(weeks) {
   const w = Math.min(4, Math.max(1, Math.round(weeks) || 1));
   return 8 + (w - 1) * 7;
 }
 
+// Mirrors client/src/lib.js clampOffsetDays.
+function clampOffsetDays(days) {
+  const n = Math.round(Number(days));
+  if (!Number.isFinite(n)) return 15;
+  return Math.min(MAX_OFFSET_DAYS, Math.max(MIN_OFFSET_DAYS, n));
+}
+
 // Calculate booking offset in days based on settings.
 // Priority: debug manual override → auto-detected window → legacy manual toggles.
-// Mirrors client/src/lib.js getBookingOffset exactly.
+// Mirrors client/src/lib.js getBookingOffset exactly. **Keep the two in step** —
+// a divergence here means auto-book fires at a different instant than the
+// countdown the user is watching.
 function getBookingOffset(settings = {}) {
+  // Debug-only exact-day override (preferred — real windows aren't whole weeks).
+  if (settings.debugMode && settings.manualBookingWindowDays) {
+    return clampOffsetDays(settings.manualBookingWindowDays);
+  }
   // Debug-only manual override for testing a specific window (1-4 weeks).
   if (settings.debugMode && settings.manualBookingWindowWeeks) {
     return weeksToOffsetDays(settings.manualBookingWindowWeeks);
   }
   // Auto-detected from membership cutoffs + credit inventory (client persists this).
   if (typeof settings.detectedBookingOffset === 'number' && settings.detectedBookingOffset > 0) {
-    return settings.detectedBookingOffset;
+    return clampOffsetDays(settings.detectedBookingOffset);
   }
-  // Legacy fallback (manual toggles, pre-auto-detection).
-  let days = 8; // base: 8 days after release Monday
+  // Legacy fallback (manual toggles, pre-auto-detection). Base is 14 since
+  // 2026-08-31 — Psycle's standard window is a fortnight, not the old 8 days.
+  let days = 15; // base: releaseMonday + 15 days = end of the Tuesday
   if (settings.advancedBooking) days += 7;
-  if (settings.advancedBookingCredit) days += 7;
+
   return days;
 }
 
-// Calculate when booking opens for a specific class date (London timezone)
-function getClassReleaseTime(classDateStr, settings = {}) {
-  if (!classDateStr) return DateTime.now().setZone('Europe/London');
-  
-  const daysToAdd = getBookingOffset(settings);
-  const classDt = DateTime.fromISO(classDateStr, { zone: 'Europe/London' });
+// When booking opens for a queued class (WP-D8).
+//
+// Two worlds, and the order matters:
+//   1. A release the GYM published for this class (`booking.release_at`, captured
+//      when the entry was queued). Per-class gyms like MarianaTek have no weekday
+//      rule to derive this from — recomputing would invent one.
+//   2. Otherwise, compose it from the gym's own rolling-weekly policy via the
+//      adapter. That is where Psycle's Monday-noon model now lives.
+//
+// Accepts a booking ROW, not a bare date string: the row is what carries both the
+// published release and the gym whose policy applies.
+function getClassReleaseTime(booking, settings = {}) {
+  // Back-compat: a few call sites (and tests) still pass a bare ISO string.
+  const row = (typeof booking === 'string') ? { start_at: booking } : (booking || {});
+  const classDateStr = row.start_at;
+  const gymId = row.gym_id || DEFAULT_GYM_ID;
 
-  // Start M as Monday 12:00 PM of the class week
-  let M = classDt.set({ weekday: 1, hour: 12, minute: 0, second: 0, millisecond: 0 });
-
-  while (true) {
-    const cutoff = M.plus({ days: daysToAdd }).set({ hour: 23, minute: 59, second: 59, millisecond: 999 });
-    if (cutoff < classDt) {
-      M = M.plus({ weeks: 1 });
-      break;
-    }
-    M = M.minus({ weeks: 1 });
+  if (row.release_at) {
+    const published = DateTime.fromISO(row.release_at);
+    if (published.isValid) return published.setZone(getGymZone(gymId));
+  }
+  // No published release AND no class start to derive one from: there is nothing
+  // to resolve, so refuse — same contract as the unresolvable case below.
+  //
+  // This used to `return DateTime.now()`, which is the one answer the rest of
+  // this function exists to avoid giving. It was survivable only by accident:
+  // the old orchestrator woke solely at Monday noon, so a "releases now" entry
+  // was quietly filtered out for not matching. Once the queue became the wake
+  // clock (WP-I), that same row armed the precision loop immediately and
+  // dispatched — surfaced by test-wake-clock.js failing intermittently, because
+  // whether "now" landed a millisecond before or after the caller's own `now`
+  // decided it.
+  if (!classDateStr) {
+    console.warn(`[Scheduler] Auto-booking ${row.id ?? '?'} (event ${row.event_id}) has neither release_at nor start_at — cannot resolve a release, skipping.`);
+    return null;
   }
 
-  return M.set({ hour: 12, minute: 0, second: 0, millisecond: 0 });
+  const provider = getProvider(gymId);
+  // The per-member offset in `settings` is a ROLLING-WEEKLY concept: it comes
+  // from a CodexFit profile cutoff and describes how far past the release Monday
+  // that member can book. Handing it to a gym with any other window kind applies
+  // one gym's membership tier to another gym's classes — the precise asymmetry
+  // this phase exists to remove. So it is only passed where it means something;
+  // every other gym resolves its own window from its own policy.
+  const gym = getGymConfig(gymId);
+  const isRollingWeekly = gym && gym.bookingWindow && gym.bookingWindow.kind === 'rolling-weekly';
+  const window = isRollingWeekly ? { offsetDays: getBookingOffset(settings) } : null;
+  const iso = provider.releaseAtFor(classDateStr, window);
+  if (iso) return DateTime.fromISO(iso).setZone(getGymZone(gymId));
+
+  // Nothing published, and the gym declares no fallback policy either. Treating
+  // this as "open now" would be actively wrong — it would fire auto-book on a
+  // class weeks before its window, burning the queue entry. Refuse instead: the
+  // caller skips the entry rather than acting on a guess.
+  //
+  // (This is reachable only for a misconfigured gym. Every gym in the registry
+  // declares either a rolling-weekly policy or a per-class fallback, and
+  // test-no-gym-privilege.js asserts the registry stays complete.)
+  console.warn(`[Scheduler] No release time resolvable for event ${row.event_id} at gym ${gymId} — skipping.`);
+  return null;
 }
 
-// Get standard headers for CodexFit requests
-function getCodexFitHeaders(token, isJSON = false) {
-  const headers = {
-    'accept': 'application/json',
-    'origin': 'https://psyclelondon.com',
-    'referer': 'https://psyclelondon.com/',
-    'x-organisation': '[object Object]',
-    'authorization': `Bearer ${token}`
-  };
-  if (isJSON) {
-    headers['content-type'] = 'application/json';
-  }
-  return headers;
+function getGymZone(gymId) {
+  const gym = getGymConfig(gymId);
+  return (gym && gym.timezone) || 'Europe/London';
 }
 
 // Fetch public (no-auth) CodexFit endpoints (events, locations, studios, instructors).
 // These are documented as public — no Bearer token required.
-async function fetchCodexFitPublic(userId, url) {
-  // If url is passed as first parameter for backward compatibility
-  if (typeof userId === 'string' && !url) {
-    url = userId;
-    userId = null;
-  }
+// Unauthenticated read (e.g. /events/:id, which most providers serve without a
+// token). `gymId` is explicit for the same reason as fetchFromGym: background
+// callers pass the row's gym, not the user's active one.
+async function fetchPublicFromGym(userId, gymId, path) {
   const user = userId ? db.getUserById(userId) : null;
-  const isMock = (user && user.email === 'dev@psycle.com') || /\/events\/\d{4}(\b|$)/.test(url) || url.includes('/locations') || url.includes('/studios');
+  const isMock = (user && user.email === 'dev@psycle.com') || /\/events\/\d{4}(\b|$)/.test(path) || path.includes('/locations') || path.includes('/studios');
   if (isMock) {
     const mock = require('./mock');
-    const pathName = url.replace('https://psycle.codexfit.com/api/v1/customer', '');
-    return mock.handleMockRequest(pathName, 'GET', null);
+    return mock.handleMockRequest(path, 'GET', null);
   }
 
-  const headers = {
-    'accept': 'application/json',
-    'origin': 'https://psyclelondon.com',
-    'referer': 'https://psyclelondon.com/',
-    'x-organisation': '[object Object]'
-  };
-  return fetch(url, { headers });
+  return getProvider(gymId).publicRequest(path, { method: 'GET' });
 }
 
 // Perform a request to CodexFit API with automatic re-login on 401
-async function fetchCodexFit(userId, url, options = {}) {
+// `gymId` is explicit: background callers pass the row's own gym. `path` is a
+// PATH, not a URL — the provider prepends its gym's base, which is the whole
+// point (an absolute URL would bypass it and pin every gym to Psycle's host).
+async function fetchFromGym(userId, gymId, path, options = {}) {
   const user = db.getUserById(userId);
   if (!user || !user.jwt) {
     throw new Error('User has no active session. Please log in.');
@@ -150,24 +216,21 @@ async function fetchCodexFit(userId, url, options = {}) {
 
   if (user.email === 'dev@psycle.com') {
     const mock = require('./mock');
-    const pathName = url.replace('https://psycle.codexfit.com/api/v1/customer', '');
-    return mock.handleMockRequest(pathName, options.method || 'GET', options.body ? JSON.parse(options.body) : null);
+    return mock.handleMockRequest(path, options.method || 'GET', options.body ? JSON.parse(options.body) : null);
   }
 
-  const runFetch = async (token) => {
-    const fetchOptions = { ...options };
-    fetchOptions.headers = {
-      ...getCodexFitHeaders(token, !!options.body),
-      ...options.headers
-    };
-    return fetch(url, fetchOptions);
-  };
+  const runFetch = (token) => getProvider(gymId).request(path, {
+    token,
+    method: options.method || 'GET',
+    body: options.body,
+    headers: options.headers,
+  });
 
   let res = await runFetch(user.jwt);
 
   if (res.status === 401) {
     try {
-      const newJwt = await triggerAutoRelogin(userId);
+      const newJwt = await triggerAutoRelogin(userId, gymId);
       res = await runFetch(newJwt);
     } catch (err) {
       console.error(`[Scheduler] Auto-relogin failed during api fetch for user ${userId}:`, err.message);
@@ -207,13 +270,13 @@ async function prefetchAutoBookSlots(bookings, windowMs = 18000) {
         }
       }
       // /events/:id is a public CodexFit endpoint — no Bearer token needed
-      const url = `https://psycle.codexfit.com/api/v1/customer/events/${booking.event_id}`;
-      const res = await fetchCodexFitPublic(booking.user_id, url);
+      const url = `/events/${booking.event_id}`;
+      const res = await fetchPublicFromGym(booking.user_id, booking.gym_id, url);
       if (res.ok) {
         const payload = await res.json();
         const eventData = payload.data || payload;
         const available = payload.slots || eventData.slots || [];
-        setCachedEvent(booking.event_id, payload, 30000);
+        setCachedEvent(booking.gym_id, booking.event_id, payload, 30000);
         console.log(`[Scheduler] Prefetched event ${booking.event_id}: ${available.length} available slot(s) (cached 30s).`);
       }
     } catch (err) {
@@ -239,10 +302,37 @@ function resolveLiveMap(userId, studioId, snapshot) {
   };
 }
 
+// Attempt one booking via the adapter, with the same 401-triggers-relogin
+// ladder the old inline fetchCodexFit() gave every authenticated call (WP-N3).
+// The adapter itself never retries (base.js's request() convention — see
+// providers/codexfit.js) so that ladder has to live at the call site, same as
+// it always did; this is the one spot in the retry loop it's actually needed.
+// Not needed for the waitlist fallback below: by the time that path is
+// reached, the last bookSlot() attempt already proved (or refreshed) the
+// session, so a second independent retry ladder there would be redundant.
+async function bookSlotWithRelogin(userId, gymId, eventId, targetSlot) {
+  const user = db.getUserById(userId);
+  if (!user || !user.jwt) throw new Error('User has no active session. Please log in.');
+  let session = { accessToken: user.jwt };
+  const provider = getProvider(gymId);
+  let result = await provider.bookSlot(eventId, [targetSlot], session);
+  if (!result.ok && result.status === 401) {
+    console.log(`[Scheduler] Booking attempt got 401 for user ${userId} — attempting relogin and retry.`);
+    const newJwt = await triggerAutoRelogin(userId, gymId);
+    session = { accessToken: newJwt };
+    result = await provider.bookSlot(eventId, [targetSlot], session);
+  }
+  return result;
+}
+
 // Execute auto-book process for a single class slot booking
 async function executeAutoBookForClass(booking) {
   const eventId = booking.event_id;
   const userId = booking.user_id;
+  // The gym this queue entry belongs to — taken from the ROW, never resolved
+  // from the user's active gym: background execution must work for a gym the
+  // user isn't currently looking at (see db.js's gym scoping rule).
+  const gymId = booking.gym_id;
   const prefs = JSON.parse(booking.preferences) || { preferredSlots: [], preferredRows: [], requiredCount: 1, bookAny: true };
   // Slots/rows come from the LIVE shared studio map; requiredCount/bookAny are per-entry.
   const liveMap = resolveLiveMap(userId, booking.studio_id, prefs);
@@ -255,18 +345,18 @@ async function executeAutoBookForClass(booking) {
 
   try {
     // 1. Get live slot availability — use shared cache if prefetch populated it
-    let payload = getCachedEvent(eventId);
+    let payload = getCachedEvent(gymId, eventId);
     if (payload) {
       console.log(`[Scheduler] Cache hit for event ${eventId} (user ${userId}).`);
     } else {
       // /events/:id is a public CodexFit endpoint — no Bearer token needed
-      const url = `https://psycle.codexfit.com/api/v1/customer/events/${eventId}`;
-      const res = await fetchCodexFitPublic(userId, url);
+      const url = `/events/${eventId}`;
+      const res = await fetchPublicFromGym(userId, gymId, url);
       if (!res.ok) {
         throw new Error(`Failed to load event data. Status: ${res.status}`);
       }
       payload = await res.json();
-      setCachedEvent(eventId, payload, 30000);
+      setCachedEvent(gymId, eventId, payload, 30000);
     }
 
     const eventData = payload.data || payload;
@@ -324,7 +414,8 @@ async function executeAutoBookForClass(booking) {
     // Both short-circuit without a network call, letting subsequent users reach live slots faster.
     while (bookedCount < requiredCount && attemptIdx < slotsToTry.length) {
       const targetSlot = slotsToTry[attemptIdx++];
-      const claimKey = `${eventId}:${targetSlot}`;
+      // Gym-qualified: provider slot ids collide across gyms (WP-G).
+      const claimKey = `${gymId}:${eventId}:${targetSlot}`;
 
       if (claimedSlots.has(claimKey)) {
         console.log(`[Scheduler] Slot ${targetSlot} (event ${eventId}) claimed by another user — skipping.`);
@@ -359,31 +450,22 @@ async function executeAutoBookForClass(booking) {
       });
 
       try {
-        const bookUrl = 'https://psycle.codexfit.com/api/v1/customer/bookings';
-        const bookRes = await fetchCodexFit(userId, bookUrl, {
-          method: 'POST',
-          body: JSON.stringify({ event_id: eventId, slots: [targetSlot] })
-        });
+        // WP-N3: routes through the CodexFit adapter's bookSlot() instead of a
+        // raw fetchCodexFit POST. Response parsing (bookings map -> bookingId)
+        // now lives in the adapter (see codexfit.js bookSlot) — this call site
+        // only handles the scheduler-specific bits: claim/burn bookkeeping and
+        // the 401-relogin ladder (bookSlotWithRelogin, defined above).
+        const result = await bookSlotWithRelogin(userId, gymId, eventId, targetSlot);
 
-        if (bookRes.ok) {
+        if (result.ok) {
           bookedCount++;
           bookedSlots.push(targetSlot);
-          const bookData = await bookRes.json().catch(() => ({}));
-          const bookingsMap = bookData?.bookings || {};
-          const bookingIds = Object.keys(bookingsMap);
-          let thisBookingId = 0;
-          if (bookingIds.length > 0) {
-            const matchingKey = bookingIds.find(k => Number(bookingsMap[k]) === Number(targetSlot));
-            thisBookingId = matchingKey ? Number(matchingKey) : Number(bookingIds[0]);
-          } else {
-            thisBookingId = bookData?.id || bookData?.data?.id || 0;
-          }
+          const thisBookingId = result.bookingId ? Number(result.bookingId) : 0;
           bookedPairs.push({ bookingId: thisBookingId, slotId: targetSlot });
           console.log(`[Scheduler] Successfully booked slot ${targetSlot} for event ${eventId} (booking ID: ${thisBookingId})`);
           // Claim stays in claimedSlots — other users see it and skip without POSTing
         } else {
-          const errData = await bookRes.json().catch(() => ({}));
-          console.warn(`[Scheduler] Slot ${targetSlot} booking failed:`, errData.message || bookRes.status);
+          console.warn(`[Scheduler] Slot ${targetSlot} booking failed:`, result.error);
           // Burn the slot: externally taken, no point other users attempting it
           claimedSlots.delete(claimKey);
           burnedSlots.add(claimKey);
@@ -402,7 +484,7 @@ async function executeAutoBookForClass(booking) {
     // 5. Check if booking succeeded
     if (bookedCount > 0) {
       const msg = `Successfully booked slot${bookedSlots.length > 1 ? 's' : ''} ${bookedSlots.join(', ')}!`;
-      db.markAutoBookingExecuted(eventId, userId, 'success', msg, new Date().toISOString());
+      db.markAutoBookingExecuted(eventId, userId, gymId, 'success', msg, new Date().toISOString());
 
       emitStatusUpdate(userId, {
         eventId,
@@ -468,11 +550,11 @@ async function executeAutoBookForClass(booking) {
         message: 'All slots taken. Attempting waitlist...'
       });
 
-      const wlUrl = `https://psycle.codexfit.com/api/v1/customer/waitlists/${eventId}`;
-      const wlRes = await fetchCodexFit(userId, wlUrl, { method: 'PUT' });
+      const wlUrl = `/waitlists/${eventId}`;
+      const wlRes = await fetchFromGym(userId, gymId, wlUrl, { method: 'PUT' });
 
       if (wlRes.ok) {
-        db.markAutoBookingExecuted(eventId, userId, 'waitlist', 'All slots occupied. Joined waitlist fallback successfully.', new Date().toISOString());
+        db.markAutoBookingExecuted(eventId, userId, gymId, 'waitlist', 'All slots occupied. Joined waitlist fallback successfully.', new Date().toISOString());
 
         emitStatusUpdate(userId, {
           eventId,
@@ -488,7 +570,7 @@ async function executeAutoBookForClass(booking) {
       } else {
         const wlErr = await wlRes.json().catch(() => ({}));
         const errMsg = wlErr.message || 'Class is fully booked and waitlist closed';
-        db.markAutoBookingExecuted(eventId, userId, 'failed', `Booking and Waitlist fallback failed: ${errMsg}`, new Date().toISOString());
+        db.markAutoBookingExecuted(eventId, userId, gymId, 'failed', `Booking and Waitlist fallback failed: ${errMsg}`, new Date().toISOString());
 
         emitStatusUpdate(userId, {
           eventId,
@@ -505,7 +587,7 @@ async function executeAutoBookForClass(booking) {
     }
   } catch (err) {
     console.error(`[Scheduler] Auto-book worker failed for user ${userId}, event ${eventId}:`, err.message);
-    db.markAutoBookingExecuted(eventId, userId, 'failed', `Worker execution failed: ${err.message}`, new Date().toISOString());
+    db.markAutoBookingExecuted(eventId, userId, gymId, 'failed', `Worker execution failed: ${err.message}`, new Date().toISOString());
     pushService.sendNotification(userId, 'Auto-Book Error ⚠️', `Error executing booking for ${booking.class_name}: ${err.message}`);
   }
 }
@@ -581,14 +663,103 @@ async function executeAutoBookQueue(bookings) {
   await Promise.allSettled(groupJobs);
 }
 
-// Calculate the next Monday 12:00 PM London time
-function getNextMondayNoonLondon() {
-  const now = DateTime.now().setZone('Europe/London');
-  let target = now.set({ weekday: 1, hour: 12, minute: 0, second: 0, millisecond: 0 });
-  if (now >= target) {
-    target = target.plus({ weeks: 1 });
+// --- The wake clock (layer I) ------------------------------------------------
+//
+// This used to be one instant: Psycle's Monday 12:00 London, hardcoded. That is
+// gym POLICY, not scheduler mechanics, and it made a per-class gym's auto-book
+// unreachable twice over — the process never woke at the right time, and the
+// dispatch filter then rejected the class for not matching the wrong time. A JAB
+// entry releasing Saturday 09:47 measured 50.2 hours from the armed instant and
+// simply never fired.
+//
+// The QUEUE is now the clock. Every pending entry already resolves its own
+// release instant through `getClassReleaseTime()` — the gym's published
+// per-class time, or its own declared policy — so the soonest still-future one
+// of those is the only thing worth arming for. Psycle's behaviour is unchanged
+// in effect: its entries still resolve to Monday noon, they just arrive via the
+// queue instead of a hardcoded weekday, and its whole release group still fires
+// together because the dispatch filter below is unchanged.
+//
+// Two things follow that are easy to get wrong:
+//   - An entry whose release cannot be resolved is DROPPED, never defaulted to
+//     "now". Assuming a class is open fires auto-book weeks early and burns the
+//     queue entry (see getClassReleaseTime's own note).
+//   - The armed instant is recomputed after every dispatch AND whenever the
+//     queue changes (`rearm()`), because a newly queued class can release sooner
+//     than whatever is currently armed.
+
+// Bookings within this much of the armed instant fire as one release group.
+const DISPATCH_WINDOW_MS = 10000;
+// With an empty queue there is nothing to wake for. Re-check on a slow timer as
+// a backstop; `rearm()` is what normally brings the clock forward.
+const IDLE_RECHECK_MS = 15 * 60 * 1000;
+// A release missed while the process was down is only worth catching if it just
+// happened. Beyond this, the spots are long gone and firing would be noise.
+const MISSED_RELEASE_GRACE_MS = 5 * 60 * 1000;
+
+// Every pending entry paired with its resolved release instant.
+function resolvePendingReleases() {
+  const out = [];
+  for (const booking of db.getPendingAutoBookings()) {
+    const settings = db.getUserSettings(booking.user_id) || {};
+    const releaseAt = getClassReleaseTime(booking, settings);
+    if (!releaseAt) continue; // unresolvable → never dispatch on a guess
+    out.push({ booking, releaseAt });
   }
-  return target;
+  return out;
+}
+
+// The soonest release still ahead of us, or null when nothing is queued.
+function getNextReleaseInstant(now = DateTime.now().setZone('Europe/London')) {
+  let soonest = null;
+  for (const { releaseAt } of resolvePendingReleases()) {
+    if (releaseAt <= now) continue;
+    if (!soonest || releaseAt < soonest) soonest = releaseAt;
+  }
+  return soonest;
+}
+
+// The release group for an armed instant. Same predicate the old inline filter
+// used, so a Psycle Monday-noon cohort still dispatches exactly as before.
+function bookingsReleasingAt(target) {
+  return resolvePendingReleases()
+    .filter(({ releaseAt }) => Math.abs(releaseAt.diff(target).milliseconds) < DISPATCH_WINDOW_MS)
+    .map(({ booking }) => booking);
+}
+
+// Entries whose release slipped past while the process was down.
+function runMissedReleases(now = DateTime.now().setZone('Europe/London')) {
+  const missed = resolvePendingReleases()
+    .filter(({ releaseAt }) => {
+      const agoMs = now.diff(releaseAt).milliseconds;
+      return agoMs > 0 && agoMs <= MISSED_RELEASE_GRACE_MS;
+    })
+    .map(({ booking }) => booking);
+
+  if (missed.length > 0) {
+    console.log(`[Scheduler] ${missed.length} booking(s) released in the last ${MISSED_RELEASE_GRACE_MS / 60000} mins while we were down — running now.`);
+    executeAutoBookQueue(missed);
+  }
+  return missed.length;
+}
+
+// Enter the 10ms precision loop for an instant that is at most seconds away.
+function armPrecisionLoop(targetRelease) {
+  console.log('[Scheduler] Within 5 seconds of release window. Enabling precision high-frequency check loop...');
+  const targetTimeMs = targetRelease.toMillis();
+  preciseInterval = setInterval(() => {
+    if (Date.now() < targetTimeMs) return;
+    clearInterval(preciseInterval);
+    preciseInterval = null;
+
+    // Clear the event cache first so dispatch uses the freshest occupancy.
+    clearEventCache();
+    const active = bookingsReleasingAt(targetRelease);
+    executeAutoBookQueue(active).then(() => {
+      // Re-arm for whatever the queue releases next — not "next week".
+      setTimeout(scheduleReleaseWindow, 10000);
+    });
+  }, 10);
 }
 
 // Core scheduler orchestrator
@@ -596,82 +767,59 @@ function scheduleReleaseWindow() {
   if (mainTimeout) clearTimeout(mainTimeout);
   if (prefetchTimeout) clearTimeout(prefetchTimeout);
   if (preciseInterval) clearInterval(preciseInterval);
+  mainTimeout = prefetchTimeout = preciseInterval = null;
 
-  const targetRelease = getNextMondayNoonLondon();
   const now = DateTime.now().setZone('Europe/London');
-  const diffMs = targetRelease.diff(now).milliseconds;
+  const targetRelease = getNextReleaseInstant(now);
 
-  console.log(`[Scheduler] Next release scheduled for: ${targetRelease.toLocaleString(DateTime.DATETIME_FULL_WITH_ZONE)} (in ${(diffMs / 3600000).toFixed(2)} hours)`);
+  if (!targetRelease) {
+    // Nothing queued, or nothing with a resolvable future release.
+    db.setKV('scheduler_next_release', '');
+    console.log(`[Scheduler] No pending auto-booking has a future release — idling (re-check in ${IDLE_RECHECK_MS / 60000} mins).`);
+    mainTimeout = setTimeout(scheduleReleaseWindow, IDLE_RECHECK_MS);
+    return;
+  }
+
+  const diffMs = targetRelease.diff(now).milliseconds;
+  const groupSize = bookingsReleasingAt(targetRelease).length;
+  console.log(`[Scheduler] Next release scheduled for: ${targetRelease.toLocaleString(DateTime.DATETIME_FULL_WITH_ZONE)} (in ${(diffMs / 3600000).toFixed(2)} hours, ${groupSize} booking(s))`);
   db.setKV('scheduler_next_release', targetRelease.toISO());
 
-  // 1. Set Prefetch Timeout at T-50s; individual fetches are staggered randomly
-  //    within an 18s window so all complete before T-30s.
+  // 1. Prefetch at T-50s; individual fetches are staggered randomly within an
+  //    18s window so all complete before T-30s.
   const prefetchDelay = diffMs - 50000;
   if (prefetchDelay > 0) {
     prefetchTimeout = setTimeout(async () => {
-      const pending = db.getPendingAutoBookings();
-      const active = pending.filter(b => {
-        const settings = db.getUserSettings(b.user_id) || {};
-        const releaseTime = getClassReleaseTime(b.start_at, settings);
-        // Release time matches targetRelease
-        return Math.abs(releaseTime.diff(targetRelease).milliseconds) < 10000;
-      });
+      // Re-resolved rather than captured: the queue can change during the wait.
+      const active = bookingsReleasingAt(targetRelease);
       if (active.length > 0) {
         await prefetchAutoBookSlots(active);
       }
     }, prefetchDelay);
   }
 
-  // 2. Set precise execution trigger waking up 5s before T-0
+  // 2. Precise execution trigger, waking 5s before T-0.
   const executionDelay = diffMs - 5000;
   if (executionDelay > 0) {
-    mainTimeout = setTimeout(() => {
-      console.log('[Scheduler] Within 5 seconds of release window. Enabling precision high-frequency check loop...');
-      
-      const targetTimeMs = targetRelease.toMillis();
-      // Tick fast to execute exactly on the millisecond
-      preciseInterval = setInterval(() => {
-        const nowMs = Date.now();
-        if (nowMs >= targetTimeMs) {
-          clearInterval(preciseInterval);
-          preciseInterval = null;
-          
-          // Trigger bookings! Clear event cache first so dispatch uses freshest data.
-          clearEventCache();
-          const pending = db.getPendingAutoBookings();
-          const active = pending.filter(b => {
-            const settings = db.getUserSettings(b.user_id) || {};
-            const releaseTime = getClassReleaseTime(b.start_at, settings);
-            return Math.abs(releaseTime.diff(targetRelease).milliseconds) < 10000;
-          });
-
-          executeAutoBookQueue(active).then(() => {
-            // Re-schedule for next week once execution finishes
-            setTimeout(scheduleReleaseWindow, 10000);
-          });
-        }
-      }, 10); // Check every 10ms
-    }, executionDelay);
+    mainTimeout = setTimeout(() => armPrecisionLoop(targetRelease), executionDelay);
   } else {
-    // If we're starting up and the release is within 5 seconds or in the past
-    // check if there are pending bookings that should have been run in the last minute
-    const recentRelease = targetRelease.minus({ weeks: 1 });
-    const elapsedMinutes = now.diff(recentRelease, 'minutes').minutes;
-    
-    if (elapsedMinutes >= 0 && elapsedMinutes <= 5) {
-      console.log(`[Scheduler] Server started within ${elapsedMinutes.toFixed(1)} mins of release window. Running missed bookings immediately.`);
-      const pending = db.getPendingAutoBookings();
-      const active = pending.filter(b => {
-        const settings = db.getUserSettings(b.user_id) || {};
-        const releaseTime = getClassReleaseTime(b.start_at, settings);
-        return Math.abs(releaseTime.diff(recentRelease).milliseconds) < 10000;
-      });
-      executeAutoBookQueue(active);
-    }
-    
-    // Schedule next week's release
-    setTimeout(scheduleReleaseWindow, 1000);
+    // Already inside the final 5s (a boot or a re-arm landed in the window).
+    // getNextReleaseInstant only returns future instants, so this is imminent,
+    // never stale — go straight into the precision loop.
+    armPrecisionLoop(targetRelease);
   }
+}
+
+// Recompute the wake clock. Call after anything that changes the pending queue:
+// a newly queued class may release sooner than what is currently armed, and a
+// deleted one may have been the only reason we were armed at all.
+function rearm() {
+  const armed = db.getKV('scheduler_next_release') || null;
+  const next = getNextReleaseInstant();
+  const nextIso = next ? next.toISO() : null;
+  if (armed === nextIso) return; // nothing moved — don't churn the timers
+  console.log(`[Scheduler] Queue changed; re-arming wake clock (${armed || 'idle'} → ${nextIso || 'idle'}).`);
+  scheduleReleaseWindow();
 }
 
 // Immediate execution runner for beyond-cutoff booking
@@ -681,7 +829,8 @@ function checkAndRunImmediateBookings(userId) {
 
   const immediateBookings = pending.filter(b => {
     const settings = db.getUserSettings(b.user_id) || {};
-    const releaseTime = getClassReleaseTime(b.start_at, settings);
+    const releaseTime = getClassReleaseTime(b, settings);
+    if (!releaseTime) return false;
     // Release time is in the past
     return releaseTime <= now;
   });
@@ -731,9 +880,24 @@ module.exports = {
     // even between weekly release windows (it's otherwise timer-driven and idle).
     db.setKV('heartbeat:scheduler', Date.now().toString());
     setInterval(() => db.setKV('heartbeat:scheduler', Date.now().toString()), 60000);
+    // A release that landed while the process was down, if it only just happened.
+    // Previously this was inferred from "Monday noon minus a week"; it now comes
+    // from the queue, so it works for a per-class gym too.
+    runMissedReleases();
     scheduleReleaseWindow();
   },
   getClassReleaseTime,
+  // Layer I: the wake clock. Exported for test-wake-clock.js, which asserts the
+  // armed instant for a mixed Psycle+JAB queue — the assertion whose absence let
+  // the hardcoded Monday noon survive WP-D8.
+  getNextReleaseInstant,
+  bookingsReleasingAt,
+  scheduleReleaseWindow,
+  rearm,
+  // Exported for test-booking-window.js, which asserts this stays byte-for-byte
+  // equivalent to client/src/lib.js's copy. The two are hand-mirrored; drift
+  // means auto-book fires at a different instant than the countdown shown.
+  getBookingOffset,
   checkAndRunImmediateBookings,
   runAllPendingBookings,
   registerSSEClient,

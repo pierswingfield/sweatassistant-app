@@ -53,9 +53,11 @@
   <div id="psycle-login-container" class="psycle-login-container" style="display: none;">
     <div class="psycle-login-card">
       <div class="psycle-login-logo">
-        <h1>Log into Psycle</h1>
-        <p>Please enter your Psycle credentials.</p>
+        <h1 id="psycle-auth-title">Log in</h1>
+        <p id="psycle-auth-subtitle">Sign in to your <span data-app-name>Sweat Assistant</span> account.</p>
       </div>
+
+      <!-- MODE: sign in -->
       <form id="psycle-login-form" class="psycle-login-form">
         <div class="psycle-form-group">
           <label for="psycle-login-email">Email Address</label>
@@ -67,11 +69,50 @@
         </div>
         <div id="psycle-login-error" class="psycle-login-error" style="display:none;"></div>
         <button type="submit" id="psycle-login-submit-btn" class="psycle-btn-primary">
-          <span>Log In to CodexFit</span>
+          <span>Log In</span>
         </button>
       </form>
+
+      <!-- MODE: create account -->
+      <form id="psycle-signup-form" class="psycle-login-form" style="display:none;">
+        <div class="psycle-form-group">
+          <label for="psycle-signup-email">Email Address</label>
+          <input type="email" id="psycle-signup-email" placeholder="name@example.com" autocomplete="username">
+        </div>
+        <div class="psycle-form-group">
+          <label for="psycle-signup-password">Password</label>
+          <input type="password" id="psycle-signup-password" placeholder="At least 8 characters" autocomplete="new-password">
+        </div>
+        <div class="psycle-form-group">
+          <label for="psycle-signup-confirm">Confirm password</label>
+          <input type="password" id="psycle-signup-confirm" placeholder="••••••••" autocomplete="new-password">
+        </div>
+        <div id="psycle-signup-error" class="psycle-login-error" style="display:none;"></div>
+        <button type="submit" id="psycle-signup-submit-btn" class="psycle-btn-primary">
+          <span>Create Account</span>
+        </button>
+      </form>
+
+      <!-- MODE: recover -->
+      <form id="psycle-recover-form" class="psycle-login-form" style="display:none;">
+        <div class="psycle-form-group">
+          <label for="psycle-recover-email">Your <span data-app-name>Sweat Assistant</span> email</label>
+          <input type="email" id="psycle-recover-email" placeholder="name@example.com" autocomplete="username">
+        </div>
+        <div id="psycle-recover-step1" style="display:block;">
+          <div id="psycle-recover-error" class="psycle-login-error" style="display:none;"></div>
+          <button type="button" id="psycle-recover-find-btn" class="psycle-btn-primary"><span>Continue</span></button>
+          <p class="psycle-card-desc" style="margin-top:12px;font-size:12px;">Self-service reset isn’t available yet — contact the admin.</p>
+        </div>
+      </form>
+
       <div class="psycle-login-footer">
-        <p>Uses direct authentication with Psycle/CodexFix. Your credentials are encrypted securely using AES-256-GCM and stored only on a private server. They can be deleted at any time.</p>
+        <p id="psycle-auth-switcher" style="margin-bottom:10px;">
+          <a href="#" id="psycle-auth-to-signup">Create an account</a>
+          &nbsp;·&nbsp;
+          <a href="#" id="psycle-auth-to-recover">Forgot password?</a>
+        </p>
+        <p>Your <span data-app-name>Sweat Assistant</span> account is separate from your gym logins. Gym credentials are encrypted with AES-256-GCM and stored only on your private server. They can be deleted at any time.</p>
       </div>
     </div>
   </div>
@@ -91,7 +132,7 @@
       </div>
       <div class="psycle-header-actions" id="psycle-header-user-status">
         <span class="psycle-user-email" style="font-size: 13px; font-weight: 500; color: var(--text-secondary);">Loading...</span>
-        <div class="psycle-credit-badges" id="psycle-header-credits" style="display: flex; gap: 8px;"></div>
+        <div class="psycle-credit-badges" id="psycle-header-credits" data-requires-capability="metered" style="display: flex; gap: 8px;"></div>
       </div>
     </header>
 
@@ -107,7 +148,7 @@
             <path d="M28,17a1,1,0,0,1-1,1,4,4,0,0,0-4,4,1,1,0,0,1-2,0,4,4,0,0,0-4-4,1,1,0,0,1,0-2,4,4,0,0,0,4-4,1,1,0,0,1,2,0,4,4,0,0,0,4,4A1,1,0,0,1,28,17Z"/>
           </g>
         </svg>Auto-Book</button>
-      <button class="psycle-nav-btn" data-tab="buy-credits">Buy Credits</button>
+      <button class="psycle-nav-btn" data-tab="buy-credits" data-requires-capability="creditPurchase">Buy Credits</button>
       <button class="psycle-nav-btn" data-tab="settings">Settings</button>
     </div>
 
@@ -118,7 +159,7 @@
       <section id="psycle-panel-class-timetable" class="psycle-tab-content" style="display: none;">
         <div class="psycle-tab-header">
           <h3>Class Timetable</h3>
-          <p>Book classes directly or schedule them for the Monday 12PM release.</p>
+          <p><span data-timetable-subtitle>Book classes directly or schedule them for release.</span></p>
           <button class="psycle-tab-refresh-btn" data-refresh-tab="class-timetable" aria-label="Refresh timetable" title="Refresh">
             <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="23 4 23 10 17 10"/><path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10"/></svg>
           </button>
@@ -174,7 +215,7 @@
             </div>
 
             <!-- Bookmarked Filter Toggle -->
-            <button id="psycle-filter-favorites-only" class="psycle-btn-mini" style="height: 40px !important; padding: 0 16px !important; border-radius: 12px !important; font-weight: 600; cursor: pointer;">
+            <button id="psycle-filter-favorites-only" data-requires-capability="bookmarks" class="psycle-btn-mini" style="height: 40px !important; padding: 0 16px !important; border-radius: 12px !important; font-weight: 600; cursor: pointer;">
               ♡ Bookmarked
             </button>
 
@@ -381,12 +422,12 @@
               <div class="psycle-settings-section-pane active" id="psycle-settings-pane-about">
                 <div class="psycle-tab-header" style="padding-left:0; padding-right:0; padding-top:0; border-bottom:none;">
                   <h3>About <span data-app-name>Sweat Assistant</span></h3>
-                  <p><span data-app-name>Sweat Assistant</span> — an unofficial companion for Psycle London, built for personal use.</p>
+                  <p><span data-app-name>Sweat Assistant</span> — an unofficial companion for <span data-gym-name>your gym</span>, built for personal use.</p>
                 </div>
                 <div class="psycle-settings-grid" style="padding-left:0; padding-right:0;">
                   <div class="psycle-settings-card">
                     <h4>What is this?</h4>
-                    <p class="psycle-card-desc" style="line-height:1.7;"><span data-app-name>Sweat Assistant</span> is an unofficial personal tool — not affiliated with or endorsed by Psycle London or CodexFit. It uses your CodexFit credentials to interact with the same API that powers the Psycle website.</p>
+                    <p class="psycle-card-desc" style="line-height:1.7;"><span data-app-name>Sweat Assistant</span> is an unofficial personal tool — not affiliated with or endorsed by <span data-gym-name>your gym</span>. It uses your own gym login to interact with the same API that powers that gym's own booking site.</p>
                     <p class="psycle-card-desc" style="line-height:1.7;margin-top:8px;">Your login credentials are encrypted with AES-256-GCM and stored only on your private server. They are never transmitted to any third party.</p>
                   </div>
                   <div class="psycle-settings-card">
@@ -394,7 +435,7 @@
                     <div style="display:flex;flex-direction:column;gap:10px;margin-top:4px;">
                       <div style="display:flex;gap:10px;align-items:flex-start;">
                         <span style="font-size:16px;flex-shrink:0;">📅</span>
-                        <div><strong style="color:var(--text);font-size:13px;">Auto-Book</strong><p class="psycle-card-desc" style="margin:2px 0 0;">Schedules a booking to fire at the exact millisecond a class is released (Monday 12PM), giving you priority access.</p></div>
+                        <div><strong style="color:var(--text);font-size:13px;">Auto-Book</strong><p class="psycle-card-desc" style="margin:2px 0 0;">Schedules a booking to fire at the exact millisecond a class is released, giving you priority access. (Gyms differ: some release weekly, some per class — the countdown shows whichever applies.)</p></div>
                       </div>
                       <div style="display:flex;gap:10px;align-items:flex-start;">
                         <span style="font-size:16px;flex-shrink:0;">⬆️</span>
@@ -596,6 +637,16 @@
                   <p>Configure account parameters, debug features, and system diagnostics.</p>
                 </div>
                 <div class="psycle-settings-grid" style="padding-left:0; padding-right:0;">
+                  <!-- Your Gyms (WP-C2): switch active gym, link another, manage the account credential -->
+                  <div class="psycle-settings-card" id="psycle-gyms-card">
+                    <h4>Your Gyms</h4>
+                    <p class="psycle-card-desc">Your <span data-app-name>Sweat Assistant</span> account can hold more than one gym. Switching changes which gym's timetable, bookings and credits you see.</p>
+                    <div id="psycle-gyms-list" style="margin-top:12px;">
+                      <div class="psycle-card-desc">Loading…</div>
+                    </div>
+                    <div id="psycle-gyms-actions" style="margin-top:14px;display:flex;gap:8px;flex-wrap:wrap;"></div>
+                  </div>
+
                   <!-- Booking Privileges -->
                   <div class="psycle-settings-card">
                     <h4>Booking & Cutoff Modifiers</h4>
@@ -717,7 +768,7 @@
         </svg>
         <span>Auto-Book</span>
       </button>
-      <button class="psycle-nav-btn psycle-bottom-nav-btn" data-tab="buy-credits" aria-label="Buy Credits">
+      <button class="psycle-nav-btn psycle-bottom-nav-btn" data-tab="buy-credits" aria-label="Buy Credits" data-requires-capability="creditPurchase">
         <svg class="psycle-bn-icon" viewBox="0 0 160 160" fill="currentColor" aria-hidden="true">
           <path d="M140,51H99V40c0-10.477-8.523-19-19-19c-10.477,0-19,8.523-19,19v11H20c-1.232,0-2.395,0.567-3.153,1.539 c-0.758,0.971-1.026,2.237-0.728,3.432l20,80C36.564,137.751,38.165,139,40,139h80c1.836,0,3.436-1.249,3.881-3.029l20-80 c0.299-1.195,0.029-2.461-0.729-3.432C142.395,51.567,141.232,51,140,51z M69,40c0-6.065,4.935-11,11-11c6.064,0,11,4.935,11,11v11 H69V40z M116.877,131H43.123l-18-72h109.754L116.877,131z M58.96,109.434c0.312,2.188-1.208,4.215-3.394,4.526 c-0.192,0.026-0.383,0.04-0.571,0.04c-1.958,0-3.67-1.439-3.955-3.434l-5-35c-0.312-2.187,1.208-4.213,3.394-4.526 c2.191-0.313,4.213,1.208,4.526,3.394L58.96,109.434z M101.04,109.434l5-35c0.313-2.187,2.331-3.707,4.526-3.394 c2.186,0.313,3.705,2.339,3.394,4.526l-5,35c-0.285,1.994-1.997,3.434-3.955,3.434c-0.188,0-0.378-0.014-0.571-0.04 C102.248,113.646,100.729,111.621,101.04,109.434z M84,75v35c0,2.209-1.791,4-4,4s-4-1.791-4-4V75c0-2.209,1.791-4,4-4 S84,72.791,84,75z"/>
         </svg>
@@ -760,6 +811,18 @@
       </div>
       <div class="psycle-modal-body" id="psycle-profile-explorer-body" style="overflow-y: auto; flex: 1; padding: 16px;">
       </div>
+    </div>
+  </div>
+
+  <!-- 4b. GYMS MODAL (WP-C2: link a gym / re-authenticate / change account password) -->
+  <div id="psycle-gym-modal" class="psycle-modal" style="display: none;">
+    <div class="psycle-modal-overlay"></div>
+    <div class="psycle-modal-card" style="max-width: 460px;">
+      <div class="psycle-modal-header">
+        <h4 id="psycle-gym-modal-title">Add a gym</h4>
+        <button id="psycle-gym-modal-close" class="psycle-modal-close-btn">&times;</button>
+      </div>
+      <div class="psycle-modal-body" id="psycle-gym-modal-body"></div>
     </div>
   </div>
 

@@ -1,4 +1,5 @@
 import { api, isLoggedIn } from '../api';
+import { can } from '../gym-context.js';
 import { showToast, cache } from '../main';
 
 // Use same localStorage key as Chrome Extension for cross-compatibility.
@@ -52,6 +53,13 @@ export async function initBundles() {
 
   try {
     if (cache.bundles.length === 0) {
+      // Credit packs are a metered-gym concept. A membership gym has nothing to
+      // sell here, and /bundles is a CodexFit path — so this is capability-gated
+      // rather than normalized. The tab itself is hidden too (index.html).
+      if (!can('creditPurchase')) {
+        renderNoPurchaseState();
+        return;
+      }
       const res = await api.proxyGet('/bundles', { ttlMs: 3600000 });
       cache.bundles = res.data || res || [];
       // Keep the bundle_type relations — their handles drive category detection.
@@ -207,6 +215,24 @@ function matchesFilterRules(b, searching = false) {
   const group = bundleGroup(b);
   if (!group) return true;
   return !!getFilterEls()[group]?.checked;
+}
+
+// Shown instead of the bundle grid for a gym that doesn't sell credit packs.
+// The tab is hidden by the capability gate, so this is the belt-and-braces path
+// for anyone who deep-links to #buy-credits.
+function renderNoPurchaseState() {
+  const container = document.getElementById('psycle-bundles-container');
+  if (!container) return;
+  container.innerHTML = `
+    <div style="text-align:center;padding:32px 24px;color:var(--text-secondary);">
+      <div style="font-size:32px;margin-bottom:12px;">\u{1F39F}\u{FE0F}</div>
+      <p style="margin:0;font-weight:600;color:var(--text);">No credit packs here</p>
+      <p style="font-size:13px;margin:8px 0 0;">
+        This gym runs on memberships rather than credits, so there is nothing to top up.
+        Classes are booked against your membership directly.
+      </p>
+    </div>
+  `;
 }
 
 export function renderBundles() {

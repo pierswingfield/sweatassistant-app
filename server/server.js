@@ -5,15 +5,22 @@ const path = require('path');
 const rateLimit = require('express-rate-limit');
 const { ipKeyGenerator } = require('express-rate-limit');
 const db = require('./db');
-const { handleLogin, authenticateToken, authenticateTokenSSE, triggerAutoRelogin } = require('./auth');
+const auth = require('./auth');
+const { handleLogin, authenticateToken, authenticateTokenSSE, triggerAutoRelogin } = auth;
 const pushService = require('./push');
 const notifications = require('./notifications');
 const scheduler = require('./scheduler');
 const poller = require('./poller');
 const calendar = require('./calendar');
 const adminRouter = require('./admin');
+const normalizedRouter = require('./routes-normalized');
 const config = require('./config');
 const { appName } = config;
+const { getProvider } = require('./providers');
+
+// No module-level provider (WP-D7). The proxy resolves its gym per request from
+// the calling user's active gym, inside proxyRequest below. (This replaced the
+// WP-D3 "interim single-gym bridge" that pinned all proxy traffic to Psycle.)
 
 const app = express();
 const PORT = process.env.PORT || 3000;
@@ -98,6 +105,16 @@ const calendarFeedLimiter = rateLimit({
   skip: (req) => process.env.NODE_ENV !== 'production',
 });
 
+// Per-user background-work quotas. Both are enforced PER GYM, not per account:
+// the counters they compare against (db.countPendingAutoBookings /
+// countActiveAutoUpgrades) scope to db.resolveActiveGymId, so linking a second
+// gym grants a fresh allowance there rather than eating into the first gym's.
+// That is deliberate — the cost these caps exist to bound (scheduler dispatch
+// work, upgrade polling) is per-gym too. Named so the limit and the message it
+// quotes cannot drift apart (WP-G).
+const MAX_PENDING_AUTO_BOOKINGS_PER_GYM = 15;
+const MAX_ACTIVE_AUTO_UPGRADES_PER_GYM = 10;
+
 // -------------------------------------------------------------
 // PUBLIC CONFIG (no auth — needed before login for app name in UI)
 // -------------------------------------------------------------
@@ -143,8 +160,11 @@ app.get('/api/health', (req, res) => {
     };
   }
 
-  // Surface the next armed auto-book release so you can confirm a Monday window
-  // is actually scheduled (not just that the scheduler process is ticking).
+  // Surface the instant the auto-book scheduler is actually armed for, so a wrong
+  // wake clock is visible from outside the process (layer I). Since the clock is
+  // driven by the queue, this is **null when nothing is queued** — that is the
+  // honest answer, not a fault. It is no longer always a Monday: a per-class gym
+  // arms whatever instant its API published.
   const nextRelease = db.getKV('scheduler_next_release') || null;
 
   res.status(allHealthy ? 200 : 503).json({
@@ -159,7 +179,7 @@ app.get('/api/health', (req, res) => {
 // -------------------------------------------------------------
 // TEMPLATED STATIC FILES
 // In production, intercept specific static files that contain the app name
-// and replace the default "Psycle Assistant" with the configured value.
+// and replace the default "Sweat Assistant" with the configured value.
 // This lets the same built client serve under a different name without a
 // rebuild. Files are read once and cached; the replace is a no-op when the
 // configured name equals the default.
@@ -212,6 +232,7 @@ app.get('/admin', (req, res) => {
 
 app.use('/api/admin/login', adminLoginLimiter);
 app.use('/api/admin', adminRouter);
+app.use('/api', normalizedRouter);
 
 // -------------------------------------------------------------
 // BFF AUTHENTICATION
@@ -227,6 +248,22 @@ app.post('/api/auth/login', authLoginLimiter, async (req, res) => {
     res.status(401).json({ message: err.message });
   }
 });
+
+// Create a Sweat Assistant account (Decision D4) — no gym involved. Shares the
+// login limiter: both are unauthenticated credential endpoints on the same IP.
+app.post('/api/auth/signup', authLoginLimiter, async (req, res) => {
+  const { email, password } = req.body || {};
+  try {
+    res.json(await auth.handleSignup(email, password));
+  } catch (err) {
+    res.status(400).json({ message: err.message });
+  }
+});
+
+// Account recovery endpoints were REMOVED 2026-08-31 — they proved identity via
+// a linked gym's login, which re-coupled the account to the gym and defeated
+// Decision D4. The replacement mechanism is an open decision (BACKLOG.md);
+// until then a forgotten account password requires an admin reset.
 
 app.get('/api/auth/status', authenticateToken, (req, res) => {
   res.json({ userId: req.userId, email: req.email });
@@ -335,16 +372,19 @@ app.get('/api/auto-book', authenticateToken, (req, res) => {
 });
 
 app.post('/api/auto-book', authenticateToken, bookingMutationLimiter, (req, res) => {
-  const { eventId, studioId, className, instructorName, studioName, locationName, startAt, preferences, skipImmediate, groupName, creditShortfall } = req.body;
+  const { eventId, studioId, className, instructorName, studioName, locationName, startAt, preferences, skipImmediate, groupName, creditShortfall, releaseAt } = req.body;
   if (!eventId || !preferences) {
     return res.status(400).json({ message: 'eventId and preferences are required' });
   }
   try {
     const pendingCount = db.countPendingAutoBookings(req.userId);
-    if (pendingCount >= 15) {
-      return res.status(429).json({ message: 'Auto-book queue limit reached (15 pending entries). Please remove some entries before adding more.' });
+    if (pendingCount >= MAX_PENDING_AUTO_BOOKINGS_PER_GYM) {
+      return res.status(429).json({ message: `Auto-book queue limit reached (${MAX_PENDING_AUTO_BOOKINGS_PER_GYM} pending entries). Please remove some entries before adding more.` });
     }
-    const id = db.addAutoBooking(req.userId, eventId, className, instructorName, studioName, locationName, startAt, preferences, studioId ?? null, groupName ?? null);
+    // Capture the class's own release instant when the gym publishes one (WP-D8).
+    // A per-class gym's release has no weekday rule to recompute it from later,
+    // so if it isn't stored now it is gone.
+    const id = db.addAutoBooking(req.userId, eventId, className, instructorName, studioName, locationName, startAt, preferences, studioId ?? null, groupName ?? null, releaseAt ?? null);
 
     // Warn (via push) if the user set this up without enough credits.
     if (creditShortfall && creditShortfall > 0) {
@@ -359,6 +399,10 @@ app.post('/api/auto-book', authenticateToken, bookingMutationLimiter, (req, res)
     if (!skipImmediate) {
       scheduler.checkAndRunImmediateBookings(req.userId);
     }
+    // The wake clock is driven by the queue (layer I), and this class may release
+    // sooner than whatever is currently armed — so re-arm rather than waiting for
+    // the next dispatch to recompute it.
+    scheduler.rearm();
 
     res.json({ id, success: true });
   } catch (err) {
@@ -418,6 +462,8 @@ app.delete('/api/auto-book/:id', authenticateToken, (req, res) => {
   const id = parseInt(req.params.id);
   try {
     db.deleteAutoBooking(id, req.userId);
+    // This may have been the only entry the wake clock was armed for (layer I).
+    scheduler.rearm();
     res.json({ success: true });
   } catch (err) {
     res.status(500).json({ message: err.message });
@@ -449,8 +495,8 @@ app.post('/api/auto-upgrade', authenticateToken, bookingMutationLimiter, (req, r
   try {
     // Quota: cap active monitors per user
     const activeCount = db.countActiveAutoUpgrades(req.userId);
-    if (activeCount >= 10) {
-      return res.status(429).json({ message: 'Auto-upgrade monitor limit reached (10 active monitors). Please cancel some before adding more.' });
+    if (activeCount >= MAX_ACTIVE_AUTO_UPGRADES_PER_GYM) {
+      return res.status(429).json({ message: `Auto-upgrade monitor limit reached (${MAX_ACTIVE_AUTO_UPGRADES_PER_GYM} active monitors). Please cancel some before adding more.` });
     }
 
     // Check if an active auto-upgrade already exists for this slot in this class
@@ -745,7 +791,7 @@ async function proxyJson(userId, pathName, method, body) {
 async function proxyRequest(userId, pathName, method, body) {
   const user = db.getUserById(userId);
   if (!user || !user.jwt) {
-    throw new Error('User has no active CodexFit session. Please log in.');
+    throw new Error('User has no active gym session. Please log in.');
   }
 
   if (user.email === 'dev@psycle.com') {
@@ -753,41 +799,21 @@ async function proxyRequest(userId, pathName, method, body) {
     return handleMockRequest(pathName, method, body);
   }
 
-  const runCall = async (token) => {
-    const url = `https://psycle.codexfit.com/api/v1/customer${pathName}`;
-    const options = {
-      method,
-      headers: {
-        'accept': 'application/json',
-        'origin': 'https://psyclelondon.com',
-        'referer': 'https://psyclelondon.com/',
-        'x-organisation': '[object Object]',
-        'authorization': `Bearer ${token}`
-      }
-    };
-
-    if (['POST', 'PUT', 'PATCH', 'DELETE'].includes(method)) {
-      if (body && Object.keys(body).length > 0) {
-        options.headers['content-type'] = 'application/json';
-        options.body = JSON.stringify(body);
-      }
-    }
-
-    return fetch(url, options);
-  };
+  const gymId = db.resolveActiveGymId(userId);
+  const runCall = (token) => getProvider(gymId).request(pathName, { token, method, body });
 
   let response = await runCall(user.jwt);
 
   // If 401 Unauthorized, intercept and attempt automatic re-login once
   if (response.status === 401) {
     try {
-      const newJwt = await triggerAutoRelogin(userId);
+      const newJwt = await triggerAutoRelogin(userId, gymId);
       response = await runCall(newJwt);
     } catch (err) {
       console.warn(`[Proxy] Auto-relogin failed for user ${userId}:`, err.message);
       // Notify client via push notification that they need to re-login
-      pushService.sendNotification(userId, 'Session Expired ⚠️', 'Your Psycle session expired. Please open the app and log in again.');
-      throw new Error('CodexFit session expired and could not be renewed. Please log in again.');
+      pushService.sendNotification(userId, 'Session Expired ⚠️', 'Your gym session expired. Please open the app and log in again.');
+      throw new Error('Gym session expired and could not be renewed. Please log in again.');
     }
   }
 
@@ -804,18 +830,10 @@ app.all('/api/proxy/*', authenticateToken, proxyLimiter, async (req, res) => {
 
   // Public CodexFit endpoints (documented: no Bearer token required).
   // Strip auth and forward directly to avoid unnecessary JWT exposure.
-  const PUBLIC_PATHS = /^\/(events|locations|studios|instructors|event-types|event-type-groups|bundles)(\/|$|\?)/;
-  if (method === 'GET' && PUBLIC_PATHS.test(pathWithQuery) && req.email !== 'dev@psycle.com') {
+  const reqGymId = db.resolveActiveGymId(req.userId);
+  if (getProvider(reqGymId).isPublicRead(method, pathWithQuery) && req.email !== 'dev@psycle.com') {
     try {
-      const upstream = `https://psycle.codexfit.com/api/v1/customer${pathWithQuery}`;
-      const publicRes = await fetch(upstream, {
-        headers: {
-          'accept': 'application/json',
-          'origin': 'https://psyclelondon.com',
-          'referer': 'https://psyclelondon.com/',
-          'x-organisation': '[object Object]'
-        }
-      });
+      const publicRes = await getProvider(reqGymId).publicRequest(pathWithQuery, { method });
       res.status(publicRes.status);
       const ct = publicRes.headers.get('content-type');
       if (ct) res.set('Content-Type', ct);

@@ -1,0 +1,59 @@
+{
+  "_fixture_note": "Sanitized — resolves the P1 'waitlist join + assign_to_spot' unknown from marianatek.md §1F. Production account, 2026-07-02, against a genuinely full class (available_spot_count: 0, status: \"Waitlist Only\").",
+
+  "step1_class_detail_before_join": {
+    "method": "GET",
+    "path": "/classes/{id}",
+    "response_body_key_fields": {
+      "available_spot_count": 0,
+      "status": "Waitlist Only",
+      "is_user_waitlisted": false,
+      "spot_options": { "primary_availability": 0, "primary_capacity": 40, "waitlist_availability": 7, "waitlist_capacity": 30 }
+    }
+  },
+
+  "step2_join_waitlist": {
+    "method": "POST",
+    "path": "/me/reservations",
+    "note": "Exact request body wasn't captured (the client-side code composed it before the network call in a way the browser capture didn't show cleanly), but the resulting reservation confirms reservation_type must be \"waitlist\" per the schema already documented in §1D.",
+    "response_status": 201,
+    "response_body": {
+      "id": "375601",
+      "is_booked_by_me": true,
+      "is_booked_for_me": true,
+      "reservation_type": "waitlist",
+      "spot": { "id": "", "name": "", "spot_type": { "id": "", "name": "" }, "x_position": null, "y_position": null },
+      "status": "pending",
+      "waitlist_position": null,
+      "booked_by": "REDACTED_NAME",
+      "class_session": {
+        "is_user_waitlisted": true,
+        "is_user_reserved": false,
+        "status": "Waitlist Only",
+        "spot_options": { "waitlist_availability": 6, "waitlist_capacity": 30 }
+      }
+    },
+    "_note": "IMPORTANT for the adapter: a waitlist reservation's `spot` object comes back with all-empty/null fields (not omitted, not null itself — an object with empty string ids). waitlist_position stays null even after joining on this tenant; don't rely on it for UI display. available_spot_count stayed 0 (unaffected by waitlist join, as expected)."
+  },
+
+  "step3_cancel_penalty_check_for_waitlist": {
+    "method": "GET",
+    "path": "/me/reservations/{id}/cancel_penalty",
+    "response_status": 200,
+    "response_body": { "is_penalty_cancel": false, "message": null },
+    "_note": "Same cancel_penalty endpoint works for waitlist reservations, not just standard bookings."
+  },
+
+  "step4_leave_waitlist": {
+    "method": "POST",
+    "path": "/me/reservations/{id}/cancel",
+    "response_status": 200,
+    "response_body_key_fields": {
+      "id": "375601",
+      "reservation_type": "waitlist",
+      "status": "removed",
+      "is_user_waitlisted": true
+    },
+    "_note": "CRITICAL for the adapter's status-mapping: leaving a waitlist sets status to \"removed\", NOT \"standard cancel\" (which is what a normal booking cancel produces — see prod-cancel-flow.json). These are two distinct terminal statuses depending on reservation_type. Oddly, is_user_waitlisted remains true on the embedded class_session snapshot in this particular response even after leaving — likely a stale snapshot in that specific response rather than live state; don't trust that field on a cancel response, re-fetch the class/reservation to confirm current state."
+  }
+}

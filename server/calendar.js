@@ -1,4 +1,4 @@
-// Psycle Assistant — user-specific calendar feed (iCalendar / .ics).
+// Sweat Assistant — user-specific calendar feed (iCalendar / .ics).
 //
 // Publishes one VEVENT per class (booked, plus optionally tentative auto-book /
 // waitlist) to a per-user, token-authenticated `.ics` URL that Apple/Google
@@ -15,6 +15,12 @@ const cron = require('node-cron');
 const { DateTime } = require('luxon');
 const db = require('./db');
 const poller = require('./poller');
+const { triggerAutoRelogin } = require('./auth');
+const { getProvider } = require('./providers');
+
+// Interim single-gym bridge, same as scheduler.js/poller.js (WP-D3 will replace).
+// No module-level provider (WP-D7) — resolved per user, since a calendar feed is
+// per-gym (its token lives on user_gyms).
 
 const { appName, publicHost: APP_HOST } = require('./config');
 const PAST_CLASS_CAP = 100;            // rolling history kept per user
@@ -58,7 +64,7 @@ async function refreshLocationMap(userId, force = false) {
     try { if (Date.now() - JSON.parse(raw).ts < LOCATIONS_TTL_MS) return; } catch (_) {}
   }
   try {
-    const res = await poller.fetchCodexFit(userId, 'https://psycle.codexfit.com/api/v1/customer/locations');
+    const res = await poller.fetchFromGym(userId, db.resolveActiveGymId(userId), '/locations');
     if (!res.ok) return;
     const payload = await res.json();
     const list = payload.data || payload || [];
@@ -77,51 +83,99 @@ async function refreshLocationMap(userId, force = false) {
 const EVENT_TTL_MS = 5 * 60 * 1000;
 const eventDetailCache = new Map(); // eventId → { ts, data }
 
-function parseEventDetail(j) {
-  const ev = j.data || j;
-  const rel = j.relations || {};
-  const et = (rel.event_types && rel.event_types[0]) || {};
-  const inst = (rel.instructors && rel.instructors[0]) || {};
-  const studio = (rel.studios && rel.studios[0]) || {};
-  const loc = (rel.locations && rel.locations[0]) || studio.location || {};
+// Map a NormalizedEvent onto the flat shape the ICS builder wants. Everything
+// here comes from the adapter now (WP-D7) — this used to reach straight into
+// CodexFit's `relations` envelope, which no other platform has.
+function eventToCalendarShape(ev) {
+  if (!ev) return null;
   return {
-    startAt: ev.start_at,
-    durationMin: ev.duration || null,
-    className: et.name || ev.name || 'Class',
-    groupName: (et.group && et.group.name) || '',
-    instructorName: inst.full_name || [inst.first_name, inst.last_name].filter(Boolean).join(' ') || '',
-    studioName: studio.name || '',
-    studioId: studio.id || null,
-    locationName: loc.name || '',
-    locationAddress: loc.address || null,
+    startAt: ev.startAt,
+    durationMin: ev.durationMin || null,
+    className: ev.name || 'Class',
+    groupName: ev.discipline || '',
+    instructorName: (ev.instructors && ev.instructors[0] && ev.instructors[0].name) || '',
+    studioName: ev.studioName || '',
+    studioId: ev.studioId || null,
+    locationName: ev.locationName || '',
+    locationAddress: ev.locationAddress || null,
   };
 }
 
+// Cache key includes the gym: event ids are PROVIDER ids, so two gyms can both
+// serve an event "1000" and a user-blind cache would cross them over.
 async function fetchEventDetail(userId, eventId) {
-  const cached = eventDetailCache.get(eventId);
+  const gymId = db.resolveActiveGymId(userId);
+  const key = `${gymId}:${eventId}`;
+  const cached = eventDetailCache.get(key);
   if (cached && Date.now() - cached.ts < EVENT_TTL_MS) return cached.data;
-  const res = await poller.fetchCodexFit(userId, `https://psycle.codexfit.com/api/v1/customer/events/${eventId}`);
-  if (!res.ok) return null;
-  const data = parseEventDetail(await res.json());
-  eventDetailCache.set(eventId, { ts: Date.now(), data });
+
+  const user = db.getUserById(userId);
+  const session = user && user.jwt ? { accessToken: user.jwt } : null;
+  let data = null;
+  try {
+    const { event } = await getProvider(gymId).fetchEventDetails(eventId, session);
+    data = eventToCalendarShape(event);
+  } catch (err) {
+    if (err && err.status === 401) {
+      try {
+        const newJwt = await triggerAutoRelogin(userId, gymId);
+        const { event } = await getProvider(gymId).fetchEventDetails(eventId, { accessToken: newJwt });
+        data = eventToCalendarShape(event);
+      } catch (_) { return null; }
+    } else {
+      return null;
+    }
+  }
+  eventDetailCache.set(key, { ts: Date.now(), data });
   return data;
 }
 
-// Returns booking_cache-shaped rows (one per booked spot), enriched with event details.
+// Attempt a normalized list call with the same 401-triggers-relogin ladder the
+// old inline fetchCodexFit() gave every authenticated call (WP-N3), mirroring
+// scheduler.js's/poller.js's bookSlotWithRelogin. codexfit.listBookings/
+// listWaitlists throw with `.status` set on HTTP failure (see codexfit.js doc
+// comment) instead of returning a result object — that's the signal here too.
+async function listWithRelogin(userId, method) {
+  const user = db.getUserById(userId);
+  if (!user || !user.jwt) throw new Error('User has no active session. Please log in.');
+  let session = { accessToken: user.jwt };
+  try {
+    return await getProvider(db.resolveActiveGymId(userId))[method](session);
+  } catch (err) {
+    if (err.status !== 401) throw err;
+    console.log(`[Calendar] ${method} got 401 for user ${userId} — attempting relogin and retry.`);
+    const newJwt = await triggerAutoRelogin(userId, db.resolveActiveGymId(userId));
+    session = { accessToken: newJwt };
+    return getProvider(db.resolveActiveGymId(userId))[method](session);
+  }
+}
+
+// Returns booking_cache-shaped rows (one per booked spot), enriched with event
+// details. The list HTTP call + id/event_id/cancelled_at parsing now goes
+// through the adapter (WP-N3) — behavior-identical to the old inline fetch
+// (verified in test-adapters.js). Deliberately UNCHANGED: fetchEventDetail's
+// per-event enrichment fetch (still raw poller.fetchCodexFit, not the
+// adapter's own fetchEventDetails, which is intentionally minimal for
+// CodexFit — see its doc comment) and the exact `b.slot` field read for
+// slotLabel, both preserved via NormalizedBooking.raw so this function's
+// downstream behavior for real accounts is untouched.
 async function fetchUserBookings(userId) {
-  const res = await poller.fetchCodexFit(userId, 'https://psycle.codexfit.com/api/v1/customer/bookings?limit=100&page=1');
-  if (!res.ok) return null;
-  const payload = await res.json();
-  const list = payload.data || payload || [];
+  let normalized;
+  try {
+    normalized = await listWithRelogin(userId, 'listBookings');
+  } catch (err) {
+    console.error(`[Calendar] fetchUserBookings failed for user ${userId}:`, err.message);
+    return null;
+  }
   const out = [];
-  for (const b of (Array.isArray(list) ? list : [])) {
-    if (b.cancelled_at) continue;
-    const eventId = b.event_id || b.event?.id;
+  for (const nb of normalized) {
+    const b = nb.raw;
+    const eventId = nb.eventId;
     if (!eventId) continue;
     const ev = await fetchEventDetail(userId, eventId);
     if (!ev || !ev.startAt) continue;
     out.push({
-      bookingId: b.id, eventId, startAt: ev.startAt,
+      bookingId: nb.bookingId, eventId, startAt: ev.startAt,
       className: ev.className, groupName: ev.groupName, instructorName: ev.instructorName,
       studioName: ev.studioName, locationName: ev.locationName, locationAddress: ev.locationAddress,
       durationMin: ev.durationMin,
@@ -132,15 +186,12 @@ async function fetchUserBookings(userId) {
 }
 
 // Returns waitlist_cache-shaped rows (one per waitlisted class), enriched.
+// Same adapter-routing + preserved-enrichment approach as fetchUserBookings.
 async function fetchUserWaitlists(userId) {
-  const res = await poller.fetchCodexFit(userId, 'https://psycle.codexfit.com/api/v1/customer/waitlists');
-  if (!res.ok) return null;
-  const payload = await res.json();
-  const list = payload.data || payload || [];
+  const normalized = await listWithRelogin(userId, 'listWaitlists');
   const out = [];
-  for (const w of (Array.isArray(list) ? list : [])) {
-    if (w.cancelled_at) continue;
-    const eventId = w.event_id || w.event?.id;
+  for (const nb of normalized) {
+    const eventId = nb.eventId;
     if (!eventId) continue;
     const ev = await fetchEventDetail(userId, eventId);
     if (!ev || !ev.startAt) continue;
@@ -506,4 +557,9 @@ module.exports = {
   refreshUser,
   scheduleRefresh,
   refreshLocationMap,
+  // Exposed for direct testing of the WP-N3 adapter-routing swap (test-calendar-feed.js),
+  // same rationale poller.js exports fetchCodexFit for calendar.js's own reuse.
+  listWithRelogin,
+  fetchUserBookings,
+  fetchUserWaitlists,
 };

@@ -4,6 +4,14 @@
 // that is the single source of truth for quick-book, auto-book, and auto-upgrade.
 // This renderer is reused everywhere the map is edited so behaviour stays identical.
 //
+// Data contract (WP-C5): `layoutSlots` is a NormalizedSlot[] and
+// `options.layoutObjects` a NormalizedLayoutObject[], both straight from the
+// provider adapter — never a raw CodexFit/MarianaTek shape. Slot ids arrive as
+// strings and are compared as numbers here, matching how preferred-spot maps
+// are persisted (`preferredSlots: number[]`); both providers' spot ids are
+// numeric, so the coercion is lossless (see PROGRESS.md Open Questions if a
+// future provider ever uses non-numeric ids).
+//
 // renderStudioFloorPlan(container, layoutSlots, initialSlots, initialRows, onSave, options)
 //   onSave(selectedSlots, selectedRows, container) — called when the user saves.
 //   options.saveLabel     — text for the primary save button (default "Save Defaults").
@@ -105,7 +113,7 @@ export function renderStudioFloorPlan(container, layoutSlots, initialSlots, init
     summary.style.cssText = 'font-size:12px;margin-bottom:10px;min-height:16px;';
     const spotLabels = selectedSlots.map(id => {
       const slot = layoutSlots.find(s => Number(s.id) === id);
-      return slot?.label || slot?.slot || String(id);
+      return slot?.label || String(id);
     });
     const rowLabels = Array.from(selectedRows).map(y => {
       const idx = rowYs.indexOf(y);
@@ -207,7 +215,7 @@ export function renderStudioFloorPlan(container, layoutSlots, initialSlots, init
       const slotId = Number(slot.id);
       const priority = selectedSlots.indexOf(slotId) + 1;
       const inRow = selectedRows.has(slot.y);
-      const label = slot.label || slot.slot || String(slotId);
+      const label = slot.label || String(slotId);
 
       const hasAvailability = !!availableSlots;
       const isAvailable = !hasAvailability || availableSlots.includes(slotId);
@@ -272,13 +280,16 @@ export function renderStudioFloorPlan(container, layoutSlots, initialSlots, init
       floor.appendChild(el);
     });
 
-    // Podium / stage objects (e.g. the instructor podium). Flat-coloured "P"
+    // Podium / stage objects (e.g. the instructor podium). Flat-coloured
     // markers — not seats, so they're non-interactive (no click, no pointer).
+    // `obj.label` comes from NormalizedLayoutObject; providers that don't name
+    // their fixtures fall back to the historic "P" / "Podium" pair.
     layoutObjects.forEach(obj => {
+      const objLabel = obj.label || 'Podium';
       const el = document.createElement('div');
       el.style.cssText = `position:absolute;left:${pxX(obj.x)}px;top:${pxY(obj.y)}px;transform:translate(-50%,-50%);width:${SLOT_SIZE + 14}px;height:${SLOT_SIZE}px;border-radius:6px;display:flex;align-items:center;justify-content:center;font-size:12px;font-weight:700;background:var(--text-secondary);color:var(--bg);user-select:none;pointer-events:none;box-sizing:border-box;z-index:1;`;
-      el.textContent = 'P';
-      el.title = 'Podium';
+      el.textContent = objLabel[0].toUpperCase();
+      el.title = objLabel;
       floor.appendChild(el);
     });
 

@@ -1,0 +1,46 @@
+{
+  "_fixture_note": "Sanitized — guest booking flow, production account, 2026-07-02. Two attempts: one without guest_email (fails, documents the validation error), one with it (succeeds).",
+  "request_missing_guest_email": {
+    "method": "POST",
+    "path": "/me/reservations",
+    "body": { "class_session": { "id": "79228" }, "guest_email": null, "is_booked_for_me": false, "spot": { "id": "36159" }, "reservation_type": "standard", "payment_option": { "id": "membership-2552" } },
+    "response_status": 400,
+    "response_body": { "non_field_errors": ["Email address for guest must be provided"] }
+  },
+  "request_with_guest_email": {
+    "method": "POST",
+    "path": "/me/reservations",
+    "body": { "class_session": { "id": "79228" }, "guest_email": "guest@example.com", "is_booked_for_me": false, "spot": { "id": "36139" }, "reservation_type": "standard", "payment_option": { "id": "membership-2552" } },
+    "response_status": 201,
+    "response_body": {
+      "id": "375599",
+      "is_booked_by_me": true,
+      "is_booked_for_me": false,
+      "reservation_type": "standard",
+      "spot": { "id": "36139", "name": "29", "spot_type": { "id": "6563", "is_primary": true, "name": "Ground" }, "x_position": 9.4, "y_position": 1.2 },
+      "status": "pending",
+      "waitlist_position": null,
+      "booked_by": "REDACTED_NAME",
+      "guest_email": "guest@example.com",
+      "is_change_spots_enabled": true,
+      "is_upcoming": true,
+      "class_session": {
+        "id": "79228",
+        "available_spot_count": 19,
+        "is_user_guest_reserved": true,
+        "is_user_reserved": true,
+        "is_free_class": false,
+        "layout_format": "pick-a-spot"
+      },
+      "payment_option": {
+        "id": "membership-2552",
+        "membership_payment": {
+          "id": "2552",
+          "guest_usage_limit": 2,
+          "guest_remaining_usage_count": 1,
+          "_note": "guest_remaining_usage_count dropped from 2 -> 1 after this booking succeeded — confirms the guest booking consumes a unit of the membership's guest allowance."
+        }
+      }
+    }
+  }
+}

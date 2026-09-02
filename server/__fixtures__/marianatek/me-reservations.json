@@ -1,0 +1,16 @@
+{
+  "results": [],
+  "meta": {
+    "pagination": {
+      "page": 1,
+      "pages": 1,
+      "count": 0
+    }
+  },
+  "links": {
+    "first": "https://jabboxingclub.marianatek.com/api/customer/v1/me/reservations?page=1",
+    "last": "https://jabboxingclub.marianatek.com/api/customer/v1/me/reservations?page=1",
+    "next": null,
+    "prev": null
+  }
+}

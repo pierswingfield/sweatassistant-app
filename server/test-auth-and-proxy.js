@@ -74,29 +74,33 @@ try {
   console.log('Running Test 3: Precision Scheduler Release Time calculations...');
   
   // Test case: Class on Wednesday, June 24, 2026.
-  // Standard user (offset = 8 days):
-  // Released on Monday June 22, 2026 12:00 PM
+  //
+  // UPDATED 2026-08-31: Psycle's standard window moved from 8 days to a
+  // fortnight, so the legacy no-toggles offset is now 14, not 8. A 14-day
+  // window reaches back one Monday further than an 8-day one:
+  //   Mon 15 Jun + 14d = Mon 29 Jun >= 24 Jun  ✓  (this is the release Monday)
+  //   Mon  8 Jun + 14d = Mon 22 Jun <  24 Jun  ✗
+  // Day-granular member tiers are covered separately in test-booking-window.js.
   const classDate = '2026-06-24T18:30:00.000Z';
   
   const standardSettings = { advancedBooking: false, advancedBookingCredit: false };
   const standardRelease = scheduler.getClassReleaseTime(classDate, standardSettings);
   
-  // London time check: should represent Monday June 22, 12:00 PM
-  // Standard format check: year 2026, month 6 (June), day 22, hour 12
+  // London time check: should represent Monday June 15, 12:00 PM
   assert.strictEqual(standardRelease.year, 2026);
   assert.strictEqual(standardRelease.month, 6);
-  assert.strictEqual(standardRelease.day, 22);
+  assert.strictEqual(standardRelease.day, 15);
   assert.strictEqual(standardRelease.hour, 12);
   assert.strictEqual(standardRelease.minute, 0);
 
-  // Advanced booking user (+7 days privileges, offset = 15 days):
-  // Released on Monday June 15, 2026 12:00 PM
+  // Advanced booking user (+7 days, legacy offset = 14 + 7 = 21 days):
+  // Mon 8 Jun + 21d = Mon 29 Jun >= 24 Jun → released Monday June 8, 12:00 PM
   const advSettings = { advancedBooking: true, advancedBookingCredit: false };
   const advRelease = scheduler.getClassReleaseTime(classDate, advSettings);
   
   assert.strictEqual(advRelease.year, 2026);
   assert.strictEqual(advRelease.month, 6);
-  assert.strictEqual(advRelease.day, 15);
+  assert.strictEqual(advRelease.day, 8);
   assert.strictEqual(advRelease.hour, 12);
   
   console.log('✅ Test 3 Passed: Release time arithmetic aligns with London timezone.');

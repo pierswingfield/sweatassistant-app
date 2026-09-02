@@ -1,0 +1,14 @@
+{
+  "_fixture_note": "NEW endpoint, not previously documented. GET /me/achievements. Production account, 2026-07-02. Low sensitivity (usage stats only) but numbers/date shifted slightly as a light precaution.",
+  "method": "GET",
+  "path": "/me/achievements",
+  "response_status": 200,
+  "response_body": {
+    "classes_completed": 338,
+    "instructors_taken": 13,
+    "member_since": "2024-11-22T19:08:22.502844Z",
+    "most_visited_studio": "SW1",
+    "number_of_studios_visited": 1
+  },
+  "adapter_implication": "Not needed for core booking flows (M1-M3), but a nice-to-have for a future 'your stats' UI panel (Phase 5+)."
+}

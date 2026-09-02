@@ -1,6 +1,9 @@
 import { api } from '../api';
+import { getGymContext } from '../gym-context.js';
+import { getAvailableCreditsForEvent, getTotalCredits } from './credit-allowance.js';
 import { showToast, cache, userSettings, refreshUserData, debugConsole } from '../main';
-import { getClassReleaseTime, getNextMondayNoonLondon } from '../lib';
+import { getClassReleaseTime } from '../lib';
+import { DateTime } from 'luxon';
 import { renderStudioFloorPlan } from './spotmap';
 import { icon, disciplineTag, trimLocation, seatNoun, pulseIcon } from './cards';
 
@@ -8,25 +11,6 @@ let countdownInterval = null;
 let sseEventSource = null;
 const statusCache = new Map(); // eventId → current status
 
-function getAvailableCreditsForEvent(event) {
-  if (!cache.profile || !cache.profile.available_credits) return 0;
-
-  // Map event credit_types to numeric IDs
-  const acceptedIds = (event.credit_types || []).map(c => {
-    const raw = c.credit_type ?? c.id ?? c;
-    return Number(typeof raw === 'object' ? raw.id : raw);
-  }).filter(id => !isNaN(id));
-
-  if (acceptedIds.length === 0) return Infinity; // no credit types required, assume unlimited
-
-  return cache.profile.available_credits.reduce((total, credit) => {
-    const creditTypeId = Number(credit.credit_type?.id ?? credit.credit_type);
-    if (acceptedIds.includes(creditTypeId)) {
-      return total + (credit.count || 0);
-    }
-    return total;
-  }, 0);
-}
 
 // Prefetch all data needed for the Auto-Book tab so it loads instantly on navigation.
 // Called fire-and-forget from initApp() right after login.
@@ -393,14 +377,11 @@ function renderQueue(queue) {
     const prefs = q.preferences || {};
     const creditsNeeded = prefs.requiredCount || 1;
     const className = q.class_name || q.group_name || 'Class';
-    const locationLine = [q.studio_name, trimLocation(q.location_name)].filter(Boolean).join(', ');
+    const locationLine = [q.studio_name, trimLocation(q.location_name, getGymContext().name)].filter(Boolean).join(', ');
 
-    // Calculate total available credits from profile
-    let totalAvailableCredits = 0;
-    if (cache.profile?.available_credits) {
-      totalAvailableCredits = cache.profile.available_credits.reduce((sum, c) => sum + (c.count || 0), 0);
-    }
-    const hasInsufficientCredits = totalAvailableCredits < creditsNeeded;
+    // Via the shared module so the unmetered case is handled once: it returns
+    // Infinity for a membership gym, where "insufficient credits" is meaningless.
+    const hasInsufficientCredits = getTotalCredits() < creditsNeeded;
 
     const creditWarning = hasInsufficientCredits
       ? `<div class="ab-credit-warning">${icon('warning', 13)}<span>Insufficient Credits</span></div>`
@@ -422,7 +403,7 @@ function renderQueue(queue) {
           ${locationLine ? `<span class="ab-card-location">${locationLine}</span>` : ''}
         </div>
         <div class="ab-card-footer">
-          <span class="ab-countdown state-pending" data-start-at="${q.start_at}">
+          <span class="ab-countdown state-pending" data-start-at="${q.start_at}" data-release-at="${getClassReleaseTime(q, userSettings).toISO()}">
             ${icon('clock', 13)}<span class="ab-countdown-val">…</span>
           </span>
           <span class="ab-spots-pill">${creditsNeeded} ${seatNoun(q.group_name)[0].toUpperCase() + seatNoun(q.group_name).slice(1)}${creditsNeeded !== 1 ? 's' : ''}</span>
@@ -519,27 +500,32 @@ async function openAutoBookEditModal(q) {
   overlay.onclick = closeModal;
 
   try {
-    // Fetch event + studio layout, and the live shared studio map in parallel
-    const [res, allPrefs] = await Promise.all([
-      api.proxyGet(`/events/${q.event_id}`, { ttlMs: 120000 }),
+    // WP-C5: the floor plan is driven entirely by NormalizedSlot[] /
+    // NormalizedLayoutObject[] from the adapter — no raw `studio.layout` access
+    // — so a MarianaTek layout renders here unchanged. No live availability is
+    // shown in this config modal (preference-only), so `isAvailable` is unused.
+    const [{ event, slots: layoutSlots, objects: layoutObjects }, allPrefs] = await Promise.all([
+      api.getEventDetails(q.event_id),
       api.getStudioPreferences()
     ]);
 
-    const eventDetails = res.data || res;
-    const studio = res.relations?.studios?.[0] || eventDetails.relations?.studios?.[0] || eventDetails.studio || {};
-    const layoutSlots = studio?.layout?.slots || [];
-    const resolvedStudioId = q.studio_id || studio.id;
+    const resolvedStudioId = q.studio_id || event.studioId;
     const studioPrefs = resolvedStudioId ? allPrefs[resolvedStudioId] : null;
 
     // Seed from the shared studio map (live source of truth), fall back to entry prefs
     const seedSlots = (studioPrefs?.preferredSlots || prefs.preferredSlots || []).map(Number);
     const seedRows = studioPrefs?.preferredRows || prefs.preferredRows || [];
-    const studioName = q.studio_name || studio?.name || 'this studio';
+    const studioName = q.studio_name || event.studioName || 'this studio';
 
-    if (layoutSlots.length === 0) {
+    // Explicit FCFS check rather than inferring it from an empty slot list —
+    // an FCFS class has no assigned spots at all, which is a different thing
+    // from a pick-a-spot studio whose floor map is missing. Both fall through
+    // to the same spot-less controls below, but the copy differs.
+    const isFcfs = event.layoutFormat === 'first-come-first-serve';
+    if (isFcfs || layoutSlots.length === 0) {
       body.innerHTML = `
         <div style="padding: 24px; text-align: center; color: var(--text-secondary);">
-          <p style="margin-bottom: 16px;">No floor map layout available for this studio.</p>
+          <p style="margin-bottom: 16px;">${isFcfs ? "This class doesn't use assigned spots." : 'No floor map layout available for this studio.'}</p>
           <p style="font-size: 12px; color: var(--text-tertiary);">You can still update the number of spots and fallback option below.</p>
         </div>
       `;
@@ -610,7 +596,7 @@ async function openAutoBookEditModal(q) {
       await saveAutoBookEdit(q.id, resolvedStudioId, slots, rows, qty, fallbackAny, closeModal);
     }, {
       saveLabel: 'Save Changes',
-      layoutObjects: studio?.layout?.objects || [],
+      layoutObjects,
       bannerHtml,
       bannerHtmlEdit,
       extraControlsHtml,
@@ -715,7 +701,7 @@ function renderHistoryPage() {
     const details = [
       `${dateStr} · ${timeStr}`,
       h.instructor_name,
-      [h.studio_name, trimLocation(h.location_name)].filter(Boolean).join(', ')
+      [h.studio_name, trimLocation(h.location_name, getGymContext().name)].filter(Boolean).join(', ')
     ].filter(Boolean).join(' · ');
 
     const card = document.createElement('div');
@@ -772,6 +758,24 @@ function formatOpensIn(ms) {
   return `Opens in ${mins} min${mins !== 1 ? 's' : ''}`;
 }
 
+
+// The soonest release among the cards currently on screen, with the class it
+// belongs to. Reads the DOM rather than the queue array so it always agrees with
+// what the user can actually see.
+function nextQueuedRelease() {
+  let best = null;
+  document.querySelectorAll('.ab-countdown[data-release-at]').forEach(el => {
+    const at = DateTime.fromISO(el.getAttribute('data-release-at')).toMillis();
+    if (!Number.isFinite(at)) return;
+    if (!best || at < best.at) {
+      const card = el.closest('.ab-card-main') || el.parentElement;
+      const label = card ? ((card.querySelector('.ab-card-class') || {}).textContent || null) : null;
+      best = { at, label: label ? label.trim().slice(0, 40) : null };
+    }
+  });
+  return best;
+}
+
 // Tick loop updates countdown texts on the screen
 function updateCountdowns() {
   const banner = document.querySelector('.ab-banner');
@@ -788,14 +792,25 @@ function updateCountdowns() {
       paused = true;
       statusGlyph = 'pause'; statusLabel = 'Auto-book paused';
     } else {
-      const diffMs = getNextMondayNoonLondon().toMillis() - Date.now();
-      if (diffMs <= 0) {
-        mainCountdown.textContent = 'Open now';
-        active = true;
-        statusGlyph = 'bolt'; statusLabel = 'Booking window open';
+      // The next release among the QUEUED classes — not a fixed weekly instant.
+      // A rolling-continuous gym has no weekly release at all, and even on Psycle
+      // different membership tiers open the same class at different times, so a
+      // single hardcoded Monday was only ever right by coincidence.
+      const next = nextQueuedRelease();
+      if (!next) {
+        mainCountdown.textContent = 'Nothing queued';
+        statusGlyph = 'clock'; statusLabel = 'No classes waiting to book';
       } else {
-        mainCountdown.textContent = formatBannerCountdown(diffMs);
-        urgent = diffMs <= 30000;
+        const diffMs = next.at - Date.now();
+        if (diffMs <= 0) {
+          mainCountdown.textContent = 'Open now';
+          active = true;
+          statusGlyph = 'bolt'; statusLabel = 'Booking window open';
+        } else {
+          mainCountdown.textContent = formatBannerCountdown(diffMs);
+          urgent = diffMs <= 30000;
+          statusLabel = next.label ? `Next: ${next.label}` : 'Standing by to book';
+        }
       }
     }
     if (statusText && statusText.textContent !== statusLabel) {
@@ -821,8 +836,14 @@ function updateCountdowns() {
     if (!startAt) return;
     const valEl = el.querySelector('.ab-countdown-val') || el;
 
-    // Use the live user settings (auto-detected booking window + any debug override).
-    const classRelease = getClassReleaseTime(startAt, userSettings);
+    // Each card carries its OWN release instant, resolved when it was rendered.
+    // Not recomputed here from a shared rule: on a rolling-continuous gym two
+    // classes on the same day open at different times, so there is no single
+    // "next release" a card could be measured against.
+    const stamped = el.getAttribute('data-release-at');
+    const classRelease = stamped
+      ? DateTime.fromISO(stamped)
+      : getClassReleaseTime({ start_at: startAt }, userSettings);
     const diff = classRelease.toMillis() - Date.now();
 
     if (diff <= 0) {

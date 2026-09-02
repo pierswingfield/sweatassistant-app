@@ -5,6 +5,26 @@ import { getCachedSWR, clearApiCache, setCacheKeyPrefix, invalidateApiCache } fr
 
 let localToken = localStorage.getItem('psycleLocalToken') || null;
 
+// Active gym context (WP-C1). Persisted per-account so the normalized API can
+// tell the server which linked gym a request is scoped to (via the `x-gym-id`
+// header). Null until the Phase 5 gym picker sets it — while null the server
+// falls back to the default gym (db.resolveActiveGymId), so single-gym Psycle
+// users are entirely unaffected (the header isn't even sent).
+let activeGymId = localStorage.getItem('sweatActiveGymId') || null;
+
+export function setActiveGymId(gymId) {
+  activeGymId = gymId || null;
+  if (activeGymId) {
+    localStorage.setItem('sweatActiveGymId', activeGymId);
+  } else {
+    localStorage.removeItem('sweatActiveGymId');
+  }
+}
+
+export function getActiveGymId() {
+  return activeGymId;
+}
+
 export function setToken(token) {
   localToken = token;
   if (token) {
@@ -50,6 +70,14 @@ export async function apiFetch(endpoint, options = {}) {
     headers['authorization'] = `Bearer ${localToken}`;
   }
 
+  // Scope the request to the active gym (WP-C1). Only sent when a gym has been
+  // selected — omitted entirely for today's single-gym users, so no existing
+  // request changes. The server ignores it until real per-request resolution
+  // lands (WP-D4); harmless to send in the meantime.
+  if (activeGymId) {
+    headers['x-gym-id'] = activeGymId;
+  }
+
   if (options.body && !(options.body instanceof FormData)) {
     headers['content-type'] = 'application/json';
   }
@@ -70,6 +98,21 @@ export async function apiFetch(endpoint, options = {}) {
   }
 
   window.dispatchEvent(new CustomEvent('psycle-network-ok'));
+
+  // A 403 naming an unlinked gym means our stored `x-gym-id` is stale — the gym
+  // was unlinked, disabled, or this is a different account on the same browser.
+  // Clear it and let the server fall back to its own resolution, otherwise EVERY
+  // request 403s and the app looks broken while the account is perfectly fine.
+  if (res.status === 403 && activeGymId) {
+    const peek = res.clone();
+    try {
+      const body = await peek.json();
+      if (body && /not linked to gym/i.test(body.message || '')) {
+        console.warn(`[API] Stored gym "${activeGymId}" is not linked to this account — clearing it.`);
+        setActiveGymId(null);
+      }
+    } catch (_) { /* not JSON; leave the 403 to the caller */ }
+  }
 
   if (res.status === 401 && localToken) {
     // Session expired locally or backend CodexFit token expired
@@ -97,6 +140,24 @@ export const api = {
     setToken(data.token);
     return data.user;
   },
+
+  // Create a Sweat Assistant account — no gym involved (Decision D4). Returns
+  // { user, needsGym } so the caller can route straight to "link a gym".
+  async signup(email, password) {
+    const res = await apiFetch('/api/auth/signup', {
+      method: 'POST',
+      body: JSON.stringify({ email, password })
+    });
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.message || 'Could not create account');
+    setToken(data.token);
+    return { user: data.user, needsGym: !!data.needsGym };
+  },
+
+  // Account-recovery client methods were REMOVED 2026-08-31 along with the
+  // gym-login-as-recovery-credential mechanism (it re-coupled the account to the
+  // gym, defeating Decision D4). Re-add them when a replacement is chosen —
+  // see BACKLOG.md "Account setup & recovery".
 
   async getStatus() {
     const res = await apiFetch('/api/auth/status');
@@ -176,6 +237,223 @@ export const api = {
     } catch {
       return {};
     }
+  },
+
+  // ---- Normalized gym-agnostic API (WP-C1) ----------------------------------
+  // New surface backed by server/routes-normalized.js (provider adapters).
+  // Returns NormalizedEvent / NormalizedSlot / NormalizedProfile /
+  // NormalizedBookingResult shapes (see server/providers/base.js), independent
+  // of the underlying gym platform. The legacy proxyGet/Post/... methods above
+  // still back the live Psycle UI; modules migrate onto these incrementally
+  // (WP-C1/N2), keeping the proxy shim during the transition. Do NOT rip out
+  // the proxy methods until every caller has moved and the real app is verified
+  // end-to-end in a browser (see AGENT_INSTRUCTIONS §7).
+
+  // Public gym registry + capability flags (for the Phase 5 gym picker).
+  async getGyms() {
+    const res = await apiFetch('/api/gyms');
+    if (!res.ok) throw new Error('Failed to load gyms');
+    const data = await res.json();
+    return data.gyms || [];
+  },
+
+  // The gyms THIS account is linked to, plus which one is currently active.
+  // `getGyms()` above is the public catalogue of everything configured; this is
+  // the per-account view the switcher renders from.
+  async getMyGyms() {
+    const res = await apiFetch('/api/my-gyms');
+    if (!res.ok) throw new Error('Failed to load your gyms');
+    return res.json(); // { gyms: [...], activeGymId }
+  },
+
+  // Persist the user's gym choice server-side AND locally — the server resolves
+  // sessions/credentials from its copy, the local one sets the `x-gym-id` header
+  // on subsequent requests. Both must move together or the next request asks for
+  // one gym while the server believes another is active.
+  async setActiveGym(gymId) {
+    const res = await apiFetch('/api/my-gyms/active', {
+      method: 'POST',
+      body: JSON.stringify({ gymId }),
+    });
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.message || 'Could not switch gym');
+    setActiveGymId(data.activeGymId);
+    return data.activeGymId;
+  },
+
+  // Link a new gym, or re-authenticate one whose stored password went stale.
+  // Same endpoint for both (see auth.linkGymAccount).
+  async linkGym(gymId, email, password) {
+    const res = await apiFetch('/api/my-gyms/link', {
+      method: 'POST',
+      body: JSON.stringify({ gymId, email, password }),
+    });
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.message || 'Could not link that gym');
+    return data;
+  },
+
+  async unlinkGym(gymId) {
+    const res = await apiFetch(`/api/my-gyms/${encodeURIComponent(gymId)}`, { method: 'DELETE' });
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.message || 'Could not unlink that gym');
+    return data.gyms || [];
+  },
+
+  // Change the Sweat Assistant account password — independent of any gym's.
+  async changeAccountPassword(currentPassword, newPassword) {
+    const res = await apiFetch('/api/account/password', {
+      method: 'POST',
+      body: JSON.stringify({ currentPassword, newPassword }),
+    });
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.message || 'Could not change password');
+    return true;
+  },
+
+  // `ttlMs` opts into the same IndexedDB stale-while-revalidate cache
+  // proxyGet(path, {ttlMs}) already uses (getCachedSWR) — needed for
+  // timetable.js's migration off proxyGet, which relies on this to avoid a
+  // full network round-trip on every tab switch/render.
+  async getTimetable(params = {}) {
+    const qs = new URLSearchParams();
+    if (params.startDate) qs.set('startDate', params.startDate);
+    if (params.endDate) qs.set('endDate', params.endDate);
+    const suffix = qs.toString() ? `?${qs}` : '';
+    const endpoint = `/api/timetable${suffix}`;
+    debugLog(`GET ${endpoint}`, 'network');
+    if (params.ttlMs) {
+      const result = await getCachedSWR(endpoint, { ttlMs: params.ttlMs, fetcher: apiFetch });
+      return (result.data && result.data.events) || [];
+    }
+    const res = await apiFetch(endpoint);
+    if (!res.ok) throw new Error('Failed to load timetable');
+    const data = await res.json();
+    return data.events || [];
+  },
+
+  // The four timetable filter lists, gym-agnostic (WP-D9). Replaces four raw
+  // /api/proxy reads that only worked because they were CodexFit endpoints —
+  // MarianaTek has none of them and derives all four from its class list.
+  // Returns { locations, studios, instructors, classTypes }.
+  async getMetadata(params = {}) {
+    const qs = new URLSearchParams();
+    if (params.startDate) qs.set('startDate', params.startDate);
+    if (params.endDate) qs.set('endDate', params.endDate);
+    const endpoint = `/api/metadata${qs.toString() ? `?${qs}` : ''}`;
+    debugLog(`GET ${endpoint}`, 'network');
+    if (params.ttlMs) {
+      const result = await getCachedSWR(endpoint, { ttlMs: params.ttlMs, fetcher: apiFetch });
+      return result.data || { locations: [], studios: [], instructors: [], classTypes: [] };
+    }
+    const res = await apiFetch(endpoint);
+    if (!res.ok) throw new Error('Failed to load timetable metadata');
+    return res.json();
+  },
+
+  // Returns { event: NormalizedEvent, slots: NormalizedSlot[] } (slots [] for FCFS).
+  async getEventDetails(eventId) {
+    debugLog(`GET /api/events/${eventId}`, 'network');
+    const res = await apiFetch(`/api/events/${encodeURIComponent(eventId)}`);
+    if (!res.ok) throw new Error('Failed to load event details');
+    return res.json();
+  },
+
+  // Returns NormalizedSlot[] (empty if the studio has no floor map — see
+  // GymProvider.fetchStudioLayout doc comment; not an error case).
+  // Returns { slots: NormalizedSlot[], objects: NormalizedLayoutObject[] }.
+  // Empty `slots` means "no floor map available for this studio", not an error.
+  async getStudioLayout(studioId) {
+    debugLog(`GET /api/studios/${studioId}/layout`, 'network');
+    const res = await apiFetch(`/api/studios/${encodeURIComponent(studioId)}/layout`);
+    if (!res.ok) throw new Error('Failed to load studio layout');
+    const data = await res.json();
+    return { slots: data.slots || [], objects: data.objects || [] };
+  },
+
+  // Returns a NormalizedBookingResult { ok, bookingId, slotId, error?, status? }.
+  async book(eventId, slotIds = []) {
+    const res = await apiFetch('/api/book', {
+      method: 'POST',
+      body: JSON.stringify({ eventId, slotIds })
+    });
+    return res.json();
+  },
+
+  // cancel / joinWaitlist / leaveWaitlist are COMMANDS: they either happen or
+  // they don't, so they throw on refusal rather than returning a flag. That
+  // matches what every caller was written against (the raw proxy threw), and it
+  // means a failed cancel can never render a success toast.
+  //
+  // `book` deliberately does NOT throw — a decline there carries information the
+  // caller needs (which spot, why), so it returns a NormalizedBookingResult.
+  async _command(endpoint, body, whatFailed) {
+    const res = await apiFetch(endpoint, { method: 'POST', body: JSON.stringify(body) });
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok || data.ok === false) {
+      throw new Error(data.message || data.error || `${whatFailed} failed`);
+    }
+    return data;
+  },
+
+  async cancel(bookingId) {
+    return this._command('/api/cancel', { bookingId }, 'Cancelling');
+  },
+
+  // Returns { isPenalty, message? } — prefer provider truth over client window math.
+  async getCancelPenalty(bookingId) {
+    const res = await apiFetch(`/api/cancel-penalty/${encodeURIComponent(bookingId)}`);
+    if (!res.ok) throw new Error('Failed to check cancel penalty');
+    return res.json();
+  },
+
+  async joinWaitlist(eventId) {
+    return this._command('/api/waitlist/join', { eventId }, 'Joining the waitlist');
+  },
+
+  async leaveWaitlist(eventId) {
+    return this._command('/api/waitlist/leave', { eventId }, 'Leaving the waitlist');
+  },
+
+  async swapSpot(bookingId, currentSlotId, targetSlotId) {
+    const res = await apiFetch('/api/swap', {
+      method: 'POST',
+      body: JSON.stringify({ bookingId, currentSlotId, targetSlotId })
+    });
+    return res.json(); // NormalizedBookingResult
+  },
+
+  // Returns NormalizedBooking[], .event populated for both providers (fixed
+  // 2026-07-03 for CodexFit — see providers/codexfit.js listBookings doc
+  // comment — it resolves via the response's embedded `relations` block when
+  // not already inline). bookings.js's renderBookings() is the first caller.
+  async getBookings() {
+    debugLog('GET /api/bookings', 'network');
+    const res = await apiFetch('/api/bookings');
+    if (!res.ok) throw new Error('Failed to load bookings');
+    const data = await res.json();
+    return data.bookings || [];
+  },
+
+  async getWaitlists() {
+    debugLog('GET /api/waitlists', 'network');
+    const res = await apiFetch('/api/waitlists');
+    if (!res.ok) throw new Error('Failed to load waitlists');
+    const data = await res.json();
+    return data.waitlists || [];
+  },
+
+  async getNormalizedProfile() {
+    const res = await apiFetch('/api/profile');
+    if (!res.ok) throw new Error('Failed to load profile');
+    return res.json();
+  },
+
+  async getNormalizedCredits() {
+    const res = await apiFetch('/api/credits');
+    if (!res.ok) throw new Error('Failed to load credits');
+    const data = await res.json();
+    return data.credits || [];
   },
 
   // Auto-Book Queue

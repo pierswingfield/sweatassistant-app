@@ -1,0 +1,44 @@
+{
+  "_fixture_note": "Sanitized — captured via browser network-tab from a REAL production JAB Boxing member account (not the test account), 2026-07-02. All PII (name, ids tied to the real person, S3 signed URLs) replaced with placeholders. Structure and non-personal values are real. Request: POST /me/reservations, body: {\"class_session\":{\"id\":\"79228\"},\"is_booked_for_me\":true,\"spot\":{\"id\":\"36142\"},\"reservation_type\":\"standard\",\"payment_option\":{\"id\":\"membership-2552\"}}. Response status: 201.",
+  "id": "375597",
+  "is_booked_by_me": true,
+  "is_booked_for_me": true,
+  "reservation_type": "standard",
+  "spot": { "id": "36142", "name": "8", "spot_type": { "id": "6564", "is_primary": true, "name": "Bag" }, "x_position": 4.0, "y_position": 3.2 },
+  "status": "pending",
+  "waitlist_position": null,
+  "are_add_ons_available": false,
+  "booked_by": "REDACTED_NAME",
+  "class_session": {
+    "id": "79228",
+    "available_spot_count": 20,
+    "booking_start_datetime": "2026-06-21T09:00:00+01:00",
+    "capacity": 40,
+    "class_type": { "id": "6266", "name": "BOXING Core & Power", "duration": 60 },
+    "classroom": { "id": "6286", "name": "BOXING" },
+    "is_user_reserved": true,
+    "is_user_waitlisted": false,
+    "is_free_class": false,
+    "layout_format": "pick-a-spot",
+    "location": { "id": "48751", "name": "SW1" },
+    "spot_options": { "primary_availability": 20, "primary_capacity": 40, "waitlist_availability": 30, "waitlist_capacity": 30 },
+    "start_datetime": "2026-07-05T08:00:00Z"
+  },
+  "guest_email": null,
+  "is_change_spots_enabled": true,
+  "is_upcoming": true,
+  "payment_option": {
+    "id": "membership-2552",
+    "_note": "This is the key finding: real bookings on a membership account pass payment_option.id in the shape \"membership-{membershipPaymentId}\", NOT a credit-based payment. membership_payment sub-object below is heavily trimmed — see prod-payment-options-response.json for the full (sanitized) shape.",
+    "membership_payment": {
+      "id": "2552",
+      "name": "REDACTED_MEMBERSHIP_NAME",
+      "status": "Active",
+      "guest_usage_limit": 2,
+      "guest_remaining_usage_count": 2,
+      "commitment_length": 1,
+      "payment_interval": "MO",
+      "type": "membership"
+    }
+  }
+}

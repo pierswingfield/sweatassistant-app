@@ -26,6 +26,9 @@ export const SVG_PATHS = {
   infrared: '<path d="M8 2c1.8 2.2 3 3.7 3 6a3 3 0 1 1-6 0c0-1 .4-1.8 1-2.5.2 1 .8 1.5 1.3 1.5-.5-1.7.7-4 .7-5Z"/>',
   reformer: '<path d="M2 5h12M2 11h12M5 5v6M11 5v6"/>',
   yoga: '<circle cx="8" cy="3.7" r="1.8"/><path d="M8 6.5v3M3.5 13c1.2-2.5 7.8-2.5 9 0"/>',
+  // A boxing glove: cuff plus fist, at the same 16px weight as the others.
+  boxing: '<path d="M5 6.5a3 3 0 0 1 3-3h1.5a3 3 0 0 1 3 3V9a3 3 0 0 1-3 3H8a3 3 0 0 1-3-3Z"/><path d="M5 7.5H3.8A1.3 1.3 0 0 0 2.5 8.8v.9A1.3 1.3 0 0 0 3.8 11H5"/><path d="M5.5 12.5h6.5v1.2a.8.8 0 0 1-.8.8H6.3a.8.8 0 0 1-.8-.8Z"/>',
+  conditioning: '<path d="M2 8h2.5l1.8-4 2.4 8 1.8-4H14"/>',
   other: '<circle cx="8" cy="8" r="2.6"/>',
 };
 const FILLED_ICONS = new Set(['play', 'heart', 'bolt', 'star']);
@@ -38,17 +41,33 @@ export function icon(name, size = 14) {
     + `stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${inner}</svg>`;
 }
 
-// Derive a class discipline (token + label + glyph) from the group/class name.
+// Derive a class discipline (token + label + glyph) from the normalized
+// `discipline` field, falling back to keyword matching on the name.
+//
+// The keyword list is a HEURISTIC over vocabulary, not a gym's class catalogue:
+// every term below ("ride", "barre", "boxing"…) is an activity name that any gym
+// might use. It exists because the token/glyph set is finite and a discipline
+// string has to map onto one of them; an unrecognised discipline lands on
+// `other`, which renders as a neutral chip carrying the gym's own label rather
+// than as a missing style.
+//
+// Both adapters populate `NormalizedEvent.discipline` (codexfit from the event
+// type's group, marianatek from the classroom), so prefer that over re-deriving
+// it from a display name.
 export function getDiscipline(name = '') {
-  const s = String(name).toLowerCase();
+  const raw = String(name || '').trim();
+  const s = raw.toLowerCase();
   const D = (key, label) => ({ key, label, icon: SVG_PATHS[key] ? key : 'other' });
   if (/ride|cycle|spin/.test(s)) return D('ride', 'Ride');
   if (/barre/.test(s)) return D('barre', 'Barre');
   if (/reformer|pilates/.test(s)) return D('reformer', 'Reformer');
   if (/infrared|hot|sweat/.test(s)) return D('infrared', 'Infrared');
   if (/yoga|flow|mind|meditat/.test(s)) return D('yoga', 'Yoga');
+  if (/box|punch|bag|spar/.test(s)) return D('boxing', 'Boxing');
+  if (/condition|circuit|metcon|cardio/.test(s)) return D('conditioning', 'Conditioning');
   if (/strength|tone|sculpt|hiit|abs|arms|signature/.test(s)) return D('strength', 'Strength');
-  const label = name ? String(name).replace(/\b\w/g, c => c.toUpperCase()) : 'Class';
+  // Unrecognised: keep the gym's own wording rather than inventing a label.
+  const label = raw ? raw.replace(/\b\w/g, c => c.toUpperCase()) : 'Class';
   return { key: 'other', label, icon: 'other' };
 }
 
@@ -58,9 +77,17 @@ export function disciplineTag(name) {
   return `<span class="ab-disc-tag" data-disc="${d.key}">${icon(d.icon, 11)}${d.label}</span>`;
 }
 
-// Strip the "Psycle " prefix from a location name (matches the timetable filters).
-export function trimLocation(name = '') {
-  return String(name).replace(/^Psycle\s*/i, '');
+// Strip a gym's own name off the front of a location ("Psycle Shoreditch" →
+// "Shoreditch"). Passing the gym name in keeps this from being one gym's rule:
+// with no name given it is a no-op rather than silently assuming Psycle.
+export function trimLocation(name = '', gymName = '') {
+  const n = String(name || '');
+  if (!gymName) return n;
+  // First word of the gym name — "Psycle London" should also trim "Psycle …".
+  const first = String(gymName).trim().split(/\s+/)[0];
+  if (!first) return n;
+  const esc = first.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+  return n.replace(new RegExp(`^${esc}\\s*`, 'i'), '') || n;
 }
 
 // Strip a leading group/discipline prefix from a class name so we don't render
@@ -83,7 +110,8 @@ export function stripClassNamePrefix(name = '', group = '') {
 // editor text — the shared map serves all class types at a studio.
 // Capitalise the first letter when the word starts a sentence/label/title.
 export function seatNoun(groupName = '') {
-  return /^ride$/i.test(String(groupName)) ? 'bike' : 'spot';
+  // Discipline-driven, not gym-driven: any gym running a cycle class has bikes.
+  return /^ride$|cycle|spin/i.test(String(groupName)) ? 'bike' : 'spot';
 }
 
 export function sparklesIcon(size = 14, color = 'currentColor') {

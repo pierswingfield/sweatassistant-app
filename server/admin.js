@@ -3,6 +3,15 @@ const jwt = require('jsonwebtoken');
 const crypto = require('crypto');
 const db = require('./db');
 const { triggerAutoRelogin } = require('./auth');
+const { getProvider } = require('./providers');
+
+// Interim single-gym bridge: live CodexFit reads (bookings, profile) are always
+// against Psycle London for now — real per-request gym resolution lands with
+// Phase 5's client gym picker (see resolveActiveGymId in db.js). DB-backed data
+// (below) is already gym-aware as of WP-D3/D4.
+// No module-level provider (WP-D7). An admin request reads ANOTHER account's
+// data, so the gym must be resolved from THAT user — db.resolveActiveGymId is
+// already scoped to the user id it is passed, not to the requester.
 
 // Constant-time string comparison via fixed-length SHA-256 digests, so the
 // comparison time doesn't leak how many leading characters matched (and length
@@ -46,26 +55,19 @@ function authenticateAdmin(req, res, next) {
 // Private helper mirroring server.js's proxyRequest GET path: fetches a CodexFit
 // resource on behalf of a user using their stored JWT, auto-relogin on 401.
 // Dev user (dev@psycle.com) is routed through the mock module instead.
-async function codexFitGet(userId, pathName) {
+async function gymGet(userId, pathName) {
   const user = db.getUserById(userId);
-  if (!user || !user.jwt) throw new Error('User has no active CodexFit session.');
+  if (!user || !user.jwt) throw new Error('User has no active gym session.');
   if (user.email === 'dev@psycle.com') {
     const { handleMockRequest } = require('./mock');
     return handleMockRequest(pathName, 'GET', null);
   }
-  const run = async (token) => fetch(`https://psycle.codexfit.com/api/v1/customer${pathName}`, {
-    method: 'GET',
-    headers: {
-      'accept': 'application/json',
-      'origin': 'https://psyclelondon.com',
-      'referer': 'https://psyclelondon.com/',
-      'x-organisation': '[object Object]',
-      'authorization': `Bearer ${token}`
-    }
-  });
+  const gymId = db.resolveActiveGymId(userId);
+  const provider = getProvider(gymId);
+  const run = (token) => provider.request(pathName, { token, method: 'GET' });
   let res = await run(user.jwt);
   if (res.status === 401) {
-    const newJwt = await triggerAutoRelogin(userId);
+    const newJwt = await triggerAutoRelogin(userId, gymId);
     res = await run(newJwt);
   }
   return res;
@@ -129,7 +131,7 @@ router.get('/users/:id', authenticateAdmin, async (req, res) => {
     // if the live fetch fails or returns empty. Warms the reminder cache on success.
     let bookings = detail.bookings;
     try {
-      const liveRes = await codexFitGet(userId, '/bookings?limit=100&page=1');
+      const liveRes = await gymGet(userId, '/bookings?limit=100&page=1');
       if (liveRes.ok) {
         const payload = await liveRes.json();
         const list = payload.data || payload || [];
@@ -165,7 +167,7 @@ router.get('/users/:id', authenticateAdmin, async (req, res) => {
         const raw = db.getKV('studio_name_map');
         if (raw) { try { fetchedMap = JSON.parse(raw); } catch (_) {} }
       } else {
-        const studiosRes = await codexFitGet(userId, '/studios');
+        const studiosRes = await gymGet(userId, '/studios');
         if (studiosRes.ok) {
           const payload = await studiosRes.json();
           const arr = payload.data || payload || [];
@@ -228,6 +230,7 @@ router.get('/users/:id', authenticateAdmin, async (req, res) => {
       autoUpgrades: detail.autoUpgrades,
       studioPreferences: detail.studioPreferences,
       studioNames,
+      gyms: detail.gyms,
     });
   } catch (err) {
     res.status(500).json({ message: err.message });
@@ -258,6 +261,88 @@ router.delete('/users/:id', authenticateAdmin, (req, res) => {
     res.json({ success: true });
   } catch (err) {
     res.status(500).json({ message: err.message });
+  }
+});
+
+// GET /api/admin/gyms — list the gym registry (for the admin panel's "link a gym" picker)
+router.get('/gyms', authenticateAdmin, (req, res) => {
+  try {
+    res.json({ gyms: db.getGyms() });
+  } catch (err) {
+    res.status(500).json({ message: err.message });
+  }
+});
+
+// POST /api/admin/users/:id/link-gym — link a gym to a user's account (WP-D3/D4).
+// Support/testing entry point ahead of Phase 5's client-side gym picker; no
+// credential verification is performed here — it just creates the DB link.
+router.post('/users/:id/link-gym', authenticateAdmin, (req, res) => {
+  const userId = parseInt(req.params.id, 10);
+  const { gymId } = req.body;
+  if (isNaN(userId) || !gymId) {
+    return res.status(400).json({ message: 'userId and gymId are required.' });
+  }
+  try {
+    db.linkGym(userId, gymId);
+    // Return the stripped/public shape — never echo encrypted_password/session_json,
+    // even ciphertext, back over an API response.
+    const gyms = db.getUserGymsPublic(userId);
+    res.json({ success: true, gyms });
+  } catch (err) {
+    res.status(400).json({ message: err.message });
+  }
+});
+
+// POST /api/admin/users/:id/reset-password — the account-recovery escape hatch.
+//
+// Self-service recovery does not exist: the gym-login mechanism was removed
+// (Decision D5, it re-coupled the account to the gym) and no replacement has
+// been chosen yet, so without this a forgotten Sweat Assistant password means a
+// permanently unreachable account. See BACKLOG.md "Account recovery".
+//
+// The admin does NOT choose the password. The server generates a strong
+// single-use one and returns it exactly once, for the admin to relay
+// out-of-band; it is never stored in plaintext and cannot be read back.
+//
+// `resetGymCredentials` defaults to TRUE, per the settled half of D5: if an
+// account needed recovering, its stored secrets should not be assumed safe.
+// The admin can opt out for a routine "I just forgot it" where they know the
+// account was never at risk — that is a judgement call, so it is explicit
+// rather than silently one way or the other. Clearing a credential never
+// deletes the gym link: queues, spot maps and priority tiers survive, and the
+// user simply re-authenticates each gym.
+router.post('/users/:id/reset-password', authenticateAdmin, (req, res) => {
+  const userId = parseInt(req.params.id, 10);
+  if (isNaN(userId)) return res.status(400).json({ message: 'A valid user id is required.' });
+
+  const resetGyms = req.body?.resetGymCredentials !== false; // default true
+
+  try {
+    const user = db.getUserById(userId);
+    if (!user) return res.status(404).json({ message: 'User not found.' });
+
+    // 24 bytes of base64url ≈ 32 chars — comfortably past the 8-char minimum and
+    // not something a human will retype by accident.
+    const tempPassword = crypto.randomBytes(24).toString('base64url');
+    db.setAccountPassword(userId, tempPassword);
+
+    const clearedGyms = resetGyms ? db.resetGymCredentials(userId) : [];
+
+    // Audit trail. There is no structured logging yet (BACKLOG.md), so this is
+    // the only record that an account's credentials were administratively
+    // changed — worth keeping even once proper logging lands.
+    console.log(`[Admin] Password reset for user ${userId} (${user.email}); ` +
+      `gym credentials cleared: ${clearedGyms.length ? clearedGyms.join(', ') : 'none'}`);
+
+    res.json({
+      success: true,
+      email: user.email,
+      tempPassword,      // shown once; the admin relays it out-of-band
+      clearedGyms,
+      note: 'Give this to the user over a trusted channel. They should change it in Settings once they are back in.',
+    });
+  } catch (err) {
+    res.status(400).json({ message: err.message });
   }
 });
 

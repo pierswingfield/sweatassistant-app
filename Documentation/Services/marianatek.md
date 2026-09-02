@@ -1,9 +1,9 @@
 # Mariana Tek Platform Research & Multi-Provider Architecture Plan
 
-**Date:** June 22, 2026 (desk research); June 22, 2026 (live API research with JAB Boxing test account)
+**Date:** June 22, 2026 (desk research); June 22, 2026 (live API research with JAB Boxing test account); July 2, 2026 (Phase 0 research round 2 — WP-R1–R4)
 **Purpose:** Scope what it would take to support gyms/fitness studios that use Mariana Tek as their technology provider, alongside the existing CodexFit integration (Psycle London).
 
-> **Live research performed:** Sections 1A–1F document findings from live API testing against `jabboxingclub.marianatek.com` using an authorized test account. The desk research sections (2–15) follow and are annotated where live findings supersede them.
+> **Live research performed:** Sections 1A–1F document findings from live API testing against `jabboxingclub.marianatek.com` using an authorized test account (June 22, 2026). Section 1G documents a follow-up live research round (July 2, 2026) that re-validated the auth flow and resolved most of §1F's open questions. The desk research sections (2–15) follow and are annotated where live findings supersede them.
 
 ---
 
@@ -16,6 +16,8 @@
 1D. [Confirmed Data Schemas](#1d-confirmed-data-schemas)
 1E. [JAB Boxing Specifics](#1e-jab-boxing-specifics)
 1F. [Remaining Unknowns After Live Research](#1f-remaining-unknowns-after-live-research)
+1G. [Live Research Round 2 (2026-07-02)](#1g-live-research-round-2-2026-07-02--phase-0-wp-r1r4)
+1H. [Production Account Capture (2026-07-02)](#1h-production-account-capture-2026-07-02--resolves-r2s-remaining-p1-unknowns)
 2. [Platform Overview](#2-platform-overview)
 3. [API Surface](#3-api-surface)
 4. [Auth Model — The Critical Difference](#4-auth-model--the-critical-difference)
@@ -247,7 +249,7 @@ The server stores encrypted credentials and performs the headless OAuth flow on 
   "is_booked_for_me": true,
   "is_change_spots_enabled": true,          // Whether swap_spots is allowed
   "are_add_ons_available": false,
-  "booked_by": "Piers Wingfield",
+  "booked_by": "Jane Doe",
   "spot": {
     "id": "36295",
     "name": "24",
@@ -335,17 +337,154 @@ Returns the updated UserReservation with the new spot.
 
 ## 1F. Remaining Unknowns After Live Research
 
-| Unknown | Priority | How to resolve |
-|---------|----------|----------------|
-| **Cancel endpoint behavior** | P1 | Need a booking we can afford to cancel (or a class with free cancellation) |
-| **Waitlist join + assign_to_spot** | P1 | Need a waitlisted reservation (requires credits to join waitlist) |
-| **Refresh token expiry** | P1 | Monitor over time — likely 30-90 days. Test by waiting or asking MT support. |
-| **Cart/checkout flow** | P2 | Cart endpoint returned auth error — may need session auth or different scope |
-| **Credit purchase API** | P2 | JAB is membership-based with no buy-page. Other MT studios may have buy-page products. |
-| **Webhooks** | P2 | Contact `integrations@marianatek.com` to register a webhook URL |
-| **Rate limits** | P3 | Not documented. Monitor for 429 responses during auto-book polling. |
-| **Mobile app client_id** | P3 | The community CLI found a password-grant client_id — may be the mobile app's. Could simplify auth if discovered. |
-| **Credit purchase API for other MT studios** | P3 | Test `GET /locations/{id}/buy-page` against a credit-based MT studio (e.g. Barry's). |
+> **Updated 2026-07-02 — see §1G below for the round-2 live research session that resolved/refined several of these.**
+
+| Unknown | Priority | Status (2026-07-02) | How to resolve |
+|---------|----------|----------------------|-----------------|
+| **Cancel endpoint behavior** | P1 | ✅ **Resolved** via production-account capture — see §1H. Cancel-within-window restores usage/allowance, not just fee-free. | Done. |
+| **Waitlist join + assign_to_spot** | P1 | ✅ **Join + leave resolved** via production-account capture — see §1H. `assign_to_spot` (promotion when a spot frees up) still unexercised — opportunistic only, not worth forcing. | `assign_to_spot` remains open; low priority. |
+| **Refresh token expiry** | P1 | **Partially resolved.** Confirmed today: fresh headless-OAuth login works, `refresh_token` grant works, refresh token is **not rotated** (same token returned), access token is 7 days (604800s) each time. An **invalid/dead refresh token** now has a confirmed failure shape: `400 {"error": "invalid_grant"}` — this is the exact condition the credential-ladder's "re-login with stored password" fallback should trigger on. **Still unknown:** the hard expiry window itself (30/60/90d?) — this requires waiting weeks and cannot be forced in a single session. No token-introspection endpoint exists to shortcut this (confirmed — the live OpenAPI schema at `docs.marianatek.com/api/customer/v1/schema/` contains only `/o/authorize` and `/o/token`, no `/o/introspect` or `/o/revoke`). | Time-based monitoring only — re-run the refresh grant periodically (e.g. a scheduled trigger every ~2 weeks) and note the first date it fails with `invalid_grant` while the access token itself is still theoretically fresh (i.e. a *refresh*-token expiry, not just an access-token expiry). |
+| **Cart/checkout flow** | P2 | Not re-tested this round (out of scope — no purchase/checkout flows attempted, per hard safety boundary). | Still open. |
+| **Credit purchase API** | P2 | Not re-tested. JAB confirmed still membership-based with an empty buy-page (see §1G). | Other MT studios may have buy-page products — untested. |
+| **Webhooks** | P2 | Not pursued this round. | Contact `integrations@marianatek.com` to register a webhook URL. |
+| **Rate limits** | P3 | **Refined.** ~35 GET/POST requests made across this session (auth flow + reads + a couple of intentionally-invalid probes) with zero `429`s and **zero rate-limit-related response headers** of any kind (`X-RateLimit-*`, `Retry-After` — grepped every response header on every call, none present). This is a light-touch sample, not a stress test — genuinely unknown behavior under sustained/concurrent polling (e.g. the scheduler's T-0 dispatch burst) remains untested. | Continue monitoring naturally during Phase 4/6 implementation and integration testing; do not deliberately stress-test a shared tenant. |
+| **Mobile app client_id** | P3 | Not pursued this round. | Still open. |
+| **Credit purchase API for other MT studios** | P3 | Not pursued this round. | Still open. |
+| **Insufficient-payment error shape** *(new, resolves part of R4)* | — | **Resolved via existing §1D data**, not re-triggered this round. §1D already documents the exact shape from the June 22 session: `{"non_field_errors": ["The payments do not satisfy the cost of this reservation."]}`. A live re-trigger this round was declined — see §1G gotchas for why. | — |
+| **Bad/garbage bearer token error shape** *(new)* | — | **Resolved.** `GET /me/account` with an invalid `Authorization: Bearer` header returns the **same** `401 {"detail": "Authentication credentials were not provided."}` as no auth header at all — MT does not distinguish "missing" vs "malformed/invalid" credentials in the response body. Useful for the adapter's re-login-trigger logic: treat any 401 on an authenticated read as "re-authenticate," don't try to parse a more specific reason. | — |
+| **404 error shape** *(new)* | — | **Resolved.** `GET /classes/{bad_id}` → `404 {"detail": "No ClassSession matches the given query."}`. Consistent DRF-style `detail` field across error types observed so far (401, 404; `invalid_grant` on the OAuth token endpoint is the one exception, using `error` instead of `detail`). | — |
+| **FCFS class detail shape** *(new)* | — | **Resolved.** `GET /classes/{id}` for a `first-come-first-serve` class (e.g. RECOVERY) returns `"layout": null` — no `spots` array at all, confirming the adapter/UI must branch on `layout_format` and simply not attempt to render a floor plan for FCFS classes rather than expecting an empty array. | — |
+
+---
+
+## 1G. Live Research Round 2 (2026-07-02) — Phase 0 WP-R1–R4
+
+**Purpose:** Phase 0 research work packages (PLAN.md §4) — re-validate the auth flow ~10 days after the original research, attempt the P1 write-path unknowns (cancel, waitlist), capture fixtures for the adapter's normalization layer, and note any rate-limit/error-taxonomy observations along the way.
+
+**Test account:** `aiproscw@gmail.com` (Sebastian Clearwater, user id 60623) — unchanged from §1A.
+
+### WP-R1 — Auth lifecycle: confirmed still working today
+
+Re-ran the exact 4-step headless OAuth flow from §1B, fresh, ~10 days after the original research:
+
+| Step | Result |
+|------|--------|
+| PKCE generation + `GET /o/authorize/` → login page redirect | ✅ Identical shape to §1B — CSRF token extractable from the login HTML form, `csrftoken` cookie set |
+| `POST /auth/login/` with credentials | ✅ 302 redirect chain → `{redirect_uri}?code=...`, exactly as documented |
+| `POST /o/token/` code exchange | ✅ `{access_token, expires_in: 604800, token_type: "Bearer", scope: "read:account", refresh_token}` — byte-identical shape to §1B, no schema drift |
+| `POST /o/token/` refresh grant | ✅ Works. New `access_token` issued, `refresh_token` **not rotated** (same token returned), `expires_in: 604800` again |
+| Invalid/garbage `refresh_token` grant | ✅ New this round — `400 {"error": "invalid_grant"}`. This is the exact signal the credential ladder (marianatek.md §4, PLAN.md §2.2) should treat as "refresh is dead, fall back to full re-login with stored password." |
+| Token introspection endpoint | ❌ Confirmed does not exist — downloaded the live OpenAPI schema (`docs.marianatek.com/api/customer/v1/schema/`, 302KB) and grepped for `/o/*` paths: only `/o/authorize` and `/o/token` are present. No way to ask MT "how much longer is this refresh token valid" short of using it and seeing if it works. |
+
+**Conclusion:** Nothing has silently changed in ~10 days — the auth flow is stable and repeatable. The refresh-token **hard expiry window** (30/60/90 days, PLAN.md Open Question Q1) genuinely cannot be determined without waiting weeks; this session did not attempt to force that. Recommend a scheduled check (e.g. a monthly trigger that runs the refresh grant and logs pass/fail) rather than a one-off session, to eventually pin down the real window empirically.
+
+### WP-R2 — Write-path validation: blocked by account/schedule state, not by the API
+
+Checked `GET /me/credits` and `GET /me/memberships` fresh: both still return empty results (`count: 0`) — the test account remains $0/no-membership, unchanged since June 22.
+
+Searched the live schedule exhaustively for a `is_free_class: true` class to test the one write path that doesn't need payment: scanned **2,067 upcoming class sessions** across a ~2.5-month window (today through mid-September, using `page_size=100` pagination) via `GET /classes`. **Zero** classes have `is_free_class: true` anywhere in that window. The class catalog for JAB is exactly the 16 recurring class types listed in §1E (TRAIN variants, BOXING variants, RECOVERY, Small Group PT, SPARRING, etc.) — none are flagged free.
+
+Given that, both P1 unknowns from §1F remain genuinely blocked on this account:
+- **`POST /me/reservations/{id}/cancel`** — never reached, because no reservation can be created to cancel (no credits, no membership, no free class).
+- **Waitlist join (`reservation_type: "waitlist"`) + `assign_to_spot`** — same root cause; joining a waitlist on this tenant is payment-gated exactly like a standard booking, and the account has nothing to pay with.
+
+This is a legitimate, documented outcome, not a shortfall in this session's effort — see the coordinator's mid-session guidance (relayed, not independently re-verified against the stakeholder) that the stakeholder plans to resolve these two specifically via **manual browser-based capture against a real production MarianaTek account with actual credits**, separately from this test-account session. That plan is the right one: forcing a resolution here would require either purchasing something (explicitly out of bounds — see the hard safety boundary) or the account having state it simply doesn't have.
+
+**Did not re-attempt** a live `POST /me/reservations` against a paid class this round to re-capture the "insufficient payment" error text — the environment's own safety classifier declined that action mid-session (it read as a payment-adjacent write given the account's known $0 state, even though the endpoint is expected to reject it harmlessly). That specific error shape was **already fully captured** in the June 22 session and is documented verbatim in §1D: `{"non_field_errors": ["The payments do not satisfy the cost of this reservation."]}`. No need to reproduce it live again — it's already real, already correct, and re-triggering it would have added no new information.
+
+`swap_spots` was not re-tested this round (already confirmed working in §1A/§1C; no reservation exists on the account to swap right now anyway).
+
+### WP-R3 — Fixtures captured
+
+All saved under `server/__fixtures__/marianatek/` (real, live JSON responses; no tokens or passwords included in any fixture file — verified by grep):
+
+| File | Source call | Notes |
+|------|-------------|-------|
+| `classes-list.json` | `GET /classes?min_start_date=...&max_start_date=...` | First page (10 results) of the live schedule, standard DRF pagination envelope (`results`, `meta.pagination`, `links`) |
+| `class-detail-with-layout.json` | `GET /classes/79121` | `TRAIN - Core & Glutes`, `layout_format: "pick-a-spot"`, full 40-spot `layout.spots` array with `x_position`/`y_position`/`spot_type`/`is_available` |
+| `class-detail-fcfs.json` | `GET /classes/79103` | `RECOVERY (Members)`, `layout_format: "first-come-first-serve"`, confirms `"layout": null` for FCFS classes (see §1F) |
+| `me-account.json` | `GET /me/account` | Full profile incl. `home_location`, `required_legal_documents`, waiver status |
+| `me-credits.json` | `GET /me/credits` | Empty (`count: 0`) — confirms account still has no credit packages |
+| `me-memberships.json` | `GET /me/memberships` | Empty (`count: 0`) — confirms account still has no membership |
+| `me-reservations.json` | `GET /me/reservations` | Empty (`count: 0`) — account has no bookings, historical or upcoming |
+| `locations.json` | `GET /locations` (public, no auth) | Both JAB locations, SW1 (id 48751) and EC1 (id 48784) |
+
+**Not captured** (blocked by WP-R2's account-state limitation, not attempted): `booking-response.json`, `waitlist-response.json`, `cancel-penalty-response.json`. These need the production-account browser capture mentioned above; once available, drop them into the same fixtures directory using the same naming convention.
+
+**Field-mapping note for Phase 4 (WP-M2):** `class-detail-with-layout.json`'s `layout.spots[]` entries map cleanly onto PLAN.md §2.3's draft `NormalizedSlot` shape (`id`→`id`, `name`→`label`, `x_position`/`y_position`→`x`/`y`, `spot_type.is_primary`→`isPrimary`, `is_available`→`isAvailable`; `row` has no direct MT equivalent — Pick-A-Spot has no row concept, only x/y, so `row` should stay `undefined` for MT-sourced slots per `normalize.js`'s undefined-pruning behavior). Top-level class fields map onto `NormalizedEvent` per PLAN.md's table almost verbatim (`start_datetime`→`startAt`, `booking_start_datetime`→`releaseAt`, `available_spot_count`→`availableCount`, `is_user_reserved`→`isUserBooked`, `is_user_waitlisted`→`isUserWaitlisted`).
+
+### WP-R4 — Rate limits & error taxonomy
+
+**Rate limits:** Made roughly 35 requests this session (auth flow steps + reads + a handful of intentionally-invalid probes for error-shape capture), all within a few minutes, no artificial delay beyond a courtesy 0.2–0.3s between paginated calls. **Zero `429` responses. Zero rate-limit-related response headers** on any call — every response header set was inspected (not just skimmed) for anything containing "rate" or `Retry-After`; none found on any endpoint (public or authenticated, OAuth or Customer API). This matches §1F's original "not publicly documented" note — MT simply doesn't surface rate-limit signals to this client, at least not at this (light) request volume. No conclusions possible about behavior under real sustained load (e.g. the auto-book scheduler's T-0 burst); that can only be observed opportunistically during later phases, not manufactured safely against a shared tenant.
+
+**Error taxonomy — new entries this round:**
+
+| Scenario | HTTP status | Body shape |
+|----------|-------------|------------|
+| Invalid/expired `refresh_token` grant | 400 | `{"error": "invalid_grant"}` |
+| No `Authorization` header on an authenticated read | 401 | `{"detail": "Authentication credentials were not provided."}` |
+| Garbage/invalid `Authorization: Bearer` token | 401 | `{"detail": "Authentication credentials were not provided."}` — **identical** to the no-header case; MT does not distinguish missing vs. malformed credentials |
+| Unknown/nonexistent resource id (`GET /classes/{bad_id}`) | 404 | `{"detail": "No ClassSession matches the given query."}` |
+| Insufficient payment for a booking (from §1D, June 22 session, not re-triggered) | 200 with an error body (per §1A's original note) | `{"non_field_errors": ["The payments do not satisfy the cost of this reservation."]}` |
+
+**Pattern observed:** Customer API errors use a DRF-standard `detail` string for auth/not-found errors; the OAuth token endpoint (`/o/token/`) uses a different, OAuth2-spec-standard `error` field instead; booking-validation errors use DRF's `non_field_errors` array. Three distinct shapes depending on which subsystem produced the error — the adapter's error-normalization layer should switch on which of these three keys is present rather than assuming one consistent shape across the whole API surface.
+
+### Session artifacts (not committed — informational only)
+
+The Python scripts used to drive this session (headless OAuth client, generic API client, class-scanning helper) and their raw request/response logs live in a scratch directory outside the repo, not under version control — they were throwaway research tooling, not part of the codebase. If a future agent wants a ready-made headless-OAuth-flow reference implementation to build the real `server/providers/marianatek.js` auth methods (WP-M1) from, ask for them to be regenerated rather than assuming they persist; the durable output of this session is this document + the fixtures directory, not the scratch scripts.
+
+---
+
+## 1H. Production Account Capture (2026-07-02) — resolves R2's remaining P1 unknowns
+
+**Source:** the stakeholder manually captured browser network-tab traffic (request/response JSON) from a **real, paying JAB Boxing production member account** — not the `aiproscw@gmail.com` test account, which structurally cannot produce these flows (§1G: $0 credits, no membership, zero free classes anywhere in the schedule). This finally exercises the credit/membership-gated write paths the test account was blocked from reaching.
+
+**⚠️ Handling note for future readers:** the raw capture contained the account holder's real PII (name, DOB, phone, email, credit card metadata, Stripe customer id, presigned S3 URLs with AWS security tokens for signed legal documents) and a live OAuth bearer token. **None of that is reproduced here or in the fixtures.** Every fixture under `server/__fixtures__/marianatek/prod-*.json` is sanitized — personal values replaced with `REDACTED_*` placeholders, only the response *shape* and non-personal values (studio locations, membership status booleans, spot ids, availability counts) are real. If you're extending this research, apply the same discipline: capture what you need, redact before it touches the repo.
+
+### What this resolved
+
+| §1F unknown | Resolution |
+|---|---|
+| **Cancel endpoint behavior** (P1) | ✅ **Resolved.** `cancel_penalty` → `{"is_penalty_cancel": false, "message": null}` when well within the free window (matches §1D's shape, now confirmed against a real chargeable account). `POST /me/reservations/{id}/cancel` on a **standard** booking sets `status: "standard cancel"`. **New finding:** cancelling within the zero-penalty window **restores the underlying usage/allowance**, not just "no fee charged" — observed directly via `membership_payment.guest_remaining_usage_count` going `2 → 1` (after booking a guest) `→ 2` (after cancelling that guest booking). See `prod-cancel-flow.json`. |
+| **Waitlist join + assign_to_spot** (P1) | ✅ **Partially resolved** — waitlist *join* and *leave* both confirmed working end-to-end against a genuinely full class. `reservation_type: "waitlist"` produces a reservation with an all-empty `spot` object (`{id:"", name:"", ...}`, not null/omitted) and `status: "pending"`; `waitlist_position` stayed `null` throughout on this tenant — don't rely on it for UI. **Leaving** a waitlist sets `status: "removed"` — a **different terminal status than a standard cancel** (`"standard cancel"`); the adapter's status-mapping must branch on `reservation_type`, not assume one cancel-status vocabulary. `assign_to_spot` (waitlist → confirmed spot, from the community-CLI-discovered endpoint in §7) was **not** exercised — no spot opened up during this capture window. See `prod-waitlist-flow.json`. |
+| Insufficient-payment error shape | Unchanged — still the §1D shape, not re-triggered this round (real booking succeeded instead, since this account has a real membership). |
+
+### New endpoints discovered (not in §1C)
+
+| Method | Endpoint | Purpose | Fixture |
+|---|---|---|---|
+| GET | `/classes/{id}/payment_options` | Returns `{user_payment_options: [...], guest_payment_options: [...]}` — the valid `payment_option.id` values (e.g. `"membership-2552"`) to pass into `POST /me/reservations`. **The adapter's `bookSlot()` needs to call this before booking on a membership-based gym** — don't assume a fixed payment_option shape. | `prod-payment-options.json` |
+| GET | `/me/achievements` | `{classes_completed, instructors_taken, member_since, most_visited_studio, number_of_studios_visited}` — user stats, not needed for M1–M3 core booking but a nice-to-have for a future stats panel. | `prod-achievements.json` |
+| GET | `/me/orders?reservation={id}&exclude_statuses=Cancelled` | Empty result set for a membership-paid booking (makes sense — a membership deduction isn't a purchase "order"). Presumably populated for credit-pack purchases; untested. | — (empty response, not worth a fixture) |
+| GET | `{tenant}.marianaiframes.com/feature-flags?userId={id}` | MT's own web-integrations SPA feature flags — **not** the Customer API, different domain, not an adapter concern. Documented for completeness only. | `prod-feature-flags.json` |
+
+### Confirmed request/response shapes (previously only hypothesized)
+
+- **Membership-based booking** (as opposed to credit-based): `POST /me/reservations` body includes `payment_option: {id: "membership-{id}"}`. Response's `payment_option.membership_payment` carries `status`, `guest_usage_limit`, `guest_remaining_usage_count`, `commitment_length`, `payment_interval`, `booking_window_display` — richer than the credit-based shape assumed in §1D.
+- **Guest booking**: `is_booked_for_me: false` + a required `guest_email` (booking without it fails cleanly: `{"non_field_errors": ["Email address for guest must be provided"]}`). A guest booking consumes one unit of `guest_remaining_usage_count` on the host's membership, and — per the cancel finding above — that unit is restored on a zero-penalty cancel.
+- **`GET /me/account` on a real member** looks meaningfully different from the test account's near-empty shape: real accounts carry a `credit_cards` array (each card scoped to specific `usage_locations`!), a `stripe_customer_id`, and populated legal-document/waiver tracking. The adapter's `NormalizedProfile` builder should treat most of these fields as optional/gym-dependent rather than modeling on the test account's minimal shape. See `prod-me-account.json` (heavily redacted).
+
+### Booking window: confirmed self-describing per class (no per-gym inference logic needed)
+
+**Question:** does the adapter need gym-specific logic to figure out how far in advance booking opens (JAB: rolling 7-day base / 14-day member; other MT gyms like Aarmy reportedly do a fixed weekly release like CodexFit)?
+
+**Answer: no — `booking_start_datetime` on every `class_session` object is already the fully-resolved release datetime for the *viewing account*, computed server-side by MT.** Confirmed by recomputing the gap on two independent classes from the `prod-*.json` fixtures (both against the same 14-day-member account):
+
+| Class | `booking_start_datetime` | class `start_datetime` | gap |
+|---|---|---|---|
+| BOXING Core & Power (`prod-cancel-flow.json` source booking) | `2026-06-21T09:00:00+01:00` | `2026-07-05T08:00:00Z` | **exactly 14 days** |
+| BOXING Core & Power, waitlisted class (`prod-waitlist-flow.json`) | `2026-06-19T07:00:00+01:00` | `2026-07-03T06:00:00Z` | **exactly 14 days** |
+
+This matches the account's membership `booking_window_display: "Reserve 14 days in advance"` (visible directly in `prod-payment-options.json`) exactly — and it's not a coincidence: this is the field's actual purpose. §5 "Booking Windows" (desk research) already noted MT supports both **Interval** (fixed weekly release, e.g. Aarmy/Psycle-style) and **Rolling** (continuously-evaluated, e.g. JAB-style) window configurations, set per studio and potentially per membership/credit tier — this live data confirms MT resolves whichever rule applies *server-side* and simply publishes the answer as `booking_start_datetime`. **The adapter never needs to know which window type a given gym uses, or replicate CodexFit's `detectBookingWindow()`-style client-side inference (`client/src/lib.js`) — it just reads the field.** This directly satisfies `NormalizedEvent.releaseAt` (already in the `base.js` typedef) with zero extra logic: `releaseAt = class.booking_start_datetime`. This is a genuine simplification vs. CodexFit and should make WP-M2 (timetable+layout normalization) and WP-S1 (auto-book on normalized `releaseAt`) straightforward for the booking-window piece specifically.
+
+**Not yet confirmed:** what a non-member (base 7-day window) viewer sees for the same class — every capture so far is from a 14-day-member account, so this is inferred from the membership's own `booking_window_display`, not cross-checked against a base-tier account. Low priority to chase separately, since the mechanism (trust `booking_start_datetime`, don't compute it) is what matters for the adapter regardless of which number comes back.
+
+### Still open after this round
+
+- `assign_to_spot` (moving a waitlisted reservation onto a spot that just opened) — needs a capture at the exact moment a spot frees up on a full class; not something to force, opportunistic only.
+- Credit-based (non-membership) booking — this production account is membership-based like the test account's tenant defaults suggest is common for JAB; a credit-pack-based MT studio (e.g. Barry's, per §8) would need separate capture to confirm `credit_payment` shape.
+- The refresh-token hard expiry window (Q1) — unaffected by this round, still needs time-based monitoring per §1G.
+- **`cancel_penalty` response when a class IS within the penalty window (new).** Every `cancel_penalty` capture in §1H returned `{"is_penalty_cancel": false, "message": null}` — the stakeholder deliberately cancelled bookings well within the free window (by design, to avoid any real penalty). We have **no captured example** of: the response shape when `is_penalty_cancel: true` (exact `message` wording — does it state a fee amount? a cutoff time?), whether the subsequent `POST /cancel` still succeeds (charging a fee) or is blocked/requires extra confirmation, and — the important one for the adapter — **whether membership usage/allowance is restored on a *penalty* cancel the way it's confirmed restored on a free one** (§1H's book→cancel→usage-count finding only covers the zero-penalty case). This matters directly for `server/poller.js`'s auto-upgrade cutoff logic (`CUTOFF_BUFFER_S`, stops attempting spot changes near the free-cancellation boundary for CodexFit) — the MT adapter's equivalent (`WP-S2`) needs to know MT's actual penalty-window boundary and behavior, not assume it mirrors CodexFit's. **Resolve opportunistically**: next time the stakeholder (or a test/production account) has a booking that naturally falls inside its penalty window and they're willing to let it be cancelled anyway, capture `cancel_penalty` + the `cancel` response the same way as §1H.
 
 ---
 

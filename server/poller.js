@@ -5,51 +5,38 @@ const pushService = require('./push');
 const notifications = require('./notifications');
 const { triggerAutoRelogin } = require('./auth');
 const { getCachedEvent, setCachedEvent } = require('./scheduler');
+const { getProvider } = require('./providers');
+const { getGymConfig } = require('./gyms.config');
+
+// Interim single-gym bridge: until multi-gym login lands (WP-D3), all polling
+// is CodexFit / Psycle London. See server/auth.js for the same bridge.
+// No module-level provider (WP-D7). Every fetch below resolves its gym — from
+// the ROW being processed where there is one (background work must run for a gym
+// the user isn't currently looking at), otherwise from the user's active gym.
 
 // Track slots upgraded in the current poller check cycle to prevent double-booking/race conditions
 const claimedSlots = new Set();
 
-// Calculate booking offset/headers like scheduler
-function getCodexFitHeaders(token, isJSON = false) {
-  const headers = {
-    'accept': 'application/json',
-    'origin': 'https://psyclelondon.com',
-    'referer': 'https://psyclelondon.com/',
-    'x-organisation': '[object Object]',
-    'authorization': `Bearer ${token}`
-  };
-  if (isJSON) {
-    headers['content-type'] = 'application/json';
-  }
-  return headers;
-}
-
 // Fetch public (no-auth) CodexFit endpoints (events, locations, studios, instructors).
 // These are documented as public — no Bearer token required.
-async function fetchCodexFitPublic(userId, url) {
-  // If url is passed as first parameter for backward compatibility
-  if (typeof userId === 'string' && !url) {
-    url = userId;
-    userId = null;
-  }
+// Unauthenticated read (e.g. /events/:id, which most providers serve without a
+// token). `gymId` is explicit for the same reason as fetchFromGym: background
+// callers pass the row's gym, not the user's active one.
+async function fetchPublicFromGym(userId, gymId, path) {
   const user = userId ? db.getUserById(userId) : null;
-  const isMock = (user && user.email === 'dev@psycle.com') || /\/events\/\d{4}(\b|$)/.test(url) || url.includes('/locations') || url.includes('/studios');
+  const isMock = (user && user.email === 'dev@psycle.com') || /\/events\/\d{4}(\b|$)/.test(path) || path.includes('/locations') || path.includes('/studios');
   if (isMock) {
     const mock = require('./mock');
-    const pathName = url.replace('https://psycle.codexfit.com/api/v1/customer', '');
-    return mock.handleMockRequest(pathName, 'GET', null);
+    return mock.handleMockRequest(path, 'GET', null);
   }
 
-  const headers = {
-    'accept': 'application/json',
-    'origin': 'https://psyclelondon.com',
-    'referer': 'https://psyclelondon.com/',
-    'x-organisation': '[object Object]'
-  };
-  return fetch(url, { headers });
+  return getProvider(gymId).publicRequest(path, { method: 'GET' });
 }
 
-async function fetchCodexFit(userId, url, options = {}) {
+// `gymId` is explicit: background callers pass the row's own gym. `path` is a
+// PATH, not a URL — the provider prepends its gym's base, which is the whole
+// point (an absolute URL would bypass it and pin every gym to Psycle's host).
+async function fetchFromGym(userId, gymId, path, options = {}) {
   const user = db.getUserById(userId);
   if (!user || !user.jwt) {
     throw new Error('User has no active session. Please log in.');
@@ -57,24 +44,21 @@ async function fetchCodexFit(userId, url, options = {}) {
 
   if (user.email === 'dev@psycle.com') {
     const mock = require('./mock');
-    const pathName = url.replace('https://psycle.codexfit.com/api/v1/customer', '');
-    return mock.handleMockRequest(pathName, options.method || 'GET', options.body ? JSON.parse(options.body) : null);
+    return mock.handleMockRequest(path, options.method || 'GET', options.body ? JSON.parse(options.body) : null);
   }
 
-  const runFetch = async (token) => {
-    const fetchOptions = { ...options };
-    fetchOptions.headers = {
-      ...getCodexFitHeaders(token, !!options.body),
-      ...options.headers
-    };
-    return fetch(url, fetchOptions);
-  };
+  const runFetch = (token) => getProvider(gymId).request(path, {
+    token,
+    method: options.method || 'GET',
+    body: options.body,
+    headers: options.headers,
+  });
 
   let res = await runFetch(user.jwt);
 
   if (res.status === 401) {
     try {
-      const newJwt = await triggerAutoRelogin(userId);
+      const newJwt = await triggerAutoRelogin(userId, gymId);
       res = await runFetch(newJwt);
     } catch (err) {
       console.error(`[Poller] Auto-relogin failed for user ${userId}:`, err.message);
@@ -86,13 +70,49 @@ async function fetchCodexFit(userId, url, options = {}) {
 }
 
 // Cancel a booking
-async function apiCancelBooking(userId, bookingId) {
-  const url = `https://psycle.codexfit.com/api/v1/customer/bookings/${bookingId}`;
-  const res = await fetchCodexFit(userId, url, { method: 'DELETE' });
+async function apiCancelBooking(userId, gymId, bookingId) {
+  const res = await fetchFromGym(userId, gymId, `/bookings/${bookingId}`, { method: 'DELETE' });
   if (!res.ok) {
     const errData = await res.json().catch(() => ({}));
     throw new Error(errData.message || `Failed to cancel booking ${bookingId}`);
   }
+}
+
+// Attempt one auto-upgrade booking via the adapter, with the same
+// 401-triggers-relogin ladder the old inline fetchCodexFit() gave every
+// authenticated call (WP-N3). The adapter's bookSlot() never retries itself
+// (base.js request() convention — see providers/codexfit.js), so the ladder
+// lives here, exactly mirroring scheduler.js's bookSlotWithRelogin. Only the
+// booking HTTP call + response parsing move to the adapter; the surrounding
+// claim/credit/cutoff logic in attemptUpgradeSlot is unchanged.
+// Atomic spot swap with the same 401→relogin→retry ladder as bookSlotWithRelogin.
+// Only reachable for gyms whose capabilities declare `atomicSwap`.
+async function swapSpotsWithRelogin(userId, gymId, bookingId, currentSlotId, targetSlot) {
+  const user = db.getUserById(userId);
+  if (!user || !user.jwt) throw new Error('User has no active session. Please log in.');
+  const provider = getProvider(gymId);
+  let session = { accessToken: user.jwt };
+  let result = await provider.swapSpots(bookingId, currentSlotId, targetSlot, session);
+  if (result && result.status === 401) {
+    const newJwt = await triggerAutoRelogin(userId, gymId);
+    result = await provider.swapSpots(bookingId, currentSlotId, targetSlot, { ...session, accessToken: newJwt });
+  }
+  return result;
+}
+
+async function bookSlotWithRelogin(userId, gymId, eventId, targetSlot) {
+  const user = db.getUserById(userId);
+  if (!user || !user.jwt) throw new Error('User has no active session. Please log in.');
+  let session = { accessToken: user.jwt };
+  const provider = getProvider(gymId);
+  let result = await provider.bookSlot(eventId, [targetSlot], session);
+  if (!result.ok && result.status === 401) {
+    console.log(`[Poller] Auto-upgrade booking got 401 for user ${userId} — attempting relogin and retry.`);
+    const newJwt = await triggerAutoRelogin(userId, gymId);
+    session = { accessToken: newJwt };
+    result = await provider.bookSlot(eventId, [targetSlot], session);
+  }
+  return result;
 }
 
 // Returns a stable per-monitor jitter offset in seconds (0–55), derived from the
@@ -123,6 +143,14 @@ function shouldCheckUpgrade(upgrade, settings) {
 async function attemptUpgradeSlot(upgrade, isCutoffMode) {
   const eventId = upgrade.event_id;
   const userId = upgrade.user_id;
+  // From the ROW, not the active gym: the poller scans every gym's monitors, and
+  // a JAB upgrade must run while the user is looking at Psycle (see db.js's gym
+  // scoping rule).
+  const gymId = upgrade.gym_id;
+  const gym = getGymConfig(gymId);
+  // Set when an atomic swap moved the reservation, so the cancel-then-rebook
+  // cleanup below knows there is nothing left to cancel.
+  let usedAtomicSwap = false;
   const currentSlotId = Number(upgrade.current_slot_id);
   const prefs = JSON.parse(upgrade.preferences) || {};
   // Preferred slots come from the LIVE shared studio map; fall back to snapshot for legacy records.
@@ -134,16 +162,16 @@ async function attemptUpgradeSlot(upgrade, isCutoffMode) {
 
   try {
     // 1. Get live slot availability — use shared cache to avoid N fetches/min for the same class
-    let payload = getCachedEvent(eventId);
+    let payload = getCachedEvent(gymId, eventId);
     if (payload) {
       console.log(`[Poller] Cache hit for event ${eventId} (user ${userId}).`);
     } else {
       // /events/:id is a public CodexFit endpoint — no Bearer token needed
-      const url = `https://psycle.codexfit.com/api/v1/customer/events/${eventId}`;
-      const res = await fetchCodexFitPublic(userId, url);
+      const url = `/events/${eventId}`;
+      const res = await fetchPublicFromGym(userId, gymId, url);
       if (!res.ok) return;
       payload = await res.json();
-      setCachedEvent(eventId, payload, 60000);
+      setCachedEvent(gymId, eventId, payload, 60000);
     }
     const eventData = payload.data || payload;
     const availableSlots = (payload.slots || eventData.slots || []).map(id => Number(id));
@@ -190,12 +218,12 @@ async function attemptUpgradeSlot(upgrade, isCutoffMode) {
         console.log(`[Poller] Better slot ${candidateSlot} available for event ${eventId} (current: ${currentSlotId}). Upgrading...`);
         claimedSlots.add(claimKey);
 
-        let bookRes;
+        let bookResult;
         try {
           // Check if user has credits
           await new Promise(r => setTimeout(r, 300 + Math.floor(Math.random() * 600)));
-          const profileUrl = 'https://psycle.codexfit.com/api/v1/customer/profile';
-          const profileRes = await fetchCodexFit(userId, profileUrl);
+          const profileUrl = '/profile';
+          const profileRes = await fetchFromGym(userId, gymId, profileUrl);
           if (!profileRes.ok) {
             claimedSlots.delete(claimKey);
             return;
@@ -216,20 +244,30 @@ async function attemptUpgradeSlot(upgrade, isCutoffMode) {
             return;
           }
 
-          // Book the new slot
           await new Promise(r => setTimeout(r, 300 + Math.floor(Math.random() * 600)));
-          const bookUrl = 'https://psycle.codexfit.com/api/v1/customer/bookings';
-          bookRes = await fetchCodexFit(userId, bookUrl, {
-            method: 'POST',
-            body: JSON.stringify({
-              event_id: eventId,
-              slots: [candidateSlot]
-            })
-          });
 
-          if (!bookRes.ok) {
-            const errData = await bookRes.json().catch(() => ({}));
-            console.warn(`[Poller] Auto-upgrade slot booking failed:`, errData.message || bookRes.status);
+          // Prefer an ATOMIC swap where the platform has one (WP-D14).
+          //
+          // Cancel-then-rebook exists because CodexFit has no swap API — see
+          // AGENTS.md "Spot Swapping Limitations". On a platform that does, it is
+          // actively dangerous: the cancel can succeed and the rebook fail,
+          // leaving the user with no spot at all in a class they had one in.
+          // MarianaTek's POST /reservations/{id}/swap_spots is one call that
+          // either moves them or doesn't.
+          if (gym && gym.capabilities && gym.capabilities.atomicSwap && upgrade.booking_id) {
+            bookResult = await swapSpotsWithRelogin(userId, gymId, upgrade.booking_id, upgrade.current_slot_id, candidateSlot);
+            if (!bookResult.ok) {
+              console.warn(`[Poller] Atomic swap failed:`, bookResult.error || bookResult.status);
+              claimedSlots.delete(claimKey);
+              return; // Retry next cycle — nothing was given up.
+            }
+            usedAtomicSwap = true;
+          } else {
+            bookResult = await bookSlotWithRelogin(userId, gymId, eventId, candidateSlot);
+          }
+
+          if (!bookResult.ok) {
+            console.warn(`[Poller] Auto-upgrade slot booking failed:`, bookResult.error || bookResult.status);
             claimedSlots.delete(claimKey);
             return; // Retry next time
           }
@@ -238,11 +276,19 @@ async function attemptUpgradeSlot(upgrade, isCutoffMode) {
           throw err;
         }
 
-        const bookData = await bookRes.json().catch(() => ({}));
-        const newBookingId = bookData?.id || bookData?.data?.id || 0;
+        // bookResult.bookingId is the CodexFit booking id the adapter parsed from
+        // the { bookings: { id: slot } } response map (AGENTS.md "Booking response
+        // shape"). The old inline code read bookData?.id — a field that response
+        // NEVER has — so newBookingId was ALWAYS 0 here. new_booking_id is a
+        // write-only column (nothing reads it today), so yielding the real id is a
+        // latent-bug fix with no observable behavior change. Number() matches the
+        // INTEGER column + the old numeric type (same coercion scheduler.js uses).
+        const newBookingId = Number(bookResult.bookingId) || 0;
 
-        // Cancel the original booking (if not in cutoff mode)
-        if (!isCutoffMode && upgrade.booking_id) {
+        // Cancel the original booking (if not in cutoff mode).
+        // An atomic swap already moved the reservation — there is no second
+        // booking to clean up, and cancelling here would cancel the upgrade.
+        if (!usedAtomicSwap && !isCutoffMode && upgrade.booking_id) {
           try {
             await apiCancelBooking(userId, upgrade.booking_id);
             console.log(`[Poller] Successfully cancelled original booking ${upgrade.booking_id}`);
@@ -400,8 +446,8 @@ async function refreshBookingCaches() {
       if (settings && settings.calendar && settings.calendar.enabled) continue;
 
       await new Promise(r => setTimeout(r, 2000 + Math.floor(Math.random() * 6000)));
-      const url = 'https://psycle.codexfit.com/api/v1/customer/bookings?limit=100&page=1';
-      const res = await fetchCodexFit(userId, url);
+      const url = '/bookings?limit=100&page=1';
+      const res = await fetchFromGym(userId, db.resolveActiveGymId(userId), url);
       if (!res.ok) continue;
       const payload = await res.json();
       const list = payload.data || payload || [];
@@ -486,7 +532,7 @@ async function sendBookingWindowTip(userId) {
   } else {
     let enough = true;
     try {
-      const res = await fetchCodexFit(userId, 'https://psycle.codexfit.com/api/v1/customer/profile');
+      const res = await fetchFromGym(userId, db.resolveActiveGymId(userId), '/profile');
       if (res.ok) {
         const payload = await res.json();
         const profile = payload.data || payload;
@@ -536,6 +582,6 @@ module.exports = {
   },
   executeAutoUpgradeChecks,
   refreshBookingCaches,
-  fetchCodexFit,
+  fetchFromGym,
   normalizeBooking
 };

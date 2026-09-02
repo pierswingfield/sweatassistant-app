@@ -1,9 +1,9 @@
-import { api, apiFetch } from '../api';
+import { api, apiFetch, getActiveGymId, setActiveGymId } from '../api';
 import { showToast, togglePushSubscription, updatePushStatusUI, userSettings, cache, getTheme, setTheme, debugConsole } from '../main';
 import { getBookingOffset, describeBookingWindow } from '../lib';
 import { renderStudioFloorPlan } from './spotmap';
 import { cacheGet } from './timetable';
-import { clearApiCache } from '../cache.js';
+import { clearApiCache, gymScopedKey } from '../cache.js';
 
 let loadedProfile = null;
 
@@ -221,8 +221,11 @@ async function openProfileExplorerModal() {
   setupExplorerKonamiListener();
 
   try {
-    const res = await api.proxyGet('/profile', { ttlMs: 300000 });
-    loadedProfile = res.data || res;
+    // The Profile Explorer exists to show the gym's OWN payload, so it reads
+    // `.raw` deliberately — that is the thing it is a viewer for. It falls back
+    // to the normalized fields when a provider exposes no raw blob.
+    const res = await api.getNormalizedProfile();
+    loadedProfile = res.raw || res;
     renderExplorerBody(body);
   } catch (err) {
     body.innerHTML = `<div class="psycle-card-error">Unable to load profile data. Connect to the internet to sync. (${err.message})</div>`;
@@ -550,8 +553,8 @@ async function saveProfileChanges(body, originalProfile) {
 
     // Re-fetch to verify
     try {
-      const refetched = await api.proxyGet('/profile');
-      const refetchedProfile = refetched.data || refetched;
+        const refetched = await api.getNormalizedProfile();
+      const refetchedProfile = refetched.raw || refetched;
 
       // Verify each new entry and update input values in-place
       newEntries.forEach(entry => {
@@ -602,16 +605,17 @@ async function saveProfileChanges(body, originalProfile) {
 
 // ─── Active Studio IDs — cached 24h, derived from timetable events ──────────
 
-const ACTIVE_STUDIO_IDS_KEY = 'psycleActiveStudioIds';
-const ACTIVE_STUDIO_IDS_TIME_KEY = 'psycleActiveStudioIdsTime';
+// Gym-scoped (WP-G) — derived from ONE gym's timetable events.
+const ACTIVE_STUDIO_IDS_KEY = () => gymScopedKey('psycleActiveStudioIds');
+const ACTIVE_STUDIO_IDS_TIME_KEY = () => gymScopedKey('psycleActiveStudioIdsTime');
 const ACTIVE_STUDIO_IDS_TTL_MS = 24 * 60 * 60 * 1000; // 24 hours
 
 async function getActiveStudioIds() {
   // Check localStorage cache first (24h TTL)
-  const cachedTime = parseInt(localStorage.getItem(ACTIVE_STUDIO_IDS_TIME_KEY) || '0', 10);
+  const cachedTime = parseInt(localStorage.getItem(ACTIVE_STUDIO_IDS_TIME_KEY()) || '0', 10);
   const cacheAge = Date.now() - cachedTime;
   if (cacheAge < ACTIVE_STUDIO_IDS_TTL_MS) {
-    const cached = localStorage.getItem(ACTIVE_STUDIO_IDS_KEY);
+    const cached = localStorage.getItem(ACTIVE_STUDIO_IDS_KEY());
     if (cached) {
       try { return new Set(JSON.parse(cached)); } catch (_) { /* fall through */ }
     }
@@ -619,7 +623,7 @@ async function getActiveStudioIds() {
 
   // Cache stale or missing — recompute from timetable events in IndexedDB
   try {
-    const events = await cacheGet('psycleCacheEvents');
+    const events = await cacheGet(gymScopedKey('psycleCacheEvents'));
     if (events && Array.isArray(events) && events.length > 0) {
       const ids = new Set();
       events.forEach(ev => {
@@ -627,8 +631,8 @@ async function getActiveStudioIds() {
         if (id) ids.add(id);
       });
       // Persist to localStorage
-      localStorage.setItem(ACTIVE_STUDIO_IDS_KEY, JSON.stringify([...ids]));
-      localStorage.setItem(ACTIVE_STUDIO_IDS_TIME_KEY, String(Date.now()));
+      localStorage.setItem(ACTIVE_STUDIO_IDS_KEY(), JSON.stringify([...ids]));
+      localStorage.setItem(ACTIVE_STUDIO_IDS_TIME_KEY(), String(Date.now()));
       return ids;
     }
   } catch (e) {
@@ -683,8 +687,8 @@ export async function openManageSpotMapsModal(options = {}) {
   try {
     const [prefs, cachedMeta, cachedEvents] = await Promise.all([
       api.getStudioPreferences(),
-      cacheGet('psycleCacheMeta'),
-      cacheGet('psycleCacheEvents')
+      cacheGet(gymScopedKey('psycleCacheMeta')),
+      cacheGet(gymScopedKey('psycleCacheEvents'))
     ]);
 
     // Studios from the timetable metadata cache (built from event relations) include full
@@ -697,28 +701,31 @@ export async function openManageSpotMapsModal(options = {}) {
 
     if (!studios.length || !events.length || !locations.length) {
       try {
-        const studiosRes = !studios.length ? await api.proxyGet('/studios', { ttlMs: 3600000 }) : null;
-        if (studiosRes && !studios.length) studios = studiosRes.data || studiosRes || [];
-
-        // Fetch locations if needed
-        if (!locations.length) {
-          const locRes = await api.proxyGet('/locations', { ttlMs: 3600000 });
-          locations = locRes.data || locRes || [];
-          cache.locations = locations;
+        // One normalized call for both lists (WP-D9). MarianaTek has no studios
+        // or locations endpoint at all and derives them from its class list, so
+        // asking for them separately only ever worked for CodexFit gyms.
+        if (!studios.length || !locations.length) {
+          const meta = await api.getMetadata({ ttlMs: 3600000 });
+          if (!studios.length) studios = meta.studios || [];
+          if (!locations.length) {
+            locations = meta.locations || [];
+            cache.locations = locations;
+          }
         }
 
-        // Fetch events for all locations to build activeStudioIds filter
+        // Fetch events to build the activeStudioIds filter (WP-C1: via the
+        // normalized endpoint — fetchTimetable() already fans out per-location
+        // server-side, see providers/codexfit.js, so this no longer needs its
+        // own per-location loop). Only `studio_id` is read below, so the
+        // NormalizedEvent shape (no .raw needed) is enough on its own.
         if (!events.length && locations.length) {
           const now = new Date();
           const startDate = now.toISOString().split('T')[0];
           const endDate = new Date(now.getTime() + 28 * 24 * 60 * 60 * 1000).toISOString().split('T')[0];
 
           try {
-            const eventPromises = locations.map(loc =>
-              api.proxyGet(`/events?location=${loc.id}&start=${encodeURIComponent(startDate)}&end=${encodeURIComponent(endDate)}`, { ttlMs: 3600000 })
-            );
-            const eventResults = await Promise.all(eventPromises);
-            events = eventResults.flatMap(res => res.data || res || []);
+            const normalizedEvents = await api.getTimetable({ startDate, endDate });
+            events = normalizedEvents.map(ne => ({ studio_id: Number(ne.studioId) }));
           } catch (_) {
             // If events fetch fails, events stays empty (no filtering)
           }
@@ -730,11 +737,15 @@ export async function openManageSpotMapsModal(options = {}) {
 
     // Build a set of studio IDs that actually have upcoming events, to exclude defunct studios
     // that appear in API relations but no longer have any classes scheduled.
+    // Normalized events expose `studioId` (a string); the pre-D9 raw shape used
+    // `studio_id` (a number). Both are read, and ids are compared as strings —
+    // a Number/string mismatch here empties the list silently rather than
+    // erroring, which is exactly how the location filter broke in slice 1.
     const activeStudioIds = new Set();
     if (events?.length > 0) {
       events.forEach(ev => {
-        const id = ev.studio_id || ev.studio?.id;
-        if (id) activeStudioIds.add(id);
+        const id = ev.studioId ?? ev.studio_id ?? ev.studio?.id;
+        if (id != null) activeStudioIds.add(String(id));
       });
     }
 
@@ -746,15 +757,19 @@ export async function openManageSpotMapsModal(options = {}) {
 
 function renderManageSpotMapsModal(prefs, studios, locations, container, onClose, activeStudioIds, options = {}) {
   const locMap = {};
-  locations.forEach(loc => { locMap[loc.id] = loc.name; });
+  locations.forEach(loc => { locMap[String(loc.id)] = loc.name; });
 
   const hasActiveFilter = activeStudioIds && activeStudioIds.size > 0;
 
   const grouped = {};
   studios.forEach(studio => {
-    if (!studio.layout?.slots || studio.layout.slots.length === 0) return; // only studios with seat maps
-    if (hasActiveFilter && !activeStudioIds.has(studio.id)) return; // exclude defunct studios
-    const locName = locMap[studio.location_id] || 'Unknown Location';
+    // `hasLayout` on the normalized shape; the raw CodexFit list embedded the
+    // layout itself. MarianaTek has no studios endpoint to embed one on, so it
+    // derives this from whether the class is pick-a-spot.
+    const hasMap = studio.hasLayout ?? (studio.layout?.slots?.length > 0);
+    if (!hasMap) return; // only studios with seat maps
+    if (hasActiveFilter && !activeStudioIds.has(String(studio.id))) return; // exclude defunct studios
+    const locName = locMap[String(studio.locationId ?? studio.location_id)] || 'Unknown Location';
     if (!grouped[locName]) grouped[locName] = [];
     grouped[locName].push(studio);
   });
@@ -889,12 +904,22 @@ export async function openStudioFloorPlanEditor(studioId, studioName, onSaved, o
   overlay.addEventListener('click', e => { if (e.target === overlay) close(); });
 
   try {
-    const [studioRes, allPrefs] = await Promise.all([
-      api.proxyGet(`/studios/${studioId}`, { ttlMs: 3600000 }),
+    // WP-C5 (Q12 follow-up): reads the new event-independent normalized
+    // studio-layout endpoint instead of guessing at an unconfirmed singular
+    // `GET /studios/{id}` (never actually documented — see
+    // providers/codexfit.js fetchStudioLayout's doc comment). `layoutSlots`
+    // is now NormalizedSlot[] directly (its `.id`/`.x`/`.y`/`.label` fields
+    // already match what `renderStudioFloorPlan` expects) — this is the one
+    // C5 call site where passing normalized shapes straight into the renderer
+    // is safe, since (unlike the booking-modal sites) there's no session
+    // cache mixing raw- and normalized-shaped slots to keep consistent.
+    // `layoutObjects` (podium markers) now comes back normalized from the same
+    // endpoint, so this standalone Manage Maps entry point draws the same floor
+    // fixtures as the event-context booking modals do.
+    const [{ slots: layoutSlots, objects: layoutObjects }, allPrefs] = await Promise.all([
+      api.getStudioLayout(studioId),
       api.getStudioPreferences()
     ]);
-    const studio = studioRes.data || studioRes;
-    const layoutSlots = studio?.layout?.slots || [];
     const existing = allPrefs[studioId] || {};
 
     const onSave = async (slots, rows) => {
@@ -922,7 +947,7 @@ export async function openStudioFloorPlanEditor(studioId, studioName, onSaved, o
     }
 
     renderStudioFloorPlan(body, layoutSlots, existing.preferredSlots || [], existing.preferredRows || [], onSave, {
-      layoutObjects: studio?.layout?.objects || [],
+      layoutObjects,
       bannerHtml: `<div style="font-size:12px;color:var(--feat-autoupgrade);background:color-mix(in srgb, var(--feat-autoupgrade) 8%, transparent);border:1px solid color-mix(in srgb, var(--feat-autoupgrade) 18%, transparent);border-radius:8px;padding:8px 10px;margin-bottom:12px;line-height:1.5;">This is the one shared preferred spot map for <strong>${studioName}</strong>. Quick-Book, Auto-Book, and Auto-Upgrade at this studio all use it — changes apply everywhere.</div>`
     });
   } catch (err) {
@@ -989,6 +1014,282 @@ function setupSettingsNavigation() {
   }
 }
 
+
+// Local escape helper — gym names come from gyms.config.js (trusted), but the
+// email/status/provider strings rendered below can originate from a provider
+// response, and AGENTS.md flags unescaped innerHTML as a known weak spot. Cheap
+// to be correct here rather than add to the pile.
+function escapeHtml(str) {
+  return String(str ?? '')
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#39;');
+}
+
+// ═══════════════════════════════════════════════════════════════════════
+//  YOUR GYMS (WP-C2) — active-gym switcher, link/unlink, account password.
+//
+//  A Sweat Assistant account holds N gym credentials (Decision D4). Switching
+//  changes which gym's timetable/bookings/credits every request resolves, so a
+//  switch must move BOTH the server's stored choice and the local `x-gym-id`
+//  header together — api.setActiveGym does both, and the whole cache is dropped
+//  afterwards because none of it is valid for a different gym.
+// ═══════════════════════════════════════════════════════════════════════
+
+function gymModal() {
+  const modal = document.getElementById('psycle-gym-modal');
+  const body = document.getElementById('psycle-gym-modal-body');
+  const title = document.getElementById('psycle-gym-modal-title');
+  const close = () => {
+    modal.classList.remove('show');
+    setTimeout(() => { modal.style.display = 'none'; }, 300);
+  };
+  document.getElementById('psycle-gym-modal-close').onclick = close;
+  modal.querySelector('.psycle-modal-overlay').onclick = close;
+  const open = () => {
+    modal.style.display = 'flex';
+    setTimeout(() => modal.classList.add('show'), 10);
+  };
+  return { modal, body, title, open, close };
+}
+
+// Every cache key is now gym-scoped (WP-G), so a switch cannot serve the
+// previous gym's data even if this function is never called — which is the point:
+// the old design was correct only while every path that changes the active gym
+// remembered to clear, and one that didn't rendered the wrong gym's timetable
+// with a clean console.
+//
+// The clearing is kept as belt-and-braces (a stale entry under the OLD gym's key
+// is dead weight, not a correctness risk) and is deliberately no longer the
+// mechanism. Do NOT re-add unqualified keys here to "make sure".
+async function applyGymSwitch(gymId) {
+  await api.setActiveGym(gymId);
+  try { await clearApiCache(); } catch (_) {}
+  try {
+    localStorage.removeItem(gymScopedKey('psycleCacheTime'));
+    localStorage.removeItem(gymScopedKey('psycleActiveStudioIds'));
+    localStorage.removeItem(gymScopedKey('psycleActiveStudioIdsTime'));
+  } catch (_) {}
+}
+
+export async function renderGymsCard() {
+  const list = document.getElementById('psycle-gyms-list');
+  const actions = document.getElementById('psycle-gyms-actions');
+  if (!list) return;
+
+  let data;
+  try {
+    data = await api.getMyGyms();
+  } catch (err) {
+    list.innerHTML = `<div class="psycle-card-error" style="padding:12px;">Couldn't load your gyms (${escapeHtml(err.message)})</div>`;
+    return;
+  }
+
+  const linked = data.gyms || [];
+  const activeId = data.activeGymId;
+
+  if (linked.length === 0) {
+    list.innerHTML = `<div class="psycle-card-desc" style="padding:10px 0;">No gyms linked. Add one to start booking.</div>`;
+  } else {
+    list.innerHTML = linked.map(g => {
+      const isActive = g.gym_id === activeId;
+      const disabled = !g.gym_enabled;
+      return `
+        <div class="psycle-setting-row" style="align-items:center;">
+          <div class="psycle-setting-label">
+            <span>${escapeHtml(g.gym_name || g.gym_id)}${isActive ? ' <span class="psycle-badge success" style="margin-left:6px;">Active</span>' : ''}</span>
+            <small>${escapeHtml(g.provider || '')}${disabled ? ' · not available yet' : ''}${g.status && g.status !== 'active' ? ` · ${escapeHtml(g.status)}` : ''}</small>
+          </div>
+          <div style="display:flex;gap:6px;flex-shrink:0;">
+            ${isActive || disabled ? '' : `<button class="psycle-btn psycle-btn-mini" data-switch-gym="${escapeHtml(g.gym_id)}">Switch</button>`}
+            <button class="psycle-btn psycle-btn-mini" data-reauth-gym="${escapeHtml(g.gym_id)}">Re-authenticate</button>
+            <button class="psycle-btn psycle-btn-mini variant-danger" data-unlink-gym="${escapeHtml(g.gym_id)}">Unlink</button>
+          </div>
+        </div>`;
+    }).join('');
+  }
+
+  // Only offer gyms that are both enabled and not already linked.
+  let addable = [];
+  try {
+    const all = await api.getGyms();
+    const linkedIds = new Set(linked.map(g => g.gym_id));
+    addable = all.filter(g => g.enabled && !linkedIds.has(g.id));
+  } catch (_) { /* catalogue is best-effort — the rest of the card still works */ }
+
+  actions.innerHTML = `
+    ${addable.length ? `<button class="psycle-btn primary psycle-btn-mini" id="psycle-add-gym-btn">Add a gym</button>` : ''}
+    <button class="psycle-btn psycle-btn-mini" id="psycle-account-password-btn">Change account password</button>
+  `;
+
+  list.querySelectorAll('[data-switch-gym]').forEach(btn => {
+    btn.onclick = async () => {
+      const gymId = btn.dataset.switchGym;
+      btn.disabled = true;
+      btn.textContent = 'Switching…';
+      try {
+        await applyGymSwitch(gymId);
+        showToast('Switched gym — reloading', 'success');
+        setTimeout(() => location.reload(), 600);
+      } catch (err) {
+        showToast(err.message, 'error');
+        btn.disabled = false;
+        btn.textContent = 'Switch';
+      }
+    };
+  });
+
+  list.querySelectorAll('[data-reauth-gym]').forEach(btn => {
+    btn.onclick = () => openLinkGymModal(btn.dataset.reauthGym, linked.find(g => g.gym_id === btn.dataset.reauthGym));
+  });
+
+  // Double-click confirm, matching how every other destructive action in the app
+  // behaves (cancel a booking, leave a waitlist).
+  list.querySelectorAll('[data-unlink-gym]').forEach(btn => {
+    let armed = false;
+    btn.onclick = async () => {
+      const gymId = btn.dataset.unlinkGym;
+      if (!armed) {
+        armed = true;
+        btn.textContent = 'Confirm unlink?';
+        setTimeout(() => { if (armed) { armed = false; btn.textContent = 'Unlink'; } }, 4000);
+        return;
+      }
+      btn.disabled = true;
+      try {
+        await api.unlinkGym(gymId);
+        // If we just unlinked the gym we were on, the server has already fallen
+        // back — drop the stale local header so the next request doesn't ask for
+        // a gym this account no longer has (which is now a 403).
+        if (getActiveGymId() === gymId) {
+          setActiveGymId(null);
+          try { await clearApiCache(); } catch (_) {}
+        }
+        showToast('Gym unlinked', 'success');
+        renderGymsCard();
+      } catch (err) {
+        showToast(err.message, 'error');
+        btn.disabled = false;
+      }
+    };
+  });
+
+  const addBtn = document.getElementById('psycle-add-gym-btn');
+  if (addBtn) addBtn.onclick = () => openLinkGymModal(null, null, addable);
+  document.getElementById('psycle-account-password-btn').onclick = openAccountPasswordModal;
+}
+
+// One modal for both "add a gym" and "re-authenticate an existing one" — they are
+// the same operation server-side (prove the credential, then store it), so making
+// them two dialogs would just be two things to keep in step.
+function openLinkGymModal(gymId, existing, addable = []) {
+  const { body, title, open, close } = gymModal();
+  const isReauth = !!gymId;
+  title.textContent = isReauth
+    ? `Re-authenticate ${existing?.gym_name || gymId}`
+    : 'Add a gym';
+
+  body.innerHTML = `
+    <p class="psycle-card-desc" style="margin-top:0;">
+      ${isReauth
+        ? 'Enter your current credentials for this gym. Use this if you changed your password there and bookings started failing.'
+        : 'Sign in with that gym’s own credentials. They’re encrypted before being stored, and only ever used to talk to that gym.'}
+    </p>
+    ${isReauth ? '' : `
+      <label class="psycle-setting-label" style="display:block;margin-bottom:4px;"><span>Gym</span></label>
+      <select id="psycle-link-gym-id" class="psycle-select" style="width:100%;margin-bottom:10px;">
+        ${addable.map(g => `<option value="${escapeHtml(g.id)}">${escapeHtml(g.name)}</option>`).join('')}
+      </select>`}
+    <label class="psycle-setting-label" style="display:block;margin-bottom:4px;"><span>Email</span></label>
+    <input id="psycle-link-gym-email" type="email" class="psycle-input" autocomplete="username"
+           style="width:100%;margin-bottom:10px;" placeholder="you@example.com">
+    <label class="psycle-setting-label" style="display:block;margin-bottom:4px;"><span>Password</span></label>
+    <input id="psycle-link-gym-password" type="password" class="psycle-input" autocomplete="current-password"
+           style="width:100%;margin-bottom:14px;">
+    <div id="psycle-link-gym-error" style="display:none;color:var(--danger);font-size:12px;margin-bottom:10px;"></div>
+    <button class="psycle-btn primary" id="psycle-link-gym-submit" style="width:100%;">
+      ${isReauth ? 'Re-authenticate' : 'Link gym'}
+    </button>
+  `;
+  open();
+
+  const errEl = body.querySelector('#psycle-link-gym-error');
+  const submit = body.querySelector('#psycle-link-gym-submit');
+  submit.onclick = async () => {
+    const targetGym = isReauth ? gymId : body.querySelector('#psycle-link-gym-id')?.value;
+    const email = body.querySelector('#psycle-link-gym-email').value.trim();
+    const password = body.querySelector('#psycle-link-gym-password').value;
+    errEl.style.display = 'none';
+    if (!targetGym || !email || !password) {
+      errEl.textContent = 'Gym, email and password are all required.';
+      errEl.style.display = 'block';
+      return;
+    }
+    submit.disabled = true;
+    submit.textContent = 'Checking…';
+    try {
+      await api.linkGym(targetGym, email, password);
+      showToast(isReauth ? 'Re-authenticated' : 'Gym linked', 'success');
+      close();
+      renderGymsCard();
+    } catch (err) {
+      errEl.textContent = err.message;
+      errEl.style.display = 'block';
+      submit.disabled = false;
+      submit.textContent = isReauth ? 'Re-authenticate' : 'Link gym';
+    }
+  };
+}
+
+function openAccountPasswordModal() {
+  const { body, title, open, close } = gymModal();
+  title.textContent = 'Change account password';
+  body.innerHTML = `
+    <p class="psycle-card-desc" style="margin-top:0;">
+      This is your <span data-app-name>Sweat Assistant</span> password — separate from any gym’s.
+      Changing it here doesn’t change your password at the gym, and vice versa.
+    </p>
+    <label class="psycle-setting-label" style="display:block;margin-bottom:4px;"><span>Current password</span></label>
+    <input id="psycle-pw-current" type="password" class="psycle-input" autocomplete="current-password"
+           style="width:100%;margin-bottom:10px;">
+    <label class="psycle-setting-label" style="display:block;margin-bottom:4px;"><span>New password</span></label>
+    <input id="psycle-pw-new" type="password" class="psycle-input" autocomplete="new-password"
+           style="width:100%;margin-bottom:10px;" placeholder="At least 8 characters">
+    <label class="psycle-setting-label" style="display:block;margin-bottom:4px;"><span>Confirm new password</span></label>
+    <input id="psycle-pw-confirm" type="password" class="psycle-input" autocomplete="new-password"
+           style="width:100%;margin-bottom:14px;">
+    <div id="psycle-pw-error" style="display:none;color:var(--danger);font-size:12px;margin-bottom:10px;"></div>
+    <button class="psycle-btn primary" id="psycle-pw-submit" style="width:100%;">Change password</button>
+  `;
+  open();
+
+  const errEl = body.querySelector('#psycle-pw-error');
+  const submit = body.querySelector('#psycle-pw-submit');
+  const fail = (msg) => { errEl.textContent = msg; errEl.style.display = 'block'; };
+
+  submit.onclick = async () => {
+    errEl.style.display = 'none';
+    const current = body.querySelector('#psycle-pw-current').value;
+    const next = body.querySelector('#psycle-pw-new').value;
+    const confirm = body.querySelector('#psycle-pw-confirm').value;
+    if (next.length < 8) return fail('New password must be at least 8 characters.');
+    if (next !== confirm) return fail('The two new passwords don’t match.');
+    submit.disabled = true;
+    submit.textContent = 'Saving…';
+    try {
+      await api.changeAccountPassword(current, next);
+      showToast('Account password changed', 'success');
+      close();
+    } catch (err) {
+      fail(err.message);
+      submit.disabled = false;
+      submit.textContent = 'Change password';
+    }
+  };
+}
+
 export async function initSettings() {
   loadSettingsInputs();
   setupSettingsListeners();
@@ -998,6 +1299,9 @@ export async function initSettings() {
   // Konami listener is attached on first profile explorer modal open via setupExplorerKonamiListener()
   updatePushStatusUI();
   setupCalendarCard();
+  // Your Gyms card (WP-C2) — fire-and-forget: it renders its own loading and
+  // error states, and a failure here must not stop the rest of Settings binding.
+  renderGymsCard().catch(err => debugConsole('[Settings] Gyms card failed:', err.message));
   // Spot Maps section is ready; button opens the modal
   setupSettingsNavigation();
 }

@@ -1,0 +1,39 @@
+{
+  "_fixture_note": "NEW endpoint, not previously documented in marianatek.md §1C. Sanitized, production account, 2026-07-02.",
+  "method": "GET",
+  "path": "/classes/{class_session_id}/payment_options",
+  "response_status": 200,
+  "response_body": {
+    "user_payment_options": [
+      {
+        "id": "membership-2552",
+        "credit_payment": null,
+        "description": "REDACTED_MEMBERSHIP_NAME (Exp. 7/17/2026)",
+        "description_status": "Exp. ",
+        "description_date": "2026-07-17T22:59:59Z",
+        "error_code": null,
+        "error_message": null,
+        "type": "membership",
+        "membership_payment": {
+          "id": "2552",
+          "status": "Active",
+          "guest_usage_limit": 2,
+          "guest_remaining_usage_count": 1,
+          "commitment_length": 1,
+          "payment_interval": "MO",
+          "is_active": true,
+          "is_charge_declined": false,
+          "booking_window_display": "Reserve 14 days in advance"
+        }
+      }
+    ],
+    "guest_payment_options": [
+      {
+        "id": "membership-2552",
+        "_note": "Same shape as user_payment_options — a membership can pay for a guest booking too, as seen in prod-booking-guest.json.",
+        "type": "membership"
+      }
+    ]
+  },
+  "adapter_implication": "For membership-based gyms (like JAB), bookSlot() needs to GET /classes/{id}/payment_options first to discover the valid payment_option.id to pass in the POST /me/reservations body, rather than assuming a fixed shape. Credit-based MT studios would presumably show credit_payment populated instead of membership_payment — unconfirmed, no credit-based studio tested."
+}

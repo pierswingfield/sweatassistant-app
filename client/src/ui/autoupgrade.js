@@ -1,27 +1,9 @@
 import { api } from '../api';
+import { getAvailableCreditsForEvent, getTotalCredits } from './credit-allowance.js';
 import { showToast, cache, refreshUserData } from '../main';
 import { openUpgradeConfigModal } from './bookings';
 import { seatNoun } from './cards';
 
-function getAvailableCreditsForEvent(event) {
-  if (!cache.profile || !cache.profile.available_credits) return 0;
-
-  // Map event credit_types to numeric IDs
-  const acceptedIds = (event.credit_types || []).map(c => {
-    const raw = c.credit_type ?? c.id ?? c;
-    return Number(typeof raw === 'object' ? raw.id : raw);
-  }).filter(id => !isNaN(id));
-
-  if (acceptedIds.length === 0) return Infinity; // no credit types required, assume unlimited
-
-  return cache.profile.available_credits.reduce((total, credit) => {
-    const creditTypeId = Number(credit.credit_type?.id ?? credit.credit_type);
-    if (acceptedIds.includes(creditTypeId)) {
-      return total + (credit.count || 0);
-    }
-    return total;
-  }, 0);
-}
 
 export async function renderAutoUpgrades() {
   const container = document.getElementById('psycle-autoupgrade-list-container');
@@ -99,12 +81,9 @@ function renderUpgradeList(upgrades, studioPrefs = {}) {
       currentSpotLabel = matched?.label || String(job.current_slot_id);
     }
 
-    // Check if insufficient credits (client-side backup check)
-    let totalAvailableCredits = 0;
-    if (cache.profile?.available_credits) {
-      totalAvailableCredits = cache.profile.available_credits.reduce((sum, c) => sum + (c.count || 0), 0);
-    }
-    const hasInsufficientCredits = totalAvailableCredits < 1; // Auto-upgrade needs at least 1 credit
+    // Client-side backup check. Shared module → Infinity on a membership gym,
+    // so an unmetered gym never shows a credit warning.
+    const hasInsufficientCredits = getTotalCredits() < 1; // needs at least 1 credit
 
     let statusText = 'Monitoring Active';
     let statusChipClass = 'state-active';

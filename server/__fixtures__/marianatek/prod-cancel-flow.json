@@ -1,0 +1,37 @@
+{
+  "_fixture_note": "Sanitized — resolves the P1 'cancel endpoint behavior' unknown from marianatek.md §1F. Production account, 2026-07-02. Covers both a self-booking cancel and a guest-booking cancel; both zero-penalty, well within the free-cancellation window.",
+
+  "step1_cancel_penalty_check": {
+    "method": "GET",
+    "path": "/me/reservations/{id}/cancel_penalty",
+    "response_status": 200,
+    "response_body": { "is_penalty_cancel": false, "message": null },
+    "_note": "Always call this before cancelling — it's read-only/safe and tells you whether the cancel will incur a penalty. This matches the shape already documented in §1D from the original June 22 test-account research; this round confirms it against a real chargeable membership account."
+  },
+
+  "step2_cancel_self_booking": {
+    "method": "POST",
+    "path": "/me/reservations/{id}/cancel",
+    "response_status": 200,
+    "response_body_key_fields": {
+      "id": "375597",
+      "status": "standard cancel",
+      "is_upcoming": false,
+      "is_user_reserved": false,
+      "class_session_available_spot_count": "incremented back up by 1 (20 -> 21 in this capture)"
+    },
+    "_note": "Cancelling a STANDARD (non-waitlist) booking sets status to \"standard cancel\" — distinct from the waitlist cancel status below."
+  },
+
+  "step3_cancel_guest_booking": {
+    "method": "POST",
+    "path": "/me/reservations/{id}/cancel",
+    "response_status": 200,
+    "response_body_key_fields": {
+      "id": "375599",
+      "status": "standard cancel",
+      "guest_email": "guest@example.com"
+    },
+    "critical_finding": "The user's *own* membership.guest_remaining_usage_count went 2 (before booking) -> 1 (after booking the guest) -> 2 (after cancelling the guest booking, zero-penalty). This CONFIRMS membership usage/allowance IS restored on a zero-penalty cancel — it is not just 'no fee charged', the underlying usage count itself reverts. This directly answers the open question the stakeholder asked us to resolve via production-account capture (does cancelling inside the free window give the credit/usage back, or just avoid a fee)."
+  }
+}

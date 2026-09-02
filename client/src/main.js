@@ -1,4 +1,5 @@
 import { api, setToken, isLoggedIn } from './api';
+import { setGymContext, applyCapabilityGates, can } from './gym-context.js';
 import { initTooltips } from './ui/tooltips';
 import { setupPullToRefresh } from './ui/pulltorefresh';
 import { setCacheKeyPrefix, clearApiCache, invalidateApiCache } from './cache.js';
@@ -41,7 +42,7 @@ const appleMeta = document.querySelector('meta[name="apple-mobile-web-app-title"
 // Propagate the configured app name to the document title, the iOS web-app
 // title meta, and every static [data-app-name] span in the SPA shell. The
 // variable is the primary source; the server-side template-replace of the
-// literal "Psycle Assistant" remains only as a no-JS fallback.
+// literal "Sweat Assistant" remains only as a no-JS fallback.
 function applyAppName() {
   document.title = appConfig.appName;
   if (appleMeta) appleMeta.setAttribute('content', appConfig.appName);
@@ -294,30 +295,30 @@ async function refreshActiveTab() {
       // Events are fetched without TTL (always fresh), but bookings/waitlists
       // use a 2-min API cache — invalidate so the refresh is a true reload.
       // Profile too, so the credit badge updates on refresh.
-      await invalidateApiCache('/api/proxy/bookings');
-      await invalidateApiCache('/api/proxy/waitlists');
-      await invalidateApiCache('/api/proxy/profile');
+      await invalidateApiCache('/api/bookings');
+      await invalidateApiCache('/api/waitlists');
+      await invalidateApiCache('/api/profile');
       const { prefetchTimetableData } = await import('./ui/timetable');
       await prefetchTimetableData(true);
       refreshUserData(true); // fire-and-forget badge update
     } else if (currentTabId === 'my-bookings') {
-      await invalidateApiCache('/api/proxy/bookings');
-      await invalidateApiCache('/api/proxy/waitlists');
+      await invalidateApiCache('/api/bookings');
+      await invalidateApiCache('/api/waitlists');
       await invalidateApiCache('/api/auto-upgrade');
-      await invalidateApiCache('/api/proxy/profile');
+      await invalidateApiCache('/api/profile');
       const { renderBookings } = await import('./ui/bookings');
       await renderBookings();
       refreshUserData(true); // fire-and-forget badge update
     } else if (currentTabId === 'auto-book') {
       await invalidateApiCache('/api/auto-book');
       await invalidateApiCache('/api/auto-upgrade');
-      await invalidateApiCache('/api/proxy/profile');
+      await invalidateApiCache('/api/profile');
       await invalidateApiCache('/api/settings');
       const { refreshAutoBookTab } = await import('./ui/autobook');
       await refreshAutoBookTab();
     } else if (currentTabId === 'buy-credits') {
       await invalidateApiCache('/api/proxy/bundles');
-      await invalidateApiCache('/api/proxy/profile');
+      await invalidateApiCache('/api/profile');
       cache.bundles = [];
       const { initBundles } = await import('./ui/credits');
       await initBundles();
@@ -376,7 +377,7 @@ async function registerServiceWorker() {
         if (window.location.hash === '#my-bookings') {
           try {
             const { invalidateApiCache } = await import('./cache');
-            await invalidateApiCache('/api/proxy/bookings').catch(() => {});
+            await invalidateApiCache('/api/bookings').catch(() => {});
             await invalidateApiCache('/api/auto-upgrade').catch(() => {});
             const { renderBookings } = await import('./ui/bookings');
             renderBookings();
@@ -587,9 +588,11 @@ async function showCreditDetailsModal(credits) {
 
   try {
     // Fetch detailed credits from API
-    const res = await api.proxyGet('/credits?type=unused&per_page=999');
-    const creditsData = res.data || [];
-    const creditTypes = res.relations?.credit_types || {};
+    // Credit detail modal — metered gyms only (the badge that opens it is
+    // capability-gated), so the provider-shaped `credit_types` relation here is
+    // reached through `.raw` rather than assumed to exist.
+    const creditsData = await api.getNormalizedCredits();
+    const creditTypes = (cache.profile?.raw?.relations?.credit_types) || {};
 
     content.innerHTML = `<h2 style="margin-top: 0; color: var(--feat-autoupgrade); font-size: 18px;">Credit Details</h2>`;
 
@@ -749,14 +752,51 @@ function initConnectivity() {
 // Fetch core user data and update UI header. Pass force=true after mutations
 // (booking, cancellation, spot edits) to bypass the 5-min profile cache and
 // fetch fresh credit counts from CodexFit.
+// Resolve which gym is active and cache its flags. Called at boot and after a
+// gym switch — the switch path in settings.js re-invokes it so capability gates
+// and theming move with the switch rather than needing a reload.
+export async function loadGymContext() {
+  try {
+    const [{ gyms: linked, activeGymId }, catalogue] = await Promise.all([
+      api.getMyGyms(),
+      api.getGyms(),
+    ]);
+    const activeId = activeGymId || (linked && linked[0] && linked[0].gym_id);
+    const active = catalogue.find((g) => g.id === activeId);
+    if (active) {
+      setGymContext(active);
+      applyCapabilityGates();
+      debugLog(`Gym context: ${active.name} (${Object.entries(active.capabilities || {}).filter(([, v]) => v === true).map(([k]) => k).join(', ') || 'no flags'})`, 'info');
+    }
+  } catch (err) {
+    // Leave the defaults in place: a gym whose flags we couldn't fetch keeps the
+    // full feature set rather than losing features to a failed request.
+    console.warn('[App] Could not load gym capabilities:', err.message);
+  }
+}
+
 export async function refreshUserData(force = false) {
   try {
     if (force) {
-      await invalidateApiCache('/api/proxy/profile');
+      await invalidateApiCache('/api/profile');
     }
-    // 1. Fetch user profile from CodexFit via proxy
-    const res = await api.proxyGet('/profile', { ttlMs: 300000 });
-    const profile = res.data || res;
+    // 1. Profile, via the gym-agnostic route (WP-D12).
+    //
+    // `.raw` is the provider's own payload and is deliberately still used below:
+    // `available_credits` and `metafields.bookmarks` have no normalized
+    // equivalent yet, and both are CodexFit-only concepts (a membership gym has
+    // neither). They are read through capability-gated helpers rather than
+    // assumed — see credit-allowance.js — and reaching into `.raw` is the honest
+    // marker that this is provider-shaped data, not a normalized field.
+    // Profile and credits are independent, so they go in parallel — sequentially
+    // they add a visible delay before the header badge appears. Credits are
+    // allowed to fail on their own: a membership gym has no credit route worth
+    // blocking the whole refresh on.
+    const [normalized, fetchedCredits] = await Promise.all([
+      api.getNormalizedProfile(),
+      api.getNormalizedCredits().catch(() => null),
+    ]);
+    const profile = { ...(normalized.raw || {}), ...normalized };
     cache.profile = profile;
 
     const emailEl = document.querySelector('.psycle-user-email');
@@ -770,9 +810,13 @@ export async function refreshUserData(force = false) {
       Object.assign(userSettings, settings);
     }
 
-    // 3. Use available_credits from profile
-    const availableCredits = profile.available_credits || [];
+    // 3. Credit inventory, via the gym-agnostic route. Empty for a membership
+    // gym, which is correct — there is no balance to draw down.
+    const availableCredits = fetchedCredits ?? (profile.available_credits || []);
     cache.credits = availableCredits;
+    // Keep `.available_credits` populated for the credit arithmetic, which reads
+    // it off the cached profile.
+    cache.profile.available_credits = availableCredits;
 
     // Update credit badge in header
     updateCreditBadge(availableCredits);
@@ -816,6 +860,12 @@ export async function initApp() {
   // Set helper expanded classes to trigger standard styles
   document.body.id = 'psycle-helper-container';
   document.body.className = 'psycle-helper-expanded';
+
+  // Load the active gym's capabilities + theme BEFORE the first render, so the
+  // UI doesn't briefly show features this gym lacks. Awaited rather than
+  // fire-and-forget: it is two small requests, and the alternative is a visible
+  // flash of Buy Credits on a membership gym.
+  await loadGymContext();
 
   await refreshUserData();
 
@@ -945,6 +995,21 @@ async function onLoginSuccess() {
     return;
   }
 
+  // A Sweat Assistant account can exist with no gym linked (signup is
+  // gym-independent since Decision D4). Booting the full app in that state shows
+  // an empty timetable and a wall of failing requests, so route to a dedicated
+  // "connect a gym" screen instead. The server tells us with a 409/NO_GYM_LINKED.
+  try {
+    const mine = await api.getMyGyms();
+    if (!mine.gyms || mine.gyms.length === 0) {
+      showNoGymScreen();
+      return;
+    }
+  } catch (_) {
+    // Best-effort: if this check itself fails, fall through and let the app boot
+    // normally rather than stranding a working account on a setup screen.
+  }
+
   await initApp();
 
   // Auto-enable push if the user has already granted notification permission.
@@ -970,7 +1035,7 @@ if (loginForm) {
 
     try {
       submitBtn.disabled = true;
-      submitBtn.querySelector('span').textContent = 'Logging in...';
+      submitBtn.querySelector('span').textContent = 'Logging in…';
 
       const user = await api.login(email, password);
       currentUser = user;
@@ -991,6 +1056,178 @@ if (loginForm) {
       submitBtn.querySelector('span').textContent = 'Log In to CodexFit';
     }
   });
+}
+
+// Shown when a Sweat Assistant account has no gym attached — after signup, or
+// after unlinking the last one. Reuses the login card so there is no third
+// full-screen layout to maintain.
+function showNoGymScreen() {
+  document.getElementById('psycle-app-container').style.display = 'none';
+  const loginContainer = document.getElementById('psycle-login-container');
+  loginContainer.style.display = 'flex';
+  document.getElementById('psycle-auth-title').textContent = 'Connect a gym';
+  document.getElementById('psycle-auth-subtitle').innerHTML =
+    'Your account is ready. Add a gym login to start booking.';
+  ['psycle-login-form', 'psycle-signup-form', 'psycle-recover-form'].forEach(id => {
+    document.getElementById(id).style.display = 'none';
+  });
+
+  let panel = document.getElementById('psycle-nogym-panel');
+  if (!panel) {
+    panel = document.createElement('div');
+    panel.id = 'psycle-nogym-panel';
+    panel.className = 'psycle-login-form';
+    document.querySelector('.psycle-login-card').insertBefore(
+      panel, document.querySelector('.psycle-login-footer'));
+  }
+  panel.style.display = '';
+  panel.innerHTML = `
+    <div class="psycle-form-group">
+      <label for="psycle-nogym-gym">Gym</label>
+      <select id="psycle-nogym-gym" class="psycle-select" style="width:100%;"><option>Loading…</option></select>
+    </div>
+    <div class="psycle-form-group">
+      <label for="psycle-nogym-email">Gym email</label>
+      <input type="email" id="psycle-nogym-email" placeholder="name@example.com" autocomplete="off">
+    </div>
+    <div class="psycle-form-group">
+      <label for="psycle-nogym-password">Gym password</label>
+      <input type="password" id="psycle-nogym-password" placeholder="••••••••" autocomplete="off">
+    </div>
+    <div id="psycle-nogym-error" class="psycle-login-error" style="display:none;"></div>
+    <button type="button" id="psycle-nogym-submit" class="psycle-btn-primary"><span>Connect Gym</span></button>
+  `;
+
+  const sel = panel.querySelector('#psycle-nogym-gym');
+  const errorEl = panel.querySelector('#psycle-nogym-error');
+  api.getGyms().then(gyms => {
+    const available = gyms.filter(g => g.enabled);
+    sel.innerHTML = available.length
+      ? available.map(g => `<option value="${g.id}">${g.name}</option>`).join('')
+      : '<option value="">No gyms available</option>';
+  }).catch(() => { sel.innerHTML = '<option value="">Could not load gyms</option>'; });
+
+  panel.querySelector('#psycle-nogym-submit').onclick = async () => {
+    const btn = panel.querySelector('#psycle-nogym-submit');
+    errorEl.style.display = 'none';
+    const gymId = sel.value;
+    const email = panel.querySelector('#psycle-nogym-email').value.trim();
+    const password = panel.querySelector('#psycle-nogym-password').value;
+    if (!gymId || !email || !password) {
+      errorEl.textContent = 'Gym, email and password are all required.';
+      errorEl.style.display = 'block';
+      return;
+    }
+    btn.disabled = true;
+    btn.querySelector('span').textContent = 'Connecting…';
+    try {
+      await api.linkGym(gymId, email, password);
+      panel.style.display = 'none';
+      showToast('Gym connected', 'success');
+      await onLoginSuccess();
+    } catch (err) {
+      errorEl.textContent = err.message;
+      errorEl.style.display = 'block';
+      btn.disabled = false;
+      btn.querySelector('span').textContent = 'Connect Gym';
+    }
+  };
+  applyAppName();
+}
+
+// ─── Auth screen modes (WP-C2 / Decision D4) ──────────────────────────────────
+// One card, three modes: sign in, create account, recover. A Sweat Assistant
+// account is its own thing now, so signing up no longer means handing over a gym
+// credential — gyms are linked afterwards.
+const AUTH_MODES = {
+  login:  { title: 'Log in',          subtitle: 'Sign in to your <span data-app-name>Sweat Assistant</span> account.' },
+  signup: { title: 'Create account',  subtitle: 'Set up your <span data-app-name>Sweat Assistant</span> account. You’ll connect a gym next.' },
+  recover:{ title: 'Reset password',  subtitle: 'Confirm it’s you by signing in to a gym you’ve linked.' },
+};
+
+function setAuthMode(mode) {
+  const cfg = AUTH_MODES[mode] || AUTH_MODES.login;
+  document.getElementById('psycle-auth-title').textContent = cfg.title;
+  document.getElementById('psycle-auth-subtitle').innerHTML = cfg.subtitle;
+  document.getElementById('psycle-login-form').style.display = mode === 'login' ? '' : 'none';
+  document.getElementById('psycle-signup-form').style.display = mode === 'signup' ? '' : 'none';
+  document.getElementById('psycle-recover-form').style.display = mode === 'recover' ? '' : 'none';
+
+  // Recovery always restarts at step 1 — landing mid-flow with a stale gym list
+  // would be confusing and could show gyms for a different email.
+  if (mode === 'recover') {
+    document.getElementById('psycle-recover-step1').style.display = 'block';
+    document.getElementById('psycle-recover-step2').style.display = 'none';
+  }
+  document.querySelectorAll('.psycle-login-error').forEach(el => { el.style.display = 'none'; });
+  const noGym = document.getElementById('psycle-nogym-panel');
+  if (noGym) noGym.style.display = 'none';
+
+  const switcher = document.getElementById('psycle-auth-switcher');
+  switcher.innerHTML = mode === 'login'
+    ? `<a href="#" id="psycle-auth-to-signup">Create an account</a>&nbsp;·&nbsp;<a href="#" id="psycle-auth-to-recover">Forgot password?</a>`
+    : `<a href="#" id="psycle-auth-to-login">Back to log in</a>`;
+  wireAuthSwitcher();
+  applyAppName();
+}
+
+function wireAuthSwitcher() {
+  const bind = (id, mode) => {
+    const el = document.getElementById(id);
+    if (el) el.onclick = (e) => { e.preventDefault(); setAuthMode(mode); };
+  };
+  bind('psycle-auth-to-signup', 'signup');
+  bind('psycle-auth-to-recover', 'recover');
+  bind('psycle-auth-to-login', 'login');
+}
+wireAuthSwitcher();
+
+// --- create account ---
+const signupForm = document.getElementById('psycle-signup-form');
+if (signupForm) {
+  signupForm.addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const email = document.getElementById('psycle-signup-email').value.trim();
+    const password = document.getElementById('psycle-signup-password').value;
+    const confirm = document.getElementById('psycle-signup-confirm').value;
+    const errorEl = document.getElementById('psycle-signup-error');
+    const btn = document.getElementById('psycle-signup-submit-btn');
+    const fail = (m) => { errorEl.textContent = m; errorEl.style.display = 'block'; };
+    errorEl.style.display = 'none';
+
+    if (password.length < 8) return fail('Password must be at least 8 characters.');
+    if (password !== confirm) return fail('The two passwords don’t match.');
+
+    btn.disabled = true;
+    btn.querySelector('span').textContent = 'Creating…';
+    try {
+      const { user } = await api.signup(email, password);
+      currentUser = user;
+      setCacheKeyPrefix(currentUser.id || email);
+      localStorage.setItem('psycleUserId', currentUser.id || email);
+      showToast('Account created — now connect a gym', 'success');
+      await onLoginSuccess();
+    } catch (err) {
+      fail(err instanceof TypeError ? 'Unable to connect. Check your internet connection.' : err.message);
+    } finally {
+      btn.disabled = false;
+      btn.querySelector('span').textContent = 'Create Account';
+    }
+  });
+}
+
+// Account recovery is currently ADMIN-ONLY. The previous self-service flow proved
+// identity with a linked gym's login, which re-coupled the account to the gym and
+// defeated Decision D4 — removed 2026-08-31. The replacement mechanism is an open
+// decision (BACKLOG.md); until it lands the screen says so plainly rather than
+// offering a flow that cannot complete.
+const recoverFindBtn = document.getElementById('psycle-recover-find-btn');
+if (recoverFindBtn) {
+  recoverFindBtn.onclick = () => {
+    const errorEl = document.getElementById('psycle-recover-error');
+    errorEl.textContent = 'Self-service password reset isn’t available yet. Contact the admin to have your password reset.';
+    errorEl.style.display = 'block';
+  };
 }
 
 // Listen for global logout triggers (e.g. from api.js 401 interceptor)

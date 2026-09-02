@@ -1,34 +1,69 @@
 // Shared client-side utilities that need London timezone awareness
 import { DateTime } from 'luxon';
 
-// Booking-window tiers. The base standard window is 8 days from the release Monday
-// (≈1 week); each extra booking week adds 7 days. So 1→8, 2→15, 3→22, 4→29.
+// Sane bounds for a detected booking window, in days after the release Monday.
+// Purely a guard against a garbled/stale profile cutoff producing an absurd
+// offset — NOT a set of allowed tiers. Any value in between is legitimate.
+export const MIN_OFFSET_DAYS = 1;
+export const MAX_OFFSET_DAYS = 35;
+
+// LEGACY / DEBUG ONLY — whole-week tiers (1→8, 2→15, 3→22, 4→29).
+//
+// Psycle's booking window used to come in whole-week steps, so detection snapped
+// to one of these. **That is no longer true** (confirmed 2026-08-31): the standard
+// window moved from 8 days to a fortnight ("an additional six days" = 14), and
+// membership tiers now extend by DAYS, not weeks — Psycle 10 +2d, Psycle 15 +3d,
+// Unlimited +8d. Snapping 14/16/17 to the nearest week yielded 15 in all three
+// cases: standard over-ran by a day (auto-book firing a week early on boundary
+// classes and burning the queue entry), while both member tiers were truncated
+// by 1–2 days. detectBookingWindow() therefore no longer snaps — it uses the
+// exact day count from the profile cutoff, which is server-authoritative and
+// already reflects whatever rule Psycle is applying today.
+//
+// These two survive only for the debug week-override and the pre-detection
+// legacy settings path. Don't reintroduce them into detection.
 export function weeksToOffsetDays(weeks) {
   const w = Math.min(4, Math.max(1, Math.round(weeks) || 1));
   return 8 + (w - 1) * 7;
 }
 
-// Inverse of weeksToOffsetDays — snap an offset in days to a whole-week tier (1..4).
+// Approximate whole-week label for a day offset — display only ("~2 weeks").
+// Never feed this back into a booking calculation.
 export function offsetDaysToWeeks(days) {
-  return Math.min(4, Math.max(1, Math.round((days - 8) / 7) + 1));
+  return Math.min(4, Math.max(1, Math.ceil(days / 7)));
 }
 
 // Calculate booking offset in days based on settings.
 // Priority: debug manual override → auto-detected window → legacy manual toggles.
 export function getBookingOffset(settings = {}) {
+  // Debug-only exact-day override — preferred, since real windows are no longer
+  // whole weeks (see the note on weeksToOffsetDays).
+  if (settings.debugMode && settings.manualBookingWindowDays) {
+    return clampOffsetDays(settings.manualBookingWindowDays);
+  }
   // Debug-only manual override for testing a specific window (1-4 weeks).
   if (settings.debugMode && settings.manualBookingWindowWeeks) {
     return weeksToOffsetDays(settings.manualBookingWindowWeeks);
   }
-  // Auto-detected from membership cutoffs + credit inventory (see detectBookingWindow).
+  // Auto-detected from the account's membership cutoffs (see detectBookingWindow).
   if (typeof settings.detectedBookingOffset === 'number' && settings.detectedBookingOffset > 0) {
-    return settings.detectedBookingOffset;
+    return clampOffsetDays(settings.detectedBookingOffset);
   }
-  // Legacy fallback (manual toggles, pre-auto-detection).
-  let days = 8;
+  // Legacy fallback (manual toggles, pre-auto-detection). Base is 15: the window
+  // ends on a TUESDAY (releaseMonday + 15), because booking for any Tuesday opens
+  // on the Monday. M+14 would be a Monday and would hold Tuesday classes back a
+  // week. Corrected 2026-09-01.
+  // This path should be unreachable for any account whose profile loads, since
+  // detection persists `detectedBookingOffset`; it exists for the cold-start case.
+  let days = 15;
   if (settings.advancedBooking) days += 7;
-  if (settings.advancedBookingCredit) days += 7;
   return days;
+}
+
+export function clampOffsetDays(days) {
+  const n = Math.round(Number(days));
+  if (!Number.isFinite(n)) return 15;
+  return Math.min(MAX_OFFSET_DAYS, Math.max(MIN_OFFSET_DAYS, n));
 }
 
 // The most recent Monday 12:00 PM London time that has already passed (the current
@@ -39,29 +74,13 @@ export function getMostRecentReleaseMonday(now = DateTime.now().setZone('Europe/
   return M;
 }
 
-// CodexFit credit_type id for "Advanced Booking Credit" (e.g. bundle 361). Holding any
-// such credit grants a 2-week (15-day) booking window.
-const ADVANCED_BOOKING_CREDIT_TYPE_ID = 8;
 
-// Count Advanced Booking credits in the user's inventory. Holding any grants a 2-week
-// (15-day) window — it does NOT add a week on top of an account that already books in
-// advance, and credits do not stack into a 3rd week.
-function countExtendedBookingCredits(credits) {
-  if (!Array.isArray(credits)) return 0;
-  let count = 0;
-  for (const c of credits) {
-    const typeId = c?.credit_type_id ?? c?.credit_type?.id ?? c?.credit_type;
-    const name = (c?.credit_type?.name || c?.name || c?.credit_type_name || '').toString();
-    const isAdvanced = String(typeId) === String(ADVANCED_BOOKING_CREDIT_TYPE_ID)
-      || (/advance/i.test(name) && /book/i.test(name));
-    if (isAdvanced) count += Number(c?.count ?? c?.quantity ?? c?.qty ?? 1) || 1;
-  }
-  return count;
-}
-
-// Detect a user's booking window from their CodexFit profile cutoffs + credit inventory.
+// Detect a user's booking window from their CodexFit profile cutoffs.
+// `credits` is accepted and ignored — kept only so existing callers don't need
+// changing in the same pass; the parameter goes when this whole function moves
+// server-side (it duplicates providers/codexfit.js resolveBookingWindow).
 // Returns null if the profile lacks the data needed to detect (caller should fall back).
-// Result: { offsetDays, weeks, cutoffISO, extendedAllowed, extendedCredits, source }
+// Result: { offsetDays, weeks, cutoffISO, extendedAllowed, source }
 export function detectBookingWindow(profile, credits) {
   if (!profile) return null;
 
@@ -80,24 +99,28 @@ export function detectBookingWindow(profile, credits) {
   const release = getMostRecentReleaseMonday();
   let offsetDays = Math.round(cutoffDt.diff(release, 'days').days);
 
-  // Holding extended-booking credits guarantees a 2-week (15-day) window. It is a floor,
-  // not additive — credits never extend an already-extended account or stack to 3 weeks.
-  const extendedCredits = countExtendedBookingCredits(credits);
-  const creditFloorApplied = extendedCredits > 0 && offsetDays < 15;
-  if (creditFloorApplied) offsetDays = 15;
+  // No credit floor. Psycle no longer issues Advanced Booking credits, and while
+  // it did, that rule was Psycle's promotion — not something shared client code
+  // should know about. Any per-gym adjustment belongs server-side in that gym's
+  // adapter (providers/codexfit.js resolveBookingWindow).
 
-  // Snap to a whole-week tier (1..4) for robustness against DST / time-of-day drift.
+  // NO whole-week snapping (removed 2026-08-31 — see weeksToOffsetDays). The
+  // profile cutoff is server-authoritative and already encodes whatever window
+  // rule Psycle applies to this account, including the day-granular membership
+  // tiers (Psycle 10 +2d, Psycle 15 +3d, Unlimited +8d) that a 7-day quantiser
+  // cannot represent. `Math.round` on the day diff above already absorbs the
+  // DST / time-of-day drift that the snapping was originally there to handle,
+  // since the cutoff and the release Monday are both resolved in Europe/London.
+  offsetDays = clampOffsetDays(offsetDays);
+  // Display label only — never fed back into a booking calculation.
   const weeks = offsetDaysToWeeks(offsetDays);
 
   return {
-    offsetDays: weeksToOffsetDays(weeks),
+    offsetDays,
     weeks,
-    // When the credit floor overrides the account cutoff, the profile cutoff no longer
-    // matches the effective window — let the label derive the date from release + offset.
-    cutoffISO: creditFloorApplied ? null : effectiveCutoff,
+    cutoffISO: effectiveCutoff,
     extendedAllowed,
-    extendedCredits,
-    source: creditFloorApplied ? 'credits' : (extendedAllowed ? 'extended' : 'standard')
+    source: extendedAllowed ? 'extended' : 'standard'
   };
 }
 
@@ -116,26 +139,48 @@ export function describeBookingWindow(offsetDays, cutoffISO) {
   return through ? `${wordLabel} · up to ${through}` : wordLabel;
 }
 
-// Calculate when booking opens for a specific class date (London timezone)
-// Mirrors the server-side scheduler.js getClassReleaseTime exactly
-export function getClassReleaseTime(classDateStr, settings = {}) {
+// When booking opens for a class (WP-D8).
+//
+// Prefers the release the SERVER stamped on the event. That value already
+// accounts for which world this gym lives in:
+//   * a per-class gym (MarianaTek) publishes a release instant per class, with
+//     no weekday rule behind it at all;
+//   * a rolling-weekly gym (Psycle) has one composed server-side from that gym's
+//     policy in gyms.config.js and the user's own membership window.
+//
+// The client therefore reads a timestamp and computes nothing. It used to
+// reimplement Psycle's Monday-noon model here, which silently applied Psycle's
+// rule to every gym — the countdown a JAB user watched would have been keyed to
+// an event with no relationship to their class.
+//
+// Accepts an event object (preferred) or a bare ISO string (legacy callers).
+export function getClassReleaseTime(eventOrDate, settings = {}) {
+  const ev = (typeof eventOrDate === 'string' || eventOrDate == null)
+    ? { start_at: eventOrDate }
+    : eventOrDate;
+
+  // `releaseAt` on a normalized event; `release_at` on an auto-book queue row.
+  const published_ = ev.releaseAt || ev.release_at;
+  if (published_) {
+    const published = DateTime.fromISO(published_);
+    if (published.isValid) return published.setZone('Europe/London');
+  }
+
+  // LEGACY FALLBACK — only reachable for events cached before the server began
+  // stamping releaseAt, or if a request failed. Hardcodes Psycle's rule, so it is
+  // wrong for any other gym; it exists so a stale cache degrades to the old
+  // behaviour rather than to nothing. Remove once the cache has rolled over.
+  const classDateStr = ev.start_at || ev.startAt;
   if (!classDateStr) return DateTime.now().setZone('Europe/London');
 
   const daysToAdd = getBookingOffset(settings);
   const classDt = DateTime.fromISO(classDateStr, { zone: 'Europe/London' });
-
-  // Start M as Monday 12:00 PM of the class week
   let M = classDt.set({ weekday: 1, hour: 12, minute: 0, second: 0, millisecond: 0 });
-
   while (true) {
     const cutoff = M.plus({ days: daysToAdd }).set({ hour: 23, minute: 59, second: 59, millisecond: 999 });
-    if (cutoff < classDt) {
-      M = M.plus({ weeks: 1 });
-      break;
-    }
+    if (cutoff < classDt) { M = M.plus({ weeks: 1 }); break; }
     M = M.minus({ weeks: 1 });
   }
-
   return M.set({ hour: 12, minute: 0, second: 0, millisecond: 0 });
 }
 

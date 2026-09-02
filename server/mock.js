@@ -24,9 +24,33 @@ const locations = [
   { id: 16, name: "Shoreditch" }
 ];
 
+// 5x8 grid of bike slots — shared by GET /events/{id} (per-class layout) and
+// GET /studios (studio-level layout, WP-C5 fetchStudioLayout). Real CodexFit
+// data has some studios with no layout at all (e.g. Reformer, per existing
+// code comments) — modeled here by only giving 138/139 a layout, leaving
+// 140/141 without one, so "no floor map available" stays exercisable too.
+function makeLayoutSlots() {
+  const layoutSlots = [];
+  for (let r = 1; r <= 5; r++) {
+    for (let c = 1; c <= 8; c++) {
+      const slotId = r * 10 + c;
+      layoutSlots.push({ id: slotId, name: `Bike ${slotId}`, x: c * 100, y: r * 100 });
+    }
+  }
+  return layoutSlots;
+}
+
+// Non-bookable floor fixtures (the instructor podium), which real CodexFit
+// publishes as `studio.layout.objects` alongside the slots. Only `x`/`y` are
+// ever read by the renderer (WP-C5), so that's what's modeled — placed above
+// the front row (y below row 1's y=100) and centred across the 8 columns.
+function makeLayoutObjects() {
+  return [{ id: 900, name: 'Podium', x: 450, y: 20 }];
+}
+
 const studios = [
-  { id: 138, name: "Ride Studio", location_id: 13 },
-  { id: 139, name: "Barre Studio", location_id: 13 },
+  { id: 138, name: "Ride Studio", location_id: 13, layout: { slots: makeLayoutSlots(), objects: makeLayoutObjects() } },
+  { id: 139, name: "Barre Studio", location_id: 13, layout: { slots: makeLayoutSlots(), objects: makeLayoutObjects() } },
   { id: 140, name: "Ride Studio", location_id: 14 },
   { id: 141, name: "Strength Studio", location_id: 15 }
 ];
@@ -312,20 +336,8 @@ function handleMockRequest(pathName, method, body) {
     const isEven = eventId % 2 === 0;
     const studioId = isEven ? 138 : 139;
     const studioName = isEven ? "Ride Studio" : "Barre Studio";
-    
-    // Generate layout slots
-    const layoutSlots = [];
-    for (let r = 1; r <= 5; r++) {
-      for (let c = 1; c <= 8; c++) {
-        const slotId = r * 10 + c;
-        layoutSlots.push({
-          id: slotId,
-          name: `Bike ${slotId}`,
-          x: c * 100,
-          y: r * 100
-        });
-      }
-    }
+
+    const layoutSlots = makeLayoutSlots();
 
     // For mock testing upgrades, make a wide range of slots available
     // so that whatever spot the user maps as preferred is likely available.
@@ -336,19 +348,53 @@ function handleMockRequest(pathName, method, body) {
       }
     }
 
+    // Real shape confirmed via a live browser capture (2026-07-03, deleted after
+    // extraction — see Documentation/Backlog/modular-gyms/PROGRESS.md handoff):
+    // `data.{start_at,duration,instructor_id,event_type_id,studio_id,occupancy,
+    // capacity}` + a sibling `relations.{instructors,event_types,studios,locations}`
+    // block (id-referenced, not inline) — genuinely richer than this mock
+    // previously simulated (it used to return only `{id, slots, relations:
+    // {studios}}`, which silently masked calendar.js's per-event enrichment step
+    // in dev mode). Mirrors the same offsetDays/isEvening date derivation the
+    // mock's own POST /bookings and GET /events handlers already use, so a
+    // booked event's detail is internally consistent across all three.
+    const offsetDays = eventId >= 1000 && eventId < 2000 ? Math.floor((eventId - 1000) / 2) : 0;
+    const isEvening = eventId >= 1000 && eventId < 2000 ? (eventId - 1000) % 2 === 1 : !isEven;
+    const date = new Date(mockNow.getTime() + offsetDays * 24 * 60 * 60 * 1000);
+    const yyyymmdd = date.toISOString().split('T')[0];
+    const instructor = isEvening ? instructors[(offsetDays + 1) % 4] : instructors[offsetDays % 4];
+    const eventType = isEvening ? eventTypes[1] : eventTypes[0];
+    const location = locations[0]; // studios 138/139 are both location_id 13 (Mortimer Street)
+
     return createFakeResponse({
-      id: eventId,
+      data: {
+        id: eventId,
+        instructor_id: instructor.id,
+        studio_id: studioId,
+        event_type_id: eventType.id,
+        start_at: isEvening ? `${yyyymmdd}T18:30:00.000Z` : `${yyyymmdd}T08:30:00.000Z`,
+        duration: isEvening ? 55 : 45,
+        occupancy: isEvening ? 25 : 15,
+        capacity: isEvening ? 25 : 40,
+      },
       slots: availableSlots,
+      bookings: [],
+      max_bookable_slots: 10,
       relations: {
+        instructors: [instructor],
+        event_types: [eventType],
         studios: [
           {
             id: studioId,
             name: studioName,
+            location_id: location.id,
             layout: {
-              slots: layoutSlots
+              slots: layoutSlots,
+              objects: makeLayoutObjects()
             }
           }
-        ]
+        ],
+        locations: [location],
       }
     });
   }
@@ -378,15 +424,11 @@ function handleMockRequest(pathName, method, body) {
         waitlist_available: true,
         is_waitlist_full: false,
         is_always_bookable: false,
-        instructor: instructors[(i % 4)],
-        event_type: eventTypes[0],
-        max_bookable_slots: 10,
-        studio: { 
-          id: 138, 
-          name: "Ride Studio", 
-          location_id: 13, 
-          location: { id: 13, name: "Mortimer Street" } 
-        }
+        max_bookable_slots: 10
+        // NOTE: no inline `instructor`/`event_type`/`studio` — the real
+        // GET /events returns these BY REFERENCE only (see the relations bag
+        // below). The mock used to embed them, which made it more generous than
+        // reality and hid the 2026-08-31 "CLASS" regression from every test.
       });
 
       // Class 2 (Evening)
@@ -405,19 +447,23 @@ function handleMockRequest(pathName, method, body) {
         waitlist_available: true,
         is_waitlist_full: false,
         is_always_bookable: false,
-        instructor: instructors[((i + 1) % 4)],
-        event_type: eventTypes[1],
-        max_bookable_slots: 10,
-        studio: { 
-          id: 139, 
-          name: "Barre Studio", 
-          location_id: 13, 
-          location: { id: 13, name: "Mortimer Street" } 
-        }
+        max_bookable_slots: 10
+        // See the note on the morning class above — relations are by reference.
       });
     }
 
-    return createFakeResponse(classes);
+    // Mirror the real response envelope: `{ data, relations }`, with events
+    // referencing relations by id. Confirmed against a live capture (see the
+    // GET /events/{id} note above and PROGRESS.md Q11).
+    return createFakeResponse({
+      data: classes,
+      relations: {
+        instructors,
+        event_types: eventTypes,
+        studios,
+        locations,
+      },
+    });
   }
 
   // Fallback default response

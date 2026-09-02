@@ -1,0 +1,1023 @@
+{
+  "count": 409,
+  "next": "https://jabboxingclub.marianatek.com/api/customer/v1/classes?max_start_date=2026-07-16&min_start_date=2026-07-02&page=2",
+  "previous": null,
+  "results": [
+    {
+      "id": "79121",
+      "available_spot_count": 5,
+      "booking_start_datetime": "2026-06-25T06:30:00+01:00",
+      "is_late_cancel_overridden": false,
+      "capacity": 40,
+      "class_tags": [
+        {
+          "id": "4942",
+          "name": "Peak Member",
+          "slug": "peak-member"
+        },
+        {
+          "id": "4903",
+          "name": "Peak",
+          "slug": "peak"
+        }
+      ],
+      "class_type": {
+        "id": "5898",
+        "description": "The ultimate 50 minute functional training session, programmed and designed to improve your strength, conditioning and agility, so you can train, feel, and look like an athlete.",
+        "duration": 50,
+        "duration_formatted": "50 minutes",
+        "is_live_stream": false,
+        "name": "TRAIN - Core & Glutes"
+      },
+      "classroom": {
+        "id": "6282",
+        "name": "TRAIN"
+      },
+      "classroom_name": "TRAIN",
+      "geo_check_in_end_datetime": null,
+      "geo_check_in_start_datetime": null,
+      "instructors": [
+        {
+          "id": "6255",
+          "bio": null,
+          "instagram_handle": "nickolfloodx",
+          "instagram_url": "https://www.instagram.com/nickolfloodx",
+          "name": "Nickol",
+          "photo_urls": {
+            "large_url": "https://mtproduction-files.s3.amazonaws.com/media/public_images/2_IaLH0XH.png",
+            "thumbnail_url": "https://mtproduction-files.s3.amazonaws.com/media/public_images/2_r9cgZUz.png"
+          },
+          "spotify_url": null
+        }
+      ],
+      "in_live_stream_window": false,
+      "is_cancelled": false,
+      "is_remaining_spot_count_public": false,
+      "is_user_guest_reserved": false,
+      "is_user_reserved": false,
+      "is_user_waitlisted": false,
+      "is_free_class": false,
+      "layout_format": "pick-a-spot",
+      "location": {
+        "id": "48751",
+        "address_line_one": "Unit 5, Colonnade Walk, 151 Buckingham Palace Road",
+        "address_line_two": "",
+        "address_line_three": "",
+        "address_sorting_code": null,
+        "city": "London",
+        "currency_code": "GBP",
+        "description": "",
+        "email": "info@jabboxing.club",
+        "gate_geo_check_in_by_distance": false,
+        "geo_check_in_distance": 10,
+        "is_newsletter_subscription_pre_checked": true,
+        "latitude": "51.5000000",
+        "longitude": "-0.1666700",
+        "primary_language": "en-GB",
+        "name": "SW1",
+        "payment_gateway_type": "stripe",
+        "phone_number": "+02046184605",
+        "postal_code": "SW1W9SZ",
+        "state_province": "Greater London",
+        "timezone": "Europe/London",
+        "formatted_address": [
+          "Unit 5, Colonnade Walk, 151 Buckingham Palace Road",
+          "London",
+          "SW1W9SZ",
+          "United Kingdom"
+        ],
+        "listed": true,
+        "region": {
+          "id": "48575",
+          "name": "Southeast"
+        }
+      },
+      "name": "TRAIN - Core & Glutes",
+      "should_show_studio_address": true,
+      "spot_options": {
+        "primary_availability": 5,
+        "primary_capacity": 260,
+        "secondary_availability": 0,
+        "secondary_capacity": 0,
+        "standby_availability": 0,
+        "standby_capacity": 0,
+        "waitlist_availability": 30,
+        "waitlist_capacity": 30
+      },
+      "start_date": "2026-07-02",
+      "start_time": "06:30:00",
+      "start_datetime": "2026-07-02T05:30:00Z",
+      "status": null,
+      "waitlist_count": null,
+      "reservations": []
+    },
+    {
+      "id": "79103",
+      "available_spot_count": 5,
+      "booking_start_datetime": "2026-06-25T06:30:00+01:00",
+      "is_late_cancel_overridden": false,
+      "capacity": 5,
+      "class_tags": [
+        {
+          "id": "4942",
+          "name": "Peak Member",
+          "slug": "peak-member"
+        }
+      ],
+      "class_type": {
+        "id": "5973",
+        "description": "A dedicated recovery suite featuring hot and cold therapies, to reduce inflammation and stress in your body, improving your everyday performance. \nBooking slots are 45 minutes.",
+        "duration": 45,
+        "duration_formatted": "45 minutes",
+        "is_live_stream": false,
+        "name": "RECOVERY (Members)"
+      },
+      "classroom": {
+        "id": "6447",
+        "name": "RECOVERY 2.0"
+      },
+      "classroom_name": "RECOVERY 2.0",
+      "geo_check_in_end_datetime": null,
+      "geo_check_in_start_datetime": null,
+      "instructors": [],
+      "in_live_stream_window": false,
+      "is_cancelled": false,
+      "is_remaining_spot_count_public": false,
+      "is_user_guest_reserved": false,
+      "is_user_reserved": false,
+      "is_user_waitlisted": false,
+      "is_free_class": false,
+      "layout_format": "first-come-first-serve",
+      "location": {
+        "id": "48751",
+        "address_line_one": "Unit 5, Colonnade Walk, 151 Buckingham Palace Road",
+        "address_line_two": "",
+        "address_line_three": "",
+        "address_sorting_code": null,
+        "city": "London",
+        "currency_code": "GBP",
+        "description": "",
+        "email": "info@jabboxing.club",
+        "gate_geo_check_in_by_distance": false,
+        "geo_check_in_distance": 10,
+        "is_newsletter_subscription_pre_checked": true,
+        "latitude": "51.5000000",
+        "longitude": "-0.1666700",
+        "primary_language": "en-GB",
+        "name": "SW1",
+        "payment_gateway_type": "stripe",
+        "phone_number": "+02046184605",
+        "postal_code": "SW1W9SZ",
+        "state_province": "Greater London",
+        "timezone": "Europe/London",
+        "formatted_address": [
+          "Unit 5, Colonnade Walk, 151 Buckingham Palace Road",
+          "London",
+          "SW1W9SZ",
+          "United Kingdom"
+        ],
+        "listed": true,
+        "region": {
+          "id": "48575",
+          "name": "Southeast"
+        }
+      },
+      "name": "RECOVERY (Members)",
+      "should_show_studio_address": true,
+      "spot_options": {
+        "primary_availability": 5,
+        "primary_capacity": 5,
+        "secondary_availability": 0,
+        "secondary_capacity": 0,
+        "standby_availability": 0,
+        "standby_capacity": 0,
+        "waitlist_availability": 30,
+        "waitlist_capacity": 30
+      },
+      "start_date": "2026-07-02",
+      "start_time": "06:30:00",
+      "start_datetime": "2026-07-02T05:30:00Z",
+      "status": null,
+      "waitlist_count": null,
+      "reservations": []
+    },
+    {
+      "id": "79096",
+      "available_spot_count": 5,
+      "booking_start_datetime": "2026-06-25T07:00:00+01:00",
+      "is_late_cancel_overridden": false,
+      "capacity": 40,
+      "class_tags": [
+        {
+          "id": "4942",
+          "name": "Peak Member",
+          "slug": "peak-member"
+        },
+        {
+          "id": "4903",
+          "name": "Peak",
+          "slug": "peak"
+        }
+      ],
+      "class_type": {
+        "id": "6267",
+        "description": "12 ROUNDS IN 60 MINUTES Created to improve your endurance, power and boxing ability. The ultimate boxing experience that leaves you empowered and feeling like a fighter.",
+        "duration": 60,
+        "duration_formatted": "60 minutes",
+        "is_live_stream": false,
+        "name": "BOXING Drills & Endurance"
+      },
+      "classroom": {
+        "id": "6286",
+        "name": "BOXING"
+      },
+      "classroom_name": "BOXING",
+      "geo_check_in_end_datetime": null,
+      "geo_check_in_start_datetime": null,
+      "instructors": [
+        {
+          "id": "7195",
+          "bio": null,
+          "instagram_handle": null,
+          "instagram_url": null,
+          "name": "Elsa",
+          "photo_urls": {
+            "large_url": null,
+            "thumbnail_url": "https://mtproduction-files.s3.amazonaws.com/media/public_images/Screenshot_2026-02-01_at_09.50.26.png"
+          },
+          "spotify_url": null
+        }
+      ],
+      "in_live_stream_window": false,
+      "is_cancelled": false,
+      "is_remaining_spot_count_public": false,
+      "is_user_guest_reserved": false,
+      "is_user_reserved": false,
+      "is_user_waitlisted": false,
+      "is_free_class": false,
+      "layout_format": "pick-a-spot",
+      "location": {
+        "id": "48751",
+        "address_line_one": "Unit 5, Colonnade Walk, 151 Buckingham Palace Road",
+        "address_line_two": "",
+        "address_line_three": "",
+        "address_sorting_code": null,
+        "city": "London",
+        "currency_code": "GBP",
+        "description": "",
+        "email": "info@jabboxing.club",
+        "gate_geo_check_in_by_distance": false,
+        "geo_check_in_distance": 10,
+        "is_newsletter_subscription_pre_checked": true,
+        "latitude": "51.5000000",
+        "longitude": "-0.1666700",
+        "primary_language": "en-GB",
+        "name": "SW1",
+        "payment_gateway_type": "stripe",
+        "phone_number": "+02046184605",
+        "postal_code": "SW1W9SZ",
+        "state_province": "Greater London",
+        "timezone": "Europe/London",
+        "formatted_address": [
+          "Unit 5, Colonnade Walk, 151 Buckingham Palace Road",
+          "London",
+          "SW1W9SZ",
+          "United Kingdom"
+        ],
+        "listed": true,
+        "region": {
+          "id": "48575",
+          "name": "Southeast"
+        }
+      },
+      "name": "BOXING Drills & Endurance",
+      "should_show_studio_address": true,
+      "spot_options": {
+        "primary_availability": 5,
+        "primary_capacity": 260,
+        "secondary_availability": 0,
+        "secondary_capacity": 0,
+        "standby_availability": 0,
+        "standby_capacity": 0,
+        "waitlist_availability": 30,
+        "waitlist_capacity": 30
+      },
+      "start_date": "2026-07-02",
+      "start_time": "07:00:00",
+      "start_datetime": "2026-07-02T06:00:00Z",
+      "status": null,
+      "waitlist_count": null,
+      "reservations": []
+    },
+    {
+      "id": "79120",
+      "available_spot_count": 0,
+      "booking_start_datetime": "2026-06-25T07:30:00+01:00",
+      "is_late_cancel_overridden": false,
+      "capacity": 40,
+      "class_tags": [
+        {
+          "id": "4942",
+          "name": "Peak Member",
+          "slug": "peak-member"
+        },
+        {
+          "id": "4903",
+          "name": "Peak",
+          "slug": "peak"
+        }
+      ],
+      "class_type": {
+        "id": "5898",
+        "description": "The ultimate 50 minute functional training session, programmed and designed to improve your strength, conditioning and agility, so you can train, feel, and look like an athlete.",
+        "duration": 50,
+        "duration_formatted": "50 minutes",
+        "is_live_stream": false,
+        "name": "TRAIN - Core & Glutes"
+      },
+      "classroom": {
+        "id": "6282",
+        "name": "TRAIN"
+      },
+      "classroom_name": "TRAIN",
+      "geo_check_in_end_datetime": null,
+      "geo_check_in_start_datetime": null,
+      "instructors": [
+        {
+          "id": "6255",
+          "bio": null,
+          "instagram_handle": "nickolfloodx",
+          "instagram_url": "https://www.instagram.com/nickolfloodx",
+          "name": "Nickol",
+          "photo_urls": {
+            "large_url": "https://mtproduction-files.s3.amazonaws.com/media/public_images/2_IaLH0XH.png",
+            "thumbnail_url": "https://mtproduction-files.s3.amazonaws.com/media/public_images/2_r9cgZUz.png"
+          },
+          "spotify_url": null
+        }
+      ],
+      "in_live_stream_window": false,
+      "is_cancelled": false,
+      "is_remaining_spot_count_public": false,
+      "is_user_guest_reserved": false,
+      "is_user_reserved": false,
+      "is_user_waitlisted": false,
+      "is_free_class": false,
+      "layout_format": "pick-a-spot",
+      "location": {
+        "id": "48751",
+        "address_line_one": "Unit 5, Colonnade Walk, 151 Buckingham Palace Road",
+        "address_line_two": "",
+        "address_line_three": "",
+        "address_sorting_code": null,
+        "city": "London",
+        "currency_code": "GBP",
+        "description": "",
+        "email": "info@jabboxing.club",
+        "gate_geo_check_in_by_distance": false,
+        "geo_check_in_distance": 10,
+        "is_newsletter_subscription_pre_checked": true,
+        "latitude": "51.5000000",
+        "longitude": "-0.1666700",
+        "primary_language": "en-GB",
+        "name": "SW1",
+        "payment_gateway_type": "stripe",
+        "phone_number": "+02046184605",
+        "postal_code": "SW1W9SZ",
+        "state_province": "Greater London",
+        "timezone": "Europe/London",
+        "formatted_address": [
+          "Unit 5, Colonnade Walk, 151 Buckingham Palace Road",
+          "London",
+          "SW1W9SZ",
+          "United Kingdom"
+        ],
+        "listed": true,
+        "region": {
+          "id": "48575",
+          "name": "Southeast"
+        }
+      },
+      "name": "TRAIN - Core & Glutes",
+      "should_show_studio_address": true,
+      "spot_options": {
+        "primary_availability": 0,
+        "primary_capacity": 260,
+        "secondary_availability": 0,
+        "secondary_capacity": 0,
+        "standby_availability": 0,
+        "standby_capacity": 0,
+        "waitlist_availability": 28,
+        "waitlist_capacity": 30
+      },
+      "start_date": "2026-07-02",
+      "start_time": "07:30:00",
+      "start_datetime": "2026-07-02T06:30:00Z",
+      "status": "Waitlist Only",
+      "waitlist_count": null,
+      "reservations": []
+    },
+    {
+      "id": "79115",
+      "available_spot_count": 2,
+      "booking_start_datetime": "2026-06-25T07:30:00+01:00",
+      "is_late_cancel_overridden": false,
+      "capacity": 5,
+      "class_tags": [
+        {
+          "id": "4942",
+          "name": "Peak Member",
+          "slug": "peak-member"
+        }
+      ],
+      "class_type": {
+        "id": "5973",
+        "description": "A dedicated recovery suite featuring hot and cold therapies, to reduce inflammation and stress in your body, improving your everyday performance. \nBooking slots are 45 minutes.",
+        "duration": 45,
+        "duration_formatted": "45 minutes",
+        "is_live_stream": false,
+        "name": "RECOVERY (Members)"
+      },
+      "classroom": {
+        "id": "6447",
+        "name": "RECOVERY 2.0"
+      },
+      "classroom_name": "RECOVERY 2.0",
+      "geo_check_in_end_datetime": null,
+      "geo_check_in_start_datetime": null,
+      "instructors": [],
+      "in_live_stream_window": false,
+      "is_cancelled": false,
+      "is_remaining_spot_count_public": false,
+      "is_user_guest_reserved": false,
+      "is_user_reserved": false,
+      "is_user_waitlisted": false,
+      "is_free_class": false,
+      "layout_format": "first-come-first-serve",
+      "location": {
+        "id": "48751",
+        "address_line_one": "Unit 5, Colonnade Walk, 151 Buckingham Palace Road",
+        "address_line_two": "",
+        "address_line_three": "",
+        "address_sorting_code": null,
+        "city": "London",
+        "currency_code": "GBP",
+        "description": "",
+        "email": "info@jabboxing.club",
+        "gate_geo_check_in_by_distance": false,
+        "geo_check_in_distance": 10,
+        "is_newsletter_subscription_pre_checked": true,
+        "latitude": "51.5000000",
+        "longitude": "-0.1666700",
+        "primary_language": "en-GB",
+        "name": "SW1",
+        "payment_gateway_type": "stripe",
+        "phone_number": "+02046184605",
+        "postal_code": "SW1W9SZ",
+        "state_province": "Greater London",
+        "timezone": "Europe/London",
+        "formatted_address": [
+          "Unit 5, Colonnade Walk, 151 Buckingham Palace Road",
+          "London",
+          "SW1W9SZ",
+          "United Kingdom"
+        ],
+        "listed": true,
+        "region": {
+          "id": "48575",
+          "name": "Southeast"
+        }
+      },
+      "name": "RECOVERY (Members)",
+      "should_show_studio_address": true,
+      "spot_options": {
+        "primary_availability": 2,
+        "primary_capacity": 5,
+        "secondary_availability": 0,
+        "secondary_capacity": 0,
+        "standby_availability": 0,
+        "standby_capacity": 0,
+        "waitlist_availability": 10,
+        "waitlist_capacity": 10
+      },
+      "start_date": "2026-07-02",
+      "start_time": "07:30:00",
+      "start_datetime": "2026-07-02T06:30:00Z",
+      "status": null,
+      "waitlist_count": null,
+      "reservations": []
+    },
+    {
+      "id": "79095",
+      "available_spot_count": 23,
+      "booking_start_datetime": "2026-06-25T08:10:00+01:00",
+      "is_late_cancel_overridden": false,
+      "capacity": 40,
+      "class_tags": [
+        {
+          "id": "4942",
+          "name": "Peak Member",
+          "slug": "peak-member"
+        },
+        {
+          "id": "4903",
+          "name": "Peak",
+          "slug": "peak"
+        }
+      ],
+      "class_type": {
+        "id": "6267",
+        "description": "12 ROUNDS IN 60 MINUTES Created to improve your endurance, power and boxing ability. The ultimate boxing experience that leaves you empowered and feeling like a fighter.",
+        "duration": 60,
+        "duration_formatted": "60 minutes",
+        "is_live_stream": false,
+        "name": "BOXING Drills & Endurance"
+      },
+      "classroom": {
+        "id": "6286",
+        "name": "BOXING"
+      },
+      "classroom_name": "BOXING",
+      "geo_check_in_end_datetime": null,
+      "geo_check_in_start_datetime": null,
+      "instructors": [
+        {
+          "id": "7196",
+          "bio": null,
+          "instagram_handle": null,
+          "instagram_url": null,
+          "name": "Luis Javier Pareja Munoz",
+          "photo_urls": {
+            "large_url": null,
+            "thumbnail_url": "https://mtproduction-files.s3.amazonaws.com/media/public_images/Screenshot_2026-02-01_at_09.48.02.png"
+          },
+          "spotify_url": null
+        }
+      ],
+      "in_live_stream_window": false,
+      "is_cancelled": false,
+      "is_remaining_spot_count_public": false,
+      "is_user_guest_reserved": false,
+      "is_user_reserved": false,
+      "is_user_waitlisted": false,
+      "is_free_class": false,
+      "layout_format": "pick-a-spot",
+      "location": {
+        "id": "48751",
+        "address_line_one": "Unit 5, Colonnade Walk, 151 Buckingham Palace Road",
+        "address_line_two": "",
+        "address_line_three": "",
+        "address_sorting_code": null,
+        "city": "London",
+        "currency_code": "GBP",
+        "description": "",
+        "email": "info@jabboxing.club",
+        "gate_geo_check_in_by_distance": false,
+        "geo_check_in_distance": 10,
+        "is_newsletter_subscription_pre_checked": true,
+        "latitude": "51.5000000",
+        "longitude": "-0.1666700",
+        "primary_language": "en-GB",
+        "name": "SW1",
+        "payment_gateway_type": "stripe",
+        "phone_number": "+02046184605",
+        "postal_code": "SW1W9SZ",
+        "state_province": "Greater London",
+        "timezone": "Europe/London",
+        "formatted_address": [
+          "Unit 5, Colonnade Walk, 151 Buckingham Palace Road",
+          "London",
+          "SW1W9SZ",
+          "United Kingdom"
+        ],
+        "listed": true,
+        "region": {
+          "id": "48575",
+          "name": "Southeast"
+        }
+      },
+      "name": "BOXING Drills & Endurance",
+      "should_show_studio_address": true,
+      "spot_options": {
+        "primary_availability": 23,
+        "primary_capacity": 260,
+        "secondary_availability": 0,
+        "secondary_capacity": 0,
+        "standby_availability": 0,
+        "standby_capacity": 0,
+        "waitlist_availability": 30,
+        "waitlist_capacity": 30
+      },
+      "start_date": "2026-07-02",
+      "start_time": "08:10:00",
+      "start_datetime": "2026-07-02T07:10:00Z",
+      "status": null,
+      "waitlist_count": null,
+      "reservations": []
+    },
+    {
+      "id": "79119",
+      "available_spot_count": 5,
+      "booking_start_datetime": "2026-06-25T08:30:00+01:00",
+      "is_late_cancel_overridden": false,
+      "capacity": 40,
+      "class_tags": [
+        {
+          "id": "4942",
+          "name": "Peak Member",
+          "slug": "peak-member"
+        },
+        {
+          "id": "4903",
+          "name": "Peak",
+          "slug": "peak"
+        }
+      ],
+      "class_type": {
+        "id": "5898",
+        "description": "The ultimate 50 minute functional training session, programmed and designed to improve your strength, conditioning and agility, so you can train, feel, and look like an athlete.",
+        "duration": 50,
+        "duration_formatted": "50 minutes",
+        "is_live_stream": false,
+        "name": "TRAIN - Core & Glutes"
+      },
+      "classroom": {
+        "id": "6282",
+        "name": "TRAIN"
+      },
+      "classroom_name": "TRAIN",
+      "geo_check_in_end_datetime": null,
+      "geo_check_in_start_datetime": null,
+      "instructors": [
+        {
+          "id": "6256",
+          "bio": null,
+          "instagram_handle": "zara.roberts",
+          "instagram_url": "https://www.instagram.com/zara.roberts",
+          "name": "Zara",
+          "photo_urls": {
+            "large_url": "https://mtproduction-files.s3.amazonaws.com/media/public_images/5_cl4CKb0.png",
+            "thumbnail_url": "https://mtproduction-files.s3.amazonaws.com/media/public_images/5_YpBMfwZ.png"
+          },
+          "spotify_url": null
+        }
+      ],
+      "in_live_stream_window": false,
+      "is_cancelled": false,
+      "is_remaining_spot_count_public": false,
+      "is_user_guest_reserved": false,
+      "is_user_reserved": false,
+      "is_user_waitlisted": false,
+      "is_free_class": false,
+      "layout_format": "pick-a-spot",
+      "location": {
+        "id": "48751",
+        "address_line_one": "Unit 5, Colonnade Walk, 151 Buckingham Palace Road",
+        "address_line_two": "",
+        "address_line_three": "",
+        "address_sorting_code": null,
+        "city": "London",
+        "currency_code": "GBP",
+        "description": "",
+        "email": "info@jabboxing.club",
+        "gate_geo_check_in_by_distance": false,
+        "geo_check_in_distance": 10,
+        "is_newsletter_subscription_pre_checked": true,
+        "latitude": "51.5000000",
+        "longitude": "-0.1666700",
+        "primary_language": "en-GB",
+        "name": "SW1",
+        "payment_gateway_type": "stripe",
+        "phone_number": "+02046184605",
+        "postal_code": "SW1W9SZ",
+        "state_province": "Greater London",
+        "timezone": "Europe/London",
+        "formatted_address": [
+          "Unit 5, Colonnade Walk, 151 Buckingham Palace Road",
+          "London",
+          "SW1W9SZ",
+          "United Kingdom"
+        ],
+        "listed": true,
+        "region": {
+          "id": "48575",
+          "name": "Southeast"
+        }
+      },
+      "name": "TRAIN - Core & Glutes",
+      "should_show_studio_address": true,
+      "spot_options": {
+        "primary_availability": 5,
+        "primary_capacity": 260,
+        "secondary_availability": 0,
+        "secondary_capacity": 0,
+        "standby_availability": 0,
+        "standby_capacity": 0,
+        "waitlist_availability": 30,
+        "waitlist_capacity": 30
+      },
+      "start_date": "2026-07-02",
+      "start_time": "08:30:00",
+      "start_datetime": "2026-07-02T07:30:00Z",
+      "status": null,
+      "waitlist_count": null,
+      "reservations": []
+    },
+    {
+      "id": "79114",
+      "available_spot_count": 1,
+      "booking_start_datetime": "2026-06-25T08:30:00+01:00",
+      "is_late_cancel_overridden": false,
+      "capacity": 5,
+      "class_tags": [
+        {
+          "id": "4942",
+          "name": "Peak Member",
+          "slug": "peak-member"
+        }
+      ],
+      "class_type": {
+        "id": "5973",
+        "description": "A dedicated recovery suite featuring hot and cold therapies, to reduce inflammation and stress in your body, improving your everyday performance. \nBooking slots are 45 minutes.",
+        "duration": 45,
+        "duration_formatted": "45 minutes",
+        "is_live_stream": false,
+        "name": "RECOVERY (Members)"
+      },
+      "classroom": {
+        "id": "6447",
+        "name": "RECOVERY 2.0"
+      },
+      "classroom_name": "RECOVERY 2.0",
+      "geo_check_in_end_datetime": null,
+      "geo_check_in_start_datetime": null,
+      "instructors": [],
+      "in_live_stream_window": false,
+      "is_cancelled": false,
+      "is_remaining_spot_count_public": false,
+      "is_user_guest_reserved": false,
+      "is_user_reserved": false,
+      "is_user_waitlisted": false,
+      "is_free_class": false,
+      "layout_format": "first-come-first-serve",
+      "location": {
+        "id": "48751",
+        "address_line_one": "Unit 5, Colonnade Walk, 151 Buckingham Palace Road",
+        "address_line_two": "",
+        "address_line_three": "",
+        "address_sorting_code": null,
+        "city": "London",
+        "currency_code": "GBP",
+        "description": "",
+        "email": "info@jabboxing.club",
+        "gate_geo_check_in_by_distance": false,
+        "geo_check_in_distance": 10,
+        "is_newsletter_subscription_pre_checked": true,
+        "latitude": "51.5000000",
+        "longitude": "-0.1666700",
+        "primary_language": "en-GB",
+        "name": "SW1",
+        "payment_gateway_type": "stripe",
+        "phone_number": "+02046184605",
+        "postal_code": "SW1W9SZ",
+        "state_province": "Greater London",
+        "timezone": "Europe/London",
+        "formatted_address": [
+          "Unit 5, Colonnade Walk, 151 Buckingham Palace Road",
+          "London",
+          "SW1W9SZ",
+          "United Kingdom"
+        ],
+        "listed": true,
+        "region": {
+          "id": "48575",
+          "name": "Southeast"
+        }
+      },
+      "name": "RECOVERY (Members)",
+      "should_show_studio_address": true,
+      "spot_options": {
+        "primary_availability": 1,
+        "primary_capacity": 5,
+        "secondary_availability": 0,
+        "secondary_capacity": 0,
+        "standby_availability": 0,
+        "standby_capacity": 0,
+        "waitlist_availability": 10,
+        "waitlist_capacity": 10
+      },
+      "start_date": "2026-07-02",
+      "start_time": "08:30:00",
+      "start_datetime": "2026-07-02T07:30:00Z",
+      "status": null,
+      "waitlist_count": null,
+      "reservations": []
+    },
+    {
+      "id": "79094",
+      "available_spot_count": 31,
+      "booking_start_datetime": "2026-06-25T09:20:00+01:00",
+      "is_late_cancel_overridden": false,
+      "capacity": 40,
+      "class_tags": [
+        {
+          "id": "4942",
+          "name": "Peak Member",
+          "slug": "peak-member"
+        },
+        {
+          "id": "4903",
+          "name": "Peak",
+          "slug": "peak"
+        }
+      ],
+      "class_type": {
+        "id": "6267",
+        "description": "12 ROUNDS IN 60 MINUTES Created to improve your endurance, power and boxing ability. The ultimate boxing experience that leaves you empowered and feeling like a fighter.",
+        "duration": 60,
+        "duration_formatted": "60 minutes",
+        "is_live_stream": false,
+        "name": "BOXING Drills & Endurance"
+      },
+      "classroom": {
+        "id": "6286",
+        "name": "BOXING"
+      },
+      "classroom_name": "BOXING",
+      "geo_check_in_end_datetime": null,
+      "geo_check_in_start_datetime": null,
+      "instructors": [
+        {
+          "id": "6250",
+          "bio": null,
+          "instagram_handle": "sebbiecpt",
+          "instagram_url": "https://www.instagram.com/sebbiecpt",
+          "name": "Seb",
+          "photo_urls": {
+            "large_url": "https://mtproduction-files.s3.amazonaws.com/media/public_images/1_DnkvFms.png",
+            "thumbnail_url": "https://mtproduction-files.s3.amazonaws.com/media/public_images/1_xhkZQ9B.png"
+          },
+          "spotify_url": null
+        }
+      ],
+      "in_live_stream_window": false,
+      "is_cancelled": false,
+      "is_remaining_spot_count_public": false,
+      "is_user_guest_reserved": false,
+      "is_user_reserved": false,
+      "is_user_waitlisted": false,
+      "is_free_class": false,
+      "layout_format": "pick-a-spot",
+      "location": {
+        "id": "48751",
+        "address_line_one": "Unit 5, Colonnade Walk, 151 Buckingham Palace Road",
+        "address_line_two": "",
+        "address_line_three": "",
+        "address_sorting_code": null,
+        "city": "London",
+        "currency_code": "GBP",
+        "description": "",
+        "email": "info@jabboxing.club",
+        "gate_geo_check_in_by_distance": false,
+        "geo_check_in_distance": 10,
+        "is_newsletter_subscription_pre_checked": true,
+        "latitude": "51.5000000",
+        "longitude": "-0.1666700",
+        "primary_language": "en-GB",
+        "name": "SW1",
+        "payment_gateway_type": "stripe",
+        "phone_number": "+02046184605",
+        "postal_code": "SW1W9SZ",
+        "state_province": "Greater London",
+        "timezone": "Europe/London",
+        "formatted_address": [
+          "Unit 5, Colonnade Walk, 151 Buckingham Palace Road",
+          "London",
+          "SW1W9SZ",
+          "United Kingdom"
+        ],
+        "listed": true,
+        "region": {
+          "id": "48575",
+          "name": "Southeast"
+        }
+      },
+      "name": "BOXING Drills & Endurance",
+      "should_show_studio_address": true,
+      "spot_options": {
+        "primary_availability": 31,
+        "primary_capacity": 260,
+        "secondary_availability": 0,
+        "secondary_capacity": 0,
+        "standby_availability": 0,
+        "standby_capacity": 0,
+        "waitlist_availability": 30,
+        "waitlist_capacity": 30
+      },
+      "start_date": "2026-07-02",
+      "start_time": "09:20:00",
+      "start_datetime": "2026-07-02T08:20:00Z",
+      "status": null,
+      "waitlist_count": null,
+      "reservations": []
+    },
+    {
+      "id": "79113",
+      "available_spot_count": 4,
+      "booking_start_datetime": "2026-06-25T09:30:00+01:00",
+      "is_late_cancel_overridden": false,
+      "capacity": 5,
+      "class_tags": [
+        {
+          "id": "4942",
+          "name": "Peak Member",
+          "slug": "peak-member"
+        }
+      ],
+      "class_type": {
+        "id": "5973",
+        "description": "A dedicated recovery suite featuring hot and cold therapies, to reduce inflammation and stress in your body, improving your everyday performance. \nBooking slots are 45 minutes.",
+        "duration": 45,
+        "duration_formatted": "45 minutes",
+        "is_live_stream": false,
+        "name": "RECOVERY (Members)"
+      },
+      "classroom": {
+        "id": "6447",
+        "name": "RECOVERY 2.0"
+      },
+      "classroom_name": "RECOVERY 2.0",
+      "geo_check_in_end_datetime": null,
+      "geo_check_in_start_datetime": null,
+      "instructors": [],
+      "in_live_stream_window": false,
+      "is_cancelled": false,
+      "is_remaining_spot_count_public": false,
+      "is_user_guest_reserved": false,
+      "is_user_reserved": false,
+      "is_user_waitlisted": false,
+      "is_free_class": false,
+      "layout_format": "first-come-first-serve",
+      "location": {
+        "id": "48751",
+        "address_line_one": "Unit 5, Colonnade Walk, 151 Buckingham Palace Road",
+        "address_line_two": "",
+        "address_line_three": "",
+        "address_sorting_code": null,
+        "city": "London",
+        "currency_code": "GBP",
+        "description": "",
+        "email": "info@jabboxing.club",
+        "gate_geo_check_in_by_distance": false,
+        "geo_check_in_distance": 10,
+        "is_newsletter_subscription_pre_checked": true,
+        "latitude": "51.5000000",
+        "longitude": "-0.1666700",
+        "primary_language": "en-GB",
+        "name": "SW1",
+        "payment_gateway_type": "stripe",
+        "phone_number": "+02046184605",
+        "postal_code": "SW1W9SZ",
+        "state_province": "Greater London",
+        "timezone": "Europe/London",
+        "formatted_address": [
+          "Unit 5, Colonnade Walk, 151 Buckingham Palace Road",
+          "London",
+          "SW1W9SZ",
+          "United Kingdom"
+        ],
+        "listed": true,
+        "region": {
+          "id": "48575",
+          "name": "Southeast"
+        }
+      },
+      "name": "RECOVERY (Members)",
+      "should_show_studio_address": true,
+      "spot_options": {
+        "primary_availability": 4,
+        "primary_capacity": 5,
+        "secondary_availability": 0,
+        "secondary_capacity": 0,
+        "standby_availability": 0,
+        "standby_capacity": 0,
+        "waitlist_availability": 10,
+        "waitlist_capacity": 10
+      },
+      "start_date": "2026-07-02",
+      "start_time": "09:30:00",
+      "start_datetime": "2026-07-02T08:30:00Z",
+      "status": null,
+      "waitlist_count": null,
+      "reservations": []
+    }
+  ],
+  "meta": {
+    "pagination": {
+      "count": 409,
+      "pages": 41,
+      "page": 1,
+      "per_page": 10
+    }
+  }
+}

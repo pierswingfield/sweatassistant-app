@@ -1,5 +1,7 @@
 # Backlog Spec: Sweat Assistant — Multi-Provider Modular Gym Architecture
 
+> **⚠️ Superseded.** This high-level spec is kept for reference. The authoritative, detailed plan (with rigorous analysis, phased work packages, testing, and the multi-agent handoff protocol) now lives in **[modular-gyms/](./modular-gyms/)** — start with [PLAN.md](./modular-gyms/PLAN.md). Locked decisions since this spec was written: **multiple gyms per account** (not the single `users.gym_id` column shown below), **"Sweat Assistant"** umbrella brand, and **full parity minus purchases** for the JAB v1.
+
 ## Context & Vision
 The current application is hardcoded to Psycle London (which uses the CodexFit scheduling platform). The goal is to evolve the platform into **Sweat Assistant**—a modular, multi-gym, multi-provider booking and scheduling assistant. 
 

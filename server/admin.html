@@ -353,6 +353,28 @@
   <div class="drawer-body" id="drawer-body"></div>
 </div>
 
+<!-- Password reset modal (account-recovery escape hatch — see admin.js) -->
+<div class="confirm-overlay" id="reset-overlay">
+  <div class="confirm-card" style="max-width:520px;">
+    <h3>Reset account password?</h3>
+    <p id="reset-text"></p>
+    <label style="display:flex;gap:8px;align-items:flex-start;margin:14px 0;font-size:13px;line-height:1.5;">
+      <input type="checkbox" id="reset-clear-gyms" checked style="margin-top:3px;">
+      <span>Also clear stored gym credentials.
+        <span style="color:var(--text-muted);display:block;font-size:12px;">
+          Recommended. The user re-authenticates each gym; their queue, spot maps and priority tier are kept.
+          Uncheck only for a routine forgotten password where the account was never at risk.
+        </span>
+      </span>
+    </label>
+    <div id="reset-result" style="display:none;margin:14px 0;"></div>
+    <div class="confirm-actions">
+      <button class="btn btn-ghost" id="reset-cancel">Cancel</button>
+      <button class="btn btn-danger" id="reset-ok">Reset password</button>
+    </div>
+  </div>
+</div>
+
 <!-- Delete confirm modal -->
 <div class="confirm-overlay" id="confirm-overlay">
   <div class="confirm-card">
@@ -432,6 +454,8 @@
 
   // ── Users ─────────────────────────────────────────────────────────────────
 
+  let pendingReset = null;
+
   async function apiFetch(url, opts = {}) {
     const res = await fetch(url, {
       ...opts,
@@ -509,6 +533,10 @@
         <td><span class="last-seen${seenStale ? ' stale' : ''}">${seen}</span></td>
         <td><span class="created">${joined}</span></td>
         <td>
+          <button class="btn reset-pw-btn" data-user-id="${u.id}" data-email="${escHtml(u.email)}"
+                  title="Generate a new password for this account">
+            Reset password
+          </button>
           <button class="btn btn-danger delete-btn" data-user-id="${u.id}" data-name="${escHtml(name)}" data-email="${escHtml(u.email)}">
             Delete
           </button>
@@ -553,6 +581,22 @@
       });
     });
 
+    // Reset password → the account-recovery escape hatch (there is no
+    // self-service reset; see admin.js and BACKLOG.md "Account recovery").
+    tbody.querySelectorAll('.reset-pw-btn').forEach(btn => {
+      btn.addEventListener('click', () => {
+        pendingReset = { id: parseInt(btn.dataset.userId, 10), email: btn.dataset.email };
+        document.getElementById('reset-text').textContent =
+          `A new password will be generated for ${pendingReset.email} and shown once. ` +
+          `Their current password stops working immediately.`;
+        document.getElementById('reset-result').style.display = 'none';
+        document.getElementById('reset-clear-gyms').checked = true;
+        document.getElementById('reset-ok').style.display = '';
+        document.getElementById('reset-cancel').textContent = 'Cancel';
+        document.getElementById('reset-overlay').classList.add('open');
+      });
+    });
+
     // Name → open detail drawer
     tbody.querySelectorAll('.name-btn').forEach(btn => {
       btn.addEventListener('click', () => openDetail(parseInt(btn.dataset.detailId, 10)));
@@ -594,6 +638,7 @@
     body.className = 'drawer-body';
     body.innerHTML = [
       sectionOverview(d),
+      sectionGyms(d),
       sectionBookingWindow(d),
       sectionStats(d),
       sectionCredits(d),
@@ -621,6 +666,19 @@
       ['Session valid until', fmtDateTime(u.jwt_expires_at) || '—'],
     ];
     return section('Overview', `<dl class="kv-grid">${rows.map(([k, v]) => `<dt>${k}</dt><dd>${v}</dd>`).join('')}</dl>`);
+  }
+
+  function sectionGyms(d) {
+    const gyms = d.gyms || [];
+    if (!gyms.length) return section('Linked gyms', `<div class="empty">No gyms linked.</div>`, 0);
+    const items = gyms.map(g => {
+      const enabledPill = g.gym_enabled ? '<span class="pill pill-green">Enabled</span>' : '<span class="pill pill-muted">Disabled</span>';
+      const vip = g.priority < 100 ? ` · <span class="pill pill-accent">${g.priority} VIP</span>` : '';
+      return `<div class="item"><div class="item-head"><span class="item-title">${escHtml(g.gym_name)}</span>
+        ${enabledPill}</div>
+        <div class="item-meta">${escHtml(g.provider)} · linked ${fmtDate(g.created_at)}${vip}</div></div>`;
+    }).join('');
+    return section('Linked gyms', items, gyms.length);
   }
 
   function sectionBookingWindow(d) {
@@ -916,6 +974,63 @@
   document.getElementById('drawer-close').addEventListener('click', closeDrawer);
   document.getElementById('drawer-overlay').addEventListener('click', closeDrawer);
   document.addEventListener('keydown', e => { if (e.key === 'Escape') closeDrawer(); });
+
+  document.getElementById('reset-cancel').addEventListener('click', () => {
+    document.getElementById('reset-overlay').classList.remove('open');
+    pendingReset = null;
+  });
+
+  document.getElementById('reset-ok').addEventListener('click', async () => {
+    if (!pendingReset) return;
+    const btn = document.getElementById('reset-ok');
+    const resultEl = document.getElementById('reset-result');
+    btn.disabled = true;
+    btn.textContent = 'Resetting…';
+    try {
+      const res = await apiFetch(`/api/admin/users/${pendingReset.id}/reset-password`, {
+        method: 'POST',
+        body: JSON.stringify({
+          resetGymCredentials: document.getElementById('reset-clear-gyms').checked,
+        }),
+      });
+      const d = await res.json();
+      if (!res.ok) throw new Error(d.message);
+
+      // Shown exactly once — it is not stored in plaintext and cannot be
+      // retrieved again. Make that unmissable rather than a quiet toast.
+      resultEl.style.display = 'block';
+      resultEl.innerHTML =
+        `<div style="border:1px solid rgba(201,83,79,0.35);background:var(--red-dim);border-radius:8px;padding:12px;">
+           <div style="font-size:12px;color:var(--text-muted);margin-bottom:6px;">
+             Temporary password for ${escHtml(d.email)} — shown once, copy it now.
+           </div>
+           <code id="reset-temp" style="display:block;font-size:15px;word-break:break-all;user-select:all;">${escHtml(d.tempPassword)}</code>
+           <button class="btn" id="reset-copy" style="margin-top:10px;">Copy</button>
+           <div style="font-size:12px;color:var(--text-muted);margin-top:10px;line-height:1.5;">
+             ${d.clearedGyms.length
+               ? `Gym credentials cleared: <strong>${d.clearedGyms.map(escHtml).join(', ')}</strong>. They will need to re-authenticate each gym in Settings → Your Gyms.`
+               : 'Gym credentials were left in place.'}
+             <br>Send this over a trusted channel and have them change it in Settings.
+           </div>
+         </div>`;
+      document.getElementById('reset-copy').addEventListener('click', () => {
+        navigator.clipboard.writeText(d.tempPassword)
+          .then(() => { document.getElementById('reset-copy').textContent = 'Copied'; })
+          .catch(() => { document.getElementById('reset-copy').textContent = 'Copy failed — select it manually'; });
+      });
+      // No second reset from this dialog: the button is gone and Cancel becomes
+      // Close, so the only way out is acknowledging the password was shown.
+      btn.style.display = 'none';
+      document.getElementById('reset-cancel').textContent = 'Close';
+      pendingReset = null;
+    } catch (err) {
+      resultEl.style.display = 'block';
+      resultEl.innerHTML = `<div style="color:var(--red);font-size:13px;">${escHtml(err.message)}</div>`;
+    } finally {
+      btn.disabled = false;
+      btn.textContent = 'Reset password';
+    }
+  });
 
   document.getElementById('confirm-cancel').addEventListener('click', () => {
     document.getElementById('confirm-overlay').classList.remove('open');

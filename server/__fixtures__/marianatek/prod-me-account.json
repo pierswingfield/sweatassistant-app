@@ -1,0 +1,47 @@
+{
+  "_fixture_note": "HEAVILY REDACTED. GET /me/account against a real production member account, 2026-07-02. Field NAMES and non-personal structural values (studio locations, feature booleans, array shapes) are real. All personally-identifying VALUES are replaced with placeholders — do not treat any string below as real data. This exists to document the response SHAPE for the adapter's getProfile()/NormalizedProfile mapping, not to capture real account data.",
+  "id": "REDACTED_USER_ID",
+  "account_balance": [{ "amount": "0.00", "currency": "GBP", "locations": [] }],
+  "address_line_one": "",
+  "birth_date": null,
+  "city": "",
+  "completed_class_count": 338,
+  "country": "GB",
+  "credit_cards": [
+    {
+      "id": "REDACTED",
+      "card_type": "REDACTED",
+      "expiration_month": "01",
+      "expiration_year": "2030",
+      "is_editable": true,
+      "is_expired": false,
+      "has_auth_error": false,
+      "last_four": "0000",
+      "name": null,
+      "partner_reference": "REDACTED_STRIPE_PM_ID",
+      "usage_locations": ["_note: array of full location objects, same shape as locations.json"]
+    }
+  ],
+  "email": "REDACTED_EMAIL",
+  "first_name": "REDACTED",
+  "full_name": "REDACTED",
+  "last_name": "REDACTED",
+  "gender": null,
+  "home_location": { "id": "48751", "name": "SW1", "_note": "real, public studio info — same shape as locations.json entries" },
+  "is_balance_used_for_fees": false,
+  "is_marketing_allowed": false,
+  "is_opted_in_to_sms": false,
+  "is_opted_in_to_transactional_sms": true,
+  "is_waiver_signed": true,
+  "join_datetime": "2024-11-22T19:08:22.502844Z",
+  "phone_number": "REDACTED",
+  "postal_code": "",
+  "pronouns": "REDACTED",
+  "profile_image": null,
+  "required_legal_documents": [
+    { "document_id": "REDACTED", "name": "Privacy Policy", "is_required_for_users": true, "is_signable_by_checkbox": true, "document_type": "privacy_agreement", "url": "https://jab-box.com/privacy-policy/", "is_signed": true }
+  ],
+  "has_unsigned_waivers": false,
+  "stripe_customer_id": "REDACTED_STRIPE_CUSTOMER_ID",
+  "adapter_implication": "This response shape is notably different from the test-account's me-account.json fixture (which had 0 credit_cards, no membership) — real accounts carry a credit_cards array (with usage_locations nested per card, oddly — a card can be scoped to specific studio locations), a stripe_customer_id, and full legal-document/waiver tracking. The adapter's NormalizedProfile builder should treat most of these as optional/gym-specific rather than assuming the test account's minimal shape is representative."
+}

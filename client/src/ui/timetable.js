@@ -1,12 +1,14 @@
-import { api } from '../api';
+import { api, getActiveGymId } from '../api';
+import { getAvailableCreditsForEvent, hasUsableCredit } from './credit-allowance.js';
+import { can, getGymContext } from '../gym-context.js';
 import { showToast, currentUser, userSettings, refreshUserData, updateCreditBadge, cache, debugConsole } from '../main';
 import { getClassReleaseTime, getNextMondayNoonLondon, isInGracePeriod, GRACE_PERIOD_MS, startGraceCountdown } from '../lib';
 import { DateTime } from 'luxon';
 // === MOBILE TIMETABLE — import renderMinimap (added Jun 2026; delete this block to revert) ===
 import { renderMinimap } from './tooltips.js';
 // === END MOBILE TIMETABLE BLOCK ===
-import { openDB } from '../cache.js';
-import { disciplineTag, seatNoun, sparklesIcon, trendingUpIcon, icon, pulseIcon } from './cards';
+import { openDB, gymScopedKey } from '../cache.js';
+import { disciplineTag, seatNoun, sparklesIcon, trendingUpIcon, icon, pulseIcon, trimLocation} from './cards';
 import { openEditBookingModal } from './bookings';
 import { openStudioFloorPlanEditor } from './settings';
 
@@ -58,12 +60,23 @@ export let metadata = {
 // Rebuilt after every metadata update
 let locationMap = new Map();
 let studioMap = new Map();
-let studioObjMap = new Map(); // full studio object for location_id lookup
+let studioObjMap = new Map(); // full studio object, for locationId + hasLayout lookups
 let instructorMap = new Map();
 // Session-level studio layout cache keyed by studio_id — layouts rarely change mid-session
 const studioLayoutCache = new Map();
 let eventTypeMap = new Map();
 let eventTypeGroupMap = new Map(); // eventTypeId -> group name
+
+// Normalized metadata ids are STRINGS; raw event fields (studio_id, instructor_id,
+// event_type_id) are numbers. Strict equality between them is silently false, so
+// every metadata lookup goes through this (WP-D9).
+const sameId = (a, b) => a != null && b != null && String(a) === String(b);
+
+// A booking matches an event when their ids agree — across a normalized booking
+// (`eventId`, a string) and a raw event (`id`, a number). The pre-D9 shape
+// (`event_id`) is still accepted so a stale cache degrades rather than breaking.
+const matchesEvent = (b, event) => sameId(b.eventId ?? b.event_id ?? b.event?.id, event.id);
+
 
 /** Rebuild lookup Maps from current metadata arrays. Includes both int and string keys. */
 function buildMetaMaps() {
@@ -93,45 +106,10 @@ function buildMetaMaps() {
     eventTypeMap.set(x.id, x.name);
     eventTypeMap.set(String(x.id), x.name);
     if (x.group) {
-      eventTypeGroupMap.set(x.id, x.group.name);
-      eventTypeGroupMap.set(String(x.id), x.group.name);
+      eventTypeGroupMap.set(x.id, x.group);
+      eventTypeGroupMap.set(String(x.id), x.group);
     }
   });
-}
-
-/** Merge relations from an events payload into metadata (extension pattern). */
-function mergeRelations(rels) {
-  if (!rels) return;
-  let changed = false;
-  if (rels.locations) {
-    rels.locations.forEach(x => {
-      if (!metadata.locations.some(e => e.id === x.id)) {
-        metadata.locations.push(x); changed = true;
-      }
-    });
-  }
-  if (rels.studios) {
-    rels.studios.forEach(x => {
-      if (!metadata.studios.some(e => e.id === x.id)) {
-        metadata.studios.push(x); changed = true;
-      }
-    });
-  }
-  if (rels.instructors) {
-    rels.instructors.forEach(x => {
-      if (!metadata.instructors.some(e => e.id === x.id)) {
-        metadata.instructors.push(x); changed = true;
-      }
-    });
-  }
-  if (rels.event_types) {
-    rels.event_types.forEach(x => {
-      if (!metadata.eventTypes.some(e => e.id === x.id)) {
-        metadata.eventTypes.push(x); changed = true;
-      }
-    });
-  }
-  if (changed) buildMetaMaps();
 }
 
 let selectedLocations = [];
@@ -171,10 +149,27 @@ export async function initTimetable() {
   // <main class="psycle-body"> scroller, dispatched by active tab).
 }
 
+// Saved filters name PROVIDER ids (locations, instructors, class types), which are
+// unique only within a gym — so the key carries the gym (WP-G). Without this, a
+// switch to another gym silently applies the old gym's filter ids, which match
+// nothing and render an empty timetable that looks like a data-loading bug.
+// There is deliberately NO fallback to the unqualified key when a gym is set: it
+// would hand a gym with no saved filters the previous gym's ids, which is the bug
+// itself. A single-gym user with no `sweatActiveGymId` still reads the bare key,
+// so the common case keeps its saved filters; anyone who has explicitly selected
+// a gym re-saves once. Losing a device-local preference beats loading the wrong
+// gym's filters.
+const FILTERS_KEY_BASE = 'psycleDefaultFilters';
+
+function defaultFiltersKey() {
+  const gym = getActiveGymId();
+  return gym ? `${FILTERS_KEY_BASE}:${gym}` : FILTERS_KEY_BASE;
+}
+
 // Load default filter selections from localStorage
 function loadStoredFilters() {
   try {
-    const stored = localStorage.getItem('psycleDefaultFilters');
+    const stored = localStorage.getItem(defaultFiltersKey());
     if (stored) {
       const parsed = JSON.parse(stored);
       selectedLocations = parsed.locations || [];
@@ -190,28 +185,20 @@ function loadStoredFilters() {
 // Load metadata from API proxy
 async function loadMetadata() {
   try {
-    const promises = [];
-    if (metadata.locations.length === 0) {
-      promises.push(api.proxyGet('/locations', { ttlMs: 3600000 }).then(res => {
-        metadata.locations = Array.isArray(res) ? res : (res.data || []);
-      }));
+    // One gym-agnostic call replaces four raw CodexFit endpoint reads (WP-D9).
+    // Rows are normalized: { id, name } on all four, plus locationId/hasLayout on
+    // studios and group on class types. Ids are STRINGS — compare with String()
+    // or ==, never ===, against a numeric id from elsewhere.
+    if (!metadata.locations.length || !metadata.instructors.length
+        || !metadata.eventTypes.length || !metadata.studios.length) {
+      const m = await api.getMetadata({ ttlMs: 3600000 });
+      metadata.locations = m.locations || [];
+      metadata.instructors = m.instructors || [];
+      metadata.studios = m.studios || [];
+      // Kept as `eventTypes` locally: renaming the field would touch every filter
+      // call site for no behavioural gain. The wire name is `classTypes`.
+      metadata.eventTypes = m.classTypes || [];
     }
-    if (metadata.instructors.length === 0) {
-      promises.push(api.proxyGet('/instructors', { ttlMs: 3600000 }).then(res => {
-        metadata.instructors = Array.isArray(res) ? res : (res.data || []);
-      }));
-    }
-    if (metadata.eventTypes.length === 0) {
-      promises.push(api.proxyGet('/event-types', { ttlMs: 3600000 }).then(res => {
-        metadata.eventTypes = Array.isArray(res) ? res : (res.data || []);
-      }));
-    }
-    if (metadata.studios.length === 0) {
-      promises.push(api.proxyGet('/studios', { ttlMs: 3600000 }).then(res => {
-        metadata.studios = Array.isArray(res) ? res : (res.data || []);
-      }));
-    }
-    await Promise.all(promises);
   } catch (err) {
     console.error('[Timetable] Metadata load failed:', err);
     showToast('Failed to load filters metadata.', 'error');
@@ -220,9 +207,12 @@ async function loadMetadata() {
 
 // Fetch all events for the prefetch window in parallel for all locations
 // Uses smart caching: 4hr TTL for events, force-refresh after Monday 12PM London
-const CACHE_KEY_EVENTS = 'psycleCacheEvents';
-const CACHE_KEY_META = 'psycleCacheMeta';
-const CACHE_KEY_TIME = 'psycleCacheTime';
+// Gym-scoped at USE time, not module load (WP-G): these hold ONE gym's events
+// and metadata, and an unqualified key served a JAB user Psycle's timetable from
+// a warm cache while every network call correctly returned MarianaTek data.
+const CACHE_KEY_EVENTS = () => gymScopedKey('psycleCacheEvents');
+const CACHE_KEY_META = () => gymScopedKey('psycleCacheMeta');
+const CACHE_KEY_TIME = () => gymScopedKey('psycleCacheTime');
 const CACHE_TTL_MS = 4 * 60 * 60 * 1000; // 4 hours
 
 export async function prefetchTimetableData(force = false) {
@@ -233,21 +223,29 @@ export async function prefetchTimetableData(force = false) {
 
   // Check if we can use cached event data
   const now = Date.now();
-  const cacheTime = parseInt(localStorage.getItem(CACHE_KEY_TIME) || '0', 10);
+  const cacheTime = parseInt(localStorage.getItem(CACHE_KEY_TIME()) || '0', 10);
   const cacheAge = now - cacheTime;
   
-  // Force-refresh if past Monday 12PM London release window
+  // Bust the cache across a release boundary, so a newly-opened week isn't hidden
+  // behind a stale timetable.
+  //
+  // This still uses Psycle's weekly Monday as the boundary, which is harmless but
+  // meaningless for a rolling-continuous gym (JAB), where new classes come into
+  // range continuously rather than in a weekly batch. The TTL below already
+  // covers that case; the weekly check is a Psycle-only optimisation and is
+  // scoped as such rather than presented as a universal rule.
+  // TODO(WP-D8): derive the boundary from the active gym's bookingWindow policy.
   const nextMonday = getNextMondayNoonLondon();
   const lastMonday = nextMonday.minus({ weeks: 1 });
   const pastReleaseWindow = DateTime.now().setZone('Europe/London') >= lastMonday && cacheTime < lastMonday.toMillis();
-  
+
   const cacheValid = !force && cacheAge < CACHE_TTL_MS && !pastReleaseWindow;
   
   if (cacheValid) {
     // Use cached events + metadata, always refresh bookings/waitlists
     try {
-      const cachedEvents = await cacheGet(CACHE_KEY_EVENTS);
-      const cachedMeta = await cacheGet(CACHE_KEY_META);
+      const cachedEvents = await cacheGet(CACHE_KEY_EVENTS());
+      const cachedMeta = await cacheGet(CACHE_KEY_META());
       if (cachedEvents && cachedEvents.length > 0) {
         psycleEvents = cachedEvents;
         // Restore metadata from cache so Maps can be rebuilt
@@ -261,12 +259,14 @@ export async function prefetchTimetableData(force = false) {
         isPrefetching = true;
         
         // Still refresh bookings/waitlists (they change frequently)
+        // NormalizedBooking[]: `eventId` (a STRING), not raw `event_id` (a number).
+        // Use matchesEvent() below rather than comparing directly.
         const [bookingsRes, waitlistsRes] = await Promise.all([
-          api.proxyGet('/bookings?limit=100&page=1', { ttlMs: 120000 }),
-          api.proxyGet('/waitlists?limit=100&page=1', { ttlMs: 120000 })
+          api.getBookings(),
+          api.getWaitlists(),
         ]);
-        userBookings = bookingsRes.data || bookingsRes || [];
-        userWaitlists = waitlistsRes.data || waitlistsRes || [];
+        userBookings = bookingsRes || [];
+        userWaitlists = waitlistsRes || [];
         cache.bookings = userBookings;
         cache.waitlists = userWaitlists;
 
@@ -291,61 +291,66 @@ export async function prefetchTimetableData(force = false) {
 
   try {
     // 1. Fetch user bookings and waitlists to keep action buttons in sync
+    // NormalizedBooking[]: `eventId` (a STRING), not raw `event_id` (a number).
+    // Use matchesEvent() below rather than comparing directly.
     const [bookingsRes, waitlistsRes] = await Promise.all([
-      api.proxyGet('/bookings?limit=100&page=1', { ttlMs: 120000 }),
-      api.proxyGet('/waitlists?limit=100&page=1', { ttlMs: 120000 })
+      api.getBookings(),
+      api.getWaitlists(),
     ]);
-    userBookings = bookingsRes.data || bookingsRes || [];
-    userWaitlists = waitlistsRes.data || waitlistsRes || [];
+    userBookings = bookingsRes || [];
+    userWaitlists = waitlistsRes || [];
     cache.bookings = userBookings;
     cache.waitlists = userWaitlists;
 
-    // 2. Fetch events for all locations in parallel
+    // 2. Fetch events for the prefetch window via the normalized API
+    // (WP-C1). The adapter's fetchTimetable() now fans out per-location with
+    // server-side start/end params itself (see providers/codexfit.js) — the
+    // per-location loop that used to live here moved server-side.
     const prefetchWeeks = userSettings.prefetchWeeks || 4;
     const startDate = new Date();
-    const startStr = startDate.toISOString().split('T')[0] + ' 00:00:00';
+    const startStr = startDate.toISOString().split('T')[0];
     const endDate = new Date();
     endDate.setDate(endDate.getDate() + (prefetchWeeks * 7));
-    const endStr = endDate.toISOString().split('T')[0] + ' 23:59:59';
+    const endStr = endDate.toISOString().split('T')[0];
 
-    const eventPromises = metadata.locations.map(async (loc) => {
-      try {
-        const url = `/events?location=${loc.id}&start=${encodeURIComponent(startStr)}&end=${encodeURIComponent(endStr)}`;
-        const res = await api.proxyGet(url);
-        return res; // Return full payload so we can extract relations
-      } catch (err) {
-        console.warn(`[Timetable] Failed to fetch events for location ${loc.name}:`, err.message);
-        return null;
-      }
-    });
-
-    const results = await Promise.all(eventPromises);
-    const freshEvents = [];
     let hasData = false;
-    for (const payload of results) {
-      if (!payload) continue;
-      hasData = true;
-      const events = payload.data || (Array.isArray(payload) ? payload : []);
-      freshEvents.push(...events);
-      // Merge embedded relations into metadata — this is the key fix
-      if (payload.relations) mergeRelations(payload.relations);
+    let freshEvents = [];
+    try {
+      // Keep the NORMALIZED events (WP-D15). This used to map to `ne.raw` — the
+      // provider's own payload — so every read below was raw CodexFit. That
+      // worked only because `.raw` IS a CodexFit event for Psycle; for
+      // MarianaTek it is an MT class with `start_datetime`, and the grid threw
+      // on the first render. `.raw` is still on each event for the debug panel.
+      freshEvents = await api.getTimetable({ startDate: startStr, endDate: endStr });
+      hasData = freshEvents.length > 0;
+    } catch (err) {
+      console.warn('[Timetable] Failed to fetch events:', err.message);
     }
     if (hasData) {
       psycleEvents = freshEvents;
     }
-    buildMetaMaps(); // Rebuild maps with all merged metadata
+    // NOTE: the old per-location proxyGet responses also carried an embedded
+    // `relations` block (locations/studios/instructors/eventTypes referenced
+    // by each event), merged into `metadata` here as a defensive backstop for
+    // entities not yet present in loadMetadata()'s 4 dedicated endpoint calls.
+    // The normalized endpoint doesn't expose that block, so this merge no
+    // longer runs — loadMetadata() (called once per session, 1hr TTL) is now
+    // metadata's sole source. Accepted trade-off, see PROGRESS.md WP-C1
+    // handoff 2026-07-03: a low-risk gap (cosmetic dropdown-label staleness
+    // if the base lists ever lag reality), not a functional regression.
+    buildMetaMaps();
     
     // Cache events + metadata for smart TTL (only if we got fresh data)
     if (hasData) {
       try {
-        await cacheSet(CACHE_KEY_EVENTS, psycleEvents);
-        await cacheSet(CACHE_KEY_META, {
+        await cacheSet(CACHE_KEY_EVENTS(), psycleEvents);
+        await cacheSet(CACHE_KEY_META(), {
           locations: metadata.locations,
           studios: metadata.studios,
           instructors: metadata.instructors,
           eventTypes: metadata.eventTypes
         });
-        localStorage.setItem(CACHE_KEY_TIME, String(Date.now()));
+        localStorage.setItem(CACHE_KEY_TIME(), String(Date.now()));
       } catch (e) {
         console.warn('[Timetable] Failed to cache events:', e);
       }
@@ -360,8 +365,8 @@ export async function prefetchTimetableData(force = false) {
 
     // Try to re-hydrate from IDB cache before showing error
     try {
-      const cachedEvents = await cacheGet(CACHE_KEY_EVENTS);
-      const cachedMeta = await cacheGet(CACHE_KEY_META);
+      const cachedEvents = await cacheGet(CACHE_KEY_EVENTS());
+      const cachedMeta = await cacheGet(CACHE_KEY_META());
       if (cachedEvents && cachedEvents.length > 0) {
         psycleEvents = cachedEvents;
         if (cachedMeta) {
@@ -399,14 +404,20 @@ function setupDropdownFilters({ locationIds, instructorIds, classTypeIds } = {})
   const container = document.getElementById('psycle-timetable-filters-container');
   if (!container) return;
 
+  // These id sets are built from a MIX of sources — raw event fields (numbers)
+  // and normalized metadata (strings) — so every membership test compares as a
+  // string. A `Number()` here silently matched nothing once studio.locationId
+  // became normalized, and the filter rendered empty with no error at all.
+  const hasId = (set, id) => set.has(String(id)) || set.has(Number(id));
+
   const locationsToRender = (!locationIds || locationIds.size === 0)
     ? metadata.locations
-    : metadata.locations.filter(l => locationIds.has(Number(l.id)));
+    : metadata.locations.filter(l => hasId(locationIds, l.id));
 
   // Instructors filtered to timetable data, sorted alphabetically
   const instructorPool = (!instructorIds || instructorIds.size === 0)
     ? metadata.instructors
-    : metadata.instructors.filter(i => instructorIds.has(Number(i.id)));
+    : metadata.instructors.filter(i => hasId(instructorIds, i.id));
   const instructorsToRender = [...instructorPool].sort((a, b) => {
     const nameA = (a.full_name || a.name || '').toLowerCase();
     const nameB = (b.full_name || b.name || '').toLowerCase();
@@ -415,13 +426,17 @@ function setupDropdownFilters({ locationIds, instructorIds, classTypeIds } = {})
 
   const eventTypesToRender = (!classTypeIds || classTypeIds.size === 0)
     ? metadata.eventTypes
-    : metadata.eventTypes.filter(t => classTypeIds.has(Number(t.id)));
+    : metadata.eventTypes.filter(t => hasId(classTypeIds, t.id));
 
   populateOptionsList('psycle-ms-location', locationsToRender, selectedLocations, 'location');
-  populateOptionsList('psycle-ms-instructor', instructorsToRender, selectedInstructors, 'instructor', 'full_name');
+  // Normalized instructors expose `name`; the old raw CodexFit shape used
+  // `full_name`, and the default labelField is already 'name'.
+  populateOptionsList('psycle-ms-instructor', instructorsToRender, selectedInstructors, 'instructor');
 
   // Event Type groups (Ride, Strength, etc.)
-  const eventTypeGroups = Array.from(new Set(eventTypesToRender.map(t => t.group ? JSON.stringify({ id: t.group.id, name: t.group.name }) : null)))
+  // `group` is a plain string on the normalized shape — it is both the id the
+  // filter selects by and the label it renders.
+  const eventTypeGroups = Array.from(new Set(eventTypesToRender.map(t => t.group ? JSON.stringify({ id: t.group, name: t.group }) : null)))
     .filter(Boolean)
     .map(str => JSON.parse(str))
     .sort((a, b) => a.name.localeCompare(b.name));
@@ -478,9 +493,9 @@ function populateOptionsList(dropdownId, items, selectedArray, type, labelField 
   list.innerHTML = '';
   items.forEach(item => {
     let labelText = (item[labelField] || item.name || `${item.first_name || ''} ${item.last_name || ''}`).trim();
-    // === MOBILE TIMETABLE — strip "Psycle " prefix from location dropdown options (delete to revert) ===
+    // === MOBILE TIMETABLE — strip the gym's own name off location labels ===
     if (dropdownId === 'psycle-ms-location') {
-      labelText = labelText.replace(/^Psycle\s*/i, '');
+      labelText = trimLocation(labelText, getGymContext().name);
     }
     // === END MOBILE TIMETABLE BLOCK ===
     const isChecked = selectedArray.includes(String(item.id));
@@ -508,14 +523,14 @@ function updateTriggerLabel(dropdownId, selectedArray, defaultText, labelSingula
     let name = '1 Selected';
     if (dropdownId === 'psycle-ms-location') {
       const loc = metadata.locations.find(l => String(l.id) === selectedArray[0]);
-      if (loc) name = loc.name.replace(/^Psycle\s*/i, '');
+      if (loc) name = trimLocation(loc.name, getGymContext().name);
     } else if (dropdownId === 'psycle-ms-instructor') {
       const instr = metadata.instructors.find(i => String(i.id) === selectedArray[0]);
-      if (instr) name = instr.full_name || instr.name;
+      if (instr) name = instr.name || instr.full_name;
     } else if (dropdownId === 'psycle-ms-class-type') {
       // Look up group name
-      const group = metadata.eventTypes.find(t => t.group && String(t.group.id) === selectedArray[0])?.group;
-      if (group) name = group.name;
+      const group = metadata.eventTypes.find(t => t.group && String(t.group) === selectedArray[0])?.group;
+      if (group) name = group;
     }
     labelTextEl.textContent = name;
   } else {
@@ -682,7 +697,7 @@ function setupFilterEventListeners() {
       saveDefaultFiltersBtn.innerHTML = `Saving...`;
 
       try {
-        localStorage.setItem('psycleDefaultFilters', JSON.stringify(defaultFilters));
+        localStorage.setItem(defaultFiltersKey(), JSON.stringify(defaultFilters));
         setTimeout(() => {
           saveDefaultFiltersBtn.innerHTML = `✓ Saved!`;
           saveDefaultFiltersBtn.style.background = 'var(--success)';
@@ -715,19 +730,19 @@ async function renderTimetableGrid() {
   // Compute interdependent dropdown options: each filter shows only values present in events
   // that match ALL OTHER active filters (but not the filter for that dropdown itself).
   const now = new Date();
-  const futureEvents = psycleEvents.filter(e => new Date(e.start_at) >= now);
+  const futureEvents = psycleEvents.filter(e => new Date(e.startAt) >= now);
 
   function eventsExcluding(excludeFilter) {
     return futureEvents.filter(e => {
       if (excludeFilter !== 'location' && selectedLocations.length > 0) {
-        const studioObj = e.studio || studioObjMap.get(e.studio_id);
-        const locId = String(studioObj?.location_id || studioObj?.location?.id || e.location_id || '');
+        const studioObj = e.studio || studioObjMap.get(e.studioId);
+        const locId = String(studioObj?.locationId || e.locationId || '');
         if (!locId || !selectedLocations.includes(locId)) return false;
       }
-      if (excludeFilter !== 'instructor' && selectedInstructors.length > 0 && !selectedInstructors.includes(String(e.instructor_id))) return false;
+      if (excludeFilter !== 'instructor' && selectedInstructors.length > 0 && !selectedInstructors.includes(String(e.instructors?.[0]?.id))) return false;
       if (excludeFilter !== 'class-type' && selectedEventTypes.length > 0) {
-        const et = metadata.eventTypes.find(t => t.id === e.event_type_id);
-        const etGroupId = et?.group?.id != null ? String(et.group.id) : null;
+        const et = metadata.eventTypes.find(t => sameId(t.id, e.classTypeId));
+        const etGroupId = et?.group != null ? String(et.group) : null;
         if (!etGroupId || !selectedEventTypes.includes(etGroupId)) return false;
       }
       return true;
@@ -735,11 +750,11 @@ async function renderTimetableGrid() {
   }
 
   const locationIds = new Set(eventsExcluding('location').map(e => {
-    const studio = metadata.studios.find(s => s.id === e.studio_id);
-    return studio ? studio.location_id : null;
+    const studio = metadata.studios.find(s => sameId(s.id, e.studioId));
+    return studio ? studio.locationId : null;
   }).filter(Boolean));
-  const instructorIds = new Set(eventsExcluding('instructor').map(e => e.instructor_id).filter(Boolean));
-  const classTypeIds = new Set(eventsExcluding('class-type').map(e => e.event_type_id).filter(Boolean));
+  const instructorIds = new Set(eventsExcluding('instructor').map(e => e.instructors?.[0]?.id).filter(Boolean));
+  const classTypeIds = new Set(eventsExcluding('class-type').map(e => e.classTypeId).filter(Boolean));
 
   setupDropdownFilters({ locationIds, instructorIds, classTypeIds });
 
@@ -772,28 +787,28 @@ async function renderTimetableGrid() {
   // 1. Filter events by selected dropdown metadata arrays
   const filteredEvents = psycleEvents.filter(e => {
     // Filter out past classes
-    if (new Date(e.start_at) < new Date()) return false;
+    if (new Date(e.startAt) < new Date()) return false;
 
     // Filter by Location
     if (selectedLocations.length > 0) {
-      const studioObj = e.studio || studioObjMap.get(e.studio_id);
-      const locId = String(studioObj?.location_id || studioObj?.location?.id || e.location_id || '');
+      const studioObj = e.studio || studioObjMap.get(e.studioId);
+      const locId = String(studioObj?.locationId || e.locationId || '');
       if (!locId || !selectedLocations.includes(locId)) return false;
     }
     // Filter by Instructor
-    if (selectedInstructors.length > 0 && !selectedInstructors.includes(String(e.instructor_id))) return false;
+    if (selectedInstructors.length > 0 && !selectedInstructors.includes(String(e.instructors?.[0]?.id))) return false;
     // Filter by Class Type Group ID
     if (selectedEventTypes.length > 0) {
-      const groupId = e.event_type?.group?.id != null
-        ? String(e.event_type.group.id)
-        : String(eventTypeGroupMap.get(e.event_type_id) ? '' : ''); // use group map below
-      const et = metadata.eventTypes.find(t => t.id === e.event_type_id);
-      const etGroupId = et?.group?.id != null ? String(et.group.id) : null;
-      if (!etGroupId || !selectedEventTypes.includes(etGroupId)) return false;
+      // `discipline` IS the normalized group. Fall back to the metadata lookup
+      // for events whose discipline the provider didn't populate.
+      const et = metadata.eventTypes.find(t => sameId(t.id, e.classTypeId));
+      const etGroupId = e.discipline ?? (et?.group != null ? String(et.group) : null);
+      if (!etGroupId || !selectedEventTypes.includes(String(etGroupId))) return false;
     }
     // Filter by Bookmarked Only
     if (showBookmarksOnly) {
       const identifier = generateBookmarkIdentifier(e);
+      if (!can('bookmarks')) return true; // no bookmarks concept → filter is a no-op
       const bookmarks = cache.profile?.metafields?.public?.bookmarks?.events || [];
       if (!bookmarks.includes(identifier)) return false;
     }
@@ -801,10 +816,10 @@ async function renderTimetableGrid() {
   });
 
   // 2. Sort remaining filtered events chronologically
-  const sortedEvents = [...filteredEvents].sort((a, b) => new Date(a.start_at) - new Date(b.start_at));
+  const sortedEvents = [...filteredEvents].sort((a, b) => new Date(a.startAt) - new Date(b.startAt));
 
   // 3. Extract unique dates containing matching events
-  const daysWithEvents = Array.from(new Set(sortedEvents.map(e => e.start_at.split('T')[0]))).sort();
+  const daysWithEvents = Array.from(new Set(sortedEvents.map(e => e.startAt.split('T')[0]))).sort();
 
   // 4. Validate/Update selected date state
   if (daysWithEvents.length > 0) {
@@ -870,7 +885,7 @@ async function renderTimetableGrid() {
     return;
   }
 
-  const finalEvents = sortedEvents.filter(e => e.start_at.startsWith(selectedTimetableDate));
+  const finalEvents = sortedEvents.filter(e => e.startAt.startsWith(selectedTimetableDate));
 
   // The outer #psycle-timetable-grid (.psycle-timetable-list) is the single scroll
   // container — see initTimetableTab for the pull-to-refresh wiring. The inner
@@ -899,19 +914,19 @@ async function renderTimetableGrid() {
   finalEvents.forEach(event => {
     // Primary: use embedded objects from event payload (CodexFit includes these)
     // Fallback: use Maps built from merged metadata (Maps include both int and string keys)
-    const studioObj = event.studio || studioObjMap.get(event.studio_id);
-    const studioName = studioObj?.name || studioMap.get(event.studio_id) || 'Studio';
+    const studioObj = event.studio || studioObjMap.get(event.studioId);
+    const studioName = studioObj?.name || studioMap.get(event.studioId) || 'Studio';
     const locName = studioObj?.location?.name
-      || locationMap.get(studioObj?.location_id)
-      || locationMap.get(event.location_id)
+      || locationMap.get(studioObj?.locationId)
+      || locationMap.get(event.locationId)
       || 'Location';
-    const instrName = event.instructor?.full_name || event.instructor?.name
-      || instructorMap.get(event.instructor_id) || 'Instructor';
-    const eventTypeName = event.event_type?.name || eventTypeMap.get(event.event_type_id) || 'Class';
+    const instrName = event.instructors?.[0]?.name || event.instructor?.name
+      || instructorMap.get(event.instructors?.[0]?.id) || 'Instructor';
+    const eventTypeName = event.name || eventTypeMap.get(event.classTypeId) || 'Class';
     const className = event.name || eventTypeName;
     // Group name is the short type label (e.g., "Ride", "Barre", "Yoga")
-    const groupName = event.event_type?.group?.name
-      || eventTypeGroupMap.get(event.event_type_id)
+    const groupName = event.discipline
+      || eventTypeGroupMap.get(event.classTypeId)
       || 'Class';
     // Strip "TYPE: " prefix from class name (e.g., "RIDE: Signature 45" → "Signature 45")
     // Use groupName since eventTypeName is the full class name, not just the type
@@ -920,26 +935,28 @@ async function renderTimetableGrid() {
       ? className.substring(typePrefix.length)
       : className;
 
-    const startDate = new Date(event.start_at);
+    const startDate = new Date(event.startAt);
     const timeStr = startDate.toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit', hour12: false });
 
     // Cutoff status calculation (London timezone)
-    const classRelease = getClassReleaseTime(event.start_at, userSettings);
+    const classRelease = getClassReleaseTime(event, userSettings);
     const now = DateTime.now().setZone('Europe/London');
-    const isLive = event.is_always_bookable ? true : (now >= classRelease);
-    const isFullyBooked = !!event.is_fully_booked;
-    const canWaitlist = event.is_waitlistable !== false && event.waitlist_available !== false && !event.is_waitlist_full;
+    const isLive = event.alwaysBookable ? true : (now >= classRelease);
+    const isFullyBooked = !!event.isFull;
+    const canWaitlist = event.waitlistAvailable !== false;
 
-    const isBooked = userBookings.some(b => b.event_id === event.id || b.event?.id === event.id);
-    const isOnWaitlist = userWaitlists.some(w => w.event_id === event.id || w.event?.id === event.id);
+    const isBooked = userBookings.some(b => matchesEvent(b, event));
+    const isOnWaitlist = userWaitlists.some(w => matchesEvent(w, event));
 
-    const availableSpots = (typeof event.capacity === 'number' && typeof event.occupancy === 'number')
-      ? Math.max(0, event.capacity - event.occupancy)
+    const availableSpots = (typeof event.capacity === 'number' && typeof (event.capacity != null && event.availableCount != null ? event.capacity - event.availableCount : undefined) === 'number')
+      ? Math.max(0, event.capacity - (event.capacity != null && event.availableCount != null ? event.capacity - event.availableCount : undefined))
       : null;
     const spotsText = availableSpots !== null ? `${availableSpots} / ${event.capacity}` : 'Open';
 
     const identifier = generateBookmarkIdentifier(event);
-    const bookmarks = cache.profile?.metafields?.public?.bookmarks?.events || [];
+    // Bookmarks live in CodexFit profile metafields. A gym without the
+    // capability has none — don't reach into a provider-shaped blob for them.
+    const bookmarks = can('bookmarks') ? (cache.profile?.metafields?.public?.bookmarks?.events || []) : [];
     const isBookmarked = bookmarks.includes(identifier);
     const heartChar = isBookmarked ? '♥' : '♡';
     const heartClass = isBookmarked ? 'psycle-timetable-heart bookmarked' : 'psycle-timetable-heart unbookmarked';
@@ -961,12 +978,12 @@ async function renderTimetableGrid() {
         statusBadge = `<span class="badge-pill not-live psycle-occupancy-hover" data-id="${event.id}">Not Live</span>`;
       }
     } else if (isBooked) {
-      const eventBookings = userBookings.filter(b => b.event_id === event.id || b.event?.id === event.id);
+      const eventBookings = userBookings.filter(b => matchesEvent(b, event));
       slotsBookedCount = eventBookings.length;
       statusBadge = `<span class="badge-pill yes psycle-occupancy-hover" data-id="${event.id}" style="cursor: pointer;">Booked${slotsBookedCount > 1 ? ` (${slotsBookedCount})` : ''}</span>`;
       if (slotsBookedCount === 1) {
-        bookingId = eventBookings[0].id;
-        const bookedAt = eventBookings[0].booked_at;
+        bookingId = eventBookings[0].bookingId ?? eventBookings[0].id;
+        const bookedAt = eventBookings[0].bookedAt ?? eventBookings[0].booked_at;
         const diffHours = (startDate - new Date()) / (1000 * 60 * 60);
         isPenalty = diffHours < 12 && diffHours > 0;
         if (bookedAt && isInGracePeriod(bookedAt)) {
@@ -975,7 +992,7 @@ async function renderTimetableGrid() {
       }
     } else if (isOnWaitlist) {
       statusBadge = `<span class="badge-pill waitlisted psycle-occupancy-hover" data-id="${event.id}" style="cursor: pointer;">Waitlisted</span>`;
-      const waitlistEntry = userWaitlists.find(w => w.event_id === event.id || w.event?.id === event.id);
+      const waitlistEntry = userWaitlists.find(w => matchesEvent(w, event));
       if (waitlistEntry) waitlistId = waitlistEntry.id;
     } else if (isFullyBooked) {
       statusBadge = canWaitlist
@@ -1009,14 +1026,14 @@ async function renderTimetableGrid() {
       <td class="col-time"><strong>${timeStr}</strong></td>
       <td class="col-class">
         <div class="psycle-tt-class-cell">
-          <span class="${heartClass}" data-event-id="${event.id}" title="${isBookmarked ? 'Remove Bookmark' : 'Bookmark Class'}">${heartChar}</span>
+          ${can('bookmarks') ? `<span class="${heartClass}" data-event-id="${event.id}" title="${isBookmarked ? 'Remove Bookmark' : 'Bookmark Class'}">${heartChar}</span>` : ''}
           ${disciplineTag(groupName)}
           <span class="psycle-tt-class-name">${strippedClassName}</span>
         </div>
       </td>
-      <td class="col-instructor"><span class="psycle-instructor-hover" data-id="${event.instructor_id}">${instrName}</span></td>
+      <td class="col-instructor"><span class="psycle-instructor-hover" data-id="${event.instructors?.[0]?.id}">${instrName}</span></td>
       <td class="col-location">
-        <span style="font-weight:600; display:block; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">${locName.replace(/^Psycle\s*/i, '')}</span>
+        <span style="font-weight:600; display:block; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">${trimLocation(locName, getGymContext().name)}</span>
         <span style="font-size:12px; color:var(--text-secondary); display:block; margin-top:2px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">${studioName}</span>
       </td>
       <td class="col-status">${statusBadge}</td>
@@ -1025,11 +1042,17 @@ async function renderTimetableGrid() {
 
     row.querySelector('.col-actions').appendChild(buildDesktopActions(actionModel, event, userSettings.debugMode));
 
-    // Heart click listener
-    row.querySelector('.psycle-timetable-heart').onclick = (e) => {
-      e.stopPropagation();
-      toggleNativeBookmark(event, e.target);
-    };
+    // Heart click listener — the element only exists when the gym HAS bookmarks
+    // (the markup above is capability-gated), so this must be optional. An
+    // unconditional querySelector here threw on every row for a gym without
+    // them, which emptied the whole timetable.
+    const heartEl = row.querySelector('.psycle-timetable-heart');
+    if (heartEl) {
+      heartEl.onclick = (e) => {
+        e.stopPropagation();
+        toggleNativeBookmark(event, e.target);
+      };
+    }
 
     tbody.appendChild(row);
   });
@@ -1043,9 +1066,11 @@ async function renderTimetableGrid() {
 // Does this studio have a seat-map layout, and does the user have a saved
 // preferred-spot map for it? Read synchronously from the live shared maps.
 function getStudioMapInfo(event) {
-  const studio = event.studio || studioObjMap.get(event.studio_id) || metadata.studios.find(s => s.id === event.studio_id);
-  const hasMap = !!(studio?.layout?.slots?.length);
-  const prefs = (studioPrefsMap && studioPrefsMap[event.studio_id]) || {};
+  const studio = event.studio || studioObjMap.get(event.studioId) || metadata.studios.find(s => sameId(s.id, event.studioId));
+  // `hasLayout` comes from the normalized metadata; MarianaTek has no studios
+  // endpoint to expose a layout on, so it derives this from the class format.
+  const hasMap = !!(studio?.hasLayout ?? studio?.layout?.slots?.length);
+  const prefs = (studioPrefsMap && studioPrefsMap[event.studioId]) || {};
   const hasPrefs = (prefs.preferredSlots?.length > 0) || (prefs.preferredRows?.length > 0);
   return { hasMap, hasPrefs };
 }
@@ -1178,7 +1203,7 @@ function buildActionModel(event, ctx) {
 function doQuickBook(event, btn) {
   const run = async () => {
     try {
-      const prefs = (await api.getStudioPreferences())[event.studio_id] || {};
+      const prefs = (await api.getStudioPreferences())[event.studioId] || {};
       const { hasMap } = getStudioMapInfo(event);
       const noPrefs = (!prefs.preferredSlots || !prefs.preferredSlots.length)
         && (!prefs.preferredRows || !prefs.preferredRows.length);
@@ -1193,7 +1218,7 @@ function doQuickBook(event, btn) {
     }
   };
   // Booking within 12h of start needs an explicit confirm.
-  if (isWithin12Hours(event.start_at)) twoTapConfirm(btn, 'Starts soon — confirm?', run);
+  if (isWithin12Hours(event.startAt)) twoTapConfirm(btn, 'Starts soon — confirm?', run);
   else run();
 }
 
@@ -1214,7 +1239,7 @@ async function doAutoBookToggle(event, btn, isScheduled) {
     return;
   }
   try {
-    const prefs = (await api.getStudioPreferences())[event.studio_id] || {};
+    const prefs = (await api.getStudioPreferences())[event.studioId] || {};
     if (prefs.preferredSlots?.length > 0 || prefs.preferredRows?.length > 0) {
       saveAutoBookPreferences(event, prefs.preferredSlots || [], prefs.preferredRows || [], 1, true, () => {});
     } else {
@@ -1228,19 +1253,23 @@ async function doAutoBookToggle(event, btn, isScheduled) {
 // Edit a booked class — reuses the My Bookings edit-spots modal. Builds the
 // booking "group" it expects from the timetable's cached bookings + metadata.
 async function doEditBooking(event) {
-  const eventBookings = userBookings.filter(b => b.event_id === event.id || b.event?.id === event.id);
+  const eventBookings = userBookings.filter(b => matchesEvent(b, event));
   if (!eventBookings.length) { showToast('Booking not found — refresh and try again.', 'error'); return; }
 
-  const eventTypeName = event.event_type?.name || eventTypeMap.get(event.event_type_id) || 'Class';
-  const groupName = event.event_type?.group?.name || eventTypeGroupMap.get(event.event_type_id) || eventTypeName;
-  const instrName = event.instructor?.full_name || event.instructor?.name || instructorMap.get(event.instructor_id) || '';
-  const studioObj = event.studio || studioObjMap.get(event.studio_id);
+  const eventTypeName = event.name || eventTypeMap.get(event.classTypeId) || 'Class';
+  const groupName = event.discipline || eventTypeGroupMap.get(event.classTypeId) || eventTypeName;
+  const instrName = event.instructors?.[0]?.name || event.instructor?.name || instructorMap.get(event.instructors?.[0]?.id) || '';
+  const studioObj = event.studio || studioObjMap.get(event.studioId);
 
+  // Normalized shape, with the display values this modal needs resolved. It used
+  // to rebuild a CodexFit-shaped object (`event_type.group.name`,
+  // `instructor.full_name`), which no other platform emits.
   const enrichedEvent = {
     ...event,
-    event_type: event.event_type || { name: eventTypeName, group: { name: groupName } },
-    instructor: event.instructor || { full_name: instrName },
-    studio: studioObj,
+    name: event.name || eventTypeName,
+    discipline: event.discipline || groupName,
+    instructors: event.instructors?.length ? event.instructors : (instrName ? [{ name: instrName }] : []),
+    studioName: event.studioName || studioObj?.name,
   };
 
   openEditBookingModal(
@@ -1257,12 +1286,14 @@ async function doEditBooking(event) {
 // cache for these resources, so the GETs return fresh data.
 async function refreshBookingState() {
   try {
+    // NormalizedBooking[]: `eventId` (a STRING), not raw `event_id` (a number).
+    // Use matchesEvent() below rather than comparing directly.
     const [bookingsRes, waitlistsRes] = await Promise.all([
-      api.proxyGet('/bookings?limit=100&page=1', { ttlMs: 120000 }),
-      api.proxyGet('/waitlists?limit=100&page=1', { ttlMs: 120000 })
+      api.getBookings(),
+      api.getWaitlists(),
     ]);
-    userBookings = bookingsRes.data || bookingsRes || [];
-    userWaitlists = waitlistsRes.data || waitlistsRes || [];
+    userBookings = bookingsRes || [];
+    userWaitlists = waitlistsRes || [];
     cache.bookings = userBookings;
     cache.waitlists = userWaitlists;
   } catch (e) {
@@ -1276,7 +1307,7 @@ async function doJoinWaitlist(event, btn) {
   const orig = btn.textContent;
   btn.textContent = 'Joining...';
   try {
-    await api.proxyPut(`/waitlists/${event.id}`);
+    await api.joinWaitlist(event.id);
     showToast('Successfully joined waitlist!', 'success');
     prefetchTimetableData(true);
   } catch (err) {
@@ -1291,7 +1322,7 @@ async function doLeaveWaitlist(waitlistId, btn) {
   const orig = btn.textContent;
   btn.textContent = 'Leaving...';
   try {
-    await api.proxyDelete(`/waitlists/${waitlistId}`);
+    await api.leaveWaitlist(waitlistId);
     showToast('Left waitlist successfully!', 'success');
     await refreshUserData(true);
     await refreshBookingState();
@@ -1460,13 +1491,13 @@ function buildMobileClassRow(event, ctx, model) {
   const card = document.createElement('div');
   card.className = 'psycle-mobile-class-card';
 
-  const displayLoc = locName.replace(/^Psycle\s*/i, '');
+  const displayLoc = trimLocation(locName, getGymContext().name);
 
   // Favourite heart is a non-interactive indicator on mobile (only shown when
   // bookmarked), sitting between the time and the discipline chip. Toggling
   // happens through the context menu instead.
   const favIndicator = isBookmarked
-    ? `<span class="psycle-mobile-fav-indicator" aria-label="Favourited">${heartChar}</span>`
+    ? (can('bookmarks') ? `<span class="psycle-mobile-fav-indicator" aria-label="Favourited">${heartChar}</span>` : '')
     : '';
 
   card.innerHTML = `
@@ -1475,7 +1506,7 @@ function buildMobileClassRow(event, ctx, model) {
         <strong>${timeStr}</strong>
         ${favIndicator}
         ${disciplineTag(groupName)}
-        <span class="psycle-mobile-instructor psycle-instructor-hover" data-id="${event.instructor_id}">${instrName}</span>
+        <span class="psycle-mobile-instructor psycle-instructor-hover" data-id="${event.instructors?.[0]?.id}">${instrName}</span>
       </div>
       <div class="psycle-mobile-bottom-line">
         <span class="psycle-mobile-class-name">${strippedClassName}</span>
@@ -1619,7 +1650,7 @@ async function openOccupancyModal(event) {
   modalOverlay.onclick = closeModal;
 
   try {
-    const res = await api.proxyGet(`/events/${event.id}`, { ttlMs: 120000 });
+    const res = await api.getEventDetails(event.id);
     body.innerHTML = '';
     renderMinimap(res, body);
   } catch (err) {
@@ -1632,39 +1663,14 @@ async function openOccupancyModal(event) {
 }
 // === END MOBILE TIMETABLE BLOCK ===
 
-// Check if user has an unused credit that matches the event's accepted credit types
-function hasUsableCredit(event) {
-  return getAvailableCreditsForEvent(event) > 0;
-}
-
-function getAvailableCreditsForEvent(event) {
-  if (!cache.profile || !cache.profile.available_credits) return 0;
-
-  // Map event credit_types to numeric IDs
-  // credit_types entries can be {credit_type: number} or {credit_type: {id: number}} or {id: number}
-  const acceptedIds = (event.credit_types || []).map(c => {
-    const raw = c.credit_type ?? c.id ?? c;
-    return Number(typeof raw === 'object' ? raw.id : raw);
-  }).filter(id => !isNaN(id));
-
-  if (acceptedIds.length === 0) return Infinity; // no credit types required, assume unlimited
-
-  return cache.profile.available_credits.reduce((total, credit) => {
-    const creditTypeId = Number(credit.credit_type?.id ?? credit.credit_type);
-    if (acceptedIds.includes(creditTypeId)) {
-      return total + (credit.count || 0);
-    }
-    return total;
-  }, 0);
-}
 
 // Resilient bookmark ID generator
 function generateBookmarkIdentifier(event) {
   if (!event) return '';
-  const studioId = event.studio_id || (event.studio ? event.studio.id : null);
-  if (!studioId || !event.start_at) return '';
+  const studioId = event.studioId || (event.studio ? event.studioId : null);
+  if (!studioId || !event.startAt) return '';
   
-  const dateObj = new Date(event.start_at);
+  const dateObj = new Date(event.startAt);
   const formatter = new Intl.DateTimeFormat('en-US', {
     timeZone: 'Europe/London',
     hour: '2-digit',
@@ -1705,6 +1711,14 @@ async function toggleNativeBookmark(event, heartEl) {
   }
   
   try {
+    // CodexFit profile metafields — the last raw-proxy write in the client, and
+    // deliberately NOT normalized: MarianaTek has no bookmarks API, so there is
+    // no cross-gym concept to build a route for. Gated instead, and guarded here
+    // too in case a caller reaches this without checking.
+    if (!can('bookmarks')) {
+      showToast('This gym does not support bookmarks.', 'info');
+      return;
+    }
     const url = `/profile/metafields/bookmarks.events.${identifier}`;
     if (isCurrentlyBookmarked) {
       await api.proxyDelete(url);
@@ -1741,21 +1755,27 @@ async function quickBookClass(eventId, prefs, btn) {
   const autoUpgrade = prefs.autoUpgrade !== false;
 
   try {
-    const res = await api.proxyGet(`/events/${eventId}`, { ttlMs: 120000 });
-    const eventData = res.data || res;
+    // WP-C1: reads the normalized event details endpoint instead of the raw
+    // proxy. `event.raw` is the CodexFit event object with instructor/
+    // event_type/studio already relation-resolved inline (see
+    // providers/codexfit.js resolveEventRelations) — a superset of the old
+    // bare `eventData`, so every existing raw-field read below still works.
+    // `slots` is already the normalized (layout + live availability) merge
+    // the old code used to derive by hand from `studio.layout.slots` +
+    // `res.slots` — reused directly instead of re-deriving it.
+    const { event, slots } = await api.getEventDetails(eventId);
+    const eventData = event.raw;
     if (!eventData) {
       showToast('Could not load class data.', 'error');
       return;
     }
 
-    const studio = res.relations?.studios?.[0] || eventData.relations?.studios?.[0] || eventData.studio || {};
-    const layoutSlots = studio?.layout?.slots || [];
-    const liveAvailable = (res.slots || eventData.slots || []).map(id => Number(id));
+    const liveAvailable = slots.filter((s) => s.isAvailable).map((s) => Number(s.id));
 
     if (liveAvailable.length === 0) {
       showToast('Fully booked! Joining waitlist...', 'warning');
       try {
-        await api.proxyPut(`/waitlists/${eventId}`);
+        await api.joinWaitlist(eventId);
         showToast('Joined waitlist successfully!', 'success');
         prefetchTimetableData(true);
       } catch (wlErr) {
@@ -1767,9 +1787,9 @@ async function quickBookClass(eventId, prefs, btn) {
     const primarySlots = preferredSlots.filter(id => liveAvailable.includes(Number(id)));
 
     let rowSlots = [];
-    if (preferredRows && preferredRows.length > 0 && layoutSlots.length > 0) {
+    if (preferredRows && preferredRows.length > 0 && slots.length > 0) {
       preferredRows.forEach(ry => {
-        const slotsInRow = layoutSlots.filter(s => Math.round(s.y * 10) / 10 === ry);
+        const slotsInRow = slots.filter(s => s.row === ry);
         const rowSlotIds = slotsInRow.map(s => Number(s.id));
         rowSlotIds.forEach(id => {
           if (liveAvailable.includes(id) && !primarySlots.includes(id) && !rowSlots.includes(id)) {
@@ -1780,7 +1800,7 @@ async function quickBookClass(eventId, prefs, btn) {
     }
 
     const slotsToTry = [...primarySlots, ...rowSlots];
-    const finalBookAny = layoutSlots.length === 0 || bookAny;
+    const finalBookAny = slots.length === 0 || bookAny;
 
     if (finalBookAny) {
       const remainingAvailable = liveAvailable.filter(id => !slotsToTry.includes(Number(id)));
@@ -1794,22 +1814,24 @@ async function quickBookClass(eventId, prefs, btn) {
 
     let bookedCount = 0;
     let attemptIdx = 0;
-    
+
     let lastBookedSlot = null;
     let lastBookingRes = null;
     const bookedSlotLabels = [];
-    const qbNoun = seatNoun((res.relations?.event_types?.find(t => t.id === eventData.event_type_id) || eventData.event_type)?.group?.name);
+    const qbNoun = seatNoun(eventData.discipline);
     while (bookedCount < requiredCount && attemptIdx < slotsToTry.length) {
       const targetSlot = slotsToTry[attemptIdx];
       try {
-        const bookRes = await api.proxyPost('/bookings', {
-          event_id: eventId,
-          slots: [targetSlot]
-        });
+        // api.book() returns a NormalizedBookingResult { ok, bookingId, slotId,
+        // error } and does NOT throw on a decline — unlike the raw proxy, which
+        // threw. A refusal is data here, so it has to be checked, or a failed
+        // booking reads as a success.
+        const bookRes = await api.book(eventId, [targetSlot]);
+        if (!bookRes.ok) throw new Error(bookRes.error || 'Booking was declined');
         bookedCount++;
         lastBookedSlot = targetSlot;
         lastBookingRes = bookRes;
-        const ls = layoutSlots.find(s => Number(s.id) === Number(targetSlot));
+        const ls = slots.find(s => Number(s.id) === Number(targetSlot));
         bookedSlotLabels.push(ls?.label ?? targetSlot);
         showToast(`Quick-booked ${qbNoun} ${ls?.label ?? targetSlot}! 🎉`, 'success');
       } catch (err) {
@@ -1822,16 +1844,12 @@ async function quickBookClass(eventId, prefs, btn) {
     }
 
     if (bookedCount > 0) {
-      const qbInstructor = res.relations?.instructors?.find(i => i.id === eventData.instructor_id)
-        || res.relations?.instructors?.[0] || eventData.instructor;
-      const qbEventType = res.relations?.event_types?.find(t => t.id === eventData.event_type_id)
-        || res.relations?.event_types?.[0] || eventData.event_type;
       api.notifyBookingSuccess({
         source: 'quickbook', eventId,
-        className: eventData.name || qbEventType?.name,
-        groupName: qbEventType?.group?.name || '',
-        instructorName: qbInstructor?.full_name || qbInstructor?.name || '',
-        startAt: eventData.start_at, slots: bookedSlotLabels,
+        className: eventData.name || '',
+        groupName: eventData.discipline || '',
+        instructorName: eventData.instructors?.[0]?.name || '',
+        startAt: eventData.startAt, slots: bookedSlotLabels,
       }).catch(() => {});
       if (lastBookedSlot !== null) await tryAutoRegisterUpgrade(eventData, lastBookedSlot, lastBookingRes, autoUpgrade);
       await refreshUserData(true);
@@ -1866,14 +1884,14 @@ async function openBookingModal(c, mode) {
   const title = document.getElementById('psycle-booking-modal-title');
   if (!modal || !body || !title) return;
 
-  const noun = seatNoun(c.event_type?.group?.name);
+  const noun = seatNoun(c.discipline);
   title.textContent = isAutoBookMode ? 'Configure Auto-Book' : (isQuickBookMode ? `Select a ${noun} in the studio` : `Select a ${noun} in the studio`);
 
-  // Use cached layout if available — layouts don't change mid-session
-  const cachedStudio = studioLayoutCache.get(c.studio_id)
-    || studioObjMap.get(c.studio_id)
-    || metadata.studios.find(s => s.id === c.studio_id);
-  const hasLayout = cachedStudio?.layout?.slots?.length > 0;
+  // Use cached layout if available — layouts don't change mid-session.
+  // WP-C5: the cache now holds NormalizedSlot[]/NormalizedLayoutObject[] (see
+  // below), so this is only consulted for the loading-message copy here.
+  const cachedLayout = studioLayoutCache.get(c.studioId);
+  const hasLayout = cachedLayout?.slots?.length > 0;
 
   body.innerHTML = `
     <div class="psycle-loading-spinner-container" style="padding: 40px 0;">
@@ -1900,31 +1918,47 @@ async function openBookingModal(c, mode) {
   await refreshUserData(true);
 
   try {
-    const res = await api.proxyGet(`/events/${c.id}`, { ttlMs: 120000 });
-    const eventDetails = res.data || res;
-    const studioFromEvent = res.relations?.studios?.[0] || eventDetails.relations?.studios?.[0] || eventDetails.studio || {};
-    // Prefer cached layout (it may have been preloaded from /studios at startup)
-    const studio = (hasLayout && cachedStudio.layout?.slots?.length >= (studioFromEvent.layout?.slots?.length || 0))
-      ? { ...studioFromEvent, layout: cachedStudio.layout }
-      : studioFromEvent;
-    // Cache the layout for future opens (keyed by studio_id)
-    if (studio?.layout?.slots?.length > 0) {
-      studioLayoutCache.set(c.studio_id, { layout: studio.layout });
+    // WP-C5: this renderer consumes NormalizedSlot[] / NormalizedLayoutObject[]
+    // straight from the adapter — no raw `studio.layout` access anywhere below
+    // — so a MarianaTek layout (an entirely different raw shape) renders here
+    // unchanged. Slot `.id` arrives as a string and is coerced to Number for
+    // every comparison, matching how preferred-spot maps and bookings store
+    // slot ids. `event.raw` is still read further down for CodexFit-specific
+    // *credit* metadata, which has no normalized equivalent yet (out of scope).
+    const {
+      event,
+      slots: eventSlots,
+      objects: eventObjects,
+      maxBookableSlots: providerMaxBookableSlots,
+    } = await api.getEventDetails(c.id);
+
+    // A studio's floor plan doesn't vary class-to-class, so a previously-seen
+    // layout for this studio is a valid stand-in when THIS event's payload
+    // arrives without one (the pre-C5 code kept the same defensive
+    // fuller-layout-wins rule, but sourced its fallback from the raw /studios
+    // list; the cache is now normalized end-to-end, populated only from this
+    // same adapter response). Availability is always taken from the event, never
+    // the cache — it's per-class and changes constantly.
+    const useCached = hasLayout && cachedLayout.slots.length > eventSlots.length;
+    const layoutSlots = useCached ? cachedLayout.slots : eventSlots;
+    const layoutObjects = useCached ? cachedLayout.objects : eventObjects;
+    if (eventSlots.length > 0) {
+      studioLayoutCache.set(c.studioId, { slots: eventSlots, objects: eventObjects });
     }
-    const layoutSlots = studio?.layout?.slots || [];
-    const availableSlots = (res.slots || eventDetails.slots || []).map(Number);
+    const availableIds = new Set(eventSlots.filter(s => s.isAvailable).map(s => Number(s.id)));
+    const availableSlots = layoutSlots.map(s => Number(s.id)).filter(id => availableIds.has(id));
 
     // Determine if booking window is already open
-    const classReleaseTime = getClassReleaseTime(c.start_at);
+    const classReleaseTime = getClassReleaseTime(c);
     const isLive = classReleaseTime.toMillis() <= Date.now();
 
-    const instrName = metadata.instructors.find(i => i.id === c.instructor_id)?.full_name || '';
-    const eventType = metadata.eventTypes.find(t => t.id === c.event_type_id);
-    const groupName = c.event_type?.group?.name || eventType?.group?.name || eventType?.name || 'Class';
+    const instrName = metadata.instructors.find(i => sameId(i.id, c.instructors?.[0]?.id))?.name || '';
+    const eventType = metadata.eventTypes.find(t => sameId(t.id, c.classTypeId));
+    const groupName = c.discipline || eventType?.group || eventType?.name || 'Class';
     const nounCap = seatNoun(groupName)[0].toUpperCase() + seatNoun(groupName).slice(1);
-    const startDate = new Date(c.start_at);
+    const startDate = new Date(c.startAt);
     const timeStr = startDate.toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' });
-    const studioName = studio?.name || studioMap.get(c.studio_id) || 'this studio';
+    const studioName = event.studioName || studioMap.get(c.studioId) || 'this studio';
 
     if (isAutoBookMode) {
       title.textContent = `Auto-Book: ${timeStr} ${groupName}${instrName ? ' with ' + instrName : ''}`;
@@ -1984,8 +2018,7 @@ async function openBookingModal(c, mode) {
 
     const floorGrid = body.querySelector('#psycle-floor-plan-grid');
 
-    // Render Stage
-    const layoutObjects = studio?.layout?.objects || [];
+    // Render Stage — NormalizedLayoutObject[]; empty for providers with none.
     layoutObjects.forEach(obj => {
       const left = widthRange === 0 ? 50 : ((obj.x - minX) / widthRange) * 80 + 10;
       const top = heightRange === 0 ? 10 : ((obj.y - minY) / heightRange) * 75 + 10;
@@ -1999,7 +2032,7 @@ async function openBookingModal(c, mode) {
     // ── State ──────────────────────────────────────────────────────────
     const availableCredits = getAvailableCreditsForEvent(c);
     const upgradeCreditsNeeded = isAutoBookMode ? availableCredits + 1 : 0; // auto-upgrade needs +1 for the upgrade spot before cancelling
-    const maxBookableSlots = Math.min(eventDetails.max_bookable_slots || availableSlots.length || 1, availableCredits);
+    const maxBookableSlots = Math.min(providerMaxBookableSlots || availableSlots.length || 1, availableCredits);
     const state = {
       selectedSlots: [],    // ordered array of slot IDs (index 0 = priority 1)
       selectedRows: new Set(),
@@ -2011,7 +2044,7 @@ async function openBookingModal(c, mode) {
     let hasExistingPrefs = false;
     try {
       const studioPrefs = await api.getStudioPreferences();
-      const prefs = studioPrefs[c.studio_id] || {};
+      const prefs = studioPrefs[c.studioId] || {};
       hasExistingPrefs = (prefs.preferredSlots?.length > 0) || (prefs.preferredRows?.length > 0);
       if (isAutoBookMode || isQuickBookMode) {
         (prefs.preferredSlots || []).forEach(s => state.selectedSlots.push(Number(s)));
@@ -2078,7 +2111,7 @@ async function openBookingModal(c, mode) {
 
         const left = widthRange === 0 ? 50 : ((slot.x - minX) / widthRange) * 78 + 8;
         const top = heightRange === 0 ? 50 : ((slot.y - minY) / heightRange) * 72 + 14;
-        const label = slot.label || slot.slot || String(slotId);
+        const label = slot.label || String(slotId);
 
         const bubble = document.createElement('div');
         bubble.style.position = 'absolute';
@@ -2188,7 +2221,7 @@ async function openBookingModal(c, mode) {
       if (summaryEl) {
         const spotLabels = state.selectedSlots.map(id => {
           const slot = layoutSlots.find(s => Number(s.id) === id);
-          return slot?.label || slot?.slot || String(id);
+          return slot?.label || String(id);
         });
         const rowLabels = Array.from(state.selectedRows).map(y => {
           const idx = rowYs.indexOf(y);
@@ -2384,7 +2417,7 @@ async function openBookingModal(c, mode) {
             modal.classList.remove('show');
             modal.style.display = 'none';
             // Open the dedicated studio floor plan editor from settings
-            openStudioFloorPlanEditor(c.studio_id, studioName, () => {
+            openStudioFloorPlanEditor(c.studioId, studioName, () => {
               // Re-open the simple booking modal when the preferences are saved
               openBookingModal(c, 'book');
             });
@@ -2401,7 +2434,7 @@ async function openBookingModal(c, mode) {
             return;
           }
           const btn = controls.querySelector('#btn-book-simple');
-          if (isWithin12Hours(c.start_at) && btn.dataset.confirmState !== 'confirm') {
+          if (isWithin12Hours(c.startAt) && btn.dataset.confirmState !== 'confirm') {
             btn.dataset.confirmState = 'confirm';
             btn.textContent = 'Class starts soon. Confirm?';
             btn.style.background = 'var(--warning)';
@@ -2418,10 +2451,22 @@ async function openBookingModal(c, mode) {
           btn.disabled = true;
           btn.textContent = 'Booking...';
           try {
-            const bookingRes = await api.proxyPost('/bookings', {
-              event_id: c.id,
-              slots: state.selectedSlots
-            });
+            // One request per spot: api.book() books exactly one, because
+            // MarianaTek creates one reservation per call (see base.js). Sequential
+            // rather than parallel so a mid-way failure leaves a knowable state —
+            // `results` says which spots actually got booked.
+            const results = [];
+            for (const slotId of state.selectedSlots) {
+              const r = await api.book(c.id, [slotId]);
+              if (!r.ok) {
+                if (results.length === 0) throw new Error(r.error || 'Booking was declined');
+                // Partial success: keep what we got and tell the truth about it.
+                showToast(`Booked ${results.length} of ${state.selectedSlots.length} — ${r.error || 'the rest were declined'}`, 'error');
+                break;
+              }
+              results.push(r);
+            }
+            const bookingRes = { ok: true, bookings: results, bookingId: results[0]?.bookingId, slotId: results[0]?.slotId };
             showToast(`Successfully booked ${state.selectedSlots.length} ${seatNoun(groupName)}${state.selectedSlots.length > 1 ? 's' : ''}! 🎉`, 'success');
             const bookedLabels = state.selectedSlots.map(id => {
               const s = layoutSlots.find(ls => Number(ls.id) === Number(id));
@@ -2429,7 +2474,7 @@ async function openBookingModal(c, mode) {
             });
             api.notifyBookingSuccess({
               source: 'manual', eventId: c.id, className: c.name || groupName, groupName,
-              instructorName: instrName, startAt: c.start_at, slots: bookedLabels,
+              instructorName: instrName, startAt: c.startAt, slots: bookedLabels,
             }).catch(() => {});
             const autoUpgrade = controls.querySelector('#simplebook-auto-upgrade')?.checked ?? false;
             closeModal();
@@ -2518,7 +2563,7 @@ async function openBookingModal(c, mode) {
           }
           const btn = controls.querySelector('#btn-submit-quickbook');
           const baseLabel = `${mapChanged() ? 'Save map and ' : ''}Quick-Book`;
-          if (isWithin12Hours(c.start_at) && btn.dataset.confirmState !== 'confirm') {
+          if (isWithin12Hours(c.startAt) && btn.dataset.confirmState !== 'confirm') {
             btn.dataset.confirmState = 'confirm';
             btn.textContent = 'Class starts soon. Confirm?';
             btn.style.background = 'var(--warning)';
@@ -2540,8 +2585,8 @@ async function openBookingModal(c, mode) {
             const autoUpgrade = controls.querySelector('#quickbook-auto-upgrade')?.checked ?? false;
             const slots = [...state.selectedSlots];
             const rows = [...state.selectedRows];
-            if (mapChanged() && c.studio_id) {
-              await api.updateStudioPreferences(c.studio_id, { preferredSlots: slots, preferredRows: rows });
+            if (mapChanged() && c.studioId) {
+              await api.updateStudioPreferences(c.studioId, { preferredSlots: slots, preferredRows: rows });
             }
             await quickBookClass(c.id, {
               preferredSlots: slots,
@@ -2586,7 +2631,7 @@ async function tryAutoRegisterUpgrade(event, bookedSlotId, bookingRes, enableOve
     return;
   }
   try {
-    const studioId = event.studio_id;
+    const studioId = event.studioId;
     debugConsole('[AutoUpgrade] Studio ID:', studioId, '| event.studio:', event.studio);
 
     // Check preferred spot map exists for this studio
@@ -2599,7 +2644,7 @@ async function tryAutoRegisterUpgrade(event, bookedSlotId, bookingRes, enableOve
       debugConsole('[AutoUpgrade] Fetched all prefs, studioId prefs:', prefs);
     }
     if (!prefs?.preferredSlots?.length && !prefs?.preferredRows?.length) {
-      const studioName = event.studio?.name || studioMap.get(studioId) || 'this studio';
+      const studioName = event.studioName || studioMap.get(studioId) || 'this studio';
       debugConsole('[AutoUpgrade] No preferred spot map for studio:', studioName, '| prefs:', prefs);
       showToast(`Can't set auto-upgrade because you don't have a preferred spot map for ${studioName}. Please configure one!`, 'warning');
       return;
@@ -2608,44 +2653,31 @@ async function tryAutoRegisterUpgrade(event, bookedSlotId, bookingRes, enableOve
     // Resolve booking IDs and slot IDs from response
     const registerPromises = [];
     
-    // CodexFit returns: { success: true, bookings: { "booking_id": slot_id } }
-    if (bookingRes?.bookings && typeof bookingRes.bookings === 'object') {
-      const bookingsMap = bookingRes.bookings;
-      for (const bookingId of Object.keys(bookingsMap)) {
-        const slotId = Number(bookingsMap[bookingId]);
-        const payload = {
-          eventId: event.id,
-          studioId: studioId || null,
-          bookingId: Number(bookingId),
-          currentSlotId: slotId,
-          className: event.event_type?.name || 'Ride',
-          instructorName: event.instructor?.full_name || '',
-          studioName: event.studio?.name || '',
-          locationName: event.studio?.location?.name || '',
-          startAt: event.start_at,
-          preferences: { keepOriginalOnCutoff: true }
-        };
-        registerPromises.push(api.addAutoUpgrade(payload));
+    // A NormalizedBookingResult carries { bookingId, slotId } directly, for every
+    // provider. This used to unpack CodexFit's `{ bookings: { id: slot } }` map
+    // and fall back through two more raw shapes — none of which MarianaTek emits.
+    const booked = [];
+    if (bookingRes?.bookingId != null) {
+      booked.push({ bookingId: bookingRes.bookingId, slotId: bookingRes.slotId ?? bookedSlotId });
+    } else if (Array.isArray(bookingRes?.bookings)) {
+      // Multi-slot: one result per booked spot.
+      for (const b of bookingRes.bookings) {
+        if (b?.bookingId != null) booked.push({ bookingId: b.bookingId, slotId: b.slotId ?? bookedSlotId });
       }
-    } else {
-      // Fallback for single booking response shapes
-      const dataObj = Array.isArray(bookingRes?.data) ? bookingRes.data[0] : bookingRes?.data;
-      const bookingId = dataObj?.id || bookingRes?.id;
-      if (bookingId) {
-        const payload = {
-          eventId: event.id,
-          studioId: studioId || null,
-          bookingId: Number(bookingId),
-          currentSlotId: bookedSlotId,
-          className: event.event_type?.name || 'Ride',
-          instructorName: event.instructor?.full_name || '',
-          studioName: event.studio?.name || '',
-          locationName: event.studio?.location?.name || '',
-          startAt: event.start_at,
-          preferences: { keepOriginalOnCutoff: true }
-        };
-        registerPromises.push(api.addAutoUpgrade(payload));
-      }
+    }
+    for (const b of booked) {
+      registerPromises.push(api.addAutoUpgrade({
+        eventId: event.id,
+        studioId: studioId || null,
+        bookingId: Number(b.bookingId),
+        currentSlotId: Number(b.slotId),
+        className: event.name || event.name || 'Class',
+        instructorName: event.instructors?.[0]?.name || (event.instructors?.[0]?.name) || '',
+        studioName: event.studioName || event.studioName || '',
+        locationName: event.locationName || event.locationName || '',
+        startAt: event.startAt || event.startAt,
+        preferences: { keepOriginalOnCutoff: true },
+      }));
     }
 
     if (registerPromises.length === 0) {
@@ -2665,10 +2697,8 @@ async function tryAutoRegisterUpgrade(event, bookedSlotId, bookingRes, enableOve
 async function bookSeatDirect(eventId, slotId, callback, event) {
   try {
     showToast(`Booking seat ${slotId}...`, 'info');
-    const bookingRes = await api.proxyPost('/bookings', {
-      event_id: eventId,
-      slots: [slotId]
-    });
+    const bookingRes = await api.book(eventId, slotId == null ? [] : [slotId]);
+    if (!bookingRes.ok) throw new Error(bookingRes.error || 'Booking was declined');
     showToast('Seat booked successfully! 🎉', 'success');
     callback();
     if (event) await tryAutoRegisterUpgrade(event, slotId, bookingRes);
@@ -2694,7 +2724,7 @@ async function cancelBookingDirect(bookingId, isPenalty, btn) {
     btn.textContent = 'Cancelling...';
     try {
       showToast('Cancelling booking...', 'info');
-      await api.proxyDelete(`/bookings/${bookingId}`);
+      await api.cancel(bookingId);
       showToast('Booking cancelled successfully!', 'success');
 
       // Remove any active upgrade monitor for this booking
@@ -2755,16 +2785,16 @@ async function cancelBookingDirect(bookingId, isPenalty, btn) {
 
 // Save scheduled auto-booking record to database
 async function saveAutoBookPreferences(c, slots, rows, qty, bookAny, callback, skipImmediate = false, autoUpgrade = false) {
-  const instructor = metadata.instructors.find(i => i.id === c.instructor_id) || { full_name: 'Instructor' };
-  const studio = metadata.studios.find(s => s.id === c.studio_id) || { name: 'Studio' };
-  const classType = metadata.eventTypes.find(t => t.id === c.event_type_id) || { name: 'Class' };
-  const studioLocationId = studio.location_id || selectedLocations[0] || c.location_id;
+  const instructor = metadata.instructors.find(i => sameId(i.id, c.instructors?.[0]?.id)) || { name: 'Instructor' };
+  const studio = metadata.studios.find(s => sameId(s.id, c.studioId)) || { name: 'Studio' };
+  const classType = metadata.eventTypes.find(t => sameId(t.id, c.classTypeId)) || { name: 'Class' };
+  const studioLocationId = studio.locationId || selectedLocations[0] || c.locationId;
   const location = metadata.locations.find(l => String(l.id) === String(studioLocationId)) || { name: 'Location' };
 
   // Strip event type prefix from class name (e.g., "RIDE: Signature 45" → "Signature 45")
-  const groupName = c.event_type?.group?.name || classType?.group?.name || classType.name || 'Class';
+  const groupName = c.discipline || classType?.group || classType.name || 'Class';
   const typePrefix = groupName.toUpperCase() + ': ';
-  const fullClassName = c.name || c.event_type?.name || classType.name;
+  const fullClassName = c.name || c.name || classType.name;
   const strippedClassName = fullClassName.toUpperCase().startsWith(typePrefix)
     ? fullClassName.substring(typePrefix.length)
     : fullClassName;
@@ -2775,9 +2805,9 @@ async function saveAutoBookPreferences(c, slots, rows, qty, bookAny, callback, s
     // The studio spot map is the shared source of truth. If the user picked
     // spots/rows here, persist them to the studio map so the live resolver (and
     // every other feature for this studio) uses the same selection.
-    if (c.studio_id && (slots.length > 0 || rows.length > 0)) {
+    if (c.studioId && (slots.length > 0 || rows.length > 0)) {
       try {
-        await api.updateStudioPreferences(c.studio_id, { preferredSlots: slots, preferredRows: rows });
+        await api.updateStudioPreferences(c.studioId, { preferredSlots: slots, preferredRows: rows });
       } catch (e) {
         console.warn('[AutoBook] Could not persist studio map:', e.message);
       }
@@ -2788,13 +2818,17 @@ async function saveAutoBookPreferences(c, slots, rows, qty, bookAny, callback, s
 
     await api.addAutoBooking({
       eventId: c.id,
-      studioId: c.studio_id || null,
+      studioId: c.studioId || null,
       className: strippedClassName,
       groupName,
       instructorName: instructor.full_name || instructor.name,
       studioName: studio.name,
       locationName: location.name,
-      startAt: c.start_at,
+      startAt: c.startAt,
+      // The gym's own release instant, when it publishes one (WP-D8). A
+      // per-class gym has no weekday rule for the scheduler to recompute this
+      // from later, so if it isn't captured here it is gone.
+      releaseAt: c.releaseAt || null,
       skipImmediate,
       creditShortfall,
       preferences: {
@@ -2828,7 +2862,7 @@ export async function openDebugModal(event) {
   const title = document.getElementById('psycle-debug-modal-title');
   if (!modal || !body || !title) return;
 
-  title.textContent = `Debug: ${event.name || event.event_type_name || 'Class'} — ${event.start_at || ''}`;
+  title.textContent = `Debug: ${event.name || event.name || 'Class'} — ${event.startAt || ''}`;
   body.innerHTML = `
     <div class="psycle-loading-spinner-container" style="padding: 40px 0;">
       <div class="psycle-spinner"></div>
@@ -2855,24 +2889,24 @@ export async function openDebugModal(event) {
 
   try {
     // Fetch full event data from proxy
-    const res = await api.proxyGet(`/events/${event.id}`, { ttlMs: 120000 });
+    const res = await api.getEventDetails(event.id);
     const eventData = res.data || res;
     const relations = res.relations || eventData.relations || {};
 
     // Fetch slot availability for the Slots tab
-    const studio = metadata.studios.find(s => s.id === event.studio_id);
+    const studio = metadata.studios.find(s => sameId(s.id, event.studioId));
     const layoutSlots = studio?.layout?.slots || [];
     // Note: /events/{id}/slots endpoint not available; use layout data from studio
     let availableSlots = [];
 
     // Find matching booking and waitlist for this event
-    const matchingBooking = userBookings.find(b => b.event_id === event.id || b.event?.id === event.id) || null;
-    const matchingWaitlist = userWaitlists.find(w => w.event_id === event.id || w.event?.id === event.id) || null;
+    const matchingBooking = userBookings.find(b => matchesEvent(b, event)) || null;
+    const matchingWaitlist = userWaitlists.find(w => matchesEvent(w, event)) || null;
 
     // Compute key values
-    const classRelease = getClassReleaseTime(event.start_at, userSettings);
+    const classRelease = getClassReleaseTime(event, userSettings);
     const now = DateTime.now().setZone('Europe/London');
-    const isLive = event.is_always_bookable ? true : (now >= classRelease);
+    const isLive = event.alwaysBookable ? true : (now >= classRelease);
     const bookingCutoff = event.booking_cutoff || 'N/A';
     const extendedCutoff = event.extended_cutoff || 'N/A';
 
@@ -2921,7 +2955,7 @@ export async function openDebugModal(event) {
               <span style="color:var(--text-secondary);">Available:</span><span style="color:var(--success);font-weight:600;">${totalAvail}</span><span></span>
               <span style="color:var(--text-secondary);">Occupied:</span><span style="color:var(--danger);font-weight:600;">${occupied}</span><span></span>
               <span style="color:var(--text-secondary);">Capacity:</span><span style="color:var(--text);font-weight:600;">${event.capacity ?? 'N/A'}</span><span></span>
-              <span style="color:var(--text-secondary);">Occupancy:</span><span style="color:var(--text);font-weight:600;">${event.occupancy ?? 'N/A'}</span><span></span>
+              <span style="color:var(--text-secondary);">Occupancy:</span><span style="color:var(--text);font-weight:600;">${(event.capacity != null && event.availableCount != null ? event.capacity - event.availableCount : undefined) ?? 'N/A'}</span><span></span>
             </div>
           </div>
           ${unmapped.length > 0 ? `<div style="font-size:12px;color:var(--warning);background:color-mix(in srgb, var(--warning) 8%, transparent);border:1px solid color-mix(in srgb, var(--warning) 20%, transparent);border-radius:6px;padding:8px 12px;margin-bottom:12px;">⚠ ${unmapped.length} available slot${unmapped.length>1?'s are':' is'} not on the layout map — IDs: ${unmapped.join(', ')}</div>` : ''}
@@ -2952,10 +2986,10 @@ export async function openDebugModal(event) {
       // Build computed values section for event-data tab
       let computedHtml = '';
       if (tabId === 'event-data') {
-        const studio = metadata.studios.find(s => s.id === event.studio_id);
-        const loc = studio ? metadata.locations.find(l => String(l.id) === String(studio.location_id)) : null;
-        const instructor = metadata.instructors.find(i => i.id === event.instructor_id);
-        const typeInfo = metadata.eventTypes.find(t => t.id === event.event_type_id);
+        const studio = metadata.studios.find(s => sameId(s.id, event.studioId));
+        const loc = studio ? metadata.locations.find(l => sameId(l.id, studio.locationId)) : null;
+        const instructor = metadata.instructors.find(i => sameId(i.id, event.instructors?.[0]?.id));
+        const typeInfo = metadata.eventTypes.find(t => sameId(t.id, event.classTypeId));
 
         computedHtml = `
           <div class="psycle-debug-computed" style="background:color-mix(in srgb, var(--feat-autoupgrade) 8%, transparent); border:1px solid color-mix(in srgb, var(--feat-autoupgrade) 20%, transparent); border-radius:10px; padding:14px; margin-bottom:16px;">
@@ -2965,10 +2999,10 @@ export async function openDebugModal(event) {
               <span style="color:var(--text-secondary);">classReleaseTime:</span><span style="color:var(--text); font-weight:600;">${classRelease.toISO()}</span>
               <span style="color:var(--text-secondary);">bookingCutoff:</span><span style="color:var(--text); font-weight:600;">${bookingCutoff}</span>
               <span style="color:var(--text-secondary);">extendedCutoff:</span><span style="color:var(--text); font-weight:600;">${extendedCutoff}</span>
-              <span style="color:var(--text-secondary);">isFullyBooked:</span><span style="color:var(--text); font-weight:600;">${!!event.is_fully_booked}</span>
-              <span style="color:var(--text-secondary);">isAlwaysBookable:</span><span style="color:var(--text); font-weight:600;">${!!event.is_always_bookable}</span>
+              <span style="color:var(--text-secondary);">isFullyBooked:</span><span style="color:var(--text); font-weight:600;">${!!event.isFull}</span>
+              <span style="color:var(--text-secondary);">isAlwaysBookable:</span><span style="color:var(--text); font-weight:600;">${!!event.alwaysBookable}</span>
               <span style="color:var(--text-secondary);">capacity:</span><span style="color:var(--text); font-weight:600;">${event.capacity ?? 'N/A'}</span>
-              <span style="color:var(--text-secondary);">occupancy:</span><span style="color:var(--text); font-weight:600;">${event.occupancy ?? 'N/A'}</span>
+              <span style="color:var(--text-secondary);">occupancy:</span><span style="color:var(--text); font-weight:600;">${(event.capacity != null && event.availableCount != null ? event.capacity - event.availableCount : undefined) ?? 'N/A'}</span>
               ${studio ? `<span style="color:var(--text-secondary);">Studio:</span><span style="color:var(--text); font-weight:600;">${studio.name} (ID: ${studio.id})</span>` : ''}
               ${loc ? `<span style="color:var(--text-secondary);">Location:</span><span style="color:var(--text); font-weight:600;">${loc.name} (ID: ${loc.id})</span>` : ''}
               ${instructor ? `<span style="color:var(--text-secondary);">Instructor:</span><span style="color:var(--text); font-weight:600;">${instructor.full_name || instructor.name} (ID: ${instructor.id})</span>` : ''}
@@ -3007,7 +3041,7 @@ export async function openDebugModal(event) {
         html += '<span style="color:var(--text-secondary); font-size:12px; margin-left:6px;">None</span>';
       } else {
         studioList.forEach(s => {
-          html += `<div style="margin-left:12px; font-size:12px; color:var(--text-secondary);">• ${s.name || 'Unnamed'} (ID: ${s.id}, Location ID: ${s.location_id})</div>`;
+          html += `<div style="margin-left:12px; font-size:12px; color:var(--text-secondary);">• ${s.name || 'Unnamed'} (ID: ${s.id}, Location ID: ${s.locationId ?? s.locationId})</div>`;
         });
       }
       html += '</div>';
@@ -3043,7 +3077,7 @@ export async function openDebugModal(event) {
         html += '<span style="color:var(--text-secondary); font-size:12px; margin-left:6px;">None</span>';
       } else {
         etList.forEach(et => {
-          const groupName = et.group ? et.group.name : '';
+          const groupName = et.group || '';
           html += `<div style="margin-left:12px; font-size:12px; color:var(--text-secondary);">• ${et.name || 'Unnamed'} (ID: ${et.id}${groupName ? `, Group: ${groupName}` : ''})</div>`;
         });
       }

@@ -1,4 +1,4 @@
-// Psycle Assistant — first-run onboarding flow.
+// Sweat Assistant — first-run onboarding flow.
 //
 // Runs BEFORE login on first launch and walks the user through:
 //   intro carousel → install to home screen → login → notifications → spot-map nudge → app.

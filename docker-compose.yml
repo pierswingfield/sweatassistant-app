@@ -5,7 +5,7 @@ services:
     build:
       context: .
       dockerfile: Dockerfile
-    container_name: psycle-app
+    container_name: psycle-app-dev
     ports:
       - "3005:3000"
     volumes:
@@ -13,6 +13,14 @@ services:
     env_file:
       - .env
     restart: unless-stopped
+    networks:
+      - default
+      - edge
+
+networks:
+  edge:
+    external: true
+    name: edge
 
 volumes:
   psycle-data:

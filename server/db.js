@@ -301,6 +301,12 @@ ensureColumn('auto_upgrades', 'original_slot_id', 'INTEGER');
 // unattended", never as "fall back to users.email" — that fallback is exactly
 // the account-stands-in-for-gym assumption being removed here.
 ensureColumn('user_gyms', 'gym_email', 'TEXT');
+// When this link's credential was last PROVEN against the gym — set by
+// linkGymAccount and by a successful session renewal, and by nothing else.
+// Deliberately not `updated_at`, which moves on any write to the row (a priority
+// change, a calendar token rotation) and so would report a connection as freshly
+// authenticated when it had not been touched in months.
+ensureColumn('user_gyms', 'last_authenticated_at', 'TEXT');
 
 // The instant booking opens for THIS queued class (WP-D8).
 //
@@ -691,18 +697,23 @@ function resolvePersistedGymId(userId) {
 //   manualBookingWindow* — all describe ONE gym's booking window
 //   cartInstanceId       — a provider-side cart id
 //   autoBookFavourites   — provider bookmark identifiers
-//   calendar             — the feed's token lives on user_gyms, so the feed IS
-//                          per-gym; `calendar.enabled` describes one gym's feed.
-//                          Listing it here would make getCalendarEnabledUserIds
-//                          find nobody and silently stop the feed cron.
 const ACCOUNT_SCOPED_SETTING_KEYS = new Set([
   'notifications',        // per-type push preferences — the person's choice
   'debugMode',            // app-level developer toggle
-  'autoUpgradeEnabled',   // how I like the app to behave, not a gym's rule
-  'autoUpgradeByDefault',
-  'autoUpgradeInterval',
   'prefetchWeeks',
   'theme',
+  // `calendar` moved here on 2026-09-14. It WAS gym-scoped because the feed
+  // token lived on user_gyms, which made the feed per-gym — one .ics URL per
+  // gym, each showing a third of your week. A person has one calendar; they
+  // subscribe once and expect every class in it. The token therefore moved to
+  // users.calendar_token (an account-level column that already existed), the
+  // feed now fans out across every linked gym, and this key follows.
+  //
+  // NOTE the trap this replaces: while the token lived on user_gyms, listing
+  // `calendar` here would have made getCalendarEnabledUserIds find nobody and
+  // silently stop the feed cron. That function now reads account_settings, so
+  // the two are consistent — change them together or not at all.
+  'calendar',
 ]);
 
 function parseJsonOr(raw, fallback) {
@@ -747,6 +758,127 @@ function splitExistingSettings() {
 }
 splitExistingSettings();
 
+// Settings-scope correction (2026-09-12): Auto-Upgrade operates against one
+// gym's provider, capabilities, bookings and polling cost, so its controls are
+// gym-scoped. Earlier WP-D6 code lifted three keys into account_settings while
+// `autoUpgradeKeepOriginalByDefault` remained gym-scoped by accident. Backfill
+// the former account values onto every existing link, preserve an already-set
+// gym value, then remove the account copies. Idempotent: after the first pass
+// there are no account keys left to migrate.
+const AUTO_UPGRADE_GYM_KEYS = [
+  'autoUpgradeEnabled',
+  'autoUpgradeByDefault',
+  'autoUpgradeInterval',
+  'autoUpgradeKeepOriginalByDefault',
+];
+
+function migrateAutoUpgradeSettingsScope() {
+  const accountRows = db.prepare('SELECT user_id, preferences FROM account_settings').all();
+  if (accountRows.length === 0) return;
+
+  const linkedGyms = db.prepare('SELECT gym_id FROM user_gyms WHERE user_id = ?');
+  const readGym = db.prepare('SELECT preferences FROM settings WHERE user_id = ? AND gym_id = ?');
+  const writeGym = db.prepare(`
+    INSERT INTO settings (user_id, gym_id, preferences, updated_at)
+    VALUES (?, ?, ?, CURRENT_TIMESTAMP)
+    ON CONFLICT(user_id, gym_id) DO UPDATE SET
+      preferences = excluded.preferences, updated_at = CURRENT_TIMESTAMP
+  `);
+  const writeAccount = db.prepare(`
+    UPDATE account_settings SET preferences = ?, updated_at = CURRENT_TIMESTAMP WHERE user_id = ?
+  `);
+
+  const tx = db.transaction(() => {
+    for (const row of accountRows) {
+      const account = parseJsonOr(row.preferences, {});
+      const values = {};
+      for (const key of AUTO_UPGRADE_GYM_KEYS) {
+        if (Object.prototype.hasOwnProperty.call(account, key)) values[key] = account[key];
+      }
+      if (Object.keys(values).length === 0) continue;
+
+      for (const { gym_id: gymId } of linkedGyms.all(row.user_id)) {
+        const existingRow = readGym.get(row.user_id, gymId);
+        const existing = parseJsonOr(existingRow && existingRow.preferences, {});
+        // Existing per-gym values win; account values are only a backfill.
+        writeGym.run(row.user_id, gymId, JSON.stringify({ ...values, ...existing }));
+      }
+
+      for (const key of AUTO_UPGRADE_GYM_KEYS) delete account[key];
+      writeAccount.run(JSON.stringify(account), row.user_id);
+    }
+  });
+  tx();
+}
+migrateAutoUpgradeSettingsScope();
+
+/**
+ * Promote the `calendar` setting from gym scope to account scope (2026-09-14).
+ *
+ * Runs in the OPPOSITE direction to migrateAutoUpgradeSettingsScope above: that
+ * one fanned an account key out to every gym; this one folds every gym's copy
+ * back into one account value.
+ *
+ * Without it, an existing subscriber's `calendar.enabled` stays in their
+ * `settings` row where nothing reads it any more, getCalendarEnabledUserIds
+ * finds nobody, and the feed cron silently stops for everyone who already had
+ * it on — no error, just a calendar that quietly stops updating. That is the
+ * failure this migration exists to prevent, so do not remove it as "old".
+ *
+ * Idempotent: once the gym rows no longer carry `calendar`, it is a no-op.
+ * "Enabled anywhere" wins, because the user did opt in; the richest non-empty
+ * settings object is kept so alarm/includeTentative choices survive.
+ */
+function migrateCalendarSettingsToAccountScope() {
+  const gymRows = db.prepare('SELECT user_id, gym_id, preferences FROM settings').all();
+  if (gymRows.length === 0) return;
+
+  const byUser = new Map();
+  for (const row of gymRows) {
+    const prefs = parseJsonOr(row.preferences, {});
+    if (!Object.prototype.hasOwnProperty.call(prefs, 'calendar')) continue;
+    const cal = prefs.calendar || {};
+    const prev = byUser.get(row.user_id);
+    if (!prev) byUser.set(row.user_id, cal);
+    else {
+      byUser.set(row.user_id, {
+        ...prev,
+        ...cal,
+        enabled: !!(prev.enabled || cal.enabled),
+      });
+    }
+  }
+  if (byUser.size === 0) return;
+
+  const readAccount = db.prepare('SELECT preferences FROM account_settings WHERE user_id = ?');
+  const writeAccount = db.prepare(`
+    INSERT INTO account_settings (user_id, preferences, updated_at)
+    VALUES (?, ?, CURRENT_TIMESTAMP)
+    ON CONFLICT(user_id) DO UPDATE SET
+      preferences = excluded.preferences, updated_at = CURRENT_TIMESTAMP
+  `);
+  const writeGym = db.prepare('UPDATE settings SET preferences = ?, updated_at = CURRENT_TIMESTAMP WHERE user_id = ? AND gym_id = ?');
+
+  const tx = db.transaction(() => {
+    for (const [userId, calendar] of byUser) {
+      const account = parseJsonOr(readAccount.get(userId)?.preferences, {});
+      // An account value already set by the new code wins over the old gym copy.
+      if (!Object.prototype.hasOwnProperty.call(account, 'calendar')) {
+        account.calendar = calendar;
+        writeAccount.run(userId, JSON.stringify(account));
+      }
+    }
+    for (const row of gymRows) {
+      const prefs = parseJsonOr(row.preferences, {});
+      if (!Object.prototype.hasOwnProperty.call(prefs, 'calendar')) continue;
+      delete prefs.calendar;
+      writeGym.run(JSON.stringify(prefs), row.user_id, row.gym_id);
+    }
+  });
+  tx();
+}
+migrateCalendarSettingsToAccountScope();
+
 function mergeUserWithGym(user, gymId) {
   if (!user) return null;
   const ug = db.prepare('SELECT * FROM user_gyms WHERE user_id = ? AND gym_id = ?').get(user.id, gymId);
@@ -777,6 +909,8 @@ function mergeUserWithGym(user, gymId) {
 module.exports = {
   // Direct access if needed
   db,
+  migrateAutoUpgradeSettingsScope,
+  migrateCalendarSettingsToAccountScope,
 
   // Key-value store
   getKV(key) {
@@ -886,6 +1020,10 @@ module.exports = {
     if (!gymId) throw new Error('setGymSession requires an explicit gymId');
     this.upsertUserGym(userId, gymId, {
       session_json: session ? JSON.stringify(session) : null,
+      // A new session means the stored credential was just proven against the
+      // gym. Only stamped when a session is actually issued — clearing a session
+      // (a failed renewal) must not look like a successful authentication.
+      ...(session ? { last_authenticated_at: new Date().toISOString() } : {}),
     });
     // Dual-write the vestigial users.* columns only when this IS the active gym,
     // so renewing a background gym can't overwrite the active one's token.
@@ -893,6 +1031,18 @@ module.exports = {
       db.prepare('UPDATE users SET jwt = ?, jwt_expires_at = ? WHERE id = ?')
         .run(session ? session.accessToken : null, session ? (session.expiresAt || null) : null, userId);
     }
+  },
+  getUserSession(userId, gymId) {
+    const resolvedGym = gymId || resolveActiveGymId(userId);
+    const link = this.getUserGym(userId, resolvedGym);
+    if (link && link.session_json) {
+      try {
+        const s = JSON.parse(link.session_json);
+        if (s && s.accessToken) return s;
+      } catch (_) {}
+    }
+    const user = this.getUserById(userId);
+    return user?.jwt ? { accessToken: user.jwt } : null;
   },
   updateUserDisplayName(userId, displayName) {
     db.prepare('UPDATE users SET display_name = ? WHERE id = ?').run(displayName, userId);
@@ -912,8 +1062,21 @@ module.exports = {
     if (displayName) fields.display_name = displayName;
     this.upsertUserGym(userId, resolveActiveGymId(userId), fields);
   },
+  // Called from `authenticateToken`, i.e. on EVERY authenticated request, so it
+  // is throttled in SQL rather than firing a write per call. The predicate does
+  // the throttling without a preceding read.
+  //
+  // It used to live on `/api/proxy/*` only, which made it CodexFit-only by
+  // accident: a MarianaTek account never touches the proxy, so its `last_seen_at`
+  // never moved and the admin panel reported every JAB user as dormant. As the
+  // client migrated off the proxy the same staleness started reaching Psycle
+  // accounts too.
   touchUserLastSeen(userId) {
-    db.prepare('UPDATE users SET last_seen_at = CURRENT_TIMESTAMP WHERE id = ?').run(userId);
+    db.prepare(`
+      UPDATE users SET last_seen_at = CURRENT_TIMESTAMP
+      WHERE id = ?
+        AND (last_seen_at IS NULL OR last_seen_at < datetime('now', '-5 minutes'))
+    `).run(userId);
   },
 
   // Auto-bookings
@@ -951,21 +1114,30 @@ module.exports = {
       ORDER BY priority ASC, ab.created_at ASC
     `).all();
   },
-  getUserAutoBookings(userId) {
+  getUserAutoBookings(userId, gymId = undefined) {
+    if (gymId === 'all') {
+      return db.prepare('SELECT * FROM auto_bookings WHERE user_id = ? ORDER BY id DESC').all(userId);
+    }
+    const resolvedGym = gymId !== undefined ? gymId : resolveActiveGymId(userId);
+    if (!resolvedGym) {
+      return db.prepare('SELECT * FROM auto_bookings WHERE user_id = ? ORDER BY id DESC').all(userId);
+    }
     return db.prepare('SELECT * FROM auto_bookings WHERE user_id = ? AND gym_id = ? ORDER BY id DESC')
-      .all(userId, resolveActiveGymId(userId));
+      .all(userId, resolvedGym);
   },
   // Per-GYM quota, not per-account: a Psycle queue must not consume a JAB
   // allowance. (The limit itself lives in server.js — see layer G.)
-  countPendingAutoBookings(userId) {
+  countPendingAutoBookings(userId, gymId = null) {
+    const targetGym = gymId || resolveActiveGymId(userId);
     return db.prepare("SELECT COUNT(*) AS n FROM auto_bookings WHERE user_id = ? AND gym_id = ? AND status = 'pending' AND executed_at IS NULL")
-      .get(userId, resolveActiveGymId(userId)).n;
+      .get(userId, targetGym).n;
   },
-  addAutoBooking(userId, eventId, className, instructorName, studioName, locationName, startAt, preferences, studioId = null, groupName = null, releaseAt = null) {
+  addAutoBooking(userId, eventId, className, instructorName, studioName, locationName, startAt, preferences, studioId = null, groupName = null, releaseAt = null, gymId = null) {
+    const targetGym = gymId || resolveActiveGymId(userId);
     const result = db.prepare(`
       INSERT INTO auto_bookings (user_id, gym_id, event_id, studio_id, class_name, instructor_name, studio_name, location_name, start_at, preferences, group_name, release_at)
       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-    `).run(userId, resolveActiveGymId(userId), eventId, studioId, className, instructorName, studioName, locationName, startAt, JSON.stringify(preferences), groupName, releaseAt);
+    `).run(userId, targetGym, eventId, studioId, className, instructorName, studioName, locationName, startAt, JSON.stringify(preferences), groupName, releaseAt);
     return result.lastInsertRowid;
   },
   updateAutoBookingPreferences(id, userId, preferences) {
@@ -997,19 +1169,28 @@ module.exports = {
   getActiveAutoUpgrades() {
     return db.prepare("SELECT * FROM auto_upgrades WHERE status = 'active'").all();
   },
-  getUserAutoUpgrades(userId) {
+  getUserAutoUpgrades(userId, gymId = undefined) {
+    if (gymId === 'all') {
+      return db.prepare('SELECT * FROM auto_upgrades WHERE user_id = ? ORDER BY id DESC').all(userId);
+    }
+    const resolvedGym = gymId !== undefined ? gymId : resolveActiveGymId(userId);
+    if (!resolvedGym) {
+      return db.prepare('SELECT * FROM auto_upgrades WHERE user_id = ? ORDER BY id DESC').all(userId);
+    }
     return db.prepare('SELECT * FROM auto_upgrades WHERE user_id = ? AND gym_id = ? ORDER BY id DESC')
-      .all(userId, resolveActiveGymId(userId));
+      .all(userId, resolvedGym);
   },
-  countActiveAutoUpgrades(userId) {
+  countActiveAutoUpgrades(userId, gymId = null) {
+    const targetGym = gymId || resolveActiveGymId(userId);
     return db.prepare("SELECT COUNT(*) AS n FROM auto_upgrades WHERE user_id = ? AND gym_id = ? AND status = 'active'")
-      .get(userId, resolveActiveGymId(userId)).n;
+      .get(userId, targetGym).n;
   },
-  addAutoUpgrade(userId, eventId, bookingId, currentSlotId, className, instructorName, studioName, locationName, startAt, preferences, studioId = null, groupName = null) {
+  addAutoUpgrade(userId, eventId, bookingId, currentSlotId, className, instructorName, studioName, locationName, startAt, preferences, studioId = null, groupName = null, gymId = null) {
+    const targetGym = gymId || resolveActiveGymId(userId);
     const result = db.prepare(`
       INSERT INTO auto_upgrades (user_id, gym_id, event_id, studio_id, booking_id, current_slot_id, original_slot_id, class_name, instructor_name, studio_name, location_name, start_at, preferences, group_name)
       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-    `).run(userId, resolveActiveGymId(userId), eventId, studioId, bookingId, currentSlotId, currentSlotId, className, instructorName, studioName, locationName, startAt, JSON.stringify(preferences), groupName);
+    `).run(userId, targetGym, eventId, studioId, bookingId, currentSlotId, currentSlotId, className, instructorName, studioName, locationName, startAt, JSON.stringify(preferences), groupName);
     return result.lastInsertRowid;
   },
   // All upgrade monitors for a user keyed by event_id — used by the calendar feed to
@@ -1283,30 +1464,46 @@ module.exports = {
 
   // ─── Calendar feed (WP-D3: token lives on user_gyms; users.calendar_token is a
   // dual-written vestige for defense-in-depth during the transition) ──────────
+  // The feed is ACCOUNT-level: one token, one URL, every linked gym's classes.
+  // `users.calendar_token` is the source of truth; the per-gym
+  // `user_gyms.calendar_token` is read only as a migration fallback, so anyone
+  // already subscribed to a per-gym URL keeps working and is promoted in place
+  // the first time it is read.
   getCalendarToken(userId) {
-    const ug = db.prepare('SELECT calendar_token FROM user_gyms WHERE user_id = ? AND gym_id = ?').get(userId, resolveActiveGymId(userId));
-    return ug ? ug.calendar_token : null;
+    const u = db.prepare('SELECT calendar_token FROM users WHERE id = ?').get(userId);
+    if (u && u.calendar_token) return u.calendar_token;
+    const ug = db.prepare('SELECT calendar_token FROM user_gyms WHERE user_id = ? AND calendar_token IS NOT NULL ORDER BY gym_id LIMIT 1').get(userId);
+    if (!ug || !ug.calendar_token) return null;
+    // Promote the existing per-gym token to the account so the URL the user has
+    // already added to their calendar app keeps resolving.
+    db.prepare('UPDATE users SET calendar_token = ? WHERE id = ?').run(ug.calendar_token, userId);
+    return ug.calendar_token;
   },
   setCalendarToken(userId, token) {
     db.prepare('UPDATE users SET calendar_token = ? WHERE id = ?').run(token, userId);
-    this.upsertUserGym(userId, resolveActiveGymId(userId), { calendar_token: token });
+    // Clear every per-gym token: leaving them live would keep old single-gym
+    // feed URLs serving, which is exactly the leak a rotation is meant to close.
+    db.prepare('UPDATE user_gyms SET calendar_token = NULL WHERE user_id = ?').run(userId);
   },
   getUserByCalendarToken(token) {
     if (!token) return null;
+    const user = db.prepare('SELECT * FROM users WHERE calendar_token = ?').get(token);
+    if (user) return mergeUserWithGym(user, resolveActiveGymId(user.id));
+    // Migration fallback: a token issued before the feed became account-level.
     const ug = db.prepare('SELECT * FROM user_gyms WHERE calendar_token = ?').get(token);
     if (!ug) return null;
-    const user = db.prepare('SELECT * FROM users WHERE id = ?').get(ug.user_id);
-    return mergeUserWithGym(user, ug.gym_id);
+    const legacy = db.prepare('SELECT * FROM users WHERE id = ?').get(ug.user_id);
+    return mergeUserWithGym(legacy, ug.gym_id);
   },
-  // Users who have turned the calendar feed on (token present + settings.calendar.enabled).
+  // Users who have turned the calendar feed on (account token + calendar.enabled).
   getCalendarEnabledUserIds() {
     const ids = [];
-    const rows = db.prepare('SELECT user_id, gym_id FROM user_gyms WHERE calendar_token IS NOT NULL').all();
+    const rows = db.prepare('SELECT id FROM users WHERE calendar_token IS NOT NULL').all();
     for (const r of rows) {
       try {
-        const sRow = db.prepare('SELECT preferences FROM settings WHERE user_id = ? AND gym_id = ?').get(r.user_id, r.gym_id);
-        const prefs = sRow ? JSON.parse(sRow.preferences) : {};
-        if (prefs.calendar && prefs.calendar.enabled) ids.push(r.user_id);
+        const aRow = db.prepare('SELECT preferences FROM account_settings WHERE user_id = ?').get(r.id);
+        const prefs = aRow ? JSON.parse(aRow.preferences) : {};
+        if (prefs.calendar && prefs.calendar.enabled) ids.push(r.id);
       } catch (_) {}
     }
     return ids;
@@ -1339,14 +1536,22 @@ module.exports = {
   },
 
   // calendar_classes — the persistent store backing the feed
-  getCalendarClasses(userId) {
-    return db.prepare('SELECT * FROM calendar_classes WHERE user_id = ? AND gym_id = ? ORDER BY start_at ASC')
-      .all(userId, resolveActiveGymId(userId));
+  // `gymId` omitted = EVERY linked gym, which is what the account-level feed
+  // serializes. Pass one explicitly only when reconciling a single gym's rows.
+  getCalendarClasses(userId, gymId) {
+    if (gymId) {
+      return db.prepare('SELECT * FROM calendar_classes WHERE user_id = ? AND gym_id = ? ORDER BY start_at ASC')
+        .all(userId, gymId);
+    }
+    return db.prepare('SELECT * FROM calendar_classes WHERE user_id = ? ORDER BY start_at ASC').all(userId);
   },
   // Upsert one class; bumps sequence when the content hash changes so calendar
   // clients re-render the event in place.
-  upsertCalendarClass(userId, c) {
-    const gymId = resolveActiveGymId(userId);
+  upsertCalendarClass(userId, c, explicitGymId) {
+    // Explicit gym, because the feed writes rows for gyms the user is not
+    // currently "on" — resolving the active gym here would file every gym's
+    // classes under whichever one happened to be selected.
+    const gymId = explicitGymId || c.gymId || resolveActiveGymId(userId);
     const existing = db.prepare('SELECT sequence, content_hash FROM calendar_classes WHERE user_id = ? AND gym_id = ? AND event_id = ?')
       .get(userId, gymId, c.eventId);
     let sequence = 0;
@@ -1375,8 +1580,8 @@ module.exports = {
   },
   // Delete future classes (start_at > nowISO) whose event_id is not in keepEventIds —
   // i.e. they were cancelled/unbooked. Past classes are never removed here (history).
-  reconcileFutureCalendarClasses(userId, nowISO, keepEventIds) {
-    const gymId = resolveActiveGymId(userId);
+  reconcileFutureCalendarClasses(userId, nowISO, keepEventIds, explicitGymId) {
+    const gymId = explicitGymId || resolveActiveGymId(userId);
     const future = db.prepare('SELECT event_id FROM calendar_classes WHERE user_id = ? AND gym_id = ? AND start_at > ?').all(userId, gymId, nowISO);
     const keep = new Set(keepEventIds.map(String));
     const del = db.prepare('DELETE FROM calendar_classes WHERE user_id = ? AND gym_id = ? AND event_id = ?');
@@ -1388,9 +1593,11 @@ module.exports = {
     tx();
   },
   // Keep at most `max` most-recent past classes per user (by start_at), drop older history.
+  // Caps the account's TOTAL retained history, not each gym's separately — the
+  // user sees one calendar, so one budget.
   capPastCalendarClasses(userId, nowISO, max) {
-    const past = db.prepare('SELECT id FROM calendar_classes WHERE user_id = ? AND gym_id = ? AND start_at <= ? ORDER BY start_at DESC')
-      .all(userId, resolveActiveGymId(userId), nowISO);
+    const past = db.prepare('SELECT id FROM calendar_classes WHERE user_id = ? AND start_at <= ? ORDER BY start_at DESC')
+      .all(userId, nowISO);
     if (past.length <= max) return;
     const toDrop = past.slice(max).map(r => r.id);
     const del = db.prepare('DELETE FROM calendar_classes WHERE id = ?');
@@ -1430,7 +1637,7 @@ module.exports = {
       SELECT ug.gym_id, g.name AS gym_name, g.provider, g.enabled AS gym_enabled,
              ug.gym_email, ug.status, ug.priority,
              (ug.calendar_token IS NOT NULL) AS calendar_enabled,
-             ug.created_at, ug.updated_at
+             ug.created_at, ug.updated_at, ug.last_authenticated_at
       FROM user_gyms ug
       JOIN gyms g ON g.id = ug.gym_id
       WHERE ug.user_id = ?

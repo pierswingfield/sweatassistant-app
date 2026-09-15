@@ -1,11 +1,13 @@
 import { api } from '../api';
-import { getGymContext } from '../gym-context.js';
-import { getAvailableCreditsForEvent, getTotalCredits } from './credit-allowance.js';
+import { getGymContext, getGymShortName } from '../gym-context.js';
+import { getAvailableCreditsForEvent, getTotalCredits, getIneligibleReason } from './credit-allowance.js';
 import { showToast, cache, userSettings, refreshUserData, debugConsole } from '../main';
 import { getClassReleaseTime } from '../lib';
 import { DateTime } from 'luxon';
 import { renderStudioFloorPlan } from './spotmap';
-import { icon, disciplineTag, trimLocation, seatNoun, pulseIcon } from './cards';
+import { icon, disciplineTag, trimLocation, seatNoun, pulseIcon, renderGymRail, equalizeDiscTagWidths } from './cards';
+import { renderCardSkeletons } from './loading-skeleton.js';
+import { instructorAvatar } from './tooltips.js';
 
 let countdownInterval = null;
 let sseEventSource = null;
@@ -311,10 +313,10 @@ async function renderAutoBookTab() {
   } else {
     // First visit — no cached data yet
     if (queueContainer) {
-      queueContainer.innerHTML = `<div class="psycle-spinner" style="margin: 30px auto;"></div>`;
+      queueContainer.innerHTML = renderCardSkeletons(3, 'Loading auto-book queue');
     }
     if (historyList) {
-      historyList.innerHTML = `<div class="psycle-table-empty">Loading history...</div>`;
+      historyList.innerHTML = renderCardSkeletons(2, 'Loading auto-book history');
     }
   }
 
@@ -359,6 +361,7 @@ function renderQueue(queue) {
     const card = document.createElement('div');
     card.className = 'psycle-autobook-card ab-card';
     card.setAttribute('data-event-id', q.event_id);
+    card.setAttribute('data-gym', q.gym_id || 'psycle-london');
 
     const startDt = new Date(q.start_at);
     const dateStr = startDt.toLocaleString('en-GB', {
@@ -377,17 +380,23 @@ function renderQueue(queue) {
     const prefs = q.preferences || {};
     const creditsNeeded = prefs.requiredCount || 1;
     const className = q.class_name || q.group_name || 'Class';
-    const locationLine = [q.studio_name, trimLocation(q.location_name, getGymContext().name)].filter(Boolean).join(', ');
+    const locationLine = [q.studio_name, trimLocation(q.location_name, getGymShortName(q.gym_id))].filter(Boolean).join(', ');
 
     // Via the shared module so the unmetered case is handled once: it returns
     // Infinity for a membership gym, where "insufficient credits" is meaningless.
+    // A membership gym still needs its OWN gate though — getIneligibleReason()
+    // (WP-J) — since Infinity credits says nothing about membership status.
+    const ineligibleReason = getIneligibleReason();
     const hasInsufficientCredits = getTotalCredits() < creditsNeeded;
 
-    const creditWarning = hasInsufficientCredits
-      ? `<div class="ab-credit-warning">${icon('warning', 13)}<span>Insufficient Credits</span></div>`
-      : '';
+    const creditWarning = ineligibleReason
+      ? `<div class="ab-credit-warning">${icon('warning', 13)}<span>${ineligibleReason}</span></div>`
+      : hasInsufficientCredits
+        ? `<div class="ab-credit-warning">${icon('warning', 13)}<span>Insufficient Credits</span></div>`
+        : '';
 
     card.innerHTML = `
+      ${renderGymRail(q.gym_id || 'psycle-london')}
       <div class="ab-card-main">
         <div class="ab-card-toprow">
           <div class="ab-card-when">
@@ -399,7 +408,7 @@ function renderQueue(queue) {
           ${disciplineTag(q.group_name || q.class_name)}
           <span class="ab-card-class">${className}</span>
           <span class="ab-meta-dot">·</span>
-          <span class="ab-card-instructor">${q.instructor_name || 'TBA'}</span>
+          <span class="ab-card-instructor">${instructorAvatar(q.instructor_name, q.gym_id)}${q.instructor_name || 'TBA'}</span>
           ${locationLine ? `<span class="ab-card-location">${locationLine}</span>` : ''}
         </div>
         <div class="ab-card-footer">
@@ -426,6 +435,8 @@ function renderQueue(queue) {
 
     container.appendChild(card);
   });
+
+  equalizeDiscTagWidths(container);
 }
 
 // Two-tap confirm cancel for an auto-book queue entry (mirrors booking cancellation).
@@ -505,7 +516,7 @@ async function openAutoBookEditModal(q) {
     // — so a MarianaTek layout renders here unchanged. No live availability is
     // shown in this config modal (preference-only), so `isAvailable` is unused.
     const [{ event, slots: layoutSlots, objects: layoutObjects }, allPrefs] = await Promise.all([
-      api.getEventDetails(q.event_id),
+      api.getEventDetails(q.event_id, q.gym_id),
       api.getStudioPreferences()
     ]);
 
@@ -701,20 +712,27 @@ function renderHistoryPage() {
     const details = [
       `${dateStr} · ${timeStr}`,
       h.instructor_name,
-      [h.studio_name, trimLocation(h.location_name, getGymContext().name)].filter(Boolean).join(', ')
+      [h.studio_name, trimLocation(h.location_name, getGymShortName(h.gym_id))].filter(Boolean).join(', ')
     ].filter(Boolean).join(' · ');
 
     const card = document.createElement('div');
     card.className = `ab-hist-card state-${state}`;
+    card.setAttribute('data-gym', h.gym_id || 'psycle-london');
     card.innerHTML = `
       <div class="ab-hist-row1">
-        <div class="ab-hist-name">${disciplineTag(h.group_name || h.class_name)}<span class="ab-card-class">${className}</span></div>
+        <div class="ab-hist-name">
+          ${disciplineTag(h.group_name || h.class_name)}
+          <span class="psycle-gym-chip psycle-gym-chip-${h.gym_id || 'psycle-london'}">${getGymShortName(h.gym_id) || 'Psycle'}</span>
+          <span class="ab-card-class">${className}</span>
+        </div>
         <span class="ab-history-status state-${state}">${icon(statusGlyph, 12)} ${statusText}</span>
       </div>
       <div class="ab-hist-row2">${details}</div>
     `;
     list.appendChild(card);
   });
+
+  equalizeDiscTagWidths(list);
 
   // Pagination controls
   if (paginationEl) {

@@ -1,0 +1,33 @@
+function skeletonLine(width, extraClass = '') {
+  return `<span class="psycle-skeleton-line ${extraClass}" style="--skeleton-width:${width}" aria-hidden="true"></span>`;
+}
+
+export function renderCardSkeletons(count = 2, label = 'Loading') {
+  const cards = Array.from({ length: count }, (_, index) => `
+    <div class="psycle-skeleton-card" aria-hidden="true" data-skeleton-index="${index}">
+      <div class="psycle-skeleton-card-head">
+        ${skeletonLine(index % 2 ? '42%' : '34%', 'is-strong')}
+        ${skeletonLine('18%', 'is-chip')}
+      </div>
+      ${skeletonLine(index % 2 ? '72%' : '64%')}
+      ${skeletonLine(index % 2 ? '48%' : '56%', 'is-short')}
+    </div>
+  `).join('');
+
+  return `<div class="psycle-skeleton-list" role="status" aria-label="${label}">${cards}</div>`;
+}
+
+export function renderTimetableSkeleton(count = 6) {
+  const rows = Array.from({ length: count }, (_, index) => `
+    <div class="psycle-skeleton-table-row" aria-hidden="true" data-skeleton-index="${index}">
+      ${skeletonLine('58px', 'is-time')}
+      ${skeletonLine('54px', 'is-chip')}
+      ${skeletonLine(index % 2 ? '170px' : '205px', 'is-class')}
+      ${skeletonLine(index % 2 ? '90px' : '112px', 'is-instructor')}
+      ${skeletonLine(index % 2 ? '150px' : '180px', 'is-location')}
+      ${skeletonLine('82px', 'is-action')}
+    </div>
+  `).join('');
+
+  return `<div class="psycle-skeleton-table" role="status" aria-label="Loading timetable">${rows}</div>`;
+}

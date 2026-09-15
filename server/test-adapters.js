@@ -27,7 +27,7 @@ const fs = require('fs');
 const path = require('path');
 const assert = require('assert');
 
-const { makeEvent, makeSlot, makeBookingResult, prune } = require('./providers/normalize');
+const { makeEvent, makeSlot, makeMembership, makeBookingResult, prune } = require('./providers/normalize');
 const { getProvider } = require('./providers');
 
 const FIXTURES = path.join(__dirname, '__fixtures__', 'marianatek');
@@ -69,6 +69,17 @@ check('normalize: makeEvent coerces ids to strings and prunes undefined', () => 
 check('normalize: makeEvent maps instructors through makeInstructor', () => {
   const e = makeEvent({ id: 1, gymId: 'g', instructors: [{ id: 7, name: 'Alex', imageUrl: 'x.jpg' }] });
   assert.deepStrictEqual(e.instructors[0], { id: '7', name: 'Alex', imageUrl: 'x.jpg' });
+});
+
+check('normalize: makeMembership keeps membership semantics separate from credits', () => {
+  const membership = makeMembership({
+    id: 42, name: 'Rolling Monthly', status: 'Active', isActive: true,
+    guestPassesRemaining: '1', guestPassesTotal: 2,
+  });
+  assert.deepStrictEqual(membership, {
+    id: '42', name: 'Rolling Monthly', status: 'Active', isActive: true,
+    guestPassesRemaining: 1, guestPassesTotal: 2,
+  });
 });
 
 check('normalize: makeSlot derives row from y and defaults isAvailable to false', () => {
@@ -338,7 +349,11 @@ check('marianatek: mapClassToEvent maps a real pick-a-spot class (classes-list.j
   assert.strictEqual(e.gymId, 'jab-boxing', 'gymId stamped');
   assert.strictEqual(e.id, String(raw.id), 'id preserved as string');
   assert.strictEqual(e.name, raw.name, 'name preserved');
-  assert.strictEqual(e.discipline, raw.classroom_name, 'discipline = classroom_name (e.g. TRAIN)');
+  // class_type.name is the real category — classroom_name is the physical
+  // room, which drifts from the discipline for classes like "Small Group
+  // Boxing PT" in a room called "Boxing Studio" (confirmed 2026-09-15 against
+  // 855 live classes, 68 of which disagreed with classroom_name).
+  assert.strictEqual(e.discipline, raw.class_type.name, 'discipline = class_type.name, not classroom_name (the room)');
   assert.strictEqual(e.studioId, String(raw.classroom.id), 'studioId = classroom.id (room, not building)');
   assert.strictEqual(e.studioName, raw.classroom.name, 'studioName = classroom.name');
   assert.strictEqual(e.locationId, String(raw.location.id), 'locationId = location.id (building)');
@@ -403,6 +418,28 @@ check('marianatek: getCredits/getMemberships unwrap the DRF results envelope', a
     async () => fakeRes({ results: [] }),
     () => mt.getMemberships({ accessToken: 'tok' }));
   assert.deepStrictEqual(emptyMemberships, [], 'empty results → []');
+});
+
+check('marianatek: getMembership maps the active membership to the shared shape', async () => {
+  const mt = getProvider('jab-boxing');
+  const raw = {
+    id: 2552, name: 'Original', status: 'Active', is_active: true,
+    guest_usage_limit: 2, guest_remaining_usage_count: 1,
+    booking_window_display: 'Reserve 14 days in advance',
+  };
+  const membership = await withStub(mt, 'getMemberships', async () => [raw],
+    () => mt.getMembership({ accessToken: 'tok' }));
+  assert.strictEqual(membership.id, '2552');
+  assert.strictEqual(membership.name, 'Original');
+  assert.strictEqual(membership.isActive, true);
+  assert.strictEqual(membership.guestPassesRemaining, 1);
+  assert.strictEqual(membership.guestPassesTotal, 2);
+  assert.strictEqual(membership.bookingWindowLabel, 'Reserve 14 days in advance');
+  assert.strictEqual(membership.manageUrl, 'https://jabboxing.club/');
+});
+
+check('codexfit: getMembership returns null instead of manufacturing one from credits', async () => {
+  assert.strictEqual(await getProvider('psycle-london').getMembership({ accessToken: 'tok' }), null);
 });
 
 check('marianatek: bookSlot success parses a real reservation response (prod fixture)', async () => {

@@ -1,5 +1,6 @@
 import { api, isLoggedIn } from '../api';
-import { can } from '../gym-context.js';
+import { getLinkedGyms } from '../gym-context.js';
+import { gymChip } from './cards.js';
 import { showToast, cache } from '../main';
 
 // Use same localStorage key as Chrome Extension for cross-compatibility.
@@ -21,59 +22,328 @@ try {
 // Used to categorise bundles structurally for the "Show X" reveal toggles.
 let bundleTypes = [];
 
+// The gym this checkout flow targets (set in initBundles from `creditGym`) —
+// this whole module is CodexFit/Shopify-specific (see the capability gate
+// below), so its copy names the actual gym rather than assuming "Psycle".
+// The fallback website URL stays literally Psycle's: this checkout flow only
+// works against Psycle's Shopify storefront today (no other gym is
+// creditPurchase-capable yet), so a "generic" URL here would be a lie, not a
+// fix — see BACKLOG.md "Multi-Gym Buy Credits Selector" for the real fix.
+let creditGymName = 'your gym';
+let creditGymId = null;
+let creditGymWebsiteUrl = null;
+
 export async function initBundles() {
-  const container = document.getElementById('psycle-bundles-container');
-  if (!container) return;
+  const summaryRoot = document.getElementById('psycle-credits-summary');
+  if (!summaryRoot) return;
 
-  // Add search/filter listeners if we're rendering first time
   setupFilterListeners();
+  setupCreditsBackButton();
 
-  // Alert about experimental checkout (only insert once)
+  // `getLinkedGyms()` is the in-memory gym context, which is populated during
+  // app start. Landing DIRECTLY on this tab (a deep link, a reload on
+  // #buy-credits) can run this before that completes, and an empty list here is
+  // indistinguishable from "no gyms linked" — so the page rendered "Connect a
+  // gym" to an account with two. Fall back to asking the server before
+  // concluding anything.
+  let linked = getLinkedGyms() || [];
+  if (linked.length === 0) {
+    try {
+      const [mine, catalogue] = await Promise.all([
+        api.getMyGyms(),
+        api.getGyms().catch(() => []),
+      ]);
+      // `/api/my-gyms` rows carry NO `capabilities` — that lives on the public
+      // catalogue, and `getLinkedGyms()` merges the two during app start. Using
+      // the bare rows made every gym look metered (`capabilities?.metered !==
+      // false` is true when capabilities is undefined), so a membership gym
+      // rendered "0 credits available — you cannot book until you top up",
+      // which is both wrong and alarming.
+      const byId = new Map((catalogue || []).map((g) => [g.id, g]));
+      linked = (mine.gyms || []).map((g) => {
+        const cfg = byId.get(g.gym_id) || {};
+        return { ...cfg, ...g, capabilities: { ...(cfg.capabilities || {}), ...(g.capabilities || {}) } };
+      });
+    } catch (_) { /* leave empty; the message below is then the truth */ }
+  }
+  if (linked.length === 0) {
+    summaryRoot.innerHTML = `<div class="psycle-card-desc" style="padding:20px 0;">Connect a gym to see your booking allowance.</div>`;
+    return;
+  }
+
+  summaryRoot.innerHTML = linked.map(g => summaryCardSkeleton(g)).join('');
+
+  // PROGRESSIVE, not all-or-nothing. This used to `await Promise.all([...])`
+  // over both fan-outs before rendering anything, so the whole page waited on
+  // the slowest gym's slowest call — and with two gyms that is four provider
+  // round trips deep on a cold cache. Each card now replaces its own skeleton
+  // the moment its own gym's data lands.
+  const memberships = {};
+  const creditsByGym = {};
+
+  await Promise.all(linked.map(async (gym) => {
+    const gymId = gym.gym_id || gym.id;
+    const [membership, credits] = await Promise.all([
+      api.getMembership(gymId).catch(() => null),
+      api.getNormalizedCredits(gymId).catch(() => []),
+    ]);
+    memberships[gymId] = membership;
+    creditsByGym[gymId] = credits;
+    replaceSummaryCard(gym, membership, credits);
+  }));
+
+  // The hidden membership detail sections still want the whole map.
+  renderMembershipSections(linked, memberships);
+}
+
+/** Swap ONE gym's skeleton for its real card, leaving the others alone. */
+function replaceSummaryCard(gym, membership, credits) {
+  const root = document.getElementById('psycle-credits-summary');
+  if (!root) return;
+  const gymId = gym.gym_id || gym.id;
+  const existing = root.querySelector(`[data-gym="${CSS.escape(String(gymId))}"]`);
+  if (!existing) return;
+  const holder = document.createElement('div');
+  holder.innerHTML = summaryCardHtml(gym, membership, credits);
+  const card = holder.firstElementChild;
+  if (!card) return;
+  existing.replaceWith(card);
+  wireSummaryCard(card);
+}
+
+/** A card's placeholder while its gym's numbers are in flight. */
+function summaryCardSkeleton(gym) {
+  const gymId = gym.gym_id || gym.id;
+  return `<article class="psycle-benefit-card is-loading" data-gym="${escapeHtml(gymId)}">
+    <div class="psycle-benefit-card-head">
+      ${/* Shared builder — this used to hand-roll the chip with the gym's SHORT
+            NAME as text. It picked up the brand background from the class name
+            but never the wordmark, so the cards showed black text on the brand
+            plate. Two places building the same chip will always drift. */ ''}
+      ${gymChip(gymId)}
+    </div>
+    <div class="psycle-benefit-headline">…</div>
+    <div class="psycle-card-desc">Checking your allowance…</div>
+  </article>`;
+}
+
+/**
+ * One card per connected gym: what you can book with, right now.
+ *
+ * Deliberately NOT one shape for both kinds of gym. A metered gym's answer is a
+ * NUMBER that runs out and can be topped up; a membership gym's is a STATE with
+ * a renewal date and nothing to buy. Forcing both into "credits" is what made a
+ * JAB member read as having zero of something.
+ *
+ * Only a gym with somewhere to go is clickable — a card that looks interactive
+ * and does nothing is worse than a flat one.
+ */
+/**
+ * ONE gym's summary card.
+ *
+ * Deliberately NOT one shape for both kinds of gym. A metered gym's answer is a
+ * NUMBER that runs out and can be topped up; a membership gym's is a STATE with
+ * a renewal date and nothing to buy. Forcing both into "credits" is what made a
+ * JAB member read as having zero of something.
+ *
+ * Only a gym with somewhere to go is clickable — a card that looks interactive
+ * and does nothing is worse than a flat one.
+ */
+function summaryCardHtml(gym, membership, credits) {
+  const gymId = gym.gym_id || gym.id;
+  const canPurchase = gym.capabilities?.creditPurchase === true;
+  const metered = gym.capabilities?.metered !== false;
+  const list = credits || [];
+  const total = list.reduce((sum, c) => sum + (Number(c.count) || 0), 0);
+
+  let headline, sub;
+  const facts = [];
+  if (metered) {
+    headline = `${total}`;
+    sub = `credit${total === 1 ? '' : 's'} available`;
+    // Surface the soonest expiry: a balance about to lapse is the one fact a
+    // total alone hides.
+    const next = list
+      .filter(c => c.expiresAt && (Number(c.count) || 0) > 0)
+      .sort((a, b) => new Date(a.expiresAt) - new Date(b.expiresAt))[0];
+    if (next) facts.push(`Soonest expiry ${formatMembershipDate(next.expiresAt)}`);
+    if (total === 0) facts.push('You cannot book here until you top up.');
+  } else if (membership) {
+    headline = membership.isActive ? 'Member' : 'Inactive';
+    sub = membership.name || 'Membership';
+    const renews = formatMembershipDate(membership.renewsAt);
+    const expires = formatMembershipDate(membership.expiresAt);
+    if (renews) facts.push(`Renews ${renews}`);
+    if (expires) facts.push(`Expires ${expires}`);
+    if (membership.bookingWindowLabel) facts.push(membership.bookingWindowLabel);
+    if (Number.isFinite(Number(membership.guestPassesRemaining))) {
+      facts.push(`${Number(membership.guestPassesRemaining)} guest pass${Number(membership.guestPassesRemaining) === 1 ? '' : 'es'} left`);
+    }
+  } else {
+    headline = '—';
+    sub = 'No membership found';
+    facts.push('Bookings will be refused until this gym has an active membership.');
+  }
+
+  const websiteUrl = membership?.manageUrl || gym.websiteUrl;
+  const action = canPurchase
+    ? `<button class="psycle-btn psycle-btn-mini primary" data-open-credit-gym="${escapeHtml(gymId)}">Buy credits →</button>`
+    : websiteUrl
+      ? `<a class="psycle-btn psycle-btn-mini" href="${escapeHtml(websiteUrl)}" target="_blank" rel="noopener noreferrer">Manage at gym ↗</a>`
+      : '';
+
+  return `<article class="psycle-benefit-card${canPurchase ? ' is-actionable' : ''}" data-gym="${escapeHtml(gymId)}">
+    <div class="psycle-benefit-card-head">
+      ${/* Shared builder — this used to hand-roll the chip with the gym's SHORT
+            NAME as text. It picked up the brand background from the class name
+            but never the wordmark, so the cards showed black text on the brand
+            plate. Two places building the same chip will always drift. */ ''}
+      ${gymChip(gymId)}
+      <span class="psycle-benefit-kind">${metered ? 'Credits' : 'Membership'}</span>
+    </div>
+    <div class="psycle-benefit-headline"><strong>${escapeHtml(headline)}</strong><span>${escapeHtml(sub)}</span></div>
+    ${facts.length ? `<ul class="psycle-benefit-facts">${facts.map(f => `<li>${escapeHtml(f)}</li>`).join('')}</ul>` : ''}
+    ${action ? `<div class="psycle-benefit-card-actions">${action}</div>` : ''}
+  </article>`;
+}
+
+/** Click handlers for one card (re-applied whenever a card is replaced). */
+function wireSummaryCard(card) {
+  if (!card) return;
+  const btn = card.querySelector('[data-open-credit-gym]');
+  if (btn) btn.onclick = (e) => { e.stopPropagation(); openGymCreditDetail(btn.dataset.openCreditGym); };
+  // The whole card is a target for a purchasable gym, so the click area matches
+  // what the hover state implies.
+  if (card.classList.contains('is-actionable')) {
+    card.onclick = () => openGymCreditDetail(card.dataset.gym);
+  }
+}
+
+function setupCreditsBackButton() {
+  const back = document.getElementById('psycle-credits-back');
+  if (!back || back.dataset.wired) return;
+  back.dataset.wired = 'true';
+  back.onclick = () => {
+    document.getElementById('psycle-credits-detail').hidden = true;
+    document.getElementById('psycle-credits-summary').hidden = false;
+  };
+}
+
+/** Open ONE gym's bundle catalogue. */
+async function openGymCreditDetail(gymId) {
+  const linked = getLinkedGyms() || [];
+  const gym = linked.find(g => (g.gym_id || g.id) === gymId);
+  if (!gym) return;
+
+  creditGymName = gym.shortName || gym.name || 'your gym';
+  creditGymId = gymId;
+  creditGymWebsiteUrl = gym.websiteUrl || null;
+
+  document.getElementById('psycle-credits-summary').hidden = true;
+  const detail = document.getElementById('psycle-credits-detail');
+  detail.hidden = false;
+
+  const purchaseHeading = document.getElementById('psycle-credit-purchase-heading');
+  if (purchaseHeading) {
+    purchaseHeading.innerHTML = `<div class="psycle-benefit-section-heading" data-gym="${escapeHtml(gymId)}">
+      <div><span class="psycle-benefit-gym">${escapeHtml(gym.name || creditGymName)}</span><h4>Credit bundles</h4></div>
+      <span class="psycle-benefit-kind">Credits</span>
+    </div>`;
+  }
+
   if (!document.querySelector('.psycle-credits-alert')) {
     const alertDiv = document.createElement('div');
     alertDiv.className = 'psycle-credits-alert';
     alertDiv.innerHTML = `
-      <div style="display:flex; gap:10px; align-items:flex-start; padding:12px 14px; background:color-mix(in srgb, var(--warning) 15%, transparent); border:1px solid var(--warning); border-radius:10px;">
+      <div style="display:flex; gap:10px; align-items:flex-start; padding:12px 14px; background:color-mix(in srgb, var(--warning) 15%, transparent); border:1px solid var(--warning); border-radius:10px; margin:12px 0;">
         <div style="font-size:20px; flex-shrink:0; line-height:1;">⚠</div>
-        <div style="flex:1; font-size:12px; color:color-mix(in srgb, var(--warning) 100%, #000); line-height:1.5;">
+        <div style="flex:1; font-size:12px; line-height:1.5;">
           <div style="font-weight:700; margin-bottom:4px;">EXPERIMENTAL</div>
-          <div>Purchasing bundles works but is not well-tested. This app sends the order directly to Psycle using your saved cards, so it never sees your payment data. It doesn't support 3-D Secure, so payments might fail.</div>
+          <div>Purchasing bundles works but is not well-tested. This app sends the order directly to ${escapeHtml(creditGymName)} using your saved cards, so it never sees your payment data. It doesn't support 3-D Secure, so payments might fail.</div>
         </div>
-      </div>
-    `;
-    container.parentElement.insertBefore(alertDiv, container);
+      </div>`;
+    purchaseHeading.insertAdjacentElement('afterend', alertDiv);
   }
 
+  const container = document.getElementById('psycle-bundles-container');
   container.innerHTML = `
     <div class="psycle-loading-spinner-container">
       <div class="psycle-spinner"></div>
       <span>Loading bundles...</span>
-    </div>
-  `;
+    </div>`;
 
   try {
     if (cache.bundles.length === 0) {
       // Credit packs are a metered-gym concept. A membership gym has nothing to
-      // sell here, and /bundles is a CodexFit path — so this is capability-gated
-      // rather than normalized. The tab itself is hidden too (index.html).
-      if (!can('creditPurchase')) {
-        renderNoPurchaseState();
-        return;
-      }
-      const res = await api.proxyGet('/bundles', { ttlMs: 3600000 });
-      cache.bundles = res.data || res || [];
-      // Keep the bundle_type relations — their handles drive category detection.
-      if (res.relations?.bundle_types) bundleTypes = res.relations.bundle_types;
+      // sell here, so the route is capability-gated server-side (501 for a gym
+      // without `creditPurchase`) — but the path is the app's, not CodexFit's.
+      const res = await api.getBundles({ gymId, ttlMs: 3600000 });
+      cache.bundles = res.bundles || [];
+      if (res.bundleTypes) bundleTypes = res.bundleTypes;
     }
-
     renderBundles();
   } catch (err) {
     console.error('Failed to load bundles:', err);
-    if (cache.bundles.length === 0) {
-      container.innerHTML = '<div class="psycle-empty-state" style="text-align:center;padding:40px 20px;color:var(--text-secondary)"><p style="font-size:16px;margin-bottom:8px">No cached data available</p><p style="font-size:13px;color:var(--text-tertiary)">Connect to the internet to load credit bundles.</p></div>';
-    }
+    container.innerHTML = '<div class="psycle-empty-state" style="text-align:center;padding:40px 20px;color:var(--text-secondary)"><p style="font-size:16px;margin-bottom:8px">No cached data available</p><p style="font-size:13px;color:var(--text-tertiary)">Connect to the internet to load credit bundles.</p></div>';
+  }
+}
+
+function escapeHtml(value) {
+  return String(value ?? '')
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#039;');
+}
+
+function formatMembershipDate(value) {
+  if (!value) return null;
+  const date = new Date(value);
+  return Number.isNaN(date.getTime())
+    ? null
+    : new Intl.DateTimeFormat('en-GB', { day: 'numeric', month: 'short', year: 'numeric' }).format(date);
+}
+
+function renderMembershipSections(linked, memberships) {
+  const root = document.getElementById('psycle-membership-sections');
+  if (!root) return;
+
+  const membershipGyms = linked.filter((g) => g.capabilities?.creditPurchase !== true);
+  if (membershipGyms.length === 0) {
+    root.innerHTML = '';
+    return;
   }
 
+  root.innerHTML = membershipGyms.map((gym) => {
+    const gymId = gym.gym_id || gym.id;
+    const membership = memberships[gymId];
+    const websiteUrl = membership?.manageUrl || gym.websiteUrl;
+    const expiry = formatMembershipDate(membership?.expiresAt);
+    const renewal = formatMembershipDate(membership?.renewsAt);
+    const guestText = membership?.guestPassesRemaining != null
+      ? `${membership.guestPassesRemaining}${membership.guestPassesTotal != null ? ` of ${membership.guestPassesTotal}` : ''} guest passes remaining`
+      : null;
+    const facts = [renewal && `Renews ${renewal}`, expiry && `Expires ${expiry}`,
+      membership?.bookingWindowLabel, guestText].filter(Boolean);
+
+    return `<section class="psycle-membership-section" data-gym="${escapeHtml(gymId)}">
+      <div class="psycle-benefit-section-heading">
+        <div><span class="psycle-benefit-gym">${escapeHtml(gym.name || gym.shortName || gymId)}</span><h4>Membership</h4></div>
+        <span class="psycle-membership-status ${membership?.isActive ? 'is-active' : 'is-inactive'}">
+          ${escapeHtml(membership?.isActive ? 'Member' : 'Not active')}
+        </span>
+      </div>
+      <div class="psycle-membership-card">
+        <div>
+          <div class="psycle-membership-name">${escapeHtml(membership?.name || 'No active membership found')}</div>
+          ${facts.length ? `<div class="psycle-membership-facts">${facts.map(escapeHtml).join(' · ')}</div>` : ''}
+          <div class="psycle-membership-note">Memberships are managed by ${escapeHtml(gym.shortName || gym.name || 'the gym')}.</div>
+        </div>
+        ${websiteUrl ? `<a class="psycle-btn-mini psycle-membership-manage" href="${escapeHtml(websiteUrl)}" target="_blank" rel="noopener noreferrer">Open website ↗</a>` : ''}
+      </div>
+    </section>`;
+  }).join('');
 }
 
 // The four "Show X" reveal toggles. Each is OFF by default, so its category is hidden
@@ -451,7 +721,7 @@ function openPurchaseModal(b) {
 
     let instance, methods;
     try {
-      const init = await api.checkoutInit(b.id, qty);
+      const init = await api.checkoutInit(b.id, qty, creditGymId);
       instance = init.instance;
       methods = init.methods || [];
     } catch (err) {
@@ -460,7 +730,7 @@ function openPurchaseModal(b) {
     }
 
     if (methods.length === 0) {
-      renderPurchaseError(body, b, 'No saved card found on your Psycle account.', 'Add a card on the Psycle website, then try again.');
+      renderPurchaseError(body, b, `No saved card found on your ${creditGymName} account.`, `Add a card on the ${creditGymName} website, then try again.`);
       return;
     }
 
@@ -499,7 +769,7 @@ function openPurchaseModal(b) {
       `;
 
       try {
-        const result = await api.checkoutConfirm(instance, pmId);
+        const result = await api.checkoutConfirm(instance, pmId, creditGymId);
         if (result.status === 'paid') {
           body.innerHTML = `
             <div style="text-align:center; padding:16px 0;">
@@ -534,8 +804,8 @@ function renderPurchaseError(body, b, message, hint, secureTips) {
   const tips = secureTips ? `
     <div style="text-align:left; background:var(--surface-raised); border:1px solid var(--border-subtle); border-radius:10px; padding:12px; margin-top:14px; font-size:12px; color:var(--text-secondary); line-height:1.6;">
       <div style="font-weight:700; color:var(--text-primary); margin-bottom:6px;">Tips to avoid 3-D Secure</div>
-      • Use a card your bank already trusts for Psycle.<br>
-      • Complete one purchase on the Psycle website first — banks usually stop challenging after that.<br>
+      • Use a card your bank already trusts for ${creditGymName}.<br>
+      • Complete one purchase on the ${creditGymName} website first — banks usually stop challenging after that.<br>
       • Amex cards are challenged less often than Visa/Mastercard.
     </div>
   ` : (hint ? `<div style="font-size:12px; color:var(--text-tertiary); margin-top:8px;">${hint}</div>` : '');
@@ -551,7 +821,9 @@ function renderPurchaseError(body, b, message, hint, secureTips) {
   `;
   body.querySelector('.psycle-website-btn').addEventListener('click', () => {
     const handle = b.handle || '';
-    window.open(handle ? `https://psyclelondon.com/products/${handle}` : 'https://psyclelondon.com/', '_blank');
+    if (!creditGymWebsiteUrl) return;
+    const target = handle ? new URL(`products/${handle}`, creditGymWebsiteUrl).toString() : creditGymWebsiteUrl;
+    window.open(target, '_blank', 'noopener,noreferrer');
   });
 }
 

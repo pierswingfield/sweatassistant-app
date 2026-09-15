@@ -1,7 +1,7 @@
 {
   "name": "Sweat Assistant",
   "short_name": "Sweat Assistant",
-  "description": "Progressive Web App for auto-booking and monitoring Psycle classes.",
+  "description": "Progressive Web App for auto-booking and monitoring your gym classes.",
   "start_url": "/",
   "display": "standalone",
   "orientation": "portrait-primary",

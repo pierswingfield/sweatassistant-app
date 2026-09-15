@@ -141,7 +141,7 @@ function shouldCheckUpgrade(upgrade, settings) {
 
 // Attempt upgrade for a single active upgrade monitor
 async function attemptUpgradeSlot(upgrade, isCutoffMode) {
-  const eventId = upgrade.event_id;
+  const eventId = String(upgrade.event_id);
   const userId = upgrade.user_id;
   // From the ROW, not the active gym: the poller scans every gym's monitors, and
   // a JAB upgrade must run while the user is looking at Psycle (see db.js's gym
@@ -151,35 +151,33 @@ async function attemptUpgradeSlot(upgrade, isCutoffMode) {
   // Set when an atomic swap moved the reservation, so the cancel-then-rebook
   // cleanup below knows there is nothing left to cancel.
   let usedAtomicSwap = false;
-  const currentSlotId = Number(upgrade.current_slot_id);
+  const currentSlotId = String(upgrade.current_slot_id);
   const prefs = JSON.parse(upgrade.preferences) || {};
   // Preferred slots come from the LIVE shared studio map; fall back to snapshot for legacy records.
   const liveMap = db.getStudioPreference(userId, upgrade.studio_id) || {};
-  const preferredSlots = (liveMap.preferredSlots || prefs.preferredSlots || []).map(Number);
+  const preferredSlots = (liveMap.preferredSlots || prefs.preferredSlots || []).map(String);
   const preferredRows = liveMap.preferredRows || prefs.preferredRows || [];
 
   if (preferredSlots.length === 0 && preferredRows.length === 0) return;
 
   try {
-    // 1. Get live slot availability — use shared cache to avoid N fetches/min for the same class
-    let payload = getCachedEvent(gymId, eventId);
-    if (payload) {
+    // 1. Get live slot availability via provider adapter — use shared cache to avoid N fetches/min
+    let details = getCachedEvent(gymId, eventId);
+    if (details) {
       console.log(`[Poller] Cache hit for event ${eventId} (user ${userId}).`);
     } else {
-      // /events/:id is a public CodexFit endpoint — no Bearer token needed
-      const url = `/events/${eventId}`;
-      const res = await fetchPublicFromGym(userId, gymId, url);
-      if (!res.ok) return;
-      payload = await res.json();
-      setCachedEvent(gymId, eventId, payload, 60000);
+      const provider = getProvider(gymId);
+      const session = db.getUserSession(userId, gymId);
+      details = await provider.fetchEventDetails(eventId, session);
+      if (!details) return;
+      setCachedEvent(gymId, eventId, details, 30000);
     }
-    const eventData = payload.data || payload;
-    const availableSlots = (payload.slots || eventData.slots || []).map(id => Number(id));
-    const upgradeStudio = payload.relations?.studios?.[0] || eventData.relations?.studios?.[0] || eventData.studio;
-    const upgradeLayout = upgradeStudio?.layout?.slots || [];
+
+    const upgradeLayout = details.slots || [];
+    const availableSlots = upgradeLayout.filter(s => s && s.isAvailable).map(s => String(s.id));
     const labelForSlot = (id) => {
-      const s = upgradeLayout.find(ls => Number(ls.id) === Number(id));
-      return s?.label ?? id;
+      const s = upgradeLayout.find(ls => String(ls.id) === String(id));
+      return s?.label ?? String(id);
     };
 
     // Combine preferred slots and resolve row preferences
@@ -187,10 +185,10 @@ async function attemptUpgradeSlot(upgrade, isCutoffMode) {
     if (preferredRows.length > 0 && upgradeLayout.length > 0) {
       preferredRows.forEach(ry => {
         const slotsInRow = upgradeLayout.filter(s => Math.round(s.y * 10) / 10 === Number(ry));
-        const rowSlotIds = slotsInRow.map(s => Number(s.id));
-        rowSlotIds.forEach(id => {
-          if (!combinedPreferredSlots.includes(id)) {
-            combinedPreferredSlots.push(id);
+        slotsInRow.forEach(s => {
+          const idStr = String(s.id);
+          if (!combinedPreferredSlots.includes(idStr)) {
+            combinedPreferredSlots.push(idStr);
           }
         });
       });
@@ -220,28 +218,31 @@ async function attemptUpgradeSlot(upgrade, isCutoffMode) {
 
         let bookResult;
         try {
-          // Check if user has credits
-          await new Promise(r => setTimeout(r, 300 + Math.floor(Math.random() * 600)));
-          const profileUrl = '/profile';
-          const profileRes = await fetchFromGym(userId, gymId, profileUrl);
-          if (!profileRes.ok) {
-            claimedSlots.delete(claimKey);
-            return;
-          }
+          const isMetered = gym?.capabilities?.metered !== false;
+          const isAtomic = !!(gym && gym.capabilities && gym.capabilities.atomicSwap && upgrade.booking_id);
 
-          const profileData = await profileRes.json();
-          const profile = profileData.data || profileData;
-          // Cache the full profile (also backfills display_name) so the admin view stays
-          // warm even while the user's app is closed.
-          try { db.cacheUserProfile(userId, profile); } catch (_) {}
-          const hasCredits = profile.available_credits && profile.available_credits.some(c => c.count > 0);
+          // Check credits ONLY for metered gyms where we are NOT doing an atomic swap
+          if (isMetered && !isAtomic) {
+            await new Promise(r => setTimeout(r, 300 + Math.floor(Math.random() * 600)));
+            const profileUrl = '/profile';
+            const profileRes = await fetchFromGym(userId, gymId, profileUrl);
+            if (!profileRes.ok) {
+              claimedSlots.delete(claimKey);
+              return;
+            }
 
-          if (!hasCredits) {
-            console.log(`[Poller] Auto-upgrade paused for user ${userId}: No available credits.`);
-            db.updateAutoUpgrade(upgrade.id, userId, 'paused_no_credits', 'No credits available to claim upgraded slot.', { lastCheckedAt: new Date().toISOString() });
-            pushService.sendNotification(userId, 'Upgrade Paused ⏳', `No credits available to upgrade ${upgrade.class_name}.`);
-            claimedSlots.delete(claimKey);
-            return;
+            const profileData = await profileRes.json();
+            const profile = profileData.data || profileData;
+            try { db.cacheUserProfile(userId, profile); } catch (_) {}
+            const hasCredits = profile.available_credits && profile.available_credits.some(c => c.count > 0);
+
+            if (!hasCredits) {
+              console.log(`[Poller] Auto-upgrade paused for user ${userId}: No available credits.`);
+              db.updateAutoUpgrade(upgrade.id, userId, 'paused_no_credits', 'No credits available to claim upgraded slot.', { lastCheckedAt: new Date().toISOString() });
+              pushService.sendNotification(userId, 'Upgrade Paused ⏳', `No credits available to upgrade ${upgrade.class_name}.`);
+              claimedSlots.delete(claimKey);
+              return;
+            }
           }
 
           await new Promise(r => setTimeout(r, 300 + Math.floor(Math.random() * 600)));
@@ -254,7 +255,7 @@ async function attemptUpgradeSlot(upgrade, isCutoffMode) {
           // leaving the user with no spot at all in a class they had one in.
           // MarianaTek's POST /reservations/{id}/swap_spots is one call that
           // either moves them or doesn't.
-          if (gym && gym.capabilities && gym.capabilities.atomicSwap && upgrade.booking_id) {
+          if (isAtomic) {
             bookResult = await swapSpotsWithRelogin(userId, gymId, upgrade.booking_id, upgrade.current_slot_id, candidateSlot);
             if (!bookResult.ok) {
               console.warn(`[Poller] Atomic swap failed:`, bookResult.error || bookResult.status);

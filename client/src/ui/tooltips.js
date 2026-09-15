@@ -37,32 +37,91 @@ function parseSpotifyUserId(raw) {
   return s.replace(/^@/, '').split('?')[0] || null;
 }
 
-function instructorTooltipHTML(instructorIdRaw) {
-  const instructorId = parseInt(instructorIdRaw);
-  // Normalized ids are strings; instructorId comes off a raw event as a number.
-  const instructor = metadata.instructors.find(i => String(i.id) === String(instructorId));
+/**
+ * Small instructor avatar for a card row. `directUrl` is the photo already
+ * embedded on the booking/event's OWN instructor object when the caller has
+ * one (MarianaTek events carry `thumbUrl`/`imageUrl` per instructor directly —
+ * see `marianatek.js mapClassToEvent`) — always prefer it, since it's exact
+ * and instant. Fall back to a NAME lookup against `metadata.instructors` only
+ * when the caller has no such object: Auto-Book/Auto-Upgrade rows carry only
+ * `instructor_name` (their DB rows have no photo field), and CodexFit events
+ * never carry a per-event photo at all (`codexfit.js mapEventToNormalized`
+ * confirmed this 2026-09-02 — only the bulk `/instructors` metadata endpoint
+ * has one for Psycle).
+ *
+ * The fallback used to be the ONLY path for every caller, including ones that
+ * had a direct photo sitting right there unused. That's what made JAB photos
+ * flicker in My Bookings: `metadata.instructors` for a MarianaTek gym is
+ * derived from whatever's currently in its public class-list window
+ * (`marianatek.js fetchMetadata`), which does not reliably include every
+ * class a user has already booked — so the same instructor would resolve on
+ * one page load and silently miss on the next, independent of any image
+ * loading/timing. Two lookups for one fact drift; this fixes it by not doing
+ * the second lookup when the first fact is already in hand.
+ *
+ * Gym-scoped on the fallback path only: two gyms can have an instructor with
+ * the same name as easily as the same id, and an unscoped match paints the
+ * wrong face.
+ *
+ * `thumbUrl` first: a provider that publishes a small rendering should never
+ * have its full-size image pulled for a 26px circle. Falling back to `imageUrl`
+ * is a deliberate trade — CodexFit publishes one size only.
+ */
+export function instructorAvatar(name, gymId = null, directUrl = null) {
+  let url = directUrl || null;
+  if (!url) {
+    if (!name) return '';
+    const wanted = String(name).trim().toLowerCase();
+    if (!wanted) return '';
+    const list = metadata.instructors || [];
+    const match = list.find(i =>
+      String(i.name || '').trim().toLowerCase() === wanted &&
+      (!gymId || !i.gymId || i.gymId === gymId)
+    );
+    url = match && (match.thumbUrl || match.imageUrl);
+  }
+  if (!url) return '';
+  // No `loading="lazy"`: these cards can repaint several times in quick
+  // succession as data (bookings, then metadata) arrives, and a lazy image
+  // whose element gets replaced before the browser schedules its viewport
+  // check never starts loading at all — indistinguishable from "missing".
+  return `<img class="ab-card-avatar" src="${url}" alt="" aria-hidden="true" decoding="async" width="52" height="52">`;
+}
+
+function instructorTooltipHTML(instructorIdRaw, gymId = null) {
+  const instructorId = String(instructorIdRaw);
+  // Normalized ids are strings; instructorId comes off a raw event as a number or string.
+  // Gym-scoped: two gyms can have an instructor with the same numeric id
+  // (found 2026-09-02 — this is what broke Psycle instructor photos/bios once
+  // a merged multi-gym timetable made id collisions possible).
+  const instructor = metadata.instructors.find(i => String(i.id) === instructorId && (!gymId || i.gymId === gymId));
   if (!instructor) return null;
 
-  const photoUrl = instructor.photo || instructor.image_1 || '';
+  const photoUrl = instructor.imageUrl || instructor.photo || instructor.image_1 || '';
+  const name = instructor.name || instructor.full_name || 'Instructor';
   const avatarHtml = photoUrl
-    ? `<img src="${photoUrl}" class="psycle-tooltip-avatar" alt="${instructor.full_name || instructor.name}">`
-    : `<div class="psycle-tooltip-avatar" style="display:flex; align-items:center; justify-content:center; background:color-mix(in srgb, var(--text) 8%, transparent); font-weight:bold; font-size:16px; color:#fff;">${(instructor.full_name || instructor.name || '?')[0]}</div>`;
+    ? `<img src="${photoUrl}" class="psycle-tooltip-avatar" alt="${name}">`
+    : `<div class="psycle-tooltip-avatar" style="display:flex; align-items:center; justify-content:center; background:color-mix(in srgb, var(--text) 8%, transparent); font-weight:bold; font-size:16px; color:#fff;">${(name || '?')[0]}</div>`;
 
-  const name = instructor.full_name || instructor.name || 'Instructor';
   const keywords = instructor.metafields?.keywords ? instructor.metafields.keywords.replace(/\|/g, ' • ') : '';
-  const description = instructor.metafields?.description || '';
+  const description = instructor.bio || instructor.metafields?.description || '';
 
   let instagramHtml = '';
-  const igRaw = instructor.metafields?.instagram_handle || instructor.instagram_handle;
+  const igRaw = instructor.instagramHandle || instructor.metafields?.instagram_handle || instructor.instagram_handle;
+  const igUrl = instructor.instagramUrl;
   const igHandle = parseInstagramHandle(igRaw);
-  if (igHandle) {
-    instagramHtml = `<a class="psycle-tooltip-social-link" href="https://instagram.com/${igHandle}" target="_blank" rel="noopener noreferrer">📸 @${igHandle}</a>`;
+  if (igUrl || igHandle) {
+    const href = igUrl || `https://instagram.com/${igHandle}`;
+    const label = igHandle ? `@${igHandle}` : 'Instagram';
+    instagramHtml = `<a class="psycle-tooltip-social-link" href="${href}" target="_blank" rel="noopener noreferrer">📸 ${label}</a>`;
   }
   let spotifyHtml = '';
-  const spRaw = instructor.metafields?.spotify_handle || instructor.spotify_handle;
+  const spRaw = instructor.spotifyUrl || instructor.metafields?.spotify_handle || instructor.spotify_handle;
   const spId = parseSpotifyUserId(spRaw);
-  if (spId) {
-    spotifyHtml = `<a class="psycle-tooltip-social-link" href="https://open.spotify.com/user/${spId}" target="_blank" rel="noopener noreferrer">🎵 @${spId}</a>`;
+  if (spId || instructor.spotifyUrl) {
+    const href = instructor.spotifyUrl || `https://open.spotify.com/user/${spId}`;
+    const label = spId ? `@${spId}` : 'Spotify';
+    spotifyHtml = `<a class="psycle-tooltip-social-link" href="${href}" target="_blank" rel="noopener noreferrer">🎵 ${label}</a>`;
   }
 
   return `
@@ -104,7 +163,7 @@ export function initTooltips() {
     if (hoverTimeout) clearTimeout(hoverTimeout);
 
     hoverTimeout = setTimeout(() => {
-      const html = instructorTooltipHTML(target.getAttribute('data-id'));
+      const html = instructorTooltipHTML(target.getAttribute('data-id'), target.getAttribute('data-gym-id'));
       if (!html) return;
       instructorTooltip.innerHTML = html;
       instructorTooltip.style.display = 'block';
@@ -135,7 +194,7 @@ export function initTooltips() {
         hideInstructor();
         return;
       }
-      const html = instructorTooltipHTML(target.getAttribute('data-id'));
+      const html = instructorTooltipHTML(target.getAttribute('data-id'), target.getAttribute('data-gym-id'));
       if (!html) return;
       activeHoverTarget = target;
       instructorTooltip.innerHTML = html;
@@ -200,14 +259,18 @@ export function initTooltips() {
     occupancyHoverTimeout = setTimeout(async () => {
       const eventId = parseInt(target.getAttribute('data-id'));
       if (isNaN(eventId)) return;
+      const eventGymId = target.getAttribute('data-gym-id') || null;
+      // Two gyms can both publish an event with the same numeric id — key the
+      // cache on both, same reasoning as scheduler.js's eventCache (WP-G).
+      const cacheKey = `${eventGymId || ''}:${eventId}`;
 
       occupancyTooltip.style.display = 'block';
       positionTooltip(target, occupancyTooltip);
       occupancyTooltip.offsetHeight;
       occupancyTooltip.classList.add('show');
 
-      if (eventDetailsCache.has(eventId)) {
-        renderMinimap(eventDetailsCache.get(eventId), occupancyTooltip);
+      if (eventDetailsCache.has(cacheKey)) {
+        renderMinimap(eventDetailsCache.get(cacheKey), occupancyTooltip);
       } else {
         occupancyTooltip.innerHTML = `
           <div style="display:flex; align-items:center; justify-content:center; padding:15px; color:var(--text); font-size:12px;">
@@ -221,8 +284,8 @@ export function initTooltips() {
         positionTooltip(target, occupancyTooltip);
 
         try {
-          const res = await api.getEventDetails(eventId);
-          eventDetailsCache.set(eventId, res);
+          const res = await api.getEventDetails(eventId, eventGymId);
+          eventDetailsCache.set(cacheKey, res);
           if (activeOccupancyHoverTarget === target) {
             renderMinimap(res, occupancyTooltip);
           }
@@ -301,92 +364,94 @@ function positionTooltip(target, tooltipEl) {
 // emits it. Raw payloads are still accepted so a stale IndexedDB entry renders
 // rather than throwing.
 export function renderMinimap(payload, occupancyTooltip) {
-  const isNormalized = Array.isArray(payload?.slots) && payload.slots.some((s) => s && typeof s === 'object');
+  const isNormalized = Array.isArray(payload?.slots) && (payload.slots.length === 0 || typeof payload.slots[0] === 'object');
 
   let layoutSlots, layoutObjects, availableSlotIds, totalSlots, openSlots;
   if (isNormalized) {
-    layoutSlots = payload.slots;
+    layoutSlots = payload.slots || [];
     layoutObjects = payload.objects || [];
-    availableSlotIds = new Set(layoutSlots.filter((s) => s.isAvailable).map((s) => Number(s.id)));
-    openSlots = availableSlotIds.size;
-    totalSlots = payload.event?.capacity || layoutSlots.length || 0;
+    availableSlotIds = new Set(layoutSlots.filter((s) => s.isAvailable).map((s) => String(s.id)));
+    totalSlots = payload.event?.capacity ?? payload.capacity ?? layoutSlots.length ?? 0;
+    openSlots = payload.event?.availableCount ?? payload.availableCount ?? (layoutSlots.length ? availableSlotIds.size : 0);
   } else {
     const eventData = payload.data || payload;
     const studio = payload.relations?.studios?.[0] || eventData.relations?.studios?.[0] || eventData.studio || {};
     layoutSlots = studio?.layout?.slots || [];
     layoutObjects = studio?.layout?.objects || [];
     const availableSlots = payload.slots || eventData.slots || [];
-    availableSlotIds = new Set(availableSlots.map((id) => Number(id)));
+    availableSlotIds = new Set(availableSlots.map((id) => String(id)));
     totalSlots = eventData.capacity || layoutSlots.length || 0;
     openSlots = availableSlots.length;
   }
 
   const occupiedSlots = Math.max(0, totalSlots - openSlots);
 
-  let minimapContentHtml = '';
-
-  if (layoutSlots.length > 0) {
-    let minX = Infinity, maxX = -Infinity, minY = Infinity, maxY = -Infinity;
-    layoutSlots.forEach(s => {
-      if (s.x < minX) minX = s.x;
-      if (s.x > maxX) maxX = s.x;
-      if (s.y < minY) minY = s.y;
-      if (s.y > maxY) maxY = s.y;
-    });
-
-    const widthRange = maxX - minX || 1;
-    const heightRange = maxY - minY || 1;
-
-    let stageHtml = '';
-    layoutObjects.forEach(obj => {
-      const left = widthRange === 0 ? 50 : ((obj.x - minX) / widthRange) * 80 + 10;
-      const top = heightRange === 0 ? 10 : ((obj.y - minY) / heightRange) * 70 + 15;
-      stageHtml += `
-        <div class="psycle-minimap-stage" style="left: ${left}%; top: ${top}%; transform: translate(-50%, -50%);">
-          Stage
-        </div>
-      `;
-    });
-
-    let dotsHtml = '';
-    layoutSlots.forEach(slot => {
-      const isAvailable = availableSlotIds.has(Number(slot.id));
-      const left = widthRange === 0 ? 50 : ((slot.x - minX) / widthRange) * 80 + 10;
-      const top = heightRange === 0 ? 50 : ((slot.y - minY) / heightRange) * 70 + 15;
-      const label = slot.label || slot.id;
-
-      dotsHtml += `
-        <div class="psycle-minimap-dot ${isAvailable ? 'available' : 'occupied'}" title="${label}" style="left: ${left}%; top: ${top}%;"></div>
-      `;
-    });
-
-    // Open spots the studio layout has no position for. On the normalized shape
-    // every available slot IS a layout slot (they are the same objects), so this
-    // is always zero — it only ever meant something for CodexFit's split
-    // "layout here, available ids there" response. Computed from the shared
-    // `availableSlotIds` set so it works for both shapes.
-    const layoutSlotIds = new Set(layoutSlots.map(s => Number(s.id)));
-    const unmappedCount = [...availableSlotIds].filter(id => !layoutSlotIds.has(id)).length;
-    let extraSlotsHtml = '';
-    if (unmappedCount > 0) {
-      extraSlotsHtml += `
-        <div style="font-size: 12px; color: var(--text-secondary); text-align: center; margin-top: 4px; border-top: 1px solid color-mix(in srgb, var(--text) 6%, transparent); padding-top: 4px;">
-          + ${unmappedCount} unmapped open spots
-        </div>
-      `;
-    }
-
-    minimapContentHtml = `
-      <div class="psycle-minimap-container">
-        ${stageHtml}
-        ${dotsHtml}
+  if (layoutSlots.length === 0) {
+    // FCFS or rooms without a spot map layout (recovery, boxing, etc.)
+    occupancyTooltip.innerHTML = `
+      <div style="font-size: 12px; font-weight: 700; color: var(--text); text-align: center; margin-bottom: 6px;">
+        Class Occupancy
       </div>
-      ${extraSlotsHtml}
+      <div style="display:flex; justify-content:space-around; background:var(--surface-inset); border-radius:8px; padding:10px 8px; border:1px solid var(--border);">
+        <div style="text-align:center;">
+          <div style="font-size:10px; color:var(--text-tertiary); text-transform:uppercase; font-weight:600;">Total</div>
+          <div style="font-size:15px; font-weight:700; color:var(--text);">${totalSlots || 'N/A'}</div>
+        </div>
+        <div style="text-align:center;">
+          <div style="font-size:10px; color:var(--text-tertiary); text-transform:uppercase; font-weight:600;">Open</div>
+          <div style="font-size:15px; font-weight:700; color:var(--success);">${openSlots}</div>
+        </div>
+        <div style="text-align:center;">
+          <div style="font-size:10px; color:var(--text-tertiary); text-transform:uppercase; font-weight:600;">Booked</div>
+          <div style="font-size:15px; font-weight:700; color:var(--danger);">${occupiedSlots}</div>
+        </div>
+      </div>
     `;
-  } else {
-    minimapContentHtml = `
-      <div style="padding: 20px 10px; color: var(--text-secondary); font-size: 12px; text-align: center; font-style: italic;">
-        No floor map layout available.
+    return;
+  }
+
+  let minX = Infinity, maxX = -Infinity, minY = Infinity, maxY = -Infinity;
+  layoutSlots.forEach(s => {
+    if (s.x < minX) minX = s.x;
+    if (s.x > maxX) maxX = s.x;
+    if (s.y < minY) minY = s.y;
+    if (s.y > maxY) maxY = s.y;
+  });
+
+  const widthRange = maxX - minX || 1;
+  const heightRange = maxY - minY || 1;
+
+  let stageHtml = '';
+  layoutObjects.forEach(obj => {
+    const left = widthRange === 0 ? 50 : ((obj.x - minX) / widthRange) * 80 + 10;
+    const top = heightRange === 0 ? 10 : ((obj.y - minY) / heightRange) * 70 + 15;
+    stageHtml += `
+      <div class="psycle-minimap-stage" style="left: ${left}%; top: ${top}%; transform: translate(-50%, -50%);">
+        Stage
+      </div>
+    `;
+  });
+
+  let dotsHtml = '';
+  layoutSlots.forEach(slot => {
+    const isAvailable = availableSlotIds.has(String(slot.id));
+    const left = widthRange === 0 ? 50 : ((slot.x - minX) / widthRange) * 80 + 10;
+    const top = heightRange === 0 ? 50 : ((slot.y - minY) / heightRange) * 70 + 15;
+    const label = slot.label || slot.id;
+
+    dotsHtml += `
+      <div class="psycle-minimap-dot ${isAvailable ? 'available' : 'occupied'}" title="${label}" style="left: ${left}%; top: ${top}%;"></div>
+    `;
+  });
+
+  // Open spots the studio layout has no position for.
+  const layoutSlotIds = new Set(layoutSlots.map(s => String(s.id)));
+  const unmappedCount = [...availableSlotIds].filter(id => !layoutSlotIds.has(id)).length;
+  let extraSlotsHtml = '';
+  if (unmappedCount > 0) {
+    extraSlotsHtml += `
+      <div style="font-size: 12px; color: var(--text-secondary); text-align: center; margin-top: 4px; border-top: 1px solid color-mix(in srgb, var(--text) 6%, transparent); padding-top: 4px;">
+        + ${unmappedCount} unmapped open spots
       </div>
     `;
   }
@@ -400,7 +465,11 @@ export function renderMinimap(payload, occupancyTooltip) {
       <span style="color:var(--success);">Open: ${openSlots}</span>
       <span style="color:var(--danger);">Booked: ${occupiedSlots}</span>
     </div>
-    ${minimapContentHtml}
+    <div class="psycle-minimap-container">
+      ${stageHtml}
+      ${dotsHtml}
+    </div>
+    ${extraSlotsHtml}
     <div class="psycle-minimap-legend">
       <div class="psycle-minimap-legend-item">
         <div class="psycle-minimap-legend-dot available"></div>

@@ -48,24 +48,74 @@ function makeLayoutObjects() {
   return [{ id: 900, name: 'Podium', x: 450, y: 20 }];
 }
 
+// Studios 138/139 KEEP their layout and their ids: test-regression-psycle.js
+// pins studio 138's floor plan, and event 1000 below must resolve to it.
+// 140/141 deliberately have NO layout — real CodexFit has studios without one
+// (Reformer rooms), and "no floor map available" needs to stay exercisable.
 const studios = [
   { id: 138, name: "Ride Studio", location_id: 13, layout: { slots: makeLayoutSlots(), objects: makeLayoutObjects() } },
   { id: 139, name: "Barre Studio", location_id: 13, layout: { slots: makeLayoutSlots(), objects: makeLayoutObjects() } },
   { id: 140, name: "Ride Studio", location_id: 14 },
-  { id: 141, name: "Strength Studio", location_id: 15 }
+  { id: 141, name: "Strength Studio", location_id: 15 },
+  { id: 142, name: "Reformer Studio", location_id: 13 },
+  { id: 143, name: "Yoga Studio", location_id: 16, layout: { slots: makeLayoutSlots(), objects: makeLayoutObjects() } },
+  { id: 144, name: "Strength Studio", location_id: 16 },
+  { id: 145, name: "Ride Studio", location_id: 15, layout: { slots: makeLayoutSlots(), objects: makeLayoutObjects() } },
+  { id: 146, name: "Barre Studio", location_id: 14 }
 ];
 
 const instructors = [
   { id: 10, name: "ADAM", full_name: "Adam" },
   { id: 11, name: "BECKY", full_name: "Becky" },
   { id: 12, name: "CHRIS", full_name: "Chris" },
-  { id: 13, name: "DAN", full_name: "Dan" }
+  { id: 13, name: "DAN", full_name: "Dan" },
+  { id: 14, name: "ELLA", full_name: "Ella" },
+  { id: 15, name: "FRANKIE", full_name: "Frankie" },
+  { id: 16, name: "GEORGIA", full_name: "Georgia" },
+  { id: 17, name: "HARRY", full_name: "Harry" },
+  { id: 18, name: "IMANI", full_name: "Imani" },
+  { id: 19, name: "JOSS", full_name: "Joss" }
 ];
 
+// One per discipline group the client knows how to tag (see cards.js
+// getDiscipline) — a single-discipline mock could never surface a wrong or
+// missing discipline pill, which is a regression that has shipped twice.
 const eventTypes = [
   { id: 20, name: "Ride 45", group: { id: 1, name: "Ride" } },
   { id: 21, name: "Barre 55", group: { id: 2, name: "Barre" } },
-  { id: 22, name: "Strength 45", group: { id: 3, name: "Strength" } }
+  { id: 22, name: "Strength 45", group: { id: 3, name: "Strength" } },
+  { id: 23, name: "Ride 60", group: { id: 1, name: "Ride" } },
+  { id: 24, name: "Reformer 50", group: { id: 4, name: "Reformer" } },
+  { id: 25, name: "Yoga Flow 60", group: { id: 5, name: "Yoga" } },
+  { id: 26, name: "Infrared Sculpt 45", group: { id: 6, name: "Infrared" } },
+  { id: 27, name: "Recovery 30", group: { id: 7, name: "Recovery" } },
+  { id: 28, name: "Rhythm Ride 45", group: { id: 1, name: "Ride" } },
+  { id: 29, name: "Barre Express 30", group: { id: 2, name: "Barre" } }
+];
+
+// A weekly template, so the generated timetable looks like a real one: busier
+// on weekday mornings and evenings, quieter midday, a different shape at the
+// weekend. Each entry is [hh:mm, eventTypeId, studioId, capacity].
+const WEEKDAY_SCHEDULE = [
+  ['06:30', 20, 138, 40], ['07:30', 26, 139, 20], ['08:30', 20, 138, 40],
+  ['09:30', 21, 139, 25], ['10:30', 24, 142, 12], ['12:15', 29, 139, 25],
+  ['17:30', 28, 138, 40], ['18:30', 21, 139, 25], ['18:30', 22, 141, 18],
+  ['19:30', 23, 145, 40], ['19:45', 25, 143, 30], ['20:30', 27, 143, 30]
+];
+const WEEKEND_SCHEDULE = [
+  ['09:00', 23, 138, 40], ['09:30', 25, 143, 30], ['10:30', 21, 146, 25],
+  ['11:00', 20, 145, 40], ['11:30', 24, 142, 12], ['12:30', 22, 144, 18],
+  ['17:00', 27, 143, 30]
+];
+
+// Mirrors the live `relations.credit_types` bag (confirmed 2026-09-14): 46
+// types on real Psycle, 11 of them guest-only. Three here is enough to exercise
+// accepted-type filtering and the guest-only exclusion.
+const creditTypes = [
+  { id: 1, name: 'Universal', handle: 'universal', is_guest_use_only: false, extended_booking_period: null },
+  { id: 2, name: 'Guest', handle: 'buddy', is_guest_use_only: true, extended_booking_period: null },
+  { id: 3, name: 'Ride Only', handle: 'ride-only', is_guest_use_only: false, extended_booking_period: null },
+  { id: 8, name: 'Extended Booking', handle: 'extended-booking', is_guest_use_only: false, extended_booking_period: '+1 week' },
 ];
 
 const bundles = [
@@ -190,9 +240,11 @@ function handleMockRequest(pathName, method, body) {
         total_attended_minutes: 6450
       },
       available_credits: [
-        { count: 3, credit_type: { name: "Ride Credit" }, expires_at: new Date(Date.now() + 60 * 24 * 60 * 60 * 1000).toISOString() },
-        { count: 1, credit_type: { name: "Strength Credit" } },
-        { count: 10, credit_type: { id: 8, name: "Advanced Booking Credit" } }
+        { count: 3, credit_type: { id: 3, name: "Ride Only", is_guest_use_only: false }, expires_at: new Date(Date.now() + 60 * 24 * 60 * 60 * 1000).toISOString() },
+        { count: 1, credit_type: { id: 1, name: "Universal", is_guest_use_only: false } },
+        { count: 10, credit_type: { id: 8, name: "Extended Booking", is_guest_use_only: false } },
+        // Guest credits must NOT count toward booking yourself in.
+        { count: 4, credit_type: { id: 2, name: "Guest", is_guest_use_only: true } }
       ],
       subscriptions: [
         { name: "Unlimited Monthly", status: "active", renews_at: new Date(Date.now() + 18 * 24 * 60 * 60 * 1000).toISOString() }
@@ -400,55 +452,76 @@ function handleMockRequest(pathName, method, body) {
   }
 
   if (pathName.startsWith('/events')) {
-    // Generate classes dynamically in the future
+    // A realistic 14-day timetable from the weekly template above.
+    //
+    // Deliberately varied: several locations and studios per day, ten
+    // instructors, every discipline group, and a spread of occupancy from
+    // nearly empty to full-with-waitlist. A two-class-per-day mock cannot
+    // surface a filter bug, a discipline-pill bug, a waitlist-state bug or a
+    // merged-timetable ordering bug — all of which have shipped before.
+    //
+    // ID SCHEME: day 0's first class is id 1000 in Ride Studio 138, because
+    // test-regression-psycle.js pins exactly that event and that floor plan.
+    // Ids stay stable per (day, slot) so a queued auto-book survives a reload.
     const classes = [];
     const now = new Date();
-    
+
     for (let i = 0; i < 14; i++) {
       const date = new Date(now.getTime() + i * 24 * 60 * 60 * 1000);
       const yyyymmdd = date.toISOString().split('T')[0];
-      
-      // Class 1 (Morning)
-      classes.push({
-        id: 1000 + i * 2,
-        name: "Ride 45",
-        start_at: `${yyyymmdd}T08:30:00.000Z`,
-        studio_id: 138,
-        location_id: 13,
-        instructor_id: 10 + (i % 4),
-        event_type_id: 20,
-        capacity: 40,
-        occupancy: 15 + (i % 20),
-        is_fully_booked: false,
-        is_waitlistable: true,
-        waitlist_available: true,
-        is_waitlist_full: false,
-        is_always_bookable: false,
-        max_bookable_slots: 10
-        // NOTE: no inline `instructor`/`event_type`/`studio` — the real
-        // GET /events returns these BY REFERENCE only (see the relations bag
-        // below). The mock used to embed them, which made it more generous than
-        // reality and hid the 2026-08-31 "CLASS" regression from every test.
-      });
+      const dow = date.getDay();
+      const template = (dow === 0 || dow === 6) ? WEEKEND_SCHEDULE : WEEKDAY_SCHEDULE;
 
-      // Class 2 (Evening)
-      classes.push({
-        id: 1000 + i * 2 + 1,
-        name: "Barre 55",
-        start_at: `${yyyymmdd}T18:30:00.000Z`,
-        studio_id: 139,
-        location_id: 13,
-        instructor_id: 10 + ((i + 1) % 4),
-        event_type_id: 21,
-        capacity: 25,
-        occupancy: 25,
-        is_fully_booked: true,
-        is_waitlistable: true,
-        waitlist_available: true,
-        is_waitlist_full: false,
-        is_always_bookable: false,
-        max_bookable_slots: 10
-        // See the note on the morning class above — relations are by reference.
+      template.forEach(([time, eventTypeId, studioId, capacity], slotIdx) => {
+        const studio = studios.find((st) => st.id === studioId);
+        const eventType = eventTypes.find((t) => t.id === eventTypeId);
+
+        // Spread occupancy deterministically rather than randomly, so a reload
+        // shows the same timetable — a list that reshuffles under you makes
+        // every visual comparison worthless.
+        const seed = (i * 13 + slotIdx * 7) % 10;
+        let occupancy;
+        if (seed === 0) occupancy = capacity;              // full → waitlist
+        else if (seed === 1) occupancy = capacity - 1;     // one spot left
+        else occupancy = Math.min(capacity - 1, Math.floor((capacity * (seed + 2)) / 14));
+
+        const isFull = occupancy >= capacity;
+
+        classes.push({
+          id: 1000 + i * 20 + slotIdx,
+          name: eventType.name,
+          start_at: `${yyyymmdd}T${time}:00.000Z`,
+          studio_id: studioId,
+          location_id: studio.location_id,
+          instructor_id: instructors[(i * 3 + slotIdx) % instructors.length].id,
+          event_type_id: eventTypeId,
+          capacity,
+          occupancy,
+          is_fully_booked: isFull,
+          is_waitlistable: true,
+          waitlist_available: isFull,
+          is_waitlist_full: false,
+          is_always_bookable: false,
+          max_bookable_slots: 10,
+          // The live API publishes BOTH of these on every event, and neither was
+          // modelled here — which is exactly why the client's per-class credit
+          // logic could be dead code for months without a test going red.
+          // Ride classes additionally accept the Ride Only type; one slot per
+          // day costs 2 credits so the "can't afford it" path is exercisable.
+          required_credits: slotIdx === 3 ? 2 : 1,
+          credit_types: [
+            { credit_type: 1 }, { credit_type: 2 }, { credit_type: 8 },
+            ...(eventType.group && eventType.group.name === 'Ride' ? [{ credit_type: 3 }] : []),
+          ],
+          accepted_credits: [
+            { credit_type_id: 1 }, { credit_type_id: 2 }, { credit_type_id: 8 },
+            ...(eventType.group && eventType.group.name === 'Ride' ? [{ credit_type_id: 3 }] : []),
+          ]
+          // NOTE: no inline `instructor`/`event_type`/`studio` — the real
+          // GET /events returns these BY REFERENCE only (see the relations bag
+          // below). The mock used to embed them, which made it more generous
+          // than reality and hid the 2026-08-31 "CLASS" regression from tests.
+        });
       });
     }
 
@@ -462,6 +535,7 @@ function handleMockRequest(pathName, method, body) {
         event_types: eventTypes,
         studios,
         locations,
+        credit_types: creditTypes,
       },
     });
   }

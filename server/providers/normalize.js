@@ -12,6 +12,23 @@
  * @param {Partial<import('./base').NormalizedEvent>} e
  * @returns {import('./base').NormalizedEvent}
  */
+/**
+ * What a class costs and what it accepts.
+ *
+ * Absent (undefined) on a gym with no credit system — which is NOT the same as
+ * `{ required: 0 }`. Absent means "this question doesn't apply here"; zero means
+ * "this specific class is free". Collapsing the two is how a membership gym
+ * ends up being asked whether you can afford something.
+ */
+function makeCreditRequirement(c) {
+  if (!c) return undefined;
+  const ids = Array.isArray(c.acceptedTypeIds) ? c.acceptedTypeIds.map(str).filter(Boolean) : [];
+  return {
+    required: Number.isFinite(Number(c.required)) ? Number(c.required) : 1,
+    acceptedTypeIds: ids,
+  };
+}
+
 function makeEvent(e) {
   return prune({
     id: str(e.id),
@@ -37,6 +54,7 @@ function makeEvent(e) {
     layoutFormat: e.layoutFormat || 'pick-a-spot',
     isUserBooked: bool(e.isUserBooked),
     isUserWaitlisted: bool(e.isUserWaitlisted),
+    credits: makeCreditRequirement(e.credits),
     raw: e.raw,
   });
 }
@@ -79,7 +97,18 @@ function makeLayoutObject(o) {
 
 function makeInstructor(i) {
   if (!i) return { id: '', name: '' };
-  return prune({ id: str(i.id), name: i.name || '', imageUrl: i.imageUrl });
+  // Both adapters already set bio/instagram/spotify fields (marianatek.js's
+  // per-event mapping, codexfit.js's fetchMetadata()) — this function was the
+  // actual gate dropping every one of them for BOTH gyms, not just Psycle,
+  // since it's the single instructor normalizer both `makeEvent` and
+  // `makeMetadata` route through. Found 2026-09-02 chasing "Psycle instructor
+  // photos broken" — the photo-field-name bug in codexfit.js was real too,
+  // but fixing only that would still have lost bio/social links here.
+  return prune({
+    id: str(i.id), name: i.name || '', imageUrl: i.imageUrl, thumbUrl: i.thumbUrl,
+    bio: i.bio, instagramUrl: i.instagramUrl, instagramHandle: i.instagramHandle,
+    spotifyUrl: i.spotifyUrl, metafields: i.metafields,
+  });
 }
 
 /**
@@ -95,6 +124,26 @@ function makeProfile(p) {
     bookingCutoff: p.bookingCutoff,
     extendedCutoff: p.extendedCutoff,
     raw: p.raw,
+  });
+}
+
+/**
+ * @param {Partial<import('./base').NormalizedMembership>} m
+ * @returns {import('./base').NormalizedMembership}
+ */
+function makeMembership(m) {
+  return prune({
+    id: str(m.id),
+    name: m.name || 'Membership',
+    status: m.status,
+    isActive: bool(m.isActive) ?? false,
+    renewsAt: m.renewsAt,
+    expiresAt: m.expiresAt,
+    guestPassesRemaining: num(m.guestPassesRemaining),
+    guestPassesTotal: num(m.guestPassesTotal),
+    bookingWindowLabel: m.bookingWindowLabel,
+    manageUrl: m.manageUrl,
+    raw: m.raw,
   });
 }
 
@@ -188,4 +237,4 @@ module.exports = {
   makeLocation,
   makeStudio,
   makeClassType,
-  makeMetadata, makeEvent, makeSlot, makeLayoutObject, makeInstructor, makeProfile, makeBookingResult, makeBooking, prune };
+  makeMetadata, makeEvent, makeSlot, makeLayoutObject, makeInstructor, makeProfile, makeMembership, makeBookingResult, makeBooking, prune };

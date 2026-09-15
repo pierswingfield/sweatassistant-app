@@ -15,7 +15,7 @@ const STORE = 'api-responses';
 // currentUser.id). The GYM segment (WP-G) is read from localStorage on every key
 // build rather than being pushed in by a caller: a normalized response body is
 // gym-specific (one gym's timetable, bookings, studio layouts), and relying on
-// applyGymSwitch() remembering to clear the store means one forgotten transition
+// a caller remembering to clear the store means one forgotten transition
 // serves the wrong gym's data. Deriving the segment makes the collision
 // impossible instead of merely avoided.
 //
@@ -29,7 +29,8 @@ export function setCacheKeyPrefix(prefix) {
 
 function activeGymSegment() {
   try {
-    return localStorage.getItem('sweatActiveGymId') || '';
+    const storage = typeof window !== 'undefined' && window.localStorage ? window.localStorage : (typeof localStorage !== 'undefined' ? localStorage : null);
+    return storage ? (storage.getItem('sweatActiveGymId') || '') : '';
   } catch (_) {
     return '';
   }
@@ -40,6 +41,14 @@ export function cacheKeyPrefix() {
   const gym = activeGymSegment();
   if (keyPrefix && gym) return `${keyPrefix}@${gym}`;
   return keyPrefix || gym;
+}
+
+// Scope a caller-owned cache key to the signed-in account without adding the
+// active gym. This is for merged data that deliberately contains every linked
+// gym (for example the unified timetable); gymScopedKey() remains correct for
+// bodies that represent one active gym only.
+export function accountScopedKey(base) {
+  return keyPrefix ? `${base}:${keyPrefix}` : base;
 }
 
 function cacheKey(endpoint) {

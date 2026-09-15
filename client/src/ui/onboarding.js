@@ -40,6 +40,16 @@ export function isOnboardingActive() {
 }
 
 export function shouldShowOnboarding() {
+  // `api.getToken()` doesn't exist — `getToken` is a standalone export of
+  // api.js, not a method on the `api` object — so this threw on every
+  // logged-out page load (crashing the whole boot sequence before the login
+  // form could render), never on a logged-in one, since `isLoggedIn()` short-
+  // circuits the `||` first. The clause was redundant anyway: both read the
+  // exact same `localToken` variable, so dropping it changes nothing.
+  if (isLoggedIn()) {
+    localStorage.setItem(COMPLETE_KEY, ONBOARDING_VERSION);
+    return false;
+  }
   return localStorage.getItem(COMPLETE_KEY) !== ONBOARDING_VERSION;
 }
 
@@ -136,13 +146,13 @@ const ICON = {
 // onboarding starts).
 function getSlides() {
   return [
-    { welcome: true, title: 'Unofficial client', text: 'Your personal Psycle companion — auto-booking, smart upgrades, and your favourite spots, taken care of.' },
-    { feat: 'autobook', icon: ICON.autobook, title: 'Auto-Book', text: `No more Monday 12:00PM rush! Queue the classes you want and ${appConfig.appName} books them the instant they're released. You can even set your favourite spots in each studio.` },
+    { welcome: true, title: 'Unofficial client', text: 'Your personal gym companion — auto-booking, smart upgrades, and your favourite spots, taken care of.' },
+    { feat: 'autobook', icon: ICON.autobook, title: 'Auto-Book', text: `No more release-time rush! Queue the classes you want and ${appConfig.appName} books them the instant they're released. You can even set your favourite spots in each studio.` },
     { feat: 'autoupgrade', icon: ICON.autoupgrade, title: 'Auto-Upgrade', text: `Didn't get your favourite spot? ${appConfig.appName} can monitor for a better one from your preferred spot map, and move you up automatically.` },
     { feat: 'quickbook', icon: ICON.quickbook, title: 'Quick-Book', text: 'Once you\'ve set your favourite spots, booking happens in a single tap.' },
     { feat: 'offline', icon: ICON.offline, title: 'Works Offline', text: 'Your timetable and bookings stay readable on the tube or anywhere signal drops.' },
     { feat: 'push', icon: ICON.push, title: 'Stay Notified', text: 'Get a push when you\'re booked in, upgraded, or to remind you about an upcoming class.' },
-    { feat: 'calendar', icon: ICON.calendarSync, title: 'Calendar Sync', text: 'Automatically sync your classes to your calendar, so you never forget your birthday ride.' },
+    { feat: 'calendar', icon: ICON.calendarSync, title: 'Calendar Sync', text: 'Automatically sync your classes to your calendar, so you never forget an upcoming session.' },
   ];
 }
 
@@ -161,7 +171,7 @@ function stepIntro() {
                 <div class="psycle-onb-wordmark">${appConfig.appName}</div>
                 <h2 class="psycle-onb-title psycle-onb-welcome-title">${s.title}</h2>
                 <p class="psycle-onb-slide-text">${s.text}</p>
-                <p class="psycle-onb-secondary-note">This app needs to securely store your Psycle login to work in the background. You could alternatively use this <a href="https://github.com/piersjones/psycle-chrome">chrome extension</a> for similar functionality, but it requires the Psycle website to be open for automatic features to work.</p>
+                <p class="psycle-onb-secondary-note">This app needs to securely store your gym login to work in the background. You could alternatively use this <a href="https://github.com/piersjones/psycle-chrome">chrome extension</a> for similar functionality on Psycle, but it requires the Psycle website to be open for automatic features to work.</p>
               </div>` : `
               <div class="psycle-onb-slide">
                 <div class="psycle-onb-icon" style="color: var(--feat-${s.feat}, var(--accent));">${s.icon}</div>
@@ -302,8 +312,9 @@ function stepGyms() {
           api.getGyms(),
           api.getMyGyms(),
         ]);
-        allGyms = (gymsRes || []).filter((g) => g.enabled);
-        myGyms = mineRes.gyms || [];
+        const rawGyms = gymsRes.gyms || gymsRes || [];
+        allGyms = rawGyms.filter((g) => g.enabled !== false);
+        myGyms = mineRes.gyms || mineRes || [];
       } catch (_) {
         allGyms = [];
         myGyms = [];
@@ -316,7 +327,7 @@ function stepGyms() {
     if (allGyms.length === 0) return resolve();
 
     const render = () => {
-      const linkedGymIds = new Set(myGyms.map((g) => g.gymId || g.id));
+      const linkedGymIds = new Set(myGyms.map((g) => g.gym_id || g.gymId || g.id));
       const unlinkedGyms = allGyms.filter((g) => !linkedGymIds.has(g.id));
       const hasLinked = myGyms.length > 0;
 
@@ -324,18 +335,23 @@ function stepGyms() {
         ? `<div class="psycle-onb-connected-gyms" style="margin-bottom:16px;">
             <div style="font-size:12px;font-weight:600;text-transform:uppercase;letter-spacing:0.5px;color:var(--text-tertiary);margin-bottom:8px;">Connected Gyms</div>
             <div style="display:flex;flex-direction:column;gap:8px;">
-              ${myGyms.map(g => `
+              ${myGyms.map(g => {
+                const targetId = g.gym_id || g.gymId || g.id;
+                const matchedGym = allGyms.find(ag => ag.id === targetId);
+                const gName = g.gym_name || g.name || matchedGym?.name || targetId;
+                const gEmail = g.gym_email || g.gymEmail || '';
+                return `
                 <div style="display:flex;align-items:center;justify-content:space-between;padding:10px 14px;background:var(--surface-inset);border:1px solid var(--border);border-radius:10px;">
                   <div style="display:flex;align-items:center;gap:10px;">
                     <span style="color:var(--success, #10b981);font-weight:bold;font-size:16px;">✓</span>
                     <div>
-                      <div style="font-size:14px;font-weight:600;">${g.name || g.gymId}</div>
-                      <div style="font-size:12px;color:var(--text-tertiary);">${g.gymEmail || ''}</div>
+                      <div style="font-size:14px;font-weight:600;">${gName}</div>
+                      ${gEmail ? `<div style="font-size:12px;color:var(--text-tertiary);">${gEmail}</div>` : ''}
                     </div>
                   </div>
                   <span class="psycle-badge" style="font-size:11px;background:color-mix(in srgb,var(--success) 15%,transparent);color:var(--success);">Connected</span>
                 </div>
-              `).join('')}
+              `;}).join('')}
             </div>
           </div>`
         : '';
@@ -482,8 +498,8 @@ function stepNotifications() {
 // Phase 1: prompt to enable. Phase 2: offer Apple/Google + note Settings options.
 async function stepCalendar() {
   return new Promise(async (resolve) => {
-    const isEnabled = await api.isCalendarEnabled();
-    if (isEnabled) return resolve(); // already enabled — skip
+    const calendarStatus = await api.getCalendarStatus().catch(() => ({ enabled: false }));
+    if (calendarStatus.enabled) return resolve(); // already enabled — skip
 
     const ios = isIOS();
 

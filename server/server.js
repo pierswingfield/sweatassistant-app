@@ -72,15 +72,9 @@ const adminLoginLimiter = rateLimit({
 
 // Per-user rate limiters (keyed on userId set by authenticateToken, not IP —
 // all users share the Pi's egress IP so IP-based limiting would be wrong).
-const proxyLimiter = rateLimit({
-  windowMs: 60 * 1000,
-  max: 60,
-  standardHeaders: true,
-  legacyHeaders: false,
-  keyGenerator: (req) => req.userId ? String(req.userId) : ipKeyGenerator(req.ip),
-  message: { message: 'Too many requests — please slow down.' },
-  skip: (req) => process.env.NODE_ENV !== 'production', // no limits in dev
-});
+// (The former `proxyLimiter` lived here. Its budget moved to
+// routes-normalized.js `extrasLimiter` along with the routes that replaced the
+// `/api/proxy/*` callers — see the removal note further down.)
 
 const bookingMutationLimiter = rateLimit({
   windowMs: 60 * 1000,
@@ -167,10 +161,20 @@ app.get('/api/health', (req, res) => {
   // arms whatever instant its API published.
   const nextRelease = db.getKV('scheduler_next_release') || null;
 
+  // Shared schedule-cache counters. Exposed because "the timetable is slow" was
+  // diagnosable only by asking a user whether the SECOND load was slow too —
+  // a hit rate makes the same question answerable from outside the process.
+  // A hit rate near zero with a healthy entry count means keys are too specific
+  // (a user id crept into one); misses climbing with entries flat means the TTL
+  // is shorter than the gap between visits.
+  let scheduleCacheStats = null;
+  try { scheduleCacheStats = require('./schedule-cache').getStats(); } catch (_) {}
+
   res.status(allHealthy ? 200 : 503).json({
     status: allHealthy ? 'ok' : 'degraded',
     time: new Date(now).toISOString(),
     uptimeSec: Math.round(process.uptime()),
+    scheduleCache: scheduleCacheStats,
     nextReleaseAt: nextRelease,
     services,
   });
@@ -359,7 +363,8 @@ app.post('/api/bookings/sync', authenticateToken, (req, res) => {
 
 app.get('/api/auto-book', authenticateToken, (req, res) => {
   try {
-    const bookings = db.getUserAutoBookings(req.userId);
+    const gymId = req.query.gymId || (req.headers['x-gym-id'] ? undefined : 'all');
+    const bookings = db.getUserAutoBookings(req.userId, gymId);
     // Parse preferences JSON string
     const formatted = bookings.map(b => ({
       ...b,
@@ -372,19 +377,20 @@ app.get('/api/auto-book', authenticateToken, (req, res) => {
 });
 
 app.post('/api/auto-book', authenticateToken, bookingMutationLimiter, (req, res) => {
-  const { eventId, studioId, className, instructorName, studioName, locationName, startAt, preferences, skipImmediate, groupName, creditShortfall, releaseAt } = req.body;
+  const { eventId, studioId, className, instructorName, studioName, locationName, startAt, preferences, skipImmediate, groupName, creditShortfall, releaseAt, gymId: reqGymId } = req.body;
   if (!eventId || !preferences) {
     return res.status(400).json({ message: 'eventId and preferences are required' });
   }
+  const gymId = reqGymId || req.headers['x-gym-id'] || null;
   try {
-    const pendingCount = db.countPendingAutoBookings(req.userId);
+    const pendingCount = db.countPendingAutoBookings(req.userId, gymId);
     if (pendingCount >= MAX_PENDING_AUTO_BOOKINGS_PER_GYM) {
       return res.status(429).json({ message: `Auto-book queue limit reached (${MAX_PENDING_AUTO_BOOKINGS_PER_GYM} pending entries). Please remove some entries before adding more.` });
     }
     // Capture the class's own release instant when the gym publishes one (WP-D8).
     // A per-class gym's release has no weekday rule to recompute it from later,
     // so if it isn't stored now it is gone.
-    const id = db.addAutoBooking(req.userId, eventId, className, instructorName, studioName, locationName, startAt, preferences, studioId ?? null, groupName ?? null, releaseAt ?? null);
+    const id = db.addAutoBooking(req.userId, eventId, className, instructorName, studioName, locationName, startAt, preferences, studioId ?? null, groupName ?? null, releaseAt ?? null, gymId);
 
     // Warn (via push) if the user set this up without enough credits.
     if (creditShortfall && creditShortfall > 0) {
@@ -476,7 +482,8 @@ app.delete('/api/auto-book/:id', authenticateToken, (req, res) => {
 
 app.get('/api/auto-upgrade', authenticateToken, (req, res) => {
   try {
-    const upgrades = db.getUserAutoUpgrades(req.userId);
+    const gymId = req.query.gymId || (req.headers['x-gym-id'] ? undefined : 'all');
+    const upgrades = db.getUserAutoUpgrades(req.userId, gymId);
     const formatted = upgrades.map(u => ({
       ...u,
       preferences: JSON.parse(u.preferences)
@@ -488,28 +495,29 @@ app.get('/api/auto-upgrade', authenticateToken, (req, res) => {
 });
 
 app.post('/api/auto-upgrade', authenticateToken, bookingMutationLimiter, (req, res) => {
-  const { eventId, studioId, bookingId, currentSlotId, className, instructorName, studioName, locationName, startAt, preferences, groupName, creditShortfall } = req.body;
-  if (eventId == null || bookingId == null || currentSlotId == null || isNaN(Number(currentSlotId)) || !preferences) {
+  const { eventId, studioId, bookingId, currentSlotId, className, instructorName, studioName, locationName, startAt, preferences, groupName, creditShortfall, gymId: reqGymId } = req.body;
+  if (eventId == null || bookingId == null || currentSlotId == null || !preferences) {
     return res.status(400).json({ message: 'Missing required auto-upgrade fields' });
   }
+  const gymId = reqGymId || req.headers['x-gym-id'] || null;
   try {
     // Quota: cap active monitors per user
-    const activeCount = db.countActiveAutoUpgrades(req.userId);
+    const activeCount = db.countActiveAutoUpgrades(req.userId, gymId);
     if (activeCount >= MAX_ACTIVE_AUTO_UPGRADES_PER_GYM) {
       return res.status(429).json({ message: `Auto-upgrade monitor limit reached (${MAX_ACTIVE_AUTO_UPGRADES_PER_GYM} active monitors). Please cancel some before adding more.` });
     }
 
     // Check if an active auto-upgrade already exists for this slot in this class
-    const activeUpgrades = db.getUserAutoUpgrades(req.userId).filter(u =>
-      Number(u.event_id) === Number(eventId) &&
-      Number(u.current_slot_id) === Number(currentSlotId) &&
+    const activeUpgrades = db.getUserAutoUpgrades(req.userId, gymId).filter(u =>
+      String(u.event_id) === String(eventId) &&
+      String(u.current_slot_id) === String(currentSlotId) &&
       u.status === 'active'
     );
     if (activeUpgrades.length > 0) {
       return res.status(400).json({ message: 'An active auto-upgrade monitor already exists for this slot.' });
     }
 
-    const id = db.addAutoUpgrade(req.userId, eventId, bookingId, currentSlotId, className, instructorName, studioName, locationName, startAt, preferences, studioId ?? null, groupName ?? null);
+    const id = db.addAutoUpgrade(req.userId, eventId, bookingId, currentSlotId, className, instructorName, studioName, locationName, startAt, preferences, studioId ?? null, groupName ?? null, gymId);
 
     // Warn (via push) if auto-upgrade is enabled without a spare credit to book the upgraded seat.
     if (creditShortfall && creditShortfall > 0) {
@@ -623,6 +631,10 @@ app.get('/api/calendar/status', authenticateToken, (req, res) => {
       links: token ? calendar.buildLinks(token) : null,
       generatedAt: snap ? snap.generated_at : null,
       classCount: snap ? snap.class_count : 0,
+      // Which gyms feed this calendar. The feed is account-level, so the UI has
+      // to be able to say "every class from X and Y" — otherwise a user with two
+      // gyms has no way to tell whether the single URL really covers both.
+      gyms: (db.getUserGymsPublic(req.userId) || []).map((g) => ({ id: g.gym_id, name: g.gym_name || g.gym_id })),
     });
   } catch (err) {
     res.status(500).json({ message: err.message });
@@ -820,74 +832,28 @@ async function proxyRequest(userId, pathName, method, body) {
   return response;
 }
 
-app.all('/api/proxy/*', authenticateToken, proxyLimiter, async (req, res) => {
-  const pathWithQuery = req.url.slice('/api/proxy'.length);
-  const method = req.method;
-  const body = req.body;
-
-  // Stamp "last seen" on any client activity through the proxy.
-  try { db.touchUserLastSeen(req.userId); } catch (_) {}
-
-  // Public CodexFit endpoints (documented: no Bearer token required).
-  // Strip auth and forward directly to avoid unnecessary JWT exposure.
-  const reqGymId = db.resolveActiveGymId(req.userId);
-  if (getProvider(reqGymId).isPublicRead(method, pathWithQuery) && req.email !== 'dev@psycle.com') {
-    try {
-      const publicRes = await getProvider(reqGymId).publicRequest(pathWithQuery, { method });
-      res.status(publicRes.status);
-      const ct = publicRes.headers.get('content-type');
-      if (ct) res.set('Content-Type', ct);
-      const text = await publicRes.text();
-      return res.send(text);
-    } catch (err) {
-      console.error('[Proxy] Public endpoint error:', err.message);
-      return res.status(502).json({ error: 'Upstream request failed.' });
-    }
-  }
-
-  try {
-    const response = await proxyRequest(req.userId, pathWithQuery, method, body);
-    const contentType = response.headers.get('content-type');
-
-    // A booking/waitlist mutation in the web app → refresh the calendar feed ~1 min
-    // later (debounced) so the change shows without waiting for the 3-hourly cycle.
-    if (response.ok && (method === 'POST' || method === 'DELETE') && /^\/(bookings|waitlists)\b/.test(pathWithQuery)) {
-      try { calendar.scheduleRefresh(req.userId); } catch (_) {}
-    }
-
-    res.status(response.status);
-
-    if (contentType && contentType.includes('application/json')) {
-      try {
-        const data = await response.json();
-        // Cache the full profile snapshot for the admin detail view (GET /profile only,
-        // not /profile/metafields/* sub-paths).
-        if (method === 'GET' && response.ok && /^\/profile(\?|$)/.test(pathWithQuery)) {
-          try { db.cacheUserProfile(req.userId, data.data || data); } catch (_) {}
-        }
-        res.json(data);
-      } catch {
-        // CodexFit sometimes returns content-type: application/json with an
-        // empty body (e.g. DELETE on a metafield). Parsing throws, which
-        // would surface as a 500 to the client and break the mutation flow.
-        // Send an empty object instead so the client can proceed.
-        res.json({});
-      }
-    } else {
-      const text = await response.text();
-      if (text) {
-        res.send(text);
-      } else {
-        // Empty body, non-JSON content-type — end the response cleanly.
-        res.end();
-      }
-    }
-  } catch (err) {
-    console.error(`[Proxy Error] ${method} ${pathWithQuery}:`, err.message);
-    const status = err.message.includes('log in again') ? 401 : 500;
-    res.status(status).json({ message: err.message });
-  }
-});
+// The raw `/api/proxy/*` passthrough was REMOVED here (WP-D9, 2026-09-14).
+//
+// It forwarded client-composed paths straight to whatever provider the calling
+// user's active gym resolved to — which only ever worked because the paths and
+// response shapes were CodexFit's. Its last three callers (the bundle
+// catalogue, bookmarks and the Profile Explorer's hidden edit) now have
+// capability-gated normalized routes in routes-normalized.js, so no client can
+// name a provider's own URL any more. Removing the passthrough was the stated
+// acceptance criterion for layer D.
+//
+// Do not reintroduce it. A feature only one platform has is not a reason for a
+// passthrough — give it a named route and gate it on the gym's capability flag.
+//
+// Two side effects it carried have been rehomed rather than lost:
+//   - `db.touchUserLastSeen` now runs in auth.js's `authenticateToken`, the one
+//     chokepoint every authenticated request passes (it was CodexFit-only here,
+//     so JAB accounts never registered as active at all).
+//   - the debounced calendar refresh on booking/waitlist mutations now lives on
+//     the normalized write routes themselves.
+// `proxyRequest()` above survives as an INTERNAL helper: the CodexFit cart
+// flow below still uses it server-side, which is a different thing entirely
+// from exposing it to the client.
 
 // -------------------------------------------------------------
 // CART MANAGEMENT (CodexFit Cart Proxy)

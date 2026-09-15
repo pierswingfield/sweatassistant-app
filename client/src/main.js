@@ -1,11 +1,12 @@
 import { api, setToken, isLoggedIn } from './api';
-import { setGymContext, applyCapabilityGates, can } from './gym-context.js';
+import { setGymContext, setLinkedGyms, applyCapabilityGates, can, getLinkedGyms } from './gym-context.js';
 import { initTooltips } from './ui/tooltips';
 import { setupPullToRefresh } from './ui/pulltorefresh';
 import { setCacheKeyPrefix, clearApiCache, invalidateApiCache } from './cache.js';
 import { appConfig, initConfig } from './config';
 import { shouldShowOnboarding, resumeOnboarding, isOnboardingActive, advanceAfterLogin } from './ui/onboarding';
 import { detectBookingWindow } from './lib';
+import { escapeHtml } from './ui/cards';
 
 // --- PWA install prompt capture ---
 // Android/desktop Chromium fire `beforeinstallprompt` before the page is ready
@@ -134,13 +135,26 @@ export function showToast(message, type = 'info') {
 
   const toast = document.createElement('div');
   toast.className = `psycle-toast ${type}`;
+  // Toasts are the app's ONLY feedback channel for booking, cancellation and
+  // errors; without a live region a screen-reader user books a class and is
+  // told nothing at all. Errors interrupt, everything else waits its turn.
+  toast.setAttribute('role', type === 'error' ? 'alert' : 'status');
+  toast.setAttribute('aria-live', type === 'error' ? 'assertive' : 'polite');
   
   let icon = 'ℹ️';
   if (type === 'success') icon = '✅';
   if (type === 'error') icon = '❌';
   if (type === 'warning') icon = '⚠️';
 
-  toast.innerHTML = `<span class="toast-icon">${icon}</span><span class="toast-message">${message}</span>`;
+  // The icon is ours; the message is not — callers pass `err.message` straight
+  // from server and provider responses, so it goes in as text, never markup.
+  const iconEl = document.createElement('span');
+  iconEl.className = 'toast-icon';
+  iconEl.textContent = icon;
+  const msgEl = document.createElement('span');
+  msgEl.className = 'toast-message';
+  msgEl.textContent = message;
+  toast.append(iconEl, msgEl);
   container.appendChild(toast);
 
   // Animate in
@@ -298,6 +312,9 @@ async function refreshActiveTab() {
       await invalidateApiCache('/api/bookings');
       await invalidateApiCache('/api/waitlists');
       await invalidateApiCache('/api/profile');
+      // Credits are now cached too; a refresh that drops the profile but keeps
+      // a stale balance shows the old credit count next to fresh bookings.
+      await invalidateApiCache('/api/credits');
       const { prefetchTimetableData } = await import('./ui/timetable');
       await prefetchTimetableData(true);
       refreshUserData(true); // fire-and-forget badge update
@@ -306,6 +323,9 @@ async function refreshActiveTab() {
       await invalidateApiCache('/api/waitlists');
       await invalidateApiCache('/api/auto-upgrade');
       await invalidateApiCache('/api/profile');
+      // Credits are now cached too; a refresh that drops the profile but keeps
+      // a stale balance shows the old credit count next to fresh bookings.
+      await invalidateApiCache('/api/credits');
       const { renderBookings } = await import('./ui/bookings');
       await renderBookings();
       refreshUserData(true); // fire-and-forget badge update
@@ -313,12 +333,18 @@ async function refreshActiveTab() {
       await invalidateApiCache('/api/auto-book');
       await invalidateApiCache('/api/auto-upgrade');
       await invalidateApiCache('/api/profile');
+      // Credits are now cached too; a refresh that drops the profile but keeps
+      // a stale balance shows the old credit count next to fresh bookings.
+      await invalidateApiCache('/api/credits');
       await invalidateApiCache('/api/settings');
       const { refreshAutoBookTab } = await import('./ui/autobook');
       await refreshAutoBookTab();
     } else if (currentTabId === 'buy-credits') {
-      await invalidateApiCache('/api/proxy/bundles');
+      await invalidateApiCache('/api/bundles');
       await invalidateApiCache('/api/profile');
+      // Credits are now cached too; a refresh that drops the profile but keeps
+      // a stale balance shows the old credit count next to fresh bookings.
+      await invalidateApiCache('/api/credits');
       cache.bundles = [];
       const { initBundles } = await import('./ui/credits');
       await initBundles();
@@ -512,42 +538,101 @@ export async function togglePushSubscription() {
   }
 }
 
-// --- CREDIT BADGE UPDATE ---
+// --- MULTI-GYM CREDIT & STATUS BADGE UPDATE ---
 
-export function updateCreditBadge(availableCredits = null) {
-  const credits = availableCredits || cache.credits || [];
+// Sums NormalizedCredit (`{ typeName, count }`). It used to require a raw
+// `c.credit_type` object and skipped every entry without one — once /api/credits
+// started returning normalized rows, the header badge read "0 cr" for an account
+// holding 14 credits. A credit total that silently reads zero is worse than an
+// error: it looks like a real balance.
+function sumCredits(credits) {
+  return (credits || []).reduce((sum, c) => {
+    const count = Number(c.count) || 0;
+    return count > 0 ? sum + count : sum;
+  }, 0);
+}
+
+function renderGymBadge(container, gymId, shortName, isMetered, total, credits) {
+  const badge = document.createElement('button');
+  badge.type = 'button';
+  badge.className = `psycle-header-gym-badge psycle-header-gym-${gymId}`;
+  if (isMetered) {
+    badge.innerHTML = `<span class="psycle-hgb-name">${shortName}</span><span class="psycle-hgb-pill">${total} cr</span>`;
+    badge.title = `${shortName}: ${total} credit${total !== 1 ? 's' : ''} available`;
+    badge.onclick = () => { if (total > 0) showCreditDetailsModal(credits); };
+  } else {
+    // "Active" alone reads as "this is the currently-selected gym" rather than
+    // "your membership is active" — found ambiguous 2026-09-02, back when the
+    // app did have a gym switcher. The switcher is gone, but "Member" is still
+    // the clearer word for what this badge means; the full sentence lives in
+    // the hover title.
+    badge.innerHTML = `<span class="psycle-hgb-name">${shortName}</span><span class="psycle-hgb-pill member">Member</span>`;
+    badge.title = `${shortName}: Membership active`;
+  }
+  container.appendChild(badge);
+}
+
+// `availableCredits`, when passed, is always the ACTIVE gym's inventory (the
+// only kind `/api/credits` ever returns without an explicit gymId). With a
+// single linked gym that's also the only badge shown, so no fan-out is
+// needed (WP-D8: n=1 must not pay for multi-gym plumbing). With 2+ linked
+// gyms each badge needs ITS OWN gym's balance, which `availableCredits` can't
+// provide — those are fetched here via `api.getCreditsByGym()`.
+export async function updateCreditBadge(availableCredits = null) {
   const creditsContainer = document.getElementById('psycle-header-credits');
-
   if (!creditsContainer) return;
 
+  const linked = getLinkedGyms();
+
+  if (!linked || linked.length === 0) {
+    const credits = availableCredits || cache.credits || [];
+    const total = sumCredits(credits);
+    creditsContainer.innerHTML = '';
+    renderGymBadge(creditsContainer, 'psycle-london', 'Psycle', true, total, credits);
+    debugLog(`Credits updated: ${total} total (no linked gyms, fallback)`, 'info');
+    return;
+  }
+
+  if (linked.length === 1) {
+    const gym = linked[0];
+    const gymId = gym.gym_id || gym.id;
+    const credits = availableCredits || cache.credits || [];
+    const total = sumCredits(credits);
+    creditsContainer.innerHTML = '';
+    cache.creditsByGym = { [gymId]: credits };
+    renderGymBadge(creditsContainer, gymId, gym.shortName || gym.name || gymId, gym.capabilities?.metered !== false, total, credits);
+    debugLog(`Credits updated: ${total} total for ${gymId}`, 'info');
+    return;
+  }
+
+  const byGym = await api.getCreditsByGym().catch(() => ({}));
+  // Publish for the credit arithmetic: a merged timetable needs EACH row's own
+  // gym's balance, and `cache.credits` only ever holds one gym's.
+  cache.creditsByGym = byGym;
+  // Same reason as eligibilityByGym: rows rendered before this landed were
+  // rendered permissively and need the real answer.
+  repaintTimetableIfVisible();
   creditsContainer.innerHTML = '';
-
-  const counts = {};
-  credits.forEach(c => {
-    if (c.count > 0 && c.credit_type) {
-      const name = c.credit_type.name || 'Credits';
-      counts[name] = (counts[name] || 0) + c.count;
-    }
+  linked.forEach(gym => {
+    const gymId = gym.gym_id || gym.id;
+    const credits = byGym[gymId] || [];
+    const total = sumCredits(credits);
+    renderGymBadge(creditsContainer, gymId, gym.shortName || gym.name || gymId, gym.capabilities?.metered !== false, total, credits);
   });
+  debugLog(`Credits updated per-gym across ${linked.length} linked gyms`, 'info');
+}
 
-  const totalCredits = Object.values(counts).reduce((sum, count) => sum + count, 0);
-
-  // Create main counter badge
-  const mainBadge = document.createElement('button');
-  mainBadge.className = 'psycle-credit-badge';
-  mainBadge.style.cssText = `
-    cursor: pointer;
-    border-radius: 8px;
-    padding: 6px 12px;
-    font-size: 12px;
-    font-weight: 600;
-    border: none;
-  `;
-  mainBadge.innerHTML = `<strong>${totalCredits}</strong> Credit${totalCredits !== 1 ? 's' : ''} available`;
-  mainBadge.onclick = () => { if (totalCredits > 0) showCreditDetailsModal(credits); };
-  creditsContainer.appendChild(mainBadge);
-
-  debugLog(`Credits updated: ${totalCredits} total`, 'info');
+/**
+ * Re-render the timetable rows in place, if that tab is on screen.
+ *
+ * Used when per-gym credit/eligibility data arrives after the first paint. Safe
+ * to call when the tab is hidden or the module is not loaded — it does nothing.
+ */
+function repaintTimetableIfVisible() {
+  if (currentTabId !== 'class-timetable') return;
+  import('./ui/timetable')
+    .then((m) => { if (typeof m.renderTimetableGrid === 'function') m.renderTimetableGrid(); })
+    .catch(() => {});
 }
 
 // --- CREDIT DETAILS MODAL ---
@@ -587,50 +672,46 @@ async function showCreditDetailsModal(credits) {
   document.body.appendChild(modal);
 
   try {
-    // Fetch detailed credits from API
     // Credit detail modal — metered gyms only (the badge that opens it is
-    // capability-gated), so the provider-shaped `credit_types` relation here is
-    // reached through `.raw` rather than assumed to exist.
+    // capability-gated). Reads NormalizedCredit only: `{ typeName, count,
+    // expiresAt }`. It used to reach through `profile.raw.relations.credit_types`
+    // for type names — a bag CodexFit does not put on the profile — default it
+    // to `{}`, then call `.find()` on that object, which threw on open.
     const creditsData = await api.getNormalizedCredits();
-    const creditTypes = (cache.profile?.raw?.relations?.credit_types) || {};
 
     content.innerHTML = `<h2 style="margin-top: 0; color: var(--feat-autoupgrade); font-size: 18px;">Credit Details</h2>`;
 
-    if (!creditsData || creditsData.length === 0) {
+    if (!Array.isArray(creditsData) || creditsData.length === 0) {
       content.innerHTML += `<p style="color: var(--text-secondary);">No credits available.</p>`;
     } else {
-      // Group credits by type
-      const groupedCredits = {};
+      // Entries arrive GROUPED by type with a count — one entry is not one
+      // credit. Several entries can still share a type name with different
+      // expiry dates, so merge by name and keep each expiry line.
+      const grouped = new Map();
       creditsData.forEach(credit => {
-        const typeId = credit.credit_type_id;
-        const typeInfo = creditTypes.find(t => t.id === typeId);
-        const typeName = typeInfo?.name || 'Credits';
-
-        if (!groupedCredits[typeName]) {
-          groupedCredits[typeName] = [];
-        }
-        groupedCredits[typeName].push(credit);
+        const typeName = credit.typeName || 'Credits';
+        if (!grouped.has(typeName)) grouped.set(typeName, []);
+        grouped.get(typeName).push(credit);
       });
 
-      // Render grouped credits
-      Object.entries(groupedCredits).forEach(([typeName, typeCredits]) => {
-        const total = typeCredits.length;
-        const html_section = `
+      grouped.forEach((entries, typeName) => {
+        const total = entries.reduce((sum, c) => sum + (Number(c.count) || 0), 0);
+        content.innerHTML += `
           <div style="margin-bottom: 16px; padding: 12px; background: color-mix(in srgb, var(--feat-autoupgrade) 5%, transparent); border-radius: 8px; border-left: 3px solid var(--feat-autoupgrade);">
-            <div style="font-weight: 600; color: var(--feat-autoupgrade); margin-bottom: 8px;">${typeName}: <strong>${total}</strong></div>
-            <div style="font-size: 12px; color: var(--text-secondary);">
-              ${typeCredits.map(c => {
-                const expiryDate = c.expires_at
-                  ? new Date(c.expires_at).toLocaleDateString('en-GB', { year: 'numeric', month: 'short', day: 'numeric' })
+            <div style="font-weight: 600; color: var(--feat-autoupgrade); margin-bottom: 8px;">${escapeHtml(typeName)}: <strong>${total}</strong></div>
+            <div style="font-size: var(--text-xs); color: var(--text-secondary);">
+              ${entries.map(c => {
+                const n = Number(c.count) || 0;
+                const expiryDate = c.expiresAt
+                  ? new Date(c.expiresAt).toLocaleDateString('en-GB', { year: 'numeric', month: 'short', day: 'numeric' })
                   : 'No expiry';
-                const isExpired = c.expires_at && new Date(c.expires_at) < new Date();
+                const isExpired = c.expiresAt && new Date(c.expiresAt) < new Date();
                 const expiryColor = isExpired ? 'var(--danger)' : 'var(--text-secondary)';
-                return `<div style="margin-bottom: 6px; color: ${expiryColor};">• 1 credit (Expires: ${expiryDate})</div>`;
+                return `<div style="margin-bottom: 6px; color: ${expiryColor};">• ${n} credit${n === 1 ? '' : 's'} (${isExpired ? 'Expired' : 'Expires'}: ${expiryDate})</div>`;
               }).join('')}
             </div>
           </div>
         `;
-        content.innerHTML += html_section;
       });
     }
 
@@ -752,15 +833,19 @@ function initConnectivity() {
 // Fetch core user data and update UI header. Pass force=true after mutations
 // (booking, cancellation, spot edits) to bypass the 5-min profile cache and
 // fetch fresh credit counts from CodexFit.
-// Resolve which gym is active and cache its flags. Called at boot and after a
-// gym switch — the switch path in settings.js re-invokes it so capability gates
-// and theming move with the switch rather than needing a reload.
 export async function loadGymContext() {
   try {
-    const [{ gyms: linked, activeGymId }, catalogue] = await Promise.all([
+    const [{ gyms: linked, activeGymId }, catalogueRes] = await Promise.all([
       api.getMyGyms(),
       api.getGyms(),
     ]);
+    const catalogue = catalogueRes.gyms || catalogueRes || [];
+    const linkedFull = (linked || []).map(lg => {
+      const found = catalogue.find(cg => cg.id === (lg.gym_id || lg.id));
+      return found ? { ...found, ...lg } : lg;
+    });
+    setLinkedGyms(linkedFull);
+
     const activeId = activeGymId || (linked && linked[0] && linked[0].gym_id);
     const active = catalogue.find((g) => g.id === activeId);
     if (active) {
@@ -779,6 +864,9 @@ export async function refreshUserData(force = false) {
   try {
     if (force) {
       await invalidateApiCache('/api/profile');
+      // Credits are now cached too; a refresh that drops the profile but keeps
+      // a stale balance shows the old credit count next to fresh bookings.
+      await invalidateApiCache('/api/credits');
     }
     // 1. Profile, via the gym-agnostic route (WP-D12).
     //
@@ -792,16 +880,35 @@ export async function refreshUserData(force = false) {
     // they add a visible delay before the header badge appears. Credits are
     // allowed to fail on their own: a membership gym has no credit route worth
     // blocking the whole refresh on.
-    const [normalized, fetchedCredits] = await Promise.all([
+    const [normalized, fetchedCredits, fetchedEligibility] = await Promise.all([
       api.getNormalizedProfile(),
       api.getNormalizedCredits().catch(() => null),
+      // Allowed to fail on its own too — an adapter with no real
+      // implementation defaults permissive server-side, so losing this
+      // fetch should never itself block booking; see credit-allowance.js.
+      api.getEligibility().catch(() => null),
     ]);
     const profile = { ...(normalized.raw || {}), ...normalized };
     cache.profile = profile;
+    cache.eligibility = fetchedEligibility;
+    // Per-gym eligibility for merged lists — fire-and-forget so it never delays
+    // the first paint. Until it lands, the single-gym value above applies, and
+    // the unknown-defaults-permissive rule keeps that safe.
+    api.getEligibilityByGym()
+      .then((byGym) => {
+        cache.eligibilityByGym = byGym;
+        // Re-render once the per-gym answers land. Until they do, every row is
+        // rendered permissively (see credit-allowance.js) — correct, but it can
+        // still be showing Book on a class this account genuinely cannot
+        // afford. Without this the only thing that corrected it was the user
+        // switching days, which is not a fix, it is a coincidence.
+        repaintTimetableIfVisible();
+      })
+      .catch(() => {});
 
     const emailEl = document.querySelector('.psycle-user-email');
     if (emailEl) {
-      emailEl.textContent = profile.email;
+      emailEl.textContent = currentUser?.email || profile.email || '';
     }
 
     // 2. Fetch settings and studio preferences
@@ -1053,7 +1160,7 @@ if (loginForm) {
       else showToast(msg, 'error');
     } finally {
       submitBtn.disabled = false;
-      submitBtn.querySelector('span').textContent = 'Log In to CodexFit';
+      submitBtn.querySelector('span').textContent = 'Log In';
     }
   });
 }

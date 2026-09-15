@@ -12,7 +12,7 @@
 
 const crypto = require('crypto');
 const { GymProvider } = require('./base');
-const { makeMetadata, makeProfile, makeEvent, makeSlot, makeBookingResult, makeBooking } = require('./normalize');
+const { makeMetadata, makeProfile, makeMembership, makeEvent, makeSlot, makeBookingResult, makeBooking } = require('./normalize');
 const bookingWindow = require('./booking-window');
 
 // Dev-mode bypass (WP-M5), mirroring the dev@psycle.com / 'mock-jwt-token'
@@ -334,9 +334,60 @@ class MarianaTekProvider extends GymProvider {
   /** GET /me/memberships -> raw memberships (empty array if none). */
   async getMemberships(session) {
     const res = await this.request('/me/memberships', { token: session.accessToken });
-    if (!res.ok) throw new Error(`getMemberships failed: ${res.status}`);
+    if (!res.ok) {
+      const err = new Error(`getMemberships failed: ${res.status}`);
+      err.status = res.status;
+      throw err;
+    }
     const data = await res.json();
     return data.results || [];
+  }
+
+  /** Map the account's primary MarianaTek membership to the shared UI shape. */
+  async getMembership(session) {
+    const memberships = await this.getMemberships(session);
+    if (!memberships.length) return null;
+
+    const isActive = (m) => m.is_active !== false
+      && !['inactive', 'cancelled', 'canceled', 'expired'].includes(String(m.status || '').toLowerCase())
+      && m.is_charge_declined !== true;
+    const membership = memberships.find(isActive) || memberships[0];
+
+    return makeMembership({
+      id: membership.id,
+      name: membership.name || membership.description || 'Membership',
+      status: membership.status,
+      isActive: isActive(membership),
+      renewsAt: membership.next_payment_datetime || membership.next_payment_date
+        || membership.renewal_datetime || membership.renewal_date,
+      expiresAt: membership.expiration_datetime || membership.expiration_date
+        || membership.end_datetime || membership.end_date,
+      guestPassesRemaining: membership.guest_remaining_usage_count,
+      guestPassesTotal: membership.guest_usage_limit,
+      bookingWindowLabel: membership.booking_window_display,
+      manageUrl: this.gym.websiteUrl,
+    });
+  }
+
+  /**
+   * "Can this account book at all" for a MarianaTek gym: an active membership,
+   * OR a credit balance, whichever the studio's members actually use (some MT
+   * studios are credit-pack-based rather than membership-based — see
+   * marianatek.md §"Not yet confirmed"). Both getMemberships/getCredits already
+   * exist and are tested; this was the missing piece — they were wired to no
+   * route, so a JAB user with neither ever got a "why can't I book" signal.
+   * @param {import('./base').AuthSession} session
+   * @returns {Promise<import('./base').NormalizedEligibility>}
+   */
+  async getEligibility(session) {
+    const [membership, credits] = await Promise.all([
+      this.getMembership(session).catch(() => null),
+      this.getCredits(session).catch(() => []),
+    ]);
+    if (membership?.isActive) return { canBook: true, expiresAt: membership.expiresAt };
+    const hasCredits = credits.some((c) => Number(c.credits_remaining ?? 0) > 0);
+    if (hasCredits) return { canBook: true };
+    return { canBook: false, reason: 'No active membership or credits' };
   }
 
   // --- Timetable & layout (WP-M2) --------------------------------------------
@@ -486,7 +537,12 @@ class MarianaTekProvider extends GymProvider {
   // filtering a timetable actually wants, but it is not the same guarantee
   // CodexFit's dedicated endpoints give.
   async fetchMetadata(params = {}, session) {
-    const events = await this.fetchTimetable(params, session);
+    const defaultParams = {
+      min_start_date: new Date().toISOString().split('T')[0],
+      max_start_date: new Date(Date.now() + 28 * 864e5).toISOString().split('T')[0],
+      ...params,
+    };
+    const events = await this.fetchTimetable(defaultParams, session);
     const locations = new Map();
     const studios = new Map();
     const instructors = new Map();
@@ -534,7 +590,18 @@ class MarianaTekProvider extends GymProvider {
       id: c.id,
       gymId: this.gymId,
       name: c.name,
-      discipline: c.classroom_name,
+      // `class_type.name` is the real category (confirmed 2026-09-15 against
+      // 855 live classes: it differs from `classroom_name` for 68 of them,
+      // and every one of those was `classroom_name` being wrong — e.g. a
+      // "Small Group Boxing PT" class sits in a room literally called
+      // "Boxing Studio", which then showed as the class's "discipline" in
+      // both the filter dropdown and the row's discipline pill. There is no
+      // `class_session_type` field on either the list or detail payload
+      // (checked both) — `class_type.name` is the only real category
+      // MarianaTek exposes. Falls back to `classroom_name` only if a class
+      // ever arrives with no `class_type` at all, which no live capture has
+      // shown but costs nothing to guard.
+      discipline: (c.class_type && c.class_type.name) || c.classroom_name,
       startAt: c.start_datetime,
       durationMin,
       endAt,
@@ -545,7 +612,17 @@ class MarianaTekProvider extends GymProvider {
       studioId: c.classroom && c.classroom.id,
       studioName: c.classroom && c.classroom.name,
       instructors: (c.instructors || []).map((i) => ({
-        id: i.id, name: i.name, imageUrl: i.photo_urls && i.photo_urls.thumbnail_url,
+        id: String(i.id),
+        name: i.name,
+        imageUrl: (i.photo_urls && (i.photo_urls.large_url || i.photo_urls.thumbnail_url)) || undefined,
+        // Kept distinct from imageUrl: a card avatar renders at ~26px, and
+        // collapsing both to large_url is what makes thumbnails cost a full
+        // -size download per instructor on a mobile connection.
+        thumbUrl: (i.photo_urls && (i.photo_urls.thumbnail_url || i.photo_urls.large_url)) || undefined,
+        bio: i.bio || undefined,
+        instagramUrl: i.instagram_url || undefined,
+        instagramHandle: i.instagram_handle || undefined,
+        spotifyUrl: i.spotify_url || undefined,
       })),
       capacity: c.capacity,
       availableCount: c.available_spot_count,

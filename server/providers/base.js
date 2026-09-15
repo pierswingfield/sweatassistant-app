@@ -38,10 +38,31 @@
  */
 
 /**
+ * @typedef {Object} NormalizedCreditRequirement
+ * @property {number}   required   Credits this class costs. 0 = free. CONFIRMED
+ *           to vary on live Psycle data (2026-09-14: of 705 events, 698 cost 1,
+ *           4 cost 2 and 3 cost 0) — so "one credit per class" is not a safe
+ *           simplification, it is wrong for real classes people try to book.
+ * @property {string[]} acceptedTypeIds  Credit-type ids this class accepts.
+ *           Differs per class (a Ride-only credit is accepted by ride classes
+ *           and refused elsewhere), which is exactly what a total-balance check
+ *           cannot see.
+ *
  * @typedef {Object} NormalizedInstructor
  * @property {string}  id
  * @property {string}  name
  * @property {string=} imageUrl
+ * @property {string=} thumbUrl   Small rendering of imageUrl where the provider
+ *           publishes one. Card avatars use this; the hover tooltip uses
+ *           `imageUrl`. Absent means the provider offers a single size, and a
+ *           card avatar must decide for itself whether that is worth fetching.
+ * @property {string=} bio
+ * @property {string=} instagramUrl
+ * @property {string=} instagramHandle
+ * @property {string=} spotifyUrl
+ * @property {Object=} metafields  CodexFit-only extras (description/instagram_handle/
+ *           spotify_handle/keywords) — read as a fallback chain by the client
+ *           tooltip rather than re-extracted per-field server-side.
  */
 
 /**
@@ -73,6 +94,8 @@
  * @property {boolean=} isUserBooked
  * @property {boolean=} isUserWaitlisted
  * @property {*=}      raw               Raw provider payload (debug only).
+ * @property {NormalizedCreditRequirement=} credits  What it costs and what it
+ *           accepts. Absent on a gym with no credit system.
  */
 
 /**
@@ -173,6 +196,30 @@
  */
 
 /**
+ * @typedef {Object} NormalizedEligibility
+ * @property {boolean} canBook
+ * @property {string=} reason        User-facing, only set when canBook is false.
+ * @property {string=} expiresAt     ISO 8601, when known (e.g. membership end date).
+ */
+
+/**
+ * A provider membership suitable for account-facing UI. Providers without a
+ * membership object return null; credit balances remain on /api/credits.
+ * @typedef {Object} NormalizedMembership
+ * @property {string=} id
+ * @property {string}  name
+ * @property {string=} status
+ * @property {boolean} isActive
+ * @property {string=} renewsAt
+ * @property {string=} expiresAt
+ * @property {number=} guestPassesRemaining
+ * @property {number=} guestPassesTotal
+ * @property {string=} bookingWindowLabel
+ * @property {string=} manageUrl
+ * @property {*=} raw
+ */
+
+/**
  * Capability flags — the UI/scheduler read these to decide what to show/do.
  * @typedef {Object} ProviderCapabilities
  * @property {boolean} atomicSwap        Native spot swap (MT) vs cancel-rebook (CodexFit).
@@ -185,6 +232,19 @@
 // ---------------------------------------------------------------------------
 // Abstract base class.
 // ---------------------------------------------------------------------------
+
+/**
+ * @typedef {Object} NormalizedCredit
+ * @property {string=} typeId    Provider's credit-type id, where it has one.
+ * @property {string}  typeName  Human label ("Ride Credit"). Never blank.
+ * @property {number}  count     How many credits this entry represents. CodexFit
+ *           returns GROUPED entries with a count, not one object per credit —
+ *           treating each entry as a single credit under-reports a balance.
+ * @property {string=} expiresAt ISO instant, absent when the credit never expires.
+ * @property {boolean=} isGuestOnly  Usable only for booking a GUEST, not the
+ *           account holder. Absent when the provider doesn't say.
+ * @property {Object=} raw
+ */
 
 class GymProvider {
   /**
@@ -288,6 +348,34 @@ class GymProvider {
   async getProfile(/* session */) { throw notImplemented('getProfile', this); }
 
   /**
+   * "Can this account book at all" — a third question, distinct from both
+   * `metered` (does a class draw down a credit balance) and `creditPurchase`
+   * (can we sell top-ups in-app). A membership gym answers this from whether
+   * a membership is active; a metered gym answers it from whether there is
+   * any usable credit. Never derive this from credit arithmetic done
+   * elsewhere for a DIFFERENT purpose (per-class affordance) — an unmetered
+   * gym's credit total is Infinity by design and says nothing about
+   * membership status, which is the bug this method exists to fix.
+   *
+   * Default is permissive ({ canBook: true }): an adapter that hasn't
+   * implemented this yet should not silently block every booking attempt —
+   * same "unknown flag defaults ON" rule as capability flags.
+   *
+   * @param {AuthSession} session
+   * @returns {Promise<NormalizedEligibility>}
+   */
+  async getEligibility(/* session */) { return { canBook: true }; }
+
+  /**
+   * The account's primary membership, when the provider exposes one.
+   * Credit-based providers return null rather than manufacturing membership
+   * semantics from a balance.
+   * @param {AuthSession} session
+   * @returns {Promise<NormalizedMembership|null>}
+   */
+  async getMembership(/* session */) { return null; }
+
+  /**
    * Resolve THIS user's booking window from their profile + credit inventory.
    *
    * The platform half is knowing WHERE the cutoff lives in its own payload; the
@@ -372,6 +460,50 @@ class GymProvider {
    * @returns {Promise<NormalizedBookingResult>}
    */
   async swapSpots(/* bookingId, currentSlotId, targetSlotId, session */) { throw notImplemented('swapSpots', this); }
+
+  /**
+   * Credit inventory for a metered gym. Returns [] for membership gyms.
+   * @param {AuthSession} session
+   * @returns {Promise<NormalizedCredit[]>}
+   */
+  async getCredits(/* session */) { return []; }
+
+  // --- Capability-gated extras ----------------------------------------------
+  //
+  // These three are NOT universal gym concepts, and pretending otherwise would
+  // be its own mistake. They exist on the contract so the raw `/api/proxy`
+  // passthrough can be deleted: the client must never know a provider's URL
+  // shape, even for a feature only one platform has. A provider without the
+  // matching capability simply never has these called — the route rejects
+  // first, on the gym's capability flag.
+
+  /**
+   * Purchasable credit packs. Only meaningful where `capabilities.metered` and
+   * `capabilities.creditPurchase` are set.
+   * @param {AuthSession} session
+   * @returns {Promise<{ bundles: Array, bundleTypes: Object= }>}
+   */
+  async listBundles(/* session */) { throw notImplemented('listBundles', this); }
+
+  /**
+   * Add or remove a saved-class bookmark. `identifier` is the provider's own
+   * bookmark key, produced by the adapter, not composed by the client.
+   * Gated on `capabilities.bookmarks`.
+   * @param {string} identifier
+   * @param {boolean} on
+   * @param {AuthSession} session
+   * @returns {Promise<boolean>}
+   */
+  async setBookmark(/* identifier, on, session */) { throw notImplemented('setBookmark', this); }
+
+  /**
+   * Write arbitrary fields back to the account profile. Debug-surface only
+   * (the Profile Explorer's hidden edit mode); no normal flow calls this.
+   * @param {Object} payload
+   * @param {AuthSession} session
+   * @returns {Promise<Object>}
+   */
+  async updateProfile(/* payload, session */) { throw notImplemented('updateProfile', this); }
 }
 
 function notImplemented(method, provider) {

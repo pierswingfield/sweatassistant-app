@@ -132,7 +132,7 @@
       </div>
       <div class="psycle-header-actions" id="psycle-header-user-status">
         <span class="psycle-user-email" style="font-size: 13px; font-weight: 500; color: var(--text-secondary);">Loading...</span>
-        <div class="psycle-credit-badges" id="psycle-header-credits" data-requires-capability="metered" style="display: flex; gap: 8px;"></div>
+        <div class="psycle-credit-badges" id="psycle-header-credits" style="display: flex; gap: 8px;"></div>
       </div>
     </header>
 
@@ -148,7 +148,7 @@
             <path d="M28,17a1,1,0,0,1-1,1,4,4,0,0,0-4,4,1,1,0,0,1-2,0,4,4,0,0,0-4-4,1,1,0,0,1,0-2,4,4,0,0,0,4-4,1,1,0,0,1,2,0,4,4,0,0,0,4,4A1,1,0,0,1,28,17Z"/>
           </g>
         </svg>Auto-Book</button>
-      <button class="psycle-nav-btn" data-tab="buy-credits" data-requires-capability="creditPurchase">Buy Credits</button>
+      <button class="psycle-nav-btn" data-tab="buy-credits">Credits &amp; Membership</button>
       <button class="psycle-nav-btn" data-tab="settings">Settings</button>
     </div>
 
@@ -169,6 +169,21 @@
         <div class="psycle-filters-card" id="psycle-timetable-filters-container">
           <div class="psycle-filters-row" style="display: flex; gap: 8px; margin-bottom: 6px; flex-wrap: wrap; align-items: center; width: 100%;">
             
+            <!-- Gym Dropdown (Visible when >1 gym linked) -->
+            <div class="psycle-ms-dropdown" id="psycle-ms-gym" style="display: none; flex: 1; min-width: 140px; position: relative;">
+              <button class="psycle-ms-trigger" style="width: 100%; display: flex; justify-content: space-between; align-items: center; height: 40px !important;">
+                <span class="psycle-ms-trigger-text">All Gyms</span>
+                <span class="psycle-ms-arrow" style="font-size: 12px; transition: transform 0.2s;">▼</span>
+              </button>
+              <div class="psycle-ms-menu" style="display: none;">
+                <div style="display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid color-mix(in srgb, var(--text) 8%, transparent); padding-bottom: 6px; margin-bottom: 6px;">
+                  <span style="font-size: 12px; color: var(--text-secondary); font-weight: 700;">GYMS</span>
+                  <button class="psycle-ms-clear-btn" style="background: transparent; border: none; color: var(--feat-autoupgrade); font-size: 12px; cursor: pointer; font-weight: 600; padding: 0;">Clear</button>
+                </div>
+                <div class="psycle-ms-options-list" style="display: flex; flex-direction: column; gap: 6px;"></div>
+              </div>
+            </div>
+
             <!-- Location Dropdown -->
             <div class="psycle-ms-dropdown" id="psycle-ms-location" style="flex: 1; min-width: 170px; position: relative;">
               <button class="psycle-ms-trigger" style="width: 100%; display: flex; justify-content: space-between; align-items: center; height: 40px !important;">
@@ -332,15 +347,27 @@
       <!-- CREDITS TAB PANEL -->
       <section id="psycle-panel-buy-credits" class="psycle-tab-content" style="display: none;">
         <div class="psycle-tab-header">
-          <h3>Credit Bundles</h3>
-          <p>View and purchase credit bundles directly from Shopify CodexFit.</p>
+          <h3>Credits &amp; Membership</h3>
+          <p>Your booking allowance and purchase options for each connected gym.</p>
           <button class="psycle-tab-refresh-btn" data-refresh-tab="buy-credits" aria-label="Refresh credit bundles" title="Refresh">
             <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="23 4 23 10 17 10"/><path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10"/></svg>
           </button>
         </div>
 
-        <!-- Buy Credits bundle list -->
-        <div class="psycle-bundles-filters">
+        <!-- LOAD STATE: one summary card per connected gym. Nothing else.
+             The bundle browser below is a DETAIL view, opened from a card — it
+             is one gym's catalogue of ~100 products and has no business being
+             the first thing you see on a page whose question is "what can I
+             book with, at each of my gyms?". -->
+        <div class="psycle-benefit-grid" id="psycle-credits-summary"></div>
+
+        <!-- DETAIL: a single gym's purchase flow. Hidden until a card opens it. -->
+        <div id="psycle-credits-detail" hidden>
+          <button class="psycle-btn psycle-btn-mini" id="psycle-credits-back" style="width:auto;">← All gyms</button>
+          <div id="psycle-credit-purchase-heading"></div>
+
+        <!-- Credit bundle list (shown only when a linked gym supports purchases) -->
+        <div class="psycle-bundles-filters" id="psycle-bundles-filters">
           <div class="psycle-search-box">
             <svg class="search-icon" viewBox="0 0 24 24" width="16" height="16">
               <path fill="currentColor" d="M15.5 14h-.79l-.28-.27C15.41 12.59 16 11.11 16 9.5 16 5.91 13.09 3 9.5 3S3 5.91 3 9.5 5.91 16 9.5 16c1.61 0 3.09-.59 4.23-1.57l.27.28v.79l5 4.99L20.49 19l-4.99-5zm-6 0C7.01 14 5 11.99 5 9.5S7.01 5 9.5 5 14 7.01 14 9.5 11.99 14 9.5 14z"/>
@@ -375,6 +402,8 @@
         <div class="psycle-bundles-grid" id="psycle-bundles-container">
           <!-- Bundles will be rendered as cards here -->
         </div>
+        </div><!-- /#psycle-credits-detail -->
+        <div id="psycle-membership-sections" hidden></div>
       </section>
 
       <!-- SETTINGS TAB PANEL -->
@@ -388,17 +417,20 @@
               <h3>Settings</h3>
             </div>
             <nav class="psycle-settings-menu">
-              <button class="psycle-settings-menu-item active" data-settings-section="about">
+              <button class="psycle-settings-menu-item active" data-settings-section="general">
+                <span class="menu-item-text">General</span>
+              </button>
+              <button class="psycle-settings-menu-item" data-settings-section="notifications">
+                <span class="menu-item-text">Notifications</span>
+              </button>
+              <button class="psycle-settings-menu-item" data-settings-section="account">
+                <span class="menu-item-text">Account</span>
+              </button>
+              <button class="psycle-settings-menu-item" data-settings-section="gyms">
+                <span class="menu-item-text">Your Gyms</span>
+              </button>
+              <button class="psycle-settings-menu-item" data-settings-section="about">
                 <span class="menu-item-text">About</span>
-              </button>
-              <button class="psycle-settings-menu-item" data-settings-section="booking">
-                <span class="menu-item-text">Booking Settings</span>
-              </button>
-              <button class="psycle-settings-menu-item" data-settings-section="experience">
-                <span class="menu-item-text">Experience Settings</span>
-              </button>
-              <button class="psycle-settings-menu-item" data-settings-section="advanced">
-                <span class="menu-item-text">Advanced Settings</span>
               </button>
             </nav>
           </aside>
@@ -412,14 +444,14 @@
                 <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><line x1="19" y1="12" x2="5" y2="12"/><polyline points="12 19 5 12 12 5"/></svg>
                 Back
               </button>
-              <h4 id="psycle-settings-section-title">About</h4>
+              <h4 id="psycle-settings-section-title">General</h4>
             </div>
 
             <!-- Scrollable content sections -->
             <div class="psycle-settings-section-panes">
               
               <!-- SECTION: ABOUT -->
-              <div class="psycle-settings-section-pane active" id="psycle-settings-pane-about">
+              <div class="psycle-settings-section-pane" id="psycle-settings-pane-about">
                 <div class="psycle-tab-header" style="padding-left:0; padding-right:0; padding-top:0; border-bottom:none;">
                   <h3>About <span data-app-name>Sweat Assistant</span></h3>
                   <p><span data-app-name>Sweat Assistant</span> — an unofficial companion for <span data-gym-name>your gym</span>, built for personal use.</p>
@@ -472,76 +504,13 @@
                 </div>
               </div>
 
-              <!-- SECTION: BOOKING -->
-              <div class="psycle-settings-section-pane" id="psycle-settings-pane-booking">
+              <!-- SECTION: ACCOUNT -->
+              <div class="psycle-settings-section-pane active" id="psycle-settings-pane-general">
                 <div class="psycle-tab-header" style="padding-left:0; padding-right:0; padding-top:0; border-bottom:none;">
-                  <h3>Booking Settings</h3>
-                  <p>Manage preferred spot maps and configure the auto-upgrade polling engine.</p>
+                  <h3>General</h3>
+                  <p>Appearance, behaviour, calendar and backup — settings that apply to your whole <span data-app-name>Sweat Assistant</span> account.</p>
                 </div>
                 <div class="psycle-settings-grid" style="padding-left:0; padding-right:0;">
-                  <!-- Preferred Spot Maps -->
-                  <div class="psycle-settings-card">
-                    <h4>Preferred Spot Maps</h4>
-                    <p class="psycle-card-desc">Manage your saved seat preferences for each studio. Preferred seats are auto-selected when booking.</p>
-                    <button id="psycle-spotmaps-load-btn" class="psycle-btn" style="width: 100%;">Manage Maps</button>
-                  </div>
-                  <!-- Auto-Upgrade Controls -->
-                  <div class="psycle-settings-card">
-                    <h4>Auto-Upgrade Engine</h4>
-                    <p class="psycle-card-desc">Configure the background seat-improvement loop interval.</p>
-                    <div class="psycle-setting-row">
-                      <div class="psycle-setting-label">
-                        <span>Enable Auto-Upgrade Polling</span>
-                        <small>Toggle background checks for improved slots.</small>
-                      </div>
-                      <label class="psycle-switch">
-                        <input type="checkbox" id="psycle-setting-autoupgrade-enabled">
-                        <span class="psycle-slider"></span>
-                      </label>
-                    </div>
-                    <div class="psycle-setting-row" style="margin-top: 16px;">
-                      <div class="psycle-setting-label">
-                        <span>Auto-upgrade spots by default</span>
-                        <small>Automatically start monitoring for a better spot after every booking, using your saved spot preferences.</small>
-                      </div>
-                      <label class="psycle-switch">
-                        <input type="checkbox" id="psycle-setting-autoupgrade-default">
-                        <span class="psycle-slider"></span>
-                      </label>
-                    </div>
-                    <div class="psycle-setting-row" style="margin-top: 16px;">
-                      <div class="psycle-setting-label">
-                        <span>Continue past 12h cutoff by default</span>
-                        <small>Within 12h of class, keep monitoring without cancelling your original seat (you'll need to ask Psycle to release it). Without this, monitors stop at 12h.</small>
-                      </div>
-                      <label class="psycle-switch">
-                        <input type="checkbox" id="psycle-setting-autoupgrade-keeporiginal-default">
-                        <span class="psycle-slider"></span>
-                      </label>
-                    </div>
-                    <div class="psycle-setting-row" style="margin-top: 16px;">
-                      <div class="psycle-setting-label">
-                        <span>Polling Check Interval</span>
-                        <small>Warning: '1min' interval checks are fast and consume more API hits.</small>
-                      </div>
-                      <select id="psycle-setting-autoupgrade-interval" class="psycle-select">
-                        <option value="1min">1 minute</option>
-                        <option value="15min" selected>15 minutes</option>
-                        <option value="1hr">1 hour</option>
-                      </select>
-                    </div>
-                  </div>
-                </div>
-              </div>
-
-              <!-- SECTION: EXPERIENCE -->
-              <div class="psycle-settings-section-pane" id="psycle-settings-pane-experience">
-                <div class="psycle-tab-header" style="padding-left:0; padding-right:0; padding-top:0; border-bottom:none;">
-                  <h3>Experience Settings</h3>
-                  <p>Customize system appearance, notifications, calendars, and tour guidelines.</p>
-                </div>
-                <div class="psycle-settings-grid" style="padding-left:0; padding-right:0;">
-                  <!-- Appearance -->
                   <div class="psycle-settings-card">
                     <h4>Appearance</h4>
                     <p class="psycle-card-desc">Choose light or dark, or follow your device automatically.</p>
@@ -551,7 +520,55 @@
                       <button class="psycle-segmented-btn" data-theme-mode="dark">Dark</button>
                     </div>
                   </div>
-                  <!-- Web Push Notifications -->
+                  <div class="psycle-settings-card">
+                    <h4>App Behaviour</h4>
+                    <p class="psycle-card-desc">Performance preferences shared across every linked gym.</p>
+                    <div class="psycle-setting-row">
+                      <div class="psycle-setting-label">
+                        <span>Timetable Prefetch Range</span>
+                        <small>Number of weeks to prefetch when loading the timetable (1–8).</small>
+                      </div>
+                      <select id="psycle-setting-prefetch-weeks" class="psycle-select">
+                        <option value="1">1 week</option><option value="2">2 weeks</option><option value="3">3 weeks</option><option value="4" selected>4 weeks</option>
+                        <option value="5">5 weeks</option><option value="6">6 weeks</option><option value="7">7 weeks</option><option value="8">8 weeks</option>
+                      </select>
+                    </div>
+                  </div>
+                  <!-- Calendar is ACCOUNT-level, not per gym (2026-09-14): a person has one
+                       calendar and expects every class in it. It used to live inside each
+                       gym's settings, which gave a two-gym member two .ics URLs each
+                       showing part of their week. -->
+                  <div class="psycle-settings-card" id="psycle-calendar-card">
+                    <h4>Calendar Feed</h4>
+                    <p class="psycle-card-desc">One subscription covering every gym you've connected. Stays in sync with bookings, waitlists and cancellations.</p>
+                    <div id="psycle-calendar-section"><p class="psycle-card-desc">Loading…</p></div>
+                  </div>
+                  <div class="psycle-settings-card">
+                    <h4>Backup & Migration</h4>
+                    <p class="psycle-card-desc">Import or export configuration JSON compatible with the Chrome extension.</p>
+                    <div class="psycle-settings-btn-row">
+                      <button id="psycle-settings-export-btn" class="psycle-btn">Export Config JSON</button>
+                      <button id="psycle-settings-import-btn" class="psycle-btn">Import Config JSON</button>
+                      <input type="file" id="psycle-settings-import-file" style="display:none;" accept=".json">
+                    </div>
+                  </div>
+                  <div class="psycle-settings-card">
+                    <h4>Debug Mode</h4>
+                    <p class="psycle-card-desc">Show raw API diagnostics, class JSON and troubleshooting controls.</p>
+                    <div class="psycle-setting-row">
+                      <div class="psycle-setting-label"><span>Enable Debug Mode</span><small>Exposes debug actions throughout the app.</small></div>
+                      <label class="psycle-switch"><input type="checkbox" id="psycle-setting-debug-mode"><span class="psycle-slider"></span></label>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              <div class="psycle-settings-section-pane" id="psycle-settings-pane-notifications">
+                <div class="psycle-tab-header" style="padding-left:0; padding-right:0; padding-top:0; border-bottom:none;">
+                  <h3>Notifications</h3>
+                  <p>Push notifications on this device, and which kinds you want.</p>
+                </div>
+                <div class="psycle-settings-grid" style="padding-left:0; padding-right:0;">
                   <div class="psycle-settings-card">
                     <h4>Web Push Notifications</h4>
                     <p class="psycle-card-desc">Register this device to receive alerts on auto-bookings and upgrades.</p>
@@ -564,7 +581,6 @@
                     </div>
                     <button id="psycle-notif-prefs-btn" class="psycle-btn" style="width: 100%; margin-top: 12px;">Customise Notifications</button>
                   </div>
-                  <!-- Test Notifications (debug only, but grouped under push settings in experience tab) -->
                   <div class="psycle-settings-card" id="psycle-test-notif-card" style="display: none; border-color: color-mix(in srgb, var(--warning) 30%, transparent);">
                     <h4 style="color:var(--warning);">🔔 Test Notifications</h4>
                     <p class="psycle-card-desc">Send a sample of each notification to all your signed-in devices.</p>
@@ -580,158 +596,50 @@
                       <button class="psycle-btn-mini test-notif-btn" data-type="bookingWindow-nocredits" style="width:100%;">Booking Window (insufficient credits)</button>
                     </div>
                   </div>
-                  <!-- Calendar Feed -->
-                  <div class="psycle-settings-card" id="psycle-calendar-card">
-                    <h4>Calendar</h4>
-                    <p class="psycle-card-desc">Add your classes to Apple or Google Calendar. They stay in sync automatically — bookings, upgrades and cancellations update on their own.</p>
+                </div>
+              </div>
 
-                    <div class="psycle-setting-row">
-                      <div class="psycle-setting-label">
-                        <span>Calendar feed</span>
-                        <small id="psycle-calendar-status-desc">Turn on to get a personal calendar link.</small>
-                      </div>
-                      <button id="psycle-calendar-toggle-btn" class="psycle-btn-mini" style="width: auto;">Turn on</button>
-                    </div>
-
-                    <div id="psycle-calendar-options" style="display:none;margin-top:12px;">
-                      <div class="psycle-setting-row">
-                        <div class="psycle-setting-label">
-                          <span>Include unconfirmed classes</span>
-                          <small>Show classes pending Auto-Book or a waitlist.</small>
-                        </div>
-                        <label class="psycle-switch">
-                          <input type="checkbox" id="psycle-calendar-tentative">
-                          <span class="psycle-slider"></span>
-                        </label>
-                      </div>
-
-                      <div class="psycle-setting-row">
-                        <div class="psycle-setting-label">
-                          <span>Reminders for booked classes</span>
-                          <small>Add a calendar alert before each confirmed class.</small>
-                        </div>
-                        <select id="psycle-calendar-alarm" class="psycle-select" style="width:auto;font-size:12px;">
-                          <option value="none">Off</option>
-                          <option value="2h">2 hours before class</option>
-                          <option value="penalty">Before penalty cancellation</option>
-                          <option value="both">Both</option>
-                        </select>
-                      </div>
-
-                      <div class="psycle-settings-btn-row" style="margin-top:12px;">
-                        <button id="psycle-calendar-apple-btn" class="psycle-btn">Add to Apple Calendar</button>
-                        <button id="psycle-calendar-google-btn" class="psycle-btn">Add to Google Calendar</button>
-                        <button id="psycle-calendar-copy-btn" class="psycle-btn">Copy feed link</button>
-                      </div>
-
-                      <button id="psycle-calendar-disable-btn" class="psycle-btn" style="width:100%;margin-top:12px;background: color-mix(in srgb, var(--danger) 10%, transparent); border-color: color-mix(in srgb, var(--danger) 25%, transparent); color: var(--danger);">Turn off calendar feed</button>
-                    </div>
+              <div class="psycle-settings-section-pane" id="psycle-settings-pane-account">
+                <div class="psycle-tab-header" style="padding-left:0; padding-right:0; padding-top:0; border-bottom:none;">
+                  <h3>Account</h3>
+                  <p>Your <span data-app-name>Sweat Assistant</span> login and your data.</p>
+                </div>
+                <div class="psycle-settings-grid" style="padding-left:0; padding-right:0;">
+                  <div class="psycle-settings-card">
+                    <h4>Account Password</h4>
+                    <p class="psycle-card-desc">Your <span data-app-name>Sweat Assistant</span> password is separate from every gym password.</p>
+                    <button id="psycle-account-password-btn" class="psycle-btn">Change account password</button>
+                  </div>
+                  <div class="psycle-settings-card" style="border-color:color-mix(in srgb, var(--danger) 20%, transparent);">
+                    <h4 style="color:var(--danger);">Account Session</h4>
+                    <p class="psycle-card-desc">Clear local session tokens and log out of <span data-app-name>Sweat Assistant</span>.</p>
+                    <button id="psycle-logout-btn" class="psycle-btn variant-danger">Log Out</button>
+                  </div>
+                  <div class="psycle-settings-card" style="border-color:color-mix(in srgb, var(--danger) 30%, transparent);">
+                    <h4 style="color:var(--danger);">Delete All My Data</h4>
+                    <p class="psycle-card-desc">Permanently delete this account, encrypted credentials, queues, preferences and push subscriptions. This cannot be undone.</p>
+                    <button id="psycle-delete-data-btn" class="psycle-btn variant-danger">Delete All My Data</button>
                   </div>
                 </div>
               </div>
 
-              <!-- SECTION: ADVANCED -->
-              <div class="psycle-settings-section-pane" id="psycle-settings-pane-advanced">
+              <!-- SECTION: YOUR GYMS -->
+              <div class="psycle-settings-section-pane" id="psycle-settings-pane-gyms">
                 <div class="psycle-tab-header" style="padding-left:0; padding-right:0; padding-top:0; border-bottom:none;">
-                  <h3>Advanced Settings</h3>
-                  <p>Configure account parameters, debug features, and system diagnostics.</p>
+                  <h3 id="psycle-gyms-pane-title">Your Gyms</h3>
+                  <p>Connect gyms and manage each gym's own booking settings.</p>
                 </div>
                 <div class="psycle-settings-grid" style="padding-left:0; padding-right:0;">
-                  <!-- Your Gyms (WP-C2): switch active gym, link another, manage the account credential -->
                   <div class="psycle-settings-card" id="psycle-gyms-card">
                     <h4>Your Gyms</h4>
-                    <p class="psycle-card-desc">Your <span data-app-name>Sweat Assistant</span> account can hold more than one gym. Switching changes which gym's timetable, bookings and credits you see.</p>
+                    <p class="psycle-card-desc">Re-authenticate a gym, unlink one, or connect another. Every linked gym's classes already appear together in the timetable and your bookings.</p>
                     <div id="psycle-gyms-list" style="margin-top:12px;">
                       <div class="psycle-card-desc">Loading…</div>
                     </div>
                     <div id="psycle-gyms-actions" style="margin-top:14px;display:flex;gap:8px;flex-wrap:wrap;"></div>
                   </div>
-
-                  <!-- Booking Privileges -->
-                  <div class="psycle-settings-card">
-                    <h4>Booking & Cutoff Modifiers</h4>
-                    <p class="psycle-card-desc">Tells <span data-app-name>Sweat Assistant</span> when your classes are released based on your membership privileges.</p>
-                    <div class="psycle-setting-row">
-                      <div class="psycle-setting-label">
-                        <span>Your booking window</span>
-                        <small>Auto-detected from your membership cutoffs and booking credits.</small>
-                      </div>
-                      <span id="psycle-booking-window-indicator" class="psycle-badge info">Detecting…</span>
-                    </div>
-                    <div class="psycle-setting-row" id="psycle-manual-window-row" style="margin-top: 16px; display: none;">
-                      <div class="psycle-setting-label">
-                        <span>Manual window override (debug)</span>
-                        <small>Force a booking window for testing. Overrides auto-detection.</small>
-                      </div>
-                      <select id="psycle-setting-manual-window" class="psycle-select">
-                        <option value="">Auto (detected)</option>
-                        <option value="1">1 week</option>
-                        <option value="2">2 weeks</option>
-                        <option value="3">3 weeks</option>
-                        <option value="4">4 weeks</option>
-                      </select>
-                    </div>
-                    <div class="psycle-setting-row" style="margin-top: 16px;">
-                      <div class="psycle-setting-label">
-                        <span>Timetable Prefetch Range</span>
-                        <small>Number of weeks to prefetch when loading the timetable (1-8).</small>
-                      </div>
-                      <select id="psycle-setting-prefetch-weeks" class="psycle-select">
-                        <option value="1">1 week</option>
-                        <option value="2">2 weeks</option>
-                        <option value="3">3 weeks</option>
-                        <option value="4" selected>4 weeks</option>
-                        <option value="5">5 weeks</option>
-                        <option value="6">6 weeks</option>
-                        <option value="7">7 weeks</option>
-                        <option value="8">8 weeks</option>
-                      </select>
-                    </div>
-                  </div>
-                  <!-- Profile Explorer -->
-                  <div class="psycle-settings-card">
-                    <h4>Profile Explorer</h4>
-                    <p class="psycle-card-desc">View your CodexFit account details, membership info, and booking cutoffs.</p>
-                    <button id="psycle-profile-load-btn" class="psycle-btn" style="width: 100%;">Open Profile Explorer</button>
-                  </div>
-                  <!-- Backup & Migration -->
-                  <div class="psycle-settings-card">
-                    <h4>Backup & Migration</h4>
-                    <p class="psycle-card-desc">Import/Export config JSON files (compatible with the Chrome Extension).</p>
-                    <div class="psycle-settings-btn-row">
-                      <button id="psycle-settings-export-btn" class="psycle-btn">Export Config JSON</button>
-                      <button id="psycle-settings-import-btn" class="psycle-btn">Import Config JSON</button>
-                      <input type="file" id="psycle-settings-import-file" style="display: none;" accept=".json">
-                    </div>
-                  </div>
-                  <!-- Debug Mode -->
-                  <div class="psycle-settings-card">
-                    <h4>Debug Mode</h4>
-                    <p class="psycle-card-desc">Show raw API diagnostics, class JSON data, and booking details for troubleshooting.</p>
-                    <div class="psycle-setting-row">
-                      <div class="psycle-setting-label">
-                        <span>Enable Debug Mode</span>
-                        <small>Exposes debug buttons on timetable rows and booking details.</small>
-                      </div>
-                      <label class="psycle-switch">
-                        <input type="checkbox" id="psycle-setting-debug-mode">
-                        <span class="psycle-slider"></span>
-                      </label>
-                    </div>
-                  </div>
-                  <!-- User Session -->
-                  <div class="psycle-settings-card" style="border-color: color-mix(in srgb, var(--danger) 20%, transparent);">
-                    <h4 style="color: var(--danger);">Account Session</h4>
-                    <p class="psycle-card-desc">Logout from the server. This deletes local session tokens and revokes credentials encryption keys.</p>
-                    <button id="psycle-logout-btn" class="psycle-btn" style="background: color-mix(in srgb, var(--danger) 10%, transparent); border-color: color-mix(in srgb, var(--danger) 25%, transparent); color: var(--danger);">Log Out</button>
-                  </div>
-                  <!-- Delete All Data -->
-                  <div class="psycle-settings-card" style="border-color: color-mix(in srgb, var(--danger) 30%, transparent);">
-                    <h4 style="color: var(--danger);">Delete All My Data</h4>
-                    <p class="psycle-card-desc">Permanently deletes your account, encrypted credentials, booking queue, upgrade monitors, spot preferences, and push subscriptions from the server. This cannot be undone.</p>
-                    <button id="psycle-delete-data-btn" class="psycle-btn" style="background: color-mix(in srgb, var(--danger) 15%, transparent); border-color: color-mix(in srgb, var(--danger) 40%, transparent); color: var(--danger);">Delete All My Data</button>
-                  </div>
                 </div>
+                <div id="psycle-gym-settings-section" hidden></div>
               </div>
 
             </div>
@@ -768,11 +676,11 @@
         </svg>
         <span>Auto-Book</span>
       </button>
-      <button class="psycle-nav-btn psycle-bottom-nav-btn" data-tab="buy-credits" aria-label="Buy Credits" data-requires-capability="creditPurchase">
+      <button class="psycle-nav-btn psycle-bottom-nav-btn" data-tab="buy-credits" aria-label="Credits and membership">
         <svg class="psycle-bn-icon" viewBox="0 0 160 160" fill="currentColor" aria-hidden="true">
           <path d="M140,51H99V40c0-10.477-8.523-19-19-19c-10.477,0-19,8.523-19,19v11H20c-1.232,0-2.395,0.567-3.153,1.539 c-0.758,0.971-1.026,2.237-0.728,3.432l20,80C36.564,137.751,38.165,139,40,139h80c1.836,0,3.436-1.249,3.881-3.029l20-80 c0.299-1.195,0.029-2.461-0.729-3.432C142.395,51.567,141.232,51,140,51z M69,40c0-6.065,4.935-11,11-11c6.064,0,11,4.935,11,11v11 H69V40z M116.877,131H43.123l-18-72h109.754L116.877,131z M58.96,109.434c0.312,2.188-1.208,4.215-3.394,4.526 c-0.192,0.026-0.383,0.04-0.571,0.04c-1.958,0-3.67-1.439-3.955-3.434l-5-35c-0.312-2.187,1.208-4.213,3.394-4.526 c2.191-0.313,4.213,1.208,4.526,3.394L58.96,109.434z M101.04,109.434l5-35c0.313-2.187,2.331-3.707,4.526-3.394 c2.186,0.313,3.705,2.339,3.394,4.526l-5,35c-0.285,1.994-1.997,3.434-3.955,3.434c-0.188,0-0.378-0.014-0.571-0.04 C102.248,113.646,100.729,111.621,101.04,109.434z M84,75v35c0,2.209-1.791,4-4,4s-4-1.791-4-4V75c0-2.209,1.791-4,4-4 S84,72.791,84,75z"/>
         </svg>
-        <span>Buy</span>
+        <span>Credits</span>
       </button>
       <button class="psycle-nav-btn psycle-bottom-nav-btn" data-tab="settings" aria-label="Settings">
         <svg class="psycle-bn-icon" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">

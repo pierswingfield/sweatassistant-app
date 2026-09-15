@@ -22,13 +22,16 @@ process.env.ENCRYPTION_KEY = process.env.ENCRYPTION_KEY || 'a'.repeat(64);
 const assert = require('assert');
 const { getProvider } = require('./providers');
 
-// Mock ids (see server/mock-marianatek.js generateClasses/makeLayout):
-//   9000 = BOXING (pick-a-spot, 20 spots)   9001 = TRAIN (pick-a-spot)
-//   9002 = RECOVERY (first-come-first-serve, no layout)
-//   spots: mock-bag-1..10, mock-ground-1..10
-const PICK_A_SPOT = '9000';
-const PICK_A_SPOT_ALT = '9001';
-const FCFS = '9002';
+// Class ids are DISCOVERED from the timetable, not hardcoded.
+//
+// They used to be literals ('9000' = the day's first pick-a-spot class, '9002'
+// = the FCFS one), which encoded the mock's schedule ORDER into the test: the
+// moment the mock grew a realistic multi-class day, 9002 was a pick-a-spot
+// class and the FCFS assertion failed for a reason that had nothing to do with
+// the adapter. What the test actually needs is "a pick-a-spot class" and "an
+// FCFS class", so that is what it asks for.
+// Spots remain mock-bag-1..10 / mock-ground-1..10 (see makeLayout).
+let PICK_A_SPOT, PICK_A_SPOT_ALT, FCFS;
 
 let passed = 0;
 const checks = [];
@@ -56,6 +59,11 @@ check('fetchTimetable: normalizes classes with both layout formats + releaseAt',
   assert.ok(events.every((e) => !!e.releaseAt), 'releaseAt populated from booking_start_datetime (§1H)');
   assert.ok(events.some((e) => e.layoutFormat === 'pick-a-spot'), 'pick-a-spot classes present');
   assert.ok(events.some((e) => e.layoutFormat === 'first-come-first-serve'), 'FCFS classes present');
+
+  const picks = events.filter((e) => e.layoutFormat === 'pick-a-spot');
+  PICK_A_SPOT = picks[0].id;
+  PICK_A_SPOT_ALT = picks[1].id;
+  FCFS = events.find((e) => e.layoutFormat === 'first-come-first-serve').id;
 });
 
 check('fetchEventDetails: pick-a-spot yields a full slot layout; FCFS yields none', async () => {
@@ -134,11 +142,18 @@ check('listWaitlists: a waitlist join is listed distinctly from bookings', async
 
 check('swapSpots: native swap moves the reservation to the target spot', async () => {
   const mt = getProvider('jab-boxing');
-  const booked = await mt.bookSlot(PICK_A_SPOT, ['mock-bag-2'], ctx.session);
+  // Pick a target that is actually free rather than naming one: the mock now
+  // pre-books part of the room to look realistic, so a hardcoded target spot is
+  // a test that depends on the mock's occupancy pattern instead of on swapping.
+  const details = await mt.fetchEventDetails(PICK_A_SPOT, ctx.session);
+  const free = details.slots.filter((sl) => sl.isAvailable).map((sl) => sl.id);
+  assert.ok(free.length >= 2, 'the mock class has at least two free spots to swap between');
+  const [from, to] = free;
+  const booked = await mt.bookSlot(PICK_A_SPOT, [from], ctx.session);
   assert.strictEqual(booked.ok, true, 'seed booking for the swap');
-  const swap = await mt.swapSpots(booked.bookingId, 'mock-bag-2', 'mock-ground-5', ctx.session);
+  const swap = await mt.swapSpots(booked.bookingId, from, to, ctx.session);
   assert.strictEqual(swap.ok, true, 'swap succeeds');
-  assert.strictEqual(swap.slotId, 'mock-ground-5', 'result reflects the new spot');
+  assert.strictEqual(swap.slotId, to, 'result reflects the new spot');
   // Clean up so a re-run starts from a consistent spot state.
   await mt.cancelBooking(swap.bookingId, ctx.session);
 });

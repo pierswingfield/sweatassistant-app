@@ -14,30 +14,53 @@
 // anything, which is the half a "we clear on switch" test cannot cover.
 
 import { describe, it, expect, beforeEach } from 'vitest';
-import { setCacheKeyPrefix, cacheKeyPrefix } from './cache.js';
+import { setCacheKeyPrefix, cacheKeyPrefix, accountScopedKey } from './cache.js';
 
 const GYM_KEY = 'sweatActiveGymId';
 
+const mockStorage = {
+  _data: {},
+  getItem(k) { return this._data[k] ?? null; },
+  setItem(k, v) { this._data[k] = String(v); },
+  removeItem(k) { delete this._data[k]; },
+  clear() { this._data = {}; }
+};
+
+if (typeof window !== 'undefined') {
+  Object.defineProperty(window, 'localStorage', {
+    value: mockStorage,
+    configurable: true,
+    writable: true,
+  });
+}
+try {
+  Object.defineProperty(globalThis, 'localStorage', {
+    value: mockStorage,
+    configurable: true,
+    writable: true,
+  });
+} catch (_) {}
+
 beforeEach(() => {
-  localStorage.clear();
+  mockStorage.clear();
   setCacheKeyPrefix('');
 });
 
 describe('cache key prefix', () => {
   it('combines the user and the gym', () => {
     setCacheKeyPrefix('user123');
-    localStorage.setItem(GYM_KEY, 'psycle-london');
+    window.localStorage.setItem(GYM_KEY, 'psycle-london');
     expect(cacheKeyPrefix()).toBe('user123@psycle-london');
   });
 
   it('changes when the gym changes, with no cache-clearing step', () => {
     setCacheKeyPrefix('user123');
-    localStorage.setItem(GYM_KEY, 'psycle-london');
+    window.localStorage.setItem(GYM_KEY, 'psycle-london');
     const psycle = cacheKeyPrefix();
 
     // Only the stored gym moves — nothing calls clearApiCache, nothing re-runs
     // login. This is the transition that used to leak.
-    localStorage.setItem(GYM_KEY, 'jab-boxing');
+    window.localStorage.setItem(GYM_KEY, 'jab-boxing');
     const jab = cacheKeyPrefix();
 
     expect(jab).not.toBe(psycle);
@@ -45,7 +68,7 @@ describe('cache key prefix', () => {
   });
 
   it('still separates two users on the same gym', () => {
-    localStorage.setItem(GYM_KEY, 'psycle-london');
+    window.localStorage.setItem(GYM_KEY, 'psycle-london');
     setCacheKeyPrefix('userA');
     const a = cacheKeyPrefix();
     setCacheKeyPrefix('userB');
@@ -66,14 +89,33 @@ describe('cache key prefix', () => {
 
   it('survives localStorage throwing', () => {
     setCacheKeyPrefix('user123');
-    const original = localStorage.getItem;
-    localStorage.getItem = () => { throw new Error('SecurityError'); };
+    const original = window.localStorage.getItem;
+    window.localStorage.getItem = () => { throw new Error('SecurityError'); };
     try {
       // A private-mode / blocked-storage browser must degrade to the user-only
       // key, not throw out of every cache read.
       expect(cacheKeyPrefix()).toBe('user123');
     } finally {
-      localStorage.getItem = original;
+      window.localStorage.getItem = original;
     }
+  });
+});
+
+describe('account-scoped caller cache keys', () => {
+  it('separates merged data by user without changing on an active-gym switch', () => {
+    setCacheKeyPrefix('user123');
+    window.localStorage.setItem(GYM_KEY, 'psycle-london');
+    const psycle = accountScopedKey('unifiedTimetable');
+    window.localStorage.setItem(GYM_KEY, 'jab-boxing');
+
+    expect(accountScopedKey('unifiedTimetable')).toBe(psycle);
+    expect(psycle).toBe('unifiedTimetable:user123');
+
+    setCacheKeyPrefix('user456');
+    expect(accountScopedKey('unifiedTimetable')).toBe('unifiedTimetable:user456');
+  });
+
+  it('keeps the base key before account identity is known', () => {
+    expect(accountScopedKey('unifiedTimetable')).toBe('unifiedTimetable');
   });
 });

@@ -1,3 +1,4 @@
+import { shortSlotLabels } from './cards';
 // Shared preferred-spot-map editor.
 //
 // One studio has ONE shared preferred spot map (`studioPreferences[studioId]`)
@@ -70,6 +71,9 @@ export function renderStudioFloorPlan(container, layoutSlots, initialSlots, init
   });
   const widthRange = maxX - minX || 1;
   const heightRange = maxY - minY || 1;
+  // Short labels ("27" rather than "Bike 27") — see shortSlotLabels. The full
+  // label stays in each square's tooltip and in the caption above the map.
+  const shortLabels = shortSlotLabels(layoutSlots);
   const rowYs = [...new Set(layoutSlots.map(s => s.y))].sort((a, b) => a - b);
   const slotsByRow = new Map();
   rowYs.forEach(y => { slotsByRow.set(y, layoutSlots.filter(s => s.y === y)); });
@@ -216,32 +220,52 @@ export function renderStudioFloorPlan(container, layoutSlots, initialSlots, init
       const priority = selectedSlots.indexOf(slotId) + 1;
       const inRow = selectedRows.has(slot.y);
       const label = slot.label || String(slotId);
+      const short = shortLabels.get(String(slot.id)) || label;
 
       const hasAvailability = !!availableSlots;
       const isAvailable = !hasAvailability || availableSlots.includes(slotId);
       const isCurrent = currentSlotId !== null && Number(currentSlotId) === slotId;
 
       const el = document.createElement('div');
-      el.style.cssText = `position:absolute;left:${pxX(slot.x)}px;top:${pxY(slot.y)}px;transform:translate(-50%,-50%);width:${SLOT_SIZE}px;height:${SLOT_SIZE}px;border-radius:6px;display:flex;align-items:center;justify-content:center;font-size:12px;font-weight:700;cursor:${editing ? 'pointer' : 'default'};user-select:none;transition:all 0.1s;box-sizing:border-box;z-index:1;`;
+      el.style.cssText = `position:absolute;left:${pxX(slot.x)}px;top:${pxY(slot.y)}px;transform:translate(-50%,-50%);width:${SLOT_SIZE}px;height:${SLOT_SIZE}px;border-radius:6px;display:flex;align-items:center;justify-content:center;font-size:12px;font-weight:700;line-height:1;text-align:center;white-space:nowrap;overflow:visible;cursor:${editing ? 'pointer' : 'default'};user-select:none;transition:all 0.1s;box-sizing:border-box;z-index:1;`;
       el.title = `Spot ${label}`;
+
+      /**
+       * A selected spot keeps its OWN label and shows its priority as a corner
+       * badge. It used to do `el.textContent = String(priority)`, replacing
+       * "Bike 27" with "1" — so the map showed "1, 2" while the caption
+       * underneath read "Preferred spots: Bike 27, Bike 28" and there was no way
+       * to tell which square was which bike. The ranking is secondary
+       * information; which seat it is, is the primary information.
+       */
+      const withPriorityBadge = (n) => {
+        el.textContent = short;
+        const badge = document.createElement('span');
+        badge.textContent = String(n);
+        badge.setAttribute('aria-hidden', 'true');
+        badge.style.cssText = 'position:absolute;top:-6px;right:-6px;min-width:15px;height:15px;padding:0 3px;border-radius:999px;background:var(--feat-autoupgrade);color:#fff;font-size:9px;line-height:15px;font-weight:800;text-align:center;box-shadow:0 0 0 2px var(--surface);box-sizing:border-box;';
+        el.appendChild(badge);
+        el.title = `Spot ${label} — preference #${n}`;
+      };
 
       if (isCurrent) {
         el.style.background = 'color-mix(in srgb, var(--feat-autoupgrade) 15%, transparent)';
         el.style.border = '2px dashed var(--feat-autoupgrade)';
         el.style.color = 'var(--feat-autoupgrade)';
-        el.textContent = label;
+        el.textContent = short;
         el.title = `Spot ${label} (Your current seat)`;
         if (priority > 0) {
           el.style.background = 'var(--feat-autoupgrade)';
           el.style.border = '2px dashed #fff';
           el.style.color = '#fff';
-          el.textContent = String(priority);
+          withPriorityBadge(priority);
+          el.title = `Spot ${label} — preference #${priority} (your current seat)`;
         }
       } else if (priority > 0) {
         el.style.background = 'var(--feat-autoupgrade)';
         el.style.border = '2px solid var(--feat-autoupgrade)';
         el.style.color = '#fff';
-        el.textContent = String(priority);
+        withPriorityBadge(priority);
         if (hasAvailability && !isAvailable) {
           el.style.boxShadow = '0 0 0 2px var(--danger)';
           el.title = `Spot ${label} (Occupied but preferred)`;
@@ -250,22 +274,22 @@ export function renderStudioFloorPlan(container, layoutSlots, initialSlots, init
         el.style.background = 'color-mix(in srgb, var(--info) 25%, transparent)';
         el.style.border = '1px solid color-mix(in srgb, var(--info) 50%, transparent)';
         el.style.color = 'var(--info)';
-        el.textContent = label;
+        el.textContent = short;
       } else if (hasAvailability && isAvailable) {
         el.style.background = 'color-mix(in srgb, var(--success) 15%, transparent)';
         el.style.border = '1px solid color-mix(in srgb, var(--success) 35%, transparent)';
         el.style.color = 'var(--success)';
-        el.textContent = label;
+        el.textContent = short;
       } else if (hasAvailability && !isAvailable) {
         el.style.background = 'var(--surface-inset)';
         el.style.border = '1px solid var(--border)';
         el.style.color = 'var(--text-tertiary)';
-        el.textContent = label;
+        el.textContent = short;
       } else {
         el.style.background = 'color-mix(in srgb, var(--text) 5%, transparent)';
         el.style.border = '1px solid color-mix(in srgb, var(--text) 8%, transparent)';
         el.style.color = 'var(--text-tertiary)';
-        el.textContent = label;
+        el.textContent = short;
       }
 
       if (editing) {

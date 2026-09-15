@@ -14,6 +14,7 @@ const crypto = require('crypto');
 const cron = require('node-cron');
 const { DateTime } = require('luxon');
 const db = require('./db');
+const { getGymConfig } = require('./gyms.config');
 const poller = require('./poller');
 const { triggerAutoRelogin } = require('./auth');
 const { getProvider } = require('./providers');
@@ -29,6 +30,20 @@ const DEFAULT_DURATION_MIN = 45;
 const PENALTY_HOURS = 12;              // free-cancellation deadline before class start
 
 // ─── Token + subscribe links ─────────────────────────────────────────────────
+/**
+ * Every gym this account is linked to.
+ *
+ * The feed is ACCOUNT-level (2026-09-14): a person has one calendar and expects
+ * every class in it, not one .ics per gym each showing a third of their week.
+ * Everything below that used to call db.resolveActiveGymId() now runs once per
+ * gym in this list — via db.runWithGymContext, so the ~20 per-user db accessors
+ * stay unchanged and simply resolve to whichever gym the current pass is on.
+ */
+function linkedGymIds(userId) {
+  try { return (db.getUserGyms(userId) || []).map((g) => g.gym_id).filter(Boolean); }
+  catch (_) { return []; }
+}
+
 function generateToken() { return crypto.randomBytes(24).toString('base64url'); }
 
 function ensureToken(userId) {
@@ -58,13 +73,13 @@ function cachedLocationMap() {
   return {};
 }
 
-async function refreshLocationMap(userId, force = false) {
+async function refreshLocationMap(userId, force = false, gymId = null) {
   const raw = db.getKV('locations_json');
   if (!force && raw) {
     try { if (Date.now() - JSON.parse(raw).ts < LOCATIONS_TTL_MS) return; } catch (_) {}
   }
   try {
-    const res = await poller.fetchFromGym(userId, db.resolveActiveGymId(userId), '/locations');
+    const res = await poller.fetchFromGym(userId, gymId || db.resolveActiveGymId(userId), '/locations');
     if (!res.ok) return;
     const payload = await res.json();
     const list = payload.data || payload || [];
@@ -103,13 +118,14 @@ function eventToCalendarShape(ev) {
 
 // Cache key includes the gym: event ids are PROVIDER ids, so two gyms can both
 // serve an event "1000" and a user-blind cache would cross them over.
-async function fetchEventDetail(userId, eventId) {
-  const gymId = db.resolveActiveGymId(userId);
+async function fetchEventDetail(userId, eventId, explicitGymId) {
+  const gymId = explicitGymId || db.resolveActiveGymId(userId);
   const key = `${gymId}:${eventId}`;
   const cached = eventDetailCache.get(key);
   if (cached && Date.now() - cached.ts < EVENT_TTL_MS) return cached.data;
 
-  const user = db.getUserById(userId);
+  // Same per-gym session rule as listWithRelogin above.
+  const user = db.runWithGymContext(userId, gymId, () => db.getUserById(userId));
   const session = user && user.jwt ? { accessToken: user.jwt } : null;
   let data = null;
   try {
@@ -135,18 +151,25 @@ async function fetchEventDetail(userId, eventId) {
 // scheduler.js's/poller.js's bookSlotWithRelogin. codexfit.listBookings/
 // listWaitlists throw with `.status` set on HTTP failure (see codexfit.js doc
 // comment) instead of returning a result object — that's the signal here too.
-async function listWithRelogin(userId, method) {
-  const user = db.getUserById(userId);
-  if (!user || !user.jwt) throw new Error('User has no active session. Please log in.');
+async function listWithRelogin(userId, method, explicitGymId) {
+  const gymId = explicitGymId || db.resolveActiveGymId(userId);
+  // The SESSION must be read inside this gym's context. `db.getUserById`
+  // resolves the user's ACTIVE gym's session, so during a fan-out every gym
+  // after the active one was handed the wrong gym's token — the JAB pass
+  // authenticated to MarianaTek with a CodexFit JWT and got a 401 on every
+  // call. The fan-out looked like it was working (it logged both gyms); only
+  // the feed contents showed it was not.
+  const user = db.runWithGymContext(userId, gymId, () => db.getUserById(userId));
+  if (!user || !user.jwt) throw new Error(`No active session for gym ${gymId}. Please log in.`);
   let session = { accessToken: user.jwt };
   try {
-    return await getProvider(db.resolveActiveGymId(userId))[method](session);
+    return await getProvider(gymId)[method](session);
   } catch (err) {
     if (err.status !== 401) throw err;
-    console.log(`[Calendar] ${method} got 401 for user ${userId} — attempting relogin and retry.`);
-    const newJwt = await triggerAutoRelogin(userId, db.resolveActiveGymId(userId));
+    console.log(`[Calendar] ${method} got 401 for user ${userId} (${gymId}) — attempting relogin and retry.`);
+    const newJwt = await triggerAutoRelogin(userId, gymId);
     session = { accessToken: newJwt };
-    return getProvider(db.resolveActiveGymId(userId))[method](session);
+    return getProvider(gymId)[method](session);
   }
 }
 
@@ -159,10 +182,10 @@ async function listWithRelogin(userId, method) {
 // CodexFit — see its doc comment) and the exact `b.slot` field read for
 // slotLabel, both preserved via NormalizedBooking.raw so this function's
 // downstream behavior for real accounts is untouched.
-async function fetchUserBookings(userId) {
+async function fetchUserBookings(userId, gymId) {
   let normalized;
   try {
-    normalized = await listWithRelogin(userId, 'listBookings');
+    normalized = await listWithRelogin(userId, 'listBookings', gymId);
   } catch (err) {
     console.error(`[Calendar] fetchUserBookings failed for user ${userId}:`, err.message);
     return null;
@@ -172,7 +195,7 @@ async function fetchUserBookings(userId) {
     const b = nb.raw;
     const eventId = nb.eventId;
     if (!eventId) continue;
-    const ev = await fetchEventDetail(userId, eventId);
+    const ev = await fetchEventDetail(userId, eventId, gymId);
     if (!ev || !ev.startAt) continue;
     out.push({
       bookingId: nb.bookingId, eventId, startAt: ev.startAt,
@@ -187,13 +210,13 @@ async function fetchUserBookings(userId) {
 
 // Returns waitlist_cache-shaped rows (one per waitlisted class), enriched.
 // Same adapter-routing + preserved-enrichment approach as fetchUserBookings.
-async function fetchUserWaitlists(userId) {
-  const normalized = await listWithRelogin(userId, 'listWaitlists');
+async function fetchUserWaitlists(userId, gymId) {
+  const normalized = await listWithRelogin(userId, 'listWaitlists', gymId);
   const out = [];
   for (const nb of normalized) {
     const eventId = nb.eventId;
     if (!eventId) continue;
-    const ev = await fetchEventDetail(userId, eventId);
+    const ev = await fetchEventDetail(userId, eventId, gymId);
     if (!ev || !ev.startAt) continue;
     out.push({
       eventId, startAt: ev.startAt,
@@ -206,14 +229,19 @@ async function fetchUserWaitlists(userId) {
 }
 
 // ─── Gather a user's live classes (precedence: confirmed > waitlist > autobook) ─
-function gatherLiveClasses(userId) {
+function gatherLiveClasses(userId, gymId) {
+  // Keyed by gym AND event id. Event ids are PROVIDER ids, unique only inside
+  // one gym, so an event-id-only key silently dropped one gym's class whenever
+  // two gyms happened to publish the same id — which the mocks do today
+  // (Psycle 1000-1279, JAB 9000-9139) and two real providers eventually will.
   const byEvent = new Map();
+  const key = (eventId) => `${gymId}:${eventId}`;
 
   // Auto-book pending (lowest precedence)
   for (const ab of db.getUserAutoBookings(userId)) {
     if (ab.status !== 'pending' || !ab.start_at || ab.event_id == null) continue;
-    byEvent.set(String(ab.event_id), {
-      eventId: ab.event_id, startAt: ab.start_at, className: ab.class_name,
+    byEvent.set(key(ab.event_id), {
+      gymId, eventId: ab.event_id, startAt: ab.start_at, className: ab.class_name,
       groupName: ab.group_name, instructorName: ab.instructor_name,
       studioName: ab.studio_name, locationName: ab.location_name,
       status: 'autobook', slotLabel: null, durationMin: null,
@@ -223,8 +251,8 @@ function gatherLiveClasses(userId) {
   // Waitlists (override autobook)
   for (const w of db.getWaitlistCacheForUser(userId)) {
     if (!w.start_at || w.event_id == null) continue;
-    byEvent.set(String(w.event_id), {
-      eventId: w.event_id, startAt: w.start_at, className: w.class_name,
+    byEvent.set(key(w.event_id), {
+      gymId, eventId: w.event_id, startAt: w.start_at, className: w.class_name,
       groupName: w.group_name, instructorName: w.instructor_name,
       studioName: w.studio_name, locationName: w.location_name, locationAddress: w.location_address,
       status: 'waitlist', slotLabel: null, durationMin: null,
@@ -235,24 +263,24 @@ function gatherLiveClasses(userId) {
   const confirmed = new Map();
   for (const b of db.getBookingCacheForUser(userId)) {
     if (!b.start_at || b.event_id == null) continue;
-    const key = String(b.event_id);
-    if (!confirmed.has(key)) {
-      confirmed.set(key, {
-        eventId: b.event_id, startAt: b.start_at, className: b.class_name,
+    const k = key(b.event_id);
+    if (!confirmed.has(k)) {
+      confirmed.set(k, {
+        gymId, eventId: b.event_id, startAt: b.start_at, className: b.class_name,
         groupName: b.group_name, instructorName: b.instructor_name,
         studioName: b.studio_name, locationName: b.location_name, locationAddress: b.location_address,
         status: 'confirmed', slots: [], durationMin: b.duration_min || null,
       });
     }
-    const rec = confirmed.get(key);
+    const rec = confirmed.get(k);
     if (b.slot_label != null && String(b.slot_label).trim() !== '') rec.slots.push(String(b.slot_label).trim());
     if (!rec.durationMin && b.duration_min) rec.durationMin = b.duration_min;
     if (!rec.locationAddress && b.location_address) rec.locationAddress = b.location_address;
   }
-  for (const [key, rec] of confirmed) {
+  for (const [k, rec] of confirmed) {
     rec.slotLabel = rec.slots.join(', ');
     delete rec.slots;
-    byEvent.set(key, rec);
+    byEvent.set(k, rec);
   }
 
   return [...byEvent.values()];
@@ -338,11 +366,29 @@ const VTIMEZONE = [
 function buildTitle(row) {
   const discipline = titleCase(row.group_name) || 'Class';
   const instructor = (row.instructor_name || '').split(' ')[0] || (row.instructor_name || 'Instructor');
-  // Strip a leading "Psycle " from the location so the title doesn't read
-  // "Psycle: Ride with Sinead, Psycle Oxford Circus".
-  const location = (row.location_name || '').replace(/^psycle\s+/i, '');
-  const core = `Psycle: ${discipline} with ${instructor}${location ? `, ${location}` : ''}`;
+  // The prefix is the row's OWN gym, read from gyms.config. It used to be the
+  // literal "Psycle", which was invisible while the feed was single-gym and
+  // wrong the moment it was not: a JAB class appeared in the calendar as
+  // "Psycle: Boxing with George", which is the one thing the title exists to
+  // disambiguate now that one feed carries several gyms.
+  const gym = row.gym_id ? getGymConfig(row.gym_id) : null;
+  const gymName = (gym && (gym.shortName || gym.name)) || 'Class';
+  // Strip the gym's own name off the front of the location so the title doesn't
+  // read "Psycle: Ride with Sinead, Psycle Oxford Circus".
+  const location = stripGymPrefix(row.location_name || '', gym);
+  const core = `${gymName}: ${discipline} with ${instructor}${location ? `, ${location}` : ''}`;
   return row.status === 'confirmed' ? core : `[Tentative] ${core}`;
+}
+
+// Remove a leading gym name from a location label, for any gym — the old code
+// hardcoded /^psycle\s+/i, which silently did nothing for every other gym.
+function stripGymPrefix(locationName, gym) {
+  if (!gym) return locationName;
+  for (const candidate of [gym.name, gym.shortName].filter(Boolean)) {
+    const re = new RegExp('^' + candidate.replace(/[.*+?^${}()|[\]\\]/g, '\\$&') + '\\s+', 'i');
+    if (re.test(locationName)) return locationName.replace(re, '');
+  }
+  return locationName;
 }
 
 function buildSpotLine(row) {
@@ -426,7 +472,10 @@ function buildVEvent(userId, row, addrMap, alarm) {
   if (locField) lines.push(`LOCATION:${esc(locField)}`);
   lines.push(`DESCRIPTION:${esc(buildDescription(row))}`);
   lines.push(`STATUS:${row.status === 'confirmed' ? 'CONFIRMED' : 'TENTATIVE'}`);
-  lines.push(`CATEGORIES:Psycle${discipline ? ',' + esc(discipline) : ''}`);
+  // Category is the row's own gym, so a calendar client can colour or filter by
+  // gym. Hardcoding "Psycle" filed every JAB class under Psycle.
+  const catGym = row.gym_id ? getGymConfig(row.gym_id) : null;
+  lines.push(`CATEGORIES:${esc((catGym && (catGym.shortName || catGym.name)) || 'Class')}${discipline ? ',' + esc(discipline) : ''}`);
   lines.push('TRANSP:OPAQUE');
   lines.push(...buildAlarms(row, alarm));
   lines.push('END:VEVENT');
@@ -460,21 +509,33 @@ function regenerateSnapshot(userId) {
     const alarm = cal.alarm || 'none';
     const nowISO = DateTime.now().toISO();
 
-    const live = gatherLiveClasses(userId);
-    const upgradeMap = db.getUserAutoUpgradesByEvent(userId);
-    const existingRows = db.getCalendarClasses(userId);
-    const existingByEvent = {};
-    for (const r of existingRows) existingByEvent[String(r.event_id)] = r;
+    // One pass per linked gym, each inside that gym's context so the per-user
+    // db accessors (auto-bookings, booking/waitlist cache, upgrade monitors)
+    // resolve to it. Reconciliation is also per gym: an unscoped reconcile
+    // would see gym A's classes missing from gym B's live list and delete them.
+    const gymIds = linkedGymIds(userId);
+    const addrMap = cachedLocationMap();
 
-    const keepIds = [];
-    for (const l of live) {
-      keepIds.push(l.eventId);
-      db.upsertCalendarClass(userId, buildRecord(l, upgradeMap, existingByEvent));
+    for (const gymId of gymIds) {
+      db.runWithGymContext(userId, gymId, () => {
+        const live = gatherLiveClasses(userId, gymId);
+        const upgradeMap = db.getUserAutoUpgradesByEvent(userId);
+        const existingRows = db.getCalendarClasses(userId, gymId);
+        const existingByEvent = {};
+        for (const r of existingRows) existingByEvent[String(r.event_id)] = r;
+
+        const keepIds = [];
+        for (const l of live) {
+          keepIds.push(l.eventId);
+          db.upsertCalendarClass(userId, buildRecord(l, upgradeMap, existingByEvent), gymId);
+        }
+        db.reconcileFutureCalendarClasses(userId, nowISO, keepIds, gymId);
+      });
     }
-    db.reconcileFutureCalendarClasses(userId, nowISO, keepIds);
+    // History cap is account-wide: one calendar, one budget.
     db.capPastCalendarClasses(userId, nowISO, PAST_CLASS_CAP);
 
-    const addrMap = cachedLocationMap();
+    // No gym argument — this is the whole account's calendar.
     let rows = db.getCalendarClasses(userId);
     if (!includeTentative) rows = rows.filter(r => r.status === 'confirmed');
     const ics = serializeCalendar(userId, rows, addrMap, alarm);
@@ -492,20 +553,33 @@ async function refreshUser(userId) {
   const settings = db.getUserSettings(userId) || {};
   if (!settings.calendar || !settings.calendar.enabled) return;
 
-  await refreshLocationMap(userId);
+  // Fan out across every linked gym. One gym failing must NOT blank the feed:
+  // the user's other gym's classes are still valid, and a calendar that empties
+  // itself during someone else's outage is worse than one that is briefly stale.
+  let totalBookings = 0;
+  for (const gymId of linkedGymIds(userId)) {
+    try {
+      await refreshLocationMap(userId, false, gymId);
 
-  const bookings = await fetchUserBookings(userId);
-  if (bookings) db.replaceBookingCache(userId, bookings);
+      const bookings = await fetchUserBookings(userId, gymId);
+      if (bookings) {
+        db.runWithGymContext(userId, gymId, () => db.replaceBookingCache(userId, bookings));
+        totalBookings += bookings.length;
+      }
 
-  try {
-    const waitlists = await fetchUserWaitlists(userId);
-    if (waitlists) db.replaceWaitlistCache(userId, waitlists);
-  } catch (wErr) {
-    console.warn(`[Calendar] waitlist fetch failed for user ${userId}:`, wErr.message);
+      try {
+        const waitlists = await fetchUserWaitlists(userId, gymId);
+        if (waitlists) db.runWithGymContext(userId, gymId, () => db.replaceWaitlistCache(userId, waitlists));
+      } catch (wErr) {
+        console.warn(`[Calendar] waitlist fetch failed for user ${userId} (${gymId}):`, wErr.message);
+      }
+    } catch (gErr) {
+      console.error(`[Calendar] refresh failed for user ${userId} at ${gymId}:`, gErr.message);
+    }
   }
 
   regenerateSnapshot(userId);
-  console.log(`[Calendar] Refreshed + published snapshot for user ${userId} (${bookings ? bookings.length : 0} booking row(s)).`);
+  console.log(`[Calendar] Refreshed + published snapshot for user ${userId} (${totalBookings} booking row(s) across ${linkedGymIds(userId).length} gym(s)).`);
 }
 
 // Debounced one-shot refresh, fired ~1 min after an in-app booking mutation so the

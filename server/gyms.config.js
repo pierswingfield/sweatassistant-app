@@ -13,6 +13,8 @@ const GYMS = {
   'psycle-london': {
     id: 'psycle-london',
     name: 'Psycle London',
+    shortName: 'Psycle',
+    websiteUrl: 'https://psyclelondon.com/',
     provider: 'codexfit',
     // The gym's local timezone. CodexFit serves timezone-NAIVE datetimes
     // ("2026-09-01T19:30:00", no offset), so every parse has to be anchored
@@ -89,20 +91,32 @@ const GYMS = {
       creditPurchase: true,     // in-app Stripe cart
       bookmarks: true,          // native CodexFit bookmarks
       bookingWindow: 'rolling-weekly',   // mirrors bookingWindow.kind, for the UI
+      maxSpotsPerClass: null,   // unmetered/credits-limited
     },
   },
 
   'jab-boxing': {
     id: 'jab-boxing',
     name: 'JAB Boxing Club',
+    shortName: 'JAB',
+    websiteUrl: 'https://jabboxing.club/',
     provider: 'marianatek',
     // MarianaTek returns offset-bearing ISO timestamps, so this is used for
     // display grouping rather than for parsing.
     timezone: 'Europe/London',
-    // Keep JAB dark by default. Staging can opt in with JAB_BOXING_ENABLED=true
-    // for live account verification without making a future production deploy
-    // expose an unfinished provider integration by accident.
-    enabled: process.env.JAB_BOXING_ENABLED === 'true',
+    // Keep JAB dark in PRODUCTION by default. Staging can opt in with
+    // JAB_BOXING_ENABLED=true for live account verification without making a
+    // future production deploy expose an unfinished provider integration by
+    // accident.
+    //
+    // In dev it is enabled automatically, because the gate being off is
+    // indistinguishable from the feature being broken: with no second gym in the
+    // catalogue nothing is "addable", so the Settings → Your Gyms card renders
+    // no "Connect another gym" button and collapses to the single-gym inline
+    // view — i.e. the multi-gym build looks absent rather than gated. Set
+    // JAB_BOXING_ENABLED=false to force it dark in dev too.
+    enabled: process.env.JAB_BOXING_ENABLED === 'true'
+      || (process.env.NODE_ENV !== 'production' && process.env.JAB_BOXING_ENABLED !== 'false'),
     tenant: 'jabboxingclub',
     apiBaseUrl: 'https://jabboxingclub.marianatek.com/api/customer/v1',
     oauthBaseUrl: 'https://jabboxingclub.marianatek.com/o',
@@ -163,6 +177,7 @@ const GYMS = {
       creditPurchase: false,    // membership-based; no confirmed purchase API (D3)
       bookmarks: false,         // no MT bookmarks API
       bookingWindow: 'per-class',   // mirrors bookingWindow.kind, for the UI
+      maxSpotsPerClass: 1,      // 1 primary spot per member per class session
     },
   },
 };

@@ -16,11 +16,12 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest';
 
 // credit-allowance.js imports `cache` from main.js, which pulls in the whole
-// app shell. Stub it — the arithmetic under test only reads `cache.profile`.
-const cache = { profile: null };
+// app shell. Stub it — the arithmetic under test only reads `cache.profile`
+// and (for WP-J) `cache.eligibility`.
+const cache = { profile: null, eligibility: null };
 vi.mock('../main', () => ({ cache }));
 
-const { getAvailableCreditsForEvent, hasUsableCredit, getTotalCredits, isMetered } =
+const { getAvailableCreditsForEvent, hasUsableCredit, getTotalCredits, isMetered, canBookAtAll, getIneligibleReason } =
   await import('./credit-allowance.js');
 const { setGymContext } = await import('../gym-context.js');
 
@@ -33,7 +34,7 @@ const MEMBERSHIP = {
   capabilities: { metered: false, creditPurchase: false },
 };
 
-beforeEach(() => { cache.profile = null; });
+beforeEach(() => { cache.profile = null; cache.eligibility = null; });
 
 describe('a membership (unmetered) gym', () => {
   beforeEach(() => setGymContext(MEMBERSHIP));
@@ -48,8 +49,8 @@ describe('a membership (unmetered) gym', () => {
     // The real JAB shape — a profile loads, `available_credits` is just empty.
     cache.profile = { available_credits: [] };
     expect(getTotalCredits()).toBe(Infinity);
-    expect(getAvailableCreditsForEvent({ credit_types: [{ credit_type: 8 }] })).toBe(Infinity);
-    expect(hasUsableCredit({ credit_types: [{ credit_type: 8 }] })).toBe(true);
+    expect(getAvailableCreditsForEvent({ credits: { required: 1, acceptedTypeIds: ['8'] } })).toBe(Infinity);
+    expect(hasUsableCredit({ credits: { required: 1, acceptedTypeIds: ['8'] } })).toBe(true);
   });
 
   it('never looks short of credits for any spot count', () => {
@@ -78,20 +79,123 @@ describe('a metered gym', () => {
     expect(getTotalCredits() < 1).toBe(true);
   });
 
-  it('reports 0 before the profile has loaded', () => {
+  it('does NOT report 0 before anything has loaded — loading is not "broke"', () => {
+    // Inverted deliberately on 2026-09-15. "Nothing loaded" used to answer 0,
+    // which every `total < needed` check downstream turned into a blocking
+    // warning — so on first paint EVERY row said "Buy Credits", including a
+    // membership gym's, and only corrected once the user switched days and
+    // forced a re-render.
+    //
+    // Same rule as an unknown capability flag: briefly offering a class you
+    // cannot afford self-corrects at the booking attempt; wrongly disabling
+    // every Book button does not.
+    expect(getTotalCredits()).toBe(Infinity);
+  });
+
+  it('reports 0 once a balance has genuinely loaded and is empty', () => {
+    cache.profile = { available_credits: [] };
     expect(getTotalCredits()).toBe(0);
   });
 
   it('counts only credit types the class accepts', () => {
+    // Real Psycle data: accepted type lists differ per class — a "Ride Only"
+    // credit is accepted by ride classes and refused elsewhere.
     cache.profile = { available_credits: [
-      { credit_type: { id: 8 }, count: 4 },
-      { credit_type: { id: 9 }, count: 7 },
+      { typeId: '8', count: 4 },
+      { typeId: '9', count: 7 },
     ] };
-    expect(getAvailableCreditsForEvent({ credit_types: [{ credit_type: 8 }] })).toBe(4);
+    expect(getAvailableCreditsForEvent({ credits: { required: 1, acceptedTypeIds: ['8'] } })).toBe(4);
   });
 
-  it('treats a class with no credit type as free to book', () => {
+  it('divides by the class cost — a 2-credit class is not affordable on 1', () => {
+    // Confirmed live 2026-09-14: of 705 Psycle events, 4 required 2 credits.
+    // The old code assumed 1 and reported such a class bookable on a balance
+    // of 1, which fails at the booking attempt instead of in the UI.
+    cache.profile = { available_credits: [{ typeId: '8', count: 1 }] };
+    const twoCredit = { credits: { required: 2, acceptedTypeIds: ['8'] } };
+    expect(getAvailableCreditsForEvent(twoCredit)).toBe(0);
+    expect(hasUsableCredit(twoCredit)).toBe(false);
+
+    cache.profile = { available_credits: [{ typeId: '8', count: 3 }] };
+    // 3 credits at 2 each = one bookable spot, not three.
+    expect(getAvailableCreditsForEvent(twoCredit)).toBe(1);
+  });
+
+  it('treats a genuinely free class (required 0) as always bookable', () => {
     cache.profile = { available_credits: [] };
-    expect(getAvailableCreditsForEvent({ credit_types: [] })).toBe(Infinity);
+    expect(getAvailableCreditsForEvent({ credits: { required: 0, acceptedTypeIds: [] } })).toBe(Infinity);
+  });
+
+  it('ignores guest-only credits — they book a guest in, not you', () => {
+    // 11 of Psycle's 46 credit types are guest-only, and classes DO accept
+    // them, so counting them said "you can book" to someone who cannot.
+    cache.profile = { available_credits: [
+      { typeId: '2', count: 5, isGuestOnly: true },
+      { typeId: '8', count: 1 },
+    ] };
+    expect(getAvailableCreditsForEvent({ credits: { required: 1, acceptedTypeIds: ['2', '8'] } })).toBe(1);
+  });
+
+  it('does NOT treat a missing credits field as free', () => {
+    // Absent means "the payload said nothing", not "free". Returning Infinity
+    // here would let a normalization gap silently unlock every class — which is
+    // exactly what happened before NormalizedEvent carried these fields.
+    cache.profile = { available_credits: [] };
+    expect(getAvailableCreditsForEvent({})).toBe(0);
+  });
+});
+
+// WP-J: "can this account book at all" is a THIRD question, distinct from
+// metered/creditPurchase. A membership gym's credit total is Infinity by
+// design (nothing to charge), so it says nothing about whether the account
+// actually has a membership — this is the gap that let a JAB user with no
+// membership see no warning and just fail at the booking attempt.
+describe('account-level eligibility (WP-J)', () => {
+  describe('a membership (unmetered) gym', () => {
+    beforeEach(() => setGymContext(MEMBERSHIP));
+
+    it('reports canBook: true with an active membership', () => {
+      cache.eligibility = { canBook: true };
+      expect(canBookAtAll()).toBe(true);
+      expect(getIneligibleReason()).toBeNull();
+      // Infinity credits AND eligible — the class is actually bookable.
+      expect(hasUsableCredit({ credit_types: [] })).toBe(true);
+    });
+
+    it('reports canBook: false with no membership, distinct from the credit answer', () => {
+      cache.eligibility = { canBook: false, reason: 'No active membership or credits' };
+      expect(canBookAtAll()).toBe(false);
+      expect(getIneligibleReason()).toBe('No active membership or credits');
+      // Credit arithmetic alone still (correctly) says Infinity — this is
+      // exactly why membership status can't be derived from it.
+      expect(getTotalCredits()).toBe(Infinity);
+      // But the combined "can I actually book this" answer must be false.
+      expect(hasUsableCredit({ credit_types: [] })).toBe(false);
+    });
+
+    it('defaults permissive while eligibility has not loaded yet', () => {
+      // cache.eligibility is null (beforeEach) — must not block booking on a
+      // slow/failed fetch, same "unknown defaults ON" rule as capabilities.
+      expect(canBookAtAll()).toBe(true);
+      expect(getIneligibleReason()).toBeNull();
+    });
+  });
+
+  describe('a metered gym', () => {
+    beforeEach(() => setGymContext(METERED));
+
+    it('is unaffected by eligibility when it has real credit', () => {
+      cache.profile = { available_credits: [{ count: 3 }] };
+      cache.eligibility = { canBook: true };
+      expect(hasUsableCredit({ credit_types: [] })).toBe(true);
+    });
+
+    it('still reports insufficient via credit math, not eligibility, when out of credit', () => {
+      cache.profile = { available_credits: [] };
+      cache.eligibility = { canBook: true };
+      // A class that DOES draw against a credit type, with none held.
+      expect(hasUsableCredit({ credit_types: [{ credit_type: 8 }] })).toBe(false);
+      expect(getIneligibleReason()).toBeNull(); // the reason here is credit, not eligibility
+    });
   });
 });

@@ -7,23 +7,22 @@ let localToken = localStorage.getItem('psycleLocalToken') || null;
 
 // Active gym context (WP-C1). Persisted per-account so the normalized API can
 // tell the server which linked gym a request is scoped to (via the `x-gym-id`
-// header). Null until the Phase 5 gym picker sets it — while null the server
-// falls back to the default gym (db.resolveActiveGymId), so single-gym Psycle
-// users are entirely unaffected (the header isn't even sent).
-let activeGymId = localStorage.getItem('sweatActiveGymId') || null;
-
-export function setActiveGymId(gymId) {
-  activeGymId = gymId || null;
-  if (activeGymId) {
-    localStorage.setItem('sweatActiveGymId', activeGymId);
-  } else {
-    localStorage.removeItem('sweatActiveGymId');
-  }
-}
-
-export function getActiveGymId() {
-  return activeGymId;
-}
+// header).
+//
+// THERE IS NO AMBIENT ACTIVE GYM ON THE CLIENT. The app presents one unified
+// view — every list shows every linked gym at once, and every per-gym call
+// passes `options.gymId` explicitly. A sticky "current gym" only ever existed to
+// serve a switcher, and a switcher is exactly what a unified view removes.
+//
+// Any request that needs a specific gym says so at the call site; anything else
+// lets the server resolve (db.resolveActiveGymId), which still exists because
+// background cron has no request context. Do not reintroduce module-level gym
+// state here: it reintroduces "which gym am I looking at?", the question this
+// design exists to make unaskable.
+//
+// One legacy key is cleared on load: `sweatActiveGymId` was written by the old
+// switcher and would otherwise keep stamping x-gym-id on every request forever.
+try { localStorage.removeItem('sweatActiveGymId'); } catch (_) {}
 
 export function setToken(token) {
   localToken = token;
@@ -44,19 +43,6 @@ export function isLoggedIn() {
 
   // Cache staleness tracking — last cached GET response was stale
 
-// Invalidate cached proxy GET responses for a given path after a mutation.
-// Extracts the base resource (e.g., '/bookings' from '/bookings/123') and
-// invalidates all cached entries under '/api/proxy/bookings'.
-// Returns a promise — callers MUST await it before reading the cache again,
-// otherwise getCachedSWR may return stale data (e.g. profile still showing
-// a deleted bookmark).
-function invalidateProxyCache(path) {
-  const cleanPath = path.split('?')[0];
-  const segments = cleanPath.split('/').filter(Boolean);
-  const base = segments.length > 0 ? '/' + segments[0] : '';
-  return invalidateApiCache('/api/proxy' + base).catch(() => {});
-}
-
 // Global fetch wrapper with local auth and Cloudflare Zero Trust Access support
 export async function apiFetch(endpoint, options = {}) {
   const url = endpoint.startsWith('/') ? endpoint : `/${endpoint}`;
@@ -70,12 +56,10 @@ export async function apiFetch(endpoint, options = {}) {
     headers['authorization'] = `Bearer ${localToken}`;
   }
 
-  // Scope the request to the active gym (WP-C1). Only sent when a gym has been
-  // selected — omitted entirely for today's single-gym users, so no existing
-  // request changes. The server ignores it until real per-request resolution
-  // lands (WP-D4); harmless to send in the meantime.
-  if (activeGymId) {
-    headers['x-gym-id'] = activeGymId;
+  // Only ever explicit: see the note at the top of this file.
+  const targetGym = options.gymId;
+  if (targetGym) {
+    headers['x-gym-id'] = targetGym;
   }
 
   if (options.body && !(options.body instanceof FormData)) {
@@ -99,17 +83,16 @@ export async function apiFetch(endpoint, options = {}) {
 
   window.dispatchEvent(new CustomEvent('psycle-network-ok'));
 
-  // A 403 naming an unlinked gym means our stored `x-gym-id` is stale — the gym
-  // was unlinked, disabled, or this is a different account on the same browser.
-  // Clear it and let the server fall back to its own resolution, otherwise EVERY
-  // request 403s and the app looks broken while the account is perfectly fine.
-  if (res.status === 403 && activeGymId) {
+  // A 403 naming an unlinked gym means this call asked for a gym the account is
+  // not linked to — it was unlinked, disabled, or this is a different account on
+  // the same browser. With no ambient gym state there is nothing to clear, so
+  // just make the cause obvious in the console and let the caller handle it.
+  if (res.status === 403 && targetGym) {
     const peek = res.clone();
     try {
       const body = await peek.json();
       if (body && /not linked to gym/i.test(body.message || '')) {
-        console.warn(`[API] Stored gym "${activeGymId}" is not linked to this account — clearing it.`);
-        setActiveGymId(null);
+        console.warn(`[API] Gym "${targetGym}" is not linked to this account.`);
       }
     } catch (_) { /* not JSON; leave the 403 to the caller */ }
   }
@@ -165,89 +148,70 @@ export const api = {
     return res.json();
   },
 
-  // CodexFit API Proxy
-  async proxyGet(path, options = {}) {
-    const { ttlMs } = options;
-    debugLog(`GET ${path}`, 'network');
+  // ---- Capability-gated provider extras -------------------------------------
+  // These replaced the raw /api/proxy passthrough (WP-D9). They are features
+  // only some platforms have, but the client still knows nothing about any
+  // provider's URL shape — it names the FEATURE and the server's adapter owns
+  // the path. A gym without the capability answers 501 CAPABILITY_UNSUPPORTED.
+
+  // Purchasable credit packs. `ttlMs` opts into the same SWR cache the old
+  // proxyGet had, since the bundle catalogue changes rarely.
+  async getBundles({ gymId = null, ttlMs } = {}) {
+    debugLog('GET /api/bundles', 'network');
     if (ttlMs) {
-      const result = await getCachedSWR(`/api/proxy${path}`, { ttlMs, fetcher: apiFetch });
+      const result = await getCachedSWR('/api/bundles', { ttlMs, fetcher: (u, o) => apiFetch(u, { ...o, gymId }) });
       return result.data;
     }
-    const res = await apiFetch(`/api/proxy${path}`);
+    const res = await apiFetch('/api/bundles', { gymId });
     if (!res.ok) {
       const err = await res.json().catch(() => ({}));
-      throw new Error(err.message || `Proxy GET failed: ${res.status}`);
+      throw new Error(err.message || `Failed to load bundles: ${res.status}`);
     }
     return res.json();
   },
 
-  async proxyPost(path, body) {
-    debugLog(`POST ${path}`, 'network');
-    const res = await apiFetch(`/api/proxy${path}`, {
+  // Add or remove a saved-class bookmark. `identifier` is the provider's own
+  // bookmark key, round-tripped verbatim — the client never composes it into a
+  // path. Returns nothing useful; throws on failure.
+  async setBookmark(identifier, on, gymId = null) {
+    debugLog(`${on ? 'PUT' : 'DELETE'} /api/bookmarks/${identifier}`, 'network');
+    const res = await apiFetch(`/api/bookmarks/${encodeURIComponent(identifier)}`, {
+      method: on ? 'PUT' : 'DELETE',
+      gymId,
+    });
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({}));
+      throw new Error(err.message || `Failed to update bookmark: ${res.status}`);
+    }
+    // The profile carries the bookmark list, so a stale cached profile would
+    // re-render the heart in its old state.
+    await invalidateApiCache('/api/profile').catch(() => {});
+    return true;
+  },
+
+  // Profile Explorer's hidden edit mode. No normal flow calls this.
+  async updateProfileFields(payload, gymId = null) {
+    debugLog('POST /api/profile/update', 'network');
+    const res = await apiFetch('/api/profile/update', {
       method: 'POST',
-      body: JSON.stringify(body)
+      body: JSON.stringify(payload),
+      gymId,
     });
     if (!res.ok) {
       const err = await res.json().catch(() => ({}));
-      throw new Error(err.message || `Proxy POST failed: ${res.status}`);
+      throw new Error(err.message || `Failed to update profile: ${res.status}`);
     }
-    await invalidateProxyCache(path);
-    return res.json();
-  },
-
-  async proxyDelete(path) {
-    debugLog(`DELETE ${path}`, 'network');
-    const res = await apiFetch(`/api/proxy${path}`, {
-      method: 'DELETE'
-    });
-    if (!res.ok) {
-      const err = await res.json().catch(() => ({}));
-      throw new Error(err.message || `Proxy DELETE failed: ${res.status}`);
-    }
-    await invalidateProxyCache(path);
-    // CodexFit DELETEs (e.g. bookmark removal) often return 200/204 with an
-    // empty or non-JSON body. The extension deliberately ignores the body;
-    // we must too — calling res.json() on an empty body throws SyntaxError,
-    // which would prevent refreshUserData() from running and leave the UI
-    // showing the stale (still-bookmarked) state.
-    if (res.status === 204) return {};
-    try {
-      return await res.json();
-    } catch {
-      return {};
-    }
-  },
-
-  async proxyPut(path, body = {}) {
-    debugLog(`PUT ${path}`, 'network');
-    const res = await apiFetch(`/api/proxy${path}`, {
-      method: 'PUT',
-      body: JSON.stringify(body)
-    });
-    if (!res.ok) {
-      const err = await res.json().catch(() => ({}));
-      throw new Error(err.message || `Proxy PUT failed: ${res.status}`);
-    }
-    await invalidateProxyCache(path);
-    // Some CodexFit PUTs (e.g. bookmark add) may return an empty or non-JSON
-    // body — tolerate it so the caller's await doesn't throw and block the
-    // subsequent refreshUserData() / re-render.
-    try {
-      return await res.json();
-    } catch {
-      return {};
-    }
+    await invalidateApiCache('/api/profile').catch(() => {});
+    return res.json().catch(() => ({}));
   },
 
   // ---- Normalized gym-agnostic API (WP-C1) ----------------------------------
   // New surface backed by server/routes-normalized.js (provider adapters).
   // Returns NormalizedEvent / NormalizedSlot / NormalizedProfile /
   // NormalizedBookingResult shapes (see server/providers/base.js), independent
-  // of the underlying gym platform. The legacy proxyGet/Post/... methods above
-  // still back the live Psycle UI; modules migrate onto these incrementally
-  // (WP-C1/N2), keeping the proxy shim during the transition. Do NOT rip out
-  // the proxy methods until every caller has moved and the real app is verified
-  // end-to-end in a browser (see AGENT_INSTRUCTIONS §7).
+  // of the underlying gym platform. The raw /api/proxy passthrough this
+  // replaced is gone (WP-D9) — there is no longer any path by which the client
+  // can name a provider's own URL.
 
   // Public gym registry + capability flags (for the Phase 5 gym picker).
   async getGyms() {
@@ -259,27 +223,17 @@ export const api = {
 
   // The gyms THIS account is linked to, plus which one is currently active.
   // `getGyms()` above is the public catalogue of everything configured; this is
-  // the per-account view the switcher renders from.
+  // the per-account view Settings → Your Gyms renders from.
   async getMyGyms() {
     const res = await apiFetch('/api/my-gyms');
     if (!res.ok) throw new Error('Failed to load your gyms');
     return res.json(); // { gyms: [...], activeGymId }
   },
 
-  // Persist the user's gym choice server-side AND locally — the server resolves
-  // sessions/credentials from its copy, the local one sets the `x-gym-id` header
-  // on subsequent requests. Both must move together or the next request asks for
-  // one gym while the server believes another is active.
-  async setActiveGym(gymId) {
-    const res = await apiFetch('/api/my-gyms/active', {
-      method: 'POST',
-      body: JSON.stringify({ gymId }),
-    });
-    const data = await res.json();
-    if (!res.ok) throw new Error(data.message || 'Could not switch gym');
-    setActiveGymId(data.activeGymId);
-    return data.activeGymId;
-  },
+  // NOTE: `setActiveGym()` used to live here and is deliberately gone, along
+  // with the switcher it served. `POST /api/my-gyms/active` still exists
+  // server-side for the persisted default that background cron resolves from —
+  // but nothing user-facing chooses a gym any more.
 
   // Link a new gym, or re-authenticate one whose stored password went stale.
   // Same endpoint for both (see auth.linkGymAccount).
@@ -319,17 +273,59 @@ export const api = {
     const qs = new URLSearchParams();
     if (params.startDate) qs.set('startDate', params.startDate);
     if (params.endDate) qs.set('endDate', params.endDate);
+    // `refresh: true` reaches past the SHARED server cache to the provider.
+    // Only the explicit refresh control sets it — an automatic refresh on every
+    // render would make the cache pointless, which is how it ended up absent.
+    if (params.refresh) qs.set('refresh', '1');
     const suffix = qs.toString() ? `?${qs}` : '';
-    const endpoint = `/api/timetable${suffix}`;
-    debugLog(`GET ${endpoint}`, 'network');
-    if (params.ttlMs) {
-      const result = await getCachedSWR(endpoint, { ttlMs: params.ttlMs, fetcher: apiFetch });
-      return (result.data && result.data.events) || [];
+
+    if (params.gymId) {
+      const res = await apiFetch(`/api/timetable${suffix}`, { gymId: params.gymId });
+      if (!res.ok) throw new Error('Failed to load timetable');
+      const data = await res.json();
+      return (data.events || []).map((ev) => ({ ...ev, gymId: ev.gymId || params.gymId }));
     }
-    const res = await apiFetch(endpoint);
-    if (!res.ok) throw new Error('Failed to load timetable');
-    const data = await res.json();
-    return data.events || [];
+
+    const myGymsRes = await this.getMyGyms().catch(() => ({ gyms: [] }));
+    const linked = myGymsRes.gyms || [];
+
+    if (linked.length <= 1) {
+      const endpoint = `/api/timetable${suffix}`;
+      debugLog(`GET ${endpoint}`, 'network');
+      const res = await apiFetch(endpoint);
+      if (!res.ok) throw new Error('Failed to load timetable');
+      const data = await res.json();
+      const gymId = linked[0]?.gym_id || 'psycle-london';
+      const gymName = linked[0]?.gym_name || linked[0]?.name || 'Psycle';
+      return (data.events || []).map((ev) => ({
+        ...ev,
+        gymId: ev.gymId || gymId,
+        gymName: ev.gymName || gymName,
+      }));
+    }
+
+    // Parallel multi-gym query across all linked gyms
+    const results = await Promise.all(
+      linked.map(async (g) => {
+        const gymId = g.gym_id || g.gymId || g.id;
+        const gName = g.gym_name || g.name || gymId;
+        try {
+          const res = await apiFetch(`/api/timetable${suffix}`, { gymId });
+          if (!res.ok) return [];
+          const data = await res.json();
+          return (data.events || []).map((ev) => ({
+            ...ev,
+            gymId: ev.gymId || gymId,
+            gymName: ev.gymName || gName,
+          }));
+        } catch (_) {
+          return [];
+        }
+      })
+    );
+    const allEvents = results.flat();
+    allEvents.sort((a, b) => new Date(a.startAt || a.start_at) - new Date(b.startAt || b.start_at));
+    return allEvents;
   },
 
   // The four timetable filter lists, gym-agnostic (WP-D9). Replaces four raw
@@ -340,21 +336,93 @@ export const api = {
     const qs = new URLSearchParams();
     if (params.startDate) qs.set('startDate', params.startDate);
     if (params.endDate) qs.set('endDate', params.endDate);
-    const endpoint = `/api/metadata${qs.toString() ? `?${qs}` : ''}`;
-    debugLog(`GET ${endpoint}`, 'network');
-    if (params.ttlMs) {
-      const result = await getCachedSWR(endpoint, { ttlMs: params.ttlMs, fetcher: apiFetch });
-      return result.data || { locations: [], studios: [], instructors: [], classTypes: [] };
+    // `refresh: true` reaches past the SHARED server cache to the provider.
+    // Only the explicit refresh control sets it — an automatic refresh on every
+    // render would make the cache pointless, which is how it ended up absent.
+    if (params.refresh) qs.set('refresh', '1');
+    const suffix = qs.toString() ? `?${qs}` : '';
+
+    if (params.gymId) {
+      const res = await apiFetch(`/api/metadata${suffix}`, { gymId: params.gymId });
+      if (!res.ok) throw new Error('Failed to load timetable metadata');
+      const data = await res.json();
+      const withGym = (items) => (items || []).map(item => ({ ...item, gymId: params.gymId }));
+      return {
+        locations: withGym(data.locations),
+        studios: withGym(data.studios),
+        instructors: withGym(data.instructors),
+        eventTypes: withGym(data.eventTypes),
+      };
     }
-    const res = await apiFetch(endpoint);
-    if (!res.ok) throw new Error('Failed to load timetable metadata');
-    return res.json();
+
+    const myGymsRes = await this.getMyGyms().catch(() => ({ gyms: [] }));
+    const linked = myGymsRes.gyms || [];
+
+    if (linked.length <= 1) {
+      const res = await apiFetch(`/api/metadata${suffix}`);
+      if (!res.ok) throw new Error('Failed to load timetable metadata');
+      const data = await res.json();
+      const gymId = linked[0]?.gym_id || 'psycle-london';
+      const gymName = linked[0]?.gym_name || linked[0]?.name || 'Psycle';
+      return {
+        locations: (data.locations || []).map((l) => ({ ...l, gymId, gymName })),
+        studios: (data.studios || []).map((s) => ({ ...s, gymId, gymName })),
+        instructors: (data.instructors || []).map((i) => ({ ...i, gymId, gymName })),
+        eventTypes: (data.eventTypes || []).map((t) => ({ ...t, gymId, gymName })),
+      };
+    }
+
+    const results = await Promise.all(
+      linked.map(async (g) => {
+        const gymId = g.gym_id || g.gymId || g.id;
+        const gName = g.gym_name || g.name || gymId;
+        try {
+          const res = await apiFetch(`/api/metadata${suffix}`, { gymId });
+          if (!res.ok) return null;
+          const data = await res.json();
+          return { gymId, gymName: gName, ...data };
+        } catch (_) {
+          return null;
+        }
+      })
+    );
+
+    const locations = [];
+    const studios = [];
+    const instructors = [];
+    const eventTypes = [];
+
+    const locIds = new Set();
+    const studioIds = new Set();
+    const instrIds = new Set();
+    const typeIds = new Set();
+
+    results.filter(Boolean).forEach((meta) => {
+      (meta.locations || []).forEach((l) => {
+        const key = `${meta.gymId}:${l.id}`;
+        if (!locIds.has(key)) { locIds.add(key); locations.push({ ...l, gymId: meta.gymId, gymName: meta.gymName }); }
+      });
+      (meta.studios || []).forEach((s) => {
+        const key = `${meta.gymId}:${s.id}`;
+        if (!studioIds.has(key)) { studioIds.add(key); studios.push({ ...s, gymId: meta.gymId, gymName: meta.gymName }); }
+      });
+      (meta.instructors || []).forEach((i) => {
+        const key = `${meta.gymId}:${i.id}`;
+        if (!instrIds.has(key)) { instrIds.add(key); instructors.push({ ...i, gymId: meta.gymId, gymName: meta.gymName }); }
+      });
+      (meta.eventTypes || []).forEach((t) => {
+        const key = `${meta.gymId}:${t.id}`;
+        if (!typeIds.has(key)) { typeIds.add(key); eventTypes.push({ ...t, gymId: meta.gymId, gymName: meta.gymName }); }
+      });
+    });
+
+    return { locations, studios, instructors, eventTypes };
   },
 
   // Returns { event: NormalizedEvent, slots: NormalizedSlot[] } (slots [] for FCFS).
-  async getEventDetails(eventId) {
+  async getEventDetails(eventId, gymId = null) {
     debugLog(`GET /api/events/${eventId}`, 'network');
-    const res = await apiFetch(`/api/events/${encodeURIComponent(eventId)}`);
+    const res = await apiFetch(`/api/events/${encodeURIComponent(eventId)}`, { gymId });
     if (!res.ok) throw new Error('Failed to load event details');
     return res.json();
   },
@@ -363,19 +431,20 @@ export const api = {
   // GymProvider.fetchStudioLayout doc comment; not an error case).
   // Returns { slots: NormalizedSlot[], objects: NormalizedLayoutObject[] }.
   // Empty `slots` means "no floor map available for this studio", not an error.
-  async getStudioLayout(studioId) {
+  async getStudioLayout(studioId, gymId = null) {
     debugLog(`GET /api/studios/${studioId}/layout`, 'network');
-    const res = await apiFetch(`/api/studios/${encodeURIComponent(studioId)}/layout`);
+    const res = await apiFetch(`/api/studios/${encodeURIComponent(studioId)}/layout`, { gymId });
     if (!res.ok) throw new Error('Failed to load studio layout');
     const data = await res.json();
     return { slots: data.slots || [], objects: data.objects || [] };
   },
 
   // Returns a NormalizedBookingResult { ok, bookingId, slotId, error?, status? }.
-  async book(eventId, slotIds = []) {
+  async book(eventId, slotIds = [], gymId = null) {
     const res = await apiFetch('/api/book', {
       method: 'POST',
-      body: JSON.stringify({ eventId, slotIds })
+      body: JSON.stringify({ eventId, slotIds }),
+      gymId,
     });
     return res.json();
   },
@@ -387,8 +456,8 @@ export const api = {
   //
   // `book` deliberately does NOT throw — a decline there carries information the
   // caller needs (which spot, why), so it returns a NormalizedBookingResult.
-  async _command(endpoint, body, whatFailed) {
-    const res = await apiFetch(endpoint, { method: 'POST', body: JSON.stringify(body) });
+  async _command(endpoint, body, whatFailed, gymId = null) {
+    const res = await apiFetch(endpoint, { method: 'POST', body: JSON.stringify(body), gymId });
     const data = await res.json().catch(() => ({}));
     if (!res.ok || data.ok === false) {
       throw new Error(data.message || data.error || `${whatFailed} failed`);
@@ -396,29 +465,30 @@ export const api = {
     return data;
   },
 
-  async cancel(bookingId) {
-    return this._command('/api/cancel', { bookingId }, 'Cancelling');
+  async cancel(bookingId, gymId = null) {
+    return this._command('/api/cancel', { bookingId }, 'Cancelling', gymId);
   },
 
   // Returns { isPenalty, message? } — prefer provider truth over client window math.
-  async getCancelPenalty(bookingId) {
-    const res = await apiFetch(`/api/cancel-penalty/${encodeURIComponent(bookingId)}`);
+  async getCancelPenalty(bookingId, gymId = null) {
+    const res = await apiFetch(`/api/cancel-penalty/${encodeURIComponent(bookingId)}`, { gymId });
     if (!res.ok) throw new Error('Failed to check cancel penalty');
     return res.json();
   },
 
-  async joinWaitlist(eventId) {
-    return this._command('/api/waitlist/join', { eventId }, 'Joining the waitlist');
+  async joinWaitlist(eventId, gymId = null) {
+    return this._command('/api/waitlist/join', { eventId }, 'Joining the waitlist', gymId);
   },
 
-  async leaveWaitlist(eventId) {
-    return this._command('/api/waitlist/leave', { eventId }, 'Leaving the waitlist');
+  async leaveWaitlist(eventId, gymId = null) {
+    return this._command('/api/waitlist/leave', { eventId }, 'Leaving the waitlist', gymId);
   },
 
-  async swapSpot(bookingId, currentSlotId, targetSlotId) {
+  async swapSpot(bookingId, currentSlotId, targetSlotId, gymId = null) {
     const res = await apiFetch('/api/swap', {
       method: 'POST',
-      body: JSON.stringify({ bookingId, currentSlotId, targetSlotId })
+      body: JSON.stringify({ bookingId, currentSlotId, targetSlotId }),
+      gymId,
     });
     return res.json(); // NormalizedBookingResult
   },
@@ -429,31 +499,181 @@ export const api = {
   // not already inline). bookings.js's renderBookings() is the first caller.
   async getBookings() {
     debugLog('GET /api/bookings', 'network');
-    const res = await apiFetch('/api/bookings');
-    if (!res.ok) throw new Error('Failed to load bookings');
-    const data = await res.json();
-    return data.bookings || [];
+    const myGymsRes = await this.getMyGyms().catch(() => ({ gyms: [] }));
+    const linked = myGymsRes.gyms || [];
+    if (linked.length <= 1) {
+      const res = await apiFetch('/api/bookings');
+      if (!res.ok) throw new Error('Failed to load bookings');
+      const data = await res.json();
+      const gymId = linked[0]?.gym_id || 'psycle-london';
+      const gymName = linked[0]?.gym_name || linked[0]?.name || 'Psycle';
+      return (data.bookings || []).map((b) => ({
+        ...b,
+        gymId: b.gymId || gymId,
+        gymName: b.gymName || gymName,
+        event: b.event ? { ...b.event, gymId: b.event.gymId || gymId, gymName: b.event.gymName || gymName } : b.event,
+      }));
+    }
+
+    const results = await Promise.all(
+      linked.map(async (g) => {
+        const gymId = g.gym_id || g.gymId || g.id;
+        const gName = g.gym_name || g.name || gymId;
+        try {
+          const res = await apiFetch('/api/bookings', { gymId });
+          if (!res.ok) return [];
+          const data = await res.json();
+          return (data.bookings || []).map((b) => ({
+            ...b,
+            gymId: b.gymId || gymId,
+            gymName: b.gymName || gName,
+            event: b.event ? { ...b.event, gymId: b.event.gymId || gymId, gymName: b.event.gymName || gName } : b.event,
+          }));
+        } catch (_) {
+          return [];
+        }
+      })
+    );
+    const all = results.flat();
+    all.sort((a, b) => new Date(a.event?.startAt || a.event?.start_at || a.start_at || 0) - new Date(b.event?.startAt || b.event?.start_at || b.start_at || 0));
+    return all;
   },
 
   async getWaitlists() {
     debugLog('GET /api/waitlists', 'network');
-    const res = await apiFetch('/api/waitlists');
-    if (!res.ok) throw new Error('Failed to load waitlists');
-    const data = await res.json();
-    return data.waitlists || [];
+    const myGymsRes = await this.getMyGyms().catch(() => ({ gyms: [] }));
+    const linked = myGymsRes.gyms || [];
+    if (linked.length <= 1) {
+      const res = await apiFetch('/api/waitlists');
+      if (!res.ok) throw new Error('Failed to load waitlists');
+      const data = await res.json();
+      const gymId = linked[0]?.gym_id || 'psycle-london';
+      const gymName = linked[0]?.gym_name || linked[0]?.name || 'Psycle';
+      return (data.waitlists || []).map((w) => ({
+        ...w,
+        gymId: w.gymId || gymId,
+        gymName: w.gymName || gymName,
+        event: w.event ? { ...w.event, gymId: w.event.gymId || gymId, gymName: w.event.gymName || gymName } : w.event,
+      }));
+    }
+
+    const results = await Promise.all(
+      linked.map(async (g) => {
+        const gymId = g.gym_id || g.gymId || g.id;
+        const gName = g.gym_name || g.name || gymId;
+        try {
+          const res = await apiFetch('/api/waitlists', { gymId });
+          if (!res.ok) return [];
+          const data = await res.json();
+          return (data.waitlists || []).map((w) => ({
+            ...w,
+            gymId: w.gymId || gymId,
+            gymName: w.gymName || gName,
+            event: w.event ? { ...w.event, gymId: w.event.gymId || gymId, gymName: w.event.gymName || gName } : w.event,
+          }));
+        } catch (_) {
+          return [];
+        }
+      })
+    );
+    const all = results.flat();
+    all.sort((a, b) => new Date(a.event?.startAt || a.event?.start_at || a.start_at || 0) - new Date(b.event?.startAt || b.event?.start_at || b.start_at || 0));
+    return all;
   },
 
-  async getNormalizedProfile() {
-    const res = await apiFetch('/api/profile');
+  // "Can this account book at all" (WP-J) — distinct from credit arithmetic,
+  // which answers "can it afford THIS class".
+  async getEligibility(gymId = null) {
+    const res = await apiFetch('/api/eligibility', { gymId });
+    if (!res.ok) throw new Error('Failed to load eligibility');
+    return res.json();
+  },
+
+  // Eligibility for EVERY linked gym, keyed by gym id. A merged list needs each
+  // row's own gym's answer: one gym being ineligible (no credits, lapsed
+  // membership) must not disable booking on another gym's classes.
+  async getEligibilityByGym() {
+    const myGymsRes = await this.getMyGyms().catch(() => ({ gyms: [] }));
+    const linked = myGymsRes.gyms || [];
+    const entries = await Promise.all(
+      linked.map(async (g) => {
+        const gymId = g.gym_id || g.gymId || g.id;
+        try { return [gymId, await this.getEligibility(gymId)]; }
+        catch (_) { return [gymId, null]; }
+      })
+    );
+    return Object.fromEntries(entries);
+  },
+
+  // Membership changes on renewal, not between page views, so it rides the same
+  // IndexedDB SWR cache as every other GET. Without a TTL the Credits &
+  // Membership tab re-fetched one provider call PER GYM on every visit, which is
+  // why it took seconds to show data that had not changed since the last look.
+  async getMembership(gymId = null, { ttlMs = 10 * 60 * 1000 } = {}) {
+    const url = gymId ? `/api/membership?gymId=${encodeURIComponent(gymId)}` : '/api/membership';
+    const result = await getCachedSWR(url, {
+      ttlMs,
+      fetcher: (u, o) => apiFetch(u.split('?')[0], { ...o, gymId }),
+    });
+    const data = result.data || {};
+    return data.membership || null;
+  },
+
+  // One normalized membership result per linked gym. A credit-based gym
+  // contributes null; one provider failing does not blank the other sections.
+  async getMembershipsByGym() {
+    const myGymsRes = await this.getMyGyms().catch(() => ({ gyms: [] }));
+    const linked = myGymsRes.gyms || [];
+    const entries = await Promise.all(linked.map(async (g) => {
+      const gymId = g.gym_id || g.gymId || g.id;
+      try {
+        return [gymId, await this.getMembership(gymId)];
+      } catch (_) {
+        return [gymId, null];
+      }
+    }));
+    return Object.fromEntries(entries);
+  },
+
+  async getNormalizedProfile(gymId = null) {
+    const res = await apiFetch('/api/profile', { gymId });
     if (!res.ok) throw new Error('Failed to load profile');
     return res.json();
   },
 
-  async getNormalizedCredits() {
-    const res = await apiFetch('/api/credits');
-    if (!res.ok) throw new Error('Failed to load credits');
-    const data = await res.json();
-    return data.credits || [];
+  // Cached with a SHORT ttl: a balance changes when you book or a purchase
+  // lands, so it must not be as stale as membership — but re-fetching it per
+  // gym on every tab visit is what made Credits & Membership take seconds.
+  // Booking invalidates it explicitly (see invalidateApiCache callers).
+  async getNormalizedCredits(gymId = null, { ttlMs = 60 * 1000 } = {}) {
+    const url = gymId ? `/api/credits?gymId=${encodeURIComponent(gymId)}` : '/api/credits';
+    const result = await getCachedSWR(url, {
+      ttlMs,
+      fetcher: (u, o) => apiFetch(u.split('?')[0], { ...o, gymId }),
+    });
+    return (result.data && result.data.credits) || [];
+  },
+
+  // Per-gym credit inventories, one call per linked gym. `/api/credits` (above)
+  // only ever answers for the currently active gym — the header shows one badge
+  // per linked gym, so it needs one balance per linked gym, not the active
+  // gym's balance repeated under every badge (the bug this method exists to fix).
+  // Returns { [gymId]: NormalizedCredit[] }; a gym whose fetch fails contributes
+  // an empty array rather than failing the whole call.
+  async getCreditsByGym() {
+    const myGymsRes = await this.getMyGyms().catch(() => ({ gyms: [] }));
+    const linked = myGymsRes.gyms || [];
+    const entries = await Promise.all(
+      linked.map(async (g) => {
+        const gymId = g.gym_id || g.gymId || g.id;
+        try {
+          return [gymId, await this.getNormalizedCredits(gymId)];
+        } catch (_) {
+          return [gymId, []];
+        }
+      })
+    );
+    return Object.fromEntries(entries);
   },
 
   // Auto-Book Queue
@@ -525,38 +745,95 @@ export const api = {
     return res.json();
   },
 
-  async deleteAutoUpgrade(id) {
+  async deleteAutoUpgrade(id, gymId = null) {
     const res = await apiFetch(`/api/auto-upgrade/${id}`, {
-      method: 'DELETE'
+      method: 'DELETE',
+      gymId,
     });
     if (res.ok) invalidateApiCache('/api/auto-upgrade').catch(() => {});
     return res.json();
   },
 
   // Settings & Preferences
-  async getSettings() {
+  async getSettings(gymId = null) {
+    if (gymId) {
+      const res = await apiFetch('/api/settings', { gymId });
+      if (!res.ok) throw new Error('Failed to load settings');
+      return res.json();
+    }
     const result = await getCachedSWR('/api/settings', { ttlMs: 300000, fetcher: apiFetch });
     return result.data;
   },
 
-  async updateSettings(settings) {
+  async updateSettings(settings, gymId = null) {
     const res = await apiFetch('/api/settings', {
       method: 'PUT',
-      body: JSON.stringify(settings)
+      body: JSON.stringify(settings),
+      gymId,
     });
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({}));
+      throw new Error(err.message || 'Failed to save settings');
+    }
     if (res.ok) invalidateApiCache('/api/settings').catch(() => {});
     return res.json();
   },
 
-  async getStudioPreferences() {
-    const result = await getCachedSWR('/api/studio-preferences', { ttlMs: 300000, fetcher: apiFetch });
-    return result.data;
+  // Spot-map preferences were never fanned out across linked gyms (found
+  // 2026-09-02, alongside the metadata-collision bugs) — `/api/studio-
+  // preferences` resolves to whichever gym is currently ACTIVE server-side,
+  // so a merged multi-gym view reading `prefs[studioId]` for a non-active
+  // gym's studio got either nothing or (worse, on an id collision) the
+  // active gym's preference for an unrelated studio. Fans out like getBookings/
+  // getCreditsByGym. The returned object carries BOTH the bare `studioId` key
+  // (back-compat for n=1 / single-gym contexts that don't have a gymId to
+  // hand) and a `${gymId}:${studioId}` key — callers with a gymId in scope
+  // should prefer the qualified key.
+  async getStudioPreferences(gymId = null) {
+    if (gymId) {
+      const res = await apiFetch('/api/studio-preferences', { gymId });
+      if (!res.ok) throw new Error('Failed to load studio preferences');
+      const data = await res.json();
+      const scoped = {};
+      Object.entries(data || {}).forEach(([studioId, prefs]) => {
+        scoped[studioId] = prefs;
+        scoped[`${gymId}:${studioId}`] = prefs;
+      });
+      return scoped;
+    }
+    const myGymsRes = await this.getMyGyms().catch(() => ({ gyms: [] }));
+    const linked = myGymsRes.gyms || [];
+    if (linked.length <= 1) {
+      const result = await getCachedSWR('/api/studio-preferences', { ttlMs: 300000, fetcher: apiFetch });
+      return result.data;
+    }
+    const results = await Promise.all(
+      linked.map(async (g) => {
+        const gymId = g.gym_id || g.gymId || g.id;
+        try {
+          const res = await apiFetch('/api/studio-preferences', { gymId });
+          if (!res.ok) return null;
+          return { gymId, data: await res.json() };
+        } catch (_) {
+          return null;
+        }
+      })
+    );
+    const merged = {};
+    results.filter(Boolean).forEach(({ gymId, data }) => {
+      Object.entries(data || {}).forEach(([studioId, prefs]) => {
+        merged[studioId] = prefs; // back-compat bare key — last gym processed wins, same as before this fix
+        merged[`${gymId}:${studioId}`] = prefs;
+      });
+    });
+    return merged;
   },
 
-  async updateStudioPreferences(studioId, preferences) {
+  async updateStudioPreferences(studioId, preferences, gymId = null) {
     const res = await apiFetch(`/api/studio-preferences/${studioId}`, {
       method: 'PUT',
-      body: JSON.stringify({ preferences })
+      body: JSON.stringify({ preferences }),
+      gymId,
     });
     if (res.ok) invalidateApiCache('/api/studio-preferences').catch(() => {});
     return res.json();
@@ -638,28 +915,38 @@ export const api = {
   },
 
   // Calendar feed
-  async getCalendarStatus() {
-    const res = await apiFetch('/api/calendar/status');
+  async getCalendarStatus(gymId = null) {
+    const res = await apiFetch('/api/calendar/status', { gymId });
+    if (!res.ok) throw new Error('Failed to load calendar status');
     return res.json();
   },
-  async enableCalendar(opts = {}) {
+  async enableCalendar(opts = {}, gymId = null) {
     const res = await apiFetch('/api/calendar/enable', {
       method: 'POST',
-      body: JSON.stringify(opts)
+      body: JSON.stringify(opts),
+      gymId,
     });
-    return res.json();
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok) throw new Error(data.message || 'Failed to enable calendar');
+    return data;
   },
-  async disableCalendar() {
-    const res = await apiFetch('/api/calendar/disable', { method: 'POST' });
-    return res.json();
+  async disableCalendar(gymId = null) {
+    const res = await apiFetch('/api/calendar/disable', { method: 'POST', gymId });
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok) throw new Error(data.message || 'Failed to disable calendar');
+    return data;
   },
-  async rotateCalendar() {
-    const res = await apiFetch('/api/calendar/rotate', { method: 'POST' });
-    return res.json();
+  async rotateCalendar(gymId = null) {
+    const res = await apiFetch('/api/calendar/rotate', { method: 'POST', gymId });
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok) throw new Error(data.message || 'Failed to rotate calendar');
+    return data;
   },
-  async refreshCalendar() {
-    const res = await apiFetch('/api/calendar/refresh', { method: 'POST' });
-    return res.json();
+  async refreshCalendar(gymId = null) {
+    const res = await apiFetch('/api/calendar/refresh', { method: 'POST', gymId });
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok) throw new Error(data.message || 'Failed to refresh calendar');
+    return data;
   },
 
   // Cart
@@ -682,10 +969,11 @@ export const api = {
   },
 
   // In-app checkout: add bundle (qty times) + fetch saved cards
-  async checkoutInit(bundleId, quantity = 1) {
+  async checkoutInit(bundleId, quantity = 1, gymId = null) {
     const res = await apiFetch(`/api/cart/checkout/init/${bundleId}`, {
       method: 'POST',
-      body: JSON.stringify({ quantity })
+      body: JSON.stringify({ quantity }),
+      gymId,
     });
     if (!res.ok) {
       const err = await res.json().catch(() => ({}));
@@ -696,10 +984,11 @@ export const api = {
 
   // In-app checkout: set card, place order, await Stripe settlement.
   // Returns { status: 'paid' | 'failed' | 'requires_action', orderId, error }
-  async checkoutConfirm(instance, paymentMethodId) {
+  async checkoutConfirm(instance, paymentMethodId, gymId = null) {
     const res = await apiFetch('/api/cart/checkout/confirm', {
       method: 'POST',
-      body: JSON.stringify({ instance, paymentMethodId })
+      body: JSON.stringify({ instance, paymentMethodId }),
+      gymId,
     });
     if (!res.ok) {
       const err = await res.json().catch(() => ({}));

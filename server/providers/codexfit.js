@@ -189,6 +189,62 @@ class CodexFitProvider extends GymProvider {
     });
   }
 
+  /**
+   * "Can this account book at all" for CodexFit: it's a metered gym, so this
+   * collapses to "does this account hold any usable credit" — deliberately
+   * NOT reusing `available_credits` summed elsewhere for PER-CLASS affordance
+   * (getAvailableCreditsForEvent on the client); this is the coarser
+   * account-level question, evaluated the same way (any credit_type with a
+   * positive count) but with no specific class in view.
+   * @param {import('./base').AuthSession} session
+   * @returns {Promise<import('./base').NormalizedEligibility>}
+   */
+  async getEligibility(session) {
+    const res = await this.request('/profile', { token: session.accessToken });
+    if (!res.ok) throw httpError(`getEligibility failed: ${res.status}`, res.status);
+    const u = await res.json();
+    const credits = u.available_credits || [];
+    const total = credits.reduce((sum, c) => sum + (c.count || 0), 0);
+    if (total > 0) return { canBook: true };
+    return { canBook: false, reason: 'No credits available' };
+  }
+
+  /**
+   * Credit inventory, normalized.
+   *
+   * The raw shape is `available_credits: [{ count, credit_type: {id, name},
+   * expires_at }]` — GROUPED entries carrying a count, with the type nested,
+   * and NO sibling `relations.credit_types` bag (unlike /events). The client's
+   * credit-detail modal assumed both the opposite things: a flat `credit_type_id`
+   * and a `relations.credit_types` array to look names up in. It read the latter
+   * off `profile.raw`, defaulted it to `{}` when missing, then called `.find()`
+   * on that object — which is why opening the modal threw
+   * "creditTypes.find is not a function" rather than degrading.
+   *
+   * Normalizing here means the client never sees any of that.
+   */
+  async getCredits(session) {
+    const res = await this.request('/profile', { token: session.accessToken });
+    if (!res.ok) throw httpError(`getCredits failed: ${res.status}`, res.status);
+    const u = await res.json();
+    return (u.available_credits || []).map((c) => ({
+      typeId: c.credit_type && c.credit_type.id != null ? String(c.credit_type.id) : undefined,
+      typeName: (c.credit_type && c.credit_type.name) || 'Credits',
+      count: Number(c.count) || 0,
+      expiresAt: c.expires_at || undefined,
+      // 11 of Psycle's 46 credit types are guest-only ("Guest", "Clapham
+      // Guest", …) and classes DO accept them — for booking a guest in, not
+      // yourself. Counting them toward your own allowance says you can book
+      // when you cannot. Undefined when the profile payload omits the flag;
+      // the client treats undefined as "not guest-only", matching the
+      // unknown-defaults-permissive rule used for capabilities.
+      isGuestOnly: c.credit_type && typeof c.credit_type.is_guest_use_only === 'boolean'
+        ? c.credit_type.is_guest_use_only
+        : undefined,
+      raw: c,
+    }));
+  }
+
   // --- Timetable & layout (WP-N1) --------------------------------------------
   //
   // Field mapping confirmed against server/mock.js's CodexFit fixtures AND (as
@@ -424,7 +480,19 @@ class CodexFitProvider extends GymProvider {
         raw: st,
       })),
       instructors: instructors.map((i) => ({
-        id: i.id, name: i.full_name || i.name, imageUrl: i.image_url || i.photo_url, raw: i,
+        id: i.id, name: i.full_name || i.name,
+        // `photo` is the real field — confirmed 2026-09-02 against a live
+        // capture of GET /instructors. `image_url`/`photo_url` (the previous
+        // mapping) don't exist on the raw object at all, so `imageUrl` was
+        // silently undefined for every Psycle instructor since this was
+        // written — nothing threw, the tooltip just fell back to its
+        // initial-letter placeholder. Bio/Instagram/Spotify live under
+        // `metafields` (`description`, `instagram_handle`, `spotify_handle`,
+        // `keywords`) — passed through as-is rather than re-extracted here,
+        // since `tooltips.js` already reads `instructor.metafields?.*` as
+        // its fallback chain (written for this exact shape, just never fed
+        // it before now).
+        imageUrl: i.photo, metafields: i.metafields, raw: i,
       })),
       classTypes: eventTypes.map((t) => ({
         id: t.id, name: t.name, group: t.group && t.group.name, raw: t,
@@ -447,6 +515,26 @@ class CodexFitProvider extends GymProvider {
       event_type: eventType,
       studio: rawStudio ? { ...rawStudio, location } : undefined,
     };
+  }
+
+  /**
+   * Accepted credit-type ids, from whichever of CodexFit's two parallel fields
+   * is populated: `credit_types: [{credit_type: <id>}]` and
+   * `accepted_credits: [{credit_type_id: <id>}]` carry the same ids in
+   * different shapes on the same payload. Read both — a list response and a
+   * detail response do not reliably agree on which one they send.
+   */
+  static acceptedCreditTypeIds(e) {
+    const out = new Set();
+    for (const c of (e.credit_types || [])) {
+      const id = c && (c.credit_type != null ? c.credit_type : c.id);
+      if (id != null) out.add(String(typeof id === 'object' ? id.id : id));
+    }
+    for (const c of (e.accepted_credits || [])) {
+      const id = c && (c.credit_type_id != null ? c.credit_type_id : c.id);
+      if (id != null) out.add(String(id));
+    }
+    return [...out];
   }
 
   mapEventToNormalized(e) {
@@ -479,6 +567,18 @@ class CodexFitProvider extends GymProvider {
       waitlistAvailable: e.is_waitlistable !== false && e.waitlist_available !== false && !e.is_waitlist_full,
       alwaysBookable: e.is_always_bookable,
       layoutFormat: 'pick-a-spot', // CodexFit has no FCFS-equivalent per research
+      // What this class costs and which credit types it accepts. CONFIRMED live
+      // 2026-09-14 against psyclelondon.com's public /events: every event
+      // carries `required_credits` (698 of 705 were 1, but 4 were 2 and 3 were
+      // 0) and `credit_types` / `accepted_credits` listing the accepted type
+      // ids, which differ per class — a Ride-only credit is accepted by ride
+      // classes and refused elsewhere.
+      //
+      // Both fields existed all along and neither was normalized, so the client
+      // asked "do you hold ANY credits at all" instead. That answers the wrong
+      // question in both directions: bookable when you cannot afford a 2-credit
+      // class, and blocked when you hold the wrong type.
+      credits: creditRequirementFrom(e),
       raw: e,
     });
   }
@@ -660,6 +760,74 @@ class CodexFitProvider extends GymProvider {
     }
     return rebookResult;
   }
+
+  // --- Capability-gated extras (see base.js) --------------------------------
+
+  /**
+   * GET /bundles returns the by-reference envelope `{ data, relations }` like
+   * /events does. The bundle_type relations carry the handles the client's
+   * category filters key off, so both halves are returned.
+   */
+  async listBundles(session) {
+    const res = await this.request('/bundles', { token: session.accessToken });
+    if (!res.ok) {
+      const err = new Error(`Failed to load bundles (HTTP ${res.status})`);
+      err.status = res.status;
+      throw err;
+    }
+    const data = await res.json().catch(() => ({}));
+    return {
+      bundles: data.data || [],
+      bundleTypes: (data.relations && data.relations.bundle_types) || undefined,
+    };
+  }
+
+  /**
+   * CodexFit stores bookmarks as profile metafields under
+   * `bookmarks.events.<identifier>`. The path shape is this adapter's business
+   * — the client passes the identifier only.
+   *
+   * DELETE on a metafield answers with `content-type: application/json` and an
+   * empty body, so the response is never parsed; only `res.ok` is meaningful.
+   */
+  async setBookmark(identifier, on, session) {
+    const path = `/profile/metafields/bookmarks.events.${identifier}`;
+    const res = on
+      ? await this.request(path, { token: session.accessToken, method: 'PUT', body: { data: identifier } })
+      : await this.request(path, { token: session.accessToken, method: 'DELETE' });
+    if (!res.ok) {
+      const err = new Error(`Failed to update bookmark (HTTP ${res.status})`);
+      err.status = res.status;
+      throw err;
+    }
+    return true;
+  }
+
+  async updateProfile(payload, session) {
+    const res = await this.request('/account/update', { token: session.accessToken, method: 'POST', body: payload });
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok) {
+      const err = new Error(data.message || `Failed to update profile (HTTP ${res.status})`);
+      err.status = res.status;
+      throw err;
+    }
+    return data;
+  }
+}
+
+/**
+ * `{ required, acceptedTypeIds }` for a raw CodexFit event, or undefined when
+ * the payload says nothing about credits (so the client can tell "free" from
+ * "not applicable").
+ */
+function creditRequirementFrom(e) {
+  const hasCost = e.required_credits != null;
+  const ids = CodexFitProvider.acceptedCreditTypeIds(e);
+  if (!hasCost && ids.length === 0) return undefined;
+  return {
+    required: hasCost ? Number(e.required_credits) : 1,
+    acceptedTypeIds: ids,
+  };
 }
 
 module.exports = CodexFitProvider;

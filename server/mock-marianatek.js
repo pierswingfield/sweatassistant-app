@@ -30,13 +30,39 @@ const LOCATION = {
 const INSTRUCTORS = [
   { id: '7197', name: 'George Davies', photo_urls: { thumbnail_url: null } },
   { id: '6255', name: 'Nickol', photo_urls: { thumbnail_url: null } },
+  { id: '6301', name: 'Aaron Reid', photo_urls: { thumbnail_url: null } },
+  { id: '6412', name: 'Simi', photo_urls: { thumbnail_url: null } },
+  { id: '6580', name: 'Leila Haddad', photo_urls: { thumbnail_url: null } },
 ];
 
 const CLASS_TYPES = {
   boxing: { id: '6266', name: 'BOXING Core & Power', duration: 60, duration_formatted: '60 minutes' },
   train: { id: '5898', name: 'TRAIN - Core & Glutes', duration: 50, duration_formatted: '50 minutes' },
   recovery: { id: '6301', name: 'RECOVERY (Members)', duration: 30, duration_formatted: '30 minutes' },
+  fundamentals: { id: '6410', name: 'BOXING Fundamentals', duration: 45, duration_formatted: '45 minutes' },
+  conditioning: { id: '6411', name: 'TRAIN - Full Body Conditioning', duration: 45, duration_formatted: '45 minutes' },
+  sparring: { id: '6412', name: 'BOXING Technical Sparring', duration: 60, duration_formatted: '60 minutes' },
 };
+
+// [hh:mm, classType, classroom, layoutFormat] — a real JAB day runs an early
+// block, a lunchtime express and an evening block, which is what makes the
+// merged Psycle+JAB timetable interleave the way a real one would.
+const WEEKDAY_SCHEDULE = [
+  ['06:30', CLASS_TYPES.boxing, 'BOXING', 'pick-a-spot'],
+  ['07:30', CLASS_TYPES.train, 'TRAIN', 'pick-a-spot'],
+  ['09:00', CLASS_TYPES.fundamentals, 'BOXING', 'pick-a-spot'],
+  ['12:15', CLASS_TYPES.conditioning, 'TRAIN', 'pick-a-spot'],
+  ['17:30', CLASS_TYPES.boxing, 'BOXING', 'pick-a-spot'],
+  ['18:30', CLASS_TYPES.sparring, 'BOXING', 'pick-a-spot'],
+  ['19:00', CLASS_TYPES.train, 'TRAIN', 'pick-a-spot'],
+  ['20:00', CLASS_TYPES.recovery, 'RECOVERY', 'first-come-first-serve'],
+];
+const WEEKEND_SCHEDULE = [
+  ['09:00', CLASS_TYPES.boxing, 'BOXING', 'pick-a-spot'],
+  ['10:00', CLASS_TYPES.fundamentals, 'BOXING', 'pick-a-spot'],
+  ['11:00', CLASS_TYPES.conditioning, 'TRAIN', 'pick-a-spot'],
+  ['12:00', CLASS_TYPES.recovery, 'RECOVERY', 'first-come-first-serve'],
+];
 
 // Pick-a-spot layout — 20 spots (10 bags, 10 ground), same shape family as the
 // real 40-spot layout in class-detail-with-layout.json, just smaller for dev.
@@ -80,24 +106,44 @@ function generateClasses() {
   for (let i = 0; i < 14; i++) {
     const day = new Date(now.getTime() + i * 864e5);
     const iso = day.toISOString().split('T')[0];
+    const dow = day.getDay();
     const bookingStart = new Date(now.getTime() - 864e5).toISOString();
+    const template = (dow === 0 || dow === 6) ? WEEKEND_SCHEDULE : WEEKDAY_SCHEDULE;
 
-    classes.push(mockClass(`${9000 + i * 3}`, CLASS_TYPES.boxing, iso, '09:00:00', 'BOXING', 'pick-a-spot', bookingStart));
-    classes.push(mockClass(`${9001 + i * 3}`, CLASS_TYPES.train, iso, '18:00:00', 'TRAIN', 'pick-a-spot', bookingStart));
-    classes.push(mockClass(`${9002 + i * 3}`, CLASS_TYPES.recovery, iso, '19:00:00', 'RECOVERY', 'first-come-first-serve', bookingStart));
+    template.forEach(([time, classType, room, layoutFormat], slotIdx) => {
+      // Ids stay stable per (day, slot) across reloads — a queued auto-book
+      // pointing at a class that no longer exists is not a state worth testing.
+      classes.push(mockClass(`${9000 + i * 10 + slotIdx}`, classType, iso, `${time}:00`, room, layoutFormat, bookingStart, i * 7 + slotIdx));
+    });
   }
   return classes;
 }
 
-function mockClass(id, classType, dateStr, timeStr, classroomName, layoutFormat, bookingStart) {
+function mockClass(id, classType, dateStr, timeStr, classroomName, layoutFormat, bookingStart, seedIdx = 0) {
   const startDatetime = `${dateStr}T${timeStr}Z`;
   const booked = bookedSpotsFor(id);
   const capacity = layoutFormat === 'pick-a-spot' ? 20 : 100;
+  // Deterministic pre-booked occupancy so the list shows a realistic spread
+  // (some full, some nearly empty) and does not reshuffle on reload.
+  // Offset so the "completely full" case (seed 0) never lands on the FIRST
+  // pick-a-spot class of day 0 — that is the class every suite reaches for, and
+  // a room with no free spot fails them for a reason unrelated to what they test.
+  const seed = (seedIdx + 3) % 10;
+  const preBooked = seed === 0 ? capacity : Math.min(capacity - 1, Math.floor((capacity * (seed + 1)) / 13));
+  // Fill from the BACK of the room forwards (ground-10 → ground-1, then
+  // bag-10 → bag-1), which is both what a real room does and what keeps the
+  // low-numbered spots free — several suites book mock-bag-1/-3 by name, and
+  // pre-booking them turned a realistic mock into two failing tests.
+  if (layoutFormat === 'pick-a-spot') {
+    let remaining = preBooked;
+    for (let n = 10; n >= 1 && remaining > 0; n--, remaining--) booked.add(`mock-ground-${n}`);
+    for (let n = 10; n >= 4 && remaining > 0; n--, remaining--) booked.add(`mock-bag-${n}`);
+  }
   return {
     id, name: classType.name, start_date: dateStr, start_time: timeStr, start_datetime: startDatetime,
     booking_start_datetime: bookingStart, capacity, available_spot_count: capacity - booked.size,
     class_type: classType, classroom: { id: `mock-room-${classroomName}`, name: classroomName },
-    classroom_name: classroomName, instructors: [INSTRUCTORS[id.length % 2]],
+    classroom_name: classroomName, instructors: [INSTRUCTORS[Number(id) % INSTRUCTORS.length]],
     location: LOCATION, layout_format: layoutFormat, is_free_class: false, is_cancelled: false,
     is_user_reserved: false, is_user_waitlisted: false, is_user_guest_reserved: false,
     class_tags: [], waitlist_count: null,

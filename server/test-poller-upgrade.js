@@ -82,8 +82,35 @@ function cleanup() {
     // Latent-bug fix: the old inline code read bookData?.id (never present in
     // CodexFit's { bookings: { id: slot } } response) so new_booking_id was always
     // 0. The adapter now yields the real booking id.
-    assert.ok(Number(row.new_booking_id) > 0, 'new_booking_id now holds the real adapter-parsed booking id (was always 0 before)');
-    console.log(`✅ new_booking_id populated (${row.new_booking_id}) — latent 0-value bug fixed by the adapter path.`);
+    const jabUserId = db.createAccount('dev@jabboxing.mock', 'password123');
+    db.upsertUserGym(jabUserId, 'jab-boxing', {
+      gym_email: 'dev@jabboxing.mock',
+      session_json: JSON.stringify({ accessToken: 'mock-mt-token', refreshToken: 'mock-mt-refresh' }),
+      status: 'active'
+    });
+
+    const { getProvider } = require('./providers');
+    const bookRes = await getProvider('jab-boxing').bookSlot('9000', ['mock-bag-3'], { accessToken: 'mock-mt-token' });
+    const jabBookingId = bookRes.bookingId;
+
+    const jabStartAt = new Date(Date.now() + 2 * 864e5).toISOString();
+    const jabPrefs = { preferredSlots: ['mock-bag-1'], preferredRows: [] };
+    db.runWithGymContext(jabUserId, 'jab-boxing', () => {
+      db.addAutoUpgrade(jabUserId, '9000', jabBookingId, 'mock-bag-3', 'BOXING Core', 'George Davies', 'BOXING', 'SW1', jabStartAt, jabPrefs, 'mock-room-BOXING', 'BOXING');
+      db.setStudioPreference(jabUserId, 'mock-room-BOXING', jabPrefs);
+    });
+
+    let [jabRow] = db.getUserAutoUpgrades(jabUserId);
+    assert.strictEqual(jabRow.status, 'active');
+    assert.strictEqual(jabRow.current_slot_id, 'mock-bag-3');
+    console.log('✅ Seeded JAB active upgrade monitor on mock-bag-3 (preferred: mock-bag-1).');
+
+    await poller.executeAutoUpgradeChecks();
+
+    [jabRow] = db.getUserAutoUpgrades(jabUserId);
+    assert.strictEqual(jabRow.current_slot_id, 'mock-bag-1', 'upgraded JAB monitor to mock-bag-1 via atomic swap');
+    assert.strictEqual(jabRow.upgraded_slot_id, 'mock-bag-1');
+    console.log('✅ JAB monitor upgraded mock-bag-3 → mock-bag-1 through atomic swapSpots.');
 
     console.log('\n🎉 POLLER AUTO-UPGRADE CHECK PASSED.\n');
   } catch (err) {

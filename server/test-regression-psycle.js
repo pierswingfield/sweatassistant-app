@@ -159,45 +159,82 @@ async function run() {
     log('✅ GET /api/auth/status validates the local JWT.');
   }
 
-  // --- 4. Proxy: public read passthrough (mock timetable) --------------------
+  // --- 4. Normalized timetable (relations resolved) ---------------------------
   {
-    const res = await fetch(`${BASE}/api/proxy/events`, authed());
+    const res = await fetch(`${BASE}/api/timetable`, authed());
     const data = await res.json();
     assert.strictEqual(res.status, 200);
-    // The real GET /events returns `{ data, relations }` — events reference
-    // their instructor/event_type/studio by id, and the sibling `relations` bag
-    // carries the entities. The mock mirrors that since 2026-08-31 (it used to
-    // return a bare array with the relations inlined, which was more generous
-    // than reality and hid the "CLASS" discipline regression).
-    const events = Array.isArray(data) ? data : data.data;
-    assert.ok(Array.isArray(events) && events.length > 0, 'mock /events should return classes');
-    assert.ok(data.relations && Array.isArray(data.relations.event_types) && data.relations.event_types.length > 0,
-      'and a sibling relations bag, matching the real API envelope');
-    assert.ok(events[0].event_type_id != null, 'list events reference their type by id, not inline');
+    const events = data.events || [];
+    assert.ok(Array.isArray(events) && events.length > 0, '/api/timetable should return classes');
+
+    // This used to assert the RAW `{ data, relations }` envelope through
+    // /api/proxy/events. That route is gone (WP-D9), but the property it was
+    // really protecting is stronger when asserted here: CodexFit returns list
+    // events BY REFERENCE (event_type_id / studio_id / instructor_id, entities
+    // in a sibling `relations` bag), so an adapter that forgets
+    // resolveEventRelations() yields normalized events with no discipline,
+    // studio, location or instructor — which is exactly how the "every class
+    // renders as a generic CLASS pill" regression looked. Asserting the
+    // normalized OUTPUT catches that whether or not the envelope ever changes.
     const ev = events[0];
-    assert.ok(ev.id && ev.name && ev.studio_id != null && ev.instructor_id != null,
-      'list events carry ids; the entities live in the relations bag');
-    const relStudio = data.relations.studios.find((st) => st.id === ev.studio_id);
-    assert.ok(relStudio && relStudio.location_id != null,
-      'the studio is resolvable from relations, and carries its location by id');
-    assert.ok(data.relations.locations.some((l) => l.id === relStudio.location_id),
-      'and that location is present in the same bag');
-    log(`✅ GET /api/proxy/events (public passthrough) returns ${events.length} mock classes + a relations bag.`);
+    assert.ok(ev.id && ev.startAt, 'normalized events carry id and startAt');
+    assert.ok(ev.discipline, 'discipline resolved from the relations bag, not left blank');
+    assert.ok(ev.studioId != null && ev.studioName, 'studio resolved from the relations bag');
+    assert.ok(ev.locationName, 'location resolved via the studio, from the same bag');
+    assert.ok(ev.instructors && ev.instructors[0] && ev.instructors[0].name,
+      'instructor resolved from the relations bag');
+
+    // Per-class credit requirement must survive normalization. The live API
+    // publishes `required_credits` (which is NOT always 1 — 4 of 705 real
+    // events cost 2) and `credit_types`; neither was normalized, so the
+    // client's per-class credit logic silently became dead code and every
+    // affordability question collapsed to "do you hold any credits at all".
+    assert.ok(ev.credits, 'normalized events carry a credit requirement');
+    assert.ok(Number.isFinite(ev.credits.required), 'with a numeric cost');
+    assert.ok(Array.isArray(ev.credits.acceptedTypeIds) && ev.credits.acceptedTypeIds.length > 0,
+      'and the credit-type ids the class accepts');
+    assert.ok(ev.credits.acceptedTypeIds.every((id) => typeof id === 'string'),
+      'accepted type ids are STRINGS, like every other normalized id');
+    assert.ok(events.some((e) => e.credits && e.credits.required === 2),
+      'and a class costing more than one credit is representable end to end');
+    log(`✅ GET /api/timetable returns ${events.length} normalized classes with relations resolved.`);
   }
 
-  // --- 5. Proxy: event detail w/ floor-plan layout ----------------------------
+  // --- 5. Normalized event detail w/ floor-plan layout ------------------------
   let eventId, layoutSlots;
   {
     eventId = 1000;
-    const res = await fetch(`${BASE}/api/proxy/events/${eventId}`, authed());
+    const res = await fetch(`${BASE}/api/events/${eventId}`, authed());
     const data = await res.json();
     assert.strictEqual(res.status, 200);
-    assert.ok(Array.isArray(data.slots) && data.slots.length > 0, 'event detail should list available slot ids');
-    const studio = data.relations && data.relations.studios && data.relations.studios[0];
-    assert.ok(studio && Array.isArray(studio.layout.slots) && studio.layout.slots.length > 0, 'event detail should include a floor-plan layout');
-    layoutSlots = studio.layout.slots;
-    studioIdForPrefs = studio.id;
-    log(`✅ GET /api/proxy/events/${eventId} returns floor-plan layout (${layoutSlots.length} slots).`);
+    assert.ok(Array.isArray(data.slots) && data.slots.length > 0, 'event detail should list bookable slots');
+    assert.ok(data.event && data.event.studioId != null, 'event detail should identify its studio');
+    studioIdForPrefs = data.event.studioId;
+
+    const layoutRes = await fetch(`${BASE}/api/studios/${studioIdForPrefs}/layout`, authed());
+    const layout = await layoutRes.json();
+    assert.strictEqual(layoutRes.status, 200);
+    assert.ok(Array.isArray(layout.slots) && layout.slots.length > 0, 'studio layout should carry floor-plan slots');
+    layoutSlots = layout.slots;
+    log(`✅ GET /api/events/${eventId} + /api/studios/${studioIdForPrefs}/layout return a floor plan (${layoutSlots.length} slots).`);
+  }
+
+  // --- 5b. The raw proxy passthrough stays removed ----------------------------
+  {
+    // `/api/proxy/*` let the client compose a provider's own URL and have the
+    // server forward it. That only ever worked because the paths were
+    // CodexFit's, and removing it was the acceptance criterion for the
+    // provider-abstraction layer. A 404 here is the point of the assertion:
+    // reintroducing the passthrough for "just one more CodexFit-only feature"
+    // is exactly how it survived three previous attempts to delete it.
+    for (const path of ['/api/proxy/events', '/api/proxy/profile']) {
+      const res = await fetch(`${BASE}${path}`, authed());
+      assert.strictEqual(res.status, 404, `${path} must not be routed`);
+    }
+    // Its replacements are named, capability-gated routes instead.
+    const bundles = await fetch(`${BASE}/api/bundles`, authed());
+    assert.strictEqual(bundles.status, 200, '/api/bundles serves the CodexFit bundle catalogue');
+    log('✅ /api/proxy/* is gone; /api/bundles serves its last read caller.');
   }
 
   // --- 6. Auto-book: add to queue ---------------------------------------------
@@ -304,8 +341,17 @@ async function run() {
     assert.ok(Array.isArray(gymsData.gyms), 'gyms should be an array');
     const psycle = gymsData.gyms.find((g) => g.id === 'psycle-london');
     assert.ok(psycle && psycle.capabilities && psycle.capabilities.bookingWindow === 'rolling-weekly', 'psycle-london gym + capabilities present');
+    assert.strictEqual(psycle.websiteUrl, 'https://psyclelondon.com/', 'public gym metadata carries the configured website URL');
     assert.ok(gymsData.gyms.find((g) => g.id === 'jab-boxing'), 'jab-boxing registry entry present');
     log(`✅ GET /api/gyms returns ${gymsData.gyms.length} gyms with capability flags.`);
+  }
+  {
+    // Credit-based providers do not manufacture a membership from balances.
+    const res = await fetch(`${BASE}/api/membership`, authed());
+    const data = await res.json();
+    assert.strictEqual(res.status, 200);
+    assert.strictEqual(data.membership, null);
+    log('✅ GET /api/membership returns the normalized null membership for CodexFit.');
   }
   {
     // GET /api/timetable — normalized events.
@@ -367,9 +413,17 @@ async function run() {
     // The header is an authorisation boundary, not a preference: it selects which
     // gym's session, credentials and calendar token db.js resolves. Pinning both
     // that it works for a linked gym and that it is refused for an unlinked one.
+    // Establish the state this block asserts rather than inheriting it. The dev
+    // login seeds EVERY enabled gym onto the dev account (so the dev environment
+    // is genuinely multi-gym), which means "jab-boxing is unlinked" is no longer
+    // ambient truth — unlink it here, explicitly, so the 403 below is testing
+    // the authorisation boundary and not a side effect of the login path.
+    await fetch(`${BASE}/api/my-gyms/jab-boxing`, { ...authed(), method: 'DELETE' });
+
     const my = await (await fetch(`${BASE}/api/my-gyms`, authed())).json();
     assert.ok(Array.isArray(my.gyms) && my.gyms.length >= 1, 'account lists its linked gyms');
-    assert.strictEqual(my.activeGymId, 'psycle-london', 'single-gym account is on the default gym');
+    assert.ok(!my.gyms.some((g) => g.gym_id === 'jab-boxing'), 'jab-boxing is unlinked for this block');
+    assert.strictEqual(my.activeGymId, 'psycle-london', 'account resolves to the default gym');
 
     // A header naming a linked gym is honoured and changes nothing observable
     // for a single-gym account — the no-op property that makes this safe to ship.

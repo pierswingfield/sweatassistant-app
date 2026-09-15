@@ -148,21 +148,30 @@ check('syncing one gym\'s waitlists does not wipe the other gym\'s cache', () =>
 
 // --- 4. calendar_classes -----------------------------------------------------
 
-check('calendar rows are per gym, and reconcile only prunes its own gym', () => {
+check('calendar rows are stored per gym, read account-wide, and reconciled per gym', () => {
   const uid = twoGymUser();
   const mk = (eventId, startAt) => ({ eventId, startAt, status: 'CONFIRMED', contentHash: 'h-' + eventId });
   db.upsertCalendarClass(uid, mk('ca', '2099-01-01T10:00:00Z'));
   on(uid, GYM_B);
   db.upsertCalendarClass(uid, mk('cb', '2099-01-01T18:00:00Z'));
 
-  assert.deepStrictEqual(db.getCalendarClasses(uid).map(r => r.event_id), ['cb']);
+  // STORAGE stays per gym...
+  assert.deepStrictEqual(db.getCalendarClasses(uid, GYM_A).map(r => r.event_id), ['ca']);
+  assert.deepStrictEqual(db.getCalendarClasses(uid, GYM_B).map(r => r.event_id), ['cb']);
 
-  // Reconcile JAB down to nothing. Psycle's row must survive.
-  db.reconcileFutureCalendarClasses(uid, new Date().toISOString(), []);
-  assert.deepStrictEqual(db.getCalendarClasses(uid), []);
-  on(uid, GYM_A);
-  assert.deepStrictEqual(db.getCalendarClasses(uid).map(r => r.event_id), ['ca'],
+  // ...but the READ with no gym is account-wide, because the .ics feed is
+  // account-level (2026-09-14): one subscription, every gym's classes. This
+  // deliberately inverts the old assertion, which required the active gym only
+  // — that shape is what gave a two-gym member a calendar showing half a week.
+  assert.deepStrictEqual(db.getCalendarClasses(uid).map(r => r.event_id).sort(), ['ca', 'cb']);
+
+  // Reconcile JAB down to nothing. Psycle's row must survive — a single gym's
+  // live list never authorises deleting another gym's classes.
+  db.reconcileFutureCalendarClasses(uid, new Date().toISOString(), [], GYM_B);
+  assert.deepStrictEqual(db.getCalendarClasses(uid, GYM_B), []);
+  assert.deepStrictEqual(db.getCalendarClasses(uid, GYM_A).map(r => r.event_id), ['ca'],
     'reconciling one gym\'s feed must not delete the other gym\'s classes');
+  on(uid, GYM_A);
 });
 
 // --- 5. background scanners must NOT be gym-filtered --------------------------
@@ -218,6 +227,55 @@ check('account-scoped settings survive a gym switch; gym-scoped ones do not', ()
   assert.strictEqual(db.getUserSettings(uid).detectedBookingOffset, 14, "Psycle's window is intact");
   assert.deepStrictEqual(db.getUserSettings(uid).notifications, { booking: { enabled: false } },
     'and the shared account keys are still shared');
+});
+
+check('Auto-Upgrade settings are gym-scoped while prefetch range stays account-scoped', () => {
+  const uid = twoGymUser();
+  db.setUserSettings(uid, {
+    autoUpgradeEnabled: false,
+    autoUpgradeByDefault: true,
+    autoUpgradeInterval: '1min',
+    autoUpgradeKeepOriginalByDefault: true,
+    prefetchWeeks: 6,
+  });
+
+  on(uid, GYM_B);
+  const atB = db.getUserSettings(uid);
+  assert.strictEqual(atB.autoUpgradeEnabled, undefined, 'engine enablement must not leak to another gym');
+  assert.strictEqual(atB.autoUpgradeInterval, undefined, 'polling interval must not leak to another gym');
+  assert.strictEqual(atB.prefetchWeeks, 6, 'timetable prefetch range belongs to the app/account');
+});
+
+check('the Auto-Upgrade scope migration backfills every linked gym and preserves gym overrides', () => {
+  const uid = twoGymUser();
+  db.db.prepare(`
+    INSERT INTO account_settings (user_id, preferences) VALUES (?, ?)
+    ON CONFLICT(user_id) DO UPDATE SET preferences = excluded.preferences
+  `).run(uid, JSON.stringify({
+    notifications: { booking: { enabled: false } },
+    autoUpgradeEnabled: true,
+    autoUpgradeByDefault: true,
+    autoUpgradeInterval: '15min',
+  }));
+  db.db.prepare(`
+    INSERT INTO settings (user_id, gym_id, preferences) VALUES (?, ?, ?)
+    ON CONFLICT(user_id, gym_id) DO UPDATE SET preferences = excluded.preferences
+  `).run(uid, GYM_A, JSON.stringify({ autoUpgradeInterval: '1min', autoUpgradeKeepOriginalByDefault: true }));
+
+  db.migrateAutoUpgradeSettingsScope();
+
+  const account = JSON.parse(db.db.prepare('SELECT preferences FROM account_settings WHERE user_id = ?').get(uid).preferences);
+  const gymA = JSON.parse(db.db.prepare('SELECT preferences FROM settings WHERE user_id = ? AND gym_id = ?').get(uid, GYM_A).preferences);
+  const gymB = JSON.parse(db.db.prepare('SELECT preferences FROM settings WHERE user_id = ? AND gym_id = ?').get(uid, GYM_B).preferences);
+  assert.deepStrictEqual(account, { notifications: { booking: { enabled: false } } }, 'account copies are removed');
+  assert.strictEqual(gymA.autoUpgradeInterval, '1min', 'an existing per-gym override wins');
+  assert.strictEqual(gymA.autoUpgradeKeepOriginalByDefault, true, 'the already-gym-scoped key survives');
+  assert.strictEqual(gymB.autoUpgradeEnabled, true, 'account value is backfilled to the second gym');
+  assert.strictEqual(gymB.autoUpgradeInterval, '15min', 'every linked gym receives the old account default');
+
+  db.migrateAutoUpgradeSettingsScope();
+  const gymBAgain = JSON.parse(db.db.prepare('SELECT preferences FROM settings WHERE user_id = ? AND gym_id = ?').get(uid, GYM_B).preferences);
+  assert.deepStrictEqual(gymBAgain, gymB, 'the migration is idempotent');
 });
 
 check('an unknown key defaults to gym-scoped, not account-scoped', () => {

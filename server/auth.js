@@ -57,6 +57,38 @@ async function handleLogin(email, password) {
       db.updateUserJWT(userId, 'mock-jwt-token', jwtExpiresAt);
     }
 
+    // Seed EVERY enabled gym onto the dev account, not just the default one.
+    //
+    // The point of the dev environment is a true multi-gym account — merged
+    // lists, colliding provider ids, per-row routing — and none of that is
+    // exercisable from an account linked to one gym. Requiring a manual link
+    // step meant the default dev experience was single-gym, which is the exact
+    // shape the multi-gym work needs to stop assuming.
+    //
+    // Every login here is a MOCK login (mock.js / mock-marianatek.js). No live
+    // gym is contacted and no real credential is stored. Failures are ignored on
+    // purpose: a gym whose mock is unavailable must not block dev login.
+    try {
+      const { listEnabledGyms } = require('./gyms.config');
+      const DEV_LOGIN_BY_PROVIDER = {
+        codexfit: 'dev@psycle.com',
+        marianatek: 'dev@jabboxing.mock',
+      };
+      for (const gym of listEnabledGyms()) {
+        if (db.isGymLinked(userId, gym.id)) continue;
+        const gymEmail = DEV_LOGIN_BY_PROVIDER[gym.provider];
+        if (!gymEmail) continue;
+        try {
+          await linkGymAccount(userId, gym.id, gymEmail, password);
+          console.log(`[Dev] Linked ${gym.id} (${gym.provider} mock) to the dev account.`);
+        } catch (err) {
+          console.warn(`[Dev] Could not link ${gym.id}: ${err.message}`);
+        }
+      }
+    } catch (err) {
+      console.warn('[Dev] Gym seeding skipped:', err.message);
+    }
+
     const localToken = jwt.sign(
       { userId, email },
       JWT_SECRET,
@@ -233,6 +265,10 @@ function authenticateToken(req, res, next) {
     }
     req.userId = decoded.userId;
     req.email = decoded.email;
+    // Stamp activity here rather than on any one route: this is the single
+    // chokepoint every authenticated request passes through, regardless of which
+    // gym or platform it targets. (db throttles the write to once per 5 min.)
+    try { db.touchUserLastSeen(req.userId); } catch (_) {}
     withGymContext(req, res, next);
   });
 }
@@ -415,6 +451,10 @@ async function linkGymAccount(userId, gymId, email, password) {
     display_name: profile && [profile.firstName, profile.lastName].filter(Boolean).join(' ') || null,
     profile_json: profile && profile.raw ? JSON.stringify(profile.raw) : null,
     profile_synced_at: new Date().toISOString(),
+    // The credential was just proven against the gym — this is the one place
+    // (with setGymSession) that may stamp it. Surfaced in Settings as the
+    // connection's "last authenticated" date.
+    last_authenticated_at: new Date().toISOString(),
     // Preserve an existing link's priority tier and calendar token on re-auth —
     // re-authenticating must not silently demote someone or break their feed URL.
     priority: existingLink ? existingLink.priority : 200,

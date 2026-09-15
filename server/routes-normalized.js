@@ -24,11 +24,47 @@
 //     These routes are additive, not a replacement yet.
 
 const express = require('express');
+const rateLimit = require('express-rate-limit');
+const { ipKeyGenerator } = require('express-rate-limit');
 const db = require('./db');
 const auth = require('./auth');
 const { authenticateToken, triggerAutoRelogin } = auth;
 const { getProvider } = require('./providers');
-const { listGyms } = require('./gyms.config');
+const { listGyms, getGymConfig } = require('./gyms.config');
+const calendar = require('./calendar');
+const scheduleCache = require('./schedule-cache');
+
+// TTLs. The schedule's OCCUPANCY moves minute to minute, so it gets a short TTL
+// with stale-while-revalidate — a page is always instant and at most a minute
+// behind. Metadata (locations, studios, instructors, class types) changes when
+// a gym reorganises, i.e. rarely.
+const TIMETABLE_TTL_MS = 60 * 1000;
+const METADATA_TTL_MS = 30 * 60 * 1000;
+
+// A booking/waitlist mutation should show in the .ics feed without waiting for
+// the 3-hourly cron. This used to be stamped inside the `/api/proxy` handler,
+// which meant it silently stopped applying as write paths migrated to the
+// normalized routes — and never applied at all to MarianaTek, which never went
+// through the proxy. Debounced inside calendar.js; safe to call per mutation.
+function refreshCalendar(userId) {
+  try { calendar.scheduleRefresh(userId); } catch (_) {}
+}
+
+/**
+ * A write changed this gym's occupancy, so the shared schedule is stale for
+ * EVERYONE, not just the person who booked. Dropping the gym's entries makes
+ * the next read re-fetch.
+ *
+ * Without this the booker refreshes, gets the cached page, and sees the class
+ * they just took still showing its old count — which reads as "the booking
+ * didn't work" and invites a double booking.
+ */
+function invalidateSchedule(gymId) {
+  if (!gymId) return;
+  try {
+    scheduleCache.invalidate(`timetable|${gymId}|`);
+  } catch (_) {}
+}
 
 const router = express.Router();
 
@@ -100,7 +136,8 @@ function handleError(res, err) {
 // client gym picker (Phase 5). No auth required — mirrors /api/config.
 router.get('/gyms', (req, res) => {
   const gyms = listGyms().map((g) => ({
-    id: g.id, name: g.name, provider: g.provider, enabled: g.enabled,
+    id: g.id, name: g.name, shortName: g.shortName, websiteUrl: g.websiteUrl,
+    provider: g.provider, enabled: g.enabled,
     theme: g.theme, labels: g.labels, capabilities: g.capabilities,
   }));
   res.json({ gyms });
@@ -209,10 +246,29 @@ function stampReleaseAt(events, provider, userId) {
 // GET /api/timetable?startDate=&endDate=
 router.get('/timetable', authenticateToken, async (req, res) => {
   try {
-    const { provider, session } = resolveContext(req.userId);
-    const events = await withRelogin(req.userId, session, (s) =>
-      provider.fetchTimetable({ startDate: req.query.startDate, endDate: req.query.endDate }, s)
+    const { gymId, provider, session } = resolveContext(req.userId);
+    const startDate = req.query.startDate || '';
+    const endDate = req.query.endDate || '';
+
+    // SHARED cache: a gym's schedule is identical for every member, so one
+    // provider call serves everyone asking for the same range. Before this,
+    // each user's each visit paid a full round trip — which is why the
+    // timetable was slow on the SECOND load too, not just the first.
+    //
+    // The key carries gym AND range; omitting either serves one gym's Tuesday
+    // as another's. It deliberately carries NO user id — that is the point.
+    const events = await scheduleCache.getOrFetch(
+      `timetable|${gymId}|${startDate}|${endDate}`,
+      () => withRelogin(req.userId, session, (s) =>
+        provider.fetchTimetable({ startDate, endDate }, s)
+      ),
+      { ttlMs: TIMETABLE_TTL_MS, force: req.query.refresh === '1' }
     );
+
+    // `releaseAt` is stamped per request, AFTER the cache. It depends on the
+    // member's own booking-window tier, so caching the stamped result would
+    // serve one member's release times to another — a correctness bug, where
+    // the cache itself is only ever a staleness trade.
     res.json({ events: stampReleaseAt(events, provider, req.userId) });
   } catch (err) {
     handleError(res, err);
@@ -226,9 +282,17 @@ router.get('/timetable', authenticateToken, async (req, res) => {
 // MarianaTek has none of them and derives all four from its class list.
 router.get('/metadata', authenticateToken, async (req, res) => {
   try {
-    const { provider, session } = resolveContext(req.userId);
-    const meta = await withRelogin(req.userId, session, (s) =>
-      provider.fetchMetadata({ startDate: req.query.startDate, endDate: req.query.endDate }, s)
+    const { gymId, provider, session } = resolveContext(req.userId);
+    const startDate = req.query.startDate || '';
+    const endDate = req.query.endDate || '';
+    // Also user-agnostic, and for MarianaTek it is derived from the class list —
+    // so an uncached metadata call is a second full timetable fetch.
+    const meta = await scheduleCache.getOrFetch(
+      `metadata|${gymId}|${startDate}|${endDate}`,
+      () => withRelogin(req.userId, session, (s) =>
+        provider.fetchMetadata({ startDate, endDate }, s)
+      ),
+      { ttlMs: METADATA_TTL_MS, force: req.query.refresh === '1' }
     );
     res.json(meta);
   } catch (err) {
@@ -269,8 +333,9 @@ router.post('/book', authenticateToken, async (req, res) => {
   try {
     const { eventId, slotIds } = req.body;
     if (!eventId) return res.status(400).json({ message: 'eventId is required' });
-    const { provider, session } = resolveContext(req.userId);
+    const { gymId, provider, session } = resolveContext(req.userId);
     const result = await withRelogin(req.userId, session, (s) => provider.bookSlot(eventId, slotIds || [], s));
+    if (result && result.ok) { refreshCalendar(req.userId); invalidateSchedule(gymId); }
     res.json(result);
   } catch (err) {
     handleError(res, err);
@@ -282,8 +347,9 @@ router.post('/cancel', authenticateToken, async (req, res) => {
   try {
     const { bookingId } = req.body;
     if (!bookingId) return res.status(400).json({ message: 'bookingId is required' });
-    const { provider, session } = resolveContext(req.userId);
+    const { gymId, provider, session } = resolveContext(req.userId);
     const ok = await provider.cancelBooking(bookingId, session);
+    if (ok) { refreshCalendar(req.userId); invalidateSchedule(gymId); }
     res.json({ ok });
   } catch (err) {
     handleError(res, err);
@@ -306,8 +372,9 @@ router.post('/waitlist/join', authenticateToken, async (req, res) => {
   try {
     const { eventId } = req.body;
     if (!eventId) return res.status(400).json({ message: 'eventId is required' });
-    const { provider, session } = resolveContext(req.userId);
+    const { gymId, provider, session } = resolveContext(req.userId);
     const ok = await provider.joinWaitlist(eventId, session);
+    if (ok) { refreshCalendar(req.userId); invalidateSchedule(gymId); }
     res.json({ ok });
   } catch (err) {
     handleError(res, err);
@@ -319,8 +386,9 @@ router.post('/waitlist/leave', authenticateToken, async (req, res) => {
   try {
     const { eventId } = req.body;
     if (!eventId) return res.status(400).json({ message: 'eventId is required' });
-    const { provider, session } = resolveContext(req.userId);
+    const { gymId, provider, session } = resolveContext(req.userId);
     const ok = await provider.leaveWaitlist(eventId, session);
+    if (ok) { refreshCalendar(req.userId); invalidateSchedule(gymId); }
     res.json({ ok });
   } catch (err) {
     handleError(res, err);
@@ -332,8 +400,9 @@ router.post('/swap', authenticateToken, async (req, res) => {
   try {
     const { bookingId, currentSlotId, targetSlotId } = req.body;
     if (!bookingId || !targetSlotId) return res.status(400).json({ message: 'bookingId and targetSlotId are required' });
-    const { provider, session } = resolveContext(req.userId);
+    const { gymId, provider, session } = resolveContext(req.userId);
     const result = await withRelogin(req.userId, session, (s) => provider.swapSpots(bookingId, currentSlotId, targetSlotId, s));
+    if (result && result.ok) { refreshCalendar(req.userId); invalidateSchedule(gymId); }
     res.json(result);
   } catch (err) {
     handleError(res, err);
@@ -389,6 +458,123 @@ router.get('/credits', authenticateToken, async (req, res) => {
     }
     const profile = await withRelogin(req.userId, session, (s) => provider.getProfile(s));
     res.json({ credits: (profile.raw && profile.raw.available_credits) || [] });
+  } catch (err) {
+    handleError(res, err);
+  }
+});
+
+// GET /api/eligibility — "can this account book at all" (WP-J), distinct from
+// `metered`/`creditPurchase`. Every adapter answers this (base.js defaults to
+// permissive so an adapter with no real implementation never blocks booking).
+router.get('/eligibility', authenticateToken, async (req, res) => {
+  try {
+    const { provider, session } = resolveContext(req.userId);
+    const eligibility = await withRelogin(req.userId, session, (s) => provider.getEligibility(s));
+    res.json(eligibility);
+  } catch (err) {
+    handleError(res, err);
+  }
+});
+
+// GET /api/membership — normalized account membership. Credit-based providers
+// return null; they remain represented by /api/credits rather than a synthetic
+// membership object.
+router.get('/membership', authenticateToken, async (req, res) => {
+  try {
+    const { provider, session } = resolveContext(req.userId);
+    const membership = await withRelogin(req.userId, session, (s) => provider.getMembership(s));
+    res.json({ membership });
+  } catch (err) {
+    handleError(res, err);
+  }
+});
+
+// --- Capability-gated provider extras (WP-D9: what replaced /api/proxy) ------
+//
+// These three features exist on one platform only. That is precisely why they
+// get routes: the alternative was the client composing raw CodexFit URLs and
+// posting them through a passthrough, which is what kept `/api/proxy` alive.
+// A route that only one platform implements is fine; a client that knows a
+// platform's URL shape is not.
+//
+// Each rejects on the GYM'S capability flag before touching the provider, so a
+// gym without the feature answers 501 rather than a confusing adapter error.
+// Same budget the removed `/api/proxy/*` had (60/min per user, production
+// only), so the routes that replaced its callers are no less protected than
+// what they replaced.
+//
+// NOTE the wider gap this does NOT close: the rest of the normalized surface
+// (timetable, metadata, bookings, book/cancel/waitlist…) has never been rate
+// limited, because the limiters live in server.js and are applied per route
+// while these are mounted as a router. Applying one blanket limiter here would
+// change live behaviour for read paths that legitimately burst — an 8-week
+// timetable prefetch is many requests in a few seconds — so it needs its own
+// measured budget rather than inheriting this one. Logged in Documentation.
+const extrasLimiter = rateLimit({
+  windowMs: 60 * 1000,
+  max: 60,
+  standardHeaders: true,
+  legacyHeaders: false,
+  keyGenerator: (req) => (req.userId ? String(req.userId) : ipKeyGenerator(req.ip)),
+  message: { message: 'Too many requests — please slow down.' },
+  skip: () => process.env.NODE_ENV !== 'production',
+});
+
+function requireCapability(gymId, capability) {
+  const gym = getGymConfig(gymId);
+  if (!gym || !gym.capabilities || !gym.capabilities[capability]) {
+    const err = new Error(`This gym does not support ${capability}.`);
+    err.status = 501;
+    err.code = 'CAPABILITY_UNSUPPORTED';
+    throw err;
+  }
+}
+
+// GET /api/bundles — purchasable credit packs (metered gyms with creditPurchase).
+router.get('/bundles', authenticateToken, extrasLimiter, async (req, res) => {
+  try {
+    const { gymId, provider, session } = resolveContext(req.userId);
+    requireCapability(gymId, 'creditPurchase');
+    const result = await withRelogin(req.userId, session, (s) => provider.listBundles(s));
+    res.json(result);
+  } catch (err) {
+    handleError(res, err);
+  }
+});
+
+// PUT|DELETE /api/bookmarks/:identifier — add/remove a saved class.
+// The identifier is the provider's own bookmark key; the client round-trips
+// whatever the adapter gave it and composes no path of its own.
+router.put('/bookmarks/:identifier', authenticateToken, extrasLimiter, async (req, res) => {
+  try {
+    const { gymId, provider, session } = resolveContext(req.userId);
+    requireCapability(gymId, 'bookmarks');
+    const ok = await withRelogin(req.userId, session, (s) => provider.setBookmark(req.params.identifier, true, s));
+    res.json({ ok });
+  } catch (err) {
+    handleError(res, err);
+  }
+});
+
+router.delete('/bookmarks/:identifier', authenticateToken, extrasLimiter, async (req, res) => {
+  try {
+    const { gymId, provider, session } = resolveContext(req.userId);
+    requireCapability(gymId, 'bookmarks');
+    const ok = await withRelogin(req.userId, session, (s) => provider.setBookmark(req.params.identifier, false, s));
+    res.json({ ok });
+  } catch (err) {
+    handleError(res, err);
+  }
+});
+
+// POST /api/profile/update — the Profile Explorer's hidden edit mode.
+// Not capability-gated on a flag (there isn't one): it is gated by the adapter,
+// which throws notImplemented for any provider that has not implemented it.
+router.post('/profile/update', authenticateToken, extrasLimiter, async (req, res) => {
+  try {
+    const { provider, session } = resolveContext(req.userId);
+    const result = await withRelogin(req.userId, session, (s) => provider.updateProfile(req.body || {}, s));
+    res.json(result);
   } catch (err) {
     handleError(res, err);
   }

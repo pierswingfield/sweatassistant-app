@@ -35,7 +35,7 @@ let state = {
 
 const listeners = new Set();
 
-/** Subscribe to capability changes — fires on load and on every gym switch. */
+/** Subscribe to capability changes — fires on load and whenever the linked-gym set changes (link, unlink, re-auth). */
 export function onGymContextChange(fn) {
   listeners.add(fn);
   if (state.loaded) fn(state);
@@ -76,8 +76,58 @@ export function applyGymName(ctx = state) {
   });
 }
 
+let linkedGyms = [];
+
+export function setLinkedGyms(gyms) {
+  linkedGyms = Array.isArray(gyms) ? gyms : [];
+  applyCapabilityGates();
+}
+
+export function getLinkedGyms() {
+  return linkedGyms;
+}
+
+/**
+ * The short label for a gym ('Psycle', 'JAB') — from `gyms.config.js`'s
+ * `shortName` (merged in via the catalogue in `loadGymContext()`), never a
+ * hardcoded per-gym-id ternary. Falls back to the full name, then the id
+ * itself, so an unlinked or not-yet-loaded gym still renders something.
+ */
+export function getGymShortName(gymId) {
+  const g = linkedGyms.find((x) => (x.gym_id || x.id) === gymId);
+  return g?.shortName || g?.name || gymId || '';
+}
+
+export function canAny(capability) {
+  if (linkedGyms && linkedGyms.length > 0) {
+    return linkedGyms.some((g) => !!(g.capabilities && g.capabilities[capability]));
+  }
+  return can(capability);
+}
+
 export function getGymContext() { return state; }
 export function can(capability) { return !!state.capabilities[capability]; }
+
+/**
+ * A SPECIFIC gym's capability. Use this anywhere a row, card or action belongs
+ * to a known gym — which in a merged list is everywhere.
+ *
+ * `can()` answers for the gym the app happens to resolve to by default, and in
+ * a merged timetable that is the wrong gym for most rows: a JAB class was being
+ * evaluated against Psycle's `metered: true` and Psycle's credit balance, so
+ * with no Psycle credits EVERY row (JAB's membership classes included) showed
+ * "Buy Credits". Capability checks in list contexts are per row, not global.
+ *
+ * Unknown gym → falls back to `can()`, matching the documented rule that an
+ * unknown capability defaults ON: briefly showing a feature a gym lacks
+ * self-corrects, hiding one it has is permanent and silent.
+ */
+export function canForGym(capability, gymId) {
+  if (!gymId) return can(capability);
+  const g = linkedGyms.find((x) => (x.gym_id || x.id) === gymId);
+  if (!g || !g.capabilities) return can(capability);
+  return !!g.capabilities[capability];
+}
 export function gymLabel(kind) { return state.labels[kind] || kind; }
 
 /**
@@ -93,14 +143,15 @@ export function applyGymTheme(ctx = state) {
   if (!ctx.gymId) { root.removeAttribute('data-gym'); return; }
   root.setAttribute('data-gym', ctx.gymId);
 
-  // A gym may name a font its brand uses. Loaded on demand rather than shipped
-  // for every gym — a Psycle user should not download JAB's typeface.
-  const font = ctx.theme && ctx.theme.font;
-  if (font && !document.getElementById('gym-font')) {
+  // Optional gym font stylesheet injection (loads once)
+  if (ctx.theme?.font && !document.getElementById('gym-font')) {
     const link = document.createElement('link');
     link.id = 'gym-font';
     link.rel = 'stylesheet';
-    link.href = `https://fonts.googleapis.com/css2?family=${encodeURIComponent(font).replace(/%20/g, '+')}:wght@400;500;600;700&display=swap`;
+    const fontQuery = encodeURIComponent(ctx.theme.font).replace(/%20/g, '+');
+    link.href = ctx.theme.font.startsWith('http')
+      ? ctx.theme.font
+      : `https://fonts.googleapis.com/css2?family=${fontQuery}&display=swap`;
     document.head.appendChild(link);
   }
 }
@@ -112,7 +163,10 @@ export function applyGymTheme(ctx = state) {
  */
 export function gateByCapability(el, capability) {
   if (!el) return;
-  el.hidden = !can(capability);
+  // Global nav tabs and badges check whether ANY linked gym has the capability
+  const isGlobalNav = el.matches('[data-tab="buy-credits"], #psycle-header-credits, [data-tab="buy-credits"] *');
+  const hasCap = isGlobalNav ? canAny(capability) : can(capability);
+  el.hidden = !hasCap;
 }
 
 /** Every `[data-requires-capability="x"]` element in the DOM, gated at once. */

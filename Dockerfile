@@ -16,6 +16,7 @@ COPY server/package*.json ./server/
 RUN cd server && npm ci --omit=dev
 
 COPY server/ ./server/
+COPY client/src ./client/src
 # app.config.json lives at the repo root but is required by server.js via
 # ../app.config.json (resolves to /app/app.config.json from /app/server).
 COPY app.config.json /app/app.config.json

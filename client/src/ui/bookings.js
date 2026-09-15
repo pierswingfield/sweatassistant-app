@@ -1,11 +1,14 @@
 import { api } from '../api';
-import { getGymContext } from '../gym-context.js';
-import { getAvailableCreditsForEvent, getTotalCredits } from './credit-allowance.js';
+import { can, getGymContext, getGymShortName } from '../gym-context.js';
+import { getAvailableCreditsForEvent, getTotalCredits, getIneligibleReason } from './credit-allowance.js';
 import { showToast, cache, refreshUserData, updateCreditBadge, userSettings } from '../main';
 import { renderStudioFloorPlan } from './spotmap';
-import { icon, disciplineTag, trimLocation, seatNoun, stripClassNamePrefix, trendingUpIcon, pulseIcon } from './cards';
+import { icon, disciplineTag, trimLocation, seatNoun, stripClassNamePrefix, trendingUpIcon, pulseIcon, renderGymRail, equalizeDiscTagWidths , shortSlotLabels} from './cards';
 import { isInGracePeriod, GRACE_PERIOD_MS, startGraceCountdown } from '../lib';
 import { invalidateApiCache } from '../cache';
+import { renderCardSkeletons } from './loading-skeleton.js';
+import { instructorAvatar } from './tooltips.js';
+import { metadata, loadMetadata } from './timetable';
 
 // Class starts within the free-cancel cutoff (12h). Edit is hidden inside this
 // window; Cancel stays available but warns about the penalty.
@@ -37,8 +40,20 @@ export async function renderBookings() {
     renderWaitlistsCards(cache.waitlists || []);
   } else {
     // First visit — no cached data yet
-    if (bookingsList) bookingsList.innerHTML = `<div class="fav-empty-state" style="padding:30px 0;"><div class="psycle-spinner" style="margin:0 auto 10px;"></div>Loading bookings...</div>`;
-    if (waitlistsList) waitlistsList.innerHTML = `<div class="fav-empty-state" style="padding:30px 0;"><div class="psycle-spinner" style="margin:0 auto 10px;"></div>Loading waitlists...</div>`;
+    if (bookingsList) bookingsList.innerHTML = renderCardSkeletons(2, 'Loading bookings');
+    if (waitlistsList) waitlistsList.innerHTML = renderCardSkeletons(1, 'Loading waitlists');
+  }
+
+  // instructorAvatar() reads metadata.instructors, which is otherwise only
+  // populated by the Timetable tab's prefetch — landing straight on My
+  // Bookings (a reload, or the app's initial tab) left it empty for the whole
+  // session until the user visited Timetable and back, so every photo was
+  // missing until then. Fetch it here too and repaint once it lands.
+  if (!metadata.instructors.length) {
+    loadMetadata().then(() => {
+      renderBookingsCards(cache.bookings || [], cache.upgrades || []);
+      renderWaitlistsCards(cache.waitlists || []);
+    }).catch(() => {});
   }
 
   try {
@@ -155,6 +170,7 @@ function renderBookingsCards(bookings, upgrades) {
   const sorted = [...groups.values()].sort((a, b) => new Date(a.event.startAt || a.event.start_at) - new Date(b.event.startAt || b.event.start_at));
   container.innerHTML = '';
   sorted.forEach(group => container.appendChild(buildBookingCard(group, upgrades)));
+  equalizeDiscTagWidths(container);
 }
 
 function buildBookingCard(group, upgrades) {
@@ -168,7 +184,8 @@ function buildBookingCard(group, upgrades) {
   const groupName = event.discipline || event.event_type?.group?.name || rawClassName;
   const className = stripClassNamePrefix(rawClassName, groupName);
   const instructorName = event.instructors?.[0]?.name || event.instructor?.full_name || 'TBA';
-  const locationLine = [event.studioName || event.studio?.name, trimLocation(event.locationName || event.studio?.location?.name, getGymContext().name)].filter(Boolean).join(', ');
+  const instructorPhotoUrl = event.instructors?.[0]?.thumbUrl || event.instructors?.[0]?.imageUrl || null;
+  const locationLine = [event.studioName || event.studio?.name, trimLocation(event.locationName || event.studio?.location?.name, getGymShortName(event.gymId))].filter(Boolean).join(', ');
 
   const within12h = isWithin12Hours(startAt);
 
@@ -214,20 +231,32 @@ function buildBookingCard(group, upgrades) {
   const card = document.createElement('div');
   card.className = 'psycle-autobook-card ab-card';
   card.setAttribute('data-event-id', group.eventId);
+  card.setAttribute('data-gym', event.gymId || 'psycle-london');
   card.innerHTML = `
+    ${renderGymRail(event.gymId || 'psycle-london')}
     <div class="ab-card-main">
-      <div class="ab-card-toprow">
-        <div class="ab-card-when">
-          <span class="ab-card-date">${dateStr.toUpperCase()}</span>
-          <span class="ab-card-time">${timeOnly}</span>
+      ${/* TWO lines of class information, not four.
+           Line 1 — WHEN, plus who's teaching: the two facts you scan a booking
+                    list for.
+           Line 2 — WHAT: discipline, class name, where.
+           The photo is a figure on the right of both lines, so it never sits
+           inside a text line box (which is what made a 52px avatar hang below
+           the row it belonged to). */ ''}
+      <div class="ab-card-body">
+        <div class="ab-card-lines">
+          <div class="ab-card-line1">
+            <span class="ab-card-date">${dateStr.toUpperCase()}</span>
+            <span class="ab-card-time">${timeOnly}</span>
+            ${instructorName ? `<span class="ab-card-instructor">${instructorName}</span>` : ''}
+          </div>
+          <div class="ab-card-line2">
+            ${disciplineTag(groupName)}
+            <span class="ab-card-class">${className}</span>
+            ${locationLine ? `<span class="ab-meta-dot">·</span><span class="ab-card-location">${locationLine}</span>` : ''}
+          </div>
         </div>
-      </div>
-      <div class="ab-card-meta">
-        ${disciplineTag(groupName)}
-        <span class="ab-card-class">${className}</span>
-        <span class="ab-meta-dot">·</span>
-        <span class="ab-card-instructor">${instructorName}</span>
-        ${locationLine ? `<span class="ab-card-location">${locationLine}</span>` : ''}
+        ${instructorAvatar(instructorName, event.gymId, instructorPhotoUrl)
+          ? `<div class="ab-card-figure">${instructorAvatar(instructorName, event.gymId, instructorPhotoUrl)}</div>` : ''}
       </div>
       <div class="ab-card-footer" style="display:flex;flex-wrap:wrap;gap:6px;align-items:center;justify-content:flex-start;">
         ${chipsHtml}
@@ -256,6 +285,7 @@ function buildBookingCard(group, upgrades) {
 
       handleUpgradeClick({
         eventId: group.eventId,
+        gymId: event.gymId,
         bookingId: bid,
         currentSlotId: slotId,
         studioId: event.studioId || event.studio_id || event.studio?.id || null,
@@ -306,7 +336,7 @@ function wireCancelBooking(btn, card, group, within12h) {
     try {
       showToast('Cancelling booking...', 'info');
       for (const b of group.bookings) {
-        await api.cancel(bookingIdOf(b));
+        await api.cancel(bookingIdOf(b), b.gymId || group.event?.gymId);
         const up = (cache.upgrades || []).find(u => String(u.booking_id) === String(bookingIdOf(b)) && ['active', 'paused_no_credits'].includes(u.status));
         if (up) { try { await api.deleteAutoUpgrade(up.id); } catch (_) {} }
       }
@@ -385,14 +415,14 @@ export async function openEditBookingModal(group, onChange = renderBookings) {
     // unchanged. `.id` arrives as a string and is coerced to Number for the
     // slot-id comparisons, matching how bookings/preferences store slot ids.
     const { event: normalizedEvent, slots: layoutSlots, objects: layoutObjects } =
-      await api.getEventDetails(group.eventId);
-    const availableSlots = layoutSlots.filter(s => s.isAvailable).map(s => Number(s.id));
+      await api.getEventDetails(group.eventId, group.event?.gymId);
+    const availableSlots = layoutSlots.filter(s => s.isAvailable).map(s => String(s.id));
 
     // Current booked slots → booking IDs (so removals can target the right record)
     const slotToBooking = new Map();
     group.bookings.forEach(b => {
-      const sid = Number(slotIdOf(b));
-      if (!isNaN(sid)) slotToBooking.set(sid, bookingIdOf(b));
+      const sid = slotIdOf(b);
+      if (sid != null && sid !== '') slotToBooking.set(String(sid), bookingIdOf(b));
     });
     const currentSlots = [...slotToBooking.keys()];
 
@@ -415,14 +445,15 @@ export async function openEditBookingModal(group, onChange = renderBookings) {
     const widthRange = maxX - minX || 1;
     const heightRange = maxY - minY || 1;
     const rowCount = new Set(layoutSlots.map(s => s.y)).size;
+    const shortLabelsForPlan = shortSlotLabels(layoutSlots);
     const minMapHeight = Math.max(340, rowCount * 56);
 
     const selected = new Set(currentSlots);
-    const labelFor = id => { const s = layoutSlots.find(ls => Number(ls.id) === id); return s?.label || String(id); };
+    const labelFor = id => { const s = layoutSlots.find(ls => String(ls.id) === String(id)); return s?.label || String(id); };
 
     body.innerHTML = `
       <div style="font-size:12px;color:var(--text-secondary);background:var(--surface-inset);border:1px solid var(--border);border-radius:8px;padding:8px 10px;margin-bottom:10px;line-height:1.5;">
-        Tap to change your ${noun}s. <strong style="color:var(--feat-autoupgrade);">Highlighted</strong> ${noun}s are yours — deselect to release them, tap a free seat to add it. Saving releases removed ${noun}s first, then books the added ones.
+        Tap to change your ${noun}s. <strong style="color:var(--feat-autoupgrade);">Highlighted</strong> ${noun}s are yours — deselect to release them, tap a free ${noun} to add it. Saving releases removed ${noun}s first, then books the added ones.
       </div>
       <div class="psycle-floor-plan-container" style="position:relative;height:${minMapHeight}px;background:var(--surface-inset);border:1px solid var(--border);border-radius:12px;margin-bottom:10px;overflow:hidden;">
         <div id="psycle-edit-floor-grid" style="width:100%;height:100%;"></div>
@@ -467,7 +498,7 @@ export async function openEditBookingModal(group, onChange = renderBookings) {
       if (toAdd.length) parts.push(`<span style="color:var(--success);font-weight:700;">+${toAdd.map(labelFor).join(', ')}</span>`);
       if (toRemove.length) parts.push(`<span style="color:var(--danger);font-weight:700;">−${toRemove.map(labelFor).join(', ')}</span>`);
       summaryEl.innerHTML = parts.length
-        ? `<span style="color:var(--text-tertiary);text-transform:uppercase;font-size:11px;letter-spacing:0.05em;margin-right:6px;">Changes</span>${parts.join('&nbsp;&nbsp;')}`
+        ? `<span style="color:var(--text-tertiary);text-transform:uppercase;font-size:var(--text-xs);letter-spacing:0.05em;margin-right:6px;">Changes</span>${parts.join('&nbsp;&nbsp;')}`
         : `<span style="color:var(--text-tertiary);">${desired.length} ${noun}${desired.length !== 1 ? 's' : ''} selected</span>`;
 
       controls.innerHTML = `
@@ -480,13 +511,13 @@ export async function openEditBookingModal(group, onChange = renderBookings) {
         </div>`;
 
       controls.querySelector('#bk-edit-close').onclick = closeModal;
-      controls.querySelector('#bk-edit-save').onclick = () => saveEdit(toRemove, toAdd);
+      controls.querySelector('#bk-edit-save').onclick = () => saveChanges(toAdd, toRemove);
     };
 
     const renderGrid = () => {
       floorGrid.querySelectorAll('.bk-edit-slot').forEach(e => e.remove());
       layoutSlots.forEach(slot => {
-        const slotId = Number(slot.id);
+        const slotId = String(slot.id);
         const isAvailable = availableSlots.includes(slotId);
         const isCurrent = currentSlots.includes(slotId);
         const isSelected = selected.has(slotId);
@@ -495,8 +526,10 @@ export async function openEditBookingModal(group, onChange = renderBookings) {
 
         const el = document.createElement('div');
         el.className = 'bk-edit-slot';
-        el.style.cssText = `position:absolute;left:${left}%;top:${top}%;transform:translate(-50%,-50%);width:28px;height:28px;border-radius:6px;display:flex;align-items:center;justify-content:center;font-size:10px;font-weight:700;user-select:none;transition:all 0.1s;box-sizing:border-box;z-index:1;`;
-        el.textContent = slot.label || String(slotId);
+        el.style.cssText = `position:absolute;left:${left}%;top:${top}%;transform:translate(-50%,-50%);width:28px;height:28px;border-radius:6px;display:flex;align-items:center;justify-content:center;font-size:12px;font-weight:700;line-height:1;white-space:nowrap;user-select:none;transition:all 0.1s;box-sizing:border-box;z-index:1;`;
+        // "27", not "Bike 27" — the full label wrapped to two lines and spilled
+        // out of a 28px square. Full label stays in the tooltip below.
+        el.textContent = shortLabelsForPlan.get(String(slot.id)) || slot.label || slotId;
         const clickable = isSelected || isCurrent || isAvailable;
         el.style.cursor = clickable ? 'pointer' : 'default';
         el.title = `${nounCap} ${slot.label || slotId}`;
@@ -533,28 +566,37 @@ export async function openEditBookingModal(group, onChange = renderBookings) {
     };
 
     const saveChanges = async (toAdd, toRemove) => {
-      const saveBtn = body.querySelector('#bk-edit-save-btn');
+      const saveBtn = body.querySelector('#bk-edit-save');
       if (saveBtn) { saveBtn.disabled = true; saveBtn.textContent = 'Saving…'; }
       try {
-        // 1. Release removed spots.
-        for (const slotId of toRemove) {
-          const bookingId = slotToBooking.get(slotId);
-          if (bookingId) await api.cancel(bookingId);
-          const up = (cache.upgrades || []).find(u => String(u.booking_id) === String(bookingId) && ['active', 'paused_no_credits'].includes(u.status));
-          if (up) { try { await api.deleteAutoUpgrade(up.id); } catch (_) {} }
-        }
-        // 2. Book added spots.
-        if (toAdd.length) {
-          const added = [];
-          for (const slotId of toAdd) {
-            const r = await api.book(group.eventId, [slotId]);
-            if (!r.ok) {
-              throw new Error(added.length
-                ? `Re-booked ${added.length} of ${toAdd.length} spots — ${r.error || 'the rest were declined'}`
-                : (r.error || 'Re-booking was declined'));
-            }
-            added.push(r);
+        const gymId = group.event?.gymId || null;
+        if (can('atomicSwap') && toRemove.length === 1 && toAdd.length === 1) {
+          const bookingId = slotToBooking.get(toRemove[0]);
+          const r = await api.swapSpot(bookingId, toRemove[0], toAdd[0], gymId);
+          if (!r.ok) throw new Error(r.error || 'Spot swap was declined');
+        } else {
+          // 1. Release removed spots.
+          for (const slotId of toRemove) {
+            const bookingId = slotToBooking.get(slotId);
+            if (bookingId) await api.cancel(bookingId, gymId);
+            const up = (cache.upgrades || []).find(u => String(u.booking_id) === String(bookingId) && ['active', 'paused_no_credits'].includes(u.status));
+            if (up) { try { await api.deleteAutoUpgrade(up.id); } catch (_) {} }
           }
+          // 2. Book added spots.
+          if (toAdd.length) {
+            const added = [];
+            for (const slotId of toAdd) {
+              const r = await api.book(group.eventId, [slotId], gymId);
+              if (!r.ok) {
+                throw new Error(added.length
+                  ? `Re-booked ${added.length} of ${toAdd.length} spots — ${r.error || 'the rest were declined'}`
+                  : (r.error || 'Re-booking was declined'));
+              }
+              added.push(r);
+            }
+          }
+        }
+        if (toAdd.length) {
           api.notifyBookingSuccess({
             source: 'manual', eventId: group.eventId, className,
             groupName,
@@ -600,6 +642,7 @@ function renderWaitlistsCards(waitlists) {
   valid.sort((a, b) => new Date(a.event.startAt || a.event.start_at) - new Date(b.event.startAt || b.event.start_at));
   container.innerHTML = '';
   valid.forEach(w => container.appendChild(buildWaitlistCard(w)));
+  equalizeDiscTagWidths(container);
 }
 
 function buildWaitlistCard(w) {
@@ -612,25 +655,38 @@ function buildWaitlistCard(w) {
   const groupName = event.discipline || event.event_type?.group?.name || rawClassName;
   const className = stripClassNamePrefix(rawClassName, groupName);
   const instructorName = event.instructors?.[0]?.name || event.instructor?.full_name || 'TBA';
-  const locationLine = [event.studioName || event.studio?.name, trimLocation(event.locationName || event.studio?.location?.name, getGymContext().name)].filter(Boolean).join(', ');
+  const instructorPhotoUrl = event.instructors?.[0]?.thumbUrl || event.instructors?.[0]?.imageUrl || null;
+  const locationLine = [event.studioName || event.studio?.name, trimLocation(event.locationName || event.studio?.location?.name, getGymShortName(event.gymId))].filter(Boolean).join(', ');
 
   const card = document.createElement('div');
   card.className = 'psycle-autobook-card ab-card';
   card.setAttribute('data-event-id', event.id);
+  card.setAttribute('data-gym', event.gymId || 'psycle-london');
   card.innerHTML = `
+    ${renderGymRail(event.gymId || 'psycle-london')}
     <div class="ab-card-main">
-      <div class="ab-card-toprow">
-        <div class="ab-card-when">
-          <span class="ab-card-date">${dateStr.toUpperCase()}</span>
-          <span class="ab-card-time">${timeOnly}</span>
+      ${/* TWO lines of class information, not four.
+           Line 1 — WHEN, plus who's teaching: the two facts you scan a booking
+                    list for.
+           Line 2 — WHAT: discipline, class name, where.
+           The photo is a figure on the right of both lines, so it never sits
+           inside a text line box (which is what made a 52px avatar hang below
+           the row it belonged to). */ ''}
+      <div class="ab-card-body">
+        <div class="ab-card-lines">
+          <div class="ab-card-line1">
+            <span class="ab-card-date">${dateStr.toUpperCase()}</span>
+            <span class="ab-card-time">${timeOnly}</span>
+            ${instructorName ? `<span class="ab-card-instructor">${instructorName}</span>` : ''}
+          </div>
+          <div class="ab-card-line2">
+            ${disciplineTag(groupName)}
+            <span class="ab-card-class">${className}</span>
+            ${locationLine ? `<span class="ab-meta-dot">·</span><span class="ab-card-location">${locationLine}</span>` : ''}
+          </div>
         </div>
-      </div>
-      <div class="ab-card-meta">
-        ${disciplineTag(groupName)}
-        <span class="ab-card-class">${className}</span>
-        <span class="ab-meta-dot">·</span>
-        <span class="ab-card-instructor">${instructorName}</span>
-        ${locationLine ? `<span class="ab-card-location">${locationLine}</span>` : ''}
+        ${instructorAvatar(instructorName, event.gymId, instructorPhotoUrl)
+          ? `<div class="ab-card-figure">${instructorAvatar(instructorName, event.gymId, instructorPhotoUrl)}</div>` : ''}
       </div>
       <div class="ab-card-footer">
         <span class="ab-spots-pill" style="gap:5px;color:var(--warning);background:color-mix(in srgb,var(--warning) 12%,transparent);">${icon('clock', 12)} Waitlisted</span>
@@ -663,7 +719,7 @@ function buildWaitlistCard(w) {
     labelSpan.textContent = '…';
     try {
       showToast('Leaving waitlist...', 'info');
-      await api.leaveWaitlist(event.id);
+      await api.leaveWaitlist(event.id, event.gymId);
       showToast('Left waitlist.', 'success');
       await refreshUserData(true);
       renderBookings();
@@ -685,7 +741,7 @@ function upgradeCreditShortfall() {
 }
 
 // Quick-register or open modal, like the auto-book flow
-async function handleUpgradeClick({ eventId, bookingId, currentSlotId, studioId, className, groupName, instructorName, studioName, locationName, startAt, existingUpgradeId, existingPrefs }) {
+async function handleUpgradeClick({ eventId, gymId, bookingId, currentSlotId, studioId, className, groupName, instructorName, studioName, locationName, startAt, existingUpgradeId, existingPrefs }) {
   if (!eventId || !bookingId || currentSlotId === '' || currentSlotId == null || isNaN(Number(currentSlotId))) {
     showToast('Could not determine your current spot. Open the booking details to find your slot.', 'error');
     return;
@@ -693,7 +749,7 @@ async function handleUpgradeClick({ eventId, bookingId, currentSlotId, studioId,
 
   // If editing an existing monitor, always open the config modal
   if (existingUpgradeId !== null) {
-    openUpgradeConfigModal({ eventId, bookingId, currentSlotId, studioId, className, groupName, instructorName, studioName, locationName, startAt, existingUpgradeId, existingPrefs });
+    openUpgradeConfigModal({ eventId, gymId, bookingId, currentSlotId, studioId, className, groupName, instructorName, studioName, locationName, startAt, existingUpgradeId, existingPrefs });
     return;
   }
 
@@ -727,7 +783,7 @@ async function handleUpgradeClick({ eventId, bookingId, currentSlotId, studioId,
       renderBookings();
     } else {
       // No prefs — open modal to configure
-      openUpgradeConfigModal({ eventId, bookingId, currentSlotId, studioId, className, groupName, instructorName, studioName, locationName, startAt, existingUpgradeId: null, existingPrefs: null });
+      openUpgradeConfigModal({ eventId, gymId, bookingId, currentSlotId, studioId, className, groupName, instructorName, studioName, locationName, startAt, existingUpgradeId: null, existingPrefs: null });
     }
   } catch (err) {
     showToast(`Error: ${err.message}`, 'error');
@@ -735,7 +791,7 @@ async function handleUpgradeClick({ eventId, bookingId, currentSlotId, studioId,
 }
 
 // Auto-Upgrade configuration modal (floor plan + options)
-export async function openUpgradeConfigModal({ eventId, bookingId, currentSlotId, studioId, className, groupName, instructorName, studioName, locationName, startAt, existingUpgradeId, existingPrefs }) {
+export async function openUpgradeConfigModal({ eventId, gymId, bookingId, currentSlotId, studioId, className, groupName, instructorName, studioName, locationName, startAt, existingUpgradeId, existingPrefs }) {
   const modal = document.getElementById('psycle-booking-modal');
   const body = document.getElementById('psycle-booking-modal-body');
   const title = document.getElementById('psycle-booking-modal-title');
@@ -774,7 +830,7 @@ export async function openUpgradeConfigModal({ eventId, bookingId, currentSlotId
     // metadata (`.credit_types`, via getAvailableCreditsForEvent), which has no
     // normalized equivalent yet and is out of C5's scope.
     const [{ event, slots: layoutSlots, objects: layoutObjects }, allPrefs] = await Promise.all([
-      api.getEventDetails(eventId),
+      api.getEventDetails(eventId, gymId),
       api.getStudioPreferences()
     ]);
 
@@ -804,12 +860,16 @@ export async function openUpgradeConfigModal({ eventId, bookingId, currentSlotId
 
     const currentSlotLabel = layoutSlots.find(s => Number(s.id) === currentSlotId)?.label || String(currentSlotId);
 
-    // Credit checking for auto-upgrade (needs +1 credit for the upgrade spot)
+    // Credit checking for auto-upgrade (needs +1 credit for the upgrade spot).
+    // A membership gym's credit math is Infinity (correctly — nothing to
+    // charge), so it needs its own eligibility gate (WP-J) rather than relying
+    // on this arithmetic, which can't see membership status.
+    const ineligibleReason = getIneligibleReason();
     const availableCredits = getAvailableCreditsForEvent(eventDetails);
     const upgradeCreditsNeeded = 1; // Auto-upgrade needs 1 credit for the additional spot
-    const hasEnoughCredits = availableCredits >= upgradeCreditsNeeded;
+    const hasEnoughCredits = !ineligibleReason && availableCredits >= upgradeCreditsNeeded;
     const creditWarningHtml = !hasEnoughCredits
-      ? `<div style="font-size:12px;color:var(--danger);background:color-mix(in srgb,var(--danger) 10%,transparent);border:1px solid color-mix(in srgb,var(--danger) 20%,transparent);border-radius:8px;padding:10px;margin-bottom:10px;line-height:1.5;">In order for Auto-Upgrade to work, you need to purchase ${upgradeCreditsNeeded - availableCredits} more credit${upgradeCreditsNeeded - availableCredits !== 1 ? 's' : ''}. Auto-Upgrade books an additional ${noun} before cancelling your current one.</div>`
+      ? `<div style="font-size:12px;color:var(--danger);background:color-mix(in srgb,var(--danger) 10%,transparent);border:1px solid color-mix(in srgb,var(--danger) 20%,transparent);border-radius:8px;padding:10px;margin-bottom:10px;line-height:1.5;">${ineligibleReason || `In order for Auto-Upgrade to work, you need to purchase ${upgradeCreditsNeeded - availableCredits} more credit${upgradeCreditsNeeded - availableCredits !== 1 ? 's' : ''}. Auto-Upgrade books an additional ${noun} before cancelling your current one.`}</div>`
       : '';
 
     body.innerHTML = `<div id="psycle-upgrade-editor"></div>`;
@@ -817,7 +877,7 @@ export async function openUpgradeConfigModal({ eventId, bookingId, currentSlotId
 
     const bannerHtml = `
       <div style="font-size:12px;color:var(--feat-autoupgrade);background:color-mix(in srgb,var(--feat-autoupgrade) 8%,transparent);border:1px solid color-mix(in srgb,var(--feat-autoupgrade) 18%,transparent);border-radius:8px;padding:8px 10px;margin-bottom:10px;line-height:1.5;">
-        This is the one shared preferred spot map for <strong>${studioName}</strong>. Auto-Upgrade aims for these ${noun}s in priority order — and Quick-Book &amp; Auto-Book here use the same map. Your current seat is <strong>${currentSlotLabel}</strong>.
+        This is the one shared preferred spot map for <strong>${studioName}</strong>. Auto-Upgrade aims for these ${noun}s in priority order — and Quick-Book &amp; Auto-Book here use the same map. Your current ${noun} is <strong>${currentSlotLabel}</strong>.
       </div>${creditWarningHtml}`;
 
     const extraControlsHtml = `
@@ -825,7 +885,7 @@ export async function openUpgradeConfigModal({ eventId, bookingId, currentSlotId
         <input type="checkbox" class="psycle-ms-checkbox" id="upgrade-keep-original" ${seedKeepOriginal ? 'checked' : ''} style="margin-top:2px;">
         <span>
           <strong>Continue past 12h cutoff</strong><br>
-          <span style="font-size:12px;color:var(--text-tertiary);">Within 12h of class, make one final upgrade attempt without cancelling your original seat — you'll need to ask Psycle to release it. Without this, monitoring stops at 12h.</span>
+          <span style="font-size:12px;color:var(--text-tertiary);">Within 12h of class, make one final upgrade attempt without cancelling your original ${noun} — you'll need to ask the gym to release it. Without this, monitoring stops at 12h.</span>
         </span>
       </label>`;
 
@@ -887,7 +947,7 @@ export async function openUpgradeConfigModal({ eventId, bookingId, currentSlotId
 
   } catch (err) {
     console.error('[Bookings] Modal load layout failed:', err);
-    body.innerHTML = `<div class="psycle-card-error">Error loading seat layout: ${err.message}</div>`;
+    body.innerHTML = `<div class="psycle-card-error">Error loading spot layout: ${err.message}</div>`;
   }
 }
 

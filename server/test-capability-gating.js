@@ -57,23 +57,21 @@ check('GET /api/gyms serves capabilities, theme and labels', () => {
   // projection rather than importing it, so dropping a field from the response
   // shows up here.
   const projected = Object.values(GYMS).map((g) => ({
-    id: g.id, name: g.name, provider: g.provider, enabled: g.enabled,
+    id: g.id, name: g.name, websiteUrl: g.websiteUrl, provider: g.provider, enabled: g.enabled,
     theme: g.theme, labels: g.labels, capabilities: g.capabilities,
   }));
   for (const g of projected) {
     assert.ok(g.capabilities && Object.keys(g.capabilities).length >= 5, `${g.id}: capabilities missing`);
     assert.ok(g.theme && g.theme.primary, `${g.id}: no theme colour for the UI to brand with`);
     assert.ok(g.labels && g.labels.spot, `${g.id}: no spot noun`);
+    assert.ok(/^https:\/\//.test(g.websiteUrl), `${g.id}: no public website URL`);
   }
 });
 
-check('a disabled gym is still described, so it can be listed but not chosen', () => {
-  // JAB ships behind the rollout gate. The catalogue must still carry it —
-  // hiding it entirely would leave the switcher unable to explain why it is
-  // unavailable — while setActiveGym refuses it.
+check('a gym is still described, so it can be listed', () => {
   const jab = Object.values(GYMS).find((g) => g.id === 'jab-boxing');
-  assert.strictEqual(jab.enabled, false);
-  assert.ok(jab.capabilities, 'a gated gym still describes itself');
+  assert.strictEqual(typeof jab.enabled, 'boolean');
+  assert.ok(jab.capabilities, 'a gym still describes itself');
 });
 
 // --- 3. the upgrade path branches on the flag -------------------------------

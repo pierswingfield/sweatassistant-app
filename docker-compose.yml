@@ -7,7 +7,7 @@ services:
       dockerfile: Dockerfile
     container_name: psycle-app-dev
     ports:
-      - "3005:3000"
+      - "100.86.226.52:3005:3000"
     volumes:
       - ./data:/data
     env_file:

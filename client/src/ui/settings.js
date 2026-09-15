@@ -1,11 +1,14 @@
-import { api, apiFetch, getActiveGymId, setActiveGymId } from '../api';
+import { api, apiFetch } from '../api';
 import { showToast, togglePushSubscription, updatePushStatusUI, userSettings, cache, getTheme, setTheme, debugConsole } from '../main';
 import { getBookingOffset, describeBookingWindow } from '../lib';
 import { renderStudioFloorPlan } from './spotmap';
 import { cacheGet } from './timetable';
 import { clearApiCache, gymScopedKey } from '../cache.js';
+import { renderGymSettingsSection as renderGymSettingsSectionView } from './gym-settings-section.js';
+import { renderCalendarSection } from './calendar-section.js';
 
 let loadedProfile = null;
+let loadedProfileGymId = null;
 
 // ─── Profile Explorer — Unified Implementation ─────────────────────────────
 
@@ -198,7 +201,7 @@ function buildSections(profile) {
 
 // ─── Modal Functions ────────────────────────────────────────────────────────
 
-async function openProfileExplorerModal() {
+async function openProfileExplorerModal(gymId = null, gymName = null) {
   const modal = document.getElementById('psycle-profile-explorer-modal');
   const body = document.getElementById('psycle-profile-explorer-body');
   if (!modal || !body) return;
@@ -208,6 +211,9 @@ async function openProfileExplorerModal() {
   konamiProgress = 0;
   explorerModalOpen = true;
   changeLog = [];
+  loadedProfileGymId = gymId;
+  const title = document.getElementById('psycle-profile-explorer-title');
+  if (title) title.textContent = gymName ? `${gymName} Profile Explorer` : 'Profile Explorer';
 
   // Show loading state — use .show class for opacity transition (matches booking/debug modal convention)
   modal.style.display = 'flex';
@@ -224,7 +230,7 @@ async function openProfileExplorerModal() {
     // The Profile Explorer exists to show the gym's OWN payload, so it reads
     // `.raw` deliberately — that is the thing it is a viewer for. It falls back
     // to the normalized fields when a provider exposes no raw blob.
-    const res = await api.getNormalizedProfile();
+    const res = await api.getNormalizedProfile(gymId);
     loadedProfile = res.raw || res;
     renderExplorerBody(body);
   } catch (err) {
@@ -549,11 +555,11 @@ async function saveProfileChanges(body, originalProfile) {
 
   try {
     // Send the update
-    await api.proxyPost('/account/update', payload);
+    await api.updateProfileFields(payload, loadedProfileGymId);
 
     // Re-fetch to verify
     try {
-        const refetched = await api.getNormalizedProfile();
+        const refetched = await api.getNormalizedProfile(loadedProfileGymId);
       const refetchedProfile = refetched.raw || refetched;
 
       // Verify each new entry and update input values in-place
@@ -686,9 +692,13 @@ export async function openManageSpotMapsModal(options = {}) {
 
   try {
     const [prefs, cachedMeta, cachedEvents] = await Promise.all([
-      api.getStudioPreferences(),
-      cacheGet(gymScopedKey('psycleCacheMeta')),
-      cacheGet(gymScopedKey('psycleCacheEvents'))
+      api.getStudioPreferences(options.gymId),
+      // The gym-scoped cache keys already resolve to the gym in localStorage, so
+      // a request for a DIFFERENT gym must not read them. With the ambient
+      // active-gym state gone, an explicit gymId is by definition not "the
+      // cached one" — fetch fresh rather than serve another gym's layout.
+      options.gymId ? null : cacheGet(gymScopedKey('psycleCacheMeta')),
+      options.gymId ? null : cacheGet(gymScopedKey('psycleCacheEvents'))
     ]);
 
     // Studios from the timetable metadata cache (built from event relations) include full
@@ -705,7 +715,7 @@ export async function openManageSpotMapsModal(options = {}) {
         // or locations endpoint at all and derives them from its class list, so
         // asking for them separately only ever worked for CodexFit gyms.
         if (!studios.length || !locations.length) {
-          const meta = await api.getMetadata({ ttlMs: 3600000 });
+          const meta = await api.getMetadata({ ttlMs: 3600000, gymId: options.gymId });
           if (!studios.length) studios = meta.studios || [];
           if (!locations.length) {
             locations = meta.locations || [];
@@ -724,8 +734,8 @@ export async function openManageSpotMapsModal(options = {}) {
           const endDate = new Date(now.getTime() + 28 * 24 * 60 * 60 * 1000).toISOString().split('T')[0];
 
           try {
-            const normalizedEvents = await api.getTimetable({ startDate, endDate });
-            events = normalizedEvents.map(ne => ({ studio_id: Number(ne.studioId) }));
+            const normalizedEvents = await api.getTimetable({ startDate, endDate, gymId: options.gymId });
+            events = normalizedEvents.map(ne => ({ studio_id: Number(ne.studioId), gymId: ne.gymId }));
           } catch (_) {
             // If events fetch fails, events stays empty (no filtering)
           }
@@ -733,6 +743,15 @@ export async function openManageSpotMapsModal(options = {}) {
       } catch (_) {
         // If any fetch fails, proceed with what we have
       }
+    }
+
+    // A future Phase 3 drawer can render a non-active gym. The merged metadata
+    // helpers deliberately return every linked gym, so narrow them back to the
+    // section's explicit gym before rendering or editing provider ids.
+    if (options.gymId) {
+      studios = studios.filter(item => !item.gymId || item.gymId === options.gymId);
+      locations = locations.filter(item => !item.gymId || item.gymId === options.gymId);
+      events = events.filter(item => !item.gymId || item.gymId === options.gymId);
     }
 
     // Build a set of studio IDs that actually have upcoming events, to exclude defunct studios
@@ -757,7 +776,10 @@ export async function openManageSpotMapsModal(options = {}) {
 
 function renderManageSpotMapsModal(prefs, studios, locations, container, onClose, activeStudioIds, options = {}) {
   const locMap = {};
-  locations.forEach(loc => { locMap[String(loc.id)] = loc.name; });
+  locations.forEach(loc => {
+    locMap[String(loc.id)] = loc.name;
+    if (loc.gymId) locMap[`${loc.gymId}:${loc.id}`] = loc.name;
+  });
 
   const hasActiveFilter = activeStudioIds && activeStudioIds.size > 0;
 
@@ -769,7 +791,8 @@ function renderManageSpotMapsModal(prefs, studios, locations, container, onClose
     const hasMap = studio.hasLayout ?? (studio.layout?.slots?.length > 0);
     if (!hasMap) return; // only studios with seat maps
     if (hasActiveFilter && !activeStudioIds.has(String(studio.id))) return; // exclude defunct studios
-    const locName = locMap[String(studio.locationId ?? studio.location_id)] || 'Unknown Location';
+    const locId = studio.locationId ?? studio.location_id;
+    const locName = (studio.gymId && locMap[`${studio.gymId}:${locId}`]) || locMap[String(locId)] || 'Unknown Location';
     if (!grouped[locName]) grouped[locName] = [];
     grouped[locName].push(studio);
   });
@@ -799,7 +822,7 @@ function renderManageSpotMapsModal(prefs, studios, locations, container, onClose
     studioList.style.cssText = 'display:flex;flex-direction:column;gap:6px;';
 
     grouped[locName].forEach(studio => {
-      const studioPrefs = prefs[studio.id];
+      const studioPrefs = (studio.gymId && prefs[`${studio.gymId}:${studio.id}`]) || prefs[studio.id];
       const hasPrefs = studioPrefs && (studioPrefs.preferredSlots?.length > 0 || studioPrefs.preferredRows?.length > 0);
 
       const row = document.createElement('div');
@@ -831,7 +854,7 @@ function renderManageSpotMapsModal(prefs, studios, locations, container, onClose
       editBtn.className = 'psycle-btn-mini';
       editBtn.style.cssText = 'font-size:12px;padding:4px 10px;';
       editBtn.textContent = hasPrefs ? 'Edit Spots' : 'Choose Spots';
-      editBtn.addEventListener('click', () => openStudioFloorPlanEditor(studio.id, studio.name, () => openManageSpotMapsModal(options), options));
+      editBtn.addEventListener('click', () => openStudioFloorPlanEditor(studio.id, studio.name, () => openManageSpotMapsModal(options), { ...options, gymId: studio.gymId }));
       btns.appendChild(editBtn);
 
       if (hasPrefs) {
@@ -844,7 +867,7 @@ function renderManageSpotMapsModal(prefs, studios, locations, container, onClose
           removeBtn.disabled = true;
           removeBtn.textContent = '…';
           try {
-            await api.updateStudioPreferences(studio.id, { preferredSlots: [], preferredRows: [] });
+            await api.updateStudioPreferences(studio.id, { preferredSlots: [], preferredRows: [] }, studio.gymId || options.gymId);
             showToast(`Studio defaults removed!`, 'success');
             openManageSpotMapsModal(options);
           } catch (err) {
@@ -917,14 +940,14 @@ export async function openStudioFloorPlanEditor(studioId, studioName, onSaved, o
     // endpoint, so this standalone Manage Maps entry point draws the same floor
     // fixtures as the event-context booking modals do.
     const [{ slots: layoutSlots, objects: layoutObjects }, allPrefs] = await Promise.all([
-      api.getStudioLayout(studioId),
-      api.getStudioPreferences()
+      api.getStudioLayout(studioId, options.gymId),
+      api.getStudioPreferences(options.gymId)
     ]);
-    const existing = allPrefs[studioId] || {};
+    const existing = (options.gymId && allPrefs[`${options.gymId}:${studioId}`]) || allPrefs[studioId] || {};
 
     const onSave = async (slots, rows) => {
       try {
-        await api.updateStudioPreferences(studioId, { preferredSlots: slots, preferredRows: rows });
+        await api.updateStudioPreferences(studioId, { preferredSlots: slots, preferredRows: rows }, options.gymId);
         showToast(`Saved spot map for ${studioName}`, 'success');
         close();
         if (onSaved) onSaved();
@@ -960,20 +983,22 @@ function setupSettingsNavigation() {
   if (!layout || layout.dataset.navListener) return;
   layout.dataset.navListener = 'true';
 
-  const menuItems = layout.querySelectorAll('.psycle-settings-menu-item');
-  const panes = layout.querySelectorAll('.psycle-settings-section-pane');
+  // Queried LIVE on every activation, not cached here: per-gym entries and panes
+  // are created asynchronously by renderGymsCard after this runs, and a snapshot
+  // taken at setup time would never see them (clicking a gym would do nothing).
+  const menuItems = () => layout.querySelectorAll('.psycle-settings-menu-item');
+  const panes = () => layout.querySelectorAll('.psycle-settings-section-pane');
   const sectionTitle = document.getElementById('psycle-settings-section-title');
   const backBtn = document.getElementById('psycle-settings-back-btn');
 
   // Handle URL hash to select target section initially if hash contains a specific settings target
   const hash = location.hash.replace('#', '');
-  let initialSection = 'about';
-  if (['booking', 'experience', 'advanced'].includes(hash)) {
-    initialSection = hash;
-  }
+  const legacySectionMap = { booking: 'gyms', experience: 'account', advanced: 'account' };
+  let initialSection = legacySectionMap[hash] || 'account';
+  if (['account', 'gyms', 'about'].includes(hash)) initialSection = hash;
 
   const activateSection = (sectionId) => {
-    menuItems.forEach(item => {
+    menuItems().forEach(item => {
       const match = item.getAttribute('data-settings-section') === sectionId;
       item.classList.toggle('active', match);
       if (match && sectionTitle) {
@@ -981,7 +1006,7 @@ function setupSettingsNavigation() {
       }
     });
 
-    panes.forEach(pane => {
+    panes().forEach(pane => {
       const paneId = `psycle-settings-pane-${sectionId}`;
       pane.classList.toggle('active', pane.id === paneId);
     });
@@ -990,13 +1015,15 @@ function setupSettingsNavigation() {
     layout.classList.add('show-pane');
   };
 
-  // Attach menu click listeners
-  menuItems.forEach(item => {
-    item.addEventListener('click', () => {
-      const sectionId = item.getAttribute('data-settings-section');
-      activateSection(sectionId);
-    });
+  // ONE delegated listener on the menu, so entries added later (the per-gym
+  // ones) work without re-binding.
+  layout.addEventListener('click', (event) => {
+    const item = event.target.closest('.psycle-settings-menu-item');
+    if (!item || !layout.contains(item)) return;
+    activateSection(item.getAttribute('data-settings-section'));
   });
+  // Exposed so renderGymsCard can select a gym's pane after creating it.
+  layout.__activateSettingsSection = activateSection;
 
   // Attach mobile back button listener
   if (backBtn) {
@@ -1009,7 +1036,7 @@ function setupSettingsNavigation() {
   activateSection(initialSection);
   // Remove show-pane class initially so list displays first on mobile,
   // EXCEPT if the hash explicitly requested a section
-  if (!['booking', 'experience', 'advanced'].includes(hash)) {
+  if (!['account', 'gyms', 'about', 'booking', 'experience', 'advanced'].includes(hash)) {
     layout.classList.remove('show-pane');
   }
 }
@@ -1029,13 +1056,20 @@ function escapeHtml(str) {
 }
 
 // ═══════════════════════════════════════════════════════════════════════
-//  YOUR GYMS (WP-C2) — active-gym switcher, link/unlink, account password.
+//  YOUR GYMS — link/unlink and per-gym settings. NO SWITCHER.
 //
-//  A Sweat Assistant account holds N gym credentials (Decision D4). Switching
-//  changes which gym's timetable/bookings/credits every request resolves, so a
-//  switch must move BOTH the server's stored choice and the local `x-gym-id`
-//  header together — api.setActiveGym does both, and the whole cache is dropped
-//  afterwards because none of it is valid for a different gym.
+//  A Sweat Assistant account holds N gym credentials (Decision D4), and the app
+//  presents ONE unified view: the timetable, bookings, waitlists and queues show
+//  every linked gym at once, and every row reads and writes through its own
+//  `gymId`. There is therefore nothing for a user to switch BETWEEN, and a
+//  "switch" control actively misleads — it implies the other gym's classes are
+//  hidden until you flip something, which they are not.
+//
+//  The server still resolves an active gym (db.resolveActiveGymId) because
+//  background cron has no request context and some single-gym paths need a
+//  default. That is an implementation detail and must stay invisible: do not
+//  surface it, do not add a switch button, and do not make any user-visible
+//  behaviour depend on which gym happens to be persisted.
 // ═══════════════════════════════════════════════════════════════════════
 
 function gymModal() {
@@ -1055,28 +1089,32 @@ function gymModal() {
   return { modal, body, title, open, close };
 }
 
-// Every cache key is now gym-scoped (WP-G), so a switch cannot serve the
-// previous gym's data even if this function is never called — which is the point:
-// the old design was correct only while every path that changes the active gym
-// remembered to clear, and one that didn't rendered the wrong gym's timetable
-// with a clean console.
-//
-// The clearing is kept as belt-and-braces (a stale entry under the OLD gym's key
-// is dead weight, not a correctness risk) and is deliberately no longer the
-// mechanism. Do NOT re-add unqualified keys here to "make sure".
-async function applyGymSwitch(gymId) {
-  await api.setActiveGym(gymId);
-  try { await clearApiCache(); } catch (_) {}
-  try {
-    localStorage.removeItem(gymScopedKey('psycleCacheTime'));
-    localStorage.removeItem(gymScopedKey('psycleActiveStudioIds'));
-    localStorage.removeItem(gymScopedKey('psycleActiveStudioIdsTime'));
-  } catch (_) {}
+// NOTE: `applyGymSwitch()` used to live here. It is gone with the switcher —
+// see the section header above. Every cache key is gym-scoped (WP-G), so no
+// cache clearing is needed on any gym-related action; do not re-add a "clear
+// everything" helper to be safe, because that was the mechanism the old design
+// leaned on and it was only ever correct while every caller remembered it.
+
+/** Relative "3 days ago" / absolute date for a connection's last authentication. */
+function lastAuthLabel(iso) {
+  if (!iso) return 'Not recorded';
+  const then = new Date(iso);
+  if (Number.isNaN(then.getTime())) return 'Not recorded';
+  const days = Math.floor((Date.now() - then.getTime()) / 86400000);
+  const date = then.toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' });
+  if (days <= 0) return `Today · ${date}`;
+  if (days === 1) return `Yesterday · ${date}`;
+  if (days < 30) return `${days} days ago · ${date}`;
+  return date;
 }
 
 export async function renderGymsCard() {
+  const card = document.getElementById('psycle-gyms-card');
   const list = document.getElementById('psycle-gyms-list');
   const actions = document.getElementById('psycle-gyms-actions');
+  const layout = document.getElementById('psycle-settings-layout-wrapper');
+  const menu = layout?.querySelector('.psycle-settings-menu');
+  const panesHost = layout?.querySelector('.psycle-settings-section-panes');
   if (!list) return;
 
   let data;
@@ -1088,27 +1126,55 @@ export async function renderGymsCard() {
   }
 
   const linked = data.gyms || [];
-  const activeId = data.activeGymId;
 
+  // The card is ALWAYS shown, at every gym count. It used to hide itself when
+  // exactly one gym was linked — and since the "Add a gym" button lives inside
+  // it, a single-gym account had no way to link a second one at all.
+  if (card) card.hidden = false;
+
+  // ── Your Gyms pane = the CONNECTION table, nothing else ────────────────────
+  // Each gym's own settings live behind its own sidebar entry (built below), so
+  // this page answers one question: are my gyms connected, and when did each
+  // last authenticate?
   if (linked.length === 0) {
     list.innerHTML = `<div class="psycle-card-desc" style="padding:10px 0;">No gyms linked. Add one to start booking.</div>`;
   } else {
-    list.innerHTML = linked.map(g => {
-      const isActive = g.gym_id === activeId;
-      const disabled = !g.gym_enabled;
-      return `
-        <div class="psycle-setting-row" style="align-items:center;">
-          <div class="psycle-setting-label">
-            <span>${escapeHtml(g.gym_name || g.gym_id)}${isActive ? ' <span class="psycle-badge success" style="margin-left:6px;">Active</span>' : ''}</span>
-            <small>${escapeHtml(g.provider || '')}${disabled ? ' · not available yet' : ''}${g.status && g.status !== 'active' ? ` · ${escapeHtml(g.status)}` : ''}</small>
-          </div>
-          <div style="display:flex;gap:6px;flex-shrink:0;">
-            ${isActive || disabled ? '' : `<button class="psycle-btn psycle-btn-mini" data-switch-gym="${escapeHtml(g.gym_id)}">Switch</button>`}
-            <button class="psycle-btn psycle-btn-mini" data-reauth-gym="${escapeHtml(g.gym_id)}">Re-authenticate</button>
-            <button class="psycle-btn psycle-btn-mini variant-danger" data-unlink-gym="${escapeHtml(g.gym_id)}">Unlink</button>
-          </div>
-        </div>`;
-    }).join('');
+    list.innerHTML = `
+      <div class="psycle-gym-conn-table" role="table" aria-label="Gym connections">
+        <div class="psycle-gym-conn-head" role="row">
+          <span role="columnheader">Gym</span>
+          <span role="columnheader">Connection</span>
+          <span role="columnheader">Last authenticated</span>
+          <span role="columnheader"><span class="u-visually-hidden">Actions</span></span>
+        </div>
+        ${linked.map(g => {
+          const needsRelogin = g.status === 'needs_relogin';
+          const disabled = !g.gym_enabled;
+          // Health is a symbol AND a word: a colour-and-glyph-only status fails
+          // in forced-colours mode and for colour-blind users, and "is my gym
+          // connected" is exactly the question you cannot afford to misread.
+          const health = disabled
+            ? { cls: 'is-off', icon: '—', label: 'Not available yet' }
+            : needsRelogin
+              ? { cls: 'is-warn', icon: '!', label: 'Reconnect needed' }
+              : { cls: 'is-ok', icon: '✓', label: 'Connected' };
+          return `
+            <div class="psycle-gym-conn-row" role="row">
+              <span role="cell" class="psycle-gym-conn-name">
+                <strong>${escapeHtml(g.gym_name || g.gym_id)}</strong>
+                <small>${escapeHtml(g.gym_email || g.provider || '')}</small>
+              </span>
+              <span role="cell" class="psycle-gym-conn-health ${health.cls}">
+                <span class="psycle-gym-conn-dot" aria-hidden="true">${health.icon}</span>${escapeHtml(health.label)}
+              </span>
+              <span role="cell" class="psycle-gym-conn-when">${escapeHtml(lastAuthLabel(g.last_authenticated_at))}</span>
+              <span role="cell" class="psycle-gym-conn-actions">
+                <button class="psycle-btn psycle-btn-mini" data-reauth-gym="${escapeHtml(g.gym_id)}">Re-authenticate</button>
+                <button class="psycle-btn psycle-btn-mini variant-danger" data-unlink-gym="${escapeHtml(g.gym_id)}">Unlink</button>
+              </span>
+            </div>`;
+        }).join('')}
+      </div>`;
   }
 
   // Only offer gyms that are both enabled and not already linked.
@@ -1119,27 +1185,9 @@ export async function renderGymsCard() {
     addable = all.filter(g => g.enabled && !linkedIds.has(g.id));
   } catch (_) { /* catalogue is best-effort — the rest of the card still works */ }
 
-  actions.innerHTML = `
-    ${addable.length ? `<button class="psycle-btn primary psycle-btn-mini" id="psycle-add-gym-btn">Add a gym</button>` : ''}
-    <button class="psycle-btn psycle-btn-mini" id="psycle-account-password-btn">Change account password</button>
-  `;
-
-  list.querySelectorAll('[data-switch-gym]').forEach(btn => {
-    btn.onclick = async () => {
-      const gymId = btn.dataset.switchGym;
-      btn.disabled = true;
-      btn.textContent = 'Switching…';
-      try {
-        await applyGymSwitch(gymId);
-        showToast('Switched gym — reloading', 'success');
-        setTimeout(() => location.reload(), 600);
-      } catch (err) {
-        showToast(err.message, 'error');
-        btn.disabled = false;
-        btn.textContent = 'Switch';
-      }
-    };
-  });
+  actions.innerHTML = addable.length
+    ? `<button class="psycle-btn primary psycle-btn-mini" id="psycle-add-gym-btn">＋ Connect a gym</button>`
+    : `<p class="psycle-card-desc" style="margin:0;">Every available gym is already connected.</p>`;
 
   list.querySelectorAll('[data-reauth-gym]').forEach(btn => {
     btn.onclick = () => openLinkGymModal(btn.dataset.reauthGym, linked.find(g => g.gym_id === btn.dataset.reauthGym));
@@ -1160,25 +1208,175 @@ export async function renderGymsCard() {
       btn.disabled = true;
       try {
         await api.unlinkGym(gymId);
-        // If we just unlinked the gym we were on, the server has already fallen
-        // back — drop the stale local header so the next request doesn't ask for
-        // a gym this account no longer has (which is now a 403).
-        if (getActiveGymId() === gymId) {
-          setActiveGymId(null);
-          try { await clearApiCache(); } catch (_) {}
-        }
-        showToast('Gym unlinked', 'success');
-        renderGymsCard();
+        showToast('Gym unlinked.', 'success');
+        await renderGymsCard();
       } catch (err) {
         showToast(err.message, 'error');
         btn.disabled = false;
+        armed = false;
+        btn.textContent = 'Unlink';
       }
     };
   });
 
   const addBtn = document.getElementById('psycle-add-gym-btn');
   if (addBtn) addBtn.onclick = () => openLinkGymModal(null, null, addable);
-  document.getElementById('psycle-account-password-btn').onclick = openAccountPasswordModal;
+
+  // ── One sidebar entry and one pane PER GYM ─────────────────────────────────
+  //
+  // Stacking every gym's settings on a single page meant scrolling past one
+  // gym's eight cards to reach the next, and gave no way to link to a specific
+  // gym's settings. A gym is a first-class section, so it gets a first-class
+  // nav entry.
+  //
+  // Entries are rebuilt from scratch on every render (rather than diffed) so an
+  // unlinked gym cannot leave a dead entry behind pointing at a pane that no
+  // longer exists.
+  if (menu && panesHost) {
+    menu.querySelectorAll('[data-gym-nav]').forEach(el => el.remove());
+    panesHost.querySelectorAll('[data-gym-pane]').forEach(el => el.remove());
+
+    const aboutItem = menu.querySelector('[data-settings-section="about"]');
+    for (const g of linked) {
+      const sectionId = `gym-${g.gym_id}`;
+
+      const item = document.createElement('button');
+      item.className = 'psycle-settings-menu-item psycle-settings-menu-sub';
+      item.setAttribute('data-settings-section', sectionId);
+      item.setAttribute('data-gym-nav', g.gym_id);
+      item.innerHTML = `<span class="menu-item-text">${escapeHtml(g.gym_name || g.gym_id)}</span>`
+        + (g.status === 'needs_relogin' ? '<span class="psycle-menu-item-flag" title="Reconnect needed">!</span>' : '');
+      // Gyms sit directly under "Your Gyms" and above "About".
+      if (aboutItem) menu.insertBefore(item, aboutItem); else menu.appendChild(item);
+
+      const pane = document.createElement('div');
+      pane.className = 'psycle-settings-section-pane';
+      pane.id = `psycle-settings-pane-${sectionId}`;
+      pane.setAttribute('data-gym-pane', g.gym_id);
+      panesHost.appendChild(pane);
+
+      // Sequential, not Promise.all: each section fetches settings, membership
+      // and credits for its gym, and firing them all at once against a rate
+      // -limited provider is how you turn a settings page into a 429.
+      await renderGymSettingsSection(g.gym_id, pane)
+        .catch(err => debugConsole('[Settings] Gym section failed:', g.gym_id, err.message));
+    }
+  }
+
+  // The old single inline host is no longer used; clear it so a stale render
+  // can't linger behind the new per-gym panes.
+  const legacyInline = document.getElementById('psycle-gym-settings-section');
+  if (legacyInline) { legacyInline.hidden = true; legacyInline.innerHTML = ''; }
+}
+
+// NOTE: `openGymSettingsDrawer()` used to live here and is deliberately gone.
+// Per-gym settings render inline (see renderGymsCard above). The drawer was a
+// fixed-position overlay with its own backdrop, and any modal launched from
+// inside it — the spot-map editor in particular — painted BELOW that backdrop.
+// Do not reintroduce a drawer or any other overlay layer for gym settings.
+
+// One renderer for every setting owned by a gym. Phase 2 mounts the active gym
+// inline in the existing Booking pane; Phase 3 can call this same function from
+// an n=1 inline section or an n>=2 drawer without recreating any controls.
+export async function renderGymSettingsSection(requestedGymId = null, targetContainer = null) {
+  const container = targetContainer || document.getElementById('psycle-gym-settings-section');
+  if (!container) return;
+
+  container.innerHTML = '<div class="psycle-settings-card"><p class="psycle-card-desc">Loading gym settings…</p></div>';
+
+  try {
+    const [myGyms, catalogue] = await Promise.all([api.getMyGyms(), api.getGyms()]);
+    const linked = myGyms.gyms || [];
+    const gymId = requestedGymId || myGyms.activeGymId || linked[0]?.gym_id;
+    const link = linked.find(g => g.gym_id === gymId);
+    if (!gymId || !link) {
+      container.innerHTML = '<div class="psycle-settings-card"><h4>Connect a gym</h4><p class="psycle-card-desc">Link a gym before configuring booking settings.</p></div>';
+      return;
+    }
+
+    const config = catalogue.find(g => g.id === gymId) || {};
+    const gym = { ...config, ...link, id: gymId, capabilities: { ...(config.capabilities || {}), ...(link.capabilities || {}) } };
+    const addable = catalogue.filter(g => g.enabled && !linked.some(item => item.gym_id === g.id));
+    const [settings, membership, credits] = await Promise.all([
+      api.getSettings(gymId),
+      api.getMembership(gymId).catch(() => null),
+      api.getNormalizedCredits(gymId).catch(() => []),
+    ]);
+    const bookingWindowText = describeBookingWindow(getBookingOffset(settings), null);
+
+    const rerender = () => renderGymSettingsSection(gymId).catch(err => debugConsole('[Settings] Gym section refresh failed:', err.message));
+    renderGymSettingsSectionView(container, {
+      gym,
+      settings,
+      membership,
+      credits,
+      bookingWindowText,
+      debugMode: !!userSettings.debugMode,
+      canAddGym: linked.length === 1 && addable.length > 0,
+    }, {
+      onSettingChange: async (key, value, input) => {
+        input.disabled = true;
+        const normalizedValue = key === 'manualBookingWindowWeeks' && value != null ? Number(value) : value;
+        const next = { ...settings, [key]: normalizedValue };
+        try {
+          await api.updateSettings(next, gymId);
+          Object.assign(settings, next);
+          // Mirror into the in-memory settings blob only for the gym the rest of
+          // the app resolves to by default, so an edit to another gym's section
+          // doesn't overwrite it.
+          if (gymId === myGyms.activeGymId) {
+            Object.assign(userSettings, next);
+          }
+          showToast(`${gym.name || gymId} settings saved.`, 'success');
+        } catch (err) {
+          showToast(`Couldn't save ${gym.name || gymId} settings: ${err.message}`, 'error');
+          rerender();
+        } finally {
+          input.disabled = false;
+        }
+      },
+      onAction: async (action, button) => {
+        if (action === 'reauth') return openLinkGymModal(gymId, link);
+        if (action === 'add-gym') return openLinkGymModal(null, null, addable);
+        if (action === 'spot-maps') return openManageSpotMapsModal({ gymId });
+        if (action === 'profile') return openProfileExplorerModal(gymId, gym.name || link.gym_name);
+        if (action === 'buy-credits') {
+          document.querySelector('[data-tab="buy-credits"]')?.click();
+          return;
+        }
+        if (action === 'unlink') {
+          if (button.dataset.confirmState !== 'confirm') {
+            button.dataset.confirmState = 'confirm';
+            button.textContent = 'Confirm unlink?';
+            setTimeout(() => {
+              if (button.dataset.confirmState === 'confirm') {
+                delete button.dataset.confirmState;
+                button.textContent = 'Unlink gym';
+              }
+            }, 4000);
+            return;
+          }
+          button.disabled = true;
+          try {
+            await api.unlinkGym(gymId);
+                await clearApiCache().catch(() => {});
+            showToast('Gym unlinked.', 'success');
+            container.closest('.psycle-gym-settings-overlay')?.remove();
+            await renderGymsCard();
+          } catch (err) {
+            showToast(`Couldn't unlink gym: ${err.message}`, 'error');
+            button.disabled = false;
+          }
+          return;
+        }
+
+        // No remaining async gym actions fall through to here; calendar moved
+        // to the account-level section (ui/calendar-section.js).
+      },
+    });
+  } catch (err) {
+    container.innerHTML = `<div class="psycle-card-error" style="padding:12px;">Couldn't load gym settings (${escapeHtml(err.message)})</div>`;
+  }
 }
 
 // One modal for both "add a gym" and "re-authenticate an existing one" — they are
@@ -1233,7 +1431,7 @@ function openLinkGymModal(gymId, existing, addable = []) {
       await api.linkGym(targetGym, email, password);
       showToast(isReauth ? 'Re-authenticated' : 'Gym linked', 'success');
       close();
-      renderGymsCard();
+      Promise.all([renderGymsCard(), renderGymSettingsSection(isReauth ? gymId : targetGym)]).catch(() => {});
     } catch (err) {
       errEl.textContent = err.message;
       errEl.style.display = 'block';
@@ -1298,19 +1496,13 @@ export async function initSettings() {
   updateTestNotifCardVisibility();
   // Konami listener is attached on first profile explorer modal open via setupExplorerKonamiListener()
   updatePushStatusUI();
-  setupCalendarCard();
   // Your Gyms card (WP-C2) — fire-and-forget: it renders its own loading and
   // error states, and a failure here must not stop the rest of Settings binding.
   renderGymsCard().catch(err => debugConsole('[Settings] Gyms card failed:', err.message));
+  // Account-level calendar feed (General tab) — same fire-and-forget rationale.
+  renderCalendarSection().catch(err => debugConsole('[Settings] Calendar section failed:', err.message));
   // Spot Maps section is ready; button opens the modal
   setupSettingsNavigation();
-}
-
-// ─── Calendar feed card ───────────────────────────────────────────────────────
-let calendarLinks = null;
-
-function isIOSDevice() {
-  return /iPad|iPhone|iPod/.test(navigator.userAgent) && !window.MSStream;
 }
 
 // Open an external URL from inside the installed PWA. window.open('_blank') leaves a
@@ -1323,125 +1515,6 @@ function openExternal(url) {
   document.body.appendChild(a);
   a.click();
   a.remove();
-}
-
-function renderCalendarCardState(status) {
-  const desc = document.getElementById('psycle-calendar-status-desc');
-  const toggleBtn = document.getElementById('psycle-calendar-toggle-btn');
-  const options = document.getElementById('psycle-calendar-options');
-  const tentative = document.getElementById('psycle-calendar-tentative');
-  const alarm = document.getElementById('psycle-calendar-alarm');
-  const apple = document.getElementById('psycle-calendar-apple-btn');
-  const google = document.getElementById('psycle-calendar-google-btn');
-  if (!desc || !toggleBtn || !options) return;
-
-  calendarLinks = status && status.links ? status.links : null;
-
-  if (status && status.enabled) {
-    toggleBtn.style.display = 'none';
-    options.style.display = 'block';
-    if (tentative) tentative.checked = !!status.includeTentative;
-    if (alarm) alarm.value = status.alarm || 'none';
-    const when = status.generatedAt
-      ? new Date(status.generatedAt).toLocaleString(undefined, { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit', timeZoneName: 'short' })
-      : 'just now';
-    const n = status.classCount || 0;
-    desc.innerHTML = `Feed active · ${n} class${n === 1 ? '' : 'es'} · updated ${when} <button id="psycle-calendar-refresh-btn" title="Refresh now" style="background:none;border:none;cursor:pointer;color:var(--text-secondary);font-size:14px;padding:0 2px;vertical-align:middle;line-height:1;" aria-label="Refresh calendar feed">↻</button>`;
-    // Lead with the platform-native option.
-    if (apple && google && isIOSDevice()) { apple.style.order = '0'; google.style.order = '1'; }
-  } else {
-    toggleBtn.style.display = '';
-    toggleBtn.textContent = 'Turn on';
-    options.style.display = 'none';
-    desc.textContent = 'Turn on to get a personal calendar link.';
-  }
-}
-
-async function refreshCalendarCard() {
-  try {
-    const status = await api.getCalendarStatus();
-    renderCalendarCardState(status);
-  } catch (_) { /* card stays in default state */ }
-}
-
-function setupCalendarCard() {
-  const card = document.getElementById('psycle-calendar-card');
-  if (!card || card.dataset.listener) { refreshCalendarCard(); return; }
-  card.dataset.listener = 'true';
-
-  const toggleBtn = document.getElementById('psycle-calendar-toggle-btn');
-  const disableBtn = document.getElementById('psycle-calendar-disable-btn');
-  const tentative = document.getElementById('psycle-calendar-tentative');
-  const alarm = document.getElementById('psycle-calendar-alarm');
-  const apple = document.getElementById('psycle-calendar-apple-btn');
-  const google = document.getElementById('psycle-calendar-google-btn');
-  const copy = document.getElementById('psycle-calendar-copy-btn');
-
-  toggleBtn?.addEventListener('click', async () => {
-    toggleBtn.disabled = true;
-    try {
-      const res = await api.enableCalendar({
-        includeTentative: tentative ? tentative.checked : false,
-        alarm: alarm ? alarm.value : 'none',
-      });
-      calendarLinks = res.links || null;
-      await refreshCalendarCard();
-      showToast('Calendar feed turned on. Add it to your calendar below.', 'success');
-    } catch (err) {
-      showToast(`Couldn't turn on calendar: ${err.message}`, 'error');
-    } finally {
-      toggleBtn.disabled = false;
-    }
-  });
-
-  disableBtn?.addEventListener('click', async () => {
-    disableBtn.disabled = true;
-    try {
-      await api.disableCalendar();
-      calendarLinks = null;
-      await refreshCalendarCard();
-      showToast('Calendar feed turned off. Remove the “Psycle Classes” calendar from your calendar app to clear it.', 'info');
-    } catch (err) {
-      showToast(`Couldn't turn off calendar: ${err.message}`, 'error');
-    } finally {
-      disableBtn.disabled = false;
-    }
-  });
-
-  const saveCalendarPrefs = async () => {
-    try {
-      userSettings.calendar = {
-        ...(userSettings.calendar || {}),
-        enabled: true,
-        includeTentative: tentative ? tentative.checked : false,
-        alarm: alarm ? alarm.value : 'none',
-      };
-      await api.updateSettings(userSettings);
-      refreshCalendarCard();
-    } catch (err) {
-      showToast(`Couldn't save calendar settings: ${err.message}`, 'error');
-    }
-  };
-  tentative?.addEventListener('change', saveCalendarPrefs);
-  alarm?.addEventListener('change', saveCalendarPrefs);
-
-  apple?.addEventListener('click', () => {
-    if (calendarLinks?.webcal) window.location.href = calendarLinks.webcal;
-  });
-  google?.addEventListener('click', () => {
-    if (calendarLinks?.google) openExternal(calendarLinks.google);
-  });
-  copy?.addEventListener('click', async () => {
-    if (!calendarLinks?.https) return;
-    try {
-      await navigator.clipboard.writeText(calendarLinks.https);
-      showToast('Feed link copied to clipboard.', 'success');
-    } catch (_) {
-      showToast(calendarLinks.https, 'info');
-    }
-  });
-
-  refreshCalendarCard();
 }
 
 // ─── Theme toggle (Auto / Light / Dark) ──────────────────────────────────────
@@ -1492,7 +1565,7 @@ const NOTIF_ROWS = [
   { key: 'creditWarning', title: 'Credit Warning', desc: "When you set something up but don't have enough credits." },
   { key: 'cancellationReminder', title: 'Cancellation Reminder', desc: 'Reminder to cancel before the free-cancel window closes.',
     dropdown: { prop: 'timing', options: [['24h', '1 day before (24h)'], ['14h', 'Before penalty (14h)']] } },
-  { key: 'bookingWindow', title: 'Booking Window Reminder', desc: 'Heads-up 1 hour before the Monday release.' },
+  { key: 'bookingWindow', title: 'Booking Window Reminder', desc: 'Heads-up before your booking window opens.' },
 ];
 
 function renderNotifPrefs() {
@@ -1602,64 +1675,29 @@ function updateTestNotifCardVisibility() {
   if (card) card.style.display = userSettings.debugMode ? 'block' : 'none';
 }
 
-// Render the detected booking-window indicator and show/hide the debug manual override.
-function updateBookingWindowUI() {
-  const indicator = document.getElementById('psycle-booking-window-indicator');
-  const manualRow = document.getElementById('psycle-manual-window-row');
-
-  if (indicator) {
-    const offsetDays = getBookingOffset(userSettings);
-    const cutoffISO = cache.bookingWindow?.cutoffISO || null;
-    indicator.textContent = describeBookingWindow(offsetDays, cutoffISO);
-    const isManual = !!(userSettings.debugMode && userSettings.manualBookingWindowWeeks);
-    indicator.classList.toggle('warning', isManual);
-    indicator.classList.toggle('info', !isManual);
-    indicator.title = isManual ? 'Manual override active (debug)' : 'Auto-detected from your membership';
-  }
-
-  // Manual override is only visible (and only effective) in debug mode.
-  if (manualRow) manualRow.style.display = userSettings.debugMode ? 'flex' : 'none';
-}
-
 function loadSettingsInputs() {
-  const manualWindow = document.getElementById('psycle-setting-manual-window');
-  const upgradeEnabled = document.getElementById('psycle-setting-autoupgrade-enabled');
-  const upgradeDefault = document.getElementById('psycle-setting-autoupgrade-default');
-  const upgradeKeepOriginal = document.getElementById('psycle-setting-autoupgrade-keeporiginal-default');
-  const upgradeInterval = document.getElementById('psycle-setting-autoupgrade-interval');
   const debugMode = document.getElementById('psycle-setting-debug-mode');
   const prefetchWeeks = document.getElementById('psycle-setting-prefetch-weeks');
 
-  if (manualWindow) manualWindow.value = userSettings.manualBookingWindowWeeks ? String(userSettings.manualBookingWindowWeeks) : '';
-  if (upgradeEnabled) upgradeEnabled.checked = userSettings.autoUpgradeEnabled !== false;
-  if (upgradeDefault) upgradeDefault.checked = !!userSettings.autoUpgradeByDefault;
-  if (upgradeKeepOriginal) upgradeKeepOriginal.checked = !!userSettings.autoUpgradeKeepOriginalByDefault;
-  if (upgradeInterval) upgradeInterval.value = userSettings.autoUpgradeInterval || '15min';
   if (debugMode) debugMode.checked = !!userSettings.debugMode;
   if (prefetchWeeks) prefetchWeeks.value = String(userSettings.prefetchWeeks || 4);
-
-  updateBookingWindowUI();
 }
 
 function setupSettingsListeners() {
-  const manualWindow = document.getElementById('psycle-setting-manual-window');
-  const upgradeEnabled = document.getElementById('psycle-setting-autoupgrade-enabled');
-  const upgradeDefault = document.getElementById('psycle-setting-autoupgrade-default');
-  const upgradeKeepOriginal = document.getElementById('psycle-setting-autoupgrade-keeporiginal-default');
-  const upgradeInterval = document.getElementById('psycle-setting-autoupgrade-interval');
   const debugMode = document.getElementById('psycle-setting-debug-mode');
   const prefetchWeeks = document.getElementById('psycle-setting-prefetch-weeks');
+
+  const accountPasswordBtn = document.getElementById('psycle-account-password-btn');
+  if (accountPasswordBtn && !accountPasswordBtn.dataset.listener) {
+    accountPasswordBtn.dataset.listener = 'true';
+    accountPasswordBtn.addEventListener('click', openAccountPasswordModal);
+  }
 
   const saveSettings = async () => {
     // Spread existing settings first so unmanaged keys (notifications, cartInstanceId,
     // detectedBookingOffset) survive.
     const newSettings = {
       ...userSettings,
-      manualBookingWindowWeeks: manualWindow && manualWindow.value ? parseInt(manualWindow.value) : null,
-      autoUpgradeEnabled: upgradeEnabled ? upgradeEnabled.checked : true,
-      autoUpgradeByDefault: upgradeDefault ? upgradeDefault.checked : false,
-      autoUpgradeKeepOriginalByDefault: upgradeKeepOriginal ? upgradeKeepOriginal.checked : false,
-      autoUpgradeInterval: upgradeInterval ? upgradeInterval.value : '15min',
       debugMode: debugMode ? debugMode.checked : false,
       prefetchWeeks: prefetchWeeks ? parseInt(prefetchWeeks.value) : 4
     };
@@ -1668,33 +1706,13 @@ function setupSettingsListeners() {
       await api.updateSettings(newSettings);
       Object.assign(userSettings, newSettings);
       updateTestNotifCardVisibility();
-      updateBookingWindowUI();
+      renderGymSettingsSection().catch(() => {});
       showToast('Settings saved successfully.', 'success');
     } catch (err) {
       showToast(`Error saving settings: ${err.message}`, 'error');
     }
   };
 
-  if (manualWindow && !manualWindow.dataset.listener) {
-    manualWindow.dataset.listener = 'true';
-    manualWindow.addEventListener('change', saveSettings);
-  }
-  if (upgradeEnabled && !upgradeEnabled.dataset.listener) {
-    upgradeEnabled.dataset.listener = 'true';
-    upgradeEnabled.addEventListener('change', saveSettings);
-  }
-  if (upgradeDefault && !upgradeDefault.dataset.listener) {
-    upgradeDefault.dataset.listener = 'true';
-    upgradeDefault.addEventListener('change', saveSettings);
-  }
-  if (upgradeKeepOriginal && !upgradeKeepOriginal.dataset.listener) {
-    upgradeKeepOriginal.dataset.listener = 'true';
-    upgradeKeepOriginal.addEventListener('change', saveSettings);
-  }
-  if (upgradeInterval && !upgradeInterval.dataset.listener) {
-    upgradeInterval.dataset.listener = 'true';
-    upgradeInterval.addEventListener('change', saveSettings);
-  }
   if (debugMode && !debugMode.dataset.listener) {
     debugMode.dataset.listener = 'true';
     debugMode.addEventListener('change', saveSettings);
@@ -1777,13 +1795,6 @@ function setupSettingsListeners() {
     });
   }
 
-  // Profile explorer button
-  const profileBtn = document.getElementById('psycle-profile-load-btn');
-  if (profileBtn && !profileBtn.dataset.listener) {
-    profileBtn.dataset.listener = 'true';
-    profileBtn.addEventListener('click', openProfileExplorerModal);
-  }
-
   // Profile explorer modal close (handled inside openProfileExplorerModal via setupExplorerModalClose,
   // but keep a fallback here for safety)
   const explorerModal = document.getElementById('psycle-profile-explorer-modal');
@@ -1802,13 +1813,6 @@ function setupSettingsListeners() {
     if (overlay) {
       overlay.addEventListener('click', closeExplorer);
     }
-  }
-
-  // Spot maps button
-  const spotMapsBtn = document.getElementById('psycle-spotmaps-load-btn');
-  if (spotMapsBtn && !spotMapsBtn.dataset.listener) {
-    spotMapsBtn.dataset.listener = 'true';
-    spotMapsBtn.addEventListener('click', openManageSpotMapsModal);
   }
 
   // Replay onboarding button

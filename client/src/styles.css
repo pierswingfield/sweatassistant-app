@@ -43,6 +43,22 @@
   --accent-btn-bg: #256996;
   --on-accent-button: #D3E1EA;
 
+  /* Per-gym brand tokens (WP-D14 / step 5).
+     Defined for EVERY gym at :root, not only the active one: merged multi-gym
+     views paint both gyms' chips, rails and row tints at the same time, so a
+     per-gym colour can never be read from `--accent` (that is the ACTIVE gym's
+     colour only). `-ink` is text/icon weight, `-tint` is the colour fed to
+     color-mix for backgrounds and borders. These are the dark-theme renderings;
+     the light blocks below restate them. */
+  --gym-psycle-london-ink: #a78bfa;
+  --gym-psycle-london-ink-hover: #c4b5fd;
+  --gym-psycle-london-tint: #8b5cf6;
+  --gym-psycle-london-on: #1a1033;
+  --gym-jab-boxing-ink: #818cf8;
+  --gym-jab-boxing-ink-hover: #a5b4fc;
+  --gym-jab-boxing-tint: #5d71c9;
+  --gym-jab-boxing-on: #0b1030;
+
   /* Custom additions for timetable redesign */
   --on-auto-pill: #c9aed6;
   --auto-not-scheduled: #3d2642;
@@ -77,6 +93,7 @@
   --disc-strength: #e0aa5a;  /* amber/bronze */
   --disc-infrared: #f0907e;  /* coral (heat) */
   --disc-reformer: #85aadb;  /* blue */
+  --disc-recovery: #38b2ac;  /* steam/mint */
   --disc-yoga: #8fc98f;      /* sage */
   --disc-other: #b3a99f;     /* warm grey */
 
@@ -117,6 +134,112 @@
 
   /* Accessibility — minimum interactive hit target (WCAG 2.5.5) */
   --tap-min: 44px;
+  /* Timetable action lanes — see `.psycle-tt-actions`. One place to retune the
+     column, rather than a width repeated across several segment rules. */
+  --tt-seg-w: 122px;
+  --tt-caret-w: 40px;
+  /* Row chip height — the discipline pill and the gym brand plate BOTH use it,
+     so they stay the same height at every width. They were sized independently
+     and the plate ended up visibly taller than the pill, and out of proportion
+     to the row's time text. */
+  --tt-chip-h: 22px;
+}
+
+/* Credits & Membership — one account-benefit section per linked gym. */
+.psycle-benefit-section-heading {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  margin: 22px 0 12px;
+  padding-bottom: 10px;
+  border-bottom: 1px solid var(--border);
+}
+
+.psycle-benefit-section-heading h4 {
+  margin: 2px 0 0;
+  color: var(--text);
+  font-size: 17px;
+}
+
+.psycle-benefit-gym {
+  color: var(--text-tertiary);
+  font-size: 12px;
+  font-weight: 750;
+  letter-spacing: .08em;
+  text-transform: uppercase;
+}
+
+.psycle-benefit-kind,
+.psycle-membership-status {
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  padding: 5px 9px;
+  color: var(--text-secondary);
+  background: var(--surface-2);
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.psycle-membership-status.is-active {
+  border-color: color-mix(in srgb, var(--success) 38%, var(--border));
+  color: var(--success);
+  background: color-mix(in srgb, var(--success) 10%, transparent);
+}
+
+.psycle-membership-status.is-inactive {
+  border-color: color-mix(in srgb, var(--warning) 38%, var(--border));
+  color: var(--warning);
+  background: color-mix(in srgb, var(--warning) 10%, transparent);
+}
+
+.psycle-membership-card {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 18px;
+  padding: 18px;
+  border: 1px solid var(--border);
+  border-left: 4px solid var(--accent);
+  border-radius: 14px;
+  background: var(--surface-2);
+}
+
+.psycle-membership-section[data-gym="psycle-london"] .psycle-membership-card {
+  border-left-color: var(--gym-psycle-london-ink);
+}
+.psycle-membership-section[data-gym="jab-boxing"] .psycle-membership-card {
+  border-left-color: var(--gym-jab-boxing-ink);
+}
+
+.psycle-membership-name {
+  color: var(--text);
+  font-size: 15px;
+  font-weight: 700;
+}
+
+.psycle-membership-facts,
+.psycle-membership-note {
+  margin-top: 5px;
+  color: var(--text-secondary);
+  font-size: 12px;
+  line-height: 1.45;
+}
+
+.psycle-membership-note {
+  color: var(--text-tertiary);
+}
+
+.psycle-membership-manage {
+  flex: none;
+  text-decoration: none;
+}
+
+@media (max-width: 640px) {
+  .psycle-membership-card {
+    align-items: flex-start;
+    flex-direction: column;
+  }
 }
 
 /* ---- Light theme (system preference) ---- */
@@ -142,6 +265,18 @@
     --on-accent: #ffffff;
     --accent-btn-bg: var(--accent);
     --on-accent-button: #FEF1E9;
+
+  /* Per-gym brand tokens — light renderings. Psycle's brand violet #7c3aed and
+     JAB's brand navy #18214D are legible as-is on a light ground; both need
+     lightening on dark, which is what the :root block above does. */
+  --gym-psycle-london-ink: #7c3aed;
+  --gym-psycle-london-ink-hover: #6d28d9;
+  --gym-psycle-london-tint: #7c3aed;
+  --gym-psycle-london-on: #ffffff;
+  --gym-jab-boxing-ink: #18214d;
+  --gym-jab-boxing-ink-hover: #10173a;
+  --gym-jab-boxing-tint: #18214d;
+  --gym-jab-boxing-on: #ffffff;
 
     --on-auto-pill: #E2D1DD;
     --auto-not-scheduled: #D2BDD9;
@@ -172,6 +307,7 @@
     --disc-strength: #a9761a;
     --disc-infrared: #cc5340;
     --disc-reformer: #4775ad;
+    --disc-recovery: #237a77;
     --disc-yoga: #4f9b5f;
     --disc-other: #857a6e;
 
@@ -208,6 +344,18 @@
   --accent-btn-bg: var(--accent);
   --on-accent-button: #FEF1E9;
 
+  /* Per-gym brand tokens — light renderings. Psycle's brand violet #7c3aed and
+     JAB's brand navy #18214D are legible as-is on a light ground; both need
+     lightening on dark, which is what the :root block above does. */
+  --gym-psycle-london-ink: #7c3aed;
+  --gym-psycle-london-ink-hover: #6d28d9;
+  --gym-psycle-london-tint: #7c3aed;
+  --gym-psycle-london-on: #ffffff;
+  --gym-jab-boxing-ink: #18214d;
+  --gym-jab-boxing-ink-hover: #10173a;
+  --gym-jab-boxing-tint: #18214d;
+  --gym-jab-boxing-on: #ffffff;
+
   --on-auto-pill: #E2D1DD;
   --auto-not-scheduled: #D2BDD9;
   --on-auto-not-scheduled: #5A3E63;
@@ -237,6 +385,7 @@
   --disc-strength: #a9761a;
   --disc-infrared: #cc5340;
   --disc-reformer: #4775ad;
+  --disc-recovery: #237a77;
   --disc-yoga: #4f9b5f;
   --disc-other: #857a6e;
 
@@ -253,84 +402,135 @@
 /* =========================================================
    PER-GYM THEMING (WP-D14)
 
-   The base palette above is deliberately gym-NEUTRAL. Each gym, including
-   Psycle, supplies its own accent as an override here — the point of this phase
-   is that no gym is the base case, and a palette baked into `:root` would make
-   the first gym exactly that.
+   The base palette above is the Sweat Assistant design system and belongs to no
+   gym. Each gym's brand lives in its own `--gym-<id>-*` tokens (defined for
+   EVERY gym in all three theme blocks above, not just the active one — merged
+   views paint several gyms at once), and is applied only to elements that
+   identify that gym.
 
-   `data-gym` is stamped on <html> by gym-context.js. These blocks sit AFTER the
-   light/dark token definitions so they win on the accent, while inheriting every
-   surface, text and semantic token from whichever theme is active — a gym
-   overrides its brand colour, not the whole design system.
-
-   Adding a gym: add a block here plus its `theme` entry in gyms.config.js. No
-   JavaScript changes.
+   The rule that keeps this honest: a per-gym colour must never be read from
+   `--accent`, and `--accent` must never be redefined per gym.
    ========================================================= */
 
-/* Psycle London — clay/violet. */
-:root[data-gym="psycle-london"] {
-  --accent: #d2876b;
-  --accent-hover: #c9785c;
-  --feat-autobook: #d2876b;
+/* The app accent is NEVER a gym's colour.
+   ------------------------------------------------------------------
+   An earlier version of this section mapped the active gym's brand onto
+   `--accent`, repainting the whole app whenever the active gym changed. That
+   is wrong for what this product is: the goal is both gyms' classes visible in
+   ONE environment, not a per-tenant skin you switch between. If the entire
+   chrome is violet, "violet" no longer tells you a row is Psycle's.
+
+   So: Sweat Assistant owns `--accent` and it stays fixed. A gym's colour
+   appears ONLY on elements that represent that specific gym — its chip, its
+   card rail, its row tint, its settings card, its header badge — where the
+   colour is carrying information. `data-gym` is still stamped on <html> for
+   anything that legitimately needs to know the active gym, but it must not
+   redefine a global palette token.
+
+   Adding a gym: add its `--gym-<id>-*` tokens to all three theme blocks above,
+   plus its `theme` entry in gyms.config.js. No JavaScript changes. */
+
+/* Gym Attribution Chips & Badges */
+.psycle-gym-chip {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0 8px;
+  border-radius: 6px;
+  line-height: 0;
+  user-select: none;
+  /* One plate width for every gym, so the GYM column keeps a constant rhythm
+     even though the wordmarks are different shapes.
+     Sized to the WIDEST mark: Psycle's is 384x52 (7.4:1), so at 11px tall it is
+     81px wide — a 74px plate clipped it to "SYCL". Content box must be >= 82px,
+     hence 100px with 9px padding each side. */
+  /* Same height as the discipline pill (see --tt-chip-h), and the wordmark is
+     a fixed fraction of it — so the proportion holds at every width instead of
+     being re-guessed per breakpoint. */
+  height: var(--tt-chip-h);
+  min-width: 92px;
+  box-sizing: border-box;
+  overflow: hidden;
 }
-@media (prefers-color-scheme: light) {
-  :root[data-gym="psycle-london"]:not([data-theme="dark"]) {
-    --accent: #c9785c;
-    --accent-hover: #b5694e;
-    --feat-autobook: #c9785c;
+.psycle-gym-chip-logo {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+.psycle-gym-chip-logo svg,
+.psycle-gym-chip-logo img {
+  display: block;
+  /* Scale to the plate, never past it. Heights are matched by eye so the two
+     wordmarks read as the same visual weight despite different aspect ratios. */
+  max-width: 100%;
+  height: auto;
+}
+/* Sized by HEIGHT, not width: the two wordmarks have very different aspect
+   ratios (Psycle ~7:1, JAB ~2.7:1), so matching widths made one look twice the
+   weight of the other. Matching cap height is what makes them read as peers. */
+/* `max-width` is the guard that actually prevents clipping — `height` + `width:
+   auto` alone will happily overflow the plate. object-fit keeps the aspect if
+   the max-width ever does bite. */
+/* Wordmark height as a share of the plate, not an absolute px value. */
+.psycle-gym-chip-logo .ab-gym-logo-img { height: calc(var(--tt-chip-h) * 0.42); width: auto; max-width: 76px; object-fit: contain; }
+.psycle-gym-chip-logo .ab-gym-logo-svg { height: calc(var(--tt-chip-h) * 0.55); width: auto; max-width: 76px; object-fit: contain; }
+
+/* FULL vs HALF wordmark. Both are in the DOM; CSS picks. Wide layouts get the
+   full mark, narrow ones the half — see the note in cards.js gymBrand(). */
+.ab-gym-logo-img.is-half { display: none; }
+/* Aligned with the column-merge breakpoint (1240px) on purpose: the plate
+   narrowing and the columns merging are the same transition, so the row changes
+   shape ONCE as you resize instead of jumping at three separate widths. The
+   narrower plate also frees the width the merge needs. */
+@media (max-width: 1240px) {
+  .ab-gym-logo-img.is-full { display: none; }
+  .ab-gym-logo-img.is-half { display: block; }
+  /* The half mark is ~3.7:1, so the plate can shrink with it. */
+  .psycle-gym-chip {
+    min-width: 62px;
+    padding: 5px 7px;
   }
-}
-:root[data-gym="psycle-london"][data-theme="light"] {
-  --accent: #c9785c;
-  --accent-hover: #b5694e;
-  --feat-autobook: #c9785c;
+  .psycle-gym-chip-logo .ab-gym-logo-img { max-width: 48px; }
+  .psycle-gym-chip-logo .ab-gym-logo-svg { max-width: 48px; height: 12px; }
+  #psycle-helper-container .psycle-table td.col-gym,
+  #psycle-helper-container .psycle-table th.col-gym { width: 78px !important; }
 }
 
-/* JAB Boxing Club — navy (#18214D), lifted on dark grounds so it stays legible
-   against the dark surface tokens rather than disappearing into them. */
-:root[data-gym="jab-boxing"] {
-  --accent: #8CA0E8;
-  --accent-hover: #A3B4EE;
-  --on-accent: #10152E;
-  --feat-autobook: #8CA0E8;
-  --auto: #A3B4EE;
-  --auto-banner: #232C57;
-  --font-sans: 'Gothic A1', 'Inter', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+/* BRAND PLATES — each gym's wordmark on each gym's own ground.
+   Both marks are white/off-white, so they need their dark brand colour behind
+   them; on the app surface a white logo is invisible.
+
+   These are the gyms' IDENTITY colours and are deliberately NOT the `--gym-*`
+   tint tokens: those wash rows and rails and must stay legible in both themes,
+   where a near-black cannot. Fixed in light and dark — that is what a brand
+   plate is. */
+.psycle-gym-chip-psycle-london {
+  background: #212121 !important;
+  border: 1px solid #212121 !important;
 }
-@media (prefers-color-scheme: light) {
-  :root[data-gym="jab-boxing"]:not([data-theme="dark"]) {
-    --accent: #18214D;
-    --accent-hover: #232C57;
-    --on-accent: #FFFFFF;
-    --feat-autobook: #18214D;
-    --auto: #2E3A73;
-    --auto-banner: #18214D;
-  }
-}
-:root[data-gym="jab-boxing"][data-theme="light"] {
-  --accent: #18214D;
-  --accent-hover: #232C57;
-  --on-accent: #FFFFFF;
-  --feat-autobook: #18214D;
-  --auto: #2E3A73;
-  --auto-banner: #18214D;
+.psycle-gym-chip-jab-boxing {
+  background: #6C1F20 !important;
+  border: 1px solid #6C1F20 !important;
 }
 
-/* Discipline colours are per-gym too: "Ride" and "Barre" mean nothing at a
-   boxing gym. The base set below stays as a neutral fallback; a gym adds only
-   the disciplines it actually runs. `--disc-other` is what an unmapped
-   discipline lands on, so it must always read as deliberate, not broken. */
-:root[data-gym="jab-boxing"] {
+/* Discipline colours — shared baseline across all gyms */
+:root {
   --disc-boxing: #e0806b;
   --disc-strength: #e0aa5a;
   --disc-conditioning: #85aadb;
 }
 @media (prefers-color-scheme: light) {
-  :root[data-gym="jab-boxing"]:not([data-theme="dark"]) {
+  :root:not([data-theme="dark"]) {
     --disc-boxing: #c2543c;
     --disc-strength: #a9761a;
     --disc-conditioning: #4775ad;
   }
+}
+:root[data-theme="light"] {
+  --disc-boxing: #c2543c;
+  --disc-strength: #a9761a;
+  --disc-conditioning: #4775ad;
 }
 
 
@@ -1338,6 +1538,12 @@ html, body {
   border: 1px solid var(--border);
   border-radius: 16px;
   background: var(--surface-inset);
+  /* Row backgrounds (plain hover tint + per-gym tint, both hard-cornered
+     rects) reach flush to the container edge on the first/last row, so
+     without a clip they visibly square off the rounded corners above. The
+     table itself doesn't scroll independently (the panel body does), so
+     this never fights a scrollbar. */
+  overflow: hidden;
 }
 
 
@@ -1864,6 +2070,24 @@ html, body {
   border-left: 4px solid var(--accent-hover);
 }
 
+/* `warning` had NO rule at all, so a warning toast inherited only the base
+   `color: var(--on-accent)` — near-white text on no background, floating over
+   the page and reading as a rendering fault rather than a message. */
+#psycle-helper-container .psycle-toast.warning {
+  background: var(--warning);
+  color: #1a1206;
+  border-left: 4px solid color-mix(in srgb, var(--warning) 70%, #000);
+}
+
+/* Safety net: any variant that is not one of the four above still gets a
+   readable surface instead of transparent. Adding a fifth variant in JS without
+   a matching rule here is exactly how `warning` went unstyled. */
+#psycle-helper-container .psycle-toast:not(.success):not(.error):not(.info):not(.warning) {
+  background: var(--surface-2);
+  color: var(--text);
+  border-left: 4px solid var(--border-strong);
+}
+
 /* Auth Overlay Styling */
 #psycle-helper-container .psycle-auth-overlay {
   position: absolute;
@@ -2146,6 +2370,116 @@ html, body {
 
 /* Narrow screens: break out of the modal-body padding so the map reaches nearly
    the full modal width (as close to the screen edges as possible). */
+/* ── Row action overflow menu — ALL viewports ─────────────────────────────
+   This whole block lived inside `@media (max-width: 768px)`, because the
+   ellipsis menu started life as a mobile-only affordance. Desktop now uses the
+   same menu, and inside that media query it rendered with NO styling at all:
+   bare text over the page, no surface, no padding, no hit targets.
+   The class name still says "mobile" for continuity with the JS; it is the row
+   action menu at every width. Do not move it back under a breakpoint. */
+.psycle-mobile-menu {
+  position: fixed;
+  z-index: 100000;
+  background: var(--surface);
+  border: 1px solid var(--border-strong);
+  border-radius: 14px;
+  box-shadow: var(--shadow-card);
+  padding: 8px;
+  min-width: 200px;
+  backdrop-filter: blur(20px) saturate(180%);
+  -webkit-backdrop-filter: blur(20px) saturate(180%);
+}
+
+.psycle-mobile-menu-item {
+  padding: 14px 16px;
+  margin-bottom: 4px;
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--text);
+  cursor: pointer;
+  border-radius: 10px;
+  min-height: 44px;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  transition: background 0.15s ease;
+  border: 1px solid transparent;
+}
+
+.psycle-mobile-menu-item:last-child {
+  margin-bottom: 0;
+}
+
+/* Icon + label. The icon column is fixed so labels align down the menu
+   regardless of glyph width. */
+.psycle-menu-item-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 18px;
+  flex-shrink: 0;
+  opacity: 0.85;
+}
+.psycle-menu-item-icon svg { display: block; }
+.psycle-menu-item-label {
+  flex: 1;
+  min-width: 0;
+}
+
+.psycle-mobile-menu-item:hover,
+.psycle-mobile-menu-item:active {
+  background: var(--surface-2);
+}
+
+/* Variant colours reflecting the buttons they replace */
+.psycle-mobile-menu-item[data-variant="book"] {
+  background: color-mix(in srgb, var(--success) 12%, transparent);
+  border-color: color-mix(in srgb, var(--success) 30%, transparent);
+  color: var(--success);
+}
+.psycle-mobile-menu-item[data-variant="book"]:hover,
+.psycle-mobile-menu-item[data-variant="book"]:active {
+  background: color-mix(in srgb, var(--success) 20%, transparent);
+}
+
+.psycle-mobile-menu-item[data-variant="favourite"] {
+  color: var(--danger);
+}
+.psycle-mobile-menu-item[data-variant="favourite"]:hover,
+.psycle-mobile-menu-item[data-variant="favourite"]:active {
+  background: color-mix(in srgb, #f43f5e 12%, transparent);
+}
+
+.psycle-mobile-menu-item[data-variant="danger"] {
+  background: color-mix(in srgb, var(--danger) 10%, transparent);
+  border-color: color-mix(in srgb, var(--danger) 25%, transparent);
+  color: var(--danger);
+}
+.psycle-mobile-menu-item[data-variant="danger"]:hover,
+.psycle-mobile-menu-item[data-variant="danger"]:active {
+  background: color-mix(in srgb, var(--danger) 18%, transparent);
+}
+
+.psycle-mobile-menu-item[data-variant="success"] {
+  background: color-mix(in srgb, var(--success) 12%, transparent);
+  border-color: color-mix(in srgb, var(--success) 30%, transparent);
+  color: var(--success);
+}
+.psycle-mobile-menu-item[data-variant="success"]:hover,
+.psycle-mobile-menu-item[data-variant="success"]:active {
+  background: color-mix(in srgb, var(--success) 20%, transparent);
+}
+
+.psycle-mobile-menu-item[data-variant="debug"] {
+  background: color-mix(in srgb, var(--feat-autoupgrade) 15%, transparent);
+  border-color: color-mix(in srgb, var(--feat-autoupgrade) 35%, transparent);
+  color: var(--feat-autoupgrade);
+}
+.psycle-mobile-menu-item[data-variant="debug"]:hover,
+.psycle-mobile-menu-item[data-variant="debug"]:active {
+  background: color-mix(in srgb, var(--feat-autoupgrade) 25%, transparent);
+}
+
 @media (max-width: 768px) {
   .psycle-modal-body .psycle-floor-scroll {
     margin-left: -18px;
@@ -2820,6 +3154,22 @@ html, body {
   user-select: none;
 }
 
+/* Gym subheading above a group of filter options — a location/instructor
+   dropdown only groups this way when its current options actually span more
+   than one gym (populateOptionsList in timetable.js). */
+#psycle-helper-container .psycle-ms-group-heading {
+  padding: 8px 12px 4px !important;
+  font-size: 10px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  color: var(--text-tertiary);
+}
+#psycle-helper-container .psycle-ms-group-heading:not(:first-child) {
+  margin-top: 4px;
+  border-top: 1px solid var(--separator);
+}
+
 #psycle-helper-container .psycle-ms-option-label:hover {
   background: color-mix(in srgb, var(--text) 6%, transparent);
   color: var(--text);
@@ -2887,6 +3237,15 @@ html, body {
 #psycle-helper-container .psycle-table {
   display: table !important;
   width: 100% !important;
+  /* The table must NEVER exceed its container. Without this the actions
+     column's `min-width: max-content` could push the whole table wider than the
+     card and the buttons painted outside its rounded right edge — visibly
+     broken, and the one thing the column cascade exists to prevent. Combined
+     with the flexible columns' `max-width: 0` (which lets them shrink to
+     nothing), the table always fits and the slack is taken from text, not from
+     the controls. */
+  max-width: 100% !important;
+  table-layout: auto !important;
   border-collapse: collapse !important;
   font-family: 'Inter', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif !important;
   font-size: 13px !important;
@@ -2923,6 +3282,26 @@ html, body {
 
 #psycle-helper-container #psycle-timetable-rows tr:hover {
   background: color-mix(in srgb, var(--text) 4%, var(--surface)) !important;
+}
+
+/* Row tint by gym identity (2026-09-02, re-fixed same day) — same colours/
+   opacities as the Auto-Book/Bookings card tint (`.ab-card[data-gym=...]`
+   below). First attempt used `.psycle-table tr[data-gym=...]` (one #id),
+   which never painted: `#psycle-timetable-rows tr` above has TWO #ids and
+   always won the cascade regardless of source order or `!important` on
+   either side — CSS specificity compares id-count first, before class/
+   attribute count. Matching that #id here is what makes this win. */
+#psycle-helper-container #psycle-timetable-rows tr[data-gym="psycle-london"] {
+  background: color-mix(in srgb, var(--gym-psycle-london-tint) 3%, var(--surface)) !important;
+}
+#psycle-helper-container #psycle-timetable-rows tr[data-gym="psycle-london"]:hover {
+  background: color-mix(in srgb, var(--gym-psycle-london-tint) 7%, var(--surface)) !important;
+}
+#psycle-helper-container #psycle-timetable-rows tr[data-gym="jab-boxing"] {
+  background: color-mix(in srgb, var(--gym-jab-boxing-tint) 3.5%, var(--surface)) !important;
+}
+#psycle-helper-container #psycle-timetable-rows tr[data-gym="jab-boxing"]:hover {
+  background: color-mix(in srgb, var(--gym-jab-boxing-tint) 7%, var(--surface)) !important;
 }
 
 #psycle-helper-container .psycle-table th {
@@ -2986,14 +3365,56 @@ html, body {
   white-space: nowrap !important;
 }
 
+/* COLUMN BUDGET.
+   ------------------------------------------------------------------
+   `max-width: 0` alone let the browser hand width out in proportion to
+   CONTENT, so the columns with the longest strings won — "Oxford Circus /
+   Yoga & Wellness Studio" took space from the class NAME, which is the column
+   people actually scan. Percentages state the intended hierarchy instead:
+
+     Time      fixed  — the scan axis; never wraps, never moves
+     Gym       fixed  — ownership, the question a merged timetable must answer
+                        at a glance; sized to the chip, not to the label
+     Class     34%    — WIDEST. Discipline chip + class name: what you choose
+     Instructor 16%   — secondary choice factor
+     Location  20%    — two short lines; often identical down a gym's rows
+     Status / Actions fixed — see the lane rules further down
+
+   Percentages are hints under `table-layout: auto`, so a long string can still
+   borrow slack — it just can't take it by default. */
+/* TEMPORARY (2026-09-15, request): hide the timetable column headers and the
+   per-row favourite heart, to see how the table reads without them.
+   - Headers: the columns are self-evident (a time, a gym chip, a class name).
+   - Heart: still reachable in the row's overflow menu, so nothing is lost.
+   Both are one-line reverts — delete this block. */
+#psycle-helper-container .psycle-table thead {
+  display: none !important;
+}
+#psycle-helper-container .psycle-timetable-heart {
+  display: none !important;
+}
+
+#psycle-helper-container .psycle-table td.col-time,
+#psycle-helper-container .psycle-table th.col-time { width: 72px !important; }
+
+/* Hugs the brand plate as tightly as possible: the plate is 92px, so 96px plus
+   minimal side padding leaves almost no dead space between the wordmark and the
+   discipline pill beside it. Was 118px, which read as a gap in the row. */
+#psycle-helper-container .psycle-table td.col-gym,
+#psycle-helper-container .psycle-table th.col-gym { width: 96px !important; }
+#psycle-helper-container .psycle-table td.col-gym { padding-left: 8px !important; padding-right: 0 !important; }
+#psycle-helper-container .psycle-table td.col-class { padding-left: 6px !important; }
+
 #psycle-helper-container .psycle-table td.col-class {
   font-weight: 600 !important;
   overflow: hidden !important;
+  width: 28% !important;
   max-width: 0 !important;
 }
 
 #psycle-helper-container .psycle-table td.col-instructor {
   overflow: hidden !important;
+  width: 13% !important;
   max-width: 0 !important;
   white-space: nowrap !important;
   text-overflow: ellipsis !important;
@@ -3001,16 +3422,23 @@ html, body {
 
 #psycle-helper-container .psycle-table td.col-location {
   overflow: hidden !important;
+  width: 17% !important;
   max-width: 0 !important;
 }
 
 #psycle-helper-container .psycle-table td.col-status {
   white-space: nowrap !important;
+  /* NO `overflow: hidden` + `text-overflow: ellipsis` here. It was added to stop
+     the actions column overlapping this one, but that overlap is now fixed
+     properly by the fixed lanes in `.psycle-tt-actions` — and the side effect
+     was a literal "…" painted after the occupancy pill at many widths, with no
+     content actually truncated. An ellipsis that hides nothing is pure noise. */
 }
 
 #psycle-helper-container .psycle-table td.col-actions {
-  text-align: center !important;
-  padding: 4px 4px !important;
+  text-align: right !important;
+  padding: 0 !important;
+  vertical-align: stretch !important;
 }
 
 
@@ -4500,6 +4928,133 @@ html, body {
   padding: 16px 36px 24px 36px;
 }
 
+#psycle-helper-container .psycle-gym-settings-heading {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  margin: 4px 0 14px;
+  padding-left: 12px;
+  border-left: 3px solid var(--gym-settings-accent, var(--accent));
+}
+
+#psycle-helper-container .psycle-gym-settings-heading h3 {
+  margin: 2px 0 0;
+  color: var(--text);
+  font-family: var(--font-serif);
+  font-size: 22px;
+}
+
+#psycle-helper-container .psycle-gym-settings-heading .psycle-eyebrow {
+  color: var(--text-tertiary);
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+#psycle-helper-container .psycle-gym-settings-grid {
+  padding: 0 0 24px;
+}
+
+#psycle-helper-container .psycle-gym-settings-warning,
+.psycle-gym-settings-drawer .psycle-gym-settings-warning {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  margin: 0 0 14px;
+  padding: 11px 13px;
+  border: 1px solid color-mix(in srgb, var(--warning) 35%, transparent);
+  border-radius: 10px;
+  background: color-mix(in srgb, var(--warning) 10%, transparent);
+  color: var(--text);
+  font-size: 12px;
+}
+
+#psycle-helper-container .psycle-gym-settings-warning span,
+.psycle-gym-settings-drawer .psycle-gym-settings-warning span {
+  color: var(--text-secondary);
+}
+
+#psycle-helper-container [data-gym-id] .psycle-settings-card,
+.psycle-gym-settings-drawer [data-gym-id] .psycle-settings-card {
+  border-top-color: color-mix(in srgb, var(--gym-settings-accent, var(--accent)) 32%, var(--border));
+}
+
+#psycle-helper-container .psycle-gym-setting-summary {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+#psycle-helper-container .psycle-gym-setting-summary strong {
+  color: var(--text);
+  font-size: 13px;
+}
+
+#psycle-helper-container .psycle-gym-setting-summary .psycle-btn,
+.psycle-gym-settings-drawer .psycle-gym-setting-summary .psycle-btn {
+  width: auto;
+  flex-shrink: 0;
+}
+
+.psycle-gym-settings-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 2400;
+  display: flex;
+  justify-content: flex-end;
+  background: color-mix(in srgb, var(--bg) 58%, transparent);
+  backdrop-filter: blur(3px);
+}
+
+.psycle-gym-settings-drawer {
+  width: min(720px, 92vw);
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+  background: var(--bg);
+  border-left: 1px solid var(--border);
+  box-shadow: -18px 0 48px color-mix(in srgb, #000 24%, transparent);
+}
+
+.psycle-gym-settings-drawer-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 14px 18px;
+  border-bottom: 1px solid var(--separator);
+  color: var(--text);
+}
+
+.psycle-gym-settings-drawer-header .psycle-modal-close-btn {
+  width: 36px;
+  height: 36px;
+  border: 0;
+  background: transparent;
+  color: var(--text-secondary);
+  font-size: 24px;
+  cursor: pointer;
+}
+
+.psycle-gym-settings-drawer-body {
+  flex: 1;
+  overflow-y: auto;
+  padding: 18px;
+}
+
+@media (max-width: 640px) {
+  .psycle-gym-settings-drawer {
+    width: 100%;
+    border-left: 0;
+  }
+
+  .psycle-gym-settings-drawer-body {
+    padding: 14px;
+  }
+}
+
 #psycle-helper-container .psycle-settings-card {
   background: var(--surface-2);
   border: 1px solid var(--border);
@@ -4533,6 +5088,255 @@ html, body {
   gap: 16px;
   padding: 10px 0;
   border-top: 1px solid var(--separator);
+}
+
+/* ── Credits & Membership: one summary card per connected gym ─────────────
+   The tab's question is "what can I book with, at each of my gyms?" — so it
+   opens on the answer, one card per gym, and a gym with more to offer (a
+   purchase catalogue) opens that as a detail view. It used to open straight
+   into one gym's ~100-product bundle list. */
+#psycle-helper-container .psycle-benefit-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+  gap: 14px;
+  padding: 4px 0 8px;
+}
+#psycle-helper-container .psycle-benefit-card {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding: 16px;
+  border: 1px solid var(--border);
+  border-radius: 14px;
+  background: var(--surface-2);
+}
+/* Only a card that actually goes somewhere gets interactive affordances — a
+   card that looks clickable and isn't is worse than a flat one. */
+#psycle-helper-container .psycle-benefit-card.is-actionable {
+  cursor: pointer;
+  transition: border-color .15s ease, transform .15s ease;
+}
+#psycle-helper-container .psycle-benefit-card.is-actionable:hover {
+  border-color: color-mix(in srgb, var(--accent) 45%, var(--border));
+  transform: translateY(-1px);
+}
+@media (prefers-reduced-motion: reduce) {
+  #psycle-helper-container .psycle-benefit-card.is-actionable:hover { transform: none; }
+}
+#psycle-helper-container .psycle-benefit-card.is-loading { opacity: .6; }
+#psycle-helper-container .psycle-benefit-card-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+#psycle-helper-container .psycle-benefit-kind {
+  font-size: var(--text-xs);
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--text-tertiary);
+}
+#psycle-helper-container .psycle-benefit-headline {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+#psycle-helper-container .psycle-benefit-headline strong {
+  font-family: var(--font-serif);
+  font-size: 30px;
+  line-height: 1;
+  color: var(--text);
+}
+#psycle-helper-container .psycle-benefit-headline span {
+  font-size: var(--text-sm);
+  color: var(--text-secondary);
+}
+#psycle-helper-container .psycle-benefit-facts {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  font-size: var(--text-xs);
+  color: var(--text-secondary);
+}
+#psycle-helper-container .psycle-benefit-card-actions {
+  margin-top: auto;
+  padding-top: 4px;
+  display: flex;
+  gap: 8px;
+}
+#psycle-helper-container .psycle-benefit-card-actions .psycle-btn {
+  width: auto;
+  white-space: nowrap;
+}
+
+/* ── Gym connection table (Settings → Your Gyms) ──────────────────────────
+   One question per column: which gym, is it connected, when did it last prove
+   its credential, what can I do about it. */
+#psycle-helper-container .psycle-gym-conn-table {
+  display: flex;
+  flex-direction: column;
+  margin-top: 4px;
+}
+#psycle-helper-container .psycle-gym-conn-head,
+#psycle-helper-container .psycle-gym-conn-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1.4fr) minmax(0, 1fr) minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 12px;
+  padding: 10px 0;
+}
+#psycle-helper-container .psycle-gym-conn-head {
+  padding-bottom: 6px;
+  font-size: var(--text-xs);
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--text-tertiary);
+}
+#psycle-helper-container .psycle-gym-conn-row {
+  border-top: 1px solid var(--separator);
+}
+#psycle-helper-container .psycle-gym-conn-name {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+#psycle-helper-container .psycle-gym-conn-name strong {
+  font-size: var(--text-sm);
+  color: var(--text);
+}
+#psycle-helper-container .psycle-gym-conn-name small,
+#psycle-helper-container .psycle-gym-conn-when {
+  font-size: var(--text-xs);
+  color: var(--text-secondary);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+#psycle-helper-container .psycle-gym-conn-health {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  font-size: var(--text-xs);
+  font-weight: 600;
+}
+/* The dot carries a GLYPH, not just a colour — colour alone fails in
+   forced-colours mode and for colour-blind users, and the word beside it is
+   kept for the same reason. */
+#psycle-helper-container .psycle-gym-conn-dot {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 18px;
+  height: 18px;
+  flex-shrink: 0;
+  border-radius: 50%;
+  font-size: 11px;
+  font-weight: 800;
+  line-height: 1;
+}
+#psycle-helper-container .psycle-gym-conn-health.is-ok { color: var(--success); }
+#psycle-helper-container .psycle-gym-conn-health.is-ok .psycle-gym-conn-dot {
+  background: color-mix(in srgb, var(--success) 18%, transparent);
+  color: var(--success);
+}
+#psycle-helper-container .psycle-gym-conn-health.is-warn { color: var(--warning); }
+#psycle-helper-container .psycle-gym-conn-health.is-warn .psycle-gym-conn-dot {
+  background: color-mix(in srgb, var(--warning) 20%, transparent);
+  color: var(--warning);
+}
+#psycle-helper-container .psycle-gym-conn-health.is-off { color: var(--text-tertiary); }
+#psycle-helper-container .psycle-gym-conn-health.is-off .psycle-gym-conn-dot {
+  background: var(--surface-inset);
+  color: var(--text-tertiary);
+}
+#psycle-helper-container .psycle-gym-conn-actions {
+  display: flex;
+  gap: 6px;
+  justify-content: flex-end;
+  flex-shrink: 0;
+}
+#psycle-helper-container .psycle-gym-conn-actions .psycle-btn {
+  width: auto;
+  white-space: nowrap;
+}
+/* Below ~720px the four columns stop being readable side by side; stack them
+   into a card per gym rather than letting each column shrink to nothing. */
+@media (max-width: 720px) {
+  #psycle-helper-container .psycle-gym-conn-head { display: none; }
+  #psycle-helper-container .psycle-gym-conn-row {
+    grid-template-columns: 1fr;
+    gap: 6px;
+    padding: 12px 0;
+  }
+  #psycle-helper-container .psycle-gym-conn-actions { justify-content: flex-start; }
+}
+
+#psycle-helper-container .psycle-menu-item-flag {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 16px;
+  height: 16px;
+  margin-left: 6px;
+  border-radius: 50%;
+  background: color-mix(in srgb, var(--warning) 22%, transparent);
+  color: var(--warning);
+  font-size: 10px;
+  font-weight: 800;
+}
+
+#psycle-helper-container .u-visually-hidden {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  white-space: nowrap;
+  border: 0;
+}
+
+/* A `.psycle-btn` is full-width by default because most of them are a card's
+   single bottom CTA. Inside a `.psycle-setting-row` — a label on the left, a
+   control on the right — that default is wrong in a way that looks broken: the
+   button takes the whole row and the label collapses to one word per line
+   ("Turn / on / to / get / a / personal / calendar / link."). Shrink to content
+   here; the flex row already gives the label the remaining space. */
+#psycle-helper-container .psycle-setting-row .psycle-btn,
+#psycle-helper-container .psycle-setting-row .psycle-btn-mini,
+#psycle-helper-container .psycle-settings-card .psycle-setting-row .psycle-btn {
+  width: auto;
+  flex: 0 0 auto;
+  white-space: nowrap;
+}
+
+/* `.psycle-settings-btn-row` had NO styling at all, so its children fell back to
+   the 100%-wide default and stacked, each stretching the full card — which is
+   what made "Open gym site ↗" and the calendar link buttons overflow their
+   section. It is a ROW of peer actions. */
+#psycle-helper-container .psycle-settings-btn-row,
+#psycle-helper-container .psycle-settings-card .psycle-settings-btn-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  margin-top: 10px;
+}
+#psycle-helper-container .psycle-settings-btn-row .psycle-btn,
+#psycle-helper-container .psycle-settings-card .psycle-settings-btn-row .psycle-btn,
+#psycle-helper-container .psycle-settings-btn-row .psycle-btn-mini {
+  width: auto;
+  flex: 0 1 auto;
+  max-width: 100%;
+  white-space: nowrap;
 }
 
 #psycle-helper-container .psycle-settings-card > .psycle-setting-row:first-of-type {
@@ -4647,9 +5451,52 @@ html, body {
   text-align: center;
   font-family: inherit;
 }
+/* SPECIFICITY NOTE — these must out-specify `.psycle-settings-card .psycle-btn`
+   above, which sets `width: 100%`. That rule is (1 id + 2 classes) and sits
+   later in the file, so a same-specificity reset elsewhere silently loses to it
+   — which is why "Open gym site ↗" and "Buy credits →" still stretched the full
+   card after the generic fix. Each selector below adds the card class, making it
+   (1 id + 3 classes). Keep them here, after that rule, not next to the others. */
+#psycle-helper-container .psycle-settings-card .psycle-gym-setting-summary .psycle-btn,
+#psycle-helper-container .psycle-settings-card .psycle-gym-setting-summary a.psycle-btn,
+#psycle-helper-container .psycle-settings-card .psycle-setting-row .psycle-btn,
+#psycle-helper-container .psycle-settings-card .psycle-settings-btn-row .psycle-btn,
+#psycle-helper-container .psycle-settings-card .psycle-gym-conn-actions .psycle-btn {
+  width: auto;
+  max-width: 100%;
+  flex: 0 0 auto;
+  white-space: nowrap;
+}
+
+/* The text half of a summary row takes the remaining space; without an explicit
+   min-width:0 a long word keeps the flex item from ever shrinking, which is the
+   other half of how "14 credits available" ended up one word per line. */
+#psycle-helper-container .psycle-gym-setting-summary > div:first-child {
+  flex: 1 1 auto;
+  min-width: 0;
+}
+
+/* Below ~520px a label + button pair has no room side by side. */
+@media (max-width: 520px) {
+  #psycle-helper-container .psycle-gym-setting-summary {
+    flex-direction: column;
+    align-items: stretch;
+  }
+  #psycle-helper-container .psycle-settings-card .psycle-gym-setting-summary .psycle-btn,
+  #psycle-helper-container .psycle-settings-card .psycle-gym-setting-summary a.psycle-btn {
+    width: 100%;
+  }
+}
+
 #psycle-helper-container .psycle-settings-card .psycle-btn:hover {
   background: var(--surface-inset);
   border-color: var(--border-strong);
+}
+
+#psycle-helper-container .psycle-settings-card .psycle-btn.variant-danger {
+  border-color: color-mix(in srgb, var(--danger) 30%, transparent);
+  background: color-mix(in srgb, var(--danger) 10%, transparent);
+  color: var(--danger);
 }
 
 /* Tab header (page title block) — serif large-title, token-driven */
@@ -5455,34 +6302,248 @@ html, body {
 }
 
 #psycle-helper-container .psycle-table td.col-actions {
-  padding-top: 5px;
-  padding-bottom: 5px;
-  vertical-align: middle;
+  padding: 0 !important;
+  vertical-align: stretch !important;
+  text-align: right !important;
+  /* NO `width: 1px` and NO `min-width` here — both were tried and both failed,
+     in different ways, and the failures looked identical from the outside:
+
+       `width: 1px` is the usual shrink-to-fit idiom, but it tells the browser
+       "make this column as small as possible", and the flex content inside
+       simply OVERFLOWED the cell rather than expanding it — measured at 1px
+       wide with its 162px of buttons spilling left across Status.
+
+       `min-width` on a `<td>` is not reliably honoured under
+       `table-layout: auto` at all; columns are sized from content.
+
+     What works is leaving the cell alone and constraining its CONTENT — see
+     `min-width: max-content` on `.psycle-tt-actions`. The column then has to be
+     at least as wide as what it holds, which is the actual requirement. */
+  white-space: nowrap !important;
 }
+
+/* Status holds ONE pill, so it should HUG it — it was resolving to 388px of
+   mostly-empty cell, which is the space the overflowing action group painted
+   into. But `width: 1%` alone collapsed it to 14px with a 63px pill spilling
+   out: the same mistake as the actions column, one cell to the left.
+   Same remedy — constrain the CONTENT, then the column must accommodate it. */
+#psycle-helper-container .psycle-table td.col-status {
+  /* An EXPLICIT px width, because that is the only thing `table-layout: auto`
+     reliably honours. Everything else was tried and measured failing:
+       `width: 1%`      → column collapsed to 14px with a 63px pill spilling out
+       `min-width` (td) → ignored outright
+       `min-width` on the child → did not propagate to the column
+     112px fits the widest pill ("Waitlist", "20 / 24") plus cell padding. */
+  width: 112px !important;
+  white-space: nowrap !important;
+}
+
+/* RESPONSIVE COLUMN CASCADE
+   ------------------------------------------------------------------
+   THE RULE THAT OUTRANKS EVERYTHING ELSE: the action buttons are always fully
+   visible and inside the table. They are the only thing on a row you can't do
+   without, so every other column yields to them — the table must never widen
+   past its container to make room (which it was doing: the buttons broke out
+   past the card's rounded right edge).
+
+   Columns drop in order of what you can most afford to lose:
+
+     WIDE (>1240px)      time · gym · class · instructor · location/studio ·
+                         occupancy · actions          ← everything
+     MID  (1040–1240px)  instructor and location MERGE into one column, and the
+                         specific studio is dropped. The studio is the least
+                         useful thing on a row and the most expensive, because
+                         it forces a second line.
+     TIGHT (<1040px)     the occupancy pill goes too. It is the only column that
+                         is purely informational; everything else is either
+                         identity or an action.
+
+   BREAKPOINTS ARE MEASURED, NOT GUESSED. The first pass merged at 1400px,
+   which was far too early — the separate columns still had room. Measured at a
+   1500px viewport the row used: time 72 + gym 96 + class 379 + instructor 176
+   + location 230 + status 112 + actions 277. The fixed parts total 557, and
+   class/instructor/location can compress to roughly 200/90/120 before they
+   start truncating usefully — about 967px of table. 1240 leaves headroom above
+   that without merging while the columns are still comfortable.
+
+   Each variant is always in the DOM with CSS choosing, so resizing never needs
+   a re-render and can never leave a cell empty. */
+
+/* WIDE — the merged column is a duplicate here, so it must be hidden.
+   `!important` is REQUIRED, not decorative: `.psycle-table td` carries
+   `display: table-cell !important`, and an important declaration beats a
+   non-important one no matter how specific the loser is. Without it this rule
+   lost silently and the merged column rendered at desktop width ALONGSIDE the
+   separate instructor and location columns — the same facts three times. */
+#psycle-helper-container .psycle-table td.col-who-where,
+#psycle-helper-container .psycle-table th.col-who-where { display: none !important; }
+
+@media (max-width: 1240px) {
+  :root {
+    --tt-seg-w: 104px;
+    --tt-caret-w: 36px;
+    --tt-chip-h: 21px;
+  }
+  #psycle-helper-container .psycle-table td.col-time,
+  #psycle-helper-container .psycle-table th.col-time { width: 58px !important; }
+
+  /* MERGE: separate instructor + location out, combined column in. */
+  #psycle-helper-container .psycle-table td.col-instructor,
+  #psycle-helper-container .psycle-table th.col-instructor,
+  #psycle-helper-container .psycle-table td.col-location,
+  #psycle-helper-container .psycle-table th.col-location { display: none !important; }
+  #psycle-helper-container .psycle-table td.col-who-where,
+  #psycle-helper-container .psycle-table th.col-who-where {
+    display: table-cell !important;
+    width: 26% !important;
+    max-width: 0 !important;
+    overflow: hidden !important;
+    /* NOT nowrap on the cell — the two child lines each handle their own
+       truncation, and a nowrap cell would collapse them back onto one line. */
+  }
+  #psycle-helper-container .psycle-table td.col-class { width: 34% !important; }
+}
+
+@media (max-width: 1040px) {
+  :root {
+    --tt-seg-w: 96px;
+    --tt-caret-w: 34px;
+  }
+  /* Occupancy is the only purely-informational column — last to arrive, first
+     to go. The number is still on the row's tooltip and in the booking modal. */
+  #psycle-helper-container .psycle-table td.col-status,
+  #psycle-helper-container .psycle-table th.col-status { display: none !important; }
+  #psycle-helper-container .psycle-table td.col-class { width: 38% !important; }
+  #psycle-helper-container .psycle-table td.col-who-where { width: 28% !important; }
+}
+
+/* The merged column stacks: WHO on top, WHERE beneath — same two-line shape as
+   the Location column it replaces, so the row's rhythm doesn't change when the
+   columns collapse into one. It was a single line with a middot, which read as
+   one run-on fact rather than two. Each line truncates independently. */
+#psycle-helper-container .psycle-ww-who,
+#psycle-helper-container .psycle-ww-loc {
+  display: block;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  max-width: 100%;
+}
+#psycle-helper-container .psycle-ww-who {
+  /* `!important` because this element also carries `.psycle-instructor-hover`,
+     which sets `font-weight: 500 !important` for the dotted-underline hover
+     affordance. Matches the Location column's bold first line, so the merged
+     column has the same hierarchy as the one it replaces. */
+  font-weight: 600 !important;
+  color: var(--text) !important;
+}
+#psycle-helper-container .psycle-ww-loc {
+  margin-top: 2px;
+  font-size: var(--text-xs);
+  color: var(--text-secondary);
+}
+
+/* Actions: flush RIGHT, with fixed segment widths.
+   ------------------------------------------------------------------
+   Two failed shapes are worth recording, because both looked reasonable:
+
+   1. A right-aligned flex row with content-sized buttons. Rows carry different
+      action sets, so every button was a different width and the column's left
+      edge was a staircase.
+   2. A grid with one reserved lane per role. That fixed the sizes, but a row
+      without a given role left its lane EMPTY — a bookable Psycle row rendered
+      [Book][⚙][         ] with a 122px hole before the right edge, while a JAB
+      row with no gear sat flush right. Reserving space for an action that does
+      not exist trades one misalignment for a worse one.
+
+   What actually holds: fixed WIDTHS (so no two buttons differ in size) plus
+   flush-right packing (so every row ends on the same edge). The only variation
+   left is the 40px gear, present exactly where a studio has a seat map — which
+   is information, not noise. */
 .psycle-tt-actions {
   display: flex;
   align-items: stretch;
   justify-content: flex-end;
-  gap: 6px;
-  min-height: 44px;
+  height: 100%;
+  min-height: 46px;
+  /* THE fix for the overlap, and the one that actually holds.
+     `min-width` on the `<td>` is NOT reliably honoured under
+     `table-layout: auto` — the browser sizes columns from their CONTENT, so
+     every floor put on `td.col-actions` was silently ignored (measured: the
+     cell resolved to 1px while Status took 388px). Constraining the content
+     forces the column to be at least this wide, because the column must fit
+     what it contains.
+     `max-content` = the exact width of however many segments this row has, so
+     it needs no magic number and no per-breakpoint upkeep. */
+  min-width: max-content;
 }
 .psycle-tt-seg-group {
   display: flex;
   align-items: stretch;
+  height: 100%;
 }
+/* Full-width segments are the LABELLED actions only. The two icon segments —
+   the ⚙ and the ⋯ — are excluded here rather than overridden later:
+   `.psycle-tt-seg:not(.psycle-tt-seg-caret)` is two classes and
+   `.psycle-tt-seg-more` is one, so a later single-class rule loses the
+   specificity fight and the overflow button silently rendered 122px wide. */
+.psycle-tt-seg:not(.psycle-tt-seg-caret):not(.psycle-tt-seg-more) {
+  width: var(--tt-seg-w);
+  flex: 0 0 var(--tt-seg-w);
+}
+/* Desktop overflow trigger — same width as the ⚙ so the actions column keeps
+   its fixed rhythm. */
+.psycle-tt-seg-more {
+  /* box-sizing AND !important both matter: the base `.psycle-tt-seg` sets
+     `padding: 0 12px`, and without border-box that padding is added OUTSIDE the
+     40px width — the button measured 68px. */
+  box-sizing: border-box !important;
+  width: var(--tt-caret-w) !important;
+  min-width: var(--tt-caret-w) !important;
+  max-width: var(--tt-caret-w) !important;
+  flex: 0 0 var(--tt-caret-w) !important;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0 !important;
+  font-size: 17px !important;
+  line-height: 1;
+  background: var(--surface-inset) !important;
+  color: var(--text-secondary) !important;
+  border: none !important;
+  border-left: 1px solid var(--border) !important;
+}
+.psycle-tt-seg-more:hover {
+  background: color-mix(in srgb, var(--text) 8%, var(--surface-inset)) !important;
+  color: var(--text) !important;
+}
+
+.psycle-tt-seg-caret {
+  width: var(--tt-caret-w);
+  flex: 0 0 var(--tt-caret-w);
+}
+
 .psycle-tt-seg {
   display: flex;
   flex-direction: row;
   align-items: center;
   justify-content: center;
   gap: 5px;
-  padding: 0 8px;
-  min-width: 62px;
-  height: 44px;
+  padding: 0 12px;
+  min-width: 68px;
+  height: 100%;
+  min-height: 46px;
+  /* fixed width below (not just min-width) so segments don't jump width
+     row-to-row as labels change ("Book" vs "Quick Book" vs "Auto-Book") —
+     the caret (⚙) opts back out, it's meant to be narrow. */
+}
+.psycle-tt-seg:not(.psycle-tt-seg-caret):not(.psycle-tt-seg-more) {
+  white-space: nowrap;
   box-sizing: border-box;
   margin: 0;
   border: none;
-  border-radius: 10px;
+  border-left: 1px solid var(--border);
+  border-radius: 0 !important;
   background: var(--surface-inset);
   color: var(--text);
   font-size: 12px;
@@ -5505,22 +6566,74 @@ html, body {
   justify-content: center;
   padding: 0 8px;
   min-width: unset;
-  height: 44px;
+  height: 100%;
   box-sizing: border-box;
   margin: 0;
   border: none;
   border-left: 1px solid currentColor !important;
-  border-top-left-radius: 0 !important;
-  border-bottom-left-radius: 0 !important;
-  border-top-right-radius: 10px !important;
-  border-bottom-right-radius: 10px !important;
+  border-radius: 0 !important;
   cursor: pointer;
   transition: background .12s, color .12s;
-  font-size: 16px !important;
+  font-size: 15px !important;
 }
 .psycle-tt-seg-caret:not(.primary):hover {
   background: color-mix(in srgb, var(--text) 8%, transparent);
   color: var(--text);
+}
+.psycle-header-gym-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 10px;
+  border-radius: 999px;
+  font-size: 12px;
+  font-weight: 600;
+  border: 1px solid var(--border);
+  background: var(--surface-inset);
+  color: var(--text);
+  cursor: pointer;
+  transition: all 0.15s ease;
+  font-family: inherit;
+}
+.psycle-header-gym-badge:hover {
+  filter: brightness(1.08);
+}
+.psycle-header-gym-psycle-london {
+  background: color-mix(in srgb, var(--gym-psycle-london-tint) 13%, var(--surface)) !important;
+  border-color: color-mix(in srgb, var(--gym-psycle-london-tint) 30%, transparent) !important;
+  color: var(--text) !important;
+}
+.psycle-header-gym-jab-boxing {
+  background: color-mix(in srgb, var(--gym-jab-boxing-tint) 13%, var(--surface)) !important;
+  border-color: color-mix(in srgb, var(--gym-jab-boxing-tint) 30%, transparent) !important;
+  color: var(--text) !important;
+}
+.psycle-hgb-name {
+  font-weight: 700;
+  letter-spacing: 0.02em;
+  font-size: 11px;
+  text-transform: uppercase;
+  color: var(--text-secondary);
+}
+.psycle-hgb-pill {
+  padding: 2px 7px;
+  border-radius: 999px;
+  font-size: 11px;
+  font-weight: 700;
+  background: color-mix(in srgb, var(--accent) 15%, transparent);
+  color: var(--accent);
+}
+.psycle-header-gym-psycle-london .psycle-hgb-pill {
+  background: var(--gym-psycle-london-ink) !important;
+  color: var(--gym-psycle-london-on) !important;
+}
+.psycle-header-gym-jab-boxing .psycle-hgb-pill {
+  background: var(--gym-jab-boxing-ink) !important;
+  color: var(--gym-jab-boxing-on) !important;
+}
+.psycle-hgb-pill.member {
+  background: color-mix(in srgb, var(--success) 20%, transparent) !important;
+  color: var(--success) !important;
 }
 .psycle-credit-badge {
   background: var(--header-credits-bg) !important;
@@ -5601,22 +6714,109 @@ html, body {
 }
 
 /* Segment colour variants — shared by the desktop table segments and the
-   mobile rail. Base = tinted (secondary actions); .primary = solid fill so the
-   main action reads clearly against the panel background. */
-.psycle-tt-seg.variant-success,                       .psycle-mobile-seg.variant-success                       { background: color-mix(in srgb, var(--success) 16%, transparent) !important; color: var(--success) !important; border: none !important; }
-.psycle-tt-seg.variant-success-muted,                 .psycle-mobile-seg.variant-success-muted,
-.psycle-tt-seg.primary.variant-success,                 .psycle-mobile-seg.primary.variant-success                 { background: var(--accent-btn-bg) !important; color: var(--on-accent-button) !important; border: none !important; }
-.psycle-tt-seg.variant-autoupgrade,                   .psycle-mobile-seg.variant-autoupgrade                   { background: color-mix(in srgb, var(--feat-autoupgrade) 16%, transparent) !important; color: var(--feat-autoupgrade) !important; border: none !important; }
-.psycle-tt-seg.primary.variant-autoupgrade,             .psycle-mobile-seg.primary.variant-autoupgrade             { background: var(--auto-not-scheduled) !important; color: var(--on-auto-not-scheduled) !important; border: none !important; }
-.psycle-tt-seg.primary.variant-autoupgrade.scheduled,   .psycle-mobile-seg.primary.variant-autoupgrade.scheduled   { background: var(--auto-banner) !important; color: var(--on-auto-pill) !important; border: none !important; }
-.psycle-tt-seg.variant-warning-solid,                   .psycle-mobile-seg.variant-warning-solid,
-.psycle-tt-seg.primary.variant-warning-solid,           .psycle-mobile-seg.primary.variant-warning-solid           { background: var(--waitlist-btn-bg) !important; color: var(--on-waitlist-btn) !important; border: none !important; }
-.psycle-tt-seg.variant-danger,                        .psycle-mobile-seg.variant-danger                        { background: color-mix(in srgb, var(--danger) 12%, transparent) !important; color: var(--danger) !important; border: none !important; }
-.psycle-tt-seg.primary.variant-danger,                  .psycle-mobile-seg.primary.variant-danger                  { background: var(--buy-credits-bg) !important; color: var(--on-buy-credits) !important; border: none !important; }
-.psycle-tt-seg.primary.variant-danger-strong,           .psycle-mobile-seg.primary.variant-danger-strong           { background: color-mix(in srgb, var(--danger) 30%, transparent) !important; color: var(--danger) !important; border: none !important; font-weight: 800; }
-.psycle-tt-seg.variant-neutral,                       .psycle-mobile-seg.variant-neutral                       { background: var(--surface-inset) !important; color: var(--text-tertiary) !important; border: none !important; }
-.psycle-tt-seg.primary.variant-neutral,                 .psycle-mobile-seg.primary.variant-neutral                 { background: var(--surface-2) !important; color: var(--text-tertiary) !important; border: none !important; }
-.psycle-tt-seg.variant-debug,                         .psycle-mobile-seg.variant-debug                         { background: color-mix(in srgb, var(--feat-autoupgrade) 22%, transparent) !important; color: var(--feat-autoupgrade) !important; border: none !important; }
+   mobile rail.
+   ------------------------------------------------------------------
+   TWO weights, not eight. Every `.primary` segment previously carried its OWN
+   solid hue — accent for Quick Book, lilac for Auto-Book, dark blue for
+   waitlist, another for Buy Credits — plus one that was outlined rather than
+   filled. Down a single-gym list of near-identical rows that reads as semantic
+   colour-coding. In the merged multi-gym timetable, where consecutive rows are
+   in different states AND carry different gym tints, it reads as a patchwork
+   and the eye can no longer find the primary action.
+
+   So:
+     .primary  → ONE filled treatment, the app accent. There is exactly one per
+                 row, and it always looks the same, so "the filled one is the
+                 main action" becomes a rule the user can learn.
+     bare      → ONE quiet treatment: a low tint of the semantic hue, carrying
+                 meaning in the TEXT colour rather than in a competing fill.
+
+   Semantic hue still overrides the fill in the one case where colour is a
+   warning and not decoration: destructive actions (danger). Keep it that way —
+   if every state earns an exception here, this is eight variants again. */
+
+/* Secondary (bare) — ONE quiet treatment for every non-destructive action.
+   These were each tinted with their own semantic hue (green Book, lilac
+   Auto-Book, blue waitlist), so a single row could show three colours and the
+   eye had nothing to lock onto. A row now has exactly one coloured action —
+   the primary — and its secondaries recede. Destructive keeps red below,
+   because there the colour is a warning rather than decoration. */
+.psycle-tt-seg.variant-success,
+.psycle-mobile-seg.variant-success,
+.psycle-tt-seg.variant-success-muted,
+.psycle-mobile-seg.variant-success-muted,
+.psycle-tt-seg.variant-autoupgrade,
+.psycle-mobile-seg.variant-autoupgrade,
+.psycle-tt-seg.variant-debug,
+.psycle-mobile-seg.variant-debug,
+.psycle-tt-seg.variant-warning-solid,
+.psycle-mobile-seg.variant-warning-solid,
+.psycle-tt-seg.variant-neutral,
+.psycle-mobile-seg.variant-neutral { background: var(--surface-inset) !important; color: var(--text-secondary) !important; border: none !important; }
+
+.psycle-tt-seg.variant-danger,
+.psycle-mobile-seg.variant-danger { background: color-mix(in srgb, var(--danger) 10%, transparent) !important; color: var(--danger) !important; border: none !important; }
+
+/* Primary fills — THREE kinds of action, ONE hue.
+   ------------------------------------------------------------------
+   All three are shades of the app accent, not separate semantic colours. An
+   earlier pass used info-blue for waitlist and feature-violet for Auto-Book;
+   three unrelated hues in one column made the table look like three different
+   products, which is worse than the problem it solved.
+
+   Same hue, different depth, so the difference is legible without shouting:
+
+     Book / Quick Book → the accent at full strength — you get a spot NOW
+     Join Waitlist     → lighter    — you MIGHT get a spot, later
+     Auto-Book         → deeper     — you get a spot at a FUTURE instant
+
+   Deriving from `--accent` means they follow the theme and any future brand
+   change automatically, instead of being three more hardcoded values. */
+.psycle-tt-seg.primary,
+.psycle-mobile-seg.primary { background: var(--accent) !important; color: var(--on-accent) !important; border: none !important; }
+
+/* "Book" that opens a picker is the same ACTION as Quick Book, so the same
+   colour — it was outlined, which read as a different, lesser thing. */
+.psycle-tt-seg.primary.variant-success-outline,
+.psycle-mobile-seg.primary.variant-success-outline { background: var(--accent) !important; color: var(--on-accent) !important; border: none !important; }
+
+/* Waitlist — the accent lightened toward the surface. */
+.psycle-tt-seg.primary.variant-warning-solid,
+.psycle-mobile-seg.primary.variant-warning-solid {
+  background: color-mix(in srgb, var(--accent) 62%, var(--surface)) !important;
+  color: var(--on-accent) !important;
+  border: none !important;
+}
+
+/* Auto-Book — the accent deepened. */
+.psycle-tt-seg.primary.variant-autoupgrade,
+.psycle-mobile-seg.primary.variant-autoupgrade {
+  background: color-mix(in srgb, var(--accent) 78%, #2b1508) !important;
+  color: var(--on-accent) !important;
+  border: none !important;
+}
+
+/* Destructive stays red — the one place hue is a warning, not decoration. */
+.psycle-tt-seg.primary.variant-danger,
+.psycle-mobile-seg.primary.variant-danger {
+  /* NO fill at all: this is a nudge to top up, not a warning, and a tinted
+     block was the loudest thing in a column of otherwise calm rows. Text only,
+     lightened so it recedes further still. */
+  background: transparent !important;
+  color: color-mix(in srgb, var(--danger) 62%, var(--text-secondary)) !important;
+  border: none !important;
+}
+#psycle-helper-container .psycle-tt-seg.primary.variant-danger:hover {
+  background: color-mix(in srgb, var(--danger) 6%, transparent) !important;
+  color: var(--danger) !important;
+}
+.psycle-tt-seg.primary.variant-danger-strong,
+.psycle-mobile-seg.primary.variant-danger-strong { background: color-mix(in srgb, var(--danger) 30%, transparent) !important; color: var(--danger) !important; border: none !important; font-weight: 800; }
+
+/* An already-scheduled Auto-Book is a STATE, not an action to take — it must
+   not wear the primary fill that means "do this next". */
+.psycle-tt-seg.primary.variant-autoupgrade.scheduled,
+.psycle-mobile-seg.primary.variant-autoupgrade.scheduled { background: color-mix(in srgb, var(--feat-autoupgrade) 20%, transparent) !important; color: var(--feat-autoupgrade) !important; border: none !important; }
 
 /* Restore the divider line on the caret (config) button regardless of which variant
    set border:none above — must come after all variant rules so it wins. */
@@ -5780,7 +6980,7 @@ html, body {
 .ab-footer-btn.state-paused { background: color-mix(in srgb, var(--on-auto) 18%, transparent); }
 .ab-footer-btn:disabled { opacity: 0.6; cursor: default; }
 
-/* ── Queue card (two-column: content + action rail) ────────────── */
+/* ── Queue / Booking card (three-column: brand rail + content + action rail) ── */
 #psycle-helper-container .psycle-autobook-card.ab-card {
   display: flex;
   flex-direction: row;
@@ -5792,11 +6992,84 @@ html, body {
   border: 1px solid var(--border);
   border-radius: var(--radius-card);
   box-shadow: var(--shadow-card);
+  transition: border-color 0.15s ease, box-shadow 0.15s ease;
 }
 #psycle-helper-container .psycle-autobook-card.ab-card:hover {
   border-color: var(--border-strong);
 }
 #psycle-helper-container .psycle-autobook-card.ab-card { margin-bottom: 0; }
+
+/* Subtle per-gym card background tinting */
+#psycle-helper-container .psycle-autobook-card.ab-card[data-gym="psycle-london"] {
+  background: color-mix(in srgb, var(--gym-psycle-london-tint) 3%, var(--surface));
+  border-color: color-mix(in srgb, var(--gym-psycle-london-tint) 20%, var(--border));
+}
+#psycle-helper-container .psycle-autobook-card.ab-card[data-gym="psycle-london"]:hover {
+  border-color: color-mix(in srgb, var(--gym-psycle-london-tint) 36%, var(--border));
+}
+
+#psycle-helper-container .psycle-autobook-card.ab-card[data-gym="jab-boxing"] {
+  background: color-mix(in srgb, var(--gym-jab-boxing-tint) 3.5%, var(--surface));
+  border-color: color-mix(in srgb, var(--gym-jab-boxing-tint) 22%, var(--border));
+}
+#psycle-helper-container .psycle-autobook-card.ab-card[data-gym="jab-boxing"]:hover {
+  border-color: color-mix(in srgb, var(--gym-jab-boxing-tint) 38%, var(--border));
+}
+
+/* Leftmost Gym Brand Rail */
+.ab-card-gym-rail {
+  width: 58px;
+  min-width: 58px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  padding: 12px 4px;
+  flex-shrink: 0;
+  border-right: 1px solid var(--border);
+  background: var(--surface-inset);
+  user-select: none;
+  transition: background 0.15s ease, border-color 0.15s ease;
+}
+
+/* The rail carries the same brand plate as the chip — the gym's ground with its
+   white wordmark on it — rather than a tint of the gym token. */
+.ab-card-gym-rail[data-gym="psycle-london"] {
+  background: #212121;
+  border-right-color: #212121;
+  color: #ffffff;
+}
+
+.ab-card-gym-rail[data-gym="jab-boxing"] {
+  background: #6C1F20;
+  border-right-color: #6C1F20;
+  color: #f9f6f5;
+}
+
+.ab-gym-logo {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  line-height: 1;
+}
+
+/* The card rail is 58px wide, so it ALWAYS uses the half mark regardless of
+   viewport — the full 7.4:1 wordmark has never fitted here. */
+.ab-card-gym-rail .ab-gym-logo-img.is-full { display: none; }
+.ab-card-gym-rail .ab-gym-logo-img.is-half { display: block; width: 42px; height: auto; }
+.ab-card-gym-rail .ab-gym-logo-svg { width: 40px; height: auto; }
+
+.ab-gym-name {
+  font-family: var(--font-sans);
+  font-size: 10px;
+  font-weight: 800;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  text-align: center;
+  line-height: 1.1;
+}
+
 .ab-card-main {
   flex: 1;
   min-width: 0;
@@ -5831,9 +7104,26 @@ html, body {
 .ab-disc-tag {
   display: inline-flex;
   align-items: center;
-  gap: 4px;
+  /* Left-aligned, not centred. Chips share ONE width (equalizeDiscTagWidths
+     below) so the class names beside them line up down the column — but with
+     centred text, a short label like RIDE floated in the middle of a chip sized
+     for CONDITIONING, which reads as a layout error and wastes the width twice.
+     Left-aligned, the glyph and word start at the same x on every row and the
+     spare space collects harmlessly on the right. */
+  justify-content: flex-start;
+  gap: 5px;
   flex-shrink: 0;
-  padding: 3px 8px 3px 7px;
+  /* Content-sized: the chip fits its label. The CLASS column keeps a fixed
+     percentage width (see `td.col-class`), so the column doesn't move even
+     though the chip inside it does — which is what actually matters for the
+     table's rhythm. `equalizeDiscTagWidths()` is now a no-op; see cards.js. */
+  width: auto;
+  min-width: 0;
+  max-width: 100%;
+  overflow: hidden;
+  box-sizing: border-box;
+  height: var(--tt-chip-h);
+  padding: 0 6px;
   border-radius: 6px;
   font-size: var(--text-xs);
   font-weight: 600;
@@ -5849,6 +7139,7 @@ html, body {
 .ab-disc-tag[data-disc="strength"] { color: var(--disc-strength); background: transparent !important; border-color: color-mix(in srgb, var(--disc-strength) 24%, transparent); }
 .ab-disc-tag[data-disc="infrared"] { color: var(--disc-infrared); background: transparent !important; border-color: color-mix(in srgb, var(--disc-infrared) 24%, transparent); }
 .ab-disc-tag[data-disc="reformer"] { color: var(--disc-reformer); background: transparent !important; border-color: color-mix(in srgb, var(--disc-reformer) 24%, transparent); }
+.ab-disc-tag[data-disc="recovery"] { color: var(--disc-recovery); background: transparent !important; border-color: color-mix(in srgb, var(--disc-recovery) 24%, transparent); }
 .ab-disc-tag[data-disc="yoga"]     { color: var(--disc-yoga);     background: transparent !important; border-color: color-mix(in srgb, var(--disc-yoga) 24%, transparent); }
 .ab-disc-tag[data-disc="boxing"]       { color: var(--disc-boxing, var(--disc-other));       background: transparent !important; border-color: color-mix(in srgb, var(--disc-boxing, var(--disc-other)) 24%, transparent); }
 .ab-disc-tag[data-disc="conditioning"] { color: var(--disc-conditioning, var(--disc-other)); background: transparent !important; border-color: color-mix(in srgb, var(--disc-conditioning, var(--disc-other)) 24%, transparent); }
@@ -5862,7 +7153,89 @@ html, body {
 }
 .ab-card-class { font-family: var(--font-serif); font-weight: 600; font-size: var(--text-md); color: var(--text); }
 .ab-meta-dot { color: var(--text-tertiary); }
-.ab-card-instructor { font-weight: 500; color: var(--text-md); font-size: var(--text-base); }
+/* An avatar still rendered INLINE (Auto-Book / Auto-Upgrade cards, which have
+   no separate figure column) must fit a single line — 52px there would hang
+   below the row for exactly the reason the figure column exists. */
+.ab-card-instructor .ab-card-avatar {
+  width: 28px;
+  height: 28px;
+}
+
+.ab-card-instructor {
+  display: inline-flex;
+  /* `center`, not the baseline the surrounding `.ab-card-meta` uses: a 26px
+     round avatar aligned on a text baseline sits visibly low against the name
+     next to it. The meta row stays baseline-aligned for everything else. */
+  align-items: center;
+  align-self: center;
+  gap: 6px;
+  font-weight: 500;
+  color: var(--text-secondary);
+  font-size: var(--text-base);
+}
+/* MY BOOKINGS CARD — two lines of text, photo to the right.
+   ------------------------------------------------------------------
+   Hierarchy, loudest to quietest:
+     date + time   — what you scan the list for
+     instructor    — secondary on the same line, lighter
+     class name    — the subject, serif
+     discipline    — a tag, not prose
+     location      — the quietest thing on the card
+   Was four stacked rows with the photo inline in one of them; this is two. */
+.ab-card-body {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+}
+.ab-card-lines {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+.ab-card-line1,
+.ab-card-line2 {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px;
+  min-width: 0;
+}
+.ab-card-line1 .ab-card-instructor {
+  /* Same line as the time, but clearly subordinate to it. */
+  font-size: var(--text-sm);
+  font-weight: 500;
+  color: var(--text-secondary);
+}
+.ab-card-line2 .ab-card-location {
+  /* Quietest element on the card, and it must not force a wrap. */
+  flex: 0 1 auto;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: var(--text-xs);
+  color: var(--text-tertiary);
+}
+.ab-card-figure {
+  flex: 0 0 auto;
+  display: flex;
+  align-items: center;
+}
+
+/* Fixed box so a slow or missing image never reflows the meta row.
+   52px (2x the original 26) — at the smaller size the face was decoration
+   rather than something you could actually recognise an instructor from. */
+.ab-card-avatar {
+  width: 52px;
+  height: 52px;
+  flex-shrink: 0;
+  border-radius: 50%;
+  object-fit: cover;
+  background: color-mix(in srgb, var(--text) 8%, transparent);
+  border: 1px solid var(--border);
+}
 .ab-card-location { flex-basis: 100%; margin-top: 1px; font-size: var(--text-xs); color: var(--text-tertiary); }
 
 .ab-card-footer {
@@ -6052,6 +7425,13 @@ html, body {
   background: var(--surface-2);
   border: 1px solid var(--border);
   border-radius: var(--radius-sm);
+  border-left: 3px solid var(--border);
+}
+.ab-hist-card[data-gym="psycle-london"] {
+  border-left-color: var(--gym-psycle-london-ink);
+}
+.ab-hist-card[data-gym="jab-boxing"] {
+  border-left-color: var(--gym-jab-boxing-ink);
 }
 .ab-hist-card.state-failed { opacity: 0.8; }
 .ab-hist-row1 {
@@ -6579,6 +7959,15 @@ html, body {
     border-color: color-mix(in srgb, var(--feat-autoupgrade) 25%, transparent);
   }
 
+  /* Row tint by gym identity (2026-09-02) — same colours as the desktop row
+     tint above and the Auto-Book/Bookings card tint. */
+  .psycle-mobile-class-card[data-gym="psycle-london"] {
+    background: color-mix(in srgb, var(--gym-psycle-london-tint) 3%, var(--surface));
+  }
+  .psycle-mobile-class-card[data-gym="jab-boxing"] {
+    background: color-mix(in srgb, var(--gym-jab-boxing-tint) 3.5%, var(--surface));
+  }
+
   .psycle-mobile-content {
     flex: 1;
     min-width: 0;
@@ -6722,92 +8111,6 @@ html, body {
   }
 
   /* Mobile context menu — fixed positioning escapes card stacking contexts; touch-optimised sizing */
-  .psycle-mobile-menu {
-    position: fixed;
-    z-index: 100000;
-    background: var(--surface);
-    border: 1px solid var(--border-strong);
-    border-radius: 14px;
-    box-shadow: var(--shadow-card);
-    padding: 8px;
-    min-width: 200px;
-    backdrop-filter: blur(20px) saturate(180%);
-    -webkit-backdrop-filter: blur(20px) saturate(180%);
-  }
-
-  .psycle-mobile-menu-item {
-    padding: 14px 16px;
-    margin-bottom: 4px;
-    font-size: 14px;
-    font-weight: 600;
-    color: var(--text);
-    cursor: pointer;
-    border-radius: 10px;
-    min-height: 44px;
-    display: flex;
-    align-items: center;
-    gap: 10px;
-    transition: background 0.15s ease;
-    border: 1px solid transparent;
-  }
-
-  .psycle-mobile-menu-item:last-child {
-    margin-bottom: 0;
-  }
-
-  .psycle-mobile-menu-item:hover,
-  .psycle-mobile-menu-item:active {
-    background: var(--surface-2);
-  }
-
-  /* Variant colours reflecting the buttons they replace */
-  .psycle-mobile-menu-item[data-variant="book"] {
-    background: color-mix(in srgb, var(--success) 12%, transparent);
-    border-color: color-mix(in srgb, var(--success) 30%, transparent);
-    color: var(--success);
-  }
-  .psycle-mobile-menu-item[data-variant="book"]:hover,
-  .psycle-mobile-menu-item[data-variant="book"]:active {
-    background: color-mix(in srgb, var(--success) 20%, transparent);
-  }
-
-  .psycle-mobile-menu-item[data-variant="favourite"] {
-    color: var(--danger);
-  }
-  .psycle-mobile-menu-item[data-variant="favourite"]:hover,
-  .psycle-mobile-menu-item[data-variant="favourite"]:active {
-    background: color-mix(in srgb, #f43f5e 12%, transparent);
-  }
-
-  .psycle-mobile-menu-item[data-variant="danger"] {
-    background: color-mix(in srgb, var(--danger) 10%, transparent);
-    border-color: color-mix(in srgb, var(--danger) 25%, transparent);
-    color: var(--danger);
-  }
-  .psycle-mobile-menu-item[data-variant="danger"]:hover,
-  .psycle-mobile-menu-item[data-variant="danger"]:active {
-    background: color-mix(in srgb, var(--danger) 18%, transparent);
-  }
-
-  .psycle-mobile-menu-item[data-variant="success"] {
-    background: color-mix(in srgb, var(--success) 12%, transparent);
-    border-color: color-mix(in srgb, var(--success) 30%, transparent);
-    color: var(--success);
-  }
-  .psycle-mobile-menu-item[data-variant="success"]:hover,
-  .psycle-mobile-menu-item[data-variant="success"]:active {
-    background: color-mix(in srgb, var(--success) 20%, transparent);
-  }
-
-  .psycle-mobile-menu-item[data-variant="debug"] {
-    background: color-mix(in srgb, var(--feat-autoupgrade) 15%, transparent);
-    border-color: color-mix(in srgb, var(--feat-autoupgrade) 35%, transparent);
-    color: var(--feat-autoupgrade);
-  }
-  .psycle-mobile-menu-item[data-variant="debug"]:hover,
-  .psycle-mobile-menu-item[data-variant="debug"]:active {
-    background: color-mix(in srgb, var(--feat-autoupgrade) 25%, transparent);
-  }
 
   /* Squeeze filter dropdowns onto one line */
   #psycle-helper-container #psycle-ms-location,
@@ -7310,6 +8613,56 @@ html, body {
   font-weight: 600;
 }
 
+/* A gym's own sidebar entry, nested under "Your Gyms".
+   ------------------------------------------------------------------
+   MUST come after `.psycle-settings-menu-item` (~line 8356) and MUST chain both
+   classes. The first attempt used `.psycle-settings-menu-sub` alone, placed
+   earlier in the file: equal specificity (1 id + 1 class), so the base rule's
+   `padding-left: 16px` won on source order and the indent silently did nothing.
+   A connecting rail plus a deeper indent, so the hierarchy reads at a glance
+   rather than relying on the reader noticing a few px of extra padding. */
+#psycle-helper-container .psycle-settings-menu-item.psycle-settings-menu-sub {
+  padding-left: 30px;
+  position: relative;
+  font-weight: 500;
+}
+#psycle-helper-container .psycle-settings-menu-item.psycle-settings-menu-sub .menu-item-text {
+  font-size: var(--text-sm);
+  color: var(--text-secondary);
+}
+#psycle-helper-container .psycle-settings-menu-item.psycle-settings-menu-sub.active .menu-item-text {
+  color: var(--text);
+  font-weight: 600;
+}
+/* Vertical rail down the group, with a short elbow into each entry. The rail
+   is drawn per item and overlapped so consecutive gyms read as one line. */
+#psycle-helper-container .psycle-settings-menu-item.psycle-settings-menu-sub::before {
+  content: "";
+  position: absolute;
+  left: 16px;
+  top: 0;
+  bottom: 0;
+  width: 1px;
+  background: var(--border-strong);
+  opacity: 0.6;
+}
+#psycle-helper-container .psycle-settings-menu-item.psycle-settings-menu-sub::after {
+  content: "";
+  position: absolute;
+  left: 16px;
+  top: 50%;
+  width: 8px;
+  height: 1px;
+  background: var(--border-strong);
+  opacity: 0.6;
+}
+/* The last gym's rail stops at its own elbow rather than running into
+   "About" below it. */
+#psycle-helper-container .psycle-settings-menu-item.psycle-settings-menu-sub:not(:has(+ .psycle-settings-menu-sub))::before {
+  bottom: 50%;
+}
+
+
 /* Content Area */
 #psycle-helper-container .psycle-settings-content {
   flex: 1;
@@ -7425,4 +8778,77 @@ html, body {
   #psycle-helper-container .psycle-settings-section-panes {
     padding: 16px;
   }
+}
+/* Structured loading placeholders: preserve the final row/card rhythm while
+   cold data is fetched, reducing layout jumps across timetable and automation. */
+.psycle-skeleton-list,
+.psycle-skeleton-table {
+  display: grid;
+  gap: 10px;
+  width: 100%;
+}
+
+.psycle-skeleton-card,
+.psycle-skeleton-table-row {
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  background: var(--surface);
+}
+
+.psycle-skeleton-card {
+  display: grid;
+  gap: 10px;
+  padding: 16px;
+}
+
+.psycle-skeleton-card-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+}
+
+.psycle-skeleton-table-row {
+  display: grid;
+  grid-template-columns: 70px 68px minmax(150px, 1.5fr) minmax(90px, 1fr) minmax(130px, 1.2fr) 96px;
+  align-items: center;
+  gap: 14px;
+  min-height: 58px;
+  padding: 10px 14px;
+}
+
+.psycle-skeleton-line {
+  display: block;
+  width: min(var(--skeleton-width), 100%);
+  height: 10px;
+  border-radius: 999px;
+  background: linear-gradient(90deg, var(--border) 20%, var(--border-strong) 45%, var(--border) 70%);
+  background-size: 240% 100%;
+  animation: psycle-skeleton-shimmer 1.25s ease-in-out infinite;
+}
+
+.psycle-skeleton-line.is-strong { height: 13px; }
+.psycle-skeleton-line.is-chip { height: 20px; }
+.psycle-skeleton-line.is-short { opacity: 0.72; }
+
+@keyframes psycle-skeleton-shimmer {
+  from { background-position: 100% 0; }
+  to { background-position: -100% 0; }
+}
+
+@media (max-width: 768px) {
+  .psycle-skeleton-table-row {
+    grid-template-columns: 58px 54px 1fr;
+    min-height: 86px;
+  }
+
+  .psycle-skeleton-table-row .is-instructor,
+  .psycle-skeleton-table-row .is-location,
+  .psycle-skeleton-table-row .is-action {
+    grid-column: 3;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .psycle-skeleton-line { animation: none; }
 }

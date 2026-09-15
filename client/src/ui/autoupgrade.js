@@ -1,8 +1,10 @@
 import { api } from '../api';
-import { getAvailableCreditsForEvent, getTotalCredits } from './credit-allowance.js';
+import { getAvailableCreditsForEvent, getTotalCredits, getIneligibleReason } from './credit-allowance.js';
 import { showToast, cache, refreshUserData } from '../main';
 import { openUpgradeConfigModal } from './bookings';
-import { seatNoun } from './cards';
+import { seatNoun, disciplineTag, renderGymRail, icon } from './cards';
+import { renderCardSkeletons } from './loading-skeleton.js';
+import { instructorAvatar } from './tooltips.js';
 
 
 export async function renderAutoUpgrades() {
@@ -14,7 +16,7 @@ export async function renderAutoUpgrades() {
   if (hasCache) {
     renderUpgradeList(cache.upgrades, cache.studioPrefs);
   } else {
-    container.innerHTML = `<div class="psycle-spinner" style="margin: 30px auto;"></div>`;
+    container.innerHTML = renderCardSkeletons(2, 'Loading auto-upgrade monitors');
   }
 
   // Fetch fresh data in the background
@@ -56,17 +58,20 @@ function renderUpgradeList(upgrades, studioPrefs = {}) {
   container.innerHTML = '';
   activeJobs.forEach(job => {
     const card = document.createElement('div');
-    card.className = 'psycle-autobook-card';
+    // `ab-card` is required, not decorative: every per-gym tint rule is
+    // `.psycle-autobook-card.ab-card[data-gym=...]`, so without it these cards
+    // carried a data-gym that nothing ever painted.
+    card.className = 'psycle-autobook-card ab-card';
+    card.setAttribute('data-gym', job.gym_id || 'psycle-london');
 
+    // Split date and time so the card can use the same `.ab-card-date` /
+    // `.ab-card-time` pairing as Bookings, Waitlists and Auto-Book.
     const startDt = new Date(job.start_at);
-    const timeStr = startDt.toLocaleString('en-GB', {
-      weekday: 'short',
-      day: 'numeric',
-      month: 'short',
-      hour: '2-digit',
-      minute: '2-digit',
-      hour12: false,
-      timeZone: 'Europe/London'
+    const dateStr = startDt.toLocaleString('en-GB', {
+      weekday: 'short', day: 'numeric', month: 'short', timeZone: 'Europe/London'
+    });
+    const timeOnly = startDt.toLocaleString('en-GB', {
+      hour: '2-digit', minute: '2-digit', hour12: false, timeZone: 'Europe/London'
     });
 
     const prefs = job.preferences || {};
@@ -82,13 +87,15 @@ function renderUpgradeList(upgrades, studioPrefs = {}) {
     }
 
     // Client-side backup check. Shared module → Infinity on a membership gym,
-    // so an unmetered gym never shows a credit warning.
+    // so an unmetered gym never shows a credit warning from THIS check alone —
+    // it still needs its own membership gate (WP-J), below.
+    const ineligibleReason = getIneligibleReason();
     const hasInsufficientCredits = getTotalCredits() < 1; // needs at least 1 credit
 
     let statusText = 'Monitoring Active';
     let statusChipClass = 'state-active';
-    if (job.status === 'paused_no_credits' || hasInsufficientCredits) {
-      statusText = '⚠ Insufficient Credits';
+    if (job.status === 'paused_no_credits' || hasInsufficientCredits || ineligibleReason) {
+      statusText = ineligibleReason ? `⚠ ${ineligibleReason}` : '⚠ Insufficient Credits';
       statusChipClass = 'state-warning';
     } else if (job.status === 'cutoff_booked') {
       statusText = 'Upgraded (12h window)';
@@ -102,24 +109,32 @@ function renderUpgradeList(upgrades, studioPrefs = {}) {
     const groupName = job.class_name?.split(':')?.[0]?.trim() || 'Class';
     const classLabel = job.class_name?.includes(':') ? job.class_name.split(':')[1]?.trim() : job.class_name;
 
+    const seat = seatNoun(groupName);
+    const seatCap = seat.charAt(0).toUpperCase() + seat.slice(1);
+
     card.innerHTML = `
-      <div style="display: flex; justify-content: space-between; align-items: center; gap: 8px;">
-        <div style="flex: 1; min-width: 0; font-size: 13px; color: var(--text); display: flex; align-items: center; gap: 8px; flex-wrap: wrap; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">
-          <span style="font-weight: 600;">${timeStr}</span>
-          <span style="color: var(--text-tertiary);">•</span>
-          <span class="psycle-class-type-chip">${groupName}</span>
-          <span style="color: var(--text-tertiary);">•</span>
-          <span style="overflow: hidden; text-overflow: ellipsis;">${classLabel}</span>
-          <span style="color: var(--text-tertiary);">•</span>
-          <span>${job.instructor_name}</span>
-          <span style="color: var(--text-tertiary);">•</span>
-          <span style="font-weight: 600; color: var(--success);">${seatNoun(groupName)[0].toUpperCase() + seatNoun(groupName).slice(1)} ${currentSpotLabel}</span>
+      ${renderGymRail(job.gym_id || 'psycle-london')}
+      <div class="ab-card-main">
+        <div class="ab-card-toprow">
+          <div class="ab-card-when">
+            <span class="ab-card-date">${dateStr.toUpperCase()}</span>
+            <span class="ab-card-time">${timeOnly}</span>
+          </div>
+          <div class="psycle-upgrade-status-chip ${statusChipClass}">${statusText}</div>
         </div>
-        <div class="psycle-upgrade-status-chip ${statusChipClass}">${statusText}</div>
+        <div class="ab-card-meta">
+          ${disciplineTag(groupName)}
+          <span class="ab-card-class">${classLabel}</span>
+          <span class="ab-meta-dot">·</span>
+          <span class="ab-card-instructor">${instructorAvatar(job.instructor_name, job.gym_id)}${job.instructor_name}</span>
+        </div>
+        <div class="ab-card-footer">
+          <span class="ab-spots-pill">${seatCap} ${currentSpotLabel}</span>
+        </div>
       </div>
-      <div style="display: flex; gap: 6px; margin-top: 10px;">
-        <button class="psycle-action-btn-mini variant-autoupgrade edit-upgrade-modal-btn" data-id="${job.id}" style="flex: 1;">Configure</button>
-        <button class="psycle-action-btn-mini variant-danger delete-upgrade-btn" data-id="${job.id}" style="flex: 1;">Stop</button>
+      <div class="ab-card-rail">
+        <button class="ab-rail-btn edit-upgrade-modal-btn" data-id="${job.id}" aria-label="Configure auto-upgrade">${icon('edit', 17)}<span>Configure</span></button>
+        <button class="ab-rail-btn danger delete-upgrade-btn" data-id="${job.id}" aria-label="Stop auto-upgrade">${icon('close', 17)}<span>Stop</span></button>
       </div>
     `;
 

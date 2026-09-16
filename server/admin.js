@@ -140,11 +140,15 @@ router.get('/users/:id', authenticateAdmin, async (req, res) => {
           bookings = normalized;
           // Warm the reminder cache (camelCase shape expected by replaceBookingCache).
           try {
+            // Scoped to the gym these bookings were actually read from, so
+            // warming one gym's cache can't clear or mis-file another's.
+            const warmGymId = db.resolveActiveGymId(userId);
             db.replaceBookingCache(userId, normalized.map(b => ({
               bookingId: b.booking_id, eventId: b.event_id, startAt: b.start_at,
               className: b.class_name, groupName: b.group_name, instructorName: b.instructor_name,
               studioName: b.studio_name, locationName: b.location_name, slotLabel: b.slot_label,
-            })));
+              gymId: warmGymId,
+            })), [warmGymId]);
           } catch (_) {}
         }
       }
@@ -245,6 +249,7 @@ router.put('/users/:id/priority', authenticateAdmin, (req, res) => {
     return res.status(400).json({ message: 'Priority must be an integer between 1 and 999.' });
   }
   try {
+    // No per-gym control in the admin UI — applies to every linked gym.
     db.setUserPriority(userId, priority);
     res.json({ success: true });
   } catch (err) {

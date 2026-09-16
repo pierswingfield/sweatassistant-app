@@ -89,8 +89,8 @@ function renderUpgradeList(upgrades, studioPrefs = {}) {
     // Client-side backup check. Shared module → Infinity on a membership gym,
     // so an unmetered gym never shows a credit warning from THIS check alone —
     // it still needs its own membership gate (WP-J), below.
-    const ineligibleReason = getIneligibleReason();
-    const hasInsufficientCredits = getTotalCredits() < 1; // needs at least 1 credit
+    const ineligibleReason = getIneligibleReason(job.gym_id);
+    const hasInsufficientCredits = getTotalCredits(job.gym_id) < 1; // needs at least 1 credit
 
     let statusText = 'Monitoring Active';
     let statusChipClass = 'state-active';

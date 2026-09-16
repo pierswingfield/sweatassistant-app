@@ -6,6 +6,7 @@ import { cacheGet } from './timetable';
 import { clearApiCache, gymScopedKey } from '../cache.js';
 import { renderGymSettingsSection as renderGymSettingsSectionView } from './gym-settings-section.js';
 import { renderCalendarSection } from './calendar-section.js';
+import { getLinkedGyms, getGymShortName, getGymContext } from '../gym-context.js';
 
 let loadedProfile = null;
 let loadedProfileGymId = null;
@@ -1287,7 +1288,10 @@ export async function renderGymSettingsSection(requestedGymId = null, targetCont
   try {
     const [myGyms, catalogue] = await Promise.all([api.getMyGyms(), api.getGyms()]);
     const linked = myGyms.gyms || [];
-    const gymId = requestedGymId || myGyms.activeGymId || linked[0]?.gym_id;
+    // No server-persisted "active gym" any more (stage 4 of the active-gym
+    // audit) — `linked[0]` is the same deterministic default `loadGymContext()`
+    // uses, so this and `userSettings`'s own gym stay in agreement.
+    const gymId = requestedGymId || linked[0]?.gym_id;
     const link = linked.find(g => g.gym_id === gymId);
     if (!gymId || !link) {
       container.innerHTML = '<div class="psycle-settings-card"><h4>Connect a gym</h4><p class="psycle-card-desc">Link a gym before configuring booking settings.</p></div>';
@@ -1319,12 +1323,16 @@ export async function renderGymSettingsSection(requestedGymId = null, targetCont
         const normalizedValue = key === 'manualBookingWindowWeeks' && value != null ? Number(value) : value;
         const next = { ...settings, [key]: normalizedValue };
         try {
-          await api.updateSettings(next, gymId);
+          // Only the changed key, against THIS section's gym.
+          await api.updateSettings({ [key]: normalizedValue }, gymId);
           Object.assign(settings, next);
           // Mirror into the in-memory settings blob only for the gym the rest of
           // the app resolves to by default, so an edit to another gym's section
-          // doesn't overwrite it.
-          if (gymId === myGyms.activeGymId) {
+          // doesn't overwrite it. `getGymContext().gymId` is the client's own
+          // notion of that default (set by loadGymContext from `linked[0]`,
+          // same source `gymId` above falls back to) — there is no server
+          // "active gym" to compare against any more.
+          if (gymId === getGymContext()?.gymId) {
             Object.assign(userSettings, next);
           }
           showToast(`${gym.name || gymId} settings saved.`, 'success');
@@ -1565,8 +1573,49 @@ const NOTIF_ROWS = [
   { key: 'creditWarning', title: 'Credit Warning', desc: "When you set something up but don't have enough credits." },
   { key: 'cancellationReminder', title: 'Cancellation Reminder', desc: 'Reminder to cancel before the free-cancel window closes.',
     dropdown: { prop: 'timing', options: [['24h', '1 day before (24h)'], ['14h', 'Before penalty (14h)']] } },
-  { key: 'bookingWindow', title: 'Booking Window Reminder', desc: 'Heads-up before your booking window opens.' },
+  // Per gym: only a gym that releases at one moment a week has a "window" to
+  // warn about, so each gym carries its own default (gyms.config.js) and the
+  // member can override either way.
+  { key: 'bookingWindow', title: 'Booking Window Reminder', desc: 'Heads-up before your booking window opens.', perGym: true },
 ];
+
+/**
+ * Is this gym's reminder on — the member's override, else the gym's own default.
+ * Mirrors `notifications.bookingWindowEnabledForGym` on the server; the toggle
+ * has to show the state the member would actually get.
+ */
+function perGymPrefOn(pref, gym) {
+  const gymId = gym.gym_id || gym.id;
+  const override = (pref.byGym || {})[gymId];
+  if (typeof override === 'boolean') return override;
+  return gym.notifications?.bookingWindowReminder !== false;
+}
+
+/**
+ * One sub-toggle per linked gym, shown under the parent row.
+ *
+ * Rendered even for a single-gym account: the default differs per gym, so
+ * "Booking Window Reminder: on" with no gym named would be a half-truth the
+ * moment a second gym is linked.
+ */
+function renderPerGymToggles(key, parentPref) {
+  const gyms = getLinkedGyms() || [];
+  if (gyms.length === 0) return '';
+  return `
+    <div class="notif-pergym-wrap" data-key="${key}" style="${parentPref.enabled ? '' : 'opacity:0.4;pointer-events:none;'}margin-top:10px;padding-top:10px;border-top:1px solid color-mix(in srgb, var(--text) 8%, transparent);">
+      ${gyms.map((g) => {
+        const gymId = g.gym_id || g.id;
+        return `
+        <div style="display:flex;justify-content:space-between;align-items:center;gap:12px;padding:4px 0;">
+          <span style="font-size:12px;color:var(--text-secondary);">${getGymShortName(gymId) || gymId}</span>
+          <label class="psycle-switch" style="flex-shrink:0;">
+            <input type="checkbox" class="notif-pergym-toggle" data-key="${key}" data-gym-id="${gymId}" ${perGymPrefOn(parentPref, g) ? 'checked' : ''}>
+            <span class="psycle-slider"></span>
+          </label>
+        </div>`;
+      }).join('')}
+    </div>`;
+}
 
 function renderNotifPrefs() {
   const body = document.getElementById('psycle-notif-prefs-body');
@@ -1594,18 +1643,26 @@ function renderNotifPrefs() {
             </label>
           </div>
           ${dd ? `<div class="notif-dropdown-wrap" data-key="${row.key}" style="${p.enabled ? '' : 'opacity:0.4;pointer-events:none;'}">${dd}</div>` : ''}
+          ${row.perGym ? renderPerGymToggles(row.key, p) : ''}
         </div>`;
     }).join('')}
   `;
 
   body.querySelectorAll('.notif-toggle').forEach(el => {
     el.addEventListener('change', () => {
-      const wrap = body.querySelector(`.notif-dropdown-wrap[data-key="${el.dataset.key}"]`);
-      if (wrap) { wrap.style.opacity = el.checked ? '' : '0.4'; wrap.style.pointerEvents = el.checked ? '' : 'none'; }
+      // The master switch dims its dependants — a per-gym toggle means nothing
+      // while the notification type itself is off.
+      for (const sel of ['.notif-dropdown-wrap', '.notif-pergym-wrap']) {
+        const wrap = body.querySelector(`${sel}[data-key="${el.dataset.key}"]`);
+        if (wrap) { wrap.style.opacity = el.checked ? '' : '0.4'; wrap.style.pointerEvents = el.checked ? '' : 'none'; }
+      }
       saveNotifPrefs();
     });
   });
   body.querySelectorAll('.notif-dropdown').forEach(el => {
+    el.addEventListener('change', saveNotifPrefs);
+  });
+  body.querySelectorAll('.notif-pergym-toggle').forEach(el => {
     el.addEventListener('change', saveNotifPrefs);
   });
 }
@@ -1620,10 +1677,17 @@ async function saveNotifPrefs() {
   body.querySelectorAll('.notif-dropdown').forEach(el => {
     prefs[el.dataset.key][el.dataset.prop] = el.value;
   });
+  // Every gym is written explicitly, including ones left at their default:
+  // storing only the differences would silently flip a member's choice if the
+  // gym's own default ever changed.
+  body.querySelectorAll('.notif-pergym-toggle').forEach(el => {
+    const p = prefs[el.dataset.key];
+    p.byGym = { ...(p.byGym || {}), [el.dataset.gymId]: el.checked };
+  });
 
   userSettings.notifications = prefs;
   try {
-    await api.updateSettings({ ...userSettings, notifications: prefs });
+    await api.updateSettings({ notifications: prefs }); // account-scoped
   } catch (err) {
     showToast(`Failed to save notification settings: ${err.message}`, 'error');
   }
@@ -1696,8 +1760,8 @@ function setupSettingsListeners() {
   const saveSettings = async () => {
     // Spread existing settings first so unmanaged keys (notifications, cartInstanceId,
     // detectedBookingOffset) survive.
+    // Both account-scoped, so no gym is involved — and only these two are sent.
     const newSettings = {
-      ...userSettings,
       debugMode: debugMode ? debugMode.checked : false,
       prefetchWeeks: prefetchWeeks ? parseInt(prefetchWeeks.value) : 4
     };

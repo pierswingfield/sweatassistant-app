@@ -49,12 +49,15 @@ async function handleLogin(email, password) {
     expiresAt.setDate(expiresAt.getDate() + 365);
     const jwtExpiresAt = expiresAt.toISOString();
 
+    // dev@psycle.com's own mock login is always psycle-london — the loop below
+    // separately links every other enabled gym via linkGymAccount, which is
+    // already explicit about its own gym.
     if (user) {
       userId = user.id;
-      db.updateUserCredentials(userId, encryptedPassword, 'mock-jwt-token', jwtExpiresAt);
+      db.updateUserCredentials(userId, encryptedPassword, 'mock-jwt-token', jwtExpiresAt, DEFAULT_GYM_ID);
     } else {
       userId = db.createUser(email, encryptedPassword);
-      db.updateUserJWT(userId, 'mock-jwt-token', jwtExpiresAt);
+      db.updateUserJWT(userId, 'mock-jwt-token', jwtExpiresAt, DEFAULT_GYM_ID);
     }
 
     // Seed EVERY enabled gym onto the dev account, not just the default one.
@@ -184,12 +187,15 @@ async function handleLogin(email, password) {
   // 3. Store in DB
   let user = db.getUserByEmail(email);
   let userId;
+  // Named explicitly with the SAME gym `loginGymId` already resolved above —
+  // letting this re-resolve independently risked landing on a different answer
+  // than the gym the login actually authenticated against.
   if (user) {
     userId = user.id;
-    db.updateUserCredentials(userId, encryptedPassword, gymToken, jwtExpiresAt);
+    db.updateUserCredentials(userId, encryptedPassword, gymToken, jwtExpiresAt, loginGymId);
   } else {
     userId = db.createUser(email, encryptedPassword);
-    db.updateUserJWT(userId, gymToken, jwtExpiresAt);
+    db.updateUserJWT(userId, gymToken, jwtExpiresAt, loginGymId);
   }
 
   // 3a. Adopt this password as the Sweat Assistant account password (Decision D4).
@@ -206,7 +212,7 @@ async function handleLogin(email, password) {
   // 3b. Cache display name for admin panel (best-effort — don't fail login if this errors)
   const displayName = [gymUser.first_name, gymUser.last_name].filter(Boolean).join(' ');
   if (displayName) {
-    try { db.updateUserDisplayName(userId, displayName); } catch (_) {}
+    try { db.updateUserDisplayName(userId, displayName, loginGymId); } catch (_) {}
   }
 
   // 4. Issue local signed JWT token for the PWA

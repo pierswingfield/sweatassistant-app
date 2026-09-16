@@ -1,6 +1,6 @@
 import { api } from '../api';
 import { getAvailableCreditsForEvent, hasUsableCredit, getIneligibleReason } from './credit-allowance.js';
-import { can, getGymContext, getLinkedGyms, getGymShortName } from '../gym-context.js';
+import { canForGym, capabilityForGym, getGymContext, getLinkedGyms, getGymShortName } from '../gym-context.js';
 import { showToast, currentUser, userSettings, refreshUserData, updateCreditBadge, cache, debugConsole } from '../main';
 import { getClassReleaseTime, getNextMondayNoonLondon, isInGracePeriod, GRACE_PERIOD_MS, startGraceCountdown } from '../lib';
 import { DateTime } from 'luxon';
@@ -1004,7 +1004,7 @@ export async function renderTimetableGrid(reason = 'interaction') {
     // Filter by Bookmarked Only
     if (showBookmarksOnly) {
       const identifier = generateBookmarkIdentifier(e);
-      if (!can('bookmarks')) return true; // no bookmarks concept → filter is a no-op
+      if (!canForGym('bookmarks', e.gymId)) return true; // no bookmarks concept → filter is a no-op
       const bookmarks = cache.profile?.metafields?.public?.bookmarks?.events || [];
       if (!bookmarks.includes(identifier)) return false;
     }
@@ -1161,7 +1161,7 @@ export async function renderTimetableGrid(reason = 'interaction') {
     const identifier = generateBookmarkIdentifier(event);
     // Bookmarks live in CodexFit profile metafields. A gym without the
     // capability has none — don't reach into a provider-shaped blob for them.
-    const bookmarks = can('bookmarks') ? (cache.profile?.metafields?.public?.bookmarks?.events || []) : [];
+    const bookmarks = canForGym('bookmarks', event.gymId) ? (cache.profile?.metafields?.public?.bookmarks?.events || []) : [];
     const isBookmarked = bookmarks.includes(identifier);
     const heartChar = isBookmarked ? '♥' : '♡';
     const heartClass = isBookmarked ? 'psycle-timetable-heart bookmarked' : 'psycle-timetable-heart unbookmarked';
@@ -1247,7 +1247,7 @@ export async function renderTimetableGrid(reason = 'interaction') {
       <td class="col-gym">${gymChip(event.gymId)}</td>
       <td class="col-class">
         <div class="psycle-tt-class-cell">
-          ${can('bookmarks') ? `<span class="${heartClass}" data-event-id="${event.id}" title="${isBookmarked ? 'Remove Bookmark' : 'Bookmark Class'}">${heartChar}</span>` : ''}
+          ${canForGym('bookmarks', event.gymId) ? `<span class="${heartClass}" data-event-id="${event.id}" title="${isBookmarked ? 'Remove Bookmark' : 'Bookmark Class'}">${heartChar}</span>` : ''}
           ${disciplineTag(groupName)}
           <span class="psycle-tt-class-name">${strippedClassName}</span>
         </div>
@@ -1325,7 +1325,7 @@ function resolveHasMap(studio) {
   return true; // bare stub — unknown, not confirmed false
 }
 
-function getStudioMapInfo(event) {
+export function getStudioMapInfo(event) {
   // The EVENT's own layoutFormat is authoritative and beats any guess from
   // studio metadata. `first-come-first-serve` means the provider does not offer
   // spot selection for this class at all — confirmed on live JAB data, where
@@ -1378,7 +1378,7 @@ function buildActionModel(event, ctx) {
     isLive, isBooked, isOnWaitlist, isFullyBooked, canWaitlist, hasCredit,
     isScheduled, bookingId, isPenalty, slotsBookedCount, waitlistId, graceDeadline,
   } = ctx;
-  const { hasMap, hasPrefs } = getStudioMapInfo(event);
+  const { hasMap } = getStudioMapInfo(event);
 
   // Not yet live → Auto-Book (configurable via the spot map)
   if (!isLive) {
@@ -1389,17 +1389,35 @@ function buildActionModel(event, ctx) {
         run: (btn) => doAutoBookToggle(event, btn, isScheduled),
       },
       config: hasMap ? 'autobook' : null,
+      // No ⚙ on the row itself, same as the Quick Book row below — it's still
+      // reachable via "Configure Auto-Book" in the overflow menu.
+      showConfigButton: false,
       secondary: null,
     };
   }
 
-  // Already booked → Edit (+ Cancel as secondary)
+  // Already booked → Edit (+ Cancel as secondary). No seat map means there is
+  // no spot to reassign, so Edit is dropped rather than opening on nothing.
   if (isBooked) {
-    const primary = { label: 'Edit', variant: 'autoupgrade', run: () => doEditBooking(event) };
+    const primary = hasMap
+      ? { label: 'Edit', variant: 'autoupgrade', run: () => doEditBooking(event) }
+      : { label: 'Booked', variant: 'neutral', disabled: true };
     if (slotsBookedCount === 1 && bookingId) {
       const cancelLabel = graceDeadline
         ? `Cancel (${Math.ceil((graceDeadline - Date.now()) / 1000)}s)`
         : 'Cancel';
+      if (!hasMap) {
+        // Nothing to edit at all — Cancel is the one real action, so it's the
+        // primary rather than a disabled "Booked" plus a secondary button.
+        return {
+          primary: {
+            label: cancelLabel, variant: isPenalty ? 'danger-strong' : 'danger', isCancel: true,
+            graceDeadline,
+            run: (btn) => cancelBookingDirect(bookingId, isPenalty, btn, event.gymId),
+          },
+          config: null, secondary: null,
+        };
+      }
       return {
         primary, config: null,
         secondary: {
@@ -1449,50 +1467,32 @@ function buildActionModel(event, ctx) {
     };
   }
 
-  // Bookable now — ONE primary, honestly labelled.
+  // Bookable now — ONE primary, always "Quick Book". `doQuickBook` routes all
+  // three cases, so the label is the same everywhere and the row never asks the
+  // user to understand which of them they are in:
   //
-  // The label states what the button ACTUALLY does. It used to say "Book" while
-  // quick-booking a preferred spot, which is a different and more opinionated
-  // action than the word implies — if we are going to pick your bike for you,
-  // the button should say so.
+  //   • seat map + saved preferences → books your best spot straight away
+  //   • no seat map published        → books any open spot straight away
+  //   • seat map, no preferences yet → opens the picker, which saves the map
+  //                                    for this studio AND books in one step
   //
-  //   • seat map + saved preferences → "Quick Book" (books your best spot)
-  //   • no seat map published        → "Book" (books any open spot; there is no
-  //                                     spot to choose, so nothing is implied)
-  //   • seat map, no preferences yet → "Book" (opens the picker, which also
-  //                                     saves the map for next time)
+  // The third case used to read "Book" and be styled as the odd one out. That
+  // made the FIRST booking in a studio look like a different, lesser action
+  // than every subsequent one, when it is the same action — it just collects
+  // the spot map on its way through.
   //
   // `alternate` is the other way to do the same thing, offered in the overflow:
-  // when we are quick-booking, "Book (choose a spot)" is the escape hatch.
-  // No seat map published for this studio (JAB's Recovery, Psycle's Reformer
-  // rooms): there is no spot to choose, so this books straight away with no
-  // modal — which IS a quick-book, and the label says so. Calling it "Book"
-  // here made the one-tap case look like the one that opens a picker.
-  if (!hasMap) {
-    return {
-      primary: { label: 'Quick Book', variant: 'success', run: (btn) => doQuickBook(event, btn) },
-      config: null, secondary: null, alternate: null,
-    };
-  }
-  if (hasPrefs) {
-    // No ⚙ here: "Configure Quick-Book" is in the overflow menu, and two
+  // "Book (choose a spot)" is the escape hatch when you don't want your
+  // preferred spot this time. It only exists where there are spots to choose.
+  return {
+    primary: { label: 'Quick Book', variant: 'success', run: (btn) => doQuickBook(event, btn) },
+    // No ⚙ on the row: "Configure Quick-Book" is in the overflow menu, and two
     // affordances for one action spend 40px of every row to save one click on
     // a rare one. `config` is still set so the menu knows to offer it.
-    return {
-      primary: { label: 'Quick Book', variant: 'success', run: (btn) => doQuickBook(event, btn) },
-      config: 'quickbook',
-      showConfigButton: false,
-      secondary: null,
-      alternate: { label: 'Book (choose a spot)', run: () => openBookingModal(event, 'book') },
-    };
-  }
-  // Seat map but nothing saved yet: "Book" opens the picker, which is exactly
-  // what the word promises. Outlined so the row reads as "one more step here".
-  return {
-    primary: { label: 'Book', variant: 'success-outline', run: () => openBookingModal(event, 'quickbook') },
-    config: null,
+    config: hasMap ? 'quickbook' : null,
+    showConfigButton: false,
     secondary: null,
-    alternate: null,
+    alternate: hasMap ? { label: 'Book (choose a spot)', run: () => openBookingModal(event, 'book') } : null,
   };
 }
 
@@ -1509,6 +1509,12 @@ function buildActionModel(event, ctx) {
  * within a gym. The bare `studioId` fallback is for single-gym data saved
  * before that was true.
  */
+export function pickStudioPrefs(allPrefs, studioId, gymId) {
+  if (!allPrefs || studioId == null) return {};
+  const prefKey = gymId ? `${gymId}:${studioId}` : studioId;
+  return allPrefs[prefKey] || allPrefs[studioId] || {};
+}
+
 async function resolveStudioPrefs(event) {
   const studioId = event.studioId;
   const prefKey = event.gymId ? `${event.gymId}:${studioId}` : studioId;
@@ -1517,7 +1523,7 @@ async function resolveStudioPrefs(event) {
     all = await api.getStudioPreferences();
     cache.studioPreferences = all;
   }
-  const prefs = all[prefKey] || all[studioId] || {};
+  const prefs = pickStudioPrefs(all, studioId, event.gymId);
   const hasPrefs = !!(prefs.preferredSlots?.length || prefs.preferredRows?.length);
   return { prefs, hasPrefs };
 }
@@ -1556,6 +1562,13 @@ async function doAutoBookToggle(event, btn, isScheduled) {
     } catch (err) {
       showToast(`Error: ${err.message}`, 'error');
     }
+    return;
+  }
+  // No seat map for this studio (FCFS/recovery) — nothing to configure, so
+  // this is one tap, same as Quick Book's own no-map case.
+  const { hasMap } = getStudioMapInfo(event);
+  if (!hasMap) {
+    saveAutoBookPreferences(event, [], [], 1, true, () => {});
     return;
   }
   try {
@@ -1719,7 +1732,7 @@ function buildActionMenuItems(event, model, isBookmarked) {
     });
   }
 
-  if (can('bookmarks')) {
+  if (canForGym('bookmarks', event.gymId)) {
     items.push({
       label: isBookmarked ? 'Unfavourite' : 'Favourite',
       icon: 'heart',
@@ -1984,7 +1997,7 @@ function buildMobileClassRow(event, ctx, model) {
   // bookmarked), sitting between the time and the discipline chip. Toggling
   // happens through the context menu instead.
   const favIndicator = isBookmarked
-    ? (can('bookmarks') ? `<span class="psycle-mobile-fav-indicator" aria-label="Favourited">${heartChar}</span>` : '')
+    ? (canForGym('bookmarks', event.gymId) ? `<span class="psycle-mobile-fav-indicator" aria-label="Favourited">${heartChar}</span>` : '')
     : '';
 
   card.innerHTML = `
@@ -2178,7 +2191,7 @@ async function toggleNativeBookmark(event, heartEl) {
     // route is capability-gated server-side rather than universal. This client
     // guard is the fast path; the server rejects independently with 501.
     // The metafield path shape is the adapter's business, not this module's.
-    if (!can('bookmarks')) {
+    if (!canForGym('bookmarks', event.gymId)) {
       showToast('This gym does not support bookmarks.', 'info');
       return;
     }
@@ -2225,6 +2238,46 @@ async function quickBookClass(eventId, prefs, btn, gymId = null) {
     const eventData = event.raw;
     if (!eventData) {
       showToast('Could not load class data.', 'error');
+      return;
+    }
+
+    // An empty `slots` array means "no seat map to check" (FCFS studios, or a
+    // studio missing layout data) — NOT "zero spots available". A real
+    // pick-a-spot class that's genuinely full still has an entry per layout
+    // slot, just none with isAvailable. Treating "no layout" as "full" made
+    // every FCFS quick-book (e.g. a recovery class) auto-join a waitlist
+    // regardless of real availability.
+    if (slots.length === 0) {
+      try {
+        const bookRes = await api.book(eventId, [], gymId);
+        if (!bookRes.ok) {
+          const declinedAsFull = /full|no availab/i.test(bookRes.error || '');
+          if (declinedAsFull) {
+            showToast('Fully booked! Joining waitlist...', 'warning');
+            try {
+              await api.joinWaitlist(eventId, gymId);
+              showToast('Joined waitlist successfully!', 'success');
+              prefetchTimetableData(true);
+            } catch (wlErr) {
+              showToast(`Waitlist failed: ${wlErr.message}`, 'error');
+            }
+          } else {
+            showToast(`Quick book failed: ${bookRes.error || 'Booking was declined'}`, 'error');
+          }
+          return;
+        }
+        showToast('Quick-booked! 🎉', 'success');
+        api.notifyBookingSuccess({
+          source: 'quickbook', eventId,
+          className: eventData.name || '', groupName: eventData.discipline || '',
+          instructorName: eventData.instructors?.[0]?.name || '',
+          startAt: eventData.startAt, slots: [],
+        }).catch(() => {});
+        await refreshUserData(true);
+        await refreshBookingState();
+      } catch (err) {
+        showToast(`Quick book failed: ${err.message}`, 'error');
+      }
       return;
     }
 
@@ -2309,7 +2362,12 @@ async function quickBookClass(eventId, prefs, btn, gymId = null) {
         instructorName: eventData.instructors?.[0]?.name || '',
         startAt: eventData.startAt, slots: bookedSlotLabels,
       }).catch(() => {});
-      if (lastBookedSlot !== null) await tryAutoRegisterUpgrade(eventData, lastBookedSlot, lastBookingRes, autoUpgrade);
+      // `event` (normalized), not `eventData` (== event.raw): tryAutoRegisterUpgrade
+      // reads studioId/gymId, which only exist on the normalized shape. Passing the
+      // raw provider object here made resolveStudioPrefs resolve to nothing, since
+      // raw CodexFit events use `studio_id` and carry no `gymId` at all — so the
+      // "no preferred spot map" toast fired even when Quick-Book had just proven one existed.
+      if (lastBookedSlot !== null) await tryAutoRegisterUpgrade(event, lastBookedSlot, lastBookingRes, autoUpgrade);
       await refreshUserData(true);
       await refreshBookingState();
       setTimeout(() => {
@@ -2381,8 +2439,9 @@ async function openBookingModal(c, mode) {
     // — so a MarianaTek layout (an entirely different raw shape) renders here
     // unchanged. Slot `.id` arrives as a string and is coerced to Number for
     // every comparison, matching how preferred-spot maps and bookings store
-    // slot ids. `event.raw` is still read further down for CodexFit-specific
-    // *credit* metadata, which has no normalized equivalent yet (out of scope).
+    // slot ids. Credit metadata is read from the NORMALIZED event
+    // (`event.credits`) — `.raw` has no gymId and no credits, and reading it
+    // here resolved the balance against the wrong gym.
     const {
       event,
       slots: eventSlots,
@@ -2490,7 +2549,10 @@ async function openBookingModal(c, mode) {
     // ── State ──────────────────────────────────────────────────────────
     const availableCredits = getAvailableCreditsForEvent(c);
     const upgradeCreditsNeeded = isAutoBookMode ? availableCredits + 1 : 0; // auto-upgrade needs +1 for the upgrade spot before cancelling
-    const gymMaxSpots = getGymContext()?.capabilities?.maxSpotsPerClass ?? null;
+    // THIS class's own gym — not the ambient one. Reading the wrong gym here
+    // either wrongly capped a Psycle class to JAB's 1-spot limit, or let a JAB
+    // class (1 primary spot per member) be booked past that limit.
+    const gymMaxSpots = capabilityForGym('maxSpotsPerClass', c.gymId) ?? null;
     const effectiveLimit = gymMaxSpots != null ? Math.min(gymMaxSpots, availableCredits) : availableCredits;
     const maxBookableSlots = Math.min(providerMaxBookableSlots || availableSlots.length || 1, effectiveLimit);
     const state = {
@@ -3053,7 +3115,8 @@ async function openBookingModal(c, mode) {
             const slots = [...state.selectedSlots];
             const rows = [...state.selectedRows];
             if (mapChanged() && c.studioId) {
-              await api.updateStudioPreferences(c.studioId, { preferredSlots: slots, preferredRows: rows });
+              // This class's gym — a studio id is unique only within one.
+              await api.updateStudioPreferences(c.studioId, { preferredSlots: slots, preferredRows: rows }, c.gymId);
             }
             await quickBookClass(c.id, {
               preferredSlots: slots,
@@ -3129,6 +3192,9 @@ async function tryAutoRegisterUpgrade(event, bookedSlotId, bookingRes, enableOve
     for (const b of booked) {
       registerPromises.push(api.addAutoUpgrade({
         eventId: event.id,
+        // See the addAutoBooking note: without this the monitor is stored
+        // against the account's active gym, not this class's own.
+        gymId: event.gymId || null,
         studioId: studioId || null,
         bookingId: Number(b.bookingId),
         currentSlotId: Number(b.slotId),
@@ -3257,7 +3323,22 @@ async function cancelBookingDirect(bookingId, isPenalty, btn, gymId) {
 // Save scheduled auto-booking record to database
 async function saveAutoBookPreferences(c, slots, rows, qty, bookAny, callback, skipImmediate = false, autoUpgrade = false) {
   const gymMatch = (x) => !c.gymId || x.gymId === c.gymId;
-  const instructor = metadata.instructors.find(i => sameId(i.id, c.instructors?.[0]?.id) && gymMatch(i)) || { name: 'Instructor' };
+  // The EVENT's own instructor wins over a metadata lookup: the caller already
+  // has the name and photo, and for MarianaTek the by-id lookup misses often
+  // enough that real names were being dropped. Empty (not a literal
+  // "Instructor" placeholder) when a class genuinely has no instructor — that
+  // string was being written straight into auto_bookings.instructor_name and
+  // rendering as a real name forever.
+  const eventInstructor = c.instructors?.[0] || null;
+  const instructor = eventInstructor
+    || metadata.instructors.find(i => sameId(i.id, c.instructors?.[0]?.id) && gymMatch(i))
+    || { name: '' };
+  // Persisted because a queue row is read back long after the timetable
+  // metadata that could resolve a photo by name has moved on (MarianaTek's
+  // instructor list only covers the upcoming-class window).
+  const instructorImageUrl = eventInstructor?.thumbUrl || eventInstructor?.imageUrl
+    || metadata.instructors.find(i => sameId(i.id, eventInstructor?.id) && gymMatch(i))?.thumbUrl
+    || null;
   const studio = metadata.studios.find(s => sameId(s.id, c.studioId) && gymMatch(s)) || { name: 'Studio' };
   const classType = metadata.eventTypes.find(t => sameId(t.id, c.classTypeId) && gymMatch(t)) || { name: 'Class' };
   const studioLocationId = studio.locationId || selectedLocations[0] || c.locationId;
@@ -3279,7 +3360,7 @@ async function saveAutoBookPreferences(c, slots, rows, qty, bookAny, callback, s
     // every other feature for this studio) uses the same selection.
     if (c.studioId && (slots.length > 0 || rows.length > 0)) {
       try {
-        await api.updateStudioPreferences(c.studioId, { preferredSlots: slots, preferredRows: rows });
+        await api.updateStudioPreferences(c.studioId, { preferredSlots: slots, preferredRows: rows }, c.gymId);
       } catch (e) {
         console.warn('[AutoBook] Could not persist studio map:', e.message);
       }
@@ -3290,10 +3371,16 @@ async function saveAutoBookPreferences(c, slots, rows, qty, bookAny, callback, s
 
     await api.addAutoBooking({
       eventId: c.id,
+      // Without this the server falls back to db.resolveActiveGymId(userId) —
+      // the ACCOUNT's globally active gym, not this class's own — so
+      // auto-booking a JAB class while Psycle is active silently queued it
+      // against Psycle: wrong gym rail, wrong (Psycle) credit balance checked.
+      gymId: c.gymId || null,
       studioId: c.studioId || null,
       className: strippedClassName,
       groupName,
-      instructorName: instructor.full_name || instructor.name,
+      instructorName: instructor.full_name || instructor.name || '',
+      instructorImageUrl,
       studioName: studio.name,
       locationName: location.name,
       startAt: c.startAt,

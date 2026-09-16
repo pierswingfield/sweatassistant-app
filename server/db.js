@@ -373,10 +373,13 @@ function dropGymIdDefaults() {
 
 // --- Modular multi-gym migration (WP-D1) ---
 // Keeps the `gyms` table in sync with the static registry (server/gyms.config.js
-// is authoritative), then backfills a `user_gyms` row for every existing user
-// against the default gym. Both steps are idempotent: safe to run on every boot,
-// safe to run against a fresh DB, and a no-op on repeat runs. See the `user_gyms`
-// CREATE TABLE comment above for why application code doesn't consume this table yet.
+// is authoritative), then backfills a `user_gyms` row for every *legacy* user
+// against the default gym. A user with `password_hash` is a D4 Sweat Assistant
+// account and may deliberately have no gym at all; creating an empty default-gym
+// link for one would turn its legitimate 409 NO_GYM_LINKED state into a 401 loop.
+// Both steps are idempotent: safe to run on every boot, safe to run against a
+// fresh DB, and a no-op on repeat runs. See the `user_gyms` CREATE TABLE comment
+// above for why application code doesn't consume this table yet.
 function syncGymsFromConfig() {
   const { listGyms } = require('./gyms.config');
   const upsert = db.prepare(`
@@ -391,7 +394,10 @@ function syncGymsFromConfig() {
 }
 
 function backfillUserGyms() {
-  const users = db.prepare('SELECT * FROM users').all();
+  // `password_hash IS NULL` is the durable migration boundary: pre-D4 accounts
+  // had only a gym credential, while D4 accounts receive their own password at
+  // signup and can intentionally remain gym-less until they explicitly link one.
+  const users = db.prepare('SELECT * FROM users WHERE password_hash IS NULL').all();
   if (users.length === 0) return;
 
   const already = new Set(
@@ -455,6 +461,10 @@ backfillGymEmails();
 // defaults again immediately afterwards; they exist only so the ALTER is legal
 // (SQLite requires a default when adding a NOT NULL column).
 ensureColumn('auto_bookings', 'gym_id', "TEXT DEFAULT 'psycle-london'");
+// Persisted at queue time: a queue row outlives the timetable metadata that
+// could otherwise resolve the photo by name, and MarianaTek's instructor list
+// only covers the upcoming-class window.
+ensureColumn('auto_bookings', 'instructor_image_url', 'TEXT');
 ensureColumn('auto_upgrades', 'gym_id', "TEXT DEFAULT 'psycle-london'");
 
 function rebuildWithGymId(table, tmpCreateSql) {
@@ -653,22 +663,56 @@ function resolveActiveGymId(userId) {
   return resolved;
 }
 
+/**
+ * Resolve the gym for a per-gym WRITE — and refuse to guess (stage 1 of the
+ * active-gym audit, Documentation/Backlog/active-gym-audit.md).
+ *
+ * There is no "active gym" in this product: one account, many gyms, every list
+ * merged. `resolveActiveGymId` still guesses one for the ~17 accessors that
+ * cannot yet be told which gym they mean, and that guess is the single largest
+ * source of cross-gym bugs — it is right on a single-gym account, so it survives
+ * review, then silently writes to the wrong gym on a multi-gym one. Three such
+ * bugs shipped on 2026-09-15 alone (auto-book queued against the wrong gym,
+ * auto-upgrade monitors stored against the wrong gym, credits read from it).
+ *
+ * So: an explicit gym wins, the request's own gym context is next, and a
+ * single-gym account is unambiguous. A multi-gym account with neither is a bug
+ * at the CALL SITE, and gets an exception naming it rather than a plausible
+ * wrong answer.
+ */
+function resolveGymStrict(userId, explicitGymId, opName) {
+  if (explicitGymId) return explicitGymId;
+  const ctx = gymContext.getStore();
+  if (ctx && ctx.gymId && ctx.userId === String(userId)) return ctx.gymId;
+
+  const links = db.prepare('SELECT gym_id FROM user_gyms WHERE user_id = ?').all(userId);
+  if (links.length > 1) {
+    throw new Error(
+      `${opName}: no gym specified for an account linked to ${links.length} gyms (user ${userId}). `
+      + 'There is no active gym — pass the row\'s own gymId explicitly.',
+    );
+  }
+  return resolveActiveGymId(userId);
+}
+
+// The "stored choice" step (a persisted `users.active_gym_id`) was removed in
+// the active-gym audit's stage 4 (2026-09-15): the client switcher it served
+// was already deleted, `POST /api/my-gyms/active` had no remaining caller, and
+// keeping a rememberable "current gym" is the exact concept this product
+// doesn't have — every list is merged, and every real write now names its own
+// gym explicitly (stage 1-3). The column itself is left in place (harmless,
+// unread) rather than run a destructive migration for a nullable field — same
+// call already made for `users.encrypted_password`.
 function resolvePersistedGymId(userId) {
   const links = db.prepare('SELECT gym_id FROM user_gyms WHERE user_id = ?').all(userId);
 
-  // 2. Their stored selection — but only while they're still linked to it.
-  //    An unlinked gym here (link removed, gym disabled) must not strand the
-  //    account on a gym it can no longer authenticate against.
-  const row = db.prepare('SELECT active_gym_id FROM users WHERE id = ?').get(userId);
-  const stored = row && row.active_gym_id;
-  if (stored && links.some((l) => l.gym_id === stored)) return stored;
-
-  // 3. Sole linked gym. This is what every account looks like today, and it is
-  //    what makes this change a no-op for existing single-gym users.
+  // 1. Sole linked gym. This is what every account looks like today, and it is
+  //    what makes this a no-op for existing single-gym users.
   if (links.length === 1) return links[0].gym_id;
 
-  // 4. Nothing to go on (no links yet — pre-backfill, or mid-signup), or several
-  //    links and no stored choice. Default gym keeps the old behaviour.
+  // 2. Nothing to go on (no links yet — pre-backfill, or mid-signup), or
+  //    several links with no per-request gym named. Default gym keeps
+  //    background work (cron, reads with no context) landing somewhere stable.
   if (links.some((l) => l.gym_id === DEFAULT_GYM_ID)) return DEFAULT_GYM_ID;
   return links.length > 0 ? links[0].gym_id : DEFAULT_GYM_ID;
 }
@@ -714,6 +758,12 @@ const ACCOUNT_SCOPED_SETTING_KEYS = new Set([
   // silently stop the feed cron. That function now reads account_settings, so
   // the two are consistent — change them together or not at all.
   'calendar',
+  // `autoBookPaused` moved here on 2026-09-15. It was gym-scoped by the default
+  // rule, but the UI is a single "Pause Auto-Book" button sitting above a
+  // MERGED queue — there is no gym for it to belong to, and the member plainly
+  // means "stop auto-booking for me". Left gym-scoped it was also unsavable:
+  // the Auto-Book tab has no single gym to name.
+  'autoBookPaused',
 ]);
 
 function parseJsonOr(raw, fallback) {
@@ -879,6 +929,58 @@ function migrateCalendarSettingsToAccountScope() {
 }
 migrateCalendarSettingsToAccountScope();
 
+/**
+ * Fold each gym's `autoBookPaused` into one account-level value (2026-09-15).
+ *
+ * Same shape as the calendar migration above, and the same trap: `getUserSettings`
+ * spreads the gym blob OVER the account one, so leaving a stale gym copy behind
+ * would silently override the account value forever. The key must be deleted
+ * from the gym rows, not just copied up.
+ *
+ * Conflict rule: paused ANYWHERE wins. This is a safety switch on an automated
+ * action — erring towards "don't book on my behalf" is the recoverable
+ * direction; the member can unpause in one tap.
+ */
+function migrateAutoBookPausedToAccountScope() {
+  const gymRows = db.prepare('SELECT user_id, gym_id, preferences FROM settings').all();
+  if (gymRows.length === 0) return;
+
+  const byUser = new Map();
+  for (const row of gymRows) {
+    const prefs = parseJsonOr(row.preferences, {});
+    if (!Object.prototype.hasOwnProperty.call(prefs, 'autoBookPaused')) continue;
+    byUser.set(row.user_id, !!(byUser.get(row.user_id) || prefs.autoBookPaused));
+  }
+  if (byUser.size === 0) return;
+
+  const readAccount = db.prepare('SELECT preferences FROM account_settings WHERE user_id = ?');
+  const writeAccount = db.prepare(`
+    INSERT INTO account_settings (user_id, preferences, updated_at)
+    VALUES (?, ?, CURRENT_TIMESTAMP)
+    ON CONFLICT(user_id) DO UPDATE SET
+      preferences = excluded.preferences, updated_at = CURRENT_TIMESTAMP
+  `);
+  const writeGym = db.prepare('UPDATE settings SET preferences = ?, updated_at = CURRENT_TIMESTAMP WHERE user_id = ? AND gym_id = ?');
+
+  const tx = db.transaction(() => {
+    for (const [userId, paused] of byUser) {
+      const account = parseJsonOr(readAccount.get(userId)?.preferences, {});
+      if (!Object.prototype.hasOwnProperty.call(account, 'autoBookPaused')) {
+        account.autoBookPaused = paused;
+        writeAccount.run(userId, JSON.stringify(account));
+      }
+    }
+    for (const row of gymRows) {
+      const prefs = parseJsonOr(row.preferences, {});
+      if (!Object.prototype.hasOwnProperty.call(prefs, 'autoBookPaused')) continue;
+      delete prefs.autoBookPaused;
+      writeGym.run(JSON.stringify(prefs), row.user_id, row.gym_id);
+    }
+  });
+  tx();
+}
+migrateAutoBookPausedToAccountScope();
+
 function mergeUserWithGym(user, gymId) {
   if (!user) return null;
   const ug = db.prepare('SELECT * FROM user_gyms WHERE user_id = ? AND gym_id = ?').get(user.id, gymId);
@@ -994,18 +1096,22 @@ module.exports = {
     return others;
   },
 
-  updateUserCredentials(userId, encryptedPassword, jwt, jwtExpiresAt) {
+  // Both fire from a LOGIN — one specific gym, known to the caller at the point
+  // of call (the gym that was just authenticated against). Accepting it
+  // explicitly avoids a second, independent resolution landing on a different
+  // gym than the one the login actually used.
+  updateUserCredentials(userId, encryptedPassword, jwt, jwtExpiresAt, gymId = null) {
     db.prepare('UPDATE users SET encrypted_password = ?, jwt = ?, jwt_expires_at = ? WHERE id = ?')
       .run(encryptedPassword, jwt, jwtExpiresAt, userId);
-    this.upsertUserGym(userId, resolveActiveGymId(userId), {
+    this.upsertUserGym(userId, gymId || resolveActiveGymId(userId), {
       encrypted_password: encryptedPassword,
       session_json: jwt ? JSON.stringify({ accessToken: jwt, expiresAt: jwtExpiresAt || null }) : null,
     });
   },
-  updateUserJWT(userId, jwt, jwtExpiresAt) {
+  updateUserJWT(userId, jwt, jwtExpiresAt, gymId = null) {
     db.prepare('UPDATE users SET jwt = ?, jwt_expires_at = ? WHERE id = ?')
       .run(jwt, jwtExpiresAt, userId);
-    this.upsertUserGym(userId, resolveActiveGymId(userId), {
+    this.upsertUserGym(userId, gymId || resolveActiveGymId(userId), {
       session_json: jwt ? JSON.stringify({ accessToken: jwt, expiresAt: jwtExpiresAt || null }) : null,
     });
   },
@@ -1044,23 +1150,32 @@ module.exports = {
     const user = this.getUserById(userId);
     return user?.jwt ? { accessToken: user.jwt } : null;
   },
-  updateUserDisplayName(userId, displayName) {
+  updateUserDisplayName(userId, displayName, gymId = null) {
     db.prepare('UPDATE users SET display_name = ? WHERE id = ?').run(displayName, userId);
-    this.upsertUserGym(userId, resolveActiveGymId(userId), { display_name: displayName });
+    this.upsertUserGym(userId, gymId || resolveActiveGymId(userId), { display_name: displayName });
   },
   // Cache the full CodexFit profile JSON for the admin detail view. Also backfills
   // display_name so the user list stays populated even if it was never set.
-  cacheUserProfile(userId, profile) {
+  // A profile is per gym — caching it against a guessed gym overwrites that
+  // gym's real profile with another's. Callers wrap this in try/catch (it's
+  // always best-effort), so a strict throw here is safe to let surface.
+  cacheUserProfile(userId, profile, gymId = null) {
     if (!profile || typeof profile !== 'object') return;
+    const targetGym = resolveGymStrict(userId, gymId, 'cacheUserProfile');
     const displayName = [profile.first_name, profile.last_name].filter(Boolean).join(' ') || null;
     const profileJson = JSON.stringify(profile);
     const profileSyncedAt = new Date().toISOString();
-    db.prepare('UPDATE users SET profile_json = ?, profile_synced_at = CURRENT_TIMESTAMP WHERE id = ?')
-      .run(profileJson, userId);
-    if (displayName) db.prepare('UPDATE users SET display_name = ? WHERE id = ?').run(displayName, userId);
+    // The vestigial `users.*` dual-write only means anything for the ACTIVE gym
+    // (same rule as setGymSession) — writing it for a background gym would show
+    // that gym's name/profile in places that read the account-level columns.
+    if (targetGym === resolveActiveGymId(userId)) {
+      db.prepare('UPDATE users SET profile_json = ?, profile_synced_at = CURRENT_TIMESTAMP WHERE id = ?')
+        .run(profileJson, userId);
+      if (displayName) db.prepare('UPDATE users SET display_name = ? WHERE id = ?').run(displayName, userId);
+    }
     const fields = { profile_json: profileJson, profile_synced_at: profileSyncedAt };
     if (displayName) fields.display_name = displayName;
-    this.upsertUserGym(userId, resolveActiveGymId(userId), fields);
+    this.upsertUserGym(userId, targetGym, fields);
   },
   // Called from `authenticateToken`, i.e. on EVERY authenticated request, so it
   // is throttled in SQL rather than firing a write per call. The predicate does
@@ -1128,16 +1243,16 @@ module.exports = {
   // Per-GYM quota, not per-account: a Psycle queue must not consume a JAB
   // allowance. (The limit itself lives in server.js — see layer G.)
   countPendingAutoBookings(userId, gymId = null) {
-    const targetGym = gymId || resolveActiveGymId(userId);
+    const targetGym = resolveGymStrict(userId, gymId, 'countPendingAutoBookings');
     return db.prepare("SELECT COUNT(*) AS n FROM auto_bookings WHERE user_id = ? AND gym_id = ? AND status = 'pending' AND executed_at IS NULL")
       .get(userId, targetGym).n;
   },
-  addAutoBooking(userId, eventId, className, instructorName, studioName, locationName, startAt, preferences, studioId = null, groupName = null, releaseAt = null, gymId = null) {
-    const targetGym = gymId || resolveActiveGymId(userId);
+  addAutoBooking(userId, eventId, className, instructorName, studioName, locationName, startAt, preferences, studioId = null, groupName = null, releaseAt = null, gymId = null, instructorImageUrl = null) {
+    const targetGym = resolveGymStrict(userId, gymId, 'addAutoBooking');
     const result = db.prepare(`
-      INSERT INTO auto_bookings (user_id, gym_id, event_id, studio_id, class_name, instructor_name, studio_name, location_name, start_at, preferences, group_name, release_at)
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-    `).run(userId, targetGym, eventId, studioId, className, instructorName, studioName, locationName, startAt, JSON.stringify(preferences), groupName, releaseAt);
+      INSERT INTO auto_bookings (user_id, gym_id, event_id, studio_id, class_name, instructor_name, instructor_image_url, studio_name, location_name, start_at, preferences, group_name, release_at)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    `).run(userId, targetGym, eventId, studioId, className, instructorName, instructorImageUrl, studioName, locationName, startAt, JSON.stringify(preferences), groupName, releaseAt);
     return result.lastInsertRowid;
   },
   updateAutoBookingPreferences(id, userId, preferences) {
@@ -1181,12 +1296,12 @@ module.exports = {
       .all(userId, resolvedGym);
   },
   countActiveAutoUpgrades(userId, gymId = null) {
-    const targetGym = gymId || resolveActiveGymId(userId);
+    const targetGym = resolveGymStrict(userId, gymId, 'countActiveAutoUpgrades');
     return db.prepare("SELECT COUNT(*) AS n FROM auto_upgrades WHERE user_id = ? AND gym_id = ? AND status = 'active'")
       .get(userId, targetGym).n;
   },
   addAutoUpgrade(userId, eventId, bookingId, currentSlotId, className, instructorName, studioName, locationName, startAt, preferences, studioId = null, groupName = null, gymId = null) {
-    const targetGym = gymId || resolveActiveGymId(userId);
+    const targetGym = resolveGymStrict(userId, gymId, 'addAutoUpgrade');
     const result = db.prepare(`
       INSERT INTO auto_upgrades (user_id, gym_id, event_id, studio_id, booking_id, current_slot_id, original_slot_id, class_name, instructor_name, studio_name, location_name, start_at, preferences, group_name)
       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
@@ -1243,23 +1358,29 @@ module.exports = {
   // studio_id is a PROVIDER id, so these MUST be gym-scoped: Psycle studio 138
   // and a JAB studio 138 are different rooms with different floor plans, and an
   // unscoped read would hand one gym's spot map to the other's booking flow.
-  getStudioPreferences(userId) {
+  getStudioPreferences(userId, gymId = null) {
     return db.prepare('SELECT * FROM studio_preferences WHERE user_id = ? AND gym_id = ?')
-      .all(userId, resolveActiveGymId(userId));
+      .all(userId, gymId || resolveActiveGymId(userId));
   },
-  // Resolve a single studio's live preferred spot map (the shared source of truth)
-  getStudioPreference(userId, studioId) {
+  // Resolve a single studio's live preferred spot map (the shared source of truth).
+  // `studio_id` is a PROVIDER id, unique only inside one gym — pass the ROW's own
+  // gym whenever you have one, exactly as the writer (setStudioPreference) does.
+  getStudioPreference(userId, studioId, gymId = null) {
     if (studioId == null) return null;
     const row = db.prepare('SELECT preferences FROM studio_preferences WHERE user_id = ? AND gym_id = ? AND studio_id = ?')
-      .get(userId, resolveActiveGymId(userId), studioId);
+      .get(userId, gymId || resolveActiveGymId(userId), studioId);
     return row ? JSON.parse(row.preferences) : null;
   },
-  setStudioPreference(userId, studioId, preferences) {
+  // `studio_id` is a PROVIDER id, unique only inside one gym, so a map saved
+  // without a named gym lands on whichever one happens to resolve — writing one
+  // gym's preferred spots over another's studio of the same id.
+  setStudioPreference(userId, studioId, preferences, gymId = null) {
+    const targetGym = resolveGymStrict(userId, gymId, 'setStudioPreference');
     db.prepare(`
       INSERT INTO studio_preferences (user_id, gym_id, studio_id, preferences, updated_at)
       VALUES (?, ?, ?, ?, CURRENT_TIMESTAMP)
       ON CONFLICT(user_id, gym_id, studio_id) DO UPDATE SET preferences = excluded.preferences, updated_at = CURRENT_TIMESTAMP
-    `).run(userId, resolveActiveGymId(userId), studioId, JSON.stringify(preferences));
+    `).run(userId, targetGym, studioId, JSON.stringify(preferences));
   },
 
   // Settings — one flat blob to every caller, two rows underneath (WP-D6).
@@ -1268,27 +1389,60 @@ module.exports = {
   // `detectedBookingOffset` driving a JAB countdown is exactly the silent-wrong
   // failure this phase exists to remove. So the store splits, and the split is
   // invisible above this seam: get merges, set fans out, callers are unchanged.
-  getUserSettings(userId) {
+  // `gymId` matters only for the gym-scoped half — pass a ROW's own gym
+  // whenever you have one (a booking, an upgrade monitor). Background code with
+  // no row to read it from (a cron sweep with no request context) falls back to
+  // the deterministic default, same as every other still-ambient read.
+  getUserSettings(userId, gymId = null) {
     const acct = db.prepare('SELECT preferences FROM account_settings WHERE user_id = ?').get(userId);
     const gym = db.prepare('SELECT preferences FROM settings WHERE user_id = ? AND gym_id = ?')
-      .get(userId, resolveActiveGymId(userId));
+      .get(userId, gymId || resolveActiveGymId(userId));
     if (!acct && !gym) return null;
     return { ...parseJsonOr(acct && acct.preferences, {}), ...parseJsonOr(gym && gym.preferences, {}) };
   },
-  setUserSettings(userId, preferences) {
-    const { account, gym } = splitSettingsByScope(preferences);
-    const gymId = resolveActiveGymId(userId);
+  /**
+   * MERGE a patch of settings — only the keys the caller actually changed.
+   *
+   * This used to REPLACE both blobs wholesale, which is why every caller sent
+   * the entire merged settings object back on every save. That made each save
+   * gym-ambiguous: a request to change your theme also rewrote the gym half,
+   * and nothing in it said which gym that half belonged to.
+   *
+   * Merging lets a caller send `{ theme: 'dark' }` and nothing else. The gym is
+   * then only required when the patch actually touches a gym-scoped key — and
+   * on a multi-gym account it is required rather than guessed.
+   *
+   * Note this means a key can be changed but never removed. Settings are set,
+   * not deleted; removing one would need its own operation.
+   */
+  setUserSettings(userId, patch, gymId = null) {
+    const { account, gym } = splitSettingsByScope(patch);
+    const hasAccount = Object.keys(account).length > 0;
+    const hasGym = Object.keys(gym).length > 0;
+    // Resolved BEFORE the transaction: an unnamed gym must fail without having
+    // written the account half, or a rejected save is still half-applied.
+    const targetGym = hasGym ? resolveGymStrict(userId, gymId, 'setUserSettings') : null;
+
     const tx = db.transaction(() => {
-      db.prepare(`
-        INSERT INTO account_settings (user_id, preferences, updated_at)
-        VALUES (?, ?, CURRENT_TIMESTAMP)
-        ON CONFLICT(user_id) DO UPDATE SET preferences = excluded.preferences, updated_at = CURRENT_TIMESTAMP
-      `).run(userId, JSON.stringify(account));
-      db.prepare(`
-        INSERT INTO settings (user_id, gym_id, preferences, updated_at)
-        VALUES (?, ?, ?, CURRENT_TIMESTAMP)
-        ON CONFLICT(user_id, gym_id) DO UPDATE SET preferences = excluded.preferences, updated_at = CURRENT_TIMESTAMP
-      `).run(userId, gymId, JSON.stringify(gym));
+      if (hasAccount) {
+        const row = db.prepare('SELECT preferences FROM account_settings WHERE user_id = ?').get(userId);
+        const merged = { ...parseJsonOr(row && row.preferences, {}), ...account };
+        db.prepare(`
+          INSERT INTO account_settings (user_id, preferences, updated_at)
+          VALUES (?, ?, CURRENT_TIMESTAMP)
+          ON CONFLICT(user_id) DO UPDATE SET preferences = excluded.preferences, updated_at = CURRENT_TIMESTAMP
+        `).run(userId, JSON.stringify(merged));
+      }
+      if (hasGym) {
+        const row = db.prepare('SELECT preferences FROM settings WHERE user_id = ? AND gym_id = ?')
+          .get(userId, targetGym);
+        const merged = { ...parseJsonOr(row && row.preferences, {}), ...gym };
+        db.prepare(`
+          INSERT INTO settings (user_id, gym_id, preferences, updated_at)
+          VALUES (?, ?, ?, CURRENT_TIMESTAMP)
+          ON CONFLICT(user_id, gym_id) DO UPDATE SET preferences = excluded.preferences, updated_at = CURRENT_TIMESTAMP
+        `).run(userId, targetGym, JSON.stringify(merged));
+      }
     });
     tx();
   },
@@ -1312,23 +1466,50 @@ module.exports = {
   // unscoped "replace this user's cache" would wipe the OTHER gym's bookings
   // every time one gym synced, so whichever gym synced last would be the only
   // one with reminders.
-  replaceBookingCache(userId, bookings) {
-    const gymId = resolveActiveGymId(userId);
+  /**
+   * Replace the reminder cache, filing each booking under ITS OWN gym.
+   *
+   * This used to resolve one gym and write every row under it. The client syncs
+   * the MERGED list (one call, every linked gym), so on a two-gym account every
+   * JAB booking was stored as a Psycle row while the other gym's rows were
+   * never refreshed — they just went stale and kept firing reminders, because
+   * the cancellation scanner reads every row and routes by `gym_id`.
+   *
+   * @param scopeGymIds the gyms this call is AUTHORITATIVE for. They are cleared
+   *   even when the payload has no rows for them, which is how the last booking
+   *   at a gym actually disappears. Defaults to just the gyms present in the
+   *   payload, so a single-gym caller cannot wipe another gym's cache.
+   */
+  replaceBookingCache(userId, bookings, scopeGymIds = null) {
+    const list = Array.isArray(bookings) ? bookings : [];
+    const rowsByGym = new Map();
+    for (const b of list) {
+      if (b.bookingId == null || !b.startAt) continue;
+      const gym = b.gymId || resolveGymStrict(userId, null, 'replaceBookingCache');
+      if (!rowsByGym.has(gym)) rowsByGym.set(gym, []);
+      rowsByGym.get(gym).push(b);
+    }
+    const scope = (scopeGymIds && scopeGymIds.length)
+      ? [...new Set(scopeGymIds)]
+      : [...rowsByGym.keys()];
+
     const del = db.prepare('DELETE FROM booking_cache WHERE user_id = ? AND gym_id = ?');
     const ins = db.prepare(`
       INSERT OR REPLACE INTO booking_cache
         (user_id, gym_id, booking_id, event_id, start_at, class_name, group_name, instructor_name, studio_name, location_name, slot_label, duration_min, location_address, synced_at)
       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP)
     `);
-    const tx = db.transaction((uid, gym, list) => {
-      del.run(uid, gym);
-      for (const b of list) {
-        if (b.bookingId == null || !b.startAt) continue;
-        ins.run(uid, gym, b.bookingId, b.eventId ?? null, b.startAt, b.className ?? null, b.groupName ?? null,
-          b.instructorName ?? null, b.studioName ?? null, b.locationName ?? null, String(b.slotLabel ?? ''), b.durationMin ?? null, b.locationAddress ?? null);
+    const tx = db.transaction((uid) => {
+      for (const gym of scope) del.run(uid, gym);
+      for (const [gym, rows] of rowsByGym) {
+        if (!scope.includes(gym)) continue; // not ours to write
+        for (const b of rows) {
+          ins.run(uid, gym, b.bookingId, b.eventId ?? null, b.startAt, b.className ?? null, b.groupName ?? null,
+            b.instructorName ?? null, b.studioName ?? null, b.locationName ?? null, String(b.slotLabel ?? ''), b.durationMin ?? null, b.locationAddress ?? null);
+        }
       }
     });
-    tx(userId, gymId, Array.isArray(bookings) ? bookings : []);
+    tx(userId);
   },
   // Cross-user background scanner (cancellation reminders) — deliberately NOT
   // gym-filtered. Rows carry gym_id; the caller routes per row.
@@ -1444,9 +1625,22 @@ module.exports = {
     }
     return map;
   },
-  setUserPriority(userId, priority) {
+  // Priority is genuinely per-gym-registration — the scheduler joins
+  // `user_gyms.priority` for a booking's OWN gym (WP-D3) — but the admin panel
+  // has one "VIP" control per user, no per-gym picker. Defaulting to
+  // resolveActiveGymId silently left every OTHER linked gym at the old
+  // priority, so a user marked VIP kept queuing at default priority everywhere
+  // except whichever gym happened to be active. Applying to every linked gym
+  // when no gym is named matches what the single control actually promises.
+  setUserPriority(userId, priority, gymId = null) {
     db.prepare('UPDATE users SET priority = ? WHERE id = ?').run(priority, userId);
-    this.upsertUserGym(userId, resolveActiveGymId(userId), { priority });
+    if (gymId) {
+      this.upsertUserGym(userId, gymId, { priority });
+    } else {
+      for (const g of this.getUserGyms(userId)) {
+        this.upsertUserGym(userId, g.gym_id, { priority });
+      }
+    }
   },
   deleteUser(userId) {
     db.prepare('DELETE FROM users WHERE id = ?').run(userId);
@@ -1723,7 +1917,6 @@ module.exports = {
         catch (_) { /* table may predate its gym_id column on an old DB — skip */ }
       }
       db.prepare('DELETE FROM user_gyms WHERE user_id = ? AND gym_id = ?').run(userId, gymId);
-      db.prepare('UPDATE users SET active_gym_id = NULL WHERE id = ? AND active_gym_id = ?').run(userId, gymId);
     });
     tx();
   },
@@ -1735,21 +1928,6 @@ module.exports = {
   isGymLinked(userId, gymId) {
     if (!gymId) return false;
     return !!db.prepare('SELECT 1 FROM user_gyms WHERE user_id = ? AND gym_id = ?').get(userId, gymId);
-  },
-
-  // Persist the user's gym choice. Validates the link (never trust a caller) and
-  // that the gym is known + enabled. Returns the gym id actually stored.
-  setActiveGym(userId, gymId) {
-    const gym = this.getGym(gymId);
-    if (!gym) throw new Error(`Unknown gym "${gymId}".`);
-    if (!gym.enabled) throw new Error(`Gym "${gymId}" is not enabled.`);
-    if (!this.isGymLinked(userId, gymId)) throw new Error(`Account is not linked to gym "${gymId}".`);
-    db.prepare('UPDATE users SET active_gym_id = ? WHERE id = ?').run(gymId, userId);
-    return gymId;
-  },
-
-  getActiveGymId(userId) {
-    return resolveActiveGymId(userId);
   },
 
   // Exported so WP-N1's normalized routes resolve gym context through the same

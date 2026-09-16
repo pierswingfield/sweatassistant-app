@@ -24,6 +24,101 @@ See [Backlog/timetable-and-credits.md](Backlog/timetable-and-credits.md).
 - Open: T3 instructor photo caching/resizing, T5 toast redesign, T6 refresh painting from
   cache instead of blocking, T7 smaller items.
 
+## "Active gym" cross-gym bug class (raised 2026-09-15, stages 1-4 done)
+
+* **Status**: 🟡 Stages 1-4 shipped and live-verified. Two pieces remain, both logged below as
+  their own items: the read-side accessors, and the client's ambient capability fallback.
+* **Spec Link**: [active-gym-audit.md](Backlog/active-gym-audit.md) — full findings and progress log
+* **Summary**: The product model is one account / many gyms / **no active gym**, and `api.js`
+  said so explicitly — but that was true of `api.js` alone. `users.active_gym_id`,
+  `db.resolveActiveGymId()` (**77 call sites**), `POST /api/my-gyms/active` and
+  `gym-context.js`'s single ambient gym were all still live. When a per-gym call arrived
+  without an explicit gym the server **guessed one instead of refusing**, which is right for
+  single-gym accounts and silently wrong for multi-gym ones. Real bugs traced to this: JAB
+  auto-book showing Psycle credits, JAB auto-upgrade never firing, "No credits available" in
+  the upgrade modal, a JAB spot map filed under Psycle in live staging data, a booking-window
+  reminder hardcoded to Monday-noon for every gym, and a JAB class's `maxSpotsPerClass` cap
+  read from the wrong gym in the booking modal.
+* **Done**: (1) an ambiguous per-gym write now throws instead of guessing, on a multi-gym
+  account; (2) all 7 client capability checks are per-row (`canForGym`), not ambient; (3) every
+  gym-scoped **write** accessor (spot maps, settings, credentials, session, profile cache,
+  priority, booking cache, reminder sweep) is either explicit or strict; (4) the persisted
+  "active gym" mechanism itself — `setActiveGym`/`getActiveGymId`/`POST /api/my-gyms/active` —
+  is deleted outright, `resolveActiveGymId`'s fallback is now deterministic (request context →
+  sole linked gym → default gym, never a remembered choice).
+* **Still open**: the read-side accessors (see next item) and the client ambient-fallback
+  removal (see the item after that).
+
+## Client's ambient gym-context fallback still exists (deferred from stage 4, 2026-09-15)
+
+* **Status**: ❌ Open — deliberately deferred, not attempted partially
+* **Spec Link**: [active-gym-audit.md](Backlog/active-gym-audit.md) — "What did NOT get deleted, and why"
+* **Summary**: `gym-context.js`'s client-side `state` (`setGymContext`/`can()`/`getGymContext()`)
+  looked dead during the stage-4 removal of the server's persisted "active gym" — but it isn't.
+  It's the last-resort fallback inside `canForGym()`/`capabilityForGym()` for an unknown gym or
+  a missing `gymId`, and `credit-allowance.js`'s ambient `isMetered()`/`getTotalCredits()`
+  genuinely lean on it for single-gym accounts and any code not yet threaded with an explicit
+  gym. It already caused one real bug during this same cleanup:
+  `timetable.js`'s booking modal read `maxSpotsPerClass` (JAB caps at 1 spot, Psycle
+  unlimited) from the ambient gym instead of the class being booked — same bug shape as the
+  rest of the audit, just one level deeper, inside a fallback path rather than a top-level
+  call site (fixed 2026-09-15 via a new `capabilityForGym()`, but the fallback mechanism that
+  made it possible is still there for the next call site that doesn't thread a gym).
+* **What removing it actually requires**: giving every remaining `canForGym`/`capabilityForGym`/
+  credit-allowance call site a real explicit gym, so the ambient fallback is never reached in
+  practice — then deleting `setGymContext`/`applyGymTheme`/`applyGymName`/`state` and the
+  `loadGymContext()` plumbing that seeds them. Not a mechanical rename: each remaining ambient
+  call site needs a judgment call about which gym it actually means (a global-chrome element
+  above a merged list needs `canAny`, not a gym at all; a per-row element needs its row's gym
+  threaded in from wherever it's currently missing).
+* **Do not** start this during a feature push — same caution as the original stage 3/4 split.
+
+* **Status**: ✅ Built and live-verified — the pattern is in place for future per-gym defaults
+* **Summary**: The booking-window reminder ("booking opens in an hour") was a single
+  **hardcoded Monday-noon-London** check for every user and every gym — Psycle's policy
+  sitting in the orchestrator, the same mistake WP-I removed from the scheduler. For a rolling
+  gym like JAB the notification is simply untrue: every class opens at its own instant, so
+  there is no weekly moment to announce.
+* **Now**: each gym declares its own default under `gyms.config.js → notifications`
+  (`bookingWindowReminder`: Psycle `true`, JAB `false`). The poller loops each linked gym and
+  fires at **that gym's own release instant** (via `policyOf`/`mostRecentRelease`, not a
+  hardcoded weekday), with a gym-qualified dedupe key. `notifications.bookingWindowEnabledForGym`
+  resolves member override → gym default → the gym's window kind (a gym that omits the setting
+  gets a sensible answer rather than a guess); the account-level switch still outranks
+  everything. The tip itself is per gym too: that gym's queue, and credit arithmetic only where
+  `capabilities.metered` (a membership gym has no balance to run short of), read through the
+  gym's own adapter instead of a raw CodexFit `/profile`.
+* **UI**: sub-toggles per linked gym under the parent row in Notification Preferences. Every
+  gym is written explicitly on save — storing only the differences would silently flip a
+  member's choice if a gym's default ever changed.
+* **Adding a per-gym default for another notification type**: add the key to that gym's
+  `notifications` block, add a resolver beside `bookingWindowEnabledForGym`, and set
+  `perGym: true` on the row in `NOTIF_ROWS`.
+
+## A `paused_no_credits` auto-upgrade monitor never resumes (raised 2026-09-15)
+
+* **Status**: ❌ Open — found while fixing the per-gym auto-upgrade bug
+* **Summary**: `poller.js` pauses a monitor with `status = 'paused_no_credits'` when the
+  credit check fails, but `db.getActiveAutoUpgrades()` selects `WHERE status = 'active'`
+  only — so a paused monitor is **never looked at again**, even once the user buys credits
+  or the underlying cause is fixed. Nothing in the UI resumes it either. This turned a
+  transient/incorrect credit reading into a permanently dead monitor (observed live: a JAB
+  monitor stored against the wrong gym was paused against Psycle's empty balance and stayed
+  paused after the gym bug was fixed; the row had to be repaired by hand). Needs either a
+  re-check of paused monitors in the poller sweep, or an explicit "resume" affordance.
+
+## My Bookings shows "Spot ?" for studios without a spot map (raised 2026-09-15)
+
+* **Status**: ❌ Open — needs a design decision, no proposal yet
+* **Summary**: In My Bookings, a booking in a studio with no seat map (JAB's Recovery, and
+  likely any other FCFS class) renders its spot chip as **"Spot ?"** — `buildBookingCard`'s
+  chip falls back to `'?'` when no slot label resolves (`b.raw?.spot?.name ?? … ?? '?'`).
+  For an FCFS class there is no spot *by definition*, so "?" reads as missing data rather
+  than "not applicable". Options not yet evaluated: hide the chip entirely for no-map
+  studios; replace it with a neutral "Booked" / "No assigned spot" pill; or show the class's
+  own capacity state instead. Whatever is chosen should reuse `getStudioMapInfo()` (now
+  exported from `timetable.js`) rather than inferring "no map" a second way.
+
 ## Naming audit + spot-map editor (raised 2026-09-15)
 
 See [Backlog/naming-and-spotmap.md](Backlog/naming-and-spotmap.md).

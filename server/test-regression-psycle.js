@@ -245,6 +245,9 @@ async function run() {
       headers: { 'content-type': 'application/json' },
       body: JSON.stringify({
         eventId,
+        // Named explicitly, exactly as the client does: there is no active gym
+        // to fall back on, and the dev account is linked to more than one.
+        gymId: 'psycle-london',
         studioId: studioIdForPrefs,
         className: 'Ride 45',
         instructorName: 'ADAM',
@@ -301,7 +304,10 @@ async function run() {
     const settings = { advancedBooking: true, autoUpgradeEnabled: false, prefetchWeeks: 3 };
     const putRes = await fetch(`${BASE}/api/settings`, authed({
       method: 'PUT',
-      headers: { 'content-type': 'application/json' },
+      // `advancedBooking` and `autoUpgradeEnabled` are gym-scoped, so the gym is
+      // named — as the client does. (`prefetchWeeks` is account-scoped and needs
+      // no gym; a patch of only account keys may omit the header entirely.)
+      headers: { 'content-type': 'application/json', 'x-gym-id': 'psycle-london' },
       body: JSON.stringify(settings),
     }));
     assert.strictEqual(putRes.status, 200);
@@ -319,7 +325,9 @@ async function run() {
     const prefs = { preferredSlots: [layoutSlots[0].id, layoutSlots[1].id], preferredRows: [] };
     const putRes = await fetch(`${BASE}/api/studio-preferences/${studioIdForPrefs}`, authed({
       method: 'PUT',
-      headers: { 'content-type': 'application/json' },
+      // Named, exactly as the client does on every spot-map save: a studio id is
+      // a provider id, unique only within its own gym.
+      headers: { 'content-type': 'application/json', 'x-gym-id': 'psycle-london' },
       body: JSON.stringify({ preferences: prefs }),
     }));
     assert.strictEqual(putRes.status, 200);
@@ -423,7 +431,10 @@ async function run() {
     const my = await (await fetch(`${BASE}/api/my-gyms`, authed())).json();
     assert.ok(Array.isArray(my.gyms) && my.gyms.length >= 1, 'account lists its linked gyms');
     assert.ok(!my.gyms.some((g) => g.gym_id === 'jab-boxing'), 'jab-boxing is unlinked for this block');
-    assert.strictEqual(my.activeGymId, 'psycle-london', 'account resolves to the default gym');
+    // No `activeGymId` on this response any more (removed 2026-09-15, stage 4
+    // of the active-gym audit) — there is no gym switcher and no persisted
+    // choice for it to report.
+    assert.strictEqual(my.activeGymId, undefined, 'the field is gone, not just empty');
 
     // A header naming a linked gym is honoured and changes nothing observable
     // for a single-gym account — the no-op property that makes this safe to ship.
@@ -445,14 +456,15 @@ async function run() {
     });
     assert.strictEqual(junkRes.status, 403, 'an unknown gym id is refused too');
 
-    // And switching to an unlinked gym is refused at the switch endpoint.
+    // No more switch endpoint to test against — `POST /api/my-gyms/active` was
+    // removed with the persisted choice it served (2026-09-15, stage 4).
     const switchRes = await fetch(`${BASE}/api/my-gyms/active`, authed({
       method: 'POST',
       headers: { 'content-type': 'application/json' },
       body: JSON.stringify({ gymId: 'jab-boxing' }),
     }));
-    assert.strictEqual(switchRes.status, 403, 'cannot switch to a gym the account has not linked');
-    log('✅ Active-gym: linked gym accepted, unlinked/unknown refused (403) on both header and switch.');
+    assert.strictEqual(switchRes.status, 404, 'the route no longer exists');
+    log('✅ Active-gym: linked gym accepted, unlinked/unknown refused (403) on header; switch endpoint is gone.');
   }
   {
     // --- Admin password reset: the account-recovery escape hatch ---------------

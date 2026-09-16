@@ -7,6 +7,7 @@ const { triggerAutoRelogin } = require('./auth');
 const { getCachedEvent, setCachedEvent } = require('./scheduler');
 const { getProvider } = require('./providers');
 const { getGymConfig } = require('./gyms.config');
+const { policyOf, isRollingWeekly, mostRecentRelease } = require('./providers/booking-window');
 
 // Interim single-gym bridge: until multi-gym login lands (WP-D3), all polling
 // is CodexFit / Psycle London. See server/auth.js for the same bridge.
@@ -154,7 +155,7 @@ async function attemptUpgradeSlot(upgrade, isCutoffMode) {
   const currentSlotId = String(upgrade.current_slot_id);
   const prefs = JSON.parse(upgrade.preferences) || {};
   // Preferred slots come from the LIVE shared studio map; fall back to snapshot for legacy records.
-  const liveMap = db.getStudioPreference(userId, upgrade.studio_id) || {};
+  const liveMap = db.getStudioPreference(userId, upgrade.studio_id, gymId) || {};
   const preferredSlots = (liveMap.preferredSlots || prefs.preferredSlots || []).map(String);
   const preferredRows = liveMap.preferredRows || prefs.preferredRows || [];
 
@@ -233,7 +234,7 @@ async function attemptUpgradeSlot(upgrade, isCutoffMode) {
 
             const profileData = await profileRes.json();
             const profile = profileData.data || profileData;
-            try { db.cacheUserProfile(userId, profile); } catch (_) {}
+            try { db.cacheUserProfile(userId, profile, gymId); } catch (_) {}
             const hasCredits = profile.available_credits && profile.available_credits.some(c => c.count > 0);
 
             if (!hasCredits) {
@@ -362,7 +363,10 @@ async function executeAutoUpgradeChecks() {
 
   for (const upgrade of active) {
     try {
-      const settings = db.getUserSettings(upgrade.user_id) || {};
+      // THIS monitor's own gym — autoUpgradeEnabled is gym-scoped, so reading
+      // the ambient default could pause (or fail to pause) a monitor based on
+      // an unrelated gym's setting.
+      const settings = db.getUserSettings(upgrade.user_id, upgrade.gym_id) || {};
       if (settings.autoUpgradeEnabled === false) continue;
 
       if (!shouldCheckUpgrade(upgrade, settings)) continue;
@@ -413,28 +417,67 @@ async function executeAutoUpgradeChecks() {
   }
 }
 
-// ─── Booking-schedule discovery (infrequent CodexFit poll) ───────────────────
-// Normalise a raw CodexFit booking into our cache shape (mirrors client parsing).
-function normalizeBooking(b) {
-  const event = b.event || {};
-  const startAt = event.start_at || b.start_at;
-  if (!startAt) return null;
-  return {
-    bookingId: b.id,
-    eventId: event.id || b.event_id || null,
-    startAt,
-    className: event.event_type?.name || event.name || 'Class',
-    groupName: event.event_type?.group?.name || '',
-    instructorName: event.instructor?.full_name || event.instructor?.name || '',
-    studioName: event.studio?.name || '',
-    locationName: event.studio?.location?.name || '',
-    slotLabel: b.studio_slot?.label ?? b.slot ?? b.studio_slot_id ?? b.slot_id ?? '',
-  };
-}
-
+// ─── Booking-schedule discovery ──────────────────────────────────────────────
 // Refresh booking caches for users who have cancellation reminders enabled and at
 // least one push subscription. Runs every few hours — reminders themselves fire
 // locally from the cache with no extra API cost.
+// One gym's bookings, via its own adapter, with the usual 401→relogin→retry.
+async function listBookingsWithRelogin(userId, gymId) {
+  const provider = getProvider(gymId);
+  let session = db.getUserSession(userId, gymId);
+  if (!session || !session.accessToken) throw new Error(`no session for ${gymId}`);
+  try {
+    return await provider.listBookings(session);
+  } catch (err) {
+    if (err && err.status !== 401) throw err;
+    const newJwt = await triggerAutoRelogin(userId, gymId);
+    return provider.listBookings({ ...session, accessToken: newJwt });
+  }
+}
+
+/**
+ * Turn one gym's NormalizedBooking[] into booking_cache rows.
+ *
+ * CodexFit's list endpoint carries no embedded event, so the start time — the
+ * one field a reminder cannot work without — has to be fetched per booking.
+ * MarianaTek embeds it, and is used directly. The shared per-gym event cache
+ * keeps this from becoming N live calls every sweep.
+ */
+async function bookingCacheRowsFor(userId, gymId) {
+  const bookings = await listBookingsWithRelogin(userId, gymId);
+  const rows = [];
+  for (const nb of bookings || []) {
+    if (!nb || nb.isWaitlist || !nb.eventId) continue;
+    let ev = nb.event;
+    if (!ev || !ev.startAt) {
+      ev = getCachedEvent(gymId, nb.eventId)?.event;
+      if (!ev) {
+        const details = await getProvider(gymId)
+          .fetchEventDetails(nb.eventId, db.getUserSession(userId, gymId));
+        if (!details) continue;
+        setCachedEvent(gymId, nb.eventId, details, 30000);
+        ev = details.event;
+      }
+    }
+    if (!ev || !ev.startAt) continue;
+    rows.push({
+      bookingId: nb.bookingId,
+      gymId,
+      eventId: nb.eventId,
+      startAt: ev.startAt,
+      className: ev.name || '',
+      groupName: ev.discipline || '',
+      instructorName: ev.instructors?.[0]?.name || '',
+      studioName: ev.studioName || '',
+      locationName: ev.locationName || '',
+      locationAddress: ev.locationAddress || null,
+      durationMin: ev.durationMin ?? null,
+      slotLabel: nb.slotId != null ? String(nb.slotId) : '',
+    });
+  }
+  return rows;
+}
+
 async function refreshBookingCaches() {
   const userIds = db.getUserIdsWithPushSubs();
   for (const userId of userIds) {
@@ -446,15 +489,27 @@ async function refreshBookingCaches() {
       const settings = db.getUserSettings(userId);
       if (settings && settings.calendar && settings.calendar.enabled) continue;
 
-      await new Promise(r => setTimeout(r, 2000 + Math.floor(Math.random() * 6000)));
-      const url = '/bookings?limit=100&page=1';
-      const res = await fetchFromGym(userId, db.resolveActiveGymId(userId), url);
-      if (!res.ok) continue;
-      const payload = await res.json();
-      const list = payload.data || payload || [];
-      const normalized = (Array.isArray(list) ? list : []).map(normalizeBooking).filter(Boolean);
-      db.replaceBookingCache(userId, normalized);
-      console.log(`[Reminders] Cached ${normalized.length} upcoming booking(s) for user ${userId}.`);
+      // EVERY linked gym. This used to read whichever single gym resolved from
+      // the account, so a two-gym member got cancellation reminders for one of
+      // them and silence for the other — and it used a raw CodexFit path, so
+      // the gym it did read was only ever right for a CodexFit gym.
+      const gymIds = (db.getUserGyms(userId) || []).map((g) => g.gym_id).filter(Boolean);
+      const rows = [];
+      const synced = [];
+      for (const gymId of gymIds) {
+        await new Promise(r => setTimeout(r, 2000 + Math.floor(Math.random() * 6000)));
+        try {
+          rows.push(...await bookingCacheRowsFor(userId, gymId));
+          synced.push(gymId);
+        } catch (err) {
+          // Scope the write to the gyms that actually answered: a gym that
+          // failed must keep its existing rows rather than have them cleared.
+          console.error(`[Reminders] ${gymId} failed for user ${userId}:`, err.message);
+        }
+      }
+      if (synced.length === 0) continue;
+      db.replaceBookingCache(userId, rows, synced);
+      console.log(`[Reminders] Cached ${rows.length} upcoming booking(s) for user ${userId} across ${synced.length} gym(s).`);
     } catch (err) {
       console.error(`[Reminders] Failed to refresh bookings for user ${userId}:`, err.message);
     }
@@ -501,59 +556,79 @@ function checkCancellationReminders() {
 }
 
 // Weekly "booking opens in 1 hour" reminder, fired once per Monday-noon release.
+/**
+ * "Booking opens in an hour" — per gym, at THAT gym's own release moment.
+ *
+ * This used to be a single hardcoded Monday-noon-London check for every user and
+ * every gym: Psycle's policy sitting in the orchestrator, the same mistake WP-I
+ * removed from the scheduler. A rolling gym like JAB has no weekly moment at
+ * all, so the notification was simply untrue there.
+ *
+ * Only a `rolling-weekly` gym has something to announce; whether a member wants
+ * it is `notifications.bookingWindowEnabledForGym` (their override → the gym's
+ * configured default → the gym's window kind).
+ */
 async function checkBookingWindowReminder() {
-  const now = DateTime.now().setZone('Europe/London');
-  let mondayNoon = now.set({ weekday: 1, hour: 12, minute: 0, second: 0, millisecond: 0 });
-  if (now > mondayNoon) mondayNoon = mondayNoon.plus({ weeks: 1 });
-  const fireAt = mondayNoon.minus({ hours: 1 });
-  if (now < fireAt || now >= mondayNoon) return;
-
-  const key = `window:${mondayNoon.toISODate()}`;
   const userIds = db.getUserIdsWithPushSubs();
   for (const userId of userIds) {
-    try {
-      const prefs = notifications.getPrefs(userId);
-      if (!prefs.bookingWindow.enabled) continue;
-      if (db.wasNotificationSent(userId, key)) continue;
-      db.markNotificationSent(userId, key);
-      await new Promise(r => setTimeout(r, Math.floor(Math.random() * 30000)));
-      await sendBookingWindowTip(userId);
-    } catch (err) {
-      console.error(`[Reminders] Booking-window reminder failed for user ${userId}:`, err.message);
+    const gymIds = (db.getUserGyms(userId) || []).map((g) => g.gym_id).filter(Boolean);
+    for (const gymId of gymIds) {
+      try {
+        const cfg = getGymConfig(gymId);
+        if (!cfg || !isRollingWeekly(cfg)) continue;
+        if (!notifications.bookingWindowEnabledForGym(userId, gymId)) continue;
+
+        const policy = policyOf(cfg);
+        const now = DateTime.now().setZone(policy.timezone);
+        const nextRelease = mostRecentRelease(policy, now).plus({ weeks: 1 });
+        const fireAt = nextRelease.minus({ hours: 1 });
+        if (now < fireAt || now >= nextRelease) continue;
+
+        // Gym-qualified: two gyms can release on the same date, and each needs
+        // its own reminder rather than one silently deduping the other away.
+        const key = `window:${gymId}:${nextRelease.toISODate()}`;
+        if (db.wasNotificationSent(userId, key)) continue;
+        db.markNotificationSent(userId, key);
+        await new Promise(r => setTimeout(r, Math.floor(Math.random() * 30000)));
+        await sendBookingWindowTip(userId, gymId);
+      } catch (err) {
+        console.error(`[Reminders] Booking-window reminder failed for user ${userId} (${gymId}):`, err.message);
+      }
     }
   }
 }
 
-async function sendBookingWindowTip(userId) {
-  const pending = db.getUserAutoBookings(userId).filter(b => b.status === 'pending');
+async function sendBookingWindowTip(userId, gymId) {
+  // THIS gym's queue — a Psycle reminder must not count JAB's entries.
+  const pending = db.getUserAutoBookings(userId, gymId).filter(b => b.status === 'pending');
   const count = pending.length;
   let tip;
   if (count === 0) {
     tip = "Don't forget to set up Auto-Book!";
   } else {
     let enough = true;
-    try {
-      const res = await fetchFromGym(userId, db.resolveActiveGymId(userId), '/profile');
-      if (res.ok) {
-        const payload = await res.json();
-        const profile = payload.data || payload;
-        // Cache the full profile (also backfills display_name) for the admin view.
-        try { db.cacheUserProfile(userId, profile); } catch (_) {}
-        const totalCredits = (profile.available_credits || []).reduce((s, c) => s + (c.count || 0), 0);
+    const cfg = getGymConfig(gymId);
+    // Credit arithmetic only means anything at a metered gym: a membership gym
+    // has no balance to run short of, so "not enough credits" is never the
+    // reason it would fail.
+    if (cfg?.capabilities?.metered) {
+      try {
+        const credits = await getProvider(gymId).getCredits(db.getUserSession(userId, gymId));
+        const totalCredits = (credits || []).reduce((s, c) => s + (Number(c.count) || 0), 0);
         const needed = pending.reduce((s, b) => {
           let p = {};
           try { p = JSON.parse(b.preferences || '{}'); } catch (_) {}
           return s + (p.requiredCount || 1);
         }, 0);
         enough = totalCredits >= needed;
-      }
-    } catch (_) { /* fall back to the neutral tip */ }
+      } catch (_) { /* fall back to the neutral tip */ }
+    }
     const plural = count !== 1 ? 'es' : '';
     tip = enough
       ? `You have ${count} class${plural} set to Auto-Book.`
       : `⚠️ You have ${count} class${plural} set to Auto-Book, but you don't have enough credits.`;
   }
-  await notifications.notify(userId, 'bookingWindow', { tip });
+  await notifications.notify(userId, 'bookingWindow', { tip, gymId });
 }
 
 module.exports = {
@@ -583,6 +658,6 @@ module.exports = {
   },
   executeAutoUpgradeChecks,
   refreshBookingCaches,
-  fetchFromGym,
-  normalizeBooking
+  bookingCacheRowsFor,
+  fetchFromGym
 };

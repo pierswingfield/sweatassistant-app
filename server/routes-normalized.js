@@ -139,33 +139,26 @@ router.get('/gyms', (req, res) => {
     id: g.id, name: g.name, shortName: g.shortName, websiteUrl: g.websiteUrl,
     provider: g.provider, enabled: g.enabled,
     theme: g.theme, labels: g.labels, capabilities: g.capabilities,
+    // Per-gym notification DEFAULTS, so the settings UI can show the state a
+    // member actually gets before they override anything.
+    notifications: g.notifications || {},
   }));
   res.json({ gyms });
 });
 
-// GET /api/my-gyms — the gyms THIS account is linked to, plus which one is
-// currently active. The catalogue (`GET /gyms`) is public and lists everything
-// configured; this is the per-account view the switcher renders from.
+// GET /api/my-gyms — the gyms THIS account is linked to. The catalogue
+// (`GET /gyms`) is public and lists everything configured; this is the
+// per-account view Settings → Your Gyms renders from.
+//
+// No `activeGymId` any more, and no `POST /api/my-gyms/active` — both removed
+// in the active-gym audit's stage 4 (2026-09-15). There is no gym switcher:
+// every list is merged, and a "current gym" is not a concept this product has.
 router.get('/my-gyms', authenticateToken, (req, res) => {
   try {
     const linked = db.getUserGymsPublic(req.userId);
-    res.json({ gyms: linked, activeGymId: db.getActiveGymId(req.userId) });
+    res.json({ gyms: linked });
   } catch (err) {
     handleError(res, err);
-  }
-});
-
-// POST /api/my-gyms/active  { gymId } — persist the user's gym choice.
-// db.setActiveGym re-validates the link itself; this route does not pre-check,
-// so there is exactly one place that decides whether a switch is allowed.
-router.post('/my-gyms/active', authenticateToken, (req, res) => {
-  const { gymId } = req.body || {};
-  if (!gymId) return res.status(400).json({ message: 'gymId is required' });
-  try {
-    res.json({ activeGymId: db.setActiveGym(req.userId, gymId) });
-  } catch (err) {
-    // Unknown / disabled / unlinked are all "you may not select this", not 500s.
-    return res.status(403).json({ message: err.message });
   }
 });
 
@@ -437,9 +430,12 @@ router.get('/waitlists', authenticateToken, async (req, res) => {
 // GET /api/profile — normalized profile.
 router.get('/profile', authenticateToken, async (req, res) => {
   try {
-    const { provider, session } = resolveContext(req.userId);
+    const { gymId, provider, session } = resolveContext(req.userId);
     const profile = await withRelogin(req.userId, session, (s) => provider.getProfile(s));
-    res.json(profile);
+    // Stamped so the client never has to infer which gym this profile describes.
+    // The booking window is derived from ITS cutoffs and saved as a gym-scoped
+    // setting, so the answer has to travel with the data rather than be guessed.
+    res.json({ ...profile, gymId });
   } catch (err) {
     handleError(res, err);
   }

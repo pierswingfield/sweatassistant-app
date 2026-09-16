@@ -36,16 +36,15 @@ let seq = 0;
 function twoGymUser() {
   const uid = db.createUser(`wake-${Date.now()}-${seq++}@test.local`, 'enc:pw');
   db.upsertUserGym(uid, JAB, { gym_email: 'b@test.local', encrypted_password: 'enc:b' });
-  db.setActiveGym(uid, PSYCLE);
   return uid;
 }
 
-// addAutoBooking files the row under the user's ACTIVE gym, so switch to queue
-// for a specific one (same technique as test-gym-isolation.js).
+// The gym is passed EXPLICITLY. This used to flip the account's active gym and
+// let addAutoBooking infer it, which is the very thing the active-gym audit
+// removed — a multi-gym write with no named gym now throws.
 function queueFor(uid, gymId, { eventId, startAt, releaseAt = null }) {
-  db.setActiveGym(uid, gymId);
   return db.addAutoBooking(uid, eventId, 'Class', 'Coach', 'Studio', 'Location',
-    startAt, { preferredSlots: [1], requiredCount: 1 }, 100, 'Group', releaseAt);
+    startAt, { preferredSlots: [1], requiredCount: 1 }, 100, 'Group', releaseAt, gymId);
 }
 
 function clearQueue() {

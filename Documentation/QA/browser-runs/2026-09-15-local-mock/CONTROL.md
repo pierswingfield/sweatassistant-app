@@ -1,0 +1,24 @@
+# Browser Automation Run Control — 2026-09-15-local-mock
+
+- **Date**: 2026-09-15; remediation recheck 2026-09-16
+- **Lane**: Lane A (Local Mocks)
+- **Environment Label**: `http://localhost:5173` (Vite dev client) / `http://localhost:3000` (Server)
+- **Git Commit**: `8387d53dd21b1107c3a3cbba2238b399ba39b76c` (worktree dirty, modular multi-gym uncommitted)
+- **Active Browser/Tab Identifier**: `Codex in-app Browser tab 1` (remediation recheck; original `agent-browser-session-lane-a` retained in the run log)
+- **Protected Baseline Path**: `N/A (Local Mock Lane)`
+- **Approved Live Flow IDs**: `None (Lane A only; no live provider traffic)`
+- **Created IDs Ledger**:
+  - `bookings`: []
+  - `waitlists`: []
+  - `queues`: []
+  - `monitors`: []
+- **Cleanup Pending**: `None`
+- **Changed Settings Ledger**: []
+- **Changed Maps Ledger**: []
+- **Dependency Results**:
+  - `GATE-01`: PASS
+  - `GATE-03`: PASS
+  - `AUTH-01`: PASS
+  - `AUTH-02`: FAIL (original run; retained for history)
+  - `AUTH-02-R1`: PASS (QA-02 and QA-03 resolved)
+- **Next Permitted Flow**: `AUTH-03`

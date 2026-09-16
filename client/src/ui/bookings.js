@@ -1,5 +1,5 @@
 import { api } from '../api';
-import { can, getGymContext, getGymShortName } from '../gym-context.js';
+import { canForGym, getGymContext, getGymShortName } from '../gym-context.js';
 import { getAvailableCreditsForEvent, getTotalCredits, getIneligibleReason } from './credit-allowance.js';
 import { showToast, cache, refreshUserData, updateCreditBadge, userSettings } from '../main';
 import { renderStudioFloorPlan } from './spotmap';
@@ -8,7 +8,7 @@ import { isInGracePeriod, GRACE_PERIOD_MS, startGraceCountdown } from '../lib';
 import { invalidateApiCache } from '../cache';
 import { renderCardSkeletons } from './loading-skeleton.js';
 import { instructorAvatar } from './tooltips.js';
-import { metadata, loadMetadata } from './timetable';
+import { metadata, loadMetadata, getStudioMapInfo, pickStudioPrefs } from './timetable';
 
 // Class starts within the free-cancel cutoff (12h). Edit is hidden inside this
 // window; Cancel stays available but warns about the penalty.
@@ -20,7 +20,10 @@ function isWithin12Hours(startAt) {
 
 // Delegates so the unmetered case is decided in one place (Infinity on a
 // membership gym) rather than summing an empty balance to a misleading 0.
-const totalAvailableCredits = () => getTotalCredits();
+// ALWAYS pass the row's own gym — in a merged list you always have one. Without
+// it this answers for whichever gym the app defaults to, which put a warning
+// icon on a JAB spot pill because the Psycle balance happened to be empty.
+const totalAvailableCredits = (gymId) => getTotalCredits(gymId);
 
 
 export async function renderBookings() {
@@ -131,6 +134,9 @@ function syncBookingCache(bookings) {
       const locationName = event.locationName || event.studio?.location?.name || '';
       return {
         bookingId: bookingIdOf(b),
+        // This list is MERGED across every linked gym, so each row has to carry
+        // its own — the server files the reminder cache by it.
+        gymId: event.gymId || b.gymId || null,
         eventId: event.id || b.eventId || b.event_id || null,
         startAt,
         className,
@@ -183,7 +189,10 @@ function buildBookingCard(group, upgrades) {
   const rawClassName = event.name || event.event_type?.name || 'Class';
   const groupName = event.discipline || event.event_type?.group?.name || rawClassName;
   const className = stripClassNamePrefix(rawClassName, groupName);
-  const instructorName = event.instructors?.[0]?.name || event.instructor?.full_name || 'TBA';
+  // No fallback to a placeholder string — a recovery class genuinely has no
+  // instructor, and the empty-string branch below omits the label entirely
+  // rather than rendering a meaningless "TBA" (same fix as timetable's B6).
+  const instructorName = event.instructors?.[0]?.name || event.instructor?.full_name || '';
   const instructorPhotoUrl = event.instructors?.[0]?.thumbUrl || event.instructors?.[0]?.imageUrl || null;
   const locationLine = [event.studioName || event.studio?.name, trimLocation(event.locationName || event.studio?.location?.name, getGymShortName(event.gymId))].filter(Boolean).join(', ');
 
@@ -203,7 +212,7 @@ function buildBookingCard(group, upgrades) {
     let iconHtml = '';
     
     if (activeUpgrade) {
-      if (activeUpgrade.status === 'paused_no_credits' || totalAvailableCredits() < 1) {
+      if (activeUpgrade.status === 'paused_no_credits' || totalAvailableCredits(event.gymId) < 1) {
         chipClass += ' state-warning';
         iconHtml = '<span style="margin-right:4px;">⚠</span>';
       } else {
@@ -225,7 +234,10 @@ function buildBookingCard(group, upgrades) {
             </button>`;
   }).join('');
 
-  const editBtnHtml = within12h ? '' :
+  // No seat map for this studio (FCFS/recovery) means there is no spot to
+  // reassign — same reasoning as the timetable's own Edit gating.
+  const { hasMap } = getStudioMapInfo(event);
+  const editBtnHtml = (within12h || !hasMap) ? '' :
     `<button class="ab-rail-btn bk-edit-btn" aria-label="Edit spots">${icon('edit', 17)}<span>Edit</span></button>`;
 
   const card = document.createElement('div');
@@ -482,7 +494,7 @@ export async function openEditBookingModal(group, onChange = renderBookings) {
       const toAdd = desired.filter(s => !currentSlots.includes(s));
       const changed = toRemove.length > 0 || toAdd.length > 0;
       // Removals refund credits before the additions are booked.
-      const creditsAfterRefund = totalAvailableCredits() + toRemove.length;
+      const creditsAfterRefund = totalAvailableCredits(group.event?.gymId) + toRemove.length;
       const shortfall = Math.max(0, toAdd.length - creditsAfterRefund);
 
       let msg = '';
@@ -570,7 +582,11 @@ export async function openEditBookingModal(group, onChange = renderBookings) {
       if (saveBtn) { saveBtn.disabled = true; saveBtn.textContent = 'Saving…'; }
       try {
         const gymId = group.event?.gymId || null;
-        if (can('atomicSwap') && toRemove.length === 1 && toAdd.length === 1) {
+        // THIS booking's gym, not the ambient one. Judged against the wrong
+        // gym's flag this either skips a native swap (falling back to
+        // cancel-then-rebook, which can lose the spot to someone else in the
+        // gap) or calls a swap endpoint the provider doesn't have.
+        if (canForGym('atomicSwap', gymId) && toRemove.length === 1 && toAdd.length === 1) {
           const bookingId = slotToBooking.get(toRemove[0]);
           const r = await api.swapSpot(bookingId, toRemove[0], toAdd[0], gymId);
           if (!r.ok) throw new Error(r.error || 'Spot swap was declined');
@@ -654,7 +670,7 @@ function buildWaitlistCard(w) {
   const rawClassName = event.name || event.event_type?.name || 'Class';
   const groupName = event.discipline || event.event_type?.group?.name || rawClassName;
   const className = stripClassNamePrefix(rawClassName, groupName);
-  const instructorName = event.instructors?.[0]?.name || event.instructor?.full_name || 'TBA';
+  const instructorName = event.instructors?.[0]?.name || event.instructor?.full_name || '';
   const instructorPhotoUrl = event.instructors?.[0]?.thumbUrl || event.instructors?.[0]?.imageUrl || null;
   const locationLine = [event.studioName || event.studio?.name, trimLocation(event.locationName || event.studio?.location?.name, getGymShortName(event.gymId))].filter(Boolean).join(', ');
 
@@ -736,8 +752,8 @@ function buildWaitlistCard(w) {
 
 // Auto-upgrade needs at least one spare credit to book the upgraded seat before
 // releasing the old one. Returns 1 if the user has none spare, else 0.
-function upgradeCreditShortfall() {
-  return getTotalCredits() < 1 ? 1 : 0;
+function upgradeCreditShortfall(gymId) {
+  return getTotalCredits(gymId) < 1 ? 1 : 0;
 }
 
 // Quick-register or open modal, like the auto-book flow
@@ -756,7 +772,11 @@ async function handleUpgradeClick({ eventId, gymId, bookingId, currentSlotId, st
   // Check if studio preferences are already configured
   try {
     const allPrefs = await api.getStudioPreferences();
-    const studioPrefs = studioId ? allPrefs[studioId] : null;
+    // Gym-qualified: studio ids are PROVIDER ids, so prefs are stored under
+    // `${gymId}:${studioId}`. A bare lookup misses the saved map entirely,
+    // which is why auto-upgrade opened the config modal for a studio that
+    // demonstrably had one configured.
+    const studioPrefs = pickStudioPrefs(allPrefs, studioId, gymId);
     const hasPrefs = studioPrefs?.preferredSlots?.length > 0;
 
     if (hasPrefs) {
@@ -765,6 +785,10 @@ async function handleUpgradeClick({ eventId, gymId, bookingId, currentSlotId, st
       showToast('Starting upgrade monitor...', 'info');
       await api.addAutoUpgrade({
         eventId,
+        // Without this the server falls back to the account's ACTIVE gym, so a
+        // JAB monitor is stored against Psycle and the poller then works the
+        // wrong provider's session — the monitor silently never fires.
+        gymId: gymId || null,
         studioId: studioId || null,
         bookingId,
         currentSlotId,
@@ -774,7 +798,7 @@ async function handleUpgradeClick({ eventId, gymId, bookingId, currentSlotId, st
         studioName,
         locationName,
         startAt,
-        creditShortfall: upgradeCreditShortfall(),
+        creditShortfall: upgradeCreditShortfall(gymId),
         preferences: {
           keepOriginalOnCutoff: true
         }
@@ -825,21 +849,16 @@ export async function openUpgradeConfigModal({ eventId, gymId, bookingId, curren
   try {
     // WP-C5: the floor plan below is driven entirely by NormalizedSlot[] /
     // NormalizedLayoutObject[] from the adapter — no raw `studio.layout` access
-    // — so a MarianaTek layout renders here unchanged. `eventDetails`
-    // (= `event.raw`) is still read, but only for CodexFit-specific *credit*
-    // metadata (`.credit_types`, via getAvailableCreditsForEvent), which has no
-    // normalized equivalent yet and is out of C5's scope.
+    // — so a MarianaTek layout renders here unchanged.
     const [{ event, slots: layoutSlots, objects: layoutObjects }, allPrefs] = await Promise.all([
       api.getEventDetails(eventId, gymId),
       api.getStudioPreferences()
     ]);
-
-    const eventDetails = event.raw;
     const groupName = event.discipline || event.name || 'Class';
     const noun = seatNoun(groupName);
     const nounCap = noun[0].toUpperCase() + noun.slice(1);
     const resolvedStudioId = studioId || event.studioId;
-    const studioPrefs = resolvedStudioId ? allPrefs[resolvedStudioId] : null;
+    const studioPrefs = pickStudioPrefs(allPrefs, resolvedStudioId, gymId);
 
     // Explicit FCFS check rather than inferring it from an empty slot list —
     // the two mean different things (see openEditBookingModal's equivalent).
@@ -864,8 +883,11 @@ export async function openUpgradeConfigModal({ eventId, gymId, bookingId, curren
     // A membership gym's credit math is Infinity (correctly — nothing to
     // charge), so it needs its own eligibility gate (WP-J) rather than relying
     // on this arithmetic, which can't see membership status.
-    const ineligibleReason = getIneligibleReason();
-    const availableCredits = getAvailableCreditsForEvent(eventDetails);
+    const ineligibleReason = getIneligibleReason(gymId);
+    // The NORMALIZED event, never `.raw`: the raw provider object carries no
+    // `gymId` (so the credit inventory silently resolved to the active gym) and
+    // no normalized `credits`, which is where per-class cost now lives.
+    const availableCredits = getAvailableCreditsForEvent(event);
     const upgradeCreditsNeeded = 1; // Auto-upgrade needs 1 credit for the additional spot
     const hasEnoughCredits = !ineligibleReason && availableCredits >= upgradeCreditsNeeded;
     const creditWarningHtml = !hasEnoughCredits
@@ -912,7 +934,9 @@ export async function openUpgradeConfigModal({ eventId, gymId, bookingId, curren
       try {
         // 1. Save the shared studio map (this is what every feature reads live)
         if (resolvedStudioId) {
-          await api.updateStudioPreferences(resolvedStudioId, { preferredSlots: slots, preferredRows: rows });
+          // Studio ids are PROVIDER ids — unique only within a gym — so a map
+          // saved without one lands on whichever gym the server resolves.
+          await api.updateStudioPreferences(resolvedStudioId, { preferredSlots: slots, preferredRows: rows }, gymId);
         }
 
         // 2. Create or update the monitor (per-monitor option only; slots are live)
@@ -921,9 +945,9 @@ export async function openUpgradeConfigModal({ eventId, gymId, bookingId, curren
           showToast('Auto-upgrade updated — shared spot map saved.', 'success');
         } else {
           await api.addAutoUpgrade({
-            eventId, studioId: resolvedStudioId || null, bookingId, currentSlotId,
+            eventId, gymId: gymId || null, studioId: resolvedStudioId || null, bookingId, currentSlotId,
             className, groupName, instructorName, studioName, locationName, startAt,
-            creditShortfall: upgradeCreditShortfall(),
+            creditShortfall: upgradeCreditShortfall(gymId),
             preferences: { keepOriginalOnCutoff }
           });
           showToast('Auto-upgrade monitor started! Monitoring for a better spot.', 'success');

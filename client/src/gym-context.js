@@ -128,6 +128,20 @@ export function canForGym(capability, gymId) {
   if (!g || !g.capabilities) return can(capability);
   return !!g.capabilities[capability];
 }
+
+/**
+ * A SPECIFIC gym's RAW capability value — for a non-boolean flag like
+ * `maxSpotsPerClass` (JAB: 1, Psycle: null/unlimited), where `canForGym`'s
+ * `!!` coercion would turn `1` into `true` and `null` into `false`, both wrong.
+ * Same per-gym reasoning as `canForGym`: a booking modal reads the CLASS's own
+ * gym, never the ambient ones.
+ */
+export function capabilityForGym(capability, gymId) {
+  if (!gymId) return state.capabilities[capability];
+  const g = linkedGyms.find((x) => (x.gym_id || x.id) === gymId);
+  if (!g || !g.capabilities || !(capability in g.capabilities)) return state.capabilities[capability];
+  return g.capabilities[capability];
+}
 export function gymLabel(kind) { return state.labels[kind] || kind; }
 
 /**
@@ -163,10 +177,12 @@ export function applyGymTheme(ctx = state) {
  */
 export function gateByCapability(el, capability) {
   if (!el) return;
-  // Global nav tabs and badges check whether ANY linked gym has the capability
-  const isGlobalNav = el.matches('[data-tab="buy-credits"], #psycle-header-credits, [data-tab="buy-credits"] *');
-  const hasCap = isGlobalNav ? canAny(capability) : can(capability);
-  el.hidden = !hasCap;
+  // ANY linked gym, always. These gates sit on global chrome (nav tabs, header
+  // badges, the timetable's own filter bar) above a MERGED list, so there is no
+  // single gym for them to belong to. Asking the ambient gym hid the
+  // "Bookmarked only" filter whenever the app happened to resolve to a gym
+  // without bookmarks, even with the user's bookmarkable classes on screen.
+  el.hidden = !canAny(capability);
 }
 
 /** Every `[data-requires-capability="x"]` element in the DOM, gated at once. */

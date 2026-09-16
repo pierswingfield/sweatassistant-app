@@ -1,20 +1,27 @@
-// Active-gym resolution tests (WP-C2 slice 1a).
+// Active-gym resolution tests (WP-C2 slice 1a; revised 2026-09-15 for stage 4
+// of the active-gym audit — Documentation/Backlog/active-gym-audit.md).
 //
 // resolveActiveGymId() used to be a two-line stub returning DEFAULT_GYM_ID. It is
 // called from ~10 places inside db.js — every auth, session, credential, priority
 // and calendar-token read — so getting it wrong doesn't produce a wrong page, it
-// produces the WRONG ACCOUNT'S SESSION. Two things are pinned here:
+// produces the WRONG ACCOUNT'S SESSION. Pinned here:
 //
 //   1. It is a no-op for every account that exists today (all single-gym).
 //   2. The `x-gym-id` header can never select a gym the account isn't linked to,
 //      and never leaks across users inside one request (the admin-reads-another-
 //      account case).
+//   3. There is no persisted "choice" any more. `setActiveGym`/`getActiveGymId`/
+//      `POST /api/my-gyms/active` were removed — the switcher they served was
+//      already gone, and every real write now names its own gym explicitly.
+//      A multi-gym account with no per-request gym resolves to the DEFAULT
+//      gym, deterministically, every time — never a remembered one.
 
 process.env.ENCRYPTION_KEY = process.env.ENCRYPTION_KEY || 'a'.repeat(64);
 process.env.DB_PATH = process.env.DB_PATH || ':memory:';
 
 const assert = require('assert');
 const db = require('./db');
+const auth = require('./auth');
 
 const checks = [];
 const check = (name, fn) => checks.push({ name, fn });
@@ -22,10 +29,9 @@ const check = (name, fn) => checks.push({ name, fn });
 const DEFAULT_GYM = 'psycle-london';
 const OTHER_GYM = 'jab-boxing';
 
-// jab-boxing ships `enabled: false` (the WP-T4 rollout gate), and setActiveGym
-// deliberately refuses to select a disabled gym. Enable it in the test DB so the
-// multi-gym paths below exercise what a real second gym will do once the gate
-// lifts — the gate itself is asserted separately, further down.
+// jab-boxing ships `enabled: false` (the WP-T4 rollout gate, now enforced only
+// at LINK time). Enable it in the test DB so the multi-gym paths below exercise
+// what a real second gym does once the gate lifts.
 db.db.prepare('UPDATE gyms SET enabled = 1 WHERE id = ?').run(OTHER_GYM);
 
 function makeUser(email) {
@@ -57,47 +63,26 @@ check('an unknown user id degrades to the default gym rather than throwing', () 
   assert.strictEqual(db.resolveActiveGymId(null), DEFAULT_GYM);
 });
 
-// --- 2. the stored choice ----------------------------------------------------
+// --- 2. no stored choice any more (removed 2026-09-15, stage 4) -------------
+//
+// `setActiveGym`/`getActiveGymId`/`POST /api/my-gyms/active` are gone: the
+// client switcher they served was already deleted, and every real write now
+// names its own gym explicitly (stages 1-3). `resolveActiveGymId` on a
+// multi-gym account with no per-request gym now falls straight to the
+// deterministic default — never a remembered choice.
 
-check('setActiveGym persists a choice, and resolution honours it', () => {
+check('two links, no per-request gym → the default gym wins deterministically', () => {
   const uid = makeUser(`switch-${Date.now()}@test.local`);
   db.linkGym(uid, OTHER_GYM);
   assert.strictEqual(db.resolveActiveGymId(uid), DEFAULT_GYM,
-    'two links, no choice yet → default gym wins (not "first alphabetically")');
-  db.setActiveGym(uid, OTHER_GYM);
-  assert.strictEqual(db.resolveActiveGymId(uid), OTHER_GYM);
-  db.setActiveGym(uid, DEFAULT_GYM);
-  assert.strictEqual(db.resolveActiveGymId(uid), DEFAULT_GYM, 'and switches back');
-});
-
-check('setActiveGym refuses a gym the account is not linked to', () => {
-  const uid = makeUser(`unlinked-${Date.now()}@test.local`);
-  assert.throws(() => db.setActiveGym(uid, OTHER_GYM), /not linked/i);
-  assert.strictEqual(db.resolveActiveGymId(uid), DEFAULT_GYM, 'and leaves resolution untouched');
-});
-
-check('setActiveGym refuses an unknown gym', () => {
-  const uid = makeUser(`bogus-${Date.now()}@test.local`);
-  assert.throws(() => db.setActiveGym(uid, 'not-a-real-gym'), /Unknown gym/i);
-});
-
-check('a stored choice for a gym that is later unlinked degrades to the fallback', () => {
-  const uid = makeUser(`stale-${Date.now()}@test.local`);
-  db.linkGym(uid, OTHER_GYM);
-  db.setActiveGym(uid, OTHER_GYM);
-  assert.strictEqual(db.resolveActiveGymId(uid), OTHER_GYM);
-  // Simulate the link going away (gym removed from config, or user unlinks it).
-  db.db.prepare('DELETE FROM user_gyms WHERE user_id = ? AND gym_id = ?').run(uid, OTHER_GYM);
-  assert.strictEqual(db.resolveActiveGymId(uid), DEFAULT_GYM,
-    'a stale active_gym_id must not strand the account on a gym it cannot authenticate against');
+    'not "first alphabetically", not a remembered choice — the same answer every time');
 });
 
 // --- 3. the per-request context ----------------------------------------------
 
-check('request context overrides the stored choice for the duration of the request', () => {
+check('request context overrides the default for the duration of the request', () => {
   const uid = makeUser(`ctx-${Date.now()}@test.local`);
   db.linkGym(uid, OTHER_GYM);
-  db.setActiveGym(uid, DEFAULT_GYM);
 
   db.runWithGymContext(uid, OTHER_GYM, () => {
     assert.strictEqual(db.resolveActiveGymId(uid), OTHER_GYM, 'header wins inside the request');
@@ -129,21 +114,23 @@ check('context survives an await boundary (handlers are async)', async () => {
   });
 });
 
-check('background work (no context) resolves via the persisted path', () => {
+check('background work (no context, several links) resolves deterministically', () => {
   const uid = makeUser(`bg-${Date.now()}@test.local`);
   db.linkGym(uid, OTHER_GYM);
-  db.setActiveGym(uid, OTHER_GYM);
-  // No runWithGymContext — this is what the scheduler/poller cron sees.
-  assert.strictEqual(db.resolveActiveGymId(uid), OTHER_GYM);
+  // No runWithGymContext — this is what the scheduler/poller cron sees. With no
+  // stored choice to fall back to any more, this is the default gym, always —
+  // never a remembered "last selected" one, since that concept is gone.
+  assert.strictEqual(db.resolveActiveGymId(uid), DEFAULT_GYM);
 });
 
-check('the rollout gate holds: a linked but DISABLED gym cannot be selected', () => {
+check('WP-T4 rollout gate: linking a DISABLED gym is refused', () => {
+  // `setActiveGym`'s own enabled-check is gone with it, but the rollout gate
+  // still has to live somewhere — it is now enforced only at LINK time
+  // (linkGymAccount), which was untested on its own before this rewrite.
   const uid = makeUser(`gated-${Date.now()}@test.local`);
-  db.linkGym(uid, OTHER_GYM);
   db.db.prepare('UPDATE gyms SET enabled = 0 WHERE id = ?').run(OTHER_GYM);
   try {
-    assert.throws(() => db.setActiveGym(uid, OTHER_GYM), /not enabled/i,
-      'WP-T4 gates rollout on gyms.enabled — selection must respect it');
+    assert.rejects(() => auth.linkGymAccount(uid, OTHER_GYM, 'x@test.local', 'irrelevant'), /not available/i);
   } finally {
     db.db.prepare('UPDATE gyms SET enabled = 1 WHERE id = ?').run(OTHER_GYM);
   }
@@ -152,14 +139,18 @@ check('the rollout gate holds: a linked but DISABLED gym cannot be selected', ()
 check('disabling a gym does NOT silently move an account already on it', () => {
   const uid = makeUser(`ongated-${Date.now()}@test.local`);
   db.linkGym(uid, OTHER_GYM);
-  db.setActiveGym(uid, OTHER_GYM);
   db.db.prepare('UPDATE gyms SET enabled = 0 WHERE id = ?').run(OTHER_GYM);
   try {
     // Deliberate: resolveActiveGymId does not consult `enabled`. Falling back
-    // would silently serve a DIFFERENT gym's bookings and credentials than the
-    // account is actually on — worse than surfacing an error at provider
-    // construction. The gate belongs at selection time, not resolution time.
-    assert.strictEqual(db.resolveActiveGymId(uid), OTHER_GYM);
+    // would silently serve a DIFFERENT gym's bookings and credentials than a
+    // request explicitly asked for — worse than surfacing an error at provider
+    // construction. The gate belongs at link time, not resolution time.
+    // (There is no more "selection" to disable-out-from-under; this now
+    // exercises the request-context path, the surviving way to be resolved
+    // onto a specific linked gym.)
+    db.runWithGymContext(uid, OTHER_GYM, () => {
+      assert.strictEqual(db.resolveActiveGymId(uid), OTHER_GYM);
+    });
   } finally {
     db.db.prepare('UPDATE gyms SET enabled = 1 WHERE id = ?').run(OTHER_GYM);
   }
@@ -233,14 +224,11 @@ check('setAccountPassword refuses a password too short to be worth hashing', () 
 check('unlinkGym removes the link but keeps the account (the D4 promise)', () => {
   const uid = makeUser(`unlink-${Date.now()}@test.local`);
   db.linkGym(uid, OTHER_GYM);
-  db.setActiveGym(uid, OTHER_GYM);
   db.unlinkGym(uid, OTHER_GYM);
   assert.ok(db.getUserById(uid), 'the Sweat Assistant account still exists');
   assert.strictEqual(db.isGymLinked(uid, OTHER_GYM), false);
   assert.strictEqual(db.resolveActiveGymId(uid), DEFAULT_GYM,
-    'and the active gym falls back rather than pointing at a dead link');
-  const row = db.db.prepare('SELECT active_gym_id FROM users WHERE id = ?').get(uid);
-  assert.strictEqual(row.active_gym_id, null, 'the stale selection is cleared, not just ignored');
+    'and resolution falls back rather than pointing at a dead link');
 });
 
 check('unlinking the LAST gym is allowed — the account outlives the membership', () => {

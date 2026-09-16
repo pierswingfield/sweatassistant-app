@@ -288,8 +288,8 @@ async function prefetchAutoBookSlots(bookings, windowMs = 18000) {
 
 // Resolve the live shared studio spot map; fall back to the entry snapshot for
 // legacy records that predate studio_id or studios with no saved map.
-function resolveLiveMap(userId, studioId, snapshot) {
-  const live = db.getStudioPreference(userId, studioId);
+function resolveLiveMap(userId, studioId, snapshot, gymId = null) {
+  const live = db.getStudioPreference(userId, studioId, gymId);
   if (live && (live.preferredSlots?.length || live.preferredRows?.length)) {
     return {
       preferredSlots: live.preferredSlots || [],
@@ -335,7 +335,7 @@ async function executeAutoBookForClass(booking) {
   const gymId = booking.gym_id;
   const prefs = JSON.parse(booking.preferences) || { preferredSlots: [], preferredRows: [], requiredCount: 1, bookAny: true };
   // Slots/rows come from the LIVE shared studio map; requiredCount/bookAny are per-entry.
-  const liveMap = resolveLiveMap(userId, booking.studio_id, prefs);
+  const liveMap = resolveLiveMap(userId, booking.studio_id, prefs, gymId);
   const preferredSlots = liveMap.preferredSlots;
   const preferredRows = liveMap.preferredRows;
   const requiredCount = prefs.requiredCount || 1;
@@ -512,7 +512,10 @@ async function executeAutoBookForClass(booking) {
 
       // Automatically register auto-upgrade if studio layout exists
       if (layoutSlots.length > 0 && bookedPairs.length > 0) {
-        const settings = db.getUserSettings(userId) || {};
+        // THIS booking's gym — autoUpgradeEnabled/autoUpgradeByDefault are
+        // gym-scoped, and the ambient default would apply one gym's
+        // auto-upgrade preference to a booking on another.
+        const settings = db.getUserSettings(userId, gymId) || {};
         if (settings.autoUpgradeEnabled !== false) {
           const wantAutoUpgrade = prefs.autoUpgrade !== undefined
             ? prefs.autoUpgrade
@@ -701,7 +704,12 @@ const MISSED_RELEASE_GRACE_MS = 5 * 60 * 1000;
 function resolvePendingReleases() {
   const out = [];
   for (const booking of db.getPendingAutoBookings()) {
-    const settings = db.getUserSettings(booking.user_id) || {};
+    // THIS booking's own gym — reading the ambient/default gym's settings here
+    // silently applied Psycle's rolling-weekly member-tier offset to it (or
+    // omitted it) regardless of which gym the row is actually for. It "worked"
+    // only because Psycle happens to be DEFAULT_GYM_ID, which the ambient
+    // fallback prefers on a multi-gym account — accidental, not correct.
+    const settings = db.getUserSettings(booking.user_id, booking.gym_id) || {};
     const releaseAt = getClassReleaseTime(booking, settings);
     if (!releaseAt) continue; // unresolvable → never dispatch on a guess
     out.push({ booking, releaseAt });
@@ -828,7 +836,7 @@ function checkAndRunImmediateBookings(userId) {
   const now = DateTime.now().setZone('Europe/London');
 
   const immediateBookings = pending.filter(b => {
-    const settings = db.getUserSettings(b.user_id) || {};
+    const settings = db.getUserSettings(b.user_id, b.gym_id) || {};
     const releaseTime = getClassReleaseTime(b, settings);
     if (!releaseTime) return false;
     // Release time is in the past

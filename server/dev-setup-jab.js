@@ -127,15 +127,12 @@ function die(msg, detail) {
     console.log(`✓ linked ${argGym} as ${link.gym.gym_email}`);
   }
 
-  // 5. Select it.
-  const active = await json(await fetch(`${BASE}/api/my-gyms/active`, {
-    method: 'POST', headers: H, body: JSON.stringify({ gymId: argGym }),
-  }));
-  if (active.activeGymId !== argGym) die('Setting the active gym failed.', active);
-
+  // 5. There is no gym to "select" any more — `POST /api/my-gyms/active` and
+  //    the switcher it served were removed in the active-gym audit's stage 4
+  //    (2026-09-15). Every list is merged; step 6 below names its gym
+  //    explicitly via `x-gym-id`, which is how the app itself does it too.
   const mine = await json(await fetch(`${BASE}/api/my-gyms`, { headers: H }));
-  console.log(`✓ active gym: ${active.activeGymId}`);
-  console.log(`  linked: ${(mine.gyms || []).map((g) => g.gym_id).join(', ')}`);
+  console.log(`✓ linked: ${(mine.gyms || []).map((g) => g.gym_id).join(', ')}`);
 
   // 6. Sanity-check the timetable actually returns that gym's classes. Catches
   //    the failure mode where the server is right but the client shows stale
@@ -151,7 +148,6 @@ function die(msg, detail) {
   console.log(`\n── paste into the browser console at http://localhost:5173, then reload ──`);
   console.log(`localStorage.setItem('psycleLocalToken', ${JSON.stringify(login.token)});`);
   console.log(`localStorage.setItem('psycleUserId', ${JSON.stringify(String(userId))});`);
-  console.log(`localStorage.setItem('sweatActiveGymId', ${JSON.stringify(argGym)});`);
   console.log(`location.reload();`);
   console.log(`\nSwitch back with:  node server/dev-setup-jab.js --gym ${cfg.DEFAULT_GYM_ID}`);
   console.log(`Remember to revert enabled:false on jab-boxing when you finish.\n`);

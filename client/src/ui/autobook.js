@@ -1,5 +1,5 @@
 import { api } from '../api';
-import { getGymContext, getGymShortName } from '../gym-context.js';
+import { getGymContext, getGymShortName, getLinkedGyms } from '../gym-context.js';
 import { getAvailableCreditsForEvent, getTotalCredits, getIneligibleReason } from './credit-allowance.js';
 import { showToast, cache, userSettings, refreshUserData, debugConsole } from '../main';
 import { getClassReleaseTime } from '../lib';
@@ -8,6 +8,7 @@ import { renderStudioFloorPlan } from './spotmap';
 import { icon, disciplineTag, trimLocation, seatNoun, pulseIcon, renderGymRail, equalizeDiscTagWidths } from './cards';
 import { renderCardSkeletons } from './loading-skeleton.js';
 import { instructorAvatar } from './tooltips.js';
+import { pickStudioPrefs } from './timetable';
 
 let countdownInterval = null;
 let sseEventSource = null;
@@ -170,7 +171,9 @@ function renderAutoBookControls() {
     pauseBtn.disabled = true;
     try {
       const newPaused = !userSettings.autoBookPaused;
-      await api.updateSettings({ ...userSettings, autoBookPaused: newPaused });
+      // Account-scoped: one Pause button over a MERGED queue means "stop
+      // auto-booking for me", not "for one gym" — there isn't one to name here.
+      await api.updateSettings({ autoBookPaused: newPaused });
       userSettings.autoBookPaused = newPaused;
       showToast(newPaused ? 'Auto-book paused' : 'Auto-book resumed', newPaused ? 'info' : 'success');
       renderAutoBookControls();
@@ -205,6 +208,20 @@ function renderAutoBookControls() {
     });
     bar.appendChild(simBtn);
   }
+}
+
+/**
+ * The gym these favourites belong to: the one that supports bookmarks.
+ *
+ * Returns null when that is ambiguous (none capable, or more than one), which
+ * makes the save fail loudly on a multi-gym account instead of writing the list
+ * against a gym that has no such concept. Auto-Book Favourites is still
+ * incomplete (the scheduler does not consume the list yet — see BACKLOG), so
+ * this stays deliberately narrow rather than inventing a per-gym UI for it.
+ */
+function bookmarksGymId() {
+  const capable = (getLinkedGyms() || []).filter((g) => g.capabilities?.bookmarks);
+  return capable.length === 1 ? (capable[0].gym_id || capable[0].id) : null;
 }
 
 function parseBookmark(bm) {
@@ -277,7 +294,10 @@ function openFavouritesModal() {
       saveBtn.textContent = 'Saving...';
       try {
         const list = Array.from(enabled);
-        await api.updateSettings({ ...userSettings, autoBookFavourites: list });
+        // Gym-scoped, and these ARE bookmarks — which only a gym with the
+        // capability has. Save against that gym rather than letting the server
+        // pick one; with none (or several) capable, there is no honest answer.
+        await api.updateSettings({ autoBookFavourites: list }, bookmarksGymId());
         userSettings.autoBookFavourites = list;
         showToast('Favourites saved!', 'success');
         overlay.remove();
@@ -380,14 +400,22 @@ function renderQueue(queue) {
     const prefs = q.preferences || {};
     const creditsNeeded = prefs.requiredCount || 1;
     const className = q.class_name || q.group_name || 'Class';
+    // No fallback to a placeholder string — a recovery class genuinely has no
+    // instructor, and the empty-string branch below omits the label entirely
+    // rather than rendering a meaningless "TBA" (same fix as timetable's B6).
+    const instructorName = q.instructor_name || '';
+    // Stored at queue time — the by-name lookup inside instructorAvatar can't
+    // be relied on here, since a queue row is read back long after the
+    // timetable metadata that would resolve it.
+    const instructorPhotoUrl = q.instructor_image_url || null;
     const locationLine = [q.studio_name, trimLocation(q.location_name, getGymShortName(q.gym_id))].filter(Boolean).join(', ');
 
     // Via the shared module so the unmetered case is handled once: it returns
     // Infinity for a membership gym, where "insufficient credits" is meaningless.
     // A membership gym still needs its OWN gate though — getIneligibleReason()
     // (WP-J) — since Infinity credits says nothing about membership status.
-    const ineligibleReason = getIneligibleReason();
-    const hasInsufficientCredits = getTotalCredits() < creditsNeeded;
+    const ineligibleReason = getIneligibleReason(q.gym_id);
+    const hasInsufficientCredits = getTotalCredits(q.gym_id) < creditsNeeded;
 
     const creditWarning = ineligibleReason
       ? `<div class="ab-credit-warning">${icon('warning', 13)}<span>${ineligibleReason}</span></div>`
@@ -398,18 +426,21 @@ function renderQueue(queue) {
     card.innerHTML = `
       ${renderGymRail(q.gym_id || 'psycle-london')}
       <div class="ab-card-main">
-        <div class="ab-card-toprow">
-          <div class="ab-card-when">
-            <span class="ab-card-date">${dateStr.toUpperCase()}</span>
-            <span class="ab-card-time">${timeOnly}</span>
+        <div class="ab-card-body">
+          <div class="ab-card-lines">
+            <div class="ab-card-line1">
+              <span class="ab-card-date">${dateStr.toUpperCase()}</span>
+              <span class="ab-card-time">${timeOnly}</span>
+              ${instructorName ? `<span class="ab-card-instructor">${instructorName}</span>` : ''}
+            </div>
+            <div class="ab-card-line2">
+              ${disciplineTag(q.group_name || q.class_name)}
+              <span class="ab-card-class">${className}</span>
+              ${locationLine ? `<span class="ab-meta-dot">·</span><span class="ab-card-location">${locationLine}</span>` : ''}
+            </div>
           </div>
-        </div>
-        <div class="ab-card-meta">
-          ${disciplineTag(q.group_name || q.class_name)}
-          <span class="ab-card-class">${className}</span>
-          <span class="ab-meta-dot">·</span>
-          <span class="ab-card-instructor">${instructorAvatar(q.instructor_name, q.gym_id)}${q.instructor_name || 'TBA'}</span>
-          ${locationLine ? `<span class="ab-card-location">${locationLine}</span>` : ''}
+          ${instructorAvatar(instructorName, q.gym_id, instructorPhotoUrl)
+            ? `<div class="ab-card-figure">${instructorAvatar(instructorName, q.gym_id, instructorPhotoUrl)}</div>` : ''}
         </div>
         <div class="ab-card-footer">
           <span class="ab-countdown state-pending" data-start-at="${q.start_at}" data-release-at="${getClassReleaseTime(q, userSettings).toISO()}">
@@ -521,7 +552,7 @@ async function openAutoBookEditModal(q) {
     ]);
 
     const resolvedStudioId = q.studio_id || event.studioId;
-    const studioPrefs = resolvedStudioId ? allPrefs[resolvedStudioId] : null;
+    const studioPrefs = pickStudioPrefs(allPrefs, resolvedStudioId, q.gym_id);
 
     // Seed from the shared studio map (live source of truth), fall back to entry prefs
     const seedSlots = (studioPrefs?.preferredSlots || prefs.preferredSlots || []).map(Number);
@@ -565,7 +596,7 @@ async function openAutoBookEditModal(q) {
       controlsDiv.querySelector('#btn-save-autobook-edit').onclick = async () => {
         const qty = parseInt(controlsDiv.querySelector('#autobook-edit-qty').value) || 1;
         const fallbackAny = controlsDiv.querySelector('#autobook-edit-fallback').checked;
-        await saveAutoBookEdit(q.id, resolvedStudioId, [], [], qty, fallbackAny, closeModal);
+        await saveAutoBookEdit(q.id, resolvedStudioId, [], [], qty, fallbackAny, closeModal, q.gym_id);
       };
       return;
     }
@@ -604,7 +635,7 @@ async function openAutoBookEditModal(q) {
     renderStudioFloorPlan(editorContainer, layoutSlots, seedSlots, seedRows, async (slots, rows, container) => {
       const qty = parseInt(container.querySelector('#autobook-edit-qty')?.value || currentQty) || 1;
       const fallbackAny = container.querySelector('#autobook-edit-fallback')?.checked ?? currentBookAny;
-      await saveAutoBookEdit(q.id, resolvedStudioId, slots, rows, qty, fallbackAny, closeModal);
+      await saveAutoBookEdit(q.id, resolvedStudioId, slots, rows, qty, fallbackAny, closeModal, q.gym_id);
     }, {
       saveLabel: 'Save Changes',
       layoutObjects,
@@ -622,14 +653,15 @@ async function openAutoBookEditModal(q) {
 }
 
 // Save updated auto-book preferences (updates both the queue entry and the shared studio map)
-async function saveAutoBookEdit(entryId, studioId, slots, rows, qty, bookAny, closeModal) {
+async function saveAutoBookEdit(entryId, studioId, slots, rows, qty, bookAny, closeModal, gymId = null) {
   try {
     showToast('Saving auto-book changes...', 'info');
 
     // 1. Update the shared studio map (live source of truth for all features)
     if (studioId && (slots.length > 0 || rows.length > 0)) {
       try {
-        await api.updateStudioPreferences(studioId, { preferredSlots: slots, preferredRows: rows });
+        // Named explicitly: a studio id is unique only within its own gym.
+        await api.updateStudioPreferences(studioId, { preferredSlots: slots, preferredRows: rows }, gymId);
       } catch (e) {
         console.warn('[AutoBook] Could not persist studio map:', e.message);
       }

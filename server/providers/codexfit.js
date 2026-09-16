@@ -18,6 +18,11 @@ const { GymProvider } = require('./base');
 const bookingWindow = require('./booking-window');
 const { makeMetadata, makeProfile, makeEvent, makeSlot, makeLayoutObject, makeBookingResult, makeBooking } = require('./normalize');
 
+// Dev-mode bypass, aligned with MarianaTek's dev@jabboxing.mock convention.
+// login() must establish the sentinel session itself, since a fresh account
+// linking Psycle has no existing token for request() to recognise yet.
+const DEV_EMAIL = 'dev@psycle.com';
+
 // Matches the sentinel set by auth.js's dev@psycle.com bypass (db.updateUserJWT
 // with 'mock-jwt-token'). See request()'s doc comment below for why this check
 // lives here now, not just in the 5 pre-Phase-3 callers.
@@ -132,6 +137,17 @@ class CodexFitProvider extends GymProvider {
    * raw payload so legacy callers can read `raw.access_token` / `raw.user`.
    */
   async login({ email, password }) {
+    if (process.env.NODE_ENV !== 'production' && email === DEV_EMAIL) {
+      const session = {
+        accessToken: MOCK_TOKEN,
+        expiresAt: new Date(Date.now() + 365 * 864e5).toISOString(),
+      };
+      // Keep the mock profile on the same adapter path as an authenticated
+      // production profile; request() recognises MOCK_TOKEN and never fetches.
+      const profile = await this.getProfile(session);
+      return { session, profile, raw: { access_token: MOCK_TOKEN, mock: true } };
+    }
+
     const res = await fetch(this.url(this.gym.loginPath), {
       method: 'POST',
       headers: this.buildHeaders(null, true),
@@ -382,7 +398,11 @@ class CodexFitProvider extends GymProvider {
     const data = await res.json();
     const payload = data.data || data;
     const relations = data.relations || payload.relations || {};
-    const studio = (relations.studios && relations.studios[0]) || payload.studio;
+    // Match by id, same as resolveEventRelations() below — `relations.studios[0]`
+    // silently picked the wrong room whenever the bag carried more than one
+    // studio, so a class in a room with an open spot could resolve against an
+    // unrelated (full) room's layout and read as fully booked.
+    const studio = (relations.studios || []).find((s) => s.id === payload.studio_id) || payload.studio;
     const layoutSlots = (studio && studio.layout && studio.layout.slots) || [];
     // `slots` (available slot ids) is a SIBLING of `data`, not nested inside it
     // — confirmed via a real live capture 2026-07-03 (top-level keys: data,

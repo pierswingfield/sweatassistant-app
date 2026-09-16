@@ -1,6 +1,8 @@
 const { DateTime } = require('luxon');
 const db = require('./db');
 const pushService = require('./push');
+const { getGymConfig } = require('./gyms.config');
+const { isRollingWeekly } = require('./providers/booking-window');
 
 const ZONE = 'Europe/London';
 
@@ -12,6 +14,34 @@ const DEFAULT_PREFS = {
   cancellationReminder: { enabled: true, timing: '24h' }, // timing: '24h' | '14h'
   bookingWindow: { enabled: true },
 };
+
+/**
+ * Is the booking-window reminder on for THIS gym?
+ *
+ * Three layers, most specific first:
+ *   1. the member's own per-gym override (`bookingWindow.byGym[gymId]`)
+ *   2. the gym's configured default (`gyms.config.js → notifications`)
+ *   3. the gym's booking-window KIND — only a gym that releases at one moment a
+ *      week has anything to warn about, so a gym that omits the setting gets a
+ *      sensible answer instead of a guess.
+ *
+ * `bookingWindow.enabled` stays the account-level master switch: off means no
+ * booking-window pushes from any gym.
+ */
+function bookingWindowEnabledForGym(userId, gymId) {
+  const prefs = getPrefs(userId);
+  if (!prefs.bookingWindow.enabled) return false;
+
+  const override = (prefs.bookingWindow.byGym || {})[gymId];
+  if (typeof override === 'boolean') return override;
+
+  const cfg = getGymConfig(gymId);
+  if (!cfg) return false;
+  if (typeof cfg.notifications?.bookingWindowReminder === 'boolean') {
+    return cfg.notifications.bookingWindowReminder;
+  }
+  return isRollingWeekly(cfg);
+}
 
 // Merge a user's stored prefs over the defaults (shallow per-type merge).
 function getPrefs(userId) {
@@ -178,6 +208,7 @@ async function sendSample(userId, type) {
 module.exports = {
   DEFAULT_PREFS,
   getPrefs,
+  bookingWindowEnabledForGym,
   notify,
   sendSample,
   buildSample,

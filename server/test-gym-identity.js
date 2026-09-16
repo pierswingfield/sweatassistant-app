@@ -75,25 +75,27 @@ check('account email and gym email stay distinct on the merged user', () => {
   assert.notStrictEqual(user.email, user.gym_email, 'the two must not collapse into one');
 });
 
-check('gym_email resolves per active gym, not per account', () => {
+check('gym_email resolves per request-scoped gym, not per account', () => {
   const uid = db.createUser(uniq('perGym'), 'enc:pw');
   db.upsertUserGym(uid, DEFAULT_GYM, { gym_email: 'me@psycle.example' });
   db.upsertUserGym(uid, OTHER_GYM, { gym_email: 'me@jab.example' });
 
-  db.setActiveGym(uid, DEFAULT_GYM);
-  assert.strictEqual(db.getUserById(uid).gym_email, 'me@psycle.example');
-  db.setActiveGym(uid, OTHER_GYM);
-  assert.strictEqual(db.getUserById(uid).gym_email, 'me@jab.example',
-    'switching gyms switches which login identity resolves');
+  // No more setActiveGym/persisted choice (removed 2026-09-15, stage 4 of the
+  // active-gym audit) — `runWithGymContext` stands in for a real `x-gym-id`
+  // header the same way it does throughout the rest of the suite.
+  assert.strictEqual(db.getUserById(uid).gym_email, 'me@psycle.example', 'default with no context named');
+  db.runWithGymContext(uid, OTHER_GYM, () => {
+    assert.strictEqual(db.getUserById(uid).gym_email, 'me@jab.example',
+      'a different request gym resolves a different login identity');
+  });
 });
 
 check('a missing gym email reads as NULL — never as the account email', () => {
   const accountEmail = uniq('noFallback');
   const uid = db.createUser(accountEmail, 'enc:pw');
   db.upsertUserGym(uid, OTHER_GYM, { encrypted_password: 'enc:jab' }); // no gym_email
-  db.setActiveGym(uid, OTHER_GYM);
 
-  const user = db.getUserById(uid);
+  const user = db.runWithGymContext(uid, OTHER_GYM, () => db.getUserById(uid));
   assert.strictEqual(user.gym_email, null,
     'NULL means "cannot re-login unattended" and must stay NULL');
   assert.notStrictEqual(user.gym_email, accountEmail,

@@ -348,7 +348,14 @@ app.post('/api/notify/booking-success', authenticateToken, async (req, res) => {
 app.post('/api/bookings/sync', authenticateToken, (req, res) => {
   try {
     const { bookings } = req.body;
-    db.replaceBookingCache(req.userId, Array.isArray(bookings) ? bookings : []);
+    // The client syncs the MERGED list, so this call is authoritative for every
+    // linked gym: each row is filed under its own `gymId`, and a gym with no
+    // rows left is cleared rather than left holding stale reminders.
+    db.replaceBookingCache(
+      req.userId,
+      Array.isArray(bookings) ? bookings : [],
+      db.getUserGyms(req.userId).map((g) => g.gym_id),
+    );
     // Keep the calendar feed current the moment the client reports a change.
     try { calendar.regenerateSnapshot(req.userId); } catch (_) {}
     res.json({ success: true });
@@ -377,7 +384,7 @@ app.get('/api/auto-book', authenticateToken, (req, res) => {
 });
 
 app.post('/api/auto-book', authenticateToken, bookingMutationLimiter, (req, res) => {
-  const { eventId, studioId, className, instructorName, studioName, locationName, startAt, preferences, skipImmediate, groupName, creditShortfall, releaseAt, gymId: reqGymId } = req.body;
+  const { eventId, studioId, className, instructorName, instructorImageUrl, studioName, locationName, startAt, preferences, skipImmediate, groupName, creditShortfall, releaseAt, gymId: reqGymId } = req.body;
   if (!eventId || !preferences) {
     return res.status(400).json({ message: 'eventId and preferences are required' });
   }
@@ -390,7 +397,7 @@ app.post('/api/auto-book', authenticateToken, bookingMutationLimiter, (req, res)
     // Capture the class's own release instant when the gym publishes one (WP-D8).
     // A per-class gym's release has no weekday rule to recompute it from later,
     // so if it isn't stored now it is gone.
-    const id = db.addAutoBooking(req.userId, eventId, className, instructorName, studioName, locationName, startAt, preferences, studioId ?? null, groupName ?? null, releaseAt ?? null, gymId);
+    const id = db.addAutoBooking(req.userId, eventId, className, instructorName, studioName, locationName, startAt, preferences, studioId ?? null, groupName ?? null, releaseAt ?? null, gymId, instructorImageUrl ?? null);
 
     // Warn (via push) if the user set this up without enough credits.
     if (creditShortfall && creditShortfall > 0) {
@@ -412,7 +419,9 @@ app.post('/api/auto-book', authenticateToken, bookingMutationLimiter, (req, res)
 
     res.json({ id, success: true });
   } catch (err) {
-    res.status(500).json({ message: err.message });
+    // A gym-ambiguous write is a client bug (the caller didn't name its gym),
+    // not a server fault — say so with a 400 rather than a generic 500.
+    res.status(/no gym specified/i.test(err.message) ? 400 : 500).json({ message: err.message });
   }
 });
 
@@ -528,7 +537,8 @@ app.post('/api/auto-upgrade', authenticateToken, bookingMutationLimiter, (req, r
 
     res.json({ id, success: true });
   } catch (err) {
-    res.status(500).json({ message: err.message });
+    // See POST /api/auto-book: an unnamed gym on a multi-gym account is a 400.
+    res.status(/no gym specified/i.test(err.message) ? 400 : 500).json({ message: err.message });
   }
 });
 
@@ -571,12 +581,14 @@ app.get('/api/settings', authenticateToken, (req, res) => {
 
 app.put('/api/settings', authenticateToken, (req, res) => {
   try {
+    // A PATCH of just the changed keys. The gym comes from `x-gym-id` context
+    // and is only needed when the patch touches a gym-scoped key.
     db.setUserSettings(req.userId, req.body);
     // Calendar prefs (includeTentative / alarm) live in settings — republish on change.
     try { if (req.body && req.body.calendar) calendar.regenerateSnapshot(req.userId); } catch (_) {}
     res.json({ success: true });
   } catch (err) {
-    res.status(500).json({ message: err.message });
+    res.status(/no gym specified/i.test(err.message) ? 400 : 500).json({ message: err.message });
   }
 });
 
@@ -711,10 +723,13 @@ app.put('/api/studio-preferences/:id', authenticateToken, (req, res) => {
   const studioId = parseInt(req.params.id);
   const { preferences } = req.body;
   try {
+    // The gym comes from the request's `x-gym-id` context (the client names it
+    // on every spot-map save); a multi-gym account with none is a 400, not a
+    // silent write to whichever gym resolved.
     db.setStudioPreference(req.userId, studioId, preferences);
     res.json({ success: true });
   } catch (err) {
-    res.status(500).json({ message: err.message });
+    res.status(/no gym specified/i.test(err.message) ? 400 : 500).json({ message: err.message });
   }
 });
 
@@ -725,29 +740,44 @@ app.put('/api/studio-preferences/:id', authenticateToken, (req, res) => {
 app.get('/api/config/export', authenticateToken, (req, res) => {
   try {
     const settings = db.getUserSettings(req.userId) || {};
-    const studioPrefs = db.getStudioPreferences(req.userId) || [];
-    const autoBookings = db.getUserAutoBookings(req.userId) || [];
-    
-    const formattedPrefs = {};
-    studioPrefs.forEach(p => {
-      formattedPrefs[p.studio_id] = JSON.parse(p.preferences);
-    });
+    const gymIds = db.getUserGyms(req.userId).map((g) => g.gym_id).filter(Boolean);
 
-    const formattedBookings = autoBookings.map(b => ({
-      eventId: b.event_id,
-      className: b.class_name,
-      instructorName: b.instructor_name,
-      studioName: b.studio_name,
-      locationName: b.location_name,
-      startAt: b.start_at,
-      preferences: JSON.parse(b.preferences)
-    }));
+    // EVERY linked gym. Both of these are keyed by PROVIDER ids, which are
+    // unique only within one gym, so a backup that captured a single gym would
+    // restore one gym's spot maps over another's identically-numbered studios.
+    const formattedPrefs = {};      // legacy shape: { studioId: prefs } — one gym only
+    const studioPreferences = [];   // gym-qualified, what an import should read
+    const formattedBookings = [];
+    for (const gymId of gymIds) {
+      db.runWithGymContext(req.userId, gymId, () => {
+        for (const p of db.getStudioPreferences(req.userId) || []) {
+          const prefs = JSON.parse(p.preferences);
+          studioPreferences.push({ gymId, studioId: p.studio_id, preferences: prefs });
+          if (gymIds.length === 1) formattedPrefs[p.studio_id] = prefs;
+        }
+        for (const b of db.getUserAutoBookings(req.userId, gymId) || []) {
+          formattedBookings.push({
+            gymId,
+            eventId: b.event_id,
+            className: b.class_name,
+            instructorName: b.instructor_name,
+            studioName: b.studio_name,
+            locationName: b.location_name,
+            startAt: b.start_at,
+            preferences: JSON.parse(b.preferences),
+          });
+        }
+      });
+    }
 
     res.json({
-      version: '1.0.0',
+      version: '1.1.0',
       psycleSettings: settings,
+      // Kept for single-gym accounts so an export stays readable by an older
+      // build; `studioPreferences` is the one an import prefers.
       psycleStudioPreferences: formattedPrefs,
-      psycleAutoBookings: formattedBookings
+      studioPreferences,
+      psycleAutoBookings: formattedBookings,
     });
   } catch (err) {
     res.status(500).json({ message: err.message });
@@ -755,20 +785,32 @@ app.get('/api/config/export', authenticateToken, (req, res) => {
 });
 
 app.post('/api/config/import', authenticateToken, (req, res) => {
-  const { psycleSettings, psycleStudioPreferences, psycleAutoBookings } = req.body;
+  const { psycleSettings, psycleStudioPreferences, studioPreferences, psycleAutoBookings } = req.body;
   try {
     if (psycleSettings) {
       db.setUserSettings(req.userId, psycleSettings);
     }
-    if (psycleStudioPreferences) {
+
+    // Prefer the gym-qualified list. The legacy `{ studioId: prefs }` object
+    // carries no gym, so it can only be restored unambiguously onto a
+    // single-gym account — `setStudioPreference` refuses to guess otherwise
+    // rather than writing one gym's map onto another's studio.
+    if (Array.isArray(studioPreferences)) {
+      studioPreferences.forEach((p) => {
+        db.setStudioPreference(req.userId, p.studioId, p.preferences, p.gymId || null);
+      });
+    } else if (psycleStudioPreferences) {
       Object.entries(psycleStudioPreferences).forEach(([studioId, prefs]) => {
         db.setStudioPreference(req.userId, parseInt(studioId), prefs);
       });
     }
+
     if (psycleAutoBookings && Array.isArray(psycleAutoBookings)) {
       psycleAutoBookings.forEach(b => {
-        // Avoid adding duplicate bookings by checking if event is already in queue
-        const existing = db.getUserAutoBookings(req.userId).filter(x => x.event_id === b.eventId && x.executed_at === null);
+        // Duplicate check is per gym: the same provider event id can legitimately
+        // exist in two gyms' queues.
+        const existing = db.getUserAutoBookings(req.userId, b.gymId || undefined)
+          .filter(x => x.event_id === b.eventId && x.executed_at === null);
         if (existing.length === 0) {
           db.addAutoBooking(
             req.userId,
@@ -778,14 +820,18 @@ app.post('/api/config/import', authenticateToken, (req, res) => {
             b.studioName,
             b.locationName,
             b.startAt,
-            b.preferences
+            b.preferences,
+            null,
+            null,
+            null,
+            b.gymId || null,
           );
         }
       });
     }
     res.json({ success: true });
   } catch (err) {
-    res.status(500).json({ message: err.message });
+    res.status(/no gym specified/i.test(err.message) ? 400 : 500).json({ message: err.message });
   }
 });
 

@@ -93,6 +93,13 @@ const GYMS = {
       bookingWindow: 'rolling-weekly',   // mirrors bookingWindow.kind, for the UI
       maxSpotsPerClass: null,   // unmetered/credits-limited
     },
+    // Per-gym notification DEFAULTS. A member can override each one for this
+    // gym; this is what they get before they touch anything.
+    notifications: {
+      // Psycle releases at one moment a week, so "booking opens in an hour" is
+      // a real, actionable event worth a push.
+      bookingWindowReminder: true,
+    },
   },
 
   'jab-boxing': {
@@ -178,6 +185,12 @@ const GYMS = {
       bookmarks: false,         // no MT bookmarks API
       bookingWindow: 'per-class',   // mirrors bookingWindow.kind, for the UI
       maxSpotsPerClass: 1,      // 1 primary spot per member per class session
+    },
+    notifications: {
+      // JAB's window rolls continuously — each class opens at its own instant,
+      // so there is no weekly moment to warn about. A "booking opens in an
+      // hour" push here would be both untrue and unactionable.
+      bookingWindowReminder: false,
     },
   },
 };

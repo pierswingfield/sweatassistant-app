@@ -156,18 +156,22 @@ check('linking refuses an unknown or not-yet-enabled gym', async () => {
   }
 });
 
-check('two gyms can be linked and switched between', async () => {
+check('two gyms can be linked; each resolves via request context, not a stored choice', async () => {
   const email = uniq('twogyms');
   const uid = db.createUser(email, 'encrypted-blob');
   await auth.linkGymAccount(uid, 'jab-boxing', 'jab@test.local', GYM_PASSWORD);
 
   const gyms = db.getUserGymsPublic(uid).map((g) => g.gym_id).sort();
   assert.deepStrictEqual(gyms, ['jab-boxing', 'psycle-london']);
-  assert.strictEqual(db.resolveActiveGymId(uid), 'psycle-london', 'default wins until a choice is made');
-  db.setActiveGym(uid, 'jab-boxing');
-  assert.strictEqual(db.resolveActiveGymId(uid), 'jab-boxing');
-  assert.strictEqual(db.getUserById(uid).gym_id, 'jab-boxing',
-    'and the whole session/credential merge follows the switch');
+  assert.strictEqual(db.resolveActiveGymId(uid), 'psycle-london', 'default wins with no per-request gym named');
+  // No more setActiveGym/persisted choice (removed 2026-09-15, stage 4 of the
+  // active-gym audit) — a real request names its gym via the `x-gym-id`
+  // header, which `runWithGymContext` stands in for here.
+  db.runWithGymContext(uid, 'jab-boxing', () => {
+    assert.strictEqual(db.resolveActiveGymId(uid), 'jab-boxing');
+    assert.strictEqual(db.getUserById(uid).gym_id, 'jab-boxing',
+      'and the whole session/credential merge follows the request gym');
+  });
 });
 
 check('unlinking Psycle leaves a working JAB-only account (the D4 scenario, end to end)', async () => {

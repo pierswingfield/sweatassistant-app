@@ -765,10 +765,21 @@ export const api = {
     return result.data;
   },
 
-  async updateSettings(settings, gymId = null) {
+  /**
+   * Save ONLY the settings you changed — `{ theme: 'dark' }`, not the whole blob.
+   *
+   * Settings are stored in two places: account-scoped keys belong to the person,
+   * everything else belongs to one gym. Sending the whole blob meant every save
+   * rewrote the gym half too, with nothing saying WHICH gym — so a theme change
+   * silently wrote settings against whichever gym the server happened to pick.
+   *
+   * Pass `gymId` whenever the patch touches a gym-scoped key; the server refuses
+   * to guess one on a multi-gym account (400).
+   */
+  async updateSettings(patch, gymId = null) {
     const res = await apiFetch('/api/settings', {
       method: 'PUT',
-      body: JSON.stringify(settings),
+      body: JSON.stringify(patch),
       gymId,
     });
     if (!res.ok) {

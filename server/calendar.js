@@ -563,7 +563,9 @@ async function refreshUser(userId) {
 
       const bookings = await fetchUserBookings(userId, gymId);
       if (bookings) {
-        db.runWithGymContext(userId, gymId, () => db.replaceBookingCache(userId, bookings));
+        // Scoped to this gym: the loop handles each linked gym in turn, so one
+        // iteration must never clear or rewrite another's rows.
+        db.replaceBookingCache(userId, bookings.map((b) => ({ ...b, gymId })), [gymId]);
         totalBookings += bookings.length;
       }
 

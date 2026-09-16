@@ -1,5 +1,5 @@
 import { api, setToken, isLoggedIn } from './api';
-import { setGymContext, setLinkedGyms, applyCapabilityGates, can, getLinkedGyms } from './gym-context.js';
+import { setGymContext, setLinkedGyms, applyCapabilityGates, getLinkedGyms } from './gym-context.js';
 import { initTooltips } from './ui/tooltips';
 import { setupPullToRefresh } from './ui/pulltorefresh';
 import { setCacheKeyPrefix, clearApiCache, invalidateApiCache } from './cache.js';
@@ -835,7 +835,7 @@ function initConnectivity() {
 // fetch fresh credit counts from CodexFit.
 export async function loadGymContext() {
   try {
-    const [{ gyms: linked, activeGymId }, catalogueRes] = await Promise.all([
+    const [{ gyms: linked }, catalogueRes] = await Promise.all([
       api.getMyGyms(),
       api.getGyms(),
     ]);
@@ -846,7 +846,11 @@ export async function loadGymContext() {
     });
     setLinkedGyms(linkedFull);
 
-    const activeId = activeGymId || (linked && linked[0] && linked[0].gym_id);
+    // No "active gym" from the server any more (stage 4 of the active-gym
+    // audit) — `setGymContext` below is purely a client-side convenience
+    // default for single-gym accounts and any code that hasn't been threaded
+    // with an explicit gym yet, not a persisted choice.
+    const activeId = linked && linked[0] && linked[0].gym_id;
     const active = catalogue.find((g) => g.id === activeId);
     if (active) {
       setGymContext(active);
@@ -950,8 +954,12 @@ async function syncDetectedBookingWindow(profile, credits) {
     // either the offset or the serialised window changes.
     const windowChanged = JSON.stringify(userSettings.bookingWindow) !== JSON.stringify(detected);
     if (userSettings.detectedBookingOffset !== detected.offsetDays || windowChanged) {
-      const newSettings = { ...userSettings, detectedBookingOffset: detected.offsetDays, bookingWindow: detected };
-      await api.updateSettings(newSettings);
+      // Both keys are gym-scoped, and the window was derived from THIS profile's
+      // cutoffs — so it is saved against the gym the profile came from, which
+      // the route stamps on. Without that this wrote one gym's booking window
+      // onto whichever gym the server happened to resolve.
+      const newSettings = { detectedBookingOffset: detected.offsetDays, bookingWindow: detected };
+      await api.updateSettings(newSettings, profile.gymId || null);
       Object.assign(userSettings, newSettings);
       debugConsole(`[App] Detected booking window: ${detected.weeks} week(s) / ${detected.offsetDays}d (${detected.source})`);
     }

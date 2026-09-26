@@ -1,0 +1,182 @@
+{
+  "request": "GET /api/v1/customer/bundles",
+  "response": {
+    "data": [
+      {
+        "id": 11,
+        "type": "bundle",
+        "handle": "goodwill-studio-credit",
+        "name": "Goodwill Studio Credit",
+        "bundle_type_id": 32,
+        "description": "<p>1 Goodwill Credit</p>",
+        "badge": null,
+        "whats_included": null,
+        "credit_types_quantity": [
+          {
+            "qty": 1,
+            "credit_type": 1
+          }
+        ],
+        "total_credits": 1,
+        "price": 0,
+        "formatted_price": "£0.00",
+        "tax_rate": "20.00",
+        "expires_offset": "2 months",
+        "is_buy_now": false,
+        "is_first_purchase_only": false,
+        "is_one_time_purchase_only": false,
+        "is_voucher_purchase_allowed": false,
+        "is_featured": 0,
+        "metafields": {
+          "terms": null,
+          "compare_at": null,
+          "card_banner_text": null,
+          "card_banner_bg_color": null,
+          "card_banner_text_color": null
+        },
+        "tags": []
+      },
+      {
+        "id": 374,
+        "type": "bundle",
+        "handle": "intro-offer-4-weeks",
+        "name": "3 CLASSES (EXCL. LAGREE)",
+        "bundle_type_id": 1,
+        "description": "<p><strong>Get started with your first 3 classes.</strong></p>",
+        "badge": null,
+        "whats_included": null,
+        "credit_types_quantity": [
+          {
+            "qty": "3",
+            "credit_type": "8"
+          }
+        ],
+        "total_credits": 3,
+        "price": 5000,
+        "formatted_price": "£50.00",
+        "tax_rate": "20.00",
+        "expires_offset": "3 weeks",
+        "is_buy_now": true,
+        "is_first_purchase_only": false,
+        "is_one_time_purchase_only": true,
+        "is_voucher_purchase_allowed": true,
+        "is_featured": 1,
+        "metafields": {
+          "terms": "One time purchase. Not valid on Lagree.",
+          "compare_at": null,
+          "card_banner_text": "FIRST TIMER OFFER",
+          "card_banner_bg_color": "#CCFF00",
+          "card_banner_text_color": "#212121"
+        },
+        "tags": []
+      },
+      {
+        "id": 991,
+        "type": "bundle",
+        "handle": "all-access-intro-offer",
+        "name": "3 CLASSES (INCL. LAGREE)",
+        "bundle_type_id": 1,
+        "description": "<p><strong>Get started with your first 3 classes, valid across all workouts including Lagree.</strong></p>",
+        "badge": null,
+        "whats_included": null,
+        "credit_types_quantity": [
+          {
+            "qty": "3",
+            "credit_type": "72"
+          }
+        ],
+        "total_credits": 3,
+        "price": 6000,
+        "formatted_price": "£60.00",
+        "tax_rate": "20.00",
+        "expires_offset": "3 weeks",
+        "is_buy_now": true,
+        "is_first_purchase_only": false,
+        "is_one_time_purchase_only": true,
+        "is_voucher_purchase_allowed": true,
+        "is_featured": 2,
+        "metafields": {
+          "terms": "One time purchase. Valid on all workouts.",
+          "compare_at": null,
+          "card_banner_text": "FIRST TIMER OFFER",
+          "card_banner_bg_color": "#CCFF00",
+          "card_banner_text_color": "#212121"
+        },
+        "tags": []
+      },
+      {
+        "id": 832,
+        "type": "bundle",
+        "handle": "2-week-unlimited-intro",
+        "name": "2 Week Unlimited",
+        "bundle_type_id": 48,
+        "description": "<p>Get started with 2 weeks of unlimited classes*.</p>",
+        "badge": null,
+        "whats_included": null,
+        "credit_types_quantity": [
+          {
+            "qty": 14,
+            "credit_type": 1
+          }
+        ],
+        "total_credits": 14,
+        "price": 10000,
+        "formatted_price": "£100.00",
+        "tax_rate": "20.00",
+        "expires_offset": "2 weeks",
+        "is_buy_now": true,
+        "is_first_purchase_only": false,
+        "is_one_time_purchase_only": true,
+        "is_voucher_purchase_allowed": true,
+        "is_featured": 3,
+        "metafields": {
+          "terms": "*Max. 14 credits. One purchase per customer. No show and late cancellation penalties apply. Not valid on Lagree.",
+          "compare_at": null,
+          "card_banner_text": "MOST POPULAR",
+          "card_banner_bg_color": "#00684C",
+          "card_banner_text_color": "#F4F3F0"
+        },
+        "tags": []
+      },
+      {
+        "id": 845,
+        "type": "bundle",
+        "handle": "sale-10-credit-pack",
+        "name": "SALE: 10 CREDIT PACK",
+        "bundle_type_id": 42,
+        "description": null,
+        "badge": null,
+        "whats_included": null,
+        "credit_types_quantity": [
+          {
+            "qty": "10",
+            "credit_type": "1"
+          },
+          {
+            "qty": null,
+            "credit_type": null
+          }
+        ],
+        "total_credits": 10,
+        "price": 19500,
+        "formatted_price": "£195.00",
+        "tax_rate": "20.00",
+        "expires_offset": "3 months",
+        "is_buy_now": false,
+        "is_first_purchase_only": false,
+        "is_one_time_purchase_only": false,
+        "is_voucher_purchase_allowed": false,
+        "is_featured": 4,
+        "metafields": {
+          "terms": "Not valid on Lagree.",
+          "compare_at": "£230",
+          "card_banner_text": "SUMMER SALE",
+          "card_banner_bg_color": "#CCFF00",
+          "card_banner_text_color": "#212121"
+        },
+        "tags": []
+      }
+    ]
+  },
+  "note": "Truncated to first 5 of 199 bundles for fixture size; full shape preserved."
+}

@@ -1,0 +1,885 @@
+{
+  "init_empty_cart": {
+    "request": "POST /api/customer/v2/cart  body: {}",
+    "response": {
+      "data": {
+        "order_id": null,
+        "uuid": "ca62c540-7f19-40bd-b502-0cc51273fd45",
+        "finalised_at": null,
+        "currency": "GBP",
+        "persist": false,
+        "metadata": {
+          "organisation": null
+        },
+        "administrator": null,
+        "customer": {
+          "id": 52155,
+          "first_name": "REDACTED_FIRST_NAME",
+          "last_name": "REDACTED_LAST_NAME",
+          "full_name": "REDACTED_FULL_NAME",
+          "email": "REDACTED_EMAIL",
+          "telephone": "REDACTED_PHONE",
+          "dob": "REDACTED_DOB",
+          "username": "REDACTED_USERNAME",
+          "referral_code": "REDACTED_REFERRAL_CODE",
+          "referrer_id": null,
+          "email_credit_expiry_notifications": true,
+          "email_booking_reminder_notifications": null,
+          "hide_from_social": null,
+          "friend_notifications_enabled": true,
+          "friend_request_notifications_enabled": true,
+          "always_book_incognito": false,
+          "allow_friend_requests": true,
+          "share_full_name": true,
+          "share_email": false,
+          "email_verified_at": "2020-04-17T18:03:31.000000Z",
+          "metafields": {
+            "id": 52194,
+            "vip": "null",
+            "notes": null,
+            "gender": "male",
+            "public": {
+              "bookmarks": {
+                "events": [
+                  "1080000300001830",
+                  "1080000300000630"
+                ]
+              }
+            },
+            "address_1": "REDACTED_ADDRESS",
+            "address_2": "REDACTED_ADDRESS",
+            "address_3": "London",
+            "own_shoes": 0,
+            "shoe_size": 44,
+            "telephone": "REDACTED_PHONE",
+            "hcrw_notes": null,
+            "opt_in_sms": "1",
+            "seat_height": "7",
+            "v4announced": "2026-08-07T11:11:56+01:00",
+            "opt_in_email": "1",
+            "sms_verified": 1,
+            "eauth_user_id": 52155,
+            "hcrw_verified": 1,
+            "booking_period": 1,
+            "referred_by_id": null,
+            "stripe_cust_id": "REDACTED_STRIPE_CUSTOMER_ID",
+            "seat_horizontal": null,
+            "address_postcode": "REDACTED_POSTCODE",
+            "handlebar_height": null,
+            "where_did_you_hear": "Work colleague / employer",
+            "seat_horizontal_old": null,
+            "handlebar_horizontal": null,
+            "email_first_nudge_sent": 0,
+            "emergency_contact_name": "REDACTED_NAME",
+            "email_second_nudge_sent": 0,
+            "emergency_contact_mobile": "REDACTED_PHONE",
+            "extended_booking_allowed": "null",
+            "last_milestone_email_sent": 551,
+            "emergency_contact_relationship": "Parent",
+            "first_class_attended_email_sent": 0,
+            "marketing_preference_updated_at": 1526892333,
+            "third_class_attended_email_sent": 0
+          },
+          "analytics_consent": {
+            "source": "checkout",
+            "updated_at": "2026-09-26T22:16:34+01:00",
+            "ad_user_data": "DENIED",
+            "ad_personalization": "DENIED"
+          },
+          "auto_topup_threshold": null,
+          "auto_topup_bundle_id": null,
+          "created_at": "2016-08-13T07:09:16.000000Z",
+          "updated_at": "2026-09-26T21:16:34.000000Z",
+          "deleted_at": null,
+          "stripe_id": "REDACTED_STRIPE_CUSTOMER_ID",
+          "pm_type": "REDACTED_CARD_BRAND",
+          "pm_last_four": "REDACTED_LAST4",
+          "trial_ends_at": null,
+          "tags": [
+            {
+              "id": 567,
+              "name": {
+                "en-_g_b": "organisation:psycle"
+              },
+              "slug": {
+                "en-_g_b": "organisation:psycle"
+              },
+              "type": "customer",
+              "order_column": 311,
+              "created_at": "2022-04-28T11:10:42.000000Z",
+              "updated_at": "2022-04-28T11:10:42.000000Z",
+              "icon": null,
+              "color": null,
+              "override_booking_window": null,
+              "is_visible_on_listing": 0,
+              "pivot": {
+                "taggable_type": "App\\Customer",
+                "taggable_id": 52155,
+                "tag_id": 567
+              }
+            },
+            {
+              "id": 609,
+              "name": {
+                "en-_g_b": "free-buddy-credit-bulk-assignment"
+              },
+              "slug": {
+                "en-_g_b": "free-buddy-credit-bulk-assignment"
+              },
+              "type": null,
+              "order_column": 350,
+              "created_at": "2023-02-09T09:53:49.000000Z",
+              "updated_at": "2023-02-09T09:53:49.000000Z",
+              "icon": null,
+              "color": null,
+              "override_booking_window": null,
+              "is_visible_on_listing": 0,
+              "pivot": {
+                "taggable_type": "App\\Customer",
+                "taggable_id": 52155,
+                "tag_id": 609
+              }
+            }
+          ]
+        },
+        "voucher": null,
+        "price": "£0.00",
+        "price_raw": 0,
+        "original_price": "£0.00",
+        "base_price": "£0.00",
+        "base_price_raw": 0,
+        "discount": "£0.00",
+        "discount_raw": 0,
+        "tax": "£0.00",
+        "tax_raw": 0,
+        "ongoing_price": "£0.00",
+        "ongoing_price_raw": 0,
+        "original_ongoing_price": "£0.00",
+        "original_ongoing_price_raw": 0,
+        "base_ongoing_price": "£0.00",
+        "ongoing_discount": "£0.00",
+        "ongoing_discount_raw": 0,
+        "ongoing_tax": "£0.00",
+        "ongoing_tax_raw": 0,
+        "shipping": "£0.00",
+        "shipping_raw": 0,
+        "balance": "£0.00",
+        "balance_raw": 0,
+        "lines": [],
+        "discounts": [],
+        "taxes": {
+          "tax0": {
+            "name": "VAT",
+            "amount": "£0.00",
+            "amount_raw": 0,
+            "amount_ongoing": "£0.00",
+            "amount_ongoing_raw": 0
+          }
+        },
+        "payment_methods": [],
+        "shipping_methods": [],
+        "voucher_valid": false,
+        "voucher_invalid_because": "",
+        "order": null
+      },
+      "payment_methods": [
+        "card"
+      ]
+    },
+    "finding": "CONTRADICTS psycle_codexfit.md 2.5.2.1: the doc example shows metadata.stripe.secret present even on an EMPTY cart. Live capture shows metadata = {\"organisation\": null} with NO stripe key at all when the cart has no lines."
+  },
+  "add_line": {
+    "request": "POST /api/customer/v2/cart/ca62c540-7f19-40bd-b502-0cc51273fd45/lines  body: {\"type\":\"bundle\",\"id\":2}",
+    "response": {
+      "data": {
+        "id": 1262928,
+        "buyable_id": 2,
+        "buyable_type": "Bundle",
+        "buyable": {
+          "id": 2,
+          "handle": "single",
+          "name": "All Access Single Credit",
+          "internal_name": "Single Credit",
+          "bundle_type_id": 1,
+          "description": "<p></p>",
+          "whats_included": "<p></p>",
+          "badge": null,
+          "credit_types_quantity": [
+            {
+              "qty": 1,
+              "credit_type": 72
+            }
+          ],
+          "total_credits": 1,
+          "price": 2900,
+          "tax_rate": "20.00",
+          "expires_offset": "1 months",
+          "max_bookings_per_event": null,
+          "is_buy_now": true,
+          "is_first_purchase_only": false,
+          "is_one_time_purchase_only": false,
+          "is_voucher_purchase_allowed": true,
+          "is_transferrable": 0,
+          "is_discountable": 1,
+          "is_auto_topup": false,
+          "order": 14,
+          "is_visible_on_auto_topup": false,
+          "is_visible": true,
+          "additional_reminder_threshold": null,
+          "additional_reminder_offset": null,
+          "visible_for_tags": "",
+          "visible_to_non_account_holders": true,
+          "metafields": {
+            "terms": "Valid for all workouts, including Lagree.",
+            "compare_at": null,
+            "card_banner_text": "VALID FOR ALL WORKOUTS",
+            "card_banner_bg_color": "#00684C",
+            "card_banner_text_color": "#F4F3F0"
+          },
+          "available_from": null,
+          "available_until": null,
+          "location_restriction_id": null,
+          "color": null,
+          "background_image": null,
+          "sales_cap_enabled": false,
+          "sales_cap_quantity": null,
+          "sales_cap_sold_out_behaviour": "show_sold_out",
+          "sales_cap_notify_threshold": 80,
+          "sales_cap_notified_at": null,
+          "sales_cap_notified_stage": null,
+          "sales_cap_sold_count": 0,
+          "sales_cap_notify_subject": null,
+          "sales_cap_notify_body": null,
+          "cost_centre_id": null
+        },
+        "name": "All Access Single Credit",
+        "hash": "ff83acccc64eee7521714a704b16fb22",
+        "quantity": 1,
+        "original_price": "£29.00",
+        "original_price_raw": 2900,
+        "original_ongoing_price": "£0.00",
+        "original_ongoing_price_raw": 0,
+        "item_price": "£29.00",
+        "item_price_raw": 2900,
+        "item_ongoing_price": "£0.00",
+        "item_ongoing_price_raw": 0,
+        "line_original_price": "£29.00",
+        "line_original_ongoing_price": "£0.00",
+        "line_original_price_raw": 2900,
+        "line_original_ongoing_price_raw": 0,
+        "line_base_price": "£29.00",
+        "line_base_price_raw": 2900,
+        "line_base_ongoing_price": "£0.00",
+        "line_base_ongoing_price_raw": 0,
+        "line_ongoing_description": "",
+        "is_discountable": true,
+        "properties": [],
+        "policy": null,
+        "line_price": "£29.00",
+        "line_price_raw": 2900,
+        "line_ongoing_price": "£0.00",
+        "line_ongoing_price_raw": 0,
+        "line_tax": "£4.83",
+        "line_tax_raw": 483,
+        "line_ongoing_tax": "£0.00",
+        "line_ongoing_tax_raw": 0,
+        "line_discount": "£0.00",
+        "line_discount_raw": 0,
+        "line_ongoing_discount": "£0.00",
+        "line_ongoing_discount_raw": 0,
+        "line_item_discount": "£0.00",
+        "line_item_discount_raw": 0,
+        "line_item_ongoing_discount": "£0.00",
+        "line_item_ongoing_discount_raw": 0,
+        "discounts": [],
+        "line_item_discounts": [],
+        "taxes": {
+          "tax0": {
+            "name": "VAT @ 20.00%",
+            "amount": "£4.83",
+            "amountRaw": 483,
+            "ongoingAmount": "£0.00",
+            "ongoingAmountRaw": 0,
+            "taxRate": "20.00"
+          }
+        },
+        "shipping": {
+          "shippingMethodDigitalDelivery0": {
+            "name": "Digital Delivery",
+            "amount": "£0.00",
+            "amountRaw": 0,
+            "driver": "digital_delivery"
+          }
+        },
+        "line_shipping": "£0.00",
+        "line_shipping_raw": 0,
+        "cart_uuid": "ca62c540-7f19-40bd-b502-0cc51273fd45"
+      },
+      "message": "Added to cart"
+    },
+    "finding": "CONTRADICTS psycle_codexfit.md 2.5.2.3: doc shows body {\"type\":\"bundle\",\"id\":792,\"quantity\":1}. Live site sends NO quantity field at all — just {\"type\":\"bundle\",\"id\":<bundleId>}. Server defaults quantity to 1."
+  },
+  "cart_after_add_line": {
+    "request": "GET /api/customer/v2/cart/{uuid}",
+    "response": {
+      "data": {
+        "order_id": null,
+        "uuid": "ca62c540-7f19-40bd-b502-0cc51273fd45",
+        "finalised_at": null,
+        "currency": "GBP",
+        "persist": false,
+        "metadata": {
+          "stripe": {
+            "type": "payment",
+            "amount": 2900,
+            "intent": "REDACTED_PAYMENT_INTENT",
+            "secret": "REDACTED_PAYMENT_INTENT_secret_REDACTED",
+            "currency": "GBP",
+            "amount_ongoing": 0
+          },
+          "organisation": null,
+          "stripe_cache": {
+            "payment": {
+              "type": "payment",
+              "amount": 2900,
+              "intent": "REDACTED_PAYMENT_INTENT",
+              "secret": "REDACTED_PAYMENT_INTENT_secret_REDACTED",
+              "currency": "GBP",
+              "amount_ongoing": 0
+            }
+          }
+        },
+        "administrator": null,
+        "customer": {
+          "id": 52155,
+          "first_name": "REDACTED_FIRST_NAME",
+          "last_name": "REDACTED_LAST_NAME",
+          "full_name": "REDACTED_FULL_NAME",
+          "email": "REDACTED_EMAIL",
+          "telephone": "REDACTED_PHONE",
+          "dob": "REDACTED_DOB",
+          "username": "REDACTED_USERNAME",
+          "referral_code": "REDACTED_REFERRAL_CODE",
+          "referrer_id": null,
+          "email_credit_expiry_notifications": true,
+          "email_booking_reminder_notifications": null,
+          "hide_from_social": null,
+          "friend_notifications_enabled": true,
+          "friend_request_notifications_enabled": true,
+          "always_book_incognito": false,
+          "allow_friend_requests": true,
+          "share_full_name": true,
+          "share_email": false,
+          "email_verified_at": "2020-04-17T18:03:31.000000Z",
+          "metafields": {
+            "id": 52194,
+            "vip": "null",
+            "notes": null,
+            "gender": "male",
+            "public": {
+              "bookmarks": {
+                "events": [
+                  "1080000300001830",
+                  "1080000300000630"
+                ]
+              }
+            },
+            "address_1": "REDACTED_ADDRESS",
+            "address_2": "REDACTED_ADDRESS",
+            "address_3": "London",
+            "own_shoes": 0,
+            "shoe_size": 44,
+            "telephone": "REDACTED_PHONE",
+            "hcrw_notes": null,
+            "opt_in_sms": "1",
+            "seat_height": "7",
+            "v4announced": "2026-08-07T11:11:56+01:00",
+            "opt_in_email": "1",
+            "sms_verified": 1,
+            "eauth_user_id": 52155,
+            "hcrw_verified": 1,
+            "booking_period": 1,
+            "referred_by_id": null,
+            "stripe_cust_id": "REDACTED_STRIPE_CUSTOMER_ID",
+            "seat_horizontal": null,
+            "address_postcode": "REDACTED_POSTCODE",
+            "handlebar_height": null,
+            "where_did_you_hear": "Work colleague / employer",
+            "seat_horizontal_old": null,
+            "handlebar_horizontal": null,
+            "email_first_nudge_sent": 0,
+            "emergency_contact_name": "REDACTED_NAME",
+            "email_second_nudge_sent": 0,
+            "emergency_contact_mobile": "REDACTED_PHONE",
+            "extended_booking_allowed": "null",
+            "last_milestone_email_sent": 551,
+            "emergency_contact_relationship": "Parent",
+            "first_class_attended_email_sent": 0,
+            "marketing_preference_updated_at": 1526892333,
+            "third_class_attended_email_sent": 0
+          },
+          "analytics_consent": {
+            "source": "web",
+            "updated_at": "2026-09-26T22:35:03+01:00",
+            "ad_user_data": "DENIED",
+            "ad_personalization": "DENIED"
+          },
+          "auto_topup_threshold": null,
+          "auto_topup_bundle_id": null,
+          "created_at": "2016-08-13T07:09:16.000000Z",
+          "updated_at": "2026-09-26T21:35:03.000000Z",
+          "deleted_at": null,
+          "stripe_id": "REDACTED_STRIPE_CUSTOMER_ID",
+          "pm_type": "REDACTED_CARD_BRAND",
+          "pm_last_four": "REDACTED_LAST4",
+          "trial_ends_at": null,
+          "tags": [
+            {
+              "id": 567,
+              "name": {
+                "en-_g_b": "organisation:psycle"
+              },
+              "slug": {
+                "en-_g_b": "organisation:psycle"
+              },
+              "type": "customer",
+              "order_column": 311,
+              "created_at": "2022-04-28T11:10:42.000000Z",
+              "updated_at": "2022-04-28T11:10:42.000000Z",
+              "icon": null,
+              "color": null,
+              "override_booking_window": null,
+              "is_visible_on_listing": 0,
+              "pivot": {
+                "taggable_type": "App\\Customer",
+                "taggable_id": 52155,
+                "tag_id": 567
+              }
+            },
+            {
+              "id": 609,
+              "name": {
+                "en-_g_b": "free-buddy-credit-bulk-assignment"
+              },
+              "slug": {
+                "en-_g_b": "free-buddy-credit-bulk-assignment"
+              },
+              "type": null,
+              "order_column": 350,
+              "created_at": "2023-02-09T09:53:49.000000Z",
+              "updated_at": "2023-02-09T09:53:49.000000Z",
+              "icon": null,
+              "color": null,
+              "override_booking_window": null,
+              "is_visible_on_listing": 0,
+              "pivot": {
+                "taggable_type": "App\\Customer",
+                "taggable_id": 52155,
+                "tag_id": 609
+              }
+            }
+          ]
+        },
+        "voucher": null,
+        "price": "£29.00",
+        "price_raw": 2900,
+        "original_price": "£29.00",
+        "base_price": "£29.00",
+        "base_price_raw": 2900,
+        "discount": "£0.00",
+        "discount_raw": 0,
+        "tax": "£4.83",
+        "tax_raw": 483,
+        "ongoing_price": "£0.00",
+        "ongoing_price_raw": 0,
+        "original_ongoing_price": "£0.00",
+        "original_ongoing_price_raw": 0,
+        "base_ongoing_price": "£0.00",
+        "ongoing_discount": "£0.00",
+        "ongoing_discount_raw": 0,
+        "ongoing_tax": "£0.00",
+        "ongoing_tax_raw": 0,
+        "shipping": "£0.00",
+        "shipping_raw": 0,
+        "balance": "£29.00",
+        "balance_raw": 2900,
+        "lines": [
+          {
+            "id": 1262928,
+            "buyable_id": 2,
+            "buyable_type": "Bundle",
+            "buyable": {
+              "id": 2,
+              "handle": "single",
+              "name": "All Access Single Credit",
+              "internal_name": "Single Credit",
+              "bundle_type_id": 1,
+              "description": "<p></p>",
+              "whats_included": "<p></p>",
+              "badge": null,
+              "credit_types_quantity": [
+                {
+                  "qty": 1,
+                  "credit_type": 72
+                }
+              ],
+              "total_credits": 1,
+              "price": 2900,
+              "tax_rate": "20.00",
+              "expires_offset": "1 months",
+              "max_bookings_per_event": null,
+              "is_buy_now": true,
+              "is_first_purchase_only": false,
+              "is_one_time_purchase_only": false,
+              "is_voucher_purchase_allowed": true,
+              "is_transferrable": 0,
+              "is_discountable": 1,
+              "is_auto_topup": false,
+              "order": 14,
+              "is_visible_on_auto_topup": false,
+              "is_visible": true,
+              "additional_reminder_threshold": null,
+              "additional_reminder_offset": null,
+              "visible_for_tags": "",
+              "visible_to_non_account_holders": true,
+              "metafields": {
+                "terms": "Valid for all workouts, including Lagree.",
+                "compare_at": null,
+                "card_banner_text": "VALID FOR ALL WORKOUTS",
+                "card_banner_bg_color": "#00684C",
+                "card_banner_text_color": "#F4F3F0"
+              },
+              "available_from": null,
+              "available_until": null,
+              "location_restriction_id": null,
+              "color": null,
+              "background_image": null,
+              "sales_cap_enabled": false,
+              "sales_cap_quantity": null,
+              "sales_cap_sold_out_behaviour": "show_sold_out",
+              "sales_cap_notify_threshold": 80,
+              "sales_cap_notified_at": null,
+              "sales_cap_notified_stage": null,
+              "sales_cap_sold_count": 0,
+              "sales_cap_notify_subject": null,
+              "sales_cap_notify_body": null,
+              "cost_centre_id": null
+            },
+            "name": "All Access Single Credit",
+            "hash": "ff83acccc64eee7521714a704b16fb22",
+            "quantity": 1,
+            "original_price": "£29.00",
+            "original_price_raw": 2900,
+            "original_ongoing_price": "£0.00",
+            "original_ongoing_price_raw": 0,
+            "item_price": "£29.00",
+            "item_price_raw": 2900,
+            "item_ongoing_price": "£0.00",
+            "item_ongoing_price_raw": 0,
+            "line_original_price": "£29.00",
+            "line_original_ongoing_price": "£0.00",
+            "line_original_price_raw": 2900,
+            "line_original_ongoing_price_raw": 0,
+            "line_base_price": "£29.00",
+            "line_base_price_raw": 2900,
+            "line_base_ongoing_price": "£0.00",
+            "line_base_ongoing_price_raw": 0,
+            "line_ongoing_description": "",
+            "is_discountable": true,
+            "properties": [],
+            "policy": null,
+            "line_price": "£29.00",
+            "line_price_raw": 2900,
+            "line_ongoing_price": "£0.00",
+            "line_ongoing_price_raw": 0,
+            "line_tax": "£4.83",
+            "line_tax_raw": 483,
+            "line_ongoing_tax": "£0.00",
+            "line_ongoing_tax_raw": 0,
+            "line_discount": "£0.00",
+            "line_discount_raw": 0,
+            "line_ongoing_discount": "£0.00",
+            "line_ongoing_discount_raw": 0,
+            "line_item_discount": "£0.00",
+            "line_item_discount_raw": 0,
+            "line_item_ongoing_discount": "£0.00",
+            "line_item_ongoing_discount_raw": 0,
+            "discounts": [],
+            "line_item_discounts": [],
+            "taxes": {
+              "tax0": {
+                "name": "VAT @ 20.00%",
+                "amount": "£4.83",
+                "amount_raw": 483,
+                "ongoing_amount": "£0.00",
+                "ongoing_amount_raw": 0,
+                "tax_rate": "20.00"
+              }
+            },
+            "shipping": {
+              "shipping_method_digital_delivery0": {
+                "name": "Digital Delivery",
+                "amount": "£0.00",
+                "amount_raw": 0,
+                "driver": "digital_delivery"
+              }
+            },
+            "line_shipping": "£0.00",
+            "line_shipping_raw": 0
+          }
+        ],
+        "discounts": [],
+        "taxes": {
+          "tax0": {
+            "name": "VAT",
+            "amount": "£4.83",
+            "amount_raw": 483,
+            "amount_ongoing": "£0.00",
+            "amount_ongoing_raw": 0
+          }
+        },
+        "payment_methods": [],
+        "shipping_methods": {
+          "shipping_method_digital_delivery0": {
+            "name": "Digital Delivery",
+            "amount": "£0.00",
+            "amount_raw": 0,
+            "driver": "digital_delivery",
+            "cutoff_minutes": null,
+            "applies_to_lines": [
+              1262928
+            ]
+          }
+        },
+        "voucher_valid": false,
+        "voucher_invalid_because": "",
+        "order": null
+      },
+      "payment_methods": [
+        "card"
+      ]
+    },
+    "finding": "metadata.stripe now present: {type:\"payment\", amount:2900, intent: pi_..., secret: pi_..._secret_...} — a real Stripe PaymentIntent for the exact line total. Only appears once a line exists."
+  },
+  "remove_line": {
+    "request": "DELETE /api/customer/v2/cart/ca62c540-7f19-40bd-b502-0cc51273fd45/lines/ff83acccc64eee7521714a704b16fb22",
+    "response": {
+      "message": "Removed from cart"
+    }
+  },
+  "cart_after_remove": {
+    "request": "GET /api/customer/v2/cart/{uuid}",
+    "response": {
+      "data": {
+        "order_id": null,
+        "uuid": "ca62c540-7f19-40bd-b502-0cc51273fd45",
+        "finalised_at": null,
+        "currency": "GBP",
+        "persist": false,
+        "metadata": {
+          "stripe": {
+            "type": "setup",
+            "amount": 0,
+            "intent": "REDACTED_SETUP_INTENT",
+            "secret": "REDACTED_SETUP_INTENT_secret_REDACTED",
+            "currency": "GBP",
+            "amount_ongoing": 0
+          },
+          "organisation": null,
+          "stripe_cache": {
+            "setup": {
+              "type": "setup",
+              "amount": 0,
+              "intent": "REDACTED_SETUP_INTENT",
+              "secret": "REDACTED_SETUP_INTENT_secret_REDACTED",
+              "currency": "GBP",
+              "amount_ongoing": 0
+            },
+            "payment": {
+              "type": "payment",
+              "amount": 2900,
+              "intent": "REDACTED_PAYMENT_INTENT",
+              "secret": "REDACTED_PAYMENT_INTENT_secret_REDACTED",
+              "currency": "GBP",
+              "amount_ongoing": 0
+            }
+          }
+        },
+        "administrator": null,
+        "customer": {
+          "id": 52155,
+          "first_name": "REDACTED_FIRST_NAME",
+          "last_name": "REDACTED_LAST_NAME",
+          "full_name": "REDACTED_FULL_NAME",
+          "email": "REDACTED_EMAIL",
+          "telephone": "REDACTED_PHONE",
+          "dob": "REDACTED_DOB",
+          "username": "REDACTED_USERNAME",
+          "referral_code": "REDACTED_REFERRAL_CODE",
+          "referrer_id": null,
+          "email_credit_expiry_notifications": true,
+          "email_booking_reminder_notifications": null,
+          "hide_from_social": null,
+          "friend_notifications_enabled": true,
+          "friend_request_notifications_enabled": true,
+          "always_book_incognito": false,
+          "allow_friend_requests": true,
+          "share_full_name": true,
+          "share_email": false,
+          "email_verified_at": "2020-04-17T18:03:31.000000Z",
+          "metafields": {
+            "id": 52194,
+            "vip": "null",
+            "notes": null,
+            "gender": "male",
+            "public": {
+              "bookmarks": {
+                "events": [
+                  "1080000300001830",
+                  "1080000300000630"
+                ]
+              }
+            },
+            "address_1": "REDACTED_ADDRESS",
+            "address_2": "REDACTED_ADDRESS",
+            "address_3": "London",
+            "own_shoes": 0,
+            "shoe_size": 44,
+            "telephone": "REDACTED_PHONE",
+            "hcrw_notes": null,
+            "opt_in_sms": "1",
+            "seat_height": "7",
+            "v4announced": "2026-08-07T11:11:56+01:00",
+            "opt_in_email": "1",
+            "sms_verified": 1,
+            "eauth_user_id": 52155,
+            "hcrw_verified": 1,
+            "booking_period": 1,
+            "referred_by_id": null,
+            "stripe_cust_id": "REDACTED_STRIPE_CUSTOMER_ID",
+            "seat_horizontal": null,
+            "address_postcode": "REDACTED_POSTCODE",
+            "handlebar_height": null,
+            "where_did_you_hear": "Work colleague / employer",
+            "seat_horizontal_old": null,
+            "handlebar_horizontal": null,
+            "email_first_nudge_sent": 0,
+            "emergency_contact_name": "REDACTED_NAME",
+            "email_second_nudge_sent": 0,
+            "emergency_contact_mobile": "REDACTED_PHONE",
+            "extended_booking_allowed": "null",
+            "last_milestone_email_sent": 551,
+            "emergency_contact_relationship": "Parent",
+            "first_class_attended_email_sent": 0,
+            "marketing_preference_updated_at": 1526892333,
+            "third_class_attended_email_sent": 0
+          },
+          "analytics_consent": {
+            "source": "web",
+            "updated_at": "2026-09-26T22:36:51+01:00",
+            "ad_user_data": "DENIED",
+            "ad_personalization": "DENIED"
+          },
+          "auto_topup_threshold": null,
+          "auto_topup_bundle_id": null,
+          "created_at": "2016-08-13T07:09:16.000000Z",
+          "updated_at": "2026-09-26T21:36:51.000000Z",
+          "deleted_at": null,
+          "stripe_id": "REDACTED_STRIPE_CUSTOMER_ID",
+          "pm_type": "REDACTED_CARD_BRAND",
+          "pm_last_four": "REDACTED_LAST4",
+          "trial_ends_at": null,
+          "tags": [
+            {
+              "id": 567,
+              "name": {
+                "en-_g_b": "organisation:psycle"
+              },
+              "slug": {
+                "en-_g_b": "organisation:psycle"
+              },
+              "type": "customer",
+              "order_column": 311,
+              "created_at": "2022-04-28T11:10:42.000000Z",
+              "updated_at": "2022-04-28T11:10:42.000000Z",
+              "icon": null,
+              "color": null,
+              "override_booking_window": null,
+              "is_visible_on_listing": 0,
+              "pivot": {
+                "taggable_type": "App\\Customer",
+                "taggable_id": 52155,
+                "tag_id": 567
+              }
+            },
+            {
+              "id": 609,
+              "name": {
+                "en-_g_b": "free-buddy-credit-bulk-assignment"
+              },
+              "slug": {
+                "en-_g_b": "free-buddy-credit-bulk-assignment"
+              },
+              "type": null,
+              "order_column": 350,
+              "created_at": "2023-02-09T09:53:49.000000Z",
+              "updated_at": "2023-02-09T09:53:49.000000Z",
+              "icon": null,
+              "color": null,
+              "override_booking_window": null,
+              "is_visible_on_listing": 0,
+              "pivot": {
+                "taggable_type": "App\\Customer",
+                "taggable_id": 52155,
+                "tag_id": 609
+              }
+            }
+          ]
+        },
+        "voucher": null,
+        "price": "£0.00",
+        "price_raw": 0,
+        "original_price": "£0.00",
+        "base_price": "£0.00",
+        "base_price_raw": 0,
+        "discount": "£0.00",
+        "discount_raw": 0,
+        "tax": "£0.00",
+        "tax_raw": 0,
+        "ongoing_price": "£0.00",
+        "ongoing_price_raw": 0,
+        "original_ongoing_price": "£0.00",
+        "original_ongoing_price_raw": 0,
+        "base_ongoing_price": "£0.00",
+        "ongoing_discount": "£0.00",
+        "ongoing_discount_raw": 0,
+        "ongoing_tax": "£0.00",
+        "ongoing_tax_raw": 0,
+        "shipping": "£0.00",
+        "shipping_raw": 0,
+        "balance": "£0.00",
+        "balance_raw": 0,
+        "lines": [],
+        "discounts": [],
+        "taxes": {
+          "tax0": {
+            "name": "VAT",
+            "amount": "£0.00",
+            "amount_raw": 0,
+            "amount_ongoing": "£0.00",
+            "amount_ongoing_raw": 0
+          }
+        },
+        "payment_methods": [],
+        "shipping_methods": [],
+        "voucher_valid": false,
+        "voucher_invalid_because": "",
+        "order": null
+      },
+      "payment_methods": [
+        "card"
+      ]
+    },
+    "finding": "metadata.stripe now switches to a SetupIntent (type:\"setup\", amount:0, intent: seti_...) once the cart is empty again, rather than disappearing. G7: confirms a Stripe object always exists on the cart, its TYPE (payment vs setup) tracking whether there is a chargeable balance."
+  }
+}

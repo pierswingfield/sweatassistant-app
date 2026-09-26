@@ -1,0 +1,727 @@
+{
+  "join": {
+    "request": "PUT /api/v1/customer/waitlists/{eventId}  (e.g. /waitlists/217095 — the EVENT id)",
+    "response": {
+      "success": true,
+      "waitlist": {
+        "customer_id": 52155,
+        "event_id": 217095,
+        "added_at": "2026-09-26T21:30:50.000000Z",
+        "id": 300480,
+        "event": {
+          "id": 217095,
+          "event_type_id": 283,
+          "event_series_id": null,
+          "instructor_id": 81,
+          "studio_id": 130,
+          "start_at": "2026-09-28T17:30:00.000000Z",
+          "duration": 55,
+          "description": null,
+          "metafields": [],
+          "required_credits": 1,
+          "credit_types": [
+            {
+              "credit_type": 1
+            },
+            {
+              "credit_type": 8
+            },
+            {
+              "credit_type": 2
+            },
+            {
+              "credit_type": 27
+            },
+            {
+              "credit_type": 44
+            },
+            {
+              "credit_type": 5
+            },
+            {
+              "credit_type": 41
+            },
+            {
+              "credit_type": 35
+            },
+            {
+              "credit_type": 52
+            },
+            {
+              "credit_type": 65
+            },
+            {
+              "credit_type": 66
+            },
+            {
+              "credit_type": 67
+            },
+            {
+              "credit_type": 71
+            },
+            {
+              "credit_type": 72
+            },
+            {
+              "credit_type": 78
+            }
+          ],
+          "plan_types": [
+            {
+              "plan_type": "plan_RQY8QUa37uvs5k"
+            },
+            {
+              "plan_type": "plan_MO8FY1drDJE9OF"
+            },
+            {
+              "plan_type": "plan_MhGw74AXjFqYJf"
+            },
+            {
+              "plan_type": "plan_MzZVn64rvQCZfG"
+            },
+            {
+              "plan_type": "plan_OtYz62ABj4KCB1"
+            },
+            {
+              "plan_type": "plan_IXZX2Pg0JdfZ5e"
+            },
+            {
+              "plan_type": "plan_LydSkzdAB2A9eB"
+            },
+            {
+              "plan_type": "plan_RPuXMLHZlIfxuQ"
+            },
+            {
+              "plan_type": "plan_RhoeguOV7yZYiV"
+            },
+            {
+              "plan_type": "plan_MO8TWNu5KLAk9Z"
+            },
+            {
+              "plan_type": "plan_PPBAugdgXaRQza"
+            },
+            {
+              "plan_type": "plan_MzZJIWhcuZyYWw"
+            },
+            {
+              "plan_type": "plan_MhItZ9Rj0RKxVv"
+            },
+            {
+              "plan_type": "plan_LkmMoLQJlA4DIJ"
+            },
+            {
+              "plan_type": "plan_LkmVrxaMGotncf"
+            },
+            {
+              "plan_type": "plan_MQPc5PlN8dmAI2"
+            },
+            {
+              "plan_type": "plan_MQPKyq0LxJLEOI"
+            },
+            {
+              "plan_type": "plan_JrATwlBGRS3X53"
+            },
+            {
+              "plan_type": "plan_Lyf4qvaKVo7zjQ"
+            },
+            {
+              "plan_type": "plan_M0ClIhEZcmditn"
+            },
+            {
+              "plan_type": "plan_JLmmxMcVMNTblx"
+            },
+            {
+              "plan_type": "plan_TY68q849qaEy6D"
+            },
+            {
+              "plan_type": "plan_OdWubBH8PsWOF8"
+            },
+            {
+              "plan_type": "plan_MO8IRxZeU3EqK9"
+            },
+            {
+              "plan_type": "plan_Pe1TNkPoRoj4NM"
+            },
+            {
+              "plan_type": "plan_MhGzgBYaFtzQ29"
+            },
+            {
+              "plan_type": "plan_MzZX4nSeiQBAWq"
+            },
+            {
+              "plan_type": "plan_OtZ7vjt5hYJpMO"
+            },
+            {
+              "plan_type": "plan_MO8U0oClxIpmzL"
+            },
+            {
+              "plan_type": "plan_PPBDXeR22R6XFK"
+            },
+            {
+              "plan_type": "plan_JM3Zz5uJ1uKFKW"
+            },
+            {
+              "plan_type": "plan_MGIMlIOHZ6oBQe"
+            },
+            {
+              "plan_type": "plan_LkmNnaL3mjUCcH"
+            },
+            {
+              "plan_type": "plan_MzZRYItsDblEqO"
+            },
+            {
+              "plan_type": "plan_LyetlzI3uR0X0F"
+            },
+            {
+              "plan_type": "plan_MhIw56kRaEcM4g"
+            },
+            {
+              "plan_type": "plan_RPub7ypaiDJ644"
+            },
+            {
+              "plan_type": "plan_TY6DQGDWjfty8N"
+            },
+            {
+              "plan_type": "plan_MO8KBhbcmXfG9z"
+            },
+            {
+              "plan_type": "plan_QXTnrQXXJAiW5U"
+            },
+            {
+              "plan_type": "plan_PBeIV7Q0AuNJcV"
+            },
+            {
+              "plan_type": "plan_MzZi7oSluL7kPA"
+            },
+            {
+              "plan_type": "plan_OtZJ8OO1U6A8oP"
+            },
+            {
+              "plan_type": "plan_PPBGJAg5UGnGVm"
+            },
+            {
+              "plan_type": "plan_MO8XmgqhyDZ653"
+            },
+            {
+              "plan_type": "plan_JM3xkiGguskoju"
+            },
+            {
+              "plan_type": "plan_NBAkomgKyWhIhq"
+            },
+            {
+              "plan_type": "plan_LkmGkd1Xe8ur7V"
+            },
+            {
+              "plan_type": "plan_MzZV8Mt890yWDC"
+            },
+            {
+              "plan_type": "plan_M0Cp5aa85IGfd0"
+            },
+            {
+              "plan_type": "plan_MhIWzSWggx4vgp"
+            },
+            {
+              "plan_type": "plan_LyeuilmCfyuiQq"
+            },
+            {
+              "plan_type": "plan_Hbv0RqYcZKlpw7"
+            },
+            {
+              "plan_type": "plan_RPuenQHUi7Tq2f"
+            },
+            {
+              "plan_type": "plan_MhIyDN6PBwBuaD"
+            },
+            {
+              "plan_type": "plan_TY6JNAuQi3nZiK"
+            },
+            {
+              "plan_type": "plan_MO8OPrcEumTISU"
+            },
+            {
+              "plan_type": "plan_MhIiNBTUMKC0a0"
+            },
+            {
+              "plan_type": "plan_OtajJfr4q8ezLi"
+            },
+            {
+              "plan_type": "plan_PPBI2Djso51isE"
+            },
+            {
+              "plan_type": "plan_MO8ZUpnX0oSjlF"
+            },
+            {
+              "plan_type": "plan_JM3zR7RhxakvLW"
+            },
+            {
+              "plan_type": "plan_POjgeTruO3x4LP"
+            },
+            {
+              "plan_type": "plan_LkmIElnuRqIhoB"
+            },
+            {
+              "plan_type": "plan_MzZkE0IToWMdY1"
+            },
+            {
+              "plan_type": "plan_RQ9h1YJsPtOXct"
+            },
+            {
+              "plan_type": "plan_MhIefoYggw8vMc"
+            },
+            {
+              "plan_type": "plan_Hbv1vOB3Vt8TwV"
+            },
+            {
+              "plan_type": "plan_Lyew00raGSUdkY"
+            },
+            {
+              "plan_type": "plan_JM41dQKo1Z8xwo"
+            },
+            {
+              "plan_type": "plan_MhIlxjGPCEQN4w"
+            },
+            {
+              "plan_type": "plan_MzZmOsHtna7lBp"
+            },
+            {
+              "plan_type": "plan_OtarHDe2wX3KKy"
+            },
+            {
+              "plan_type": "plan_I2StBirKQcpg5b"
+            },
+            {
+              "plan_type": "plan_LkmJYRfEC6izGj"
+            },
+            {
+              "plan_type": "plan_Hbv2aUFmxEJec3"
+            },
+            {
+              "plan_type": "plan_PPBL8YZplUKyHB"
+            },
+            {
+              "plan_type": "plan_MiPsM7CPW2TsmW"
+            },
+            {
+              "plan_type": "plan_PgfvYyTo3ywLhJ"
+            },
+            {
+              "plan_type": "plan_RQ9stWVjPKviqp"
+            },
+            {
+              "plan_type": "plan_RAvnX5UEwWYMcl"
+            },
+            {
+              "plan_type": "plan_LyezmN8KmFYQZQ"
+            },
+            {
+              "plan_type": "plan_MzZacGxqtbxBWc"
+            },
+            {
+              "plan_type": "plan_TY6OCPyKiKwlCR"
+            },
+            {
+              "plan_type": "plan_TY6TmK4rHEQzKg"
+            },
+            {
+              "plan_type": "plan_TY2yXRpTWHj4YC"
+            },
+            {
+              "plan_type": "plan_TY37gLDE2uzQRI"
+            },
+            {
+              "plan_type": "plan_U56TktFRzLrTp6"
+            },
+            {
+              "plan_type": "plan_U56hJcSUlU1l2X"
+            },
+            {
+              "plan_type": "plan_UF7sp7FnLaBrUG"
+            },
+            {
+              "plan_type": "plan_UF7QHdfO3dcTmJ"
+            },
+            {
+              "plan_type": "plan_Uu1CKWkrOFz3FM"
+            },
+            {
+              "plan_type": "plan_UQjvhQRV4nRVAM"
+            },
+            {
+              "plan_type": "plan_UQjzmB6tWeWNK3"
+            },
+            {
+              "plan_type": "plan_UhxkSkwsPqQOzl"
+            },
+            {
+              "plan_type": "plan_UhxnVEQivKpYPs"
+            },
+            {
+              "plan_type": "plan_UlLLLODJE3ICol"
+            },
+            {
+              "plan_type": "plan_V9PGw8nQpfNjP5"
+            },
+            {
+              "plan_type": "plan_V9RuDAovoBIvlt"
+            },
+            {
+              "plan_type": "plan_V9RyVv1EhSkoqN"
+            },
+            {
+              "plan_type": "plan_V9S4ku7jvlJpeX"
+            },
+            {
+              "plan_type": "plan_TlHxLSAxnLy9dJ"
+            },
+            {
+              "plan_type": "plan_TlI3Tj7IHPb6Rd"
+            },
+            {
+              "plan_type": "plan_TlIJRUX0hwJA5o"
+            },
+            {
+              "plan_type": "plan_Q6tNhTKYCa4QVV"
+            },
+            {
+              "plan_type": "plan_Q6tGAr3D6BOTOq"
+            },
+            {
+              "plan_type": "plan_Q6aHczcGSW3tw6"
+            },
+            {
+              "plan_type": "plan_Q6aC4ZtCQ90FdJ"
+            },
+            {
+              "plan_type": "plan_O5okbdB87jEpJv"
+            },
+            {
+              "plan_type": "plan_O5oppT9IH2yhGR"
+            },
+            {
+              "plan_type": "plan_O5osD51RXUEQZw"
+            },
+            {
+              "plan_type": "plan_OtGWscM1DTxQRP"
+            },
+            {
+              "plan_type": "plan_O5owzKtX9V2LvL"
+            },
+            {
+              "plan_type": "plan_O5ouciCjLl9zXC"
+            },
+            {
+              "plan_type": "plan_VDQEd6UuiA9BNz"
+            },
+            {
+              "plan_type": "plan_VDRl9BmmbMsmP4"
+            },
+            {
+              "plan_type": "plan_VDPzWgdTx4Drf6"
+            },
+            {
+              "plan_type": "plan_VJUDbJlLs0ly2r"
+            },
+            {
+              "plan_type": "plan_VJUMEPXmAUYzWK"
+            },
+            {
+              "plan_type": "plan_VJV5fmc7IAF6eo"
+            },
+            {
+              "plan_type": "plan_VJVPifRytWJgk5"
+            },
+            {
+              "plan_type": "plan_VJlWtXarniZ6LE"
+            }
+          ],
+          "max_bookable_slots": 4,
+          "slot_exclusions": null,
+          "capacity_override": null,
+          "payroll_rate_id": null,
+          "is_visible": true,
+          "is_always_bookable": false,
+          "is_waitlistable": true,
+          "is_video_event": false,
+          "is_live_video_event": false,
+          "cancel_period": null,
+          "refunds_processed_at": null,
+          "unattended_processed_at": null,
+          "product_collection_id": null,
+          "recommended_bundles": null,
+          "event_cancel_reason_id": null,
+          "instructor": {
+            "id": 81,
+            "organisation_id": 1,
+            "first_name": "Josh",
+            "last_name": null,
+            "handle": "josh",
+            "email": "josh@psyclelondon.com",
+            "biography": "<p>Movement has always been my escape - a space to let go, switch off and tap into that carefree, playful energy we don&#039;t always give ourselves in everyday life. I believe exercise should feel like something you love, not something you have to do. My classes are high energy, non-stop and full of personality - think part rave, part music video, with a bit of comedy thrown in. It&#039;s your moment to be front and centre, have fun with it and not take things too seriously. You&#039;ll push yourself to your max without even realising it, and leave feeling like you&#039;ve just had the best night out.</p>",
+            "email_weekly_schedule": 0,
+            "email_weekly_payroll": 1,
+            "cost_per_class": null,
+            "payroll_rate_id": 6,
+            "payroll_rate_overrides": [
+              {
+                "data": {
+                  "payroll_rate_id": 17,
+                  "event_type_group_id": 2
+                },
+                "type": "event_type_group"
+              },
+              {
+                "data": {
+                  "payroll_rate_id": 38,
+                  "event_type_group_id": 13
+                },
+                "type": "event_type_group"
+              }
+            ],
+            "is_visible": true,
+            "order": 48,
+            "photo": "HS48tRMiC1iwyPF9cNC4SNQLpya9XN1Zl1hGz1Qe.png",
+            "social_links": [
+              {
+                "url": "https://www.instagram.com/josh_edgington",
+                "type": "instagram",
+                "label": null
+              }
+            ],
+            "images": [
+              {
+                "image": "NJ39b1z977IN7ZMTLCiYjcxR1x74HAQViDMyNPvu.png",
+                "alt_text": null
+              }
+            ],
+            "metafields": {
+              "qa": [
+                {
+                  "answer": "...party.",
+                  "question": "Finish this sentence: At Psycle, we don't just move, we...\""
+                },
+                {
+                  "answer": "How would Beyoncé do this?",
+                  "question": "The phrase you say in every session?"
+                },
+                {
+                  "answer": "Electrolytes and hairspray.",
+                  "question": "Pre-class ritual?"
+                }
+              ],
+              "tags": null,
+              "email": null,
+              "quotes": [],
+              "authors": [],
+              "keywords": "vibrant|positive|energetic",
+              "pronouns": null,
+              "description": "Movement has always been my escape - a space to let go, switch off and tap into that carefree, playful energy we don't always give ourselves in everyday life. I believe exercise should feel like something you love, not something you have to do. My classes are high energy, non-stop and full of personality - think part rave, part music video, with a bit of comedy thrown in. It's your moment to be front and centre, have fun with it and not take things too seriously. You'll push yourself to your max without even realising it, and leave feeling like you've just had the best night out.",
+              "spotify_handle": null,
+              "twitter_handle": null,
+              "instagram_handle": "josh_edgington",
+              "spotify_playlist": null
+            },
+            "image_1": "NJ39b1z977IN7ZMTLCiYjcxR1x74HAQViDMyNPvu.png",
+            "image_2": null,
+            "image_3": null,
+            "image_4": null,
+            "image_5": null
+          },
+          "event_type": {
+            "id": 283,
+            "organisation_id": 1,
+            "name": "BARRE: Signature 55",
+            "event_type_group_id": 2,
+            "handle": "barre-55",
+            "metafields": {
+              "description": "Our signature 55-minute burn. Using weighted balls and resistance bands to keep your muscles working non-stop for a sculpting metabolic boost, this class strengthens, lengthens and tones. Expect serious results. \r\n\r\nArrive 15 minutes before class to check in and get set up. Any spots not checked in at least 4 minutes before class start time may be given to waitlisted customers. No late entry or re-entry once the class has started.",
+              "background_color": null
+            },
+            "is_visible": 1,
+            "order": 283,
+            "product_collection_id": null,
+            "recommended_bundles": []
+          },
+          "studio": {
+            "id": 130,
+            "name": "Barre Studio",
+            "handle": "barre-studio-victoria",
+            "location_id": 15,
+            "occupancy": 16,
+            "layout": {
+              "slots": [],
+              "objects": []
+            },
+            "is_visible": true,
+            "metafields": null,
+            "location": {
+              "id": 15,
+              "organisation_id": 1,
+              "name": "Victoria",
+              "handle": "victoria",
+              "description": "<p></p>",
+              "address": "27 Eccleston Place, SW1W 9NF",
+              "latitude": null,
+              "longitude": null,
+              "telephone": null,
+              "email": "victoria@psyclelondon.com",
+              "image": null,
+              "stripe_location_id": "tml_FLsrKwzr9qQmCY",
+              "is_visible": true,
+              "order": 3,
+              "metafields": {
+                "address_description": null
+              },
+              "product_collection_id": null
+            }
+          },
+          "tags": [],
+          "video": null,
+          "start_date": "28/09/2026",
+          "start_time": "18:30",
+          "date_day": "28",
+          "date_month": "09",
+          "date_year": "2026",
+          "date_iso_day_of_week": "1",
+          "all_tags": []
+        },
+        "customer": {
+          "id": 52155,
+          "first_name": "REDACTED_FIRST_NAME",
+          "last_name": "REDACTED_LAST_NAME",
+          "full_name": "REDACTED_FULL_NAME",
+          "email": "REDACTED_EMAIL",
+          "telephone": "REDACTED_PHONE",
+          "dob": "REDACTED_DOB",
+          "username": "REDACTED_USERNAME",
+          "referral_code": "REDACTED_REFERRAL_CODE",
+          "referrer_id": null,
+          "email_credit_expiry_notifications": true,
+          "email_booking_reminder_notifications": null,
+          "hide_from_social": null,
+          "friend_notifications_enabled": true,
+          "friend_request_notifications_enabled": true,
+          "always_book_incognito": false,
+          "allow_friend_requests": true,
+          "share_full_name": true,
+          "share_email": false,
+          "email_verified_at": "2020-04-17T18:03:31.000000Z",
+          "metafields": {
+            "id": 52194,
+            "vip": "null",
+            "notes": null,
+            "gender": "male",
+            "public": {
+              "bookmarks": {
+                "events": [
+                  "1080000300001830",
+                  "1080000300000630"
+                ]
+              }
+            },
+            "address_1": "REDACTED_ADDRESS",
+            "address_2": "REDACTED_ADDRESS",
+            "address_3": "London",
+            "own_shoes": 0,
+            "shoe_size": 44,
+            "telephone": "REDACTED_PHONE",
+            "hcrw_notes": null,
+            "opt_in_sms": "1",
+            "seat_height": "7",
+            "v4announced": "2026-08-07T11:11:56+01:00",
+            "opt_in_email": "1",
+            "sms_verified": 1,
+            "eauth_user_id": 52155,
+            "hcrw_verified": 1,
+            "booking_period": 1,
+            "referred_by_id": null,
+            "stripe_cust_id": "REDACTED_STRIPE_CUSTOMER_ID",
+            "seat_horizontal": null,
+            "address_postcode": "REDACTED_POSTCODE",
+            "handlebar_height": null,
+            "where_did_you_hear": "Work colleague / employer",
+            "seat_horizontal_old": null,
+            "handlebar_horizontal": null,
+            "email_first_nudge_sent": 0,
+            "emergency_contact_name": "REDACTED_NAME",
+            "email_second_nudge_sent": 0,
+            "emergency_contact_mobile": "REDACTED_PHONE",
+            "extended_booking_allowed": "null",
+            "last_milestone_email_sent": 551,
+            "emergency_contact_relationship": "Parent",
+            "first_class_attended_email_sent": 0,
+            "marketing_preference_updated_at": 1526892333,
+            "third_class_attended_email_sent": 0
+          },
+          "analytics_consent": {
+            "source": "web",
+            "updated_at": "2026-09-26T22:30:28+01:00",
+            "ad_user_data": "DENIED",
+            "ad_personalization": "DENIED"
+          },
+          "auto_topup_threshold": null,
+          "auto_topup_bundle_id": null,
+          "created_at": "2016-08-13T07:09:16.000000Z",
+          "updated_at": "2026-09-26T21:30:28.000000Z",
+          "deleted_at": null,
+          "stripe_id": "REDACTED_STRIPE_CUSTOMER_ID",
+          "pm_type": "REDACTED_CARD_BRAND",
+          "pm_last_four": "REDACTED_LAST4",
+          "trial_ends_at": null,
+          "tags": [
+            {
+              "id": 567,
+              "name": {
+                "en-GB": "organisation:psycle"
+              },
+              "slug": {
+                "en-GB": "organisation:psycle"
+              },
+              "type": "customer",
+              "order_column": 311,
+              "created_at": "2022-04-28T11:10:42.000000Z",
+              "updated_at": "2022-04-28T11:10:42.000000Z",
+              "icon": null,
+              "color": null,
+              "override_booking_window": null,
+              "is_visible_on_listing": 0,
+              "pivot": {
+                "taggable_type": "App\\Customer",
+                "taggable_id": 52155,
+                "tag_id": 567
+              }
+            },
+            {
+              "id": 609,
+              "name": {
+                "en-GB": "free-buddy-credit-bulk-assignment"
+              },
+              "slug": {
+                "en-GB": "free-buddy-credit-bulk-assignment"
+              },
+              "type": null,
+              "order_column": 350,
+              "created_at": "2023-02-09T09:53:49.000000Z",
+              "updated_at": "2023-02-09T09:53:49.000000Z",
+              "icon": null,
+              "color": null,
+              "override_booking_window": null,
+              "is_visible_on_listing": 0,
+              "pivot": {
+                "taggable_type": "App\\Customer",
+                "taggable_id": 52155,
+                "tag_id": 609
+              }
+            }
+          ]
+        }
+      }
+    }
+  },
+  "leave": {
+    "request": "DELETE /api/v1/customer/waitlists/{waitlistEntryId}  (e.g. /waitlists/300480 — the WAITLIST ROW id, NOT the event id)",
+    "response": {
+      "success": true
+    }
+  },
+  "finding": "CONTRADICTS psycle_codexfit.md and server/providers/codexfit.js leaveWaitlist(): the live site's leave call targets the waitlist ENTRY id returned by the join response (waitlist.id), not the event id. The doc and current code both assume DELETE /waitlists/{eventId}. Verified live 2026-09-26: joining event 217095 returned waitlist.id=300480, and leaving used DELETE /waitlists/300480 (200, {success:true}) — DELETE /waitlists/217095 was never called by the real site."
+}

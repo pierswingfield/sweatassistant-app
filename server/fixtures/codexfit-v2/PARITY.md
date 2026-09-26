@@ -1,0 +1,97 @@
+# CodexFit v2 — live network parity (C2 phase 0, gates G1–G7)
+
+Captured 2026-09-26 against the real `psyclelondon.com` / `psycle.codexfit.com` in the
+user's own authenticated Chrome session (CDP `127.0.0.1:9222`), per
+`Documentation/Workstreams/C2-psycle-api-v2.md` and `Documentation/LIVE_VERIFICATION_PLAYBOOK.md`.
+Raw captures (with tokens/PII) stayed in the session scratchpad only. Sanitized response-shape
+fixtures are alongside this file in `server/fixtures/codexfit-v2/*.json`, every personal/secret
+value replaced with `REDACTED_*`.
+
+Baseline before any action: 0 bookings, 0 waitlists, 2 unused credits (ids 4974423/4974424,
+credit_type 1/"Universal"), empty cart. Confirmed identical after all actions below (credits by
+the same two ids, not consumed/replaced).
+
+## G1 — Network parity table
+
+| Flow | Method | Path | Params / body | Response envelope | Status |
+|---|---|---|---|---|---|
+| Timetable | GET | `/api/customer/v2/events` | `filter[between]=<start>,<end>` (single **1-day** window per call), `sort=start_at` — **no `filter[location]`** was sent | `{data[], relations{instructors,event_types,studios,locations,credit_types,plans}, booking_cutoff, extended_cutoff, booked_events, friends_booked}` | 200 |
+| Waitlist join | PUT | `/api/v1/customer/waitlists/{eventId}` | — | `{success:true, waitlist:{id, customer_id, event_id, added_at, event:{...}}}` | 200 |
+| Waitlist leave | DELETE | `/api/v1/customer/waitlists/{waitlistEntryId}` (the row `id` from the join response, **not** the event id) | — | `{success:true}` | 200 |
+| Cart init | POST | `/api/customer/v2/cart` | `{}` | `{data:{uuid, currency, subtotal, total, lines:[], metadata:{organisation:null}}}` — **no `stripe` key at all** while empty | 200 |
+| Cart add line | POST | `/api/customer/v2/cart/{uuid}/lines` | `{"type":"bundle","id":<bundleId>}` — **no `quantity` field** | `{data:{id, hash, quantity:1, line_price, ...}, message:"Added to cart"}` | 200 |
+| Cart snapshot (after add) | GET | `/api/customer/v2/cart/{uuid}` | — | `metadata.stripe = {type:"payment", amount, intent: pi_…, secret: pi_…_secret_…, currency, amount_ongoing}` | 200 |
+| Cart remove line | DELETE | `/api/customer/v2/cart/{uuid}/lines/{hash}` | — | `{message:"Removed from cart"}` | 200 |
+| Cart snapshot (empty again) | GET | `/api/customer/v2/cart/{uuid}` | — | `metadata.stripe = {type:"setup", amount:0, intent: seti_…, secret: seti_…_secret_…}` | 200 |
+| Bundles (nav/profile) | GET | `/api/v1/customer/bundles` | — | `{data:[bundle,...]}`, flat array under `data`, no `relations` | 200 |
+| Bundles (buy page, collection-aware) | GET | `/api/customer/v2/product-collections?filter[handle]=offers,studio,lagree,...` and `/api/customer/v2/product-collections/{handle}` | — | not fully captured (widget internals) | 200 |
+| Profile | GET | `/api/v1/customer/profile` | — | `{data:{..., booking_cutoff, extended_cutoff, available_credits:[{count, credit_type:{id,name,handle,is_guest_use_only,...}}], stats:{credits_remaining,...}}}` | 200 |
+| Credits | GET | `/api/v1/customer/credits?page=1&type=unused&per_page=999` | — | `{data:[...], links, meta}` — standard Laravel pagination envelope | 200 |
+| Bookings | GET | `/api/v1/customer/bookings?limit=100&page=1` | — | `{data:[], links, meta, message:null, relations:{events,instructors,event_types,studios,locations}}` | 200 |
+| Book | — | — | **UNOBSERVED** — see note below | — | — |
+| Cancel booking | — | — | **UNOBSERVED** — see note below | — | — |
+| Heartbeat | GET | `/api/v1/customer/heartbeat` | — | `{data:{bundles, bundle-types, credit-types, events, event-type-groups, event-types, instructors, locations, plans, products, product-variants, studios, videos, videos-collections, logged-in}}` — per-resource UTC last-modified timestamps, plus a `logged-in` boolean | 200 |
+
+**Required headers actually observed** on `psycle.codexfit.com` XHRs from the real site:
+`authorization: Bearer <jwt>`, `accept: application/json`, `referer: https://psyclelondon.com/`,
+`user-agent`, `sec-ch-ua*`. **`origin` and `x-organisation: [object Object]` were not present** in
+the header set Playwright's CDP listener exposed for these requests — this may be a tooling
+visibility limit (some browser-managed headers aren't surfaced at this interception point) rather
+than proof the site omits them; flagged as a caveat, not a firm contradiction.
+
+## G2 — Waitlist join verb — CONFIRMED, with a NEW contradiction on leave
+
+- **Join is `PUT`, matching the code** (`server/providers/codexfit.js` `joinWaitlist()`), **contradicting `psycle_codexfit.md`** which documents `POST`. Live: `PUT /api/v1/customer/waitlists/217095` → `200 {success:true, waitlist:{id:300480, event_id:217095, ...}}`.
+- **CONTRADICTS-DOC (new finding, not in the original gate description): leave targets the waitlist ENTRY id, not the event id.** The real site called `DELETE /api/v1/customer/waitlists/300480` (the `waitlist.id` from the join response) — never `DELETE /waitlists/217095`. `server/providers/codexfit.js leaveWaitlist(eventId, session)` calls `DELETE /waitlists/${eventId}`, which is wrong per this capture; per C2-2 it should take/track the waitlist row id instead (the id is available on the join response and — for existing entries — on `GET /waitlists`).
+- Test class used: event 217095, Psycle Oxford Circus, Mon 28 Sep 18:30 BST (~44h out at capture time). Left immediately after capture per the plan; waitlist count confirmed back to 0 afterward.
+- **Incident, caught and reversed same session:** an automated "confirm" step accidentally also matched and clicked a second, unrelated "JOIN WAITLIST" button (event 216809, Sun 27 Sep 09:00 BST, ~10.5h out — under the 24h floor). Caught within the same run via the waitlists list; left immediately (`DELETE /waitlists/300481`, the accidental entry's own row id, confirming the same leave-uses-row-id finding independently). Confirmed waitlists back to exactly the one intended entry before proceeding, then 0 after leaving that too.
+
+## G3 — v2 cart lifecycle — CONFIRMED, with two contradictions
+
+- Full lifecycle captured: `POST /cart` (init) → `POST /cart/{uuid}/lines` (add, cheapest **buyable** bundle: "All Access Single Credit", id 2, £29.00 — the £0 "Goodwill Studio Credit" is `is_buy_now:false` and not addable via the normal flow) → `GET /cart/{uuid}` (with Stripe PaymentIntent) → `DELETE /cart/{uuid}/lines/{hash}` (remove) → `GET /cart/{uuid}` (Stripe reverts to a zero-amount SetupIntent).
+- Payment methods listing, payment-method attach, checkout, and finalise were **not** exercised — per the authorization, stopped well before any pay step. `GET /api/customer/v2/payment-methods` specifically was not called this session (would need to be initiated to see its response; deferred as it sits right before the pay step in the real flow and wasn't necessary for the cart-lifecycle gate).
+- **CONTRADICTS-DOC**: `psycle_codexfit.md` §2.5.2.1 shows `metadata.stripe.secret` present on an empty cart at init. Live: empty cart has **no `stripe` key at all** (`metadata: {organisation: null}`).
+- **CONTRADICTS-DOC**: §2.5.2.3 shows the add-line body including `"quantity": 1`. Live: the real site sends **no `quantity` field**; the server defaults it.
+- No money moved. Full sanitized lifecycle in `server/fixtures/codexfit-v2/cart-v2-lifecycle.json`.
+
+## G4 — `/events` v2 params & pagination — CONFIRMED, with one significant contradiction
+
+- **CONTRADICTS-DOC**: `psycle_codexfit.md` describes "the native timetable loads 10 days... up to 42 days" via presumably ranged calls, and shows a `filter[location]` param. Live capture shows the real timetable fires **three separate single-day-range calls** on initial load (`filter[between]=2026-09-26,2026-09-27`, `...27,28`, `...28,29` — i.e. today + 2 more days), **with no `filter[location]` param at all**. Location scoping for this widget embed happens some other way (not a query param on this call) — not identified this session.
+- Further days (e.g. Tuesday) are **not loaded by page-bottom scrolling** — the full page was scrolled to its bottom (confirmed via `scrollY === document.body.scrollHeight` bounds) with no new `/events` call and no Tuesday content appearing. The visible 10-tab date carousel (`SAT 26` … `MON 5`) did not respond to synthetic clicks, coordinate-based mouse clicks, or drag/swipe gestures across many attempts — the real trigger for loading additional days was not identified this session (possibly requires a genuine touch/pointer sequence with characteristics synthetic input didn't replicate, or a separate mechanism not surfaced by DOM inspection). Recorded as a known gap rather than forced further, given the residual risk of unintended interaction with unrelated page elements.
+- Response envelope and per-event fields fully confirmed — see `events-v2-sample.json`. Standard Laravel pagination envelope confirmed on `/bundles`, `/credits`, `/bookings`, `/waitlists`.
+
+## G5 — Heartbeat cadence
+
+- Only **2** heartbeat calls were observed across the full ~10-minute passive window, **287s (~4m47s) apart**, then none for the remaining ~5m13s. The second call's timing coincides with a separate verification script that reloaded the tab partway through the window (see caveat below) — so this is likely **one fetch per page load**, not a recurring client-side timer, at least not one shorter than ~5 minutes. The response shape itself (`{data:{<resource>: <UTC last-modified ISO>, ...}, logged-in: bool}`) is confirmed regardless.
+- Interesting secondary finding: `logged-in: false` on both calls despite this being a fully authenticated session elsewhere (bearer JWT used on every other endpoint) — the heartbeat call was not observed carrying an `authorization` header, so `logged-in` likely reflects a separate session-cookie mechanism the BFF/PWA doesn't use, not the JWT auth state. Worth keeping in mind if `logged-in` is ever consulted for anything.
+- **Caveat**: one deliberate page reload (a final-state verification check) landed inside the passive window, so the window wasn't perfectly action-free; noted for transparency. It does not affect the response-shape finding, but does mean the cadence figure above is a lower bound on the interval, not a confirmed fixed period.
+
+## G6 — Profile-edit route — UNOBSERVED (by design)
+
+- Located the real page: "My Profile" in the account sidebar navigates (SPA, no new network call) to `https://psyclelondon.com/pages/my-psycle#/details`, rendering a "PERSONAL DETAILS" form (First/Last name, Email, phone with country code, etc.). The form's HTML `action`/`method` are inert SPA placeholders (`GET` to the same hash URL) — the real save is wired to a JS handler, not a native submit.
+- Per the instruction to prefer not to submit even a no-op resave, **no submit was attempted**, so the actual save endpoint (`server/providers/codexfit.js:827` calls `POST /account/update`, unverified per the gap analysis) remains unconfirmed against live traffic.
+
+## G7 — `cart.metadata.stripe` — CONFIRMED (shape), publishable key source not identified
+
+- Confirmed presence/shape only (see G3 above): a **PaymentIntent** (`type:"payment"`) once the cart has a chargeable line, a **SetupIntent** (`type:"setup"`, amount 0) once it's empty. Never present at all on a freshly-initialized cart with no line ever added.
+- Where the Stripe **publishable key** (`pk_...`) comes from was not identified this session (not seen in any captured XHR; likely inlined in the bootstrap/app JS bundle, which was not inspected for this pass).
+
+## Booking / cancel (G1 rows, G3 partial) — UNOBSERVED, by choice
+
+No live booking was made. Rationale: the date-carousel navigation issue (G4) meant every
+comfortably->48h-out class (Tuesday 29 Sep onward) was unreachable through the UI without
+resorting to increasingly aggressive DOM automation, which is exactly the category of action that
+had already produced one near-miss this session (the accidental <24h waitlist join, caught and
+reversed — see G2). Given the explicit priority on protecting the user's 2 credits and the
+diminishing value of one more parity-table row against that risk, the book/cancel flow was left
+unexercised. `POST /bookings` / `DELETE /bookings/{id}` shapes in `psycle_codexfit.md` and
+`server/providers/codexfit.js` are therefore still only code-verified, not live-verified, this
+session.
+
+## Final state check (before commit)
+
+- Bookings: 0 (unchanged from baseline).
+- Waitlists: 0 (both the intended and the accidental entry were left; confirmed via `GET /waitlists`).
+- Credits: 2, same ids as baseline (4974423, 4974424) — untouched.
+- Cart: 0 lines (the £29 test line was removed; no payment method was ever attached, no checkout/finalise call was made).
+- Live write/read actions used (deliberate, beyond page navigation): waitlist join ×2 (1 intended + 1 accidental), waitlist leave ×2, cart add-line ×1, cart remove-line ×1 = **6**, well under the 40-action budget. No 429/Retry-After/CAPTCHA/unexpected-403 signal at any point.

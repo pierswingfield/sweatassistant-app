@@ -1,0 +1,134 @@
+{
+  "request": "GET /api/v1/customer/profile",
+  "response": {
+    "data": {
+      "id": 52155,
+      "first_name": "REDACTED_FIRST_NAME",
+      "last_name": "REDACTED_LAST_NAME",
+      "email": "REDACTED_EMAIL",
+      "username": "REDACTED_USERNAME",
+      "hide_from_social": null,
+      "email_credit_expiry_notifications": true,
+      "email_booking_reminder_notifications": null,
+      "dob": "15/10/1992",
+      "opt_ins": {
+        "email": true,
+        "sms": true
+      },
+      "policies": {
+        "health_waiver": false,
+        "terms-conditions": false
+      },
+      "telephone": "REDACTED_PHONE",
+      "referral_code": "REDACTED_REFERRAL_CODE",
+      "referree_count": 0,
+      "referral_points": 0,
+      "referral_spend": 0,
+      "stripe_id": "REDACTED_STRIPE_CUSTOMER_ID",
+      "card_brand": "REDACTED_CARD_BRAND",
+      "card_last_four": "REDACTED_LAST4",
+      "pm_brand": "REDACTED_CARD_BRAND",
+      "pm_last_four": "REDACTED_LAST4",
+      "has_purchased": true,
+      "metafields": {
+        "public": {
+          "bookmarks": {
+            "events": [
+              "1080000300001830",
+              "1080000300000630"
+            ]
+          }
+        },
+        "id": 52194,
+        "vip": "null",
+        "notes": null,
+        "gender": "male",
+        "address_1": "REDACTED_ADDRESS",
+        "address_2": "REDACTED_ADDRESS",
+        "address_3": "London",
+        "own_shoes": 0,
+        "shoe_size": 44,
+        "telephone": "REDACTED_PHONE",
+        "hcrw_notes": null,
+        "opt_in_sms": "1",
+        "seat_height": "7",
+        "v4announced": "2026-08-07T11:11:56+01:00",
+        "opt_in_email": "1",
+        "sms_verified": 1,
+        "eauth_user_id": 52155,
+        "hcrw_verified": 1,
+        "booking_period": 1,
+        "referred_by_id": null,
+        "stripe_cust_id": "REDACTED_STRIPE_CUSTOMER_ID",
+        "seat_horizontal": null,
+        "address_postcode": "REDACTED_POSTCODE",
+        "handlebar_height": null,
+        "where_did_you_hear": "Work colleague / employer",
+        "seat_horizontal_old": null,
+        "handlebar_horizontal": null,
+        "email_first_nudge_sent": 0,
+        "emergency_contact_name": "REDACTED_NAME",
+        "email_second_nudge_sent": 0,
+        "emergency_contact_mobile": "REDACTED_PHONE",
+        "extended_booking_allowed": "null",
+        "last_milestone_email_sent": 551,
+        "emergency_contact_relationship": "Parent",
+        "first_class_attended_email_sent": 0,
+        "marketing_preference_updated_at": 1526892333,
+        "third_class_attended_email_sent": 0
+      },
+      "tags": [
+        "organisation:psycle",
+        "free-buddy-credit-bulk-assignment"
+      ],
+      "formatted_tags": "",
+      "booking_cutoff": "2026-10-06T00:00:00",
+      "extended_cutoff": "2026-10-06T00:00:00",
+      "stats": {
+        "total_bookings": 857,
+        "total_unique_bookings": 798,
+        "total_unique_bookings_attended": 770,
+        "upcoming_bookings": 0,
+        "credits_remaining": 2,
+        "total_views": 2,
+        "total_unique_views": 1,
+        "total_viewing_time": 176,
+        "total_videos_completed": 0,
+        "total_attended_minutes": 42075,
+        "last_video_viewed": 459
+      },
+      "available_credits": [
+        {
+          "count": 2,
+          "credit_type": {
+            "id": 1,
+            "name": "Universal",
+            "handle": "universal",
+            "is_guest_use_only": false,
+            "extended_booking_period": null,
+            "order": 23,
+            "metafields": null
+          }
+        }
+      ],
+      "preordered_product_handles": [],
+      "subscriptions": [],
+      "scheduled_subscriptions": [],
+      "subscription_statuses": [
+        {
+          "handle": "psycle-flex-studio-at-home",
+          "name": null,
+          "status": "cancelled"
+        },
+        {
+          "handle": "psycle-flex-p-at-h-plan",
+          "name": null,
+          "status": "cancelled"
+        }
+      ],
+      "verified": true,
+      "created_at": "2016-08-13T08:09:16",
+      "locations": []
+    }
+  }
+}

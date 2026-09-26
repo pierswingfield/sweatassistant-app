@@ -1,0 +1,500 @@
+{
+  "request": "GET /api/customer/v2/events?filter[between]=2026-09-26,2026-09-27&sort=start_at",
+  "note": "Live capture 2026-09-26. NO filter[location] param was sent by the real site despite psycle_codexfit.md documenting one — location scoping happens some other way for this widget embed.",
+  "response_envelope_keys": [
+    "data",
+    "relations",
+    "booking_cutoff",
+    "extended_cutoff",
+    "booked_events",
+    "friends_booked"
+  ],
+  "booking_cutoff": "2026-10-05T23:00:00.000000Z",
+  "extended_cutoff": "2026-10-05T23:00:00.000000Z",
+  "relations_keys": [
+    "instructors",
+    "event_types",
+    "studios",
+    "locations",
+    "credit_types",
+    "plans"
+  ],
+  "data_count": 86,
+  "sample_event": {
+    "id": 216525,
+    "event_type_id": 716,
+    "instructor_id": 464,
+    "studio_id": 149,
+    "start_at": "2026-09-26T08:00:00",
+    "duration": 45,
+    "bookable_until": "2026-09-26T08:00:00",
+    "description": null,
+    "required_credits": 1,
+    "credit_types": [
+      {
+        "credit_type": 1
+      },
+      {
+        "credit_type": 8
+      },
+      {
+        "credit_type": 2
+      },
+      {
+        "credit_type": 27
+      },
+      {
+        "credit_type": 44
+      },
+      {
+        "credit_type": 3
+      },
+      {
+        "credit_type": 59
+      },
+      {
+        "credit_type": 58
+      },
+      {
+        "credit_type": 25
+      },
+      {
+        "credit_type": 39
+      },
+      {
+        "credit_type": 20
+      },
+      {
+        "credit_type": 22
+      },
+      {
+        "credit_type": 12
+      },
+      {
+        "credit_type": 42
+      },
+      {
+        "credit_type": 51
+      },
+      {
+        "credit_type": 65
+      },
+      {
+        "credit_type": 66
+      },
+      {
+        "credit_type": 67
+      },
+      {
+        "credit_type": 71
+      },
+      {
+        "credit_type": 72
+      },
+      {
+        "credit_type": 78
+      }
+    ],
+    "accepted_plans": {
+      "0": {
+        "plan_id": 187
+      },
+      "1": {
+        "plan_id": 106
+      },
+      "2": {
+        "plan_id": 119
+      },
+      "3": {
+        "plan_id": 132
+      },
+      "4": {
+        "plan_id": 157
+      },
+      "5": {
+        "plan_id": 24
+      },
+      "6": {
+        "plan_id": 88
+      },
+      "7": {
+        "plan_id": 182
+      },
+      "8": {
+        "plan_id": 188
+      },
+      "9": {
+        "plan_id": 110
+      },
+      "10": {
+        "plan_id": 165
+      },
+      "11": {
+        "plan_id": 130
+      },
+      "12": {
+        "plan_id": 125
+      },
+      "14": {
+        "plan_id": 84
+      },
+      "17": {
+        "plan_id": 66
+      },
+      "18": {
+        "plan_id": 93
+      },
+      "20": {
+        "plan_id": 48
+      },
+      "21": {
+        "plan_id": 202
+      },
+      "22": {
+        "plan_id": 155
+      },
+      "23": {
+        "plan_id": 107
+      },
+      "24": {
+        "plan_id": 170
+      },
+      "25": {
+        "plan_id": 120
+      },
+      "26": {
+        "plan_id": 135
+      },
+      "27": {
+        "plan_id": 158
+      },
+      "28": {
+        "plan_id": 111
+      },
+      "29": {
+        "plan_id": 166
+      },
+      "30": {
+        "plan_id": 49
+      },
+      "31": {
+        "plan_id": 104
+      },
+      "32": {
+        "plan_id": 83
+      },
+      "33": {
+        "plan_id": 131
+      },
+      "34": {
+        "plan_id": 89
+      },
+      "35": {
+        "plan_id": 126
+      },
+      "36": {
+        "plan_id": 183
+      },
+      "37": {
+        "plan_id": 203
+      },
+      "38": {
+        "plan_id": 108
+      },
+      "39": {
+        "plan_id": 178
+      },
+      "40": {
+        "plan_id": 163
+      },
+      "41": {
+        "plan_id": 137
+      },
+      "42": {
+        "plan_id": 159
+      },
+      "43": {
+        "plan_id": 167
+      },
+      "44": {
+        "plan_id": 112
+      },
+      "45": {
+        "plan_id": 50
+      },
+      "46": {
+        "plan_id": 141
+      },
+      "47": {
+        "plan_id": 79
+      },
+      "48": {
+        "plan_id": 133
+      },
+      "49": {
+        "plan_id": 97
+      },
+      "50": {
+        "plan_id": 121
+      },
+      "51": {
+        "plan_id": 90
+      },
+      "53": {
+        "plan_id": 184
+      },
+      "54": {
+        "plan_id": 127
+      },
+      "55": {
+        "plan_id": 204
+      },
+      "56": {
+        "plan_id": 109
+      },
+      "57": {
+        "plan_id": 123
+      },
+      "58": {
+        "plan_id": 160
+      },
+      "59": {
+        "plan_id": 168
+      },
+      "60": {
+        "plan_id": 113
+      },
+      "61": {
+        "plan_id": 51
+      },
+      "62": {
+        "plan_id": 164
+      },
+      "63": {
+        "plan_id": 80
+      },
+      "64": {
+        "plan_id": 138
+      },
+      "65": {
+        "plan_id": 185
+      },
+      "66": {
+        "plan_id": 122
+      },
+      "69": {
+        "plan_id": 52
+      },
+      "70": {
+        "plan_id": 124
+      },
+      "71": {
+        "plan_id": 139
+      },
+      "72": {
+        "plan_id": 161
+      },
+      "73": {
+        "plan_id": 8
+      },
+      "74": {
+        "plan_id": 81
+      },
+      "75": {
+        "plan_id": 4
+      },
+      "76": {
+        "plan_id": 169
+      },
+      "77": {
+        "plan_id": 128
+      },
+      "78": {
+        "plan_id": 171
+      },
+      "79": {
+        "plan_id": 186
+      },
+      "83": {
+        "plan_id": 205
+      },
+      "84": {
+        "plan_id": 206
+      },
+      "85": {
+        "plan_id": 200
+      },
+      "86": {
+        "plan_id": 201
+      },
+      "87": {
+        "plan_id": 211
+      },
+      "88": {
+        "plan_id": 212
+      },
+      "89": {
+        "plan_id": 214
+      },
+      "90": {
+        "plan_id": 213
+      },
+      "91": {
+        "plan_id": 220
+      },
+      "92": {
+        "plan_id": 215
+      },
+      "93": {
+        "plan_id": 216
+      },
+      "94": {
+        "plan_id": 217
+      },
+      "95": {
+        "plan_id": 218
+      },
+      "96": {
+        "plan_id": 219
+      },
+      "97": {
+        "plan_id": 221
+      },
+      "98": {
+        "plan_id": 222
+      },
+      "99": {
+        "plan_id": 223
+      },
+      "100": {
+        "plan_id": 224
+      },
+      "101": {
+        "plan_id": 207
+      },
+      "102": {
+        "plan_id": 208
+      },
+      "103": {
+        "plan_id": 210
+      },
+      "104": {
+        "plan_id": 152
+      },
+      "105": {
+        "plan_id": 153
+      },
+      "106": {
+        "plan_id": 181
+      },
+      "107": {
+        "plan_id": 154
+      },
+      "108": {
+        "plan_id": 189
+      },
+      "109": {
+        "plan_id": 226
+      },
+      "110": {
+        "plan_id": 227
+      },
+      "111": {
+        "plan_id": 225
+      },
+      "112": {
+        "plan_id": 228
+      },
+      "113": {
+        "plan_id": 229
+      },
+      "114": {
+        "plan_id": 230
+      },
+      "115": {
+        "plan_id": 231
+      },
+      "116": {
+        "plan_id": 232
+      }
+    },
+    "accepted_credits": [
+      {
+        "credit_type_id": 1
+      },
+      {
+        "credit_type_id": 8
+      },
+      {
+        "credit_type_id": 2
+      },
+      {
+        "credit_type_id": 27
+      },
+      {
+        "credit_type_id": 44
+      },
+      {
+        "credit_type_id": 3
+      },
+      {
+        "credit_type_id": 59
+      },
+      {
+        "credit_type_id": 58
+      },
+      {
+        "credit_type_id": 25
+      },
+      {
+        "credit_type_id": 39
+      },
+      {
+        "credit_type_id": 20
+      },
+      {
+        "credit_type_id": 22
+      },
+      {
+        "credit_type_id": 12
+      },
+      {
+        "credit_type_id": 42
+      },
+      {
+        "credit_type_id": 51
+      },
+      {
+        "credit_type_id": 65
+      },
+      {
+        "credit_type_id": 66
+      },
+      {
+        "credit_type_id": 67
+      },
+      {
+        "credit_type_id": 71
+      },
+      {
+        "credit_type_id": 72
+      },
+      {
+        "credit_type_id": 78
+      }
+    ],
+    "max_bookable_slots": 4,
+    "is_visible": true,
+    "is_waitlistable": true,
+    "is_always_bookable": false,
+    "is_live_stream": false,
+    "is_video_event": false,
+    "is_fully_booked": false,
+    "status": "finished",
+    "metafields": [],
+    "tags": [],
+    "occupancy": 33,
+    "capacity": 64,
+    "pre_order_collection": null
+  }
+}

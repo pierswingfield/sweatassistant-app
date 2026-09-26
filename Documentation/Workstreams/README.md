@@ -27,7 +27,7 @@ still open.
 
 | ID | Workstream | Priority | Size |
 |---|---|---|---|
-| [C1](C1-critical-fixes.md) | Critical fixes: security, session, data safety | **P0** | ~1 day |
+| [C1](C1-critical-fixes.md) | Critical fixes: security, session, data safety. **C1-1 to C1-4 done 2026-09-26; C1-5 and dev-twin deploy unaddressed** | **P0** | ~1 day |
 | [C2](C2-psycle-api-v2.md) | Psycle API v2 compliance and efficiency | **P0** (phase 1), P1 (phase 2) | ~4–5 days |
 | [C3](C3-multi-gym-correctness.md) | Multi-gym correctness | P1 | ~3 days |
 | [C4](C4-live-acceptance-and-launch.md) | Live acceptance, promote to prod, JAB launch | **P0 milestone** | ~3 days of work over ~1–2 weeks elapsed |

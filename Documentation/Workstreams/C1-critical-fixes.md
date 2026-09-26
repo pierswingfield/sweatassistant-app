@@ -14,6 +14,14 @@ Small, independent fixes. Each one is a real risk to users or data, not polish.
 | C1-4 | ✅ **Fix the crash in the account-recover screen.** `setAuthMode('recover')` references a `#psycle-recover-step2` element that doesn't exist, so it throws a TypeError. Also fix the subtitle, which still describes the removed gym-login recovery (belongs with U1-4, same lines). [QA-06, QA-05] | `client/src/main.js` ~L1260, L1275 | 30 min |
 | C1-5 | **Back up the SQLite DB.** No backup job exists for prod or dev. The DB holds encrypted gym credentials, and it is only snapshotted by hand before deploys. Add a nightly job that copies `.db` **plus `-wal`/`-shm`**, or runs `sqlite3 .backup`, off the host (rclone → Drive, as the other services do). | No `scripts/`; nothing in `docker-compose.yml`. The registry notes manual `.bak` copies only. | 1–2 h |
 
+## Unaddressed (2026-09-26)
+
+Deferred by the user on 2026-09-26. Still open, and still blocking C4:
+
+- **C1-5 SQLite backups:** not started. It installs a cron job on the hosts and copies the DB off-host, so it needs explicit approval.
+- **Dev-twin deploy and smoke test** for C1-1 to C1-4: not deployed. The commits are local on `modular` (`a1c647c`, `df7df77`, `79c1964`) and unpushed.
+- Follow-up: three inert `Number(s.id)` calls remain in `openDebugModal`'s "Slots" tab (`client/src/ui/timetable.js` ~3509–3515). Fix them if that tab is ever wired to real data.
+
 ## C1-1 — done 2026-09-26
 
 **Root cause:** `openDebugModal` (`client/src/ui/timetable.js`) rendered `escapeHtml(JSON.stringify(jsonData, null, 2))` for the event/booking/waitlist tabs, where `jsonData` includes the provider's `.raw` payload verbatim. HTML-escaping prevents XSS but does nothing to hide a token/key/password/email/payment field that happens to be present in a gym's raw response — and per AGENTS.md WP-D7, no gym's raw shape is a contract this app controls.
@@ -72,8 +80,8 @@ Small, independent fixes. Each one is a real risk to users or data, not polish.
       real-browser evidence instead — see above.)*
 - [x] `npm test` is green (22/22 server suites, 9/9 client test files, 76/76 client tests).
 - [ ] Deployed to the dev twin. Smoke test: expire one gym's token on a two-gym account and
-      confirm you stay logged in and only that gym shows "reconnect". *(Not deployed per task scope.)*
-- [ ] A backup file restores on a scratch container. *(C1-5, out of scope for this pass.)*
+      confirm you stay logged in and only that gym shows "reconnect". *(UNADDRESSED 2026-09-26: deferred by user.)*
+- [ ] A backup file restores on a scratch container. *(UNADDRESSED 2026-09-26: C1-5 deferred by user.)*
 
 **Detail:** [QA 2026-09-15 ISSUES](../QA/browser-runs/2026-09-15-local-mock/ISSUES.md),
 [QA 2026-09-23 ISSUES](../QA/browser-runs/2026-09-23-lane-live/ISSUES.md).

@@ -344,7 +344,15 @@ async function triggerAutoRelogin(userId, gymId = null) {
 
   if (!session && !credentials) {
     db.setUserGymStatus(userId, targetGymId, 'needs_relogin');
-    throw new Error(`No stored credential for ${gymName}. Please re-link the gym.`);
+    // C1-2: carry the same status/code/gymId a route-level "no session" 401
+    // carries (routes-normalized.js resolveContext), so a relogin that fails
+    // mid-request surfaces to the client as a per-gym signal instead of an
+    // opaque 500 that the 401 handler never even sees.
+    const err = new Error(`No stored credential for ${gymName}. Please re-link the gym.`);
+    err.status = 401;
+    err.code = 'GYM_SESSION_EXPIRED';
+    err.gymId = targetGymId;
+    throw err;
   }
 
   try {
@@ -368,7 +376,11 @@ async function triggerAutoRelogin(userId, gymId = null) {
     // calendar token (Decision D4 — the account outlives the gym).
     db.setGymSession(userId, targetGymId, null);
     db.setUserGymStatus(userId, targetGymId, 'needs_relogin');
-    throw new Error(`Could not renew your ${gymName} session. Please log in to that gym again.`);
+    const relErr = new Error(`Could not renew your ${gymName} session. Please log in to that gym again.`);
+    relErr.status = 401;
+    relErr.code = 'GYM_SESSION_EXPIRED';
+    relErr.gymId = targetGymId;
+    throw relErr;
   }
 }
 

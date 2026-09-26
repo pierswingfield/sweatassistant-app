@@ -1,5 +1,6 @@
 import { debugLog } from './main.js';
 import { getCachedSWR, clearApiCache, setCacheKeyPrefix, invalidateApiCache } from './cache.js';
+import { classifyAuthFailure } from './auth-failure.js';
 
 // API Abstraction layer for communicating with the Psycle PWA server
 
@@ -98,7 +99,22 @@ export async function apiFetch(endpoint, options = {}) {
   }
 
   if (res.status === 401 && localToken) {
-    // Session expired locally or backend CodexFit token expired
+    // C1-2: a 401 here is NOT necessarily the Sweat Assistant session expiring.
+    // The server (routes-normalized.js resolveContext / auth.js
+    // triggerAutoRelogin) tags a dead GYM session — one linked gym's own
+    // login going stale — with `code: 'GYM_SESSION_EXPIRED'` and the gym it
+    // belongs to, precisely so this handler doesn't have to guess. An invalid
+    // or expired SA JWT is a 403 from authenticateToken, a different code path
+    // entirely (see below). Logging the whole account out for one gym's dead
+    // session was QA-08: a two-gym user lost their session the moment EITHER
+    // gym's credential went stale, even though the other gym and the SA
+    // account itself were both fine.
+    const decision = classifyAuthFailure(res.status, await peekJson(res), targetGym);
+    if (decision.kind === 'gym') {
+      console.warn(`[API] Gym "${decision.gymId || 'unknown'}" session expired — needs relogin.`);
+      window.dispatchEvent(new CustomEvent('psycle-gym-needs-relogin', { detail: { gymId: decision.gymId } }));
+      return res;
+    }
     console.warn('[API] Received 401. Session expired. Logging out.');
     setToken(null);
     window.dispatchEvent(new CustomEvent('psycle-logout-triggered'));
@@ -106,6 +122,16 @@ export async function apiFetch(endpoint, options = {}) {
   }
 
   return res;
+}
+
+// Reads the JSON body without consuming the response the caller still needs.
+// Swallows a non-JSON or empty body — plenty of error responses have neither.
+async function peekJson(res) {
+  try {
+    return await res.clone().json();
+  } catch (_) {
+    return null;
+  }
 }
 
 export const api = {

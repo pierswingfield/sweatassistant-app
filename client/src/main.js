@@ -1,5 +1,5 @@
 import { api, setToken, isLoggedIn } from './api';
-import { setGymContext, setLinkedGyms, applyCapabilityGates, getLinkedGyms } from './gym-context.js';
+import { setGymContext, setLinkedGyms, applyCapabilityGates, getLinkedGyms, getGymShortName } from './gym-context.js';
 import { initTooltips } from './ui/tooltips';
 import { setupPullToRefresh } from './ui/pulltorefresh';
 import { setCacheKeyPrefix, clearApiCache, invalidateApiCache } from './cache.js';
@@ -1257,7 +1257,12 @@ function showNoGymScreen() {
 const AUTH_MODES = {
   login:  { title: 'Log in',          subtitle: 'Sign in to your <span data-app-name>Sweat Assistant</span> account.' },
   signup: { title: 'Create account',  subtitle: 'Set up your <span data-app-name>Sweat Assistant</span> account. You’ll connect a gym next.' },
-  recover:{ title: 'Reset password',  subtitle: 'Confirm it’s you by signing in to a gym you’ve linked.' },
+  // C1-4: this used to describe the gym-login recovery flow removed by
+  // Decision D5 (2026-08-31) — a gym credential can no longer prove identity
+  // for the Sweat Assistant account. There is no self-service reset yet
+  // (Workstreams C6-1); say so plainly instead of describing a flow that
+  // can't complete.
+  recover:{ title: 'Reset password',  subtitle: 'Self-service reset isn’t available yet — contact the admin.' },
 };
 
 function setAuthMode(mode) {
@@ -1270,9 +1275,15 @@ function setAuthMode(mode) {
 
   // Recovery always restarts at step 1 — landing mid-flow with a stale gym list
   // would be confusing and could show gyms for a different email.
+  //
+  // C1-4: `#psycle-recover-step2` was the gym-picker step of the self-service
+  // gym-login recovery flow removed by Decision D5 (2026-08-31, see the
+  // AGENTS.md "Never make a gym credential a recovery factor" note). The
+  // markup went with it (client/index.html now has only `#psycle-recover-
+  // step1`), but this reference to step2 didn't, so every "Forgot password?"
+  // click threw a TypeError on `.style` of null and the mode never rendered.
   if (mode === 'recover') {
     document.getElementById('psycle-recover-step1').style.display = 'block';
-    document.getElementById('psycle-recover-step2').style.display = 'none';
   }
   document.querySelectorAll('.psycle-login-error').forEach(el => { el.style.display = 'none'; });
   const noGym = document.getElementById('psycle-nogym-panel');
@@ -1351,6 +1362,23 @@ window.addEventListener('psycle-logout-triggered', () => {
   clearApiCache().catch(() => {});
   showToast('Session expired. Please log in again.', 'warning');
   showLogin();
+});
+
+// C1-2: a single gym's session dying (`GYM_SESSION_EXPIRED`, see
+// client/src/auth-failure.js) must route to THAT gym's needs-relogin state,
+// not to the whole-app logout above. The server already flags the link
+// `needs_relogin` (db.setUserGymStatus) before this fires, so the fix here is
+// just to reflect it without delay: toast which gym, and refresh the "Your
+// Gyms" list if Settings happens to be open so the "Re-authenticate" prompt
+// shows immediately rather than on the next visit to the tab.
+window.addEventListener('psycle-gym-needs-relogin', async (e) => {
+  const gymId = e.detail?.gymId;
+  const name = (gymId && getGymShortName(gymId)) || 'A linked gym';
+  showToast(`${name}: session expired. Reconnect it in Settings → Your Gyms.`, 'warning');
+  try {
+    const { renderGymsCard } = await import('./ui/settings');
+    await renderGymsCard();
+  } catch (_) { /* Settings not mounted / not the active tab — nothing to refresh */ }
 });
 
 // Restore tab from URL hash on back/forward navigation

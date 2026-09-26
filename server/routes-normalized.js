@@ -86,8 +86,14 @@ function resolveContext(userId) {
   const provider = getProvider(gymId);
   const user = db.getUserById(userId);
   if (!user || !user.jwt) {
+    // C1-2: this 401 means ONE gym's session is missing/dead, not that the
+    // Sweat Assistant JWT itself is invalid (that case is a 403 — see
+    // auth.js authenticateToken). `code` lets the client branch on that
+    // distinction instead of treating every 401 as SA logout.
     const err = new Error('No active session for this gym. Please log in.');
     err.status = 401;
+    err.code = 'GYM_SESSION_EXPIRED';
+    err.gymId = gymId;
     throw err;
   }
   return { gymId, provider, session: { accessToken: user.jwt } };
@@ -126,9 +132,12 @@ async function withRelogin(userId, session, fn) {
 function handleError(res, err) {
   const status = err.status || 500;
   // `code` lets the client branch on a state rather than string-matching a
-  // message — NO_GYM_LINKED in particular drives a whole different screen.
+  // message — NO_GYM_LINKED in particular drives a whole different screen,
+  // and GYM_SESSION_EXPIRED (C1-2) is what keeps a single gym's dead session
+  // from reading as the whole account's SA session expiring.
   const body = { message: err.message };
   if (err.code) body.code = err.code;
+  if (err.gymId) body.gymId = err.gymId;
   res.status(status).json(body);
 }
 

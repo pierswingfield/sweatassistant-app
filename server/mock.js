@@ -284,7 +284,17 @@ function handleMockRequest(pathName, method, body) {
   }
 
   if (pathName.startsWith('/bundles')) {
-    return createFakeResponse(bundles);
+    // C2-3b: real CodexFit /bundles answers the by-reference envelope
+    // `{ data, relations }`, same as /events (see codexfit.js listBundles()'s
+    // doc comment) — NOT a bare array. This mock used to return `bundles`
+    // directly, so `data.data || []` in listBundles() always saw `undefined`
+    // and dev mode's Buy Credits tab rendered zero cards with no error
+    // anywhere (confirmed empty #psycle-bundles-container, 2026-09-26).
+    // `relations.bundle_types` is empty here since none of the dev fixture
+    // bundles carry a `bundle_type_id` — the client's category filter
+    // (`bundleTypeHandle` in credits.js) falls back to its text-based rule
+    // when a bundle_type can't be resolved, so this is enough to render.
+    return createFakeResponse({ data: bundles, relations: { bundle_types: [] } });
   }
 
   // In-app checkout mocks (dev@psycle.com) — let the UI run end to end.

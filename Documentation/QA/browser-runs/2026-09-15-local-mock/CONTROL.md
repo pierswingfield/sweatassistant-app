@@ -21,4 +21,23 @@
   - `AUTH-01`: PASS
   - `AUTH-02`: FAIL (original run; retained for history)
   - `AUTH-02-R1`: PASS (QA-02 and QA-03 resolved)
-- **Next Permitted Flow**: `AUTH-03`
+  - `AUTH-03`: PASS
+  - `AUTH-03R`: FAIL (QA-05, QA-06)
+  - `AUTH-04`: PASS
+  - `AUTH-05`: PASS
+  - `AUTH-06`: FAIL (QA-07)
+  - `AUTH-07`: FAIL (QA-08)
+  - `AUTH-08`: FAIL (QA-09)
+  - `SHELL-01`: PASS
+  - `SHELL-02`: PASS
+  - `SET-01`: PASS
+  - `SET-02`: FAIL
+  - `SET-03`: PASS
+  - `SET-04`: PASS
+  - `SET-05`: FAIL (QA-12)
+  - `TT-01`: PASS
+  - `TT-02`: PASS
+  - `TT-03`: PASS
+  - `TT-04`: FAIL (QA-13)
+  - `TT-05`: FAIL (QA-14, QA-15)
+- **Next Permitted Flow**: `WIN-01`

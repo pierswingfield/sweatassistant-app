@@ -303,7 +303,7 @@ router.post('/users/:id/link-gym', authenticateAdmin, (req, res) => {
 // Self-service recovery does not exist: the gym-login mechanism was removed
 // (Decision D5, it re-coupled the account to the gym) and no replacement has
 // been chosen yet, so without this a forgotten Sweat Assistant password means a
-// permanently unreachable account. See BACKLOG.md "Account recovery".
+// permanently unreachable account. See Documentation/Workstreams/C6-accounts-auth.md (C6-1).
 //
 // The admin does NOT choose the password. The server generates a strong
 // single-use one and returns it exactly once, for the admin to relay
@@ -333,7 +333,7 @@ router.post('/users/:id/reset-password', authenticateAdmin, (req, res) => {
 
     const clearedGyms = resetGyms ? db.resetGymCredentials(userId) : [];
 
-    // Audit trail. There is no structured logging yet (BACKLOG.md), so this is
+    // Audit trail. There is no structured logging yet (Workstreams C7-3), so this is
     // the only record that an account's credentials were administratively
     // changed — worth keeping even once proper logging lands.
     console.log(`[Admin] Password reset for user ${userId} (${user.email}); ` +

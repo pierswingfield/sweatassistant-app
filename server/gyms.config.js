@@ -4,7 +4,7 @@
 // change anyway (new provider config, theme, capability flags). Secrets stay in
 // env, not the DB. A thin `gyms` DB table mirrors this for referential integrity
 // and admin display, but THIS file is authoritative for provider behavior.
-// See Documentation/Backlog/modular-gyms/PLAN.md §2.3.
+// See Documentation/Archive/2026-09-26/Backlog/modular-gyms/PLAN.md §2.3.
 //
 // Each entry is passed verbatim to the provider adapter constructor (base.js).
 

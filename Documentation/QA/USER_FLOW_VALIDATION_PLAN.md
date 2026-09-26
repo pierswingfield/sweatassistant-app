@@ -280,6 +280,7 @@ Rules:
    starting the next flow. Any created live ID must be in `CONTROL.md` before the child exits.
 9. If a subagent fails or disappears after a live mutation, the orchestrator's next action is a
    dedicated clean cleanup subagent for the recorded ID, not the next functional flow.
+10. ALL subagents MUST use Gemini Flash (`Model: 'flash'`). Never invoke subagents with `pro` or `inherit`.
 
 ### Flow-subagent prompt template
 

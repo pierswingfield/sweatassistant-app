@@ -266,7 +266,7 @@ app.post('/api/auth/signup', authLoginLimiter, async (req, res) => {
 
 // Account recovery endpoints were REMOVED 2026-08-31 — they proved identity via
 // a linked gym's login, which re-coupled the account to the gym and defeated
-// Decision D4. The replacement mechanism is an open decision (BACKLOG.md);
+// Decision D4. The replacement mechanism is an open decision (Workstreams C6-1);
 // until then a forgotten account password requires an admin reset.
 
 app.get('/api/auth/status', authenticateToken, (req, res) => {

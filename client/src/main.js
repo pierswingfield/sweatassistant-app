@@ -1334,7 +1334,7 @@ if (signupForm) {
 // Account recovery is currently ADMIN-ONLY. The previous self-service flow proved
 // identity with a linked gym's login, which re-coupled the account to the gym and
 // defeated Decision D4 — removed 2026-08-31. The replacement mechanism is an open
-// decision (BACKLOG.md); until it lands the screen says so plainly rather than
+// decision (Workstreams C6-1); until it lands the screen says so plainly rather than
 // offering a flow that cannot complete.
 const recoverFindBtn = document.getElementById('psycle-recover-find-btn');
 if (recoverFindBtn) {

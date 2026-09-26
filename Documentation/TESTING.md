@@ -68,6 +68,10 @@ Monday.
 
 ### Browser smoke test — Claude for Chrome
 
+> Drive the user's real Google Chrome: CDP on `127.0.0.1:9222`, or the Claude for Chrome extension.
+> If neither is available, stop with `BLOCKED`; don't substitute a headless or fresh browser. Backlog work
+> also needs a browser check **before** the change. See [Workstreams/AGENT_PROTOCOL.md](Workstreams/AGENT_PROTOCOL.md).
+
 ```bash
 npm run dev     # server :3000, client :5173
 ```

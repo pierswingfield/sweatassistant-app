@@ -401,7 +401,7 @@ function handleMockRequest(pathName, method, body) {
     }
 
     // Real shape confirmed via a live browser capture (2026-07-03, deleted after
-    // extraction — see Documentation/Backlog/modular-gyms/PROGRESS.md handoff):
+    // extraction — see Documentation/Archive/2026-09-26/Backlog/modular-gyms/PROGRESS.md handoff):
     // `data.{start_at,duration,instructor_id,event_type_id,studio_id,occupancy,
     // capacity}` + a sibling `relations.{instructors,event_types,studios,locations}`
     // block (id-referenced, not inline) — genuinely richer than this mock

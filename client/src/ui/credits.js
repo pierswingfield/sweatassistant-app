@@ -28,7 +28,7 @@ let bundleTypes = [];
 // The fallback website URL stays literally Psycle's: this checkout flow only
 // works against Psycle's Shopify storefront today (no other gym is
 // creditPurchase-capable yet), so a "generic" URL here would be a lie, not a
-// fix — see BACKLOG.md "Multi-Gym Buy Credits Selector" for the real fix.
+// fix — see Documentation/Archive/2026-09-26/Backlog/multi-gym-buy-credits.md for the real fix.
 let creditGymName = 'your gym';
 let creditGymId = null;
 let creditGymWebsiteUrl = null;

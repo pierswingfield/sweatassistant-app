@@ -2,7 +2,7 @@
 /**
  * Dev-only: put a running dev server into the "JAB smoke test" state.
  *
- * Replaces the hand-run fetches in Backlog/modular-gyms/OUTSTANDING.md — logging
+ * Replaces the hand-run fetches in Documentation/Archive/2026-09-26/Backlog/modular-gyms/OUTSTANDING.md — logging
  * in, linking the JAB mock account, and selecting it. Everything it does is
  * against the DEV MOCKS (dev@psycle.com / dev@jabboxing.mock); it touches no
  * live gym and stores no real credential.
@@ -52,7 +52,7 @@ function die(msg, detail) {
 
 (async () => {
   // 1. Server up? Poll rather than assume — a page loaded before the server
-  //    answers produces fake failures (OUTSTANDING.md trap 6).
+  //    answers produces fake failures (archived modular-gyms/OUTSTANDING.md trap 6).
   let health = null;
   for (let i = 0; i < 40; i++) {
     try {

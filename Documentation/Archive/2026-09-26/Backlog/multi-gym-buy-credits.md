@@ -88,9 +88,9 @@ jump-link row, and no dropdown is needed at all:
 | 2 | **`shortName` is done; add `websiteUrl`** to `gyms.config.js` | Kills the hardcoded `psyclelondon.com` fallback, and gives the JAB section its "Open site ↗" target. Thread it through `/api/gyms` the same way `shortName` was on 2026-09-02. |
 | 3 | *(optional, unblocks layer D)* **Normalize `/bundles`** | `GET /api/purchasables` returning a normalized bundle shape would remove one of the last 3 `/api/proxy` callers. Defer-able: the current call already passes an explicit `gymId`, so it is not *wrong*, just deprecated. |
 
-Note the cart flow needs **no** change: `cartInstanceId` is already per-gym (`settings` table, not
+Note the cart flow architecture: `cartInstanceId` (migrating to `cartUuid` under CodexFit v2) is already per-gym (`settings` table, not
 `account_settings`), and `POST /api/cart/checkout/init|confirm` already resolve through the active
-gym.
+gym. Upstream CodexFit v2 uses UUID path parameters (`/cart/{uuid}/...`) rather than query-parameter `instance`.
 
 ---
 

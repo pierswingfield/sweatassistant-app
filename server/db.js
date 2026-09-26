@@ -194,7 +194,7 @@ db.exec(`
     FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
   );
 
-  -- ─── Modular multi-gym support (Documentation/Backlog/modular-gyms/) ────────
+  -- ─── Modular multi-gym support (Documentation/Archive/2026-09-26/Backlog/modular-gyms/) ────────
   -- Mirror of server/gyms.config.js, kept in sync by syncGymsFromConfig() below.
   -- The config file is the authoritative source; this table exists for referential
   -- integrity (FK from user_gyms) and so the admin panel can list/join on it without
@@ -665,7 +665,7 @@ function resolveActiveGymId(userId) {
 
 /**
  * Resolve the gym for a per-gym WRITE — and refuse to guess (stage 1 of the
- * active-gym audit, Documentation/Backlog/active-gym-audit.md).
+ * active-gym audit, Documentation/Archive/2026-09-26/Backlog/active-gym-audit.md).
  *
  * There is no "active gym" in this product: one account, many gyms, every list
  * merged. `resolveActiveGymId` still guesses one for the ~17 accessors that

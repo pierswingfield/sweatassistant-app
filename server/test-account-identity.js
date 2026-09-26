@@ -238,7 +238,7 @@ check('signup then link produces exactly the same shape as a migrated account', 
 check('the gym-login recovery surface is gone, not merely unrouted', () => {
   for (const fn of ['getRecoveryOptions', 'completeRecovery']) {
     assert.strictEqual(typeof auth[fn], 'undefined',
-      `auth.${fn} must not come back without a deliberate decision — see BACKLOG.md`);
+      `auth.${fn} must not come back without a deliberate decision — see Documentation/Workstreams/C6-accounts-auth.md`);
   }
 });
 

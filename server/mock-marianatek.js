@@ -9,7 +9,7 @@
 // real JAB test account, this mock account HAS a working membership, so
 // bookSlot/joinWaitlist/cancelBooking/swapSpots can all be exercised through
 // their actual success paths — the one thing WP-M3's live testing couldn't
-// reach. See Documentation/Backlog/modular-gyms/PROGRESS.md WP-M5 handoff.
+// reach. See Documentation/Archive/2026-09-26/Backlog/modular-gyms/PROGRESS.md WP-M5 handoff.
 
 function createFakeResponse(data, status = 200) {
   return {

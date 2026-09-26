@@ -582,7 +582,7 @@
     });
 
     // Reset password → the account-recovery escape hatch (there is no
-    // self-service reset; see admin.js and BACKLOG.md "Account recovery").
+    // self-service reset; see admin.js and Documentation/Workstreams/C6-accounts-auth.md (C6-1)).
     tbody.querySelectorAll('.reset-pw-btn').forEach(btn => {
       btn.addEventListener('click', () => {
         pendingReset = { id: parseInt(btn.dataset.userId, 10), email: btn.dataset.email };

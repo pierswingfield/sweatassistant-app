@@ -413,7 +413,7 @@ async function handleSignup(email, password) {
 //     matters most.
 //
 // No replacement is wired yet — the mechanism is an open decision, see
-// BACKLOG.md "Account setup & recovery". Until one lands, a forgotten account
+// Documentation/Workstreams/C6-accounts-auth.md. Until one lands, a forgotten account
 // password needs an admin reset.
 //
 // `db.resetGymCredentials()` survives and should be called by whatever mechanism

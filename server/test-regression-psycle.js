@@ -1,7 +1,7 @@
 // Sweat Assistant — Psycle (CodexFit) black-box regression harness. [WP-T3]
 //
 // This is the safety net for the modular multi-gym refactor (see
-// Documentation/Backlog/modular-gyms/PLAN.md §5). It boots the REAL Express
+// Documentation/Archive/2026-09-26/Backlog/modular-gyms/PLAN.md §5). It boots the REAL Express
 // server as a child process, drives it over HTTP exactly like the PWA client
 // does, and asserts on response shapes — so behavior changes introduced while
 // migrating server.js / scheduler.js / poller.js / calendar.js onto the

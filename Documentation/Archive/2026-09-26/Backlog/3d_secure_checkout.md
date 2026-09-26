@@ -10,7 +10,7 @@ Because a significant portion of UK cards (especially under PSD2 Strong Customer
 ## Proposed Solution
 We can complete the Stripe 3DS challenge in-app using Stripe's client-side SDK.
 
-1. **Upstream Data**: The order/payment-intent response already exposes `metadata.intent_secret` or `payment_intent.client_secret` (e.g. `pi_..._secret_...`) and the PaymentIntent ID.
+1. **Upstream Data**: In CodexFit v2, the Stripe `client_secret` is pre-provisioned directly on the cart object at `cart.metadata.stripe.secret` (e.g. `pi_..._secret_...`) upon cart creation / retrieval (`GET /api/customer/v2/cart/{uuid}`). In legacy/server order responses, it is returned on the order/payment-intent response (`metadata.intent_secret` or `payment_intent.client_secret`).
 2. **Client-side Integration**:
    - Embed Stripe.js (`https://js.stripe.com/v3/`) into `client/index.html`.
    - Initialize Stripe with the organization's Stripe publishable key (derived from the CodexFit configuration).

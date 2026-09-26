@@ -140,7 +140,7 @@ export const api = {
   // Account-recovery client methods were REMOVED 2026-08-31 along with the
   // gym-login-as-recovery-credential mechanism (it re-coupled the account to the
   // gym, defeating Decision D4). Re-add them when a replacement is chosen —
-  // see BACKLOG.md "Account setup & recovery".
+  // see Documentation/Workstreams/C6-accounts-auth.md.
 
   async getStatus() {
     const res = await apiFetch('/api/auth/status');

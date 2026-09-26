@@ -14,7 +14,7 @@
 // - Methods return NORMALIZED shapes (see typedefs below), never raw provider JSON
 //   in the happy path. Raw payloads may be attached as `.raw` for debugging.
 //
-// See Documentation/Backlog/modular-gyms/PLAN.md §2.2 / §3 for the full contract.
+// See Documentation/Archive/2026-09-26/Backlog/modular-gyms/PLAN.md §2.2 / §3 for the full contract.
 
 // ---------------------------------------------------------------------------
 // Normalized shape typedefs (JSDoc — this is a plain-JS/CommonJS codebase).

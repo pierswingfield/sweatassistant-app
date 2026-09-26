@@ -98,9 +98,45 @@ Lists workout types (e.g. Strength, Barre, Ride) and their parent groups.
 #### Credit Bundles
 Lists purchasable bundle products.
 * **Method:** `GET`
-* **Path:** `/api/v1/customer/bundles`
+* **Path:** `/api/v1/customer/bundles` (or `/api/customer/v2/bundles`)
 
 ---
+
+### 2.1.1 CodexFit v2 Platform & Query Builder Architecture
+
+CodexFit provides a modern RESTful v2 API under `/api/customer/v2` powered by Laravel and Spatie Query Builder conventions (`filter[field]`, `sort`, `page[size]`). While v1 endpoints remain active for compatibility, the v2 endpoints consolidate relational data and contextual state:
+
+#### Events & Timetable (v2)
+* **Method:** `GET`
+* **Path:** `/api/customer/v2/events`
+* **Query Parameters:**
+  * `filter[location]`: Location ID (e.g. `1` for Oxford Circus).
+  * `filter[between]`: Comma-separated ISO date range (e.g. `2026-09-28,2026-09-29`).
+  * `sort`: Sort field (`start_at`, `id`, `created_at`, `updated_at`). Prefix `-` for descending (e.g. `sort=start_at`).
+  * **Allowed Filters:** `id`, `instructor`, `instructor.handle`, `instructor_tags`, `tags`, `studio`, `studio.handle`, `location`, `location.handle`, `event_type`, `event_type.handle`, `event_type_group`, `event_type_group.handle`, `start_at`, `between`, `is_live_stream`, `is_video_event`, `metafields`, `created_at`, `updated_at`.
+* **Consolidated Response Envelope:**
+  Unlike v1, the v2 response embeds user context directly, avoiding multiple round-trips:
+  ```json
+  {
+    "data": [ ... ],
+    "relations": { "instructors": [...], "studios": [...], "locations": [...] },
+    "booking_cutoff": "2026-10-13T12:00:00.000000Z",
+    "extended_cutoff": "2026-10-21T12:00:00.000000Z",
+    "booked_events": [],
+    "friends_booked": []
+  }
+  ```
+
+#### Single Event & Floor Plan (v2)
+* **Method:** `GET`
+* **Path:** `/api/customer/v2/events/{id}`
+* **Response Envelope:** Returns event data along with floor plan slots, current bookings, and eligibility:
+  * `data`: Event object (`occupancy`, `capacity`, `is_fully_booked`, `status`, etc.).
+  * `slots`: Array of physical layout slot objects/IDs.
+  * `bookings`: Map of current user and friend bookings.
+  * `valid_booking_methods`: Available booking methods (`subscriptions`, `credits`, `preferred_booking_method`).
+  * `is_bookable_standard` & `is_bookable_extended`: Booleans indicating current user booking window eligibility.
+  * `relations`: Full relation maps for instructors, event types, studios, locations, plans, and credit types.
 
 ### 2.2 Authenticated Endpoints (Auth Required)
 
@@ -195,14 +231,161 @@ The native CodexFit Vue app implements a cache invalidation mechanism via the `/
 
 The response yields UTC timestamps for each data type (e.g., `events`, `instructors`, `bookings`). The client compares these timestamps against local storage to determine if cached data needs to be re-fetched.
 
+
+---
+
+### 2.5 Cart & Checkout API (v2)
+
+In September 2026, CodexFit transitioned to a RESTful v2 Cart & Checkout API (`/api/customer/v2`). This replaces the legacy query-parameter-based v1 endpoints (`/cart/add_bundle/...` and `/cart/ajaxCheckoutProcess`).
+
+* **Base URL:** `https://psycle.codexfit.com/api/customer/v2`
+* **Authentication:** `Authorization: Bearer <JWT>` (obtained from login or cookie `codex_bearer_token`).
+* **Required Headers:**
+  * `Accept: application/json`
+  * `Content-Type: application/json`
+  * `Origin: https://psyclelondon.com`
+  * `Referer: https://psyclelondon.com/`
+
+#### 2.5.1 Cart Session & Client Storage
+* **LocalStorage Key:** `psycle-codex-cart` (CodexFit prefixes the key with `app_id` `psycle-`, storing `{ "uuid": "...", "expires_at": ... }`).
+* **UI Drawer Event:** The website cart drawer modal is triggered via:
+  ```javascript
+  document.dispatchEvent(new CustomEvent('codex.modal.open.codex-cart', { bubbles: true }));
+  // Or clicking the DOM trigger:
+  document.querySelector('[data-codex-modal-toggle="codex-cart"]')?.click();
+  ```
+* **Client Networking Architecture:** The native CodexFit bundle buying frontend uses **Axios**, which operates via `XMLHttpRequest` (not `window.fetch`). Browser extension interceptors modifying outgoing bundle requests must hook `XMLHttpRequest.prototype.send` to inspect and rewrite the request payload.
+
+#### 2.5.2 Cart Lifecycle Endpoints
+
+##### 1. Initialize Cart Session
+Creates a new cart session if one does not already exist.
+* **Method:** `POST`
+* **Path:** `/api/customer/v2/cart`
+* **Body:** `{}`
+* **Response:**
+  ```json
+  {
+    "data": {
+      "uuid": "cf7c552a-3e5a-4de5-9632-f110678fff12",
+      "currency": "GBP",
+      "subtotal": 0,
+      "total": 0,
+      "lines": [],
+      "metadata": { "stripe": { "secret": "pi_..._secret_..." } }
+    }
+  }
+  ```
+
+##### 2. Get Cart Snapshot
+Retrieves the cart state, line items, taxes, and Stripe PaymentIntent details.
+* **Method:** `GET`
+* **Path:** `/api/customer/v2/cart/{uuid}`
+* **Key Fields:**
+  * `lines`: Array of line items currently in the cart.
+  * `metadata.stripe.secret`: Pre-provisioned Stripe `PaymentIntent` client secret for in-app or client-side confirmation.
+
+##### 3. Add Item to Cart
+Adds a package bundle or product to the cart session. Supports adding arbitrary quantities directly in a single request.
+* **Method:** `POST`
+* **Path:** `/api/customer/v2/cart/{uuid}/lines`
+* **Body:**
+  ```json
+  {
+    "type": "bundle",
+    "id": 792,
+    "quantity": 1
+  }
+  ```
+* **Response:** Returns updated cart object. Each line item contains a unique `hash` (MD5 hex string, e.g. `"889e8bcafbb1b6f0b01dd6395db573b6"`) used for subsequent mutations.
+
+##### 4. Mutate Item Quantity (Increment / Decrement)
+Modifies the quantity of an existing line item.
+* **Method:** `PUT`
+* **Path:** `/api/customer/v2/cart/{uuid}/lines/{hash}`
+* **Body:**
+  ```json
+  {
+    "hash": "889e8bcafbb1b6f0b01dd6395db573b6",
+    "action": "increment"
+  }
+  ```
+  *(Use `"action": "decrement"` to decrease quantity)*.
+
+##### 5. Remove Item from Cart
+Completely deletes a line item from the cart.
+* **Method:** `DELETE`
+* **Path:** `/api/customer/v2/cart/{uuid}/lines/{hash}`
+
+##### 6. Apply / Remove Voucher
+* **Apply Method:** `POST`
+* **Apply Path:** `/api/customer/v2/cart/{uuid}/vouchers`
+* **Apply Body:** `{"code": "SUMMER10"}`
+* **Remove Method:** `DELETE`
+* **Remove Path:** `/api/customer/v2/cart/{uuid}/vouchers/{voucherCode}`
+
+#### 2.5.3 Payment & Checkout Flow
+
+##### 1. List Saved Payment Methods
+Retrieves customer's saved payment methods stored on Stripe.
+* **Method:** `GET`
+* **Path:** `/api/customer/v2/payment-methods`
+* **Response:** Array of payment methods with `id` (`pm_...`), `brand` (`amex`, `visa`), `last4`, and `exp_year`.
+
+##### 2. Attach Payment Method to Cart
+* **Method:** `POST`
+* **Path:** `/api/customer/v2/cart/{uuid}/payment-method`
+* **Body:**
+  ```json
+  {
+    "payment_method": "pm_1Hxxxxxxxxxxxxxxxxxxxx"
+  }
+  ```
+
+##### 3. Begin Checkout
+Transitions the cart session to checkout state.
+* **Method:** `POST`
+* **Path:** `/api/customer/v2/cart/{uuid}/checkout`
+* **Body:** `{}`
+
+##### 4. Finalise Order
+Submits the order for asynchronous processing and payment capture.
+* **Method:** `POST`
+* **Path:** `/api/customer/v2/cart/{uuid}/finalise`
+* **Body:**
+  ```json
+  {
+    "analytics": {
+      "user_agent": "...",
+      "screen_resolution": "1920x1080"
+    }
+  }
+  ```
+* **Response:** Returns HTTP `202 Accepted` during asynchronous creation. The client polls the status endpoint using exponential backoff until the order status resolves to `succeeded` or `paid`.
+
+---
+
+### 2.6 Retired / Obsolete Endpoints (v1 Cart)
+
+> [!WARNING]
+> The following v1 endpoints have been retired by CodexFit and should no longer be called in new integrations:
+> * `POST /api/v1/customer/cart/add_bundle/{bundleId}?instance={instance}` ➔ **RETIRED** (Replaced by `POST /api/customer/v2/cart/{uuid}/lines`).
+> * `GET /api/v1/customer/cart/get_payment_methods?instance={instance}` ➔ **RETIRED** (Replaced by `GET /api/customer/v2/payment-methods`).
+> * `POST /api/v1/customer/cart/set_payment_method/{pmId}` ➔ **RETIRED** (Replaced by `POST /api/customer/v2/cart/{uuid}/payment-method`).
+> * `POST /api/v1/customer/cart/ajaxCheckoutProcess` ➔ **RETIRED** (Replaced by `POST /api/customer/v2/cart/{uuid}/finalise`).
+> * The `instance` query parameter pattern is obsolete; carts are identified exclusively by UUID in the RESTful v2 path hierarchy `/cart/{uuid}/...`.
+
 ---
 
 ## 3. Web timetable rendering & Caching
 
-### 3.1 Vue App Architecture
-The timetable page is a Shopify storefront embedding a minified CodexFit Vue.js client (`api-v2.codexfit.com/latest/app.js`).
+### 3.1 Client Architecture & Bootstrapping
+The Shopify storefront embeds CodexFit via `https://psycle.codexfit.com/bootstrap.js`, which dynamically mounts and injects the production bundle:
+* **Default Script:** `https://codexfit-api-assets.s3.amazonaws.com/production/latest/main.js` (Last-Modified: Sept 2026).
+* **Retired Script:** `https://api-v2.codexfit.com/latest/app.js` (legacy May 2026 bundle).
+* **Script Override Hook:** `bootstrap.js` inspects `localStorage.getItem("codex-script-override")` and `window.CODEX_SCRIPT_OVERRIDE`. It exposes developer controls on `window.codexBootstrap.setOverride(url)` and `clearOverride()`.
 
-**Vue Component Hierarchy:**
+**Component & Stage Hierarchy:**
 ```
 codex-main-app (root Vue instance)
 ├── timetable (Vue component — manages events, filters, carousel)
@@ -212,8 +395,8 @@ codex-main-app (root Vue instance)
 └── event (Vue component — booking modal and floor plan)
 ```
 
-### 3.2 Relation Resolution (`Qs` helper)
-The API returns a flat array of events and a `relations` dictionary of studios, locations, instructors, and event types. On receipt, the Vue app invokes `Qs(events, relations)` to dynamically replace ID fields on events with their full relational objects (e.g., `event.instructor_id` becomes `event.instructor` containing name, photo, and keyword metafields). This resolution is crucial because template rendering relies on object sub-properties.
+### 3.2 Relation Resolution (`Xi` & `Qs` helpers)
+The API returns a flat array of events and a `relations` dictionary of studios, locations, instructors, credit types, and event types. In the modern client (`main.js`), the relation linker traverses all `*_id` properties (e.g. `instructor_id`, `studio_id`) and attaches the corresponding resolved object from `relations` (e.g. `event.instructor`, `event.studio`). Template rendering across the timetable and booking modals relies on these nested relational objects.
 
 ### 3.3 Incremental Loading
 To keep payloads manageable, the native timetable loads 10 days of schedule at first. As the user slides the carousel, it incrementally requests additional ranges up to a maximum of 42 days.

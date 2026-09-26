@@ -1,5 +1,5 @@
 // Active-gym resolution tests (WP-C2 slice 1a; revised 2026-09-15 for stage 4
-// of the active-gym audit — Documentation/Backlog/active-gym-audit.md).
+// of the active-gym audit — Documentation/Archive/2026-09-26/Backlog/active-gym-audit.md).
 //
 // resolveActiveGymId() used to be a two-line stub returning DEFAULT_GYM_ID. It is
 // called from ~10 places inside db.js — every auth, session, credential, priority

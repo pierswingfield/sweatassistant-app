@@ -201,10 +201,14 @@ class MarianaTekProvider extends GymProvider {
     if (!authCode) {
       // A login failure typically re-renders the login page (200, with an error
       // message) rather than redirecting — surface that distinction.
+      // C3-11: name the GYM, not the platform — "MarianaTek" means nothing to
+      // a member of a specific gym, and WP-D7 already forbids treating the
+      // platform as if it were one gym's identity.
+      const gymName = (this.gym && this.gym.shortName) || 'The gym';
       if (response.status === 200) {
-        throw new Error('MarianaTek login failed: incorrect email/password (login page re-rendered instead of redirecting).');
+        throw new Error(`${gymName} rejected your login: incorrect email/password (login page re-rendered instead of redirecting).`);
       }
-      throw new Error(`MarianaTek login failed: could not obtain an authorization code (last status ${response.status}).`);
+      throw new Error(`${gymName} login failed: could not obtain an authorization code (last status ${response.status}).`);
     }
 
     // Step 4: exchange the code for tokens.

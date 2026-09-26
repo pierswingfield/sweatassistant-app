@@ -182,7 +182,13 @@ class CodexFitProvider extends GymProvider {
 
     if (!res.ok) {
       const errorData = await res.json().catch(() => ({}));
-      throw new Error(errorData.message || `Login failed with status ${res.status}`);
+      // C3-11: name the gym that actually rejected the credential — a
+      // multi-gym account linking a second gym needs to know WHICH one just
+      // failed ("JAB rejected your password"), not a gym-less "Invalid
+      // credentials" that reads as if the whole app is broken.
+      const gymName = (this.gym && this.gym.shortName) || 'The gym';
+      const reason = errorData.message || `login failed with status ${res.status}`;
+      throw new Error(`${gymName} rejected your login: ${reason}`);
     }
 
     const data = await res.json(); // { access_token, user: { ... } }

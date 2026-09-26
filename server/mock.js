@@ -1,5 +1,6 @@
 const fs = require('fs');
 const path = require('path');
+const { randomUUID } = require('crypto');
 
 // To be fully safe and compatible with all node versions, let's write a simple custom Response-like object.
 function createFakeResponse(data, status = 200) {
@@ -149,6 +150,61 @@ const bundles = [
 
 let mockBookmarks = [];
 
+// --- v2 cart state (C2-1, 2026-09-26) ---------------------------------------
+// uuid -> { lines: [{id, buyable_id, buyable_type, name, hash, quantity,
+// item_price_raw, item_price}], hadLine, orderId, finalisedAt, paymentMethodId,
+// checkedOut }. In-memory only (dev process lifetime), same convention as
+// mockBookmarks above.
+let mockCarts = {};
+
+function mockCartSnapshot(uuid) {
+  const cart = mockCarts[uuid] || { lines: [], hadLine: false };
+  const lines = cart.lines;
+  const subtotal = lines.reduce((sum, l) => sum + l.item_price_raw * l.quantity, 0);
+  // Mirrors the live cart's metadata.stripe behaviour (PARITY.md G3/G7): a
+  // PaymentIntent once there's a chargeable line, a zero-amount SetupIntent
+  // once the cart is empty again but has HAD a line, and no `stripe` key at
+  // all for a cart that has never had one.
+  let stripe;
+  if (subtotal > 0) {
+    stripe = { type: 'payment', amount: subtotal, intent: `pi_mock_${uuid.slice(0, 8)}`, secret: `pi_mock_${uuid.slice(0, 8)}_secret_mock`, currency: 'GBP', amount_ongoing: 0 };
+  } else if (cart.hadLine) {
+    stripe = { type: 'setup', amount: 0, intent: `seti_mock_${uuid.slice(0, 8)}`, secret: `seti_mock_${uuid.slice(0, 8)}_secret_mock`, currency: 'GBP', amount_ongoing: 0 };
+  }
+  return {
+    order_id: cart.orderId || null,
+    uuid,
+    finalised_at: cart.finalisedAt || null,
+    currency: 'GBP',
+    subtotal,
+    total: subtotal,
+    lines,
+    metadata: stripe ? { stripe, organisation: null } : { organisation: null },
+  };
+}
+
+// --- Waitlist state (C2-2, 2026-09-26) --------------------------------------
+let mockWaitlists = [];
+let mockWaitlistSeq = 300000;
+
+// Lightweight embedded `event` for a waitlist entry — the real API embeds a
+// FULL event object inline (unlike /bookings, see codexfit.js listWaitlists'
+// doc comment), so this mirrors the same derivation POST /bookings and
+// GET /events/{id} already use elsewhere in this file, not the timetable's
+// own (different) id scheme — an existing inconsistency in this mock, not
+// introduced here.
+function mockWaitlistEventSummary(eventId) {
+  const isEven = eventId % 2 === 0;
+  return {
+    id: eventId,
+    name: isEven ? 'Ride 45' : 'Barre 55',
+    start_at: new Date(new Date().setUTCHours(isEven ? 8 : 18, 30, 0, 0) + 3 * 864e5).toISOString(),
+    event_type: isEven ? eventTypes[0] : eventTypes[1],
+    instructor: instructors[0],
+    studio: isEven ? studios[0] : studios[1],
+  };
+}
+
 const mockNow = new Date();
 const mockD1 = new Date(mockNow.getTime() + 2 * 864e5).toISOString();
 const mockD2 = new Date(mockNow.getTime() + 5 * 864e5).toISOString();
@@ -297,28 +353,136 @@ function handleMockRequest(pathName, method, body) {
     return createFakeResponse({ data: bundles, relations: { bundle_types: [] } });
   }
 
-  // In-app checkout mocks (dev@psycle.com) — let the UI run end to end.
-  if (pathName.startsWith('/cart/add_bundle/')) {
-    return createFakeResponse({ instance: 'mock-instance-0001' });
+  // In-app checkout mocks (dev@psycle.com) — CodexFit v2 cart (C2-1,
+  // 2026-09-26). Mirrors the shapes confirmed live in
+  // server/fixtures/codexfit-v2/PARITY.md (G3) and cart-v2-lifecycle.json:
+  // add-line takes no `quantity`, an empty/fresh cart has no `stripe` key at
+  // all, a cart that's HAD a line but is now empty gets a zero-amount "setup"
+  // intent instead of none. The payment-method/checkout/finalise steps were
+  // never exercised live (no purchase was made — see PARITY.md), so those
+  // three mock handlers follow Documentation/Services/psycle_codexfit.md
+  // §2.5.3 only; flagged the same way in codexfit-cart.js.
+  if (pathName === '/cart' && method === 'POST') {
+    const uuid = randomUUID();
+    mockCarts[uuid] = { lines: [], hadLine: false, orderId: null, finalisedAt: null };
+    return createFakeResponse({ data: mockCartSnapshot(uuid) });
   }
-  if (pathName.startsWith('/cart/get_payment_methods')) {
+
+  if (pathName.startsWith('/cart/')) {
+    const parts = pathName.split('/').filter(Boolean); // ['cart', uuid, ...rest]
+    const uuid = parts[1];
+    const mockCart = mockCarts[uuid];
+    if (!mockCart) return createFakeResponse({ message: 'Cart not found' }, 404);
+
+    if (parts[2] === 'lines') {
+      if (method === 'POST') {
+        const bundle = bundles.find((b) => b.id === body?.id);
+        if (!bundle) return createFakeResponse({ message: 'Unknown bundle' }, 422);
+        const hash = randomUUID().replace(/-/g, '');
+        const line = {
+          id: Math.floor(Math.random() * 1e6),
+          buyable_id: bundle.id,
+          buyable_type: 'Bundle',
+          name: bundle.name,
+          hash,
+          quantity: 1,
+          item_price_raw: bundle.price,
+          item_price: `£${(bundle.price / 100).toFixed(2)}`,
+        };
+        mockCart.lines.push(line);
+        mockCart.hadLine = true;
+        return createFakeResponse({ data: line, message: 'Added to cart' });
+      }
+      const hash = parts[3];
+      const line = mockCart.lines.find((l) => l.hash === hash);
+      if (method === 'PUT') {
+        if (line) {
+          if (body?.action === 'increment') line.quantity += 1;
+          else if (body?.action === 'decrement') line.quantity = Math.max(1, line.quantity - 1);
+        }
+        return createFakeResponse({ data: line || null });
+      }
+      if (method === 'DELETE') {
+        mockCart.lines = mockCart.lines.filter((l) => l.hash !== hash);
+        return createFakeResponse({ message: 'Removed from cart' });
+      }
+    }
+
+    if (parts[2] === 'payment-method' && method === 'POST') {
+      mockCart.paymentMethodId = body?.payment_method;
+      return createFakeResponse({ data: mockCartSnapshot(uuid) });
+    }
+
+    if (parts[2] === 'checkout' && method === 'POST') {
+      mockCart.checkedOut = true;
+      return createFakeResponse({ data: mockCartSnapshot(uuid) });
+    }
+
+    if (parts[2] === 'finalise' && method === 'POST') {
+      // UNVERIFIED against live Psycle — see header note above. 202 Accepted
+      // per psycle_codexfit.md §2.5.3 #4; the mock's /orders/{id} below
+      // settles it as Paid immediately.
+      const orderId = 9000001 + Math.floor(Math.random() * 1000);
+      mockCart.orderId = orderId;
+      mockCart.finalisedAt = new Date().toISOString();
+      return createFakeResponse({ data: { order_id: orderId } }, 202);
+    }
+
+    if (parts.length === 2 && method === 'GET') {
+      return createFakeResponse({ data: mockCartSnapshot(uuid) });
+    }
+  }
+
+  if (pathName.startsWith('/payment-methods')) {
     return createFakeResponse({
-      success: true,
-      methods: [
+      data: [
         { id: 'pm_mock_amex', brand: 'amex', last4: '3003', default: true, exp_month: 10, exp_year: 2029 },
         { id: 'pm_mock_visa', brand: 'visa', last4: '4242', default: false, exp_month: 3, exp_year: 2027 },
       ],
     });
   }
-  if (pathName.startsWith('/cart/set_payment_method/')) {
-    return createFakeResponse({ success: true, intent: { id: 'pi_mock', status: 'requires_payment_method' } });
-  }
-  if (pathName.startsWith('/cart/ajaxCheckoutProcess')) {
-    return createFakeResponse({ success: true, order: { id: 9000001, status: 'Payment pending' } });
-  }
+
   if (pathName.startsWith('/orders/')) {
     // Mock settles immediately as Paid. Real API wraps the order in { data: ... }.
     return createFakeResponse({ data: { id: 9000001, status: 'Paid' } });
+  }
+
+  // PUT /waitlists/{eventId} (join), DELETE /waitlists/{waitlistRowId} (leave),
+  // GET /waitlists (list) — added 2026-09-26 (C2-2) so dev mode can exercise
+  // the waitlist lifecycle; previously fell through to the bare `[]` default
+  // response, which "worked" for GET but silently no-op'd join/leave (ok:true,
+  // no state change), masking exactly the join/leave id-mismatch bug C2-2
+  // fixed. Real shape per server/fixtures/codexfit-v2/waitlist-v1-join-leave.json.
+  if (pathName.startsWith('/waitlists')) {
+    const parts = pathName.split('/').filter(Boolean); // ['waitlists', ':id'?]
+
+    if (method === 'PUT' && parts.length === 2) {
+      const eventId = parseInt(parts[1], 10);
+      const existing = mockWaitlists.find((w) => w.event_id === eventId && !w.cancelled_at);
+      if (existing) return createFakeResponse({ success: true, waitlist: existing });
+      const entry = {
+        id: mockWaitlistSeq++,
+        customer_id: 99999,
+        event_id: eventId,
+        added_at: new Date().toISOString(),
+        event: mockWaitlistEventSummary(eventId),
+        cancelled_at: null,
+      };
+      mockWaitlists.push(entry);
+      return createFakeResponse({ success: true, waitlist: entry });
+    }
+
+    if (method === 'DELETE' && parts.length === 2) {
+      // Deliberately matches by the WAITLIST ROW id, same as the real API
+      // (C2-2) — a stray DELETE using an event id finds nothing and no-ops,
+      // rather than removing whichever row happens to share that number.
+      const waitlistId = parseInt(parts[1], 10);
+      mockWaitlists = mockWaitlists.filter((w) => w.id !== waitlistId);
+      return createFakeResponse({ success: true });
+    }
+
+    // GET /waitlists — list.
+    return createFakeResponse({ data: mockWaitlists.filter((w) => !w.cancelled_at) });
   }
 
   if (pathName.startsWith('/bookings')) {

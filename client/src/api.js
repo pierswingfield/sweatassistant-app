@@ -986,24 +986,13 @@ export const api = {
     return data;
   },
 
-  // Cart
-  async addBundleToCart(bundleId, quantity = 1) {
-    const res = await apiFetch(`/api/cart/add-bundle/${bundleId}`, {
-      method: 'POST',
-      body: JSON.stringify({ quantity })
-    });
-    if (!res.ok) {
-      const err = await res.json().catch(() => ({}));
-      throw new Error(err.message || 'Failed to add bundle to cart');
-    }
-    invalidateApiCache('/api/cart').catch(() => {});
-    return res.json();
-  },
-
-  async getCart() {
-    const result = await getCachedSWR('/api/cart', { ttlMs: 120000, fetcher: apiFetch });
-    return result.data;
-  },
+  // NOTE: `addBundleToCart`/`getCart` (a standalone "add to website cart" /
+  // "view cart" pair, distinct from the in-app checkout below) were removed
+  // here 2026-09-26 (C2-1) — dead code even before the v1→v2 cart migration:
+  // no UI ever called them, `/api/cart/add-bundle/:bundleId` called the now-
+  // retired v1 `/cart/add_bundle`, and `GET /api/cart` this hit never existed
+  // as a server route at all. The website-cart fallback these implied is
+  // handled by the static `creditGymWebsiteUrl` link in credits.js instead.
 
   // In-app checkout: add bundle (qty times) + fetch saved cards
   async checkoutInit(bundleId, quantity = 1, gymId = null) {

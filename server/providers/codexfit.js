@@ -17,6 +17,7 @@ const { DateTime } = require('luxon');
 const { GymProvider, classifyProviderThrottle } = require('./base');
 const bookingWindow = require('./booking-window');
 const { makeMetadata, makeProfile, makeEvent, makeSlot, makeLayoutObject, makeBookingResult, makeBooking } = require('./normalize');
+const cart = require('./codexfit-cart');
 
 // Dev-mode bypass, aligned with MarianaTek's dev@jabboxing.mock convention.
 // login() must establish the sentinel session itself, since a fresh account
@@ -76,9 +77,19 @@ class CodexFitProvider extends GymProvider {
     return this.gym.apiBaseUrl + pathOrUrl;
   }
 
-  // Strip the CodexFit API base from a full URL → the customer path (for mock routing).
+  // Same as url(), but resolves against the v2 cart/checkout base
+  // (`/api/customer/v2`, a genuinely different path than the v1 base above —
+  // see gyms.config.js's `v2ApiBaseUrl` comment). Used only by
+  // providers/codexfit-cart.js (C2-1).
+  url2(pathOrUrl) {
+    if (/^https?:\/\//i.test(pathOrUrl)) return pathOrUrl;
+    return this.gym.v2ApiBaseUrl + pathOrUrl;
+  }
+
+  // Strip whichever CodexFit API base (v1 or v2) a full URL carries → the
+  // customer path (for mock routing).
   toPath(pathOrUrl) {
-    return pathOrUrl.replace(this.gym.apiBaseUrl, '');
+    return pathOrUrl.replace(this.gym.apiBaseUrl, '').replace(this.gym.v2ApiBaseUrl, '');
   }
 
   /** Is this GET a public (no-auth) CodexFit read? Mirrors server.js PUBLIC_PATHS. */
@@ -101,7 +112,22 @@ class CodexFitProvider extends GymProvider {
    * purely additive, never fires for the 5 existing callers since they never
    * construct a call with this token in the first place.
    */
-  async request(pathOrUrl, { token, method = 'GET', body, headers } = {}) {
+  async request(pathOrUrl, opts = {}) {
+    return this._doFetch(this.url.bind(this), pathOrUrl, opts);
+  }
+
+  /**
+   * Same contract as request(), but resolves against the v2 cart/checkout
+   * base (url2()) instead of the v1 customer base. Added for C2-1 — the v2
+   * cart lifecycle (init/add-line/mutate/checkout/finalise) lives at
+   * `/api/customer/v2`, a different host path than everything else this
+   * adapter calls. See providers/codexfit-cart.js, the only caller.
+   */
+  async requestV2(pathOrUrl, opts = {}) {
+    return this._doFetch(this.url2.bind(this), pathOrUrl, opts);
+  }
+
+  async _doFetch(urlFn, pathOrUrl, { token, method = 'GET', body, headers } = {}) {
     if (token === MOCK_TOKEN) {
       const { handleMockRequest } = require('../mock');
       return handleMockRequest(this.toPath(pathOrUrl), method, typeof body === 'string' ? JSON.parse(body) : body);
@@ -117,7 +143,7 @@ class CodexFitProvider extends GymProvider {
         delete opts.headers['content-type'];
       }
     }
-    return fetch(this.url(pathOrUrl), opts);
+    return fetch(urlFn(pathOrUrl), opts);
   }
 
   /**
@@ -678,9 +704,32 @@ class CodexFitProvider extends GymProvider {
     return res.ok;
   }
 
-  /** DELETE /waitlists/{eventId} — always penalty-free per the research doc. */
+  /**
+   * DELETE /waitlists/{waitlistRowId} — NOT /waitlists/{eventId} (C2-2, fixed
+   * 2026-09-26).
+   *
+   * Root cause / evidence: a live capture (server/fixtures/codexfit-v2/
+   * waitlist-v1-join-leave.json, PARITY.md G2) showed joining event 217095
+   * returns `waitlist.id: 300480`, and the real site's leave call was
+   * `DELETE /waitlists/300480` — never `DELETE /waitlists/217095`. This
+   * method used to `DELETE /waitlists/${eventId}` directly, which targets the
+   * wrong id: an event can be waitlisted by many customers, each with their
+   * own row id, and CodexFit's leave verb only ever accepts that row id.
+   * Always penalty-free per psycle_codexfit.md.
+   *
+   * To honor the shared eventId-based interface (base.js) — MarianaTek's
+   * leaveWaitlist has the identical constraint, see its doc comment just
+   * above this one in providers/marianatek.js — this looks up the user's own
+   * waitlist row for the event via listWaitlists(), then deletes by that
+   * row's id. One extra read per leave; CodexFit has no "find my waitlist
+   * entry for event X" endpoint, the same limitation getCancelPenalty already
+   * works around for bookings (see its doc comment above).
+   */
   async leaveWaitlist(eventId, session) {
-    const res = await this.request(`/waitlists/${eventId}`, { token: session.accessToken, method: 'DELETE' });
+    const entries = await this.listWaitlists(session);
+    const entry = entries.find((w) => String(w.eventId) === String(eventId));
+    if (!entry) return false;
+    const res = await this.request(`/waitlists/${entry.bookingId}`, { token: session.accessToken, method: 'DELETE' });
     return res.ok;
   }
 
@@ -812,6 +861,73 @@ class CodexFitProvider extends GymProvider {
       bundles: data.data || [],
       bundleTypes: (data.relations && data.relations.bundle_types) || undefined,
     };
+  }
+
+  // --- v2 cart & checkout (C2-1, 2026-09-26) --------------------------------
+  //
+  // Protocol lives in providers/codexfit-cart.js (see its own header for the
+  // fixture/doc sourcing and what's UNVERIFIED live). These methods are just
+  // the session-token plumbing so the route layer (server/routes-normalized.js)
+  // never needs to know a token exists, matching every other method here.
+
+  async initCart(session) {
+    return cart.initCart(this, session.accessToken);
+  }
+
+  async getCart(cartUuid, session) {
+    return cart.getCart(this, session.accessToken, cartUuid);
+  }
+
+  /**
+   * Adds `bundleId` to the cart `quantity` times. Add-line itself takes no
+   * quantity (confirmed live, PARITY.md G3), so this adds once and then
+   * increments (quantity - 1) times via the mutate-quantity endpoint —
+   * cheaper and more obviously correct than calling add-line in a loop, which
+   * risks creating `quantity` separate lines instead of one line at that
+   * quantity (never observed either way live — this is the documented
+   * increment verb, so it's the safer assumption).
+   */
+  async addBundleToCart(cartUuid, bundleId, quantity, session) {
+    let line = await cart.addLine(this, session.accessToken, cartUuid, bundleId);
+    for (let i = 1; i < quantity; i++) {
+      line = await cart.mutateLineQuantity(this, session.accessToken, cartUuid, line.hash, 'increment');
+    }
+    return line;
+  }
+
+  async removeCartLine(cartUuid, hash, session) {
+    return cart.removeLine(this, session.accessToken, cartUuid, hash);
+  }
+
+  // UNVERIFIED against live Psycle — see codexfit-cart.js header.
+  async listCartPaymentMethods(session) {
+    return cart.listPaymentMethods(this, session.accessToken);
+  }
+
+  // UNVERIFIED against live Psycle — see codexfit-cart.js header.
+  async attachCartPaymentMethod(cartUuid, paymentMethodId, session) {
+    return cart.attachPaymentMethod(this, session.accessToken, cartUuid, paymentMethodId);
+  }
+
+  // UNVERIFIED against live Psycle — see codexfit-cart.js header.
+  async finaliseCart(cartUuid, analytics, session) {
+    await cart.beginCheckout(this, session.accessToken, cartUuid);
+    const result = await cart.finaliseCart(this, session.accessToken, cartUuid, analytics);
+    return { orderId: cart.extractOrderId(result), raw: result };
+  }
+
+  /**
+   * Poll an order until Stripe settles it. Unchanged by the v1→v2 cart
+   * migration — the v2 doc (psycle_codexfit.md §2.5.3 #4) describes polling
+   * "the status endpoint" without naming one, and `/orders/{id}` is the only
+   * order-status read this API has ever had (used identically by the old v1
+   * checkout flow this replaces). UNVERIFIED that finalise actually hands back
+   * an order this shape resolves — see codexfit-cart.js header.
+   */
+  async getOrder(orderId, session) {
+    const res = await this.request(`/orders/${orderId}`, { token: session.accessToken, method: 'GET' });
+    const data = await res.json().catch(() => ({}));
+    return data.data || data;
   }
 
   /**

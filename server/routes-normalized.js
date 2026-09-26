@@ -572,6 +572,100 @@ router.delete('/bookmarks/:identifier', authenticateToken, extrasLimiter, async 
   }
 });
 
+// -------------------------------------------------------------
+// In-app credit purchase — CodexFit v2 cart (C2-1, 2026-09-26)
+// -------------------------------------------------------------
+// Moved here (from server.js, which used to hardcode CodexFit's retired v1
+// cart paths directly) so the route layer stays gym-agnostic like every other
+// route in this file — everything provider-specific lives behind
+// provider.initCart/addBundleToCart/finaliseCart/... (providers/codexfit.js,
+// protocol in its codexfit-cart.js helper), gated on `creditPurchase` exactly
+// like /api/bundles above. Client contract is UNCHANGED from the old v1 flow
+// (POST /api/cart/checkout/init/:bundleId → POST /api/cart/checkout/confirm,
+// including the `requires_action` → website-fallback shape client/src/ui/
+// credits.js already handles) — see Documentation/Workstreams/
+// C2-psycle-api-v2.md's C2-1 scope. The payment-method/checkout/finalise
+// steps are UNVERIFIED against live Psycle (no purchase was ever made — see
+// server/fixtures/codexfit-v2/PARITY.md G3); flagged again on
+// provider.finaliseCart's doc comment.
+
+// Step 1: create a v2 cart, add the bundle `quantity` times, list saved cards.
+router.post('/cart/checkout/init/:bundleId', authenticateToken, extrasLimiter, async (req, res) => {
+  try {
+    const { gymId, provider, session } = resolveContext(req.userId);
+    requireCapability(gymId, 'creditPurchase');
+    // Express route params are always strings; CodexFit's bundle ids are
+    // numeric and the v2 add-line body must send a number (mock.js and — per
+    // psycle_codexfit.md §2.5.2 #3 — the real API both compare/serialize it
+    // as one). Falls back to the raw param if somehow non-numeric rather than
+    // silently sending NaN.
+    const parsedBundleId = Number(req.params.bundleId);
+    const bundleId = Number.isFinite(parsedBundleId) ? parsedBundleId : req.params.bundleId;
+    const qty = Math.max(1, Math.min(10, parseInt(req.body?.quantity) || 1));
+
+    const cartData = await withRelogin(req.userId, session, (s) => provider.initCart(s));
+    await withRelogin(req.userId, session, (s) => provider.addBundleToCart(cartData.uuid, bundleId, qty, s));
+    const methods = await withRelogin(req.userId, session, (s) => provider.listCartPaymentMethods(s));
+
+    res.json({ success: true, instance: cartData.uuid, methods: methods || [] });
+  } catch (err) {
+    handleError(res, err);
+  }
+});
+
+// Step 2: attach the chosen saved card, checkout, finalise, and poll until
+// Stripe settles (mirrors the old v1 flow's polling exactly — the v2 doc
+// names no distinct status endpoint, and GET /orders/{id} is unaffected by
+// the cart migration; see provider.getOrder's doc comment). NOTE: 3-D Secure
+// is not supported — an off-session charge that needs authentication comes
+// back as `requires_action` and the client falls back to the website.
+router.post('/cart/checkout/confirm', authenticateToken, extrasLimiter, async (req, res) => {
+  try {
+    const { gymId, provider, session } = resolveContext(req.userId);
+    requireCapability(gymId, 'creditPurchase');
+    const { instance, paymentMethodId } = req.body || {};
+    if (!instance || !paymentMethodId) {
+      return res.status(400).json({ message: 'instance and paymentMethodId are required' });
+    }
+
+    await withRelogin(req.userId, session, (s) => provider.attachCartPaymentMethod(instance, paymentMethodId, s));
+    const { orderId } = await withRelogin(req.userId, session, (s) => provider.finaliseCart(instance, {
+      user_agent: req.headers['user-agent'],
+    }, s));
+
+    if (!orderId) {
+      return res.status(502).json({ message: 'Checkout was accepted but no order ID was returned' });
+    }
+
+    const maxAttempts = 40; // ~40s, same window the retired v1 flow polled for
+    for (let attempt = 0; attempt < maxAttempts; attempt++) {
+      const order = await withRelogin(req.userId, session, (s) => provider.getOrder(orderId, s));
+
+      if (order && order.status === 'Paid') {
+        return res.json({ status: 'paid', orderId });
+      }
+
+      const payErr = order && order.metadata && order.metadata.payment_intent && order.metadata.payment_intent.last_payment_error;
+      if (payErr) {
+        const needsAuth = payErr.code === 'authentication_required' || payErr.decline_code === 'authentication_required';
+        return res.json({
+          status: needsAuth ? 'requires_action' : 'failed',
+          orderId,
+          error: payErr.message || 'The card was declined.',
+        });
+      }
+
+      await new Promise((r) => setTimeout(r, 1000));
+    }
+
+    // Never settled in our window — almost always a 3-D Secure challenge the
+    // saved-card off-session flow can't complete.
+    res.json({ status: 'requires_action', orderId, error: 'Payment requires authentication.' });
+  } catch (err) {
+    handleError(res, err);
+  }
+});
+
 // POST /api/profile/update — the Profile Explorer's hidden edit mode.
 // Not capability-gated on a flag (there isn't one): it is gated by the adapter,
 // which throws notImplemented for any provider that has not implemented it.

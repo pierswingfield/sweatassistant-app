@@ -485,6 +485,24 @@ class GymProvider {
    */
   async listBundles(/* session */) { throw notImplemented('listBundles', this); }
 
+  // --- In-app credit purchase (C2-1, 2026-09-26) -----------------------------
+  //
+  // Gated on `capabilities.creditPurchase`, same as listBundles above. Only
+  // CodexFit implements these today (server/providers/codexfit.js, protocol in
+  // codexfit-cart.js) — a gym without creditPurchase never reaches them
+  // (server/routes-normalized.js requireCapability()). No shared cart shape is
+  // asserted here on purpose: a second creditPurchase provider gets its own
+  // cart lifecycle, not a forced fit to CodexFit's.
+
+  async initCart(/* session */) { throw notImplemented('initCart', this); }
+  async getCart(/* cartUuid, session */) { throw notImplemented('getCart', this); }
+  async addBundleToCart(/* cartUuid, bundleId, quantity, session */) { throw notImplemented('addBundleToCart', this); }
+  async removeCartLine(/* cartUuid, hash, session */) { throw notImplemented('removeCartLine', this); }
+  async listCartPaymentMethods(/* session */) { throw notImplemented('listCartPaymentMethods', this); }
+  async attachCartPaymentMethod(/* cartUuid, paymentMethodId, session */) { throw notImplemented('attachCartPaymentMethod', this); }
+  async finaliseCart(/* cartUuid, analytics, session */) { throw notImplemented('finaliseCart', this); }
+  async getOrder(/* orderId, session */) { throw notImplemented('getOrder', this); }
+
   /**
    * Add or remove a saved-class bookmark. `identifier` is the provider's own
    * bookmark key, produced by the adapter, not composed by the client.

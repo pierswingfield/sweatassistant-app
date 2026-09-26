@@ -26,6 +26,12 @@ const GYMS = {
     enabled: true,
     // CodexFit HTTP wiring (previously hardcoded in auth.js / server.js / scheduler.js).
     apiBaseUrl: 'https://psycle.codexfit.com/api/v1/customer',
+    // CodexFit's v2 cart/checkout API lives at a genuinely different base path
+    // (`/api/customer/v2`, not `/api/v2/customer`) — confirmed via a live
+    // capture 2026-09-26 (server/fixtures/codexfit-v2/PARITY.md, gate G3).
+    // Only the cart lifecycle uses this; every other CodexFit call still goes
+    // through the v1 base above. See providers/codexfit-cart.js.
+    v2ApiBaseUrl: 'https://psycle.codexfit.com/api/customer/v2',
     // origin/referer/x-organisation were already confirmed from earlier research;
     // accept-language/user-agent added 2026-07-03 from a real browser DevTools
     // capture (LIVE_VERIFICATION_PLAYBOOK.md §3 client-fidelity rationale — same

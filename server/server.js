@@ -6,7 +6,7 @@ const rateLimit = require('express-rate-limit');
 const { ipKeyGenerator } = require('express-rate-limit');
 const db = require('./db');
 const auth = require('./auth');
-const { handleLogin, authenticateToken, authenticateTokenSSE, triggerAutoRelogin } = auth;
+const { handleLogin, authenticateToken, authenticateTokenSSE } = auth;
 const pushService = require('./push');
 const notifications = require('./notifications');
 const scheduler = require('./scheduler');
@@ -16,11 +16,12 @@ const adminRouter = require('./admin');
 const normalizedRouter = require('./routes-normalized');
 const config = require('./config');
 const { appName } = config;
-const { getProvider } = require('./providers');
 
-// No module-level provider (WP-D7). The proxy resolves its gym per request from
-// the calling user's active gym, inside proxyRequest below. (This replaced the
-// WP-D3 "interim single-gym bridge" that pinned all proxy traffic to Psycle.)
+// The old CodexFit proxy + cart routes that lived here (WP-D9's removed
+// `/api/proxy/*`, and C2-1's retired v1 cart flow) are both gone now — every
+// gym-aware call goes through server/routes-normalized.js, which resolves its
+// provider per request from the calling user's active gym (WP-D7). Nothing
+// in this file should import `./providers` directly again.
 
 const app = express();
 const PORT = process.env.PORT || 3000;
@@ -834,209 +835,6 @@ app.post('/api/config/import', authenticateToken, (req, res) => {
     res.status(/no gym specified/i.test(err.message) ? 400 : 500).json({ message: err.message });
   }
 });
-
-// -------------------------------------------------------------
-// CODEXFIT PROXY WITH AUTO-REAUTH INTERCEPTOR
-// -------------------------------------------------------------
-
-// Convenience wrapper: run a proxied CodexFit call and return parsed JSON + status.
-async function proxyJson(userId, pathName, method, body) {
-  const response = await proxyRequest(userId, pathName, method, body);
-  const data = await response.json().catch(() => ({}));
-  return { ok: response.ok, status: response.status, data };
-}
-
-async function proxyRequest(userId, pathName, method, body) {
-  const user = db.getUserById(userId);
-  if (!user || !user.jwt) {
-    throw new Error('User has no active gym session. Please log in.');
-  }
-
-  if (user.email === 'dev@psycle.com') {
-    const { handleMockRequest } = require('./mock');
-    return handleMockRequest(pathName, method, body);
-  }
-
-  const gymId = db.resolveActiveGymId(userId);
-  const runCall = (token) => getProvider(gymId).request(pathName, { token, method, body });
-
-  let response = await runCall(user.jwt);
-
-  // If 401 Unauthorized, intercept and attempt automatic re-login once
-  if (response.status === 401) {
-    try {
-      const newJwt = await triggerAutoRelogin(userId, gymId);
-      response = await runCall(newJwt);
-    } catch (err) {
-      console.warn(`[Proxy] Auto-relogin failed for user ${userId}:`, err.message);
-      // Notify client via push notification that they need to re-login
-      pushService.sendNotification(userId, 'Session Expired ⚠️', 'Your gym session expired. Please open the app and log in again.');
-      throw new Error('Gym session expired and could not be renewed. Please log in again.');
-    }
-  }
-
-  return response;
-}
-
-// The raw `/api/proxy/*` passthrough was REMOVED here (WP-D9, 2026-09-14).
-//
-// It forwarded client-composed paths straight to whatever provider the calling
-// user's active gym resolved to — which only ever worked because the paths and
-// response shapes were CodexFit's. Its last three callers (the bundle
-// catalogue, bookmarks and the Profile Explorer's hidden edit) now have
-// capability-gated normalized routes in routes-normalized.js, so no client can
-// name a provider's own URL any more. Removing the passthrough was the stated
-// acceptance criterion for layer D.
-//
-// Do not reintroduce it. A feature only one platform has is not a reason for a
-// passthrough — give it a named route and gate it on the gym's capability flag.
-//
-// Two side effects it carried have been rehomed rather than lost:
-//   - `db.touchUserLastSeen` now runs in auth.js's `authenticateToken`, the one
-//     chokepoint every authenticated request passes (it was CodexFit-only here,
-//     so JAB accounts never registered as active at all).
-//   - the debounced calendar refresh on booking/waitlist mutations now lives on
-//     the normalized write routes themselves.
-// `proxyRequest()` above survives as an INTERNAL helper: the CodexFit cart
-// flow below still uses it server-side, which is a different thing entirely
-// from exposing it to the client.
-
-// -------------------------------------------------------------
-// CART MANAGEMENT (CodexFit Cart Proxy)
-// -------------------------------------------------------------
-
-
-const { randomUUID } = require('crypto');
-
-// Pull the cart "instance" UUID out of whatever shape add_bundle returns.
-function extractInstance(data) {
-  return (
-    data?.instance || data?.uuid ||
-    data?.cart?.instance || data?.cart?.uuid ||
-    data?.data?.instance || data?.data?.uuid ||
-    null
-  );
-}
-
-// Add a bundle to the user's cart (kept for the legacy "open website cart" fallback).
-app.post('/api/cart/add-bundle/:bundleId', authenticateToken, async (req, res) => {
-  const { bundleId } = req.params;
-  const { quantity } = req.body || {};
-  const qty = quantity || 1;
-
-  try {
-    let lastCartData = null;
-    for (let i = 0; i < qty; i++) {
-      const addRes = await proxyRequest(req.userId, `/cart/add_bundle/${bundleId}`, 'POST', {});
-      const addData = await addRes.json();
-      console.log('[Cart] add_bundle response:', JSON.stringify(addData));
-      if (!addRes.ok) {
-        return res.status(addRes.status).json(addData);
-      }
-      lastCartData = addData;
-    }
-
-    const instanceId = extractInstance(lastCartData);
-    res.json({ success: true, cart: lastCartData, instanceId });
-  } catch (err) {
-    console.error('[Cart] Add bundle error:', err.message);
-    res.status(500).json({ message: err.message });
-  }
-});
-
-// -------------------------------------------------------------
-// IN-APP CHECKOUT (no redirect to psyclelondon.com)
-// -------------------------------------------------------------
-// The whole transaction is driven server-side with the user's JWT, so the
-// browser-specific Shopify cart instance is never needed. NOTE: 3-D Secure is
-// NOT supported here — if the saved card requires authentication the off-session
-// charge fails and we surface a graceful error (see BACKLOG: "In-app 3-D Secure").
-
-// Step 1: add the bundle to a fresh cart (qty times) and list the customer's saved cards.
-app.post('/api/cart/checkout/init/:bundleId', authenticateToken, async (req, res) => {
-  const { bundleId } = req.params;
-  const qty = Math.max(1, Math.min(10, parseInt(req.body?.quantity) || 1));
-  const generatedInstance = randomUUID();
-
-  try {
-    let instance = generatedInstance;
-    for (let i = 0; i < qty; i++) {
-      const add = await proxyJson(req.userId, `/cart/add_bundle/${bundleId}`, 'POST', { instance });
-      if (!add.ok) {
-        return res.status(add.status).json({ message: add.data?.message || 'Failed to add bundle to cart' });
-      }
-      instance = extractInstance(add.data) || instance;
-    }
-
-    const pm = await proxyJson(req.userId, `/cart/get_payment_methods?instance=${instance}`, 'GET');
-    if (!pm.ok || !pm.data?.success) {
-      return res.status(pm.status || 502).json({ message: pm.data?.message || 'Could not load saved cards' });
-    }
-
-    res.json({ success: true, instance, methods: pm.data.methods || [] });
-  } catch (err) {
-    console.error('[Checkout] init error:', err.message);
-    res.status(500).json({ message: err.message });
-  }
-});
-
-// Step 2: set the chosen card, place the order, and poll until Stripe settles.
-app.post('/api/cart/checkout/confirm', authenticateToken, async (req, res) => {
-  const { instance, paymentMethodId } = req.body || {};
-  if (!instance || !paymentMethodId) {
-    return res.status(400).json({ message: 'instance and paymentMethodId are required' });
-  }
-
-  try {
-    const setPm = await proxyJson(req.userId, `/cart/set_payment_method/${paymentMethodId}`, 'POST', { instance });
-    if (!setPm.ok || !setPm.data?.success) {
-      return res.status(setPm.status || 502).json({ message: setPm.data?.message || 'Failed to set payment method' });
-    }
-
-    const checkout = await proxyJson(req.userId, '/cart/ajaxCheckoutProcess', 'POST', { instance });
-    if (!checkout.ok || !checkout.data?.success) {
-      return res.status(checkout.status || 502).json({ message: checkout.data?.message || 'Checkout failed' });
-    }
-
-    const orderId = checkout.data.order?.id;
-    if (!orderId) {
-      return res.status(502).json({ message: 'Order was created but no order ID was returned' });
-    }
-
-    // Poll the order. Off-session charge resolves to Paid, or fails (decline /
-    // 3-D Secure required), or hangs in "Payment pending" past our window.
-    const maxAttempts = 40; // ~40s
-    for (let attempt = 0; attempt < maxAttempts; attempt++) {
-      const ord = await proxyJson(req.userId, `/orders/${orderId}`, 'GET');
-      const order = ord.data?.data;
-
-      if (order?.status === 'Paid') {
-        return res.json({ status: 'paid', orderId });
-      }
-
-      const payErr = order?.metadata?.payment_intent?.last_payment_error;
-      if (payErr) {
-        const needsAuth = payErr.code === 'authentication_required'
-          || payErr.decline_code === 'authentication_required';
-        return res.json({
-          status: needsAuth ? 'requires_action' : 'failed',
-          orderId,
-          error: payErr.message || 'The card was declined.',
-        });
-      }
-
-      await new Promise(r => setTimeout(r, 1000));
-    }
-
-    // Never settled in our window — almost always a 3-D Secure challenge the
-    // saved-card off-session flow can't complete.
-    res.json({ status: 'requires_action', orderId, error: 'Payment requires authentication.' });
-  } catch (err) {
-    console.error('[Checkout] confirm error:', err.message);
-    res.status(500).json({ message: err.message });
-  }
-});
-
 
 // -------------------------------------------------------------
 // SPA FALLBACK

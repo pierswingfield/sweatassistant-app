@@ -18,24 +18,24 @@ Psycle and JAB accounts.
 | C3-2 | **Unmetered gym (JAB) open-class button reflects membership state.** Currently it shows a credits-style state that doesn't apply. [QA-16] | `client/src/ui/timetable.js` `buildActionModel` | 2–3 h |
 | C3-3 | **The header "Member" badge checks actual membership.** It shows whenever a gym is unmetered, even when the account has no active membership. [QA-17] | `client/src/main.js` `renderGymBadge` ~L555–573 | 1 h |
 | C3-4 | **Studio map editor in Settings is gym-scoped.** It falls back to an unscoped `cache.locations` when opened for a gym that isn't the context gym, so it can show another gym's rooms. [QA-18] | `client/src/ui/settings.js` ~L711–723 | 1–2 h |
-| C3-5 | **Push notifications name the right gym.** Every title and body hardcodes "Psycle" ("Psycle: Spot Booked", "speak to Psycle…"). [QA-20] | `server/notifications.js` L101–144 | 1 h |
+| C3-5 | ✅ **Push notifications name the right gym.** Every title and body hardcodes "Psycle" ("Psycle: Spot Booked", "speak to Psycle…"). [QA-20] | `server/notifications.js` L101–144 | 1 h |
 
 ## Structural leftovers
 
 | # | Item | Evidence | Est. |
 |---|---|---|---|
 | C3-6 | **Remove the client's ambient gym-context fallback.** The module-level `state` plus `setGymContext()` is the client twin of the server bug class deleted on 09-16. Anything reading it on a multi-gym account gets a guess. Make every consumer pass an explicit gym. | `client/src/gym-context.js` L27–60 | 1 day |
-| C3-7 | `db.getAllUsers()` joins `user_gyms` on the literal `DEFAULT_GYM_ID`, so admin lists show Psycle data only. | `server/db.js` ~L1541–1555 | 1 h |
-| C3-8 | Admin user detail: add a gym picker. `getUserDetail` resolves one ambient gym, so a JAB-only or second-gym view isn't possible. | `server/admin.js` L123; `db.js` ~L1565–1608 | 2 h |
+| C3-7 | ✅ `db.getAllUsers()` joins `user_gyms` on the literal `DEFAULT_GYM_ID`, so admin lists show Psycle data only. | `server/db.js` ~L1541–1555 | 1 h |
+| C3-8 | ✅ Admin user detail: add a gym picker. `getUserDetail` resolves one ambient gym, so a JAB-only or second-gym view isn't possible. | `server/admin.js` L123; `db.js` ~L1565–1608 | 2 h |
 | C3-9 | Remove the hardcoded Psycle booking-window helpers from the shared client lib (`getNextMondayNoonLondon`). Use the per-gym policy the server already exposes. | `client/src/lib.js` L188, imported by `timetable.js` | 2 h |
-| C3-12 | **Background auto-book uses the ACTIVE gym's session, not the row's gym.** `scheduler.js bookSlotWithRelogin(userId, gymId, …)` reads `db.getUserById(userId).jwt`, which resolves the user's *active* gym; neither `scheduler.js` nor `poller.js` wraps per-row work in `db.runWithGymContext`. So a JAB queue entry for a user whose active gym is Psycle is sent with Psycle's token and is expected to 401, then relogin for JAB. Check `poller.js` for the same pattern. Found 2026-09-26 during C2-3, code-confirmed and not yet reproduced. **Blocks C4 JAB launch.** | `server/scheduler.js` L361–374 | 1–2 h |
+| C3-12 | ✅ **Background auto-book uses the ACTIVE gym's session, not the row's gym.** `scheduler.js bookSlotWithRelogin(userId, gymId, …)` reads `db.getUserById(userId).jwt`, which resolves the user's *active* gym; neither `scheduler.js` nor `poller.js` wraps per-row work in `db.runWithGymContext`. So a JAB queue entry for a user whose active gym is Psycle is sent with Psycle's token and is expected to 401, then relogin for JAB. Check `poller.js` for the same pattern. Found 2026-09-26 during C2-3, code-confirmed and not yet reproduced. **Blocks C4 JAB launch.** | `server/scheduler.js` L361–374 | 1–2 h |
 
 ## Error handling / copy
 
 | # | Item | Evidence | Est. |
 |---|---|---|---|
 | C3-10 | An account with no linked gym (409 `NO_GYM_LINKED`) shows a "Failed to load filters metadata" error toast. Treat it as the normal empty state. [QA-01] | `client/src/ui/timetable.js` ~L299 | 30 min |
-| C3-11 | The invalid-credentials error should name the gym that failed ("JAB rejected your password"). [QA-04] | `server/providers/codexfit.js` ~L157; `routes-normalized.js` ~L171 | 30 min |
+| C3-11 | ✅ The invalid-credentials error should name the gym that failed ("JAB rejected your password"). [QA-04] | `server/providers/codexfit.js` ~L157; `routes-normalized.js` ~L171 | 30 min |
 
 ## Done when
 
@@ -43,3 +43,151 @@ Psycle and JAB accounts.
       `test-no-active-gym.js` does for the server.
 - [ ] Re-run the affected rows of the 09-23 live matrix on the dev twin with the two-gym test
       account.
+
+---
+
+## Server-side items completed 2026-09-26 (C3-12, C3-5, C3-7, C3-8, C3-11)
+
+Client items C3-1/2/3/4/6/9/10 are untouched — out of scope for this pass (a later agent owns
+them). `npm test`: **31/31 server suites, 76/76 client tests** (client suite unaffected by these
+changes; run to confirm nothing broke).
+
+### C3-12 — background auto-book/auto-upgrade used the ACTIVE gym's session, not the row's
+
+**Root cause (confirmed by a failing test first, `server/test-background-gym-session.js`):**
+`scheduler.js`'s `bookSlotWithRelogin`/`fetchFromGym` and `poller.js`'s
+`bookSlotWithRelogin`/`swapSpotsWithRelogin`/`fetchFromGym` all read the session via
+`db.getUserById(userId).jwt`, which resolves through `mergeUserWithGym(user,
+resolveActiveGymId(userId))` — the user's default/active gym. Background work has no per-request
+`gymContext` (confirmed via `db.js`'s own comment on `AsyncLocalStorage` and
+`test-active-gym.js`'s "background work (no context, several links) resolves deterministically"
+case), so this always resolved to `DEFAULT_GYM_ID` (psycle-london) regardless of which gym the
+queue row actually belonged to. A JAB row for a user whose default is Psycle was sent with
+Psycle's token.
+
+**Fix:** every one of those call sites now reads `db.getUserSession(userId, gymId)` — the
+existing per-gym-explicit accessor already used correctly elsewhere in the same files
+(`attemptUpgradeSlot`'s event-details fetch, `listBookingsWithRelogin`, `bookingCacheRowsFor`,
+`sendBookingWindowTip`). `calendar.js` was audited and confirmed already correct (it wraps
+`db.getUserById` in `db.runWithGymContext`).
+
+- `server/scheduler.js` `fetchFromGym` (~L259–276), `bookSlotWithRelogin` (~L361–366)
+- `server/poller.js` `fetchFromGym` (~L40–58), `swapSpotsWithRelogin` (~L91–95),
+  `bookSlotWithRelogin` (~L104–107)
+
+**Extra bug found during the audit (same file, same root class):** `poller.js`'s cancel-then-
+rebook cleanup called `apiCancelBooking(userId, upgrade.booking_id)` — **missing the `gymId`
+argument entirely** (signature is `apiCancelBooking(userId, gymId, bookingId)`), so `gymId`
+silently received `upgrade.booking_id` (a number) and `bookingId` was `undefined`, producing a
+`DELETE /bookings/undefined` against whatever gym that number happened to resolve to. Fixed at
+the call site (~L293-299) to pass `gymId` explicitly.
+
+**Test:** `server/test-background-gym-session.js` — 3/3 passing. Seeds a two-gym user (session
+tokens distinct per gym, no `runWithGymContext` anywhere — exactly what the cron sees), stubs
+`MarianaTekProvider.prototype.bookSlot`/`swapSpots`/`request` to capture the session used, and
+proves a JAB-boxing auto-book row and an atomic-swap auto-upgrade monitor now use JAB's own
+token, not Psycle's. Failed before the fix (captured `PSYCLE-TOKEN-*` for all three); passes
+after.
+
+### C3-5 — push notifications hardcoded "Psycle"
+
+**Root cause:** every builder in `notifications.js` (`buildBooking`, `buildUpgrade`,
+`buildCreditWarning`, `buildCancellationReminder`, `buildBookingWindow`) hardcoded the literal
+"Psycle" in the title/body. `buildProviderThrottled` was already gym-aware (reads
+`ctx.gymId` → `gyms.config.js`), showing the pattern to follow.
+
+**Fix:** added `gymShortName(gymId)` (falls back to the registry default rather than throwing if
+a caller omits it) and threaded `ctx.gymId` through every builder. Every `notify()` call site was
+updated to pass its own `gymId`:
+- `server/scheduler.js` L584 (`booking`, from the row's `gym_id`)
+- `server/poller.js` L325/L341 (`upgrade`, from `attemptUpgradeSlot`'s own `gymId`), L553
+  (`cancellationReminder`, from `bk.gym_id`)
+- `server/server.js` L337 (`booking`, `db.resolveActiveGymId(req.userId)`), L405 and L534
+  (`creditWarning`, the route's own `gymId`)
+- `providerThrottled` (`scheduler.js` L80) and `bookingWindow` (`poller.js` L639) already passed
+  `gymId` — `buildBookingWindow` just wasn't reading it; fixed.
+
+**Fix location:** `server/notifications.js` L101–170 (builders + `gymShortName`).
+
+**Test:** `server/test-notification-gym-naming.js` — 10/10 passing. Calls `notify()` for every
+type with `gymId: 'psycle-london'` and `gymId: 'jab-boxing'`, asserting the rendered title+body
+contains the right short name and never the other gym's name.
+
+### C3-7 — `db.getAllUsers()` joined on the literal `DEFAULT_GYM_ID`
+
+**Root cause:** the query `LEFT JOIN user_gyms ug ON ug.gym_id = ?` was called with
+`DEFAULT_GYM_ID` for every row, so a JAB-only account (no `psycle-london` link at all) never
+matched the join: `display_name` came back `NULL`, `priority` fell through to the legacy 100
+default, and there was no session — i.e. exactly "admin lists show Psycle data only".
+
+**Fix:** `server/db.js` `getAllUsers()` (~L1541–1583) now resolves each user's own gym via
+`resolveActiveGymId(r.id)` (same fallback chain as everywhere else with no request context: sole
+link → default gym → first link) and reads that link's own `display_name`/`priority`/
+`profile_synced_at`/session. Added `active_gym_id` to the response so the admin UI can label
+which gym a row's summary belongs to.
+
+**Test:** `server/test-admin-gym-aware.js` — 3/3 passing. A JAB-only account now shows its own
+display name/priority/session; a Psycle-only account is unaffected (behaviour preservation); a
+two-gym account resolves to the default gym, matching `resolveActiveGymId` exactly.
+
+**Real-browser evidence (2026-09-26, local dev server + CDP :9222):** created a two-gym test
+account (`c3agent2@test.local`, linked to both `psycle-london` and `jab-boxing`, distinct
+`display_name`/`priority` per link). The admin user list correctly showed "Psycle View Pete"
+(priority 5) — the JAB-only account (no display name set) showed as "—" with priority 200,
+proving neither account defaulted to blank/Psycle-only data incorrectly.
+
+### C3-8 — admin user detail had no gym picker
+
+**Root cause:** `GET /api/admin/users/:id` always called `db.getUserDetail(userId)` with no gym,
+which resolves through `db.resolveActiveGymId(userId)` — one ambient gym, so a JAB-only or
+second-gym view of a multi-gym account was never reachable from the admin panel.
+
+**Fix:**
+- `server/admin.js` (~L117–145, ~L256–264): accepts `?gymId=`, validates it via
+  `db.isGymLinked(userId, gymId)` (403 if not linked — same rule `auth.js`'s `withGymContext`
+  applies to the `x-gym-id` header), and runs the whole handler through
+  `db.runWithGymContext(userId, gymId, handle)` when present — the same mechanism
+  `calendar.js` already uses for per-gym background work. Response now includes `viewedGymId`.
+  With no `?gymId=`, behaviour is unchanged.
+- `server/admin.html`: added a `<select id="drawer-gym-picker">` next to the drawer header,
+  populated from `d.gyms`, hidden for a single-gym account, `onchange` re-fetches
+  `openDetail(userId, picker.value)`.
+
+**Test:** `server/test-admin-gym-picker.js` — 4/4 passing (DB-level: proves
+`runWithGymContext(uid, 'jab-boxing')` makes `getUserDetail` resolve the JAB link instead of the
+default, that `isGymLinked` is the gate the route uses, and that context never leaks across
+users in the same request — the admin-reads-another-account case).
+
+**Real-browser evidence (2026-09-26, local dev server + CDP :9222):** opened the admin panel,
+opened the two-gym test account's detail drawer (defaulted to "Psycle London (viewing)",
+Priority 5, CodexFit ID 99999, Ride-studio stats). Switched the picker to "JAB Boxing Club" and
+the drawer re-fetched and re-rendered: Priority changed to 7 · VIP, CodexFit ID changed to
+`mock-user`, Stats changed to "No stats in cached profile", Credits changed to 0 — all matching
+JAB's own linked data, proving the gym switch actually re-resolves session/profile/priority
+rather than always showing the default gym.
+
+### C3-11 — invalid-credentials error didn't name the gym
+
+**Root cause:** `providers/codexfit.js login()` threw a gym-less `errorData.message` (or a bare
+"Login failed with status …"); `providers/marianatek.js login()` threw `"MarianaTek login
+failed: …"` — the **platform** name, not the gym's (a WP-D7 violation on its own). Both classes
+already carry `this.gym` (set in `base.js`'s constructor) but neither error path referenced it.
+`routes-normalized.js`'s `POST /api/my-gyms/link` (~L171–177) passes `err.message` straight
+through to the client, so the fix at the provider layer is sufficient — no route change needed.
+
+**Fix:** `server/providers/codexfit.js` (~L183–190) and `server/providers/marianatek.js`
+(~L200–208) now prefix/name the error with `this.gym.shortName` (falls back to "The gym" if
+absent), e.g. `"JAB rejected your login: incorrect email/password"`.
+
+**Test:** `server/test-invalid-credentials-naming.js` — 2/2 passing. Stubs `fetch` to return the
+documented rejection shapes for each platform (CodexFit 401 JSON error; MarianaTek's "login page
+re-rendered instead of redirecting" signal) and asserts the resulting error names the correct
+gym and never the other gym/platform.
+
+**Note on browser verification:** the mandated check ("link-gym flow with a wrong password
+against the mock") is **not reproducible as specified** — both dev mock accounts
+(`dev@psycle.com`, `dev@jabboxing.mock`) bypass password validation entirely by design (`email
+=== DEV_EMAIL` short-circuits before any credential check in both `login()` methods), and any
+other email routes to the real gym over the network, which this pass must not do
+(no-live-traffic rule). Verified at the adapter level instead (test above) as the strongest
+evidence available without violating that rule; logged here rather than silently skipped.

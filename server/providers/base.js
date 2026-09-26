@@ -510,4 +510,49 @@ function notImplemented(method, provider) {
   return new Error(`[${provider.gym && provider.gym.provider}] ${method}() not implemented for gym "${provider.gymId}".`);
 }
 
-module.exports = { GymProvider };
+/**
+ * Classify an HTTP response as provider rate-limiting/blocking distress,
+ * gym- and platform-agnostically (C2-3). Adapters call this from their write
+ * paths (bookSlot today) and attach the result to NormalizedBookingResult's
+ * `code`/`retryAfterMs`; callers (scheduler.js) react to that normalized code,
+ * never to a raw status or a platform name.
+ *
+ * Classification rule (documented here because it is a judgement call, not a
+ * fact the provider states plainly):
+ *   - HTTP 429 is unambiguous: always rate-limited.
+ *   - HTTP 403 is NOT always rate-limiting — it is also the ordinary shape of
+ *     "not authorized to do this" (wrong credit type, class full to non-members,
+ *     etc.), which must NOT trip a gym-wide backoff. A 403 counts as throttling
+ *     only when there is corroborating evidence: a `Retry-After` header, or the
+ *     error body's message containing throttle language (rate/too many
+ *     requests/temporarily blocked/try again later). Anything else is treated
+ *     as an ordinary permission error and left alone.
+ *
+ * @param {Response} res  Raw fetch Response (for status + headers).
+ * @param {Object=} data  Parsed JSON body, if any (for `.message`).
+ * @returns {{ limited: boolean, retryAfterMs: (number|undefined) }}
+ */
+function classifyProviderThrottle(res, data) {
+  const retryAfterMs = parseRetryAfterMs(res);
+  if (res && res.status === 429) return { limited: true, retryAfterMs };
+  if (res && res.status === 403) {
+    const msg = String((data && data.message) || '').toLowerCase();
+    const THROTTLE_PHRASES = ['too many requests', 'rate limit', 'throttle', 'temporarily blocked', 'try again later'];
+    if (retryAfterMs !== undefined || THROTTLE_PHRASES.some((p) => msg.includes(p))) {
+      return { limited: true, retryAfterMs };
+    }
+  }
+  return { limited: false, retryAfterMs: undefined };
+}
+
+function parseRetryAfterMs(res) {
+  const header = res && res.headers && typeof res.headers.get === 'function' ? res.headers.get('retry-after') : null;
+  if (!header) return undefined;
+  const seconds = Number(header);
+  if (Number.isFinite(seconds)) return Math.max(0, seconds * 1000);
+  // Retry-After MAY be an HTTP-date instead of seconds; CodexFit hasn't been
+  // observed to send one, so this is left unhandled rather than guessed at.
+  return undefined;
+}
+
+module.exports = { GymProvider, classifyProviderThrottle };

@@ -35,6 +35,54 @@ const eventCache = new Map();
 const claimedSlots = new Set();
 const burnedSlots = new Set();
 
+// --- Rate-limit distress abort (C2-3) ---------------------------------------
+//
+// Keyed by gymId only (WP-D7/WP-G: never by platform). When a provider signals
+// PROVIDER_RATE_LIMITED (base.js classifyProviderThrottle, wired from
+// providers/codexfit.js bookSlot), THIS gym's queue stops attempting new
+// bookings until the backoff expires — other gyms in the same dispatch batch
+// are unaffected because everything here is keyed by gymId, never global.
+const rateLimitBackoffUntil = new Map(); // gymId -> epoch ms
+// Used when the provider's response didn't carry a Retry-After.
+const DEFAULT_RATE_LIMIT_BACKOFF_MS = 5 * 60 * 1000; // 5 minutes
+
+function isGymRateLimited(gymId) {
+  const until = rateLimitBackoffUntil.get(gymId);
+  return typeof until === 'number' && Date.now() < until;
+}
+
+function applyRateLimitBackoff(gymId, retryAfterMs) {
+  const ms = Number.isFinite(retryAfterMs) && retryAfterMs > 0 ? retryAfterMs : DEFAULT_RATE_LIMIT_BACKOFF_MS;
+  const until = Date.now() + ms;
+  const prior = rateLimitBackoffUntil.get(gymId) || 0;
+  const next = Math.max(prior, until);
+  rateLimitBackoffUntil.set(gymId, next);
+  return next;
+}
+
+// Test-only: let test-rate-limit-abort.js reset backoff state between cases
+// without needing a fresh process per case (each server/test-*.js suite is
+// already its own process, but cases within one file share this module).
+function _resetRateLimitBackoffForTests() {
+  rateLimitBackoffUntil.clear();
+}
+
+// Fire the "provider is rate-limiting us" notification once per gym per day,
+// same dedupe-key convention as poller.js's other one-shot reminders
+// (`sent_notifications`, keyed per user — see notifications.js). Deliberately
+// per-user, not a single global send: that matches every other notification
+// type in this codebase and needs no new dedupe mechanism.
+function notifyRateLimited(userId, gymId) {
+  try {
+    const key = `rate-limit:${gymId}:${DateTime.now().setZone('Europe/London').toISODate()}`;
+    if (db.wasNotificationSent(userId, key)) return;
+    db.markNotificationSent(userId, key);
+    notifications.notify(userId, 'providerThrottled', { gymId });
+  } catch (err) {
+    console.error(`[Scheduler] Failed to send rate-limit notification (gym ${gymId}, user ${userId}):`, err.message);
+  }
+}
+
 // Same reasoning as the claim sets: an event id alone is not unique across gyms,
 // and a collision here is worse than a skipped booking — it serves one gym's slot
 // occupancy as another gym's, so the scheduler books against the wrong floor plan.
@@ -341,6 +389,21 @@ async function executeAutoBookForClass(booking) {
   const requiredCount = prefs.requiredCount || 1;
   const bookAny = prefs.bookAny !== false;
 
+  // C2-3: a prior attempt this window already got PROVIDER_RATE_LIMITED for
+  // this gym — don't start a new attempt (no network call at all) until the
+  // backoff clears. Jobs already in flight when the backoff was set can't be
+  // recalled, but every job that hasn't started yet (the common case, thanks
+  // to CLAIM_STAGGER_MS staggering) is stopped here.
+  if (isGymRateLimited(gymId)) {
+    console.warn(`[Scheduler] Gym ${gymId} is rate-limited — skipping booking attempt for event ${eventId}, user ${userId}.`);
+    emitStatusUpdate(userId, {
+      eventId,
+      status: 'rate-limited',
+      message: 'Booking paused: the gym is rate-limiting requests. Will resume automatically.',
+    });
+    return;
+  }
+
   console.log(`[Scheduler] Running booking worker for User ${userId}, Event ${eventId}. Needs ${requiredCount} slots.`);
 
   try {
@@ -464,6 +527,22 @@ async function executeAutoBookForClass(booking) {
           bookedPairs.push({ bookingId: thisBookingId, slotId: targetSlot });
           console.log(`[Scheduler] Successfully booked slot ${targetSlot} for event ${eventId} (booking ID: ${thisBookingId})`);
           // Claim stays in claimedSlots — other users see it and skip without POSTing
+        } else if (result.code === 'PROVIDER_RATE_LIMITED') {
+          // C2-3: the provider is telling us to stop, not just refusing this
+          // slot. Back off THIS gym (never a global backoff — WP-D7/WP-G),
+          // notify once (deduped), and abort the rest of this class's attempts
+          // rather than burning through the remaining fallback slots.
+          console.error(`[Scheduler] Gym ${gymId} rate-limited booking for event ${eventId} (slot ${targetSlot}): ${result.error}. Backing off and aborting further attempts for this gym.`);
+          claimedSlots.delete(claimKey);
+          const until = applyRateLimitBackoff(gymId, result.retryAfterMs);
+          notifyRateLimited(userId, gymId);
+          emitStatusUpdate(userId, {
+            eventId,
+            status: 'rate-limited',
+            skippedSlot: targetSlot,
+            message: `Provider rate limit hit — pausing this gym's bookings until ${new Date(until).toISOString()}.`,
+          });
+          break;
         } else {
           console.warn(`[Scheduler] Slot ${targetSlot} booking failed:`, result.error);
           // Burn the slot: externally taken, no point other users attempting it
@@ -913,4 +992,10 @@ module.exports = {
   emitStatusUpdate,
   getCachedEvent,
   setCachedEvent,
+  // C2-3: rate-limit distress abort. Exported for test-rate-limit-abort.js.
+  executeAutoBookForClass,
+  executeAutoBookQueue,
+  isGymRateLimited,
+  applyRateLimitBackoff,
+  _resetRateLimitBackoffForTests,
 };

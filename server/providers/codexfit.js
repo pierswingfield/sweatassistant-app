@@ -14,7 +14,7 @@
 // previously-captured traffic.
 
 const { DateTime } = require('luxon');
-const { GymProvider } = require('./base');
+const { GymProvider, classifyProviderThrottle } = require('./base');
 const bookingWindow = require('./booking-window');
 const { makeMetadata, makeProfile, makeEvent, makeSlot, makeLayoutObject, makeBookingResult, makeBooking } = require('./normalize');
 
@@ -622,7 +622,19 @@ class CodexFitProvider extends GymProvider {
     const res = await this.request('/bookings', { token: session.accessToken, method: 'POST', body });
     const data = await res.json().catch(() => ({}));
     if (!res.ok || !data.success) {
-      return makeBookingResult({ ok: false, status: res.status, error: data.message || `HTTP ${res.status}`, raw: data });
+      // C2-3: classify a 429/throttle-shaped 403 into the normalized
+      // PROVIDER_RATE_LIMITED code so scheduler.js can back off this gym's
+      // queue instead of hammering a provider that's already refusing. See
+      // classifyProviderThrottle's doc comment (base.js) for the 403 rule.
+      const throttle = classifyProviderThrottle(res, data);
+      return makeBookingResult({
+        ok: false,
+        status: res.status,
+        error: data.message || `HTTP ${res.status}`,
+        code: throttle.limited ? 'PROVIDER_RATE_LIMITED' : undefined,
+        retryAfterMs: throttle.limited ? throttle.retryAfterMs : undefined,
+        raw: data,
+      });
     }
     // Response shape: { success: true, bookings: { bookingId: slotId } } — see
     // AGENTS.md "Booking response shape" gotcha.

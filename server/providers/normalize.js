@@ -162,6 +162,17 @@ function makeBookingResult(r) {
     // other failure, without the adapter itself owning retry/relogin logic
     // (that stays the caller's job, per the base.js request() convention).
     status: r.status,
+    // Normalized distress signal (C2-3): set by the adapter via
+    // base.js's classifyProviderThrottle() when a response looks like a
+    // rate limit/block rather than an ordinary failure. The only value
+    // today is 'PROVIDER_RATE_LIMITED'; callers (scheduler.js) branch on
+    // this code, never on HTTP status or platform, so a future provider
+    // can raise the same signal without a call-site change.
+    code: r.code,
+    // Milliseconds to back off for, when the provider published one
+    // (e.g. a `Retry-After` header). Undefined when unknown — the caller
+    // supplies its own default rather than treating "unknown" as "none".
+    retryAfterMs: r.retryAfterMs,
     raw: r.raw,
   });
 }

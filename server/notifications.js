@@ -1,7 +1,7 @@
 const { DateTime } = require('luxon');
 const db = require('./db');
 const pushService = require('./push');
-const { getGymConfig } = require('./gyms.config');
+const { getGymConfig, DEFAULT_GYM_ID } = require('./gyms.config');
 const { isRollingWeekly } = require('./providers/booking-window');
 
 const ZONE = 'Europe/London';
@@ -13,6 +13,10 @@ const DEFAULT_PREFS = {
   creditWarning: { enabled: true },
   cancellationReminder: { enabled: true, timing: '24h' }, // timing: '24h' | '14h'
   bookingWindow: { enabled: true },
+  // C2-3: the provider is rate-limiting/blocking us, so auto-book has paused
+  // for that gym. Minimal by design — no scope/timing sub-options, since
+  // there's exactly one situation it fires for and no useful variant of it.
+  providerThrottled: { enabled: true },
 };
 
 /**
@@ -138,6 +142,14 @@ function buildCancellationReminder(ctx) {
   };
 }
 
+function buildProviderThrottled(ctx) {
+  const gymName = (getGymConfig(ctx.gymId) || {}).name || 'The gym';
+  return {
+    title: `${gymName}: Booking Paused`,
+    body: `${gymName} is rate-limiting requests right now, so I've paused Auto-Book for this gym and will resume automatically once it clears.`,
+  };
+}
+
 function buildBookingWindow(tip) {
   return {
     title: 'Psycle: Booking Window',
@@ -173,6 +185,10 @@ async function notify(userId, type, ctx = {}) {
       if (!prefs.bookingWindow.enabled) return;
       built = buildBookingWindow(ctx.tip);
       break;
+    case 'providerThrottled':
+      if (!prefs.providerThrottled.enabled) return;
+      built = buildProviderThrottled(ctx);
+      break;
     default:
       return;
   }
@@ -195,6 +211,7 @@ function buildSample(type) {
     case 'bookingWindow': return buildBookingWindow('You have 3 classes set to Auto-Book.');
     case 'bookingWindow-none': return buildBookingWindow("Don't forget to set up Auto-Book!");
     case 'bookingWindow-nocredits': return buildBookingWindow('⚠️ You have 3 classes set to Auto-Book, but you don\'t have enough credits.');
+    case 'providerThrottled': return buildProviderThrottled({ gymId: DEFAULT_GYM_ID });
     default: return null;
   }
 }

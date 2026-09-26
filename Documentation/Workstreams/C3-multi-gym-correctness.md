@@ -28,6 +28,7 @@ Psycle and JAB accounts.
 | C3-7 | `db.getAllUsers()` joins `user_gyms` on the literal `DEFAULT_GYM_ID`, so admin lists show Psycle data only. | `server/db.js` ~L1541–1555 | 1 h |
 | C3-8 | Admin user detail: add a gym picker. `getUserDetail` resolves one ambient gym, so a JAB-only or second-gym view isn't possible. | `server/admin.js` L123; `db.js` ~L1565–1608 | 2 h |
 | C3-9 | Remove the hardcoded Psycle booking-window helpers from the shared client lib (`getNextMondayNoonLondon`). Use the per-gym policy the server already exposes. | `client/src/lib.js` L188, imported by `timetable.js` | 2 h |
+| C3-12 | **Background auto-book uses the ACTIVE gym's session, not the row's gym.** `scheduler.js bookSlotWithRelogin(userId, gymId, …)` reads `db.getUserById(userId).jwt`, which resolves the user's *active* gym; neither `scheduler.js` nor `poller.js` wraps per-row work in `db.runWithGymContext`. So a JAB queue entry for a user whose active gym is Psycle is sent with Psycle's token and is expected to 401, then relogin for JAB. Check `poller.js` for the same pattern. Found 2026-09-26 during C2-3, code-confirmed and not yet reproduced. **Blocks C4 JAB launch.** | `server/scheduler.js` L361–374 | 1–2 h |
 
 ## Error handling / copy
 

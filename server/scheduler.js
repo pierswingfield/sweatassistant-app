@@ -258,13 +258,17 @@ async function fetchPublicFromGym(userId, gymId, path) {
 // point (an absolute URL would bypass it and pin every gym to Psycle's host).
 async function fetchFromGym(userId, gymId, path, options = {}) {
   const user = db.getUserById(userId);
-  if (!user || !user.jwt) {
-    throw new Error('User has no active session. Please log in.');
-  }
-
-  if (user.email === 'dev@psycle.com') {
+  if (user && user.email === 'dev@psycle.com') {
     const mock = require('./mock');
     return mock.handleMockRequest(path, options.method || 'GET', options.body ? JSON.parse(options.body) : null);
+  }
+
+  // The ROW's gym session — NOT db.getUserById(userId).jwt, which resolves the
+  // user's ACTIVE gym (db.resolveActiveGymId) and is wrong for a background
+  // call site processing a gym the user isn't currently looking at (C3-12).
+  const session = db.getUserSession(userId, gymId);
+  if (!session || !session.accessToken) {
+    throw new Error('User has no active session. Please log in.');
   }
 
   const runFetch = (token) => getProvider(gymId).request(path, {
@@ -274,7 +278,7 @@ async function fetchFromGym(userId, gymId, path, options = {}) {
     headers: options.headers,
   });
 
-  let res = await runFetch(user.jwt);
+  let res = await runFetch(session.accessToken);
 
   if (res.status === 401) {
     try {
@@ -359,9 +363,9 @@ function resolveLiveMap(userId, studioId, snapshot, gymId = null) {
 // reached, the last bookSlot() attempt already proved (or refreshed) the
 // session, so a second independent retry ladder there would be redundant.
 async function bookSlotWithRelogin(userId, gymId, eventId, targetSlot) {
-  const user = db.getUserById(userId);
-  if (!user || !user.jwt) throw new Error('User has no active session. Please log in.');
-  let session = { accessToken: user.jwt };
+  // The ROW's gym session — see fetchFromGym's note above (C3-12).
+  let session = db.getUserSession(userId, gymId);
+  if (!session || !session.accessToken) throw new Error('User has no active session. Please log in.');
   const provider = getProvider(gymId);
   let result = await provider.bookSlot(eventId, [targetSlot], session);
   if (!result.ok && result.status === 401) {
@@ -579,6 +583,7 @@ async function executeAutoBookForClass(booking) {
       });
       notifications.notify(userId, 'booking', {
         source: 'autobook',
+        gymId,
         startAt: booking.start_at,
         groupName: booking.group_name,
         className: booking.class_name,

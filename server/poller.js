@@ -39,13 +39,17 @@ async function fetchPublicFromGym(userId, gymId, path) {
 // point (an absolute URL would bypass it and pin every gym to Psycle's host).
 async function fetchFromGym(userId, gymId, path, options = {}) {
   const user = db.getUserById(userId);
-  if (!user || !user.jwt) {
-    throw new Error('User has no active session. Please log in.');
-  }
-
-  if (user.email === 'dev@psycle.com') {
+  if (user && user.email === 'dev@psycle.com') {
     const mock = require('./mock');
     return mock.handleMockRequest(path, options.method || 'GET', options.body ? JSON.parse(options.body) : null);
+  }
+
+  // The ROW's gym session — NOT db.getUserById(userId).jwt, which resolves the
+  // user's ACTIVE gym (db.resolveActiveGymId) and is wrong for a background
+  // call site processing a gym the user isn't currently looking at (C3-12).
+  const session = db.getUserSession(userId, gymId);
+  if (!session || !session.accessToken) {
+    throw new Error('User has no active session. Please log in.');
   }
 
   const runFetch = (token) => getProvider(gymId).request(path, {
@@ -55,7 +59,7 @@ async function fetchFromGym(userId, gymId, path, options = {}) {
     headers: options.headers,
   });
 
-  let res = await runFetch(user.jwt);
+  let res = await runFetch(session.accessToken);
 
   if (res.status === 401) {
     try {
@@ -89,10 +93,10 @@ async function apiCancelBooking(userId, gymId, bookingId) {
 // Atomic spot swap with the same 401→relogin→retry ladder as bookSlotWithRelogin.
 // Only reachable for gyms whose capabilities declare `atomicSwap`.
 async function swapSpotsWithRelogin(userId, gymId, bookingId, currentSlotId, targetSlot) {
-  const user = db.getUserById(userId);
-  if (!user || !user.jwt) throw new Error('User has no active session. Please log in.');
+  // The ROW's gym session — see fetchFromGym's note above (C3-12).
+  let session = db.getUserSession(userId, gymId);
+  if (!session || !session.accessToken) throw new Error('User has no active session. Please log in.');
   const provider = getProvider(gymId);
-  let session = { accessToken: user.jwt };
   let result = await provider.swapSpots(bookingId, currentSlotId, targetSlot, session);
   if (result && result.status === 401) {
     const newJwt = await triggerAutoRelogin(userId, gymId);
@@ -102,9 +106,9 @@ async function swapSpotsWithRelogin(userId, gymId, bookingId, currentSlotId, tar
 }
 
 async function bookSlotWithRelogin(userId, gymId, eventId, targetSlot) {
-  const user = db.getUserById(userId);
-  if (!user || !user.jwt) throw new Error('User has no active session. Please log in.');
-  let session = { accessToken: user.jwt };
+  // The ROW's gym session — see fetchFromGym's note above (C3-12).
+  let session = db.getUserSession(userId, gymId);
+  if (!session || !session.accessToken) throw new Error('User has no active session. Please log in.');
   const provider = getProvider(gymId);
   let result = await provider.bookSlot(eventId, [targetSlot], session);
   if (!result.ok && result.status === 401) {
@@ -292,7 +296,11 @@ async function attemptUpgradeSlot(upgrade, isCutoffMode) {
         // booking to clean up, and cancelling here would cancel the upgrade.
         if (!usedAtomicSwap && !isCutoffMode && upgrade.booking_id) {
           try {
-            await apiCancelBooking(userId, upgrade.booking_id);
+            // Found during the C3-12 audit: this was missing gymId entirely
+            // (apiCancelBooking(userId, gymId, bookingId)), so it silently
+            // cancelled `/bookings/undefined` against whatever gym happened to
+            // land in the gymId slot.
+            await apiCancelBooking(userId, gymId, upgrade.booking_id);
             console.log(`[Poller] Successfully cancelled original booking ${upgrade.booking_id}`);
           } catch (cancelErr) {
             console.error(`[Poller] Failed to cancel original booking ${upgrade.booking_id}:`, cancelErr.message);
@@ -315,6 +323,7 @@ async function attemptUpgradeSlot(upgrade, isCutoffMode) {
             lastCheckedAt: nowStr
           });
           notifications.notify(userId, 'upgrade', {
+            gymId,
             slot: labelForSlot(candidateSlot),
             startAt: upgrade.start_at,
             groupName: upgrade.group_name,
@@ -331,6 +340,7 @@ async function attemptUpgradeSlot(upgrade, isCutoffMode) {
             lastCheckedAt: nowStr
           });
           notifications.notify(userId, 'upgrade', {
+            gymId,
             slot: labelForSlot(candidateSlot),
             startAt: upgrade.start_at,
             groupName: upgrade.group_name,
@@ -543,6 +553,7 @@ function checkCancellationReminders() {
       db.markNotificationSent(bk.user_id, key);
 
       notifications.notify(bk.user_id, 'cancellationReminder', {
+        gymId: bk.gym_id,
         startAt: bk.start_at,
         groupName: bk.group_name,
         className: bk.class_name,

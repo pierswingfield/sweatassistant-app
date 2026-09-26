@@ -114,12 +114,29 @@ router.get('/users', authenticateAdmin, (req, res) => {
   }
 });
 
-// GET /api/admin/users/:id — full detail bundle for the drawer (profile, credits,
-// subscriptions, stats, bookings + spot/upgrade status, queue, monitors, spot maps).
+// GET /api/admin/users/:id[?gymId=] — full detail bundle for the drawer (profile,
+// credits, subscriptions, stats, bookings + spot/upgrade status, queue, monitors,
+// spot maps).
+//
+// C3-8: this used to always resolve ONE ambient gym (db.resolveActiveGymId's
+// default-gym fallback), so a JAB-only or second-gym view of a multi-gym
+// account was never reachable from the admin panel — a two-gym user's detail
+// silently showed only their Psycle side. `?gymId=` lets the admin pick which
+// linked gym's session/profile/queue/monitors/spot-maps to view; it is
+// validated against `user_gyms` (never trusted blind — same rule as the
+// `x-gym-id` header in auth.js's withGymContext) and, when present, threaded
+// through `db.runWithGymContext` so every accessor below (getUserDetail,
+// gymGet's resolveActiveGymId/getUserById) resolves consistently to THAT gym
+// rather than the account's default. With no `?gymId=`, behaviour is
+// unchanged — the same default-gym resolution as before.
 router.get('/users/:id', authenticateAdmin, async (req, res) => {
   const userId = parseInt(req.params.id, 10);
   if (isNaN(userId)) return res.status(400).json({ message: 'Invalid user ID.' });
-  try {
+  const requestedGymId = req.query.gymId ? String(req.query.gymId) : null;
+  if (requestedGymId && !db.isGymLinked(userId, requestedGymId)) {
+    return res.status(403).json({ message: `User is not linked to gym "${requestedGymId}".` });
+  }
+  const handle = async () => {
     const detail = db.getUserDetail(userId);
     if (!detail) return res.status(404).json({ message: 'User not found.' });
 
@@ -235,7 +252,15 @@ router.get('/users/:id', authenticateAdmin, async (req, res) => {
       studioPreferences: detail.studioPreferences,
       studioNames,
       gyms: detail.gyms,
+      viewedGymId: requestedGymId || db.resolveActiveGymId(userId),
     });
+  };
+  try {
+    if (requestedGymId) {
+      await db.runWithGymContext(userId, requestedGymId, handle);
+    } else {
+      await handle();
+    }
   } catch (err) {
     res.status(500).json({ message: err.message });
   }

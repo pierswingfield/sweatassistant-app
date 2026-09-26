@@ -347,6 +347,11 @@
     <div>
       <h2 id="drawer-name">—</h2>
       <div class="email" id="drawer-email"></div>
+      <!-- C3-8: only shown for a multi-gym account — lets the admin view the
+           detail bundle (session, priority, queue, monitors, spot maps) for a
+           gym OTHER than the account's default. Hidden entirely for a
+           single-gym account, which is unaffected. -->
+      <select id="drawer-gym-picker" style="display:none; margin-top:6px; font-size:12px; padding:3px 6px; border-radius:6px; border:1px solid var(--border); background:var(--surface-2); color:var(--text);"></select>
     </div>
     <button class="drawer-close" id="drawer-close" aria-label="Close">&times;</button>
   </div>
@@ -608,15 +613,24 @@
   function openDrawer() { document.getElementById('drawer-overlay').classList.add('open'); document.getElementById('drawer').classList.add('open'); }
   function closeDrawer() { document.getElementById('drawer-overlay').classList.remove('open'); document.getElementById('drawer').classList.remove('open'); }
 
-  async function openDetail(userId) {
+  let currentDrawerUserId = null;
+
+  // C3-8: `gymId` is optional — passed as `?gymId=` so the admin can view a
+  // linked gym OTHER than the account's default (which is all the route used
+  // to ever resolve). Re-invoked by the picker's onchange below.
+  async function openDetail(userId, gymId) {
+    currentDrawerUserId = userId;
     const body = document.getElementById('drawer-body');
     document.getElementById('drawer-name').textContent = '—';
     document.getElementById('drawer-email').textContent = '';
+    const picker = document.getElementById('drawer-gym-picker');
+    picker.style.display = 'none';
     body.className = 'drawer-body loading';
     body.textContent = 'Loading…';
     openDrawer();
     try {
-      const res = await apiFetch(`/api/admin/users/${userId}`);
+      const qs = gymId ? `?gymId=${encodeURIComponent(gymId)}` : '';
+      const res = await apiFetch(`/api/admin/users/${userId}${qs}`);
       const data = await res.json();
       if (!res.ok) throw new Error(data.message || 'Failed to load user.');
       renderDetail(data);
@@ -626,6 +640,17 @@
     }
   }
 
+  function renderGymPicker(d) {
+    const picker = document.getElementById('drawer-gym-picker');
+    const gyms = d.gyms || [];
+    if (gyms.length < 2) { picker.style.display = 'none'; picker.innerHTML = ''; return; }
+    picker.innerHTML = gyms.map(g =>
+      `<option value="${escHtml(g.gym_id)}"${g.gym_id === d.viewedGymId ? ' selected' : ''}>${escHtml(g.gym_name)}${g.gym_id === d.viewedGymId ? ' (viewing)' : ''}</option>`
+    ).join('');
+    picker.style.display = '';
+    picker.onchange = () => openDetail(currentDrawerUserId, picker.value);
+  }
+
   function renderDetail(d) {
     currentDetail = d;
     abHistoryPage = 0;
@@ -633,6 +658,7 @@
     const fullName = [d.profile.firstName, d.profile.lastName].filter(Boolean).join(' ') || d.user.display_name || '—';
     document.getElementById('drawer-name').textContent = fullName;
     document.getElementById('drawer-email').innerHTML = `<span class="email">${escHtml(d.user.email)}</span>`;
+    renderGymPicker(d);
 
     const body = document.getElementById('drawer-body');
     body.className = 'drawer-body';

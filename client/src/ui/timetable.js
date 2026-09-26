@@ -12,6 +12,7 @@ import { disciplineTag, seatNoun, sparklesIcon, trendingUpIcon, icon, pulseIcon,
 import { openEditBookingModal } from './bookings';
 import { openStudioFloorPlanEditor } from './settings';
 import { renderTimetableSkeleton } from './loading-skeleton.js';
+import { redactSensitivePayload } from '../redact.js';
 
 async function cacheSet(key, value) {
   try {
@@ -2281,7 +2282,11 @@ async function quickBookClass(eventId, prefs, btn, gymId = null) {
       return;
     }
 
-    const liveAvailable = slots.filter((s) => s.isAvailable).map((s) => Number(s.id));
+    // C1-3: slot ids are strings (see AGENTS.md "Normalized ids are STRINGS,
+    // raw event fields are numbers"). MarianaTek's mock spot ids look like
+    // `mock-bag-1` — Number() on those is NaN, which collapses every non-
+    // numeric spot to the same value and breaks membership checks below.
+    const liveAvailable = slots.filter((s) => s.isAvailable).map((s) => String(s.id));
 
     if (liveAvailable.length === 0) {
       showToast('Fully booked! Joining waitlist...', 'warning');
@@ -2295,13 +2300,13 @@ async function quickBookClass(eventId, prefs, btn, gymId = null) {
       return;
     }
 
-    const primarySlots = preferredSlots.filter(id => liveAvailable.includes(Number(id)));
+    const primarySlots = preferredSlots.map(String).filter(id => liveAvailable.includes(id));
 
     let rowSlots = [];
     if (preferredRows && preferredRows.length > 0 && slots.length > 0) {
       preferredRows.forEach(ry => {
         const slotsInRow = slots.filter(s => s.row === ry);
-        const rowSlotIds = slotsInRow.map(s => Number(s.id));
+        const rowSlotIds = slotsInRow.map(s => String(s.id));
         rowSlotIds.forEach(id => {
           if (liveAvailable.includes(id) && !primarySlots.includes(id) && !rowSlots.includes(id)) {
             rowSlots.push(id);
@@ -2314,7 +2319,7 @@ async function quickBookClass(eventId, prefs, btn, gymId = null) {
     const finalBookAny = slots.length === 0 || bookAny;
 
     if (finalBookAny) {
-      const remainingAvailable = liveAvailable.filter(id => !slotsToTry.includes(Number(id)));
+      const remainingAvailable = liveAvailable.filter(id => !slotsToTry.includes(id));
       slotsToTry.push(...remainingAvailable);
     }
 
@@ -2342,7 +2347,7 @@ async function quickBookClass(eventId, prefs, btn, gymId = null) {
         bookedCount++;
         lastBookedSlot = targetSlot;
         lastBookingRes = bookRes;
-        const ls = slots.find(s => Number(s.id) === Number(targetSlot));
+        const ls = slots.find(s => sameId(s.id, targetSlot));
         bookedSlotLabels.push(ls?.label ?? targetSlot);
         showToast(`Quick-booked ${qbNoun} ${ls?.label ?? targetSlot}! 🎉`, 'success');
       } catch (err) {
@@ -2462,8 +2467,13 @@ async function openBookingModal(c, mode) {
     if (eventSlots.length > 0) {
       studioLayoutCache.set(c.studioId, { slots: eventSlots, objects: eventObjects });
     }
-    const availableIds = new Set(eventSlots.filter(s => s.isAvailable).map(s => Number(s.id)));
-    const availableSlots = layoutSlots.map(s => Number(s.id)).filter(id => availableIds.has(id));
+    // C1-3: keep slot ids as strings throughout this modal — see AGENTS.md
+    // "Normalized ids are STRINGS, raw event fields are numbers". A MarianaTek
+    // studio's spot ids are not guaranteed numeric (the mock uses `mock-bag-1`
+    // etc.), and Number() on those collapses distinct spots to NaN, which then
+    // silently satisfies Array.includes(NaN) for every one of them.
+    const availableIds = new Set(eventSlots.filter(s => s.isAvailable).map(s => String(s.id)));
+    const availableSlots = layoutSlots.map(s => String(s.id)).filter(id => availableIds.has(id));
 
     // Determine if booking window is already open
     const classReleaseTime = getClassReleaseTime(c);
@@ -2569,7 +2579,7 @@ async function openBookingModal(c, mode) {
       const prefs = (c.gymId && studioPrefs[`${c.gymId}:${c.studioId}`]) || studioPrefs[c.studioId] || {};
       hasExistingPrefs = (prefs.preferredSlots?.length > 0) || (prefs.preferredRows?.length > 0);
       if (isAutoBookMode || isQuickBookMode) {
-        (prefs.preferredSlots || []).forEach(s => state.selectedSlots.push(Number(s)));
+        (prefs.preferredSlots || []).forEach(s => state.selectedSlots.push(String(s)));
         (prefs.preferredRows || []).forEach(r => state.selectedRows.add(Number(r)));
         state.qty = prefs.requiredCount || 1;
         state.bookAny = prefs.bookAny !== false;
@@ -2626,7 +2636,7 @@ async function openBookingModal(c, mode) {
 
       // Slot bubbles
       layoutSlots.forEach(slot => {
-        const slotId = Number(slot.id);
+        const slotId = String(slot.id);
         const isAvailable = availableSlots.includes(slotId);
         const priority = state.selectedSlots.indexOf(slotId) + 1;
         const inRow = state.selectedRows.has(slot.y);
@@ -2745,7 +2755,7 @@ async function openBookingModal(c, mode) {
       // Update summary
       if (summaryEl) {
         const spotLabels = state.selectedSlots.map(id => {
-          const slot = layoutSlots.find(s => Number(s.id) === id);
+          const slot = layoutSlots.find(s => String(s.id) === id);
           return slot?.label || String(id);
         });
         const rowLabels = Array.from(state.selectedRows).map(y => {
@@ -2770,7 +2780,7 @@ async function openBookingModal(c, mode) {
 
       // Unmapped warning
       if (isAutoBookMode) {
-        const layoutSlotIds = new Set(layoutSlots.map(s => Number(s.id)));
+        const layoutSlotIds = new Set(layoutSlots.map(s => String(s.id)));
         const unmappedSlots = availableSlots.filter(id => !layoutSlotIds.has(id));
         const unmappedEl = body.querySelector('#psycle-unmapped-warning');
         if (unmappedEl) {
@@ -2810,7 +2820,7 @@ async function openBookingModal(c, mode) {
     // ── Auto-Book controls ─────────────────────────────────────────────
     if (isAutoBookMode) {
       const controls = body.querySelector('#psycle-modal-controls-container');
-      const layoutSlotIds = new Set(layoutSlots.map(s => Number(s.id)));
+      const layoutSlotIds = new Set(layoutSlots.map(s => String(s.id)));
       const unmappedSlots = availableSlots.filter(id => !layoutSlotIds.has(id));
       const releaseStr = isLive ? '' : classReleaseTime.toFormat('EEE d MMM, HH:mm');
 
@@ -3583,7 +3593,7 @@ export async function openDebugModal(event) {
         ${relationsMapHtml}
         <div class="psycle-debug-json-block">
           <h5 style="color:var(--feat-autoupgrade); margin:0 0 8px 0; font-size:12px; font-weight:600; text-transform:uppercase; letter-spacing:0.5px;">${tabLabel}</h5>
-          <pre style="background:var(--surface-inset); border:1px solid var(--border); border-radius:8px; padding:14px; font-size:12px; line-height:1.5; color:var(--text); max-height:440px; overflow:auto; white-space:pre-wrap; word-break:break-all; margin:0;">${escapeHtml(JSON.stringify(jsonData, null, 2))}</pre>
+          <pre style="background:var(--surface-inset); border:1px solid var(--border); border-radius:8px; padding:14px; font-size:12px; line-height:1.5; color:var(--text); max-height:440px; overflow:auto; white-space:pre-wrap; word-break:break-all; margin:0;">${escapeHtml(JSON.stringify(redactSensitivePayload(jsonData), null, 2))}</pre>
         </div>
       `;
     }

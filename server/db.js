@@ -1538,27 +1538,53 @@ module.exports = {
   // Admin queries (WP-D3: priority/display_name/profile_synced_at/session now come
   // from user_gyms, scoped to each user's resolved gym — currently always the
   // default gym, so this is a straight LEFT JOIN with no behavior change).
+  // C3-7: this used to LEFT JOIN user_gyms on the LITERAL DEFAULT_GYM_ID, so a
+  // JAB-only account (no psycle-london link at all) always missed the join and
+  // showed up with a blank display_name, priority defaulting to 100, and no
+  // session — i.e. the admin list only ever showed Psycle data. Each user's
+  // display_name/priority/profile_synced_at/session now come from THEIR OWN
+  // resolved gym (resolveActiveGymId — sole link, else the default gym, else
+  // their first link; same fallback chain used everywhere else with no request
+  // context), not a hardcoded one. `active_gym_id` is exposed so the admin UI
+  // can label which gym a row's summary fields belong to.
   getAllUsers() {
     const rows = db.prepare(`
       SELECT
         u.id, u.email, u.created_at, u.last_seen_at,
-        COALESCE(ug.display_name, u.display_name) AS display_name,
-        COALESCE(ug.priority, u.priority, 100) AS priority,
-        COALESCE(ug.profile_synced_at, u.profile_synced_at) AS profile_synced_at,
-        ug.session_json,
+        u.display_name AS legacy_display_name,
+        u.priority AS legacy_priority,
+        u.profile_synced_at AS legacy_profile_synced_at,
         (SELECT COUNT(*) FROM auto_bookings WHERE user_id = u.id AND status = 'pending' AND executed_at IS NULL) AS pending_bookings,
         (SELECT COUNT(*) FROM auto_upgrades WHERE user_id = u.id AND status = 'active') AS active_upgrades,
         (SELECT COUNT(*) FROM user_gyms WHERE user_id = u.id) AS gym_count
       FROM users u
-      LEFT JOIN user_gyms ug ON ug.user_id = u.id AND ug.gym_id = ?
-      ORDER BY priority ASC, u.created_at ASC
-    `).all(DEFAULT_GYM_ID);
-    return rows.map((r) => {
+    `).all();
+
+    const withGym = rows.map((r) => {
+      const gymId = resolveActiveGymId(r.id);
+      const ug = db.prepare(
+        'SELECT display_name, priority, profile_synced_at, session_json FROM user_gyms WHERE user_id = ? AND gym_id = ?'
+      ).get(r.id, gymId);
       let jwtExpiresAt = null;
-      if (r.session_json) { try { jwtExpiresAt = JSON.parse(r.session_json).expiresAt || null; } catch (_) {} }
-      delete r.session_json;
-      return { ...r, jwt_expires_at: jwtExpiresAt };
+      if (ug && ug.session_json) { try { jwtExpiresAt = JSON.parse(ug.session_json).expiresAt || null; } catch (_) {} }
+      return {
+        id: r.id,
+        email: r.email,
+        created_at: r.created_at,
+        last_seen_at: r.last_seen_at,
+        display_name: (ug ? ug.display_name : null) ?? r.legacy_display_name,
+        priority: (ug ? ug.priority : null) ?? r.legacy_priority ?? 100,
+        profile_synced_at: (ug ? ug.profile_synced_at : null) ?? r.legacy_profile_synced_at,
+        pending_bookings: r.pending_bookings,
+        active_upgrades: r.active_upgrades,
+        gym_count: r.gym_count,
+        active_gym_id: gymId,
+        jwt_expires_at: jwtExpiresAt,
+      };
     });
+
+    withGym.sort((a, b) => (a.priority - b.priority) || (new Date(a.created_at) - new Date(b.created_at)));
+    return withGym;
   },
   // Full per-user bundle for the admin detail drawer. Parses cached profile + all
   // per-user JSON blobs so the route layer can shape the response.

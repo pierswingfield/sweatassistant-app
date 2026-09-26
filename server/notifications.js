@@ -96,26 +96,41 @@ function spotsLabel(slots) {
   return clean.join(', ');
 }
 
+// ─── Gym naming (C3-5) ───────────────────────────────────────────────────────
+//
+// Every title/body below used to hardcode "Psycle" — true only for a
+// single-gym build. `ctx.gymId` is how every notify() caller (see below) names
+// the gym a notification is actually about; falling back to the registry
+// default rather than throwing keeps a caller that forgets it from crashing a
+// push send outright, but every real call site names its own gym explicitly.
+function gymShortName(gymId) {
+  const cfg = getGymConfig(gymId) || getGymConfig(DEFAULT_GYM_ID);
+  return (cfg && cfg.shortName) || 'Your gym';
+}
+
 // ─── Body builders ───────────────────────────────────────────────────────────
 
 function buildBooking(ctx) {
+  const gym = gymShortName(ctx.gymId);
   const spots = spotsLabel(ctx.slots);
   const spotPart = spots ? ` - Spot ${spots}` : '';
   return {
-    title: 'Psycle: Spot Booked',
+    title: `${gym}: Spot Booked`,
     body: `${formatDayTime(ctx.startAt)} ${groupToken(ctx.groupName, ctx.className)} with ${firstName(ctx.instructorName)}${spotPart}.`,
   };
 }
 
 function buildUpgrade(ctx) {
+  const gym = gymShortName(ctx.gymId);
   let body = `You're now on Spot ${ctx.slot} for ${formatDayTime(ctx.startAt)} ${groupToken(ctx.groupName, ctx.className)} with ${firstName(ctx.instructorName)}.`;
   if (ctx.keptOriginal) {
-    body += ' Your previous spot was not cancelled, speak to Psycle to cancel without penalty.';
+    body += ` Your previous spot was not cancelled, speak to ${gym} to cancel without penalty.`;
   }
-  return { title: 'Psycle: Spot Upgraded', body };
+  return { title: `${gym}: Spot Upgraded`, body };
 }
 
 function buildCreditWarning(ctx) {
+  const gym = gymShortName(ctx.gymId);
   const dt = formatDayTime(ctx.startAt);
   const grp = groupToken(ctx.groupName, ctx.className);
   const who = firstName(ctx.instructorName);
@@ -128,16 +143,17 @@ function buildCreditWarning(ctx) {
     const spotsClause = spots > 1 ? `for ${spots} spots in` : 'for';
     body = `Auto-Book was set up ${spotsClause} ${dt} ${grp} with ${who}, but you don't have enough credits. Buy ${Y} more credit${Y !== 1 ? 's' : ''}.`;
   }
-  return { title: 'Psycle: Credit Warning', body };
+  return { title: `${gym}: Credit Warning`, body };
 }
 
 function buildCancellationReminder(ctx) {
+  const gym = gymShortName(ctx.gymId);
   const start = DateTime.fromISO(ctx.startAt, { zone: ZONE });
   const hoursUntil = start.isValid ? start.diff(DateTime.now().setZone(ZONE), 'hours').hours : 0;
   const freeHours = Math.max(0, Math.round(hoursUntil - 12));
   const spotPart = ctx.slot != null && ctx.slot !== '' ? ` (Spot ${ctx.slot})` : '';
   return {
-    title: 'Reminder: Psycle Class',
+    title: `Reminder: ${gym} Class`,
     body: `You're booked for ${formatTime(ctx.startAt)} ${groupToken(ctx.groupName, ctx.className)} with ${firstName(ctx.instructorName)}${spotPart}. You have ${freeHours} hour${freeHours !== 1 ? 's' : ''} to cancel for free.`,
   };
 }
@@ -150,10 +166,11 @@ function buildProviderThrottled(ctx) {
   };
 }
 
-function buildBookingWindow(tip) {
+function buildBookingWindow(ctx) {
+  const gym = gymShortName(ctx.gymId);
   return {
-    title: 'Psycle: Booking Window',
-    body: `Psycle booking opens in 1 hour.\n${tip || ''}`.trimEnd(),
+    title: `${gym}: Booking Window`,
+    body: `${gym} booking opens in 1 hour.\n${ctx.tip || ''}`.trimEnd(),
   };
 }
 
@@ -183,7 +200,7 @@ async function notify(userId, type, ctx = {}) {
       break;
     case 'bookingWindow':
       if (!prefs.bookingWindow.enabled) return;
-      built = buildBookingWindow(ctx.tip);
+      built = buildBookingWindow(ctx);
       break;
     case 'providerThrottled':
       if (!prefs.providerThrottled.enabled) return;
@@ -199,7 +216,7 @@ async function notify(userId, type, ctx = {}) {
 
 function buildSample(type) {
   const soon = DateTime.now().setZone(ZONE).plus({ days: 1 }).set({ hour: 6, minute: 30, second: 0 }).toISO();
-  const base = { startAt: soon, groupName: 'RIDE', className: 'Signature 45', instructorName: 'Aanya Smith', slots: [5], slot: 5 };
+  const base = { startAt: soon, groupName: 'RIDE', className: 'Signature 45', instructorName: 'Aanya Smith', slots: [5], slot: 5, gymId: DEFAULT_GYM_ID };
   switch (type) {
     case 'booking': return buildBooking(base);
     case 'upgrade': return buildUpgrade({ ...base, keptOriginal: false });
@@ -208,9 +225,9 @@ function buildSample(type) {
     case 'creditWarning-upgrade': return buildCreditWarning({ ...base, kind: 'autoupgrade' });
     case 'cancellationReminder':
       return buildCancellationReminder({ ...base, startAt: DateTime.now().setZone(ZONE).plus({ hours: 24 }).toISO() });
-    case 'bookingWindow': return buildBookingWindow('You have 3 classes set to Auto-Book.');
-    case 'bookingWindow-none': return buildBookingWindow("Don't forget to set up Auto-Book!");
-    case 'bookingWindow-nocredits': return buildBookingWindow('⚠️ You have 3 classes set to Auto-Book, but you don\'t have enough credits.');
+    case 'bookingWindow': return buildBookingWindow({ gymId: DEFAULT_GYM_ID, tip: 'You have 3 classes set to Auto-Book.' });
+    case 'bookingWindow-none': return buildBookingWindow({ gymId: DEFAULT_GYM_ID, tip: "Don't forget to set up Auto-Book!" });
+    case 'bookingWindow-nocredits': return buildBookingWindow({ gymId: DEFAULT_GYM_ID, tip: '⚠️ You have 3 classes set to Auto-Book, but you don\'t have enough credits.' });
     case 'providerThrottled': return buildProviderThrottled({ gymId: DEFAULT_GYM_ID });
     default: return null;
   }

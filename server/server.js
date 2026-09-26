@@ -336,6 +336,7 @@ app.post('/api/notify/booking-success', authenticateToken, async (req, res) => {
     const { eventId, className, groupName, instructorName, startAt, slots, source } = req.body;
     await notifications.notify(req.userId, 'booking', {
       source: source || 'manual', eventId, className, groupName, instructorName, startAt, slots,
+      gymId: db.resolveActiveGymId(req.userId),
     });
     // Refresh the calendar feed shortly after a manual/quick booking.
     try { calendar.scheduleRefresh(req.userId); } catch (_) {}
@@ -403,7 +404,7 @@ app.post('/api/auto-book', authenticateToken, bookingMutationLimiter, (req, res)
     // Warn (via push) if the user set this up without enough credits.
     if (creditShortfall && creditShortfall > 0) {
       notifications.notify(req.userId, 'creditWarning', {
-        kind: 'autobook', startAt, groupName, className, instructorName,
+        kind: 'autobook', startAt, groupName, className, instructorName, gymId,
         spots: preferences.requiredCount || 1, creditsShort: creditShortfall,
       });
     }
@@ -532,7 +533,7 @@ app.post('/api/auto-upgrade', authenticateToken, bookingMutationLimiter, (req, r
     // Warn (via push) if auto-upgrade is enabled without a spare credit to book the upgraded seat.
     if (creditShortfall && creditShortfall > 0) {
       notifications.notify(req.userId, 'creditWarning', {
-        kind: 'autoupgrade', startAt, groupName, className, instructorName,
+        kind: 'autoupgrade', startAt, groupName, className, instructorName, gymId,
       });
     }
 

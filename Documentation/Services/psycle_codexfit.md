@@ -109,9 +109,15 @@ CodexFit provides a modern RESTful v2 API under `/api/customer/v2` powered by La
 #### Events & Timetable (v2)
 * **Method:** `GET`
 * **Path:** `/api/customer/v2/events`
-* **Query Parameters:**
-  * `filter[location]`: Location ID (e.g. `1` for Oxford Circus).
-  * `filter[between]`: Comma-separated ISO date range (e.g. `2026-09-28,2026-09-29`).
+* **Query Parameters — corrected 2026-09-26**: a live capture of the real timetable page load
+  (`server/fixtures/codexfit-v2/PARITY.md` gate G4) showed **no `filter[location]` param at all** on this
+  call — location scoping for that embed happens some other way, not identified in that session — and the
+  real site fires **three separate single-day-range calls** on initial load
+  (`filter[between]=2026-09-26,2026-09-27`, `...27,28`, `...28,29`, i.e. today + 2 more days), not one wider
+  range. `filter[location]` may still be a valid filter per the allowed-filters list below; it just isn't
+  what the native timetable actually sends.
+  * `filter[location]`: Location ID (e.g. `1` for Oxford Circus). **Not observed live** — see correction above.
+  * `filter[between]`: Comma-separated ISO date range (e.g. `2026-09-28,2026-09-29`). **Confirmed live as a single-day range per call**, not a wider span.
   * `sort`: Sort field (`start_at`, `id`, `created_at`, `updated_at`). Prefix `-` for descending (e.g. `sort=start_at`).
   * **Allowed Filters:** `id`, `instructor`, `instructor.handle`, `instructor_tags`, `tags`, `studio`, `studio.handle`, `location`, `location.handle`, `event_type`, `event_type.handle`, `event_type_group`, `event_type_group.handle`, `start_at`, `between`, `is_live_stream`, `is_video_event`, `metafields`, `created_at`, `updated_at`.
 * **Consolidated Response Envelope:**
@@ -187,13 +193,22 @@ Cancels a booking. Penalty-free if done >12 hours before class start (or within 
 
 #### Join a Waitlist
 Joins the waitlist for a full class.
-* **Method:** `POST`
+* **Method:** `PUT` (corrected 2026-09-26 — a live capture confirmed `PUT`, not `POST`; the app's code was
+  already right, only this doc was wrong. See `server/fixtures/codexfit-v2/PARITY.md` gate G2.)
 * **Path:** `/api/v1/customer/waitlists/{event_id}`
+* **Response:** `{success: true, waitlist: {id, customer_id, event_id, added_at, event: {...full event...}}}`
+  — `waitlist.id` is the row id, and it is NOT the same as `event_id` (see Leave below).
 
 #### Leave a Waitlist
 Leaves a waitlist. Always penalty-free.
 * **Method:** `DELETE`
-* **Path:** `/api/v1/customer/waitlists/{event_id}`
+* **Path:** `/api/v1/customer/waitlists/{waitlist_id}` — **corrected 2026-09-26**: this is the WAITLIST ROW
+  id (`waitlist.id` from the join response, or from `GET /waitlists`), **not** the event id. A live capture
+  confirmed the real site calls `DELETE /waitlists/{row id}`, never `DELETE /waitlists/{event id}` — an
+  event can be waitlisted by many customers, each with their own row id. This doc previously showed
+  `{event_id}` here, and the app's code made the same mistake (fixed in `providers/codexfit.js
+  leaveWaitlist()`, C2-2). See `server/fixtures/codexfit-v2/waitlist-v1-join-leave.json` and PARITY.md
+  gate G2.
 
 ---
 
@@ -263,7 +278,10 @@ Creates a new cart session if one does not already exist.
 * **Method:** `POST`
 * **Path:** `/api/customer/v2/cart`
 * **Body:** `{}`
-* **Response:**
+* **Response — corrected 2026-09-26** (a live capture, `server/fixtures/codexfit-v2/cart-v2-lifecycle.json`,
+  contradicted the shape previously shown here): a freshly-initialized, never-touched cart has **no
+  `stripe` key in `metadata` at all** — not even a zero-amount one. `metadata` is just `{"organisation":
+  null}` until a line is added. See gate G3 in `server/fixtures/codexfit-v2/PARITY.md`.
   ```json
   {
     "data": {
@@ -272,7 +290,7 @@ Creates a new cart session if one does not already exist.
       "subtotal": 0,
       "total": 0,
       "lines": [],
-      "metadata": { "stripe": { "secret": "pi_..._secret_..." } }
+      "metadata": { "organisation": null }
     }
   }
   ```
@@ -283,21 +301,28 @@ Retrieves the cart state, line items, taxes, and Stripe PaymentIntent details.
 * **Path:** `/api/customer/v2/cart/{uuid}`
 * **Key Fields:**
   * `lines`: Array of line items currently in the cart.
-  * `metadata.stripe.secret`: Pre-provisioned Stripe `PaymentIntent` client secret for in-app or client-side confirmation.
+  * `metadata.stripe`: present only once the cart has (or has had) a chargeable line — **confirmed live,
+    2026-09-26**: a `PaymentIntent` (`type: "payment"`) while the cart holds a chargeable line, a
+    zero-amount `SetupIntent` (`type: "setup"`, `amount: 0`) once it's been emptied again, and **absent
+    entirely** on a cart that's never had a line at all (see #1 above). `metadata.stripe.secret` is the
+    client secret for in-app or client-side confirmation either way.
 
 ##### 3. Add Item to Cart
-Adds a package bundle or product to the cart session. Supports adding arbitrary quantities directly in a single request.
+Adds a package bundle or product to the cart session.
 * **Method:** `POST`
 * **Path:** `/api/customer/v2/cart/{uuid}/lines`
-* **Body:**
+* **Body — corrected 2026-09-26**: a live capture showed **no `quantity` field at all** in the real
+  request; the server defaults new lines to quantity 1. Reaching a higher quantity goes through the
+  separate increment/decrement mutation endpoint (#4 below), not a `quantity` value on add. See gate G3 in
+  `server/fixtures/codexfit-v2/PARITY.md`.
   ```json
   {
     "type": "bundle",
-    "id": 792,
-    "quantity": 1
+    "id": 792
   }
   ```
-* **Response:** Returns updated cart object. Each line item contains a unique `hash` (MD5 hex string, e.g. `"889e8bcafbb1b6f0b01dd6395db573b6"`) used for subsequent mutations.
+* **Response:** Returns the new line item. Each line item contains a unique `hash` (MD5 hex string, e.g.
+  `"889e8bcafbb1b6f0b01dd6395db573b6"`) used for subsequent mutations.
 
 ##### 4. Mutate Item Quantity (Increment / Decrement)
 Modifies the quantity of an existing line item.
@@ -400,6 +425,14 @@ The API returns a flat array of events and a `relations` dictionary of studios, 
 
 ### 3.3 Incremental Loading
 To keep payloads manageable, the native timetable loads 10 days of schedule at first. As the user slides the carousel, it incrementally requests additional ranges up to a maximum of 42 days.
+
+**Correction (2026-09-26, `server/fixtures/codexfit-v2/PARITY.md` gate G4):** a live capture showed the
+initial load actually fires **three separate single-day `/events` calls** (today + 2 more days), not one
+wider-ranged request — see §2.1.1 above. Further-day loading via the date carousel was **not confirmed**
+in that session: the visible carousel did not respond to synthetic clicks or drag/swipe gestures across
+many attempts, and scrolling to the page bottom triggered no new `/events` call. The real trigger for
+loading additional days is unidentified; this section's "up to 42 days" claim is unverified beyond the
+first 3 days.
 
 ### 3.4 Location ID Mapping
 The timetable location is derived from the page URL and sent as a `preFilter` to the API:

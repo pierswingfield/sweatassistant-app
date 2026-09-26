@@ -1199,7 +1199,15 @@ export async function renderTimetableGrid(reason = 'interaction') {
     } else if (isOnWaitlist) {
       statusBadge = `<span class="badge-pill waitlisted psycle-occupancy-hover" data-id="${event.id}" data-gym-id="${event.gymId || ''}" style="cursor: pointer;">Waitlisted</span>`;
       const waitlistEntry = userWaitlists.find(w => matchesEvent(w, event));
-      if (waitlistEntry) waitlistId = waitlistEntry.id;
+      // C2-2 fix (2026-09-26): this read `waitlistEntry.id`, a field that has
+      // never existed on a NormalizedBooking (it's `bookingId` — see base.js's
+      // doc comment) — so `waitlistId` was always undefined and the "Leave
+      // WL" button never rendered (buildActionModel below falls through to a
+      // disabled "On Waitlist" pill whenever `waitlistId` is falsy). The
+      // provider's leaveWaitlist() takes the CLASS event id and resolves the
+      // waitlist row internally (see codexfit.js/marianatek.js), so this
+      // passes `event.id`, not any field off the waitlist entry itself.
+      if (waitlistEntry) waitlistId = event.id;
     } else if (isFullyBooked) {
       statusBadge = canWaitlist
         ? `<span class="badge-pill waitlist-open psycle-occupancy-hover" data-id="${event.id}" data-gym-id="${event.gymId || ''}" style="cursor: pointer;">Waitlist</span>`

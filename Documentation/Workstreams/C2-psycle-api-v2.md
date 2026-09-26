@@ -30,12 +30,116 @@ Follow [`LIVE_VERIFICATION_PLAYBOOK.md`](../LIVE_VERIFICATION_PLAYBOOK.md) for a
 
 | # | Item | Evidence | Est. |
 |---|---|---|---|
-| C2-1 | **Move in-app checkout to the v2 cart.** `/api/cart/*` still calls the retired `/cart/add_bundle`, `get_payment_methods` and `ajaxCheckoutProcess`. Add a `codexfit-cart` helper and rewrite the bundle checkout routes. **Buy Credits is broken in prod right now.** | `server/server.js` ~L911–996 | 1 day |
-| C2-2 | **Align the waitlist join verb** with the G2 result. If `PUT` is wrong, waitlist joins fail silently. | `server/providers/codexfit.js` L665 `joinWaitlist` | 30 min |
+| C2-1 | ✅ **Done (2026-09-26).** Moved in-app checkout to the v2 cart — see evidence below. | `server/providers/codexfit-cart.js`, `server/routes-normalized.js` | 1 day |
+| C2-2 | ✅ **Done (2026-09-26).** Join verb confirmed `PUT` (G2); leave's real bug was the ID, not the verb — see evidence below. | `server/providers/codexfit.js leaveWaitlist` | 30 min |
 | C2-3 | **Rate-limit distress abort.** On CodexFit 429/403, stop the booking queue for that gym, back off, and notify the user. Today there is no handling, so the scheduler keeps hammering. | Nothing matches 429/403 in `providers/codexfit.js` or `scheduler.js` | 2–3 h |
 | C2-3b | Fix the `mock.js` `/bundles` envelope. It returns a bare array, but the provider expects `{data, relations}`, so dev mode shows no bundles. [QA-11] | `server/mock.js` ~L286 vs `codexfit.js` ~L800 | 30 min |
 
-Both items above are **done (2026-09-26)** — see below for evidence, root cause, and the fix.
+All four items above are **done (2026-09-26)** — see below for evidence, root cause, and the fix.
+
+### C2-1 — move in-app checkout to the v2 cart
+
+- **Verified (before fix):** by reading `server/server.js` ~L911–996 (now removed) — the legacy
+  `/api/cart/add-bundle/:bundleId`, `/api/cart/checkout/init/:bundleId` and `/api/cart/checkout/confirm`
+  routes called `/cart/add_bundle/{id}`, `/cart/get_payment_methods`, `/cart/set_payment_method/{id}` and
+  `/cart/ajaxCheckoutProcess` directly — all four retired upstream (per `psycle_codexfit.md` §2.6). Real
+  browser check (CDP :9222, `npm run dev`, `dev@psycle.com`): Buy Credits → bundle → "Continue to
+  Payment" surfaced `Couldn't load payment options` because `server/mock.js`'s matching v1 mirrors were the
+  only thing keeping dev mode's checkout alive at all — against the real gym this 404s upstream. Confirmed
+  by `server/test-retired-endpoint-scan.js` run with `RETIRED_SCAN_ENFORCE=1` before the fix: 2 files / 3
+  patterns (`server.js`, `mock.js`).
+- **Root cause:** CodexFit migrated its cart/checkout API to a RESTful v2 surface
+  (`/api/customer/v2/cart/{uuid}/...`) in September 2026; the server never moved off the v1 query-param
+  endpoints it replaced.
+- **Fix:**
+  - `server/providers/codexfit-cart.js` (new) — the v2 cart protocol only: `initCart`/`getCart`/`addLine`/
+    `mutateLineQuantity`/`removeLine` (all CONFIRMED against the live capture, `server/fixtures/codexfit-v2/
+    PARITY.md` G3 + `cart-v2-lifecycle.json`) and `listPaymentMethods`/`attachPaymentMethod`/`beginCheckout`/
+    `finaliseCart` (UNVERIFIED live — see below).
+  - `server/providers/codexfit.js` — a v2 sibling to `request()`: `requestV2()`/`url2()`, since the v2 cart
+    lives at a genuinely different base path (`/api/customer/v2`, not `/api/v1/customer`) than everything
+    else this adapter calls (`gyms.config.js`'s new `v2ApiBaseUrl`). Adds `initCart`/`getCart`/
+    `addBundleToCart`/`removeCartLine`/`listCartPaymentMethods`/`attachCartPaymentMethod`/`finaliseCart`/
+    `getOrder` as thin session-token wrappers over the cart module.
+  - `server/routes-normalized.js` — `POST /cart/checkout/init/:bundleId` and `POST /cart/checkout/confirm`
+    moved here from `server.js` (client contract UNCHANGED, including the `requires_action` → website
+    fallback), gated on `requireCapability(gymId, 'creditPurchase')` like every other extras route, so the
+    route layer stays gym-agnostic (WP-D7) — `server.js` no longer imports `./providers` at all.
+  - `server/mock.js` — v2 cart handlers (`POST /cart`, `GET /cart/{uuid}`, `POST|PUT|DELETE
+    /cart/{uuid}/lines[/{hash}]`, `GET /payment-methods`, `POST /cart/{uuid}/payment-method`,
+    `POST /cart/{uuid}/checkout`, `POST /cart/{uuid}/finalise`) replace the v1 mirrors, matching the live
+    envelope shapes exactly (no `stripe` key on a cart that's never had a line; a zero-amount `setup`
+    intent once emptied again; add-line ignores `quantity` in the body).
+  - Fixed a real bug found during browser verification: `req.params.bundleId` is always a string, but the
+    v2 add-line body needs the numeric bundle id (mock and doc both compare/serialize it as one) —
+    `server/routes-normalized.js`'s init route now `Number()`-coerces it; without this every checkout
+    failed with `422 Unknown bundle`.
+  - Dead code removed as part of the same change (unused even before this fix — nothing called it):
+    `server.js`'s `/api/cart/add-bundle/:bundleId` route and `extractInstance()` helper, and
+    `client/src/api.js`'s `addBundleToCart()`/`getCart()` (the latter pointed at a `GET /api/cart` route
+    that never existed).
+- **UNVERIFIED against live Psycle** (C2 hard rule — no purchase, ever): `listPaymentMethods`,
+  `attachPaymentMethod`, `beginCheckout`, `finaliseCart`, and the order-status polling after finalise.
+  These follow `Documentation/Services/psycle_codexfit.md` §2.5.3 exactly but that step of the live capture
+  was deliberately never exercised (see `server/fixtures/codexfit-v2/PARITY.md` G3). Flagged at each
+  function in `codexfit-cart.js` and again on `codexfit.js`'s `finaliseCart`/`getOrder`.
+- **Tests:** `server/test-codexfit-v2-cart.js` (new, 11/11) — contract fidelity (exact method/path/body
+  against the PARITY.md G3 fixture, stubbing `requestV2`) plus a full mock round-trip (fresh cart → no
+  `stripe` key → add line → PaymentIntent → remove line → zero-amount SetupIntent → full checkout/init →
+  confirm → `Paid`). `server/test-retired-endpoint-scan.js` now **enforces unconditionally** (the
+  `RETIRED_SCAN_ENFORCE` gate and the `mock.js` exclusion are both gone) and passes with zero hits.
+- **Verified (after fix), real browser:** Playwright over CDP `127.0.0.1:9222`, one tab, `npm run dev`,
+  `dev@psycle.com`, all 3 client caches cleared + real reload beforehand. Buy Credits → Psycle gym card →
+  bundle "CRM 5-Pack Ride Credits" → Continue to Payment → paid with a saved mock card → **"✅ Payment
+  complete — 5 credits added to your account."** Network trace: `GET /api/bundles` 200 → `POST
+  /api/cart/checkout/init/792` 200 `{success:true, instance, methods:[...]}` → `POST
+  /api/cart/checkout/confirm` 200 `{status:"paid", orderId:9000635}`.
+
+### C2-2 — waitlist join/leave verb + id
+
+- **Verified (before fix):** a live capture (`server/fixtures/codexfit-v2/waitlist-v1-join-leave.json`,
+  gate G2) showed join is `PUT /waitlists/{eventId}` (matching the code — the doc's `POST` claim was
+  wrong, now corrected in `psycle_codexfit.md`) but **leave is `DELETE /waitlists/{waitlistRowId}`**, a
+  different id than the event id `server/providers/codexfit.js leaveWaitlist()` was using: joining event
+  217095 returned `waitlist.id: 300480`, and the real site's leave call was `DELETE /waitlists/300480`,
+  never `DELETE /waitlists/217095`. A failing test (`server/test-waitlist-verbs.js`, written first)
+  reproduced this against the pre-fix code: stubbing `request()` and calling
+  `provider.leaveWaitlist('217095', ...)` sent `DELETE /waitlists/217095` — the wrong id.
+- **Root cause:** the doc and the adapter both assumed an event's waitlist join/leave used the same id.
+  They don't — an event can be waitlisted by many customers, each with their own row id, and CodexFit's
+  leave verb only accepts that row id.
+- **Fix:** `server/providers/codexfit.js leaveWaitlist(eventId, session)` (~L706) keeps its existing
+  `eventId`-based signature — the shared interface in `base.js`, and the one MarianaTek's own
+  `leaveWaitlist` already uses for an analogous id mismatch — but now resolves the row internally via
+  `listWaitlists()` before issuing the `DELETE`, exactly mirroring MarianaTek's existing pattern. No route
+  or client contract change was needed for this half.
+  - A second, genuinely separate bug surfaced verifying this in the browser: `client/src/ui/timetable.js`
+    (~L1201) read `waitlistEntry.id` — a field that has never existed on a `NormalizedBooking` (it's
+    `bookingId`, per `base.js`'s own doc comment) — so `waitlistId` was always `undefined` and the "Leave
+    WL" button never rendered at all; the UI silently fell back to a disabled "On Waitlist" pill. Fixed to
+    pass `event.id` (the class event id the provider's `leaveWaitlist` now correctly expects), not any
+    field off the waitlist entry.
+  - `server/mock.js` gained waitlist handlers for the first time (`PUT`/`DELETE`/`GET /waitlists`) — there
+    were none before; `GET /waitlists` fell through to the generic `[]` default and `PUT`/`DELETE` silently
+    no-op'd `{ok:true}` with no state change, which is exactly the kind of gap that would have hidden this
+    bug's mock-mode reproduction.
+- **Tests:** `server/test-waitlist-verbs.js` (new, 5/5) — join sends `PUT /waitlists/{eventId}`; leave
+  resolves the row id via `listWaitlists()` and DELETEs that, not the event id; leave with no matching
+  entry no-ops (no DELETE) rather than guessing; a full mock round-trip (join → row id differs from event
+  id, same as live → leave by event id → entry gone); and a regression guard that a direct `DELETE
+  /waitlists/{eventId}` (the pre-fix behaviour) does NOT remove the real row in the mock.
+- **Verified (after fix), real browser:** same CDP session as C2-1 above, continuing in the Class
+  Timetable tab. A full/waitlistable class's "Join Waitlist" button → clicked → `POST /api/waitlist/join`
+  200 `{ok:true}` → a re-fetched `GET /api/waitlists` now showed `{bookingId:"300000", eventId:"1021", ...}`
+  (the **row id**, distinct from the event id, exactly as live) → the "Leave WL" button was now visible
+  (proving the timetable.js client fix) → two-tap confirm → `POST /api/waitlist/leave` 200 `{ok:true}` →
+  `GET /api/waitlists` back to `{"waitlists":[]}`, and the row reverted to "Join Waitlist".
+  - **Dev-mode caveat, not part of the fix, reverted:** the mock timetable's booking-window release times
+    meant nothing was "live" (bookable) on the day of this check, so no Join Waitlist button existed to
+    click at all. Verification temporarily set `is_always_bookable: true` for the mock's already-full
+    seed-0 events in `server/mock.js` (~L678, the one line touched), ran the browser check above, then
+    reverted the file byte-for-byte (`diff` confirmed identical) before committing — not a change in this
+    commit.
 
 ### C2-3 — rate-limit distress abort
 
@@ -118,20 +222,24 @@ Both items above are **done (2026-09-26)** — see below for evidence, root caus
 
 ## Tests (spread across phases)
 
-- [ ] Cart v2 contract test against the G3 fixtures (`server/test-codexfit-v2-cart.js`).
-- [ ] Contract fidelity: request shape matches the PARITY table.
-- [x] **Retired-endpoint scan**: `server/test-retired-endpoint-scan.js` (added 2026-09-26). It scans
-  `server/` for `/cart/add_bundle`, `get_payment_methods` and `ajaxCheckoutProcess`. Confirmed it hits
-  today (`server/server.js`'s legacy checkout routes, `~L911-996`, plus `server/mock.js`'s deliberate
-  mirror of them) by running it with `RETIRED_SCAN_ENFORCE=1` — it fails, correctly, on exactly those
-  hits. `run-tests.js` has no per-suite skip mechanism (discovery is by filename with no registration
-  step, by design), so the file always runs but only **enforces** (exits non-zero) under
-  `RETIRED_SCAN_ENFORCE=1`; the default path `npm test` uses prints the same hits as
-  `PENDING C2-1: ...` and exits 0, so this doesn't turn `npm test` red for a gap that's already tracked
-  as C2-1. **Enable it for real as part of C2-1**: delete the `RETIRED_SCAN_ENFORCE` gate (and the
-  `mock.js` exclusion, once C2-1 also moves the mock to the v2 envelope) — see the file's own header
-  comment for the exact steps.
-- [x] `test-regression-psycle.js` still green (24/24 server suites, see `npm test` output below).
+- [x] **Cart v2 contract test against the G3 fixtures** (`server/test-codexfit-v2-cart.js`, added
+  2026-09-26, 11/11 passing): method/path/body assertions for init/add-line/mutate-quantity/remove/get
+  against stubbed `requestV2` calls, plus a full mock round-trip exercising the same envelope shapes the
+  live capture recorded.
+- [x] **Contract fidelity**: request shape matches the PARITY table — asserted directly in the test above
+  (e.g. add-line body is `{type:"bundle", id}` with no `quantity` key, matching G3's live capture, not the
+  doc's claim).
+- [x] **Waitlist verb + id test** (`server/test-waitlist-verbs.js`, added 2026-09-26, 5/5 passing): join
+  is `PUT /waitlists/{eventId}`; leave resolves the waitlist row id via `listWaitlists()` and DELETEs that,
+  never the event id; a regression guard that DELETEing by the event id (the pre-fix bug) does not remove
+  the real row.
+- [x] **Retired-endpoint scan**: `server/test-retired-endpoint-scan.js` now **enforces unconditionally**
+  (2026-09-26, as part of C2-1) — the `RETIRED_SCAN_ENFORCE` gate and the `mock.js` exclusion are both
+  gone (per the file's own former header comment's instructions), and it passes with zero hits: `server.js`
+  no longer calls any retired v1 cart path (moved to `routes-normalized.js` + the v2 cart), and
+  `server/mock.js` mirrors the v2 envelope instead.
+- [x] `test-regression-psycle.js` still green (26/26 server suites + 76/76 client tests, see `npm test`
+  output in this item's evidence above).
 
 ## Decision (2026-09-26)
 

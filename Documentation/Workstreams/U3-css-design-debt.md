@@ -15,6 +15,7 @@ taken on 2026-09-26.
 | U3-3 | **Move to the type scale.** | **203** hardcoded `font-size: Npx` vs 46 tokenised | — | 1 day |
 | U3-4 | **Move inline styles out of the UI JS.** | **474** `style="…"` plus **272** `.style.x =` in `client/src/ui/*.js` | U2 components absorb some | 1–2 days |
 | U3-5 | **Consolidate card typography** across Bookings, Auto-Book and timetable cards. | Design item from 2026-09-02 | U3-3 | 0.5 day |
+| U3-6 | **[cosmetic] Sweep leftover "Psycle" and "Psycle Assistant" references in gym-agnostic code.** The app was renamed Sweat Assistant and Psycle is now just one gym. Assess and resolve every Psycle reference in the HTML, CSS, copy, comments and identifiers of core (non-Psycle-specific) code, so nothing implies the app is Psycle's. **Keep** real Psycle-specific references: `gyms.config.js` → `psycle-london`, `providers/codexfit.js` docs, Psycle fixtures and mocks. Classify first, then change. The `psycle-` CSS prefixes and `#psycle-helper-container` belong to U3-1, so do them together. **Persisted keys need a migration, not a rename**: `psycleLocalToken`, `psycleUserId`, `psycleTheme`, `psycleDefaultFilters`, the IndexedDB `psycle-cache` and the `psycle-codex-cart` storage. Renaming them without reading the old key logs every user out and drops their saved filters and theme. Added 2026-09-27 at the user's request. | `grep -rni psycle client/ server/*.html server/*.js`, excluding the provider, gym-config and mock files | Pairs with U3-1 | 1 day (sweep) + ~2 h (key migration) |
 
 ## Approach
 

@@ -68,6 +68,9 @@ still open.
    touches every screen and would invalidate acceptance screenshots.
 9. **F Future features**, plus the rest of C7.
 
+Added 2026-09-27: **U2-5** (implement `TIMETABLE_FILTER_DESIGN_BRIEF.md`, after C4) and
+**U3-6** (sweep for leftover "Psycle" references in gym-agnostic code, done with U3-1).
+
 ## Dependency map
 
 ```mermaid

@@ -42,9 +42,30 @@ Psycle and JAB accounts.
 - [x] Each fix has a test where practical (2026-09-27). C3-6 added a guard test,
       `client/src/gym-context-no-ambient.test.js`, alongside the existing server-side
       `test-no-active-gym.js` source scan.
-- [ ] Re-run the affected rows of the 09-23 live matrix on the dev twin with the two-gym test
-      account. (Left unticked per instruction — this pass used local mock only, no dev twin, no
-      live traffic.)
+- [x] **Re-ran the affected rows of the 09-23 live matrix on the dev twin 2026-09-27** (HEAD
+      `2952eec`, deployed same day), real two-gym account (`test@piersj.com`, Psycle + JAB),
+      CDP :9222 real Chrome, one dedicated tab, all three client caches cleared before
+      checking:
+      - **C3-3 (header badge):** header read `JAB | No membership | PSYCLE | 0 cr` on the
+        real account (which genuinely has no active JAB membership) — no forced route
+        interception needed this time, the live data reproduces the fixed state directly.
+      - **C3-2 (JAB button):** every open JAB row's primary button read "No Membership"
+        (confirmed via DOM query across 8+ sampled rows), never "Buy Credits".
+      - **C3-4 (studio map editor):** JAB's "Manage maps" modal grouped studios under "SW1"
+        with BOXING/TRAIN listed; Psycle's modal (opened in the same session immediately
+        after) showed its own BANK/LONDON BRIDGE/NOTTING HILL/OXFORD CIRCUS/SHOREDITCH/
+        VICTORIA locations — no cross-gym leakage, no "Unknown Location".
+      - **C3-1 (link/unlink refresh):** **not exercised live** — this is a real gym account
+        and unlinking would require the user's actual gym password to re-link, which this
+        pass doesn't have. Skipped per the task's own instruction to only do link/unlink
+        "if it's safe to re-link without the user's password". Client-side fix already
+        covered by the 2026-09-26 local-mock evidence above.
+      - **C7-1 (no 429s):** swept all 5 tabs twice (Timetable → My Bookings → Auto-Book →
+        Credits → Settings → Timetable): 62 sequential `/api/*` calls, all HTTP 200, zero
+        429s.
+      - Notification/admin gym-naming (C3-5/C3-7/C3-8/C3-11) were not separately re-checked
+        live in this pass (no new push notification or admin-panel action was triggered);
+        already covered by their 2026-09-26 server-test + local-browser evidence above.
 
 ---
 

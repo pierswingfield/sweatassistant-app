@@ -8,11 +8,35 @@ Cheap, visible fixes. Run them alongside C3 so they share the same live re-test.
 
 | # | Item | Status | Est. |
 |---|---|---|---|
-| U1-1 | **"Spot ?" on FCFS bookings.** | ✅ Fixed 2026-09-27 | 30 min |
+| U1-1 | **"Spot ?" on FCFS bookings.** | ✅ Fixed 2026-09-27; dev-twin re-test 2026-09-27: no FCFS booking existed on the real account — not exercised (see below) | 30 min |
 | U1-2 | **About pane lists every linked gym.** | ✅ Already done (C3-6) — verified 2026-09-27 | 1 h |
-| U1-3 | **Debug terminal toggles live.** | ✅ Fixed 2026-09-27 | 15 min |
-| U1-4 | **Recover-screen copy.** | ✅ Already done (C1-4) — verified 2026-09-27 | 15 min |
-| U1-5 | **Toast dismiss button.** | ✅ Fixed 2026-09-27 | 1 h |
+| U1-3 | **Debug terminal toggles live.** | ✅ Fixed 2026-09-27; re-confirmed live on dev twin 2026-09-27 | 15 min |
+| U1-4 | **Recover-screen copy.** | ✅ Already done (C1-4) — verified 2026-09-27; re-confirmed live on dev twin 2026-09-27 | 15 min |
+| U1-5 | **Toast dismiss button.** | ✅ Fixed 2026-09-27; re-confirmed live on dev twin 2026-09-27 | 1 h |
+
+## Dev-twin re-test (2026-09-27)
+
+Deployed HEAD `2952eec` to `sweat-dev.wingfield.tech`, re-tested against the real two-gym
+account (`test@piersj.com`, Psycle + JAB), CDP :9222 real Chrome, one dedicated tab, all three
+client caches cleared first.
+
+- **U1-3:** toggled `#psycle-setting-debug-mode` on in Settings → General — `#psycle-debug-terminal`
+  went to `display: block` immediately (`getComputedStyle`, no other action needed). Toggled off —
+  went to `display: none` immediately. Restored to its original (off) state afterward.
+- **U1-5:** toggling the same setting fires a real "Settings saved successfully." toast;
+  captured it in the DOM within 200ms of the change event — `class="psycle-toast success show"`,
+  contains a `<button class="toast-close" aria-label="Dismiss notification">×</button>`. Confirmed
+  present and correctly labelled; a later click attempt landed after the toast's own 3.5s auto-hide
+  had already cleared it (non-error toasts still auto-hide by design), so the click-to-dismiss
+  interaction itself wasn't re-captured this pass, but the button's presence/label is the
+  concrete regression this item existed to fix.
+- **U1-1:** the real account's My Bookings only holds two JAB bookings right now — one
+  pick-a-spot TRAIN booking with a real assigned spot ("SPOT 2") and one waitlisted entry —
+  no FCFS/no-map booking exists to show the "Open floor" chip on. Per the task's own
+  instruction ("don't create one"), this was **not exercised live**; the fix's local-mock
+  browser evidence above stands as the verification.
+- **C7-1 (shared re-test, tracked in C3):** 62 sequential `/api/*` calls across a full 5-tab
+  sweep, all 200, zero 429s.
 
 ---
 

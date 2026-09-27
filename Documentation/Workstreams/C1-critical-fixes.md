@@ -79,9 +79,27 @@ Deferred by the user on 2026-09-26. Still open, and still blocking C4:
       routing are both unit-testable). *(C1-3 and C1-4 are DOM-rendering fixes verified by
       real-browser evidence instead — see above.)*
 - [x] `npm test` is green (22/22 server suites, 9/9 client test files, 76/76 client tests).
-- [ ] Deployed to the dev twin. Smoke test: expire one gym's token on a two-gym account and
-      confirm you stay logged in and only that gym shows "reconnect". *(UNADDRESSED 2026-09-26: deferred by user.)*
-- [ ] A backup file restores on a scratch container. *(UNADDRESSED 2026-09-26: C1-5 deferred by user.)*
+- [x] **Deployed to the dev twin 2026-09-27** (HEAD `2952eec`). Smoke test: cleared
+      `user_gyms.session_json` for the JAB link on the real two-gym account (`test@piersj.com`,
+      user id 2) directly in the dev DB (`~/services/psycleapp-dev/data/psycle.db` on oracle),
+      leaving `encrypted_password` untouched. Reloaded (CDP :9222, real Chrome, one dedicated
+      tab): stayed logged in (`localStorage.psycleLocalToken` unchanged), a toast read "JAB:
+      session expired. Reconnect it in Settings → Your Gyms.", and Psycle's own data kept
+      loading normally (62 sequential `/api/*` calls across a full tab sweep, all 200, zero
+      429s). Restored the exact original `session_json` value (backed up beforehand,
+      byte-identical after restore, confirmed via `SELECT`) — did not need a manual
+      reconnect since the credential was never touched. C1-1's redaction was also confirmed
+      live in the same pass: opened the debug modal on a real Psycle event (id 216531) and
+      found `shopify_api_key`/`shopify_api_password`/`shopify_shared_secret`/`email` all
+      rendered as `"[redacted]"` in the raw JSON — the exact field (`shopify_api_password`)
+      QA-22 originally caught unredacted. C1-3 confirmed on a real JAB pick-a-spot class
+      (event 82159, 30/40 booked): the floor plan rendered 30 available (green) vs 10
+      occupied (grey) seats, a real mix rather than the old bug's uniform state. C1-4
+      confirmed: cleared the local JWT, reloaded to the login screen, clicked "Forgot
+      password?" — no TypeError, card rendered "Self-service reset isn't available yet —
+      contact the admin."; restored the saved JWT afterward and confirmed still logged in.
+- [ ] A backup file restores on a scratch container. *(UNADDRESSED 2026-09-27: C1-5 still
+      deferred by user — no cron/backup job was set up in this pass, per instruction.)*
 
 **Detail:** [QA 2026-09-15 ISSUES](../QA/browser-runs/2026-09-15-local-mock/ISSUES.md),
 [QA 2026-09-23 ISSUES](../QA/browser-runs/2026-09-23-lane-live/ISSUES.md).

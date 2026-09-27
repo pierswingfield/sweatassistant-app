@@ -14,7 +14,7 @@ Psycle and JAB accounts.
 
 | # | Item | Evidence (verified 2026-09-26) | Est. |
 |---|---|---|---|
-| C3-1 | **Link/unlink a gym updates the app without a reload.** Settings re-renders its own cards but never refreshes the global gym context, so header badges and the timetable stay stale. [QA-09] | `client/src/ui/settings.js` link ~L1439 and unlink ~L1211 don't call `loadGymContext`/`setLinkedGyms` | 2 h |
+| C3-1 | ✅ **Link/unlink a gym updates the app without a reload.** Settings re-renders its own cards but never refreshes the global gym context, so header badges and the timetable stay stale. [QA-09] | `client/src/ui/settings.js` link ~L1439 and unlink ~L1211, ~L1367 now call `loadGymContext`/`refreshUserData` | 2 h |
 | C3-2 | **Unmetered gym (JAB) open-class button reflects membership state.** Currently it shows a credits-style state that doesn't apply. [QA-16] | `client/src/ui/timetable.js` `buildActionModel` | 2–3 h |
 | C3-3 | **The header "Member" badge checks actual membership.** It shows whenever a gym is unmetered, even when the account has no active membership. [QA-17] | `client/src/main.js` `renderGymBadge` ~L555–573 | 1 h |
 | C3-4 | **Studio map editor in Settings is gym-scoped.** It falls back to an unscoped `cache.locations` when opened for a gym that isn't the context gym, so it can show another gym's rooms. [QA-18] | `client/src/ui/settings.js` ~L711–723 | 1–2 h |
@@ -91,6 +91,48 @@ toast results from this today, but a proper fix would teach `checkAuth()` the sa
 `onLoginSuccess()` has (`client/src/main.js` ~L1059 vs ~L1116-1122) rather than relying on every
 individual API method silently no-op'ing. Left out of this item's scope (C3-10 is about the
 toast, and the toast is gone); flagging in case a future pass wants the redirect too.
+
+### C3-1 — link/unlink a gym in Settings left header badges stale until reload
+
+**Verified before (real browser, CDP :9222, dev@psycle.com, both gyms linked):** confirmed
+`#psycle-header-credits` showed `JAB | Member | PSYCLE | 18 cr`. Opened Settings → Your Gyms,
+unlinked JAB (double-click confirm) — server-side unlink succeeded (`GET /api/my-gyms`
+afterwards, via direct fetch in the page, no longer listed `jab-boxing`) but
+`#psycle-header-credits` still read `JAB | Member | PSYCLE | 18 cr` with **no reload**.
+
+**Root cause:** `client/src/ui/settings.js`'s unlink handlers (~L1211, ~L1367) and link handler
+(~L1439) call `api.unlinkGym`/`api.linkGym` and re-render only Settings' own gym card
+(`renderGymsCard`/`renderGymSettingsSection`). None of them called `loadGymContext()`
+(`client/src/main.js`), which is the only thing that calls `setLinkedGyms()` — the header credit
+badges (`updateCreditBadge()`, driven by `getLinkedGyms()`) and capability gates
+(`applyCapabilityGates()`) both read state that only that function refreshes.
+
+**Fix:** all three call sites in `client/src/ui/settings.js` now `await loadGymContext()`
+followed by `await refreshUserData(true)` after a successful link/unlink, before/alongside their
+existing Settings-panel re-render:
+- unlink (double-click, gyms list) ~L1211-1217
+- unlink (per-gym settings pane) ~L1367-1373
+- link/re-auth (modal submit) ~L1439-1448 (sequenced, not `Promise.all`, since
+  `refreshUserData` reads the linked-gym list `loadGymContext` just set)
+
+`loadGymContext()` alone updates the list capability gates read but does **not** re-render the
+header — that render happens inside `refreshUserData()`'s `updateCreditBadge(availableCredits)`
+call, discovered when the first pass (`loadGymContext()` only) left the badges still stale in
+the same browser check; `refreshUserData` was added once that was reproduced.
+
+**Test:** not added as a vitest unit — `settings.js`'s link/unlink handlers are DOM-event-bound
+closures over module-level state (`renderGymsCard`, `gymModal`) with a heavy `main.js` import
+chain (same jsdom friction hit in C3-10: `window.matchMedia`/`localStorage` polyfills needed just
+to import the module), so a meaningful unit test would mostly be re-testing jsdom plumbing
+rather than the wiring bug itself. Verified end-to-end in the real browser instead (below), which
+is the check that actually exercises the DOM handlers, the API calls, and the header re-render
+together.
+
+**Verified after (same browser, same account, cleared SW/CacheStorage/IndexedDB, real reload
+first to load the new bundle):** reloaded → badges `JAB | Member | PSYCLE | 18 cr`. Unlinked JAB
+→ badges immediately became `PSYCLE | 18 cr`, **no reload**. Re-linked JAB
+(`dev@jabboxing.mock`) → badges immediately became `JAB | Member | PSYCLE | 18 cr` again, **no
+reload**. Screenshot evidence: `c3_1_final.png` (scratchpad, not committed).
 
 ## Server-side items completed 2026-09-26 (C3-12, C3-5, C3-7, C3-8, C3-11)
 

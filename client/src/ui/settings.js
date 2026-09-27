@@ -1,5 +1,5 @@
 import { api, apiFetch } from '../api';
-import { showToast, togglePushSubscription, updatePushStatusUI, userSettings, cache, getTheme, setTheme, debugConsole } from '../main';
+import { showToast, togglePushSubscription, updatePushStatusUI, userSettings, cache, getTheme, setTheme, debugConsole, loadGymContext, refreshUserData } from '../main';
 import { getBookingOffset, describeBookingWindow } from '../lib';
 import { renderStudioFloorPlan } from './spotmap';
 import { cacheGet } from './timetable';
@@ -1210,6 +1210,15 @@ export async function renderGymsCard() {
       try {
         await api.unlinkGym(gymId);
         showToast('Gym unlinked.', 'success');
+        // C3-1: unlinking changes the linked-gym set the header badges and
+        // capability gates read (client/src/gym-context.js), which settings.js
+        // re-rendering its own cards never refreshes — without this the header
+        // still shows the unlinked gym's badge until a full reload. loadGymContext()
+        // updates the linked-gym list capability gates read; refreshUserData()
+        // is what actually re-renders the header credit badges from that list
+        // (updateCreditBadge reads getLinkedGyms()).
+        await loadGymContext();
+        await refreshUserData(true);
         await renderGymsCard();
       } catch (err) {
         showToast(err.message, 'error');
@@ -1369,6 +1378,11 @@ export async function renderGymSettingsSection(requestedGymId = null, targetCont
             await api.unlinkGym(gymId);
                 await clearApiCache().catch(() => {});
             showToast('Gym unlinked.', 'success');
+            // C3-1: see the other unlink handler above — the global gym context
+            // (header badges, capability gates) must refresh too, not just this
+            // panel's own card.
+            await loadGymContext();
+            await refreshUserData(true);
             container.closest('.psycle-gym-settings-overlay')?.remove();
             await renderGymsCard();
           } catch (err) {
@@ -1439,6 +1453,16 @@ function openLinkGymModal(gymId, existing, addable = []) {
       await api.linkGym(targetGym, email, password);
       showToast(isReauth ? 'Re-authenticated' : 'Gym linked', 'success');
       close();
+      // C3-1: a newly linked gym must appear in the header badges and pass
+      // through capability gates immediately, not just in this panel's cards —
+      // loadGymContext() updates the linked-gym list, refreshUserData() re-renders
+      // the header credit badges from it (same pair the unlink handlers now use).
+      // Sequenced (not Promise.all) because refreshUserData reads the linked-gym
+      // list loadGymContext just set.
+      (async () => {
+        await loadGymContext();
+        await refreshUserData(true);
+      })().catch(() => {});
       Promise.all([renderGymsCard(), renderGymSettingsSection(isReauth ? gymId : targetGym)]).catch(() => {});
     } catch (err) {
       errEl.textContent = err.message;

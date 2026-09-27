@@ -184,16 +184,6 @@ export function getClassReleaseTime(eventOrDate, settings = {}) {
   return M.set({ hour: 12, minute: 0, second: 0, millisecond: 0 });
 }
 
-// Get the next Monday 12:00 PM London time
-export function getNextMondayNoonLondon() {
-  const now = DateTime.now().setZone('Europe/London');
-  let target = now.set({ weekday: 1, hour: 12, minute: 0, second: 0, millisecond: 0 });
-  if (now >= target) {
-    target = target.plus({ weeks: 1 });
-  }
-  return target;
-}
-
 // Format a countdown from milliseconds
 export function formatCountdown(diffMs) {
   if (diffMs <= 0) return '00:00:00';

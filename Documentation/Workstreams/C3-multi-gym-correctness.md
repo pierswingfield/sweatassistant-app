@@ -27,7 +27,7 @@ Psycle and JAB accounts.
 | C3-6 | **Remove the client's ambient gym-context fallback.** The module-level `state` plus `setGymContext()` is the client twin of the server bug class deleted on 09-16. Anything reading it on a multi-gym account gets a guess. Make every consumer pass an explicit gym. | `client/src/gym-context.js` L27–60 | 1 day |
 | C3-7 | ✅ `db.getAllUsers()` joins `user_gyms` on the literal `DEFAULT_GYM_ID`, so admin lists show Psycle data only. | `server/db.js` ~L1541–1555 | 1 h |
 | C3-8 | ✅ Admin user detail: add a gym picker. `getUserDetail` resolves one ambient gym, so a JAB-only or second-gym view isn't possible. | `server/admin.js` L123; `db.js` ~L1565–1608 | 2 h |
-| C3-9 | Remove the hardcoded Psycle booking-window helpers from the shared client lib (`getNextMondayNoonLondon`). Use the per-gym policy the server already exposes. | `client/src/lib.js` L188, imported by `timetable.js` | 2 h |
+| C3-9 | ✅ Remove the hardcoded Psycle booking-window helpers from the shared client lib (`getNextMondayNoonLondon`). Use the per-gym policy the server already exposes. | `client/src/lib.js` (was L188) | 2 h |
 | C3-12 | ✅ **Background auto-book uses the ACTIVE gym's session, not the row's gym.** `scheduler.js bookSlotWithRelogin(userId, gymId, …)` reads `db.getUserById(userId).jwt`, which resolves the user's *active* gym; neither `scheduler.js` nor `poller.js` wraps per-row work in `db.runWithGymContext`. So a JAB queue entry for a user whose active gym is Psycle is sent with Psycle's token and is expected to 401, then relogin for JAB. Check `poller.js` for the same pattern. Found 2026-09-26 during C2-3, code-confirmed and not yet reproduced. **Blocks C4 JAB launch.** | `server/scheduler.js` L361–374 | 1–2 h |
 
 ## Error handling / copy
@@ -271,6 +271,36 @@ same open-A-then-B sequence):** Psycle's modal: `CLAPHAM / MORTIMER STREET / SHO
 (unchanged). JAB's modal, opened immediately after in the same session: `SW1` (JAB's own
 location), with its BOXING/TRAIN studios listed — no leakage, no false-empty state. Screenshot
 evidence: `c3_4_jab_fixed.png` (scratchpad, not committed).
+
+### C3-9 — removed the dead `getNextMondayNoonLondon()` from the client lib
+
+**Verified before (code check):** `grep -rn getNextMondayNoonLondon client/src` showed exactly
+two hits: the export in `client/src/lib.js` ~L188, and its import in
+`client/src/ui/timetable.js` ~L5 — with **no call site anywhere** in either file, or anywhere
+else in the client. Confirmed the item's premise directly: this was already fully dead by the
+time this pass started (the server-side removal in WP-I evidently took the last real caller with
+it; the client copy and its now-pointless import were never cleaned up). Every event already
+carries the server-stamped `releaseAt` that `getClassReleaseTime()` (still imported and used,
+`client/src/lib.js`) reads, per AGENTS.md's WP-I note.
+
+**Fix:** deleted the `getNextMondayNoonLondon()` function from `client/src/lib.js` (was ~L186-194)
+and removed the now-unused import from `client/src/ui/timetable.js` ~L5. No behaviour change —
+there was no reachable code path exercising it.
+
+**`detectBookingWindow()` (also flagged by AGENTS.md and this item's brief):** confirmed still
+**live**, not dead — `client/src/main.js` ~L964 calls
+`detectBookingWindow(profile, credits)` inside `refreshUserData()` to auto-detect and persist the
+account's booking-window day-offset. Left in place per the item's own instruction ("only remove
+if clearly dead"); AGENTS.md's existing note that it duplicates
+`providers/codexfit.js resolveBookingWindow()` server-side stands as an open item, not one this
+pass resolves.
+
+**Test:** none needed — a pure dead-code deletion has nothing to assert beyond "nothing else
+breaks," covered by `npm test` (client + server, both green) below.
+
+**Verified after (real browser, CDP :9222, cleared SW/CacheStorage/IndexedDB, real reload):**
+Timetable tab loads normally (66 row elements rendered), no console errors, no page errors.
+`npm run build:client` also confirmed clean (see end-of-workstream verification).
 
 ## Server-side items completed 2026-09-26 (C3-12, C3-5, C3-7, C3-8, C3-11)
 

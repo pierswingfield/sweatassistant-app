@@ -7379,6 +7379,28 @@ html, body {
   border-color: color-mix(in srgb, var(--warning) 40%, transparent);
 }
 
+/* U1-1: FCFS/recovery bookings have no assigned spot to reassign, so this is
+   a static label, not a button — same pill shape as .ab-spot-upgrade-chip
+   for visual rhythm in the card, but muted and non-interactive (no hover,
+   no pointer cursor) so it doesn't read as a broken control. */
+#psycle-helper-container .ab-spot-open-floor {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 3px 10px;
+  border-radius: 999px;
+  font-size: var(--text-xs);
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+  white-space: nowrap;
+  color: var(--text-secondary);
+  background: color-mix(in srgb, var(--text-secondary) 11%, transparent);
+  border: 1px solid transparent;
+  cursor: default;
+  font-family: inherit;
+}
+
 /* ── History (collapsible card with rich rows) ─────────────────── */
 /* History collapsible wrapper */
 #psycle-helper-container .ab-history-card {

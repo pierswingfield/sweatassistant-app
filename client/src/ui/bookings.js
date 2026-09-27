@@ -198,19 +198,35 @@ function buildBookingCard(group, upgrades) {
 
   const within12h = isWithin12Hours(startAt);
 
+  // No seat map for this studio (FCFS/recovery) means there is no spot to
+  // reassign — same reasoning as the timetable's own Edit gating. Resolved
+  // once, up front, because the chip loop below needs it too (U1-1): a
+  // slot-less booking's `slotId` normalizes to `""`, not null/undefined, so
+  // the old `?? '?'` fallback chain never ran — `""` is not nullish — and
+  // the chip silently rendered a blank "Spot" button that still opened the
+  // auto-upgrade modal for a class with no seats to upgrade to.
+  const { hasMap } = getStudioMapInfo(event);
+
   const chipsHtml = group.bookings.map(b => {
+    if (!hasMap) {
+      // Static badge, not a button: there is no spot to configure auto-upgrade
+      // for on an FCFS/recovery class, so it must not be clickable (it isn't
+      // wired below — the click-listener loop only selects `.ab-spot-upgrade-chip`).
+      return `<span class="ab-spot-open-floor" title="First come, first served — no assigned spot">Open floor</span>`;
+    }
+
     const slotId = slotIdOf(b);
     const slotLabel = b.raw?.spot?.name ?? b.studio_slot?.label ?? b.slot ?? b.studio_slot_id ?? b.slot_id ?? slotId ?? '?';
-    
+
     // Find active upgrade for this specific booking
     const activeUpgrade = upgrades.find(u =>
       Number(u.booking_id) === Number(bookingIdOf(b)) &&
       ['active', 'paused_no_credits'].includes(u.status)
     );
-    
+
     let chipClass = 'ab-spot-upgrade-chip';
     let iconHtml = '';
-    
+
     if (activeUpgrade) {
       if (activeUpgrade.status === 'paused_no_credits' || totalAvailableCredits(event.gymId) < 1) {
         chipClass += ' state-warning';
@@ -220,13 +236,13 @@ function buildBookingCard(group, upgrades) {
         iconHtml = pulseIcon(12) + '&nbsp;';
       }
     }
-    
+
     const noun = seatNoun(groupName);
     const nounCap = noun.charAt(0).toUpperCase() + noun.slice(1);
-    
-    return `<button class="${chipClass}" 
-                    data-booking-id="${bookingIdOf(b)}" 
-                    data-slot-id="${slotId}" 
+
+    return `<button class="${chipClass}"
+                    data-booking-id="${bookingIdOf(b)}"
+                    data-slot-id="${slotId}"
                     data-slot-label="${slotLabel}"
                     data-upgrade-id="${activeUpgrade?.id || ''}"
                     title="${activeUpgrade ? 'Configure/disable auto-upgrade' : 'Configure/enable auto-upgrade'}">
@@ -234,9 +250,6 @@ function buildBookingCard(group, upgrades) {
             </button>`;
   }).join('');
 
-  // No seat map for this studio (FCFS/recovery) means there is no spot to
-  // reassign — same reasoning as the timetable's own Edit gating.
-  const { hasMap } = getStudioMapInfo(event);
   const editBtnHtml = (within12h || !hasMap) ? '' :
     `<button class="ab-rail-btn bk-edit-btn" aria-label="Edit spots">${icon('edit', 17)}<span>Edit</span></button>`;
 

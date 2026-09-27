@@ -15,7 +15,7 @@ Psycle and JAB accounts.
 | # | Item | Evidence (verified 2026-09-26) | Est. |
 |---|---|---|---|
 | C3-1 | ✅ **Link/unlink a gym updates the app without a reload.** Settings re-renders its own cards but never refreshes the global gym context, so header badges and the timetable stay stale. [QA-09] | `client/src/ui/settings.js` link ~L1439 and unlink ~L1211, ~L1367 now call `loadGymContext`/`refreshUserData` | 2 h |
-| C3-2 | **Unmetered gym (JAB) open-class button reflects membership state.** Currently it shows a credits-style state that doesn't apply. [QA-16] | `client/src/ui/timetable.js` `buildActionModel` | 2–3 h |
+| C3-2 | ✅ **Unmetered gym (JAB) open-class button reflects membership state.** Currently it shows a credits-style state that doesn't apply. [QA-16] | `client/src/ui/timetable.js` `buildActionModel` ~L1471–1494 | 2–3 h |
 | C3-3 | ✅ **The header "Member" badge checks actual membership.** It shows whenever a gym is unmetered, even when the account has no active membership. [QA-17] | `client/src/main.js` `renderGymBadge` ~L555–579 | 1 h |
 | C3-4 | **Studio map editor in Settings is gym-scoped.** It falls back to an unscoped `cache.locations` when opened for a gym that isn't the context gym, so it can show another gym's rooms. [QA-18] | `client/src/ui/settings.js` ~L711–723 | 1–2 h |
 | C3-5 | ✅ **Push notifications name the right gym.** Every title and body hardcodes "Psycle" ("Psycle: Spot Booked", "speak to Psycle…"). [QA-20] | `server/notifications.js` L101–144 | 1 h |
@@ -180,6 +180,47 @@ real reload):** with the forced `canBook: false` response, header now reads
 stale "Member" pill, then re-confirmed the fix again after restoring. Normal (non-intercepted,
 real dev-mock) reload still shows `JAB | Member | PSYCLE | 18 cr` — the working case is
 unaffected. Screenshot evidence: `c3_3_after_fix_real.png` (scratchpad, not committed).
+
+### C3-2 — JAB (unmetered) open-class button showed "Buy Credits" for an ineligible account
+
+**Verified before (real browser, CDP :9222, dev@psycle.com with JAB linked):** same
+route-interception technique as C3-3 (dev mock always answers JAB eligibility as active, per
+`server/mock-marianatek.js` L9) — forced `GET /api/eligibility` for `x-gym-id: jab-boxing` to
+`{ canBook: false }`, reloaded, opened the Timetable tab. Every open JAB row's primary button
+read **"Buy Credits"** and, on click, routed to `window.switchTab('buy-credits')` — a tab whose
+purchase flow JAB doesn't have (`gyms.config.js` `jab-boxing.capabilities.creditPurchase: false`,
+`metered: false`). Captured via `page.$$eval` on JAB rows before the fix: all "not bookable"
+rows showed `{"text":"Buy Credits","title":"","disabled":false}`.
+
+**Root cause:** `client/src/ui/timetable.js` `buildActionModel()`'s `if (!hasCredit)` branch
+(~L1471, before the fix) always rendered "Buy Credits" regardless of *why* `hasUsableCredit()`
+was false. That function is false for two structurally different reasons
+(`client/src/ui/credit-allowance.js`): a metered gym's balance can't afford the class, or an
+unmetered gym's `canBookAtAll()` has confirmed no active membership/credits at all. Only the
+first reason has an in-app fix ("buy more credits"); showing it for the second pointed at a
+purchase flow that gym doesn't have — the same class of bug as C3-3's badge, one level down in
+the same file.
+
+**Fix:** `client/src/ui/timetable.js` ~L1471-1494 — `buildActionModel()` now branches on
+`isMetered(event.gymId)` (imported from `credit-allowance.js`) before choosing the label:
+metered keeps "Buy Credits" exactly as before; unmetered renders a disabled "No Membership"
+primary button with `getIneligibleReason(event.gymId)` in the tooltip (same reason string the
+status pill beside it already surfaces). Added `title` wiring for `model.primary.title` to both
+`buildDesktopActions()` (~L1830) and `buildMobileClassRow()`'s primary button (~L2069), since
+neither previously read a `title` off the action model at all.
+
+**Test:** no new unit test — `buildActionModel` is a private (non-exported) function in
+`timetable.js`'s heavy import chain (same jsdom friction noted in C3-1/C3-3), and the underlying
+`isMetered`/`getIneligibleReason` logic it calls is already covered by
+`client/src/ui/credit-allowance.test.js` (unchanged, still 100% passing). Verified end-to-end in
+the real browser instead, which is what actually exercises the label decision.
+
+**Verified after (same browser, same route interception, cleared SW/CacheStorage/IndexedDB,
+real reload):** every open JAB row now reads `{"text":"No Membership","title":"No active
+membership or credits","disabled":true}`; Psycle rows and JAB's not-yet-live rows ("Auto-Book")
+are unaffected. Re-ran the same check against the pre-fix code (`git stash`/`git stash pop`) and
+confirmed it reproduces "Buy Credits", then re-confirmed the fix again after restoring.
+Screenshot evidence: `c3_2_state.png` (scratchpad, not committed).
 
 ## Server-side items completed 2026-09-26 (C3-12, C3-5, C3-7, C3-8, C3-11)
 

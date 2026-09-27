@@ -1,5 +1,5 @@
 import { api } from '../api';
-import { getAvailableCreditsForEvent, hasUsableCredit, getIneligibleReason } from './credit-allowance.js';
+import { getAvailableCreditsForEvent, hasUsableCredit, getIneligibleReason, isMetered } from './credit-allowance.js';
 import { canForGym, capabilityForGym, getGymContext, getLinkedGyms, getGymShortName } from '../gym-context.js';
 import { showToast, currentUser, userSettings, refreshUserData, updateCreditBadge, cache, debugConsole } from '../main';
 import { getClassReleaseTime, getNextMondayNoonLondon, isInGracePeriod, GRACE_PERIOD_MS, startGraceCountdown } from '../lib';
@@ -1468,10 +1468,29 @@ function buildActionModel(event, ctx) {
     return { primary: { label: 'Full', variant: 'neutral', disabled: true }, secondary: null, config: null };
   }
 
-  // No eligible credits → send to Buy Credits
+  // Not bookable — but WHY differs by gym shape (C3-2). `hasCredit` is
+  // `hasUsableCredit()`, which is false either because a metered gym's balance
+  // can't afford this class, OR because an unmetered (membership) gym has
+  // confirmed this account has no active membership/credits at all
+  // (`canBookAtAll()`). Those are different problems with different fixes: a
+  // metered gym's fix is "buy more credits" (an in-app flow); an unmetered
+  // gym has no credits to buy — `capabilities.creditPurchase` is false for
+  // every unmetered gym in `gyms.config.js` — so "Buy Credits" pointed at a
+  // purchase flow that gym doesn't have. Show a disabled state describing the
+  // real problem instead; the reason is already in the tooltip via the same
+  // `getIneligibleReason()` the status pill above uses.
   if (!hasCredit) {
+    if (isMetered(event.gymId)) {
+      return {
+        primary: { label: 'Buy Credits', variant: 'danger', run: () => window.switchTab('buy-credits') },
+        secondary: null, config: null,
+      };
+    }
     return {
-      primary: { label: 'Buy Credits', variant: 'danger', run: () => window.switchTab('buy-credits') },
+      primary: {
+        label: 'No Membership', variant: 'neutral', disabled: true,
+        title: getIneligibleReason(event.gymId) || 'No active membership',
+      },
       secondary: null, config: null,
     };
   }
@@ -1809,6 +1828,7 @@ function buildDesktopActions(model, event, debugMode, isBookmarked = false) {
   const pbtn = document.createElement('button');
   pbtn.className = `psycle-tt-seg primary variant-${model.primary.variant}` + (model.primary.scheduled ? ' scheduled' : '');
   setSegLabel(pbtn, model.primary.label);
+  if (model.primary.title) pbtn.title = model.primary.title;
   if (model.primary.disabled) pbtn.disabled = true;
   else if (model.primary.run) pbtn.onclick = (e) => { e.stopPropagation(); model.primary.run(pbtn); };
   group.appendChild(pbtn);
@@ -2054,6 +2074,7 @@ function buildMobileClassRow(event, ctx, model) {
   } else {
     setSegLabel(pbtn, mobilePrimary.label);
   }
+  if (mobilePrimary.title) pbtn.title = mobilePrimary.title;
   if (mobilePrimary.disabled) pbtn.disabled = true;
   else if (mobilePrimary.run) pbtn.onclick = (e) => { e.stopPropagation(); mobilePrimary.run(pbtn); };
   if (mobilePrimary.graceDeadline) {

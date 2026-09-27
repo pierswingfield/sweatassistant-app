@@ -1,5 +1,5 @@
 import { api, setToken, isLoggedIn } from './api';
-import { setGymContext, setLinkedGyms, applyCapabilityGates, getLinkedGyms, getGymShortName } from './gym-context.js';
+import { setLinkedGyms, getLinkedGyms, getGymShortName } from './gym-context.js';
 import { initTooltips } from './ui/tooltips';
 import { setupPullToRefresh } from './ui/pulltorefresh';
 import { setCacheKeyPrefix, clearApiCache, invalidateApiCache } from './cache.js';
@@ -854,18 +854,18 @@ export async function loadGymContext() {
       const found = catalogue.find(cg => cg.id === (lg.gym_id || lg.id));
       return found ? { ...found, ...lg } : lg;
     });
+    // C3-6: this used to also pick ONE gym (`linked[0]`) and call
+    // `setGymContext(active)` — an ambient "the active gym" the rest of
+    // gym-context.js defaulted to whenever a caller hadn't been threaded with
+    // an explicit gym, the client twin of the server-side "active gym" bug
+    // class removed 2026-09-16. `setLinkedGyms()` now does everything that
+    // mattered without picking one: it gates capabilities per row
+    // (`canForGym`/`capabilityForGym`, already explicit-gym everywhere they're
+    // called) and fans theming/copy out across every linked gym instead of
+    // guessing one (`applyGymFonts`/`applyGymNames`).
     setLinkedGyms(linkedFull);
-
-    // No "active gym" from the server any more (stage 4 of the active-gym
-    // audit) — `setGymContext` below is purely a client-side convenience
-    // default for single-gym accounts and any code that hasn't been threaded
-    // with an explicit gym yet, not a persisted choice.
-    const activeId = linked && linked[0] && linked[0].gym_id;
-    const active = catalogue.find((g) => g.id === activeId);
-    if (active) {
-      setGymContext(active);
-      applyCapabilityGates();
-      debugLog(`Gym context: ${active.name} (${Object.entries(active.capabilities || {}).filter(([, v]) => v === true).map(([k]) => k).join(', ') || 'no flags'})`, 'info');
+    if (linkedFull.length > 0) {
+      debugLog(`Linked gyms: ${linkedFull.map((g) => `${g.name} (${Object.entries(g.capabilities || {}).filter(([, v]) => v === true).map(([k]) => k).join(', ') || 'no flags'})`).join('; ')}`, 'info');
     }
   } catch (err) {
     // Leave the defaults in place: a gym whose flags we couldn't fetch keeps the

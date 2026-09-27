@@ -12,6 +12,12 @@
 // Credits" on every JAB card — which reads as "you cannot book" at a membership
 // gym. Nothing threw, no test covered it, and it was found only by looking at
 // the running app. Consolidation is not done until the last copy is gone.
+//
+// C3-6: every call below now passes an explicit gymId (or a test event
+// carrying `gymId`), matching how every real production call site already
+// worked — `setGymContext()`/an ambient "ACTIVE gym" never had a production
+// caller in this file's functions to begin with. `setLinkedGyms([gym])` seeds
+// the same per-gym capability lookup `canForGym`/`capabilityForGym` use.
 
 import { describe, it, expect, beforeEach, vi } from 'vitest';
 
@@ -23,60 +29,62 @@ vi.mock('../main', () => ({ cache }));
 
 const { getAvailableCreditsForEvent, hasUsableCredit, getTotalCredits, isMetered, canBookAtAll, getIneligibleReason } =
   await import('./credit-allowance.js');
-const { setGymContext } = await import('../gym-context.js');
+const { setLinkedGyms } = await import('../gym-context.js');
 
+const METERED_ID = 'psycle-london';
+const MEMBERSHIP_ID = 'jab-boxing';
 const METERED = {
-  id: 'psycle-london', name: 'Psycle London',
+  gym_id: METERED_ID, id: METERED_ID, name: 'Psycle London',
   capabilities: { metered: true, creditPurchase: true },
 };
 const MEMBERSHIP = {
-  id: 'jab-boxing', name: 'JAB Boxing Club',
+  gym_id: MEMBERSHIP_ID, id: MEMBERSHIP_ID, name: 'JAB Boxing Club',
   capabilities: { metered: false, creditPurchase: false },
 };
 
 beforeEach(() => { cache.profile = null; cache.eligibility = null; });
 
 describe('a membership (unmetered) gym', () => {
-  beforeEach(() => setGymContext(MEMBERSHIP));
+  beforeEach(() => setLinkedGyms([MEMBERSHIP]));
 
   it('reports Infinity, not 0, for the total balance', () => {
     // 0 is the dangerous answer: every `total < needed` check downstream turns
     // it into a blocking warning.
-    expect(getTotalCredits()).toBe(Infinity);
+    expect(getTotalCredits(MEMBERSHIP_ID)).toBe(Infinity);
   });
 
   it('still reports Infinity when a profile exists with an empty balance', () => {
     // The real JAB shape — a profile loads, `available_credits` is just empty.
     cache.profile = { available_credits: [] };
-    expect(getTotalCredits()).toBe(Infinity);
-    expect(getAvailableCreditsForEvent({ credits: { required: 1, acceptedTypeIds: ['8'] } })).toBe(Infinity);
-    expect(hasUsableCredit({ credits: { required: 1, acceptedTypeIds: ['8'] } })).toBe(true);
+    expect(getTotalCredits(MEMBERSHIP_ID)).toBe(Infinity);
+    expect(getAvailableCreditsForEvent({ gymId: MEMBERSHIP_ID, credits: { required: 1, acceptedTypeIds: ['8'] } })).toBe(Infinity);
+    expect(hasUsableCredit({ gymId: MEMBERSHIP_ID, credits: { required: 1, acceptedTypeIds: ['8'] } })).toBe(true);
   });
 
   it('never looks short of credits for any spot count', () => {
     // The exact comparisons the four call sites make.
     for (const needed of [1, 2, 5]) {
-      expect(getTotalCredits() < needed).toBe(false);
+      expect(getTotalCredits(MEMBERSHIP_ID) < needed).toBe(false);
     }
   });
 
   it('knows it is unmetered', () => {
-    expect(isMetered()).toBe(false);
+    expect(isMetered(MEMBERSHIP_ID)).toBe(false);
   });
 });
 
 describe('a metered gym', () => {
-  beforeEach(() => setGymContext(METERED));
+  beforeEach(() => setLinkedGyms([METERED]));
 
   it('sums the balance', () => {
     cache.profile = { available_credits: [{ count: 2 }, { count: 3 }] };
-    expect(getTotalCredits()).toBe(5);
+    expect(getTotalCredits(METERED_ID)).toBe(5);
   });
 
   it('reports 0 when there is genuinely no balance — this gym CAN be short', () => {
     cache.profile = { available_credits: [] };
-    expect(getTotalCredits()).toBe(0);
-    expect(getTotalCredits() < 1).toBe(true);
+    expect(getTotalCredits(METERED_ID)).toBe(0);
+    expect(getTotalCredits(METERED_ID) < 1).toBe(true);
   });
 
   it('does NOT report 0 before anything has loaded — loading is not "broke"', () => {
@@ -89,12 +97,12 @@ describe('a metered gym', () => {
     // Same rule as an unknown capability flag: briefly offering a class you
     // cannot afford self-corrects at the booking attempt; wrongly disabling
     // every Book button does not.
-    expect(getTotalCredits()).toBe(Infinity);
+    expect(getTotalCredits(METERED_ID)).toBe(Infinity);
   });
 
   it('reports 0 once a balance has genuinely loaded and is empty', () => {
     cache.profile = { available_credits: [] };
-    expect(getTotalCredits()).toBe(0);
+    expect(getTotalCredits(METERED_ID)).toBe(0);
   });
 
   it('counts only credit types the class accepts', () => {
@@ -104,7 +112,7 @@ describe('a metered gym', () => {
       { typeId: '8', count: 4 },
       { typeId: '9', count: 7 },
     ] };
-    expect(getAvailableCreditsForEvent({ credits: { required: 1, acceptedTypeIds: ['8'] } })).toBe(4);
+    expect(getAvailableCreditsForEvent({ gymId: METERED_ID, credits: { required: 1, acceptedTypeIds: ['8'] } })).toBe(4);
   });
 
   it('divides by the class cost — a 2-credit class is not affordable on 1', () => {
@@ -112,7 +120,7 @@ describe('a metered gym', () => {
     // The old code assumed 1 and reported such a class bookable on a balance
     // of 1, which fails at the booking attempt instead of in the UI.
     cache.profile = { available_credits: [{ typeId: '8', count: 1 }] };
-    const twoCredit = { credits: { required: 2, acceptedTypeIds: ['8'] } };
+    const twoCredit = { gymId: METERED_ID, credits: { required: 2, acceptedTypeIds: ['8'] } };
     expect(getAvailableCreditsForEvent(twoCredit)).toBe(0);
     expect(hasUsableCredit(twoCredit)).toBe(false);
 
@@ -123,7 +131,7 @@ describe('a metered gym', () => {
 
   it('treats a genuinely free class (required 0) as always bookable', () => {
     cache.profile = { available_credits: [] };
-    expect(getAvailableCreditsForEvent({ credits: { required: 0, acceptedTypeIds: [] } })).toBe(Infinity);
+    expect(getAvailableCreditsForEvent({ gymId: METERED_ID, credits: { required: 0, acceptedTypeIds: [] } })).toBe(Infinity);
   });
 
   it('ignores guest-only credits — they book a guest in, not you', () => {
@@ -133,7 +141,7 @@ describe('a metered gym', () => {
       { typeId: '2', count: 5, isGuestOnly: true },
       { typeId: '8', count: 1 },
     ] };
-    expect(getAvailableCreditsForEvent({ credits: { required: 1, acceptedTypeIds: ['2', '8'] } })).toBe(1);
+    expect(getAvailableCreditsForEvent({ gymId: METERED_ID, credits: { required: 1, acceptedTypeIds: ['2', '8'] } })).toBe(1);
   });
 
   it('does NOT treat a missing credits field as free', () => {
@@ -141,7 +149,7 @@ describe('a metered gym', () => {
     // here would let a normalization gap silently unlock every class — which is
     // exactly what happened before NormalizedEvent carried these fields.
     cache.profile = { available_credits: [] };
-    expect(getAvailableCreditsForEvent({})).toBe(0);
+    expect(getAvailableCreditsForEvent({ gymId: METERED_ID })).toBe(0);
   });
 });
 
@@ -152,50 +160,50 @@ describe('a metered gym', () => {
 // membership see no warning and just fail at the booking attempt.
 describe('account-level eligibility (WP-J)', () => {
   describe('a membership (unmetered) gym', () => {
-    beforeEach(() => setGymContext(MEMBERSHIP));
+    beforeEach(() => setLinkedGyms([MEMBERSHIP]));
 
     it('reports canBook: true with an active membership', () => {
       cache.eligibility = { canBook: true };
-      expect(canBookAtAll()).toBe(true);
-      expect(getIneligibleReason()).toBeNull();
+      expect(canBookAtAll(MEMBERSHIP_ID)).toBe(true);
+      expect(getIneligibleReason(MEMBERSHIP_ID)).toBeNull();
       // Infinity credits AND eligible — the class is actually bookable.
-      expect(hasUsableCredit({ credit_types: [] })).toBe(true);
+      expect(hasUsableCredit({ gymId: MEMBERSHIP_ID, credit_types: [] })).toBe(true);
     });
 
     it('reports canBook: false with no membership, distinct from the credit answer', () => {
       cache.eligibility = { canBook: false, reason: 'No active membership or credits' };
-      expect(canBookAtAll()).toBe(false);
-      expect(getIneligibleReason()).toBe('No active membership or credits');
+      expect(canBookAtAll(MEMBERSHIP_ID)).toBe(false);
+      expect(getIneligibleReason(MEMBERSHIP_ID)).toBe('No active membership or credits');
       // Credit arithmetic alone still (correctly) says Infinity — this is
       // exactly why membership status can't be derived from it.
-      expect(getTotalCredits()).toBe(Infinity);
+      expect(getTotalCredits(MEMBERSHIP_ID)).toBe(Infinity);
       // But the combined "can I actually book this" answer must be false.
-      expect(hasUsableCredit({ credit_types: [] })).toBe(false);
+      expect(hasUsableCredit({ gymId: MEMBERSHIP_ID, credit_types: [] })).toBe(false);
     });
 
     it('defaults permissive while eligibility has not loaded yet', () => {
       // cache.eligibility is null (beforeEach) — must not block booking on a
       // slow/failed fetch, same "unknown defaults ON" rule as capabilities.
-      expect(canBookAtAll()).toBe(true);
-      expect(getIneligibleReason()).toBeNull();
+      expect(canBookAtAll(MEMBERSHIP_ID)).toBe(true);
+      expect(getIneligibleReason(MEMBERSHIP_ID)).toBeNull();
     });
   });
 
   describe('a metered gym', () => {
-    beforeEach(() => setGymContext(METERED));
+    beforeEach(() => setLinkedGyms([METERED]));
 
     it('is unaffected by eligibility when it has real credit', () => {
       cache.profile = { available_credits: [{ count: 3 }] };
       cache.eligibility = { canBook: true };
-      expect(hasUsableCredit({ credit_types: [] })).toBe(true);
+      expect(hasUsableCredit({ gymId: METERED_ID, credit_types: [] })).toBe(true);
     });
 
     it('still reports insufficient via credit math, not eligibility, when out of credit', () => {
       cache.profile = { available_credits: [] };
       cache.eligibility = { canBook: true };
       // A class that DOES draw against a credit type, with none held.
-      expect(hasUsableCredit({ credit_types: [{ credit_type: 8 }] })).toBe(false);
-      expect(getIneligibleReason()).toBeNull(); // the reason here is credit, not eligibility
+      expect(hasUsableCredit({ gymId: METERED_ID, credit_types: [{ credit_type: 8 }] })).toBe(false);
+      expect(getIneligibleReason(METERED_ID)).toBeNull(); // the reason here is credit, not eligibility
     });
   });
 });

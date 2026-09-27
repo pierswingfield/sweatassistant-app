@@ -1,5 +1,5 @@
 import { api } from '../api';
-import { canForGym, getGymContext, getGymShortName } from '../gym-context.js';
+import { canForGym, getGymShortName } from '../gym-context.js';
 import { getAvailableCreditsForEvent, getTotalCredits, getIneligibleReason } from './credit-allowance.js';
 import { showToast, cache, refreshUserData, updateCreditBadge, userSettings } from '../main';
 import { renderStudioFloorPlan } from './spotmap';

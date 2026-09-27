@@ -1,6 +1,6 @@
 import { api } from '../api';
 import { getAvailableCreditsForEvent, hasUsableCredit, getIneligibleReason, isMetered } from './credit-allowance.js';
-import { canForGym, capabilityForGym, getGymContext, getLinkedGyms, getGymShortName } from '../gym-context.js';
+import { canForGym, capabilityForGym, getLinkedGyms, getGymShortName } from '../gym-context.js';
 import { showToast, currentUser, userSettings, refreshUserData, updateCreditBadge, cache, debugConsole } from '../main';
 import { getClassReleaseTime, isInGracePeriod, GRACE_PERIOD_MS, startGraceCountdown } from '../lib';
 import { DateTime } from 'luxon';

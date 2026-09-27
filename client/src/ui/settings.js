@@ -6,7 +6,7 @@ import { cacheGet } from './timetable';
 import { clearApiCache, gymScopedKey } from '../cache.js';
 import { renderGymSettingsSection as renderGymSettingsSectionView } from './gym-settings-section.js';
 import { renderCalendarSection } from './calendar-section.js';
-import { getLinkedGyms, getGymShortName, getGymContext } from '../gym-context.js';
+import { getLinkedGyms, getGymShortName } from '../gym-context.js';
 
 let loadedProfile = null;
 let loadedProfileGymId = null;
@@ -1358,11 +1358,14 @@ export async function renderGymSettingsSection(requestedGymId = null, targetCont
           Object.assign(settings, next);
           // Mirror into the in-memory settings blob only for the gym the rest of
           // the app resolves to by default, so an edit to another gym's section
-          // doesn't overwrite it. `getGymContext().gymId` is the client's own
-          // notion of that default (set by loadGymContext from `linked[0]`,
-          // same source `gymId` above falls back to) — there is no server
-          // "active gym" to compare against any more.
-          if (gymId === getGymContext()?.gymId) {
+          // doesn't overwrite it. C3-6: this used to compare against
+          // `getGymContext().gymId`, an ambient module-level "active gym" — now
+          // reads `getLinkedGyms()[0]` directly, the same linked-gyms list
+          // `loadGymContext()` seeds it from (and the same source `gymId` above
+          // falls back to). There is no server "active gym" to compare against
+          // any more either way.
+          const defaultGymId = getLinkedGyms()[0]?.gym_id || getLinkedGyms()[0]?.id;
+          if (gymId === defaultGymId) {
             Object.assign(userSettings, next);
           }
           showToast(`${gym.name || gymId} settings saved.`, 'success');

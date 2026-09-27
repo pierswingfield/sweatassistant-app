@@ -24,7 +24,7 @@ Psycle and JAB accounts.
 
 | # | Item | Evidence | Est. |
 |---|---|---|---|
-| C3-6 | **Remove the client's ambient gym-context fallback.** The module-level `state` plus `setGymContext()` is the client twin of the server bug class deleted on 09-16. Anything reading it on a multi-gym account gets a guess. Make every consumer pass an explicit gym. | `client/src/gym-context.js` L27–60 | 1 day |
+| C3-6 | ✅ **Remove the client's ambient gym-context fallback.** The module-level `state` plus `setGymContext()` is the client twin of the server bug class deleted on 09-16. Anything reading it on a multi-gym account gets a guess. Make every consumer pass an explicit gym. | `client/src/gym-context.js` (was L27–60) | 1 day |
 | C3-7 | ✅ `db.getAllUsers()` joins `user_gyms` on the literal `DEFAULT_GYM_ID`, so admin lists show Psycle data only. | `server/db.js` ~L1541–1555 | 1 h |
 | C3-8 | ✅ Admin user detail: add a gym picker. `getUserDetail` resolves one ambient gym, so a JAB-only or second-gym view isn't possible. | `server/admin.js` L123; `db.js` ~L1565–1608 | 2 h |
 | C3-9 | ✅ Remove the hardcoded Psycle booking-window helpers from the shared client lib (`getNextMondayNoonLondon`). Use the per-gym policy the server already exposes. | `client/src/lib.js` (was L188) | 2 h |
@@ -39,10 +39,12 @@ Psycle and JAB accounts.
 
 ## Done when
 
-- [ ] Each fix has a test where practical. C3-6 should add a guard test, as
-      `test-no-active-gym.js` does for the server.
+- [x] Each fix has a test where practical (2026-09-27). C3-6 added a guard test,
+      `client/src/gym-context-no-ambient.test.js`, alongside the existing server-side
+      `test-no-active-gym.js` source scan.
 - [ ] Re-run the affected rows of the 09-23 live matrix on the dev twin with the two-gym test
-      account.
+      account. (Left unticked per instruction — this pass used local mock only, no dev twin, no
+      live traffic.)
 
 ---
 
@@ -301,6 +303,101 @@ breaks," covered by `npm test` (client + server, both green) below.
 **Verified after (real browser, CDP :9222, cleared SW/CacheStorage/IndexedDB, real reload):**
 Timetable tab loads normally (66 row elements rendered), no console errors, no page errors.
 `npm run build:client` also confirmed clean (see end-of-workstream verification).
+
+### C3-6 — removed the client's ambient gym-context fallback (done in full)
+
+**Verified before (code audit, not a browser bug — this item is structural):** an audit of every
+real call site of the ambient API found it was already dead weight in the places that mattered
+most, which changed the shape of the fix:
+- `can(capability)` — grepped for actual invocations (not import lines) across `client/src`:
+  **zero production callers.** Only used internally as a fallback inside `canForGym`/
+  `capabilityForGym`/`canAny`, and directly by `gym-context.test.js`.
+- `getGymContext()` — **exactly one production caller**, `client/src/ui/settings.js` ~L1365,
+  comparing `gymId === getGymContext()?.gymId` ("is this the default gym") — already resolvable
+  from `getLinkedGyms()[0]`, the very list `setGymContext` seeded itself from.
+- `canForGym(...)`/`capabilityForGym(...)` — every real call site already passed an explicit
+  `gymId` (`event.gymId`, `c.gymId`, `q.gym_id`, …); the `!gymId` ambient-fallback branch inside
+  them was unreachable in practice.
+- `onGymContextChange()` — **zero callers anywhere.**
+- `gymLabel()`, and external callers of `applyGymTheme()`/`applyGymName()` — **zero**, only used
+  internally by `setGymContext()`.
+- Root `document.documentElement[data-gym]` (the CSS hook `applyGymTheme` stamped) — grepped
+  `client/src/styles.css` for `:root[data-gym=` / `html[data-gym=`: **no CSS selector reads it.**
+  Every `[data-gym=...]` CSS rule in the stylesheet targets a per-row element (`tr[data-gym=...]`,
+  `.ab-card[data-gym=...]`), never the document root — the root stamp was dead for theming and
+  only had one live side effect: loading ONE ambient gym's custom Google Font.
+- `[data-gym-name]` (the About page's "your gym" copy) — the one genuinely user-visible thing
+  `setGymContext` drove, via `applyGymName()`.
+
+So the removal wasn't "delete and find replacements for everything" — most of the ambient API
+had no real dependents. What needed real design was the two things that DID have a visible
+effect: per-gym font loading and the About page's gym-name copy, both of which used to pick ONE
+gym (`linked[0]`) to represent a possibly multi-gym account.
+
+**Fix — `client/src/gym-context.js` fully rewritten:**
+- Removed: module-level `state`, `listeners`, `onGymContextChange()`, `setGymContext()`,
+  `getGymContext()`, `can()`, `gymLabel()`.
+- `canForGym`/`capabilityForGym`/`canAny` now fall back straight to `DEFAULTS[capability]`
+  (unchanged, still permissive-unknown-defaults-ON) instead of a guessed gym's flags when no
+  `gymId` is given or the gym isn't (yet) linked.
+- `applyGymTheme()`'s dead root-stamping is gone entirely (no CSS consumer, confirmed above).
+- `applyGymName()` → `applyGymNames()`: fills `[data-gym-name]` from **every** linked gym, joined
+  ("Psycle and JAB"), not one guessed gym. Falls back to the neutral placeholder with zero linked
+  gyms, same as before.
+- The font-loading half of `applyGymTheme()` → `applyGymFonts()`: loads **every** linked gym's
+  custom font (keyed `gym-font-<gymId>`, idempotent per gym), not a single ambient slot that a
+  two-custom-font account would have only ever gotten one of.
+- Both now fire from `setLinkedGyms()` itself — the one place the full linked-gym list is already
+  known — rather than needing a separate `setGymContext(oneGym)` call from outside.
+
+**`client/src/main.js` `loadGymContext()`** (~L846-869): dropped picking `linked[0]` and calling
+`setGymContext(active)` + `applyCapabilityGates()` (the latter now redundant — `setLinkedGyms()`
+already calls it). Logs every linked gym's capabilities instead of just the guessed default's.
+
+**`client/src/ui/settings.js`** ~L1359-1368: `getGymContext()?.gymId` → `getLinkedGyms()[0]?.gym_id`
+(same source, no ambient module state in between).
+
+**Dead imports removed** (found during the audit, confirming the "already dead" read): unused
+`getGymContext` imports in `client/src/ui/bookings.js`, `client/src/ui/autobook.js`,
+`client/src/ui/timetable.js`; unused `can` import in `client/src/ui/credit-allowance.js`.
+
+**Tests:**
+- `client/src/gym-context.test.js` — fully rewritten (19/19 passing): every capability assertion
+  now names an explicit gym via `canForGym`/`capabilityForGym`/`setLinkedGyms([...])` instead of
+  `setGymContext`/`can()`/`getGymContext()`; added cases for `canForGym` on an unlinked gym
+  (permissive default, per-flag — `atomicSwap` defaults OFF, `bookmarks` defaults ON, matching
+  each flag's own `DEFAULTS` value, not a blanket "always true"), `canAny` with zero linked gyms,
+  and the new fan-out behaviour of `applyGymFonts`/`applyGymNames` (a two-gym account gets both
+  fonts and a joined name).
+- `client/src/ui/credit-allowance.test.js` — rewritten to pass explicit `gymId`s / event
+  `gymId` fields via `setLinkedGyms([gym])` instead of `setGymContext(gym)` (18/18 passing) —
+  this file's ambient-reliant calls (`isMetered()`, `getTotalCredits()` with no gymId) were
+  exactly the pattern real production code never actually used, confirmed against every real
+  caller of both functions.
+- `client/src/gym-context-no-ambient.test.js` (new, 2/2 passing) — the vitest guard the item
+  asked for: asserts `gym-context.js` no longer **exports** `setGymContext`/`getGymContext`/
+  `can`/`onGymContextChange`, and still exports the explicit-gym replacements. Complements
+  `server/test-no-active-gym.js`'s existing source-scan (already present, scans `client/src` for
+  an ambient `can('flag')` call and already passes — its stale exclusion comment for
+  `gym-context.js` was updated to reflect the removal rather than the old "defines it" reasoning).
+
+**Verified after (real browser, CDP :9222, dev@psycle.com with both gyms linked, cleared
+SW/CacheStorage/IndexedDB, real reload, full smoke across every tab):** header badges
+`JAB | Member | PSYCLE | 18 cr`; Timetable, My Bookings, Auto-Book, Buy Credits, Settings all
+load with **zero console/page errors**; JAB rows show `Quick Book` (correctly eligible, exercising
+the per-gym capability path with no ambient fallback in the loop at all now); About page's
+`[data-gym-name]` now reads **"JAB and Psycle"** (previously would have silently picked one).
+Re-ran the C3-1 (link/unlink), C3-2/C3-3 (forced-ineligible via `page.route()`), and C3-4
+(cross-gym spot-map) browser checks from earlier in this pass against the post-refactor code —
+all still pass identically, confirming the refactor didn't regress any of the day's other fixes.
+
+**`npm test` after this item: 31/31 server suites, 86/86 client tests** (up from 78 — 8 new
+tests: 2 in `credit-allowance.test.js`'s rewrite net, several new cases in
+`gym-context.test.js`'s rewrite, 2 in the new guard file). `npm run build:client` clean.
+
+**Scope note:** this item is DONE IN FULL, not partially — it came in well under the ~1 day
+estimate once the audit showed most of the ambient surface had no real dependents left to
+migrate. No remainder to report.
 
 ## Server-side items completed 2026-09-26 (C3-12, C3-5, C3-7, C3-8, C3-11)
 

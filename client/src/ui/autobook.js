@@ -1,5 +1,5 @@
 import { api } from '../api';
-import { getGymContext, getGymShortName, getLinkedGyms } from '../gym-context.js';
+import { getGymShortName, getLinkedGyms } from '../gym-context.js';
 import { getAvailableCreditsForEvent, getTotalCredits, getIneligibleReason } from './credit-allowance.js';
 import { showToast, cache, userSettings, refreshUserData, debugConsole } from '../main';
 import { getClassReleaseTime } from '../lib';

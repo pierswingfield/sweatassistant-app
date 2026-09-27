@@ -278,8 +278,14 @@ function clientModules() {
       if (entry.isDirectory()) { walk(p); continue; }
       if (!entry.name.endsWith('.js')) continue;
       if (entry.name.endsWith('.test.js')) continue;
-      // gym-context.js DEFINES can()/canForGym(); canForGym falls back to can()
-      // for an unknown gym on purpose (unknown-capability-defaults-ON).
+      // gym-context.js used to DEFINE can() (an ambient module-level "active
+      // gym" capability read) alongside canForGym(); C3-6 (2026-09-27) removed
+      // can() and the ambient state it read entirely — every real call site
+      // already passed an explicit gym, so canForGym/capabilityForGym/canAny
+      // now fall back straight to the permissive DEFAULTS instead of a guessed
+      // gym's flags. This exclusion is now belt-and-braces: if `can(` is ever
+      // reintroduced anywhere, including here, the regex below still catches
+      // it (nothing defines it any more, so it would also fail to import).
       if (entry.name === 'gym-context.js') continue;
       out.push({ name: path.relative(CLIENT_UI, p), src: fs.readFileSync(p, 'utf8') });
     }

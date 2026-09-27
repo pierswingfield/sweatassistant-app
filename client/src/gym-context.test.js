@@ -4,55 +4,107 @@
 // matter as much as the gating: hiding a feature a gym HAS is worse than briefly
 // showing one it hasn't, because the first is permanent and silent while the
 // second self-corrects the moment the catalogue loads.
+//
+// C3-6: this used to test an ambient module-level `state` via
+// `setGymContext()`/`getGymContext()`/`can()` — ONE gym the whole module
+// defaulted to. That was the client twin of the server-side "active gym" bug
+// class removed 2026-09-16: on a multi-gym account, anything reading it got a
+// guess. It's gone; every capability read here now names its gym explicitly
+// via `canForGym`/`capabilityForGym`, or (for the "any linked gym" global-chrome
+// gates) via the linked-gyms list `setLinkedGyms()` seeds.
 
 import { describe, it, expect, beforeEach } from 'vitest';
-import { setGymContext, getGymContext, can, gymLabel, applyCapabilityGates } from './gym-context.js';
+import {
+  setLinkedGyms, getLinkedGyms, canForGym, capabilityForGym, canAny,
+  applyCapabilityGates, applyGymFonts, applyGymNames,
+} from './gym-context.js';
 import { getDiscipline, trimLocation, seatNoun } from './ui/cards.js';
 
 const PSYCLE = {
-  id: 'psycle-london', name: 'Psycle London',
+  gym_id: 'psycle-london', id: 'psycle-london', name: 'Psycle London', shortName: 'Psycle',
   theme: { key: 'violet', primary: '#7c3aed' },
   labels: { class: 'class', spot: 'spot' },
   capabilities: { atomicSwap: false, nativeWaitlist: false, metered: true, creditPurchase: true, bookmarks: true },
 };
 const JAB = {
-  id: 'jab-boxing', name: 'JAB Boxing Club',
+  gym_id: 'jab-boxing', id: 'jab-boxing', name: 'JAB Boxing Club', shortName: 'JAB',
   theme: { key: 'navy', primary: '#18214D', font: 'Gothic A1' },
   labels: { class: 'class', spot: 'spot' },
   capabilities: { atomicSwap: true, nativeWaitlist: true, metered: false, creditPurchase: false, bookmarks: false },
 };
 
-describe('capabilities', () => {
-  it('reports what the active gym can do', () => {
-    setGymContext(JAB);
-    expect(can('atomicSwap')).toBe(true);
-    expect(can('bookmarks')).toBe(false);
-    expect(can('creditPurchase')).toBe(false);
-    expect(can('metered')).toBe(false);
-  });
+beforeEach(() => {
+  setLinkedGyms([]);
+  document.head.querySelectorAll('[id^="gym-font-"]').forEach((n) => n.remove());
+  document.querySelectorAll('[data-gym-name]').forEach((el) => { el.textContent = 'your gym'; });
+});
 
-  it('switches cleanly between gyms', () => {
-    setGymContext(JAB);
-    setGymContext(PSYCLE);
-    expect(can('bookmarks')).toBe(true);
-    expect(can('atomicSwap')).toBe(false);
-    expect(getGymContext().name).toBe('Psycle London');
+describe('per-gym capabilities (canForGym)', () => {
+  it('reports what a SPECIFIC linked gym can do, not a guessed default', () => {
+    setLinkedGyms([JAB, PSYCLE]);
+    expect(canForGym('atomicSwap', 'jab-boxing')).toBe(true);
+    expect(canForGym('bookmarks', 'jab-boxing')).toBe(false);
+    expect(canForGym('creditPurchase', 'jab-boxing')).toBe(false);
+    expect(canForGym('metered', 'jab-boxing')).toBe(false);
+    expect(canForGym('bookmarks', 'psycle-london')).toBe(true);
+    expect(canForGym('atomicSwap', 'psycle-london')).toBe(false);
   });
 
   it('treats a flag the config omits as ENABLED, not disabled', () => {
     // `undefined` is falsy, so a naive read hides a feature the gym actually has
     // — and it stays hidden, silently, forever. Defaulting the other way costs
     // at most a brief flash of something that then hides itself.
-    setGymContext({ id: 'x', name: 'Half-configured Gym', capabilities: { atomicSwap: true } });
-    expect(can('bookmarks')).toBe(true);
-    expect(can('creditPurchase')).toBe(true);
-    expect(can('atomicSwap')).toBe(true);
+    setLinkedGyms([{ gym_id: 'x', id: 'x', name: 'Half-configured Gym', capabilities: { atomicSwap: true } }]);
+    expect(canForGym('bookmarks', 'x')).toBe(true);
+    expect(canForGym('creditPurchase', 'x')).toBe(true);
+    expect(canForGym('atomicSwap', 'x')).toBe(true);
   });
 
-  it('ignores a null gym rather than wiping the context', () => {
-    setGymContext(PSYCLE);
-    setGymContext(null);
-    expect(getGymContext().name).toBe('Psycle London');
+  it('falls back to the permissive default for a gym this account is not linked to', () => {
+    setLinkedGyms([PSYCLE]);
+    // Asking about a gym that isn't (yet) in the linked list — e.g. a race
+    // between linking and the capability catalogue landing — must not read as
+    // "no capabilities", which would hide every feature.
+    expect(canForGym('bookmarks', 'some-other-gym')).toBe(true);
+    // atomicSwap's own default is OFF (CodexFit-shaped: no gym is assumed to
+    // have it) — the permissive default is per-flag, not "always true".
+    expect(canForGym('atomicSwap', 'some-other-gym')).toBe(false);
+  });
+
+  it('with no gymId at all, answers permissively rather than guessing which gym', () => {
+    setLinkedGyms([JAB]);
+    // No ambient "the active gym" to fall back to any more — omitting gymId is
+    // the same as asking about an unknown gym.
+    expect(canForGym('bookmarks')).toBe(true);
+  });
+});
+
+describe('capabilityForGym (raw, non-boolean values)', () => {
+  it('reads a per-gym raw flag like maxSpotsPerClass without !! coercion', () => {
+    setLinkedGyms([
+      { gym_id: 'jab-boxing', id: 'jab-boxing', capabilities: { maxSpotsPerClass: 1 } },
+      { gym_id: 'psycle-london', id: 'psycle-london', capabilities: { maxSpotsPerClass: null } },
+    ]);
+    expect(capabilityForGym('maxSpotsPerClass', 'jab-boxing')).toBe(1);
+    expect(capabilityForGym('maxSpotsPerClass', 'psycle-london')).toBeNull();
+  });
+});
+
+describe('canAny — global chrome above a merged list', () => {
+  it('is true if ANY linked gym has the capability', () => {
+    setLinkedGyms([JAB, PSYCLE]);
+    expect(canAny('bookmarks')).toBe(true); // Psycle has it, even though JAB doesn't
+    expect(canAny('atomicSwap')).toBe(true); // JAB has it, even though Psycle doesn't
+  });
+
+  it('is false only when NO linked gym has it', () => {
+    setLinkedGyms([JAB]);
+    expect(canAny('bookmarks')).toBe(false);
+  });
+
+  it('defaults permissive with zero linked gyms', () => {
+    setLinkedGyms([]);
+    expect(canAny('bookmarks')).toBe(true);
   });
 });
 
@@ -64,18 +116,18 @@ describe('applyCapabilityGates', () => {
       <button id="always">Timetable</button>`;
   });
 
-  it('hides only what the gym lacks', () => {
-    setGymContext(JAB);
+  it('hides only what NO linked gym has', () => {
+    setLinkedGyms([JAB]);
     applyCapabilityGates();
     expect(document.getElementById('credits').hidden).toBe(true);
     expect(document.getElementById('marks').hidden).toBe(true);
     expect(document.getElementById('always').hidden).toBe(false);
   });
 
-  it('un-hides on a switch to a gym that has the feature', () => {
-    setGymContext(JAB);
+  it('un-hides once a gym with the feature is linked too', () => {
+    setLinkedGyms([JAB]);
     applyCapabilityGates();
-    setGymContext(PSYCLE);
+    setLinkedGyms([JAB, PSYCLE]);
     applyCapabilityGates();
     expect(document.getElementById('credits').hidden).toBe(false);
     expect(document.getElementById('marks').hidden).toBe(false);
@@ -84,30 +136,42 @@ describe('applyCapabilityGates', () => {
   it('uses the hidden attribute, not inline display', () => {
     // An inline `display:none` would have to be undone with the element's
     // ORIGINAL display mode (flex/grid/inline-flex), which the gate doesn't know.
-    setGymContext(JAB);
+    setLinkedGyms([JAB]);
     applyCapabilityGates();
     expect(document.getElementById('credits').style.display).toBe('');
   });
 });
 
-describe('theming', () => {
-  it('stamps data-gym so CSS can theme by it', () => {
-    setGymContext(JAB);
-    expect(document.documentElement.getAttribute('data-gym')).toBe('jab-boxing');
-    setGymContext(PSYCLE);
-    expect(document.documentElement.getAttribute('data-gym')).toBe('psycle-london');
-  });
-
-  it('loads a gym font once, and only when one is named', () => {
-    document.head.querySelectorAll('#gym-font').forEach((n) => n.remove());
-    setGymContext(PSYCLE);
-    expect(document.getElementById('gym-font')).toBeNull();
-    setGymContext(JAB);
-    const link = document.getElementById('gym-font');
+describe('theming and copy — fanned out across every linked gym, no single guess', () => {
+  it('loads a gym font once per gym, and only when one is named', () => {
+    setLinkedGyms([PSYCLE]);
+    applyGymFonts();
+    expect(document.getElementById('gym-font-psycle-london')).toBeNull();
+    setLinkedGyms([PSYCLE, JAB]);
+    applyGymFonts();
+    const link = document.getElementById('gym-font-jab-boxing');
     expect(link).not.toBeNull();
     expect(link.href).toContain('Gothic+A1');
-    setGymContext(JAB);
-    expect(document.querySelectorAll('#gym-font').length).toBe(1);
+    applyGymFonts();
+    expect(document.querySelectorAll('#gym-font-jab-boxing').length).toBe(1);
+  });
+
+  it('names a single linked gym directly', () => {
+    document.body.innerHTML = '<span data-gym-name>your gym</span>';
+    setLinkedGyms([PSYCLE]);
+    expect(document.querySelector('[data-gym-name]').textContent).toBe('Psycle');
+  });
+
+  it('joins every linked gym rather than guessing one', () => {
+    document.body.innerHTML = '<span data-gym-name>your gym</span>';
+    setLinkedGyms([PSYCLE, JAB]);
+    expect(document.querySelector('[data-gym-name]').textContent).toBe('Psycle and JAB');
+  });
+
+  it('leaves the neutral placeholder with no linked gym yet', () => {
+    document.body.innerHTML = '<span data-gym-name>your gym</span>';
+    setLinkedGyms([]);
+    expect(document.querySelector('[data-gym-name]').textContent).toBe('your gym');
   });
 });
 

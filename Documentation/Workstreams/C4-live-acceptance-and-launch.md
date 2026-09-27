@@ -104,6 +104,41 @@ in the session scratchpad (not committed — contain live account/customer PII f
   for the next Psycle release** (Monday 2026-09-28 12:00 London). Nothing queued this session — the
   user decides.
 
+## C4-9 re-check — 2026-09-27 (post C2-7 redeploy) — **PASS**
+
+Dev twin redeployed to HEAD `49e1f7d` (C2-7's `/profile` envelope-unwrap fix). Verified via
+`docker ps` (up), a clean `docker compose up -d --build` init log, `GET /api/health` → 200, and
+`unwrapProfileEnvelope` present in the running container's `/app/server/providers/codexfit.js` (4
+hits: definition + 3 call sites). DB snapshotted first to
+`data/psycle.db.bak-20260927-025441{,-wal,-shm}` on oracle.
+
+Live re-check, same account (`test@piersj.com`), real Chrome via CDP `127.0.0.1:9222`: one tab
+opened, service worker unregistered, CacheStorage and IndexedDB (`psycle-cache`) cleared, then a
+hard reload (`Page.reload` with `ignoreCache: true`) — the saved JWT was restored into
+`localStorage` afterward (the clear step also wiped it; no credentials were entered, the existing
+30-day token from earlier in this session was reused). Cold two-gym load completed and the app
+reopened on the last route.
+
+- `GET /api/credits` (`x-gym-id: psycle-london`) → `{"credits":[{"typeId":"1","typeName":
+  "Universal","count":2,...}]}` — the real 2 credits, not `[]`.
+- `GET /api/eligibility` (`x-gym-id: psycle-london`) → `{"canBook":true}`.
+- `GET /api/profile` (`x-gym-id: psycle-london`) → `bookingCutoff`/`extendedCutoff` both
+  `"2026-10-06T00:00:00"` — non-null, matching the real profile's `booking_cutoff`.
+- UI: header badge reads "JAB Member" + "Psycle 2 cr". Credits & Membership tab shows "Psycle —
+  CREDITS — 2 — credits available — Buy credits →" (not "0 credits available — you cannot book here
+  until you top up"). Open Psycle timetable rows (e.g. 08:00 Ride Signature 45, 08:30 Infrared
+  Sculpt 50) now show "⚡︎Quick Book" instead of "Buy Credits". A handful of Lagree "Reformer
+  Signature" rows still show "Buy Credits" — expected, not a regression: those classes require a
+  credit type/count this account's 2 Universal credits don't cover, which is the per-class
+  credit-type gating AGENTS.md documents, not the blanket "0 available" bug C2-7 fixed. JAB tab and
+  badge unaffected ("Member", "SW1 Rolling Membership", "2 guest passes left").
+- Reads only: 3 explicit API checks above plus normal page-load fetches from one cold reload and
+  one tab click (Credits & Membership); well under the 20-read cap. No bookings, cancels, waitlist
+  actions or checkout. No 429s observed. One CDP tab opened and closed at the end; the user's own
+  tabs were not touched.
+
+**C4-9 verdict: PASS** on both gyms. **C2-7 status: live-verified on dev twin.**
+
 **Not attempted this pass (need something only the user can provide):**
 - **C4-2**: a real JAB booking currently inside its penalty window, plus explicit go-ahead to
   cancel it knowing the credit/allowance may not be restored.

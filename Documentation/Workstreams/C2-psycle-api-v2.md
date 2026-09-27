@@ -249,7 +249,7 @@ in the meantime.
 
 ## C2-7 — CodexFit `/profile` envelope not unwrapped (launch-blocking, found in C4-9 live acceptance)
 
-**Status: fixed, pending redeploy (2026-09-27).**
+**Status: live-verified on dev twin (2026-09-27).**
 
 - **Verified (before fix), live + code:** C4-9's live acceptance run on the dev twin
   (`sweat-dev.wingfield.tech`, `test@piersj.com`) found the Psycle tab reporting "0 credits
@@ -308,6 +308,13 @@ in the meantime.
     unwrap — confirmed not affected.
   - `server/scheduler.js`, `server.js`'s `creditWarning` notifications: confirmed (`grep`) neither
     reads `/profile` or `available_credits`/`booking_cutoff` directly — not affected.
+- **Redeployed to the dev twin 2026-09-27** (HEAD `49e1f7d`, same-day follow-up to the C4-9 run
+  above): rsync → `docker compose up -d --build` on oracle, `unwrapProfileEnvelope` confirmed
+  present in the running container. Live re-check against the same `test@piersj.com` account
+  confirmed the fix: `/api/credits` returns the real 2 credits, `/api/eligibility` →
+  `canBook:true`, `/api/profile` has a non-null `bookingCutoff`, and open Psycle timetable rows
+  read "Quick Book" instead of "Buy Credits". Full detail in `C4-live-acceptance-and-launch.md`'s
+  "C4-9 re-check — 2026-09-27 (post C2-7 redeploy)".
 - **Why prod (`master`) didn't show this — Psycle didn't change the envelope, `modular`
   regressed it:** `git show master:server/server.js` (master predates the `providers/` adapter
   split entirely) shows the old raw proxy passed the **entire enveloped body through unmodified**

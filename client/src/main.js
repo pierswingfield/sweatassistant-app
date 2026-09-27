@@ -6,6 +6,7 @@ import { setCacheKeyPrefix, clearApiCache, invalidateApiCache } from './cache.js
 import { appConfig, initConfig } from './config';
 import { shouldShowOnboarding, resumeOnboarding, isOnboardingActive, advanceAfterLogin } from './ui/onboarding';
 import { detectBookingWindow } from './lib';
+import { canBookAtAll, getIneligibleReason } from './ui/credit-allowance.js';
 import { escapeHtml } from './ui/cards';
 
 // --- PWA install prompt capture ---
@@ -560,14 +561,23 @@ function renderGymBadge(container, gymId, shortName, isMetered, total, credits) 
     badge.innerHTML = `<span class="psycle-hgb-name">${shortName}</span><span class="psycle-hgb-pill">${total} cr</span>`;
     badge.title = `${shortName}: ${total} credit${total !== 1 ? 's' : ''} available`;
     badge.onclick = () => { if (total > 0) showCreditDetailsModal(credits); };
-  } else {
+  } else if (canBookAtAll(gymId)) {
     // "Active" alone reads as "this is the currently-selected gym" rather than
     // "your membership is active" — found ambiguous 2026-09-02, back when the
     // app did have a gym switcher. The switcher is gone, but "Member" is still
     // the clearer word for what this badge means; the full sentence lives in
-    // the hover title.
+    // the hover title. Gated on `canBookAtAll` (C3-3): permissive while
+    // eligibility hasn't loaded yet (same unknown-defaults-ON rule as
+    // capabilities), but never shown once the server has confirmed this
+    // account has no active membership at this gym.
     badge.innerHTML = `<span class="psycle-hgb-name">${shortName}</span><span class="psycle-hgb-pill member">Member</span>`;
     badge.title = `${shortName}: Membership active`;
+  } else {
+    // C3-3: an unmetered gym with no active membership (and no usable
+    // credits) is a real, confirmed state — showing "Member" here was the
+    // bug this branch exists to fix, not a permissive default to preserve.
+    badge.innerHTML = `<span class="psycle-hgb-name">${shortName}</span><span class="psycle-hgb-pill inactive">No membership</span>`;
+    badge.title = `${shortName}: ${getIneligibleReason(gymId) || 'No active membership'}`;
   }
   container.appendChild(badge);
 }
@@ -907,6 +917,12 @@ export async function refreshUserData(force = false) {
         // afford. Without this the only thing that corrected it was the user
         // switching days, which is not a fix, it is a coincidence.
         repaintTimetableIfVisible();
+        // C3-3: same reason for the header "Member" badge — it renders
+        // permissively on first paint (before per-gym eligibility lands) and
+        // must re-render once the real answer arrives, or an ineligible
+        // unmetered gym keeps showing "Member" until something else happens
+        // to call updateCreditBadge again.
+        updateCreditBadge().catch(() => {});
       })
       .catch(() => {});
 

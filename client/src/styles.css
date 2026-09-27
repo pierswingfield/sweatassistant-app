@@ -6635,6 +6635,10 @@ html, body {
   background: color-mix(in srgb, var(--success) 20%, transparent) !important;
   color: var(--success) !important;
 }
+.psycle-hgb-pill.inactive {
+  background: color-mix(in srgb, var(--warning) 20%, transparent) !important;
+  color: var(--warning) !important;
+}
 .psycle-credit-badge {
   background: var(--header-credits-bg) !important;
   color: var(--on-header-credits) !important;

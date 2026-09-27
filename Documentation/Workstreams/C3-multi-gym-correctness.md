@@ -16,7 +16,7 @@ Psycle and JAB accounts.
 |---|---|---|---|
 | C3-1 | ✅ **Link/unlink a gym updates the app without a reload.** Settings re-renders its own cards but never refreshes the global gym context, so header badges and the timetable stay stale. [QA-09] | `client/src/ui/settings.js` link ~L1439 and unlink ~L1211, ~L1367 now call `loadGymContext`/`refreshUserData` | 2 h |
 | C3-2 | **Unmetered gym (JAB) open-class button reflects membership state.** Currently it shows a credits-style state that doesn't apply. [QA-16] | `client/src/ui/timetable.js` `buildActionModel` | 2–3 h |
-| C3-3 | **The header "Member" badge checks actual membership.** It shows whenever a gym is unmetered, even when the account has no active membership. [QA-17] | `client/src/main.js` `renderGymBadge` ~L555–573 | 1 h |
+| C3-3 | ✅ **The header "Member" badge checks actual membership.** It shows whenever a gym is unmetered, even when the account has no active membership. [QA-17] | `client/src/main.js` `renderGymBadge` ~L555–579 | 1 h |
 | C3-4 | **Studio map editor in Settings is gym-scoped.** It falls back to an unscoped `cache.locations` when opened for a gym that isn't the context gym, so it can show another gym's rooms. [QA-18] | `client/src/ui/settings.js` ~L711–723 | 1–2 h |
 | C3-5 | ✅ **Push notifications name the right gym.** Every title and body hardcodes "Psycle" ("Psycle: Spot Booked", "speak to Psycle…"). [QA-20] | `server/notifications.js` L101–144 | 1 h |
 
@@ -133,6 +133,53 @@ first to load the new bundle):** reloaded → badges `JAB | Member | PSYCLE | 18
 → badges immediately became `PSYCLE | 18 cr`, **no reload**. Re-linked JAB
 (`dev@jabboxing.mock`) → badges immediately became `JAB | Member | PSYCLE | 18 cr` again, **no
 reload**. Screenshot evidence: `c3_1_final.png` (scratchpad, not committed).
+
+### C3-3 — header "Member" badge ignored actual eligibility for an unmetered gym
+
+**Verified before (real browser, CDP :9222, dev@psycle.com, both gyms linked):** the dev
+MarianaTek mock always answers `GET /api/eligibility` with `{ canBook: true }` (comment in
+`server/mock-marianatek.js` L9: modeled with an always-active membership since the real JAB
+test account has no credits to exercise write paths with), so the bug can't be reproduced against
+the mock's default response. Used Playwright's `page.route()` to intercept
+`GET /api/eligibility` for `x-gym-id: jab-boxing` and answer
+`{ canBook: false, reason: 'No active membership or credits' }` — a real response substituted at
+the network layer, then let the actual running app code (real `refreshUserData`/
+`updateCreditBadge`/`renderGymBadge`) consume it, which is the same technique
+`server/test-invalid-credentials-naming.js` uses server-side to force a rejection shape. On the
+pre-fix code the header still read `JAB | Member | PSYCLE | 18 cr` — the "Member" pill rendered
+regardless of the forced-ineligible response.
+
+**Root cause:** `client/src/main.js` `renderGymBadge()` (~L555-573) took only an `isMetered`
+flag; the `else` branch rendered "Member" unconditionally for any unmetered gym, never
+consulting `cache.eligibility`/`cache.eligibilityByGym` (already computed correctly elsewhere —
+`client/src/ui/credit-allowance.js`'s `canBookAtAll(gymId)`/`getIneligibleReason(gymId)`, used by
+the timetable's own booking-eligibility gate — but never wired into the header badge).
+
+**Fix:** `client/src/main.js` ~L555-582 — `renderGymBadge()` now checks `canBookAtAll(gymId)`
+before rendering "Member": renders the existing green "Member" pill when eligible or unknown
+(same "unknown defaults ON" permissive rule as capability flags — an unset/loading eligibility
+answer must not itself hide the badge), and a new amber "No membership" pill
+(`.psycle-hgb-pill.inactive`, `client/src/styles.css` ~L6634) with `getIneligibleReason(gymId)`
+in the title only once the server has confirmed no active membership. Also wired
+`updateCreditBadge()` to re-run when the fire-and-forget per-gym eligibility fetch resolves
+(`main.js` ~L919, alongside the existing `repaintTimetableIfVisible()` call) — without this the
+badge would keep its permissive first-paint state even after the real per-gym answer landed,
+same bug class as the timetable repaint this pattern already existed for.
+
+**Test:** relies on the existing `client/src/ui/credit-allowance.test.js` coverage for
+`canBookAtAll`/`getIneligibleReason` (already 100% passing, unchanged); no new unit test added
+for `renderGymBadge` itself — it is a DOM-building closure in `main.js`'s heavy import chain (same
+jsdom friction as C3-1), so real-browser verification with a forced network response was the
+practical + honest check for the actual wiring bug (the underlying eligibility logic was already
+correct and already tested).
+
+**Verified after (same browser, same route interception, cleared SW/CacheStorage/IndexedDB,
+real reload):** with the forced `canBook: false` response, header now reads
+`JAB | No membership | PSYCLE | 18 cr`. Re-ran the same interception against the pre-fix code
+(`git stash` the fix, same check, `git stash pop` to restore) and confirmed it reproduces the
+stale "Member" pill, then re-confirmed the fix again after restoring. Normal (non-intercepted,
+real dev-mock) reload still shows `JAB | Member | PSYCLE | 18 cr` — the working case is
+unaffected. Screenshot evidence: `c3_3_after_fix_real.png` (scratchpad, not committed).
 
 ## Server-side items completed 2026-09-26 (C3-12, C3-5, C3-7, C3-8, C3-11)
 

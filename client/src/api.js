@@ -384,6 +384,15 @@ export const api = {
     const myGymsRes = await this.getMyGyms().catch(() => ({ gyms: [] }));
     const linked = myGymsRes.gyms || [];
 
+    // C3-10: a gym-less Sweat Assistant account (post-signup, or after unlinking
+    // the last gym) is a legitimate state, not an error — the server would answer
+    // /api/metadata with 409 NO_GYM_LINKED for it. Answering empty here avoids the
+    // request entirely rather than surfacing a "failed to load" toast for a state
+    // that has nothing to load.
+    if (linked.length === 0) {
+      return { locations: [], studios: [], instructors: [], eventTypes: [] };
+    }
+
     if (linked.length <= 1) {
       const res = await apiFetch(`/api/metadata${suffix}`);
       if (!res.ok) throw new Error('Failed to load timetable metadata');

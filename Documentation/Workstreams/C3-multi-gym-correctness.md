@@ -34,7 +34,7 @@ Psycle and JAB accounts.
 
 | # | Item | Evidence | Est. |
 |---|---|---|---|
-| C3-10 | An account with no linked gym (409 `NO_GYM_LINKED`) shows a "Failed to load filters metadata" error toast. Treat it as the normal empty state. [QA-01] | `client/src/ui/timetable.js` ~L299 | 30 min |
+| C3-10 | ✅ An account with no linked gym (409 `NO_GYM_LINKED`) shows a "Failed to load filters metadata" error toast. Treat it as the normal empty state. [QA-01] | `client/src/api.js` `getMetadata()` ~L384 | 30 min |
 | C3-11 | ✅ The invalid-credentials error should name the gym that failed ("JAB rejected your password"). [QA-04] | `server/providers/codexfit.js` ~L157; `routes-normalized.js` ~L171 | 30 min |
 
 ## Done when
@@ -45,6 +45,52 @@ Psycle and JAB accounts.
       account.
 
 ---
+
+## Client-side items completed 2026-09-27
+
+### C3-10 — gym-less account shows a "Failed to load filters metadata" toast on reload
+
+**Verified before (real browser, CDP :9222, local dev server, Node 20):** created a fresh SA
+account with no gym via signup (`c3-10-<ts>@test.local` / `testpass123`); confirmed
+`onLoginSuccess()` correctly routes straight to the "Connect a gym" screen right after signup
+(no bug there). The bug is on **reload while already logged in with no gym linked**:
+`checkAuth()` (`client/src/main.js` ~L1059) calls `initApp()` directly with no equivalent
+no-gym check, so `initTimetable()` → `prefetchTimetableData()` → `loadMetadata()` calls
+`api.getMetadata()`, which always hit `/api/metadata` regardless of linked-gym count. The
+server answered `409 NO_GYM_LINKED` (confirmed via console network log), and `loadMetadata()`'s
+catch (`client/src/ui/timetable.js` ~L298-301) has no code check, so it always renders
+`showToast('Failed to load filters metadata.', 'error')`. Reproduced twice per reload (once
+from `initTimetable`, once from the My Bookings tab's own `loadMetadata()` call) — captured
+console: `TOAST CONTENT: "❌Failed to load filters metadata.\n❌Failed to load filters metadata."`
+
+**Root cause:** `client/src/api.js` `getMetadata()` (previously ~L384-388) unconditionally
+called `apiFetch('/api/metadata')` even when `linked.length === 0` — there was no short-circuit
+for the legitimate zero-gym state, unlike other flows that route through `NO_GYM_LINKED`
+correctly (`onLoginSuccess`'s explicit `getMyGyms().gyms.length === 0` check).
+
+**Fix:** `client/src/api.js` `getMetadata()` ~L384-392 — when `getMyGyms()` returns zero linked
+gyms, resolve immediately to `{ locations: [], studios: [], instructors: [], eventTypes: [] }`
+without ever calling `/api/metadata`. This is the true root cause fix (avoids the 409 entirely
+rather than papering over the toast), and it composes with the existing "not loaded is not
+zero" rule — this *is* zero, correctly, for an account that has no gym to have any metadata for.
+
+**Test:** `client/src/api-no-gym.test.js` (2/2 passing) — asserts `getMetadata()` resolves to the
+empty shape and never calls `fetch` when `getMyGyms()` returns `{ gyms: [] }`, and that a normal
+single-gym account is unaffected.
+
+**Verified after (same browser, same account, real reload — cleared SW/CacheStorage/IndexedDB
+first):** reloaded with the same gym-less account's token still in `localStorage`. Console now
+shows the metadata/bookings/profile 409s still logged (out of scope — no toast is wired to
+those) but **no "Failed to load filters metadata" toast**; `#psycle-toast-container` innerText
+is empty. Screenshot evidence: `c3_10_after_fix.png` (scratchpad, not committed).
+
+**Note (not fixed, logged for later):** `checkAuth()`'s reload path still boots the full app
+(and its 409-generating requests for bookings/profile) for a gym-less account instead of
+routing to the "Connect a gym" screen the way `onLoginSuccess()` does on first login. No visible
+toast results from this today, but a proper fix would teach `checkAuth()` the same no-gym check
+`onLoginSuccess()` has (`client/src/main.js` ~L1059 vs ~L1116-1122) rather than relying on every
+individual API method silently no-op'ing. Left out of this item's scope (C3-10 is about the
+toast, and the toast is gone); flagging in case a future pass wants the redirect too.
 
 ## Server-side items completed 2026-09-26 (C3-12, C3-5, C3-7, C3-8, C3-11)
 

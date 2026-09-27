@@ -17,7 +17,7 @@ Psycle and JAB accounts.
 | C3-1 | ✅ **Link/unlink a gym updates the app without a reload.** Settings re-renders its own cards but never refreshes the global gym context, so header badges and the timetable stay stale. [QA-09] | `client/src/ui/settings.js` link ~L1439 and unlink ~L1211, ~L1367 now call `loadGymContext`/`refreshUserData` | 2 h |
 | C3-2 | ✅ **Unmetered gym (JAB) open-class button reflects membership state.** Currently it shows a credits-style state that doesn't apply. [QA-16] | `client/src/ui/timetable.js` `buildActionModel` ~L1471–1494 | 2–3 h |
 | C3-3 | ✅ **The header "Member" badge checks actual membership.** It shows whenever a gym is unmetered, even when the account has no active membership. [QA-17] | `client/src/main.js` `renderGymBadge` ~L555–579 | 1 h |
-| C3-4 | **Studio map editor in Settings is gym-scoped.** It falls back to an unscoped `cache.locations` when opened for a gym that isn't the context gym, so it can show another gym's rooms. [QA-18] | `client/src/ui/settings.js` ~L711–723 | 1–2 h |
+| C3-4 | ✅ **Studio map editor in Settings is gym-scoped.** It falls back to an unscoped `cache.locations` when opened for a gym that isn't the context gym, so it can show another gym's rooms. [QA-18] | `client/src/ui/settings.js` `openManageSpotMapsModal` ~L711–759 | 1–2 h |
 | C3-5 | ✅ **Push notifications name the right gym.** Every title and body hardcodes "Psycle" ("Psycle: Spot Booked", "speak to Psycle…"). [QA-20] | `server/notifications.js` L101–144 | 1 h |
 
 ## Structural leftovers
@@ -221,6 +221,56 @@ membership or credits","disabled":true}`; Psycle rows and JAB's not-yet-live row
 are unaffected. Re-ran the same check against the pre-fix code (`git stash`/`git stash pop`) and
 confirmed it reproduces "Buy Credits", then re-confirmed the fix again after restoring.
 Screenshot evidence: `c3_2_state.png` (scratchpad, not committed).
+
+### C3-4 — Settings studio-map editor leaked another gym's rooms (or emptied)
+
+**Verified before (real browser, CDP :9222, dev@psycle.com, both gyms linked):** opened
+Settings → Psycle London → Manage maps (`openManageSpotMapsModal({ gymId: 'psycle-london' })`) —
+correctly showed `CLAPHAM / MORTIMER STREET / SHOREDITCH`. Closed it, opened Settings → JAB
+Boxing Club → Manage maps (`{ gymId: 'jab-boxing' }`) in the **same page session** (no reload) —
+the modal read `No Studios With Seat Maps`, even though `GET /api/metadata` with
+`x-gym-id: jab-boxing` confirms JAB has 2 studios with seat layouts (`mock-room-BOXING`,
+`mock-room-TRAIN`). Captured via direct DOM read of the overlay: `"Preferred Spot Maps\n×\n🗺️\n\nNo
+Studios With Seat Maps..."`.
+
+**Root cause:** `client/src/ui/settings.js` `openManageSpotMapsModal()` ~L711 (before fix):
+`let locations = cachedMeta?.locations || cache.locations || [];` — `cache.locations` is an
+unscoped module-level variable with no gym tag, last written by whichever gym's modal opened
+most recently. Opening Psycle's modal first set it to Psycle's 4 locations; opening JAB's modal
+next read that stale value as non-empty, which skipped the fresh-fetch block for JAB
+altogether. The later per-gym narrowing filter (~L752,
+`locations.filter(item => !item.gymId || item.gymId === options.gymId)`) then correctly rejected
+every Psycle-tagged location as not matching `jab-boxing`, leaving `locations = []` — so instead
+of leaking Psycle's rooms under JAB's label, the symptom was every studio grouping under no
+location at all and getting excluded, rendering the empty state.
+
+**Fix:** `client/src/ui/settings.js` ~L711-736 — the unscoped `cache.locations` fallback is now
+read (and written) only in the ambient case (`!options.gymId`), matching the rule already applied
+two lines above for `cachedMeta`/`cachedEvents`: an explicit `gymId` is by definition asking for
+a gym that fallback may not hold, so it must not be trusted, and a gym-scoped fetch must not
+pollute it for the next ambient caller either.
+
+**Second bug found while verifying the fix (same function, same call path):** with `locations`
+now correctly empty for JAB, the fresh-fetch path ran, but the modal *still* showed "No Studios"
+— `events.map(ne => ({ studio_id: Number(ne.studioId), ... }))` (~L753) cast every event's studio
+id through `Number()`. Psycle's studio ids happen to be numeric-looking strings ("138"), so this
+was silently a no-op there; MarianaTek's are not ("mock-room-BOXING"), so `Number(...)` was `NaN`
+for every JAB event, `activeStudioIds` ended up `{NaN}`, and the "exclude defunct studios" filter
+(which compares via `String(studio.id)`, never expecting a numeric compare in the first place)
+excluded every real studio. This is the same "normalized ids are strings" class of bug AGENTS.md
+already flags twice elsewhere (WP-D9). Fixed by dropping the `Number()` cast — the id is kept as
+whatever string the provider gave it, matching how the exclusion check already compares.
+
+**Test:** no new unit test — same jsdom/module-coupling friction as C3-1/C3-2/C3-3 for a
+DOM-building function in `settings.js`'s heavy import chain. Verified end-to-end in the real
+browser (below), including the exact repro sequence (open gym A's modal, then gym B's, in one
+session) that a unit test would have to fake the DOM/cache module state to reproduce anyway.
+
+**Verified after (same browser, same account, cleared SW/CacheStorage/IndexedDB, real reload,
+same open-A-then-B sequence):** Psycle's modal: `CLAPHAM / MORTIMER STREET / SHOREDITCH`
+(unchanged). JAB's modal, opened immediately after in the same session: `SW1` (JAB's own
+location), with its BOXING/TRAIN studios listed — no leakage, no false-empty state. Screenshot
+evidence: `c3_4_jab_fixed.png` (scratchpad, not committed).
 
 ## Server-side items completed 2026-09-26 (C3-12, C3-5, C3-7, C3-8, C3-11)
 

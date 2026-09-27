@@ -708,7 +708,16 @@ export async function openManageSpotMapsModal(options = {}) {
     // (e.g. first-run onboarding before the user has loaded the timetable).
     let studios = cachedMeta?.studios || [];
     let events = cachedEvents || [];
-    let locations = cachedMeta?.locations || cache.locations || [];
+    // C3-4: `cache.locations` is an unscoped module-level fallback with no gym
+    // tag of its own — it's whatever gym's Timetable tab happened to populate
+    // it last. Same rule as `cachedMeta`/`cachedEvents` above: an explicit
+    // `options.gymId` is by definition asking for a gym that fallback may not
+    // hold, so only read it in the ambient (no gymId) case. Reading it
+    // unconditionally left a non-context gym's editor with another gym's
+    // locations already "loaded" (non-empty), which skipped the fresh fetch
+    // below and then filtered every studio out as belonging to the wrong gym
+    // — rendering "No Studios With Seat Maps" instead of that gym's rooms.
+    let locations = cachedMeta?.locations || (options.gymId ? [] : cache.locations) || [];
 
     if (!studios.length || !events.length || !locations.length) {
       try {
@@ -720,7 +729,11 @@ export async function openManageSpotMapsModal(options = {}) {
           if (!studios.length) studios = meta.studios || [];
           if (!locations.length) {
             locations = meta.locations || [];
-            cache.locations = locations;
+            // Same rule in the other direction: don't let a gym-scoped fetch
+            // overwrite the unscoped ambient fallback with one gym's locations —
+            // a later ambient (no gymId) call would then read this gym's rooms
+            // as if they were "the" locations regardless of which gym it meant.
+            if (!options.gymId) cache.locations = locations;
           }
         }
 
@@ -736,7 +749,15 @@ export async function openManageSpotMapsModal(options = {}) {
 
           try {
             const normalizedEvents = await api.getTimetable({ startDate, endDate, gymId: options.gymId });
-            events = normalizedEvents.map(ne => ({ studio_id: Number(ne.studioId), gymId: ne.gymId }));
+            // C3-4 (found while verifying the fix above): normalized ids are
+            // STRINGS (WP-D9) — MarianaTek's studio ids ("mock-room-BOXING")
+            // are never numeric, so `Number(ne.studioId)` was NaN for every
+            // JAB event. `activeStudioIds` below compares via `String(id)`
+            // regardless, so the coercion here only ever needs to preserve the
+            // id, not convert it — it happened to work for Psycle's numeric-
+            // looking studio ids and silently emptied the filter (every studio
+            // excluded) for JAB's.
+            events = normalizedEvents.map(ne => ({ studio_id: ne.studioId, gymId: ne.gymId }));
           } catch (_) {
             // If events fetch fails, events stays empty (no filtering)
           }

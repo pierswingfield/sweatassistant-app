@@ -1,5 +1,5 @@
 import { api, apiFetch } from '../api';
-import { showToast, togglePushSubscription, updatePushStatusUI, userSettings, cache, getTheme, setTheme, debugConsole, loadGymContext, refreshUserData } from '../main';
+import { showToast, togglePushSubscription, updatePushStatusUI, userSettings, cache, getTheme, setTheme, debugConsole, loadGymContext, refreshUserData, updateDebugTerminalVisibility } from '../main';
 import { getBookingOffset, describeBookingWindow } from '../lib';
 import { renderStudioFloorPlan } from './spotmap';
 import { cacheGet } from './timetable';
@@ -1818,6 +1818,12 @@ function setupSettingsListeners() {
       await api.updateSettings(newSettings);
       Object.assign(userSettings, newSettings);
       updateTestNotifCardVisibility();
+      // U1-3: this used to only take effect on the next reload — the terminal
+      // stayed exactly as it was (shown or hidden) until then, because nothing
+      // called this after a save. debugLog() itself forces the terminal
+      // visible as a side effect of logging, which is what made toggling ON
+      // look "sometimes work": the very next network call papered over it.
+      updateDebugTerminalVisibility();
       renderGymSettingsSection().catch(() => {});
       showToast('Settings saved successfully.', 'success');
     } catch (err) {

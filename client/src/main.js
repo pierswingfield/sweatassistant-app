@@ -155,17 +155,39 @@ export function showToast(message, type = 'info') {
   const msgEl = document.createElement('span');
   msgEl.className = 'toast-message';
   msgEl.textContent = message;
-  toast.append(iconEl, msgEl);
+
+  // U1-5: toasts were the app's only feedback channel but auto-hid after
+  // 3.5s with no way to read them again or close them early — a real problem
+  // for an error toast, which is exactly the message someone most needs time
+  // to read. A native <button> is focusable and keyboard-activatable (Enter/
+  // Space) for free; a div with a click handler would need its own keydown
+  // handling and tabindex to match.
+  const closeBtn = document.createElement('button');
+  closeBtn.className = 'toast-close';
+  closeBtn.type = 'button';
+  closeBtn.setAttribute('aria-label', 'Dismiss notification');
+  closeBtn.textContent = '×';
+
+  let hideTimer = null;
+  const dismiss = () => {
+    if (hideTimer) clearTimeout(hideTimer);
+    toast.classList.remove('show');
+    setTimeout(() => toast.remove(), 300);
+  };
+  closeBtn.addEventListener('click', dismiss);
+
+  toast.append(iconEl, msgEl, closeBtn);
   container.appendChild(toast);
 
   // Animate in
   setTimeout(() => toast.classList.add('show'), 10);
 
-  // Remove after 3.5 seconds
-  setTimeout(() => {
-    toast.classList.remove('show');
-    setTimeout(() => toast.remove(), 300);
-  }, 3500);
+  // Auto-hide after 3.5s — except errors, which stay until the user dismisses
+  // them. A booking/cancellation failure is the one message someone must not
+  // miss just because they looked away for a moment.
+  if (type !== 'error') {
+    hideTimer = setTimeout(dismiss, 3500);
+  }
 }
 
 // --- DEBUG LOG TERMINAL ---

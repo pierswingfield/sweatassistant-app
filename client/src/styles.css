@@ -2036,6 +2036,9 @@ html, body {
 }
 
 #psycle-helper-container .psycle-toast {
+  display: flex;
+  align-items: center;
+  gap: 8px;
   padding: 14px 20px;
   border-radius: 12px;
   color: var(--on-accent);
@@ -2048,6 +2051,39 @@ html, body {
   transition: all 0.35s cubic-bezier(0.175, 0.885, 0.32, 1.275);
   max-width: 340px;
   pointer-events: auto;
+}
+
+#psycle-helper-container .psycle-toast .toast-message { flex: 1; }
+
+/* U1-5: the toast's own close control. `color: inherit` follows whatever the
+   variant sets (near-white on success/error/info, the warning pill's dark
+   text, or the catch-all's --text) so it stays readable in every variant and
+   both themes without a color rule per variant. */
+#psycle-helper-container .psycle-toast .toast-close {
+  flex: 0 0 auto;
+  appearance: none;
+  border: none;
+  background: transparent;
+  color: inherit;
+  opacity: 0.75;
+  font-size: 18px;
+  line-height: 1;
+  font-family: inherit;
+  cursor: pointer;
+  padding: 2px 4px;
+  margin: -2px -4px -2px 0;
+  border-radius: 6px;
+}
+
+#psycle-helper-container .psycle-toast .toast-close:hover,
+#psycle-helper-container .psycle-toast .toast-close:focus-visible {
+  opacity: 1;
+  background: color-mix(in srgb, currentColor 18%, transparent);
+}
+
+#psycle-helper-container .psycle-toast .toast-close:focus-visible {
+  outline: 2px solid currentColor;
+  outline-offset: 1px;
 }
 
 #psycle-helper-container .psycle-toast.show {

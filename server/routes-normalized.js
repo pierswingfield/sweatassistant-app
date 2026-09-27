@@ -141,6 +141,51 @@ function handleError(res, err) {
   res.status(status).json(body);
 }
 
+// Read limiter (WP-C7-1). Every route below was completely unlimited — only
+// /bundles, /bookmarks and /profile/update (extrasLimiter, below) had a
+// budget. This is per-USER (all routes below share ONE counter, like
+// extrasLimiter), sized from a measured real two-gym browser session
+// (dev@psycle.com + JAB linked): app boot + touring all 5 tabs + back to
+// timetable produced ~73 combined calls to these routes in under a minute,
+// with /my-gyms alone peaking at 16 (every tab/settings render re-checks the
+// active gym) — see Documentation/Workstreams/C7-platform-ops.md for the
+// full count. A merged N-gym view fires one request per linked gym per
+// fetch, so the budget needs multiplicative headroom, not just additive.
+// 300/min leaves ~4x over that measured peak. Production-only, same as every
+// other limiter here; RATE_LIMIT_TEST_FORCE lets a test force it on without
+// NODE_ENV=production, which would also disable the dev@psycle.com mock
+// login these routes need in order to be testable at all (see
+// providers/codexfit.js DEV_EMAIL gate).
+const readLimiter = rateLimit({
+  windowMs: 60 * 1000,
+  max: 300,
+  standardHeaders: true,
+  legacyHeaders: false,
+  keyGenerator: (req) => (req.userId ? String(req.userId) : ipKeyGenerator(req.ip)),
+  message: { message: 'Too many requests — please slow down.' },
+  skip: () => process.env.NODE_ENV !== 'production' && process.env.RATE_LIMIT_TEST_FORCE !== '1',
+});
+
+// Tighter budget for the explicit `?refresh=1` bypass on /timetable and
+// /metadata — the one read path that skips the shared schedule cache
+// (schedule-cache.js) and always hits the provider directly, so it is the
+// one read that can genuinely fan out upstream per call. Measured: 3 rapid
+// manual-refresh clicks on a two-gym account produced 6 calls (one per gym
+// per click) in ~4s. 30/min leaves comfortable headroom for a genuinely
+// impatient user while still bounding upstream fan-out from a scripted
+// hammer on the refresh control. Only counts refresh=1 requests; a normal
+// cached read never touches this counter.
+const refreshLimiter = rateLimit({
+  windowMs: 60 * 1000,
+  max: 30,
+  standardHeaders: true,
+  legacyHeaders: false,
+  keyGenerator: (req) => (req.userId ? String(req.userId) : ipKeyGenerator(req.ip)),
+  message: { message: 'Too many refreshes — please slow down.' },
+  skip: (req) => req.query.refresh !== '1'
+    || (process.env.NODE_ENV !== 'production' && process.env.RATE_LIMIT_TEST_FORCE !== '1'),
+});
+
 // GET /api/gyms — public: the gym registry + capability flags, for a future
 // client gym picker (Phase 5). No auth required — mirrors /api/config.
 router.get('/gyms', (req, res) => {
@@ -162,7 +207,7 @@ router.get('/gyms', (req, res) => {
 // No `activeGymId` any more, and no `POST /api/my-gyms/active` — both removed
 // in the active-gym audit's stage 4 (2026-09-15). There is no gym switcher:
 // every list is merged, and a "current gym" is not a concept this product has.
-router.get('/my-gyms', authenticateToken, (req, res) => {
+router.get('/my-gyms', authenticateToken, readLimiter, (req, res) => {
   try {
     const linked = db.getUserGymsPublic(req.userId);
     res.json({ gyms: linked });
@@ -246,7 +291,7 @@ function stampReleaseAt(events, provider, userId) {
 }
 
 // GET /api/timetable?startDate=&endDate=
-router.get('/timetable', authenticateToken, async (req, res) => {
+router.get('/timetable', authenticateToken, refreshLimiter, readLimiter, async (req, res) => {
   try {
     const { gymId, provider, session } = resolveContext(req.userId);
     const startDate = req.query.startDate || '';
@@ -282,7 +327,7 @@ router.get('/timetable', authenticateToken, async (req, res) => {
 // Replaces four separate raw /api/proxy reads (/locations /studios /instructors
 // /event-types), which only ever worked because they were CodexFit endpoints.
 // MarianaTek has none of them and derives all four from its class list.
-router.get('/metadata', authenticateToken, async (req, res) => {
+router.get('/metadata', authenticateToken, refreshLimiter, readLimiter, async (req, res) => {
   try {
     const { gymId, provider, session } = resolveContext(req.userId);
     const startDate = req.query.startDate || '';
@@ -303,7 +348,7 @@ router.get('/metadata', authenticateToken, async (req, res) => {
 });
 
 // GET /api/events/:id
-router.get('/events/:id', authenticateToken, async (req, res) => {
+router.get('/events/:id', authenticateToken, readLimiter, async (req, res) => {
   try {
     const { provider, session } = resolveContext(req.userId);
     const details = await withRelogin(req.userId, session, (s) => provider.fetchEventDetails(req.params.id, s));
@@ -320,7 +365,7 @@ router.get('/events/:id', authenticateToken, async (req, res) => {
 // for the shared preferred-spot-map editor. Empty `slots` means "no floor map
 // available for this studio", not an error (see GymProvider.fetchStudioLayout).
 // `objects` are non-bookable fixtures (podium/stage) drawn alongside the slots.
-router.get('/studios/:id/layout', authenticateToken, async (req, res) => {
+router.get('/studios/:id/layout', authenticateToken, readLimiter, async (req, res) => {
   try {
     const { provider, session } = resolveContext(req.userId);
     const { slots, objects } = await withRelogin(req.userId, session, (s) => provider.fetchStudioLayout(req.params.id, s));
@@ -359,7 +404,7 @@ router.post('/cancel', authenticateToken, async (req, res) => {
 });
 
 // GET /api/cancel-penalty/:bookingId
-router.get('/cancel-penalty/:bookingId', authenticateToken, async (req, res) => {
+router.get('/cancel-penalty/:bookingId', authenticateToken, readLimiter, async (req, res) => {
   try {
     const { provider, session } = resolveContext(req.userId);
     const penalty = await withRelogin(req.userId, session, (s) => provider.getCancelPenalty(req.params.bookingId, s));
@@ -415,7 +460,7 @@ router.post('/swap', authenticateToken, async (req, res) => {
 // back WITHOUT embedded event details (see providers/codexfit.js listBookings
 // doc comment) — callers needing full metadata should join via /api/events/:id
 // or /api/timetable, same as the existing client already does for the raw proxy.
-router.get('/bookings', authenticateToken, async (req, res) => {
+router.get('/bookings', authenticateToken, readLimiter, async (req, res) => {
   try {
     const { provider, session } = resolveContext(req.userId);
     const bookings = await withRelogin(req.userId, session, (s) => provider.listBookings(s));
@@ -426,7 +471,7 @@ router.get('/bookings', authenticateToken, async (req, res) => {
 });
 
 // GET /api/waitlists — normalized active waitlist entries.
-router.get('/waitlists', authenticateToken, async (req, res) => {
+router.get('/waitlists', authenticateToken, readLimiter, async (req, res) => {
   try {
     const { provider, session } = resolveContext(req.userId);
     const waitlists = await withRelogin(req.userId, session, (s) => provider.listWaitlists(s));
@@ -437,7 +482,7 @@ router.get('/waitlists', authenticateToken, async (req, res) => {
 });
 
 // GET /api/profile — normalized profile.
-router.get('/profile', authenticateToken, async (req, res) => {
+router.get('/profile', authenticateToken, readLimiter, async (req, res) => {
   try {
     const { gymId, provider, session } = resolveContext(req.userId);
     const profile = await withRelogin(req.userId, session, (s) => provider.getProfile(s));
@@ -454,7 +499,7 @@ router.get('/profile', authenticateToken, async (req, res) => {
 // profile response, MT exposes a separate getCredits() extension method (see
 // providers/marianatek.js WP-M4). Branch on which the active provider offers
 // rather than assuming one shape.
-router.get('/credits', authenticateToken, async (req, res) => {
+router.get('/credits', authenticateToken, readLimiter, async (req, res) => {
   try {
     const { provider, session } = resolveContext(req.userId);
     if (typeof provider.getCredits === 'function') {
@@ -471,7 +516,7 @@ router.get('/credits', authenticateToken, async (req, res) => {
 // GET /api/eligibility — "can this account book at all" (WP-J), distinct from
 // `metered`/`creditPurchase`. Every adapter answers this (base.js defaults to
 // permissive so an adapter with no real implementation never blocks booking).
-router.get('/eligibility', authenticateToken, async (req, res) => {
+router.get('/eligibility', authenticateToken, readLimiter, async (req, res) => {
   try {
     const { provider, session } = resolveContext(req.userId);
     const eligibility = await withRelogin(req.userId, session, (s) => provider.getEligibility(s));
@@ -484,7 +529,7 @@ router.get('/eligibility', authenticateToken, async (req, res) => {
 // GET /api/membership — normalized account membership. Credit-based providers
 // return null; they remain represented by /api/credits rather than a synthetic
 // membership object.
-router.get('/membership', authenticateToken, async (req, res) => {
+router.get('/membership', authenticateToken, readLimiter, async (req, res) => {
   try {
     const { provider, session } = resolveContext(req.userId);
     const membership = await withRelogin(req.userId, session, (s) => provider.getMembership(s));

@@ -246,3 +246,92 @@ All four items above are **done (2026-09-26)** — see below for evidence, root 
 **No `master` backport.** Prod has the same broken cart, but C2 targets `modular` only. In-app
 checkout on prod stays broken until C4 ships `modular`, and users buy credits on the Psycle website
 in the meantime.
+
+## C2-7 — CodexFit `/profile` envelope not unwrapped (launch-blocking, found in C4-9 live acceptance)
+
+**Status: fixed, pending redeploy (2026-09-27).**
+
+- **Verified (before fix), live + code:** C4-9's live acceptance run on the dev twin
+  (`sweat-dev.wingfield.tech`, `test@piersj.com`) found the Psycle tab reporting "0 credits
+  available — you cannot book here until you top up" and every open timetable row showing "Buy
+  Credits", while `GET /api/profile` showed `raw.data.available_credits=[{count:2,...}]` and
+  `stats.credits_remaining:2` for the same account. Confirmed in code: `server/providers/
+  codexfit.js` `getProfile()` (~L225), `getEligibility()` (~L250) and `getCredits()` (~L274) all
+  called `this.request('/profile', ...)` and read fields (`available_credits`, `booking_cutoff`,
+  `id`, ...) straight off the top-level JSON body. The real `GET /api/v1/customer/profile` wraps
+  the profile as `{ data: {...} }` (`server/fixtures/codexfit-v2/PARITY.md` G1 +
+  `profile-v1-response.json`, captured 2026-09-26 and reconfirmed live during C4-9) — none of the
+  three methods unwrapped `.data`, so every field read was `undefined` against the real gym.
+  Invisible to every test because `server/mock.js`'s dev `/profile` fixture returned the profile
+  bare (no envelope) — the exact same trap AGENTS.md already documents for `/events`' by-reference
+  `relations` bag.
+- **Root cause:** the `/profile` GET response is enveloped live; the adapter's three readers of it
+  assumed it was already unwrapped.
+- **Fix:**
+  - `server/providers/codexfit.js` — added `unwrapProfileEnvelope(body)` (a shared helper, just
+    above `httpError`): unwraps `body.data` only when it looks like the real profile object (has
+    an `id`), otherwise returns the body as-is — so a bare (mock-shaped) response and a future
+    upstream envelope flip both keep working, and a genuinely credit-less bare profile still
+    correctly reports `canBook:false` rather than defaulting to "free". `getProfile()` (~L225),
+    `getEligibility()` (~L250) and `getCredits()` (~L274) all now call it before reading fields,
+    and `raw` on the returned `NormalizedProfile` is now the **unwrapped** profile object (matching
+    `login()`'s existing convention, and what every client reader of `profile.raw.X` already
+    assumed).
+  - `server/mock.js` `/profile` handler (~L281) now returns `{ data: {...} }`, mirroring the live
+    envelope, so a regression here is caught in dev mode again.
+- **Every other reader of `/profile` audited** (`rg "'/profile'"` + `rg "available_credits|
+  booking_cutoff|extended_cutoff"` across `server/` and `client/`):
+  - `server/providers/codexfit.js resolveBookingWindow()` (~L343) and `client/src/lib.js
+    detectBookingWindow()` — both read `profile.booking_cutoff`/`.extended_cutoff` off an
+    already-unwrapped object (`db.getUserById().profile_json` server-side, `normalized.raw`
+    client-side respectively). Both were silently fed the WRONG (enveloped) object before this fix
+    — `server/auth.js:470`'s `profile_json: profile.raw ? JSON.stringify(profile.raw) : null` was
+    storing the (buggy) enveloped `raw` from `getProfile()`, so a missing cutoff silently fell back
+    to the base window for every tiered Psycle member. Fixed for free once `getProfile()`'s `raw`
+    became the unwrapped object — no separate change needed at either call site.
+  - `server/routes-normalized.js` `/api/profile` (~L485) and `/api/credits` (~L502, the
+    `profile.raw.available_credits` fallback for a provider with no `getCredits`) — both read
+    `.raw` off the `NormalizedProfile`; fixed the same way, no route change needed.
+  - `client/src/main.js` `refreshUserData()` (~L927, `{ ...(normalized.raw || {}), ...normalized }`)
+    and `client/src/ui/settings.js` Profile Explorer (`loadedProfile = res.raw || res`, ~L235) —
+    both spread/read `.raw` from the client's own `/api/profile` fetch; fixed the same way, no
+    client change needed. `client/src/ui/timetable.js` debug-modal reads of `event.booking_cutoff`/
+    `event.extended_cutoff` (~L3508) are off the EVENT object (server-stamped `releaseAt` inputs),
+    not the profile, and were never part of this bug.
+  - `server/poller.js`'s auto-upgrade credit check (~L232-242) makes its own direct
+    `fetchFromGym(userId, gymId, '/profile')` call (bypassing the provider's `getProfile()`
+    entirely) and already unwraps manually (`profileData.data || profileData`) before caching via
+    `db.cacheUserProfile()` — already correct both before and after this fix, and compatible with
+    the now-enveloped mock. Not changed, but confirmed correct rather than assumed.
+  - `server/admin.js` user-detail credits (~L246, `profile.available_credits`) reads the cached
+    `profile_json` blob, which is only ever populated by `poller.js`'s already-correct manual
+    unwrap — confirmed not affected.
+  - `server/scheduler.js`, `server.js`'s `creditWarning` notifications: confirmed (`grep`) neither
+    reads `/profile` or `available_credits`/`booking_cutoff` directly — not affected.
+- **Why prod (`master`) didn't show this — Psycle didn't change the envelope, `modular`
+  regressed it:** `git show master:server/server.js` (master predates the `providers/` adapter
+  split entirely) shows the old raw proxy passed the **entire enveloped body through unmodified**
+  (`res.json(data)`, `data.data || data` only used for the admin cache side-channel), and
+  `git show master:client/src/main.js` (`refreshUserData`) did `const profile = res.data || res;`
+  — the client itself unwrapped the envelope, because it was talking to the raw CodexFit response.
+  When `modular`'s normalized-provider architecture was built, the unwrap step got dropped inside
+  `getProfile()`/`getEligibility()`/`getCredits()`, which started reading fields directly off the
+  request body on the assumption it was already bare. **This is a `modular` regression, not an
+  upstream Psycle change** — the live envelope shape is unchanged from what master's client already
+  handled.
+- **Test:** `server/test-profile-envelope.js` (new, 7/7 passing) — fixture-driven against the
+  actual sanitized live capture (`server/fixtures/codexfit-v2/profile-v1-response.json`): asserts
+  `getProfile`/`getEligibility`/`getCredits`/`resolveBookingWindow` all resolve correctly against
+  the enveloped live shape (confirmed to FAIL against the pre-fix code via `git stash`: `id`
+  undefined, `canBook` false instead of true, 0 credits mapped instead of 1, window null instead of
+  resolved), plus 3 cases proving a bare (mock-shaped) body and a genuinely credit-less bare profile
+  still work exactly as before (no regression, no false-positive "free").
+- **Verified (after fix), local mock browser check** (CDP `127.0.0.1:9222`, own tab, `npm run dev`,
+  `dev@psycle.com`, all 3 client caches cleared + real reload): `GET /api/profile` now returns
+  unwrapped fields (`bookingCutoff`/`extendedCutoff` populated, `raw.available_credits` reachable);
+  `GET /api/eligibility` → `{"canBook":true}`; `GET /api/credits` → 4 real credit-type entries.
+  Header badge reads `Psycle 18 cr` (non-zero); Timetable tab: every open row's primary button
+  count is `{"⚡︎Quick Book":4}` — **zero "Buy Credits" buttons**, matching the mock's non-zero
+  balance. `npm test`: 33/33 server suites, 86/86 client tests. `npm run build:client`: clean.
+- **Not deployed.** Per this item's own instructions — the orchestrator redeploys and re-checks
+  live against `sweat-dev.wingfield.tech` after review.

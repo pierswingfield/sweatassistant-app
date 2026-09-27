@@ -279,37 +279,47 @@ function handleMockRequest(pathName, method, body) {
   }
 
   if (pathName.startsWith('/profile')) {
+    // C2-7: the real `GET /api/v1/customer/profile` envelopes the profile as
+    // `{ data: {...} }` (confirmed live, server/fixtures/codexfit-v2/
+    // PARITY.md G1 + profile-v1-response.json). This mock used to return the
+    // profile bare, which is exactly what let codexfit.js's un-unwrapped
+    // getProfile/getEligibility/getCredits pass every test while returning
+    // undefined for every field against the real gym — the same envelope trap
+    // AGENTS.md already documents for `/events`. Mirror the live shape here so
+    // a regression here is caught in dev mode again.
     return createFakeResponse({
-      id: 99999,
-      email: "dev@psycle.com",
-      first_name: "Dev",
-      last_name: "User",
-      telephone: "+44 7700 900123",
-      created_at: new Date(Date.now() - 420 * 24 * 60 * 60 * 1000).toISOString(),
-      booking_cutoff: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString(),
-      extended_cutoff: new Date(Date.now() + 14 * 24 * 60 * 60 * 1000).toISOString(),
-      stats: {
-        total_bookings: 142,
-        total_unique_bookings: 138,
-        total_unique_bookings_attended: 129,
-        credits_remaining: 4,
-        total_attended_minutes: 6450
-      },
-      available_credits: [
-        { count: 3, credit_type: { id: 3, name: "Ride Only", is_guest_use_only: false }, expires_at: new Date(Date.now() + 60 * 24 * 60 * 60 * 1000).toISOString() },
-        { count: 1, credit_type: { id: 1, name: "Universal", is_guest_use_only: false } },
-        { count: 10, credit_type: { id: 8, name: "Extended Booking", is_guest_use_only: false } },
-        // Guest credits must NOT count toward booking yourself in.
-        { count: 4, credit_type: { id: 2, name: "Guest", is_guest_use_only: true } }
-      ],
-      subscriptions: [
-        { name: "Unlimited Monthly", status: "active", renews_at: new Date(Date.now() + 18 * 24 * 60 * 60 * 1000).toISOString() }
-      ],
-      subscription_statuses: ["active"],
-      metafields: {
-        public: {
-          bookmarks: {
-            events: [...mockBookmarks]
+      data: {
+        id: 99999,
+        email: "dev@psycle.com",
+        first_name: "Dev",
+        last_name: "User",
+        telephone: "+44 7700 900123",
+        created_at: new Date(Date.now() - 420 * 24 * 60 * 60 * 1000).toISOString(),
+        booking_cutoff: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString(),
+        extended_cutoff: new Date(Date.now() + 14 * 24 * 60 * 60 * 1000).toISOString(),
+        stats: {
+          total_bookings: 142,
+          total_unique_bookings: 138,
+          total_unique_bookings_attended: 129,
+          credits_remaining: 4,
+          total_attended_minutes: 6450
+        },
+        available_credits: [
+          { count: 3, credit_type: { id: 3, name: "Ride Only", is_guest_use_only: false }, expires_at: new Date(Date.now() + 60 * 24 * 60 * 60 * 1000).toISOString() },
+          { count: 1, credit_type: { id: 1, name: "Universal", is_guest_use_only: false } },
+          { count: 10, credit_type: { id: 8, name: "Extended Booking", is_guest_use_only: false } },
+          // Guest credits must NOT count toward booking yourself in.
+          { count: 4, credit_type: { id: 2, name: "Guest", is_guest_use_only: true } }
+        ],
+        subscriptions: [
+          { name: "Unlimited Monthly", status: "active", renews_at: new Date(Date.now() + 18 * 24 * 60 * 60 * 1000).toISOString() }
+        ],
+        subscription_statuses: ["active"],
+        metafields: {
+          public: {
+            bookmarks: {
+              events: [...mockBookmarks]
+            }
           }
         }
       }

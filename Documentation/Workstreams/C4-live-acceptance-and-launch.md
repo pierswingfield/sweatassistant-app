@@ -54,12 +54,16 @@ in the session scratchpad (not committed — contain live account/customer PII f
     `POST /api/book`/`/api/cancel` remain mock- and shape-verified only, not live-exercised this
     session.
 
-- [x] **C4-9 — FAIL (Psycle side); PASS (JAB side).**
+- [x] **C4-9 — FAIL (Psycle side); PASS (JAB side). Fix pending redeploy (logged as C2-7,
+  2026-09-27) — see `C2-psycle-api-v2.md`.**
   - JAB: tab showed "Member — SW1 Rolling Membership — Reserve 14 days in advance — 2 guest passes
     left". Matches `GET /api/membership` (`isActive:true`, `guestPassesRemaining:2`) and
     `GET /api/eligibility` (`canBook:true`). **Note**: this is a live-state change from the prior
     session's finding that this account showed "No membership" — recorded, not acted on; no JAB
-    booking was authorized for this session regardless of eligibility.
+    booking was authorized for this session regardless of eligibility. Investigated as C3-13
+    (2026-09-27): not reproduced as a code bug — a fresh live check the same day showed badge,
+    eligibility and membership all agreeing ("Member" / `canBook:true` / `isActive:true`); see
+    `C3-multi-gym-correctness.md`.
   - Psycle: tab showed **"0 credits available — you cannot book here until you top up"** and every
     open timetable row showed "Buy Credits" instead of "Quick Book". Does not match the provider:
     `GET /api/profile` shows `raw.data.available_credits=[{count:2,...}]` and

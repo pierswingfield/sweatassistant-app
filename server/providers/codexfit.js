@@ -38,6 +38,24 @@ function httpError(message, status) {
   return err;
 }
 
+// C2-7: `GET /profile` envelopes its payload as `{ data: {...} }` — confirmed
+// live (server/fixtures/codexfit-v2/PARITY.md G1/profile-v1-response.json) and
+// matching the same by-reference convention `/events` uses (AGENTS.md's
+// "GET /events returns events BY REFERENCE" note). getProfile/getEligibility/
+// getCredits each called `this.request('/profile', ...)` and read fields
+// straight off the top-level JSON body, so every field (available_credits,
+// booking_cutoff, id, ...) was silently `undefined` against the real gym —
+// invisible against server/mock.js's dev fixture, which returned the profile
+// bare. Accepts EITHER shape so a future upstream envelope flip can't silently
+// zero credits again the same way: only unwraps `.data` when it looks like the
+// real profile object (has an `id`), never when the body is already bare.
+function unwrapProfileEnvelope(body) {
+  if (body && body.data && typeof body.data === 'object' && !Array.isArray(body.data) && body.data.id != null) {
+    return body.data;
+  }
+  return body || {};
+}
+
 // CodexFit publishes non-bookable floor fixtures (the instructor podium) as
 // `studio.layout.objects`, alongside `studio.layout.slots`. The full object
 // schema isn't documented anywhere (psycle_codexfit.md doesn't cover it) and
@@ -225,7 +243,7 @@ class CodexFitProvider extends GymProvider {
   async getProfile(session) {
     const res = await this.request('/profile', { token: session.accessToken });
     if (!res.ok) throw httpError(`getProfile failed: ${res.status}`, res.status);
-    const u = await res.json();
+    const u = unwrapProfileEnvelope(await res.json());
     return makeProfile({
       id: u.id,
       email: u.email,
@@ -250,7 +268,7 @@ class CodexFitProvider extends GymProvider {
   async getEligibility(session) {
     const res = await this.request('/profile', { token: session.accessToken });
     if (!res.ok) throw httpError(`getEligibility failed: ${res.status}`, res.status);
-    const u = await res.json();
+    const u = unwrapProfileEnvelope(await res.json());
     const credits = u.available_credits || [];
     const total = credits.reduce((sum, c) => sum + (c.count || 0), 0);
     if (total > 0) return { canBook: true };
@@ -274,7 +292,7 @@ class CodexFitProvider extends GymProvider {
   async getCredits(session) {
     const res = await this.request('/profile', { token: session.accessToken });
     if (!res.ok) throw httpError(`getCredits failed: ${res.status}`, res.status);
-    const u = await res.json();
+    const u = unwrapProfileEnvelope(await res.json());
     return (u.available_credits || []).map((c) => ({
       typeId: c.credit_type && c.credit_type.id != null ? String(c.credit_type.id) : undefined,
       typeName: (c.credit_type && c.credit_type.name) || 'Credits',

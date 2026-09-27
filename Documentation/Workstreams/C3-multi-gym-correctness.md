@@ -69,6 +69,53 @@ Psycle and JAB accounts.
 
 ---
 
+## C3-13 — JAB header badge said "No membership" while the account has an active membership (investigated 2026-09-27, NOT REPRODUCED — no code change)
+
+**Basis for the item:** the 2026-09-27 dev-twin C4 Stage A re-test reported the header badge as
+`JAB | No membership`, matching the actual live eligibility answer at that moment (`test@piersj.com`
+had `GET /api/eligibility` → `canBook:false`). A later pass **in the same day** saw live
+`GET /api/membership` show an **active** JAB membership (`isActive:true`, 2/2 guest passes) on the
+same account, and flagged the two as possibly contradictory — hence this item.
+
+**Investigation (code):** the header badge (`client/src/main.js renderGymBadge`, gated on
+`canBookAtAll(gymId)` from `client/src/ui/credit-allowance.js`) and the Credits & Membership tab
+(`client/src/ui/credits.js`, via `api.getMembership(gymId)` → `GET /api/membership`) read two
+different routes, but both routes are backed by the **same underlying computation** on the server:
+`providers/marianatek.js getEligibility()` (~L386) calls `this.getMembership(session)` internally
+and returns `canBook: true` whenever `membership.isActive` is true — there is no separate,
+divergent membership-active check for the badge to disagree with. `getMembership()`'s client route
+(`client/src/api.js` ~L647) is the only one of the two that's cached (`getCachedSWR`, 10-min TTL);
+`getEligibility()` (~L621) is a plain uncached `apiFetch`. A 10-min-stale membership cache could in
+principle show an OLD "active" answer next to a freshly-negative eligibility badge, but never the
+reverse (a stale-negative membership cache next to a correctly-positive eligibility badge, which is
+the direction this item describes) — so the one caching asymmetry that does exist cannot produce
+the reported symptom either.
+
+**Investigation (live, read-only, 2026-09-27, dev twin, CDP `127.0.0.1:9222`, one dedicated tab,
+`test@piersj.com`, closed afterward):**
+
+| Call | Result |
+|---|---|
+| `GET /api/eligibility` (`x-gym-id: jab-boxing`) | `{"canBook":true,"expiresAt":null}` |
+| `GET /api/membership?gymId=jab-boxing` | `{"membership":{"id":"2552","name":"SW1 Rolling Membership","status":"Active","isActive":true,"guestPassesRemaining":2,"guestPassesTotal":2,"bookingWindowLabel":"Reserve 14 days in advance",...}}` |
+| Rendered header badge (real reload, fresh page load) | `JAB Member` / title `"JAB: Membership active"` — matches both calls above exactly |
+
+All three signals agree, right now, in this session: eligibility, membership, and the rendered
+badge all say "active member." (Psycle's own badge in the same capture read "0 cr" — the C2-7 bug,
+not yet redeployed to this dev twin at the time of this check; unrelated to C3-13.)
+
+**Verdict: NOT REPRODUCED — no code bug found, no change made.** The badge and the membership tab
+share one code path (`getEligibility()` calls `getMembership()` directly), so they cannot
+structurally disagree at the same instant, and this session's live read shows them agreeing. The
+most consistent explanation, matching C4-9's own contemporaneous note ("this is a live-state change
+from the prior session's finding... recorded, not acted on"), is that the JAB test account's real
+membership state on the provider's own system changed between the two 2026-09-27 sessions — e.g. a
+lapsed/reactivated membership or a payment retry — and the badge was correctly reporting whatever
+the server answered at each point in time. Logged here as investigated-and-waived rather than
+silently dropped, per AGENT_PROTOCOL.md's "can't reproduce? don't change code, add a dated note."
+
+---
+
 ## Client-side items completed 2026-09-27
 
 ### C3-10 — gym-less account shows a "Failed to load filters metadata" toast on reload

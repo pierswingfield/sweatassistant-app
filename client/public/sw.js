@@ -51,8 +51,23 @@ self.addEventListener('notificationclick', (event) => {
 
 // ─── Cache config ───────────────────────────────────────────────────────────
 
-const CACHE_NAME = 'psycle-cache-v2';
-const ASSETS_CACHE_NAME = 'psycle-assets-v2';
+// C7-2: the cache name used to be hand-versioned ('psycle-cache-v2') — a
+// forgotten bump meant a rebuilt client kept serving the OLD cached shell/JS
+// forever, because `activate` only ever deletes caches NOT in its own
+// whitelist, and an unbumped name is trivially "in" it. `__BUILD_STAMP__` is
+// replaced by the `stampServiceWorker` Vite plugin (vite.config.js) with a
+// unique per-build token when this file is copied into `dist/` — every build
+// is now its own cache generation with no human in the loop. In `npm run dev`
+// (vite serves this file from `public/` unprocessed, never through the
+// build) the placeholder is left literal, which is still a perfectly valid,
+// stable string — dev doesn't need per-build invalidation.
+//
+// Gym-neutral prefix ('sweat-cache', not 'psycle-cache'): this product now
+// serves more than one gym brand, and the cache name should say so.
+const BUILD_STAMP = '__BUILD_STAMP__';
+const CACHE_PREFIX = 'sweat-cache';
+const CACHE_NAME = `${CACHE_PREFIX}-${BUILD_STAMP}`;
+const ASSETS_CACHE_NAME = `${CACHE_PREFIX}-assets-${BUILD_STAMP}`;
 
 const ASSETS_TO_CACHE = [
   '/',
@@ -75,6 +90,12 @@ self.addEventListener('install', (event) => {
 
 // ─── Activate: purge stale caches, claim clients ────────────────────────────
 
+// Whitelist, not prefix match: anything that isn't THIS build's exact two
+// cache names is deleted. That already covers every previous stamped build
+// AND the legacy hand-versioned names ('psycle-cache-v2' / 'psycle-assets-v2')
+// — neither is in this whitelist, so an existing install upgrading to the
+// stamped scheme cleans its old cache on the very first activate, same as any
+// other version bump.
 const CACHE_WHITELIST = [CACHE_NAME, ASSETS_CACHE_NAME];
 
 self.addEventListener('activate', (event) => {

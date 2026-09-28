@@ -504,9 +504,10 @@ async function stepCalendar() {
     const ios = isIOS();
 
     const showSubscribe = (links) => {
-      const webcalUrl = links?.webcal || '';
+      // iOS/Apple hands plain webcal:// to Calendar as http and warns; use the https form there.
+      const webcalUrl = (ios ? links?.webcals : '') || links?.webcal || '';
       const gcalUrl = links?.google || '';
-      const icsUrl = links?.ics || '';
+      const icsUrl = links?.https || links?.ics || '';
 
       const sheet = renderSheet({
         eyebrow: 'Calendar enabled',

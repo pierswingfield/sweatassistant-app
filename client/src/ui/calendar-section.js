@@ -99,7 +99,8 @@ export async function renderCalendarSection(targetContainer = null) {
       const action = button.dataset.calendarAction;
       const links = status.links || {};
 
-      if (action === 'apple') { if (links.webcal) window.location.href = links.webcal; return; }
+      // webcals:// (the https form): plain webcal:// makes Apple Calendar warn "connection is not secure".
+      if (action === 'apple') { const u = links.webcals || links.webcal; if (u) window.location.href = u; return; }
       if (action === 'google') { if (links.google) window.open(links.google, '_blank', 'noopener'); return; }
       if (action === 'copy') {
         try {

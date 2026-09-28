@@ -644,6 +644,8 @@ Triggered by two live bugs the user found on the dev twin. **Method:** Gemini 3.
 
 - [x] **C3-29** 2026-09-28. Basis: `buildTitle` in `server/calendar.js` ended `... || 'Instructor'`, so any row with no instructor name rendered `with Instructor` (the placeholder is only in the title builder; `eventToCalendarShape` passes an empty string). Fix: `server/calendar.js` `instructorFirstName()` (empty or `Instructor`/`TBA`/`TBC`/`TBD` gives no clause) used by `buildTitle` and the description line. Test: `server/test-calendar-title.js` (both gyms, tentative prefix, no-location case).
 
+- [x] **C4-8 Apple calendar link** 2026-09-28. Basis: `server/calendar.js buildLinks` offered `webcal://`, which Apple resolves as plain http (Wikipedia: webcal URLs are equivalent to http/https; user saw the insecure-connection prompt on the dev twin). Fix: new `webcals://` link (`buildLinks().webcals`); `client/src/ui/calendar-section.js` Apple action and the iOS onboarding button use it; Google's http form and plain `webcal` (non-Apple) unchanged. Also fixed onboarding's "Copy feed URL" reading `links.ics` (server returns `https`). Not verifiable without an Apple device: no source found that documents `webcals://` for Apple Calendar explicitly, it is the widely used secure form; the copy-URL https fallback remains. Test: `server/test-calendar-links.js`.
+
 **Rejected on verification** (kept so nobody re-raises them):
 - `invalidateApiCache('/api/timetable')` wouldn't help, because the timetable uses its own unified key.
 - The `'psycle-london'` fallbacks at `api.js:255`, `main.js:527` and `autobook.js:293` are unreachable (409 `NO_GYM_LINKED`; `gym_id` is NOT NULL).

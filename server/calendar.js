@@ -59,6 +59,12 @@ function buildLinks(token) {
   return {
     https: httpsUrl,
     webcal: `webcal://${APP_HOST}/api/calendar/${token}.ics`,
+    // Apple Calendar resolves plain webcal:// to http:// and warns "The connection
+    // is not secure" before subscribing (C4-8). webcals:// is the https form of the
+    // same handoff, so the Apple subscribe buttons use this. webcal stays for
+    // non-Apple clients that only register the plain scheme. If a client turns out
+    // not to register webcals://, the https URL (copy button) works everywhere.
+    webcals: `webcals://${APP_HOST}/api/calendar/${token}.ics`,
     // Google's cid subscribe only accepts the http:// form of the feed URL (the https
     // and addbyurl variants are rejected with "Check the URL"). Passed unencoded —
     // the token is URL-safe base64 so no escaping is needed.

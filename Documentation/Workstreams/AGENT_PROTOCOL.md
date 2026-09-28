@@ -56,6 +56,15 @@ Use the user's real Google Chrome. It holds the signed-in sessions the app needs
 | **Chrome DevTools Protocol, port 9222** | Any agent (Claude, Codex, scripts) | Check with `curl -s http://127.0.0.1:9222/json/version`. Attach with a CDP client, e.g. Playwright `chromium.connectOverCDP('http://127.0.0.1:9222')` or Puppeteer `puppeteer.connect({ browserURL: 'http://127.0.0.1:9222' })`. |
 | **Claude for Chrome extension** | Native Claude Code agents | The `claude-in-chrome` tools. The extension is installed and signed in, in Google Chrome. |
 
+**Chrome 154 caveat (2026-09-28):** Playwright's `chromium.connectOverCDP()` fails against the user's Chrome with `Browser.setDownloadBehavior: Browser context management is not supported`. Use a raw CDP client instead: `PUT /json/new?about:blank` to open a tab, drive it over its `webSocketDebuggerUrl` (Runtime/Page/Network domains), and close it with `/json/close/<id>`. `curl -s http://127.0.0.1:9222/json/list` lists tabs without attaching.
+
+**One tab only.** Open exactly one tab of your own, reuse it for everything, and close it at the end. The user watches this Chrome, and a tab-per-script run was reported as disruptive.
+
+**Live gym testing bounds** (the user's standing rules, 2026-09-26/28), in addition to the playbook:
+- No bookings for classes starting within 24h (use a 48h margin), and only where cancellation is confirmed free.
+- Never pay for anything, never cancel the user's existing bookings, and no penalty-window cancels (C4-2/C4-3 are the user's to test).
+- Record an inventory of bookings, waitlists and credits before and after the session.
+
 **If neither route works, stop and report:**
 
 ```

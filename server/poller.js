@@ -4,7 +4,7 @@ const db = require('./db');
 const pushService = require('./push');
 const notifications = require('./notifications');
 const { triggerAutoRelogin } = require('./auth');
-const { getCachedEvent, setCachedEvent } = require('./scheduler');
+const { getCachedEvent, setCachedEvent, isGymRateLimited } = require('./scheduler');
 const { getProvider } = require('./providers');
 const { getGymConfig } = require('./gyms.config');
 const { policyOf, isRollingWeekly, mostRecentRelease } = require('./providers/booking-window');
@@ -239,7 +239,17 @@ async function attemptUpgradeSlot(upgrade, isCutoffMode) {
             const profileData = await profileRes.json();
             const profile = profileData.data || profileData;
             try { db.cacheUserProfile(userId, profile, gymId); } catch (_) {}
-            const hasCredits = profile.available_credits && profile.available_credits.some(c => c.count > 0);
+            // Same rule the resume path uses (C5-1), so a monitor can't flap
+            // pause/resume: guest-only, expired and wrong-type credits don't count.
+            const hasCredits = hasUsableCredits(
+              (profile.available_credits || []).map(c => ({
+                typeId: c.credit_type && c.credit_type.id != null ? String(c.credit_type.id) : undefined,
+                count: Number(c.count) || 0,
+                expiresAt: c.expires_at || undefined,
+                isGuestOnly: c.credit_type && typeof c.credit_type.is_guest_use_only === 'boolean' ? c.credit_type.is_guest_use_only : undefined,
+              })),
+              details && details.event && details.event.credits
+            );
 
             if (!hasCredits) {
               console.log(`[Poller] Auto-upgrade paused for user ${userId}: No available credits.`);
@@ -363,9 +373,124 @@ async function attemptUpgradeSlot(upgrade, isCutoffMode) {
   }
 }
 
+// ─── Paused-monitor resume (C5-1) ────────────────────────────────────────────
+
+/**
+ * Can this credit inventory pay for a class? Pure.
+ *
+ * Counts only credits the member can spend on THEMSELVES: not guest-only, not
+ * expired, and — where the class's requirement is known — of an accepted type.
+ * Compares the usable total to `credits.required` (default 1). An absent
+ * `classCredits` means "the payload said nothing", which falls back to cost 1 /
+ * any type, never to "free" (AGENTS.md, per-class credit cost).
+ *
+ * @param {Array<{typeId?:string,count:number,expiresAt?:string,isGuestOnly?:boolean}>} credits
+ * @param {{required?:number, acceptedTypeIds?:string[]}=} classCredits
+ */
+function hasUsableCredits(credits, classCredits, now = Date.now()) {
+  const accepted = classCredits && Array.isArray(classCredits.acceptedTypeIds)
+    ? classCredits.acceptedTypeIds.map(String) : [];
+  const required = classCredits && Number.isFinite(Number(classCredits.required)) && Number(classCredits.required) > 0
+    ? Number(classCredits.required) : 1;
+  let usable = 0;
+  for (const c of credits || []) {
+    if (!c || !(c.count > 0)) continue;
+    if (c.isGuestOnly === true) continue;
+    if (c.expiresAt && Date.parse(c.expiresAt) <= now) continue;
+    if (accepted.length > 0 && !(c.typeId != null && accepted.includes(String(c.typeId)))) continue;
+    usable += c.count;
+  }
+  return usable >= required;
+}
+
+// A paused monitor is re-checked no more often than this, whatever its interval
+// setting: an out-of-credits member isn't racing anyone for a seat.
+const PAUSED_RECHECK_MIN_INTERVAL = '15min';
+
+/**
+ * Re-check monitors paused for credits and put back the ones that can now pay.
+ *
+ * Per ROW and per gym: credits come from the row's own gym session, one read per
+ * user+gym per cycle (shared by all that user's paused monitors there). Never
+ * touches a gym under a C2-3 rate-limit backoff. A failed or unavailable read
+ * leaves the monitor paused — "not loaded" is not "has credits".
+ */
+async function resumePausedUpgrades() {
+  const paused = db.getPausedNoCreditsAutoUpgrades();
+  if (paused.length === 0) return;
+
+  const now = DateTime.now();
+  const creditReads = new Map(); // `${userId}:${gymId}` -> Promise<credits|null>
+
+  for (const upgrade of paused) {
+    try {
+      const { user_id: userId, gym_id: gymId } = upgrade;
+      const settings = db.getUserSettings(userId, gymId) || {};
+      if (settings.autoUpgradeEnabled === false) continue;
+
+      // Pausing only ever happens on a metered, non-atomic gym; if the gym has
+      // since changed, there is nothing credit-shaped to wait for.
+      const gym = getGymConfig(gymId);
+      if (gym && gym.capabilities && gym.capabilities.metered === false) {
+        db.updateAutoUpgrade(upgrade.id, userId, 'active', 'Gym no longer credit-metered. Monitoring resumed.', { lastCheckedAt: null });
+        continue;
+      }
+
+      // The window can close while a monitor sits paused. Mirror the active
+      // loop's limits so it neither resumes into a dead window nor lingers as
+      // "paused" forever.
+      const prefs = JSON.parse(upgrade.preferences) || {};
+      const classStart = DateTime.fromISO(upgrade.start_at, { zone: 'Europe/London' });
+      const hoursUntil = classStart.diff(now, 'hours').hours;
+      if (hoursUntil <= 1) {
+        db.updateAutoUpgrade(upgrade.id, userId, 'stopped', 'Class is within 1 hour — monitoring stopped.', { lastCheckedAt: now.toISO() });
+        continue;
+      }
+      const pastCutoff = classStart.diff(now, 'seconds').seconds <= 12 * 3600 + 5;
+      if (pastCutoff && !(prefs.keepOriginalOnCutoff && !prefs.cutoffAttempted)) {
+        db.updateAutoUpgrade(upgrade.id, userId, 'stopped', 'Stopped at 12h cutoff while paused for credits.', { lastCheckedAt: now.toISO() });
+        continue;
+      }
+
+      if (!shouldCheckUpgrade(upgrade, { autoUpgradeInterval: PAUSED_RECHECK_MIN_INTERVAL })) continue;
+      if (isGymRateLimited(gymId)) continue; // C2-3: don't add load to a throttled gym
+
+      const key = `${userId}:${gymId}`;
+      if (!creditReads.has(key)) {
+        creditReads.set(key, (async () => {
+          try {
+            const session = db.getUserSession(userId, gymId);
+            if (!session || !session.accessToken) return null;
+            return await getProvider(gymId).getCredits(session);
+          } catch (err) {
+            console.warn(`[Poller] Resume check: credits read failed for user ${userId} (${gymId}): ${err.message}`);
+            return null;
+          }
+        })());
+      }
+      const credits = await creditReads.get(key);
+      if (credits === null) continue; // unknown: leave paused, retry next cycle
+
+      // Accepted types/cost only when the event is already cached — no extra fetch.
+      const cached = getCachedEvent(gymId, String(upgrade.event_id));
+      if (hasUsableCredits(credits, cached && cached.event && cached.event.credits)) {
+        console.log(`[Poller] Auto-upgrade monitor ${upgrade.id} resumed for user ${userId}: credits available.`);
+        // lastCheckedAt null => due immediately, so the attempt runs this cycle.
+        db.updateAutoUpgrade(upgrade.id, userId, 'active', 'Credits available again. Monitoring resumed.', { lastCheckedAt: null });
+        pushService.sendNotification(userId, 'Upgrade Resumed ✅', `Credits are back — monitoring ${upgrade.class_name} for a better spot again.`);
+      } else {
+        db.updateAutoUpgrade(upgrade.id, userId, 'paused_no_credits', upgrade.status_message || 'No credits available to claim upgraded slot.', { lastCheckedAt: now.toISO() });
+      }
+    } catch (err) {
+      console.error(`[Poller] Resume check failed for upgrade ID ${upgrade.id}:`, err.message);
+    }
+  }
+}
+
 // Orchestrate all upgrades checks
 async function executeAutoUpgradeChecks() {
   claimedSlots.clear();
+  await resumePausedUpgrades();
   const active = db.getActiveAutoUpgrades();
   if (active.length === 0) return;
 
@@ -643,6 +768,7 @@ async function sendBookingWindowTip(userId, gymId) {
 }
 
 module.exports = {
+  hasUsableCredits,
   init() {
     console.log('[Poller] Auto-Upgrade Poller initialized.');
     // Liveness heartbeat for /api/health (seed now, refresh each cron tick).

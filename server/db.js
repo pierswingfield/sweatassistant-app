@@ -1284,6 +1284,12 @@ module.exports = {
   getActiveAutoUpgrades() {
     return db.prepare("SELECT * FROM auto_upgrades WHERE status = 'active'").all();
   },
+  // C5-1: monitors the poller paused because the balance was empty. Cross-user
+  // background scanner, so — like getActiveAutoUpgrades — it must NOT filter by
+  // gym; the caller routes per row via row.gym_id.
+  getPausedNoCreditsAutoUpgrades() {
+    return db.prepare("SELECT * FROM auto_upgrades WHERE status = 'paused_no_credits'").all();
+  },
   getUserAutoUpgrades(userId, gymId = undefined) {
     if (gymId === 'all') {
       return db.prepare('SELECT * FROM auto_upgrades WHERE user_id = ? ORDER BY id DESC').all(userId);

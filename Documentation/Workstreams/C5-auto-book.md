@@ -15,6 +15,26 @@ swap) is done and live-verified. These are the remaining gaps.
 
 ## Done when
 
-- [ ] C5-1 has a server test: pause, add credits, confirm the monitor resumes.
+- [x] C5-1 has a server test: pause, add credits, confirm the monitor resumes. (2026-09-28, `server/test-poller-resume.js`)
 - [ ] C5-2 is verified live: a favourite rule produces a real queued auto-book at the next
       release for each gym.
+
+## C5-1 — done 2026-09-28
+
+**Basis (verified before changing):** `server/poller.js` set `paused_no_credits` (pause site, `attemptUpgradeSlot`), `db.getActiveAutoUpgrades()` selects `status = 'active'` only, and nothing else ever moved the status back. New `server/test-poller-resume.js` failed on the pre-fix code at "monitor resumes once credits exist" (`actual 'paused_no_credits'`, expected `'active'`). Server-only item: no UI surface changed, so no browser check.
+
+**Root cause:** the poll loop only ever read `active` rows, so a pause was terminal.
+
+**Fix:**
+- `server/db.js` `getPausedNoCreditsAutoUpgrades()` (~L1290): cross-user scanner, deliberately not gym-filtered (returns `gym_id` per row).
+- `server/poller.js` `resumePausedUpgrades()` (~L418), called first in `executeAutoUpgradeChecks()` (~L493); pure `hasUsableCredits()` (~L390).
+
+**Design decisions:**
+- *Resume rule:* usable credits (not guest-only, not expired, and of an accepted type where the event is in the shared event cache) total at least `credits.required` (default 1). Absent requirement info falls back to cost 1 / any type, never "free". The event is NOT fetched just for this (no extra load); when uncached the check is permissive, and the same `hasUsableCredits` now also gates the pause site, so a monitor cannot flap pause/resume (the old pause check counted guest-only and wrong-type credits as "has credits").
+- *Per row, per gym:* credits are read with the row's own gym session (`getUserSession(userId, row.gym_id)`), one `provider.getCredits` per user+gym per cycle shared by all that user's paused monitors. Skipped entirely while `isGymRateLimited(gymId)` (C2-3). A failed or session-less read leaves the monitor paused ("not loaded" is not "has credits").
+- *Cadence:* paused monitors are re-checked at most every 15 min (jittered, via `shouldCheckUpgrade`) whatever the user's interval, since no one races for a seat while out of credits. A resumed row gets `last_checked_at = NULL` so its first attempt runs in the same cycle.
+- *Cutoffs:* a paused monitor never resumes into a dead window. Under 1h, or under 12h without an unspent `keepOriginalOnCutoff`, it is moved to `stopped` (as the active loop would) instead of lingering as "paused" forever. Under 12h with `keepOriginalOnCutoff` and no prior attempt it resumes so its one final attempt can run. `autoUpgradeEnabled === false` leaves it paused.
+- *Notification:* fits no existing type (`upgrade` means upgrade success), so it uses the same direct `pushService.sendNotification` the pause message uses ("Upgrade Resumed"). A dedicated preference-gated type is a possible follow-up.
+- *UI copy:* `autoupgrade.js` shows "Insufficient Credits" for `paused_no_credits`; accurate, left alone.
+
+**Tests:** `server/test-poller-resume.js` (10 cases: zero credits, guest-only, read failure, top-up resumes, C2-3 backoff, one read for three monitors, interval respected, cutoff/1h stop, keepOriginal final attempt, accepted-type awareness).

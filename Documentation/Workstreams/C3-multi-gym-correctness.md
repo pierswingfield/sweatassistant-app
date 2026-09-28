@@ -642,6 +642,8 @@ Triggered by two live bugs the user found on the dev twin. **Method:** Gemini 3.
 
 - [x] **C3-15** (+ **C3-26**) 2026-09-28. Basis, real Chrome 154 against the local mock (no reload): unlinking JAB left 32 JAB rows and 48 Psycle rows in the timetable grid. Fix: `client/src/ui/timetable.js` `resetTimetableForGymChange()` (clears `psycleUnifiedCache*:${userId}` and memory, refetches with `force`), a generation counter that discards an in-flight fetch for the old gym set, and a queued follow-up so an explicit refresh during `isPrefetching` is no longer dropped; `client/src/ui/settings.js` `syncAfterGymSetChange()` is called from the link, re-auth and both unlink paths and also drops the unscoped `/api/studio-preferences` cache entry (C3-26). After: link JAB gives JAB 32 and Psycle 48 rows with no reload, unlink gives Psycle 48 rows only and IndexedDB holds 148 Psycle events.
 
+- [x] **C3-29** 2026-09-28. Basis: `buildTitle` in `server/calendar.js` ended `... || 'Instructor'`, so any row with no instructor name rendered `with Instructor` (the placeholder is only in the title builder; `eventToCalendarShape` passes an empty string). Fix: `server/calendar.js` `instructorFirstName()` (empty or `Instructor`/`TBA`/`TBC`/`TBD` gives no clause) used by `buildTitle` and the description line. Test: `server/test-calendar-title.js` (both gyms, tentative prefix, no-location case).
+
 **Rejected on verification** (kept so nobody re-raises them):
 - `invalidateApiCache('/api/timetable')` wouldn't help, because the timetable uses its own unified key.
 - The `'psycle-london'` fallbacks at `api.js:255`, `main.js:527` and `autobook.js:293` are unreachable (409 `NO_GYM_LINKED`; `gym_id` is NOT NULL).

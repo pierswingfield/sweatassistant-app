@@ -363,9 +363,19 @@ const VTIMEZONE = [
   'END:VTIMEZONE',
 ];
 
+// C3-29: some classes have no instructor (JAB Recovery), and a gym may publish a
+// generic label instead of a name. Neither is a person, so neither belongs in
+// the title. Returns the first name, or '' when there is no real one.
+const PLACEHOLDER_INSTRUCTOR = /^(instructor|tba|tbc|tbd)$/i;
+function instructorFirstName(name) {
+  const full = String(name || '').trim();
+  if (!full || PLACEHOLDER_INSTRUCTOR.test(full)) return '';
+  return full.split(/\s+/)[0];
+}
+
 function buildTitle(row) {
   const discipline = titleCase(row.group_name) || 'Class';
-  const instructor = (row.instructor_name || '').split(' ')[0] || (row.instructor_name || 'Instructor');
+  const instructor = instructorFirstName(row.instructor_name);
   // The prefix is the row's OWN gym, read from gyms.config. It used to be the
   // literal "Psycle", which was invisible while the feed was single-gym and
   // wrong the moment it was not: a JAB class appeared in the calendar as
@@ -376,7 +386,7 @@ function buildTitle(row) {
   // Strip the gym's own name off the front of the location so the title doesn't
   // read "Psycle: Ride with Sinead, Psycle Oxford Circus".
   const location = stripGymPrefix(row.location_name || '', gym);
-  const core = `${gymName}: ${discipline} with ${instructor}${location ? `, ${location}` : ''}`;
+  const core = `${gymName}: ${discipline}${instructor ? ` with ${instructor}` : ''}${location ? `, ${location}` : ''}`;
   return row.status === 'confirmed' ? core : `[Tentative] ${core}`;
 }
 
@@ -431,7 +441,7 @@ function buildDescription(row) {
   if (spot) lines.push(spot);
   lines.push('');                       // blank line after status/spot, before class
   lines.push(`Class: ${classLine}`);
-  if (row.instructor_name) lines.push(`Instructor: ${row.instructor_name}`);
+  if (instructorFirstName(row.instructor_name)) lines.push(`Instructor: ${row.instructor_name}`);
   lines.push(`Studio: ${[row.studio_name, row.location_name].filter(Boolean).join(', ')}`);
   if (start.isValid) lines.push(`Starts: ${start.toFormat('ccc d LLL, HH:mm')} (${dur} min)`);
   lines.push('');                       // blank line before footer block
@@ -628,6 +638,7 @@ module.exports = {
   ensureToken,
   rotateToken,
   buildLinks,
+  buildTitle,
   regenerateSnapshot,
   pollAndPublishAll,
   refreshUser,

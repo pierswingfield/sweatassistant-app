@@ -143,19 +143,12 @@ export function trimLocation(name = '', gymName = '') {
   return n.replace(new RegExp(`^${esc}\\s*`, 'i'), '') || n;
 }
 
-// Strip a leading group/discipline prefix from a class name so we don't render
-// "RIDE: Signature 45" when the group tag already shows "Ride". Mirrors the
-// server-side cleanClassName() in calendar.js — case-insensitive, handles
-// ":", "-", and "–" separators with optional whitespace. Falls back to the
-// original name if trimming would leave an empty string.
+// U1-11: one rule for dropping the discipline prefix, not two. This used to be a
+// second regex here that disagreed with cleanClassName (it matched only the raw
+// discipline string, so JAB's "TRAIN - Upper (Focus)" survived in My Bookings).
+// Kept as an alias so existing imports keep working.
 export function stripClassNamePrefix(name = '', group = '') {
-  let n = String(name || '').trim();
-  n = n.replace(/^recovery(?:\s+2\.0)?\s*[:\-–]?\s*/i, '').trim();
-  if (group) {
-    const g = String(group).trim().replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-    n = n.replace(new RegExp(`^${g}\\s*[:\\-–]?\\s*`, 'i'), '').trim();
-  }
-  return n || String(name || '');
+  return cleanClassName(name, group) || String(name || '');
 }
 
 // Display-only alias for a studio's raw name — never touches the underlying
@@ -361,7 +354,16 @@ export function cleanClassName(name = '', discipline = '') {
   let n = String(name || '').trim();
   if (!n) return '';
 
-  const candidates = [discipline, 'recovery'].filter(Boolean).map(String);
+  // U1-11: what the row's pill says can differ from the raw `discipline` string.
+  // MarianaTek's `discipline` is `class_type.name`, which is usually the FULL
+  // class name ("TRAIN - Upper (Focus)"), so stripping only the raw discipline
+  // never matched (it would need a separator AFTER the whole name). The prefix
+  // to drop is the discipline's own head ("TRAIN") or the pill's label ("Train").
+  const disc = String(discipline || '').trim();
+  const head = disc.split(/\s*[:\-–]\s*/)[0].trim();
+  const label = disc ? getDiscipline(disc).label : '';
+  const candidates = [...new Set([disc, head, label, 'recovery'].filter(Boolean).map(String))]
+    .sort((a, b) => b.length - a.length); // longest prefix first
   for (const c of candidates) {
     const esc = c.trim().replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
     // Optional separator: colon, dash, en-dash, or plain whitespace.

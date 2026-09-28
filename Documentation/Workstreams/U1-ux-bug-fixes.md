@@ -18,7 +18,7 @@ Cheap, visible fixes. Run them alongside C3 so they share the same live re-test.
 | U1-8 | **1:1 gym logo chip on each per-gym Settings submenu item.** *2026-09-28, source: user dev-twin testing.* | ✅ Fixed 2026-09-28 | 1 h |
 | U1-9 | **"Last authenticated" always says "Not recorded".** README "Verified done" (QA-07) claims it works. *2026-09-28, source: user dev-twin testing.* | ✅ Fixed 2026-09-28 (write bug) | 1 h |
 | U1-10 | **Icons on Settings menu items** (SVG, not emoji). *2026-09-28, source: user dev-twin testing.* | ✅ Fixed 2026-09-28 | 1 h |
-| U1-11 | **Strip the discipline prefix from class names.** JAB's `TRAIN - Upper (Focus)` should display as `Upper (Focus)`, because the discipline pill already says TRAIN. `cleanClassName` doesn't handle the `DISCIPLINE - Name` pattern. Found by the user 2026-09-29. | `client/src/ui/cards.js cleanClassName` | 30 min |
+| U1-11 | **Strip the discipline prefix from class names.** JAB's `TRAIN - Upper (Focus)` should display as `Upper (Focus)`, because the discipline pill already says TRAIN. `cleanClassName` doesn't handle the `DISCIPLINE - Name` pattern. Found by the user 2026-09-29. ✅ **Fixed 2026-09-29** (see below). | `client/src/ui/cards.js cleanClassName` | 30 min |
 | U1-12 | **Overlap modal for Book and Quick-Book too**, not only Auto-Book. It must precede any other modal (spot picker, first-time setup). Found by the user 2026-09-29. | U1-6 `overlap-modal.js`; `timetable.js` book/quick-book | 2–3 h |
 | U1-13 | **Auto-Book card shows "Insufficient Credits" despite sufficient credits** (live, the user's configured Psycle auto-book; they can book another open class). Found by the user 2026-09-29. | `client/src/ui/autobook.js`, credit-allowance | 1–2 h |
 | U1-14 | **First-time spot-map setup intro, and allow occupied spots while setting up.** When Quick-Book or Auto-Book hits a studio with a gym-provided seat map but no saved preferred map, open an intro step first: header "First-time setup", subheader "Choose your preferred spots for [Gym] [Studio location] first.", and body "Once set up, <b>Quick-Book</b> and <b>Auto-Book</b> will always book the best possible spot for you." A Next button swaps in the map. In setup mode, occupied spots must be selectable: you're choosing preferences, not a bike for this class. Today it refuses with "⚠ This bike is occupied or unavailable." Found by the user 2026-09-29. | `timetable.js openBookingModal`/`quickBookClass`, `spotmap.js` | 2–3 h |
@@ -453,4 +453,19 @@ builders (shared with C3-29's rule).
 
 **Tests:** `client/src/ui/booking-notify.test.js` (Psycle raw-without-names shape, JAB shape, empty);
 `server/test-notification-text.js` (both gyms, no-instructor for every builder, no double space).
+
+## U1-11 — Discipline prefix on class names
+
+**Root cause (2026-09-29):** MarianaTek's `discipline` is `class_type.name` (`providers/marianatek.js:608`),
+which for JAB is the FULL class name ("TRAIN - Upper (Focus)"). `cleanClassName(name, discipline)` built its
+prefix regex from that whole string and required a separator after it, so it never matched. The pill
+shows "Train" because `getDiscipline()` maps the text to a label. The pre-fix vitest cases below fail
+against the old code (2 of 5). A second, weaker copy, `stripClassNamePrefix` (My Bookings), had the same hole,
+and Auto-Book/Auto-Upgrade cards printed the raw DB `class_name` with no cleaning at all.
+
+**Fix:** `client/src/ui/cards.js cleanClassName` (~L360) now tries the discipline, its head before a
+`:`/`-`/`–` separator, and the pill label (`getDiscipline(...).label`), longest first; only a prefix
+that IS the discipline is stripped, so "Upper - Lower Split" under TRAIN is untouched.
+`stripClassNamePrefix` delegates to it (one rule); `autobook.js` (queue + history cards) and
+`autoupgrade.js` use it too. **Tests:** `client/src/ui/cards.test.js` (JAB, Psycle, non-stripping, no-blank cases).
 

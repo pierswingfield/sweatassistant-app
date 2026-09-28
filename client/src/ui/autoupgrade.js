@@ -2,7 +2,7 @@ import { api } from '../api';
 import { getAvailableCreditsForEvent, getTotalCredits, getIneligibleReason } from './credit-allowance.js';
 import { showToast, cache, refreshUserData } from '../main';
 import { openUpgradeConfigModal } from './bookings';
-import { seatNoun, disciplineTag, renderGymRail, icon } from './cards';
+import { seatNoun, disciplineTag, renderGymRail, icon, cleanClassName } from './cards';
 import { renderCardSkeletons } from './loading-skeleton.js';
 import { instructorAvatar } from './tooltips.js';
 
@@ -107,7 +107,7 @@ function renderUpgradeList(upgrades, studioPrefs = {}) {
 
     // Format class name without group prefix
     const groupName = job.class_name?.split(':')?.[0]?.trim() || 'Class';
-    const classLabel = job.class_name?.includes(':') ? job.class_name.split(':')[1]?.trim() : job.class_name;
+    const classLabel = cleanClassName(job.class_name || '', job.group_name || groupName) || job.class_name;
 
     const seat = seatNoun(groupName);
     const seatCap = seat.charAt(0).toUpperCase() + seat.slice(1);

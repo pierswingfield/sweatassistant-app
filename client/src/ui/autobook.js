@@ -5,7 +5,7 @@ import { showToast, cache, userSettings, gymSetting, setGymSettingLocal, profile
 import { getClassReleaseTime } from '../lib';
 import { DateTime } from 'luxon';
 import { renderStudioFloorPlan } from './spotmap';
-import { icon, disciplineTag, trimLocation, seatNoun, pulseIcon, renderGymRail, equalizeDiscTagWidths, escapeHtml } from './cards';
+import { cleanClassName, icon, disciplineTag, trimLocation, seatNoun, pulseIcon, renderGymRail, equalizeDiscTagWidths, escapeHtml } from './cards';
 import { renderCardSkeletons } from './loading-skeleton.js';
 import { ensureLiveStatusLine, setLiveStatusText } from './status-line.js';
 import { instructorAvatar } from './tooltips.js';
@@ -389,7 +389,7 @@ function renderQueue(queue) {
 
     const prefs = q.preferences || {};
     const creditsNeeded = prefs.requiredCount || 1;
-    const className = q.class_name || q.group_name || 'Class';
+    const className = cleanClassName(q.class_name || '', q.group_name || '') || q.group_name || 'Class';
     // No fallback to a placeholder string — a recovery class genuinely has no
     // instructor, and the empty-string branch below omits the label entirely
     // rather than rendering a meaningless "TBA" (same fix as timetable's B6).
@@ -737,7 +737,7 @@ function renderHistoryPage() {
     else if (h.status === 'waitlist') { state = 'waitlist'; statusText = 'Waitlisted'; statusGlyph = 'clock'; }
     else                              { state = 'failed';   statusText = 'Failed';     statusGlyph = 'error'; }
 
-    const className = h.class_name || h.group_name || 'Class';
+    const className = cleanClassName(h.class_name || '', h.group_name || '') || h.group_name || 'Class';
     const details = [
       `${dateStr} · ${timeStr}`,
       h.instructor_name,

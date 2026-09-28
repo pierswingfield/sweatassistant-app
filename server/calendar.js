@@ -72,20 +72,29 @@ function buildLinks(token) {
   };
 }
 
-// ─── Location → address cache (server_kv, very long TTL) ──────────────────────
-function cachedLocationMap() {
-  const raw = db.getKV('locations_json');
+// ─── Location → address cache (server_kv, very long TTL, ONE ENTRY PER GYM) ────
+// C3-20: this was a single global `locations_json` entry. Gym A's refresh stamped
+// it, so gym B's refresh early-returned on the TTL and B's addresses never
+// reached the feed. Location names are gym-local too, so the entries must not be
+// merged into one map. A leftover global `locations_json` from the old build is
+// ignored (it cannot be attributed to a gym) and simply ages out unused.
+const locationsKey = (gymId) => `locations_json:${gymId}`;
+
+function cachedLocationMap(gymId) {
+  if (!gymId) return {};
+  const raw = db.getKV(locationsKey(gymId));
   if (raw) { try { return JSON.parse(raw).map || {}; } catch (_) {} }
   return {};
 }
 
 async function refreshLocationMap(userId, force = false, gymId = null) {
-  const raw = db.getKV('locations_json');
+  const gym = gymId || db.resolveActiveGymId(userId);
+  const raw = db.getKV(locationsKey(gym));
   if (!force && raw) {
     try { if (Date.now() - JSON.parse(raw).ts < LOCATIONS_TTL_MS) return; } catch (_) {}
   }
   try {
-    const res = await poller.fetchFromGym(userId, gymId || db.resolveActiveGymId(userId), '/locations');
+    const res = await poller.fetchFromGym(userId, gym, '/locations');
     if (!res.ok) return;
     const payload = await res.json();
     const list = payload.data || payload || [];
@@ -93,7 +102,7 @@ async function refreshLocationMap(userId, force = false, gymId = null) {
     for (const loc of (Array.isArray(list) ? list : [])) {
       if (loc.name) map[loc.name] = loc.address || '';
     }
-    db.setKV('locations_json', JSON.stringify({ ts: Date.now(), map }));
+    db.setKV(locationsKey(gym), JSON.stringify({ ts: Date.now(), map }));
   } catch (_) { /* keep whatever is cached */ }
 }
 
@@ -472,7 +481,8 @@ function buildVEvent(userId, row, addrMap, alarm) {
   const start = DateTime.fromISO(row.start_at, { zone: 'Europe/London' });
   if (!start.isValid) return [];
   const end = start.plus({ minutes: row.duration_min || DEFAULT_DURATION_MIN });
-  const address = row.location_address || addrMap[row.location_name] || '';
+  // addrMap is { [gymId]: { locationName: address } } (C3-20).
+  const address = row.location_address || ((addrMap[row.gym_id] || {})[row.location_name]) || '';
   const locField = [row.location_name, address].filter(Boolean).join(', ');
   const discipline = titleCase(row.group_name);
 
@@ -530,7 +540,7 @@ function regenerateSnapshot(userId) {
     // resolve to it. Reconciliation is also per gym: an unscoped reconcile
     // would see gym A's classes missing from gym B's live list and delete them.
     const gymIds = linkedGymIds(userId);
-    const addrMap = cachedLocationMap();
+    const addrMap = Object.fromEntries(gymIds.map((g) => [g, cachedLocationMap(g)]));
 
     for (const gymId of gymIds) {
       db.runWithGymContext(userId, gymId, () => {
@@ -650,6 +660,7 @@ module.exports = {
   refreshUser,
   scheduleRefresh,
   refreshLocationMap,
+  cachedLocationMap,
   // Exposed for direct testing of the WP-N3 adapter-routing swap (test-calendar-feed.js),
   // same rationale poller.js exports fetchCodexFit for calendar.js's own reuse.
   listWithRelogin,

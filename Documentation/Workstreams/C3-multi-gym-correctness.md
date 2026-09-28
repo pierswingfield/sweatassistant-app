@@ -652,6 +652,9 @@ Triggered by two live bugs the user found on the dev twin. **Method:** Gemini 3.
 
 - [x] **C3-19** 2026-09-28. Basis: `server/test-booking-success-gym.js` failed with `JAB booking must be titled JAB, got "Psycle: Spot Booked"` on a 2-gym account. Fix: `server/server.js` `/api/notify/booking-success` uses `req.body.gymId` (403 if not linked; ambient fallback only when a stale client sends none); all 4 client callers send it (`client/src/ui/bookings.js`, `client/src/ui/timetable.js` x3). Test green.
 
+- [x] **C3-20** 2026-09-28. Basis: `server/test-calendar-locations-per-gym.js` failed (gym B's `refreshLocationMap` early-returned on gym A's stamp; only `psycle-london` was fetched). Fix: `server/calendar.js` per-gym KV `locations_json:${gymId}`, `cachedLocationMap(gymId)`, and the ICS address lookup takes `{ [gymId]: map }` by the row's gym; the old global key is ignored (it cannot be attributed to a gym) and ages out unused. Test green.
+- [x] **C3-22** 2026-09-28. Basis: `server/test-calendar-regen-on-link.js` failed for both link and unlink (`generatedAt` unchanged). Fix: `server/routes-normalized.js` `refreshCalendarAfterGymSetChange()` (regenerate now plus `scheduleRefresh`, only when the calendar is enabled) called from the link and unlink routes. Test green.
+
 **Rejected on verification** (kept so nobody re-raises them):
 - `invalidateApiCache('/api/timetable')` wouldn't help, because the timetable uses its own unified key.
 - The `'psycle-london'` fallbacks at `api.js:255`, `main.js:527` and `autobook.js:293` are unreachable (409 `NO_GYM_LINKED`; `gym_id` is NOT NULL).

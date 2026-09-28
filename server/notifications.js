@@ -66,6 +66,14 @@ function firstName(fullName) {
   return first || 'your instructor';
 }
 
+// " with Aanya" or "" — U1-16. A missing instructor used to render the literal
+// "with your instructor" (firstName's fallback), which read as a bug for any
+// class whose payload carried no instructor. Omit the clause instead.
+function withInstructor(fullName) {
+  const first = String(fullName || '').trim().split(/\s+/)[0];
+  return first ? ` with ${first}` : '';
+}
+
 function groupToken(groupName, className) {
   const g = (groupName || '').trim();
   if (g) return g.toUpperCase();
@@ -116,13 +124,13 @@ function buildBooking(ctx) {
   const spotPart = spots ? ` - Spot ${spots}` : '';
   return {
     title: `${gym}: Spot Booked`,
-    body: `${formatDayTime(ctx.startAt)} ${groupToken(ctx.groupName, ctx.className)} with ${firstName(ctx.instructorName)}${spotPart}.`,
+    body: `${formatDayTime(ctx.startAt)} ${groupToken(ctx.groupName, ctx.className)}${withInstructor(ctx.instructorName)}${spotPart}.`,
   };
 }
 
 function buildUpgrade(ctx) {
   const gym = gymShortName(ctx.gymId);
-  let body = `You're now on Spot ${ctx.slot} for ${formatDayTime(ctx.startAt)} ${groupToken(ctx.groupName, ctx.className)} with ${firstName(ctx.instructorName)}.`;
+  let body = `You're now on Spot ${ctx.slot} for ${formatDayTime(ctx.startAt)} ${groupToken(ctx.groupName, ctx.className)}${withInstructor(ctx.instructorName)}.`;
   if (ctx.keptOriginal) {
     body += ` Your previous spot was not cancelled, speak to ${gym} to cancel without penalty.`;
   }
@@ -133,15 +141,15 @@ function buildCreditWarning(ctx) {
   const gym = gymShortName(ctx.gymId);
   const dt = formatDayTime(ctx.startAt);
   const grp = groupToken(ctx.groupName, ctx.className);
-  const who = firstName(ctx.instructorName);
+  const who = withInstructor(ctx.instructorName);
   let body;
   if (ctx.kind === 'autoupgrade') {
-    body = `Auto-Upgrade is enabled for ${dt} ${grp} with ${who}, but I need a spare credit to make the booking. Buy more credits.`;
+    body = `Auto-Upgrade is enabled for ${dt} ${grp}${who}, but I need a spare credit to make the booking. Buy more credits.`;
   } else {
     const spots = ctx.spots || 1;
     const Y = Math.max(1, ctx.creditsShort || 1);
     const spotsClause = spots > 1 ? `for ${spots} spots in` : 'for';
-    body = `Auto-Book was set up ${spotsClause} ${dt} ${grp} with ${who}, but you don't have enough credits. Buy ${Y} more credit${Y !== 1 ? 's' : ''}.`;
+    body = `Auto-Book was set up ${spotsClause} ${dt} ${grp}${who}, but you don't have enough credits. Buy ${Y} more credit${Y !== 1 ? 's' : ''}.`;
   }
   return { title: `${gym}: Credit Warning`, body };
 }
@@ -154,7 +162,7 @@ function buildCancellationReminder(ctx) {
   const spotPart = ctx.slot != null && ctx.slot !== '' ? ` (Spot ${ctx.slot})` : '';
   return {
     title: `Reminder: ${gym} Class`,
-    body: `You're booked for ${formatTime(ctx.startAt)} ${groupToken(ctx.groupName, ctx.className)} with ${firstName(ctx.instructorName)}${spotPart}. You have ${freeHours} hour${freeHours !== 1 ? 's' : ''} to cancel for free.`,
+    body: `You're booked for ${formatTime(ctx.startAt)} ${groupToken(ctx.groupName, ctx.className)}${withInstructor(ctx.instructorName)}${spotPart}. You have ${freeHours} hour${freeHours !== 1 ? 's' : ''} to cancel for free.`,
   };
 }
 
@@ -250,5 +258,6 @@ module.exports = {
   formatDayTime,
   formatTime,
   firstName,
+  withInstructor,
   groupToken,
 };

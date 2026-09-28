@@ -8,6 +8,7 @@ import { DateTime } from 'luxon';
 import { renderMinimap } from './tooltips.js';
 // === END MOBILE TIMETABLE BLOCK ===
 import { openDB, accountScopedKey } from '../cache.js';
+import { bookingNotifyPayload } from './booking-notify.js';
 import { disciplineTag, seatNoun, sparklesIcon, trendingUpIcon, icon, pulseIcon, trimLocation, displayStudioName, equalizeDiscTagWidths , gymChip , cleanClassName, getDiscipline } from './cards';
 import { openEditBookingModal } from './bookings';
 import { openStudioFloorPlanEditor } from './settings';
@@ -2350,12 +2351,7 @@ async function quickBookClass(eventId, prefs, btn, gymId = null) {
           return;
         }
         showToast('Quick-booked! 🎉', 'success');
-        api.notifyBookingSuccess({
-          source: 'quickbook', eventId, gymId,
-          className: eventData.name || '', groupName: eventData.discipline || '',
-          instructorName: eventData.instructors?.[0]?.name || '',
-          startAt: eventData.startAt, slots: [],
-        }).catch(() => {});
+        api.notifyBookingSuccess(bookingNotifyPayload(event, { source: 'quickbook', gymId, slots: [] })).catch(() => {});
         await refreshUserData(true);
         await refreshBookingState();
       } catch (err) {
@@ -2416,7 +2412,7 @@ async function quickBookClass(eventId, prefs, btn, gymId = null) {
     let lastBookedSlot = null;
     let lastBookingRes = null;
     const bookedSlotLabels = [];
-    const qbNoun = seatNoun(eventData.discipline);
+    const qbNoun = seatNoun(event.discipline || eventData.discipline);
     while (bookedCount < requiredCount && attemptIdx < slotsToTry.length) {
       const targetSlot = slotsToTry[attemptIdx];
       try {
@@ -2442,13 +2438,7 @@ async function quickBookClass(eventId, prefs, btn, gymId = null) {
     }
 
     if (bookedCount > 0) {
-      api.notifyBookingSuccess({
-        source: 'quickbook', eventId, gymId,
-        className: eventData.name || '',
-        groupName: eventData.discipline || '',
-        instructorName: eventData.instructors?.[0]?.name || '',
-        startAt: eventData.startAt, slots: bookedSlotLabels,
-      }).catch(() => {});
+      api.notifyBookingSuccess(bookingNotifyPayload(event, { source: 'quickbook', gymId, slots: bookedSlotLabels })).catch(() => {});
       // `event` (normalized), not `eventData` (== event.raw): tryAutoRegisterUpgrade
       // reads studioId/gymId, which only exist on the normalized shape. Passing the
       // raw provider object here made resolveStudioPrefs resolve to nothing, since

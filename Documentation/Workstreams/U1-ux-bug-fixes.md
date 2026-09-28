@@ -23,7 +23,7 @@ Cheap, visible fixes. Run them alongside C3 so they share the same live re-test.
 | U1-13 | **Auto-Book card shows "Insufficient Credits" despite sufficient credits** (live, the user's configured Psycle auto-book; they can book another open class). Found by the user 2026-09-29. | `client/src/ui/autobook.js`, credit-allowance | 1–2 h |
 | U1-14 | **First-time spot-map setup intro, and allow occupied spots while setting up.** When Quick-Book or Auto-Book hits a studio with a gym-provided seat map but no saved preferred map, open an intro step first: header "First-time setup", subheader "Choose your preferred spots for [Gym] [Studio location] first.", and body "Once set up, <b>Quick-Book</b> and <b>Auto-Book</b> will always book the best possible spot for you." A Next button swaps in the map. In setup mode, occupied spots must be selectable: you're choosing preferences, not a bike for this class. Today it refuses with "⚠ This bike is occupied or unavailable." Found by the user 2026-09-29. | `timetable.js openBookingModal`/`quickBookClass`, `spotmap.js` | 2–3 h |
 | U1-15 | **Timetable shows a class as booked for several seconds after cancelling it in My Bookings.** A booking/cancel mutation must invalidate the timetable's booking-state overlay so returning to the timetable reflects it immediately. Found by the user 2026-09-29. | `timetable.js` booking overlay/cache; `bookings.js` cancel | 1–2 h |
-| U1-16 | **Psycle push notifications read "CLASS with your instructor - Spot …".** The class name and instructor are missing for Psycle; JAB is fine. Probably a regression from C3-19 (the booking-success payload now carries gymId) or from the normalized field names. Found by the user 2026-09-29. | `server/notifications.js`; `client/src/api.js notifyBookingSuccess` callers | 1 h |
+| U1-16 | **Psycle push notifications read "CLASS with your instructor - Spot …".** The class name and instructor are missing for Psycle; JAB is fine. Probably a regression from C3-19 (the booking-success payload now carries gymId) or from the normalized field names. Found by the user 2026-09-29. ✅ **Fixed 2026-09-29** (see below). | `server/notifications.js`; `client/src/api.js notifyBookingSuccess` callers | 1 h |
 
 ## Dev-twin re-test (2026-09-27)
 
@@ -431,3 +431,26 @@ IndexedDB cache cleared first (session kept):
   next renewal) will populate it. The local end-to-end check (`after9-light-desktop-gyms.jpg`)
   shows `Today · 28 Sept 2026` for both gyms after a login.
 - **U1-6** not exercised live by design (no auto-books on the live twin); the user tests it.
+
+---
+
+## U1-16 — Psycle push reads "CLASS with your instructor - Spot …"
+
+**Root cause (2026-09-29, confirmed against the local mock):** `quickBookClass` built its
+`notifyBookingSuccess` payload from `eventData = event.raw`. For Psycle `.raw` is the CodexFit
+event; `GET /api/events/1000` (psycle-london) returns raw keys
+`capacity, duration, event_type, event_type_id, id, instructor, instructor_id, occupancy, start_at, studio, studio_id`, so
+`raw.name`, `raw.discipline`, `raw.instructors` and `raw.startAt` are all `undefined`. The server
+received no class, group, instructor or start time, and `groupToken`/`firstName` fell back to
+`CLASS` / `your instructor`. JAB's raw carries those names, which is why only Psycle broke. (The
+normalized event has them: `name: 'Ride 45', discipline: 'Ride', instructors: [{name: 'Adam'}]`.)
+
+**Fix:** new `client/src/ui/booking-notify.js` `bookingNotifyPayload(event, …)` reads the
+normalized event; both quick-book call sites in `timetable.js` (~L2354, ~L2441) use it, and the
+seat noun reads `event.discipline`. Server: `notifications.js withInstructor()` drops the
+"with …" clause when there is no instructor (no more "with your instructor"), used by all five
+builders (shared with C3-29's rule).
+
+**Tests:** `client/src/ui/booking-notify.test.js` (Psycle raw-without-names shape, JAB shape, empty);
+`server/test-notification-text.js` (both gyms, no-instructor for every builder, no double space).
+

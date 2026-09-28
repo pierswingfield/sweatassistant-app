@@ -13,5 +13,6 @@ is still valid as a design starting point.
 | F-4 | **MCP server** (stdio and SSE), so AI assistants can query the timetable and book. | C4 | [mcp-ai-server.md](../Archive/2026-09-26/Backlog/mcp-ai-server.md) | ~3–4 days |
 | F-5 | **MarianaTek credit purchase** for non-membership accounts, covering multi-studio chains. Open research: cart auth requirement, payment option shapes. [Q2, Q3, Q8] | C4 | [modular-gyms PROGRESS](../Archive/2026-09-26/Backlog/modular-gyms/PROGRESS.md) Q2/Q3/Q8 | research first |
 | F-6 | Monitor the MarianaTek refresh-token hard-expiry window in production. [Q1] | C4 | [LIVE_VERIFICATION_PLAYBOOK](../LIVE_VERIFICATION_PLAYBOOK.md) T1-1 | observe |
+| F-7 | **Gym config editor.** An admin UI to onboard a new gym on an already-supported backend (CodexFit, MarianaTek) without a code change: tenant URLs and ids, headers, capability flags, booking-window policy, timezone, and brand (logos including the 1:1 mark, colours, short name and aliases). Today every gym is a hand-edited `gyms.config.js` entry plus client brand assets in `cards.js`. It needs a persisted config store with validation, plus a live "test connection" check against the backend. Added 2026-09-29 at the user's request. | C4 | — | ~1 week |
 
 Postgres and per-user key derivation are listed in C7.

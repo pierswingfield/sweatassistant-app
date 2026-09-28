@@ -41,6 +41,7 @@ still open.
 |---|---|---|---|
 | [U1](U1-ux-bug-fixes.md) | UX bug fixes from QA | P1–P2 | ~1 day |
 | [U2](U2-components-accessibility.md) | Shared components and accessibility | P2 | ~2–3 days |
+| [U4](U4-ux-improvements.md) | UX improvements (user list 2026-09-29): mobile bookings, loading chips, rubber-band scroll, ∞ badge, progressive timetable load | P2 | ~4–5 days |
 | [U3](U3-css-design-debt.md) | CSS and design-system debt | P3 | ~1 week |
 
 ### Later
@@ -67,6 +68,8 @@ still open.
 8. **U2 Components and accessibility**, then **U3 CSS debt.** U3 waits until after launch because it
    touches every screen and would invalidate acceptance screenshots.
 9. **F Future features**, plus the rest of C7.
+
+Added 2026-09-29: **U4** UX improvements (after the current U1 batch, before U3), **U1-11..U1-16** (current to-do), and **F-7** gym config editor.
 
 Added 2026-09-27: **U2-5** (implement `TIMETABLE_FILTER_DESIGN_BRIEF.md`, after C4) and
 **U3-6** (sweep for leftover "Psycle" references in gym-agnostic code, done with U3-1).

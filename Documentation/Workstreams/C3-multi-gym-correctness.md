@@ -612,3 +612,38 @@ against the mock") is **not reproducible as specified** — both dev mock accoun
 other email routes to the real gym over the network, which this pass must not do
 (no-live-traffic rule). Verified at the adapter level instead (test above) as the strongest
 evidence available without violating that rule; logged here rather than silently skipped.
+
+## Gym-agnostic audit (2026-09-28)
+
+Triggered by two live bugs the user found on the dev twin. **Method:** Gemini 3.8 Flash (high effort) located candidates in 2 calls, over the client and server. A Sonnet agent then checked every claim against the code: 26 claims plus 7 extra findings, 9 rejected. Only the verified items are listed here. Line numbers are as of `ffacc17`.
+
+| # | Sev | Item | Evidence | Minimal fix |
+|---|---|---|---|---|
+| C3-14 | **H** | **Calendar settings toggle returns 500 "no gym specified" on 2-gym accounts** (live, C4-8). `POST /api/calendar/enable\|disable` do `getUserSettings()`, which is merged with the default gym's gym-scoped keys, then write the whole blob back with no gym. `setUserSettings` → `resolveGymStrict` throws. The client and the keys are fine: `calendar` is already account-scoped. | `server/server.js:704-708, 721-723`; `db.js:694-707, 1447-1453` | Write `{ calendar: cal }` only |
+| C3-15 | **H** | **Timetable stays stale after linking or unlinking a gym** (live, reopens C3-1). The link, re-auth and unlink handlers call `loadGymContext()` + `refreshUserData()` but never refetch the timetable. The in-memory `psycleEvents` and the IndexedDB `psycleUnifiedCacheEvents:${userId}` keep the old gym set. Not the server `schedule-cache`, which is user-agnostic. | `client/src/ui/settings.js:1273-1274, 1466-1467, 1545-1547`; `timetable.js:308-309, 322, 395` | `await prefetchTimetableData(true)` after `refreshUserData`; clear or overwrite the unified cache first (unlink otherwise repaints the removed gym from cache); make sure an in-flight `isPrefetching` guard doesn't drop the call |
+| C3-16 | M | `POST /api/config/import` writes the merged blob with no gym, so it gets the same 500 on 2 gyms, and on 1 gym it writes one gym's keys into whichever gym resolves. Export emits the merged blob. | `server/server.js:787, 836` | Export account keys plus a per-gym block; import with an explicit `gymId` per block |
+| C3-17 | M | `refreshUserData` fetches profile, credits and eligibility with **no gym**, so `cache.profile/credits/eligibility` hold the default gym's data. The bookmark reads and `syncDetectedBookingWindow(profile)` run off it. | `client/src/main.js:918-965`; `timetable.js:1009, 2212`; `autobook.js:231` | Fan out per gym, or stop treating these as global |
+| C3-18 | M | In-memory gym settings are mirrored by **position** (`linked[0]`), but `/api/my-gyms` sorts `gym_id ASC`, so `linked[0]` is jab-boxing while the server default is psycle-london. The comment claims they agree; they don't. | `client/src/ui/settings.js:1380, 1421-1425`; `db.js:717-729, 1893` | Key in-memory gym settings by `gymId`, or refetch `getSettings(gymId)` after a save |
+| C3-19 | M | `POST /api/notify/booking-success` uses `resolveActiveGymId`, and none of the 4 client callers pass a gym, so a manual JAB booking gets a push titled "Psycle". | `server/server.js:341`; `client/src/api.js:950` | Send `gymId` from the client; server uses `req.body.gymId` |
+| C3-20 | M | `calendar.js` keeps one global `locations_json` KV plus TTL. Gym A's refresh makes gym B's early-return, so gym B's addresses are missing from the feed until the TTL lapses. | `server/calendar.js:70-88` | Key per gym: `locations_json:${gymId}` |
+| C3-21 | M | `studioLayoutCache` is keyed by bare `studioId`. A studio id that collides across gyms makes a class with fewer slots render the other gym's floor plan. | `client/src/ui/timetable.js:2443, 2493-2497` | Key `${gymId}:${studioId}` |
+| C3-22 | M | Link and unlink don't regenerate the calendar snapshot, so the `.ics` keeps an unlinked gym's classes (or lacks a new gym's) until the 3-hourly cron. | `server/routes-normalized.js:214-236`; `db.js:2015` | `calendar.regenerateSnapshot` + `scheduleRefresh` on link and unlink |
+| C3-23 | L | The poller's `claimKey` has no gymId (`${eventId}:${slot}`); the scheduler already uses `${gymId}:…` (WP-G). | `server/poller.js:246` | Add gymId |
+| C3-24 | L | Dead gym-scoping: `cache.js activeGymSegment()` reads `sweatActiveGymId`, which nothing writes (`api.js:26` removes it). So `gymScopedKey()` returns the bare key, and `settings.js` reads the legacy `psycleCacheEvents/Meta` and `psycleActiveStudioIds` keys that nothing writes anymore (always a miss, so the Spot Maps active-studio filter never applies). No live collision. | `client/src/cache.js:30-34, 72`; `settings.js:617-618, 634, 702-703` | Delete `activeGymSegment`/`gymScopedKey`; repoint those reads at the unified `accountScopedKey` keys |
+| C3-25 | L | `/api/bundles` is cached under a bare `userId:/api/bundles` (gym only in the header). A landmine for a second creditPurchase gym. | `client/src/api.js:188` | Put the gym in the cache key |
+| C3-26 | L | The unscoped studio-preferences cache entry can serve stale data for 5 min after going from 2 gyms to 1. | `client/src/api.js:855-858` | Invalidate on link and unlink |
+| C3-27 | L | The debug modal's "Open native booking page" hardcodes `psyclelondon.com`. | `client/src/ui/timetable.js:3698` | Build from the gym's `websiteUrl`, or hide it |
+| C3-28 | L | `resolveContext` falls back to the ambient default when there's no `x-gym-id`. The client names the gym today. | `server/routes-normalized.js:85` | 400 for multi-gym accounts with no header (`resolveGymStrict` style) |
+
+**Rejected on verification** (kept so nobody re-raises them):
+- `invalidateApiCache('/api/timetable')` wouldn't help, because the timetable uses its own unified key.
+- The `'psycle-london'` fallbacks at `api.js:255`, `main.js:527` and `autobook.js:293` are unreachable (409 `NO_GYM_LINKED`; `gym_id` is NOT NULL).
+- The credits favourites `[792]` are gated to creditPurchase gyms.
+- `scheduleCache` invalidation on link is unnecessary (its key is user-agnostic).
+- `getUserAutoUpgradesByEvent` runs inside `runWithGymContext`.
+- The unscoped `GET /api/studio-preferences` is used only with ≤1 gym.
+- Admin `gymGet` has had `?gymId=` since C3-8.
+- `resolvePersistedGymId` is the intended cron fallback.
+- `buildSample` is test-push text only.
+- `bookmarksGymId()` is fine while only Psycle has bookmarks.
+- The `gymBrand` `includes('jab')` is intentional client-side brand assets.

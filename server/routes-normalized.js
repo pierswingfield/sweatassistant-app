@@ -216,6 +216,20 @@ router.get('/my-gyms', authenticateToken, readLimiter, (req, res) => {
   }
 });
 
+// C3-22: the calendar feed spans every linked gym, so changing that set changes
+// the feed. Republish now (an unlinked gym's classes must leave the .ics at once,
+// not at the next 3-hourly cron) and schedule a refresh so a newly linked gym's
+// bookings are pulled in. Only for accounts that actually use the feed; never
+// allowed to fail the link/unlink itself.
+function refreshCalendarAfterGymSetChange(userId) {
+  try {
+    const cal = (db.getUserSettings(userId) || {}).calendar || {};
+    if (!cal.enabled) return;
+    calendar.regenerateSnapshot(userId);
+    calendar.scheduleRefresh(userId, 2000);
+  } catch (_) { /* best effort */ }
+}
+
 // POST /api/my-gyms/link  { gymId, email, password }
 // Link a new gym, or re-authenticate one whose stored password has gone stale.
 // Same endpoint for both — see auth.linkGymAccount.
@@ -223,6 +237,7 @@ router.post('/my-gyms/link', authenticateToken, async (req, res) => {
   const { gymId, email, password } = req.body || {};
   try {
     const link = await auth.linkGymAccount(req.userId, gymId, email, password);
+    refreshCalendarAfterGymSetChange(req.userId);
     res.json({ gym: link, gyms: db.getUserGymsPublic(req.userId) });
   } catch (err) {
     // A rejected gym credential is the user's problem to fix, not a server fault.
@@ -233,7 +248,9 @@ router.post('/my-gyms/link', authenticateToken, async (req, res) => {
 // DELETE /api/my-gyms/:gymId — unlink. The account survives (Decision D4).
 router.delete('/my-gyms/:gymId', authenticateToken, (req, res) => {
   try {
-    res.json({ gyms: auth.unlinkGymAccount(req.userId, req.params.gymId) });
+    const gyms = auth.unlinkGymAccount(req.userId, req.params.gymId);
+    refreshCalendarAfterGymSetChange(req.userId);
+    res.json({ gyms });
   } catch (err) {
     res.status(400).json({ message: err.message });
   }

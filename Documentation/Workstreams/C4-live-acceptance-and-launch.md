@@ -169,6 +169,40 @@ reopened on the last route.
 | C4-13 | Deploy `modular` to `psycle-app` with **JAB disabled** (`JAB_BOXING_ENABLED` unset). Prod users should see no functional change apart from the new UI. Clear all three client caches when verifying (SW, IndexedDB, hard reload). |
 | C4-14 | Soak for a few days, covering at least one Psycle Monday release with real auto-books. |
 
+**Prod deploy (C4-13) on hold by user decision 2026-09-28; testing continues on dev.**
+
+### C4-12 result (2026-09-28): PASS
+
+Dry-run of the `modular` migrations (HEAD `00d16f2`, freshly built dev image) against a **copy** of prod's snapshot `psycle-20260928-214808.db.gz` (integrity_check ok). Prod was never written to, restarted or deployed to; the copy and all secrets were destroyed afterwards.
+
+| Table | Before (prod copy) | After migration |
+|---|---|---|
+| `users` | 3 | 3 |
+| `auto_bookings` | 30 (29 success, 1 failed, **0 pending**) | 30 |
+| `auto_upgrades` | 22 (21 stopped, 1 paused_no_credits, 0 active) | 22 |
+| `studio_preferences` | 10 | 10 |
+| `settings` | 3 | 3 (all `gym_id = psycle-london`) |
+| `push_subscriptions` | 1 | 1 |
+| `booking_cache` | 29 | 29 |
+| `waitlist_cache` | 0 | 0 |
+| `calendar_classes` | 45 | 45 |
+| `calendar_snapshots` | 3 | 3 |
+| `sent_notifications` | 23 | 23 |
+| `server_kv` | 9 | 9 |
+| `gyms` (new) | absent | 2 (`psycle-london` enabled, `jab-boxing` disabled) |
+| `user_gyms` (new) | absent | 3, one `psycle-london` row per user |
+| `account_settings` (new) | absent | 3 |
+
+Checks: every row id in the 8 gym-scoped/per-user tables preserved (no loss); `gym_id` populated, zero NULL or empty, on all 7 gym-scoped tables (all `psycle-london`); `user_gyms.gym_email = users.email` for 3/3, none NULL; `user_gyms` carries the password, session and priority, and `calendar_token` values are byte-identical to the originals on `users` and `user_gyms`; the calendar setting folded to account scope (`account_settings` calendar present for users 2 and 6, the two who had it enabled; 0 remaining in per-gym `settings`); `PRAGMA integrity_check` ok; `/api/health` 200; **prod's real `ENCRYPTION_KEY` decrypts all 3 `users` and all 3 `user_gyms` credentials** (server-side script, true/false only). New `users.password_hash` is NULL for all 3 as designed (silent migration seeds it at each user's next login).
+
+Nothing failed. Nothing needs fixing before C4-13. Observations: `users` keeps the vestigial dual-written `encrypted_password`/`calendar_token`; JAB stays disabled (`enabled=0`) with the env flag unset, as C4-13 requires.
+
+**How dispatch and pushes were prevented:** the throwaway container ran with `--network none` from the start (no published ports, no gateway; health probed via `docker exec` on loopback), because the server has no env flag to disable the scheduler/poller/calendar. So it could not reach any gym API or push service. In addition the copy held **0 pending auto-bookings** and 0 active auto-upgrades, and the scheduler logged "No pending auto-booking has a future release — idling". Container, temp env file (shredded) and scratch copy (shredded, removed) were destroyed.
+
+### Dev twin redeployed 2026-09-28
+
+Dev (`psycle-app-dev`) rebuilt at HEAD `00d16f2` with the new `deploy.sh` (C7-8) — first-ever run against oracle, worked as intended (`--print` targeted only `~/services/psycleapp-dev/`). Pre-deploy snapshots `psycle-20260928-214808.db.gz` (prod and dev), rollback image tagged `psycleapp-dev-psycle-app:rollback-20260928`. Verified: health 200, clean logs, C6-4 columns added to `user_gyms` (`relogin_failures`, `relogin_rejections`, `relogin_suspended`, `last_relogin_failure_at`, `last_relogin_error`, plus `gym_email`, `last_authenticated_at`), `invalidateProfile`, `rate-limit-backoff.js` and the `role="status"`/`aria-live="polite"` status-line code present. Live re-check in real Chrome after clearing SW, CacheStorage and IndexedDB: Psycle credit badge shows (1 Universal credit per `/api/credits`), timetable loads (153 rows), one client `/api/profile` per load, zero 429s over a tab sweep, `/admin` shows no relogin pills. The status line itself could not be seen live: the test account has no pending queue card, and it only renders on an SSE event (would need a write). Prod untouched.
+
 ## Stage C — Enable JAB
 
 | # | Step |

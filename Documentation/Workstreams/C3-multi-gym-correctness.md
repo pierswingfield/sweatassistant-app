@@ -636,6 +636,10 @@ Triggered by two live bugs the user found on the dev twin. **Method:** Gemini 3.
 | C3-28 | L | `resolveContext` falls back to the ambient default when there's no `x-gym-id`. The client names the gym today. | `server/routes-normalized.js:85` | 400 for multi-gym accounts with no header (`resolveGymStrict` style) |
 | C3-29 | L | **Calendar titles name a placeholder instructor.** Classes with no instructor (e.g. JAB Recovery) appear as `JAB: Recovery (Members) with Instructor, SW1`. Drop the "with …" clause whenever there's no real instructor name (missing, empty, or a generic placeholder like "Instructor"). Check the normalized `instructors[]` for these classes. Found by the user on the dev twin, 2026-09-28. | `server/calendar.js` (SUMMARY builder) | Omit the instructor segment when absent or placeholder; test both gyms |
 
+**Fix log (2026-09-28).** Each row verified first (failing test or browser check), then fixed.
+
+- [x] **C3-14** 2026-09-28. Basis: `server/test-calendar-settings-multigym.js` failed with `500 setUserSettings: no gym specified for an account linked to 2 gyms` once the default gym had a gym-scoped key. Fix: `server/server.js` `/api/calendar/enable` and `/disable` write `{ calendar }` only. Test now green.
+
 **Rejected on verification** (kept so nobody re-raises them):
 - `invalidateApiCache('/api/timetable')` wouldn't help, because the timetable uses its own unified key.
 - The `'psycle-london'` fallbacks at `api.js:255`, `main.js:527` and `autobook.js:293` are unreachable (409 `NO_GYM_LINKED`; `gym_id` is NOT NULL).

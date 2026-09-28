@@ -720,11 +720,13 @@ app.get('/api/calendar/status', authenticateToken, (req, res) => {
 app.post('/api/calendar/enable', authenticateToken, (req, res) => {
   try {
     const token = calendar.ensureToken(req.userId);
-    const settings = db.getUserSettings(req.userId) || {};
-    settings.calendar = { ...(settings.calendar || {}), enabled: true };
-    if (typeof req.body?.includeTentative === 'boolean') settings.calendar.includeTentative = req.body.includeTentative;
-    if (typeof req.body?.alarm === 'string') settings.calendar.alarm = req.body.alarm;
-    db.setUserSettings(req.userId, settings);
+    // C3-14: patch ONLY the account-scoped `calendar` key. Writing back the whole
+    // merged blob dragged the default gym's gym-scoped keys along, which a
+    // multi-gym account rightly refuses to place.
+    const cal = { ...((db.getUserSettings(req.userId) || {}).calendar || {}), enabled: true };
+    if (typeof req.body?.includeTentative === 'boolean') cal.includeTentative = req.body.includeTentative;
+    if (typeof req.body?.alarm === 'string') cal.alarm = req.body.alarm;
+    db.setUserSettings(req.userId, { calendar: cal });
     calendar.regenerateSnapshot(req.userId);
     // Warm the location-address cache + pull fresh bookings/waitlists shortly after,
     // so the feed gains addresses and the latest classes without waiting for the cycle.
@@ -737,9 +739,8 @@ app.post('/api/calendar/enable', authenticateToken, (req, res) => {
 
 app.post('/api/calendar/disable', authenticateToken, (req, res) => {
   try {
-    const settings = db.getUserSettings(req.userId) || {};
-    settings.calendar = { ...(settings.calendar || {}), enabled: false };
-    db.setUserSettings(req.userId, settings);
+    const cal = { ...((db.getUserSettings(req.userId) || {}).calendar || {}), enabled: false };
+    db.setUserSettings(req.userId, { calendar: cal });
     // Revoke the token so the public URL stops working (device subscription goes stale).
     db.setCalendarToken(req.userId, null);
     res.json({ success: true });

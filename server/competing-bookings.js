@@ -41,6 +41,11 @@ const DEFAULT_ZONE = 'Europe/London';
  * @property {string} startAt
  * @property {number=} durationMin
  * @property {string=} className
+ * @property {string=} groupName        discipline, for display
+ * @property {string=} instructorName
+ * @property {string=} instructorImageUrl
+ * @property {string=} locationName
+ * @property {string=} studioName
  */
 
 function intervalOf(item, zoneOf) {
@@ -82,9 +87,19 @@ function detectCompetingBookings(subject, queued = [], booked = [], opts = {}) {
     const iv = intervalOf(other, opts.zoneOf);
     return !!(subjectIv && iv && subjectIv.start < iv.end && iv.start < subjectIv.end);
   };
+  // What a UI needs to draw the OTHER class without a second lookup (U1-6: the
+  // overlap confirmation shows it as a card). Everything past the first line is
+  // display-only, optional, and null when the source row never captured it —
+  // booking_cache, for one, has no instructor photo.
   const ref = (other, source) => ({
     source, id: other.id ?? null, gymId: other.gymId, eventId: String(other.eventId),
     className: other.className || null, startAt: other.startAt,
+    durationMin: Number(other.durationMin) > 0 ? Number(other.durationMin) : null,
+    groupName: other.groupName || null,
+    instructorName: other.instructorName || null,
+    instructorImageUrl: other.instructorImageUrl || null,
+    locationName: other.locationName || null,
+    studioName: other.studioName || null,
   });
 
   for (const q of queued) {

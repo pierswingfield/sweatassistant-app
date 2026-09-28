@@ -726,7 +726,16 @@ export const api = {
     const body = await res.json().catch(() => ({}));
     // Throw on a refusal (409 duplicate, 429 quota, ...): callers used to announce
     // "Successfully scheduled" over any JSON body, whatever the status (C5-3).
-    if (!res.ok) throw new Error(body.message || `Could not schedule auto-book (${res.status})`);
+    if (!res.ok) {
+      const err = new Error(body.message || `Could not schedule auto-book (${res.status})`);
+      // Structured, so a caller can branch on the refusal without parsing prose:
+      // 'OVERLAP_CONFIRM_REQUIRED' (nothing was queued; resubmit with
+      // `confirmOverlap: true` after showing `warnings`), 'DUPLICATE_AUTO_BOOK'.
+      err.status = res.status;
+      err.code = body.code || null;
+      err.warnings = Array.isArray(body.warnings) ? body.warnings : [];
+      throw err;
+    }
     return body;
   },
 

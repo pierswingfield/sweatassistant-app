@@ -13,7 +13,7 @@ Cheap, visible fixes. Run them alongside C3 so they share the same live re-test.
 | U1-3 | **Debug terminal toggles live.** | ✅ Fixed 2026-09-27; re-confirmed live on dev twin 2026-09-27 | 15 min |
 | U1-4 | **Recover-screen copy.** | ✅ Already done (C1-4) — verified 2026-09-27; re-confirmed live on dev twin 2026-09-27 | 15 min |
 | U1-5 | **Toast dismiss button.** | ✅ Fixed 2026-09-27; re-confirmed live on dev twin 2026-09-27 | 1 h |
-| U1-6 | **Auto-book overlap confirmation modal.** Overlap only produced a fleeting toast (C5-3). *2026-09-28, source: user dev-twin testing.* | Open | 1 d |
+| U1-6 | **Auto-book overlap confirmation modal.** Overlap only produced a fleeting toast (C5-3, `c3b4d08`). *2026-09-28, source: user dev-twin testing.* | ✅ Fixed 2026-09-28; live dev-twin test is the user's | 1 d |
 | U1-7 | **Settings → Your Gyms renders incrementally and sometimes duplicates.** *2026-09-28, source: user dev-twin testing.* | ✅ Fixed 2026-09-28 | 2 h |
 | U1-8 | **1:1 gym logo chip on each per-gym Settings submenu item.** *2026-09-28, source: user dev-twin testing.* | ✅ Fixed 2026-09-28 | 1 h |
 | U1-9 | **"Last authenticated" always says "Not recorded".** README "Verified done" (QA-07) claims it works. *2026-09-28, source: user dev-twin testing.* | ✅ Fixed 2026-09-28 (write bug) | 1 h |
@@ -314,3 +314,93 @@ icon entries align. Reconciled with U1-7: the mark is only rebuilt if the gym id
 **After (browser, local mock):** `after810-*-{desktop,mobile}-menu.jpg` show both gyms with their
 plate in light and dark, desktop sidebar and 402pt mobile list. Test:
 `client/src/ui/gym-mark.test.js`.
+
+### U1-6 — Auto-book overlap confirmation modal
+
+**Basis (2026-09-28, code + browser).** `saveAutoBookPreferences()` (`client/src/ui/timetable.js`)
+called `api.addAutoBooking()`, which inserted the row first; the server then returned
+`warnings[]` and the client fired one `showToast(w.message, 'warning')` per warning. Reproduced
+in the local mock (real Chrome, CDP): queue Psycle #1225 (Barre Express, Fri 9 Oct 13:15), then
+Auto-Book JAB #9113 (TRAIN, same time) from the timetable: the client showed
+"Successfully scheduled auto-book for TRAIN - Full Body Conditioning!" and then an amber
+toast "Overlaps another queued class: Barre Express 30 at Psycle, Fri 9 Oct 13:15.", which
+auto-hides after 3.5 s; both rows were already in the queue (`[[jab 9113,[OVERLAP_QUEUED]],
+[psycle 1225,[OVERLAP_QUEUED]]]`). So the member is told after the fact, briefly, with no way to
+back out.
+
+**Design choice: (a), a server-enforced confirm flag, not client-side detection.**
+- `POST /api/auto-book` runs the existing detector (`server/competing-bookings.js`, still the
+  single source of truth for the overlap rule). If the class overlaps a queued class or a booking
+  (any gym) and the body lacks `confirmOverlap: true`, it answers **409
+  `OVERLAP_CONFIRM_REQUIRED`** with `warnings[]` and **inserts nothing** and does not re-arm the
+  scheduler. Resubmitting the same body with `confirmOverlap: true` queues it as before, warnings
+  included.
+- An **exact duplicate stays a hard 409 `DUPLICATE_AUTO_BOOK`**, checked first, and cannot be
+  overridden by the flag. The client shows its message ("This class is already in your
+  auto-book queue.") in an error toast, which is now sticky until dismissed (U1-5).
+- Why not a separate dry-run endpoint: it is two requests that can disagree (queue changes
+  between check and commit) and a second contract to keep in step; the flag makes the one POST
+  self-checking and is race-free (check and insert are the same synchronous handler).
+- Why not (b): a client-side overlap check would need the queue, the bookings and each gym's
+  timezone rules (CodexFit serves naive datetimes) on the client, a second copy of the rule.
+  The client only renders what the server reports.
+- Each warning's `with` reference now carries display fields (`groupName`, `instructorName`,
+  `instructorImageUrl`, `locationName`, `studioName`, `durationMin`) so the modal can draw the
+  other class from the server's own row, no extra lookup; null where the source never had it
+  (`booking_cache` stores no instructor photo, so a booked clash falls back to the by-name lookup
+  in `instructorAvatar`).
+- Contract change: any other caller of `POST /api/auto-book` must send `confirmOverlap: true` to
+  queue an overlap. The only client caller is `saveAutoBookPreferences`; the only test caller is
+  `test-competing-bookings.js`, updated. A stale cached client (old service-worker bundle) would
+  get the 409 and show its message in an error toast rather than silently queueing.
+
+**Client:** `client/src/ui/overlap-modal.js` (`confirmOverlap()` -> `Promise<boolean>`).
+- Shell: the shared `.psycle-modal` / overlay / card / header / body pattern of every dialog in
+  `index.html`, built on demand; U2-1's shared modal component was **not** built.
+- Content: a short warning line (from the warning codes), the new class and the clashing
+  class(es) as **stacked cards using the Auto-Book queue card** (`psycle-autobook-card ab-card`:
+  `renderGymRail` logo + location, `disciplineTag`, `cleanClassName`, `instructorAvatar` photo
+  + name, `escapeHtml` on every interpolated string). At most 3 clashes are shown, then "and N
+  more". Actions: **Auto-book anyway** / **Cancel**.
+- Accessibility: `role="dialog" aria-modal="true"` with `aria-labelledby`/`aria-describedby`;
+  focus moves in on open, onto Cancel (the safe choice); Tab wraps at both ends; Esc, Cancel,
+  the close button and the backdrop all cancel; the Esc handler is capture-phase and stops
+  propagation so it cannot also close the config modal underneath; focus returns to the trigger
+  on close; only one dialog at a time (a double-tap shares the open one).
+- `saveAutoBookPreferences`: on 409 `OVERLAP_CONFIRM_REQUIRED`, await the modal; **Cancel leaves
+  the config modal open and nothing queued**; **Auto-book anyway** resubmits with
+  `confirmOverlap: true` and then does the normal success path. The per-warning toasts are gone.
+  `api.addAutoBooking` now throws an `Error` carrying `.status`, `.code`, `.warnings`.
+- CSS: `.psycle-overlap-*` in `styles.css` next to `.ab-clash-warning`. The card composites
+  `--surface` over `--bg` because `--surface` is translucent in the dark theme and this dialog
+  opens on top of another modal (the first dark screenshot showed the spot map bleeding through).
+
+**Mock support (documented as asked):** the JAB mock had no unreleased class, so JAB Auto-Book
+was unreachable in dev (the Psycle mock already has them past its 7-day cutoff). `server/mock-
+marianatek.js`: days 11-13 of the 14-day schedule now publish
+`booking_start_datetime = start - 10 days` (MarianaTek's rolling-continuous shape), so they show
+Auto-Book. Days 0-10 stay open on purpose: `test-background-gym-session.js` books #9100 (day 10).
+On day 11 the JAB and Psycle mocks both run 12:15, 17:30 and 18:30 classes, which is what the
+overlap scenario uses.
+
+**Tests:**
+- `server/test-competing-bookings.js` (updated): unconfirmed overlap -> 409 `OVERLAP_CONFIRM_REQUIRED`
+  and the queue is unchanged; `warnings[].with` exposes the display fields, including the stored
+  instructor/photo/location; `confirmOverlap: true` queues it with the warning; the flag cannot
+  override a duplicate; the JAB mock's rolling window.
+- `client/src/ui/overlap-modal.test.js` (vitest/jsdom): warning-code copy, the shared card markup,
+  HTML escaping, dialog roles, focus in/out, confirm/cancel/close/backdrop, Esc not reaching the
+  layer beneath, Tab wrapping, one-at-a-time.
+
+**Browser evidence (real Chrome, CDP, local mock):**
+- Before: `before6-light-desktop-page.jpg` (success toast + sticky-less warning toast; both rows queued).
+- After (`after6-{light,dark}-{desktop,mobile}-modal.jpg`, mobile = 402pt; `after6img-*` shows the
+  instructor photo path): clicking Auto-Book on JAB #9113 opens the modal with the JAB card over
+  the Psycle "In your queue" card; the queue still holds only the Psycle entry.
+  Driven end to end: Esc closes only this modal (config modal stays open) and focus returns to
+  "Schedule Auto-Book"; Cancel and backdrop likewise leave the queue at 1; Auto-book anyway closes
+  both modals and the queue holds both rows (each flagged `OVERLAP_QUEUED`); an exact duplicate
+  is a 409 `DUPLICATE_AUTO_BOOK` with no modal.
+- Method note: Chrome gives a background tab no trusted key events (`visibilityState:
+  hidden`), so Esc and Tab-wrapping were driven with synthetic `KeyboardEvent`s, which exercise
+  the modal's own handlers but not the browser's default Tab order (covered by the jsdom test).

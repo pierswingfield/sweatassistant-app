@@ -7336,6 +7336,37 @@ html, body {
 }
 .ab-clash-warning svg { flex-shrink: 0; margin-top: 1px; }
 
+/* U1-6: overlap confirmation. The shell is the shared .psycle-modal card; the
+   class cards inside are the ordinary Auto-Book queue card (see overlap-modal.js).
+   Sits above the auto-book config modal it is opened from (same z-index, later in
+   the DOM). */
+.psycle-overlap-modal .psycle-modal-card {
+  width: 460px;
+  /* --surface is translucent in the dark theme (glass over a blurred page). This
+     dialog opens ON TOP of another modal, so composite it over the page colour to
+     keep the text behind from bleeding through. Identical in light, where it is opaque. */
+  background: linear-gradient(var(--surface), var(--surface)), var(--bg);
+}
+.psycle-overlap-modal .psycle-modal-body { gap: 14px; }
+.psycle-overlap-modal .ab-credit-warning.ab-clash-warning { align-self: stretch; margin-top: 0; }
+.psycle-overlap-group { display: flex; flex-direction: column; gap: 6px; }
+.psycle-overlap-label {
+  margin: 0;
+  font-size: var(--text-xs);
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--text-tertiary);
+}
+.psycle-overlap-stack { display: flex; flex-direction: column; gap: 8px; }
+.psycle-overlap-more { margin: 0; font-size: var(--text-xs); color: var(--text-tertiary); }
+.psycle-overlap-actions { display: flex; justify-content: flex-end; gap: 10px; padding-top: 2px; }
+.psycle-overlap-actions .psycle-btn { min-height: 44px; padding-left: 18px; padding-right: 18px; }
+@media (max-width: 480px) {
+  .psycle-overlap-actions { flex-direction: column-reverse; }
+  .psycle-overlap-actions .psycle-btn { width: 100%; }
+}
+
 /* action rail */
 .ab-card-rail {
   width: 64px;

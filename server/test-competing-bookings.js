@@ -39,6 +39,14 @@ function unit() {
   assert.match(w[0].message, /Psycle/, 'message names the other gym');
   console.log('✅ Overlap detected in one gym and across gyms.');
 
+  // The reference carries display fields for a confirmation UI (U1-6), null when absent.
+  const rich = detectCompetingBookings(at('2026-10-05T18:30:00.000Z', 'jab-boxing', 77), [{ ...A, groupName: 'RIDE', instructorName: 'Ana', instructorImageUrl: 'u', locationName: 'Soho', studioName: 'Ride Studio' }], [], opts);
+  assert.deepStrictEqual(
+    (({ groupName, instructorName, instructorImageUrl, locationName, studioName, durationMin }) => ({ groupName, instructorName, instructorImageUrl, locationName, studioName, durationMin }))(rich[0].with),
+    { groupName: 'RIDE', instructorName: 'Ana', instructorImageUrl: 'u', locationName: 'Soho', studioName: 'Ride Studio', durationMin: 45 });
+  assert.strictEqual(w[0].with.instructorImageUrl, null, 'absent display fields are null, not undefined');
+  console.log('✅ Warning references carry display fields (null when the source never had them).');
+
   // Back-to-back and clear gaps are not overlaps; duration matters.
   w = detectCompetingBookings(at('2026-10-05T18:45:00.000Z', 'jab-boxing', 3), [A], [], opts);
   assert.deepStrictEqual(w, [], 'starts exactly when the other ends: no overlap');
@@ -123,6 +131,22 @@ async function http() {
   const add = (body) => post('/api/auto-book', { studioId: null, className: 'Class', instructorName: '', studioName: '', locationName: '',
     preferences: { preferredSlots: [], preferredRows: [], requiredCount: 1 }, skipImmediate: true, ...body }, token);
 
+  // The JAB mock models a rolling window (days 11-13 unreleased) so JAB's Auto-Book
+  // path is reachable in dev; days 0-10 stay open for the suites that book them.
+  {
+    const from = new Date().toISOString().slice(0, 10);
+    const to = new Date(Date.now() + 15 * 864e5).toISOString().slice(0, 10);
+    const res = await fetch(`${BASE}/api/timetable?startDate=${from}&endDate=${to}`, { headers: { authorization: `Bearer ${token}`, 'x-gym-id': 'jab-boxing' } });
+    const ev = await res.json();
+    const list = ev.events || ev;
+    const future = list.filter(e => e.releaseAt && Date.parse(e.releaseAt) > Date.now());
+    assert.ok(future.length > 0, 'JAB mock has unreleased classes');
+    assert.ok(future.every(e => Date.parse(e.startAt) - Date.parse(e.releaseAt) === 10 * 864e5), 'each opens exactly 10 days before it starts');
+    const day10 = list.find(e => String(e.id) === '9100');
+    assert.ok(day10 && Date.parse(day10.releaseAt) <= Date.now(), 'day-10 class 9100 stays released');
+    console.log(`✅ JAB mock: ${future.length} unreleased classes (rolling 10-day window); day 0-10 classes stay open.`);
+  }
+
   // First entry: clean.
   let r = await add({ eventId: 1000, gymId: 'psycle-london', startAt: t(0), durationMin: 45 });
   let b = await json(r);
@@ -137,15 +161,55 @@ async function http() {
   assert.strictEqual((await json(await get('/api/auto-book', token))).length, 1, 'duplicate was not inserted');
   console.log('✅ Exact duplicate is rejected with 409 DUPLICATE_AUTO_BOOK.');
 
-  // Cross-gym overlap: accepted (200) WITH a warning, not blocked.
-  r = await add({ eventId: 9000, gymId: 'jab-boxing', startAt: t(20), durationMin: 45 });
+  // Cross-gym overlap WITHOUT confirmation (U1-6): refused with 409
+  // OVERLAP_CONFIRM_REQUIRED and NOTHING inserted — the client shows the clash first.
+  const overlapBody = { eventId: 9000, gymId: 'jab-boxing', startAt: t(20), durationMin: 45,
+    className: 'Boxing Core', groupName: 'BOXING', instructorName: 'Sam', instructorImageUrl: 'https://img.example/sam.jpg',
+    locationName: 'Shoreditch', studioName: 'Boxing Studio' };
+  r = await add(overlapBody);
   b = await json(r);
-  assert.strictEqual(r.status, 200, 'overlap must not block the queue');
+  assert.strictEqual(r.status, 409, 'an unconfirmed overlap must not be committed');
+  assert.strictEqual(b.code, 'OVERLAP_CONFIRM_REQUIRED');
+  assert.strictEqual(b.warnings.length, 1);
+  assert.strictEqual(b.warnings[0].code, 'OVERLAP_QUEUED');
+  assert.strictEqual(b.warnings[0].crossGym, true);
+  assert.match(b.message, /Overlaps another queued class/);
+  assert.strictEqual((await json(await get('/api/auto-book?gymId=all', token))).length, 1, 'nothing was inserted');
+  console.log('✅ Unconfirmed overlap is refused with 409 OVERLAP_CONFIRM_REQUIRED; nothing inserted.');
+
+  // The warning carries what a UI needs to draw the OTHER class (its own row's data).
+  const ref = b.warnings[0].with;
+  assert.strictEqual(ref.gymId, 'psycle-london');
+  assert.strictEqual(ref.source, 'queue');
+  for (const k of ['className', 'startAt', 'durationMin', 'groupName', 'instructorName', 'instructorImageUrl', 'locationName', 'studioName']) {
+    assert.ok(k in ref, `warning.with exposes ${k}`);
+  }
+  console.log('✅ The clashing class is described in warnings[].with (display fields present).');
+
+  // Confirmed: accepted (200) WITH the warning, exactly as before C5-3's follow-up.
+  r = await add({ ...overlapBody, confirmOverlap: true });
+  b = await json(r);
+  assert.strictEqual(r.status, 200, 'a confirmed overlap is queued');
   assert.strictEqual(b.warnings.length, 1);
   assert.strictEqual(b.warnings[0].code, 'OVERLAP_QUEUED');
   assert.strictEqual(b.warnings[0].crossGym, true);
   const secondId = b.id;
-  console.log('✅ Cross-gym overlap is accepted with an OVERLAP_QUEUED warning.');
+  console.log('✅ With confirmOverlap:true the overlap is queued, with the OVERLAP_QUEUED warning.');
+
+  // A duplicate is never confirmable: still a hard 409, flag or not.
+  r = await add({ eventId: 1000, gymId: 'psycle-london', startAt: t(0), durationMin: 45, confirmOverlap: true });
+  b = await json(r);
+  assert.strictEqual(r.status, 409); assert.strictEqual(b.code, 'DUPLICATE_AUTO_BOOK');
+  console.log('✅ confirmOverlap cannot override an exact duplicate.');
+
+  // The display fields persisted on the queue row come back on the OTHER side's warning.
+  let listNow = await json(await get('/api/auto-book', token));
+  const firstRow = listNow.find(x => x.id === firstId);
+  const jabRef = firstRow.warnings[0].with;
+  assert.strictEqual(jabRef.instructorName, 'Sam');
+  assert.strictEqual(jabRef.instructorImageUrl, 'https://img.example/sam.jpg');
+  assert.strictEqual(jabRef.locationName, 'Shoreditch');
+  console.log('✅ Stored instructor/photo/location travel on the clash reference.');
 
   // GET annotates both halves, and a per-gym filter still sees the cross-gym clash.
   let list = await json(await get('/api/auto-book', token));

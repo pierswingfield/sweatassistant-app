@@ -12,6 +12,7 @@ import { disciplineTag, seatNoun, sparklesIcon, trendingUpIcon, icon, pulseIcon,
 import { openEditBookingModal } from './bookings';
 import { openStudioFloorPlanEditor } from './settings';
 import { renderTimetableSkeleton } from './loading-skeleton.js';
+import { confirmOverlap } from './overlap-modal.js';
 import { redactSensitivePayload } from '../redact.js';
 
 async function cacheSet(key, value) {
@@ -3408,7 +3409,7 @@ async function saveAutoBookPreferences(c, slots, rows, qty, bookAny, callback, s
     const availForAB = getAvailableCreditsForEvent(c);
     const creditShortfall = Number.isFinite(availForAB) ? Math.max(0, qty - availForAB) : 0;
 
-    const abResult = await api.addAutoBooking({
+    const autoBookBody = {
       eventId: c.id,
       durationMin: c.durationMin || null,
       // Without this the server falls back to db.resolveActiveGymId(userId) —
@@ -3437,11 +3438,35 @@ async function saveAutoBookPreferences(c, slots, rows, qty, bookAny, callback, s
         bookAny,
         autoUpgrade
       }
-    });
+    };
+
+    // U1-6: the server refuses an overlapping auto-book (409 OVERLAP_CONFIRM_REQUIRED,
+    // nothing inserted) until the member has seen what it clashes with. Show it as
+    // a confirmation; only "Auto-book anyway" resubmits with confirmOverlap. Backing
+    // out leaves the config modal open and nothing queued. (An exact duplicate is a
+    // different, unconfirmable 409 and falls through to the error toast below.)
+    try {
+      await api.addAutoBooking(autoBookBody);
+    } catch (err) {
+      if (err.code !== 'OVERLAP_CONFIRM_REQUIRED') throw err;
+      const confirmed = await confirmOverlap({
+        subject: {
+          gymId: c.gymId || null,
+          startAt: c.startAt,
+          className: strippedClassName,
+          groupName,
+          instructorName: instructor.full_name || instructor.name || '',
+          instructorImageUrl,
+          studioName: studio.name,
+          locationName: location.name,
+        },
+        warnings: err.warnings,
+      });
+      if (!confirmed) return;
+      await api.addAutoBooking({ ...autoBookBody, confirmOverlap: true });
+    }
 
     showToast(`Successfully scheduled auto-book for ${strippedClassName}!`, 'success');
-    // C5-3: queued, but it fights something else this member has. Warn, don't block.
-    for (const w of (abResult && abResult.warnings) || []) showToast(w.message, 'warning');
     callback();
     renderTimetableGrid();
   } catch (err) {

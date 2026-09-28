@@ -379,12 +379,16 @@ function competingContextFor(userId) {
     queued: db.getPendingAutoBookingsAllGyms(userId).map(r => ({
       id: r.id, gymId: r.gym_id, eventId: r.event_id, startAt: r.start_at,
       durationMin: r.duration_min, className: r.class_name,
+      groupName: r.group_name, instructorName: r.instructor_name,
+      instructorImageUrl: r.instructor_image_url, locationName: r.location_name, studioName: r.studio_name,
     })),
     // booking_cache is client/poller-synced, so it can lag the gym slightly:
     // fine for a warning, which is all it feeds.
     booked: db.getBookingCacheAllGyms(userId).map(r => ({
       gymId: r.gym_id, eventId: r.event_id, startAt: r.start_at,
       durationMin: r.duration_min, className: r.class_name,
+      groupName: r.group_name, instructorName: r.instructor_name,
+      locationName: r.location_name, studioName: r.studio_name,
     })),
     opts: {
       zoneOf: (g) => getGymConfig(g)?.timezone,
@@ -414,7 +418,7 @@ app.get('/api/auto-book', authenticateToken, (req, res) => {
 });
 
 app.post('/api/auto-book', authenticateToken, bookingMutationLimiter, (req, res) => {
-  const { eventId, studioId, className, instructorName, instructorImageUrl, studioName, locationName, startAt, preferences, skipImmediate, groupName, creditShortfall, releaseAt, durationMin, gymId: reqGymId } = req.body;
+  const { eventId, studioId, className, instructorName, instructorImageUrl, studioName, locationName, startAt, preferences, skipImmediate, groupName, creditShortfall, releaseAt, durationMin, confirmOverlap, gymId: reqGymId } = req.body;
   if (!eventId || !preferences) {
     return res.status(400).json({ message: 'eventId and preferences are required' });
   }
@@ -437,6 +441,21 @@ app.post('/api/auto-book', authenticateToken, bookingMutationLimiter, (req, res)
     const dup = warnings.find(w => w.code === 'DUPLICATE_QUEUED');
     if (dup) {
       return res.status(409).json({ code: 'DUPLICATE_AUTO_BOOK', message: dup.message, warnings });
+    }
+    // U1-6: overlaps are still allowed, but only once the member has SEEN them.
+    // Without `confirmOverlap: true` the request is refused with 409
+    // OVERLAP_CONFIRM_REQUIRED and NOTHING is inserted — no row to delete if they
+    // back out, no scheduler re-arm, no queue churn — and the client shows the
+    // clashing classes and resubmits the same body with the flag. The rule itself
+    // stays here (competing-bookings.js); the client never re-derives an overlap.
+    if (warnings.length > 0 && confirmOverlap !== true) {
+      return res.status(409).json({
+        code: 'OVERLAP_CONFIRM_REQUIRED',
+        message: warnings.length === 1
+          ? warnings[0].message
+          : `This class clashes with ${warnings.length} other classes you have queued or booked.`,
+        warnings,
+      });
     }
 
     // Capture the class's own release instant when the gym publishes one (WP-D8).

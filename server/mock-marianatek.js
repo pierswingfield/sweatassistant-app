@@ -97,9 +97,20 @@ function bookedSpotsFor(classId) {
   return bookedSpotsByClass.get(classId);
 }
 
-// Generate a rolling 14-day mock schedule — always freshly bookable
-// (booking_start_datetime in the past) so dev mode never hits the
-// "class isn't released yet" case, mirroring mock.js's CodexFit classes.
+// Generate a rolling 14-day mock schedule.
+//
+// Days 0-10 are always freshly bookable (booking_start_datetime in the past), so
+// dev mode and the suites never hit a "class isn't released yet" case for the
+// classes they reach for (test-background-gym-session books 9100 = day 10).
+//
+// Days 11-13 model a rolling-continuous window (MarianaTek's real shape, see
+// gyms.config.js jab-boxing.bookingWindow): a class opens exactly
+// MOCK_ADVANCE_DAYS before it starts, so on those days it is still UNRELEASED —
+// which is what makes JAB's Auto-Book path (and the cross-gym overlap
+// confirmation, U1-6) exercisable against the mock at all. Before this, every JAB
+// mock class was already open, so a JAB class could never be auto-booked in dev.
+const MOCK_ADVANCE_DAYS = 10;
+const FIRST_UNRELEASED_DAY = 11;
 function generateClasses() {
   const classes = [];
   const now = new Date();
@@ -107,10 +118,13 @@ function generateClasses() {
     const day = new Date(now.getTime() + i * 864e5);
     const iso = day.toISOString().split('T')[0];
     const dow = day.getDay();
-    const bookingStart = new Date(now.getTime() - 864e5).toISOString();
     const template = (dow === 0 || dow === 6) ? WEEKEND_SCHEDULE : WEEKDAY_SCHEDULE;
 
     template.forEach(([time, classType, room, layoutFormat], slotIdx) => {
+      const startMs = Date.parse(`${iso}T${time}:00Z`);
+      const bookingStart = i >= FIRST_UNRELEASED_DAY
+        ? new Date(startMs - MOCK_ADVANCE_DAYS * 864e5).toISOString()
+        : new Date(now.getTime() - 864e5).toISOString();
       // Ids stay stable per (day, slot) across reloads — a queued auto-book
       // pointing at a class that no longer exists is not a state worth testing.
       classes.push(mockClass(`${9000 + i * 10 + slotIdx}`, classType, iso, `${time}:00`, room, layoutFormat, bookingStart, i * 7 + slotIdx));

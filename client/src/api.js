@@ -909,8 +909,10 @@ export const api = {
       method: 'POST',
       body: JSON.stringify(configData)
     });
-    if (res.ok) invalidateApiCache('').catch(() => {});
-    return res.json();
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok) throw new Error(data.message || `Import failed (${res.status})`);
+    invalidateApiCache('').catch(() => {});
+    return data;
   },
 
   // Web Push Notifications

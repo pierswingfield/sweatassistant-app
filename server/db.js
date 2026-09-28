@@ -1429,6 +1429,18 @@ module.exports = {
     if (!acct && !gym) return null;
     return { ...parseJsonOr(acct && acct.preferences, {}), ...parseJsonOr(gym && gym.preferences, {}) };
   },
+  // Export halves (C3-16): the account-scoped keys, and ONE gym's keys. Kept
+  // separate because a backup that flattened them could not say which gym a
+  // gym-scoped key belonged to, and restoring it then had to guess.
+  getAccountSettings(userId) {
+    const row = db.prepare('SELECT preferences FROM account_settings WHERE user_id = ?').get(userId);
+    return parseJsonOr(row && row.preferences, {});
+  },
+  getGymSettings(userId, gymId) {
+    const row = db.prepare('SELECT preferences FROM settings WHERE user_id = ? AND gym_id = ?').get(userId, gymId);
+    return parseJsonOr(row && row.preferences, {});
+  },
+  splitSettingsByScope,
   /**
    * MERGE a patch of settings — only the keys the caller actually changed.
    *

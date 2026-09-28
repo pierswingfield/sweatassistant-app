@@ -1986,8 +1986,10 @@ function setupSettingsListeners() {
           const config = JSON.parse(event.target.result);
           
           showToast('Importing configuration...', 'info');
-          await api.importConfig(config);
+          const result = await api.importConfig(config);
           showToast('Config imported successfully! Reloading data...', 'success');
+          // Anything not restored (an unlinked gym, or an old backup with no gym on its per-gym keys).
+          (result?.skipped || []).forEach((m) => showToast(m, 'warning'));
           
           // Clear file input
           importFileInput.value = '';
@@ -1995,7 +1997,7 @@ function setupSettingsListeners() {
           // Reload settings and update UI
           setTimeout(() => {
             window.location.reload();
-          }, 1200);
+          }, (result?.skipped || []).length ? 6000 : 1200);
 
         } catch (err) {
           showToast(`Import failed: Invalid JSON or format. ${err.message}`, 'error');

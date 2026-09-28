@@ -106,7 +106,8 @@ async function run() {
   log('✅ Server booted (dev mock backend, RATE_LIMIT_TEST_FORCE=1).');
 
   const token = await login();
-  const authed = () => ({ headers: { authorization: `Bearer ${token}` } });
+  // (C3-28) two-gym dev account: name the gym, or the route answers 400.
+  const authed = () => ({ headers: { authorization: `Bearer ${token}`, 'x-gym-id': 'psycle-london' } });
   log('✅ Logged in as dev@psycle.com.');
 
   // --- 1. The general read budget trips at 429 once exceeded -----------------
@@ -146,7 +147,7 @@ async function run() {
   child.stderr.on('data', (d) => process.stderr.write(`[server:err] ${d}`));
   await waitForServer();
   const token2 = await login();
-  const authed2 = () => ({ headers: { authorization: `Bearer ${token2}` } });
+  const authed2 = () => ({ headers: { authorization: `Bearer ${token2}`, 'x-gym-id': 'psycle-london' } });
 
   {
     let firstTripAt = null;
@@ -166,7 +167,7 @@ async function run() {
   child.stderr.on('data', (d) => process.stderr.write(`[server:err] ${d}`));
   await waitForServer();
   const token3 = await login();
-  const authed3 = () => ({ headers: { authorization: `Bearer ${token3}` } });
+  const authed3 = () => ({ headers: { authorization: `Bearer ${token3}`, 'x-gym-id': 'psycle-london' } });
 
   {
     let sawNon200 = false;

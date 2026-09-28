@@ -2046,6 +2046,9 @@ module.exports = {
   // seam as everything else in db.js, rather than hardcoding DEFAULT_GYM_ID a
   // second time.
   resolveActiveGymId,
+  // Explicit gym, else request gym, else the sole linked gym; throws for a multi-gym
+  // account that names none. Exported for routes-normalized (C3-28).
+  resolveGymStrict,
   // Establish the per-request active gym (see the note on resolveActiveGymId).
   // The caller must have verified the link first — auth.js's middleware does.
   runWithGymContext,

@@ -82,7 +82,18 @@ function resolveContext(userId) {
     err.code = 'NO_GYM_LINKED';
     throw err;
   }
-  const gymId = db.resolveActiveGymId(userId);
+  // C3-28: there is no ambient gym. With several linked, a request that names none
+  // (no `x-gym-id`) used to fall back to whichever gym the server defaults to and
+  // answer for it; now it is a 400, so a forgotten header is an error rather than
+  // a plausible answer about the wrong gym. One linked gym is unambiguous.
+  let gymId;
+  try {
+    gymId = db.resolveGymStrict(userId, null, 'gym-scoped route');
+  } catch (e) {
+    e.status = 400;
+    e.code = 'GYM_REQUIRED';
+    throw e;
+  }
   const provider = getProvider(gymId);
   const user = db.getUserById(userId);
   if (!user || !user.jwt) {
@@ -190,7 +201,7 @@ const refreshLimiter = rateLimit({
 // client gym picker (Phase 5). No auth required — mirrors /api/config.
 router.get('/gyms', (req, res) => {
   const gyms = listGyms().map((g) => ({
-    id: g.id, name: g.name, shortName: g.shortName, websiteUrl: g.websiteUrl,
+    id: g.id, name: g.name, shortName: g.shortName, websiteUrl: g.websiteUrl, classPageUrl: g.classPageUrl || null,
     provider: g.provider, enabled: g.enabled,
     theme: g.theme, labels: g.labels, capabilities: g.capabilities,
     // Per-gym notification DEFAULTS, so the settings UI can show the state a

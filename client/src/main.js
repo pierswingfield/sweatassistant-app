@@ -607,7 +607,7 @@ function renderGymBadge(container, gymId, shortName, isMetered, total, credits) 
   if (isMetered) {
     badge.innerHTML = `<span class="psycle-hgb-name">${shortName}</span><span class="psycle-hgb-pill">${total} cr</span>`;
     badge.title = `${shortName}: ${total} credit${total !== 1 ? 's' : ''} available`;
-    badge.onclick = () => { if (total > 0) showCreditDetailsModal(credits); };
+    badge.onclick = () => { if (total > 0) showCreditDetailsModal(credits, gymId); };
   } else if (canBookAtAll(gymId)) {
     // "Active" alone reads as "this is the currently-selected gym" rather than
     // "your membership is active" — found ambiguous 2026-09-02, back when the
@@ -694,7 +694,7 @@ function repaintTimetableIfVisible() {
 
 // --- CREDIT DETAILS MODAL ---
 
-async function showCreditDetailsModal(credits) {
+async function showCreditDetailsModal(credits, gymId = null) {
   const modal = document.createElement('div');
   modal.style.cssText = `
     position: fixed;
@@ -734,7 +734,9 @@ async function showCreditDetailsModal(credits) {
     // expiresAt }`. It used to reach through `profile.raw.relations.credit_types`
     // for type names — a bag CodexFit does not put on the profile — default it
     // to `{}`, then call `.find()` on that object, which threw on open.
-    const creditsData = await api.getNormalizedCredits();
+    // C3-28: name the gym of the badge that was clicked. This asked with no gym, so
+    // on a two-gym account every badge showed whichever gym the server defaults to.
+    const creditsData = await api.getNormalizedCredits(gymId);
 
     content.innerHTML = `<h2 style="margin-top: 0; color: var(--feat-autoupgrade); font-size: 18px;">Credit Details</h2>`;
 

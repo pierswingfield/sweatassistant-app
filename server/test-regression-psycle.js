@@ -113,7 +113,9 @@ async function run() {
     log('✅ POST /api/auth/login (dev mock) issues a local JWT.');
   }
 
-  const authed = (extra = {}) => ({ ...extra, headers: { authorization: `Bearer ${token}`, ...(extra.headers || {}) } });
+  // The dev account is linked to two gyms, and (C3-28) a gym-scoped route on a
+  // multi-gym account needs its gym named — so this suite's Psycle checks say so.
+  const authed = (extra = {}) => ({ ...extra, headers: { authorization: `Bearer ${token}`, 'x-gym-id': 'psycle-london', ...(extra.headers || {}) } });
 
   // --- 2b. Signup + recovery over real HTTP (Decision D4) ---------------------
   {

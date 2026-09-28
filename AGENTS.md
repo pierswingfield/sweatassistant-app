@@ -71,7 +71,7 @@ App/
 │   ├── schedule-cache.js    # ★ Shared user-agnostic provider cache (SWR + single-flight)
 │   ├── rate-limit-backoff.js # ★ Per-gym provider 429 backoff, shared by scheduler.js AND poller.js (C2-3/C2-3b)
 │   ├── run-tests.js         # Test runner — discovers server/test-*.js by filename
-│   └── test-*.js            # 47 suites; see Documentation/TESTING.md
+│   └── test-*.js            # 48 suites; see Documentation/TESTING.md
 ├── client/                  # Vite PWA frontend
 │   ├── index.html           # SPA shell with 5 tab panels + modals + iOS bottom nav
 │   ├── src/
@@ -125,7 +125,7 @@ npm run dev:client           # Start Vite dev server only (port 5173, proxies /a
 npm run build:client         # Production build of client
 npm start                    # Production start (server serves built client)
 
-npm test                     # EVERYTHING: 47 server suites + the client Vitest suite
+npm test                     # EVERYTHING: 48 server suites + the client Vitest suite
 npm run test:server          # Server only
 npm run test:client          # Client only (vitest)
 ```

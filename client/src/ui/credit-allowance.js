@@ -151,5 +151,8 @@ export function getTotalCredits(gymId) {
   const inventory = creditsFor(gymId);
   // Not loaded yet is not "zero" — see creditsFor.
   if (inventory == null) return Infinity;
-  return inventory.reduce((sum, c) => sum + (Number(c.count) || 0), 0);
+  // Guest-only credits book a GUEST in, not the member — same rule as
+  // getAvailableCreditsForEvent, so a balance of only guest credits can't hide
+  // "Insufficient Credits" (and holding one never reads as 'no credits' either way).
+  return inventory.reduce((sum, c) => sum + (c.isGuestOnly === true ? 0 : (Number(c.count) || 0)), 0);
 }

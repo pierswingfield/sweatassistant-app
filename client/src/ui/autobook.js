@@ -45,6 +45,15 @@ export async function initAutoBook() {
   countdownInterval = setInterval(updateCountdowns, 1000);
 }
 
+// U1-13: re-render the queue/history from the data already loaded, when the
+// per-gym credit or eligibility answer arrives after the first paint. No fetch.
+export function repaintAutoBookFromCache() {
+  const cached = cache.autoBookings;
+  if (!Array.isArray(cached)) return;
+  renderQueue(cached.filter(x => !x.executed_at));
+  renderHistory(cached.filter(x => x.executed_at));
+}
+
 // Pull-to-refresh action for the Auto-Book tab — dispatched by the shared
 // pull-to-refresh handler in main.js (attached to <main class="psycle-body">).
 export async function refreshAutoBookTab() {

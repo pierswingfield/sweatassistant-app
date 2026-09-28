@@ -20,7 +20,7 @@ Cheap, visible fixes. Run them alongside C3 so they share the same live re-test.
 | U1-10 | **Icons on Settings menu items** (SVG, not emoji). *2026-09-28, source: user dev-twin testing.* | ✅ Fixed 2026-09-28 | 1 h |
 | U1-11 | **Strip the discipline prefix from class names.** JAB's `TRAIN - Upper (Focus)` should display as `Upper (Focus)`, because the discipline pill already says TRAIN. `cleanClassName` doesn't handle the `DISCIPLINE - Name` pattern. Found by the user 2026-09-29. ✅ **Fixed 2026-09-29** (see below). | `client/src/ui/cards.js cleanClassName` | 30 min |
 | U1-12 | **Overlap modal for Book and Quick-Book too**, not only Auto-Book. It must precede any other modal (spot picker, first-time setup). Found by the user 2026-09-29. | U1-6 `overlap-modal.js`; `timetable.js` book/quick-book | 2–3 h |
-| U1-13 | **Auto-Book card shows "Insufficient Credits" despite sufficient credits** (live, the user's configured Psycle auto-book; they can book another open class). Found by the user 2026-09-29. | `client/src/ui/autobook.js`, credit-allowance | 1–2 h |
+| U1-13 | **Auto-Book card shows "Insufficient Credits" despite sufficient credits** (live, the user's configured Psycle auto-book; they can book another open class). Found by the user 2026-09-29. ✅ **Fixed 2026-09-29** (see below). | `client/src/ui/autobook.js`, credit-allowance | 1–2 h |
 | U1-14 | **First-time spot-map setup intro, and allow occupied spots while setting up.** When Quick-Book or Auto-Book hits a studio with a gym-provided seat map but no saved preferred map, open an intro step first: header "First-time setup", subheader "Choose your preferred spots for [Gym] [Studio location] first.", and body "Once set up, <b>Quick-Book</b> and <b>Auto-Book</b> will always book the best possible spot for you." A Next button swaps in the map. In setup mode, occupied spots must be selectable: you're choosing preferences, not a bike for this class. Today it refuses with "⚠ This bike is occupied or unavailable." Found by the user 2026-09-29. | `timetable.js openBookingModal`/`quickBookClass`, `spotmap.js` | 2–3 h |
 | U1-15 | **Timetable shows a class as booked for several seconds after cancelling it in My Bookings.** A booking/cancel mutation must invalidate the timetable's booking-state overlay so returning to the timetable reflects it immediately. Found by the user 2026-09-29. | `timetable.js` booking overlay/cache; `bookings.js` cancel | 1–2 h |
 | U1-16 | **Psycle push notifications read "CLASS with your instructor - Spot …".** The class name and instructor are missing for Psycle; JAB is fine. Probably a regression from C3-19 (the booking-success payload now carries gymId) or from the normalized field names. Found by the user 2026-09-29. ✅ **Fixed 2026-09-29** (see below). | `server/notifications.js`; `client/src/api.js notifyBookingSuccess` callers | 1 h |
@@ -468,4 +468,32 @@ and Auto-Book/Auto-Upgrade cards printed the raw DB `class_name` with no cleanin
 that IS the discipline is stripped, so "Upper - Lower Split" under TRAIN is untouched.
 `stripClassNamePrefix` delegates to it (one rule); `autobook.js` (queue + history cards) and
 `autoupgrade.js` use it too. **Tests:** `client/src/ui/cards.test.js` (JAB, Psycle, non-stripping, no-blank cases).
+
+## U1-13 — Auto-Book card "Insufficient Credits" despite holding credit
+
+**Live read-only evidence (2026-09-29, sweat-dev, `test@piersj.com`, my own CDP tab, 6 GETs):**
+`GET /api/auto-book` (psycle-london) returns the queued class (id 126 "Strength 50", Reformer,
+14 Oct) with `status: "pending"`, `requiredCount: 1`, `warnings: []`: the server has not paused or flagged it
+(no `paused_no_credits`). `GET /api/credits` returns one `Universal` credit, `count: 1, isGuestOnly: false`;
+`GET /api/eligibility` returns `canBook: true`. On a fresh load the card now shows **no** warning. So the server
+data was right and the card decision was wrong: it fires only from `autobook.js` (~L408)
+`getTotalCredits(q.gym_id) < requiredCount` reading `cache.creditsByGym[gym]`. The page load
+also shows the startup gym-less calls (`/api/profile`, `/api/credits`, `/api/eligibility`) answering 400 before the gyms load.
+
+**Root cause:** `api.getCreditsByGym()` answered `[gymId, []]` for a gym whose credit fetch threw (500/429/400/timeout),
+and `main.js updateCreditBadge` published that as `cache.creditsByGym`. `[]` means "you hold no credits", which
+breaks the "not loaded is not zero" rule; the card then prints "Insufficient Credits". Worse, the card was
+painted once from the cached queue and **never repainted** when the credit/eligibility answer arrived, so a wrong
+first paint stuck until the next tab switch. **Reproduced locally in real Chrome** (mock, CDP `Fetch` fulfilling
+`*/api/credits*` with 500, IndexedDB cleared): card text `Insufficient Credits` at every sample from 0.7s to 5.6s;
+unblocked baseline: no warning. Secondary: `getTotalCredits` summed guest-only credits as the member's own.
+
+**Fix:** `client/src/api.js getCreditsByGym` (~L702) omits a failed gym (unknown, answered permissively);
+`main.js updateCreditBadge` merges over the last known value instead of replacing, and calls the new
+`repaintAutoBookIfVisible()` (also after per-gym eligibility lands); `ui/autobook.js repaintAutoBookFromCache()`
+re-renders from the loaded queue; `ui/credit-allowance.js getTotalCredits` skips guest-only credits.
+**After (same browser repro):** with `/api/credits` failing the card shows no warning from 0.7s to 5.6s.
+**Tests:** `client/src/api-credits-by-gym.test.js`, `credit-allowance.test.js` (U1-13 block).
+I could not reproduce the user's exact transient failure on live (it needs a failing credits call with a cold cache
+and I made no writes or cache wipes on the user's profile); the mechanism above is the only path that prints this text with a correct server-side balance.
 

@@ -207,3 +207,25 @@ describe('account-level eligibility (WP-J)', () => {
     });
   });
 });
+
+describe('getTotalCredits — the Auto-Book / Auto-Upgrade card check (U1-13)', () => {
+  beforeEach(() => { setLinkedGyms([METERED, MEMBERSHIP]); delete cache.creditsByGym; });
+
+  it('does not count guest-only credits as the member\'s own', () => {
+    cache.creditsByGym = { [METERED_ID]: [{ typeId: '9', count: 3, isGuestOnly: true }] };
+    expect(getTotalCredits(METERED_ID)).toBe(0);
+    cache.creditsByGym = { [METERED_ID]: [{ typeId: '9', count: 3, isGuestOnly: true }, { typeId: '1', count: 1, isGuestOnly: false }] };
+    expect(getTotalCredits(METERED_ID)).toBe(1);
+  });
+
+  it('an unknown per-gym balance (fetch failed / not loaded) is permissive, never zero', () => {
+    cache.creditsByGym = { [MEMBERSHIP_ID]: [] };           // psycle-london missing = unknown
+    expect(getTotalCredits(METERED_ID)).toBe(Infinity);
+    expect(getTotalCredits(METERED_ID) < 1).toBe(false);    // the card's exact comparison
+  });
+
+  it('holding one Universal credit is enough for a 1-spot queue entry', () => {
+    cache.creditsByGym = { [METERED_ID]: [{ typeId: '1', typeName: 'Universal', count: 1, isGuestOnly: false }] };
+    expect(getTotalCredits(METERED_ID) < 1).toBe(false);
+  });
+});

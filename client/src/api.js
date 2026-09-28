@@ -697,8 +697,10 @@ export const api = {
   // only ever answers for the currently active gym — the header shows one badge
   // per linked gym, so it needs one balance per linked gym, not the active
   // gym's balance repeated under every badge (the bug this method exists to fix).
-  // Returns { [gymId]: NormalizedCredit[] }; a gym whose fetch fails contributes
-  // an empty array rather than failing the whole call.
+  // Returns { [gymId]: NormalizedCredit[] }. A gym whose fetch FAILS is left OUT of
+  // the map, never given `[]` (U1-13): `[]` means "you hold no credits", and the
+  // Auto-Book card read that as "Insufficient Credits" for a member with credit.
+  // A missing key is "unknown", which credit-allowance.js answers permissively.
   async getCreditsByGym() {
     const myGymsRes = await this.getMyGyms().catch(() => ({ gyms: [] }));
     const linked = myGymsRes.gyms || [];
@@ -708,11 +710,11 @@ export const api = {
         try {
           return [gymId, await this.getNormalizedCredits(gymId)];
         } catch (_) {
-          return [gymId, []];
+          return null;
         }
       })
     );
-    return Object.fromEntries(entries);
+    return Object.fromEntries(entries.filter(Boolean));
   },
 
   // Auto-Book Queue

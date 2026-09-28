@@ -665,14 +665,17 @@ export async function updateCreditBadge(availableCredits = null) {
   const byGym = await api.getCreditsByGym().catch(() => ({}));
   // Publish for the credit arithmetic: a merged timetable needs EACH row's own
   // gym's balance, and `cache.credits` only ever holds one gym's.
-  cache.creditsByGym = byGym;
+  // A gym whose fetch failed is absent from `byGym` (unknown); keep the last
+  // value we DID have for it rather than dropping to zero (U1-13).
+  cache.creditsByGym = { ...(cache.creditsByGym || {}), ...byGym };
   // Same reason as eligibilityByGym: rows rendered before this landed were
   // rendered permissively and need the real answer.
   repaintTimetableIfVisible();
+  repaintAutoBookIfVisible();
   creditsContainer.innerHTML = '';
   linked.forEach(gym => {
     const gymId = gym.gym_id || gym.id;
-    const credits = byGym[gymId] || [];
+    const credits = cache.creditsByGym[gymId] || [];
     const total = sumCredits(credits);
     renderGymBadge(creditsContainer, gymId, gym.shortName || gym.name || gymId, gym.capabilities?.metered !== false, total, credits);
   });
@@ -689,6 +692,19 @@ function repaintTimetableIfVisible() {
   if (currentTabId !== 'class-timetable') return;
   import('./ui/timetable')
     .then((m) => { if (typeof m.renderTimetableGrid === 'function') m.renderTimetableGrid(); })
+    .catch(() => {});
+}
+
+/**
+ * U1-13: the Auto-Book / Auto-Upgrade cards decide "Insufficient Credits" from
+ * cache.creditsByGym / eligibilityByGym at paint time and used to never repaint,
+ * so a card painted before (or without) the real answer kept its wrong state.
+ * Repaints from the already-loaded queue; no refetch.
+ */
+function repaintAutoBookIfVisible() {
+  if (currentTabId !== 'auto-book') return;
+  import('./ui/autobook')
+    .then((m) => { if (typeof m.repaintAutoBookFromCache === 'function') m.repaintAutoBookFromCache(); })
     .catch(() => {});
 }
 
@@ -996,6 +1012,7 @@ export async function refreshUserData(force = false) {
       // Re-render now that the real per-gym answers exist: rows painted before
       // this were rendered permissively (see credit-allowance.js).
       repaintTimetableIfVisible();
+      repaintAutoBookIfVisible();
       // C3-3: same for the header "Member" badge.
       updateCreditBadge().catch(() => {});
     }

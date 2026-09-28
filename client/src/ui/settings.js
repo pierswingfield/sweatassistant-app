@@ -7,6 +7,7 @@ import { clearApiCache, gymScopedKey } from '../cache.js';
 import { renderGymSettingsSection as renderGymSettingsSectionView } from './gym-settings-section.js';
 import { renderCalendarSection } from './calendar-section.js';
 import { getLinkedGyms, getGymShortName } from '../gym-context.js';
+import { icon } from './cards.js';
 import { createRenderGuard, reconcileKeyed, lastAuthLabel, connectionHealth } from './gym-connections.js';
 
 let loadedProfile = null;
@@ -1602,7 +1603,24 @@ function openAccountPasswordModal() {
   };
 }
 
+// U1-10: a leading SVG glyph on each static Settings entry. Injected here (from the
+// shared cards.js icon set) rather than pasted into index.html so the sidebar uses
+// exactly the same stroke, size and currentColor rules as every other icon in the
+// app. Idempotent; per-gym entries lead with the gym's own mark instead (U1-8).
+const SETTINGS_MENU_ICONS = { general: 'sliders', notifications: 'bell', account: 'user', gyms: 'link', about: 'info' };
+export function decorateSettingsMenu() {
+  document.querySelectorAll('.psycle-settings-menu > [data-settings-section]').forEach((item) => {
+    const name = SETTINGS_MENU_ICONS[item.getAttribute('data-settings-section')];
+    if (!name || item.querySelector('.menu-item-lead')) return;
+    const lead = document.createElement('span');
+    lead.className = 'menu-item-lead';
+    lead.innerHTML = icon(name, 18);
+    item.insertBefore(lead, item.firstChild);
+  });
+}
+
 export async function initSettings() {
+  decorateSettingsMenu();
   loadSettingsInputs();
   setupSettingsListeners();
   setupThemeToggle();

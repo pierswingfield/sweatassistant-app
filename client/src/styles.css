@@ -8734,6 +8734,31 @@ html, body {
   bottom: 50%;
 }
 
+/* Leading glyph on every Settings entry (U1-10 icon / U1-8 gym mark).
+   After the base + `-sub` rules above on purpose: source order decides ties here. */
+#psycle-helper-container .psycle-settings-menu-item .menu-item-lead {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex: 0 0 auto;
+  width: 28px;
+  height: 28px;
+}
+#psycle-helper-container .psycle-settings-menu-item .menu-item-lead .ab-ico {
+  width: 20px;
+  height: 20px;
+}
+
+/* On the iOS-style list the row spreads its children (space-between) around the
+   chevron, so let the label take the slack instead of floating mid-row. */
+@media (max-width: 900px) {
+  #psycle-helper-container .psycle-settings-menu-item .menu-item-text {
+    flex: 1 1 auto;
+    min-width: 0;
+    text-align: left;
+  }
+}
+
 
 /* Content Area */
 #psycle-helper-container .psycle-settings-content {

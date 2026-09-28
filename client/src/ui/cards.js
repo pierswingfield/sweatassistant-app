@@ -22,6 +22,12 @@ export const SVG_PATHS = {
   // Row overflow-menu glyphs.
   cog: '<circle cx="8" cy="8" r="2.2"/><path d="M8 1.6v1.8M8 12.6v1.8M14.4 8h-1.8M3.4 8H1.6M12.5 3.5l-1.3 1.3M4.8 11.2l-1.3 1.3M12.5 12.5l-1.3-1.3M4.8 4.8 3.5 3.5"/>',
   grid: '<rect x="2" y="2" width="5" height="5" rx="1"/><rect x="9" y="2" width="5" height="5" rx="1"/><rect x="2" y="9" width="5" height="5" rx="1"/><rect x="9" y="9" width="5" height="5" rx="1"/>',
+  // Settings menu glyphs (U1-10). Same 16px grid and 1.6 stroke as the rest.
+  sliders: '<path d="M2.5 4.5H6M10.5 4.5h3M2.5 11.5h1.5M8 11.5h5.5"/><circle cx="8.25" cy="4.5" r="1.75"/><circle cx="6" cy="11.5" r="1.75"/>',
+  bell: '<path d="M4 11V7.2a4 4 0 0 1 8 0V11l1.2 1.5H2.8L4 11Z"/><path d="M6.6 14a1.5 1.5 0 0 0 2.8 0"/>',
+  user: '<circle cx="8" cy="5.5" r="2.7"/><path d="M2.8 13.8c.6-2.6 2.5-3.9 5.2-3.9s4.6 1.3 5.2 3.9"/>',
+  link: '<path d="M6.8 9.2a2.6 2.6 0 0 0 3.7 0l2-2a2.6 2.6 0 0 0-3.7-3.7l-.6.6"/><path d="M9.2 6.8a2.6 2.6 0 0 0-3.7 0l-2 2a2.6 2.6 0 0 0 3.7 3.7l.6-.6"/>',
+  info: '<circle cx="8" cy="8" r="6.25"/><path d="M8 7.3v3.7M8 5h.01"/>',
   bug: '<path d="M5.5 5.5a2.5 2.5 0 0 1 5 0v3a2.5 2.5 0 0 1-5 0Z"/><path d="M3 6.5h2.5M10.5 6.5H13M3 10h2.5M10.5 10H13M6 3.5l1-1M10 3.5l-1-1"/>',
   // discipline glyphs
   ride: '<circle cx="4.3" cy="11" r="2.5"/><circle cx="11.7" cy="11" r="2.5"/><path d="M4.3 11 7 5.5h2.5l2.2 5.5M7 5.5 6.2 4H4.5"/>',

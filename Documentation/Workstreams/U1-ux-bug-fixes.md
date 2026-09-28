@@ -17,7 +17,7 @@ Cheap, visible fixes. Run them alongside C3 so they share the same live re-test.
 | U1-7 | **Settings → Your Gyms renders incrementally and sometimes duplicates.** *2026-09-28, source: user dev-twin testing.* | ✅ Fixed 2026-09-28 | 2 h |
 | U1-8 | **1:1 gym logo chip on each per-gym Settings submenu item.** *2026-09-28, source: user dev-twin testing.* | Open | 1 h |
 | U1-9 | **"Last authenticated" always says "Not recorded".** README "Verified done" (QA-07) claims it works. *2026-09-28, source: user dev-twin testing.* | ✅ Fixed 2026-09-28 (write bug) | 1 h |
-| U1-10 | **Icons on Settings menu items** (SVG, not emoji). *2026-09-28, source: user dev-twin testing.* | Open | 1 h |
+| U1-10 | **Icons on Settings menu items** (SVG, not emoji). *2026-09-28, source: user dev-twin testing.* | ✅ Fixed 2026-09-28 | 1 h |
 
 ## Dev-twin re-test (2026-09-27)
 
@@ -275,3 +275,22 @@ offsets at 200 ms latency: always 2/2/2. Six `renderGymsCard()` calls launched 9
 under 150 ms latency: 2 entries, 2 panes, 2 rows, unique pane ids, both panes populated.
 Unlink → nav 1/1/1 and pane removed; relink through the modal → 2/2/2 with the new row filled
 in (`Today · 28 Sept 2026`, also U1-9 end to end).
+
+### U1-10 — Icons on Settings menu items
+
+**Basis (2026-09-28, browser):** the five static Settings entries (`client/index.html`
+`.psycle-settings-menu`) were text only (`before71-*-menu.jpg`); no icon existed for any of them.
+
+**Fix:** `client/src/ui/cards.js` gains five glyphs in the shared `SVG_PATHS` set (`sliders`
+General, `bell` Notifications, `user` Account, `link` Your Gyms, `info` About), drawn on the
+same 16px grid and rendered by the same `icon()` helper (1.6 stroke, round caps,
+`currentColor`, `aria-hidden="true"`), so they follow the active/hover colours for free.
+`settings.js decorateSettingsMenu()` prepends one to each entry at init (idempotent; injected
+from the shared set rather than pasted as five more hand-written SVGs in `index.html`). CSS in
+`styles.css` sits after the `-sub` rules because source order decides ties here (AGENTS.md,
+~L5222 vs ~L8356 note); on the mobile list the label takes the slack (`flex: 1`) so it stays
+left-aligned between the icon and the chevron.
+
+**After (browser, local mock):** `after810-{light,dark}-desktop-menu.jpg` and
+`after810-{light,dark}-mobile-menu.jpg` (402pt). Icons are 20px in a 28px box, colour follows
+`--text-secondary` / `--accent` when active, legible in both themes.

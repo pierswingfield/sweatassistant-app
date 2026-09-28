@@ -268,6 +268,21 @@ export function gymChip(gymId) {
     + `</span>`;
 }
 
+/**
+ * A SQUARE (1:1) gym mark: the gym's own wordmark on the gym's own brand plate.
+ *
+ * `gymChip` is the wide table plate and `renderGymRail` the tall card rail; this
+ * is the third shape, for places that want a small icon-sized identifier (the
+ * per-gym Settings menu entries). Same assets and same brand colours as the other
+ * two — the plate colour comes from `.psycle-gym-mark-<id>` in styles.css, which
+ * mirrors `.psycle-gym-chip-<id>` — so the three can never disagree about what a
+ * gym looks like. Decorative: the gym's name is always rendered beside it.
+ */
+export function gymSquareChip(gymId) {
+  const brand = gymBrand(gymId);
+  return `<span class="psycle-gym-mark psycle-gym-mark-${brand.id}" aria-hidden="true">${brand.logoSvg}</span>`;
+}
+
 export function renderGymRail(gymId = 'psycle-london') {
   const brand = gymBrand(gymId);
   return `

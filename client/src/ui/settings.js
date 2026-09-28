@@ -7,7 +7,7 @@ import { clearApiCache, gymScopedKey } from '../cache.js';
 import { renderGymSettingsSection as renderGymSettingsSectionView } from './gym-settings-section.js';
 import { renderCalendarSection } from './calendar-section.js';
 import { getLinkedGyms, getGymShortName } from '../gym-context.js';
-import { icon } from './cards.js';
+import { icon, gymSquareChip } from './cards.js';
 import { createRenderGuard, reconcileKeyed, lastAuthLabel, connectionHealth } from './gym-connections.js';
 
 let loadedProfile = null;
@@ -1177,11 +1177,17 @@ function connRowUpdate(row, g) {
 function gymNavCreate() {
   const item = document.createElement('button');
   item.className = 'psycle-settings-menu-item psycle-settings-menu-sub';
-  item.innerHTML = '<span class="menu-item-text"></span>';
+  // U1-8: the gym's own 1:1 mark leads the entry (in place of a generic icon).
+  item.innerHTML = '<span class="menu-item-lead"></span><span class="menu-item-text"></span>';
   return item;
 }
 
 function gymNavUpdate(item, g) {
+  const lead = item.querySelector('.menu-item-lead');
+  if (lead.getAttribute('data-mark') !== g.gym_id) {
+    lead.setAttribute('data-mark', g.gym_id);
+    lead.innerHTML = gymSquareChip(g.gym_id);
+  }
   item.setAttribute('data-settings-section', `gym-${g.gym_id}`);
   item.setAttribute('data-gym-nav', g.gym_id);
   item.querySelector('.menu-item-text').textContent = g.gym_name || g.gym_id;

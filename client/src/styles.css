@@ -8749,6 +8749,29 @@ html, body {
   height: 20px;
 }
 
+/* 1:1 gym mark (cards.js gymSquareChip): the wordmark on the gym's brand plate,
+   same colours as .psycle-gym-chip-* above. The ring keeps the near-black Psycle
+   plate visible against the dark theme's surface. */
+.psycle-gym-mark {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex: 0 0 auto;
+  width: 28px;
+  height: 28px;
+  box-sizing: border-box;
+  border-radius: 7px;
+  overflow: hidden;
+  line-height: 0;
+  box-shadow: 0 0 0 1px color-mix(in srgb, var(--text) 14%, transparent);
+}
+.psycle-gym-mark-psycle-london { background: #212121; }
+.psycle-gym-mark-jab-boxing { background: #6C1F20; }
+/* A square plate always takes the HALF Psycle mark, whatever the viewport. */
+.psycle-gym-mark .ab-gym-logo-img.is-full { display: none; }
+.psycle-gym-mark .ab-gym-logo-img.is-half { display: block; width: 21px; height: auto; }
+.psycle-gym-mark .ab-gym-logo-svg { display: block; width: 21px; height: auto; }
+
 /* On the iOS-style list the row spreads its children (space-between) around the
    chevron, so let the label take the slack instead of floating mid-row. */
 @media (max-width: 900px) {

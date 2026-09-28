@@ -15,7 +15,7 @@ Cheap, visible fixes. Run them alongside C3 so they share the same live re-test.
 | U1-5 | **Toast dismiss button.** | ✅ Fixed 2026-09-27; re-confirmed live on dev twin 2026-09-27 | 1 h |
 | U1-6 | **Auto-book overlap confirmation modal.** Overlap only produced a fleeting toast (C5-3). *2026-09-28, source: user dev-twin testing.* | Open | 1 d |
 | U1-7 | **Settings → Your Gyms renders incrementally and sometimes duplicates.** *2026-09-28, source: user dev-twin testing.* | ✅ Fixed 2026-09-28 | 2 h |
-| U1-8 | **1:1 gym logo chip on each per-gym Settings submenu item.** *2026-09-28, source: user dev-twin testing.* | Open | 1 h |
+| U1-8 | **1:1 gym logo chip on each per-gym Settings submenu item.** *2026-09-28, source: user dev-twin testing.* | ✅ Fixed 2026-09-28 | 1 h |
 | U1-9 | **"Last authenticated" always says "Not recorded".** README "Verified done" (QA-07) claims it works. *2026-09-28, source: user dev-twin testing.* | ✅ Fixed 2026-09-28 (write bug) | 1 h |
 | U1-10 | **Icons on Settings menu items** (SVG, not emoji). *2026-09-28, source: user dev-twin testing.* | ✅ Fixed 2026-09-28 | 1 h |
 
@@ -294,3 +294,23 @@ left-aligned between the icon and the chevron.
 **After (browser, local mock):** `after810-{light,dark}-desktop-menu.jpg` and
 `after810-{light,dark}-mobile-menu.jpg` (402pt). Icons are 20px in a 28px box, colour follows
 `--text-secondary` / `--accent` when active, legible in both themes.
+
+### U1-8 — 1:1 gym logo chip on the per-gym Settings entries
+
+**Basis (2026-09-28, browser):** the per-gym sidebar entries ("JAB Boxing Club",
+"Psycle London") were text only (`before71-*-menu.jpg`). No square asset exists
+(`client/public/gyms/` holds only the two Psycle wordmarks; JAB's is inline SVG), and the
+two existing gym shapes are the wide table plate (`gymChip`) and the tall card rail
+(`renderGymRail`).
+
+**Fix:** `cards.js gymSquareChip(gymId)`, a third shape from the **same** `gymBrand()`
+asset: a 28px square, brand plate colour behind the wordmark (`#212121` Psycle, `#6C1F20`
+JAB, same values as `.psycle-gym-chip-*`), Psycle always on its half mark, decorative
+(`aria-hidden`; the gym name is beside it), with a 1px ring so the near-black plate stays
+visible in the dark theme. `settings.js gymNavCreate/Update` puts it in a
+`.menu-item-lead` slot where the static entries have their icon (U1-10), so gym entries and
+icon entries align. Reconciled with U1-7: the mark is only rebuilt if the gym id changes.
+
+**After (browser, local mock):** `after810-*-{desktop,mobile}-menu.jpg` show both gyms with their
+plate in light and dark, desktop sidebar and 402pt mobile list. Test:
+`client/src/ui/gym-mark.test.js`.

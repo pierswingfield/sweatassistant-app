@@ -2493,7 +2493,9 @@ async function openBookingModal(c, mode) {
   // Use cached layout if available — layouts don't change mid-session.
   // WP-C5: the cache now holds NormalizedSlot[]/NormalizedLayoutObject[] (see
   // below), so this is only consulted for the loading-message copy here.
-  const cachedLayout = studioLayoutCache.get(c.studioId);
+  // C3-21: keyed by gym too — two gyms can publish the same studio id.
+  const layoutCacheKey = `${c.gymId}:${c.studioId}`;
+  const cachedLayout = studioLayoutCache.get(layoutCacheKey);
   const hasLayout = cachedLayout?.slots?.length > 0;
 
   body.innerHTML = `
@@ -2547,7 +2549,7 @@ async function openBookingModal(c, mode) {
     const layoutSlots = useCached ? cachedLayout.slots : eventSlots;
     const layoutObjects = useCached ? cachedLayout.objects : eventObjects;
     if (eventSlots.length > 0) {
-      studioLayoutCache.set(c.studioId, { slots: eventSlots, objects: eventObjects });
+      studioLayoutCache.set(layoutCacheKey, { slots: eventSlots, objects: eventObjects });
     }
     // C1-3: keep slot ids as strings throughout this modal — see AGENTS.md
     // "Normalized ids are STRINGS, raw event fields are numbers". A MarianaTek
@@ -3765,6 +3767,11 @@ export async function openDebugModal(event) {
       return html;
     }
 
+    // C3-27: the gym's OWN class page, from its config; a gym with none gets no
+    // button. This was hardcoded to psyclelondon.com for every gym.
+    const classPageTemplate = (getLinkedGyms() || []).find((g) => (g.gym_id || g.id) === event.gymId)?.classPageUrl || '';
+    const nativePageUrl = classPageTemplate ? classPageTemplate.replace('{id}', encodeURIComponent(event.id)) : '';
+
     // Build the modal UI
     body.innerHTML = `
       <div style="display:flex; flex-direction:column; gap:4px;">
@@ -3772,10 +3779,10 @@ export async function openDebugModal(event) {
         <div id="psycle-debug-action-bar" style="display:flex; gap:8px; padding-bottom:12px; border-bottom:1px solid var(--border); margin-bottom:4px; flex-wrap:wrap;">
           <button id="psycle-debug-quick-book-btn" class="psycle-btn-mini variant-success-muted">Quick-Book</button>
           <button id="psycle-debug-auto-book-btn" class="psycle-btn-mini variant-neutral">Auto-Book Config</button>
-          <a href="https://psyclelondon.com/pages/class/${event.id}" target="_blank" rel="noopener noreferrer" class="psycle-btn-mini" style="display:inline-flex; align-items:center; gap:5px; background:color-mix(in srgb, var(--info) 14%, transparent); border-color:color-mix(in srgb, var(--info) 30%, transparent); color:var(--info); text-decoration:none;">
+          ${nativePageUrl ? `<a href="${escapeHtml(nativePageUrl)}" target="_blank" rel="noopener noreferrer" class="psycle-btn-mini" style="display:inline-flex; align-items:center; gap:5px; background:color-mix(in srgb, var(--info) 14%, transparent); border-color:color-mix(in srgb, var(--info) 30%, transparent); color:var(--info); text-decoration:none;">
             <svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/><polyline points="15 3 21 3 21 9"/><line x1="10" y1="14" x2="21" y2="3"/></svg>
             Open native booking page
-          </a>
+          </a>` : ''}
         </div>
         <!-- Tab bar -->
         <div class="psycle-debug-tab-bar" style="display:flex; gap:4px; border-bottom:1px solid var(--border); padding-bottom:8px; margin-bottom:12px; flex-wrap:wrap;">

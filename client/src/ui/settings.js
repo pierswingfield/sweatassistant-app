@@ -3,7 +3,7 @@ import { showToast, togglePushSubscription, updatePushStatusUI, userSettings, ca
 import { getBookingOffset, describeBookingWindow } from '../lib';
 import { renderStudioFloorPlan } from './spotmap';
 import { cacheGet, resetTimetableForGymChange } from './timetable';
-import { clearApiCache, gymScopedKey, invalidateApiCache } from '../cache.js';
+import { clearApiCache, invalidateApiCache, accountScopedKey } from '../cache.js';
 import { renderGymSettingsSection as renderGymSettingsSectionView } from './gym-settings-section.js';
 import { renderCalendarSection } from './calendar-section.js';
 import { getLinkedGyms, getGymShortName } from '../gym-context.js';
@@ -612,46 +612,6 @@ async function saveProfileChanges(body, originalProfile) {
   saveBtn.style.display = 'none';
 }
 
-// ─── Active Studio IDs — cached 24h, derived from timetable events ──────────
-
-// Gym-scoped (WP-G) — derived from ONE gym's timetable events.
-const ACTIVE_STUDIO_IDS_KEY = () => gymScopedKey('psycleActiveStudioIds');
-const ACTIVE_STUDIO_IDS_TIME_KEY = () => gymScopedKey('psycleActiveStudioIdsTime');
-const ACTIVE_STUDIO_IDS_TTL_MS = 24 * 60 * 60 * 1000; // 24 hours
-
-async function getActiveStudioIds() {
-  // Check localStorage cache first (24h TTL)
-  const cachedTime = parseInt(localStorage.getItem(ACTIVE_STUDIO_IDS_TIME_KEY()) || '0', 10);
-  const cacheAge = Date.now() - cachedTime;
-  if (cacheAge < ACTIVE_STUDIO_IDS_TTL_MS) {
-    const cached = localStorage.getItem(ACTIVE_STUDIO_IDS_KEY());
-    if (cached) {
-      try { return new Set(JSON.parse(cached)); } catch (_) { /* fall through */ }
-    }
-  }
-
-  // Cache stale or missing — recompute from timetable events in IndexedDB
-  try {
-    const events = await cacheGet(gymScopedKey('psycleCacheEvents'));
-    if (events && Array.isArray(events) && events.length > 0) {
-      const ids = new Set();
-      events.forEach(ev => {
-        const id = ev.studio_id || ev.studio?.id;
-        if (id) ids.add(id);
-      });
-      // Persist to localStorage
-      localStorage.setItem(ACTIVE_STUDIO_IDS_KEY(), JSON.stringify([...ids]));
-      localStorage.setItem(ACTIVE_STUDIO_IDS_TIME_KEY(), String(Date.now()));
-      return ids;
-    }
-  } catch (e) {
-    console.warn('[SpotMaps] Failed to read timetable events for active studio filter:', e);
-  }
-
-  // No timetable data available at all
-  return null;
-}
-
 export async function openManageSpotMapsModal(options = {}) {
   const zIndex = options.zIndex ?? 2000;
   const onDone = options.onDone ?? null;
@@ -700,8 +660,12 @@ export async function openManageSpotMapsModal(options = {}) {
       // a request for a DIFFERENT gym must not read them. With the ambient
       // active-gym state gone, an explicit gymId is by definition not "the
       // cached one" — fetch fresh rather than serve another gym's layout.
-      options.gymId ? null : cacheGet(gymScopedKey('psycleCacheMeta')),
-      options.gymId ? null : cacheGet(gymScopedKey('psycleCacheEvents'))
+      options.gymId ? null : cacheGet(accountScopedKey('psycleUnifiedCacheMeta')),
+      // C3-24: the unified timetable cache is what timetable.js writes; the old
+      // `psycleCacheEvents` keys had no writer, so this always missed and the
+      // active-studio filter never applied. It is merged across gyms, so it is
+      // read for an explicit gym too and narrowed to that gym just below.
+      cacheGet(accountScopedKey('psycleUnifiedCacheEvents'))
     ]);
 
     // Studios from the timetable metadata cache (built from event relations) include full

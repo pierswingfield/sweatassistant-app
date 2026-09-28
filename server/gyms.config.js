@@ -15,6 +15,11 @@ const GYMS = {
     name: 'Psycle London',
     shortName: 'Psycle',
     websiteUrl: 'https://psyclelondon.com/',
+    // The gym's own public page for one class ({id} = the provider event id), for
+    // the debug modal's "Open native booking page". Per gym because the path is
+    // that gym's website, not the platform's; a gym with no such page omits it and
+    // the button is hidden (C3-27).
+    classPageUrl: 'https://psyclelondon.com/pages/class/{id}',
     provider: 'codexfit',
     // The gym's local timezone. CodexFit serves timezone-NAIVE datetimes
     // ("2026-09-01T19:30:00", no offset), so every parse has to be anchored

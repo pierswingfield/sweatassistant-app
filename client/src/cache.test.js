@@ -1,4 +1,5 @@
-// API-response cache key isolation (WP-G).
+// API-response cache key isolation. (WP-G's gym segment was removed in C3-24: it
+// keyed off `sweatActiveGymId`, which nothing writes any more.)
 //
 // Every body in the `api-responses` store is gym-specific — one gym's timetable,
 // its bookings, its studio layouts. Before WP-G the key carried only the user id,
@@ -47,57 +48,28 @@ beforeEach(() => {
 });
 
 describe('cache key prefix', () => {
-  it('combines the user and the gym', () => {
+  it('is the user id, with no gym segment (C3-24)', () => {
     setCacheKeyPrefix('user123');
-    window.localStorage.setItem(GYM_KEY, 'psycle-london');
-    expect(cacheKeyPrefix()).toBe('user123@psycle-london');
+    expect(cacheKeyPrefix()).toBe('user123');
   });
 
-  it('changes when the gym changes, with no cache-clearing step', () => {
+  it('ignores the retired sweatActiveGymId key entirely', () => {
+    // The old switcher wrote this; nothing does now. If a stale value survives in
+    // someone's storage it must not change any key.
     setCacheKeyPrefix('user123');
-    window.localStorage.setItem(GYM_KEY, 'psycle-london');
-    const psycle = cacheKeyPrefix();
-
-    // Only the stored gym moves — nothing calls clearApiCache, nothing re-runs
-    // login. This is the transition that used to leak.
     window.localStorage.setItem(GYM_KEY, 'jab-boxing');
-    const jab = cacheKeyPrefix();
-
-    expect(jab).not.toBe(psycle);
-    expect(jab).toBe('user123@jab-boxing');
+    expect(cacheKeyPrefix()).toBe('user123');
   });
 
-  it('still separates two users on the same gym', () => {
-    window.localStorage.setItem(GYM_KEY, 'psycle-london');
+  it('still separates two users', () => {
     setCacheKeyPrefix('userA');
     const a = cacheKeyPrefix();
     setCacheKeyPrefix('userB');
     expect(cacheKeyPrefix()).not.toBe(a);
   });
 
-  it('falls back to the bare user id when no gym has been selected', () => {
-    // The single-gym case: sweatActiveGymId is only written once a gym is
-    // explicitly picked, and the server resolves the default gym itself. Keeping
-    // this key unqualified means existing installs keep their warm cache.
-    setCacheKeyPrefix('user123');
-    expect(cacheKeyPrefix()).toBe('user123');
-  });
-
   it('is empty before login so keys stay unprefixed', () => {
     expect(cacheKeyPrefix()).toBe('');
-  });
-
-  it('survives localStorage throwing', () => {
-    setCacheKeyPrefix('user123');
-    const original = window.localStorage.getItem;
-    window.localStorage.getItem = () => { throw new Error('SecurityError'); };
-    try {
-      // A private-mode / blocked-storage browser must degrade to the user-only
-      // key, not throw out of every cache read.
-      expect(cacheKeyPrefix()).toBe('user123');
-    } finally {
-      window.localStorage.getItem = original;
-    }
   });
 });
 

@@ -185,7 +185,11 @@ export const api = {
   async getBundles({ gymId = null, ttlMs } = {}) {
     debugLog('GET /api/bundles', 'network');
     if (ttlMs) {
-      const result = await getCachedSWR('/api/bundles', { ttlMs, fetcher: (u, o) => apiFetch(u, { ...o, gymId }) });
+      // C3-25: the gym goes in the CACHE KEY (the way getMembership does it). It
+      // used to ride only in the x-gym-id header, so a second creditPurchase gym
+      // would have been served the first gym's packs from cache.
+      const url = gymId ? `/api/bundles?gymId=${encodeURIComponent(gymId)}` : '/api/bundles';
+      const result = await getCachedSWR(url, { ttlMs, fetcher: (u, o) => apiFetch(u.split('?')[0], { ...o, gymId }) });
       return result.data;
     }
     const res = await apiFetch('/api/bundles', { gymId });

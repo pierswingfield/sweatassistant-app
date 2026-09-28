@@ -10,43 +10,31 @@ const DB_NAME = 'psycle-cache';
 const DB_VERSION = 2;
 const STORE = 'api-responses';
 
-// --- Per-user, per-gym key prefix ---
-// The user segment is set via setCacheKeyPrefix() after login (e.g. to
-// currentUser.id). The GYM segment (WP-G) is read from localStorage on every key
-// build rather than being pushed in by a caller: a normalized response body is
-// gym-specific (one gym's timetable, bookings, studio layouts), and relying on
-// a caller remembering to clear the store means one forgotten transition
-// serves the wrong gym's data. Deriving the segment makes the collision
-// impossible instead of merely avoided.
+// --- Per-user key prefix ---
+// Set via setCacheKeyPrefix() after login (e.g. to currentUser.id).
 //
-// Read directly from localStorage rather than importing api.js — api.js imports
-// this module, so the dependency only goes one way.
+// There is NO gym segment (C3-24). WP-G once derived one from a localStorage key,
+// `sweatActiveGymId`, written by the old gym switcher; the switcher is gone and
+// api.js removes that key on load, so the segment was always empty and
+// `gymScopedKey()` returned the bare key — dead code that read as isolation.
+// Gym isolation now lives where it is real: gym-specific responses carry the gym
+// in their URL (`/api/credits?gymId=`) or are keyed by gym id at the call site,
+// and the merged timetable is account-scoped on purpose (accountScopedKey below).
 let keyPrefix = '';
 
 export function setCacheKeyPrefix(prefix) {
   keyPrefix = prefix || '';
 }
 
-function activeGymSegment() {
-  try {
-    const storage = typeof window !== 'undefined' && window.localStorage ? window.localStorage : (typeof localStorage !== 'undefined' ? localStorage : null);
-    return storage ? (storage.getItem('sweatActiveGymId') || '') : '';
-  } catch (_) {
-    return '';
-  }
-}
-
 // Exported for the clear-by-pattern cursor scan below and for unit tests.
 export function cacheKeyPrefix() {
-  const gym = activeGymSegment();
-  if (keyPrefix && gym) return `${keyPrefix}@${gym}`;
-  return keyPrefix || gym;
+  return keyPrefix;
 }
 
-// Scope a caller-owned cache key to the signed-in account without adding the
-// active gym. This is for merged data that deliberately contains every linked
-// gym (for example the unified timetable); gymScopedKey() remains correct for
-// bodies that represent one active gym only.
+// Scope a caller-owned cache key to the signed-in account. This is for merged
+// data that deliberately contains every linked gym (for example the unified
+// timetable). Anything that represents ONE gym must put that gym id in its own
+// key at the call site.
 export function accountScopedKey(base) {
   return keyPrefix ? `${base}:${keyPrefix}` : base;
 }
@@ -54,24 +42,6 @@ export function accountScopedKey(base) {
 function cacheKey(endpoint) {
   const prefix = cacheKeyPrefix();
   return prefix ? `${prefix}:${endpoint}` : endpoint;
-}
-
-// Gym-scope a caller's OWN cache key (WP-G).
-//
-// The `api-responses` store above is not the only cache. `timetable.js` keeps
-// raw events and metadata in the sibling `cache` store under its own key names,
-// and both it and `settings.js` keep TTL stamps and derived studio ids in
-// localStorage. Those hold one gym's events, one gym's studios — and they were
-// left unqualified, so a JAB user was served Psycle's timetable from a warm
-// cache while every network call correctly returned MarianaTek data. Caught only
-// by a browser smoke test: the page renders, the console is clean, and the
-// classes are simply the wrong gym's.
-//
-// Call this at USE time, not at module load, so the key follows the active gym
-// rather than whatever it was when the module was first imported.
-export function gymScopedKey(base) {
-  const gym = activeGymSegment();
-  return gym ? `${base}:${gym}` : base;
 }
 
 // --- Database ---

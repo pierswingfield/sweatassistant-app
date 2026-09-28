@@ -68,6 +68,7 @@ App/
 │   ├── mock.js              # Dev-mode mock CodexFit API (dev@psycle.com)
 │   ├── mock-marianatek.js   # Dev-mode mock MarianaTek API (dev@jabboxing.mock)
 │   ├── schedule-cache.js    # ★ Shared user-agnostic provider cache (SWR + single-flight)
+│   ├── rate-limit-backoff.js # ★ Per-gym provider 429 backoff, shared by scheduler.js AND poller.js (C2-3/C2-3b)
 │   ├── run-tests.js         # Test runner — discovers server/test-*.js by filename
 │   └── test-*.js            # 38 suites; see Documentation/TESTING.md
 ├── client/                  # Vite PWA frontend
@@ -93,6 +94,7 @@ App/
 │   │       ├── settings.js    # Account / Your Gyms / About coordination + gym drawer actions
 │   │       ├── gym-settings-section.js # Shared explicit-gym settings renderer
 │   │       ├── loading-skeleton.js # Shared timetable/card loading placeholders
+│   │       ├── status-line.js # Polite aria-live status region for the Auto-Book SSE line (U2-3)
 │   │       ├── spotmap.js     # Shared studio floor-plan editor (reused by bookings/timetable/settings/autobook/upgrade)
 │   │       ├── tooltips.js    # Instructor + occupancy tooltips (hover + touch tap-to-toggle)
 │   │       ├── onboarding.js  # First-run 6-step guided flow (intro → install → login → notifs → calendar → spot maps)

@@ -2,8 +2,8 @@ import { api, apiFetch } from '../api';
 import { showToast, togglePushSubscription, updatePushStatusUI, userSettings, cache, getTheme, setTheme, debugConsole, loadGymContext, refreshUserData, updateDebugTerminalVisibility } from '../main';
 import { getBookingOffset, describeBookingWindow } from '../lib';
 import { renderStudioFloorPlan } from './spotmap';
-import { cacheGet } from './timetable';
-import { clearApiCache, gymScopedKey } from '../cache.js';
+import { cacheGet, resetTimetableForGymChange } from './timetable';
+import { clearApiCache, gymScopedKey, invalidateApiCache } from '../cache.js';
 import { renderGymSettingsSection as renderGymSettingsSectionView } from './gym-settings-section.js';
 import { renderCalendarSection } from './calendar-section.js';
 import { getLinkedGyms, getGymShortName } from '../gym-context.js';
@@ -1277,8 +1277,7 @@ async function onGymListClick(event) {
     // updates the linked-gym list capability gates read; refreshUserData()
     // is what actually re-renders the header credit badges from that list
     // (updateCreditBadge reads getLinkedGyms()).
-    await loadGymContext();
-    await refreshUserData(true);
+    await syncAfterGymSetChange();
     await renderGymsCard();
   } catch (err) {
     showToast(err.message, 'error');
@@ -1288,7 +1287,22 @@ async function onGymListClick(event) {
   }
 }
 
-export async function renderGymsCard() {
+export /**
+ * C3-15 / C3-26: everything that must refresh when the linked-gym SET changes
+ * (link, re-auth, unlink). Sequenced: refreshUserData reads the linked-gym list
+ * loadGymContext just set, and the timetable refetch needs both. The unscoped
+ * studio-preferences cache entry (used only with <=1 gym) is dropped so going
+ * from 2 gyms to 1 cannot serve the two-gym merge for 5 minutes.
+ */
+async function syncAfterGymSetChange() {
+  await loadGymContext();
+  await invalidateApiCache('/api/studio-preferences').catch(() => {});
+  await refreshUserData(true);
+  // Fire and forget: the fetch can take seconds and the settings panel must not wait.
+  resetTimetableForGymChange().catch(() => {});
+}
+
+async function renderGymsCard() {
   const token = gymsRenderGuard.begin();
   const card = document.getElementById('psycle-gyms-card');
   const list = document.getElementById('psycle-gyms-list');
@@ -1470,8 +1484,7 @@ export async function renderGymSettingsSection(requestedGymId = null, targetCont
             // C3-1: see the other unlink handler above — the global gym context
             // (header badges, capability gates) must refresh too, not just this
             // panel's own card.
-            await loadGymContext();
-            await refreshUserData(true);
+            await syncAfterGymSetChange();
             container.closest('.psycle-gym-settings-overlay')?.remove();
             await renderGymsCard();
           } catch (err) {
@@ -1548,10 +1561,7 @@ function openLinkGymModal(gymId, existing, addable = []) {
       // the header credit badges from it (same pair the unlink handlers now use).
       // Sequenced (not Promise.all) because refreshUserData reads the linked-gym
       // list loadGymContext just set.
-      (async () => {
-        await loadGymContext();
-        await refreshUserData(true);
-      })().catch(() => {});
+      syncAfterGymSetChange().catch(() => {});
       Promise.all([renderGymsCard(), renderGymSettingsSection(isReauth ? gymId : targetGym)]).catch(() => {});
     } catch (err) {
       errEl.textContent = err.message;

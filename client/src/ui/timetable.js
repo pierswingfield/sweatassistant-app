@@ -225,6 +225,12 @@ let userBookings = [];
 let userWaitlists = [];
 let isPrefetching = false;
 let prefetchError = null;
+// C3-15: the linked-gym set changed (link, re-auth, unlink) while a fetch may be
+// in flight. `prefetchGeneration` lets that fetch know its answer is for the OLD
+// gym set (it is dropped rather than painted), and `prefetchQueued` remembers a
+// request that arrived during it, so the isPrefetching guard cannot swallow it.
+let prefetchGeneration = 0;
+let prefetchQueued = false;
 
 let openDropdownId = null;
 // === MOBILE TIMETABLE — resize listener (added Jun 2026; delete this block to revert) ===
@@ -309,9 +315,42 @@ const CACHE_KEY_META = 'psycleUnifiedCacheMeta';
 const CACHE_KEY_TIME = 'psycleUnifiedCacheTime';
 const CACHE_TTL_MS = 4 * 60 * 60 * 1000; // 4 hours
 
+async function cacheDel(key) {
+  try {
+    const db = await openDB();
+    const tx = db.transaction('cache', 'readwrite');
+    tx.objectStore('cache').delete(key);
+    await new Promise((res, rej) => { tx.oncomplete = res; tx.onerror = rej; });
+  } catch (_) {}
+  try { localStorage.removeItem(key); } catch (_) {}
+}
+
+/**
+ * C3-15: call after the linked-gym set changes (link, re-auth, unlink). The
+ * timetable is a MERGE of every linked gym, held in memory and in the unified
+ * IndexedDB cache under an account-scoped key, so neither notices a gym coming
+ * or going. Drop both first — otherwise an unlink repaints the removed gym from
+ * cache before the network answers — then refetch past the shared server cache.
+ */
+export async function resetTimetableForGymChange() {
+  prefetchGeneration++;
+  psycleEvents = [];
+  await Promise.all([
+    cacheDel(accountScopedKey(CACHE_KEY_EVENTS)),
+    cacheDel(accountScopedKey(CACHE_KEY_META)),
+    cacheDel(accountScopedKey(CACHE_KEY_TIME)),
+  ]);
+  return prefetchTimetableData(true);
+}
+
 export async function prefetchTimetableData(force = false) {
-  if (isPrefetching) return;
-  
+  if (isPrefetching) {
+    // Never swallow an explicit refresh: run one more pass when this one lands.
+    // A plain (non-force) call during a fetch is still redundant and stays dropped.
+    if (force) prefetchQueued = true;
+    return;
+  }
+
   const ttContainer = document.getElementById('psycle-timetable-grid');
   if (!ttContainer) return;
 
@@ -353,6 +392,7 @@ export async function prefetchTimetableData(force = false) {
 
   isPrefetching = true;
   prefetchError = null;
+  const generation = prefetchGeneration;
 
   try {
     // Fetch user bookings and waitlists to keep action buttons in sync
@@ -365,6 +405,12 @@ export async function prefetchTimetableData(force = false) {
       api.getAutoBookings().catch(() => cache.autoBookings || []),
       api.getStudioPreferences().catch(() => cache.studioPrefs || {}),
     ]);
+    if (generation !== prefetchGeneration) {
+      // The gym set changed mid-flight: this answer belongs to the old set.
+      isPrefetching = false;
+      prefetchQueued = false;
+      return prefetchTimetableData(true);
+    }
     userBookings = bookingsRes || [];
     userWaitlists = waitlistsRes || [];
     cache.bookings = userBookings;
@@ -388,6 +434,11 @@ export async function prefetchTimetableData(force = false) {
     recordTimetableTiming('network-refresh', refreshStartedAt, {
       eventCount: freshEvents?.length || 0,
     });
+    if (generation !== prefetchGeneration) {
+      isPrefetching = false;
+      prefetchQueued = false;
+      return prefetchTimetableData(true);
+    }
     if (freshEvents && freshEvents.length > 0) {
       psycleEvents = freshEvents;
       mergeMetadataFromEvents(freshEvents);
@@ -407,6 +458,7 @@ export async function prefetchTimetableData(force = false) {
     }
     isPrefetching = false;
     renderTimetableGrid('network-refresh');
+    if (prefetchQueued) { prefetchQueued = false; return prefetchTimetableData(true); }
   } catch (err) {
     isPrefetching = false;
     prefetchError = err.message;

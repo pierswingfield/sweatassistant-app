@@ -182,9 +182,28 @@ All four items above are **done (2026-09-26)** — see below for evidence, root 
   classes; (2) a second gym on a **different platform** (JAB/MarianaTek) dispatches normally while Psycle
   is backed off, proving the key is gym-scoped, not global or platform-specific; (3) an ordinary 403 does
   NOT trip the backoff; (4) a throttle-worded 403 DOES.
-- **Known gap, not done:** `poller.js` (auto-upgrade polling, cancellation/window reminders) makes its own
-  provider calls and could hit the same distress signal, but wiring per-gym backoff into it is a distinct,
-  smaller follow-up — logged here rather than folded into this pass.
+- **Known gap (closed 2026-09-28 by C2-3b-poller, below):** `poller.js` made its own provider calls and
+  did not honour the backoff.
+
+### C2-3b-poller — poller honours rate limits (2026-09-28)
+
+- **Basis:** `server/test-poller-backoff.js` written first. Run against the unchanged `poller.js` it was
+  red, 3 of 4: a 429 on an upgrade POST did not stop the pass (one POST per monitor), a second pass sent
+  requests to the throttled gym, a 429 on `/events/:id` armed nothing, and the reminder-cache sweep read
+  `/bookings` while the gym was backed off. Only the C5-1 resume path consulted `isGymRateLimited`.
+- **Root cause:** the backoff map lived inside `scheduler.js` and the poller only read it in one place.
+- **Fix:** new `server/rate-limit-backoff.js` is the single owner of the per-gym state
+  (`isGymRateLimited`, `applyRateLimitBackoff`, `noteThrottleError`, `noteThrottleResponse`,
+  `notifyRateLimited`); `scheduler.js` now imports it (same exports as before, no second copy). Poller:
+  `poller.js` `handleUpgradeThrottle` (book and atomic-swap results with `PROVIDER_RATE_LIMITED`),
+  `attemptUpgradeSlot` guard and catch (thrown 429 from event details), `fetchFromGym` (any raw 429),
+  `executeAutoUpgradeChecks` (`gymLimited` skip, checked before the one-shot cutoff attempt is marked used),
+  `resumePausedUpgrades`, `refreshBookingCaches` (skips a throttled gym, keeps its cached rows) and
+  `sendBookingWindowTip`. Notification dedupe is unchanged: once per user+gym+day via `sent_notifications`.
+  A 403 is still not treated as throttling on a thrown error (no body to corroborate; base.js rule).
+- **Not covered:** `calendar.js` polls bookings on its own 3-hourly cron and does not consult the backoff.
+- **Test:** `test-poller-backoff.js` 4/4 (429 stops the gym until expiry with the clock advanced, other gym
+  continues, notification stays at one; read-path 429; sweep skip; scheduler and poller share state).
 
 ### C2-3b — mock.js `/bundles` envelope
 

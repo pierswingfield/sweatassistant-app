@@ -37,51 +37,18 @@ const burnedSlots = new Set();
 
 // --- Rate-limit distress abort (C2-3) ---------------------------------------
 //
-// Keyed by gymId only (WP-D7/WP-G: never by platform). When a provider signals
-// PROVIDER_RATE_LIMITED (base.js classifyProviderThrottle, wired from
-// providers/codexfit.js bookSlot), THIS gym's queue stops attempting new
-// bookings until the backoff expires — other gyms in the same dispatch batch
-// are unaffected because everything here is keyed by gymId, never global.
-const rateLimitBackoffUntil = new Map(); // gymId -> epoch ms
-// Used when the provider's response didn't carry a Retry-After.
-const DEFAULT_RATE_LIMIT_BACKOFF_MS = 5 * 60 * 1000; // 5 minutes
-
-function isGymRateLimited(gymId) {
-  const until = rateLimitBackoffUntil.get(gymId);
-  return typeof until === 'number' && Date.now() < until;
-}
-
-function applyRateLimitBackoff(gymId, retryAfterMs) {
-  const ms = Number.isFinite(retryAfterMs) && retryAfterMs > 0 ? retryAfterMs : DEFAULT_RATE_LIMIT_BACKOFF_MS;
-  const until = Date.now() + ms;
-  const prior = rateLimitBackoffUntil.get(gymId) || 0;
-  const next = Math.max(prior, until);
-  rateLimitBackoffUntil.set(gymId, next);
-  return next;
-}
-
-// Test-only: let test-rate-limit-abort.js reset backoff state between cases
-// without needing a fresh process per case (each server/test-*.js suite is
-// already its own process, but cases within one file share this module).
-function _resetRateLimitBackoffForTests() {
-  rateLimitBackoffUntil.clear();
-}
-
-// Fire the "provider is rate-limiting us" notification once per gym per day,
-// same dedupe-key convention as poller.js's other one-shot reminders
-// (`sent_notifications`, keyed per user — see notifications.js). Deliberately
-// per-user, not a single global send: that matches every other notification
-// type in this codebase and needs no new dedupe mechanism.
-function notifyRateLimited(userId, gymId) {
-  try {
-    const key = `rate-limit:${gymId}:${DateTime.now().setZone('Europe/London').toISODate()}`;
-    if (db.wasNotificationSent(userId, key)) return;
-    db.markNotificationSent(userId, key);
-    notifications.notify(userId, 'providerThrottled', { gymId });
-  } catch (err) {
-    console.error(`[Scheduler] Failed to send rate-limit notification (gym ${gymId}, user ${userId}):`, err.message);
-  }
-}
+// The per-gym backoff state, and the notification helper, live in
+// rate-limit-backoff.js so the poller shares the SAME state (C2-3b) instead of
+// keeping a second copy. When a provider signals PROVIDER_RATE_LIMITED
+// (base.js classifyProviderThrottle, wired from providers/codexfit.js
+// bookSlot), THIS gym's queue stops attempting new bookings until the backoff
+// expires — other gyms are unaffected because everything is keyed by gymId.
+const {
+  isGymRateLimited,
+  applyRateLimitBackoff,
+  notifyRateLimited,
+  _resetRateLimitBackoffForTests,
+} = require('./rate-limit-backoff');
 
 // Same reasoning as the claim sets: an event id alone is not unique across gyms,
 // and a collision here is worse than a skipped booking — it serves one gym's slot

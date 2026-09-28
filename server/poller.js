@@ -4,7 +4,15 @@ const db = require('./db');
 const pushService = require('./push');
 const notifications = require('./notifications');
 const { triggerAutoRelogin } = require('./auth');
-const { getCachedEvent, setCachedEvent, isGymRateLimited } = require('./scheduler');
+const { getCachedEvent, setCachedEvent } = require('./scheduler');
+// C2-3b: one backoff state shared with the scheduler (see rate-limit-backoff.js).
+const {
+  isGymRateLimited,
+  applyRateLimitBackoff,
+  noteThrottleError,
+  noteThrottleResponse,
+  notifyRateLimited,
+} = require('./rate-limit-backoff');
 const { getProvider } = require('./providers');
 const { getGymConfig } = require('./gyms.config');
 const { policyOf, isRollingWeekly, mostRecentRelease } = require('./providers/booking-window');
@@ -71,6 +79,8 @@ async function fetchFromGym(userId, gymId, path, options = {}) {
       throw err;
     }
   }
+  // C2-3b: a 429 (or Retry-After 403) from ANY poller read/write backs the gym off.
+  if (!res.ok) noteThrottleResponse(gymId, res);
   return res;
 }
 
@@ -145,6 +155,19 @@ function shouldCheckUpgrade(upgrade, settings) {
 }
 
 // Attempt upgrade for a single active upgrade monitor
+// C2-3b: a booking/swap result that says PROVIDER_RATE_LIMITED (the normalized
+// code from classifyProviderThrottle) arms THIS gym's backoff, notifies once per
+// user+gym+day, and releases the slot claim. Returns true when it handled one, so
+// the caller stops instead of logging an ordinary failed attempt.
+function handleUpgradeThrottle(result, userId, gymId, claimKey) {
+  if (!result || result.code !== 'PROVIDER_RATE_LIMITED') return false;
+  const until = applyRateLimitBackoff(gymId, result.retryAfterMs);
+  console.error(`[Poller] Gym ${gymId} rate-limited an auto-upgrade attempt (${result.error}). Backing off until ${new Date(until).toISOString()}.`);
+  claimedSlots.delete(claimKey);
+  notifyRateLimited(userId, gymId);
+  return true;
+}
+
 async function attemptUpgradeSlot(upgrade, isCutoffMode) {
   const eventId = String(upgrade.event_id);
   const userId = upgrade.user_id;
@@ -164,6 +187,10 @@ async function attemptUpgradeSlot(upgrade, isCutoffMode) {
   const preferredRows = liveMap.preferredRows || prefs.preferredRows || [];
 
   if (preferredSlots.length === 0 && preferredRows.length === 0) return;
+
+  // C2-3b: this gym is refusing us — send nothing until the backoff expires.
+  // Returns before touching the monitor row, so it is simply due again after.
+  if (isGymRateLimited(gymId)) return;
 
   try {
     // 1. Get live slot availability via provider adapter — use shared cache to avoid N fetches/min
@@ -272,6 +299,7 @@ async function attemptUpgradeSlot(upgrade, isCutoffMode) {
           // either moves them or doesn't.
           if (isAtomic) {
             bookResult = await swapSpotsWithRelogin(userId, gymId, upgrade.booking_id, upgrade.current_slot_id, candidateSlot);
+            if (!bookResult.ok && handleUpgradeThrottle(bookResult, userId, gymId, claimKey)) return;
             if (!bookResult.ok) {
               console.warn(`[Poller] Atomic swap failed:`, bookResult.error || bookResult.status);
               claimedSlots.delete(claimKey);
@@ -282,6 +310,7 @@ async function attemptUpgradeSlot(upgrade, isCutoffMode) {
             bookResult = await bookSlotWithRelogin(userId, gymId, eventId, candidateSlot);
           }
 
+          if (!bookResult.ok && handleUpgradeThrottle(bookResult, userId, gymId, claimKey)) return;
           if (!bookResult.ok) {
             console.warn(`[Poller] Auto-upgrade slot booking failed:`, bookResult.error || bookResult.status);
             claimedSlots.delete(claimKey);
@@ -369,7 +398,13 @@ async function attemptUpgradeSlot(upgrade, isCutoffMode) {
     db.updateAutoUpgrade(upgrade.id, userId, 'active', 'No better slot available. Monitoring...', { lastCheckedAt: new Date().toISOString() });
 
   } catch (err) {
-    console.error(`[Poller] Error in upgrade worker for event ${eventId}:`, err.message);
+    // C2-3b: a thrown 429 from a read (event details, profile) backs the gym off too.
+    if (noteThrottleError(gymId, err)) {
+      console.error(`[Poller] Gym ${gymId} rate-limited (${err.message}). Backing off auto-upgrade polling for this gym.`);
+      notifyRateLimited(userId, gymId);
+    } else {
+      console.error(`[Poller] Error in upgrade worker for event ${eventId}:`, err.message);
+    }
   }
 }
 
@@ -463,6 +498,7 @@ async function resumePausedUpgrades() {
             if (!session || !session.accessToken) return null;
             return await getProvider(gymId).getCredits(session);
           } catch (err) {
+            noteThrottleError(gymId, err);
             console.warn(`[Poller] Resume check: credits read failed for user ${userId} (${gymId}): ${err.message}`);
             return null;
           }
@@ -516,6 +552,10 @@ async function executeAutoUpgradeChecks() {
       }
 
       const prefs = JSON.parse(upgrade.preferences) || {};
+      // C2-3b: a backed-off gym gets no attempts (its local stop rules above and
+      // below still run). Checked before the one-shot cutoff attempt is marked
+      // used, so backoff can't burn a member's final attempt.
+      const gymLimited = isGymRateLimited(upgrade.gym_id);
 
       // 12h cutoff boundary — trigger 5 seconds early to avoid race conditions
       // at the exact cancel-free boundary that could incur a late-cancel penalty.
@@ -524,6 +564,7 @@ async function executeAutoUpgradeChecks() {
         if (prefs.keepOriginalOnCutoff) {
           // User opted in to continue past 12h: one final attempt (no cancel), then stop
           if (!prefs.cutoffAttempted) {
+            if (gymLimited) continue;
             console.log(`[Poller] Under 12h for event ${upgrade.event_id}. Final attempt — original seat will be kept.`);
             prefs.cutoffAttempted = true;
             db.updateAutoUpgrade(upgrade.id, upgrade.user_id, 'active', 'Running final upgrade attempt within 12h window...', {
@@ -544,6 +585,7 @@ async function executeAutoUpgradeChecks() {
       }
 
       // Standard active check (>12h before class)
+      if (gymLimited) continue;
       await attemptUpgradeSlot(upgrade, false);
 
     } catch (err) {
@@ -632,6 +674,9 @@ async function refreshBookingCaches() {
       const rows = [];
       const synced = [];
       for (const gymId of gymIds) {
+        // C2-3b: skip a throttled gym. Not counted as "synced", so its cached
+        // rows are kept rather than cleared.
+        if (isGymRateLimited(gymId)) continue;
         await new Promise(r => setTimeout(r, 2000 + Math.floor(Math.random() * 6000)));
         try {
           rows.push(...await bookingCacheRowsFor(userId, gymId));
@@ -639,6 +684,7 @@ async function refreshBookingCaches() {
         } catch (err) {
           // Scope the write to the gyms that actually answered: a gym that
           // failed must keep its existing rows rather than have them cleared.
+          noteThrottleError(gymId, err);
           console.error(`[Reminders] ${gymId} failed for user ${userId}:`, err.message);
         }
       }
@@ -747,7 +793,7 @@ async function sendBookingWindowTip(userId, gymId) {
     // Credit arithmetic only means anything at a metered gym: a membership gym
     // has no balance to run short of, so "not enough credits" is never the
     // reason it would fail.
-    if (cfg?.capabilities?.metered) {
+    if (cfg?.capabilities?.metered && !isGymRateLimited(gymId)) {
       try {
         const credits = await getProvider(gymId).getCredits(db.getUserSession(userId, gymId));
         const totalCredits = (credits || []).reduce((s, c) => s + (Number(c.count) || 0), 0);
@@ -757,7 +803,7 @@ async function sendBookingWindowTip(userId, gymId) {
           return s + (p.requiredCount || 1);
         }, 0);
         enough = totalCredits >= needed;
-      } catch (_) { /* fall back to the neutral tip */ }
+      } catch (err) { noteThrottleError(gymId, err); /* fall back to the neutral tip */ }
     }
     const plural = count !== 1 ? 'es' : '';
     tip = enough

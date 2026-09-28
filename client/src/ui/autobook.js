@@ -7,6 +7,7 @@ import { DateTime } from 'luxon';
 import { renderStudioFloorPlan } from './spotmap';
 import { icon, disciplineTag, trimLocation, seatNoun, pulseIcon, renderGymRail, equalizeDiscTagWidths, escapeHtml } from './cards';
 import { renderCardSkeletons } from './loading-skeleton.js';
+import { ensureLiveStatusLine, setLiveStatusText } from './status-line.js';
 import { instructorAvatar } from './tooltips.js';
 import { pickStudioPrefs } from './timetable';
 
@@ -107,50 +108,39 @@ function updateQueueDisplayForEvent(eventId, update) {
   const card = queueContainer.querySelector(`[data-event-id="${eventId}"]`);
   if (!card) return;
 
-  // Update or create a status line
-  let statusEl = card.querySelector('.autobook-status-line');
-  if (!statusEl) {
-    statusEl = document.createElement('div');
-    statusEl.className = 'autobook-status-line';
-    (card.querySelector('.ab-card-main') || card).appendChild(statusEl);
-  }
+  // Update or create a status line. It is a polite live region (U2-3): screen
+  // readers announce status CHANGES only (see status-line.js) — the countdown
+  // that ticks every second lives elsewhere and is not announced.
+  const { el: statusEl, created } = ensureLiveStatusLine(card.querySelector('.ab-card-main') || card);
 
-  // Update status text and color based on status type
+  // Colour and a fallback text per status; a server-supplied `message` wins.
   let statusColor = 'var(--text-secondary)';
-  let statusIcon = '⏳';
+  let fallbackText = null;
 
   if (update.status === 'prefetching') {
-    statusIcon = '📊';
     statusColor = 'var(--text-tertiary)';
   } else if (update.status === 'planning') {
-    statusIcon = '📋';
     statusColor = 'var(--feat-autoupgrade)';
-    if (update.plannedSlots) {
-      statusEl.innerHTML = `${statusIcon} Planning: attempting slots <strong>[${update.plannedSlots.join(', ')}]</strong>`;
-    }
+    if (update.plannedSlots) fallbackText = `📋 Planning: attempting slots [${update.plannedSlots.join(', ')}]`;
   } else if (update.status === 'attempting') {
-    statusIcon = '🎯';
     statusColor = 'var(--warning)';
-    statusEl.innerHTML = `${statusIcon} Attempting slot <strong>${update.attemptingSlot}</strong> (${update.isPreferred ? 'preferred' : 'fallback'})...`;
+    fallbackText = `🎯 Attempting slot ${update.attemptingSlot} (${update.isPreferred ? 'preferred' : 'fallback'})...`;
   } else if (update.status === 'success') {
-    statusIcon = '✅';
     statusColor = 'var(--success)';
-    statusEl.innerHTML = `${statusIcon} Success! Booked slots <strong>[${update.bookedSlots.join(', ')}]</strong>`;
+    fallbackText = `✅ Success! Booked slots [${(update.bookedSlots || []).join(', ')}]`;
   } else if (update.status === 'waitlist-fallback') {
-    statusIcon = '📋';
     statusColor = 'var(--warning)';
   } else if (update.status === 'waitlist-success') {
-    statusIcon = '✅';
     statusColor = 'var(--warning)';
-    statusEl.innerHTML = `${statusIcon} Joined waitlist`;
+    fallbackText = '✅ Joined waitlist';
   } else if (update.status === 'failed') {
-    statusIcon = '❌';
     statusColor = 'var(--danger)';
-    statusEl.innerHTML = `${statusIcon} <span style="color:var(--danger);"><strong>Failed:</strong> ${update.message}</span>`;
+    fallbackText = `❌ Failed: ${update.message || ''}`.trim();
   }
 
   statusEl.style.color = statusColor;
-  statusEl.textContent = update.message || statusEl.textContent;
+  // textContent only (never innerHTML): the message comes from the server.
+  setLiveStatusText(statusEl, update.message || fallbackText || statusEl.textContent, { created });
 }
 
 function renderAutoBookControls() {

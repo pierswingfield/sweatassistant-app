@@ -465,6 +465,8 @@ ensureColumn('auto_bookings', 'gym_id', "TEXT DEFAULT 'psycle-london'");
 // could otherwise resolve the photo by name, and MarianaTek's instructor list
 // only covers the upcoming-class window.
 ensureColumn('auto_bookings', 'instructor_image_url', 'TEXT');
+// Class length in minutes, so competing-booking detection (C5-3) can test time overlap. Nullable: legacy rows.
+ensureColumn('auto_bookings', 'duration_min', 'INTEGER');
 ensureColumn('auto_upgrades', 'gym_id', "TEXT DEFAULT 'psycle-london'");
 
 function rebuildWithGymId(table, tmpCreateSql) {
@@ -1240,6 +1242,12 @@ module.exports = {
     return db.prepare('SELECT * FROM auto_bookings WHERE user_id = ? AND gym_id = ? ORDER BY id DESC')
       .all(userId, resolvedGym);
   },
+  // C5-3: everything this ONE user has queued, across every gym — competing-
+  // booking detection compares across gyms, so this is deliberately not
+  // gym-scoped. Scoped to the user, so it never sees anyone else's queue.
+  getPendingAutoBookingsAllGyms(userId) {
+    return db.prepare("SELECT * FROM auto_bookings WHERE user_id = ? AND status = 'pending' AND executed_at IS NULL ORDER BY id DESC").all(userId);
+  },
   // Per-GYM quota, not per-account: a Psycle queue must not consume a JAB
   // allowance. (The limit itself lives in server.js — see layer G.)
   countPendingAutoBookings(userId, gymId = null) {
@@ -1247,12 +1255,12 @@ module.exports = {
     return db.prepare("SELECT COUNT(*) AS n FROM auto_bookings WHERE user_id = ? AND gym_id = ? AND status = 'pending' AND executed_at IS NULL")
       .get(userId, targetGym).n;
   },
-  addAutoBooking(userId, eventId, className, instructorName, studioName, locationName, startAt, preferences, studioId = null, groupName = null, releaseAt = null, gymId = null, instructorImageUrl = null) {
+  addAutoBooking(userId, eventId, className, instructorName, studioName, locationName, startAt, preferences, studioId = null, groupName = null, releaseAt = null, gymId = null, instructorImageUrl = null, durationMin = null) {
     const targetGym = resolveGymStrict(userId, gymId, 'addAutoBooking');
     const result = db.prepare(`
-      INSERT INTO auto_bookings (user_id, gym_id, event_id, studio_id, class_name, instructor_name, instructor_image_url, studio_name, location_name, start_at, preferences, group_name, release_at)
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-    `).run(userId, targetGym, eventId, studioId, className, instructorName, instructorImageUrl, studioName, locationName, startAt, JSON.stringify(preferences), groupName, releaseAt);
+      INSERT INTO auto_bookings (user_id, gym_id, event_id, studio_id, class_name, instructor_name, instructor_image_url, studio_name, location_name, start_at, preferences, group_name, release_at, duration_min)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    `).run(userId, targetGym, eventId, studioId, className, instructorName, instructorImageUrl, studioName, locationName, startAt, JSON.stringify(preferences), groupName, releaseAt, Number(durationMin) > 0 ? Number(durationMin) : null);
     return result.lastInsertRowid;
   },
   updateAutoBookingPreferences(id, userId, preferences) {
@@ -1521,6 +1529,11 @@ module.exports = {
   // gym-filtered. Rows carry gym_id; the caller routes per row.
   getAllBookingCache() {
     return db.prepare('SELECT * FROM booking_cache').all();
+  },
+  // C5-3: this user's cached bookings across every gym (see getPendingAutoBookingsAllGyms).
+  getBookingCacheAllGyms(userId) {
+    return db.prepare('SELECT * FROM booking_cache WHERE user_id = ? AND start_at >= ?')
+      .all(userId, new Date(Date.now() - 864e5).toISOString());
   },
   getBookingCacheForUser(userId) {
     return db.prepare('SELECT * FROM booking_cache WHERE user_id = ? AND gym_id = ?')

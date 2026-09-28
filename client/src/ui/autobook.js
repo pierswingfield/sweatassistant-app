@@ -5,7 +5,7 @@ import { showToast, cache, userSettings, refreshUserData, debugConsole } from '.
 import { getClassReleaseTime } from '../lib';
 import { DateTime } from 'luxon';
 import { renderStudioFloorPlan } from './spotmap';
-import { icon, disciplineTag, trimLocation, seatNoun, pulseIcon, renderGymRail, equalizeDiscTagWidths } from './cards';
+import { icon, disciplineTag, trimLocation, seatNoun, pulseIcon, renderGymRail, equalizeDiscTagWidths, escapeHtml } from './cards';
 import { renderCardSkeletons } from './loading-skeleton.js';
 import { instructorAvatar } from './tooltips.js';
 import { pickStudioPrefs } from './timetable';
@@ -423,6 +423,12 @@ function renderQueue(queue) {
         ? `<div class="ab-credit-warning">${icon('warning', 13)}<span>Insufficient Credits</span></div>`
         : '';
 
+    // C5-3: server-computed clashes with the member's other queued classes or
+    // bookings. Messages are server text, so escape them.
+    const clashWarnings = (q.warnings || [])
+      .map(w => `<div class="ab-credit-warning ab-clash-warning" data-code="${escapeHtml(w.code)}">${icon('warning', 13)}<span>${escapeHtml(w.message)}</span></div>`)
+      .join('');
+
     card.innerHTML = `
       ${renderGymRail(q.gym_id || 'psycle-london')}
       <div class="ab-card-main">
@@ -449,6 +455,7 @@ function renderQueue(queue) {
           <span class="ab-spots-pill">${creditsNeeded} ${seatNoun(q.group_name)[0].toUpperCase() + seatNoun(q.group_name).slice(1)}${creditsNeeded !== 1 ? 's' : ''}</span>
         </div>
         ${creditWarning}
+        ${clashWarnings}
       </div>
       <div class="ab-card-rail">
         <button class="ab-rail-btn edit-autobook-btn" data-id="${q.id}" aria-label="Edit">${icon('edit', 17)}<span>Edit</span></button>

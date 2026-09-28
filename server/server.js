@@ -15,6 +15,8 @@ const calendar = require('./calendar');
 const adminRouter = require('./admin');
 const normalizedRouter = require('./routes-normalized');
 const config = require('./config');
+const competing = require('./competing-bookings');
+const { getGymConfig } = require('./gyms.config');
 const { appName } = config;
 
 // The old CodexFit proxy + cart routes that lived here (WP-D9's removed
@@ -370,14 +372,40 @@ app.post('/api/bookings/sync', authenticateToken, (req, res) => {
 // AUTO-BOOK QUEUE MANAGEMENT
 // -------------------------------------------------------------
 
+// C5-3: the member's pending queue + cached bookings, in the shape the pure
+// detector (competing-bookings.js) wants. Cross-gym on purpose; own user only.
+function competingContextFor(userId) {
+  return {
+    queued: db.getPendingAutoBookingsAllGyms(userId).map(r => ({
+      id: r.id, gymId: r.gym_id, eventId: r.event_id, startAt: r.start_at,
+      durationMin: r.duration_min, className: r.class_name,
+    })),
+    // booking_cache is client/poller-synced, so it can lag the gym slightly:
+    // fine for a warning, which is all it feeds.
+    booked: db.getBookingCacheAllGyms(userId).map(r => ({
+      gymId: r.gym_id, eventId: r.event_id, startAt: r.start_at,
+      durationMin: r.duration_min, className: r.class_name,
+    })),
+    opts: {
+      zoneOf: (g) => getGymConfig(g)?.timezone,
+      labelOf: (g) => getGymConfig(g)?.shortName || getGymConfig(g)?.name || null,
+    },
+  };
+}
+
 app.get('/api/auto-book', authenticateToken, (req, res) => {
   try {
     const gymId = req.query.gymId || (req.headers['x-gym-id'] ? undefined : 'all');
     const bookings = db.getUserAutoBookings(req.userId, gymId);
+    // C5-3: judged against the member's WHOLE queue + bookings, not just the
+    // gym filter above, or a cross-gym overlap would vanish from a per-gym view.
+    const ctx = competingContextFor(req.userId);
+    const conflicts = competing.detectQueueConflicts(ctx.queued, ctx.booked, ctx.opts);
     // Parse preferences JSON string
     const formatted = bookings.map(b => ({
       ...b,
-      preferences: JSON.parse(b.preferences)
+      preferences: JSON.parse(b.preferences),
+      warnings: conflicts[b.id] || [],
     }));
     res.json(formatted);
   } catch (err) {
@@ -386,7 +414,7 @@ app.get('/api/auto-book', authenticateToken, (req, res) => {
 });
 
 app.post('/api/auto-book', authenticateToken, bookingMutationLimiter, (req, res) => {
-  const { eventId, studioId, className, instructorName, instructorImageUrl, studioName, locationName, startAt, preferences, skipImmediate, groupName, creditShortfall, releaseAt, gymId: reqGymId } = req.body;
+  const { eventId, studioId, className, instructorName, instructorImageUrl, studioName, locationName, startAt, preferences, skipImmediate, groupName, creditShortfall, releaseAt, durationMin, gymId: reqGymId } = req.body;
   if (!eventId || !preferences) {
     return res.status(400).json({ message: 'eventId and preferences are required' });
   }
@@ -396,10 +424,25 @@ app.post('/api/auto-book', authenticateToken, bookingMutationLimiter, (req, res)
     if (pendingCount >= MAX_PENDING_AUTO_BOOKINGS_PER_GYM) {
       return res.status(429).json({ message: `Auto-book queue limit reached (${MAX_PENDING_AUTO_BOOKINGS_PER_GYM} pending entries). Please remove some entries before adding more.` });
     }
+    // C5-3: competing bookings. An exact duplicate (same gym + event, already
+    // pending) is rejected: a second entry can never help — at best a no-op, at
+    // worst a double claim — and the client would otherwise announce success for
+    // something that did nothing. Everything else (overlaps, already booked) is a
+    // WARNING returned alongside the success: auto-book is speculative and a
+    // member may deliberately queue two alternatives, so the server can't block it.
+    const ctx = competingContextFor(req.userId);
+    const targetGymId = gymId || db.resolveActiveGymId(req.userId);
+    const warnings = competing.detectCompetingBookings(
+      { gymId: targetGymId, eventId, startAt, durationMin, className }, ctx.queued, ctx.booked, ctx.opts);
+    const dup = warnings.find(w => w.code === 'DUPLICATE_QUEUED');
+    if (dup) {
+      return res.status(409).json({ code: 'DUPLICATE_AUTO_BOOK', message: dup.message, warnings });
+    }
+
     // Capture the class's own release instant when the gym publishes one (WP-D8).
     // A per-class gym's release has no weekday rule to recompute it from later,
     // so if it isn't stored now it is gone.
-    const id = db.addAutoBooking(req.userId, eventId, className, instructorName, studioName, locationName, startAt, preferences, studioId ?? null, groupName ?? null, releaseAt ?? null, gymId, instructorImageUrl ?? null);
+    const id = db.addAutoBooking(req.userId, eventId, className, instructorName, studioName, locationName, startAt, preferences, studioId ?? null, groupName ?? null, releaseAt ?? null, gymId, instructorImageUrl ?? null, durationMin ?? null);
 
     // Warn (via push) if the user set this up without enough credits.
     if (creditShortfall && creditShortfall > 0) {
@@ -419,7 +462,7 @@ app.post('/api/auto-book', authenticateToken, bookingMutationLimiter, (req, res)
     // the next dispatch to recompute it.
     scheduler.rearm();
 
-    res.json({ id, success: true });
+    res.json({ id, success: true, warnings });
   } catch (err) {
     // A gym-ambiguous write is a client bug (the caller didn't name its gym),
     // not a server fault — say so with a 400 rather than a generic 500.

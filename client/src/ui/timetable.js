@@ -3408,8 +3408,9 @@ async function saveAutoBookPreferences(c, slots, rows, qty, bookAny, callback, s
     const availForAB = getAvailableCreditsForEvent(c);
     const creditShortfall = Number.isFinite(availForAB) ? Math.max(0, qty - availForAB) : 0;
 
-    await api.addAutoBooking({
+    const abResult = await api.addAutoBooking({
       eventId: c.id,
+      durationMin: c.durationMin || null,
       // Without this the server falls back to db.resolveActiveGymId(userId) —
       // the ACCOUNT's globally active gym, not this class's own — so
       // auto-booking a JAB class while Psycle is active silently queued it
@@ -3439,6 +3440,8 @@ async function saveAutoBookPreferences(c, slots, rows, qty, bookAny, callback, s
     });
 
     showToast(`Successfully scheduled auto-book for ${strippedClassName}!`, 'success');
+    // C5-3: queued, but it fights something else this member has. Warn, don't block.
+    for (const w of (abResult && abResult.warnings) || []) showToast(w.message, 'warning');
     callback();
     renderTimetableGrid();
   } catch (err) {

@@ -723,7 +723,11 @@ export const api = {
       body: JSON.stringify(bookingData)
     });
     if (res.ok) invalidateApiCache('/api/auto-book').catch(() => {});
-    return res.json();
+    const body = await res.json().catch(() => ({}));
+    // Throw on a refusal (409 duplicate, 429 quota, ...): callers used to announce
+    // "Successfully scheduled" over any JSON body, whatever the status (C5-3).
+    if (!res.ok) throw new Error(body.message || `Could not schedule auto-book (${res.status})`);
+    return body;
   },
 
   async updateAutoBooking(id, preferences) {

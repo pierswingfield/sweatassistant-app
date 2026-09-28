@@ -335,10 +335,16 @@ app.post('/api/push/test/:type', authenticateToken, async (req, res) => {
 // devices (honours the user's scope preference: all bookings vs auto-book only).
 app.post('/api/notify/booking-success', authenticateToken, async (req, res) => {
   try {
-    const { eventId, className, groupName, instructorName, startAt, slots, source } = req.body;
+    const { eventId, className, groupName, instructorName, startAt, slots, source, gymId: bodyGymId } = req.body;
+    // C3-19: the booking's OWN gym names the push. A gym the account is not
+    // linked to is refused, never quietly replaced. Only a caller that sends
+    // none (an out-of-date PWA) falls back to the ambient resolution.
+    if (bodyGymId && !db.isGymLinked(req.userId, bodyGymId)) {
+      return res.status(403).json({ message: 'That gym is not linked to this account.' });
+    }
     await notifications.notify(req.userId, 'booking', {
       source: source || 'manual', eventId, className, groupName, instructorName, startAt, slots,
-      gymId: db.resolveActiveGymId(req.userId),
+      gymId: bodyGymId || db.resolveActiveGymId(req.userId),
     });
     // Refresh the calendar feed shortly after a manual/quick booking.
     try { calendar.scheduleRefresh(req.userId); } catch (_) {}

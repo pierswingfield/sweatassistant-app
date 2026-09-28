@@ -2351,7 +2351,7 @@ async function quickBookClass(eventId, prefs, btn, gymId = null) {
         }
         showToast('Quick-booked! 🎉', 'success');
         api.notifyBookingSuccess({
-          source: 'quickbook', eventId,
+          source: 'quickbook', eventId, gymId,
           className: eventData.name || '', groupName: eventData.discipline || '',
           instructorName: eventData.instructors?.[0]?.name || '',
           startAt: eventData.startAt, slots: [],
@@ -2443,7 +2443,7 @@ async function quickBookClass(eventId, prefs, btn, gymId = null) {
 
     if (bookedCount > 0) {
       api.notifyBookingSuccess({
-        source: 'quickbook', eventId,
+        source: 'quickbook', eventId, gymId,
         className: eventData.name || '',
         groupName: eventData.discipline || '',
         instructorName: eventData.instructors?.[0]?.name || '',
@@ -3094,7 +3094,7 @@ async function openBookingModal(c, mode) {
               return s?.label ?? id;
             });
             api.notifyBookingSuccess({
-              source: 'manual', eventId: c.id, className: c.name || groupName, groupName,
+              source: 'manual', eventId: c.id, gymId: c.gymId || null, className: c.name || groupName, groupName,
               instructorName: instrName, startAt: c.startAt, slots: bookedLabels,
             }).catch(() => {});
             const autoUpgrade = controls.querySelector('#simplebook-auto-upgrade')?.checked ?? false;

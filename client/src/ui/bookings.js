@@ -627,7 +627,7 @@ export async function openEditBookingModal(group, onChange = renderBookings) {
         }
         if (toAdd.length) {
           api.notifyBookingSuccess({
-            source: 'manual', eventId: group.eventId, className,
+            source: 'manual', eventId: group.eventId, className, gymId: group.event?.gymId || null,
             groupName,
             instructorName: event.instructors?.[0]?.name || event.instructor?.full_name || '',
             startAt: event.startAt || event.start_at, slots: toAdd.map(labelFor),

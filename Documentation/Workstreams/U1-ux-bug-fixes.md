@@ -21,7 +21,7 @@ Cheap, visible fixes. Run them alongside C3 so they share the same live re-test.
 | U1-11 | **Strip the discipline prefix from class names.** JAB's `TRAIN - Upper (Focus)` should display as `Upper (Focus)`, because the discipline pill already says TRAIN. `cleanClassName` doesn't handle the `DISCIPLINE - Name` pattern. Found by the user 2026-09-29. ✅ **Fixed 2026-09-29** (see below). | `client/src/ui/cards.js cleanClassName` | 30 min |
 | U1-12 | **Overlap modal for Book and Quick-Book too**, not only Auto-Book. It must precede any other modal (spot picker, first-time setup). Found by the user 2026-09-29. ✅ **Fixed 2026-09-29** (see below). | U1-6 `overlap-modal.js`; `timetable.js` book/quick-book | 2–3 h |
 | U1-13 | **Auto-Book card shows "Insufficient Credits" despite sufficient credits** (live, the user's configured Psycle auto-book; they can book another open class). Found by the user 2026-09-29. ✅ **Fixed 2026-09-29** (see below). | `client/src/ui/autobook.js`, credit-allowance | 1–2 h |
-| U1-14 | **First-time spot-map setup intro, and allow occupied spots while setting up.** When Quick-Book or Auto-Book hits a studio with a gym-provided seat map but no saved preferred map, open an intro step first: header "First-time setup", subheader "Choose your preferred spots for [Gym] [Studio location] first.", and body "Once set up, <b>Quick-Book</b> and <b>Auto-Book</b> will always book the best possible spot for you." A Next button swaps in the map. In setup mode, occupied spots must be selectable: you're choosing preferences, not a bike for this class. Today it refuses with "⚠ This bike is occupied or unavailable." Found by the user 2026-09-29. | `timetable.js openBookingModal`/`quickBookClass`, `spotmap.js` | 2–3 h |
+| U1-14 | **First-time spot-map setup intro, and allow occupied spots while setting up.** When Quick-Book or Auto-Book hits a studio with a gym-provided seat map but no saved preferred map, open an intro step first: header "First-time setup", subheader "Choose your preferred spots for [Gym] [Studio location] first.", and body "Once set up, <b>Quick-Book</b> and <b>Auto-Book</b> will always book the best possible spot for you." A Next button swaps in the map. In setup mode, occupied spots must be selectable: you're choosing preferences, not a bike for this class. Today it refuses with "⚠ This bike is occupied or unavailable." Found by the user 2026-09-29. ✅ **Fixed 2026-09-29** (see below). | `timetable.js openBookingModal`/`quickBookClass`, `spotmap.js` | 2–3 h |
 | U1-15 | **Timetable shows a class as booked for several seconds after cancelling it in My Bookings.** A booking/cancel mutation must invalidate the timetable's booking-state overlay so returning to the timetable reflects it immediately. Found by the user 2026-09-29. ✅ **Fixed 2026-09-29** (see below). | `timetable.js` booking overlay/cache; `bookings.js` cancel | 1–2 h |
 | U1-16 | **Psycle push notifications read "CLASS with your instructor - Spot …".** The class name and instructor are missing for Psycle; JAB is fine. Probably a regression from C3-19 (the booking-success payload now carries gymId) or from the normalized field names. Found by the user 2026-09-29. ✅ **Fixed 2026-09-29** (see below). | `server/notifications.js`; `client/src/api.js notifyBookingSuccess` callers | 1 h |
 
@@ -529,4 +529,21 @@ To keep the server's `booking_cache` current for this check, `syncBookingCache` 
 **Browser (real Chrome, local mock, two gyms):** with a JAB TRAIN booking at 12:00, Quick Book on the overlapping Psycle Ride 45 opened
 "Overlapping class … NEW BOOKING Psycle … CLASHES WITH JAB … BOOKED · Cancel · Quick-Book anyway" and the booking modal was NOT shown; Cancel closed it with no booking modal;
 a second click then "Quick-Book anyway" opened the spot picker.
+
+## U1-14 — First-time setup intro; occupied spots selectable while setting up
+
+**Root cause (2026-09-29):** in `timetable.js openBookingModal` the spot click handler refused an occupied spot with
+"⚠ This bike is occupied or unavailable." for every mode except auto-book (`!isAutoBookMode && !isAvailable`), so
+Quick-Book's preference-setting modal (which saves the studio's map, then books) was treated like a real booking of this class.
+There was also no intro before the first-ever map. (The user's report matches: refusal text present at the old line ~2829.)
+
+**Fix:** new pure `client/src/ui/spot-selection.js` (`spotSelectionRule`: only mode `book` refuses an occupied spot; auto-book keeps its
+"will be targeted" toast; `needsSetupIntro`; exact `setupIntroCopy`). `timetable.js openBookingModal` uses the rule and, when the studio has a
+seat map and no saved map (`quickbook`/`autobook` modes), opens on "First-time setup" / "Choose your preferred spots for [Gym] [Location] first." /
+"Once set up, **Quick-Book** and **Auto-Book** will always book the best possible spot for you." with a Next button that swaps in the map
+(the map is already rendered behind the intro, so Next is instant). After saving, Quick-Book books the best available preferred spot as before.
+**Tests:** `client/src/ui/spot-selection.test.js`.
+**Browser (real Chrome, local mock; the mock has no occupied spots, so 4 slots were marked unavailable by intercepting `/api/events/1083` in the tab):**
+Configure Quick-Book on a studio with no saved map showed title `First-time setup`, "Choose your preferred spots for Psycle Clapham first. Once set up, Quick-Book and Auto-Book will always book the best possible spot for you. Next";
+Next showed the map (40 spots); clicking an occupied spot selected it (summary "PREFERRED SPOTS Bike 11", no warning toast).
 

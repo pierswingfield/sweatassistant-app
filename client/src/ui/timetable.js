@@ -9,6 +9,7 @@ import { renderMinimap } from './tooltips.js';
 // === END MOBILE TIMETABLE BLOCK ===
 import { openDB, accountScopedKey } from '../cache.js';
 import { bookingNotifyPayload } from './booking-notify.js';
+import { spotSelectionRule, needsSetupIntro, setupIntroCopy } from './spot-selection.js';
 import { disciplineTag, seatNoun, sparklesIcon, trendingUpIcon, icon, pulseIcon, trimLocation, displayStudioName, equalizeDiscTagWidths , gymChip , cleanClassName, getDiscipline } from './cards';
 import { openEditBookingModal, syncBookingCache } from './bookings';
 import { openStudioFloorPlanEditor } from './settings';
@@ -2824,12 +2825,14 @@ async function openBookingModal(c, mode, opts = {}) {
             // Already selected — deselect
             state.selectedSlots.splice(idx, 1);
           } else {
-            // Not selected — try to select
-            if (!isAutoBookMode && !isAvailable) {
+            // Not selected — try to select. U1-14: only a real booking refuses an
+            // occupied spot; quick-book / auto-book are choosing PREFERENCES.
+            const rule = spotSelectionRule({ mode, isAvailable });
+            if (!rule.allowed) {
               showToast(`⚠ This ${seatNoun(groupName)} is occupied or unavailable.`, 'warning');
               return;
             }
-            if (isAutoBookMode && !isAvailable) {
+            if (rule.notice === 'will-target') {
               showToast('⚠ Currently occupied — will be targeted when booking fires.', 'info');
             }
             // Simple-book: limit selection to qty (credits/max-spots). Quick-book &
@@ -3279,6 +3282,33 @@ async function openBookingModal(c, mode, opts = {}) {
 
     render();
     updateMapEditToggle();
+
+    // U1-14: first-time setup. A studio with a seat map but no saved preferred map
+    // opens on an intro; Next swaps in the map that is already rendered behind it.
+    if (needsSetupIntro({ mode, hasSavedMap: hasExistingPrefs, hasSeatMap: layoutSlots.length > 0 })) {
+      const copy = setupIntroCopy({
+        gymName: getGymShortName(c.gymId),
+        locationName: trimLocation(c.locationName || '', getGymShortName(c.gymId)),
+      });
+      const modeTitle = title.textContent;
+      const held = [...body.children];
+      held.forEach((el) => { el.dataset.setupDisplay = el.style.display || ''; el.style.display = 'none'; });
+      title.textContent = copy.header;
+      const intro = document.createElement('div');
+      intro.id = 'psycle-setup-intro';
+      intro.style.cssText = 'padding:8px 0 4px;';
+      intro.innerHTML = `
+        <p style="margin:0 0 10px;font-size:16px;font-weight:600;color:var(--text);">${copy.sub}</p>
+        <p style="margin:0 0 20px;font-size:14px;line-height:1.5;color:var(--text-secondary);">${copy.bodyHtml}</p>
+        <button type="button" class="psycle-btn" id="psycle-setup-next" style="width:100%;background:var(--success);color:var(--on-accent);">${copy.next}</button>`;
+      body.appendChild(intro);
+      intro.querySelector('#psycle-setup-next').onclick = () => {
+        intro.remove();
+        held.forEach((el) => { el.style.display = el.dataset.setupDisplay || ''; delete el.dataset.setupDisplay; });
+        title.textContent = modeTitle;
+      };
+      intro.querySelector('#psycle-setup-next').focus();
+    }
   } catch (err) {
     console.error('[Timetable] Modal load floor map failed:', err);
     body.innerHTML = `<div class="psycle-card-error" style="color: var(--danger); padding: 20px 0; text-align: center;">Error loading layout: ${err.message}</div>`;

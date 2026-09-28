@@ -38,6 +38,9 @@ const fakeRes = (body, { ok = true, status = 200 } = {}) => ({
 async function withStub(obj, method, impl, fn) {
   const original = obj[method];
   obj[method] = impl;
+  // C2-6: every check reuses token 'tok' with a different body; drop the
+  // /profile memo so each check sees its own stubbed response.
+  if (typeof obj.invalidateProfile === 'function') obj.invalidateProfile({ accessToken: 'tok' });
   try { return await fn(); }
   finally { obj[method] = original; }
 }

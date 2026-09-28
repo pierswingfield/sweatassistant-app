@@ -218,7 +218,7 @@ All four items above are **done (2026-09-26)** — see below for evidence, root 
 |---|---|---|---|
 | C2-4 | Timetable from **v2 `/events` in one ranged call**, capped at 42 days | Today: 1 + 7 requests covering 28–56 days. The website makes one ranged call. | 1 day |
 | C2-5 | Use **`/heartbeat`** to invalidate the shared schedule cache | Replaces the blind 60 s TTL in `schedule-cache.js`. Fewer calls, fresher data. Probably makes the old "occupancy warming poller" idea (C7-7) unnecessary. | 0.5 day |
-| C2-6 | **Single-flight `/profile`** (30 s memo per user) | `getProfile`, `getEligibility` and `getCredits` each fetch it separately | 2 h |
+| C2-6 | ✅ **Single-flight `/profile`** (30 s memo per user) — *pulled forward into launch 2026-09-28*, done, see C2-6 section below | `getProfile`, `getEligibility` and `getCredits` each fetch it separately | 2 h |
 
 ## Tests (spread across phases)
 
@@ -342,3 +342,27 @@ in the meantime.
   balance. `npm test`: 33/33 server suites, 86/86 client tests. `npm run build:client`: clean.
 - **Not deployed.** Per this item's own instructions — the orchestrator redeploys and re-checks
   live against `sweat-dev.wingfield.tech` after review.
+
+## C2-6 — single-flight `/profile` (pulled forward into launch 2026-09-28) — DONE 2026-09-28
+
+- **Basis (verified before changing):** `server/test-profile-singleflight.js` written first; against the
+  old code, 12 concurrent mixed calls made 12 upstream `/profile` fetches and 3 sequential calls made 3
+  (`12 !== 1`, `3 !== 1`).
+- **Root cause:** `getProfile`, `getEligibility` and `getCredits` in `providers/codexfit.js` each called
+  `this.request('/profile', ...)` themselves.
+- **Fix:** `providers/codexfit.js` `_fetchProfile` / `_profileFor` / `invalidateProfile` (30 s memo,
+  `PROFILE_MEMO_TTL_MS`), constructor state per adapter. Key is `gymId|accessToken`, so it is never
+  shared across users or gyms. Concurrent callers share one in-flight promise. Only successful bodies are
+  kept; a failure clears the in-flight slot and stores nothing. A generation counter means a write that
+  lands mid-flight is not overwritten by the older result. The memo lives in the adapter, so every caller
+  (routes, scheduler, poller, calendar) gets it without changes.
+- **Invalidation (inside the adapter, so all callers are covered):** `bookSlot`, `cancelBooking` (and so
+  `swapSpots`), `finaliseCart`, `getOrder` (credits land when the order settles, which is observed there),
+  `updateProfile`. Bookmarks are metafields and do not touch the credit inventory or cutoffs, so they do not invalidate.
+- **Tests:** `server/test-profile-singleflight.js` (7 checks: N concurrent -> 1 fetch; memo hit; two users
+  -> 2 fetches; invalidation after book / cancel / updateProfile / swap; mid-flight write; failures not
+  cached). `test-profile-envelope.js` now drops the memo between its checks (it reuses one token with
+  different bodies).
+- **MarianaTek:** does *not* have the same pattern. `getProfile` (`/me/account`), `getCredits`
+  (`/me/credits`) and `getMemberships` (`/me/memberships`) are different documents; only `getEligibility`
+  fans out to two of them in parallel. Nothing to fix.

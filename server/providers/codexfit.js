@@ -29,6 +29,9 @@ const DEV_EMAIL = 'dev@psycle.com';
 // lives here now, not just in the 5 pre-Phase-3 callers.
 const MOCK_TOKEN = 'mock-jwt-token';
 
+// C2-6: how long a fetched /profile is reused (see CodexFitProvider._fetchProfile).
+const PROFILE_MEMO_TTL_MS = 30 * 1000;
+
 // Error with an attached HTTP `.status`, for methods (listBookings/listWaitlists)
 // that throw on failure instead of returning a NormalizedBookingResult — lets a
 // caller distinguish "401, worth a relogin retry" without string-parsing the message.
@@ -76,6 +79,14 @@ function mapLayoutObjects(studio) {
 }
 
 class CodexFitProvider extends GymProvider {
+  constructor(gymConfig) {
+    super(gymConfig);
+    // C2-6: per-adapter (= per-gym) /profile memo state; see _fetchProfile.
+    this._profileMemo = new Map();     // gym|token -> { value, expires }
+    this._profileInflight = new Map(); // gym|token -> Promise
+    this._profileGen = new Map();      // gym|token -> write generation
+  }
+
   // Build the standard CodexFit header set. Mirrors the old getCodexFitHeaders()
   // and the inline header objects exactly.
   buildHeaders(token, isJSON = false) {
@@ -239,11 +250,72 @@ class CodexFitProvider extends GymProvider {
     return session;
   }
 
+  // --- C2-6: single-flight + short memo for GET /profile ---------------------
+  //
+  // getProfile/getEligibility/getCredits all read the same document, so one
+  // page load or one scheduler/poller pass fetched it 3 times and N concurrent
+  // readers fetched it N times. The memo is keyed by GYM + the session's access
+  // token (the user identity this adapter sees), so it can never hand one
+  // member's credits to another. Only SUCCESSFUL bodies are kept (a 429 or 401
+  // must not be replayed for 30 s); concurrent callers share one in-flight
+  // promise, which is dropped on failure. A generation counter makes a write
+  // that lands mid-flight win: the stale result still resolves to its own
+  // callers but is not stored.
+  _profileKey(session) {
+    return `${this.gym.id}|${session.accessToken}`;
+  }
+
+  /** Drop this user's memoised /profile. Call after any write that changes credits or profile. */
+  invalidateProfile(session) {
+    if (!session || !session.accessToken) return;
+    const key = this._profileKey(session);
+    this._profileGen.set(key, (this._profileGen.get(key) || 0) + 1);
+    this._profileMemo.delete(key);
+    this._profileInflight.delete(key);
+  }
+
+  /** @returns {Promise<Object>} the unwrapped raw profile; rejects with `.status` on a non-2xx. */
+  _fetchProfile(session) {
+    const key = this._profileKey(session);
+    const hit = this._profileMemo.get(key);
+    if (hit && hit.expires > Date.now()) return Promise.resolve(hit.value);
+    const pending = this._profileInflight.get(key);
+    if (pending) return pending;
+
+    const gen = this._profileGen.get(key) || 0;
+    const p = (async () => {
+      const res = await this.request('/profile', { token: session.accessToken });
+      if (!res.ok) throw httpError(`profile fetch failed: ${res.status}`, res.status);
+      const value = unwrapProfileEnvelope(await res.json());
+      if ((this._profileGen.get(key) || 0) === gen) {
+        this._profileMemo.set(key, { value, expires: Date.now() + PROFILE_MEMO_TTL_MS });
+        // Bound the map: drop expired entries opportunistically.
+        if (this._profileMemo.size > 500) {
+          const now = Date.now();
+          for (const [k, v] of this._profileMemo) if (v.expires <= now) this._profileMemo.delete(k);
+        }
+      }
+      return value;
+    })();
+    this._profileInflight.set(key, p);
+    const clear = () => { if (this._profileInflight.get(key) === p) this._profileInflight.delete(key); };
+    p.then(clear, clear);
+    return p;
+  }
+
+  /** _fetchProfile with the caller's own error label (status preserved). */
+  async _profileFor(session, label) {
+    try {
+      return await this._fetchProfile(session);
+    } catch (e) {
+      if (e && e.status != null) throw httpError(`${label} failed: ${e.status}`, e.status);
+      throw e;
+    }
+  }
+
   /** GET /profile → normalized profile. Used by scheduler/poller/calendar in Phase 3. */
   async getProfile(session) {
-    const res = await this.request('/profile', { token: session.accessToken });
-    if (!res.ok) throw httpError(`getProfile failed: ${res.status}`, res.status);
-    const u = unwrapProfileEnvelope(await res.json());
+    const u = await this._profileFor(session, 'getProfile');
     return makeProfile({
       id: u.id,
       email: u.email,
@@ -266,9 +338,7 @@ class CodexFitProvider extends GymProvider {
    * @returns {Promise<import('./base').NormalizedEligibility>}
    */
   async getEligibility(session) {
-    const res = await this.request('/profile', { token: session.accessToken });
-    if (!res.ok) throw httpError(`getEligibility failed: ${res.status}`, res.status);
-    const u = unwrapProfileEnvelope(await res.json());
+    const u = await this._profileFor(session, 'getEligibility');
     const credits = u.available_credits || [];
     const total = credits.reduce((sum, c) => sum + (c.count || 0), 0);
     if (total > 0) return { canBook: true };
@@ -290,9 +360,7 @@ class CodexFitProvider extends GymProvider {
    * Normalizing here means the client never sees any of that.
    */
   async getCredits(session) {
-    const res = await this.request('/profile', { token: session.accessToken });
-    if (!res.ok) throw httpError(`getCredits failed: ${res.status}`, res.status);
-    const u = unwrapProfileEnvelope(await res.json());
+    const u = await this._profileFor(session, 'getCredits');
     return (u.available_credits || []).map((c) => ({
       typeId: c.credit_type && c.credit_type.id != null ? String(c.credit_type.id) : undefined,
       typeName: (c.credit_type && c.credit_type.name) || 'Credits',
@@ -669,7 +737,12 @@ class CodexFitProvider extends GymProvider {
     // bug — a caller passing several is the thing that's wrong.
     const body = { event_id: eventId };
     if (slotIds && slotIds.length > 0) body.slots = [slotIds[0]];
-    const res = await this.request('/bookings', { token: session.accessToken, method: 'POST', body });
+    let res;
+    try {
+      res = await this.request('/bookings', { token: session.accessToken, method: 'POST', body });
+    } finally {
+      this.invalidateProfile(session); // C2-6: a booking spends credits
+    }
     const data = await res.json().catch(() => ({}));
     if (!res.ok || !data.success) {
       // C2-3: classify a 429/throttle-shaped 403 into the normalized
@@ -695,7 +768,12 @@ class CodexFitProvider extends GymProvider {
   }
 
   async cancelBooking(bookingId, session) {
-    const res = await this.request(`/bookings/${bookingId}`, { token: session.accessToken, method: 'DELETE' });
+    let res;
+    try {
+      res = await this.request(`/bookings/${bookingId}`, { token: session.accessToken, method: 'DELETE' });
+    } finally {
+      this.invalidateProfile(session); // C2-6: a cancel refunds credits
+    }
     return res.ok;
   }
 
@@ -936,7 +1014,12 @@ class CodexFitProvider extends GymProvider {
   // UNVERIFIED against live Psycle — see codexfit-cart.js header.
   async finaliseCart(cartUuid, analytics, session) {
     await cart.beginCheckout(this, session.accessToken, cartUuid);
-    const result = await cart.finaliseCart(this, session.accessToken, cartUuid, analytics);
+    let result;
+    try {
+      result = await cart.finaliseCart(this, session.accessToken, cartUuid, analytics);
+    } finally {
+      this.invalidateProfile(session); // C2-6: an order adds credits
+    }
     return { orderId: cart.extractOrderId(result), raw: result };
   }
 
@@ -950,6 +1033,9 @@ class CodexFitProvider extends GymProvider {
    */
   async getOrder(orderId, session) {
     const res = await this.request(`/orders/${orderId}`, { token: session.accessToken, method: 'GET' });
+    // C2-6: credits land when the order settles, which is observed here — not
+    // at finalise time — so a memoised /profile is stale from this point on.
+    this.invalidateProfile(session);
     const data = await res.json().catch(() => ({}));
     return data.data || data;
   }
@@ -976,7 +1062,12 @@ class CodexFitProvider extends GymProvider {
   }
 
   async updateProfile(payload, session) {
-    const res = await this.request('/account/update', { token: session.accessToken, method: 'POST', body: payload });
+    let res;
+    try {
+      res = await this.request('/account/update', { token: session.accessToken, method: 'POST', body: payload });
+    } finally {
+      this.invalidateProfile(session); // C2-6: the profile itself changed
+    }
     const data = await res.json().catch(() => ({}));
     if (!res.ok) {
       const err = new Error(data.message || `Failed to update profile (HTTP ${res.status})`);

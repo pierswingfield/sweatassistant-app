@@ -101,6 +101,12 @@ in the session scratchpad (not committed — contain live account/customer PII f
   copy is the least accurate one.
 
 - [x] **C4-1 — reported, not queued.** `GET /api/auto-book` empty for both gyms. **No entry exists
+- [x] **C4-1 — Psycle half PASS (2026-09-28).** The user queued Psycle event 217241 on the dev twin on 2026-09-27 (11:20 UTC). It fired unattended at the Monday release, per the `psycle-app-dev` logs (UTC):
+  - `10:59:10` prefetch; `10:59:14` event cached, 40 slots available.
+  - `10:59:55` precision mode on; `11:00:00.004` dispatch, i.e. **12:00:00.004 London**.
+  - `11:00:03.847` "Successfully booked slot 14 … (booking ID: 8551698)", then a push sent to 1 client.
+  - Note: about 3.2 s passed between the first POST (`11:00:00.63`) and the success line, most of it the provider call. Worth watching on a contested class.
+  - **The JAB rolling-window half is still open.**
   for the next Psycle release** (Monday 2026-09-28 12:00 London). Nothing queued this session — the
   user decides.
 

@@ -404,3 +404,24 @@ overlap scenario uses.
 - Method note: Chrome gives a background tab no trusted key events (`visibilityState:
   hidden`), so Esc and Tab-wrapping were driven with synthetic `KeyboardEvent`s, which exercise
   the modal's own handlers but not the browser's default Tab order (covered by the jsdom test).
+
+### U1-6 … U1-10: dev-twin deploy and live smoke (2026-09-28)
+
+Deployed HEAD `b5bedf0` to `sweat-dev.wingfield.tech` only (`./deploy.sh`, no `--prod`); rollback
+image `psycleapp-dev-psycle-app:rollback-u1-20260928`, pre-deploy snapshot
+`psycle-20260928-230425.db.gz`. `docker ps`: `psycle-app-dev` Up on `100.86.226.52:3005->3000`,
+prod `psycle-app` unchanged (`Up 8 weeks`). `/api/health` 200 via the tailnet address.
+
+Live read-only smoke, real Chrome (CDP), one tab, `test@piersj.com`, SW + CacheStorage + the
+IndexedDB cache cleared first (session kept):
+- **U1-7:** three hard refreshes of `#settings`: the sidebar entries, panes and connection rows go
+  `0/0/0 -> 2/2/2` in a single step (105, 72, 68 ms after document start), menu reads
+  `General | Notifications | Account | Your Gyms | JAB Boxing Club | Psycle London | About`, no duplicate.
+- **U1-8 / U1-10:** 5 icons on the static entries, 2 gym marks (`psycle-gym-mark-jab-boxing`,
+  `-psycle-london`), rendered as in `live-dev-desktop-menu.jpg`.
+- **U1-9: shows "Not recorded" live, as expected.** The fix records the stamp at the next login,
+  link, re-authenticate or background session renewal; neither existing link has had one since the
+  deploy, and no honest source exists to backfill from. One "Re-authenticate" on each gym (or the
+  next renewal) will populate it. The local end-to-end check (`after9-light-desktop-gyms.jpg`)
+  shows `Today · 28 Sept 2026` for both gyms after a login.
+- **U1-6** not exercised live by design (no auto-books on the live twin); the user tests it.

@@ -311,6 +311,14 @@ function authenticateTokenSSE(req, res, next) {
   });
 }
 
+// C6-4: stop re-submitting a stored credential the gym keeps rejecting. Each
+// background renewal is a real login against the member's own gym account; a bad
+// password retried every minute by the scheduler/poller/calendar is how an
+// upstream lockout happens. Only credential REJECTIONS count — a provider
+// outage never suspends retries. Cleared by a successful renewal or a re-link.
+const RELOGIN_MAX_REJECTIONS = 3;
+const isCredentialRejection = (err) => /rejected your login|incorrect email\/password|invalid credentials/i.test((err && err.message) || '');
+
 // Renew a gym session when the stored one is rejected (401 Unauthorized).
 async function triggerAutoRelogin(userId, gymId = null) {
   // `gymId` is explicit for background callers (WP-D7). The scheduler, poller and
@@ -355,6 +363,16 @@ async function triggerAutoRelogin(userId, gymId = null) {
     throw err;
   }
 
+  // C6-4: suspended after repeated rejections — fail fast without contacting the gym.
+  if (link.relogin_suspended) {
+    const err = new Error(`Automatic sign-in to ${gymName} is paused after repeated failures. Please log in to that gym again.`);
+    err.status = 401;
+    err.code = 'GYM_SESSION_EXPIRED';
+    err.gymId = targetGymId;
+    err.reloginSuspended = true;
+    throw err;
+  }
+
   try {
     // The adapter owns the ladder — refresh token first where the platform has
     // one (MarianaTek), straight to re-login where it does not (CodexFit). The
@@ -366,6 +384,7 @@ async function triggerAutoRelogin(userId, gymId = null) {
     }
     db.setGymSession(userId, targetGymId, renewed);
     db.setUserGymStatus(userId, targetGymId, 'active');
+    db.clearReloginFailures(userId, targetGymId);
     console.log(`[Auth] Session renewed for user ${userId} at ${gymName}.`);
     return renewed.accessToken;
   } catch (err) {
@@ -376,6 +395,14 @@ async function triggerAutoRelogin(userId, gymId = null) {
     // calendar token (Decision D4 — the account outlives the gym).
     db.setGymSession(userId, targetGymId, null);
     db.setUserGymStatus(userId, targetGymId, 'needs_relogin');
+    const counters = db.recordReloginFailure(userId, targetGymId, {
+      rejected: isCredentialRejection(err),
+      error: err.message,
+      maxRejections: RELOGIN_MAX_REJECTIONS,
+    });
+    if (counters && counters.relogin_suspended) {
+      console.warn(`[Auth] ${gymName} rejected user ${userId}'s stored credential ${counters.relogin_rejections} times — automatic sign-in suspended until they re-link.`);
+    }
     const relErr = new Error(`Could not renew your ${gymName} session. Please log in to that gym again.`);
     relErr.status = 401;
     relErr.code = 'GYM_SESSION_EXPIRED';
@@ -479,6 +506,7 @@ async function linkGymAccount(userId, gymId, email, password) {
     calendar_token: existingLink ? existingLink.calendar_token : null,
     status: 'active',
   });
+  db.clearReloginFailures(userId, gymId); // fresh credential just proven (C6-4)
   return db.getUserGymsPublic(userId).find((g) => g.gym_id === gymId);
 }
 
@@ -498,6 +526,7 @@ module.exports = {
   authenticateToken,
   authenticateTokenSSE,
   triggerAutoRelogin,
+  RELOGIN_MAX_REJECTIONS,
   linkGymAccount,
   unlinkGymAccount,
 };

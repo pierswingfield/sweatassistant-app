@@ -266,6 +266,7 @@
     .pill-green { background: rgba(90,171,110,0.15); color: var(--green); }
     .pill-accent { background: var(--accent-dim); color: var(--accent); }
     .pill-red { background: var(--red-dim); color: var(--red); }
+    .relogin-issues { margin-top: 4px; display: flex; flex-wrap: wrap; gap: 4px; }
     .pill-muted { background: var(--surface-2); color: var(--text-muted); }
 
     .chip-row { display: flex; flex-wrap: wrap; gap: 5px; margin-top: 6px; }
@@ -519,6 +520,7 @@
         <td>
           <button class="name-btn" data-detail-id="${u.id}">${escHtml(name)}</button>
           <div class="email">${escHtml(u.email)}</div>
+          ${reloginBadges(u.relogin_issues)}
         </td>
         <td>
           <div class="priority-cell">
@@ -694,15 +696,30 @@
     return section('Overview', `<dl class="kv-grid">${rows.map(([k, v]) => `<dt>${k}</dt><dd>${v}</dd>`).join('')}</dl>`);
   }
 
+  // C6-4: background relogin trouble, one pill per affected gym. Red = automatic
+  // sign-in suspended after repeated credential rejections (user must re-link);
+  // muted = consecutive failures still being retried.
+  function reloginBadges(issues) {
+    if (!issues || !issues.length) return '';
+    return `<div class="relogin-issues" data-relogin-issues>${issues.map(i =>
+      `<span class="pill ${i.suspended ? 'pill-red' : 'pill-muted'}" data-gym-id="${escHtml(i.gym_id)}"
+        title="${i.suspended ? 'Automatic sign-in paused after repeated rejections. The user must re-link this gym.' : 'Consecutive failed background sign-ins'}${i.last_relogin_failure_at ? ' · last ' + escHtml(fmtDateTime(i.last_relogin_failure_at)) : ''}">
+        ${escHtml(i.gym_name)}: ${i.failures} relogin fail${i.failures === 1 ? '' : 's'}${i.suspended ? ' · paused' : ''}</span>`).join(' ')}</div>`;
+  }
+
   function sectionGyms(d) {
     const gyms = d.gyms || [];
     if (!gyms.length) return section('Linked gyms', `<div class="empty">No gyms linked.</div>`, 0);
     const items = gyms.map(g => {
       const enabledPill = g.gym_enabled ? '<span class="pill pill-green">Enabled</span>' : '<span class="pill pill-muted">Disabled</span>';
       const vip = g.priority < 100 ? ` · <span class="pill pill-accent">${g.priority} VIP</span>` : '';
+      const relogin = g.relogin_failures > 0
+        ? `<div class="item-meta" data-relogin-detail><span class="pill ${g.relogin_suspended ? 'pill-red' : 'pill-muted'}">${g.relogin_failures} consecutive relogin failure${g.relogin_failures === 1 ? '' : 's'}${g.relogin_suspended ? ' · auto sign-in paused' : ''}</span>
+            ${g.last_relogin_failure_at ? ` last ${fmtDateTime(g.last_relogin_failure_at)}` : ''}${g.last_relogin_error ? ` · ${escHtml(g.last_relogin_error)}` : ''}</div>`
+        : '';
       return `<div class="item"><div class="item-head"><span class="item-title">${escHtml(g.gym_name)}</span>
         ${enabledPill}</div>
-        <div class="item-meta">${escHtml(g.provider)} · linked ${fmtDate(g.created_at)}${vip}</div></div>`;
+        <div class="item-meta">${escHtml(g.provider)} · linked ${fmtDate(g.created_at)}${vip}</div>${relogin}</div>`;
     }).join('');
     return section('Linked gyms', items, gyms.length);
   }

@@ -245,6 +245,15 @@ function ensureColumn(table, column, definition) {
     db.exec(`ALTER TABLE ${table} ADD COLUMN ${column} ${definition}`);
   }
 }
+// C6-4: background relogin health, per (user, gym) link. `relogin_failures` counts
+// consecutive failed renewals of any kind (outage or rejection) for the admin;
+// `relogin_rejections` counts only consecutive CREDENTIAL rejections and is what
+// suspends retrying; both reset on a successful renewal or a re-link.
+ensureColumn('user_gyms', 'relogin_failures', 'INTEGER NOT NULL DEFAULT 0');
+ensureColumn('user_gyms', 'relogin_rejections', 'INTEGER NOT NULL DEFAULT 0');
+ensureColumn('user_gyms', 'relogin_suspended', 'INTEGER NOT NULL DEFAULT 0');
+ensureColumn('user_gyms', 'last_relogin_failure_at', 'TEXT');
+ensureColumn('user_gyms', 'last_relogin_error', 'TEXT');
 ensureColumn('auto_bookings', 'studio_id', 'INTEGER');
 ensureColumn('auto_upgrades', 'studio_id', 'INTEGER');
 // Store the event-type group (e.g. "RIDE") so notifications can render it without a re-fetch.
@@ -1090,7 +1099,9 @@ module.exports = {
     const tx = db.transaction(() => {
       for (const gymId of others) {
         db.prepare(`UPDATE user_gyms SET encrypted_password = NULL, session_json = NULL,
-                    status = 'needs_relogin', updated_at = CURRENT_TIMESTAMP
+                    status = 'needs_relogin', updated_at = CURRENT_TIMESTAMP,
+                    relogin_failures = 0, relogin_rejections = 0, relogin_suspended = 0,
+                    last_relogin_failure_at = NULL, last_relogin_error = NULL
                     WHERE user_id = ? AND gym_id = ?`).run(userId, gymId);
       }
     });
@@ -1598,6 +1609,15 @@ module.exports = {
         active_upgrades: r.active_upgrades,
         gym_count: r.gym_count,
         active_gym_id: gymId,
+        // C6-4: EVERY linked gym with background relogin trouble, not just the
+        // resolved one — a JAB failure must show on an account whose summary
+        // row reads Psycle.
+        relogin_issues: db.prepare(`
+          SELECT ug.gym_id, g.name AS gym_name, ug.relogin_failures AS failures,
+                 ug.relogin_suspended AS suspended, ug.last_relogin_failure_at
+          FROM user_gyms ug JOIN gyms g ON g.id = ug.gym_id
+          WHERE ug.user_id = ? AND ug.relogin_failures > 0
+          ORDER BY ug.gym_id`).all(r.id).map((i) => ({ ...i, suspended: !!i.suspended })),
         jwt_expires_at: jwtExpiresAt,
       };
     });
@@ -1876,7 +1896,9 @@ module.exports = {
       SELECT ug.gym_id, g.name AS gym_name, g.provider, g.enabled AS gym_enabled,
              ug.gym_email, ug.status, ug.priority,
              (ug.calendar_token IS NOT NULL) AS calendar_enabled,
-             ug.created_at, ug.updated_at, ug.last_authenticated_at
+             ug.created_at, ug.updated_at, ug.last_authenticated_at,
+             ug.relogin_failures, ug.relogin_rejections, ug.relogin_suspended,
+             ug.last_relogin_failure_at, ug.last_relogin_error
       FROM user_gyms ug
       JOIN gyms g ON g.id = ug.gym_id
       WHERE ug.user_id = ?
@@ -1894,6 +1916,29 @@ module.exports = {
   setUserGymStatus(userId, gymId, status) {
     db.prepare('UPDATE user_gyms SET status = ?, updated_at = CURRENT_TIMESTAMP WHERE user_id = ? AND gym_id = ?')
       .run(status, userId, gymId);
+  },
+  // C6-4: record one failed background renewal. `rejected` = the gym refused the
+  // credential (as opposed to an outage/timeout); only rejections count toward
+  // suspension, so a provider outage can never lock a member out of retries.
+  // Returns the post-update counters.
+  recordReloginFailure(userId, gymId, { rejected = false, error = '', maxRejections = 3 } = {}) {
+    db.prepare(`UPDATE user_gyms SET
+        relogin_failures = relogin_failures + 1,
+        relogin_rejections = CASE WHEN ? THEN relogin_rejections + 1 ELSE relogin_rejections END,
+        last_relogin_failure_at = ?, last_relogin_error = ?, updated_at = CURRENT_TIMESTAMP
+      WHERE user_id = ? AND gym_id = ?`)
+      .run(rejected ? 1 : 0, new Date().toISOString(), String(error || '').slice(0, 300), userId, gymId);
+    db.prepare('UPDATE user_gyms SET relogin_suspended = 1 WHERE user_id = ? AND gym_id = ? AND relogin_rejections >= ?')
+      .run(userId, gymId, maxRejections);
+    return db.prepare('SELECT relogin_failures, relogin_rejections, relogin_suspended FROM user_gyms WHERE user_id = ? AND gym_id = ?')
+      .get(userId, gymId);
+  },
+  // Reset after a successful renewal, a re-link with fresh credentials, or an admin credential reset.
+  clearReloginFailures(userId, gymId) {
+    db.prepare(`UPDATE user_gyms SET relogin_failures = 0, relogin_rejections = 0, relogin_suspended = 0,
+        last_relogin_failure_at = NULL, last_relogin_error = NULL
+      WHERE user_id = ? AND gym_id = ? AND (relogin_failures != 0 OR relogin_rejections != 0 OR relogin_suspended != 0
+        OR last_relogin_failure_at IS NOT NULL OR last_relogin_error IS NOT NULL)`).run(userId, gymId);
   },
   // Generic upsert for the (user, gym) link — pass any subset of the mutable
   // columns. Used by WP-D3 (account bootstrap + gym linking) and WP-D4 (query

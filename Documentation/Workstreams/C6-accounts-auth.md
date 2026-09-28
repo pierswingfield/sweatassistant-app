@@ -13,7 +13,7 @@ is an admin reset.
 | C6-1 | **Self-service account recovery.** Only `POST /api/admin/users/:id/reset-password` exists. Mechanism **decided 2026-09-26: emailed single-use reset link** (see below). | `server/admin.js` ~L301–319 ("Self-service recovery does not exist") | ~1.5–2 days |
 | C6-2 | **Change account email.** No endpoint exists. | No `change-email` or `updateUserEmail` anywhere | 3–4 h |
 | C6-3 | **Legacy short passwords.** Legacy accounts keep sub-8-character passwords. Prompt an upgrade on next login, and show admins which accounts are affected. | `server/db.js` ~L1071 `setAccountPassword` (no re-check, by design) | 2–3 h |
-| C6-4 | **Track background relogin failures.** Count consecutive failures per user and gym. Surface them in admin, and stop retrying after N attempts so a bad password can't lock the upstream account. | `server/auth.js` L346/370 only set `needs_relogin` | 2 h |
+| C6-4 | ✅ (2026-09-28) **Track background relogin failures.** Count consecutive failures per user and gym. Surface them in admin, and stop retrying after N attempts so a bad password can't lock the upstream account. | `server/auth.js` L346/370 only set `needs_relogin` | 2 h |
 
 Copy fixes on the recover screen are in C1-4 and U1-4.
 
@@ -44,3 +44,32 @@ Shape of the build:
    inbox. Existing accounts are verified on their first successful reset.
 
 **Detail:** [archived BACKLOG "Account recovery" and "Account setup"](../Archive/2026-09-26/BACKLOG.md).
+
+## C6-4 — background relogin failures (done 2026-09-28)
+
+- **Basis:** `server/test-relogin-failures.js` written first and red 5/5 against the old code: `auth.js`
+  `triggerAutoRelogin` only set `status = 'needs_relogin'` on failure (auth.js L346/L378); nothing counted
+  attempts and nothing stopped them.
+- **Root cause:** the scheduler, poller and calendar cron all call `triggerAutoRelogin` on every 401. After
+  a failure the session is cleared but the stored credential remains, so the next 401 re-submits the same
+  rejected password to the member's real gym account, indefinitely.
+- **Fix:**
+  - `db.js` `user_gyms` gets `relogin_failures`, `relogin_rejections`, `relogin_suspended`,
+    `last_relogin_failure_at`, `last_relogin_error`; `recordReloginFailure` / `clearReloginFailures`;
+    `getUserGymsPublic`, `getAllUsers` (`relogin_issues`, every linked gym) and `getUserDetail.gyms` expose them.
+  - `auth.js` `triggerAutoRelogin` records each failed renewal; after `RELOGIN_MAX_REJECTIONS = 3`
+    consecutive **credential rejections** (message match `rejected your login` etc.) the link is suspended and
+    later calls fail fast with `GYM_SESSION_EXPIRED` + `reloginSuspended` without contacting the gym. A
+    provider outage counts toward `relogin_failures` (visible to the admin) but never suspends, so a gym
+    downtime cannot strand members. Success, a re-link (`linkGymAccount`) or an admin credential reset
+    (`resetGymCredentials`) clears the counters.
+  - `admin.html`: a pill per affected gym under the email in the user list (red = paused, muted = still
+    retrying) and a per-gym line in the detail "Linked gyms" section with count, time and last error.
+- **Tests:** `test-relogin-failures.js` 5/5 (per user+gym counting and reset, suspension with zero upstream
+  calls, outage never suspends, re-link clears, admin list and detail gym-aware).
+- **Real browser (Chrome 154, CDP :9222, one tab, local mock server with a scratch DB, admin password set):**
+  `/admin` user list rendered `JAB Boxing Club: 3 relogin fails · paused` (class `pill pill-red`) and
+  `Psycle London: 2 relogin fails` (`pill pill-muted`) on the affected account and nothing on the healthy
+  one; the detail drawer showed `3 consecutive relogin failures · auto sign-in paused ... JAB rejected your
+  login: incorrect email/password` and the Psycle line. Admin localStorage cleared afterwards.
+- **Not done:** no user-facing prompt beyond the existing `needs_relogin` status; the number 3 is untuned.

@@ -403,6 +403,28 @@ function competingContextFor(userId) {
   };
 }
 
+// U1-12: "does booking this class right now clash with something I already hold?"
+// Asked by the client BEFORE a manual Book / Quick-Book, so the same confirmation
+// as auto-book (U1-6) can precede every other modal. Read-only: nothing is
+// inserted. The rule is competing-bookings.js's, cross-gym, own user only; the
+// client never re-derives an overlap.
+app.post('/api/overlap-check', authenticateToken, (req, res) => {
+  const { eventId, startAt, durationMin, className, gymId: reqGymId } = req.body || {};
+  if (!eventId || !startAt) {
+    return res.status(400).json({ message: 'eventId and startAt are required' });
+  }
+  try {
+    const gymId = reqGymId || req.headers['x-gym-id'] || null;
+    const ctx = competingContextFor(req.userId);
+    const targetGymId = gymId || db.resolveActiveGymId(req.userId);
+    const warnings = competing.detectManualBookingOverlaps(
+      { gymId: targetGymId, eventId, startAt, durationMin, className }, ctx.queued, ctx.booked, ctx.opts);
+    res.json({ warnings });
+  } catch (err) {
+    res.status(500).json({ message: err.message });
+  }
+});
+
 app.get('/api/auto-book', authenticateToken, (req, res) => {
   try {
     const gymId = req.query.gymId || (req.headers['x-gym-id'] ? undefined : 'all');

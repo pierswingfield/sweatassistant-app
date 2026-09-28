@@ -19,7 +19,7 @@ Cheap, visible fixes. Run them alongside C3 so they share the same live re-test.
 | U1-9 | **"Last authenticated" always says "Not recorded".** README "Verified done" (QA-07) claims it works. *2026-09-28, source: user dev-twin testing.* | ✅ Fixed 2026-09-28 (write bug) | 1 h |
 | U1-10 | **Icons on Settings menu items** (SVG, not emoji). *2026-09-28, source: user dev-twin testing.* | ✅ Fixed 2026-09-28 | 1 h |
 | U1-11 | **Strip the discipline prefix from class names.** JAB's `TRAIN - Upper (Focus)` should display as `Upper (Focus)`, because the discipline pill already says TRAIN. `cleanClassName` doesn't handle the `DISCIPLINE - Name` pattern. Found by the user 2026-09-29. ✅ **Fixed 2026-09-29** (see below). | `client/src/ui/cards.js cleanClassName` | 30 min |
-| U1-12 | **Overlap modal for Book and Quick-Book too**, not only Auto-Book. It must precede any other modal (spot picker, first-time setup). Found by the user 2026-09-29. | U1-6 `overlap-modal.js`; `timetable.js` book/quick-book | 2–3 h |
+| U1-12 | **Overlap modal for Book and Quick-Book too**, not only Auto-Book. It must precede any other modal (spot picker, first-time setup). Found by the user 2026-09-29. ✅ **Fixed 2026-09-29** (see below). | U1-6 `overlap-modal.js`; `timetable.js` book/quick-book | 2–3 h |
 | U1-13 | **Auto-Book card shows "Insufficient Credits" despite sufficient credits** (live, the user's configured Psycle auto-book; they can book another open class). Found by the user 2026-09-29. ✅ **Fixed 2026-09-29** (see below). | `client/src/ui/autobook.js`, credit-allowance | 1–2 h |
 | U1-14 | **First-time spot-map setup intro, and allow occupied spots while setting up.** When Quick-Book or Auto-Book hits a studio with a gym-provided seat map but no saved preferred map, open an intro step first: header "First-time setup", subheader "Choose your preferred spots for [Gym] [Studio location] first.", and body "Once set up, <b>Quick-Book</b> and <b>Auto-Book</b> will always book the best possible spot for you." A Next button swaps in the map. In setup mode, occupied spots must be selectable: you're choosing preferences, not a bike for this class. Today it refuses with "⚠ This bike is occupied or unavailable." Found by the user 2026-09-29. | `timetable.js openBookingModal`/`quickBookClass`, `spotmap.js` | 2–3 h |
 | U1-15 | **Timetable shows a class as booked for several seconds after cancelling it in My Bookings.** A booking/cancel mutation must invalidate the timetable's booking-state overlay so returning to the timetable reflects it immediately. Found by the user 2026-09-29. ✅ **Fixed 2026-09-29** (see below). | `timetable.js` booking overlay/cache; `bookings.js` cancel | 1–2 h |
@@ -512,4 +512,21 @@ row's action cell every 0.5s): at 0.0s the row still read `Cancel ⋯`, flipping
 new `ui/booking-state.js` applies the known effect synchronously (a cancel drops the booking; a waitlist leave drops that gym's entry only),
 repaints the timetable, then refetches in the background (coalesced) to pick up new rows; installed once from `main.js initApp`.
 **Tests:** `client/src/ui/booking-state.test.js`.
+
+## U1-12 — Overlap confirmation before Book and Quick-Book
+
+**Basis (2026-09-29):** `saveAutoBookPreferences` was the only caller of the overlap rule (U1-6); `doQuickBook` and
+`openBookingModal(…,'book'|'quickbook')` went straight to booking or to the spot picker with no clash check.
+
+**Fix:** server `competing-bookings.js detectManualBookingOverlaps` (the overlap subset of the ONE rule: queue and
+bookings, cross-gym) behind new read-only `POST /api/overlap-check` (`server.js`, next to `competingContextFor`).
+Client `api.checkOverlap`; `timetable.js overlapGate()` runs at the top of `doQuickBook` and of `openBookingModal` for `book`/`quickbook`
+(so it precedes the spot picker and first-time setup; callers that already asked pass `overlapChecked`);
+`overlap-modal.js` takes a `mode` (wording: "New booking", "Book anyway" / "Quick-Book anyway"). Cancel or dismiss resolves false and nothing happens; a failed check lets the booking proceed.
+To keep the server's `booking_cache` current for this check, `syncBookingCache` now also runs from the timetable prefetch and after every mutation refetch (`booking-state.js`).
+**Tests:** `server/test-competing-bookings.js` (unit + HTTP: queue overlap cross-gym, synced-booking overlap cross-gym, clean time, same-class not a clash, read-only, 400/401),
+`client/src/ui/overlap-modal.test.js` (wording per mode).
+**Browser (real Chrome, local mock, two gyms):** with a JAB TRAIN booking at 12:00, Quick Book on the overlapping Psycle Ride 45 opened
+"Overlapping class … NEW BOOKING Psycle … CLASHES WITH JAB … BOOKED · Cancel · Quick-Book anyway" and the booking modal was NOT shown; Cancel closed it with no booking modal;
+a second click then "Quick-Book anyway" opened the spot picker.
 

@@ -50,6 +50,8 @@ async function refetchBookingState() {
       const [bookings, waitlists] = await Promise.all([api.getBookings(), api.getWaitlists()]);
       cache.bookings = bookings || [];
       cache.waitlists = waitlists || [];
+      // Keep the server's booking_cache (what /api/overlap-check reads) current.
+      import('./bookings.js').then((m) => m.syncBookingCache(cache.bookings)).catch(() => {});
       window.dispatchEvent(new CustomEvent('psycle-booking-state-changed'));
     } catch (_) {
       // Keep the optimistic state; the next prefetch will reconcile.

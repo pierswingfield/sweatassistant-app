@@ -157,3 +157,23 @@ describe('confirmOverlap dialog', () => {
     expect(e.defaultPrevented).toBe(false);
   });
 });
+
+describe('describeOverlap wording per action (U1-12)', () => {
+  const w = [{ code: 'OVERLAP_BOOKED', with: { className: 'Ride 45', gymId: 'psycle-london', eventId: '1', startAt: '2026-10-05T18:00:00Z' }, crossGym: true }];
+
+  it('defaults to the auto-book wording (U1-6 unchanged)', () => {
+    const d = describeOverlap(w);
+    expect(d.confirmLabel).toBe('Auto-book anyway');
+    expect(d.newLabel).toBe('New auto-book');
+    expect(d.lead).toMatch(/Auto-book will try to book both/);
+  });
+
+  it('book / quickbook talk about booking, not auto-book', () => {
+    const b = describeOverlap(w, 'book');
+    expect(b.confirmLabel).toBe('Book anyway');
+    expect(b.newLabel).toBe('New booking');
+    expect(b.lead).not.toMatch(/Auto-book/);
+    expect(describeOverlap(w, 'quickbook').confirmLabel).toBe('Quick-Book anyway');
+    expect(b.clashes).toHaveLength(1);
+  });
+});

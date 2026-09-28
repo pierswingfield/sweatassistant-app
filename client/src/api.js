@@ -733,6 +733,22 @@ export const api = {
     return Object.fromEntries(entries.filter(Boolean));
   },
 
+  // U1-12: ask the server (competing-bookings.js, cross-gym) whether booking this
+  // class now would clash with anything the member already holds or has queued.
+  // Returns the warnings; the client never derives an overlap itself.
+  async checkOverlap(subject, gymId = null) {
+    const res = await apiFetch('/api/overlap-check', {
+      method: 'POST',
+      body: JSON.stringify({
+        eventId: subject.eventId, startAt: subject.startAt,
+        durationMin: subject.durationMin, className: subject.className, gymId,
+      }),
+      gymId,
+    });
+    if (!res.ok) throw new Error('Overlap check failed');
+    return (await res.json()).warnings || [];
+  },
+
   // Auto-Book Queue
   async getAutoBookings() {
     const result = await getCachedSWR('/api/auto-book', { ttlMs: 30000, fetcher: apiFetch });

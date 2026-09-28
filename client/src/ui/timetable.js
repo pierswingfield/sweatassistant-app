@@ -10,7 +10,7 @@ import { renderMinimap } from './tooltips.js';
 import { openDB, accountScopedKey } from '../cache.js';
 import { bookingNotifyPayload } from './booking-notify.js';
 import { disciplineTag, seatNoun, sparklesIcon, trendingUpIcon, icon, pulseIcon, trimLocation, displayStudioName, equalizeDiscTagWidths , gymChip , cleanClassName, getDiscipline } from './cards';
-import { openEditBookingModal } from './bookings';
+import { openEditBookingModal, syncBookingCache } from './bookings';
 import { openStudioFloorPlanEditor } from './settings';
 import { renderTimetableSkeleton } from './loading-skeleton.js';
 import { confirmOverlap } from './overlap-modal.js';
@@ -420,6 +420,9 @@ export async function prefetchTimetableData(force = false) {
     }
     cache.bookings = bookingsRes || [];
     cache.waitlists = waitlistsRes || [];
+    // U1-12: the overlap check reads the server's booking_cache, so keep it as
+    // fresh as this view of the bookings (it was only synced from My Bookings).
+    syncBookingCache(cache.bookings);
     cache.autoBookings = autoBookingsRes || [];
     cache.studioPrefs = studioPrefsRes || {};
 
@@ -1614,19 +1617,57 @@ async function resolveStudioPrefs(event) {
   return { prefs, hasPrefs };
 }
 
-function doQuickBook(event, btn) {
+/**
+ * U1-12: before ANY manual book / quick-book (and before any other modal: the spot
+ * picker, first-time setup), ask the server whether this class clashes with a
+ * booking or a queued auto-book in any gym, and show the same confirmation as
+ * auto-book (U1-6). Resolves true to carry on, false when the member backs out
+ * (nothing happens). The rule is the server's; a failed check lets the booking
+ * proceed, as the provider still enforces the real limits.
+ */
+async function overlapGate(event, mode) {
+  let warnings;
+  try {
+    warnings = await api.checkOverlap({
+      eventId: event.id, startAt: event.startAt, durationMin: event.durationMin, className: event.name,
+    }, event.gymId);
+  } catch (err) {
+    console.warn('[Timetable] overlap check failed, continuing:', err.message);
+    return true;
+  }
+  if (!warnings.length) return true;
+  const instr = event.instructors?.[0];
+  return confirmOverlap({
+    subject: {
+      gymId: event.gymId || null,
+      eventId: event.id,
+      startAt: event.startAt,
+      className: event.name,
+      groupName: event.discipline,
+      instructorName: instr?.name || gymScopedGet(instructorMap, instr?.id, event.gymId) || '',
+      instructorImageUrl: instr?.thumbUrl || instr?.imageUrl || null,
+      studioName: event.studioName || '',
+      locationName: event.locationName || '',
+    },
+    warnings,
+    mode,
+  });
+}
+
+async function doQuickBook(event, btn) {
+  if (!(await overlapGate(event, 'quickbook'))) return;
   const run = async () => {
     try {
       const { prefs, hasPrefs } = await resolveStudioPrefs(event);
       const { hasMap } = getStudioMapInfo(event);
-      if (!hasPrefs && hasMap) { openBookingModal(event, 'quickbook'); return; }
+      if (!hasPrefs && hasMap) { openBookingModal(event, 'quickbook', { overlapChecked: true }); return; }
       quickBookClass(event.id, {
         preferredSlots: prefs.preferredSlots || [],
         preferredRows: prefs.preferredRows || [],
         requiredCount: 1, bookAny: true,
       }, btn, event.gymId);
     } catch (err) {
-      openBookingModal(event, 'quickbook');
+      openBookingModal(event, 'quickbook', { overlapChecked: true });
     }
   };
   // Booking within 12h of start needs an explicit confirm.
@@ -2468,8 +2509,14 @@ async function quickBookClass(eventId, prefs, btn, gymId = null) {
 }
 
 // Modal handler for spot selection layout and auto-book row preference checklist
-async function openBookingModal(c, mode) {
+async function openBookingModal(c, mode, opts = {}) {
   // mode: 'book' (simple seat selector) | 'quickbook' (preference setter) | 'autobook' (preference setter)
+  // U1-12: book / quickbook both end in a real booking, so the overlap
+  // confirmation comes before this modal (or any other) opens. Callers that have
+  // already asked pass `overlapChecked`.
+  if ((mode === 'book' || mode === 'quickbook') && !opts.overlapChecked) {
+    if (!(await overlapGate(c, mode))) return;
+  }
   const isAutoBookMode = mode === 'autobook';
   const isQuickBookMode = mode === 'quickbook';
   const isSimpleBookMode = mode === 'book';
@@ -3030,7 +3077,7 @@ async function openBookingModal(c, mode) {
             // Open the dedicated studio floor plan editor from settings
             openStudioFloorPlanEditor(c.studioId, studioName, () => {
               // Re-open the simple booking modal when the preferences are saved
-              openBookingModal(c, 'book');
+              openBookingModal(c, 'book', { overlapChecked: true });
             }, { gymId: c.gymId });
           };
         }

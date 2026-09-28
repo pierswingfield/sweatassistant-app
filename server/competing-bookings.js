@@ -153,4 +153,16 @@ function detectQueueConflicts(queued = [], booked = [], opts = {}) {
   return byId;
 }
 
-module.exports = { detectCompetingBookings, detectQueueConflicts, DEFAULT_DURATION_MIN };
+/**
+ * U1-12: the same rule, asked before a MANUAL book / quick-book. Only time
+ * overlaps matter there: an auto-book queue entry for this very class, or a
+ * booking record for it, is not a clash the member is about to create by pressing
+ * Book (the button would already read Edit if they were booked). So the answer is
+ * the overlap subset of detectCompetingBookings — one rule, not a second copy.
+ */
+function detectManualBookingOverlaps(subject, queued = [], booked = [], opts = {}) {
+  return detectCompetingBookings(subject, queued, booked, opts)
+    .filter((w) => w.code === 'OVERLAP_QUEUED' || w.code === 'OVERLAP_BOOKED');
+}
+
+module.exports = { detectCompetingBookings, detectQueueConflicts, detectManualBookingOverlaps, DEFAULT_DURATION_MIN };

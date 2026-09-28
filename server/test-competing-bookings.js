@@ -9,7 +9,7 @@ const assert = require('assert');
 const path = require('path');
 const fs = require('fs');
 const { spawn } = require('child_process');
-const { detectCompetingBookings, detectQueueConflicts } = require('./competing-bookings');
+const { detectCompetingBookings, detectQueueConflicts, detectManualBookingOverlaps } = require('./competing-bookings');
 
 const zoneOf = () => 'Europe/London';
 const labelOf = (g) => ({ 'psycle-london': 'Psycle', 'jab-boxing': 'JAB' }[g] || g);
@@ -38,6 +38,17 @@ function unit() {
   assert.strictEqual(w[0].crossGym, true, 'cross-gym overlap flagged as such');
   assert.match(w[0].message, /Psycle/, 'message names the other gym');
   console.log('✅ Overlap detected in one gym and across gyms.');
+
+  // U1-12: the manual-booking question is the overlap subset of the same rule.
+  w = detectManualBookingOverlaps(at('2026-10-05T18:30:00.000Z', 'jab-boxing', 77), [A], [], opts);
+  assert.deepStrictEqual(w.map(x => x.code), ['OVERLAP_QUEUED']);
+  const B = at('2026-10-05T18:15:00.000Z', 'jab-boxing', 5);
+  w = detectManualBookingOverlaps(at('2026-10-05T18:30:00.000Z', 'psycle-london', 9), [], [B], opts);
+  assert.deepStrictEqual(w.map(x => x.code), ['OVERLAP_BOOKED']);
+  assert.strictEqual(w[0].crossGym, true);
+  assert.deepStrictEqual(detectManualBookingOverlaps(at(A.startAt, 'psycle-london', 1), [A], [], opts), [], 'same class queued is not a manual-booking clash');
+  assert.deepStrictEqual(detectManualBookingOverlaps(at('2026-10-05T19:30:00.000Z', 'psycle-london', 9), [A], [B], opts), [], 'clear time');
+  console.log('✅ detectManualBookingOverlaps: queue + booked, cross-gym, and no duplicate/already-booked noise.');
 
   // The reference carries display fields for a confirmation UI (U1-6), null when absent.
   const rich = detectCompetingBookings(at('2026-10-05T18:30:00.000Z', 'jab-boxing', 77), [{ ...A, groupName: 'RIDE', instructorName: 'Ana', instructorImageUrl: 'u', locationName: 'Soho', studioName: 'Ride Studio' }], [], opts);
@@ -226,6 +237,32 @@ async function http() {
   const other = await json(await post('/api/auth/signup', { email: `other-${Date.now()}@test.local`, password: 'a-real-password' }));
   assert.deepStrictEqual(await json(await get('/api/auto-book?gymId=all', other.token)).catch(() => []), [], 'no leakage');
   console.log('✅ Non-conflicting entry is clean; other accounts are unaffected.');
+
+  // U1-12: POST /api/overlap-check answers the same question for a manual book,
+  // cross-gym, against the queue AND the synced bookings, and inserts nothing.
+  const chk = (body) => post('/api/overlap-check', { durationMin: 45, className: 'Manual', ...body }, token);
+  r = await chk({ eventId: 4242, gymId: 'jab-boxing', startAt: t(20) });
+  b = await json(r);
+  assert.strictEqual(r.status, 200);
+  assert.ok(b.warnings.length >= 1 && b.warnings.every(x => x.code === 'OVERLAP_QUEUED'), 'clashes with the queued Psycle class');
+  assert.ok(b.warnings.some(x => x.crossGym === true), 'the Psycle class is a cross-gym clash');
+  assert.ok(b.warnings.every(x => x.with.className), 'each clashing class is described');
+  r = await chk({ eventId: 4243, gymId: 'jab-boxing', startAt: t(3 * 24 * 60) });
+  assert.deepStrictEqual((await json(r)).warnings, [], 'clear time is clean');
+  r = await chk({ eventId: 1000, gymId: 'psycle-london', startAt: t(0) });
+  assert.ok((await json(r)).warnings.every(x => x.code !== 'DUPLICATE_QUEUED'), 'the same queued class is not reported as a manual clash');
+  r = await post('/api/bookings/sync', { bookings: [{ bookingId: 'b1', gymId: 'jab-boxing', eventId: 7777, startAt: t(2 * 24 * 60 + 10), className: 'Synced', groupName: 'TRAIN', instructorName: 'Kim', slotLabel: '3' }] }, token);
+  assert.strictEqual(r.status, 200);
+  r = await chk({ eventId: 4244, gymId: 'psycle-london', startAt: t(2 * 24 * 60 + 30) });
+  b = await json(r);
+  assert.deepStrictEqual(b.warnings.map(x => x.code), ['OVERLAP_BOOKED'], 'clashes with an existing booking in ANOTHER gym');
+  assert.strictEqual(b.warnings[0].with.className, 'Synced');
+  r = await post('/api/overlap-check', { gymId: 'jab-boxing' }, token);
+  assert.strictEqual(r.status, 400);
+  r = await post('/api/overlap-check', { eventId: 1, startAt: t(0) });
+  assert.strictEqual(r.status, 401, 'requires auth');
+  assert.strictEqual((await json(await get('/api/auto-book?gymId=all', token))).length, 3, 'the check inserted nothing');
+  console.log('✅ POST /api/overlap-check: queue + booked overlaps across gyms, clean otherwise, read-only.');
 
   // Deleting one side clears the other's warning.
   await fetch(`${BASE}/api/auto-book/${secondId}`, { method: 'DELETE', headers: { authorization: `Bearer ${token}` } });

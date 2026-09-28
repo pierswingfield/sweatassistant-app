@@ -119,7 +119,7 @@ export async function renderBookings() {
 
 // Push the user's upcoming bookings to the server so cancellation reminders can
 // fire locally without the server re-polling CodexFit.
-function syncBookingCache(bookings) {
+export function syncBookingCache(bookings) {
   try {
     const now = Date.now();
     const normalized = (bookings || []).map(b => {

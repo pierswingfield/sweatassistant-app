@@ -26,7 +26,19 @@ const MAX_CLASHES_SHOWN = 3;
  * What to say, derived only from the server's warning codes.
  * @param {Array<{code:string, with?:object}>} warnings
  */
-export function describeOverlap(warnings = []) {
+/**
+ * `mode` is the action being confirmed: 'autobook' (U1-6, default), or 'book' /
+ * 'quickbook' (U1-12). The overlap facts come from the server's warnings either
+ * way; only the wording of the action changes.
+ */
+export const OVERLAP_MODES = {
+  autobook: { newLabel: 'New auto-book', confirm: 'Auto-book anyway', tail: 'Auto-book will try to book both, and you can cancel one later.', already: 'You already have a booking in this class. Auto-book will have nothing to add.' },
+  book: { newLabel: 'New booking', confirm: 'Book anyway', tail: 'You can book both and cancel one later.', already: 'You already have a booking in this class.' },
+  quickbook: { newLabel: 'New booking', confirm: 'Quick-Book anyway', tail: 'You can book both and cancel one later.', already: 'You already have a booking in this class.' },
+};
+
+export function describeOverlap(warnings = [], mode = 'autobook') {
+  const M = OVERLAP_MODES[mode] || OVERLAP_MODES.autobook;
   const list = (warnings || []).filter((w) => w && w.code !== 'DUPLICATE_QUEUED');
   const hasBooked = list.some((w) => w.code === 'OVERLAP_BOOKED');
   const hasQueued = list.some((w) => w.code === 'OVERLAP_QUEUED');
@@ -36,13 +48,13 @@ export function describeOverlap(warnings = []) {
   let lead;
   if (onlyAlready) {
     title = 'Already booked';
-    lead = 'You already have a booking in this class. Auto-book will have nothing to add.';
+    lead = M.already;
   } else {
     title = 'Overlapping class';
     const parts = [];
     if (hasBooked || list.some((w) => w.code === 'ALREADY_BOOKED')) parts.push('a class you have booked');
     if (hasQueued) parts.push('another class in your auto-book queue');
-    lead = `This overlaps ${parts.join(' and ') || 'another class'}. Auto-book will try to book both, and you can cancel one later.`;
+    lead = `This overlaps ${parts.join(' and ') || 'another class'}. ${M.tail}`;
   }
 
   const clashes = list.map((w) => ({
@@ -53,6 +65,8 @@ export function describeOverlap(warnings = []) {
   return {
     title,
     lead,
+    newLabel: M.newLabel,
+    confirmLabel: M.confirm,
     clashes: clashes.slice(0, MAX_CLASHES_SHOWN),
     hiddenCount: Math.max(0, clashes.length - MAX_CLASHES_SHOWN),
   };
@@ -109,7 +123,7 @@ export function classSummaryCardHtml(item, tag) {
 const FOCUSABLE = 'button:not([disabled]), [href], input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])';
 
 /**
- * Open the confirmation. Resolves true for "Auto-book anyway", false for every
+ * Open the confirmation. Resolves true for the confirm button ("Auto-book anyway" / "Book anyway"), false for every
  * way of backing out. Focus moves into the dialog (on Cancel: the safe choice),
  * is trapped there, and returns to whatever had it when the dialog closes.
  *
@@ -118,12 +132,12 @@ const FOCUSABLE = 'button:not([disabled]), [href], input:not([disabled]), select
  * @returns {Promise<boolean>}
  */
 let pending = null;
-export function confirmOverlap({ subject, warnings }) {
+export function confirmOverlap({ subject, warnings, mode = 'autobook' }) {
   // One at a time: a double-tap on "Schedule" can produce two refusals, and two
   // stacked dialogs would leave the second one's Esc/focus handling shadowed.
   if (pending) return pending;
   pending = new Promise((resolve) => {
-    const info = describeOverlap(warnings);
+    const info = describeOverlap(warnings, mode);
     const opener = document.activeElement;
     const uid = `psycle-overlap-${Date.now()}`;
 
@@ -143,8 +157,8 @@ export function confirmOverlap({ subject, warnings }) {
         </div>
         <div class="psycle-modal-body">
           <div class="ab-credit-warning ab-clash-warning" id="${uid}-lead">${icon('warning', 14)}<span>${escapeHtml(info.lead)}</span></div>
-          <div class="psycle-overlap-group" role="group" aria-label="New auto-book">
-            <p class="psycle-overlap-label">New auto-book</p>
+          <div class="psycle-overlap-group" role="group" aria-label="${escapeHtml(info.newLabel)}">
+            <p class="psycle-overlap-label">${escapeHtml(info.newLabel)}</p>
             ${classSummaryCardHtml(subject, 'New')}
           </div>
           <div class="psycle-overlap-group" role="group" aria-label="Clashes with">
@@ -156,7 +170,7 @@ export function confirmOverlap({ subject, warnings }) {
           </div>
           <div class="psycle-overlap-actions">
             <button type="button" class="psycle-btn" data-overlap-cancel>Cancel</button>
-            <button type="button" class="psycle-btn primary" data-overlap-confirm>Auto-book anyway</button>
+            <button type="button" class="psycle-btn primary" data-overlap-confirm>${escapeHtml(info.confirmLabel)}</button>
           </div>
         </div>
       </div>`;

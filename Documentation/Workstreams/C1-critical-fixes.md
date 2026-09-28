@@ -12,13 +12,13 @@ Small, independent fixes. Each one is a real risk to users or data, not polish.
 | C1-2 | ✅ **One gym's 401 must not log out the whole app.** `apiFetch` treats any 401, including a single provider's, as a Sweat Assistant session expiry: it clears the SA token and fires logout. Route per-gym 401s to that gym's "needs relogin" state instead. [QA-08] | `client/src/api.js` ~L100–106 | 2–3 h |
 | C1-3 | ✅ **Keep slot IDs as strings in spot selection.** `Number(slot.id)` breaks non-numeric IDs (MarianaTek) and any ID over 2^53. [QA-13] | `client/src/ui/timetable.js` ~L2629 | 30 min |
 | C1-4 | ✅ **Fix the crash in the account-recover screen.** `setAuthMode('recover')` references a `#psycle-recover-step2` element that doesn't exist, so it throws a TypeError. Also fix the subtitle, which still describes the removed gym-login recovery (belongs with U1-4, same lines). [QA-06, QA-05] | `client/src/main.js` ~L1260, L1275 | 30 min |
-| C1-5 | **Back up the SQLite DB.** No backup job exists for prod or dev. The DB holds encrypted gym credentials, and it is only snapshotted by hand before deploys. Add a nightly job that copies `.db` **plus `-wal`/`-shm`**, or runs `sqlite3 .backup`, off the host (rclone → Drive, as the other services do). | No `scripts/`; nothing in `docker-compose.yml`. The registry notes manual `.bak` copies only. | 1–2 h |
+| C1-5 ✅ 2026-09-28 | **Back up the SQLite DB.** No backup job exists for prod or dev. The DB holds encrypted gym credentials, and it is only snapshotted by hand before deploys. Add a nightly job that copies `.db` **plus `-wal`/`-shm`**, or runs `sqlite3 .backup`, off the host (rclone → Drive, as the other services do). | No `scripts/`; nothing in `docker-compose.yml`. The registry notes manual `.bak` copies only. | 1–2 h |
 
 ## Unaddressed (2026-09-26)
 
 Deferred by the user on 2026-09-26. Still open, and still blocking C4:
 
-- **C1-5 SQLite backups:** **approved by the user 2026-09-28**, in progress. It installs a cron job on the hosts and copies the DB off-host, so it needs explicit approval.
+- ~~**C1-5 SQLite backups**~~ **DONE 2026-09-28** (user-approved). `scripts/backup-sqlite.sh`, installed at `/usr/local/sbin/psycle-backup-sqlite.sh` on oracle (`sudo install -m 755 -o root -g root`), root cron `10 4 * * *` (Europe/London) plus a `30 9 * * *` `--check-stale` alert. `sqlite3 .backup` of prod + dev, `integrity_check` on the copy, gzip, `rclone copy` to `gdrive_pierswingfield:/Backups/psycle-sqlite/{prod,dev}/` (14 days local in `/var/backups/psycle-sqlite`, 30 days remote, ntfy on failure). Note the pre-existing `oracle-backup.sh` already `.backup`ed prod only (3-day retention, no integrity check, dev not covered) and tars `.env` next to the DB on Drive.
 - **Dev-twin deploy and smoke test** for C1-1 to C1-4: not deployed. The commits are local on `modular` (`a1c647c`, `df7df77`, `79c1964`) and unpushed.
 - Follow-up: three inert `Number(s.id)` calls remain in `openDebugModal`'s "Slots" tab (`client/src/ui/timetable.js` ~3509–3515). Fix them if that tab is ever wired to real data.
 
@@ -98,8 +98,7 @@ Deferred by the user on 2026-09-26. Still open, and still blocking C4:
       confirmed: cleared the local JWT, reloaded to the login screen, clicked "Forgot
       password?" — no TypeError, card rendered "Self-service reset isn't available yet —
       contact the admin."; restored the saved JWT afterward and confirmed still logged in.
-- [ ] A backup file restores on a scratch container. *(UNADDRESSED 2026-09-27: C1-5 still
-      deferred by user — no cron/backup job was set up in this pass, per instruction.)*
+- [x] A backup file restores on a scratch container. *(2026-09-28: latest prod + dev files pulled from Drive, `integrity_check` ok; dev restore booted in a throwaway container of the dev image on 127.0.0.1:3399, `/api/health` 200; row counts equal to source: dev users/user_gyms/auto_bookings 429/677/4, prod users/auto_bookings 3/30. Container and temp files removed.)*
 
 **Detail:** [QA 2026-09-15 ISSUES](../QA/browser-runs/2026-09-15-local-mock/ISSUES.md),
 [QA 2026-09-23 ISSUES](../QA/browser-runs/2026-09-23-lane-live/ISSUES.md).

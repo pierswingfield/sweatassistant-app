@@ -164,7 +164,7 @@ reopened on the last route.
 
 | # | Step |
 |---|---|
-| C4-11 | Back up the prod DB **with WAL** (or run C1-5's job). Record a rollback path: the previous image tag, with the Pi standby container kept. |
+| C4-11 | Back up the prod DB **with WAL** (or run C1-5's job — **now available**: `sudo /usr/local/sbin/psycle-backup-sqlite.sh` on oracle takes a WAL-consistent, integrity-checked prod+dev backup to Drive on demand, added 2026-09-28). Record a rollback path: the previous image tag, with the Pi standby container kept. |
 | C4-12 | Dry-run the modular migrations against a **copy** of the prod DB (`user_gyms` backfill, calendar-to-account-scope, gym-scoped tables). Check row counts before and after. |
 | C4-13 | Deploy `modular` to `psycle-app` with **JAB disabled** (`JAB_BOXING_ENABLED` unset). Prod users should see no functional change apart from the new UI. Clear all three client caches when verifying (SW, IndexedDB, hard reload). |
 | C4-14 | Soak for a few days, covering at least one Psycle Monday release with real auto-books. |

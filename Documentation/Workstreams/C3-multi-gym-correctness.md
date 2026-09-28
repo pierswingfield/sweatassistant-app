@@ -634,6 +634,7 @@ Triggered by two live bugs the user found on the dev twin. **Method:** Gemini 3.
 | C3-26 | L | The unscoped studio-preferences cache entry can serve stale data for 5 min after going from 2 gyms to 1. | `client/src/api.js:855-858` | Invalidate on link and unlink |
 | C3-27 | L | The debug modal's "Open native booking page" hardcodes `psyclelondon.com`. | `client/src/ui/timetable.js:3698` | Build from the gym's `websiteUrl`, or hide it |
 | C3-28 | L | `resolveContext` falls back to the ambient default when there's no `x-gym-id`. The client names the gym today. | `server/routes-normalized.js:85` | 400 for multi-gym accounts with no header (`resolveGymStrict` style) |
+| C3-29 | L | **Calendar titles name a placeholder instructor.** Classes with no instructor (e.g. JAB Recovery) appear as `JAB: Recovery (Members) with Instructor, SW1`. Drop the "with …" clause whenever there's no real instructor name (missing, empty, or a generic placeholder like "Instructor"). Check the normalized `instructors[]` for these classes. Found by the user on the dev twin, 2026-09-28. | `server/calendar.js` (SUMMARY builder) | Omit the instructor segment when absent or placeholder; test both gyms |
 
 **Rejected on verification** (kept so nobody re-raises them):
 - `invalidateApiCache('/api/timetable')` wouldn't help, because the timetable uses its own unified key.

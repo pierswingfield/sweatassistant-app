@@ -4,6 +4,12 @@ import { classifyAuthFailure } from './auth-failure.js';
 
 // API Abstraction layer for communicating with the Psycle PWA server
 
+// U1-15: every successful booking mutation is announced so booking-state.js can
+// update the shared booked/waitlisted cache at once, whichever tab made it.
+function announceBookingMutation(detail) {
+  try { window.dispatchEvent(new CustomEvent('psycle-bookings-mutated', { detail })); } catch (_) {}
+}
+
 let localToken = localStorage.getItem('psycleLocalToken') || null;
 
 // Active gym context (WP-C1). Persisted per-account so the normalized API can
@@ -485,7 +491,9 @@ export const api = {
       body: JSON.stringify({ eventId, slotIds }),
       gymId,
     });
-    return res.json();
+    const result = await res.json();
+    if (result && result.ok) announceBookingMutation({ type: 'book', eventId, gymId });
+    return result;
   },
 
   // cancel / joinWaitlist / leaveWaitlist are COMMANDS: they either happen or
@@ -505,7 +513,9 @@ export const api = {
   },
 
   async cancel(bookingId, gymId = null) {
-    return this._command('/api/cancel', { bookingId }, 'Cancelling', gymId);
+    const out = await this._command('/api/cancel', { bookingId }, 'Cancelling', gymId);
+    announceBookingMutation({ type: 'cancel', bookingId, gymId });
+    return out;
   },
 
   // Returns { isPenalty, message? } — prefer provider truth over client window math.
@@ -516,11 +526,15 @@ export const api = {
   },
 
   async joinWaitlist(eventId, gymId = null) {
-    return this._command('/api/waitlist/join', { eventId }, 'Joining the waitlist', gymId);
+    const out = await this._command('/api/waitlist/join', { eventId }, 'Joining the waitlist', gymId);
+    announceBookingMutation({ type: 'joinWaitlist', eventId, gymId });
+    return out;
   },
 
   async leaveWaitlist(eventId, gymId = null) {
-    return this._command('/api/waitlist/leave', { eventId }, 'Leaving the waitlist', gymId);
+    const out = await this._command('/api/waitlist/leave', { eventId }, 'Leaving the waitlist', gymId);
+    announceBookingMutation({ type: 'leaveWaitlist', eventId, gymId });
+    return out;
   },
 
   async swapSpot(bookingId, currentSlotId, targetSlotId, gymId = null) {
@@ -529,7 +543,9 @@ export const api = {
       body: JSON.stringify({ bookingId, currentSlotId, targetSlotId }),
       gymId,
     });
-    return res.json(); // NormalizedBookingResult
+    const result = await res.json(); // NormalizedBookingResult
+    if (result && result.ok) announceBookingMutation({ type: 'swap', bookingId, gymId });
+    return result;
   },
 
   // Returns NormalizedBooking[], .event populated for both providers (fixed

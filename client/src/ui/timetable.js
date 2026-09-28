@@ -222,8 +222,14 @@ let selectedTimetableDate = null;
 // model can synchronously decide Quick-Book vs Book per studio.
 let studioPrefsMap = {};
 let psycleEvents = [];
-let userBookings = [];
-let userWaitlists = [];
+// U1-15: NOT a module-local copy. The timetable used to keep its own
+// `userBookings`/`userWaitlists`, refreshed only by its own prefetch, so a booking
+// cancelled in My Bookings (which updates cache.bookings) still painted as booked
+// here until the next prefetch landed, several seconds on a live provider. One
+// source of truth: cache.bookings / cache.waitlists, written by every tab and by
+// booking-state.js when any mutation succeeds.
+const userBookings = () => cache.bookings || [];
+const userWaitlists = () => cache.waitlists || [];
 let isPrefetching = false;
 let prefetchError = null;
 // C3-15: the linked-gym set changed (link, re-auth, unlink) while a fetch may be
@@ -412,10 +418,8 @@ export async function prefetchTimetableData(force = false) {
       prefetchQueued = false;
       return prefetchTimetableData(true);
     }
-    userBookings = bookingsRes || [];
-    userWaitlists = waitlistsRes || [];
-    cache.bookings = userBookings;
-    cache.waitlists = userWaitlists;
+    cache.bookings = bookingsRes || [];
+    cache.waitlists = waitlistsRes || [];
     cache.autoBookings = autoBookingsRes || [];
     cache.studioPrefs = studioPrefsRes || {};
 
@@ -1205,8 +1209,8 @@ export async function renderTimetableGrid(reason = 'interaction') {
     const isFullyBooked = !!event.isFull;
     const canWaitlist = event.waitlistAvailable !== false;
 
-    const isBooked = userBookings.some(b => matchesEvent(b, event));
-    const isOnWaitlist = userWaitlists.some(w => matchesEvent(w, event));
+    const isBooked = userBookings().some(b => matchesEvent(b, event));
+    const isOnWaitlist = userWaitlists().some(w => matchesEvent(w, event));
 
     const availableSpots = (typeof event.capacity === 'number' && typeof (event.capacity != null && event.availableCount != null ? event.capacity - event.availableCount : undefined) === 'number')
       ? Math.max(0, event.capacity - (event.capacity != null && event.availableCount != null ? event.capacity - event.availableCount : undefined))
@@ -1238,7 +1242,7 @@ export async function renderTimetableGrid(reason = 'interaction') {
         statusBadge = `<span class="badge-pill not-live psycle-occupancy-hover" data-id="${event.id}" data-gym-id="${event.gymId || ''}">Not Live</span>`;
       }
     } else if (isBooked) {
-      const eventBookings = userBookings.filter(b => matchesEvent(b, event));
+      const eventBookings = userBookings().filter(b => matchesEvent(b, event));
       slotsBookedCount = eventBookings.length;
       statusBadge = `<span class="badge-pill yes psycle-occupancy-hover" data-id="${event.id}" data-gym-id="${event.gymId || ''}" style="cursor: pointer;">Booked${slotsBookedCount > 1 ? ` (${slotsBookedCount})` : ''}</span>`;
       if (slotsBookedCount === 1) {
@@ -1252,7 +1256,7 @@ export async function renderTimetableGrid(reason = 'interaction') {
       }
     } else if (isOnWaitlist) {
       statusBadge = `<span class="badge-pill waitlisted psycle-occupancy-hover" data-id="${event.id}" data-gym-id="${event.gymId || ''}" style="cursor: pointer;">Waitlisted</span>`;
-      const waitlistEntry = userWaitlists.find(w => matchesEvent(w, event));
+      const waitlistEntry = userWaitlists().find(w => matchesEvent(w, event));
       // C2-2 fix (2026-09-26): this read `waitlistEntry.id`, a field that has
       // never existed on a NormalizedBooking (it's `bookingId` — see base.js's
       // doc comment) — so `waitlistId` was always undefined and the "Leave
@@ -1669,7 +1673,7 @@ async function doAutoBookToggle(event, btn, isScheduled) {
 // Edit a booked class — reuses the My Bookings edit-spots modal. Builds the
 // booking "group" it expects from the timetable's cached bookings + metadata.
 async function doEditBooking(event) {
-  const eventBookings = userBookings.filter(b => matchesEvent(b, event));
+  const eventBookings = userBookings().filter(b => matchesEvent(b, event));
   if (!eventBookings.length) { showToast('Booking not found — refresh and try again.', 'error'); return; }
 
   const eventTypeName = event.name || gymScopedGet(eventTypeMap, event.classTypeId, event.gymId) || 'Class';
@@ -1708,10 +1712,8 @@ async function refreshBookingState() {
       api.getBookings(),
       api.getWaitlists(),
     ]);
-    userBookings = bookingsRes || [];
-    userWaitlists = waitlistsRes || [];
-    cache.bookings = userBookings;
-    cache.waitlists = userWaitlists;
+    cache.bookings = bookingsRes || [];
+    cache.waitlists = waitlistsRes || [];
   } catch (e) {
     console.warn('[Timetable] refreshBookingState failed:', e);
   }
@@ -3570,8 +3572,8 @@ export async function openDebugModal(event) {
     let availableSlots = [];
 
     // Find matching booking and waitlist for this event
-    const matchingBooking = userBookings.find(b => matchesEvent(b, event)) || null;
-    const matchingWaitlist = userWaitlists.find(w => matchesEvent(w, event)) || null;
+    const matchingBooking = userBookings().find(b => matchesEvent(b, event)) || null;
+    const matchingWaitlist = userWaitlists().find(w => matchesEvent(w, event)) || null;
 
     // Compute key values
     const classRelease = getClassReleaseTime(event, userSettings);

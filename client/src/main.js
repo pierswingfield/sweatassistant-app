@@ -8,6 +8,7 @@ import { shouldShowOnboarding, resumeOnboarding, isOnboardingActive, advanceAfte
 import { detectBookingWindow } from './lib';
 import { canBookAtAll, getIneligibleReason } from './ui/credit-allowance.js';
 import { escapeHtml } from './ui/cards';
+import { installBookingState } from './ui/booking-state.js';
 
 // --- PWA install prompt capture ---
 // Android/desktop Chromium fire `beforeinstallprompt` before the page is ready
@@ -1087,6 +1088,9 @@ async function syncDetectedBookingWindow(profile, credits, gymId = null) {
 }
 
 export async function initApp() {
+  // U1-15: any booking/cancel/swap/waitlist mutation updates the shared booked
+  // state at once and repaints the timetable (idempotent).
+  installBookingState(() => repaintTimetableIfVisible());
   document.getElementById('psycle-login-container').style.display = 'none';
   document.getElementById('psycle-app-container').style.display = 'flex';
   

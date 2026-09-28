@@ -22,7 +22,7 @@ Cheap, visible fixes. Run them alongside C3 so they share the same live re-test.
 | U1-12 | **Overlap modal for Book and Quick-Book too**, not only Auto-Book. It must precede any other modal (spot picker, first-time setup). Found by the user 2026-09-29. | U1-6 `overlap-modal.js`; `timetable.js` book/quick-book | 2–3 h |
 | U1-13 | **Auto-Book card shows "Insufficient Credits" despite sufficient credits** (live, the user's configured Psycle auto-book; they can book another open class). Found by the user 2026-09-29. ✅ **Fixed 2026-09-29** (see below). | `client/src/ui/autobook.js`, credit-allowance | 1–2 h |
 | U1-14 | **First-time spot-map setup intro, and allow occupied spots while setting up.** When Quick-Book or Auto-Book hits a studio with a gym-provided seat map but no saved preferred map, open an intro step first: header "First-time setup", subheader "Choose your preferred spots for [Gym] [Studio location] first.", and body "Once set up, <b>Quick-Book</b> and <b>Auto-Book</b> will always book the best possible spot for you." A Next button swaps in the map. In setup mode, occupied spots must be selectable: you're choosing preferences, not a bike for this class. Today it refuses with "⚠ This bike is occupied or unavailable." Found by the user 2026-09-29. | `timetable.js openBookingModal`/`quickBookClass`, `spotmap.js` | 2–3 h |
-| U1-15 | **Timetable shows a class as booked for several seconds after cancelling it in My Bookings.** A booking/cancel mutation must invalidate the timetable's booking-state overlay so returning to the timetable reflects it immediately. Found by the user 2026-09-29. | `timetable.js` booking overlay/cache; `bookings.js` cancel | 1–2 h |
+| U1-15 | **Timetable shows a class as booked for several seconds after cancelling it in My Bookings.** A booking/cancel mutation must invalidate the timetable's booking-state overlay so returning to the timetable reflects it immediately. Found by the user 2026-09-29. ✅ **Fixed 2026-09-29** (see below). | `timetable.js` booking overlay/cache; `bookings.js` cancel | 1–2 h |
 | U1-16 | **Psycle push notifications read "CLASS with your instructor - Spot …".** The class name and instructor are missing for Psycle; JAB is fine. Probably a regression from C3-19 (the booking-success payload now carries gymId) or from the normalized field names. Found by the user 2026-09-29. ✅ **Fixed 2026-09-29** (see below). | `server/notifications.js`; `client/src/api.js notifyBookingSuccess` callers | 1 h |
 
 ## Dev-twin re-test (2026-09-27)
@@ -496,4 +496,20 @@ re-renders from the loaded queue; `ui/credit-allowance.js getTotalCredits` skips
 **Tests:** `client/src/api-credits-by-gym.test.js`, `credit-allowance.test.js` (U1-13 block).
 I could not reproduce the user's exact transient failure on live (it needs a failing credits call with a cold cache
 and I made no writes or cache wipes on the user's profile); the mechanism above is the only path that prints this text with a correct server-side balance.
+
+## U1-15 — Timetable still shows a cancelled class as booked
+
+**Root cause (2026-09-29):** two sources of truth for "is this class booked". `timetable.js` kept a module-local
+`userBookings`/`userWaitlists`, written only by its own prefetch/`refreshBookingState`; My Bookings wrote
+`cache.bookings` and cancelled through the API. Returning to the Timetable tab painted the grid from the timetable's stale local copy,
+and it only became true when the tab's prefetch refetch landed (seconds on a live provider). **Reproduced in real Chrome**
+(local JAB mock, CDP: book via API, load timetable, My Bookings, real Cancel + Confirm click, back to Timetable, sample the
+row's action cell every 0.5s): at 0.0s the row still read `Cancel ⋯`, flipping to `⚡︎ Quick Book` only at 0.5s on a local mock (instant provider).
+**After the fix:** `⚡︎ Quick Book` at 0.0s, with the row for the same class.
+
+**Fix:** `timetable.js` (~L231) reads `cache.bookings`/`cache.waitlists` through accessors (its own copies are gone).
+`api.js` announces every successful `book`/`cancel`/`swapSpot`/`joinWaitlist`/`leaveWaitlist` as `psycle-bookings-mutated`;
+new `ui/booking-state.js` applies the known effect synchronously (a cancel drops the booking; a waitlist leave drops that gym's entry only),
+repaints the timetable, then refetches in the background (coalesced) to pick up new rows; installed once from `main.js initApp`.
+**Tests:** `client/src/ui/booking-state.test.js`.
 

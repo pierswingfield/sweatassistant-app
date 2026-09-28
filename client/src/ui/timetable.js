@@ -1,7 +1,7 @@
 import { api } from '../api';
 import { getAvailableCreditsForEvent, hasUsableCredit, getIneligibleReason, isMetered } from './credit-allowance.js';
 import { canForGym, capabilityForGym, getLinkedGyms, getGymShortName } from '../gym-context.js';
-import { showToast, currentUser, userSettings, refreshUserData, updateCreditBadge, cache, debugConsole } from '../main';
+import { showToast, currentUser, userSettings, gymSetting, profileForGym, refreshUserData, updateCreditBadge, cache, debugConsole } from '../main';
 import { getClassReleaseTime, isInGracePeriod, GRACE_PERIOD_MS, startGraceCountdown } from '../lib';
 import { DateTime } from 'luxon';
 // === MOBILE TIMETABLE — import renderMinimap (added Jun 2026; delete this block to revert) ===
@@ -1059,7 +1059,7 @@ export async function renderTimetableGrid(reason = 'interaction') {
     if (showBookmarksOnly) {
       const identifier = generateBookmarkIdentifier(e);
       if (!canForGym('bookmarks', e.gymId)) return true; // no bookmarks concept → filter is a no-op
-      const bookmarks = cache.profile?.metafields?.public?.bookmarks?.events || [];
+      const bookmarks = profileForGym(e.gymId)?.metafields?.public?.bookmarks?.events || [];
       if (!bookmarks.includes(identifier)) return false;
     }
     return true;
@@ -1215,7 +1215,7 @@ export async function renderTimetableGrid(reason = 'interaction') {
     const identifier = generateBookmarkIdentifier(event);
     // Bookmarks live in CodexFit profile metafields. A gym without the
     // capability has none — don't reach into a provider-shaped blob for them.
-    const bookmarks = canForGym('bookmarks', event.gymId) ? (cache.profile?.metafields?.public?.bookmarks?.events || []) : [];
+    const bookmarks = canForGym('bookmarks', event.gymId) ? (profileForGym(event.gymId)?.metafields?.public?.bookmarks?.events || []) : [];
     const isBookmarked = bookmarks.includes(identifier);
     const heartChar = isBookmarked ? '♥' : '♡';
     const heartClass = isBookmarked ? 'psycle-timetable-heart bookmarked' : 'psycle-timetable-heart unbookmarked';
@@ -2262,7 +2262,7 @@ async function toggleNativeBookmark(event, heartEl) {
     return;
   }
   
-  const bookmarks = cache.profile?.metafields?.public?.bookmarks?.events || [];
+  const bookmarks = profileForGym(event.gymId)?.metafields?.public?.bookmarks?.events || [];
   const isCurrentlyBookmarked = bookmarks.includes(identifier);
   
   if (heartEl) {
@@ -2278,7 +2278,7 @@ async function toggleNativeBookmark(event, heartEl) {
       showToast('This gym does not support bookmarks.', 'info');
       return;
     }
-    await api.setBookmark(identifier, !isCurrentlyBookmarked);
+    await api.setBookmark(identifier, !isCurrentlyBookmarked, event.gymId);
     
     // Refresh user profile cache
     await refreshUserData();
@@ -2458,7 +2458,7 @@ async function quickBookClass(eventId, prefs, btn, gymId = null) {
       await refreshUserData(true);
       await refreshBookingState();
       setTimeout(() => {
-        if (!userSettings.autoUpgradeByDefault) {
+        if (!gymSetting(event.gymId, 'autoUpgradeByDefault')) {
           showToast('💡 Tip: Enable "Auto-upgrade spots by default" in Settings to monitor for better slots automatically!', 'info');
         }
       }, 2000);
@@ -2959,7 +2959,7 @@ async function openBookingModal(c, mode) {
                 </label>`;
               return `
                 <label style="display:flex;align-items:center;gap:8px;font-size:13px;cursor:pointer;color:var(--text-secondary);user-select:none;">
-                  <input type="checkbox" class="psycle-ms-checkbox" id="autobook-auto-upgrade" ${userSettings.autoUpgradeByDefault ? 'checked' : ''}>
+                  <input type="checkbox" class="psycle-ms-checkbox" id="autobook-auto-upgrade" ${gymSetting(c.gymId, 'autoUpgradeByDefault') ? 'checked' : ''}>
                   <span style="display:flex;align-items:center;gap:4px;">${trendingUpIcon(12, 'currentColor', 2)} Auto-Upgrade: Keep searching for a better spot for me</span>
                 </label>`;
             })()}
@@ -3016,7 +3016,7 @@ async function openBookingModal(c, mode) {
                 </label>`;
               return `
                 <label style="display:flex;align-items:center;gap:8px;font-size:13px;cursor:pointer;color:var(--text-secondary);user-select:none;font-weight:500;">
-                  <input type="checkbox" class="psycle-ms-checkbox" id="simplebook-auto-upgrade" ${userSettings.autoUpgradeByDefault ? 'checked' : ''}>
+                  <input type="checkbox" class="psycle-ms-checkbox" id="simplebook-auto-upgrade" ${gymSetting(c.gymId, 'autoUpgradeByDefault') ? 'checked' : ''}>
                   <span style="display:flex;align-items:center;gap:4px;">${trendingUpIcon(12, 'currentColor', 2)} Auto-Upgrade: Keep searching for a better spot for me</span>
                 </label>`;
             })()}
@@ -3169,7 +3169,7 @@ async function openBookingModal(c, mode) {
                 </label>`;
               return `
                 <label style="display:flex;align-items:center;gap:8px;font-size:13px;cursor:pointer;color:var(--text-secondary);user-select:none;">
-                  <input type="checkbox" class="psycle-ms-checkbox" id="quickbook-auto-upgrade" ${userSettings.autoUpgradeByDefault ? 'checked' : ''}>
+                  <input type="checkbox" class="psycle-ms-checkbox" id="quickbook-auto-upgrade" ${gymSetting(c.gymId, 'autoUpgradeByDefault') ? 'checked' : ''}>
                   <span style="display:flex;align-items:center;gap:4px;">${trendingUpIcon(12, 'currentColor', 2)} Auto-Upgrade: Keep searching for a better spot for me</span>
                 </label>`;
             })()}
@@ -3246,7 +3246,7 @@ async function openBookingModal(c, mode) {
 
 // Auto-register upgrade monitor after a successful booking if the setting is on
 async function tryAutoRegisterUpgrade(event, bookedSlotId, bookingRes, enableOverride) {
-  const shouldRegister = enableOverride !== undefined ? enableOverride : userSettings.autoUpgradeByDefault;
+  const shouldRegister = enableOverride !== undefined ? enableOverride : gymSetting(event?.gymId, 'autoUpgradeByDefault');
   debugConsole('[AutoUpgrade] tryAutoRegisterUpgrade called', { shouldRegister, bookedSlotId, eventId: event?.id });
   if (!shouldRegister) {
     debugConsole('[AutoUpgrade] Skipping — auto-upgrade is disabled. userSettings:', JSON.stringify(userSettings));

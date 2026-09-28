@@ -1,7 +1,7 @@
 import { api } from '../api';
 import { canForGym, getGymShortName } from '../gym-context.js';
 import { getAvailableCreditsForEvent, getTotalCredits, getIneligibleReason } from './credit-allowance.js';
-import { showToast, cache, refreshUserData, updateCreditBadge, userSettings } from '../main';
+import { showToast, cache, refreshUserData, updateCreditBadge, userSettings, gymSetting } from '../main';
 import { renderStudioFloorPlan } from './spotmap';
 import { icon, disciplineTag, trimLocation, seatNoun, stripClassNamePrefix, trendingUpIcon, pulseIcon, renderGymRail, equalizeDiscTagWidths , shortSlotLabels} from './cards';
 import { isInGracePeriod, GRACE_PERIOD_MS, startGraceCountdown } from '../lib';
@@ -888,7 +888,7 @@ export async function openUpgradeConfigModal({ eventId, gymId, bookingId, curren
     // directly. Seed from the shared map (or the existing monitor as a fallback).
     const seedSlots = (studioPrefs?.preferredSlots || existingPrefs?.preferredSlots || []).map(Number);
     const seedRows = studioPrefs?.preferredRows || [];
-    const seedKeepOriginal = existingPrefs?.keepOriginalOnCutoff ?? (userSettings.autoUpgradeKeepOriginalByDefault ?? false);
+    const seedKeepOriginal = existingPrefs?.keepOriginalOnCutoff ?? (gymSetting(gymId, 'autoUpgradeKeepOriginalByDefault') ?? false);
 
     const currentSlotLabel = layoutSlots.find(s => Number(s.id) === currentSlotId)?.label || String(currentSlotId);
 

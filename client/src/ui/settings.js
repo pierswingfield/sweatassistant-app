@@ -1435,18 +1435,12 @@ export async function renderGymSettingsSection(requestedGymId = null, targetCont
           // Only the changed key, against THIS section's gym.
           await api.updateSettings({ [key]: normalizedValue }, gymId);
           Object.assign(settings, next);
-          // Mirror into the in-memory settings blob only for the gym the rest of
-          // the app resolves to by default, so an edit to another gym's section
-          // doesn't overwrite it. C3-6: this used to compare against
-          // `getGymContext().gymId`, an ambient module-level "active gym" — now
-          // reads `getLinkedGyms()[0]` directly, the same linked-gyms list
-          // `loadGymContext()` seeds it from (and the same source `gymId` above
-          // falls back to). There is no server "active gym" to compare against
-          // any more either way.
-          const defaultGymId = getLinkedGyms()[0]?.gym_id || getLinkedGyms()[0]?.id;
-          if (gymId === defaultGymId) {
-            Object.assign(userSettings, next);
-          }
+          // C3-18: mirror into the in-memory copy KEYED BY GYM. This used to
+          // compare against `getLinkedGyms()[0]` on the theory that it was the
+          // gym the server defaults to, but /api/my-gyms sorts by gym_id, so [0]
+          // is jab-boxing while the server default is psycle-london: the mirror
+          // landed on the wrong gym's copy. Position says nothing about identity.
+          cache.gymSettings[gymId] = { ...(cache.gymSettings[gymId] || {}), ...next };
           showToast(`${gym.name || gymId} settings saved.`, 'success');
         } catch (err) {
           showToast(`Couldn't save ${gym.name || gymId} settings: ${err.message}`, 'error');

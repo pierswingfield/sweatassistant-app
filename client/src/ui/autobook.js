@@ -1,7 +1,7 @@
 import { api } from '../api';
 import { getGymShortName, getLinkedGyms } from '../gym-context.js';
 import { getAvailableCreditsForEvent, getTotalCredits, getIneligibleReason } from './credit-allowance.js';
-import { showToast, cache, userSettings, refreshUserData, debugConsole } from '../main';
+import { showToast, cache, userSettings, gymSetting, setGymSettingLocal, profileForGym, refreshUserData, debugConsole } from '../main';
 import { getClassReleaseTime } from '../lib';
 import { DateTime } from 'luxon';
 import { renderStudioFloorPlan } from './spotmap';
@@ -228,7 +228,7 @@ function parseBookmark(bm) {
 
 function openFavouritesModal() {
   // Get bookmarks from cache or loaded profile
-  const bookmarks = cache.profile?.metafields?.public?.bookmarks?.events || [];
+  const bookmarks = profileForGym(bookmarksGymId())?.metafields?.public?.bookmarks?.events || [];
 
   const overlay = document.createElement('div');
   overlay.style.cssText = 'position:fixed;inset:0;background:color-mix(in srgb, var(--bg) 60%, transparent);z-index:2000;display:flex;align-items:center;justify-content:center;padding:16px;';
@@ -247,7 +247,7 @@ function openFavouritesModal() {
     body.innerHTML = '<div style="text-align:center;padding:24px;color:var(--text-secondary);font-size:13px;">No bookmarked classes found.<br>Bookmark classes from the timetable to set up recurring auto-book.</div>';
   } else {
     const parsed = bookmarks.map(parseBookmark);
-    const enabled = new Set(userSettings.autoBookFavourites || []);
+    const enabled = new Set(gymSetting(bookmarksGymId(), 'autoBookFavourites') || []);
 
     body.innerHTML = '<p style="font-size:12px;color:var(--text-secondary);margin:0 0 12px;">Select which favourites to auto-book each week:</p>';
 
@@ -288,7 +288,7 @@ function openFavouritesModal() {
         // capability has. Save against that gym rather than letting the server
         // pick one; with none (or several) capable, there is no honest answer.
         await api.updateSettings({ autoBookFavourites: list }, bookmarksGymId());
-        userSettings.autoBookFavourites = list;
+        setGymSettingLocal(bookmarksGymId(), 'autoBookFavourites', list);
         showToast('Favourites saved!', 'success');
         overlay.remove();
       } catch (err) {

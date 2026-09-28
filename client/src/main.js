@@ -82,8 +82,33 @@ export let cache = {
   autoBookings: null, // prefetch target for Auto-Book tab
   upgrades: undefined, // prefetch target for Auto-Book/Auto-Upgrade
   studioPrefs: null, // prefetch target for Auto-Book/Auto-Upgrade
-  bookingWindow: null // last detected booking window { offsetDays, weeks, cutoffISO, ... }
+  bookingWindow: null, // last detected booking window { offsetDays, weeks, cutoffISO, ... } (default/first gym; see profilesByGym)
+  // C3-17 / C3-18: per-gym, keyed by gym id. `profile` above is only "the first
+  // linked gym's", kept for the few single-gym fallbacks; anything asking about
+  // ONE gym reads these through profileForGym() / gymSetting().
+  profilesByGym: {},
+  gymSettings: {},
 };
+
+// The gym-scoped half of settings for one gym, e.g. autoUpgradeByDefault. Falls
+// back to the merged `userSettings` blob only when no gym is named or none has
+// loaded yet (the same "unknown is permissive" rule as the capability flags).
+export function gymSetting(gymId, key) {
+  const perGym = gymId && cache.gymSettings ? cache.gymSettings[gymId] : null;
+  if (perGym && key in perGym) return perGym[key];
+  return userSettings[key];
+}
+
+export function setGymSettingLocal(gymId, key, value) {
+  if (!gymId) { userSettings[key] = value; return; }
+  cache.gymSettings[gymId] = { ...(cache.gymSettings[gymId] || {}), [key]: value };
+}
+
+// One gym's profile (bookmarks live here). null when that gym's profile has not
+// loaded, which callers treat as "no bookmarks", never as another gym's list.
+export function profileForGym(gymId) {
+  return (gymId && cache.profilesByGym && cache.profilesByGym[gymId]) || null;
+}
 
 // --- THEME (Auto / Light / Dark) ---
 // 'auto' follows the OS via prefers-color-scheme; 'light'/'dark' force via data-theme.
@@ -916,52 +941,79 @@ export async function refreshUserData(force = false) {
     // they add a visible delay before the header badge appears. Credits are
     // allowed to fail on their own: a membership gym has no credit route worth
     // blocking the whole refresh on.
-    const [normalized, fetchedCredits, fetchedEligibility] = await Promise.all([
-      api.getNormalizedProfile(),
-      api.getNormalizedCredits().catch(() => null),
-      // Allowed to fail on its own too — an adapter with no real
-      // implementation defaults permissive server-side, so losing this
-      // fetch should never itself block booking; see credit-allowance.js.
-      api.getEligibility().catch(() => null),
-    ]);
-    const profile = { ...(normalized.raw || {}), ...normalized };
+    //
+    // C3-17: one fetch set PER LINKED GYM, each naming its gym. These used to be
+    // asked with no gym, so on a multi-gym account the answer was whichever gym
+    // the server defaults to, and everything downstream (bookmarks, the
+    // detected booking window, credit fallbacks) silently read that one gym's
+    // data as if it were the account's. A gym whose fetch fails is left out; the
+    // refresh only fails if every gym does.
+    const linkedGyms = getLinkedGyms() || [];
+    const gymIds = linkedGyms.map((g) => g.gym_id || g.id).filter(Boolean);
+    const targets = gymIds.length ? gymIds : [null]; // no gym linked yet: ambient, as before
+    const perGym = await Promise.all(targets.map(async (gymId) => {
+      try {
+        const [normalized, credits, eligibility, gymSettings] = await Promise.all([
+          api.getNormalizedProfile(gymId),
+          api.getNormalizedCredits(gymId).catch(() => null),
+          // Allowed to fail on its own too — an adapter with no real
+          // implementation defaults permissive server-side, so losing this
+          // fetch should never itself block booking; see credit-allowance.js.
+          api.getEligibility(gymId).catch(() => null),
+          api.getSettings(gymId).catch(() => null),
+        ]);
+        return { gymId, profile: { ...(normalized.raw || {}), ...normalized }, credits, eligibility, gymSettings };
+      } catch (error) {
+        return { gymId, error };
+      }
+    }));
+    const loaded = perGym.filter((r) => r.profile);
+    if (!loaded.length) throw perGym[0].error;
+
+    cache.profilesByGym = {};
+    cache.gymSettings = { ...(cache.gymSettings || {}) };
+    for (const r of loaded) {
+      if (!r.gymId) continue;
+      cache.profilesByGym[r.gymId] = r.profile;
+      if (r.gymSettings) cache.gymSettings[r.gymId] = r.gymSettings;
+    }
+
+    // `cache.profile`/`cache.eligibility` remain as the SINGLE-gym fallbacks the
+    // credit arithmetic reads when no gym is named. With several gyms they are
+    // simply the first loaded gym's; nothing that asks about one gym reads them.
+    const first = loaded[0];
+    const profile = first.profile;
     cache.profile = profile;
-    cache.eligibility = fetchedEligibility;
-    // Per-gym eligibility for merged lists — fire-and-forget so it never delays
-    // the first paint. Until it lands, the single-gym value above applies, and
-    // the unknown-defaults-permissive rule keeps that safe.
-    api.getEligibilityByGym()
-      .then((byGym) => {
-        cache.eligibilityByGym = byGym;
-        // Re-render once the per-gym answers land. Until they do, every row is
-        // rendered permissively (see credit-allowance.js) — correct, but it can
-        // still be showing Book on a class this account genuinely cannot
-        // afford. Without this the only thing that corrected it was the user
-        // switching days, which is not a fix, it is a coincidence.
-        repaintTimetableIfVisible();
-        // C3-3: same reason for the header "Member" badge — it renders
-        // permissively on first paint (before per-gym eligibility lands) and
-        // must re-render once the real answer arrives, or an ineligible
-        // unmetered gym keeps showing "Member" until something else happens
-        // to call updateCreditBadge again.
-        updateCreditBadge().catch(() => {});
-      })
-      .catch(() => {});
+    cache.eligibility = first.eligibility;
+    if (gymIds.length) {
+      // Per-gym eligibility for merged lists. Until it lands the unknown-defaults-
+      // permissive rule keeps rows safe; a failed gym is null, not the default's.
+      cache.eligibilityByGym = Object.fromEntries(
+        perGym.map((r) => [r.gymId, r.error ? null : r.eligibility]),
+      );
+      // Re-render now that the real per-gym answers exist: rows painted before
+      // this were rendered permissively (see credit-allowance.js).
+      repaintTimetableIfVisible();
+      // C3-3: same for the header "Member" badge.
+      updateCreditBadge().catch(() => {});
+    }
 
     const emailEl = document.querySelector('.psycle-user-email');
     if (emailEl) {
       emailEl.textContent = currentUser?.email || profile.email || '';
     }
 
-    // 2. Fetch settings and studio preferences
-    const settings = await api.getSettings();
+    // 2. Settings. The account-scoped keys are identical whichever gym's merged
+    // blob they come from; the gym-scoped keys live in `cache.gymSettings` and
+    // are read through gymSetting(). The blob is only the no-gym fallback.
+    const settings = first.gymSettings || (gymIds.length ? null : await api.getSettings());
     if (settings && Object.keys(settings).length > 0) {
       Object.assign(userSettings, settings);
     }
 
     // 3. Credit inventory, via the gym-agnostic route. Empty for a membership
     // gym, which is correct — there is no balance to draw down.
-    const availableCredits = fetchedCredits ?? (profile.available_credits || []);
+    const availableCredits = first.credits ?? (profile.available_credits || []);
     cache.credits = availableCredits;
     // Keep `.available_credits` populated for the credit arithmetic, which reads
     // it off the cached profile.
@@ -970,9 +1022,14 @@ export async function refreshUserData(force = false) {
     // Update credit badge in header
     updateCreditBadge(availableCredits);
 
-    // 4. Auto-detect the user's booking window from profile cutoffs + credit inventory.
-    // Persist the detected day-offset so the server scheduler reads the same window.
-    await syncDetectedBookingWindow(profile, availableCredits);
+    // 4. Auto-detect each gym's booking window from ITS OWN profile cutoffs and
+    // persist it against that gym so the server scheduler reads the same window.
+    // The detector encodes the weekly-release model, so only gyms that use one.
+    for (const r of loaded) {
+      const kind = (linkedGyms.find((g) => (g.gym_id || g.id) === r.gymId)?.capabilities || {}).bookingWindow;
+      if (kind && kind !== 'rolling-weekly') continue;
+      await syncDetectedBookingWindow(r.profile, r.credits ?? (r.profile.available_credits || []), r.gymId);
+    }
 
   } catch (err) {
     console.error('[App] Failed to refresh user credentials:', err);
@@ -981,25 +1038,29 @@ export async function refreshUserData(force = false) {
 
 // Detect the booking window and persist it to settings when it changes. Stores the
 // full detection result on cache.bookingWindow for the Settings indicator to render.
-async function syncDetectedBookingWindow(profile, credits) {
+async function syncDetectedBookingWindow(profile, credits, gymId = null) {
   try {
     const detected = detectBookingWindow(profile, credits);
     if (!detected) return;
+    // The Settings indicator reads this; with several gyms it holds the last
+    // detected gym's window, and the per-gym truth is cache.gymSettings[gymId].
     cache.bookingWindow = detected;
 
     // Persist the offset (read by the server scheduler) plus the full detection result
     // (so the admin panel can render the same window the user sees). Re-persist when
-    // either the offset or the serialised window changes.
-    const windowChanged = JSON.stringify(userSettings.bookingWindow) !== JSON.stringify(detected);
-    if (userSettings.detectedBookingOffset !== detected.offsetDays || windowChanged) {
-      // Both keys are gym-scoped, and the window was derived from THIS profile's
-      // cutoffs — so it is saved against the gym the profile came from, which
-      // the route stamps on. Without that this wrote one gym's booking window
-      // onto whichever gym the server happened to resolve.
+    // either the offset or the serialised window changes. Both keys are gym-scoped,
+    // so the comparison is against THIS gym's stored values (C3-18), not a blob
+    // that holds whichever gym was mirrored into it last.
+    const stored = (gymId && cache.gymSettings[gymId]) || userSettings;
+    const windowChanged = JSON.stringify(stored.bookingWindow) !== JSON.stringify(detected);
+    if (stored.detectedBookingOffset !== detected.offsetDays || windowChanged) {
+      // The window was derived from THIS profile's cutoffs, so it is saved
+      // against the gym the profile came from.
       const newSettings = { detectedBookingOffset: detected.offsetDays, bookingWindow: detected };
-      await api.updateSettings(newSettings, profile.gymId || null);
-      Object.assign(userSettings, newSettings);
-      debugConsole(`[App] Detected booking window: ${detected.weeks} week(s) / ${detected.offsetDays}d (${detected.source})`);
+      await api.updateSettings(newSettings, gymId || profile.gymId || null);
+      if (gymId) cache.gymSettings[gymId] = { ...(cache.gymSettings[gymId] || {}), ...newSettings };
+      else Object.assign(userSettings, newSettings);
+      debugConsole(`[App] Detected booking window (${gymId || 'default'}): ${detected.weeks} week(s) / ${detected.offsetDays}d (${detected.source})`);
     }
   } catch (err) {
     console.warn('[App] Booking window detection failed:', err.message);
@@ -1134,6 +1195,9 @@ function showLogin() {
   // user, which would skip the Object.assign merge and leave stale values.
   Object.keys(userSettings).forEach(k => delete userSettings[k]);
   Object.assign(userSettings, DEFAULT_SETTINGS);
+  // Per-gym copies belong to the previous account too.
+  cache.profilesByGym = {};
+  cache.gymSettings = {};
   document.body.id = 'psycle-helper-container';
   document.body.className = 'psycle-helper-expanded';
   document.getElementById('psycle-app-container').style.display = 'none';

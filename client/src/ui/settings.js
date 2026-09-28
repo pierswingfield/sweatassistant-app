@@ -7,6 +7,7 @@ import { clearApiCache, gymScopedKey } from '../cache.js';
 import { renderGymSettingsSection as renderGymSettingsSectionView } from './gym-settings-section.js';
 import { renderCalendarSection } from './calendar-section.js';
 import { getLinkedGyms, getGymShortName } from '../gym-context.js';
+import { createRenderGuard, reconcileKeyed, lastAuthLabel, connectionHealth } from './gym-connections.js';
 
 let loadedProfile = null;
 let loadedProfileGymId = null;
@@ -1117,20 +1118,171 @@ function gymModal() {
 // everything" helper to be safe, because that was the mechanism the old design
 // leaned on and it was only ever correct while every caller remembered it.
 
-/** Relative "3 days ago" / absolute date for a connection's last authentication. */
-function lastAuthLabel(iso) {
-  if (!iso) return 'Not recorded';
-  const then = new Date(iso);
-  if (Number.isNaN(then.getTime())) return 'Not recorded';
-  const days = Math.floor((Date.now() - then.getTime()) / 86400000);
-  const date = then.toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' });
-  if (days <= 0) return `Today · ${date}`;
-  if (days === 1) return `Yesterday · ${date}`;
-  if (days < 30) return `${days} days ago · ${date}`;
-  return date;
+// ── Your Gyms: render once, then update in place (U1-7) ─────────────────────
+//
+// The linked-gym list is already known at boot (`loadGymContext()` fetches it
+// before Settings is bound), so the sidebar entries, per-gym panes and the
+// connection table are painted SYNCHRONOUSLY from that, together with the rest of
+// the menu. `GET /api/my-gyms` then only ENRICHES what is on screen (health,
+// last-authenticated) by updating the same elements — rows are keyed by gym id
+// and never rebuilt. See gym-connections.js for why the previous
+// clear-then-append-in-a-loop render duplicated a gym when two renders overlapped.
+const gymsRenderGuard = createRenderGuard();
+let connByGym = new Map();
+
+/** The connection table's static shell, built once per list host. */
+function ensureConnTable(list) {
+  if (list.querySelector('.psycle-gym-conn-table')) return list.querySelector('.psycle-gym-conn-table');
+  list.innerHTML = `
+    <div class="psycle-card-desc psycle-gym-conn-empty" style="padding:10px 0;" hidden>No gyms linked. Add one to start booking.</div>
+    <div class="psycle-gym-conn-table" role="table" aria-label="Gym connections">
+      <div class="psycle-gym-conn-head" role="row">
+        <span role="columnheader">Gym</span>
+        <span role="columnheader">Connection</span>
+        <span role="columnheader">Last authenticated</span>
+        <span role="columnheader"><span class="u-visually-hidden">Actions</span></span>
+      </div>
+    </div>`;
+  return list.querySelector('.psycle-gym-conn-table');
+}
+
+function connRowCreate(g) {
+  const row = document.createElement('div');
+  row.className = 'psycle-gym-conn-row';
+  row.setAttribute('role', 'row');
+  const id = escapeHtml(g.gym_id);
+  row.innerHTML = `
+    <span role="cell" class="psycle-gym-conn-name"><strong></strong><small></small></span>
+    <span role="cell" class="psycle-gym-conn-health"><span class="psycle-gym-conn-dot" aria-hidden="true"></span><span class="psycle-gym-conn-label"></span></span>
+    <span role="cell" class="psycle-gym-conn-when"></span>
+    <span role="cell" class="psycle-gym-conn-actions">
+      <button class="psycle-btn psycle-btn-mini" data-reauth-gym="${id}">Re-authenticate</button>
+      <button class="psycle-btn psycle-btn-mini variant-danger" data-unlink-gym="${id}">Unlink</button>
+    </span>`;
+  return row;
+}
+
+function connRowUpdate(row, g) {
+  const health = connectionHealth(g);
+  row.querySelector('.psycle-gym-conn-name strong').textContent = g.gym_name || g.gym_id;
+  row.querySelector('.psycle-gym-conn-name small').textContent = g.gym_email || g.provider || '';
+  const h = row.querySelector('.psycle-gym-conn-health');
+  h.className = `psycle-gym-conn-health ${health.cls}`;
+  h.querySelector('.psycle-gym-conn-dot').textContent = health.icon;
+  h.querySelector('.psycle-gym-conn-label').textContent = health.label;
+  row.querySelector('.psycle-gym-conn-when').textContent = lastAuthLabel(g.last_authenticated_at);
+}
+
+function gymNavCreate() {
+  const item = document.createElement('button');
+  item.className = 'psycle-settings-menu-item psycle-settings-menu-sub';
+  item.innerHTML = '<span class="menu-item-text"></span>';
+  return item;
+}
+
+function gymNavUpdate(item, g) {
+  item.setAttribute('data-settings-section', `gym-${g.gym_id}`);
+  item.setAttribute('data-gym-nav', g.gym_id);
+  item.querySelector('.menu-item-text').textContent = g.gym_name || g.gym_id;
+  const flag = item.querySelector('.psycle-menu-item-flag');
+  const needs = g.status === 'needs_relogin';
+  if (needs && !flag) {
+    const f = document.createElement('span');
+    f.className = 'psycle-menu-item-flag';
+    f.title = 'Reconnect needed';
+    f.textContent = '!';
+    item.appendChild(f);
+  } else if (!needs && flag) {
+    flag.remove();
+  }
+}
+
+function gymPaneCreate(g) {
+  const pane = document.createElement('div');
+  pane.className = 'psycle-settings-section-pane';
+  pane.id = `psycle-settings-pane-gym-${g.gym_id}`;
+  pane.setAttribute('data-gym-pane', g.gym_id);
+  return pane;
+}
+
+/**
+ * Paint (or repaint) everything that derives from the linked-gym list. Idempotent
+ * and synchronous: safe to call from the boot context and again from the network
+ * response, and safe under overlapping renders.
+ */
+function paintGyms(linked, { list, layout, menu, panesHost }) {
+  connByGym = new Map(linked.map((g) => [g.gym_id, g]));
+
+  const table = ensureConnTable(list);
+  list.querySelector('.psycle-gym-conn-empty').hidden = linked.length > 0;
+  table.hidden = linked.length === 0;
+  reconcileKeyed(table, linked, {
+    keyAttr: 'data-gym-key', keyOf: (g) => g.gym_id, create: connRowCreate, update: connRowUpdate,
+  });
+
+  // ── One sidebar entry and one pane PER GYM ─────────────────────────────────
+  // A gym is a first-class section, so it gets a first-class nav entry (stacking
+  // every gym's settings on one page meant scrolling past one gym's cards to
+  // reach the next). Entries are keyed and reconciled, so an unlinked gym cannot
+  // leave a dead entry behind and a surviving one keeps its `.active` state.
+  if (!menu || !panesHost) return;
+  const activeBefore = menu.querySelector('.active[data-gym-nav]')?.getAttribute('data-gym-nav');
+  reconcileKeyed(menu, linked, {
+    keyAttr: 'data-gym-nav', keyOf: (g) => g.gym_id, create: gymNavCreate, update: gymNavUpdate,
+    // Gyms sit directly under "Your Gyms" and above "About".
+    anchor: menu.querySelector('[data-settings-section="about"]'),
+  });
+  reconcileKeyed(panesHost, linked, { keyAttr: 'data-gym-pane', keyOf: (g) => g.gym_id, create: gymPaneCreate });
+  // The gym whose pane was showing was unlinked: land on the connection table.
+  if (activeBefore && !linked.some((g) => g.gym_id === activeBefore)) {
+    layout?.__activateSettingsSection?.('gyms');
+  }
+}
+
+async function onGymListClick(event) {
+  const reauth = event.target.closest('[data-reauth-gym]');
+  if (reauth) {
+    const gymId = reauth.dataset.reauthGym;
+    openLinkGymModal(gymId, connByGym.get(gymId));
+    return;
+  }
+  const btn = event.target.closest('[data-unlink-gym]');
+  if (!btn) return;
+
+  // Double-click confirm, matching how every other destructive action in the app
+  // behaves (cancel a booking, leave a waitlist).
+  if (btn.dataset.armed !== '1') {
+    btn.dataset.armed = '1';
+    btn.textContent = 'Confirm unlink?';
+    clearTimeout(btn._armTimer);
+    btn._armTimer = setTimeout(() => { delete btn.dataset.armed; btn.textContent = 'Unlink'; }, 4000);
+    return;
+  }
+  clearTimeout(btn._armTimer);
+  btn.disabled = true;
+  try {
+    await api.unlinkGym(btn.dataset.unlinkGym);
+    showToast('Gym unlinked.', 'success');
+    // C3-1: unlinking changes the linked-gym set the header badges and
+    // capability gates read (client/src/gym-context.js), which settings.js
+    // re-rendering its own cards never refreshes — without this the header
+    // still shows the unlinked gym's badge until a full reload. loadGymContext()
+    // updates the linked-gym list capability gates read; refreshUserData()
+    // is what actually re-renders the header credit badges from that list
+    // (updateCreditBadge reads getLinkedGyms()).
+    await loadGymContext();
+    await refreshUserData(true);
+    await renderGymsCard();
+  } catch (err) {
+    showToast(err.message, 'error');
+    btn.disabled = false;
+    delete btn.dataset.armed;
+    btn.textContent = 'Unlink';
+  }
 }
 
 export async function renderGymsCard() {
+  const token = gymsRenderGuard.begin();
   const card = document.getElementById('psycle-gyms-card');
   const list = document.getElementById('psycle-gyms-list');
   const actions = document.getElementById('psycle-gyms-actions');
@@ -1138,66 +1290,39 @@ export async function renderGymsCard() {
   const menu = layout?.querySelector('.psycle-settings-menu');
   const panesHost = layout?.querySelector('.psycle-settings-section-panes');
   if (!list) return;
-
-  let data;
-  try {
-    data = await api.getMyGyms();
-  } catch (err) {
-    list.innerHTML = `<div class="psycle-card-error" style="padding:12px;">Couldn't load your gyms (${escapeHtml(err.message)})</div>`;
-    return;
-  }
-
-  const linked = data.gyms || [];
+  const els = { list, layout, menu, panesHost };
 
   // The card is ALWAYS shown, at every gym count. It used to hide itself when
   // exactly one gym was linked — and since the "Add a gym" button lives inside
   // it, a single-gym account had no way to link a second one at all.
   if (card) card.hidden = false;
-
-  // ── Your Gyms pane = the CONNECTION table, nothing else ────────────────────
-  // Each gym's own settings live behind its own sidebar entry (built below), so
-  // this page answers one question: are my gyms connected, and when did each
-  // last authenticate?
-  if (linked.length === 0) {
-    list.innerHTML = `<div class="psycle-card-desc" style="padding:10px 0;">No gyms linked. Add one to start booking.</div>`;
-  } else {
-    list.innerHTML = `
-      <div class="psycle-gym-conn-table" role="table" aria-label="Gym connections">
-        <div class="psycle-gym-conn-head" role="row">
-          <span role="columnheader">Gym</span>
-          <span role="columnheader">Connection</span>
-          <span role="columnheader">Last authenticated</span>
-          <span role="columnheader"><span class="u-visually-hidden">Actions</span></span>
-        </div>
-        ${linked.map(g => {
-          const needsRelogin = g.status === 'needs_relogin';
-          const disabled = !g.gym_enabled;
-          // Health is a symbol AND a word: a colour-and-glyph-only status fails
-          // in forced-colours mode and for colour-blind users, and "is my gym
-          // connected" is exactly the question you cannot afford to misread.
-          const health = disabled
-            ? { cls: 'is-off', icon: '—', label: 'Not available yet' }
-            : needsRelogin
-              ? { cls: 'is-warn', icon: '!', label: 'Reconnect needed' }
-              : { cls: 'is-ok', icon: '✓', label: 'Connected' };
-          return `
-            <div class="psycle-gym-conn-row" role="row">
-              <span role="cell" class="psycle-gym-conn-name">
-                <strong>${escapeHtml(g.gym_name || g.gym_id)}</strong>
-                <small>${escapeHtml(g.gym_email || g.provider || '')}</small>
-              </span>
-              <span role="cell" class="psycle-gym-conn-health ${health.cls}">
-                <span class="psycle-gym-conn-dot" aria-hidden="true">${health.icon}</span>${escapeHtml(health.label)}
-              </span>
-              <span role="cell" class="psycle-gym-conn-when">${escapeHtml(lastAuthLabel(g.last_authenticated_at))}</span>
-              <span role="cell" class="psycle-gym-conn-actions">
-                <button class="psycle-btn psycle-btn-mini" data-reauth-gym="${escapeHtml(g.gym_id)}">Re-authenticate</button>
-                <button class="psycle-btn psycle-btn-mini variant-danger" data-unlink-gym="${escapeHtml(g.gym_id)}">Unlink</button>
-              </span>
-            </div>`;
-        }).join('')}
-      </div>`;
+  if (!list.dataset.gymHandlers) {
+    list.dataset.gymHandlers = '1';
+    list.addEventListener('click', onGymListClick);
   }
+
+  // The old single inline host is no longer used; keep it empty so a stale render
+  // can't linger behind the per-gym panes.
+  const legacyInline = document.getElementById('psycle-gym-settings-section');
+  if (legacyInline) { legacyInline.hidden = true; legacyInline.innerHTML = ''; }
+
+  // ── Phase 1, synchronous: paint from the gyms the app already knows ────────
+  const known = getLinkedGyms() || [];
+  const painted = known.length > 0;
+  if (painted) paintGyms(known, els);
+
+  // ── Phase 2: enrich in place from the server (health, last authenticated) ──
+  let linked;
+  try {
+    linked = (await api.getMyGyms()).gyms || [];
+  } catch (err) {
+    if (!gymsRenderGuard.isCurrent(token)) return;
+    if (painted) debugConsole('[Settings] Could not refresh gym connections:', err.message);
+    else list.innerHTML = `<div class="psycle-card-error" style="padding:12px;">Couldn't load your gyms (${escapeHtml(err.message)})</div>`;
+    return;
+  }
+  if (!gymsRenderGuard.isCurrent(token)) return;
+  paintGyms(linked, els);
 
   // Only offer gyms that are both enabled and not already linked.
   let addable = [];
@@ -1206,98 +1331,27 @@ export async function renderGymsCard() {
     const linkedIds = new Set(linked.map(g => g.gym_id));
     addable = all.filter(g => g.enabled && !linkedIds.has(g.id));
   } catch (_) { /* catalogue is best-effort — the rest of the card still works */ }
+  if (!gymsRenderGuard.isCurrent(token)) return;
 
   actions.innerHTML = addable.length
     ? `<button class="psycle-btn primary psycle-btn-mini" id="psycle-add-gym-btn">＋ Connect a gym</button>`
     : `<p class="psycle-card-desc" style="margin:0;">Every available gym is already connected.</p>`;
-
-  list.querySelectorAll('[data-reauth-gym]').forEach(btn => {
-    btn.onclick = () => openLinkGymModal(btn.dataset.reauthGym, linked.find(g => g.gym_id === btn.dataset.reauthGym));
-  });
-
-  // Double-click confirm, matching how every other destructive action in the app
-  // behaves (cancel a booking, leave a waitlist).
-  list.querySelectorAll('[data-unlink-gym]').forEach(btn => {
-    let armed = false;
-    btn.onclick = async () => {
-      const gymId = btn.dataset.unlinkGym;
-      if (!armed) {
-        armed = true;
-        btn.textContent = 'Confirm unlink?';
-        setTimeout(() => { if (armed) { armed = false; btn.textContent = 'Unlink'; } }, 4000);
-        return;
-      }
-      btn.disabled = true;
-      try {
-        await api.unlinkGym(gymId);
-        showToast('Gym unlinked.', 'success');
-        // C3-1: unlinking changes the linked-gym set the header badges and
-        // capability gates read (client/src/gym-context.js), which settings.js
-        // re-rendering its own cards never refreshes — without this the header
-        // still shows the unlinked gym's badge until a full reload. loadGymContext()
-        // updates the linked-gym list capability gates read; refreshUserData()
-        // is what actually re-renders the header credit badges from that list
-        // (updateCreditBadge reads getLinkedGyms()).
-        await loadGymContext();
-        await refreshUserData(true);
-        await renderGymsCard();
-      } catch (err) {
-        showToast(err.message, 'error');
-        btn.disabled = false;
-        armed = false;
-        btn.textContent = 'Unlink';
-      }
-    };
-  });
-
   const addBtn = document.getElementById('psycle-add-gym-btn');
   if (addBtn) addBtn.onclick = () => openLinkGymModal(null, null, addable);
 
-  // ── One sidebar entry and one pane PER GYM ─────────────────────────────────
-  //
-  // Stacking every gym's settings on a single page meant scrolling past one
-  // gym's eight cards to reach the next, and gave no way to link to a specific
-  // gym's settings. A gym is a first-class section, so it gets a first-class
-  // nav entry.
-  //
-  // Entries are rebuilt from scratch on every render (rather than diffed) so an
-  // unlinked gym cannot leave a dead entry behind pointing at a pane that no
-  // longer exists.
-  if (menu && panesHost) {
-    menu.querySelectorAll('[data-gym-nav]').forEach(el => el.remove());
-    panesHost.querySelectorAll('[data-gym-pane]').forEach(el => el.remove());
-
-    const aboutItem = menu.querySelector('[data-settings-section="about"]');
-    for (const g of linked) {
-      const sectionId = `gym-${g.gym_id}`;
-
-      const item = document.createElement('button');
-      item.className = 'psycle-settings-menu-item psycle-settings-menu-sub';
-      item.setAttribute('data-settings-section', sectionId);
-      item.setAttribute('data-gym-nav', g.gym_id);
-      item.innerHTML = `<span class="menu-item-text">${escapeHtml(g.gym_name || g.gym_id)}</span>`
-        + (g.status === 'needs_relogin' ? '<span class="psycle-menu-item-flag" title="Reconnect needed">!</span>' : '');
-      // Gyms sit directly under "Your Gyms" and above "About".
-      if (aboutItem) menu.insertBefore(item, aboutItem); else menu.appendChild(item);
-
-      const pane = document.createElement('div');
-      pane.className = 'psycle-settings-section-pane';
-      pane.id = `psycle-settings-pane-${sectionId}`;
-      pane.setAttribute('data-gym-pane', g.gym_id);
-      panesHost.appendChild(pane);
-
-      // Sequential, not Promise.all: each section fetches settings, membership
-      // and credits for its gym, and firing them all at once against a rate
-      // -limited provider is how you turn a settings page into a 429.
-      await renderGymSettingsSection(g.gym_id, pane)
-        .catch(err => debugConsole('[Settings] Gym section failed:', g.gym_id, err.message));
-    }
+  // ── Phase 3: each gym's own settings pane (its content is the slow part) ───
+  // Sequential, not Promise.all: each section fetches settings, membership and
+  // credits for its gym, and firing them all at once against a rate-limited
+  // provider is how you turn a settings page into a 429. The menu entries above
+  // are already on screen, so this only ever fills panes in.
+  if (!panesHost) return;
+  for (const g of linked) {
+    if (!gymsRenderGuard.isCurrent(token)) return;
+    const pane = Array.from(panesHost.querySelectorAll('[data-gym-pane]')).find((p) => p.getAttribute('data-gym-pane') === g.gym_id);
+    if (!pane) continue;
+    await renderGymSettingsSection(g.gym_id, pane)
+      .catch(err => debugConsole('[Settings] Gym section failed:', g.gym_id, err.message));
   }
-
-  // The old single inline host is no longer used; clear it so a stale render
-  // can't linger behind the new per-gym panes.
-  const legacyInline = document.getElementById('psycle-gym-settings-section');
-  if (legacyInline) { legacyInline.hidden = true; legacyInline.innerHTML = ''; }
 }
 
 // NOTE: `openGymSettingsDrawer()` used to live here and is deliberately gone.
@@ -1313,7 +1367,11 @@ export async function renderGymSettingsSection(requestedGymId = null, targetCont
   const container = targetContainer || document.getElementById('psycle-gym-settings-section');
   if (!container) return;
 
-  container.innerHTML = '<div class="psycle-settings-card"><p class="psycle-card-desc">Loading gym settings…</p></div>';
+  // Keep already-rendered content while a refresh runs (U1-7: panes now persist
+  // across renders); the placeholder is only for a pane that has nothing yet.
+  if (!container.hasChildNodes()) {
+    container.innerHTML = '<div class="psycle-settings-card"><p class="psycle-card-desc">Loading gym settings…</p></div>';
+  }
 
   try {
     const [myGyms, catalogue] = await Promise.all([api.getMyGyms(), api.getGyms()]);

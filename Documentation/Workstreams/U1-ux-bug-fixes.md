@@ -14,7 +14,7 @@ Cheap, visible fixes. Run them alongside C3 so they share the same live re-test.
 | U1-4 | **Recover-screen copy.** | ✅ Already done (C1-4) — verified 2026-09-27; re-confirmed live on dev twin 2026-09-27 | 15 min |
 | U1-5 | **Toast dismiss button.** | ✅ Fixed 2026-09-27; re-confirmed live on dev twin 2026-09-27 | 1 h |
 | U1-6 | **Auto-book overlap confirmation modal.** Overlap only produced a fleeting toast (C5-3). *2026-09-28, source: user dev-twin testing.* | Open | 1 d |
-| U1-7 | **Settings → Your Gyms renders incrementally and sometimes duplicates.** *2026-09-28, source: user dev-twin testing.* | Open | 2 h |
+| U1-7 | **Settings → Your Gyms renders incrementally and sometimes duplicates.** *2026-09-28, source: user dev-twin testing.* | ✅ Fixed 2026-09-28 | 2 h |
 | U1-8 | **1:1 gym logo chip on each per-gym Settings submenu item.** *2026-09-28, source: user dev-twin testing.* | Open | 1 h |
 | U1-9 | **"Last authenticated" always says "Not recorded".** README "Verified done" (QA-07) claims it works. *2026-09-28, source: user dev-twin testing.* | ✅ Fixed 2026-09-28 (write bug) | 1 h |
 | U1-10 | **Icons on Settings menu items** (SVG, not emoji). *2026-09-28, source: user dev-twin testing.* | Open | 1 h |
@@ -223,3 +223,55 @@ Failed first for the recorded reason (`upsertUserGym` returned `null`).
 **Known limit:** existing links carry NULL and stay "Not recorded" until the next
 login, re-authenticate or background session renewal. There is no honest source to
 backfill from, so none was invented.
+
+### U1-7 — Your Gyms renders incrementally and sometimes duplicates
+
+**Root cause (2026-09-28), two faults in `renderGymsCard()` (`client/src/ui/settings.js`):**
+
+1. **Incremental.** The sidebar entries were built only after `await api.getMyGyms()` **and**
+   `await api.getGyms()`, and then one gym at a time with `await renderGymSettingsSection()`
+   (a settings + membership + credits fetch) *between* iterations. Gym 1's entry appeared,
+   gym 2's appeared after gym 1's section had loaded. The gym list was already known at boot
+   (`loadGymContext()` runs before Settings binds) and was not used.
+2. **Duplicates.** The render cleared every `[data-gym-nav]` entry and pane, then appended in
+   that awaiting loop. Two overlapping renders interleave: B clears A's half-built menu, A
+   resumes and appends the gyms it hadn't reached, B appends its own, so a gym is listed twice
+   with two panes sharing one `id`. Renders overlap because `initSettings()` starts one at
+   boot and others start from the `psycle-gym-needs-relogin` event (which a stale JAB session
+   fires during boot), a re-link and an unlink.
+
+**Browser evidence before (local mock, both gyms linked, CDP :9222; a MutationObserver
+logged `navEntries/panes/tableRows` over time, network latency 200 ms):**
+
+- Incremental: `0/0/0 → 0/0/2 (t=279ms) → 1/1/2 (t=490) → 2/2/2 (t=1115) → 1/1/2 → 2/2/2`.
+  The table appeared first, the gym entries one at a time, then the whole menu was torn down
+  and rebuilt (`2 → 1 → 2`) by the second render.
+- Duplicate, reproduced deterministically by firing the needs-relogin event as soon as the
+  first entry appeared (`3/3/2`; menu read
+  `… Your Gyms | JAB Boxing Club | Psycle London | Psycle London | About`, three panes).
+- Screenshots: `before71-{light,dark}-{desktop,mobile}-menu.jpg` in the scratchpad.
+
+**Fix (not a delay):** new `client/src/ui/gym-connections.js`.
+- `reconcileKeyed()`: entries, panes and table rows are **keyed by gym id and updated in
+  place**, in order, before the "About" anchor. Rendering is idempotent, so running it twice
+  (or six times concurrently) cannot create a second copy; a surviving element keeps its
+  `.active` class and loaded pane content; any duplicate key already in the DOM is collapsed.
+- `createRenderGuard()`: each render takes a generation token, and a superseded render stops
+  at its next `await` rather than writing stale data over a newer one.
+- `renderGymsCard()` now paints **synchronously** from `getLinkedGyms()` (the boot context),
+  then enriches the same elements from `GET /api/my-gyms` (health, last authenticated), then
+  fills each gym's pane. Click handling is one delegated listener bound once, so persistent
+  rows need no re-binding. `renderGymSettingsSection()` no longer flashes "Loading…" over a
+  pane that already has content.
+
+**Tests:** `client/src/ui/gym-connections.test.js` (vitest): keyed reconcile (identity kept,
+in-place update, removal, reorder, duplicate collapse), the guard, and a simulation of the
+overlap showing the old clear-then-append shape duplicates while the keyed render never does
+at any offset between two renders.
+
+**After (same harness):** `0/0/0 → 2/2/2` in a single step (t≈85 ms at 0 latency, at the
+same moment the rest of the app paints), 3 hard refreshes at 0 ms and 4 overlap-kick
+offsets at 200 ms latency: always 2/2/2. Six `renderGymsCard()` calls launched 90 ms apart
+under 150 ms latency: 2 entries, 2 panes, 2 rows, unique pane ids, both panes populated.
+Unlink → nav 1/1/1 and pane removed; relink through the modal → 2/2/2 with the new row filled
+in (`Today · 28 Sept 2026`, also U1-9 end to end).

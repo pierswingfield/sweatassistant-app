@@ -389,6 +389,16 @@ check('the scheduler\'s cross-user claim keys are gym-qualified', () => {
   }
 });
 
+check('the poller\'s claim keys are gym-qualified too (C3-23)', () => {
+  const src = require('fs').readFileSync(require('path').join(__dirname, 'poller.js'), 'utf8');
+  const assignments = src.match(/claimKey\s*=\s*`[^`]*`/g) || [];
+  assert.ok(assignments.length > 0, 'expected to find the claimKey template in poller.js');
+  for (const a of assignments) {
+    assert.ok(/\$\{gymId\}/.test(a),
+      `poller claim key is not gym-qualified: ${a} — two gyms can both publish event 12345 slot 7`);
+  }
+});
+
 // --- run --------------------------------------------------------------------
 
 let passed = 0;

@@ -243,7 +243,7 @@ async function attemptUpgradeSlot(upgrade, isCutoffMode) {
       if (currentIndex !== -1 && i >= currentIndex) break;
 
       // Candidate slot is available! Let's upgrade
-      const claimKey = `${eventId}:${candidateSlot}`;
+      const claimKey = `${gymId}:${eventId}:${candidateSlot}`; // C3-23: provider ids collide across gyms
       if (availableSlots.includes(candidateSlot) && !claimedSlots.has(claimKey)) {
         console.log(`[Poller] Better slot ${candidateSlot} available for event ${eventId} (current: ${currentSlotId}). Upgrading...`);
         claimedSlots.add(claimKey);

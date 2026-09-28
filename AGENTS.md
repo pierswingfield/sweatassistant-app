@@ -69,7 +69,7 @@ App/
 │   ├── mock-marianatek.js   # Dev-mode mock MarianaTek API (dev@jabboxing.mock)
 │   ├── schedule-cache.js    # ★ Shared user-agnostic provider cache (SWR + single-flight)
 │   ├── run-tests.js         # Test runner — discovers server/test-*.js by filename
-│   └── test-*.js            # 17 suites; see Documentation/TESTING.md
+│   └── test-*.js            # 38 suites; see Documentation/TESTING.md
 ├── client/                  # Vite PWA frontend
 │   ├── index.html           # SPA shell with 5 tab panels + modals + iOS bottom nav
 │   ├── src/
@@ -108,7 +108,7 @@ App/
 │       └── icons/            # App icons (128, 192, 512 — any + maskable)
 ├── Dockerfile               # Multi-stage build (client → server/public)
 ├── docker-compose.yml       # Single-container deployment (port 3005→3000)
-├── deploy.sh                # Pi deployment script (SSH + rsync + docker compose)
+├── deploy.sh                # oracle deploy: rsync + docker compose up -d --build (dev twin by default; --prod needs a typed confirmation; --print dry-runs)
 └── package.json             # Root workspace (concurrently dev server + client)
 ```
 
@@ -122,7 +122,7 @@ npm run dev:client           # Start Vite dev server only (port 5173, proxies /a
 npm run build:client         # Production build of client
 npm start                    # Production start (server serves built client)
 
-npm test                     # EVERYTHING: 17 server suites + the client Vitest suite
+npm test                     # EVERYTHING: 38 server suites + the client Vitest suite
 npm run test:server          # Server only
 npm run test:client          # Client only (vitest)
 ```

@@ -1,7 +1,7 @@
 # Testing
 
 ```bash
-npm test              # everything: 16 server suites + the client suite
+npm test              # everything: 38 server suites + the client suite
 npm run test:server   # server only
 npm run test:client   # client only (vitest)
 ```

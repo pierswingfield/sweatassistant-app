@@ -1,104 +1,83 @@
-#!/bin/bash
+#!/usr/bin/env bash
+#
+# Sweat Assistant: deploy to the oracle VM (C7-8).
+#
+# This REPLACES the old script, which rsynced to the retired Raspberry Pi
+# (/home/pi/psycleapp). Both environments now live on `oracle`:
+#
+#   dev twin  ~/services/psycleapp-dev/   sweat-dev.wingfield.tech   (default)
+#   prod      ~/services/psycleapp/       sweat.wingfield.tech
+#
+# The flow is what was done by hand: rsync the tree, then
+# `docker compose up -d --build` on the host. Nothing here writes .env or
+# data/ (secrets and the SQLite database live only on the host).
+#
+# Prod is never the default. It needs --prod AND a typed confirmation, and it
+# refuses to run without a terminal.
+#
+# Usage:
+#   ./deploy.sh                 deploy to the dev twin
+#   ./deploy.sh --print         show every command, run nothing (no ssh at all)
+#   ./deploy.sh --prod          deploy to prod (asks you to type "deploy prod")
+#
+# Env: DEPLOY_HOST (default oracle), DEPLOY_DOCKER (default "docker"; set to
+# "sudo docker" if the login user is not in the docker group).
+set -euo pipefail
 
-# Exit immediately if a command exits with a non-zero status
-set -e
+HOST="${DEPLOY_HOST:-oracle}"
+DOCKER="${DEPLOY_DOCKER:-docker}"
+TARGET=dev
+PRINT=0
 
-# Target Pi Info — read from environment or .deploy.env
-PI_IP="${DEPLOY_PI_IP:-192.168.1.8}"
-PI_USER="${DEPLOY_PI_USER:-pi}"
-PI_DIR="${DEPLOY_PI_DIR:-/home/pi/psycleapp}"
+for arg in "$@"; do
+  case "$arg" in
+    --prod)  TARGET=prod ;;
+    --dev)   TARGET=dev ;;
+    --print) PRINT=1 ;;
+    -h|--help) sed -n '2,/^set -euo/p' "$0" | sed '$d' | sed 's/^# \{0,1\}//'; exit 0 ;;
+    *) echo "Unknown argument: $arg (try --help)" >&2; exit 2 ;;
+  esac
+done
 
-echo "=== Starting Psycle PWA Deployment to Raspberry Pi ($PI_IP) ==="
-
-# 1. Check/Generate SSH Key locally
-SSH_KEY="$HOME/.ssh/id_ed25519"
-if [ ! -f "$SSH_KEY" ]; then
-    echo "[Local] SSH Key not found. Generating a new ed25519 key..."
-    ssh-keygen -t ed25519 -N "" -f "$SSH_KEY"
+if [ "$TARGET" = prod ]; then
+  REMOTE_DIR='~/services/psycleapp'
+  HEALTH_URL='https://sweat.wingfield.tech/api/health'
 else
-    echo "[Local] Found existing SSH Key: $SSH_KEY"
+  REMOTE_DIR='~/services/psycleapp-dev'
+  HEALTH_URL='https://sweat-dev.wingfield.tech/api/health'
 fi
 
-# 2. Check if we can already connect without a password
-echo "[Connection] Checking passwordless SSH connection to $PI_USER@$PI_IP..."
-if ssh -o BatchMode=yes -o StrictHostKeyChecking=no -o ConnectTimeout=5 "$PI_USER@$PI_IP" echo "Connection successful" >/dev/null 2>&1; then
-    echo "[Connection] Passwordless SSH is already set up and working!"
-else
-    echo "[Connection] Passwordless SSH not active. Run 'ssh-copy-id $PI_USER@$PI_IP' manually to set it up."
-    echo "[Connection] Aborting. Set up SSH key auth before deploying."
-    exit 1
+# Always excluded: secrets, the database volume, build output, dependencies, VCS.
+EXCLUDES=(--exclude .env --exclude '.env.*' --exclude data/ --exclude node_modules/
+          --exclude client/node_modules/ --exclude server/node_modules/
+          --exclude client/dist/ --exclude server/public/ --exclude .git/
+          --exclude .DS_Store --exclude '*.db' --exclude '*.db-shm' --exclude '*.db-wal')
+# This repo's docker-compose.yml is the DEV twin's (container psycle-app-dev,
+# bound to the tailnet address). Never let it overwrite prod's own compose file.
+if [ "$TARGET" = prod ]; then EXCLUDES+=(--exclude docker-compose.yml); fi
+
+RSYNC=(rsync -az "${EXCLUDES[@]}" ./ "$HOST:$REMOTE_DIR/")
+REMOTE_UP="cd $REMOTE_DIR && $DOCKER compose up -d --build && $DOCKER compose ps"
+
+run() { if [ "$PRINT" = 1 ]; then printf '  %q' "$@"; printf '\n'; else "$@"; fi; }
+
+cd "$(dirname "$0")"
+[ -f docker-compose.yml ] && [ -d server ] || { echo "Run from the App/ directory (docker-compose.yml + server/ not found)." >&2; exit 1; }
+
+echo "=== Deploy target: $TARGET ($HOST:$REMOTE_DIR) ==="
+[ "$PRINT" = 1 ] && echo "(--print: nothing will be executed)"
+
+if [ "$TARGET" = prod ] && [ "$PRINT" = 0 ]; then
+  if [ ! -t 0 ]; then echo "Refusing to deploy prod without an interactive terminal." >&2; exit 1; fi
+  echo "This rebuilds the LIVE service at sweat.wingfield.tech."
+  read -r -p 'Type "deploy prod" to continue: ' answer
+  [ "$answer" = "deploy prod" ] || { echo "Aborted."; exit 1; }
 fi
 
-# 3. Create target directory on Pi
-echo "[Remote] Creating target directory $PI_DIR on the Pi..."
-ssh "$PI_USER@$PI_IP" "mkdir -p $PI_DIR"
+echo "[1/2] rsync"
+run "${RSYNC[@]}"
+echo "[2/2] docker compose up -d --build"
+run ssh "$HOST" "$REMOTE_UP"
 
-# 4. Rsync the codebase to Pi
-echo "[Sync] Syncing workspace to Raspberry Pi..."
-rsync -avz --delete \
-    --exclude="node_modules" \
-    --exclude="client/node_modules" \
-    --exclude="client/dist" \
-    --exclude=".git" \
-    --exclude=".DS_Store" \
-    --exclude="*.db" \
-    --exclude="*.db-journal" \
-    --exclude="*.log" \
-    --exclude=".env" \
-    --exclude="deploy.sh" \
-    ./ "$PI_USER@$PI_IP:$PI_DIR/"
-
-# 5. Handle environment variables on the Pi
-echo "[Remote] Configuring .env file on Pi..."
-# Check if .env already exists on the Pi
-if ssh "$PI_USER@$PI_IP" "[ -f $PI_DIR/.env ]"; then
-    echo "[Remote] Found existing .env file. Keeping existing configurations."
-else
-    echo "[Remote] Creating new .env file with generated secrets..."
-    
-    # Generate secure random strings using node locally
-    JWT_SECRET=$(node -e "console.log(require('crypto').randomBytes(32).toString('hex'))")
-    ENCRYPTION_KEY=$(node -e "console.log(require('crypto').randomBytes(32).toString('hex'))")
-    
-    # Create the env content
-    ENV_CONTENT=$(cat <<EOF
-NODE_ENV=production
-PORT=3000
-JWT_SECRET=${JWT_SECRET}
-ENCRYPTION_KEY=${ENCRYPTION_KEY}
-VAPID_EMAIL=mailto:piers@wingfield.tech
-APP_NAME=Sweat Assistant
-PUBLIC_HOST=psycle.wingfield.tech
-EOF
-)
-    
-    # Write the env content to the Pi
-    ssh "$PI_USER@$PI_IP" "cat << 'EOF' > $PI_DIR/.env
-$ENV_CONTENT
-EOF"
-    echo "[Remote] Created .env successfully."
-fi
-
-# 6. Run Docker Compose build and startup on the Pi
-echo "[Docker] Rebuilding and starting docker containers on the Pi..."
-ssh "$PI_USER@$PI_IP" "cd $PI_DIR && sudo docker compose down && sudo docker compose up -d --build"
-
-# 7. Check container status
-echo "[Verification] Checking container status..."
-ssh "$PI_USER@$PI_IP" "cd $PI_DIR && sudo docker compose ps"
-
-# Wait a few seconds for startup
-echo "[Verification] Waiting for server startup (5s)..."
-sleep 5
-
-# Fetch logs
-echo "[Verification] Printing last 20 lines of logs:"
-ssh "$PI_USER@$PI_IP" "cd $PI_DIR && sudo docker compose logs --tail=20"
-
-# Curl test
-echo "[Verification] Performing local network test from Mac to Pi..."
-if curl -s -o /dev/null -I -w "%{http_code}" --connect-timeout 5 "http://$PI_IP:3005" | grep -E "200|301|302|404" > /dev/null; then
-    echo "🎉 Deployment successful! The server is up and listening on http://$PI_IP:3005"
-else
-    echo "⚠️ Server is running but connection check returned unexpected output or timed out. Check logs."
-fi
+echo "Done. Verify:  curl -s $HEALTH_URL"
+echo "Also check the registry (~/.claude/skills/selfhost-deploy/references/registry.md) if ports or names changed."

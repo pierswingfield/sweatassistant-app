@@ -140,4 +140,25 @@ warnings are pre-existing and unrelated to this change).
 | C7-5 | Per-user AES key derivation. Today one global key encrypts every user's gym credentials. | `server/crypto.js` L20 | 0.5 day plus a migration | P3 |
 | C7-6 | Migrate SQLite to Postgres. Not needed at current scale. | — | 2–3 days | P3 |
 | C7-7 | Proactive occupancy warming poller. **Re-evaluate after C2-5**: `/heartbeat` invalidation probably makes this unnecessary. | `schedule-cache.js` is reactive SWR only | — | P3 |
-| C7-8 | Retire the stale `deploy.sh`, which still targets the Pi. The real deploy is rsync plus `docker compose up -d --build` on oracle. | Registry note | 15 min | P3 |
+| C7-8 | ✅ *pulled forward into launch 2026-09-28, done* Retire the stale `deploy.sh`, which still targets the Pi. The real deploy is rsync plus `docker compose up -d --build` on oracle. | Registry note | 15 min | P3 |
+
+## C7-8 — stale `deploy.sh` retired (pulled forward into launch 2026-09-28) — DONE
+
+- **Basis:** the old `deploy.sh` targeted `pi@192.168.1.8:/home/pi/psycleapp`, ran `sudo docker compose down`
+  then `up`, and generated a new `.env` (with `PUBLIC_HOST=psycle.wingfield.tech`) if none existed on the
+  target. Both environments have lived on oracle since 2026-08-03 (registry: `psycleapp`, `psycleapp-dev`).
+  TESTING.md said 16 server suites and AGENTS.md said 17; `ls server/test-*.js` gives 38.
+- **Fix:** `deploy.sh` rewritten: rsync to `oracle:~/services/psycleapp-dev/` (default) or `psycleapp/`
+  (`--prod`), excluding `.env`, `.env.*`, `data/`, `node_modules`, `client/dist`, `server/public`, `.git`
+  and `*.db*`, then `docker compose up -d --build` and `ps` over ssh. It never writes `.env`. Prod needs
+  `--prod`, an interactive terminal and the typed phrase `deploy prod`. `--print` shows every command and
+  runs nothing. For prod it also excludes `docker-compose.yml`, because the repo's compose file is the dev
+  twin's (container `psycle-app-dev`, tailnet bind) and must not overwrite prod's own.
+- **Docs:** TESTING.md and AGENTS.md suite counts corrected to 38; AGENTS.md project-structure line for
+  `deploy.sh` updated.
+- **Verified:** `bash -n`; `--print` for dev and prod (prod list adds the compose exclusion); `--prod` with
+  no tty exits 1; `--prod` on a pty with a wrong answer prints "Aborted." and exits 1; unknown flag exits 2.
+  The script was deliberately NOT run against oracle (out of scope for this pass).
+- **Unverified:** that the login user on oracle can run `docker` without sudo (override with
+  `DEPLOY_DOCKER="sudo docker"`), and that prod's remote compose file is not the repo's. No `--delete`, so
+  a file removed from the repo lingers on the host until removed by hand.

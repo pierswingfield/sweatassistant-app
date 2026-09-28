@@ -18,7 +18,7 @@ Small, independent fixes. Each one is a real risk to users or data, not polish.
 
 Deferred by the user on 2026-09-26. Still open, and still blocking C4:
 
-- **C1-5 SQLite backups:** not started. It installs a cron job on the hosts and copies the DB off-host, so it needs explicit approval.
+- **C1-5 SQLite backups:** **approved by the user 2026-09-28**, in progress. It installs a cron job on the hosts and copies the DB off-host, so it needs explicit approval.
 - **Dev-twin deploy and smoke test** for C1-1 to C1-4: not deployed. The commits are local on `modular` (`a1c647c`, `df7df77`, `79c1964`) and unpushed.
 - Follow-up: three inert `Number(s.id)` calls remain in `openDebugModal`'s "Slots" tab (`client/src/ui/timetable.js` ~3509–3515). Fix them if that tab is ever wired to real data.
 

@@ -156,6 +156,10 @@ reopened on the last route.
 - **C4-7**: the user's iPhone, PWA installed to the home screen.
 - **C4-8**: the user's phone's calendar app, subscribing to the `.ics` feed URL.
 
+## Waived as launch blockers (2026-09-28, user decision)
+
+- **C4-2** (MarianaTek cancel inside the penalty window) and **C4-3** (auto-upgrade cutoff vs the real penalty boundary) are **not launch blockers**. The user will not run a penalty-window cancel as part of acceptance. **The user will test these on their own time**, when a real penalty-window cancel happens naturally, and will record the result here. Until then, the penalty warning copy and the auto-upgrade cutoff stay as designed, not live-measured.
+
 ## Stage B — Promote to prod
 
 | # | Step |
@@ -174,6 +178,6 @@ reopened on the last route.
 
 ## Done when
 
-- [ ] All Stage A rows pass or are consciously waived (write the reason here).
+- [ ] All Stage A rows pass or are consciously waived (write the reason here). *C4-2 and C4-3 waived 2026-09-28: see "Waived as launch blockers".*
 - [ ] Prod runs `modular`; one Psycle release cycle passed with no regressions.
 - [ ] JAB enabled in prod, with at least one real JAB booking made through prod.

@@ -13,6 +13,11 @@ Cheap, visible fixes. Run them alongside C3 so they share the same live re-test.
 | U1-3 | **Debug terminal toggles live.** | ✅ Fixed 2026-09-27; re-confirmed live on dev twin 2026-09-27 | 15 min |
 | U1-4 | **Recover-screen copy.** | ✅ Already done (C1-4) — verified 2026-09-27; re-confirmed live on dev twin 2026-09-27 | 15 min |
 | U1-5 | **Toast dismiss button.** | ✅ Fixed 2026-09-27; re-confirmed live on dev twin 2026-09-27 | 1 h |
+| U1-6 | **Auto-book overlap confirmation modal.** Overlap only produced a fleeting toast (C5-3). *2026-09-28, source: user dev-twin testing.* | Open | 1 d |
+| U1-7 | **Settings → Your Gyms renders incrementally and sometimes duplicates.** *2026-09-28, source: user dev-twin testing.* | Open | 2 h |
+| U1-8 | **1:1 gym logo chip on each per-gym Settings submenu item.** *2026-09-28, source: user dev-twin testing.* | Open | 1 h |
+| U1-9 | **"Last authenticated" always says "Not recorded".** README "Verified done" (QA-07) claims it works. *2026-09-28, source: user dev-twin testing.* | ✅ Fixed 2026-09-28 (write bug) | 1 h |
+| U1-10 | **Icons on Settings menu items** (SVG, not emoji). *2026-09-28, source: user dev-twin testing.* | Open | 1 h |
 
 ## Dev-twin re-test (2026-09-27)
 
@@ -177,3 +182,44 @@ button was clicked. **Dark theme:** re-checked with `psycleTheme=dark` —
 error/warning/success toasts all render with a legible `×` against their
 respective backgrounds (screenshot: red/amber/green pills each with a clear
 close glyph).
+
+---
+
+## U1-6 … U1-10 — Settings and auto-book UX (2026-09-28, source: user dev-twin testing)
+
+Five items from the user's dev-twin testing session. Each entry below records the
+root cause **before** the fix, per [AGENT_PROTOCOL.md](AGENT_PROTOCOL.md).
+
+### U1-9 — "Last authenticated" always says "Not recorded"
+
+**Root cause: a WRITE bug, not a read or render bug** (2026-09-28).
+
+- Read-only check on the dev twin (`ssh oracle`, `docker exec -w /app/server psycle-app-dev`
+  with `better-sqlite3` opened `readonly`): the test account's two links
+  (`user_id=2`) both had `last_authenticated_at = NULL`, and across the whole table
+  **0 of 677** `user_gyms` rows had a value. Nothing was modified.
+- The read path was always correct: `db.getUserGymsPublic()` selects the column,
+  `GET /api/my-gyms` returns it, and `settings.js lastAuthLabel(g.last_authenticated_at)`
+  reads the right field name. It faithfully rendered NULL as "Not recorded".
+- The column was never written. `db.upsertUserGym()` listed its columns explicitly in
+  both the `INSERT` and the `ON CONFLICT ... DO UPDATE`, and `last_authenticated_at`
+  was in neither, so `setGymSession()` and `auth.linkGymAccount()` (which do pass it)
+  had it silently dropped. The two writers the ordinary login uses
+  (`updateUserCredentials`, `updateUserJWT`, via `auth.handleLogin`) never passed it.
+  So QA-07's "written on session issue" was true of the call sites and false of the
+  database. Reproduced on the local mock: a fresh `dev@psycle.com` login left both
+  gyms' `last_authenticated_at` `null` in `GET /api/my-gyms`.
+
+**Fix:** `server/db.js` `upsertUserGym()` now persists the column (defaulted to NULL
+in `merged`, so an unrelated upsert preserves it), and `updateUserCredentials` /
+`updateUserJWT` stamp it when a session is actually issued. `setGymSession` (background
+and auto-relogin renewals) and `linkGymAccount` already passed it; they now work.
+Clearing a session (a failed renewal) deliberately does not stamp.
+
+**Test:** `server/test-last-authenticated.js` (db write paths, then the whole path over
+HTTP: login and gym-link each surface a recent timestamp on `GET /api/my-gyms`).
+Failed first for the recorded reason (`upsertUserGym` returned `null`).
+
+**Known limit:** existing links carry NULL and stay "Not recorded" until the next
+login, re-authenticate or background session renewal. There is no honest source to
+backfill from, so none was invented.

@@ -1119,6 +1119,9 @@ module.exports = {
     this.upsertUserGym(userId, gymId || resolveActiveGymId(userId), {
       encrypted_password: encryptedPassword,
       session_json: jwt ? JSON.stringify({ accessToken: jwt, expiresAt: jwtExpiresAt || null }) : null,
+      // A login just proved the credential against the gym (U1-9). Only when a
+      // session was actually issued — storing a password alone proves nothing.
+      ...(jwt ? { last_authenticated_at: new Date().toISOString() } : {}),
     });
   },
   updateUserJWT(userId, jwt, jwtExpiresAt, gymId = null) {
@@ -1126,6 +1129,7 @@ module.exports = {
       .run(jwt, jwtExpiresAt, userId);
     this.upsertUserGym(userId, gymId || resolveActiveGymId(userId), {
       session_json: jwt ? JSON.stringify({ accessToken: jwt, expiresAt: jwtExpiresAt || null }) : null,
+      ...(jwt ? { last_authenticated_at: new Date().toISOString() } : {}), // U1-9, as above
     });
   },
   // Persist a full AuthSession against an EXPLICIT gym (WP-D7).
@@ -1946,19 +1950,25 @@ module.exports = {
   upsertUserGym(userId, gymId, fields = {}) {
     const existing = this.getUserGym(userId, gymId);
     const merged = { gym_email: null, encrypted_password: null, session_json: null, display_name: null, profile_json: null,
-      profile_synced_at: null, calendar_token: null, priority: 100, status: 'active', ...existing, ...fields };
+      profile_synced_at: null, calendar_token: null, priority: 100, status: 'active', last_authenticated_at: null,
+      ...existing, ...fields };
+    // U1-9: `last_authenticated_at` MUST be in both column lists below. It was in
+    // neither for months, so every caller that passed it (setGymSession,
+    // linkGymAccount) had it silently dropped and Settings always read "Not recorded".
     db.prepare(`
       INSERT INTO user_gyms
-        (user_id, gym_id, gym_email, encrypted_password, session_json, display_name, profile_json, profile_synced_at, calendar_token, priority, status, updated_at)
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP)
+        (user_id, gym_id, gym_email, encrypted_password, session_json, display_name, profile_json, profile_synced_at, calendar_token, priority, status, last_authenticated_at, updated_at)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP)
       ON CONFLICT(user_id, gym_id) DO UPDATE SET
         gym_email = excluded.gym_email,
         encrypted_password = excluded.encrypted_password, session_json = excluded.session_json,
         display_name = excluded.display_name, profile_json = excluded.profile_json,
         profile_synced_at = excluded.profile_synced_at, calendar_token = excluded.calendar_token,
-        priority = excluded.priority, status = excluded.status, updated_at = CURRENT_TIMESTAMP
+        priority = excluded.priority, status = excluded.status,
+        last_authenticated_at = excluded.last_authenticated_at, updated_at = CURRENT_TIMESTAMP
     `).run(userId, gymId, merged.gym_email, merged.encrypted_password, merged.session_json, merged.display_name,
-      merged.profile_json, merged.profile_synced_at, merged.calendar_token, merged.priority, merged.status);
+      merged.profile_json, merged.profile_synced_at, merged.calendar_token, merged.priority, merged.status,
+      merged.last_authenticated_at);
   },
   // Explicit "link a second gym to this account" entry point (WP-D3 AC). Thin
   // wrapper over upsertUserGym — not yet exposed via any route (that's Phase 5's

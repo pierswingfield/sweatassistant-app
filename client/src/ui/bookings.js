@@ -10,6 +10,7 @@ import { renderCardSkeletons } from './loading-skeleton.js';
 import { instructorAvatar } from './tooltips.js';
 import { metadata, loadMetadata, getStudioMapInfo, pickStudioPrefs } from './timetable';
 import { findActiveUpgradeForBooking } from './gym-isolation.js';
+import { haptic } from './haptics.js';
 
 // Class starts within the free-cancel cutoff (12h). Edit is hidden inside this
 // window; Cancel stays available but warns about the penalty.
@@ -438,10 +439,12 @@ function wireCancelBooking(btn, card, group, within12h) {
       }
       await invalidateApiCache('/api/bookings');
       await invalidateApiCache('/api/waitlists');
+      haptic('warning');
       showToast('Booking cancelled.', 'success');
       await refreshUserData(true);
       renderBookings();
     } catch (err) {
+      haptic('error');
       showToast(`Cancellation failed: ${err.message}`, 'error');
       card.style.opacity = '1';
       card.querySelectorAll('button').forEach(b => b.disabled = false);
@@ -457,6 +460,7 @@ function wireCancelBooking(btn, card, group, within12h) {
       return;
     }
     if (!confirmState) {
+      haptic('medium');
       confirmState = true;
       labelSpan.textContent = within12h ? 'Penalty?' : 'Confirm?';
       btn.classList.add('confirming');
@@ -706,11 +710,13 @@ export async function openEditBookingModal(group, onChange = renderBookings) {
         }
         await invalidateApiCache('/api/bookings');
         await invalidateApiCache('/api/waitlists');
+        haptic('success');
         showToast(`${nounCap}s updated.`, 'success');
         closeModal();
         await refreshUserData(true);
         onChange();
       } catch (err) {
+        haptic('error');
         showToast(`Couldn't update ${noun}s: ${err.message}`, 'error');
         closeModal();
         await refreshUserData(true);
@@ -807,6 +813,7 @@ function buildWaitlistCard(w) {
   let confirmState = false;
   leaveBtn.addEventListener('click', async () => {
     if (!confirmState) {
+      haptic('medium');
       confirmState = true;
       labelSpan.textContent = 'Confirm?';
       leaveBtn.classList.add('confirming');
@@ -825,10 +832,12 @@ function buildWaitlistCard(w) {
     try {
       showToast('Leaving waitlist...', 'info');
       await api.leaveWaitlist(event.id, event.gymId);
+      haptic('warning');
       showToast('Left waitlist.', 'success');
       await refreshUserData(true);
       renderBookings();
     } catch (err) {
+      haptic('error');
       showToast(`Error: ${err.message}`, 'error');
       card.style.opacity = '1';
       card.querySelectorAll('button').forEach(b => b.disabled = false);

@@ -40,7 +40,7 @@ const path = require('path');
 const fs = require('fs');
 const { spawn } = require('child_process');
 
-const PORT = 3098;
+const PORT = 3088;
 const BASE = `http://127.0.0.1:${PORT}`;
 const DB_PATH = path.join(__dirname, 'test-rate-limit-reads.db');
 

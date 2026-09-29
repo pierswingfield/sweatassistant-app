@@ -97,7 +97,7 @@ function unit() {
 }
 
 // ---------------------------------------------------------------- HTTP part
-const PORT = 3097;
+const PORT = 3087;
 const BASE = `http://127.0.0.1:${PORT}`;
 const DB_PATH = path.join(__dirname, 'test-competing.db');
 const MOCK = path.join(__dirname, 'mock_bookings.dbjson');

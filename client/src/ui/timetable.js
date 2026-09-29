@@ -21,6 +21,7 @@ import { renderFilterRail, removeFilterRail } from './filter-rail.js';
 import { renderTimetableSkeleton } from './loading-skeleton.js';
 import { confirmOverlap } from './overlap-modal.js';
 import { redactSensitivePayload } from '../redact.js';
+import { haptic } from './haptics.js';
 
 async function cacheSet(key, value) {
   try {
@@ -1744,6 +1745,7 @@ function twoTapConfirm(btn, confirmLabel, run) {
     run();
     return;
   }
+  haptic('light');
   btn.dataset.confirmState = 'confirm';
   btn.dataset.origLabel = btn.textContent;
   btn.textContent = confirmLabel;
@@ -2083,9 +2085,11 @@ async function doJoinWaitlist(event, btn) {
   btn.textContent = 'Joining...';
   try {
     await api.joinWaitlist(event.id, event.gymId);
+    haptic('success');
     showToast('Successfully joined waitlist!', 'success');
     prefetchTimetableData(true);
   } catch (err) {
+    haptic('error');
     showToast(`Waitlist failed: ${err.message}`, 'error');
     btn.disabled = false;
     btn.textContent = orig;
@@ -2098,10 +2102,12 @@ async function doLeaveWaitlist(waitlistId, btn, gymId = null) {
   btn.textContent = 'Leaving...';
   try {
     await api.leaveWaitlist(waitlistId, gymId);
+    haptic('warning');
     showToast('Left waitlist successfully!', 'success');
     await refreshUserData(true);
     await refreshBookingState();
   } catch (err) {
+    haptic('error');
     showToast(`Error leaving waitlist: ${err.message}`, 'error');
     btn.disabled = false;
     btn.textContent = orig;
@@ -2716,21 +2722,26 @@ async function quickBookClass(eventId, prefs, btn, gymId = null) {
             showToast('Fully booked! Joining waitlist...', 'warning');
             try {
               await api.joinWaitlist(eventId, gymId);
+              haptic('success');
               showToast('Joined waitlist successfully!', 'success');
               prefetchTimetableData(true);
             } catch (wlErr) {
+              haptic('error');
               showToast(`Waitlist failed: ${wlErr.message}`, 'error');
             }
           } else {
+            haptic('error');
             showToast(`Quick book failed: ${bookRes.error || 'Booking was declined'}`, 'error');
           }
           return;
         }
+        haptic('success');
         showToast('Quick-booked! 🎉', 'success');
         api.notifyBookingSuccess(bookingNotifyPayload(event, { source: 'quickbook', gymId, slots: [] })).catch(() => {});
         await refreshUserData(true);
         await refreshBookingState();
       } catch (err) {
+        haptic('error');
         showToast(`Quick book failed: ${err.message}`, 'error');
       }
       return;
@@ -2746,9 +2757,11 @@ async function quickBookClass(eventId, prefs, btn, gymId = null) {
       showToast('Fully booked! Joining waitlist...', 'warning');
       try {
         await api.joinWaitlist(eventId, gymId);
+        haptic('success');
         showToast('Joined waitlist successfully!', 'success');
         prefetchTimetableData(true);
       } catch (wlErr) {
+        haptic('error');
         showToast(`Waitlist failed: ${wlErr.message}`, 'error');
       }
       return;
@@ -2778,6 +2791,7 @@ async function quickBookClass(eventId, prefs, btn, gymId = null) {
     }
 
     if (slotsToTry.length === 0) {
+      haptic('error');
       showToast('No eligible slots available matching preferences.', 'error');
       return;
     }
@@ -2813,6 +2827,7 @@ async function quickBookClass(eventId, prefs, btn, gymId = null) {
     }
 
     if (bookedCount > 0) {
+      haptic('success');
       api.notifyBookingSuccess(bookingNotifyPayload(event, { source: 'quickbook', gymId, slots: bookedSlotLabels })).catch(() => {});
       let upgradeRegistered = false;
       if (lastBookedSlot !== null) {
@@ -2831,6 +2846,7 @@ async function quickBookClass(eventId, prefs, btn, gymId = null) {
         }
       }, 2500);
     } else {
+      haptic('error');
       showToast('Failed to quick book any slots.', 'error');
     }
   } catch (err) {
@@ -3738,10 +3754,12 @@ async function bookSeatDirect(eventId, slotId, callback, event) {
     let upgradeRes = null;
     if (event) upgradeRes = await tryAutoRegisterUpgrade(event, slotId, bookingRes, undefined, { silent: true });
     const upgradeNote = upgradeRes?.registered ? ' Auto-upgrade enabled.' : '';
+    haptic('success');
     showToast(`Spot booked successfully!${upgradeNote} 🎉`, 'success');
     await refreshUserData(true);
     prefetchTimetableData(true);
   } catch (err) {
+    haptic('error');
     showToast(`Booking failed: ${err.message}`, 'error');
   }
 }
@@ -3772,6 +3790,7 @@ async function cancelBookingDirect(bookingId, isPenalty, btn, gymId) {
     try {
       showToast('Cancelling booking...', 'info');
       await api.cancel(bookingId, gymId);
+      haptic('warning');
       showToast('Booking cancelled successfully!', 'success');
 
       // Remove any active upgrade monitor for this booking
@@ -3790,6 +3809,7 @@ async function cancelBookingDirect(bookingId, isPenalty, btn, gymId) {
       await refreshUserData(true);
       await refreshBookingState();
     } catch (err) {
+      haptic('error');
       showToast(`Cancel failed: ${err.message}`, 'error');
       btn.disabled = false;
       btn.textContent = 'Cancel';
@@ -3807,6 +3827,7 @@ async function cancelBookingDirect(bookingId, isPenalty, btn, gymId) {
   }
 
   if (btn.dataset.confirmState !== 'confirm') {
+    haptic('medium');
     btn.dataset.confirmState = 'confirm';
     btn.textContent = isPenalty ? 'Confirm penalty cancel?' : 'Confirm cancel?';
     btn.style.background = 'var(--danger)';

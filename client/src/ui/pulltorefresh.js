@@ -19,9 +19,10 @@
 // - Horizontal swipe guard: ensures carousel / tab swipes are never intercepted.
 
 import { isScrollBusy, isDocScroll, docScroller } from './scroll-state.js';
+import { haptic } from './haptics.js';
 
-const PULL_THRESHOLD = 80;  // Higher threshold: requires deliberate ~160px pull to trigger refresh
-const MAX_TOP_PULL = 130;   // visual cap at top
+const PULL_THRESHOLD = 115; // Much higher threshold: deliberate ~245px finger drag prevents accidental triggers
+const MAX_TOP_PULL = 160;   // visual cap at top
 const MAX_BOTTOM_PULL = 75; // visual cap at bottom
 
 let activeCancelFn = null;
@@ -58,6 +59,7 @@ export function setupPullToRefresh(scrollEl, onRefresh, {
   let isTopPulling = false;
   let isBottomPulling = false;
   let isRefreshing = false;
+  let wasArmed = false;
   let indicator = null;
 
   // Track recent scroll activity to avoid misfiring when momentum hits top or bottom
@@ -140,6 +142,7 @@ export function setupPullToRefresh(scrollEl, onRefresh, {
     isRefreshing = false;
     isTopPulling = false;
     isBottomPulling = false;
+    wasArmed = false;
     startY = 0;
     engagedStartY = null;
     bottomEngagedStartY = null;
@@ -174,6 +177,7 @@ export function setupPullToRefresh(scrollEl, onRefresh, {
     bottomEngagedStartY = null;
     isTopPulling = false;
     isBottomPulling = false;
+    wasArmed = false;
     currentElasticY = 0;
 
     const st = getScrollTop();
@@ -217,12 +221,17 @@ export function setupPullToRefresh(scrollEl, onRefresh, {
 
         if (isEnabled()) {
           const isArmed = currentElasticY >= PULL_THRESHOLD;
+          if (isArmed && !wasArmed) {
+            haptic('light');
+          }
+          wasArmed = isArmed;
           updateIndicator(currentElasticY, isArmed, false);
         }
         return;
       }
     } else if (isTopPulling && rawDeltaY <= 0) {
       isTopPulling = false;
+      wasArmed = false;
       currentElasticY = 0;
       scrollEl.style.transform = '';
       hideIndicator();
@@ -255,6 +264,7 @@ export function setupPullToRefresh(scrollEl, onRefresh, {
     startY = 0;
     engagedStartY = null;
     bottomEngagedStartY = null;
+    wasArmed = false;
 
     if (isTopPulling) {
       isTopPulling = false;
@@ -270,6 +280,7 @@ export function setupPullToRefresh(scrollEl, onRefresh, {
 
         try {
           await onRefresh();
+          haptic('success');
         } catch (err) {
           console.error('[PullToRefresh] Refresh failed:', err);
         } finally {

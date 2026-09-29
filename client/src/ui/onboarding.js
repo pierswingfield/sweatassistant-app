@@ -15,15 +15,16 @@
 import { api, isLoggedIn } from '../api';
 import { consumeInstallPrompt, initApp, togglePushSubscription, warmCaches, showToast } from '../main';
 import { openManageSpotMapsModal } from './settings';
+import { renderCalendarSection } from './calendar-section.js';
 import { appConfig } from '../config';
 
 const COMPLETE_KEY = 'psycleOnboardingComplete';
 const STEP_KEY = 'psycleOnboardingStep';
 // Bump to re-trigger onboarding for all users after a significant change.
 // v3: added sequential multi-gym connection step.
-const ONBOARDING_VERSION = '3';
+const ONBOARDING_VERSION = '4';
 
-const STEPS = ['intro', 'install', 'login', 'gyms', 'notifications', 'spotmaps', 'calendar'];
+const STEPS = ['intro', 'login', 'gyms', 'features'];
 
 // --- platform / capability detection (mirrors main.js:279) ---
 const isIOS = () => /iPad|iPhone|iPod/.test(navigator.userAgent) && !window.MSStream;
@@ -34,6 +35,7 @@ const pushSupported = () => 'serviceWorker' in navigator && 'PushManager' in win
 
 let active = false;
 let loginResolver = null;
+let requestedAuthMode = 'login';
 
 export function isOnboardingActive() {
   return active;
@@ -96,10 +98,13 @@ async function runFrom(startIndex) {
   // look identical to those opened from the main app.
   document.body.id = 'psycle-helper-container';
   try {
-    for (let i = startIndex; i < STEPS.length; i++) {
+    let i = startIndex;
+    while (i < STEPS.length) {
       const step = STEPS[i];
       localStorage.setItem(STEP_KEY, step);
-      await STEP_HANDLERS[step]();
+      const action = await STEP_HANDLERS[step]();
+      if (action === 'back') i = Math.max(0, i - 1);
+      else i++;
     }
   } finally {
     active = false;
@@ -146,13 +151,7 @@ const ICON = {
 // onboarding starts).
 function getSlides() {
   return [
-    { welcome: true, title: 'Unofficial client', text: 'Your personal gym companion — auto-booking, smart upgrades, and your favourite spots, taken care of.' },
-    { feat: 'autobook', icon: ICON.autobook, title: 'Auto-Book', text: `No more release-time rush! Queue the classes you want and ${appConfig.appName} books them the instant they're released. You can even set your favourite spots in each studio.` },
-    { feat: 'autoupgrade', icon: ICON.autoupgrade, title: 'Auto-Upgrade', text: `Didn't get your favourite spot? ${appConfig.appName} can monitor for a better one from your preferred spot map, and move you up automatically.` },
-    { feat: 'quickbook', icon: ICON.quickbook, title: 'Quick-Book', text: 'Once you\'ve set your favourite spots, booking happens in a single tap.' },
-    { feat: 'offline', icon: ICON.offline, title: 'Works Offline', text: 'Your timetable and bookings stay readable on the tube or anywhere signal drops.' },
-    { feat: 'push', icon: ICON.push, title: 'Stay Notified', text: 'Get a push when you\'re booked in, upgraded, or to remind you about an upcoming class.' },
-    { feat: 'calendar', icon: ICON.calendarSync, title: 'Calendar Sync', text: 'Automatically sync your classes to your calendar, so you never forget an upcoming session.' },
+    { welcome: true, title: 'Welcome to Sweat Assistant!', text: 'Your classes, bookings and favourite spots, together in one place.' },
   ];
 }
 
@@ -161,6 +160,7 @@ function stepIntro() {
   return new Promise((resolve) => {
     const slides = getSlides();
     const c = show();
+    const aboutCard = document.querySelector('#psycle-settings-pane-about .psycle-settings-card');
     c.innerHTML = `
       <div class="psycle-onb-sheet psycle-onb-intro" role="dialog" aria-modal="true">
         <button class="psycle-onb-skip" type="button" aria-label="Skip introduction">Skip</button>
@@ -171,7 +171,7 @@ function stepIntro() {
                 <div class="psycle-onb-wordmark">${appConfig.appName}</div>
                 <h2 class="psycle-onb-title psycle-onb-welcome-title">${s.title}</h2>
                 <p class="psycle-onb-slide-text">${s.text}</p>
-                <p class="psycle-onb-secondary-note">This app needs to securely store your gym login to work in the background. You could alternatively use this <a href="https://github.com/piersjones/psycle-chrome">chrome extension</a> for similar functionality on Psycle, but it requires the Psycle website to be open for automatic features to work.</p>
+                <div class="psycle-onb-about">${aboutCard ? aboutCard.innerHTML : ''}</div>
               </div>` : `
               <div class="psycle-onb-slide">
                 <div class="psycle-onb-icon" style="color: var(--feat-${s.feat}, var(--accent));">${s.icon}</div>
@@ -184,27 +184,25 @@ function stepIntro() {
           ${slides.map((_, i) => `<button class="psycle-onb-dot${i === 0 ? ' is-active' : ''}" type="button" aria-label="Go to slide ${i + 1}"></button>`).join('')}
         </div>
         <div class="psycle-onb-footer">
-          <button class="psycle-btn-primary psycle-onb-next" type="button"><span>Next</span></button>
+          <button class="psycle-btn-primary psycle-onb-auth" type="button" data-auth-mode="login">Log In</button>
+          <button class="psycle-btn-secondary psycle-onb-auth" type="button" data-auth-mode="signup">Create Account</button>
         </div>
       </div>`;
 
     const track = c.querySelector('.psycle-onb-track');
     const dots = [...c.querySelectorAll('.psycle-onb-dot')];
-    const nextBtn = c.querySelector('.psycle-onb-next');
-    const nextLabel = nextBtn.querySelector('span');
     let index = 0;
 
     const goto = (i) => {
       index = Math.max(0, Math.min(slides.length - 1, i));
       track.style.transform = `translateX(-${index * 100}%)`;
       dots.forEach((d, di) => d.classList.toggle('is-active', di === index));
-      nextLabel.textContent = index === slides.length - 1 ? 'Get started' : 'Next';
     };
 
-    nextBtn.addEventListener('click', () => {
-      if (index === slides.length - 1) resolve();
-      else goto(index + 1);
-    });
+    c.querySelectorAll('[data-auth-mode]').forEach((button) => button.addEventListener('click', () => {
+      requestedAuthMode = button.dataset.authMode;
+      resolve();
+    }));
     dots.forEach((d, di) => d.addEventListener('click', () => goto(di)));
     c.querySelector('.psycle-onb-skip').addEventListener('click', resolve);
 

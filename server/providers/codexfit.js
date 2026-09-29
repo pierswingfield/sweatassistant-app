@@ -630,6 +630,7 @@ class CodexFitProvider extends GymProvider {
       get('/locations'), get('/studios'), get('/instructors'), get('/event-types'),
     ]);
     return makeMetadata({
+      gymId: this.gymId,
       locations: locations.map((l) => ({ id: l.id, name: l.name, address: l.address, raw: l })),
       studios: studios.map((st) => ({
         id: st.id,
@@ -658,6 +659,18 @@ class CodexFitProvider extends GymProvider {
         id: t.id, name: t.name, group: t.group && t.group.name, raw: t,
       })),
     });
+  }
+
+  // Public list lookup, not a client-supplied URL: this is the SSRF boundary
+  // for F-15. CodexFit exposes the complete instructor collection publicly.
+  async findInstructorPhoto(instructorId) {
+    const res = await this.publicRequest('/instructors');
+    if (!res.ok) return null;
+    const body = await res.json();
+    const instructors = Array.isArray(body) ? body : (body.data || []);
+    const match = instructors.find((i) => String(i.id) === String(instructorId));
+    const url = match && match.photo;
+    return url ? { imageUrl: url, thumbUrl: url } : null;
   }
 
   resolveEventRelations(e, relations = {}) {

@@ -131,7 +131,7 @@ check('every configured gym resolves to a provider that implements the contract'
   const REQUIRED = ['login', 'refreshSession', 'fetchTimetable', 'fetchEventDetails',
     'fetchStudioLayout', 'getProfile', 'bookSlot', 'cancelBooking', 'joinWaitlist',
     'leaveWaitlist', 'listBookings', 'listWaitlists', 'swapSpots', 'request',
-    'publicRequest', 'isPublicRead'];
+    'publicRequest', 'isPublicRead', 'findInstructorPhoto'];
 
   for (const gym of listGyms()) {
     const p = getProvider(gym.id);

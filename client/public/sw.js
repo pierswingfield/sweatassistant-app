@@ -68,9 +68,11 @@ const BUILD_STAMP = '__BUILD_STAMP__';
 const CACHE_PREFIX = 'sweat-cache';
 const CACHE_NAME = `${CACHE_PREFIX}-${BUILD_STAMP}`;
 const ASSETS_CACHE_NAME = `${CACHE_PREFIX}-assets-${BUILD_STAMP}`;
-// Instructor photos (cross-origin, S3-hosted): a stable, UNSTAMPED name so the bytes survive deploys.
-const IMAGES_CACHE_NAME = 'sweat-images-v1';
-const IMAGES_MAX_ENTRIES = 80;
+// F-15 proxy images are immutable (their source URL hash is in `v=`). Keep a
+// small browser-local copy as the fastest tier; the server's `/data` cache is
+// the durable, bounded source of truth.
+const IMAGES_CACHE_NAME = 'sweat-images-v2';
+const IMAGES_MAX_ENTRIES = 160;
 
 const ASSETS_TO_CACHE = [
   '/',
@@ -123,35 +125,41 @@ self.addEventListener('fetch', (event) => {
 
   // ── Passthrough conditions (never intercepted) ───────────────────────────
 
-  // API calls — handled by IndexedDB layer in the client; never cache
-  if (url.pathname.startsWith('/api/')) return;
-
   // Only cache GET requests
   if (request.method !== 'GET') return;
 
   // Range requests (e.g. audio/video partials) — pass through
   if (request.headers.get('range')) return;
 
-  // Cross-origin IMAGES (instructor photos on S3): cache-first + stale-while-revalidate, bounded.
-  // These <img> requests are no-cors, so the response is OPAQUE (status unreadable): a bad response can't be
-  // told from a good one, hence the background revalidation below, which overwrites any bad entry next time.
+  // Same-origin instructor photos are public, immutable WebP responses. This
+  // must precede the general /api/ bypass below: unlike JSON API reads, these
+  // are safe to cache and a browser-cache hit avoids even a local server hop.
+  if (url.origin === self.location.origin && url.pathname.startsWith('/api/instructor-photo/')) {
+    event.respondWith(
+      caches.open(IMAGES_CACHE_NAME).then(async (cache) => {
+        const cached = await cache.match(request);
+        if (cached) return cached;
+        const response = await fetch(request);
+        if (response && response.status === 200) {
+          await cache.put(request, response.clone());
+          const keys = await cache.keys();
+          if (keys.length > IMAGES_MAX_ENTRIES) {
+            await Promise.all(keys.slice(0, keys.length - IMAGES_MAX_ENTRIES).map((key) => cache.delete(key)));
+          }
+        }
+        return response;
+      }).catch(() => caches.match(request))
+    );
+    return;
+  }
+
+  // API calls — handled by IndexedDB layer in the client; never cache
+  if (url.pathname.startsWith('/api/')) return;
+
+  // No cross-origin provider images should remain after F-15. Let any other
+  // third-party image use normal browser behaviour rather than caching opaque
+  // responses whose status and size cannot be inspected.
   if (url.origin !== self.location.origin) {
-    if (request.destination === 'image' && url.protocol === 'https:') {
-      event.respondWith(
-        caches.open(IMAGES_CACHE_NAME).then(async (cache) => {
-          const cached = await cache.match(request);
-          const refresh = fetch(request).then(async (response) => {
-            if (response && (response.ok || response.type === 'opaque')) {
-              await cache.put(request, response.clone());
-              const keys = await cache.keys();
-              if (keys.length > IMAGES_MAX_ENTRIES) await Promise.all(keys.slice(0, keys.length - IMAGES_MAX_ENTRIES).map((k) => cache.delete(k)));
-            }
-            return response;
-          }).catch(() => cached);
-          return cached || refresh;
-        })
-      );
-    }
     return; // everything else cross-origin: browser default
   }
 

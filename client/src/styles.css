@@ -2122,40 +2122,24 @@ html, body {
   color: var(--text);
 }
 
-/* Variant Ambient Lighting */
-#psycle-helper-container .psycle-toast.success {
-  background: linear-gradient(180deg, color-mix(in srgb, var(--success) 14%, var(--surface)) 0%, color-mix(in srgb, var(--surface) 80%, transparent) 100%);
-  border-bottom-color: color-mix(in srgb, var(--success) 40%, transparent);
-}
+/* Variant Accents — Crisp and cohesive with nav bar, no background wash */
 #psycle-helper-container .psycle-toast.success .psycle-toast-icon {
-  background: color-mix(in srgb, var(--success) 22%, transparent);
+  background: color-mix(in srgb, var(--success) 16%, transparent);
   color: var(--success);
 }
 
-#psycle-helper-container .psycle-toast.error {
-  background: linear-gradient(180deg, color-mix(in srgb, var(--danger) 16%, var(--surface)) 0%, color-mix(in srgb, var(--surface) 80%, transparent) 100%);
-  border-bottom-color: color-mix(in srgb, var(--danger) 45%, transparent);
-}
 #psycle-helper-container .psycle-toast.error .psycle-toast-icon {
-  background: color-mix(in srgb, var(--danger) 22%, transparent);
+  background: color-mix(in srgb, var(--danger) 16%, transparent);
   color: var(--danger);
 }
 
-#psycle-helper-container .psycle-toast.warning {
-  background: linear-gradient(180deg, color-mix(in srgb, var(--warning) 14%, var(--surface)) 0%, color-mix(in srgb, var(--surface) 80%, transparent) 100%);
-  border-bottom-color: color-mix(in srgb, var(--warning) 40%, transparent);
-}
 #psycle-helper-container .psycle-toast.warning .psycle-toast-icon {
-  background: color-mix(in srgb, var(--warning) 22%, transparent);
+  background: color-mix(in srgb, var(--warning) 16%, transparent);
   color: var(--warning);
 }
 
-#psycle-helper-container .psycle-toast.info {
-  background: linear-gradient(180deg, color-mix(in srgb, var(--accent) 14%, var(--surface)) 0%, color-mix(in srgb, var(--surface) 80%, transparent) 100%);
-  border-bottom-color: color-mix(in srgb, var(--accent) 35%, transparent);
-}
 #psycle-helper-container .psycle-toast.info .psycle-toast-icon {
-  background: color-mix(in srgb, var(--accent) 20%, transparent);
+  background: color-mix(in srgb, var(--accent) 16%, transparent);
   color: var(--accent);
 }
 

@@ -10,6 +10,22 @@ let hoverTimeout = null;
 let hideTimeout = null;
 let activeHoverTarget = null;
 
+// F-15: proxy failures deliberately remain private to the app. Do not retry a
+// provider URL from the client; swap the failed image for the deterministic
+// initial supplied with it instead. Capture phase sees image `error` events.
+if (typeof document !== 'undefined') {
+  document.addEventListener('error', (event) => {
+    const image = event.target;
+    if (!(image instanceof HTMLImageElement) || !image.dataset.instructorInitial || image.dataset.instructorFallbackDone) return;
+    image.dataset.instructorFallbackDone = '1';
+    const fallback = document.createElement('span');
+    fallback.className = `${image.className} instructor-avatar-initial`;
+    fallback.textContent = image.dataset.instructorInitial;
+    fallback.setAttribute('aria-hidden', 'true');
+    image.replaceWith(fallback);
+  }, true);
+}
+
 // Build the instructor tooltip inner HTML for a given instructor id.
 // Returns null if the instructor isn't in metadata yet. Shared by the hover
 // (desktop) and tap (touch) code paths.
@@ -35,6 +51,11 @@ function parseSpotifyUserId(raw) {
   if (userMatch) return userMatch[1];
   // Otherwise strip a leading @ and drop any query string
   return s.replace(/^@/, '').split('?')[0] || null;
+}
+
+function initialFor(name) {
+  const first = String(name || '').trim().charAt(0).toUpperCase();
+  return /^[A-Z0-9]$/.test(first) ? first : '?';
 }
 
 /**
@@ -86,7 +107,7 @@ export function instructorAvatar(name, gymId = null, directUrl = null, { size = 
   // whose element gets replaced before the browser schedules its viewport
   // check never starts loading at all — indistinguishable from "missing".
   // `lazy` is opt-in for long stable lists (the timetable); the default stays eager for the reason above.
-  return `<img class="${cls}" src="${url}" alt="" aria-hidden="true" decoding="async"${lazy ? ' loading="lazy"' : ''} width="${size}" height="${size}">`;
+  return `<img class="${cls}" src="${url}" alt="" aria-hidden="true" data-instructor-initial="${initialFor(name)}" decoding="async"${lazy ? ' loading="lazy"' : ''} width="${size}" height="${size}">`;
 }
 
 function instructorTooltipHTML(instructorIdRaw, gymId = null) {
@@ -101,7 +122,7 @@ function instructorTooltipHTML(instructorIdRaw, gymId = null) {
   const photoUrl = instructor.imageUrl || instructor.photo || instructor.image_1 || '';
   const name = instructor.name || instructor.full_name || 'Instructor';
   const avatarHtml = photoUrl
-    ? `<img src="${photoUrl}" class="psycle-tooltip-avatar" alt="${name}">`
+    ? `<img src="${photoUrl}" class="psycle-tooltip-avatar" alt="${name}" data-instructor-initial="${initialFor(name)}">`
     : `<div class="psycle-tooltip-avatar" style="display:flex; align-items:center; justify-content:center; background:color-mix(in srgb, var(--text) 8%, transparent); font-weight:bold; font-size:16px; color:#fff;">${(name || '?')[0]}</div>`;
 
   const keywords = instructor.metafields?.keywords ? instructor.metafields.keywords.replace(/\|/g, ' • ') : '';

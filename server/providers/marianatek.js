@@ -403,7 +403,7 @@ class MarianaTekProvider extends GymProvider {
   // (studio location id), page_size (default page size is small — 10ish).
 
   /**
-   * @param {{startDate?: string, endDate?: string, locationId?: string, page?: number, pageSize?: number}} params
+   * @param {{startDate?: string, endDate?: string, locationId?: string, instructorId?: string, page?: number, pageSize?: number}} params
    * @param {import('./base').AuthSession=} session
    * @returns {Promise<import('./base').NormalizedEvent[]>}
    */
@@ -413,6 +413,7 @@ class MarianaTekProvider extends GymProvider {
       if (params.startDate) qs.set('min_start_date', params.startDate);
       if (params.endDate) qs.set('max_start_date', params.endDate);
       if (params.locationId) qs.set('location', params.locationId);
+      if (params.instructorId) qs.set('instructor', params.instructorId);
       qs.set('page_size', String(params.pageSize || 100));
       qs.set('page', String(params.page));
 
@@ -428,6 +429,7 @@ class MarianaTekProvider extends GymProvider {
     if (params.startDate) qs.set('min_start_date', params.startDate);
     if (params.endDate) qs.set('max_start_date', params.endDate);
     if (params.locationId) qs.set('location', params.locationId);
+    if (params.instructorId) qs.set('instructor', params.instructorId);
     qs.set('page_size', String(params.pageSize || 100));
 
     let path = `/classes?${qs}`;
@@ -578,11 +580,38 @@ class MarianaTekProvider extends GymProvider {
     }
 
     return makeMetadata({
+      gymId: this.gymId,
       locations: [...locations.values()],
       studios: [...studios.values()],
       instructors: [...instructors.values()],
       classTypes: [...classTypes.values()],
     });
+  }
+
+  // MarianaTek has no instructor endpoint. Its public /classes endpoint does
+  // support an instructor filter (documented in marianatek.md), so one small
+  // current/future window is the provider-authoritative source. An instructor
+  // with no class in that window intentionally falls back to initials.
+  async findInstructorPhoto(instructorId) {
+    const today = new Date();
+    const end = new Date(today.getTime() + 90 * 864e5);
+    const query = new URLSearchParams({
+      instructor: String(instructorId),
+      min_start_date: today.toISOString().slice(0, 10),
+      max_start_date: end.toISOString().slice(0, 10),
+      page_size: '20',
+    });
+    const res = await this.publicRequest(`/classes?${query}`);
+    if (!res.ok) return null;
+    const body = await res.json();
+    const instructor = (body.results || []).flatMap((item) => item.instructors || [])
+      .find((item) => String(item.id) === String(instructorId));
+    const photos = instructor && instructor.photo_urls;
+    if (!photos) return null;
+    return {
+      imageUrl: photos.large_url || photos.thumbnail_url || undefined,
+      thumbUrl: photos.thumbnail_url || photos.large_url || undefined,
+    };
   }
 
   mapClassToEvent(c) {

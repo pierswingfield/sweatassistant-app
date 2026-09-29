@@ -7322,6 +7322,15 @@ html, body {
   background: color-mix(in srgb, var(--text) 8%, transparent);
   border: 1px solid var(--border);
 }
+.instructor-avatar-initial {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--text-secondary);
+  font-size: 0.82em;
+  font-weight: 700;
+  line-height: 1;
+}
 .ab-card-location { flex-basis: 100%; margin-top: 1px; font-size: var(--text-xs); color: var(--text-tertiary); }
 
 .ab-card-footer {

@@ -41,6 +41,28 @@ function httpError(message, status) {
   return err;
 }
 
+// U1-19: CodexFit's numeric ids travel as JSON numbers on the wire (what the
+// website and prod `master` send). Normalized ids are strings; convert at this
+// boundary only. Non-numeric input passes through unchanged.
+function toWireId(v) {
+  if (typeof v === 'string' && /^\d{1,15}$/.test(v)) return Number(v);
+  return v;
+}
+
+// U1-19: a Laravel 422 may carry `errors` without a top-level `message`; the old
+// `data.message || 'HTTP 422'` hid the actual reason.
+function upstreamMessage(data) {
+  if (!data || typeof data !== 'object') return '';
+  if (data.message) return data.message;
+  if (typeof data.error === 'string') return data.error;
+  const errs = data.errors;
+  if (errs && typeof errs === 'object') {
+    const first = Object.values(errs).flat()[0];
+    if (first) return String(first);
+  }
+  return '';
+}
+
 // C2-7: `GET /profile` envelopes its payload as `{ data: {...} }` — confirmed
 // live (server/fixtures/codexfit-v2/PARITY.md G1/profile-v1-response.json) and
 // matching the same by-reference convention `/events` uses (AGENTS.md's
@@ -735,8 +757,43 @@ class CodexFitProvider extends GymProvider {
     // whole array here, but MarianaTek cannot, so the normalized surface is
     // singular and callers loop. Taking [0] is the contract, not a truncation
     // bug — a caller passing several is the thing that's wrong.
-    const body = { event_id: eventId };
-    if (slotIds && slotIds.length > 0) body.slots = [slotIds[0]];
+    if (slotIds && slotIds.length > 0) return this._postBooking(eventId, slotIds[0], session);
+
+    // U1-19: a class in a studio with NO seat map (Psycle Barre, Yoga, Infrared
+    // Sculpt) arrives here with no slot, because the app has no map to pick from.
+    // CodexFit still books by slot: prod `master` always POSTed one, taken from
+    // GET /events/{id}'s top-level `slots` (the available slot ids, present even
+    // when the studio has no layout — checked live 2026-09-29, event 216718:
+    // slots [1,4,8,9,10,14,19], layout slots 0). A POST with no `slots` is the
+    // "HTTP 422" the member hit on those classes. Resolve the slot here so the
+    // normalized contract ("no slot = provider assigns") holds for this gym.
+    let available = [];
+    try {
+      const res = await this.request(`/events/${eventId}`, { token: session.accessToken });
+      if (res.ok) {
+        const d = await res.json().catch(() => ({}));
+        available = ((d.slots || (d.data && d.data.slots)) || []).slice();
+      }
+    } catch (_) { /* fall through: treated as no availability info */ }
+    if (available.length === 0) {
+      return makeBookingResult({ ok: false, status: 409, error: 'This class is fully booked (no available spots).' });
+    }
+    // A couple of candidates, in case another member takes the first between
+    // our read and our write. Never retry a throttle.
+    let last;
+    for (const slot of available.slice(0, 3)) {
+      last = await this._postBooking(eventId, slot, session);
+      if (last.ok || last.code === 'PROVIDER_RATE_LIMITED') return last;
+    }
+    return last;
+  }
+
+  async _postBooking(eventId, wantedSlot, session) {
+    const slotIds = [wantedSlot];
+    // U1-19: the wire shape is the one prod (`master`) has always sent: NUMERIC
+    // event_id and slot ids. Normalized ids are strings everywhere above this
+    // adapter (C1-3), and this is the boundary that converts them back.
+    const body = { event_id: toWireId(eventId), slots: [toWireId(wantedSlot)] };
     let res;
     try {
       res = await this.request('/bookings', { token: session.accessToken, method: 'POST', body });
@@ -745,6 +802,10 @@ class CodexFitProvider extends GymProvider {
     }
     const data = await res.json().catch(() => ({}));
     if (!res.ok || !data.success) {
+      // U1-19: a failed booking used to leave NO trace server-side, so a live
+      // "HTTP 422" could not be diagnosed after the fact. Log the sanitized
+      // request shape (types, never tokens) and the upstream reply.
+      console.warn(`[CodexFit] POST /bookings -> ${res.status} req=${JSON.stringify(body)} (${typeof body.event_id}/${(body.slots || []).map((x) => typeof x).join(',')}) resp=${JSON.stringify(data).slice(0, 400)}`);
       // C2-3: classify a 429/throttle-shaped 403 into the normalized
       // PROVIDER_RATE_LIMITED code so scheduler.js can back off this gym's
       // queue instead of hammering a provider that's already refusing. See
@@ -753,7 +814,7 @@ class CodexFitProvider extends GymProvider {
       return makeBookingResult({
         ok: false,
         status: res.status,
-        error: data.message || `HTTP ${res.status}`,
+        error: upstreamMessage(data) || `HTTP ${res.status}`,
         code: throttle.limited ? 'PROVIDER_RATE_LIMITED' : undefined,
         retryAfterMs: throttle.limited ? throttle.retryAfterMs : undefined,
         raw: data,

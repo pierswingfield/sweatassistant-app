@@ -53,6 +53,10 @@ function makeLayoutObjects() {
 // pins studio 138's floor plan, and event 1000 below must resolve to it.
 // 140/141 deliberately have NO layout — real CodexFit has studios without one
 // (Reformer rooms), and "no floor map available" needs to stay exercisable.
+// U1-19 fixtures: detail-only events in studio 146 (Barre, no layout).
+const NO_LAYOUT_EVENT_ID = 4001;
+const NO_LAYOUT_FULL_EVENT_ID = 4002;
+
 const studios = [
   { id: 138, name: "Ride Studio", location_id: 13, layout: { slots: makeLayoutSlots(), objects: makeLayoutObjects() } },
   { id: 139, name: "Barre Studio", location_id: 13, layout: { slots: makeLayoutSlots(), objects: makeLayoutObjects() } },
@@ -508,6 +512,20 @@ function handleMockRequest(pathName, method, body) {
 
     // POST (create) booking
     if (method === 'POST') {
+      // U1-19: validate like the live API's wire contract (numeric ids, as prod
+      // `master` sends). Unproven live that CodexFit rejects strings, but the
+      // mock must not be more lenient than the shape known to work.
+      const badSlots = Array.isArray(body?.slots) && body.slots.some((x) => typeof x !== 'number');
+      if (typeof body?.event_id !== 'number' || badSlots) {
+        return createFakeResponse({ message: 'The given data was invalid.', errors: { event_id: ['The event id must be an integer.'] } }, 422);
+      }
+      // U1-19: live CodexFit books BY SLOT even in a studio with no seat map
+      // (prod master always POSTed one from GET /events/{id}.slots). A POST with
+      // no slots is the 422 a member hit on Barre/Yoga classes; unverified body
+      // text, so the assertion elsewhere is on status only.
+      if (!Array.isArray(body?.slots) || body.slots.length === 0) {
+        return createFakeResponse({ message: 'The given data was invalid.', errors: { slots: ['The slots field is required.'] } }, 422);
+      }
       const slots = body?.slots || [];
       const eventId = Number(body?.event_id || 1000);
       const bookingsObj = {};
@@ -569,6 +587,21 @@ function handleMockRequest(pathName, method, body) {
   if (pathName.startsWith('/events/')) {
     const parts = pathName.split('/');
     const eventId = parseInt(parts[parts.length - 1]);
+
+    // U1-19: a class in a studio with NO seat map, as live Psycle Barre/Yoga
+    // studios are (studio 71: layout slots 0, yet /events/216718 still lists
+    // available `slots` [1,4,8,...]). NO_LAYOUT_EVENT_ID has spots left,
+    // NO_LAYOUT_FULL_EVENT_ID has none.
+    if (eventId === NO_LAYOUT_EVENT_ID || eventId === NO_LAYOUT_FULL_EVENT_ID) {
+      const st = studios.find((x) => x.id === 146);
+      return createFakeResponse({
+        data: { id: eventId, instructor_id: instructors[0].id, studio_id: 146, event_type_id: eventTypes[1].id,
+          start_at: new Date(Date.now() + 3 * 864e5).toISOString(), duration: 55, occupancy: 10, capacity: 20 },
+        slots: eventId === NO_LAYOUT_EVENT_ID ? [1, 4, 8] : [],
+        bookings: [],
+        relations: { instructors: [instructors[0]], event_types: [eventTypes[1]], studios: [{ id: st.id, name: st.name, location_id: st.location_id }], locations: [locations[0]] },
+      });
+    }
     const isEven = eventId % 2 === 0;
     const studioId = isEven ? 138 : 139;
     const studioName = isEven ? "Ride Studio" : "Barre Studio";
@@ -729,5 +762,6 @@ function handleMockRequest(pathName, method, body) {
 }
 
 module.exports = {
+  NO_LAYOUT_EVENT_ID, NO_LAYOUT_FULL_EVENT_ID,
   handleMockRequest
 };

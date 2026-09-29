@@ -17,6 +17,7 @@ As of 2026-09-29, the dev twin runs `modular` with C1–C3, C5-1/3, U1, C7-1/2, 
 - [DESIGN.md](file:///Users/pierswingfield/Desktop/AI%20Projects/psycle%20chrome/App/Documentation/DESIGN.md) — Design and UI guidelines.
 - [psycle_codexfit.md](file:///Users/pierswingfield/Desktop/AI%20Projects/psycle%20chrome/App/Documentation/Services/psycle_codexfit.md) — CodexFit/Psycle API integration and native website timetable behavior.
 - [marianatek.md](file:///Users/pierswingfield/Desktop/AI%20Projects/psycle%20chrome/App/Documentation/Services/marianatek.md) — Mariana Tek provider platform research and integration notes.
+- [soulcycle.md](file:///Users/pierswingfield/Desktop/AI%20Projects/psycle%20chrome/App/Documentation/Services/soulcycle.md) — SoulCycle platform architecture and integration feasibility notes.
 - [TESTING.md](file:///Users/pierswingfield/Desktop/AI%20Projects/psycle%20chrome/App/Documentation/TESTING.md) — **`npm test` runs everything.** Three layers (server suites, client vitest units, browser smoke via Claude for Chrome) and what each can and cannot catch. Read before adding a test.
 - [LIVE_VERIFICATION_PLAYBOOK.md](file:///Users/pierswingfield/Desktop/AI%20Projects/psycle%20chrome/App/Documentation/LIVE_VERIFICATION_PLAYBOOK.md) — Risk-tiered rules for any check against a live gym API.
 - [QA/USER_FLOW_VALIDATION_PLAN.md](file:///Users/pierswingfield/Desktop/AI%20Projects/psycle%20chrome/App/Documentation/QA/USER_FLOW_VALIDATION_PLAN.md) — Browser user-flow validation matrix; run results live in `QA/browser-runs/`.

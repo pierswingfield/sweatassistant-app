@@ -20,6 +20,7 @@ is still valid as a design starting point.
 | F-11 | **Class counts, stats, and historical insights.** Attendance analytics and milestones: total classes taken by gym/month/year, favorite instructors, concept breakdown (Ride vs Train vs Barre), streak tracking, and attendance trends computed from booking and calendar histories. Added 2026-09-29. | C4 | — | ~3–4 days |
 | F-12 | **Gym-neutral favourites** for non-bookmark gyms (JAB/MarianaTek), keyed by studio + weekday + time. Psycle stays on native CodexFit bookmarks; enables Auto-Book Favourites data source. | C4, C5 | — | 3–4h build + ~1h browser check |
 | F-13 | **Calendar / weekly view of bookings and waitlists.** Alternate view toggle in the "My Bookings" tab: switch between the vertical card list and an interactive 7-day calendar/weekly schedule grid showing active bookings, waitlists, and queued auto-books mapped by time across all linked gyms. Tap a slot to view details, swap spot, or manage. Added 2026-09-29. | C4 | — | ~2–3 days |
+| F-14 | **SoulCycle gym integration.** Add SoulCycle as a third gym provider (`providers/soulcycle.js`). Bespoke PHP/monolith backend; requires cookie-jar auth (`SOULSESSION`), CSRF nonce pool management, studio HTML timetable scraping (or iOS app API reverse engineering), seat map normalization, and reserve/cancel endpoints. See [F-14 detail](#f-14--soulcycle-gym-integration) and [soulcycle.md](../Services/soulcycle.md). Added 2026-09-29. | C4, F-7 | [soulcycle.md](../Services/soulcycle.md) | ~1.5–2 weeks |
 
 Postgres and per-user key derivation are listed in C7.
 
@@ -104,3 +105,37 @@ new gym on an existing platform.
   open according to Psycle's schedule.
 - Extend the source-level guard to cover client gym-id branching in brand and
   alias helpers, alongside the existing server `test-no-gym-privilege` checks.
+
+## F-14 — SoulCycle gym integration
+
+### Why this exists
+
+SoulCycle is one of the premier boutique fitness studios in London and the US, but does not use a commercial SaaS backend (unlike Psycle/CodexFit or JAB/MarianaTek). Research conducted on 2026-09-29 confirmed that SoulCycle runs a custom in-house PHP platform. Adding SoulCycle to Sweat Assistant expands coverage to another major cycling brand, exercising the provider abstraction (`GymProvider`) on a non-REST, cookie-based architecture.
+
+Full protocol reverse-engineering and endpoint specifications are documented in [Documentation/Services/soulcycle.md](../Services/soulcycle.md).
+
+### Architecture & Implementation Scope
+
+1. **Provider Adapter (`server/providers/soulcycle.js`):**
+   - Implements `GymProvider` contract (`fetchMetadata`, `fetchClasses`, `fetchClass`, `book`, `cancel`, `getProfile`, `listWaitlists`, `joinWaitlist`, `leaveWaitlist`).
+   - Manages stateful cookie sessions (`SOULSESSION`), persisting encrypted cookie jars in `user_gyms.session_token`.
+   - Handles auto-relogin via `POST /login/` by pre-scraping `csrf_token` from `GET /signin/`.
+2. **Timetable Ingestion & Normalization:**
+   - Server-renders studio pages (e.g. `GET /studios/uk-london/`).
+   - Ingests upcoming class rows via HTML parser (`cheerio`) or evaluates private mobile app endpoints (iOS app ID: `966733747`).
+   - Normalizes into `NormalizedEvent` shape (`makeEvent`).
+3. **Seat Map & Availability:**
+   - Normalizes studio bike layout (`data-x`, `data-y`, `data-id`, `data-value`) into Sweat Assistant's 2D grid schema (`makeSlot`).
+   - SWR cache and single-flight polling against `GET /find-a-class/poll-availability/?class=<classId>`.
+4. **Booking & CSRF Engine:**
+   - Obtains and maintains CSRF nonces (`window.soulcycle.noncePool`).
+   - Performs precision reservations via `POST /find-a-class/reserve-bike/` with `seat_id`, `class_id`, and `csrf_token`.
+   - Supports unreserve via `POST /profile/unreserve-class/`.
+5. **Registry & Presentation:**
+   - Add `soulcycle-london` to `gyms.config.js` with capability flags (booking, waitlists, spot selection; no in-app credit purchase initially).
+   - Configure brand presentation via F-7 presentation contract (palette, logo plate, wordmark assets).
+
+### Dependencies & Size
+- **Depends on:** C4 (Promote modular), F-7 (Gym presentation contract).
+- **Rough size:** ~1.5–2 weeks.
+

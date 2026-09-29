@@ -1032,29 +1032,53 @@ html, body {
   margin: 0;
 }
 
-/* ── Pull-to-refresh indicator ─────────────────────────────────── */
+/* ── Pull-to-refresh liquid glass capsule indicator ─────────── */
 #psycle-helper-container .psycle-pull-indicator {
+  position: fixed;
+  top: calc(var(--psycle-header-h, 47px) + max(8px, env(safe-area-inset-top, 0px)));
+  left: 50%;
+  transform: translateX(-50%) translateY(-18px) scale(0.92);
   display: flex;
   align-items: center;
   justify-content: center;
   gap: 8px;
-  height: 56px;
-  flex-shrink: 0;
+  padding: 6px 14px;
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--surface) 75%, transparent);
+  backdrop-filter: blur(24px) saturate(190%);
+  -webkit-backdrop-filter: blur(24px) saturate(190%);
+  border: 1px solid color-mix(in srgb, var(--border) 75%, transparent);
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.16), inset 0 1px 0 rgba(255, 255, 255, 0.12);
+  color: var(--text);
   font-size: 12px;
   font-weight: 600;
+  letter-spacing: -0.01em;
+  z-index: 10000;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.22s ease, transform 0.25s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+#psycle-helper-container .psycle-pull-indicator.visible {
+  opacity: 1;
+}
+
+#psycle-helper-container .psycle-pull-indicator .psycle-pull-icon {
+  display: flex;
+  align-items: center;
+  justify-content: center;
   color: var(--text-secondary);
-  background: var(--surface-inset);
-  border-bottom: 1px solid var(--border);
-  /* margin-top animates from -56px (hidden, no layout footprint) to 0 (visible).
-     transition is disabled during active pull so the indicator tracks the finger;
-     re-enabled for snap-back/snap-forward on release. */
-  transition: margin-top 0.3s cubic-bezier(0.25, 1, 0.5, 1);
-  overflow: hidden;
+  transition: transform 0.22s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+#psycle-helper-container .psycle-pull-indicator.armed .psycle-pull-icon {
+  transform: rotate(180deg);
+  color: var(--accent);
 }
 
 #psycle-helper-container .psycle-pull-indicator .psycle-spinner {
-  width: 14px;
-  height: 14px;
+  width: 13px;
+  height: 13px;
   border-width: 2px;
   margin: 0;
 }
@@ -2001,107 +2025,138 @@ html, body {
   text-align: center;
 }
 
-/* Toast Notifications (Positioned BOTTOM LEFT to avoid overlapping UI) */
+/* Screen-wide Liquid Glass Dropdown Alert (Top of page, safe-area aware) */
 #psycle-helper-container #psycle-toast-container {
   position: fixed;
-  bottom: 24px;
-  left: 24px;
-  z-index: 2000001;
+  top: 0;
+  left: 0;
+  right: 0;
+  width: 100%;
+  z-index: 2200000;
   display: flex;
   flex-direction: column;
-  gap: 10px;
+  align-items: center;
   pointer-events: none;
-  top: auto;
-  right: auto;
+  padding: 0;
+  margin: 0;
 }
 
 #psycle-helper-container .psycle-toast {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  padding: 14px 20px;
-  border-radius: 12px;
-  color: var(--on-accent);
-  font-size: 13px;
+  width: 100%;
+  box-sizing: border-box;
+  padding: calc(max(10px, env(safe-area-inset-top)) + 6px) 20px 14px 20px;
+  background: color-mix(in srgb, var(--surface) 72%, transparent);
+  backdrop-filter: blur(28px) saturate(190%);
+  -webkit-backdrop-filter: blur(28px) saturate(190%);
+  border-bottom: 1px solid color-mix(in srgb, var(--border) 70%, transparent);
+  box-shadow: 0 12px 32px 0 rgba(0, 0, 0, 0.22), inset 0 -0.5px 0 0 rgba(255, 255, 255, 0.12);
+  color: var(--text);
+  font-family: var(--font-sans);
+  font-size: 13.5px;
   font-weight: 500;
-  box-shadow: var(--shadow-sheet);
-  font-family: 'Inter', sans-serif;
   opacity: 0;
-  transform: translateY(20px) scale(0.9);
-  transition: all 0.35s cubic-bezier(0.175, 0.885, 0.32, 1.275);
-  max-width: 340px;
+  transform: translateY(-100%);
+  transition: transform 0.35s cubic-bezier(0.16, 1, 0.3, 1), opacity 0.25s ease;
   pointer-events: auto;
-}
-
-#psycle-helper-container .psycle-toast .toast-message { flex: 1; }
-
-/* U1-5: the toast's own close control. `color: inherit` follows whatever the
-   variant sets (near-white on success/error/info, the warning pill's dark
-   text, or the catch-all's --text) so it stays readable in every variant and
-   both themes without a color rule per variant. */
-#psycle-helper-container .psycle-toast .toast-close {
-  flex: 0 0 auto;
-  appearance: none;
-  border: none;
-  background: transparent;
-  color: inherit;
-  opacity: 0.75;
-  font-size: 18px;
-  line-height: 1;
-  font-family: inherit;
-  cursor: pointer;
-  padding: 2px 4px;
-  margin: -2px -4px -2px 0;
-  border-radius: 6px;
-}
-
-#psycle-helper-container .psycle-toast .toast-close:hover,
-#psycle-helper-container .psycle-toast .toast-close:focus-visible {
-  opacity: 1;
-  background: color-mix(in srgb, currentColor 18%, transparent);
-}
-
-#psycle-helper-container .psycle-toast .toast-close:focus-visible {
-  outline: 2px solid currentColor;
-  outline-offset: 1px;
+  user-select: none;
+  touch-action: pan-y;
 }
 
 #psycle-helper-container .psycle-toast.show {
   opacity: 1;
-  transform: translateY(0) scale(1);
+  transform: translateY(0);
 }
 
+.psycle-toast-inner {
+  max-width: 860px;
+  margin: 0 auto;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  width: 100%;
+}
+
+.psycle-toast-icon {
+  flex: 0 0 28px;
+  width: 28px;
+  height: 28px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 13px;
+  font-weight: 700;
+  background: color-mix(in srgb, var(--text) 10%, transparent);
+}
+
+.psycle-toast-message {
+  flex: 1 1 auto;
+  line-height: 1.35;
+  color: var(--text);
+  font-weight: 500;
+  word-break: break-word;
+}
+
+.psycle-toast-close {
+  flex: 0 0 auto;
+  appearance: none;
+  border: none;
+  background: color-mix(in srgb, var(--text) 8%, transparent);
+  color: var(--text-secondary);
+  font-size: 16px;
+  line-height: 1;
+  width: 26px;
+  height: 26px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  padding: 0;
+  transition: all 0.15s ease;
+}
+
+.psycle-toast-close:hover,
+.psycle-toast-close:focus-visible {
+  background: color-mix(in srgb, var(--text) 16%, transparent);
+  color: var(--text);
+}
+
+/* Variant Ambient Lighting */
 #psycle-helper-container .psycle-toast.success {
-  background: var(--success);
-  border-left: 4px solid color-mix(in srgb, var(--success) 70%, #000);
+  background: linear-gradient(180deg, color-mix(in srgb, var(--success) 14%, var(--surface)) 0%, color-mix(in srgb, var(--surface) 80%, transparent) 100%);
+  border-bottom-color: color-mix(in srgb, var(--success) 40%, transparent);
+}
+#psycle-helper-container .psycle-toast.success .psycle-toast-icon {
+  background: color-mix(in srgb, var(--success) 22%, transparent);
+  color: var(--success);
 }
 
 #psycle-helper-container .psycle-toast.error {
-  background: var(--danger);
-  border-left: 4px solid color-mix(in srgb, var(--danger) 70%, #000);
+  background: linear-gradient(180deg, color-mix(in srgb, var(--danger) 16%, var(--surface)) 0%, color-mix(in srgb, var(--surface) 80%, transparent) 100%);
+  border-bottom-color: color-mix(in srgb, var(--danger) 45%, transparent);
+}
+#psycle-helper-container .psycle-toast.error .psycle-toast-icon {
+  background: color-mix(in srgb, var(--danger) 22%, transparent);
+  color: var(--danger);
+}
+
+#psycle-helper-container .psycle-toast.warning {
+  background: linear-gradient(180deg, color-mix(in srgb, var(--warning) 14%, var(--surface)) 0%, color-mix(in srgb, var(--surface) 80%, transparent) 100%);
+  border-bottom-color: color-mix(in srgb, var(--warning) 40%, transparent);
+}
+#psycle-helper-container .psycle-toast.warning .psycle-toast-icon {
+  background: color-mix(in srgb, var(--warning) 22%, transparent);
+  color: var(--warning);
 }
 
 #psycle-helper-container .psycle-toast.info {
-  background: var(--accent);
-  border-left: 4px solid var(--accent-hover);
+  background: linear-gradient(180deg, color-mix(in srgb, var(--accent) 14%, var(--surface)) 0%, color-mix(in srgb, var(--surface) 80%, transparent) 100%);
+  border-bottom-color: color-mix(in srgb, var(--accent) 35%, transparent);
 }
-
-/* `warning` had NO rule at all, so a warning toast inherited only the base
-   `color: var(--on-accent)` — near-white text on no background, floating over
-   the page and reading as a rendering fault rather than a message. */
-#psycle-helper-container .psycle-toast.warning {
-  background: var(--warning);
-  color: #1a1206;
-  border-left: 4px solid color-mix(in srgb, var(--warning) 70%, #000);
-}
-
-/* Safety net: any variant that is not one of the four above still gets a
-   readable surface instead of transparent. Adding a fifth variant in JS without
-   a matching rule here is exactly how `warning` went unstyled. */
-#psycle-helper-container .psycle-toast:not(.success):not(.error):not(.info):not(.warning) {
-  background: var(--surface-2);
-  color: var(--text);
-  border-left: 4px solid var(--border-strong);
+#psycle-helper-container .psycle-toast.info .psycle-toast-icon {
+  background: color-mix(in srgb, var(--accent) 20%, transparent);
+  color: var(--accent);
 }
 
 /* Auth Overlay Styling */
@@ -8412,12 +8467,6 @@ html, body {
   #psycle-helper-container #psycle-panel-settings,
   #psycle-helper-container #psycle-panel-buy-credits {
     overflow-y: visible;
-  }
-
-  /* Lift toasts above the fixed bottom nav so they don't obstruct it.
-     Nav height is calc(56px + env(safe-area-inset-bottom)); add a 12px gap. */
-  #psycle-helper-container #psycle-toast-container {
-    bottom: calc(56px + env(safe-area-inset-bottom) + 12px);
   }
 
   /* Tighten the vertical rhythm between the title, filter bar, date

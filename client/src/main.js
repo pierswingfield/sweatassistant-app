@@ -175,60 +175,114 @@ export function showToast(message, type = 'info') {
   const container = document.getElementById('psycle-toast-container');
   if (!container) return;
 
+  // Dismiss any existing toasts gracefully so only one clean canopy is active
+  container.querySelectorAll('.psycle-toast').forEach((t) => {
+    t.classList.remove('show');
+    t.style.transform = 'translateY(-100%)';
+    t.style.opacity = '0';
+    setTimeout(() => t.remove(), 260);
+  });
+
   const toast = document.createElement('div');
   toast.className = `psycle-toast ${type}`;
-  // Toasts are the app's ONLY feedback channel for booking, cancellation and
-  // errors; without a live region a screen-reader user books a class and is
-  // told nothing at all. Errors interrupt, everything else waits its turn.
   toast.setAttribute('role', type === 'error' ? 'alert' : 'status');
   toast.setAttribute('aria-live', type === 'error' ? 'assertive' : 'polite');
-  
-  let icon = 'ℹ️';
-  if (type === 'success') icon = '✅';
-  if (type === 'error') icon = '❌';
-  if (type === 'warning') icon = '⚠️';
 
-  // The icon is ours; the message is not — callers pass `err.message` straight
-  // from server and provider responses, so it goes in as text, never markup.
+  const icons = {
+    success: '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="20 6 9 17 4 12"></polyline></svg>',
+    error: '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="10"></circle><line x1="12" y1="8" x2="12" y2="12"></line><line x1="12" y1="16" x2="12.01" y2="16"></line></svg>',
+    warning: '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"></path><line x1="12" y1="9" x2="12" y2="13"></line><line x1="12" y1="17" x2="12.01" y2="17"></line></svg>',
+    info: '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="10"></circle><line x1="12" y1="16" x2="12" y2="12"></line><line x1="12" y1="8" x2="12.01" y2="8"></line></svg>',
+  };
+
+  const inner = document.createElement('div');
+  inner.className = 'psycle-toast-inner';
+
   const iconEl = document.createElement('span');
-  iconEl.className = 'toast-icon';
-  iconEl.textContent = icon;
+  iconEl.className = 'psycle-toast-icon toast-icon';
+  iconEl.innerHTML = icons[type] || icons.info;
+
   const msgEl = document.createElement('span');
-  msgEl.className = 'toast-message';
+  msgEl.className = 'psycle-toast-message toast-message';
   msgEl.textContent = message;
 
-  // U1-5: toasts were the app's only feedback channel but auto-hid after
-  // 3.5s with no way to read them again or close them early — a real problem
-  // for an error toast, which is exactly the message someone most needs time
-  // to read. A native <button> is focusable and keyboard-activatable (Enter/
-  // Space) for free; a div with a click handler would need its own keydown
-  // handling and tabindex to match.
   const closeBtn = document.createElement('button');
-  closeBtn.className = 'toast-close';
+  closeBtn.className = 'psycle-toast-close toast-close';
   closeBtn.type = 'button';
   closeBtn.setAttribute('aria-label', 'Dismiss notification');
-  closeBtn.textContent = '×';
+  closeBtn.innerHTML = '<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>';
+
+  inner.append(iconEl, msgEl, closeBtn);
+  toast.appendChild(inner);
 
   let hideTimer = null;
   const dismiss = () => {
     if (hideTimer) clearTimeout(hideTimer);
     toast.classList.remove('show');
-    setTimeout(() => toast.remove(), 300);
+    toast.style.transform = 'translateY(-100%)';
+    toast.style.opacity = '0';
+    setTimeout(() => toast.remove(), 320);
   };
   closeBtn.addEventListener('click', dismiss);
 
-  toast.append(iconEl, msgEl, closeBtn);
+  // Swipe up to dismiss gesture
+  let startTouchY = 0;
+  let currentTouchDelta = 0;
+  let isTrackingTouch = false;
+
+  toast.addEventListener('touchstart', (e) => {
+    if (e.touches.length === 1) {
+      isTrackingTouch = true;
+      startTouchY = e.touches[0].clientY;
+      currentTouchDelta = 0;
+    }
+  }, { passive: true });
+
+  toast.addEventListener('touchmove', (e) => {
+    if (!isTrackingTouch) return;
+    const dy = e.touches[0].clientY - startTouchY;
+    if (dy < 0) {
+      currentTouchDelta = dy;
+      toast.style.transition = 'none';
+      toast.style.transform = `translateY(${dy}px)`;
+    }
+  }, { passive: true });
+
+  toast.addEventListener('touchend', () => {
+    if (!isTrackingTouch) return;
+    isTrackingTouch = false;
+    if (currentTouchDelta < -18) {
+      dismiss();
+    } else {
+      toast.style.transition = '';
+      toast.style.transform = '';
+    }
+  }, { passive: true });
+
+  // Auto-hide: pause on hover for desktop users reading long text
+  const scheduleAutoDismiss = () => {
+    if (type !== 'error') {
+      hideTimer = setTimeout(dismiss, 4000);
+    }
+  };
+
+  toast.addEventListener('mouseenter', () => {
+    if (hideTimer) clearTimeout(hideTimer);
+  });
+  toast.addEventListener('mouseleave', () => {
+    scheduleAutoDismiss();
+  });
+
   container.appendChild(toast);
 
   // Animate in
-  setTimeout(() => toast.classList.add('show'), 10);
+  requestAnimationFrame(() => {
+    requestAnimationFrame(() => {
+      toast.classList.add('show');
+    });
+  });
 
-  // Auto-hide after 3.5s — except errors, which stay until the user dismisses
-  // them. A booking/cancellation failure is the one message someone must not
-  // miss just because they looked away for a moment.
-  if (type !== 'error') {
-    hideTimer = setTimeout(dismiss, 3500);
-  }
+  scheduleAutoDismiss();
 }
 
 // --- DEBUG LOG TERMINAL ---
@@ -439,6 +493,7 @@ if (scrollBody) {
     isEnabled: () => currentTabId !== 'settings',
     // Mobile scrolls the document, desktop the inner <main>: read whichever is live.
     getScrollTop: () => (isDocScroll() ? docScroller().scrollTop : scrollBody.scrollTop),
+    getMaxScroll: () => (isDocScroll() ? Math.max(0, docScroller().scrollHeight - window.innerHeight) : Math.max(0, scrollBody.scrollHeight - scrollBody.clientHeight)),
     scrollTargets: [scrollBody, window],
   });
 }

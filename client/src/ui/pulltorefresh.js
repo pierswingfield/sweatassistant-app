@@ -1,192 +1,296 @@
-// Reusable pull-to-refresh utility for scroll containers.
+// Reusable iOS-style rubber banding & pull-to-refresh engine for scroll containers.
 //
-// setupPullToRefresh(scrollEl, onRefresh)
-//   scrollEl  — the element with overflow-y: auto that the user scrolls
-//   onRefresh — async function called when the user releases past the threshold.
-//               The indicator stays in "refreshing" state until the promise resolves.
-//   returns   — a cleanup function that removes all listeners and the indicator.
+// setupPullToRefresh(scrollEl, onRefresh, options)
+//   scrollEl     — the element (or container) that translates elastically
+//   onRefresh    — async function called when user pulls down past threshold and releases.
+//   options:
+//     isEnabled    — () => boolean: returns false to disable refresh while still allowing rubber banding
+//     getScrollTop — () => number: current scroll top
+//     getMaxScroll — () => number: current maximum scrollable top
+//     scrollTargets— array of elements emitting scroll events
 //
-// Design notes:
-// - Only activates when scrollTop === 0 and the user pulls DOWN.
-// - Uses a resistance factor (0.5) so the pull feels elastic but deliberate.
-// - preventDefault() is called ONLY during an active pull (not during normal scroll)
-//   to suppress iOS rubber-banding without breaking native scroll.
-// - Guards against horizontal swipes (e.g. the timetable date carousel) by checking
-//   that the gesture is predominantly vertical.
-// - Debounced: won't trigger another refresh while one is in progress.
+// Design & Physics:
+// - Uses Apple logarithmic decay curve: f(y) = Math.pow(rawY, 0.82) * 1.85 capped at max displacement.
+// - Hardware-accelerated GPU transform (translate3d) directly on scrollEl.
+// - At top: pulling down applies elastic stretch. If pull >= threshold (54px elastic), arms refresh.
+//   Releasing below threshold springs back with natural iOS bounce (cubic-bezier(0.175, 0.885, 0.32, 1.275)).
+//   Releasing above threshold snaps to 48px, runs onRefresh(), and smoothly springs back to 0.
+// - At bottom: pulling up past bottom boundary applies negative elastic stretch, springing back on release.
+// - Horizontal swipe guard: ensures carousel / tab swipes are never intercepted.
 
-import { isScrollBusy } from './scroll-state.js';
+import { isScrollBusy, isDocScroll, docScroller } from './scroll-state.js';
 
-const PULL_THRESHOLD = 80; // px needed to trigger refresh
-const RESISTANCE = 0.5; // pull feels like half the actual drag distance
-const MAX_PULL = 120; // cap visual displacement
-const INDICATOR_HEIGHT = 56; // must match .psycle-pull-indicator height in CSS
+const PULL_THRESHOLD = 54; // px of elastic displacement needed to trigger refresh (~70-80px finger pull)
+const MAX_TOP_PULL = 110;  // max visual displacement at top
+const MAX_BOTTOM_PULL = 75; // max visual displacement at bottom
 
-export function setupPullToRefresh(scrollEl, onRefresh, { isEnabled = () => true, getScrollTop = () => scrollEl.scrollTop, scrollTargets = [scrollEl] } = {}) {
+export function setupPullToRefresh(scrollEl, onRefresh, {
+  isEnabled = () => true,
+  getScrollTop = () => (isDocScroll() ? docScroller().scrollTop : scrollEl.scrollTop),
+  getMaxScroll = () => {
+    if (isDocScroll()) {
+      const ds = docScroller();
+      return Math.max(0, ds.scrollHeight - window.innerHeight);
+    }
+    return Math.max(0, scrollEl.scrollHeight - scrollEl.clientHeight);
+  },
+  scrollTargets = [scrollEl, window],
+} = {}) {
   if (!scrollEl) return () => {};
 
   let startY = 0;
   let startX = 0;
-  let currentDelta = 0;
-  let isPulling = false;
+  let engagedStartY = null;
+  let bottomEngagedStartY = null;
+  let currentElasticY = 0;
+  let isTopPulling = false;
+  let isBottomPulling = false;
   let isRefreshing = false;
   let indicator = null;
 
-  // iOS momentum scroll can carry scrollTop to 0 while the finger is still moving.
-  // Track recent scroll activity so we don't misfire pull-to-refresh when the user
-  // was scrolling upward and momentum just hit the top.
+  // Track recent scroll activity to avoid misfiring when momentum hits top or bottom
   let wasScrolling = false;
   let scrollCooldownTimer = null;
   function onScroll() {
     wasScrolling = true;
     clearTimeout(scrollCooldownTimer);
-    scrollCooldownTimer = setTimeout(() => { wasScrolling = false; }, 200);
+    scrollCooldownTimer = setTimeout(() => { wasScrolling = false; }, 180);
   }
   scrollTargets.forEach((t) => t.addEventListener('scroll', onScroll, { passive: true }));
 
-  // Create the pull indicator element (inserted above scroll content)
   function createIndicator() {
-    if (indicator) return indicator;
+    if (indicator && indicator.parentNode) return indicator;
     indicator = document.createElement('div');
     indicator.className = 'psycle-pull-indicator';
+    indicator.setAttribute('aria-hidden', 'true');
     indicator.innerHTML = `
-      <div class="psycle-spinner"></div>
+      <span class="psycle-pull-icon">
+        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round">
+          <line x1="12" y1="5" x2="12" y2="19"></line>
+          <polyline points="19 12 12 19 5 12"></polyline>
+        </svg>
+      </span>
+      <div class="psycle-spinner" style="display: none;"></div>
       <span class="psycle-pull-text">Pull to refresh</span>
     `;
-    // Start fully hidden above with no layout footprint (margin-top = -height).
-    // Transition is disabled here; it's re-enabled on release for snap animations.
-    indicator.style.transition = 'none';
-    indicator.style.marginTop = `-${INDICATOR_HEIGHT}px`;
-    // Insert as first child of the scroll element so it scrolls with content
-    scrollEl.insertBefore(indicator, scrollEl.firstChild);
+    document.body.appendChild(indicator);
     return indicator;
   }
 
-  function updateIndicator(delta) {
+  function updateIndicator(elasticY, isArmed, isRefreshingState) {
     const ind = createIndicator();
     const text = ind.querySelector('.psycle-pull-text');
     const spinner = ind.querySelector('.psycle-spinner');
+    const icon = ind.querySelector('.psycle-pull-icon');
 
-    if (isRefreshing) {
-      // Re-enable CSS transition for the snap-to-visible animation
-      ind.style.transition = '';
-      ind.style.marginTop = '0px';
+    if (isRefreshingState) {
+      ind.classList.add('visible');
+      ind.classList.remove('armed');
       text.textContent = 'Refreshing...';
       spinner.style.display = '';
-    } else if (delta >= PULL_THRESHOLD) {
-      // Past threshold — fully revealed, no transition so it follows the finger
-      ind.style.transition = 'none';
-      ind.style.marginTop = '0px';
-      text.textContent = 'Release to refresh';
-      spinner.style.display = 'none';
+      icon.style.display = 'none';
+      ind.style.transform = 'translateX(-50%) translateY(26px) scale(1)';
+      ind.style.opacity = '1';
     } else {
-      // Proportionally reveal as the user pulls: margin-top goes from
-      // -INDICATOR_HEIGHT (hidden) toward 0 (fully visible) as delta → PULL_THRESHOLD.
-      // No transition — must track the finger in real time.
-      ind.style.transition = 'none';
-      const progress = delta / PULL_THRESHOLD;
-      ind.style.marginTop = `${-INDICATOR_HEIGHT + progress * INDICATOR_HEIGHT}px`;
-      text.textContent = 'Pull to refresh';
       spinner.style.display = 'none';
+      icon.style.display = '';
+      if (isArmed) {
+        ind.classList.add('visible', 'armed');
+        text.textContent = 'Release to refresh';
+      } else {
+        ind.classList.add('visible');
+        ind.classList.remove('armed');
+        text.textContent = 'Pull to refresh';
+      }
+      const progress = Math.min(1, Math.max(0, elasticY / PULL_THRESHOLD));
+      const yOffset = Math.min(elasticY * 0.44, 26);
+      ind.style.transform = `translateX(-50%) translateY(${yOffset}px) scale(${0.88 + 0.12 * progress})`;
+      ind.style.opacity = `${progress}`;
     }
   }
 
-  function removeIndicator() {
-    if (indicator) {
-      // Re-enable CSS transition so the snap-back animates smoothly
-      indicator.style.transition = '';
-      indicator.style.marginTop = `-${INDICATOR_HEIGHT}px`;
-      // Remove after transition completes
-      setTimeout(() => {
-        if (indicator && indicator.parentNode) {
-          indicator.parentNode.removeChild(indicator);
-        }
+  function hideIndicator() {
+    if (!indicator) return;
+    indicator.classList.remove('visible', 'armed');
+    indicator.style.transition = 'all 0.24s cubic-bezier(0.16, 1, 0.3, 1)';
+    indicator.style.opacity = '0';
+    indicator.style.transform = 'translateX(-50%) translateY(-18px) scale(0.92)';
+    setTimeout(() => {
+      if (indicator && !isRefreshing && !isTopPulling) {
+        if (indicator.parentNode) indicator.parentNode.removeChild(indicator);
         indicator = null;
-      }, 300);
-    }
+      }
+    }, 250);
+  }
+
+  function calcElastic(pull, maxPull) {
+    if (pull <= 0) return 0;
+    // Apple logarithmic resistance curve
+    const d = Math.pow(pull, 0.82) * 1.85;
+    return Math.min(d, maxPull);
   }
 
   function onTouchStart(e) {
     if (isRefreshing) return;
-    if (!isEnabled()) { startY = 0; isPulling = false; return; }
-    // Only track single-finger touches
     if (e.touches.length !== 1) return;
-    // Only start pull tracking if at the top AND not still decelerating there.
-    // wasScrolling stays true for 200ms after the last scroll event, which covers
-    // the window where iOS momentum may have just carried scrollTop to 0.
-    // Also never arm while the header is mid-transition (shared scroll clock).
-    if (getScrollTop() > 0 || wasScrolling || isScrollBusy()) {
-      isPulling = false;
-      startY = 0; // disarm: a stale start point must not turn a later move into a pull
-      return;
-    }
+
     startY = e.touches[0].clientY;
     startX = e.touches[0].clientX;
-    isPulling = false; // not pulling yet — wait for touchmove to confirm direction
+    engagedStartY = null;
+    bottomEngagedStartY = null;
+    isTopPulling = false;
+    isBottomPulling = false;
+    currentElasticY = 0;
+
+    const st = getScrollTop();
+    const maxScroll = getMaxScroll();
+    if (st <= 0 && !wasScrolling && !isScrollBusy()) {
+      engagedStartY = startY;
+    } else if (st >= maxScroll - 3 && !wasScrolling) {
+      bottomEngagedStartY = startY;
+    }
   }
 
   function onTouchMove(e) {
     if (isRefreshing) return;
-    if (startY === 0) return; // touchstart didn't register a valid start
+    if (startY === 0) return;
 
-    const deltaY = e.touches[0].clientY - startY;
-    const deltaX = e.touches[0].clientX - startX;
+    const clientY = e.touches[0].clientY;
+    const clientX = e.touches[0].clientX;
+    const rawDeltaY = clientY - startY;
+    const deltaX = clientX - startX;
 
-    // Ignore predominantly horizontal gestures (e.g. date carousel swipe)
-    if (Math.abs(deltaX) > Math.abs(deltaY) * 1.5) return;
+    // Ignore horizontal swipes (e.g. date carousel, filter scrolls)
+    if (Math.abs(deltaX) > Math.abs(rawDeltaY) * 1.35) return;
 
-    if (deltaY > 0 && getScrollTop() <= 0) {
-      // User is pulling down at the top — activate pull-to-refresh
-      isPulling = true;
-      currentDelta = Math.min(deltaY * RESISTANCE, MAX_PULL);
-      e.preventDefault(); // suppress iOS rubber-banding only during active pull
-      updateIndicator(currentDelta);
-    } else if (isPulling && deltaY <= 0) {
-      // User reversed direction — reset
-      isPulling = false;
-      currentDelta = 0;
-      removeIndicator();
+    const st = getScrollTop();
+    const maxScroll = getMaxScroll();
+
+    // --- TOP RUBBER BANDING / PULL TO REFRESH ---
+    if (st <= 0 && rawDeltaY > 0) {
+      if (engagedStartY === null) {
+        engagedStartY = clientY;
+      }
+      const pull = Math.max(0, clientY - engagedStartY);
+      if (pull > 0) {
+        isTopPulling = true;
+        currentElasticY = calcElastic(pull, MAX_TOP_PULL);
+        e.preventDefault();
+
+        scrollEl.style.willChange = 'transform';
+        scrollEl.style.transition = 'none';
+        scrollEl.style.transform = `translate3d(0, ${currentElasticY}px, 0)`;
+
+        if (isEnabled()) {
+          const isArmed = currentElasticY >= PULL_THRESHOLD;
+          updateIndicator(currentElasticY, isArmed, false);
+        }
+        return;
+      }
+    } else if (isTopPulling && rawDeltaY <= 0) {
+      isTopPulling = false;
+      currentElasticY = 0;
+      scrollEl.style.transform = '';
+      hideIndicator();
+    }
+
+    // --- BOTTOM RUBBER BANDING ---
+    if (st >= maxScroll - 3 && rawDeltaY < 0) {
+      if (bottomEngagedStartY === null) {
+        bottomEngagedStartY = clientY;
+      }
+      const pull = Math.max(0, bottomEngagedStartY - clientY);
+      if (pull > 0) {
+        isBottomPulling = true;
+        currentElasticY = -calcElastic(pull, MAX_BOTTOM_PULL);
+        e.preventDefault();
+
+        scrollEl.style.willChange = 'transform';
+        scrollEl.style.transition = 'none';
+        scrollEl.style.transform = `translate3d(0, ${currentElasticY}px, 0)`;
+        return;
+      }
+    } else if (isBottomPulling && rawDeltaY >= 0) {
+      isBottomPulling = false;
+      currentElasticY = 0;
+      scrollEl.style.transform = '';
     }
   }
 
-  async function onTouchEnd(e) {
-    startY = 0; // gesture over: disarm
-    if (!isPulling || isRefreshing) {
-      isPulling = false;
-      currentDelta = 0;
-      if (!isRefreshing) removeIndicator();
+  async function onTouchEnd() {
+    startY = 0;
+    engagedStartY = null;
+    bottomEngagedStartY = null;
+
+    if (isTopPulling) {
+      isTopPulling = false;
+      const shouldRefresh = isEnabled() && currentElasticY >= PULL_THRESHOLD;
+
+      if (shouldRefresh) {
+        isRefreshing = true;
+        updateIndicator(PULL_THRESHOLD, false, true);
+
+        // Snap to holding position (48px)
+        scrollEl.style.transition = 'transform 0.28s cubic-bezier(0.2, 0.9, 0.3, 1)';
+        scrollEl.style.transform = 'translate3d(0, 48px, 0)';
+
+        try {
+          await onRefresh();
+        } catch (err) {
+          console.error('[PullToRefresh] Refresh failed:', err);
+        } finally {
+          isRefreshing = false;
+          currentElasticY = 0;
+          // Spring back to 0
+          scrollEl.style.transition = 'transform 0.34s cubic-bezier(0.25, 1, 0.5, 1)';
+          scrollEl.style.transform = 'translate3d(0, 0, 0)';
+          hideIndicator();
+          setTimeout(() => {
+            if (!isTopPulling && !isRefreshing && !isBottomPulling) {
+              scrollEl.style.transform = '';
+              scrollEl.style.transition = '';
+              scrollEl.style.willChange = '';
+            }
+          }, 360);
+        }
+      } else {
+        // Below threshold: snap back with iOS spring bounce
+        currentElasticY = 0;
+        scrollEl.style.transition = 'transform 0.38s cubic-bezier(0.175, 0.885, 0.32, 1.275)';
+        scrollEl.style.transform = 'translate3d(0, 0, 0)';
+        hideIndicator();
+        setTimeout(() => {
+          if (!isTopPulling && !isRefreshing && !isBottomPulling) {
+            scrollEl.style.transform = '';
+            scrollEl.style.transition = '';
+            scrollEl.style.willChange = '';
+          }
+        }, 390);
+      }
       return;
     }
 
-    isPulling = false;
-
-    if (currentDelta >= PULL_THRESHOLD) {
-      // Trigger refresh
-      isRefreshing = true;
-      updateIndicator(PULL_THRESHOLD); // show "Refreshing..." state
-      try {
-        await onRefresh();
-      } catch (err) {
-        console.error('[PullToRefresh] Refresh failed:', err);
-      } finally {
-        isRefreshing = false;
-        currentDelta = 0;
-        removeIndicator();
-      }
-    } else {
-      // Not enough pull — snap back
-      currentDelta = 0;
-      removeIndicator();
+    if (isBottomPulling) {
+      isBottomPulling = false;
+      currentElasticY = 0;
+      // Bottom overscroll spring bounce back
+      scrollEl.style.transition = 'transform 0.38s cubic-bezier(0.175, 0.885, 0.32, 1.275)';
+      scrollEl.style.transform = 'translate3d(0, 0, 0)';
+      setTimeout(() => {
+        if (!isTopPulling && !isRefreshing && !isBottomPulling) {
+          scrollEl.style.transform = '';
+          scrollEl.style.transition = '';
+          scrollEl.style.willChange = '';
+        }
+      }, 390);
     }
   }
 
-  // Use passive: false for touchmove so we can call preventDefault()
   scrollEl.addEventListener('touchstart', onTouchStart, { passive: true });
   scrollEl.addEventListener('touchmove', onTouchMove, { passive: false });
   scrollEl.addEventListener('touchend', onTouchEnd, { passive: true });
   scrollEl.addEventListener('touchcancel', onTouchEnd, { passive: true });
 
-  // Cleanup function
   return () => {
     scrollEl.removeEventListener('touchstart', onTouchStart);
     scrollEl.removeEventListener('touchmove', onTouchMove);
@@ -198,5 +302,8 @@ export function setupPullToRefresh(scrollEl, onRefresh, { isEnabled = () => true
       indicator.parentNode.removeChild(indicator);
     }
     indicator = null;
+    scrollEl.style.transform = '';
+    scrollEl.style.transition = '';
+    scrollEl.style.willChange = '';
   };
 }

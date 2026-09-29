@@ -19,6 +19,8 @@ const poller = require('./poller');
 const { triggerAutoRelogin } = require('./auth');
 const { getProvider } = require('./providers');
 const { cleanClassName: cleanClassNameShared, disciplineHead } = require('./class-name');
+const { policyOf, isRollingWeekly, mostRecentRelease } = require('./providers/booking-window');
+const { normalizeCalendarPrefs } = require('./calendar-prefs');
 
 // Interim single-gym bridge, same as scheduler.js/poller.js (WP-D3 will replace).
 // No module-level provider (WP-D7) — resolved per user, since a calendar feed is
@@ -29,6 +31,9 @@ const PAST_CLASS_CAP = 100;            // rolling history kept per user
 const LOCATIONS_TTL_MS = 7 * 24 * 60 * 60 * 1000;
 const DEFAULT_DURATION_MIN = 45;
 const PENALTY_HOURS = 12;              // free-cancellation deadline before class start
+const WINDOW_REMINDER_MIN = 15;        // the ONLY alarm a booking-window event carries
+const WINDOW_EVENT_COUNT = 4;          // how many upcoming release instants are published
+const WINDOW_EVENT_DURATION_MIN = 15;
 
 // ─── Token + subscribe links ─────────────────────────────────────────────────
 /**
@@ -457,19 +462,66 @@ function buildDescription(row) {
   return lines.join('\n');
 }
 
-function buildAlarms(row, alarm) {
-  if (row.status !== 'confirmed' || !alarm || alarm === 'none') return [];
+// VALARMs are TARGETED (U4-16). Only a CONFIRMED class gets the 2 h and/or
+// free-cancellation-window alarms the member ticked. Waitlist and Auto-Book rows
+// are tentative and NEVER carry an alarm: a calendar app would otherwise nag
+// about a class the member does not hold.
+function buildAlarms(row, reminders) {
+  if (row.status !== 'confirmed' || !reminders) return [];
   const title = esc(buildTitle(row));
   const blocks = [];
   const add = (trigger) => blocks.push(
     'BEGIN:VALARM', 'ACTION:DISPLAY', `DESCRIPTION:${title}`, `TRIGGER:${trigger}`, 'END:VALARM'
   );
-  if (alarm === '2h' || alarm === 'both') add('-PT2H');
-  if (alarm === 'penalty' || alarm === 'both') add(`-PT${PENALTY_HOURS}H`);
+  if (reminders.twoHour) add('-PT2H');
+  if (reminders.cancelWindow) add(`-PT${PENALTY_HOURS}H`);
   return blocks;
 }
 
-function buildVEvent(userId, row, addrMap, alarm) {
+// ─── "Booking opens" events (weekly-release gyms only) ────────────────────────
+// Synthesised at serialisation time from the gym's policy; nothing is stored, so
+// there is nothing to reconcile. Selected by bookingWindow.kind, never by gym id.
+// UID is deterministic (user + gym + release date in the gym's zone), so a
+// refresh re-emits the SAME event instead of duplicating it.
+function bookingWindowEvents(gymIds, now = DateTime.now()) {
+  const out = [];
+  for (const gymId of gymIds) {
+    const gym = getGymConfig(gymId);
+    if (!gym || !isRollingWeekly(gym)) continue;
+    const policy = policyOf(gym);
+    const zone = policy.timezone || 'Europe/London';
+    let release = mostRecentRelease(policy, now.setZone(zone));
+    while (release <= now) release = release.plus({ weeks: 1 });
+    for (let i = 0; i < WINDOW_EVENT_COUNT; i++) {
+      out.push({ gymId, gymName: gym.shortName || gym.name || 'Gym', start: release, dateKey: release.toFormat('yyyyLLdd') });
+      release = release.plus({ weeks: 1 });
+    }
+  }
+  return out;
+}
+
+function buildWindowVEvent(userId, w) {
+  const start = w.start.setZone('Europe/London');   // the feed's one VTIMEZONE
+  const end = start.plus({ minutes: WINDOW_EVENT_DURATION_MIN });
+  const title = `${w.gymName} booking window opens`;
+  return [
+    'BEGIN:VEVENT',
+    `UID:psycle-${userId}-bw-${w.gymId}-${w.dateKey}@${APP_HOST}`,
+    'SEQUENCE:0',
+    `DTSTAMP:${fmtUTC(DateTime.now())}`,
+    `DTSTART;TZID=Europe/London:${fmtLocal(start)}`,
+    `DTEND;TZID=Europe/London:${fmtLocal(end)}`,
+    `SUMMARY:${esc(title)}`,
+    `DESCRIPTION:${esc(`Booking opens for the next classes at ${w.gymName}.\n\n${appName} · https://${APP_HOST}`)}`,
+    'STATUS:CONFIRMED',
+    `CATEGORIES:${esc(w.gymName)}`,
+    'TRANSP:TRANSPARENT',
+    'BEGIN:VALARM', 'ACTION:DISPLAY', `DESCRIPTION:${esc(title)}`, `TRIGGER:-PT${WINDOW_REMINDER_MIN}M`, 'END:VALARM',
+    'END:VEVENT',
+  ];
+}
+
+function buildVEvent(userId, row, addrMap, reminders) {
   const start = DateTime.fromISO(row.start_at, { zone: 'Europe/London' });
   if (!start.isValid) return [];
   const end = start.plus({ minutes: row.duration_min || DEFAULT_DURATION_MIN });
@@ -495,12 +547,12 @@ function buildVEvent(userId, row, addrMap, alarm) {
   const catGym = row.gym_id ? getGymConfig(row.gym_id) : null;
   lines.push(`CATEGORIES:${esc((catGym && (catGym.shortName || catGym.name)) || 'Class')}${discipline ? ',' + esc(discipline) : ''}`);
   lines.push('TRANSP:OPAQUE');
-  lines.push(...buildAlarms(row, alarm));
+  lines.push(...buildAlarms(row, reminders));
   lines.push('END:VEVENT');
   return lines;
 }
 
-function serializeCalendar(userId, rows, addrMap, alarm) {
+function serializeCalendar(userId, rows, addrMap, reminders, windowEvents = []) {
   const out = [
     'BEGIN:VCALENDAR',
     'VERSION:2.0',
@@ -513,7 +565,8 @@ function serializeCalendar(userId, rows, addrMap, alarm) {
     'REFRESH-INTERVAL;VALUE=DURATION:PT3H',
     ...VTIMEZONE,
   ];
-  for (const row of rows) out.push(...buildVEvent(userId, row, addrMap, alarm));
+  for (const row of rows) out.push(...buildVEvent(userId, row, addrMap, reminders));
+  for (const w of windowEvents) out.push(...buildWindowVEvent(userId, w));
   out.push('END:VCALENDAR');
   return out.map(fold).join('\r\n') + '\r\n';
 }
@@ -523,8 +576,9 @@ function regenerateSnapshot(userId) {
   try {
     const settings = db.getUserSettings(userId) || {};
     const cal = settings.calendar || {};
-    const includeTentative = !!cal.includeTentative;
-    const alarm = cal.alarm || 'none';
+    // Read through normalizeCalendarPrefs so a blob saved before U4-16 (one
+    // includeTentative flag, one alarm dropdown) yields exactly the same feed.
+    const prefs = normalizeCalendarPrefs(cal);
     const nowISO = DateTime.now().toISO();
 
     // One pass per linked gym, each inside that gym's context so the per-user
@@ -555,8 +609,11 @@ function regenerateSnapshot(userId) {
 
     // No gym argument — this is the whole account's calendar.
     let rows = db.getCalendarClasses(userId);
-    if (!includeTentative) rows = rows.filter(r => r.status === 'confirmed');
-    const ics = serializeCalendar(userId, rows, addrMap, alarm);
+    rows = rows.filter(r => r.status === 'confirmed'
+      || (r.status === 'waitlist' && prefs.includeWaitlists)
+      || (r.status === 'autobook' && prefs.includeAutoBook));
+    const windowEvents = prefs.remindBookingWindow ? bookingWindowEvents(gymIds) : [];
+    const ics = serializeCalendar(userId, rows, addrMap, prefs.reminders, windowEvents);
     const etag = '"' + crypto.createHash('md5').update(ics).digest('hex') + '"';
     db.saveCalendarSnapshot(userId, ics, etag, rows.length);
     return { ics, etag, count: rows.length };
@@ -647,6 +704,8 @@ module.exports = {
   rotateToken,
   buildLinks,
   buildTitle,
+  serializeCalendar,
+  bookingWindowEvents,
   regenerateSnapshot,
   pollAndPublishAll,
   refreshUser,

@@ -69,7 +69,11 @@ function bookingRow(userId, gymId, eventId, slotId) {
 // real network call for /events/:id — only /bookings (the call we're testing)
 // is exercised.
 function seedEventCache(gymId, eventId, slotId) {
-  scheduler.setCachedEvent(gymId, eventId, { data: { id: eventId }, slots: [slotId], relations: { studios: [] } }, 60000);
+  scheduler.setCachedEvent(gymId, eventId, {
+    event: { id: eventId },
+    slots: [{ id: slotId, label: String(slotId), isAvailable: true }],
+    objects: [],
+  }, 60000);
 }
 
 // A minimal, real-shaped fetch Response for a 429 — exercises the actual

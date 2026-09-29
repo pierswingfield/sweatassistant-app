@@ -102,7 +102,7 @@ in the session scratchpad (not committed — contain live account/customer PII f
 
 - [x] **C4-1 — reported, not queued.** `GET /api/auto-book` empty for both gyms. **No entry exists
 - [x] **C4-1 — Psycle half PASS (2026-09-28).** The user queued Psycle event 217241 on the dev twin on 2026-09-27 (11:20 UTC). It fired unattended at the Monday release, per the `psycle-app-dev` logs (UTC):
-- [~] **C4-8: subscribing in Apple Calendar works on the dev twin (user, 2026-09-28)**, after adding a Cloudflare Access bypass for `sweat-dev…/api/calendar/*`. Still open: the "Include unconfirmed classes" toggle (C3-14), the insecure `webcal://` warning (an https link for Apple), and link/unlink reflected in the feed (C3-22).
+- [x] **C4-8: subscribing in Apple Calendar works on the dev twin (user, 2026-09-28)**, after adding a Cloudflare Access bypass for `sweat-dev…/api/calendar/*`. The follow-up user re-test on 2026-09-29 also reported C3-14/C3-15 and C4-8 as good; the secure Apple link and link/unlink feed refresh are covered by the fixes recorded in the C3 workstream.
 - [~] **C4-7: push delivery confirmed by the user (2026-09-28)**, including the auto-book push at the C4-1 release. Still open: installed-PWA layout, offline, and push for a JAB event.
   - `10:59:10` prefetch; `10:59:14` event cached, 40 slots available.
   - `10:59:55` precision mode on; `11:00:00.004` dispatch, i.e. **12:00:00.004 London**.

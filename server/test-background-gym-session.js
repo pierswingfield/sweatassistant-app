@@ -69,7 +69,11 @@ check('scheduler auto-book for a JAB queue row uses the JAB session, not the act
   const uid = twoGymUser('sched');
   const eventId = '9100';
   const slotId = 'mock-bag-1';
-  scheduler.setCachedEvent(JAB, eventId, { data: { id: eventId }, slots: [slotId], relations: { studios: [] } }, 60000);
+  scheduler.setCachedEvent(JAB, eventId, {
+    event: { id: eventId },
+    slots: [{ id: slotId, label: 'Bag 1', isAvailable: true }],
+    objects: [],
+  }, 60000);
 
   let capturedToken = null;
   MarianaTekProvider.prototype.bookSlot = async function (evId, slotIds, session) {

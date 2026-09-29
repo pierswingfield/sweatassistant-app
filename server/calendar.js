@@ -191,13 +191,8 @@ async function listWithRelogin(userId, method, explicitGymId) {
 
 // Returns booking_cache-shaped rows (one per booked spot), enriched with event
 // details. The list HTTP call + id/event_id/cancelled_at parsing now goes
-// through the adapter (WP-N3) — behavior-identical to the old inline fetch
-// (verified in test-adapters.js). Deliberately UNCHANGED: fetchEventDetail's
-// per-event enrichment fetch (still raw poller.fetchCodexFit, not the
-// adapter's own fetchEventDetails, which is intentionally minimal for
-// CodexFit — see its doc comment) and the exact `b.slot` field read for
-// slotLabel, both preserved via NormalizedBooking.raw so this function's
-// downstream behavior for real accounts is untouched.
+// through the adapter (WP-N3). Event enrichment and slot labels are normalized
+// too; generic code must not inspect a provider's raw booking payload.
 async function fetchUserBookings(userId, gymId) {
   let normalized;
   try {
@@ -208,7 +203,6 @@ async function fetchUserBookings(userId, gymId) {
   }
   const out = [];
   for (const nb of normalized) {
-    const b = nb.raw;
     const eventId = nb.eventId;
     if (!eventId) continue;
     const ev = await fetchEventDetail(userId, eventId, gymId);
@@ -218,7 +212,7 @@ async function fetchUserBookings(userId, gymId) {
       className: ev.className, groupName: ev.groupName, instructorName: ev.instructorName,
       studioName: ev.studioName, locationName: ev.locationName, locationAddress: ev.locationAddress,
       durationMin: ev.durationMin,
-      slotLabel: b.slot != null ? String(b.slot) : '',
+      slotLabel: nb.slotId != null ? String(nb.slotId) : '',
     });
   }
   return out;

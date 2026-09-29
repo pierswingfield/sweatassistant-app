@@ -25,9 +25,18 @@ Cheap, visible fixes. Run them alongside C3 so they share the same live re-test.
 | U1-15 | **Timetable shows a class as booked for several seconds after cancelling it in My Bookings.** A booking/cancel mutation must invalidate the timetable's booking-state overlay so returning to the timetable reflects it immediately. Found by the user 2026-09-29. ✅ **Fixed 2026-09-29** (see below). | `timetable.js` booking overlay/cache; `bookings.js` cancel | 1–2 h |
 | U1-16 | **Psycle push notifications read "CLASS with your instructor - Spot …".** The class name and instructor are missing for Psycle; JAB is fine. Probably a regression from C3-19 (the booking-success payload now carries gymId) or from the normalized field names. Found by the user 2026-09-29. ✅ **Fixed 2026-09-29** (see below). | `server/notifications.js`; `client/src/api.js notifyBookingSuccess` callers | 1 h |
 | U1-17 | **Calendar event titles don't strip the discipline prefix.** `server/calendar.js` has its own class-name cleaner, separate from the client's `cleanClassName` (U1-11), so JAB titles may read `JAB: TRAIN - Upper (Focus)…`. Share one rule between client and server (one lookup per fact). Noticed by the U1-11 agent on 2026-09-29. ✅ **Verified and fixed 2026-09-29** (see "U1-11 follow-up"). | `server/calendar.js` name cleaner | 1 h |
-| U1-18 | **Timetable rendered empty on the first live load after a deploy.** A second load showed 153 rows. It may be a cold provider cache (C4 notes about 22 s cold) racing a render that treats "no data yet" as "no classes". If so, that's a "not loaded ≠ empty" bug; show a skeleton instead. Seen by the U1-11..16 agent's live smoke on 2026-09-29; not reproduced. Relates to U4-7. | `timetable.js` first render / prefetch | 1–2 h to investigate |
+| U1-18 | **Timetable rendered empty on the first live load after a deploy.** A second load showed 153 rows. It may be a cold provider cache (C4 notes about 22 s cold) racing a render that treats "no data yet" as "no classes". If so, that's a "not loaded ≠ empty" bug; show a skeleton instead. Seen by the U1-11..16 agent's live smoke on 2026-09-29. ✅ **Marked fixed 2026-09-29** after the user's re-test; no repeat of the empty first-load state. Relates to U4-7. | `timetable.js` first render / prefetch | 1–2 h to investigate |
 | U1-19 | **HTTP 422 booking some Psycle classes (Barre, Yoga, Infrared Sculpt: studios with no seat map).** Filed under U1 (a client-visible booking failure); the cause is a CodexFit API-contract gap in our adapter (C2 territory). Reported by the user 2026-09-29 on the dev twin. ✅ **Fixed 2026-09-29** (see below). | `server/providers/codexfit.js bookSlot`, `server/mock.js` | 2 h |
 | U1-20 | **"Buy Credits" on a Psycle class the member can book** (Barre, Siân, 09:45, Notting Hill, Sun 4 Oct; the member holds 1 Universal credit that the class accepts). Reported 2026-09-29 on the dev twin. ✅ **Fixed 2026-09-29** (see below). | `client/src/ui/credit-allowance.js creditsFor`, `server/mock-marianatek.js` | 1 h |
+
+## User re-test — 2026-09-29
+
+The user re-tested the following fixes on the dev twin and reported them as good:
+
+- **U1-9, U1-11, U1-13, U1-14, U1-15, U1-16, U1-18, U1-19 and U1-20.**
+- **C3-14, C3-15 and C4-8.**
+
+U1-18 is now treated as fixed: the previously observed empty first load did not recur in the re-test.
 
 ## Dev-twin re-test (2026-09-27)
 

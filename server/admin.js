@@ -52,44 +52,35 @@ function authenticateAdmin(req, res, next) {
   });
 }
 
-// Private helper mirroring server.js's proxyRequest GET path: fetches a CodexFit
-// resource on behalf of a user using their stored JWT, auto-relogin on 401.
-// Dev user (dev@psycle.com) is routed through the mock module instead.
-async function gymGet(userId, pathName) {
-  const user = db.getUserById(userId);
+// Call a normalized provider method with the viewed user's selected-gym
+// session. Admin requests do not carry the account owner's gym context.
+async function gymProviderCall(userId, gymId, method, ...args) {
+  const user = db.runWithGymContext(userId, gymId, () => db.getUserById(userId));
   if (!user || !user.jwt) throw new Error('User has no active gym session.');
-  if (user.email === 'dev@psycle.com') {
-    const { handleMockRequest } = require('./mock');
-    return handleMockRequest(pathName, 'GET', null);
-  }
-  const gymId = db.resolveActiveGymId(userId);
   const provider = getProvider(gymId);
-  const run = (token) => provider.request(pathName, { token, method: 'GET' });
-  let res = await run(user.jwt);
-  if (res.status === 401) {
+  const run = (token) => provider[method](...args, { accessToken: token });
+  try {
+    return await run(user.jwt);
+  } catch (err) {
+    if (err.status !== 401) throw err;
     const newJwt = await triggerAutoRelogin(userId, gymId);
-    res = await run(newJwt);
+    return run(newJwt);
   }
-  return res;
 }
 
-// Booking normalizer — replicates poller.js ~line 302. Produces snake_case keys
-// matching the booking_cache columns so the admin UI shape is unchanged whether
-// bookings come from the live API or the cache fallback.
-function normalizeBooking(b) {
+function adminBookingFromNormalized(b) {
   const event = b.event || {};
-  const startAt = event.start_at || b.start_at;
-  if (!startAt) return null;
+  if (!event.startAt) return null;
   return {
-    booking_id: b.id,
-    event_id: event.id || b.event_id || null,
-    start_at: startAt,
-    class_name: event.event_type?.name || event.name || 'Class',
-    group_name: event.event_type?.group?.name || '',
-    instructor_name: event.instructor?.full_name || event.instructor?.name || '',
-    studio_name: event.studio?.name || '',
-    location_name: event.studio?.location?.name || '',
-    slot_label: b.studio_slot?.label ?? b.slot ?? b.studio_slot_id ?? b.slot_id ?? '',
+    booking_id: b.bookingId,
+    event_id: b.eventId || event.id || null,
+    start_at: event.startAt,
+    class_name: event.name || 'Class',
+    group_name: event.discipline || '',
+    instructor_name: event.instructors?.[0]?.name || '',
+    studio_name: event.studioName || '',
+    location_name: event.locationName || '',
+    slot_label: b.slotId ?? '',
   };
 }
 
@@ -143,62 +134,53 @@ router.get('/users/:id', authenticateAdmin, async (req, res) => {
     const profile = detail.profile || {};
     const stats = profile.stats || {};
 
-    // Block A — live bookings: fetch from CodexFit using the viewed user's stored
-    // credentials, falling back to the booking_cache rows (snake_case already)
-    // if the live fetch fails or returns empty. Warms the reminder cache on success.
+    const gymId = db.resolveActiveGymId(userId);
+
+    // Block A — live bookings through the selected gym's normalized provider,
+    // falling back to booking_cache if the live fetch fails or returns empty.
     let bookings = detail.bookings;
     try {
-      const liveRes = await gymGet(userId, '/bookings?limit=100&page=1');
-      if (liveRes.ok) {
-        const payload = await liveRes.json();
-        const list = payload.data || payload || [];
-        const normalized = (Array.isArray(list) ? list : []).map(normalizeBooking).filter(Boolean);
-        if (normalized.length > 0) {
-          bookings = normalized;
-          // Warm the reminder cache (camelCase shape expected by replaceBookingCache).
-          try {
-            // Scoped to the gym these bookings were actually read from, so
-            // warming one gym's cache can't clear or mis-file another's.
-            const warmGymId = db.resolveActiveGymId(userId);
-            db.replaceBookingCache(userId, normalized.map(b => ({
-              bookingId: b.booking_id, eventId: b.event_id, startAt: b.start_at,
-              className: b.class_name, groupName: b.group_name, instructorName: b.instructor_name,
-              studioName: b.studio_name, locationName: b.location_name, slotLabel: b.slot_label,
-              gymId: warmGymId,
-            })), [warmGymId]);
-          } catch (_) {}
-        }
+      const list = await gymProviderCall(userId, gymId, 'listBookings');
+      const normalized = (Array.isArray(list) ? list : []).map(adminBookingFromNormalized).filter(Boolean);
+      if (normalized.length > 0) {
+        bookings = normalized;
+        // Warm the reminder cache (camelCase shape expected by replaceBookingCache).
+        try {
+          db.replaceBookingCache(userId, normalized.map(b => ({
+            bookingId: b.booking_id, eventId: b.event_id, startAt: b.start_at,
+            className: b.class_name, groupName: b.group_name, instructorName: b.instructor_name,
+            studioName: b.studio_name, locationName: b.location_name, slotLabel: b.slot_label,
+            gymId,
+          })), [gymId]);
+        } catch (_) {}
       }
     } catch (err) {
       console.warn('[Admin] Live bookings fetch failed for user', userId, err.message);
     }
 
-    // Block B — studio names: build a studio_id → name map. DB-derived fallback
-    // first (from auto_bookings/auto_upgrades rows), then overlay a CodexFit
-    // /studios fetch (cached for 7 days in server_kv). Fetched names win.
+    // Block B — provider-normalized studio metadata. Cache by gym because
+    // provider studio ids are only unique within a gym.
     let studioNames = {};
     try {
-      studioNames = db.getStudioNameMap(); // DB-derived fallback
+      studioNames = db.getStudioNameMap(gymId); // DB-derived fallback
     } catch (_) {}
     try {
-      const cachedAt = db.getKV('studio_name_map_at');
+      const cacheSuffix = `:${gymId}`;
+      const cachedAt = db.getKV(`studio_name_map_at${cacheSuffix}`);
       const fresh = cachedAt && (Date.now() - new Date(cachedAt).getTime()) < 7 * 864e5;
       let fetchedMap = null;
       if (fresh) {
-        const raw = db.getKV('studio_name_map');
+        const raw = db.getKV(`studio_name_map${cacheSuffix}`);
         if (raw) { try { fetchedMap = JSON.parse(raw); } catch (_) {} }
       } else {
-        const studiosRes = await gymGet(userId, '/studios');
-        if (studiosRes.ok) {
-          const payload = await studiosRes.json();
-          const arr = payload.data || payload || [];
-          if (Array.isArray(arr)) {
-            fetchedMap = {};
-            for (const s of arr) if (s && s.id != null && s.name) fetchedMap[String(s.id)] = s.name;
-            db.setKV('studio_name_map', JSON.stringify(fetchedMap));
-            db.setKV('studio_name_map_at', new Date().toISOString());
-          }
+        const metadata = await gymProviderCall(userId, gymId, 'fetchMetadata', {});
+        const studios = metadata?.studios || [];
+        fetchedMap = {};
+        for (const studio of studios) {
+          if (studio && studio.id != null && studio.name) fetchedMap[String(studio.id)] = studio.name;
         }
+        db.setKV(`studio_name_map${cacheSuffix}`, JSON.stringify(fetchedMap));
+        db.setKV(`studio_name_map_at${cacheSuffix}`, new Date().toISOString());
       }
       if (fetchedMap) studioNames = { ...studioNames, ...fetchedMap }; // fetched wins
     } catch (err) {

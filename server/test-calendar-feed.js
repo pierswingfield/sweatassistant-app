@@ -87,6 +87,26 @@ function cleanup() {
     assert.ok(entry.raw, 'raw booking preserved for downstream field reads (e.g. slotLabel)');
     console.log('✅ calendar.listWithRelogin(\'listBookings\') routes through the adapter and returns the seeded booking.');
 
+    // Normalized providers expose the seat as slotId; generic calendar code
+    // must not depend on CodexFit's raw `.slot` field.
+    const jabGymId = 'jab-boxing';
+    db.db.prepare('UPDATE gyms SET enabled = 1 WHERE id = ?').run(jabGymId);
+    db.linkGym(userId, jabGymId, { encryptedPassword: encrypt('dev-password') });
+    db.setGymSession(userId, jabGymId, { accessToken: 'jab-mock-token', expiresAt: '2099-01-01T00:00:00Z' });
+    const jabProvider = getProvider(jabGymId);
+    const originalJabList = jabProvider.listBookings;
+    const originalJabDetails = jabProvider.fetchEventDetails;
+    jabProvider.listBookings = async () => [{ bookingId: 'mt-1', eventId: 'mt-event-1', slotId: 'spot-24', isWaitlist: false }];
+    jabProvider.fetchEventDetails = async () => ({ event: { startAt: '2099-01-02T12:00:00Z', name: 'Boxing', studioName: 'JAB Studio' } });
+    try {
+      const jabBookings = await calendar.fetchUserBookings(userId, jabGymId);
+      assert.strictEqual(jabBookings[0]?.slotLabel, 'spot-24', 'calendar slot label comes from normalized slotId');
+    } finally {
+      jabProvider.listBookings = originalJabList;
+      jabProvider.fetchEventDetails = originalJabDetails;
+    }
+    console.log('✅ Calendar uses normalized slotId for a MarianaTek-shaped booking.');
+
     // --- 2. 401 → relogin → retry ladder ---------------------------------------
     // calendar.js destructures `const { triggerAutoRelogin } = require('./auth')`
     // at load time (same pattern scheduler.js/poller.js use), so patching

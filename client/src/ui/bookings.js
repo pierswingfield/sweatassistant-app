@@ -9,6 +9,7 @@ import { invalidateApiCache } from '../cache';
 import { renderCardSkeletons } from './loading-skeleton.js';
 import { instructorAvatar } from './tooltips.js';
 import { metadata, loadMetadata, getStudioMapInfo, pickStudioPrefs } from './timetable';
+import { findActiveUpgradeForBooking } from './gym-isolation.js';
 
 // Class starts within the free-cancel cutoff (12h). Edit is hidden inside this
 // window; Cancel stays available but warns about the penalty.
@@ -219,10 +220,7 @@ function buildBookingCard(group, upgrades) {
     const slotLabel = b.raw?.spot?.name ?? b.studio_slot?.label ?? b.slot ?? b.studio_slot_id ?? b.slot_id ?? slotId ?? '?';
 
     // Find active upgrade for this specific booking
-    const activeUpgrade = upgrades.find(u =>
-      Number(u.booking_id) === Number(bookingIdOf(b)) &&
-      ['active', 'paused_no_credits'].includes(u.status)
-    );
+    const activeUpgrade = findActiveUpgradeForBooking(upgrades, bookingIdOf(b), event.gymId || b.gymId);
 
     let chipClass = 'ab-spot-upgrade-chip';
     let iconHtml = '';
@@ -362,7 +360,7 @@ function wireCancelBooking(btn, card, group, within12h) {
       showToast('Cancelling booking...', 'info');
       for (const b of group.bookings) {
         await api.cancel(bookingIdOf(b), b.gymId || group.event?.gymId);
-        const up = (cache.upgrades || []).find(u => String(u.booking_id) === String(bookingIdOf(b)) && ['active', 'paused_no_credits'].includes(u.status));
+        const up = findActiveUpgradeForBooking(cache.upgrades, bookingIdOf(b), b.gymId || group.event?.gymId);
         if (up) { try { await api.deleteAutoUpgrade(up.id); } catch (_) {} }
       }
       await invalidateApiCache('/api/bookings');
@@ -608,7 +606,7 @@ export async function openEditBookingModal(group, onChange = renderBookings) {
           for (const slotId of toRemove) {
             const bookingId = slotToBooking.get(slotId);
             if (bookingId) await api.cancel(bookingId, gymId);
-            const up = (cache.upgrades || []).find(u => String(u.booking_id) === String(bookingId) && ['active', 'paused_no_credits'].includes(u.status));
+            const up = findActiveUpgradeForBooking(cache.upgrades, bookingId, gymId);
             if (up) { try { await api.deleteAutoUpgrade(up.id); } catch (_) {} }
           }
           // 2. Book added spots.

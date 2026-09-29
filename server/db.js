@@ -1691,15 +1691,18 @@ module.exports = {
   // Build a { studio_id: studio_name } map purely from DB rows (no API call).
   // Scans auto_bookings + auto_upgrades for rows that have both a studio_id and
   // a non-empty studio_name. Used as a fallback for the admin detail view's
-  // studioNames field when the live CodexFit /studios fetch can't be performed.
-  getStudioNameMap() {
+  // studioNames field when live provider metadata cannot be fetched. Studio ids
+  // are only unique within a gym, so callers should pass their selected gym.
+  getStudioNameMap(gymId) {
+    const gymFilter = gymId ? ' AND gym_id = ?' : '';
+    const params = gymId ? [gymId] : [];
     const rows = db.prepare(`
       SELECT studio_id, MAX(studio_name) AS studio_name FROM (
-        SELECT studio_id, studio_name FROM auto_bookings WHERE studio_id IS NOT NULL AND studio_name IS NOT NULL AND studio_name != ''
+        SELECT studio_id, studio_name FROM auto_bookings WHERE studio_id IS NOT NULL AND studio_name IS NOT NULL AND studio_name != ''${gymFilter}
         UNION ALL
-        SELECT studio_id, studio_name FROM auto_upgrades WHERE studio_id IS NOT NULL AND studio_name IS NOT NULL AND studio_name != ''
+        SELECT studio_id, studio_name FROM auto_upgrades WHERE studio_id IS NOT NULL AND studio_name IS NOT NULL AND studio_name != ''${gymFilter}
       ) GROUP BY studio_id
-    `).all();
+    `).all(...params, ...params);
     const map = {};
     for (const row of rows) {
       if (row.studio_id != null && row.studio_name) map[String(row.studio_id)] = row.studio_name;

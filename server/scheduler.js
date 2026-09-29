@@ -206,22 +206,6 @@ function getGymZone(gymId) {
   return (gym && gym.timezone) || 'Europe/London';
 }
 
-// Fetch public (no-auth) CodexFit endpoints (events, locations, studios, instructors).
-// These are documented as public — no Bearer token required.
-// Unauthenticated read (e.g. /events/:id, which most providers serve without a
-// token). `gymId` is explicit for the same reason as fetchFromGym: background
-// callers pass the row's gym, not the user's active one.
-async function fetchPublicFromGym(userId, gymId, path) {
-  const user = userId ? db.getUserById(userId) : null;
-  const isMock = (user && user.email === 'dev@psycle.com') || /\/events\/\d{4}(\b|$)/.test(path) || path.includes('/locations') || path.includes('/studios');
-  if (isMock) {
-    const mock = require('./mock');
-    return mock.handleMockRequest(path, 'GET', null);
-  }
-
-  return getProvider(gymId).publicRequest(path, { method: 'GET' });
-}
-
 // Perform a request to CodexFit API with automatic re-login on 401
 // `gymId` is explicit: background callers pass the row's own gym. `path` is a
 // PATH, not a URL — the provider prepends its gym's base, which is the whole
@@ -269,10 +253,11 @@ async function fetchFromGym(userId, gymId, path, options = {}) {
 // Results are stored in the shared event cache (TTL 30s) so executeAutoBookForClass
 // reads from cache instead of re-fetching, collapsing 2×N fetches → N unique events.
 async function prefetchAutoBookSlots(bookings, windowMs = 18000) {
-  // Deduplicate: pick one representative booking per event_id for the fetch.
+  // Provider ids are only unique within a gym, matching the event cache key.
   const eventMap = new Map();
   for (const b of bookings) {
-    if (!eventMap.has(b.event_id)) eventMap.set(b.event_id, b);
+    const key = eventCacheKey(b.gym_id, b.event_id);
+    if (!eventMap.has(key)) eventMap.set(key, b);
   }
   const uniqueEvents = [...eventMap.values()];
   console.log(`[Scheduler] Prefetch: ${bookings.length} booking(s) across ${uniqueEvents.length} unique event(s), staggered over ${windowMs / 1000}s.`);
@@ -283,7 +268,7 @@ async function prefetchAutoBookSlots(bookings, windowMs = 18000) {
     try {
       // Notify all users targeting this event
       for (const b of bookings) {
-        if (b.event_id === booking.event_id) {
+        if (b.gym_id === booking.gym_id && b.event_id === booking.event_id) {
           emitStatusUpdate(b.user_id, {
             eventId: booking.event_id,
             status: 'prefetching',
@@ -291,14 +276,10 @@ async function prefetchAutoBookSlots(bookings, windowMs = 18000) {
           });
         }
       }
-      // /events/:id is a public CodexFit endpoint — no Bearer token needed
-      const url = `/events/${booking.event_id}`;
-      const res = await fetchPublicFromGym(booking.user_id, booking.gym_id, url);
-      if (res.ok) {
-        const payload = await res.json();
-        const eventData = payload.data || payload;
-        const available = payload.slots || eventData.slots || [];
-        setCachedEvent(booking.gym_id, booking.event_id, payload, 30000);
+      const details = await getProvider(booking.gym_id).fetchEventDetails(booking.event_id);
+      if (details) {
+        setCachedEvent(booking.gym_id, booking.event_id, details, 30000);
+        const available = (details.slots || []).filter((slot) => slot.isAvailable);
         console.log(`[Scheduler] Prefetched event ${booking.event_id}: ${available.length} available slot(s) (cached 30s).`);
       }
     } catch (err) {
@@ -382,29 +363,22 @@ async function executeAutoBookForClass(booking) {
 
   try {
     // 1. Get live slot availability — use shared cache if prefetch populated it
-    let payload = getCachedEvent(gymId, eventId);
-    if (payload) {
+    let details = getCachedEvent(gymId, eventId);
+    if (details) {
       console.log(`[Scheduler] Cache hit for event ${eventId} (user ${userId}).`);
     } else {
-      // /events/:id is a public CodexFit endpoint — no Bearer token needed
-      const url = `/events/${eventId}`;
-      const res = await fetchPublicFromGym(userId, gymId, url);
-      if (!res.ok) {
-        throw new Error(`Failed to load event data. Status: ${res.status}`);
-      }
-      payload = await res.json();
-      setCachedEvent(gymId, eventId, payload, 30000);
+      details = await getProvider(gymId).fetchEventDetails(eventId);
+      if (!details) throw new Error('Failed to load event data.');
+      setCachedEvent(gymId, eventId, details, 30000);
     }
 
-    const eventData = payload.data || payload;
-    const studio = payload.relations?.studios?.[0] || eventData.relations?.studios?.[0] || eventData.studio;
-    const layoutSlots = studio?.layout?.slots || [];
-    const liveAvailable = (payload.slots || eventData.slots || []).map(id => Number(id));
+    const layoutSlots = details.slots || [];
+    const liveAvailable = layoutSlots.filter((slot) => slot.isAvailable).map((slot) => String(slot.id));
 
     console.log(`[Scheduler] Live available slots for event ${eventId}:`, liveAvailable);
 
     // 2. Filter preferred slots by availability
-    const primarySlots = preferredSlots.map(Number).filter(id => liveAvailable.includes(id));
+    const primarySlots = preferredSlots.map(String).filter(id => liveAvailable.includes(id));
 
     // 3. Filter preferred rows by availability
     const rowSlots = [];
@@ -412,7 +386,7 @@ async function executeAutoBookForClass(booking) {
       preferredRows.forEach(ry => {
         // Round coordinate coordinates to match extension rendering
         const slotsInRow = layoutSlots.filter(s => Math.round(s.y * 10) / 10 === Number(ry));
-        const rowSlotIds = slotsInRow.map(s => Number(s.id));
+        const rowSlotIds = slotsInRow.map(s => String(s.id));
         rowSlotIds.forEach(id => {
           if (liveAvailable.includes(id) && !primarySlots.includes(id) && !rowSlots.includes(id)) {
             rowSlots.push(id);
@@ -548,7 +522,7 @@ async function executeAutoBookForClass(booking) {
 
       // Notify the user (Spot Booked) — map slot IDs to labels where possible
       const bookedLabels = bookedSlots.map(id => {
-        const s = layoutSlots.find(ls => Number(ls.id) === Number(id));
+        const s = layoutSlots.find(ls => String(ls.id) === String(id));
         return s?.label ?? id;
       });
       notifications.notify(userId, 'booking', {
@@ -965,6 +939,7 @@ module.exports = {
   registerSSEClient,
   unregisterSSEClient,
   emitStatusUpdate,
+  prefetchAutoBookSlots,
   getCachedEvent,
   setCachedEvent,
   // C2-3: rate-limit distress abort. Exported for test-rate-limit-abort.js.

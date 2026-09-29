@@ -1,5 +1,6 @@
 import { api } from '../api';
 import { getAvailableCreditsForEvent, hasUsableCredit, getIneligibleReason, isMetered } from './credit-allowance.js';
+import { isCreditInventoryLoaded, pickStudioPrefs as pickGymStudioPrefs } from './gym-isolation.js';
 import { canForGym, capabilityForGym, getLinkedGyms, getGymShortName } from '../gym-context.js';
 import { showToast, currentUser, userSettings, gymSetting, profileForGym, refreshUserData, updateCreditBadge, cache, debugConsole } from '../main';
 import { getClassReleaseTime, isInGracePeriod, GRACE_PERIOD_MS, startGraceCountdown } from '../lib';
@@ -1413,9 +1414,7 @@ export function getStudioMapInfo(event) {
   const studio = event.studio || gymScopedGet(studioObjMap, event.studioId, event.gymId)
     || metadata.studios.find(s => sameId(s.id, event.studioId) && (!event.gymId || s.gymId === event.gymId));
   const hasMap = resolveHasMap(studio);
-  const prefs = (studioPrefsMap && (
-    (event.gymId && studioPrefsMap[`${event.gymId}:${event.studioId}`]) || studioPrefsMap[event.studioId]
-  )) || {};
+  const prefs = pickStudioPrefs(studioPrefsMap, event.studioId, event.gymId);
   const hasPrefs = (prefs.preferredSlots?.length > 0) || (prefs.preferredRows?.length > 0);
   return { hasMap, hasPrefs };
 }
@@ -1600,16 +1599,16 @@ function buildActionModel(event, ctx) {
  * before that was true.
  */
 export function pickStudioPrefs(allPrefs, studioId, gymId) {
-  if (!allPrefs || studioId == null) return {};
-  const prefKey = gymId ? `${gymId}:${studioId}` : studioId;
-  return allPrefs[prefKey] || allPrefs[studioId] || {};
+  const allowLegacyFallback = !gymId || getLinkedGyms().length === 1;
+  return pickGymStudioPrefs(allPrefs, studioId, gymId, allowLegacyFallback);
 }
 
 async function resolveStudioPrefs(event) {
   const studioId = event.studioId;
   const prefKey = event.gymId ? `${event.gymId}:${studioId}` : studioId;
   let all = cache.studioPreferences;
-  if (!all || !(prefKey in all || studioId in all)) {
+  const allowLegacyFallback = !event.gymId || getLinkedGyms().length === 1;
+  if (!all || !(prefKey in all || (allowLegacyFallback && studioId in all))) {
     all = await api.getStudioPreferences();
     cache.studioPreferences = all;
   }
@@ -3038,7 +3037,7 @@ async function openBookingModal(c, mode, opts = {}) {
 
       updateSimpleBookControls = () => {
         const slotsSelected = state.selectedSlots.length || 0;
-        const isDataLoaded = cache.profile && cache.profile.available_credits;
+        const isDataLoaded = isCreditInventoryLoaded(cache, c.gymId, isMetered(c.gymId));
         const hasEnoughCredits = slotsSelected === 0 || availableCredits >= slotsSelected;
         const needsMoreCredits = slotsSelected > availableCredits ? slotsSelected - availableCredits : 0;
         const creditWarning = needsMoreCredits > 0 && isDataLoaded

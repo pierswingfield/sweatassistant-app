@@ -9,6 +9,19 @@ window.matchMedia = window.matchMedia || (() => ({
   matches: false, addListener() {}, removeListener() {}, addEventListener() {}, removeEventListener() {},
 }));
 
+// Node >= 22 ships its own `localStorage` global, which is undefined unless
+// --localstorage-file is given and shadows jsdom's. api.js -> main.js reads it
+// at import time (applyTheme -> getTheme), so give it a minimal in-memory one.
+if (typeof localStorage === 'undefined' || localStorage === null) {
+  const store = new Map();
+  vi.stubGlobal('localStorage', {
+    getItem: (k) => (store.has(k) ? store.get(k) : null),
+    setItem: (k, v) => { store.set(k, String(v)); },
+    removeItem: (k) => { store.delete(k); },
+    clear: () => store.clear(),
+  });
+}
+
 let api;
 beforeAll(async () => { ({ api } = await import('./api.js')); });
 

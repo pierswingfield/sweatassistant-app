@@ -65,6 +65,20 @@ const GYMS = {
     // GET paths that CodexFit serves without a Bearer token.
     publicPathPattern: /^\/(events|locations|studios|instructors|event-types|event-type-groups|bundles)(\/|$|\?)/,
     theme: { key: 'violet', primary: '#7c3aed' },
+    // Presentation contract (F-7 Stage A). Display only; validated at load.
+    presentation: {
+      shortName: 'Psycle',
+      wordmark: {
+        text: 'PSYCLE',
+        full: { src: '/gyms/psycle-london.avif' },
+        compact: { src: '/gyms/psycle-london-half.avif' },
+        mark: { src: '/gyms/psycle-london-small.avif' },
+      },
+      plate: '#212121',
+      light: { ink: '#7c3aed', inkHover: '#6d28d9', tint: '#7c3aed', on: '#ffffff' },
+      dark: { ink: '#a78bfa', inkHover: '#c4b5fd', tint: '#8b5cf6', on: '#1a1033' },
+      displayAliases: {},
+    },
     labels: { class: 'class', spot: 'spot' },
     // Booking-window POLICY (WP-D8). These are Psycle's rules, not CodexFit's —
     // another gym on the same platform could release Sundays at 09:00 with a
@@ -174,6 +188,22 @@ const GYMS = {
       'user-agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/149.0.0.0 Safari/537.36',
     },
     theme: { key: 'navy', primary: '#18214D', font: 'Gothic A1' },
+    // Presentation contract (F-7 Stage A). Display only; validated at load.
+    presentation: {
+      shortName: 'JAB',
+      wordmark: {
+        text: 'JAB',
+        full: { src: '/gyms/jab-boxing.svg' },
+        compact: { src: '/gyms/jab-boxing.svg' },
+        mark: { src: '/gyms/jab-boxing-mark.svg?v=3' },
+      },
+      plate: '#6C1F20',
+      light: { ink: '#18214d', inkHover: '#10173a', tint: '#18214d', on: '#ffffff' },
+      dark: { ink: '#818cf8', inkHover: '#a5b4fc', tint: '#5d71c9', on: '#0b1030' },
+      // Scoped, exact-match (lower-cased raw name) display aliases. Raw provider
+      // names are never rewritten for lookups.
+      displayAliases: { studios: { 'recovery 2.0': 'Recovery' } },
+    },
     labels: { class: 'class', spot: 'spot' },
     // MarianaTek publishes a per-class release instant (`booking_start_datetime`),
     // already resolved server-side for the viewing account — MT supports both
@@ -218,6 +248,88 @@ const GYMS = {
   },
 };
 
+const HEX = /^#[0-9a-fA-F]{6}$/;
+const ALIAS_SCOPES = ['studios', 'locations', 'instructors', 'classTypes'];
+const COLOUR_KEYS = ['ink', 'inkHover', 'tint', 'on'];
+
+/**
+ * Validate a gym's presentation contract. Throws on anything malformed so a bad
+ * entry fails at boot, not as an invisible logo in the browser.
+ * @returns {Object} the same presentation object
+ */
+function validatePresentation(p, gymId = '?') {
+  const bad = (m) => { throw new Error(`gym ${gymId}: presentation ${m}`); };
+  const str = (v) => typeof v === 'string' && v.trim() !== '';
+  if (!p || typeof p !== 'object') bad('is required');
+  if (!str(p.shortName)) bad('.shortName must be a non-empty string');
+  const w = p.wordmark;
+  if (!w || typeof w !== 'object') bad('.wordmark is required');
+  if (!str(w.text)) bad('.wordmark.text (text fallback) must be a non-empty string');
+  for (const k of ['full', 'compact', 'mark']) {
+    if (w[k] == null) continue;
+    if (!w[k] || !str(w[k].src) || !/^\/gyms\/[\w.\-]+(\?[\w=&.\-]*)?$/.test(w[k].src)) {
+      bad(`.wordmark.${k}.src must be a /gyms/ asset path`);
+    }
+  }
+  if (!HEX.test(p.plate || '')) bad('.plate must be a #rrggbb colour');
+  for (const mode of ['light', 'dark']) {
+    if (!p[mode] || typeof p[mode] !== 'object') bad(`.${mode} is required`);
+    for (const k of COLOUR_KEYS) {
+      if (!HEX.test(p[mode][k] || '')) bad(`.${mode}.${k} must be a #rrggbb colour`);
+    }
+  }
+  const a = p.displayAliases;
+  if (!a || typeof a !== 'object' || Array.isArray(a)) bad('.displayAliases must be an object');
+  for (const [scope, map] of Object.entries(a)) {
+    if (!ALIAS_SCOPES.includes(scope)) bad(`.displayAliases has unknown scope "${scope}"`);
+    if (!map || typeof map !== 'object' || Array.isArray(map)) bad(`.displayAliases.${scope} must be an object`);
+    for (const [raw, shown] of Object.entries(map)) {
+      if (raw !== raw.trim().toLowerCase() || !raw) bad(`.displayAliases.${scope} key "${raw}" must be trimmed lower-case`);
+      if (!str(shown)) bad(`.displayAliases.${scope}["${raw}"] must be a non-empty string`);
+    }
+  }
+  return p;
+}
+
+for (const g of Object.values(GYMS)) validatePresentation(g.presentation, g.id);
+
+// --- Editable presentation (F-7 Stage B) -------------------------------------
+// Only the presentation contract is editable at runtime; protocol, tenant URLs,
+// headers and booking policy stay authoritative in this file. The registry's
+// own values are kept as a baseline so an admin override can be reset.
+const PRESENTATION_KEYS = ['shortName', 'wordmark', 'plate', 'light', 'dark', 'displayAliases'];
+const BASELINE_PRESENTATION = {};
+for (const g of Object.values(GYMS)) BASELINE_PRESENTATION[g.id] = JSON.parse(JSON.stringify(g.presentation));
+
+/** Whitelist to the contract's keys, then validate. Throws on any problem. */
+function sanitizePresentation(input, gymId) {
+  if (!input || typeof input !== 'object' || Array.isArray(input)) {
+    throw new Error(`gym ${gymId}: presentation is required`);
+  }
+  const clean = {};
+  for (const k of PRESENTATION_KEYS) if (input[k] !== undefined) clean[k] = JSON.parse(JSON.stringify(input[k]));
+  return validatePresentation(clean, gymId);
+}
+
+/** Validate and apply an override to the live registry. Unknown gym throws. */
+function setPresentation(gymId, input) {
+  if (!GYMS[gymId]) throw new Error(`Unknown gym id: "${gymId}"`);
+  GYMS[gymId].presentation = sanitizePresentation(input, gymId);
+  return GYMS[gymId].presentation;
+}
+
+/** Restore the registry's own presentation for a gym. */
+function resetPresentation(gymId) {
+  if (!GYMS[gymId]) throw new Error(`Unknown gym id: "${gymId}"`);
+  GYMS[gymId].presentation = JSON.parse(JSON.stringify(BASELINE_PRESENTATION[gymId]));
+  return GYMS[gymId].presentation;
+}
+
+/** @returns {Object|null} the registry's own (non-overridden) presentation. */
+function getBaselinePresentation(gymId) {
+  return BASELINE_PRESENTATION[gymId] ? JSON.parse(JSON.stringify(BASELINE_PRESENTATION[gymId])) : null;
+}
+
 /** @returns {Object|null} gym config or null if unknown. */
 function getGymConfig(gymId) {
   return GYMS[gymId] || null;
@@ -236,4 +348,4 @@ function listEnabledGyms() {
 /** The default gym existing single-tenant users are backfilled to. */
 const DEFAULT_GYM_ID = 'psycle-london';
 
-module.exports = { GYMS, getGymConfig, listGyms, listEnabledGyms, DEFAULT_GYM_ID };
+module.exports = { GYMS, validatePresentation, sanitizePresentation, setPresentation, resetPresentation, getBaselinePresentation, getGymConfig, listGyms, listEnabledGyms, DEFAULT_GYM_ID };

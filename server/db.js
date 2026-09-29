@@ -449,7 +449,26 @@ function backfillGymEmails() {
   `).run(DEFAULT_GYM_ID);
 }
 
+// F-7 Stage B: admin-edited presentation overrides live in server_kv as one JSON
+// map { gymId: presentation }. Re-validated on every boot; a bad or stale entry
+// is skipped (registry value stays) rather than blocking startup.
+const PRESENTATION_KV = 'gym_presentation_overrides';
+function readPresentationOverrides() {
+  const row = db.prepare('SELECT value FROM server_kv WHERE key = ?').get(PRESENTATION_KV);
+  try { const v = row ? JSON.parse(row.value) : {}; return v && typeof v === 'object' ? v : {}; } catch { return {}; }
+}
+function writePresentationOverrides(map) {
+  db.prepare('INSERT OR REPLACE INTO server_kv (key, value) VALUES (?, ?)').run(PRESENTATION_KV, JSON.stringify(map));
+}
+function applyPresentationOverrides() {
+  const { setPresentation } = require('./gyms.config');
+  for (const [gymId, p] of Object.entries(readPresentationOverrides())) {
+    try { setPresentation(gymId, p); } catch (e) { console.warn(`[gyms] ignoring stored presentation for ${gymId}: ${e.message}`); }
+  }
+}
+
 syncGymsFromConfig();
+applyPresentationOverrides();
 backfillUserGyms();
 backfillGymEmails();
 
@@ -1024,6 +1043,10 @@ module.exports = {
   db,
   migrateAutoUpgradeSettingsScope,
   migrateCalendarSettingsToAccountScope,
+
+  readPresentationOverrides,
+  writePresentationOverrides,
+  applyPresentationOverrides,
 
   // Key-value store
   getKV(key) {

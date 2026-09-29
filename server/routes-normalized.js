@@ -205,6 +205,7 @@ router.get('/gyms', (req, res) => {
     provider: g.provider, enabled: g.enabled,
     theme: g.theme, labels: g.labels, capabilities: g.capabilities,
     locationAliases: g.locationAliases || {},
+    presentation: g.presentation,
     // Per-gym notification DEFAULTS, so the settings UI can show the state a
     // member actually gets before they override anything.
     notifications: g.notifications || {},

@@ -3509,11 +3509,11 @@ async function saveAutoBookPreferences(c, slots, rows, qty, bookAny, callback, s
 
   // Strip event type prefix from class name (e.g., "RIDE: Signature 45" → "Signature 45")
   const groupName = c.discipline || classType?.group || classType.name || 'Class';
-  const typePrefix = groupName.toUpperCase() + ': ';
-  const fullClassName = c.name || c.name || classType.name;
-  const strippedClassName = fullClassName.toUpperCase().startsWith(typePrefix)
-    ? fullClassName.substring(typePrefix.length)
-    : fullClassName;
+  // U1-19b: this used its own "TYPE: " prefix test, which never matched JAB's
+  // "TRAIN - Lower (Focus)" (so the toast and the queued row's class_name kept
+  // the prefix). Use the one shared rule.
+  const fullClassName = c.name || classType.name;
+  const strippedClassName = cleanClassName(fullClassName, groupName) || fullClassName;
 
   try {
     showToast('Scheduling auto-booking...', 'info');
@@ -3611,7 +3611,8 @@ export async function openDebugModal(event) {
   const title = document.getElementById('psycle-debug-modal-title');
   if (!modal || !body || !title) return;
 
-  title.textContent = `Debug: ${event.name || event.name || 'Class'} — ${event.startAt || ''}`;
+  // Debug modal: deliberately the RAW provider name (it exists to show what the API sent).
+  title.textContent = `Debug: ${event.name || 'Class'} — ${event.startAt || ''}`;
   body.innerHTML = `
     <div class="psycle-loading-spinner-container" style="padding: 40px 0;">
       <div class="psycle-spinner"></div>

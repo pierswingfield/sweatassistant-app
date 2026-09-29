@@ -35,6 +35,11 @@ async function send(type, ctx) {
   return captured.body;
 }
 
+check('U1-19b: JAB whole-name discipline reads as its head, never "TRAIN - LOWER (FOCUS)"', async () => {
+  const body = await send('booking', { gymId: 'jab-boxing', source: 'quickbook', className: 'TRAIN - Lower (Focus)', groupName: 'TRAIN - Lower (Focus)', instructorName: 'George Hill', startAt, slots: [] });
+  assert.ok(/ TRAIN with George/.test(body) && !/LOWER \(FOCUS\)/i.test(body), body);
+});
+
 check('Psycle payload (normalized shape) names class group and instructor', async () => {
   const body = await send('booking', { gymId: 'psycle-london', source: 'quickbook', className: 'Signature 45', groupName: 'RIDE', instructorName: 'Aanya Smith', startAt, slots: ['5'] });
   assert.ok(/RIDE with Aanya - Spot 5\.$/.test(body), body);

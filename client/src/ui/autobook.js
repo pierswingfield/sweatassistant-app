@@ -525,7 +525,7 @@ async function openAutoBookEditModal(q) {
   const currentQty = prefs.requiredCount || 1;
   const currentBookAny = prefs.bookAny ?? false;
 
-  title.textContent = `Edit Auto-Book: ${q.group_name || q.class_name || 'Class'}`;
+  title.textContent = `Edit Auto-Book: ${cleanClassName(q.class_name || '', q.group_name || '') || q.group_name || q.class_name || 'Class'}`;
   body.innerHTML = `
     <div class="psycle-loading-spinner-container" style="padding: 40px 0;">
       <div class="psycle-spinner"></div>

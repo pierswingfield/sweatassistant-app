@@ -1,4 +1,5 @@
 const { DateTime } = require('luxon');
+const { disciplineHead } = require('./class-name');
 const db = require('./db');
 const pushService = require('./push');
 const { getGymConfig, DEFAULT_GYM_ID } = require('./gyms.config');
@@ -75,7 +76,9 @@ function withInstructor(fullName) {
 }
 
 function groupToken(groupName, className) {
-  const g = (groupName || '').trim();
+  // U1-19b: JAB's `discipline` can be the whole class name ("TRAIN - Lower
+  // (Focus)"); a push body names the discipline, so take its head only.
+  const g = disciplineHead(groupName);
   if (g) return g.toUpperCase();
   // Fallback: if the class name leads with an uppercase word, use it; else generic.
   const lead = (className || '').trim().split(/\s+/)[0];

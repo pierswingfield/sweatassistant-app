@@ -18,14 +18,15 @@ Cheap, visible fixes. Run them alongside C3 so they share the same live re-test.
 | U1-8 | **1:1 gym logo chip on each per-gym Settings submenu item.** *2026-09-28, source: user dev-twin testing.* | ✅ Fixed 2026-09-28 | 1 h |
 | U1-9 | **"Last authenticated" always says "Not recorded".** README "Verified done" (QA-07) claims it works. *2026-09-28, source: user dev-twin testing.* | ✅ Fixed 2026-09-28 (write bug) | 1 h |
 | U1-10 | **Icons on Settings menu items** (SVG, not emoji). *2026-09-28, source: user dev-twin testing.* | ✅ Fixed 2026-09-28 | 1 h |
-| U1-11 | **Strip the discipline prefix from class names.** JAB's `TRAIN - Upper (Focus)` should display as `Upper (Focus)`, because the discipline pill already says TRAIN. `cleanClassName` doesn't handle the `DISCIPLINE - Name` pattern. Found by the user 2026-09-29. ✅ **Fixed 2026-09-29** (see below). | `client/src/ui/cards.js cleanClassName` | 30 min |
+| U1-11 | **Strip the discipline prefix from class names.** JAB's `TRAIN - Upper (Focus)` should display as `Upper (Focus)`, because the discipline pill already says TRAIN. `cleanClassName` doesn't handle the `DISCIPLINE - Name` pattern. Found by the user 2026-09-29. ✅ **Fixed 2026-09-29** (see below). **Reopened same day** (user still saw `TRAIN - Lower (Focus)`): six more surfaces fixed, see "U1-11 follow-up". | `client/src/ui/cards.js cleanClassName`, `client/src/class-name.js` | 30 min |
 | U1-12 | **Overlap modal for Book and Quick-Book too**, not only Auto-Book. It must precede any other modal (spot picker, first-time setup). Found by the user 2026-09-29. ✅ **Fixed 2026-09-29** (see below). | U1-6 `overlap-modal.js`; `timetable.js` book/quick-book | 2–3 h |
 | U1-13 | **Auto-Book card shows "Insufficient Credits" despite sufficient credits** (live, the user's configured Psycle auto-book; they can book another open class). Found by the user 2026-09-29. ✅ **Fixed 2026-09-29** (see below). | `client/src/ui/autobook.js`, credit-allowance | 1–2 h |
 | U1-14 | **First-time spot-map setup intro, and allow occupied spots while setting up.** When Quick-Book or Auto-Book hits a studio with a gym-provided seat map but no saved preferred map, open an intro step first: header "First-time setup", subheader "Choose your preferred spots for [Gym] [Studio location] first.", and body "Once set up, <b>Quick-Book</b> and <b>Auto-Book</b> will always book the best possible spot for you." A Next button swaps in the map. In setup mode, occupied spots must be selectable: you're choosing preferences, not a bike for this class. Today it refuses with "⚠ This bike is occupied or unavailable." Found by the user 2026-09-29. ✅ **Fixed 2026-09-29** (see below). | `timetable.js openBookingModal`/`quickBookClass`, `spotmap.js` | 2–3 h |
 | U1-15 | **Timetable shows a class as booked for several seconds after cancelling it in My Bookings.** A booking/cancel mutation must invalidate the timetable's booking-state overlay so returning to the timetable reflects it immediately. Found by the user 2026-09-29. ✅ **Fixed 2026-09-29** (see below). | `timetable.js` booking overlay/cache; `bookings.js` cancel | 1–2 h |
 | U1-16 | **Psycle push notifications read "CLASS with your instructor - Spot …".** The class name and instructor are missing for Psycle; JAB is fine. Probably a regression from C3-19 (the booking-success payload now carries gymId) or from the normalized field names. Found by the user 2026-09-29. ✅ **Fixed 2026-09-29** (see below). | `server/notifications.js`; `client/src/api.js notifyBookingSuccess` callers | 1 h |
-| U1-17 | **Calendar event titles don't strip the discipline prefix.** `server/calendar.js` has its own class-name cleaner, separate from the client's `cleanClassName` (U1-11), so JAB titles may read `JAB: TRAIN - Upper (Focus)…`. Share one rule between client and server (one lookup per fact). Noticed by the U1-11 agent on 2026-09-29; not yet verified. | `server/calendar.js` name cleaner | 1 h |
+| U1-17 | **Calendar event titles don't strip the discipline prefix.** `server/calendar.js` has its own class-name cleaner, separate from the client's `cleanClassName` (U1-11), so JAB titles may read `JAB: TRAIN - Upper (Focus)…`. Share one rule between client and server (one lookup per fact). Noticed by the U1-11 agent on 2026-09-29. ✅ **Verified and fixed 2026-09-29** (see "U1-11 follow-up"). | `server/calendar.js` name cleaner | 1 h |
 | U1-18 | **Timetable rendered empty on the first live load after a deploy.** A second load showed 153 rows. It may be a cold provider cache (C4 notes about 22 s cold) racing a render that treats "no data yet" as "no classes". If so, that's a "not loaded ≠ empty" bug; show a skeleton instead. Seen by the U1-11..16 agent's live smoke on 2026-09-29; not reproduced. Relates to U4-7. | `timetable.js` first render / prefetch | 1–2 h to investigate |
+| U1-19 | **HTTP 422 booking some Psycle classes (Barre, Yoga, Infrared Sculpt: studios with no seat map).** Filed under U1 (a client-visible booking failure); the cause is a CodexFit API-contract gap in our adapter (C2 territory). Reported by the user 2026-09-29 on the dev twin. ✅ **Fixed 2026-09-29** (see below). | `server/providers/codexfit.js bookSlot`, `server/mock.js` | 2 h |
 
 ## Dev-twin re-test (2026-09-27)
 
@@ -548,4 +549,64 @@ seat map and no saved map (`quickbook`/`autobook` modes), opens on "First-time s
 **Browser (real Chrome, local mock; the mock has no occupied spots, so 4 slots were marked unavailable by intercepting `/api/events/1083` in the tab):**
 Configure Quick-Book on a studio with no saved map showed title `First-time setup`, "Choose your preferred spots for Psycle Clapham first. Once set up, Quick-Book and Auto-Book will always book the best possible spot for you. Next";
 Next showed the map (40 spots); clicking an occupied spot selected it (summary "PREFERRED SPOTS Bike 11", no warning toast).
+
+## U1-19 — HTTP 422 on some Psycle classes
+
+**Evidence and its limits.** The dev container's logs could not answer this: `psycle-app-dev` had been recreated by a
+deploy 14 minutes earlier (98 log lines, none about bookings), and a failed booking was never logged anyway, only
+returned as `data.message || "HTTP <status>"`. So the 422 body was NOT observed. The root cause below is inferred from
+code plus read-only live GETs, and is strong, but the exact 422 text is unconfirmed until it reproduces (the adapter now logs it).
+
+**Root cause.** For a class in a studio with **no seat map**, the app has no slot to choose, so the client calls
+`api.book(eventId, [])` and the adapter sent `POST /bookings {event_id}` with **no `slots`**. Prod `master` never did that:
+its `quickBookClass` always took available slot ids from `GET /events/{id}` (top-level `slots`) and POSTed
+`slots:[id]`, with an explicit `finalBookAny = layoutSlots.length === 0 || bookAny` for exactly these studios.
+Live, read-only, public GETs on 2026-09-29: `GET /studios` shows Psycle **Barre (71,125,130,155), Yoga (100,132,156),
+Infrared (157), Infrared Sculpt (167)** have `layout.slots = 0`; `GET /events/216718` (Barre, studio 71) still returns
+`slots: [1,4,8,9,10,14,19]`. Studios with seat maps (Ride, Reformer, Lagree, Lift) always send a slot, so they were
+unaffected, which is why it was only "some classes". The `HTTP 422` wording is also explained: `data.message ||
+'HTTP 422'` printed the bare status because the 422 body carried no top-level `message`.
+
+**Also fixed at the same boundary (suspect, unproven).** C1-3 made normalized slot/event ids strings; the adapter sent
+them as strings. Master sent numbers. `toWireId()` now sends numeric `event_id` and `slots`. Laravel `integer` rules
+usually accept numeric strings, so this is a hardening, not a claimed cause.
+
+**Fix.** `providers/codexfit.js bookSlot`: with no slot, read `GET /events/{id}` `slots`, POST one (numeric), retry
+the next of the first three if it is taken, and report "fully booked" (the client's existing waitlist path) when the list is empty.
+`_postBooking` logs status, sanitized body types and the upstream reply for any failure, and surfaces `errors.*` text when
+there is no `message`. **Mock** (`mock.js`) now 422s on a missing slot or string ids and models a no-layout studio
+(`NO_LAYOUT_EVENT_ID` 4001 with slots, `NO_LAYOUT_FULL_EVENT_ID` 4002 without).
+**Tests:** `server/test-codexfit-book-wire.js` (7 checks: master wire shape, no-map resolution, full, retry, message
+surfacing, mock strictness, end to end).
+**Retest on dev after deploy:** Quick-Book a Barre or Yoga class (no map); Quick-Book a Ride class; Book a full no-map class (should offer the waitlist).
+If a 422 still appears, `docker logs psycle-app-dev | grep "POST /bookings"` now shows the reason.
+
+## U1-11 follow-up — where the prefix still showed (2026-09-29)
+
+**Stale-client check:** the dev server served `sw.js` stamp `mulwjeyp-p1g27h` and `index-C71b0RkK.js`, built at 23:52 UTC,
+after the U1-11 commit (23:38 UTC), so the deployed bundle had the fix. A phone keeps running the old JS after the new
+service worker takes over until the app is reloaded (`skipWaiting` + `clients.claim` change the worker, not the page already running),
+so **close and reopen the PWA twice**. Surfaces the fix did not reach:
+| Surface | Was | Now |
+|---|---|---|
+| Auto-book success toast + queued `class_name` (`timetable.js` ~L3511) | its own `"TYPE: "` prefix test, never matches JAB's ` - ` | shared `cleanClassName` |
+| Edit Auto-Book modal title (`autobook.js` ~L528) | raw `group_name` (the whole class name on JAB) | cleaned class name |
+| Push bodies, booking/upgrade/reminder (`notifications.js groupToken`) | `discipline.toUpperCase()` = "TRAIN - LOWER (FOCUS)" | discipline head = "TRAIN" |
+| Auto-upgrade / auto-book push text (`poller.js`, `scheduler.js`) | raw `class_name` | cleaned |
+| Overlap warning text (`competing-bookings.js describe`) | raw `className` | cleaned |
+| Calendar title/description/categories (`calendar.js`) | own cleaner + full `group_name` | shared rule + discipline head |
+Deliberately left raw: the **debug modal** (its job is to show what the provider sent). Surfaces without a pill
+(push, calendar, toasts) use the class name with the prefix removed, and the discipline as its head ("TRAIN"),
+since the pill's job is done by the word itself there.
+**One rule:** `client/src/class-name.js` (pure ESM) is the rule, `cards.js` adds the pill label. The server cannot import it
+(CJS, separately built), so `server/class-name.js` mirrors it and `server/test-class-name-parity.js` pins the two to the same output.
+
+## U1-14 follow-up — "no intro on a no-spot-map studio" (2026-09-29)
+
+**By design.** The intro is for a studio with a gym-provided seat map and no saved map (`needsSetupIntro`). Live `GET /studios`
+shows Psycle Barre, Yoga, Infrared and Infrared Sculpt studios have **no seat map** (0 layout slots), and JAB's FCFS classes have none by
+definition (`layoutFormat`). For those `getStudioMapInfo().hasMap` is false, so `doQuickBook` books directly with no picker and no
+intro, because there is nothing to set up. Studios that DO have a map and no saved preferences (Ride, Reformer 154, Lagree 164, Lift 165,
+Infrared Strength 166; JAB pick-a-spot) open the intro. It was not a code bug; but the direct book on those no-map classes is exactly what returned the 422 (U1-19), so the
+two reports were the same classes. If a **seat-map** class ever skips the intro, that is a bug to file.
 

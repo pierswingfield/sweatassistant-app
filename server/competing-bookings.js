@@ -25,6 +25,7 @@
 // correct rather than accidentally right.
 
 const { DateTime } = require('luxon');
+const { cleanClassName } = require('./class-name');
 
 // Used only when a row has no known length (legacy queue rows pre-dating the
 // duration_min column). Most studio classes run 45-60 min; 45 errs towards
@@ -68,7 +69,7 @@ function describe(other, opts) {
     ? DateTime.fromMillis(iv.start, { zone: iv.zone }).toFormat("ccc d LLL HH:mm")
     : 'the same time';
   const gym = opts && opts.labelOf ? opts.labelOf(other.gymId) : null;
-  return `${other.className || 'a class'}${gym ? ` at ${gym}` : ''}, ${when}`;
+  return `${cleanClassName(other.className, other.groupName) || other.className || 'a class'}${gym ? ` at ${gym}` : ''}, ${when}`;
 }
 
 /**

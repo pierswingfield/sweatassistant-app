@@ -1,4 +1,7 @@
 const { DateTime } = require('luxon');
+const { cleanClassName: _cleanClassName } = require('./class-name');
+// U1-19b: push/SSE text names a class the way the UI does (no discipline prefix).
+const displayClass = (row) => _cleanClassName(row.class_name, row.group_name) || row.class_name;
 const db = require('./db');
 const pushService = require('./push');
 const notifications = require('./notifications');
@@ -619,7 +622,7 @@ async function executeAutoBookForClass(booking) {
         pushService.sendNotification(
           userId,
           'Auto-Book Waitlist ⏳',
-          `All slots taken. Joined waitlist fallback for ${booking.class_name} with ${booking.instructor_name}.`
+          `All slots taken. Joined waitlist fallback for ${displayClass(booking)} with ${booking.instructor_name}.`
         );
       } else {
         const wlErr = await wlRes.json().catch(() => ({}));
@@ -635,14 +638,14 @@ async function executeAutoBookForClass(booking) {
         pushService.sendNotification(
           userId,
           'Auto-Book Failed ❌',
-          `Failed to book ${booking.class_name}: ${errMsg}`
+          `Failed to book ${displayClass(booking)}: ${errMsg}`
         );
       }
     }
   } catch (err) {
     console.error(`[Scheduler] Auto-book worker failed for user ${userId}, event ${eventId}:`, err.message);
     db.markAutoBookingExecuted(eventId, userId, gymId, 'failed', `Worker execution failed: ${err.message}`, new Date().toISOString());
-    pushService.sendNotification(userId, 'Auto-Book Error ⚠️', `Error executing booking for ${booking.class_name}: ${err.message}`);
+    pushService.sendNotification(userId, 'Auto-Book Error ⚠️', `Error executing booking for ${displayClass(booking)}: ${err.message}`);
   }
 }
 

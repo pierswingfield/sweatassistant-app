@@ -18,6 +18,7 @@ const { getGymConfig } = require('./gyms.config');
 const poller = require('./poller');
 const { triggerAutoRelogin } = require('./auth');
 const { getProvider } = require('./providers');
+const { cleanClassName: cleanClassNameShared, disciplineHead } = require('./class-name');
 
 // Interim single-gym bridge, same as scheduler.js/poller.js (WP-D3 will replace).
 // No module-level provider (WP-D7) — resolved per user, since a calendar feed is
@@ -389,7 +390,7 @@ function instructorFirstName(name) {
 }
 
 function buildTitle(row) {
-  const discipline = titleCase(row.group_name) || 'Class';
+  const discipline = titleCase(disciplineHead(row.group_name)) || 'Class';
   const instructor = instructorFirstName(row.instructor_name);
   // The prefix is the row's OWN gym, read from gyms.config. It used to be the
   // literal "Psycle", which was invisible while the feed was single-gym and
@@ -430,13 +431,10 @@ function buildSpotLine(row) {
 // Strip a leading group/discipline prefix from the class name so we don't render
 // "RIDE: RIDE: Signature 45". CodexFit isn't consistent about whether the name is
 // prefixed, so we trim it and re-prepend the group ourselves.
+// U1-19b: delegates to the shared rule (server/class-name.js, pinned to the
+// client's by test-class-name-parity.js). Keeps this file's (group, name) order.
 function cleanClassName(group, name) {
-  let n = String(name || '').trim();
-  if (group) {
-    const g = String(group).trim().replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-    n = n.replace(new RegExp(`^${g}\\s*[:\\-–]?\\s*`, 'i'), '').trim();
-  }
-  return n;
+  return cleanClassNameShared(name, group) || String(name || '').trim();
 }
 
 function buildDescription(row) {
@@ -448,7 +446,7 @@ function buildDescription(row) {
 
   const cleanName = cleanClassName(row.group_name, row.class_name);
   const classLine = row.group_name
-    ? `${String(row.group_name).toUpperCase()}: ${cleanName}`
+    ? `${disciplineHead(row.group_name).toUpperCase()}: ${cleanName}`
     : cleanName;
 
   const lines = [`Status: ${statusText}`];
@@ -484,7 +482,7 @@ function buildVEvent(userId, row, addrMap, alarm) {
   // addrMap is { [gymId]: { locationName: address } } (C3-20).
   const address = row.location_address || ((addrMap[row.gym_id] || {})[row.location_name]) || '';
   const locField = [row.location_name, address].filter(Boolean).join(', ');
-  const discipline = titleCase(row.group_name);
+  const discipline = titleCase(disciplineHead(row.group_name));
 
   const lines = [
     'BEGIN:VEVENT',

@@ -1,4 +1,7 @@
 const cron = require('node-cron');
+const { cleanClassName: _cleanClassName } = require('./class-name');
+// U1-19b: push/SSE text names a class the way the UI does (no discipline prefix).
+const displayClass = (row) => _cleanClassName(row.class_name, row.group_name) || row.class_name;
 const { DateTime } = require('luxon');
 const db = require('./db');
 const pushService = require('./push');
@@ -281,7 +284,7 @@ async function attemptUpgradeSlot(upgrade, isCutoffMode) {
             if (!hasCredits) {
               console.log(`[Poller] Auto-upgrade paused for user ${userId}: No available credits.`);
               db.updateAutoUpgrade(upgrade.id, userId, 'paused_no_credits', 'No credits available to claim upgraded slot.', { lastCheckedAt: new Date().toISOString() });
-              pushService.sendNotification(userId, 'Upgrade Paused ⏳', `No credits available to upgrade ${upgrade.class_name}.`);
+              pushService.sendNotification(userId, 'Upgrade Paused ⏳', `No credits available to upgrade ${displayClass(upgrade)}.`);
               claimedSlots.delete(claimKey);
               return;
             }
@@ -347,7 +350,7 @@ async function attemptUpgradeSlot(upgrade, isCutoffMode) {
             pushService.sendNotification(
               userId,
               'Upgrade Warning ⚠️',
-              `Upgraded to slot ${candidateSlot} for ${upgrade.class_name}, but original booking cancellation failed. Please cancel manually.`
+              `Upgraded to slot ${candidateSlot} for ${displayClass(upgrade)}, but original booking cancellation failed. Please cancel manually.`
             );
           }
         }
@@ -513,7 +516,7 @@ async function resumePausedUpgrades() {
         console.log(`[Poller] Auto-upgrade monitor ${upgrade.id} resumed for user ${userId}: credits available.`);
         // lastCheckedAt null => due immediately, so the attempt runs this cycle.
         db.updateAutoUpgrade(upgrade.id, userId, 'active', 'Credits available again. Monitoring resumed.', { lastCheckedAt: null });
-        pushService.sendNotification(userId, 'Upgrade Resumed ✅', `Credits are back — monitoring ${upgrade.class_name} for a better spot again.`);
+        pushService.sendNotification(userId, 'Upgrade Resumed ✅', `Credits are back — monitoring ${displayClass(upgrade)} for a better spot again.`);
       } else {
         db.updateAutoUpgrade(upgrade.id, userId, 'paused_no_credits', upgrade.status_message || 'No credits available to claim upgraded slot.', { lastCheckedAt: now.toISO() });
       }
@@ -579,7 +582,7 @@ async function executeAutoUpgradeChecks() {
         } else {
           // Not opted in — stop at 12h, no attempt
           db.updateAutoUpgrade(upgrade.id, upgrade.user_id, 'stopped', 'Stopped at 12h cutoff to avoid cancellation penalty.', { lastCheckedAt: now.toISO() });
-          pushService.sendNotification(upgrade.user_id, 'Upgrade Monitor Stopped ⏳', `No better seat found for ${upgrade.class_name} before the 12h cutoff.`);
+          pushService.sendNotification(upgrade.user_id, 'Upgrade Monitor Stopped ⏳', `No better seat found for ${displayClass(upgrade)} before the 12h cutoff.`);
         }
         continue;
       }

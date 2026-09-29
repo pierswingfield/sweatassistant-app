@@ -14,8 +14,8 @@ instead of in every copy.
 | U2-3 | ✅ *pulled forward into launch 2026-09-28, done* **`aria-live` on auto-book status updates.** Toasts have it; the SSE status line in the Auto-Book tab doesn't, so screen readers miss "Booked!". [A1] | `client/src/ui/autobook.js` ~L129–153 | — | 30 min |
 | U2-4 | **Shared `renderEmptyState()`.** Auto-Book, Bookings, Credits and Auto-Upgrade each hand-roll their own empty state. [B2] | No shared helper in `cards.js` | — | 2–3 h |
 | U2-5 | **Implement `TIMETABLE_FILTER_DESIGN_BRIEF.md`** (timetable filter redesign). Added 2026-09-27 at the user's request. Brief: [`TIMETABLE_FILTER_DESIGN_BRIEF.md`](../TIMETABLE_FILTER_DESIGN_BRIEF.md). It covers the mobile filter bar, the active-criteria chips and the filter bottom sheet, and nothing else. Size this item from the brief before starting. Filters are gym-grouped and must stay per-gym correct (see AGENTS.md: `psycleDefaultFilters` has no bare-key fallback; string ids via `sameId()`). Do it after C4, because it changes the timetable, the main acceptance screen. | `client/src/ui/timetable.js` filters | C4 | TBD from brief |
-| U2-6 | **Desktop timetable stickiness.** Keep the timetable's filter bar and date selector sticky on desktop, but allow the page header/title block above them to scroll normally. | U2-5 desktop browser validation | U2-5 | 1–2 h |
-| U2-7 | **Contextual filter-sheet navigation.** Clicking an active timetable filter pill should open the filter sheet with the corresponding section automatically scrolled into view and unrelated sections collapsed. | U2-5 filter rail/sheet | U2-5 | 1–2 h |
+| U2-6 | ✅ *done 2026-09-29* **Desktop timetable stickiness.** Keep the timetable's filter bar and date selector sticky on desktop, but allow the page header/title block above them to scroll normally. | U2-5 desktop browser validation | U2-5 | 1–2 h |
+| U2-7 | ✅ *done 2026-09-29* **Contextual filter-sheet navigation.** Clicking an active timetable filter pill should open the filter sheet with the corresponding section automatically scrolled into view and unrelated sections collapsed. | U2-5 filter rail/sheet | U2-5 | 1–2 h |
 
 Design reference: [`DESIGN.md`](../DESIGN.md). Original audit:
 [`Archive/…/ui-ux-sweep.md`](../Archive/2026-09-26/Backlog/ui-ux-sweep.md).
@@ -24,6 +24,12 @@ Design reference: [`DESIGN.md`](../DESIGN.md). Original audit:
 
 - **U2-6:** On desktop, only the timetable filter and date-selector bars should remain sticky; the timetable header/title should scroll away.
 - **U2-7:** Clicking a timetable filter pill should open the filter sheet at its relevant section, with other sections collapsed.
+
+## U2-6 / U2-7 — DONE 2026-09-29
+
+- **U2-6 basis:** `.psycle-tab-header` sat inside `.psycle-sticky-top`, so the title pinned with the filters. **Fix:** header moved out of the wrapper in `client/index.html`. **Evidence (real Chrome, mock, 1182px):** after `.psycle-body` scrolled 400px the header bottom was -221 (gone) while the wrapper stayed pinned at the body top (100) and still contained the filter card and date carousel.
+- **U2-7 basis:** every rail chip called `openSheet(ctx)` with no section, and the sheet kept whatever `openSecs` held. **Fix:** `filter-rail.js` chips carry `data-fr-section` (gyms→locations, eventTypes→workouts, instructors→instructors); `openSheet(ctx, key)` collapses the rest, opens that section (plus the instructor gym groups holding picks) and scrolls it to the top. The filter trigger button keeps the previous state. **Evidence (real Chrome, 400px same-origin iframe, mock):** each chip opened with only its own section in `.fr-sec.open`; the Instructors chip scrolled the sheet body to its max (82px) with the section and the picked instructor visible.
+- Note: `api-credits-by-gym.test.js` fails in vitest (`localStorage` undefined) with and without this change; not from this work.
 
 ## U2-3 — `aria-live` on the auto-book SSE status line (pulled forward into launch 2026-09-28) — DONE
 

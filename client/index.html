@@ -157,16 +157,15 @@
       
       <!-- TIMETABLE TAB PANEL -->
       <section id="psycle-panel-class-timetable" class="psycle-tab-content" style="display: none;">
-        <!-- Sticky top: title + filters stay put while the timetable scrolls -->
+        <!-- Title scrolls away; only the filters + date strip below stay pinned -->
+        <div class="psycle-tab-header">
+          <h3>Class Timetable</h3>
+          <p><span data-timetable-subtitle>Book classes directly or schedule them for release.</span></p>
+          <button class="psycle-tab-refresh-btn" data-refresh-tab="class-timetable" aria-label="Refresh timetable" title="Refresh">
+            <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="23 4 23 10 17 10"/><path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10"/></svg>
+          </button>
+        </div>
         <div class="psycle-sticky-top">
-          <div class="psycle-tab-header">
-            <h3>Class Timetable</h3>
-            <p><span data-timetable-subtitle>Book classes directly or schedule them for release.</span></p>
-            <button class="psycle-tab-refresh-btn" data-refresh-tab="class-timetable" aria-label="Refresh timetable" title="Refresh">
-              <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="23 4 23 10 17 10"/><path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10"/></svg>
-            </button>
-          </div>
-        
           <!-- Filters Area -->
           <div class="psycle-filters-card" id="psycle-timetable-filters-container">
             <div class="psycle-filters-row" style="display: flex; gap: 8px; margin-bottom: 6px; flex-wrap: wrap; align-items: center; width: 100%;">

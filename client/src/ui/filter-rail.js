@@ -48,9 +48,12 @@ function avatar(instr) {
   return `<span class="fr-avatar fr-avatar-fallback">${initial}</span>`;
 }
 
+// Which sheet section each chip's filter lives in (gym chips carry locations).
+const CHIP_SECTION = { gyms: 'locations', eventTypes: 'workouts', instructors: 'instructors' };
+
 function chip(html, clearKey, label) {
   return `<span class="fr-chip" role="group" aria-label="${escapeHtml(label)}">`
-    + `<button type="button" class="fr-chip-body" data-fr-open="1">${html}</button>`
+    + `<button type="button" class="fr-chip-body" data-fr-open="1" data-fr-section="${CHIP_SECTION[clearKey] || ''}">${html}</button>`
     + `<button type="button" class="fr-chip-x" data-fr-clear="${clearKey}" aria-label="Clear ${escapeHtml(label)}">&#x2715;</button>`
     + `</span>`;
 }
@@ -125,7 +128,8 @@ export function renderFilterRail(ctx) {
     const clear = e.target.closest('[data-fr-clear]');
     if (clear) { ctx.clear(clear.dataset.frClear); return; }
     if (e.target.closest('[data-fr-heart]')) { ctx.toggleBookmarks(); return; }
-    if (e.target.closest('[data-fr-open]')) openSheet(ctx);
+    const opener = e.target.closest('[data-fr-open]');
+    if (opener) openSheet(ctx, opener.dataset.frSection || null);
   };
 
   if (sheetEl) paintSheet(ctx);
@@ -136,7 +140,19 @@ export function removeFilterRail() {
   closeSheet();
 }
 
-function openSheet(ctx) {
+// U2-7: `focusKey` (from a chip) opens just that section, collapses the rest and
+// scrolls it into view. The trigger button passes none and keeps the last state.
+function openSheet(ctx, focusKey = null) {
+  if (focusKey) {
+    openSecs.clear();
+    openSecs.add(focusKey);
+    if (focusKey === 'instructors') {
+      // Show the picks, not a wall of collapsed gym groups.
+      openInstGyms.clear();
+      ctx.instructors.filter(i => ctx.state.instructors.includes(String(i.id)))
+        .forEach(i => openInstGyms.add(i.gymId || ''));
+    }
+  }
   if (!sheetEl) {
     sheetEl = document.createElement('div');
     sheetEl.className = 'fr-sheet-overlay';
@@ -146,6 +162,11 @@ function openSheet(ctx) {
     requestAnimationFrame(() => sheetEl && sheetEl.classList.add('open'));
   }
   paintSheet(ctx);
+  if (focusKey) {
+    // Instant and top-aligned, after the sheet's open animation has laid out.
+    const el = sheetEl.querySelector(`#fr-sec-${focusKey}`);
+    requestAnimationFrame(() => requestAnimationFrame(() => el && el.scrollIntoView({ block: 'start' })));
+  }
 }
 
 export function closeSheet() {

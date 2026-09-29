@@ -10,19 +10,31 @@
 //     scrollTargets— array of elements emitting scroll events
 //
 // Design & Physics:
-// - Uses Apple logarithmic decay curve: f(y) = Math.pow(rawY, 0.82) * 1.85 capped at max displacement.
+// - Uses Apple's exact UIScrollView resistance formula:
+//     d = (1.0 - (1.0 / ((pull * 0.55 / dimension) + 1.0))) * dimension
+// - High threshold (80px elastic displacement, ~160px finger drag) to prevent accidental triggers.
 // - Hardware-accelerated GPU transform (translate3d) directly on scrollEl.
-// - At top: pulling down applies elastic stretch. If pull >= threshold (54px elastic), arms refresh.
-//   Releasing below threshold springs back with natural iOS bounce (cubic-bezier(0.175, 0.885, 0.32, 1.275)).
-//   Releasing above threshold snaps to 48px, runs onRefresh(), and smoothly springs back to 0.
-// - At bottom: pulling up past bottom boundary applies negative elastic stretch, springing back on release.
+// - Silk-smooth critically damped deceleration (cubic-bezier(0.25, 1, 0.4, 1) over 440ms) matching iOS.
+// - Global cancelPullToRefresh() exported so tab switches or navigation dismiss the widget immediately.
 // - Horizontal swipe guard: ensures carousel / tab swipes are never intercepted.
 
 import { isScrollBusy, isDocScroll, docScroller } from './scroll-state.js';
 
-const PULL_THRESHOLD = 54; // px of elastic displacement needed to trigger refresh (~70-80px finger pull)
-const MAX_TOP_PULL = 110;  // max visual displacement at top
-const MAX_BOTTOM_PULL = 75; // max visual displacement at bottom
+const PULL_THRESHOLD = 80;  // Higher threshold: requires deliberate ~160px pull to trigger refresh
+const MAX_TOP_PULL = 130;   // visual cap at top
+const MAX_BOTTOM_PULL = 75; // visual cap at bottom
+
+let activeCancelFn = null;
+
+/**
+ * Immediately cancels any active pull-to-refresh or rubber banding and removes the widget from DOM.
+ * Call this on tab changes or navigation to ensure zero lingering artifacts.
+ */
+export function cancelPullToRefresh() {
+  if (typeof activeCancelFn === 'function') {
+    activeCancelFn();
+  }
+}
 
 export function setupPullToRefresh(scrollEl, onRefresh, {
   isEnabled = () => true,
@@ -103,7 +115,7 @@ export function setupPullToRefresh(scrollEl, onRefresh, {
         text.textContent = 'Pull to refresh';
       }
       const progress = Math.min(1, Math.max(0, elasticY / PULL_THRESHOLD));
-      const yOffset = Math.min(elasticY * 0.44, 26);
+      const yOffset = Math.min(elasticY * 0.42, 28);
       ind.style.transform = `translateX(-50%) translateY(${yOffset}px) scale(${0.88 + 0.12 * progress})`;
       ind.style.opacity = `${progress}`;
     }
@@ -111,22 +123,44 @@ export function setupPullToRefresh(scrollEl, onRefresh, {
 
   function hideIndicator() {
     if (!indicator) return;
-    indicator.classList.remove('visible', 'armed');
-    indicator.style.transition = 'all 0.24s cubic-bezier(0.16, 1, 0.3, 1)';
-    indicator.style.opacity = '0';
-    indicator.style.transform = 'translateX(-50%) translateY(-18px) scale(0.92)';
+    const ind = indicator;
+    ind.classList.remove('visible', 'armed');
+    ind.style.transition = 'all 0.22s cubic-bezier(0.16, 1, 0.3, 1)';
+    ind.style.opacity = '0';
+    ind.style.transform = 'translateX(-50%) translateY(-18px) scale(0.92)';
     setTimeout(() => {
-      if (indicator && !isRefreshing && !isTopPulling) {
-        if (indicator.parentNode) indicator.parentNode.removeChild(indicator);
-        indicator = null;
+      if (ind && ind.parentNode) {
+        ind.parentNode.removeChild(ind);
       }
-    }, 250);
+      if (indicator === ind) indicator = null;
+    }, 240);
   }
 
+  function forceReset() {
+    isRefreshing = false;
+    isTopPulling = false;
+    isBottomPulling = false;
+    startY = 0;
+    engagedStartY = null;
+    bottomEngagedStartY = null;
+    currentElasticY = 0;
+    scrollEl.style.transform = '';
+    scrollEl.style.transition = '';
+    scrollEl.style.willChange = '';
+    if (indicator && indicator.parentNode) {
+      indicator.parentNode.removeChild(indicator);
+    }
+    indicator = null;
+  }
+
+  activeCancelFn = forceReset;
+
+  // Apple's exact UIScrollView logarithmic resistance formula
   function calcElastic(pull, maxPull) {
     if (pull <= 0) return 0;
-    // Apple logarithmic resistance curve
-    const d = Math.pow(pull, 0.82) * 1.85;
+    const c = 0.55;
+    const dimension = (typeof window !== 'undefined' ? window.innerHeight : 800) || 800;
+    const d = (1.0 - (1.0 / ((pull * c / dimension) + 1.0))) * dimension;
     return Math.min(d, maxPull);
   }
 
@@ -230,8 +264,8 @@ export function setupPullToRefresh(scrollEl, onRefresh, {
         isRefreshing = true;
         updateIndicator(PULL_THRESHOLD, false, true);
 
-        // Snap to holding position (48px)
-        scrollEl.style.transition = 'transform 0.28s cubic-bezier(0.2, 0.9, 0.3, 1)';
+        // Snap to holding position (48px) with smooth deceleration
+        scrollEl.style.transition = 'transform 0.3s cubic-bezier(0.25, 1, 0.4, 1)';
         scrollEl.style.transform = 'translate3d(0, 48px, 0)';
 
         try {
@@ -241,8 +275,8 @@ export function setupPullToRefresh(scrollEl, onRefresh, {
         } finally {
           isRefreshing = false;
           currentElasticY = 0;
-          // Spring back to 0
-          scrollEl.style.transition = 'transform 0.34s cubic-bezier(0.25, 1, 0.5, 1)';
+          // Silky smooth return to 0
+          scrollEl.style.transition = 'transform 0.44s cubic-bezier(0.25, 1, 0.4, 1)';
           scrollEl.style.transform = 'translate3d(0, 0, 0)';
           hideIndicator();
           setTimeout(() => {
@@ -251,12 +285,12 @@ export function setupPullToRefresh(scrollEl, onRefresh, {
               scrollEl.style.transition = '';
               scrollEl.style.willChange = '';
             }
-          }, 360);
+          }, 450);
         }
       } else {
-        // Below threshold: snap back with iOS spring bounce
+        // Below threshold or released halfway: silky smooth damped return to 0 (no overshoot)
         currentElasticY = 0;
-        scrollEl.style.transition = 'transform 0.38s cubic-bezier(0.175, 0.885, 0.32, 1.275)';
+        scrollEl.style.transition = 'transform 0.44s cubic-bezier(0.25, 1, 0.4, 1)';
         scrollEl.style.transform = 'translate3d(0, 0, 0)';
         hideIndicator();
         setTimeout(() => {
@@ -265,7 +299,7 @@ export function setupPullToRefresh(scrollEl, onRefresh, {
             scrollEl.style.transition = '';
             scrollEl.style.willChange = '';
           }
-        }, 390);
+        }, 450);
       }
       return;
     }
@@ -273,8 +307,8 @@ export function setupPullToRefresh(scrollEl, onRefresh, {
     if (isBottomPulling) {
       isBottomPulling = false;
       currentElasticY = 0;
-      // Bottom overscroll spring bounce back
-      scrollEl.style.transition = 'transform 0.38s cubic-bezier(0.175, 0.885, 0.32, 1.275)';
+      // Bottom overscroll silky smooth damped return to 0
+      scrollEl.style.transition = 'transform 0.44s cubic-bezier(0.25, 1, 0.4, 1)';
       scrollEl.style.transform = 'translate3d(0, 0, 0)';
       setTimeout(() => {
         if (!isTopPulling && !isRefreshing && !isBottomPulling) {
@@ -282,7 +316,7 @@ export function setupPullToRefresh(scrollEl, onRefresh, {
           scrollEl.style.transition = '';
           scrollEl.style.willChange = '';
         }
-      }, 390);
+      }, 450);
     }
   }
 
@@ -291,19 +325,22 @@ export function setupPullToRefresh(scrollEl, onRefresh, {
   scrollEl.addEventListener('touchend', onTouchEnd, { passive: true });
   scrollEl.addEventListener('touchcancel', onTouchEnd, { passive: true });
 
+  const onVisibilityChange = () => {
+    if (document.hidden) forceReset();
+  };
+  document.addEventListener('visibilitychange', onVisibilityChange);
+  window.addEventListener('blur', forceReset);
+
   return () => {
+    forceReset();
     scrollEl.removeEventListener('touchstart', onTouchStart);
     scrollEl.removeEventListener('touchmove', onTouchMove);
     scrollEl.removeEventListener('touchend', onTouchEnd);
     scrollEl.removeEventListener('touchcancel', onTouchEnd);
+    document.removeEventListener('visibilitychange', onVisibilityChange);
+    window.removeEventListener('blur', forceReset);
     scrollTargets.forEach((t) => t.removeEventListener('scroll', onScroll));
     clearTimeout(scrollCooldownTimer);
-    if (indicator && indicator.parentNode) {
-      indicator.parentNode.removeChild(indicator);
-    }
-    indicator = null;
-    scrollEl.style.transform = '';
-    scrollEl.style.transition = '';
-    scrollEl.style.willChange = '';
+    activeCancelFn = null;
   };
 }

@@ -1,7 +1,7 @@
 import { api, setToken, isLoggedIn } from './api';
 import { setLinkedGyms, setGymCatalogue, getLinkedGyms, getGymShortName, getDefaultGymId, getGymPresentation } from './gym-context.js';
 import { initTooltips } from './ui/tooltips';
-import { setupPullToRefresh } from './ui/pulltorefresh';
+import { setupPullToRefresh, cancelPullToRefresh } from './ui/pulltorefresh';
 import { markScrollBusy, isScrollBusy, isDocScroll, docScroller } from './ui/scroll-state.js';
 import { initGymLogoLoader } from './ui/gym-logo-loader.js';
 import { setCacheKeyPrefix, clearApiCache, invalidateApiCache } from './cache.js';
@@ -350,6 +350,7 @@ const VALID_TABS = ['class-timetable', 'my-bookings', 'auto-book', 'buy-credits'
 let currentTabId = null;
 
 function switchTab(tabId) {
+  cancelPullToRefresh();
   currentTabId = tabId;
   const targetPanelId = `psycle-panel-${tabId}`;
 

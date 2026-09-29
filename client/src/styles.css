@@ -2044,12 +2044,12 @@ html, body {
 #psycle-helper-container .psycle-toast {
   width: 100%;
   box-sizing: border-box;
-  padding: calc(max(10px, env(safe-area-inset-top)) + 6px) 20px 14px 20px;
-  background: color-mix(in srgb, var(--surface) 72%, transparent);
-  backdrop-filter: blur(28px) saturate(190%);
-  -webkit-backdrop-filter: blur(28px) saturate(190%);
-  border-bottom: 1px solid color-mix(in srgb, var(--border) 70%, transparent);
-  box-shadow: 0 12px 32px 0 rgba(0, 0, 0, 0.22), inset 0 -0.5px 0 0 rgba(255, 255, 255, 0.12);
+  padding: calc(max(10px, env(safe-area-inset-top, 0px)) + 8px) 20px 14px 20px;
+  background: linear-gradient(var(--surface-inset), var(--surface-inset)), color-mix(in srgb, var(--bg) 64%, transparent);
+  -webkit-backdrop-filter: blur(20px) saturate(190%);
+  backdrop-filter: blur(20px) saturate(190%);
+  border-bottom: 1px solid var(--border-strong);
+  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.22);
   color: var(--text);
   font-family: var(--font-sans);
   font-size: 13.5px;
@@ -2087,6 +2087,7 @@ html, body {
   font-size: 13px;
   font-weight: 700;
   background: color-mix(in srgb, var(--text) 10%, transparent);
+  color: var(--text);
 }
 
 .psycle-toast-message {
@@ -2122,40 +2123,24 @@ html, body {
   color: var(--text);
 }
 
-/* Variant Ambient Lighting */
-#psycle-helper-container .psycle-toast.success {
-  background: linear-gradient(180deg, color-mix(in srgb, var(--success) 14%, var(--surface)) 0%, color-mix(in srgb, var(--surface) 80%, transparent) 100%);
-  border-bottom-color: color-mix(in srgb, var(--success) 40%, transparent);
-}
+/* Variant Accents — Crisp and cohesive with nav bar, no background wash */
 #psycle-helper-container .psycle-toast.success .psycle-toast-icon {
-  background: color-mix(in srgb, var(--success) 22%, transparent);
+  background: color-mix(in srgb, var(--success) 16%, transparent);
   color: var(--success);
 }
 
-#psycle-helper-container .psycle-toast.error {
-  background: linear-gradient(180deg, color-mix(in srgb, var(--danger) 16%, var(--surface)) 0%, color-mix(in srgb, var(--surface) 80%, transparent) 100%);
-  border-bottom-color: color-mix(in srgb, var(--danger) 45%, transparent);
-}
 #psycle-helper-container .psycle-toast.error .psycle-toast-icon {
-  background: color-mix(in srgb, var(--danger) 22%, transparent);
+  background: color-mix(in srgb, var(--danger) 16%, transparent);
   color: var(--danger);
 }
 
-#psycle-helper-container .psycle-toast.warning {
-  background: linear-gradient(180deg, color-mix(in srgb, var(--warning) 14%, var(--surface)) 0%, color-mix(in srgb, var(--surface) 80%, transparent) 100%);
-  border-bottom-color: color-mix(in srgb, var(--warning) 40%, transparent);
-}
 #psycle-helper-container .psycle-toast.warning .psycle-toast-icon {
-  background: color-mix(in srgb, var(--warning) 22%, transparent);
+  background: color-mix(in srgb, var(--warning) 16%, transparent);
   color: var(--warning);
 }
 
-#psycle-helper-container .psycle-toast.info {
-  background: linear-gradient(180deg, color-mix(in srgb, var(--accent) 14%, var(--surface)) 0%, color-mix(in srgb, var(--surface) 80%, transparent) 100%);
-  border-bottom-color: color-mix(in srgb, var(--accent) 35%, transparent);
-}
 #psycle-helper-container .psycle-toast.info .psycle-toast-icon {
-  background: color-mix(in srgb, var(--accent) 20%, transparent);
+  background: color-mix(in srgb, var(--accent) 16%, transparent);
   color: var(--accent);
 }
 
@@ -10211,7 +10196,23 @@ svg.gym-logo-inline { display: block; opacity: 1 !important; transition: none !i
   #psycle-helper-container .psycle-main {
     overflow: visible !important; height: auto !important; min-height: 100dvh;
     padding-top: calc(var(--psycle-header-h, 47px) + 12px) !important;
-    padding-bottom: calc(56px + env(safe-area-inset-bottom)) !important;
+    padding-bottom: calc(56px + env(safe-area-inset-bottom) + 36px) !important;
+  }
+  #psycle-helper-container #psycle-panel-my-bookings {
+    padding-bottom: 36px !important;
+  }
+  #psycle-helper-container .psycle-mobile-seg.confirming,
+  #psycle-helper-container .psycle-tt-seg.confirming {
+    width: auto !important;
+    min-width: var(--timetable-cta-w, 74px) !important;
+    padding-left: 8px !important;
+    padding-right: 8px !important;
+    white-space: nowrap !important;
+  }
+  #psycle-helper-container .psycle-mobile-seg.confirming.success,
+  #psycle-helper-container .psycle-tt-seg.confirming.success {
+    background: var(--warning, #e68a00) !important;
+    color: #1a1206 !important;
   }
   /* Sticky now sticks to the VIEWPORT: under the header while it shows, flush at the top once hidden. */
   #psycle-helper-container .psycle-sticky-top { top: var(--psycle-header-h, 47px); }

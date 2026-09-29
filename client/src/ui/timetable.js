@@ -1986,9 +1986,9 @@ async function doQuickBook(event, btn) {
       openBookingModal(event, 'quickbook', { overlapChecked: true });
     }
   };
-  // Booking within 12h of start needs an explicit confirm.
-  if (isWithin12Hours(event.startAt)) twoTapConfirm(btn, 'Starts soon — confirm?', run);
-  else run();
+  // Quick-Book always requires a second click or touch to confirm
+  const confirmMsg = isWithin12Hours(event.startAt) ? 'Starts soon — confirm?' : 'Confirm?';
+  twoTapConfirm(btn, confirmMsg, run);
 }
 
 async function doAutoBookToggle(event, btn, isScheduled) {
@@ -2803,7 +2803,6 @@ async function quickBookClass(eventId, prefs, btn, gymId = null) {
         lastBookingRes = bookRes;
         const ls = slots.find(s => sameId(s.id, targetSlot));
         bookedSlotLabels.push(ls?.label ?? targetSlot);
-        showToast(`Quick-booked ${qbNoun} ${ls?.label ?? targetSlot}! 🎉`, 'success');
       } catch (err) {
         console.error(`Quick book failed for slot ${targetSlot}:`, err.message);
       }
@@ -2815,19 +2814,22 @@ async function quickBookClass(eventId, prefs, btn, gymId = null) {
 
     if (bookedCount > 0) {
       api.notifyBookingSuccess(bookingNotifyPayload(event, { source: 'quickbook', gymId, slots: bookedSlotLabels })).catch(() => {});
-      // `event` (normalized), not `eventData` (== event.raw): tryAutoRegisterUpgrade
-      // reads studioId/gymId, which only exist on the normalized shape. Passing the
-      // raw provider object here made resolveStudioPrefs resolve to nothing, since
-      // raw CodexFit events use `studio_id` and carry no `gymId` at all — so the
-      // "no preferred spot map" toast fired even when Quick-Book had just proven one existed.
-      if (lastBookedSlot !== null) await tryAutoRegisterUpgrade(event, lastBookedSlot, lastBookingRes, autoUpgrade);
+      let upgradeRegistered = false;
+      if (lastBookedSlot !== null) {
+        const upgradeRes = await tryAutoRegisterUpgrade(event, lastBookedSlot, lastBookingRes, autoUpgrade, { silent: true });
+        upgradeRegistered = Boolean(upgradeRes?.registered);
+      }
+      const slotText = bookedSlotLabels.length > 0 ? ` ${qbNoun} ${bookedSlotLabels.join(', ')}` : '';
+      const upgradeNote = upgradeRegistered ? ' Auto-upgrade enabled.' : '';
+      showToast(`Quick-booked${slotText}!${upgradeNote} 🎉`, 'success');
+
       await refreshUserData(true);
       await refreshBookingState();
       setTimeout(() => {
-        if (!gymSetting(event.gymId, 'autoUpgradeByDefault')) {
+        if (!upgradeRegistered && !gymSetting(event.gymId, 'autoUpgradeByDefault')) {
           showToast('💡 Tip: Enable "Auto-upgrade spots by default" in Settings to monitor for better slots automatically!', 'info');
         }
-      }, 2000);
+      }, 2500);
     } else {
       showToast('Failed to quick book any slots.', 'error');
     }
@@ -3461,9 +3463,6 @@ async function openBookingModal(c, mode, opts = {}) {
             }
             if (results.length === 0) return;
             const bookingRes = { ok: true, bookings: results, bookingId: results[0]?.bookingId, slotId: results[0]?.slotId };
-            if (results.length === state.selectedSlots.length) {
-              showToast(`Successfully booked ${state.selectedSlots.length} ${seatNoun(groupName)}${state.selectedSlots.length > 1 ? 's' : ''}! 🎉`, 'success');
-            }
             const bookedSlots = state.selectedSlots.slice(0, results.length);
             const bookedLabels = bookedSlots.map(id => {
               const s = layoutSlots.find(ls => String(ls.id) === String(id));
@@ -3475,7 +3474,15 @@ async function openBookingModal(c, mode, opts = {}) {
             }).catch(() => {});
             const autoUpgrade = controls.querySelector('#simplebook-auto-upgrade')?.checked ?? false;
             closeModal();
-            await tryAutoRegisterUpgrade(c, bookedSlots[0], bookingRes, autoUpgrade);
+            let upgradeRegistered = false;
+            if (bookedSlots.length > 0) {
+              const upgradeRes = await tryAutoRegisterUpgrade(c, bookedSlots[0], bookingRes, autoUpgrade, { silent: true });
+              upgradeRegistered = Boolean(upgradeRes?.registered);
+            }
+            if (results.length === state.selectedSlots.length) {
+              const upgradeNote = upgradeRegistered ? ' Auto-upgrade enabled.' : '';
+              showToast(`Successfully booked ${state.selectedSlots.length} ${seatNoun(groupName)}${state.selectedSlots.length > 1 ? 's' : ''}!${upgradeNote} 🎉`, 'success');
+            }
             await refreshUserData(true);
             await refreshBookingState();
           } catch (err) {
@@ -3648,12 +3655,12 @@ async function openBookingModal(c, mode, opts = {}) {
 }
 
 // Auto-register upgrade monitor after a successful booking if the setting is on
-async function tryAutoRegisterUpgrade(event, bookedSlotId, bookingRes, enableOverride) {
+async function tryAutoRegisterUpgrade(event, bookedSlotId, bookingRes, enableOverride, { silent = false } = {}) {
   const shouldRegister = enableOverride !== undefined ? enableOverride : gymSetting(event?.gymId, 'autoUpgradeByDefault');
   debugConsole('[AutoUpgrade] tryAutoRegisterUpgrade called', { shouldRegister, bookedSlotId, eventId: event?.id });
   if (!shouldRegister) {
     debugConsole('[AutoUpgrade] Skipping — auto-upgrade is disabled. userSettings:', JSON.stringify(userSettings));
-    return;
+    return { registered: false };
   }
   try {
     const studioId = event.studioId;
@@ -3665,8 +3672,10 @@ async function tryAutoRegisterUpgrade(event, bookedSlotId, bookingRes, enableOve
     if (!hasPrefs) {
       const studioName = event.studioName || gymScopedGet(studioMap, studioId, event.gymId) || 'this studio';
       debugConsole('[AutoUpgrade] No preferred spot map for studio:', studioName, '| prefs:', prefs);
-      showToast(`Can't set auto-upgrade because you don't have a preferred spot map for ${studioName}. Please configure one!`, 'warning');
-      return;
+      if (!silent) {
+        showToast(`Can't set auto-upgrade because you don't have a preferred spot map for ${studioName}. Please configure one!`, 'warning');
+      }
+      return { registered: false, reason: 'no_prefs' };
     }
 
     // Resolve booking IDs and slot IDs from response
@@ -3704,14 +3713,18 @@ async function tryAutoRegisterUpgrade(event, bookedSlotId, bookingRes, enableOve
 
     if (registerPromises.length === 0) {
       console.warn('[AutoUpgrade] Could not resolve any booking IDs — giving up. Response:', bookingRes);
-      return;
+      return { registered: false, reason: 'no_booking_id' };
     }
 
     await Promise.all(registerPromises);
-    showToast(`Auto-upgrade monitor started for ${registerPromises.length} spot(s).`, 'info');
+    if (!silent) {
+      showToast(`Auto-upgrade monitor started for ${registerPromises.length} spot(s).`, 'info');
+    }
     debugConsole('[AutoUpgrade] Monitors registered successfully.');
+    return { registered: true, count: registerPromises.length };
   } catch (err) {
     console.warn('[AutoUpgrade] Failed to auto-register:', err.message, err);
+    return { registered: false, error: err };
   }
 }
 
@@ -3721,9 +3734,11 @@ async function bookSeatDirect(eventId, slotId, callback, event) {
     showToast(`Booking spot ${slotId}...`, 'info');
     const bookingRes = await api.book(eventId, slotId == null ? [] : [slotId], event?.gymId);
     if (!bookingRes.ok) throw new Error(bookingRes.error || 'Booking was declined');
-    showToast('Spot booked successfully! 🎉', 'success');
     callback();
-    if (event) await tryAutoRegisterUpgrade(event, slotId, bookingRes);
+    let upgradeRes = null;
+    if (event) upgradeRes = await tryAutoRegisterUpgrade(event, slotId, bookingRes, undefined, { silent: true });
+    const upgradeNote = upgradeRes?.registered ? ' Auto-upgrade enabled.' : '';
+    showToast(`Spot booked successfully!${upgradeNote} 🎉`, 'success');
     await refreshUserData(true);
     prefetchTimetableData(true);
   } catch (err) {

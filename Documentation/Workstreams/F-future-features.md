@@ -21,6 +21,7 @@ is still valid as a design starting point.
 | F-12 | **Gym-neutral favourites** for non-bookmark gyms (JAB/MarianaTek), keyed by studio + weekday + time. Psycle stays on native CodexFit bookmarks; enables Auto-Book Favourites data source. | C4, C5 | — | 3–4h build + ~1h browser check |
 | F-13 | **Calendar / weekly view of bookings and waitlists.** Alternate view toggle in the "My Bookings" tab: switch between the vertical card list and an interactive 7-day calendar/weekly schedule grid showing active bookings, waitlists, and queued auto-books mapped by time across all linked gyms. Tap a slot to view details, swap spot, or manage. Added 2026-09-29. | C4 | — | ~2–3 days |
 | F-14 | **SoulCycle gym integration.** Add SoulCycle as a third gym provider (`providers/soulcycle.js`). Bespoke PHP/monolith backend; requires cookie-jar auth (`SOULSESSION`), CSRF nonce pool management, studio HTML timetable scraping (or iOS app API reverse engineering), seat map normalization, and reserve/cancel endpoints. See [F-14 detail](#f-14--soulcycle-gym-integration) and [soulcycle.md](../Services/soulcycle.md). Added 2026-09-29. | C4, F-7 | [soulcycle.md](../Services/soulcycle.md) | ~1.5–2 weeks |
+| F-15 | **Instructor photo proxy and cache.** Fetch each instructor photo once server-side, resize to WebP thumb/full, cache on disk and serve same-origin with immutable headers, so the PWA caches small readable responses instead of full-size opaque cross-origin images. See [F-15 detail](#f-15--instructor-photo-proxy-and-cache). Added 2026-09-29. | C4 | — | ~2–3h |
 
 Postgres and per-user key derivation are listed in C7.
 
@@ -139,3 +140,36 @@ Full protocol reverse-engineering and endpoint specifications are documented in 
 - **Depends on:** C4 (Promote modular), F-7 (Gym presentation contract).
 - **Rough size:** ~1.5–2 weeks.
 
+## F-15 — Instructor photo proxy and cache
+
+### Why this exists
+
+Photos go from the provider straight to the `<img>` at full size. CodexFit publishes one size (`photo`), so a ~26–52px avatar downloads the whole image. MarianaTek has `thumbUrl`, but `imageUrl` is still large. `client/public/sw.js` (~line 135) already caches cross-origin photos cache-first, but the responses are **opaque** (`no-cors`): the SW cannot read the status, so a bad response can be cached and cannot be told from a good one. Cache size is also unknown.
+
+Verified 2026-09-29: `sharp` is not installed; `normalize.js` (~line 108) maps `imageUrl`/`thumbUrl` straight from the provider; `instructorAvatar()` in `tooltips.js` consumes them.
+
+### Design
+
+1. `npm i sharp` in `server/` (prebuilt ARM64 binaries; oracle is aarch64).
+2. New route `GET /api/instructor-photo/:gymId/:instructorId?size=thumb|full`. Resolve the upstream URL **from the provider's own instructor list**, never from a client-supplied URL. Fetch once, resize (~96px thumb, ~480px full), encode WebP, store on disk, serve with `Cache-Control: public, max-age=31536000, immutable` and an ETag.
+3. Cache file key = hash of the upstream URL, so a changed photo regenerates and an unchanged one never refetches.
+4. `providers/normalize.js`: rewrite `imageUrl`/`thumbUrl` to point at the route. The client reads only `Normalized*` fields, so `instructorAvatar()` and the tooltip need no change. Gym-agnostic: no platform branching (WP-D7).
+5. `sw.js`: point the image rule at the same-origin route; cache only `200`s; keep it bounded.
+
+### Constraints
+
+- **SSRF:** allowlist by lookup, as above. Same principle as the removed `/api/proxy`.
+- **Auth:** `<img>` cannot send the JWT and the photos are already public, so the route is unauthenticated. Add a rate limiter (per IP) and a size cap on the upstream fetch.
+- **Persistence:** the cache directory must live on the Docker volume, or every deploy refetches every photo (see `deploy.sh`, `docker-compose.yml`).
+- **Single-flight** concurrent misses for the same photo, as `schedule-cache.js` does.
+- **Failure:** upstream error or non-image returns 404 and is not cached; the existing initials fallback in `instructorAvatar()` must still render.
+- Add the route to `test-no-gym-privilege` scope (no gym-id literals).
+
+### Acceptance
+
+- Real browser (CDP :9222): Network panel shows avatars as same-origin `image/webp`, thumb under ~10 KB, and a repeat load is served from cache with no upstream request.
+- Server test: unknown instructor id returns 404; cross-gym id collision returns the right gym's photo; non-image upstream is not cached.
+- Post-deploy cache check per the prod-deploy cache gotcha (SW + CacheStorage + IndexedDB all cleared).
+
+### Dependencies & Size
+- **Depends on:** C4 (deploy path). **Rough size:** ~2–3h.

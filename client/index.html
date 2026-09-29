@@ -21,6 +21,8 @@
        script below sets data-theme before first paint to cover that path. -->
   <meta name="theme-color" content="#f5f2ec" media="(prefers-color-scheme: light)">
   <meta name="theme-color" content="#090d16" media="(prefers-color-scheme: dark)">
+  <!-- Pre-JS fallbacks only: main.js syncThemeColorMeta() replaces both with one live tag
+       holding the header's resolved background whenever the theme changes. -->
   <script>
     // Set data-theme from localStorage before CSS applies so the correct
     // --bg is active at first paint (fixes iOS 26+ status-bar sampling and
@@ -34,6 +36,26 @@
     })();
   </script>
   
+  <!-- Boot splash (E5): the app shell stays hidden until the first styled paint is ready, so nothing
+       renders unstyled while web fonts / logos / auth resolve. Inline on purpose (no external request),
+       themed before JS via prefers-color-scheme + the data-theme the script below sets, and it can never
+       block forever: `psycle-ready` is added by main.js after checkAuth, or by the 3s timeout here. -->
+  <style id="psycle-boot-css">
+    html { background: #090d16; }
+    @media (prefers-color-scheme: light) { html:not([data-theme="dark"]) { background: #f5f2ec; } }
+    html[data-theme="light"] { background: #f5f2ec; }
+    html[data-theme="dark"] { background: #090d16; }
+    html:not(.psycle-ready) body > * { visibility: hidden !important; }
+    html:not(.psycle-ready)::after {
+      content: ''; position: fixed; top: 50%; left: 50%; width: 26px; height: 26px; margin: -13px 0 0 -13px;
+      border-radius: 50%; border: 3px solid rgba(128,128,128,.25); border-top-color: rgba(128,128,128,.85);
+      animation: psycle-boot-spin .8s linear infinite;
+    }
+    @keyframes psycle-boot-spin { to { transform: rotate(360deg); } }
+    @media (prefers-reduced-motion: reduce) { html:not(.psycle-ready)::after { animation: none; } }
+  </style>
+  <script>setTimeout(function () { document.documentElement.classList.add('psycle-ready'); }, 3000);</script>
+
   <!-- Web Fonts -->
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -271,23 +293,25 @@
 
         <div class="psycle-section">
           <div class="psycle-section-header">
-            <h3>Active Bookings</h3>
+            <h3>Active Bookings</h3><span id="psycle-bookings-count" class="psycle-section-count" hidden></span>
             <span id="psycle-bookings-refreshing" class="psycle-refreshing-chip" style="display: none;"><span class="psycle-spinner"></span> Refreshing...</span>
           </div>
           <div id="psycle-bookings-list" class="psycle-bookings-list">
-            <div class="fav-empty-state" style="padding: 30px 0;">No active bookings found.</div>
+            <div class="psycle-skeleton-list" role="status" aria-label="Loading bookings"><div class="psycle-skeleton-card" aria-hidden="true"><div class="psycle-skeleton-card-head"><span class="psycle-skeleton-line is-strong" style="--skeleton-width:34%" aria-hidden="true"></span><span class="psycle-skeleton-line is-chip" style="--skeleton-width:18%" aria-hidden="true"></span></div><span class="psycle-skeleton-line" style="--skeleton-width:64%" aria-hidden="true"></span><span class="psycle-skeleton-line is-short" style="--skeleton-width:56%" aria-hidden="true"></span></div><div class="psycle-skeleton-card" aria-hidden="true"><div class="psycle-skeleton-card-head"><span class="psycle-skeleton-line is-strong" style="--skeleton-width:42%" aria-hidden="true"></span><span class="psycle-skeleton-line is-chip" style="--skeleton-width:18%" aria-hidden="true"></span></div><span class="psycle-skeleton-line" style="--skeleton-width:72%" aria-hidden="true"></span><span class="psycle-skeleton-line is-short" style="--skeleton-width:48%" aria-hidden="true"></span></div></div>
           </div>
         </div>
 
-        <div class="psycle-section" style="margin-top: 24px;">
-          <div class="psycle-section-header">
-            <h3>Active Waitlists</h3>
+        <div class="psycle-section" id="psycle-waitlists-section" style="margin-top: 24px;">
+          <div class="psycle-section-header" id="psycle-waitlists-header">
+            <h3>Active Waitlists</h3><span id="psycle-waitlists-count" class="psycle-section-count" hidden></span>
             <span id="psycle-waitlists-refreshing" class="psycle-refreshing-chip" style="display: none;"><span class="psycle-spinner"></span> Refreshing...</span>
           </div>
           <div id="psycle-waitlists-list" class="psycle-bookings-list">
-            <div class="fav-empty-state" style="padding: 30px 0;">No active waitlists found.</div>
+            <div class="psycle-skeleton-list" role="status" aria-label="Loading waitlists"><div class="psycle-skeleton-card" aria-hidden="true"><div class="psycle-skeleton-card-head"><span class="psycle-skeleton-line is-strong" style="--skeleton-width:34%" aria-hidden="true"></span><span class="psycle-skeleton-line is-chip" style="--skeleton-width:18%" aria-hidden="true"></span></div><span class="psycle-skeleton-line" style="--skeleton-width:64%" aria-hidden="true"></span><span class="psycle-skeleton-line is-short" style="--skeleton-width:56%" aria-hidden="true"></span></div></div>
           </div>
         </div>
+
+        <button type="button" id="psycle-waitlist-jump" class="psycle-waitlist-jump" inert aria-hidden="true"></button>
 
       </section>
 
@@ -300,7 +324,7 @@
           </button>
           <div class="ab-banner-body">
             <div class="ab-banner-headline">
-              <span class="ab-banner-label">Booking Opens</span>
+              <span class="ab-banner-label">Next booking in</span>
               <span id="psycle-autobook-countdown" class="ab-banner-time">—</span>
             </div>
             <div class="ab-banner-status" id="psycle-countdown-status-indicator">
@@ -419,20 +443,24 @@
               <h3>Settings</h3>
             </div>
             <nav class="psycle-settings-menu">
+              <button class="psycle-settings-menu-item" data-settings-section="about">
+                <span class="menu-item-text">About</span>
+              </button>
               <button class="psycle-settings-menu-item active" data-settings-section="general">
                 <span class="menu-item-text">General</span>
+              </button>
+              <button class="psycle-settings-menu-item" data-settings-section="calendar">
+                <span class="menu-item-text">Calendar Sync</span>
               </button>
               <button class="psycle-settings-menu-item" data-settings-section="notifications">
                 <span class="menu-item-text">Notifications</span>
               </button>
-              <button class="psycle-settings-menu-item" data-settings-section="account">
-                <span class="menu-item-text">Account</span>
-              </button>
               <button class="psycle-settings-menu-item" data-settings-section="gyms">
                 <span class="menu-item-text">Your Gyms</span>
               </button>
-              <button class="psycle-settings-menu-item" data-settings-section="about">
-                <span class="menu-item-text">About</span>
+              <!-- per-gym entries are inserted here (before Account) by renderGymsCard -->
+              <button class="psycle-settings-menu-item" data-settings-section="account">
+                <span class="menu-item-text">Account</span>
               </button>
             </nav>
           </aside>
@@ -510,7 +538,7 @@
               <div class="psycle-settings-section-pane active" id="psycle-settings-pane-general">
                 <div class="psycle-tab-header" style="padding-left:0; padding-right:0; padding-top:0; border-bottom:none;">
                   <h3>General</h3>
-                  <p>Appearance, behaviour, calendar and backup — settings that apply to your whole <span data-app-name>Sweat Assistant</span> account.</p>
+                  <p>Appearance, behaviour and backup — settings that apply to your whole <span data-app-name>Sweat Assistant</span> account.</p>
                 </div>
                 <div class="psycle-settings-grid" style="padding-left:0; padding-right:0;">
                   <div class="psycle-settings-card">
@@ -536,15 +564,6 @@
                       </select>
                     </div>
                   </div>
-                  <!-- Calendar is ACCOUNT-level, not per gym (2026-09-14): a person has one
-                       calendar and expects every class in it. It used to live inside each
-                       gym's settings, which gave a two-gym member two .ics URLs each
-                       showing part of their week. -->
-                  <div class="psycle-settings-card" id="psycle-calendar-card">
-                    <h4>Calendar Feed</h4>
-                    <p class="psycle-card-desc">One subscription covering every gym you've connected. Stays in sync with bookings, waitlists and cancellations.</p>
-                    <div id="psycle-calendar-section"><p class="psycle-card-desc">Loading…</p></div>
-                  </div>
                   <div class="psycle-settings-card">
                     <h4>Backup & Migration</h4>
                     <p class="psycle-card-desc">Import or export configuration JSON compatible with the Chrome extension.</p>
@@ -563,6 +582,16 @@
                     </div>
                   </div>
                 </div>
+              </div>
+
+              <!-- SECTION: CALENDAR SYNC (U4-16). Calendar is ACCOUNT-level, not per gym
+                   (2026-09-14): one feed carries every linked gym. -->
+              <div class="psycle-settings-section-pane" id="psycle-settings-pane-calendar">
+                <div class="psycle-tab-header" style="padding-left:0; padding-right:0; padding-top:0; border-bottom:none;">
+                  <h3>Calendar Sync</h3>
+                  <p>One calendar feed covering every gym you've connected. Stays in sync with bookings, waitlists and cancellations.</p>
+                </div>
+                <div class="psycle-settings-grid" id="psycle-calendar-section" style="padding-left:0; padding-right:0;"><div class="psycle-settings-card"><p class="psycle-card-desc">Loading…</p></div></div>
               </div>
 
               <div class="psycle-settings-section-pane" id="psycle-settings-pane-notifications">

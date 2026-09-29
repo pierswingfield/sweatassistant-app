@@ -15,12 +15,14 @@
 //   that the gesture is predominantly vertical.
 // - Debounced: won't trigger another refresh while one is in progress.
 
+import { isScrollBusy } from './scroll-state.js';
+
 const PULL_THRESHOLD = 80; // px needed to trigger refresh
 const RESISTANCE = 0.5; // pull feels like half the actual drag distance
 const MAX_PULL = 120; // cap visual displacement
 const INDICATOR_HEIGHT = 56; // must match .psycle-pull-indicator height in CSS
 
-export function setupPullToRefresh(scrollEl, onRefresh) {
+export function setupPullToRefresh(scrollEl, onRefresh, { isEnabled = () => true, getScrollTop = () => scrollEl.scrollTop, scrollTargets = [scrollEl] } = {}) {
   if (!scrollEl) return () => {};
 
   let startY = 0;
@@ -40,7 +42,7 @@ export function setupPullToRefresh(scrollEl, onRefresh) {
     clearTimeout(scrollCooldownTimer);
     scrollCooldownTimer = setTimeout(() => { wasScrolling = false; }, 200);
   }
-  scrollEl.addEventListener('scroll', onScroll, { passive: true });
+  scrollTargets.forEach((t) => t.addEventListener('scroll', onScroll, { passive: true }));
 
   // Create the pull indicator element (inserted above scroll content)
   function createIndicator() {
@@ -106,13 +108,16 @@ export function setupPullToRefresh(scrollEl, onRefresh) {
 
   function onTouchStart(e) {
     if (isRefreshing) return;
+    if (!isEnabled()) { startY = 0; isPulling = false; return; }
     // Only track single-finger touches
     if (e.touches.length !== 1) return;
     // Only start pull tracking if at the top AND not still decelerating there.
     // wasScrolling stays true for 200ms after the last scroll event, which covers
     // the window where iOS momentum may have just carried scrollTop to 0.
-    if (scrollEl.scrollTop > 0 || wasScrolling) {
+    // Also never arm while the header is mid-transition (shared scroll clock).
+    if (getScrollTop() > 0 || wasScrolling || isScrollBusy()) {
       isPulling = false;
+      startY = 0; // disarm: a stale start point must not turn a later move into a pull
       return;
     }
     startY = e.touches[0].clientY;
@@ -130,7 +135,7 @@ export function setupPullToRefresh(scrollEl, onRefresh) {
     // Ignore predominantly horizontal gestures (e.g. date carousel swipe)
     if (Math.abs(deltaX) > Math.abs(deltaY) * 1.5) return;
 
-    if (deltaY > 0 && scrollEl.scrollTop <= 0) {
+    if (deltaY > 0 && getScrollTop() <= 0) {
       // User is pulling down at the top — activate pull-to-refresh
       isPulling = true;
       currentDelta = Math.min(deltaY * RESISTANCE, MAX_PULL);
@@ -145,6 +150,7 @@ export function setupPullToRefresh(scrollEl, onRefresh) {
   }
 
   async function onTouchEnd(e) {
+    startY = 0; // gesture over: disarm
     if (!isPulling || isRefreshing) {
       isPulling = false;
       currentDelta = 0;
@@ -186,7 +192,7 @@ export function setupPullToRefresh(scrollEl, onRefresh) {
     scrollEl.removeEventListener('touchmove', onTouchMove);
     scrollEl.removeEventListener('touchend', onTouchEnd);
     scrollEl.removeEventListener('touchcancel', onTouchEnd);
-    scrollEl.removeEventListener('scroll', onScroll);
+    scrollTargets.forEach((t) => t.removeEventListener('scroll', onScroll));
     clearTimeout(scrollCooldownTimer);
     if (indicator && indicator.parentNode) {
       indicator.parentNode.removeChild(indicator);

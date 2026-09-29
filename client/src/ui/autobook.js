@@ -2,14 +2,14 @@ import { api } from '../api';
 import { getGymShortName, getLinkedGyms, getDefaultGymId } from '../gym-context.js';
 import { getAvailableCreditsForEvent, getTotalCredits, getIneligibleReason } from './credit-allowance.js';
 import { showToast, cache, userSettings, gymSetting, setGymSettingLocal, profileForGym, refreshUserData, debugConsole } from '../main';
-import { getClassReleaseTime } from '../lib';
+import { getClassReleaseTime, noSept } from '../lib';
 import { DateTime } from 'luxon';
 import { renderStudioFloorPlan } from './spotmap';
-import { cleanClassName, icon, disciplineTag, trimLocation, seatNoun, pulseIcon, renderGymRail, equalizeDiscTagWidths, escapeHtml, gymBrand } from './cards';
+import { instructorInlineHtml, cleanClassName, icon, disciplineTag, trimLocation, seatNoun, pulseIcon, renderGymRail, equalizeDiscTagWidths, observeLocationWrap, wireRailToggle, escapeHtml, gymBrand, gymChip } from './cards';
 import { renderCardSkeletons } from './loading-skeleton.js';
 import { ensureLiveStatusLine, setLiveStatusText } from './status-line.js';
 import { instructorAvatar } from './tooltips.js';
-import { pickStudioPrefs } from './timetable';
+import { pickStudioPrefs, metadata, loadMetadata } from './timetable';
 
 let countdownInterval = null;
 let sseEventSource = null;
@@ -339,6 +339,13 @@ async function renderAutoBookTab() {
     }
   }
 
+  // instructorAvatar() reads metadata.instructors, otherwise only filled by the
+  // Timetable prefetch. Landing here first left every avatar missing until the
+  // user visited Timetable and back. Load it and repaint when it arrives.
+  if (!metadata.instructors.length) {
+    loadMetadata().then(repaintAutoBookFromCache).catch(() => {});
+  }
+
   // Fetch fresh data in the background
   try {
     const res = await api.getAutoBookings();
@@ -365,6 +372,7 @@ function renderQueue(queue) {
   if (!container) return;
 
   if (queue.length === 0) {
+    container.__abSig = null;
     container.innerHTML = `
       <div class="fav-empty-state" style="padding: 30px 0;">
         No classes scheduled in the release queue. Visit the Timetable tab to add classes.
@@ -375,6 +383,15 @@ function renderQueue(queue) {
 
   // Sort chronologically by class start time
   const sorted = [...queue].sort((a, b) => new Date(a.start_at) - new Date(b.start_at));
+  // Skip a re-render that would produce identical cards: entering the tab fires cache paint,
+  // metadata repaint and fresh-fetch render back to back, and each one re-created every logo
+  // <img> (visible flicker). Anything the card markup depends on is in the signature.
+  let sig = null;
+  try {
+    sig = JSON.stringify([sorted, metadata.instructors.length, cache.credits, cache.creditsByGym, cache.eligibility, cache.eligibilityByGym, userSettings, (getLinkedGyms() || []).map(g => g.gym_id || g.id)]);
+  } catch (e) { sig = null; }
+  if (sig && container.__abSig === sig && container.childElementCount > 0) return;
+  container.__abSig = sig;
   container.innerHTML = '';
   sorted.forEach(q => {
     const card = document.createElement('div');
@@ -383,12 +400,12 @@ function renderQueue(queue) {
     card.setAttribute('data-gym', q.gym_id || getDefaultGymId());
 
     const startDt = new Date(q.start_at);
-    const dateStr = startDt.toLocaleString('en-GB', {
+    const dateStr = noSept(startDt.toLocaleString('en-GB', {
       weekday: 'short',
       day: 'numeric',
       month: 'short',
       timeZone: 'Europe/London'
-    });
+    }));
     const timeOnly = startDt.toLocaleString('en-GB', {
       hour: '2-digit',
       minute: '2-digit',
@@ -436,22 +453,22 @@ function renderQueue(queue) {
             <div class="ab-card-line1">
               <span class="ab-card-date">${dateStr.toUpperCase()}</span>
               <span class="ab-card-time">${timeOnly}</span>
-              ${instructorName ? `<span class="ab-card-instructor">${instructorName}</span>` : ''}
             </div>
             <div class="ab-card-line2">
-              ${disciplineTag(q.group_name || q.class_name)}
-              <span class="ab-card-class">${className}</span>
+              <span class="ab-card-titlegroup">${disciplineTag(q.group_name || q.class_name)}
+              <span class="ab-card-class">${className}</span></span>
+              ${instructorInlineHtml(instructorName)}
               ${locationLine ? `<span class="ab-meta-dot">·</span><span class="ab-card-location">${locationLine}</span>` : ''}
             </div>
           </div>
-          ${instructorAvatar(instructorName, q.gym_id, instructorPhotoUrl)
-            ? `<div class="ab-card-figure">${instructorAvatar(instructorName, q.gym_id, instructorPhotoUrl)}</div>` : ''}
+          ${(instructorAvatar(instructorName, q.gym_id, instructorPhotoUrl) || instructorName)
+          ? `<div class="ab-card-figure">${instructorAvatar(instructorName, q.gym_id, instructorPhotoUrl) || ''}${instructorName ? `<span class="ab-card-instructor">${instructorName}</span>` : ''}</div>` : ''}
         </div>
         <div class="ab-card-footer">
           <span class="ab-countdown state-pending" data-start-at="${q.start_at}" data-gym-id="${q.gym_id || ''}" ${(() => { const r = getClassReleaseTime(q, userSettings); return r ? `data-release-at="${r.toISO()}"` : ''; })()}>
             ${icon('clock', 13)}<span class="ab-countdown-val">…</span>
           </span>
-          <span class="ab-spots-pill">${creditsNeeded} ${seatNoun(q.group_name)[0].toUpperCase() + seatNoun(q.group_name).slice(1)}${creditsNeeded !== 1 ? 's' : ''}</span>
+          <div class="ab-chip-group"><span class="ab-spots-pill">${creditsNeeded} ${seatNoun(q.group_name)[0].toUpperCase() + seatNoun(q.group_name).slice(1)}${creditsNeeded !== 1 ? 's' : ''}</span></div>
         </div>
         ${creditWarning}
         ${clashWarnings}
@@ -474,6 +491,11 @@ function renderQueue(queue) {
   });
 
   equalizeDiscTagWidths(container);
+  observeLocationWrap(container);
+  wireRailToggle(container);
+  // Fill the countdowns now from each row's own release time; waiting for the
+  // interval (which starts only after the first network fetch) left "…" for 1-2s.
+  updateCountdowns();
 }
 
 // Two-tap confirm cancel for an auto-book queue entry (mirrors booking cancellation).
@@ -711,6 +733,12 @@ function renderHistory(history) {
   }
 
   history.sort((a, b) => new Date(b.executed_at) - new Date(a.executed_at));
+  // Same identical-render skip as the queue (rows carry gym logos that flicker when rebuilt).
+  const histList = document.getElementById('psycle-autobook-history-list');
+  let histSig = null;
+  try { histSig = JSON.stringify([history, metadata.instructors.length]); } catch (e) { histSig = null; }
+  if (histSig && histList && histList.__histSig === histSig && histList.childElementCount > 0) return;
+  if (histList) histList.__histSig = histSig;
   _historyAll = history;
   _historyPage = 0;
   renderHistoryPage();
@@ -722,7 +750,7 @@ function renderHistoryPage() {
   if (!list) return;
 
   if (_historyAll.length === 0) {
-    list.innerHTML = '<div class="psycle-table-empty">No execution history recorded in the last 24h.</div>';
+    list.innerHTML = '<div class="psycle-table-empty">No execution history yet.</div>';
     if (paginationEl) paginationEl.innerHTML = '';
     return;
   }
@@ -734,9 +762,9 @@ function renderHistoryPage() {
   list.innerHTML = '';
   page.forEach(h => {
     const executedDt = new Date(h.executed_at);
-    const dateStr = executedDt.toLocaleString('en-GB', {
+    const dateStr = noSept(executedDt.toLocaleString('en-GB', {
       weekday: 'short', day: 'numeric', month: 'short', timeZone: 'Europe/London'
-    });
+    }));
     const timeStr = executedDt.toLocaleString('en-GB', {
       hour: '2-digit', minute: '2-digit', hour12: false, timeZone: 'Europe/London'
     });
@@ -760,7 +788,7 @@ function renderHistoryPage() {
       <div class="ab-hist-row1">
         <div class="ab-hist-name">
           ${disciplineTag(h.group_name || h.class_name)}
-          <span class="psycle-gym-chip" style="background:${gymBrand(h.gym_id).brandBg};border:1px solid ${gymBrand(h.gym_id).brandBg}">${escapeHtml(getGymShortName(h.gym_id) || gymBrand(h.gym_id).shortName)}</span>
+          ${gymChip(h.gym_id || getDefaultGymId())}
           <span class="ab-card-class">${className}</span>
         </div>
         <span class="ab-history-status state-${state}">${icon(statusGlyph, 12)} ${statusText}</span>
@@ -809,9 +837,12 @@ function formatOpensIn(ms) {
   const days = Math.floor(totalMin / 1440);
   const hours = Math.floor((totalMin % 1440) / 60);
   const mins = totalMin % 60;
-  if (days >= 1) return `Opens in ${days} day${days !== 1 ? 's' : ''}`;
-  if (hours >= 1) return `Opens in ${hours} hour${hours !== 1 ? 's' : ''}`;
-  return `Opens in ${mins} min${mins !== 1 ? 's' : ''}`;
+  // The "Opens in " prefix is its own span so CSS can drop it while the card's
+  // action rail is open (.is-rail-open .ab-cd-prefix) without a re-render.
+  const pre = '<span class="ab-cd-prefix">Opens in </span>';
+  if (days >= 1) return `${pre}${days} day${days !== 1 ? 's' : ''}`;
+  if (hours >= 1) return `${pre}${hours} hour${hours !== 1 ? 's' : ''}`;
+  return `${pre}${mins} min${mins !== 1 ? 's' : ''}`;
 }
 
 
@@ -844,7 +875,9 @@ function updateCountdowns() {
     let paused = false, urgent = false, active = false;
     let statusGlyph = 'checkCircle', statusLabel = 'Standing by to book';
     if (userSettings.autoBookPaused) {
-      mainCountdown.textContent = 'Paused';
+      // The whole headline becomes the pause status (icon + label); the
+      // separate status line and "Next booking in" label are hidden by CSS.
+      mainCountdown.innerHTML = `${icon('pause', 18)}<span>Auto-Book paused</span>`;
       paused = true;
       statusGlyph = 'pause'; statusLabel = 'Auto-book paused';
     } else {
@@ -881,6 +914,8 @@ function updateCountdowns() {
     }
     if (banner) {
       banner.classList.toggle('is-paused', paused);
+      const qc = document.getElementById('psycle-autobook-queue-container');
+      if (qc) qc.classList.toggle('is-paused', paused);
       banner.classList.toggle('is-urgent', urgent);
       banner.classList.toggle('is-active', active);
     }
@@ -908,7 +943,7 @@ function updateCountdowns() {
       el.classList.remove('state-pending');
       el.classList.add('state-active');
     } else {
-      valEl.textContent = formatOpensIn(diff);
+      valEl.innerHTML = formatOpensIn(diff);
       el.classList.remove('state-active');
       el.classList.add('state-pending');
     }

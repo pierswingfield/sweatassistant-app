@@ -1,3 +1,4 @@
+import { loadWordmarkSprites } from './gym-logo-sprite.js';
 // Per-gym capabilities, theming and labels (WP-D14).
 //
 // Everything above the adapter layer is supposed to know only normalized types
@@ -55,10 +56,33 @@ export function setGymCatalogue(catalogue) {
     if (g && g.id && g.presentation) presentations.set(String(g.id), g.presentation);
   }
   injectGymPresentationCss();
+  preloadGymWordmarks();
+  loadWordmarkSprites(presentations);
+}
+
+// Logos are re-created by every card re-render. Hold one decoded Image per wordmark asset so a
+// re-inserted <img> paints from memory immediately instead of flashing blank while the browser
+// re-decodes the AVIF/SVG (the Auto-Book logo flicker).
+const heldWordmarks = new Map();
+function preloadGymWordmarks() {
+  if (typeof Image === 'undefined') return;
+  for (const p of presentations.values()) {
+    for (const k of ['full', 'compact', 'mark']) {
+      const src = p?.wordmark?.[k]?.src;
+      if (!src || heldWordmarks.has(src)) continue;
+      const im = new Image();
+      im.decoding = 'sync';
+      im.src = src;
+      heldWordmarks.set(src, im);
+      im.decode?.().catch(() => {});
+    }
+  }
 }
 
 const CSS_ID_OK = /^[\w-]+$/;
-const tokens = (id, c) => `--gym-${id}-ink:${c.ink};--gym-${id}-ink-hover:${c.inkHover};--gym-${id}-tint:${c.tint};--gym-${id}-on:${c.on};`;
+// btn / wash / pip are optional in the contract; fall back so older contracts render as before.
+const tokens = (id, c) => `--gym-${id}-ink:${c.ink};--gym-${id}-ink-hover:${c.inkHover};--gym-${id}-tint:${c.tint};--gym-${id}-on:${c.on};`
+  + `--gym-${id}-btn:${c.btn || c.ink};--gym-${id}-wash:${c.wash || 'transparent'};--gym-${id}-pip:${c.pip || c.ink};`;
 
 /**
  * CSS for every gym's colour tokens, built from the presentation contracts so
@@ -72,7 +96,7 @@ export function gymPresentationCss(map = presentations) {
     if (!CSS_ID_OK.test(id) || !p?.dark || !p?.light) continue;
     dark += tokens(id, p.dark);
     light += tokens(id, p.light);
-    alias += `[data-gym="${id}"]{--gym-ink:var(--gym-${id}-ink);--gym-ink-hover:var(--gym-${id}-ink-hover);--gym-tint:var(--gym-${id}-tint);--gym-on:var(--gym-${id}-on);}`;
+    alias += `[data-gym="${id}"]{--gym-ink:var(--gym-${id}-ink);--gym-ink-hover:var(--gym-${id}-ink-hover);--gym-tint:var(--gym-${id}-tint);--gym-on:var(--gym-${id}-on);--gym-btn:var(--gym-${id}-btn);--gym-wash:var(--gym-${id}-wash);--gym-pip:var(--gym-${id}-pip);}`;
   }
   if (!alias) return '';
   return `:root{${dark}}`

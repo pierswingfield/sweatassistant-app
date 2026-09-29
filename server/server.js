@@ -12,6 +12,8 @@ const notifications = require('./notifications');
 const scheduler = require('./scheduler');
 const poller = require('./poller');
 const calendar = require('./calendar');
+const { normalizeCalendarPrefs, applyCalendarPatch } = require('./calendar-prefs');
+const { isRollingWeekly } = require('./providers/booking-window');
 const adminRouter = require('./admin');
 const normalizedRouter = require('./routes-normalized');
 const config = require('./config');
@@ -225,6 +227,16 @@ if (process.env.NODE_ENV === 'production') {
   app.get('/sw.js', (req, res) => {
     sendTemplated(path.join(__dirname, 'public', 'sw.js'), res, 'application/javascript');
   });
+  // Gym wordmarks: long-lived + stale-while-revalidate (art changes bump the ?v= in gyms.config.js), and the
+  // right MIME (avif was served as application/octet-stream). Everything else keeps Express's defaults.
+  app.use('/gyms', express.static(path.join(__dirname, 'public', 'gyms'), {
+    maxAge: '1d',
+    setHeaders: (res, filePath) => {
+      res.setHeader('Cache-Control', 'public, max-age=86400, stale-while-revalidate=604800');
+      if (/\.avif$/i.test(filePath)) res.type('image/avif');
+      if (/\.svg$/i.test(filePath)) res.type('image/svg+xml');
+    },
+  }));
   app.use(express.static(path.join(__dirname, 'public')));
 }
 
@@ -428,7 +440,16 @@ app.post('/api/overlap-check', authenticateToken, (req, res) => {
 app.get('/api/auto-book', authenticateToken, (req, res) => {
   try {
     const gymId = req.query.gymId || (req.headers['x-gym-id'] ? undefined : 'all');
-    const bookings = db.getUserAutoBookings(req.userId, gymId);
+    // History is bounded: pending rows always come back; executed rows only for
+    // the last 90 days and at most the 50 most recent (rows are id DESC).
+    const historyCutoff = Date.now() - 90 * 24 * 60 * 60 * 1000;
+    let keptHistory = 0;
+    const bookings = db.getUserAutoBookings(req.userId, gymId).filter(b => {
+      if (!b.executed_at) return true;
+      const t = Date.parse(b.executed_at);
+      if (Number.isFinite(t) && t < historyCutoff) return false;
+      return ++keptHistory <= 50;
+    });
     // C5-3: judged against the member's WHOLE queue + bookings, not just the
     // gym filter above, or a cross-gym overlap would vanish from a per-gym view.
     const ctx = competingContextFor(req.userId);
@@ -726,12 +747,19 @@ app.get('/api/calendar/status', authenticateToken, (req, res) => {
   try {
     const settings = db.getUserSettings(req.userId) || {};
     const cal = settings.calendar || {};
+    const prefs = normalizeCalendarPrefs(cal);
     const token = db.getCalendarToken(req.userId);
     const snap = db.getCalendarSnapshot(req.userId);
     res.json({
       enabled: !!cal.enabled,
-      includeTentative: !!cal.includeTentative,
-      alarm: cal.alarm || 'none',
+      ...prefs,
+      // Legacy shape, derived, for older clients.
+      includeTentative: prefs.includeWaitlists || prefs.includeAutoBook,
+      // Gyms on a weekly release schedule (from gyms.config bookingWindow.kind).
+      // The client shows "remind me when booking opens" only when this is non-empty.
+      weeklyGyms: (db.getUserGymsPublic(req.userId) || [])
+        .filter((g) => { const cfg = getGymConfig(g.gym_id); return cfg && isRollingWeekly(cfg); })
+        .map((g) => ({ id: g.gym_id, name: (getGymConfig(g.gym_id).shortName || g.gym_name || g.gym_id) })),
       links: token ? calendar.buildLinks(token) : null,
       generatedAt: snap ? snap.generated_at : null,
       classCount: snap ? snap.class_count : 0,
@@ -751,9 +779,8 @@ app.post('/api/calendar/enable', authenticateToken, (req, res) => {
     // C3-14: patch ONLY the account-scoped `calendar` key. Writing back the whole
     // merged blob dragged the default gym's gym-scoped keys along, which a
     // multi-gym account rightly refuses to place.
-    const cal = { ...((db.getUserSettings(req.userId) || {}).calendar || {}), enabled: true };
-    if (typeof req.body?.includeTentative === 'boolean') cal.includeTentative = req.body.includeTentative;
-    if (typeof req.body?.alarm === 'string') cal.alarm = req.body.alarm;
+    const cal = applyCalendarPatch((db.getUserSettings(req.userId) || {}).calendar || {}, req.body);
+    cal.enabled = true;
     db.setUserSettings(req.userId, { calendar: cal });
     calendar.regenerateSnapshot(req.userId);
     // Warm the location-address cache + pull fresh bookings/waitlists shortly after,

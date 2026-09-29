@@ -64,19 +64,21 @@ const GYMS = {
     loginPath: '/auth/login',
     // GET paths that CodexFit serves without a Bearer token.
     publicPathPattern: /^\/(events|locations|studios|instructors|event-types|event-type-groups|bundles)(\/|$|\?)/,
-    theme: { key: 'violet', primary: '#7c3aed' },
+    theme: { key: 'violet', primary: '#27272A' },
     // Presentation contract (F-7 Stage A). Display only; validated at load.
     presentation: {
       shortName: 'Psycle',
       wordmark: {
         text: 'PSYCLE',
-        full: { src: '/gyms/psycle-london.avif' },
-        compact: { src: '/gyms/psycle-london-half.avif' },
-        mark: { src: '/gyms/psycle-london-small.avif' },
+        full: { src: '/gyms/psycle-london.svg?v=1' },
+        compact: { src: '/gyms/psycle-london-half.svg?v=1' },
+        mark: { src: '/gyms/psycle-london-small.svg?v=1' },
       },
       plate: '#212121',
-      light: { ink: '#7c3aed', inkHover: '#6d28d9', tint: '#7c3aed', on: '#ffffff' },
-      dark: { ink: '#a78bfa', inkHover: '#c4b5fd', tint: '#8b5cf6', on: '#1a1033' },
+      // tint stays a SOLID base colour (consumers colour-mix it at 3-36%);
+      // wash is the alpha overlay, btn the filled-button bg (`on` sits on it).
+      light: { ink: '#27272A', inkHover: '#18181B', tint: '#27272A', on: '#ffffff', btn: '#27272A', wash: 'rgba(39,39,42,0.06)', pip: '#D4F400' },
+      dark: { ink: '#E4E4E7', inkHover: '#FFFFFF', tint: '#E4E4E7', on: '#09090b', btn: '#FFFFFF', wash: 'rgba(228,228,231,0.10)', pip: '#D4F400' },
       displayAliases: {},
     },
     labels: { class: 'class', spot: 'spot' },
@@ -187,7 +189,7 @@ const GYMS = {
       referer: 'https://jabboxingclub.marianaiframes.com/',
       'user-agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/149.0.0.0 Safari/537.36',
     },
-    theme: { key: 'navy', primary: '#18214D', font: 'Gothic A1' },
+    theme: { key: 'navy', primary: '#6C1F20', font: 'Gothic A1' },
     // Presentation contract (F-7 Stage A). Display only; validated at load.
     presentation: {
       shortName: 'JAB',
@@ -196,10 +198,11 @@ const GYMS = {
         full: { src: '/gyms/jab-boxing.svg' },
         compact: { src: '/gyms/jab-boxing.svg' },
         mark: { src: '/gyms/jab-boxing-mark.svg?v=3' },
+        scale: 0.855, // optical: the wordmark sits at 85.5% (0.95 x 0.9) inside its unchanged chip; scales the inner image only
       },
       plate: '#6C1F20',
-      light: { ink: '#18214d', inkHover: '#10173a', tint: '#18214d', on: '#ffffff' },
-      dark: { ink: '#818cf8', inkHover: '#a5b4fc', tint: '#5d71c9', on: '#0b1030' },
+      light: { ink: '#6C1F20', inkHover: '#4F1617', tint: '#6C1F20', on: '#ffffff', btn: '#6C1F20', wash: 'rgba(108,31,32,0.08)' },
+      dark: { ink: '#F87171', inkHover: '#FCA5A5', tint: '#F87171', on: '#2D0A0B', btn: '#F87171', wash: 'rgba(248,113,113,0.12)' },
       // Scoped, exact-match (lower-cased raw name) display aliases. Raw provider
       // names are never rewritten for lookups.
       displayAliases: { studios: { 'recovery 2.0': 'Recovery' } },
@@ -251,6 +254,9 @@ const GYMS = {
 const HEX = /^#[0-9a-fA-F]{6}$/;
 const ALIAS_SCOPES = ['studios', 'locations', 'instructors', 'classTypes'];
 const COLOUR_KEYS = ['ink', 'inkHover', 'tint', 'on'];
+// Optional: button bg, alpha wash (rgba allowed) and accent pip. Clients fall back to ink/tint.
+const OPTIONAL_COLOUR_KEYS = ['btn', 'wash', 'pip'];
+const CSS_COLOUR = /^(#[0-9a-fA-F]{6}|rgba?\(\s*\d{1,3}\s*,\s*\d{1,3}\s*,\s*\d{1,3}\s*(,\s*(0|1|0?\.\d+)\s*)?\))$/;
 
 /**
  * Validate a gym's presentation contract. Throws on anything malformed so a bad
@@ -265,6 +271,7 @@ function validatePresentation(p, gymId = '?') {
   const w = p.wordmark;
   if (!w || typeof w !== 'object') bad('.wordmark is required');
   if (!str(w.text)) bad('.wordmark.text (text fallback) must be a non-empty string');
+  if (w.scale != null && !(typeof w.scale === 'number' && w.scale >= 0.5 && w.scale <= 1.5)) bad('.wordmark.scale must be a number between 0.5 and 1.5');
   for (const k of ['full', 'compact', 'mark']) {
     if (w[k] == null) continue;
     if (!w[k] || !str(w[k].src) || !/^\/gyms\/[\w.\-]+(\?[\w=&.\-]*)?$/.test(w[k].src)) {
@@ -276,6 +283,10 @@ function validatePresentation(p, gymId = '?') {
     if (!p[mode] || typeof p[mode] !== 'object') bad(`.${mode} is required`);
     for (const k of COLOUR_KEYS) {
       if (!HEX.test(p[mode][k] || '')) bad(`.${mode}.${k} must be a #rrggbb colour`);
+    }
+    for (const k of OPTIONAL_COLOUR_KEYS) {
+      const v = p[mode][k];
+      if (v != null && !CSS_COLOUR.test(v)) bad(`.${mode}.${k} must be #rrggbb or rgb()/rgba()`);
     }
   }
   const a = p.displayAliases;

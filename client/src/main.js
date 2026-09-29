@@ -1,13 +1,15 @@
 import { api, setToken, isLoggedIn } from './api';
-import { setLinkedGyms, setGymCatalogue, getLinkedGyms, getGymShortName, getDefaultGymId } from './gym-context.js';
+import { setLinkedGyms, setGymCatalogue, getLinkedGyms, getGymShortName, getDefaultGymId, getGymPresentation } from './gym-context.js';
 import { initTooltips } from './ui/tooltips';
 import { setupPullToRefresh } from './ui/pulltorefresh';
+import { markScrollBusy, isScrollBusy, isDocScroll, docScroller } from './ui/scroll-state.js';
+import { initGymLogoLoader } from './ui/gym-logo-loader.js';
 import { setCacheKeyPrefix, clearApiCache, invalidateApiCache } from './cache.js';
 import { appConfig, initConfig } from './config';
 import { shouldShowOnboarding, resumeOnboarding, isOnboardingActive, advanceAfterLogin } from './ui/onboarding';
-import { detectBookingWindow } from './lib';
-import { canBookAtAll, getIneligibleReason } from './ui/credit-allowance.js';
-import { escapeHtml } from './ui/cards';
+import { detectBookingWindow, noSept } from './lib';
+import { canBookAtAll, getIneligibleReason, hasConfirmedAccess } from './ui/credit-allowance.js';
+import { escapeHtml, gymBrand, wordmarkElement } from './ui/cards';
 import { installBookingState } from './ui/booking-state.js';
 
 // --- PWA install prompt capture ---
@@ -129,15 +131,26 @@ export function applyTheme(mode = getTheme()) {
     root.removeAttribute('data-theme'); // auto → CSS prefers-color-scheme decides
     effective = window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
   }
-  // Sync all theme-color meta tags with the app's actual (possibly overridden)
-  // theme so the iOS notch / status-bar area matches the app background instead
-  // of the OS theme. Without this, a user in light mode on a dark-mode phone
-  // gets a black notch over a light app. The media-query-based tags in
-  // index.html handle the initial render; this JS override keeps them in sync
-  // for manual light/dark modes and OS-theme changes.
-  const metas = document.querySelectorAll('meta[name="theme-color"]');
-  const color = effective === 'dark' ? '#090d16' : '#f5f2ec';
-  metas.forEach(m => m.setAttribute('content', color));
+  syncThemeColorMeta();
+}
+
+// Status-bar / safe-area colour comes from the EXPLICIT solid tokens (--header-solid while the header
+// shows, --page-solid once it has scrolled away): no runtime alpha compositing, so the value is exactly
+// what the design tokens say (light #EBEAE4 / #F4F2EC, dark #070A12 / #090D16).
+function headerBackgroundHex() {
+  const cs = getComputedStyle(document.documentElement);
+  const name = document.documentElement.hasAttribute('data-hdr-hidden') ? '--page-solid' : '--header-solid';
+  return (cs.getPropertyValue(name).trim() || '#090d16').toLowerCase();
+}
+// iOS does not re-read a media-scoped <meta name="theme-color"> when its content
+// attribute changes, so drop the static tags and REPLACE one unscoped tag each time.
+export function syncThemeColorMeta() {
+  if (!document.body) return;
+  document.querySelectorAll('meta[name="theme-color"]').forEach((m) => m.remove());
+  const meta = document.createElement('meta');
+  meta.name = 'theme-color';
+  meta.content = headerBackgroundHex();
+  document.head.appendChild(meta);
 }
 
 export function setTheme(mode) {
@@ -148,6 +161,8 @@ export function setTheme(mode) {
 
 // Apply persisted choice immediately (before first paint of the app shell).
 applyTheme();
+// <body> may not exist yet when this module first runs; colour it once it does.
+document.addEventListener('DOMContentLoaded', syncThemeColorMeta);
 
 // Re-sync theme-color when the OS theme changes (only matters in 'auto' mode,
 // where the app follows the system and the notch colour must follow too).
@@ -303,6 +318,9 @@ function switchTab(tabId) {
     }
   });
 
+  // Each tab starts at the top (window on mobile, inner scroller on desktop).
+  try { window.scrollTo(0, 0); document.querySelector('main.psycle-body')?.scrollTo?.(0, 0); } catch (e) { /* jsdom */ }
+
   // Persist tab in URL hash so refresh restores location
   if (history.replaceState) {
     history.replaceState(null, '', `#${tabId}`);
@@ -416,7 +434,13 @@ async function refreshActiveTab() {
 
 const scrollBody = document.querySelector('main.psycle-body');
 if (scrollBody) {
-  setupPullToRefresh(scrollBody, refreshActiveTab);
+  // Settings has no refreshable data and its panes are long forms: pull-to-refresh stays off there.
+  setupPullToRefresh(scrollBody, refreshActiveTab, {
+    isEnabled: () => currentTabId !== 'settings',
+    // Mobile scrolls the document, desktop the inner <main>: read whichever is live.
+    getScrollTop: () => (isDocScroll() ? docScroller().scrollTop : scrollBody.scrollTop),
+    scrollTargets: [scrollBody, window],
+  });
 }
 
 // --- TAB REFRESH BUTTONS ---
@@ -601,15 +625,32 @@ function sumCredits(credits) {
   }, 0);
 }
 
+// Gym logo on the gym's brand plate. Both wordmark sizes are always in the DOM;
+// `.psycle-badges-compact` on the container (see fitHeaderBadges) picks the mark.
+// Assets and plate come from the same presentation contract gymBrand() reads.
+function gymBadgeLogo(gymId, shortName) {
+  const brand = gymBrand(gymId);
+  const w = getGymPresentation(gymId)?.wordmark || {};
+  const wide = w.compact || w.full, mark = w.mark;
+  const name = escapeHtml(brand.name || shortName);
+  if (!wide && !mark) {
+    return `<span class="psycle-hgb-logo" aria-hidden="true" style="background:${brand.brandBg}"><span class="psycle-hgb-logo-text">${name}</span></span>`;
+  }
+  const img = (cls, src) => wordmarkElement(cls, src);
+  return `<span class="psycle-hgb-logo" aria-hidden="true" style="background:${brand.brandBg}">`
+    + (wide ? img('psycle-hgb-logo-wide', wide.src) : '')
+    + (mark ? img('psycle-hgb-logo-mark', mark.src) : (wide ? img('psycle-hgb-logo-mark', wide.src) : ''))
+    + `</span>`;
+}
+
 function renderGymBadge(container, gymId, shortName, isMetered, total, credits) {
   const badge = document.createElement('button');
   badge.type = 'button';
   badge.className = 'psycle-header-gym-badge';
   badge.setAttribute('data-gym', gymId);
   if (isMetered) {
-    badge.innerHTML = `<span class="psycle-hgb-name">${shortName}</span><span class="psycle-hgb-pill">${total} cr</span>`;
+    badge.innerHTML = `${gymBadgeLogo(gymId, shortName)}<span class="psycle-hgb-pill">${total}<span class="psycle-hgb-unit"> credits</span></span>`;
     badge.title = `${shortName}: ${total} credit${total !== 1 ? 's' : ''} available`;
-    badge.onclick = () => { if (total > 0) showCreditDetailsModal(credits, gymId); };
   } else if (canBookAtAll(gymId)) {
     // "Active" alone reads as "this is the currently-selected gym" rather than
     // "your membership is active" — found ambiguous 2026-09-02, back when the
@@ -619,17 +660,58 @@ function renderGymBadge(container, gymId, shortName, isMetered, total, credits) 
     // eligibility hasn't loaded yet (same unknown-defaults-ON rule as
     // capabilities), but never shown once the server has confirmed this
     // account has no active membership at this gym.
-    badge.innerHTML = `<span class="psycle-hgb-name">${shortName}</span><span class="psycle-hgb-pill member">Member</span>`;
+    badge.innerHTML = `${gymBadgeLogo(gymId, shortName)}<span class="psycle-hgb-pill member">${hasConfirmedAccess(gymId) ? '\u221E' : 'Member'}</span>`;
     badge.title = `${shortName}: Membership active`;
   } else {
     // C3-3: an unmetered gym with no active membership (and no usable
     // credits) is a real, confirmed state — showing "Member" here was the
     // bug this branch exists to fix, not a permissive default to preserve.
-    badge.innerHTML = `<span class="psycle-hgb-name">${shortName}</span><span class="psycle-hgb-pill inactive">No membership</span>`;
+    badge.innerHTML = `${gymBadgeLogo(gymId, shortName)}<span class="psycle-hgb-pill inactive">No membership</span>`;
     badge.title = `${shortName}: ${getIneligibleReason(gymId) || 'No active membership'}`;
   }
+  // The chip is a shortcut to that gym's own Settings pane (the credit modal it
+  // used to open is gone). Keep the hover title (it carries the balance) but
+  // give assistive tech the action.
+  badge.setAttribute('aria-label', `Open ${shortName} settings`);
+  badge.onclick = () => {
+    switchTab('settings');
+    import('./ui/settings').then((m) => m.openGymSettings(gymId)).catch((err) => console.error('Open gym settings failed:', err));
+  };
   container.appendChild(badge);
+  fitHeaderBadges(true);
+  requestAnimationFrame(() => fitHeaderBadges(true)); // re-check once layout has settled
 }
+
+// Switch ALL badges to the small mark when the full set would overflow the header.
+// Full width is measured (with the wide logos) on each render and cached; resize
+// only compares against that cache, with 24px hysteresis so it cannot oscillate.
+let fullBadgesWidth = 0;
+let badgeFitObserver = null;
+function fitHeaderBadges(remeasure) {
+  const box = document.getElementById('psycle-header-credits');
+  const header = document.querySelector('.psycle-header');
+  if (!box || !header) return;
+  const wasCompact = box.classList.contains('psycle-badges-compact');
+  if (remeasure) {
+    box.classList.remove('psycle-badges-compact');
+    const kids = [...box.children];
+    const gap = parseFloat(getComputedStyle(box).columnGap) || 0;
+    fullBadgesWidth = kids.reduce((n, k) => n + k.getBoundingClientRect().width, 0) + gap * Math.max(0, kids.length - 1);
+  }
+  const cs = getComputedStyle(header);
+  const title = header.querySelector('.psycle-title-area');
+  const email = header.querySelector('.psycle-user-email');
+  const emailW = email && getComputedStyle(email).display !== 'none' ? email.getBoundingClientRect().width + 16 : 0;
+  const avail = header.clientWidth - parseFloat(cs.paddingLeft) - parseFloat(cs.paddingRight)
+    - (title ? title.getBoundingClientRect().width : 0) - emailW - 16;
+  const compact = wasCompact ? fullBadgesWidth + 24 > avail : fullBadgesWidth > avail;
+  box.classList.toggle('psycle-badges-compact', compact);
+  if (!badgeFitObserver && typeof ResizeObserver !== 'undefined') {
+    badgeFitObserver = new ResizeObserver(() => fitHeaderBadges(false));
+    badgeFitObserver.observe(header);
+  }
+}
+
 
 // `availableCredits`, when passed, is always the ACTIVE gym's inventory (the
 // only kind `/api/credits` ever returns without an explicit gymId). With a
@@ -708,104 +790,6 @@ function repaintAutoBookIfVisible() {
   import('./ui/autobook')
     .then((m) => { if (typeof m.repaintAutoBookFromCache === 'function') m.repaintAutoBookFromCache(); })
     .catch(() => {});
-}
-
-// --- CREDIT DETAILS MODAL ---
-
-async function showCreditDetailsModal(credits, gymId = null) {
-  const modal = document.createElement('div');
-  modal.style.cssText = `
-    position: fixed;
-    top: 0;
-    left: 0;
-    width: 100%;
-    height: 100%;
-    background: color-mix(in srgb, var(--bg) 60%, transparent);
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    z-index: 9999;
-  `;
-
-  const content = document.createElement('div');
-  content.style.cssText = `
-    background: color-mix(in srgb, var(--bg) 95%, transparent);
-    border: 1px solid color-mix(in srgb, var(--text) 10%, transparent);
-    border-radius: 16px;
-    padding: 24px;
-    max-width: 450px;
-    max-height: 80vh;
-    overflow-y: auto;
-    color: var(--text);
-  `;
-
-  let html = `<h2 style="margin-top: 0; color: var(--feat-autoupgrade); font-size: 18px;">Credit Details</h2>`;
-  html += `<div class="psycle-spinner" style="margin: 20px auto;"></div>`;
-
-  content.innerHTML = html;
-  modal.appendChild(content);
-  document.body.appendChild(modal);
-
-  try {
-    // Credit detail modal — metered gyms only (the badge that opens it is
-    // capability-gated). Reads NormalizedCredit only: `{ typeName, count,
-    // expiresAt }`. It used to reach through `profile.raw.relations.credit_types`
-    // for type names — a bag CodexFit does not put on the profile — default it
-    // to `{}`, then call `.find()` on that object, which threw on open.
-    // C3-28: name the gym of the badge that was clicked. This asked with no gym, so
-    // on a two-gym account every badge showed whichever gym the server defaults to.
-    const creditsData = await api.getNormalizedCredits(gymId);
-
-    content.innerHTML = `<h2 style="margin-top: 0; color: var(--feat-autoupgrade); font-size: 18px;">Credit Details</h2>`;
-
-    if (!Array.isArray(creditsData) || creditsData.length === 0) {
-      content.innerHTML += `<p style="color: var(--text-secondary);">No credits available.</p>`;
-    } else {
-      // Entries arrive GROUPED by type with a count — one entry is not one
-      // credit. Several entries can still share a type name with different
-      // expiry dates, so merge by name and keep each expiry line.
-      const grouped = new Map();
-      creditsData.forEach(credit => {
-        const typeName = credit.typeName || 'Credits';
-        if (!grouped.has(typeName)) grouped.set(typeName, []);
-        grouped.get(typeName).push(credit);
-      });
-
-      grouped.forEach((entries, typeName) => {
-        const total = entries.reduce((sum, c) => sum + (Number(c.count) || 0), 0);
-        content.innerHTML += `
-          <div style="margin-bottom: 16px; padding: 12px; background: color-mix(in srgb, var(--feat-autoupgrade) 5%, transparent); border-radius: 8px; border-left: 3px solid var(--feat-autoupgrade);">
-            <div style="font-weight: 600; color: var(--feat-autoupgrade); margin-bottom: 8px;">${escapeHtml(typeName)}: <strong>${total}</strong></div>
-            <div style="font-size: var(--text-xs); color: var(--text-secondary);">
-              ${entries.map(c => {
-                const n = Number(c.count) || 0;
-                const expiryDate = c.expiresAt
-                  ? new Date(c.expiresAt).toLocaleDateString('en-GB', { year: 'numeric', month: 'short', day: 'numeric' })
-                  : 'No expiry';
-                const isExpired = c.expiresAt && new Date(c.expiresAt) < new Date();
-                const expiryColor = isExpired ? 'var(--danger)' : 'var(--text-secondary)';
-                return `<div style="margin-bottom: 6px; color: ${expiryColor};">• ${n} credit${n === 1 ? '' : 's'} (${isExpired ? 'Expired' : 'Expires'}: ${expiryDate})</div>`;
-              }).join('')}
-            </div>
-          </div>
-        `;
-      });
-    }
-
-    content.innerHTML += `<button id="close-credit-modal" class="psycle-btn" style="width: 100%; margin-top: 16px; background: color-mix(in srgb, var(--text) 6%, transparent); border: 1px solid color-mix(in srgb, var(--text) 15%, transparent); color: var(--text);">Close</button>`;
-
-  } catch (err) {
-    console.error('[Credits] Failed to load details:', err);
-    content.innerHTML = `
-      <h2 style="margin-top: 0; color: var(--feat-autoupgrade); font-size: 18px;">Credit Details</h2>
-      <p style="color: var(--danger);">Failed to load credit details: ${err.message}</p>
-      <button id="close-credit-modal" class="psycle-btn" style="width: 100%; margin-top: 16px; background: color-mix(in srgb, var(--text) 6%, transparent); border: 1px solid color-mix(in srgb, var(--text) 15%, transparent); color: var(--text);">Close</button>
-    `;
-  }
-
-  const closeBtn = content.querySelector('#close-credit-modal');
-  closeBtn.onclick = () => modal.remove();
-  modal.onclick = (e) => { if (e.target === modal) modal.remove(); };
 }
 
 // --- OFFLINE CONNECTIVITY ---
@@ -1156,7 +1140,7 @@ export async function initApp() {
   
   // Set build timestamp in version stamp
   const buildTimeEl = document.getElementById('psycle-build-time');
-  if (buildTimeEl) buildTimeEl.textContent = new Date().toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' });
+  if (buildTimeEl) buildTimeEl.textContent = noSept(new Date().toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' }));
 
   // Restore tab from URL hash if available, otherwise default to Timetable
   const hash = location.hash.replace('#', '');
@@ -1519,11 +1503,98 @@ window.addEventListener('popstate', () => {
 });
 
 // App Launch
+/**
+ * Mobile: hide the top header on scroll down, reveal on scroll up / at top.
+ * Scroll-safe by construction: the header is an overlay (see styles.css), so toggling it
+ * never changes scrollHeight/clientHeight. Direction detection ignores iOS overscroll
+ * (scrollTop < 0 or > max), uses a dead zone, a cool-down after each toggle, and does
+ * nothing on pages too short to scroll or inside the top/bottom bounce zones.
+ */
+function initHeaderAutoHide() {
+  const mq = window.matchMedia('(max-width: 768px)');
+  const DEAD_ZONE = 12;      // px of net travel before a direction counts
+  const EDGE_ZONE = 32;      // px from top/bottom treated as bounce territory
+  const COOLDOWN_MS = 300;   // ignore samples right after a toggle (transition + momentum)
+  let app = null, header = null, ticking = false, target = null;
+  let anchor = 0, hidden = false;
+
+  const els = () => {
+    if (!app) app = document.getElementById('psycle-app-container');
+    if (!header) header = document.querySelector('.psycle-header');
+    return app && header;
+  };
+  const measure = () => {
+    if (els() && header.offsetHeight) app.style.setProperty('--psycle-header-h', header.offsetHeight + 'px');
+  };
+  const setHidden = (hide) => {
+    if (!els() || hide === hidden) return;
+    hidden = hide;
+    app.classList.toggle('psycle-hdr-hidden', hide);
+    // Safe-area cap + theme-color follow the header: header colour while it shows, page colour once it is gone.
+    document.documentElement.toggleAttribute('data-hdr-hidden', hide);
+    syncThemeColorMeta();
+    markScrollBusy(COOLDOWN_MS);
+  };
+  const modalOpen = () =>
+    !!document.querySelector('.psycle-modal[style*="display: flex"], .psycle-modal[style*="display: block"], .psycle-modal.open, .psycle-modal.active');
+
+  const update = () => {
+    ticking = false;
+    if (!target) return;
+    if (!mq.matches) { setHidden(false); return; }
+    const sc = isDocScroll() ? docScroller() : target;
+    const raw = sc.scrollTop;
+    const max = sc.scrollHeight - sc.clientHeight;
+    const headerH = (header && header.offsetHeight) || 47;
+    // Too short to scroll meaningfully: the header always stays; no toggling at all.
+    if (max < headerH + 48) { setHidden(false); anchor = 0; return; }
+    // iOS rubber-band samples: not real scrolling, never a direction change.
+    if (raw < 0 || raw > max) return;
+    const top = raw;
+    if (modalOpen() || top <= 4) { setHidden(false); anchor = top; return; }
+    if (isScrollBusy()) { anchor = top; return; }        // settle, then re-baseline
+    if (top >= max - EDGE_ZONE) { anchor = top; return; } // bottom bounce zone: keep state
+    if (top <= EDGE_ZONE && hidden === false) { anchor = top; return; }
+    const delta = top - anchor;
+    if (Math.abs(delta) < DEAD_ZONE) return;             // dead zone: keep the anchor so slow drags add up
+    setHidden(delta > 0);
+    anchor = top;
+  };
+
+  document.addEventListener('scroll', (e) => {
+    let t = e.target;
+    if (isDocScroll()) {
+      // Mobile: the DOCUMENT scrolls (scroll events target `document`); ignore inner boxes.
+      if (t !== document && t !== document.documentElement && t !== document.body) return;
+      t = docScroller();
+    } else if (!t || !t.classList || !(t.classList.contains('psycle-body') || t.classList.contains('psycle-main'))) return;
+    if (t !== target) { target = t; anchor = t.scrollTop; }
+    if (!ticking) { ticking = true; requestAnimationFrame(update); }
+  }, { passive: true, capture: true });
+
+  mq.addEventListener?.('change', () => { setHidden(false); measure(); });
+  document.addEventListener('click', (e) => {
+    if (e.target.closest?.('.psycle-bottom-nav-btn, .psycle-nav-btn')) { setHidden(false); anchor = 0; }
+  }, true);
+  measure();
+  if (typeof ResizeObserver !== 'undefined' && els()) new ResizeObserver(measure).observe(header);
+  window.addEventListener('resize', measure, { passive: true });
+}
+
 document.addEventListener('DOMContentLoaded', () => {
   registerServiceWorker();
   initConnectivity();  // Set up offline listeners BEFORE checkAuth so psycle-network-fail is caught
-  checkAuth();
+  initGymLogoLoader();
+  // Once the inline-SVG sprite is ready, repaint the header badges so they use it (no <img> decode).
+  document.addEventListener('gym-logos-ready', () => { updateCreditBadge().catch(() => {}); });
+  // Reveal the shell once auth has decided which screen to show AND the fonts are ready
+  // (each capped), so the first visible paint is the styled one. index.html also force-reveals at 3s.
+  const reveal = () => document.documentElement.classList.add('psycle-ready');
+  Promise.resolve(checkAuth()).catch(() => {}).then(() =>
+    Promise.race([document.fonts?.ready ?? Promise.resolve(), new Promise((r) => setTimeout(r, 1200))])
+  ).then(() => requestAnimationFrame(reveal));
   initTooltips();
+  initHeaderAutoHide();
 
   // Global Esc-to-close for all modals
   document.addEventListener('keydown', (e) => {

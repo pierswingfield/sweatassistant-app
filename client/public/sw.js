@@ -68,6 +68,9 @@ const BUILD_STAMP = '__BUILD_STAMP__';
 const CACHE_PREFIX = 'sweat-cache';
 const CACHE_NAME = `${CACHE_PREFIX}-${BUILD_STAMP}`;
 const ASSETS_CACHE_NAME = `${CACHE_PREFIX}-assets-${BUILD_STAMP}`;
+// Instructor photos (cross-origin, S3-hosted): a stable, UNSTAMPED name so the bytes survive deploys.
+const IMAGES_CACHE_NAME = 'sweat-images-v1';
+const IMAGES_MAX_ENTRIES = 80;
 
 const ASSETS_TO_CACHE = [
   '/',
@@ -96,7 +99,7 @@ self.addEventListener('install', (event) => {
 // — neither is in this whitelist, so an existing install upgrading to the
 // stamped scheme cleans its old cache on the very first activate, same as any
 // other version bump.
-const CACHE_WHITELIST = [CACHE_NAME, ASSETS_CACHE_NAME];
+const CACHE_WHITELIST = [CACHE_NAME, ASSETS_CACHE_NAME, IMAGES_CACHE_NAME];
 
 self.addEventListener('activate', (event) => {
   event.waitUntil(
@@ -129,8 +132,28 @@ self.addEventListener('fetch', (event) => {
   // Range requests (e.g. audio/video partials) — pass through
   if (request.headers.get('range')) return;
 
-  // Cross-origin requests — let the browser handle natively
-  if (url.origin !== self.location.origin) return;
+  // Cross-origin IMAGES (instructor photos on S3): cache-first + stale-while-revalidate, bounded.
+  // These <img> requests are no-cors, so the response is OPAQUE (status unreadable): a bad response can't be
+  // told from a good one, hence the background revalidation below, which overwrites any bad entry next time.
+  if (url.origin !== self.location.origin) {
+    if (request.destination === 'image' && url.protocol === 'https:') {
+      event.respondWith(
+        caches.open(IMAGES_CACHE_NAME).then(async (cache) => {
+          const cached = await cache.match(request);
+          const refresh = fetch(request).then(async (response) => {
+            if (response && (response.ok || response.type === 'opaque')) {
+              await cache.put(request, response.clone());
+              const keys = await cache.keys();
+              if (keys.length > IMAGES_MAX_ENTRIES) await Promise.all(keys.slice(0, keys.length - IMAGES_MAX_ENTRIES).map((k) => cache.delete(k)));
+            }
+            return response;
+          }).catch(() => cached);
+          return cached || refresh;
+        })
+      );
+    }
+    return; // everything else cross-origin: browser default
+  }
 
   // ── Navigation requests: network-first, fallback to /index.html ─────────
 
@@ -161,9 +184,10 @@ self.addEventListener('fetch', (event) => {
   const isImmutableAsset =
     url.pathname.startsWith('/assets/') ||
     url.pathname.startsWith('/icons/') ||
+    url.pathname.startsWith('/gyms/') ||
     url.pathname === '/manifest.json' ||
     /\.(woff2?|ttf)$/i.test(url.pathname) ||
-    /\.(png|jpe?g|svg|webp|gif)$/i.test(url.pathname);
+    /\.(png|jpe?g|svg|webp|gif|avif)$/i.test(url.pathname);
 
   if (isImmutableAsset) {
     event.respondWith(

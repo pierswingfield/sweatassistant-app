@@ -111,6 +111,16 @@ export function canBookAtAll(gymId) {
   return !eligibilityFor(gymId) || eligibilityFor(gymId).canBook !== false;
 }
 
+/**
+ * True only when the server has CONFIRMED this account can book at this gym
+ * (unlike canBookAtAll, which is permissive while unloaded). For an unmetered
+ * gym that means an active membership: nothing to count, so the header shows ∞.
+ */
+export function hasConfirmedAccess(gymId) {
+  const e = eligibilityFor(gymId);
+  return !!e && e.canBook === true;
+}
+
 /** @returns {string|null} why booking is blocked, or null if it isn't. */
 export function getIneligibleReason(gymId) {
   const e = eligibilityFor(gymId);

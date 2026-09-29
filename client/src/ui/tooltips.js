@@ -67,7 +67,7 @@ function parseSpotifyUserId(raw) {
  * have its full-size image pulled for a 26px circle. Falling back to `imageUrl`
  * is a deliberate trade — CodexFit publishes one size only.
  */
-export function instructorAvatar(name, gymId = null, directUrl = null) {
+export function instructorAvatar(name, gymId = null, directUrl = null, { size = 52, lazy = false, cls = 'ab-card-avatar' } = {}) {
   let url = directUrl || null;
   if (!url) {
     if (!name) return '';
@@ -85,7 +85,8 @@ export function instructorAvatar(name, gymId = null, directUrl = null) {
   // succession as data (bookings, then metadata) arrives, and a lazy image
   // whose element gets replaced before the browser schedules its viewport
   // check never starts loading at all — indistinguishable from "missing".
-  return `<img class="ab-card-avatar" src="${url}" alt="" aria-hidden="true" decoding="async" width="52" height="52">`;
+  // `lazy` is opt-in for long stable lists (the timetable); the default stays eager for the reason above.
+  return `<img class="${cls}" src="${url}" alt="" aria-hidden="true" decoding="async"${lazy ? ' loading="lazy"' : ''} width="${size}" height="${size}">`;
 }
 
 function instructorTooltipHTML(instructorIdRaw, gymId = null) {

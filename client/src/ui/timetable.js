@@ -3,10 +3,13 @@ import { getAvailableCreditsForEvent, hasUsableCredit, getIneligibleReason, isMe
 import { isCreditInventoryLoaded, pickStudioPrefs as pickGymStudioPrefs } from './gym-isolation.js';
 import { canForGym, canAny, capabilityForGym, getLinkedGyms, getGymShortName, getLocationAlias, getDefaultGymId } from '../gym-context.js';
 import { showToast, currentUser, userSettings, gymSetting, profileForGym, refreshUserData, updateCreditBadge, cache, debugConsole } from '../main';
-import { getClassReleaseTime, isInGracePeriod, GRACE_PERIOD_MS, startGraceCountdown } from '../lib';
+import { getClassReleaseTime, isInGracePeriod, GRACE_PERIOD_MS, startGraceCountdown, noSept } from '../lib';
 import { DateTime } from 'luxon';
+// EXPERIMENT (Batch N): small instructor photo left of rows 2-3 on mobile timetable rows. One switch.
+const SHOW_TIMETABLE_INSTRUCTOR_PHOTO = true;
+
 // === MOBILE TIMETABLE — import renderMinimap (added Jun 2026; delete this block to revert) ===
-import { renderMinimap } from './tooltips.js';
+import { renderMinimap, instructorAvatar } from './tooltips.js';
 // === END MOBILE TIMETABLE BLOCK ===
 import { openDB, accountScopedKey } from '../cache.js';
 import { bookingNotifyPayload } from './booking-notify.js';
@@ -253,6 +256,135 @@ window.addEventListener('resize', () => {
   }
 });
 // === END MOBILE TIMETABLE BLOCK ===
+
+// User-initiated date change only (tap or swipe; background refreshes call renderTimetableGrid directly, unanimated).
+// A QUICK plain slide: the new list arrives from the direction of travel (later date => from the right, earlier =>
+// from the left): translateX 28px + a short fade, 150ms, transform/opacity only via the Web Animations API.
+// A newer change cancels the running animation (cancel() drops fills, so the list can never stay offset or
+// transparent), and a watchdog guarantees rest.
+let dateNavToken = 0;
+function centreActivePill() {
+  const carousel = document.getElementById('psycle-timetable-carousel');
+  const pill = carousel?.querySelector('.psycle-day-pill.active');
+  if (!carousel || !pill) return;
+  const scroller = carousel.classList.contains('psycle-date-selector') ? carousel : carousel.querySelector('.psycle-date-selector') || carousel;
+  scroller.scrollTo?.({ left: pill.offsetLeft - (scroller.clientWidth - pill.offsetWidth) / 2, behavior: 'smooth' });
+}
+function animateDateChange(dir, render) {
+  const grid = document.getElementById('psycle-timetable-grid');
+  const token = ++dateNavToken;
+  if (!grid || !dir || typeof grid.animate !== 'function') { render(); return; }
+  grid.getAnimations().forEach((a) => a.cancel());
+  grid.style.transform = '';
+  const reduce = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+  const watchdog = setTimeout(() => { if (token === dateNavToken) grid.getAnimations().forEach((a) => a.cancel()); }, 900);
+  Promise.resolve(render()).then(() => {
+    if (token !== dateNavToken) return;
+    clearTimeout(watchdog);
+    centreActivePill();
+    grid.animate(
+      reduce ? [{ opacity: 0.5 }, { opacity: 1 }] : [{ transform: `translateX(${dir * 28}px)`, opacity: 0.4 }, { transform: 'translateX(0)', opacity: 1 }],
+      { duration: reduce ? 100 : 150, easing: 'cubic-bezier(.2,.8,.2,1)' }
+    );
+  }).catch(() => grid.getAnimations().forEach((a) => a.cancel()));
+}
+
+// Swipe the list to change day: left => NEXT day, right => PREVIOUS day. Reuses the day pills' own click path (state,
+// highlight, animation direction). Horizontal-dominant only; never starts on interactive/scrollable things or in the
+// 20px left edge (iOS back / Settings swipe-back); passive listeners, so vertical scroll and pull-to-refresh are untouched.
+let swipeWired = false;
+function wireTimetableSwipe() {
+  const grid = document.getElementById('psycle-timetable-grid');
+  if (!grid || swipeWired) return;
+  swipeWired = true;
+  const EDGE = 20, THRESHOLD = 48;
+  const BLOCK = '.psycle-mobile-seg, .psycle-mobile-menu, .psycle-mobile-ellipsis, button, a, input, select, textarea, [data-no-swipe]';
+  let sx = 0, sy = 0, st = 0, dx = 0, tracking = false, locked = false;
+  const reduce = () => window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+  const hScrollable = (el) => {
+    for (let n = el; n && n !== grid; n = n.parentElement) {
+      const ox = getComputedStyle(n).overflowX;
+      if ((ox === 'auto' || ox === 'scroll') && n.scrollWidth > n.clientWidth + 1) return true;
+    }
+    return false;
+  };
+  grid.addEventListener('touchstart', (e) => {
+    tracking = false; locked = false;
+    if (!window.matchMedia('(max-width: 768px)').matches || e.touches.length !== 1) return;
+    const t = e.touches[0];
+    if (t.clientX <= EDGE) return;
+    if (e.target.closest?.(BLOCK) || hScrollable(e.target)) return;
+    sx = t.clientX; sy = t.clientY; st = performance.now(); dx = 0; tracking = true;
+  }, { passive: true });
+  grid.addEventListener('touchmove', (e) => {
+    if (!tracking) return;
+    const t = e.touches[0];
+    const mx = t.clientX - sx, my = t.clientY - sy;
+    if (!locked) {
+      if (Math.abs(my) > 10 && Math.abs(my) > Math.abs(mx)) { tracking = false; return; }   // vertical scroll wins
+      if (Math.abs(mx) > 10 && Math.abs(mx) > Math.abs(my) * 1.5) locked = true; else return;
+    }
+    dx = mx;
+    if (!reduce()) grid.style.transform = `translateX(${Math.max(-14, Math.min(14, dx * 0.2))}px)`; // light finger-follow
+  }, { passive: true });
+  const end = () => {
+    if (!tracking) return;
+    tracking = false;
+    grid.style.transform = '';
+    if (!locked) return;
+    locked = false;
+    const fast = Math.abs(dx) / Math.max(1, performance.now() - st) > 0.5;
+    if (!(Math.abs(dx) >= THRESHOLD || (fast && Math.abs(dx) > 24))) return;
+    const pills = [...document.querySelectorAll('#psycle-timetable-carousel .psycle-day-pill')];
+    const i = pills.findIndex((p) => p.classList.contains('active'));
+    const next = pills[i + (dx < 0 ? 1 : -1)];   // stops at the ends of the available range
+    if (next) next.click();
+  };
+  grid.addEventListener('touchend', end, { passive: true });
+  grid.addEventListener('touchcancel', () => { tracking = false; locked = false; grid.style.transform = ''; }, { passive: true });
+}
+
+// Row 2 shows "class name · instructor". ONLY when the class name would be truncated does the instructor move (the
+// same node, so its tooltip handlers survive) to row 3 after the studio ("Studio · Instructor"), giving row 2 the
+// full class name. One batched pass per render / width change: reset all -> read all -> move flagged.
+let instrFitObserver = null;
+let instrFitWidth = 0;
+function fitInstructorRows() {
+  const rows = [...document.querySelectorAll('#psycle-timetable-grid .psycle-mobile-main')];
+  if (!rows.length) return;
+  rows.forEach((main) => {
+    const line2 = main.querySelector('.psycle-mobile-line2');
+    const bottom = main.querySelector('.psycle-mobile-bottom-line');
+    const moved = bottom.querySelectorAll('.psycle-mobile-dot, .psycle-mobile-instructor');
+    moved.forEach((n) => line2.appendChild(n));   // back to row 2 (dot then instructor keeps DOM order)
+  });
+  const flagged = rows.filter((main) => {
+    const cls = main.querySelector('.psycle-mobile-class-name');
+    return main.querySelector('.psycle-mobile-instructor') && cls.scrollWidth > cls.clientWidth;
+  });
+  flagged.forEach((main) => {
+    const bottom = main.querySelector('.psycle-mobile-bottom-line');
+    const dot = main.querySelector('.psycle-mobile-line2 .psycle-mobile-dot');
+    const ins = main.querySelector('.psycle-mobile-line2 .psycle-mobile-instructor');
+    if (dot) bottom.appendChild(dot);
+    if (ins) bottom.appendChild(ins);
+    main.classList.add('instr-below');
+  });
+  rows.filter((m) => !flagged.includes(m)).forEach((m) => m.classList.remove('instr-below'));
+}
+function scheduleInstructorFit() {
+  if (!window.matchMedia('(max-width: 768px)').matches) return;
+  requestAnimationFrame(fitInstructorRows);
+  const grid = document.getElementById('psycle-timetable-grid');
+  if (grid && typeof ResizeObserver !== 'undefined' && !instrFitObserver) {
+    instrFitObserver = new ResizeObserver(() => {
+      const w = grid.clientWidth;
+      if (w !== instrFitWidth) { instrFitWidth = w; requestAnimationFrame(fitInstructorRows); }
+    });
+    instrFitObserver.observe(grid);
+    document.fonts?.ready?.then(() => requestAnimationFrame(fitInstructorRows));
+  }
+}
 
 // Initializer
 export async function initTimetable() {
@@ -1172,7 +1304,7 @@ export async function renderTimetableGrid(reason = 'interaction') {
     // Filter by Bookmarked Only
     if (showBookmarksOnly) {
       const identifier = generateBookmarkIdentifier(e);
-      if (!canForGym('bookmarks', e.gymId)) return true; // no bookmarks concept → filter is a no-op
+      if (!canForGym('bookmarks', e.gymId)) return false; // gym has no favourites concept → nothing can match "favourites only"
       const bookmarks = profileForGym(e.gymId)?.metafields?.public?.bookmarks?.events || [];
       if (!bookmarks.includes(identifier)) return false;
     }
@@ -1208,7 +1340,7 @@ export async function renderTimetableGrid(reason = 'interaction') {
         const isSelected = dayStr === selectedTimetableDate;
         const dayName = d.toLocaleDateString('en-GB', { weekday: 'short' });
         const dayNum = d.getDate();
-        const monthName = d.toLocaleDateString('en-GB', { month: 'short' });
+        const monthName = noSept(d.toLocaleDateString('en-GB', { month: 'short' }));
 
         const pill = document.createElement('div');
         pill.className = `psycle-day-pill ${isSelected ? 'active' : ''}`;
@@ -1220,10 +1352,12 @@ export async function renderTimetableGrid(reason = 'interaction') {
           </div>
         `;
         pill.onclick = () => {
+          // Direction of travel: a LATER day slides the list out to the left and the new one in from the right.
+          const dir = dayStr > selectedTimetableDate ? 1 : (dayStr < selectedTimetableDate ? -1 : 0);
           selectedTimetableDate = dayStr;
           carousel.querySelectorAll('.psycle-day-pill').forEach(p => p.classList.remove('active'));
           pill.classList.add('active');
-          renderTimetableGrid();
+          animateDateChange(dir, () => renderTimetableGrid());
         };
         carousel.appendChild(pill);
       });
@@ -1467,6 +1601,8 @@ export async function renderTimetableGrid(reason = 'interaction') {
   });
 
   equalizeDiscTagWidths(ttGrid);
+  wireTimetableSwipe();
+  scheduleInstructorFit();
   recordTimetableTiming('render-dom', domStartedAt, {
     reason,
     eventCount: sortedEvents.length,
@@ -1680,7 +1816,7 @@ function buildActionModel(event, ctx) {
   // "Book (choose a spot)" is the escape hatch when you don't want your
   // preferred spot this time. It only exists where there are spots to choose.
   return {
-    primary: { label: 'Quick Book', variant: 'success', run: (btn) => doQuickBook(event, btn) },
+    primary: { label: 'Book', variant: 'success', title: 'Quick book', run: (btn) => doQuickBook(event, btn) },
     // No ⚙ on the row: "Configure Quick-Book" is in the overflow menu, and two
     // affordances for one action spend 40px of every row to save one click on
     // a rare one. `config` is still set so the menu knows to offer it.
@@ -1900,7 +2036,7 @@ async function doLeaveWaitlist(waitlistId, btn, gymId = null) {
 
 // Unicode (non-emoji) glyph that prefixes certain action labels.
 function actionGlyph(label) {
-  if (label === 'Quick-Book' || label === 'Quick Book') return '⚡︎';
+  if (label === 'Quick-Book' || label === 'Quick Book' || label === 'Book') return '⚡︎';
   if (label === 'Auto-Book' || label === 'Auto Book' || label === 'Scheduled' || label === 'Sched.') return sparklesIcon(16, 'currentColor');
   return '';
 }
@@ -2031,7 +2167,7 @@ function buildDesktopActions(model, event, debugMode, isBookmarked = false) {
   const pbtn = document.createElement('button');
   pbtn.className = `psycle-tt-seg primary variant-${model.primary.variant}` + (model.primary.scheduled ? ' scheduled' : '');
   setSegLabel(pbtn, model.primary.label);
-  if (model.primary.title) pbtn.title = model.primary.title;
+  if (model.primary.title) { pbtn.title = model.primary.title; pbtn.setAttribute('aria-label', model.primary.title); }
   if (model.primary.disabled) pbtn.disabled = true;
   else if (model.primary.run) pbtn.onclick = (e) => { e.stopPropagation(); model.primary.run(pbtn); };
   group.appendChild(pbtn);
@@ -2223,8 +2359,8 @@ function buildMobileClassRow(event, ctx, model) {
   card.className = 'psycle-mobile-class-card';
   card.setAttribute('data-gym', event.gymId || getDefaultGymId());
 
-  const trimmedLoc = trimLocation(locName, getGymShortName(event.gymId));
-  const displayLoc = getLocationAlias(event.gymId, trimmedLoc) || trimmedLoc;
+  // Row 3 shows the studio's FULL location name ("Oxford Circus"), not the gym's contracted alias ("OC").
+  const displayLoc = trimLocation(locName, getGymShortName(event.gymId));
 
   // Favourite heart is a non-interactive indicator on mobile (only shown when
   // bookmarked), sitting between the time and the discipline chip. Toggling
@@ -2233,24 +2369,33 @@ function buildMobileClassRow(event, ctx, model) {
     ? (canForGym('bookmarks', event.gymId) ? `<span class="psycle-mobile-fav-indicator" aria-label="Favourited">${heartChar}</span>` : '')
     : '';
 
+  // Photo (or a soft initial placeholder, same box, so nothing shifts while it loads). The image comes from the
+  // ONE shared lookup (instructorAvatar: the event's own thumb first, else metadata by name).
+  const firstInstr = event.instructors?.[0];
+  const avatarHtml = SHOW_TIMETABLE_INSTRUCTOR_PHOTO && instrName
+    ? `<span class="psycle-mobile-avatar" data-initial="${escapeHtml(String(instrName).trim().charAt(0).toUpperCase())}" aria-hidden="true">${instructorAvatar(instrName, event.gymId, firstInstr?.thumbUrl || firstInstr?.imageUrl || null, { size: 38, lazy: true, cls: 'psycle-mobile-avatar-img' })}</span>`
+    : '';
+
   card.innerHTML = `
     <div class="psycle-mobile-content">
-      <div class="psycle-mobile-top-line">
+      <div class="psycle-mobile-lead">
         <strong>${timeStr}</strong>
-        ${favIndicator}
-        ${/* Gym BEFORE the discipline pill. Ownership is the first question a
-             merged timetable has to answer, and on a narrow card the eye runs
-             left-to-right along one line — putting the gym second made you read
-             past the discipline to find out whose class it was. Matches the
-             desktop column order, where GYM also precedes CLASS. */ ''}
-        ${gymChip(event.gymId)}
-        ${disciplineTag(groupName)}
-        ${instrName ? `<span class="psycle-mobile-instructor psycle-instructor-hover" data-id="${event.instructors?.[0]?.id}" data-gym-id="${event.gymId || ''}">${instrName}</span>` : ''}
+        ${avatarHtml}
       </div>
-      <div class="psycle-mobile-bottom-line">
-        <span class="psycle-mobile-class-name">${strippedClassName}</span>
-        <span class="psycle-mobile-dot">&middot;</span>
-        <span class="psycle-mobile-location">${displayLoc}</span>
+      <div class="psycle-mobile-main">
+        <div class="psycle-mobile-top-line">
+          ${/* Gym BEFORE the discipline pill (ownership is the first question a merged timetable answers). */ ''}
+          ${gymChip(event.gymId)}
+          ${disciplineTag(groupName)}
+          ${favIndicator}
+        </div>
+        <div class="psycle-mobile-line2">
+          <span class="psycle-mobile-class-name">${strippedClassName}</span>
+          ${instrName ? `<span class="psycle-mobile-dot">&middot;</span><span class="psycle-mobile-instructor psycle-instructor-hover" data-id="${event.instructors?.[0]?.id}" data-gym-id="${event.gymId || ''}">${instrName}</span>` : ''}
+        </div>
+        <div class="psycle-mobile-bottom-line">
+          <span class="psycle-mobile-location">${displayLoc}</span>
+        </div>
       </div>
     </div>
     <div class="psycle-mobile-rail"></div>
@@ -2277,8 +2422,13 @@ function buildMobileClassRow(event, ctx, model) {
     setSegLabel(pbtn, 'Sched.');
   } else {
     setSegLabel(pbtn, mobilePrimary.label);
+    // "Auto-Book" stacks as Auto / Book (no hyphen) so the button stays narrow; the accessible name is unchanged.
+    if (mobilePrimary.label === 'Auto-Book') {
+      pbtn.innerHTML = `<span class="psycle-seg-ico" aria-hidden="true">${actionGlyph('Auto-Book')}</span><span class="psycle-cta-2l"><span>Auto</span><span>Book</span></span>`;
+      pbtn.setAttribute('aria-label', mobilePrimary.title || 'Auto-Book');
+    }
   }
-  if (mobilePrimary.title) pbtn.title = mobilePrimary.title;
+  if (mobilePrimary.title) { pbtn.title = mobilePrimary.title; pbtn.setAttribute('aria-label', mobilePrimary.title); }
   if (mobilePrimary.disabled) pbtn.disabled = true;
   else if (mobilePrimary.run) pbtn.onclick = (e) => { e.stopPropagation(); mobilePrimary.run(pbtn); };
   if (mobilePrimary.graceDeadline) {
@@ -2291,7 +2441,7 @@ function buildMobileClassRow(event, ctx, model) {
   // Secondary action + extras collapse into the ellipsis context menu.
   const ellipsis = document.createElement('button');
   ellipsis.className = 'psycle-mobile-seg ellipsis';
-  ellipsis.innerHTML = '⋯';
+  ellipsis.innerHTML = '\u22EE'; // vertical ellipsis (kebab)
   ellipsis.setAttribute('aria-label', 'More actions');
   rail.appendChild(ellipsis);
 
@@ -2610,7 +2760,7 @@ async function quickBookClass(eventId, prefs, btn, gymId = null) {
   } finally {
     if (btn) {
       btn.disabled = false;
-      btn.innerHTML = `Quick Book`;
+      btn.innerHTML = `Book`;
     }
   }
 }

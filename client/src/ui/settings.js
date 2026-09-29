@@ -2,6 +2,7 @@ import { api, apiFetch } from '../api';
 import { showToast, togglePushSubscription, updatePushStatusUI, userSettings, cache, getTheme, setTheme, debugConsole, loadGymContext, refreshUserData, updateDebugTerminalVisibility } from '../main';
 import { getBookingOffset, describeBookingWindow } from '../lib';
 import { renderStudioFloorPlan } from './spotmap';
+import { isScrollBusy } from './scroll-state.js';
 import { cacheGet, resetTimetableForGymChange } from './timetable';
 import { clearApiCache, invalidateApiCache, accountScopedKey } from '../cache.js';
 import { renderGymSettingsSection as renderGymSettingsSectionView } from './gym-settings-section.js';
@@ -983,7 +984,7 @@ function setupSettingsNavigation() {
   const hash = location.hash.replace('#', '');
   const legacySectionMap = { booking: 'gyms', experience: 'account', advanced: 'account' };
   let initialSection = legacySectionMap[hash] || 'account';
-  if (['account', 'gyms', 'about'].includes(hash)) initialSection = hash;
+  if (['account', 'gyms', 'about', 'calendar'].includes(hash)) initialSection = hash;
 
   const activateSection = (sectionId) => {
     menuItems().forEach(item => {
@@ -1018,6 +1019,58 @@ function setupSettingsNavigation() {
     backBtn.addEventListener('click', () => {
       layout.classList.remove('show-pane');
     });
+  }
+
+  // iOS-style left-edge swipe back (pane -> menu). Mobile only; reuses the back button's
+  // handler for the actual navigation. Passive listeners: horizontal drags are claimed via
+  // `touch-action: pan-y` on the content, so vertical scrolling is untouched. Requires
+  // horizontal dominance and a distance/velocity threshold, and never starts while the
+  // shared scroll clock (header transition) is busy.
+  const content = layout.querySelector('.psycle-settings-content');
+  if (content && backBtn) {
+    const EDGE = 28, COMMIT = 90;
+    const reduce = window.matchMedia('(prefers-reduced-motion: reduce)');
+    let sx = 0, sy = 0, st = 0, dx = 0, tracking = false, locked = false;
+    const reset = (animate) => {
+      content.style.transition = animate && !reduce.matches ? 'transform .22s ease' : 'none';
+      content.style.transform = '';
+    };
+    content.addEventListener('touchstart', (e) => {
+      tracking = false; locked = false;
+      if (!window.matchMedia('(max-width: 768px)').matches || !layout.classList.contains('show-pane')) return;
+      if (e.touches.length !== 1 || isScrollBusy()) return;
+      const t = e.touches[0];
+      if (t.clientX > EDGE) return;               // must begin at the left edge
+      sx = t.clientX; sy = t.clientY; st = performance.now(); dx = 0; tracking = true;
+      content.style.transition = 'none';
+    }, { passive: true });
+    content.addEventListener('touchmove', (e) => {
+      if (!tracking) return;
+      const t = e.touches[0];
+      const mx = t.clientX - sx, my = t.clientY - sy;
+      if (!locked) {
+        if (Math.abs(my) > 10 && Math.abs(my) > Math.abs(mx)) { tracking = false; reset(false); return; } // vertical scroll wins
+        if (mx > 10 && mx > Math.abs(my) * 1.5) locked = true; else return;                                // horizontal dominance
+      }
+      dx = Math.max(0, mx);
+      content.style.transform = `translateX(${dx}px)`;
+    }, { passive: true });
+    const end = () => {
+      if (!tracking) return;
+      tracking = false;
+      const fast = dx / Math.max(1, performance.now() - st) > 0.5; // px/ms
+      if (locked && (dx > COMMIT || (fast && dx > 30))) {
+        if (reduce.matches) { reset(false); backBtn.click(); return; }
+        content.style.transition = 'transform .18s ease';
+        content.style.transform = `translateX(${window.innerWidth}px)`;
+        setTimeout(() => { backBtn.click(); reset(false); }, 180);
+      } else {
+        reset(true);
+      }
+      locked = false;
+    };
+    content.addEventListener('touchend', end, { passive: true });
+    content.addEventListener('touchcancel', end, { passive: true });
   }
 
   // Set initial state
@@ -1201,7 +1254,7 @@ function paintGyms(linked, { list, layout, menu, panesHost }) {
   reconcileKeyed(menu, linked, {
     keyAttr: 'data-gym-nav', keyOf: (g) => g.gym_id, create: gymNavCreate, update: gymNavUpdate,
     // Gyms sit directly under "Your Gyms" and above "About".
-    anchor: menu.querySelector('[data-settings-section="about"]'),
+    anchor: menu.querySelector('[data-settings-section="account"]'),
   });
   reconcileKeyed(panesHost, linked, { keyAttr: 'data-gym-pane', keyOf: (g) => g.gym_id, create: gymPaneCreate });
   // The gym whose pane was showing was unlinked: land on the connection table.
@@ -1581,7 +1634,7 @@ function openAccountPasswordModal() {
 // shared cards.js icon set) rather than pasted into index.html so the sidebar uses
 // exactly the same stroke, size and currentColor rules as every other icon in the
 // app. Idempotent; per-gym entries lead with the gym's own mark instead (U1-8).
-const SETTINGS_MENU_ICONS = { general: 'sliders', notifications: 'bell', account: 'user', gyms: 'link', about: 'info' };
+const SETTINGS_MENU_ICONS = { general: 'sliders', calendar: 'calendar', notifications: 'bell', account: 'user', gyms: 'link', about: 'info' };
 export function decorateSettingsMenu() {
   document.querySelectorAll('.psycle-settings-menu > [data-settings-section]').forEach((item) => {
     const name = SETTINGS_MENU_ICONS[item.getAttribute('data-settings-section')];
@@ -1591,6 +1644,23 @@ export function decorateSettingsMenu() {
     lead.innerHTML = icon(name, 18);
     item.insertBefore(lead, item.firstChild);
   });
+}
+
+/**
+ * Open one gym's own Settings pane (header gym chips use this). Settings must
+ * already be the visible tab. The gym's sidebar entry and pane are created by
+ * renderGymsCard, so wait briefly for them rather than assuming they exist; on
+ * mobile activateSection also drills into the pane, so Back / swipe-back work
+ * exactly as after tapping the entry.
+ */
+export async function openGymSettings(gymId) {
+  const layout = document.getElementById('psycle-settings-layout-wrapper');
+  if (!layout) return;
+  for (let i = 0; i < 40; i++) {
+    const item = [...layout.querySelectorAll('[data-gym-nav]')].find((el) => el.getAttribute('data-gym-nav') === String(gymId));
+    if (item && layout.__activateSettingsSection) { layout.__activateSettingsSection(`gym-${gymId}`); return; }
+    await new Promise((r) => setTimeout(r, 50));
+  }
 }
 
 export async function initSettings() {

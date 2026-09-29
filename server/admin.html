@@ -373,8 +373,8 @@
       <div><label for="ge-compact">Compact wordmark path</label><input id="ge-compact"></div>
       <div><label for="ge-mark">Mark path</label><input id="ge-mark"></div>
       <div><label for="ge-plate">Logo plate colour</label><input id="ge-plate" placeholder="#rrggbb"></div>
-      <div><label>Light: ink / inkHover / tint / on</label><div class="ge-colors" id="ge-light"></div></div>
-      <div><label>Dark: ink / inkHover / tint / on</label><div class="ge-colors" id="ge-dark"></div></div>
+      <div><label>Light: ink / inkHover / tint / on / btn / wash / pip</label><div class="ge-colors" id="ge-light"></div></div>
+      <div><label>Dark: ink / inkHover / tint / on / btn / wash / pip</label><div class="ge-colors" id="ge-dark"></div></div>
       <div style="grid-column:1/-1"><label for="ge-aliases">Display aliases (JSON: scope to lower-case raw name to shown name)</label><textarea id="ge-aliases"></textarea></div>
     </div>
     <div class="ge-actions">
@@ -1150,7 +1150,7 @@
 
   // ── Gym presentation editor (F-7 Stage B) ─────────────────────────────────
 
-  const GE_KEYS = ['ink', 'inkHover', 'tint', 'on'];
+  const GE_KEYS = ['ink', 'inkHover', 'tint', 'on', 'btn', 'wash', 'pip'];
   let geGyms = [];
   const geEl = (id) => document.getElementById(id);
 
@@ -1178,7 +1178,7 @@
     const wordmark = { text: geEl('ge-text').value };
     for (const k of ['full', 'compact', 'mark']) { const v = geEl('ge-' + k).value.trim(); if (v) wordmark[k] = { src: v }; }
     const p = { shortName: geEl('ge-short').value, wordmark, plate: geEl('ge-plate').value.trim(), light: {}, dark: {} };
-    document.querySelectorAll('#gym-editor .ge-colors input').forEach(i => { p[i.dataset.mode][i.dataset.key] = i.value.trim(); });
+    document.querySelectorAll('#gym-editor .ge-colors input').forEach(i => { const v = i.value.trim(); if (v) p[i.dataset.mode][i.dataset.key] = v; });
     p.displayAliases = JSON.parse(geEl('ge-aliases').value || '{}');
     return p;
   }

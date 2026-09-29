@@ -94,3 +94,14 @@ describe('F-7 guard: no gym id is hardcoded in client code or CSS', () => {
     expect(bad.map((f) => f.replace(root, ''))).toEqual([]);
   });
 });
+
+describe('gymBrand wordmark scale (data-driven, E2)', () => {
+  it('emits --logo-scale only when presentation.wordmark.scale is set and not 1', () => {
+    const jab = CATALOGUE.find((g) => g.id === 'jab-boxing');
+    const scaled = [{ ...jab, presentation: { ...jab.presentation, wordmark: { ...jab.presentation.wordmark, scale: 0.95 } } }];
+    setGymCatalogue(scaled);
+    expect(gymBrand('jab-boxing').logoSvg).toContain('--logo-scale:0.95');
+    setGymCatalogue(CATALOGUE);
+    expect(gymBrand('jab-boxing').logoSvg).not.toContain('--logo-scale');
+  });
+});

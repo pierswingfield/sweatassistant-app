@@ -3,6 +3,7 @@
 // card visual language (glyphs, discipline pills) stays identical everywhere.
 
 import { cleanClassNameWith } from '../class-name.js';
+import { spriteRefFor } from '../gym-logo-sprite.js';
 import { getGymPresentation, getGymShortName, getDisplayAlias } from '../gym-context.js';
 
 // ── Inline SVG icon set (themeable via currentColor) ─────────────────
@@ -33,6 +34,9 @@ export const SVG_PATHS = {
   user: '<circle cx="8" cy="5.5" r="2.7"/><path d="M2.8 13.8c.6-2.6 2.5-3.9 5.2-3.9s4.6 1.3 5.2 3.9"/>',
   link: '<path d="M6.8 9.2a2.6 2.6 0 0 0 3.7 0l2-2a2.6 2.6 0 0 0-3.7-3.7l-.6.6"/><path d="M9.2 6.8a2.6 2.6 0 0 0-3.7 0l-2 2a2.6 2.6 0 0 0 3.7 3.7l.6-.6"/>',
   info: '<circle cx="8" cy="8" r="6.25"/><path d="M8 7.3v3.7M8 5h.01"/>',
+  calendar: '<rect x="2.5" y="3.5" width="11" height="10" rx="2"/><path d="M2.5 7h11M5.5 2v3M10.5 2v3"/>',
+  refresh: '<path d="M13 8a5 5 0 1 1-1.6-3.7"/><path d="M13 2.8v2.6h-2.6"/>',
+  power: '<path d="M8 2v5.2"/><path d="M4.9 4.4a5 5 0 1 0 6.2 0"/>',
   bug: '<path d="M5.5 5.5a2.5 2.5 0 0 1 5 0v3a2.5 2.5 0 0 1-5 0Z"/><path d="M3 6.5h2.5M10.5 6.5H13M3 10h2.5M10.5 10H13M6 3.5l1-1M10 3.5l-1-1"/>',
   // discipline glyphs
   ride: '<circle cx="4.3" cy="11" r="2.5"/><circle cx="11.7" cy="11" r="2.5"/><path d="M4.3 11 7 5.5h2.5l2.2 5.5M7 5.5 6.2 4H4.5"/>',
@@ -120,7 +124,36 @@ export function disciplineTag(name) {
 // that inserts new discipline chips — re-measures from scratch each time
 // rather than tracking a running max, since a re-filtered view can lose its
 // widest label.
+/**
+ * U4-9: decide, per rendered view, whether discipline pills wear the OWNING GYM's
+ * brand colour. True only when the view currently shows classes from MORE THAN ONE
+ * gym; a single-gym view keeps the per-concept colours (Ride, Barre, ...). The
+ * answer is written as `data-multi-gym` on the container, and styles.css recolours
+ * `.ab-disc-tag` from the `--gym-*` vars its row/card already inherits via `[data-gym]`.
+ * One lookup for one fact: every renderer reaches it through equalizeDiscTagWidths()
+ * (called after each render/re-filter), so nothing re-derives it.
+ * @returns {boolean} whether the container is multi-gym
+ */
+export function syncGymBrandedTags(container) {
+  if (!container || container === document || !container.querySelectorAll) return false;
+  // The rule is per PAGE, not per list: Active Bookings and Waitlists render into separate
+  // containers, so evaluate across the whole tab panel that holds this container and mark
+  // the panel. Every list re-runs this after it renders, so whichever lands last decides
+  // with the full picture. Containers outside a tab panel (e.g. the overlap modal) are their own scope.
+  const scope = container.closest?.('.psycle-tab-content') || container;
+  const gyms = new Set();
+  scope.querySelectorAll('.ab-disc-tag').forEach((tag) => {
+    const id = tag.closest('[data-gym]')?.getAttribute('data-gym');
+    if (id) gyms.add(id);
+  });
+  const multi = gyms.size > 1;
+  scope.toggleAttribute('data-multi-gym', multi);
+  if (scope !== container) container.removeAttribute('data-multi-gym');
+  return multi;
+}
+
 export function equalizeDiscTagWidths(container = document) {
+  syncGymBrandedTags(container); // U4-9 (this is the one hook every view calls after rendering)
   // NO-OP by design (2026-09-15).
   //
   // This used to force every discipline chip to the widest label's width so the
@@ -213,10 +246,23 @@ export function pulseIcon(size = 14) {
  * JAB's mark ships as inline SVG (it scales and inherits nothing, so it stays
  * crisp); Psycle's is an AVIF served from /gyms/.
  */
+/**
+ * ONE place that turns a wordmark `src` into markup. Inline <svg><use> when the .svg is in the sprite
+ * (paints synchronously, nothing to decode or fetch, survives any re-render), else the <img> fallback.
+ */
+export function wordmarkElement(cls, src, styleAttr = '') {
+  const ref = spriteRefFor(src);
+  if (ref) return `<svg class="${cls} gym-logo-inline" viewBox="${ref.viewBox}" aria-hidden="true" focusable="false"${styleAttr}><use href="#${ref.id}"></use></svg>`;
+  return `<img class="${cls}" src="${src}" alt="" aria-hidden="true" decoding="sync"${styleAttr}>`;
+}
+
 export function gymBrand(gymId) {
   const rawId = String(gymId || '');
   const p = getGymPresentation(rawId);
-  const img = (cls, w) => `<img class="${cls}" src="${w.src}" alt="" aria-hidden="true" decoding="async">`;
+  // Optional data-driven optical scale for a gym's wordmark inside its (unchanged) chip: presentation.wordmark.scale.
+  const scale = Number(p?.wordmark?.scale);
+  const sty = Number.isFinite(scale) && scale > 0 && scale !== 1 ? ` style="--logo-scale:${scale}"` : '';
+  const img = (cls, w) => wordmarkElement(cls, w.src, sty);
   if (!p) {
     // Neutral fallback: unknown gym, or the catalogue has not loaded yet. A text
     // wordmark on a neutral plate, never another gym's assets.
@@ -226,8 +272,10 @@ export function gymBrand(gymId) {
       name: label,
       shortName: label,
       brandBg: '#3f3f46',
-      markHtml: `<span class="fr-mark-text" aria-hidden="true">${escapeHtml(label.charAt(0).toUpperCase())}</span>`,
-      logoSvg: `<span class="ab-gym-logo-text" aria-hidden="true">${escapeHtml(label)}</span>`,
+      // Blank placeholder on the neutral plate: the catalogue has not arrived, and printing the raw
+      // gym id here is what flashed as text while logos loaded.
+      markHtml: `<span class="fr-mark-text" aria-hidden="true"></span>`,
+      logoSvg: `<span class="ab-gym-logo-text" aria-hidden="true"></span>`,
     };
   }
   const w = p.wordmark || {};
@@ -238,8 +286,8 @@ export function gymBrand(gymId) {
   } else if (full && compact && full.src !== compact.src) {
     // Both always in the DOM; CSS picks by viewport (no flash on resize). See
     // the .is-full/.is-half rules in styles.css.
-    logoSvg = `<img class="ab-gym-logo-img is-full" src="${full.src}" alt="" aria-hidden="true" loading="lazy" decoding="async">`
-      + `<img class="ab-gym-logo-img is-half" src="${compact.src}" alt="" aria-hidden="true" loading="lazy" decoding="async">`;
+    logoSvg = wordmarkElement('ab-gym-logo-img is-full', full.src, sty)
+      + wordmarkElement('ab-gym-logo-img is-half', compact.src, sty);
   } else {
     logoSvg = img('ab-gym-logo-svg', full || compact);
   }
@@ -343,4 +391,72 @@ export function shortSlotLabels(slots = []) {
 export function cleanClassName(name = '', discipline = '') {
   const disc = String(discipline || '').trim();
   return cleanClassNameWith(name, discipline, disc ? getDiscipline(disc).label : '');
+}
+
+/**
+ * Desktop card row 2 = tag, class, "·", INSTRUCTOR (row 3 = location). The instructor also
+ * stays in the right-hand figure for mobile; CSS shows exactly one of the two per breakpoint
+ * (`.ab-card-instructor-inline` >= 768px, the figure's name below). One helper, used by every
+ * card that shares the line1/line2/figure markup.
+ */
+export function instructorInlineHtml(name) {
+  return name ? `<span class="ab-meta-dot ab-dot-instr">·</span><span class="ab-card-instructor-inline">${name}</span>` : '';
+}
+
+// Hide the "·" separator when the location wraps onto its own line. Wrapping
+// is only knowable from layout, so pure CSS can't do it; one ResizeObserver per
+// container, disconnected on every re-render.
+const locationWrapObservers = new WeakMap();
+export function updateLocationDots(root) {
+  root.querySelectorAll('.ab-card-line2').forEach(line => {
+    const loc = line.querySelector('.ab-card-location');
+    const dot = line.querySelector('.ab-meta-dot:not(.ab-dot-instr)');
+    const cls = line.querySelector('.ab-card-titlegroup') || line.querySelector('.ab-card-class');
+    if (!loc || !dot || !cls) return;
+    dot.classList.toggle('is-wrapped', loc.offsetTop > cls.offsetTop + 2);
+  });
+}
+export function observeLocationWrap(container) {
+  const prev = locationWrapObservers.get(container);
+  if (prev) prev.disconnect();
+  updateLocationDots(container);
+  if (typeof ResizeObserver === 'undefined') return;
+  const ro = new ResizeObserver(() => updateLocationDots(container));
+  locationWrapObservers.set(container, ro);
+  container.querySelectorAll('.ab-card-line2').forEach(l => ro.observe(l));
+}
+
+
+// Action rail toggle (shared by My Bookings, Waitlists, Auto-Book, Auto-Upgrade).
+// The rail is collapsed by default; a "more" button at the end of the footer
+// slides it in. Open state is remembered per card across re-renders.
+const openRails = new Set();
+let railSeq = 0;
+export function wireRailToggle(container) {
+  container.querySelectorAll('.ab-card').forEach(card => {
+    const rail = card.querySelector(':scope > .ab-card-rail');
+    const footer = card.querySelector('.ab-card-footer');
+    if (!rail || !footer || footer.querySelector('.ab-rail-toggle')) return;
+    const last = rail.querySelector('.ab-rail-btn:last-child');
+    const key = (last ? last.className : '') + '|' + (card.dataset.eventId || (last && last.dataset.id) || '') + '|' + (card.dataset.gym || '');
+    rail.id = rail.id || `ab-rail-${++railSeq}`;
+    const btn = document.createElement('button');
+    btn.type = 'button';
+    btn.className = 'ab-rail-toggle';
+    btn.setAttribute('aria-controls', rail.id);
+    btn.innerHTML = '<svg class="ab-ico ab-rail-chevron" width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="10 3 5 8 10 13"/></svg><span>Edit</span>';
+    const apply = (open) => {
+      card.classList.toggle('is-rail-open', open);
+      btn.setAttribute('aria-expanded', String(open));
+      btn.setAttribute('aria-label', open ? 'Hide actions' : 'Show actions (edit or cancel)');
+      if (open) rail.removeAttribute('inert'); else rail.setAttribute('inert', '');
+    };
+    btn.addEventListener('click', () => {
+      const open = !card.classList.contains('is-rail-open');
+      if (open) openRails.add(key); else openRails.delete(key);
+      apply(open);
+    });
+    footer.appendChild(btn);
+    apply(openRails.has(key));
+  });
 }

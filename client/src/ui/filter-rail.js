@@ -97,7 +97,10 @@ export function renderFilterRail(ctx) {
   const { state } = ctx;
   const parts = [];
 
-  parts.push(`<button type="button" class="fr-trigger" data-fr-open="1" aria-label="Filters${selectedCount(state) ? `, ${selectedCount(state)} active` : ''}">${icon('filter', 16)}</button>`);
+  // No filters applied: the button also says "Filters"; once any chip exists it is icon-only. The rail is
+  // re-rendered on every filter change, so this re-evaluates for free.
+  const noFilters = selectedCount(state) === 0;
+  parts.push(`<button type="button" class="fr-trigger${noFilters ? ' has-label' : ''}" data-fr-open="1" aria-label="Filters${selectedCount(state) ? `, ${selectedCount(state)} active` : ''}">${icon('filter', 16)}${noFilters ? '<span class="fr-trigger-label">Filters</span>' : ''}</button>`);
 
   if (state.gyms.length || state.locations.length) {
     parts.push(chip(gymTileHtml(ctx), 'gyms', 'gym and location filters'));

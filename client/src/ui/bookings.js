@@ -3,8 +3,8 @@ import { canForGym, getGymShortName, getDefaultGymId } from '../gym-context.js';
 import { getAvailableCreditsForEvent, getTotalCredits, getIneligibleReason } from './credit-allowance.js';
 import { showToast, cache, refreshUserData, updateCreditBadge, userSettings, gymSetting } from '../main';
 import { renderStudioFloorPlan } from './spotmap';
-import { icon, disciplineTag, trimLocation, seatNoun, stripClassNamePrefix, trendingUpIcon, pulseIcon, renderGymRail, equalizeDiscTagWidths , shortSlotLabels} from './cards';
-import { isInGracePeriod, GRACE_PERIOD_MS, startGraceCountdown } from '../lib';
+import { instructorInlineHtml, icon, disciplineTag, trimLocation, seatNoun, stripClassNamePrefix, trendingUpIcon, pulseIcon, renderGymRail, equalizeDiscTagWidths, observeLocationWrap, wireRailToggle, shortSlotLabels} from './cards';
+import { isInGracePeriod, GRACE_PERIOD_MS, startGraceCountdown, noSept } from '../lib';
 import { invalidateApiCache } from '../cache';
 import { renderCardSkeletons } from './loading-skeleton.js';
 import { instructorAvatar } from './tooltips.js';
@@ -27,6 +27,13 @@ function isWithin12Hours(startAt) {
 const totalAvailableCredits = (gymId) => getTotalCredits(gymId);
 
 
+// True once real data exists. cache.bookings starts as [] in main.js, so
+// "defined" is meaningless: an untouched [] must not read as "loaded empty".
+let bookingsFetched = false;
+function bookingsDataReady() {
+  return bookingsFetched || (Array.isArray(cache.bookings) && cache.bookings.length > 0);
+}
+
 export async function renderBookings() {
   const bookingsList = document.getElementById('psycle-bookings-list');
   const waitlistsList = document.getElementById('psycle-waitlists-list');
@@ -38,7 +45,7 @@ export async function renderBookings() {
   if (waitlistsRefreshing) waitlistsRefreshing.style.display = '';
 
   // Show cached data immediately if available (cache.upgrades is set after first load)
-  const hasLoadedBefore = cache.upgrades !== undefined;
+  const hasLoadedBefore = bookingsDataReady();
   if (hasLoadedBefore) {
     renderBookingsCards(cache.bookings || [], cache.upgrades || []);
     renderWaitlistsCards(cache.waitlists || []);
@@ -55,7 +62,10 @@ export async function renderBookings() {
   // missing until then. Fetch it here too and repaint once it lands.
   if (!metadata.instructors.length) {
     loadMetadata().then(() => {
-      renderBookingsCards(cache.bookings || [], cache.upgrades || []);
+      // Only repaint once real data exists: repainting from `|| []` before the
+      // first fetch resolves flashed "No active bookings found" over the skeleton.
+      if (!bookingsDataReady()) return;
+      renderBookingsCards(cache.bookings, cache.upgrades || []);
       renderWaitlistsCards(cache.waitlists || []);
     }).catch(() => {});
   }
@@ -87,6 +97,7 @@ export async function renderBookings() {
     cache.bookings = bookings;
     cache.waitlists = waitlists;
     cache.upgrades = upgrades;
+    bookingsFetched = true;
 
     renderBookingsCards(bookings, upgrades);
     renderWaitlistsCards(waitlists);
@@ -155,6 +166,63 @@ export function syncBookingCache(bookings) {
 // ── My Bookings cards ────────────────────────────────────────────────
 // One card per class: a class booked with multiple spots stores one booking
 // record per spot, so we group those records into a single card.
+// ── Waitlist discoverability ─────────────────────────────────────────
+// Header counts ("Active Bookings (12)") + a sticky "Waitlists (N) ↓" bar
+// shown only while the waitlist section is off-screen.
+let bookedCount = 0;
+let waitlistCount = 0;
+let waitlistObserver = null;
+// Animated show/hide: the bar stays in the DOM; CSS animates transform/opacity
+// off `.is-visible`. `inert` + aria-hidden keep it unfocusable while hidden.
+function setJumpVisible(jump, visible) {
+  jump.classList.toggle('is-visible', visible);
+  jump.toggleAttribute('inert', !visible);
+  jump.setAttribute('aria-hidden', String(!visible));
+}
+function updateWaitlistAffordances() {
+  const jump = document.getElementById('psycle-waitlist-jump');
+  const target = document.getElementById('psycle-waitlists-header');
+  if (waitlistObserver) { waitlistObserver.disconnect(); waitlistObserver = null; }
+  [['psycle-bookings-count', bookedCount], ['psycle-waitlists-count', waitlistCount]].forEach(([id, n]) => {
+    const el = document.getElementById(id);
+    if (!el) return;
+    el.hidden = n === 0;
+    el.textContent = `(${n})`;
+  });
+  if (!jump) return;
+  setJumpVisible(jump, false);
+  if (waitlistCount === 0 || !target) return;
+  jump.textContent = `Waitlists (${waitlistCount}) ↓`;
+  jump.onclick = () => {
+    const reduce = window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+    // Scroll ONLY the nearest real scroll container. scrollIntoView() also
+    // scrolls every overflow:hidden ancestor (the app shell), which strands the
+    // page offset with no scrollbar to undo it, so the top became unreachable.
+    let sc = target.parentElement;
+    while (sc && sc !== document.body) {
+      const oy = getComputedStyle(sc).overflowY;
+      if ((oy === 'auto' || oy === 'scroll') && sc.scrollHeight > sc.clientHeight) break;
+      sc = sc.parentElement;
+    }
+    const behavior = reduce ? 'auto' : 'smooth';
+    if (!sc || sc === document.body) {
+      const y = target.getBoundingClientRect().top + window.scrollY - 12;
+      window.scrollTo({ top: Math.max(0, y), behavior });
+    } else {
+      const y = target.getBoundingClientRect().top - sc.getBoundingClientRect().top + sc.scrollTop - 12;
+      sc.scrollTo({ top: Math.max(0, y), behavior });
+    }
+  };
+  if (typeof IntersectionObserver === 'undefined') return;
+  waitlistObserver = new IntersectionObserver(entries => {
+    const e = entries[entries.length - 1];
+    // The bar is fixed on mobile, so also hide it when this tab isn't rendered.
+    const panelShown = target.getClientRects().length > 0;
+    setJumpVisible(jump, !e.isIntersecting && panelShown);
+  });
+  waitlistObserver.observe(target);
+}
+
 function renderBookingsCards(bookings, upgrades) {
   const container = document.getElementById('psycle-bookings-list');
   if (!container) return;
@@ -169,8 +237,10 @@ function renderBookingsCards(bookings, upgrades) {
     groups.get(key).bookings.push(b);
   });
 
+  bookedCount = groups.size;
   if (groups.size === 0) {
     container.innerHTML = '<div class="fav-empty-state" style="padding:30px 0;">No active bookings found.</div>';
+    updateWaitlistAffordances();
     return;
   }
 
@@ -178,13 +248,16 @@ function renderBookingsCards(bookings, upgrades) {
   container.innerHTML = '';
   sorted.forEach(group => container.appendChild(buildBookingCard(group, upgrades)));
   equalizeDiscTagWidths(container);
+  observeLocationWrap(container);
+  wireRailToggle(container);
+  updateWaitlistAffordances();
 }
 
 function buildBookingCard(group, upgrades) {
   const event = group.event;
   const startAt = event.startAt || event.start_at;
   const startDt = new Date(startAt);
-  const dateStr = startDt.toLocaleString('en-GB', { weekday: 'short', day: 'numeric', month: 'short', timeZone: 'Europe/London' });
+  const dateStr = noSept(startDt.toLocaleString('en-GB', { weekday: 'short', day: 'numeric', month: 'short', timeZone: 'Europe/London' }));
   const timeOnly = startDt.toLocaleString('en-GB', { hour: '2-digit', minute: '2-digit', hour12: false, timeZone: 'Europe/London' });
 
   const rawClassName = event.name || event.event_type?.name || 'Class';
@@ -270,19 +343,19 @@ function buildBookingCard(group, upgrades) {
           <div class="ab-card-line1">
             <span class="ab-card-date">${dateStr.toUpperCase()}</span>
             <span class="ab-card-time">${timeOnly}</span>
-            ${instructorName ? `<span class="ab-card-instructor">${instructorName}</span>` : ''}
           </div>
           <div class="ab-card-line2">
-            ${disciplineTag(groupName)}
-            <span class="ab-card-class">${className}</span>
+            <span class="ab-card-titlegroup">${disciplineTag(groupName)}
+            <span class="ab-card-class">${className}</span></span>
+            ${instructorInlineHtml(instructorName)}
             ${locationLine ? `<span class="ab-meta-dot">·</span><span class="ab-card-location">${locationLine}</span>` : ''}
           </div>
         </div>
-        ${instructorAvatar(instructorName, event.gymId, instructorPhotoUrl)
-          ? `<div class="ab-card-figure">${instructorAvatar(instructorName, event.gymId, instructorPhotoUrl)}</div>` : ''}
+        ${(instructorAvatar(instructorName, event.gymId, instructorPhotoUrl) || instructorName)
+          ? `<div class="ab-card-figure">${instructorAvatar(instructorName, event.gymId, instructorPhotoUrl) || ''}${instructorName ? `<span class="ab-card-instructor">${instructorName}</span>` : ''}</div>` : ''}
       </div>
-      <div class="ab-card-footer" style="display:flex;flex-wrap:wrap;gap:6px;align-items:center;justify-content:flex-start;">
-        ${chipsHtml}
+      <div class="ab-card-footer" style="justify-content:flex-start;">
+        <div class="ab-chip-group">${chipsHtml}</div>
       </div>
     </div>
     <div class="ab-card-rail">
@@ -661,8 +734,10 @@ function renderWaitlistsCards(waitlists) {
   if (!container) return;
 
   const valid = (waitlists || []).filter(w => w.event && (w.event.startAt || w.event.start_at));
+  waitlistCount = valid.length;
   if (valid.length === 0) {
     container.innerHTML = '<div class="fav-empty-state" style="padding:30px 0;">No active waitlists found.</div>';
+    updateWaitlistAffordances();
     return;
   }
 
@@ -670,13 +745,16 @@ function renderWaitlistsCards(waitlists) {
   container.innerHTML = '';
   valid.forEach(w => container.appendChild(buildWaitlistCard(w)));
   equalizeDiscTagWidths(container);
+  observeLocationWrap(container);
+  wireRailToggle(container);
+  updateWaitlistAffordances();
 }
 
 function buildWaitlistCard(w) {
   const event = w.event;
   const startAt = event.startAt || event.start_at;
   const startDt = new Date(startAt);
-  const dateStr = startDt.toLocaleString('en-GB', { weekday: 'short', day: 'numeric', month: 'short', timeZone: 'Europe/London' });
+  const dateStr = noSept(startDt.toLocaleString('en-GB', { weekday: 'short', day: 'numeric', month: 'short', timeZone: 'Europe/London' }));
   const timeOnly = startDt.toLocaleString('en-GB', { hour: '2-digit', minute: '2-digit', hour12: false, timeZone: 'Europe/London' });
   const rawClassName = event.name || event.event_type?.name || 'Class';
   const groupName = event.discipline || event.event_type?.group?.name || rawClassName;
@@ -686,7 +764,7 @@ function buildWaitlistCard(w) {
   const locationLine = [event.studioName || event.studio?.name, trimLocation(event.locationName || event.studio?.location?.name, getGymShortName(event.gymId))].filter(Boolean).join(', ');
 
   const card = document.createElement('div');
-  card.className = 'psycle-autobook-card ab-card';
+  card.className = 'psycle-autobook-card ab-card is-waitlist';
   card.setAttribute('data-event-id', event.id);
   card.setAttribute('data-gym', event.gymId || getDefaultGymId());
   card.innerHTML = `
@@ -704,16 +782,16 @@ function buildWaitlistCard(w) {
           <div class="ab-card-line1">
             <span class="ab-card-date">${dateStr.toUpperCase()}</span>
             <span class="ab-card-time">${timeOnly}</span>
-            ${instructorName ? `<span class="ab-card-instructor">${instructorName}</span>` : ''}
           </div>
           <div class="ab-card-line2">
-            ${disciplineTag(groupName)}
-            <span class="ab-card-class">${className}</span>
+            <span class="ab-card-titlegroup">${disciplineTag(groupName)}
+            <span class="ab-card-class">${className}</span></span>
+            ${instructorInlineHtml(instructorName)}
             ${locationLine ? `<span class="ab-meta-dot">·</span><span class="ab-card-location">${locationLine}</span>` : ''}
           </div>
         </div>
-        ${instructorAvatar(instructorName, event.gymId, instructorPhotoUrl)
-          ? `<div class="ab-card-figure">${instructorAvatar(instructorName, event.gymId, instructorPhotoUrl)}</div>` : ''}
+        ${(instructorAvatar(instructorName, event.gymId, instructorPhotoUrl) || instructorName)
+          ? `<div class="ab-card-figure">${instructorAvatar(instructorName, event.gymId, instructorPhotoUrl) || ''}${instructorName ? `<span class="ab-card-instructor">${instructorName}</span>` : ''}</div>` : ''}
       </div>
       <div class="ab-card-footer">
         <span class="ab-spots-pill" style="gap:5px;color:var(--warning);background:color-mix(in srgb,var(--warning) 12%,transparent);">${icon('clock', 12)} Waitlisted</span>

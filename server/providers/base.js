@@ -342,6 +342,14 @@ class GymProvider {
   async fetchMetadata(/* params, session */) { throw notImplemented('fetchMetadata', this); }
 
   /**
+   * Public source URLs for one instructor image. Used only by F-15's
+   * same-origin image route; the route owns fetching/resizing/caching while
+   * each adapter owns the safe provider lookup that proves an id is real.
+   * @returns {Promise<{imageUrl?: string, thumbUrl?: string}|null>}
+   */
+  async findInstructorPhoto(/* instructorId */) { throw notImplemented('findInstructorPhoto', this); }
+
+  /**
    * @param {AuthSession} session
    * @returns {Promise<NormalizedProfile>}
    */

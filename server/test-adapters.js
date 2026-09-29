@@ -68,7 +68,10 @@ check('normalize: makeEvent coerces ids to strings and prunes undefined', () => 
 
 check('normalize: makeEvent maps instructors through makeInstructor', () => {
   const e = makeEvent({ id: 1, gymId: 'g', instructors: [{ id: 7, name: 'Alex', imageUrl: 'x.jpg' }] });
-  assert.deepStrictEqual(e.instructors[0], { id: '7', name: 'Alex', imageUrl: 'x.jpg' });
+  assert.strictEqual(e.instructors[0].id, '7');
+  assert.strictEqual(e.instructors[0].name, 'Alex');
+  assert.match(e.instructors[0].imageUrl, /^\/api\/instructor-photo\/g\/7\?size=full&v=[a-f0-9]{64}$/);
+  assert.match(e.instructors[0].thumbUrl, /^\/api\/instructor-photo\/g\/7\?size=thumb&v=[a-f0-9]{64}$/);
 });
 
 check('normalize: makeMembership keeps membership semantics separate from credits', () => {

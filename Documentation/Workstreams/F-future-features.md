@@ -151,18 +151,20 @@ Verified 2026-09-29: `sharp` is not installed; `normalize.js` (~line 108) maps `
 ### Design
 
 1. `npm i sharp` in `server/` (prebuilt ARM64 binaries; oracle is aarch64).
-2. New route `GET /api/instructor-photo/:gymId/:instructorId?size=thumb|full`. Resolve the upstream URL **from the provider's own instructor list**, never from a client-supplied URL. Fetch once, resize (~96px thumb, ~480px full), encode WebP, store on disk, serve with `Cache-Control: public, max-age=31536000, immutable` and an ETag.
-3. Cache file key = hash of the upstream URL, so a changed photo regenerates and an unchanged one never refetches.
+2. New route `GET /api/instructor-photo/:gymId/:instructorId?size=thumb|full&v=<source-url-sha256>`. Resolve the upstream URL **from the provider's own instructor list**, never from a client-supplied URL. A first request waits up to 5 seconds for a 96px (quality 78) thumb or 480px (quality 82) full WebP; failure is a 404 so the client renders initials, never the original image.
+3. Cache file key = hash of the upstream URL plus variant. The normalizer emits that hash as `v`, so an unchanged URL serves directly from disk with no provider call; a changed provider URL yields a new immutable URL on the next metadata refresh. The disk cache is global, capped at 500 MB with mtime-LRU eviction; there is no per-gym quota.
 4. `providers/normalize.js`: rewrite `imageUrl`/`thumbUrl` to point at the route. The client reads only `Normalized*` fields, so `instructorAvatar()` and the tooltip need no change. Gym-agnostic: no platform branching (WP-D7).
 5. `sw.js`: point the image rule at the same-origin route; cache only `200`s; keep it bounded.
 
 ### Constraints
 
 - **SSRF:** allowlist by lookup, as above. Same principle as the removed `/api/proxy`.
-- **Auth:** `<img>` cannot send the JWT and the photos are already public, so the route is unauthenticated. Add a rate limiter (per IP) and a size cap on the upstream fetch.
-- **Persistence:** the cache directory must live on the Docker volume, or every deploy refetches every photo (see `deploy.sh`, `docker-compose.yml`).
+- **Auth:** `<img>` cannot send the JWT and the photos are already public, so the route is unauthenticated. Rate-limit it at 180 requests/minute/IP, reject redirects, allow only JPEG/PNG/WebP/GIF/AVIF, and cap upstream bodies at 5 MB.
+- **Persistence:** cache files live at `/data/instructor-photos`, under the existing Docker volume. The cache is disposable: an unavailable/full volume still returns a just-generated image but cannot retain it.
 - **Single-flight** concurrent misses for the same photo, as `schedule-cache.js` does.
-- **Failure:** upstream error or non-image returns 404 and is not cached; the existing initials fallback in `instructorAvatar()` must still render.
+- **Failure:** upstream error or non-image returns 404 and is not cached; the client swaps the failed proxy image to initials and never retries a provider URL.
+- **MarianaTek:** there is no instructor endpoint. Use the documented public `/classes?instructor=<id>` lookup across the next 90 days; no matching upcoming class means initials.
+- **Browser cache:** the service worker caches only same-origin `200` photo responses, cache-first, bounded to 160 entries. The disk cache remains authoritative; cache health/hits/misses, upstream latency/failures, and disk usage are exposed in `/api/health`.
 - Add the route to `test-no-gym-privilege` scope (no gym-id literals).
 
 ### Acceptance

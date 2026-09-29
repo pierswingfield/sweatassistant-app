@@ -29,6 +29,17 @@ function makeCreditRequirement(c) {
   };
 }
 
+function photoVersion(url) {
+  // Keep this tiny and dependency-free so normalized API responses can mint a
+  // new immutable proxy URL whenever a provider changes the source URL.
+  return require('crypto').createHash('sha256').update(String(url)).digest('hex');
+}
+
+function photoProxyUrl(gymId, instructorId, size, sourceUrl) {
+  if (!gymId || !instructorId || !sourceUrl) return undefined;
+  return `/api/instructor-photo/${encodeURIComponent(gymId)}/${encodeURIComponent(String(instructorId))}?size=${size}&v=${photoVersion(sourceUrl)}`;
+}
+
 function makeEvent(e) {
   return prune({
     id: str(e.id),
@@ -44,7 +55,7 @@ function makeEvent(e) {
     locationAddress: e.locationAddress,
     studioId: str(e.studioId),
     studioName: e.studioName,
-    instructors: Array.isArray(e.instructors) ? e.instructors.map(makeInstructor) : [],
+    instructors: Array.isArray(e.instructors) ? e.instructors.map((instructor) => makeInstructor(instructor, e.gymId)) : [],
     capacity: num(e.capacity),
     availableCount: num(e.availableCount),
     waitlistCount: num(e.waitlistCount),
@@ -95,7 +106,7 @@ function makeLayoutObject(o) {
   });
 }
 
-function makeInstructor(i) {
+function makeInstructor(i, gymId) {
   if (!i) return { id: '', name: '' };
   // Both adapters already set bio/instagram/spotify fields (marianatek.js's
   // per-event mapping, codexfit.js's fetchMetadata()) — this function was the
@@ -104,8 +115,15 @@ function makeInstructor(i) {
   // `makeMetadata` route through. Found 2026-09-02 chasing "Psycle instructor
   // photos broken" — the photo-field-name bug in codexfit.js was real too,
   // but fixing only that would still have lost bio/social links here.
+  const imageSource = i.imageUrl || i.thumbUrl;
+  const thumbSource = i.thumbUrl || i.imageUrl;
   return prune({
-    id: str(i.id), name: i.name || '', imageUrl: i.imageUrl, thumbUrl: i.thumbUrl,
+    id: str(i.id), name: i.name || '',
+    // Keep direct URLs when a caller does not yet have a gym context (mostly
+    // small unit tests). Real provider responses always carry one, so every
+    // browser image becomes same-origin and versioned by its source URL.
+    imageUrl: gymId ? photoProxyUrl(gymId, i.id, 'full', imageSource) : i.imageUrl,
+    thumbUrl: gymId ? photoProxyUrl(gymId, i.id, 'thumb', thumbSource) : i.thumbUrl,
     bio: i.bio, instagramUrl: i.instagramUrl, instagramHandle: i.instagramHandle,
     spotifyUrl: i.spotifyUrl, metafields: i.metafields,
   });
@@ -239,7 +257,7 @@ function makeMetadata(m = {}) {
   return {
     locations: (m.locations || []).map(makeLocation),
     studios: (m.studios || []).map(makeStudio),
-    instructors: (m.instructors || []).map(makeInstructor),
+    instructors: (m.instructors || []).map((instructor) => makeInstructor(instructor, m.gymId)),
     classTypes: (m.classTypes || []).map(makeClassType),
   };
 }

@@ -16,6 +16,7 @@ const { normalizeCalendarPrefs, applyCalendarPatch } = require('./calendar-prefs
 const { isRollingWeekly } = require('./providers/booking-window');
 const adminRouter = require('./admin');
 const normalizedRouter = require('./routes-normalized');
+const instructorPhotoRouter = require('./instructor-photo-routes');
 const config = require('./config');
 const competing = require('./competing-bookings');
 const { getGymConfig } = require('./gyms.config');
@@ -141,7 +142,7 @@ const HEARTBEAT_LIMITS = {
   calendar: 3.5 * 60 * 60 * 1000,
 };
 
-app.get('/api/health', (req, res) => {
+app.get('/api/health', async (req, res) => {
   const now = Date.now();
   const services = {};
   let allHealthy = true;
@@ -174,12 +175,18 @@ app.get('/api/health', (req, res) => {
   // is shorter than the gap between visits.
   let scheduleCacheStats = null;
   try { scheduleCacheStats = require('./schedule-cache').getStats(); } catch (_) {}
+  let instructorPhotoCache = null;
+  try {
+    const photoCache = require('./instructor-photo');
+    instructorPhotoCache = { ...photoCache.getStats(), ...(await photoCache.cacheUsage()) };
+  } catch (_) {}
 
   res.status(allHealthy ? 200 : 503).json({
     status: allHealthy ? 'ok' : 'degraded',
     time: new Date(now).toISOString(),
     uptimeSec: Math.round(process.uptime()),
     scheduleCache: scheduleCacheStats,
+    instructorPhotoCache,
     nextReleaseAt: nextRelease,
     services,
   });
@@ -251,6 +258,7 @@ app.get('/admin', (req, res) => {
 
 app.use('/api/admin/login', adminLoginLimiter);
 app.use('/api/admin', adminRouter);
+app.use('/api', instructorPhotoRouter);
 app.use('/api', normalizedRouter);
 
 // -------------------------------------------------------------

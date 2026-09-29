@@ -1,5 +1,5 @@
 import { api } from '../api';
-import { canForGym, getGymShortName } from '../gym-context.js';
+import { canForGym, getGymShortName, getDefaultGymId } from '../gym-context.js';
 import { getAvailableCreditsForEvent, getTotalCredits, getIneligibleReason } from './credit-allowance.js';
 import { showToast, cache, refreshUserData, updateCreditBadge, userSettings, gymSetting } from '../main';
 import { renderStudioFloorPlan } from './spotmap';
@@ -254,9 +254,9 @@ function buildBookingCard(group, upgrades) {
   const card = document.createElement('div');
   card.className = 'psycle-autobook-card ab-card';
   card.setAttribute('data-event-id', group.eventId);
-  card.setAttribute('data-gym', event.gymId || 'psycle-london');
+  card.setAttribute('data-gym', event.gymId || getDefaultGymId());
   card.innerHTML = `
-    ${renderGymRail(event.gymId || 'psycle-london')}
+    ${renderGymRail(event.gymId || getDefaultGymId())}
     <div class="ab-card-main">
       ${/* TWO lines of class information, not four.
            Line 1 — WHEN, plus who's teaching: the two facts you scan a booking
@@ -688,9 +688,9 @@ function buildWaitlistCard(w) {
   const card = document.createElement('div');
   card.className = 'psycle-autobook-card ab-card';
   card.setAttribute('data-event-id', event.id);
-  card.setAttribute('data-gym', event.gymId || 'psycle-london');
+  card.setAttribute('data-gym', event.gymId || getDefaultGymId());
   card.innerHTML = `
-    ${renderGymRail(event.gymId || 'psycle-london')}
+    ${renderGymRail(event.gymId || getDefaultGymId())}
     <div class="ab-card-main">
       ${/* TWO lines of class information, not four.
            Line 1 — WHEN, plus who's teaching: the two facts you scan a booking

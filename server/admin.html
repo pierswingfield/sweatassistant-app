@@ -294,6 +294,28 @@
       border-radius: 4px; padding: 3px 10px; cursor: pointer; font-size: 12px;
     }
     .pager button:disabled { opacity: 0.4; cursor: default; }
+
+    /* F-7 Stage B: gym presentation editor */
+    #gym-editor { padding: 24px; border-top: 1px solid var(--border); }
+    #gym-editor h2 { font-size: 16px; margin-bottom: 12px; }
+    .ge-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); gap: 12px 20px; margin-top: 12px; }
+    .ge-grid label { display: block; font-size: 11px; color: var(--text-muted); margin-bottom: 3px; }
+    .ge-grid input, .ge-grid textarea, #ge-gym { width: 100%; background: var(--surface-2); color: var(--text); border: 1px solid var(--border); border-radius: 6px; padding: 6px 8px; font-size: 13px; font-family: inherit; }
+    .ge-grid textarea { font-family: var(--mono); min-height: 70px; }
+    .ge-colors { display: grid; grid-template-columns: repeat(4, 1fr); gap: 6px; }
+    .ge-actions { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 14px; align-items: center; }
+    .ge-actions .btn { width: auto; padding: 6px 14px; background: var(--surface-2); color: var(--text); border: 1px solid var(--border); }
+    .ge-actions .btn.ge-save { background: var(--accent); color: #fff; border-color: transparent; }
+    #ge-msg { font-size: 12px; margin-top: 8px; min-height: 16px; }
+    #ge-msg.err { color: var(--red); } #ge-msg.ok { color: var(--green); }
+    .ge-previews { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-top: 14px; }
+    .ge-preview { border-radius: 10px; padding: 14px; border: 1px solid var(--border); }
+    .ge-preview .pv-title { font-size: 11px; opacity: .7; margin-bottom: 8px; }
+    .ge-preview .pv-plate { display: inline-flex; align-items: center; min-height: 34px; padding: 4px 12px; border-radius: 8px; font-weight: 700; letter-spacing: .06em; }
+    .ge-preview .pv-plate img { max-height: 26px; display: block; }
+    .ge-preview .pv-row { margin-top: 10px; padding: 8px 10px; border-radius: 8px; font-size: 13px; display: flex; gap: 8px; align-items: center; justify-content: space-between; }
+    .ge-preview .pv-pill { padding: 2px 10px; border-radius: 999px; font-size: 11px; font-weight: 600; }
+    @media (max-width: 600px) { .ge-previews { grid-template-columns: 1fr; } }
   </style>
 </head>
 <body>
@@ -339,6 +361,32 @@
       <tbody id="user-tbody"><tr><td colspan="7" class="loading">Loading…</td></tr></tbody>
     </table>
   </div>
+
+  <section id="gym-editor">
+    <h2>Gym presentation</h2>
+    <p style="font-size:12px;color:var(--text-muted);margin-bottom:10px">Display only. Tenant URLs, headers, capabilities and booking policy are set in gyms.config.js and cannot be edited here.</p>
+    <select id="ge-gym" aria-label="Gym"></select>
+    <div class="ge-grid">
+      <div><label for="ge-short">Short name</label><input id="ge-short"></div>
+      <div><label for="ge-text">Wordmark text fallback</label><input id="ge-text"></div>
+      <div><label for="ge-full">Full wordmark path (/gyms/...)</label><input id="ge-full"></div>
+      <div><label for="ge-compact">Compact wordmark path</label><input id="ge-compact"></div>
+      <div><label for="ge-mark">Mark path</label><input id="ge-mark"></div>
+      <div><label for="ge-plate">Logo plate colour</label><input id="ge-plate" placeholder="#rrggbb"></div>
+      <div><label>Light: ink / inkHover / tint / on</label><div class="ge-colors" id="ge-light"></div></div>
+      <div><label>Dark: ink / inkHover / tint / on</label><div class="ge-colors" id="ge-dark"></div></div>
+      <div style="grid-column:1/-1"><label for="ge-aliases">Display aliases (JSON: scope to lower-case raw name to shown name)</label><textarea id="ge-aliases"></textarea></div>
+    </div>
+    <div class="ge-actions">
+      <button class="btn" id="ge-validate">Validate</button>
+      <button class="btn ge-save" id="ge-save">Save</button>
+      <button class="btn" id="ge-reset">Reset to registry</button>
+      <button class="btn" id="ge-test">Test connection</button>
+      <span id="ge-badge" style="font-size:12px;color:var(--text-muted)"></span>
+    </div>
+    <div id="ge-msg" role="status"></div>
+    <div class="ge-previews" id="ge-previews"></div>
+  </section>
 </div>
 
 <!-- User detail drawer -->
@@ -425,6 +473,7 @@
     document.getElementById('admin-screen').style.display = 'block';
     document.getElementById('session-label').textContent = 'admin session';
     loadUsers();
+    loadGymEditor();
   }
 
   async function doLogin() {
@@ -1098,6 +1147,110 @@
       btn.textContent = 'Delete';
     }
   });
+
+  // ── Gym presentation editor (F-7 Stage B) ─────────────────────────────────
+
+  const GE_KEYS = ['ink', 'inkHover', 'tint', 'on'];
+  let geGyms = [];
+  const geEl = (id) => document.getElementById(id);
+
+  function geMsg(text, kind) { const m = geEl('ge-msg'); m.textContent = text || ''; m.className = kind || ''; }
+
+  function geBuildColourInputs() {
+    for (const mode of ['light', 'dark']) {
+      geEl('ge-' + mode).innerHTML = GE_KEYS.map(k =>
+        `<input data-mode="${mode}" data-key="${k}" placeholder="${k}" aria-label="${mode} ${k}">`).join('');
+    }
+  }
+
+  function geFill(p) {
+    geEl('ge-short').value = p.shortName || '';
+    geEl('ge-text').value = (p.wordmark && p.wordmark.text) || '';
+    for (const k of ['full', 'compact', 'mark']) geEl('ge-' + k).value = (p.wordmark && p.wordmark[k] && p.wordmark[k].src) || '';
+    geEl('ge-plate').value = p.plate || '';
+    document.querySelectorAll('#gym-editor .ge-colors input').forEach(i => { i.value = (p[i.dataset.mode] || {})[i.dataset.key] || ''; });
+    geEl('ge-aliases').value = JSON.stringify(p.displayAliases || {}, null, 2);
+    geRenderPreview();
+  }
+
+  // Throws on unparseable alias JSON; all other checks are the server validator's.
+  function geRead() {
+    const wordmark = { text: geEl('ge-text').value };
+    for (const k of ['full', 'compact', 'mark']) { const v = geEl('ge-' + k).value.trim(); if (v) wordmark[k] = { src: v }; }
+    const p = { shortName: geEl('ge-short').value, wordmark, plate: geEl('ge-plate').value.trim(), light: {}, dark: {} };
+    document.querySelectorAll('#gym-editor .ge-colors input').forEach(i => { p[i.dataset.mode][i.dataset.key] = i.value.trim(); });
+    p.displayAliases = JSON.parse(geEl('ge-aliases').value || '{}');
+    return p;
+  }
+
+  const geSafeColour = (c) => /^#[0-9a-fA-F]{6}$/.test(c) ? c : 'transparent';
+  const geSafeSrc = (s) => /^\/gyms\/[\w.\-]+(\?[\w=&.\-]*)?$/.test(s) ? s : '';
+
+  function geRenderPreview() {
+    let p;
+    try { p = geRead(); } catch (e) { geEl('ge-previews').innerHTML = ''; return; }
+    const surfaces = { light: { bg: '#ffffff', fg: '#1a1a1a' }, dark: { bg: '#141414', fg: '#f0f0f0' } };
+    geEl('ge-previews').innerHTML = ['light', 'dark'].map(mode => {
+      const c = p[mode], sf = surfaces[mode];
+      const src = geSafeSrc((p.wordmark.full || p.wordmark.compact || p.wordmark.mark || {}).src || '');
+      const logo = src ? `<img src="${escHtml(src)}" alt="${escHtml(p.shortName)}">` : escHtml(p.wordmark.text);
+      return `<div class="ge-preview" data-mode="${mode}" style="background:${sf.bg};color:${sf.fg}">
+        <div class="pv-title">${mode} preview</div>
+        <span class="pv-plate" style="background:${geSafeColour(p.plate)};color:#fff">${logo}</span>
+        <div class="pv-row" style="background:${geSafeColour(c.tint)}26;border-left:3px solid ${geSafeColour(c.tint)}">
+          <span style="color:${geSafeColour(c.ink)}">${escHtml(p.shortName)} · 18:30 Class</span>
+          <span class="pv-pill" style="background:${geSafeColour(c.tint)};color:${geSafeColour(c.on)}">Book</span>
+        </div></div>`;
+    }).join('');
+  }
+
+  function geCurrent() { return geGyms.find(g => g.id === geEl('ge-gym').value); }
+
+  function geSelect() {
+    const g = geCurrent(); if (!g) return;
+    geFill(g.presentation);
+    geEl('ge-badge').textContent = g.overridden ? 'Using admin override' : 'Using registry values';
+    geMsg('');
+  }
+
+  async function loadGymEditor() {
+    geBuildColourInputs();
+    try {
+      const res = await apiFetch('/api/admin/gym-presentations');
+      geGyms = (await res.json()).gyms || [];
+      geEl('ge-gym').innerHTML = geGyms.map(g => `<option value="${escHtml(g.id)}">${escHtml(g.name)} (${escHtml(g.provider)})</option>`).join('');
+      geSelect();
+    } catch (e) { geMsg(e.message, 'err'); }
+  }
+
+  async function geSend(path, method, body) {
+    const g = geCurrent();
+    const res = await apiFetch(`/api/admin/gym-presentations/${encodeURIComponent(g.id)}${path}`, { method, body: body ? JSON.stringify(body) : undefined });
+    const data = await res.json();
+    return { res, data };
+  }
+
+  async function geDo(kind) {
+    try {
+      if (kind === 'validate' || kind === 'save') {
+        const { res, data } = await geSend(kind === 'validate' ? '/validate' : '', kind === 'validate' ? 'POST' : 'PUT', { presentation: geRead() });
+        if (!res.ok) return geMsg(data.message || 'Invalid', 'err');
+        if (kind === 'save') { Object.assign(geCurrent(), data); geSelect(); }
+        geMsg(kind === 'save' ? 'Saved and applied.' : 'Valid.', 'ok');
+      } else if (kind === 'reset') {
+        const { data } = await geSend('', 'DELETE'); Object.assign(geCurrent(), data); geSelect(); geMsg('Reset to registry values.', 'ok');
+      } else if (kind === 'test') {
+        geMsg('Testing (read-only)…');
+        const { data } = await geSend('/test-connection', 'POST');
+        if (data.ok) geMsg(`Connected in ${data.latencyMs}ms: ${data.counts.locations} locations, ${data.counts.studios} studios, ${data.counts.instructors} instructors. Nothing was booked or changed.`, 'ok');
+        else geMsg(`Connection failed${data.status ? ' (HTTP ' + data.status + ')' : ''}: ${data.message}`, 'err');
+      }
+    } catch (e) { geMsg(e.message, 'err'); }
+  }
+
+  geEl('ge-gym').addEventListener('change', geSelect);
+  document.getElementById('gym-editor').addEventListener('input', geRenderPreview);
+  for (const k of ['validate', 'save', 'reset', 'test']) geEl('ge-' + k).addEventListener('click', () => geDo(k));
 
   // ── Init ──────────────────────────────────────────────────────────────────
 

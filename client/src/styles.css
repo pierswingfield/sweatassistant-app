@@ -50,14 +50,12 @@
      colour only). `-ink` is text/icon weight, `-tint` is the colour fed to
      color-mix for backgrounds and borders. These are the dark-theme renderings;
      the light blocks below restate them. */
-  --gym-psycle-london-ink: #a78bfa;
-  --gym-psycle-london-ink-hover: #c4b5fd;
-  --gym-psycle-london-tint: #8b5cf6;
-  --gym-psycle-london-on: #1a1033;
-  --gym-jab-boxing-ink: #818cf8;
-  --gym-jab-boxing-ink-hover: #a5b4fc;
-  --gym-jab-boxing-tint: #5d71c9;
-  --gym-jab-boxing-on: #0b1030;
+  /* Neutral defaults for a gym with no presentation contract. Real values are
+     injected from GET /api/gyms by gym-context.js (gymPresentationCss). */
+  --gym-ink: var(--text-secondary);
+  --gym-ink-hover: var(--text);
+  --gym-tint: var(--text-secondary);
+  --gym-on: var(--bg, #ffffff);
 
   /* Custom additions for timetable redesign */
   --on-auto-pill: #c9aed6;
@@ -205,11 +203,8 @@
   background: var(--surface-2);
 }
 
-.psycle-membership-section[data-gym="psycle-london"] .psycle-membership-card {
-  border-left-color: var(--gym-psycle-london-ink);
-}
-.psycle-membership-section[data-gym="jab-boxing"] .psycle-membership-card {
-  border-left-color: var(--gym-jab-boxing-ink);
+.psycle-membership-section[data-gym] .psycle-membership-card {
+  border-left-color: var(--gym-ink);
 }
 
 .psycle-membership-name {
@@ -266,17 +261,6 @@
     --accent-btn-bg: var(--accent);
     --on-accent-button: #FEF1E9;
 
-  /* Per-gym brand tokens — light renderings. Psycle's brand violet #7c3aed and
-     JAB's brand navy #18214D are legible as-is on a light ground; both need
-     lightening on dark, which is what the :root block above does. */
-  --gym-psycle-london-ink: #7c3aed;
-  --gym-psycle-london-ink-hover: #6d28d9;
-  --gym-psycle-london-tint: #7c3aed;
-  --gym-psycle-london-on: #ffffff;
-  --gym-jab-boxing-ink: #18214d;
-  --gym-jab-boxing-ink-hover: #10173a;
-  --gym-jab-boxing-tint: #18214d;
-  --gym-jab-boxing-on: #ffffff;
 
     --on-auto-pill: #E2D1DD;
     --auto-not-scheduled: #D2BDD9;
@@ -344,17 +328,6 @@
   --accent-btn-bg: var(--accent);
   --on-accent-button: #FEF1E9;
 
-  /* Per-gym brand tokens — light renderings. Psycle's brand violet #7c3aed and
-     JAB's brand navy #18214D are legible as-is on a light ground; both need
-     lightening on dark, which is what the :root block above does. */
-  --gym-psycle-london-ink: #7c3aed;
-  --gym-psycle-london-ink-hover: #6d28d9;
-  --gym-psycle-london-tint: #7c3aed;
-  --gym-psycle-london-on: #ffffff;
-  --gym-jab-boxing-ink: #18214d;
-  --gym-jab-boxing-ink-hover: #10173a;
-  --gym-jab-boxing-tint: #18214d;
-  --gym-jab-boxing-on: #ffffff;
 
   --on-auto-pill: #E2D1DD;
   --auto-not-scheduled: #D2BDD9;
@@ -427,8 +400,9 @@
    anything that legitimately needs to know the active gym, but it must not
    redefine a global palette token.
 
-   Adding a gym: add its `--gym-<id>-*` tokens to all three theme blocks above,
-   plus its `theme` entry in gyms.config.js. No JavaScript changes. */
+   Adding a gym: add its `presentation` contract to gyms.config.js. The tokens
+   (`--gym-<id>-*`, and per-element `--gym-ink/-tint/-on` under `[data-gym]`) are
+   injected at runtime by gym-context.js; nothing here is keyed to a gym id. */
 
 /* Gym Attribution Chips & Badges */
 .psycle-gym-chip {
@@ -505,14 +479,7 @@
    tint tokens: those wash rows and rails and must stay legible in both themes,
    where a near-black cannot. Fixed in light and dark — that is what a brand
    plate is. */
-.psycle-gym-chip-psycle-london {
-  background: #212121 !important;
-  border: 1px solid #212121 !important;
-}
-.psycle-gym-chip-jab-boxing {
-  background: #6C1F20 !important;
-  border: 1px solid #6C1F20 !important;
-}
+/* Plate colour comes inline from the gym's presentation contract (cards.js). */
 
 /* Discipline colours — shared baseline across all gyms */
 :root {
@@ -3327,17 +3294,11 @@ html, body {
    always won the cascade regardless of source order or `!important` on
    either side — CSS specificity compares id-count first, before class/
    attribute count. Matching that #id here is what makes this win. */
-#psycle-helper-container #psycle-timetable-rows tr[data-gym="psycle-london"] {
-  background: color-mix(in srgb, var(--gym-psycle-london-tint) 3%, var(--surface)) !important;
+#psycle-helper-container #psycle-timetable-rows tr[data-gym] {
+  background: color-mix(in srgb, var(--gym-tint) 3%, var(--surface)) !important;
 }
-#psycle-helper-container #psycle-timetable-rows tr[data-gym="psycle-london"]:hover {
-  background: color-mix(in srgb, var(--gym-psycle-london-tint) 7%, var(--surface)) !important;
-}
-#psycle-helper-container #psycle-timetable-rows tr[data-gym="jab-boxing"] {
-  background: color-mix(in srgb, var(--gym-jab-boxing-tint) 3.5%, var(--surface)) !important;
-}
-#psycle-helper-container #psycle-timetable-rows tr[data-gym="jab-boxing"]:hover {
-  background: color-mix(in srgb, var(--gym-jab-boxing-tint) 7%, var(--surface)) !important;
+#psycle-helper-container #psycle-timetable-rows tr[data-gym]:hover {
+  background: color-mix(in srgb, var(--gym-tint) 7%, var(--surface)) !important;
 }
 
 #psycle-helper-container .psycle-table th {
@@ -6634,14 +6595,9 @@ html, body {
 .psycle-header-gym-badge:hover {
   filter: brightness(1.08);
 }
-.psycle-header-gym-psycle-london {
-  background: color-mix(in srgb, var(--gym-psycle-london-tint) 13%, var(--surface)) !important;
-  border-color: color-mix(in srgb, var(--gym-psycle-london-tint) 30%, transparent) !important;
-  color: var(--text) !important;
-}
-.psycle-header-gym-jab-boxing {
-  background: color-mix(in srgb, var(--gym-jab-boxing-tint) 13%, var(--surface)) !important;
-  border-color: color-mix(in srgb, var(--gym-jab-boxing-tint) 30%, transparent) !important;
+.psycle-header-gym-badge[data-gym] {
+  background: color-mix(in srgb, var(--gym-tint) 13%, var(--surface)) !important;
+  border-color: color-mix(in srgb, var(--gym-tint) 30%, transparent) !important;
   color: var(--text) !important;
 }
 .psycle-hgb-name {
@@ -6659,13 +6615,9 @@ html, body {
   background: color-mix(in srgb, var(--accent) 15%, transparent);
   color: var(--accent);
 }
-.psycle-header-gym-psycle-london .psycle-hgb-pill {
-  background: var(--gym-psycle-london-ink) !important;
-  color: var(--gym-psycle-london-on) !important;
-}
-.psycle-header-gym-jab-boxing .psycle-hgb-pill {
-  background: var(--gym-jab-boxing-ink) !important;
-  color: var(--gym-jab-boxing-on) !important;
+.psycle-header-gym-badge[data-gym] .psycle-hgb-pill {
+  background: var(--gym-ink) !important;
+  color: var(--gym-on) !important;
 }
 .psycle-hgb-pill.member {
   background: color-mix(in srgb, var(--success) 20%, transparent) !important;
@@ -7040,20 +6992,12 @@ html, body {
 #psycle-helper-container .psycle-autobook-card.ab-card { margin-bottom: 0; }
 
 /* Subtle per-gym card background tinting */
-#psycle-helper-container .psycle-autobook-card.ab-card[data-gym="psycle-london"] {
-  background: color-mix(in srgb, var(--gym-psycle-london-tint) 3%, var(--surface));
-  border-color: color-mix(in srgb, var(--gym-psycle-london-tint) 20%, var(--border));
+#psycle-helper-container .psycle-autobook-card.ab-card[data-gym] {
+  background: color-mix(in srgb, var(--gym-tint) 3%, var(--surface));
+  border-color: color-mix(in srgb, var(--gym-tint) 20%, var(--border));
 }
-#psycle-helper-container .psycle-autobook-card.ab-card[data-gym="psycle-london"]:hover {
-  border-color: color-mix(in srgb, var(--gym-psycle-london-tint) 36%, var(--border));
-}
-
-#psycle-helper-container .psycle-autobook-card.ab-card[data-gym="jab-boxing"] {
-  background: color-mix(in srgb, var(--gym-jab-boxing-tint) 3.5%, var(--surface));
-  border-color: color-mix(in srgb, var(--gym-jab-boxing-tint) 22%, var(--border));
-}
-#psycle-helper-container .psycle-autobook-card.ab-card[data-gym="jab-boxing"]:hover {
-  border-color: color-mix(in srgb, var(--gym-jab-boxing-tint) 38%, var(--border));
+#psycle-helper-container .psycle-autobook-card.ab-card[data-gym]:hover {
+  border-color: color-mix(in srgb, var(--gym-tint) 36%, var(--border));
 }
 
 /* Leftmost Gym Brand Rail */
@@ -7075,16 +7019,8 @@ html, body {
 
 /* The rail carries the same brand plate as the chip — the gym's ground with its
    white wordmark on it — rather than a tint of the gym token. */
-.ab-card-gym-rail[data-gym="psycle-london"] {
-  background: #212121;
-  border-right-color: #212121;
-  color: #ffffff;
-}
-
-.ab-card-gym-rail[data-gym="jab-boxing"] {
-  background: #6C1F20;
-  border-right-color: #6C1F20;
-  color: #f9f6f5;
+.ab-card-gym-rail[data-gym] {
+  color: #ffffff; /* plate colour is inline, from the presentation contract */
 }
 
 .ab-gym-logo {
@@ -7530,11 +7466,8 @@ html, body {
   border-radius: var(--radius-sm);
   border-left: 3px solid var(--border);
 }
-.ab-hist-card[data-gym="psycle-london"] {
-  border-left-color: var(--gym-psycle-london-ink);
-}
-.ab-hist-card[data-gym="jab-boxing"] {
-  border-left-color: var(--gym-jab-boxing-ink);
+.ab-hist-card[data-gym] {
+  border-left-color: var(--gym-ink);
 }
 .ab-hist-card.state-failed { opacity: 0.8; }
 .ab-hist-row1 {
@@ -8064,11 +7997,8 @@ html, body {
 
   /* Row tint by gym identity (2026-09-02) — same colours as the desktop row
      tint above and the Auto-Book/Bookings card tint. */
-  .psycle-mobile-class-card[data-gym="psycle-london"] {
-    background: color-mix(in srgb, var(--gym-psycle-london-tint) 3%, var(--surface));
-  }
-  .psycle-mobile-class-card[data-gym="jab-boxing"] {
-    background: color-mix(in srgb, var(--gym-jab-boxing-tint) 3.5%, var(--surface));
+  .psycle-mobile-class-card[data-gym] {
+    background: color-mix(in srgb, var(--gym-tint) 3%, var(--surface));
   }
 
   .psycle-mobile-content {
@@ -8796,8 +8726,6 @@ html, body {
   line-height: 0;
   box-shadow: 0 0 0 1px color-mix(in srgb, var(--text) 14%, transparent);
 }
-.psycle-gym-mark-psycle-london { background: #212121; }
-.psycle-gym-mark-jab-boxing { background: #6C1F20; }
 /* A square plate always takes the HALF Psycle mark, whatever the viewport. */
 .psycle-gym-mark .ab-gym-logo-img.is-full { display: none; }
 .psycle-gym-mark .ab-gym-logo-img.is-half { display: block; width: 21px; height: auto; }
@@ -9259,3 +9187,7 @@ html, body {
 @media (max-width: 768px) {
   #psycle-helper-container .psycle-sticky-top { margin-left: -8px !important; margin-right: -8px !important; }
 }
+
+/* Neutral / text wordmark (F-7): gym with no image assets, or brand not yet loaded. */
+.ab-gym-logo-text { color: #fff; font-weight: 700; letter-spacing: 0.04em; font-size: 11px; line-height: 1; white-space: nowrap; }
+.fr-mark-text { color: #fff; font-weight: 700; font-size: 12px; }

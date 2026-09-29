@@ -1,11 +1,11 @@
 import { api } from '../api';
-import { getGymShortName, getLinkedGyms } from '../gym-context.js';
+import { getGymShortName, getLinkedGyms, getDefaultGymId } from '../gym-context.js';
 import { getAvailableCreditsForEvent, getTotalCredits, getIneligibleReason } from './credit-allowance.js';
 import { showToast, cache, userSettings, gymSetting, setGymSettingLocal, profileForGym, refreshUserData, debugConsole } from '../main';
 import { getClassReleaseTime } from '../lib';
 import { DateTime } from 'luxon';
 import { renderStudioFloorPlan } from './spotmap';
-import { cleanClassName, icon, disciplineTag, trimLocation, seatNoun, pulseIcon, renderGymRail, equalizeDiscTagWidths, escapeHtml } from './cards';
+import { cleanClassName, icon, disciplineTag, trimLocation, seatNoun, pulseIcon, renderGymRail, equalizeDiscTagWidths, escapeHtml, gymBrand } from './cards';
 import { renderCardSkeletons } from './loading-skeleton.js';
 import { ensureLiveStatusLine, setLiveStatusText } from './status-line.js';
 import { instructorAvatar } from './tooltips.js';
@@ -380,7 +380,7 @@ function renderQueue(queue) {
     const card = document.createElement('div');
     card.className = 'psycle-autobook-card ab-card';
     card.setAttribute('data-event-id', q.event_id);
-    card.setAttribute('data-gym', q.gym_id || 'psycle-london');
+    card.setAttribute('data-gym', q.gym_id || getDefaultGymId());
 
     const startDt = new Date(q.start_at);
     const dateStr = startDt.toLocaleString('en-GB', {
@@ -429,7 +429,7 @@ function renderQueue(queue) {
       .join('');
 
     card.innerHTML = `
-      ${renderGymRail(q.gym_id || 'psycle-london')}
+      ${renderGymRail(q.gym_id || getDefaultGymId())}
       <div class="ab-card-main">
         <div class="ab-card-body">
           <div class="ab-card-lines">
@@ -448,7 +448,7 @@ function renderQueue(queue) {
             ? `<div class="ab-card-figure">${instructorAvatar(instructorName, q.gym_id, instructorPhotoUrl)}</div>` : ''}
         </div>
         <div class="ab-card-footer">
-          <span class="ab-countdown state-pending" data-start-at="${q.start_at}" data-release-at="${getClassReleaseTime(q, userSettings).toISO()}">
+          <span class="ab-countdown state-pending" data-start-at="${q.start_at}" data-gym-id="${q.gym_id || ''}" ${(() => { const r = getClassReleaseTime(q, userSettings); return r ? `data-release-at="${r.toISO()}"` : ''; })()}>
             ${icon('clock', 13)}<span class="ab-countdown-val">…</span>
           </span>
           <span class="ab-spots-pill">${creditsNeeded} ${seatNoun(q.group_name)[0].toUpperCase() + seatNoun(q.group_name).slice(1)}${creditsNeeded !== 1 ? 's' : ''}</span>
@@ -755,12 +755,12 @@ function renderHistoryPage() {
 
     const card = document.createElement('div');
     card.className = `ab-hist-card state-${state}`;
-    card.setAttribute('data-gym', h.gym_id || 'psycle-london');
+    card.setAttribute('data-gym', h.gym_id || getDefaultGymId());
     card.innerHTML = `
       <div class="ab-hist-row1">
         <div class="ab-hist-name">
           ${disciplineTag(h.group_name || h.class_name)}
-          <span class="psycle-gym-chip psycle-gym-chip-${h.gym_id || 'psycle-london'}">${getGymShortName(h.gym_id) || 'Psycle'}</span>
+          <span class="psycle-gym-chip" style="background:${gymBrand(h.gym_id).brandBg};border:1px solid ${gymBrand(h.gym_id).brandBg}">${escapeHtml(getGymShortName(h.gym_id) || gymBrand(h.gym_id).shortName)}</span>
           <span class="ab-card-class">${className}</span>
         </div>
         <span class="ab-history-status state-${state}">${icon(statusGlyph, 12)} ${statusText}</span>
@@ -899,7 +899,8 @@ function updateCountdowns() {
     const stamped = el.getAttribute('data-release-at');
     const classRelease = stamped
       ? DateTime.fromISO(stamped)
-      : getClassReleaseTime({ start_at: startAt }, userSettings);
+      : getClassReleaseTime({ start_at: startAt, gym_id: el.getAttribute('data-gym-id') }, userSettings);
+    if (!classRelease) { valEl.textContent = 'Release time unknown'; return; }
     const diff = classRelease.toMillis() - Date.now();
 
     if (diff <= 0) {

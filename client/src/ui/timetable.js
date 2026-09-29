@@ -1,7 +1,7 @@
 import { api } from '../api';
 import { getAvailableCreditsForEvent, hasUsableCredit, getIneligibleReason, isMetered } from './credit-allowance.js';
 import { isCreditInventoryLoaded, pickStudioPrefs as pickGymStudioPrefs } from './gym-isolation.js';
-import { canForGym, canAny, capabilityForGym, getLinkedGyms, getGymShortName, getLocationAlias } from '../gym-context.js';
+import { canForGym, canAny, capabilityForGym, getLinkedGyms, getGymShortName, getLocationAlias, getDefaultGymId } from '../gym-context.js';
 import { showToast, currentUser, userSettings, gymSetting, profileForGym, refreshUserData, updateCreditBadge, cache, debugConsole } from '../main';
 import { getClassReleaseTime, isInGracePeriod, GRACE_PERIOD_MS, startGraceCountdown } from '../lib';
 import { DateTime } from 'luxon';
@@ -1316,7 +1316,7 @@ export async function renderTimetableGrid(reason = 'interaction') {
     // Cutoff status calculation (London timezone)
     const classRelease = getClassReleaseTime(event, userSettings);
     const now = DateTime.now().setZone('Europe/London');
-    const isLive = event.alwaysBookable ? true : (now >= classRelease);
+    const isLive = event.alwaysBookable ? true : (classRelease ? now >= classRelease : true);
     const isFullyBooked = !!event.isFull;
     const canWaitlist = event.waitlistAvailable !== false;
 
@@ -1411,7 +1411,7 @@ export async function renderTimetableGrid(reason = 'interaction') {
 
     const row = document.createElement('tr');
     row.className = rowClass;
-    row.setAttribute('data-gym', event.gymId || 'psycle-london');
+    row.setAttribute('data-gym', event.gymId || getDefaultGymId());
     // Identity and layout kind on the row itself. Without these a rendered row
     // cannot be traced back to its event from the DOM, which made verifying
     // per-class behaviour ("is this FCFS?") impossible from outside the app —
@@ -1443,7 +1443,7 @@ export async function renderTimetableGrid(reason = 'interaction') {
       </td>
       <td class="col-location">
         <span style="font-weight:600; display:block; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">${trimLocation(locName, getGymShortName(event.gymId))}</span>
-        ${studioName ? `<span style="font-size:12px; color:var(--text-secondary); display:block; margin-top:2px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">${displayStudioName(studioName)}</span>` : ''}
+        ${studioName ? `<span style="font-size:12px; color:var(--text-secondary); display:block; margin-top:2px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">${displayStudioName(event.gymId, studioName)}</span>` : ''}
       </td>
       <td class="col-status">${statusBadge}</td>
       <td class="col-actions"></td>
@@ -2221,7 +2221,7 @@ function buildMobileClassRow(event, ctx, model) {
 
   const card = document.createElement('div');
   card.className = 'psycle-mobile-class-card';
-  card.setAttribute('data-gym', event.gymId || 'psycle-london');
+  card.setAttribute('data-gym', event.gymId || getDefaultGymId());
 
   const trimmedLoc = trimLocation(locName, getGymShortName(event.gymId));
   const displayLoc = getLocationAlias(event.gymId, trimmedLoc) || trimmedLoc;
@@ -2707,7 +2707,7 @@ async function openBookingModal(c, mode, opts = {}) {
 
     // Determine if booking window is already open
     const classReleaseTime = getClassReleaseTime(c);
-    const isLive = classReleaseTime.toMillis() <= Date.now();
+    const isLive = classReleaseTime ? classReleaseTime.toMillis() <= Date.now() : true;
 
     const instrName = metadata.instructors.find(i => sameId(i.id, c.instructors?.[0]?.id) && (!c.gymId || i.gymId === c.gymId))?.name || '';
     const eventType = metadata.eventTypes.find(t => sameId(t.id, c.classTypeId) && (!c.gymId || t.gymId === c.gymId));
@@ -3762,7 +3762,7 @@ export async function openDebugModal(event) {
     // Compute key values
     const classRelease = getClassReleaseTime(event, userSettings);
     const now = DateTime.now().setZone('Europe/London');
-    const isLive = event.alwaysBookable ? true : (now >= classRelease);
+    const isLive = event.alwaysBookable ? true : (classRelease ? now >= classRelease : true);
     const bookingCutoff = event.booking_cutoff || 'N/A';
     const extendedCutoff = event.extended_cutoff || 'N/A';
 
@@ -3852,7 +3852,7 @@ export async function openDebugModal(event) {
             <h5 style="color:var(--feat-autoupgrade); margin:0 0 10px 0; font-size:13px; font-weight:700;">Key Computed Values</h5>
             <div style="display:grid; grid-template-columns:1fr 1fr; gap:6px 16px; font-size:12px;">
               <span style="color:var(--text-secondary);">isLive:</span><span style="color:var(--text); font-weight:600;">${isLive}</span>
-              <span style="color:var(--text-secondary);">classReleaseTime:</span><span style="color:var(--text); font-weight:600;">${classRelease.toISO()}</span>
+              <span style="color:var(--text-secondary);">classReleaseTime:</span><span style="color:var(--text); font-weight:600;">${classRelease ? classRelease.toISO() : 'unknown'}</span>
               <span style="color:var(--text-secondary);">bookingCutoff:</span><span style="color:var(--text); font-weight:600;">${bookingCutoff}</span>
               <span style="color:var(--text-secondary);">extendedCutoff:</span><span style="color:var(--text); font-weight:600;">${extendedCutoff}</span>
               <span style="color:var(--text-secondary);">isFullyBooked:</span><span style="color:var(--text); font-weight:600;">${!!event.isFull}</span>

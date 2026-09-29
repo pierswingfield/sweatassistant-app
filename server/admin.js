@@ -4,6 +4,7 @@ const crypto = require('crypto');
 const db = require('./db');
 const { triggerAutoRelogin } = require('./auth');
 const { getProvider } = require('./providers');
+const gymsConfig = require('./gyms.config');
 
 // Interim single-gym bridge: live CodexFit reads (bookings, profile) are always
 // against Psycle London for now — real per-request gym resolution lands with
@@ -274,6 +275,85 @@ router.delete('/users/:id', authenticateAdmin, (req, res) => {
   } catch (err) {
     res.status(500).json({ message: err.message });
   }
+});
+
+// ---------------------------------------------------------------------------
+// F-7 Stage B: gym presentation editor. ONLY the presentation contract is
+// editable; tenant URLs, headers, capabilities and booking policy stay in
+// gyms.config.js. Nothing here returns headers, credentials or provider URLs.
+// ---------------------------------------------------------------------------
+function presentationView(g) {
+  const overrides = db.readPresentationOverrides();
+  return {
+    id: g.id, name: g.name, provider: g.provider, enabled: g.enabled,
+    presentation: g.presentation,
+    baseline: gymsConfig.getBaselinePresentation(g.id),
+    overridden: Object.prototype.hasOwnProperty.call(overrides, g.id),
+  };
+}
+
+router.get('/gym-presentations', authenticateAdmin, (req, res) => {
+  res.json({ gyms: gymsConfig.listGyms().map(presentationView) });
+});
+
+// Dry-run validation: same validator as boot, nothing persisted.
+router.post('/gym-presentations/:gymId/validate', authenticateAdmin, (req, res) => {
+  if (!gymsConfig.getGymConfig(req.params.gymId)) return res.status(404).json({ message: 'Unknown gym.' });
+  try {
+    res.json({ ok: true, presentation: gymsConfig.sanitizePresentation(req.body && req.body.presentation, req.params.gymId) });
+  } catch (err) {
+    res.status(400).json({ ok: false, message: err.message });
+  }
+});
+
+router.put('/gym-presentations/:gymId', authenticateAdmin, (req, res) => {
+  const { gymId } = req.params;
+  if (!gymsConfig.getGymConfig(gymId)) return res.status(404).json({ message: 'Unknown gym.' });
+  try {
+    const clean = gymsConfig.sanitizePresentation(req.body && req.body.presentation, gymId);
+    const map = db.readPresentationOverrides();
+    map[gymId] = clean;
+    db.writePresentationOverrides(map);
+    gymsConfig.setPresentation(gymId, clean);
+    res.json(presentationView(gymsConfig.getGymConfig(gymId)));
+  } catch (err) {
+    res.status(400).json({ message: err.message });
+  }
+});
+
+router.delete('/gym-presentations/:gymId', authenticateAdmin, (req, res) => {
+  const { gymId } = req.params;
+  if (!gymsConfig.getGymConfig(gymId)) return res.status(404).json({ message: 'Unknown gym.' });
+  const map = db.readPresentationOverrides();
+  delete map[gymId];
+  db.writePresentationOverrides(map);
+  gymsConfig.resetPresentation(gymId);
+  res.json(presentationView(gymsConfig.getGymConfig(gymId)));
+});
+
+// Connection test: read-only. Calls the adapter's unauthenticated metadata read
+// (GET requests only) with a hard timeout. It never books, logs in, or writes,
+// and the response carries counts and timing only.
+router.post('/gym-presentations/:gymId/test-connection', authenticateAdmin, async (req, res) => {
+  const { gymId } = req.params;
+  if (!gymsConfig.getGymConfig(gymId)) return res.status(404).json({ message: 'Unknown gym.' });
+  const started = Date.now();
+  let timer;
+  try {
+    const meta = await Promise.race([
+      getProvider(gymId).fetchMetadata({}, null),
+      new Promise((_, rej) => { timer = setTimeout(() => rej(Object.assign(new Error('Timed out after 15s'), { status: 504 })), 15000); }),
+    ]);
+    res.json({
+      ok: true, latencyMs: Date.now() - started,
+      counts: {
+        locations: (meta.locations || []).length, studios: (meta.studios || []).length,
+        instructors: (meta.instructors || []).length,
+      },
+    });
+  } catch (err) {
+    res.json({ ok: false, latencyMs: Date.now() - started, status: err.status || null, message: String(err.message || err).slice(0, 200) });
+  } finally { clearTimeout(timer); }
 });
 
 // GET /api/admin/gyms — list the gym registry (for the admin panel's "link a gym" picker)

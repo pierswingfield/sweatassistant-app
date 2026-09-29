@@ -1,4 +1,5 @@
 import { debugLog } from './main.js';
+import { getDefaultGymId } from './gym-context.js';
 import { getCachedSWR, clearApiCache, setCacheKeyPrefix, invalidateApiCache } from './cache.js';
 import { classifyAuthFailure } from './auth-failure.js';
 
@@ -331,7 +332,7 @@ export const api = {
       const res = await apiFetch(endpoint);
       if (!res.ok) throw new Error('Failed to load timetable');
       const data = await res.json();
-      const gymId = linked[0]?.gym_id || 'psycle-london';
+      const gymId = linked[0]?.gym_id || getDefaultGymId();
       const gymName = linked[0]?.gym_name || linked[0]?.name || 'Psycle';
       return (data.events || []).map((ev) => ({
         ...ev,
@@ -407,7 +408,7 @@ export const api = {
       const res = await apiFetch(`/api/metadata${suffix}`);
       if (!res.ok) throw new Error('Failed to load timetable metadata');
       const data = await res.json();
-      const gymId = linked[0]?.gym_id || 'psycle-london';
+      const gymId = linked[0]?.gym_id || getDefaultGymId();
       const gymName = linked[0]?.gym_name || linked[0]?.name || 'Psycle';
       return {
         locations: (data.locations || []).map((l) => ({ ...l, gymId, gymName })),
@@ -560,7 +561,7 @@ export const api = {
       const res = await apiFetch('/api/bookings');
       if (!res.ok) throw new Error('Failed to load bookings');
       const data = await res.json();
-      const gymId = linked[0]?.gym_id || 'psycle-london';
+      const gymId = linked[0]?.gym_id || getDefaultGymId();
       const gymName = linked[0]?.gym_name || linked[0]?.name || 'Psycle';
       return (data.bookings || []).map((b) => ({
         ...b,
@@ -602,7 +603,7 @@ export const api = {
       const res = await apiFetch('/api/waitlists');
       if (!res.ok) throw new Error('Failed to load waitlists');
       const data = await res.json();
-      const gymId = linked[0]?.gym_id || 'psycle-london';
+      const gymId = linked[0]?.gym_id || getDefaultGymId();
       const gymName = linked[0]?.gym_name || linked[0]?.name || 'Psycle';
       return (data.waitlists || []).map((w) => ({
         ...w,

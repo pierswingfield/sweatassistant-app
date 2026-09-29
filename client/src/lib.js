@@ -1,5 +1,6 @@
 // Shared client-side utilities that need London timezone awareness
 import { DateTime } from 'luxon';
+import { isRollingWeeklyGym } from './gym-context.js';
 
 // Sane bounds for a detected booking window, in days after the release Monday.
 // Purely a guard against a garbled/stale profile cutoff producing an absurd
@@ -154,6 +155,7 @@ export function describeBookingWindow(offsetDays, cutoffISO) {
 // an event with no relationship to their class.
 //
 // Accepts an event object (preferred) or a bare ISO string (legacy callers).
+// Returns null when no release can be resolved.
 export function getClassReleaseTime(eventOrDate, settings = {}) {
   const ev = (typeof eventOrDate === 'string' || eventOrDate == null)
     ? { start_at: eventOrDate }
@@ -166,12 +168,15 @@ export function getClassReleaseTime(eventOrDate, settings = {}) {
     if (published.isValid) return published.setZone('Europe/London');
   }
 
-  // LEGACY FALLBACK — only reachable for events cached before the server began
-  // stamping releaseAt, or if a request failed. Hardcodes Psycle's rule, so it is
-  // wrong for any other gym; it exists so a stale cache degrades to the old
-  // behaviour rather than to nothing. Remove once the cache has rolled over.
+  // LEGACY FALLBACK (F-7 item 5) — reachable only for events cached before the
+  // server stamped releaseAt, or after a failed request. It encodes Psycle's
+  // weekly rule, so it runs ONLY when the event's gym is positively known to be
+  // rolling-weekly. Anything else (unknown gym, per-class or continuous gym)
+  // resolves to null: "no release known", never a guessed Psycle instant.
+  // Callers must treat null as unknown.
+  if (!isRollingWeeklyGym(ev.gymId || ev.gym_id)) return null;
   const classDateStr = ev.start_at || ev.startAt;
-  if (!classDateStr) return DateTime.now().setZone('Europe/London');
+  if (!classDateStr) return null;
 
   const daysToAdd = getBookingOffset(settings);
   const classDt = DateTime.fromISO(classDateStr, { zone: 'Europe/London' });

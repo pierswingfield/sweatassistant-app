@@ -18,7 +18,7 @@
 
 import { icon, disciplineTag, getDiscipline, renderGymRail, cleanClassName, trimLocation, escapeHtml, equalizeDiscTagWidths } from './cards.js';
 import { instructorAvatar } from './tooltips.js';
-import { getGymShortName } from '../gym-context.js';
+import { getGymShortName, getDefaultGymId } from '../gym-context.js';
 
 const MAX_CLASHES_SHOWN = 3;
 
@@ -78,7 +78,7 @@ export function describeOverlap(warnings = [], mode = 'autobook') {
  * instructor photo), minus the action rail. `tag` fills the footer pill.
  */
 export function classSummaryCardHtml(item, tag) {
-  const gymId = item.gymId || 'psycle-london';
+  const gymId = item.gymId || getDefaultGymId();
   const start = item.startAt ? new Date(item.startAt) : null;
   const valid = start && !Number.isNaN(start.getTime());
   const dateStr = valid

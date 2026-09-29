@@ -43,12 +43,107 @@ const DEFAULTS = {
 };
 
 let linkedGyms = [];
+// Presentation contracts from GET /api/gyms, keyed by EXACT gym id (F-7 item 2).
+// Held apart from `linkedGyms` so a gym that is in the catalogue but not linked
+// (or not yet linked when a row renders) still resolves its own brand.
+let presentations = new Map();
+
+/** Seed presentation contracts from the /api/gyms catalogue array. */
+export function setGymCatalogue(catalogue) {
+  presentations = new Map();
+  for (const g of Array.isArray(catalogue) ? catalogue : []) {
+    if (g && g.id && g.presentation) presentations.set(String(g.id), g.presentation);
+  }
+  injectGymPresentationCss();
+}
+
+const CSS_ID_OK = /^[\w-]+$/;
+const tokens = (id, c) => `--gym-${id}-ink:${c.ink};--gym-${id}-ink-hover:${c.inkHover};--gym-${id}-tint:${c.tint};--gym-${id}-on:${c.on};`;
+
+/**
+ * CSS for every gym's colour tokens, built from the presentation contracts so
+ * styles.css names no gym (F-7 item 3). Emits `--gym-<id>-*` on :root for each
+ * theme, plus `[data-gym="<id>"]` rules that alias them to the generic
+ * `--gym-ink/-ink-hover/-tint/-on` the shared selectors consume.
+ */
+export function gymPresentationCss(map = presentations) {
+  let dark = '', light = '', alias = '';
+  for (const [id, p] of map) {
+    if (!CSS_ID_OK.test(id) || !p?.dark || !p?.light) continue;
+    dark += tokens(id, p.dark);
+    light += tokens(id, p.light);
+    alias += `[data-gym="${id}"]{--gym-ink:var(--gym-${id}-ink);--gym-ink-hover:var(--gym-${id}-ink-hover);--gym-tint:var(--gym-${id}-tint);--gym-on:var(--gym-${id}-on);}`;
+  }
+  if (!alias) return '';
+  return `:root{${dark}}`
+    + `@media (prefers-color-scheme: light){:root:not([data-theme="dark"]){${light}}}`
+    + `:root[data-theme="light"]{${light}}`
+    + alias;
+}
+
+function injectGymPresentationCss() {
+  if (typeof document === 'undefined') return;
+  let el = document.getElementById('gym-presentation-tokens');
+  if (!el) {
+    el = document.createElement('style');
+    el.id = 'gym-presentation-tokens';
+    document.head.appendChild(el);
+  }
+  el.textContent = gymPresentationCss();
+}
+
+/**
+ * A gym's presentation contract by exact id, or null when the catalogue has not
+ * supplied one. Callers render a neutral fallback for null; they never guess a
+ * brand from the id's spelling.
+ */
+export function getGymPresentation(gymId) {
+  const id = String(gymId ?? '');
+  if (presentations.has(id)) return presentations.get(id);
+  const g = linkedGyms.find((x) => (x.gym_id || x.id) === id);
+  return g?.presentation || null;
+}
+
+/**
+ * Display-only alias for a raw provider name, scoped to the owning gym and a
+ * scope ("studios"). Keys are trimmed lower-case. Returns the raw name when the
+ * gym has no alias, so lookups, floor plans and API calls are never affected.
+ */
+export function getDisplayAlias(gymId, scope, name) {
+  const raw = name == null ? '' : String(name);
+  const map = getGymPresentation(gymId)?.displayAliases?.[scope];
+  return (map && map[raw.trim().toLowerCase().replace(/\s+/g, ' ')]) || raw;
+}
+
+/**
+ * STRICT: true only when this exact gym is linked AND its catalogue entry
+ * positively says `bookingWindow: 'rolling-weekly'`. Unlike `canForGym` this has
+ * no unknown-defaults-ON fallback, because a wrong "yes" here means computing
+ * Psycle's Monday-noon instant for another gym's class (F-7 item 5).
+ */
+export function isRollingWeeklyGym(gymId) {
+  if (!gymId) return false;
+  const g = linkedGyms.find((x) => String(x.gym_id || x.id) === String(gymId));
+  return g?.capabilities?.bookingWindow === 'rolling-weekly';
+}
 
 export function setLinkedGyms(gyms) {
   linkedGyms = Array.isArray(gyms) ? gyms : [];
   applyGymFonts();
   applyGymNames();
   applyCapabilityGates();
+}
+
+/**
+ * The gym to assume when a row/event carries no gym id: the first linked gym,
+ * else the first catalogue entry, else '' (which renders the neutral brand).
+ * Never a literal id — nothing client-side may privilege one gym (F-7 item 5).
+ */
+export function getDefaultGymId() {
+  const l = linkedGyms[0];
+  if (l && (l.gym_id || l.id)) return String(l.gym_id || l.id);
+  const first = presentations.keys().next();
+  return first.done ? '' : first.value;
 }
 
 export function getLinkedGyms() {

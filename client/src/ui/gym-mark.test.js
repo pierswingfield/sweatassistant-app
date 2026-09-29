@@ -1,5 +1,9 @@
-import { describe, it, expect } from 'vitest';
+import { describe, it, expect, beforeAll } from 'vitest';
+import { setGymCatalogue } from '../gym-context.js';
+import { CATALOGUE } from './gym-brand-fixture.js';
 import { gymSquareChip, gymBrand, icon, SVG_PATHS } from './cards.js';
+
+beforeAll(() => setGymCatalogue(CATALOGUE));
 
 describe('gymSquareChip (U1-8)', () => {
   it('renders each gym\'s own real logo on its own brand plate, decoratively', () => {

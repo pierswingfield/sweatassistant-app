@@ -1,4 +1,5 @@
 import { api } from '../api';
+import { getDefaultGymId } from '../gym-context.js';
 import { getAvailableCreditsForEvent, getTotalCredits, getIneligibleReason } from './credit-allowance.js';
 import { showToast, cache, refreshUserData } from '../main';
 import { openUpgradeConfigModal } from './bookings';
@@ -62,7 +63,7 @@ function renderUpgradeList(upgrades, studioPrefs = {}) {
     // `.psycle-autobook-card.ab-card[data-gym=...]`, so without it these cards
     // carried a data-gym that nothing ever painted.
     card.className = 'psycle-autobook-card ab-card';
-    card.setAttribute('data-gym', job.gym_id || 'psycle-london');
+    card.setAttribute('data-gym', job.gym_id || getDefaultGymId());
 
     // Split date and time so the card can use the same `.ab-card-date` /
     // `.ab-card-time` pairing as Bookings, Waitlists and Auto-Book.
@@ -113,7 +114,7 @@ function renderUpgradeList(upgrades, studioPrefs = {}) {
     const seatCap = seat.charAt(0).toUpperCase() + seat.slice(1);
 
     card.innerHTML = `
-      ${renderGymRail(job.gym_id || 'psycle-london')}
+      ${renderGymRail(job.gym_id || getDefaultGymId())}
       <div class="ab-card-main">
         <div class="ab-card-toprow">
           <div class="ab-card-when">

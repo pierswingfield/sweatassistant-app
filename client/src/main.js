@@ -1,5 +1,5 @@
 import { api, setToken, isLoggedIn } from './api';
-import { setLinkedGyms, getLinkedGyms, getGymShortName } from './gym-context.js';
+import { setLinkedGyms, setGymCatalogue, getLinkedGyms, getGymShortName, getDefaultGymId } from './gym-context.js';
 import { initTooltips } from './ui/tooltips';
 import { setupPullToRefresh } from './ui/pulltorefresh';
 import { setCacheKeyPrefix, clearApiCache, invalidateApiCache } from './cache.js';
@@ -604,7 +604,8 @@ function sumCredits(credits) {
 function renderGymBadge(container, gymId, shortName, isMetered, total, credits) {
   const badge = document.createElement('button');
   badge.type = 'button';
-  badge.className = `psycle-header-gym-badge psycle-header-gym-${gymId}`;
+  badge.className = 'psycle-header-gym-badge';
+  badge.setAttribute('data-gym', gymId);
   if (isMetered) {
     badge.innerHTML = `<span class="psycle-hgb-name">${shortName}</span><span class="psycle-hgb-pill">${total} cr</span>`;
     badge.title = `${shortName}: ${total} credit${total !== 1 ? 's' : ''} available`;
@@ -646,7 +647,7 @@ export async function updateCreditBadge(availableCredits = null) {
     const credits = availableCredits || cache.credits || [];
     const total = sumCredits(credits);
     creditsContainer.innerHTML = '';
-    renderGymBadge(creditsContainer, 'psycle-london', 'Psycle', true, total, credits);
+    renderGymBadge(creditsContainer, getDefaultGymId(), getGymShortName(getDefaultGymId()), true, total, credits);
     debugLog(`Credits updated: ${total} total (no linked gyms, fallback)`, 'info');
     return;
   }
@@ -916,6 +917,7 @@ export async function loadGymContext() {
       api.getGyms(),
     ]);
     const catalogue = catalogueRes.gyms || catalogueRes || [];
+    setGymCatalogue(catalogue);
     const linkedFull = (linked || []).map(lg => {
       const found = catalogue.find(cg => cg.id === (lg.gym_id || lg.id));
       return found ? { ...found, ...lg } : lg;

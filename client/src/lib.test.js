@@ -19,6 +19,7 @@ import {
   clampOffsetDays,
   formatCountdown,
 } from './lib.js';
+import { setLinkedGyms } from './gym-context.js';
 
 const LDN = 'Europe/London';
 
@@ -47,16 +48,27 @@ describe('getClassReleaseTime — which world a class lives in', () => {
     expect(b.toMillis() - a.toMillis()).toBe(30 * 60 * 1000);
   });
 
-  it('falls back to the weekly model only when nothing is stamped', () => {
-    // Legacy path, for events cached before the server began stamping releaseAt.
-    const at = getClassReleaseTime({ start_at: '2026-09-15T19:30:00' }, { detectedBookingOffset: 15 });
+  it('falls back to the weekly model only for a gym positively known as rolling-weekly', () => {
+    setLinkedGyms([{ gym_id: 'any-weekly-gym', capabilities: { bookingWindow: 'rolling-weekly' } }]);
+    const at = getClassReleaseTime({ start_at: '2026-09-15T19:30:00', gymId: 'any-weekly-gym' }, { detectedBookingOffset: 15 });
     expect(at.setZone(LDN).weekday).toBe(1); // Monday
     expect(at.setZone(LDN).hour).toBe(12);
+    const row = getClassReleaseTime({ start_at: '2026-09-15T19:30:00', gym_id: 'any-weekly-gym' }, { detectedBookingOffset: 15 });
+    expect(row).not.toBeNull();
   });
 
-  it('still accepts a bare ISO string, for legacy call sites', () => {
-    const at = getClassReleaseTime('2026-09-15T19:30:00', { detectedBookingOffset: 15 });
-    expect(at.setZone(LDN).weekday).toBe(1);
+  it('resolves NO release (null) for unknown, per-class or continuous gyms, never a Psycle instant', () => {
+    setLinkedGyms([
+      { gym_id: 'pc', capabilities: { bookingWindow: 'per-class' } },
+      { gym_id: 'nocap' },
+    ]);
+    const start = { start_at: '2026-09-15T19:30:00' };
+    expect(getClassReleaseTime(start, { detectedBookingOffset: 15 })).toBeNull(); // no gym
+    expect(getClassReleaseTime({ ...start, gymId: 'pc' })).toBeNull();
+    expect(getClassReleaseTime({ ...start, gymId: 'nocap' })).toBeNull();
+    expect(getClassReleaseTime({ ...start, gymId: 'unlinked' })).toBeNull();
+    expect(getClassReleaseTime('2026-09-15T19:30:00')).toBeNull();
+    setLinkedGyms([]);
   });
 
   it('never throws on a missing or malformed input', () => {

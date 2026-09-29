@@ -3,6 +3,7 @@
 // card visual language (glyphs, discipline pills) stays identical everywhere.
 
 import { cleanClassNameWith } from '../class-name.js';
+import { getGymPresentation, getGymShortName, getDisplayAlias } from '../gym-context.js';
 
 // ── Inline SVG icon set (themeable via currentColor) ─────────────────
 export const SVG_PATHS = {
@@ -155,15 +156,11 @@ export function stripClassNamePrefix(name = '', group = '') {
   return cleanClassName(name, group) || String(name || '');
 }
 
-// Display-only alias for a studio's raw name — never touches the underlying
-// name used for floor-plan lookups/spot-map config, only what's shown in a
-// list row. JAB's "RECOVERY 2.0" studio reads as version-number clutter next
-// to a "RECOVERY" class chip on the same row; stakeholder asked to alias it
-// (2026-09-02). Scoped to this one exact studio name rather than a generic
-// "strip any 2.0 suffix" rule, which could surprise a differently-versioned
-// studio name added later.
-export function displayStudioName(name = '') {
-  return /^recovery\s*2\.0$/i.test(String(name).trim()) ? 'Recovery' : name;
+// Display-only studio alias, from the OWNING gym's presentation contract
+// (gyms.config.js displayAliases.studios). Never touches the raw name used for
+// floor-plan lookups/spot-map config. No gym ids live here.
+export function displayStudioName(gymId, name = '') {
+  return getDisplayAlias(gymId, 'studios', name);
 }
 
 // Returns "bike" when the class group is Ride, otherwise "spot".
@@ -216,39 +213,43 @@ export function pulseIcon(size = 14) {
  * JAB's mark ships as inline SVG (it scales and inherits nothing, so it stays
  * crisp); Psycle's is an AVIF served from /gyms/.
  */
-export function gymBrand(gymId = 'psycle-london') {
-  const id = String(gymId || 'psycle-london').toLowerCase();
-  if (id.includes('jab')) {
+export function gymBrand(gymId) {
+  const rawId = String(gymId || '');
+  const p = getGymPresentation(rawId);
+  const img = (cls, w) => `<img class="${cls}" src="${w.src}" alt="" aria-hidden="true" decoding="async">`;
+  if (!p) {
+    // Neutral fallback: unknown gym, or the catalogue has not loaded yet. A text
+    // wordmark on a neutral plate, never another gym's assets.
+    const label = getGymShortName(rawId) || rawId || 'Gym';
     return {
-      id: 'jab-boxing',
-      name: 'JAB',
-      shortName: 'JAB',
-      brandBg: '#6C1F20',
-      // 1:1 mark for round avatars (a file, like the full wordmark).
-      markHtml: `<img class="fr-mark-img" src="/gyms/jab-boxing-mark.svg?v=3" alt="" aria-hidden="true" decoding="async">`,
-      // Official wordmark. `currentColor` is NOT used — the fill is the brand's
-      // own off-white, which is a specific colour, not "whatever the text is".
-      logoSvg: `<img class="ab-gym-logo-svg" src="/gyms/jab-boxing.svg" alt="" aria-hidden="true" decoding="async">`,
+      id: 'neutral',
+      name: label,
+      shortName: label,
+      brandBg: '#3f3f46',
+      markHtml: `<span class="fr-mark-text" aria-hidden="true">${escapeHtml(label.charAt(0).toUpperCase())}</span>`,
+      logoSvg: `<span class="ab-gym-logo-text" aria-hidden="true">${escapeHtml(label)}</span>`,
     };
   }
+  const w = p.wordmark || {};
+  const full = w.full, compact = w.compact;
+  let logoSvg;
+  if (!full && !compact) {
+    logoSvg = `<span class="ab-gym-logo-text" aria-hidden="true">${escapeHtml(w.text)}</span>`;
+  } else if (full && compact && full.src !== compact.src) {
+    // Both always in the DOM; CSS picks by viewport (no flash on resize). See
+    // the .is-full/.is-half rules in styles.css.
+    logoSvg = `<img class="ab-gym-logo-img is-full" src="${full.src}" alt="" aria-hidden="true" loading="lazy" decoding="async">`
+      + `<img class="ab-gym-logo-img is-half" src="${compact.src}" alt="" aria-hidden="true" loading="lazy" decoding="async">`;
+  } else {
+    logoSvg = img('ab-gym-logo-svg', full || compact);
+  }
   return {
-    id: 'psycle-london',
-    name: 'Psycle',
-    shortName: 'PSYCLE',
-    brandBg: '#212121',
-    markHtml: `<img class="fr-mark-img" src="/gyms/psycle-london-small.avif" alt="" aria-hidden="true" decoding="async">`,
-    // TWO marks, both always in the DOM, with CSS choosing between them.
-    //
-    // The full wordmark is 7.4:1 — at a legible height it needs ~82px, which a
-    // narrow layout cannot spare. Psycle supplies a half-width mark for exactly
-    // this. Rendering both and toggling with a media query (rather than picking
-    // one in JS at render time) means the right one is showing immediately on a
-    // window resize or an orientation change, with no re-render and no flash of
-    // the wrong mark.
-    //
-    // JAB's SVG is 2.7:1 and fits either way, so it has no half variant.
-    logoSvg: `<img class="ab-gym-logo-img is-full" src="/gyms/psycle-london.avif" alt="" aria-hidden="true" loading="lazy" decoding="async">`
-      + `<img class="ab-gym-logo-img is-half" src="/gyms/psycle-london-half.avif" alt="" aria-hidden="true" loading="lazy" decoding="async">`,
+    id: rawId,
+    name: p.shortName,
+    shortName: p.shortName,
+    brandBg: p.plate,
+    markHtml: w.mark ? img('fr-mark-img', w.mark) : `<span class="fr-mark-text" aria-hidden="true">${escapeHtml(String(p.shortName).charAt(0))}</span>`,
+    logoSvg,
   };
 }
 
@@ -262,7 +263,7 @@ export function gymChip(gymId) {
   // `title` and the visually-hidden name keep the gym readable to screen
   // readers and to anyone who doesn't know the marks yet, since the image
   // itself is aria-hidden.
-  return `<span class="psycle-gym-chip psycle-gym-chip-${brand.id}" title="${brand.name}">`
+  return `<span class="psycle-gym-chip psycle-gym-chip-${brand.id}" title="${brand.name}" style="background:${brand.brandBg};border:1px solid ${brand.brandBg}">`
     + `<span class="psycle-gym-chip-logo">${brand.logoSvg}</span>`
     + `<span class="u-visually-hidden">${brand.name}</span>`
     + `</span>`;
@@ -280,13 +281,13 @@ export function gymChip(gymId) {
  */
 export function gymSquareChip(gymId) {
   const brand = gymBrand(gymId);
-  return `<span class="psycle-gym-mark psycle-gym-mark-${brand.id}" aria-hidden="true">${brand.logoSvg}</span>`;
+  return `<span class="psycle-gym-mark psycle-gym-mark-${brand.id}" style="background:${brand.brandBg}" aria-hidden="true">${brand.logoSvg}</span>`;
 }
 
-export function renderGymRail(gymId = 'psycle-london') {
+export function renderGymRail(gymId) {
   const brand = gymBrand(gymId);
   return `
-    <div class="ab-card-gym-rail" data-gym="${brand.id}" title="${brand.name}">
+    <div class="ab-card-gym-rail" data-gym="${brand.id}" title="${brand.name}" style="background:${brand.brandBg};border-right-color:${brand.brandBg}">
       <div class="ab-gym-logo">${brand.logoSvg}</div>
       <span class="u-visually-hidden">${brand.name}</span>
     </div>

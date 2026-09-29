@@ -10332,6 +10332,11 @@ body::after { z-index: 1000002 !important; }
     flex: 0 100 auto; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
     font-family: var(--font-sans) !important; font-size: 13px !important; color: var(--text-secondary) !important;
   }
-  /* 5. CTA 40px high, same width. */
-  #psycle-helper-container .psycle-mobile-seg.primary { height: 40px; }
+  /* 5. CTA 40px high, uniform width across date governed by the longest label on the page. */
+  #psycle-helper-container .psycle-mobile-seg.primary {
+    height: 40px;
+    width: var(--timetable-cta-w, 74px);
+    min-width: var(--timetable-cta-w, 74px);
+    max-width: none;
+  }
 }

@@ -274,19 +274,65 @@ function animateDateChange(dir, render) {
   const grid = document.getElementById('psycle-timetable-grid');
   const token = ++dateNavToken;
   if (!grid || !dir || typeof grid.animate !== 'function') { render(); return; }
+
+  // Clean up any in-flight transitions or clones from rapid clicks
+  grid.querySelectorAll('.psycle-timetable-page-outgoing').forEach((el) => el.remove());
   grid.getAnimations().forEach((a) => a.cancel());
   grid.style.transform = '';
+
   const reduce = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
-  const watchdog = setTimeout(() => { if (token === dateNavToken) grid.getAnimations().forEach((a) => a.cancel()); }, 900);
-  Promise.resolve(render()).then(() => {
-    if (token !== dateNavToken) return;
-    clearTimeout(watchdog);
+  if (reduce) {
+    render();
     centreActivePill();
-    grid.animate(
-      reduce ? [{ opacity: 0.5 }, { opacity: 1 }] : [{ transform: `translateX(${dir * 28}px)`, opacity: 0.4 }, { transform: 'translateX(0)', opacity: 1 }],
-      { duration: reduce ? 100 : 150, easing: 'cubic-bezier(.2,.8,.2,1)' }
-    );
-  }).catch(() => grid.getAnimations().forEach((a) => a.cancel()));
+    grid.animate([{ opacity: 0.5 }, { opacity: 1 }], { duration: 120 });
+    return;
+  }
+
+  const oldChild = grid.firstElementChild;
+  if (!oldChild) {
+    render();
+    centreActivePill();
+    return;
+  }
+
+  // Clone outgoing content into an absolute snapshot overlay so both old and new exist simultaneously
+  const clone = oldChild.cloneNode(true);
+  clone.classList.add('psycle-timetable-page-outgoing');
+  const topOffset = oldChild.offsetTop;
+  clone.style.cssText = `position: absolute; top: ${topOffset}px; left: 0; width: 100%; pointer-events: none; z-index: 2; margin: 0; box-sizing: border-box; will-change: transform, opacity;`;
+
+  grid.style.position = 'relative';
+  grid.style.overflowX = 'hidden';
+
+  render();
+  centreActivePill();
+  grid.appendChild(clone);
+
+  const newChild = grid.firstElementChild;
+  const easing = 'cubic-bezier(0.22, 1, 0.36, 1)';
+  const duration = 280;
+
+  // Outgoing page slides sideways off-screen in the direction opposite to entry
+  const animOutgoing = clone.animate([
+    { transform: 'translateX(0)', opacity: 1 },
+    { transform: `translateX(${-dir * 100}%)`, opacity: 0.15 }
+  ], { duration, easing });
+
+  animOutgoing.onfinish = () => {
+    if (clone.parentNode) clone.remove();
+  };
+
+  // Incoming page slides in from the edge to 0
+  if (newChild && newChild !== clone) {
+    newChild.style.willChange = 'transform, opacity';
+    const animIncoming = newChild.animate([
+      { transform: `translateX(${dir * 100}%)`, opacity: 0.3 },
+      { transform: 'translateX(0)', opacity: 1 }
+    ], { duration, easing });
+    animIncoming.onfinish = () => {
+      newChild.style.willChange = '';
+    };
+  }
 }
 
 // Swipe the list to change day: left => NEXT day, right => PREVIOUS day. Reuses the day pills' own click path (state,
@@ -1601,6 +1647,7 @@ export async function renderTimetableGrid(reason = 'interaction') {
   });
 
   equalizeDiscTagWidths(ttGrid);
+  equalizePrimaryCTAWidths(ttGrid);
   wireTimetableSwipe();
   scheduleInstructorFit();
   recordTimetableTiming('render-dom', domStartedAt, {
@@ -1611,6 +1658,33 @@ export async function renderTimetableGrid(reason = 'interaction') {
     reason,
     eventCount: sortedEvents.length,
   });
+}
+
+export function equalizePrimaryCTAWidths(container = document) {
+  const root = container.querySelector?.('#psycle-timetable-rows') || container;
+  const buttons = [...root.querySelectorAll?.('.psycle-mobile-seg.primary') || []];
+  if (!buttons.length) return;
+
+  const grid = document.getElementById('psycle-timetable-grid');
+  if (!grid) return;
+
+  // Base floor for the compact CTA (Batch N base)
+  let maxW = 74;
+
+  // Measure natural content width for each button on this page/date
+  buttons.forEach((btn) => {
+    btn.style.width = 'max-content';
+    btn.style.minWidth = '0px';
+    btn.style.maxWidth = 'none';
+    const w = Math.ceil(btn.getBoundingClientRect().width);
+    if (w > maxW) maxW = w;
+    btn.style.width = '';
+    btn.style.minWidth = '';
+    btn.style.maxWidth = '';
+  });
+
+  // Apply the longest label's width to all primary buttons on this page/date
+  grid.style.setProperty('--timetable-cta-w', `${maxW}px`);
 }
 
 // ═══════════════════════════════════════════════════════════════════════

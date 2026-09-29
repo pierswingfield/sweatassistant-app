@@ -88,6 +88,18 @@ export function getGymShortName(gymId) {
   return g?.shortName || g?.name || gymId || '';
 }
 
+/**
+ * Short display alias for a location ("Oxford Circus" -> "OC"), from the gym's
+ * `locationAliases` in gyms.config.js (via the catalogue). Pass the location
+ * name with the gym prefix already trimmed. Returns null when there is no
+ * alias, so callers fall back to the full name. Display-only.
+ */
+export function getLocationAlias(gymId, name) {
+  const g = linkedGyms.find((x) => (x.gym_id || x.id) === gymId);
+  const key = String(name || '').trim().toLowerCase();
+  return (g?.locationAliases && g.locationAliases[key]) || null;
+}
+
 export function canAny(capability) {
   if (linkedGyms && linkedGyms.length > 0) {
     return linkedGyms.some((g) => !!(g.capabilities && g.capabilities[capability]));

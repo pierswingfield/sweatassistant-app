@@ -14,6 +14,18 @@ const GYMS = {
     id: 'psycle-london',
     name: 'Psycle London',
     shortName: 'Psycle',
+    // Short display aliases for locations, keyed by the location's name with the
+    // gym prefix stripped and lower-cased. Used wherever space is tight (mobile
+    // timetable rows, the filter bar). A location with no entry shows its full
+    // name. Display-only: never used as an id or for lookups.
+    locationAliases: {
+      'oxford circus': 'OC',
+      'notting hill': 'NH',
+      'london bridge': 'LB',
+      'clapham': 'CP',
+      'victoria': 'VIC',
+      'bank': 'BNK',
+    },
     websiteUrl: 'https://psyclelondon.com/',
     // The gym's own public page for one class ({id} = the provider event id), for
     // the debug modal's "Open native booking page". Per gym because the path is

@@ -17,6 +17,8 @@ export const SVG_PATHS = {
   chevron: '<path d="M4 6l4 4 4-4"/>',
   pause: '<path d="M6 4v8M10 4v8"/>',
   play: '<path d="M5.5 4l6 4-6 4z"/>',
+  filter: '<path d="M2 4.5h7M12 4.5h2M2 11.5h2M7 11.5h7"/><circle cx="10.5" cy="4.5" r="1.6"/><circle cx="5.5" cy="11.5" r="1.6"/>',
+  user: '<circle cx="8" cy="5.3" r="2.4"/><path d="M3 13.5c.8-2.6 2.8-3.8 5-3.8s4.2 1.2 5 3.8"/>',
   heart: '<path d="M8 13.5S2.5 10 2.5 6.2A2.7 2.7 0 0 1 8 5a2.7 2.7 0 0 1 5.5 1.2C13.5 10 8 13.5 8 13.5Z"/>',
   bolt: '<path d="M8.5 1.5 3.5 9h3.5l-1 5.5L13 6.5H9z"/>',
   warning: '<path d="M8 2 14.5 13.5h-13L8 2Z"/><path d="M8 6.5v3M8 11.8h.01"/>',
@@ -222,9 +224,11 @@ export function gymBrand(gymId = 'psycle-london') {
       name: 'JAB',
       shortName: 'JAB',
       brandBg: '#6C1F20',
+      // 1:1 mark for round avatars (a file, like the full wordmark).
+      markHtml: `<img class="fr-mark-img" src="/gyms/jab-boxing-mark.svg?v=3" alt="" aria-hidden="true" decoding="async">`,
       // Official wordmark. `currentColor` is NOT used — the fill is the brand's
       // own off-white, which is a specific colour, not "whatever the text is".
-      logoSvg: `<svg class="ab-gym-logo-svg" width="44" height="17" viewBox="0 0 64 24" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true"><g><path d="M56.7667 -0.0303955C60.4154 -0.0303955 62.7054 0.49371 63.115 3.89323C63.371 6.01772 63.7765 11.221 60.7923 11.2954H60.794C61.4957 11.2719 63.2759 11.9444 63.4248 14.4933C63.4248 14.4933 64.2193 20.3032 61.951 22.2507C60.4102 23.5738 59.2349 23.5555 57.8768 23.5555H43.4521V-0.0303955H56.7673H56.7667ZM54.5477 4.37266H52.6455V9.0896H54.5477V4.37266ZM54.5477 13.8065H52.6455V18.838H54.5477V13.8065Z" fill="#f9f6f5"/><path d="M37.7454 -0.0303955L42.8181 23.5555H33.3074L33.17 21.962H30.2751L30.1376 23.5555H20.627L25.6985 -0.0303955H37.7454ZM33.2616 15.9597C34.1575 13.995 34.8826 12.1953 34.1133 10.0175C33.2971 7.70631 28.7635 8.87022 29.5058 11.6059C30.8221 10.9122 32.0542 11.276 32.0427 12.8643L33.7846 11.9221C34.1065 13.1404 31.2517 13.802 30.1387 13.8043C30.0752 13.2137 30.9544 13.6198 31.2706 13.2028C31.5163 12.8786 31.3828 12.3161 31.404 11.9221C30.5231 11.8539 29.6089 11.8321 29.24 12.7727C28.764 14.3679 30.4154 14.5317 30.4979 15.9614L33.2616 15.9602V15.9597Z" fill="#f9f6f5"/><path d="M20.9417 -0.0303955V18.6816C20.216 24.9794 7.98283 24.5836 3.60498 22.985C1.92612 22.3721 0.0175781 20.5351 0.0175781 18.6816V11.6059H9.21147V18.0527L9.51734 18.3774C10.2196 18.7383 11.0392 18.602 11.1126 17.7376V-0.0303955H20.9411H20.9417Z" fill="#f9f6f5"/></g></svg>`,
+      logoSvg: `<img class="ab-gym-logo-svg" src="/gyms/jab-boxing.svg" alt="" aria-hidden="true" decoding="async">`,
     };
   }
   return {
@@ -232,6 +236,7 @@ export function gymBrand(gymId = 'psycle-london') {
     name: 'Psycle',
     shortName: 'PSYCLE',
     brandBg: '#212121',
+    markHtml: `<img class="fr-mark-img" src="/gyms/psycle-london-small.avif" alt="" aria-hidden="true" decoding="async">`,
     // TWO marks, both always in the DOM, with CSS choosing between them.
     //
     // The full wordmark is 7.4:1 — at a legible height it needs ~82px, which a

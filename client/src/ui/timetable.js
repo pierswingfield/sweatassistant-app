@@ -1,7 +1,7 @@
 import { api } from '../api';
 import { getAvailableCreditsForEvent, hasUsableCredit, getIneligibleReason, isMetered } from './credit-allowance.js';
 import { isCreditInventoryLoaded, pickStudioPrefs as pickGymStudioPrefs } from './gym-isolation.js';
-import { canForGym, capabilityForGym, getLinkedGyms, getGymShortName } from '../gym-context.js';
+import { canForGym, canAny, capabilityForGym, getLinkedGyms, getGymShortName, getLocationAlias } from '../gym-context.js';
 import { showToast, currentUser, userSettings, gymSetting, profileForGym, refreshUserData, updateCreditBadge, cache, debugConsole } from '../main';
 import { getClassReleaseTime, isInGracePeriod, GRACE_PERIOD_MS, startGraceCountdown } from '../lib';
 import { DateTime } from 'luxon';
@@ -14,6 +14,7 @@ import { spotSelectionRule, needsSetupIntro, setupIntroCopy } from './spot-selec
 import { disciplineTag, seatNoun, sparklesIcon, trendingUpIcon, icon, pulseIcon, trimLocation, displayStudioName, equalizeDiscTagWidths , gymChip , cleanClassName, getDiscipline } from './cards';
 import { openEditBookingModal, syncBookingCache } from './bookings';
 import { openStudioFloorPlanEditor } from './settings';
+import { renderFilterRail, removeFilterRail } from './filter-rail.js';
 import { renderTimetableSkeleton } from './loading-skeleton.js';
 import { confirmOverlap } from './overlap-modal.js';
 import { redactSensitivePayload } from '../redact.js';
@@ -945,14 +946,125 @@ function setupFilterEventListeners() {
   }
 }
 
+// U2-5: adapter between this module's filter state and ui/filter-rail.js.
+// The rail owns no state; every mutation goes through here, then re-renders.
+function buildFilterRailCtx(eventsExcluding, resultCount) {
+  const arrays = {
+    gyms: () => selectedGyms, locations: () => selectedLocations,
+    instructors: () => selectedInstructors, eventTypes: () => selectedEventTypes,
+  };
+  const assign = (key, val) => {
+    if (key === 'gyms') selectedGyms = val;
+    else if (key === 'locations') selectedLocations = val;
+    else if (key === 'instructors') selectedInstructors = val;
+    else if (key === 'eventTypes') selectedEventTypes = val;
+  };
+  const linked = getLinkedGyms() || [];
+  const seen = new Set();
+  // The gym switch is the top of the hierarchy: with any gym on, every list
+  // below offers only that gym's options (and stale picks are pruned on toggle).
+  const gymOk = (gid) => selectedGyms.length === 0 || selectedGyms.includes(String(gid));
+  const workouts = metadata.eventTypes.filter(t => t.group && gymOk(t.gymId))
+    .map(t => ({ id: getDiscipline(t.group).label, name: getDiscipline(t.group).label, gymId: t.gymId }))
+    .filter(w => { const k = `${w.gymId}:${w.id}`; return !seen.has(k) && seen.add(k); })
+    .sort((a, b) => a.name.localeCompare(b.name));
+  const gymOrder = linked.map(g => g.gym_id || g.id);
+  const locations = metadata.locations.filter(l => gymOk(l.gymId)).sort((a, b) =>
+    gymOrder.indexOf(a.gymId) - gymOrder.indexOf(b.gymId) || locationBaseLabel(a).localeCompare(locationBaseLabel(b)));
+  const rerender = () => renderTimetableGrid();
+  return {
+    state: {
+      gyms: selectedGyms, locations: selectedLocations, instructors: selectedInstructors,
+      eventTypes: selectedEventTypes, bookmarks: showBookmarksOnly,
+    },
+    gyms: linked.map(g => ({ id: g.gym_id || g.id, name: g.gym_name || g.name })),
+    locations,
+    resultCount,
+    locationAlias: (l) => getLocationAlias(l.gymId, locationBaseLabel(l)),
+    locationLabel: (l) => disambiguateGymLabel(l, locationBaseLabel(l), metadata.locations, locationBaseLabel),
+    workouts,
+    instructors: metadata.instructors.filter(i => gymOk(i.gymId)).sort((a, b) => (a.name || '').localeCompare(b.name || '')),
+    canBookmark: canAny('bookmarks'),
+    // Nothing picked = no filter (every chip shows unselected); picking chips
+    // narrows to just those. OR within a section, AND across sections.
+    isOn: (key, id) => arrays[key]().includes(String(id)),
+    toggle: (key, id) => {
+      const cur = arrays[key]();
+      const sid = String(id);
+      assign(key, cur.includes(sid) ? cur.filter(x => x !== sid) : [...cur, sid]);
+      if (key === 'gyms' && selectedGyms.length) {
+        const gymOf = (list, i) => list.find(x => String(x.id) === i)?.gymId;
+        selectedLocations = selectedLocations.filter(i => gymOk(gymOf(metadata.locations, i)));
+        selectedInstructors = selectedInstructors.filter(i => gymOk(gymOf(metadata.instructors, i)));
+        selectedEventTypes = selectedEventTypes.filter(l => metadata.eventTypes.some(t => t.group && getDiscipline(t.group).label === l && gymOk(t.gymId)));
+      }
+      rerender();
+    },
+    clear: (key) => {
+      if (key === 'gyms') { selectedGyms = []; selectedLocations = []; } else assign(key, []);
+      rerender();
+    },
+    clearAll: () => {
+      selectedGyms = []; selectedLocations = []; selectedInstructors = []; selectedEventTypes = [];
+      showBookmarksOnly = false;
+      rerender();
+    },
+    toggleBookmarks: () => { showBookmarksOnly = !showBookmarksOnly; rerender(); },
+    save: () => document.getElementById('psycle-btn-save-default-filters')?.click(),
+  };
+}
+
+// A location or instructor pick belongs to ONE gym. It narrows that gym's
+// classes only — picking OC (Psycle) must not hide every JAB class, none of
+// which could ever match it. A gym with no picks of its own passes everything.
+// (Workout picks stay global: the label is shared across gyms by design.)
+function passesGymScoped(selected, pool, gymId, value) {
+  if (!selected.length) return true;
+  const mine = selected.filter(id => pool.some(x => String(x.id) === id && (!gymId || x.gymId === gymId)));
+  if (!mine.length) return true;
+  return value != null && value !== '' && mine.includes(String(value));
+}
+
+function eventLocationId(e) {
+  const studioObj = e.studio || gymScopedGet(studioObjMap, e.studioId, e.gymId);
+  return String(studioObj?.locationId || e.locationId || '');
+}
+
+// Saved defaults from the old "everything ticked" model list EVERY option, which
+// now means a real filter that changes nothing. Fold those back to "no filter"
+// once, at load. Never runs again, so a user who ticks every chip on purpose
+// keeps their explicit picks.
+let storedFiltersNormalized = false;
+function normalizeStoredFilters() {
+  if (storedFiltersNormalized || !metadata.locations.length) return;
+  storedFiltersNormalized = true;
+  const coversAll = (picked, universe) => picked.length > 0 && universe.every(id => picked.includes(id));
+  const gyms = (getLinkedGyms() || []).map(g => String(g.gym_id || g.id));
+  if (coversAll(selectedGyms, gyms)) selectedGyms = [];
+  if (coversAll(selectedLocations, metadata.locations.map(l => String(l.id)))) selectedLocations = [];
+  if (coversAll(selectedInstructors, metadata.instructors.map(i => String(i.id)))) selectedInstructors = [];
+  const labels = [...new Set(metadata.eventTypes.filter(t => t.group).map(t => getDiscipline(t.group).label))];
+  if (coversAll(selectedEventTypes, labels)) selectedEventTypes = [];
+}
+
 // Core timetable grid and date selector rendering
 export async function renderTimetableGrid(reason = 'interaction') {
   const renderStartedAt = timetablePerfNow();
   const ttGrid = document.getElementById('psycle-timetable-grid');
   if (!ttGrid) return;
 
+  // A render that arrives while the first fetch is still running (a credits or
+  // eligibility repaint, a resize, a tab switch) has no events to draw and used
+  // to wipe the loading skeleton for an empty grid, leaving a blank page until
+  // the network answered. Keep the skeleton up until there is something to show.
+  if (isPrefetching && psycleEvents.length === 0) {
+    if (!ttGrid.querySelector('.psycle-skeleton, [data-skeleton]')) ttGrid.innerHTML = renderTimetableSkeleton();
+    return;
+  }
+
   // Compute interdependent dropdown options: each filter shows only values present in events
   // that match ALL OTHER active filters (but not the filter for that dropdown itself).
+  normalizeStoredFilters();
   const now = new Date();
   const futureEvents = psycleEvents.filter(e => new Date(e.startAt) >= now);
 
@@ -961,12 +1073,8 @@ export async function renderTimetableGrid(reason = 'interaction') {
       if (excludeFilter !== 'gym' && selectedGyms.length > 0) {
         if (!e.gymId || !selectedGyms.includes(String(e.gymId))) return false;
       }
-      if (excludeFilter !== 'location' && selectedLocations.length > 0) {
-        const studioObj = e.studio || gymScopedGet(studioObjMap, e.studioId, e.gymId);
-        const locId = String(studioObj?.locationId || e.locationId || '');
-        if (!locId || !selectedLocations.includes(locId)) return false;
-      }
-      if (excludeFilter !== 'instructor' && selectedInstructors.length > 0 && !selectedInstructors.includes(String(e.instructors?.[0]?.id))) return false;
+      if (excludeFilter !== 'location' && !passesGymScoped(selectedLocations, metadata.locations, e.gymId, eventLocationId(e))) return false;
+      if (excludeFilter !== 'instructor' && !passesGymScoped(selectedInstructors, metadata.instructors, e.gymId, e.instructors?.[0]?.id)) return false;
       if (excludeFilter !== 'class-type' && selectedEventTypes.length > 0) {
         const et = metadata.eventTypes.find(t => sameId(t.id, e.classTypeId) && (!e.gymId || t.gymId === e.gymId));
         // Bucketed the same way the filter list itself is built (see
@@ -1046,13 +1154,9 @@ export async function renderTimetableGrid(reason = 'interaction') {
       if (!e.gymId || !selectedGyms.includes(String(e.gymId))) return false;
     }
     // Filter by Location
-    if (selectedLocations.length > 0) {
-      const studioObj = e.studio || gymScopedGet(studioObjMap, e.studioId, e.gymId);
-      const locId = String(studioObj?.locationId || e.locationId || '');
-      if (!locId || !selectedLocations.includes(locId)) return false;
-    }
+    if (!passesGymScoped(selectedLocations, metadata.locations, e.gymId, eventLocationId(e))) return false;
     // Filter by Instructor
-    if (selectedInstructors.length > 0 && !selectedInstructors.includes(String(e.instructors?.[0]?.id))) return false;
+    if (!passesGymScoped(selectedInstructors, metadata.instructors, e.gymId, e.instructors?.[0]?.id)) return false;
     // Filter by Class Type Group ID
     if (selectedEventTypes.length > 0) {
       // `discipline` IS the normalized group. Fall back to the metadata lookup
@@ -1132,8 +1236,10 @@ export async function renderTimetableGrid(reason = 'interaction') {
   // and is available even when no classes match the current filters.
   document.querySelectorAll('body > .psycle-mobile-menu').forEach(m => m.remove());
   if (window.matchMedia('(max-width: 768px)').matches) {
-    injectMobileFilterHamburger();
+    document.getElementById('psycle-mobile-filter-trigger')?.remove();
+    renderFilterRail(buildFilterRailCtx(eventsExcluding, filteredEvents.length));
   } else {
+    removeFilterRail();
     // Found 2026-09-02: the trigger was only ever REMOVED at the top of
     // injectMobileFilterHamburger(), which only runs on this branch — so a
     // resize from mobile to desktop left the mobile ellipsis stranded in the
@@ -2117,7 +2223,8 @@ function buildMobileClassRow(event, ctx, model) {
   card.className = 'psycle-mobile-class-card';
   card.setAttribute('data-gym', event.gymId || 'psycle-london');
 
-  const displayLoc = trimLocation(locName, getGymShortName(event.gymId));
+  const trimmedLoc = trimLocation(locName, getGymShortName(event.gymId));
+  const displayLoc = getLocationAlias(event.gymId, trimmedLoc) || trimmedLoc;
 
   // Favourite heart is a non-interactive indicator on mobile (only shown when
   // bookmarked), sitting between the time and the discipline chip. Toggling

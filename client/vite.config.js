@@ -1,6 +1,7 @@
 import { defineConfig } from 'vite';
 import fs from 'fs';
 import path from 'path';
+import { createRequire } from 'module';
 
 // C7-2: client/public/sw.js hand-versioned its cache name ('psycle-cache-v2'),
 // so a forgotten bump shipped stale JS forever — the SW's own `activate`
@@ -43,8 +44,32 @@ function stampServiceWorker() {
   };
 }
 
+// Local preview against a remote API (API_TARGET): the remote server may predate
+// config fields the client now reads, so overlay them from the local
+// gyms.config.js onto the catalogue. No effect when API_TARGET is unset.
+function overlayLocalGymConfig() {
+  return {
+    name: 'overlay-local-gym-config',
+    apply: 'serve',
+    configureServer(server) {
+      if (!process.env.API_TARGET) return;
+      const { GYMS } = createRequire(import.meta.url)('../server/gyms.config.js');
+      server.middlewares.use(async (req, res, next) => {
+        if (req.url !== '/api/gyms') return next();
+        try {
+          const r = await fetch(process.env.API_TARGET + '/api/gyms');
+          const body = await r.json();
+          body.gyms = (body.gyms || []).map((g) => ({ ...g, locationAliases: GYMS[g.id]?.locationAliases || g.locationAliases || {} }));
+          res.setHeader('content-type', 'application/json');
+          res.end(JSON.stringify(body));
+        } catch { next(); }
+      });
+    },
+  };
+}
+
 export default defineConfig({
-  plugins: [stampServiceWorker()],
+  plugins: [stampServiceWorker(), overlayLocalGymConfig()],
   test: {
     environment: 'jsdom',
   },
@@ -52,8 +77,9 @@ export default defineConfig({
     port: 5173,
     proxy: {
       '/api': {
-        target: 'http://localhost:3000',
-        changeOrigin: true
+        target: process.env.API_TARGET || 'http://localhost:3000',
+        changeOrigin: true,
+        secure: true
       }
     }
   }

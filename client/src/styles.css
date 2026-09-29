@@ -9003,3 +9003,259 @@ html, body {
 @media (prefers-reduced-motion: reduce) {
   .psycle-skeleton-line { animation: none; }
 }
+
+/* ===== U2-5: mobile filter rail + bottom sheet (Documentation/TIMETABLE_FILTER_DESIGN_BRIEF.md) ===== */
+.fr-rail { display: none; }
+@media (max-width: 768px) {
+  #psycle-helper-container #psycle-timetable-filters-container .psycle-filters-row { display: none !important; }
+  .fr-rail { display: flex !important; align-items: center; gap: 6px; height: 40px; max-height: 40px; overflow-x: auto; scrollbar-width: none; }
+  .fr-rail::-webkit-scrollbar { display: none; }
+}
+.fr-rail > * { flex-shrink: 0; }
+.fr-trigger { width: 32px; height: 32px; border-radius: 50%; border: 1px solid var(--border-strong); background: color-mix(in srgb, var(--accent) 22%, var(--surface-2)); color: var(--text); display: inline-flex; align-items: center; justify-content: center; padding: 0; cursor: pointer; }
+.fr-chip { display: inline-flex; align-items: center; height: 32px; border-radius: 16px; border: 1px solid var(--border-strong); background: var(--surface-2); color: var(--text); }
+.fr-chip-body { display: inline-flex; align-items: center; gap: 5px; height: 100%; padding: 0 4px 0 8px; background: none; border: 0; color: inherit; font-size: 11px; cursor: pointer; }
+.fr-chip-x { width: 26px; height: 100%; background: none; border: 0; color: var(--text-secondary); font-size: 11px; cursor: pointer; padding: 0; }
+.fr-tile-part { display: inline-flex; align-items: center; gap: 4px; }
+.fr-gym-dot { width: 18px; height: 18px; border-radius: 50%; color: #f9f6f5; font-size: 9px; font-weight: 700; display: inline-flex; align-items: center; justify-content: center; }
+.fr-initials { font-size: 10px; font-weight: 300; letter-spacing: .5px; text-transform: uppercase; }
+.fr-sep { opacity: .3; font-size: 9px; margin: 0 2px; }
+.fr-avatar { width: 22px; height: 22px; border-radius: 50%; object-fit: cover; flex-shrink: 0; }
+.fr-avatar-fallback { display: inline-flex; align-items: center; justify-content: center; background: var(--surface-inset); font-size: 10px; font-weight: 700; }
+.fr-heart { width: 30px; height: 30px; border-radius: 50%; border: 1px solid var(--border-strong); background: var(--surface-2); color: var(--text); cursor: pointer; padding: 0; font-size: 15px; }
+.fr-heart.active { color: var(--danger); border-color: var(--danger); }
+
+/* Sheet. Scoped under .fr-sheet and built from divs: bare h2/h3/section/header
+   selectors elsewhere in this stylesheet were adding their own margins. */
+.fr-sheet-overlay { position: fixed; inset: 0; z-index: 10050; background: rgba(0,0,0,.55); display: flex; align-items: flex-end; opacity: 0; transition: opacity .18s; }
+.fr-sheet-overlay.open { opacity: 1; }
+.fr-sheet { width: 100%; height: 86vh; max-height: 86vh; display: flex; flex-direction: column; background: #0d1020; color: var(--text); border-radius: 22px 22px 0 0; border-top: 1px solid var(--border-strong); padding-bottom: env(safe-area-inset-bottom); overflow: hidden; }
+.fr-sheet * { box-sizing: border-box; }
+.fr-sheet > * { flex-shrink: 0; }
+.fr-sheet > .fr-body { flex: 1 1 auto; min-height: 0; }
+.fr-grab { width: 36px; height: 4px; border-radius: 2px; background: var(--border-strong); margin: 8px auto 0; }
+.fr-head { display: flex; align-items: center; gap: 10px; padding: 12px 16px; }
+.fr-title { font-size: 18px; font-weight: 700; }
+.fr-badge { font-size: 11px; padding: 2px 9px; border-radius: 10px; background: color-mix(in srgb, var(--accent) 28%, transparent); }
+.fr-reset { margin-left: auto; background: none; border: 0; color: var(--accent); font-size: 13px; font-weight: 600; cursor: pointer; padding: 6px 4px; }
+.fr-reset:disabled { opacity: .35; cursor: default; }
+.fr-close { width: 32px; height: 32px; border-radius: 50%; border: 1px solid var(--border-strong); background: var(--surface-2); color: var(--text); cursor: pointer; padding: 0; }
+.fr-body { overflow-y: auto; padding: 0 16px 12px; overscroll-behavior: contain; }
+.fr-sec { border-top: 1px solid var(--border); }
+.fr-sec-head { width: 100%; display: flex; align-items: center; gap: 10px; min-height: 52px; padding: 8px 0; background: none; border: 0; color: var(--text); text-align: left; cursor: pointer; }
+.fr-sec-title { font-size: 14px; font-weight: 700; flex-shrink: 0; }
+.fr-sec-sum { flex: 1; min-width: 0; text-align: right; font-size: 12px; color: var(--text-secondary); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.fr-sec-sum.has { color: var(--accent); font-weight: 600; }
+.fr-chev { color: var(--text-secondary); transition: transform .15s; }
+.fr-sec.open > .fr-sec-head .fr-chev { transform: rotate(180deg); }
+.fr-sec-body { padding: 0 0 14px; }
+.fr-hint { margin: 0 0 10px; font-size: 12px; color: var(--text-secondary); }
+.fr-brands { display: flex; gap: 8px; }
+.fr-brand { flex: 1; min-height: 56px; border-radius: 12px; border: 2px solid var(--border); background: var(--surface-2); color: var(--text-secondary); display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 2px; cursor: pointer; }
+.fr-brand-name { font-weight: 700; letter-spacing: 1px; font-size: 14px; }
+.fr-brand-state { font-size: 11px; }
+.fr-brand.on { background: var(--brand); border-color: var(--accent); color: #f9f6f5; }
+.fr-gymcard { border: 1px solid var(--border); border-radius: 14px; overflow: hidden; margin-bottom: 10px; }
+.fr-plate { color: #f9f6f5; font-weight: 700; letter-spacing: 1.5px; font-size: 12px; padding: 8px 12px; }
+.fr-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 6px; padding: 8px; }
+.fr-opt, .fr-row { display: flex; align-items: center; gap: 8px; min-height: 42px; padding: 6px 10px; border-radius: 10px; border: 1px solid var(--border); background: var(--surface-2); color: var(--text); font-size: 13px; text-align: left; cursor: pointer; }
+.fr-opt.on, .fr-row.on, .fr-pill.on { border-color: var(--accent); background: color-mix(in srgb, var(--accent) 16%, transparent); }
+.fr-check { width: 18px; height: 18px; border-radius: 5px; border: 1px solid var(--border-strong); display: inline-flex; align-items: center; justify-content: center; font-size: 12px; flex-shrink: 0; }
+.fr-opt-name { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.fr-count { font-size: 11px; padding: 1px 7px; border-radius: 9px; background: var(--surface-inset); }
+.fr-pills { display: flex; flex-wrap: wrap; gap: 8px; }
+.fr-pill { display: inline-flex; align-items: center; gap: 6px; min-height: 40px; padding: 0 14px; border-radius: 20px; border: 1px solid var(--border); background: var(--surface-2); color: var(--text); font-size: 13px; cursor: pointer; }
+.fr-list { max-height: 264px; overflow-y: auto; overscroll-behavior: contain; display: flex; flex-direction: column; gap: 6px; border: 1px solid var(--border); border-radius: 12px; padding: 0 8px 8px; }
+.fr-list-head { position: sticky; top: 0; z-index: 1; margin: 0 -8px; padding: 8px 12px; background: #0d1020; border-left: 4px solid var(--brand); font-size: 11px; font-weight: 700; letter-spacing: 1px; text-transform: uppercase; color: var(--text-secondary); }
+.fr-list-head span { font-weight: 400; margin-left: 4px; }
+.fr-foot { display: flex; gap: 8px; padding: 10px 16px; border-top: 1px solid var(--border); }
+.fr-save, .fr-done { flex: 1; height: 46px; border-radius: 12px; font-weight: 600; cursor: pointer; border: 1px solid var(--border-strong); background: var(--surface-2); color: var(--text); }
+.fr-done { background: var(--accent-btn-bg); border-color: transparent; color: #fff; }
+
+/* --- U2-5 round 2: logos, checkbox rows, grouped workouts/instructors --- */
+.fr-gym-dot { overflow: hidden; }
+.fr-gym-dot.sm { width: 20px; height: 20px; }
+.fr-logo-plate { display: inline-flex; align-items: center; justify-content: center; height: 30px; padding: 0 14px; border-radius: 8px; }
+.fr-sheet .fr-logo-plate .ab-gym-logo-img.is-full { display: block !important; height: 15px; width: auto; max-width: none; }
+.fr-sheet .fr-logo-plate .ab-gym-logo-img.is-half { display: none !important; }
+.fr-sheet .fr-logo-plate .ab-gym-logo-svg { height: 15px; width: auto; max-width: none; }
+.fr-sec-plain { padding: 4px 0 8px; border-top: 0; }
+.fr-gymrows { display: flex; flex-direction: column; gap: 6px; }
+.fr-gymrow { display: flex; align-items: center; gap: 12px; min-height: 48px; padding: 8px 12px; border-radius: 12px; border: 1px solid var(--border); background: var(--surface-2); cursor: pointer; }
+.fr-gymrow.on { border-color: var(--accent); }
+.fr-check.on { background: var(--accent-btn-bg); border-color: transparent; color: #fff; }
+.fr-plate-row { padding: 8px 8px 0; }
+.fr-gymcard { border: 1px solid var(--border); border-radius: 14px; margin-bottom: 10px; padding-bottom: 2px; }
+.fr-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 6px; padding: 8px; }
+.fr-opt, .fr-row { display: flex; align-items: center; gap: 8px; min-height: 42px; padding: 6px 10px; border-radius: 10px; border: 1px solid var(--border); background: var(--surface-2); color: var(--text); font-size: 13px; text-align: left; cursor: pointer; }
+.fr-opt.on, .fr-row.on, .fr-pill.on { border-color: var(--accent); background: color-mix(in srgb, var(--accent) 14%, transparent); }
+.fr-check { width: 18px; height: 18px; border-radius: 5px; border: 1px solid var(--border-strong); display: inline-flex; align-items: center; justify-content: center; font-size: 12px; flex-shrink: 0; }
+.fr-opt-name { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.fr-count { font-size: 11px; padding: 1px 7px; border-radius: 9px; background: var(--surface-inset); }
+.fr-hint { margin: 8px 0; font-size: 12px; color: var(--text-secondary); }
+.fr-wgroup { margin-bottom: 12px; }
+.fr-wgroup-head { display: flex; align-items: center; gap: 8px; font-size: 11px; font-weight: 700; letter-spacing: 1px; text-transform: uppercase; color: var(--text-secondary); margin-bottom: 8px; }
+.fr-pills { display: flex; flex-wrap: wrap; gap: 8px; }
+.fr-pill { display: inline-flex; align-items: center; gap: 6px; min-height: 40px; padding: 0 12px 0 8px; border-radius: 20px; border: 1px solid var(--border); background: var(--surface-2); color: var(--text); font-size: 13px; cursor: pointer; }
+.fr-search { width: 100%; height: 42px; margin-bottom: 8px; padding: 0 12px; border-radius: 10px; border: 1px solid var(--border-strong); background: var(--surface-inset); color: var(--text); font-size: 16px; }
+.fr-list { max-height: 300px; overflow-y: auto; overscroll-behavior: contain; display: flex; flex-direction: column; gap: 6px; }
+.fr-igroup { border: 1px solid var(--border); border-radius: 12px; }
+.fr-igroup-head { width: 100%; display: flex; align-items: center; gap: 10px; min-height: 46px; padding: 6px 12px; background: none; border: 0; color: var(--text); font-size: 13px; font-weight: 600; text-align: left; cursor: pointer; }
+.fr-igroup.open .fr-chev { transform: rotate(180deg); }
+.fr-igroup-body { display: flex; flex-direction: column; gap: 6px; padding: 0 8px 8px; }
+
+/* --- U2-5 round 3: card sections, 2-wide gyms, merged locations, P mark --- */
+.fr-gym-dot .fr-mark-img { width: 100%; height: 100%; padding: 2px; object-fit: contain; }
+.fr-body { display: flex; flex-direction: column; gap: 10px; padding: 4px 16px 14px; }
+.fr-sec { border: 1px solid var(--border-strong); border-radius: 16px; background: var(--surface-2); overflow: hidden; }
+.fr-sec-plain { border: 0; background: none; overflow: visible; padding: 0; }
+.fr-sec-head { min-height: 56px; padding: 8px 14px; }
+.fr-sec-title { font-size: 15px; }
+.fr-sec-sum { font-size: 12.5px; }
+.fr-chev { width: 26px; height: 26px; border-radius: 50%; background: var(--surface-inset); display: inline-flex; align-items: center; justify-content: center; font-size: 13px; flex-shrink: 0; }
+.fr-sec.open > .fr-sec-head { border-bottom: 1px solid var(--border); background: color-mix(in srgb, var(--accent) 7%, transparent); }
+.fr-sec-body { padding: 12px; }
+.fr-gymrows { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+.fr-gymrow { flex-direction: row; justify-content: flex-start; gap: 8px; padding: 8px; min-height: 48px; }
+.fr-gymrow .fr-logo-plate { flex: 1; min-width: 0; padding: 0 6px; }
+.fr-grid { padding: 0; gap: 8px; }
+.fr-opt { min-height: 44px; padding: 6px 8px; gap: 6px; }
+.fr-wgroup { margin: 0; }
+.fr-wgroup + .fr-wgroup { margin-top: 14px; padding-top: 14px; border-top: 1px solid var(--border); }
+.fr-wgroup-head { margin: 0 0 10px; }
+.fr-pills { gap: 8px; }
+.fr-search { margin-bottom: 10px; }
+.fr-igroup { background: var(--surface-inset); }
+
+/* --- U2-5 round 4: scrolling fix, square tiles, no tickboxes, tighter bar --- */
+/* Flex children of a scroll container shrink instead of overflowing unless told
+   not to — that squashed every section to fit and left nothing to scroll. */
+.fr-sheet { height: 86dvh; max-height: 86dvh; }
+.fr-body { -webkit-overflow-scrolling: touch; }
+.fr-body > *, .fr-list > *, .fr-igroup-body > * { flex-shrink: 0; }
+.fr-body { touch-action: pan-y; }
+
+/* Selected = filled + accented; not selected = dimmed. No tickboxes. */
+.fr-opt, .fr-gymrow { opacity: .5; transition: opacity .12s, background .12s, border-color .12s; }
+.fr-opt.on, .fr-gymrow.on { opacity: 1; border-color: var(--accent); background: color-mix(in srgb, var(--accent) 18%, transparent); font-weight: 600; }
+.fr-check { display: none; }
+.fr-grid3 { grid-template-columns: repeat(3, 1fr); }
+.fr-opt-stack { flex-direction: column; justify-content: center; gap: 4px; min-height: 64px; padding: 8px 4px; text-align: center; }
+.fr-opt-stack .fr-opt-name { flex: none; max-width: 100%; font-size: 12px; }
+.fr-opt-instructor { min-height: 48px; }
+.fr-wgroup + .fr-wgroup { margin-top: 14px; padding-top: 14px; }
+
+/* Rail: heart is an ordinary chip that rides the right edge when there is room. */
+.fr-heart { width: auto; min-width: 32px; height: 32px; padding: 0 12px; border-radius: 16px; margin-left: auto; font-size: 15px; line-height: 1; }
+
+@media (max-width: 768px) {
+  /* Bar -> date selector gap */
+  #psycle-helper-container .psycle-filters-card { padding-top: 2px !important; padding-bottom: 0 !important; }
+  #psycle-helper-container #psycle-timetable-filters-container { margin-bottom: 0 !important; }
+  .fr-rail { height: 36px; max-height: 36px; }
+  #psycle-helper-container #psycle-timetable-carousel { margin: 0 !important; padding-top: 0 !important; }
+  /* Gym logo chip on mobile rows: trim the side gutters */
+  #psycle-helper-container .psycle-mobile-top-line .psycle-gym-chip { min-width: 0; padding: 3px 4px; }
+}
+
+/* --- U2-5 round 5 --- */
+.fr-spacer { flex: 1 0 0; min-width: 0; }
+.fr-heart { margin-left: 0; }
+.fr-heart svg { display: block; }
+.fr-search { margin-bottom: 0; }
+.fr-search + .fr-list { padding-top: 12px; }
+.fr-wgroup-head { margin: 0; padding-bottom: 12px; }
+
+/* --- U2-5 round 6: unselected is the neutral default now --- */
+.fr-opt, .fr-gymrow { opacity: 1; }
+.fr-sec-row { display: flex; align-items: center; }
+.fr-sec-row .fr-sec-head { flex: 1; min-width: 0; }
+.fr-sec-clear { flex-shrink: 0; margin-right: 12px; padding: 6px 10px; border-radius: 14px; border: 1px solid var(--border-strong); background: none; color: var(--accent); font-size: 12px; font-weight: 600; cursor: pointer; }
+.fr-sec.open > .fr-sec-row { border-bottom: 1px solid var(--border); background: color-mix(in srgb, var(--accent) 7%, transparent); }
+.fr-sec.open > .fr-sec-row .fr-sec-head { border-bottom: 0; background: none; }
+
+/* Mobile timetable: the filter rail is the first thing on the page. Refresh is
+   still available via pull-to-refresh. */
+@media (max-width: 768px) {
+  #psycle-helper-container #psycle-panel-class-timetable .psycle-tab-header { display: none !important; }
+}
+
+/* Sticky title + filters on the timetable tab (desktop and mobile).
+   The section used to shrink to the viewport (flex:1; min-height:0) with its
+   content overflowing into the scrolling .psycle-body, which ends a sticky
+   child's containing block early and makes it un-stick partway down. Letting
+   this one panel take its full height keeps the sticky range whole. */
+#psycle-helper-container #psycle-panel-class-timetable.active { flex: 0 0 auto; min-height: auto; }
+#psycle-helper-container .psycle-sticky-top { position: sticky; top: 0; z-index: 30; background: var(--bg); flex-shrink: 0; }
+
+/* Sticky block: keep every pixel of it opaque.
+   - flow-root stops child margins (the filter card's bottom margin, the date
+     strip's) collapsing OUT of the wrapper, where they left unpainted gaps the
+     timetable showed through;
+   - the box-shadow paints the 10px of .psycle-body top padding above it;
+   - z-index sits above any row that raises itself (hover, swipe). */
+#psycle-helper-container .psycle-sticky-top {
+  display: flow-root;
+  z-index: 200;
+  background: var(--bg);
+  box-shadow: 0 -32px 0 var(--bg);
+}
+
+/* Mobile: a few px of air between the filter bar and the date strip. */
+@media (max-width: 768px) {
+  #psycle-helper-container .psycle-sticky-top #psycle-timetable-carousel { margin-top: 5px !important; }
+}
+
+/* Date strip still scrolls sideways, just without the scrollbar. */
+#psycle-helper-container .psycle-date-selector { scrollbar-width: none !important; -ms-overflow-style: none; }
+#psycle-helper-container .psycle-date-selector::-webkit-scrollbar { display: none !important; width: 0; height: 0; }
+
+/* Mobile: a few px under the date strip, inside the opaque pinned block. */
+@media (max-width: 768px) {
+  #psycle-helper-container .psycle-sticky-top #psycle-timetable-carousel { padding-bottom: 6px !important; }
+}
+
+.fr-dot { display: inline-block; margin: 0 4px; opacity: .55; font-weight: 700; }
+
+/* Rail chips: gym logos and counts are the heavy elements; the words around them
+   are hairline so the two contrast. Needs Inter 200 (loaded in index.html). */
+.fr-tile-part + .fr-tile-part { margin-left: 8px; }
+.fr-initials { font-weight: 200; font-size: 11px; }
+.fr-num { font-weight: 700; }
+.fr-thin { font-weight: 200; margin-left: 4px; }
+.fr-num + .fr-thin { margin-left: 3px; }
+
+/* Buttons and inputs do not inherit the page font by default; without this the
+   rail and sheet rendered in Arial, which has no 200 weight for the hairline text. */
+.fr-rail, .fr-sheet { font-family: 'Inter', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; }
+.fr-rail button, .fr-sheet button, .fr-sheet input { font-family: inherit; }
+
+/* `#psycle-helper-container * { margin: 0 }` outranks single-class margins, so the
+   rail's spacing needs the id in its selector. */
+#sweat-filter-rail .fr-tile-part + .fr-tile-part { margin-left: 8px; }
+#sweat-filter-rail .fr-thin { margin-left: 4px; }
+#sweat-filter-rail .fr-dot { margin: 0 4px; }
+
+/* Mobile: the timetable spans the full screen width. The body and list each
+   contribute an 8px gutter; cancel both so the rounded container reaches the
+   screen edges, and trim its inner padding so the class cards stay close to them.
+   Radii are untouched. */
+@media (max-width: 768px) {
+  #psycle-helper-container #psycle-timetable-grid {
+    margin-left: -8px !important;
+    margin-right: -8px !important;
+    padding-left: 0 !important;
+    padding-right: 0 !important;
+  }
+  #psycle-helper-container #psycle-timetable-grid .psycle-table-container {
+    padding-left: 4px !important;
+    padding-right: 4px !important;
+  }
+}
+
+/* Mobile: the pinned block reaches the screen edges too, so the timetable no
+   longer shows in the 8px gutters beside it. The card and date strip keep their
+   own 8px inner padding, so their contents line up with the class cards. */
+@media (max-width: 768px) {
+  #psycle-helper-container .psycle-sticky-top { margin-left: -8px !important; margin-right: -8px !important; }
+}

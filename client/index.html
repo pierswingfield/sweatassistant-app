@@ -37,7 +37,7 @@
   <!-- Web Fonts -->
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&family=Outfit:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@200;300;400;500;600;700;800&family=Outfit:wght@400;500;600;700;800&display=swap" rel="stylesheet">
   
   <!-- Main Stylesheet -->
   <link rel="stylesheet" href="/src/styles.css">
@@ -157,95 +157,98 @@
       
       <!-- TIMETABLE TAB PANEL -->
       <section id="psycle-panel-class-timetable" class="psycle-tab-content" style="display: none;">
-        <div class="psycle-tab-header">
-          <h3>Class Timetable</h3>
-          <p><span data-timetable-subtitle>Book classes directly or schedule them for release.</span></p>
-          <button class="psycle-tab-refresh-btn" data-refresh-tab="class-timetable" aria-label="Refresh timetable" title="Refresh">
-            <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="23 4 23 10 17 10"/><path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10"/></svg>
-          </button>
-        </div>
-        
-        <!-- Filters Area -->
-        <div class="psycle-filters-card" id="psycle-timetable-filters-container">
-          <div class="psycle-filters-row" style="display: flex; gap: 8px; margin-bottom: 6px; flex-wrap: wrap; align-items: center; width: 100%;">
-            
-            <!-- Gym Dropdown (Visible when >1 gym linked) -->
-            <div class="psycle-ms-dropdown" id="psycle-ms-gym" style="display: none; flex: 1; min-width: 140px; position: relative;">
-              <button class="psycle-ms-trigger" style="width: 100%; display: flex; justify-content: space-between; align-items: center; height: 40px !important;">
-                <span class="psycle-ms-trigger-text">All Gyms</span>
-                <span class="psycle-ms-arrow" style="font-size: 12px; transition: transform 0.2s;">▼</span>
-              </button>
-              <div class="psycle-ms-menu" style="display: none;">
-                <div style="display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid color-mix(in srgb, var(--text) 8%, transparent); padding-bottom: 6px; margin-bottom: 6px;">
-                  <span style="font-size: 12px; color: var(--text-secondary); font-weight: 700;">GYMS</span>
-                  <button class="psycle-ms-clear-btn" style="background: transparent; border: none; color: var(--feat-autoupgrade); font-size: 12px; cursor: pointer; font-weight: 600; padding: 0;">Clear</button>
-                </div>
-                <div class="psycle-ms-options-list" style="display: flex; flex-direction: column; gap: 6px;"></div>
-              </div>
-            </div>
-
-            <!-- Location Dropdown -->
-            <div class="psycle-ms-dropdown" id="psycle-ms-location" style="flex: 1; min-width: 170px; position: relative;">
-              <button class="psycle-ms-trigger" style="width: 100%; display: flex; justify-content: space-between; align-items: center; height: 40px !important;">
-                <span class="psycle-ms-trigger-text">All Locations</span>
-                <span class="psycle-ms-arrow" style="font-size: 12px; transition: transform 0.2s;">▼</span>
-              </button>
-              <div class="psycle-ms-menu" style="display: none;">
-                <div style="display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid color-mix(in srgb, var(--text) 8%, transparent); padding-bottom: 6px; margin-bottom: 6px;">
-                  <span style="font-size: 12px; color: var(--text-secondary); font-weight: 700;">LOCATIONS</span>
-                  <button class="psycle-ms-clear-btn" style="background: transparent; border: none; color: var(--feat-autoupgrade); font-size: 12px; cursor: pointer; font-weight: 600; padding: 0;">Clear</button>
-                </div>
-                <div class="psycle-ms-options-list" style="display: flex; flex-direction: column; gap: 6px;"></div>
-              </div>
-            </div>
-
-            <!-- Instructor Dropdown -->
-            <div class="psycle-ms-dropdown" id="psycle-ms-instructor" style="flex: 1; min-width: 170px; position: relative;">
-              <button class="psycle-ms-trigger" style="width: 100%; display: flex; justify-content: space-between; align-items: center; height: 40px !important;">
-                <span class="psycle-ms-trigger-text">All Instructors</span>
-                <span class="psycle-ms-arrow" style="font-size: 12px; transition: transform 0.2s;">▼</span>
-              </button>
-              <div class="psycle-ms-menu" style="display: none;">
-                <div style="display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid color-mix(in srgb, var(--text) 8%, transparent); padding-bottom: 6px; margin-bottom: 6px;">
-                  <span style="font-size: 12px; color: var(--text-secondary); font-weight: 700;">INSTRUCTORS</span>
-                  <button class="psycle-ms-clear-btn" style="background: transparent; border: none; color: var(--feat-autoupgrade); font-size: 12px; cursor: pointer; font-weight: 600; padding: 0;">Clear</button>
-                </div>
-                <div class="psycle-ms-options-list" style="display: flex; flex-direction: column; gap: 6px;"></div>
-              </div>
-            </div>
-
-            <!-- Class Type Dropdown -->
-            <div class="psycle-ms-dropdown" id="psycle-ms-class-type" style="flex: 1; min-width: 170px; position: relative;">
-              <button class="psycle-ms-trigger" style="width: 100%; display: flex; justify-content: space-between; align-items: center; height: 40px !important;">
-                <span class="psycle-ms-trigger-text">All Types</span>
-                <span class="psycle-ms-arrow" style="font-size: 12px; transition: transform 0.2s;">▼</span>
-              </button>
-              <div class="psycle-ms-menu" style="display: none;">
-                <div style="display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid color-mix(in srgb, var(--text) 8%, transparent); padding-bottom: 6px; margin-bottom: 6px;">
-                  <span style="font-size: 12px; color: var(--text-secondary); font-weight: 700;">WORKOUT TYPES</span>
-                  <button class="psycle-ms-clear-btn" style="background: transparent; border: none; color: var(--feat-autoupgrade); font-size: 12px; cursor: pointer; font-weight: 600; padding: 0;">Clear</button>
-                </div>
-                <div class="psycle-ms-options-list" style="display: flex; flex-direction: column; gap: 6px;"></div>
-              </div>
-            </div>
-
-            <!-- Bookmarked Filter Toggle -->
-            <button id="psycle-filter-favorites-only" data-requires-capability="bookmarks" class="psycle-btn-mini" style="height: 40px !important; padding: 0 16px !important; border-radius: 12px !important; font-weight: 600; cursor: pointer;">
-              ♡ Bookmarked
+        <!-- Sticky top: title + filters stay put while the timetable scrolls -->
+        <div class="psycle-sticky-top">
+          <div class="psycle-tab-header">
+            <h3>Class Timetable</h3>
+            <p><span data-timetable-subtitle>Book classes directly or schedule them for release.</span></p>
+            <button class="psycle-tab-refresh-btn" data-refresh-tab="class-timetable" aria-label="Refresh timetable" title="Refresh">
+              <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="23 4 23 10 17 10"/><path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10"/></svg>
             </button>
-
-            <!-- Save/Clear controls -->
-            <div style="display: flex; gap: 6px; flex-shrink: 0; align-items: center; height: 40px !important;">
-              <button id="psycle-btn-clear-all-filters" class="psycle-btn-mini" style="background: color-mix(in srgb, var(--danger) 15%, transparent); border: 1px solid color-mix(in srgb, var(--danger) 30%, transparent); color: var(--danger); height: 40px !important; padding: 0 16px !important; border-radius: 12px !important; font-weight: 600; cursor: pointer;" title="Clear All Filters">Clear</button>
-              <button id="psycle-btn-save-default-filters" class="psycle-btn-mini" style="background: color-mix(in srgb, var(--success) 15%, transparent); border: 1px solid color-mix(in srgb, var(--success) 30%, transparent); color: var(--success); height: 40px !important; padding: 0 16px !important; border-radius: 12px !important; font-weight: 600; cursor: pointer;" title="Save current filters as default">Save</button>
-            </div>
-
           </div>
-        </div>
+        
+          <!-- Filters Area -->
+          <div class="psycle-filters-card" id="psycle-timetable-filters-container">
+            <div class="psycle-filters-row" style="display: flex; gap: 8px; margin-bottom: 6px; flex-wrap: wrap; align-items: center; width: 100%;">
+            
+              <!-- Gym Dropdown (Visible when >1 gym linked) -->
+              <div class="psycle-ms-dropdown" id="psycle-ms-gym" style="display: none; flex: 1; min-width: 140px; position: relative;">
+                <button class="psycle-ms-trigger" style="width: 100%; display: flex; justify-content: space-between; align-items: center; height: 40px !important;">
+                  <span class="psycle-ms-trigger-text">All Gyms</span>
+                  <span class="psycle-ms-arrow" style="font-size: 12px; transition: transform 0.2s;">▼</span>
+                </button>
+                <div class="psycle-ms-menu" style="display: none;">
+                  <div style="display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid color-mix(in srgb, var(--text) 8%, transparent); padding-bottom: 6px; margin-bottom: 6px;">
+                    <span style="font-size: 12px; color: var(--text-secondary); font-weight: 700;">GYMS</span>
+                    <button class="psycle-ms-clear-btn" style="background: transparent; border: none; color: var(--feat-autoupgrade); font-size: 12px; cursor: pointer; font-weight: 600; padding: 0;">Clear</button>
+                  </div>
+                  <div class="psycle-ms-options-list" style="display: flex; flex-direction: column; gap: 6px;"></div>
+                </div>
+              </div>
 
-        <!-- Date Carousel -->
-        <div class="psycle-date-selector" id="psycle-timetable-carousel">
-          <!-- Date items will be injected here -->
+              <!-- Location Dropdown -->
+              <div class="psycle-ms-dropdown" id="psycle-ms-location" style="flex: 1; min-width: 170px; position: relative;">
+                <button class="psycle-ms-trigger" style="width: 100%; display: flex; justify-content: space-between; align-items: center; height: 40px !important;">
+                  <span class="psycle-ms-trigger-text">All Locations</span>
+                  <span class="psycle-ms-arrow" style="font-size: 12px; transition: transform 0.2s;">▼</span>
+                </button>
+                <div class="psycle-ms-menu" style="display: none;">
+                  <div style="display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid color-mix(in srgb, var(--text) 8%, transparent); padding-bottom: 6px; margin-bottom: 6px;">
+                    <span style="font-size: 12px; color: var(--text-secondary); font-weight: 700;">LOCATIONS</span>
+                    <button class="psycle-ms-clear-btn" style="background: transparent; border: none; color: var(--feat-autoupgrade); font-size: 12px; cursor: pointer; font-weight: 600; padding: 0;">Clear</button>
+                  </div>
+                  <div class="psycle-ms-options-list" style="display: flex; flex-direction: column; gap: 6px;"></div>
+                </div>
+              </div>
+
+              <!-- Instructor Dropdown -->
+              <div class="psycle-ms-dropdown" id="psycle-ms-instructor" style="flex: 1; min-width: 170px; position: relative;">
+                <button class="psycle-ms-trigger" style="width: 100%; display: flex; justify-content: space-between; align-items: center; height: 40px !important;">
+                  <span class="psycle-ms-trigger-text">All Instructors</span>
+                  <span class="psycle-ms-arrow" style="font-size: 12px; transition: transform 0.2s;">▼</span>
+                </button>
+                <div class="psycle-ms-menu" style="display: none;">
+                  <div style="display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid color-mix(in srgb, var(--text) 8%, transparent); padding-bottom: 6px; margin-bottom: 6px;">
+                    <span style="font-size: 12px; color: var(--text-secondary); font-weight: 700;">INSTRUCTORS</span>
+                    <button class="psycle-ms-clear-btn" style="background: transparent; border: none; color: var(--feat-autoupgrade); font-size: 12px; cursor: pointer; font-weight: 600; padding: 0;">Clear</button>
+                  </div>
+                  <div class="psycle-ms-options-list" style="display: flex; flex-direction: column; gap: 6px;"></div>
+                </div>
+              </div>
+
+              <!-- Class Type Dropdown -->
+              <div class="psycle-ms-dropdown" id="psycle-ms-class-type" style="flex: 1; min-width: 170px; position: relative;">
+                <button class="psycle-ms-trigger" style="width: 100%; display: flex; justify-content: space-between; align-items: center; height: 40px !important;">
+                  <span class="psycle-ms-trigger-text">All Types</span>
+                  <span class="psycle-ms-arrow" style="font-size: 12px; transition: transform 0.2s;">▼</span>
+                </button>
+                <div class="psycle-ms-menu" style="display: none;">
+                  <div style="display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid color-mix(in srgb, var(--text) 8%, transparent); padding-bottom: 6px; margin-bottom: 6px;">
+                    <span style="font-size: 12px; color: var(--text-secondary); font-weight: 700;">WORKOUT TYPES</span>
+                    <button class="psycle-ms-clear-btn" style="background: transparent; border: none; color: var(--feat-autoupgrade); font-size: 12px; cursor: pointer; font-weight: 600; padding: 0;">Clear</button>
+                  </div>
+                  <div class="psycle-ms-options-list" style="display: flex; flex-direction: column; gap: 6px;"></div>
+                </div>
+              </div>
+
+              <!-- Bookmarked Filter Toggle -->
+              <button id="psycle-filter-favorites-only" data-requires-capability="bookmarks" class="psycle-btn-mini" style="height: 40px !important; padding: 0 16px !important; border-radius: 12px !important; font-weight: 600; cursor: pointer;">
+                ♡ Bookmarked
+              </button>
+
+              <!-- Save/Clear controls -->
+              <div style="display: flex; gap: 6px; flex-shrink: 0; align-items: center; height: 40px !important;">
+                <button id="psycle-btn-clear-all-filters" class="psycle-btn-mini" style="background: color-mix(in srgb, var(--danger) 15%, transparent); border: 1px solid color-mix(in srgb, var(--danger) 30%, transparent); color: var(--danger); height: 40px !important; padding: 0 16px !important; border-radius: 12px !important; font-weight: 600; cursor: pointer;" title="Clear All Filters">Clear</button>
+                <button id="psycle-btn-save-default-filters" class="psycle-btn-mini" style="background: color-mix(in srgb, var(--success) 15%, transparent); border: 1px solid color-mix(in srgb, var(--success) 30%, transparent); color: var(--success); height: 40px !important; padding: 0 16px !important; border-radius: 12px !important; font-weight: 600; cursor: pointer;" title="Save current filters as default">Save</button>
+              </div>
+
+            </div>
+          </div>
+
+          <!-- Date Carousel -->
+          <div class="psycle-date-selector" id="psycle-timetable-carousel">
+            <!-- Date items will be injected here -->
+          </div>
         </div>
 
         <!-- Timetable Grid List -->

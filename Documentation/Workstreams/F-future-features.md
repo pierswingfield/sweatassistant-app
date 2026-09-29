@@ -53,6 +53,9 @@ or incomplete non-Psycle data must not be interpreted with Psycle policy.
 2. Return that contract from `GET /api/gyms` and merge it into the linked-gym
    client context. Replace `gymBrand()`'s JAB/Psycle branch with a lookup by
    exact gym id and a neutral named fallback for unknown/missing brand data.
+   **Status 2026-09-29: items 1 and 2 done (uncommitted).** Item 1: `node server/test-gym-presentation.js` passes under Node 20 (the earlier failure was a Node 26 `better-sqlite3` ABI mismatch, not a code bug). Item 2: `GET /api/gyms` returns `presentation`; `gym-context.js` gained `setGymCatalogue`/`getGymPresentation` (exact-id lookup); `gymBrand()` reads it, with a neutral text fallback and no `includes('jab')`. Chip/mark/rail plates now take the contract colour inline. Tests: `ui/gym-brand.test.js`, `gym-mark.test.js`; `npm test` 53/53 server, 166/166 client. Real Chrome (CDP :9222, local dev mock, Psycle + JAB linked): chips render `/gyms/jab-boxing.svg` on rgb(108,31,32) and Psycle AVIFs on rgb(33,33,33), zero neutral fallbacks. Styles.css still has per-id blocks (item 3).
+   **Item 3 done 2026-09-29 (uncommitted).** Root cause: `styles.css` held `--gym-psycle-london-*`/`--gym-jab-boxing-*` tokens and ~12 per-id selectors. Now `gym-context.js gymPresentationCss()` injects `--gym-<id>-*` tokens (dark, prefers-light, `data-theme=light`) plus `[data-gym="<id>"]` aliases to generic `--gym-ink/-tint/-on` from the contract; styles.css uses only `[data-gym]` and has no gym ids (neutral defaults at :root). Header badge now stamps `data-gym`; chips/marks/rail take the plate inline. Test: `gym-brand.test.js` (no ids in styles.css, third-gym CSS, unsafe id rejected). `npm test` 53/53 server, 169/169 client (Node 20). Real Chrome (CDP :9222, local mock, 500px): chip plates rgb(108,31,32)/rgb(33,33,33); header pills dark #818cf8/#a78bfa, light #18214d/#7c3aed; mobile cards tinted per gym. Desktop `tr` rows checked under item 4 (below).
+   **Item 4 done 2026-09-29 (uncommitted).** Root cause: `cards.js displayStudioName()` held a JAB-specific `/^recovery\s*2\.0$/` regex applied to every gym. Now `gym-context.js getDisplayAlias(gymId, scope, name)` reads the owning gym's `presentation.displayAliases` (trimmed, case/space-insensitive key); `displayStudioName(gymId, name)` delegates; `timetable.js` passes `event.gymId`. Raw names untouched. Tests in `gym-brand.test.js` (JAB aliased; Psycle/third gym/undefined unchanged; cards.js has no id literal). Real Chrome (CDP :9222, mock, 1400px): 20 desktop `tr[data-gym]` rows, jab-boxing vs psycle-london computed backgrounds differ (per-gym tint works, no fix needed); 500px shows cards not rows. Live alias display not exercised: mock has no "RECOVERY 2.0" studio (unit-tested only).
 3. Make the shared CSS consume generic per-gym custom properties or inline
    per-card variables. Remove the two fixed gym-id token blocks and selectors;
    a new gym must not require a stylesheet edit just to obtain a readable,
@@ -64,6 +67,7 @@ or incomplete non-Psycle data must not be interpreted with Psycle policy.
    complete, only use the weekly client release fallback when the event is
    positively known to be a compatible rolling-weekly gym; otherwise resolve
    no release rather than guessing a Psycle instant.
+   **Item 5 done 2026-09-29 (uncommitted).** Root cause: `lib.js getClassReleaseTime()` fell back to Psycle's Monday-noon rule for any event lacking `releaseAt`, and ~20 client call sites defaulted a missing gym to the literal `'psycle-london'`. Now the fallback runs only when `gym-context.js isRollingWeeklyGym(gymId)` (strict, no default-ON) is true; otherwise it returns `null` and callers degrade (timetable treats unknown as open, auto-book shows "Release time unknown", debug shows "unknown"). Literal fallbacks replaced by `getDefaultGymId()` (first linked, else first catalogue, else neutral). Guard test in `gym-brand.test.js` scans all client JS/CSS (comments stripped) for gym ids / `includes('jab')`; `lib.test.js` covers weekly, per-class, unlinked and no-gym cases. `npm test` 53/53 server, 174/174 client (Node 20). Real Chrome (CDP :9222, local mock, caches cleared, 1400px): 22 gym-stamped elements (13 psycle-london, 9 jab-boxing), zero page errors, Auto-Book tab loads. Not exercised live: a queued row with a missing release (queue empty on mock); unit-tested only.
 
 ### Stage B — admin onboarding editor
 
@@ -73,6 +77,16 @@ presentation schema, test the connection without creating a booking, show a
 generic preview in light and dark themes, and keep secrets out of the database
 or UI response. A new platform still requires an adapter; this flow is for a
 new gym on an existing platform.
+
+**Stage B done 2026-09-29 (uncommitted).** Root cause: presentation lived only in `gyms.config.js`, so changing a wordmark/colour/alias meant a code edit. Now admin-only routes (`server/admin.js`: `GET/PUT/DELETE /api/admin/gym-presentations[/:gymId]`, `POST .../validate`, `POST .../test-connection`) persist a validated override in `server_kv` (`gym_presentation_overrides`, re-applied and re-validated at boot by `db.js`; bad entries skipped). Only the presentation keys are whitelisted, using the same `validatePresentation`; protocol, headers, capabilities and booking policy stay in the registry, and responses carry no headers or credentials. Connection test calls only the adapter's unauthenticated `fetchMetadata(…, null)` (GET, 15s timeout), never books or logs in. Editor with light/dark preview is in `server/admin.html`, with no gym ids in its code. Tests: `server/test-admin-gym-presentation.js` (8 checks incl. spy proving only `fetchMetadata` runs). `npm test` 54/54 server, 174/174 client (Node 20). Real Chrome (CDP :9222, local server, admin login): invalid plate rejected with the validator message; edit updated both previews live, saved, appeared in public `/api/gyms`; test connection returned 7 locations/19 studios/111 instructors ("nothing booked"); reset restored registry values. Not covered: a fixture third gym end to end, and the wordmark image upload (paths must already exist under `/gyms/`).
+
+### Outstanding after F-7
+
+- **F-7-o1 (open):** `displayAliases` (e.g. JAB "RECOVERY 2.0" studio) is unit-tested only. The mock has no such studio; add one to `server/mock-marianatek.js` and do a real-browser check.
+- **F-7-o2 (open):** A missing-release queue row (auto-book entry with no `release_at`/`start_at`) is unit-tested only. The mock queue is empty; needs a live/browser check.
+- **F-7-o3 (open):** No end-to-end third fixture gym proves a new gym needs config only.
+- **F-7-o4 (open):** Wordmark upload is not built in the admin editor; asset paths must pre-exist.
+- **F-7-o5 (open):** The admin connection test only calls `fetchMetadata`; document that it does not verify login.
 
 ### Acceptance
 

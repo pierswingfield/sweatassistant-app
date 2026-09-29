@@ -675,3 +675,27 @@ Triggered by two live bugs the user found on the dev twin. **Method:** Gemini 3.
 - `buildSample` is test-push text only.
 - `bookmarksGymId()` is fine while only Psycle has bookmarks.
 - The `gymBrand` `includes('jab')` is intentional client-side brand assets.
+
+## U1-20-class hunt, UNVERIFIED claims (2026-09-29)
+
+These are candidates from a Gemini 3.8 flash-high hunt for bugs of the same class as U1-20: cross-gym fallback, "not loaded" treated as zero, provider-shape leakage, and one global cache slot for per-gym data. **Next step: a Sonnet agent verifies every row against the code before anything is fixed.** Only 4 line references were grep-confirmed (marked ✓). Everything else is a claim.
+
+- **H**
+  - `timetable.js:3041` ✓: `isDataLoaded` reads the global `cache.profile.available_credits`.
+  - `routes-normalized.js:306` `stampReleaseAt`: reads the default gym's `profile_json` and settings for every gym.
+  - `poller.js:262` ✓: raw `/profile` and `available_credits` for every gym's upgrade rows. Could pause JAB monitors.
+  - `scheduler.js:~295` ✓ / `~390`: raw `/events/:id` and CodexFit layout parsing for every gym.
+  - `credits.js:276` ✓: global `cache.bundles`.
+  - `bookings.js:365`: the upgrade lookup matches `booking_id` without the gym.
+- **M**
+  - `bookings.js:221` and `:611`: the same upgrade lookup, `booking_id` without the gym.
+  - `api.js:587` and `:629`: a failed fetch becomes `[]` in bookings and waitlists.
+  - `db.js:1343` `getUserAutoUpgradesByEvent`: previously rejected, because it runs in `runWithGymContext`. Recheck.
+  - `calendar.js:222`: `nb.raw.slot`.
+  - `admin.js:150`: raw CodexFit paths.
+  - `timetable.js:~1603` `pickStudioPrefs` and `:~1416` `getStudioMapInfo`: fall back to the bare `studioId` key.
+  - `main.js:405`: Settings refresh calls `getSettings()` with no gym.
+- **L**
+  - `settings.js:98` Profile Explorer: CodexFit credit fields.
+  - `main.js:1067`: a single `cache.bookingWindow` slot.
+  - `credit-allowance.js:89/164`: reads `.count`. Check what shape JAB `/api/credits` actually returns.

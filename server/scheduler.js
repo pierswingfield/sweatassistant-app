@@ -276,7 +276,11 @@ async function prefetchAutoBookSlots(bookings, windowMs = 18000) {
           });
         }
       }
-      const details = await getProvider(booking.gym_id).fetchEventDetails(booking.event_id);
+      // Authenticated with the ROW's gym session (as fetchFromGym did before the
+      // adapter move): an unauthenticated call bypasses the dev mock and hits the
+      // live gym, so dev-mode event 1000 read as having no free slots.
+      const details = await getProvider(booking.gym_id).fetchEventDetails(
+        booking.event_id, db.getUserSession(booking.user_id, booking.gym_id) || undefined);
       if (details) {
         setCachedEvent(booking.gym_id, booking.event_id, details, 30000);
         const available = (details.slots || []).filter((slot) => slot.isAvailable);
@@ -367,7 +371,8 @@ async function executeAutoBookForClass(booking) {
     if (details) {
       console.log(`[Scheduler] Cache hit for event ${eventId} (user ${userId}).`);
     } else {
-      details = await getProvider(gymId).fetchEventDetails(eventId);
+      details = await getProvider(gymId).fetchEventDetails(
+        eventId, db.getUserSession(userId, gymId) || undefined);
       if (!details) throw new Error('Failed to load event data.');
       setCachedEvent(gymId, eventId, details, 30000);
     }

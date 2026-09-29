@@ -27,6 +27,7 @@ Cheap, visible fixes. Run them alongside C3 so they share the same live re-test.
 | U1-17 | **Calendar event titles don't strip the discipline prefix.** `server/calendar.js` has its own class-name cleaner, separate from the client's `cleanClassName` (U1-11), so JAB titles may read `JAB: TRAIN - Upper (Focus)…`. Share one rule between client and server (one lookup per fact). Noticed by the U1-11 agent on 2026-09-29. ✅ **Verified and fixed 2026-09-29** (see "U1-11 follow-up"). | `server/calendar.js` name cleaner | 1 h |
 | U1-18 | **Timetable rendered empty on the first live load after a deploy.** A second load showed 153 rows. It may be a cold provider cache (C4 notes about 22 s cold) racing a render that treats "no data yet" as "no classes". If so, that's a "not loaded ≠ empty" bug; show a skeleton instead. Seen by the U1-11..16 agent's live smoke on 2026-09-29; not reproduced. Relates to U4-7. | `timetable.js` first render / prefetch | 1–2 h to investigate |
 | U1-19 | **HTTP 422 booking some Psycle classes (Barre, Yoga, Infrared Sculpt: studios with no seat map).** Filed under U1 (a client-visible booking failure); the cause is a CodexFit API-contract gap in our adapter (C2 territory). Reported by the user 2026-09-29 on the dev twin. ✅ **Fixed 2026-09-29** (see below). | `server/providers/codexfit.js bookSlot`, `server/mock.js` | 2 h |
+| U1-20 | **"Buy Credits" on a Psycle class the member can book** (Barre, Siân, 09:45, Notting Hill, Sun 4 Oct; the member holds 1 Universal credit that the class accepts). Reported 2026-09-29 on the dev twin. ✅ **Fixed 2026-09-29** (see below). | `client/src/ui/credit-allowance.js creditsFor`, `server/mock-marianatek.js` | 1 h |
 
 ## Dev-twin re-test (2026-09-27)
 
@@ -610,3 +611,29 @@ intro, because there is nothing to set up. Studios that DO have a map and no sav
 Infrared Strength 166; JAB pick-a-spot) open the intro. It was not a code bug; but the direct book on those no-map classes is exactly what returned the 422 (U1-19), so the
 two reports were the same classes. If a **seat-map** class ever skips the intro, that is a bug to file.
 
+
+## U1-20 — "Buy Credits" on a bookable Psycle class (2026-09-29)
+
+**Ruled out with live reads (dev twin, `test@piersj.com`):** the event and the credits are both correct. Event `217693` (BARRE: Signature 55,
+Siân, Notting Hill, 09:45) normalizes to `credits = { required: 1, acceptedTypeIds: [1,8,2,27,44,5,12,42,51,39,20,22,65,66,67,71,72,78] }`,
+matching the raw `required_credits: 1` and both `credit_types` and `accepted_credits` (18 ids each). `GET /api/credits` (x-gym-id psycle-london) is
+`[{ typeId: "1", typeName: "Universal", count: 1, isGuestOnly: false }]`, and type 1 is in the accepted list. There is no type-id mismatch, no
+expiry, no guest flag, no 2-credit class. `/api/eligibility` is `canBook: true` for both gyms. Nothing was reproducible from a fresh page: the row showed
+Quick Book, as did all other Psycle classes except five London Bridge Lagree-studio Reformer rows, which are a genuine type restriction
+(that studio's classes do not accept Universal, so those five were correct).
+
+**Root cause (reproduced in the user's Chrome by unsetting one field).** `creditsFor(gymId)` in `credit-allowance.js` fell back to
+`cache.profile.available_credits` whenever `cache.creditsByGym` was not yet set. On a multi-gym account `cache.profile` is only the
+**first-loaded gym's**, and for this account that is **JAB** (`/api/my-gyms` order is `jab-boxing`, `psycle-london`; `refreshUserData` sets
+`cache.profile.available_credits = first.credits`). That list is raw MarianaTek rows (`credits_remaining`, `is_expired`, no `count`, no type id).
+Summed against Psycle's accepted type ids it is 0, so every Psycle row lost its Book button. With `cache.creditsByGym` unset, the 09:45 row rendered
+"Buy Credits"; restoring it gave "Quick Book". This is the same class of bug as the earlier `canForGym`/`eligibilityFor` fixes ("one gym's
+answer applied to another gym's rows"), left in the credits path. The window is from `cache.profile` being set until `getCreditsByGym()` resolves,
+and any render inside it (day pill, filter, prefetch repaint) shows it; I could not prove what kept it on screen for the user, so the fix removes
+the wrong-gym read entirely instead of narrowing the window.
+
+**Fix.** With more than one gym linked, a gym's credits that are not in `cache.creditsByGym` are unknown (null, permissive), never another gym's list.
+Single-gym accounts keep the profile fallback. `getTotalCredits` (Auto-Book/Auto-Upgrade cards) goes through the same function.
+**Mock:** `mock-marianatek.js /me/credits` returned `[]`, which hid it; it now returns the live JAB row (expired, used up, no `count`).
+**Server checks are not affected:** `poller.js hasUsableCredits` and `server.js` credit warnings read each gym's own provider profile
+(`getProvider(gymId).getCredits`), never `cache.profile`, and count `credit_type.id` correctly.

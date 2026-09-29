@@ -242,7 +242,14 @@ function handleMockRequest(pathName, method, body) {
 
   // GET /me/credits
   if (path === '/me/credits' && method === 'GET') {
-    return createFakeResponse({ count: 0, results: [], meta: {}, links: {} });
+    // U1-20: the LIVE shape — an expired, fully used pack (credits_remaining 0, no
+    // `count`, no type id). An empty list hid that a first-linked JAB credit list
+    // was being read as a Psycle balance. Captured from live 2026-09-29, ids only.
+    const results = [{
+      id: '33777', credits_remaining: 0, credits_total: 3, credits_used: 3, product_id: '14716',
+      expiration_datetime: '2024-12-06T19:10:12.661055Z', is_expired: true, is_valid_for_guests: true,
+    }];
+    return createFakeResponse({ count: results.length, results, meta: {}, links: {} });
   }
 
   // GET /me/memberships

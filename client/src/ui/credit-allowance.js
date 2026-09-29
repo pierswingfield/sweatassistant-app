@@ -34,6 +34,13 @@ function creditsFor(gymId) {
   // every row — including a membership gym's — until the user switched days and
   // forced a re-render.
   if (gymId && cache.creditsByGym) return null;
+  // U1-20: with SEVERAL gyms linked, `cache.profile.available_credits` is only
+  // the first-loaded gym's (JAB, for the reporting account: raw MarianaTek
+  // `credits_remaining` rows with no `count` and no type id). Reading it for a
+  // Psycle row summed to 0 and put "Buy Credits" on every Psycle class until
+  // `cache.creditsByGym` landed. "This gym's balance isn't loaded" is unknown
+  // (null, permissive), never another gym's list.
+  if (gymId && (getLinkedGyms() || []).length > 1) return null;
   // Single-gym account: the account-level list IS that gym's.
   return (cache.profile && cache.profile.available_credits) || null;
 }

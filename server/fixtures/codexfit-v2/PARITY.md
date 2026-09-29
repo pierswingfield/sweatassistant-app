@@ -95,3 +95,8 @@ session.
 - Credits: 2, same ids as baseline (4974423, 4974424) — untouched.
 - Cart: 0 lines (the £29 test line was removed; no payment method was ever attached, no checkout/finalise call was made).
 - Live write/read actions used (deliberate, beyond page navigation): waitlist join ×2 (1 intended + 1 accidental), waitlist leave ×2, cart add-line ×1, cart remove-line ×1 = **6**, well under the 40-action budget. No 429/Retry-After/CAPTCHA/unexpected-403 signal at any point.
+
+## u1-20-barre-credits.json (2026-09-29)
+Live capture (ids/counts only) of one Psycle event's credit fields, the Psycle profile `available_credits` row, and the raw JAB credit row that
+ended up in `cache.profile.available_credits` when JAB was the first-linked gym. Used by `client/src/ui/credit-allowance.test.js` (U1-20);
+`server/mock-marianatek.js` `/me/credits` now returns the same JAB row.

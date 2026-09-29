@@ -1,0 +1,145 @@
+{
+  "_note": "U1-20, captured live 2026-09-29 from the dev twin (ids/counts only, no personal data): a Psycle event's credit fields, the Psycle profile's available_credits row, and the raw MarianaTek (JAB) list that sat in cache.profile.available_credits because JAB is the first-linked gym.",
+  "psycleEvent": {
+    "id": 217693,
+    "required_credits": 1,
+    "credit_types": [
+      {
+        "credit_type": 1
+      },
+      {
+        "credit_type": 8
+      },
+      {
+        "credit_type": 2
+      },
+      {
+        "credit_type": 27
+      },
+      {
+        "credit_type": 44
+      },
+      {
+        "credit_type": 5
+      },
+      {
+        "credit_type": 12
+      },
+      {
+        "credit_type": 42
+      },
+      {
+        "credit_type": 51
+      },
+      {
+        "credit_type": 39
+      },
+      {
+        "credit_type": 20
+      },
+      {
+        "credit_type": 22
+      },
+      {
+        "credit_type": 65
+      },
+      {
+        "credit_type": 66
+      },
+      {
+        "credit_type": 67
+      },
+      {
+        "credit_type": 71
+      },
+      {
+        "credit_type": 72
+      },
+      {
+        "credit_type": 78
+      }
+    ],
+    "accepted_credits": [
+      {
+        "credit_type_id": 1
+      },
+      {
+        "credit_type_id": 8
+      },
+      {
+        "credit_type_id": 2
+      },
+      {
+        "credit_type_id": 27
+      },
+      {
+        "credit_type_id": 44
+      },
+      {
+        "credit_type_id": 5
+      },
+      {
+        "credit_type_id": 12
+      },
+      {
+        "credit_type_id": 42
+      },
+      {
+        "credit_type_id": 51
+      },
+      {
+        "credit_type_id": 39
+      },
+      {
+        "credit_type_id": 20
+      },
+      {
+        "credit_type_id": 22
+      },
+      {
+        "credit_type_id": 65
+      },
+      {
+        "credit_type_id": 66
+      },
+      {
+        "credit_type_id": 67
+      },
+      {
+        "credit_type_id": 71
+      },
+      {
+        "credit_type_id": 72
+      },
+      {
+        "credit_type_id": 78
+      }
+    ]
+  },
+  "psycleAvailableCredits": [
+    {
+      "count": 1,
+      "credit_type": {
+        "id": 1,
+        "name": "Universal",
+        "handle": "universal",
+        "is_guest_use_only": false,
+        "extended_booking_period": null,
+        "order": 23,
+        "metafields": null
+      }
+    }
+  ],
+  "jabCreditsAsCachedOnProfile": [
+    {
+      "id": "33777",
+      "credits_remaining": 0,
+      "credits_total": 3,
+      "credits_used": 3,
+      "product_id": "14716",
+      "expiration_datetime": "2024-12-06T19:10:12.661055Z",
+      "is_expired": true,
+      "is_valid_for_guests": true
+    }
+  ]
+}

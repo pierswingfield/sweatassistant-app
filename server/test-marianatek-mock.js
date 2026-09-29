@@ -160,7 +160,10 @@ check('swapSpots: native swap moves the reservation to the target spot', async (
 
 check('getCredits/getMemberships: mock account has a membership, no credit packs', async () => {
   const mt = getProvider('jab-boxing');
-  assert.deepStrictEqual(await mt.getCredits(ctx.session), [], 'no credit packs (membership-based)');
+  // U1-20: live shape — an expired, fully used pack, never an empty list.
+  const packs = await mt.getCredits(ctx.session);
+  assert.ok(packs.length > 0 && packs.every((c) => c.credits_remaining === 0 && c.is_expired === true), 'only expired, used-up packs (membership-based)');
+  assert.ok(packs.every((c) => c.count === undefined), 'raw MarianaTek rows carry no `count`');
   const memberships = await mt.getMemberships(ctx.session);
   assert.strictEqual(memberships.length, 1, 'one active membership');
 });

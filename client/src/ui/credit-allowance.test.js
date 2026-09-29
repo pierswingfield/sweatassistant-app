@@ -30,6 +30,7 @@ vi.mock('../main', () => ({ cache }));
 const { getAvailableCreditsForEvent, hasUsableCredit, getTotalCredits, isMetered, canBookAtAll, getIneligibleReason } =
   await import('./credit-allowance.js');
 const { setLinkedGyms } = await import('../gym-context.js');
+import live from '../../../server/fixtures/codexfit-v2/u1-20-barre-credits.json';
 
 const METERED_ID = 'psycle-london';
 const MEMBERSHIP_ID = 'jab-boxing';
@@ -227,5 +228,46 @@ describe('getTotalCredits — the Auto-Book / Auto-Upgrade card check (U1-13)', 
   it('holding one Universal credit is enough for a 1-spot queue entry', () => {
     cache.creditsByGym = { [METERED_ID]: [{ typeId: '1', typeName: 'Universal', count: 1, isGuestOnly: false }] };
     expect(getTotalCredits(METERED_ID) < 1).toBe(false);
+  });
+});
+
+// U1-20 — "Barre with Siân, 09:45, Notting Hill" said Buy Credits to a member who
+// held one Universal credit that the class accepts. Real shapes, from
+// server/fixtures/codexfit-v2/u1-20-barre-credits.json. With JAB linked FIRST,
+// `cache.profile.available_credits` is JAB's raw list; until cache.creditsByGym
+// landed, every Psycle row read that list, summed it to 0, and lost its Book button.
+describe('a Psycle row on a two-gym account before per-gym credits have loaded (U1-20)', () => {
+  const barre = {
+    gymId: METERED_ID,
+    credits: {
+      required: live.psycleEvent.required_credits,
+      acceptedTypeIds: live.psycleEvent.credit_types.map((c) => String(c.credit_type)),
+    },
+  };
+  beforeEach(() => { setLinkedGyms([MEMBERSHIP, METERED]); delete cache.creditsByGym; });
+
+  it('does not read the first-loaded gym\'s (JAB\'s) credit list for a Psycle class', () => {
+    cache.profile = { available_credits: live.jabCreditsAsCachedOnProfile };
+    expect(getAvailableCreditsForEvent(barre)).toBe(Infinity); // unknown, not 0
+    expect(hasUsableCredit(barre)).toBe(true);
+    expect(getTotalCredits(METERED_ID)).toBe(Infinity);
+  });
+
+  it('once the per-gym credits land, one accepted Universal credit affords the class', () => {
+    cache.profile = { available_credits: live.jabCreditsAsCachedOnProfile };
+    cache.creditsByGym = { [METERED_ID]: [{ typeId: '1', typeName: 'Universal', count: 1, isGuestOnly: false, raw: live.psycleAvailableCredits[0] }] };
+    expect(getAvailableCreditsForEvent(barre)).toBe(1);
+    expect(hasUsableCredit(barre)).toBe(true);
+  });
+
+  it('the raw profile shape (nested credit_type, no typeId) still matches by its nested id', () => {
+    cache.creditsByGym = { [METERED_ID]: live.psycleAvailableCredits };
+    expect(getAvailableCreditsForEvent(barre)).toBe(1);
+  });
+
+  it('a single-gym account still falls back to its own profile list', () => {
+    setLinkedGyms([METERED]);
+    cache.profile = { available_credits: live.psycleAvailableCredits };
+    expect(getAvailableCreditsForEvent(barre)).toBe(1);
   });
 });

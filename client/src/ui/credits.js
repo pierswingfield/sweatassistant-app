@@ -1,4 +1,5 @@
 import { api, isLoggedIn } from '../api';
+import { noSept } from '../lib';
 import { getLinkedGyms } from '../gym-context.js';
 import { gymChip } from './cards.js';
 import { showToast, cache } from '../main';
@@ -302,7 +303,7 @@ function formatMembershipDate(value) {
   const date = new Date(value);
   return Number.isNaN(date.getTime())
     ? null
-    : new Intl.DateTimeFormat('en-GB', { day: 'numeric', month: 'short', year: 'numeric' }).format(date);
+    : noSept(new Intl.DateTimeFormat('en-GB', { day: 'numeric', month: 'short', year: 'numeric' }).format(date));
 }
 
 function renderMembershipSections(linked, memberships) {

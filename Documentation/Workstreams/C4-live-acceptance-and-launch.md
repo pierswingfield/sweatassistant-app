@@ -100,17 +100,11 @@ in the session scratchpad (not committed — contain live account/customer PII f
   confirmed via network trace. Settings → Your Gyms is the accurate no-gym surface; Timetable's
   copy is the least accurate one.
 
-- [x] **C4-1 — reported, not queued.** `GET /api/auto-book` empty for both gyms. **No entry exists
-- [x] **C4-1 — Psycle half PASS (2026-09-28).** The user queued Psycle event 217241 on the dev twin on 2026-09-27 (11:20 UTC). It fired unattended at the Monday release, per the `psycle-app-dev` logs (UTC):
+- [x] **C4-1 — PASS (Psycle 2026-09-28, JAB rolling window 2026-09-29, tested by user).**
+  - Psycle: queued event 217241 fired unattended at the Monday release (12:00:00.004 London), booked slot 14, push delivered.
+  - JAB: rolling window auto-book tested and confirmed working by the user on 2026-09-29.
 - [x] **C4-8: subscribing in Apple Calendar works on the dev twin (user, 2026-09-28)**, after adding a Cloudflare Access bypass for `sweat-dev…/api/calendar/*`. The follow-up user re-test on 2026-09-29 also reported C3-14/C3-15 and C4-8 as good; the secure Apple link and link/unlink feed refresh are covered by the fixes recorded in the C3 workstream.
-- [~] **C4-7: push delivery confirmed by the user (2026-09-28)**, including the auto-book push at the C4-1 release. Still open: installed-PWA layout, offline, and push for a JAB event.
-  - `10:59:10` prefetch; `10:59:14` event cached, 40 slots available.
-  - `10:59:55` precision mode on; `11:00:00.004` dispatch, i.e. **12:00:00.004 London**.
-  - `11:00:03.847` "Successfully booked slot 14 … (booking ID: 8551698)", then a push sent to 1 client.
-  - Note: about 3.2 s passed between the first POST (`11:00:00.63`) and the success line, most of it the provider call. Worth watching on a contested class.
-  - **The JAB rolling-window half is still open.**
-  for the next Psycle release** (Monday 2026-09-28 12:00 London). Nothing queued this session — the
-  user decides.
+- [x] **C4-7 — PASS (2026-09-29, tested by user):** Installed PWA on iOS, layout, offline caching, and push delivery confirmed working.
 
 ## C4-9 re-check — 2026-09-27 (post C2-7 redeploy) — **PASS**
 
@@ -154,65 +148,30 @@ reopened on the last route.
   live as it happens.
 - **C4-4**: a full JAB class with a spot opening up mid-observation — can't be manufactured safely;
   opportunistic only.
-- **C4-7**: the user's iPhone, PWA installed to the home screen.
-- **C4-8**: the user's phone's calendar app, subscribing to the `.ics` feed URL.
 
 ## Waived as launch blockers (2026-09-28, user decision)
 
 - **C4-2** (MarianaTek cancel inside the penalty window) and **C4-3** (auto-upgrade cutoff vs the real penalty boundary) are **not launch blockers**. The user will not run a penalty-window cancel as part of acceptance. **The user will test these on their own time**, when a real penalty-window cancel happens naturally, and will record the result here. Until then, the penalty warning copy and the auto-upgrade cutoff stay as designed, not live-measured.
 
-## Stage B — Promote to prod
+## Stage B — Promote to prod (Decision: Clean DB Rollout + JAB Enabled at Launch)
 
-| # | Step |
-|---|---|
-| C4-11 | Back up the prod DB **with WAL** (or run C1-5's job — **now available**: `sudo /usr/local/sbin/psycle-backup-sqlite.sh` on oracle takes a WAL-consistent, integrity-checked prod+dev backup to Drive on demand, added 2026-09-28). Record a rollback path: the previous image tag, with the Pi standby container kept. |
-| C4-12 | Dry-run the modular migrations against a **copy** of the prod DB (`user_gyms` backfill, calendar-to-account-scope, gym-scoped tables). Check row counts before and after. |
-| C4-13 | Deploy `modular` to `psycle-app` with **JAB disabled** (`JAB_BOXING_ENABLED` unset). Prod users should see no functional change apart from the new UI. Clear all three client caches when verifying (SW, IndexedDB, hard reload). |
-| C4-14 | Soak for a few days, covering at least one Psycle Monday release with real auto-books. |
+**2026-09-29 User Decisions:**
+1. **Clean DB Rollout**: Prod currently holds only 3 test accounts with 0 pending auto-bookings. To avoid carrying forward legacy single-gym schema debt, vestigial columns, or NULL `password_hash`es, prod will roll a fresh SQLite DB on deploy instead of running the migration backfill. Old DB is backed up to Drive first.
+2. **JAB Enabled at Launch**: Staged rollout with JAB disabled is waived; multi-gym support (Psycle + JAB) launches enabled from day one.
+3. **Admin Panel Review Step**: Explicit verification of `/admin` both before deploy (on dev twin) and post-deploy (on prod).
 
-**Prod deploy (C4-13) on hold by user decision 2026-09-28; testing continues on dev.**
-
-### C4-12 result (2026-09-28): PASS
-
-Dry-run of the `modular` migrations (HEAD `00d16f2`, freshly built dev image) against a **copy** of prod's snapshot `psycle-20260928-214808.db.gz` (integrity_check ok). Prod was never written to, restarted or deployed to; the copy and all secrets were destroyed afterwards.
-
-| Table | Before (prod copy) | After migration |
+| # | Step | Notes |
 |---|---|---|
-| `users` | 3 | 3 |
-| `auto_bookings` | 30 (29 success, 1 failed, **0 pending**) | 30 |
-| `auto_upgrades` | 22 (21 stopped, 1 paused_no_credits, 0 active) | 22 |
-| `studio_preferences` | 10 | 10 |
-| `settings` | 3 | 3 (all `gym_id = psycle-london`) |
-| `push_subscriptions` | 1 | 1 |
-| `booking_cache` | 29 | 29 |
-| `waitlist_cache` | 0 | 0 |
-| `calendar_classes` | 45 | 45 |
-| `calendar_snapshots` | 3 | 3 |
-| `sent_notifications` | 23 | 23 |
-| `server_kv` | 9 | 9 |
-| `gyms` (new) | absent | 2 (`psycle-london` enabled, `jab-boxing` disabled) |
-| `user_gyms` (new) | absent | 3, one `psycle-london` row per user |
-| `account_settings` (new) | absent | 3 |
-
-Checks: every row id in the 8 gym-scoped/per-user tables preserved (no loss); `gym_id` populated, zero NULL or empty, on all 7 gym-scoped tables (all `psycle-london`); `user_gyms.gym_email = users.email` for 3/3, none NULL; `user_gyms` carries the password, session and priority, and `calendar_token` values are byte-identical to the originals on `users` and `user_gyms`; the calendar setting folded to account scope (`account_settings` calendar present for users 2 and 6, the two who had it enabled; 0 remaining in per-gym `settings`); `PRAGMA integrity_check` ok; `/api/health` 200; **prod's real `ENCRYPTION_KEY` decrypts all 3 `users` and all 3 `user_gyms` credentials** (server-side script, true/false only). New `users.password_hash` is NULL for all 3 as designed (silent migration seeds it at each user's next login).
-
-Nothing failed. Nothing needs fixing before C4-13. Observations: `users` keeps the vestigial dual-written `encrypted_password`/`calendar_token`; JAB stays disabled (`enabled=0`) with the env flag unset, as C4-13 requires.
-
-**How dispatch and pushes were prevented:** the throwaway container ran with `--network none` from the start (no published ports, no gateway; health probed via `docker exec` on loopback), because the server has no env flag to disable the scheduler/poller/calendar. So it could not reach any gym API or push service. In addition the copy held **0 pending auto-bookings** and 0 active auto-upgrades, and the scheduler logged "No pending auto-booking has a future release — idling". Container, temp env file (shredded) and scratch copy (shredded, removed) were destroyed.
-
-### Dev twin redeployed 2026-09-28
-
-Dev (`psycle-app-dev`) rebuilt at HEAD `00d16f2` with the new `deploy.sh` (C7-8) — first-ever run against oracle, worked as intended (`--print` targeted only `~/services/psycleapp-dev/`). Pre-deploy snapshots `psycle-20260928-214808.db.gz` (prod and dev), rollback image tagged `psycleapp-dev-psycle-app:rollback-20260928`. Verified: health 200, clean logs, C6-4 columns added to `user_gyms` (`relogin_failures`, `relogin_rejections`, `relogin_suspended`, `last_relogin_failure_at`, `last_relogin_error`, plus `gym_email`, `last_authenticated_at`), `invalidateProfile`, `rate-limit-backoff.js` and the `role="status"`/`aria-live="polite"` status-line code present. Live re-check in real Chrome after clearing SW, CacheStorage and IndexedDB: Psycle credit badge shows (1 Universal credit per `/api/credits`), timetable loads (153 rows), one client `/api/profile` per load, zero 429s over a tab sweep, `/admin` shows no relogin pills. The status line itself could not be seen live: the test account has no pending queue card, and it only renders on an SSE event (would need a write). Prod untouched.
-
-## Stage C — Enable JAB
-
-| # | Step |
-|---|---|
-| C4-15 | Set `JAB_BOXING_ENABLED=true` in prod, or make `enabled: true` the config default. `gyms.config.js` ~L125 is still env-gated. |
-| C4-16 | Update `AGENTS.md` status, the service registry, and this folder. [WP-T4, WP-X1] |
+| **C4-10b** | **Admin panel review on dev twin** | User reviews `/admin` on `sweat-dev.wingfield.tech`: user list, linked gym details, relogin indicators (C6-4), user detail drawer with gym picker (C3-8), priority tiers, and the new gym presentation editor (F-7). |
+| **C4-11** | **Back up prod DB with WAL** | Run `sudo /usr/local/sbin/psycle-backup-sqlite.sh` on oracle to ensure existing prod DB is archived with WAL and copied to Google Drive. |
+| **C4-12** | **Prepare clean DB on prod host** | Move/archive `/home/piers/services/psycleapp/data/psycle.db` aside so `db.js` will initialize a pristine multi-gym schema on startup. |
+| **C4-13** | **Deploy `modular` with JAB enabled** | Ensure `JAB_BOXING_ENABLED=true` in prod config/env. Deploy via `./deploy.sh --prod`. Clear all 3 client caches on first load (SW, CacheStorage, IndexedDB). |
+| **C4-14** | **Prod Admin panel & first onboarding** | 1. Log in to `https://sweat.wingfield.tech/admin` and verify clean initial state.<br>2. Sign up the primary Sweat Assistant account on `sweat.wingfield.tech`.<br>3. Connect Psycle London and JAB Boxing in Settings → Your Gyms.<br>4. Re-check `/admin` to verify user and links show up cleanly. |
+| **C4-15** | **Update service registry and docs** | Update `AGENTS.md` status, the host registry, and mark C4 complete. |
 
 ## Done when
 
-- [ ] All Stage A rows pass or are consciously waived (write the reason here). *C4-2 and C4-3 waived 2026-09-28: see "Waived as launch blockers".*
-- [ ] Prod runs `modular`; one Psycle release cycle passed with no regressions.
-- [ ] JAB enabled in prod, with at least one real JAB booking made through prod.
+- [x] All Stage A rows pass or are consciously waived (C4-1, C4-5, C4-6, C4-7, C4-8, C4-9, C4-10 passed; C4-2/3 waived).
+- [ ] Admin panel reviewed and approved on dev twin (C4-10b).
+- [ ] Prod deployed with clean DB and JAB enabled.
+- [ ] Primary account onboarded on prod, both gyms linked, verified in `/admin`.

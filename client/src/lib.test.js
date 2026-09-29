@@ -156,3 +156,15 @@ describe('formatCountdown', () => {
     expect(formatCountdown(26 * 3600 * 1000)).toBe('1d 2h');
   });
 });
+
+describe('noSept', async () => {
+  const { noSept } = await import('./lib');
+  it('renders September as Sep', () => {
+    expect(noSept('Tue 15 Sept')).toBe('Tue 15 Sep');
+    expect(noSept('15 Sept 2026')).toBe('15 Sep 2026');
+  });
+  it('leaves other strings alone', () => {
+    expect(noSept('Tue 15 Oct')).toBe('Tue 15 Oct');
+    expect(noSept('September')).toBe('September');
+  });
+});

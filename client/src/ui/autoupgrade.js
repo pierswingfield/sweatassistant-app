@@ -1,9 +1,10 @@
 import { api } from '../api';
+import { noSept } from '../lib';
 import { getDefaultGymId } from '../gym-context.js';
 import { getAvailableCreditsForEvent, getTotalCredits, getIneligibleReason } from './credit-allowance.js';
 import { showToast, cache, refreshUserData } from '../main';
 import { openUpgradeConfigModal } from './bookings';
-import { seatNoun, disciplineTag, renderGymRail, icon, cleanClassName } from './cards';
+import { seatNoun, disciplineTag, renderGymRail, icon, cleanClassName, wireRailToggle } from './cards';
 import { renderCardSkeletons } from './loading-skeleton.js';
 import { instructorAvatar } from './tooltips.js';
 
@@ -68,9 +69,9 @@ function renderUpgradeList(upgrades, studioPrefs = {}) {
     // Split date and time so the card can use the same `.ab-card-date` /
     // `.ab-card-time` pairing as Bookings, Waitlists and Auto-Book.
     const startDt = new Date(job.start_at);
-    const dateStr = startDt.toLocaleString('en-GB', {
+    const dateStr = noSept(startDt.toLocaleString('en-GB', {
       weekday: 'short', day: 'numeric', month: 'short', timeZone: 'Europe/London'
-    });
+    }));
     const timeOnly = startDt.toLocaleString('en-GB', {
       hour: '2-digit', minute: '2-digit', hour12: false, timeZone: 'Europe/London'
     });
@@ -171,4 +172,5 @@ function renderUpgradeList(upgrades, studioPrefs = {}) {
 
     container.appendChild(card);
   });
+  wireRailToggle(container);
 }

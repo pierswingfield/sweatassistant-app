@@ -24,6 +24,7 @@ Design reference: [`DESIGN.md`](../DESIGN.md). Original audit:
 
 - **U2-6:** On desktop, only the timetable filter and date-selector bars should remain sticky; the timetable header/title should scroll away.
 - **U2-7:** Clicking a timetable filter pill should open the filter sheet at its relevant section, with other sections collapsed.
+- **Filter Sheet Animation (U4-15):** The filter bottom sheet should animate in with a smooth slide-up transition from the bottom edge (`translateY(100%)` → `translateY(0)`), with matching exit animation on dismiss.
 
 ## U2-6 / U2-7 — DONE 2026-09-29
 

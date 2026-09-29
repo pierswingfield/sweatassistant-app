@@ -16,6 +16,7 @@
 // per-call content. There is no shared modal component yet (U2-1) and this does
 // not build one; it only does the accessibility work such a component would.
 
+import { noSept } from '../lib';
 import { icon, disciplineTag, getDiscipline, renderGymRail, cleanClassName, trimLocation, escapeHtml, equalizeDiscTagWidths } from './cards.js';
 import { instructorAvatar } from './tooltips.js';
 import { getGymShortName, getDefaultGymId } from '../gym-context.js';
@@ -82,7 +83,7 @@ export function classSummaryCardHtml(item, tag) {
   const start = item.startAt ? new Date(item.startAt) : null;
   const valid = start && !Number.isNaN(start.getTime());
   const dateStr = valid
-    ? start.toLocaleString('en-GB', { weekday: 'short', day: 'numeric', month: 'short', timeZone: 'Europe/London' }).toUpperCase()
+    ? noSept(start.toLocaleString('en-GB', { weekday: 'short', day: 'numeric', month: 'short', timeZone: 'Europe/London' })).toUpperCase()
     : '';
   const timeStr = valid
     ? start.toLocaleString('en-GB', { hour: '2-digit', minute: '2-digit', hour12: false, timeZone: 'Europe/London' })

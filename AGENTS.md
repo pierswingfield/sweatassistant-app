@@ -8,7 +8,7 @@ Server + PWA assistant for Psycle London (and future gym providers). It moves sc
 multi-gym `modular` branch (Psycle + JAB Boxing) is committed and running on the dev twin
 (`sweat-dev.wingfield.tech`), but is **not yet promoted to prod**. See workstream C4 before
 changing or deploying it.
-As of 2026-09-28, the dev twin runs `modular` with C1–C3, C5-1/3, U1, C7-1/2 and the pulled-forward C2-6/C6-4/U2-3 (see `Documentation/Workstreams/`). C4 Stage A is mostly passed; Stage B (promote to prod) is unblocked now that the C1-5 backups exist.
+As of 2026-09-29, the dev twin runs `modular` with C1–C3, C5-1/3, U1, C7-1/2, F-7 (data-driven gym presentation + admin editor) and the pulled-forward C2-6/C6-4/U2-3 (see `Documentation/Workstreams/`). C4 Stage A is mostly passed; Stage B (promote to prod) is unblocked now that the C1-5 backups exist.
 
 ## Key References
 

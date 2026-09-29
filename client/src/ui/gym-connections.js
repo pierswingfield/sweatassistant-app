@@ -1,3 +1,4 @@
+import { noSept } from '../lib';
 // Settings → Your Gyms: the pieces of the render that are pure enough to test.
 //
 // U1-7. renderGymsCard() used to `remove()` every per-gym sidebar entry and pane,
@@ -99,7 +100,7 @@ export function lastAuthLabel(iso, now = Date.now()) {
   const then = new Date(iso);
   if (Number.isNaN(then.getTime())) return 'Not recorded';
   const days = Math.floor((now - then.getTime()) / 86400000);
-  const date = then.toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' });
+  const date = noSept(then.toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' }));
   if (days <= 0) return `Today · ${date}`;
   if (days === 1) return `Yesterday · ${date}`;
   if (days < 30) return `${days} days ago · ${date}`;

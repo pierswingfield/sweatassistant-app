@@ -1,3 +1,4 @@
+import { noSept } from '../lib';
 // Reusable per-gym Settings section (Settings restructure Phase 2).
 //
 // This module owns markup and DOM binding only. The settings coordinator supplies
@@ -24,7 +25,7 @@ function formatDate(value) {
   if (!value) return null;
   const date = new Date(value);
   if (Number.isNaN(date.getTime())) return null;
-  return date.toLocaleDateString(undefined, { day: 'numeric', month: 'short', year: 'numeric' });
+  return noSept(date.toLocaleDateString(undefined, { day: 'numeric', month: 'short', year: 'numeric' }));
 }
 
 function creditTotal(credits) {

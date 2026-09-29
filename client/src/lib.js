@@ -256,3 +256,12 @@ export function startGraceCountdown() {
   _tickGraceCountdown();
   _graceInterval = setInterval(_tickGraceCountdown, 1000);
 }
+
+/**
+ * Newer ICU builds render September as "Sept" for en-GB short months. The app
+ * uses the three-letter form everywhere, so every short-month string passes
+ * through here.
+ */
+export function noSept(str) {
+  return typeof str === 'string' ? str.replace(/\bSept\b/g, 'Sep') : str;
+}

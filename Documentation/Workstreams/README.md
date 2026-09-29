@@ -41,14 +41,14 @@ still open.
 |---|---|---|---|
 | [U1](U1-ux-bug-fixes.md) | UX bug fixes from QA | P1–P2 | ~1 day |
 | [U2](U2-components-accessibility.md) | Shared components and accessibility | P2 | ~2–3 days |
-| [U4](U4-ux-improvements.md) | UX improvements (user list 2026-09-29): mobile bookings, loading chips, rubber-band scroll, ∞ badge, progressive timetable load | P2 | ~4–5 days |
+| [U4](U4-ux-improvements.md) | UX improvements (user list 2026-09-29): pre-launch (mobile bookings, chips, scroll, ∞ badge, progressive load, FOUC fix, conditional gym-coloured tags); post-launch (more glass, new timetable buttons, animations) | P2 | ~5–7 days |
 | [U3](U3-css-design-debt.md) | CSS and design-system debt | P3 | ~1 week |
 
 ### Later
 
 | ID | Workstream | Priority |
 |---|---|---|
-| [F](F-future-features.md) | Future features: in-app 3-D Secure, guest passes, social sharing, MCP server, Postgres | P2–P3 |
+| [F](F-future-features.md) | Future features: in-app 3-D Secure, guest passes, gym-neutral favourites, social sharing, MCP server, Postgres | P2–P3 |
 
 ## Recommended order
 
@@ -60,8 +60,9 @@ still open.
    is cheap copy/UI fixes that share the same test pass.
 4. **C7 pre-launch subset.** SQLite backups, read-route rate limits, build-stamped service
    worker cache.
-5. **C4 Live acceptance, then promote `modular` to prod, then enable JAB.** Includes re-running the
-   Psycle regression suite on the new cart code.
+5. **C4 Live acceptance, promote `modular` to prod with clean DB and JAB enabled.**
+   Includes user review of the `/admin` panel on the dev twin before deploy, a fresh DB
+   rollout (no legacy migration debt), and multi-gym enabled at launch.
 6. **C2 phase 2 (efficient reads).** `/events` v2, `/heartbeat` cache invalidation, `/profile`
    dedupe. Deliberately after launch so the upstream traffic shape changes in a separate deploy.
 7. **C5 Auto-book gaps** (Favourites build last, P3), then **C6 Accounts and auth**.
@@ -69,7 +70,7 @@ still open.
    touches every screen and would invalidate acceptance screenshots.
 9. **F Future features**, plus the rest of C7.
 
-Added 2026-09-29: **U4** UX improvements (after the current U1 batch, before U3), **U1-11..U1-16** (current to-do), **F-7** gym config editor, **F-8** MarianaTek profile explorer, and **F-9** Gemini-powered booking/checking assistant.
+Added 2026-09-29: **U4** UX improvements (after the current U1 batch, before U3), **U1-11..U1-16** (current to-do), **F-7** gym config editor, **F-8** MarianaTek profile explorer, **F-9** Gemini-powered booking/checking assistant, **F-10** Home/Dashboard page, **F-11** class counts/stats/insights, **F-12** gym-neutral favourites, and **F-13** calendar/weekly view of bookings.
 
 Added 2026-09-27: **U2-5** (implement `TIMETABLE_FILTER_DESIGN_BRIEF.md`, after C4) and
 **U3-6** (sweep for leftover "Psycle" references in gym-agnostic code, done with U3-1).

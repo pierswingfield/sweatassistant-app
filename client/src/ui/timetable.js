@@ -1116,7 +1116,7 @@ function buildFilterRailCtx(eventsExcluding, resultCount) {
     locationLabel: (l) => disambiguateGymLabel(l, locationBaseLabel(l), metadata.locations, locationBaseLabel),
     workouts,
     instructors: metadata.instructors.filter(i => gymOk(i.gymId)).sort((a, b) => (a.name || '').localeCompare(b.name || '')),
-    canBookmark: canAny('bookmarks'),
+    canBookmark: false, // Temporarily hidden on front-end until universal cross-gym favourite class solution
     // Nothing picked = no filter (every chip shows unselected); picking chips
     // narrows to just those. OR within a section, AND across sections.
     isOn: (key, id) => arrays[key]().includes(String(id)),
@@ -2307,7 +2307,8 @@ function injectMobileFilterHamburger() {
   const saveBtn = document.getElementById('psycle-btn-save-default-filters');
 
   const items = [];
-  if (favBtn) items.push({ label: showBookmarksOnly ? 'Bookmarked (on)' : 'Bookmarked', icon: 'heart', variant: 'favourite', action: () => favBtn.click() });
+  // Favourites filter temporarily hidden until universal cross-gym solution
+  // if (favBtn) items.push({ label: showBookmarksOnly ? 'Bookmarked (on)' : 'Bookmarked', icon: 'heart', variant: 'favourite', action: () => favBtn.click() });
   if (clearBtn) items.push({ label: 'Clear Filters', icon: 'close', variant: 'danger', action: () => clearBtn.click() });
   if (saveBtn) items.push({ label: 'Save Defaults', icon: 'check', variant: 'success', action: () => saveBtn.click() });
 
@@ -2372,8 +2373,9 @@ function buildMobileClassRow(event, ctx, model) {
   // Photo (or a soft initial placeholder, same box, so nothing shifts while it loads). The image comes from the
   // ONE shared lookup (instructorAvatar: the event's own thumb first, else metadata by name).
   const firstInstr = event.instructors?.[0];
+  const instrId = firstInstr?.id || metadata.instructors?.find(i => (i.name === instrName || i.full_name === instrName) && (!event.gymId || i.gymId === event.gymId))?.id || '';
   const avatarHtml = SHOW_TIMETABLE_INSTRUCTOR_PHOTO && instrName
-    ? `<span class="psycle-mobile-avatar" data-initial="${escapeHtml(String(instrName).trim().charAt(0).toUpperCase())}" aria-hidden="true">${instructorAvatar(instrName, event.gymId, firstInstr?.thumbUrl || firstInstr?.imageUrl || null, { size: 38, lazy: true, cls: 'psycle-mobile-avatar-img' })}</span>`
+    ? `<span class="psycle-mobile-avatar psycle-instructor-hover" data-id="${instrId}" data-gym-id="${event.gymId || ''}" data-initial="${escapeHtml(String(instrName).trim().charAt(0).toUpperCase())}" role="button" tabindex="0" aria-label="View instructor profile for ${escapeHtml(instrName)}">${instructorAvatar(instrName, event.gymId, firstInstr?.thumbUrl || firstInstr?.imageUrl || null, { size: 38, lazy: true, cls: 'psycle-mobile-avatar-img' })}</span>`
     : '';
 
   card.innerHTML = `

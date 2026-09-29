@@ -174,37 +174,52 @@ export function initTooltips() {
     }, 1000); // 1s delay
   });
 
-  // Touch devices have no hover — tap an instructor name to toggle the tooltip,
-  // and tap anywhere else to dismiss it.
-  if (window.matchMedia('(hover: none)').matches) {
-    const hideInstructor = () => {
-      activeHoverTarget = null;
-      instructorTooltip.classList.remove('show');
-      instructorTooltip.style.display = 'none';
-    };
-    document.body.addEventListener('click', (e) => {
-      const target = e.target.closest('.psycle-instructor-hover');
-      if (!target) {
-        if (instructorTooltip.classList.contains('show')) hideInstructor();
-        return;
-      }
-      e.preventDefault();
-      e.stopPropagation();
-      // Tapping the open instructor again closes it.
-      if (activeHoverTarget === target && instructorTooltip.classList.contains('show')) {
+  // Tap or click an instructor name/photo to toggle the profile tooltip modal,
+  // and tap/click anywhere else to dismiss it.
+  const hideInstructor = () => {
+    activeHoverTarget = null;
+    instructorTooltip.classList.remove('show');
+    instructorTooltip.style.display = 'none';
+  };
+  document.body.addEventListener('click', (e) => {
+    const target = e.target.closest('.psycle-instructor-hover');
+    if (!target) {
+      if (instructorTooltip.classList.contains('show') && !e.target.closest('#psycle-instructor-tooltip')) {
         hideInstructor();
-        return;
       }
-      const html = instructorTooltipHTML(target.getAttribute('data-id'), target.getAttribute('data-gym-id'));
-      if (!html) return;
-      activeHoverTarget = target;
-      instructorTooltip.innerHTML = html;
-      instructorTooltip.style.display = 'block';
-      positionTooltip(target, instructorTooltip);
-      instructorTooltip.offsetHeight;
-      instructorTooltip.classList.add('show');
-    });
-  }
+      return;
+    }
+    e.preventDefault();
+    e.stopPropagation();
+    if (hoverTimeout) {
+      clearTimeout(hoverTimeout);
+      hoverTimeout = null;
+    }
+    // Tapping the open instructor again closes it.
+    if (activeHoverTarget === target && instructorTooltip.classList.contains('show')) {
+      hideInstructor();
+      return;
+    }
+    const html = instructorTooltipHTML(target.getAttribute('data-id'), target.getAttribute('data-gym-id'));
+    if (!html) return;
+    activeHoverTarget = target;
+    instructorTooltip.innerHTML = html;
+    instructorTooltip.style.display = 'block';
+    positionTooltip(target, instructorTooltip);
+    instructorTooltip.offsetHeight;
+    instructorTooltip.classList.add('show');
+  });
+
+  document.body.addEventListener('keydown', (e) => {
+    if (e.key === 'Escape' && instructorTooltip.classList.contains('show')) {
+      hideInstructor();
+      return;
+    }
+    if ((e.key === 'Enter' || e.key === ' ') && e.target.closest?.('.psycle-instructor-hover[role="button"]')) {
+      e.preventDefault();
+      e.target.closest('.psycle-instructor-hover').click();
+    }
+  });
 
   document.body.addEventListener('mouseout', (e) => {
     const target = e.target.closest('.psycle-instructor-hover');

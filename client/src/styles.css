@@ -3800,7 +3800,12 @@ html, body {
   100% { transform: scale(1.15); }
 }
 
-/* Bookmarks Filter Button */
+/* Bookmarks Filter Button (Temporarily hidden on front-end until cross-gym favourite solution) */
+#psycle-filter-favorites-only,
+.fr-heart {
+  display: none !important;
+}
+
 #psycle-filter-favorites-only {
   background: var(--surface-inset);
   border: 1px solid var(--border);
@@ -3810,7 +3815,6 @@ html, body {
   font-weight: 600;
   cursor: pointer;
   transition: all 0.2s ease;
-  display: flex;
   align-items: center;
   justify-content: center;
   gap: 6px;
@@ -10188,14 +10192,13 @@ body::after { z-index: 1000002 !important; }
   border: 0 !important;
 }
 
-/* 2. Mobile row rail: the kebab is a BLOCK again (full row height, flush to the right edge, square, with its
-   divider and inset background), ~28px wide. The rounded CTA sits tight against it. */
+/* 2. Mobile row rail: the kebab is ~37px wide (+33%) with no vertical divider line. */
 @media (max-width: 768px) {
   #psycle-helper-container .psycle-mobile-rail { align-items: stretch; gap: 0; padding: 0; }
   #psycle-helper-container .psycle-mobile-seg.primary { align-self: center; margin: 0 6px 0 4px; }
   #psycle-helper-container .psycle-mobile-seg.ellipsis {
-    align-self: stretch; height: auto; width: 28px; min-width: 28px; padding: 0;
-    border: 0 !important; border-left: 1px solid var(--border) !important; border-radius: 0 !important;
+    align-self: stretch; height: auto; width: 37px; min-width: 37px; padding: 0;
+    border: 0 !important; border-left: 0 !important; border-radius: 0 !important;
     background: var(--surface-inset); color: var(--text) !important; font-size: 24px; font-weight: 900;
   }
   #psycle-helper-container .psycle-mobile-seg.ellipsis::after { inset: 0 -8px 0 -8px; }
@@ -10302,15 +10305,24 @@ body::after { z-index: 1000002 !important; }
 
 /* ---- Batch P ---- */
 @media (max-width: 768px) {
-  /* 2. Left column = TIME above the instructor PHOTO (centred, fixed width), 12px clear of the text block.
+  /* 2. Left column = TIME above the instructor PHOTO (top-aligned, Y-aligned with row 1 chips), 12px clear of the text block.
         The chip's left edge is now simply "lead width + gap", identical on every row. */
-  #psycle-helper-container .psycle-mobile-content { flex-direction: row !important; align-items: center; gap: 12px !important; padding: 12px 6px 12px 12px !important; }
-  #psycle-helper-container .psycle-mobile-lead { flex: 0 0 44px; width: 44px; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 6px; }
-  #psycle-helper-container .psycle-mobile-lead > strong { font-size: 15px !important; font-variant-numeric: tabular-nums; line-height: 1.1; }
-  #psycle-helper-container .psycle-mobile-lead .psycle-mobile-avatar { flex: 0 0 38px; }
+  #psycle-helper-container .psycle-mobile-content { flex-direction: row !important; align-items: flex-start !important; gap: 12px !important; padding: 12px 6px 12px 12px !important; }
+  #psycle-helper-container .psycle-mobile-lead { flex: 0 0 46px; width: 46px; display: flex; flex-direction: column; align-items: center; justify-content: flex-start; gap: 8px; }
+  #psycle-helper-container .psycle-mobile-lead > strong {
+    height: var(--tt-chip-h, 22px);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 17px !important;
+    font-variant-numeric: tabular-nums;
+    line-height: 1;
+    white-space: nowrap;
+  }
+  #psycle-helper-container .psycle-mobile-lead .psycle-mobile-avatar { flex: 0 0 38px; cursor: pointer; }
   #psycle-helper-container .psycle-mobile-main { flex: 1 1 0; min-width: 0; display: flex; flex-direction: column; gap: 8px; }
   /* 3. Gym chip -> class-type chip: 8px (the earlier -4px pull-in is gone). */
-  #psycle-helper-container .psycle-mobile-top-line { gap: 8px; }
+  #psycle-helper-container .psycle-mobile-top-line { height: var(--tt-chip-h, 22px); display: flex; align-items: center; gap: 8px; }
   #psycle-helper-container .psycle-mobile-top-line .psycle-gym-chip + .ab-disc-tag { margin-left: 0 !important; }
   /* 4. Instructor moved under: Row 3 = "Studio · Instructor" (instructor ellipsises first). */
   #psycle-helper-container .psycle-mobile-bottom-line { gap: 6px; }

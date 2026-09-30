@@ -21,7 +21,6 @@ const bookingWindow = require('./booking-window');
 // method checks for MOCK_TOKEN and routes to mock-marianatek.js instead of a
 // live fetch — lets the full success path (book/cancel/waitlist/swap) be
 // exercised with no real credits, which the live JAB test account can't do.
-const DEV_EMAIL = 'dev@jabboxing.mock';
 const MOCK_TOKEN = 'mock-mt-token';
 
 // --- Minimal cookie jar -----------------------------------------------------
@@ -124,7 +123,7 @@ class MarianaTekProvider extends GymProvider {
    * @returns {Promise<{session: import('./base').AuthSession, profile: import('./base').NormalizedProfile, raw: Object}>}
    */
   async login({ email, password }) {
-    if (email === DEV_EMAIL) {
+    if (email === (this.gym.mockEmail || `dev@${this.gym.tenant}.mock`)) {
       const session = { accessToken: MOCK_TOKEN, refreshToken: MOCK_TOKEN, expiresAt: new Date(Date.now() + 365 * 864e5).toISOString() };
       const profile = await this.getProfile(session);
       return { session, profile, raw: { access_token: MOCK_TOKEN, mock: true } };

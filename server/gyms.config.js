@@ -164,6 +164,9 @@ const GYMS = {
     enabled: process.env.JAB_BOXING_ENABLED === 'true'
       || (process.env.NODE_ENV !== 'production' && process.env.JAB_BOXING_ENABLED !== 'false'),
     tenant: 'jabboxingclub',
+    // Local mock identity is intentionally separate from the live tenant slug.
+    // The original JAB mock predates the public tenant name.
+    mockEmail: 'dev@jabboxing.mock',
     apiBaseUrl: 'https://jabboxingclub.marianatek.com/api/customer/v1',
     oauthBaseUrl: 'https://jabboxingclub.marianatek.com/o',
     loginPageUrl: 'https://jabboxingclub.marianatek.com/auth/login/',
@@ -246,6 +249,74 @@ const GYMS = {
       // JAB's window rolls continuously — each class opens at its own instant,
       // so there is no weekly moment to warn about. A "booking opens in an
       // hour" push here would be both untrue and unactionable.
+      bookingWindowReminder: false,
+    },
+  },
+
+  // Aarmy is a separate MarianaTek tenant. Its platform protocol remains in
+  // providers/marianatek.js; this entry owns only tenant wiring, presentation,
+  // and Aarmy-specific policy.
+  'aarmy': {
+    id: 'aarmy',
+    name: 'Aarmy',
+    shortName: 'Aarmy',
+    locationAliases: {
+      'noho': 'NoHo',
+    },
+    websiteUrl: 'https://www.aarmy.com/',
+    provider: 'marianatek',
+    timezone: 'America/New_York',
+    // Keep the tenant dark in production until live-account acceptance is
+    // recorded. It remains available in development so onboarding is testable.
+    enabled: process.env.AARMY_ENABLED === 'true'
+      || (process.env.NODE_ENV !== 'production' && process.env.AARMY_ENABLED !== 'false'),
+    tenant: 'aarmy',
+    mockEmail: 'dev@aarmy.mock',
+    apiBaseUrl: 'https://aarmy.marianatek.com/api/customer/v1',
+    oauthBaseUrl: 'https://aarmy.marianatek.com/o',
+    loginPageUrl: 'https://aarmy.marianatek.com/auth/login/',
+    clientId: 'sbLziNCoF5HcOhkSV6zRL8O7betwd3mDDIQbWZa3',
+    redirectUri: 'https://aarmy.marianaiframes.com/iframe/callback/',
+    scope: 'read:account',
+    headers: {
+      accept: 'application/json, text/plain, */*',
+      'accept-language': 'en',
+      origin: 'https://aarmy.marianaiframes.com',
+      referer: 'https://aarmy.marianaiframes.com/',
+      'user-agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/149.0.0.0 Safari/537.36',
+    },
+    theme: { key: 'mono', primary: '#000000' },
+    presentation: {
+      shortName: 'Aarmy',
+      wordmark: {
+        text: 'AARMY',
+        full: { src: '/gyms/aarmy-logo.png' },
+        compact: { src: '/gyms/aarmy-logo.png' },
+        mark: { src: '/gyms/aarmy-mark.png' },
+      },
+      plate: '#FFFFFF',
+      light: { ink: '#000000', inkHover: '#27272A', tint: '#000000', on: '#FFFFFF', btn: '#000000', wash: 'rgba(0,0,0,0.06)' },
+      dark: { ink: '#FFFFFF', inkHover: '#E4E4E7', tint: '#FFFFFF', on: '#000000', btn: '#FFFFFF', wash: 'rgba(255,255,255,0.10)' },
+      displayAliases: {},
+    },
+    labels: { class: 'class', spot: 'spot' },
+    // MarianaTek publishes the server-resolved release time per class. Aarmy
+    // falls back to the observed 14-day rolling window only when that field is
+    // absent, preserving any membership-specific release in normal operation.
+    bookingWindow: {
+      kind: 'per-class',
+      fallback: { kind: 'rolling-continuous', offsetDays: 14 },
+    },
+    capabilities: {
+      atomicSwap: true,
+      nativeWaitlist: true,
+      metered: false,
+      creditPurchase: false,
+      bookmarks: false,
+      bookingWindow: 'per-class',
+      maxSpotsPerClass: 1,
+    },
+    notifications: {
       bookingWindowReminder: false,
     },
   },

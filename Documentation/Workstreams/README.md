@@ -122,6 +122,10 @@ These were still listed as open in the old docs. The code shows them done.
 
 ## How to use this folder
 
+- Gym integration material: [onboarding playbook](gym-onboarding-playbook.md) and the
+  [Aarmy trial report](aarmy-integration-trial-report.md). The trial report is evidence for
+  Aarmy only; it does not authorise activation or deployment.
+
 - Change status **here only**: tick the item or add a dated note. Don't revive the archived files.
 - New work goes into the matching workstream. For a large design, write a spec file in this folder
   and link it from the item.

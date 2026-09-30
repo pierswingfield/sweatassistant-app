@@ -42,6 +42,15 @@ const check = (name, fn) => checks.push({ name, fn });
 // units, because it verifies STATE TRANSITIONS the way a real session would.
 const ctx = {};
 
+check('Aarmy: shared MarianaTek adapter resolves tenant config and mock login', async () => {
+  const mt = getProvider('aarmy');
+  const { session } = await mt.login({ email: 'dev@aarmy.mock', password: 'x' });
+  const events = await mt.fetchTimetable({}, session);
+  assert.ok(events.length > 0, 'Aarmy receives the shared mock timetable');
+  assert.ok(events.every((e) => e.gymId === 'aarmy'), 'Aarmy events are gym-qualified');
+  assert.ok(events.every((e) => !!e.releaseAt), 'per-class MarianaTek release times are preserved');
+});
+
 check('login: dev bypass returns a mock session + normalized profile', async () => {
   const mt = getProvider('jab-boxing');
   const { session, profile } = await mt.login({ email: 'dev@jabboxing.mock', password: 'x' });

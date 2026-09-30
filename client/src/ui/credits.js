@@ -3,6 +3,7 @@ import { noSept } from '../lib';
 import { getLinkedGyms } from '../gym-context.js';
 import { gymChip } from './cards.js';
 import { showToast, cache } from '../main';
+import { COPY, formatCopyText } from '../copy.js';
 
 // Use same localStorage key as Chrome Extension for cross-compatibility.
 // Default is [792] (CRM bundle) — same as extension default.
@@ -68,7 +69,7 @@ export async function initBundles() {
     } catch (_) { /* leave empty; the message below is then the truth */ }
   }
   if (linked.length === 0) {
-    summaryRoot.innerHTML = `<div class="psycle-card-desc" style="padding:20px 0;">Connect a gym to see your booking allowance.</div>`;
+    summaryRoot.innerHTML = `<div class="psycle-card-desc" style="padding:20px 0;">${COPY.credits.connectGym}</div>`;
     return;
   }
 
@@ -124,7 +125,7 @@ function summaryCardSkeleton(gym) {
       ${gymChip(gymId)}
     </div>
     <div class="psycle-benefit-headline">…</div>
-    <div class="psycle-card-desc">Checking your allowance…</div>
+    <div class="psycle-card-desc">${COPY.credits.checkingAllowance}</div>
   </article>`;
 }
 
@@ -161,36 +162,36 @@ function summaryCardHtml(gym, membership, credits) {
   const facts = [];
   if (metered) {
     headline = `${total}`;
-    sub = `credit${total === 1 ? '' : 's'} available`;
+    sub = total === 1 ? COPY.credits.creditAvailableOne : COPY.credits.creditAvailableMany;
     // Surface the soonest expiry: a balance about to lapse is the one fact a
     // total alone hides.
     const next = list
       .filter(c => c.expiresAt && (Number(c.count) || 0) > 0)
       .sort((a, b) => new Date(a.expiresAt) - new Date(b.expiresAt))[0];
-    if (next) facts.push(`Soonest expiry ${formatMembershipDate(next.expiresAt)}`);
-    if (total === 0) facts.push('You cannot book here until you top up.');
+    if (next) facts.push(COPY.credits.soonestExpiry.replace('{date}', formatMembershipDate(next.expiresAt)));
+    if (total === 0) facts.push(COPY.credits.topUpRequired);
   } else if (membership) {
-    headline = membership.isActive ? 'Member' : 'Inactive';
-    sub = membership.name || 'Membership';
+    headline = membership.isActive ? COPY.credits.member : COPY.credits.inactive;
+    sub = membership.name || COPY.credits.membership;
     const renews = formatMembershipDate(membership.renewsAt);
     const expires = formatMembershipDate(membership.expiresAt);
-    if (renews) facts.push(`Renews ${renews}`);
-    if (expires) facts.push(`Expires ${expires}`);
+    if (renews) facts.push(COPY.credits.renews.replace('{date}', renews));
+    if (expires) facts.push(COPY.credits.expires.replace('{date}', expires));
     if (membership.bookingWindowLabel) facts.push(membership.bookingWindowLabel);
     if (Number.isFinite(Number(membership.guestPassesRemaining))) {
-      facts.push(`${Number(membership.guestPassesRemaining)} guest pass${Number(membership.guestPassesRemaining) === 1 ? '' : 'es'} left`);
+      facts.push(formatCopyText(Number(membership.guestPassesRemaining) === 1 ? COPY.gymSettings.guestPassesOne : COPY.gymSettings.guestPassesMany, { count: Number(membership.guestPassesRemaining) }));
     }
   } else {
     headline = '—';
-    sub = 'No membership found';
-    facts.push('Bookings will be refused until this gym has an active membership.');
+    sub = COPY.credits.noMembership;
+    facts.push(COPY.credits.membershipRequired);
   }
 
   const websiteUrl = membership?.manageUrl || gym.websiteUrl;
   const action = canPurchase
-    ? `<button class="psycle-btn psycle-btn-mini primary" data-open-credit-gym="${escapeHtml(gymId)}">Buy credits →</button>`
+    ? `<button class="psycle-btn psycle-btn-mini primary" data-open-credit-gym="${escapeHtml(gymId)}">${COPY.credits.buyCredits}</button>`
     : websiteUrl
-      ? `<a class="psycle-btn psycle-btn-mini" href="${escapeHtml(websiteUrl)}" target="_blank" rel="noopener noreferrer">Manage at gym ↗</a>`
+      ? `<a class="psycle-btn psycle-btn-mini" href="${escapeHtml(websiteUrl)}" target="_blank" rel="noopener noreferrer">${COPY.credits.manageAtGym}</a>`
       : '';
 
   return `<article class="psycle-benefit-card${canPurchase ? ' is-actionable' : ''}" data-gym="${escapeHtml(gymId)}">
@@ -200,7 +201,7 @@ function summaryCardHtml(gym, membership, credits) {
             but never the wordmark, so the cards showed black text on the brand
             plate. Two places building the same chip will always drift. */ ''}
       ${gymChip(gymId)}
-      <span class="psycle-benefit-kind">${metered ? 'Credits' : 'Membership'}</span>
+      <span class="psycle-benefit-kind">${metered ? COPY.credits.creditsKind : COPY.credits.membershipKind}</span>
     </div>
     <div class="psycle-benefit-headline"><strong>${escapeHtml(headline)}</strong><span>${escapeHtml(sub)}</span></div>
     ${facts.length ? `<ul class="psycle-benefit-facts">${facts.map(f => `<li>${escapeHtml(f)}</li>`).join('')}</ul>` : ''}
@@ -236,7 +237,7 @@ async function openGymCreditDetail(gymId) {
   const gym = linked.find(g => (g.gym_id || g.id) === gymId);
   if (!gym) return;
 
-  creditGymName = gym.shortName || gym.name || 'your gym';
+  creditGymName = gym.shortName || gym.name || COPY.static.yourGymFallback;
   creditGymId = gymId;
   creditGymWebsiteUrl = gym.websiteUrl || null;
 
@@ -247,8 +248,8 @@ async function openGymCreditDetail(gymId) {
   const purchaseHeading = document.getElementById('psycle-credit-purchase-heading');
   if (purchaseHeading) {
     purchaseHeading.innerHTML = `<div class="psycle-benefit-section-heading" data-gym="${escapeHtml(gymId)}">
-      <div><span class="psycle-benefit-gym">${escapeHtml(gym.name || creditGymName)}</span><h4>Credit bundles</h4></div>
-      <span class="psycle-benefit-kind">Credits</span>
+      <div><span class="psycle-benefit-gym">${escapeHtml(gym.name || creditGymName)}</span><h4>${COPY.credits.creditBundles}</h4></div>
+      <span class="psycle-benefit-kind">${COPY.credits.creditsKind}</span>
     </div>`;
   }
 
@@ -259,8 +260,8 @@ async function openGymCreditDetail(gymId) {
       <div style="display:flex; gap:10px; align-items:flex-start; padding:12px 14px; background:color-mix(in srgb, var(--warning) 15%, transparent); border:1px solid var(--warning); border-radius:10px; margin:12px 0;">
         <div style="font-size:20px; flex-shrink:0; line-height:1;">⚠</div>
         <div style="flex:1; font-size:12px; line-height:1.5;">
-          <div style="font-weight:700; margin-bottom:4px;">EXPERIMENTAL</div>
-          <div>Purchasing bundles works but is not well-tested. This app sends the order directly to ${escapeHtml(creditGymName)} using your saved cards, so it never sees your payment data. It doesn't support 3-D Secure, so payments might fail.</div>
+          <div style="font-weight:700; margin-bottom:4px;">${COPY.credits.experimental}</div>
+          <div>${COPY.credits.experimentalPurchaseNotice.replace('{gymName}', escapeHtml(creditGymName))}</div>
         </div>
       </div>`;
     purchaseHeading.insertAdjacentElement('afterend', alertDiv);
@@ -270,7 +271,7 @@ async function openGymCreditDetail(gymId) {
   container.innerHTML = `
     <div class="psycle-loading-spinner-container">
       <div class="psycle-spinner"></div>
-      <span>Loading bundles...</span>
+      <span>${COPY.credits.loadingBundles}</span>
     </div>`;
 
   try {
@@ -285,7 +286,7 @@ async function openGymCreditDetail(gymId) {
     renderBundles();
   } catch (err) {
     console.error('Failed to load bundles:', err);
-    container.innerHTML = '<div class="psycle-empty-state" style="text-align:center;padding:40px 20px;color:var(--text-secondary)"><p style="font-size:16px;margin-bottom:8px">No cached data available</p><p style="font-size:13px;color:var(--text-tertiary)">Connect to the internet to load credit bundles.</p></div>';
+    container.innerHTML = `<div class="psycle-empty-state" style="text-align:center;padding:40px 20px;color:var(--text-secondary)"><p style="font-size:16px;margin-bottom:8px">${COPY.credits.noCachedBundles}</p><p style="font-size:13px;color:var(--text-tertiary)">${COPY.credits.loadBundlesHelp}</p></div>`;
   }
 }
 
@@ -325,23 +326,23 @@ function renderMembershipSections(linked, memberships) {
     const guestText = membership?.guestPassesRemaining != null
       ? `${membership.guestPassesRemaining}${membership.guestPassesTotal != null ? ` of ${membership.guestPassesTotal}` : ''} guest passes remaining`
       : null;
-    const facts = [renewal && `Renews ${renewal}`, expiry && `Expires ${expiry}`,
+    const facts = [renewal && COPY.credits.renews.replace('{date}', renewal), expiry && COPY.credits.expires.replace('{date}', expiry),
       membership?.bookingWindowLabel, guestText].filter(Boolean);
 
     return `<section class="psycle-membership-section" data-gym="${escapeHtml(gymId)}">
       <div class="psycle-benefit-section-heading">
-        <div><span class="psycle-benefit-gym">${escapeHtml(gym.name || gym.shortName || gymId)}</span><h4>Membership</h4></div>
+        <div><span class="psycle-benefit-gym">${escapeHtml(gym.name || gym.shortName || gymId)}</span><h4>${COPY.credits.membershipKind}</h4></div>
         <span class="psycle-membership-status ${membership?.isActive ? 'is-active' : 'is-inactive'}">
-          ${escapeHtml(membership?.isActive ? 'Member' : 'Not active')}
+          ${escapeHtml(membership?.isActive ? COPY.credits.member : COPY.credits.notActive)}
         </span>
       </div>
       <div class="psycle-membership-card">
         <div>
-          <div class="psycle-membership-name">${escapeHtml(membership?.name || 'No active membership found')}</div>
+          <div class="psycle-membership-name">${escapeHtml(membership?.name || COPY.credits.activeMembershipMissing)}</div>
           ${facts.length ? `<div class="psycle-membership-facts">${facts.map(escapeHtml).join(' · ')}</div>` : ''}
-          <div class="psycle-membership-note">Memberships are managed by ${escapeHtml(gym.shortName || gym.name || 'the gym')}.</div>
+          <div class="psycle-membership-note">${formatCopyText(COPY.credits.managedByGym, { gym: escapeHtml(gym.shortName || gym.name || COPY.static.yourGymFallback) })}</div>
         </div>
-        ${websiteUrl ? `<a class="psycle-btn-mini psycle-membership-manage" href="${escapeHtml(websiteUrl)}" target="_blank" rel="noopener noreferrer">Open website ↗</a>` : ''}
+        ${websiteUrl ? `<a class="psycle-btn-mini psycle-membership-manage" href="${escapeHtml(websiteUrl)}" target="_blank" rel="noopener noreferrer">${COPY.credits.openWebsite}</a>` : ''}
       </div>
     </section>`;
   }).join('');
@@ -391,7 +392,7 @@ function setupFilterListeners() {
       if (!container) return;
       const shown = container.style.display !== 'none';
       container.style.display = shown ? 'none' : 'flex';
-      els.toggleBtn.textContent = shown ? 'Categories' : 'Hide Categories';
+      els.toggleBtn.textContent = shown ? COPY.credits.categories : COPY.credits.hideCategories;
     });
   }
 
@@ -497,11 +498,8 @@ function renderNoPurchaseState() {
   container.innerHTML = `
     <div style="text-align:center;padding:32px 24px;color:var(--text-secondary);">
       <div style="font-size:32px;margin-bottom:12px;">\u{1F39F}\u{FE0F}</div>
-      <p style="margin:0;font-weight:600;color:var(--text);">No credit packs here</p>
-      <p style="font-size:13px;margin:8px 0 0;">
-        This gym runs on memberships rather than credits, so there is nothing to top up.
-        Classes are booked against your membership directly.
-      </p>
+      <p style="margin:0;font-weight:600;color:var(--text);">${COPY.credits.noCreditPacks}</p>
+      <p style="font-size:13px;margin:8px 0 0;">${COPY.credits.membershipTopUpDescription}</p>
     </div>
   `;
 }
@@ -537,7 +535,7 @@ export function renderBundles() {
   });
 
   if (filtered.length === 0) {
-    container.innerHTML = '<div class="fav-empty-state">No bundles match the current filters.</div>';
+    container.innerHTML = `<div class="fav-empty-state">${COPY.credits.noBundleMatches}</div>`;
     return;
   }
 
@@ -557,7 +555,7 @@ export function renderBundles() {
     // Show favorites grid + All Credits collapsible section
     const favHeader = document.createElement('div');
     favHeader.className = 'psycle-section-subheader';
-    favHeader.innerHTML = '<h4>Favourite Bundles</h4>';
+    favHeader.innerHTML = `<h4>${COPY.credits.favouriteBundles}</h4>`;
     container.appendChild(favHeader);
 
     const favGrid = document.createElement('div');
@@ -569,7 +567,7 @@ export function renderBundles() {
 
     const allHeader = document.createElement('div');
     allHeader.className = 'psycle-section-subheader';
-    allHeader.innerHTML = '<h4>All Credits <span class="all-credits-chevron" style="font-size:12px; margin-left:8px;">▶\uFE0E</span></h4>';
+    allHeader.innerHTML = `<h4>${COPY.credits.allCredits} <span class="all-credits-chevron" style="font-size:12px; margin-left:8px;">▶\uFE0E</span></h4>`;
     container.appendChild(allHeader);
 
     // Render Grid — collapsed by default
@@ -597,7 +595,7 @@ function createBundleCard(b, isFavSection) {
   const isFav = favorites.includes(b.id);
   const allStudios = isValidAllStudios(b);
   const allClasses = isValidAllClasses(b);
-  const costPerCredit = b.total_credits ? (b.price / b.total_credits / 100).toFixed(2) : 'N/A';
+  const costPerCredit = b.total_credits ? (b.price / b.total_credits / 100).toFixed(2) : COPY.credits.notAvailable;
   const formattedPrice = `£${(b.price / 100).toFixed(2)}`;
 
   const card = document.createElement('div');
@@ -606,25 +604,25 @@ function createBundleCard(b, isFavSection) {
     <div class="fav-card-header">
       <div>
         <div class="fav-card-title">${b.name}</div>
-        <div class="fav-card-handle" style="font-size: 12px; color: var(--text-tertiary); margin-top: 2px;">${b.handle} (ID: ${b.id})</div>
+        <div class="fav-card-handle" style="font-size: 12px; color: var(--text-tertiary); margin-top: 2px;">${b.handle} ${formatCopyText(COPY.credits.bundleId, { id: b.id })}</div>
       </div>
-      <button class="fav-card-star-btn ${isFav ? 'active' : ''}" title="${isFav ? 'Unpin' : 'Pin to favorites'}">
+      <button class="fav-card-star-btn ${isFav ? 'active' : ''}" title="${isFav ? COPY.credits.unpinBundle : COPY.credits.pinBundle}">
         ${isFav ? '★' : '☆'}
       </button>
     </div>
     <div class="fav-card-meta">
       <div class="fav-price">${formattedPrice}</div>
-      <div class="fav-cost">£${costPerCredit} / credit</div>
+      <div class="fav-cost">£${costPerCredit} ${COPY.credits.creditUnit}</div>
     </div>
     <div class="fav-card-pills">
-      <span class="badge-pill" style="text-transform:none;">${b.total_credits} Credits</span>
-      <span class="badge-pill ${allStudios ? 'valid' : 'invalid'}">${allStudios ? 'All Studios' : 'Select Studios'}</span>
-      <span class="badge-pill ${allClasses ? 'valid' : 'invalid'}">${allClasses ? 'All Workouts' : 'Excl. Lagree'}</span>
-      <span class="badge-pill ${b.is_first_purchase_only ? 'badge-restricted' : 'badge-available'}">${b.is_first_purchase_only ? '1st Only' : '✔ Rtn Customer'}</span>
-      <span class="badge-pill ${b.is_one_time_purchase_only ? 'badge-restricted' : 'badge-available'}">${b.is_one_time_purchase_only ? '1-Time' : '✔ Rpt Purchase'}</span>
+      <span class="badge-pill" style="text-transform:none;">${formatCopyText(COPY.credits.creditsCount, { count: b.total_credits })}</span>
+      <span class="badge-pill ${allStudios ? 'valid' : 'invalid'}">${allStudios ? COPY.credits.allStudios : COPY.credits.selectStudios}</span>
+      <span class="badge-pill ${allClasses ? 'valid' : 'invalid'}">${allClasses ? COPY.credits.allWorkouts : COPY.credits.excludesLagree}</span>
+      <span class="badge-pill ${b.is_first_purchase_only ? 'badge-restricted' : 'badge-available'}">${b.is_first_purchase_only ? COPY.credits.firstOnly : COPY.credits.returningCustomer}</span>
+      <span class="badge-pill ${b.is_one_time_purchase_only ? 'badge-restricted' : 'badge-available'}">${b.is_one_time_purchase_only ? COPY.credits.oneTime : COPY.credits.repeatPurchase}</span>
     </div>
     <button class="psycle-btn-primary fav-card-buy-btn" style="margin-top: 12px; padding: 8px;">
-      Buy ${formattedPrice}
+      ${formatCopyText(COPY.credits.buyFor, { price: formattedPrice })}
     </button>
   `;
 
@@ -655,8 +653,8 @@ function openPurchaseModal(b) {
     <div class="psycle-modal-overlay"></div>
     <div class="psycle-modal-card" style="width:420px; max-width:92vw;">
       <div class="psycle-modal-header" style="padding:14px 20px; display:flex; justify-content:space-between; align-items:center; border-bottom:1px solid var(--border-subtle);">
-        <h4 class="psycle-checkout-title" style="margin:0; font-size:15px; font-weight:700; color:var(--text-primary);">Cart</h4>
-        <button class="psycle-modal-close-btn" aria-label="Close">×</button>
+        <h4 class="psycle-checkout-title" style="margin:0; font-size:15px; font-weight:700; color:var(--text-primary);">${COPY.credits.cart}</h4>
+        <button class="psycle-modal-close-btn" aria-label="${COPY.credits.closeModal}">×</button>
       </div>
       <div class="psycle-purchase-body" style="padding:20px;"></div>
     </div>
@@ -684,20 +682,20 @@ function openPurchaseModal(b) {
       <div style="display:flex; justify-content:space-between; align-items:flex-start; margin-bottom:16px;">
         <div style="flex:1; min-width:0; padding-right:12px;">
           <div style="font-weight:700; color:var(--text-primary); white-space:nowrap; overflow:hidden; text-overflow:ellipsis;">${b.name}</div>
-          <div style="font-size:12px; color:var(--text-tertiary); margin-top:3px;">${b.total_credits} credit${b.total_credits !== 1 ? 's' : ''} · ${unitLabel} each</div>
+          <div style="font-size:12px; color:var(--text-tertiary); margin-top:3px;">${formatCopyText(COPY.credits.creditBreakdown, { count: b.total_credits, plural: b.total_credits !== 1 ? 's' : '', price: unitLabel })}</div>
         </div>
         <div style="display:flex; align-items:center; gap:8px; flex-shrink:0;">
           <button class="psycle-qty-btn psycle-qty-dec" style="width:28px; height:28px; border-radius:6px; border:1px solid var(--border-subtle); background:var(--surface-raised); color:var(--text-primary); font-size:16px; cursor:pointer; line-height:1;">−</button>
           <span class="psycle-qty-val" style="min-width:20px; text-align:center; font-weight:700; color:var(--text-primary);">${qty}</span>
           <button class="psycle-qty-btn psycle-qty-inc" style="width:28px; height:28px; border-radius:6px; border:1px solid var(--border-subtle); background:var(--surface-raised); color:var(--text-primary); font-size:16px; cursor:pointer; line-height:1;">+</button>
-          <button class="psycle-qty-remove" title="Remove" style="margin-left:4px; background:none; border:none; color:var(--text-tertiary); font-size:18px; cursor:pointer; padding:2px 4px;">✕</button>
+          <button class="psycle-qty-remove" title="${COPY.credits.remove}" style="margin-left:4px; background:none; border:none; color:var(--text-tertiary); font-size:18px; cursor:pointer; padding:2px 4px;">✕</button>
         </div>
       </div>
       <div style="border-top:1px solid var(--border-subtle); padding-top:12px; margin-bottom:16px; display:flex; justify-content:space-between; align-items:center;">
-        <span style="font-size:13px; color:var(--text-secondary);">Total (inc. VAT)</span>
+        <span style="font-size:13px; color:var(--text-secondary);">${COPY.credits.totalIncVat}</span>
         <span class="psycle-cart-total" style="font-weight:700; font-size:16px; color:var(--text-primary);">${total}</span>
       </div>
-      <button class="psycle-btn-primary psycle-checkout-btn" style="width:100%; padding:11px;">Continue to Payment →</button>
+      <button class="psycle-btn-primary psycle-checkout-btn" style="width:100%; padding:11px;">${COPY.credits.continueToPayment}</button>
     `;
 
     body.querySelector('.psycle-qty-dec').addEventListener('click', () => {
@@ -712,11 +710,11 @@ function openPurchaseModal(b) {
 
   // ── Step 2: Payment ───────────────────────────────────────────────────────
   async function proceedToPayment() {
-    titleEl.textContent = 'Payment';
+    titleEl.textContent = COPY.credits.payment;
     body.innerHTML = `
       <div class="psycle-loading-spinner-container">
         <div class="psycle-spinner"></div>
-        <span>Loading saved cards…</span>
+        <span>${COPY.credits.loadingSavedCards}</span>
       </div>
     `;
 
@@ -726,12 +724,12 @@ function openPurchaseModal(b) {
       instance = init.instance;
       methods = init.methods || [];
     } catch (err) {
-      renderPurchaseError(body, b, `Couldn't load payment options: ${err.message}`);
+      renderPurchaseError(body, b, formatCopyText(COPY.credits.paymentOptionsFailed, { error: err.message }));
       return;
     }
 
     if (methods.length === 0) {
-      renderPurchaseError(body, b, `No saved card found on your ${creditGymName} account.`, `Add a card on the ${creditGymName} website, then try again.`);
+      renderPurchaseError(body, b, formatCopyText(COPY.credits.noSavedCard, { gym: creditGymName }), formatCopyText(COPY.credits.addCardHint, { gym: creditGymName }));
       return;
     }
 
@@ -749,13 +747,13 @@ function openPurchaseModal(b) {
     `).join('');
 
     body.innerHTML = `
-      <div style="font-size:12px; color:var(--text-tertiary); margin-bottom:8px;">Pay with</div>
+      <div style="font-size:12px; color:var(--text-tertiary); margin-bottom:8px;">${COPY.credits.payWith}</div>
       ${cardOptions}
       <div style="border-top:1px solid var(--border-subtle); margin:12px 0; padding-top:12px; display:flex; justify-content:space-between;">
         <span style="font-size:13px; color:var(--text-secondary);">${qty > 1 ? `${qty}× ${b.name}` : b.name}</span>
         <span style="font-weight:700; color:var(--text-primary);">${totalLabel}</span>
       </div>
-      <button class="psycle-btn-primary psycle-pay-btn" style="width:100%; padding:11px;">Pay ${totalLabel}</button>
+      <button class="psycle-btn-primary psycle-pay-btn" style="width:100%; padding:11px;">${formatCopyText(COPY.credits.payTotal, { total: totalLabel })}</button>
     `;
 
     body.querySelector('.psycle-pay-btn').addEventListener('click', async () => {
@@ -765,7 +763,7 @@ function openPurchaseModal(b) {
       body.innerHTML = `
         <div class="psycle-loading-spinner-container">
           <div class="psycle-spinner"></div>
-          <span>Processing payment…</span>
+          <span>${COPY.credits.processingPayment}</span>
         </div>
       `;
 
@@ -775,20 +773,20 @@ function openPurchaseModal(b) {
           body.innerHTML = `
             <div style="text-align:center; padding:16px 0;">
               <div style="font-size:40px; margin-bottom:8px;">✅</div>
-              <div style="font-weight:700; color:var(--text-primary);">Payment complete</div>
-              <div style="font-size:13px; color:var(--text-secondary); margin-top:4px;">${b.total_credits * qty} credits added to your account.</div>
-              <button class="psycle-btn-primary psycle-done-btn" style="margin-top:16px; padding:10px 24px;">Done</button>
+              <div style="font-weight:700; color:var(--text-primary);">${COPY.credits.paymentComplete}</div>
+              <div style="font-size:13px; color:var(--text-secondary); margin-top:4px;">${formatCopyText(COPY.credits.creditsAdded, { count: b.total_credits * qty })}</div>
+              <button class="psycle-btn-primary psycle-done-btn" style="margin-top:16px; padding:10px 24px;">${COPY.credits.done}</button>
             </div>
           `;
           body.querySelector('.psycle-done-btn').addEventListener('click', closeModal);
-          showToast('Credits purchased!', 'success');
+          showToast(COPY.credits.creditsPurchased, 'success');
         } else if (result.status === 'requires_action') {
           renderPurchaseError(body, b,
-            "This card needs 3-D Secure authentication, which isn't supported in-app yet.",
+            COPY.credits.unsupportedSecureCard,
             null, true
           );
         } else {
-          renderPurchaseError(body, b, result.error || 'The payment was declined.');
+          renderPurchaseError(body, b, result.error || COPY.credits.declined);
         }
       } catch (err) {
         renderPurchaseError(body, b, err.message);
@@ -804,20 +802,20 @@ function openPurchaseModal(b) {
 function renderPurchaseError(body, b, message, hint, secureTips) {
   const tips = secureTips ? `
     <div style="text-align:left; background:var(--surface-raised); border:1px solid var(--border-subtle); border-radius:10px; padding:12px; margin-top:14px; font-size:12px; color:var(--text-secondary); line-height:1.6;">
-      <div style="font-weight:700; color:var(--text-primary); margin-bottom:6px;">Tips to avoid 3-D Secure</div>
-      • Use a card your bank already trusts for ${creditGymName}.<br>
-      • Complete one purchase on the ${creditGymName} website first — banks usually stop challenging after that.<br>
-      • Amex cards are challenged less often than Visa/Mastercard.
+      <div style="font-weight:700; color:var(--text-primary); margin-bottom:6px;">${COPY.credits.avoidsThreeDSecure}</div>
+      • ${COPY.credits.cardTrustedTip.replace('{gymName}', escapeHtml(creditGymName))}<br>
+      • ${COPY.credits.websitePurchaseTip.replace('{gymName}', escapeHtml(creditGymName))}<br>
+      • ${COPY.credits.amexTip}
     </div>
   ` : (hint ? `<div style="font-size:12px; color:var(--text-tertiary); margin-top:8px;">${hint}</div>` : '');
 
   body.innerHTML = `
     <div style="text-align:center; padding:8px 0;">
       <div style="font-size:36px; margin-bottom:8px;">⚠️</div>
-      <div style="font-weight:700; color:var(--text-primary);">Payment not completed</div>
+      <div style="font-weight:700; color:var(--text-primary);">${COPY.credits.paymentNotCompleted}</div>
       <div style="font-size:13px; color:var(--text-secondary); margin-top:4px;">${message}</div>
       ${tips}
-      <button class="psycle-btn-primary psycle-website-btn" style="margin-top:16px; padding:10px 20px;">Finish on Website</button>
+      <button class="psycle-btn-primary psycle-website-btn" style="margin-top:16px; padding:10px 20px;">${COPY.credits.finishOnWebsite}</button>
     </div>
   `;
   body.querySelector('.psycle-website-btn').addEventListener('click', () => {
@@ -832,10 +830,10 @@ function toggleFavorite(id) {
   const index = favorites.indexOf(id);
   if (index === -1) {
     favorites.push(id);
-    showToast('Bundle pinned to favourites.', 'success');
+    showToast(COPY.credits.bundlePinned, 'success');
   } else {
     favorites.splice(index, 1);
-    showToast('Bundle unpinned.', 'info');
+    showToast(COPY.credits.bundleUnpinned, 'info');
   }
   localStorage.setItem('psycle-helper-favorites', JSON.stringify(favorites));
   renderBundles();

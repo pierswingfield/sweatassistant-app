@@ -5,6 +5,7 @@
 import { cleanClassNameWith } from '../class-name.js';
 import { spriteRefFor } from '../gym-logo-sprite.js';
 import { getGymPresentation, getGymShortName, getDisplayAlias } from '../gym-context.js';
+import { COPY } from '../copy.js';
 
 // ── Inline SVG icon set (themeable via currentColor) ─────────────────
 export const SVG_PATHS = {
@@ -78,13 +79,13 @@ export function getDiscipline(name = '') {
   const raw = String(name || '').trim();
   const s = raw.toLowerCase();
   const D = (key, label) => ({ key, label, icon: SVG_PATHS[key] ? key : 'other' });
-  if (/ride|cycle|spin/.test(s)) return D('ride', 'Ride');
-  if (/barre/.test(s)) return D('barre', 'Barre');
-  if (/reformer|pilates|lagree/.test(s)) return D('reformer', 'Reformer');
-  if (/recovery|sauna|bath|cold|ice|cryo/.test(s)) return D('recovery', 'Recovery');
-  if (/infrared|hot|sweat/.test(s)) return D('infrared', 'Infrared');
-  if (/yoga|flow|mind|meditat/.test(s)) return D('yoga', 'Yoga');
-  if (/box|punch|bag|spar/.test(s)) return D('boxing', 'Boxing');
+  if (/ride|cycle|spin/.test(s)) return D('ride', COPY.disciplines.ride);
+  if (/barre/.test(s)) return D('barre', COPY.disciplines.barre);
+  if (/reformer|pilates|lagree/.test(s)) return D('reformer', COPY.disciplines.reformer);
+  if (/recovery|sauna|bath|cold|ice|cryo/.test(s)) return D('recovery', COPY.disciplines.recovery);
+  if (/infrared|hot|sweat/.test(s)) return D('infrared', COPY.disciplines.infrared);
+  if (/yoga|flow|mind|meditat/.test(s)) return D('yoga', COPY.disciplines.yoga);
+  if (/box|punch|bag|spar/.test(s)) return D('boxing', COPY.disciplines.boxing);
   // "Train" is JAB's own first-class discipline (its `discipline` field is
   // literally "TRAIN"), not a synonym for Psycle's "Conditioning" keyword
   // bucket below — regression found 2026-09-02: mapping it into that bucket
@@ -94,19 +95,19 @@ export function getDiscipline(name = '') {
   // event ("THURSDAY THROWDOWN") — its class_type.name carries no discipline
   // word at all, so without this it fell to its own one-off bucket instead of
   // grouping with the room it's actually held in.
-  if (/\btrain|throwdown/.test(s)) return { key: 'conditioning', label: 'Train', icon: 'conditioning' };
-  if (/condition|circuit|metcon|cardio/.test(s)) return D('conditioning', 'Conditioning');
-  if (/strength|tone|sculpt|hiit|abs|arms|signature|\blift\b/.test(s)) return D('strength', 'Strength');
+  if (/\btrain|throwdown/.test(s)) return { key: 'conditioning', label: COPY.disciplines.train, icon: 'conditioning' };
+  if (/condition|circuit|metcon|cardio/.test(s)) return D('conditioning', COPY.disciplines.conditioning);
+  if (/strength|tone|sculpt|hiit|abs|arms|signature|\blift\b/.test(s)) return D('strength', COPY.disciplines.strength);
   // Checked after the discipline-specific buckets above, not before: a class
   // type that already names a real discipline (e.g. a future "Boxing PT")
   // should keep that label, and these two only catch what's left —
   // JAB's "Small Group PT" (a format, not a discipline) and "Workshop"
   // one-offs, both real `class_type.name` values with no discipline word in
   // them at all (confirmed 2026-09-15 against 855 live JAB classes).
-  if (/\bworkshop\b/.test(s)) return D('workshop', 'Workshop');
-  if (/\bpt\b|personal training/.test(s)) return D('pt', 'PT');
+  if (/\bworkshop\b/.test(s)) return D('workshop', COPY.disciplines.workshop);
+  if (/\bpt\b|personal training/.test(s)) return D('pt', COPY.disciplines.personalTraining);
   // Unrecognised: keep the gym's own wording rather than inventing a label.
-  const label = raw ? raw.replace(/\b\w/g, c => c.toUpperCase()) : 'Class';
+  const label = raw ? raw.replace(/\b\w/g, c => c.toUpperCase()) : COPY.common.classFallback;
   return { key: 'other', label, icon: 'other' };
 }
 
@@ -266,7 +267,7 @@ export function gymBrand(gymId) {
   if (!p) {
     // Neutral fallback: unknown gym, or the catalogue has not loaded yet. A text
     // wordmark on a neutral plate, never another gym's assets.
-    const label = getGymShortName(rawId) || rawId || 'Gym';
+    const label = getGymShortName(rawId) || rawId || COPY.gymSettings.genericGym;
     return {
       id: 'neutral',
       name: label,
@@ -444,11 +445,11 @@ export function wireRailToggle(container) {
     btn.type = 'button';
     btn.className = 'ab-rail-toggle';
     btn.setAttribute('aria-controls', rail.id);
-    btn.innerHTML = '<svg class="ab-ico ab-rail-chevron" width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="10 3 5 8 10 13"/></svg><span>Edit</span>';
+    btn.innerHTML = `<svg class="ab-ico ab-rail-chevron" width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="10 3 5 8 10 13"/></svg><span>${COPY.accessibility.editCard}</span>`;
     const apply = (open) => {
       card.classList.toggle('is-rail-open', open);
       btn.setAttribute('aria-expanded', String(open));
-      btn.setAttribute('aria-label', open ? 'Hide actions' : 'Show actions (edit or cancel)');
+      btn.setAttribute('aria-label', open ? COPY.accessibility.hideCardActions : COPY.accessibility.showCardActions);
       if (open) rail.removeAttribute('inert'); else rail.setAttribute('inert', '');
     };
     btn.addEventListener('click', () => {

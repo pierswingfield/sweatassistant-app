@@ -13,6 +13,7 @@
 
 import { cache } from '../main';
 import { canForGym, getLinkedGyms } from '../gym-context.js';
+import { COPY } from '../copy.js';
 
 // Whether a gym charges per class from a credit balance. ALWAYS pass the gym
 // when you have one — in a merged list you always do. Without it this answers
@@ -125,7 +126,7 @@ export function hasConfirmedAccess(gymId) {
 export function getIneligibleReason(gymId) {
   const e = eligibilityFor(gymId);
   if (e && e.canBook === false) {
-    return e.reason || 'Not eligible to book at this gym';
+    return e.reason || COPY.common.ineligibleAtGym;
   }
   return null;
 }

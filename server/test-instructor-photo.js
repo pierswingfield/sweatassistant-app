@@ -63,6 +63,18 @@ check('non-image upstream responses are rejected and do not leave a cache file',
   assert.ok(!fs.existsSync(path.join(cacheDir, `${version}-full.webp`)));
 });
 
+check('transient upstream failure is reported as transient (not null) and not negatively cached', async () => {
+  const png = await sharp({ create: { width: 50, height: 50, channels: 3, background: '#111' } }).png().toBuffer();
+  const sourceUrl = 'https://images.example.test/flaky.png';
+  const version = versionFor(sourceUrl);
+  let n = 0;
+  const base = { provider: { findInstructorPhoto: async () => ({ imageUrl: sourceUrl }) }, instructorId: 'flaky', variant: 'full', version, cacheDir };
+  const r1 = await getPhoto({ ...base, fetchImpl: async () => new Response('x', { status: 503 }) });
+  assert.strictEqual(r1 && r1.transient, true);
+  const r2 = await getPhoto({ ...base, fetchImpl: async () => { n++; return imageResponse(png); } });
+  assert.ok(r2 && r2.body && n === 1);
+});
+
 check('normalized metadata and events expose versioned same-origin URLs for both variants', () => {
   const sourceUrl = 'https://images.example.test/coach.png';
   const meta = makeMetadata({ gymId: 'gym-a', instructors: [{ id: '7', name: 'Coach', imageUrl: sourceUrl }] });

@@ -14,6 +14,7 @@ import { noSept } from '../lib';
 import { api } from '../api';
 import { showToast } from '../main';
 import { escapeHtml, icon } from './cards';
+import { COPY, formatCopyText } from '../copy.js';
 
 // Simplified inline marks (no hotlinking). They approximate the Apple and Google
 // Calendar app icons; they are not pixel-faithful reproductions.
@@ -22,11 +23,11 @@ const GOOGLE_CAL_LOGO = `<svg class="psycle-cal-logo" viewBox="0 0 32 32" aria-h
 
 function gymCoverageLine(status) {
   const gyms = status.gyms || [];
-  if (gyms.length === 0) return 'Connect a gym to start filling your calendar.';
-  if (gyms.length === 1) return `Includes your ${gyms[0].name} classes.`;
+  if (gyms.length === 0) return COPY.calendar.connectGym;
+  if (gyms.length === 1) return COPY.calendar.onboardingIncludesGym.replace('{gymName}', gyms[0].name);
   const names = gyms.map((g) => g.name);
   const last = names.pop();
-  return `Includes classes from ${names.join(', ')} and ${last} in one feed.`;
+  return COPY.calendar.onboardingIncludesGyms.replace('{names}', names.join(', ')).replace('{last}', last);
 }
 
 function checkRow({ key, title, help, checked, disabled = false }) {
@@ -42,21 +43,21 @@ function checkRow({ key, title, help, checked, disabled = false }) {
 function feedCardHtml(status) {
   const enabled = !!status.enabled;
   const generated = status.generatedAt
-    ? `Last updated ${noSept(new Date(status.generatedAt).toLocaleString('en-GB', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' }))}`
-    : 'Not published yet.';
+    ? COPY.calendar.lastUpdated.replace('{date}', noSept(new Date(status.generatedAt).toLocaleString('en-GB', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' })))
+    : COPY.calendar.notPublished;
   return `
     <div class="psycle-settings-card">
-      <h4>Calendar feed</h4>
+      <h4>${COPY.calendar.feedTitle}</h4>
       <div class="psycle-setting-row">
         <div class="psycle-setting-label">
-          <span>${enabled ? 'Feed is on' : 'Feed is off'}</span>
-          <small>${enabled ? escapeHtml(`${gymCoverageLine(status)} ${generated}`) : 'Turn on to get a personal calendar link.'}</small>
+          <span>${enabled ? COPY.calendar.feedOn : COPY.calendar.feedOff}</span>
+          <small>${enabled ? escapeHtml(`${gymCoverageLine(status)} ${generated}`) : COPY.calendar.feedOffDescription}</small>
         </div>
       </div>
       <div class="psycle-cal-feed-actions">
-        ${enabled ? `<button class="psycle-btn psycle-cal-feed-btn" data-calendar-action="refresh">${icon('refresh', 16)}<span>Refresh now</span></button>
-        <button class="psycle-btn psycle-cal-feed-btn variant-danger" data-calendar-action="disable">${icon('power', 16)}<span>Turn off calendar feed</span></button>`
-        : `<button class="psycle-btn psycle-cal-feed-btn" data-calendar-action="enable">${icon('power', 16)}<span>Turn on calendar feed</span></button>`}
+        ${enabled ? `<button class="psycle-btn psycle-cal-feed-btn" data-calendar-action="refresh">${icon('refresh', 16)}<span>${COPY.calendar.refreshNow}</span></button>
+        <button class="psycle-btn psycle-cal-feed-btn variant-danger" data-calendar-action="disable">${icon('power', 16)}<span>${COPY.calendar.turnOffFeed}</span></button>`
+        : `<button class="psycle-btn psycle-cal-feed-btn" data-calendar-action="enable">${icon('power', 16)}<span>${COPY.calendar.turnOnFeed}</span></button>`}
       </div>
     </div>`;
 }
@@ -66,12 +67,12 @@ function includeCardHtml(status) {
   const names = weekly.map((g) => g.name).join(' and ');
   return `
     <div class="psycle-settings-card">
-      <h4>Include</h4>
-      <p class="psycle-card-desc">Choose what appears in your calendar.</p>
-      ${checkRow({ title: 'Booked classes', help: 'Always included.', checked: true, disabled: true })}
-      ${checkRow({ key: 'includeWaitlists', title: 'Waitlists', help: 'Classes you are waitlisted for, shown as tentative.', checked: status.includeWaitlists })}
-      ${checkRow({ key: 'includeAutoBook', title: 'Auto-Book', help: 'Scheduled Auto-Book classes, shown as tentative.', checked: status.includeAutoBook })}
-      ${weekly.length ? checkRow({ key: 'remindBookingWindow', title: 'Remind me when weekly booking opens', help: `Adds an event when booking opens at ${names}, with a 15-minute alert.`, checked: status.remindBookingWindow }) : ''}
+      <h4>${COPY.calendar.includeTitle}</h4>
+      <p class="psycle-card-desc">${COPY.calendar.includeDescription}</p>
+      ${checkRow({ title: COPY.calendar.bookedClasses, help: COPY.calendar.alwaysIncluded, checked: true, disabled: true })}
+      ${checkRow({ key: 'includeWaitlists', title: COPY.calendar.waitlists, help: COPY.calendar.tentativeWaitlists, checked: status.includeWaitlists })}
+      ${checkRow({ key: 'includeAutoBook', title: COPY.calendar.autoBook, help: COPY.calendar.tentativeAutoBook, checked: status.includeAutoBook })}
+      ${weekly.length ? checkRow({ key: 'remindBookingWindow', title: COPY.calendar.weeklyReminder, help: formatCopyText(COPY.calendar.weeklyReminderHelp, { gyms: names }), checked: status.remindBookingWindow }) : ''}
     </div>`;
 }
 
@@ -79,22 +80,22 @@ function remindersCardHtml(status) {
   const r = status.reminders || {};
   return `
     <div class="psycle-settings-card">
-      <h4>Reminders</h4>
-      <p class="psycle-card-desc">Event reminders from your calendar app. Applied to booked classes only.</p>
-      ${checkRow({ key: 'reminders.twoHour', title: '2 hours before class', help: 'A reminder shortly before you need to leave.', checked: r.twoHour })}
-      ${checkRow({ key: 'reminders.cancelWindow', title: 'Before free cancellation ends', help: '12 hours before class, when free cancellation closes.', checked: r.cancelWindow })}
+      <h4>${COPY.calendar.reminders}</h4>
+      <p class="psycle-card-desc">${COPY.calendar.reminderDescription}</p>
+      ${checkRow({ key: 'reminders.twoHour', title: COPY.calendar.twoHoursBefore, help: COPY.calendar.leaveReminder, checked: r.twoHour })}
+      ${checkRow({ key: 'reminders.cancelWindow', title: COPY.calendar.beforeCancellationEnds, help: COPY.calendar.cancellationReminder, checked: r.cancelWindow })}
     </div>`;
 }
 
 function addCardHtml(status) {
   return `
     <div class="psycle-settings-card">
-      <h4>Add to calendar</h4>
-      <p class="psycle-card-desc">Your feed updates itself: bookings, upgrades and cancellations follow automatically.</p>
+      <h4>${COPY.calendar.addToCalendar}</h4>
+      <p class="psycle-card-desc">${COPY.calendar.feedUpdatesDescription}</p>
       <div class="psycle-cal-add-list">
-        <button class="psycle-btn psycle-cal-add-btn" data-calendar-action="apple">${APPLE_CAL_LOGO}<span>Apple Calendar</span></button>
-        <button class="psycle-btn psycle-cal-add-btn" data-calendar-action="google">${GOOGLE_CAL_LOGO}<span>Google Calendar</span></button>
-        <button class="psycle-btn psycle-cal-add-btn" data-calendar-action="copy"><span class="psycle-cal-logo psycle-cal-logo-generic">${icon('link', 18)}</span><span>Copy link</span></button>
+        <button class="psycle-btn psycle-cal-add-btn" data-calendar-action="apple">${APPLE_CAL_LOGO}<span>${COPY.calendar.appleCalendar}</span></button>
+        <button class="psycle-btn psycle-cal-add-btn" data-calendar-action="google">${GOOGLE_CAL_LOGO}<span>${COPY.calendar.googleCalendar}</span></button>
+        <button class="psycle-btn psycle-cal-add-btn" data-calendar-action="copy"><span class="psycle-cal-logo psycle-cal-logo-generic">${icon('link', 18)}</span><span>${COPY.calendar.copyLink}</span></button>
       </div>
     </div>`;
 }
@@ -107,7 +108,7 @@ export async function renderCalendarSection(targetContainer = null) {
   try {
     status = await api.getCalendarStatus();
   } catch (err) {
-    const msg = `<div class="psycle-settings-card"><p class="psycle-card-error">Couldn't load calendar settings (${escapeHtml(err.message)})</p></div>`;
+    const msg = `<div class="psycle-settings-card"><p class="psycle-card-error">${formatCopyText(COPY.calendar.loadingFailed, { error: escapeHtml(err.message) })}</p></div>`;
     container.innerHTML = msg;
     return;
   }
@@ -127,6 +128,7 @@ export async function renderCalendarSection(targetContainer = null) {
   container.innerHTML = feedCardHtml(status) + (status.enabled ? includeCardHtml(status) + remindersCardHtml(status) + addCardHtml(status) : '');
 
   const val = (key) => container.querySelector(`[data-calendar-setting="${key}"]`);
+  const notifyActionComplete = () => container.dispatchEvent(new CustomEvent('psycle:calendar-action-complete'));
   const prefs = () => {
     // Feed off: the option controls are not on screen, so send nothing and keep saved prefs.
     if (!val('includeWaitlists')) return {};
@@ -148,9 +150,12 @@ export async function renderCalendarSection(targetContainer = null) {
     input.addEventListener('change', async () => {
       try {
         await api.enableCalendar(prefs());
-        showToast('Calendar feed updated.', 'success');
+        await rerender();
+        showToast(COPY.calendar.updated, 'success');
       } catch (err) {
         showToast(err.message, 'error');
+      } finally {
+        notifyActionComplete();
       }
     });
   });
@@ -166,9 +171,9 @@ export async function renderCalendarSection(targetContainer = null) {
       if (action === 'copy') {
         try {
           await navigator.clipboard.writeText(links.https || '');
-          showToast('Calendar link copied.', 'success');
+          showToast(COPY.calendar.linkCopied, 'success');
         } catch (_) {
-          showToast('Could not copy the link — long-press it to copy manually.', 'error');
+          showToast(COPY.calendar.copyFailed, 'error');
         }
         return;
       }
@@ -179,16 +184,17 @@ export async function renderCalendarSection(targetContainer = null) {
         if (action === 'disable') await api.disableCalendar();
         if (action === 'refresh') await api.refreshCalendar();
         showToast(
-          action === 'disable' ? 'Calendar feed turned off.'
-            : action === 'enable' ? 'Calendar feed turned on.'
-            : 'Calendar feed refreshing.',
+          action === 'disable' ? COPY.calendar.turnedOff
+            : action === 'enable' ? COPY.calendar.turnedOn
+            : COPY.calendar.refreshing,
           'success'
         );
-        if (action !== 'refresh') rerender();
       } catch (err) {
         showToast(err.message, 'error');
       } finally {
         button.disabled = false;
+        await rerender();
+        notifyActionComplete();
       }
     });
   });

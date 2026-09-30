@@ -1,4 +1,5 @@
 import { noSept } from '../lib';
+import { COPY, formatCopyText } from '../copy.js';
 // Reusable per-gym Settings section (Settings restructure Phase 2).
 //
 // This module owns markup and DOM binding only. The settings coordinator supplies
@@ -43,21 +44,21 @@ function membershipHtml(gym, membership, credits) {
     const dates = [];
     const renews = formatDate(membership.renewsAt);
     const expires = formatDate(membership.expiresAt);
-    if (renews) dates.push(`Renews ${renews}`);
-    if (expires) dates.push(`Expires ${expires}`);
+    if (renews) dates.push(formatCopyText(COPY.credits.renews, { date: renews }));
+    if (expires) dates.push(formatCopyText(COPY.credits.expires, { date: expires }));
     if (membership.bookingWindowLabel) dates.push(escapeHtml(membership.bookingWindowLabel));
     const passes = Number.isFinite(Number(membership.guestPassesRemaining))
-      ? `${Number(membership.guestPassesRemaining)} guest pass${Number(membership.guestPassesRemaining) === 1 ? '' : 'es'} left`
+      ? formatCopyText(Number(membership.guestPassesRemaining) === 1 ? COPY.gymSettings.guestPassesOne : COPY.gymSettings.guestPassesMany, { count: Number(membership.guestPassesRemaining) })
       : null;
     if (passes) dates.push(passes);
     const manageUrl = membership.manageUrl || gym.websiteUrl;
     return `
       <div class="psycle-gym-setting-summary">
         <div>
-          <strong>${escapeHtml(membership.name || 'Gym membership')}</strong>
-          <div class="psycle-card-desc">${escapeHtml(membership.status || (membership.isActive ? 'Active' : 'Not active'))}${dates.length ? ` · ${dates.join(' · ')}` : ''}</div>
+          <strong>${escapeHtml(membership.name || COPY.gymSettings.membershipName)}</strong>
+          <div class="psycle-card-desc">${escapeHtml(membership.status || (membership.isActive ? COPY.gymSettings.membershipActive : COPY.credits.notActive))}${dates.length ? ` · ${dates.join(' · ')}` : ''}</div>
         </div>
-        ${manageUrl ? `<a class="psycle-btn psycle-btn-mini" href="${escapeHtml(manageUrl)}" target="_blank" rel="noopener noreferrer">Open gym site ↗</a>` : ''}
+        ${manageUrl ? `<a class="psycle-btn psycle-btn-mini" href="${escapeHtml(manageUrl)}" target="_blank" rel="noopener noreferrer">${COPY.gymSettings.openGymSite} ↗</a>` : ''}
       </div>`;
   }
 
@@ -65,34 +66,34 @@ function membershipHtml(gym, membership, credits) {
     const total = creditTotal(credits);
     return `
       <div class="psycle-gym-setting-summary">
-        <div><strong>${total} credit${total === 1 ? '' : 's'} available</strong><div class="psycle-card-desc">Across your active credit bundles.</div></div>
-        ${gym?.capabilities?.creditPurchase !== false ? '<button class="psycle-btn psycle-btn-mini" data-gym-action="buy-credits">Buy credits →</button>' : ''}
+        <div><strong>${total} ${total === 1 ? COPY.credits.creditAvailableOne : COPY.credits.creditAvailableMany}</strong><div class="psycle-card-desc">${COPY.gymSettings.activeCreditBundles}</div></div>
+        ${gym?.capabilities?.creditPurchase !== false ? `<button class="psycle-btn psycle-btn-mini" data-gym-action="buy-credits">${COPY.credits.buyCredits}</button>` : ''}
       </div>`;
   }
 
-  return '<p class="psycle-card-desc">Membership details are managed by the gym and are not available yet.</p>';
+  return `<p class="psycle-card-desc">${COPY.gymSettings.membershipManagedByGym}</p>`;
 }
 
 function autoUpgradeHtml(settings) {
   return `
     <div class="psycle-setting-row">
-      <div class="psycle-setting-label"><span>Enable Auto-Upgrade Polling</span><small>Toggle background checks for improved spots at this gym.</small></div>
+      <div class="psycle-setting-label"><span>${COPY.gymSettings.enablePolling}</span><small>${COPY.gymSettings.pollingHelp}</small></div>
       <label class="psycle-switch"><input type="checkbox" data-gym-setting="autoUpgradeEnabled" ${settings.autoUpgradeEnabled !== false ? 'checked' : ''}><span class="psycle-slider"></span></label>
     </div>
     <div class="psycle-setting-row">
-      <div class="psycle-setting-label"><span>Auto-upgrade spots by default</span><small>Start monitoring after each new booking at this gym.</small></div>
+      <div class="psycle-setting-label"><span>${COPY.gymSettings.autoUpgradeByDefault}</span><small>${COPY.gymSettings.autoUpgradeByDefaultHelp}</small></div>
       <label class="psycle-switch"><input type="checkbox" data-gym-setting="autoUpgradeByDefault" ${settings.autoUpgradeByDefault ? 'checked' : ''}><span class="psycle-slider"></span></label>
     </div>
     <div class="psycle-setting-row">
-      <div class="psycle-setting-label"><span>Continue past 12h cutoff by default</span><small>Keep monitoring without cancelling the original spot.</small></div>
+      <div class="psycle-setting-label"><span>${COPY.gymSettings.continueCutoffByDefault}</span><small>${COPY.gymSettings.continueCutoffHelp}</small></div>
       <label class="psycle-switch"><input type="checkbox" data-gym-setting="autoUpgradeKeepOriginalByDefault" ${settings.autoUpgradeKeepOriginalByDefault ? 'checked' : ''}><span class="psycle-slider"></span></label>
     </div>
     <div class="psycle-setting-row">
-      <div class="psycle-setting-label"><span>Polling check interval</span><small>One-minute checks are faster but use more API calls.</small></div>
+      <div class="psycle-setting-label"><span>${COPY.gymSettings.pollingInterval}</span><small>${COPY.gymSettings.pollingIntervalHelp}</small></div>
       <select class="psycle-select" data-gym-setting="autoUpgradeInterval">
-        <option value="1min" ${settings.autoUpgradeInterval === '1min' ? 'selected' : ''}>1 minute</option>
-        <option value="15min" ${!settings.autoUpgradeInterval || settings.autoUpgradeInterval === '15min' ? 'selected' : ''}>15 minutes</option>
-        <option value="1hr" ${settings.autoUpgradeInterval === '1hr' ? 'selected' : ''}>1 hour</option>
+        <option value="1min" ${settings.autoUpgradeInterval === '1min' ? 'selected' : ''}>${COPY.gymSettings.pollingOneMinute}</option>
+        <option value="15min" ${!settings.autoUpgradeInterval || settings.autoUpgradeInterval === '15min' ? 'selected' : ''}>${COPY.gymSettings.pollingFifteenMinutes}</option>
+        <option value="1hr" ${settings.autoUpgradeInterval === '1hr' ? 'selected' : ''}>${COPY.gymSettings.pollingOneHour}</option>
       </select>
     </div>`;
 }
@@ -109,15 +110,15 @@ function autoUpgradeHtml(settings) {
 export function renderGymSettingsSection(container, model, handlers = {}) {
   if (!container) return null;
   const { gym = {}, settings = {}, membership = null, credits = [] } = model;
-  const gymName = gym.gym_name || gym.name || gym.gym_id || gym.id || 'Gym';
-  const gymEmail = gym.gym_email || gym.email || 'Gym account email not captured';
+  const gymName = gym.gym_name || gym.name || gym.gym_id || gym.id || COPY.gymSettings.genericGym;
+  const gymEmail = gym.gym_email || gym.email || COPY.gymSettings.gymAccountEmailNotCaptured;
   const status = gym.status || 'active';
   const needsRelogin = status === 'needs_relogin';
-  const statusLabel = needsRelogin ? 'Re-authentication needed' : (status === 'active' ? 'Connected' : status);
+  const statusLabel = needsRelogin ? COPY.auth.reauthenticationNeeded : (status === 'active' ? COPY.gyms.connected : status);
   const bookingKind = gym.capabilities?.bookingWindow;
   const windowDescription = bookingKind === 'per-class'
-    ? 'Published per class by the gym — there is nothing to configure.'
-    : model.bookingWindowText || 'Detecting from your membership…';
+    ? COPY.gymSettings.publishedBookingWindow
+    : model.bookingWindowText || COPY.gymSettings.detectingMembership;
 
   container.dataset.gymId = gym.gym_id || gym.id || '';
   // Prefer the gym's theme-aware CSS token over the raw config hex. The config
@@ -134,21 +135,21 @@ export function renderGymSettingsSection(container, model, handlers = {}) {
       : (gym.theme?.primary || 'var(--accent)')
   );
   container.innerHTML = `
-    <div class="psycle-gym-settings-heading"><div><span class="psycle-eyebrow">Gym settings</span><h3>${escapeHtml(gymName)}</h3></div><div class="psycle-settings-btn-row"><span class="psycle-badge ${status === 'active' ? 'success' : 'warning'}">${escapeHtml(statusLabel)}</span>${model.canAddGym ? '<button class="psycle-btn psycle-btn-mini" data-gym-action="add-gym">＋ Connect another gym</button>' : ''}</div></div>
-    ${needsRelogin ? '<div class="psycle-gym-settings-warning"><strong>Reconnect this gym</strong><span>The saved gym session could not be renewed. Re-authenticate to resume background bookings and calendar updates.</span></div>' : ''}
+    <div class="psycle-gym-settings-heading"><div><span class="psycle-eyebrow">${COPY.gymSettings.settings}</span><h3>${escapeHtml(gymName)}</h3></div><div class="psycle-settings-btn-row"><span class="psycle-badge ${status === 'active' ? 'success' : 'warning'}">${escapeHtml(statusLabel)}</span>${model.canAddGym ? `<button class="psycle-btn psycle-btn-mini" data-gym-action="add-gym">${COPY.gymSettings.addAnotherGym}</button>` : ''}</div></div>
+    ${needsRelogin ? `<div class="psycle-gym-settings-warning"><strong>${COPY.gymSettings.reconnect}</strong><span>${COPY.gymSettings.reconnectHelp}</span></div>` : ''}
     <div class="psycle-settings-grid psycle-gym-settings-grid">
       <div class="psycle-settings-card">
-        <h4>Connection</h4><p class="psycle-card-desc">${escapeHtml(gymEmail)}</p>
-        <div class="psycle-settings-btn-row"><button class="psycle-btn ${needsRelogin ? 'primary' : ''}" data-gym-action="reauth">Re-authenticate</button><button class="psycle-btn variant-danger" data-gym-action="unlink">Unlink gym</button></div>
+        <h4>${COPY.gymSettings.connection}</h4><p class="psycle-card-desc">${escapeHtml(gymEmail)}</p>
+        <div class="psycle-settings-btn-row"><button class="psycle-btn ${needsRelogin ? 'primary' : ''}" data-gym-action="reauth">${COPY.gymSettings.reauthenticate}</button><button class="psycle-btn variant-danger" data-gym-action="unlink">${COPY.gymSettings.unlink}</button></div>
       </div>
-      <div class="psycle-settings-card"><h4>Membership & Credits</h4>${membershipHtml(gym, membership, credits)}</div>
+      <div class="psycle-settings-card"><h4>${COPY.gymSettings.membershipCredits}</h4>${membershipHtml(gym, membership, credits)}</div>
       <div class="psycle-settings-card">
-        <h4>Booking Window</h4><p class="psycle-card-desc">${escapeHtml(windowDescription)}</p>
-        ${model.debugMode && bookingKind !== 'per-class' ? `<div class="psycle-setting-row"><div class="psycle-setting-label"><span>Manual override</span><small>Debug only; overrides auto-detection.</small></div><select class="psycle-select" data-gym-setting="manualBookingWindowWeeks"><option value="" ${!settings.manualBookingWindowWeeks ? 'selected' : ''}>Auto (detected)</option>${[1,2,3,4].map(n => `<option value="${n}" ${Number(settings.manualBookingWindowWeeks) === n ? 'selected' : ''}>${n} week${n === 1 ? '' : 's'}</option>`).join('')}</select></div>` : ''}
+        <h4>${COPY.gymSettings.bookingWindow}</h4><p class="psycle-card-desc">${escapeHtml(windowDescription)}</p>
+        ${model.debugMode && bookingKind !== 'per-class' ? `<div class="psycle-setting-row"><div class="psycle-setting-label"><span>${COPY.gymSettings.manualOverride}</span><small>${COPY.gymSettings.debugOverrideHelp}</small></div><select class="psycle-select" data-gym-setting="manualBookingWindowWeeks"><option value="" ${!settings.manualBookingWindowWeeks ? 'selected' : ''}>${COPY.gymSettings.autoDetected}</option>${[1,2,3,4].map(n => `<option value="${n}" ${Number(settings.manualBookingWindowWeeks) === n ? 'selected' : ''}>${formatCopyText(n === 1 ? COPY.gymSettings.weekOptionOne : COPY.gymSettings.weekOptionMany, { count: n })}</option>`).join('')}</select></div>` : ''}
       </div>
-      ${capability(gym, 'autoUpgrade') ? `<div class="psycle-settings-card"><h4>Auto-Upgrade Engine</h4>${autoUpgradeHtml(settings)}</div>` : ''}
-      ${capability(gym, 'spotMaps') ? '<div class="psycle-settings-card"><h4>Preferred Spot Maps</h4><p class="psycle-card-desc">Manage the seat preferences used by booking and Auto-Upgrade at this gym.</p><button class="psycle-btn" data-gym-action="spot-maps">Manage maps</button></div>' : ''}
-      ${capability(gym, 'profile') ? '<div class="psycle-settings-card"><h4>Profile Explorer</h4><p class="psycle-card-desc">View the profile, membership and booking metadata returned by this gym.</p><button class="psycle-btn" data-gym-action="profile">Open Profile Explorer</button></div>' : ''}
+      ${capability(gym, 'autoUpgrade') ? `<div class="psycle-settings-card"><h4>${COPY.gymSettings.autoUpgradeEngine}</h4>${autoUpgradeHtml(settings)}</div>` : ''}
+      ${capability(gym, 'spotMaps') ? `<div class="psycle-settings-card"><h4>${COPY.spotMaps.preferredSpotMaps}</h4><p class="psycle-card-desc">${COPY.gymSettings.spotMapHelp}</p><button class="psycle-btn" data-gym-action="spot-maps">${COPY.gymSettings.manageMaps}</button></div>` : ''}
+      ${capability(gym, 'profile') ? `<div class="psycle-settings-card"><h4>${COPY.gymSettings.profileExplorer}</h4><p class="psycle-card-desc">${COPY.gymSettings.profileExplorerHelp}</p><button class="psycle-btn" data-gym-action="profile">${COPY.gymSettings.openProfileExplorer}</button></div>` : ''}
     </div>`;
 
   container.querySelectorAll('[data-gym-action]').forEach((button) => {

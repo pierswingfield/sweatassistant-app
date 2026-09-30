@@ -1,4 +1,5 @@
 import { api } from '../api';
+import { COPY, formatCopyText } from '../copy.js';
 import { getAvailableCreditsForEvent, hasUsableCredit, getIneligibleReason, isMetered } from './credit-allowance.js';
 import { isCreditInventoryLoaded, pickStudioPrefs as pickGymStudioPrefs } from './gym-isolation.js';
 import { canForGym, canAny, capabilityForGym, getLinkedGyms, getGymShortName, getLocationAlias, getDefaultGymId } from '../gym-context.js';
@@ -493,7 +494,7 @@ export async function loadMetadata(force = false) {
     }
   } catch (err) {
     console.error('[Timetable] Metadata load failed:', err);
-    showToast('Failed to load filters metadata.', 'error');
+    showToast(COPY.timetable.metadataFailed, 'error');
   }
 }
 
@@ -656,9 +657,9 @@ export async function prefetchTimetableData(force = false) {
     if (!hasCached) {
       ttContainer.innerHTML = `
         <div style="padding: 40px 20px; text-align: center; color: var(--text-secondary);">
-          <p style="font-size:16px;margin-bottom:8px">No cached timetable available</p>
-          <p style="font-size:13px;color:var(--text-tertiary)">Connect to the internet to load the timetable.</p>
-          <button id="psycle-timetable-retry-btn" class="psycle-btn variant-danger" style="margin-top: 12px; display: inline-block; width: auto; padding: 8px 16px; border-radius: 8px;">Retry</button>
+          <p style="font-size:16px;margin-bottom:8px">${COPY.timetable.noCachedTimetable}</p>
+          <p style="font-size:13px;color:var(--text-tertiary)">${COPY.timetable.connectInternet}</p>
+          <button id="psycle-timetable-retry-btn" class="psycle-btn variant-danger" style="margin-top: 12px; display: inline-block; width: auto; padding: 8px 16px; border-radius: 8px;">${COPY.timetable.retry}</button>
         </div>
       `;
       const retryBtn = document.getElementById('psycle-timetable-retry-btn');
@@ -686,7 +687,7 @@ function setupDropdownFilters({ locationIds, instructorIds, classTypeIds } = {})
         name: g.gym_name || g.name || g.gym_id || g.id,
       }));
       populateOptionsList('psycle-ms-gym', gymItems, selectedGyms, 'gym');
-      updateTriggerLabel('psycle-ms-gym', selectedGyms, 'All Gyms', 'Gym');
+      updateTriggerLabel('psycle-ms-gym', selectedGyms, COPY.timetable.allGyms, 'Gym');
     } else {
       gymDropdown.style.display = 'none';
     }
@@ -754,19 +755,19 @@ function setupDropdownFilters({ locationIds, instructorIds, classTypeIds } = {})
   populateOptionsList('psycle-ms-class-type', eventTypeGroups, selectedEventTypes, 'class-type');
   
   // Set labels
-  updateTriggerLabel('psycle-ms-location', selectedLocations, 'All Locations', 'Location');
-  updateTriggerLabel('psycle-ms-instructor', selectedInstructors, 'All Instructors', 'Instructor');
-  updateTriggerLabel('psycle-ms-class-type', selectedEventTypes, 'All Types', 'Type');
+  updateTriggerLabel('psycle-ms-location', selectedLocations, COPY.timetable.allLocations, 'Location');
+  updateTriggerLabel('psycle-ms-instructor', selectedInstructors, COPY.timetable.allInstructors, 'Instructor');
+  updateTriggerLabel('psycle-ms-class-type', selectedEventTypes, COPY.timetable.allTypes, 'Type');
 
   // Bookmarked button class
   const bookmarksFilterBtn = document.getElementById('psycle-filter-favorites-only');
   if (bookmarksFilterBtn) {
     if (showBookmarksOnly) {
       bookmarksFilterBtn.classList.add('active');
-      bookmarksFilterBtn.textContent = '♥ Bookmarked';
+      bookmarksFilterBtn.textContent = COPY.static.bookmarked.replace('♡', '♥');
     } else {
       bookmarksFilterBtn.classList.remove('active');
-      bookmarksFilterBtn.textContent = '♡ Bookmarked';
+      bookmarksFilterBtn.textContent = COPY.static.bookmarked;
     }
   }
 
@@ -815,7 +816,7 @@ function populateOptionsList(dropdownId, items, selectedArray, type, labelField 
       searchInput = document.createElement('input');
       searchInput.type = 'text';
       searchInput.className = 'psycle-ms-search';
-      searchInput.placeholder = 'Search instructors…';
+      searchInput.placeholder = COPY.timetable.searchInstructors;
       menu.insertBefore(searchInput, list);
     }
     searchInput.oninput = () => {
@@ -907,7 +908,7 @@ function updateTriggerLabel(dropdownId, selectedArray, defaultText, labelSingula
     labelTextEl.textContent = defaultText;
   } else if (selectedArray.length === 1) {
     // Resolve single item name
-    let name = '1 Selected';
+    let name = formatCopyText(COPY.timetable.selectedOne, { count: 1 });
     if (dropdownId === 'psycle-ms-gym') {
       const g = (getLinkedGyms() || []).find(x => String(x.gym_id || x.id) === selectedArray[0]);
       if (g) name = g.gym_name || g.name || g.gym_id || g.id;
@@ -924,7 +925,9 @@ function updateTriggerLabel(dropdownId, selectedArray, defaultText, labelSingula
     }
     labelTextEl.textContent = name;
   } else {
-    labelTextEl.textContent = `${selectedArray.length} ${labelSingular}s`;
+    labelTextEl.textContent = formatCopyText(COPY.timetable.selectedMany, {
+      count: selectedArray.length, label: labelSingular, plural: selectedArray.length !== 1 ? 's' : '',
+    });
   }
 }
 
@@ -981,28 +984,28 @@ function setupFilterEventListeners() {
         } else {
           selectedGyms = selectedGyms.filter(x => x !== id);
         }
-        updateTriggerLabel('psycle-ms-gym', selectedGyms, 'All Gyms', 'Gym');
+        updateTriggerLabel('psycle-ms-gym', selectedGyms, COPY.timetable.allGyms, 'Gym');
       } else if (type === 'location') {
         if (isChecked) {
           if (!selectedLocations.includes(id)) selectedLocations.push(id);
         } else {
           selectedLocations = selectedLocations.filter(x => x !== id);
         }
-        updateTriggerLabel('psycle-ms-location', selectedLocations, 'All Locations', 'Location');
+        updateTriggerLabel('psycle-ms-location', selectedLocations, COPY.timetable.allLocations, 'Location');
       } else if (type === 'instructor') {
         if (isChecked) {
           if (!selectedInstructors.includes(id)) selectedInstructors.push(id);
         } else {
           selectedInstructors = selectedInstructors.filter(x => x !== id);
         }
-        updateTriggerLabel('psycle-ms-instructor', selectedInstructors, 'All Instructors', 'Instructor');
+        updateTriggerLabel('psycle-ms-instructor', selectedInstructors, COPY.timetable.allInstructors, 'Instructor');
       } else if (type === 'class-type') {
         if (isChecked) {
           if (!selectedEventTypes.includes(id)) selectedEventTypes.push(id);
         } else {
           selectedEventTypes = selectedEventTypes.filter(x => x !== id);
         }
-        updateTriggerLabel('psycle-ms-class-type', selectedEventTypes, 'All Types', 'Type');
+        updateTriggerLabel('psycle-ms-class-type', selectedEventTypes, COPY.timetable.allTypes, 'Type');
       }
 
       renderTimetableGrid();
@@ -1020,16 +1023,16 @@ function setupFilterEventListeners() {
 
         if (idAttr === 'psycle-ms-gym') {
           selectedGyms = [];
-          updateTriggerLabel('psycle-ms-gym', selectedGyms, 'All Gyms', 'Gym');
+          updateTriggerLabel('psycle-ms-gym', selectedGyms, COPY.timetable.allGyms, 'Gym');
         } else if (idAttr === 'psycle-ms-location') {
           selectedLocations = [];
-          updateTriggerLabel('psycle-ms-location', selectedLocations, 'All Locations', 'Location');
+          updateTriggerLabel('psycle-ms-location', selectedLocations, COPY.timetable.allLocations, 'Location');
         } else if (idAttr === 'psycle-ms-instructor') {
           selectedInstructors = [];
-          updateTriggerLabel('psycle-ms-instructor', selectedInstructors, 'All Instructors', 'Instructor');
+          updateTriggerLabel('psycle-ms-instructor', selectedInstructors, COPY.timetable.allInstructors, 'Instructor');
         } else if (idAttr === 'psycle-ms-class-type') {
           selectedEventTypes = [];
-          updateTriggerLabel('psycle-ms-class-type', selectedEventTypes, 'All Types', 'Type');
+          updateTriggerLabel('psycle-ms-class-type', selectedEventTypes, COPY.timetable.allTypes, 'Type');
         }
         renderTimetableGrid();
       };
@@ -1043,10 +1046,10 @@ function setupFilterEventListeners() {
       showBookmarksOnly = !showBookmarksOnly;
       if (showBookmarksOnly) {
         bookmarksFilterBtn.classList.add('active');
-        bookmarksFilterBtn.textContent = '♥ Bookmarked';
+        bookmarksFilterBtn.textContent = COPY.static.bookmarked.replace('♡', '♥');
       } else {
         bookmarksFilterBtn.classList.remove('active');
-        bookmarksFilterBtn.textContent = '♡ Bookmarked';
+        bookmarksFilterBtn.textContent = COPY.static.bookmarked;
       }
       renderTimetableGrid();
     };
@@ -1064,18 +1067,18 @@ function setupFilterEventListeners() {
       
       container.querySelectorAll('.psycle-ms-checkbox').forEach(c => c.checked = false);
       
-      updateTriggerLabel('psycle-ms-gym', selectedGyms, 'All Gyms', 'Gym');
-      updateTriggerLabel('psycle-ms-location', selectedLocations, 'All Locations', 'Location');
-      updateTriggerLabel('psycle-ms-instructor', selectedInstructors, 'All Instructors', 'Instructor');
-      updateTriggerLabel('psycle-ms-class-type', selectedEventTypes, 'All Types', 'Type');
+      updateTriggerLabel('psycle-ms-gym', selectedGyms, COPY.timetable.allGyms, 'Gym');
+      updateTriggerLabel('psycle-ms-location', selectedLocations, COPY.timetable.allLocations, 'Location');
+      updateTriggerLabel('psycle-ms-instructor', selectedInstructors, COPY.timetable.allInstructors, 'Instructor');
+      updateTriggerLabel('psycle-ms-class-type', selectedEventTypes, COPY.timetable.allTypes, 'Type');
       
       if (bookmarksFilterBtn) {
         bookmarksFilterBtn.classList.remove('active');
-        bookmarksFilterBtn.textContent = '♡ Bookmarked';
+        bookmarksFilterBtn.textContent = COPY.static.bookmarked;
       }
 
       renderTimetableGrid();
-      showToast('All filters cleared.', 'success');
+      showToast(COPY.timetable.allFiltersCleared, 'success');
     };
   }
 
@@ -1097,15 +1100,15 @@ function setupFilterEventListeners() {
 
       const originalText = saveDefaultFiltersBtn.innerHTML;
       saveDefaultFiltersBtn.style.cursor = 'not-allowed';
-      saveDefaultFiltersBtn.innerHTML = `Saving...`;
+      saveDefaultFiltersBtn.innerHTML = COPY.timetable.savingFilters;
 
       try {
         localStorage.setItem(defaultFiltersKey(), JSON.stringify(defaultFilters));
         setTimeout(() => {
-          saveDefaultFiltersBtn.innerHTML = `✓ Saved!`;
+          saveDefaultFiltersBtn.innerHTML = COPY.timetable.savedFilters;
           saveDefaultFiltersBtn.style.background = 'var(--success)';
           saveDefaultFiltersBtn.style.color = 'var(--on-accent)';
-          showToast('Current filters saved as defaults on this device!', 'success');
+          showToast(COPY.timetable.filtersSaved, 'success');
           
           setTimeout(() => {
             saveDefaultFiltersBtn.innerHTML = originalText;
@@ -1116,7 +1119,7 @@ function setupFilterEventListeners() {
           }, 1200);
         }, 300);
       } catch (e) {
-        showToast('Failed to save filters.', 'error');
+        showToast(COPY.timetable.filtersSaveFailed, 'error');
         saveDefaultFiltersBtn.innerHTML = originalText;
         saveDefaultFiltersBtn.style.cursor = 'pointer';
         isSavingDefaults = false;
@@ -1380,7 +1383,7 @@ export async function renderTimetableGrid(reason = 'interaction') {
     carousel.innerHTML = '';
     
     if (daysWithEvents.length === 0) {
-      carousel.innerHTML = '<div style="color: var(--text-secondary); font-size: 12px; font-style: italic; padding: 8px;">No dates match filter criteria.</div>';
+      carousel.innerHTML = `<div style="color: var(--text-secondary); font-size: 12px; font-style: italic; padding: 8px;">${COPY.timetable.noDates}</div>`;
     } else {
       daysWithEvents.forEach(dayStr => {
         const d = new Date(dayStr);
@@ -1434,7 +1437,7 @@ export async function renderTimetableGrid(reason = 'interaction') {
   if (!selectedTimetableDate) {
     ttGrid.innerHTML = `
       <div style="text-align: center; color: var(--text-secondary); padding: 40px; font-style: italic;">
-        No classes match the current filters. Clear filters to see more.
+        ${COPY.timetable.noClasses}
       </div>
     `;
     return;
@@ -1451,13 +1454,13 @@ export async function renderTimetableGrid(reason = 'interaction') {
       <table class="psycle-table" style="width: 100%; border-collapse: collapse; text-align: left; table-layout: fixed;">
         <thead>
           <tr>
-            <th style="width: 7%;">Time</th>
-            <th style="width: 8%;">Gym</th>
-            <th style="width: 27%;">Class</th>
-            <th style="width: 12%;">Instructor</th>
-            <th style="width: 15%;">Location / Studio</th>
-            <th style="width: 11%;">Status</th>
-            <th style="width: 20%; text-align: right;">Actions</th>
+            <th style="width: 7%;">${COPY.timetable.timeColumn}</th>
+            <th style="width: 8%;">${COPY.timetable.gymColumn}</th>
+            <th style="width: 27%;">${COPY.timetable.classColumn}</th>
+            <th style="width: 12%;">${COPY.timetable.instructorColumn}</th>
+            <th style="width: 15%;">${COPY.timetable.locationStudioColumn}</th>
+            <th style="width: 11%;">${COPY.timetable.statusColumn}</th>
+            <th style="width: 20%; text-align: right;">${COPY.timetable.actionsColumn}</th>
           </tr>
         </thead>
         <tbody id="psycle-timetable-rows"></tbody>
@@ -1528,15 +1531,15 @@ export async function renderTimetableGrid(reason = 'interaction') {
     if (!isLive) {
       if (isScheduled) {
         rowClass = 'psycle-table-row row-beyond-cutoff row-scheduled';
-        statusBadge = `<span class="badge-pill scheduled psycle-occupancy-hover" data-id="${event.id}" data-gym-id="${event.gymId || ''}">${pulseIcon(12)}AUTO-BOOK</span>`;
+        statusBadge = `<span class="badge-pill scheduled psycle-occupancy-hover" data-id="${event.id}" data-gym-id="${event.gymId || ''}">${pulseIcon(12)}${COPY.timetable.autoBook.toUpperCase()}</span>`;
       } else {
         rowClass = 'psycle-table-row row-beyond-cutoff';
-        statusBadge = `<span class="badge-pill not-live psycle-occupancy-hover" data-id="${event.id}" data-gym-id="${event.gymId || ''}">Not Live</span>`;
+        statusBadge = `<span class="badge-pill not-live psycle-occupancy-hover" data-id="${event.id}" data-gym-id="${event.gymId || ''}">${COPY.timetable.notLive}</span>`;
       }
     } else if (isBooked) {
       const eventBookings = userBookings().filter(b => matchesEvent(b, event));
       slotsBookedCount = eventBookings.length;
-      statusBadge = `<span class="badge-pill yes psycle-occupancy-hover" data-id="${event.id}" data-gym-id="${event.gymId || ''}" style="cursor: pointer;">Booked${slotsBookedCount > 1 ? ` (${slotsBookedCount})` : ''}</span>`;
+      statusBadge = `<span class="badge-pill yes psycle-occupancy-hover" data-id="${event.id}" data-gym-id="${event.gymId || ''}" style="cursor: pointer;">${COPY.timetable.booked}${slotsBookedCount > 1 ? ` (${slotsBookedCount})` : ''}</span>`;
       if (slotsBookedCount === 1) {
         bookingId = eventBookings[0].bookingId ?? eventBookings[0].id;
         const bookedAt = eventBookings[0].bookedAt ?? eventBookings[0].booked_at;
@@ -1547,7 +1550,7 @@ export async function renderTimetableGrid(reason = 'interaction') {
         }
       }
     } else if (isOnWaitlist) {
-      statusBadge = `<span class="badge-pill waitlisted psycle-occupancy-hover" data-id="${event.id}" data-gym-id="${event.gymId || ''}" style="cursor: pointer;">Waitlisted</span>`;
+      statusBadge = `<span class="badge-pill waitlisted psycle-occupancy-hover" data-id="${event.id}" data-gym-id="${event.gymId || ''}" style="cursor: pointer;">${COPY.timetable.waitlisted}</span>`;
       const waitlistEntry = userWaitlists().find(w => matchesEvent(w, event));
       // C2-2 fix (2026-09-26): this read `waitlistEntry.id`, a field that has
       // never existed on a NormalizedBooking (it's `bookingId` — see base.js's
@@ -1560,8 +1563,8 @@ export async function renderTimetableGrid(reason = 'interaction') {
       if (waitlistEntry) waitlistId = event.id;
     } else if (isFullyBooked) {
       statusBadge = canWaitlist
-        ? `<span class="badge-pill waitlist-open psycle-occupancy-hover" data-id="${event.id}" data-gym-id="${event.gymId || ''}" style="cursor: pointer;">Waitlist</span>`
-        : `<span class="badge-pill no fully-booked psycle-occupancy-hover" data-id="${event.id}" data-gym-id="${event.gymId || ''}">Full</span>`;
+        ? `<span class="badge-pill waitlist-open psycle-occupancy-hover" data-id="${event.id}" data-gym-id="${event.gymId || ''}" style="cursor: pointer;">${COPY.timetable.waitlist}</span>`
+        : `<span class="badge-pill no fully-booked psycle-occupancy-hover" data-id="${event.id}" data-gym-id="${event.gymId || ''}">${COPY.timetable.full}</span>`;
     } else if (!hasCredit) {
       // Short label in the pill, full reason in the tooltip — the column is
       // narrow and "NO CREDITS AVAILABLE" spends all of it restating "no".
@@ -1569,7 +1572,7 @@ export async function renderTimetableGrid(reason = 'interaction') {
       // says "Buy Credits", so a "No credits" pill beside it is the same fact
       // twice — and it was spending the narrowest column in the table to do it.
       // The reason still reaches the user: it's the button's tooltip.
-      statusBadge = `<span class="badge-pill yes psycle-occupancy-hover" data-id="${event.id}" data-gym-id="${event.gymId || ''}" style="cursor: pointer;" title="${escapeHtml(getIneligibleReason(event.gymId) || 'No credits')}">${spotsText}</span>`;
+      statusBadge = `<span class="badge-pill yes psycle-occupancy-hover" data-id="${event.id}" data-gym-id="${event.gymId || ''}" style="cursor: pointer;" title="${escapeHtml(getIneligibleReason(event.gymId) || COPY.timetable.noCredits)}">${spotsText}</span>`;
     } else {
       statusBadge = `<span class="badge-pill yes psycle-occupancy-hover" data-id="${event.id}" data-gym-id="${event.gymId || ''}" style="cursor: pointer;">${spotsText}</span>`;
     }
@@ -1606,7 +1609,7 @@ export async function renderTimetableGrid(reason = 'interaction') {
       <td class="col-gym">${gymChip(event.gymId)}</td>
       <td class="col-class">
         <div class="psycle-tt-class-cell">
-          ${canForGym('bookmarks', event.gymId) ? `<span class="${heartClass}" data-event-id="${event.id}" title="${isBookmarked ? 'Remove Bookmark' : 'Bookmark Class'}">${heartChar}</span>` : ''}
+          ${canForGym('bookmarks', event.gymId) ? `<span class="${heartClass}" data-event-id="${event.id}" title="${isBookmarked ? COPY.timetable.removeBookmark : COPY.timetable.bookmarkClass}">${heartChar}</span>` : ''}
           ${disciplineTag(groupName)}
           <span class="psycle-tt-class-name">${strippedClassName}</span>
         </div>
@@ -1772,7 +1775,7 @@ function buildActionModel(event, ctx) {
   if (!isLive) {
     return {
       primary: {
-        label: isScheduled ? 'Scheduled' : 'Auto-Book',
+        label: isScheduled ? COPY.timetable.scheduled : COPY.timetable.autoBook,
         variant: 'autoupgrade', scheduled: isScheduled,
         run: (btn) => doAutoBookToggle(event, btn, isScheduled),
       },
@@ -1788,12 +1791,12 @@ function buildActionModel(event, ctx) {
   // no spot to reassign, so Edit is dropped rather than opening on nothing.
   if (isBooked) {
     const primary = hasMap
-      ? { label: 'Edit', variant: 'autoupgrade', run: () => doEditBooking(event) }
-      : { label: 'Booked', variant: 'neutral', disabled: true };
+      ? { label: COPY.timetable.edit, variant: 'autoupgrade', run: () => doEditBooking(event) }
+      : { label: COPY.timetable.booked, variant: 'neutral', disabled: true };
     if (slotsBookedCount === 1 && bookingId) {
       const cancelLabel = graceDeadline
-        ? `Cancel (${Math.ceil((graceDeadline - Date.now()) / 1000)}s)`
-        : 'Cancel';
+        ? formatCopyText(COPY.bookingWindow.graceCancel, { seconds: Math.ceil((graceDeadline - Date.now()) / 1000) })
+        : COPY.bookings.cancel;
       if (!hasMap) {
         // Nothing to edit at all — Cancel is the one real action, so it's the
         // primary rather than a disabled "Booked" plus a secondary button.
@@ -1818,7 +1821,7 @@ function buildActionModel(event, ctx) {
     // Multiple spots booked → manage in My Bookings
     return {
       primary, config: null,
-      secondary: { label: 'Manage', variant: 'autoupgrade', run: () => window.switchTab('my-bookings') },
+      secondary: { label: COPY.timetable.manage, variant: 'autoupgrade', run: () => window.switchTab('my-bookings') },
     };
   }
 
@@ -1827,24 +1830,24 @@ function buildActionModel(event, ctx) {
     if (waitlistId) {
       return {
         primary: {
-          label: 'Leave WL', variant: 'danger', isCancel: true,
-          run: (btn) => twoTapConfirm(btn, 'Confirm leave?', () => doLeaveWaitlist(waitlistId, btn, event.gymId)),
+          label: COPY.timetable.leaveWaitlist, variant: 'danger', isCancel: true,
+          run: (btn) => twoTapConfirm(btn, COPY.timetable.confirmLeave, () => doLeaveWaitlist(waitlistId, btn, event.gymId)),
         },
         secondary: null, config: null,
       };
     }
-    return { primary: { label: 'On Waitlist', variant: 'neutral', disabled: true }, secondary: null, config: null };
+    return { primary: { label: COPY.timetable.onWaitlist, variant: 'neutral', disabled: true }, secondary: null, config: null };
   }
 
   // Full → join waitlist if possible
   if (isFullyBooked) {
     if (canWaitlist) {
       return {
-        primary: { label: 'Join Waitlist', variant: 'warning-solid', run: (btn) => doJoinWaitlist(event, btn) },
+        primary: { label: COPY.timetable.joinWaitlist, variant: 'warning-solid', run: (btn) => doJoinWaitlist(event, btn) },
         secondary: null, config: null,
       };
     }
-    return { primary: { label: 'Full', variant: 'neutral', disabled: true }, secondary: null, config: null };
+    return { primary: { label: COPY.timetable.full, variant: 'neutral', disabled: true }, secondary: null, config: null };
   }
 
   // Not bookable — but WHY differs by gym shape (C3-2). `hasCredit` is
@@ -1861,14 +1864,14 @@ function buildActionModel(event, ctx) {
   if (!hasCredit) {
     if (isMetered(event.gymId)) {
       return {
-        primary: { label: 'Buy Credits', variant: 'danger', run: () => window.switchTab('buy-credits') },
+        primary: { label: COPY.timetable.buyCredits, variant: 'danger', run: () => window.switchTab('buy-credits') },
         secondary: null, config: null,
       };
     }
     return {
       primary: {
-        label: 'No Membership', variant: 'neutral', disabled: true,
-        title: getIneligibleReason(event.gymId) || 'No active membership',
+        label: COPY.timetable.noMembership, variant: 'neutral', disabled: true,
+        title: getIneligibleReason(event.gymId) || COPY.shell.noMembership,
       },
       secondary: null, config: null,
     };
@@ -1892,14 +1895,14 @@ function buildActionModel(event, ctx) {
   // "Book (choose a spot)" is the escape hatch when you don't want your
   // preferred spot this time. It only exists where there are spots to choose.
   return {
-    primary: { label: 'Book', variant: 'success', title: 'Quick book', run: (btn) => doQuickBook(event, btn) },
+    primary: { label: COPY.timetable.book, variant: 'success', title: COPY.timetable.quickBookTitle, run: (btn) => doQuickBook(event, btn) },
     // No ⚙ on the row: "Configure Quick-Book" is in the overflow menu, and two
     // affordances for one action spend 40px of every row to save one click on
     // a rare one. `config` is still set so the menu knows to offer it.
     config: hasMap ? 'quickbook' : null,
     showConfigButton: false,
     secondary: null,
-    alternate: hasMap ? { label: 'Book (choose a spot)', run: () => openBookingModal(event, 'book') } : null,
+    alternate: hasMap ? { label: COPY.timetable.chooseSpotBook, run: () => openBookingModal(event, 'book') } : null,
   };
 }
 
@@ -1989,23 +1992,23 @@ async function doQuickBook(event, btn) {
     }
   };
   // Quick-Book always requires a second click or touch to confirm
-  const confirmMsg = isWithin12Hours(event.startAt) ? 'Starts soon — confirm?' : 'Confirm?';
+  const confirmMsg = isWithin12Hours(event.startAt) ? COPY.timetable.confirmSoon : COPY.timetable.confirm;
   twoTapConfirm(btn, confirmMsg, run);
 }
 
 async function doAutoBookToggle(event, btn, isScheduled) {
   if (isScheduled) {
     try {
-      showToast('Removing scheduled booking...', 'info');
+      showToast(COPY.timetable.removingScheduled, 'info');
       const autoBookings = await api.getAutoBookings();
       const existing = (autoBookings.data || autoBookings || []).find(x => String(x.event_id || x.eventId) === String(event.id));
       if (existing) {
         await api.deleteAutoBooking(existing.id);
-        showToast('Scheduled auto-book cancelled.', 'info');
+        showToast(COPY.timetable.scheduledCancelled, 'info');
         renderTimetableGrid();
       }
     } catch (err) {
-      showToast(`Error: ${err.message}`, 'error');
+      showToast(formatCopyText(COPY.timetable.errorPrefix, { error: err.message }), 'error');
     }
     return;
   }
@@ -2033,7 +2036,7 @@ async function doAutoBookToggle(event, btn, isScheduled) {
 // booking "group" it expects from the timetable's cached bookings + metadata.
 async function doEditBooking(event) {
   const eventBookings = userBookings().filter(b => matchesEvent(b, event));
-  if (!eventBookings.length) { showToast('Booking not found — refresh and try again.', 'error'); return; }
+  if (!eventBookings.length) { showToast(COPY.timetable.bookingNotFound, 'error'); return; }
 
   const eventTypeName = event.name || gymScopedGet(eventTypeMap, event.classTypeId, event.gymId) || 'Class';
   const groupName = event.discipline || gymScopedGet(eventTypeGroupMap, event.classTypeId, event.gymId) || eventTypeName;
@@ -2082,15 +2085,15 @@ async function refreshBookingState() {
 async function doJoinWaitlist(event, btn) {
   btn.disabled = true;
   const orig = btn.textContent;
-  btn.textContent = 'Joining...';
+  btn.textContent = COPY.timetable.joining;
   try {
     await api.joinWaitlist(event.id, event.gymId);
     haptic('success');
-    showToast('Successfully joined waitlist!', 'success');
+    showToast(COPY.timetable.joinedWaitlist, 'success');
     prefetchTimetableData(true);
   } catch (err) {
     haptic('error');
-    showToast(`Waitlist failed: ${err.message}`, 'error');
+    showToast(formatCopyText(COPY.timetable.waitlistFailed, { error: err.message }), 'error');
     btn.disabled = false;
     btn.textContent = orig;
   }
@@ -2099,16 +2102,16 @@ async function doJoinWaitlist(event, btn) {
 async function doLeaveWaitlist(waitlistId, btn, gymId = null) {
   btn.disabled = true;
   const orig = btn.textContent;
-  btn.textContent = 'Leaving...';
+  btn.textContent = COPY.timetable.leaving;
   try {
     await api.leaveWaitlist(waitlistId, gymId);
     haptic('warning');
-    showToast('Left waitlist successfully!', 'success');
+    showToast(COPY.timetable.leftWaitlist, 'success');
     await refreshUserData(true);
     await refreshBookingState();
   } catch (err) {
     haptic('error');
-    showToast(`Error leaving waitlist: ${err.message}`, 'error');
+    showToast(formatCopyText(COPY.timetable.leftWaitlistError, { error: err.message }), 'error');
     btn.disabled = false;
     btn.textContent = orig;
   }
@@ -2116,8 +2119,8 @@ async function doLeaveWaitlist(waitlistId, btn, gymId = null) {
 
 // Unicode (non-emoji) glyph that prefixes certain action labels.
 function actionGlyph(label) {
-  if (label === 'Quick-Book' || label === 'Quick Book' || label === 'Book') return '⚡︎';
-  if (label === 'Auto-Book' || label === 'Auto Book' || label === 'Scheduled' || label === 'Sched.') return sparklesIcon(16, 'currentColor');
+  if (label === 'Quick-Book' || label === 'Quick Book' || label === COPY.timetable.book) return '⚡︎';
+  if (label === COPY.timetable.autoBook || label === COPY.timetable.autoBook.replace('-', ' ') || label === COPY.timetable.scheduled || label === COPY.timetable.scheduledShort) return sparklesIcon(16, 'currentColor');
   return '';
 }
 
@@ -2133,9 +2136,9 @@ function setSegLabel(btn, label) {
 /** Pill-sized version of a server eligibility reason. */
 function shortIneligibleLabel(reason) {
   const r = String(reason || '').trim();
-  if (!r) return 'No credits';
-  if (/no credits/i.test(r)) return 'No credits';
-  if (/membership/i.test(r)) return 'No membership';
+  if (!r) return COPY.timetable.noCredits;
+  if (/no credits/i.test(r)) return COPY.timetable.noCredits;
+  if (/membership/i.test(r)) return COPY.timetable.noMembership;
   return r.length > 18 ? `${r.slice(0, 17)}…` : r;
 }
 
@@ -2172,7 +2175,7 @@ function buildActionMenuItems(event, model, isBookmarked) {
 
   if (model.config) {
     items.push({
-      label: model.config === 'autobook' ? 'Configure Auto-Book' : 'Configure Quick-Book',
+      label: model.config === 'autobook' ? COPY.timetable.configureAutoBook : COPY.timetable.configureQuickBook,
       icon: 'cog',
       variant: '',
       action: () => openBookingModal(event, model.config),
@@ -2181,14 +2184,14 @@ function buildActionMenuItems(event, model, isBookmarked) {
 
   if (canForGym('bookmarks', event.gymId)) {
     items.push({
-      label: isBookmarked ? 'Unfavourite' : 'Favourite',
+      label: isBookmarked ? COPY.timetable.unfavourite : COPY.timetable.favourite,
       icon: 'heart',
       variant: 'favourite',
       action: () => toggleNativeBookmark(event, null),
     });
   }
 
-  items.push({ label: 'Studio Occupancy', icon: 'grid', variant: '', action: () => openOccupancyModal(event) });
+  items.push({ label: COPY.timetable.studioOccupancy, icon: 'grid', variant: '', action: () => openOccupancyModal(event) });
 
   if (userSettings.debugMode) {
     items.push({ label: 'Debug', icon: 'bug', variant: 'debug', action: () => openDebugModal(event) });
@@ -2256,7 +2259,7 @@ function buildDesktopActions(model, event, debugMode, isBookmarked = false) {
     const caret = document.createElement('button');
     caret.className = `psycle-tt-seg psycle-tt-seg-caret primary variant-${model.primary.variant}` + (model.primary.scheduled ? ' scheduled' : '');
     caret.innerHTML = '⚙';
-    caret.title = model.config === 'autobook' ? 'Configure auto-book' : 'Configure quick-book';
+    caret.title = model.config === 'autobook' ? COPY.timetable.configureAutoBookAria : COPY.timetable.configureQuickBookAria;
     caret.onclick = (e) => { e.stopPropagation(); openBookingModal(event, model.config); };
     group.appendChild(caret);
     // NOTE: this stays as a direct affordance AS WELL as appearing in the
@@ -2289,9 +2292,9 @@ function buildDesktopActions(model, event, debugMode, isBookmarked = false) {
     const more = document.createElement('button');
     more.className = 'psycle-tt-seg psycle-tt-seg-more';
     more.innerHTML = '⋯';
-    more.setAttribute('aria-label', 'More actions');
+    more.setAttribute('aria-label', COPY.timetable.moreActions);
     more.setAttribute('aria-haspopup', 'menu');
-    more.title = 'More actions';
+    more.title = COPY.timetable.moreActions;
     const menu = buildActionMenuElement(menuItems);
     wireMobileMenuToggle(more, menu);
     wrap.appendChild(more);
@@ -2376,7 +2379,7 @@ function injectMobileFilterHamburger() {
   trigger.id = 'psycle-mobile-filter-trigger';
   trigger.className = 'psycle-mobile-ellipsis psycle-mobile-filter-ellipsis';
   trigger.innerHTML = '\u22ef';
-  trigger.setAttribute('aria-label', 'Filter options');
+  trigger.setAttribute('aria-label', COPY.timetable.filterOptions);
 
   const menu = document.createElement('div');
   menu.className = 'psycle-mobile-menu';
@@ -2389,8 +2392,8 @@ function injectMobileFilterHamburger() {
   const items = [];
   // Favourites filter temporarily hidden until universal cross-gym solution
   // if (favBtn) items.push({ label: showBookmarksOnly ? 'Bookmarked (on)' : 'Bookmarked', icon: 'heart', variant: 'favourite', action: () => favBtn.click() });
-  if (clearBtn) items.push({ label: 'Clear Filters', icon: 'close', variant: 'danger', action: () => clearBtn.click() });
-  if (saveBtn) items.push({ label: 'Save Defaults', icon: 'check', variant: 'success', action: () => saveBtn.click() });
+  if (clearBtn) items.push({ label: COPY.timetable.clearFilters, icon: 'close', variant: 'danger', action: () => clearBtn.click() });
+  if (saveBtn) items.push({ label: COPY.timetable.saveDefaults, icon: 'check', variant: 'success', action: () => saveBtn.click() });
 
   items.forEach(item => {
     const div = document.createElement('div');
@@ -2447,7 +2450,7 @@ function buildMobileClassRow(event, ctx, model) {
   // bookmarked), sitting between the time and the discipline chip. Toggling
   // happens through the context menu instead.
   const favIndicator = isBookmarked
-    ? (canForGym('bookmarks', event.gymId) ? `<span class="psycle-mobile-fav-indicator" aria-label="Favourited">${heartChar}</span>` : '')
+    ? (canForGym('bookmarks', event.gymId) ? `<span class="psycle-mobile-fav-indicator" aria-label="${COPY.timetable.favourited}">${heartChar}</span>` : '')
     : '';
 
   // Photo (or a soft initial placeholder, same box, so nothing shifts while it loads). The image comes from the
@@ -2455,7 +2458,7 @@ function buildMobileClassRow(event, ctx, model) {
   const firstInstr = event.instructors?.[0];
   const instrId = firstInstr?.id || metadata.instructors?.find(i => (i.name === instrName || i.full_name === instrName) && (!event.gymId || i.gymId === event.gymId))?.id || '';
   const avatarHtml = SHOW_TIMETABLE_INSTRUCTOR_PHOTO && instrName
-    ? `<span class="psycle-mobile-avatar psycle-instructor-hover" data-id="${instrId}" data-gym-id="${event.gymId || ''}" data-initial="${escapeHtml(String(instrName).trim().charAt(0).toUpperCase())}" role="button" tabindex="0" aria-label="View instructor profile for ${escapeHtml(instrName)}">${instructorAvatar(instrName, event.gymId, firstInstr?.thumbUrl || firstInstr?.imageUrl || null, { size: 38, lazy: true, cls: 'psycle-mobile-avatar-img' })}</span>`
+    ? `<span class="psycle-mobile-avatar psycle-instructor-hover" data-id="${instrId}" data-gym-id="${event.gymId || ''}" data-initial="${escapeHtml(String(instrName).trim().charAt(0).toUpperCase())}" role="button" tabindex="0" aria-label="${formatCopyText(COPY.timetable.instructorProfileAria, { name: escapeHtml(instrName) })}">${instructorAvatar(instrName, event.gymId, firstInstr?.thumbUrl || firstInstr?.imageUrl || null, { size: 38, lazy: true, cls: 'psycle-mobile-avatar-img' })}</span>`
     : '';
 
   card.innerHTML = `
@@ -2501,13 +2504,13 @@ function buildMobileClassRow(event, ctx, model) {
   pbtn.className = `psycle-mobile-seg primary variant-${mobilePrimary.variant}` + (mobilePrimary.scheduled ? ' scheduled' : '');
   if (mobilePrimary.scheduled && mobilePrimary.variant === 'autoupgrade') {
     // "Scheduled" is too wide for 52px — abbreviate it.
-    setSegLabel(pbtn, 'Sched.');
+    setSegLabel(pbtn, COPY.timetable.scheduledShort);
   } else {
     setSegLabel(pbtn, mobilePrimary.label);
     // "Auto-Book" stacks as Auto / Book (no hyphen) so the button stays narrow; the accessible name is unchanged.
-    if (mobilePrimary.label === 'Auto-Book') {
-      pbtn.innerHTML = `<span class="psycle-seg-ico" aria-hidden="true">${actionGlyph('Auto-Book')}</span><span class="psycle-cta-2l"><span>Auto</span><span>Book</span></span>`;
-      pbtn.setAttribute('aria-label', mobilePrimary.title || 'Auto-Book');
+    if (mobilePrimary.label === COPY.timetable.autoBook) {
+      pbtn.innerHTML = `<span class="psycle-seg-ico" aria-hidden="true">${actionGlyph(COPY.timetable.autoBook)}</span><span class="psycle-cta-2l"><span>${COPY.timetable.auto}</span><span>${COPY.timetable.book}</span></span>`;
+      pbtn.setAttribute('aria-label', mobilePrimary.title || COPY.timetable.autoBook);
     }
   }
   if (mobilePrimary.title) { pbtn.title = mobilePrimary.title; pbtn.setAttribute('aria-label', mobilePrimary.title); }
@@ -2524,7 +2527,7 @@ function buildMobileClassRow(event, ctx, model) {
   const ellipsis = document.createElement('button');
   ellipsis.className = 'psycle-mobile-seg ellipsis';
   ellipsis.innerHTML = '\u22EE'; // vertical ellipsis (kebab)
-  ellipsis.setAttribute('aria-label', 'More actions');
+  ellipsis.setAttribute('aria-label', COPY.timetable.moreActions);
   rail.appendChild(ellipsis);
 
   // When Cancel took the visible slot, hide it from the shared overflow
@@ -2562,7 +2565,7 @@ async function openOccupancyModal(event) {
   const header = document.createElement('div');
   header.className = 'psycle-modal-header';
   header.innerHTML = `
-    <h4>Studio Occupancy</h4>
+    <h4>${COPY.timetable.studioOccupancy}</h4>
     <button class="psycle-modal-close-btn">&times;</button>
   `;
 
@@ -2571,7 +2574,7 @@ async function openOccupancyModal(event) {
   body.innerHTML = `
     <div class="psycle-loading-spinner-container" style="padding: 20px 0;">
       <div class="psycle-spinner"></div>
-      <span>Loading layout...</span>
+      <span>${COPY.occupancy.loadingLayout}</span>
     </div>
   `;
 
@@ -2598,7 +2601,7 @@ async function openOccupancyModal(event) {
   } catch (err) {
     body.innerHTML = `
       <div style="padding: 20px; text-align: center; color: var(--danger); font-size: 13px;">
-        Failed to load occupancy data.
+        ${COPY.timetable.failedOccupancy}
       </div>
     `;
   }
@@ -2641,7 +2644,7 @@ function generateBookmarkIdentifier(event) {
 async function toggleNativeBookmark(event, heartEl) {
   const identifier = generateBookmarkIdentifier(event);
   if (!identifier) {
-    showToast('Error generating bookmark ID.', 'error');
+    showToast(COPY.timetable.failedBookmarkId, 'error');
     return;
   }
   
@@ -2658,19 +2661,19 @@ async function toggleNativeBookmark(event, heartEl) {
     // guard is the fast path; the server rejects independently with 501.
     // The metafield path shape is the adapter's business, not this module's.
     if (!canForGym('bookmarks', event.gymId)) {
-      showToast('This gym does not support bookmarks.', 'info');
+      showToast(COPY.timetable.noBookmarkSupport, 'info');
       return;
     }
     await api.setBookmark(identifier, !isCurrentlyBookmarked, event.gymId);
     
     // Refresh user profile cache
     await refreshUserData();
-    showToast(isCurrentlyBookmarked ? 'Removed bookmark.' : 'Class bookmarked successfully!', 'success');
+    showToast(isCurrentlyBookmarked ? COPY.timetable.bookmarkRemoved : COPY.timetable.bookmarkAdded, 'success');
     setupDropdownFilters();
     renderTimetableGrid();
   } catch (err) {
     console.error('[Timetable] Bookmark toggle failed:', err);
-    showToast('Failed to update class bookmark.', 'error');
+    showToast(COPY.timetable.bookmarkUpdateFailed, 'error');
   } finally {
     if (heartEl) {
       heartEl.classList.remove('loading');
@@ -2682,7 +2685,7 @@ async function toggleNativeBookmark(event, heartEl) {
 async function quickBookClass(eventId, prefs, btn, gymId = null) {
   if (btn) {
     btn.disabled = true;
-    btn.innerHTML = `Booking...`;
+    btn.innerHTML = COPY.timetable.booking;
   }
 
   const preferredSlots = prefs.preferredSlots || [];
@@ -2703,7 +2706,7 @@ async function quickBookClass(eventId, prefs, btn, gymId = null) {
     const { event, slots } = await api.getEventDetails(eventId, gymId);
     const eventData = event.raw;
     if (!eventData) {
-      showToast('Could not load class data.', 'error');
+      showToast(COPY.timetable.classDataFailed, 'error');
       return;
     }
 
@@ -2719,30 +2722,30 @@ async function quickBookClass(eventId, prefs, btn, gymId = null) {
         if (!bookRes.ok) {
           const declinedAsFull = /full|no availab/i.test(bookRes.error || '');
           if (declinedAsFull) {
-            showToast('Fully booked! Joining waitlist...', 'warning');
+            showToast(COPY.timetable.fullyBookedJoining, 'warning');
             try {
               await api.joinWaitlist(eventId, gymId);
               haptic('success');
-              showToast('Joined waitlist successfully!', 'success');
+              showToast(COPY.timetable.waitlistJoined, 'success');
               prefetchTimetableData(true);
             } catch (wlErr) {
               haptic('error');
-              showToast(`Waitlist failed: ${wlErr.message}`, 'error');
+              showToast(formatCopyText(COPY.timetable.waitlistFailed, { error: wlErr.message }), 'error');
             }
           } else {
             haptic('error');
-            showToast(`Quick book failed: ${bookRes.error || 'Booking was declined'}`, 'error');
+            showToast(formatCopyText(COPY.timetable.quickBookFailedMessage, { error: bookRes.error || COPY.timetable.bookingDeclined }), 'error');
           }
           return;
         }
         haptic('success');
-        showToast('Quick-booked! 🎉', 'success');
+        showToast(COPY.timetable.quickBooked, 'success');
         api.notifyBookingSuccess(bookingNotifyPayload(event, { source: 'quickbook', gymId, slots: [] })).catch(() => {});
         await refreshUserData(true);
         await refreshBookingState();
       } catch (err) {
         haptic('error');
-        showToast(`Quick book failed: ${err.message}`, 'error');
+        showToast(formatCopyText(COPY.timetable.quickBookFailedMessage, { error: err.message }), 'error');
       }
       return;
     }
@@ -2754,15 +2757,15 @@ async function quickBookClass(eventId, prefs, btn, gymId = null) {
     const liveAvailable = slots.filter((s) => s.isAvailable).map((s) => String(s.id));
 
     if (liveAvailable.length === 0) {
-      showToast('Fully booked! Joining waitlist...', 'warning');
+      showToast(COPY.timetable.fullyBookedJoining, 'warning');
       try {
         await api.joinWaitlist(eventId, gymId);
         haptic('success');
-        showToast('Joined waitlist successfully!', 'success');
+        showToast(COPY.timetable.waitlistJoined, 'success');
         prefetchTimetableData(true);
       } catch (wlErr) {
         haptic('error');
-        showToast(`Waitlist failed: ${wlErr.message}`, 'error');
+        showToast(formatCopyText(COPY.timetable.waitlistFailed, { error: wlErr.message }), 'error');
       }
       return;
     }
@@ -2792,7 +2795,7 @@ async function quickBookClass(eventId, prefs, btn, gymId = null) {
 
     if (slotsToTry.length === 0) {
       haptic('error');
-      showToast('No eligible slots available matching preferences.', 'error');
+      showToast(COPY.timetable.noEligibleSlots, 'error');
       return;
     }
 
@@ -2811,7 +2814,7 @@ async function quickBookClass(eventId, prefs, btn, gymId = null) {
         // threw. A refusal is data here, so it has to be checked, or a failed
         // booking reads as a success.
         const bookRes = await api.book(eventId, [targetSlot], gymId);
-        if (!bookRes.ok) throw new Error(bookRes.error || 'Booking was declined');
+        if (!bookRes.ok) throw new Error(bookRes.error || COPY.timetable.bookingDeclined);
         bookedCount++;
         lastBookedSlot = targetSlot;
         lastBookingRes = bookRes;
@@ -2835,26 +2838,26 @@ async function quickBookClass(eventId, prefs, btn, gymId = null) {
         upgradeRegistered = Boolean(upgradeRes?.registered);
       }
       const slotText = bookedSlotLabels.length > 0 ? ` ${qbNoun} ${bookedSlotLabels.join(', ')}` : '';
-      const upgradeNote = upgradeRegistered ? ' Auto-upgrade enabled.' : '';
-      showToast(`Quick-booked${slotText}!${upgradeNote} 🎉`, 'success');
+      const upgradeNote = upgradeRegistered ? COPY.timetable.upgradeEnabledNote : '';
+      showToast(formatCopyText(COPY.timetable.quickBookedDetail, { slots: slotText, upgrade: upgradeNote }), 'success');
 
       await refreshUserData(true);
       await refreshBookingState();
       setTimeout(() => {
         if (!upgradeRegistered && !gymSetting(event.gymId, 'autoUpgradeByDefault')) {
-          showToast('💡 Tip: Enable "Auto-upgrade spots by default" in Settings to monitor for better slots automatically!', 'info');
+          showToast(COPY.timetable.autoUpgradeTip, 'info');
         }
       }, 2500);
     } else {
       haptic('error');
-      showToast('Failed to quick book any slots.', 'error');
+      showToast(COPY.timetable.quickBookFailed, 'error');
     }
   } catch (err) {
-    showToast(`Quick Book error: ${err.message}`, 'error');
+    showToast(formatCopyText(COPY.timetable.quickBookError, { error: err.message }), 'error');
   } finally {
     if (btn) {
       btn.disabled = false;
-      btn.innerHTML = `Book`;
+      btn.innerHTML = COPY.timetable.book;
     }
   }
 }
@@ -2878,7 +2881,7 @@ async function openBookingModal(c, mode, opts = {}) {
   if (!modal || !body || !title) return;
 
   const noun = seatNoun(c.discipline);
-  title.textContent = isAutoBookMode ? 'Configure Auto-Book' : (isQuickBookMode ? `Select a ${noun} in the studio` : `Select a ${noun} in the studio`);
+  title.textContent = isAutoBookMode ? COPY.timetable.configureAutoBook : (isQuickBookMode ? `Select a ${noun} in the studio` : `Select a ${noun} in the studio`);
 
   // Use cached layout if available — layouts don't change mid-session.
   // WP-C5: the cache now holds NormalizedSlot[]/NormalizedLayoutObject[] (see
@@ -2891,7 +2894,7 @@ async function openBookingModal(c, mode, opts = {}) {
   body.innerHTML = `
     <div class="psycle-loading-spinner-container" style="padding: 40px 0;">
       <div class="psycle-spinner"></div>
-      <span>${hasLayout ? 'Checking availability…' : 'Fetching studio floor map…'}</span>
+      <span>${hasLayout ? COPY.timetable.checkingAvailability : COPY.timetable.loadingFloorMap}</span>
     </div>
   `;
 
@@ -2955,27 +2958,27 @@ async function openBookingModal(c, mode, opts = {}) {
 
     const instrName = metadata.instructors.find(i => sameId(i.id, c.instructors?.[0]?.id) && (!c.gymId || i.gymId === c.gymId))?.name || '';
     const eventType = metadata.eventTypes.find(t => sameId(t.id, c.classTypeId) && (!c.gymId || t.gymId === c.gymId));
-    const groupName = c.discipline || eventType?.group || eventType?.name || 'Class';
+    const groupName = c.discipline || eventType?.group || eventType?.name || COPY.autoBook.class;
     const nounCap = seatNoun(groupName)[0].toUpperCase() + seatNoun(groupName).slice(1);
     const startDate = new Date(c.startAt);
     const timeStr = startDate.toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' });
-    const studioName = c.studioName || gymScopedGet(studioMap, c.studioId, c.gymId) || 'this studio';
+    const studioName = c.studioName || gymScopedGet(studioMap, c.studioId, c.gymId) || COPY.spotSelection.thisStudio;
 
     if (isAutoBookMode) {
-      title.textContent = `Auto-Book: ${timeStr} ${groupName}${instrName ? ' with ' + instrName : ''}`;
+      title.textContent = formatCopyText(COPY.timetable.autoBookModalTitle, { time: timeStr, className: groupName, instructor: instrName ? ` with ${instrName}` : '' });
     } else if (isQuickBookMode) {
-      title.textContent = `Configure Quick-Book for ${studioName}: ${timeStr} ${groupName}${instrName ? ' with ' + instrName : ''}`;
+      title.textContent = formatCopyText(COPY.timetable.quickBookModalTitle, { studio: studioName, time: timeStr, className: groupName, instructor: instrName ? ` with ${instrName}` : '' });
     } else {
-      title.textContent = `Choose a ${seatNoun(groupName)} for ${timeStr} ${groupName}${instrName ? ' with ' + instrName : ''}`;
+      title.textContent = formatCopyText(COPY.timetable.chooseSeatFor, { noun: seatNoun(groupName), time: timeStr, className: groupName, instructor: instrName ? ` with ${instrName}` : '' });
     }
 
     if (layoutSlots.length === 0) {
       body.innerHTML = `
         <div style="padding: 24px; text-align: center; color: var(--text-secondary);">
-          <p style="margin-bottom: 16px;">No floor map layout available for this studio.</p>
+          <p style="margin-bottom: 16px;">${COPY.timetable.noFloorMap}</p>
           ${isAutoBookMode
-            ? `<button class="psycle-btn" id="btn-save-simple-autobook" style="background: var(--feat-autoupgrade); color:var(--on-accent); display:flex; align-items:center; justify-content:center; gap:6px;">${sparklesIcon(14, 'currentColor')} Schedule Auto-Book (Any Seat)</button>`
-            : `<button class="psycle-btn" id="btn-book-any" style="background: var(--success); color:var(--on-accent);">Book Any Available ${nounCap}</button>`
+            ? `<button class="psycle-btn" id="btn-save-simple-autobook" style="background: var(--feat-autoupgrade); color:var(--on-accent); display:flex; align-items:center; justify-content:center; gap:6px;">${sparklesIcon(14, 'currentColor')} ${COPY.timetable.scheduleAnySeat}</button>`
+            : `<button class="psycle-btn" id="btn-book-any" style="background: var(--success); color:var(--on-accent);">${formatCopyText(COPY.timetable.bookAnyAvailable, { noun: nounCap })}</button>`
           }
         </div>
       `;
@@ -3026,7 +3029,7 @@ async function openBookingModal(c, mode, opts = {}) {
       const stage = document.createElement('div');
       stage.className = 'psycle-minimap-stage';
       stage.style.cssText = `position: absolute; left: ${left}%; top: ${top}%; transform: translate(-50%, -50%); background: color-mix(in srgb, var(--text) 15%, transparent); border: 1px solid color-mix(in srgb, var(--text) 30%, transparent); padding: 4px 16px; border-radius: 6px; font-size: 12px; font-weight: bold; color: #fff; letter-spacing: 0.5px;`;
-      stage.textContent = 'STAGE';
+      stage.textContent = COPY.timetable.stage;
       floorGrid.appendChild(stage);
     });
 
@@ -3137,7 +3140,7 @@ async function openBookingModal(c, mode, opts = {}) {
         bubble.style.transition = 'all 0.1s';
         bubble.style.boxSizing = 'border-box';
         bubble.style.zIndex = '1';
-        bubble.title = `Seat ${label}`;
+        bubble.title = formatCopyText(COPY.timetable.seatTitle, { label });
 
         if (priority > 0) {
           // Selected
@@ -3179,11 +3182,11 @@ async function openBookingModal(c, mode, opts = {}) {
             // occupied spot; quick-book / auto-book are choosing PREFERENCES.
             const rule = spotSelectionRule({ mode, isAvailable });
             if (!rule.allowed) {
-              showToast(`⚠ This ${seatNoun(groupName)} is occupied or unavailable.`, 'warning');
+              showToast(formatCopyText(COPY.timetable.occupiedUnavailable, { noun: seatNoun(groupName) }), 'warning');
               return;
             }
             if (rule.notice === 'will-target') {
-              showToast('⚠ Currently occupied — will be targeted when booking fires.', 'info');
+              showToast(COPY.timetable.occupiedNow, 'info');
             }
             // Simple-book: limit selection to qty (credits/max-spots). Quick-book &
             // auto-book are preference setters — the spot map is unlimited; only the
@@ -3195,7 +3198,7 @@ async function openBookingModal(c, mode, opts = {}) {
               // Single-spot limit: replace existing choice with new spot
               state.selectedSlots = [slotId];
             } else {
-              showToast(`You can select up to ${state.qty} ${seatNoun(groupName)}${state.qty !== 1 ? 's' : ''}.`, 'info');
+              showToast(formatCopyText(COPY.timetable.maxSpots, { count: state.qty, noun: seatNoun(groupName), plural: state.qty !== 1 ? 's' : '' }), 'info');
               return;
             }
           }
@@ -3217,7 +3220,7 @@ async function openBookingModal(c, mode, opts = {}) {
           const btn = document.createElement('button');
           btn.style.cssText = `position:absolute;left:95.5%;top:${top}%;transform:translate(-50%,-50%);width:26px;height:26px;padding:0;border-radius:50%;background:${isOn ? 'color-mix(in srgb, var(--info) 30%, transparent)' : 'var(--surface-inset)'};border:1px solid ${isOn ? 'color-mix(in srgb, var(--info) 50%, transparent)' : 'var(--border-strong)'};color:${isOn ? 'var(--info)' : 'var(--text-secondary)'};font-size:16px;font-weight:700;cursor:pointer;display:flex;align-items:center;justify-content:center;transition:all 0.1s;z-index:2;`;
           btn.textContent = isOn ? '−' : '+';
-          btn.title = isOn ? `Remove Row ${idx + 1}` : `Add Row ${idx + 1}`;
+          btn.title = isOn ? formatCopyText(COPY.timetable.removeRow, { row: idx + 1 }) : formatCopyText(COPY.timetable.addRow, { row: idx + 1 });
           btn.addEventListener('click', (e) => {
             e.stopPropagation();
             if (state.selectedRows.has(y)) state.selectedRows.delete(y);
@@ -3239,18 +3242,18 @@ async function openBookingModal(c, mode, opts = {}) {
           return idx >= 0 ? String(idx + 1) : String(y);
         });
         if (spotLabels.length === 0 && rowLabels.length === 0) {
-          summaryEl.innerHTML = '<span style="color:var(--text-tertiary);font-style:italic;">(None selected yet)</span>';
+          summaryEl.innerHTML = `<span style="color:var(--text-tertiary);font-style:italic;">${COPY.spotMapEditor.noneSelected}</span>`;
         } else {
           const fmt = (labels, noun) => {
             const shown = labels.slice(0, 3);
-            const rest = labels.length > 3 ? ` <span style="color:var(--text-tertiary);">+${labels.length - 3} more</span>` : '';
-            return `<span style="color:var(--text-secondary);font-size:11px;text-transform:uppercase;letter-spacing:0.05em;">${noun}</span> <span style="color:var(--text);font-weight:700;">${shown.join(', ')}</span>${rest}`;
+            const rest = labels.length > 3 ? ` <span style="color:var(--text-tertiary);">${formatCopyText(COPY.timetable.moreCount, { count: labels.length - 3 })}</span>` : '';
+            return `<span style="color:var(--text-secondary);font-size:11px;text-transform:uppercase;letter-spacing:0.05em;">${noun}</span> <span style="color:var(--text);font-weight:700;">${shown.map(escapeHtml).join(', ')}</span>${rest}`;
           };
           const parts = [];
-          if (spotLabels.length > 0) parts.push(fmt(spotLabels, 'Spots'));
-          if (rowLabels.length > 0) parts.push(fmt(rowLabels, 'Rows'));
+          if (spotLabels.length > 0) parts.push(fmt(spotLabels, COPY.timetable.spotLabel));
+          if (rowLabels.length > 0) parts.push(fmt(rowLabels, COPY.timetable.rowLabel));
           const sep = ' <span style="color:var(--text-tertiary);margin:0 4px;">›</span> ';
-          summaryEl.innerHTML = `<span style="color:var(--text-tertiary);font-size:11px;text-transform:uppercase;letter-spacing:0.05em;margin-right:6px;">Preferred</span>${parts.join(sep)}`;
+          summaryEl.innerHTML = `<span style="color:var(--text-tertiary);font-size:11px;text-transform:uppercase;letter-spacing:0.05em;margin-right:6px;">${COPY.timetable.preferredLabel}</span>${parts.join(sep)}`;
         }
       }
 
@@ -3262,7 +3265,7 @@ async function openBookingModal(c, mode, opts = {}) {
         if (unmappedEl) {
           unmappedEl.style.display = unmappedSlots.length > 0 ? 'block' : 'none';
           if (unmappedSlots.length > 0) {
-            unmappedEl.innerHTML = `⚠ <strong>Additional Available Spots:</strong> ${unmappedSlots.join(', ')}`;
+            unmappedEl.innerHTML = `<strong>${COPY.timetable.additionalAvailableSpots}</strong> ${unmappedSlots.map(escapeHtml).join(', ')}`;
           }
         }
       }
@@ -3282,7 +3285,7 @@ async function openBookingModal(c, mode, opts = {}) {
       const editBtn = document.createElement('button');
       editBtn.className = 'psycle-btn';
       editBtn.style.cssText = 'width:100%;margin-bottom:12px;background:color-mix(in srgb, var(--feat-autoupgrade) 12%, transparent);border:1px solid color-mix(in srgb, var(--feat-autoupgrade) 30%, transparent);color:var(--feat-autoupgrade);';
-      editBtn.textContent = `Edit preferred spots for ${studioName}`;
+      editBtn.textContent = formatCopyText(COPY.timetable.editPreferredSpots, { studio: studioName });
       editBtn.onclick = () => {
         mapEditing = true;
         render();
@@ -3305,12 +3308,12 @@ async function openBookingModal(c, mode, opts = {}) {
         const creditsNeeded = selectedQty;
         const hasEnoughCredits = availableCredits >= creditsNeeded;
         const creditWarning = !hasEnoughCredits
-          ? `In order for Auto-Book to work, you need to purchase ${creditsNeeded - availableCredits} more credit${creditsNeeded - availableCredits !== 1 ? 's' : ''}.`
+          ? `${formatCopyText(COPY.timetable.autoBookCreditShortfall, { count: creditsNeeded - availableCredits, plural: creditsNeeded - availableCredits !== 1 ? 's' : '' })}`
           : '';
 
         body.querySelector('#psycle-modal-info-banner').innerHTML = mapEditing
-          ? `<div style="font-size:12px;color:var(--feat-autoupgrade);background:color-mix(in srgb,var(--feat-autoupgrade) 8%,transparent);border:1px solid color-mix(in srgb,var(--feat-autoupgrade) 18%,transparent);border-radius:8px;padding:8px 10px;line-height:1.5;">You are editing your preferred spot map for <strong>${studioName}</strong>. Changes here apply to Quick-Book and Auto-Upgrade too.</div>`
-          : `<div style="font-size:12px;color:var(--feat-autoupgrade);background:color-mix(in srgb,var(--feat-autoupgrade) 8%,transparent);border:1px solid color-mix(in srgb,var(--feat-autoupgrade) 18%,transparent);border-radius:8px;padding:8px 10px;line-height:1.5;">Spots here are your one shared preferred map for <strong>${studioName}</strong>. Scheduling updates it for Quick-Book and Auto-Upgrade too.</div>`;
+          ? `<div style="font-size:12px;color:var(--feat-autoupgrade);background:color-mix(in srgb,var(--feat-autoupgrade) 8%,transparent);border:1px solid color-mix(in srgb,var(--feat-autoupgrade) 18%,transparent);border-radius:8px;padding:8px 10px;line-height:1.5;">${formatCopyText(COPY.timetable.editingSharedMapHtml, { studio: escapeHtml(studioName), features: 'Quick-Book and Auto-Upgrade too' })}</div>`
+          : `<div style="font-size:12px;color:var(--feat-autoupgrade);background:color-mix(in srgb,var(--feat-autoupgrade) 8%,transparent);border:1px solid color-mix(in srgb,var(--feat-autoupgrade) 18%,transparent);border-radius:8px;padding:8px 10px;line-height:1.5;">${formatCopyText(COPY.timetable.sharedMapForStudioHtml, { studio: escapeHtml(studioName) })}</div>`;
 
         const toggleEl = body.querySelector('#psycle-map-edit-toggle');
         if (toggleEl && mapEditing) {
@@ -3319,7 +3322,7 @@ async function openBookingModal(c, mode, opts = {}) {
             const h = document.createElement('div');
             h.className = 'ab-map-hint';
             h.style.cssText = 'font-size:12px;color:var(--text-secondary);font-style:italic;margin:8px 0 4px;';
-            h.innerHTML = 'Click on the spots to set your priority order. Click the <strong>+</strong> button on the right to prefer entire rows.';
+            h.innerHTML = COPY.timetable.mapEditInstructionHtml;
             toggleEl.appendChild(h);
           }
         }
@@ -3330,7 +3333,7 @@ async function openBookingModal(c, mode, opts = {}) {
             ${creditWarning ? `<div style="font-size:12px;color:var(--danger);background:color-mix(in srgb,var(--danger) 10%,transparent);border:1px solid color-mix(in srgb,var(--danger) 20%,transparent);border-radius:8px;padding:10px;line-height:1.5;">${creditWarning}</div>` : ''}
             <div style="display:flex;gap:14px;align-items:center;">
               <div style="width:110px;">
-                <label style="display:block;font-size:12px;color:var(--text-secondary);margin-bottom:4px;">Slots to book:</label>
+                <label style="display:block;font-size:12px;color:var(--text-secondary);margin-bottom:4px;">${COPY.timetable.slotsToBook}</label>
                 <select id="autobook-qty" class="psycle-select" style="width:100%;padding:6px 8px;font-size:13px;">
                   ${[1,2,3,4].map(n => `<option value="${n}" ${state.qty===n?'selected':''}>${n}</option>`).join('')}
                 </select>
@@ -3338,7 +3341,7 @@ async function openBookingModal(c, mode, opts = {}) {
               <div style="flex:1;padding-top:14px;">
                 <label style="display:flex;align-items:center;gap:8px;font-size:13px;cursor:pointer;color:var(--text-secondary);user-select:none;">
                   <input type="checkbox" class="psycle-ms-checkbox" id="autobook-fallback-any" ${state.bookAny ? 'checked' : ''}>
-                  <span>Book any slot if preferred is unavailable</span>
+                  <span>${COPY.timetable.bookAnyPreferredFallback}</span>
                 </label>
               </div>
             </div>
@@ -3349,17 +3352,17 @@ async function openBookingModal(c, mode, opts = {}) {
               if (!hasPrefs) return `
                 <label style="display:flex;align-items:center;gap:8px;font-size:13px;color:var(--text-tertiary);user-select:none;cursor:not-allowed;">
                   <input type="checkbox" class="psycle-ms-checkbox" id="autobook-auto-upgrade" disabled>
-                  <span style="display:flex;align-items:center;gap:4px;">${trendingUpIcon(12, 'currentColor', 2)} Auto-Upgrade: Please configure your preferred spots for this studio first.</span>
+                  <span style="display:flex;align-items:center;gap:4px;">${trendingUpIcon(12, 'currentColor', 2)} ${COPY.timetable.autoUpgradeConfigurePrompt}</span>
                 </label>`;
               return `
                 <label style="display:flex;align-items:center;gap:8px;font-size:13px;cursor:pointer;color:var(--text-secondary);user-select:none;">
                   <input type="checkbox" class="psycle-ms-checkbox" id="autobook-auto-upgrade" ${gymSetting(c.gymId, 'autoUpgradeByDefault') ? 'checked' : ''}>
-                  <span style="display:flex;align-items:center;gap:4px;">${trendingUpIcon(12, 'currentColor', 2)} Auto-Upgrade: Keep searching for a better spot for me</span>
+                  <span style="display:flex;align-items:center;gap:4px;">${trendingUpIcon(12, 'currentColor', 2)} ${COPY.timetable.autoUpgradeKeepSearchingLabel}</span>
                 </label>`;
             })()}
-            <button class="psycle-btn" id="btn-save-autobook" style="width:100%;background:var(--feat-autoupgrade);color:var(--on-accent);display:flex;align-items:center;justify-content:center;gap:6px;">${sparklesIcon(14, 'currentColor')} ${mapChanged() ? 'Save map and ' : ''}Schedule Auto-Book</button>
+            <button class="psycle-btn" id="btn-save-autobook" style="width:100%;background:var(--feat-autoupgrade);color:var(--on-accent);display:flex;align-items:center;justify-content:center;gap:6px;">${sparklesIcon(14, 'currentColor')} ${mapChanged() ? `${COPY.spotMapEditor.saveMapAnd} ` : ''}${COPY.timetable.scheduleAutoBook}</button>
             <div style="font-size:12px;text-align:center;color:${isLive ? 'var(--success)' : 'var(--text-tertiary)'};">
-              ${isLive ? '✓ Booking window is open' : `Booking opens: <span style="color:var(--text-secondary);">${releaseStr}</span>`}
+              ${isLive ? COPY.timetable.bookingWindowIsOpen : `${formatCopyText(COPY.timetable.bookingOpens, { date: `<span style="color:var(--text-secondary);">${escapeHtml(releaseStr)}</span>` })}`}
             </div>
           </div>
         `;
@@ -3392,12 +3395,12 @@ async function openBookingModal(c, mode, opts = {}) {
         const hasEnoughCredits = slotsSelected === 0 || availableCredits >= slotsSelected;
         const needsMoreCredits = slotsSelected > availableCredits ? slotsSelected - availableCredits : 0;
         const creditWarning = needsMoreCredits > 0 && isDataLoaded
-          ? `In order to book, you need to purchase ${needsMoreCredits} more credit${needsMoreCredits !== 1 ? 's' : ''}.`
+          ? `${formatCopyText(COPY.timetable.simpleBookCreditShortfall, { count: needsMoreCredits, plural: needsMoreCredits !== 1 ? 's' : '' })}`
           : '';
 
         controls.innerHTML = `
           <div style="display:flex;flex-direction:column;gap:12px;background:var(--surface-inset);padding:14px;border-radius:12px;border:1px solid var(--border);">
-            <div style="font-size:12px;color:var(--text-secondary);font-style:italic;">Select the ${seatNoun(groupName)}(s) you want to book for this class. You have <strong>${isDataLoaded ? availableCredits : '?'}</strong> credit${availableCredits !== 1 ? 's' : ''} available.</div>
+            <div style="font-size:12px;color:var(--text-secondary);font-style:italic;">${formatCopyText(COPY.timetable.simpleBookPrompt, { noun: seatNoun(groupName), count: `<strong>${isDataLoaded ? availableCredits : '?'}</strong>`, plural: availableCredits !== 1 ? 's' : '' })}</div>
             ${creditWarning ? `<div style="font-size:12px;color:var(--danger);background:color-mix(in srgb,var(--danger) 10%,transparent);border:1px solid color-mix(in srgb,var(--danger) 20%,transparent);border-radius:8px;padding:10px;line-height:1.5;">${creditWarning}</div>` : ''}
             ${(() => {
               const hasLayout = layoutSlots.length > 0;
@@ -3406,16 +3409,16 @@ async function openBookingModal(c, mode, opts = {}) {
               if (!hasPrefs) return `
                 <label style="display:flex;align-items:center;gap:8px;font-size:13px;color:var(--text-tertiary);user-select:none;cursor:not-allowed;font-weight:500;">
                   <input type="checkbox" class="psycle-ms-checkbox" id="simplebook-auto-upgrade" disabled>
-                  <span style="display:flex;align-items:center;gap:4px;flex-wrap:wrap;">${trendingUpIcon(12, 'currentColor', 2)} Auto-Upgrade: Please <a href="#" id="simplebook-configure-link" style="color:var(--feat-autoupgrade);text-decoration:underline;cursor:pointer;">configure your preferred spots</a> for <strong>${studioName}</strong> first.</span>
+                  <span style="display:flex;align-items:center;gap:4px;flex-wrap:wrap;">${trendingUpIcon(12, 'currentColor', 2)} ${formatCopyText(COPY.timetable.autoUpgradeConfigureFirstHtml, { studio: escapeHtml(studioName) })}</span>
                 </label>`;
               return `
                 <label style="display:flex;align-items:center;gap:8px;font-size:13px;cursor:pointer;color:var(--text-secondary);user-select:none;font-weight:500;">
                   <input type="checkbox" class="psycle-ms-checkbox" id="simplebook-auto-upgrade" ${gymSetting(c.gymId, 'autoUpgradeByDefault') ? 'checked' : ''}>
-                  <span style="display:flex;align-items:center;gap:4px;">${trendingUpIcon(12, 'currentColor', 2)} Auto-Upgrade: Keep searching for a better spot for me</span>
+                  <span style="display:flex;align-items:center;gap:4px;">${trendingUpIcon(12, 'currentColor', 2)} ${COPY.timetable.autoUpgradeKeepSearchingLabel}</span>
                 </label>`;
             })()}
             <div style="display:flex;gap:8px;">
-              <button class="psycle-btn" id="btn-book-simple" style="flex:1;background:var(--success);color:var(--on-accent);" ${!isDataLoaded || !hasEnoughCredits ? 'disabled' : ''}>Book Selected ${nounCap}s</button>
+              <button class="psycle-btn" id="btn-book-simple" style="flex:1;background:var(--success);color:var(--on-accent);" ${!isDataLoaded || !hasEnoughCredits ? 'disabled' : ''}>${formatCopyText(COPY.timetable.bookSelectedPlain, { noun: nounCap })}</button>
             </div>
           </div>
         `;
@@ -3437,22 +3440,22 @@ async function openBookingModal(c, mode, opts = {}) {
 
         controls.querySelector('#btn-book-simple').onclick = async () => {
           if (state.selectedSlots.length === 0) {
-            showToast(`Please select at least one ${seatNoun(groupName)} to book.`, 'warning');
+            showToast(formatCopyText(COPY.timetable.pleaseSelectSpots, { noun: seatNoun(groupName) }), 'warning');
             return;
           }
           if (state.selectedSlots.length > availableCredits) {
-            showToast(`You only have ${availableCredits} credit${availableCredits !== 1 ? 's' : ''} available, but selected ${state.selectedSlots.length} ${seatNoun(groupName)}${state.selectedSlots.length !== 1 ? 's' : ''}.`, 'warning');
+            showToast(formatCopyText(COPY.timetable.simpleBookSelectedCredits, { credits: availableCredits, creditPlural: availableCredits !== 1 ? 's' : '', count: state.selectedSlots.length, noun: seatNoun(groupName), nounPlural: state.selectedSlots.length !== 1 ? 's' : '' }), 'warning');
             return;
           }
           const btn = controls.querySelector('#btn-book-simple');
           if (isWithin12Hours(c.startAt) && btn.dataset.confirmState !== 'confirm') {
             btn.dataset.confirmState = 'confirm';
-            btn.textContent = 'Class starts soon. Confirm?';
+            btn.textContent = COPY.timetable.confirmSoon;
             btn.style.background = 'var(--warning)';
             setTimeout(() => {
               if (btn.dataset.confirmState === 'confirm') {
                 delete btn.dataset.confirmState;
-                btn.textContent = `Book Selected ${nounCap}s`;
+                btn.textContent = formatCopyText(COPY.timetable.bookSelected, { noun: nounCap });
                 btn.style.background = '';
               }
             }, 4000);
@@ -3460,7 +3463,7 @@ async function openBookingModal(c, mode, opts = {}) {
           }
           delete btn.dataset.confirmState;
           btn.disabled = true;
-          btn.textContent = 'Booking...';
+          btn.textContent = COPY.timetable.booking;
           try {
             // One request per spot: api.book() books exactly one, because
             // MarianaTek creates one reservation per call (see base.js). Sequential
@@ -3470,9 +3473,9 @@ async function openBookingModal(c, mode, opts = {}) {
             for (const slotId of state.selectedSlots) {
               const r = await api.book(c.id, [slotId], c.gymId);
               if (!r.ok) {
-                if (results.length === 0) throw new Error(r.error || 'Booking was declined');
+                if (results.length === 0) throw new Error(r.error || COPY.timetable.bookingDeclined);
                 // Partial success: keep what we got and tell the truth about it.
-                showToast(`Booked ${results.length} of ${state.selectedSlots.length} — ${r.error || 'the rest were declined'}`, 'error');
+                showToast(formatCopyText(COPY.timetable.bookCountPartial, { booked: results.length, total: state.selectedSlots.length, declined: r.error || COPY.timetable.remainingDeclined }), 'error');
                 break;
               }
               results.push(r);
@@ -3496,15 +3499,15 @@ async function openBookingModal(c, mode, opts = {}) {
               upgradeRegistered = Boolean(upgradeRes?.registered);
             }
             if (results.length === state.selectedSlots.length) {
-              const upgradeNote = upgradeRegistered ? ' Auto-upgrade enabled.' : '';
-              showToast(`Successfully booked ${state.selectedSlots.length} ${seatNoun(groupName)}${state.selectedSlots.length > 1 ? 's' : ''}!${upgradeNote} 🎉`, 'success');
+              const upgradeNote = upgradeRegistered ? COPY.timetable.upgradeEnabledNote : '';
+              showToast(formatCopyText(COPY.timetable.bookedCount, { count: state.selectedSlots.length, noun: seatNoun(groupName), plural: state.selectedSlots.length > 1 ? 's' : '', note: upgradeNote }), 'success');
             }
             await refreshUserData(true);
             await refreshBookingState();
           } catch (err) {
-            showToast(`Booking failed: ${err.message}`, 'error');
+            showToast(formatCopyText(COPY.timetable.bookingFailed, { error: err.message }), 'error');
             btn.disabled = false;
-            btn.textContent = `Book Selected ${nounCap}s`;
+            btn.textContent = formatCopyText(COPY.timetable.bookSelected, { noun: nounCap });
           }
         };
       };
@@ -3519,21 +3522,21 @@ async function openBookingModal(c, mode, opts = {}) {
         const creditsNeeded = selectedQty;
         const hasEnoughCredits = availableCredits >= creditsNeeded;
         const creditWarning = !hasEnoughCredits
-          ? `In order for Quick-Book to work, you need to purchase ${creditsNeeded - availableCredits} more credit${creditsNeeded - availableCredits !== 1 ? 's' : ''}.`
+          ? `${formatCopyText(COPY.timetable.quickBookCreditShortfall, { count: creditsNeeded - availableCredits, plural: creditsNeeded - availableCredits !== 1 ? 's' : '' })}`
           : '';
 
         body.querySelector('#psycle-modal-info-banner').innerHTML = !mapEditing
-          ? `<div style="font-size:12px;color:var(--feat-autoupgrade);background:color-mix(in srgb,var(--feat-autoupgrade) 8%,transparent);border:1px solid color-mix(in srgb,var(--feat-autoupgrade) 18%,transparent);border-radius:8px;padding:8px 10px;line-height:1.5;">Quick-Book uses your preferred spot map to book the best spot it can. You can edit your preferred spots any time in Settings.</div>`
+          ? `<div style="font-size:12px;color:var(--feat-autoupgrade);background:color-mix(in srgb,var(--feat-autoupgrade) 8%,transparent);border:1px solid color-mix(in srgb,var(--feat-autoupgrade) 18%,transparent);border-radius:8px;padding:8px 10px;line-height:1.5;">${COPY.timetable.quickBookBannerHtml}</div>`
           : (hasExistingPrefs
-            ? `<div style="font-size:12px;color:var(--feat-autoupgrade);background:color-mix(in srgb,var(--feat-autoupgrade) 8%,transparent);border:1px solid color-mix(in srgb,var(--feat-autoupgrade) 18%,transparent);border-radius:8px;padding:8px 10px;line-height:1.5;">You are editing your preferred spot map for <strong>${studioName}</strong>. Changes here apply to Auto-Book and Auto-Upgrade too.</div>`
-            : `<div style="font-size:12px;color:var(--text-tertiary);background:color-mix(in srgb,var(--feat-autoupgrade) 7%,transparent);border:1px solid color-mix(in srgb,var(--feat-autoupgrade) 15%,transparent);border-radius:8px;padding:10px 12px;line-height:1.5;">First time setup: Quick-Book grabs a preferred spot in any class in one click. Set your preferred spots for <strong style="color:var(--feat-autoupgrade);">${studioName}</strong> once and they'll apply everywhere.</div>`);
+            ? `<div style="font-size:12px;color:var(--feat-autoupgrade);background:color-mix(in srgb,var(--feat-autoupgrade) 8%,transparent);border:1px solid color-mix(in srgb,var(--feat-autoupgrade) 18%,transparent);border-radius:8px;padding:8px 10px;line-height:1.5;">${formatCopyText(COPY.timetable.editingQuickBookMapHtml, { studio: escapeHtml(studioName) })}</div>`
+            : `<div style="font-size:12px;color:var(--text-tertiary);background:color-mix(in srgb,var(--feat-autoupgrade) 7%,transparent);border:1px solid color-mix(in srgb,var(--feat-autoupgrade) 15%,transparent);border-radius:8px;padding:10px 12px;line-height:1.5;">${formatCopyText(COPY.timetable.quickBookFirstSetupHtml, { studio: escapeHtml(studioName) })}</div>`);
 
         const qbToggleEl = body.querySelector('#psycle-map-edit-toggle');
         if (qbToggleEl && mapEditing && !qbToggleEl.querySelector('.ab-map-hint')) {
           const h = document.createElement('div');
           h.className = 'ab-map-hint';
           h.style.cssText = 'font-size:12px;color:var(--text-secondary);font-style:italic;margin:8px 0 4px;';
-          h.innerHTML = 'Click on the spots to set your priority order. Click the <strong>+</strong> button on the right to prefer entire rows.';
+          h.innerHTML = COPY.timetable.mapEditInstructionHtml;
           qbToggleEl.appendChild(h);
         } else if (qbToggleEl && !mapEditing) {
           const existing = qbToggleEl.querySelector('.ab-map-hint');
@@ -3545,7 +3548,7 @@ async function openBookingModal(c, mode, opts = {}) {
             ${creditWarning ? `<div style="font-size:12px;color:var(--danger);background:color-mix(in srgb,var(--danger) 10%,transparent);border:1px solid color-mix(in srgb,var(--danger) 20%,transparent);border-radius:8px;padding:10px;line-height:1.5;">${creditWarning}</div>` : ''}
             <div style="display:flex;gap:14px;align-items:center;">
               <div style="width:110px;">
-                <label style="display:block;font-size:12px;color:var(--text-secondary);margin-bottom:4px;">Slots to book:</label>
+                <label style="display:block;font-size:12px;color:var(--text-secondary);margin-bottom:4px;">${COPY.timetable.slotsToBook}</label>
                 <select id="quickbook-qty" class="psycle-select" style="width:100%;padding:6px 8px;font-size:13px;">
                   ${[1,2,3,4].map(n => `<option value="${n}" ${state.qty===n?'selected':''}>${n}</option>`).join('')}
                 </select>
@@ -3553,7 +3556,7 @@ async function openBookingModal(c, mode, opts = {}) {
               <div style="flex:1;padding-top:14px;">
                 <label style="display:flex;align-items:center;gap:8px;font-size:13px;cursor:pointer;color:var(--text-secondary);user-select:none;">
                   <input type="checkbox" class="psycle-ms-checkbox" id="quickbook-fallback-any" ${state.bookAny ? 'checked' : ''}>
-                  <span>Book any slot if preferred is unavailable</span>
+                  <span>${COPY.timetable.bookAnyPreferredFallback}</span>
                 </label>
               </div>
             </div>
@@ -3564,28 +3567,28 @@ async function openBookingModal(c, mode, opts = {}) {
               if (!hasPrefs) return `
                 <label style="display:flex;align-items:center;gap:8px;font-size:13px;color:var(--text-tertiary);user-select:none;cursor:not-allowed;">
                   <input type="checkbox" class="psycle-ms-checkbox" id="quickbook-auto-upgrade" disabled>
-                  <span style="display:flex;align-items:center;gap:4px;">${trendingUpIcon(12, 'currentColor', 2)} Auto-Upgrade: Please configure your preferred spots for this studio first.</span>
+                  <span style="display:flex;align-items:center;gap:4px;">${trendingUpIcon(12, 'currentColor', 2)} ${COPY.timetable.autoUpgradeConfigurePrompt}</span>
                 </label>`;
               return `
                 <label style="display:flex;align-items:center;gap:8px;font-size:13px;cursor:pointer;color:var(--text-secondary);user-select:none;">
                   <input type="checkbox" class="psycle-ms-checkbox" id="quickbook-auto-upgrade" ${gymSetting(c.gymId, 'autoUpgradeByDefault') ? 'checked' : ''}>
-                  <span style="display:flex;align-items:center;gap:4px;">${trendingUpIcon(12, 'currentColor', 2)} Auto-Upgrade: Keep searching for a better spot for me</span>
+                  <span style="display:flex;align-items:center;gap:4px;">${trendingUpIcon(12, 'currentColor', 2)} ${COPY.timetable.autoUpgradeKeepSearchingLabel}</span>
                 </label>`;
             })()}
-            <button class="psycle-btn" id="btn-submit-quickbook" style="width:100%;background:var(--success);color:var(--on-accent);">${mapChanged() ? 'Save map and ' : ''}Quick-Book</button>
+            <button class="psycle-btn" id="btn-submit-quickbook" style="width:100%;background:var(--success);color:var(--on-accent);">${mapChanged() ? `${COPY.spotMapEditor.saveMapAnd} ` : ''}${COPY.timetable.quickBook}</button>
           </div>
         `;
 
         controls.querySelector('#btn-submit-quickbook').onclick = async () => {
           if (state.selectedSlots.length === 0 && state.selectedRows.size === 0) {
-            showToast(`Please select at least one ${seatNoun(groupName)} or row to book.`, 'warning');
+            showToast(formatCopyText(COPY.timetable.pleaseSelectSpotOrRow, { noun: seatNoun(groupName) }), 'warning');
             return;
           }
           const btn = controls.querySelector('#btn-submit-quickbook');
-          const baseLabel = `${mapChanged() ? 'Save map and ' : ''}Quick-Book`;
+          const baseLabel = `${mapChanged() ? `${COPY.spotMapEditor.saveMapAnd} ` : ''}${COPY.timetable.quickBook}`;
           if (isWithin12Hours(c.startAt) && btn.dataset.confirmState !== 'confirm') {
             btn.dataset.confirmState = 'confirm';
-            btn.textContent = 'Class starts soon. Confirm?';
+            btn.textContent = COPY.timetable.confirmSoon;
             btn.style.background = 'var(--warning)';
             setTimeout(() => {
               if (btn.dataset.confirmState === 'confirm') {
@@ -3598,7 +3601,7 @@ async function openBookingModal(c, mode, opts = {}) {
           }
           delete btn.dataset.confirmState;
           btn.disabled = true;
-          btn.textContent = 'Booking...';
+          btn.textContent = COPY.timetable.booking;
           try {
             const qty = parseInt(controls.querySelector('#quickbook-qty').value) || 1;
             const fallbackAny = controls.querySelector('#quickbook-fallback-any').checked;
@@ -3618,7 +3621,7 @@ async function openBookingModal(c, mode, opts = {}) {
             }, null, c.gymId);
             closeModal();
           } catch (err) {
-            showToast(`Quick Book error: ${err.message}`, 'error');
+            showToast(formatCopyText(COPY.timetable.quickBookError, { error: err.message }), 'error');
           } finally {
             btn.disabled = false;
             btn.textContent = baseLabel;
@@ -3666,7 +3669,7 @@ async function openBookingModal(c, mode, opts = {}) {
     }
   } catch (err) {
     console.error('[Timetable] Modal load floor map failed:', err);
-    body.innerHTML = `<div class="psycle-card-error" style="color: var(--danger); padding: 20px 0; text-align: center;">Error loading layout: ${err.message}</div>`;
+    body.innerHTML = `<div class="psycle-card-error" style="color: var(--danger); padding: 20px 0; text-align: center;">${formatCopyText(COPY.timetable.errorLoadingLayout, { error: escapeHtml(err.message) })}</div>`;
   }
 }
 
@@ -3686,10 +3689,10 @@ async function tryAutoRegisterUpgrade(event, bookedSlotId, bookingRes, enableOve
     const { prefs, hasPrefs } = await resolveStudioPrefs(event);
     debugConsole('[AutoUpgrade] Resolved prefs:', prefs, 'hasPrefs:', hasPrefs);
     if (!hasPrefs) {
-      const studioName = event.studioName || gymScopedGet(studioMap, studioId, event.gymId) || 'this studio';
+      const studioName = event.studioName || gymScopedGet(studioMap, studioId, event.gymId) || COPY.spotSelection.thisStudio;
       debugConsole('[AutoUpgrade] No preferred spot map for studio:', studioName, '| prefs:', prefs);
       if (!silent) {
-        showToast(`Can't set auto-upgrade because you don't have a preferred spot map for ${studioName}. Please configure one!`, 'warning');
+        showToast(formatCopyText(COPY.timetable.autoUpgradeMapRequired, { studio: studioName }), 'warning');
       }
       return { registered: false, reason: 'no_prefs' };
     }
@@ -3734,7 +3737,7 @@ async function tryAutoRegisterUpgrade(event, bookedSlotId, bookingRes, enableOve
 
     await Promise.all(registerPromises);
     if (!silent) {
-      showToast(`Auto-upgrade monitor started for ${registerPromises.length} spot(s).`, 'info');
+      showToast(formatCopyText(COPY.timetable.monitorStartedCount, { count: registerPromises.length }), 'info');
     }
     debugConsole('[AutoUpgrade] Monitors registered successfully.');
     return { registered: true, count: registerPromises.length };
@@ -3747,20 +3750,20 @@ async function tryAutoRegisterUpgrade(event, bookedSlotId, bookingRes, enableOve
 // Perform direct booking of spot ID
 async function bookSeatDirect(eventId, slotId, callback, event) {
   try {
-    showToast(`Booking spot ${slotId}...`, 'info');
+    showToast(formatCopyText(COPY.timetable.bookingSpot, { slot: slotId }), 'info');
     const bookingRes = await api.book(eventId, slotId == null ? [] : [slotId], event?.gymId);
-    if (!bookingRes.ok) throw new Error(bookingRes.error || 'Booking was declined');
+    if (!bookingRes.ok) throw new Error(bookingRes.error || COPY.timetable.bookingDeclined);
     callback();
     let upgradeRes = null;
     if (event) upgradeRes = await tryAutoRegisterUpgrade(event, slotId, bookingRes, undefined, { silent: true });
-    const upgradeNote = upgradeRes?.registered ? ' Auto-upgrade enabled.' : '';
+    const upgradeNote = upgradeRes?.registered ? COPY.timetable.upgradeEnabledNote : '';
     haptic('success');
-    showToast(`Spot booked successfully!${upgradeNote} 🎉`, 'success');
+    showToast(formatCopyText(COPY.timetable.spotBooked, { note: upgradeNote }), 'success');
     await refreshUserData(true);
     prefetchTimetableData(true);
   } catch (err) {
     haptic('error');
-    showToast(`Booking failed: ${err.message}`, 'error');
+    showToast(formatCopyText(COPY.timetable.bookingFailed, { error: err.message }), 'error');
   }
 }
 
@@ -3786,12 +3789,12 @@ function isWithin12Hours(startAt) {
 async function cancelBookingDirect(bookingId, isPenalty, btn, gymId) {
   const performCancel = async () => {
     btn.disabled = true;
-    btn.textContent = 'Cancelling...';
+    btn.textContent = COPY.timetable.cancelling;
     try {
-      showToast('Cancelling booking...', 'info');
+      showToast(COPY.timetable.cancelBooking, 'info');
       await api.cancel(bookingId, gymId);
       haptic('warning');
-      showToast('Booking cancelled successfully!', 'success');
+      showToast(COPY.timetable.cancelled, 'success');
 
       // Remove any active upgrade monitor for this booking
       const activeUpgrade = cache.upgrades?.find(u =>
@@ -3810,9 +3813,9 @@ async function cancelBookingDirect(bookingId, isPenalty, btn, gymId) {
       await refreshBookingState();
     } catch (err) {
       haptic('error');
-      showToast(`Cancel failed: ${err.message}`, 'error');
+      showToast(formatCopyText(COPY.timetable.cancelFailed, { error: err.message }), 'error');
       btn.disabled = false;
-      btn.textContent = 'Cancel';
+      btn.textContent = COPY.bookings.cancel;
       btn.style.background = '';
       btn.style.borderColor = '';
       btn.style.color = '';
@@ -3829,7 +3832,7 @@ async function cancelBookingDirect(bookingId, isPenalty, btn, gymId) {
   if (btn.dataset.confirmState !== 'confirm') {
     haptic('medium');
     btn.dataset.confirmState = 'confirm';
-    btn.textContent = isPenalty ? 'Confirm penalty cancel?' : 'Confirm cancel?';
+    btn.textContent = isPenalty ? COPY.timetable.confirmPenaltyCancel : COPY.timetable.confirmCancel;
     btn.style.background = 'var(--danger)';
     btn.style.borderColor = 'var(--danger)';
     btn.style.color = 'var(--on-accent)';
@@ -3838,7 +3841,7 @@ async function cancelBookingDirect(bookingId, isPenalty, btn, gymId) {
     setTimeout(() => {
       if (btn.dataset.confirmState === 'confirm') {
         btn.removeAttribute('data-confirm-state');
-        btn.textContent = 'Cancel';
+        btn.textContent = COPY.bookings.cancel;
         btn.style.background = '';
         btn.style.borderColor = '';
         btn.style.color = '';
@@ -3884,7 +3887,7 @@ async function saveAutoBookPreferences(c, slots, rows, qty, bookAny, callback, s
   const strippedClassName = cleanClassName(fullClassName, groupName) || fullClassName;
 
   try {
-    showToast('Scheduling auto-booking...', 'info');
+    showToast(COPY.timetable.scheduling, 'info');
 
     // The studio spot map is the shared source of truth. If the user picked
     // spots/rows here, persist them to the studio map so the live resolver (and
@@ -3957,11 +3960,11 @@ async function saveAutoBookPreferences(c, slots, rows, qty, bookAny, callback, s
       await api.addAutoBooking({ ...autoBookBody, confirmOverlap: true });
     }
 
-    showToast(`Successfully scheduled auto-book for ${strippedClassName}!`, 'success');
+    showToast(formatCopyText(COPY.timetable.autoBookScheduled, { className: strippedClassName }), 'success');
     callback();
     renderTimetableGrid();
   } catch (err) {
-    showToast(`Failed to schedule auto-book: ${err.message}`, 'error');
+    showToast(formatCopyText(COPY.timetable.autoBookScheduleFailed, { error: err.message }), 'error');
   }
 }
 

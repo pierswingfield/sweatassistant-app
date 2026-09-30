@@ -69,7 +69,19 @@ function res({ status = 200, body = {}, retryAfterSeconds }) {
   };
 }
 
+
+// The poller now verifies the original booking still exists before upgrading
+// (cancel-then-upgrade guard). These suites model a member who still holds every
+// seeded monitor's booking.
+function stubHeldBookings(...protos) {
+  const heldFromDb = async () => db.db.prepare('SELECT booking_id, event_id FROM auto_upgrades')
+    .all().map(r => ({ bookingId: String(r.booking_id), eventId: String(r.event_id), isWaitlist: false }));
+  protos.forEach(p => { p.prototype.listBookings = heldFromDb; });
+}
+
 const origRequest = CodexFitProvider.prototype.request;
+const origCFList = CodexFitProvider.prototype.listBookings;
+const origMTList = MarianaTekProvider.prototype.listBookings;
 const origSwap = MarianaTekProvider.prototype.swapSpots;
 const origNotify = notifications.notify;
 const realNow = Date.now;
@@ -79,6 +91,7 @@ function install({ book = 'limited', eventsStatus = 200 } = {}) {
   psycleCalls = []; bookPosts = 0; swapCalls = 0; notifyCalls = [];
   backoff._resetRateLimitBackoffForTests();
   db.db.prepare("UPDATE auto_upgrades SET status = 'stopped'").run(); // isolate from earlier checks' monitors
+  stubHeldBookings(CodexFitProvider, MarianaTekProvider);
   CodexFitProvider.prototype.request = function (p, opts = {}) {
     const path = this.toPath(p);
     psycleCalls.push(`${opts.method || 'GET'} ${path}`);
@@ -98,6 +111,8 @@ function install({ book = 'limited', eventsStatus = 200 } = {}) {
 }
 function restore() {
   CodexFitProvider.prototype.request = origRequest;
+  CodexFitProvider.prototype.listBookings = origCFList;
+  MarianaTekProvider.prototype.listBookings = origMTList;
   MarianaTekProvider.prototype.swapSpots = origSwap;
   notifications.notify = origNotify;
   Date.now = realNow;

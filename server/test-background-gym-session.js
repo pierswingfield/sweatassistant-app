@@ -56,11 +56,13 @@ function twoGymUser(label) {
 const originalMTBookSlot = MarianaTekProvider.prototype.bookSlot;
 const originalMTSwapSpots = MarianaTekProvider.prototype.swapSpots;
 const originalMTRequest = MarianaTekProvider.prototype.request;
+const originalMTListBookings = MarianaTekProvider.prototype.listBookings;
 
 function restoreAll() {
   MarianaTekProvider.prototype.bookSlot = originalMTBookSlot;
   MarianaTekProvider.prototype.swapSpots = originalMTSwapSpots;
   MarianaTekProvider.prototype.request = originalMTRequest;
+  MarianaTekProvider.prototype.listBookings = originalMTListBookings;
 }
 
 // --- 1. scheduler.js: bookSlotWithRelogin (auto-book) ------------------------
@@ -124,6 +126,11 @@ check('poller auto-upgrade atomic swap for a JAB monitor uses the JAB session, n
     new Date(Date.now() + 2 * 864e5).toISOString(), prefs, studioId, 'BOXING', JAB);
   db.setStudioPreference(uid, studioId, prefs, JAB);
 
+  let listToken = null;
+  MarianaTekProvider.prototype.listBookings = async function (session) {
+    listToken = session && session.accessToken;
+    return [{ bookingId: 'mt-orig-booking', eventId, isWaitlist: false }];
+  };
   let capturedToken = null;
   MarianaTekProvider.prototype.swapSpots = async function (bookingId, curSlot, targetSlot, session) {
     capturedToken = session && session.accessToken;
@@ -133,12 +140,14 @@ check('poller auto-upgrade atomic swap for a JAB monitor uses the JAB session, n
   try {
     await poller.executeAutoUpgradeChecks();
 
+    assert.strictEqual(listToken, `JAB-TOKEN-${uid}`, 'the still-booked check must use the row\'s own gym session');
     assert.ok(capturedToken, 'provider.swapSpots must have been called');
     assert.strictEqual(capturedToken, `JAB-TOKEN-${uid}`,
       `expected the JAB monitor to swap with JAB's own session token, got ${JSON.stringify(capturedToken)} `
       + '(if this is the Psycle token, the poller read the ACTIVE gym\'s session instead of the row\'s own gym)');
   } finally {
     MarianaTekProvider.prototype.swapSpots = originalMTSwapSpots;
+    MarianaTekProvider.prototype.listBookings = originalMTListBookings;
   }
 });
 

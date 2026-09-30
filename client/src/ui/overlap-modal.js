@@ -20,6 +20,7 @@ import { noSept } from '../lib';
 import { icon, disciplineTag, getDiscipline, renderGymRail, cleanClassName, trimLocation, escapeHtml, equalizeDiscTagWidths } from './cards.js';
 import { instructorAvatar } from './tooltips.js';
 import { getGymShortName, getDefaultGymId } from '../gym-context.js';
+import { COPY, formatCopyText } from '../copy.js';
 
 const MAX_CLASHES_SHOWN = 3;
 
@@ -33,9 +34,9 @@ const MAX_CLASHES_SHOWN = 3;
  * way; only the wording of the action changes.
  */
 export const OVERLAP_MODES = {
-  autobook: { newLabel: 'New auto-book', confirm: 'Auto-book anyway', tail: 'Auto-book will try to book both, and you can cancel one later.', already: 'You already have a booking in this class. Auto-book will have nothing to add.' },
-  book: { newLabel: 'New booking', confirm: 'Book anyway', tail: 'You can book both and cancel one later.', already: 'You already have a booking in this class.' },
-  quickbook: { newLabel: 'New booking', confirm: 'Quick-Book anyway', tail: 'You can book both and cancel one later.', already: 'You already have a booking in this class.' },
+  autobook: { newLabel: COPY.overlap.newAutobook, confirm: COPY.overlap.autoBookAnyway, tail: COPY.overlap.autoBookTail, already: COPY.overlap.alreadyBookedAutoBook },
+  book: { newLabel: COPY.overlap.newBooking, confirm: COPY.overlap.bookAnyway, tail: COPY.overlap.bothCanBookTail, already: COPY.overlap.alreadyBooked },
+  quickbook: { newLabel: COPY.overlap.newBooking, confirm: COPY.overlap.quickBookAnyway, tail: COPY.overlap.bothCanBookTail, already: COPY.overlap.alreadyBooked },
 };
 
 export function describeOverlap(warnings = [], mode = 'autobook') {
@@ -48,19 +49,19 @@ export function describeOverlap(warnings = [], mode = 'autobook') {
   let title;
   let lead;
   if (onlyAlready) {
-    title = 'Already booked';
+    title = COPY.overlap.alreadyBookedTitle;
     lead = M.already;
   } else {
-    title = 'Overlapping class';
+    title = COPY.overlap.overlappingTitle;
     const parts = [];
-    if (hasBooked || list.some((w) => w.code === 'ALREADY_BOOKED')) parts.push('a class you have booked');
-    if (hasQueued) parts.push('another class in your auto-book queue');
-    lead = `This overlaps ${parts.join(' and ') || 'another class'}. ${M.tail}`;
+    if (hasBooked || list.some((w) => w.code === 'ALREADY_BOOKED')) parts.push(COPY.overlap.bookedClass);
+    if (hasQueued) parts.push(COPY.overlap.queuedClass);
+    lead = `${COPY.overlap.overlapsPrefix}${parts.join(' and ') || COPY.overlap.anotherClass}. ${M.tail}`;
   }
 
   const clashes = list.map((w) => ({
     ...(w.with || {}),
-    tag: w.code === 'OVERLAP_QUEUED' ? 'In your queue' : 'Booked',
+    tag: w.code === 'OVERLAP_QUEUED' ? COPY.overlap.inQueue : COPY.overlap.booked,
     crossGym: !!w.crossGym,
   }));
   return {
@@ -92,7 +93,7 @@ export function classSummaryCardHtml(item, tag) {
   // `discipline` is the whole class type ("TRAIN - Full Body Conditioning") would
   // otherwise leave the redundant prefix in beside the discipline pill.
   const disc = getDiscipline(item.groupName || item.className).label;
-  const name = cleanClassName(item.className || '', disc) || item.groupName || 'Class';
+  const name = cleanClassName(item.className || '', disc) || item.groupName || COPY.overlap.class;
   const locationLine = [item.studioName, trimLocation(item.locationName || '', getGymShortName(gymId))].filter(Boolean).join(', ');
   const instructor = item.instructorName || '';
   const avatar = instructorAvatar(instructor, gymId, item.instructorImageUrl || null);
@@ -154,23 +155,23 @@ export function confirmOverlap({ subject, warnings, mode = 'autobook' }) {
       <div class="psycle-modal-card">
         <div class="psycle-modal-header">
           <h4 id="${uid}-title">${escapeHtml(info.title)}</h4>
-          <button type="button" class="psycle-modal-close-btn" data-overlap-cancel aria-label="Cancel">&times;</button>
+          <button type="button" class="psycle-modal-close-btn" data-overlap-cancel aria-label="${COPY.overlap.cancel}">&times;</button>
         </div>
         <div class="psycle-modal-body">
           <div class="ab-credit-warning ab-clash-warning" id="${uid}-lead">${icon('warning', 14)}<span>${escapeHtml(info.lead)}</span></div>
           <div class="psycle-overlap-group" role="group" aria-label="${escapeHtml(info.newLabel)}">
             <p class="psycle-overlap-label">${escapeHtml(info.newLabel)}</p>
-            ${classSummaryCardHtml(subject, 'New')}
+          ${classSummaryCardHtml(subject, COPY.overlap.new)}
           </div>
-          <div class="psycle-overlap-group" role="group" aria-label="Clashes with">
-            <p class="psycle-overlap-label">Clashes with</p>
+          <div class="psycle-overlap-group" role="group" aria-label="${COPY.overlap.clashesWith}">
+            <p class="psycle-overlap-label">${COPY.overlap.clashesWith}</p>
             <div class="psycle-overlap-stack">
               ${info.clashes.map((c) => classSummaryCardHtml(c, c.tag)).join('')}
-              ${info.hiddenCount ? `<p class="psycle-overlap-more">and ${info.hiddenCount} more</p>` : ''}
+              ${info.hiddenCount ? `<p class="psycle-overlap-more">${formatCopyText(COPY.overlap.more, { count: info.hiddenCount })}</p>` : ''}
             </div>
           </div>
           <div class="psycle-overlap-actions">
-            <button type="button" class="psycle-btn" data-overlap-cancel>Cancel</button>
+            <button type="button" class="psycle-btn" data-overlap-cancel>${COPY.overlap.cancel}</button>
             <button type="button" class="psycle-btn primary" data-overlap-confirm>${escapeHtml(info.confirmLabel)}</button>
           </div>
         </div>

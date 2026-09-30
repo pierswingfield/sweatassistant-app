@@ -7258,8 +7258,8 @@ html, body {
   color: var(--text-secondary);
 }
 .ab-card-line2 .ab-card-location {
-  /* Quietest element on the card, and it must not force a wrap. */
-  flex: 0 1 auto;
+  /* Quietest element on the card; ALWAYS on its own line (short class names let it sit beside the chip). */
+  flex: 0 0 100% !important;
   min-width: 0;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -7270,6 +7270,7 @@ html, body {
 .ab-card-body { min-width: 0; }
 /* tag + class name travel as ONE nowrap unit so flex-wrap on line2 can only
    push the location to its own line, never split the tag from the name. */
+.ab-card-line2 > .ab-meta-dot:not(.ab-dot-instr) { display: none !important; }
 .ab-card-line2 .ab-card-titlegroup {
   display: flex !important;
   flex-wrap: nowrap !important;
@@ -8649,6 +8650,50 @@ html, body {
   margin: 0;
 }
 
+.psycle-onb-perks { list-style: none; margin: 8px 0 0; padding: 0; display: grid; gap: 10px; width: 100%; text-align: left; }
+.psycle-onb-perk {
+  display: flex; align-items: center; gap: 14px; padding: 12px 14px;
+  background: var(--surface-inset); border: 1px solid var(--border);
+  border-left: 3px solid var(--perk);
+  border-radius: var(--radius-card);
+}
+.psycle-onb-perk-icon {
+  flex: 0 0 44px; width: 44px; height: 44px; display: grid; place-items: center;
+  border-radius: var(--radius-control); color: var(--perk);
+  background: color-mix(in srgb, var(--perk) 15%, transparent);
+  border: 1px solid color-mix(in srgb, var(--perk) 25%, transparent);
+}
+.psycle-onb-perk-icon svg { width: 24px; height: 24px; }
+.psycle-onb-perk-body { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+.psycle-onb-perk-body strong { font-family: var(--font-serif); font-size: var(--text-lg); font-weight: 600; color: var(--text); }
+.psycle-onb-perk-body span { font-size: var(--text-sm); line-height: 1.45; color: var(--text-secondary); }
+.psycle-onb-gyms-line { margin: 4px 0 0; font-size: var(--text-xs); color: var(--text-tertiary); text-align: center; }
+
+/* Onboarding gym logo strip: every gym in the catalogue, full-size chips; >3 scroll as a marquee */
+.psycle-onb-gym-logos { --tt-chip-h: 48px; overflow: hidden; width: 100%; margin: 0 0 16px; border-radius: var(--radius-control); }
+.psycle-onb-gym-logos:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+.psycle-onb-gym-logos-track { display: flex; width: max-content; max-width: none; }
+.psycle-onb-gym-logos-set { display: flex; gap: 10px; list-style: none; margin: 0; padding: 0 5px; flex: 0 0 auto; justify-content: center; }
+.psycle-onb-gym-logos:not(.is-marquee) { overflow: visible; }
+.psycle-onb-gym-logos:not(.is-marquee) .psycle-onb-gym-logos-track { width: 100%; }
+.psycle-onb-gym-logos:not(.is-marquee) .psycle-onb-gym-logos-set { flex-wrap: wrap; width: 100%; }
+.psycle-onb-gym-logo { flex: 0 0 auto; }
+.psycle-onb-gym-logo .psycle-gym-chip { min-width: 120px !important; height: 48px !important; padding: 0 14px !important; }
+.psycle-onb-gym-logo .psycle-gym-chip-logo .ab-gym-logo-img,
+.psycle-onb-gym-logo .psycle-gym-chip-logo .ab-gym-logo-svg { height: 24px !important; max-width: 110px !important; width: auto; object-fit: contain; }
+.psycle-onb-gym-logo .ab-gym-logo-img.is-half { display: none !important; }
+.psycle-onb-gym-logo .ab-gym-logo-img.is-full { display: block !important; }
+@keyframes psycle-onb-marquee { from { transform: translateX(0); } to { transform: translateX(-50%); } }
+.psycle-onb-gym-logos.is-marquee .psycle-onb-gym-logos-track { animation: psycle-onb-marquee 24s linear infinite; }
+.psycle-onb-gym-logos.is-marquee:hover .psycle-onb-gym-logos-track,
+.psycle-onb-gym-logos.is-marquee:focus-within .psycle-onb-gym-logos-track,
+.psycle-onb-gym-logos.is-marquee:focus .psycle-onb-gym-logos-track { animation-play-state: paused; }
+@media (prefers-reduced-motion: reduce) {
+  .psycle-onb-gym-logos.is-marquee { overflow-x: auto; }
+  .psycle-onb-gym-logos.is-marquee .psycle-onb-gym-logos-track { animation: none; }
+  .psycle-onb-gym-logos .is-clone { display: none; }
+}
+
 .psycle-onb-skip {
   position: absolute;
   top: 14px;
@@ -8792,6 +8837,49 @@ html, body {
   .psycle-onb-sheet { animation: none; }
   .psycle-onb-track,
   .psycle-onb-dot { transition: none; }
+}
+
+/* U4-17 focused onboarding and optional setup cards */
+.psycle-onb-welcome,
+.psycle-onb-features { max-height: min(92dvh, 860px); overflow-y: auto; }
+.psycle-onb-features { max-width: 640px; }
+.psycle-onb-feature-list { display: grid; gap: 10px; width: 100%; }
+.psycle-onb-feature-card {
+  padding: 14px; border: 1px solid var(--border); border-radius: var(--radius-card);
+  background: var(--surface); display: grid; gap: 12px;
+}
+.psycle-onb-feature-card.is-complete { border-color: color-mix(in srgb, var(--success) 45%, var(--border)); }
+.psycle-onb-feature-heading { display: flex; align-items: flex-start; gap: 12px; }
+.psycle-onb-feature-heading .psycle-onb-icon { flex: 0 0 42px; width: 42px; height: 42px; margin: 0; }
+.psycle-onb-feature-heading .psycle-onb-icon svg { width: 24px; height: 24px; }
+.psycle-onb-feature-heading h3 { margin: 0; font-size: var(--text-base); color: var(--text); }
+.psycle-onb-feature-heading p { margin: 4px 0 0; color: var(--text-secondary); font-size: var(--text-sm); line-height: 1.45; }
+.psycle-onb-recommended { color: var(--success); font-size: var(--text-xs); font-weight: 600; white-space: nowrap; }
+.psycle-onb-feature-action { display: flex; align-items: center; justify-content: space-between; gap: 10px; }
+.psycle-onb-feature-action .psycle-btn-mini { min-height: var(--tap-min); }
+.psycle-onb-complete { color: var(--success); font-size: var(--text-sm); font-weight: 600; }
+/* Compact one-row cards: icon + text column + action; action wraps below only when too narrow */
+.psycle-onb-feature-card { display: flex !important; flex-wrap: wrap; align-items: center; gap: 10px 12px !important; }
+.psycle-onb-feature-card .psycle-onb-feature-heading { flex: 1 1 210px; min-width: 0; }
+.psycle-onb-feature-card .psycle-onb-feature-action { flex: 0 1 auto; justify-content: flex-end; }
+.psycle-onb-feature-card .psycle-onb-feature-action:empty { display: none; }
+.psycle-onb-feature-card .psycle-onb-feature-action .psycle-btn-mini { min-height: 36px !important; padding: 6px 12px; font-size: var(--text-xs); white-space: normal; text-align: center; }
+.psycle-onb-auto-upgrade-option { display: flex; align-items: center; gap: 8px; margin-top: 8px; min-height: var(--tap-min); cursor: pointer; font-size: var(--text-sm); color: var(--text); }
+.psycle-onb-auto-upgrade-option input[type="checkbox"] { flex: 0 0 auto; width: 22px; height: 22px; accent-color: var(--accent); cursor: pointer; }
+.psycle-onb-calendar-settings { width: 100%; }
+.psycle-onb-calendar-settings[hidden] { display: none; }
+.psycle-onb-calendar-settings .psycle-settings-card { padding: 12px; }
+.psycle-onb-features .psycle-onb-footer { margin-top: 4px; }
+.psycle-onboarding-container .psycle-btn-secondary {
+  display: inline-flex; align-items: center; justify-content: center; text-align: center; text-decoration: none;
+  width: 100%; min-height: var(--tap-min); padding: 12px; border-radius: var(--radius-control);
+  border: 1px solid var(--border); background: var(--surface); color: var(--text);
+  font-size: var(--text-sm); font-weight: 600; cursor: pointer;
+}
+.psycle-onb-auth-back { align-self: flex-start; margin: 10px 0 0 12px; min-height: var(--tap-min); }
+
+@media (prefers-reduced-motion: reduce) {
+  .psycle-onb-feature-card { transition: none; }
 }
 
 /* ─────────────────────────────────────────────────────────────

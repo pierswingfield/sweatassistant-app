@@ -1,4 +1,5 @@
 import { api } from '../api';
+import { COPY, formatCopyText } from '../copy.js';
 import { getGymShortName, getLinkedGyms, getDefaultGymId } from '../gym-context.js';
 import { getAvailableCreditsForEvent, getTotalCredits, getIneligibleReason } from './credit-allowance.js';
 import { showToast, cache, userSettings, gymSetting, setGymSettingLocal, profileForGym, refreshUserData, debugConsole } from '../main';
@@ -130,18 +131,18 @@ function updateQueueDisplayForEvent(eventId, update) {
     statusColor = 'var(--text-tertiary)';
   } else if (update.status === 'planning') {
     statusColor = 'var(--feat-autoupgrade)';
-    if (update.plannedSlots) fallbackText = `📋 Planning: attempting slots [${update.plannedSlots.join(', ')}]`;
+    if (update.plannedSlots) fallbackText = COPY.autoBook.planningSlots.replace('{slots}', update.plannedSlots.join(', '));
   } else if (update.status === 'attempting') {
     statusColor = 'var(--warning)';
-    fallbackText = `🎯 Attempting slot ${update.attemptingSlot} (${update.isPreferred ? 'preferred' : 'fallback'})...`;
+    fallbackText = COPY.autoBook.attemptingSlot.replace('{slot}', update.attemptingSlot).replace('{kind}', update.isPreferred ? 'preferred' : 'fallback');
   } else if (update.status === 'success') {
     statusColor = 'var(--success)';
-    fallbackText = `✅ Success! Booked slots [${(update.bookedSlots || []).join(', ')}]`;
+    fallbackText = COPY.autoBook.bookedSlotsStatus.replace('{slots}', (update.bookedSlots || []).join(', '));
   } else if (update.status === 'waitlist-fallback') {
     statusColor = 'var(--warning)';
   } else if (update.status === 'waitlist-success') {
     statusColor = 'var(--warning)';
-    fallbackText = '✅ Joined waitlist';
+    fallbackText = COPY.autoBook.joinedWaitlistStatus;
   } else if (update.status === 'failed') {
     statusColor = 'var(--danger)';
     fallbackText = `❌ Failed: ${update.message || ''}`.trim();
@@ -164,8 +165,8 @@ function renderAutoBookControls() {
   const pauseBtn = document.createElement('button');
   pauseBtn.className = `ab-footer-btn ${isPaused ? 'state-paused' : ''}`;
   pauseBtn.innerHTML = isPaused
-    ? `${icon('play', 14)}<span>Resume Auto-Book</span>`
-    : `${icon('pause', 14)}<span>Pause Auto-Book</span>`;
+    ? `${icon('play', 14)}<span>${COPY.autoBook.resume}</span>`
+    : `${icon('pause', 14)}<span>${COPY.autoBook.pause}</span>`;
   pauseBtn.addEventListener('click', async () => {
     pauseBtn.disabled = true;
     try {
@@ -174,10 +175,10 @@ function renderAutoBookControls() {
       // auto-booking for me", not "for one gym" — there isn't one to name here.
       await api.updateSettings({ autoBookPaused: newPaused });
       userSettings.autoBookPaused = newPaused;
-      showToast(newPaused ? 'Auto-book paused' : 'Auto-book resumed', newPaused ? 'info' : 'success');
+      showToast(newPaused ? COPY.autoBook.paused : COPY.autoBook.resumed, newPaused ? 'info' : 'success');
       renderAutoBookControls();
     } catch (err) {
-      showToast(`Failed: ${err.message}`, 'error');
+      showToast(formatCopyText(COPY.autoBook.failed, { error: err.message }), 'error');
     } finally {
       pauseBtn.disabled = false;
     }
@@ -189,20 +190,20 @@ function renderAutoBookControls() {
   if (userSettings.debugMode) {
     const simBtn = document.createElement('button');
     simBtn.className = 'ab-footer-btn';
-    simBtn.innerHTML = `${icon('bolt', 14)}<span>Simulate Release</span>`;
+    simBtn.innerHTML = `${icon('bolt', 14)}<span>${COPY.autoBook.simulateRelease}</span>`;
     simBtn.addEventListener('click', async () => {
       simBtn.disabled = true;
-      simBtn.innerHTML = `${icon('bolt', 14)}<span>Firing…</span>`;
+      simBtn.innerHTML = `${icon('bolt', 14)}<span>${COPY.autoBook.firing}</span>`;
       try {
         await api.simulateRelease();
-        showToast('Simulated release fired — all pending bookings executing now. Check history shortly.', 'success');
+        showToast(COPY.autoBook.simulatedRelease, 'success');
         // Refresh queue/history after a short delay to let bookings complete
         setTimeout(() => renderAutoBookTab(), 4000);
       } catch (err) {
-        showToast(`Failed: ${err.message}`, 'error');
+        showToast(formatCopyText(COPY.autoBook.failed, { error: err.message }), 'error');
       } finally {
         simBtn.disabled = false;
-        simBtn.innerHTML = `${icon('bolt', 14)}<span>Simulate Release</span>`;
+        simBtn.innerHTML = `${icon('bolt', 14)}<span>${COPY.autoBook.simulateRelease}</span>`;
       }
     });
     bar.appendChild(simBtn);
@@ -247,18 +248,18 @@ function openFavouritesModal() {
 
   const header = document.createElement('div');
   header.style.cssText = 'display:flex;justify-content:space-between;align-items:center;padding:14px 18px;border-bottom:1px solid var(--border);flex-shrink:0;';
-  header.innerHTML = `<h3 style="margin:0;font-size:15px;font-weight:700;color:var(--text);">♥ Auto-Book Favourites</h3><button style="background:none;border:none;color:var(--text-secondary);font-size:22px;cursor:pointer;padding:0;" id="favs-modal-close">×</button>`;
+  header.innerHTML = `<h3 style="margin:0;font-size:15px;font-weight:700;color:var(--text);">${COPY.autoBook.favouritesTitle}</h3><button style="background:none;border:none;color:var(--text-secondary);font-size:22px;cursor:pointer;padding:0;" id="favs-modal-close">×</button>`;
 
   const body = document.createElement('div');
   body.style.cssText = 'flex:1;overflow-y:auto;padding:16px;';
 
   if (bookmarks.length === 0) {
-    body.innerHTML = '<div style="text-align:center;padding:24px;color:var(--text-secondary);font-size:13px;">No bookmarked classes found.<br>Bookmark classes from the timetable to set up recurring auto-book.</div>';
+    body.innerHTML = `<div style="text-align:center;padding:24px;color:var(--text-secondary);font-size:13px;">${COPY.autoBook.noFavourites}</div>`;
   } else {
     const parsed = bookmarks.map(parseBookmark);
     const enabled = new Set(gymSetting(bookmarksGymId(), 'autoBookFavourites') || []);
 
-    body.innerHTML = '<p style="font-size:12px;color:var(--text-secondary);margin:0 0 12px;">Select which favourites to auto-book each week:</p>';
+    body.innerHTML = `<p style="font-size:12px;color:var(--text-secondary);margin:0 0 12px;">${COPY.autoBook.chooseFavourites}</p>`;
 
     parsed.forEach(bm => {
       const row = document.createElement('div');
@@ -276,8 +277,8 @@ function openFavouritesModal() {
       const label = document.createElement('div');
       label.style.cssText = 'flex:1;font-size:12px;color:var(--text);';
       label.innerHTML = bm.studioId
-        ? `<strong>Studio ${bm.studioId}</strong> · ${bm.dayOfWeek} ${bm.time}`
-        : `<span style="color:var(--text-secondary);">${bm.raw}</span>`;
+        ? `<strong>${formatCopyText(COPY.autoBook.studioLabel, { studioId: escapeHtml(bm.studioId) })}</strong> · ${escapeHtml(bm.dayOfWeek)} ${escapeHtml(bm.time)}`
+        : `<span style="color:var(--text-secondary);">${escapeHtml(bm.raw)}</span>`;
 
       row.appendChild(cb);
       row.appendChild(label);
@@ -287,10 +288,10 @@ function openFavouritesModal() {
     const saveBtn = document.createElement('button');
     saveBtn.className = 'psycle-btn';
     saveBtn.style.cssText = 'width:100%;margin-top:12px;background:var(--feat-autoupgrade);color:#fff;';
-    saveBtn.textContent = 'Save Favourites';
+    saveBtn.textContent = COPY.autoBook.saveFavourites;
     saveBtn.addEventListener('click', async () => {
       saveBtn.disabled = true;
-      saveBtn.textContent = 'Saving...';
+      saveBtn.textContent = COPY.static.savingDots;
       try {
         const list = Array.from(enabled);
         // Gym-scoped, and these ARE bookmarks — which only a gym with the
@@ -298,12 +299,12 @@ function openFavouritesModal() {
         // pick one; with none (or several) capable, there is no honest answer.
         await api.updateSettings({ autoBookFavourites: list }, bookmarksGymId());
         setGymSettingLocal(bookmarksGymId(), 'autoBookFavourites', list);
-        showToast('Favourites saved!', 'success');
+        showToast(COPY.autoBook.favouritesSaved, 'success');
         overlay.remove();
       } catch (err) {
-        showToast(`Failed: ${err.message}`, 'error');
+        showToast(formatCopyText(COPY.autoBook.failed, { error: err.message }), 'error');
         saveBtn.disabled = false;
-        saveBtn.textContent = 'Save Favourites';
+        saveBtn.textContent = COPY.autoBook.saveFavourites;
       }
     });
     body.appendChild(saveBtn);
@@ -332,10 +333,10 @@ async function renderAutoBookTab() {
   } else {
     // First visit — no cached data yet
     if (queueContainer) {
-      queueContainer.innerHTML = renderCardSkeletons(3, 'Loading auto-book queue');
+      queueContainer.innerHTML = renderCardSkeletons(3, COPY.autoBook.loadingQueueLabel);
     }
     if (historyList) {
-      historyList.innerHTML = renderCardSkeletons(2, 'Loading auto-book history');
+      historyList.innerHTML = renderCardSkeletons(2, COPY.autoBook.loadingHistoryLabel);
     }
   }
 
@@ -360,7 +361,7 @@ async function renderAutoBookTab() {
   } catch (err) {
     console.error('[AutoBook] Failed to load:', err);
     if (queueContainer && !cache.autoBookings) {
-      queueContainer.innerHTML = '<div class="psycle-empty-state" style="text-align:center;padding:40px 20px;color:var(--text-secondary)"><p style="font-size:16px;margin-bottom:8px">No cached data available</p><p style="font-size:13px;color:var(--text-tertiary)">Connect to the internet to load your auto-book queue.</p></div>';
+      queueContainer.innerHTML = `<div class="psycle-empty-state" style="text-align:center;padding:40px 20px;color:var(--text-secondary)"><p style="font-size:16px;margin-bottom:8px">${COPY.autoBook.noCachedData}</p><p style="font-size:13px;color:var(--text-tertiary)">${COPY.autoBook.noCachedDataHelp}</p></div>`;
     }
   }
 
@@ -375,7 +376,7 @@ function renderQueue(queue) {
     container.__abSig = null;
     container.innerHTML = `
       <div class="fav-empty-state" style="padding: 30px 0;">
-        No classes scheduled in the release queue. Visit the Timetable tab to add classes.
+        ${COPY.autoBook.noScheduledClasses}
       </div>
     `;
     return;
@@ -415,7 +416,7 @@ function renderQueue(queue) {
 
     const prefs = q.preferences || {};
     const creditsNeeded = prefs.requiredCount || 1;
-    const className = cleanClassName(q.class_name || '', q.group_name || '') || q.group_name || 'Class';
+    const className = cleanClassName(q.class_name || '', q.group_name || '') || q.group_name || COPY.autoBook.class;
     // No fallback to a placeholder string — a recovery class genuinely has no
     // instructor, and the empty-string branch below omits the label entirely
     // rather than rendering a meaningless "TBA" (same fix as timetable's B6).
@@ -436,7 +437,7 @@ function renderQueue(queue) {
     const creditWarning = ineligibleReason
       ? `<div class="ab-credit-warning">${icon('warning', 13)}<span>${ineligibleReason}</span></div>`
       : hasInsufficientCredits
-        ? `<div class="ab-credit-warning">${icon('warning', 13)}<span>Insufficient Credits</span></div>`
+        ? `<div class="ab-credit-warning">${icon('warning', 13)}<span>${COPY.autoBook.insufficientCredits}</span></div>`
         : '';
 
     // C5-3: server-computed clashes with the member's other queued classes or
@@ -474,8 +475,8 @@ function renderQueue(queue) {
         ${clashWarnings}
       </div>
       <div class="ab-card-rail">
-        <button class="ab-rail-btn edit-autobook-btn" data-id="${q.id}" aria-label="Edit">${icon('edit', 17)}<span>Edit</span></button>
-        <button class="ab-rail-btn danger delete-autobook-btn" data-id="${q.id}" aria-label="Cancel">${icon('close', 17)}<span>Cancel</span></button>
+        <button class="ab-rail-btn edit-autobook-btn" data-id="${q.id}" aria-label="${COPY.autoBook.edit}">${icon('edit', 17)}<span>${COPY.autoBook.edit}</span></button>
+        <button class="ab-rail-btn danger delete-autobook-btn" data-id="${q.id}" aria-label="${COPY.bookings.cancel}">${icon('close', 17)}<span>${COPY.bookings.cancel}</span></button>
       </div>
     `;
 
@@ -507,11 +508,11 @@ function wireCancelAutoBook(btn, card, q) {
   btn.addEventListener('click', async () => {
     if (!confirmState) {
       confirmState = true;
-      labelSpan.textContent = 'Confirm?';
+      labelSpan.textContent = COPY.autoBook.confirm;
       btn.classList.add('confirming');
       setTimeout(() => {
         confirmState = false;
-        labelSpan.textContent = 'Cancel';
+        labelSpan.textContent = COPY.bookings.cancel;
         btn.classList.remove('confirming');
       }, 3000);
       return;
@@ -522,15 +523,15 @@ function wireCancelAutoBook(btn, card, q) {
     card.querySelectorAll('button').forEach(b => b.disabled = true);
     labelSpan.textContent = '…';
     try {
-      showToast('Removing scheduled booking...', 'info');
+      showToast(COPY.autoBook.removing, 'info');
       await api.deleteAutoBooking(q.id);
-      showToast('Class removed from queue.', 'success');
+      showToast(COPY.autoBook.removed, 'success');
       renderAutoBookTab();
     } catch (err) {
-      showToast(`Failed: ${err.message}`, 'error');
+      showToast(formatCopyText(COPY.autoBook.failed, { error: err.message }), 'error');
       card.style.opacity = '1';
       card.querySelectorAll('button').forEach(b => b.disabled = false);
-      labelSpan.textContent = 'Cancel';
+      labelSpan.textContent = COPY.bookings.cancel;
     }
   });
 }
@@ -547,11 +548,11 @@ async function openAutoBookEditModal(q) {
   const currentQty = prefs.requiredCount || 1;
   const currentBookAny = prefs.bookAny ?? false;
 
-  title.textContent = `Edit Auto-Book: ${cleanClassName(q.class_name || '', q.group_name || '') || q.group_name || q.class_name || 'Class'}`;
+  title.textContent = formatCopyText(COPY.autoBook.editTitle, { className: cleanClassName(q.class_name || '', q.group_name || '') || q.group_name || q.class_name || COPY.autoBook.class });
   body.innerHTML = `
     <div class="psycle-loading-spinner-container" style="padding: 40px 0;">
       <div class="psycle-spinner"></div>
-      <span>Fetching studio floor map...</span>
+      <span>${COPY.autoBook.loadingFloorMap}</span>
     </div>
   `;
 
@@ -595,8 +596,8 @@ async function openAutoBookEditModal(q) {
     if (isFcfs || layoutSlots.length === 0) {
       body.innerHTML = `
         <div style="padding: 24px; text-align: center; color: var(--text-secondary);">
-          <p style="margin-bottom: 16px;">${isFcfs ? "This class doesn't use assigned spots." : 'No floor map layout available for this studio.'}</p>
-          <p style="font-size: 12px; color: var(--text-tertiary);">You can still update the number of spots and fallback option below.</p>
+          <p style="margin-bottom: 16px;">${isFcfs ? COPY.autoBook.unassignedSpots : COPY.autoBook.noFloorMap}</p>
+          <p style="font-size: 12px; color: var(--text-tertiary);">${COPY.autoBook.noFloorMapHelp}</p>
         </div>
       `;
       // Render minimal controls without floor plan
@@ -605,7 +606,7 @@ async function openAutoBookEditModal(q) {
       controlsDiv.innerHTML = `
         <div style="display:flex;gap:14px;align-items:center;border-top:1px solid var(--separator);padding-top:12px;">
           <div style="width:110px;">
-            <label style="display:block;font-size:12px;color:var(--text-secondary);margin-bottom:4px;">Slots to book:</label>
+            <label style="display:block;font-size:12px;color:var(--text-secondary);margin-bottom:4px;">${COPY.autoBook.slotsToBook}</label>
             <select id="autobook-edit-qty" class="psycle-select" style="width:100%;padding:6px 8px;font-size:13px;">
               ${[1,2,3,4].map(n => `<option value="${n}" ${currentQty===n?'selected':''}>${n}</option>`).join('')}
             </select>
@@ -613,11 +614,11 @@ async function openAutoBookEditModal(q) {
           <div style="flex:1;padding-top:14px;">
             <label style="display:flex;align-items:center;gap:8px;font-size:13px;cursor:pointer;color:var(--text-secondary);user-select:none;">
               <input type="checkbox" id="autobook-edit-fallback" ${currentBookAny ? 'checked' : ''}>
-              <span>Book any slot if preferred is unavailable</span>
+              <span>${COPY.autoBook.fallbackAnySlot}</span>
             </label>
           </div>
         </div>
-        <button class="psycle-btn" id="btn-save-autobook-edit" style="background:var(--feat-autoupgrade);color:var(--on-accent);">Save Changes</button>
+        <button class="psycle-btn" id="btn-save-autobook-edit" style="background:var(--feat-autoupgrade);color:var(--on-accent);">${COPY.autoBook.saveChanges}</button>
       `;
       body.appendChild(controlsDiv);
 
@@ -634,19 +635,19 @@ async function openAutoBookEditModal(q) {
 
     const bannerHtml = `
       <div style="font-size:12px;color:var(--feat-autoupgrade);background:color-mix(in srgb,var(--feat-autoupgrade) 8%,transparent);border:1px solid color-mix(in srgb,var(--feat-autoupgrade) 18%,transparent);border-radius:8px;padding:8px 10px;margin-bottom:10px;line-height:1.5;">
-        Auto-Book uses your preferred spot map to book the best spot it can. You can edit your preferred spots any time in Settings.
+        ${COPY.autoBook.preferredMapHelp}
       </div>`;
 
     const bannerHtmlEdit = `
       <div style="font-size:12px;color:var(--feat-autoupgrade);background:color-mix(in srgb,var(--feat-autoupgrade) 8%,transparent);border:1px solid color-mix(in srgb,var(--feat-autoupgrade) 18%,transparent);border-radius:8px;padding:8px 10px;margin-bottom:10px;line-height:1.5;">
-        You are editing your preferred spot map for <strong>${studioName}</strong>. Changes here apply to Quick-Book and Auto-Upgrade too.
+        ${formatCopyText(COPY.autoBook.editingMapHtml, { studioName: escapeHtml(studioName) })}
       </div>`;
 
     const extraControlsHtml = `
       <div style="display:flex;flex-direction:column;gap:12px;background:var(--surface-inset);padding:14px;border-radius:12px;border:1px solid var(--border);">
         <div style="display:flex;gap:14px;align-items:center;border-top:1px solid var(--separator);padding-top:12px;">
           <div style="width:110px;">
-            <label style="display:block;font-size:12px;color:var(--text-secondary);margin-bottom:4px;">Slots to book:</label>
+            <label style="display:block;font-size:12px;color:var(--text-secondary);margin-bottom:4px;">${COPY.autoBook.slotsToBook}</label>
             <select id="autobook-edit-qty" class="psycle-select" style="width:100%;padding:6px 8px;font-size:13px;">
               ${[1,2,3,4].map(n => `<option value="${n}" ${currentQty===n?'selected':''}>${n}</option>`).join('')}
             </select>
@@ -654,7 +655,7 @@ async function openAutoBookEditModal(q) {
           <div style="flex:1;padding-top:14px;">
             <label style="display:flex;align-items:center;gap:8px;font-size:13px;cursor:pointer;color:var(--text-secondary);user-select:none;">
               <input type="checkbox" id="autobook-edit-fallback" ${currentBookAny ? 'checked' : ''}>
-              <span>Book any slot if preferred is unavailable</span>
+              <span>${COPY.autoBook.fallbackAnySlot}</span>
             </label>
           </div>
         </div>
@@ -665,25 +666,25 @@ async function openAutoBookEditModal(q) {
       const fallbackAny = container.querySelector('#autobook-edit-fallback')?.checked ?? currentBookAny;
       await saveAutoBookEdit(q.id, resolvedStudioId, slots, rows, qty, fallbackAny, closeModal, q.gym_id);
     }, {
-      saveLabel: 'Save Changes',
+      saveLabel: COPY.autoBook.saveChanges,
       layoutObjects,
       bannerHtml,
       bannerHtmlEdit,
       extraControlsHtml,
       readOnly: true,
-      editLabel: `Edit preferred spots for ${studioName}`,
+      editLabel: formatCopyText(COPY.timetable.editPreferredSpots, { studio: studioName }),
       hideClear: true
     });
   } catch (err) {
     console.error('[AutoBook] Edit modal failed:', err);
-    body.innerHTML = `<div style="padding: 24px; text-align: center; color: var(--danger);">Failed to load studio layout: ${err.message}</div>`;
+    body.innerHTML = `<div style="padding: 24px; text-align: center; color: var(--danger);">${formatCopyText(COPY.autoBook.failedStudioLayout, { error: escapeHtml(err.message) })}</div>`;
   }
 }
 
 // Save updated auto-book preferences (updates both the queue entry and the shared studio map)
 async function saveAutoBookEdit(entryId, studioId, slots, rows, qty, bookAny, closeModal, gymId = null) {
   try {
-    showToast('Saving auto-book changes...', 'info');
+    showToast(COPY.autoBook.savingChanges, 'info');
 
     // 1. Update the shared studio map (live source of truth for all features)
     if (studioId && (slots.length > 0 || rows.length > 0)) {
@@ -703,11 +704,11 @@ async function saveAutoBookEdit(entryId, studioId, slots, rows, qty, bookAny, cl
       bookAny
     });
 
-    showToast('Auto-book configuration updated!', 'success');
+    showToast(COPY.autoBook.updated, 'success');
     closeModal();
     renderAutoBookTab();
   } catch (err) {
-    showToast(`Failed: ${err.message}`, 'error');
+    showToast(formatCopyText(COPY.autoBook.failed, { error: err.message }), 'error');
   }
 }
 
@@ -750,7 +751,7 @@ function renderHistoryPage() {
   if (!list) return;
 
   if (_historyAll.length === 0) {
-    list.innerHTML = '<div class="psycle-table-empty">No execution history yet.</div>';
+    list.innerHTML = `<div class="psycle-table-empty">${COPY.autoBook.noHistory}</div>`;
     if (paginationEl) paginationEl.innerHTML = '';
     return;
   }
@@ -770,11 +771,11 @@ function renderHistoryPage() {
     });
 
     let state, statusText, statusGlyph;
-    if (h.status === 'success')      { state = 'success';  statusText = 'Booked';     statusGlyph = 'checkCircle'; }
-    else if (h.status === 'waitlist') { state = 'waitlist'; statusText = 'Waitlisted'; statusGlyph = 'clock'; }
-    else                              { state = 'failed';   statusText = 'Failed';     statusGlyph = 'error'; }
+    if (h.status === 'success')      { state = 'success';  statusText = COPY.autoBook.bookedStatus;     statusGlyph = 'checkCircle'; }
+    else if (h.status === 'waitlist') { state = 'waitlist'; statusText = COPY.autoBook.waitlistedStatus; statusGlyph = 'clock'; }
+    else                              { state = 'failed';   statusText = COPY.autoBook.failedStatus;     statusGlyph = 'error'; }
 
-    const className = cleanClassName(h.class_name || '', h.group_name || '') || h.group_name || 'Class';
+    const className = cleanClassName(h.class_name || '', h.group_name || '') || h.group_name || COPY.autoBook.class;
     const details = [
       `${dateStr} · ${timeStr}`,
       h.instructor_name,
@@ -806,9 +807,9 @@ function renderHistoryPage() {
       paginationEl.innerHTML = '';
     } else {
       paginationEl.innerHTML = `
-        <button class="ab-hist-page-btn" id="ab-hist-prev" ${_historyPage === 0 ? 'disabled' : ''}>${icon('chevron', 14)} Prev</button>
+        <button class="ab-hist-page-btn" id="ab-hist-prev" ${_historyPage === 0 ? 'disabled' : ''}>${icon('chevron', 14)} ${COPY.autoBook.previousPage}</button>
         <span class="ab-hist-page-info">${_historyPage + 1} / ${totalPages}</span>
-        <button class="ab-hist-page-btn" id="ab-hist-next" ${_historyPage >= totalPages - 1 ? 'disabled' : ''}>Next ${icon('chevron', 14)}</button>
+        <button class="ab-hist-page-btn" id="ab-hist-next" ${_historyPage >= totalPages - 1 ? 'disabled' : ''}>${COPY.autoBook.nextPage} ${icon('chevron', 14)}</button>
       `;
       paginationEl.querySelector('#ab-hist-prev')?.addEventListener('click', () => { _historyPage--; renderHistoryPage(); });
       paginationEl.querySelector('#ab-hist-next')?.addEventListener('click', () => { _historyPage++; renderHistoryPage(); });
@@ -839,10 +840,10 @@ function formatOpensIn(ms) {
   const mins = totalMin % 60;
   // The "Opens in " prefix is its own span so CSS can drop it while the card's
   // action rail is open (.is-rail-open .ab-cd-prefix) without a re-render.
-  const pre = '<span class="ab-cd-prefix">Opens in </span>';
-  if (days >= 1) return `${pre}${days} day${days !== 1 ? 's' : ''}`;
-  if (hours >= 1) return `${pre}${hours} hour${hours !== 1 ? 's' : ''}`;
-  return `${pre}${mins} min${mins !== 1 ? 's' : ''}`;
+  const prefix = COPY.timetable.opensInPrefixHtml;
+  if (days >= 1) return formatCopyText(days === 1 ? COPY.timetable.opensInDaysOne : COPY.timetable.opensInDaysMany, { prefix, count: days });
+  if (hours >= 1) return formatCopyText(hours === 1 ? COPY.timetable.opensInHoursOne : COPY.timetable.opensInHoursMany, { prefix, count: hours });
+  return formatCopyText(mins === 1 ? COPY.timetable.opensInMinutesOne : COPY.timetable.opensInMinutesMany, { prefix, count: mins });
 }
 
 
@@ -877,7 +878,7 @@ function updateCountdowns() {
     if (userSettings.autoBookPaused) {
       // The whole headline becomes the pause status (icon + label); the
       // separate status line and "Next booking in" label are hidden by CSS.
-      mainCountdown.innerHTML = `${icon('pause', 18)}<span>Auto-Book paused</span>`;
+      mainCountdown.innerHTML = `${icon('pause', 18)}<span>${COPY.autoBook.pausedHeadline}</span>`;
       paused = true;
       statusGlyph = 'pause'; statusLabel = 'Auto-book paused';
     } else {
@@ -887,18 +888,18 @@ function updateCountdowns() {
       // single hardcoded Monday was only ever right by coincidence.
       const next = nextQueuedRelease();
       if (!next) {
-        mainCountdown.textContent = 'Nothing queued';
+        mainCountdown.textContent = COPY.autoBook.nothingQueued;
         statusGlyph = 'clock'; statusLabel = 'No classes waiting to book';
       } else {
         const diffMs = next.at - Date.now();
         if (diffMs <= 0) {
-          mainCountdown.textContent = 'Open now';
+          mainCountdown.textContent = COPY.autoBook.openNow;
           active = true;
           statusGlyph = 'bolt'; statusLabel = 'Booking window open';
         } else {
           mainCountdown.textContent = formatBannerCountdown(diffMs);
           urgent = diffMs <= 30000;
-          statusLabel = next.label ? `Next: ${next.label}` : 'Standing by to book';
+          statusLabel = next.label ? COPY.autoBook.nextLabel.replace('{label}', next.label) : COPY.autoBook.standingBy;
         }
       }
     }
@@ -935,11 +936,11 @@ function updateCountdowns() {
     const classRelease = stamped
       ? DateTime.fromISO(stamped)
       : getClassReleaseTime({ start_at: startAt, gym_id: el.getAttribute('data-gym-id') }, userSettings);
-    if (!classRelease) { valEl.textContent = 'Release time unknown'; return; }
+    if (!classRelease) { valEl.textContent = COPY.autoBook.releaseUnknown; return; }
     const diff = classRelease.toMillis() - Date.now();
 
     if (diff <= 0) {
-      valEl.textContent = 'Booking now';
+      valEl.textContent = COPY.autoBook.bookingNow;
       el.classList.remove('state-pending');
       el.classList.add('state-active');
     } else {

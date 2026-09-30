@@ -162,8 +162,8 @@ reopened on the last route.
 
 | # | Step | Notes |
 |---|---|---|
-| **C4-10b** | **Admin panel review on dev twin** | User reviews `/admin` on `sweat-dev.wingfield.tech`: user list, linked gym details, relogin indicators (C6-4), user detail drawer with gym picker (C3-8), priority tiers, and the new gym presentation editor (F-7). |
-| **C4-11** | **Back up prod DB with WAL** | Run `sudo /usr/local/sbin/psycle-backup-sqlite.sh` on oracle to ensure existing prod DB is archived with WAL and copied to Google Drive. |
+| **C4-10b** | ✅ **DONE (2026-10-01).** **Admin panel review on dev twin** | User reviewed and approved `/admin` on `sweat-dev.wingfield.tech`: user list, linked gym details, relogin indicators (C6-4), user detail drawer with gym picker (C3-8), priority tiers, and gym presentation editor (F-7). |
+| **C4-11** | **Back up prod DB with WAL (Approved, pre-deploy step)** | Run `sudo /usr/local/sbin/psycle-backup-sqlite.sh` on oracle to ensure existing prod DB is archived with WAL and copied to Google Drive before clean DB init. |
 | **C4-12** | **Prepare clean DB on prod host** | Move/archive `/home/piers/services/psycleapp/data/psycle.db` aside so `db.js` will initialize a pristine multi-gym schema on startup. |
 | **C4-13** | **Deploy `modular` with JAB enabled** | Ensure `JAB_BOXING_ENABLED=true` in prod config/env. Deploy via `./deploy.sh --prod`. Clear all 3 client caches on first load (SW, CacheStorage, IndexedDB). |
 | **C4-14** | **Prod Admin panel & first onboarding** | 1. Log in to `https://sweat.wingfield.tech/admin` and verify clean initial state.<br>2. Sign up the primary Sweat Assistant account on `sweat.wingfield.tech`.<br>3. Connect Psycle London and JAB Boxing in Settings → Your Gyms.<br>4. Re-check `/admin` to verify user and links show up cleanly. |
@@ -172,6 +172,6 @@ reopened on the last route.
 ## Done when
 
 - [x] All Stage A rows pass or are consciously waived (C4-1, C4-5, C4-6, C4-7, C4-8, C4-9, C4-10 passed; C4-2/3 waived).
-- [ ] Admin panel reviewed and approved on dev twin (C4-10b).
+- [x] Admin panel reviewed and approved on dev twin (C4-10b, 2026-10-01).
 - [ ] Prod deployed with clean DB and JAB enabled.
 - [ ] Primary account onboarded on prod, both gyms linked, verified in `/admin`.

@@ -10,8 +10,12 @@ import { renderCalendarSection } from './calendar-section.js';
 import { getLinkedGyms, getGymShortName } from '../gym-context.js';
 import { icon, gymSquareChip } from './cards.js';
 import { createRenderGuard, reconcileKeyed, lastAuthLabel, connectionHealth } from './gym-connections.js';
+import { COPY, formatCopyText } from '../copy.js';
+import { appConfig } from '../config.js';
 
 let loadedProfile = null;
+let activeSpotEditorOverlay = null;
+let closeSpotMapManager = null;
 let loadedProfileGymId = null;
 
 // ─── Profile Explorer — Unified Implementation ─────────────────────────────
@@ -27,33 +31,33 @@ const KONAMI = ['ArrowUp','ArrowUp','ArrowDown','ArrowDown','ArrowLeft','ArrowRi
 // Section schema definition — categorizes known fields
 const SECTION_DEFS = [
   {
-    title: 'Basic Info',
+    title: COPY.profileExplorer.sectionBasicInfo,
     emoji: '👤',
     paths: ['id', 'first_name', 'last_name', 'email', 'username', 'dob', 'telephone', 'referral_code', 'verified', 'created_at']
   },
   {
-    title: 'Account & Payments',
+    title: COPY.profileExplorer.sectionAccountPayments,
     emoji: '💳',
     paths: ['stripe_id', 'card_brand', 'card_last_four', 'has_purchased', 'opt_ins', 'policies']
   },
   {
-    title: 'Metafields & Preferences',
+    title: COPY.profileExplorer.sectionMetafieldsPreferences,
     emoji: '⚙️',
     // Special: all metafields.* except metafields.public.bookmarks
     // Built dynamically in buildSections()
   },
   {
-    title: 'Booking Stats & Cutoffs',
+    title: COPY.profileExplorer.sectionBookingStats,
     emoji: '📊',
     paths: ['stats.total_bookings', 'stats.total_unique_bookings', 'stats.total_unique_bookings_attended', 'stats.credits_remaining', 'stats.total_attended_minutes', 'booking_cutoff', 'extended_cutoff']
   },
   {
-    title: 'Available Credits',
+    title: COPY.profileExplorer.sectionAvailableCredits,
     emoji: '🎟️',
     paths: ['available_credits']  // array — rendered as cards, read-only
   },
   {
-    title: 'Subscriptions & Plans',
+    title: COPY.profileExplorer.sectionSubscriptions,
     emoji: '🔄',
     paths: ['subscriptions', 'subscription_statuses']  // arrays — rendered as cards, read-only
   },
@@ -97,21 +101,21 @@ function formatVal(val) {
 // ─── Special Section Renderers ──────────────────────────────────────────────
 
 function renderCreditsHtml(credits) {
-  if (!credits || credits.length === 0) return '<div style="color:var(--text-secondary);font-style:italic;text-align:center;font-size:12px;">No active credits.</div>';
+  if (!credits || credits.length === 0) return `<div style="color:var(--text-secondary);font-style:italic;text-align:center;font-size:12px;">${COPY.profileExplorer.noActiveCredits}</div>`;
   return credits.map(c => `
     <div style="background:color-mix(in srgb, var(--feat-autoupgrade) 8%, transparent);border:1px solid color-mix(in srgb, var(--feat-autoupgrade) 20%, transparent);border-radius:10px;padding:10px 14px;display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;">
       <div style="display:flex;flex-direction:column;gap:2px;">
-        <strong style="color:var(--text);font-size:13px;">${c.credit_type?.name || 'Unknown'}</strong>
-        <span style="font-size:12px;color:var(--text-secondary);">Handle: ${c.credit_type?.handle || '—'}</span>
+        <strong style="color:var(--text);font-size:13px;">${c.credit_type?.name || COPY.profileExplorer.unknown}</strong>
+        <span style="font-size:12px;color:var(--text-secondary);">${formatCopyText(COPY.profileExplorer.creditHandle, { handle: escapeHtml(c.credit_type?.handle || '—') })}</span>
       </div>
-      <span style="background:var(--feat-autoupgrade);color:var(--on-accent);border-radius:12px;padding:4px 10px;font-size:12px;font-weight:700;box-shadow:0 2px 4px color-mix(in srgb, var(--feat-autoupgrade) 30%, transparent);border:1px solid color-mix(in srgb, var(--text) 10%, transparent);">${c.count} Left</span>
+      <span style="background:var(--feat-autoupgrade);color:var(--on-accent);border-radius:12px;padding:4px 10px;font-size:12px;font-weight:700;box-shadow:0 2px 4px color-mix(in srgb, var(--feat-autoupgrade) 30%, transparent);border:1px solid color-mix(in srgb, var(--text) 10%, transparent);">${formatCopyText(COPY.profileExplorer.creditsLeft, { count: c.count })}</span>
     </div>
   `).join('');
 }
 
 function renderSubsHtml(subs, statuses) {
   const allSubs = [...(subs || []), ...(statuses || [])];
-  if (allSubs.length === 0) return '<div style="color:var(--text-secondary);font-style:italic;text-align:center;font-size:12px;">No subscription plans found.</div>';
+  if (allSubs.length === 0) return `<div style="color:var(--text-secondary);font-style:italic;text-align:center;font-size:12px;">${COPY.profileExplorer.noPlans}</div>`;
   return allSubs.map(s => {
     const status = s.status || 'inactive';
     const isCancelled = status === 'cancelled';
@@ -122,7 +126,7 @@ function renderSubsHtml(subs, statuses) {
       <div style="background:color-mix(in srgb, var(--text) 2%, transparent);border:1px solid color-mix(in srgb, var(--text) 6%, transparent);border-radius:10px;padding:10px 14px;display:flex;justify-content:space-between;align-items:center;gap:12px;margin-bottom:8px;">
         <div style="display:flex;flex-direction:column;gap:2px;flex:1;">
           <span style="font-weight:600;color:var(--text);font-size:12px;line-height:1.4;">${s.name || '—'}</span>
-          <span style="font-size:12px;color:var(--text-secondary);">Plan: ${s.handle || '—'}</span>
+          <span style="font-size:12px;color:var(--text-secondary);">${formatCopyText(COPY.profileExplorer.planHandle, { handle: escapeHtml(s.handle || '—') })}</span>
         </div>
         <span style="background:${statusBg};border:1px solid ${statusBorder};color:${statusColor};border-radius:6px;padding:3px 8px;font-size:12px;font-weight:700;text-transform:uppercase;letter-spacing:0.5px;">${status}</span>
       </div>
@@ -197,7 +201,7 @@ function buildSections(profile) {
   });
 
   if (otherFields.length > 0) {
-    sections.push({ title: 'Other', emoji: '📦', fields: otherFields, isSpecial: false });
+    sections.push({ title: COPY.profileExplorer.sectionOther, emoji: '📦', fields: otherFields, isSpecial: false });
   }
 
   return sections;
@@ -217,12 +221,12 @@ async function openProfileExplorerModal(gymId = null, gymName = null) {
   changeLog = [];
   loadedProfileGymId = gymId;
   const title = document.getElementById('psycle-profile-explorer-title');
-  if (title) title.textContent = gymName ? `${gymName} Profile Explorer` : 'Profile Explorer';
+  if (title) title.textContent = gymName ? formatCopyText(COPY.profileExplorer.gymTitle, { gymName }) : COPY.profileExplorer.title;
 
   // Show loading state — use .show class for opacity transition (matches booking/debug modal convention)
   modal.style.display = 'flex';
   setTimeout(() => modal.classList.add('show'), 10);
-  body.innerHTML = '<div style="text-align:center;padding:40px;"><div class="psycle-spinner" style="margin:0 auto;"></div><div style="color:var(--text-secondary);margin-top:10px;font-size:13px;">Loading profile…</div></div>';
+  body.innerHTML = `<div style="text-align:center;padding:40px;"><div class="psycle-spinner" style="margin:0 auto;"></div><div style="color:var(--text-secondary);margin-top:10px;font-size:13px;">${COPY.profileExplorer.loading}</div></div>`;
 
   // Set up close handlers
   setupExplorerModalClose(modal);
@@ -238,7 +242,7 @@ async function openProfileExplorerModal(gymId = null, gymName = null) {
     loadedProfile = res.raw || res;
     renderExplorerBody(body);
   } catch (err) {
-    body.innerHTML = `<div class="psycle-card-error">Unable to load profile data. Connect to the internet to sync. (${err.message})</div>`;
+    body.innerHTML = `<div class="psycle-card-error">${formatCopyText(COPY.settings.profileLoadFailed, { error: escapeHtml(err.message) })}</div>`;
   }
 }
 
@@ -289,16 +293,16 @@ function toggleEditMode() {
     const body = document.getElementById('psycle-profile-explorer-body');
     const hasChanges = body.querySelector('.psycle-profile-save-btn') && body.querySelector('.psycle-profile-save-btn').style.display !== 'none';
     if (hasChanges) {
-      if (!confirm('You have unsaved changes. Exit edit mode and discard them?')) return;
+      if (!confirm(COPY.settings.discardUnsaved)) return;
     }
   }
   editMode = !editMode;
   const body = document.getElementById('psycle-profile-explorer-body');
   renderExplorerBody(body);
   if (editMode) {
-    showToast('Edit mode enabled', 'info');
+    showToast(COPY.settings.editEnabled, 'info');
   } else {
-    showToast('Edit mode disabled', 'info');
+    showToast(COPY.settings.editDisabled, 'info');
   }
 }
 
@@ -306,7 +310,7 @@ function toggleEditMode() {
 
 function renderExplorerBody(body) {
   if (!loadedProfile) {
-    body.innerHTML = '<div class="psycle-card-error">No profile data loaded.</div>';
+    body.innerHTML = `<div class="psycle-card-error">${COPY.profileExplorer.dataUnavailable}</div>`;
     return;
   }
 
@@ -316,8 +320,8 @@ function renderExplorerBody(body) {
   // Edit mode banner
   if (editMode) {
     html += `<div style="background:color-mix(in srgb, var(--warning) 10%, transparent);border:1px solid color-mix(in srgb, var(--warning) 30%, transparent);border-radius:8px;padding:10px 14px;margin-bottom:12px;display:flex;justify-content:space-between;align-items:center;">
-      <span style="color:var(--warning);font-weight:600;font-size:13px;">🔓 Edit Mode Enabled — modify fields and click Save Changes</span>
-      <span style="color:var(--text-secondary);font-size:12px;">Enter konami code again to exit</span>
+      <span style="color:var(--warning);font-weight:600;font-size:13px;">${COPY.profileExplorer.editBanner}</span>
+      <span style="color:var(--text-secondary);font-size:12px;">${COPY.profileExplorer.exitEdit}</span>
     </div>`;
   }
 
@@ -333,7 +337,7 @@ function renderExplorerBody(body) {
     html += `
       <div class="psycle-profile-log-panel" style="margin-top:12px;border:1px solid color-mix(in srgb, var(--text) 8%, transparent);border-radius:12px;overflow:hidden;">
         <div class="psycle-profile-section-header" id="psycle-explorer-log-header" style="background:color-mix(in srgb, var(--text) 3%, transparent);padding:10px 16px;display:flex;justify-content:space-between;align-items:center;cursor:pointer;user-select:none;">
-          <span style="font-weight:700;font-size:13px;color:var(--text);display:flex;align-items:center;gap:6px;">📝 Change Log <span id="psycle-explorer-log-count" style="font-weight:400;font-size:12px;color:var(--text-secondary);">(${changeLog.length})</span></span>
+          <span style="font-weight:700;font-size:13px;color:var(--text);display:flex;align-items:center;gap:6px;">${COPY.profileExplorer.changeLog} <span id="psycle-explorer-log-count" style="font-weight:400;font-size:12px;color:var(--text-secondary);">(${changeLog.length})</span></span>
           <span class="psycle-accordion-arrow" id="psycle-explorer-log-arrow" style="font-size:12px;color:var(--text-secondary);transition:transform 0.2s;">▲</span>
         </div>
         <div id="psycle-explorer-log-container" style="max-height:200px;overflow-y:auto;padding:8px;background:var(--surface-inset);border-top:1px solid color-mix(in srgb, var(--text) 5%, transparent);">
@@ -342,7 +346,7 @@ function renderExplorerBody(body) {
       </div>
     `;
     // Save Changes button
-    html += `<button id="psycle-profile-save-btn" class="psycle-btn" style="width:100%;margin-top:12px;background:color-mix(in srgb, var(--feat-autoupgrade) 20%, transparent);border:1px solid color-mix(in srgb, var(--feat-autoupgrade) 40%, transparent);color:var(--feat-autoupgrade);font-weight:700;display:none;">💾 Save Changes</button>`;
+    html += `<button id="psycle-profile-save-btn" class="psycle-btn" style="width:100%;margin-top:12px;background:color-mix(in srgb, var(--feat-autoupgrade) 20%, transparent);border:1px solid color-mix(in srgb, var(--feat-autoupgrade) 40%, transparent);color:var(--feat-autoupgrade);font-weight:700;display:none;">${COPY.profileExplorer.saveChanges}</button>`;
   }
 
   body.innerHTML = html;
@@ -427,7 +431,7 @@ function renderSectionAccordion(section, idx, isSpecial) {
   // For special sections in edit mode, add a read-only badge
   let titleSuffix = '';
   if (editMode && isSpecial) {
-    titleSuffix = ' <span style="font-size:12px;color:var(--text-tertiary);font-weight:400;">(read-only)</span>';
+    titleSuffix = ` <span style="font-size:12px;color:var(--text-tertiary);font-weight:400;">${COPY.profileExplorer.readOnly}</span>`;
   }
 
   return `
@@ -480,7 +484,7 @@ function setupEditListeners(body) {
 // Render log entries HTML from the module-level changeLog (used by renderExplorerBody and saveProfileChanges)
 function renderLogEntriesHtml() {
   if (changeLog.length === 0) {
-    return '<div style="padding:12px;text-align:center;color:var(--text-tertiary);font-style:italic;font-size:12px;">No changes yet.</div>';
+    return `<div style="padding:12px;text-align:center;color:var(--text-tertiary);font-style:italic;font-size:12px;">${COPY.profileExplorer.noChanges}</div>`;
   }
   const reversed = [...changeLog].reverse();
   return reversed.map(e => {
@@ -534,7 +538,7 @@ async function saveProfileChanges(body, originalProfile) {
   });
 
   if (changes.length === 0) {
-    showToast('No changes to save', 'info');
+    showToast(COPY.settings.noChanges, 'info');
     return;
   }
 
@@ -544,7 +548,7 @@ async function saveProfileChanges(body, originalProfile) {
 
   // Disable save button, show spinner
   saveBtn.disabled = true;
-  saveBtn.textContent = '⏳ Saving...';
+  saveBtn.textContent = `⏳ ${COPY.static.savingDots}`;
 
   // Add entries to the module-level change log (persists across saves)
   const newEntries = changes.map(c => ({
@@ -593,31 +597,35 @@ async function saveProfileChanges(body, originalProfile) {
       });
 
       updateLogInPlace();
-      showToast('Profile saved and verified', 'success');
+      showToast(COPY.settings.profileSaved, 'success');
 
     } catch (verifyErr) {
       // Verification fetch failed — changes were sent but not verified
       newEntries.forEach(entry => { entry.status = 'sent'; });
       updateLogInPlace();
-      showToast('Saved but verification failed: ' + verifyErr.message, 'warning');
+      showToast(formatCopyText(COPY.settings.profileVerificationFailed, { error: verifyErr.message }), 'warning');
     }
 
   } catch (err) {
     newEntries.forEach(entry => { entry.status = 'failed'; });
     updateLogInPlace();
-    showToast(`Save failed: ${err.message}`, 'error');
+    showToast(formatCopyText(COPY.settings.profileSaveFailed, { error: err.message }), 'error');
   }
 
   saveBtn.disabled = false;
-  saveBtn.textContent = '💾 Save Changes';
+  saveBtn.textContent = `💾 ${COPY.bookings.saveChanges}`;
   saveBtn.style.display = 'none';
 }
 
 export async function openManageSpotMapsModal(options = {}) {
+  closeSpotMapManager?.();
+  activeSpotEditorOverlay?.remove();
+  activeSpotEditorOverlay = null;
   const zIndex = options.zIndex ?? 2000;
   const onDone = options.onDone ?? null;
 
   const overlay = document.createElement('div');
+  overlay.id = 'psycle-manage-spotmaps-overlay';
   overlay.style.cssText = `position:fixed;inset:0;background:color-mix(in srgb, var(--bg) 60%, transparent);z-index:${zIndex};display:flex;align-items:center;justify-content:center;padding:16px;`;
 
   const modal = document.createElement('div');
@@ -625,16 +633,27 @@ export async function openManageSpotMapsModal(options = {}) {
 
   const header = document.createElement('div');
   header.style.cssText = 'display:flex;justify-content:space-between;align-items:center;padding:14px 18px;border-bottom:1px solid color-mix(in srgb, var(--text) 8%, transparent);flex-shrink:0;';
-  header.innerHTML = `<h3 style="margin:0;font-size:16px;font-weight:700;color:var(--text);">Preferred Spot Maps</h3><button style="background:none;border:none;color:var(--text-secondary);font-size:22px;cursor:pointer;padding:0;line-height:1;" id="manage-modal-close">×</button>`;
+  header.innerHTML = `<h3 style="margin:0;font-size:16px;font-weight:700;color:var(--text);">${COPY.spotMaps.preferredSpotMaps}</h3><button style="background:none;border:none;color:var(--text-secondary);font-size:22px;cursor:pointer;padding:0;line-height:1;" id="manage-modal-close" aria-label="${COPY.credits.closeModal}">×</button>`;
 
   const body = document.createElement('div');
   body.style.cssText = 'flex:1;overflow-y:auto;padding:16px;';
-  body.innerHTML = '<div style="text-align:center;padding:24px;"><div class="psycle-spinner" style="margin:0 auto;"></div><div style="color:var(--text-secondary);margin-top:10px;font-size:13px;">Loading studios…</div></div>';
+  body.innerHTML = `<div style="text-align:center;padding:24px;"><div class="psycle-spinner" style="margin:0 auto;"></div><div style="color:var(--text-secondary);margin-top:10px;font-size:13px;">${COPY.spotMaps.loadingStudios}</div></div>`;
 
   modal.appendChild(header);
   modal.appendChild(body);
 
-  const close = () => overlay.remove();
+  const refreshOnGymChange = () => {
+    activeSpotEditorOverlay?.remove();
+    activeSpotEditorOverlay = null;
+    close();
+    openManageSpotMapsModal(options);
+  };
+  const close = () => {
+    window.removeEventListener('psycle:gyms-changed', refreshOnGymChange);
+    overlay.remove();
+    if (closeSpotMapManager === close) closeSpotMapManager = null;
+  };
+  closeSpotMapManager = close;
 
   if (onDone) {
     const footer = document.createElement('div');
@@ -642,7 +661,7 @@ export async function openManageSpotMapsModal(options = {}) {
     const doneBtn = document.createElement('button');
     doneBtn.className = 'psycle-btn-primary';
     doneBtn.style.cssText = 'width:100%;';
-    doneBtn.textContent = 'Done';
+    doneBtn.textContent = COPY.settings.done;
     doneBtn.addEventListener('click', () => { close(); onDone(); });
     footer.appendChild(doneBtn);
     modal.appendChild(footer);
@@ -653,9 +672,10 @@ export async function openManageSpotMapsModal(options = {}) {
 
   header.querySelector('#manage-modal-close').onclick = close;
   overlay.addEventListener('click', e => { if (e.target === overlay) close(); });
+  window.addEventListener('psycle:gyms-changed', refreshOnGymChange);
 
   try {
-    const [prefs, cachedMeta, cachedEvents] = await Promise.all([
+    const [prefs, cachedMeta, cachedEvents, linkedRes] = await Promise.all([
       api.getStudioPreferences(options.gymId),
       // The gym-scoped cache keys already resolve to the gym in localStorage, so
       // a request for a DIFFERENT gym must not read them. With the ambient
@@ -666,8 +686,14 @@ export async function openManageSpotMapsModal(options = {}) {
       // `psycleCacheEvents` keys had no writer, so this always missed and the
       // active-studio filter never applied. It is merged across gyms, so it is
       // read for an explicit gym too and narrowed to that gym just below.
-      cacheGet(accountScopedKey('psycleUnifiedCacheEvents'))
+      cacheGet(accountScopedKey('psycleUnifiedCacheEvents')),
+      api.getMyGyms().catch(() => ({ gyms: [] }))
     ]);
+    const linkedGyms = linkedRes.gyms || linkedRes || [];
+    options.gymNames = Object.fromEntries(linkedGyms.map((gym) => [
+      gym.gym_id || gym.gymId || gym.id,
+      gym.gym_name || gym.name || gym.gym_id || gym.id,
+    ]));
 
     // Studios from the timetable metadata cache (built from event relations) include full
     // layout.slots data — the /studios list endpoint omits slots for some studios (e.g. Reformer).
@@ -759,7 +785,7 @@ export async function openManageSpotMapsModal(options = {}) {
 
     renderManageSpotMapsModal(prefs, studios, locations, body, close, activeStudioIds, options);
   } catch (err) {
-    body.innerHTML = `<div class="psycle-card-error" style="padding:16px;">Unable to load studios. Connect to the internet to sync. (${err.message})</div>`;
+    body.innerHTML = `<div class="psycle-card-error" style="padding:16px;">${formatCopyText(COPY.settings.studiosLoadFailed, { error: escapeHtml(err.message) })}</div>`;
   }
 }
 
@@ -772,7 +798,7 @@ function renderManageSpotMapsModal(prefs, studios, locations, container, onClose
 
   const hasActiveFilter = activeStudioIds && activeStudioIds.size > 0;
 
-  const grouped = {};
+  const grouped = new Map();
   studios.forEach(studio => {
     // `hasLayout` on the normalized shape; the raw CodexFit list embedded the
     // layout itself. MarianaTek has no studios endpoint to embed one on, so it
@@ -781,23 +807,35 @@ function renderManageSpotMapsModal(prefs, studios, locations, container, onClose
     if (!hasMap) return; // only studios with seat maps
     if (hasActiveFilter && !activeStudioIds.has(String(studio.id))) return; // exclude defunct studios
     const locId = studio.locationId ?? studio.location_id;
-    const locName = (studio.gymId && locMap[`${studio.gymId}:${locId}`]) || locMap[String(locId)] || 'Unknown Location';
-    if (!grouped[locName]) grouped[locName] = [];
-    grouped[locName].push(studio);
+    const locName = (studio.gymId && locMap[`${studio.gymId}:${locId}`]) || locMap[String(locId)] || COPY.static.unknownLocation;
+    const gymId = studio.gymId || options.gymId || '';
+    const gymName = options.gymNames?.[gymId] || studio.gymName || gymId || COPY.gymSettings.genericGym;
+    const key = `${gymId}:${locName}`;
+    if (!grouped.has(key)) grouped.set(key, { gymId, gymName, locName, studios: [] });
+    grouped.get(key).studios.push(studio);
   });
 
-  const sortedLocs = Object.keys(grouped).sort();
+  const sortedGroups = [...grouped.values()].sort((a, b) => a.gymName.localeCompare(b.gymName) || a.locName.localeCompare(b.locName));
   container.innerHTML = '';
 
-  if (sortedLocs.length === 0) {
+  if (sortedGroups.length === 0) {
     const noData = studios.length === 0;
-    container.innerHTML = `<div style="text-align:center;padding:24px;color:var(--text-secondary);"><div style="font-size:32px;margin-bottom:12px;">🗺️</div><p style="margin:0;">${noData ? 'No Timetable Data' : 'No Studios With Seat Maps'}</p><p style="font-size:12px;margin:8px 0 0 0;">${noData ? 'Please open the Timetable tab first to load classes, then return here.' : 'No studios with seat layouts were found in the current timetable.'}</p></div>`;
+    container.innerHTML = `<div style="text-align:center;padding:24px;color:var(--text-secondary);"><div style="font-size:32px;margin-bottom:12px;">🗺️</div><p style="margin:0;">${noData ? COPY.spotMaps.noTimetableData : COPY.spotMaps.noSeatMaps}</p><p style="font-size:12px;margin:8px 0 0 0;">${noData ? COPY.spotMaps.loadTimetableFirst : COPY.spotMaps.noSeatLayouts}</p></div>`;
     return;
   }
 
-  sortedLocs.forEach((locName, locIdx) => {
+  let previousGym = null;
+  sortedGroups.forEach(({ gymId, gymName, locName, studios: locationStudios }) => {
+    const thisGym = `${gymId}:${gymName}`;
+    if (thisGym !== previousGym) {
+      const gymHeader = document.createElement('h4');
+      gymHeader.textContent = gymName;
+      gymHeader.style.cssText = 'margin:8px 0 2px;font-size:14px;font-weight:700;color:var(--text);';
+      container.appendChild(gymHeader);
+      previousGym = thisGym;
+    }
     const locSection = document.createElement('div');
-    locSection.style.cssText = 'margin-bottom:14px;';
+    locSection.style.cssText = 'margin:0 0 14px 12px;border-left:2px solid var(--border);padding-left:10px;';
 
     const locHeader = document.createElement('div');
     locHeader.style.cssText = 'font-size:12px;font-weight:700;color:var(--text-secondary);text-transform:uppercase;letter-spacing:0.5px;padding:8px 0 6px 0;cursor:pointer;user-select:none;display:flex;justify-content:space-between;align-items:center;';
@@ -810,7 +848,7 @@ function renderManageSpotMapsModal(prefs, studios, locations, container, onClose
     const studioList = document.createElement('div');
     studioList.style.cssText = 'display:flex;flex-direction:column;gap:6px;';
 
-    grouped[locName].forEach(studio => {
+    locationStudios.forEach(studio => {
       const studioPrefs = (studio.gymId && prefs[`${studio.gymId}:${studio.id}`]) || prefs[studio.id];
       const hasPrefs = studioPrefs && (studioPrefs.preferredSlots?.length > 0 || studioPrefs.preferredRows?.length > 0);
 
@@ -829,8 +867,8 @@ function renderManageSpotMapsModal(prefs, studios, locations, container, onClose
         const detail = document.createElement('div');
         detail.style.cssText = 'font-size:12px;color:var(--text-tertiary);margin-top:2px;';
         const parts = [];
-        if (studioPrefs.preferredSlots?.length > 0) parts.push(`${studioPrefs.preferredSlots.length} preferred spot${studioPrefs.preferredSlots.length > 1 ? 's' : ''}`);
-        if (studioPrefs.preferredRows?.length > 0) parts.push(`${studioPrefs.preferredRows.length} preferred row${studioPrefs.preferredRows.length > 1 ? 's' : ''}`);
+        if (studioPrefs.preferredSlots?.length > 0) parts.push(formatCopyText(COPY.spotMaps.preferredSpotsCount, { count: studioPrefs.preferredSlots.length, plural: studioPrefs.preferredSlots.length > 1 ? 's' : '' }));
+        if (studioPrefs.preferredRows?.length > 0) parts.push(formatCopyText(COPY.spotMaps.preferredRowsCount, { count: studioPrefs.preferredRows.length, plural: studioPrefs.preferredRows.length > 1 ? 's' : '' }));
         detail.textContent = parts.join(' · ');
         info.appendChild(detail);
       }
@@ -842,27 +880,35 @@ function renderManageSpotMapsModal(prefs, studios, locations, container, onClose
       const editBtn = document.createElement('button');
       editBtn.className = 'psycle-btn-mini';
       editBtn.style.cssText = 'font-size:12px;padding:4px 10px;';
-      editBtn.textContent = hasPrefs ? 'Edit Spots' : 'Choose Spots';
-      editBtn.addEventListener('click', () => openStudioFloorPlanEditor(studio.id, studio.name, () => openManageSpotMapsModal(options), { ...options, gymId: studio.gymId }));
+      editBtn.textContent = hasPrefs ? COPY.spotMaps.editSpots : COPY.spotMaps.chooseSpots;
+      editBtn.addEventListener('click', () => {
+        // Transition between modals instead of stacking the editor over its
+        // manager. Reopen the manager if the editor is dismissed without save.
+        close();
+        openStudioFloorPlanEditor(studio.id, studio.name, () => {
+          openManageSpotMapsModal(options);
+        }, { ...options, gymId: studio.gymId, onDismiss: () => openManageSpotMapsModal(options) });
+      });
       btns.appendChild(editBtn);
 
       if (hasPrefs) {
         const removeBtn = document.createElement('button');
         removeBtn.className = 'psycle-btn-mini';
         removeBtn.style.cssText = 'font-size:12px;padding:4px 10px;background:color-mix(in srgb, var(--danger) 10%, transparent);border-color:color-mix(in srgb, var(--danger) 25%, transparent);color:var(--danger);';
-        removeBtn.textContent = 'Remove';
+        removeBtn.textContent = COPY.spotMaps.remove;
         removeBtn.addEventListener('click', async () => {
-          if (!confirm('Confirm remove?')) return;
+          if (!confirm(COPY.settings.confirmRemove)) return;
           removeBtn.disabled = true;
-          removeBtn.textContent = '…';
+          removeBtn.textContent = COPY.spotMaps.removing;
           try {
             await api.updateStudioPreferences(studio.id, { preferredSlots: [], preferredRows: [] }, studio.gymId || options.gymId);
-            showToast(`Studio defaults removed!`, 'success');
+            showToast(COPY.settings.defaultsRemoved, 'success');
+            onClose();
             openManageSpotMapsModal(options);
           } catch (err) {
-            showToast(`Failed: ${err.message}`, 'error');
+            showToast(formatCopyText(COPY.settings.actionFailed, { error: err.message }), 'error');
             removeBtn.disabled = false;
-            removeBtn.textContent = 'Remove';
+            removeBtn.textContent = COPY.spotMaps.remove;
           }
         });
         btns.appendChild(removeBtn);
@@ -890,9 +936,11 @@ function renderManageSpotMapsModal(prefs, studios, locations, container, onClose
 
 
 export async function openStudioFloorPlanEditor(studioId, studioName, onSaved, options = {}) {
+  if (activeSpotEditorOverlay?.isConnected) return;
   // Build modal overlay
   const zIndex = (options.zIndex ?? 2000) + 1;
   const overlay = document.createElement('div');
+  overlay.id = 'psycle-spotmap-editor-overlay';
   overlay.style.cssText = `position:fixed;inset:0;background:color-mix(in srgb, var(--bg) 60%, transparent);z-index:${zIndex};display:flex;align-items:center;justify-content:center;padding:16px;`;
 
   const modal = document.createElement('div');
@@ -900,20 +948,25 @@ export async function openStudioFloorPlanEditor(studioId, studioName, onSaved, o
 
   const header = document.createElement('div');
   header.style.cssText = 'display:flex;justify-content:space-between;align-items:center;padding:14px 18px;border-bottom:1px solid color-mix(in srgb, var(--text) 8%, transparent);flex-shrink:0;';
-  header.innerHTML = `<div><div style="font-size:15px;font-weight:700;color:var(--text);">Spot Map</div><div style="font-size:12px;color:var(--text-tertiary);margin-top:2px;">${studioName}</div></div><button style="background:none;border:none;color:var(--text-secondary);font-size:22px;cursor:pointer;padding:0;line-height:1;" id="spot-editor-close">×</button>`;
+  header.innerHTML = `<div><div style="font-size:15px;font-weight:700;color:var(--text);">${COPY.spotMaps.spotMap}</div><div style="font-size:12px;color:var(--text-tertiary);margin-top:2px;">${studioName}</div></div><button style="background:none;border:none;color:var(--text-secondary);font-size:22px;cursor:pointer;padding:0;line-height:1;" id="spot-editor-close" aria-label="${COPY.credits.closeModal}">×</button>`;
 
   const body = document.createElement('div');
   body.style.cssText = 'flex:1;overflow-y:auto;padding:16px;';
-  body.innerHTML = '<div style="text-align:center;padding:24px;"><div class="psycle-spinner" style="margin:0 auto;"></div><div style="color:var(--text-secondary);margin-top:10px;font-size:13px;">Loading floor plan…</div></div>';
+  body.innerHTML = `<div style="text-align:center;padding:24px;"><div class="psycle-spinner" style="margin:0 auto;"></div><div style="color:var(--text-secondary);margin-top:10px;font-size:13px;">${COPY.spotMaps.loadingFloorPlan}</div></div>`;
 
   modal.appendChild(header);
   modal.appendChild(body);
   overlay.appendChild(modal);
   document.body.appendChild(overlay);
 
-  const close = () => overlay.remove();
-  header.querySelector('#spot-editor-close').onclick = close;
-  overlay.addEventListener('click', e => { if (e.target === overlay) close(); });
+  const close = (dismissed = false) => {
+    overlay.remove();
+    if (activeSpotEditorOverlay === overlay) activeSpotEditorOverlay = null;
+    if (dismissed) options.onDismiss?.();
+  };
+  activeSpotEditorOverlay = overlay;
+  header.querySelector('#spot-editor-close').onclick = () => close(true);
+  overlay.addEventListener('click', e => { if (e.target === overlay) close(true); });
 
   try {
     // WP-C5 (Q12 follow-up): reads the new event-independent normalized
@@ -937,11 +990,11 @@ export async function openStudioFloorPlanEditor(studioId, studioName, onSaved, o
     const onSave = async (slots, rows) => {
       try {
         await api.updateStudioPreferences(studioId, { preferredSlots: slots, preferredRows: rows }, options.gymId);
-        showToast(`Saved spot map for ${studioName}`, 'success');
+        showToast(formatCopyText(COPY.settings.spotMapSaved, { studio: studioName }), 'success');
         close();
         if (onSaved) onSaved();
       } catch (err) {
-        showToast(`Save failed: ${err.message}`, 'error');
+        showToast(formatCopyText(COPY.settings.spotMapSaveFailed, { error: err.message }), 'error');
       }
     };
 
@@ -949,9 +1002,9 @@ export async function openStudioFloorPlanEditor(studioId, studioName, onSaved, o
       body.innerHTML = `
         <div style="padding:20px;text-align:center;color:var(--text-secondary);">
           <div style="font-size:32px;margin-bottom:12px;">🗺️</div>
-          <p style="margin:0 0 8px;color:var(--text);font-weight:500;">No floor map available</p>
-          <p style="font-size:12px;margin:0 0 20px;">Preferences will apply to any available spot when booking at this studio.</p>
-          <button class="psycle-btn" id="spot-save-any" style="background:var(--feat-autoupgrade);color:var(--on-accent);">Save (Any Spot Preference)</button>
+          <p style="margin:0 0 8px;color:var(--text);font-weight:500;">${COPY.spotMaps.noFloorMapAvailable}</p>
+          <p style="font-size:12px;margin:0 0 20px;">${COPY.spotMaps.anySpotHelp}</p>
+          <button class="psycle-btn" id="spot-save-any" style="background:var(--feat-autoupgrade);color:var(--on-accent);">${COPY.spotMaps.saveAnySpot}</button>
         </div>
       `;
       body.querySelector('#spot-save-any').onclick = () => onSave([], existing.preferredRows || []);
@@ -960,10 +1013,10 @@ export async function openStudioFloorPlanEditor(studioId, studioName, onSaved, o
 
     renderStudioFloorPlan(body, layoutSlots, existing.preferredSlots || [], existing.preferredRows || [], onSave, {
       layoutObjects,
-      bannerHtml: `<div style="font-size:12px;color:var(--feat-autoupgrade);background:color-mix(in srgb, var(--feat-autoupgrade) 8%, transparent);border:1px solid color-mix(in srgb, var(--feat-autoupgrade) 18%, transparent);border-radius:8px;padding:8px 10px;margin-bottom:12px;line-height:1.5;">This is the one shared preferred spot map for <strong>${studioName}</strong>. Quick-Book, Auto-Book, and Auto-Upgrade at this studio all use it — changes apply everywhere.</div>`
+      bannerHtml: `<div style="font-size:12px;color:var(--feat-autoupgrade);background:color-mix(in srgb, var(--feat-autoupgrade) 8%, transparent);border:1px solid color-mix(in srgb, var(--feat-autoupgrade) 18%, transparent);border-radius:8px;padding:8px 10px;margin-bottom:12px;line-height:1.5;">${formatCopyText(COPY.spotMaps.sharedSpotMapHtml, { studioName: escapeHtml(studioName) })}</div>`
     });
   } catch (err) {
-    body.innerHTML = `<div class="psycle-card-error" style="padding:16px;">Unable to load floor plan. Connect to the internet to sync. (${err.message})</div>`;
+    body.innerHTML = `<div class="psycle-card-error" style="padding:16px;">${formatCopyText(COPY.settings.floorPlanLoadFailed, { error: escapeHtml(err.message) })}</div>`;
   }
 }
 
@@ -1152,13 +1205,13 @@ let connByGym = new Map();
 function ensureConnTable(list) {
   if (list.querySelector('.psycle-gym-conn-table')) return list.querySelector('.psycle-gym-conn-table');
   list.innerHTML = `
-    <div class="psycle-card-desc psycle-gym-conn-empty" style="padding:10px 0;" hidden>No gyms linked. Add one to start booking.</div>
-    <div class="psycle-gym-conn-table" role="table" aria-label="Gym connections">
+    <div class="psycle-card-desc psycle-gym-conn-empty" style="padding:10px 0;" hidden>${COPY.settings.noGymsLinked}</div>
+    <div class="psycle-gym-conn-table" role="table" aria-label="${COPY.settings.gymConnections}">
       <div class="psycle-gym-conn-head" role="row">
-        <span role="columnheader">Gym</span>
-        <span role="columnheader">Connection</span>
-        <span role="columnheader">Last authenticated</span>
-        <span role="columnheader"><span class="u-visually-hidden">Actions</span></span>
+        <span role="columnheader">${COPY.settings.gym}</span>
+        <span role="columnheader">${COPY.settings.connection}</span>
+      <span role="columnheader">${COPY.settings.lastAuthenticated}</span>
+        <span role="columnheader"><span class="u-visually-hidden">${COPY.settings.actions}</span></span>
       </div>
     </div>`;
   return list.querySelector('.psycle-gym-conn-table');
@@ -1174,8 +1227,8 @@ function connRowCreate(g) {
     <span role="cell" class="psycle-gym-conn-health"><span class="psycle-gym-conn-dot" aria-hidden="true"></span><span class="psycle-gym-conn-label"></span></span>
     <span role="cell" class="psycle-gym-conn-when"></span>
     <span role="cell" class="psycle-gym-conn-actions">
-      <button class="psycle-btn psycle-btn-mini" data-reauth-gym="${id}">Re-authenticate</button>
-      <button class="psycle-btn psycle-btn-mini variant-danger" data-unlink-gym="${id}">Unlink</button>
+      <button class="psycle-btn psycle-btn-mini" data-reauth-gym="${id}">${COPY.settings.reauthenticate}</button>
+      <button class="psycle-btn psycle-btn-mini variant-danger" data-unlink-gym="${id}">${COPY.settings.unlink}</button>
     </span>`;
   return row;
 }
@@ -1213,7 +1266,7 @@ function gymNavUpdate(item, g) {
   if (needs && !flag) {
     const f = document.createElement('span');
     f.className = 'psycle-menu-item-flag';
-    f.title = 'Reconnect needed';
+    f.title = COPY.settings.reconnectNeeded;
     f.textContent = '!';
     item.appendChild(f);
   } else if (!needs && flag) {
@@ -1277,16 +1330,16 @@ async function onGymListClick(event) {
   // behaves (cancel a booking, leave a waitlist).
   if (btn.dataset.armed !== '1') {
     btn.dataset.armed = '1';
-    btn.textContent = 'Confirm unlink?';
+    btn.textContent = COPY.settings.confirmUnlink;
     clearTimeout(btn._armTimer);
-    btn._armTimer = setTimeout(() => { delete btn.dataset.armed; btn.textContent = 'Unlink'; }, 4000);
+    btn._armTimer = setTimeout(() => { delete btn.dataset.armed; btn.textContent = COPY.settings.unlink; }, 4000);
     return;
   }
   clearTimeout(btn._armTimer);
   btn.disabled = true;
   try {
     await api.unlinkGym(btn.dataset.unlinkGym);
-    showToast('Gym unlinked.', 'success');
+    showToast(COPY.settings.gymUnlinked, 'success');
     // C3-1: unlinking changes the linked-gym set the header badges and
     // capability gates read (client/src/gym-context.js), which settings.js
     // re-rendering its own cards never refreshes — without this the header
@@ -1300,7 +1353,7 @@ async function onGymListClick(event) {
     showToast(err.message, 'error');
     btn.disabled = false;
     delete btn.dataset.armed;
-    btn.textContent = 'Unlink';
+    btn.textContent = COPY.settings.unlink;
   }
 }
 
@@ -1315,6 +1368,7 @@ async function syncAfterGymSetChange() {
   await loadGymContext();
   await invalidateApiCache('/api/studio-preferences').catch(() => {});
   await refreshUserData(true);
+  window.dispatchEvent(new CustomEvent('psycle:gyms-changed'));
   // Fire and forget: the fetch can take seconds and the settings panel must not wait.
   resetTimetableForGymChange().catch(() => {});
 }
@@ -1356,7 +1410,7 @@ async function renderGymsCard() {
   } catch (err) {
     if (!gymsRenderGuard.isCurrent(token)) return;
     if (painted) debugConsole('[Settings] Could not refresh gym connections:', err.message);
-    else list.innerHTML = `<div class="psycle-card-error" style="padding:12px;">Couldn't load your gyms (${escapeHtml(err.message)})</div>`;
+    else list.innerHTML = `<div class="psycle-card-error" style="padding:12px;">${formatCopyText(COPY.settings.couldNotLoadGyms, { error: escapeHtml(err.message) })}</div>`;
     return;
   }
   if (!gymsRenderGuard.isCurrent(token)) return;
@@ -1372,8 +1426,8 @@ async function renderGymsCard() {
   if (!gymsRenderGuard.isCurrent(token)) return;
 
   actions.innerHTML = addable.length
-    ? `<button class="psycle-btn primary psycle-btn-mini" id="psycle-add-gym-btn">＋ Connect a gym</button>`
-    : `<p class="psycle-card-desc" style="margin:0;">Every available gym is already connected.</p>`;
+    ? `<button class="psycle-btn primary psycle-btn-mini" id="psycle-add-gym-btn">${COPY.settings.connectGymAction}</button>`
+    : `<p class="psycle-card-desc" style="margin:0;">${COPY.settings.noAvailableGyms}</p>`;
   const addBtn = document.getElementById('psycle-add-gym-btn');
   if (addBtn) addBtn.onclick = () => openLinkGymModal(null, null, addable);
 
@@ -1408,7 +1462,7 @@ export async function renderGymSettingsSection(requestedGymId = null, targetCont
   // Keep already-rendered content while a refresh runs (U1-7: panes now persist
   // across renders); the placeholder is only for a pane that has nothing yet.
   if (!container.hasChildNodes()) {
-    container.innerHTML = '<div class="psycle-settings-card"><p class="psycle-card-desc">Loading gym settings…</p></div>';
+    container.innerHTML = `<div class="psycle-settings-card"><p class="psycle-card-desc">${COPY.settings.loadingGymSettings}</p></div>`;
   }
 
   try {
@@ -1420,7 +1474,7 @@ export async function renderGymSettingsSection(requestedGymId = null, targetCont
     const gymId = requestedGymId || linked[0]?.gym_id;
     const link = linked.find(g => g.gym_id === gymId);
     if (!gymId || !link) {
-      container.innerHTML = '<div class="psycle-settings-card"><h4>Connect a gym</h4><p class="psycle-card-desc">Link a gym before configuring booking settings.</p></div>';
+      container.innerHTML = `<div class="psycle-settings-card"><h4>${COPY.settings.connectGym}</h4><p class="psycle-card-desc">${COPY.settings.linkBeforeConfig}</p></div>`;
       return;
     }
 
@@ -1458,9 +1512,9 @@ export async function renderGymSettingsSection(requestedGymId = null, targetCont
           // is jab-boxing while the server default is psycle-london: the mirror
           // landed on the wrong gym's copy. Position says nothing about identity.
           cache.gymSettings[gymId] = { ...(cache.gymSettings[gymId] || {}), ...next };
-          showToast(`${gym.name || gymId} settings saved.`, 'success');
+          showToast(formatCopyText(COPY.settings.gymSettingsSaved, { gym: gym.name || gymId }), 'success');
         } catch (err) {
-          showToast(`Couldn't save ${gym.name || gymId} settings: ${err.message}`, 'error');
+          showToast(formatCopyText(COPY.settings.gymSettingsSaveFailed, { gym: gym.name || gymId, error: err.message }), 'error');
           rerender();
         } finally {
           input.disabled = false;
@@ -1478,11 +1532,11 @@ export async function renderGymSettingsSection(requestedGymId = null, targetCont
         if (action === 'unlink') {
           if (button.dataset.confirmState !== 'confirm') {
             button.dataset.confirmState = 'confirm';
-            button.textContent = 'Confirm unlink?';
+            button.textContent = COPY.settings.confirmUnlink;
             setTimeout(() => {
               if (button.dataset.confirmState === 'confirm') {
                 delete button.dataset.confirmState;
-                button.textContent = 'Unlink gym';
+                button.textContent = COPY.settings.unlinkGym;
               }
             }, 4000);
             return;
@@ -1491,7 +1545,7 @@ export async function renderGymSettingsSection(requestedGymId = null, targetCont
           try {
             await api.unlinkGym(gymId);
                 await clearApiCache().catch(() => {});
-            showToast('Gym unlinked.', 'success');
+            showToast(COPY.settings.gymUnlinked, 'success');
             // C3-1: see the other unlink handler above — the global gym context
             // (header badges, capability gates) must refresh too, not just this
             // panel's own card.
@@ -1499,7 +1553,7 @@ export async function renderGymSettingsSection(requestedGymId = null, targetCont
             container.closest('.psycle-gym-settings-overlay')?.remove();
             await renderGymsCard();
           } catch (err) {
-            showToast(`Couldn't unlink gym: ${err.message}`, 'error');
+            showToast(formatCopyText(COPY.settings.unlinkFailed, { error: err.message }), 'error');
             button.disabled = false;
           }
           return;
@@ -1510,7 +1564,7 @@ export async function renderGymSettingsSection(requestedGymId = null, targetCont
       },
     });
   } catch (err) {
-    container.innerHTML = `<div class="psycle-card-error" style="padding:12px;">Couldn't load gym settings (${escapeHtml(err.message)})</div>`;
+    container.innerHTML = `<div class="psycle-card-error" style="padding:12px;">${formatCopyText(COPY.settings.loadGymSettingsFailed, { error: escapeHtml(err.message) })}</div>`;
   }
 }
 
@@ -1521,29 +1575,29 @@ function openLinkGymModal(gymId, existing, addable = []) {
   const { body, title, open, close } = gymModal();
   const isReauth = !!gymId;
   title.textContent = isReauth
-    ? `Re-authenticate ${existing?.gym_name || gymId}`
-    : 'Add a gym';
+    ? formatCopyText(COPY.settings.reauthenticateGym, { gym: existing?.gym_name || gymId })
+    : COPY.settings.addGym;
 
   body.innerHTML = `
     <p class="psycle-card-desc" style="margin-top:0;">
       ${isReauth
-        ? 'Enter your current credentials for this gym. Use this if you changed your password there and bookings started failing.'
-        : 'Sign in with that gym’s own credentials. They’re encrypted before being stored, and only ever used to talk to that gym.'}
+        ? COPY.settings.addGymCredentialsHelp
+        : COPY.settings.linkGymCredentialsHelp}
     </p>
     ${isReauth ? '' : `
-      <label class="psycle-setting-label" style="display:block;margin-bottom:4px;"><span>Gym</span></label>
+      <label class="psycle-setting-label" style="display:block;margin-bottom:4px;"><span>${COPY.settings.gym}</span></label>
       <select id="psycle-link-gym-id" class="psycle-select" style="width:100%;margin-bottom:10px;">
         ${addable.map(g => `<option value="${escapeHtml(g.id)}">${escapeHtml(g.name)}</option>`).join('')}
       </select>`}
-    <label class="psycle-setting-label" style="display:block;margin-bottom:4px;"><span>Email</span></label>
+    <label class="psycle-setting-label" style="display:block;margin-bottom:4px;"><span>${COPY.settings.email}</span></label>
     <input id="psycle-link-gym-email" type="email" class="psycle-input" autocomplete="username"
-           style="width:100%;margin-bottom:10px;" placeholder="you@example.com">
-    <label class="psycle-setting-label" style="display:block;margin-bottom:4px;"><span>Password</span></label>
+           style="width:100%;margin-bottom:10px;" placeholder="${COPY.static.exampleEmail}">
+    <label class="psycle-setting-label" style="display:block;margin-bottom:4px;"><span>${COPY.settings.password}</span></label>
     <input id="psycle-link-gym-password" type="password" class="psycle-input" autocomplete="current-password"
            style="width:100%;margin-bottom:14px;">
     <div id="psycle-link-gym-error" style="display:none;color:var(--danger);font-size:12px;margin-bottom:10px;"></div>
     <button class="psycle-btn primary" id="psycle-link-gym-submit" style="width:100%;">
-      ${isReauth ? 'Re-authenticate' : 'Link gym'}
+      ${isReauth ? COPY.settings.reauthenticate : COPY.settings.link}
     </button>
   `;
   open();
@@ -1556,15 +1610,15 @@ function openLinkGymModal(gymId, existing, addable = []) {
     const password = body.querySelector('#psycle-link-gym-password').value;
     errEl.style.display = 'none';
     if (!targetGym || !email || !password) {
-      errEl.textContent = 'Gym, email and password are all required.';
+      errEl.textContent = COPY.auth.requiredGymCredentials;
       errEl.style.display = 'block';
       return;
     }
     submit.disabled = true;
-    submit.textContent = 'Checking…';
+    submit.textContent = COPY.settings.checking;
     try {
       await api.linkGym(targetGym, email, password);
-      showToast(isReauth ? 'Re-authenticated' : 'Gym linked', 'success');
+      showToast(isReauth ? COPY.settings.reauthenticated : COPY.settings.gymLinked, 'success');
       close();
       // C3-1: a newly linked gym must appear in the header badges and pass
       // through capability gates immediately, not just in this panel's cards —
@@ -1578,30 +1632,29 @@ function openLinkGymModal(gymId, existing, addable = []) {
       errEl.textContent = err.message;
       errEl.style.display = 'block';
       submit.disabled = false;
-      submit.textContent = isReauth ? 'Re-authenticate' : 'Link gym';
+      submit.textContent = isReauth ? COPY.settings.reauthenticate : COPY.settings.link;
     }
   };
 }
 
 function openAccountPasswordModal() {
   const { body, title, open, close } = gymModal();
-  title.textContent = 'Change account password';
+  title.textContent = COPY.settings.changeAccountPassword;
   body.innerHTML = `
     <p class="psycle-card-desc" style="margin-top:0;">
-      This is your <span data-app-name>Sweat Assistant</span> password — separate from any gym’s.
-      Changing it here doesn’t change your password at the gym, and vice versa.
+      ${formatCopyText(COPY.settings.accountPasswordDescription, { appName: escapeHtml(appConfig.appName) })}
     </p>
-    <label class="psycle-setting-label" style="display:block;margin-bottom:4px;"><span>Current password</span></label>
+    <label class="psycle-setting-label" style="display:block;margin-bottom:4px;"><span>${COPY.settings.currentPassword}</span></label>
     <input id="psycle-pw-current" type="password" class="psycle-input" autocomplete="current-password"
            style="width:100%;margin-bottom:10px;">
-    <label class="psycle-setting-label" style="display:block;margin-bottom:4px;"><span>New password</span></label>
+    <label class="psycle-setting-label" style="display:block;margin-bottom:4px;"><span>${COPY.settings.newPassword}</span></label>
     <input id="psycle-pw-new" type="password" class="psycle-input" autocomplete="new-password"
-           style="width:100%;margin-bottom:10px;" placeholder="At least 8 characters">
-    <label class="psycle-setting-label" style="display:block;margin-bottom:4px;"><span>Confirm new password</span></label>
+           style="width:100%;margin-bottom:10px;" placeholder="${COPY.settings.newPasswordMinPlaceholder}">
+    <label class="psycle-setting-label" style="display:block;margin-bottom:4px;"><span>${COPY.settings.confirmNewPassword}</span></label>
     <input id="psycle-pw-confirm" type="password" class="psycle-input" autocomplete="new-password"
            style="width:100%;margin-bottom:14px;">
     <div id="psycle-pw-error" style="display:none;color:var(--danger);font-size:12px;margin-bottom:10px;"></div>
-    <button class="psycle-btn primary" id="psycle-pw-submit" style="width:100%;">Change password</button>
+    <button class="psycle-btn primary" id="psycle-pw-submit" style="width:100%;">${COPY.settings.changePassword}</button>
   `;
   open();
 
@@ -1614,18 +1667,18 @@ function openAccountPasswordModal() {
     const current = body.querySelector('#psycle-pw-current').value;
     const next = body.querySelector('#psycle-pw-new').value;
     const confirm = body.querySelector('#psycle-pw-confirm').value;
-    if (next.length < 8) return fail('New password must be at least 8 characters.');
-    if (next !== confirm) return fail('The two new passwords don’t match.');
+    if (next.length < 8) return fail(COPY.settings.passwordMinimumError);
+    if (next !== confirm) return fail(COPY.settings.passwordMismatchError);
     submit.disabled = true;
-    submit.textContent = 'Saving…';
+    submit.textContent = COPY.settings.changePasswordSaving;
     try {
       await api.changeAccountPassword(current, next);
-      showToast('Account password changed', 'success');
+      showToast(COPY.settings.accountPasswordChanged, 'success');
       close();
     } catch (err) {
       fail(err.message);
       submit.disabled = false;
-      submit.textContent = 'Change password';
+      submit.textContent = COPY.settings.changePasswordButton;
     }
   };
 }
@@ -1735,16 +1788,16 @@ function getNotifPrefs() {
 }
 
 const NOTIF_ROWS = [
-  { key: 'booking', title: 'Spot Booked', desc: 'When a class is successfully booked.',
-    dropdown: { prop: 'scope', options: [['all', 'All Bookings'], ['autobook', 'Auto-Book only']] } },
-  { key: 'upgrade', title: 'Spot Upgraded', desc: 'When auto-upgrade moves you to a better spot.' },
-  { key: 'creditWarning', title: 'Credit Warning', desc: "When you set something up but don't have enough credits." },
-  { key: 'cancellationReminder', title: 'Cancellation Reminder', desc: 'Reminder to cancel before the free-cancel window closes.',
-    dropdown: { prop: 'timing', options: [['24h', '1 day before (24h)'], ['14h', 'Before penalty (14h)']] } },
+  { key: 'booking', title: COPY.settings.notificationSpotBooked, desc: COPY.settings.notificationSpotBookedHelp,
+    dropdown: { prop: 'scope', options: [['all', COPY.settings.allBookings], ['autobook', COPY.settings.autoBookOnly]] } },
+  { key: 'upgrade', title: COPY.settings.notificationSpotUpgraded, desc: COPY.settings.notificationSpotUpgradedHelp },
+  { key: 'creditWarning', title: COPY.settings.notificationCreditWarning, desc: COPY.settings.notificationCreditWarningHelp },
+  { key: 'cancellationReminder', title: COPY.settings.notificationCancellationReminder, desc: COPY.settings.notificationCancellationHelp,
+    dropdown: { prop: 'timing', options: [['24h', COPY.settings.cancellationDayBefore], ['14h', COPY.settings.beforePenalty]] } },
   // Per gym: only a gym that releases at one moment a week has a "window" to
   // warn about, so each gym carries its own default (gyms.config.js) and the
   // member can override either way.
-  { key: 'bookingWindow', title: 'Booking Window Reminder', desc: 'Heads-up before your booking window opens.', perGym: true },
+  { key: 'bookingWindow', title: COPY.settings.notificationBookingWindow, desc: COPY.settings.notificationBookingWindowHelp, perGym: true },
 ];
 
 /**
@@ -1791,7 +1844,7 @@ function renderNotifPrefs() {
   const prefs = getNotifPrefs();
 
   body.innerHTML = `
-    <p style="font-size:12px;color:var(--text-secondary);margin:0 0 16px;line-height:1.5;">Choose which push notifications you receive. Changes apply to all your devices.</p>
+    <p style="font-size:12px;color:var(--text-secondary);margin:0 0 16px;line-height:1.5;">${COPY.notifications.customizePush}</p>
     ${NOTIF_ROWS.map(row => {
       const p = prefs[row.key];
       const dd = row.dropdown ? `
@@ -1857,7 +1910,7 @@ async function saveNotifPrefs() {
   try {
     await api.updateSettings({ notifications: prefs }); // account-scoped
   } catch (err) {
-    showToast(`Failed to save notification settings: ${err.message}`, 'error');
+    showToast(formatCopyText(COPY.settings.notificationSaveFailed, { error: err.message }), 'error');
   }
 }
 
@@ -1891,9 +1944,9 @@ function setupNotificationPrefs() {
       btn.disabled = true;
       try {
         await api.triggerPushTestType(type);
-        showToast('Test notification sent to all devices.', 'success');
+        showToast(COPY.notifications.pushTestSent, 'success');
       } catch (err) {
-        showToast(`Test failed: ${err.message}`, 'error');
+        showToast(formatCopyText(COPY.settings.pushTestFailed, { error: err.message }), 'error');
       } finally {
         btn.disabled = false;
         btn.textContent = orig;
@@ -1945,9 +1998,9 @@ function setupSettingsListeners() {
       // look "sometimes work": the very next network call papered over it.
       updateDebugTerminalVisibility();
       renderGymSettingsSection().catch(() => {});
-      showToast('Settings saved successfully.', 'success');
+      showToast(COPY.settings.settingsSaved, 'success');
     } catch (err) {
-      showToast(`Error saving settings: ${err.message}`, 'error');
+      showToast(formatCopyText(COPY.settings.settingsSaveFailed, { error: err.message }), 'error');
     }
   };
 
@@ -1973,7 +2026,7 @@ function setupSettingsListeners() {
     exportBtn.dataset.listener = 'true';
     exportBtn.addEventListener('click', async () => {
       try {
-        showToast('Preparing config export...', 'info');
+        showToast(COPY.settings.configExporting, 'info');
         const config = await api.exportConfig();
         
         // Trigger browser file download
@@ -1987,9 +2040,9 @@ function setupSettingsListeners() {
         document.body.removeChild(link);
         URL.revokeObjectURL(url);
         
-        showToast('Config exported successfully!', 'success');
+        showToast(COPY.settings.configExported, 'success');
       } catch (err) {
-        showToast(`Export failed: ${err.message}`, 'error');
+        showToast(formatCopyText(COPY.settings.exportFailed, { error: err.message }), 'error');
       }
     });
   }
@@ -2013,9 +2066,9 @@ function setupSettingsListeners() {
         try {
           const config = JSON.parse(event.target.result);
           
-          showToast('Importing configuration...', 'info');
+          showToast(COPY.settings.importingConfig, 'info');
           const result = await api.importConfig(config);
-          showToast('Config imported successfully! Reloading data...', 'success');
+          showToast(COPY.settings.configImported, 'success');
           // Anything not restored (an unlinked gym, or an old backup with no gym on its per-gym keys).
           (result?.skipped || []).forEach((m) => showToast(m, 'warning'));
           
@@ -2028,7 +2081,7 @@ function setupSettingsListeners() {
           }, (result?.skipped || []).length ? 6000 : 1200);
 
         } catch (err) {
-          showToast(`Import failed: Invalid JSON or format. ${err.message}`, 'error');
+          showToast(formatCopyText(COPY.settings.importFailed, { error: err.message }), 'error');
         }
       };
       reader.readAsText(file);
@@ -2072,7 +2125,7 @@ function setupSettingsListeners() {
   if (logoutBtn && !logoutBtn.dataset.listener) {
     logoutBtn.dataset.listener = 'true';
     logoutBtn.addEventListener('click', () => {
-      showToast('Logging out...', 'info');
+      showToast(COPY.settings.loggingOut, 'info');
       clearApiCache().catch(() => {}).finally(() => {
         localStorage.removeItem('psycleLocalToken');
         window.location.reload();
@@ -2087,14 +2140,14 @@ function setupSettingsListeners() {
     deleteDataBtn.addEventListener('click', async () => {
       if (deleteDataBtn.dataset.confirmState !== 'confirm') {
         deleteDataBtn.dataset.confirmState = 'confirm';
-        deleteDataBtn.textContent = 'Are you sure? Click again to confirm.';
+        deleteDataBtn.textContent = COPY.settings.confirmDelete;
         deleteDataBtn.style.background = 'var(--danger)';
         deleteDataBtn.style.color = 'var(--on-accent)';
         deleteDataBtn.style.borderColor = 'var(--danger)';
         setTimeout(() => {
           if (deleteDataBtn.dataset.confirmState === 'confirm') {
             delete deleteDataBtn.dataset.confirmState;
-            deleteDataBtn.textContent = 'Delete All My Data';
+            deleteDataBtn.textContent = COPY.settings.deleteData;
             deleteDataBtn.style.background = '';
             deleteDataBtn.style.color = '';
             deleteDataBtn.style.borderColor = '';
@@ -2104,16 +2157,16 @@ function setupSettingsListeners() {
       }
       delete deleteDataBtn.dataset.confirmState;
       deleteDataBtn.disabled = true;
-      deleteDataBtn.textContent = 'Deleting...';
+      deleteDataBtn.textContent = COPY.settings.deleting;
       try {
         await apiFetch('/api/auth/me', { method: 'DELETE' });
-        showToast('All data deleted. Logging out.', 'success');
+        showToast(COPY.settings.allDataDeleted, 'success');
         localStorage.removeItem('psycleLocalToken');
         setTimeout(() => { window.location.reload(); }, 1500);
       } catch (err) {
-        showToast(`Delete failed: ${err.message}`, 'error');
+        showToast(formatCopyText(COPY.settings.deleteFailed, { error: err.message }), 'error');
         deleteDataBtn.disabled = false;
-        deleteDataBtn.textContent = 'Delete All My Data';
+        deleteDataBtn.textContent = COPY.settings.deleteData;
       }
     });
   }

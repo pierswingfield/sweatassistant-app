@@ -6,11 +6,13 @@ import { markScrollBusy, isScrollBusy, isDocScroll, docScroller } from './ui/scr
 import { initGymLogoLoader } from './ui/gym-logo-loader.js';
 import { setCacheKeyPrefix, clearApiCache, invalidateApiCache } from './cache.js';
 import { appConfig, initConfig } from './config';
-import { shouldShowOnboarding, resumeOnboarding, isOnboardingActive, advanceAfterLogin } from './ui/onboarding';
+import { shouldShowOnboarding, resumeOnboarding, getPostLoginDestination, isOnboardingActive, advanceAfterLogin } from './ui/onboarding';
 import { detectBookingWindow, noSept } from './lib';
 import { canBookAtAll, getIneligibleReason, hasConfirmedAccess } from './ui/credit-allowance.js';
 import { escapeHtml, gymBrand, wordmarkElement } from './ui/cards';
 import { installBookingState } from './ui/booking-state.js';
+import { applyStaticCopy } from './copy.js';
+import { COPY, formatCopyText } from './copy.js';
 
 // --- PWA install prompt capture ---
 // Android/desktop Chromium fire `beforeinstallprompt` before the page is ready
@@ -54,8 +56,18 @@ function applyAppName() {
   document.querySelectorAll('[data-app-name]').forEach((el) => {
     el.textContent = appConfig.appName;
   });
+  document.querySelectorAll('.psycle-logo').forEach((el) => {
+    el.setAttribute('alt', `${appConfig.appName} logo`);
+  });
+  applyStaticCopy(document, { appName: appConfig.appName });
+  if ('serviceWorker' in navigator) {
+    navigator.serviceWorker.ready.then((registration) => {
+      registration.active?.postMessage({ type: 'SET_APP_NAME', appName: appConfig.appName });
+    }).catch(() => {});
+  }
 }
 
+applyStaticCopy();
 applyAppName();
 
 // Default settings — the single source of truth for new-user defaults.
@@ -209,7 +221,7 @@ export function showToast(message, type = 'info') {
   const closeBtn = document.createElement('button');
   closeBtn.className = 'psycle-toast-close toast-close';
   closeBtn.type = 'button';
-  closeBtn.setAttribute('aria-label', 'Dismiss notification');
+  closeBtn.setAttribute('aria-label', COPY.notifications.dismiss);
   closeBtn.innerHTML = '<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>';
 
   inner.append(iconEl, msgEl, closeBtn);
@@ -335,6 +347,23 @@ export function updateDebugTerminalVisibility() {
   const terminal = document.getElementById('psycle-debug-terminal');
   if (!terminal) return;
   terminal.style.display = userSettings.debugMode ? 'block' : 'none';
+  applyCreditsTabGate();
+}
+
+// TEMP: credits hidden unless debugMode (restore by removing gate).
+// Remove creditsTabAllowed/applyCreditsTabGate and their call sites (switchTab,
+// updateDebugTerminalVisibility, init, popstate) to bring the Credits tab back.
+function creditsTabAllowed() {
+  return !!userSettings.debugMode;
+}
+
+function applyCreditsTabGate() {
+  const allowed = creditsTabAllowed();
+  document.querySelectorAll('.psycle-nav-btn[data-tab="buy-credits"]').forEach(btn => {
+    btn.hidden = !allowed;
+    btn.style.display = allowed ? '' : 'none';
+  });
+  if (!allowed && currentTabId === 'buy-credits') switchTab('class-timetable');
 }
 
 // --- TAB ROUTING ---
@@ -350,6 +379,8 @@ const VALID_TABS = ['class-timetable', 'my-bookings', 'auto-book', 'buy-credits'
 let currentTabId = null;
 
 function switchTab(tabId) {
+  // TEMP: credits hidden unless debugMode (restore by removing gate)
+  if (tabId === 'buy-credits' && !creditsTabAllowed()) tabId = 'class-timetable';
   cancelPullToRefresh();
   currentTabId = tabId;
   const targetPanelId = `psycle-panel-${tabId}`;
@@ -406,7 +437,7 @@ async function triggerTabRender(tabId) {
     }
   } catch (err) {
     console.error(`Error rendering tab ${tabId}:`, err);
-    showToast(`Error opening tab: ${err.message}`, 'error');
+    showToast(formatCopyText(COPY.static.errorOpeningTab, { error: err.message }), 'error');
   }
 }
 
@@ -568,39 +599,39 @@ export async function updatePushStatusUI() {
 
   if (!serviceWorkerRegistration) {
     if (isIOS && !isStandalone) {
-      toggleBtn.textContent = 'Requires Install';
+      toggleBtn.textContent = COPY.notifications.requiresInstall;
       toggleBtn.disabled = true;
-      statusDesc.textContent = 'Add this app to your Home Screen to enable push notifications on iOS. Tap the Share button, then "Add to Home Screen".';
+      statusDesc.textContent = COPY.notifications.iosInstallHelp;
     } else {
-      toggleBtn.textContent = 'Unsupported';
+      toggleBtn.textContent = COPY.notifications.unsupported;
       toggleBtn.disabled = true;
-      statusDesc.textContent = 'Push notifications are not supported on this browser/device.';
+      statusDesc.textContent = COPY.notifications.unsupportedHelp;
     }
     return;
   }
 
   if (!('PushManager' in window)) {
     if (isIOS && isStandalone) {
-      toggleBtn.textContent = 'Unsupported';
+      toggleBtn.textContent = COPY.notifications.unsupported;
       toggleBtn.disabled = true;
-      statusDesc.textContent = 'Push notifications require iOS 16.4 or later. Please update your device.';
+      statusDesc.textContent = COPY.notifications.iosVersionHelp;
     } else {
-      toggleBtn.textContent = 'Unsupported';
+      toggleBtn.textContent = COPY.notifications.unsupported;
       toggleBtn.disabled = true;
-      statusDesc.textContent = 'Push notifications are not supported on this browser/device.';
+      statusDesc.textContent = COPY.notifications.unsupportedHelp;
     }
     return;
   }
 
   const subscription = await serviceWorkerRegistration.pushManager.getSubscription();
   if (subscription) {
-    toggleBtn.textContent = 'Disable Push';
+    toggleBtn.textContent = COPY.notifications.disablePush;
     toggleBtn.className = 'psycle-btn-mini success';
-    statusDesc.textContent = 'Push notifications are enabled on this device!';
+    statusDesc.textContent = COPY.notifications.pushEnabled;
   } else {
-    toggleBtn.textContent = 'Enable Push';
+    toggleBtn.textContent = COPY.notifications.enablePush;
     toggleBtn.className = 'psycle-btn-mini';
-    statusDesc.textContent = 'Click to enable Web Push alerts on auto-bookings and upgrades.';
+    statusDesc.textContent = COPY.notifications.pushHelp;
   }
 }
 
@@ -632,12 +663,12 @@ export async function togglePushSubscription() {
       // Unsubscribe
       await subscription.unsubscribe();
       await api.unsubscribePush(subscription.endpoint);
-      showToast('Push notifications disabled.', 'info');
+      showToast(COPY.notifications.pushDisabled, 'info');
     } else {
       // Request permissions
       const permission = await Notification.requestPermission();
       if (permission !== 'granted') {
-        throw new Error('Push notification permission denied by user.');
+        throw new Error(COPY.notifications.permissionDenied);
       }
 
       // Get VAPID public key from server
@@ -652,7 +683,7 @@ export async function togglePushSubscription() {
 
       // Save on server
       await api.subscribePush(newSub);
-      showToast('Push notifications enabled successfully! 🔔', 'success');
+      showToast(COPY.notifications.pushEnabledToast, 'success');
       
       // Fire a test push to verify it works
       setTimeout(() => api.triggerPushTest(), 500);
@@ -705,8 +736,8 @@ function renderGymBadge(container, gymId, shortName, isMetered, total, credits) 
   badge.className = 'psycle-header-gym-badge';
   badge.setAttribute('data-gym', gymId);
   if (isMetered) {
-    badge.innerHTML = `${gymBadgeLogo(gymId, shortName)}<span class="psycle-hgb-pill">${total}<span class="psycle-hgb-unit"> credits</span></span>`;
-    badge.title = `${shortName}: ${total} credit${total !== 1 ? 's' : ''} available`;
+    badge.innerHTML = `${gymBadgeLogo(gymId, shortName)}<span class="psycle-hgb-pill">${total}<span class="psycle-hgb-unit"> ${COPY.shell.creditUnit}</span></span>`;
+    badge.title = formatCopyText(COPY.shell.creditBadgeTitle, { gymName: shortName, total, plural: total !== 1 ? 's' : '' });
   } else if (canBookAtAll(gymId)) {
     // "Active" alone reads as "this is the currently-selected gym" rather than
     // "your membership is active" — found ambiguous 2026-09-02, back when the
@@ -716,19 +747,19 @@ function renderGymBadge(container, gymId, shortName, isMetered, total, credits) 
     // eligibility hasn't loaded yet (same unknown-defaults-ON rule as
     // capabilities), but never shown once the server has confirmed this
     // account has no active membership at this gym.
-    badge.innerHTML = `${gymBadgeLogo(gymId, shortName)}<span class="psycle-hgb-pill member">${hasConfirmedAccess(gymId) ? '\u221E' : 'Member'}</span>`;
-    badge.title = `${shortName}: Membership active`;
+    badge.innerHTML = `${gymBadgeLogo(gymId, shortName)}<span class="psycle-hgb-pill member">${hasConfirmedAccess(gymId) ? '\u221E' : COPY.shell.member}</span>`;
+    badge.title = formatCopyText(COPY.shell.membershipBadgeTitle, { gymName: shortName });
   } else {
     // C3-3: an unmetered gym with no active membership (and no usable
     // credits) is a real, confirmed state — showing "Member" here was the
     // bug this branch exists to fix, not a permissive default to preserve.
-    badge.innerHTML = `${gymBadgeLogo(gymId, shortName)}<span class="psycle-hgb-pill inactive">No membership</span>`;
-    badge.title = `${shortName}: ${getIneligibleReason(gymId) || 'No active membership'}`;
+    badge.innerHTML = `${gymBadgeLogo(gymId, shortName)}<span class="psycle-hgb-pill inactive">${COPY.shell.noMembership}</span>`;
+    badge.title = formatCopyText(COPY.shell.ineligibleBadgeTitle, { gymName: shortName, reason: getIneligibleReason(gymId) || COPY.shell.noActiveMembership });
   }
   // The chip is a shortcut to that gym's own Settings pane (the credit modal it
   // used to open is gone). Keep the hover title (it carries the balance) but
   // give assistive tech the action.
-  badge.setAttribute('aria-label', `Open ${shortName} settings`);
+  badge.setAttribute('aria-label', formatCopyText(COPY.shell.openGymSettings, { gymName: shortName }));
   badge.onclick = () => {
     switchTab('settings');
     import('./ui/settings').then((m) => m.openGymSettings(gymId)).catch((err) => console.error('Open gym settings failed:', err));
@@ -873,7 +904,7 @@ function showOfflineBanner(reason) {
   if (!banner) return;
   const textSpan = banner.querySelector('.offline-text');
   if (textSpan) {
-    textSpan.textContent = "You're offline! Some features are unavailable.";
+    textSpan.textContent = COPY.shell.offline;
   }
   if (banner.style.display === 'flex') return;
   banner.style.display = 'flex';
@@ -1202,6 +1233,7 @@ export async function initApp() {
   const hash = location.hash.replace('#', '');
   let initialTab = VALID_TABS.includes(hash) ? hash : 'class-timetable';
   if (hash === 'about') initialTab = 'settings';
+  applyCreditsTabGate(); // TEMP: credits hidden unless debugMode (restore by removing gate)
   switchTab(initialTab);
 }
 
@@ -1223,6 +1255,15 @@ async function checkAuth() {
       currentUser = { id: status.userId, email: status.email };
       setCacheKeyPrefix(currentUser.id);
       localStorage.setItem('psycleUserId', currentUser.id);
+      const destination = await getPostLoginDestination().catch(() => null);
+      if (destination === 'full') {
+        resumeOnboarding();
+        return;
+      }
+      if (destination === 'optional') {
+        resumeOnboarding({ optionalOnly: true });
+        return;
+      }
       initApp();
     } catch (err) {
       // Distinguish auth failure (401) from network error (offline).
@@ -1235,7 +1276,8 @@ async function checkAuth() {
         // Network error (server unreachable) with valid token — init app with cached data.
         // The offline banner is already showing via the psycle-network-fail event handler.
         // Cache prefix was restored above from localStorage.
-        initApp();
+        if (shouldShowOnboarding()) resumeOnboarding();
+        else initApp();
       } else {
         // Online but getStatus failed for unknown reason — show login as fallback
         showLogin();
@@ -1274,6 +1316,24 @@ function showLogin() {
 async function onLoginSuccess() {
   if (isOnboardingActive()) {
     advanceAfterLogin();
+    return;
+  }
+  const destination = await getPostLoginDestination().catch(() => null);
+  if (destination === 'full') {
+    resumeOnboarding();
+    return;
+  }
+  if (destination === 'optional') {
+    resumeOnboarding({ optionalOnly: true });
+    return;
+  }
+  if (destination === 'home') {
+    await initApp();
+    return;
+  }
+
+  if (shouldShowOnboarding()) {
+    resumeOnboarding();
     return;
   }
 
@@ -1317,25 +1377,25 @@ if (loginForm) {
 
     try {
       submitBtn.disabled = true;
-      submitBtn.querySelector('span').textContent = 'Logging in…';
+      submitBtn.querySelector('span').textContent = COPY.auth.loggingIn;
 
       const user = await api.login(email, password);
       currentUser = user;
       setCacheKeyPrefix(currentUser.id);
       localStorage.setItem('psycleUserId', currentUser.id);
-      showToast('Logged in successfully!', 'success');
+      showToast(COPY.auth.loginSuccess, 'success');
 
       await onLoginSuccess();
     } catch (err) {
       const isNetworkErr = err instanceof TypeError;
       const msg = isNetworkErr
-        ? 'Unable to connect. Check your internet connection.'
-        : 'Incorrect email or password. Please try again.';
+        ? COPY.auth.connectionFailed
+        : COPY.auth.incorrectCredentials;
       if (errorEl) { errorEl.textContent = msg; errorEl.style.display = 'block'; }
       else showToast(msg, 'error');
     } finally {
       submitBtn.disabled = false;
-      submitBtn.querySelector('span').textContent = 'Log In';
+      submitBtn.querySelector('span').textContent = COPY.auth.logIn;
     }
   });
 }
@@ -1347,9 +1407,9 @@ function showNoGymScreen() {
   document.getElementById('psycle-app-container').style.display = 'none';
   const loginContainer = document.getElementById('psycle-login-container');
   loginContainer.style.display = 'flex';
-  document.getElementById('psycle-auth-title').textContent = 'Connect a gym';
-  document.getElementById('psycle-auth-subtitle').innerHTML =
-    'Your account is ready. Add a gym login to start booking.';
+  document.getElementById('psycle-auth-title').textContent = COPY.auth.connectGym;
+  document.getElementById('psycle-auth-subtitle').textContent =
+    formatCopyText(COPY.auth.accountReady, { appName: appConfig.appName });
   ['psycle-login-form', 'psycle-signup-form', 'psycle-recover-form'].forEach(id => {
     document.getElementById(id).style.display = 'none';
   });
@@ -1365,19 +1425,19 @@ function showNoGymScreen() {
   panel.style.display = '';
   panel.innerHTML = `
     <div class="psycle-form-group">
-      <label for="psycle-nogym-gym">Gym</label>
-      <select id="psycle-nogym-gym" class="psycle-select" style="width:100%;"><option>Loading…</option></select>
+      <label for="psycle-nogym-gym">${COPY.static.gym}</label>
+      <select id="psycle-nogym-gym" class="psycle-select" style="width:100%;"><option>${COPY.static.loading}</option></select>
     </div>
     <div class="psycle-form-group">
-      <label for="psycle-nogym-email">Gym email</label>
-      <input type="email" id="psycle-nogym-email" placeholder="name@example.com" autocomplete="off">
+      <label for="psycle-nogym-email">${COPY.auth.gymEmail}</label>
+      <input type="email" id="psycle-nogym-email" placeholder="${COPY.static.emailPlaceholder}" autocomplete="off">
     </div>
     <div class="psycle-form-group">
-      <label for="psycle-nogym-password">Gym password</label>
-      <input type="password" id="psycle-nogym-password" placeholder="••••••••" autocomplete="off">
+      <label for="psycle-nogym-password">${COPY.auth.gymPassword}</label>
+      <input type="password" id="psycle-nogym-password" placeholder="${COPY.static.passwordPlaceholder}" autocomplete="off">
     </div>
     <div id="psycle-nogym-error" class="psycle-login-error" style="display:none;"></div>
-    <button type="button" id="psycle-nogym-submit" class="psycle-btn-primary"><span>Connect Gym</span></button>
+    <button type="button" id="psycle-nogym-submit" class="psycle-btn-primary"><span>${COPY.auth.connectGymButton}</span></button>
   `;
 
   const sel = panel.querySelector('#psycle-nogym-gym');
@@ -1385,9 +1445,9 @@ function showNoGymScreen() {
   api.getGyms().then(gyms => {
     const available = gyms.filter(g => g.enabled);
     sel.innerHTML = available.length
-      ? available.map(g => `<option value="${g.id}">${g.name}</option>`).join('')
-      : '<option value="">No gyms available</option>';
-  }).catch(() => { sel.innerHTML = '<option value="">Could not load gyms</option>'; });
+      ? available.map(g => `<option value="${escapeHtml(g.id)}">${escapeHtml(g.name)}</option>`).join('')
+      : `<option value="">${COPY.auth.noGymsAvailable}</option>`;
+  }).catch(() => { sel.innerHTML = `<option value="">${COPY.auth.couldNotLoadGyms}</option>`; });
 
   panel.querySelector('#psycle-nogym-submit').onclick = async () => {
     const btn = panel.querySelector('#psycle-nogym-submit');
@@ -1396,22 +1456,22 @@ function showNoGymScreen() {
     const email = panel.querySelector('#psycle-nogym-email').value.trim();
     const password = panel.querySelector('#psycle-nogym-password').value;
     if (!gymId || !email || !password) {
-      errorEl.textContent = 'Gym, email and password are all required.';
+      errorEl.textContent = COPY.auth.requiredGymCredentials;
       errorEl.style.display = 'block';
       return;
     }
     btn.disabled = true;
-    btn.querySelector('span').textContent = 'Connecting…';
+    btn.querySelector('span').textContent = COPY.auth.connecting;
     try {
       await api.linkGym(gymId, email, password);
       panel.style.display = 'none';
-      showToast('Gym connected', 'success');
+      showToast(COPY.auth.gymConnected, 'success');
       await onLoginSuccess();
     } catch (err) {
       errorEl.textContent = err.message;
       errorEl.style.display = 'block';
       btn.disabled = false;
-      btn.querySelector('span').textContent = 'Connect Gym';
+      btn.querySelector('span').textContent = COPY.auth.connectGymButton;
     }
   };
   applyAppName();
@@ -1422,20 +1482,21 @@ function showNoGymScreen() {
 // account is its own thing now, so signing up no longer means handing over a gym
 // credential — gyms are linked afterwards.
 const AUTH_MODES = {
-  login:  { title: 'Log in',          subtitle: 'Sign in to your <span data-app-name>Sweat Assistant</span> account.' },
-  signup: { title: 'Create account',  subtitle: 'Set up your <span data-app-name>Sweat Assistant</span> account. You’ll connect a gym next.' },
+  login:  { title: COPY.auth.logInSentenceCase, subtitle: COPY.auth.signInSubtitle },
+  signup: { title: COPY.auth.createAccount, subtitle: COPY.auth.signupSubtitle },
   // C1-4: this used to describe the gym-login recovery flow removed by
   // Decision D5 (2026-08-31) — a gym credential can no longer prove identity
   // for the Sweat Assistant account. There is no self-service reset yet
   // (Workstreams C6-1); say so plainly instead of describing a flow that
   // can't complete.
-  recover:{ title: 'Reset password',  subtitle: 'Self-service reset isn’t available yet — contact the admin.' },
+  recover:{ title: COPY.auth.resetPassword, subtitle: COPY.auth.resetUnavailable },
 };
 
 function setAuthMode(mode) {
   const cfg = AUTH_MODES[mode] || AUTH_MODES.login;
   document.getElementById('psycle-auth-title').textContent = cfg.title;
-  document.getElementById('psycle-auth-subtitle').innerHTML = cfg.subtitle;
+  document.getElementById('psycle-auth-subtitle').textContent =
+    formatCopyText(cfg.subtitle, { appName: appConfig.appName });
   document.getElementById('psycle-login-form').style.display = mode === 'login' ? '' : 'none';
   document.getElementById('psycle-signup-form').style.display = mode === 'signup' ? '' : 'none';
   document.getElementById('psycle-recover-form').style.display = mode === 'recover' ? '' : 'none';
@@ -1458,8 +1519,8 @@ function setAuthMode(mode) {
 
   const switcher = document.getElementById('psycle-auth-switcher');
   switcher.innerHTML = mode === 'login'
-    ? `<a href="#" id="psycle-auth-to-signup">Create an account</a>&nbsp;·&nbsp;<a href="#" id="psycle-auth-to-recover">Forgot password?</a>`
-    : `<a href="#" id="psycle-auth-to-login">Back to log in</a>`;
+    ? `<a href="#" id="psycle-auth-to-signup">${COPY.auth.createAnAccount}</a>&nbsp;·&nbsp;<a href="#" id="psycle-auth-to-recover">${COPY.auth.forgotPassword}</a>`
+    : `<a href="#" id="psycle-auth-to-login">${COPY.auth.backToLogIn}</a>`;
   wireAuthSwitcher();
   applyAppName();
 }
@@ -1488,23 +1549,23 @@ if (signupForm) {
     const fail = (m) => { errorEl.textContent = m; errorEl.style.display = 'block'; };
     errorEl.style.display = 'none';
 
-    if (password.length < 8) return fail('Password must be at least 8 characters.');
-    if (password !== confirm) return fail('The two passwords don’t match.');
+    if (password.length < 8) return fail(COPY.auth.passwordMinLength);
+    if (password !== confirm) return fail(COPY.auth.passwordMismatch);
 
     btn.disabled = true;
-    btn.querySelector('span').textContent = 'Creating…';
+    btn.querySelector('span').textContent = COPY.auth.creating;
     try {
       const { user } = await api.signup(email, password);
       currentUser = user;
       setCacheKeyPrefix(currentUser.id || email);
       localStorage.setItem('psycleUserId', currentUser.id || email);
-      showToast('Account created — now connect a gym', 'success');
+      showToast(COPY.auth.accountCreated, 'success');
       await onLoginSuccess();
     } catch (err) {
-      fail(err instanceof TypeError ? 'Unable to connect. Check your internet connection.' : err.message);
+      fail(err instanceof TypeError ? COPY.auth.connectionFailed : err.message);
     } finally {
       btn.disabled = false;
-      btn.querySelector('span').textContent = 'Create Account';
+      btn.querySelector('span').textContent = COPY.auth.createAccountButton;
     }
   });
 }
@@ -1518,7 +1579,7 @@ const recoverFindBtn = document.getElementById('psycle-recover-find-btn');
 if (recoverFindBtn) {
   recoverFindBtn.onclick = () => {
     const errorEl = document.getElementById('psycle-recover-error');
-    errorEl.textContent = 'Self-service password reset isn’t available yet. Contact the admin to have your password reset.';
+    errorEl.textContent = COPY.auth.recoveryUnavailableLong;
     errorEl.style.display = 'block';
   };
 }
@@ -1527,7 +1588,7 @@ if (recoverFindBtn) {
 window.addEventListener('psycle-logout-triggered', () => {
   setCacheKeyPrefix('');
   clearApiCache().catch(() => {});
-  showToast('Session expired. Please log in again.', 'warning');
+  showToast(COPY.auth.sessionExpired, 'warning');
   showLogin();
 });
 
@@ -1540,8 +1601,8 @@ window.addEventListener('psycle-logout-triggered', () => {
 // shows immediately rather than on the next visit to the tab.
 window.addEventListener('psycle-gym-needs-relogin', async (e) => {
   const gymId = e.detail?.gymId;
-  const name = (gymId && getGymShortName(gymId)) || 'A linked gym';
-  showToast(`${name}: session expired. Reconnect it in Settings → Your Gyms.`, 'warning');
+  const name = (gymId && getGymShortName(gymId)) || COPY.static.linkedGymFallback;
+  showToast(formatCopyText(COPY.shell.gymSessionExpired, { gymName: name }), 'warning');
   try {
     const { renderGymsCard } = await import('./ui/settings');
     await renderGymsCard();

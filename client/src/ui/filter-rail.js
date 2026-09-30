@@ -9,6 +9,7 @@
 
 import { icon, gymBrand, getDiscipline } from './cards.js';
 import { escapeHtml } from './cards.js';
+import { COPY, formatCopyText } from '../copy.js';
 
 // Aliases come from the gym config (ctx.locationAlias). This is only the
 // fallback for a location that has none: word initials, or the first 3 letters.
@@ -54,7 +55,7 @@ const CHIP_SECTION = { gyms: 'locations', eventTypes: 'workouts', instructors: '
 function chip(html, clearKey, label) {
   return `<span class="fr-chip" role="group" aria-label="${escapeHtml(label)}">`
     + `<button type="button" class="fr-chip-body" data-fr-open="1" data-fr-section="${CHIP_SECTION[clearKey] || ''}">${html}</button>`
-    + `<button type="button" class="fr-chip-x" data-fr-clear="${clearKey}" aria-label="Clear ${escapeHtml(label)}">&#x2715;</button>`
+    + `<button type="button" class="fr-chip-x" data-fr-clear="${clearKey}" aria-label="${escapeHtml(formatCopyText(COPY.filters.clearLabel, { label }))}">&#x2715;</button>`
     + `</span>`;
 }
 
@@ -80,7 +81,7 @@ function gymTileHtml(ctx) {
 function workoutLabel(s) {
   if (s.eventTypes.length === 1) return escapeHtml(s.eventTypes[0]);
   if (s.eventTypes.length === 2) return dotJoin(s.eventTypes);
-  return `<b class="fr-num">${s.eventTypes.length}</b><span class="fr-thin">Types</span>`;
+  return `<b class="fr-num">${s.eventTypes.length}</b><span class="fr-thin">${COPY.filters.types}</span>`;
 }
 
 export function renderFilterRail(ctx) {
@@ -100,22 +101,22 @@ export function renderFilterRail(ctx) {
   // No filters applied: the button also says "Filters"; once any chip exists it is icon-only. The rail is
   // re-rendered on every filter change, so this re-evaluates for free.
   const noFilters = selectedCount(state) === 0;
-  parts.push(`<button type="button" class="fr-trigger${noFilters ? ' has-label' : ''}" data-fr-open="1" aria-label="Filters${selectedCount(state) ? `, ${selectedCount(state)} active` : ''}">${icon('filter', 16)}${noFilters ? '<span class="fr-trigger-label">Filters</span>' : ''}</button>`);
+  parts.push(`<button type="button" class="fr-trigger${noFilters ? ' has-label' : ''}" data-fr-open="1" aria-label="${COPY.filters.filters}${selectedCount(state) ? `, ${formatCopyText(COPY.filters.activeFilters, { count: selectedCount(state) })}` : ''}">${icon('filter', 16)}${noFilters ? `<span class="fr-trigger-label">${COPY.filters.filters}</span>` : ''}</button>`);
 
   if (state.gyms.length || state.locations.length) {
-    parts.push(chip(gymTileHtml(ctx), 'gyms', 'gym and location filters'));
+    parts.push(chip(gymTileHtml(ctx), 'gyms', COPY.filters.clearFilterChip));
   }
   if (state.eventTypes.length) {
     // One generic workout glyph (the same one JAB's TRAIN uses), not the first
     // pick's own icon, so the chip reads the same whatever is selected.
-    parts.push(chip(`${icon(getDiscipline('train').icon, 13)}<span>${workoutLabel(state)}</span>`, 'eventTypes', 'workout filters'));
+    parts.push(chip(`${icon(getDiscipline('train').icon, 13)}<span>${workoutLabel(state)}</span>`, 'eventTypes', COPY.filters.workoutFilterChip));
   }
   if (state.instructors.length) {
     const first = ctx.instructors.find(i => String(i.id) === state.instructors[0]);
     const body = state.instructors.length === 1
-      ? `${avatar(first)}<span>${escapeHtml(((first && first.name) || 'Instructor').split(' ')[0])}</span>`
-      : `${icon('user', 13)}<span><b class="fr-num">${state.instructors.length}</b><span class="fr-thin">Instructors</span></span>`;
-    parts.push(chip(body, 'instructors', 'instructor filters'));
+      ? `${avatar(first)}<span>${escapeHtml(((first && first.name) || COPY.filters.instructorFallback).split(' ')[0])}</span>`
+      : `${icon('user', 13)}<span><b class="fr-num">${state.instructors.length}</b><span class="fr-thin">${COPY.filters.instructors}</span></span>`;
+    parts.push(chip(body, 'instructors', COPY.filters.instructorFilterChip));
   }
   if (ctx.canBookmark) {
     // The spacer soaks up free width, so the heart rides the right edge until
@@ -123,7 +124,7 @@ export function renderFilterRail(ctx) {
     // just the last chip in the scroll.
     const heart = `<svg width="16" height="16" viewBox="0 0 16 16" aria-hidden="true" fill="${state.bookmarks ? 'currentColor' : 'none'}" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round"><path d="M8 13.5S2.5 10 2.5 6.2A2.7 2.7 0 0 1 8 5a2.7 2.7 0 0 1 5.5 1.2C13.5 10 8 13.5 8 13.5Z"/></svg>`;
     parts.push(`<span class="fr-spacer" aria-hidden="true"></span>`);
-    parts.push(`<button type="button" class="fr-heart${state.bookmarks ? ' active' : ''}" data-fr-heart="1" aria-pressed="${state.bookmarks}" aria-label="Bookmarked classes only">${heart}</button>`);
+    parts.push(`<button type="button" class="fr-heart${state.bookmarks ? ' active' : ''}" data-fr-heart="1" aria-pressed="${state.bookmarks}" aria-label="${COPY.filters.bookmarkedOnly}">${heart}</button>`);
   }
   rail.innerHTML = parts.join('');
 
@@ -159,7 +160,7 @@ function openSheet(ctx, focusKey = null) {
   if (!sheetEl) {
     sheetEl = document.createElement('div');
     sheetEl.className = 'fr-sheet-overlay';
-    sheetEl.innerHTML = '<div class="fr-sheet" role="dialog" aria-modal="true" aria-label="Filters"></div>';
+    sheetEl.innerHTML = `<div class="fr-sheet" role="dialog" aria-modal="true" aria-label="${COPY.filters.filters}"></div>`;
     sheetEl.addEventListener('click', (e) => { if (e.target === sheetEl) closeSheet(); });
     document.body.appendChild(sheetEl);
     requestAnimationFrame(() => sheetEl && sheetEl.classList.add('open'));
@@ -186,8 +187,8 @@ let instQuery = '';
 let instSearching = false;   // results show only while the search box is 'in use'
 
 function summarise(names) {
-  if (!names.length) return 'All';
-  return names.length <= 3 ? names.join(', ') : `${names.length} selected`;
+  if (!names.length) return COPY.filters.all;
+  return names.length <= 3 ? names.join(', ') : formatCopyText(COPY.filters.selected, { count: names.length });
 }
 
 function section(key, title, summary, count, inner, clearKey) {
@@ -199,7 +200,7 @@ function section(key, title, summary, count, inner, clearKey) {
         <span class="fr-sec-sum${count ? ' has' : ''}">${escapeHtml(summary)}</span>
         <span class="fr-chev" aria-hidden="true">&#x25BE;</span>
       </button>
-      ${count ? `<button type="button" class="fr-sec-clear" data-fr-clear="${clearKey}">Clear</button>` : ''}
+      ${count ? `<button type="button" class="fr-sec-clear" data-fr-clear="${clearKey}">${COPY.filters.clear}</button>` : ''}
     </div>
     ${open ? `<div class="fr-sec-body">${inner}</div>` : ''}
   </div>`;
@@ -216,7 +217,7 @@ function instructorListHtml(ctx) {
     const hits = ctx.instructors.filter(i => (i.name || '').toLowerCase().includes(q));
     return hits.length
       ? `<div class="fr-grid">${hits.map(i => instructorRow(ctx, i, true)).join('')}</div>`
-      : '<p class="fr-hint">No instructors match.</p>';
+      : `<p class="fr-hint">${COPY.filters.noInstructorsMatch}</p>`;
   }
   const byGym = new Map();
   ctx.instructors.forEach(i => { const k = i.gymId || ''; (byGym.get(k) || byGym.set(k, []).get(k)).push(i); });
@@ -229,7 +230,7 @@ function instructorListHtml(ctx) {
         ${picked ? `<span class="fr-count">${picked}</span>` : ''}<span class="fr-chev" aria-hidden="true">&#x25BE;</span>
       </button>${open ? `<div class="fr-igroup-body fr-grid">${list.map(i => instructorRow(ctx, i, false)).join('')}</div>` : ''}
     </div>`;
-  }).join('') || '<p class="fr-hint">No instructors for the selected gyms.</p>';
+  }).join('') || `<p class="fr-hint">${COPY.filters.noInstructorsForGyms}</p>`;
 }
 
 // After opening something, scroll just enough to bring all of it into view.
@@ -260,7 +261,7 @@ function paintSheet(ctx) {
     return `<button type="button" class="fr-gymrow${on ? ' on' : ''}" data-fr-toggle="gyms" data-id="${escapeHtml(g.id)}" aria-pressed="${on}" aria-label="${escapeHtml(gymBrand(g.id).name)}">${gymPlate(g.id)}</button>`;
   }).join('')}</div>`;
   const gymBlock = !showGyms ? '' : ctx.gyms.length > 4
-    ? section('gyms', 'Gyms', summarise(state.gyms.map(gymName)), state.gyms.length, gymInner, 'gyms')
+    ? section('gyms', COPY.static.gyms, summarise(state.gyms.map(gymName)), state.gyms.length, gymInner, 'gyms')
     : `<div class="fr-sec fr-sec-plain">${gymInner}</div>`;
 
   // One merged grid. ctx.locations is already ordered by gym, so same-gym
@@ -269,7 +270,7 @@ function paintSheet(ctx) {
       const on = ctx.isOn('locations', l.id);
       return `<button type="button" class="fr-opt${on ? ' on' : ''}" data-fr-toggle="locations" data-id="${escapeHtml(l.id)}" aria-pressed="${on}">
         ${gymDot(l.gymId, 'sm')}<span class="fr-opt-name">${escapeHtml(ctx.locationLabel(l))}</span></button>`;
-    }).join('')}</div>` : '<p class="fr-hint">No locations for the selected gyms.</p>';
+    }).join('')}</div>` : `<p class="fr-hint">${COPY.filters.noLocationsForGyms}</p>`;
 
   // Workouts grouped by gym. A workout id is the bucket label and is shared
   // across gyms by design (see setupDropdownFilters), so the same label under
@@ -283,7 +284,7 @@ function paintSheet(ctx) {
         return `<button type="button" class="fr-opt fr-opt-stack${on ? ' on' : ''}" data-fr-toggle="eventTypes" data-id="${escapeHtml(w.id)}" aria-pressed="${on}">${icon(getDiscipline(w.name).icon, 20)}<span class="fr-opt-name">${escapeHtml(w.name)}</span></button>`;
       }).join('')}</div></div>`).join('');
 
-  const instInner = `<input type="search" class="fr-search" placeholder="Search instructors" value="${escapeHtml(instQuery)}" aria-label="Search instructors" autocomplete="off">
+  const instInner = `<input type="search" class="fr-search" placeholder="${COPY.filters.searchInstructors}" value="${escapeHtml(instQuery)}" aria-label="${COPY.filters.searchInstructorsAria}" autocomplete="off">
     <div class="fr-list">${instructorListHtml(ctx)}</div>`;
 
   const nameOf = {
@@ -294,17 +295,17 @@ function paintSheet(ctx) {
   sheet.innerHTML = `
     <div class="fr-grab" aria-hidden="true"></div>
     <div class="fr-head">
-      <div class="fr-title">Filters</div><span class="fr-badge" aria-live="polite">${ctx.resultCount} ${ctx.resultCount === 1 ? 'class' : 'classes'}</span>
-      <button type="button" class="fr-reset" data-fr-reset="1"${total ? '' : ' disabled'}>Reset all</button>
-      <button type="button" class="fr-close" data-fr-close="1" aria-label="Close filters">&#x2715;</button>
+      <div class="fr-title">${COPY.filters.filters}</div><span class="fr-badge" aria-live="polite">${ctx.resultCount} ${ctx.resultCount === 1 ? COPY.filters.class : COPY.filters.classes}</span>
+      <button type="button" class="fr-reset" data-fr-reset="1"${total ? '' : ' disabled'}>${COPY.filters.resetAll}</button>
+      <button type="button" class="fr-close" data-fr-close="1" aria-label="${COPY.filters.closeFilters}">&#x2715;</button>
     </div>
     <div class="fr-body">
       ${gymBlock}
-      ${section('locations', 'Locations', summarise(nameOf.locations), state.locations.length, locInner, 'locations')}
-      ${section('workouts', 'Workouts', summarise(state.eventTypes), state.eventTypes.length, workInner, 'eventTypes')}
-      ${section('instructors', 'Instructors', summarise(nameOf.instructors), state.instructors.length, instInner, 'instructors')}
+      ${section('locations', COPY.filters.locations, summarise(nameOf.locations), state.locations.length, locInner, 'locations')}
+      ${section('workouts', COPY.filters.workouts, summarise(state.eventTypes), state.eventTypes.length, workInner, 'eventTypes')}
+      ${section('instructors', COPY.filters.instructors, summarise(nameOf.instructors), state.instructors.length, instInner, 'instructors')}
     </div>
-    <div class="fr-foot"><button type="button" class="fr-save" data-fr-save="1">Save as default</button><button type="button" class="fr-done" data-fr-close="1">${ctx.resultCount === 0 ? 'No classes \u2013 adjust filters' : 'Show classes'}</button></div>`;
+    <div class="fr-foot"><button type="button" class="fr-save" data-fr-save="1">${COPY.filters.saveAsDefault}</button><button type="button" class="fr-done" data-fr-close="1">${ctx.resultCount === 0 ? COPY.filters.noClassesAdjust : COPY.filters.showClasses}</button></div>`;
 
   sheet.querySelector('.fr-body').scrollTop = scrollTop;
   const list = sheet.querySelector('.fr-list');

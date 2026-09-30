@@ -1,8 +1,14 @@
+import { COPY } from '../copy.js';
+
 function skeletonLine(width, extraClass = '') {
   return `<span class="psycle-skeleton-line ${extraClass}" style="--skeleton-width:${width}" aria-hidden="true"></span>`;
 }
 
-export function renderCardSkeletons(count = 2, label = 'Loading') {
+function escapeAttribute(value) {
+  return String(value).replace(/[&<>"']/g, (char) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[char]);
+}
+
+export function renderCardSkeletons(count = 2, label = COPY.accessibility.loadingCards) {
   const cards = Array.from({ length: count }, (_, index) => `
     <div class="psycle-skeleton-card" aria-hidden="true" data-skeleton-index="${index}">
       <div class="psycle-skeleton-card-head">
@@ -14,7 +20,7 @@ export function renderCardSkeletons(count = 2, label = 'Loading') {
     </div>
   `).join('');
 
-  return `<div class="psycle-skeleton-list" role="status" aria-label="${label}">${cards}</div>`;
+  return `<div class="psycle-skeleton-list" role="status" aria-label="${escapeAttribute(label)}">${cards}</div>`;
 }
 
 export function renderTimetableSkeleton(count = 6) {
@@ -29,5 +35,5 @@ export function renderTimetableSkeleton(count = 6) {
     </div>
   `).join('');
 
-  return `<div class="psycle-skeleton-table" role="status" aria-label="Loading timetable">${rows}</div>`;
+  return `<div class="psycle-skeleton-table" role="status" aria-label="${COPY.timetable.loadingTimetable}">${rows}</div>`;
 }

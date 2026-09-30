@@ -20,6 +20,7 @@
 
 import { isScrollBusy, isDocScroll, docScroller } from './scroll-state.js';
 import { haptic } from './haptics.js';
+import { COPY } from '../copy.js';
 
 const PULL_THRESHOLD = 115; // Much higher threshold: deliberate ~245px finger drag prevents accidental triggers
 const MAX_TOP_PULL = 160;   // visual cap at top
@@ -85,7 +86,7 @@ export function setupPullToRefresh(scrollEl, onRefresh, {
         </svg>
       </span>
       <div class="psycle-spinner" style="display: none;"></div>
-      <span class="psycle-pull-text">Pull to refresh</span>
+      <span class="psycle-pull-text">${COPY.pullToRefresh.pull}</span>
     `;
     document.body.appendChild(indicator);
     return indicator;
@@ -100,7 +101,7 @@ export function setupPullToRefresh(scrollEl, onRefresh, {
     if (isRefreshingState) {
       ind.classList.add('visible');
       ind.classList.remove('armed');
-      text.textContent = 'Refreshing...';
+      text.textContent = COPY.pullToRefresh.refreshing;
       spinner.style.display = '';
       icon.style.display = 'none';
       ind.style.transform = 'translateX(-50%) translateY(26px) scale(1)';
@@ -110,11 +111,11 @@ export function setupPullToRefresh(scrollEl, onRefresh, {
       icon.style.display = '';
       if (isArmed) {
         ind.classList.add('visible', 'armed');
-        text.textContent = 'Release to refresh';
+        text.textContent = COPY.pullToRefresh.release;
       } else {
         ind.classList.add('visible');
         ind.classList.remove('armed');
-        text.textContent = 'Pull to refresh';
+        text.textContent = COPY.pullToRefresh.pull;
       }
       const progress = Math.min(1, Math.max(0, elasticY / PULL_THRESHOLD));
       const yOffset = Math.min(elasticY * 0.42, 28);

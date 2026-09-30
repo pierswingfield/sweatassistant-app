@@ -4,9 +4,10 @@ import { getDefaultGymId } from '../gym-context.js';
 import { getAvailableCreditsForEvent, getTotalCredits, getIneligibleReason } from './credit-allowance.js';
 import { showToast, cache, refreshUserData } from '../main';
 import { openUpgradeConfigModal } from './bookings';
-import { seatNoun, disciplineTag, renderGymRail, icon, cleanClassName, wireRailToggle } from './cards';
+import { seatNoun, disciplineTag, renderGymRail, icon, cleanClassName, wireRailToggle, escapeHtml } from './cards';
 import { renderCardSkeletons } from './loading-skeleton.js';
 import { instructorAvatar } from './tooltips.js';
+import { COPY, formatCopyText } from '../copy.js';
 
 
 export async function renderAutoUpgrades() {
@@ -18,7 +19,7 @@ export async function renderAutoUpgrades() {
   if (hasCache) {
     renderUpgradeList(cache.upgrades, cache.studioPrefs);
   } else {
-    container.innerHTML = renderCardSkeletons(2, 'Loading auto-upgrade monitors');
+    container.innerHTML = renderCardSkeletons(2, COPY.autoUpgrade.loading);
   }
 
   // Fetch fresh data in the background
@@ -36,7 +37,7 @@ export async function renderAutoUpgrades() {
   } catch (err) {
     console.error('[AutoUpgrade] Failed to load:', err);
     if (!hasCache) {
-      container.innerHTML = `<div class="psycle-card-error">Error: ${err.message}</div>`;
+      container.innerHTML = `<div class="psycle-card-error">${escapeHtml(formatCopyText(COPY.autoUpgrade.loadFailed, { error: err.message }))}</div>`;
     }
   }
 }
@@ -51,7 +52,7 @@ function renderUpgradeList(upgrades, studioPrefs = {}) {
   if (activeJobs.length === 0) {
     container.innerHTML = `
       <div class="fav-empty-state" style="padding: 30px 0;">
-        No active auto-upgrade monitors running. You can set them up from the <strong>My Bookings</strong> tab.
+        ${COPY.autoUpgrade.noMonitors}
       </div>
     `;
     return;
@@ -82,7 +83,7 @@ function renderUpgradeList(upgrades, studioPrefs = {}) {
     const layoutSlots = job.layout_slots || [];
     let currentSpotLabel;
     if (job.current_slot_id == null || isNaN(Number(job.current_slot_id))) {
-      currentSpotLabel = 'N/A';
+      currentSpotLabel = COPY.credits.notAvailable;
     } else {
       const matched = layoutSlots.find(s => Number(s.id) === Number(job.current_slot_id));
       currentSpotLabel = matched?.label || String(job.current_slot_id);
@@ -94,21 +95,21 @@ function renderUpgradeList(upgrades, studioPrefs = {}) {
     const ineligibleReason = getIneligibleReason(job.gym_id);
     const hasInsufficientCredits = getTotalCredits(job.gym_id) < 1; // needs at least 1 credit
 
-    let statusText = 'Monitoring Active';
+    let statusText = COPY.autoUpgrade.monitoring;
     let statusChipClass = 'state-active';
     if (job.status === 'paused_no_credits' || hasInsufficientCredits || ineligibleReason) {
-      statusText = ineligibleReason ? `⚠ ${ineligibleReason}` : '⚠ Insufficient Credits';
+      statusText = ineligibleReason ? `⚠ ${ineligibleReason}` : COPY.autoUpgrade.insufficientCredits;
       statusChipClass = 'state-warning';
     } else if (job.status === 'cutoff_booked') {
-      statusText = 'Upgraded (12h window)';
+      statusText = COPY.autoUpgrade.upgraded;
       statusChipClass = 'state-upgrade';
     } else if (job.status === 'stopped') {
-      statusText = 'Stopped';
+      statusText = COPY.autoUpgrade.stopped;
       statusChipClass = 'state-stopped';
     }
 
     // Format class name without group prefix
-    const groupName = job.class_name?.split(':')?.[0]?.trim() || 'Class';
+    const groupName = job.class_name?.split(':')?.[0]?.trim() || COPY.autoBook.class;
     const classLabel = cleanClassName(job.class_name || '', job.group_name || groupName) || job.class_name;
 
     const seat = seatNoun(groupName);
@@ -122,7 +123,7 @@ function renderUpgradeList(upgrades, studioPrefs = {}) {
             <span class="ab-card-date">${dateStr.toUpperCase()}</span>
             <span class="ab-card-time">${timeOnly}</span>
           </div>
-          <div class="psycle-upgrade-status-chip ${statusChipClass}">${statusText}</div>
+          <div class="psycle-upgrade-status-chip ${statusChipClass}">${escapeHtml(statusText)}</div>
         </div>
         <div class="ab-card-meta">
           ${disciplineTag(groupName)}
@@ -135,8 +136,8 @@ function renderUpgradeList(upgrades, studioPrefs = {}) {
         </div>
       </div>
       <div class="ab-card-rail">
-        <button class="ab-rail-btn edit-upgrade-modal-btn" data-id="${job.id}" aria-label="Configure auto-upgrade">${icon('edit', 17)}<span>Configure</span></button>
-        <button class="ab-rail-btn danger delete-upgrade-btn" data-id="${job.id}" aria-label="Stop auto-upgrade">${icon('close', 17)}<span>Stop</span></button>
+        <button class="ab-rail-btn edit-upgrade-modal-btn" data-id="${job.id}" aria-label="${COPY.accessibility.configureAutoUpgrade}">${icon('edit', 17)}<span>${COPY.autoUpgrade.configure}</span></button>
+        <button class="ab-rail-btn danger delete-upgrade-btn" data-id="${job.id}" aria-label="${COPY.accessibility.stopAutoUpgrade}">${icon('close', 17)}<span>${COPY.autoUpgrade.stop}</span></button>
       </div>
     `;
 
@@ -161,12 +162,12 @@ function renderUpgradeList(upgrades, studioPrefs = {}) {
     // Stop button event listener
     card.querySelector('.delete-upgrade-btn').addEventListener('click', async () => {
       try {
-        showToast('Stopping upgrade monitor...', 'info');
+        showToast(COPY.autoUpgrade.stopping, 'info');
         await api.deleteAutoUpgrade(job.id);
-        showToast('Upgrade monitor stopped.', 'success');
+        showToast(COPY.autoUpgrade.stoppedToast, 'success');
         renderAutoUpgrades();
       } catch (err) {
-        showToast(`Error: ${err.message}`, 'error');
+        showToast(formatCopyText(COPY.autoUpgrade.actionFailed, { error: err.message }), 'error');
       }
     });
 

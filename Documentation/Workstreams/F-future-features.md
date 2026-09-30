@@ -16,12 +16,12 @@ is still valid as a design starting point.
 | F-7 | **Gym onboarding and presentation contract.** First remove the two-gym client assumptions so a supported-platform gym can be added through config without editing `cards.js` or `styles.css`; then build the admin editor. The contract covers tenant URLs and ids, headers, capability flags, booking-window policy, timezone, brand assets/colours/short name, and display aliases. It needs validation plus a live "test connection" check against the backend. See [F-7 detail](#f-7--gym-onboarding-and-presentation-contract). Added 2026-09-29 at the user's request; expanded after the modularity assessment. | C4 | — | Stage A ~1–2 days; editor ~1 week |
 | F-8 | **MarianaTek profile explorer.** Explore and expose the provider-specific profile/account data available to MarianaTek gyms, including JAB, with a clear normalized view where practical and raw/provider detail where needed for diagnosis. | C4, F-7 | — | research first |
 | F-9 | **Gemini-powered booking and checking assistant.** Use the user's timetable, bookings, credits, preferences and related account data to answer questions and, within explicit user confirmation and safety gates, help check availability or initiate booking actions. | C4, F-8 | — | research first |
-| F-10 | **Home page / Dashboard.** High-level summary view: classes this week counter, next upcoming class(es) with quick countdown/status, active auto-book count, aggregate credits summary across linked gyms, and quick-action shortcuts. Added 2026-09-29. | C4 | — | ~3–4 days |
-| F-11 | **Class counts, stats, and historical insights.** Attendance analytics and milestones: total classes taken by gym/month/year, favorite instructors, concept breakdown (Ride vs Train vs Barre), streak tracking, and attendance trends computed from booking and calendar histories. Added 2026-09-29. | C4 | — | ~3–4 days |
+| F-10 | **Home page / Dashboard.** High-level summary view: classes this week counter, next upcoming class(es) with quick countdown/status, habit-based quick-start booking based on past behavior (frequently used instructors, 1-tap rebook shortcuts), active auto-book count, aggregate credits summary across linked gyms, and quick-action shortcuts. Added 2026-09-29. | C4 | — | ~3–4 days |
+| F-11 | **Class counts, stats, and historical insights.** Attendance analytics and milestones: class consumption overview (total classes taken by gym/month/year), favorite instructors, concept breakdown (Ride vs Train vs Barre), streak tracking, and attendance trends computed from booking and calendar histories. Added 2026-09-29. | C4 | — | ~3–4 days |
 | F-12 | **Gym-neutral favourites** for non-bookmark gyms (JAB/MarianaTek), keyed by studio + weekday + time. Psycle stays on native CodexFit bookmarks; enables Auto-Book Favourites data source. | C4, C5 | — | 3–4h build + ~1h browser check |
 | F-13 | **Calendar / weekly view of bookings and waitlists.** Alternate view toggle in the "My Bookings" tab: switch between the vertical card list and an interactive 7-day calendar/weekly schedule grid showing active bookings, waitlists, and queued auto-books mapped by time across all linked gyms. Tap a slot to view details, swap spot, or manage. Added 2026-09-29. | C4 | — | ~2–3 days |
 | F-14 | **SoulCycle gym integration.** Add SoulCycle as a third gym provider (`providers/soulcycle.js`). Bespoke PHP/monolith backend; requires cookie-jar auth (`SOULSESSION`), CSRF nonce pool management, studio HTML timetable scraping (or iOS app API reverse engineering), seat map normalization, and reserve/cancel endpoints. See [F-14 detail](#f-14--soulcycle-gym-integration) and [soulcycle.md](../Services/soulcycle.md). Added 2026-09-29. | C4, F-7 | [soulcycle.md](../Services/soulcycle.md) | ~1.5–2 weeks |
-| F-15 | **Instructor photo proxy and cache.** Fetch each instructor photo once server-side, resize to WebP thumb/full, cache on disk and serve same-origin with immutable headers, so the PWA caches small readable responses instead of full-size opaque cross-origin images. See [F-15 detail](#f-15--instructor-photo-proxy-and-cache). Added 2026-09-29. | C4 | — | ~2–3h |
+| F-15 | ✅ **DONE 2026-09-29.** **Instructor photo proxy and cache.** Fetch each instructor photo once server-side, resize to WebP thumb/full via `sharp`, cache on disk and serve same-origin with immutable headers. Landed in `64218d3` and merged in `16555de`. Suite: `server/test-instructor-photo.js`. | C4 | — | ~2–3h |
 
 Postgres and per-user key derivation are listed in C7.
 
@@ -140,9 +140,15 @@ Full protocol reverse-engineering and endpoint specifications are documented in 
 - **Depends on:** C4 (Promote modular), F-7 (Gym presentation contract).
 - **Rough size:** ~1.5–2 weeks.
 
-## F-15 — Instructor photo proxy and cache
+## F-15 — Instructor photo proxy and cache — DONE 2026-09-29
 
-### Why this exists
+**Implemented and merged in `64218d3` / `16555de`:**
+- Sharp installed and integrated in `server/instructor-photo.js`.
+- Route `GET /api/instructor-photo/:gymId/:instructorId` serves WebP thumbs (96px, q78) and full images (480px, q82).
+- Hash-based versioning (`v` parameter) and mtime-LRU disk caching in `/data/instructor-photos`.
+- Providers (`codexfit.js`, `marianatek.js`) normalize URLs to the local proxy route.
+- Service worker (`sw.js`) caches same-origin 200 photo responses.
+- Test suite: `server/test-instructor-photo.js` (88 lines).
 
 Photos go from the provider straight to the `<img>` at full size. CodexFit publishes one size (`photo`), so a ~26–52px avatar downloads the whole image. MarianaTek has `thumbUrl`, but `imageUrl` is still large. `client/public/sw.js` (~line 135) already caches cross-origin photos cache-first, but the responses are **opaque** (`no-cors`): the SW cannot read the status, so a bad response can be cached and cannot be told from a good one. Cache size is also unknown.
 

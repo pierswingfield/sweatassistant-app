@@ -1402,6 +1402,18 @@ module.exports = {
     db.prepare(`UPDATE auto_upgrades SET status = ?, status_message = ? ${setStr} WHERE id = ? AND user_id = ?`)
       .run(...params, id, userId);
   },
+  // A cancelled booking must end its monitor. Otherwise the poller sees a "better
+  // seat" and books the class again for a member who just cancelled it.
+  // gym_id is explicit: booking ids are unique only within a gym.
+  stopAutoUpgradesForBooking(userId, gymId, bookingId, message = 'Booking was cancelled — monitoring stopped.') {
+    if (bookingId == null || bookingId === '') return 0;
+    const id = Number(bookingId);
+    return db.prepare(`
+      UPDATE auto_upgrades SET status = 'stopped', status_message = ?
+      WHERE user_id = ? AND gym_id = ? AND status IN ('active', 'paused_no_credits')
+        AND (booking_id = ? OR new_booking_id = ?)
+    `).run(message, userId, gymId, id, id).changes;
+  },
   deleteAutoUpgrade(id, userId) {
     db.prepare('DELETE FROM auto_upgrades WHERE id = ? AND user_id = ?').run(id, userId);
   },

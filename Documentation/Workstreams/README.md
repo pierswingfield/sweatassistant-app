@@ -34,6 +34,7 @@ still open.
 | [C5](C5-auto-book.md) | Auto-book gaps; Favourites build (P3) | P2 (Favourites P3) | ~2.5 days |
 | [C6](C6-accounts-auth.md) | Accounts and auth | P2 | ~2–3 days |
 | [C7](C7-platform-ops.md) | Platform, ops and security hardening | P1 (pre-launch subset), P2–P3 (rest) | ~1 day pre-launch, then ~1 week |
+| [C8](C8-admin-panel-and-insights.md) | Admin panel, fleet intelligence, attendance & ops | P2 | ~1.5–2 weeks |
 
 ### UX / design
 
@@ -41,7 +42,7 @@ still open.
 |---|---|---|---|
 | [U1](U1-ux-bug-fixes.md) | UX bug fixes from QA | P1–P2 | ~1 day |
 | [U2](U2-components-accessibility.md) | Shared components and accessibility | P2 | ~2–3 days |
-| [U4](U4-ux-improvements.md) | UX improvements (user list 2026-09-29): pre-launch (mobile bookings, chips, scroll, ∞ badge, progressive load, FOUC fix, conditional gym-coloured tags); post-launch (more glass, new timetable buttons, animations) | P2 | ~5–7 days |
+| [U4](U4-ux-improvements.md) | UX improvements (user list 2026-09-29): U4-1, U4-3..5, U4-8..9, U4-11, U4-13, U4-16 done; U4-6 evaluated; U4-17 in progress; U4-7 open pre-launch; U4-2, U4-10, U4-12, U4-14, U4-15 post-launch | P2 | ~1–2 days pre-launch |
 | [U3](U3-css-design-debt.md) | CSS and design-system debt | P3 | ~1 week |
 
 ### Later

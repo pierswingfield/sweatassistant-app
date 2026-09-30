@@ -4,7 +4,12 @@ self.addEventListener('push', (event) => {
   try {
     const payload = event.data.json();
     const notification = payload.notification || {};
-    const title = notification.title || 'Sweat Assistant Alert';
+    // The page persists its configured app name here. Before the page has
+    // booted (or when no name was received), the configured static default is
+    // the only available fallback because this worker may be fully offline.
+    const titlePromise = notification.title
+      ? Promise.resolve(notification.title)
+      : configuredAppName().then((name) => `${name || 'Sweat Assistant'} Alert`);
     
     const options = {
       body: notification.body || '',
@@ -14,7 +19,7 @@ self.addEventListener('push', (event) => {
     };
 
     event.waitUntil(
-      self.registration.showNotification(title, options).then(() => {
+      titlePromise.then((title) => self.registration.showNotification(title, options)).then(() => {
         return self.clients.matchAll({ type: 'window' }).then(clientList => {
           for (const client of clientList) {
             client.postMessage({ type: 'PUSH_RECEIVED', payload });
@@ -26,6 +31,29 @@ self.addEventListener('push', (event) => {
     console.error('[Service Worker] Error displaying push notification:', err);
   }
 });
+
+const APP_CONFIG_CACHE = 'sweat-app-config-v1';
+const APP_CONFIG_KEY = new Request('/__app_config__');
+
+self.addEventListener('message', (event) => {
+  if (event.data?.type !== 'SET_APP_NAME' || typeof event.data.appName !== 'string') return;
+  event.waitUntil(caches.open(APP_CONFIG_CACHE).then((cache) =>
+    cache.put(APP_CONFIG_KEY, new Response(JSON.stringify({ appName: event.data.appName }), {
+      headers: { 'Content-Type': 'application/json' },
+    }))));
+});
+
+async function configuredAppName() {
+  try {
+    const cache = await caches.open(APP_CONFIG_CACHE);
+    const response = await cache.match(APP_CONFIG_KEY);
+    if (!response) return null;
+    const value = await response.json();
+    return typeof value.appName === 'string' && value.appName ? value.appName : null;
+  } catch (_) {
+    return null;
+  }
+}
 
 self.addEventListener('notificationclick', (event) => {
   event.notification.close();

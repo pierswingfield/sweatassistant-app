@@ -426,7 +426,11 @@ router.post('/cancel', authenticateToken, async (req, res) => {
     if (!bookingId) return res.status(400).json({ message: 'bookingId is required' });
     const { gymId, provider, session } = resolveContext(req.userId);
     const ok = await provider.cancelBooking(bookingId, session);
-    if (ok) { refreshCalendar(req.userId); invalidateSchedule(gymId); }
+    if (ok) {
+      // Server-side, so every cancel path (timetable, bookings, edit modal) is covered.
+      try { db.stopAutoUpgradesForBooking(req.userId, gymId, bookingId); } catch (e) { console.error('[Cancel] stop monitor failed:', e.message); }
+      refreshCalendar(req.userId); invalidateSchedule(gymId);
+    }
     res.json({ ok });
   } catch (err) {
     handleError(res, err);

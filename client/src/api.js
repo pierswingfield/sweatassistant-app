@@ -2,6 +2,7 @@ import { debugLog } from './main.js';
 import { getDefaultGymId } from './gym-context.js';
 import { getCachedSWR, clearApiCache, setCacheKeyPrefix, invalidateApiCache } from './cache.js';
 import { classifyAuthFailure } from './auth-failure.js';
+import { COPY, formatCopyText } from './copy.js';
 
 // API Abstraction layer for communicating with the Psycle PWA server
 
@@ -125,7 +126,7 @@ export async function apiFetch(endpoint, options = {}) {
     console.warn('[API] Received 401. Session expired. Logging out.');
     setToken(null);
     window.dispatchEvent(new CustomEvent('psycle-logout-triggered'));
-    throw new Error('Your session has expired. Please log in again.');
+    throw new Error(COPY.api.sessionExpired);
   }
 
   return res;
@@ -508,13 +509,13 @@ export const api = {
     const res = await apiFetch(endpoint, { method: 'POST', body: JSON.stringify(body), gymId });
     const data = await res.json().catch(() => ({}));
     if (!res.ok || data.ok === false) {
-      throw new Error(data.message || data.error || `${whatFailed} failed`);
+      throw new Error(data.message || data.error || formatCopyText(COPY.api.commandFailed, { action: whatFailed }));
     }
     return data;
   },
 
   async cancel(bookingId, gymId = null) {
-    const out = await this._command('/api/cancel', { bookingId }, 'Cancelling', gymId);
+    const out = await this._command('/api/cancel', { bookingId }, COPY.api.cancelAction, gymId);
     announceBookingMutation({ type: 'cancel', bookingId, gymId });
     return out;
   },
@@ -522,18 +523,18 @@ export const api = {
   // Returns { isPenalty, message? } — prefer provider truth over client window math.
   async getCancelPenalty(bookingId, gymId = null) {
     const res = await apiFetch(`/api/cancel-penalty/${encodeURIComponent(bookingId)}`, { gymId });
-    if (!res.ok) throw new Error('Failed to check cancel penalty');
+    if (!res.ok) throw new Error(COPY.api.cancelPenaltyCheckFailed);
     return res.json();
   },
 
   async joinWaitlist(eventId, gymId = null) {
-    const out = await this._command('/api/waitlist/join', { eventId }, 'Joining the waitlist', gymId);
+    const out = await this._command('/api/waitlist/join', { eventId }, COPY.api.joinWaitlistAction, gymId);
     announceBookingMutation({ type: 'joinWaitlist', eventId, gymId });
     return out;
   },
 
   async leaveWaitlist(eventId, gymId = null) {
-    const out = await this._command('/api/waitlist/leave', { eventId }, 'Leaving the waitlist', gymId);
+    const out = await this._command('/api/waitlist/leave', { eventId }, COPY.api.leaveWaitlistAction, gymId);
     announceBookingMutation({ type: 'leaveWaitlist', eventId, gymId });
     return out;
   },

@@ -34,6 +34,17 @@ const mockBackup = fs.existsSync(mockPath) ? fs.readFileSync(mockPath) : null;
 
 const db = require('./db');
 const poller = require('./poller');
+const CodexFitProvider = require('./providers/codexfit');
+const MarianaTekProvider = require('./providers/marianatek');
+
+// The poller verifies the original booking still exists before upgrading. By
+// default the member still holds every seeded monitor's booking; the cancel
+// regression below flips `cancelled` to model a member who cancelled it.
+let cancelled = false;
+const heldFromDb = async () => cancelled ? [] : db.db.prepare('SELECT booking_id, event_id FROM auto_upgrades')
+  .all().map(r => ({ bookingId: String(r.booking_id), eventId: String(r.event_id), isWaitlist: false }));
+CodexFitProvider.prototype.listBookings = heldFromDb;
+MarianaTekProvider.prototype.listBookings = heldFromDb;
 
 function cleanup() {
   try {
@@ -111,6 +122,22 @@ function cleanup() {
     assert.strictEqual(jabRow.current_slot_id, 'mock-bag-1', 'upgraded JAB monitor to mock-bag-1 via atomic swap');
     assert.strictEqual(jabRow.upgraded_slot_id, 'mock-bag-1');
     console.log('✅ JAB monitor upgraded mock-bag-3 → mock-bag-1 through atomic swapSpots.');
+
+    // Regression: cancel a booking, then the monitor must NOT re-book the class.
+    cancelled = true;
+    db.addAutoUpgrade(userId, 1000, 424242, 25, 'Ride 45', 'Instructor', 'Ride Studio', 'Mortimer Street', startAt, prefs, 138, 'Ride');
+    const before = db.getUserAutoUpgrades(userId).find(r => Number(r.booking_id) === 424242);
+    await poller.executeAutoUpgradeChecks();
+    const after = db.getUserAutoUpgrades(userId).find(r => Number(r.booking_id) === 424242);
+    assert.strictEqual(before.status, 'active');
+    assert.strictEqual(after.status, 'stopped', 'monitor for a cancelled booking must stop');
+    assert.strictEqual(Number(after.current_slot_id), 25, 'and must NOT have booked a better slot');
+    assert.ok(!after.upgraded_slot_id, 'no upgrade recorded');
+    // Server-side cancel stops live monitors for that booking id only.
+    const live = db.addAutoUpgrade(userId, 1000, 515151, 25, 'Ride 45', 'I', 'S', 'L', startAt, prefs, 138, 'Ride');
+    assert.strictEqual(db.stopAutoUpgradesForBooking(userId, 'psycle-london', 515151), 1);
+    assert.strictEqual(db.getUserAutoUpgrades(userId).find(r => r.id === Number(live)).status, 'stopped');
+    console.log('✅ Cancelled booking: monitor stopped, no re-book, stopAutoUpgradesForBooking works.');
 
     console.log('\n🎉 POLLER AUTO-UPGRADE CHECK PASSED.\n');
   } catch (err) {

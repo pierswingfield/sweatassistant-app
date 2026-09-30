@@ -171,6 +171,19 @@ function handleUpgradeThrottle(result, userId, gymId, claimKey) {
   return true;
 }
 
+// true = still booked, false = gone (cancelled), null = could not tell.
+async function originalBookingStillHeld(upgrade) {
+  try {
+    const bookings = await listBookingsWithRelogin(upgrade.user_id, upgrade.gym_id);
+    const wanted = String(upgrade.booking_id ?? '');
+    return (bookings || []).some(b => b && !b.isWaitlist &&
+      (wanted ? String(b.bookingId) === wanted : String(b.eventId) === String(upgrade.event_id)));
+  } catch (err) {
+    console.warn(`[Poller] Could not verify booking for upgrade ${upgrade.id}:`, err.message);
+    return null;
+  }
+}
+
 async function attemptUpgradeSlot(upgrade, isCutoffMode) {
   const eventId = String(upgrade.event_id);
   const userId = upgrade.user_id;
@@ -248,6 +261,15 @@ async function attemptUpgradeSlot(upgrade, isCutoffMode) {
       // Candidate slot is available! Let's upgrade
       const claimKey = `${gymId}:${eventId}:${candidateSlot}`; // C3-23: provider ids collide across gyms
       if (availableSlots.includes(candidateSlot) && !claimedSlots.has(claimKey)) {
+        // Second line of defence: a monitor must never book a class the member no
+        // longer holds. Fails CLOSED — if the bookings list can't be read, book nothing.
+        const held = await originalBookingStillHeld(upgrade);
+        if (held === false) {
+          console.log(`[Poller] Booking ${upgrade.booking_id} for event ${eventId} no longer exists — stopping monitor ${upgrade.id}.`);
+          db.updateAutoUpgrade(upgrade.id, userId, 'stopped', 'Original booking no longer exists — monitoring stopped.', { lastCheckedAt: new Date().toISOString() });
+          return;
+        }
+        if (held === null) return;
         console.log(`[Poller] Better slot ${candidateSlot} available for event ${eventId} (current: ${currentSlotId}). Upgrading...`);
         claimedSlots.add(claimKey);
 

@@ -1,4 +1,5 @@
 import { noSept } from '../lib';
+import { COPY, formatCopyText } from '../copy.js';
 // Settings → Your Gyms: the pieces of the render that are pure enough to test.
 //
 // U1-7. renderGymsCard() used to `remove()` every per-gym sidebar entry and pane,
@@ -96,14 +97,14 @@ export function reconcileKeyed(container, items, { keyAttr, keyOf, create, updat
 
 /** Relative "3 days ago" / absolute date for a connection's last authentication. */
 export function lastAuthLabel(iso, now = Date.now()) {
-  if (!iso) return 'Not recorded';
+  if (!iso) return COPY.gyms.notRecorded;
   const then = new Date(iso);
-  if (Number.isNaN(then.getTime())) return 'Not recorded';
+  if (Number.isNaN(then.getTime())) return COPY.gyms.notRecorded;
   const days = Math.floor((now - then.getTime()) / 86400000);
   const date = noSept(then.toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' }));
-  if (days <= 0) return `Today · ${date}`;
-  if (days === 1) return `Yesterday · ${date}`;
-  if (days < 30) return `${days} days ago · ${date}`;
+  if (days <= 0) return formatCopyText(COPY.gyms.lastAuthToday, { date });
+  if (days === 1) return formatCopyText(COPY.gyms.lastAuthYesterday, { date });
+  if (days < 30) return formatCopyText(COPY.gyms.lastAuthDaysAgo, { days, date });
   return date;
 }
 
@@ -113,7 +114,7 @@ export function lastAuthLabel(iso, now = Date.now()) {
  * connected" is exactly the question you cannot afford to misread.
  */
 export function connectionHealth(g) {
-  if (!g.gym_enabled) return { cls: 'is-off', icon: '—', label: 'Not available yet' };
-  if (g.status === 'needs_relogin') return { cls: 'is-warn', icon: '!', label: 'Reconnect needed' };
-  return { cls: 'is-ok', icon: '✓', label: 'Connected' };
+  if (!g.gym_enabled) return { cls: 'is-off', icon: '—', label: COPY.gyms.notAvailable };
+  if (g.status === 'needs_relogin') return { cls: 'is-warn', icon: '!', label: COPY.gyms.reconnect };
+  return { cls: 'is-ok', icon: '✓', label: COPY.gyms.connected };
 }

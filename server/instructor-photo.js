@@ -15,7 +15,19 @@ const sharp = require('sharp');
 const CACHE_DIR = process.env.INSTRUCTOR_PHOTO_CACHE_DIR || '/data/instructor-photos';
 const MAX_CACHE_BYTES = 500 * 1024 * 1024;
 const MAX_UPSTREAM_BYTES = 5 * 1024 * 1024;
-const UPSTREAM_TIMEOUT_MS = 5_000;
+const LOOKUP_TIMEOUT_MS = 8_000;
+const UPSTREAM_TIMEOUT_MS = 20_000; // body download budget, separate from the lookup
+const NEGATIVE_TTL_MS = 10 * 60 * 1000;
+const negative = new Map(); // key -> expiry; genuinely no photo / permanent upstream rejection
+const TRANSIENT = Object.freeze({ transient: true });
+
+function withTimeout(promise, ms) {
+  let timer;
+  return Promise.race([
+    promise,
+    new Promise((_, reject) => { timer = setTimeout(() => reject(new Error('timeout')), ms); }),
+  ]).finally(() => clearTimeout(timer));
+}
 const VARIANTS = {
   thumb: { width: 96, height: 96, quality: 78 },
   full: { width: 480, height: 480, quality: 82 },
@@ -62,6 +74,9 @@ async function fetchBounded(url, fetchImpl) {
     stats.upstreamMs += Date.now() - started;
     const type = (res.headers.get('content-type') || '').split(';', 1)[0].toLowerCase();
     const advertised = Number(res.headers.get('content-length'));
+    if (res.status === 429 || res.status >= 500) {
+      const e = new Error('Photo upstream throttled or unavailable.'); e.transient = true; throw e;
+    }
     if (!res.ok || !ALLOWED_CONTENT_TYPES.has(type) || (Number.isFinite(advertised) && advertised > MAX_UPSTREAM_BYTES)) {
       throw new Error('Photo upstream response was not an allowed image.');
     }
@@ -107,6 +122,7 @@ async function prune(cacheDir, maxBytes) {
  */
 async function getPhoto({ provider, instructorId, variant, version, cacheDir = CACHE_DIR, fetchImpl = fetch, maxBytes = MAX_CACHE_BYTES }) {
   if (!VARIANTS[variant] || !validVersion(version)) return null;
+  const negKey = `${cacheDir}|${version}|${variant}|${instructorId}`;
   const filePath = cachePath(cacheDir, version, variant);
   try {
     const cached = await readCached(filePath);
@@ -116,6 +132,8 @@ async function getPhoto({ provider, instructorId, variant, version, cacheDir = C
     // generate and return the image for this request below.
   }
 
+  const negUntil = negative.get(negKey);
+  if (negUntil && negUntil > Date.now()) return null;
   const key = `${cacheDir}|${version}|${variant}`;
   if (inFlight.has(key)) {
     stats.coalesced++;
@@ -125,16 +143,26 @@ async function getPhoto({ provider, instructorId, variant, version, cacheDir = C
   stats.misses++;
   const task = (async () => {
     try {
-      const source = await provider.findInstructorPhoto(instructorId);
+      let source;
+      try { source = await withTimeout(Promise.resolve(provider.findInstructorPhoto(instructorId)), LOOKUP_TIMEOUT_MS); }
+      catch (_) { stats.failures++; return TRANSIENT; }
       const url = source && (variant === 'thumb' ? (source.thumbUrl || source.imageUrl) : (source.imageUrl || source.thumbUrl));
-      if (!url || versionFor(url) !== version) return null;
+      if (!url || versionFor(url) !== version) { negative.set(negKey, Date.now() + NEGATIVE_TTL_MS); return null; }
 
       // Check once more after source lookup: another request may have completed
       // before this task acquired the single-flight key.
       const cached = await readCached(filePath).catch(() => null);
       if (cached) { stats.hits++; return { body: cached, cacheStatus: 'HIT' }; }
 
-      const input = await fetchBounded(url, fetchImpl);
+      let input;
+      try { input = await fetchBounded(url, fetchImpl); }
+      catch (err) {
+        stats.failures++;
+        // Timeouts, network errors, 429/5xx: retryable. Anything else is permanent.
+        if (err && (err.transient || err.name === 'AbortError' || err.name === 'TypeError' || err.code)) return TRANSIENT;
+        negative.set(negKey, Date.now() + NEGATIVE_TTL_MS);
+        return null;
+      }
       const opts = VARIANTS[variant];
       const output = await sharp(input, { animated: false, limitInputPixels: 40_000_000 })
         .rotate()
@@ -156,7 +184,7 @@ async function getPhoto({ provider, instructorId, variant, version, cacheDir = C
       return { body: output, cacheStatus: 'MISS' };
     } catch (_) {
       stats.failures++;
-      return null;
+      return null; // sharp/conversion failure: permanent for this source
     } finally {
       inFlight.delete(key);
     }
@@ -179,4 +207,4 @@ async function cacheUsage(cacheDir = CACHE_DIR) {
 
 function getStats() { return { ...stats, inFlight: inFlight.size, maxCacheBytes: MAX_CACHE_BYTES }; }
 
-module.exports = { CACHE_DIR, MAX_CACHE_BYTES, MAX_UPSTREAM_BYTES, UPSTREAM_TIMEOUT_MS, VARIANTS, versionFor, getPhoto, getStats, cacheUsage };
+module.exports = { LOOKUP_TIMEOUT_MS, CACHE_DIR, MAX_CACHE_BYTES, MAX_UPSTREAM_BYTES, UPSTREAM_TIMEOUT_MS, VARIANTS, versionFor, getPhoto, getStats, cacheUsage };

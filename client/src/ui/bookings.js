@@ -3,7 +3,7 @@ import { canForGym, getGymShortName, getDefaultGymId } from '../gym-context.js';
 import { getAvailableCreditsForEvent, getTotalCredits, getIneligibleReason } from './credit-allowance.js';
 import { showToast, cache, refreshUserData, updateCreditBadge, userSettings, gymSetting } from '../main';
 import { renderStudioFloorPlan } from './spotmap';
-import { instructorInlineHtml, icon, disciplineTag, trimLocation, seatNoun, stripClassNamePrefix, trendingUpIcon, pulseIcon, renderGymRail, equalizeDiscTagWidths, observeLocationWrap, wireRailToggle, shortSlotLabels} from './cards';
+import { instructorInlineHtml, icon, disciplineTag, trimLocation, seatNoun, stripClassNamePrefix, trendingUpIcon, pulseIcon, renderGymRail, equalizeDiscTagWidths, observeLocationWrap, wireRailToggle, shortSlotLabels, escapeHtml} from './cards';
 import { isInGracePeriod, GRACE_PERIOD_MS, startGraceCountdown, noSept } from '../lib';
 import { invalidateApiCache } from '../cache';
 import { renderCardSkeletons } from './loading-skeleton.js';
@@ -11,6 +11,7 @@ import { instructorAvatar } from './tooltips.js';
 import { metadata, loadMetadata, getStudioMapInfo, pickStudioPrefs } from './timetable';
 import { findActiveUpgradeForBooking } from './gym-isolation.js';
 import { haptic } from './haptics.js';
+import { COPY, formatCopyText } from '../copy.js';
 
 // Class starts within the free-cancel cutoff (12h). Edit is hidden inside this
 // window; Cancel stays available but warns about the penalty.
@@ -52,8 +53,8 @@ export async function renderBookings() {
     renderWaitlistsCards(cache.waitlists || []);
   } else {
     // First visit — no cached data yet
-    if (bookingsList) bookingsList.innerHTML = renderCardSkeletons(2, 'Loading bookings');
-    if (waitlistsList) waitlistsList.innerHTML = renderCardSkeletons(1, 'Loading waitlists');
+    if (bookingsList) bookingsList.innerHTML = renderCardSkeletons(2, COPY.bookings.loadingBookings);
+    if (waitlistsList) waitlistsList.innerHTML = renderCardSkeletons(1, COPY.bookings.loadingWaitlists);
   }
 
   // instructorAvatar() reads metadata.instructors, which is otherwise only
@@ -115,14 +116,14 @@ export async function renderBookings() {
 
     // Show a friendly empty state when offline and no cached data is available
     if (bookingsList && !cache.bookings) {
-      bookingsList.innerHTML = '<div class="psycle-empty-state" style="text-align:center;padding:40px 20px;color:var(--text-secondary)"><p style="font-size:16px;margin-bottom:8px">No cached data available</p><p style="font-size:13px;color:var(--text-tertiary)">Connect to the internet to load your bookings.</p></div>';
+      bookingsList.innerHTML = `<div class="psycle-empty-state" style="text-align:center;padding:40px 20px;color:var(--text-secondary)"><p style="font-size:16px;margin-bottom:8px">${COPY.bookings.noCachedData}</p><p style="font-size:13px;color:var(--text-tertiary)">${COPY.bookings.connectInternetBookings}</p></div>`;
     } else if (bookingsList) {
-      bookingsList.innerHTML = `<div class="psycle-card-error">Error: ${err.message}</div>`;
+      bookingsList.innerHTML = `<div class="psycle-card-error">${formatCopyText(COPY.bookings.noCachedError, { error: escapeHtml(err.message) })}</div>`;
     }
     if (waitlistsList && !cache.waitlists) {
-      waitlistsList.innerHTML = '<div class="psycle-empty-state" style="text-align:center;padding:40px 20px;color:var(--text-secondary)"><p style="font-size:16px;margin-bottom:8px">No cached data available</p><p style="font-size:13px;color:var(--text-tertiary)">Connect to the internet to load your waitlists.</p></div>';
+      waitlistsList.innerHTML = `<div class="psycle-empty-state" style="text-align:center;padding:40px 20px;color:var(--text-secondary)"><p style="font-size:16px;margin-bottom:8px">${COPY.bookings.noCachedData}</p><p style="font-size:13px;color:var(--text-tertiary)">${COPY.bookings.connectInternetWaitlists}</p></div>`;
     } else if (waitlistsList) {
-      waitlistsList.innerHTML = `<div class="psycle-card-error">Error: ${err.message}</div>`;
+      waitlistsList.innerHTML = `<div class="psycle-card-error">${formatCopyText(COPY.bookings.noCachedError, { error: escapeHtml(err.message) })}</div>`;
     }
 
     if (bookingsRefreshing) bookingsRefreshing.style.display = 'none';
@@ -139,7 +140,7 @@ export function syncBookingCache(bookings) {
       const event = b.event || {};
       const startAt = event.startAt || event.start_at || b.start_at;
       if (!startAt || new Date(startAt).getTime() < now) return null;
-      const rawClassName = event.name || event.event_type?.name || 'Class';
+      const rawClassName = event.name || event.event_type?.name || COPY.autoBook.class;
       const groupName = event.discipline || event.event_type?.group?.name || rawClassName;
       const className = stripClassNamePrefix(rawClassName, groupName);
       const instructorName = event.instructors?.[0]?.name || event.instructor?.full_name || event.instructor?.name || '';
@@ -193,7 +194,7 @@ function updateWaitlistAffordances() {
   if (!jump) return;
   setJumpVisible(jump, false);
   if (waitlistCount === 0 || !target) return;
-  jump.textContent = `Waitlists (${waitlistCount}) ↓`;
+  jump.textContent = formatCopyText(COPY.bookings.waitlistJump, { count: waitlistCount });
   jump.onclick = () => {
     const reduce = window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
     // Scroll ONLY the nearest real scroll container. scrollIntoView() also
@@ -240,7 +241,7 @@ function renderBookingsCards(bookings, upgrades) {
 
   bookedCount = groups.size;
   if (groups.size === 0) {
-    container.innerHTML = '<div class="fav-empty-state" style="padding:30px 0;">No active bookings found.</div>';
+    container.innerHTML = `<div class="fav-empty-state" style="padding:30px 0;">${COPY.bookings.noBookings}</div>`;
     updateWaitlistAffordances();
     return;
   }
@@ -261,7 +262,7 @@ function buildBookingCard(group, upgrades) {
   const dateStr = noSept(startDt.toLocaleString('en-GB', { weekday: 'short', day: 'numeric', month: 'short', timeZone: 'Europe/London' }));
   const timeOnly = startDt.toLocaleString('en-GB', { hour: '2-digit', minute: '2-digit', hour12: false, timeZone: 'Europe/London' });
 
-  const rawClassName = event.name || event.event_type?.name || 'Class';
+  const rawClassName = event.name || event.event_type?.name || COPY.autoBook.class;
   const groupName = event.discipline || event.event_type?.group?.name || rawClassName;
   const className = stripClassNamePrefix(rawClassName, groupName);
   // No fallback to a placeholder string — a recovery class genuinely has no
@@ -287,7 +288,7 @@ function buildBookingCard(group, upgrades) {
       // Static badge, not a button: there is no spot to configure auto-upgrade
       // for on an FCFS/recovery class, so it must not be clickable (it isn't
       // wired below — the click-listener loop only selects `.ab-spot-upgrade-chip`).
-      return `<span class="ab-spot-open-floor" title="First come, first served — no assigned spot">Open floor</span>`;
+      return `<span class="ab-spot-open-floor" title="${COPY.bookings.openFloorTitle}">${COPY.bookings.openFloor}</span>`;
     }
 
     const slotId = slotIdOf(b);
@@ -317,13 +318,13 @@ function buildBookingCard(group, upgrades) {
                     data-slot-id="${slotId}"
                     data-slot-label="${slotLabel}"
                     data-upgrade-id="${activeUpgrade?.id || ''}"
-                    title="${activeUpgrade ? 'Configure/disable auto-upgrade' : 'Configure/enable auto-upgrade'}">
+                    title="${activeUpgrade ? COPY.bookings.autoUpgradeDisabledTitle : COPY.bookings.autoUpgradeEnabledTitle}">
               ${iconHtml}${nounCap} ${slotLabel}
             </button>`;
   }).join('');
 
   const editBtnHtml = (within12h || !hasMap) ? '' :
-    `<button class="ab-rail-btn bk-edit-btn" aria-label="Edit spots">${icon('edit', 17)}<span>Edit</span></button>`;
+    `<button class="ab-rail-btn bk-edit-btn" aria-label="${COPY.bookings.editSpots}">${icon('edit', 17)}<span>${COPY.accessibility.editCard}</span></button>`;
 
   const card = document.createElement('div');
   card.className = 'psycle-autobook-card ab-card';
@@ -361,7 +362,7 @@ function buildBookingCard(group, upgrades) {
     </div>
     <div class="ab-card-rail">
       ${editBtnHtml}
-      <button class="ab-rail-btn danger bk-cancel-btn" aria-label="Cancel booking">${icon('close', 17)}<span>Cancel</span></button>
+      <button class="ab-rail-btn danger bk-cancel-btn" aria-label="${COPY.bookings.cancelBookingLabel}">${icon('close', 17)}<span>${COPY.bookings.cancel}</span></button>
     </div>
   `;
 
@@ -389,8 +390,8 @@ function buildBookingCard(group, upgrades) {
         className,
         groupName,
         instructorName,
-        studioName: event.studioName || event.studio?.name || 'Studio',
-        locationName: event.locationName || event.studio?.location?.name || 'Location',
+        studioName: event.studioName || event.studio?.name || COPY.static.studioFallback,
+        locationName: event.locationName || event.studio?.location?.name || COPY.static.locationFallback,
         startAt,
         existingUpgradeId: upgradeId,
         existingPrefs
@@ -431,7 +432,7 @@ function wireCancelBooking(btn, card, group, within12h) {
     card.querySelectorAll('button').forEach(b => b.disabled = true);
     labelSpan.textContent = '…';
     try {
-      showToast('Cancelling booking...', 'info');
+      showToast(COPY.bookings.cancelling, 'info');
       for (const b of group.bookings) {
         await api.cancel(bookingIdOf(b), b.gymId || group.event?.gymId);
         const up = findActiveUpgradeForBooking(cache.upgrades, bookingIdOf(b), b.gymId || group.event?.gymId);
@@ -440,15 +441,15 @@ function wireCancelBooking(btn, card, group, within12h) {
       await invalidateApiCache('/api/bookings');
       await invalidateApiCache('/api/waitlists');
       haptic('warning');
-      showToast('Booking cancelled.', 'success');
+      showToast(COPY.bookings.bookingCancelled, 'success');
       await refreshUserData(true);
       renderBookings();
     } catch (err) {
       haptic('error');
-      showToast(`Cancellation failed: ${err.message}`, 'error');
+      showToast(formatCopyText(COPY.bookings.cancellationFailed, { error: err.message }), 'error');
       card.style.opacity = '1';
       card.querySelectorAll('button').forEach(b => b.disabled = false);
-      labelSpan.textContent = 'Cancel';
+      labelSpan.textContent = COPY.bookings.cancel;
     }
   };
 
@@ -462,11 +463,11 @@ function wireCancelBooking(btn, card, group, within12h) {
     if (!confirmState) {
       haptic('medium');
       confirmState = true;
-      labelSpan.textContent = within12h ? 'Penalty?' : 'Confirm?';
+      labelSpan.textContent = within12h ? COPY.bookings.penaltyQuestion : COPY.bookings.confirm;
       btn.classList.add('confirming');
       setTimeout(() => {
         confirmState = false;
-        labelSpan.textContent = 'Cancel';
+        labelSpan.textContent = COPY.bookings.cancel;
         btn.classList.remove('confirming');
       }, 3000);
       return;
@@ -487,14 +488,14 @@ export async function openEditBookingModal(group, onChange = renderBookings) {
   if (!modal || !body || !title) return;
 
   const event = group.event;
-  const rawClassName = event.name || event.event_type?.name || 'Class';
+  const rawClassName = event.name || event.event_type?.name || COPY.autoBook.class;
   const groupName = event.discipline || event.event_type?.group?.name || rawClassName;
   const className = stripClassNamePrefix(rawClassName, groupName);
   const noun = seatNoun(groupName);
   const nounCap = noun[0].toUpperCase() + noun.slice(1);
 
-  title.textContent = `Edit ${nounCap}s: ${className}`;
-  body.innerHTML = `<div class="psycle-loading-spinner-container" style="padding:40px 0;"><div class="psycle-spinner"></div><span>Loading studio floor map…</span></div>`;
+  title.textContent = formatCopyText(COPY.bookings.editSpotsTitle, { noun: nounCap, className });
+  body.innerHTML = `<div class="psycle-loading-spinner-container" style="padding:40px 0;"><div class="psycle-spinner"></div><span>${COPY.bookings.loadingFloorMap}</span></div>`;
   modal.style.display = 'flex';
   setTimeout(() => modal.classList.add('show'), 10);
 
@@ -534,9 +535,9 @@ export async function openEditBookingModal(group, onChange = renderBookings) {
     const isFcfs = normalizedEvent.layoutFormat === 'first-come-first-serve';
     if (isFcfs || layoutSlots.length === 0) {
       const why = isFcfs
-        ? `This class doesn't use assigned ${noun}s, so there's nothing to change here.`
-        : `No floor map is available for this studio, so ${noun}s can't be changed here.`;
-      body.innerHTML = `<div style="padding:24px;text-align:center;color:var(--text-secondary);">${why} Use Cancel to release the booking.</div>`;
+        ? formatCopyText(COPY.bookingEditor.noAssignedSpots, { noun: escapeHtml(noun) })
+        : formatCopyText(COPY.bookingEditor.noFloorMap, { noun: escapeHtml(noun) });
+      body.innerHTML = `<div style="padding:24px;text-align:center;color:var(--text-secondary);">${formatCopyText(COPY.bookings.noSpotsBookingHelp, { reason: why })}</div>`;
       return;
     }
 
@@ -553,7 +554,7 @@ export async function openEditBookingModal(group, onChange = renderBookings) {
 
     body.innerHTML = `
       <div style="font-size:12px;color:var(--text-secondary);background:var(--surface-inset);border:1px solid var(--border);border-radius:8px;padding:8px 10px;margin-bottom:10px;line-height:1.5;">
-        Tap to change your ${noun}s. <strong style="color:var(--feat-autoupgrade);">Highlighted</strong> ${noun}s are yours — deselect to release them, tap a free ${noun} to add it. Saving releases removed ${noun}s first, then books the added ones.
+        ${formatCopyText(COPY.bookings.editSpotsInstructionHtml, { noun: escapeHtml(noun) })}
       </div>
       <div class="psycle-floor-plan-container" style="position:relative;height:${minMapHeight}px;background:var(--surface-inset);border:1px solid var(--border);border-radius:12px;margin-bottom:10px;overflow:hidden;">
         <div id="psycle-edit-floor-grid" style="width:100%;height:100%;"></div>
@@ -572,7 +573,7 @@ export async function openEditBookingModal(group, onChange = renderBookings) {
       const top = heightRange === 0 ? 10 : ((obj.y - minY) / heightRange) * 75 + 10;
       const stage = document.createElement('div');
       stage.style.cssText = `position:absolute;left:${left}%;top:${top}%;transform:translate(-50%,-50%);background:color-mix(in srgb,var(--text) 15%,transparent);border:1px solid color-mix(in srgb,var(--text) 30%,transparent);padding:4px 16px;border-radius:6px;font-size:12px;font-weight:bold;color:#fff;letter-spacing:0.5px;`;
-      stage.textContent = 'STAGE';
+      stage.textContent = COPY.timetable.stage;
       floorGrid.appendChild(stage);
     });
 
@@ -587,26 +588,26 @@ export async function openEditBookingModal(group, onChange = renderBookings) {
 
       let msg = '';
       if (!changed) {
-        msg = `<div style="font-size:12px;color:var(--text-tertiary);">No changes yet.</div>`;
+        msg = `<div style="font-size:12px;color:var(--text-tertiary);">${COPY.bookings.noChanges}</div>`;
       } else if (desired.length === 0) {
-        msg = `<div style="font-size:12px;color:var(--danger);background:color-mix(in srgb,var(--danger) 10%,transparent);border:1px solid color-mix(in srgb,var(--danger) 20%,transparent);border-radius:8px;padding:10px;">This releases all your ${noun}s and cancels the booking.</div>`;
+        msg = `<div style="font-size:12px;color:var(--danger);background:color-mix(in srgb,var(--danger) 10%,transparent);border:1px solid color-mix(in srgb,var(--danger) 20%,transparent);border-radius:8px;padding:10px;">${formatCopyText(COPY.bookingEditor.cancelBookingReleaseSpots, { noun: escapeHtml(noun) })}</div>`;
       } else if (shortfall > 0) {
-        msg = `<div style="font-size:12px;color:var(--danger);background:color-mix(in srgb,var(--danger) 10%,transparent);border:1px solid color-mix(in srgb,var(--danger) 20%,transparent);border-radius:8px;padding:10px;">You need ${shortfall} more credit${shortfall !== 1 ? 's' : ''} to add ${toAdd.length} ${noun}${toAdd.length !== 1 ? 's' : ''}.</div>`;
+        msg = `<div style="font-size:12px;color:var(--danger);background:color-mix(in srgb,var(--danger) 10%,transparent);border:1px solid color-mix(in srgb,var(--danger) 20%,transparent);border-radius:8px;padding:10px;">${formatCopyText(COPY.bookingEditor.creditShortfall, { shortfall, creditPlural: shortfall !== 1 ? 's' : '', count: toAdd.length, noun: escapeHtml(noun), nounPlural: toAdd.length !== 1 ? 's' : '' })}</div>`;
       }
 
       const parts = [];
       if (toAdd.length) parts.push(`<span style="color:var(--success);font-weight:700;">+${toAdd.map(labelFor).join(', ')}</span>`);
       if (toRemove.length) parts.push(`<span style="color:var(--danger);font-weight:700;">−${toRemove.map(labelFor).join(', ')}</span>`);
       summaryEl.innerHTML = parts.length
-        ? `<span style="color:var(--text-tertiary);text-transform:uppercase;font-size:var(--text-xs);letter-spacing:0.05em;margin-right:6px;">Changes</span>${parts.join('&nbsp;&nbsp;')}`
-        : `<span style="color:var(--text-tertiary);">${desired.length} ${noun}${desired.length !== 1 ? 's' : ''} selected</span>`;
+        ? `<span style="color:var(--text-tertiary);text-transform:uppercase;font-size:var(--text-xs);letter-spacing:0.05em;margin-right:6px;">${COPY.bookings.changes}</span>${parts.join('&nbsp;&nbsp;')}`
+        : `<span style="color:var(--text-tertiary);">${formatCopyText(COPY.bookings.selectedSpots, { count: desired.length, noun: escapeHtml(noun), plural: desired.length !== 1 ? 's' : '' })}</span>`;
 
       controls.innerHTML = `
         <div style="display:flex;flex-direction:column;gap:10px;background:var(--surface-inset);padding:14px;border-radius:12px;border:1px solid var(--border);">
           ${msg}
           <div style="display:flex;gap:8px;">
-            <button class="psycle-btn" id="bk-edit-close" style="flex:1;background:color-mix(in srgb,var(--text) 6%,transparent);border:1px solid color-mix(in srgb,var(--text) 12%,transparent);color:var(--text);">Close</button>
-            <button class="psycle-btn" id="bk-edit-save" style="flex:2;background:var(--feat-autoupgrade);color:var(--on-accent);" ${(!changed || shortfall > 0) ? 'disabled' : ''}>Save Changes</button>
+            <button class="psycle-btn" id="bk-edit-close" style="flex:1;background:color-mix(in srgb,var(--text) 6%,transparent);border:1px solid color-mix(in srgb,var(--text) 12%,transparent);color:var(--text);">${COPY.bookings.close}</button>
+            <button class="psycle-btn" id="bk-edit-save" style="flex:2;background:var(--feat-autoupgrade);color:var(--on-accent);" ${(!changed || shortfall > 0) ? 'disabled' : ''}>${COPY.bookings.saveChanges}</button>
           </div>
         </div>`;
 
@@ -656,7 +657,7 @@ export async function openEditBookingModal(group, onChange = renderBookings) {
         if (clickable) el.addEventListener('click', () => {
           if (selected.has(slotId)) selected.delete(slotId);
           else if (isCurrent || isAvailable) selected.add(slotId);
-          else { showToast(`That ${noun} is occupied.`, 'warning'); return; }
+          else { showToast(formatCopyText(COPY.bookings.occupiedSpotFor, { noun }), 'warning'); return; }
           renderGrid();
           renderControls();
         });
@@ -667,7 +668,7 @@ export async function openEditBookingModal(group, onChange = renderBookings) {
 
     const saveChanges = async (toAdd, toRemove) => {
       const saveBtn = body.querySelector('#bk-edit-save');
-      if (saveBtn) { saveBtn.disabled = true; saveBtn.textContent = 'Saving…'; }
+      if (saveBtn) { saveBtn.disabled = true; saveBtn.textContent = COPY.static.saving; }
       try {
         const gymId = group.event?.gymId || null;
         // THIS booking's gym, not the ambient one. Judged against the wrong
@@ -677,7 +678,7 @@ export async function openEditBookingModal(group, onChange = renderBookings) {
         if (canForGym('atomicSwap', gymId) && toRemove.length === 1 && toAdd.length === 1) {
           const bookingId = slotToBooking.get(toRemove[0]);
           const r = await api.swapSpot(bookingId, toRemove[0], toAdd[0], gymId);
-          if (!r.ok) throw new Error(r.error || 'Spot swap was declined');
+          if (!r.ok) throw new Error(r.error || COPY.bookings.spotSwapDeclined);
         } else {
           // 1. Release removed spots.
           for (const slotId of toRemove) {
@@ -693,8 +694,8 @@ export async function openEditBookingModal(group, onChange = renderBookings) {
               const r = await api.book(group.eventId, [slotId], gymId);
               if (!r.ok) {
                 throw new Error(added.length
-                  ? `Re-booked ${added.length} of ${toAdd.length} spots — ${r.error || 'the rest were declined'}`
-                  : (r.error || 'Re-booking was declined'));
+                  ? formatCopyText(COPY.bookings.rebookedPartial, { booked: added.length, total: toAdd.length, declined: r.error || COPY.bookings.remainingDeclined })
+                  : (r.error || COPY.bookings.rebookingDeclined));
               }
               added.push(r);
             }
@@ -711,13 +712,13 @@ export async function openEditBookingModal(group, onChange = renderBookings) {
         await invalidateApiCache('/api/bookings');
         await invalidateApiCache('/api/waitlists');
         haptic('success');
-        showToast(`${nounCap}s updated.`, 'success');
+        showToast(formatCopyText(COPY.bookings.spotsUpdated, { noun: nounCap }), 'success');
         closeModal();
         await refreshUserData(true);
         onChange();
       } catch (err) {
         haptic('error');
-        showToast(`Couldn't update ${noun}s: ${err.message}`, 'error');
+        showToast(formatCopyText(COPY.bookings.updateFailed, { noun, error: err.message }), 'error');
         closeModal();
         await refreshUserData(true);
         onChange();
@@ -728,7 +729,7 @@ export async function openEditBookingModal(group, onChange = renderBookings) {
     renderControls();
   } catch (err) {
     console.error('[Bookings] Edit modal failed:', err);
-    body.innerHTML = `<div class="psycle-card-error" style="color:var(--danger);padding:20px 0;text-align:center;">Error loading layout: ${err.message}</div>`;
+    body.innerHTML = `<div class="psycle-card-error" style="color:var(--danger);padding:20px 0;text-align:center;">${formatCopyText(COPY.bookings.loadingFloorMapError, { error: escapeHtml(err.message) })}</div>`;
   }
 }
 
@@ -742,7 +743,7 @@ function renderWaitlistsCards(waitlists) {
   const valid = (waitlists || []).filter(w => w.event && (w.event.startAt || w.event.start_at));
   waitlistCount = valid.length;
   if (valid.length === 0) {
-    container.innerHTML = '<div class="fav-empty-state" style="padding:30px 0;">No active waitlists found.</div>';
+    container.innerHTML = `<div class="fav-empty-state" style="padding:30px 0;">${COPY.bookings.noWaitlists}</div>`;
     updateWaitlistAffordances();
     return;
   }
@@ -762,7 +763,7 @@ function buildWaitlistCard(w) {
   const startDt = new Date(startAt);
   const dateStr = noSept(startDt.toLocaleString('en-GB', { weekday: 'short', day: 'numeric', month: 'short', timeZone: 'Europe/London' }));
   const timeOnly = startDt.toLocaleString('en-GB', { hour: '2-digit', minute: '2-digit', hour12: false, timeZone: 'Europe/London' });
-  const rawClassName = event.name || event.event_type?.name || 'Class';
+  const rawClassName = event.name || event.event_type?.name || COPY.autoBook.class;
   const groupName = event.discipline || event.event_type?.group?.name || rawClassName;
   const className = stripClassNamePrefix(rawClassName, groupName);
   const instructorName = event.instructors?.[0]?.name || event.instructor?.full_name || '';
@@ -800,11 +801,11 @@ function buildWaitlistCard(w) {
           ? `<div class="ab-card-figure">${instructorAvatar(instructorName, event.gymId, instructorPhotoUrl) || ''}${instructorName ? `<span class="ab-card-instructor">${instructorName}</span>` : ''}</div>` : ''}
       </div>
       <div class="ab-card-footer">
-        <span class="ab-spots-pill" style="gap:5px;color:var(--warning);background:color-mix(in srgb,var(--warning) 12%,transparent);">${icon('clock', 12)} Waitlisted</span>
+        <span class="ab-spots-pill" style="gap:5px;color:var(--warning);background:color-mix(in srgb,var(--warning) 12%,transparent);">${icon('clock', 12)} ${COPY.bookings.waitlisted}</span>
       </div>
     </div>
     <div class="ab-card-rail">
-      <button class="ab-rail-btn danger leave-wl-btn" aria-label="Leave waitlist">${icon('close', 17)}<span>Leave</span></button>
+      <button class="ab-rail-btn danger leave-wl-btn" aria-label="${COPY.bookings.leaveWaitlistAria}">${icon('close', 17)}<span>${COPY.bookings.leaveWaitlist}</span></button>
     </div>
   `;
 
@@ -815,11 +816,11 @@ function buildWaitlistCard(w) {
     if (!confirmState) {
       haptic('medium');
       confirmState = true;
-      labelSpan.textContent = 'Confirm?';
+      labelSpan.textContent = COPY.bookings.confirm;
       leaveBtn.classList.add('confirming');
       setTimeout(() => {
         confirmState = false;
-        labelSpan.textContent = 'Leave';
+        labelSpan.textContent = COPY.bookings.leaveWaitlist;
         leaveBtn.classList.remove('confirming');
       }, 3000);
       return;
@@ -830,18 +831,18 @@ function buildWaitlistCard(w) {
     card.querySelectorAll('button').forEach(b => b.disabled = true);
     labelSpan.textContent = '…';
     try {
-      showToast('Leaving waitlist...', 'info');
+      showToast(COPY.bookings.leavingWaitlist, 'info');
       await api.leaveWaitlist(event.id, event.gymId);
       haptic('warning');
-      showToast('Left waitlist.', 'success');
+      showToast(COPY.bookings.leftWaitlist, 'success');
       await refreshUserData(true);
       renderBookings();
     } catch (err) {
       haptic('error');
-      showToast(`Error: ${err.message}`, 'error');
+      showToast(err.message, 'error');
       card.style.opacity = '1';
       card.querySelectorAll('button').forEach(b => b.disabled = false);
-      labelSpan.textContent = 'Leave';
+      labelSpan.textContent = COPY.bookings.leaveWaitlist;
     }
   });
 
@@ -857,7 +858,7 @@ function upgradeCreditShortfall(gymId) {
 // Quick-register or open modal, like the auto-book flow
 async function handleUpgradeClick({ eventId, gymId, bookingId, currentSlotId, studioId, className, groupName, instructorName, studioName, locationName, startAt, existingUpgradeId, existingPrefs }) {
   if (!eventId || !bookingId || currentSlotId === '' || currentSlotId == null || isNaN(Number(currentSlotId))) {
-    showToast('Could not determine your current spot. Open the booking details to find your slot.', 'error');
+    showToast(COPY.bookings.currentSpotUnknown, 'error');
     return;
   }
 
@@ -880,7 +881,7 @@ async function handleUpgradeClick({ eventId, gymId, bookingId, currentSlotId, st
     if (hasPrefs) {
       // Quick-register: the monitor reads the live shared studio map, so we only
       // store the per-monitor option here.
-      showToast('Starting upgrade monitor...', 'info');
+      showToast(COPY.bookings.startingUpgrade, 'info');
       await api.addAutoUpgrade({
         eventId,
         // Without this the server falls back to the account's ACTIVE gym, so a
@@ -901,14 +902,14 @@ async function handleUpgradeClick({ eventId, gymId, bookingId, currentSlotId, st
           keepOriginalOnCutoff: true
         }
       });
-      showToast('Auto-upgrade monitor started using your saved spot map for this studio.', 'success');
+      showToast(COPY.bookings.upgradeStartedWithMap, 'success');
       renderBookings();
     } else {
       // No prefs — open modal to configure
       openUpgradeConfigModal({ eventId, gymId, bookingId, currentSlotId, studioId, className, groupName, instructorName, studioName, locationName, startAt, existingUpgradeId: null, existingPrefs: null });
     }
   } catch (err) {
-    showToast(`Error: ${err.message}`, 'error');
+    showToast(err.message, 'error');
   }
 }
 
@@ -919,11 +920,11 @@ export async function openUpgradeConfigModal({ eventId, gymId, bookingId, curren
   const title = document.getElementById('psycle-booking-modal-title');
   if (!modal || !body || !title) return;
 
-  title.textContent = 'Configure Auto-Upgrade';
+  title.textContent = COPY.autoUpgrade.configureTitle;
   body.innerHTML = `
     <div class="psycle-loading-spinner-container" style="padding: 40px 0;">
       <div class="psycle-spinner"></div>
-      <span>Fetching studio floor map...</span>
+      <span>${COPY.bookings.fetchingFloorMap}</span>
     </div>
   `;
 
@@ -942,7 +943,7 @@ export async function openUpgradeConfigModal({ eventId, gymId, bookingId, curren
   overlay.onclick = closeModal;
 
   const isEditing = existingUpgradeId !== null;
-  title.textContent = isEditing ? `Edit Auto-Upgrade` : `Auto-Upgrade: ${className}`;
+  title.textContent = isEditing ? COPY.autoUpgrade.editTitle : formatCopyText(COPY.autoUpgrade.configureClassTitle, { className });
 
   try {
     // WP-C5: the floor plan below is driven entirely by NormalizedSlot[] /
@@ -952,7 +953,7 @@ export async function openUpgradeConfigModal({ eventId, gymId, bookingId, curren
       api.getEventDetails(eventId, gymId),
       api.getStudioPreferences()
     ]);
-    const groupName = event.discipline || event.name || 'Class';
+    const groupName = event.discipline || event.name || COPY.autoBook.class;
     const noun = seatNoun(groupName);
     const nounCap = noun[0].toUpperCase() + noun.slice(1);
     const resolvedStudioId = studioId || event.studioId;
@@ -963,8 +964,8 @@ export async function openUpgradeConfigModal({ eventId, gymId, bookingId, curren
     const isFcfs = event.layoutFormat === 'first-come-first-serve';
     if (isFcfs || layoutSlots.length === 0) {
       const why = isFcfs
-        ? `This class doesn't use assigned ${noun}s, so there's nothing to upgrade to.`
-        : 'No floor map available for this studio. Auto-upgrade requires a spot map.';
+        ? formatCopyText(COPY.bookingEditor.noAssignedUpgradeSpots, { noun })
+        : COPY.bookingEditor.noMapForUpgrade;
       body.innerHTML = `<div style="padding: 24px; text-align: center; color: var(--text-secondary);">${why}</div>`;
       return;
     }
@@ -989,7 +990,7 @@ export async function openUpgradeConfigModal({ eventId, gymId, bookingId, curren
     const upgradeCreditsNeeded = 1; // Auto-upgrade needs 1 credit for the additional spot
     const hasEnoughCredits = !ineligibleReason && availableCredits >= upgradeCreditsNeeded;
     const creditWarningHtml = !hasEnoughCredits
-      ? `<div style="font-size:12px;color:var(--danger);background:color-mix(in srgb,var(--danger) 10%,transparent);border:1px solid color-mix(in srgb,var(--danger) 20%,transparent);border-radius:8px;padding:10px;margin-bottom:10px;line-height:1.5;">${ineligibleReason || `In order for Auto-Upgrade to work, you need to purchase ${upgradeCreditsNeeded - availableCredits} more credit${upgradeCreditsNeeded - availableCredits !== 1 ? 's' : ''}. Auto-Upgrade books an additional ${noun} before cancelling your current one.`}</div>`
+      ? `<div style="font-size:12px;color:var(--danger);background:color-mix(in srgb,var(--danger) 10%,transparent);border:1px solid color-mix(in srgb,var(--danger) 20%,transparent);border-radius:8px;padding:10px;margin-bottom:10px;line-height:1.5;">${ineligibleReason || formatCopyText(COPY.bookingEditor.upgradeNeedsCredits, { needed: upgradeCreditsNeeded - availableCredits, gym: escapeHtml(gym.name || gym.shortName || COPY.static.yourGymFallback) })}</div>`
       : '';
 
     body.innerHTML = `<div id="psycle-upgrade-editor"></div>`;
@@ -997,33 +998,33 @@ export async function openUpgradeConfigModal({ eventId, gymId, bookingId, curren
 
     const bannerHtml = `
       <div style="font-size:12px;color:var(--feat-autoupgrade);background:color-mix(in srgb,var(--feat-autoupgrade) 8%,transparent);border:1px solid color-mix(in srgb,var(--feat-autoupgrade) 18%,transparent);border-radius:8px;padding:8px 10px;margin-bottom:10px;line-height:1.5;">
-        This is the one shared preferred spot map for <strong>${studioName}</strong>. Auto-Upgrade aims for these ${noun}s in priority order — and Quick-Book &amp; Auto-Book here use the same map. Your current ${noun} is <strong>${currentSlotLabel}</strong>.
+        ${formatCopyText(COPY.bookingEditor.sharedSpotMapHtml, { studioName: escapeHtml(studioName) })} Auto-Upgrade aims for these ${noun}s in priority order — and Quick-Book &amp; Auto-Book here use the same map. Your current ${noun} is <strong>${escapeHtml(currentSlotLabel)}</strong>.
       </div>${creditWarningHtml}`;
 
     const extraControlsHtml = `
       <label style="display:flex;align-items:flex-start;gap:10px;font-size:13px;cursor:pointer;line-height:1.4;background:var(--surface-inset);border:1px solid var(--border);border-radius:10px;padding:12px;">
         <input type="checkbox" class="psycle-ms-checkbox" id="upgrade-keep-original" ${seedKeepOriginal ? 'checked' : ''} style="margin-top:2px;">
         <span>
-          <strong>Continue past 12h cutoff</strong><br>
-          <span style="font-size:12px;color:var(--text-tertiary);">Within 12h of class, make one final upgrade attempt without cancelling your original ${noun} — you'll need to ask the gym to release it. Without this, monitoring stops at 12h.</span>
+          <strong>${COPY.bookings.continuePastCutoff}</strong><br>
+          <span style="font-size:12px;color:var(--text-tertiary);">${formatCopyText(COPY.bookingEditor.finalUpgradeAttemptHelp, { noun: escapeHtml(noun) })}</span>
         </span>
       </label>`;
 
     const onDisable = isEditing ? async () => {
       try {
-        showToast('Disabling auto-upgrade...', 'info');
+        showToast(COPY.bookings.disablingUpgrade, 'info');
         await api.deleteAutoUpgrade(existingUpgradeId);
-        showToast('Auto-upgrade disabled.', 'success');
+        showToast(COPY.bookings.upgradeDisabled, 'success');
         closeModal();
         renderBookings();
       } catch (err) {
-        showToast(`Error: ${err.message}`, 'error');
+        showToast(err.message, 'error');
       }
     } : null;
 
     renderStudioFloorPlan(editorContainer, layoutSlots, seedSlots, seedRows, async (slots, rows, container) => {
       if (slots.length === 0 && rows.length === 0) {
-        showToast(`Select at least one preferred ${noun} for the upgrade to aim at.`, 'warning');
+        showToast(formatCopyText(COPY.bookings.preferredSpotRequiredFor, { noun }), 'warning');
         return;
       }
 
@@ -1040,7 +1041,7 @@ export async function openUpgradeConfigModal({ eventId, gymId, bookingId, curren
         // 2. Create or update the monitor (per-monitor option only; slots are live)
         if (isEditing) {
           await api.updateAutoUpgrade(existingUpgradeId, { keepOriginalOnCutoff });
-          showToast('Auto-upgrade updated — shared spot map saved.', 'success');
+          showToast(COPY.bookings.upgradeUpdated, 'success');
         } else {
           await api.addAutoUpgrade({
             eventId, gymId: gymId || null, studioId: resolvedStudioId || null, bookingId, currentSlotId,
@@ -1048,28 +1049,28 @@ export async function openUpgradeConfigModal({ eventId, gymId, bookingId, curren
             creditShortfall: upgradeCreditShortfall(gymId),
             preferences: { keepOriginalOnCutoff }
           });
-          showToast('Auto-upgrade monitor started! Monitoring for a better spot.', 'success');
+          showToast(COPY.bookings.monitorStarted, 'success');
         }
 
         closeModal();
         renderBookings();
       } catch (err) {
-        showToast(`Error: ${err.message}`, 'error');
+        showToast(err.message, 'error');
       }
     }, {
-      saveLabel: isEditing ? 'Save Changes' : 'Start Monitoring',
+      saveLabel: isEditing ? COPY.bookings.saveChanges : COPY.bookings.startMonitoring,
       layoutObjects,
       bannerHtml,
       extraControlsHtml,
       onDisable,
-      disableLabel: 'Disable Auto-Upgrade',
+      disableLabel: COPY.bookings.disableUpgrade,
       availableSlots: layoutSlots.filter(s => s.isAvailable).map(s => Number(s.id)),
       currentSlotId
     });
 
   } catch (err) {
     console.error('[Bookings] Modal load layout failed:', err);
-    body.innerHTML = `<div class="psycle-card-error">Error loading spot layout: ${err.message}</div>`;
+    body.innerHTML = `<div class="psycle-card-error">${formatCopyText(COPY.bookings.loadingSpotLayoutError, { error: escapeHtml(err.message) })}</div>`;
   }
 }
 

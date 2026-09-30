@@ -1,3 +1,5 @@
+import { COPY } from '../copy.js';
+
 // U1-14 — rules for the spot picker, kept pure so they can be tested.
 //
 // The picker runs in three modes:
@@ -25,9 +27,9 @@ export function needsSetupIntro({ mode, hasSavedMap, hasSeatMap }) {
 export function setupIntroCopy({ gymName = '', locationName = '' } = {}) {
   const where = [gymName, locationName].map((s) => String(s || '').trim()).filter(Boolean).join(' ');
   return {
-    header: 'First-time setup',
-    sub: `Choose your preferred spots for ${where || 'this studio'} first.`,
-    bodyHtml: 'Once set up, <b>Quick-Book</b> and <b>Auto-Book</b> will always book the best possible spot for you.',
-    next: 'Next',
+    header: COPY.spotSelection.firstTimeSetup,
+    sub: COPY.spotSelection.chooseSpots.replace('{where}', where || COPY.spotSelection.thisStudio),
+    bodyHtml: COPY.spotSelection.setupBodyHtml,
+    next: COPY.spotSelection.next,
   };
 }

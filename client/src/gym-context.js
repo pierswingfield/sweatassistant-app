@@ -1,4 +1,5 @@
 import { loadWordmarkSprites } from './gym-logo-sprite.js';
+import { COPY } from './copy.js';
 // Per-gym capabilities, theming and labels (WP-D14).
 //
 // Everything above the adapter layer is supposed to know only normalized types
@@ -190,7 +191,7 @@ export function getLinkedGyms() {
 export function applyGymNames() {
   const names = linkedGyms.map((g) => g.shortName || g.name).filter(Boolean);
   if (!names.length) return; // leave the neutral placeholder until the catalogue loads
-  const joined = names.length > 1 ? names.join(' and ') : names[0];
+  const joined = names.length > 1 ? names.join(COPY.common.gymNameJoiner) : names[0];
   document.querySelectorAll('[data-gym-name]').forEach((el) => {
     el.textContent = joined;
   });

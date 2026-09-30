@@ -1,6 +1,7 @@
 // Shared client-side utilities that need London timezone awareness
 import { DateTime } from 'luxon';
 import { isRollingWeeklyGym } from './gym-context.js';
+import { COPY, formatCopyText } from './copy.js';
 
 // Sane bounds for a detected booking window, in days after the release Monday.
 // Purely a guard against a garbled/stale profile cutoff producing an absurd
@@ -128,7 +129,7 @@ export function detectBookingWindow(profile, credits) {
 // Human label for a booking window, e.g. "2 weeks · books through Mon 29 Jun".
 export function describeBookingWindow(offsetDays, cutoffISO) {
   const weeks = offsetDaysToWeeks(offsetDays);
-  const wordLabel = `${weeks} week${weeks === 1 ? '' : 's'}`;
+  const wordLabel = formatCopyText(weeks === 1 ? COPY.bookingWindow.weekOne : COPY.bookingWindow.weekMany, { count: weeks });
   let through = null;
   if (cutoffISO) {
     const dt = DateTime.fromISO(cutoffISO, { zone: 'Europe/London' });
@@ -137,7 +138,7 @@ export function describeBookingWindow(offsetDays, cutoffISO) {
     const dt = getMostRecentReleaseMonday().plus({ days: offsetDays });
     through = dt.toFormat('ccc d LLL');
   }
-  return through ? `${wordLabel} · up to ${through}` : wordLabel;
+  return through ? formatCopyText(COPY.bookingWindow.through, { window: wordLabel, date: through }) : wordLabel;
 }
 
 // When booking opens for a class (WP-D8).
@@ -242,11 +243,11 @@ function _tickGraceCountdown() {
     // update the element's own textContent (e.g. timetable segment buttons).
     const labelEl = el.querySelector('span') || el;
     if (remaining > 0) {
-      labelEl.textContent = `Cancel (${remaining}s)`;
+      labelEl.textContent = formatCopyText(COPY.bookingWindow.graceCancel, { seconds: remaining });
     } else {
       el.removeAttribute('data-grace-deadline');
       el.classList.remove('grace-cancel');
-      labelEl.textContent = 'Cancel';
+      labelEl.textContent = COPY.bookings.cancel;
     }
   }
 }

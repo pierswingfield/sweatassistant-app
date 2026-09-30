@@ -1,4 +1,5 @@
-import { shortSlotLabels } from './cards';
+import { shortSlotLabels, escapeHtml } from './cards';
+import { COPY, formatCopyText } from '../copy.js';
 // Shared preferred-spot-map editor.
 //
 // One studio has ONE shared preferred spot map (`studioPreferences[studioId]`)
@@ -32,14 +33,14 @@ import { shortSlotLabels } from './cards';
 
 export function renderStudioFloorPlan(container, layoutSlots, initialSlots, initialRows, onSave, options = {}) {
   const {
-    saveLabel = 'Save Defaults',
+    saveLabel = COPY.spotMapEditor.saveDefaults,
     bannerHtml = '',
     bannerHtmlEdit = '',
     extraControlsHtml = '',
     onDisable = null,
-    disableLabel = 'Disable',
+    disableLabel = COPY.spotMapEditor.disable,
     readOnly = false,
-    editLabel = 'Edit preferred spots',
+    editLabel = COPY.spotMapEditor.editPreferredSpots,
     hideClear = false,
     layoutObjects = [],
     availableSlots = null,
@@ -124,18 +125,18 @@ export function renderStudioFloorPlan(container, layoutSlots, initialSlots, init
       return idx >= 0 ? String(idx + 1) : String(y);
     });
     if (spotLabels.length === 0 && rowLabels.length === 0) {
-      summary.innerHTML = '<span style="color:var(--text-tertiary);font-style:italic;">(None selected yet)</span>';
+      summary.innerHTML = `<span style="color:var(--text-tertiary);font-style:italic;">${COPY.spotMapEditor.noneSelected}</span>`;
     } else {
       const fmt = (labels, noun) => {
         const shown = labels.slice(0, 3);
-        const rest = labels.length > 3 ? ` <span style="color:var(--text-tertiary);">+${labels.length - 3} more</span>` : '';
-        return `<span style="color:var(--text-secondary);font-size:11px;text-transform:uppercase;letter-spacing:0.05em;">${noun}</span> <span style="color:var(--text);font-weight:700;">${shown.join(', ')}</span>${rest}`;
+        const rest = labels.length > 3 ? ` <span style="color:var(--text-tertiary);">${formatCopyText(COPY.spotMapEditor.moreCount, { count: labels.length - 3 })}</span>` : '';
+        return `<span style="color:var(--text-secondary);font-size:11px;text-transform:uppercase;letter-spacing:0.05em;">${noun}</span> <span style="color:var(--text);font-weight:700;">${shown.map(escapeHtml).join(', ')}</span>${rest}`;
       };
       const parts = [];
-      if (spotLabels.length > 0) parts.push(fmt(spotLabels, 'Spots'));
-      if (rowLabels.length > 0) parts.push(fmt(rowLabels, 'Rows'));
+      if (spotLabels.length > 0) parts.push(fmt(spotLabels, COPY.spotMapEditor.spots));
+      if (rowLabels.length > 0) parts.push(fmt(rowLabels, COPY.spotMapEditor.rows));
       const sep = ' <span style="color:var(--text-tertiary);margin:0 4px;">›</span> ';
-      summary.innerHTML = `<span style="color:var(--text-secondary);font-size:11px;text-transform:uppercase;letter-spacing:0.05em;margin-right:6px;">Preferred</span>${parts.join(sep)}`;
+      summary.innerHTML = `<span style="color:var(--text-secondary);font-size:11px;text-transform:uppercase;letter-spacing:0.05em;margin-right:6px;">${COPY.spotMapEditor.preferred}</span>${parts.join(sep)}`;
     }
     container.appendChild(summary);
 
@@ -245,7 +246,7 @@ export function renderStudioFloorPlan(container, layoutSlots, initialSlots, init
         badge.setAttribute('aria-hidden', 'true');
         badge.style.cssText = 'position:absolute;top:-6px;right:-6px;min-width:15px;height:15px;padding:0 3px;border-radius:999px;background:var(--feat-autoupgrade);color:#fff;font-size:9px;line-height:15px;font-weight:800;text-align:center;box-shadow:0 0 0 2px var(--surface);box-sizing:border-box;';
         el.appendChild(badge);
-        el.title = `Spot ${label} — preference #${n}`;
+        el.title = formatCopyText(COPY.spotMapEditor.preferredPriority, { label, priority: n });
       };
 
       if (isCurrent) {
@@ -253,13 +254,13 @@ export function renderStudioFloorPlan(container, layoutSlots, initialSlots, init
         el.style.border = '2px dashed var(--feat-autoupgrade)';
         el.style.color = 'var(--feat-autoupgrade)';
         el.textContent = short;
-        el.title = `Spot ${label} (Your current seat)`;
+        el.title = formatCopyText(COPY.spotMapEditor.currentSeat, { label });
         if (priority > 0) {
           el.style.background = 'var(--feat-autoupgrade)';
           el.style.border = '2px dashed #fff';
           el.style.color = '#fff';
           withPriorityBadge(priority);
-          el.title = `Spot ${label} — preference #${priority} (your current seat)`;
+          el.title = formatCopyText(COPY.spotMapEditor.currentPreferredPriority, { label, priority });
         }
       } else if (priority > 0) {
         el.style.background = 'var(--feat-autoupgrade)';
@@ -268,7 +269,7 @@ export function renderStudioFloorPlan(container, layoutSlots, initialSlots, init
         withPriorityBadge(priority);
         if (hasAvailability && !isAvailable) {
           el.style.boxShadow = '0 0 0 2px var(--danger)';
-          el.title = `Spot ${label} (Occupied but preferred)`;
+          el.title = formatCopyText(COPY.spotMapEditor.occupiedPreferredSeat, { label });
         }
       } else if (inRow) {
         el.style.background = 'color-mix(in srgb, var(--info) 25%, transparent)';
@@ -309,7 +310,7 @@ export function renderStudioFloorPlan(container, layoutSlots, initialSlots, init
     // `obj.label` comes from NormalizedLayoutObject; providers that don't name
     // their fixtures fall back to the historic "P" / "Podium" pair.
     layoutObjects.forEach(obj => {
-      const objLabel = obj.label || 'Podium';
+      const objLabel = obj.label || COPY.spotMapEditor.podium;
       const el = document.createElement('div');
       el.style.cssText = `position:absolute;left:${pxX(obj.x)}px;top:${pxY(obj.y)}px;transform:translate(-50%,-50%);width:${SLOT_SIZE + 14}px;height:${SLOT_SIZE}px;border-radius:6px;display:flex;align-items:center;justify-content:center;font-size:12px;font-weight:700;background:var(--text-secondary);color:var(--bg);user-select:none;pointer-events:none;box-sizing:border-box;z-index:1;`;
       el.textContent = objLabel[0].toUpperCase();
@@ -329,7 +330,9 @@ export function renderStudioFloorPlan(container, layoutSlots, initialSlots, init
         const btn = document.createElement('button');
         btn.style.cssText = `position:absolute;left:${rowBtnX}px;top:${pxY(midY)}px;transform:translate(-50%,-50%);width:26px;height:26px;padding:0;border-radius:50%;background:${isOn ? 'color-mix(in srgb, var(--info) 30%, transparent)' : 'color-mix(in srgb, var(--text) 8%, transparent)'};border:1px solid ${isOn ? 'color-mix(in srgb, var(--info) 50%, transparent)' : 'color-mix(in srgb, var(--text) 15%, transparent)'};color:${isOn ? 'var(--info)' : 'var(--text-secondary)'};font-size:16px;font-weight:700;cursor:pointer;display:flex;align-items:center;justify-content:center;transition:all 0.1s;z-index:2;`;
         btn.textContent = isOn ? '−' : '+';
-        btn.title = isOn ? `Remove Row ${idx + 1}` : `Add Row ${idx + 1}`;
+        btn.title = isOn
+          ? formatCopyText(COPY.timetable.removeRow, { row: idx + 1 })
+          : formatCopyText(COPY.timetable.addRow, { row: idx + 1 });
         btn.addEventListener('click', (e) => {
           e.stopPropagation();
           if (selectedRows.has(y)) selectedRows.delete(y);
@@ -344,7 +347,7 @@ export function renderStudioFloorPlan(container, layoutSlots, initialSlots, init
     if (floorW > scroll.clientWidth + 1 || floorH > scroll.clientHeight + 1) {
       const panHint = document.createElement('div');
       panHint.style.cssText = 'font-size:11px;color:var(--text-tertiary);font-style:italic;margin:-4px 0 10px;text-align:center;';
-      panHint.textContent = 'Drag to pan the map';
+      panHint.textContent = COPY.spotMapEditor.dragToPan;
       container.appendChild(panHint);
     }
 
@@ -362,7 +365,7 @@ export function renderStudioFloorPlan(container, layoutSlots, initialSlots, init
     if (editing) {
       const hint = document.createElement('div');
       hint.style.cssText = 'font-size:12px;color:var(--text-secondary);font-style:italic;margin-bottom:12px;';
-      hint.innerHTML = 'Click on the spots to set your priority order. Click the <strong>+</strong> button on the right to prefer entire rows.';
+      hint.innerHTML = COPY.spotMapEditor.editInstructionHtml;
       container.appendChild(hint);
     }
 
@@ -382,7 +385,7 @@ export function renderStudioFloorPlan(container, layoutSlots, initialSlots, init
       const clearBtn = document.createElement('button');
       clearBtn.className = 'psycle-btn';
       clearBtn.style.cssText = 'flex:1;background:color-mix(in srgb, var(--text) 6%, transparent);border:1px solid color-mix(in srgb, var(--text) 12%, transparent);color:var(--text);';
-      clearBtn.textContent = 'Clear Preferences';
+      clearBtn.textContent = COPY.spotMapEditor.clearPreferences;
       clearBtn.onclick = () => { selectedSlots.length = 0; selectedRows.clear(); render(); };
       actions.appendChild(clearBtn);
     }
@@ -390,7 +393,7 @@ export function renderStudioFloorPlan(container, layoutSlots, initialSlots, init
     const saveBtn = document.createElement('button');
     saveBtn.className = 'psycle-btn';
     saveBtn.style.cssText = `flex:${onDisable && !hideClear ? '1' : '2'};background:var(--feat-autoupgrade);color:#fff;`;
-    saveBtn.textContent = mapChanged() ? `Save map and ${saveLabel}` : saveLabel;
+    saveBtn.textContent = mapChanged() ? `${COPY.spotMapEditor.saveMapAnd} ${saveLabel}` : saveLabel;
     saveBtn.onclick = () => onSave([...selectedSlots], [...selectedRows], container);
 
     actions.appendChild(saveBtn);

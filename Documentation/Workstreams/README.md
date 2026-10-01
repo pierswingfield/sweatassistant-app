@@ -35,6 +35,8 @@ still open.
 | [C6](C6-accounts-auth.md) | Accounts and auth | P2 | ~2–3 days |
 | [C7](C7-platform-ops.md) | Platform, ops and security hardening | P1 (pre-launch subset), P2–P3 (rest) | ~1 day pre-launch, then ~1 week |
 | [C8](C8-admin-panel-and-insights.md) | Admin panel, fleet intelligence, attendance & ops | P2 | ~1.5–2 weeks |
+| [C9](C9-gym-onboarding.md) | Gym onboarding: provider reuse, tenant evidence and activation gates | P1 | Ongoing playbook |
+| [C10](C10-aarmy-integration-acceptance.md) | Aarmy integration acceptance | **P0** | Outstanding live acceptance |
 
 ### UX / design
 
@@ -67,9 +69,11 @@ still open.
 6. **C2 phase 2 (efficient reads).** `/events` v2, `/heartbeat` cache invalidation, `/profile`
    dedupe. Deliberately after launch so the upstream traffic shape changes in a separate deploy.
 7. **C5 Auto-book gaps** (Favourites build last, P3), then **C6 Accounts and auth**.
-8. **U2 Components and accessibility**, then **U3 CSS debt.** U3 waits until after launch because it
+8. **C10 Aarmy acceptance** only when an Aarmy activation is intended; C9 remains the standard
+   onboarding path for future tenants.
+9. **U2 Components and accessibility**, then **U3 CSS debt.** U3 waits until after launch because it
    touches every screen and would invalidate acceptance screenshots.
-9. **F Future features**, plus the rest of C7.
+10. **F Future features**, plus the rest of C7.
 
 Added 2026-09-29: **U4** UX improvements (after the current U1 batch, before U3), **U1-11..U1-16** (current to-do), **F-7** gym config editor, **F-8** MarianaTek profile explorer, **F-9** Gemini-powered booking/checking assistant, **F-10** Home/Dashboard page, **F-11** class counts/stats/insights, **F-12** gym-neutral favourites, **F-13** calendar/weekly view of bookings, **F-14** SoulCycle gym integration, and **F-15** instructor photo proxy and cache.
 
@@ -122,9 +126,9 @@ These were still listed as open in the old docs. The code shows them done.
 
 ## How to use this folder
 
-- Gym integration material: [onboarding playbook](gym-onboarding-playbook.md) and the
-  [Aarmy trial report](aarmy-integration-trial-report.md). The trial report is evidence for
-  Aarmy only; it does not authorise activation or deployment.
+- Gym integration material: [C9 — Gym onboarding](C9-gym-onboarding.md) is the authoritative
+  reusable process and evidence record. [C10 — Aarmy integration acceptance](C10-aarmy-integration-acceptance.md)
+  holds its P0 tenant-specific steps and does not authorise activation or deployment.
 
 - Change status **here only**: tick the item or add a dated note. Don't revive the archived files.
 - New work goes into the matching workstream. For a large design, write a spec file in this folder

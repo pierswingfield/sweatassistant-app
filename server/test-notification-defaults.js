@@ -52,13 +52,13 @@ check('the config default, not the window kind, is what is read', () => {
   assert.strictEqual(isRollingWeekly(getGymConfig(JAB)), false);
 });
 
-check('a member can override either gym in either direction', () => {
+check('a member can opt OUT of a periodic gym; a rolling gym stays off even if opted in', () => {
   const uid = twoGymUser();
   db.setUserSettings(uid, {
     notifications: { bookingWindow: { enabled: true, byGym: { [JAB]: true, [PSYCLE]: false } } },
   });
-  assert.strictEqual(notifications.bookingWindowEnabledForGym(uid, JAB), true,
-    'opting IN to a rolling gym\'s reminder must be possible');
+  assert.strictEqual(notifications.bookingWindowEnabledForGym(uid, JAB), false,
+    'a rolling gym\'s reminder is ALWAYS off, even with a stored opt-in');
   assert.strictEqual(notifications.bookingWindowEnabledForGym(uid, PSYCLE), false,
     'opting OUT of a weekly gym\'s reminder must be possible');
 });

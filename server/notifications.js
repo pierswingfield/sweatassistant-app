@@ -37,11 +37,15 @@ function bookingWindowEnabledForGym(userId, gymId) {
   const prefs = getPrefs(userId);
   if (!prefs.bookingWindow.enabled) return false;
 
+  const cfg = getGymConfig(gymId);
+  if (!cfg) return false;
+  // A rolling / per-class window has no single periodic release to announce: ALWAYS off,
+  // whatever the member's stored override (the UI shows the control disabled).
+  if (!isRollingWeekly(cfg)) return false;
+
   const override = (prefs.bookingWindow.byGym || {})[gymId];
   if (typeof override === 'boolean') return override;
 
-  const cfg = getGymConfig(gymId);
-  if (!cfg) return false;
   if (typeof cfg.notifications?.bookingWindowReminder === 'boolean') {
     return cfg.notifications.bookingWindowReminder;
   }

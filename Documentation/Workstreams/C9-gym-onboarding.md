@@ -54,6 +54,10 @@ protocol.
 7. **Activate separately.** Record read acceptance, policy evidence and explicitly authorised
    write coverage (or a waiver), then obtain a production enable/deploy decision and repeat the
    target-environment browser check. An enable variable is never acceptance by itself.
+8. **Warm instructor photos.** After adding or enabling a gym on a deployed environment, run
+   `docker exec <container> node server/scripts/warm-instructor-photos.js` (all enabled gyms) or
+   `... warm-instructor-photos.js --gym <gymId>` (one gym, e.g. `--gym aarmy`) so photos are
+   cached before first use. Exit code 1 means some photos failed; the failures are listed.
 
 ## Required evidence and acceptance
 

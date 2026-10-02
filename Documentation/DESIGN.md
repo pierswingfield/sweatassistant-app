@@ -104,13 +104,25 @@ Auto-Upgrade.
 | `--auto-banner` | `#5a3e63` | `#5a3e63` | Filled banner surface (white text) |
 | `--on-auto` | `#ffffff` | `#ffffff` | Text/icon on the filled `--auto-banner` |
 
+### 3.6c Dark-mode interactive colour: blue (decision 2026-10-02)
+
+In **dark mode, interactive primary and selected states are blue; clay is brand-only** (logo, feature identity such as `--feat-autobook`). Light mode is unchanged (clay). Supersedes the "avoids cold blues" note and the `#402418` dark button value.
+
+| Token | Dark | Light | Usage |
+|---|---|---|---|
+| `--accent` | `--info` 75% + white (~`#88bcfb`) | `#c9785c` | Interactive text, borders, tints, focus rings |
+| `--accent-fill` / `--on-accent-fill` | `#256996` / `#ffffff` | `--accent` / `--on-accent` | Filled controls: toggles, checkboxes, segmented, primary buttons |
+| `--cta-book/-wait/-auto`, `--on-cta` | blue family, Waitlist/Auto-Book darker | accent family | Timetable row CTAs |
+| `--nav-active*` | blue tint | clay | Active nav (settings menu, week strip) |
+| `--brand-clay` | `#d2876b` | `#c9785c` | Logo / brand only |
+
 ### 3.6b Timetable Redesign & Button Styles
 
 To support the mid-2026 timetable button visual clean-up, the following variables and colors are established. These styles prioritize borderless designs and clear typographic contrasts.
 
 | Token | Dark | Light | Target / Component |
 |---|---|---|---|
-| `--accent-btn-bg` | `#402418` | `var(--accent)` | Background of Book and Quick-Book primary action buttons |
+| `--accent-btn-bg` | `#256996` | `var(--accent)` | Background of Book and Quick-Book primary action buttons (dark value `#402418` is superseded, see 3.6c) |
 | `--on-accent-button` | `#e8a287` | `#FEF1E9` | Text/cog on Book and Quick-Book buttons |
 | `--on-auto-pill` | `#c9aed6` | `#E2D1DD` | Text/cog on Scheduled Auto-Book button and status badge |
 | `--auto-not-scheduled` | `#3d2642` | `#D2BDD9` | Background of Auto-Book button when NOT scheduled |

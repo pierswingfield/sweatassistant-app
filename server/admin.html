@@ -372,6 +372,7 @@
       <div><label for="ge-full">Full wordmark path (/gyms/...)</label><input id="ge-full"></div>
       <div><label for="ge-compact">Compact wordmark path</label><input id="ge-compact"></div>
       <div><label for="ge-mark">Mark path</label><input id="ge-mark"></div>
+      <div><label><input type="checkbox" id="ge-squaremark"> Use the mark in square/narrow chips (for very wide wordmarks)</label></div>
       <div><label for="ge-plate">Logo plate colour</label><input id="ge-plate" placeholder="#rrggbb"></div>
       <div><label>Light: ink / inkHover / tint / on / btn / wash / pip</label><div class="ge-colors" id="ge-light"></div></div>
       <div><label>Dark: ink / inkHover / tint / on / btn / wash / pip</label><div class="ge-colors" id="ge-dark"></div></div>
@@ -1167,6 +1168,7 @@
     geEl('ge-short').value = p.shortName || '';
     geEl('ge-text').value = (p.wordmark && p.wordmark.text) || '';
     for (const k of ['full', 'compact', 'mark']) geEl('ge-' + k).value = (p.wordmark && p.wordmark[k] && p.wordmark[k].src) || '';
+    geEl('ge-squaremark').checked = !!(p.wordmark && p.wordmark.squareMark);
     geEl('ge-plate').value = p.plate || '';
     document.querySelectorAll('#gym-editor .ge-colors input').forEach(i => { i.value = (p[i.dataset.mode] || {})[i.dataset.key] || ''; });
     geEl('ge-aliases').value = JSON.stringify(p.displayAliases || {}, null, 2);
@@ -1177,6 +1179,7 @@
   function geRead() {
     const wordmark = { text: geEl('ge-text').value };
     for (const k of ['full', 'compact', 'mark']) { const v = geEl('ge-' + k).value.trim(); if (v) wordmark[k] = { src: v }; }
+    if (geEl('ge-squaremark').checked) wordmark.squareMark = true;
     const p = { shortName: geEl('ge-short').value, wordmark, plate: geEl('ge-plate').value.trim(), light: {}, dark: {} };
     document.querySelectorAll('#gym-editor .ge-colors input').forEach(i => { const v = i.value.trim(); if (v) p[i.dataset.mode][i.dataset.key] = v; });
     p.displayAliases = JSON.parse(geEl('ge-aliases').value || '{}');

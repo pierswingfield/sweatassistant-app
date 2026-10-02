@@ -331,7 +331,14 @@ class MarianaTekProvider extends GymProvider {
     const res = await this.request('/me/credits', { token: session.accessToken });
     if (!res.ok) throw new Error(`getCredits failed: ${res.status}`);
     const data = await res.json();
-    return data.results || [];
+    // Normalised like CodexFit's (the client's credit arithmetic reads `count`), raw fields kept.
+    return (data.results || []).map((c) => ({
+      ...c,
+      typeId: c.product_id != null ? String(c.product_id) : undefined,
+      typeName: c.name || c.product_name || 'Credits',
+      count: c.is_expired === true ? 0 : (Number(c.count ?? c.credits_remaining) || 0),
+      expiresAt: c.expiration_datetime || c.expires_at || undefined,
+    }));
   }
 
   /** GET /me/memberships -> raw memberships (empty array if none). */
@@ -388,9 +395,10 @@ class MarianaTekProvider extends GymProvider {
       this.getCredits(session).catch(() => []),
     ]);
     if (membership?.isActive) return { canBook: true, expiresAt: membership.expiresAt };
-    const hasCredits = credits.some((c) => Number(c.credits_remaining ?? 0) > 0);
+    const hasCredits = credits.some((c) => Number(c.count ?? c.credits_remaining ?? 0) > 0);
     if (hasCredits) return { canBook: true };
-    return { canBook: false, reason: 'No active membership or credits' };
+    // A credit-metered gym is credits-only: don't emit membership wording for it.
+    return { canBook: false, reason: this.gym?.capabilities?.metered ? 'No credits' : 'No active membership or credits' };
   }
 
   // --- Timetable & layout (WP-M2) --------------------------------------------

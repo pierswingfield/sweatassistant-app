@@ -290,11 +290,13 @@ const GYMS = {
       shortName: 'Aarmy',
       wordmark: {
         text: 'AARMY',
-        full: { src: '/gyms/aarmy-logo.png' },
-        compact: { src: '/gyms/aarmy-logo.png' },
-        mark: { src: '/gyms/aarmy-mark.png' },
+        full: { src: '/gyms/aarmy-logo.png?v=2' },
+        compact: { src: '/gyms/aarmy-logo.png?v=2' },
+        mark: { src: '/gyms/aarmy-mark.png?v=2' },
+        logoWidth: 60, // px width of the (wide) wordmark inside table chips; chips widen to fit (see gymChip)
+        squareMark: true, // wide wordmark: use the mark in square/narrow chips (header badge, settings nav, card rail)
       },
-      plate: '#FFFFFF',
+      plate: '#111111', // dark plate + WHITE wordmark/mark, like Psycle and JAB
       light: { ink: '#000000', inkHover: '#27272A', tint: '#000000', on: '#FFFFFF', btn: '#000000', wash: 'rgba(0,0,0,0.06)' },
       dark: { ink: '#FFFFFF', inkHover: '#E4E4E7', tint: '#FFFFFF', on: '#000000', btn: '#FFFFFF', wash: 'rgba(255,255,255,0.10)' },
       displayAliases: {},
@@ -305,13 +307,15 @@ const GYMS = {
     // absent, preserving any membership-specific release in normal operation.
     bookingWindow: {
       kind: 'per-class',
+      // Shown in Settings -> gym -> Booking Window. 'ET' not 'EST' (DST). All 475 observed classes release Mon 11:00 America/New_York.
+      summary: 'Booking opens 11:00 AM ET on Mondays. There is nothing to configure.',
       fallback: { kind: 'rolling-continuous', offsetDays: 14 },
     },
     capabilities: {
       atomicSwap: true,
       nativeWaitlist: true,
-      metered: false,
-      creditPurchase: false,
+      metered: true,            // credits-only gym: classes draw from a credit balance (like Psycle)
+      creditPurchase: false,    // no confirmed in-app purchase API for MarianaTek
       bookmarks: false,
       bookingWindow: 'per-class',
       maxSpotsPerClass: 1,
@@ -343,6 +347,8 @@ function validatePresentation(p, gymId = '?') {
   if (!w || typeof w !== 'object') bad('.wordmark is required');
   if (!str(w.text)) bad('.wordmark.text (text fallback) must be a non-empty string');
   if (w.scale != null && !(typeof w.scale === 'number' && w.scale >= 0.5 && w.scale <= 1.5)) bad('.wordmark.scale must be a number between 0.5 and 1.5');
+  if (w.logoWidth != null && !(typeof w.logoWidth === 'number' && w.logoWidth >= 20 && w.logoWidth <= 140)) bad('.wordmark.logoWidth must be a number between 20 and 140');
+  if (w.squareMark != null && typeof w.squareMark !== 'boolean') bad('.wordmark.squareMark must be a boolean');
   for (const k of ['full', 'compact', 'mark']) {
     if (w[k] == null) continue;
     if (!w[k] || !str(w[k].src) || !/^\/gyms\/[\w.\-]+(\?[\w=&.\-]*)?$/.test(w[k].src)) {
@@ -373,7 +379,11 @@ function validatePresentation(p, gymId = '?') {
   return p;
 }
 
-for (const g of Object.values(GYMS)) validatePresentation(g.presentation, g.id);
+for (const g of Object.values(GYMS)) {
+  validatePresentation(g.presentation, g.id);
+  const s = g.bookingWindow && g.bookingWindow.summary;
+  if (s != null && (typeof s !== 'string' || s.trim() === '')) throw new Error(`gym ${g.id}: bookingWindow.summary must be a non-empty string when present`);
+}
 
 // --- Editable presentation (F-7 Stage B) -------------------------------------
 // Only the presentation contract is editable at runtime; protocol, tenant URLs,

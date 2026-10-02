@@ -206,6 +206,8 @@ router.get('/gyms', (req, res) => {
     theme: g.theme, labels: g.labels, capabilities: g.capabilities,
     locationAliases: g.locationAliases || {},
     presentation: g.presentation,
+    // Optional human summary of the gym's booking window (gym config bookingWindow.summary).
+    bookingWindowSummary: (g.bookingWindow && g.bookingWindow.summary) || null,
     // Per-gym notification DEFAULTS, so the settings UI can show the state a
     // member actually gets before they override anything.
     notifications: g.notifications || {},

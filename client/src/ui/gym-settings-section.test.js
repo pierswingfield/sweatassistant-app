@@ -63,6 +63,16 @@ describe('renderGymSettingsSection', () => {
     expect(root.querySelector('[data-gym-action="buy-credits"]')).toBeNull();
   });
 
+  it('prefers the gym\'s own booking-window summary over the shared per-class text', () => {
+    const root = document.createElement('div');
+    renderGymSettingsSection(root, {
+      gym: { ...baseGym, capabilities: { bookingWindow: 'per-class' }, bookingWindowSummary: 'Booking opens 11:00 AM ET on Mondays. There is nothing to configure.' },
+      settings: {}, membership: null, calendar: {},
+    });
+    expect(root.textContent).toContain('Booking opens 11:00 AM ET on Mondays');
+    expect(root.textContent).not.toContain('Published per class');
+  });
+
   it('binds actions and per-gym setting changes', () => {
     const root = document.createElement('div');
     const onAction = vi.fn();

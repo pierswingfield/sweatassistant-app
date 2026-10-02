@@ -416,7 +416,9 @@ check('marianatek: getCredits/getMemberships unwrap the DRF results envelope', a
   const credits = await withStub(mt, 'request',
     async () => fakeRes({ results: [{ id: 'c1', count: 3 }] }),
     () => mt.getCredits({ accessToken: 'tok' }));
-  assert.deepStrictEqual(credits, [{ id: 'c1', count: 3 }], 'credits = data.results');
+  assert.strictEqual(credits.length, 1, 'credits = data.results');
+  assert.strictEqual(credits[0].id, 'c1');
+  assert.strictEqual(credits[0].count, 3);
   const emptyMemberships = await withStub(mt, 'request',
     async () => fakeRes({ results: [] }),
     () => mt.getMemberships({ accessToken: 'tok' }));

@@ -116,7 +116,9 @@ export function renderGymSettingsSection(container, model, handlers = {}) {
   const needsRelogin = status === 'needs_relogin';
   const statusLabel = needsRelogin ? COPY.auth.reauthenticationNeeded : (status === 'active' ? COPY.gyms.connected : status);
   const bookingKind = gym.capabilities?.bookingWindow;
-  const windowDescription = bookingKind === 'per-class'
+  const windowDescription = gym.bookingWindowSummary
+    ? gym.bookingWindowSummary
+    : bookingKind === 'per-class'
     ? COPY.gymSettings.publishedBookingWindow
     : model.bookingWindowText || COPY.gymSettings.detectingMembership;
 

@@ -731,7 +731,7 @@ class CodexFitProvider extends GymProvider {
       // as the RUNNING MACHINE's local zone, which is wrong on any server not
       // itself in that zone and silently drifts across DST transitions.
       durationMin: e.duration,
-      endAt: e.start_at && e.duration ? DateTime.fromISO(e.start_at, { zone: timeZone }).plus({ minutes: e.duration }).toISO({ suppressMilliseconds: true }) : undefined,
+      endAt: e.start_at && e.duration ? DateTime.fromISO(e.start_at, { zone: timeZone }).plus({ minutes: e.duration }).toISO() : undefined,
       locationId: e.location_id || (e.studio && e.studio.location_id) || (e.studio && e.studio.location && e.studio.location.id),
       locationName: e.studio && e.studio.location && e.studio.location.name,
       locationAddress: e.studio && e.studio.location && e.studio.location.address,

@@ -163,7 +163,7 @@ check('codexfit: fetchEventDetails resolves id-referenced relations (real API sh
     () => cf.fetchEventDetails('207551', { accessToken: 'tok' }));
   assert.strictEqual(event.name, 'RIDE: 2000s Throwbacks 45');
   assert.strictEqual(event.discipline, 'Ride');
-  assert.strictEqual(event.startAt, '2026-07-07T06:30:00');
+  assert.strictEqual(event.startAt, '2026-07-07T06:30:00+01:00');
   assert.strictEqual(event.endAt, '2026-07-07T07:15:00.000+01:00', 'endAt computed via Luxon in Europe/London (BST +01:00 in July), not bare Date arithmetic');
   assert.strictEqual(event.studioName, 'Ride Studio 1');
   assert.strictEqual(event.locationName, 'Psycle Oxford Circus');
@@ -225,7 +225,7 @@ check('codexfit: listBookings resolves event via the top-level relations block (
   assert.strictEqual(bookings[0].slotId, '5', 'slot is a bare number on the real API, not studio_slot.id');
   assert.ok(bookings[0].event, 'event resolved via the relations join');
   assert.strictEqual(bookings[0].event.name, 'RIDE: Signature 45', 'name falls back to the resolved event_type name');
-  assert.strictEqual(bookings[0].event.startAt, '2026-07-06T10:00:00');
+  assert.strictEqual(bookings[0].event.startAt, '2026-07-06T10:00:00+01:00'); // naive local + gym zone offset
   assert.strictEqual(bookings[0].event.studioName, 'Ride Studio 1');
   assert.strictEqual(bookings[0].event.locationName, 'Psycle Oxford Circus');
   assert.strictEqual(bookings[0].event.instructors[0].name, 'Shani');
@@ -361,7 +361,7 @@ check('marianatek: mapClassToEvent maps a real pick-a-spot class (classes-list.j
   assert.strictEqual(e.studioName, raw.classroom.name, 'studioName = classroom.name');
   assert.strictEqual(e.locationId, String(raw.location.id), 'locationId = location.id (building)');
   assert.strictEqual(e.locationName, raw.location.name, 'locationName = location.name');
-  assert.strictEqual(e.startAt, raw.start_datetime, 'startAt = start_datetime');
+  assert.strictEqual(new Date(e.startAt).getTime(), new Date(raw.start_datetime).getTime(), 'startAt = start_datetime (same instant, gym-local offset)');
   assert.strictEqual(e.releaseAt, raw.booking_start_datetime, 'releaseAt = booking_start_datetime (§1H)');
   assert.strictEqual(e.layoutFormat, 'pick-a-spot', 'layout_format passthrough');
   assert.strictEqual(e.availableCount, raw.available_spot_count, 'availableCount = available_spot_count');
@@ -372,7 +372,7 @@ check('marianatek: mapClassToEvent computes endAt from class_type.duration (minu
   const raw = readFixture('classes-list.json').results[0];
   const e = mt.mapClassToEvent(raw);
   const expectedEnd = new Date(new Date(raw.start_datetime).getTime() + raw.class_type.duration * 60000).toISOString();
-  assert.strictEqual(e.endAt, expectedEnd, 'endAt = start + duration minutes');
+  assert.strictEqual(new Date(e.endAt).toISOString(), expectedEnd, 'endAt = start + duration minutes (same instant, zoned ISO)');
 });
 
 check('marianatek: mapLayoutToSlots maps the full 40-spot pick-a-spot layout', () => {
@@ -598,7 +598,7 @@ check('both platforms return the identical metadata shape', async () => {
   // platform's fixtures happen to populate. `prune` drops undefined keys, so a
   // mock without addresses would otherwise make a real contract look violated.
   const ALLOWED = {
-    locations: ['id', 'name', 'address'],
+    locations: ['id', 'name', 'address', 'timeZone'],
     studios: ['id', 'name', 'locationId', 'locationName', 'hasLayout'],
     instructors: ['id', 'name', 'imageUrl'],
     classTypes: ['id', 'name', 'group'],

@@ -799,3 +799,8 @@ Official demo of Universal Authentication flow.
 | `me/appointments-bookings-create` for booking appointments | `marianatek-pp-cli` | ❌ Not in official docs |
 | OpenAPI 3.0.3 schema at `docs.marianatek.com/api/customer/v1/schema/` | `marianatek-pp-cli` readme | ✅ Official (referenced as spec source) |
 | `available_spot_count` and `waitlist_count` on class sessions | Community | ✅ Official |
+
+
+## Timezone
+
+A class carries `start_datetime` (UTC, `Z`), `start_time` (local) and `location.timezone` (IANA, also on `/locations`). The adapter resolves config location override -> `location.timezone` -> gym `timezone`, and emits `startAt` as an offset-bearing ISO in that zone plus `timeZone`, so a 14:15Z Aarmy class displays as 09:15 (not 14:15).

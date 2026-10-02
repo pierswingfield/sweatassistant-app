@@ -88,7 +88,7 @@ class MarianaTekProvider extends GymProvider {
   async request(path, { token, method = 'GET', body } = {}) {
     if (token === MOCK_TOKEN) {
       const { handleMockRequest } = require('../mock-marianatek');
-      return handleMockRequest(path, method, body);
+      return handleMockRequest(path, method, body, this.gym);
     }
     const opts = { method, headers: this.buildHeaders(token) };
     if (body && ['POST', 'PUT', 'PATCH', 'DELETE'].includes(method)) {

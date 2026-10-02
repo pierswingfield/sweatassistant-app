@@ -154,6 +154,27 @@ check('every configured gym declares the capability flags the UI gates on', () =
   }
 });
 
+// --- timezone: no literal zone outside the gym config ------------------------
+
+check("no literal 'Europe/London' outside gyms.config.js, booking-window defaults and the .ics VTIMEZONE", () => {
+  const files = appModules().map((m) => ({ ...m, name: m.name }));
+  const provDir = path.join(SERVER_DIR, 'providers');
+  for (const f of fs.readdirSync(provDir).filter((x) => x.endsWith('.js'))) {
+    files.push({ name: `providers/${f}`, src: fs.readFileSync(path.join(provDir, f), 'utf8') });
+  }
+  const offenders = [];
+  for (const { name, src } of files) {
+    if (name === 'providers/booking-window.js') continue; // policy-zone defaults
+    stripComments(src).split('\n').forEach((line, i) => {
+      if (!/Europe\/London/.test(line)) return;
+      if (name === 'calendar.js' && /TZID|X-WR-TIMEZONE|zoneName ===/.test(line)) return; // the feed's one VTIMEZONE
+      offenders.push(`${name}:${i + 1}`);
+    });
+  }
+  assert.deepStrictEqual(offenders, [],
+    "a literal 'Europe/London' is a gym's zone hardcoded; resolve it via providers/timezone.js: " + offenders.join(', '));
+});
+
 // --- run --------------------------------------------------------------------
 
 let passed = 0;

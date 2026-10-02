@@ -179,3 +179,36 @@ describe('isFullWithoutWaitlist', () => {
     expect(isFullWithoutWaitlist(null)).toBe(false);
   });
 });
+
+// ─── Gym-local time display (formatInZone / dayKeyInZone / zoneSuffix) ───────
+import { formatInZone as _fmtZ, dayKeyInZone as _dayZ, zoneSuffix as _sufZ, nowInZone as _nowZ } from './lib';
+describe('gym-local time display', () => {
+  const NY = 'America/New_York';
+  it('shows the gym-local clock time, not the instant in another zone (Aarmy 09:15 not 14:15)', () => {
+    expect(_fmtZ('2026-01-12T14:15:00Z', NY, 'Europe/London').time).toBe('09:15');
+    expect(_fmtZ('2026-01-12T09:15:00-05:00', NY, 'Europe/London').time).toBe('09:15');
+  });
+  it('adds a short suffix only when the device zone differs at that instant', () => {
+    const away = _fmtZ('2026-01-12T14:15:00Z', NY, 'Europe/London');
+    expect(away.suffix).toMatch(/E[SD]?T/);
+    expect(away.timeLabel).toBe(`09:15 ${away.suffix}`);
+    const same = _fmtZ('2026-07-01T19:30:00+01:00', 'Europe/London', 'Europe/London');
+    expect(same.suffix).toBe('');
+    expect(same.timeLabel).toBe('19:30');
+  });
+  it('compares by offset at the instant, so equal-offset zones show no suffix', () => {
+    expect(_sufZ('2026-01-12T14:15:00Z', NY, 'America/Toronto')).toBe('');
+  });
+  it('DST boundary: London class on the clocks-forward day, New York either side', () => {
+    expect(_fmtZ('2026-03-29T19:30:00+01:00', 'Europe/London', 'Europe/London').time).toBe('19:30');
+    expect(_fmtZ('2026-03-08T14:15:00Z', NY, 'UTC').time).toBe('10:15');
+    expect(_fmtZ('2026-03-07T14:15:00Z', NY, 'UTC').time).toBe('09:15');
+  });
+  it('dayKeyInZone groups by the gym-local day (late NY class is still that day)', () => {
+    expect(_dayZ('2026-01-13T02:30:00Z', NY)).toBe('2026-01-12');
+    expect(_dayZ('2026-01-13T02:30:00Z', 'Europe/London')).toBe('2026-01-13');
+  });
+  it('nowInZone returns a DateTime in that zone', () => {
+    expect(_nowZ(NY).zoneName).toBe(NY);
+  });
+});

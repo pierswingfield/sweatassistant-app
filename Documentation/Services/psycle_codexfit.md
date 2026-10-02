@@ -461,3 +461,8 @@ Because there is no atomic spot-swap or spot-update API, changing a spot (manual
 2. `POST /bookings` with the new target slot ID.
 
 This introduces a brief race window where the original spot is gone, but the new spot might fail to book (taken by another user, network error, or credit failure). Within 12 hours of the class start, the cancellation also forfeits the credit unless special parameters are read by the server (unverified).
+
+
+## Timezone
+
+CodexFit `start_at` is timezone-NAIVE local time and the API publishes no zone anywhere. The zone comes from `gyms.config.js` (`timezone`, optional `locationTimezones`); the adapter emits an offset-bearing ISO and `timeZone` (see `server/providers/timezone.js`).

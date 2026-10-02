@@ -21,9 +21,11 @@ function createFakeResponse(data, status = 200) {
   };
 }
 
+const { DateTime } = require('luxon');
+const DEFAULT_ZONE = require('./gyms.config').listGyms().find((g) => g.provider === 'marianatek').timezone; // the first MT gym's zone, from config
 const LOCATION = {
   id: '48751', name: 'SW1', address_line_one: 'Unit 5, Colonnade Walk, 151 Buckingham Palace Road',
-  city: 'London', currency_code: 'GBP', postal_code: 'SW1W9SZ', timezone: 'Europe/London',
+  city: 'London', currency_code: 'GBP', postal_code: 'SW1W9SZ', timezone: DEFAULT_ZONE,
   payment_gateway_type: 'stripe', region: { id: '48575', name: 'Southeast' },
 };
 
@@ -111,7 +113,7 @@ function bookedSpotsFor(classId) {
 // mock class was already open, so a JAB class could never be auto-booked in dev.
 const MOCK_ADVANCE_DAYS = 10;
 const FIRST_UNRELEASED_DAY = 11;
-function generateClasses() {
+function generateClasses(zone = DEFAULT_ZONE) {
   const classes = [];
   const now = new Date();
   for (let i = 0; i < 14; i++) {
@@ -121,20 +123,21 @@ function generateClasses() {
     const template = (dow === 0 || dow === 6) ? WEEKEND_SCHEDULE : WEEKDAY_SCHEDULE;
 
     template.forEach(([time, classType, room, layoutFormat], slotIdx) => {
-      const startMs = Date.parse(`${iso}T${time}:00Z`);
+      const startMs = DateTime.fromISO(`${iso}T${time}:00`, { zone }).toMillis();
       const bookingStart = i >= FIRST_UNRELEASED_DAY
         ? new Date(startMs - MOCK_ADVANCE_DAYS * 864e5).toISOString()
         : new Date(now.getTime() - 864e5).toISOString();
       // Ids stay stable per (day, slot) across reloads — a queued auto-book
       // pointing at a class that no longer exists is not a state worth testing.
-      classes.push(mockClass(`${9000 + i * 10 + slotIdx}`, classType, iso, `${time}:00`, room, layoutFormat, bookingStart, i * 7 + slotIdx));
+      classes.push(mockClass(`${9000 + i * 10 + slotIdx}`, classType, iso, `${time}:00`, room, layoutFormat, bookingStart, i * 7 + slotIdx, zone));
     });
   }
   return classes;
 }
 
-function mockClass(id, classType, dateStr, timeStr, classroomName, layoutFormat, bookingStart, seedIdx = 0) {
-  const startDatetime = `${dateStr}T${timeStr}Z`;
+function mockClass(id, classType, dateStr, timeStr, classroomName, layoutFormat, bookingStart, seedIdx = 0, zone = DEFAULT_ZONE) {
+  // start_time/start_date are the gym-LOCAL clock; start_datetime is the true UTC instant, as the live API sends it.
+  const startDatetime = DateTime.fromISO(`${dateStr}T${timeStr}`, { zone }).toUTC().toISO({ suppressMilliseconds: true });
   const booked = bookedSpotsFor(id);
   const capacity = layoutFormat === 'pick-a-spot' ? 20 : 100;
   // Deterministic pre-booked occupancy so the list shows a realistic spread
@@ -158,7 +161,7 @@ function mockClass(id, classType, dateStr, timeStr, classroomName, layoutFormat,
     booking_start_datetime: bookingStart, capacity, available_spot_count: capacity - booked.size,
     class_type: classType, classroom: { id: `mock-room-${classroomName}`, name: classroomName },
     classroom_name: classroomName, instructors: [INSTRUCTORS[Number(id) % INSTRUCTORS.length]],
-    location: LOCATION, layout_format: layoutFormat, is_free_class: false, is_cancelled: false,
+    location: { ...LOCATION, timezone: zone }, layout_format: layoutFormat, is_free_class: false, is_cancelled: false,
     is_user_reserved: false, is_user_waitlisted: false, is_user_guest_reserved: false,
     class_tags: [], waitlist_count: null,
     spot_options: { primary_availability: capacity - booked.size, primary_capacity: capacity, waitlist_availability: 10, waitlist_capacity: 10 },
@@ -166,11 +169,14 @@ function mockClass(id, classType, dateStr, timeStr, classroomName, layoutFormat,
   };
 }
 
-let classCache = null;
+// Per-zone class cache: the mock serves whichever MarianaTek gym is calling (Aarmy = New York,
+// JAB = London) with that gym's own zone, so local clock times are the same but UTC instants differ.
+const classCaches = new Map();
+let activeZone = DEFAULT_ZONE;
 function getClasses() {
-  if (!classCache) classCache = generateClasses();
+  if (!classCaches.has(activeZone)) classCaches.set(activeZone, generateClasses(activeZone));
   // Recompute availability counts live (bookedSpotsByClass mutates over the session).
-  return classCache.map((c) => {
+  return classCaches.get(activeZone).map((c) => {
     const booked = bookedSpotsFor(c.id);
     return { ...c, available_spot_count: c.capacity - booked.size, spot_options: { ...c.spot_options, primary_availability: c.capacity - booked.size } };
   });
@@ -196,7 +202,8 @@ function makeReservation({ classId, spotId, reservationType, guestEmail }) {
   return reservation;
 }
 
-function handleMockRequest(pathName, method, body) {
+function handleMockRequest(pathName, method, body, gym) {
+  activeZone = (gym && gym.timezone) || DEFAULT_ZONE;
   console.log(`[Mock MarianaTek] Intercepted ${method} ${pathName}`);
   const [path, queryString] = pathName.split('?');
   const query = new URLSearchParams(queryString || '');
@@ -228,7 +235,7 @@ function handleMockRequest(pathName, method, body) {
 
   // GET /locations
   if (path === '/locations' && method === 'GET') {
-    return createFakeResponse({ count: 1, results: [LOCATION], meta: {}, links: {} });
+    return createFakeResponse({ count: 1, results: [{ ...LOCATION, timezone: activeZone }], meta: {}, links: {} });
   }
 
   // GET /me/account

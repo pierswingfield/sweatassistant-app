@@ -1,8 +1,9 @@
 import { debugLog } from './main.js';
 import { getDefaultGymId } from './gym-context.js';
-import { getCachedSWR, clearApiCache, setCacheKeyPrefix, invalidateApiCache } from './cache.js';
+import { getCachedSWR, clearApiCache, setCacheKeyPrefix, invalidateApiCache, getOfflineSnapshot, setOfflineSnapshot } from './cache.js';
 import { classifyAuthFailure } from './auth-failure.js';
 import { COPY, formatCopyText } from './copy.js';
+import { assertMutationNetworkAvailable, isOfflineForMutation } from './network-write-guard.js';
 
 // API Abstraction layer for communicating with the Psycle PWA server
 
@@ -13,6 +14,43 @@ function announceBookingMutation(detail) {
 }
 
 let localToken = localStorage.getItem('psycleLocalToken') || null;
+const offlineSnapshotMeta = new Map();
+
+function publishOfflineSnapshot(name, snapshot) {
+  offlineSnapshotMeta.set(name, snapshot.savedAt);
+  try { window.dispatchEvent(new CustomEvent('psycle-offline-snapshot', { detail: { name, savedAt: snapshot.savedAt } })); } catch (_) {}
+  return snapshot.data;
+}
+
+async function withOfflineSnapshot(name, readLive) {
+  // A 401/403 must never revive old private data. Only the app's explicit
+  // offline state permits a snapshot fallback.
+  const fromSnapshot = async () => {
+    const snapshot = await getOfflineSnapshot(name);
+    if (snapshot) return publishOfflineSnapshot(name, snapshot);
+    return null;
+  };
+  if (isOfflineForMutation()) {
+    const data = await fromSnapshot();
+    if (data !== null) return data;
+  }
+  try {
+    const data = await readLive();
+    offlineSnapshotMeta.delete(name);
+    setOfflineSnapshot(name, data);
+    return data;
+  } catch (err) {
+    if (isOfflineForMutation()) {
+      const data = await fromSnapshot();
+      if (data !== null) return data;
+    }
+    throw err;
+  }
+}
+
+export function getOfflineSnapshotSavedAt(name) {
+  return offlineSnapshotMeta.get(name) || null;
+}
 
 // Active gym context (WP-C1). Persisted per-account so the normalized API can
 // tell the server which linked gym a request is scoped to (via the `x-gym-id`
@@ -55,6 +93,7 @@ export function isLoggedIn() {
 // Global fetch wrapper with local auth and Cloudflare Zero Trust Access support
 export async function apiFetch(endpoint, options = {}) {
   const url = endpoint.startsWith('/') ? endpoint : `/${endpoint}`;
+  assertMutationNetworkAvailable(options.method, COPY.api.offlineMutationBlocked);
   
   const headers = {
     'accept': 'application/json',
@@ -253,19 +292,23 @@ export const api = {
 
   // Public gym registry + capability flags (for the Phase 5 gym picker).
   async getGyms() {
-    const res = await apiFetch('/api/gyms');
-    if (!res.ok) throw new Error('Failed to load gyms');
-    const data = await res.json();
-    return data.gyms || [];
+    return withOfflineSnapshot('gym-catalogue', async () => {
+      const res = await apiFetch('/api/gyms');
+      if (!res.ok) throw new Error('Failed to load gyms');
+      const data = await res.json();
+      return data.gyms || [];
+    });
   },
 
   // The gyms THIS account is linked to, plus which one is currently active.
   // `getGyms()` above is the public catalogue of everything configured; this is
   // the per-account view Settings → Your Gyms renders from.
   async getMyGyms() {
-    const res = await apiFetch('/api/my-gyms');
-    if (!res.ok) throw new Error('Failed to load your gyms');
-    return res.json(); // { gyms: [...], activeGymId }
+    return withOfflineSnapshot('my-gyms', async () => {
+      const res = await apiFetch('/api/my-gyms');
+      if (!res.ok) throw new Error('Failed to load your gyms');
+      return res.json(); // { gyms: [...], activeGymId }
+    });
   },
 
   // NOTE: `setActiveGym()` used to live here and is deliberately gone, along
@@ -371,6 +414,11 @@ export const api = {
   // MarianaTek has none of them and derives all four from its class list.
   // Returns { locations, studios, instructors, classTypes }.
   async getMetadata(params = {}) {
+    // The timetable cache also retains metadata, but this explicit snapshot is
+    // needed before the timetable has restored that cache (for example when a
+    // filter pane opens during an offline relaunch).
+    const snapshotName = `metadata:${params.startDate || ''}:${params.endDate || ''}`;
+    return withOfflineSnapshot(snapshotName, async () => {
     const qs = new URLSearchParams();
     if (params.startDate) qs.set('startDate', params.startDate);
     if (params.endDate) qs.set('endDate', params.endDate);
@@ -464,6 +512,7 @@ export const api = {
     });
 
     return { locations, studios, instructors, eventTypes };
+    });
   },
 
   // Returns { event: NormalizedEvent, slots: NormalizedSlot[] } (slots [] for FCFS).
@@ -555,8 +604,9 @@ export const api = {
   // comment — it resolves via the response's embedded `relations` block when
   // not already inline). bookings.js's renderBookings() is the first caller.
   async getBookings() {
+    return withOfflineSnapshot('bookings', async () => {
     debugLog('GET /api/bookings', 'network');
-    const myGymsRes = await this.getMyGyms().catch(() => ({ gyms: [] }));
+    const myGymsRes = await this.getMyGyms();
     const linked = myGymsRes.gyms || [];
     if (linked.length <= 1) {
       const res = await apiFetch('/api/bookings');
@@ -586,7 +636,8 @@ export const api = {
             gymName: b.gymName || gName,
             event: b.event ? { ...b.event, gymId: b.event.gymId || gymId, gymName: b.event.gymName || gName } : b.event,
           }));
-        } catch (_) {
+        } catch (err) {
+          if (isOfflineForMutation()) throw err;
           return [];
         }
       })
@@ -594,11 +645,13 @@ export const api = {
     const all = results.flat();
     all.sort((a, b) => new Date(a.event?.startAt || a.event?.start_at || a.start_at || 0) - new Date(b.event?.startAt || b.event?.start_at || b.start_at || 0));
     return all;
+    });
   },
 
   async getWaitlists() {
+    return withOfflineSnapshot('waitlists', async () => {
     debugLog('GET /api/waitlists', 'network');
-    const myGymsRes = await this.getMyGyms().catch(() => ({ gyms: [] }));
+    const myGymsRes = await this.getMyGyms();
     const linked = myGymsRes.gyms || [];
     if (linked.length <= 1) {
       const res = await apiFetch('/api/waitlists');
@@ -628,7 +681,8 @@ export const api = {
             gymName: w.gymName || gName,
             event: w.event ? { ...w.event, gymId: w.event.gymId || gymId, gymName: w.event.gymName || gName } : w.event,
           }));
-        } catch (_) {
+        } catch (err) {
+          if (isOfflineForMutation()) throw err;
           return [];
         }
       })
@@ -636,14 +690,17 @@ export const api = {
     const all = results.flat();
     all.sort((a, b) => new Date(a.event?.startAt || a.event?.start_at || a.start_at || 0) - new Date(b.event?.startAt || b.event?.start_at || b.start_at || 0));
     return all;
+    });
   },
 
   // "Can this account book at all" (WP-J) — distinct from credit arithmetic,
   // which answers "can it afford THIS class".
   async getEligibility(gymId = null) {
-    const res = await apiFetch('/api/eligibility', { gymId });
-    if (!res.ok) throw new Error('Failed to load eligibility');
-    return res.json();
+    return withOfflineSnapshot(`eligibility:${gymId || 'default'}`, async () => {
+      const res = await apiFetch('/api/eligibility', { gymId });
+      if (!res.ok) throw new Error('Failed to load eligibility');
+      return res.json();
+    });
   },
 
   // Eligibility for EVERY linked gym, keyed by gym id. A merged list needs each
@@ -693,9 +750,11 @@ export const api = {
   },
 
   async getNormalizedProfile(gymId = null) {
-    const res = await apiFetch('/api/profile', { gymId });
-    if (!res.ok) throw new Error('Failed to load profile');
-    return res.json();
+    return withOfflineSnapshot(`profile:${gymId || 'default'}`, async () => {
+      const res = await apiFetch('/api/profile', { gymId });
+      if (!res.ok) throw new Error('Failed to load profile');
+      return res.json();
+    });
   },
 
   // Cached with a SHORT ttl: a balance changes when you book or a purchase
@@ -845,12 +904,16 @@ export const api = {
   // Settings & Preferences
   async getSettings(gymId = null) {
     if (gymId) {
-      const res = await apiFetch('/api/settings', { gymId });
-      if (!res.ok) throw new Error('Failed to load settings');
-      return res.json();
+      return withOfflineSnapshot(`settings:${gymId}`, async () => {
+        const res = await apiFetch('/api/settings', { gymId });
+        if (!res.ok) throw new Error('Failed to load settings');
+        return res.json();
+      });
     }
-    const result = await getCachedSWR('/api/settings', { ttlMs: 300000, fetcher: apiFetch });
-    return result.data;
+    return withOfflineSnapshot('settings:account', async () => {
+      const result = await getCachedSWR('/api/settings', { ttlMs: 300000, fetcher: apiFetch });
+      return result.data;
+    });
   },
 
   /**
@@ -890,16 +953,19 @@ export const api = {
   // should prefer the qualified key.
   async getStudioPreferences(gymId = null) {
     if (gymId) {
-      const res = await apiFetch('/api/studio-preferences', { gymId });
-      if (!res.ok) throw new Error('Failed to load studio preferences');
-      const data = await res.json();
-      const scoped = {};
-      Object.entries(data || {}).forEach(([studioId, prefs]) => {
-        scoped[studioId] = prefs;
-        scoped[`${gymId}:${studioId}`] = prefs;
+      return withOfflineSnapshot(`studio-preferences:${gymId}`, async () => {
+        const res = await apiFetch('/api/studio-preferences', { gymId });
+        if (!res.ok) throw new Error('Failed to load studio preferences');
+        const data = await res.json();
+        const scoped = {};
+        Object.entries(data || {}).forEach(([studioId, prefs]) => {
+          scoped[studioId] = prefs;
+          scoped[`${gymId}:${studioId}`] = prefs;
+        });
+        return scoped;
       });
-      return scoped;
     }
+    return withOfflineSnapshot('studio-preferences', async () => {
     const myGymsRes = await this.getMyGyms().catch(() => ({ gyms: [] }));
     const linked = myGymsRes.gyms || [];
     if (linked.length <= 1) {
@@ -913,7 +979,8 @@ export const api = {
           const res = await apiFetch('/api/studio-preferences', { gymId });
           if (!res.ok) return null;
           return { gymId, data: await res.json() };
-        } catch (_) {
+        } catch (err) {
+          if (isOfflineForMutation()) throw err;
           return null;
         }
       })
@@ -926,6 +993,7 @@ export const api = {
       });
     });
     return merged;
+    });
   },
 
   async updateStudioPreferences(studioId, preferences, gymId = null) {
@@ -1017,9 +1085,11 @@ export const api = {
 
   // Calendar feed
   async getCalendarStatus(gymId = null) {
-    const res = await apiFetch('/api/calendar/status', { gymId });
-    if (!res.ok) throw new Error('Failed to load calendar status');
-    return res.json();
+    return withOfflineSnapshot('calendar-status', async () => {
+      const res = await apiFetch('/api/calendar/status', { gymId });
+      if (!res.ok) throw new Error('Failed to load calendar status');
+      return res.json();
+    });
   },
   async enableCalendar(opts = {}, gymId = null) {
     const res = await apiFetch('/api/calendar/enable', {

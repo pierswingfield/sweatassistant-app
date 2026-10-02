@@ -9,6 +9,16 @@
 
 import { describe, it, expect, vi, beforeEach, beforeAll } from 'vitest';
 
+const cacheMocks = vi.hoisted(() => ({
+  getOfflineSnapshot: vi.fn(),
+  setOfflineSnapshot: vi.fn(),
+}));
+
+vi.mock('./cache.js', async () => {
+  const actual = await vi.importActual('./cache.js');
+  return { ...actual, ...cacheMocks };
+});
+
 // api.js pulls in main.js (for debugLog) which pulls in timetable.js/tooltips.js,
 // and those touch window.matchMedia at module-load time for a resize listener
 // unrelated to this test. Stub it before the dynamic import so the module graph
@@ -38,6 +48,9 @@ beforeAll(async () => {
 describe('api.getMetadata — no gym linked (C3-10)', () => {
   beforeEach(() => {
     vi.restoreAllMocks();
+    cacheMocks.getOfflineSnapshot.mockReset();
+    cacheMocks.setOfflineSnapshot.mockReset();
+    document.documentElement.classList.remove('psycle-offline');
   });
 
   it('resolves to the empty shape and never calls fetch when the account has no linked gym', async () => {
@@ -61,5 +74,26 @@ describe('api.getMetadata — no gym linked (C3-10)', () => {
 
     expect(result.locations).toEqual([{ id: 1, gymId: 'psycle-london', gymName: 'Psycle' }]);
     expect(global.fetch).toHaveBeenCalled();
+  });
+
+  it('restores saved filter metadata before attempting a fetch while offline', async () => {
+    document.documentElement.classList.add('psycle-offline');
+    cacheMocks.getOfflineSnapshot.mockResolvedValue({
+      savedAt: 123,
+      data: {
+        locations: [{ id: 'location-1', name: 'Mortimer Street' }],
+        studios: [{ id: 'studio-1', name: 'Ride Studio' }],
+        instructors: [{ id: 'instructor-1', name: 'Becky' }],
+        eventTypes: [{ id: 'ride', name: 'RIDE' }],
+      },
+    });
+    const fetchSpy = vi.spyOn(global, 'fetch');
+
+    await expect(api.getMetadata()).resolves.toMatchObject({
+      locations: [{ id: 'location-1', name: 'Mortimer Street' }],
+      instructors: [{ id: 'instructor-1', name: 'Becky' }],
+    });
+    expect(cacheMocks.getOfflineSnapshot).toHaveBeenCalledWith('metadata::');
+    expect(fetchSpy).not.toHaveBeenCalled();
   });
 });

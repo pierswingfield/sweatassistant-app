@@ -15,7 +15,7 @@
 // anything, which is the half a "we clear on switch" test cannot cover.
 
 import { describe, it, expect, beforeEach } from 'vitest';
-import { setCacheKeyPrefix, cacheKeyPrefix, accountScopedKey } from './cache.js';
+import { setCacheKeyPrefix, cacheKeyPrefix, accountScopedKey, sanitiseOfflineSnapshot } from './cache.js';
 
 const GYM_KEY = 'sweatActiveGymId';
 
@@ -89,5 +89,19 @@ describe('account-scoped caller cache keys', () => {
 
   it('keeps the base key before account identity is known', () => {
     expect(accountScopedKey('unifiedTimetable')).toBe('unifiedTimetable');
+  });
+});
+
+describe('offline snapshot sanitising', () => {
+  it('keeps normalized display data but removes credentials, tokens and calendar links recursively', () => {
+    expect(sanitiseOfflineSnapshot({
+      gyms: [{ id: 'jab-boxing', name: 'JAB Boxing' }],
+      calendar: { enabled: true, links: { https: 'https://secret.example/feed' } },
+      profile: { displayName: 'Member', accessToken: 'secret', nested: { password: 'nope', visible: true } },
+    })).toEqual({
+      gyms: [{ id: 'jab-boxing', name: 'JAB Boxing' }],
+      calendar: { enabled: true },
+      profile: { displayName: 'Member', nested: { visible: true } },
+    });
   });
 });

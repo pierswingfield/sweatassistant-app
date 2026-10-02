@@ -7,8 +7,9 @@
 // avoid version-conflict blocking. Uses per-user key prefixes for isolation.
 
 const DB_NAME = 'psycle-cache';
-const DB_VERSION = 2;
+const DB_VERSION = 3;
 const STORE = 'api-responses';
+const SNAPSHOT_STORE = 'offline-snapshots';
 
 // --- Per-user key prefix ---
 // Set via setCacheKeyPrefix() after login (e.g. to currentUser.id).
@@ -72,6 +73,9 @@ export function openDB() {
       if (!db.objectStoreNames.contains(STORE)) {
         db.createObjectStore(STORE);
       }
+      if (!db.objectStoreNames.contains(SNAPSHOT_STORE)) {
+        db.createObjectStore(SNAPSHOT_STORE);
+      }
     };
     req.onsuccess = () => {
       const db = req.result;
@@ -127,15 +131,71 @@ async function idbWrite(key, value) {
 async function idbClearStore() {
   try {
     const db = await openDB();
-    const tx = db.transaction([STORE, 'cache'], 'readwrite');
+    const tx = db.transaction([STORE, 'cache', SNAPSHOT_STORE], 'readwrite');
     tx.objectStore(STORE).clear();
     tx.objectStore('cache').clear();
+    tx.objectStore(SNAPSHOT_STORE).clear();
     await new Promise((resolve, reject) => {
       tx.oncomplete = () => { db.close(); resolve(); };
       tx.onerror = () => { db.close(); reject(tx.error); };
     });
   } catch (e) {
     // IDB unavailable — silently skip
+  }
+}
+
+// Read-only offline snapshots are deliberately separate from the generic GET
+// cache. Callers opt in with named, normalized responses; this makes it clear
+// which personal data survives an offline relaunch and keeps credentials,
+// tokens and calendar feed URLs out of durable storage.
+const SENSITIVE_SNAPSHOT_KEY = /password|token|secret|credential|authori[sz]ation|cookie|session/i;
+const CALENDAR_LINK_KEY = /^(links|webcal|webcals|https)$/i;
+
+export function sanitiseOfflineSnapshot(value) {
+  if (Array.isArray(value)) return value.map(sanitiseOfflineSnapshot);
+  if (!value || typeof value !== 'object') return value;
+  const clean = {};
+  Object.entries(value).forEach(([key, child]) => {
+    if (SENSITIVE_SNAPSHOT_KEY.test(key) || CALENDAR_LINK_KEY.test(key)) return;
+    clean[key] = sanitiseOfflineSnapshot(child);
+  });
+  return clean;
+}
+
+function snapshotKey(name) {
+  const prefix = cacheKeyPrefix();
+  return prefix ? `${prefix}:snapshot:${name}` : null;
+}
+
+export async function setOfflineSnapshot(name, data) {
+  const key = snapshotKey(name);
+  if (!key) return;
+  try {
+    const db = await openDB();
+    const tx = db.transaction(SNAPSHOT_STORE, 'readwrite');
+    tx.objectStore(SNAPSHOT_STORE).put({ data: sanitiseOfflineSnapshot(data), savedAt: Date.now() }, key);
+    await new Promise((resolve, reject) => {
+      tx.oncomplete = () => { db.close(); resolve(); };
+      tx.onerror = () => { db.close(); reject(tx.error); };
+    });
+  } catch (_) {
+    // Offline snapshots improve resilience but are never required for a live response.
+  }
+}
+
+export async function getOfflineSnapshot(name) {
+  const key = snapshotKey(name);
+  if (!key) return null;
+  try {
+    const db = await openDB();
+    const tx = db.transaction(SNAPSHOT_STORE, 'readonly');
+    const req = tx.objectStore(SNAPSHOT_STORE).get(key);
+    return await new Promise((resolve) => {
+      req.onsuccess = () => { db.close(); resolve(req.result || null); };
+      req.onerror = () => { db.close(); resolve(null); };
+    });
+  } catch (_) {
+    return null;
   }
 }
 

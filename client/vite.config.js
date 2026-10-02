@@ -39,7 +39,31 @@ function stampServiceWorker() {
         this.warn('[stamp-service-worker] __BUILD_STAMP__ placeholder not found in dist/sw.js — cache name was NOT stamped.');
         return;
       }
-      fs.writeFileSync(swPath, src.split('__BUILD_STAMP__').join(stamp));
+      // The shell alone cannot boot an offline app: it needs Vite's hashed JS
+      // and CSS too. Enumerate the built assets rather than hand-maintaining a
+      // list in sw.js. Gym wordmarks are public build assets and belong in the
+      // same atomic install, so the header and chips do not depend on a first
+      // online render before they can appear.
+      const staticUrls = [];
+      for (const directory of ['assets', 'gyms']) {
+        const absolute = path.resolve(root, outDir, directory);
+        if (!fs.existsSync(absolute)) continue;
+        for (const entry of fs.readdirSync(absolute, { recursive: true, withFileTypes: true })) {
+          if (!entry.isFile() || entry.name.startsWith('.')) continue;
+          const file = path.join(entry.parentPath || entry.path, entry.name);
+          const relative = path.relative(path.resolve(root, outDir), file).split(path.sep).join('/');
+          staticUrls.push(`/${relative}`);
+        }
+      }
+      const precacheJson = JSON.stringify([...new Set(staticUrls)].sort());
+      if (!src.includes('__PRECACHE_ASSETS_JSON__')) {
+        this.warn('[stamp-service-worker] precache placeholder not found in dist/sw.js — built assets were NOT precached.');
+      }
+      fs.writeFileSync(
+        swPath,
+        src.split('__BUILD_STAMP__').join(stamp)
+          .split('__PRECACHE_ASSETS_JSON__').join(precacheJson)
+      );
     },
   };
 }

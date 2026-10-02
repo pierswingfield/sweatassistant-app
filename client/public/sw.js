@@ -101,6 +101,12 @@ const ASSETS_CACHE_NAME = `${CACHE_PREFIX}-assets-${BUILD_STAMP}`;
 // the durable, bounded source of truth.
 const IMAGES_CACHE_NAME = 'sweat-images-v2';
 const IMAGES_MAX_ENTRIES = 160;
+// Vite replaces the token only in dist/sw.js. In dev it is deliberately an
+// invalid JSON string, which yields an empty extra list while retaining a
+// runnable worker.
+const PRECACHE_ASSETS = (() => {
+  try { return JSON.parse('__PRECACHE_ASSETS_JSON__'); } catch (_) { return []; }
+})();
 
 const ASSETS_TO_CACHE = [
   '/',
@@ -108,7 +114,8 @@ const ASSETS_TO_CACHE = [
   '/manifest.json',
   '/icons/icon-128.png',
   '/icons/icon-192.png',
-  '/icons/icon-512.png'
+  '/icons/icon-512.png',
+  ...PRECACHE_ASSETS
 ];
 
 // ─── Install: precache shell + skip waiting ─────────────────────────────────

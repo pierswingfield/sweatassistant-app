@@ -79,7 +79,16 @@ async function handleLogin(email, password) {
       };
       for (const gym of listEnabledGyms()) {
         if (db.isGymLinked(userId, gym.id)) continue;
-        const gymEmail = DEV_LOGIN_BY_PROVIDER[gym.provider];
+        // Aarmy is an opt-in tenant even in development: its config can be
+        // enabled for manual mock onboarding, but automatic seeding stays off
+        // unless the developer explicitly opts in. This also keeps the
+        // default dev fixture aligned with Psycle + JAB.
+        if (gym.id === 'aarmy' && process.env.AARMY_ENABLED !== 'true') continue;
+        // Tenants on one provider may have separate mock identities (for
+        // example JAB and Aarmy both use MarianaTek). Prefer the gym's own
+        // configured mock account, falling back to the provider default only
+        // for older configs that do not declare one.
+        const gymEmail = gym.mockEmail || DEV_LOGIN_BY_PROVIDER[gym.provider];
         if (!gymEmail) continue;
         try {
           await linkGymAccount(userId, gym.id, gymEmail, password);

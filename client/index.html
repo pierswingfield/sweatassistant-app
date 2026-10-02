@@ -564,7 +564,8 @@
                       </select>
                     </div>
                   </div>
-                  <div class="psycle-settings-card">
+                  <!-- TEMP: hidden unless debugMode (toggled by applyBackupMigrationGate in main.js) -->
+                  <div class="psycle-settings-card" id="psycle-settings-backup-card" hidden style="display:none;">
                     <h4 data-copy-text="static.backupMigration">Backup & Migration</h4>
                     <p class="psycle-card-desc" data-copy-text="static.configMigrationHelp">Import or export configuration JSON compatible with the Chrome extension.</p>
                     <div class="psycle-settings-btn-row">

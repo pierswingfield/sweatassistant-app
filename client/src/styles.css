@@ -37,9 +37,25 @@
   --separator: rgba(255, 255, 255, 0.06);
 
   /* Accent — Anthropic clay */
-  --accent: #d2876b;
-  --accent-hover: #c9785c;
+  /* DARK MODE (decision 2026-10-02, DESIGN.md 3.6b): interactive primary + selected states are BLUE;
+     clay is brand-only (--brand-clay: logo, feature identity). --accent is the interactive TEXT/BORDER/TINT
+     blue; fills use --accent-fill (the Books-page blue) with --on-accent-fill. Light mode keeps clay. */
+  --brand-clay: #d2876b;
+  --accent: color-mix(in srgb, var(--info) 75%, #fff);
+  --accent-hover: color-mix(in srgb, var(--info) 55%, #fff);
+  --accent-fill: var(--accent-btn-bg);
+  --accent-fill-hover: color-mix(in srgb, var(--accent-btn-bg) 86%, #fff);
+  --on-accent-fill: #ffffff;
   --on-accent: #1a1815;
+  /* Timetable CTA fills. Dark: the same blue as the My Bookings primary buttons (--accent-btn-bg / --on-accent-button). */
+  --cta-book: var(--accent-btn-bg);
+  --cta-wait: color-mix(in srgb, var(--accent-btn-bg) 80%, #000);
+  --cta-auto: color-mix(in srgb, var(--accent-btn-bg) 62%, #000);
+  --on-cta: var(--on-accent-button);
+  /* Selected/active interactive state (date strip day, settings nav): dark = the blue family, light = accent. */
+  --nav-active: color-mix(in srgb, var(--info) 75%, #fff);
+  --nav-active-bg: color-mix(in srgb, var(--info) 14%, transparent);
+  --nav-active-line: color-mix(in srgb, var(--info) 30%, transparent);
   --accent-btn-bg: #256996;
   --on-accent-button: #D3E1EA;
 
@@ -264,8 +280,19 @@
 
     --accent: #c9785c;
     --accent-hover: #b5694e;
+    --brand-clay: #c9785c;
+    --accent-fill: var(--accent);
+    --accent-fill-hover: var(--accent-hover);
+    --on-accent-fill: var(--on-accent);
     --on-accent: #ffffff;
     --accent-btn-bg: var(--accent);
+    --cta-book: var(--accent);
+    --cta-wait: color-mix(in srgb, var(--accent) 62%, var(--surface));
+    --cta-auto: color-mix(in srgb, var(--accent) 78%, #2b1508);
+    --on-cta: var(--on-accent);
+    --nav-active: var(--accent);
+    --nav-active-bg: color-mix(in srgb, var(--accent) 8%, transparent);
+    --nav-active-line: color-mix(in srgb, var(--accent) 15%, transparent);
     --on-accent-button: #FEF1E9;
 
 
@@ -335,8 +362,19 @@
 
   --accent: #c9785c;
   --accent-hover: #b5694e;
+  --brand-clay: #c9785c;
+  --accent-fill: var(--accent);
+  --accent-fill-hover: var(--accent-hover);
+  --on-accent-fill: var(--on-accent);
   --on-accent: #ffffff;
   --accent-btn-bg: var(--accent);
+  --cta-book: var(--accent);
+  --cta-wait: color-mix(in srgb, var(--accent) 62%, var(--surface));
+  --cta-auto: color-mix(in srgb, var(--accent) 78%, #2b1508);
+  --on-cta: var(--on-accent);
+  --nav-active: var(--accent);
+  --nav-active-bg: color-mix(in srgb, var(--accent) 8%, transparent);
+  --nav-active-line: color-mix(in srgb, var(--accent) 15%, transparent);
   --on-accent-button: #FEF1E9;
 
 
@@ -541,8 +579,8 @@
   color: var(--text);
 }
 #psycle-helper-container .psycle-segmented-btn.active {
-  background: var(--accent);
-  color: var(--on-accent);
+  background: var(--accent-fill);
+  color: var(--on-accent-fill);
 }
 
 /* === iOS PWA base reset — fill notch + home-indicator safe areas with the
@@ -825,7 +863,7 @@ html, body {
   width: 38px;
   height: 38px;
   border-radius: 12px;
-  background: var(--accent);
+  background: var(--brand-clay);
   color: var(--on-accent);
   font-family: var(--font-serif);
   font-weight: 600;
@@ -1409,7 +1447,7 @@ html, body {
 }
 
 #psycle-helper-container .psycle-checkbox-label input[type="checkbox"]:checked + .custom-checkbox {
-  background: var(--accent);
+  background: var(--accent-fill);
   border-color: var(--accent);
 }
 
@@ -1504,7 +1542,7 @@ html, body {
 }
 
 #psycle-helper-container .psycle-switch-container input:checked + .psycle-switch-slider {
-  background-color: var(--accent);
+  background-color: var(--accent-fill);
 }
 
 #psycle-helper-container .psycle-switch-container input:checked + .psycle-switch-slider:before {
@@ -1779,11 +1817,11 @@ html, body {
 }
 
 #psycle-helper-container .psycle-action-btn-mini.primary {
-  background: var(--accent);
-  color: var(--on-accent);
+  background: var(--accent-fill);
+  color: var(--on-accent-fill);
 }
 #psycle-helper-container .psycle-action-btn-mini.primary:hover {
-  background: var(--accent-hover);
+  background: var(--accent-fill-hover);
   transform: translateY(-1px);
 }
 
@@ -1969,23 +2007,23 @@ html, body {
 
 #psycle-helper-container .psycle-btn.primary,
 .psycle-modal .psycle-btn.primary {
-  background: var(--accent);
-  color: var(--on-accent);
+  background: var(--accent-fill);
+  color: var(--on-accent-fill);
 }
 #psycle-helper-container .psycle-btn.primary:hover,
 .psycle-modal .psycle-btn.primary:hover {
-  background: var(--accent-hover);
+  background: var(--accent-fill-hover);
   transform: translateY(-1.5px);
 }
 
 #psycle-helper-container .psycle-btn.warning,
 .psycle-modal .psycle-btn.warning {
-  background: var(--accent);
-  color: var(--on-accent);
+  background: var(--accent-fill);
+  color: var(--on-accent-fill);
 }
 #psycle-helper-container .psycle-btn.warning:hover,
 .psycle-modal .psycle-btn.warning:hover {
-  background: var(--accent-hover);
+  background: var(--accent-fill-hover);
   transform: translateY(-1.5px);
 }
 
@@ -2282,6 +2320,36 @@ html, body {
 
 #psycle-helper-container .psycle-offline-banner .offline-text {
   line-height: 1.4;
+}
+
+#psycle-helper-container .psycle-offline-retry {
+  border: 1px solid currentColor;
+  border-radius: 999px;
+  background: transparent;
+  color: inherit;
+  cursor: pointer;
+  font: inherit;
+  font-size: 12px;
+  font-weight: 700;
+  padding: 3px 9px;
+}
+
+/* The mobile shell is document-flow so Safari can collapse its browser chrome,
+   while its header stays fixed. Keep the status in that fixed layer too: a
+   flow banner would sit behind the header and push every page down. */
+@media (max-width: 768px) {
+  #psycle-helper-container .psycle-offline-banner {
+    position: fixed;
+    z-index: 401;
+    top: var(--psycle-header-h, 47px);
+    left: 0;
+    right: 0;
+    width: auto;
+  }
+
+  #psycle-helper-container .psycle-offline-banner.show {
+    margin-bottom: 0;
+  }
 }
 
 /* Offline state — disable action buttons globally */
@@ -3054,7 +3122,9 @@ html, body {
 #psycle-instructor-tooltip {
   position: fixed;
   z-index: 2200000; /* Ensure it floats above the modal (2000000) and other components */
-  width: 280px;
+  width: 350px;
+  max-width: calc(100vw - 20px);
+  box-sizing: border-box;
   background: var(--surface);
   backdrop-filter: blur(20px);
   -webkit-backdrop-filter: blur(20px);
@@ -3131,6 +3201,17 @@ html, body {
   border-radius: 4px;
   transition: color 0.15s, text-decoration 0.15s;
 }
+
+.psycle-tooltip-socials .psycle-tooltip-social-link { min-width: 0; max-width: 100%; }
+.psycle-tooltip-socials .psycle-tooltip-social-text {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.psycle-tooltip-socials { min-width: 0; flex-wrap: wrap; }
+/* Instagram handle is never truncated: wrap instead. Only the long music link ellipsizes. */
+.psycle-tooltip-socials .psycle-tooltip-social-text.psycle-tooltip-social-wrap { overflow: visible; text-overflow: clip; white-space: normal; overflow-wrap: anywhere; }
 
 .psycle-tooltip-socials .psycle-tooltip-social-link:hover {
   color: var(--accent);
@@ -3248,7 +3329,7 @@ html, body {
 }
 
 #psycle-helper-container .psycle-ms-checkbox:checked {
-  background: var(--accent);
+  background: var(--accent-fill);
   border-color: var(--accent);
   box-shadow: 0 0 8px color-mix(in srgb, var(--accent) 40%, transparent);
 }
@@ -4815,9 +4896,9 @@ html, body {
   width: 100%;
   padding: 14px;
   border-radius: var(--radius-control);
-  background: var(--accent);
+  background: var(--accent-fill);
   border: none;
-  color: var(--on-accent);
+  color: var(--on-accent-fill);
   font-size: 14px;
   font-weight: 700;
   cursor: pointer;
@@ -4827,7 +4908,7 @@ html, body {
 
 .psycle-btn-primary:hover {
   transform: translateY(-2px);
-  background: var(--accent-hover);
+  background: var(--accent-fill-hover);
 }
 
 .psycle-btn-primary:disabled {
@@ -5460,7 +5541,7 @@ html, body {
 }
 
 #psycle-helper-container .psycle-switch input:checked + .psycle-slider {
-  background: var(--accent);
+  background: var(--accent-fill);
   border-color: var(--accent);
 }
 
@@ -6771,9 +6852,14 @@ html, body {
   line-height: 1;
   display: inline-flex;
   align-items: center;
+  justify-content: center;
   font-variant-emoji: text;
   flex-shrink: 0;
 }
+/* The Auto-Book sparkles are an inline SVG (inline-block, baseline-aligned): that left a
+   descender gap and a stray inline offset, so the icon+label group sat off-centre. Make the
+   SVG a block inside the centred icon box. */
+.psycle-seg-ico > svg { display: block !important; margin: 0 !important; vertical-align: top; }
 
 /* Segment colour variants — shared by the desktop table segments and the
    mobile rail.
@@ -6835,26 +6921,26 @@ html, body {
    Deriving from `--accent` means they follow the theme and any future brand
    change automatically, instead of being three more hardcoded values. */
 .psycle-tt-seg.primary,
-.psycle-mobile-seg.primary { background: var(--accent) !important; color: var(--on-accent) !important; border: none !important; }
+.psycle-mobile-seg.primary { background: var(--cta-book) !important; color: var(--on-cta) !important; border: none !important; }
 
 /* "Book" that opens a picker is the same ACTION as Quick Book, so the same
    colour — it was outlined, which read as a different, lesser thing. */
 .psycle-tt-seg.primary.variant-success-outline,
-.psycle-mobile-seg.primary.variant-success-outline { background: var(--accent) !important; color: var(--on-accent) !important; border: none !important; }
+.psycle-mobile-seg.primary.variant-success-outline { background: var(--cta-book) !important; color: var(--on-cta) !important; border: none !important; }
 
 /* Waitlist — the accent lightened toward the surface. */
 .psycle-tt-seg.primary.variant-warning-solid,
 .psycle-mobile-seg.primary.variant-warning-solid {
-  background: color-mix(in srgb, var(--accent) 62%, var(--surface)) !important;
-  color: var(--on-accent) !important;
+  background: var(--cta-wait) !important;
+  color: var(--on-cta) !important;
   border: none !important;
 }
 
 /* Auto-Book — the accent deepened. */
 .psycle-tt-seg.primary.variant-autoupgrade,
 .psycle-mobile-seg.primary.variant-autoupgrade {
-  background: color-mix(in srgb, var(--accent) 78%, #2b1508) !important;
-  color: var(--on-accent) !important;
+  background: var(--cta-auto) !important;
+  color: var(--on-cta) !important;
   border: none !important;
 }
 
@@ -8778,7 +8864,7 @@ html, body {
 .psycle-onb-dot.is-active {
   width: 22px;
   border-radius: 4px;
-  background: var(--accent);
+  background: var(--accent-fill);
 }
 
 /* --- Install step --- */
@@ -8947,9 +9033,9 @@ html, body {
 }
 
 #psycle-helper-container .psycle-settings-menu-item.active {
-  background: color-mix(in srgb, var(--accent) 8%, transparent);
-  border-color: color-mix(in srgb, var(--accent) 15%, transparent);
-  color: var(--accent);
+  background: var(--nav-active-bg);
+  border-color: var(--nav-active-line);
+  color: var(--nav-active);
   font-weight: 600;
 }
 
@@ -10009,7 +10095,7 @@ body::before {
   transition: background .15s ease, border-color .15s ease;
 }
 #psycle-helper-container .psycle-cal-check input:checked + .psycle-cal-box {
-  background: var(--accent) !important;
+  background: var(--accent-fill) !important;
   border-color: var(--accent) !important;
 }
 #psycle-helper-container .psycle-cal-check input:checked + .psycle-cal-box::after {
@@ -10248,7 +10334,7 @@ svg.gym-logo-inline { display: block; opacity: 1 !important; transition: none !i
   #psycle-helper-container .psycle-mobile-top-line > strong + .psycle-gym-chip { margin-left: -2px; }
 }
 @media (min-width: 769px) {
-  #psycle-helper-container .psycle-tt-actions { align-items: center; gap: 6px; padding: 0 8px; }
+  #psycle-helper-container .psycle-tt-actions { align-items: center; gap: 6px; padding: 0 6px; } /* CTA->kebab gap (6) == kebab->edge (6); both measured to the kebab's box, whose glyph is centred */
   #psycle-helper-container .psycle-tt-seg-group { height: auto; align-items: center; }
   #psycle-helper-container .psycle-tt-seg:not(.psycle-tt-seg-caret):not(.psycle-tt-seg-more) {
     height: 38px !important; min-height: 38px !important; border: 0 !important; border-radius: 8px !important;
@@ -10342,7 +10428,7 @@ body::after { z-index: 1000002 !important; }
 /* 2. Mobile row rail: the kebab is ~37px wide (+33%) with no vertical divider line. */
 @media (max-width: 768px) {
   #psycle-helper-container .psycle-mobile-rail { align-items: stretch; gap: 0; padding: 0; }
-  #psycle-helper-container .psycle-mobile-seg.primary { align-self: center; margin: 0 6px 0 4px; }
+  #psycle-helper-container .psycle-mobile-seg.primary { align-self: center; margin: 0 0 0 4px; } /* kebab box is flush to the edge, so CTA flush to it gives equal glyph gaps */
   #psycle-helper-container .psycle-mobile-seg.ellipsis {
     align-self: stretch; height: auto; width: 37px; min-width: 37px; padding: 0;
     border: 0 !important; border-left: 0 !important; border-radius: 0 !important;
@@ -10486,4 +10572,108 @@ body::after { z-index: 1000002 !important; }
     min-width: var(--timetable-cta-w, 74px);
     max-width: none;
   }
+}
+
+/* squareMark gyms: the mark (portrait ~0.87:1) in square/narrow plates, sized by height. */
+.psycle-gym-mark .ab-gym-logo-svg.is-mark { width: auto; height: 15px; }
+.ab-card-gym-rail .ab-gym-logo-svg.is-mark { width: auto; height: 38px; max-width: 80%; }
+
+/* Full with no waitlist: the action is blanked (status pill says it); keep the box so rows align. */
+.psycle-tt-seg.is-blank, .psycle-mobile-seg.is-blank { visibility: hidden !important; pointer-events: none !important; }
+
+/* ===== WEEK-STRIP DATE SELECTOR (Task F/G) — delete this block + set WEEK_STRIP_DATE_SELECTOR=false in timetable.js to revert ===== */
+#psycle-helper-container .psycle-sticky-top.psycle-dates-first { display: flex; flex-direction: column; }
+#psycle-helper-container .psycle-sticky-top.psycle-dates-first > #psycle-timetable-carousel { order: -1; }
+#psycle-helper-container .psycle-weekstrip { display: block; padding: 4px 0 2px; overflow: visible; }
+/* One week per page; swipe/scroll the strip to page between weeks. */
+#psycle-helper-container .psycle-wk-scroller {
+  display: flex; overflow-x: auto; overflow-y: hidden; scroll-snap-type: x mandatory;
+  -webkit-overflow-scrolling: touch; scrollbar-width: none; overscroll-behavior-x: contain;
+}
+#psycle-helper-container .psycle-wk-scroller::-webkit-scrollbar { display: none; }
+#psycle-helper-container .psycle-wk-page {
+  flex: 0 0 100%; scroll-snap-align: start; scroll-snap-stop: always; box-sizing: border-box;
+  display: grid; grid-template-columns: repeat(7, minmax(0, 1fr)); gap: 5px; padding: 0 2px;
+}
+#psycle-helper-container .psycle-wk-day {
+  display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 4px;
+  height: 58px; padding: 0; border: 1px solid transparent; border-radius: 12px;
+  background: var(--surface-inset); color: var(--text); font-family: var(--font-sans); cursor: pointer;
+}
+#psycle-helper-container .psycle-wk-day .wk-num { font-size: 20px; font-weight: 700; line-height: 1; }
+#psycle-helper-container .psycle-wk-day .wk-name { font-size: 11px; font-weight: 400; letter-spacing: .04em; line-height: 1; color: var(--text-secondary); }
+#psycle-helper-container .psycle-wk-day.is-today { border-color: var(--cta-book); }
+#psycle-helper-container .psycle-wk-day.active { background: var(--cta-book); color: var(--on-cta); border-color: var(--cta-book); }
+#psycle-helper-container .psycle-wk-day.active .wk-name { color: inherit; }
+#psycle-helper-container .psycle-wk-day.is-disabled { opacity: .35; cursor: default; background: transparent; }
+#psycle-helper-container .psycle-wk-empty { color: var(--text-secondary); font-size: 12px; font-style: italic; padding: 8px; }
+#psycle-helper-container .psycle-tt-fulldate { padding: 2px 4px 5px; font-size: 15px; font-weight: 400; color: var(--text); }
+#psycle-helper-container .psycle-wk-nav { display: none; }
+@media (min-width: 769px) {
+  /* Desktop: free horizontal scroll showing ~2 weeks, with < > stepping by 14 days. Mobile keeps one-week pages. */
+  #psycle-helper-container .psycle-weekstrip { display: flex; align-items: center; gap: 6px; max-width: 940px; }
+  #psycle-helper-container .psycle-wk-scroller {
+    flex: 1 1 auto; min-width: 0; display: grid; grid-auto-flow: column; gap: 5px; scroll-snap-type: none;
+    grid-auto-columns: calc((100% - 65px) / 14);
+  }
+  #psycle-helper-container .psycle-wk-page { display: contents; }
+  #psycle-helper-container .psycle-wk-day { height: 62px; }
+  #psycle-helper-container .psycle-wk-nav {
+    display: inline-flex; align-items: center; justify-content: center; flex: 0 0 30px; width: 30px; height: 62px;
+    padding: 0; border: 0; border-radius: 8px; background: transparent; color: var(--text); font-size: 22px; cursor: pointer;
+  }
+}
+/* ===== END WEEK-STRIP DATE SELECTOR ===== */
+
+/* ===== Task G ===== */
+/* Very wide wordmark in table chips (presentation.wordmark.logoWidth -> --logo-w on the chip). */
+#psycle-helper-container .psycle-gym-chip.has-logo-w .psycle-gym-chip-logo :is(.ab-gym-logo-img, .ab-gym-logo-svg) {
+  width: var(--logo-w) !important; height: auto !important; max-width: none !important;
+}
+/* Instructor name = class name size (mobile row line 3 was 13px vs the class name's 14px). */
+@media (max-width: 768px) {
+  #psycle-helper-container .psycle-mobile-bottom-line .psycle-mobile-instructor { font-size: 14px !important; }
+}
+/* Timetable scroll container: no visible scrollbar, still scrolls. */
+#psycle-helper-container #psycle-timetable-grid { scrollbar-width: none !important; -ms-overflow-style: none; }
+#psycle-helper-container #psycle-timetable-grid::-webkit-scrollbar { display: none !important; width: 0; height: 0; }
+/* A little vertical breathing room per row (desktop table rows + mobile cards). */
+#psycle-helper-container #psycle-timetable-grid .psycle-table tbody td { padding-top: 11px !important; padding-bottom: 11px !important; }
+@media (max-width: 768px) {
+  #psycle-helper-container #psycle-timetable-grid .psycle-table tbody td { padding-top: 5px !important; padding-bottom: 5px !important; }
+}
+/* Auto-Book CTA: ~14px wider, contents centred precisely (equal icon/label gap, no stray padding). */
+.psycle-tt-seg.primary.variant-autoupgrade:not(.psycle-tt-seg-caret) {
+  width: calc(var(--tt-seg-w) + 14px) !important; flex-basis: calc(var(--tt-seg-w) + 14px) !important;
+  padding: 0 !important; gap: 6px !important; justify-content: center !important; text-align: center;
+}
+.psycle-tt-seg.primary.variant-autoupgrade .psycle-seg-ico { margin: 0 !important; }
+@media (max-width: 768px) {
+  #psycle-helper-container .psycle-mobile-seg.primary.variant-autoupgrade:not(.scheduled) {
+    width: calc(var(--timetable-cta-w, 74px) + 14px) !important; min-width: calc(var(--timetable-cta-w, 74px) + 14px) !important;
+    padding: 0 !important; gap: 5px !important; justify-content: center !important; align-items: center !important;
+  }
+  #psycle-helper-container .psycle-mobile-seg.primary.variant-autoupgrade .psycle-seg-ico,
+  #psycle-helper-container .psycle-mobile-seg.primary.variant-autoupgrade .psycle-cta-2l { margin: 0 !important; }
+}
+
+/* Header pill for squareMark gyms: oblong pill with the short A mark (the normal logo imgs are hidden). */
+.psycle-hgb-logo.is-markonly { padding: 0 9px; }
+.psycle-hgb-logo.is-markonly .psycle-hgb-logo-mark { display: block !important; height: 9px; width: auto; }
+/* Square mark glyph in the filter pane's gym dots: 20% smaller than before. */
+.fr-gym-dot .fr-mark-img.is-squaremark { padding: 5px; }
+
+/* Settings nav: gym entries indented under "Your Gyms" on the mobile list too. The mobile rule above sets
+   `padding: 18px 24px` (24px left), which left the 30px sub indent only 6px deeper. This sits after it
+   and chains both classes (see the source-order note above). */
+@media (max-width: 900px) {
+  #psycle-helper-container .psycle-settings-menu-item.psycle-settings-menu-sub { padding-left: 46px !important; }
+  #psycle-helper-container .psycle-settings-menu-item.psycle-settings-menu-sub::before,
+  #psycle-helper-container .psycle-settings-menu-item.psycle-settings-menu-sub::after { left: 32px; }
+}
+
+/* Reduced motion: no timetable day-change motion at all (the JS transition also bails out). */
+@media (prefers-reduced-motion: reduce) {
+  #psycle-helper-container .psycle-wk-scroller { scroll-behavior: auto; }
+  #psycle-helper-container .psycle-wk-day, #psycle-helper-container #psycle-timetable-grid * { transition: none !important; animation: none !important; }
 }

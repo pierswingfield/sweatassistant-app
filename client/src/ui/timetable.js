@@ -4,8 +4,14 @@ import { getAvailableCreditsForEvent, hasUsableCredit, getIneligibleReason, isMe
 import { isCreditInventoryLoaded, pickStudioPrefs as pickGymStudioPrefs } from './gym-isolation.js';
 import { canForGym, canAny, capabilityForGym, getLinkedGyms, getGymShortName, getLocationAlias, getDefaultGymId } from '../gym-context.js';
 import { showToast, currentUser, userSettings, gymSetting, profileForGym, refreshUserData, updateCreditBadge, cache, debugConsole } from '../main';
-import { getClassReleaseTime, isInGracePeriod, GRACE_PERIOD_MS, startGraceCountdown, noSept } from '../lib';
+import { getClassReleaseTime, isFullWithoutWaitlist, isInGracePeriod, GRACE_PERIOD_MS, startGraceCountdown, noSept } from '../lib';
 import { DateTime } from 'luxon';
+// === WEEK-STRIP DATE SELECTOR (Task F) — set to false to restore the scrolling carousel + old row order ===
+// When true: paginated Mon-Sun strip, full-date heading above the class list, and the date row ABOVE the filters.
+// The old carousel code path below is untouched and used when this is false. CSS lives in one delimited block
+// in styles.css ("WEEK-STRIP DATE SELECTOR").
+const WEEK_STRIP_DATE_SELECTOR = true;
+
 // EXPERIMENT (Batch N): small instructor photo left of rows 2-3 on mobile timetable rows. One switch.
 const SHOW_TIMETABLE_INSTRUCTOR_PHOTO = true;
 
@@ -226,6 +232,8 @@ let selectedEventTypes = [];
 let showBookmarksOnly = false;
 
 let selectedTimetableDate = null;
+let weekStripStart = null;          // ISO Monday of the week shown in the strip
+let weekStripSeenSelected = null;   // follow the selection only when IT changes (not while paging)
 // Live shared studio preference maps, refreshed each grid render so the action
 // model can synchronously decide Quick-Book vs Book per studio.
 let studioPrefsMap = {};
@@ -264,6 +272,84 @@ window.addEventListener('resize', () => {
 // from the left): translateX 28px + a short fade, 150ms, transform/opacity only via the Web Animations API.
 // A newer change cancels the running animation (cancel() drops fills, so the list can never stay offset or
 // transparent), and a watchdog guarantees rest.
+// === WEEK STRIP (Task F). Pure Luxon in Europe/London. ===
+const LONDON = 'Europe/London';
+function mondayOfIso(iso) { const d = DateTime.fromISO(iso, { zone: LONDON }); return d.minus({ days: d.weekday - 1 }).toISODate(); }
+let weekStripPage = 0;              // page (week) the user is looking at; survives re-renders
+function renderWeekStrip(carousel, daysWithEvents) {
+  carousel.classList.remove('psycle-date-selector');
+  carousel.classList.add('psycle-weekstrip');
+  carousel.parentElement?.classList.add('psycle-dates-first');
+  if (!selectedTimetableDate) {
+    carousel.innerHTML = `<div class="psycle-wk-empty">${COPY.timetable.noDates}</div>`;
+    return;
+  }
+  const todayIso = DateTime.now().setZone(LONDON).toISODate();
+  const withEvents = new Set(daysWithEvents);
+  const firstMonday = mondayOfIso(todayIso < selectedTimetableDate ? todayIso : selectedTimetableDate);
+  const lastDay = daysWithEvents[daysWithEvents.length - 1] || selectedTimetableDate;
+  const lastMonday = mondayOfIso(lastDay > selectedTimetableDate ? lastDay : selectedTimetableDate);
+  const weeks = Math.min(26, Math.max(1, Math.round(DateTime.fromISO(lastMonday, { zone: LONDON }).diff(DateTime.fromISO(firstMonday, { zone: LONDON }), 'weeks').weeks) + 1));
+  const selectionChanged = weekStripSeenSelected !== selectedTimetableDate;
+  weekStripSeenSelected = selectedTimetableDate;
+  const selWeek = Math.round(DateTime.fromISO(mondayOfIso(selectedTimetableDate), { zone: LONDON }).diff(DateTime.fromISO(firstMonday, { zone: LONDON }), 'weeks').weeks);
+  if (selectionChanged) weekStripPage = selWeek;
+  weekStripPage = Math.min(weeks - 1, Math.max(0, weekStripPage));
+
+  const start = DateTime.fromISO(firstMonday, { zone: LONDON });
+  const pages = [];
+  for (let w = 0; w < weeks; w++) {
+    const cells = [];
+    for (let i = 0; i < 7; i++) {
+      const d = start.plus({ days: w * 7 + i });
+      const iso = d.toISODate();
+      const past = iso < todayIso;
+      const disabled = past || !withEvents.has(iso);
+      const cls = ['psycle-wk-day', iso === selectedTimetableDate ? 'active' : '', iso === todayIso ? 'is-today' : '', past ? 'is-past' : '', disabled ? 'is-disabled' : ''].filter(Boolean).join(' ');
+      cells.push(`<button type="button" class="${cls}" data-day="${iso}" ${disabled ? 'disabled' : ''} aria-pressed="${iso === selectedTimetableDate}" aria-label="${d.setLocale('en-GB').toFormat('cccc d LLLL')}">`
+        + `<span class="wk-num">${d.day}</span><span class="wk-name">${d.setLocale('en-GB').toFormat('ccc').toUpperCase()}</span></button>`);
+    }
+    pages.push(`<div class="psycle-wk-page">${cells.join('')}</div>`);
+  }
+  const desktop = window.matchMedia('(min-width: 769px)').matches;
+  const prevLeft = carousel.querySelector('.psycle-wk-scroller')?.scrollLeft || 0;
+  carousel.innerHTML = `<button type="button" class="psycle-wk-nav" data-wk-nav="-1" aria-label="${COPY.timetable.prevWeek}">&#x2039;</button>`
+    + `<div class="psycle-wk-scroller">${pages.join('')}</div>`
+    + `<button type="button" class="psycle-wk-nav" data-wk-nav="1" aria-label="${COPY.timetable.nextWeek}">&#x203A;</button>`;
+  const scroller = carousel.querySelector('.psycle-wk-scroller');
+  const goTo = (smooth) => {
+    // Mobile: one week per page. Desktop: free scroll, so land on the selected week's first day.
+    const left = desktop ? selWeek * 7 * (scroller.scrollWidth / (weeks * 7)) : weekStripPage * scroller.clientWidth;
+    scroller.scrollTo({ left: selectionChanged || !desktop ? left : prevLeft, behavior: smooth ? 'smooth' : 'auto' });
+  };
+  goTo(false);
+  if (selectionChanged && weeks > 1) requestAnimationFrame(() => goTo(false));
+  // Desktop < > step the strip by one 2-week period.
+  carousel.querySelectorAll('.psycle-wk-nav').forEach((b) => {
+    b.onclick = () => scroller.scrollBy({ left: Number(b.dataset.wkNav) * scroller.clientWidth, behavior: 'smooth' });
+  });
+  let t = null;
+  scroller.addEventListener('scroll', () => {
+    clearTimeout(t);
+    t = setTimeout(() => { if (scroller.clientWidth) weekStripPage = Math.round(scroller.scrollLeft / scroller.clientWidth); }, 80);
+  }, { passive: true });
+  carousel.querySelectorAll('.psycle-wk-day:not(.is-disabled)').forEach((b) => {
+    b.onclick = () => {
+      const dayStr = b.dataset.day;
+      const dir = dayStr > selectedTimetableDate ? 1 : (dayStr < selectedTimetableDate ? -1 : 0);
+      selectedTimetableDate = dayStr;
+      // Optimistic: the strip highlight and full-date heading change NOW, before the list re-renders.
+      carousel.querySelectorAll('.psycle-wk-day').forEach((c) => { const on = c === b; c.classList.toggle('active', on); c.setAttribute('aria-pressed', String(on)); });
+      const head = document.querySelector('#psycle-timetable-grid .psycle-tt-fulldate');
+      if (head) head.textContent = DateTime.fromISO(dayStr, { zone: LONDON }).setLocale('en-GB').toFormat('cccc, d LLLL yyyy');
+      animateDateChange(dir, () => renderTimetableGrid());
+    };
+  });
+}
+
+function pageChild(grid) { return grid.querySelector('.psycle-table-container') || grid.firstElementChild; }
+// === END WEEK STRIP ===
+
 let dateNavToken = 0;
 function centreActivePill() {
   const carousel = document.getElementById('psycle-timetable-carousel');
@@ -275,6 +361,12 @@ function centreActivePill() {
 function animateDateChange(dir, render) {
   const grid = document.getElementById('psycle-timetable-grid');
   const token = ++dateNavToken;
+  // DESKTOP: instant. No slide/fade between days (mobile keeps its swipe-style transition).
+  if (window.matchMedia('(min-width: 769px)').matches) {
+    grid?.querySelectorAll('.psycle-timetable-page-outgoing').forEach((el) => el.remove());
+    render();
+    return;
+  }
   if (!grid || !dir || typeof grid.animate !== 'function') { render(); return; }
 
   // Clean up any in-flight transitions or clones from rapid clicks
@@ -290,7 +382,7 @@ function animateDateChange(dir, render) {
     return;
   }
 
-  const oldChild = grid.firstElementChild;
+  const oldChild = pageChild(grid);
   if (!oldChild) {
     render();
     centreActivePill();
@@ -310,7 +402,7 @@ function animateDateChange(dir, render) {
   centreActivePill();
   grid.appendChild(clone);
 
-  const newChild = grid.firstElementChild;
+  const newChild = pageChild(grid);
   const easing = 'cubic-bezier(0.22, 1, 0.36, 1)';
   const duration = 280;
 
@@ -383,7 +475,7 @@ function wireTimetableSwipe() {
     locked = false;
     const fast = Math.abs(dx) / Math.max(1, performance.now() - st) > 0.5;
     if (!(Math.abs(dx) >= THRESHOLD || (fast && Math.abs(dx) > 24))) return;
-    const pills = [...document.querySelectorAll('#psycle-timetable-carousel .psycle-day-pill')];
+    const pills = [...document.querySelectorAll('#psycle-timetable-carousel .psycle-day-pill, #psycle-timetable-carousel .psycle-wk-day:not(.is-disabled)')];
     const i = pills.findIndex((p) => p.classList.contains('active'));
     const next = pills[i + (dx < 0 ? 1 : -1)];   // stops at the ends of the available range
     if (next) next.click();
@@ -1379,7 +1471,9 @@ export async function renderTimetableGrid(reason = 'interaction') {
 
   // 5. Render Horizontal Date Carousel
   const carousel = document.getElementById('psycle-timetable-carousel');
-  if (carousel) {
+  if (carousel && WEEK_STRIP_DATE_SELECTOR) {
+    renderWeekStrip(carousel, daysWithEvents);
+  } else if (carousel) {
     carousel.innerHTML = '';
     
     if (daysWithEvents.length === 0) {
@@ -1449,7 +1543,10 @@ export async function renderTimetableGrid(reason = 'interaction') {
   // container — see initTimetableTab for the pull-to-refresh wiring. The inner
   // container must NOT scroll, otherwise iOS has two nested scrollers and the
   // outer grid's scrollTop stays 0 (breaking the at-top check for pull-to-refresh).
-  ttGrid.innerHTML = `
+  const fullDateHtml = WEEK_STRIP_DATE_SELECTOR
+    ? `<div class="psycle-tt-fulldate">${DateTime.fromISO(selectedTimetableDate, { zone: LONDON }).setLocale('en-GB').toFormat('cccc, d LLLL yyyy')}</div>`
+    : '';
+  ttGrid.innerHTML = `${fullDateHtml}
     <div class="psycle-table-container">
       <table class="psycle-table" style="width: 100%; border-collapse: collapse; text-align: left; table-layout: fixed;">
         <thead>
@@ -1502,7 +1599,7 @@ export async function renderTimetableGrid(reason = 'interaction') {
     const now = DateTime.now().setZone('Europe/London');
     const isLive = event.alwaysBookable ? true : (classRelease ? now >= classRelease : true);
     const isFullyBooked = !!event.isFull;
-    const canWaitlist = event.waitlistAvailable !== false;
+    const canWaitlist = !isFullWithoutWaitlist(event);
 
     const isBooked = userBookings().some(b => matchesEvent(b, event));
     const isOnWaitlist = userWaitlists().some(w => matchesEvent(w, event));
@@ -1676,7 +1773,9 @@ export function equalizePrimaryCTAWidths(container = document) {
   let maxW = 74;
 
   // Measure natural content width for each button on this page/date
-  buttons.forEach((btn) => {
+  // Auto-Book buttons are excluded: their CSS width is derived FROM --timetable-cta-w (+14px), so measuring them
+  // fed that width back into the variable and grew every button on each render.
+  buttons.filter((b) => !b.classList.contains('variant-autoupgrade')).forEach((btn) => {
     btn.style.width = 'max-content';
     btn.style.minWidth = '0px';
     btn.style.maxWidth = 'none';
@@ -1847,7 +1946,9 @@ function buildActionModel(event, ctx) {
         secondary: null, config: null,
       };
     }
-    return { primary: { label: COPY.timetable.full, variant: 'neutral', disabled: true }, secondary: null, config: null };
+    // Full and no waitlist: the status pill already says so. Blank the action (kept invisible so
+    // the column/rail stays aligned) rather than a dead "Full" button.
+    return { primary: { label: '', variant: 'neutral', disabled: true, blank: true }, secondary: null, config: null };
   }
 
   // Not bookable — but WHY differs by gym shape (C3-2). `hasCredit` is
@@ -2253,6 +2354,7 @@ function buildDesktopActions(model, event, debugMode, isBookmarked = false) {
   if (model.primary.title) { pbtn.title = model.primary.title; pbtn.setAttribute('aria-label', model.primary.title); }
   if (model.primary.disabled) pbtn.disabled = true;
   else if (model.primary.run) pbtn.onclick = (e) => { e.stopPropagation(); model.primary.run(pbtn); };
+  if (model.primary.blank) { pbtn.classList.add('is-blank'); pbtn.setAttribute('aria-hidden', 'true'); pbtn.tabIndex = -1; }
   group.appendChild(pbtn);
 
   if (model.config && model.showConfigButton !== false) {
@@ -2514,6 +2616,7 @@ function buildMobileClassRow(event, ctx, model) {
     }
   }
   if (mobilePrimary.title) { pbtn.title = mobilePrimary.title; pbtn.setAttribute('aria-label', mobilePrimary.title); }
+  if (mobilePrimary.blank) { pbtn.classList.add('is-blank'); pbtn.setAttribute('aria-hidden', 'true'); pbtn.tabIndex = -1; }
   if (mobilePrimary.disabled) pbtn.disabled = true;
   else if (mobilePrimary.run) pbtn.onclick = (e) => { e.stopPropagation(); mobilePrimary.run(pbtn); };
   if (mobilePrimary.graceDeadline) {

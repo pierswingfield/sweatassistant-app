@@ -1,5 +1,5 @@
 import { api, apiFetch } from '../api';
-import { showToast, togglePushSubscription, updatePushStatusUI, userSettings, cache, getTheme, setTheme, debugConsole, loadGymContext, refreshUserData, updateDebugTerminalVisibility } from '../main';
+import { showToast, togglePushSubscription, updatePushStatusUI, userSettings, cache, getTheme, setTheme, debugConsole, loadGymContext, refreshUserData, updateDebugTerminalVisibility, getIsOffline } from '../main';
 import { getBookingOffset, describeBookingWindow } from '../lib';
 import { renderStudioFloorPlan } from './spotmap';
 import { isScrollBusy } from './scroll-state.js';
@@ -8,7 +8,7 @@ import { clearApiCache, invalidateApiCache, accountScopedKey } from '../cache.js
 import { renderGymSettingsSection as renderGymSettingsSectionView } from './gym-settings-section.js';
 import { renderCalendarSection } from './calendar-section.js';
 import { getLinkedGyms, getGymShortName } from '../gym-context.js';
-import { icon, gymSquareChip } from './cards.js';
+import { icon, gymSquareChip, gymBrand } from './cards.js';
 import { createRenderGuard, reconcileKeyed, lastAuthLabel, connectionHealth } from './gym-connections.js';
 import { COPY, formatCopyText } from '../copy.js';
 import { appConfig } from '../config.js';
@@ -1254,8 +1254,11 @@ function gymNavCreate() {
 
 function gymNavUpdate(item, g) {
   const lead = item.querySelector('.menu-item-lead');
-  if (lead.getAttribute('data-mark') !== g.gym_id) {
-    lead.setAttribute('data-mark', g.gym_id);
+  // Keyed on the RESOLVED brand too: a chip built before the gym catalogue loaded is the neutral grey
+  // placeholder, and must be rebuilt once the real brand is known.
+  const markKey = `${g.gym_id}:${gymBrand(g.gym_id).id}`;
+  if (lead.getAttribute('data-mark') !== markKey) {
+    lead.setAttribute('data-mark', markKey);
     lead.innerHTML = gymSquareChip(g.gym_id);
   }
   item.setAttribute('data-settings-section', `gym-${g.gym_id}`);
@@ -1410,7 +1413,7 @@ async function renderGymsCard() {
   } catch (err) {
     if (!gymsRenderGuard.isCurrent(token)) return;
     if (painted) debugConsole('[Settings] Could not refresh gym connections:', err.message);
-    else list.innerHTML = `<div class="psycle-card-error" style="padding:12px;">${formatCopyText(COPY.settings.couldNotLoadGyms, { error: escapeHtml(err.message) })}</div>`;
+    else list.innerHTML = `<div class="psycle-empty-state" style="padding:12px;">${getIsOffline() ? COPY.settings.noSavedGymData : formatCopyText(COPY.settings.couldNotLoadGyms, { error: escapeHtml(err.message) })}</div>`;
     return;
   }
   if (!gymsRenderGuard.isCurrent(token)) return;
@@ -1564,7 +1567,7 @@ export async function renderGymSettingsSection(requestedGymId = null, targetCont
       },
     });
   } catch (err) {
-    container.innerHTML = `<div class="psycle-card-error" style="padding:12px;">${formatCopyText(COPY.settings.loadGymSettingsFailed, { error: escapeHtml(err.message) })}</div>`;
+    container.innerHTML = `<div class="psycle-${getIsOffline() ? 'empty-state' : 'card-error'}" style="padding:12px;">${getIsOffline() ? COPY.settings.noSavedGymSettings : formatCopyText(COPY.settings.loadGymSettingsFailed, { error: escapeHtml(err.message) })}</div>`;
   }
 }
 
@@ -1728,6 +1731,11 @@ export async function initSettings() {
   // Your Gyms card (WP-C2) — fire-and-forget: it renders its own loading and
   // error states, and a failure here must not stop the rest of Settings binding.
   renderGymsCard().catch(err => debugConsole('[Settings] Gyms card failed:', err.message));
+  if (!window.__gymCatListener) {
+    window.__gymCatListener = true;
+    // Catalogue arriving after Settings first rendered: rebuild so the gym marks stop being neutral placeholders.
+    window.addEventListener('gym-catalogue-ready', () => { renderGymsCard().catch(() => {}); });
+  }
   // Account-level calendar feed (General tab) — same fire-and-forget rationale.
   renderCalendarSection().catch(err => debugConsole('[Settings] Calendar section failed:', err.message));
   // Spot Maps section is ready; button opens the modal
@@ -1807,9 +1815,16 @@ const NOTIF_ROWS = [
  */
 function perGymPrefOn(pref, gym) {
   const gymId = gym.gym_id || gym.id;
+  // Rolling / per-class windows have no periodic release: always off (mirrors the server).
+  if (!gymHasPeriodicWindow(gym)) return false;
   const override = (pref.byGym || {})[gymId];
   if (typeof override === 'boolean') return override;
   return gym.notifications?.bookingWindowReminder !== false;
+}
+
+/** A gym with a periodic ('rolling-weekly') booking window — from the gym's capability data, never its id. */
+function gymHasPeriodicWindow(gym) {
+  return gym?.capabilities?.bookingWindow === 'rolling-weekly';
 }
 
 /**
@@ -1826,17 +1841,21 @@ function renderPerGymToggles(key, parentPref) {
     <div class="notif-pergym-wrap" data-key="${key}" style="${parentPref.enabled ? '' : 'opacity:0.4;pointer-events:none;'}margin-top:10px;padding-top:10px;border-top:1px solid color-mix(in srgb, var(--text) 8%, transparent);">
       ${gyms.map((g) => {
         const gymId = g.gym_id || g.id;
+        const locked = key === 'bookingWindow' && !gymHasPeriodicWindow(g);
         return `
-        <div style="display:flex;justify-content:space-between;align-items:center;gap:12px;padding:4px 0;">
-          <span style="font-size:12px;color:var(--text-secondary);">${getGymShortName(gymId) || gymId}</span>
+        <div style="display:flex;justify-content:space-between;align-items:center;gap:12px;padding:4px 0;${locked ? 'opacity:0.45;' : ''}">
+          <span style="font-size:12px;color:var(--text-secondary);">${getGymShortName(gymId) || gymId}${locked ? `<br><small style="font-size:11px;color:var(--text-tertiary);">${COPY.settings.bookingWindowRollingNote}</small>` : ''}</span>
           <label class="psycle-switch" style="flex-shrink:0;">
-            <input type="checkbox" class="notif-pergym-toggle" data-key="${key}" data-gym-id="${gymId}" ${perGymPrefOn(parentPref, g) ? 'checked' : ''}>
+            <input type="checkbox" class="notif-pergym-toggle" data-key="${key}" data-gym-id="${gymId}" ${locked ? 'disabled' : ''} ${perGymPrefOn(parentPref, g) ? 'checked' : ''}>
             <span class="psycle-slider"></span>
           </label>
         </div>`;
       }).join('')}
     </div>`;
 }
+
+/** The booking-window reminder applies only if at least one linked gym has a periodic window. */
+function anyPeriodicGym() { return (getLinkedGyms() || []).some(gymHasPeriodicWindow); }
 
 function renderNotifPrefs() {
   const body = document.getElementById('psycle-notif-prefs-body');
@@ -1859,7 +1878,7 @@ function renderNotifPrefs() {
               <div style="font-size:12px;color:var(--text-secondary);margin-top:2px;line-height:1.4;">${row.desc}</div>
             </div>
             <label class="psycle-switch" style="flex-shrink:0;">
-              <input type="checkbox" class="notif-toggle" data-key="${row.key}" ${p.enabled ? 'checked' : ''}>
+              <input type="checkbox" class="notif-toggle" data-key="${row.key}" ${row.perGym && !anyPeriodicGym() ? 'disabled' : ''} ${p.enabled && !(row.perGym && !anyPeriodicGym()) ? 'checked' : ''}>
               <span class="psycle-slider"></span>
             </label>
           </div>
@@ -1892,7 +1911,7 @@ async function saveNotifPrefs() {
   const body = document.getElementById('psycle-notif-prefs-body');
   if (!body) return;
   const prefs = getNotifPrefs();
-  body.querySelectorAll('.notif-toggle').forEach(el => {
+  body.querySelectorAll('.notif-toggle:not(:disabled)').forEach(el => {
     prefs[el.dataset.key].enabled = el.checked;
   });
   body.querySelectorAll('.notif-dropdown').forEach(el => {

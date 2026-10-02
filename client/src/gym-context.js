@@ -59,6 +59,7 @@ export function setGymCatalogue(catalogue) {
   injectGymPresentationCss();
   preloadGymWordmarks();
   loadWordmarkSprites(presentations);
+  if (typeof window !== 'undefined') window.dispatchEvent(new Event('gym-catalogue-ready'));
 }
 
 // Logos are re-created by every card re-render. Hold one decoded Image per wordmark asset so a

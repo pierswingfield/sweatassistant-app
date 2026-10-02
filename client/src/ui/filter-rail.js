@@ -336,7 +336,8 @@ function paintSheet(ctx) {
     if (t.dataset.frSec) {
       const k = t.dataset.frSec;
       const opening = !openSecs.has(k);
-      opening ? openSecs.add(k) : openSecs.delete(k);
+      // Accordion: opening a section closes the others (aria-expanded follows via paintSheet).
+      if (opening) { openSecs.clear(); openSecs.add(k); } else openSecs.delete(k);
       paintSheet(ctx);
       if (opening) reveal(sheet.querySelector(`#fr-sec-${k}`), true);
     }

@@ -18,6 +18,7 @@ import {
   detectBookingWindow,
   clampOffsetDays,
   formatCountdown,
+  isFullWithoutWaitlist,
 } from './lib.js';
 import { setLinkedGyms } from './gym-context.js';
 
@@ -166,5 +167,15 @@ describe('noSept', async () => {
   it('leaves other strings alone', () => {
     expect(noSept('Tue 15 Oct')).toBe('Tue 15 Oct');
     expect(noSept('September')).toBe('September');
+  });
+});
+
+describe('isFullWithoutWaitlist', () => {
+  it('is true only when full and the waitlist is explicitly unavailable', () => {
+    expect(isFullWithoutWaitlist({ isFull: true, waitlistAvailable: false })).toBe(true);
+    expect(isFullWithoutWaitlist({ isFull: true, waitlistAvailable: true })).toBe(false);
+    expect(isFullWithoutWaitlist({ isFull: true })).toBe(false);
+    expect(isFullWithoutWaitlist({ isFull: false, waitlistAvailable: false })).toBe(false);
+    expect(isFullWithoutWaitlist(null)).toBe(false);
   });
 });

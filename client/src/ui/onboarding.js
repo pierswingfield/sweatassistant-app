@@ -448,6 +448,12 @@ function stepGyms() {
           </div>`
         : '';
 
+      const submitLabel = (id) => {
+        const g = unlinkedGyms.find(x => String(x.id) === String(id));
+        const name = g && (g.shortName || g.name);
+        if (name) return formatCopyText(COPY.onboarding.connectNamedGym, { gym: name });
+        return hasLinked ? COPY.onboarding.connectAnotherGym : COPY.auth.connectGymButton;
+      };
       let formHtml = '';
       if (unlinkedGyms.length > 0 && (!hasLinked || addingAnother)) {
         formHtml = `
@@ -470,7 +476,7 @@ function stepGyms() {
               <input type="password" id="psycle-onb-gym-password" placeholder="${COPY.onboarding.gymPasswordPlaceholder}" autocomplete="off" style="width:100%;box-sizing:border-box;">
             </div>
             <div id="psycle-onb-gym-error" class="psycle-login-error" style="display:none;margin-top:4px;"></div>
-            <button type="button" id="psycle-onb-gym-submit" class="psycle-btn-primary" style="margin-top:4px;"><span>${hasLinked ? COPY.onboarding.connectAnotherGym : COPY.auth.connectGymButton}</span></button>
+            <button type="button" id="psycle-onb-gym-submit" class="psycle-btn-primary" style="margin-top:4px;"><span>${escapeHtml(submitLabel(unlinkedGyms[0]?.id))}</span></button>
             ${hasLinked ? `<button type="button" id="psycle-onb-add-another-back" class="psycle-btn-mini">${COPY.onboarding.backToSetup}</button>` : ''}
           </div>
         `;
@@ -519,6 +525,8 @@ function stepGyms() {
       }
 
       const submitBtn = sheet.querySelector('#psycle-onb-gym-submit');
+      const gymSel = sheet.querySelector('#psycle-onb-gym-select');
+      if (gymSel && submitBtn) gymSel.addEventListener('change', () => { submitBtn.querySelector('span').textContent = submitLabel(gymSel.value); });
       if (submitBtn) {
         submitBtn.addEventListener('click', async () => {
           const gymSelect = sheet.querySelector('#psycle-onb-gym-select');
@@ -550,7 +558,7 @@ function stepGyms() {
             errorEl.textContent = err.message || COPY.onboarding.connectionFailed;
             errorEl.style.display = 'block';
             submitBtn.disabled = false;
-            submitBtn.querySelector('span').textContent = hasLinked ? COPY.onboarding.connectAnotherGym : COPY.auth.connectGymButton;
+            submitBtn.querySelector('span').textContent = submitLabel(gymId);
           }
         });
       }

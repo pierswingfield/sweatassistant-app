@@ -12,7 +12,7 @@
 
 import { noSept } from '../lib';
 import { api } from '../api';
-import { showToast } from '../main';
+import { showToast, getIsOffline } from '../main';
 import { escapeHtml, icon } from './cards';
 import { COPY, formatCopyText } from '../copy.js';
 
@@ -108,7 +108,7 @@ export async function renderCalendarSection(targetContainer = null) {
   try {
     status = await api.getCalendarStatus();
   } catch (err) {
-    const msg = `<div class="psycle-settings-card"><p class="psycle-card-error">${formatCopyText(COPY.calendar.loadingFailed, { error: escapeHtml(err.message) })}</p></div>`;
+    const msg = `<div class="psycle-settings-card"><p class="${getIsOffline() ? 'psycle-card-desc' : 'psycle-card-error'}">${getIsOffline() ? COPY.calendar.noSavedStatus : formatCopyText(COPY.calendar.loadingFailed, { error: escapeHtml(err.message) })}</p></div>`;
     container.innerHTML = msg;
     return;
   }

@@ -364,6 +364,19 @@ function applyCreditsTabGate() {
     btn.style.display = allowed ? '' : 'none';
   });
   if (!allowed && currentTabId === 'buy-credits') switchTab('class-timetable');
+  applyBackupMigrationGate();
+}
+
+// TEMP: hidden unless debugMode. Backup & Migration (config export/import) card in
+// Settings > General. Export/import code is intact; remove this gate (and the card's
+// hidden/display:none in index.html) to restore it. Rides on applyCreditsTabGate's
+// call sites, so it applies at init and whenever debug toggles, no reload needed.
+function applyBackupMigrationGate() {
+  const card = document.getElementById('psycle-settings-backup-card');
+  if (!card) return;
+  const allowed = !!userSettings.debugMode;
+  card.hidden = !allowed;
+  card.style.display = allowed ? '' : 'none';
 }
 
 // --- TAB ROUTING ---
@@ -445,6 +458,13 @@ async function triggerTabRender(tabId) {
 tabButtons.forEach(btn => {
   btn.addEventListener('click', () => {
     const tabId = btn.getAttribute('data-tab');
+    // Re-tapping Settings while already in the Settings area (mobile) returns to the settings menu.
+    const group = (btn.getAttribute('data-tab-group') || '').split(' ');
+    if ((tabId === 'settings' || group.includes('settings')) && (currentTabId === 'settings' || currentTabId === 'about')
+        && window.matchMedia('(max-width: 900px)').matches) {
+      const lay = document.querySelector('.psycle-settings-layout');
+      if (lay && lay.classList.contains('show-pane')) { lay.classList.remove('show-pane'); return; }
+    }
     switchTab(tabId);
   });
 });
@@ -724,8 +744,12 @@ function gymBadgeLogo(gymId, shortName) {
     return `<span class="psycle-hgb-logo" aria-hidden="true" style="background:${brand.brandBg}"><span class="psycle-hgb-logo-text">${name}</span></span>`;
   }
   const img = (cls, src) => wordmarkElement(cls, src);
+  // squareMark gyms (very wide wordmark): the header pill shows the short MARK, like the other gyms' marks.
+  if (brand.squareMark && mark) {
+    return `<span class="psycle-hgb-logo is-markonly" aria-hidden="true" style="background:${brand.brandBg}">${img('psycle-hgb-logo-mark', mark.src)}</span>`;
+  }
   return `<span class="psycle-hgb-logo" aria-hidden="true" style="background:${brand.brandBg}">`
-    + (wide ? img('psycle-hgb-logo-wide', wide.src) : '')
+    + (wide ? wordmarkElement('psycle-hgb-logo-wide', wide.src, brand.logoWidth ? ' style="height:9px"' : '') : '')
     + (mark ? img('psycle-hgb-logo-mark', mark.src) : (wide ? img('psycle-hgb-logo-mark', wide.src) : ''))
     + `</span>`;
 }
@@ -753,7 +777,7 @@ function renderGymBadge(container, gymId, shortName, isMetered, total, credits) 
     // C3-3: an unmetered gym with no active membership (and no usable
     // credits) is a real, confirmed state — showing "Member" here was the
     // bug this branch exists to fix, not a permissive default to preserve.
-    badge.innerHTML = `${gymBadgeLogo(gymId, shortName)}<span class="psycle-hgb-pill inactive">${COPY.shell.noMembership}</span>`;
+    badge.innerHTML = `${gymBadgeLogo(gymId, shortName)}<span class="psycle-hgb-pill">${COPY.shell.noMembershipBadge}</span>`;
     badge.title = formatCopyText(COPY.shell.ineligibleBadgeTitle, { gymName: shortName, reason: getIneligibleReason(gymId) || COPY.shell.noActiveMembership });
   }
   // The chip is a shortcut to that gym's own Settings pane (the credit modal it
@@ -882,6 +906,7 @@ function repaintAutoBookIfVisible() {
 // --- OFFLINE CONNECTIVITY ---
 let isOffline = false;
 let probeTimeout = null;
+let lastOfflineSnapshotAt = null;
 
 function setOffline(reason) {
   if (isOffline) return;
@@ -894,6 +919,7 @@ function setOffline(reason) {
 function setOnline() {
   if (!isOffline) return;
   isOffline = false;
+  lastOfflineSnapshotAt = null;
   document.documentElement.classList.remove('psycle-offline');
   hideOfflineBanner();
   debugLog('Back online', 'success');
@@ -904,7 +930,11 @@ function showOfflineBanner(reason) {
   if (!banner) return;
   const textSpan = banner.querySelector('.offline-text');
   if (textSpan) {
-    textSpan.textContent = COPY.shell.offline;
+    textSpan.textContent = lastOfflineSnapshotAt
+      ? formatCopyText(COPY.shell.offlineSavedData, {
+        time: noSept(new Date(lastOfflineSnapshotAt).toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' })),
+      })
+      : COPY.shell.offline;
   }
   if (banner.style.display === 'flex') return;
   banner.style.display = 'flex';
@@ -963,13 +993,23 @@ function initConnectivity() {
   banner.className = 'psycle-offline-banner';
   banner.id = 'psycle-offline-banner';
   banner.style.display = 'none';
-  banner.innerHTML = '<span class="offline-icon">⚠</span><span class="offline-text"></span>';
+  banner.setAttribute('role', 'status');
+  banner.setAttribute('aria-live', 'polite');
+  banner.innerHTML = '<span class="offline-icon" aria-hidden="true">⚠</span><span class="offline-text"></span><button type="button" class="psycle-offline-retry">Retry</button>';
   container.insertBefore(banner, container.firstChild);
+
+  banner.querySelector('.psycle-offline-retry')?.addEventListener('click', () => probeConnectivity());
 
   window.addEventListener('offline', () => setOffline('browser'));
   window.addEventListener('online', () => probeConnectivity());
   window.addEventListener('psycle-network-fail', () => setOffline('network-error'));
   window.addEventListener('psycle-network-ok', () => probeConnectivity());
+  window.addEventListener('psycle-offline-snapshot', (event) => {
+    const savedAt = Number(event.detail?.savedAt);
+    if (!Number.isFinite(savedAt)) return;
+    lastOfflineSnapshotAt = Math.max(lastOfflineSnapshotAt || 0, savedAt);
+    if (isOffline) showOfflineBanner('snapshot');
+  });
 
   if (!navigator.onLine) {
     setOffline('initial');
@@ -1272,12 +1312,17 @@ async function checkAuth() {
       const isAuthError = err.message && err.message.includes('session has expired');
       if (isAuthError) {
         // 401 — showLogin() already called by psycle-logout-triggered handler
-      } else if (getIsOffline()) {
+      } else if (getIsOffline() || err instanceof TypeError) {
         // Network error (server unreachable) with valid token — init app with cached data.
         // The offline banner is already showing via the psycle-network-fail event handler.
         // Cache prefix was restored above from localStorage.
-        if (shouldShowOnboarding()) resumeOnboarding();
-        else initApp();
+        // A cold reload can reach this catch before the connectivity event has
+        // updated module state, so the fetch TypeError is also authoritative.
+        if (!getIsOffline()) setOffline('status-request');
+        // Onboarding can only advance with live requests. A returning account
+        // with cached data must see its read-only app while offline instead of
+        // an onboarding shell that hides both the login and app containers.
+        initApp();
       } else {
         // Online but getStatus failed for unknown reason — show login as fallback
         showLogin();
@@ -1762,11 +1807,9 @@ document.addEventListener('DOMContentLoaded', () => {
     e.stopPropagation();
   });
 
-  // Restore tab from URL hash (e.g. after page refresh)
-  const hash = location.hash.replace('#', '');
-  if (VALID_TABS.includes(hash) || hash === 'about') {
-    const targetTab = hash === 'about' ? 'settings' : hash;
-    // Defer until after checkAuth initialises the app
-    setTimeout(() => switchTab(targetTab), 0);
-  }
+  // `initApp()` restores the hash after it has restored the account cache key.
+  // Do not switch here: this DOM-ready handler runs while `checkAuth()` is
+  // awaiting `/api/auth/status`, so an offline reload used to initialise the
+  // timetable against the unscoped cache key. Its in-flight empty request then
+  // suppressed the correctly scoped initialisation from `initApp()`.
 });

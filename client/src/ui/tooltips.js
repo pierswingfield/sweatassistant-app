@@ -23,7 +23,8 @@ if (typeof document !== 'undefined') {
     const src = image.getAttribute('src') || '';
     if (src.startsWith('/api/instructor-photo/') && !image.dataset.instructorRetried) {
       image.dataset.instructorRetried = '1';
-      setTimeout(() => { if (image.isConnected) image.setAttribute('src', src); }, 3500);
+      // Distinct URL: re-assigning an identical src is not reliably a re-fetch on iOS WebKit.
+      setTimeout(() => { if (image.isConnected) image.setAttribute('src', `${src}${src.includes('?') ? '&' : '?'}r=1`); }, 3500);
       return;
     }
     image.dataset.instructorFallbackDone = '1';
@@ -38,6 +39,8 @@ if (typeof document !== 'undefined') {
 // Build the instructor tooltip inner HTML for a given instructor id.
 // Returns null if the instructor isn't in metadata yet. Shared by the hover
 // (desktop) and tap (touch) code paths.
+
+const INSTAGRAM_ICON = '<svg class="ab-ico" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" style="flex:none"><rect x="3" y="3" width="18" height="18" rx="5"/><circle cx="12" cy="12" r="4"/><circle cx="17.5" cy="6.5" r="0.6" fill="currentColor"/></svg>';
 
 // Instagram: expect "username" or "@username" → https://instagram.com/username
 function parseInstagramHandle(raw) {
@@ -143,16 +146,16 @@ function instructorTooltipHTML(instructorIdRaw, gymId = null) {
   const igHandle = parseInstagramHandle(igRaw);
   if (igUrl || igHandle) {
     const href = igUrl || `https://instagram.com/${igHandle}`;
-    const label = igHandle ? `@${igHandle}` : COPY.tooltips.instagram;
-    instagramHtml = `<a class="psycle-tooltip-social-link" href="${href}" target="_blank" rel="noopener noreferrer">📸 ${label}</a>`;
+    const label = igHandle || COPY.tooltips.instagram;
+    instagramHtml = `<a class="psycle-tooltip-social-link" href="${href}" target="_blank" rel="noopener noreferrer">${INSTAGRAM_ICON}<span class="psycle-tooltip-social-text psycle-tooltip-social-wrap">${label}</span></a>`;
   }
   let spotifyHtml = '';
   const spRaw = instructor.spotifyUrl || instructor.metafields?.spotify_handle || instructor.spotify_handle;
   const spId = parseSpotifyUserId(spRaw);
   if (spId || instructor.spotifyUrl) {
     const href = instructor.spotifyUrl || `https://open.spotify.com/user/${spId}`;
-    const label = spId ? `@${spId}` : COPY.tooltips.spotify;
-    spotifyHtml = `<a class="psycle-tooltip-social-link" href="${href}" target="_blank" rel="noopener noreferrer">🎵 ${label}</a>`;
+    const label = spId || COPY.tooltips.spotify;
+    spotifyHtml = `<a class="psycle-tooltip-social-link" href="${href}" target="_blank" rel="noopener noreferrer">🎵 <span class="psycle-tooltip-social-text">${label}</span></a>`;
   }
 
   return `
@@ -170,6 +173,17 @@ function instructorTooltipHTML(instructorIdRaw, gymId = null) {
 
 export function initTooltips() {
   const instructorTooltip = document.getElementById('psycle-instructor-tooltip');
+  // Scrolling the page dismisses the instructor popup, but only past a small threshold so
+  // accidental micro-movement doesn't close it. Capture phase: scroll doesn't bubble.
+  let scrollBase = null;
+  document.addEventListener('scroll', (e) => {
+    if (!instructorTooltip || !instructorTooltip.classList.contains('show')) { scrollBase = null; return; }
+    const el = e.target === document ? document.scrollingElement : e.target;
+    if (!el || (instructorTooltip.contains && instructorTooltip.contains(el))) return;
+    const top = el.scrollTop || 0;
+    if (!scrollBase || scrollBase.el !== el) { scrollBase = { el, top }; return; }
+    if (Math.abs(top - scrollBase.top) >= 10) { scrollBase = null; hideInstructor(); }
+  }, true);
   const occupancyTooltip = document.getElementById('psycle-occupancy-tooltip');
 
   if (!instructorTooltip || !occupancyTooltip) return;

@@ -182,7 +182,7 @@ function summaryCardHtml(gym, membership, credits) {
       facts.push(formatCopyText(Number(membership.guestPassesRemaining) === 1 ? COPY.gymSettings.guestPassesOne : COPY.gymSettings.guestPassesMany, { count: Number(membership.guestPassesRemaining) }));
     }
   } else {
-    headline = '—';
+    headline = '0';
     sub = COPY.credits.noMembership;
     facts.push(COPY.credits.membershipRequired);
   }

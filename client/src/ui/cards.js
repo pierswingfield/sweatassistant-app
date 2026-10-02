@@ -97,6 +97,8 @@ export function getDiscipline(name = '') {
   // grouping with the room it's actually held in.
   if (/\btrain|throwdown/.test(s)) return { key: 'conditioning', label: COPY.disciplines.train, icon: 'conditioning' };
   if (/condition|circuit|metcon|cardio/.test(s)) return D('conditioning', COPY.disciplines.conditioning);
+  // Bootcamp (Aarmy): own label, dumbbell glyph + strength colour token (SVG_PATHS.strength is a dumbbell).
+  if (/boot\s*camp/.test(s)) return { key: 'strength', label: COPY.disciplines.bootcamp, icon: 'strength' };
   if (/strength|tone|sculpt|hiit|abs|arms|signature|\blift\b/.test(s)) return D('strength', COPY.disciplines.strength);
   // Checked after the discipline-specific buckets above, not before: a class
   // type that already names a real discipline (e.g. a future "Boxing PT")
@@ -263,6 +265,9 @@ export function gymBrand(gymId) {
   // Optional data-driven optical scale for a gym's wordmark inside its (unchanged) chip: presentation.wordmark.scale.
   const scale = Number(p?.wordmark?.scale);
   const sty = Number.isFinite(scale) && scale > 0 && scale !== 1 ? ` style="--logo-scale:${scale}"` : '';
+  // Optional data-driven wordmark width for table chips (very wide wordmarks): wordmark.logoWidth (px).
+  const logoW = Number(p?.wordmark?.logoWidth);
+  const hasLogoW = Number.isFinite(logoW) && logoW > 0;
   const img = (cls, w) => wordmarkElement(cls, w.src, sty);
   if (!p) {
     // Neutral fallback: unknown gym, or the catalogue has not loaded yet. A text
@@ -292,12 +297,18 @@ export function gymBrand(gymId) {
   } else {
     logoSvg = img('ab-gym-logo-svg', full || compact);
   }
+  // Optional data-driven flag (presentation.wordmark.squareMark): a gym whose full wordmark is far
+  // too wide to read in a square/narrow container (Aarmy, ~4.5:1) renders its MARK there instead.
+  const squareLogoSvg = w.squareMark && w.mark ? wordmarkElement('ab-gym-logo-svg is-mark', w.mark.src, sty) : logoSvg;
   return {
     id: rawId,
     name: p.shortName,
+    squareMark: !!(w.squareMark && w.mark),
+    logoWidth: hasLogoW ? logoW : null,
+    squareLogoSvg,
     shortName: p.shortName,
     brandBg: p.plate,
-    markHtml: w.mark ? img('fr-mark-img', w.mark) : `<span class="fr-mark-text" aria-hidden="true">${escapeHtml(String(p.shortName).charAt(0))}</span>`,
+    markHtml: w.mark ? img(`fr-mark-img${w.squareMark ? ' is-squaremark' : ''}`, w.mark) : `<span class="fr-mark-text" aria-hidden="true">${escapeHtml(String(p.shortName).charAt(0))}</span>`,
     logoSvg,
   };
 }
@@ -312,7 +323,8 @@ export function gymChip(gymId) {
   // `title` and the visually-hidden name keep the gym readable to screen
   // readers and to anyone who doesn't know the marks yet, since the image
   // itself is aria-hidden.
-  return `<span class="psycle-gym-chip psycle-gym-chip-${brand.id}" title="${brand.name}" style="background:${brand.brandBg};border:1px solid ${brand.brandBg}">`
+  const wStyle = brand.logoWidth ? `;--logo-w:${brand.logoWidth}px;min-width:${brand.logoWidth + 18}px` : '';
+  return `<span class="psycle-gym-chip psycle-gym-chip-${brand.id}${brand.logoWidth ? ' has-logo-w' : ''}" title="${brand.name}" style="background:${brand.brandBg};border:1px solid ${brand.brandBg}${wStyle}">`
     + `<span class="psycle-gym-chip-logo">${brand.logoSvg}</span>`
     + `<span class="u-visually-hidden">${brand.name}</span>`
     + `</span>`;
@@ -330,14 +342,14 @@ export function gymChip(gymId) {
  */
 export function gymSquareChip(gymId) {
   const brand = gymBrand(gymId);
-  return `<span class="psycle-gym-mark psycle-gym-mark-${brand.id}" style="background:${brand.brandBg}" aria-hidden="true">${brand.logoSvg}</span>`;
+  return `<span class="psycle-gym-mark psycle-gym-mark-${brand.id}" style="background:${brand.brandBg}" aria-hidden="true">${brand.squareLogoSvg ?? brand.logoSvg}</span>`;
 }
 
 export function renderGymRail(gymId) {
   const brand = gymBrand(gymId);
   return `
     <div class="ab-card-gym-rail" data-gym="${brand.id}" title="${brand.name}" style="background:${brand.brandBg};border-right-color:${brand.brandBg}">
-      <div class="ab-gym-logo">${brand.logoSvg}</div>
+      <div class="ab-gym-logo">${brand.squareLogoSvg ?? brand.logoSvg}</div>
       <span class="u-visually-hidden">${brand.name}</span>
     </div>
   `;

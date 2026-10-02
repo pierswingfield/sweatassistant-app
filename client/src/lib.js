@@ -266,3 +266,13 @@ export function startGraceCountdown() {
 export function noSept(str) {
   return typeof str === 'string' ? str.replace(/\bSept\b/g, 'Sep') : str;
 }
+
+/**
+ * THE one answer to "is this class full with no way in": full AND the waitlist is explicitly
+ * unavailable (NormalizedEvent.isFull / .waitlistAvailable). An absent waitlistAvailable means the
+ * payload said nothing, so it is NOT treated as closed (unknown defaults permissive). Adapters
+ * normalise the flag; the UI must not re-derive it per provider or read `.raw`.
+ */
+export function isFullWithoutWaitlist(event) {
+  return !!(event && event.isFull) && event.waitlistAvailable === false;
+}

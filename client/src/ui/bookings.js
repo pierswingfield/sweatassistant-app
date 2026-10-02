@@ -115,12 +115,12 @@ export async function renderBookings() {
     console.error('[Bookings] Loading failed:', err);
 
     // Show a friendly empty state when offline and no cached data is available
-    if (bookingsList && !cache.bookings) {
+    if (bookingsList && !bookingsDataReady()) {
       bookingsList.innerHTML = `<div class="psycle-empty-state" style="text-align:center;padding:40px 20px;color:var(--text-secondary)"><p style="font-size:16px;margin-bottom:8px">${COPY.bookings.noCachedData}</p><p style="font-size:13px;color:var(--text-tertiary)">${COPY.bookings.connectInternetBookings}</p></div>`;
     } else if (bookingsList) {
       bookingsList.innerHTML = `<div class="psycle-card-error">${formatCopyText(COPY.bookings.noCachedError, { error: escapeHtml(err.message) })}</div>`;
     }
-    if (waitlistsList && !cache.waitlists) {
+    if (waitlistsList && !bookingsDataReady()) {
       waitlistsList.innerHTML = `<div class="psycle-empty-state" style="text-align:center;padding:40px 20px;color:var(--text-secondary)"><p style="font-size:16px;margin-bottom:8px">${COPY.bookings.noCachedData}</p><p style="font-size:13px;color:var(--text-tertiary)">${COPY.bookings.connectInternetWaitlists}</p></div>`;
     } else if (waitlistsList) {
       waitlistsList.innerHTML = `<div class="psycle-card-error">${formatCopyText(COPY.bookings.noCachedError, { error: escapeHtml(err.message) })}</div>`;

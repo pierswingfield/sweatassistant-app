@@ -15,6 +15,7 @@ const cron = require('node-cron');
 const { DateTime } = require('luxon');
 const db = require('./db');
 const { getGymConfig } = require('./gyms.config');
+const { zoneOfGym, resolveZone } = require('./providers/timezone');
 const poller = require('./poller');
 const { triggerAutoRelogin } = require('./auth');
 const { getProvider } = require('./providers');
@@ -358,6 +359,16 @@ function fold(line) {
   return out.join('\r\n');
 }
 
+// DTSTART/DTEND property for a zone. The feed ships ONE VTIMEZONE (Europe/London,
+// kept byte-stable so existing subscribers see no churn); any other zone is
+// emitted as an absolute UTC instant, which every client renders in the viewer's
+// own zone without needing a VTIMEZONE for it.
+function dtProp(name, dt) {
+  return dt.zoneName === 'Europe/London'
+    ? `${name};TZID=Europe/London:${fmtLocal(dt)}`
+    : `${name}:${fmtUTC(dt)}`;
+}
+
 const VTIMEZONE = [
   'BEGIN:VTIMEZONE',
   'TZID:Europe/London',
@@ -437,7 +448,7 @@ function cleanClassName(group, name) {
 }
 
 function buildDescription(row) {
-  const start = DateTime.fromISO(row.start_at, { zone: 'Europe/London' }).setLocale('en-GB');
+  const start = DateTime.fromISO(row.start_at, { zone: zoneOfGym(row.gym_id) }).setLocale('en-GB');
   const dur = row.duration_min || DEFAULT_DURATION_MIN;
   const statusText = row.status === 'confirmed' ? 'Booked ✓'
     : row.status === 'waitlist' ? 'On waitlist'
@@ -489,7 +500,7 @@ function bookingWindowEvents(gymIds, now = DateTime.now()) {
     const gym = getGymConfig(gymId);
     if (!gym || !isRollingWeekly(gym)) continue;
     const policy = policyOf(gym);
-    const zone = policy.timezone || 'Europe/London';
+    const zone = policy.timezone || resolveZone(gym);
     let release = mostRecentRelease(policy, now.setZone(zone));
     while (release <= now) release = release.plus({ weeks: 1 });
     for (let i = 0; i < WINDOW_EVENT_COUNT; i++) {
@@ -501,7 +512,7 @@ function bookingWindowEvents(gymIds, now = DateTime.now()) {
 }
 
 function buildWindowVEvent(userId, w) {
-  const start = w.start.setZone('Europe/London');   // the feed's one VTIMEZONE
+  const start = w.start;
   const end = start.plus({ minutes: WINDOW_EVENT_DURATION_MIN });
   const title = `${w.gymName} booking window opens`;
   return [
@@ -509,8 +520,8 @@ function buildWindowVEvent(userId, w) {
     `UID:psycle-${userId}-bw-${w.gymId}-${w.dateKey}@${APP_HOST}`,
     'SEQUENCE:0',
     `DTSTAMP:${fmtUTC(DateTime.now())}`,
-    `DTSTART;TZID=Europe/London:${fmtLocal(start)}`,
-    `DTEND;TZID=Europe/London:${fmtLocal(end)}`,
+    dtProp('DTSTART', start),
+    dtProp('DTEND', end),
     `SUMMARY:${esc(title)}`,
     `DESCRIPTION:${esc(`Booking opens for the next classes at ${w.gymName}.\n\n${appName} · https://${APP_HOST}`)}`,
     'STATUS:CONFIRMED',
@@ -522,7 +533,7 @@ function buildWindowVEvent(userId, w) {
 }
 
 function buildVEvent(userId, row, addrMap, reminders) {
-  const start = DateTime.fromISO(row.start_at, { zone: 'Europe/London' });
+  const start = DateTime.fromISO(row.start_at, { zone: zoneOfGym(row.gym_id) });
   if (!start.isValid) return [];
   const end = start.plus({ minutes: row.duration_min || DEFAULT_DURATION_MIN });
   // addrMap is { [gymId]: { locationName: address } } (C3-20).
@@ -535,8 +546,8 @@ function buildVEvent(userId, row, addrMap, reminders) {
     `UID:psycle-${userId}-${row.event_id}@${APP_HOST}`,
     `SEQUENCE:${row.sequence || 0}`,
     `DTSTAMP:${fmtUTC(DateTime.now())}`,
-    `DTSTART;TZID=Europe/London:${fmtLocal(start)}`,
-    `DTEND;TZID=Europe/London:${fmtLocal(end)}`,
+    dtProp('DTSTART', start),
+    dtProp('DTEND', end),
     `SUMMARY:${esc(buildTitle(row))}`,
   ];
   if (locField) lines.push(`LOCATION:${esc(locField)}`);

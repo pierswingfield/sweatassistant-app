@@ -53,6 +53,7 @@ function makeEvent(e) {
     name: e.name || '',
     discipline: e.discipline,
     startAt: e.startAt,
+    timeZone: e.timeZone,
     endAt: e.endAt,
     durationMin: num(e.durationMin),
     releaseAt: e.releaseAt,
@@ -215,6 +216,7 @@ function makeBooking(b) {
     // UI counts down — universal enough to belong on the shape, and the only
     // reason bookings.js was still reading a raw CodexFit field.
     bookedAt: b.bookedAt,
+    timeZone: b.timeZone || (b.event && b.event.timeZone),
     event: b.event,
     raw: b.raw,
   });
@@ -240,7 +242,7 @@ function prune(obj) {
 // shape from its class list.
 
 function makeLocation(l) {
-  return prune({ id: str(l.id), name: l.name || '', address: l.address, raw: l.raw });
+  return prune({ id: str(l.id), name: l.name || '', address: l.address, timeZone: l.timeZone, raw: l.raw });
 }
 
 function makeStudio(s) {

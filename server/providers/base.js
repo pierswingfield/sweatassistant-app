@@ -72,7 +72,8 @@
  * @property {string}  gymId
  * @property {string}  name
  * @property {string=} discipline        e.g. "BOXING", "Ride"
- * @property {string}  startAt           ISO 8601 (with offset)
+ * @property {string}  startAt           ISO 8601 (with offset, in the class's own zone)
+ * @property {string=} timeZone          IANA zone the class runs in (gym-local); display times in this
  * @property {string=} endAt             ISO 8601
  * @property {number=} durationMin       Class length in minutes.
  * @property {string=} releaseAt         ISO 8601 — when booking opens for this event.

@@ -5,7 +5,9 @@ const pushService = require('./push');
 const { getGymConfig, DEFAULT_GYM_ID } = require('./gyms.config');
 const { isRollingWeekly } = require('./providers/booking-window');
 
-const ZONE = 'Europe/London';
+const { zoneOfGym } = require('./providers/timezone');
+// Display zone for a notification: the gym it is about, never a literal.
+const zoneFor = (gymId) => zoneOfGym(gymId || DEFAULT_GYM_ID);
 
 // Default notification preferences. Stored per-user under settings.notifications.
 const DEFAULT_PREFS = {
@@ -90,18 +92,18 @@ function groupToken(groupName, className) {
 }
 
 // "Fri 06:30" when the class is ≤6 days away; "Fri 19 Jun 06:30" when further out.
-function formatDayTime(startAt) {
-  const dt = DateTime.fromISO(startAt, { zone: ZONE });
+function formatDayTime(startAt, zone = zoneFor()) {
+  const dt = DateTime.fromISO(startAt, { zone });
   if (!dt.isValid) return '';
-  const now = DateTime.now().setZone(ZONE);
+  const now = DateTime.now().setZone(zone);
   const days = dt.startOf('day').diff(now.startOf('day'), 'days').days;
   const time = dt.toFormat('HH:mm');
   if (days <= 6) return `${dt.toFormat('ccc')} ${time}`;
   return `${dt.toFormat('ccc d LLL')} ${time}`;
 }
 
-function formatTime(startAt) {
-  const dt = DateTime.fromISO(startAt, { zone: ZONE });
+function formatTime(startAt, zone = zoneFor()) {
+  const dt = DateTime.fromISO(startAt, { zone });
   return dt.isValid ? dt.toFormat('HH:mm') : '';
 }
 
@@ -131,13 +133,13 @@ function buildBooking(ctx) {
   const spotPart = spots ? ` - Spot ${spots}` : '';
   return {
     title: `${gym}: Spot Booked`,
-    body: `${formatDayTime(ctx.startAt)} ${groupToken(ctx.groupName, ctx.className)}${withInstructor(ctx.instructorName)}${spotPart}.`,
+    body: `${formatDayTime(ctx.startAt, zoneFor(ctx.gymId))} ${groupToken(ctx.groupName, ctx.className)}${withInstructor(ctx.instructorName)}${spotPart}.`,
   };
 }
 
 function buildUpgrade(ctx) {
   const gym = gymShortName(ctx.gymId);
-  let body = `You're now on Spot ${ctx.slot} for ${formatDayTime(ctx.startAt)} ${groupToken(ctx.groupName, ctx.className)}${withInstructor(ctx.instructorName)}.`;
+  let body = `You're now on Spot ${ctx.slot} for ${formatDayTime(ctx.startAt, zoneFor(ctx.gymId))} ${groupToken(ctx.groupName, ctx.className)}${withInstructor(ctx.instructorName)}.`;
   if (ctx.keptOriginal) {
     body += ` Your previous spot was not cancelled, speak to ${gym} to cancel without penalty.`;
   }
@@ -146,7 +148,7 @@ function buildUpgrade(ctx) {
 
 function buildCreditWarning(ctx) {
   const gym = gymShortName(ctx.gymId);
-  const dt = formatDayTime(ctx.startAt);
+  const dt = formatDayTime(ctx.startAt, zoneFor(ctx.gymId));
   const grp = groupToken(ctx.groupName, ctx.className);
   const who = withInstructor(ctx.instructorName);
   let body;
@@ -163,13 +165,13 @@ function buildCreditWarning(ctx) {
 
 function buildCancellationReminder(ctx) {
   const gym = gymShortName(ctx.gymId);
-  const start = DateTime.fromISO(ctx.startAt, { zone: ZONE });
-  const hoursUntil = start.isValid ? start.diff(DateTime.now().setZone(ZONE), 'hours').hours : 0;
+  const start = DateTime.fromISO(ctx.startAt, { zone: zoneFor(ctx.gymId) });
+  const hoursUntil = start.isValid ? start.diff(DateTime.now(), 'hours').hours : 0;
   const freeHours = Math.max(0, Math.round(hoursUntil - 12));
   const spotPart = ctx.slot != null && ctx.slot !== '' ? ` (Spot ${ctx.slot})` : '';
   return {
     title: `Reminder: ${gym} Class`,
-    body: `You're booked for ${formatTime(ctx.startAt)} ${groupToken(ctx.groupName, ctx.className)}${withInstructor(ctx.instructorName)}${spotPart}. You have ${freeHours} hour${freeHours !== 1 ? 's' : ''} to cancel for free.`,
+    body: `You're booked for ${formatTime(ctx.startAt, zoneFor(ctx.gymId))} ${groupToken(ctx.groupName, ctx.className)}${withInstructor(ctx.instructorName)}${spotPart}. You have ${freeHours} hour${freeHours !== 1 ? 's' : ''} to cancel for free.`,
   };
 }
 
@@ -230,7 +232,7 @@ async function notify(userId, type, ctx = {}) {
 // ─── Debug samples (force-send, ignore prefs) ────────────────────────────────
 
 function buildSample(type) {
-  const soon = DateTime.now().setZone(ZONE).plus({ days: 1 }).set({ hour: 6, minute: 30, second: 0 }).toISO();
+  const soon = DateTime.now().setZone(zoneFor()).plus({ days: 1 }).set({ hour: 6, minute: 30, second: 0 }).toISO();
   const base = { startAt: soon, groupName: 'RIDE', className: 'Signature 45', instructorName: 'Aanya Smith', slots: [5], slot: 5, gymId: DEFAULT_GYM_ID };
   switch (type) {
     case 'booking': return buildBooking(base);
@@ -239,7 +241,7 @@ function buildSample(type) {
     case 'creditWarning': return buildCreditWarning({ ...base, kind: 'autobook', spots: 2, creditsShort: 2 });
     case 'creditWarning-upgrade': return buildCreditWarning({ ...base, kind: 'autoupgrade' });
     case 'cancellationReminder':
-      return buildCancellationReminder({ ...base, startAt: DateTime.now().setZone(ZONE).plus({ hours: 24 }).toISO() });
+      return buildCancellationReminder({ ...base, startAt: DateTime.now().setZone(zoneFor()).plus({ hours: 24 }).toISO() });
     case 'bookingWindow': return buildBookingWindow({ gymId: DEFAULT_GYM_ID, tip: 'You have 3 classes set to Auto-Book.' });
     case 'bookingWindow-none': return buildBookingWindow({ gymId: DEFAULT_GYM_ID, tip: "Don't forget to set up Auto-Book!" });
     case 'bookingWindow-nocredits': return buildBookingWindow({ gymId: DEFAULT_GYM_ID, tip: '⚠️ You have 3 classes set to Auto-Book, but you don\'t have enough credits.' });

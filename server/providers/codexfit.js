@@ -16,6 +16,7 @@
 const { DateTime } = require('luxon');
 const { GymProvider, classifyProviderThrottle } = require('./base');
 const bookingWindow = require('./booking-window');
+const { resolveZone, toZonedISO } = require('./timezone');
 const { makeMetadata, makeProfile, makeEvent, makeSlot, makeLayoutObject, makeBookingResult, makeBooking } = require('./normalize');
 const cart = require('./codexfit-cart');
 
@@ -631,7 +632,7 @@ class CodexFitProvider extends GymProvider {
     ]);
     return makeMetadata({
       gymId: this.gymId,
-      locations: locations.map((l) => ({ id: l.id, name: l.name, address: l.address, raw: l })),
+      locations: locations.map((l) => ({ id: l.id, name: l.name, address: l.address, timeZone: resolveZone(this.gym, { locationId: l.id }), raw: l })),
       studios: studios.map((st) => ({
         id: st.id,
         name: st.name,
@@ -711,22 +712,26 @@ class CodexFitProvider extends GymProvider {
   }
 
   mapEventToNormalized(e) {
+    const locId = e.location_id || (e.studio && e.studio.location_id) || (e.studio && e.studio.location && e.studio.location.id);
+    // CodexFit publishes NO zone: it comes from gym config only.
+    const timeZone = resolveZone(this.gym, { locationId: locId });
     return makeEvent({
       id: e.id,
       gymId: this.gymId,
+      timeZone,
       // GET /events list items carry a top-level `name`; GET /events/{id}'s
       // `data` object does not (confirmed via live capture) — fall back to the
       // resolved event_type's own name, which is what the real site displays.
       name: e.name || (e.event_type && e.event_type.name) || '',
       discipline: e.event_type && e.event_type.group && e.event_type.group.name,
-      startAt: e.start_at,
+      startAt: toZonedISO(e.start_at, timeZone),
       // CodexFit's start_at is a timezone-naive local London string (no offset
       // suffix) — must resolve via Luxon in the GYM's zone, never bare Date
       // arithmetic (AGENTS.md rule 7). A bare `new Date(e.start_at)` parses it
       // as the RUNNING MACHINE's local zone, which is wrong on any server not
       // itself in that zone and silently drifts across DST transitions.
       durationMin: e.duration,
-      endAt: e.start_at && e.duration ? DateTime.fromISO(e.start_at, { zone: this.gym.timezone }).plus({ minutes: e.duration }).toISO() : undefined,
+      endAt: e.start_at && e.duration ? DateTime.fromISO(e.start_at, { zone: timeZone }).plus({ minutes: e.duration }).toISO({ suppressMilliseconds: true }) : undefined,
       locationId: e.location_id || (e.studio && e.studio.location_id) || (e.studio && e.studio.location && e.studio.location.id),
       locationName: e.studio && e.studio.location && e.studio.location.name,
       locationAddress: e.studio && e.studio.location && e.studio.location.address,

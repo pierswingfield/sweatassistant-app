@@ -49,11 +49,20 @@ let linkedGyms = [];
 // Held apart from `linkedGyms` so a gym that is in the catalogue but not linked
 // (or not yet linked when a row renders) still resolves its own brand.
 let presentations = new Map();
+// Gym default display zone from the catalogue (GET /api/gyms `timezone`), by gym id.
+let gymZones = new Map();
+
+/** Gym-local IANA zone from the catalogue, or '' when unknown/not loaded. */
+export function getGymTimeZone(gymId) {
+  return (gymId && gymZones.get(String(gymId))) || '';
+}
 
 /** Seed presentation contracts from the /api/gyms catalogue array. */
 export function setGymCatalogue(catalogue) {
   presentations = new Map();
+  gymZones = new Map();
   for (const g of Array.isArray(catalogue) ? catalogue : []) {
+    if (g && g.id && g.timezone) gymZones.set(String(g.id), g.timezone);
     if (g && g.id && g.presentation) presentations.set(String(g.id), g.presentation);
   }
   injectGymPresentationCss();

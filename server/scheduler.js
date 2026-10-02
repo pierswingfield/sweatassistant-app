@@ -7,6 +7,7 @@ const pushService = require('./push');
 const notifications = require('./notifications');
 const { triggerAutoRelogin } = require('./auth');
 const { getProvider } = require('./providers');
+const { resolveZone, zoneOfGym } = require('./providers/timezone');
 const { getGymConfig, DEFAULT_GYM_ID } = require('./gyms.config');
 
 // Interim single-gym bridge: until multi-gym login lands (WP-D3), the
@@ -203,7 +204,7 @@ function getClassReleaseTime(booking, settings = {}) {
 
 function getGymZone(gymId) {
   const gym = getGymConfig(gymId);
-  return (gym && gym.timezone) || 'Europe/London';
+  return resolveZone(gym);
 }
 
 // Perform a request to CodexFit API with automatic re-login on 401
@@ -751,7 +752,7 @@ function resolvePendingReleases() {
 }
 
 // The soonest release still ahead of us, or null when nothing is queued.
-function getNextReleaseInstant(now = DateTime.now().setZone('Europe/London')) {
+function getNextReleaseInstant(now = DateTime.now()) {
   let soonest = null;
   for (const { releaseAt } of resolvePendingReleases()) {
     if (releaseAt <= now) continue;
@@ -769,7 +770,7 @@ function bookingsReleasingAt(target) {
 }
 
 // Entries whose release slipped past while the process was down.
-function runMissedReleases(now = DateTime.now().setZone('Europe/London')) {
+function runMissedReleases(now = DateTime.now()) {
   const missed = resolvePendingReleases()
     .filter(({ releaseAt }) => {
       const agoMs = now.diff(releaseAt).milliseconds;
@@ -810,7 +811,7 @@ function scheduleReleaseWindow() {
   if (preciseInterval) clearInterval(preciseInterval);
   mainTimeout = prefetchTimeout = preciseInterval = null;
 
-  const now = DateTime.now().setZone('Europe/London');
+  const now = DateTime.now();
   const targetRelease = getNextReleaseInstant(now);
 
   if (!targetRelease) {
@@ -866,7 +867,7 @@ function rearm() {
 // Immediate execution runner for beyond-cutoff booking
 function checkAndRunImmediateBookings(userId) {
   const pending = db.getPendingAutoBookings().filter(b => b.user_id === userId);
-  const now = DateTime.now().setZone('Europe/London');
+  const now = DateTime.now();
 
   const immediateBookings = pending.filter(b => {
     const settings = db.getUserSettings(b.user_id, b.gym_id) || {};

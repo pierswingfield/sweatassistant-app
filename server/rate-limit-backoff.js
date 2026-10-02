@@ -73,7 +73,7 @@ function notifyRateLimited(userId, gymId) {
   try {
     const db = require('./db');
     const notifications = require('./notifications');
-    const key = `rate-limit:${gymId}:${DateTime.now().setZone('Europe/London').toISODate()}`;
+    const key = `rate-limit:${gymId}:${DateTime.utc().toISODate()}`;
     if (db.wasNotificationSent(userId, key)) return;
     db.markNotificationSent(userId, key);
     notifications.notify(userId, 'providerThrottled', { gymId });

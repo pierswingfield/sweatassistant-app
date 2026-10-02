@@ -17,6 +17,7 @@ const {
   notifyRateLimited,
 } = require('./rate-limit-backoff');
 const { getProvider } = require('./providers');
+const { zoneOfGym } = require('./providers/timezone');
 const { getGymConfig } = require('./gyms.config');
 const { policyOf, isRollingWeekly, mostRecentRelease } = require('./providers/booking-window');
 
@@ -500,7 +501,7 @@ async function resumePausedUpgrades() {
       // loop's limits so it neither resumes into a dead window nor lingers as
       // "paused" forever.
       const prefs = JSON.parse(upgrade.preferences) || {};
-      const classStart = DateTime.fromISO(upgrade.start_at, { zone: 'Europe/London' });
+      const classStart = DateTime.fromISO(upgrade.start_at, { zone: zoneOfGym(upgrade.gym_id) });
       const hoursUntil = classStart.diff(now, 'hours').hours;
       if (hoursUntil <= 1) {
         db.updateAutoUpgrade(upgrade.id, userId, 'stopped', 'Class is within 1 hour — monitoring stopped.', { lastCheckedAt: now.toISO() });
@@ -567,7 +568,7 @@ async function executeAutoUpgradeChecks() {
 
       if (!shouldCheckUpgrade(upgrade, settings)) continue;
 
-      const classStart = DateTime.fromISO(upgrade.start_at, { zone: 'Europe/London' });
+      const classStart = DateTime.fromISO(upgrade.start_at, { zone: zoneOfGym(upgrade.gym_id) });
       const hoursUntilClass = classStart.diff(now, 'hours').hours;
 
       // Class already started or ≤1h away — hard stop
@@ -728,7 +729,7 @@ async function refreshBookingCaches() {
 
 // ─── Local reminder firing (no API calls) ────────────────────────────────────
 function checkCancellationReminders() {
-  const now = DateTime.now().setZone('Europe/London');
+  const now = DateTime.now();
   const cached = db.getAllBookingCache();
   for (const bk of cached) {
     try {
@@ -736,7 +737,7 @@ function checkCancellationReminders() {
       if (!prefs.cancellationReminder.enabled) continue;
 
       const timing = prefs.cancellationReminder.timing === '14h' ? 14 : 24;
-      const start = DateTime.fromISO(bk.start_at, { zone: 'Europe/London' });
+      const start = DateTime.fromISO(bk.start_at, { zone: zoneOfGym(bk.gym_id) });
       if (!start.isValid) continue;
 
       const hoursUntil = start.diff(now, 'hours').hours;

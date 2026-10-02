@@ -266,6 +266,9 @@ const GYMS = {
     websiteUrl: 'https://www.aarmy.com/',
     provider: 'marianatek',
     timezone: 'America/New_York',
+    // Optional per-location override ({locationId: IANA}) for a gym spanning zones.
+    // Precedence: this -> provider-published zone -> `timezone` (providers/timezone.js).
+    locationTimezones: {},
     // Keep the tenant dark in production until live-account acceptance is
     // recorded. It remains available in development so onboarding is testable.
     enabled: process.env.AARMY_ENABLED === 'true'

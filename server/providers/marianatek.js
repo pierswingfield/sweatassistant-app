@@ -12,6 +12,7 @@
 
 const crypto = require('crypto');
 const { GymProvider } = require('./base');
+const { resolveZone, toZonedISO } = require('./timezone');
 const { makeMetadata, makeProfile, makeMembership, makeEvent, makeSlot, makeBookingResult, makeBooking } = require('./normalize');
 const bookingWindow = require('./booking-window');
 
@@ -563,7 +564,7 @@ class MarianaTekProvider extends GymProvider {
 
     for (const ev of events) {
       if (ev.locationId && !locations.has(ev.locationId)) {
-        locations.set(ev.locationId, { id: ev.locationId, name: ev.locationName, address: ev.locationAddress });
+        locations.set(ev.locationId, { id: ev.locationId, name: ev.locationName, address: ev.locationAddress, timeZone: ev.timeZone });
       }
       if (ev.studioId && !studios.has(ev.studioId)) {
         studios.set(ev.studioId, {
@@ -622,9 +623,14 @@ class MarianaTekProvider extends GymProvider {
   }
 
   mapClassToEvent(c) {
+    // location.timezone is published per class; config overrides, gym default backs it up.
+    const timeZone = resolveZone(this.gym, {
+      providerZone: c.location && c.location.timezone,
+      locationId: c.location && c.location.id,
+    });
     const durationMin = c.class_type && c.class_type.duration;
     const endAt = durationMin && c.start_datetime
-      ? new Date(new Date(c.start_datetime).getTime() + durationMin * 60000).toISOString()
+      ? toZonedISO(new Date(new Date(c.start_datetime).getTime() + durationMin * 60000).toISOString(), timeZone)
       : undefined;
     return makeEvent({
       id: c.id,
@@ -642,7 +648,8 @@ class MarianaTekProvider extends GymProvider {
       // ever arrives with no `class_type` at all, which no live capture has
       // shown but costs nothing to guard.
       discipline: (c.class_type && c.class_type.name) || c.classroom_name,
-      startAt: c.start_datetime,
+      startAt: toZonedISO(c.start_datetime, timeZone),
+      timeZone,
       durationMin,
       endAt,
       releaseAt: c.booking_start_datetime,

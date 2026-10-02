@@ -4,7 +4,7 @@ import { getAvailableCreditsForEvent, getTotalCredits, getIneligibleReason } fro
 import { showToast, cache, refreshUserData, updateCreditBadge, userSettings, gymSetting } from '../main';
 import { renderStudioFloorPlan } from './spotmap';
 import { instructorInlineHtml, icon, disciplineTag, trimLocation, seatNoun, stripClassNamePrefix, trendingUpIcon, pulseIcon, renderGymRail, equalizeDiscTagWidths, observeLocationWrap, wireRailToggle, shortSlotLabels, escapeHtml} from './cards';
-import { isInGracePeriod, GRACE_PERIOD_MS, startGraceCountdown, noSept } from '../lib';
+import { isInGracePeriod, GRACE_PERIOD_MS, startGraceCountdown, noSept, zoneFor, formatInZone } from '../lib';
 import { invalidateApiCache } from '../cache';
 import { renderCardSkeletons } from './loading-skeleton.js';
 import { instructorAvatar } from './tooltips.js';
@@ -258,9 +258,9 @@ function renderBookingsCards(bookings, upgrades) {
 function buildBookingCard(group, upgrades) {
   const event = group.event;
   const startAt = event.startAt || event.start_at;
-  const startDt = new Date(startAt);
-  const dateStr = noSept(startDt.toLocaleString('en-GB', { weekday: 'short', day: 'numeric', month: 'short', timeZone: 'Europe/London' }));
-  const timeOnly = startDt.toLocaleString('en-GB', { hour: '2-digit', minute: '2-digit', hour12: false, timeZone: 'Europe/London' });
+  const fmt = formatInZone(startAt, zoneFor(event, group.gymId || group.gym_id));
+  const dateStr = noSept(fmt.date);
+  const timeOnly = fmt.timeLabel;
 
   const rawClassName = event.name || event.event_type?.name || COPY.autoBook.class;
   const groupName = event.discipline || event.event_type?.group?.name || rawClassName;
@@ -760,9 +760,9 @@ function renderWaitlistsCards(waitlists) {
 function buildWaitlistCard(w) {
   const event = w.event;
   const startAt = event.startAt || event.start_at;
-  const startDt = new Date(startAt);
-  const dateStr = noSept(startDt.toLocaleString('en-GB', { weekday: 'short', day: 'numeric', month: 'short', timeZone: 'Europe/London' }));
-  const timeOnly = startDt.toLocaleString('en-GB', { hour: '2-digit', minute: '2-digit', hour12: false, timeZone: 'Europe/London' });
+  const fmt = formatInZone(startAt, zoneFor(event, w.gymId || w.gym_id));
+  const dateStr = noSept(fmt.date);
+  const timeOnly = fmt.timeLabel;
   const rawClassName = event.name || event.event_type?.name || COPY.autoBook.class;
   const groupName = event.discipline || event.event_type?.group?.name || rawClassName;
   const className = stripClassNamePrefix(rawClassName, groupName);

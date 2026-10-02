@@ -203,6 +203,8 @@ router.get('/gyms', (req, res) => {
   const gyms = listGyms().map((g) => ({
     id: g.id, name: g.name, shortName: g.shortName, websiteUrl: g.websiteUrl, classPageUrl: g.classPageUrl || null,
     provider: g.provider, enabled: g.enabled,
+    // Gym default display zone (client fallback when an event/booking carries none).
+    timezone: g.timezone,
     theme: g.theme, labels: g.labels, capabilities: g.capabilities,
     locationAliases: g.locationAliases || {},
     presentation: g.presentation,

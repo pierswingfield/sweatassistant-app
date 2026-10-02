@@ -16,7 +16,7 @@
 // per-call content. There is no shared modal component yet (U2-1) and this does
 // not build one; it only does the accessibility work such a component would.
 
-import { noSept } from '../lib';
+import { noSept, zoneFor, formatInZone } from '../lib';
 import { icon, disciplineTag, getDiscipline, renderGymRail, cleanClassName, trimLocation, escapeHtml, equalizeDiscTagWidths } from './cards.js';
 import { instructorAvatar } from './tooltips.js';
 import { getGymShortName, getDefaultGymId } from '../gym-context.js';
@@ -81,14 +81,10 @@ export function describeOverlap(warnings = [], mode = 'autobook') {
  */
 export function classSummaryCardHtml(item, tag) {
   const gymId = item.gymId || getDefaultGymId();
-  const start = item.startAt ? new Date(item.startAt) : null;
-  const valid = start && !Number.isNaN(start.getTime());
-  const dateStr = valid
-    ? noSept(start.toLocaleString('en-GB', { weekday: 'short', day: 'numeric', month: 'short', timeZone: 'Europe/London' })).toUpperCase()
-    : '';
-  const timeStr = valid
-    ? start.toLocaleString('en-GB', { hour: '2-digit', minute: '2-digit', hour12: false, timeZone: 'Europe/London' })
-    : '';
+  const fmt = item.startAt ? formatInZone(item.startAt, zoneFor(item, gymId)) : null;
+  const valid = !!(fmt && fmt.time);
+  const dateStr = valid ? noSept(fmt.date).toUpperCase() : '';
+  const timeStr = valid ? fmt.timeLabel : '';
   // Strip by the discipline's display label, not the raw group string: a gym whose
   // `discipline` is the whole class type ("TRAIN - Full Body Conditioning") would
   // otherwise leave the redundant prefix in beside the discipline pill.

@@ -3,7 +3,7 @@ import { COPY, formatCopyText } from '../copy.js';
 import { getGymShortName, getLinkedGyms, getDefaultGymId } from '../gym-context.js';
 import { getAvailableCreditsForEvent, getTotalCredits, getIneligibleReason } from './credit-allowance.js';
 import { showToast, cache, userSettings, gymSetting, setGymSettingLocal, profileForGym, refreshUserData, debugConsole } from '../main';
-import { getClassReleaseTime, noSept } from '../lib';
+import { getClassReleaseTime, noSept, zoneFor, formatInZone } from '../lib';
 import { DateTime } from 'luxon';
 import { renderStudioFloorPlan } from './spotmap';
 import { instructorInlineHtml, cleanClassName, icon, disciplineTag, trimLocation, seatNoun, pulseIcon, renderGymRail, equalizeDiscTagWidths, observeLocationWrap, wireRailToggle, escapeHtml, gymBrand, gymChip } from './cards';
@@ -400,19 +400,9 @@ function renderQueue(queue) {
     card.setAttribute('data-event-id', q.event_id);
     card.setAttribute('data-gym', q.gym_id || getDefaultGymId());
 
-    const startDt = new Date(q.start_at);
-    const dateStr = noSept(startDt.toLocaleString('en-GB', {
-      weekday: 'short',
-      day: 'numeric',
-      month: 'short',
-      timeZone: 'Europe/London'
-    }));
-    const timeOnly = startDt.toLocaleString('en-GB', {
-      hour: '2-digit',
-      minute: '2-digit',
-      hour12: false,
-      timeZone: 'Europe/London'
-    });
+    const fmt = formatInZone(q.start_at, zoneFor(q));
+    const dateStr = noSept(fmt.date);
+    const timeOnly = fmt.timeLabel;
 
     const prefs = q.preferences || {};
     const creditsNeeded = prefs.requiredCount || 1;
@@ -762,13 +752,9 @@ function renderHistoryPage() {
 
   list.innerHTML = '';
   page.forEach(h => {
-    const executedDt = new Date(h.executed_at);
-    const dateStr = noSept(executedDt.toLocaleString('en-GB', {
-      weekday: 'short', day: 'numeric', month: 'short', timeZone: 'Europe/London'
-    }));
-    const timeStr = executedDt.toLocaleString('en-GB', {
-      hour: '2-digit', minute: '2-digit', hour12: false, timeZone: 'Europe/London'
-    });
+    const fmt = formatInZone(h.executed_at, zoneFor(h));
+    const dateStr = noSept(fmt.date);
+    const timeStr = fmt.timeLabel;
 
     let state, statusText, statusGlyph;
     if (h.status === 'success')      { state = 'success';  statusText = COPY.autoBook.bookedStatus;     statusGlyph = 'checkCircle'; }

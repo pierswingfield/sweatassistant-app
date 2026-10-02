@@ -4,7 +4,8 @@ import { getAvailableCreditsForEvent, hasUsableCredit, getIneligibleReason, isMe
 import { isCreditInventoryLoaded, pickStudioPrefs as pickGymStudioPrefs } from './gym-isolation.js';
 import { canForGym, canAny, capabilityForGym, getLinkedGyms, getGymShortName, getLocationAlias, getDefaultGymId } from '../gym-context.js';
 import { showToast, currentUser, userSettings, gymSetting, profileForGym, refreshUserData, updateCreditBadge, cache, debugConsole } from '../main';
-import { getClassReleaseTime, isFullWithoutWaitlist, isInGracePeriod, GRACE_PERIOD_MS, startGraceCountdown, noSept } from '../lib';
+import { getClassReleaseTime, isFullWithoutWaitlist, isInGracePeriod, GRACE_PERIOD_MS, startGraceCountdown, noSept, zoneFor, formatInZone, dayKeyInZone, nowInZone, deviceZone } from '../lib';
+import { getGymTimeZone } from '../gym-context.js';
 import { DateTime } from 'luxon';
 // === WEEK-STRIP DATE SELECTOR (Task F) — set to false to restore the scrolling carousel + old row order ===
 // When true: paginated Mon-Sun strip, full-date heading above the class list, and the date row ABOVE the filters.
@@ -272,9 +273,11 @@ window.addEventListener('resize', () => {
 // from the left): translateX 28px + a short fade, 150ms, transform/opacity only via the Web Animations API.
 // A newer change cancels the running animation (cancel() drops fills, so the list can never stay offset or
 // transparent), and a watchdog guarantees rest.
-// === WEEK STRIP (Task F). Pure Luxon in Europe/London. ===
-const LONDON = 'Europe/London';
-function mondayOfIso(iso) { const d = DateTime.fromISO(iso, { zone: LONDON }); return d.minus({ days: d.weekday - 1 }).toISODate(); }
+// === WEEK STRIP (Task F). Pure Luxon. Day keys are gym-local date strings, so the
+// week arithmetic is zone-free (UTC); only "today" needs the gym's own zone. ===
+const STRIP_ZONE = 'UTC';
+const stripToday = () => nowInZone(getGymTimeZone(getDefaultGymId()) || deviceZone()).toISODate();
+function mondayOfIso(iso) { const d = DateTime.fromISO(iso, { zone: STRIP_ZONE }); return d.minus({ days: d.weekday - 1 }).toISODate(); }
 let weekStripPage = 0;              // page (week) the user is looking at; survives re-renders
 function renderWeekStrip(carousel, daysWithEvents) {
   carousel.classList.remove('psycle-date-selector');
@@ -284,19 +287,19 @@ function renderWeekStrip(carousel, daysWithEvents) {
     carousel.innerHTML = `<div class="psycle-wk-empty">${COPY.timetable.noDates}</div>`;
     return;
   }
-  const todayIso = DateTime.now().setZone(LONDON).toISODate();
+  const todayIso = stripToday();
   const withEvents = new Set(daysWithEvents);
   const firstMonday = mondayOfIso(todayIso < selectedTimetableDate ? todayIso : selectedTimetableDate);
   const lastDay = daysWithEvents[daysWithEvents.length - 1] || selectedTimetableDate;
   const lastMonday = mondayOfIso(lastDay > selectedTimetableDate ? lastDay : selectedTimetableDate);
-  const weeks = Math.min(26, Math.max(1, Math.round(DateTime.fromISO(lastMonday, { zone: LONDON }).diff(DateTime.fromISO(firstMonday, { zone: LONDON }), 'weeks').weeks) + 1));
+  const weeks = Math.min(26, Math.max(1, Math.round(DateTime.fromISO(lastMonday, { zone: STRIP_ZONE }).diff(DateTime.fromISO(firstMonday, { zone: STRIP_ZONE }), 'weeks').weeks) + 1));
   const selectionChanged = weekStripSeenSelected !== selectedTimetableDate;
   weekStripSeenSelected = selectedTimetableDate;
-  const selWeek = Math.round(DateTime.fromISO(mondayOfIso(selectedTimetableDate), { zone: LONDON }).diff(DateTime.fromISO(firstMonday, { zone: LONDON }), 'weeks').weeks);
+  const selWeek = Math.round(DateTime.fromISO(mondayOfIso(selectedTimetableDate), { zone: STRIP_ZONE }).diff(DateTime.fromISO(firstMonday, { zone: STRIP_ZONE }), 'weeks').weeks);
   if (selectionChanged) weekStripPage = selWeek;
   weekStripPage = Math.min(weeks - 1, Math.max(0, weekStripPage));
 
-  const start = DateTime.fromISO(firstMonday, { zone: LONDON });
+  const start = DateTime.fromISO(firstMonday, { zone: STRIP_ZONE });
   const pages = [];
   for (let w = 0; w < weeks; w++) {
     const cells = [];
@@ -341,7 +344,7 @@ function renderWeekStrip(carousel, daysWithEvents) {
       // Optimistic: the strip highlight and full-date heading change NOW, before the list re-renders.
       carousel.querySelectorAll('.psycle-wk-day').forEach((c) => { const on = c === b; c.classList.toggle('active', on); c.setAttribute('aria-pressed', String(on)); });
       const head = document.querySelector('#psycle-timetable-grid .psycle-tt-fulldate');
-      if (head) head.textContent = DateTime.fromISO(dayStr, { zone: LONDON }).setLocale('en-GB').toFormat('cccc, d LLLL yyyy');
+      if (head) head.textContent = DateTime.fromISO(dayStr, { zone: STRIP_ZONE }).setLocale('en-GB').toFormat('cccc, d LLLL yyyy');
       animateDateChange(dir, () => renderTimetableGrid());
     };
   });
@@ -1457,13 +1460,15 @@ export async function renderTimetableGrid(reason = 'interaction') {
   const sortedEvents = [...filteredEvents].sort((a, b) => new Date(a.startAt) - new Date(b.startAt));
 
   // 3. Extract unique dates containing matching events
-  const daysWithEvents = Array.from(new Set(sortedEvents.map(e => e.startAt.split('T')[0]))).sort();
+  const daysWithEvents = Array.from(new Set(sortedEvents.map(e => dayKeyInZone(e.startAt, zoneFor(e))))).sort();
 
   // 4. Validate/Update selected date state
   if (daysWithEvents.length > 0) {
     if (!selectedTimetableDate || !daysWithEvents.includes(selectedTimetableDate)) {
-      const todayStr = new Date().toISOString().split('T')[0];
-      selectedTimetableDate = daysWithEvents.includes(todayStr) ? todayStr : daysWithEvents[0];
+      // "Today" is the gym-local day: check each zone present in the list.
+      const todays = [...new Set(sortedEvents.map(zoneFor))].map(z => nowInZone(z).toISODate());
+      const todayStr = todays.find(t => daysWithEvents.includes(t));
+      selectedTimetableDate = todayStr || daysWithEvents[0];
     }
   } else {
     selectedTimetableDate = null;
@@ -1537,14 +1542,14 @@ export async function renderTimetableGrid(reason = 'interaction') {
     return;
   }
 
-  const finalEvents = sortedEvents.filter(e => e.startAt.startsWith(selectedTimetableDate));
+  const finalEvents = sortedEvents.filter(e => dayKeyInZone(e.startAt, zoneFor(e)) === selectedTimetableDate);
 
   // The outer #psycle-timetable-grid (.psycle-timetable-list) is the single scroll
   // container — see initTimetableTab for the pull-to-refresh wiring. The inner
   // container must NOT scroll, otherwise iOS has two nested scrollers and the
   // outer grid's scrollTop stays 0 (breaking the at-top check for pull-to-refresh).
   const fullDateHtml = WEEK_STRIP_DATE_SELECTOR
-    ? `<div class="psycle-tt-fulldate">${DateTime.fromISO(selectedTimetableDate, { zone: LONDON }).setLocale('en-GB').toFormat('cccc, d LLLL yyyy')}</div>`
+    ? `<div class="psycle-tt-fulldate">${DateTime.fromISO(selectedTimetableDate, { zone: STRIP_ZONE }).setLocale('en-GB').toFormat('cccc, d LLLL yyyy')}</div>`
     : '';
   ttGrid.innerHTML = `${fullDateHtml}
     <div class="psycle-table-container">
@@ -1592,11 +1597,11 @@ export async function renderTimetableGrid(reason = 'interaction') {
     const strippedClassName = cleanClassName(className, groupName);
 
     const startDate = new Date(event.startAt);
-    const timeStr = startDate.toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit', hour12: false });
+    const timeStr = formatInZone(event.startAt, zoneFor(event)).timeLabel;
 
-    // Cutoff status calculation (London timezone)
+    // Cutoff status calculation (instant comparison; zone-free)
     const classRelease = getClassReleaseTime(event, userSettings);
-    const now = DateTime.now().setZone('Europe/London');
+    const now = DateTime.now();
     const isLive = event.alwaysBookable ? true : (classRelease ? now >= classRelease : true);
     const isFullyBooked = !!event.isFull;
     const canWaitlist = !isFullWithoutWaitlist(event);
@@ -2720,7 +2725,7 @@ function generateBookmarkIdentifier(event) {
   
   const dateObj = new Date(event.startAt);
   const formatter = new Intl.DateTimeFormat('en-US', {
-    timeZone: 'Europe/London',
+    timeZone: zoneFor(event),
     hour: '2-digit',
     minute: '2-digit',
     hour12: false,
@@ -3064,7 +3069,7 @@ async function openBookingModal(c, mode, opts = {}) {
     const groupName = c.discipline || eventType?.group || eventType?.name || COPY.autoBook.class;
     const nounCap = seatNoun(groupName)[0].toUpperCase() + seatNoun(groupName).slice(1);
     const startDate = new Date(c.startAt);
-    const timeStr = startDate.toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' });
+    const timeStr = formatInZone(c.startAt, zoneFor(c)).timeLabel;
     const studioName = c.studioName || gymScopedGet(studioMap, c.studioId, c.gymId) || COPY.spotSelection.thisStudio;
 
     if (isAutoBookMode) {
@@ -4129,7 +4134,7 @@ export async function openDebugModal(event) {
 
     // Compute key values
     const classRelease = getClassReleaseTime(event, userSettings);
-    const now = DateTime.now().setZone('Europe/London');
+    const now = DateTime.now();
     const isLive = event.alwaysBookable ? true : (classRelease ? now >= classRelease : true);
     const bookingCutoff = event.booking_cutoff || 'N/A';
     const extendedCutoff = event.extended_cutoff || 'N/A';

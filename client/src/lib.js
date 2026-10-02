@@ -1,6 +1,6 @@
 // Shared client-side utilities that need London timezone awareness
 import { DateTime } from 'luxon';
-import { isRollingWeeklyGym } from './gym-context.js';
+import { isRollingWeeklyGym, getGymTimeZone, getDefaultGymId } from './gym-context.js';
 import { COPY, formatCopyText } from './copy.js';
 
 // Sane bounds for a detected booking window, in days after the release Monday.
@@ -275,4 +275,71 @@ export function noSept(str) {
  */
 export function isFullWithoutWaitlist(event) {
   return !!(event && event.isFull) && event.waitlistAvailable === false;
+}
+
+
+// ─── Gym-local time display ───────────────────────────────────────────────────
+// Times are shown in the zone the CLASS runs in (NormalizedEvent/Booking
+// `timeZone`, from the server's providers/timezone.js), never the browser's and
+// never a literal. A zone suffix ("ET") is appended only when that zone's UTC
+// offset at the class instant differs from the device's, so a UK member viewing
+// London classes sees no suffix.
+
+export function deviceZone() {
+  try { return Intl.DateTimeFormat().resolvedOptions().timeZone || 'UTC'; } catch { return 'UTC'; }
+}
+
+/** Zone for an event/booking/queue row: its own `timeZone`, else its gym's catalogue zone, else the device zone. */
+export function zoneFor(obj, gymId) {
+  const o = obj || {};
+  const gid = gymId || o.gymId || o.gym_id || (o.event && o.event.gymId) || getDefaultGymId();
+  return o.timeZone || (o.event && o.event.timeZone) || getGymTimeZone(gid) || deviceZone();
+}
+
+function parseIn(iso, zone) {
+  const dt = DateTime.fromISO(String(iso), { zone });
+  return dt.isValid ? dt : null;
+}
+
+export function nowInZone(zone) {
+  return DateTime.now().setZone(zone || deviceZone());
+}
+
+/** 'yyyy-MM-dd' of the instant in `zone` (the gym-local calendar day). */
+export function dayKeyInZone(iso, zone) {
+  const dt = parseIn(iso, zone);
+  return dt ? dt.toFormat('yyyy-MM-dd') : '';
+}
+
+/**
+ * Short zone label ("ET") when `zone` differs from the device zone at that
+ * instant (compared by UTC offset), else ''.
+ */
+export function zoneSuffix(iso, zone, device = deviceZone()) {
+  const dt = parseIn(iso, zone);
+  if (!dt) return '';
+  if (dt.offset === dt.setZone(device).offset) return '';
+  const d = dt.toJSDate();
+  for (const style of ['shortGeneric', 'short']) {
+    try {
+      const part = new Intl.DateTimeFormat('en-US', { timeZone: zone, timeZoneName: style })
+        .formatToParts(d).find((p) => p.type === 'timeZoneName');
+      if (part && part.value) return part.value;
+    } catch { /* try next style */ }
+  }
+  return '';
+}
+
+/**
+ * Display strings for an instant in a zone: date ("Mon 5 Oct"), time ("09:15",
+ * 24h), suffix ("ET" or ''), and timeLabel (time + suffix).
+ */
+export function formatInZone(iso, zone, device = deviceZone()) {
+  const dt = parseIn(iso, zone);
+  if (!dt) return { date: '', time: '', suffix: '', timeLabel: '' };
+  const d = dt.toJSDate();
+  const date = d.toLocaleString('en-GB', { weekday: 'short', day: 'numeric', month: 'short', timeZone: zone });
+  const time = d.toLocaleString('en-GB', { hour: '2-digit', minute: '2-digit', hour12: false, timeZone: zone });
+  const suffix = zoneSuffix(iso, zone, device);
+  return { date, time, suffix, timeLabel: suffix ? `${time} ${suffix}` : time };
 }

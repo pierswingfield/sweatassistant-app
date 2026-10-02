@@ -32,7 +32,8 @@ const { cleanClassName } = require('./class-name');
 // under-warning rather than crying wolf on back-to-back classes.
 const DEFAULT_DURATION_MIN = 45;
 
-const DEFAULT_ZONE = 'Europe/London';
+// Zone fallback when the caller supplies no zoneOf(): UTC, never a gym's zone.
+const DEFAULT_ZONE = 'UTC';
 
 /**
  * @typedef {Object} BookingLike

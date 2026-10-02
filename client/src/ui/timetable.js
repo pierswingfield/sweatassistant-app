@@ -336,18 +336,36 @@ function renderWeekStrip(carousel, daysWithEvents) {
     clearTimeout(t);
     t = setTimeout(() => { if (scroller.clientWidth) weekStripPage = Math.round(scroller.scrollLeft / scroller.clientWidth); }, 80);
   }, { passive: true });
-  carousel.querySelectorAll('.psycle-wk-day:not(.is-disabled)').forEach((b) => {
-    b.onclick = () => {
-      const dayStr = b.dataset.day;
-      const dir = dayStr > selectedTimetableDate ? 1 : (dayStr < selectedTimetableDate ? -1 : 0);
-      selectedTimetableDate = dayStr;
-      // Optimistic: the strip highlight and full-date heading change NOW, before the list re-renders.
-      carousel.querySelectorAll('.psycle-wk-day').forEach((c) => { const on = c === b; c.classList.toggle('active', on); c.setAttribute('aria-pressed', String(on)); });
-      const head = document.querySelector('#psycle-timetable-grid .psycle-tt-fulldate');
-      if (head) head.textContent = DateTime.fromISO(dayStr, { zone: STRIP_ZONE }).setLocale('en-GB').toFormat('cccc, d LLLL yyyy');
-      animateDateChange(dir, () => renderTimetableGrid());
-    };
-  });
+  const selectDay = (b) => {
+    const dayStr = b.dataset.day;
+    const dir = dayStr > selectedTimetableDate ? 1 : (dayStr < selectedTimetableDate ? -1 : 0);
+    selectedTimetableDate = dayStr;
+    // Optimistic: the strip highlight and full-date heading change NOW, before the list re-renders.
+    carousel.querySelectorAll('.psycle-wk-day').forEach((c) => { const on = c === b; c.classList.toggle('active', on); c.setAttribute('aria-pressed', String(on)); });
+    const head = document.querySelector('#psycle-timetable-grid .psycle-tt-fulldate');
+    if (head) head.textContent = DateTime.fromISO(dayStr, { zone: LONDON }).setLocale('en-GB').toFormat('cccc, d LLLL yyyy');
+    animateDateChange(dir, () => renderTimetableGrid());
+  };
+  carousel.querySelectorAll('.psycle-wk-day:not(.is-disabled)').forEach((b) => { b.onclick = () => selectDay(b); });
+  // iOS: a tap while the strip is still coasting (momentum) only STOPS the scroll and never produces a click,
+  // so the first tap after a swipe was swallowed for ~1s. Treat a touch that barely moved as a tap on touchend
+  // and select immediately; preventDefault stops the (otherwise duplicate / absent) synthetic click.
+  let tStart = null;
+  scroller.addEventListener('touchstart', (e) => {
+    const p = e.touches[0];
+    tStart = { x: p.clientX, y: p.clientY, el: e.target.closest?.('.psycle-wk-day:not(.is-disabled)') };
+  }, { passive: true });
+  scroller.addEventListener('touchend', (e) => {
+    if (!tStart || !tStart.el) return;
+    const p = e.changedTouches[0];
+    const moved = Math.hypot(p.clientX - tStart.x, p.clientY - tStart.y);
+    const target = tStart.el; tStart = null;
+    if (moved > 8) return;
+    const endEl = document.elementFromPoint(p.clientX, p.clientY)?.closest?.('.psycle-wk-day:not(.is-disabled)');
+    if (endEl !== target) return;
+    e.preventDefault();
+    selectDay(target);
+  }, { passive: false });
 }
 
 function pageChild(grid) { return grid.querySelector('.psycle-table-container') || grid.firstElementChild; }

@@ -10588,8 +10588,9 @@ body::after { z-index: 1000002 !important; }
 /* One week per page; swipe/scroll the strip to page between weeks. */
 #psycle-helper-container .psycle-wk-scroller {
   display: flex; overflow-x: auto; overflow-y: hidden; scroll-snap-type: x mandatory;
-  -webkit-overflow-scrolling: touch; scrollbar-width: none; overscroll-behavior-x: contain;
+  -webkit-overflow-scrolling: touch; scrollbar-width: none; overscroll-behavior-x: contain; touch-action: manipulation;
 }
+#psycle-helper-container .psycle-wk-day { touch-action: manipulation; -webkit-tap-highlight-color: transparent; }
 #psycle-helper-container .psycle-wk-scroller::-webkit-scrollbar { display: none; }
 #psycle-helper-container .psycle-wk-page {
   flex: 0 0 100%; scroll-snap-align: start; scroll-snap-stop: always; box-sizing: border-box;

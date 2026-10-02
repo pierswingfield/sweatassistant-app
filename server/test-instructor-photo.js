@@ -84,6 +84,15 @@ check('normalized metadata and events expose versioned same-origin URLs for both
   assert.match(event.instructors[0].thumbUrl, /^\/api\/instructor-photo\/gym-b\/7\?size=thumb&v=[a-f0-9]{64}$/);
 });
 
+check('re-normalizing an already-proxied instructor keeps the provider-URL version (MarianaTek metadata-from-events)', async () => {
+  const src = 'https://images.example.test/b.jpg';
+  const ev = makeEvent({ id: '1', gymId: 'g', instructors: [{ id: '7', name: 'B', imageUrl: src, thumbUrl: src }] });
+  const meta = makeMetadata({ gymId: 'g', instructors: ev.instructors });
+  const i = meta.instructors[0];
+  assert.ok(i.thumbUrl.includes(`size=thumb&v=${versionFor(src)}`), i.thumbUrl);
+  assert.ok(i.imageUrl.includes(`size=full&v=${versionFor(src)}`), i.imageUrl);
+});
+
 (async () => {
   let passed = 0;
   const failures = [];

@@ -37,6 +37,12 @@ function photoVersion(url) {
 
 function photoProxyUrl(gymId, instructorId, size, sourceUrl) {
   if (!gymId || !instructorId || !sourceUrl) return undefined;
+  // Already a proxy URL (an event's instructor re-normalized by makeMetadata, e.g.
+  // MarianaTek derives metadata from events). Re-hashing the proxy URL minted a
+  // version that matches no provider URL, so the route 404'd every such photo.
+  if (String(sourceUrl).startsWith('/api/instructor-photo/')) {
+    return String(sourceUrl).replace(/([?&])size=(?:thumb|full)/, `$1size=${size}`);
+  }
   return `/api/instructor-photo/${encodeURIComponent(gymId)}/${encodeURIComponent(String(instructorId))}?size=${size}&v=${photoVersion(sourceUrl)}`;
 }
 

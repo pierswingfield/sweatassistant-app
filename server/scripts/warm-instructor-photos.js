@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 // Warm the F-15 instructor photo cache for every enabled gym, through the same
-// pipeline the route uses. Run: docker exec psycle-app-dev node server/scripts/warm-instructor-photos.js
+// pipeline the route uses. Optional `--gym <id>` limits it to one gym. Run: docker exec psycle-app-dev node server/scripts/warm-instructor-photos.js
 const { listEnabledGyms } = require('../gyms.config');
 const { getProvider } = require('../providers');
 const { makeMetadata } = require('../providers/normalize');
@@ -8,13 +8,15 @@ const photos = require('../instructor-photo');
 const fs = require('fs');
 const path = require('path');
 
+const gymArg = process.argv.indexOf('--gym');
+const ONLY_GYM = gymArg > -1 ? process.argv[gymArg + 1] : null;
 const CONCURRENCY = 4;
 const ATTEMPTS = 3;
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 
 async function enumerate() {
   const items = new Map();
-  for (const gym of listEnabledGyms()) {
+  for (const gym of listEnabledGyms().filter((g) => !ONLY_GYM || g.id === ONLY_GYM)) {
     try {
       const provider = getProvider(gym.id);
       const start = new Date().toISOString().slice(0, 10);

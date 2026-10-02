@@ -23,7 +23,7 @@ router.get('/instructor-photo/:gymId/:instructorId', photoLimiter, async (req, r
   if (!getGymConfig(gymId) || !/^[A-Za-z0-9_-]{1,128}$/.test(instructorId) || !variant) return res.status(404).end();
 
   const result = await photos.getPhoto({ provider: getProvider(gymId), instructorId, variant, version });
-  if (!result) return res.status(404).set('Cache-Control', 'public, max-age=300').end();
+  if (!result) return res.status(404).set('Cache-Control', 'no-store').end();
   if (result.transient) return res.status(503).set({ 'Retry-After': '3', 'Cache-Control': 'no-store' }).end();
   const { body, cacheStatus } = result;
   const etag = `"${version}-${variant}"`;

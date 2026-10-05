@@ -1,5 +1,9 @@
 import { describe, it, expect } from 'vitest';
-import { cleanClassName } from './cards.js';
+import { cleanClassName, SVG_PATHS } from './cards.js';
+
+it('has a distinct plus glyph for guest-booking actions', () => {
+  expect(SVG_PATHS.plus).toContain('M8 3v10');
+});
 
 describe('cleanClassName (U1-11)', () => {
   it("JAB: `discipline` is the full class_type.name, so the head 'TRAIN' is dropped", () => {

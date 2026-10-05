@@ -470,8 +470,19 @@ router.post('/book-guest', authenticateToken, async (req, res) => {
     if (typeof provider.bookGuestSlot !== 'function') {
       return res.status(403).json({ code: 'GUEST_BOOKING_UNSUPPORTED', message: 'Guest booking is not available at this gym.' });
     }
+    // A guest belongs to the member's reservation, not a standalone class
+    // attendee. Resolve the live host first so cancellation can retain a
+    // durable provider-independent relationship.
+    const existing = await withRelogin(req.userId, session, (s) => provider.listBookings(s));
+    const primary = existing.find((booking) => String(booking.eventId) === String(eventId) && !booking.isGuest);
+    if (!primary) {
+      return res.status(409).json({ code: 'PRIMARY_BOOKING_REQUIRED', message: 'Book your own spot before adding a guest.' });
+    }
     const result = await withRelogin(req.userId, session, (s) => provider.bookGuestSlot(eventId, slotId ?? null, guestEmail, s));
-    if (result && result.ok) { refreshCalendar(req.userId); invalidateSchedule(gymId); }
+    if (result && result.ok) {
+      db.upsertGuestBookingGroup(req.userId, gymId, eventId, primary.bookingId, result.bookingId);
+      refreshCalendar(req.userId); invalidateSchedule(gymId);
+    }
     if (result && !result.ok && Number.isInteger(result.status) && result.status >= 400) return res.status(result.status).json(result);
     res.json(result);
   } catch (err) {
@@ -479,19 +490,77 @@ router.post('/book-guest', authenticateToken, async (req, res) => {
   }
 });
 
+/**
+ * Cancel one reservation without allowing a member reservation to leave behind
+ * a guest. The durable edge is the fast path; the provider list repairs groups
+ * created before it existed or after a stale client. Guest cancellations happen
+ * first. A guest failure leaves the member reservation untouched.
+ */
+async function cancelReservationGroup({ userId, gymId, provider, session, bookingId }) {
+  const edges = db.getGuestBookingGroupByMember(userId, gymId, bookingId);
+  let bookings;
+  try {
+    bookings = await withRelogin(userId, session, (s) => provider.listBookings(s));
+  } catch (_) {
+    const err = new Error('Could not confirm linked guest reservations. Your booking has not been cancelled; refresh and try again.');
+    err.status = 503;
+    err.code = 'CANCELLATION_STATE_UNAVAILABLE';
+    throw err;
+  }
+  const target = bookings.find((booking) => String(booking.bookingId) === String(bookingId));
+  const targetIsGuest = !!target?.isGuest || edges.some((edge) => String(edge.guest_booking_id) === String(bookingId));
+  if (targetIsGuest) {
+    const ok = await provider.cancelBooking(bookingId, session);
+    if (ok) db.deleteGuestBookingGroupForGuest(userId, gymId, bookingId);
+    return { ok, cancelledIds: ok ? [String(bookingId)] : [], primaryBookingId: null };
+  }
+
+  const eventId = target?.eventId || edges.find((edge) => String(edge.primary_booking_id) === String(bookingId))?.event_id;
+  const persistedGuestIds = db.getGuestBookingIdsForPrimary(userId, gymId, bookingId);
+  const liveGuestIds = eventId == null ? [] : bookings
+    .filter((booking) => booking.isGuest && String(booking.eventId) === String(eventId))
+    .map((booking) => String(booking.bookingId));
+  const guestIds = [...new Set([...persistedGuestIds, ...liveGuestIds])];
+  const cancelledIds = [];
+  for (const guestId of guestIds) {
+    const guestOk = await provider.cancelBooking(guestId, session);
+    if (!guestOk) {
+      return {
+        ok: false,
+        code: 'GUEST_CANCELLATION_FAILED',
+        message: 'Your guest spot could not be cancelled. Your own booking is unchanged; try again or cancel the guest from Edit booking.',
+        cancelledIds,
+        primaryBookingId: String(bookingId),
+      };
+    }
+    db.deleteGuestBookingGroupForGuest(userId, gymId, guestId);
+    cancelledIds.push(guestId);
+  }
+  const ok = await provider.cancelBooking(bookingId, session);
+  if (ok) db.deleteGuestBookingGroupsForPrimary(userId, gymId, bookingId);
+  return {
+    ok,
+    code: ok ? undefined : 'PRIMARY_CANCELLATION_FAILED',
+    message: ok ? undefined : 'Your guest spot was cancelled, but your own booking is unchanged. Refresh before trying again.',
+    cancelledIds: ok ? [...cancelledIds, String(bookingId)] : cancelledIds,
+    primaryBookingId: String(bookingId),
+  };
+}
+
 // POST /api/cancel  { bookingId }
 router.post('/cancel', authenticateToken, async (req, res) => {
   try {
     const { bookingId } = req.body;
     if (!bookingId) return res.status(400).json({ message: 'bookingId is required' });
     const { gymId, provider, session } = resolveContext(req.userId);
-    const ok = await provider.cancelBooking(bookingId, session);
-    if (ok) {
+    const result = await cancelReservationGroup({ userId: req.userId, gymId, provider, session, bookingId });
+    if (result.ok) {
       // Server-side, so every cancel path (timetable, bookings, edit modal) is covered.
       try { db.stopAutoUpgradesForBooking(req.userId, gymId, bookingId); } catch (e) { console.error('[Cancel] stop monitor failed:', e.message); }
       refreshCalendar(req.userId); invalidateSchedule(gymId);
     }
-    res.json({ ok });
+    if (!result.ok) return res.status(409).json(result);
+    res.json(result);
   } catch (err) {
     handleError(res, err);
   }
@@ -862,3 +931,4 @@ module.exports = router;
 // default export so `require('./routes-normalized')` in server.js is unchanged.
 module.exports.withRelogin = withRelogin;
 module.exports.layoutCacheStats = () => layoutCache.getStats();
+module.exports.cancelReservationGroup = cancelReservationGroup;

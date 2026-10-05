@@ -68,6 +68,12 @@ export function renderStudioFloorPlan(container, layoutSlots, initialSlots, init
     layoutObjects = [],
     availableSlots = null,
     currentSlotId = null,
+    // Live-reservation views can annotate slots without turning those slots
+    // into preference priorities. Values: self | guest. Occupied-but-unowned
+    // slots remain the existing neutral unavailable state.
+    slotStates = null,
+    selectionLimit = Infinity,
+    hideSummary = false,
     hideActions = false,        // caller supplies its own footer actions (Step A page)
     onSelectionChange = null,   // (slots, rows) after every render; drives an external Save button
     hideEditHint = false,
@@ -173,7 +179,7 @@ export function renderStudioFloorPlan(container, layoutSlots, initialSlots, init
       const sep = ' <span style="color:var(--text-tertiary);margin:0 4px;">›</span> ';
       summary.innerHTML = `<span style="color:var(--text-secondary);font-size:11px;text-transform:uppercase;letter-spacing:0.05em;margin-right:6px;">${COPY.spotMapEditor.preferred}</span>${parts.join(sep)}`;
     }
-    container.appendChild(summary);
+    if (!hideSummary) container.appendChild(summary);
 
     if (typeof aboveMap === 'function') { const n = aboveMap(); if (n) container.appendChild(n); }
 
@@ -266,6 +272,9 @@ export function renderStudioFloorPlan(container, layoutSlots, initialSlots, init
       const hasAvailability = !!availableSlots;
       const isAvailable = !hasAvailability || availableSlots.includes(slotId);
       const isCurrent = currentSlotId !== null && Number(currentSlotId) === slotId;
+      const reservationState = slotStates instanceof Map
+        ? slotStates.get(String(slot.id))
+        : slotStates?.[String(slot.id)];
 
       const el = document.createElement('div');
       el.style.cssText = `position:absolute;left:${pxX(slot.x)}px;top:${pxY(slot.y)}px;transform:translate(-50%,-50%);width:${SLOT_SIZE}px;height:${SLOT_SIZE}px;border-radius:6px;display:flex;align-items:center;justify-content:center;font-size:12px;font-weight:700;line-height:1;text-align:center;white-space:nowrap;overflow:visible;cursor:${editing ? 'pointer' : 'default'};user-select:none;transition:all 0.1s;box-sizing:border-box;z-index:1;`;
@@ -289,7 +298,19 @@ export function renderStudioFloorPlan(container, layoutSlots, initialSlots, init
         el.title = formatCopyText(COPY.spotMapEditor.preferredPriority, { label, priority: n });
       };
 
-      if (isCurrent) {
+      if (reservationState === 'self') {
+        el.style.background = 'color-mix(in srgb, var(--feat-autoupgrade) 16%, transparent)';
+        el.style.border = '2px solid var(--feat-autoupgrade)';
+        el.style.color = 'var(--feat-autoupgrade)';
+        el.textContent = short;
+        el.title = `${COPY.bookings.guestMapSelf}: ${label}`;
+      } else if (reservationState === 'guest') {
+        el.style.background = 'color-mix(in srgb, var(--info) 17%, transparent)';
+        el.style.border = '2px dashed var(--info)';
+        el.style.color = 'var(--info)';
+        el.textContent = short;
+        el.title = `${COPY.bookings.guestMapGuest}: ${label}`;
+      } else if (isCurrent) {
         el.style.background = 'color-mix(in srgb, var(--feat-autoupgrade) 15%, transparent)';
         el.style.border = '2px dashed var(--feat-autoupgrade)';
         el.style.color = 'var(--feat-autoupgrade)';
@@ -333,13 +354,20 @@ export function renderStudioFloorPlan(container, layoutSlots, initialSlots, init
         el.textContent = short;
       }
 
-      if (editing) {
+      const canSelect = editing && !reservationState && (!hasAvailability || isAvailable || priority > 0);
+      if (canSelect) {
+        el.style.cursor = 'pointer';
         el.addEventListener('click', () => {
           const idx = selectedSlots.indexOf(slotId);
           if (idx !== -1) selectedSlots.splice(idx, 1);
-          else selectedSlots.push(slotId);
+          else {
+            if (Number.isFinite(selectionLimit) && selectedSlots.length >= selectionLimit) selectedSlots.splice(0, selectedSlots.length);
+            selectedSlots.push(slotId);
+          }
           render();
         });
+      } else if (reservationState || (hasAvailability && !isAvailable)) {
+        el.style.cursor = 'default';
       }
 
       floor.appendChild(el);

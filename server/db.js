@@ -131,6 +131,24 @@ db.exec(`
     UNIQUE(user_id, booking_id)
   );
 
+  -- A guest reservation is provider-side independent, but it is not an
+  -- independent booking in the product: JAB requires it to travel with the
+  -- member's reservation. Keep that relationship durable so every cancel
+  -- surface can remove the guest first and never orphan it.
+  CREATE TABLE IF NOT EXISTS guest_booking_groups (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    user_id INTEGER NOT NULL,
+    gym_id TEXT NOT NULL,
+    event_id TEXT NOT NULL,
+    primary_booking_id TEXT NOT NULL,
+    guest_booking_id TEXT NOT NULL,
+    created_at TEXT DEFAULT CURRENT_TIMESTAMP,
+    updated_at TEXT DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
+    FOREIGN KEY (gym_id) REFERENCES gyms(id),
+    UNIQUE(user_id, gym_id, guest_booking_id)
+  );
+
   -- F-10-0: minimal per-user CLASS HISTORY (past bookings), shaped so C8-1's
   -- booking_ledger can adopt it. One row per (user, gym, provider booking id), NORMALIZED
   -- fields only. Written ONLY through server/class-history.js. start_ts (epoch ms)
@@ -388,7 +406,7 @@ ensureColumn('auto_bookings', 'release_at', 'TEXT');
 // skipped, making this a no-op on every boot after the first.
 const GYM_SCOPED_TABLES = [
   'studio_preferences', 'settings', 'booking_cache',
-  'waitlist_cache', 'calendar_classes', 'auto_bookings', 'auto_upgrades',
+  'waitlist_cache', 'calendar_classes', 'auto_bookings', 'auto_upgrades', 'guest_booking_groups',
 ];
 const GYM_DEFAULT_RE = /\s+DEFAULT\s+'psycle-london'/i;
 
@@ -1649,6 +1667,46 @@ module.exports = {
     });
     tx(userId);
   },
+
+  // A guest reservation is linked to its member reservation, rather than being
+  // a second self-attendee. The provider does not expose that relationship in
+  // its list response, so retain it locally for safe cancellation. Every method
+  // is idempotent: retries and provider/list recovery can safely re-record or
+  // remove the same edge.
+  upsertGuestBookingGroup(userId, gymId, eventId, primaryBookingId, guestBookingId) {
+    db.prepare(`
+      INSERT INTO guest_booking_groups
+        (user_id, gym_id, event_id, primary_booking_id, guest_booking_id, updated_at)
+      VALUES (?, ?, ?, ?, ?, CURRENT_TIMESTAMP)
+      ON CONFLICT(user_id, gym_id, guest_booking_id) DO UPDATE SET
+        event_id = excluded.event_id,
+        primary_booking_id = excluded.primary_booking_id,
+        updated_at = CURRENT_TIMESTAMP
+    `).run(userId, gymId, String(eventId), String(primaryBookingId), String(guestBookingId));
+  },
+  getGuestBookingGroupByMember(userId, gymId, bookingId) {
+    return db.prepare(`
+      SELECT * FROM guest_booking_groups
+      WHERE user_id = ? AND gym_id = ?
+        AND (primary_booking_id = ? OR guest_booking_id = ?)
+      ORDER BY id ASC
+    `).all(userId, gymId, String(bookingId), String(bookingId));
+  },
+  getGuestBookingIdsForPrimary(userId, gymId, primaryBookingId) {
+    return db.prepare(`
+      SELECT guest_booking_id FROM guest_booking_groups
+      WHERE user_id = ? AND gym_id = ? AND primary_booking_id = ?
+      ORDER BY id ASC
+    `).all(userId, gymId, String(primaryBookingId)).map((row) => String(row.guest_booking_id));
+  },
+  deleteGuestBookingGroupForGuest(userId, gymId, guestBookingId) {
+    db.prepare('DELETE FROM guest_booking_groups WHERE user_id = ? AND gym_id = ? AND guest_booking_id = ?')
+      .run(userId, gymId, String(guestBookingId));
+  },
+  deleteGuestBookingGroupsForPrimary(userId, gymId, primaryBookingId) {
+    db.prepare('DELETE FROM guest_booking_groups WHERE user_id = ? AND gym_id = ? AND primary_booking_id = ?')
+      .run(userId, gymId, String(primaryBookingId));
+  },
   // Cross-user background scanner (cancellation reminders) — deliberately NOT
   // gym-filtered. Rows carry gym_id; the caller routes per row.
   getAllBookingCache() {
@@ -2124,7 +2182,7 @@ module.exports = {
   unlinkGym(userId, gymId) {
     const tx = db.transaction(() => {
       for (const table of ['auto_bookings', 'auto_upgrades', 'studio_preferences', 'settings',
-                           'booking_cache', 'waitlist_cache', 'calendar_classes',
+                           'booking_cache', 'waitlist_cache', 'calendar_classes', 'guest_booking_groups',
                            'class_history', 'class_history_sync']) {
         try { db.prepare(`DELETE FROM ${table} WHERE user_id = ? AND gym_id = ?`).run(userId, gymId); }
         catch (_) { /* table may predate its gym_id column on an old DB — skip */ }

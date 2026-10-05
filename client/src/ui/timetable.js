@@ -43,6 +43,7 @@ import { applyStudioPreferenceMutation, hasStudioPreferences, shouldShowPreferre
 import { instructorToken, migrateInstructorSelection, hasLegacyInstructors, passesInstructorFilter, pruneInstructorSelection, findInstructor, parseInstructorToken } from './instructor-filter.js';
 import { bookCandidateSpots } from './booking-attempts.js';
 import { bookingQuantityOptions, maxAttendeesPerClass } from './booking-limits.js';
+import { renderStudioFloorPlan } from './spotmap.js';
 
 async function cacheSet(key, value) {
   try {
@@ -2518,8 +2519,9 @@ function buildActionMenuItems(event, model, isBookmarked) {
   // Guest reservations are a distinct, provider-gated attendee flow. They do
   // not appear in the primary, Quick-Book or Auto-Book paths because they need
   // a guest identity and must consume a guest pass, not another self spot.
-  if (canForGym('guestBooking', event.gymId)) {
-    items.push({ label: COPY.bookings.bookGuest, icon: 'user', variant: 'book', action: () => openGuestBookingModal(event) });
+  const hasSelfBooking = userBookings().some((booking) => matchesEvent(booking, event) && !booking.isGuest);
+  if (canForGym('guestBooking', event.gymId) && hasSelfBooking) {
+    items.push({ label: COPY.bookings.guestMenu, icon: 'plus', variant: 'book', action: () => openGuestBookingModal(event) });
   }
 
   if (canForGym('bookmarks', event.gymId)) {
@@ -3233,7 +3235,8 @@ export async function openGuestBookingModal(c) {
       body.innerHTML = `<div class="psycle-card-error" style="padding:24px;text-align:center;">${escapeHtml(COPY.bookings.guestBookingUnavailable)}</div>`;
       return;
     }
-    const available = (details.slots || []).filter((slot) => slot.isAvailable);
+    const slots = details.slots || [];
+    const available = slots.filter((slot) => slot.isAvailable);
     // A pick-a-spot class requires a selection; FCFS has no slots and omits it.
     let selectedSlotId = available[0] ? String(available[0].id) : null;
     if ((details.slots || []).length && !selectedSlotId) {
@@ -3250,25 +3253,37 @@ export async function openGuestBookingModal(c) {
         <label style="display:flex;flex-direction:column;gap:6px;font-size:13px;color:var(--text-secondary);">${COPY.bookings.guestEmail}
           <input id="guest-booking-email" class="psycle-input" type="email" autocomplete="email" inputmode="email" required>
         </label>
-        ${available.length ? `<div><div style="font-size:13px;color:var(--text-secondary);margin-bottom:8px;">${COPY.bookings.selectGuestSpot}</div>
-          <div id="guest-booking-spots" style="display:flex;flex-wrap:wrap;gap:8px;">${available.map((slot, index) => `<button type="button" class="psycle-btn guest-spot-choice${index === 0 ? ' selected' : ''}" data-slot-id="${escapeHtml(String(slot.id))}" style="min-width:48px;padding:8px;background:${index === 0 ? 'var(--gym-btn)' : 'var(--surface-inset)'};color:${index === 0 ? 'var(--gym-on)' : 'var(--text)'};border:1px solid var(--border);">${escapeHtml(formatSpotLabel(c.gymId, slot))}</button>`).join('')}</div>
+        ${slots.length ? `<div class="guest-live-map"><div style="font-size:13px;color:var(--text-secondary);margin-bottom:8px;">${COPY.bookings.selectGuestSpot}</div>
+          <div class="guest-map-legend" aria-label="Spot map key">
+            <span class="is-self">${COPY.bookings.guestMapSelf}</span><span class="is-guest">${COPY.bookings.guestMapGuest}</span><span class="is-available">${COPY.bookings.guestMapAvailable}</span><span class="is-unavailable">${COPY.bookings.guestMapUnavailable}</span>
+          </div>
+          <div id="guest-booking-map"></div>
         </div>` : ''}
         <button class="psycle-btn" id="guest-booking-submit" style="background:var(--success);color:var(--on-accent);">${COPY.bookings.guestBookingSubmit}</button>
       </div>`;
-    body.querySelectorAll('.guest-spot-choice').forEach((button) => {
-      button.onclick = () => {
-        selectedSlotId = button.dataset.slotId;
-        body.querySelectorAll('.guest-spot-choice').forEach((choice) => {
-          const selected = choice === button;
-          choice.classList.toggle('selected', selected);
-          choice.style.background = selected ? 'var(--gym-btn)' : 'var(--surface-inset)';
-          choice.style.color = selected ? 'var(--gym-on)' : 'var(--text)';
-        });
-      };
-    });
-    body.querySelector('#guest-booking-submit').onclick = async () => {
+    const submit = body.querySelector('#guest-booking-submit');
+    if (slots.length) {
+      const reservationStates = new Map();
+      userBookings().filter((booking) => matchesEvent(booking, c)).forEach((booking) => {
+        const slot = booking.slotId ?? booking.slot_id ?? booking.raw?.spot?.id;
+        if (slot != null && slot !== '') reservationStates.set(String(slot), booking.isGuest ? 'guest' : 'self');
+      });
+      renderStudioFloorPlan(body.querySelector('#guest-booking-map'), slots, [], [], () => {}, {
+        layoutObjects: details.objects || [],
+        availableSlots: available.map((slot) => Number(slot.id)),
+        slotStates: reservationStates,
+        selectionLimit: 1,
+        hideSummary: true,
+        hideActions: true,
+        hideEditHint: true,
+        onSelectionChange: (selected) => {
+          selectedSlotId = selected.length ? String(selected[0]) : null;
+          submit.disabled = !selectedSlotId;
+        },
+      });
+    }
+    submit.onclick = async () => {
       const email = body.querySelector('#guest-booking-email').value.trim();
-      const submit = body.querySelector('#guest-booking-submit');
       submit.disabled = true;
       submit.textContent = COPY.timetable.booking;
       try {

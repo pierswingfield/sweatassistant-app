@@ -25,6 +25,7 @@ export const SVG_PATHS = {
   pin: '<path d="M12 6c0 3.5-4 8-4 8s-4-4.5-4-8a4 4 0 0 1 8 0Z"/><circle cx="8" cy="6" r="1.5"/>',
   location: '<path d="M12 6c0 3.5-4 8-4 8s-4-4.5-4-8a4 4 0 0 1 8 0Z"/><circle cx="8" cy="6" r="1.5"/>',
   user: '<circle cx="8" cy="5.5" r="2.7"/><path d="M2.8 13.8c.6-2.6 2.5-3.9 5.2-3.9s4.6 1.3 5.2 3.9"/>',
+  plus: '<path d="M8 3v10M3 8h10"/>',
   heart: '<path d="M8 13.5S2.5 10 2.5 6.2A2.7 2.7 0 0 1 8 5a2.7 2.7 0 0 1 5.5 1.2C13.5 10 8 13.5 8 13.5Z"/>',
   bolt: '<path d="M8.5 1.5 3.5 9h3.5l-1 5.5L13 6.5H9z"/>',
   warning: '<path d="M8 2 14.5 13.5h-13L8 2Z"/><path d="M8 6.5v3M8 11.8h.01"/>',

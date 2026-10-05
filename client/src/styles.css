@@ -7766,6 +7766,33 @@ html, body {
   border-color: color-mix(in srgb, var(--warning) 40%, transparent);
 }
 
+/* A guest is a distinct reservation/pass, not an upgradeable second self spot. */
+#psycle-helper-container .ab-spot-upgrade-chip.is-guest,
+#psycle-helper-container .ab-spot-open-floor.is-guest {
+  cursor: default;
+  color: color-mix(in srgb, var(--info) 62%, var(--text));
+  background: color-mix(in srgb, var(--info) 13%, transparent);
+  border-color: color-mix(in srgb, var(--info) 30%, transparent);
+  gap: 4px;
+}
+#psycle-helper-container .ab-spot-owner,
+#psycle-helper-container .ab-spot-open-floor.is-guest small {
+  font-size: 9px;
+  line-height: 1;
+  font-weight: 800;
+  letter-spacing: .055em;
+  text-transform: uppercase;
+  opacity: .82;
+}
+
+.guest-live-map .psycle-floor-scroll { margin-top: 8px; }
+.guest-map-legend { display:flex; flex-wrap:wrap; gap:6px 10px; margin:0 0 7px; font-size:11px; color:var(--text-secondary); }
+.guest-map-legend span { display:inline-flex; align-items:center; gap:4px; }
+.guest-map-legend span::before { content:''; width:8px; height:8px; border-radius:3px; border:1px solid var(--border); background:var(--surface-inset); }
+.guest-map-legend .is-self::before { background:color-mix(in srgb, var(--feat-autoupgrade) 22%, transparent); border-color:var(--feat-autoupgrade); }
+.guest-map-legend .is-guest::before { background:color-mix(in srgb, var(--info) 22%, transparent); border-color:var(--info); border-style:dashed; }
+.guest-map-legend .is-available::before { background:color-mix(in srgb, var(--success) 18%, transparent); border-color:color-mix(in srgb, var(--success) 55%, transparent); }
+
 /* U1-1: FCFS/recovery bookings have no assigned spot to reassign, so this is
    a static label, not a button — same pill shape as .ab-spot-upgrade-chip
    for visual rhythm in the card, but muted and non-interactive (no hover,

@@ -293,7 +293,7 @@ function buildBookingCard(group, upgrades) {
       // Static badge, not a button: there is no spot to configure auto-upgrade
       // for on an FCFS/recovery class, so it must not be clickable (it isn't
       // wired below — the click-listener loop only selects `.ab-spot-upgrade-chip`).
-      return `<span class="ab-spot-open-floor" title="${COPY.bookings.openFloorTitle}">${COPY.bookings.openFloor}</span>`;
+      return `<span class="ab-spot-open-floor${b.isGuest ? ' is-guest' : ''}" title="${COPY.bookings.openFloorTitle}">${b.isGuest ? `<small>${COPY.bookings.guestSpotChip}</small> ` : ''}${COPY.bookings.openFloor}</span>`;
     }
 
     const slotId = slotIdOf(b);
@@ -326,6 +326,15 @@ function buildBookingCard(group, upgrades) {
 
     const noun = seatNoun(groupName);
     const nounCap = noun.charAt(0).toUpperCase() + noun.slice(1);
+
+    // Guest reservations must not open Auto-Upgrade: they are a separate
+    // attendee/pass lifecycle. Keep the same compact chip language, but make
+    // the ownership explicit and secondary to the readable spot label.
+    if (b.isGuest) {
+      return `<span class="ab-spot-upgrade-chip is-guest" data-booking-id="${bookingIdOf(b)}" data-slot-id="${slotId}" title="${COPY.bookings.guestMapGuest}">
+                <small class="ab-spot-owner">${COPY.bookings.guestSpotChip}</small><span>${nounCap} ${escapeHtml(slotLabel)}</span>
+              </span>`;
+    }
 
     return `<button class="${chipClass}"
                     data-booking-id="${bookingIdOf(b)}"
@@ -376,7 +385,7 @@ function buildBookingCard(group, upgrades) {
     </div>
     <div class="ab-card-rail">
       ${editBtnHtml}
-      ${canForGym('guestBooking', event.gymId) ? `<button class="ab-rail-btn bk-guest-btn" aria-label="${COPY.bookings.bookGuest}">${icon('user', 17)}<span>${COPY.bookings.bookGuest}</span></button>` : ''}
+      ${canForGym('guestBooking', event.gymId) ? `<button class="ab-rail-btn bk-guest-btn" aria-label="${COPY.bookings.bookGuest}">${icon('plus', 17)}<span>${COPY.bookings.bookGuest}</span></button>` : ''}
       <button class="ab-rail-btn danger bk-cancel-btn" aria-label="${COPY.bookings.cancelBookingLabel}">${icon('close', 17)}<span>${COPY.bookings.cancel}</span></button>
     </div>
   `;
@@ -392,7 +401,7 @@ function buildBookingCard(group, upgrades) {
   }));
 
   // Auto-upgrade click listeners for each spot chip
-  card.querySelectorAll('.ab-spot-upgrade-chip').forEach(btn => {
+  card.querySelectorAll('button.ab-spot-upgrade-chip').forEach(btn => {
     btn.addEventListener('click', () => {
       const bid = Number(btn.getAttribute('data-booking-id'));
       const slotId = btn.getAttribute('data-slot-id');
@@ -454,8 +463,12 @@ function wireCancelBooking(btn, card, group, within12h) {
     labelSpan.textContent = '…';
     try {
       showToast(COPY.bookings.cancelling, 'info');
-      for (const b of group.bookings) {
-        await api.cancel(bookingIdOf(b), b.gymId || group.event?.gymId);
+      // One server command is authoritative for the whole booking group. It
+      // cancels guests before the member reservation; looping here could send a
+      // second cancel for an already-cascaded guest and falsely report failure.
+      const primary = group.bookings.find((booking) => !booking.isGuest) || group.bookings[0];
+      await api.cancel(bookingIdOf(primary), primary.gymId || group.event?.gymId);
+      for (const b of group.bookings.filter((booking) => !booking.isGuest)) {
         const up = findUpgradeForSeat(cache.upgrades, { bookingId: bookingIdOf(b), gymId: b.gymId || group.event?.gymId, eventId: group.eventId, slotId: slotIdOf(b) });
         if (up) { try { await api.deleteAutoUpgrade(up.id); } catch (_) {} }
       }
@@ -542,13 +555,19 @@ export async function openEditBookingModal(group, onChange = renderBookings) {
       await api.getEventDetails(group.eventId, group.event?.gymId);
     const availableSlots = layoutSlots.filter(s => s.isAvailable).map(s => String(s.id));
 
-    // Current booked slots → booking IDs (so removals can target the right record)
+    // Current booked slots → booking IDs (so removals can target the right record).
+    // Guest reservations are visible on this live map but deliberately excluded
+    // from self-seat swap/rebook arithmetic. They can be released explicitly;
+    // releasing the primary is always server-cascaded guest-first.
     const slotToBooking = new Map();
+    const guestSlotToBooking = new Map();
     group.bookings.forEach(b => {
       const sid = slotIdOf(b);
-      if (sid != null && sid !== '') slotToBooking.set(String(sid), bookingIdOf(b));
+      if (sid == null || sid === '') return;
+      (b.isGuest ? guestSlotToBooking : slotToBooking).set(String(sid), bookingIdOf(b));
     });
     const currentSlots = [...slotToBooking.keys()];
+    const guestSlots = [...guestSlotToBooking.keys()];
 
     // WP-C5: first-come-first-serve is now an explicit `layoutFormat` check
     // rather than being inferred from an empty slot list. Both cases end up
@@ -573,12 +592,16 @@ export async function openEditBookingModal(group, onChange = renderBookings) {
     const minMapHeight = Math.max(340, rowCount * 56);
 
     const selected = new Set(currentSlots);
-    editDirty = () => selected.size !== currentSlots.length || currentSlots.some((x) => !selected.has(x));
+    const guestsToCancel = new Set();
+    editDirty = () => guestsToCancel.size > 0 || selected.size !== currentSlots.length || currentSlots.some((x) => !selected.has(x));
     const labelFor = id => { const s = layoutSlots.find(ls => String(ls.id) === String(id)); return s?.label || String(id); };
 
     body.innerHTML = `
       <div style="font-size:12px;color:var(--text-secondary);background:var(--surface-inset);border:1px solid var(--border);border-radius:8px;padding:8px 10px;margin-bottom:10px;line-height:1.5;">
         ${formatCopyText(COPY.bookings.editSpotsInstructionHtml, { noun: escapeHtml(noun) })}
+      </div>
+      <div class="guest-map-legend" aria-label="Spot map key">
+        <span class="is-self">${COPY.bookings.guestMapSelf}</span><span class="is-guest">${COPY.bookings.guestMapGuest}</span><span class="is-available">${COPY.bookings.guestMapAvailable}</span><span class="is-unavailable">${COPY.bookings.guestMapUnavailable}</span>
       </div>
       <div class="psycle-floor-plan-container" style="position:relative;height:${minMapHeight}px;background:var(--surface-inset);border:1px solid var(--border);border-radius:12px;margin-bottom:10px;overflow:hidden;">
         <div id="psycle-edit-floor-grid" style="width:100%;height:100%;"></div>
@@ -610,7 +633,7 @@ export async function openEditBookingModal(group, onChange = renderBookings) {
       const desired = [...selected];
       const toRemove = currentSlots.filter(s => !selected.has(s));
       const toAdd = desired.filter(s => !currentSlots.includes(s));
-      const changed = toRemove.length > 0 || toAdd.length > 0;
+      const changed = toRemove.length > 0 || toAdd.length > 0 || guestsToCancel.size > 0;
       // Removals refund credits before the additions are booked.
       const creditsAfterRefund = totalAvailableCredits(group.event?.gymId) + toRemove.length;
       const shortfall = Math.max(0, toAdd.length - creditsAfterRefund);
@@ -627,6 +650,7 @@ export async function openEditBookingModal(group, onChange = renderBookings) {
       const parts = [];
       if (toAdd.length) parts.push(`<span style="color:var(--success);font-weight:700;">+${toAdd.map(labelFor).join(', ')}</span>`);
       if (toRemove.length) parts.push(`<span style="color:var(--danger);font-weight:700;">−${toRemove.map(labelFor).join(', ')}</span>`);
+      if (guestsToCancel.size) parts.push(`<span style="color:var(--info);font-weight:700;">− ${COPY.bookings.guestSpotChip} ${[...guestsToCancel].map(labelFor).join(', ')}</span>`);
       summaryEl.innerHTML = parts.length
         ? `<span style="color:var(--text-tertiary);text-transform:uppercase;font-size:var(--text-xs);letter-spacing:0.05em;margin-right:6px;">${COPY.bookings.changes}</span>${parts.join('&nbsp;&nbsp;')}`
         : `<span style="color:var(--text-tertiary);">${formatCopyText(COPY.bookings.selectedSpots, { count: desired.length, noun: escapeHtml(noun), plural: desired.length !== 1 ? 's' : '' })}</span>`;
@@ -650,6 +674,8 @@ export async function openEditBookingModal(group, onChange = renderBookings) {
         const slotId = String(slot.id);
         const isAvailable = availableSlots.includes(slotId);
         const isCurrent = currentSlots.includes(slotId);
+        const isGuest = guestSlots.includes(slotId);
+        const guestPendingCancel = guestsToCancel.has(slotId);
         const isSelected = selected.has(slotId);
         const left = widthRange === 0 ? 50 : ((slot.x - minX) / widthRange) * 78 + 8;
         const top = heightRange === 0 ? 50 : ((slot.y - minY) / heightRange) * 72 + 14;
@@ -660,11 +686,16 @@ export async function openEditBookingModal(group, onChange = renderBookings) {
         // "27", not "Bike 27" — the full label wrapped to two lines and spilled
         // out of a 28px square. Full label stays in the tooltip below.
         el.textContent = shortLabelsForPlan.get(String(slot.id)) || slot.label || slotId;
-        const clickable = isSelected || isCurrent || isAvailable;
+        const clickable = isGuest || isSelected || isCurrent || isAvailable;
         el.style.cursor = clickable ? 'pointer' : 'default';
         el.title = `${nounCap} ${slot.label || slotId}`;
 
-        if (isSelected) {
+        if (isGuest) {
+          el.style.background = guestPendingCancel ? 'color-mix(in srgb,var(--danger) 15%,transparent)' : 'color-mix(in srgb,var(--info) 16%,transparent)';
+          el.style.border = guestPendingCancel ? '2px dashed var(--danger)' : '2px dashed var(--info)';
+          el.style.color = guestPendingCancel ? 'var(--danger)' : 'var(--info)';
+          el.title = `${COPY.bookings.guestMapGuest}: ${slot.label || slotId}${guestPendingCancel ? ' (will be removed)' : ''}`;
+        } else if (isSelected) {
           el.style.background = 'var(--feat-autoupgrade)';
           el.style.border = '2px solid color-mix(in srgb,var(--feat-autoupgrade) 70%,#000)';
           el.style.color = '#fff';
@@ -684,7 +715,10 @@ export async function openEditBookingModal(group, onChange = renderBookings) {
         }
 
         if (clickable) el.addEventListener('click', () => {
-          if (selected.has(slotId)) selected.delete(slotId);
+          if (isGuest) {
+            if (guestsToCancel.has(slotId)) guestsToCancel.delete(slotId);
+            else guestsToCancel.add(slotId);
+          } else if (selected.has(slotId)) selected.delete(slotId);
           else if (isCurrent || isAvailable) selected.add(slotId);
           else { showToast(formatCopyText(COPY.bookings.occupiedSpotFor, { noun }), 'warning'); return; }
           renderGrid();
@@ -700,6 +734,13 @@ export async function openEditBookingModal(group, onChange = renderBookings) {
       if (saveBtn) { saveBtn.disabled = true; saveBtn.textContent = COPY.static.saving; }
       try {
         const gymId = group.event?.gymId || null;
+        // Explicit guest removal is a direct guest cancellation. If the member
+        // seat is removed below, /api/cancel also finds/cancels every remaining
+        // guest before it ever releases the member reservation.
+        for (const slotId of guestsToCancel) {
+          const guestBookingId = guestSlotToBooking.get(slotId);
+          if (guestBookingId) await api.cancel(guestBookingId, gymId);
+        }
         // THIS booking's gym, not the ambient one. Judged against the wrong
         // gym's flag this either skips a native swap (falling back to
         // cancel-then-rebook, which can lose the spot to someone else in the

@@ -1,96 +1,158 @@
-# 5-10 enhancements session (handoff)
+# 5-10 enhancements session (handoff, single source of truth)
 
-Session log for the batch of bug fixes and enhancements started 2026-10-05 and carried through 2026-10-05/06 on branch `modular`. Everything is **uncommitted** in the working tree. Dev twin (`sweat-dev.wingfield.tech`) was deployed several times with `deploy.sh` (dev only, never prod).
+Session log for the batch of bug fixes and enhancements started 2026-10-05 and carried through 2026-10-06. Work happened in two places and this doc merges both:
+
+- **Worktree** branch `worktree-enh-5-10-timetable` (cut from local `modular` at `49cb376`): committed, not pushed, not deployed.
+- **Main checkout** on `modular`: **uncommitted** working-tree changes by another agent (the antigravity / main-agent UI work). Dev twin (`sweat-dev.wingfield.tech`) was deployed several times from there with `deploy.sh` (dev only, never prod).
 
 Working rules the user set: one dev subagent at a time (Sonnet), subagents report under 120 words as (1) root cause, (2) files, (3) pass/fail; Gemini offload (`flash`) for locating code; real-browser verification via Chrome CDP `127.0.0.1:9222` (one tab); stop after each enhancement with a 1-2 sentence test instruction for sweat-dev.
 
 Test environment gotcha: the local default Node (v26) cannot load `better-sqlite3`. Run tests with **Node 20 via nvm** (what the Dockerfile and prod use).
 
-## Done
+## Status of every item
 
-| # | Item | Status | Notes |
-|---|------|--------|-------|
-| 0 | Gym settings: Preferred spot maps directly after Connection | Done, verified in browser | `client/src/ui/gym-settings-section.js` |
-| 1 | Bug: mobile filter drawer "Workouts" section empty when expanded | Fixed in code, **not reproduced live** | Options now back-filled from loaded events' `discipline` when metadata is empty. `client/src/ui/workout-options.js` (+test), `timetable.js`. Root cause inferred. |
-| 2 | Bug: quick-book overlap/confirm loop | Fixed in code, **not browser-verified** (mock has no overlap) | Overlap modal once per attempt; acknowledging it continues straight through (also through first-time setup) with no second confirm tap; busy guard. `client/src/ui/quickbook-flow.js` (+test), `timetable.js`. |
-| 3 | Enhancement: per-studio row-group selector flag | Done, user confirmed on sweat-dev | Flag lives in `server/gyms.config.js` (`spotMap.rowGroupStudios`, ids or name pattern; default off; Psycle = `^ride`). Flows via `providers/spot-map.js` to `studio.rowGroups`. UI decision in one place: `spotmap.js` (`studioHasRowGroups`, `rowSelectorVisible`). Editors drop stored rows on save for non-flag studios. |
-| 5 | Enhancement: timetable keyword search | Built and iterated, deployed to dev | See "Search design" below. |
-| 6 | Enhancement: instructor filters per gym | Built, browser-verified, deployed to dev, user says it works | `gymId:id` tokens in `client/src/ui/instructor-filter.js` (+test). Legacy bare ids migrate on read. |
+Where: **W** = committed on the worktree branch, **M** = uncommitted in the main checkout.
+
+| # | Item | Where | Status | Notes |
+|---|------|-------|--------|-------|
+| 0 | Gym settings: Preferred spot maps directly after Connection | M | Done, verified in browser | `client/src/ui/gym-settings-section.js` |
+| 1 | Bug: mobile filter drawer "Workouts" section empty when expanded | M | Done, verified in browser by user | Options back-filled from loaded events' `discipline` when metadata is empty. `workout-options.js` (+test), `timetable.js`. |
+| 2 | Bug: quick-book overlap/confirm loop | M | Done, verified in browser by user | Overlap modal once per attempt; acknowledging continues straight through (also through first-time setup), no second confirm tap; busy guard. `quickbook-flow.js` (+test), `timetable.js`. |
+| 3 | Per-studio row-group selector flag | M | Done, user confirmed on sweat-dev | Flag in `server/gyms.config.js` (`spotMap.rowGroupStudios`, ids or name pattern; default off; Psycle = `^ride`). Flows via `providers/spot-map.js` to `studio.rowGroups`. UI decision in `spotmap.js` (`studioHasRowGroups`, `rowSelectorVisible`). Editors drop stored rows on save for non-flag studios. |
+| 4 | U4-19 URL routing | W | **Phases 1-3 done** (commit `eb6f5f5`); phases 4-8 not built | Clean paths, SPA allowlist fallback, legacy hash migration. Plan: `U4-19-url-routing-and-deep-links.md`. |
+| 5 | Timetable keyword search | M | Built and iterated, deployed to dev | See "Decisions made". |
+| 6 | Instructor filters per gym | M | Built, browser-verified, deployed to dev, user says it works | `gymId:id` tokens in `instructor-filter.js` (+test). Legacy bare ids migrate on read. |
+| 7 | Filter drawer tap latency and deselect lag | M | Done, browser-verified (4.5 ms select / 3.2 ms deselect, from ~800 ms) | `countMatchingEventsQuick()`, frame-0 `syncFilterSheetState()`, 100 ms debounced grid render flushed on close. `timetable.js`, `filter-rail.js`. |
+| 8 | Discipline: Pilates vs Reformer vs Lagree | M | Done, unit-tested (307 client tests) and browser-verified | `passesDisciplineFilter()`: Pilates and Reformer equivalent, Lagree distinct. `cards.js`, `copy.js`, `timetable.js`. |
+| 9 | Filter drawer equal 3-column gym grid | M | Done, browser-verified (114 px each) | `styles.css`. |
+| 10 | Settings "Your Gyms" mobile row layout and drilldown | M | Done, browser-verified on sweat-dev | Name text removed (accessible on logo); 3-row grid; row click drills into gym pane; Back returns to Your Gyms. `settings.js`, `styles.css`. |
+| 11 | Gym-specific pane header and inline connection row | M | Done, browser-verified on sweat-dev | Name heading removed; Connected badge aligned with logo; `.psycle-gym-conn-inline-row`. `gym-settings-section.js`, `styles.css`. |
+| 12 | Filter rail chip icons, whitespace, sheet animation, drag-to-dismiss | M | Done, browser-verified | `pin`/`user` icons, tighter spacing, slide + overlay fade, `wireDragToDismiss` (>70 px). `filter-rail.js`, `cards.js`, `styles.css`. |
+| 12a | Instructor chip per-gym counts ("All" when none picked) | M | Done, verified in Chrome mobile viewport; dark mode read not screenshotted | Pure `summariseInstructorsByGym` in `instructor-filter.js` (+test), rendered in `filter-rail.js`. |
+| 12b | Bug: iOS filter chip row draggable vertically | M | Fixed in code; real-iOS behaviour UNVERIFIED | `.fr-rail`: `overflow-y: hidden; overscroll-behavior-x: contain; touch-action: pan-x pan-y`. CDP emulation: vertical drag leaves `scrollTop` 0. |
+| Q1 | Progressive timetable load (U4-7 + U4-2) | W | **Done** (`27f3181`) | Render on the first gym to respond (grace 0); header gym chips are per-gym loading indicators. |
+| Q2 | Mobile gym quick-selector in filter bar | W | **Done** (`66f5195`), browser-verified mobile viewport light and dark | Pure logic `client/src/ui/gym-quick-select.js` (+tests), rail in `filter-rail.js`, state in `timetable.js`. Never writes saved defaults. |
+| Q3 | Mobile scroll-collapse (date strip and location chip) | W | **Done** (`de8aebc`), browser-verified mobile light and dark, desktop unchanged | Pure hysteresis `scroll-collapse.js` (+tests), one `psycle-tt-compact` class toggled in `main.js initHeaderAutoHide`, chip faces in `filter-rail.js`, copy `filters.locationsCompact`, CSS block at end of `styles.css`. Mobile scroller is the DOCUMENT; layout-jump guard keeps scrollHeight constant (day cells shrink 16 px while sticky block gains 16 px margin-bottom). |
 
 ## Decisions made
 
 - Row-group flag: config in `gyms.config.js` (not admin UI). Admin-managed gym onboarding/config is logged as **F-16** in `F-future-features.md`.
-- URLs (enhancement 4): **clean paths**, state = day + filters + search `q`; push history on tab/day/filter-set (merge rapid toggles ~1s), modals push; deep-link banner with Clear returning to saved defaults, link filters never overwrite saved defaults; `/` stays the timetable until the F-10 homepage. Plan in `U4-19-url-routing-and-deep-links.md` (8 phases, about 29 h). **User wants to review the plan before build.**
-- Search design: hybrid. Autocomplete grouped by type (instructors per gym, classes, locations, gyms, workouts) with counts; picking applies to the search scope; Enter shows a flat day-grouped list of all matching upcoming classes across loaded weeks using the normal row builder. Words are ANDed across fields (name, instructor, gym, location, discipline). Mobile: search icon in the filter bar that expands. Search has **its own filter scope**: entering search snapshots filters and starts empty, Clear restores the snapshot exactly, nothing from search is saved to defaults (`timetable-search-state.js`).
-- Search speed fix: search re-renders now use the `'search'` reason, so they no longer wait on the auto-book queue and studio-prefs calls (865 ms to 14 ms under injected latency).
+- URLs: **clean paths**, state = day + filters + search `q`; push history on tab/day/filter-set (merge rapid toggles ~1 s), modals push; deep-link banner with Clear returning to saved defaults, link filters never overwrite saved defaults; `/` stays the timetable until the F-10 homepage. Plan reviewed enough to build phases 1-3; remaining open decisions live in the U4-19 doc.
+- Search design: hybrid. Autocomplete grouped by type (instructors per gym, classes, locations, gyms, workouts) with counts; picking applies to the search scope; Enter shows a flat day-grouped list of all matching upcoming classes across loaded weeks using the normal row builder. Words ANDed across fields. Mobile: search icon in the filter bar that expands. Search has **its own filter scope**: entering search snapshots filters and starts empty, Clear restores the snapshot, nothing from search is saved to defaults (`timetable-search-state.js`).
+- Search speed fix: search re-renders use the `'search'` reason, so they no longer wait on the auto-book queue and studio-prefs calls (865 ms to 14 ms under injected latency).
 - Instructor filter semantics: a gym with at least one selected instructor shows only those instructors' classes; a gym with none selected is unrestricted. Never matched across gyms.
+- Discipline: Pilates and Reformer filter-equivalent; Lagree isolated (Aarmy labels classes "Pilates"; Psycle treats Reformer and Lagree as distinct).
 
-## Outstanding
+## Commit summaries
 
-Queued enhancements, in order:
+### A. Worktree commits (branch `worktree-enh-5-10-timetable`, committed, not pushed)
 
-1. **DONE 2026-10-05 (U4-7 + U4-2, worktree branch worktree-enh-5-10-timetable).** **Progressive timetable load**: render the timetable as soon as the first gym responds instead of waiting for slow gyms, and use the header chips as per-gym loading indicators. A workstream item for the first half already exists in `Documentation/Workstreams/` (agent must look it up and link it).
-2. **DONE 2026-10-05 (worktree branch worktree-enh-5-10-timetable; pure logic `client/src/ui/gym-quick-select.js` + tests, rail in `filter-rail.js`, state in `timetable.js`; browser-verified in Chrome mobile viewport, light and dark; never writes saved defaults).** **Mobile gym quick-selector** in the filter bar: all configured gyms' small 1:1 logos (slightly larger than the location chip's, no pill) beside the Filters button. Tap = show only that gym; tap another = switch; tap the selected one = show all. Default to the gyms in the saved default filter set, or all if none saved. Deselected gyms are slightly blurred and lower contrast; shown gyms get a tiny flat green tick.
-3. **DONE 2026-10-05 (worktree branch worktree-enh-5-10-timetable; pure hysteresis `client/src/ui/scroll-collapse.js` + tests, one `psycle-tt-compact` class toggled with the header hide in `main.js initHeaderAutoHide`, chip faces in `filter-rail.js`, copy `filters.locationsCompact`, CSS block at end of `styles.css`; mobile scroller is the DOCUMENT; layout-jump guard = day cells shrink 16px while the sticky block gains a 16px margin-bottom on the same transition, so scrollHeight is constant; merge-in anchor restore marks scroll busy; browser-verified in Chrome mobile viewport light and dark, desktop unchanged).** **Mobile scroll-collapse** (mobile only): while scrolling down, besides hiding the header, smoothly shrink the date selector (less padding, slightly smaller text) and collapse the locations chip (logo plus locations) into an "x locations" chip; reverse on scroll up.
-4. **U4-19 URL routing**: build after the user reviews the plan.
+```text
+27f3181 feat(timetable): progressive multi-gym load (U4-7) and gym chip loading indicators (U4-2)
+66f5195 feat(timetable): mobile gym quick-selector in filter rail (5-10 enh 2)
+de8aebc feat(timetable): mobile scroll-collapse of date strip and location chip (5-10 enh 3)
+eb6f5f5 feat(routing): clean URL paths, SPA allowlist fallback, legacy hash migration (U4-19 phases 1-3)
+37b4e7c docs(5-10): handoff section with outstanding work and test checklist
+```
 
-Verification gaps:
+Note: the message of `27f3181` wrongly says "4s grace". Actual behaviour: render on the first gym to respond, grace 0. Fix the wording if squashing.
 
-- Bug 1 (Workouts empty) and bug 2 (quick-book overlap) were not reproduced or exercised live; test on sweat-dev.
-- Search: the exact "Aarmy" gym-suggestion case (mock data has no Aarmy gym) and reload mid-search are untested; dark mode was checked for the search UI fixes only.
-- Auto-book and auto-upgrade spot-map editors were not browser-tested for the row-group flag.
-- Follow-ups from enhancement 3: stop the scheduler, poller and quick-book applying stored rows for non-flag studios; merge the timetable's own floor-plan renderer into `spotmap.js`.
-- Search results with about 200 matches take about 280 ms; no incremental rendering was added.
+### B. Main-checkout changes: NOT YET COMMITTED
 
-Housekeeping:
+Proposed message (do not commit until the main agent is done):
 
-- Another session is editing/deploying Home-widget work (`home.js`, `home-routing.js`, `widget-registry.js`, tests; untracked). Those files shipped to dev as they stood. A concurrent `docker compose up -d --force-recreate` on oracle left hash-prefixed container names (`42f659bac4d6_psycle-app-dev`) at last check; re-check `docker ps` on oracle and normalise if the prefix remains.
-- `server/test-rate-limit-reads.js` was made isolation-safe (own port, temp DB, `MOCK_BOOKINGS_PATH` env in `server/mock.js`) after it failed in a full run; root cause (a concurrent run) was inferred, not reproduced.
-- Nothing is committed. Review the full diff before committing.
+```text
+ui: optimize filter drawer latency, refine gym settings layout, and balance disciplines
 
-## Newest requests (this turn)
+- Filter drawer tap optimization: in-memory countMatchingEventsQuick(), frame-0
+  syncFilterSheetState(), 100ms debounced grid render flushed on close
+  (~800ms to 4.5ms select / 3.2ms deselect, no dropped taps).
+- Discipline: COPY.disciplines.lagree; /pilates/ labelled Pilates (reformer token),
+  /lagree/ distinct; passesDisciplineFilter() equates Pilates and Reformer,
+  isolates Lagree; cards.test.js coverage (307 tests).
+- Filter drawer gym grid: repeat(3, minmax(0, 1fr)), zero min-width, contained
+  SVG/img (114px each).
+- "Your Gyms": drop redundant name text (kept as aria/alt), 3-row mobile grid,
+  row click drills into gym pane, nav history so Back returns to Your Gyms.
+- Gym pane: remove heading/eyebrow, align Connected badge with logo, inline
+  email + actions row.
+- Filter rail: pin/user icons, tighter whitespace, slide-up animation,
+  drag-to-dismiss.
+```
 
-- Instructor filter chip: behave like the location chip but show a count per gym; a gym with no instructor selected shows "All".
-- Bug: on iOS the filter chip row can be dragged vertically and looks clipped on release; it must only scroll horizontally.
+Files covered:
 
-Status:
+```text
+Documentation/Workstreams/5-10-enhancements.md
+client/src/copy.js
+client/src/styles.css
+client/src/ui/cards.js
+client/src/ui/cards.test.js
+client/src/ui/filter-rail.js
+client/src/ui/gym-settings-section.js
+client/src/ui/settings.js
+client/src/ui/timetable.js
+```
 
-- A (instructor chip): done. With several gyms linked the chip reuses the location chip's tile: each gym's 1:1 logo plus its instructor count, or "All" when that gym has none picked. One gym keeps "N Instructors". Logic is the pure `summariseInstructorsByGym` in `client/src/ui/instructor-filter.js` (unit-tested); rendering is in `filter-rail.js`. Verified in Chrome mobile viewport (chip read "All | 2" and updates live); dark-mode chip colours read, not screenshotted.
-- B (rail drag): `.fr-rail` had `overflow-x: auto` with the default `overflow-y`, so it could scroll 3px vertically (measured `scrollTop` 3 after a vertical drag). Now `overflow-y: hidden; overscroll-behavior-x: contain; touch-action: pan-x pan-y; -webkit-overflow-scrolling: touch`. `pan-y` is kept so a vertical swipe starting on the row still scrolls the page and pull-to-refresh. CDP touch emulation: a vertical drag on the row leaves `scrollTop` at 0. Real-iOS behaviour is UNVERIFIED.
-- C (chip icons & tighter whitespace): added `pin` / `location` icon to `SVG_PATHS` in `cards.js`; location chip now starts with `icon('pin', 13)` and instructor chip with `icon('user', 13)` across multi-gym and single-gym cases in `filter-rail.js`. Spacing tightened in `styles.css`: `.fr-chip-body` gap 3.5px, padding `0 2px 0 6px`; `.fr-tile-part` gap 2.5px; `.fr-tile-part + .fr-tile-part` margin-left 2.5px (down from 8px); `.fr-dot` margin `0 2px`; `.fr-thin` margin-left 2.5px; `.fr-chip-x` width 20px. Verified in Chrome CDP mobile viewport.
-- Note: the Vite dev server on :5173 died mid-run and was restarted from `client/`.
+(The main copy also lists work from items 0-3, 5, 6 as uncommitted in the same working tree, e.g. `workout-options.js`, `quickbook-flow.js`, `instructor-filter.js`, `spotmap.js`, `gyms.config.js`, `api.js`, `server/mock.js`, `server/test-rate-limit-reads.js`, plus untracked Home-widget files from another session. Review `git status` in the main checkout before committing.)
 
-## Handoff: outstanding work and test checklist (2026-10-05)
+### B detail (condensed)
+
+1. **Filter drawer latency.** Cause: `buildFilterRailCtx` ran `rerender()` / `renderTimetableGrid('filter')` synchronously per tap, rebuilding DOM under the thumb (slow, and dropped clicks). Fix: `countMatchingEventsQuick()` (<0.1 ms loop over `psycleEvents`); `isFilterSheetOpen()` and `syncFilterSheetState(ctx)` exported from `filter-rail.js`; while open, `toggle()/clear()/clearAll()` update state, `ctx.resultCount` and sheet UI in frame 0; heavy render debounced 100 ms (`scheduleDeferredFilterRender()`), flushed in `closeSheet()` via `flushDeferredFilterRender()`.
+2. **Disciplines.** `copy.js` adds `lagree`; `cards.js getDiscipline()` maps `/pilates/` to `{key:'reformer', label:'Pilates'}` and `/lagree/` to `{key:'reformer', label:'Lagree'}`; `passesDisciplineFilter(selected, groupLabel)` wired into the timetable loop and quick counter; tests in `cards.test.js`.
+3. **Gym grid.** `.fr-gymrows` grid `repeat(3, minmax(0,1fr))`; `.fr-gymrow` and `.fr-logo-plate` get `min-width:0; width:100%; overflow:hidden`; logos clamped to `max-width:100%`, height 15 px.
+4. **Your Gyms.** `settings.js`: name only as `title`/`aria-label`/`alt`; mobile (`max-width:768px`) rows = logo / email + `psycle-btn-mini` actions / status + auth date; row click (outside Re-authenticate/Unlink) calls `layout.__activateSettingsSection('gym-' + gymId)`; `activateSection` keeps `navHistory` so Back returns to `gyms`.
+5. **Gym pane.** `gym-settings-section.js`: no `<h3>`/eyebrow; badge beside logo in `.psycle-gym-settings-heading`; email + buttons in `.psycle-gym-conn-inline-row`.
+6. **Rail polish.** Icons, spacing, sheet animation, `wireDragToDismiss`.
+
+### B verification (main checkout)
+
+- Server suite: 61/61 passed (`npm run test:server`). Client: 42 vitest suites, 307 tests passed. Client build clean (Vite, 667 ms).
+- Deployed to `sweat-dev.wingfield.tech` via `./deploy.sh`.
+- Chrome CDP (emulated iPhone 14): tap 4.5 ms / deselect 3.2 ms; gym grid 114/114/114 px; Your Gyms rows have no name text, email and buttons on one row, status below email; JAB row drills to `psycle-settings-pane-gym-jab-boxing`; gym pane has no h3 name, badge aligned with logo, email and buttons inline; Back returns to `psycle-settings-pane-gyms`.
+
+## Outstanding (consolidated)
 
 Status key: [x] done, [ ] not done.
 
-### State
-
-- [x] Branch `worktree-enh-5-10-timetable`, worktree `.claude/worktrees/enh-5-10-timetable`, cut from local `modular` at `49cb376`.
-- [x] The branch does NOT include the uncommitted changes in the main checkout (`timetable.js`, `styles.css`, `settings.js`, `api.js`, `copy.js`, `gym-settings-section.js`, etc.). Expect merge conflicts in `timetable.js`, `styles.css`, `copy.js`, `api.js`.
-- [x] Commits:
-  - `27f3181` item 1, progressive load (U4-7 / U4-2). Its message wrongly says "4s grace"; the behaviour is render on the first gym, grace 0. Fix the wording when squashing.
-  - `66f5195` item 2, gym quick-selector.
-  - `de8aebc` item 3, scroll-collapse.
-  - `eb6f5f5` U4-19 phases 1-3 (see `U4-19-url-routing-and-deep-links.md`).
-- [x] Not pushed, not deployed.
-
-### Outstanding tests (not done)
-
-- [ ] Pull-to-refresh while the scroll-collapse is active.
-- [ ] Progressive merge-in above the scroll position while collapsed (unit-tested only).
-- [ ] Real iOS / installed-PWA check for items 2 and 3 and for URL routing (iOS standalone opens external links in Safari).
-- [ ] Quick-selector with real linked-gym data on the dev twin (`sweat-dev`).
-- [ ] Tapping an unlinked gym in the quick-selector currently shows a toast only. Decision needed: open the connect flow instead? `settings.js` does not export the link form.
-- [ ] U4-19 behaviour on the dev twin after deploy (service worker cache must be cleared; see the prod deploy cache gotcha in memory).
-- [ ] Browser smoke test before any deploy (not covered by `npm test`).
-
-### Outstanding build
+### Build
 
 - [ ] U4-19 phases 4-8 (about 29 h total, phases 1-3 done); resolve the open decisions in its doc.
+- [ ] Follow-up from item 3: stop the scheduler, poller and quick-book applying stored rows for non-flag studios.
+- [ ] Follow-up from item 3: merge the timetable's own floor-plan renderer into `spotmap.js`.
+- [ ] Decision: tapping an unlinked gym in the quick-selector shows a toast only; open the connect flow instead? (`settings.js` does not export the link form.)
+- [ ] Search results with ~200 matches take ~280 ms; no incremental rendering added.
 
-### Merge steps
+### Verification gaps
 
-- [ ] Wait for the main-checkout agent to finish and commit.
-- [ ] Do a conflict check, then merge into `modular`.
-- [ ] Re-run `npm test` (Node 20 via nvm) and a CDP smoke test after the merge.
+- [ ] Search: the exact "Aarmy" gym-suggestion case (mock data has no Aarmy gym) and reload mid-search are untested; dark mode checked for the search UI fixes only.
+- [ ] Auto-book and auto-upgrade spot-map editors not browser-tested for the row-group flag.
+- [ ] Pull-to-refresh while scroll-collapse is active.
+- [ ] Progressive merge-in above the scroll position while collapsed (unit-tested only).
+- [ ] Real iOS / installed-PWA check for the quick-selector, scroll-collapse, rail vertical-drag fix (12b) and URL routing (iOS standalone opens external links in Safari).
+- [ ] Quick-selector with real linked-gym data on the dev twin.
+- [ ] U4-19 behaviour on the dev twin after deploy (clear service worker + IndexedDB caches; see the prod deploy cache gotcha in memory).
+- [ ] Dark-mode screenshot of the instructor chip (12a).
+- [ ] Browser smoke test before any deploy (not covered by `npm test`).
+- [x] Bugs 1 and 2 verified in browser by the user.
+
+### Housekeeping
+
+- [ ] Another session is editing/deploying Home-widget work (`home.js`, `home-routing.js`, `widget-registry.js`, tests; untracked). Those files shipped to dev as they stood.
+- [ ] A concurrent `docker compose up -d --force-recreate` on oracle left hash-prefixed container names (`42f659bac4d6_psycle-app-dev`) at last check; re-check `docker ps` on oracle and normalise.
+- [ ] `server/test-rate-limit-reads.js` was made isolation-safe (own port, temp DB, `MOCK_BOOKINGS_PATH` in `server/mock.js`); root cause (a concurrent run) inferred, not reproduced.
+- [ ] Commit the main-checkout changes (commit B) and review the full diff first.
+- [ ] Fix the "4s grace" wording of `27f3181` if squashing.
+- [ ] Vite dev server on :5173 died once mid-run; restart from `client/` if needed.
+
+## Merge instructions for the main-branch agent
+
+1. **Commit main first.** Finish and commit the main-checkout changes as commit B (message above) on `modular`. Do not merge with a dirty tree.
+2. **Merge.** `git merge worktree-enh-5-10-timetable` into `modular`.
+3. **Expected conflicts:** `client/src/ui/timetable.js`, `client/src/styles.css`, `client/src/copy.js`, `client/src/api.js`, this doc; possibly `client/src/main.js`, `client/src/ui/settings.js`, `client/src/ui/filter-rail.js`. Resolve keeping BOTH sides' behaviour (progressive load, gym quick-selector, scroll-collapse, URL routing on the worktree side; filter-sheet latency path, discipline filter, search, instructor chip, gym settings layout on the main side). In `filter-rail.js` and `timetable.js` pay attention to rail rendering, filter state and the `'filter'`/`'search'` render reasons.
+4. **This doc:** take the worktree version (`git checkout --theirs` during the merge, or the worktree file); it already folds in main's content.
+5. **`package-lock.json`:** the worktree has an unrelated uncommitted change (adds `"engines": { "node": ">=20 <21" }` to the root package entry). Inspect it before including; it is not part of any commit above.
+6. **Post-merge checks:**
+   - `npm test` under Node 20 via nvm (server suites plus client vitest).
+   - CDP smoke test with ONE tab: progressive load (first gym renders without waiting for slow gyms; chips show loading), gym quick-selector (select / switch / reselect-to-show-all, no saved-default writes), scroll-collapse (mobile viewport, both themes, desktop unchanged), URL routing regression (clean paths, legacy hash migration, deep-link banner), filter drawer latency still ~5 ms, discipline filtering.
+   - Clear service worker, CacheStorage and IndexedDB before verifying (hash-route reload is not a real reload).

@@ -93,6 +93,7 @@
  * @property {number=} waitlistCount
  * @property {'pick-a-spot'|'first-come-first-serve'} layoutFormat
  * @property {boolean=} isUserBooked
+ * @property {boolean=} isUserGuestBooked
  * @property {boolean=} isUserWaitlisted
  * @property {*=}      raw               Raw provider payload (debug only).
  * @property {NormalizedCreditRequirement=} credits  What it costs and what it
@@ -136,9 +137,11 @@
  *                                       Empty when the provider has none.
  * @property {number=} maxBookableSlots  Provider/gym-policy cap for this class
  *                                       (e.g. CodexFit's published cap or a
- *                                       MarianaTek tenant's maxSpotsPerClass).
+ *                                       a gym's published/configured class cap).
  *                                       Callers may fall back to slot count when
  *                                       the adapter has no cap.
+ * @property {Object=} bookingEntitlement Per-account, per-class booking limits
+ *                                       resolved by the provider, when exposed.
  */
 
 /**
@@ -178,6 +181,8 @@
  * @property {string=} slotLabel
  * @property {string=} spotSection
  * @property {boolean} isWaitlist
+ * @property {boolean=} isGuest
+ * @property {string=} guestEmail
  * @property {NormalizedEvent=} event     Present when the provider's list response embeds
  *                                        full class details (MarianaTek's class_session).
  *                                        Absent for CodexFit — its /bookings and /waitlists

@@ -93,6 +93,14 @@ const PAYMENT_OPTION = {
 let nextReservationId = 900001;
 const reservations = new Map(); // id -> reservation object
 const bookedSpotsByClass = new Map(); // classId -> Set<spotId>
+let guestRemainingUsage = PAYMENT_OPTION.membership_payment.guest_remaining_usage_count;
+
+function paymentOption() {
+  return {
+    ...PAYMENT_OPTION,
+    membership_payment: { ...PAYMENT_OPTION.membership_payment, guest_remaining_usage_count: guestRemainingUsage },
+  };
+}
 
 function bookedSpotsFor(classId) {
   if (!bookedSpotsByClass.has(classId)) bookedSpotsByClass.set(classId, new Set());
@@ -178,7 +186,14 @@ function getClasses() {
   // Recompute availability counts live (bookedSpotsByClass mutates over the session).
   return classCaches.get(activeZone).map((c) => {
     const booked = bookedSpotsFor(c.id);
-    return { ...c, available_spot_count: c.capacity - booked.size, spot_options: { ...c.spot_options, primary_availability: c.capacity - booked.size } };
+    const active = [...reservations.values()].filter((r) => r.class_session?.id === c.id && r.status === 'pending');
+    return {
+      ...c,
+      available_spot_count: c.capacity - booked.size,
+      is_user_reserved: active.some((r) => r.is_booked_for_me && r.reservation_type === 'standard'),
+      is_user_guest_reserved: active.some((r) => !r.is_booked_for_me && r.reservation_type === 'standard'),
+      spot_options: { ...c.spot_options, primary_availability: c.capacity - booked.size },
+    };
   });
 }
 
@@ -196,7 +211,7 @@ function makeReservation({ classId, spotId, reservationType, guestEmail }) {
     id, is_booked_by_me: true, is_booked_for_me: !guestEmail, reservation_type: reservationType,
     spot, status: 'pending', waitlist_position: null, booked_by: 'Dev User', guest_email: guestEmail || null,
     is_change_spots_enabled: true, is_upcoming: true, class_session: cls || { id: classId },
-    payment_option: PAYMENT_OPTION,
+    payment_option: paymentOption(),
   };
   reservations.set(id, reservation);
   return reservation;
@@ -253,7 +268,7 @@ function handleMockRequest(pathName, method, body, gym) {
   // GET /classes/{id}/payment_options
   let m = path.match(/^\/classes\/([^/]+)\/payment_options$/);
   if (m && method === 'GET') {
-    return createFakeResponse({ user_payment_options: [PAYMENT_OPTION], guest_payment_options: [PAYMENT_OPTION] });
+    return createFakeResponse({ user_payment_options: [paymentOption()], guest_payment_options: [paymentOption()] });
   }
 
   // GET /classes/{id}
@@ -303,7 +318,7 @@ function handleMockRequest(pathName, method, body, gym) {
 
   // GET /me/memberships
   if (path === '/me/memberships' && method === 'GET') {
-    return createFakeResponse({ count: 1, results: [PAYMENT_OPTION.membership_payment], meta: {}, links: {} });
+    return createFakeResponse({ count: 1, results: [paymentOption().membership_payment], meta: {}, links: {} });
   }
 
   // GET /me/reservations?is_upcoming=...
@@ -323,10 +338,22 @@ function handleMockRequest(pathName, method, body, gym) {
     if (payload.is_booked_for_me === false && !payload.guest_email) {
       return createFakeResponse({ non_field_errors: ['Email address for guest must be provided'] }, 400);
     }
+    const isGuest = payload.is_booked_for_me === false;
+    const activeForClass = [...reservations.values()].filter((r) => r.class_session?.id === classId && r.status === 'pending' && r.reservation_type === 'standard');
+    if (!isGuest && activeForClass.some((r) => r.is_booked_for_me)) {
+      return createFakeResponse({ non_field_errors: ['You already have a reservation for this class.'] }, 422);
+    }
+    if (isGuest && activeForClass.some((r) => !r.is_booked_for_me)) {
+      return createFakeResponse({ non_field_errors: ['A guest is already reserved for this class.'] }, 422);
+    }
+    if (isGuest && guestRemainingUsage < 1) {
+      return createFakeResponse({ non_field_errors: ['No guest usage remains.'] }, 422);
+    }
     const reservationType = payload.reservation_type || 'standard';
     const spotId = payload.spot && payload.spot.id;
     if (reservationType === 'standard' && spotId) bookedSpotsFor(classId).add(spotId);
     const reservation = makeReservation({ classId, spotId, reservationType, guestEmail: payload.guest_email });
+    if (isGuest && reservationType === 'standard') guestRemainingUsage--;
     return createFakeResponse(reservation, 201);
   }
 
@@ -344,6 +371,9 @@ function handleMockRequest(pathName, method, body, gym) {
     if (!reservation) return createFakeResponse({ detail: 'No Reservation matches the given query.' }, 404);
     // Matches the real §1H finding: zero-penalty cancel frees the spot back up.
     if (reservation.spot && reservation.spot.id) bookedSpotsFor(reservation.class_session.id).delete(reservation.spot.id);
+    if (reservation.is_booked_for_me === false && reservation.reservation_type === 'standard') {
+      guestRemainingUsage = Math.min(PAYMENT_OPTION.membership_payment.guest_usage_limit, guestRemainingUsage + 1);
+    }
     reservation.status = reservation.reservation_type === 'waitlist' ? 'removed' : 'standard cancel';
     reservation.is_upcoming = false;
     return createFakeResponse(reservation);

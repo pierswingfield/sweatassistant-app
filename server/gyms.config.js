@@ -253,7 +253,9 @@ const GYMS = {
       bookmarks: false,         // no MT bookmarks API
       attendanceTotals: false,  // no known MarianaTek equivalent (derive from history)
       bookingWindow: 'per-class',   // mirrors bookingWindow.kind, for the UI
-      maxSpotsPerClass: 1,      // 1 primary spot per member per class session
+      bookingEntitlement: true, // resolve self and guest eligibility from authenticated class/payment state
+      selfBookingPolicy: 'one-per-class', // membership permits one primary reservation; extra self credits are not supported yet
+      guestBooking: true,       // one guest reservation per action, bounded by guest passes and class availability
     },
     notifications: {
       // JAB's window rolls continuously — each class opens at its own instant,

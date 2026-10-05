@@ -561,6 +561,12 @@ export const api = {
     return res.json();
   },
 
+  async getBookingEntitlement(eventId, gymId = null) {
+    const res = await apiFetch(`/api/events/${encodeURIComponent(eventId)}/booking-entitlement`, { gymId });
+    if (!res.ok) throw new Error('Could not confirm booking eligibility');
+    return res.json();
+  },
+
   // Returns NormalizedSlot[] (empty if the studio has no floor map — see
   // GymProvider.fetchStudioLayout doc comment; not an error case).
   // Returns { slots: NormalizedSlot[], objects: NormalizedLayoutObject[] }.
@@ -606,6 +612,17 @@ export const api = {
     } finally {
       clearTimeout(timer);
     }
+  },
+
+  async bookGuest(eventId, slotId, guestEmail, gymId = null) {
+    const res = await apiFetch('/api/book-guest', {
+      method: 'POST',
+      body: JSON.stringify({ eventId, slotId: slotId ?? null, guestEmail }),
+      gymId,
+    });
+    const result = await res.json().catch(() => ({}));
+    if (result && result.ok) announceBookingMutation({ type: 'bookGuest', eventId, gymId });
+    return result;
   },
 
   // cancel / joinWaitlist / leaveWaitlist are COMMANDS: they either happen or

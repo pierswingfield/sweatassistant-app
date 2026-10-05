@@ -405,6 +405,23 @@ router.get('/events/:id', authenticateToken, readLimiter, async (req, res) => {
   }
 });
 
+// GET /api/events/:id/booking-entitlement — fresh, account-scoped provider
+// limits for the booking UI. Only adapters with live entitlement data expose
+// this; other providers continue using their normalized class cap and credits.
+router.get('/events/:id/booking-entitlement', authenticateToken, readLimiter, async (req, res) => {
+  try {
+    const { provider, session } = resolveContext(req.userId);
+    if (typeof provider.getBookingEntitlement !== 'function') {
+      return res.status(404).json({ code: 'ENTITLEMENT_UNAVAILABLE' });
+    }
+    const entitlement = await withRelogin(req.userId, session, (s) => provider.getBookingEntitlement(req.params.id, s));
+    res.set('Cache-Control', 'no-store');
+    res.json(entitlement);
+  } catch (err) {
+    handleError(res, err);
+  }
+});
+
 // GET /api/studios/:id/layout — event-independent studio floor plan (WP-C5),
 // for the shared preferred-spot-map editor. Empty `slots` means "no floor map
 // available for this studio", not an error (see GymProvider.fetchStudioLayout).
@@ -432,15 +449,30 @@ router.post('/book', authenticateToken, async (req, res) => {
     const { eventId, slotIds } = req.body;
     if (!eventId) return res.status(400).json({ message: 'eventId is required' });
     const { gymId, provider, session } = resolveContext(req.userId);
-    const maxSpots = Number(getGymConfig(gymId)?.capabilities?.maxSpotsPerClass);
-    if (Number.isFinite(maxSpots) && maxSpots > 0 && Array.isArray(slotIds) && slotIds.length > maxSpots) {
-      return res.status(400).json({
-        code: 'ATTENDEE_LIMIT_EXCEEDED',
-        message: `This gym allows at most ${maxSpots} spot per member for a class. Guest booking is not supported yet.`,
-      });
-    }
     const result = await withRelogin(req.userId, session, (s) => provider.bookSlot(eventId, slotIds || [], s));
     if (result && result.ok) { refreshCalendar(req.userId); invalidateSchedule(gymId); }
+    if (result && !result.ok && Number.isInteger(result.status) && result.status >= 400) return res.status(result.status).json(result);
+    res.json(result);
+  } catch (err) {
+    handleError(res, err);
+  }
+});
+
+// POST /api/book-guest { eventId, slotId?, guestEmail }
+// Guest bookings are a separate attendee flow. The provider rechecks the
+// account's pass balance, class eligibility, current availability and payment
+// option immediately before creating the reservation.
+router.post('/book-guest', authenticateToken, async (req, res) => {
+  try {
+    const { eventId, slotId, guestEmail } = req.body || {};
+    if (!eventId) return res.status(400).json({ code: 'EVENT_REQUIRED', message: 'eventId is required' });
+    const { gymId, provider, session } = resolveContext(req.userId);
+    if (typeof provider.bookGuestSlot !== 'function') {
+      return res.status(403).json({ code: 'GUEST_BOOKING_UNSUPPORTED', message: 'Guest booking is not available at this gym.' });
+    }
+    const result = await withRelogin(req.userId, session, (s) => provider.bookGuestSlot(eventId, slotId ?? null, guestEmail, s));
+    if (result && result.ok) { refreshCalendar(req.userId); invalidateSchedule(gymId); }
+    if (result && !result.ok && Number.isInteger(result.status) && result.status >= 400) return res.status(result.status).json(result);
     res.json(result);
   } catch (err) {
     handleError(res, err);

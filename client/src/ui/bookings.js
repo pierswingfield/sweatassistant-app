@@ -8,7 +8,7 @@ import { isInGracePeriod, GRACE_PERIOD_MS, startGraceCountdown, noSept, zoneFor,
 import { invalidateApiCache } from '../cache';
 import { renderCardSkeletons } from './loading-skeleton.js';
 import { instructorAvatar } from './tooltips.js';
-import { metadata, loadMetadata, getStudioMapInfo, pickStudioPrefs, rowGroupsForStudio } from './timetable';
+import { metadata, loadMetadata, getStudioMapInfo, pickStudioPrefs, rowGroupsForStudio, openGuestBookingModal } from './timetable';
 import { findActiveUpgradeForBooking, findUpgradeForSeat } from './gym-isolation.js';
 import { haptic } from './haptics.js';
 import { COPY, formatCopyText } from '../copy.js';
@@ -376,6 +376,7 @@ function buildBookingCard(group, upgrades) {
     </div>
     <div class="ab-card-rail">
       ${editBtnHtml}
+      ${canForGym('guestBooking', event.gymId) ? `<button class="ab-rail-btn bk-guest-btn" aria-label="${COPY.bookings.bookGuest}">${icon('user', 17)}<span>${COPY.bookings.bookGuest}</span></button>` : ''}
       <button class="ab-rail-btn danger bk-cancel-btn" aria-label="${COPY.bookings.cancelBookingLabel}">${icon('close', 17)}<span>${COPY.bookings.cancel}</span></button>
     </div>
   `;
@@ -383,6 +384,12 @@ function buildBookingCard(group, upgrades) {
   // Edit spots
   const editBtn = card.querySelector('.bk-edit-btn');
   if (editBtn) editBtn.addEventListener('click', () => openEditBookingModal(group));
+  const guestBtn = card.querySelector('.bk-guest-btn');
+  if (guestBtn) guestBtn.addEventListener('click', () => openGuestBookingModal({
+    ...event,
+    id: group.eventId,
+    gymId: event.gymId || group.bookings[0]?.gymId,
+  }));
 
   // Auto-upgrade click listeners for each spot chip
   card.querySelectorAll('.ab-spot-upgrade-chip').forEach(btn => {

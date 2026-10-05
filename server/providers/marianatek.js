@@ -708,6 +708,7 @@ class MarianaTekProvider extends GymProvider {
       alwaysBookable: false,
       layoutFormat: c.layout_format,
       isUserBooked: c.is_user_reserved,
+      isUserGuestBooked: c.is_user_guest_reserved,
       isUserWaitlisted: c.is_user_waitlisted,
       raw: c,
     });
@@ -742,14 +743,86 @@ class MarianaTekProvider extends GymProvider {
   // fixed shape (a credit-based MT studio would presumably return a different
   // option here — untested, see PROGRESS.md Q8).
 
-  // Resolves the first available payment_option.id for a class, or null if
-  // none apply (e.g. a free class, or a studio type this account can't parse).
-  async resolvePaymentOption(eventId, session, { forGuest = false, timeoutMs = MT_REQUEST_TIMEOUT_MS } = {}) {
+  async getClassPaymentOptions(eventId, session, timeoutMs = MT_REQUEST_TIMEOUT_MS) {
     const res = await this.request(`/classes/${eventId}/payment_options`, { token: session.accessToken, timeoutMs });
-    if (!res.ok) return null;
+    if (!res.ok) {
+      const err = new Error(`getClassPaymentOptions failed: ${res.status}`);
+      err.status = res.status;
+      throw err;
+    }
     const data = await res.json().catch(() => ({}));
-    const options = forGuest ? data.guest_payment_options : data.user_payment_options;
-    return options && options[0] ? options[0].id : null;
+    return {
+      user: Array.isArray(data.user_payment_options) ? data.user_payment_options : [],
+      guest: Array.isArray(data.guest_payment_options) ? data.guest_payment_options : [],
+    };
+  }
+
+  // Resolves the first usable payment_option.id for a class. An option carrying
+  // an API error is not an entitlement, even if its id is present.
+  async resolvePaymentOption(eventId, session, { forGuest = false, timeoutMs = MT_REQUEST_TIMEOUT_MS } = {}) {
+    let options;
+    try { options = await this.getClassPaymentOptions(eventId, session, timeoutMs); }
+    catch (_) { return null; }
+    const list = forGuest ? options.guest : options.user;
+    const option = list.find((item) => item && !item.error_code && !item.error_message);
+    return option ? option.id : null;
+  }
+
+  /**
+   * Resolve the account's current per-class self and guest booking allowance.
+   * MarianaTek publishes the existing self/guest reservations on class detail,
+   * and valid payment options (including remaining guest usage) on the
+   * authenticated payment-options endpoint.
+   */
+  async getBookingEntitlement(eventId, session) {
+    const [details, paymentOptions] = await Promise.all([
+      this.fetchEventDetails(eventId, session),
+      this.getClassPaymentOptions(eventId, session),
+    ]);
+    const event = details.event;
+    const raw = event.raw || {};
+    const usable = (option) => option && !option.error_code && !option.error_message;
+    const userOptions = paymentOptions.user.filter(usable);
+    const guestOptions = paymentOptions.guest.filter(usable);
+    const available = Number(raw.available_spot_count);
+    const hasAvailability = !Number.isFinite(available) || available > 0;
+    // The membership object has appeared under both user and guest payment
+    // options in captures. Treat the provider-published allowance as the
+    // source of truth whichever valid option carries it.
+    const guestRemainingValues = [...paymentOptions.user, ...paymentOptions.guest]
+      .map((option) => Number(option && option.membership_payment && option.membership_payment.guest_remaining_usage_count))
+      .filter(Number.isFinite);
+    const guestPassesRemaining = guestRemainingValues.length ? Math.max(...guestRemainingValues) : null;
+    const alreadyBooked = event.isUserBooked === true;
+    const alreadyHasGuest = raw.is_user_guest_reserved === true;
+    const configuredLimit = Number(this.gym && this.gym.capabilities && this.gym.capabilities.maxSpotsPerClass);
+    const policyLimit = this.gym?.capabilities?.selfBookingPolicy === 'one-per-class'
+      ? 1
+      : (Number.isFinite(configuredLimit) && configuredLimit > 0 ? configuredLimit : 4);
+    const maxSelfBookings = !alreadyBooked && userOptions.length && hasAvailability
+      ? Math.min(policyLimit, Number.isFinite(available) ? available : policyLimit)
+      : 0;
+    const guestEnabled = this.gym?.capabilities?.guestBooking === true;
+    const maxGuestBookings = guestEnabled && !alreadyHasGuest && guestOptions.length && guestPassesRemaining > 0 && hasAvailability
+      ? Math.min(1, guestPassesRemaining, Number.isFinite(available) ? available : 1)
+      : 0;
+    return {
+      maxSelfBookings,
+      selfEligible: maxSelfBookings > 0,
+      selfReason: alreadyBooked ? 'ALREADY_BOOKED'
+        : !userOptions.length ? 'NO_VALID_PAYMENT_OPTION'
+          : !hasAvailability ? 'CLASS_FULL' : undefined,
+      guestSupported: guestEnabled,
+      maxGuestBookings,
+      guestEligible: maxGuestBookings > 0,
+      guestPassesRemaining,
+      guestReason: !guestEnabled ? 'GUEST_BOOKING_UNSUPPORTED'
+        : alreadyHasGuest ? 'GUEST_ALREADY_BOOKED'
+          : !guestOptions.length ? 'NO_VALID_GUEST_PAYMENT_OPTION'
+            : guestPassesRemaining === null ? 'GUEST_ALLOWANCE_UNKNOWN'
+              : guestPassesRemaining < 1 ? 'NO_GUEST_PASSES'
+                : !hasAvailability ? 'CLASS_FULL' : undefined,
+    };
   }
 
   /**
@@ -761,13 +834,6 @@ class MarianaTekProvider extends GymProvider {
    * classes have no spot to select).
    */
   async bookSlot(eventId, slotIds, session) {
-    const maxSpots = Number(this.gym?.capabilities?.maxSpotsPerClass);
-    if (Number.isFinite(maxSpots) && maxSpots > 0 && slotIds.length > maxSpots) {
-      return makeBookingResult({
-        ok: false, status: 400, code: 'ATTENDEE_LIMIT_EXCEEDED',
-        error: `This gym allows at most ${maxSpots} spot per member for a class. Guest booking is not supported yet.`,
-      });
-    }
     // JAB/MarianaTek class detail publishes whether this member already has a
     // reservation. Guard before resolving payment options or trying alternate
     // spots; a duplicate is a class-level conflict, never a spot race.
@@ -780,7 +846,13 @@ class MarianaTekProvider extends GymProvider {
         error: 'You already have a spot booked for this class.',
       });
     }
+    if (this.gym?.capabilities?.selfBookingPolicy === 'one-per-class' && slotIds && slotIds.length > 1) {
+      return makeBookingResult({ ok: false, status: 400, code: 'ATTENDEE_LIMIT_EXCEEDED', error: 'Only one self reservation is available per class.' });
+    }
     const paymentOptionId = await this.resolvePaymentOption(eventId, session, { timeoutMs: remainingMs() });
+    if (!paymentOptionId) {
+      return makeBookingResult({ ok: false, status: 403, code: 'NOT_ELIGIBLE', error: 'No valid payment option is available for this class.' });
+    }
     const body = { class_session: { id: eventId }, is_booked_for_me: true, reservation_type: 'standard' };
     if (slotIds && slotIds.length > 0) body.spot = { id: slotIds[0] };
     if (paymentOptionId) body.payment_option = { id: paymentOptionId };
@@ -800,6 +872,58 @@ class MarianaTekProvider extends GymProvider {
     }
     return makeBookingResult({ ok: true, bookingId: data.id, slotId: data.spot && data.spot.id,
       slotLabel: data.spot && data.spot.name, spotSection: data.spot && data.spot.spot_type && data.spot.spot_type.name, raw: data });
+  }
+
+  async bookGuestSlot(eventId, slotId, guestEmail, session) {
+    if (this.gym?.capabilities?.guestBooking !== true) {
+      return makeBookingResult({ ok: false, status: 403, code: 'GUEST_BOOKING_UNSUPPORTED', error: 'Guest booking is not available at this gym.' });
+    }
+    const email = String(guestEmail || '').trim().toLowerCase();
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+      return makeBookingResult({ ok: false, status: 400, code: 'INVALID_GUEST_EMAIL', error: 'Enter a valid guest email address.' });
+    }
+    const entitlement = await this.getBookingEntitlement(eventId, session);
+    if (!entitlement.guestEligible) {
+      const messages = {
+        GUEST_ALREADY_BOOKED: 'A guest already has a spot booked for this class.',
+        NO_VALID_GUEST_PAYMENT_OPTION: 'No guest payment option is available for this class.',
+        NO_GUEST_PASSES: 'You have no guest passes available.',
+        GUEST_ALLOWANCE_UNKNOWN: 'Guest-pass availability could not be confirmed. Refresh and try again.',
+        CLASS_FULL: 'No spots are available for this class.',
+      };
+      return makeBookingResult({ ok: false, status: 409, code: entitlement.guestReason || 'GUEST_NOT_ELIGIBLE', error: messages[entitlement.guestReason] || 'You are not eligible to book a guest for this class.' });
+    }
+    const details = await this.fetchEventDetails(eventId, session);
+    if (slotId != null) {
+      const slot = details.slots.find((item) => String(item.id) === String(slotId));
+      if (!slot || !slot.isAvailable) {
+        return makeBookingResult({ ok: false, status: 409, code: 'SPOT_UNAVAILABLE', error: 'That spot is no longer available. Choose another spot.' });
+      }
+    } else if (details.slots.length) {
+      return makeBookingResult({ ok: false, status: 400, code: 'SPOT_REQUIRED', error: 'Choose an available spot for your guest.' });
+    }
+    const paymentOptionId = await this.resolvePaymentOption(eventId, session, { forGuest: true });
+    if (!paymentOptionId) {
+      return makeBookingResult({ ok: false, status: 403, code: 'NO_VALID_GUEST_PAYMENT_OPTION', error: 'No guest payment option is available for this class.' });
+    }
+    const body = {
+      class_session: { id: eventId }, guest_email: email, is_booked_for_me: false,
+      reservation_type: 'standard', payment_option: { id: paymentOptionId },
+    };
+    if (slotId != null) body.spot = { id: slotId };
+    const res = await this.request('/me/reservations', { token: session.accessToken, method: 'POST', body });
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok) {
+      const error = (data.non_field_errors && data.non_field_errors[0]) || data.detail || `HTTP ${res.status}`;
+      const lower = String(error).toLowerCase();
+      const code = /guest.*(?:already|reserved|booked)|already.*guest/.test(lower) ? 'GUEST_ALREADY_BOOKED'
+        : /guest.*(?:pass|usage|allowance)|usage.*limit/.test(lower) ? 'NO_GUEST_PASSES'
+          : /spot|seat|slot/.test(lower) ? 'SPOT_UNAVAILABLE' : undefined;
+      return makeBookingResult({ ok: false, status: res.status, code, error: String(error), raw: data });
+    }
+    return makeBookingResult({ ok: true, bookingId: data.id, slotId: data.spot && data.spot.id,
+      slotLabel: data.spot && data.spot.name, spotSection: data.spot && data.spot.spot_type && data.spot.spot_type.name,
+      isGuest: true, guestEmail: email, raw: data });
   }
 
   async cancelBooking(bookingId, session) {
@@ -861,7 +985,9 @@ class MarianaTekProvider extends GymProvider {
         eventId: r.class_session && r.class_session.id,
           slotId: r.spot && r.spot.id,
           slotLabel: r.spot && r.spot.name,
-          spotSection: r.spot && r.spot.spot_type && r.spot.spot_type.name,
+        spotSection: r.spot && r.spot.spot_type && r.spot.spot_type.name,
+        isGuest: r.is_booked_for_me === false || !!r.guest_email,
+        guestEmail: r.guest_email,
         bookedAt: r.created_at || r.reserved_at,
         isWaitlist: reservationType === 'waitlist',
         event: r.class_session ? this.mapClassToEvent(r.class_session) : undefined,

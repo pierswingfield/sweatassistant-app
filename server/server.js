@@ -485,12 +485,13 @@ app.post('/api/auto-book', authenticateToken, bookingMutationLimiter, (req, res)
   const gymId = reqGymId || req.headers['x-gym-id'] || null;
   try {
     const targetGymId = gymId || db.resolveActiveGymId(req.userId);
-    const maxSpots = Number(getGymConfig(targetGymId)?.capabilities?.maxSpotsPerClass);
+    const caps = getGymConfig(targetGymId)?.capabilities || {};
+    const maxSpots = caps.selfBookingPolicy === 'one-per-class' ? 1 : Number(caps.maxSpotsPerClass);
     const requestedSpots = Math.max(1, Number(preferences.requiredCount) || 1);
     if (Number.isFinite(maxSpots) && maxSpots > 0 && requestedSpots > maxSpots) {
       return res.status(400).json({
         code: 'ATTENDEE_LIMIT_EXCEEDED',
-        message: `This gym allows at most ${maxSpots} spot per member for a class. Guest booking is not supported yet.`,
+        message: `This gym allows at most ${maxSpots} self spot per class.`,
       });
     }
     const pendingCount = db.countPendingAutoBookings(req.userId, gymId);
@@ -599,12 +600,13 @@ app.put('/api/auto-book/:id', authenticateToken, (req, res) => {
   }
   try {
     const entry = db.getUserAutoBookings(req.userId, 'all').find((row) => Number(row.id) === id);
-    const maxSpots = Number(entry && getGymConfig(entry.gym_id)?.capabilities?.maxSpotsPerClass);
+    const caps = entry ? (getGymConfig(entry.gym_id)?.capabilities || {}) : {};
+    const maxSpots = caps.selfBookingPolicy === 'one-per-class' ? 1 : Number(caps.maxSpotsPerClass);
     const requestedSpots = Math.max(1, Number(preferences.requiredCount) || 1);
     if (Number.isFinite(maxSpots) && maxSpots > 0 && requestedSpots > maxSpots) {
       return res.status(400).json({
         code: 'ATTENDEE_LIMIT_EXCEEDED',
-        message: `This gym allows at most ${maxSpots} spot per member for a class. Guest booking is not supported yet.`,
+        message: `This gym allows at most ${maxSpots} self spot per class.`,
       });
     }
     db.updateAutoBookingPreferences(id, req.userId, preferences);

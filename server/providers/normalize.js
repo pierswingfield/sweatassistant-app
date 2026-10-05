@@ -71,6 +71,7 @@ function makeEvent(e) {
     alwaysBookable: bool(e.alwaysBookable),
     layoutFormat: e.layoutFormat || 'pick-a-spot',
     isUserBooked: bool(e.isUserBooked),
+    isUserGuestBooked: bool(e.isUserGuestBooked),
     isUserWaitlisted: bool(e.isUserWaitlisted),
     credits: makeCreditRequirement(e.credits),
     raw: e.raw,
@@ -197,6 +198,8 @@ function makeBookingResult(r) {
     // this code, never on HTTP status or platform, so a future provider
     // can raise the same signal without a call-site change.
     code: r.code,
+    isGuest: bool(r.isGuest),
+    guestEmail: str(r.guestEmail),
     // Milliseconds to back off for, when the provider published one
     // (e.g. a `Retry-After` header). Undefined when unknown — the caller
     // supplies its own default rather than treating "unknown" as "none".
@@ -217,6 +220,8 @@ function makeBooking(b) {
     slotLabel: str(b.slotLabel),
     spotSection: str(b.spotSection),
     isWaitlist: bool(b.isWaitlist) ?? false,
+    isGuest: bool(b.isGuest),
+    guestEmail: str(b.guestEmail),
     // When the booking was made. Powers the free-cancellation grace period the
     // UI counts down — universal enough to belong on the shape, and the only
     // reason bookings.js was still reading a raw CodexFit field.

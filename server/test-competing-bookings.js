@@ -141,7 +141,9 @@ async function http() {
     const multiBook = await fetch(`${BASE}/api/book`, {
       method: 'POST',
       headers: { 'content-type': 'application/json', authorization: `Bearer ${token}`, 'x-gym-id': 'jab-boxing' },
-      body: JSON.stringify({ eventId: 'JAB-MULTI-ATTENDEE-TEST', slotIds: ['spot-1', 'spot-2'] }),
+      // A real mock class proves the adapter, rather than a stale route-level
+      // maxSpotsPerClass config, enforces the one-self-reservation policy.
+      body: JSON.stringify({ eventId: '9000', slotIds: ['mock-bag-1', 'mock-bag-2'] }),
     });
     assert.strictEqual(multiBook.status, 400, 'JAB booking API must reject multi-attendee requests');
     assert.strictEqual((await json(multiBook)).code, 'ATTENDEE_LIMIT_EXCEEDED');

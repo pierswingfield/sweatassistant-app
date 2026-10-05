@@ -462,7 +462,7 @@ check('marianatek: bookSlot success parses a real reservation response (prod fix
 
 check('marianatek: bookSlot failure normalizes non_field_errors', async () => {
   const mt = getProvider('jab-boxing');
-  const result = await withStub(mt, 'resolvePaymentOption', async () => null,
+  const result = await withStub(mt, 'resolvePaymentOption', async () => 'membership-2552',
     () => withStub(mt, 'fetchEventDetails', async () => ({ event: { isUserBooked: false } }),
       () => withStub(mt, 'request',
         async () => fakeRes({ non_field_errors: ['The payments do not satisfy the cost of this reservation.'] }, { ok: false, status: 400 }),
@@ -481,14 +481,47 @@ check('marianatek: duplicate reservation is an explicit terminal conflict', asyn
   });
 });
 
-check('marianatek: JAB rejects more than one attendee before any booking request', async () => {
+check('marianatek: JAB keeps the one-self-booking policy after checking the current class', async () => {
   const mt = getProvider('jab-boxing');
   let fetched = false;
   const result = await withStub(mt, 'fetchEventDetails', async () => { fetched = true; return { event: {} }; },
     () => mt.bookSlot('123', ['spot-1', 'spot-2'], { accessToken: 'tok' }));
   assert.strictEqual(result.ok, false);
   assert.strictEqual(result.code, 'ATTENDEE_LIMIT_EXCEEDED');
-  assert.strictEqual(fetched, false, 'reject before provider traffic');
+  assert.strictEqual(fetched, true, 'class state is consulted; there is no static route-level JAB cap');
+});
+
+check('marianatek: booking entitlement separates one self reservation from guest-pass allowance', async () => {
+  const mt = getProvider('jab-boxing');
+  const result = await withStub(mt, 'fetchEventDetails', async () => ({
+    event: { isUserBooked: false, raw: { available_spot_count: 6, is_user_guest_reserved: false } }, slots: [], objects: [],
+  }), () => withStub(mt, 'getClassPaymentOptions', async () => ({
+    user: [{ id: 'membership', membership_payment: { guest_remaining_usage_count: 2 } }],
+    guest: [{ id: 'membership' }],
+  }), () => mt.getBookingEntitlement('123', { accessToken: 'tok' })));
+  assert.deepStrictEqual(result, {
+    maxSelfBookings: 1, selfEligible: true, selfReason: undefined,
+    guestSupported: true, maxGuestBookings: 1, guestEligible: true,
+    guestPassesRemaining: 2, guestReason: undefined,
+  });
+});
+
+check('marianatek: guest booking posts a separate attendee with email and guest payment option', async () => {
+  const mt = getProvider('jab-boxing');
+  let body;
+  const result = await withStub(mt, 'getBookingEntitlement', async () => ({ guestEligible: true }),
+    () => withStub(mt, 'fetchEventDetails', async () => ({ event: {}, slots: [{ id: 'spot-1', isAvailable: true }] }),
+      () => withStub(mt, 'resolvePaymentOption', async (_id, _session, opts) => opts.forGuest ? 'guest-membership' : null,
+        () => withStub(mt, 'request', async (_path, opts) => {
+          body = opts.body;
+          return fakeRes({ id: 'guest-r', spot: { id: 'spot-1', name: '1' } }, { status: 201 });
+        }, () => mt.bookGuestSlot('123', 'spot-1', 'guest@example.com', { accessToken: 'tok' })))));
+  assert.strictEqual(result.ok, true);
+  assert.strictEqual(result.isGuest, true);
+  assert.deepStrictEqual(body, {
+    class_session: { id: '123' }, guest_email: 'guest@example.com', is_booked_for_me: false,
+    reservation_type: 'standard', payment_option: { id: 'guest-membership' }, spot: { id: 'spot-1' },
+  });
 });
 
 check('marianatek: booking request aborts on timeout with a retry-safe message', async () => {

@@ -346,14 +346,15 @@ async function executeAutoBookForClass(booking) {
   const liveMap = resolveLiveMap(userId, booking.studio_id, prefs, gymId);
   const preferredSlots = liveMap.preferredSlots;
   const preferredRows = liveMap.preferredRows;
-  const configuredLimit = Number(getGymConfig(gymId)?.capabilities?.maxSpotsPerClass);
+  const capabilities = getGymConfig(gymId)?.capabilities || {};
+  const configuredLimit = Number(capabilities.maxSpotsPerClass);
   const requestedCount = Math.max(1, Number(prefs.requiredCount) || 1);
-  // Imported/older JAB queue rows may predate the one-member limit. Never let
-  // stale preferences turn into multiple primary reservations; guest booking
-  // remains unsupported until its payment/identity flow is implemented.
-  const requiredCount = Number.isFinite(configuredLimit) && configuredLimit > 0
-    ? Math.min(requestedCount, configuredLimit)
-    : requestedCount;
+  // Imported/older JAB rows can predate the provider entitlement contract.
+  // A guest is separate from this queue, so stale self preferences can never
+  // turn into multiple primary reservations.
+  const requiredCount = capabilities.selfBookingPolicy === 'one-per-class'
+    ? 1
+    : (Number.isFinite(configuredLimit) && configuredLimit > 0 ? Math.min(requestedCount, configuredLimit) : requestedCount);
   const bookAny = prefs.bookAny !== false;
 
   // C2-3: a prior attempt this window already got PROVIDER_RATE_LIMITED for

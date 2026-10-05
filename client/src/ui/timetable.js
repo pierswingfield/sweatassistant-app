@@ -2515,6 +2515,13 @@ function buildActionMenuItems(event, model, isBookmarked) {
     });
   }
 
+  // Guest reservations are a distinct, provider-gated attendee flow. They do
+  // not appear in the primary, Quick-Book or Auto-Book paths because they need
+  // a guest identity and must consume a guest pass, not another self spot.
+  if (canForGym('guestBooking', event.gymId)) {
+    items.push({ label: COPY.bookings.bookGuest, icon: 'user', variant: 'book', action: () => openGuestBookingModal(event) });
+  }
+
   if (canForGym('bookmarks', event.gymId)) {
     items.push({
       label: isBookmarked ? COPY.timetable.unfavourite : COPY.timetable.favourite,
@@ -3190,6 +3197,98 @@ async function quickBookClass(eventId, prefs, btn, gymId = null) {
 }
 
 // Modal handler for spot selection layout and auto-book row preference checklist
+/**
+ * A guest is never an extra self-attendee: MarianaTek requires a guest email
+ * and consumes a guest allowance. This small, explicit flow is intentionally
+ * reachable only from an existing booking card and the timetable overflow.
+ */
+export async function openGuestBookingModal(c) {
+  if (!canForGym('guestBooking', c.gymId)) {
+    showToast(COPY.bookings.guestBookingUnavailable, 'warning');
+    return;
+  }
+  const modal = document.getElementById('psycle-booking-modal');
+  const body = document.getElementById('psycle-booking-modal-body');
+  const title = document.getElementById('psycle-booking-modal-title');
+  if (!modal || !body || !title) return;
+
+  title.textContent = COPY.bookings.bookGuest;
+  applyBookingChrome(modal, { titleText: COPY.bookings.bookGuest, gymId: c.gymId, locationName: c.locationName, studioName: c.studioName });
+  body.innerHTML = '<div class="psycle-loading-spinner-container" style="padding:40px 0;"><div class="psycle-spinner"></div><span>Checking guest eligibility…</span></div>';
+  openNavPage(modal, { id: 'book-guest' });
+  const close = () => {
+    if (closeNavPage(modal)) return;
+    modal.classList.remove('show');
+    setTimeout(() => { modal.style.display = 'none'; }, 300);
+  };
+  document.getElementById('psycle-booking-modal-close').onclick = close;
+  modal.querySelector('.psycle-modal-overlay').onclick = close;
+
+  try {
+    const [entitlement, details] = await Promise.all([
+      api.getBookingEntitlement(c.id, c.gymId),
+      api.getEventDetails(c.id, c.gymId),
+    ]);
+    if (!entitlement.guestEligible) {
+      body.innerHTML = `<div class="psycle-card-error" style="padding:24px;text-align:center;">${escapeHtml(COPY.bookings.guestBookingUnavailable)}</div>`;
+      return;
+    }
+    const available = (details.slots || []).filter((slot) => slot.isAvailable);
+    // A pick-a-spot class requires a selection; FCFS has no slots and omits it.
+    let selectedSlotId = available[0] ? String(available[0].id) : null;
+    if ((details.slots || []).length && !selectedSlotId) {
+      body.innerHTML = `<div class="psycle-card-error" style="padding:24px;text-align:center;">${escapeHtml(COPY.bookings.guestNoSpot)}</div>`;
+      return;
+    }
+    const passCount = Number(entitlement.guestPassesRemaining);
+    const passNote = Number.isFinite(passCount)
+      ? `<p style="margin:0 0 12px;color:var(--text-secondary);font-size:13px;">${formatCopyText(COPY.bookings.guestPassesRemaining, { count: passCount, plural: passCount === 1 ? '' : 'es' })}</p>`
+      : '';
+    body.innerHTML = `
+      <div class="psycle-guest-booking" style="display:flex;flex-direction:column;gap:14px;">
+        ${passNote}
+        <label style="display:flex;flex-direction:column;gap:6px;font-size:13px;color:var(--text-secondary);">${COPY.bookings.guestEmail}
+          <input id="guest-booking-email" class="psycle-input" type="email" autocomplete="email" inputmode="email" required>
+        </label>
+        ${available.length ? `<div><div style="font-size:13px;color:var(--text-secondary);margin-bottom:8px;">${COPY.bookings.selectGuestSpot}</div>
+          <div id="guest-booking-spots" style="display:flex;flex-wrap:wrap;gap:8px;">${available.map((slot, index) => `<button type="button" class="psycle-btn guest-spot-choice${index === 0 ? ' selected' : ''}" data-slot-id="${escapeHtml(String(slot.id))}" style="min-width:48px;padding:8px;background:${index === 0 ? 'var(--gym-btn)' : 'var(--surface-inset)'};color:${index === 0 ? 'var(--gym-on)' : 'var(--text)'};border:1px solid var(--border);">${escapeHtml(formatSpotLabel(c.gymId, slot))}</button>`).join('')}</div>
+        </div>` : ''}
+        <button class="psycle-btn" id="guest-booking-submit" style="background:var(--success);color:var(--on-accent);">${COPY.bookings.guestBookingSubmit}</button>
+      </div>`;
+    body.querySelectorAll('.guest-spot-choice').forEach((button) => {
+      button.onclick = () => {
+        selectedSlotId = button.dataset.slotId;
+        body.querySelectorAll('.guest-spot-choice').forEach((choice) => {
+          const selected = choice === button;
+          choice.classList.toggle('selected', selected);
+          choice.style.background = selected ? 'var(--gym-btn)' : 'var(--surface-inset)';
+          choice.style.color = selected ? 'var(--gym-on)' : 'var(--text)';
+        });
+      };
+    });
+    body.querySelector('#guest-booking-submit').onclick = async () => {
+      const email = body.querySelector('#guest-booking-email').value.trim();
+      const submit = body.querySelector('#guest-booking-submit');
+      submit.disabled = true;
+      submit.textContent = COPY.timetable.booking;
+      try {
+        const result = await api.bookGuest(c.id, selectedSlotId, email, c.gymId);
+        if (!result.ok) throw new Error(result.error || COPY.bookings.guestBookingUnavailable);
+        showToast(COPY.bookings.guestBooked, 'success');
+        close();
+        await refreshUserData(true);
+        await refreshBookingState();
+      } catch (err) {
+        showToast(formatCopyText(COPY.bookings.guestBookingError, { error: err.message }), 'error');
+        submit.disabled = false;
+        submit.textContent = COPY.bookings.guestBookingSubmit;
+      }
+    };
+  } catch (err) {
+    body.innerHTML = `<div class="psycle-card-error" style="padding:24px;text-align:center;">${escapeHtml(formatCopyText(COPY.bookings.guestBookingError, { error: err.message }))}</div>`;
+  }
+}
+
 export async function openBookingModal(c, mode, opts = {}) {
   // mode: 'book' (simple seat selector) | 'quickbook' (preference setter) | 'autobook' (preference setter)
   // U1-12: book / quickbook both end in a real booking, so the overlap
@@ -3233,9 +3332,9 @@ export async function openBookingModal(c, mode, opts = {}) {
   if (!modal || !body || !title) return;
 
   const noun = seatNoun(c.discipline);
-  title.textContent = isAutoBookMode ? COPY.timetable.configureAutoBook : (isQuickBookMode ? `Select a ${noun} in the studio` : `Select a ${noun} in the studio`);
+  title.textContent = isAutoBookMode ? COPY.timetable.configureAutoBook : (isQuickBookMode ? COPY.bookingFlow.titleFinishQuickBook : `Select a ${noun} in the studio`);
   const bookingChrome = () => applyBookingChrome(modal, {
-    titleText: isAutoBookMode ? COPY.bookingFlow.titleAutoBook : COPY.bookingFlow.titleBook,
+    titleText: isAutoBookMode ? COPY.bookingFlow.titleAutoBook : (isQuickBookMode ? COPY.bookingFlow.titleFinishQuickBook : COPY.bookingFlow.titleBook),
     gymId: c.gymId, locationName: c.locationName, studioName: c.studioName, stepper: opts.setupFlow ? 'B' : null,
   });
   bookingChrome();
@@ -3287,6 +3386,14 @@ export async function openBookingModal(c, mode, opts = {}) {
       objects: eventObjects,
       maxBookableSlots: providerMaxBookableSlots,
     } = await api.getEventDetails(c.id, c.gymId);
+    // MarianaTek publishes per-account eligibility rather than a tenant-wide
+    // seat count. It is deliberately fetched only for gyms that opt into that
+    // normalized contract; existing providers retain their current limits.
+    let bookingEntitlement = null;
+    if (canForGym('bookingEntitlement', c.gymId)) {
+      try { bookingEntitlement = await api.getBookingEntitlement(c.id, c.gymId); }
+      catch (_) { /* provider remains authoritative at submit time */ }
+    }
 
     // A studio's floor plan doesn't vary class-to-class, so a previously-seen
     // layout for this studio is a valid stand-in when THIS event's payload
@@ -3308,11 +3415,14 @@ export async function openBookingModal(c, mode, opts = {}) {
     // silently satisfies Array.includes(NaN) for every one of them.
     const availableIds = new Set(eventSlots.filter(s => s.isAvailable).map(s => String(s.id)));
     const availableSlots = layoutSlots.map(s => String(s.id)).filter(id => availableIds.has(id));
-    const attendeeLimit = maxAttendeesPerClass({
-      providerLimit: providerMaxBookableSlots,
-      gymLimit: capabilityForGym('maxSpotsPerClass', c.gymId),
-    });
+    const attendeeLimit = bookingEntitlement
+      ? Math.max(1, Number(bookingEntitlement.maxSelfBookings) || 1)
+      : maxAttendeesPerClass({
+        providerLimit: providerMaxBookableSlots,
+        gymLimit: capabilityForGym('maxSpotsPerClass', c.gymId),
+      });
     const attendeeOptions = bookingQuantityOptions(attendeeLimit);
+    const showAttendeeSelector = attendeeOptions.length > 1;
 
     // Determine if booking window is already open
     const classReleaseTime = getClassReleaseTime(c);
@@ -3362,8 +3472,8 @@ export async function openBookingModal(c, mode, opts = {}) {
       body.innerHTML = compactAuto ? `
         <div class="psycle-bk-compact">
           <p>${COPY.bookingFlow.fcfsAutoBook}</p>
-          <label class="psycle-bk-compact-qty"><span>${COPY.bookingFlow.spotsToBook}</span>
-            <select id="compact-autobook-qty" class="psycle-select">${attendeeOptions.map(n => `<option value="${n}">${n}</option>`).join('')}</select></label>
+          ${showAttendeeSelector ? `<label class="psycle-bk-compact-qty"><span>${COPY.bookingFlow.spotsToBook}</span>
+            <select id="compact-autobook-qty" class="psycle-select">${attendeeOptions.map(n => `<option value="${n}">${n}</option>`).join('')}</select></label>` : ''}
           <button class="psycle-btn" id="btn-save-simple-autobook" style="background: var(--feat-autoupgrade); color:var(--on-accent); display:flex; align-items:center; justify-content:center; gap:6px;">${COPY.bookingFlow.titleAutoBook}</button>
         </div>` : `
         <div style="padding: 24px; text-align: center; color: var(--text-secondary);">
@@ -3438,7 +3548,10 @@ export async function openBookingModal(c, mode, opts = {}) {
     // class (1 primary spot per member) be booked past that limit.
     const gymMaxSpots = capabilityForGym('maxSpotsPerClass', c.gymId) ?? null;
     const effectiveLimit = gymMaxSpots != null ? Math.min(gymMaxSpots, availableCredits) : availableCredits;
-    const maxBookableSlots = Math.min(providerMaxBookableSlots ?? (availableSlots.length || 1), effectiveLimit);
+    const legacyMaxBookableSlots = Math.min(providerMaxBookableSlots ?? (availableSlots.length || 1), effectiveLimit);
+    const maxBookableSlots = bookingEntitlement
+      ? Math.min(attendeeLimit, availableSlots.length || attendeeLimit)
+      : legacyMaxBookableSlots;
     const rowGroups = rowGroupsForStudio(c.studioId, c.gymId);
     const state = {
       selectedSlots: [],    // ordered array of slot IDs (index 0 = priority 1)
@@ -3788,12 +3901,12 @@ export async function openBookingModal(c, mode, opts = {}) {
             ${unmappedSlots.length > 0 ? `<div id="psycle-unmapped-warning" style="font-size:12px;color:var(--warning);background:color-mix(in srgb,var(--warning) 8%,transparent);border:1px solid color-mix(in srgb,var(--warning) 20%,transparent);border-radius:6px;padding:6px 10px;"></div>` : ''}
             ${creditWarning ? `<div style="font-size:12px;color:var(--danger);background:color-mix(in srgb,var(--danger) 10%,transparent);border:1px solid color-mix(in srgb,var(--danger) 20%,transparent);border-radius:8px;padding:10px;line-height:1.5;">${creditWarning}</div>` : ''}
             <div style="display:flex;gap:14px;align-items:center;">
-              <div style="width:110px;">
+              ${showAttendeeSelector ? `<div style="width:110px;">
                 <label style="display:block;font-size:12px;color:var(--text-secondary);margin-bottom:4px;">${COPY.timetable.slotsToBook}</label>
-          <select id="autobook-qty" class="psycle-select" style="width:100%;padding:6px 8px;font-size:13px;">
+                <select id="autobook-qty" class="psycle-select" style="width:100%;padding:6px 8px;font-size:13px;">
                   ${attendeeOptions.map(n => `<option value="${n}" ${state.qty===n?'selected':''}>${n}</option>`).join('')}
                 </select>
-              </div>
+              </div>` : ''}
               <div style="flex:1;padding-top:14px;">
                 <label style="display:flex;align-items:center;gap:8px;font-size:13px;cursor:pointer;color:var(--text-secondary);user-select:none;">
                   <input type="checkbox" class="psycle-ms-checkbox" id="autobook-fallback-any" ${state.bookAny ? 'checked' : ''}>
@@ -3826,13 +3939,13 @@ export async function openBookingModal(c, mode, opts = {}) {
 
         controls.querySelector('[data-au-setup]')?.addEventListener('click', () => openSetupChild());
         const qtySelector = controls.querySelector('#autobook-qty');
-        qtySelector.onchange = () => {
+        if (qtySelector) qtySelector.onchange = () => {
           state.qty = parseInt(qtySelector.value) || 1;
           updateAutoBookControls();
         };
 
         controls.querySelector('#btn-save-autobook').onclick = () => {
-          const qty = parseInt(controls.querySelector('#autobook-qty').value) || 1;
+          const qty = parseInt(controls.querySelector('#autobook-qty')?.value || state.qty) || 1;
           const fallbackAny = controls.querySelector('#autobook-fallback-any').checked;
           const autoUpgrade = controls.querySelector('#autobook-auto-upgrade')?.checked ?? false;
           const preferredSlots = [...state.selectedSlots];
@@ -4021,12 +4134,12 @@ export async function openBookingModal(c, mode, opts = {}) {
           <div style="display:flex;flex-direction:column;gap:12px;background:var(--surface-inset);padding:14px;border-radius:12px;border:1px solid var(--border);">
             ${creditWarning ? `<div style="font-size:12px;color:var(--danger);background:color-mix(in srgb,var(--danger) 10%,transparent);border:1px solid color-mix(in srgb,var(--danger) 20%,transparent);border-radius:8px;padding:10px;line-height:1.5;">${creditWarning}</div>` : ''}
             <div style="display:flex;gap:14px;align-items:center;">
-              <div style="width:110px;">
+              ${showAttendeeSelector ? `<div style="width:110px;">
                 <label style="display:block;font-size:12px;color:var(--text-secondary);margin-bottom:4px;">${COPY.timetable.slotsToBook}</label>
                 <select id="quickbook-qty" class="psycle-select" style="width:100%;padding:6px 8px;font-size:13px;">
                   ${attendeeOptions.map(n => `<option value="${n}" ${state.qty===n?'selected':''}>${n}</option>`).join('')}
                 </select>
-              </div>
+              </div>` : ''}
               <div style="flex:1;padding-top:14px;">
                 <label style="display:flex;align-items:center;gap:8px;font-size:13px;cursor:pointer;color:var(--text-secondary);user-select:none;">
                   <input type="checkbox" class="psycle-ms-checkbox" id="quickbook-fallback-any" ${state.bookAny ? 'checked' : ''}>
@@ -4079,7 +4192,7 @@ export async function openBookingModal(c, mode, opts = {}) {
           btn.disabled = true;
           btn.textContent = COPY.timetable.booking;
           try {
-            const qty = parseInt(controls.querySelector('#quickbook-qty').value) || 1;
+            const qty = parseInt(controls.querySelector('#quickbook-qty')?.value || state.qty) || 1;
             const fallbackAny = controls.querySelector('#quickbook-fallback-any').checked;
             const autoUpgrade = controls.querySelector('#quickbook-auto-upgrade')?.checked ?? false;
             const slots = [...state.selectedSlots];
@@ -4105,7 +4218,7 @@ export async function openBookingModal(c, mode, opts = {}) {
         };
 
         const quickbookQtySelector = controls.querySelector('#quickbook-qty');
-        quickbookQtySelector.onchange = () => {
+        if (quickbookQtySelector) quickbookQtySelector.onchange = () => {
           state.qty = parseInt(quickbookQtySelector.value) || 1;
           updateQuickBookControls();
         };

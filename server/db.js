@@ -1491,6 +1491,13 @@ module.exports = {
   // gym's preferred spots over another's studio of the same id.
   setStudioPreference(userId, studioId, preferences, gymId = null) {
     const targetGym = resolveGymStrict(userId, gymId, 'setStudioPreference');
+    const hasSelections = (preferences?.preferredSlots?.length || 0) > 0
+      || (preferences?.preferredRows?.length || 0) > 0;
+    if (!hasSelections) {
+      db.prepare('DELETE FROM studio_preferences WHERE user_id = ? AND gym_id = ? AND studio_id = ?')
+        .run(userId, targetGym, studioId);
+      return;
+    }
     db.prepare(`
       INSERT INTO studio_preferences (user_id, gym_id, studio_id, preferences, updated_at)
       VALUES (?, ?, ?, ?, CURRENT_TIMESTAMP)

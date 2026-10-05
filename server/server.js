@@ -854,7 +854,8 @@ app.get('/api/studio-preferences', authenticateToken, (req, res) => {
 });
 
 app.put('/api/studio-preferences/:id', authenticateToken, (req, res) => {
-  const studioId = parseInt(req.params.id);
+  // MarianaTek provider ids can be opaque strings; preserve them exactly.
+  const studioId = req.params.id;
   const { preferences } = req.body;
   try {
     // The gym comes from the request's `x-gym-id` context (the client names it

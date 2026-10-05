@@ -1,7 +1,7 @@
 import { debugLog } from './main.js';
 import { getDefaultGymId } from './gym-context.js';
 import { createLayoutCache, MAX_AGE_MS as LAYOUT_MAX_AGE_MS } from './layout-cache.js';
-import { readCached, setCached, getCachedSWR, clearApiCache, setCacheKeyPrefix, invalidateApiCache, getOfflineSnapshot, setOfflineSnapshot } from './cache.js';
+import { readCached, setCached, getCachedSWR, clearApiCache, setCacheKeyPrefix, invalidateApiCache, getOfflineSnapshot, setOfflineSnapshot, deleteOfflineSnapshot } from './cache.js';
 import { classifyAuthFailure } from './auth-failure.js';
 import { COPY, formatCopyText } from './copy.js';
 import { assertMutationNetworkAvailable, isOfflineForMutation } from './network-write-guard.js';
@@ -1039,8 +1039,19 @@ export const api = {
       body: JSON.stringify({ preferences }),
       gymId,
     });
-    if (res.ok) invalidateApiCache('/api/studio-preferences').catch(() => {});
-    return res.json();
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok) throw new Error(data.message || 'Failed to update studio preferences');
+    await invalidateApiCache('/api/studio-preferences').catch(() => {});
+    await Promise.all([
+      deleteOfflineSnapshot('studio-preferences'),
+      deleteOfflineSnapshot(`studio-preferences:${gymId || 'default'}`),
+    ]);
+    try {
+      window.dispatchEvent(new CustomEvent('psycle-studio-preferences-mutated', {
+        detail: { gymId, studioId, preferences },
+      }));
+    } catch (_) { /* non-browser test/runtime */ }
+    return data;
   },
 
   // Backup & Import/Export

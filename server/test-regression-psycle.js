@@ -338,6 +338,25 @@ async function run() {
     const data = await getRes.json();
     assert.deepStrictEqual(data[String(studioIdForPrefs)].preferredSlots, prefs.preferredSlots);
     log('✅ PUT/GET /api/studio-preferences round-trips the shared spot map.');
+
+    // Opaque provider IDs (for example MarianaTek room IDs) must survive the
+    // route unchanged, and clearing a map must remove it from the server view.
+    const opaqueId = 'boxing-room-regression';
+    const opaquePut = await fetch(`${BASE}/api/studio-preferences/${opaqueId}`, authed({
+      method: 'PUT',
+      headers: { 'content-type': 'application/json', 'x-gym-id': 'psycle-london' },
+      body: JSON.stringify({ preferences: { preferredSlots: ['bag-4'], preferredRows: [] } }),
+    }));
+    assert.strictEqual(opaquePut.status, 200);
+    const clearPut = await fetch(`${BASE}/api/studio-preferences/${opaqueId}`, authed({
+      method: 'PUT',
+      headers: { 'content-type': 'application/json', 'x-gym-id': 'psycle-london' },
+      body: JSON.stringify({ preferences: { preferredSlots: [], preferredRows: [] } }),
+    }));
+    assert.strictEqual(clearPut.status, 200);
+    const afterClear = await (await fetch(`${BASE}/api/studio-preferences`, authed())).json();
+    assert.strictEqual(afterClear[opaqueId], undefined);
+    log('✅ Opaque studio IDs round-trip, and deleting a spot map removes it from the API.');
   }
 
   // --- 12. Normalized API surface (WP-N1/C1 — the client's new target contract) -

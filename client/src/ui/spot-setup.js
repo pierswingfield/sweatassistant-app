@@ -43,6 +43,21 @@ export function spotSetupHelperText(rowGroups, slots = []) {
     : COPY.bookingFlow.helperSetup;
 }
 
+// Step B takes over Step A's history slot. A completed Quick-Book then closes
+// the booking page instead of revealing the saved confirmation page underneath.
+export function spotSetupBookingOptions(options, pageEl, saved) {
+  const baseOptions = { ...options };
+  delete baseOptions.backToSetup;
+  return {
+    ...baseOptions,
+    overlapChecked: true,
+    setupDone: true,
+    savedPrefs: saved || null,
+    setupFlow: true,
+    replaceEl: pageEl,
+  };
+}
+
 export function openSpotSetup({ event, className, onSaved, onContinue, onChooseForNow, initialStep = 'intro', initialPrefs = null, rowGroups = false }) {
   const gymId = event.gymId;
   const brand = gymBrand(gymId);

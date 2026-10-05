@@ -38,7 +38,8 @@ import { redactSensitivePayload } from '../redact.js';
 import { haptic } from './haptics.js';
 import { openPage as openNavPage, closePage as closeNavPage, isMobile } from './modal-nav.js';
 import { applyBookingChrome, mountBookingContext, bannerEl } from './booking-chrome.js';
-import { openSpotSetup, setupDeferred } from './spot-setup.js';
+import { openSpotSetup, setupDeferred, spotSetupBookingOptions } from './spot-setup.js';
+import { applyStudioPreferenceMutation, hasStudioPreferences, shouldShowPreferredMapEditToggle } from './studio-preferences-state.js';
 import { instructorToken, migrateInstructorSelection, hasLegacyInstructors, passesInstructorFilter, pruneInstructorSelection, findInstructor, parseInstructorToken } from './instructor-filter.js';
 
 async function cacheSet(key, value) {
@@ -255,6 +256,15 @@ let weekStripSeenSelected = null;   // follow the selection only when IT changes
 // Live shared studio preference maps, refreshed each grid render so the action
 // model can synchronously decide Quick-Book vs Book per studio.
 let studioPrefsMap = {};
+if (typeof window !== 'undefined') {
+  window.addEventListener('psycle-studio-preferences-mutated', (event) => {
+    const detail = event.detail || {};
+    cache.studioPrefs = applyStudioPreferenceMutation(cache.studioPrefs || {}, detail);
+    cache.studioPreferences = applyStudioPreferenceMutation(cache.studioPreferences || {}, detail);
+    studioPrefsMap = applyStudioPreferenceMutation(studioPrefsMap || {}, detail);
+    renderTimetableGrid('preferences-mutated').catch(() => {});
+  });
+}
 let psycleEvents = [];
 // U1-15: NOT a module-local copy. The timetable used to keep its own
 // `userBookings`/`userWaitlists`, refreshed only by its own prefetch, so a booking
@@ -2032,7 +2042,7 @@ export function getStudioMapInfo(event) {
     || metadata.studios.find(s => sameId(s.id, event.studioId) && (!event.gymId || s.gymId === event.gymId));
   const hasMap = resolveHasMap(studio);
   const prefs = pickStudioPrefs(studioPrefsMap, event.studioId, event.gymId);
-  const hasPrefs = (prefs.preferredSlots?.length > 0) || (prefs.preferredRows?.length > 0);
+  const hasPrefs = hasStudioPreferences(prefs);
   return { hasMap, hasPrefs };
 }
 
@@ -2233,7 +2243,7 @@ async function resolveStudioPrefs(event) {
     cache.studioPreferences = all;
   }
   const prefs = pickStudioPrefs(all, studioId, event.gymId);
-  const hasPrefs = !!(prefs.preferredSlots?.length || prefs.preferredRows?.length);
+  const hasPrefs = hasStudioPreferences(prefs);
   return { prefs, hasPrefs };
 }
 
@@ -3207,7 +3217,7 @@ export async function openBookingModal(c, mode, opts = {}) {
             // Keep the shared prefs cache in step (resolveStudioPrefs reads it); a refetch can race invalidation.
             cache.studioPreferences = { ...(cache.studioPreferences || {}), [`${c.gymId}:${c.studioId}`]: { preferredSlots: slots, preferredRows: rows } };
           },
-          onContinue: (pageEl, saved) => openBookingModal(c, mode, { ...opts, overlapChecked: true, setupDone: true, savedPrefs: saved || null, setupFlow: true, backToSetup: true }),
+          onContinue: (pageEl, saved) => openBookingModal(c, mode, spotSetupBookingOptions(opts, pageEl, saved)),
           onChooseForNow: (pageEl) => openBookingModal(c, 'book', {
             ...opts, overlapChecked: true, setupDone: true, replaceEl: pageEl, oneOffSpots: true,
           }),
@@ -3244,7 +3254,7 @@ export async function openBookingModal(c, mode, opts = {}) {
     </div>
   `;
 
-  openNavPage(modal, { id: 'booking', replaceEl: opts.backToSetup ? null : opts.replaceEl });
+  openNavPage(modal, { id: 'booking', replaceEl: opts.replaceEl });
 
   const closeBtn = document.getElementById('psycle-booking-modal-close');
   const overlay = modal.querySelector('.psycle-modal-overlay');
@@ -3257,8 +3267,7 @@ export async function openBookingModal(c, mode, opts = {}) {
 
   closeBtn.onclick = closeModal;
   overlay.onclick = closeModal;
-  if (opts.backToSetup) closeBtn.dataset.nav = 'back';
-  else delete closeBtn.dataset.nav;
+  delete closeBtn.dataset.nav;
 
   // Refresh credits when opening booking modal (force — user needs accurate counts)
   await refreshUserData(true);
@@ -3673,7 +3682,10 @@ export async function openBookingModal(c, mode, opts = {}) {
       const toggle = body.querySelector('#psycle-map-edit-toggle');
       if (!toggle) return;
       toggle.innerHTML = '';
-      if ((!isQuickBookMode && !isAutoBookMode) || mapEditing) return;
+      // Quick-Book follows the saved map directly; edit it later in Settings or
+      // choose a one-off spot through the separate Book action. Auto-Book keeps
+      // its in-context editor because those preferences control a future job.
+      if (!shouldShowPreferredMapEditToggle(mode, mapEditing)) return;
       const editBtn = document.createElement('button');
       editBtn.className = 'psycle-btn';
       editBtn.style.cssText = 'width:100%;margin-bottom:12px;background:color-mix(in srgb, var(--feat-autoupgrade) 12%, transparent);border:1px solid color-mix(in srgb, var(--feat-autoupgrade) 30%, transparent);color:var(--feat-autoupgrade);';
@@ -3681,7 +3693,6 @@ export async function openBookingModal(c, mode, opts = {}) {
       editBtn.onclick = () => {
         mapEditing = true;
         render();
-        updateMapEditToggle();
         if (typeof updateQuickBookControls === 'function') updateQuickBookControls();
         if (typeof updateAutoBookControls === 'function') updateAutoBookControls();
       };

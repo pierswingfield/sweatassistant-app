@@ -199,6 +199,22 @@ export async function getOfflineSnapshot(name) {
   }
 }
 
+export async function deleteOfflineSnapshot(name) {
+  const key = snapshotKey(name);
+  if (!key) return;
+  try {
+    const db = await openDB();
+    const tx = db.transaction(SNAPSHOT_STORE, 'readwrite');
+    tx.objectStore(SNAPSHOT_STORE).delete(key);
+    await new Promise((resolve, reject) => {
+      tx.oncomplete = () => { db.close(); resolve(); };
+      tx.onerror = () => { db.close(); reject(tx.error); };
+    });
+  } catch (_) {
+    // Offline snapshots are best-effort and must never fail a live mutation.
+  }
+}
+
 // --- Public API ---
 
 /**

@@ -57,10 +57,19 @@ export function getGymTimeZone(gymId) {
   return (gymId && gymZones.get(String(gymId))) || '';
 }
 
+let catalogueGyms = [];
+/** Every enabled configured gym from /api/gyms (linked or not): [{ id, name }]. */
+export function getCatalogueGyms() {
+  return catalogueGyms;
+}
+
 /** Seed presentation contracts from the /api/gyms catalogue array. */
 export function setGymCatalogue(catalogue) {
   presentations = new Map();
   gymZones = new Map();
+  catalogueGyms = (Array.isArray(catalogue) ? catalogue : [])
+    .filter((g) => g && g.id && g.enabled !== false)
+    .map((g) => ({ id: String(g.id), name: g.shortName || g.name || String(g.id) }));
   for (const g of Array.isArray(catalogue) ? catalogue : []) {
     if (g && g.id && g.timezone) gymZones.set(String(g.id), g.timezone);
     if (g && g.id && g.presentation) presentations.set(String(g.id), g.presentation);

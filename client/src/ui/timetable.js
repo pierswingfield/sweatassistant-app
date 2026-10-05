@@ -6,7 +6,7 @@ import { isCreditInventoryLoaded, pickStudioPrefs as pickGymStudioPrefs } from '
 import { canForGym, canAny, capabilityForGym, getLinkedGyms, getGymShortName, getLocationAlias, getDefaultGymId } from '../gym-context.js';
 import { showToast, currentUser, userSettings, gymSetting, profileForGym, refreshUserData, updateCreditBadge, cache, debugConsole } from '../main';
 import { passesLocationFilter, formatFullDate, getClassReleaseTime, isFullWithoutWaitlist, isInGracePeriod, GRACE_PERIOD_MS, startGraceCountdown, noSept, zoneFor, formatInZone, dayKeyInZone, nowInZone, deviceZone } from '../lib';
-import { getGymTimeZone } from '../gym-context.js';
+import { getGymTimeZone, getCatalogueGyms } from '../gym-context.js';
 import { DateTime } from 'luxon';
 // === WEEK-STRIP DATE SELECTOR (Task F) — set to false to restore the scrolling carousel + old row order ===
 // When true: paginated Mon-Sun strip, full-date heading above the class list, and the date row ABOVE the filters.
@@ -28,6 +28,7 @@ import { openEditBookingModal, syncBookingCache } from './bookings';
 import { openStudioFloorPlanEditor } from './settings';
 import { studioHasRowGroups, rowSelectorVisible } from './spotmap.js';
 import { renderFilterRail, removeFilterRail } from './filter-rail.js';
+import { nextGymSelection } from './gym-quick-select.js';
 import { buildSearchIndex, searchEvents, tokenize } from './timetable-search.js';
 import { getSearchQuery, setSearchQuery, onSearchChange, inSearchScope, enterSearchScope, leaveSearchScope, emptyFilters, filtersAreEmpty } from './timetable-search-state.js';
 import { ensureSearchUi, openSearch } from './timetable-search-ui.js';
@@ -1440,6 +1441,13 @@ function buildFilterRailCtx(eventsExcluding, resultCount) {
   const locations = metadata.locations.filter(l => gymOk(l.gymId)).sort((a, b) =>
     gymOrder.indexOf(a.gymId) - gymOrder.indexOf(b.gymId) || locationBaseLabel(a).localeCompare(locationBaseLabel(b)));
   const rerender = () => renderTimetableGrid();
+  // Drop location/instructor/workout picks that belong to a gym that is now filtered out.
+  const pruneToGyms = () => {
+    const gymOf = (list, i) => list.find(x => String(x.id) === i)?.gymId;
+    selectedLocations = selectedLocations.filter(i => gymOk(gymOf(metadata.locations, i)));
+    selectedInstructors = pruneInstructorSelection(selectedInstructors, gymOk);
+    selectedEventTypes = selectedEventTypes.filter(l => metadata.eventTypes.some(t => t.group && getDiscipline(t.group).label === l && gymOk(t.gymId)));
+  };
   return {
     state: {
       gyms: selectedGyms, locations: selectedLocations, instructors: selectedInstructors,
@@ -1464,12 +1472,19 @@ function buildFilterRailCtx(eventsExcluding, resultCount) {
       const cur = arrays[key]();
       const sid = String(id);   // instructors: the id IS a gymId:id token (see instructor-filter.js)
       assign(key, cur.includes(sid) ? cur.filter(x => x !== sid) : [...cur, sid]);
-      if (key === 'gyms' && selectedGyms.length) {
-        const gymOf = (list, i) => list.find(x => String(x.id) === i)?.gymId;
-        selectedLocations = selectedLocations.filter(i => gymOk(gymOf(metadata.locations, i)));
-        selectedInstructors = pruneInstructorSelection(selectedInstructors, gymOk);
-        selectedEventTypes = selectedEventTypes.filter(l => metadata.eventTypes.some(t => t.group && getDiscipline(t.group).label === l && gymOk(t.gymId)));
+      if (key === 'gyms' && selectedGyms.length) pruneToGyms();
+      rerender();
+    },
+    // Mobile quick-selector: in-memory only (never touches saved defaults, which change on Save only).
+    allGyms: getCatalogueGyms(),
+    setGymQuick: (gymId) => {
+      // Unlinked gym: nothing to filter to. Least invasive: leave filters alone and say how to connect it.
+      if (!gymOrder.includes(String(gymId))) {
+        showToast(formatCopyText(COPY.filters.gymQuickConnectHint, { name: getCatalogueGyms().find(g => g.id === String(gymId))?.name || String(gymId) }), 'info');
+        return;
       }
+      selectedGyms = nextGymSelection(selectedGyms, gymOrder, gymId);
+      if (selectedGyms.length) pruneToGyms();
       rerender();
     },
     clear: (key) => {

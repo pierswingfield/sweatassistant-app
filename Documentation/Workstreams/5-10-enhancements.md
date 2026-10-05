@@ -59,3 +59,38 @@ Status:
 - B (rail drag): `.fr-rail` had `overflow-x: auto` with the default `overflow-y`, so it could scroll 3px vertically (measured `scrollTop` 3 after a vertical drag). Now `overflow-y: hidden; overscroll-behavior-x: contain; touch-action: pan-x pan-y; -webkit-overflow-scrolling: touch`. `pan-y` is kept so a vertical swipe starting on the row still scrolls the page and pull-to-refresh. CDP touch emulation: a vertical drag on the row leaves `scrollTop` at 0. Real-iOS behaviour is UNVERIFIED.
 - C (chip icons & tighter whitespace): added `pin` / `location` icon to `SVG_PATHS` in `cards.js`; location chip now starts with `icon('pin', 13)` and instructor chip with `icon('user', 13)` across multi-gym and single-gym cases in `filter-rail.js`. Spacing tightened in `styles.css`: `.fr-chip-body` gap 3.5px, padding `0 2px 0 6px`; `.fr-tile-part` gap 2.5px; `.fr-tile-part + .fr-tile-part` margin-left 2.5px (down from 8px); `.fr-dot` margin `0 2px`; `.fr-thin` margin-left 2.5px; `.fr-chip-x` width 20px. Verified in Chrome CDP mobile viewport.
 - Note: the Vite dev server on :5173 died mid-run and was restarted from `client/`.
+
+## Handoff: outstanding work and test checklist (2026-10-05)
+
+Status key: [x] done, [ ] not done.
+
+### State
+
+- [x] Branch `worktree-enh-5-10-timetable`, worktree `.claude/worktrees/enh-5-10-timetable`, cut from local `modular` at `49cb376`.
+- [x] The branch does NOT include the uncommitted changes in the main checkout (`timetable.js`, `styles.css`, `settings.js`, `api.js`, `copy.js`, `gym-settings-section.js`, etc.). Expect merge conflicts in `timetable.js`, `styles.css`, `copy.js`, `api.js`.
+- [x] Commits:
+  - `27f3181` item 1, progressive load (U4-7 / U4-2). Its message wrongly says "4s grace"; the behaviour is render on the first gym, grace 0. Fix the wording when squashing.
+  - `66f5195` item 2, gym quick-selector.
+  - `de8aebc` item 3, scroll-collapse.
+  - `eb6f5f5` U4-19 phases 1-3 (see `U4-19-url-routing-and-deep-links.md`).
+- [x] Not pushed, not deployed.
+
+### Outstanding tests (not done)
+
+- [ ] Pull-to-refresh while the scroll-collapse is active.
+- [ ] Progressive merge-in above the scroll position while collapsed (unit-tested only).
+- [ ] Real iOS / installed-PWA check for items 2 and 3 and for URL routing (iOS standalone opens external links in Safari).
+- [ ] Quick-selector with real linked-gym data on the dev twin (`sweat-dev`).
+- [ ] Tapping an unlinked gym in the quick-selector currently shows a toast only. Decision needed: open the connect flow instead? `settings.js` does not export the link form.
+- [ ] U4-19 behaviour on the dev twin after deploy (service worker cache must be cleared; see the prod deploy cache gotcha in memory).
+- [ ] Browser smoke test before any deploy (not covered by `npm test`).
+
+### Outstanding build
+
+- [ ] U4-19 phases 4-8 (about 29 h total, phases 1-3 done); resolve the open decisions in its doc.
+
+### Merge steps
+
+- [ ] Wait for the main-checkout agent to finish and commit.
+- [ ] Do a conflict check, then merge into `modular`.
+- [ ] Re-run `npm test` (Node 20 via nvm) and a CDP smoke test after the merge.

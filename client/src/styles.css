@@ -11096,3 +11096,26 @@ html.psycle-scroll-locked { overflow: hidden !important; background: var(--bg) !
   .psycle-bk-compact-qty { margin: 0; }
   button[data-bk-guard] { opacity: 0.5; }
 }
+
+/* U4-2: header gym chip as a per-gym loading indicator — a rotating arc on the
+   chip's border while that gym has a page-content request in flight. */
+@property --hgb-spin { syntax: '<angle>'; inherits: false; initial-value: 0deg; }
+.psycle-header-gym-badge { position: relative; }
+.psycle-header-gym-badge.is-loading::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  padding: 2px;
+  background: conic-gradient(from var(--hgb-spin), transparent 0deg, transparent 220deg, var(--gym-btn, var(--accent)) 360deg);
+  -webkit-mask: linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0);
+  -webkit-mask-composite: xor;
+  mask: linear-gradient(#000 0 0) content-box exclude, linear-gradient(#000 0 0);
+  pointer-events: none;
+  animation: hgb-spin 1s linear infinite;
+}
+@keyframes hgb-spin { to { --hgb-spin: 360deg; } }
+@media (prefers-reduced-motion: reduce) {
+  /* No rotation: a static dimmed ring still says "loading". */
+  .psycle-header-gym-badge.is-loading::after { animation: none; background: var(--gym-btn, var(--accent)); opacity: 0.45; }
+}

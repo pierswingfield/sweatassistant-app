@@ -12,6 +12,7 @@ import { detectBookingWindow, noSept } from './lib';
 import { canBookAtAll, getIneligibleReason, hasConfirmedAccess } from './ui/credit-allowance.js';
 import { escapeHtml, gymBrand, wordmarkElement } from './ui/cards';
 import { installBookingState } from './ui/booking-state.js';
+import { applyGymLoadState, onGymLoadChange } from './ui/gym-load-state.js';
 import { applyStaticCopy } from './copy.js';
 import { COPY, formatCopyText } from './copy.js';
 
@@ -803,6 +804,8 @@ function renderGymBadge(container, gymId, shortName, isMetered, total, credits) 
     import('./ui/settings').then((m) => m.openGymSettings(gymId)).catch((err) => console.error('Open gym settings failed:', err));
   };
   container.appendChild(badge);
+  // U4-2: a chip rebuilt mid-load must keep animating.
+  applyGymLoadState(container);
   fitHeaderBadges(true);
   requestAnimationFrame(() => fitHeaderBadges(true)); // re-check once layout has settled
 }
@@ -810,6 +813,8 @@ function renderGymBadge(container, gymId, shortName, isMetered, total, credits) 
 // Switch ALL badges to the small mark when the full set would overflow the header.
 // Full width is measured (with the wide logos) on each render and cached; resize
 // only compares against that cache, with 24px hysteresis so it cannot oscillate.
+// U4-2: header chips double as per-gym loading indicators (state in gym-load-state.js).
+onGymLoadChange(() => applyGymLoadState(document.getElementById('psycle-header-credits')));
 let fullBadgesWidth = 0;
 let badgeFitObserver = null;
 function fitHeaderBadges(remeasure) {

@@ -32,6 +32,9 @@ import { buildSearchIndex, searchEvents, tokenize } from './timetable-search.js'
 import { getSearchQuery, setSearchQuery, onSearchChange, inSearchScope, enterSearchScope, leaveSearchScope, emptyFilters, filtersAreEmpty } from './timetable-search-state.js';
 import { ensureSearchUi, openSearch } from './timetable-search-ui.js';
 import { renderTimetableSkeleton } from './loading-skeleton.js';
+import { isDocScroll, docScroller } from './scroll-state.js';
+import { sortEvents } from './progressive-merge.js';
+import { captureScrollAnchor, restoreScrollAnchor } from './scroll-anchor.js';
 import { confirmOverlap } from './overlap-modal.js';
 import { quickBookTap } from './quickbook-flow.js';
 import { redactSensitivePayload } from '../redact.js';
@@ -697,6 +700,23 @@ export async function resetTimetableForGymChange() {
   return prefetchTimetableData(true);
 }
 
+// U4-7: 0 = paint as soon as the first gym answers, merge the rest as they land.
+const PROGRESSIVE_GRACE_MS = 0;
+
+// Re-render the grid but keep the reader where they were: a late gym's rows are
+// merged into a list someone may already be scrolled down, so anchor on the
+// first row in view (by event id) rather than a raw scrollTop that shifts.
+function renderPreservingScroll(reason) {
+  const grid = document.getElementById('psycle-timetable-grid');
+  const scroller = (isDocScroll() ? docScroller() : document.querySelector('main.psycle-body')) || grid;
+  const anchor = captureScrollAnchor(scroller, grid);
+  const result = renderTimetableGrid(reason);
+  const restore = () => restoreScrollAnchor(scroller, anchor, grid);
+  restore();
+  if (result && typeof result.then === 'function') result.then(restore).catch(() => {});
+  return result;
+}
+
 export async function prefetchTimetableData(force = false) {
   if (isPrefetching) {
     // Never swallow an explicit refresh: run one more pass when this one lands.
@@ -749,31 +769,12 @@ export async function prefetchTimetableData(force = false) {
   const generation = prefetchGeneration;
 
   try {
-    // Fetch user bookings and waitlists to keep action buttons in sync
+    // U4-7: progressive load. The page context (metadata, bookings, ...) and the
+    // per-gym timetable fetches all start TOGETHER; the grid renders as soon as
+    // the first gym answers (or after a 4 s grace window with whatever has
+    // landed) instead of waiting for the slowest gym. Late gyms merge in.
     const refreshStartedAt = timetablePerfNow();
     const metadataStartedAt = timetablePerfNow();
-    const [, bookingsRes, waitlistsRes, autoBookingsRes, studioPrefsRes] = await Promise.all([
-      loadMetadata(true).finally(() => recordTimetableTiming('metadata-refresh', metadataStartedAt)),
-      api.getBookings(),
-      api.getWaitlists(),
-      api.getAutoBookings().catch(() => cache.autoBookings || []),
-      api.getStudioPreferences().catch(() => cache.studioPrefs || {}),
-    ]);
-    if (generation !== prefetchGeneration) {
-      // The gym set changed mid-flight: this answer belongs to the old set.
-      isPrefetching = false;
-      prefetchQueued = false;
-      return prefetchTimetableData(true);
-    }
-    cache.bookings = bookingsRes || [];
-    cache.waitlists = waitlistsRes || [];
-    // U1-12: the overlap check reads the server's booking_cache, so keep it as
-    // fresh as this view of the bookings (it was only synced from My Bookings).
-    syncBookingCache(cache.bookings);
-    cache.autoBookings = autoBookingsRes || [];
-    cache.studioPrefs = studioPrefsRes || {};
-
-    // Fetch fresh events across all linked gyms
     const prefetchWeeks = userSettings.prefetchWeeks || 4;
     const startDate = new Date();
     const startStr = startDate.toISOString().split('T')[0];
@@ -781,38 +782,83 @@ export async function prefetchTimetableData(force = false) {
     endDate.setDate(endDate.getDate() + (prefetchWeeks * 7));
     const endStr = endDate.toISOString().split('T')[0];
 
+    const contextP = Promise.all([
+      loadMetadata(true).finally(() => recordTimetableTiming('metadata-refresh', metadataStartedAt)),
+      api.getBookings(),
+      api.getWaitlists(),
+      api.getAutoBookings().catch(() => cache.autoBookings || []),
+      api.getStudioPreferences().catch(() => cache.studioPrefs || {}),
+    ]).then(([, bookingsRes, waitlistsRes, autoBookingsRes, studioPrefsRes]) => {
+      if (generation !== prefetchGeneration) return;
+      cache.bookings = bookingsRes || [];
+      cache.waitlists = waitlistsRes || [];
+      // U1-12: the overlap check reads the server's booking_cache, so keep it as
+      // fresh as this view of the bookings (it was only synced from My Bookings).
+      syncBookingCache(cache.bookings);
+      cache.autoBookings = autoBookingsRes || [];
+      cache.studioPrefs = studioPrefsRes || {};
+    });
+    // Context (bookings etc.) may land after the first paint: repaint so buttons are right.
+    contextP.then(() => { if (generation === prefetchGeneration && psycleEvents.length) renderPreservingScroll('context-ready'); }).catch(() => {});
+    contextP.catch(() => {}); // a failure is surfaced below; the gate must not throw
+    // The first paint waits for the page context only up to the grace window, so
+    // a slow bookings call cannot hold the timetable back either.
+    const contextGate = Promise.race([contextP.catch(() => {}), new Promise((r) => setTimeout(r, PROGRESSIVE_GRACE_MS))]);
+
+    // Cached rows of a gym that has not answered yet stay on screen (stale while
+    // revalidate) so a late gym replaces its own rows in place instead of vanishing.
+    const staleEvents = psycleEvents.slice();
+    let flushChain = Promise.resolve();
+    const applyFlush = async ({ events, pending, final }) => {
+      await contextGate;
+      if (generation !== prefetchGeneration) return;
+      if (final && !events.length) return; // every gym failed/empty: keep what we had
+      const stillPending = new Set((pending || []).map(String));
+      const carried = stillPending.size
+        ? staleEvents.filter((e) => stillPending.has(String(e.gymId)))
+        : [];
+      psycleEvents = carried.length ? sortEvents([...events, ...carried]) : events;
+      mergeMetadataFromEvents(psycleEvents);
+      buildMetaMaps();
+      if (final) {
+        try {
+          await cacheSet(accountScopedKey(CACHE_KEY_EVENTS), psycleEvents);
+          await cacheSet(accountScopedKey(CACHE_KEY_META), {
+            locations: metadata.locations,
+            studios: metadata.studios,
+            instructors: metadata.instructors,
+            eventTypes: metadata.eventTypes
+          });
+          localStorage.setItem(accountScopedKey(CACHE_KEY_TIME), String(Date.now()));
+        } catch (e) {
+          console.warn('[Timetable] Failed to cache events:', e);
+        }
+      }
+      // Rows are replaced wholesale on a late merge; keep the reader's place.
+      renderPreservingScroll(final ? 'network-refresh' : 'progressive-merge');
+    };
+
     // `force` here is the user pressing refresh (or pull-to-refresh), which is
     // the one case that should reach past the SHARED server cache to the
     // provider. Ordinary renders ride the cache — that is what makes the second
     // load fast.
-    const freshEvents = await api.getTimetable({ startDate: startStr, endDate: endStr, refresh: force });
+    const freshEvents = await api.getTimetableProgressive(
+      { startDate: startStr, endDate: endStr, refresh: force },
+      { graceMs: PROGRESSIVE_GRACE_MS, onFlush: (info) => { flushChain = flushChain.then(() => applyFlush(info)).catch((e) => console.warn('[Timetable] merge failed:', e)); } },
+    );
+    await flushChain;
+    await contextP;
     recordTimetableTiming('network-refresh', refreshStartedAt, {
       eventCount: freshEvents?.length || 0,
     });
     if (generation !== prefetchGeneration) {
+      // The gym set changed mid-flight: this answer belongs to the old set.
       isPrefetching = false;
       prefetchQueued = false;
       return prefetchTimetableData(true);
     }
-    if (freshEvents && freshEvents.length > 0) {
-      psycleEvents = freshEvents;
-      mergeMetadataFromEvents(freshEvents);
-      buildMetaMaps();
-      try {
-        await cacheSet(accountScopedKey(CACHE_KEY_EVENTS), psycleEvents);
-        await cacheSet(accountScopedKey(CACHE_KEY_META), {
-          locations: metadata.locations,
-          studios: metadata.studios,
-          instructors: metadata.instructors,
-          eventTypes: metadata.eventTypes
-        });
-        localStorage.setItem(accountScopedKey(CACHE_KEY_TIME), String(Date.now()));
-      } catch (e) {
-        console.warn('[Timetable] Failed to cache events:', e);
-      }
-    }
     isPrefetching = false;
-    renderTimetableGrid('network-refresh');
+    renderPreservingScroll('network-refresh');
     if (prefetchQueued) { prefetchQueued = false; return prefetchTimetableData(true); }
   } catch (err) {
     isPrefetching = false;

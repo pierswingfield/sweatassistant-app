@@ -22,6 +22,7 @@ import {
   isIndividualCancellationBlocked,
   requestGroupedCancellation,
 } from './grouped-cancellation.js';
+import { canSelectSelfSpot, countSelfBookingSlots, isCurrentModalRun } from './booking-entitlement.js';
 
 // Class starts within the free-cancel cutoff (12h). Edit is hidden inside this
 // window; Cancel stays available but warns about the penalty.
@@ -42,6 +43,7 @@ const totalAvailableCredits = (gymId) => getTotalCredits(gymId);
 // True once real data exists. cache.bookings starts as [] in main.js, so
 // "defined" is meaningless: an untouched [] must not read as "loaded empty".
 let bookingsFetched = false;
+let editModalRunId = 0;
 function bookingsDataReady() {
   return bookingsFetched || (Array.isArray(cache.bookings) && cache.bookings.length > 0);
 }
@@ -678,6 +680,8 @@ export async function openEditBookingModal(group, onChange = renderBookings) {
   const body = document.getElementById('psycle-booking-modal-body');
   const title = document.getElementById('psycle-booking-modal-title');
   if (!modal || !body || !title) return;
+  const modalRunId = ++editModalRunId;
+  const isCurrentRun = () => isCurrentModalRun(modalRunId, editModalRunId, modal.classList.contains('show'));
 
   const event = group.event;
   const rawClassName = event.name || event.event_type?.name || COPY.autoBook.class;
@@ -696,6 +700,7 @@ export async function openEditBookingModal(group, onChange = renderBookings) {
   const overlay = modal.querySelector('.psycle-modal-overlay');
   const closeModal = () => {
     if (closeNavPage(modal)) return;
+    if (modalRunId === editModalRunId) editModalRunId++;
     modal.classList.remove('show');
     setTimeout(() => modal.style.display = 'none', 300);
   };
@@ -711,6 +716,14 @@ export async function openEditBookingModal(group, onChange = renderBookings) {
     // slot-id comparisons, matching how bookings/preferences store slot ids.
     const { event: normalizedEvent, slots: layoutSlots, objects: layoutObjects } =
       await api.getEventDetails(group.eventId, group.event?.gymId);
+    if (!isCurrentRun()) return;
+    let bookingEntitlement = null;
+    let entitlementUnavailable = false;
+    if (canForGym('bookingEntitlement', group.event?.gymId)) {
+      try { bookingEntitlement = await api.getBookingEntitlement(group.eventId, group.event?.gymId); }
+      catch (_) { entitlementUnavailable = true; }
+      if (!isCurrentRun()) return;
+    }
     const availableSlots = layoutSlots.filter(s => s.isAvailable).map(s => String(s.id));
 
     // Current booked slots → booking IDs (so removals can target the right record).
@@ -726,6 +739,12 @@ export async function openEditBookingModal(group, onChange = renderBookings) {
     });
     const currentSlots = [...slotToBooking.keys()];
     const guestSlots = [...guestSlotToBooking.keys()];
+    const rawSelfBookingLimit = bookingEntitlement?.selfBookingLimit ?? normalizedEvent.maxBookableSlots;
+    const selfBookingLimit = entitlementUnavailable
+      ? countSelfBookingSlots(group.bookings)
+      : (Number.isFinite(Number(rawSelfBookingLimit)) && Number(rawSelfBookingLimit) >= 0
+        ? Math.floor(Number(rawSelfBookingLimit))
+        : Infinity);
 
     // WP-C5: first-come-first-serve is now an explicit `layoutFormat` check
     // rather than being inferred from an empty slot list. Both cases end up
@@ -757,6 +776,13 @@ export async function openEditBookingModal(group, onChange = renderBookings) {
     body.innerHTML = `
       <div style="font-size:12px;color:var(--text-secondary);background:var(--surface-inset);border:1px solid var(--border);border-radius:8px;padding:8px 10px;margin-bottom:10px;line-height:1.5;">
         ${formatCopyText(COPY.bookings.editSpotsInstructionHtml, { noun: escapeHtml(noun) })}
+      </div>
+      <div style="font-size:12px;color:var(--text-secondary);background:var(--surface-inset);border:1px solid var(--border);border-radius:8px;padding:8px 10px;margin-bottom:10px;line-height:1.5;">
+        ${entitlementUnavailable
+          ? COPY.bookingEditor.bookingLimitUnavailable
+          : Number.isFinite(selfBookingLimit)
+            ? formatCopyText(COPY.bookingEditor.selfBookingLimit, { count: selfBookingLimit, plural: selfBookingLimit === 1 ? '' : 's' })
+            : ''}
       </div>
       <div class="guest-map-legend" aria-label="Spot map key">
         <span class="is-self">${COPY.bookings.guestMapSelf}</span><span class="is-guest">${COPY.bookings.guestMapGuest}</span><span class="is-available">${COPY.bookings.guestMapAvailable}</span><span class="is-unavailable">${COPY.bookings.guestMapUnavailable}</span>
@@ -801,6 +827,8 @@ export async function openEditBookingModal(group, onChange = renderBookings) {
         msg = `<div style="font-size:12px;color:var(--text-tertiary);">${COPY.bookings.noChanges}</div>`;
       } else if (desired.length === 0) {
         msg = `<div style="font-size:12px;color:var(--danger);background:color-mix(in srgb,var(--danger) 10%,transparent);border:1px solid color-mix(in srgb,var(--danger) 20%,transparent);border-radius:8px;padding:10px;">${formatCopyText(COPY.bookingEditor.cancelBookingReleaseSpots, { noun: escapeHtml(noun) })}</div>`;
+      } else if (desired.length > selfBookingLimit) {
+        msg = `<div style="font-size:12px;color:var(--danger);background:color-mix(in srgb,var(--danger) 10%,transparent);border:1px solid color-mix(in srgb,var(--danger) 20%,transparent);border-radius:8px;padding:10px;">${formatCopyText(COPY.bookingEditor.selfBookingLimitExceeded, { count: selfBookingLimit, plural: selfBookingLimit === 1 ? '' : 's' })}</div>`;
       } else if (shortfall > 0) {
         msg = `<div style="font-size:12px;color:var(--danger);background:color-mix(in srgb,var(--danger) 10%,transparent);border:1px solid color-mix(in srgb,var(--danger) 20%,transparent);border-radius:8px;padding:10px;">${formatCopyText(COPY.bookingEditor.creditShortfall, { shortfall, creditPlural: shortfall !== 1 ? 's' : '', count: toAdd.length, noun: escapeHtml(noun), nounPlural: toAdd.length !== 1 ? 's' : '' })}</div>`;
       }
@@ -844,7 +872,8 @@ export async function openEditBookingModal(group, onChange = renderBookings) {
         // "27", not "Bike 27" — the full label wrapped to two lines and spilled
         // out of a 28px square. Full label stays in the tooltip below.
         el.textContent = shortLabelsForPlan.get(String(slot.id)) || slot.label || slotId;
-        const clickable = isGuest || isSelected || isCurrent || isAvailable;
+        const canAddSelf = canSelectSelfSpot({ selectedCount: selected.size, selfBookingLimit, isSelected });
+        const clickable = isGuest || isSelected || isCurrent || (isAvailable && canAddSelf);
         el.style.cursor = clickable ? 'pointer' : 'default';
         el.title = `${nounCap} ${slot.label || slotId}`;
 
@@ -862,6 +891,12 @@ export async function openEditBookingModal(group, onChange = renderBookings) {
           el.style.background = 'color-mix(in srgb,var(--danger) 15%,transparent)';
           el.style.border = '1px dashed var(--danger)';
           el.style.color = 'var(--danger)';
+        } else if (isAvailable && !canAddSelf) {
+          el.style.background = 'var(--surface-inset)';
+          el.style.border = '1px solid var(--border)';
+          el.style.color = 'var(--text-tertiary)';
+          el.style.opacity = '0.55';
+          el.title = formatCopyText(COPY.bookingEditor.selfBookingLimitExceeded, { count: selfBookingLimit, plural: selfBookingLimit === 1 ? '' : 's' });
         } else if (isAvailable) {
           el.style.background = 'color-mix(in srgb,var(--success) 15%,transparent)';
           el.style.border = '1px solid color-mix(in srgb,var(--success) 35%,transparent)';
@@ -877,7 +912,13 @@ export async function openEditBookingModal(group, onChange = renderBookings) {
             if (guestsToCancel.has(slotId)) guestsToCancel.delete(slotId);
             else guestsToCancel.add(slotId);
           } else if (selected.has(slotId)) selected.delete(slotId);
-          else if (isCurrent || isAvailable) selected.add(slotId);
+          else if (isCurrent || isAvailable) {
+            if (!canSelectSelfSpot({ selectedCount: selected.size, selfBookingLimit })) {
+              showToast(formatCopyText(COPY.bookingEditor.selfBookingLimitExceeded, { count: selfBookingLimit, plural: selfBookingLimit === 1 ? '' : 's' }), 'warning');
+              return;
+            }
+            selected.add(slotId);
+          }
           else { showToast(formatCopyText(COPY.bookings.occupiedSpotFor, { noun }), 'warning'); return; }
           renderGrid();
           renderControls();
@@ -888,6 +929,11 @@ export async function openEditBookingModal(group, onChange = renderBookings) {
     };
 
     const saveChanges = async (toAdd, toRemove) => {
+      if (selected.size > selfBookingLimit) {
+        showToast(formatCopyText(COPY.bookingEditor.selfBookingLimitExceeded, { count: selfBookingLimit, plural: selfBookingLimit === 1 ? '' : 's' }), 'warning');
+        renderControls();
+        return;
+      }
       const saveBtn = body.querySelector('#bk-edit-save');
       if (saveBtn) { saveBtn.disabled = true; saveBtn.textContent = COPY.static.saving; }
       try {
@@ -919,7 +965,10 @@ export async function openEditBookingModal(group, onChange = renderBookings) {
           if (toAdd.length) {
             const added = [];
             for (const slotId of toAdd) {
-              const r = await api.book(group.eventId, [slotId], gymId);
+              const r = await api.book(group.eventId, [slotId], gymId, {
+                selfBookingLimit,
+                currentSelfBookings: currentSlots.length - toRemove.length + added.length,
+              });
               if (!r.ok) {
                 throw new Error(added.length
                   ? formatCopyText(COPY.bookings.rebookedPartial, { booked: added.length, total: toAdd.length, declined: r.error || COPY.bookings.remainingDeclined })
@@ -956,6 +1005,7 @@ export async function openEditBookingModal(group, onChange = renderBookings) {
     renderGrid();
     renderControls();
   } catch (err) {
+    if (!isCurrentRun()) return;
     console.error('[Bookings] Edit modal failed:', err);
     body.innerHTML = `<div class="psycle-card-error" style="color:var(--danger);padding:20px 0;text-align:center;">${formatCopyText(COPY.bookings.loadingFloorMapError, { error: escapeHtml(err.message) })}</div>`;
   }

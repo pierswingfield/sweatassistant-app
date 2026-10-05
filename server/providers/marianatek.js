@@ -807,6 +807,7 @@ class MarianaTekProvider extends GymProvider {
       ? Math.min(1, guestPassesRemaining, Number.isFinite(available) ? available : 1)
       : 0;
     return {
+      selfBookingLimit: policyLimit,
       maxSelfBookings,
       selfEligible: maxSelfBookings > 0,
       selfReason: alreadyBooked ? 'ALREADY_BOOKED'

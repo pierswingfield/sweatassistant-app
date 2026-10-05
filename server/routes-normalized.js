@@ -32,6 +32,7 @@ const classHistory = require('./class-history');
 const { authenticateToken, triggerAutoRelogin } = auth;
 const { getProvider } = require('./providers');
 const { listGyms, getGymConfig } = require('./gyms.config');
+const { countSelfBookings, validateSelfBookingLimit } = require('./booking-entitlement');
 const calendar = require('./calendar');
 const scheduleCache = require('./schedule-cache');
 // Studio floor plans change rarely and are identical for every member: own cache
@@ -449,6 +450,32 @@ router.post('/book', authenticateToken, async (req, res) => {
     const { eventId, slotIds } = req.body;
     if (!eventId) return res.status(400).json({ message: 'eventId is required' });
     const { gymId, provider, session } = resolveContext(req.userId);
+    // Enforce provider-published per-class limits at the authenticated route,
+    // so a caller cannot bypass the spot picker or the client's request check.
+    // Guests are separate reservations and do not consume this self-booking cap.
+    if (getGymConfig(gymId)?.capabilities?.bookingEntitlement === true) {
+      if (typeof provider.getBookingEntitlement !== 'function') {
+        return res.status(503).json({ code: 'BOOKING_LIMIT_UNAVAILABLE', message: 'Booking limits could not be confirmed.' });
+      }
+      const [bookings, entitlement] = await Promise.all([
+        withRelogin(req.userId, session, (s) => provider.listBookings(s)),
+        withRelogin(req.userId, session, (s) => provider.getBookingEntitlement(eventId, s)),
+      ]);
+      const currentSelfBookings = countSelfBookings(bookings, eventId);
+      const requestedSelfBookings = Array.isArray(slotIds) && slotIds.length ? slotIds.length : 1;
+      const check = validateSelfBookingLimit({
+        currentSelfBookings,
+        requestedSelfBookings,
+        selfBookingLimit: entitlement && entitlement.selfBookingLimit,
+      });
+      if (!check.ok) {
+        const message = check.code === 'ATTENDEE_LIMIT_EXCEEDED'
+          ? `You can book up to ${check.limit} personal spot${check.limit === 1 ? '' : 's'} for this class.`
+          : 'Booking limits could not be confirmed.';
+        return res.status(check.code === 'ATTENDEE_LIMIT_EXCEEDED' ? 400 : 503)
+          .json({ code: check.code, message });
+      }
+    }
     const result = await withRelogin(req.userId, session, (s) => provider.bookSlot(eventId, slotIds || [], s));
     if (result && result.ok) { refreshCalendar(req.userId); invalidateSchedule(gymId); }
     if (result && !result.ok && Number.isInteger(result.status) && result.status >= 400) return res.status(result.status).json(result);

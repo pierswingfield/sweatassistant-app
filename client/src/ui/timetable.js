@@ -38,7 +38,7 @@ import { redactSensitivePayload } from '../redact.js';
 import { haptic } from './haptics.js';
 import { openPage as openNavPage, closePage as closeNavPage, isMobile } from './modal-nav.js';
 import { applyBookingChrome, mountBookingContext, bannerEl } from './booking-chrome.js';
-import { openSpotSetup, setupSkipped } from './spot-setup.js';
+import { openSpotSetup, setupDeferred } from './spot-setup.js';
 import { instructorToken, migrateInstructorSelection, hasLegacyInstructors, passesInstructorFilter, pruneInstructorSelection, findInstructor, parseInstructorToken } from './instructor-filter.js';
 
 async function cacheSet(key, value) {
@@ -3199,7 +3199,7 @@ export async function openBookingModal(c, mode, opts = {}) {
     try {
       const { hasPrefs } = await resolveStudioPrefs(c);
       const { hasMap } = getStudioMapInfo(c);
-      if (hasMap && !hasPrefs && !setupSkipped(c.gymId, c.studioId)) {
+      if (hasMap && !hasPrefs && !setupDeferred(c.gymId, c.studioId)) {
         const next = (extra) => (pageEl, saved) => openBookingModal(c, mode, { ...opts, overlapChecked: true, setupDone: true, replaceEl: pageEl, savedPrefs: saved || null, ...extra });
         openSpotSetup({
           event: c, className: c.discipline || c.name, rowGroups: rowGroupsForStudio(c.studioId, c.gymId),

@@ -124,7 +124,7 @@ General rule from the previous spec holds: X when you land on the tab, Back when
 ### 4.3 Auto-Upgrade (checkbox in B, never a mode)
 - Replaces the permanently disabled checkbox. Three states:
   1. **Prefs saved** (the normal case after Step A): enabled, label "Keep looking for a better spot" with the sub-line "We will move you to a spot higher on your list if one opens (until 12h before class)". Default follows `gymSetting(gymId, 'autoUpgradeByDefault')`.
-  2. **No prefs and user skipped**: not disabled-and-silent; render a row "Auto-Upgrade needs your preferred spots" with a button "Set up spots" that opens A1 as a Back child (4.4). After saving, the row becomes enabled state 1 live (the existing `updateSimpleBookControls` callback pattern: `hasExistingPrefs` is set from the saved slots, not from a refetch that races the cache).
+  2. **No prefs and setup deferred for this session**: not disabled-and-silent; render a row "Auto-Upgrade needs your preferred spots" with a button "Set up spots" that opens A1 as a Back child (4.4). After saving, the row becomes enabled state 1 live (the existing `updateSimpleBookControls` callback pattern: `hasExistingPrefs` is set from the saved slots, not from a refetch that races the cache).
   3. **No map (FCFS)**: row hidden (unchanged: `!hasLayout` returns '').
 - The checkbox is never `disabled` without a visible, tappable way to fix it.
 - Auto-Upgrade also needs a credit headroom (`availableCredits + 1`, ~3304): keep the existing warning but place it directly under the checkbox.
@@ -223,7 +223,7 @@ Acceptance at 390px:
 - Footer button visible without scrolling, above the safe-area inset; no horizontal overflow; desktop at 1100px unchanged.
 
 **Batch 2: Step A flow (intro, editor, confirmation) + routing + Auto-Upgrade states.**
-Changes: routing matrix (section 2); A0 intro (y-centred), A1 editor reuse, A2 confirmation; `replacePage`; stepper; dirty guards; Auto-Upgrade three states; skip option; save-failure state.
+Changes: routing matrix (section 2); A0 intro (y-centred), A1 editor reuse, A2 confirmation; `replacePage`; stepper; dirty guards; Auto-Upgrade three states; class-only "Choose a spot for now" path; save-failure state.
 Acceptance (mock account with no saved prefs on a map gym, then with prefs):
 - No prefs: tapping Quick-Book opens A0. Body content is vertically centred (content block top and bottom margins within 24px of each other when it fits); logo + location visible; primary and Skip visible without scrolling at 844px height.
 - "Choose my spots" -> A1; Back returns to A0; select 2 spots + "Save my spots" -> A2 ("Your spots are saved") -> "Continue" -> B with those 2 spots pre-highlighted and numbered; Auto-Upgrade checkbox is enabled (not `disabled`).
@@ -243,7 +243,7 @@ Acceptance:
 
 ## 11. Open decisions
 
-1. Should "Skip for now" persist per studio (stop re-offering setup) or re-offer once per session as specified?
+1. Setup deferral is session-only: "Choose a spot for now" bypasses preferred-map setup for this session, but does not save or clear studio preferences. Revisit if product wants a persistent deferral.
 2. Auto-Upgrade default-on when prefs exist: keep `autoUpgradeByDefault` as is, or default on right after Step A (a user who just set spots is likely to want it)?
 3. Does Step A also appear for the simple "Choose a spot" path? Spec says no (banner only); confirm.
 4. Settings entry: add a "Spot maps" shortcut link from A2/B so users can find this later (copy references "Settings"); confirm that Settings -> Spot maps is visible to non-debug users (the audit says it is hidden in non-debug mode).

@@ -16,11 +16,11 @@ import { gymLogoBanner, trimLocation, displayStudioName, gymBrand } from './card
 import { renderStudioFloorPlan } from './spotmap.js';
 import { bookingContextEl } from './booking-chrome.js';
 
-// A skip is remembered for the session (not persisted): Step B carries the "Set up spots" row instead.
-const skipped = new Set();
+// Deferring setup is remembered for this session only; it is not a saved studio preference.
+const deferred = new Set();
 export const setupKey = (gymId, studioId) => `${gymId || ''}:${studioId || ''}`;
-export const setupSkipped = (gymId, studioId) => skipped.has(setupKey(gymId, studioId));
-export function markSetupSkipped(gymId, studioId) { skipped.add(setupKey(gymId, studioId)); }
+export const setupDeferred = (gymId, studioId) => deferred.has(setupKey(gymId, studioId));
+export function markSetupDeferred(gymId, studioId) { deferred.add(setupKey(gymId, studioId)); }
 
 const previewSvg = `
 <svg class="psycle-setup-preview" viewBox="0 0 200 84" aria-hidden="true" focusable="false">
@@ -103,7 +103,7 @@ export function openSpotSetup({ event, className, onSaved, onContinue, onSkip, i
     body.querySelector('.p1').textContent = formatCopyText(COPY.spotSetup.point1, { studio: studioName });
     setFooter(
       btn('psycle-btn primary psycle-setup-primary', COPY.spotSetup.choose, () => showA1()),
-      ...(className ? [btn('psycle-setup-link', COPY.spotSetup.chooseForNow, () => { markSetupSkipped(gymId, event.studioId); onSkip?.(el, { anySpot: false }); })] : []),
+      ...(className ? [btn('psycle-setup-link', COPY.spotSetup.chooseForNow, () => { markSetupDeferred(gymId, event.studioId); onSkip?.(el, { anySpot: false }); })] : []),
     );
   };
 
@@ -137,7 +137,7 @@ export function openSpotSetup({ event, className, onSaved, onContinue, onSkip, i
       return;
     }
     if (!slots?.length) { // no map after all: nothing to set up; carry on without prefs
-      after = () => { markSetupSkipped(gymId, event.studioId); onSkip?.(el); };
+      after = () => { markSetupDeferred(gymId, event.studioId); onSkip?.(el); };
       layer?.release();
       return;
     }
@@ -188,7 +188,7 @@ export function openSpotSetup({ event, className, onSaved, onContinue, onSkip, i
     const anySpot = async () => {
       try { await persist([], []); } catch (_) { /* nothing stored either way: carry on as a skip */ }
       if (className) {
-        after = () => { markSetupSkipped(gymId, event.studioId); onSkip?.(el, { anySpot: true }); };
+        after = () => { markSetupDeferred(gymId, event.studioId); onSkip?.(el, { anySpot: true }); };
       } else {
         saved = { slots: [], rows: [] };
         onSaved?.([], []);

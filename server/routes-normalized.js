@@ -431,6 +431,13 @@ router.post('/book', authenticateToken, async (req, res) => {
     const { eventId, slotIds } = req.body;
     if (!eventId) return res.status(400).json({ message: 'eventId is required' });
     const { gymId, provider, session } = resolveContext(req.userId);
+    const maxSpots = Number(getGymConfig(gymId)?.capabilities?.maxSpotsPerClass);
+    if (Number.isFinite(maxSpots) && maxSpots > 0 && Array.isArray(slotIds) && slotIds.length > maxSpots) {
+      return res.status(400).json({
+        code: 'ATTENDEE_LIMIT_EXCEEDED',
+        message: `This gym allows at most ${maxSpots} spot per member for a class. Guest booking is not supported yet.`,
+      });
+    }
     const result = await withRelogin(req.userId, session, (s) => provider.bookSlot(eventId, slotIds || [], s));
     if (result && result.ok) { refreshCalendar(req.userId); invalidateSchedule(gymId); }
     res.json(result);

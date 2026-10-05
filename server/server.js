@@ -484,6 +484,15 @@ app.post('/api/auto-book', authenticateToken, bookingMutationLimiter, (req, res)
   }
   const gymId = reqGymId || req.headers['x-gym-id'] || null;
   try {
+    const targetGymId = gymId || db.resolveActiveGymId(req.userId);
+    const maxSpots = Number(getGymConfig(targetGymId)?.capabilities?.maxSpotsPerClass);
+    const requestedSpots = Math.max(1, Number(preferences.requiredCount) || 1);
+    if (Number.isFinite(maxSpots) && maxSpots > 0 && requestedSpots > maxSpots) {
+      return res.status(400).json({
+        code: 'ATTENDEE_LIMIT_EXCEEDED',
+        message: `This gym allows at most ${maxSpots} spot per member for a class. Guest booking is not supported yet.`,
+      });
+    }
     const pendingCount = db.countPendingAutoBookings(req.userId, gymId);
     if (pendingCount >= MAX_PENDING_AUTO_BOOKINGS_PER_GYM) {
       return res.status(429).json({ message: `Auto-book queue limit reached (${MAX_PENDING_AUTO_BOOKINGS_PER_GYM} pending entries). Please remove some entries before adding more.` });
@@ -495,7 +504,6 @@ app.post('/api/auto-book', authenticateToken, bookingMutationLimiter, (req, res)
     // WARNING returned alongside the success: auto-book is speculative and a
     // member may deliberately queue two alternatives, so the server can't block it.
     const ctx = competingContextFor(req.userId);
-    const targetGymId = gymId || db.resolveActiveGymId(req.userId);
     const warnings = competing.detectCompetingBookings(
       { gymId: targetGymId, eventId, startAt, durationMin, className }, ctx.queued, ctx.booked, ctx.opts);
     const dup = warnings.find(w => w.code === 'DUPLICATE_QUEUED');
@@ -590,6 +598,15 @@ app.put('/api/auto-book/:id', authenticateToken, (req, res) => {
     return res.status(400).json({ message: 'preferences are required' });
   }
   try {
+    const entry = db.getUserAutoBookings(req.userId, 'all').find((row) => Number(row.id) === id);
+    const maxSpots = Number(entry && getGymConfig(entry.gym_id)?.capabilities?.maxSpotsPerClass);
+    const requestedSpots = Math.max(1, Number(preferences.requiredCount) || 1);
+    if (Number.isFinite(maxSpots) && maxSpots > 0 && requestedSpots > maxSpots) {
+      return res.status(400).json({
+        code: 'ATTENDEE_LIMIT_EXCEEDED',
+        message: `This gym allows at most ${maxSpots} spot per member for a class. Guest booking is not supported yet.`,
+      });
+    }
     db.updateAutoBookingPreferences(id, req.userId, preferences);
     res.json({ success: true });
   } catch (err) {

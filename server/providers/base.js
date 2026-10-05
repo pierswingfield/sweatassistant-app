@@ -133,11 +133,11 @@
  * @property {NormalizedSlot[]} slots    Empty for first-come-first-serve layouts.
  * @property {NormalizedLayoutObject[]} objects  Non-bookable floor fixtures.
  *                                       Empty when the provider has none.
- * @property {number=} maxBookableSlots  Provider-side cap on slots bookable in
- *                                       one call for this event (CodexFit only
- *                                       — undefined for providers without the
- *                                       concept; callers should fall back to
- *                                       slots.length when unset).
+ * @property {number=} maxBookableSlots  Provider/gym-policy cap for this class
+ *                                       (e.g. CodexFit's published cap or a
+ *                                       MarianaTek tenant's maxSpotsPerClass).
+ *                                       Callers may fall back to slot count when
+ *                                       the adapter has no cap.
  */
 
 /**

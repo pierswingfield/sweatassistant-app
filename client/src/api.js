@@ -573,15 +573,39 @@ export const api = {
   rememberStudioLayout(studioId, gymId, slots, objects) { return layoutCache.remember(gymId, studioId, slots, objects); },
 
   // Returns a NormalizedBookingResult { ok, bookingId, slotId, error?, status? }.
-  async book(eventId, slotIds = [], gymId = null) {
-    const res = await apiFetch('/api/book', {
-      method: 'POST',
-      body: JSON.stringify({ eventId, slotIds }),
-      gymId,
-    });
-    const result = await res.json();
-    if (result && result.ok) announceBookingMutation({ type: 'book', eventId, gymId });
-    return result;
+  async book(eventId, slotIds = [], gymId = null, { timeoutMs = 20_000 } = {}) {
+    const controller = new AbortController();
+    let timedOut = false;
+    const timer = setTimeout(() => {
+      timedOut = true;
+      controller.abort();
+    }, timeoutMs);
+    try {
+      const res = await apiFetch('/api/book', {
+        method: 'POST',
+        body: JSON.stringify({ eventId, slotIds }),
+        gymId,
+        signal: controller.signal,
+      });
+      const result = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        return {
+          ok: false,
+          status: res.status,
+          code: result.code,
+          error: result.error || result.message || `Booking failed (${res.status}).`,
+        };
+      }
+      if (result && result.ok) announceBookingMutation({ type: 'book', eventId, gymId });
+      return result;
+    } catch (err) {
+      if (timedOut) {
+        return { ok: false, status: 504, code: 'BOOKING_TIMEOUT', error: 'Booking timed out. Check My Bookings before trying again.' };
+      }
+      throw err;
+    } finally {
+      clearTimeout(timer);
+    }
   },
 
   // cancel / joinWaitlist / leaveWaitlist are COMMANDS: they either happen or

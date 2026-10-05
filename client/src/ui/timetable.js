@@ -1,6 +1,6 @@
 import { api } from '../api';
 import { buildWorkoutOptions } from './workout-options.js';
-import { COPY, formatCopyText } from '../copy.js';
+import { COPY, appCopy, formatCopyText } from '../copy.js';
 import { getAvailableCreditsForEvent, hasUsableCredit, getIneligibleReason, isMetered } from './credit-allowance.js';
 import { isCreditInventoryLoaded, pickStudioPrefs as pickGymStudioPrefs } from './gym-isolation.js';
 import { canForGym, canAny, capabilityForGym, getLinkedGyms, getGymShortName, getLocationAlias, getDefaultGymId } from '../gym-context.js';
@@ -41,6 +41,8 @@ import { applyBookingChrome, mountBookingContext, bannerEl } from './booking-chr
 import { openSpotSetup, setupDeferred, spotSetupBookingOptions } from './spot-setup.js';
 import { applyStudioPreferenceMutation, hasStudioPreferences, shouldShowPreferredMapEditToggle } from './studio-preferences-state.js';
 import { instructorToken, migrateInstructorSelection, hasLegacyInstructors, passesInstructorFilter, pruneInstructorSelection, findInstructor, parseInstructorToken } from './instructor-filter.js';
+import { bookCandidateSpots } from './booking-attempts.js';
+import { bookingQuantityOptions, maxAttendeesPerClass } from './booking-limits.js';
 
 async function cacheSet(key, value) {
   try {
@@ -3036,6 +3038,10 @@ async function quickBookClass(eventId, prefs, btn, gymId = null) {
       showToast(COPY.timetable.classDataFailed, 'error');
       return;
     }
+    if (event.isUserBooked) {
+      showToast(COPY.overlap.alreadyBooked, 'warning');
+      return;
+    }
 
     // An empty `slots` array means "no seat map to check" (FCFS studios, or a
     // studio missing layout data) — NOT "zero spots available". A real
@@ -3126,35 +3132,20 @@ async function quickBookClass(eventId, prefs, btn, gymId = null) {
       return;
     }
 
-    let bookedCount = 0;
-    let attemptIdx = 0;
-
-    let lastBookedSlot = null;
-    let lastBookingRes = null;
-    const bookedSlotLabels = [];
+    const attemptResult = await bookCandidateSpots({
+      candidates: slotsToTry,
+      requiredCount,
+      book: (targetSlot, requestOptions) => api.book(eventId, [targetSlot], gymId, requestOptions),
+    });
+    const bookedCount = attemptResult.booked.length;
+    const lastBooked = attemptResult.booked.at(-1) || null;
+    const lastBookedSlot = lastBooked?.slotId ?? null;
+    const lastBookingRes = lastBooked?.result ?? null;
+    const bookedSlotLabels = attemptResult.booked.map(({ slotId }) => {
+      const slot = slots.find(s => sameId(s.id, slotId));
+      return slot?.label ?? slotId;
+    });
     const qbNoun = seatNoun(event.discipline || eventData.discipline);
-    while (bookedCount < requiredCount && attemptIdx < slotsToTry.length) {
-      const targetSlot = slotsToTry[attemptIdx];
-      try {
-        // api.book() returns a NormalizedBookingResult { ok, bookingId, slotId,
-        // error } and does NOT throw on a decline — unlike the raw proxy, which
-        // threw. A refusal is data here, so it has to be checked, or a failed
-        // booking reads as a success.
-        const bookRes = await api.book(eventId, [targetSlot], gymId);
-        if (!bookRes.ok) throw new Error(bookRes.error || COPY.timetable.bookingDeclined);
-        bookedCount++;
-        lastBookedSlot = targetSlot;
-        lastBookingRes = bookRes;
-        const ls = slots.find(s => sameId(s.id, targetSlot));
-        bookedSlotLabels.push(ls?.label ?? targetSlot);
-      } catch (err) {
-        console.error(`Quick book failed for slot ${targetSlot}:`, err.message);
-      }
-      attemptIdx++;
-      if (bookedCount < requiredCount && attemptIdx < slotsToTry.length) {
-        await new Promise(resolve => setTimeout(resolve, 1500));
-      }
-    }
 
     if (bookedCount > 0) {
       haptic('success');
@@ -3177,7 +3168,10 @@ async function quickBookClass(eventId, prefs, btn, gymId = null) {
       }, 2500);
     } else {
       haptic('error');
-      showToast(COPY.timetable.quickBookFailed, 'error');
+      const failure = attemptResult.terminalError;
+      showToast(formatCopyText(COPY.timetable.quickBookFailedMessage, {
+        error: failure?.error || COPY.timetable.bookingDeclined,
+      }), 'error');
     }
   } catch (err) {
     showToast(formatCopyText(COPY.timetable.quickBookError, { error: err.message }), 'error');
@@ -3308,6 +3302,11 @@ export async function openBookingModal(c, mode, opts = {}) {
     // silently satisfies Array.includes(NaN) for every one of them.
     const availableIds = new Set(eventSlots.filter(s => s.isAvailable).map(s => String(s.id)));
     const availableSlots = layoutSlots.map(s => String(s.id)).filter(id => availableIds.has(id));
+    const attendeeLimit = maxAttendeesPerClass({
+      providerLimit: providerMaxBookableSlots,
+      gymLimit: capabilityForGym('maxSpotsPerClass', c.gymId),
+    });
+    const attendeeOptions = bookingQuantityOptions(attendeeLimit);
 
     // Determine if booking window is already open
     const classReleaseTime = getClassReleaseTime(c);
@@ -3358,7 +3357,7 @@ export async function openBookingModal(c, mode, opts = {}) {
         <div class="psycle-bk-compact">
           <p>${COPY.bookingFlow.fcfsAutoBook}</p>
           <label class="psycle-bk-compact-qty"><span>${COPY.bookingFlow.spotsToBook}</span>
-            <select id="compact-autobook-qty" class="psycle-select">${[1, 2, 3, 4].map(n => `<option value="${n}">${n}</option>`).join('')}</select></label>
+            <select id="compact-autobook-qty" class="psycle-select">${attendeeOptions.map(n => `<option value="${n}">${n}</option>`).join('')}</select></label>
           <button class="psycle-btn" id="btn-save-simple-autobook" style="background: var(--feat-autoupgrade); color:var(--on-accent); display:flex; align-items:center; justify-content:center; gap:6px;">${COPY.bookingFlow.titleAutoBook}</button>
         </div>` : `
         <div style="padding: 24px; text-align: center; color: var(--text-secondary);">
@@ -3431,7 +3430,7 @@ export async function openBookingModal(c, mode, opts = {}) {
     // class (1 primary spot per member) be booked past that limit.
     const gymMaxSpots = capabilityForGym('maxSpotsPerClass', c.gymId) ?? null;
     const effectiveLimit = gymMaxSpots != null ? Math.min(gymMaxSpots, availableCredits) : availableCredits;
-    const maxBookableSlots = Math.min(providerMaxBookableSlots || availableSlots.length || 1, effectiveLimit);
+    const maxBookableSlots = Math.min(providerMaxBookableSlots ?? (availableSlots.length || 1), effectiveLimit);
     const rowGroups = rowGroupsForStudio(c.studioId, c.gymId);
     const state = {
       selectedSlots: [],    // ordered array of slot IDs (index 0 = priority 1)
@@ -3460,6 +3459,7 @@ export async function openBookingModal(c, mode, opts = {}) {
       state.selectedRows = new Set(rowGroups ? (opts.savedPrefs.rows || []).map(Number) : []);
       hasExistingPrefs = state.selectedSlots.length > 0 || state.selectedRows.size > 0;
     }
+    state.qty = Math.max(1, Math.min(attendeeLimit, Number(state.qty) || 1));
 
     // Quick-Book shows the saved map read-only until the user explicitly unlocks it.
     // First-time setup (no saved prefs) starts editable since there's nothing to lock.
@@ -3489,6 +3489,17 @@ export async function openBookingModal(c, mode, opts = {}) {
     let updateQuickBookControls = null;
     let updateAutoBookControls = null;
 
+    const autoChosenSlot = () => {
+      const preferred = state.selectedSlots.map(String).filter(id => availableSlots.includes(id));
+      const rowPreferred = rowYs
+        .filter(y => state.selectedRows.has(y))
+        .flatMap(y => (slotsByRow.get(y) || []).map(slot => String(slot.id)))
+        .filter(id => availableSlots.includes(id) && !preferred.includes(id));
+      const ordered = [...preferred, ...rowPreferred];
+      if (state.bookAny) ordered.push(...availableSlots.filter(id => !ordered.includes(id)));
+      return ordered[0] || null;
+    };
+
     const render = () => {
       floorGrid.innerHTML = '';
       const summaryEl = body.querySelector('#psycle-slot-summary');
@@ -3513,6 +3524,7 @@ export async function openBookingModal(c, mode, opts = {}) {
       });
 
       // Slot bubbles
+      const chosenSlotId = opts.setupFlow && isQuickBookMode ? autoChosenSlot() : null;
       layoutSlots.forEach(slot => {
         const slotId = String(slot.id);
         const isAvailable = availableSlots.includes(slotId);
@@ -3543,7 +3555,14 @@ export async function openBookingModal(c, mode, opts = {}) {
         bubble.style.zIndex = '1';
         bubble.title = formatCopyText(COPY.timetable.seatTitle, { label });
 
-        if (priority > 0) {
+        if (opts.setupFlow && isQuickBookMode && priority > 0) {
+          // On the final setup step, make the actual current candidate obvious
+          // instead of presenting every preferred spot as if all were chosen.
+          bubble.style.background = 'color-mix(in srgb, var(--gym-btn) 12%, transparent)';
+          bubble.style.border = '1px solid color-mix(in srgb, var(--gym-btn) 35%, transparent)';
+          bubble.style.color = 'var(--gym-ink)';
+          bubble.textContent = label;
+        } else if (priority > 0) {
           // Selected
           bubble.style.background = 'var(--feat-autoupgrade)';
           bubble.style.border = '2px solid color-mix(in srgb, var(--feat-autoupgrade) 70%, #000)';
@@ -3571,6 +3590,19 @@ export async function openBookingModal(c, mode, opts = {}) {
           bubble.style.border = '1px solid var(--border)';
           bubble.style.color = 'var(--text-tertiary)';
           bubble.textContent = label;
+        }
+
+        if (chosenSlotId === slotId) {
+          bubble.style.background = 'var(--gym-btn)';
+          bubble.style.border = '2px solid color-mix(in srgb, var(--gym-btn) 75%, #000)';
+          bubble.style.color = 'var(--gym-on)';
+          bubble.style.boxShadow = '0 0 0 4px color-mix(in srgb, var(--gym-btn) 28%, transparent), 0 0 18px color-mix(in srgb, var(--gym-btn) 55%, transparent)';
+          bubble.style.width = '36px';
+          bubble.style.height = '36px';
+          bubble.style.fontSize = '12px';
+          bubble.style.zIndex = '3';
+          bubble.textContent = layoutSlots.find(s => String(s.id) === chosenSlotId)?.label || chosenSlotId;
+          bubble.setAttribute('aria-label', `Automatically chosen spot ${bubble.textContent}`);
         }
 
         if (mapEditing) bubble.addEventListener('click', () => {
@@ -3608,6 +3640,17 @@ export async function openBookingModal(c, mode, opts = {}) {
 
         floorGrid.appendChild(bubble);
       });
+
+      if (chosenSlotId) {
+        const chosen = layoutSlots.find(s => String(s.id) === chosenSlotId);
+        const chosenLabel = escapeHtml(chosen?.label || chosenSlotId);
+        const notice = document.createElement('div');
+        notice.className = 'psycle-auto-chosen-spot';
+        notice.setAttribute('role', 'status');
+        notice.setAttribute('aria-live', 'polite');
+        notice.innerHTML = `${appCopy(COPY.bookingFlow.autoChosenSpotLead)} <span class="psycle-auto-chosen-spot__badge">Spot ${chosenLabel}</span> ${escapeHtml(COPY.bookingFlow.autoChosenSpotTail)}`;
+        floorGrid.appendChild(notice);
+      }
 
       // Row +/- buttons (overlaid on right edge) — only for preference modes, not simple book, and only while editing
       if (rowSelectorVisible({ rowGroups, rowCount: rowYs.length, editing: !isSimpleBookMode && mapEditing })) {
@@ -3738,8 +3781,8 @@ export async function openBookingModal(c, mode, opts = {}) {
             <div style="display:flex;gap:14px;align-items:center;">
               <div style="width:110px;">
                 <label style="display:block;font-size:12px;color:var(--text-secondary);margin-bottom:4px;">${COPY.timetable.slotsToBook}</label>
-                <select id="autobook-qty" class="psycle-select" style="width:100%;padding:6px 8px;font-size:13px;">
-                  ${[1,2,3,4].map(n => `<option value="${n}" ${state.qty===n?'selected':''}>${n}</option>`).join('')}
+          <select id="autobook-qty" class="psycle-select" style="width:100%;padding:6px 8px;font-size:13px;">
+                  ${attendeeOptions.map(n => `<option value="${n}" ${state.qty===n?'selected':''}>${n}</option>`).join('')}
                 </select>
               </div>
               <div style="flex:1;padding-top:14px;">
@@ -3972,7 +4015,7 @@ export async function openBookingModal(c, mode, opts = {}) {
               <div style="width:110px;">
                 <label style="display:block;font-size:12px;color:var(--text-secondary);margin-bottom:4px;">${COPY.timetable.slotsToBook}</label>
                 <select id="quickbook-qty" class="psycle-select" style="width:100%;padding:6px 8px;font-size:13px;">
-                  ${[1,2,3,4].map(n => `<option value="${n}" ${state.qty===n?'selected':''}>${n}</option>`).join('')}
+                  ${attendeeOptions.map(n => `<option value="${n}" ${state.qty===n?'selected':''}>${n}</option>`).join('')}
                 </select>
               </div>
               <div style="flex:1;padding-top:14px;">

@@ -137,10 +137,29 @@ async function http() {
   const link = await post('/api/my-gyms/link', { gymId: 'jab-boxing', email: 'dev@jabboxing.mock', password: 'x' }, token);
   assert.strictEqual(link.status, 200, `link JAB failed: ${await link.text()}`);
 
+  {
+    const multiBook = await fetch(`${BASE}/api/book`, {
+      method: 'POST',
+      headers: { 'content-type': 'application/json', authorization: `Bearer ${token}`, 'x-gym-id': 'jab-boxing' },
+      body: JSON.stringify({ eventId: 'JAB-MULTI-ATTENDEE-TEST', slotIds: ['spot-1', 'spot-2'] }),
+    });
+    assert.strictEqual(multiBook.status, 400, 'JAB booking API must reject multi-attendee requests');
+    assert.strictEqual((await json(multiBook)).code, 'ATTENDEE_LIMIT_EXCEEDED');
+  }
+
   const day = new Date(Date.now() + 5 * 864e5); day.setUTCHours(18, 0, 0, 0);
   const t = (mins) => new Date(day.getTime() + mins * 60000).toISOString();
   const add = (body) => post('/api/auto-book', { studioId: null, className: 'Class', instructorName: '', studioName: '', locationName: '',
     preferences: { preferredSlots: [], preferredRows: [], requiredCount: 1 }, skipImmediate: true, ...body }, token);
+
+  {
+    const overLimit = await add({
+      gymId: 'jab-boxing', eventId: 'JAB-MULTI-ATTENDEE-TEST', startAt: new Date(Date.now() + 10 * 864e5).toISOString(),
+      preferences: { preferredSlots: [], preferredRows: [], requiredCount: 2 },
+    });
+    assert.strictEqual(overLimit.status, 400, 'JAB Auto-Book API must reject unsupported guest/multi-attendee counts');
+    assert.strictEqual((await json(overLimit)).code, 'ATTENDEE_LIMIT_EXCEEDED');
+  }
 
   // The JAB mock models a rolling window (days 11-13 unreleased) so JAB's Auto-Book
   // path is reachable in dev; days 0-10 stay open for the suites that book them.

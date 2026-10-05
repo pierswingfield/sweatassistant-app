@@ -24,6 +24,8 @@ const bookingWindow = require('./booking-window');
 // live fetch — lets the full success path (book/cancel/waitlist/swap) be
 // exercised with no real credits, which the live JAB test account can't do.
 const MOCK_TOKEN = 'mock-mt-token';
+const MT_REQUEST_TIMEOUT_MS = 12_000;
+const MT_BOOKING_FLOW_TIMEOUT_MS = 15_000;
 
 // --- Minimal cookie jar -----------------------------------------------------
 // MT's login flow is 2-3 requests deep and needs cookie continuity (a live
@@ -86,7 +88,7 @@ class MarianaTekProvider extends GymProvider {
     return out;
   }
 
-  async request(path, { token, method = 'GET', body } = {}) {
+  async request(path, { token, method = 'GET', body, timeoutMs = MT_REQUEST_TIMEOUT_MS } = {}) {
     if (token === MOCK_TOKEN) {
       const { handleMockRequest } = require('../mock-marianatek');
       return handleMockRequest(path, method, body, this.gym);
@@ -96,7 +98,26 @@ class MarianaTekProvider extends GymProvider {
       opts.headers['content-type'] = 'application/json';
       opts.body = typeof body === 'string' ? body : JSON.stringify(body);
     }
-    return fetch(this.url(path), opts);
+    const controller = new AbortController();
+    let timedOut = false;
+    const timer = setTimeout(() => {
+      timedOut = true;
+      controller.abort();
+    }, timeoutMs);
+    opts.signal = controller.signal;
+    try {
+      return await fetch(this.url(path), opts);
+    } catch (err) {
+      if (timedOut) {
+        const timeout = new Error(`Booking request timed out after ${Math.ceil(timeoutMs / 1000)} seconds. Check My Bookings before trying again.`);
+        timeout.code = 'BOOKING_TIMEOUT';
+        timeout.status = 504;
+        throw timeout;
+      }
+      throw err;
+    } finally {
+      clearTimeout(timer);
+    }
   }
 
   // Public (no-auth) reads — /classes, /locations, etc. per §1C. No mock check
@@ -477,9 +498,9 @@ class MarianaTekProvider extends GymProvider {
    * @param {import('./base').AuthSession=} session
    * @returns {Promise<import('./base').NormalizedEventDetails>}
    */
-  async fetchEventDetails(eventId, session) {
+  async fetchEventDetails(eventId, session, { timeoutMs = MT_REQUEST_TIMEOUT_MS } = {}) {
     const res = session
-      ? await this.request(`/classes/${eventId}`, { token: session.accessToken })
+      ? await this.request(`/classes/${eventId}`, { token: session.accessToken, timeoutMs })
       : await this.publicRequest(`/classes/${eventId}`);
     if (!res.ok) throw new Error(`fetchEventDetails failed: ${res.status}`);
     const c = await res.json();
@@ -491,6 +512,7 @@ class MarianaTekProvider extends GymProvider {
       // fixtures), so there is nothing to normalize here. Kept explicit rather
       // than omitted so the field is always present on NormalizedEventDetails.
       objects: [],
+      maxBookableSlots: this.gym?.capabilities?.maxSpotsPerClass ?? undefined,
     };
   }
 
@@ -721,8 +743,8 @@ class MarianaTekProvider extends GymProvider {
 
   // Resolves the first available payment_option.id for a class, or null if
   // none apply (e.g. a free class, or a studio type this account can't parse).
-  async resolvePaymentOption(eventId, session, { forGuest = false } = {}) {
-    const res = await this.request(`/classes/${eventId}/payment_options`, { token: session.accessToken });
+  async resolvePaymentOption(eventId, session, { forGuest = false, timeoutMs = MT_REQUEST_TIMEOUT_MS } = {}) {
+    const res = await this.request(`/classes/${eventId}/payment_options`, { token: session.accessToken, timeoutMs });
     if (!res.ok) return null;
     const data = await res.json().catch(() => ({}));
     const options = forGuest ? data.guest_payment_options : data.user_payment_options;
@@ -738,16 +760,42 @@ class MarianaTekProvider extends GymProvider {
    * classes have no spot to select).
    */
   async bookSlot(eventId, slotIds, session) {
-    const paymentOptionId = await this.resolvePaymentOption(eventId, session);
+    const maxSpots = Number(this.gym?.capabilities?.maxSpotsPerClass);
+    if (Number.isFinite(maxSpots) && maxSpots > 0 && slotIds.length > maxSpots) {
+      return makeBookingResult({
+        ok: false, status: 400, code: 'ATTENDEE_LIMIT_EXCEEDED',
+        error: `This gym allows at most ${maxSpots} spot per member for a class. Guest booking is not supported yet.`,
+      });
+    }
+    // JAB/MarianaTek class detail publishes whether this member already has a
+    // reservation. Guard before resolving payment options or trying alternate
+    // spots; a duplicate is a class-level conflict, never a spot race.
+    const deadline = Date.now() + MT_BOOKING_FLOW_TIMEOUT_MS;
+    const remainingMs = () => Math.max(1, deadline - Date.now());
+    const details = await this.fetchEventDetails(eventId, session, { timeoutMs: remainingMs() });
+    if (details.event.isUserBooked) {
+      return makeBookingResult({
+        ok: false, status: 409, code: 'ALREADY_BOOKED',
+        error: 'You already have a spot booked for this class.',
+      });
+    }
+    const paymentOptionId = await this.resolvePaymentOption(eventId, session, { timeoutMs: remainingMs() });
     const body = { class_session: { id: eventId }, is_booked_for_me: true, reservation_type: 'standard' };
     if (slotIds && slotIds.length > 0) body.spot = { id: slotIds[0] };
     if (paymentOptionId) body.payment_option = { id: paymentOptionId };
 
-    const res = await this.request('/me/reservations', { token: session.accessToken, method: 'POST', body });
+    const res = await this.request('/me/reservations', { token: session.accessToken, method: 'POST', body, timeoutMs: remainingMs() });
     const data = await res.json().catch(() => ({}));
     if (!res.ok) {
       const error = (data.non_field_errors && data.non_field_errors[0]) || data.detail || `HTTP ${res.status}`;
-      return makeBookingResult({ ok: false, error, raw: data });
+      const normalizedError = String(error);
+      const lower = normalizedError.toLowerCase();
+      const code = /already\s+(?:have|booked|reserved)|duplicate\s+(?:booking|reservation)/.test(lower)
+        ? 'ALREADY_BOOKED'
+        : /(?:spot|seat|slot).*(?:unavailable|taken|no longer available)/.test(lower)
+          ? 'SPOT_UNAVAILABLE'
+          : undefined;
+      return makeBookingResult({ ok: false, status: res.status, code, error: normalizedError, raw: data });
     }
     return makeBookingResult({ ok: true, bookingId: data.id, slotId: data.spot && data.spot.id, raw: data });
   }

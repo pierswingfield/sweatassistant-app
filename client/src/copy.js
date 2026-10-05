@@ -810,6 +810,8 @@ export const COPY = Object.freeze({
     offline: "You're offline. Reconnect to book.",
     reconnectGym: 'Reconnect {gym} to book.', reconnectAction: 'Reconnect',
     helperLive: 'Your preferred spots are numbered. Tap any free spot to choose a different one just for this class.',
+    autoChosenSpotLead: '{appName} chose',
+    autoChosenSpotTail: 'based on your spot map.',
     helperAutoBook: 'Spots are picked the moment booking opens. Your numbered spots go first.',
     helperSetup: 'Tap studio spots in the order you prefer them. Choose as many as you like!',
     helperSetupRows: 'You can also choose entire rows with the + button, but individual spots will be most preferred when booking.',

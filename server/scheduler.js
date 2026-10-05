@@ -346,7 +346,14 @@ async function executeAutoBookForClass(booking) {
   const liveMap = resolveLiveMap(userId, booking.studio_id, prefs, gymId);
   const preferredSlots = liveMap.preferredSlots;
   const preferredRows = liveMap.preferredRows;
-  const requiredCount = prefs.requiredCount || 1;
+  const configuredLimit = Number(getGymConfig(gymId)?.capabilities?.maxSpotsPerClass);
+  const requestedCount = Math.max(1, Number(prefs.requiredCount) || 1);
+  // Imported/older JAB queue rows may predate the one-member limit. Never let
+  // stale preferences turn into multiple primary reservations; guest booking
+  // remains unsupported until its payment/identity flow is implemented.
+  const requiredCount = Number.isFinite(configuredLimit) && configuredLimit > 0
+    ? Math.min(requestedCount, configuredLimit)
+    : requestedCount;
   const bookAny = prefs.bookAny !== false;
 
   // C2-3: a prior attempt this window already got PROVIDER_RATE_LIMITED for
@@ -411,6 +418,7 @@ async function executeAutoBookForClass(booking) {
     }
 
     let bookedCount = 0;
+    let terminalBookingFailure = null;
     const bookedSlots = [];
     const bookedPairs = []; // array of { bookingId, slotId }
     let attemptIdx = 0;
@@ -481,6 +489,10 @@ async function executeAutoBookForClass(booking) {
           bookedPairs.push({ bookingId: thisBookingId, slotId: targetSlot });
           console.log(`[Scheduler] Successfully booked slot ${targetSlot} for event ${eventId} (booking ID: ${thisBookingId})`);
           // Claim stays in claimedSlots — other users see it and skip without POSTing
+        } else if (result.code === 'ALREADY_BOOKED' || result.code === 'BOOKING_TIMEOUT') {
+          claimedSlots.delete(claimKey);
+          terminalBookingFailure = result;
+          break;
         } else if (result.code === 'PROVIDER_RATE_LIMITED') {
           // C2-3: the provider is telling us to stop, not just refusing this
           // slot. Back off THIS gym (never a global backoff — WP-D7/WP-G),
@@ -512,6 +524,22 @@ async function executeAutoBookForClass(booking) {
       if (bookedCount < requiredCount && attemptIdx < slotsToTry.length) {
         await new Promise(resolve => setTimeout(resolve, 400 + Math.floor(Math.random() * 400)));
       }
+    }
+
+    // A duplicate is not a full class and a timed-out POST may have succeeded;
+    // neither state may cascade into another candidate or an automatic waitlist.
+    if (terminalBookingFailure) {
+      const alreadyBooked = terminalBookingFailure.code === 'ALREADY_BOOKED';
+      const message = terminalBookingFailure.error || (alreadyBooked
+        ? 'You already have a spot booked for this class.'
+        : 'Booking timed out. Check My Bookings before trying again.');
+      db.markAutoBookingExecuted(eventId, userId, gymId, 'failed', message, new Date().toISOString());
+      emitStatusUpdate(userId, {
+        eventId,
+        status: alreadyBooked ? 'already-booked' : 'booking-timeout',
+        message,
+      });
+      return;
     }
 
     // 5. Check if booking succeeded

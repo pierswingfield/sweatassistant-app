@@ -450,10 +450,11 @@ check('codexfit: getMembership returns null instead of manufacturing one from cr
 check('marianatek: bookSlot success parses a real reservation response (prod fixture)', async () => {
   const mt = getProvider('jab-boxing');
   const booking = readFixture('prod-booking-response-membership.json');
-  // Stub resolvePaymentOption (an internal fetch) + request (the POST) both.
+  // Stub class detail, payment-option lookup, and POST (all provider requests).
   const result = await withStub(mt, 'resolvePaymentOption', async () => 'membership-2552',
-    () => withStub(mt, 'request', async () => fakeRes(booking),
-      () => mt.bookSlot(String(booking.class_session.id), booking.spot ? [String(booking.spot.id)] : [], { accessToken: 'tok' })));
+    () => withStub(mt, 'fetchEventDetails', async () => ({ event: { isUserBooked: false } }),
+      () => withStub(mt, 'request', async () => fakeRes(booking),
+        () => mt.bookSlot(String(booking.class_session.id), booking.spot ? [String(booking.spot.id)] : [], { accessToken: 'tok' }))));
   assert.strictEqual(result.ok, true, 'success result');
   assert.strictEqual(result.bookingId, String(booking.id), 'bookingId = reservation id');
   if (booking.spot) assert.strictEqual(result.slotId, String(booking.spot.id), 'slotId = spot id');
@@ -462,11 +463,48 @@ check('marianatek: bookSlot success parses a real reservation response (prod fix
 check('marianatek: bookSlot failure normalizes non_field_errors', async () => {
   const mt = getProvider('jab-boxing');
   const result = await withStub(mt, 'resolvePaymentOption', async () => null,
-    () => withStub(mt, 'request',
-      async () => fakeRes({ non_field_errors: ['The payments do not satisfy the cost of this reservation.'] }, { ok: false, status: 400 }),
-      () => mt.bookSlot('123', [], { accessToken: 'tok' })));
+    () => withStub(mt, 'fetchEventDetails', async () => ({ event: { isUserBooked: false } }),
+      () => withStub(mt, 'request',
+        async () => fakeRes({ non_field_errors: ['The payments do not satisfy the cost of this reservation.'] }, { ok: false, status: 400 }),
+        () => mt.bookSlot('123', [], { accessToken: 'tok' }))));
   assert.strictEqual(result.ok, false);
   assert.strictEqual(result.error, 'The payments do not satisfy the cost of this reservation.', 'error = non_field_errors[0]');
+  assert.strictEqual(result.status, 400);
+});
+
+check('marianatek: duplicate reservation is an explicit terminal conflict', async () => {
+  const mt = getProvider('jab-boxing');
+  const result = await withStub(mt, 'fetchEventDetails', async () => ({ event: { isUserBooked: true } }),
+    () => mt.bookSlot('123', ['spot-1'], { accessToken: 'tok' }));
+  assert.deepStrictEqual({ ok: result.ok, status: result.status, code: result.code }, {
+    ok: false, status: 409, code: 'ALREADY_BOOKED',
+  });
+});
+
+check('marianatek: JAB rejects more than one attendee before any booking request', async () => {
+  const mt = getProvider('jab-boxing');
+  let fetched = false;
+  const result = await withStub(mt, 'fetchEventDetails', async () => { fetched = true; return { event: {} }; },
+    () => mt.bookSlot('123', ['spot-1', 'spot-2'], { accessToken: 'tok' }));
+  assert.strictEqual(result.ok, false);
+  assert.strictEqual(result.code, 'ATTENDEE_LIMIT_EXCEEDED');
+  assert.strictEqual(fetched, false, 'reject before provider traffic');
+});
+
+check('marianatek: booking request aborts on timeout with a retry-safe message', async () => {
+  const mt = getProvider('jab-boxing');
+  const originalFetch = global.fetch;
+  global.fetch = (_url, options) => new Promise((_resolve, reject) => {
+    options.signal.addEventListener('abort', () => reject(new Error('aborted')), { once: true });
+  });
+  try {
+    await assert.rejects(
+      () => mt.request('/me/reservations', { token: 'tok', method: 'POST', timeoutMs: 5 }),
+      (err) => err.code === 'BOOKING_TIMEOUT' && err.status === 504 && /check My Bookings/i.test(err.message),
+    );
+  } finally {
+    global.fetch = originalFetch;
+  }
 });
 
 check('marianatek: getCancelPenalty maps is_penalty_cancel', async () => {

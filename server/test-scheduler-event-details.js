@@ -107,6 +107,33 @@ check('JAB auto-book reads normalized MarianaTek event details and books an avai
   }
 });
 
+check('JAB Auto-Book clamps a stale multi-attendee preference to one reservation', async () => {
+  const userId = makeUser('single-attendee');
+  const calls = [];
+  MarianaTekProvider.prototype.fetchEventDetails = async () => normalized('93003');
+  MarianaTekProvider.prototype.bookSlot = async function (eventId, slotIds) {
+    calls.push({ eventId: String(eventId), slotId: slotIds[0] });
+    return { ok: true, bookingId: `jab-${calls.length}`, slotId: slotIds[0] };
+  };
+
+  try {
+    await scheduler.executeAutoBookForClass({
+      user_id: userId,
+      gym_id: JAB,
+      event_id: '93003',
+      studio_id: null,
+      start_at: new Date(Date.now() + 3 * 864e5).toISOString(),
+      group_name: 'BOXING',
+      class_name: 'Boxing',
+      instructor_name: 'Coach',
+      preferences: JSON.stringify({ preferredSlots: [], preferredRows: [], requiredCount: 4, bookAny: true }),
+    });
+    assert.strictEqual(calls.length, 1, 'JAB capability maxSpotsPerClass=1 must cap stale queue preferences');
+  } finally {
+    restore();
+  }
+});
+
 (async () => {
   let failed = 0;
   for (const { name, fn } of checks) {

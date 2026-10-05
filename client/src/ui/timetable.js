@@ -3208,9 +3208,8 @@ export async function openBookingModal(c, mode, opts = {}) {
             cache.studioPreferences = { ...(cache.studioPreferences || {}), [`${c.gymId}:${c.studioId}`]: { preferredSlots: slots, preferredRows: rows } };
           },
           onContinue: (pageEl, saved) => openBookingModal(c, mode, { ...opts, overlapChecked: true, setupDone: true, savedPrefs: saved || null, setupFlow: true, backToSetup: true }),
-          onSkip: (pageEl, { anySpot = false } = {}) => openBookingModal(c, mode, {
-            ...opts, overlapChecked: true, setupDone: true, replaceEl: pageEl,
-            oneOffSpots: true, anySpotForClass: anySpot,
+          onChooseForNow: (pageEl) => openBookingModal(c, 'book', {
+            ...opts, overlapChecked: true, setupDone: true, replaceEl: pageEl, oneOffSpots: true,
           }),
         });
         return;
@@ -3336,9 +3335,7 @@ export async function openBookingModal(c, mode, opts = {}) {
     const releaseWhen = releaseDT ? formatInZone(releaseDT.toISO(), zoneFor(c)) : null;
     const classHelper = {
       helperId: 'spotmap-live',
-          helperText: opts.anySpotForClass
-        ? COPY.spotSetup.anySpotHelp
-        : opts.oneOffSpots
+          helperText: opts.oneOffSpots
         ? COPY.bookingFlow.oneOffSpots
         : isAutoBookMode
         ? (releaseWhen ? formatCopyText(COPY.bookingFlow.helperAutoBookAt, { time: `${releaseWhen.date}, ${releaseWhen.timeLabel}` }) : COPY.bookingFlow.helperAutoBook)
@@ -3996,7 +3993,7 @@ export async function openBookingModal(c, mode, opts = {}) {
 
         controls.querySelector('[data-au-setup]')?.addEventListener('click', () => openSetupChild());
         controls.querySelector('#btn-submit-quickbook').onclick = async () => {
-          if (state.selectedSlots.length === 0 && state.selectedRows.size === 0 && !opts.anySpotForClass) {
+          if (state.selectedSlots.length === 0 && state.selectedRows.size === 0) {
             showToast(formatCopyText(COPY.timetable.pleaseSelectSpotOrRow, { noun: seatNoun(groupName) }), 'warning');
             return;
           }

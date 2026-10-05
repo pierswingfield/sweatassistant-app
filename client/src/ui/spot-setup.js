@@ -34,7 +34,7 @@ const previewSvg = `
  * @param {string} args.className    display class name, for the Continue button
  * @param {Function} args.onSaved    (slots, rows) => void, keep caller caches in step with the save
  * @param {Function} args.onContinue (pageEl, {slots, rows}) => void, open Step B in this page's slot
- * @param {Function} args.onSkip     (pageEl) => void; books this class without saving a studio map
+ * @param {Function} args.onChooseForNow (pageEl) => void; defer map setup and choose spots for this class only
  */
 export function spotSetupHelperText(rowGroups, slots = []) {
   const hasSeveralRows = new Set(slots.map((slot) => slot.y)).size > 1;
@@ -43,7 +43,7 @@ export function spotSetupHelperText(rowGroups, slots = []) {
     : COPY.bookingFlow.helperSetup;
 }
 
-export function openSpotSetup({ event, className, onSaved, onContinue, onSkip, initialStep = 'intro', initialPrefs = null, rowGroups = false }) {
+export function openSpotSetup({ event, className, onSaved, onContinue, onChooseForNow, initialStep = 'intro', initialPrefs = null, rowGroups = false }) {
   const gymId = event.gymId;
   const brand = gymBrand(gymId);
   const studioName = displayStudioName(gymId, event.studioName || '') || event.studioName || COPY.spotSelection.thisStudio;
@@ -97,13 +97,15 @@ export function openSpotSetup({ event, className, onSaved, onContinue, onSkip, i
           <li class="p1"></li><li>${COPY.spotSetup.point2}</li><li>${COPY.spotSetup.point3}</li>
         </ul>
         <p class="psycle-setup-reassure">${COPY.spotSetup.reassure}</p>
-        ${className ? `<p class="psycle-setup-choice-hint">${COPY.spotSetup.chooseForNowHelp}</p>` : ''}
       </div>`;
     body.querySelector('.psycle-setup-where').textContent = where;
     body.querySelector('.p1').textContent = formatCopyText(COPY.spotSetup.point1, { studio: studioName });
     setFooter(
       btn('psycle-btn primary psycle-setup-primary', COPY.spotSetup.choose, () => showA1()),
-      ...(className ? [btn('psycle-setup-link', COPY.spotSetup.chooseForNow, () => { markSetupDeferred(gymId, event.studioId); onSkip?.(el, { anySpot: false }); })] : []),
+      ...(className ? [btn('psycle-setup-link', COPY.spotSetup.chooseForNow, () => {
+        markSetupDeferred(gymId, event.studioId);
+        onChooseForNow?.(el);
+      })] : []),
     );
   };
 
@@ -137,8 +139,15 @@ export function openSpotSetup({ event, className, onSaved, onContinue, onSkip, i
       return;
     }
     if (!slots?.length) { // no map after all: nothing to set up; carry on without prefs
-      after = () => { markSetupDeferred(gymId, event.studioId); onSkip?.(el); };
-      layer?.release();
+      body.innerHTML = '';
+      const msg = document.createElement('div');
+      msg.className = 'psycle-setup-error';
+      msg.textContent = COPY.spotSetup.loadFailed;
+      body.appendChild(msg);
+      setFooter(btn('psycle-btn primary psycle-setup-primary', COPY.spotSetup.retry, () => {
+        after = () => showA1();
+        layer?.release();
+      }));
       return;
     }
     body.innerHTML = '<div id="psycle-setup-editor"></div>';
@@ -151,11 +160,7 @@ export function openSpotSetup({ event, className, onSaved, onContinue, onSkip, i
     errBox.className = 'psycle-setup-error';
     errBox.hidden = true;
     const saveBtn = btn('psycle-btn primary psycle-setup-primary', COPY.spotSetup.save, () => save());
-    const anyBtn = btn('psycle-setup-link', COPY.spotSetup.anySpot, () => anySpot());
-    const anyHelp = document.createElement('span');
-    anyHelp.className = 'psycle-setup-any-help';
-    anyHelp.textContent = COPY.spotSetup.anySpotHelp;
-    setFooter(errBox, count, reason, saveBtn, anyHelp, anyBtn);
+    setFooter(errBox, count, reason, saveBtn);
 
     const refreshFooter = (n) => {
       count.textContent = n === 0 ? COPY.spotSetup.none : (n === 1 ? COPY.spotSetup.one : formatCopyText(COPY.spotSetup.many, { count: n }));
@@ -185,22 +190,11 @@ export function openSpotSetup({ event, className, onSaved, onContinue, onSkip, i
       after = () => showA2();
       layer?.release();
     };
-    const anySpot = async () => {
-      try { await persist([], []); } catch (_) { /* nothing stored either way: carry on as a skip */ }
-      if (className) {
-        after = () => { markSetupDeferred(gymId, event.studioId); onSkip?.(el, { anySpot: true }); };
-      } else {
-        saved = { slots: [], rows: [] };
-        onSaved?.([], []);
-        after = () => showA2();
-      }
-      layer?.release();
-    };
-
     const seedSlots = initialPrefs?.preferredSlots || [];
     const seedRows = rowGroups ? (initialPrefs?.preferredRows || []) : [];
     renderStudioFloorPlan(editor, slots, seedSlots, seedRows, () => {}, {
-      rowGroups, layoutObjects: objects || [], hideActions: true, onSelectionChange: (s, r) => refreshFooter(s.length + r.length),
+      rowGroups, layoutObjects: objects || [], hideActions: true, hideEditHint: true,
+      onSelectionChange: (s, r) => refreshFooter(s.length + r.length),
       aboveMap: () => bookingContextEl(null, { helperId: 'spotmap-setup', helperText: spotSetupHelperText(rowGroups, slots), helperOnly: true }),
     });
   };

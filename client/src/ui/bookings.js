@@ -14,6 +14,14 @@ import { haptic } from './haptics.js';
 import { COPY, formatCopyText } from '../copy.js';
 import { openPage as openNavPage, closePage as closeNavPage } from './modal-nav.js';
 import { applyBookingChrome, bookingContextEl, mountBookingContext } from './booking-chrome.js';
+import {
+  applyGroupedCancellationResult,
+  createGroupedCancellationState,
+  GUEST_ACTION_LABEL,
+  hasMultipleBookedSpots,
+  isIndividualCancellationBlocked,
+  requestGroupedCancellation,
+} from './grouped-cancellation.js';
 
 // Class starts within the free-cancel cutoff (12h). Edit is hidden inside this
 // window; Cancel stays available but warns about the penalty.
@@ -385,7 +393,7 @@ function buildBookingCard(group, upgrades) {
     </div>
     <div class="ab-card-rail">
       ${editBtnHtml}
-      ${canForGym('guestBooking', event.gymId) ? `<button class="ab-rail-btn bk-guest-btn" aria-label="${COPY.bookings.bookGuest}">${icon('plus', 17)}<span>${COPY.bookings.bookGuest}</span></button>` : ''}
+      ${canForGym('guestBooking', event.gymId) ? `<button class="ab-rail-btn bk-guest-btn" aria-label="${GUEST_ACTION_LABEL}">${icon('plus', 17)}<span>${GUEST_ACTION_LABEL}</span></button>` : ''}
       <button class="ab-rail-btn danger bk-cancel-btn" aria-label="${COPY.bookings.cancelBookingLabel}">${icon('close', 17)}<span>${COPY.bookings.cancel}</span></button>
     </div>
   `;
@@ -488,6 +496,13 @@ function wireCancelBooking(btn, card, group, within12h) {
   };
 
   btn.addEventListener('click', async () => {
+    // Classes with multiple reservations need a chooser rather than the old
+    // whole-class two-tap: a guest can be released without touching the member
+    // spot, while the primary can never orphan a live guest.
+    if (hasMultipleBookedSpots(group.bookings)) {
+      openGroupedCancellationModal(group);
+      return;
+    }
     // 60s grace period: cancel immediately, no confirmation
     if (btn.hasAttribute('data-grace-deadline')) {
       btn.removeAttribute('data-grace-deadline');
@@ -510,6 +525,149 @@ function wireCancelBooking(btn, card, group, within12h) {
     btn.classList.remove('confirming');
     await performCancel();
   });
+}
+
+// A class can have a member reservation plus guest reservations.  The old
+// cancellation control treated those as one opaque action, which made it
+// impossible to release a guest quickly and made the primary/guest dependency
+// unclear.  This chooser keeps every provider command explicit while relying
+// on the server-side guest-first guard as the final safety net.
+export function openGroupedCancellationModal(group, onChange = renderBookings) {
+  const modal = document.getElementById('psycle-booking-modal');
+  const body = document.getElementById('psycle-booking-modal-body');
+  const title = document.getElementById('psycle-booking-modal-title');
+  if (!modal || !body || !title || !hasMultipleBookedSpots(group?.bookings)) return;
+
+  const event = group.event || {};
+  const gymId = event.gymId || group.bookings[0]?.gymId || null;
+  const rawClassName = event.name || event.event_type?.name || COPY.autoBook.class;
+  const groupName = event.discipline || event.event_type?.group?.name || rawClassName;
+  const noun = seatNoun(groupName);
+  let state = createGroupedCancellationState(group.bookings);
+  let busy = false;
+  let needsSync = false;
+  let synced = false;
+
+  title.textContent = `Cancel ${noun}s`;
+  applyBookingChrome(modal, {
+    titleText: `Cancel ${noun}s`, gymId,
+    locationName: event.locationName || event.studio?.location?.name,
+    studioName: event.studioName || event.studio?.name,
+  });
+
+  const syncAfterClose = async () => {
+    if (!needsSync || synced) return;
+    synced = true;
+    await invalidateApiCache('/api/bookings');
+    await invalidateApiCache('/api/waitlists');
+    await refreshUserData(true);
+    onChange();
+  };
+
+  openNavPage(modal, { id: 'cancel-booked-spots', onClose: syncAfterClose });
+  const close = () => {
+    if (closeNavPage(modal)) return;
+    modal.classList.remove('show');
+    setTimeout(() => { modal.style.display = 'none'; }, 300);
+    void syncAfterClose();
+  };
+  document.getElementById('psycle-booking-modal-close').onclick = close;
+  modal.querySelector('.psycle-modal-overlay').onclick = close;
+
+  const labelFor = (booking) => formatSpotLabel(gymId, {
+    label: booking.slotLabel ?? booking.raw?.spot?.name ?? booking.studio_slot?.label
+      ?? booking.slot ?? booking.studio_slot_id ?? booking.slot_id ?? slotIdOf(booking) ?? '?',
+    section: booking.spotSection ?? booking.raw?.spot?.spot_type?.name,
+  });
+
+  const render = () => {
+    const confirmAll = state.confirmation?.all;
+    const error = state.error
+      ? `<div role="alert" style="font-size:13px;color:var(--danger);background:color-mix(in srgb,var(--danger) 10%,transparent);border:1px solid color-mix(in srgb,var(--danger) 25%,transparent);border-radius:10px;padding:10px 12px;">${escapeHtml(state.error)}</div>`
+      : '';
+    const rows = state.bookings.map((booking) => {
+      const bookingId = bookingIdOf(booking);
+      const isGuest = !!booking.isGuest;
+      const blocked = isIndividualCancellationBlocked(state, bookingId);
+      const confirming = !state.confirmation?.all && state.confirmation?.ids.length === 1
+        && state.confirmation.ids[0] === String(bookingId);
+      const role = isGuest ? COPY.bookings.guestSpotChip : COPY.bookings.selfSpotChip;
+      const action = confirming ? COPY.bookings.confirm : COPY.bookings.cancel;
+      const disabled = busy || blocked;
+      return `<div class="psycle-cancel-spot-row" style="display:flex;align-items:center;gap:10px;padding:11px 0;border-bottom:1px solid var(--border);">
+        <div style="min-width:0;flex:1;display:flex;flex-direction:column;gap:2px;">
+          <strong style="font-size:14px;">${escapeHtml(role)} ${escapeHtml(labelFor(booking))}</strong>
+          ${blocked ? '<span style="font-size:12px;color:var(--text-secondary);">Cancel guest spots first</span>' : ''}
+        </div>
+        <button class="psycle-btn danger grouped-cancel-one" data-booking-id="${escapeHtml(bookingId)}" ${disabled ? 'disabled' : ''} style="min-width:88px;${confirming ? 'background:var(--danger);border-color:var(--danger);color:var(--on-accent);' : ''}">${action}</button>
+      </div>`;
+    }).join('');
+    body.innerHTML = `
+      <div class="psycle-grouped-cancellation" style="display:flex;flex-direction:column;gap:12px;">
+        <p style="margin:0;font-size:13px;line-height:1.45;color:var(--text-secondary);">Choose a ${escapeHtml(noun)} to cancel, or cancel every booked ${escapeHtml(noun)}. Guest spots are released before your own booking.</p>
+        <div>${rows}</div>
+        ${error}
+        <button class="psycle-btn danger grouped-cancel-all" ${busy ? 'disabled' : ''} style="width:100%;${confirmAll ? 'background:var(--danger);border-color:var(--danger);color:var(--on-accent);' : ''}">${confirmAll ? COPY.bookings.confirm : `Cancel all ${noun}s`}</button>
+      </div>`;
+
+    body.querySelectorAll('.grouped-cancel-one').forEach((button) => {
+      button.onclick = () => {
+        const bookingId = button.dataset.bookingId;
+        if (state.confirmation?.ids.length === 1 && !state.confirmation.all && state.confirmation.ids[0] === bookingId) {
+          void performCancellation([bookingId]);
+        } else {
+          state = requestGroupedCancellation(state, bookingId);
+          haptic('medium');
+          render();
+        }
+      };
+    });
+    body.querySelector('.grouped-cancel-all').onclick = () => {
+      if (state.confirmation?.all) {
+        void performCancellation(state.confirmation.ids);
+      } else {
+        state = requestGroupedCancellation(state);
+        haptic('medium');
+        render();
+      }
+    };
+  };
+
+  const performCancellation = async (ids) => {
+    busy = true;
+    render();
+    const cancelledIds = [];
+    try {
+      for (const bookingId of ids) {
+        // A prior successful provider cancellation may already have removed a
+        // later id from local state (for example, a stale guest edge repaired
+        // by the server), so do not issue a duplicate command.
+        const booking = state.bookings.find((candidate) => String(bookingIdOf(candidate)) === String(bookingId));
+        if (!booking) continue;
+        const result = await api.cancel(bookingId, booking.gymId || gymId);
+        const actualIds = result?.cancelledIds?.length ? result.cancelledIds.map(String) : [String(bookingId)];
+        cancelledIds.push(...actualIds);
+      }
+      needsSync = needsSync || cancelledIds.length > 0;
+      state = applyGroupedCancellationResult(state, { cancelledIds });
+      haptic('success');
+      showToast(COPY.bookings.bookingCancelled, 'success');
+      if (state.shouldClose) {
+        close();
+        return;
+      }
+    } catch (err) {
+      needsSync = needsSync || cancelledIds.length > 0;
+      state = applyGroupedCancellationResult(state, { cancelledIds, error: err.message });
+      haptic('error');
+      showToast(formatCopyText(COPY.bookings.cancellationFailed, { error: err.message }), 'error');
+    } finally {
+      busy = false;
+      if (!state.shouldClose) render();
+    }
+  };
+
+  render();
 }
 
 // Edit-spots modal: a live seat picker pre-seeded with the user's current spots.

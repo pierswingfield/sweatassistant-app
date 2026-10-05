@@ -4,6 +4,7 @@ import { getLinkedGyms } from '../gym-context.js';
 import { gymChip } from './cards.js';
 import { showToast, cache } from '../main';
 import { COPY, formatCopyText } from '../copy.js';
+import { openPage as openNavPage, closePage as closeNavPage } from './modal-nav.js';
 
 // Use same localStorage key as Chrome Extension for cross-compatibility.
 // Default is [792] (CRM bundle) — same as extension default.
@@ -643,7 +644,7 @@ function createBundleCard(b, isFavSection) {
 //   2. Payment — load saved cards, select, pay.
 // 3-D Secure is not supported: if the off-session charge needs authentication
 // we surface a graceful error with tips and a website fallback.
-function openPurchaseModal(b) {
+export function openPurchaseModal(b) {
   const unitPence = b.price;
   const unitLabel = `£${(unitPence / 100).toFixed(2)}`;
 
@@ -660,9 +661,15 @@ function openPurchaseModal(b) {
     </div>
   `;
   document.body.appendChild(overlay);
-  setTimeout(() => overlay.classList.add('show'), 10);
+
+  // Mobile page. While a charge is in flight the page cannot be dismissed: X is hidden
+  // (CSS, `.is-busy`) and a back gesture is swallowed (the helper re-pushes the entry).
+  let chargeInFlight = false;
+  const setBusy = (v) => { chargeInFlight = v; overlay.classList.toggle('is-busy', v); };
+  openNavPage(overlay, { id: 'checkout', remove: true, canClose: () => !chargeInFlight });
 
   const closeModal = () => {
+    if (closeNavPage(overlay)) return; // mobile: pops the page (guard skipped)
     overlay.classList.remove('show');
     setTimeout(() => overlay.remove(), 300);
   };
@@ -767,8 +774,10 @@ function openPurchaseModal(b) {
         </div>
       `;
 
+      setBusy(true);
       try {
         const result = await api.checkoutConfirm(instance, pmId, creditGymId);
+        setBusy(false);
         if (result.status === 'paid') {
           body.innerHTML = `
             <div style="text-align:center; padding:16px 0;">
@@ -789,6 +798,7 @@ function openPurchaseModal(b) {
           renderPurchaseError(body, b, result.error || COPY.credits.declined);
         }
       } catch (err) {
+        setBusy(false);
         renderPurchaseError(body, b, err.message);
       }
     });

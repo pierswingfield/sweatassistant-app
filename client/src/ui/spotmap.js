@@ -29,7 +29,29 @@ import { COPY, formatCopyText } from '../copy.js';
 //                            +/- buttons) and a wide edit button is shown beneath the map.
 //                            Clicking it unlocks editing.
 //   options.editLabel     — text for the unlock button shown in read-only mode.
+//   options.rowGroups     — true only when the studio offers the whole-row preference
+//                            (see studioHasRowGroups); default false hides the row buttons.
 //   options.hideClear     — when true, the "Clear Defaults" action button is omitted.
+
+/**
+ * The ONE place that decides whether a studio offers the whole-row preference
+ * ("row group" selector). Gym policy flows from gyms.config spotMap.rowGroupStudios
+ * through the normalized studio's `rowGroups` flag. Default OFF: an unknown
+ * studio, a stub, or a missing flag all mean no row selector. Stored
+ * `preferredRows` are kept untouched either way.
+ */
+export function studioHasRowGroups(studio) {
+  return !!studio && studio.rowGroups === true;
+}
+
+/**
+ * Whether the row +/- buttons render. Shared by this renderer and the
+ * timetable booking modal's own floor plan, so the rule lives in one function.
+ * @param {{rowGroups:boolean, rowCount:number, editing:boolean}} o
+ */
+export function rowSelectorVisible({ rowGroups, rowCount, editing }) {
+  return rowGroups === true && !!editing && rowCount > 1;
+}
 
 export function renderStudioFloorPlan(container, layoutSlots, initialSlots, initialRows, onSave, options = {}) {
   const {
@@ -42,24 +64,36 @@ export function renderStudioFloorPlan(container, layoutSlots, initialSlots, init
     readOnly = false,
     editLabel = COPY.spotMapEditor.editPreferredSpots,
     hideClear = false,
+    rowGroups = false,
     layoutObjects = [],
     availableSlots = null,
-    currentSlotId = null
+    currentSlotId = null,
+    hideActions = false,        // caller supplies its own footer actions (Step A page)
+    onSelectionChange = null,   // (slots, rows) after every render; drives an external Save button
+    aboveMap = null   // () => Node: mobile booking context (helper + class card) placed directly above the map
   } = options;
 
   // In read-only mode the map starts locked until the user clicks the edit button.
   let editing = !readOnly;
 
   const selectedSlots = [...initialSlots];
-  const selectedRows = new Set(initialRows);
+  // A studio without row groups neither shows nor applies stored rows; saving
+  // drops them (they were never settable there), so nothing invisible lingers.
+  const seedRows = rowGroups ? initialRows : [];
+  const selectedRows = new Set(seedRows);
 
   const mapChanged = () => {
     if (selectedSlots.length !== initialSlots.length) return true;
     if (selectedSlots.some((id, i) => id !== initialSlots[i])) return true;
-    if (selectedRows.size !== initialRows.length) return true;
-    for (const r of selectedRows) if (!initialRows.includes(r)) return true;
+    if (selectedRows.size !== seedRows.length) return true;
+    for (const r of selectedRows) if (!seedRows.includes(r)) return true;
     return false;
   };
+
+  // Lets the mobile page shell (modal-nav) ask whether closing would discard a change.
+  container.setAttribute('data-spotmap-root', '');
+  container.__isDirty = mapChanged;
+  container.__getSelection = () => ({ slots: [...selectedSlots], rows: [...selectedRows] });
 
   // Bounds include podium/stage objects so the floor expands to fit them (the
   // scale below still measures slot spacing only — a podium isn't a seat).
@@ -140,6 +174,8 @@ export function renderStudioFloorPlan(container, layoutSlots, initialSlots, init
     }
     container.appendChild(summary);
 
+    if (typeof aboveMap === 'function') { const n = aboveMap(); if (n) container.appendChild(n); }
+
     // --- Floor plan ---
     // Pixel-based layout: the scale fills the available width but never drops below
     // the min-gap scale, so adjacent slots always keep >= MIN_GAP px between centres
@@ -151,14 +187,14 @@ export function renderStudioFloorPlan(container, layoutSlots, initialSlots, init
     // Reserve a lane on the right for the row +/- buttons so they sit beside the
     // slot field rather than on top of the rightmost slot column (which hid them).
     const ROW_BTN = 26;
-    const hasRowButtons = editing && rowYs.length > 1;
+    const hasRowButtons = rowSelectorVisible({ rowGroups, rowCount: rowYs.length, editing });
     const rowLaneW = hasRowButtons ? ROW_BTN + 8 : 0;
 
     const availW = scroll.clientWidth || (window.innerWidth - 80);
     // Mirror .psycle-floor-scroll's max-height (min(60vh, 460px)) so we can fit
     // the map within the box's height too, not just its width.
     const availH = Math.min(window.innerHeight * 0.6, 460);
-    const fillScaleW = widthRange > 0 ? (availW - SLOT_SIZE - EDGE_PAD * 2 - rowLaneW) / widthRange : minGapScale;
+    const fillScaleW = widthRange > 0 ? (availW - (container.closest('.psycle-page') ? 2 : 0) - SLOT_SIZE - EDGE_PAD * 2 - rowLaneW) / widthRange : minGapScale;
     const fillScaleH = heightRange > 0 ? (availH - SLOT_SIZE - EDGE_PAD * 2 - 2) / heightRange : minGapScale;
     // Contain: fill the available box on whichever axis is tighter. Scaling is
     // uniform, so stretching a few-column studio (e.g. Reformer) to fill the full
@@ -168,7 +204,10 @@ export function renderStudioFloorPlan(container, layoutSlots, initialSlots, init
     // On mobile, don't stretch to fill — use the minimum scale so gaps stay
     // tight (just enough to avoid overlap) and any overflow pans inside the
     // scroll container. On desktop, fill the available box for a roomier map.
-    const scale = isMobile ? minGapScale : Math.max(fillScale, minGapScale);
+    // Inside a full-screen mobile page there is a whole screen of width, so fill it
+    // (width-driven; the vertical axis is compressed below if it would spill).
+    const inPage = !!container.closest('.psycle-page');
+    const scale = inPage ? Math.max(fillScaleW, minGapScale) : (isMobile ? minGapScale : Math.max(fillScale, minGapScale));
 
     // Scale X-axis and Y-axis independently if Y-axis gaps are too large and make the map spill.
     const scaleX = scale;
@@ -364,8 +403,8 @@ export function renderStudioFloorPlan(container, layoutSlots, initialSlots, init
     // Hint text shown directly under the map when in edit mode
     if (editing) {
       const hint = document.createElement('div');
-      hint.style.cssText = 'font-size:12px;color:var(--text-secondary);font-style:italic;margin-bottom:12px;';
-      hint.innerHTML = COPY.spotMapEditor.editInstructionHtml;
+      hint.style.cssText = 'font-size:12px;color:var(--text-secondary);margin:2px 0 8px;line-height:1.4;';
+      hint.textContent = `${COPY.spotMapEditor.editInstructionHtml}${rowGroups && rowYs.length > 1 ? ` ${COPY.spotMapEditor.editRowsInstruction}` : ''}`;
       container.appendChild(hint);
     }
 
@@ -379,6 +418,7 @@ export function renderStudioFloorPlan(container, layoutSlots, initialSlots, init
 
     // Actions
     const actions = document.createElement('div');
+    actions.className = 'psycle-spotmap-actions';
     actions.style.cssText = 'display:flex;gap:8px;';
 
     if (!hideClear) {
@@ -407,7 +447,8 @@ export function renderStudioFloorPlan(container, layoutSlots, initialSlots, init
       actions.appendChild(disableBtn);
     }
 
-    container.appendChild(actions);
+    if (!hideActions) container.appendChild(actions);
+    if (typeof onSelectionChange === 'function') onSelectionChange([...selectedSlots], [...selectedRows]);
   };
 
   render();

@@ -2,7 +2,7 @@ import { api } from '../api';
 import { COPY, formatCopyText } from '../copy.js';
 import { getGymShortName, getLinkedGyms, getDefaultGymId } from '../gym-context.js';
 import { getAvailableCreditsForEvent, getTotalCredits, getIneligibleReason } from './credit-allowance.js';
-import { showToast, cache, userSettings, gymSetting, setGymSettingLocal, profileForGym, refreshUserData, debugConsole } from '../main';
+import { showToast, cache, userSettings, refreshUserData, debugConsole } from '../main';
 import { getClassReleaseTime, noSept, zoneFor, formatInZone } from '../lib';
 import { DateTime } from 'luxon';
 import { renderStudioFloorPlan } from './spotmap';
@@ -10,7 +10,9 @@ import { instructorInlineHtml, cleanClassName, icon, disciplineTag, trimLocation
 import { renderCardSkeletons } from './loading-skeleton.js';
 import { ensureLiveStatusLine, setLiveStatusText } from './status-line.js';
 import { instructorAvatar } from './tooltips.js';
-import { pickStudioPrefs, metadata, loadMetadata } from './timetable';
+import { pickStudioPrefs, metadata, loadMetadata, rowGroupsForStudio } from './timetable';
+import { openPage as openNavPage, closePage as closeNavPage } from './modal-nav.js';
+import { applyBookingChrome, bookingContextEl } from './booking-chrome.js';
 
 let countdownInterval = null;
 let sseEventSource = null;
@@ -208,115 +210,6 @@ function renderAutoBookControls() {
     });
     bar.appendChild(simBtn);
   }
-}
-
-/**
- * The gym these favourites belong to: the one that supports bookmarks.
- *
- * Returns null when that is ambiguous (none capable, or more than one), which
- * makes the save fail loudly on a multi-gym account instead of writing the list
- * against a gym that has no such concept. Auto-Book Favourites is still
- * incomplete (the scheduler does not consume the list yet — see BACKLOG), so
- * this stays deliberately narrow rather than inventing a per-gym UI for it.
- */
-function bookmarksGymId() {
-  const capable = (getLinkedGyms() || []).filter((g) => g.capabilities?.bookmarks);
-  return capable.length === 1 ? (capable[0].gym_id || capable[0].id) : null;
-}
-
-function parseBookmark(bm) {
-  // Format: {studioId}0000{dayOfWeek}0000{HHMM}
-  const match = String(bm).match(/^(.+?)0000(\d)0000(\d{4})$/);
-  if (!match) return { raw: bm, studioId: null, dayOfWeek: null, time: null };
-  const [, studioId, dayStr, timeStr] = match;
-  const days = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
-  const day = days[parseInt(dayStr)] || dayStr;
-  const hours = timeStr.slice(0, 2);
-  const mins = timeStr.slice(2);
-  return { raw: bm, studioId, dayOfWeek: day, time: `${hours}:${mins}` };
-}
-
-function openFavouritesModal() {
-  // Get bookmarks from cache or loaded profile
-  const bookmarks = profileForGym(bookmarksGymId())?.metafields?.public?.bookmarks?.events || [];
-
-  const overlay = document.createElement('div');
-  overlay.style.cssText = 'position:fixed;inset:0;background:color-mix(in srgb, var(--bg) 60%, transparent);z-index:2000;display:flex;align-items:center;justify-content:center;padding:16px;';
-
-  const modal = document.createElement('div');
-  modal.style.cssText = 'background:var(--surface);border:1px solid var(--border-strong);border-radius:16px;width:100%;max-width:480px;max-height:90vh;display:flex;flex-direction:column;overflow:hidden;';
-
-  const header = document.createElement('div');
-  header.style.cssText = 'display:flex;justify-content:space-between;align-items:center;padding:14px 18px;border-bottom:1px solid var(--border);flex-shrink:0;';
-  header.innerHTML = `<h3 style="margin:0;font-size:15px;font-weight:700;color:var(--text);">${COPY.autoBook.favouritesTitle}</h3><button style="background:none;border:none;color:var(--text-secondary);font-size:22px;cursor:pointer;padding:0;" id="favs-modal-close">×</button>`;
-
-  const body = document.createElement('div');
-  body.style.cssText = 'flex:1;overflow-y:auto;padding:16px;';
-
-  if (bookmarks.length === 0) {
-    body.innerHTML = `<div style="text-align:center;padding:24px;color:var(--text-secondary);font-size:13px;">${COPY.autoBook.noFavourites}</div>`;
-  } else {
-    const parsed = bookmarks.map(parseBookmark);
-    const enabled = new Set(gymSetting(bookmarksGymId(), 'autoBookFavourites') || []);
-
-    body.innerHTML = `<p style="font-size:12px;color:var(--text-secondary);margin:0 0 12px;">${COPY.autoBook.chooseFavourites}</p>`;
-
-    parsed.forEach(bm => {
-      const row = document.createElement('div');
-      row.style.cssText = 'display:flex;align-items:center;gap:10px;padding:8px 10px;border:1px solid var(--border);border-radius:8px;margin-bottom:6px;';
-
-      const cb = document.createElement('input');
-      cb.type = 'checkbox';
-      cb.checked = enabled.has(bm.raw);
-      cb.style.cssText = 'width:16px;height:16px;accent-color:var(--feat-autoupgrade);cursor:pointer;flex-shrink:0;';
-      cb.addEventListener('change', () => {
-        if (cb.checked) enabled.add(bm.raw);
-        else enabled.delete(bm.raw);
-      });
-
-      const label = document.createElement('div');
-      label.style.cssText = 'flex:1;font-size:12px;color:var(--text);';
-      label.innerHTML = bm.studioId
-        ? `<strong>${formatCopyText(COPY.autoBook.studioLabel, { studioId: escapeHtml(bm.studioId) })}</strong> · ${escapeHtml(bm.dayOfWeek)} ${escapeHtml(bm.time)}`
-        : `<span style="color:var(--text-secondary);">${escapeHtml(bm.raw)}</span>`;
-
-      row.appendChild(cb);
-      row.appendChild(label);
-      body.appendChild(row);
-    });
-
-    const saveBtn = document.createElement('button');
-    saveBtn.className = 'psycle-btn';
-    saveBtn.style.cssText = 'width:100%;margin-top:12px;background:var(--feat-autoupgrade);color:#fff;';
-    saveBtn.textContent = COPY.autoBook.saveFavourites;
-    saveBtn.addEventListener('click', async () => {
-      saveBtn.disabled = true;
-      saveBtn.textContent = COPY.static.savingDots;
-      try {
-        const list = Array.from(enabled);
-        // Gym-scoped, and these ARE bookmarks — which only a gym with the
-        // capability has. Save against that gym rather than letting the server
-        // pick one; with none (or several) capable, there is no honest answer.
-        await api.updateSettings({ autoBookFavourites: list }, bookmarksGymId());
-        setGymSettingLocal(bookmarksGymId(), 'autoBookFavourites', list);
-        showToast(COPY.autoBook.favouritesSaved, 'success');
-        overlay.remove();
-      } catch (err) {
-        showToast(formatCopyText(COPY.autoBook.failed, { error: err.message }), 'error');
-        saveBtn.disabled = false;
-        saveBtn.textContent = COPY.autoBook.saveFavourites;
-      }
-    });
-    body.appendChild(saveBtn);
-  }
-
-  modal.appendChild(header);
-  modal.appendChild(body);
-  overlay.appendChild(modal);
-  document.body.appendChild(overlay);
-
-  header.querySelector('#favs-modal-close').onclick = () => overlay.remove();
-  overlay.addEventListener('click', e => { if (e.target === overlay) overlay.remove(); });
 }
 
 async function renderAutoBookTab() {
@@ -528,7 +421,7 @@ function wireCancelAutoBook(btn, card, q) {
 
 // Edit modal for updating an existing auto-book queue entry's configuration
 // (spot preferences, quantity, fallback toggle). Reuses the shared booking modal.
-async function openAutoBookEditModal(q) {
+export async function openAutoBookEditModal(q) {
   const modal = document.getElementById('psycle-booking-modal');
   const body = document.getElementById('psycle-booking-modal-body');
   const title = document.getElementById('psycle-booking-modal-title');
@@ -536,9 +429,12 @@ async function openAutoBookEditModal(q) {
 
   const prefs = q.preferences || {};
   const currentQty = prefs.requiredCount || 1;
+  const abClassName = cleanClassName(q.class_name || '', q.group_name || '') || q.group_name || q.class_name || COPY.autoBook.class;
   const currentBookAny = prefs.bookAny ?? false;
 
   title.textContent = formatCopyText(COPY.autoBook.editTitle, { className: cleanClassName(q.class_name || '', q.group_name || '') || q.group_name || q.class_name || COPY.autoBook.class });
+  // Mobile: static title + identity strip; class details live in the class card above the map.
+  applyBookingChrome(modal, { titleText: COPY.bookingFlow.titleEditAutoBook, gymId: q.gym_id, locationName: q.location_name, studioName: q.studio_name });
   body.innerHTML = `
     <div class="psycle-loading-spinner-container" style="padding: 40px 0;">
       <div class="psycle-spinner"></div>
@@ -546,13 +442,15 @@ async function openAutoBookEditModal(q) {
     </div>
   `;
 
-  modal.style.display = 'flex';
-  setTimeout(() => modal.classList.add('show'), 10);
+  const spotMapDirty = () => !!body.querySelector('[data-spotmap-root]')?.__isDirty?.();
+  const discardOk = () => !spotMapDirty() || confirm(COPY.bookingEditor.discardChanges);
+  openNavPage(modal, { id: 'autobook-edit', canClose: discardOk });
 
   const closeBtn = document.getElementById('psycle-booking-modal-close');
   const overlay = modal.querySelector('.psycle-modal-overlay');
 
   const closeModal = () => {
+    if (closeNavPage(modal)) return; // mobile page: pop its history entry
     modal.classList.remove('show');
     setTimeout(() => modal.style.display = 'none', 300);
   };
@@ -658,12 +556,16 @@ async function openAutoBookEditModal(q) {
     }, {
       saveLabel: COPY.autoBook.saveChanges,
       layoutObjects,
+      rowGroups: rowGroupsForStudio(resolvedStudioId, q.gym_id),
       bannerHtml,
       bannerHtmlEdit,
       extraControlsHtml,
       readOnly: true,
       editLabel: formatCopyText(COPY.timetable.editPreferredSpots, { studio: studioName }),
-      hideClear: true
+      hideClear: true,
+      aboveMap: () => bookingContextEl({
+        className: abClassName, instructorName: q.instructor_name || '', startAt: q.start_at, gymId: q.gym_id, timeZone: q.time_zone || q.timeZone,
+      }, { helperId: 'spotmap-setup', helperText: COPY.bookingFlow.helperSetup })
     });
   } catch (err) {
     console.error('[AutoBook] Edit modal failed:', err);

@@ -2,20 +2,23 @@ import { api, apiFetch } from '../api';
 import { showToast, togglePushSubscription, updatePushStatusUI, userSettings, cache, getTheme, setTheme, debugConsole, loadGymContext, refreshUserData, updateDebugTerminalVisibility, getIsOffline } from '../main';
 import { getBookingOffset, describeBookingWindow } from '../lib';
 import { renderStudioFloorPlan } from './spotmap';
+import { openSpotSetup } from './spot-setup.js';
 import { isScrollBusy } from './scroll-state.js';
-import { cacheGet, resetTimetableForGymChange } from './timetable';
+import { cacheGet, resetTimetableForGymChange, rowGroupsForStudio } from './timetable';
 import { clearApiCache, invalidateApiCache, accountScopedKey } from '../cache.js';
 import { renderGymSettingsSection as renderGymSettingsSectionView } from './gym-settings-section.js';
 import { renderCalendarSection } from './calendar-section.js';
 import { getLinkedGyms, getGymShortName } from '../gym-context.js';
-import { icon, gymSquareChip, gymBrand } from './cards.js';
+import { icon, gymSquareChip, gymBrand, gymLogoBanner } from './cards.js';
 import { createRenderGuard, reconcileKeyed, lastAuthLabel, connectionHealth } from './gym-connections.js';
 import { COPY, formatCopyText } from '../copy.js';
 import { appConfig } from '../config.js';
+import { openPage as openNavPage, closePage as closeNavPage, isMobile } from './modal-nav.js';
 
 let loadedProfile = null;
 let activeSpotEditorOverlay = null;
 let closeSpotMapManager = null;
+let activeSpotManager = null; // mobile: the open Manage Spot Maps page, so re-entry reloads it in place
 let loadedProfileGymId = null;
 
 // ─── Profile Explorer — Unified Implementation ─────────────────────────────
@@ -224,8 +227,18 @@ async function openProfileExplorerModal(gymId = null, gymName = null) {
   if (title) title.textContent = gymName ? formatCopyText(COPY.profileExplorer.gymTitle, { gymName }) : COPY.profileExplorer.title;
 
   // Show loading state — use .show class for opacity transition (matches booking/debug modal convention)
-  modal.style.display = 'flex';
-  setTimeout(() => modal.classList.add('show'), 10);
+  openNavPage(modal, {
+    id: 'profile-explorer', closeFooter: true,
+    // Mobile close paths (X / Esc / back) bypass the desktop handlers, so reset state and
+    // honour the unsaved-edit check here too.
+    canClose: () => {
+      if (!editMode) return true;
+      const b = document.getElementById('psycle-profile-explorer-body');
+      const save = b && b.querySelector('.psycle-profile-save-btn');
+      return !(save && save.style.display !== 'none') || confirm(COPY.settings.discardUnsaved);
+    },
+    onClose: () => { explorerModalOpen = false; editMode = false; konamiProgress = 0; },
+  });
   body.innerHTML = `<div style="text-align:center;padding:40px;"><div class="psycle-spinner" style="margin:0 auto;"></div><div style="color:var(--text-secondary);margin-top:10px;font-size:13px;">${COPY.profileExplorer.loading}</div></div>`;
 
   // Set up close handlers
@@ -618,6 +631,10 @@ async function saveProfileChanges(body, originalProfile) {
 }
 
 export async function openManageSpotMapsModal(options = {}) {
+  // Mobile: the manager is a page that stays open beneath its editor child. Re-entry
+  // (after a save or remove) refreshes the list in place instead of closing/reopening,
+  // which would fight the history stack.
+  if (isMobile() && activeSpotManager?.overlay.isConnected) return activeSpotManager.reload();
   closeSpotMapManager?.();
   activeSpotEditorOverlay?.remove();
   activeSpotEditorOverlay = null;
@@ -626,32 +643,43 @@ export async function openManageSpotMapsModal(options = {}) {
 
   const overlay = document.createElement('div');
   overlay.id = 'psycle-manage-spotmaps-overlay';
+  overlay.className = 'psycle-ovl';
   overlay.style.cssText = `position:fixed;inset:0;background:color-mix(in srgb, var(--bg) 60%, transparent);z-index:${zIndex};display:flex;align-items:center;justify-content:center;padding:16px;`;
 
   const modal = document.createElement('div');
+  modal.className = 'psycle-ovl-card';
   modal.style.cssText = 'background:var(--bg);border:1px solid color-mix(in srgb, var(--text) 12%, transparent);border-radius:16px;width:100%;max-width:500px;max-height:90vh;display:flex;flex-direction:column;overflow:hidden;';
 
   const header = document.createElement('div');
+  header.className = 'psycle-ovl-header';
   header.style.cssText = 'display:flex;justify-content:space-between;align-items:center;padding:14px 18px;border-bottom:1px solid color-mix(in srgb, var(--text) 8%, transparent);flex-shrink:0;';
-  header.innerHTML = `<h3 style="margin:0;font-size:16px;font-weight:700;color:var(--text);">${COPY.spotMaps.preferredSpotMaps}</h3><button style="background:none;border:none;color:var(--text-secondary);font-size:22px;cursor:pointer;padding:0;line-height:1;" id="manage-modal-close" aria-label="${COPY.credits.closeModal}">×</button>`;
+  header.innerHTML = `<h3 data-nav-title style="margin:0;font-size:16px;font-weight:700;color:var(--text);">${COPY.spotMaps.preferredSpotMaps}</h3><button data-nav-close style="background:none;border:none;color:var(--text-secondary);font-size:22px;cursor:pointer;padding:0;line-height:1;" id="manage-modal-close" aria-label="${COPY.credits.closeModal}">×</button>`;
 
   const body = document.createElement('div');
+  body.className = 'psycle-ovl-body';
   body.style.cssText = 'flex:1;overflow-y:auto;padding:16px;';
   body.innerHTML = `<div style="text-align:center;padding:24px;"><div class="psycle-spinner" style="margin:0 auto;"></div><div style="color:var(--text-secondary);margin-top:10px;font-size:13px;">${COPY.spotMaps.loadingStudios}</div></div>`;
 
+  const loadingHtml = body.innerHTML;
   modal.appendChild(header);
   modal.appendChild(body);
 
   const refreshOnGymChange = () => {
+    if (isMobile() && activeSpotManager?.overlay === overlay) { load(); return; }
     activeSpotEditorOverlay?.remove();
     activeSpotEditorOverlay = null;
     close();
     openManageSpotMapsModal(options);
   };
-  const close = () => {
+  const cleanup = () => {
     window.removeEventListener('psycle:gyms-changed', refreshOnGymChange);
-    overlay.remove();
     if (closeSpotMapManager === close) closeSpotMapManager = null;
+    if (activeSpotManager?.overlay === overlay) activeSpotManager = null;
+  };
+  const close = () => {
+    if (closeNavPage(overlay)) return; // mobile: pops the page; onClose below cleans up
+    cleanup();
+    overlay.remove();
   };
   closeSpotMapManager = close;
 
@@ -673,7 +701,12 @@ export async function openManageSpotMapsModal(options = {}) {
   header.querySelector('#manage-modal-close').onclick = close;
   overlay.addEventListener('click', e => { if (e.target === overlay) close(); });
   window.addEventListener('psycle:gyms-changed', refreshOnGymChange);
+  // Mobile page (X). Drill-down editor children are opened on top of it.
+  openNavPage(overlay, { id: 'spot-maps', remove: true, onClose: cleanup });
+  if (isMobile()) activeSpotManager = { overlay, reload: () => load() };
 
+  const load = async () => {
+  body.innerHTML = loadingHtml;
   try {
     const [prefs, cachedMeta, cachedEvents, linkedRes] = await Promise.all([
       api.getStudioPreferences(options.gymId),
@@ -787,6 +820,8 @@ export async function openManageSpotMapsModal(options = {}) {
   } catch (err) {
     body.innerHTML = `<div class="psycle-card-error" style="padding:16px;">${formatCopyText(COPY.settings.studiosLoadFailed, { error: escapeHtml(err.message) })}</div>`;
   }
+  };
+  load();
 }
 
 function renderManageSpotMapsModal(prefs, studios, locations, container, onClose, activeStudioIds, options = {}) {
@@ -829,7 +864,10 @@ function renderManageSpotMapsModal(prefs, studios, locations, container, onClose
     const thisGym = `${gymId}:${gymName}`;
     if (thisGym !== previousGym) {
       const gymHeader = document.createElement('h4');
-      gymHeader.textContent = gymName;
+      gymHeader.className = 'psycle-spm-gym';
+      // Logo is shown on mobile only (CSS); the name stays for desktop and screen readers.
+      gymHeader.innerHTML = `${gymId ? gymLogoBanner(gymId) : ''}<span class="psycle-spm-gym-name"></span>`;
+      gymHeader.querySelector('.psycle-spm-gym-name').textContent = gymName;
       gymHeader.style.cssText = 'margin:8px 0 2px;font-size:14px;font-weight:700;color:var(--text);';
       container.appendChild(gymHeader);
       previousGym = thisGym;
@@ -838,6 +876,7 @@ function renderManageSpotMapsModal(prefs, studios, locations, container, onClose
     locSection.style.cssText = 'margin:0 0 14px 12px;border-left:2px solid var(--border);padding-left:10px;';
 
     const locHeader = document.createElement('div');
+    locHeader.className = 'psycle-spm-loc';
     locHeader.style.cssText = 'font-size:12px;font-weight:700;color:var(--text-secondary);text-transform:uppercase;letter-spacing:0.5px;padding:8px 0 6px 0;cursor:pointer;user-select:none;display:flex;justify-content:space-between;align-items:center;';
     const chevron = document.createElement('span');
     chevron.textContent = '▼';
@@ -853,12 +892,14 @@ function renderManageSpotMapsModal(prefs, studios, locations, container, onClose
       const hasPrefs = studioPrefs && (studioPrefs.preferredSlots?.length > 0 || studioPrefs.preferredRows?.length > 0);
 
       const row = document.createElement('div');
+      row.className = 'psycle-spm-row';
       row.style.cssText = 'display:flex;justify-content:space-between;align-items:center;padding:8px 12px;background:color-mix(in srgb, var(--text) 3%, transparent);border:1px solid color-mix(in srgb, var(--text) 6%, transparent);border-radius:8px;';
 
       const info = document.createElement('div');
       info.style.cssText = 'flex:1;';
 
       const name = document.createElement('div');
+      name.className = 'psycle-spm-name';
       name.style.cssText = 'font-size:13px;font-weight:500;color:var(--text);';
       name.textContent = studio.name;
       info.appendChild(name);
@@ -882,12 +923,28 @@ function renderManageSpotMapsModal(prefs, studios, locations, container, onClose
       editBtn.style.cssText = 'font-size:12px;padding:4px 10px;';
       editBtn.textContent = hasPrefs ? COPY.spotMaps.editSpots : COPY.spotMaps.chooseSpots;
       editBtn.addEventListener('click', () => {
-        // Transition between modals instead of stacking the editor over its
-        // manager. Reopen the manager if the editor is dismissed without save.
+        // Desktop: transition between modals instead of stacking the editor over its
+        // manager, reopening the manager if the editor is dismissed without save.
+        // Mobile: the manager page stays open beneath; the editor is a Back-arrow
+        // child, and a save refreshes the list in place.
+        if (isMobile()) {
+          openSpotSetup({
+            event: { gymId: studio.gymId, studioId: studio.id, studioName: studio.name, locationName: locName },
+            className: null,
+            initialStep: hasPrefs ? 'editor' : 'intro',
+            initialPrefs: studioPrefs,
+            rowGroups: studio.rowGroups === true,
+            onSaved: () => {},
+            onContinue: (pageEl) => {
+              if (closeNavPage(pageEl)) openManageSpotMapsModal(options);
+            },
+          });
+          return;
+        }
         close();
         openStudioFloorPlanEditor(studio.id, studio.name, () => {
           openManageSpotMapsModal(options);
-        }, { ...options, gymId: studio.gymId, onDismiss: () => openManageSpotMapsModal(options) });
+        }, { ...options, gymId: studio.gymId, rowGroups: studio.rowGroups === true, onDismiss: () => openManageSpotMapsModal(options) });
       });
       btns.appendChild(editBtn);
 
@@ -903,7 +960,7 @@ function renderManageSpotMapsModal(prefs, studios, locations, container, onClose
           try {
             await api.updateStudioPreferences(studio.id, { preferredSlots: [], preferredRows: [] }, studio.gymId || options.gymId);
             showToast(COPY.settings.defaultsRemoved, 'success');
-            onClose();
+            if (!isMobile()) onClose();
             openManageSpotMapsModal(options);
           } catch (err) {
             showToast(formatCopyText(COPY.settings.actionFailed, { error: err.message }), 'error');
@@ -941,16 +998,20 @@ export async function openStudioFloorPlanEditor(studioId, studioName, onSaved, o
   const zIndex = (options.zIndex ?? 2000) + 1;
   const overlay = document.createElement('div');
   overlay.id = 'psycle-spotmap-editor-overlay';
+  overlay.className = 'psycle-ovl';
   overlay.style.cssText = `position:fixed;inset:0;background:color-mix(in srgb, var(--bg) 60%, transparent);z-index:${zIndex};display:flex;align-items:center;justify-content:center;padding:16px;`;
 
   const modal = document.createElement('div');
+  modal.className = 'psycle-ovl-card';
   modal.style.cssText = 'background:var(--bg);border:1px solid color-mix(in srgb, var(--text) 12%, transparent);border-radius:16px;width:100%;max-width:560px;max-height:90vh;display:flex;flex-direction:column;overflow:hidden;';
 
   const header = document.createElement('div');
+  header.className = 'psycle-ovl-header';
   header.style.cssText = 'display:flex;justify-content:space-between;align-items:center;padding:14px 18px;border-bottom:1px solid color-mix(in srgb, var(--text) 8%, transparent);flex-shrink:0;';
-  header.innerHTML = `<div><div style="font-size:15px;font-weight:700;color:var(--text);">${COPY.spotMaps.spotMap}</div><div style="font-size:12px;color:var(--text-tertiary);margin-top:2px;">${studioName}</div></div><button style="background:none;border:none;color:var(--text-secondary);font-size:22px;cursor:pointer;padding:0;line-height:1;" id="spot-editor-close" aria-label="${COPY.credits.closeModal}">×</button>`;
+  header.innerHTML = `<div data-nav-title><div style="font-size:15px;font-weight:700;color:var(--text);">${COPY.spotMaps.spotMap}</div><div style="font-size:12px;color:var(--text-tertiary);margin-top:2px;">${studioName}</div></div><button data-nav-close style="background:none;border:none;color:var(--text-secondary);font-size:22px;cursor:pointer;padding:0;line-height:1;" id="spot-editor-close" aria-label="${COPY.credits.closeModal}">×</button>`;
 
   const body = document.createElement('div');
+  body.className = 'psycle-ovl-body';
   body.style.cssText = 'flex:1;overflow-y:auto;padding:16px;';
   body.innerHTML = `<div style="text-align:center;padding:24px;"><div class="psycle-spinner" style="margin:0 auto;"></div><div style="color:var(--text-secondary);margin-top:10px;font-size:13px;">${COPY.spotMaps.loadingFloorPlan}</div></div>`;
 
@@ -959,12 +1020,23 @@ export async function openStudioFloorPlanEditor(studioId, studioName, onSaved, o
   overlay.appendChild(modal);
   document.body.appendChild(overlay);
 
+  let savedFlag = false;
   const close = (dismissed = false) => {
+    if (closeNavPage(overlay)) return; // mobile: pops the page; onClose below tears down
     overlay.remove();
     if (activeSpotEditorOverlay === overlay) activeSpotEditorOverlay = null;
     if (dismissed) options.onDismiss?.();
   };
   activeSpotEditorOverlay = overlay;
+  // Drill-down page on mobile (Back arrow). Unsaved map changes ask before discarding.
+  openNavPage(overlay, {
+    id: 'spot-editor', back: true, remove: true,
+    canClose: () => !body.__isDirty?.() || confirm(COPY.bookingEditor.discardChanges),
+    onClose: () => {
+      if (activeSpotEditorOverlay === overlay) activeSpotEditorOverlay = null;
+      if (!savedFlag) options.onDismiss?.();
+    },
+  });
   header.querySelector('#spot-editor-close').onclick = () => close(true);
   overlay.addEventListener('click', e => { if (e.target === overlay) close(true); });
 
@@ -991,8 +1063,9 @@ export async function openStudioFloorPlanEditor(studioId, studioName, onSaved, o
       try {
         await api.updateStudioPreferences(studioId, { preferredSlots: slots, preferredRows: rows }, options.gymId);
         showToast(formatCopyText(COPY.settings.spotMapSaved, { studio: studioName }), 'success');
+        savedFlag = true;
         close();
-        if (onSaved) onSaved();
+        if (onSaved) onSaved(slots, rows);
       } catch (err) {
         showToast(formatCopyText(COPY.settings.spotMapSaveFailed, { error: err.message }), 'error');
       }
@@ -1013,6 +1086,7 @@ export async function openStudioFloorPlanEditor(studioId, studioName, onSaved, o
 
     renderStudioFloorPlan(body, layoutSlots, existing.preferredSlots || [], existing.preferredRows || [], onSave, {
       layoutObjects,
+      rowGroups: options.rowGroups ?? rowGroupsForStudio(studioId, options.gymId),
       bannerHtml: `<div style="font-size:12px;color:var(--feat-autoupgrade);background:color-mix(in srgb, var(--feat-autoupgrade) 8%, transparent);border:1px solid color-mix(in srgb, var(--feat-autoupgrade) 18%, transparent);border-radius:8px;padding:8px 10px;margin-bottom:12px;line-height:1.5;">${formatCopyText(COPY.spotMaps.sharedSpotMapHtml, { studioName: escapeHtml(studioName) })}</div>`
     });
   } catch (err) {
@@ -1171,14 +1245,16 @@ function gymModal() {
   const body = document.getElementById('psycle-gym-modal-body');
   const title = document.getElementById('psycle-gym-modal-title');
   const close = () => {
+    // Mobile page: pop its history entry (guard skipped, the work is done). Desktop: as before.
+    if (closeNavPage(modal)) return;
     modal.classList.remove('show');
     setTimeout(() => { modal.style.display = 'none'; }, 300);
   };
   document.getElementById('psycle-gym-modal-close').onclick = close;
   modal.querySelector('.psycle-modal-overlay').onclick = close;
-  const open = () => {
-    modal.style.display = 'flex';
-    setTimeout(() => modal.classList.add('show'), 10);
+  // navOpts: { id, back, canClose } for the mobile page shell (ui/modal-nav.js).
+  const open = (navOpts = {}) => {
+    openNavPage(modal, { focusField: 'input, select', ...navOpts });
   };
   return { modal, body, title, open, close };
 }
@@ -1223,7 +1299,7 @@ function connRowCreate(g) {
   row.setAttribute('role', 'row');
   const id = escapeHtml(g.gym_id);
   row.innerHTML = `
-    <span role="cell" class="psycle-gym-conn-name"><strong></strong><small></small></span>
+    <span role="cell" class="psycle-gym-conn-name"><span class="psycle-gym-conn-logo"></span><strong></strong><small></small></span>
     <span role="cell" class="psycle-gym-conn-health"><span class="psycle-gym-conn-dot" aria-hidden="true"></span><span class="psycle-gym-conn-label"></span></span>
     <span role="cell" class="psycle-gym-conn-when"></span>
     <span role="cell" class="psycle-gym-conn-actions">
@@ -1235,6 +1311,13 @@ function connRowCreate(g) {
 
 function connRowUpdate(row, g) {
   const health = connectionHealth(g);
+  // Full logo; rebuilt when the resolved brand changes (a chip built before the catalogue loads is the neutral placeholder).
+  const logo = row.querySelector('.psycle-gym-conn-logo');
+  const logoKey = `${g.gym_id}:${gymBrand(g.gym_id).id}`;
+  if (logo.getAttribute('data-mark') !== logoKey) {
+    logo.setAttribute('data-mark', logoKey);
+    logo.innerHTML = gymLogoBanner(g.gym_id);
+  }
   row.querySelector('.psycle-gym-conn-name strong').textContent = g.gym_name || g.gym_id;
   row.querySelector('.psycle-gym-conn-name small').textContent = g.gym_email || g.provider || '';
   const h = row.querySelector('.psycle-gym-conn-health');
@@ -1493,6 +1576,7 @@ export async function renderGymSettingsSection(requestedGymId = null, targetCont
 
     const rerender = () => renderGymSettingsSection(gymId).catch(err => debugConsole('[Settings] Gym section refresh failed:', err.message));
     renderGymSettingsSectionView(container, {
+      logoHtml: gymLogoBanner(gymId),
       gym,
       settings,
       membership,
@@ -1581,7 +1665,9 @@ function openLinkGymModal(gymId, existing, addable = []) {
     ? formatCopyText(COPY.settings.reauthenticateGym, { gym: existing?.gym_name || gymId })
     : COPY.settings.addGym;
 
+  const logoGymId = gymId || addable[0]?.id || '';
   body.innerHTML = `
+    <div id="psycle-link-gym-logo" class="psycle-gym-form-logo">${logoGymId ? gymLogoBanner(logoGymId) : ''}</div>
     <p class="psycle-card-desc" style="margin-top:0;">
       ${isReauth
         ? COPY.settings.addGymCredentialsHelp
@@ -1603,8 +1689,13 @@ function openLinkGymModal(gymId, existing, addable = []) {
       ${isReauth ? COPY.settings.reauthenticate : COPY.settings.link}
     </button>
   `;
-  open();
+  // Re-auth is a drill-down from a gym's row: Back arrow. Link-a-gym is a task from the tab: X.
+  open({ id: isReauth ? 'gym-reauth' : 'gym-link', back: isReauth });
 
+  // Link flow: the logo follows the gym picked in the select.
+  body.querySelector('#psycle-link-gym-id')?.addEventListener('change', (e) => {
+    body.querySelector('#psycle-link-gym-logo').innerHTML = gymLogoBanner(e.target.value);
+  });
   const errEl = body.querySelector('#psycle-link-gym-error');
   const submit = body.querySelector('#psycle-link-gym-submit');
   submit.onclick = async () => {
@@ -1659,7 +1750,12 @@ function openAccountPasswordModal() {
     <div id="psycle-pw-error" style="display:none;color:var(--danger);font-size:12px;margin-bottom:10px;"></div>
     <button class="psycle-btn primary" id="psycle-pw-submit" style="width:100%;">${COPY.settings.changePassword}</button>
   `;
-  open();
+  // Any typed value means unsaved work: ask before a mobile Back/X/Esc discards it.
+  open({
+    id: 'account-password',
+    canClose: () => !['#psycle-pw-current', '#psycle-pw-new', '#psycle-pw-confirm']
+      .some((s) => body.querySelector(s)?.value) || confirm(COPY.settings.discardUnsaved),
+  });
 
   const errEl = body.querySelector('#psycle-pw-error');
   const submit = body.querySelector('#psycle-pw-submit');
@@ -1943,7 +2039,7 @@ function setupNotificationPrefs() {
     openBtn.addEventListener('click', () => {
       debugConsole('[notif-btn-click] renderNotifPrefs and showing modal');
       renderNotifPrefs();
-      modal.classList.add('show');
+      openNavPage(modal, { id: 'notif-prefs', closeFooter: true });
     });
   }
   if (closeBtn && !closeBtn.dataset.listener) {

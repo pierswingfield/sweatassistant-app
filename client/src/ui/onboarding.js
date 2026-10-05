@@ -20,7 +20,7 @@ import { appConfig } from '../config';
 import { setGymCatalogue } from '../gym-context.js';
 import { COPY, formatCopyText, appCopy } from '../copy.js';
 import { escapeHtml, gymChip } from './cards';
-import { enableAutoUpgradeForGyms, shouldAnimateGymLogos, getPostLoginDestination as choosePostLoginDestination } from './onboarding-routing.js';
+import { enableAutoUpgradeForGyms, shouldAnimateGymLogos, getPostLoginDestination as choosePostLoginDestination, detectInstallContext, shouldOfferInstall } from './onboarding-routing.js';
 
 const COMPLETE_KEY = 'psycleOnboardingComplete';
 const STEP_KEY = 'psycleOnboardingStep';
@@ -28,7 +28,7 @@ const STEP_KEY = 'psycleOnboardingStep';
 // v4: focused, resumable flow with one optional setup roll-up.
 const ONBOARDING_VERSION = '4';
 
-const STEPS = ['intro', 'login', 'gyms', 'features'];
+const STEPS = ['intro', 'install', 'authchoice', 'login', 'gyms', 'features'];
 
 // --- platform / capability detection (mirrors main.js:279) ---
 const isIOS = () => /iPad|iPhone|iPod/.test(navigator.userAgent) && !window.MSStream;
@@ -122,7 +122,11 @@ async function runFrom(startIndex) {
           continue;
         }
       }
-      if (action === 'back') i = Math.max(0, i - 1);
+      if (action === 'back') {
+        i = Math.max(0, i - 1);
+        // Back never lands on a step that has nothing to show.
+        while (i > 0 && !stepApplies(STEPS[i])) i--;
+      }
       else if (action === 'welcome') i = 0;
       else i++;
     }
@@ -167,22 +171,26 @@ async function finish() {
   }
   container().style.display = 'none';
   container().innerHTML = '';
-  location.hash = '#class-timetable';
+  location.hash = '#home';
   await initApp();
 }
 
 // ---- shared layout helpers ----
 
 // Renders a standard centred step "sheet" and returns its inner body element.
-function renderSheet({ eyebrow, title, body, footer }) {
+// `onBack` adds the shared top Back button (same position and style on every screen).
+const backButtonHtml = () => `<button class="psycle-onb-back-top" type="button">${COPY.onboarding.back}</button>`;
+function renderSheet({ eyebrow, title, body, footer, onBack }) {
   const c = show();
   c.innerHTML = `
+    ${onBack ? backButtonHtml() : ''}
     <div class="psycle-onb-sheet" role="dialog" aria-modal="true">
       ${eyebrow ? `<div class="psycle-onb-eyebrow">${eyebrow}</div>` : ''}
       ${title ? `<h2 class="psycle-onb-title">${title}</h2>` : ''}
       <div class="psycle-onb-body">${body || ''}</div>
       <div class="psycle-onb-footer">${footer || ''}</div>
     </div>`;
+  if (onBack) c.querySelector('.psycle-onb-back-top').addEventListener('click', onBack);
   return c.querySelector('.psycle-onb-sheet');
 }
 
@@ -212,6 +220,7 @@ function stepIntro() {
     const slides = getSlides();
     const c = show();
     const O = COPY.onboarding;
+    introContinuesToInstall = !isLoggedIn() && installOffered();
     const perks = [
       { icon: 'autobook', token: '--feat-autobook', title: O.perkAutoBookTitle, text: O.perkAutoBookText },
       { icon: 'autoupgrade', token: '--feat-autoupgrade', title: O.perkAutoUpgradeTitle, text: O.perkAutoUpgradeText },
@@ -247,7 +256,7 @@ function stepIntro() {
         </div>
           ${slides.length > 1 ? `<div class="psycle-onb-dots">${slides.map((_, i) => `<button class="psycle-onb-dot${i === 0 ? ' is-active' : ''}" type="button" aria-label="${COPY.onboarding.slideLabel.replace('{number}', i + 1)}"></button>`).join('')}</div>` : ''}
         <div class="psycle-onb-footer">
-          ${isLoggedIn() ? `<button class="psycle-btn-primary psycle-onb-auth" type="button" data-auth-mode="continue">${COPY.onboarding.continueSetup}</button>` : `<button class="psycle-btn-primary psycle-onb-auth" type="button" data-auth-mode="login">${COPY.onboarding.logInButton}</button><button class="psycle-btn-secondary psycle-onb-auth" type="button" data-auth-mode="signup">${COPY.onboarding.createAccountButton}</button>`}
+          ${isLoggedIn() ? `<button class="psycle-btn-primary psycle-onb-auth" type="button" data-auth-mode="continue">${COPY.onboarding.continueSetup}</button>` : introContinuesToInstall ? `<button class="psycle-btn-primary psycle-onb-auth" type="button" data-auth-mode="login">${COPY.onboarding.continue}</button>` : `<button class="psycle-btn-primary psycle-onb-auth" type="button" data-auth-mode="login">${COPY.onboarding.logInButton}</button><button class="psycle-btn-secondary psycle-onb-auth" type="button" data-auth-mode="signup">${COPY.onboarding.createAccountButton}</button>`}
         </div>
       </div>`;
 
@@ -284,51 +293,91 @@ function stepIntro() {
 }
 
 // ---- STEP: install to home screen ----
+// Mobile browser tabs only (never an installed app), at most once per browser session, with a skip.
+// Install step: shown on EVERY flow entry in a mobile browser tab until BOTH the user has chosen "Continue in
+// browser" (pending, session-scoped) AND has logged in (which promotes it to the persistent dismissed flag).
+// Merely showing the step sets nothing.
+const INSTALL_PENDING_KEY = 'psycleInstallPending';
+const INSTALL_DISMISSED_KEY = 'psycleInstallDismissed';
+const installContext = () => detectInstallContext({
+  userAgent: navigator.userAgent,
+  standalone: window.navigator.standalone === true,
+  displayStandalone: window.matchMedia('(display-mode: standalone)').matches,
+  maxTouchPoints: navigator.maxTouchPoints || 0,
+  viewportWidth: window.innerWidth,
+});
+const installDismissed = () => { try { return localStorage.getItem(INSTALL_DISMISSED_KEY) === '1'; } catch (_) { return false; } };
+const markInstallPending = () => { try { sessionStorage.setItem(INSTALL_PENDING_KEY, '1'); } catch (_) {} };
+/** Called on every successful login/account creation: a pending "Continue in browser" becomes permanent. */
+export function promoteInstallDismissal() {
+  try {
+    if (sessionStorage.getItem(INSTALL_PENDING_KEY) === '1') localStorage.setItem(INSTALL_DISMISSED_KEY, '1');
+  } catch (_) {}
+}
+const installOffered = () => shouldOfferInstall(installContext(), installDismissed());
+// Mobile-browser first screen shows a single Continue (next screen is the install step, not login).
+let introContinuesToInstall = false;
+// Which steps apply right now (used to skip them when walking Back).
+const stepApplies = (step) => (step === 'install' ? installOffered() : step === 'authchoice' ? introContinuesToInstall : true);
+
+// Inline glyphs for the numbered steps (currentColor, so they follow the theme tokens).
+const INSTALL_ICON = {
+  share: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 12v7a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-7"/><polyline points="16 6 12 2 8 6"/><line x1="12" y1="2" x2="12" y2="15"/></svg>',
+  addSquare: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="4"/><path d="M12 8v8M8 12h8"/></svg>',
+  kebab: '<svg viewBox="0 0 24 24" fill="currentColor"><circle cx="12" cy="5" r="1.8"/><circle cx="12" cy="12" r="1.8"/><circle cx="12" cy="19" r="1.8"/></svg>',
+  menu: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M4 7h16M4 12h16M4 17h16"/></svg>',
+  install: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="6" y="2" width="12" height="20" rx="3"/><path d="M12 8v6M9.5 11.5 12 14l2.5-2.5"/></svg>',
+  check: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12.5 10 17.5 19 7"/></svg>',
+  open: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="5"/><path d="M8 12h8M13 9l3 3-3 3"/></svg>',
+};
+
+/** Numbered, illustrated steps for a platform. */
+function installStepsHtml(platform) {
+  const O = COPY.onboarding;
+  const s = (icon, html) => `<li class="psycle-install-step"><span class="psycle-install-ico" aria-hidden="true">${INSTALL_ICON[icon]}</span><span class="psycle-install-txt">${html}</span></li>`;
+  let steps;
+  if (platform === 'ios-safari' || platform === 'ios-other') {
+    steps = [s('share', O.installStepIosShare), s('addSquare', O.installStepIosAdd), s('check', O.installStepIosConfirm), s('open', appCopy(O.installStepIosOpen))];
+  } else if (platform === 'android-chrome') {
+    steps = [s('kebab', O.installStepAndroidMenu), s('install', O.installStepAndroidInstall), s('check', O.installStepAndroidConfirm)];
+  } else if (platform === 'android-samsung') {
+    steps = [s('menu', O.installStepSamsungMenu), s('addSquare', O.installStepSamsungAdd), s('check', O.installStepIosConfirm)];
+  } else {
+    steps = [s('kebab', O.installStepGenericMenu), s('addSquare', O.installStepGenericAdd)];
+  }
+  const note = platform === 'ios-other' ? `<p class="psycle-install-note">${O.installIosOtherNote}</p>` : '';
+  return `${note}<ol class="psycle-install-steps">${steps.join('')}</ol>`;
+}
+
 function stepInstall() {
   return new Promise((resolve) => {
-    if (isStandalone()) return resolve(); // already installed — skip
+    // Back only exists inside the onboarding flow (the pre-login offer has nothing before it).
+    const onBack = active ? () => resolve('back') : null;
+    const ctx = installContext();
+    if (!shouldOfferInstall(ctx, installDismissed())) return resolve();
 
     const promptEvent = consumeInstallPrompt();
-    const ios = isIOS();
-
     const reasoning = `
       <ul class="psycle-onb-reasons">
         <li><span class="psycle-onb-reason-icon">${ICON.push}</span><div><strong>${COPY.onboarding.pushReasonTitle}</strong><br>${COPY.onboarding.pushReason}</div></li>
         <li><span class="psycle-onb-reason-icon">${ICON.offline}</span><div><strong>${COPY.onboarding.offlineReasonTitle}</strong><br>${COPY.onboarding.offlineReason}</div></li>
       </ul>`;
-
-    let body;
-    let primary;
-    if (promptEvent) {
-      // Android / desktop Chromium — native one-tap install
-      body = `<p class="psycle-onb-lead">${appCopy(COPY.onboarding.installForExperience)}</p>${reasoning}`;
-      primary = `<button class="psycle-btn-primary psycle-onb-install" type="button"><span>${COPY.onboarding.installButton}</span></button>`;
-    } else if (ios) {
-      body = `<p class="psycle-onb-lead">${appCopy(COPY.onboarding.installForHomeScreen)}</p>${reasoning}
-        <ol class="psycle-onb-steps">
-          <li>${COPY.onboarding.iosShareStepHtml.replace('{shareIcon}', '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="width: 1.1em; height: 1.1em; display: inline-block; vertical-align: middle; margin: 0 2px;"><path d="M4 12v7a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-7"/><polyline points="16 6 12 2 8 6"/><line x1="12" y1="2" x2="12" y2="15"/></svg>')}</li>
-          <li>${COPY.onboarding.iosAddStep}</li>
-          <li>${appCopy(COPY.onboarding.iosOpenAppStep)}</li>
-        </ol>`;
-      primary = '';
-    } else {
-      // Android browser without beforeinstallprompt, or other
-      body = `<p class="psycle-onb-lead">${appCopy(COPY.onboarding.installForExperience)}</p>${reasoning}
-        <ol class="psycle-onb-steps">
-          <li>${COPY.onboarding.browserMenuStep}</li>
-          <li>${COPY.onboarding.browserInstallStep}</li>
-        </ol>`;
-      primary = '';
-    }
+    const ios = ctx.platform.startsWith('ios');
+    const lead = appCopy(ios ? COPY.onboarding.installForHomeScreen : COPY.onboarding.installForExperience);
+    // Android Chrome: a native one-tap Install when the browser handed us the prompt; steps otherwise.
+    const body = `<p class="psycle-onb-lead">${lead}</p>${reasoning}${promptEvent ? '' : installStepsHtml(ctx.platform)}`;
+    const primary = promptEvent
+      ? `<button class="psycle-btn-primary psycle-onb-install" type="button"><span>${COPY.onboarding.installButton}</span></button>` : '';
 
     const sheet = renderSheet({
       eyebrow: COPY.onboarding.installEyebrow,
       title: appCopy(COPY.onboarding.installTitle),
       body,
       footer: `${primary}<button class="psycle-btn-mini psycle-onb-skip-inline" type="button">${COPY.onboarding.continueInBrowser}</button>`,
+      onBack,
     });
 
-    sheet.querySelector('.psycle-onb-skip-inline').addEventListener('click', resolve);
+    sheet.querySelector('.psycle-onb-skip-inline').addEventListener('click', () => { markInstallPending(); resolve(); });
     const installBtn = sheet.querySelector('.psycle-onb-install');
     if (installBtn && promptEvent) {
       installBtn.addEventListener('click', async () => {
@@ -343,6 +392,33 @@ function stepInstall() {
   });
 }
 
+/**
+ * Standalone entry for EXISTING users who are logged out (login screen) on a mobile browser: shows the
+ * install step once per session without starting onboarding, then hands back to the caller (showLogin).
+ */
+export async function offerInstallBeforeLogin() {
+  if (active || !installOffered()) return;
+  document.body.id = 'psycle-helper-container';
+  await stepInstall();
+  const c = container();
+  if (c) { c.style.display = 'none'; c.innerHTML = ''; }
+}
+
+// ---- STEP: log in / create account choice (only after the install step, when the intro showed Continue) ----
+function stepAuthChoice() {
+  return new Promise((resolve) => {
+    if (isLoggedIn() || !introContinuesToInstall) return resolve();
+    const O = COPY.onboarding;
+    const sheet = renderSheet({
+      title: appCopy(O.authChoiceTitle),
+      body: `<p class="psycle-onb-lead">${appCopy(O.authChoiceLead)}</p>`,
+      footer: `<button class="psycle-btn-primary psycle-onb-auth" type="button" data-auth-mode="login">${O.logInButton}</button><button class="psycle-btn-secondary psycle-onb-auth" type="button" data-auth-mode="signup">${O.createAccountButton}</button>`,
+      onBack: () => resolve('back'),
+    });
+    sheet.querySelectorAll('[data-auth-mode]').forEach((b) => b.addEventListener('click', () => { requestedAuthMode = b.dataset.authMode; resolve(); }));
+  });
+}
+
 // ---- STEP: login ----
 function stepLogin() {
   return new Promise((resolve) => {
@@ -351,7 +427,7 @@ function stepLogin() {
     const login = document.getElementById('psycle-login-container');
     const back = document.createElement('button');
     back.type = 'button';
-    back.className = 'psycle-btn-mini psycle-onb-auth-back';
+    back.className = 'psycle-onb-back-top';
     back.textContent = COPY.onboarding.back;
     back.addEventListener('click', () => {
       loginResolver = null;
@@ -477,7 +553,7 @@ function stepGyms() {
             </div>
             <div id="psycle-onb-gym-error" class="psycle-login-error" style="display:none;margin-top:4px;"></div>
             <button type="button" id="psycle-onb-gym-submit" class="psycle-btn-primary" style="margin-top:4px;"><span>${escapeHtml(submitLabel(unlinkedGyms[0]?.id))}</span></button>
-            ${hasLinked ? `<button type="button" id="psycle-onb-add-another-back" class="psycle-btn-mini">${COPY.onboarding.backToSetup}</button>` : ''}
+
           </div>
         `;
       } else if (unlinkedGyms.length > 0 && hasLinked) {
@@ -504,16 +580,13 @@ function stepGyms() {
           ${connectedListHtml}
           ${formHtml}
         `,
-        footer: `<button class="psycle-btn-mini psycle-onb-back" type="button">${COPY.onboarding.back}</button>${continueBtnHtml}`,
+        footer: continueBtnHtml,
+        onBack: addingAnother && hasLinked ? () => { addingAnother = false; render(); } : () => resolve('welcome'),
       });
-
-      sheet.querySelector('.psycle-onb-back').addEventListener('click', () => resolve('welcome'));
 
       const addAnotherBtn = sheet.querySelector('#psycle-onb-add-another');
       if (addAnotherBtn) addAnotherBtn.addEventListener('click', () => { addingAnother = true; render(); });
 
-      const addAnotherBack = sheet.querySelector('#psycle-onb-add-another-back');
-      if (addAnotherBack) addAnotherBack.addEventListener('click', () => { addingAnother = false; render(); });
 
       const continueBtn = sheet.querySelector('.psycle-onb-continue');
       if (continueBtn) {
@@ -700,6 +773,7 @@ function stepFeatures() {
   return new Promise(async (resolve) => {
   const c = show();
   c.innerHTML = `
+    ${backButtonHtml()}
     <div class="psycle-onb-sheet psycle-onb-features" role="dialog" aria-modal="true" aria-labelledby="psycle-onb-features-title">
       <div class="psycle-onb-eyebrow">${COPY.onboarding.optionalSetup}</div>
       <h2 class="psycle-onb-title" id="psycle-onb-features-title">${COPY.onboarding.makeItYours}</h2>
@@ -725,7 +799,6 @@ function stepFeatures() {
       </section>
       </div>
       <div class="psycle-onb-footer">
-        <button class="psycle-btn-mini psycle-onb-back" type="button">${COPY.onboarding.back}</button>
         <button class="psycle-btn-primary psycle-onb-finish" type="button">${COPY.onboarding.setupLater}</button>
       </div>
     </div>`;
@@ -775,7 +848,7 @@ function stepFeatures() {
   });
 
   await refreshStatus();
-  c.querySelector('.psycle-onb-back').addEventListener('click', () => { resolve('back'); });
+  c.querySelector('.psycle-onb-back-top').addEventListener('click', () => { resolve('back'); });
   c.querySelector('.psycle-onb-finish').addEventListener('click', async (event) => {
     const checkbox = c.querySelector('#psycle-onb-auto-upgrade-all');
     const finishButton = event.currentTarget;
@@ -822,6 +895,8 @@ function stepFeatures() {
 
 const STEP_HANDLERS = {
   intro: stepIntro,
+  install: stepInstall,
+  authchoice: stepAuthChoice,
   login: stepLogin,
   gyms: stepGyms,
   features: stepFeatures,

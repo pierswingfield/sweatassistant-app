@@ -10,6 +10,8 @@
 import { icon, gymBrand, getDiscipline } from './cards.js';
 import { escapeHtml } from './cards.js';
 import { COPY, formatCopyText } from '../copy.js';
+import { pushLayer } from './modal-nav.js';
+import { summariseInstructorsByGym } from './instructor-filter.js';
 
 // Aliases come from the gym config (ctx.locationAlias). This is only the
 // fallback for a location that has none: word initials, or the first 3 letters.
@@ -103,8 +105,14 @@ export function renderFilterRail(ctx) {
   const noFilters = selectedCount(state) === 0;
   parts.push(`<button type="button" class="fr-trigger${noFilters ? ' has-label' : ''}" data-fr-open="1" aria-label="${COPY.filters.filters}${selectedCount(state) ? `, ${formatCopyText(COPY.filters.activeFilters, { count: selectedCount(state) })}` : ''}">${icon('filter', 16)}${noFilters ? `<span class="fr-trigger-label">${COPY.filters.filters}</span>` : ''}</button>`);
 
+  // Search lives beside Filters; the input it opens is owned by timetable-search-ui.js
+  // (persistent, so this per-render repaint can't destroy typed text).
+  if (ctx.openSearch) {
+    parts.push(`<button type="button" class="fr-trigger fr-search-btn${ctx.searchActive ? ' active' : ''}" data-fr-search="1" aria-label="${COPY.filters.search}">${icon('search', 16)}</button>`);
+  }
+
   if (state.gyms.length || state.locations.length) {
-    parts.push(chip(gymTileHtml(ctx), 'gyms', COPY.filters.clearFilterChip));
+    parts.push(chip(`${icon('pin', 13)}${gymTileHtml(ctx)}`, 'gyms', COPY.filters.clearFilterChip));
   }
   if (state.eventTypes.length) {
     // One generic workout glyph (the same one JAB's TRAIN uses), not the first
@@ -113,8 +121,13 @@ export function renderFilterRail(ctx) {
   }
   if (state.instructors.length) {
     const first = ctx.instructors.find(i => String(i.id) === state.instructors[0]);
-    const body = state.instructors.length === 1
-      ? `${avatar(first)}<span>${escapeHtml(((first && first.name) || COPY.filters.instructorFallback).split(' ')[0])}</span>`
+    const gymIds = (ctx.gyms || []).map(g => g.id);
+    // Several gyms: same tile as the location chip, a count (or "All") per gym logo.
+    const body = gymIds.length > 1
+      ? `${icon('user', 13)}` + summariseInstructorsByGym(state.instructors, gymIds).map(({ gymId, count }) =>
+          `<span class="fr-tile-part">${gymDot(gymId)}<span class="fr-initials">${count ? `<b class="fr-num">${count}</b>` : COPY.filters.all}</span></span>`).join('')
+      : state.instructors.length === 1
+      ? `${icon('user', 13)}<span>${escapeHtml(((first && first.name) || COPY.filters.instructorFallback).split(' ')[0])}</span>`
       : `${icon('user', 13)}<span><b class="fr-num">${state.instructors.length}</b><span class="fr-thin">${COPY.filters.instructors}</span></span>`;
     parts.push(chip(body, 'instructors', COPY.filters.instructorFilterChip));
   }
@@ -131,6 +144,7 @@ export function renderFilterRail(ctx) {
   rail.onclick = (e) => {
     const clear = e.target.closest('[data-fr-clear]');
     if (clear) { ctx.clear(clear.dataset.frClear); return; }
+    if (e.target.closest('[data-fr-search]')) { ctx.openSearch(); return; }
     if (e.target.closest('[data-fr-heart]')) { ctx.toggleBookmarks(); return; }
     const opener = e.target.closest('[data-fr-open]');
     if (opener) openSheet(ctx, opener.dataset.frSection || null);
@@ -163,6 +177,8 @@ function openSheet(ctx, focusKey = null) {
     sheetEl.innerHTML = `<div class="fr-sheet" role="dialog" aria-modal="true" aria-label="${COPY.filters.filters}"></div>`;
     sheetEl.addEventListener('click', (e) => { if (e.target === sheetEl) closeSheet(); });
     document.body.appendChild(sheetEl);
+    // Mobile: hardware/iOS back closes the sheet, and body scroll is locked while it is open.
+    sheetLayer = pushLayer({ id: 'filter-sheet', lock: true, escCloses: true, onBack: () => { sheetLayer = null; destroySheet(); } });
     requestAnimationFrame(() => sheetEl && sheetEl.classList.add('open'));
   }
   paintSheet(ctx);
@@ -173,10 +189,16 @@ function openSheet(ctx, focusKey = null) {
   }
 }
 
-export function closeSheet() {
+let sheetLayer = null;
+function destroySheet() {
   if (!sheetEl) return;
   sheetEl.remove();
   sheetEl = null;
+}
+export function closeSheet() {
+  if (!sheetEl) return;
+  if (sheetLayer) { const l = sheetLayer; sheetLayer = null; l.release(); }
+  destroySheet();
 }
 
 // Accordion state survives repaints (every toggle re-renders the timetable,
@@ -221,6 +243,8 @@ function instructorListHtml(ctx) {
   }
   const byGym = new Map();
   ctx.instructors.forEach(i => { const k = i.gymId || ''; (byGym.get(k) || byGym.set(k, []).get(k)).push(i); });
+  // One linked gym: no group header needed, a flat list says it all.
+  if (byGym.size === 1) return `<div class="fr-grid">${[...byGym.values()][0].map(i => instructorRow(ctx, i, false)).join('')}</div>`;
   return [...byGym.entries()].map(([gymId, list]) => {
     const open = openInstGyms.has(gymId);
     const picked = list.filter(i => ctx.state.instructors.includes(String(i.id))).length;

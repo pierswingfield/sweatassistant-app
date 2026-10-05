@@ -1,3 +1,4 @@
+import { VALID_TABS, resolveInitialTab } from './ui/home-routing.js';
 import { api, setToken, isLoggedIn } from './api';
 import { setLinkedGyms, setGymCatalogue, getLinkedGyms, getGymShortName, getDefaultGymId, getGymPresentation } from './gym-context.js';
 import { initTooltips } from './ui/tooltips';
@@ -6,7 +7,7 @@ import { markScrollBusy, isScrollBusy, isDocScroll, docScroller } from './ui/scr
 import { initGymLogoLoader } from './ui/gym-logo-loader.js';
 import { setCacheKeyPrefix, clearApiCache, invalidateApiCache } from './cache.js';
 import { appConfig, initConfig } from './config';
-import { shouldShowOnboarding, resumeOnboarding, getPostLoginDestination, isOnboardingActive, advanceAfterLogin } from './ui/onboarding';
+import { shouldShowOnboarding, resumeOnboarding, getPostLoginDestination, isOnboardingActive, advanceAfterLogin, promoteInstallDismissal, offerInstallBeforeLogin } from './ui/onboarding';
 import { detectBookingWindow, noSept } from './lib';
 import { canBookAtAll, getIneligibleReason, hasConfirmedAccess } from './ui/credit-allowance.js';
 import { escapeHtml, gymBrand, wordmarkElement } from './ui/cards';
@@ -273,10 +274,12 @@ export function showToast(message, type = 'info') {
 
   // Auto-hide: pause on hover for desktop users reading long text
   const scheduleAutoDismiss = () => {
-    if (type !== 'error') {
-      hideTimer = setTimeout(dismiss, 4000);
-    }
+    // Every variant auto-dismisses; errors linger longer so they can be read.
+    if (hideTimer) clearTimeout(hideTimer);
+    hideTimer = setTimeout(dismiss, type === 'error' ? 6000 : 4000);
   };
+  // Tap anywhere on the toast to dismiss it.
+  toast.addEventListener('click', dismiss);
 
   toast.addEventListener('mouseenter', () => {
     if (hideTimer) clearTimeout(hideTimer);
@@ -386,7 +389,6 @@ const panels = document.querySelectorAll('.psycle-tab-content');
 // Expose on window so inline onclick handlers (e.g. "Buy Credits" button in timetable) can call it
 window.switchTab = switchTab;
 
-const VALID_TABS = ['class-timetable', 'my-bookings', 'auto-book', 'buy-credits', 'settings'];
 
 // The currently active tab — used by the shared pull-to-refresh dispatcher.
 let currentTabId = null;
@@ -395,6 +397,8 @@ function switchTab(tabId) {
   // TEMP: credits hidden unless debugMode (restore by removing gate)
   if (tabId === 'buy-credits' && !creditsTabAllowed()) tabId = 'class-timetable';
   cancelPullToRefresh();
+  // Leaving the timetable ends search: its own filter scope is dropped and the normal filters return.
+  if (tabId !== 'class-timetable') import('./ui/timetable-search-state.js').then(m => { if (m.inSearchScope()) import('./ui/timetable').then(t => t.exitSearch()); });
   currentTabId = tabId;
   const targetPanelId = `psycle-panel-${tabId}`;
 
@@ -431,7 +435,10 @@ function switchTab(tabId) {
 
 async function triggerTabRender(tabId) {
   try {
-    if (tabId === 'class-timetable') {
+    if (tabId === 'home') {
+      const { initHome } = await import('./ui/home');
+      initHome();
+    } else if (tabId === 'class-timetable') {
       const { initTimetable } = await import('./ui/timetable');
       initTimetable();
     } else if (tabId === 'my-bookings') {
@@ -478,7 +485,14 @@ tabButtons.forEach(btn => {
 // refresh action based on which tab is active.
 async function refreshActiveTab() {
   try {
-    if (currentTabId === 'class-timetable') {
+    if (currentTabId === 'home') {
+      await invalidateApiCache('/api/auto-book');
+      await invalidateApiCache('/api/bookings');
+      await invalidateApiCache('/api/profile');
+      await invalidateApiCache('/api/credits');
+      const { refreshHome } = await import('./ui/home');
+      await refreshHome();
+    } else if (currentTabId === 'class-timetable') {
       // Events are fetched without TTL (always fresh), but bookings/waitlists
       // use a 2-min API cache — invalidate so the refresh is a true reload.
       // Profile too, so the credit badge updates on refresh.
@@ -953,31 +967,55 @@ function hideOfflineBanner() {
   }, 350);
 }
 
-function probeConnectivity() {
-  if (probeTimeout) {
-    clearTimeout(probeTimeout);
+// Real reachability check. ANY HTTP response from our own server (even 401/5xx)
+// proves the network path works; only a thrown fetch means unreachable.
+async function checkReachable() {
+  if (typeof navigator !== 'undefined' && navigator.onLine === false) return false;
+  const controller = new AbortController();
+  const timeoutId = setTimeout(() => controller.abort(), 4000);
+  try {
+    await fetch('/api/health?_=' + Date.now(), { cache: 'no-store', signal: controller.signal });
+    return true;
+  } catch (_) {
+    return false;
+  } finally {
+    clearTimeout(timeoutId);
   }
-  probeTimeout = setTimeout(async () => {
-    const token = localStorage.getItem('psycleLocalToken');
-    if (!token) {
-      if (navigator.onLine) setOnline();
-      return;
-    }
-    try {
-      const controller = new AbortController();
-      const timeoutId = setTimeout(() => controller.abort(), 3000);
-      const res = await fetch('/api/auth/status', {
-        headers: { Authorization: 'Bearer ' + token },
-        signal: controller.signal
-      });
-      clearTimeout(timeoutId);
-      if (res.ok) {
-        setOnline();
-      }
-    } catch (err) {
-      // Stay offline — probe failed
-    }
-  }, 500);
+}
+
+let recoveryTimer = null;
+function scheduleRecovery(delayMs = 5000) {
+  if (recoveryTimer || !isOffline) return;
+  recoveryTimer = setTimeout(async () => {
+    recoveryTimer = null;
+    if (!isOffline) return;
+    await probeConnectivity(0);
+    if (isOffline) scheduleRecovery(Math.min(delayMs * 2, 30000));
+  }, delayMs);
+}
+
+// Resolves true when online. delayMs=0 probes immediately (Retry button).
+function probeConnectivity(delayMs = 300) {
+  if (probeTimeout) clearTimeout(probeTimeout);
+  return new Promise((resolve) => {
+    probeTimeout = setTimeout(async () => {
+      probeTimeout = null;
+      let ok = await checkReachable();
+      if (!ok && navigator.onLine !== false) ok = await checkReachable(); // one fresh-socket retry
+      if (ok) setOnline();
+      resolve(ok);
+    }, delayMs);
+  });
+}
+
+// A failed request is only a hint: confirm with a real probe before latching offline.
+async function verifyThenSetOffline(reason) {
+  if (isOffline) return;
+  if (navigator.onLine === false) { setOffline(reason); return; }
+  const ok = await checkReachable() || await checkReachable();
+  if (ok) { setOnline(); return; }
+  setOffline(reason);
+  scheduleRecovery();
 }
 
 export function getIsOffline() {
@@ -998,12 +1036,22 @@ function initConnectivity() {
   banner.innerHTML = '<span class="offline-icon" aria-hidden="true">⚠</span><span class="offline-text"></span><button type="button" class="psycle-offline-retry">Retry</button>';
   container.insertBefore(banner, container.firstChild);
 
-  banner.querySelector('.psycle-offline-retry')?.addEventListener('click', () => probeConnectivity());
+  banner.querySelector('.psycle-offline-retry')?.addEventListener('click', async (e) => {
+    const btn = e.currentTarget;
+    btn.disabled = true;
+    const label = btn.textContent;
+    btn.textContent = '…';
+    try { await probeConnectivity(0); } finally { btn.disabled = false; btn.textContent = label; }
+  });
 
-  window.addEventListener('offline', () => setOffline('browser'));
-  window.addEventListener('online', () => probeConnectivity());
-  window.addEventListener('psycle-network-fail', () => setOffline('network-error'));
-  window.addEventListener('psycle-network-ok', () => probeConnectivity());
+  window.addEventListener('offline', () => { setOffline('browser'); scheduleRecovery(); });
+  window.addEventListener('online', () => probeConnectivity(0));
+  window.addEventListener('psycle-network-fail', () => verifyThenSetOffline('network-error'));
+  // A successful API response IS proof of connectivity — no extra probe needed.
+  window.addEventListener('psycle-network-ok', () => { if (isOffline && navigator.onLine !== false) setOnline(); });
+  document.addEventListener('visibilitychange', () => {
+    if (document.visibilityState === 'visible' && isOffline) probeConnectivity(0);
+  });
   window.addEventListener('psycle-offline-snapshot', (event) => {
     const savedAt = Number(event.detail?.savedAt);
     if (!Number.isFinite(savedAt)) return;
@@ -1013,6 +1061,7 @@ function initConnectivity() {
 
   if (!navigator.onLine) {
     setOffline('initial');
+    scheduleRecovery();
   }
 }
 
@@ -1269,10 +1318,9 @@ export async function initApp() {
   const buildTimeEl = document.getElementById('psycle-build-time');
   if (buildTimeEl) buildTimeEl.textContent = noSept(new Date().toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' }));
 
-  // Restore tab from URL hash if available, otherwise default to Timetable
-  const hash = location.hash.replace('#', '');
-  let initialTab = VALID_TABS.includes(hash) ? hash : 'class-timetable';
-  if (hash === 'about') initialTab = 'settings';
+  // Restore tab from URL hash if available, otherwise default to Home
+  // A valid hash (deep link / push click / refresh) wins; a fresh session lands on Home.
+  const initialTab = resolveInitialTab(location.hash);
   applyCreditsTabGate(); // TEMP: credits hidden unless debugMode (restore by removing gate)
   switchTab(initialTab);
 }
@@ -1318,7 +1366,7 @@ async function checkAuth() {
         // Cache prefix was restored above from localStorage.
         // A cold reload can reach this catch before the connectivity event has
         // updated module state, so the fetch TypeError is also authoritative.
-        if (!getIsOffline()) setOffline('status-request');
+        if (!getIsOffline()) { setOffline('status-request'); scheduleRecovery(); }
         // Onboarding can only advance with live requests. A returning account
         // with cached data must see its read-only app while offline instead of
         // an onboarding shell that hides both the login and app containers.
@@ -1334,7 +1382,8 @@ async function checkAuth() {
     // install relaunch.
     resumeOnboarding();
   } else {
-    showLogin();
+    // Existing, logged-out user: on a mobile browser tab offer the install step once, then the login screen.
+    offerInstallBeforeLogin().catch(() => {}).finally(showLogin);
   }
 }
 
@@ -1359,6 +1408,7 @@ function showLogin() {
 // Shared post-login routing. During onboarding we hand control back to the flow
 // (which calls initApp() at its finish step); otherwise we boot the app directly.
 async function onLoginSuccess() {
+  promoteInstallDismissal();
   if (isOnboardingActive()) {
     advanceAfterLogin();
     return;
@@ -1655,7 +1705,8 @@ window.addEventListener('psycle-gym-needs-relogin', async (e) => {
 });
 
 // Restore tab from URL hash on back/forward navigation
-window.addEventListener('popstate', () => {
+window.addEventListener('popstate', (e) => {
+  if (e.sweatNavHandled) return; // a modal page consumed this pop (ui/modal-nav.js)
   const hash = location.hash.replace('#', '');
   if (VALID_TABS.includes(hash)) {
     switchTab(hash);

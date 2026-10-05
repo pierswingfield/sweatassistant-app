@@ -21,6 +21,7 @@ import { icon, disciplineTag, getDiscipline, renderGymRail, cleanClassName, trim
 import { instructorAvatar } from './tooltips.js';
 import { getGymShortName, getDefaultGymId } from '../gym-context.js';
 import { COPY, formatCopyText } from '../copy.js';
+import { pushLayer } from './modal-nav.js';
 
 const MAX_CLASHES_SHOWN = 3;
 
@@ -177,6 +178,7 @@ export function confirmOverlap({ subject, warnings, mode = 'autobook' }) {
     const finish = (result) => {
       if (done) return;
       done = true;
+      layer.release(); // mobile: pop our history entry (no-op if back already did)
       document.removeEventListener('keydown', onKeydown, true);
       pending = null;
       root.classList.remove('show');
@@ -212,6 +214,8 @@ export function confirmOverlap({ subject, warnings, mode = 'autobook' }) {
     document.addEventListener('keydown', onKeydown, true);
 
     document.body.appendChild(root);
+    // Mobile: hardware/iOS back cancels this dialog only, not the page beneath it.
+    const layer = pushLayer({ id: uid, onBack: () => finish(false) });
     equalizeDiscTagWidths(root);
     // Next frame so the opacity transition runs; focus straight away so a screen
     // reader announces the dialog rather than the page behind it.

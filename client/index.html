@@ -160,7 +160,8 @@
 
     <!-- Top Navigation Bar -->
     <div class="psycle-nav-bar">
-      <button class="psycle-nav-btn active" data-tab="class-timetable" data-copy-text="navigation.timetable">Class Timetable</button>
+      <button class="psycle-nav-btn active" data-tab="home" data-copy-text="navigation.home">Home</button>
+      <button class="psycle-nav-btn" data-tab="class-timetable" data-copy-text="navigation.timetable">Class Timetable</button>
       <button class="psycle-nav-btn" data-tab="my-bookings" data-copy-text="navigation.bookings">My Bookings</button>
       <button class="psycle-nav-btn" data-tab="auto-book">
         <svg fill="currentColor" viewBox="0 0 32 32" xmlns="http://www.w3.org/2000/svg" aria-hidden="true" style="display:inline-block;vertical-align:middle;margin-right:4px;width:15px;height:15px;position:relative;top:-2px;">
@@ -177,6 +178,18 @@
     <!-- Main Workspace Panels (Rendered dynamically based on active tab) -->
     <main class="psycle-body">
       
+      <!-- HOME TAB PANEL (F-10-1: widget page) -->
+      <section id="psycle-panel-home" class="psycle-tab-content" style="display: none;">
+        <div class="psycle-tab-header">
+          <h3 data-copy-text="home.title">Home</h3>
+          <p data-copy-text="home.subtitle"></p>
+          <button class="psycle-tab-refresh-btn" data-refresh-tab="home" aria-label="Refresh Home" data-copy-aria-label="home.refresh" title="Refresh" data-copy-title="static.refresh">
+            <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="23 4 23 10 17 10"/><path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10"/></svg>
+          </button>
+        </div>
+        <div id="psycle-home-widgets" class="home-widgets"></div>
+      </section>
+
       <!-- TIMETABLE TAB PANEL -->
       <section id="psycle-panel-class-timetable" class="psycle-tab-content" style="display: none;">
         <!-- Title scrolls away; only the filters + date strip below stay pinned -->
@@ -685,7 +698,13 @@
 
     <!-- Mobile Bottom Tab Bar (iOS-style — hidden on desktop, replaces top nav on mobile) -->
     <nav class="psycle-bottom-nav" data-copy-aria-label="static.navPrimary">
-      <button class="psycle-nav-btn psycle-bottom-nav-btn active" data-tab="class-timetable" data-copy-aria-label="static.navTimetable">
+      <button class="psycle-nav-btn psycle-bottom-nav-btn active" data-tab="home" data-copy-aria-label="static.navHome">
+        <svg class="psycle-bn-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+          <path d="M3 10.5 12 3l9 7.5"/><path d="M5 9.5V20h14V9.5"/><path d="M10 20v-6h4v6"/>
+        </svg>
+        <span data-copy-text="static.navHome"></span>
+      </button>
+      <button class="psycle-nav-btn psycle-bottom-nav-btn" data-tab="class-timetable" data-copy-aria-label="static.navTimetable">
         <svg class="psycle-bn-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
                   <rect x="3" y="4.5" width="18" height="16" rx="2.5"/><path d="M3 9h18"/><path d="M8 3v3M16 3v3"/>
                 </svg>

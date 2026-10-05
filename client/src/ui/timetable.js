@@ -1,10 +1,11 @@
 import { api } from '../api';
+import { buildWorkoutOptions } from './workout-options.js';
 import { COPY, formatCopyText } from '../copy.js';
 import { getAvailableCreditsForEvent, hasUsableCredit, getIneligibleReason, isMetered } from './credit-allowance.js';
 import { isCreditInventoryLoaded, pickStudioPrefs as pickGymStudioPrefs } from './gym-isolation.js';
 import { canForGym, canAny, capabilityForGym, getLinkedGyms, getGymShortName, getLocationAlias, getDefaultGymId } from '../gym-context.js';
 import { showToast, currentUser, userSettings, gymSetting, profileForGym, refreshUserData, updateCreditBadge, cache, debugConsole } from '../main';
-import { getClassReleaseTime, isFullWithoutWaitlist, isInGracePeriod, GRACE_PERIOD_MS, startGraceCountdown, noSept, zoneFor, formatInZone, dayKeyInZone, nowInZone, deviceZone } from '../lib';
+import { passesLocationFilter, formatFullDate, getClassReleaseTime, isFullWithoutWaitlist, isInGracePeriod, GRACE_PERIOD_MS, startGraceCountdown, noSept, zoneFor, formatInZone, dayKeyInZone, nowInZone, deviceZone } from '../lib';
 import { getGymTimeZone } from '../gym-context.js';
 import { DateTime } from 'luxon';
 // === WEEK-STRIP DATE SELECTOR (Task F) — set to false to restore the scrolling carousel + old row order ===
@@ -25,11 +26,20 @@ import { spotSelectionRule, needsSetupIntro, setupIntroCopy } from './spot-selec
 import { disciplineTag, seatNoun, sparklesIcon, trendingUpIcon, icon, pulseIcon, trimLocation, displayStudioName, equalizeDiscTagWidths , gymChip , cleanClassName, getDiscipline } from './cards';
 import { openEditBookingModal, syncBookingCache } from './bookings';
 import { openStudioFloorPlanEditor } from './settings';
+import { studioHasRowGroups, rowSelectorVisible } from './spotmap.js';
 import { renderFilterRail, removeFilterRail } from './filter-rail.js';
+import { buildSearchIndex, searchEvents, tokenize } from './timetable-search.js';
+import { getSearchQuery, setSearchQuery, onSearchChange, inSearchScope, enterSearchScope, leaveSearchScope, emptyFilters, filtersAreEmpty } from './timetable-search-state.js';
+import { ensureSearchUi, openSearch } from './timetable-search-ui.js';
 import { renderTimetableSkeleton } from './loading-skeleton.js';
 import { confirmOverlap } from './overlap-modal.js';
+import { quickBookTap } from './quickbook-flow.js';
 import { redactSensitivePayload } from '../redact.js';
 import { haptic } from './haptics.js';
+import { openPage as openNavPage, closePage as closeNavPage, isMobile } from './modal-nav.js';
+import { applyBookingChrome, mountBookingContext, bannerEl } from './booking-chrome.js';
+import { openSpotSetup, setupSkipped } from './spot-setup.js';
+import { instructorToken, migrateInstructorSelection, hasLegacyInstructors, passesInstructorFilter, pruneInstructorSelection, findInstructor, parseInstructorToken } from './instructor-filter.js';
 
 async function cacheSet(key, value) {
   try {
@@ -82,7 +92,7 @@ let studioMap = new Map();
 let studioObjMap = new Map(); // full studio object, for locationId + hasLayout lookups
 let instructorMap = new Map();
 // Session-level studio layout cache keyed by studio_id — layouts rarely change mid-session
-const studioLayoutCache = new Map();
+// Floor plans live in api.js's layout cache (gym+studio keyed, IndexedDB-backed).
 let eventTypeMap = new Map();
 let eventTypeGroupMap = new Map(); // eventTypeId -> group name
 
@@ -180,6 +190,13 @@ function gymScopedGet(map, id, gymId) {
     if (v !== undefined) return v;
   }
   return map.get(id);
+}
+
+/** Whether this gym's studio offers the whole-row preference (gym policy, default off). */
+export function rowGroupsForStudio(studioId, gymId) {
+  const studio = gymScopedGet(studioObjMap, studioId, gymId)
+    || metadata.studios.find(s => sameId(s.id, studioId) && (!gymId || s.gymId === gymId));
+  return studioHasRowGroups(studio);
 }
 
 export function mergeMetadataFromEvents(events) {
@@ -317,13 +334,20 @@ function renderWeekStrip(carousel, daysWithEvents) {
   const desktop = window.matchMedia('(min-width: 769px)').matches;
   const prevLeft = carousel.querySelector('.psycle-wk-scroller')?.scrollLeft || 0;
   carousel.innerHTML = `<button type="button" class="psycle-wk-nav" data-wk-nav="-1" aria-label="${COPY.timetable.prevWeek}">&#x2039;</button>`
-    + `<div class="psycle-wk-scroller">${pages.join('')}</div>`
+    + `<div class="psycle-wk-scroller"><div class="psycle-wk-track">${pages.join('')}</div></div>`
     + `<button type="button" class="psycle-wk-nav" data-wk-nav="1" aria-label="${COPY.timetable.nextWeek}">&#x203A;</button>`;
   const scroller = carousel.querySelector('.psycle-wk-scroller');
+  const track = scroller.firstElementChild;
   const goTo = (smooth) => {
-    // Mobile: one week per page. Desktop: free scroll, so land on the selected week's first day.
-    const left = desktop ? selWeek * 7 * (scroller.scrollWidth / (weeks * 7)) : weekStripPage * scroller.clientWidth;
-    scroller.scrollTo({ left: selectionChanged || !desktop ? left : prevLeft, behavior: smooth ? 'smooth' : 'auto' });
+    if (desktop) {
+      // Desktop: native free scroll (mouse/trackpad); land on the selected week's first day.
+      const left = selWeek * 7 * (scroller.scrollWidth / (weeks * 7));
+      scroller.scrollTo({ left: selectionChanged ? left : prevLeft, behavior: smooth ? 'smooth' : 'auto' });
+    } else {
+      // Mobile: a transform pager (below). No native scroller => no iOS momentum/snap phase to swallow taps.
+      track.style.transition = smooth ? 'transform .22s ease-out' : 'none';
+      track.style.transform = `translateX(${-weekStripPage * 100}%)`;
+    }
   };
   goTo(false);
   if (selectionChanged && weeks > 1) requestAnimationFrame(() => goTo(false));
@@ -331,11 +355,6 @@ function renderWeekStrip(carousel, daysWithEvents) {
   carousel.querySelectorAll('.psycle-wk-nav').forEach((b) => {
     b.onclick = () => scroller.scrollBy({ left: Number(b.dataset.wkNav) * scroller.clientWidth, behavior: 'smooth' });
   });
-  let t = null;
-  scroller.addEventListener('scroll', () => {
-    clearTimeout(t);
-    t = setTimeout(() => { if (scroller.clientWidth) weekStripPage = Math.round(scroller.scrollLeft / scroller.clientWidth); }, 80);
-  }, { passive: true });
   const selectDay = (b) => {
     const dayStr = b.dataset.day;
     const dir = dayStr > selectedTimetableDate ? 1 : (dayStr < selectedTimetableDate ? -1 : 0);
@@ -343,29 +362,51 @@ function renderWeekStrip(carousel, daysWithEvents) {
     // Optimistic: the strip highlight and full-date heading change NOW, before the list re-renders.
     carousel.querySelectorAll('.psycle-wk-day').forEach((c) => { const on = c === b; c.classList.toggle('active', on); c.setAttribute('aria-pressed', String(on)); });
     const head = document.querySelector('#psycle-timetable-grid .psycle-tt-fulldate');
-    if (head) head.textContent = DateTime.fromISO(dayStr, { zone: LONDON }).setLocale('en-GB').toFormat('cccc, d LLLL yyyy');
+    if (head) head.textContent = formatFullDate(dayStr);
     animateDateChange(dir, () => renderTimetableGrid());
   };
   carousel.querySelectorAll('.psycle-wk-day:not(.is-disabled)').forEach((b) => { b.onclick = () => selectDay(b); });
-  // iOS: a tap while the strip is still coasting (momentum) only STOPS the scroll and never produces a click,
-  // so the first tap after a swipe was swallowed for ~1s. Treat a touch that barely moved as a tap on touchend
-  // and select immediately; preventDefault stops the (otherwise duplicate / absent) synthetic click.
-  let tStart = null;
-  scroller.addEventListener('touchstart', (e) => {
-    const p = e.touches[0];
-    tStart = { x: p.clientX, y: p.clientY, el: e.target.closest?.('.psycle-wk-day:not(.is-disabled)') };
-  }, { passive: true });
-  scroller.addEventListener('touchend', (e) => {
-    if (!tStart || !tStart.el) return;
-    const p = e.changedTouches[0];
-    const moved = Math.hypot(p.clientX - tStart.x, p.clientY - tStart.y);
-    const target = tStart.el; tStart = null;
-    if (moved > 8) return;
-    const endEl = document.elementFromPoint(p.clientX, p.clientY)?.closest?.('.psycle-wk-day:not(.is-disabled)');
-    if (endEl !== target) return;
-    e.preventDefault();
-    selectDay(target);
-  }, { passive: false });
+
+  if (!desktop) {
+    // Week pager on touch. The strip used to be a native overflow scroller with scroll-snap: after a flick iOS keeps
+    // it in momentum/snap-settle for ~1s, and a tap during that phase only stops the scroll (no click). Here horizontal
+    // drags are handled in JS (finger-follow + a short transition), so a tap is ALWAYS an ordinary click.
+    let sx = null, sy = 0, st = 0, dx = 0, drag = false, decided = false, w = 0, lastDragEnd = 0;
+    scroller.addEventListener('touchstart', (e) => {
+      if (e.touches.length !== 1) { sx = null; return; }
+      const p = e.touches[0];
+      sx = p.clientX; sy = p.clientY; st = performance.now(); dx = 0; drag = false; decided = false; w = scroller.clientWidth || 1;
+    }, { passive: true });
+    scroller.addEventListener('touchmove', (e) => {
+      if (sx == null) return;
+      const p = e.touches[0];
+      const mx = p.clientX - sx, my = p.clientY - sy;
+      if (!decided) {
+        if (Math.abs(mx) < 6 && Math.abs(my) < 6) return;
+        decided = true; drag = Math.abs(mx) > Math.abs(my);
+        if (drag) track.style.transition = 'none';
+      }
+      if (!drag) return;
+      e.preventDefault();
+      dx = mx;
+      const atEdge = (weekStripPage === 0 && dx > 0) || (weekStripPage === weeks - 1 && dx < 0);
+      track.style.transform = `translateX(${-weekStripPage * w + (atEdge ? dx * 0.3 : dx)}px)`;
+    }, { passive: false });
+    const finish = () => {
+      if (sx == null) return;
+      sx = null;
+      if (!drag) return;
+      const v = Math.abs(dx) / Math.max(1, performance.now() - st);
+      if (dx < -w * 0.2 || (v > 0.4 && dx < -20)) weekStripPage = Math.min(weeks - 1, weekStripPage + 1);
+      else if (dx > w * 0.2 || (v > 0.4 && dx > 20)) weekStripPage = Math.max(0, weekStripPage - 1);
+      lastDragEnd = performance.now();
+      goTo(true);
+    };
+    scroller.addEventListener('touchend', finish, { passive: true });
+    scroller.addEventListener('touchcancel', finish, { passive: true });
+    // A drag is not a tap: swallow the click some browsers still synthesize at the end of one.
+    scroller.addEventListener('click', (e) => { if (performance.now() - lastDragEnd < 350) { e.stopPropagation(); e.preventDefault(); } }, true);
+  }
 }
 
 function pageChild(grid) { return grid.querySelector('.psycle-table-container') || grid.firstElementChild; }
@@ -820,7 +861,7 @@ function setupDropdownFilters({ locationIds, instructorIds, classTypeIds } = {})
   const instructorPool = (!instructorIds || instructorIds.size === 0)
     ? metadata.instructors
     : metadata.instructors.filter(i => hasId(instructorIds, i.id));
-  const instructorsToRender = [...instructorPool].sort((a, b) => {
+  const instructorsToRender = instructorPool.map(i => ({ ...i, id: instructorToken(i.gymId, i.id) })).sort((a, b) => {
     const nameA = (a.full_name || a.name || '').toLowerCase();
     const nameB = (b.full_name || b.name || '').toLowerCase();
     return nameA.localeCompare(nameB);
@@ -1029,7 +1070,7 @@ function updateTriggerLabel(dropdownId, selectedArray, defaultText, labelSingula
       const loc = metadata.locations.find(l => String(l.id) === selectedArray[0]);
       if (loc) name = disambiguateGymLabel(loc, locationBaseLabel(loc), metadata.locations, locationBaseLabel);
     } else if (dropdownId === 'psycle-ms-instructor') {
-      const instr = metadata.instructors.find(i => String(i.id) === selectedArray[0]);
+      const instr = findInstructor(metadata.instructors, selectedArray[0]);
       if (instr) name = disambiguateGymLabel(instr, instructorBaseLabel(instr), metadata.instructors, instructorBaseLabel);
     } else if (dropdownId === 'psycle-ms-class-type') {
       // The selection id IS the bucket label (see setupDropdownFilters) — no
@@ -1201,6 +1242,7 @@ function setupFilterEventListeners() {
   if (saveDefaultFiltersBtn) {
     saveDefaultFiltersBtn.onclick = () => {
       if (isSavingDefaults) return;
+      if (inSearchScope()) { showToast(COPY.search.saveBlocked, 'warning'); return; }   // search-scope filters are never saved
       isSavingDefaults = true;
 
       const defaultFilters = {
@@ -1241,6 +1283,82 @@ function setupFilterEventListeners() {
   }
 }
 
+// ── Keyword search (pure logic: ui/timetable-search.js, UI: timetable-search-ui.js) ──
+// The index is memoised on the events array + the minute, so typing never
+// re-walks thousands of events and a class that has started drops out.
+let searchIndexMemo = { events: null, minute: 0, index: null };
+function getSearchIndex() {
+  const minute = Math.floor(Date.now() / 60000);
+  if (searchIndexMemo.events !== psycleEvents || searchIndexMemo.minute !== minute) {
+    const nowMs = Date.now();
+    const linked = getLinkedGyms() || [];
+    searchIndexMemo = {
+      events: psycleEvents, minute,
+      index: buildSearchIndex(psycleEvents.filter(e => new Date(e.startAt).getTime() >= nowMs), {
+        gymNames: (id) => {
+          const g = linked.find(x => String(x.gym_id || x.id) === String(id));
+          const names = [g?.name || g?.gym_name, g?.shortName].filter(Boolean);
+          return names.length ? names : [getGymShortName(id)];
+        },
+        gymLabel: (id) => getGymShortName(id),
+        workoutLabel: (d) => (d ? getDiscipline(String(d)).label : ''),
+        displayName: (e) => cleanClassName(e.name || '', e.discipline || ''),
+        locationIdOf: (e) => eventLocationId(e),
+        locationNameOf: (e) => gymScopedGet(locationMap, eventLocationId(e), e.gymId) || '',
+      }),
+    };
+  }
+  return searchIndexMemo.index;
+}
+
+// Search has its OWN filter scope (see timetable-search-state.js). The filter
+// variables below are simply the "current scope": entering search snapshots the
+// normal set and blanks them, so results start unfiltered and any chip the user
+// adds edits the search scope; leaving restores the snapshot. Nothing in search
+// scope reaches saved defaults (the save handler refuses while in scope).
+const currentFilters = () => ({ gyms: selectedGyms, locations: selectedLocations, instructors: selectedInstructors, eventTypes: selectedEventTypes, bookmarks: showBookmarksOnly });
+function ensureSearchScope() {
+  if (!enterSearchScope(currentFilters())) return;
+  const e = emptyFilters();
+  selectedGyms = e.gyms; selectedLocations = e.locations; selectedInstructors = e.instructors; selectedEventTypes = e.eventTypes; showBookmarksOnly = false;
+}
+function restoreFromSearchScope() {
+  const snap = leaveSearchScope();
+  if (!snap) return;
+  selectedGyms = snap.gyms; selectedLocations = snap.locations; selectedInstructors = snap.instructors; selectedEventTypes = snap.eventTypes; showBookmarksOnly = snap.bookmarks;
+}
+// Leave search entirely: restore the normal filters exactly, drop the text.
+export function exitSearch() {
+  restoreFromSearchScope();
+  if (getSearchQuery()) setSearchQuery('');   // its listener repaints
+  else renderTimetableGrid('search');
+}
+
+// A suggestion becomes a filter on the EXISTING system, in the search scope.
+function applySearchPick(item) {
+  ensureSearchScope();
+  const add = (arr, v) => (arr.includes(String(v)) ? arr : [...arr, String(v)]);
+  if (item.type === 'instructor') selectedInstructors = add(selectedInstructors, item.gymId ? instructorToken(item.gymId, item.id) : item.id);
+  else if (item.type === 'location') selectedLocations = add(selectedLocations, item.id);
+  else if (item.type === 'gym') selectedGyms = add(selectedGyms, item.id);
+  else if (item.type === 'workout') selectedEventTypes = add(selectedEventTypes, item.id);
+  renderTimetableGrid('search');
+}
+
+let searchSubscribed = false;
+function subscribeSearch() {
+  if (searchSubscribed) return;
+  searchSubscribed = true;
+  // reason 'search' = paint from memory. The default 'interaction' render awaits
+  // two API calls (auto-book queue, studio prefs) before drawing; on the dev twin
+  // that was ~1s of dead UI after every search tap. Search changes no server state.
+  onSearchChange((q) => {
+    if (q) ensureSearchScope();
+    else if (inSearchScope() && filtersAreEmpty(currentFilters())) restoreFromSearchScope();   // nothing left to search by
+    renderTimetableGrid('search');
+  });
+}
+
 // U2-5: adapter between this module's filter state and ui/filter-rail.js.
 // The rail owns no state; every mutation goes through here, then re-renders.
 function buildFilterRailCtx(eventsExcluding, resultCount) {
@@ -1255,14 +1373,13 @@ function buildFilterRailCtx(eventsExcluding, resultCount) {
     else if (key === 'eventTypes') selectedEventTypes = val;
   };
   const linked = getLinkedGyms() || [];
-  const seen = new Set();
   // The gym switch is the top of the hierarchy: with any gym on, every list
   // below offers only that gym's options (and stale picks are pruned on toggle).
   const gymOk = (gid) => selectedGyms.length === 0 || selectedGyms.includes(String(gid));
-  const workouts = metadata.eventTypes.filter(t => t.group && gymOk(t.gymId))
-    .map(t => ({ id: getDiscipline(t.group).label, name: getDiscipline(t.group).label, gymId: t.gymId }))
-    .filter(w => { const k = `${w.gymId}:${w.id}`; return !seen.has(k) && seen.add(k); })
-    .sort((a, b) => a.name.localeCompare(b.name));
+  const workouts = buildWorkoutOptions({
+    eventTypes: metadata.eventTypes, events: psycleEvents, gymOk,
+    labelOf: (g) => getDiscipline(g).label,
+  });
   const gymOrder = linked.map(g => g.gym_id || g.id);
   const locations = metadata.locations.filter(l => gymOk(l.gymId)).sort((a, b) =>
     gymOrder.indexOf(a.gymId) - gymOrder.indexOf(b.gymId) || locationBaseLabel(a).localeCompare(locationBaseLabel(b)));
@@ -1278,19 +1395,23 @@ function buildFilterRailCtx(eventsExcluding, resultCount) {
     locationAlias: (l) => getLocationAlias(l.gymId, locationBaseLabel(l)),
     locationLabel: (l) => disambiguateGymLabel(l, locationBaseLabel(l), metadata.locations, locationBaseLabel),
     workouts,
-    instructors: metadata.instructors.filter(i => gymOk(i.gymId)).sort((a, b) => (a.name || '').localeCompare(b.name || '')),
+    // Rail rows carry the gym-qualified token as `id`, so a pick never matches another gym's same provider id.
+    instructors: metadata.instructors.filter(i => gymOk(i.gymId)).sort((a, b) => (a.name || '').localeCompare(b.name || ''))
+      .map(i => ({ ...i, rawId: i.id, id: instructorToken(i.gymId, i.id) })),
+    openSearch,
+    searchActive: inSearchScope(),
     canBookmark: false, // Temporarily hidden on front-end until universal cross-gym favourite class solution
     // Nothing picked = no filter (every chip shows unselected); picking chips
     // narrows to just those. OR within a section, AND across sections.
     isOn: (key, id) => arrays[key]().includes(String(id)),
     toggle: (key, id) => {
       const cur = arrays[key]();
-      const sid = String(id);
+      const sid = String(id);   // instructors: the id IS a gymId:id token (see instructor-filter.js)
       assign(key, cur.includes(sid) ? cur.filter(x => x !== sid) : [...cur, sid]);
       if (key === 'gyms' && selectedGyms.length) {
         const gymOf = (list, i) => list.find(x => String(x.id) === i)?.gymId;
         selectedLocations = selectedLocations.filter(i => gymOk(gymOf(metadata.locations, i)));
-        selectedInstructors = selectedInstructors.filter(i => gymOk(gymOf(metadata.instructors, i)));
+        selectedInstructors = pruneInstructorSelection(selectedInstructors, gymOk);
         selectedEventTypes = selectedEventTypes.filter(l => metadata.eventTypes.some(t => t.group && getDiscipline(t.group).label === l && gymOk(t.gymId)));
       }
       rerender();
@@ -1309,6 +1430,7 @@ function buildFilterRailCtx(eventsExcluding, resultCount) {
   };
 }
 
+// Instructor picks belong to ONE gym (locations are strict: see passesLocationFilter in lib.js).
 // A location or instructor pick belongs to ONE gym. It narrows that gym's
 // classes only — picking OC (Psycle) must not hide every JAB class, none of
 // which could ever match it. A gym with no picks of its own passes everything.
@@ -1333,11 +1455,20 @@ let storedFiltersNormalized = false;
 function normalizeStoredFilters() {
   if (storedFiltersNormalized || !metadata.locations.length) return;
   storedFiltersNormalized = true;
+  // Legacy saved defaults hold BARE instructor ids; attribute them to a gym now that metadata is loaded.
+  // Never drops a pick; rewrites the stored default only with the migrated values.
+  if (hasLegacyInstructors(selectedInstructors)) {
+    selectedInstructors = migrateInstructorSelection(selectedInstructors, metadata.instructors, getDefaultGymId());
+    try {
+      const k = defaultFiltersKey(); const raw = localStorage.getItem(k);
+      if (raw) { const o = JSON.parse(raw); if (hasLegacyInstructors(o.instructors)) { o.instructors = migrateInstructorSelection(o.instructors, metadata.instructors, getDefaultGymId()); localStorage.setItem(k, JSON.stringify(o)); } }
+    } catch { /* storage unavailable: in-memory migration still applies */ }
+  }
   const coversAll = (picked, universe) => picked.length > 0 && universe.every(id => picked.includes(id));
   const gyms = (getLinkedGyms() || []).map(g => String(g.gym_id || g.id));
   if (coversAll(selectedGyms, gyms)) selectedGyms = [];
   if (coversAll(selectedLocations, metadata.locations.map(l => String(l.id)))) selectedLocations = [];
-  if (coversAll(selectedInstructors, metadata.instructors.map(i => String(i.id)))) selectedInstructors = [];
+  if (coversAll(selectedInstructors, metadata.instructors.map(i => instructorToken(i.gymId, i.id)))) selectedInstructors = [];
   const labels = [...new Set(metadata.eventTypes.filter(t => t.group).map(t => getDiscipline(t.group).label))];
   if (coversAll(selectedEventTypes, labels)) selectedEventTypes = [];
 }
@@ -1368,15 +1499,15 @@ export async function renderTimetableGrid(reason = 'interaction') {
       if (excludeFilter !== 'gym' && selectedGyms.length > 0) {
         if (!e.gymId || !selectedGyms.includes(String(e.gymId))) return false;
       }
-      if (excludeFilter !== 'location' && !passesGymScoped(selectedLocations, metadata.locations, e.gymId, eventLocationId(e))) return false;
-      if (excludeFilter !== 'instructor' && !passesGymScoped(selectedInstructors, metadata.instructors, e.gymId, e.instructors?.[0]?.id)) return false;
+      if (excludeFilter !== 'location' && !passesLocationFilter(selectedLocations, eventLocationId(e))) return false;
+      if (excludeFilter !== 'instructor' && !passesInstructorFilter(selectedInstructors, e.gymId, (e.instructors || []).map(x => x.id))) return false;
       if (excludeFilter !== 'class-type' && selectedEventTypes.length > 0) {
         const et = metadata.eventTypes.find(t => sameId(t.id, e.classTypeId) && (!e.gymId || t.gymId === e.gymId));
         // Bucketed the same way the filter list itself is built (see
         // setupDropdownFilters) — a selected "Boxing" must match any event
         // whose specific class type buckets to Boxing, not just one literal
         // string.
-        const etGroupId = et?.group != null ? getDiscipline(String(et.group)).label : null;
+        const etGroupId = (et?.group ?? e.discipline) != null ? getDiscipline(String(et?.group ?? e.discipline)).label : null;
         if (!etGroupId || !selectedEventTypes.includes(etGroupId)) return false;
       }
       return true;
@@ -1449,9 +1580,9 @@ export async function renderTimetableGrid(reason = 'interaction') {
       if (!e.gymId || !selectedGyms.includes(String(e.gymId))) return false;
     }
     // Filter by Location
-    if (!passesGymScoped(selectedLocations, metadata.locations, e.gymId, eventLocationId(e))) return false;
+    if (!passesLocationFilter(selectedLocations, eventLocationId(e))) return false;
     // Filter by Instructor
-    if (!passesGymScoped(selectedInstructors, metadata.instructors, e.gymId, e.instructors?.[0]?.id)) return false;
+    if (!passesInstructorFilter(selectedInstructors, e.gymId, (e.instructors || []).map(x => x.id))) return false;
     // Filter by Class Type Group ID
     if (selectedEventTypes.length > 0) {
       // `discipline` IS the normalized group. Fall back to the metadata lookup
@@ -1477,6 +1608,22 @@ export async function renderTimetableGrid(reason = 'interaction') {
   // 2. Sort remaining filtered events chronologically
   const sortedEvents = [...filteredEvents].sort((a, b) => new Date(a.startAt) - new Date(b.startAt));
 
+  // 2b. Keyword search (Enter on free text): a flat, chronological list across
+  // every loaded week, narrowed by the same filters. It replaces the day view
+  // only; nothing here touches saved filter defaults.
+  subscribeSearch();
+  const searchText = getSearchQuery();
+  const searchTokens = tokenize(searchText);
+  const searching = inSearchScope();
+  let searchResults = null;
+  if (searching) {
+    const keep = new Set(filteredEvents.map(e => `${e.gymId}:${e.id}`));
+    // No text (filter-only search) lists everything the scope's filters allow.
+    searchResults = searchTokens.length
+      ? searchEvents(getSearchIndex(), searchText).filter(e => keep.has(`${e.gymId}:${e.id}`))
+      : sortedEvents;
+  }
+
   // 3. Extract unique dates containing matching events
   const daysWithEvents = Array.from(new Set(sortedEvents.map(e => dayKeyInZone(e.startAt, zoneFor(e))))).sort();
 
@@ -1494,7 +1641,10 @@ export async function renderTimetableGrid(reason = 'interaction') {
 
   // 5. Render Horizontal Date Carousel
   const carousel = document.getElementById('psycle-timetable-carousel');
-  if (carousel && WEEK_STRIP_DATE_SELECTOR) {
+  if (carousel) carousel.hidden = searching;   // a day strip means nothing for a cross-day list
+  if (carousel && searching) {
+    // leave the strip as it was
+  } else if (carousel && WEEK_STRIP_DATE_SELECTOR) {
     renderWeekStrip(carousel, daysWithEvents);
   } else if (carousel) {
     carousel.innerHTML = '';
@@ -1550,8 +1700,14 @@ export async function renderTimetableGrid(reason = 'interaction') {
     document.getElementById('psycle-mobile-filter-trigger')?.remove();
   }
 
+  ensureSearchUi({
+    getIndex: getSearchIndex,
+    isLoading: () => isPrefetching && psycleEvents.length === 0,
+    applyPick: applySearchPick,
+  });
+
   // 6. Render the Class Timetable Grid Table
-  if (!selectedTimetableDate) {
+  if (!selectedTimetableDate && !searching) {
     ttGrid.innerHTML = `
       <div style="text-align: center; color: var(--text-secondary); padding: 40px; font-style: italic;">
         ${COPY.timetable.noClasses}
@@ -1560,14 +1716,19 @@ export async function renderTimetableGrid(reason = 'interaction') {
     return;
   }
 
-  const finalEvents = sortedEvents.filter(e => dayKeyInZone(e.startAt, zoneFor(e)) === selectedTimetableDate);
+  const finalEvents = searching ? searchResults : sortedEvents.filter(e => dayKeyInZone(e.startAt, zoneFor(e)) === selectedTimetableDate);
 
   // The outer #psycle-timetable-grid (.psycle-timetable-list) is the single scroll
   // container — see initTimetableTab for the pull-to-refresh wiring. The inner
   // container must NOT scroll, otherwise iOS has two nested scrollers and the
   // outer grid's scrollTop stays 0 (breaking the at-top check for pull-to-refresh).
-  const fullDateHtml = WEEK_STRIP_DATE_SELECTOR
-    ? `<div class="psycle-tt-fulldate">${DateTime.fromISO(selectedTimetableDate, { zone: STRIP_ZONE }).setLocale('en-GB').toFormat('cccc, d LLLL yyyy')}</div>`
+  const fullDateHtml = searching
+    ? `<div class="psycle-tt-searchhead" role="status"><span class="sth-main"><span class="sth-ico" aria-hidden="true">${icon('search', 16)}</span><span class="sth-title" title="${escapeHtml(searchText)}">${escapeHtml(searchTokens.length ? formatCopyText(COPY.search.resultsFor, { text: searchText }) : COPY.search.filteredResults)}</span></span>`
+      + `<button type="button" class="sth-clear" id="psycle-search-clear">${COPY.search.clear}</button>`
+      + `<span class="sth-count">${finalEvents.length === 1 ? COPY.search.resultsOne : formatCopyText(COPY.search.results, { count: finalEvents.length })}</span></div>`
+      + (finalEvents.length ? '' : `<div class="psycle-tt-searchnone">${escapeHtml(formatCopyText(COPY.search.none, { text: searchText }))}</div>`)
+    : WEEK_STRIP_DATE_SELECTOR
+    ? `<div class="psycle-tt-fulldate">${formatFullDate(selectedTimetableDate)}</div>`
     : '';
   ttGrid.innerHTML = `${fullDateHtml}
     <div class="psycle-table-container">
@@ -1589,8 +1750,22 @@ export async function renderTimetableGrid(reason = 'interaction') {
   `;
 
   const tbody = ttGrid.querySelector('#psycle-timetable-rows');
+  const clearBtn = ttGrid.querySelector('#psycle-search-clear');
+  if (clearBtn) clearBtn.onclick = () => exitSearch();
+  if (searching && !finalEvents.length) ttGrid.querySelector('.psycle-table-container')?.remove();
+  let lastSearchDay = null;
 
   finalEvents.forEach(event => {
+    if (searching) {
+      const dayKey = dayKeyInZone(event.startAt, zoneFor(event));
+      if (dayKey !== lastSearchDay) {
+        lastSearchDay = dayKey;
+        const h = document.createElement('tr');
+        h.className = 'psycle-search-day';
+        h.innerHTML = `<td colspan="${window.matchMedia('(max-width: 768px)').matches ? 6 : 7}">${escapeHtml(formatFullDate(dayKey))}</td>`;
+        tbody.appendChild(h);
+      }
+    }
     // Primary: use embedded objects from event payload (CodexFit includes these)
     // Fallback: use Maps built from merged metadata (Maps include both int and string keys)
     const studioObj = event.studio || gymScopedGet(studioObjMap, event.studioId, event.gymId);
@@ -2080,9 +2255,9 @@ async function overlapGate(event, mode) {
     console.warn('[Timetable] overlap check failed, continuing:', err.message);
     return true;
   }
-  if (!warnings.length) return true;
+  if (!warnings.length) return 'clear';
   const instr = event.instructors?.[0];
-  return confirmOverlap({
+  const confirmed = await confirmOverlap({
     subject: {
       gymId: event.gymId || null,
       eventId: event.id,
@@ -2097,27 +2272,43 @@ async function overlapGate(event, mode) {
     warnings,
     mode,
   });
+  return confirmed ? 'acknowledged' : false;
 }
 
 async function doQuickBook(event, btn) {
-  if (!(await overlapGate(event, 'quickbook'))) return;
-  const run = async () => {
+  if (btn.dataset.qbBusy) return; // flow already in progress (overlap modal open)
+  const run = async ({ overlapAcknowledged = false } = {}) => {
+    // Overlap already asked this attempt (modal acknowledged, or a clean check on
+    // the first tap): never ask again, including after first-time setup.
+    const opts = { overlapChecked: true, overlapAcknowledged };
     try {
       const { prefs, hasPrefs } = await resolveStudioPrefs(event);
       const { hasMap } = getStudioMapInfo(event);
-      if (!hasPrefs && hasMap) { openBookingModal(event, 'quickbook', { overlapChecked: true }); return; }
+      if (!hasPrefs && hasMap) { openBookingModal(event, 'quickbook', opts); return; }
       quickBookClass(event.id, {
         preferredSlots: prefs.preferredSlots || [],
         preferredRows: prefs.preferredRows || [],
         requiredCount: 1, bookAny: true,
       }, btn, event.gymId);
     } catch (err) {
-      openBookingModal(event, 'quickbook', { overlapChecked: true });
+      openBookingModal(event, 'quickbook', opts);
     }
   };
-  // Quick-Book always requires a second click or touch to confirm
+  // The row's two-tap confirm only guards the no-modal path. When the overlap
+  // modal was shown and acknowledged, that IS the confirmation. `busy` stops a
+  // second tap (or the 4s revert timer) interfering while a modal is open.
   const confirmMsg = isWithin12Hours(event.startAt) ? COPY.timetable.confirmSoon : COPY.timetable.confirm;
-  twoTapConfirm(btn, confirmMsg, run);
+  btn.dataset.qbBusy = '1';
+  const settle = () => { delete btn.dataset.qbBusy; };
+  try {
+    await quickBookTap({
+      busy: false,
+      armed: btn.dataset.confirmState === 'confirm',
+      gate: async () => { try { return await overlapGate(event, 'quickbook'); } finally { settle(); } },
+      arm: () => twoTapConfirm(btn, confirmMsg, run),
+      run,
+    });
+  } finally { settle(); }
 }
 
 async function doAutoBookToggle(event, btn, isScheduled) {
@@ -2710,7 +2901,7 @@ async function openOccupancyModal(event) {
   overlay.appendChild(card);
   document.body.appendChild(overlay);
 
-  setTimeout(() => overlay.classList.add('show'), 10);
+  openNavPage(overlay, { id: 'occupancy', remove: true, closeFooter: true });
 
   const closeModal = () => {
     overlay.classList.remove('show');
@@ -2989,7 +3180,7 @@ async function quickBookClass(eventId, prefs, btn, gymId = null) {
 }
 
 // Modal handler for spot selection layout and auto-book row preference checklist
-async function openBookingModal(c, mode, opts = {}) {
+export async function openBookingModal(c, mode, opts = {}) {
   // mode: 'book' (simple seat selector) | 'quickbook' (preference setter) | 'autobook' (preference setter)
   // U1-12: book / quickbook both end in a real booking, so the overlap
   // confirmation comes before this modal (or any other) opens. Callers that have
@@ -3000,6 +3191,32 @@ async function openBookingModal(c, mode, opts = {}) {
   const isAutoBookMode = mode === 'autobook';
   const isQuickBookMode = mode === 'quickbook';
   const isSimpleBookMode = mode === 'book';
+  const isSpotFlowStep = !!(opts.setupFlow || opts.oneOffSpots);
+
+  // Mobile, Step A gate (spotmap-booking-flow-spec section 2): Quick-Book / Auto-Book on a map gym
+  // with no saved spots go through the one-time setup page first. "Choose a spot" never does.
+  if (isMobile() && (isQuickBookMode || isAutoBookMode) && !opts.setupDone) {
+    try {
+      const { hasPrefs } = await resolveStudioPrefs(c);
+      const { hasMap } = getStudioMapInfo(c);
+      if (hasMap && !hasPrefs && !setupSkipped(c.gymId, c.studioId)) {
+        const next = (extra) => (pageEl, saved) => openBookingModal(c, mode, { ...opts, overlapChecked: true, setupDone: true, replaceEl: pageEl, savedPrefs: saved || null, ...extra });
+        openSpotSetup({
+          event: c, className: c.discipline || c.name, rowGroups: rowGroupsForStudio(c.studioId, c.gymId),
+          onSaved: (slots, rows) => {
+            // Keep the shared prefs cache in step (resolveStudioPrefs reads it); a refetch can race invalidation.
+            cache.studioPreferences = { ...(cache.studioPreferences || {}), [`${c.gymId}:${c.studioId}`]: { preferredSlots: slots, preferredRows: rows } };
+          },
+          onContinue: (pageEl, saved) => openBookingModal(c, mode, { ...opts, overlapChecked: true, setupDone: true, savedPrefs: saved || null, setupFlow: true, backToSetup: true }),
+          onSkip: (pageEl, { anySpot = false } = {}) => openBookingModal(c, mode, {
+            ...opts, overlapChecked: true, setupDone: true, replaceEl: pageEl,
+            oneOffSpots: true, anySpotForClass: anySpot,
+          }),
+        });
+        return;
+      }
+    } catch (_) { /* fall through to the combined modal */ }
+  }
 
   const modal = document.getElementById('psycle-booking-modal');
   const body = document.getElementById('psycle-booking-modal-body');
@@ -3008,13 +3225,17 @@ async function openBookingModal(c, mode, opts = {}) {
 
   const noun = seatNoun(c.discipline);
   title.textContent = isAutoBookMode ? COPY.timetable.configureAutoBook : (isQuickBookMode ? `Select a ${noun} in the studio` : `Select a ${noun} in the studio`);
+  const bookingChrome = () => applyBookingChrome(modal, {
+    titleText: isAutoBookMode ? COPY.bookingFlow.titleAutoBook : COPY.bookingFlow.titleBook,
+    gymId: c.gymId, locationName: c.locationName, studioName: c.studioName, stepper: opts.setupFlow ? 'B' : null,
+  });
+  bookingChrome();
 
   // Use cached layout if available — layouts don't change mid-session.
   // WP-C5: the cache now holds NormalizedSlot[]/NormalizedLayoutObject[] (see
   // below), so this is only consulted for the loading-message copy here.
   // C3-21: keyed by gym too — two gyms can publish the same studio id.
-  const layoutCacheKey = `${c.gymId}:${c.studioId}`;
-  const cachedLayout = studioLayoutCache.get(layoutCacheKey);
+  const cachedLayout = api.peekStudioLayout(c.studioId, c.gymId);
   const hasLayout = cachedLayout?.slots?.length > 0;
 
   body.innerHTML = `
@@ -3024,19 +3245,21 @@ async function openBookingModal(c, mode, opts = {}) {
     </div>
   `;
 
-  modal.style.display = 'flex';
-  setTimeout(() => modal.classList.add('show'), 10);
+  openNavPage(modal, { id: 'booking', replaceEl: opts.backToSetup ? null : opts.replaceEl });
 
   const closeBtn = document.getElementById('psycle-booking-modal-close');
   const overlay = modal.querySelector('.psycle-modal-overlay');
 
   const closeModal = () => {
+    if (closeNavPage(modal)) return; // mobile page: pop its history entry
     modal.classList.remove('show');
     setTimeout(() => modal.style.display = 'none', 300);
   };
 
   closeBtn.onclick = closeModal;
   overlay.onclick = closeModal;
+  if (opts.backToSetup) closeBtn.dataset.nav = 'back';
+  else delete closeBtn.dataset.nav;
 
   // Refresh credits when opening booking modal (force — user needs accurate counts)
   await refreshUserData(true);
@@ -3068,7 +3291,7 @@ async function openBookingModal(c, mode, opts = {}) {
     const layoutSlots = useCached ? cachedLayout.slots : eventSlots;
     const layoutObjects = useCached ? cachedLayout.objects : eventObjects;
     if (eventSlots.length > 0) {
-      studioLayoutCache.set(layoutCacheKey, { slots: eventSlots, objects: eventObjects });
+      api.rememberStudioLayout(c.studioId, c.gymId, eventSlots, eventObjects);
     }
     // C1-3: keep slot ids as strings throughout this modal — see AGENTS.md
     // "Normalized ids are STRINGS, raw event fields are numbers". A MarianaTek
@@ -3097,9 +3320,41 @@ async function openBookingModal(c, mode, opts = {}) {
     } else {
       title.textContent = formatCopyText(COPY.timetable.chooseSeatFor, { noun: seatNoun(groupName), time: timeStr, className: groupName, instructor: instrName ? ` with ${instrName}` : '' });
     }
+    // Mobile: static title + identity strip (class details move to the class card above the map).
+    applyBookingChrome(modal, {
+      titleText: isAutoBookMode ? COPY.bookingFlow.titleAutoBook : COPY.bookingFlow.titleBook,
+      gymId: c.gymId, locationName: c.locationName, studioName, stepper: opts.setupFlow ? 'B' : null,
+    });
+    const classCtx = {
+      className: groupName === c.name || !c.name ? groupName : c.name, instructorName: instrName || c.instructors?.[0]?.name || '',
+      instructorPhoto: c.instructors?.[0]?.thumbUrl || c.instructors?.[0]?.imageUrl, startAt: c.startAt,
+      spotsLeft: Array.isArray(availableSlots) ? availableSlots.length : undefined, gymId: c.gymId, timeZone: c.timeZone,
+    };
+    // Auto-Book: the map is for preferences, picked when booking OPENS (release instant), not live occupancy.
+    const releaseDT = isAutoBookMode ? getClassReleaseTime(c) : null;
+    if (releaseDT) classCtx.releaseAt = releaseDT.toISO();
+    const releaseWhen = releaseDT ? formatInZone(releaseDT.toISO(), zoneFor(c)) : null;
+    const classHelper = {
+      helperId: 'spotmap-live',
+          helperText: opts.anySpotForClass
+        ? COPY.spotSetup.anySpotHelp
+        : opts.oneOffSpots
+        ? COPY.bookingFlow.oneOffSpots
+        : isAutoBookMode
+        ? (releaseWhen ? formatCopyText(COPY.bookingFlow.helperAutoBookAt, { time: `${releaseWhen.date}, ${releaseWhen.timeLabel}` }) : COPY.bookingFlow.helperAutoBook)
+        : COPY.bookingFlow.helperLive,
+    };
 
     if (layoutSlots.length === 0) {
-      body.innerHTML = `
+      // Mobile compact page for Auto-Book on a class with no assigned spots: explanation, quantity, one action.
+      const compactAuto = isMobile() && isAutoBookMode;
+      body.innerHTML = compactAuto ? `
+        <div class="psycle-bk-compact">
+          <p>${COPY.bookingFlow.fcfsAutoBook}</p>
+          <label class="psycle-bk-compact-qty"><span>${COPY.bookingFlow.spotsToBook}</span>
+            <select id="compact-autobook-qty" class="psycle-select">${[1, 2, 3, 4].map(n => `<option value="${n}">${n}</option>`).join('')}</select></label>
+          <button class="psycle-btn" id="btn-save-simple-autobook" style="background: var(--feat-autoupgrade); color:var(--on-accent); display:flex; align-items:center; justify-content:center; gap:6px;">${COPY.bookingFlow.titleAutoBook}</button>
+        </div>` : `
         <div style="padding: 24px; text-align: center; color: var(--text-secondary);">
           <p style="margin-bottom: 16px;">${COPY.timetable.noFloorMap}</p>
           ${isAutoBookMode
@@ -3109,9 +3364,11 @@ async function openBookingModal(c, mode, opts = {}) {
         </div>
       `;
 
+      mountBookingContext(body, null, classCtx, { helperId: 'spotmap-live' });
       if (isAutoBookMode) {
         document.getElementById('btn-save-simple-autobook').onclick = () => {
-          saveAutoBookPreferences(c, [], [], 1, true, closeModal);
+          const qtyEl = document.getElementById('compact-autobook-qty');
+          saveAutoBookPreferences(c, [], [], qtyEl ? (parseInt(qtyEl.value) || 1) : 1, true, closeModal);
         };
       } else {
         document.getElementById('btn-book-any').onclick = () => bookSeatDirect(c.id, availableSlots[0], closeModal, c);
@@ -3142,11 +3399,12 @@ async function openBookingModal(c, mode, opts = {}) {
         <div id="psycle-floor-plan-grid" style="width:100%;height:100%;"></div>
       </div>
       <div id="psycle-map-edit-toggle"></div>
-      <div id="psycle-slot-summary" style="font-size:12px;color:var(--text-secondary);margin-bottom:12px;min-height:16px;"></div>
+      <div id="psycle-slot-summary" style="font-size:12px;color:var(--text-secondary);margin-bottom:12px;min-height:16px;${opts.setupFlow ? 'display:none;' : ''}"></div>
       <div id="psycle-modal-controls-container"></div>
     `;
 
     const floorGrid = body.querySelector('#psycle-floor-plan-grid');
+    mountBookingContext(body, body.querySelector('.psycle-floor-plan-container'), classCtx, classHelper);
 
     // Render Stage — NormalizedLayoutObject[]; empty for providers with none.
     layoutObjects.forEach(obj => {
@@ -3168,6 +3426,7 @@ async function openBookingModal(c, mode, opts = {}) {
     const gymMaxSpots = capabilityForGym('maxSpotsPerClass', c.gymId) ?? null;
     const effectiveLimit = gymMaxSpots != null ? Math.min(gymMaxSpots, availableCredits) : availableCredits;
     const maxBookableSlots = Math.min(providerMaxBookableSlots || availableSlots.length || 1, effectiveLimit);
+    const rowGroups = rowGroupsForStudio(c.studioId, c.gymId);
     const state = {
       selectedSlots: [],    // ordered array of slot IDs (index 0 = priority 1)
       selectedRows: new Set(),
@@ -3183,11 +3442,18 @@ async function openBookingModal(c, mode, opts = {}) {
       hasExistingPrefs = (prefs.preferredSlots?.length > 0) || (prefs.preferredRows?.length > 0);
       if (isAutoBookMode || isQuickBookMode) {
         (prefs.preferredSlots || []).forEach(s => state.selectedSlots.push(String(s)));
-        (prefs.preferredRows || []).forEach(r => state.selectedRows.add(Number(r)));
+        if (rowGroups) (prefs.preferredRows || []).forEach(r => state.selectedRows.add(Number(r)));
         state.qty = prefs.requiredCount || 1;
         state.bookAny = prefs.bookAny !== false;
       }
     } catch (e) {}
+    // Arrived from Step A: use exactly what was just saved (a refetch can race the cache invalidation).
+    if (opts.savedPrefs && (isAutoBookMode || isQuickBookMode)) {
+      state.selectedSlots.length = 0;
+      (opts.savedPrefs.slots || []).forEach(s => state.selectedSlots.push(String(s)));
+      state.selectedRows = new Set(rowGroups ? (opts.savedPrefs.rows || []).map(Number) : []);
+      hasExistingPrefs = state.selectedSlots.length > 0 || state.selectedRows.size > 0;
+    }
 
     // Quick-Book shows the saved map read-only until the user explicitly unlocks it.
     // First-time setup (no saved prefs) starts editable since there's nothing to lock.
@@ -3211,6 +3477,9 @@ async function openBookingModal(c, mode, opts = {}) {
 
     // Hoisted so the read-only map's edit toggle can refresh banners/controls
     let updateSimpleBookControls = null;
+    // Auto-Upgrade without saved spots: a visible, tappable way to fix it (never a silently greyed box).
+    const upgradeNeedsRowHtml = () => `<div class="psycle-au-needs"><span class="t">${trendingUpIcon(12, 'currentColor', 2)} ${COPY.spotSetup.needsSpots}</span><button type="button" class="psycle-btn psycle-au-setup" data-au-setup>${COPY.spotSetup.setUpSpots}</button></div>`;
+    let openSetupChild = () => {};
     let updateQuickBookControls = null;
     let updateAutoBookControls = null;
 
@@ -3335,7 +3604,7 @@ async function openBookingModal(c, mode, opts = {}) {
       });
 
       // Row +/- buttons (overlaid on right edge) — only for preference modes, not simple book, and only while editing
-      if (rowYs.length > 1 && !isSimpleBookMode && mapEditing) {
+      if (rowSelectorVisible({ rowGroups, rowCount: rowYs.length, editing: !isSimpleBookMode && mapEditing })) {
         rowYs.forEach((y, idx) => {
           const isOn = state.selectedRows.has(y);
           const rowSlots = slotsByRow.get(y) || [];
@@ -3437,24 +3706,25 @@ async function openBookingModal(c, mode, opts = {}) {
           ? `${formatCopyText(COPY.timetable.autoBookCreditShortfall, { count: creditsNeeded - availableCredits, plural: creditsNeeded - availableCredits !== 1 ? 's' : '' })}`
           : '';
 
+        body.querySelector('#psycle-modal-info-banner').hidden = !!(opts.setupFlow || opts.oneOffSpots);
         body.querySelector('#psycle-modal-info-banner').innerHTML = mapEditing
           ? `<div style="font-size:12px;color:var(--feat-autoupgrade);background:color-mix(in srgb,var(--feat-autoupgrade) 8%,transparent);border:1px solid color-mix(in srgb,var(--feat-autoupgrade) 18%,transparent);border-radius:8px;padding:8px 10px;line-height:1.5;">${formatCopyText(COPY.timetable.editingSharedMapHtml, { studio: escapeHtml(studioName), features: 'Quick-Book and Auto-Upgrade too' })}</div>`
           : `<div style="font-size:12px;color:var(--feat-autoupgrade);background:color-mix(in srgb,var(--feat-autoupgrade) 8%,transparent);border:1px solid color-mix(in srgb,var(--feat-autoupgrade) 18%,transparent);border-radius:8px;padding:8px 10px;line-height:1.5;">${formatCopyText(COPY.timetable.sharedMapForStudioHtml, { studio: escapeHtml(studioName) })}</div>`;
 
         const toggleEl = body.querySelector('#psycle-map-edit-toggle');
-        if (toggleEl && mapEditing) {
+        if (toggleEl && mapEditing && !opts.setupFlow && !opts.oneOffSpots) {
           const hint = toggleEl.querySelector('.ab-map-hint');
           if (!hint) {
             const h = document.createElement('div');
             h.className = 'ab-map-hint';
             h.style.cssText = 'font-size:12px;color:var(--text-secondary);font-style:italic;margin:8px 0 4px;';
-            h.innerHTML = COPY.timetable.mapEditInstructionHtml;
+            h.textContent = `${COPY.timetable.mapEditInstructionHtml}${rowGroups && rowYs.length > 1 ? ` ${COPY.timetable.mapEditRowsInstruction}` : ''}`;
             toggleEl.appendChild(h);
           }
         }
 
         controls.innerHTML = `
-          <div style="display:flex;flex-direction:column;gap:12px;background:var(--surface-inset);padding:14px;border-radius:12px;border:1px solid var(--border);">
+          <div class="psycle-booking-controls${isSpotFlowStep ? ' is-spot-flow' : ''}" style="display:flex;flex-direction:column;gap:12px;background:var(--surface-inset);padding:14px;border-radius:12px;border:1px solid var(--border);">
             ${unmappedSlots.length > 0 ? `<div id="psycle-unmapped-warning" style="font-size:12px;color:var(--warning);background:color-mix(in srgb,var(--warning) 8%,transparent);border:1px solid color-mix(in srgb,var(--warning) 20%,transparent);border-radius:6px;padding:6px 10px;"></div>` : ''}
             ${creditWarning ? `<div style="font-size:12px;color:var(--danger);background:color-mix(in srgb,var(--danger) 10%,transparent);border:1px solid color-mix(in srgb,var(--danger) 20%,transparent);border-radius:8px;padding:10px;line-height:1.5;">${creditWarning}</div>` : ''}
             <div style="display:flex;gap:14px;align-items:center;">
@@ -3475,6 +3745,7 @@ async function openBookingModal(c, mode, opts = {}) {
               const hasLayout = layoutSlots.length > 0;
               const hasPrefs = state.selectedSlots.length > 0 || state.selectedRows.size > 0;
               if (!hasLayout) return '';
+              if (!hasPrefs && isMobile()) return upgradeNeedsRowHtml();
               if (!hasPrefs) return `
                 <label style="display:flex;align-items:center;gap:8px;font-size:13px;color:var(--text-tertiary);user-select:none;cursor:not-allowed;">
                   <input type="checkbox" class="psycle-ms-checkbox" id="autobook-auto-upgrade" disabled>
@@ -3486,13 +3757,14 @@ async function openBookingModal(c, mode, opts = {}) {
                   <span style="display:flex;align-items:center;gap:4px;">${trendingUpIcon(12, 'currentColor', 2)} ${COPY.timetable.autoUpgradeKeepSearchingLabel}</span>
                 </label>`;
             })()}
-            <button class="psycle-btn" id="btn-save-autobook" style="width:100%;background:var(--feat-autoupgrade);color:var(--on-accent);display:flex;align-items:center;justify-content:center;gap:6px;">${sparklesIcon(14, 'currentColor')} ${mapChanged() ? `${COPY.spotMapEditor.saveMapAnd} ` : ''}${COPY.timetable.scheduleAutoBook}</button>
+            <button class="psycle-btn" id="btn-save-autobook" style="width:100%;background:var(--feat-autoupgrade);color:var(--on-accent);display:flex;align-items:center;justify-content:center;gap:6px;">${sparklesIcon(14, 'currentColor')} ${!opts.oneOffSpots && mapChanged() ? `${COPY.spotMapEditor.saveMapAnd} ` : ''}${COPY.timetable.scheduleAutoBook}</button>
             <div style="font-size:12px;text-align:center;color:${isLive ? 'var(--success)' : 'var(--text-tertiary)'};">
               ${isLive ? COPY.timetable.bookingWindowIsOpen : `${formatCopyText(COPY.timetable.bookingOpens, { date: `<span style="color:var(--text-secondary);">${escapeHtml(releaseStr)}</span>` })}`}
             </div>
           </div>
         `;
 
+        controls.querySelector('[data-au-setup]')?.addEventListener('click', () => openSetupChild());
         const qtySelector = controls.querySelector('#autobook-qty');
         qtySelector.onchange = () => {
           state.qty = parseInt(qtySelector.value) || 1;
@@ -3505,7 +3777,7 @@ async function openBookingModal(c, mode, opts = {}) {
           const autoUpgrade = controls.querySelector('#autobook-auto-upgrade')?.checked ?? false;
           const preferredSlots = [...state.selectedSlots];
           const preferredRows = [...state.selectedRows];
-          saveAutoBookPreferences(c, preferredSlots, preferredRows, qty, fallbackAny, closeModal, isLive, autoUpgrade);
+          saveAutoBookPreferences(c, preferredSlots, preferredRows, qty, fallbackAny, closeModal, isLive, autoUpgrade, !opts.oneOffSpots);
         };
 
       };
@@ -3514,6 +3786,18 @@ async function openBookingModal(c, mode, opts = {}) {
     } else if (isSimpleBookMode) {
       // ── Simple Book controls (just pick slots, no preferences) ────────────────────
       const controls = body.querySelector('#psycle-modal-controls-container');
+
+      // Mobile: set up preferred spots as a Back-arrow child; the live selection on this page survives.
+      const openSimpleSetup = () => openStudioFloorPlanEditor(c.studioId, studioName, (slots = [], rows = []) => {
+        hasExistingPrefs = slots.length > 0 || rows.length > 0;     // from the saved payload, not a racing refetch
+        cache.studioPreferences = { ...(cache.studioPreferences || {}), [`${c.gymId}:${c.studioId}`]: { preferredSlots: slots, preferredRows: rows } };
+        body.querySelector('.psycle-bk-banner')?.remove();
+        updateSimpleBookControls();
+      }, { gymId: c.gymId });
+      if (isMobile() && !hasExistingPrefs && layoutSlots.length > 0) {
+        const banner = bannerEl('spotmap-simple-setup', COPY.bookingFlow.simpleSetupBanner, COPY.spotSetup.setUpSpots, openSimpleSetup);
+        if (banner) body.prepend(banner);
+      }
 
       updateSimpleBookControls = () => {
         const slotsSelected = state.selectedSlots.length || 0;
@@ -3525,13 +3809,14 @@ async function openBookingModal(c, mode, opts = {}) {
           : '';
 
         controls.innerHTML = `
-          <div style="display:flex;flex-direction:column;gap:12px;background:var(--surface-inset);padding:14px;border-radius:12px;border:1px solid var(--border);">
+          <div class="psycle-booking-controls${isSpotFlowStep ? ' is-spot-flow' : ''}" style="display:flex;flex-direction:column;gap:12px;background:var(--surface-inset);padding:14px;border-radius:12px;border:1px solid var(--border);">
             <div style="font-size:12px;color:var(--text-secondary);font-style:italic;">${formatCopyText(COPY.timetable.simpleBookPrompt, { noun: seatNoun(groupName), count: `<strong>${isDataLoaded ? availableCredits : '?'}</strong>`, plural: availableCredits !== 1 ? 's' : '' })}</div>
             ${creditWarning ? `<div style="font-size:12px;color:var(--danger);background:color-mix(in srgb,var(--danger) 10%,transparent);border:1px solid color-mix(in srgb,var(--danger) 20%,transparent);border-radius:8px;padding:10px;line-height:1.5;">${creditWarning}</div>` : ''}
             ${(() => {
               const hasLayout = layoutSlots.length > 0;
               const hasPrefs = hasExistingPrefs;
               if (!hasLayout) return '';
+              if (!hasPrefs && isMobile()) return upgradeNeedsRowHtml();
               if (!hasPrefs) return `
                 <label style="display:flex;align-items:center;gap:8px;font-size:13px;color:var(--text-tertiary);user-select:none;cursor:not-allowed;font-weight:500;">
                   <input type="checkbox" class="psycle-ms-checkbox" id="simplebook-auto-upgrade" disabled>
@@ -3549,10 +3834,12 @@ async function openBookingModal(c, mode, opts = {}) {
           </div>
         `;
 
+        controls.querySelector('[data-au-setup]')?.addEventListener('click', () => openSimpleSetup());
         const configLink = controls.querySelector('#simplebook-configure-link');
         if (configLink) {
           configLink.onclick = (e) => {
             e.preventDefault();
+            if (isMobile()) { openSimpleSetup(); return; }
             // Close the booking modal synchronously to avoid transition race conditions
             modal.classList.remove('show');
             modal.style.display = 'none';
@@ -3651,6 +3938,7 @@ async function openBookingModal(c, mode, opts = {}) {
           ? `${formatCopyText(COPY.timetable.quickBookCreditShortfall, { count: creditsNeeded - availableCredits, plural: creditsNeeded - availableCredits !== 1 ? 's' : '' })}`
           : '';
 
+        body.querySelector('#psycle-modal-info-banner').hidden = !!(opts.setupFlow || opts.oneOffSpots);
         body.querySelector('#psycle-modal-info-banner').innerHTML = !mapEditing
           ? `<div style="font-size:12px;color:var(--feat-autoupgrade);background:color-mix(in srgb,var(--feat-autoupgrade) 8%,transparent);border:1px solid color-mix(in srgb,var(--feat-autoupgrade) 18%,transparent);border-radius:8px;padding:8px 10px;line-height:1.5;">${COPY.timetable.quickBookBannerHtml}</div>`
           : (hasExistingPrefs
@@ -3658,11 +3946,11 @@ async function openBookingModal(c, mode, opts = {}) {
             : `<div style="font-size:12px;color:var(--text-tertiary);background:color-mix(in srgb,var(--feat-autoupgrade) 7%,transparent);border:1px solid color-mix(in srgb,var(--feat-autoupgrade) 15%,transparent);border-radius:8px;padding:10px 12px;line-height:1.5;">${formatCopyText(COPY.timetable.quickBookFirstSetupHtml, { studio: escapeHtml(studioName) })}</div>`);
 
         const qbToggleEl = body.querySelector('#psycle-map-edit-toggle');
-        if (qbToggleEl && mapEditing && !qbToggleEl.querySelector('.ab-map-hint')) {
+        if (qbToggleEl && mapEditing && !opts.setupFlow && !opts.oneOffSpots && !qbToggleEl.querySelector('.ab-map-hint')) {
           const h = document.createElement('div');
           h.className = 'ab-map-hint';
           h.style.cssText = 'font-size:12px;color:var(--text-secondary);font-style:italic;margin:8px 0 4px;';
-          h.innerHTML = COPY.timetable.mapEditInstructionHtml;
+          h.textContent = `${COPY.timetable.mapEditInstructionHtml}${rowGroups && rowYs.length > 1 ? ` ${COPY.timetable.mapEditRowsInstruction}` : ''}`;
           qbToggleEl.appendChild(h);
         } else if (qbToggleEl && !mapEditing) {
           const existing = qbToggleEl.querySelector('.ab-map-hint');
@@ -3690,6 +3978,7 @@ async function openBookingModal(c, mode, opts = {}) {
               const hasLayout = layoutSlots.length > 0;
               const hasPrefs = state.selectedSlots.length > 0 || state.selectedRows.size > 0;
               if (!hasLayout) return '';
+              if (!hasPrefs && isMobile()) return upgradeNeedsRowHtml();
               if (!hasPrefs) return `
                 <label style="display:flex;align-items:center;gap:8px;font-size:13px;color:var(--text-tertiary);user-select:none;cursor:not-allowed;">
                   <input type="checkbox" class="psycle-ms-checkbox" id="quickbook-auto-upgrade" disabled>
@@ -3701,17 +3990,18 @@ async function openBookingModal(c, mode, opts = {}) {
                   <span style="display:flex;align-items:center;gap:4px;">${trendingUpIcon(12, 'currentColor', 2)} ${COPY.timetable.autoUpgradeKeepSearchingLabel}</span>
                 </label>`;
             })()}
-            <button class="psycle-btn" id="btn-submit-quickbook" style="width:100%;background:var(--success);color:var(--on-accent);">${mapChanged() ? `${COPY.spotMapEditor.saveMapAnd} ` : ''}${COPY.timetable.quickBook}</button>
+            <button class="psycle-btn" id="btn-submit-quickbook" style="width:100%;background:var(--success);color:var(--on-accent);">${!opts.oneOffSpots && mapChanged() ? `${COPY.spotMapEditor.saveMapAnd} ` : ''}${COPY.timetable.quickBook}</button>
           </div>
         `;
 
+        controls.querySelector('[data-au-setup]')?.addEventListener('click', () => openSetupChild());
         controls.querySelector('#btn-submit-quickbook').onclick = async () => {
-          if (state.selectedSlots.length === 0 && state.selectedRows.size === 0) {
+          if (state.selectedSlots.length === 0 && state.selectedRows.size === 0 && !opts.anySpotForClass) {
             showToast(formatCopyText(COPY.timetable.pleaseSelectSpotOrRow, { noun: seatNoun(groupName) }), 'warning');
             return;
           }
           const btn = controls.querySelector('#btn-submit-quickbook');
-          const baseLabel = `${mapChanged() ? `${COPY.spotMapEditor.saveMapAnd} ` : ''}${COPY.timetable.quickBook}`;
+          const baseLabel = `${!opts.oneOffSpots && mapChanged() ? `${COPY.spotMapEditor.saveMapAnd} ` : ''}${COPY.timetable.quickBook}`;
           if (isWithin12Hours(c.startAt) && btn.dataset.confirmState !== 'confirm') {
             btn.dataset.confirmState = 'confirm';
             btn.textContent = COPY.timetable.confirmSoon;
@@ -3734,7 +4024,7 @@ async function openBookingModal(c, mode, opts = {}) {
             const autoUpgrade = controls.querySelector('#quickbook-auto-upgrade')?.checked ?? false;
             const slots = [...state.selectedSlots];
             const rows = [...state.selectedRows];
-            if (mapChanged() && c.studioId) {
+            if (mapChanged() && c.studioId && !opts.oneOffSpots) {
               // This class's gym — a studio id is unique only within one.
               await api.updateStudioPreferences(c.studioId, { preferredSlots: slots, preferredRows: rows }, c.gymId);
             }
@@ -3764,12 +4054,32 @@ async function openBookingModal(c, mode, opts = {}) {
       updateQuickBookControls();
     }
 
+    // Step A as a Back-arrow child of this page; on save the selection becomes the saved map and the
+    // controls re-render with Auto-Upgrade enabled (qty / fallback live in `state`, so they are untouched).
+    openSetupChild = () => openStudioFloorPlanEditor(c.studioId, studioName, (slots = [], rows = []) => {
+      // The fallback box is only read from the DOM at submit time; capture it before the controls re-render.
+      const fb = body.querySelector('#autobook-fallback-any, #quickbook-fallback-any');
+      if (fb) state.bookAny = fb.checked;
+      state.selectedSlots.length = 0;
+      slots.forEach(s => state.selectedSlots.push(String(s)));
+      state.selectedRows = new Set(rowGroups ? rows.map(Number) : []);
+      initialSlots.length = 0; initialSlots.push(...state.selectedSlots);
+      initialRowsArr.length = 0; initialRowsArr.push(...state.selectedRows);
+      hasExistingPrefs = state.selectedSlots.length > 0 || state.selectedRows.size > 0;
+      cache.studioPreferences = { ...(cache.studioPreferences || {}), [`${c.gymId}:${c.studioId}`]: { preferredSlots: slots, preferredRows: rows } };
+      mapEditing = !hasExistingPrefs;
+      render();
+      updateMapEditToggle();
+      if (typeof updateQuickBookControls === 'function') updateQuickBookControls();
+      if (typeof updateAutoBookControls === 'function') updateAutoBookControls();
+    }, { gymId: c.gymId });
+
     render();
     updateMapEditToggle();
 
     // U1-14: first-time setup. A studio with a seat map but no saved preferred map
     // opens on an intro; Next swaps in the map that is already rendered behind it.
-    if (needsSetupIntro({ mode, hasSavedMap: hasExistingPrefs, hasSeatMap: layoutSlots.length > 0 })) {
+    if (!isMobile() && needsSetupIntro({ mode, hasSavedMap: hasExistingPrefs, hasSeatMap: layoutSlots.length > 0 })) {
       const copy = setupIntroCopy({
         gymName: getGymShortName(c.gymId),
         locationName: trimLocation(c.locationName || '', getGymShortName(c.gymId)),
@@ -3981,7 +4291,7 @@ async function cancelBookingDirect(bookingId, isPenalty, btn, gymId) {
 }
 
 // Save scheduled auto-booking record to database
-async function saveAutoBookPreferences(c, slots, rows, qty, bookAny, callback, skipImmediate = false, autoUpgrade = false) {
+async function saveAutoBookPreferences(c, slots, rows, qty, bookAny, callback, skipImmediate = false, autoUpgrade = false, persistStudioMap = true) {
   const gymMatch = (x) => !c.gymId || x.gymId === c.gymId;
   // The EVENT's own instructor wins over a metadata lookup: the caller already
   // has the name and photo, and for MarianaTek the by-id lookup misses often
@@ -4018,7 +4328,7 @@ async function saveAutoBookPreferences(c, slots, rows, qty, bookAny, callback, s
     // The studio spot map is the shared source of truth. If the user picked
     // spots/rows here, persist them to the studio map so the live resolver (and
     // every other feature for this studio) uses the same selection.
-    if (c.studioId && (slots.length > 0 || rows.length > 0)) {
+    if (persistStudioMap && c.studioId && (slots.length > 0 || rows.length > 0)) {
       try {
         await api.updateStudioPreferences(c.studioId, { preferredSlots: slots, preferredRows: rows }, c.gymId);
       } catch (e) {
@@ -4117,8 +4427,7 @@ export async function openDebugModal(event) {
     </div>
   `;
 
-  modal.style.display = 'flex';
-  setTimeout(() => modal.classList.add('show'), 10);
+  openNavPage(modal, { id: 'debug-class', closeFooter: true });
 
   const closeBtn = document.getElementById('psycle-debug-modal-close');
   const overlay = modal.querySelector('.psycle-modal-overlay');

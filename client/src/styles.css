@@ -4804,33 +4804,61 @@ html, body {
 }
 
 /* --- LOGIN SCREEN STYLING --- */
-.psycle-login-container {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  width: 100vw;
-  height: 100lvh;
-  background: var(--bg);
+/* Onboarding + login are FULL-PAGE screens (no card/window chrome). The container is a fixed, scrollable
+   column; the page inside it fills it, centres its content on both axes when it fits and grows (so the
+   container scrolls) when it does not. dvh tracks the iOS dynamic toolbar; inset avoids any 100vw overflow. */
+.psycle-login-container,
+.psycle-onboarding-container {
   position: fixed;
-  top: 0;
-  left: 0;
-  z-index: 999999;
-}
-
-.psycle-login-card {
-  width: 460px;
-  padding: 40px;
-  border-radius: var(--radius-sheet);
-  background: var(--surface);
-  backdrop-filter: blur(30px) saturate(200%);
-  -webkit-backdrop-filter: blur(30px) saturate(200%);
-  border: 1px solid var(--border-strong);
-  box-shadow: var(--shadow-sheet);
+  inset: 0;
   display: flex;
   flex-direction: column;
+  box-sizing: border-box;
+  width: auto;
+  height: 100dvh;
+  max-width: 100%;
+  background: var(--bg);
+  z-index: 999999;
+  overflow-x: hidden;
+  overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
+  overscroll-behavior: contain;
+  padding: env(safe-area-inset-top, 0px) env(safe-area-inset-right, 0px) env(safe-area-inset-bottom, 0px) env(safe-area-inset-left, 0px);
+}
+
+/* The one Back button: first child of every onboarding screen, same spot and style everywhere. */
+.psycle-onb-back-top {
+  flex: 0 0 auto;
+  align-self: flex-start;
+  display: inline-flex;
   align-items: center;
-  gap: 28px;
-  animation: slideIn 0.4s cubic-bezier(0.25, 1, 0.5, 1);
+  min-height: var(--tap-min);
+  margin: 4px 0 0 12px;
+  padding: 0 12px;
+  background: transparent;
+  border: none;
+  box-shadow: none;
+  color: var(--text-secondary);
+  font-family: var(--font-sans);
+  font-size: var(--text-sm);
+  font-weight: 600;
+  cursor: pointer;
+}
+.psycle-onb-back-top:hover { color: var(--text); }
+
+.psycle-login-container .psycle-login-card {
+  flex: 1 0 auto;
+  align-self: center;
+  width: 100%;
+  max-width: 420px;
+  margin: 0 auto !important;
+  padding: 16px 24px 28px;
+  box-sizing: border-box;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  align-items: center;
+  gap: 24px;
 }
 
 .psycle-login-logo {
@@ -4938,12 +4966,13 @@ html, body {
   line-height: 1.5;
 }
 
-@media (max-width: 480px) {
-  .psycle-login-card {
-    width: 90vw;
-    padding: 24px;
-  }
+.psycle-login-footer a {
+  color: var(--accent);
+  font-weight: 600;
+  text-decoration: none;
 }
+.psycle-login-footer a:hover { color: var(--accent-hover, var(--accent)); text-decoration: underline; }
+.psycle-login-footer a:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; border-radius: 4px; }
 
 /* =========================================================
    PWA SPECIFIC STRUCTURAL OVERRIDES
@@ -7692,6 +7721,13 @@ html, body {
   border-color: color-mix(in srgb, var(--warning) 20%, transparent);
 }
 
+#psycle-helper-container .ab-spot-upgrade-chip.state-stopped,
+#psycle-helper-container #psycle-panel-my-bookings .ab-spot-upgrade-chip.state-stopped {
+  color: var(--text-secondary);
+  background: color-mix(in srgb, var(--text-secondary) 10%, transparent);
+  border-color: color-mix(in srgb, var(--text-secondary) 22%, transparent);
+}
+
 #psycle-helper-container .ab-spot-upgrade-chip.state-warning:hover {
   background: color-mix(in srgb, var(--warning) 22%, transparent);
   border-color: color-mix(in srgb, var(--warning) 40%, transparent);
@@ -8610,38 +8646,20 @@ html, body {
    Tokens-only per DESIGN.md. Light/dark parity, 44px targets,
    serif headings, 12px text floor.
    ============================================================ */
-.psycle-onboarding-container {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  width: 100vw;
-  height: 100lvh;
-  background: var(--bg);
-  position: fixed;
-  top: 0;
-  left: 0;
-  z-index: 999999;
-  padding: calc(16px + env(safe-area-inset-top)) 16px calc(16px + env(safe-area-inset-bottom));
-  box-sizing: border-box;
-}
-
 .psycle-onb-sheet {
   position: relative;
+  flex: 1 0 auto;
+  align-self: center;
   width: 100%;
   max-width: 440px;
-  max-height: 100%;
-  overflow-x: hidden;
-  overflow-y: auto;
-  padding: 32px;
+  margin: 0 auto;
+  padding: 8px 24px 24px;
   box-sizing: border-box;
-  background: var(--surface);
-  border: 1px solid var(--border-strong);
-  border-radius: var(--radius-sheet);
-  box-shadow: var(--shadow-sheet);
   display: flex;
   flex-direction: column;
   align-items: stretch;
-  gap: 20px;
+  justify-content: center;
+  gap: 16px;
   animation: slideIn 0.35s cubic-bezier(0.25, 1, 0.5, 1);
 }
 
@@ -8712,7 +8730,9 @@ html, body {
 .psycle-onb-icon svg { width: 44px; height: 44px; }
 
 /* --- Intro carousel --- */
-.psycle-onb-intro { text-align: center; width: 100%; }
+.psycle-onb-intro { text-align: center; width: 100%; justify-content: flex-start; gap: 12px; }
+.psycle-onb-intro .psycle-onb-carousel { margin: auto 0; }
+.psycle-onb-intro .psycle-onb-footer { margin-top: auto; padding-top: 8px; }
 .psycle-onb-intro .psycle-onb-title,
 .psycle-onb-intro .psycle-onb-eyebrow {
   text-align: center;
@@ -8720,12 +8740,12 @@ html, body {
 }
 
 /* Welcome slide */
-.psycle-onb-slide-welcome { gap: 10px; padding: 16px 4px; }
+.psycle-onb-slide-welcome { gap: 6px; padding: 4px 0; }
 .psycle-onb-wordmark {
   font-family: var(--font-serif);
-  font-size: 42px;
+  font-size: 34px;
   font-weight: 700;
-  letter-spacing: 2px;
+  letter-spacing: 1.5px;
   color: var(--accent);
   line-height: 1;
 }
@@ -8736,24 +8756,24 @@ html, body {
   margin: 0;
 }
 
-.psycle-onb-perks { list-style: none; margin: 8px 0 0; padding: 0; display: grid; gap: 10px; width: 100%; text-align: left; }
+.psycle-onb-perks { list-style: none; margin: 6px 0 0; padding: 0; display: grid; gap: 8px; width: 100%; text-align: left; }
 .psycle-onb-perk {
-  display: flex; align-items: center; gap: 14px; padding: 12px 14px;
+  display: flex; align-items: center; gap: 12px; padding: 8px 12px;
   background: var(--surface-inset); border: 1px solid var(--border);
   border-left: 3px solid var(--perk);
   border-radius: var(--radius-card);
 }
 .psycle-onb-perk-icon {
-  flex: 0 0 44px; width: 44px; height: 44px; display: grid; place-items: center;
+  flex: 0 0 36px; width: 36px; height: 36px; display: grid; place-items: center;
   border-radius: var(--radius-control); color: var(--perk);
   background: color-mix(in srgb, var(--perk) 15%, transparent);
   border: 1px solid color-mix(in srgb, var(--perk) 25%, transparent);
 }
-.psycle-onb-perk-icon svg { width: 24px; height: 24px; }
+.psycle-onb-perk-icon svg { width: 20px; height: 20px; }
 .psycle-onb-perk-body { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
-.psycle-onb-perk-body strong { font-family: var(--font-serif); font-size: var(--text-lg); font-weight: 600; color: var(--text); }
-.psycle-onb-perk-body span { font-size: var(--text-sm); line-height: 1.45; color: var(--text-secondary); }
-.psycle-onb-gyms-line { margin: 4px 0 0; font-size: var(--text-xs); color: var(--text-tertiary); text-align: center; }
+.psycle-onb-perk-body strong { font-family: var(--font-serif); font-size: var(--text-base); font-weight: 600; color: var(--text); }
+.psycle-onb-perk-body span { font-size: var(--text-xs); line-height: 1.35; color: var(--text-secondary); }
+.psycle-onb-gyms-line { margin: 2px 0 0; font-size: var(--text-xs); color: var(--text-tertiary); text-align: center; }
 
 /* Onboarding gym logo strip: every gym in the catalogue, full-size chips; >3 scroll as a marquee */
 .psycle-onb-gym-logos { --tt-chip-h: 48px; overflow: hidden; width: 100%; margin: 0 0 16px; border-radius: var(--radius-control); }
@@ -8915,10 +8935,6 @@ html, body {
   font-weight: 700;
 }
 
-@media (max-width: 480px) {
-  .psycle-onb-sheet { padding: 24px 20px; border-radius: var(--radius-card); }
-}
-
 @media (prefers-reduced-motion: reduce) {
   .psycle-onb-sheet { animation: none; }
   .psycle-onb-track,
@@ -8926,8 +8942,6 @@ html, body {
 }
 
 /* U4-17 focused onboarding and optional setup cards */
-.psycle-onb-welcome,
-.psycle-onb-features { max-height: min(92dvh, 860px); overflow-y: auto; }
 .psycle-onb-features { max-width: 640px; }
 .psycle-onb-feature-list { display: grid; gap: 10px; width: 100%; }
 .psycle-onb-feature-card {
@@ -8962,7 +8976,6 @@ html, body {
   border: 1px solid var(--border); background: var(--surface); color: var(--text);
   font-size: var(--text-sm); font-weight: 600; cursor: pointer;
 }
-.psycle-onb-auth-back { align-self: flex-start; margin: 10px 0 0 12px; min-height: var(--tap-min); }
 
 @media (prefers-reduced-motion: reduce) {
   .psycle-onb-feature-card { transition: none; }
@@ -9329,15 +9342,15 @@ html, body {
 .fr-rail { display: none; }
 @media (max-width: 768px) {
   #psycle-helper-container #psycle-timetable-filters-container .psycle-filters-row { display: none !important; }
-  .fr-rail { display: flex !important; align-items: center; gap: 6px; height: 40px; max-height: 40px; overflow-x: auto; scrollbar-width: none; }
+  .fr-rail { display: flex !important; align-items: center; gap: 6px; height: 40px; max-height: 40px; overflow-x: auto; overflow-y: hidden; overscroll-behavior-x: contain; touch-action: pan-x pan-y; -webkit-overflow-scrolling: touch; scrollbar-width: none; box-sizing: border-box; }
   .fr-rail::-webkit-scrollbar { display: none; }
 }
 .fr-rail > * { flex-shrink: 0; }
 .fr-trigger { width: 32px; height: 32px; border-radius: 50%; border: 1px solid var(--border-strong); background: color-mix(in srgb, var(--accent) 22%, var(--surface-2)); color: var(--text); display: inline-flex; align-items: center; justify-content: center; padding: 0; cursor: pointer; }
 .fr-chip { display: inline-flex; align-items: center; height: 32px; border-radius: 16px; border: 1px solid var(--border-strong); background: var(--surface-2); color: var(--text); }
-.fr-chip-body { display: inline-flex; align-items: center; gap: 5px; height: 100%; padding: 0 4px 0 8px; background: none; border: 0; color: inherit; font-size: 11px; cursor: pointer; }
-.fr-chip-x { width: 26px; height: 100%; background: none; border: 0; color: var(--text-secondary); font-size: 11px; cursor: pointer; padding: 0; }
-.fr-tile-part { display: inline-flex; align-items: center; gap: 4px; }
+.fr-chip-body { display: inline-flex; align-items: center; gap: 3.5px; height: 100%; padding: 0 2px 0 6px; background: none; border: 0; color: inherit; font-size: 11px; cursor: pointer; }
+.fr-chip-x { width: 20px; height: 100%; background: none; border: 0; color: var(--text-secondary); font-size: 11px; cursor: pointer; padding: 0; }
+.fr-tile-part { display: inline-flex; align-items: center; gap: 2.5px; }
 .fr-gym-dot { width: 18px; height: 18px; border-radius: 50%; color: #f9f6f5; font-size: 9px; font-weight: 700; display: inline-flex; align-items: center; justify-content: center; }
 .fr-initials { font-size: 10px; font-weight: 300; letter-spacing: .5px; text-transform: uppercase; }
 .fr-sep { opacity: .3; font-size: 9px; margin: 0 2px; }
@@ -9546,11 +9559,11 @@ html, body {
 
 /* Rail chips: gym logos and counts are the heavy elements; the words around them
    are hairline so the two contrast. Needs Inter 200 (loaded in index.html). */
-.fr-tile-part + .fr-tile-part { margin-left: 8px; }
+.fr-tile-part + .fr-tile-part { margin-left: 2.5px; }
 .fr-initials { font-weight: 500; font-size: 11px; }
 .fr-num { font-weight: 700; }
-.fr-thin { font-weight: 400; margin-left: 4px; }
-.fr-num + .fr-thin { margin-left: 3px; }
+.fr-thin { font-weight: 400; margin-left: 2.5px; }
+.fr-num + .fr-thin { margin-left: 2px; }
 
 /* Buttons and inputs do not inherit the page font by default; without this the
    rail and sheet rendered in Arial, which has no 200 weight for the hairline text. */
@@ -9559,9 +9572,9 @@ html, body {
 
 /* `#psycle-helper-container * { margin: 0 }` outranks single-class margins, so the
    rail's spacing needs the id in its selector. */
-#sweat-filter-rail .fr-tile-part + .fr-tile-part { margin-left: 8px; }
-#sweat-filter-rail .fr-thin { margin-left: 4px; }
-#sweat-filter-rail .fr-dot { margin: 0 4px; }
+#sweat-filter-rail .fr-tile-part + .fr-tile-part { margin-left: 2.5px; }
+#sweat-filter-rail .fr-thin { margin-left: 2.5px; }
+#sweat-filter-rail .fr-dot { margin: 0 2px; }
 
 /* Mobile: the timetable spans the full screen width. The body and list each
    contribute an 8px gutter; cancel both so the rounded container reaches the
@@ -9678,12 +9691,12 @@ html, body {
 
 /* My Bookings only: spot-upgrade chip in brand clay (Auto-Book keeps purple).
    Tonal: light tint + subtle border; text is clay mixed toward --text for AA. */
-#psycle-helper-container #psycle-panel-my-bookings .ab-spot-upgrade-chip:not(.state-active):not(.state-warning) {
+#psycle-helper-container #psycle-panel-my-bookings .ab-spot-upgrade-chip:not(.state-active):not(.state-warning):not(.state-stopped) {
   color: color-mix(in srgb, var(--accent) 55%, var(--text));
   background: color-mix(in srgb, var(--accent) 14%, transparent);
   border-color: color-mix(in srgb, var(--accent) 30%, transparent);
 }
-#psycle-helper-container #psycle-panel-my-bookings .ab-spot-upgrade-chip:not(.state-active):not(.state-warning):hover {
+#psycle-helper-container #psycle-panel-my-bookings .ab-spot-upgrade-chip:not(.state-active):not(.state-warning):not(.state-stopped):hover {
   background: color-mix(in srgb, var(--accent) 22%, transparent);
   border-color: color-mix(in srgb, var(--accent) 42%, transparent);
 }
@@ -10591,6 +10604,14 @@ body::after { z-index: 1000002 !important; }
   -webkit-overflow-scrolling: touch; scrollbar-width: none; overscroll-behavior-x: contain; touch-action: manipulation;
 }
 #psycle-helper-container .psycle-wk-day { touch-action: manipulation; -webkit-tap-highlight-color: transparent; }
+/* Mobile: the strip is a transform pager (JS), not a native scroller: no momentum phase that swallows taps. */
+@media (max-width: 768px) {
+  #psycle-helper-container .psycle-wk-scroller { display: block; overflow: hidden; scroll-snap-type: none; touch-action: pan-y; }
+  #psycle-helper-container .psycle-wk-track { display: flex; will-change: transform; }
+}
+@media (min-width: 769px) {
+  #psycle-helper-container .psycle-wk-track { display: contents; }
+}
 #psycle-helper-container .psycle-wk-scroller::-webkit-scrollbar { display: none; }
 #psycle-helper-container .psycle-wk-page {
   flex: 0 0 100%; scroll-snap-align: start; scroll-snap-stop: always; box-sizing: border-box;
@@ -10677,4 +10698,401 @@ body::after { z-index: 1000002 !important; }
 @media (prefers-reduced-motion: reduce) {
   #psycle-helper-container .psycle-wk-scroller { scroll-behavior: auto; }
   #psycle-helper-container .psycle-wk-day, #psycle-helper-container #psycle-timetable-grid * { transition: none !important; animation: none !important; }
+}
+
+/* ===== Install-to-home-screen step: illustrated numbered steps (DESIGN.md 3.6c: blue in dark, clay in light) ===== */
+.psycle-install-steps { list-style: none; margin: 14px 0 0; padding: 0; display: flex; flex-direction: column; gap: 10px; counter-reset: install; }
+.psycle-install-step { display: flex; align-items: center; gap: 12px; counter-increment: install; font-size: var(--text-sm); line-height: 1.45; color: var(--text-secondary); }
+.psycle-install-step::before {
+  content: counter(install); flex: 0 0 22px; width: 22px; height: 22px; border-radius: 50%;
+  display: inline-flex; align-items: center; justify-content: center; font-size: 12px; font-weight: 700;
+  background: var(--accent-fill); color: var(--on-accent-fill);
+}
+.psycle-install-ico {
+  flex: 0 0 34px; width: 34px; height: 34px; border-radius: var(--radius-control); display: inline-flex; align-items: center; justify-content: center;
+  color: var(--accent); background: color-mix(in srgb, var(--accent) 12%, transparent);
+}
+.psycle-install-ico svg { width: 20px; height: 20px; }
+.psycle-install-txt strong { color: var(--text); font-weight: 600; }
+.psycle-install-note { margin: 12px 0 0; padding: 10px 12px; border-radius: var(--radius-control); font-size: var(--text-sm); line-height: 1.45; color: var(--text-secondary); background: color-mix(in srgb, var(--accent) 10%, transparent); }
+.psycle-install-note strong { color: var(--text); }
+
+/* ============================================================================
+   MOBILE PAGE-MODALS (modal-to-fullscreen-spec, Batch 1).
+   Opt-in: ui/modal-nav.js adds `.psycle-page` to a modal only at <= 768px, so
+   un-wired modals and all desktop rendering are untouched. Kept LAST in the file
+   (source order beats ties) and !important where it must beat inline widths.
+   ============================================================================ */
+@media (max-width: 768px) {
+  .psycle-modal.psycle-page {
+    top: 0 !important; left: 0 !important;
+    width: 100% !important;
+    height: var(--vvh, 100dvh) !important;
+    align-items: stretch !important;
+    justify-content: stretch !important;
+    flex-direction: column !important;
+    background: var(--bg) !important;
+    backdrop-filter: none !important;
+    -webkit-backdrop-filter: none !important;
+    transform: translateY(100%);
+    transition: transform 0.22s cubic-bezier(0.25, 1, 0.5, 1), opacity 0.22s ease !important;
+  }
+  .psycle-modal.psycle-page.show { transform: none; }
+  .psycle-modal.psycle-page > .psycle-modal-overlay { display: none !important; }
+  .psycle-modal.psycle-page > .psycle-modal-card,
+  .psycle-modal.psycle-page > .psycle-modal-content {
+    width: 100% !important;
+    max-width: none !important;
+    height: 100% !important;
+    max-height: none !important;
+    border: 0 !important;
+    border-radius: 0 !important;
+    box-shadow: none !important;
+    animation: none !important;
+    background: var(--bg) !important;
+    backdrop-filter: none !important;
+    -webkit-backdrop-filter: none !important;
+  }
+  .psycle-modal.psycle-page .psycle-modal-header {
+    flex-shrink: 0;
+    min-height: 52px;
+    padding: calc(env(safe-area-inset-top, 0px) + 8px) calc(8px + env(safe-area-inset-right, 0px)) 8px calc(8px + env(safe-area-inset-left, 0px)) !important;
+    gap: 4px;
+  }
+  .psycle-modal.psycle-page .psycle-modal-header::before { content: ''; flex: 0 0 44px; }
+  .psycle-modal.psycle-page .psycle-modal-header:has(> [data-nav="back"])::before { display: none; }
+  .psycle-modal.psycle-page .psycle-modal-header:has(> [data-nav="back"])::after { content: ''; flex: 0 0 44px; }
+  .psycle-modal.psycle-page .psycle-modal-header h3,
+  .psycle-modal.psycle-page .psycle-modal-header h4 {
+    flex: 1; min-width: 0; text-align: center;
+    white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+    outline: none;
+  }
+  .psycle-modal.psycle-page .psycle-modal-close-btn {
+    flex: 0 0 44px; width: 44px; height: 44px; min-width: 44px;
+    padding: 0 !important; display: inline-flex; align-items: center; justify-content: center;
+    transform: none !important;
+  }
+  .psycle-modal.psycle-page .psycle-modal-close-btn[data-nav="back"] { order: -1; font-size: 0; }
+  .psycle-modal.psycle-page .psycle-modal-close-btn[data-nav="back"]::before { content: '\2039'; font-size: 32px; line-height: 1; }
+  .psycle-modal.psycle-page .psycle-modal-body {
+    flex: 1 1 auto;
+    min-height: 0;
+    max-height: none !important;
+    overflow-y: auto !important;
+    -webkit-overflow-scrolling: touch;
+    overscroll-behavior: contain;
+    padding: 12px 16px calc(16px + env(safe-area-inset-bottom, 0px)) !important;
+  }
+}
+@media (max-width: 768px) and (prefers-reduced-motion: reduce) {
+  .psycle-modal.psycle-page { transform: none; transition: opacity 0.15s ease !important; }
+}
+body.psycle-scroll-locked { overflow: hidden; }
+body.psycle-scroll-locked { overflow: hidden; }
+
+/* Batch 2: form pages (Gym link / re-auth / Change Password) and the Favourites page. */
+@media (max-width: 768px) {
+  /* >= 16px stops iOS zooming on focus. */
+  .psycle-modal.psycle-page input,
+  .psycle-modal.psycle-page select,
+  .psycle-modal.psycle-page textarea { font-size: 16px !important; }
+  /* Primary action stays reachable above the keyboard / home indicator. */
+  .psycle-modal.psycle-page #psycle-link-gym-submit,
+  .psycle-modal.psycle-page #psycle-pw-submit { position: sticky; bottom: 0; flex-shrink: 0; }
+
+  /* Favourites is built by autobook.js with inline styles (no .psycle-modal shell). */
+  .psycle-ovl.psycle-page {
+    inset: 0 !important; width: 100% !important; height: var(--vvh, 100dvh) !important;
+    padding: 0 !important; align-items: stretch !important; justify-content: stretch !important;
+    background: var(--bg) !important; z-index: 2000000 !important;
+    transform: translateY(100%); transition: transform 0.22s cubic-bezier(0.25, 1, 0.5, 1);
+  }
+  .psycle-ovl.psycle-page.show { transform: none; }
+  .psycle-ovl.psycle-page > .psycle-ovl-card {
+    max-width: none !important; width: 100% !important; height: 100% !important; max-height: none !important;
+    border: 0 !important; border-radius: 0 !important;
+  }
+  .psycle-ovl.psycle-page .psycle-ovl-header {
+    min-height: 52px; gap: 4px;
+    padding: calc(env(safe-area-inset-top, 0px) + 8px) calc(8px + env(safe-area-inset-right, 0px)) 8px calc(16px + env(safe-area-inset-left, 0px)) !important;
+  }
+  .psycle-ovl.psycle-page .psycle-ovl-header h3 { outline: none; }
+  .psycle-ovl.psycle-page #favs-modal-close { width: 44px; height: 44px; font-size: 28px !important; }
+  .psycle-ovl.psycle-page .psycle-ovl-body {
+    min-height: 0; overscroll-behavior: contain; -webkit-overflow-scrolling: touch;
+    padding: 12px 16px calc(16px + env(safe-area-inset-bottom, 0px)) !important;
+  }
+  .psycle-ovl.psycle-page .psycle-ovl-body > .psycle-btn { position: sticky; bottom: 0; }
+}
+@media (max-width: 768px) and (prefers-reduced-motion: reduce) {
+  .psycle-ovl.psycle-page { transform: none; transition: none; }
+}
+
+/* Batch 3: booking shell pages + spot-editor child page. */
+@media (max-width: 768px) {
+  .psycle-ovl.psycle-page .psycle-ovl-header [data-nav-title] { flex: 1; min-width: 0; text-align: center; outline: none; }
+  .psycle-ovl.psycle-page .psycle-ovl-header [data-nav-close] {
+    flex: 0 0 44px; width: 44px; height: 44px; font-size: 28px !important; display: inline-flex; align-items: center; justify-content: center;
+  }
+  .psycle-ovl.psycle-page .psycle-ovl-header [data-nav-close][data-nav="back"] { order: -1; font-size: 0 !important; }
+  .psycle-ovl.psycle-page .psycle-ovl-header [data-nav-close][data-nav="back"]::before { content: '\2039'; font-size: 32px; line-height: 1; }
+  /* The map must use the full page width and pan without fighting page scroll. */
+  .psycle-page .psycle-floor-scroll { touch-action: pan-x pan-y; }
+}
+@media (max-width: 768px) {
+  /* Primary action = sticky footer, above the iOS home indicator. */
+  .psycle-page #psycle-modal-controls-container,
+  .psycle-page #psycle-edit-controls,
+  .psycle-page .psycle-spotmap-actions,
+  .psycle-ovl.psycle-page .psycle-ovl-body > .psycle-btn {
+    position: sticky; bottom: 0; z-index: 3;
+    background: var(--bg);
+    padding-top: 8px;
+    padding-bottom: env(safe-area-inset-bottom, 0px);
+    box-shadow: 0 -8px 12px -8px color-mix(in srgb, var(--text) 18%, transparent);
+  }
+}
+@media (max-width: 768px) {
+  /* Page body padding is 16px; the legacy -18px breakout would overflow by 4px. */
+  /* `#psycle-helper-container * { margin: 0 }` outranks plain class rules, hence !important. */
+  .psycle-page .psycle-modal-body .psycle-floor-scroll { margin-left: -16px !important; margin-right: -16px !important; width: calc(100% + 32px); }
+}
+@media (max-width: 768px) {
+  /* Dragging the map pans the map only: no page scroll behind it, no scroll chaining. */
+  .psycle-page .psycle-floor-scroll { overscroll-behavior: contain; }
+}
+
+/* Batch 5: checkout page, overlap dialog, polish. */
+@media (max-width: 768px) {
+  /* The purchase body is not a .psycle-modal-body; make it the scroller of the page. */
+  .psycle-modal.psycle-page .psycle-purchase-body {
+    flex: 1 1 auto; min-height: 0; overflow-y: auto; overscroll-behavior: contain;
+    padding: 16px 16px calc(20px + env(safe-area-inset-bottom, 0px)) !important;
+  }
+  /* No dismissal while a charge is in flight. */
+  .psycle-modal.psycle-page.is-busy .psycle-modal-close-btn { visibility: hidden; }
+  /* Overlap stays a centred dialog; Cancel is a real button, so the corner X is redundant. */
+  .psycle-overlap-modal .psycle-modal-close-btn { display: none; }
+}
+body.psycle-scroll-locked { overscroll-behavior: none; }
+
+/* ======================================================================
+   TIMETABLE KEYWORD SEARCH (ui/timetable-search-ui.js, timetable.js)
+   Desktop: inline input at the head of the filter row. Mobile: an icon beside
+   the Filters button expands to a full-width input and folds back when empty.
+   ====================================================================== */
+.sweat-search { position: relative; flex: 1 1 220px; min-width: 200px; }
+.sweat-search-box { position: relative; display: flex; align-items: center; height: 40px; background: var(--surface-inset); border: 1px solid var(--border); border-radius: var(--radius-control); color: var(--text-secondary); }
+/* The field's own border carries focus: the global :focus-visible outline (+4px radius) would draw a box over it. */
+.sweat-search-box:focus-within { border-color: var(--accent); box-shadow: 0 0 0 1px var(--accent); }
+#psycle-helper-container .sweat-search-input:focus,
+#psycle-helper-container .sweat-search-input:focus-visible { outline: none !important; box-shadow: none !important; border-radius: 0 !important; }
+.sweat-search .ss-glass { display: inline-flex; padding: 0 8px 0 12px; }
+.sweat-search-input { flex: 1; min-width: 0; height: 100%; background: transparent; border: 0; outline: 0; color: var(--text); font: inherit; font-size: 16px; padding: 0 8px 0 0; }
+.sweat-search-input::placeholder { color: var(--text-tertiary); }
+.sweat-search-x { width: 44px; height: 44px; margin: -2px -1px -2px 0; background: none; border: 0; color: var(--text-secondary); font-size: 13px; cursor: pointer; }
+.sweat-search-x[hidden] { display: none !important; }
+.sweat-search-list { position: absolute; top: calc(100% + 6px); left: 0; right: 0; z-index: 400; max-height: min(60vh, 420px); overflow-y: auto; background-color: var(--bg); background-image: linear-gradient(var(--surface), var(--surface)), linear-gradient(var(--surface-2), var(--surface-2)); backdrop-filter: none; border: 1px solid var(--border-strong); border-radius: var(--radius-control); box-shadow: var(--shadow-sheet); padding: 4px; }   /* opaque in both themes: --surface is translucent in dark */
+.sweat-search-list[hidden] { display: none !important; }
+.sweat-search-head { padding: 8px 10px 2px; font-size: var(--text-xs, 12px); font-weight: 600; letter-spacing: .04em; text-transform: uppercase; color: var(--text-tertiary); }
+.sweat-search-opt { display: flex; align-items: center; justify-content: space-between; gap: 10px; min-height: 44px; padding: 6px 10px; border-radius: 8px; color: var(--text); cursor: pointer; font-size: 14px; }
+.sweat-search-opt:hover, .sweat-search-opt.active { background: color-mix(in srgb, var(--accent) 16%, transparent); }
+.sweat-search-opt .ss-ico { display: inline-flex; color: var(--text-secondary); margin-right: 8px; }
+.sweat-search-opt .ss-label { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; }
+.sweat-search-opt .ss-sub { margin-left: 6px; font-size: 12px; color: var(--text-secondary); }
+.sweat-search-opt .ss-count { flex-shrink: 0; font-size: 12px; color: var(--text-secondary); }
+.sweat-search-note { padding: 10px; font-size: 13px; color: var(--text-secondary); }
+@media (max-width: 768px) {
+  .sweat-search { display: none; flex: none; width: 100%; min-width: 0; }
+  .sweat-search.open { display: block; }
+  #psycle-timetable-filters-container.sweat-searching .fr-rail { display: none !important; }
+}
+.fr-search-btn { position: relative; }
+.fr-search-btn::before { content: ''; position: absolute; inset: -6px; }   /* 44px hit area, 32px glyph */
+.fr-search-btn.active { background: color-mix(in srgb, var(--accent) 45%, var(--surface-2)); }
+#psycle-helper-container .psycle-tt-searchhead { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; padding: 2px 4px 8px; color: var(--text); }
+.psycle-tt-searchhead .sth-main { flex: 1 1 0; min-width: 0; display: flex; align-items: center; gap: 8px; }
+.psycle-tt-searchhead .sth-ico { display: inline-flex; flex: none; color: var(--text-secondary); }
+.psycle-tt-searchhead .sth-title { font-size: 15px; font-weight: 600; min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.psycle-tt-searchhead .sth-count { flex: 0 0 100%; order: 3; font-size: 12px; color: var(--text-secondary); }
+#psycle-helper-container .psycle-tt-searchhead { flex-wrap: wrap; }
+.psycle-tt-searchhead .sth-clear { flex: none; margin-left: 0; min-height: 44px; min-width: 44px; padding: 0 14px; border-radius: var(--radius-control); border: 1px solid var(--border-strong); background: var(--surface-2); color: var(--text); font-weight: 600; cursor: pointer; }
+.psycle-tt-searchnone { padding: 28px 12px; text-align: center; color: var(--text-secondary); }
+#psycle-helper-container .psycle-table tr.psycle-search-day > td { display: table-cell !important; padding: 14px 8px 6px !important; font-size: 15px !important; font-weight: 400 !important; color: var(--text) !important; background: transparent !important; border: 0 !important; }
+
+/* ===== Mobile feedback batch (2026-10-05) ===== */
+/* Gym logo banner: the full wordmark on its brand plate (same sizing as onboarding's). */
+.psycle-gym-logo-banner { display: inline-flex; vertical-align: middle; }
+.psycle-gym-logo-banner .psycle-gym-chip { min-width: 120px !important; height: 48px !important; padding: 0 16px !important; }
+.psycle-gym-logo-banner .psycle-gym-chip-logo .ab-gym-logo-img,
+.psycle-gym-logo-banner .psycle-gym-chip-logo .ab-gym-logo-svg { height: 24px !important; max-width: 120px !important; width: auto; object-fit: contain; }
+.psycle-gym-logo-banner .ab-gym-logo-img.is-half { display: none !important; }
+.psycle-gym-logo-banner .ab-gym-logo-img.is-full { display: block !important; }
+.psycle-gym-settings-heading .psycle-gym-logo-banner { display: flex; margin-bottom: 10px; }
+.psycle-gym-conn-name .psycle-gym-conn-logo { display: block; margin-bottom: 6px; }
+.psycle-gym-form-logo { margin: 0 0 12px; }
+/* Spot-maps picker: logos are mobile-only; desktop keeps the plain text header. */
+.psycle-spm-gym .psycle-gym-logo-banner { display: none; }
+
+/* Double scrollbar / background bleed: while a page is open, nothing behind it renders or scrolls. */
+html.psycle-scroll-locked { overflow: hidden !important; background: var(--bg) !important; overscroll-behavior: none; }
+@media (max-width: 768px) {
+  body.psycle-scroll-locked { background: var(--bg); }
+  [data-psycle-nav-inert] { visibility: hidden !important; }
+  /* Pin pages to the VISUAL viewport (iOS keyboard): no app showing around the accessory bar. */
+  .psycle-modal.psycle-page,
+  .psycle-ovl.psycle-page { top: var(--vvt, 0px) !important; bottom: auto !important; }
+  .psycle-modal.psycle-page .psycle-modal-header { background: var(--bg) !important; }
+
+  /* Sticky Close footer on single-step info pages (added by modal-nav closeFooter). */
+  .psycle-page .psycle-modal-footer {
+    display: flex; flex-shrink: 0; padding: 10px 16px calc(10px + env(safe-area-inset-bottom, 0px));
+    background: var(--bg); border-top: 1px solid var(--border);
+  }
+  .psycle-page .psycle-modal-footer .psycle-page-close { width: 100%; min-height: 48px; font-size: 16px; font-weight: 600; }
+
+  /* Link / re-auth / password form: normal top-aligned flow, not a stretched flex column. */
+  .psycle-modal.psycle-page #psycle-gym-modal-body { display: block !important; }
+  .psycle-modal.psycle-page #psycle-gym-modal-body .psycle-setting-label { display: block; margin: 12px 0 6px; font-size: 14px; }
+  .psycle-modal.psycle-page #psycle-gym-modal-body .psycle-input,
+  .psycle-modal.psycle-page #psycle-gym-modal-body .psycle-select { min-height: 48px; }
+  .psycle-modal.psycle-page #psycle-link-gym-submit,
+  .psycle-modal.psycle-page #psycle-pw-submit { min-height: 48px; margin-top: 8px; }
+
+  /* Spot-maps picker: logos, bigger type, >= 44px tap targets. */
+  .psycle-spm-gym { display: flex !important; align-items: center; gap: 12px; margin: 14px 0 6px !important; font-size: 18px !important; }
+  .psycle-spm-gym .psycle-gym-logo-banner { display: inline-flex; }
+  .psycle-spm-loc { font-size: 14px !important; min-height: 44px; padding: 10px 0 !important; }
+  .psycle-spm-row { min-height: 56px; padding: 10px 12px !important; gap: 10px; }
+  .psycle-spm-name { font-size: 16px !important; font-weight: 600 !important; }
+  .psycle-spm-row .psycle-btn-mini { min-height: 44px; min-width: 44px; font-size: 14px !important; padding: 8px 14px !important; }
+}
+@media (max-width: 768px) {
+  /* Page titles take programmatic focus (a11y); never draw a ring around them. */
+  .psycle-page [tabindex="-1"]:focus, .psycle-page [tabindex="-1"]:focus-visible { outline: none !important; box-shadow: none !important; }
+  .psycle-gym-form-logo { display: block; margin-bottom: 16px; }
+}
+@media (max-width: 768px) {
+  /* ONE scrollbar per page: inner boxes with their own max-height + overflow (raw JSON <pre>, change log)
+     flow into the page body instead of becoming a second scroller. */
+  .psycle-page .psycle-modal-body [style*="max-height"][style*="overflow"],
+  .psycle-page .psycle-modal-body pre { max-height: none !important; overflow-y: visible !important; }
+}
+/* Logos added by the mobile feedback batch are mobile-only: desktop stays as it was. */
+.psycle-gym-settings-heading .psycle-gym-logo-banner,
+.psycle-gym-conn-name .psycle-gym-conn-logo,
+.psycle-gym-form-logo { display: none; }
+@media (max-width: 768px) {
+  .psycle-gym-settings-heading .psycle-gym-logo-banner { display: flex; }
+  .psycle-gym-conn-name .psycle-gym-conn-logo { display: block; }
+  .psycle-gym-form-logo { display: block; }
+}
+.psycle-modal-footer { display: none; }
+
+/* ===== Spot-map booking flow, batch 1: identity strip, class card, helper (mobile only) ===== */
+.psycle-bk-identity, .psycle-bk-classcard, .psycle-bk-helper { display: none; }
+@media (max-width: 768px) {
+  .psycle-modal.psycle-page .psycle-bk-identity {
+    display: flex; align-items: center; gap: 12px; flex-shrink: 0;
+    padding: 10px 16px; background: var(--bg); border-bottom: 1px solid var(--border);
+  }
+  .psycle-bk-identity .psycle-gym-mark { width: 36px; height: 36px; flex-shrink: 0; }
+  .psycle-bk-identity-text { display: flex; flex-direction: column; min-width: 0; }
+  .psycle-bk-identity-text strong { font-size: 15px; color: var(--text); }
+  .psycle-bk-identity-text span { font-size: 13px; color: var(--text-secondary); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+
+  .psycle-modal.psycle-page .psycle-bk-helper {
+    display: flex; align-items: flex-start; gap: 8px; margin: 0 0 2px; padding: 6px 4px 6px 12px;
+    background: color-mix(in srgb, var(--feat-autoupgrade) 8%, var(--bg)); border: 1px solid color-mix(in srgb, var(--feat-autoupgrade) 18%, transparent); border-radius: 10px;
+    font-size: 13px; line-height: 1.4; color: var(--text-secondary);
+  }
+  .psycle-bk-helper p { margin: 0; flex: 1; }
+  .psycle-bk-helper-x { flex: 0 0 44px; width: 44px; height: 44px; margin: -10px 0 -10px 0; background: none; border: 0; font-size: 24px; color: var(--text-secondary); cursor: pointer; }
+  .psycle-booking-controls.is-spot-flow { background: transparent !important; border: 0 !important; border-radius: 0 !important; padding: 0 !important; gap: 8px !important; }
+
+  .psycle-modal.psycle-page .psycle-bk-classcard {
+    display: block; margin: 0 0 10px; padding: 10px 12px; background: var(--surface-inset); border: 1px solid var(--border); border-radius: 12px;
+  }
+  .psycle-bk-classcard-label { font-size: 11px; font-weight: 700; letter-spacing: 0.06em; text-transform: uppercase; color: var(--text-tertiary); margin-bottom: 6px; }
+  .psycle-bk-classcard-main { display: flex; align-items: center; gap: 12px; }
+  .psycle-bk-classcard-text { display: flex; flex-direction: column; min-width: 0; }
+  .psycle-bk-class-name { font-size: 16px; color: var(--text); }
+  .psycle-bk-class-instructor, .psycle-bk-class-when { font-size: 13px; color: var(--text-secondary); }
+
+  /* Auto-Upgrade rows: a real 44px tap target. */
+  .psycle-page label:has(> #simplebook-auto-upgrade), .psycle-page label:has(> #quickbook-auto-upgrade), .psycle-page label:has(> #autobook-auto-upgrade) { min-height: 44px; }
+}
+
+/* ===== Spot-map booking flow, batch 2: Step A page, stepper, Auto-Upgrade row (mobile only) ===== */
+.psycle-stepper { display: none; }
+@media (max-width: 768px) {
+  .psycle-modal.psycle-page .psycle-stepper {
+    display: flex; gap: 8px; list-style: none; margin: 0; padding: 8px 16px; flex-shrink: 0;
+    background: var(--bg); border-bottom: 1px solid var(--border); font-size: 13px;
+  }
+  .psycle-stepper li { flex: 1; display: flex; align-items: center; gap: 6px; color: var(--text-tertiary); font-weight: 600; }
+  .psycle-stepper .n { display: inline-flex; align-items: center; justify-content: center; width: 20px; height: 20px; border-radius: 50%; border: 1.5px solid currentColor; font-size: 11px; }
+  .psycle-stepper .is-current { color: var(--accent); }
+  .psycle-stepper .is-current .n { background: var(--accent); border-color: var(--accent); color: var(--on-accent); }
+  .psycle-stepper .is-complete { color: var(--success); }
+
+  /* Step A: body is a flex column; the inner block uses auto margins, so it is vertically centred when it
+     fits and top-aligned (scrolling) when it does not, never clipped. */
+  .psycle-setup-page .psycle-setup-body { display: flex !important; flex-direction: column; }
+  .psycle-setup-inner { width: 100%; max-width: 390px; margin: auto auto !important; display: flex; flex-direction: column; align-items: center; text-align: center; gap: 12px; padding: 12px 14px; }
+  .psycle-setup-logo .psycle-gym-logo-banner { display: inline-flex; }
+  .psycle-setup-logo .psycle-gym-chip { min-width: 150px !important; height: 64px !important; }
+  .psycle-setup-logo .psycle-gym-chip-logo .ab-gym-logo-img, .psycle-setup-logo .psycle-gym-chip-logo .ab-gym-logo-svg { height: 32px !important; max-width: 150px !important; }
+  .psycle-setup-where { font-size: 14px; color: var(--text-secondary); }
+  .psycle-setup-preview { width: 200px; height: 84px; margin: 6px 0; }
+  .psycle-setup-preview .pv-spot { fill: color-mix(in srgb, var(--text) 10%, transparent); }
+  .psycle-setup-preview .pv-pick { fill: var(--accent); }
+  .psycle-setup-preview .pv-n { fill: var(--on-accent); font-size: 11px; font-weight: 700; }
+  .psycle-setup-eyebrow { margin: 4px 0 0; font-size: 12px; font-weight: 700; letter-spacing: 0.06em; text-transform: uppercase; color: var(--text-tertiary); }
+  .psycle-setup-headline { margin: 0; max-width: 330px; font-family: var(--font-serif); font-size: 27px; font-weight: 600; line-height: 1.12; color: var(--text); outline: none; }
+  .psycle-setup-points { width: 100%; max-width: 330px; margin: 2px 0 0; padding: 0; list-style: none; display: flex; flex-direction: column; gap: 10px; font-size: 15px; line-height: 1.4; color: var(--text-secondary); text-align: left; }
+  .psycle-setup-points li { position: relative; padding-left: 18px; }
+  .psycle-setup-points li::before { content: '•'; position: absolute; left: 2px; color: var(--accent); font-weight: 800; }
+  .psycle-setup-points .p1 { color: var(--text); font-weight: 600; }
+  .psycle-setup-reassure { margin: 2px 0 0; font-size: 13px; color: var(--text-tertiary); }
+  .psycle-setup-choice-hint { max-width: 300px; margin: 0; font-size: 13px; line-height: 1.4; color: var(--text-tertiary); }
+  .psycle-setup-check { width: 64px; height: 64px; border-radius: 50%; background: color-mix(in srgb, var(--success) 15%, transparent); color: var(--success); display: flex; align-items: center; justify-content: center; font-size: 34px; }
+  .psycle-setup-loading { display: flex; justify-content: center; padding: 40px 0; }
+
+  .psycle-setup-footer { flex-direction: column; gap: 8px; }
+  .psycle-setup-footer .psycle-setup-primary { width: 100%; min-height: 48px; font-size: 16px; font-weight: 600; }
+  .psycle-setup-link { background: none; border: 0; min-height: 44px; font-size: 15px; color: var(--accent); text-decoration: underline; cursor: pointer; }
+  .psycle-setup-count { font-size: 13px; font-weight: 600; color: var(--text-secondary); text-align: center; }
+  .psycle-setup-any-help { display: block; padding: 0 4px; font-size: 12px; line-height: 1.35; text-align: center; color: var(--text-tertiary); }
+  .psycle-setup-reason { font-size: 12px; color: var(--text-tertiary); text-align: center; min-height: 0; }
+  .psycle-setup-reason:empty { display: none; }
+  .psycle-setup-error { padding: 10px 12px; border-radius: 10px; font-size: 13px; color: var(--danger); background: color-mix(in srgb, var(--danger) 10%, transparent); border: 1px solid color-mix(in srgb, var(--danger) 25%, transparent); text-align: center; }
+  .psycle-setup-error[hidden] { display: none; }
+
+  /* Auto-Upgrade needs spots: an explained state with a real button. */
+  .psycle-au-needs { display: flex; align-items: center; justify-content: space-between; gap: 10px; padding: 8px 0; font-size: 13px; color: var(--text-secondary); }
+  .psycle-au-needs .t { display: inline-flex; gap: 6px; align-items: center; flex: 1; }
+  .psycle-au-setup { min-height: 44px; padding: 8px 14px; font-size: 14px; white-space: nowrap; }
+}
+
+/* ===== Spot-map booking flow, batch 3: variants, banner, guards, compact page (mobile only) ===== */
+.psycle-bk-notice, .psycle-bk-compact { display: none; }
+@media (max-width: 768px) {
+  .psycle-bk-class-release { font-size: 13px; font-weight: 600; color: var(--feat-autoupgrade); }
+  .psycle-bk-class-release[hidden] { display: none; }
+  .psycle-bk-banner .psycle-bk-banner-action { flex: 0 0 auto; min-height: 44px; padding: 8px 12px; font-size: 14px; align-self: center; white-space: nowrap; }
+  .psycle-modal.psycle-page .psycle-bk-notice {
+    display: flex; align-items: center; justify-content: space-between; gap: 10px; flex-shrink: 0;
+    padding: 10px 16px; font-size: 13px; color: var(--danger);
+    background: color-mix(in srgb, var(--danger) 10%, var(--bg)); border-bottom: 1px solid color-mix(in srgb, var(--danger) 25%, transparent);
+  }
+  .psycle-bk-notice-action { min-height: 44px; padding: 8px 14px; }
+  .psycle-modal.psycle-page .psycle-bk-compact { display: flex; flex-direction: column; gap: 16px; padding: 8px 0; }
+  .psycle-bk-compact p { margin: 0; font-size: 15px; line-height: 1.45; color: var(--text-secondary); }
+  .psycle-bk-compact-qty { display: flex; align-items: center; justify-content: space-between; gap: 12px; font-size: 15px; color: var(--text); }
+  .psycle-bk-compact-qty select { width: 90px; min-height: 44px; }
+  .psycle-bk-compact .psycle-btn { min-height: 48px; font-size: 16px; font-weight: 600; position: sticky; bottom: 0; }
+  .psycle-bk-compact-qty { margin: 0; }
+  button[data-bk-guard] { opacity: 0.5; }
 }

@@ -8,10 +8,12 @@ import { isInGracePeriod, GRACE_PERIOD_MS, startGraceCountdown, noSept, zoneFor,
 import { invalidateApiCache } from '../cache';
 import { renderCardSkeletons } from './loading-skeleton.js';
 import { instructorAvatar } from './tooltips.js';
-import { metadata, loadMetadata, getStudioMapInfo, pickStudioPrefs } from './timetable';
-import { findActiveUpgradeForBooking } from './gym-isolation.js';
+import { metadata, loadMetadata, getStudioMapInfo, pickStudioPrefs, rowGroupsForStudio } from './timetable';
+import { findActiveUpgradeForBooking, findUpgradeForSeat } from './gym-isolation.js';
 import { haptic } from './haptics.js';
 import { COPY, formatCopyText } from '../copy.js';
+import { openPage as openNavPage, closePage as closeNavPage } from './modal-nav.js';
+import { applyBookingChrome, bookingContextEl, mountBookingContext } from './booking-chrome.js';
 
 // Class starts within the free-cancel cutoff (12h). Edit is hidden inside this
 // window; Cancel stays available but warns about the penalty.
@@ -295,12 +297,18 @@ function buildBookingCard(group, upgrades) {
     const slotLabel = b.raw?.spot?.name ?? b.studio_slot?.label ?? b.slot ?? b.studio_slot_id ?? b.slot_id ?? slotId ?? '?';
 
     // Find active upgrade for this specific booking
-    const activeUpgrade = findActiveUpgradeForBooking(upgrades, bookingIdOf(b), event.gymId || b.gymId);
+    const activeUpgrade = findUpgradeForSeat(upgrades, {
+      bookingId: bookingIdOf(b), gymId: event.gymId || b.gymId, eventId: group.eventId, slotId,
+    });
 
     let chipClass = 'ab-spot-upgrade-chip';
     let iconHtml = '';
 
-    if (activeUpgrade) {
+    if (activeUpgrade && activeUpgrade.status === 'stopped') {
+      // Ended (e.g. already in the best spot / window closed): visible, muted, tappable.
+      chipClass += ' state-stopped';
+      iconHtml = '<span style="margin-right:4px;" aria-hidden="true">&#9208;</span>';
+    } else if (activeUpgrade) {
       if (activeUpgrade.status === 'paused_no_credits' || totalAvailableCredits(event.gymId) < 1) {
         chipClass += ' state-warning';
         iconHtml = '<span style="margin-right:4px;">⚠</span>';
@@ -435,7 +443,7 @@ function wireCancelBooking(btn, card, group, within12h) {
       showToast(COPY.bookings.cancelling, 'info');
       for (const b of group.bookings) {
         await api.cancel(bookingIdOf(b), b.gymId || group.event?.gymId);
-        const up = findActiveUpgradeForBooking(cache.upgrades, bookingIdOf(b), b.gymId || group.event?.gymId);
+        const up = findUpgradeForSeat(cache.upgrades, { bookingId: bookingIdOf(b), gymId: b.gymId || group.event?.gymId, eventId: group.eventId, slotId: slotIdOf(b) });
         if (up) { try { await api.deleteAutoUpgrade(up.id); } catch (_) {} }
       }
       await invalidateApiCache('/api/bookings');
@@ -495,13 +503,15 @@ export async function openEditBookingModal(group, onChange = renderBookings) {
   const nounCap = noun[0].toUpperCase() + noun.slice(1);
 
   title.textContent = formatCopyText(COPY.bookings.editSpotsTitle, { noun: nounCap, className });
+  applyBookingChrome(modal, { titleText: COPY.bookingFlow.titleEditSpots, gymId: event.gymId, locationName: event.locationName, studioName: event.studioName });
   body.innerHTML = `<div class="psycle-loading-spinner-container" style="padding:40px 0;"><div class="psycle-spinner"></div><span>${COPY.bookings.loadingFloorMap}</span></div>`;
-  modal.style.display = 'flex';
-  setTimeout(() => modal.classList.add('show'), 10);
+  let editDirty = () => false; // set once the selection exists
+  openNavPage(modal, { id: 'edit-spots', canClose: () => !editDirty() || confirm(COPY.bookingEditor.discardChanges) });
 
   const closeBtn = document.getElementById('psycle-booking-modal-close');
   const overlay = modal.querySelector('.psycle-modal-overlay');
   const closeModal = () => {
+    if (closeNavPage(modal)) return;
     modal.classList.remove('show');
     setTimeout(() => modal.style.display = 'none', 300);
   };
@@ -550,6 +560,7 @@ export async function openEditBookingModal(group, onChange = renderBookings) {
     const minMapHeight = Math.max(340, rowCount * 56);
 
     const selected = new Set(currentSlots);
+    editDirty = () => selected.size !== currentSlots.length || currentSlots.some((x) => !selected.has(x));
     const labelFor = id => { const s = layoutSlots.find(ls => String(ls.id) === String(id)); return s?.label || String(id); };
 
     body.innerHTML = `
@@ -564,6 +575,11 @@ export async function openEditBookingModal(group, onChange = renderBookings) {
     `;
 
     const floorGrid = body.querySelector('#psycle-edit-floor-grid');
+    mountBookingContext(body, body.querySelector('.psycle-floor-plan-container'), {
+      className, instructorName: event.instructors?.[0]?.name || '', instructorPhoto: event.instructors?.[0]?.thumbUrl || event.instructors?.[0]?.imageUrl,
+      startAt: event.startAt, gymId: event.gymId, timeZone: event.timeZone,
+      spotsLeft: layoutSlots.filter(s => s.isAvailable).length,
+    }, { helperId: 'spotmap-live', helperText: COPY.bookingFlow.helperLive });
     const summaryEl = body.querySelector('#psycle-edit-summary');
     const controls = body.querySelector('#psycle-edit-controls');
 
@@ -684,7 +700,7 @@ export async function openEditBookingModal(group, onChange = renderBookings) {
           for (const slotId of toRemove) {
             const bookingId = slotToBooking.get(slotId);
             if (bookingId) await api.cancel(bookingId, gymId);
-            const up = findActiveUpgradeForBooking(cache.upgrades, bookingId, gymId);
+            const up = findUpgradeForSeat(cache.upgrades, { bookingId, gymId, eventId: group.eventId, slotId });
             if (up) { try { await api.deleteAutoUpgrade(up.id); } catch (_) {} }
           }
           // 2. Book added spots.
@@ -928,13 +944,15 @@ export async function openUpgradeConfigModal({ eventId, gymId, bookingId, curren
     </div>
   `;
 
-  modal.style.display = 'flex';
-  setTimeout(() => modal.classList.add('show'), 10);
+  const spotMapDirty = () => !!body.querySelector('[data-spotmap-root]')?.__isDirty?.();
+  const discardOk = () => !spotMapDirty() || confirm(COPY.bookingEditor.discardChanges);
+  openNavPage(modal, { id: 'upgrade-config', canClose: discardOk });
 
   const closeBtn = document.getElementById('psycle-booking-modal-close');
   const overlay = modal.querySelector('.psycle-modal-overlay');
   
   const closeModal = () => {
+    if (closeNavPage(modal)) return;
     modal.classList.remove('show');
     setTimeout(() => modal.style.display = 'none', 300);
   };
@@ -944,6 +962,7 @@ export async function openUpgradeConfigModal({ eventId, gymId, bookingId, curren
 
   const isEditing = existingUpgradeId !== null;
   title.textContent = isEditing ? COPY.autoUpgrade.editTitle : formatCopyText(COPY.autoUpgrade.configureClassTitle, { className });
+  applyBookingChrome(modal, { titleText: COPY.bookingFlow.titleUpgrade, gymId, locationName, studioName });
 
   try {
     // WP-C5: the floor plan below is driven entirely by NormalizedSlot[] /
@@ -1040,7 +1059,7 @@ export async function openUpgradeConfigModal({ eventId, gymId, bookingId, curren
 
         // 2. Create or update the monitor (per-monitor option only; slots are live)
         if (isEditing) {
-          await api.updateAutoUpgrade(existingUpgradeId, { keepOriginalOnCutoff });
+          await api.updateAutoUpgrade(existingUpgradeId, { keepOriginalOnCutoff }, bookingId);
           showToast(COPY.bookings.upgradeUpdated, 'success');
         } else {
           await api.addAutoUpgrade({
@@ -1060,12 +1079,16 @@ export async function openUpgradeConfigModal({ eventId, gymId, bookingId, curren
     }, {
       saveLabel: isEditing ? COPY.bookings.saveChanges : COPY.bookings.startMonitoring,
       layoutObjects,
+      rowGroups: rowGroupsForStudio(resolvedStudioId, gymId),
       bannerHtml,
       extraControlsHtml,
       onDisable,
       disableLabel: COPY.bookings.disableUpgrade,
       availableSlots: layoutSlots.filter(s => s.isAvailable).map(s => Number(s.id)),
-      currentSlotId
+      currentSlotId,
+      aboveMap: () => bookingContextEl({
+        className, instructorName: instructorName || '', startAt, gymId, timeZone: event.timeZone,
+      }, { helperId: 'spotmap-setup', helperText: COPY.bookingFlow.helperSetup })
     });
 
   } catch (err) {

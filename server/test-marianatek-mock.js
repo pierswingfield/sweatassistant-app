@@ -80,6 +80,7 @@ check('fetchEventDetails: pick-a-spot yields a full slot layout; FCFS yields non
   const picked = await mt.fetchEventDetails(PICK_A_SPOT, ctx.session);
   assert.strictEqual(picked.slots.length, 20, 'pick-a-spot layout mapped to 20 slots');
   assert.ok(picked.slots.every((s) => typeof s.isAvailable === 'boolean'), 'availability resolved on every slot');
+  assert.ok(picked.slots.some((s) => s.section === 'Bag'), 'provider spot section is normalized');
   const fcfs = await mt.fetchEventDetails(FCFS, ctx.session);
   assert.deepStrictEqual(fcfs.slots, [], 'FCFS class renders no picker');
 });
@@ -132,6 +133,8 @@ check('listBookings: an active booking is listed with a full embedded event', as
   assert.strictEqual(found.isWaitlist, false);
   assert.strictEqual(found.eventId, PICK_A_SPOT_ALT);
   assert.strictEqual(found.slotId, 'mock-ground-1');
+  assert.strictEqual(found.spotSection, 'Ground');
+  assert.strictEqual(found.slotLabel, 'G1');
   assert.ok(found.event && found.event.gymId === 'jab-boxing', 'MT embeds a full NormalizedEvent for free (unlike CodexFit)');
   // Clean up so later checks (credits/memberships) see a consistent state.
   await mt.cancelBooking(booked.bookingId, ctx.session);

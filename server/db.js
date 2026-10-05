@@ -154,6 +154,8 @@ db.exec(`
     studio_name TEXT,
     location_id TEXT,
     location_name TEXT,
+    slot_label TEXT,
+    spot_section TEXT,
     fetched_at TEXT NOT NULL,
     FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
     FOREIGN KEY (gym_id) REFERENCES gyms(id),
@@ -329,6 +331,8 @@ ensureColumn('users', 'last_seen_at', 'TEXT');
 ensureColumn('booking_cache', 'duration_min', 'INTEGER');
 // Street address captured per-event from CodexFit, for the calendar LOCATION field.
 ensureColumn('booking_cache', 'location_address', 'TEXT');
+ensureColumn('class_history', 'slot_label', 'TEXT');
+ensureColumn('class_history', 'spot_section', 'TEXT');
 ensureColumn('waitlist_cache', 'location_address', 'TEXT');
 ensureColumn('calendar_classes', 'location_address', 'TEXT');
 // Per-user rotatable secret token authorising the public-by-URL calendar feed.

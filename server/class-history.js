@@ -43,8 +43,8 @@ function upsertEntries(userId, gymId, entries, fetchedAt = new Date().toISOStrin
     INSERT INTO class_history
       (user_id, gym_id, booking_id, event_id, status, start_at, start_ts, time_zone, duration_min,
        class_name, discipline, instructor_id, instructor_name, studio_id, studio_name,
-       location_id, location_name, fetched_at)
-    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+       location_id, location_name, slot_label, spot_section, fetched_at)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     ON CONFLICT(user_id, gym_id, booking_id) DO UPDATE SET
       event_id = excluded.event_id, status = excluded.status, start_at = excluded.start_at,
       start_ts = excluded.start_ts, time_zone = excluded.time_zone, duration_min = excluded.duration_min,
@@ -52,6 +52,7 @@ function upsertEntries(userId, gymId, entries, fetchedAt = new Date().toISOStrin
       instructor_id = excluded.instructor_id, instructor_name = excluded.instructor_name,
       studio_id = excluded.studio_id, studio_name = excluded.studio_name,
       location_id = excluded.location_id, location_name = excluded.location_name,
+      slot_label = excluded.slot_label, spot_section = excluded.spot_section,
       fetched_at = excluded.fetched_at
   `);
   let n = 0;
@@ -62,7 +63,7 @@ function upsertEntries(userId, gymId, entries, fetchedAt = new Date().toISOStrin
       stmt.run(userId, gymId, e.bookingId, e.eventId ?? null, e.status, e.startAt, ts, e.timeZone ?? null,
         e.durationMin ?? null, e.name ?? null, e.discipline ?? null, e.instructorId ?? null,
         e.instructorName ?? null, e.studioId ?? null, e.studioName ?? null, e.locationId ?? null,
-        e.locationName ?? null, fetchedAt);
+        e.locationName ?? null, e.slotLabel ?? null, e.spotSection ?? null, fetchedAt);
       n++;
     }
   });
@@ -76,6 +77,7 @@ function rowToEntry(r) {
     timeZone: r.time_zone, durationMin: r.duration_min, name: r.class_name, discipline: r.discipline,
     instructorId: r.instructor_id, instructorName: r.instructor_name, studioId: r.studio_id,
     studioName: r.studio_name, locationId: r.location_id, locationName: r.location_name,
+    slotLabel: r.slot_label, spotSection: r.spot_section,
     fetchedAt: r.fetched_at,
   };
   Object.keys(out).forEach((k) => (out[k] == null) && delete out[k]);

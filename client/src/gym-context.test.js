@@ -16,7 +16,7 @@
 import { describe, it, expect, beforeEach } from 'vitest';
 import {
   setLinkedGyms, getLinkedGyms, canForGym, capabilityForGym, canAny,
-  applyCapabilityGates, applyGymFonts, applyGymNames,
+  applyCapabilityGates, applyGymFonts, applyGymNames, setGymCatalogue, formatSpotLabel,
 } from './gym-context.js';
 import { getDiscipline, trimLocation, seatNoun } from './ui/cards.js';
 
@@ -76,6 +76,19 @@ describe('per-gym capabilities (canForGym)', () => {
     // No ambient "the active gym" to fall back to any more — omitting gymId is
     // the same as asking about an unknown gym.
     expect(canForGym('bookmarks')).toBe(true);
+  });
+});
+
+describe('configured spot section labels', () => {
+  it('formats section names in text while leaving unconfigured gyms numeric', () => {
+    setGymCatalogue([
+      { id: 'jab-boxing', spotSectionPrefixes: { Ground: 'G', Bag: 'B' } },
+      { id: 'other-gym', spotSectionPrefixes: {} },
+    ]);
+    expect(formatSpotLabel('jab-boxing', { label: '24', section: 'Ground' })).toBe('G 24');
+    expect(formatSpotLabel('jab-boxing', { label: '13', section: 'bag' })).toBe('B 13');
+    expect(formatSpotLabel('other-gym', { label: '24', section: 'Ground' })).toBe('24');
+    expect(formatSpotLabel('jab-boxing', { label: 'G24', section: 'Ground' })).toBe('G24');
   });
 });
 

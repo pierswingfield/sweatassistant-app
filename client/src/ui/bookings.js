@@ -1,5 +1,5 @@
 import { api } from '../api';
-import { canForGym, getGymShortName, getDefaultGymId } from '../gym-context.js';
+import { canForGym, getGymShortName, getDefaultGymId, formatSpotLabel } from '../gym-context.js';
 import { getAvailableCreditsForEvent, getTotalCredits, getIneligibleReason } from './credit-allowance.js';
 import { showToast, cache, refreshUserData, updateCreditBadge, userSettings, gymSetting } from '../main';
 import { renderStudioFloorPlan } from './spotmap';
@@ -160,7 +160,10 @@ export function syncBookingCache(bookings) {
         instructorName,
         studioName,
         locationName,
-        slotLabel: b.raw?.spot?.name ?? b.studio_slot?.label ?? b.slot ?? b.studio_slot_id ?? b.slot_id ?? b.slotId ?? '',
+        slotLabel: formatSpotLabel(event.gymId || b.gymId, {
+          label: b.slotLabel ?? b.raw?.spot?.name ?? b.studio_slot?.label ?? b.slot ?? b.studio_slot_id ?? b.slot_id ?? b.slotId ?? '',
+          section: b.spotSection ?? b.raw?.spot?.spot_type?.name,
+        }),
       };
     }).filter(Boolean);
     api.syncBookings(normalized).catch(() => {});
@@ -294,7 +297,10 @@ function buildBookingCard(group, upgrades) {
     }
 
     const slotId = slotIdOf(b);
-    const slotLabel = b.raw?.spot?.name ?? b.studio_slot?.label ?? b.slot ?? b.studio_slot_id ?? b.slot_id ?? slotId ?? '?';
+    const slotLabel = formatSpotLabel(event.gymId || b.gymId, {
+      label: b.slotLabel ?? b.raw?.spot?.name ?? b.studio_slot?.label ?? b.slot ?? b.studio_slot_id ?? b.slot_id ?? slotId ?? '?',
+      section: b.spotSection ?? b.raw?.spot?.spot_type?.name,
+    });
 
     // Find active upgrade for this specific booking
     const activeUpgrade = findUpgradeForSeat(upgrades, {
@@ -324,7 +330,7 @@ function buildBookingCard(group, upgrades) {
     return `<button class="${chipClass}"
                     data-booking-id="${bookingIdOf(b)}"
                     data-slot-id="${slotId}"
-                    data-slot-label="${slotLabel}"
+                    data-slot-label="${escapeHtml(slotLabel)}"
                     data-upgrade-id="${activeUpgrade?.id || ''}"
                     title="${activeUpgrade ? COPY.bookings.autoUpgradeDisabledTitle : COPY.bookings.autoUpgradeEnabledTitle}">
               ${iconHtml}${nounCap} ${slotLabel}

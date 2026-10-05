@@ -212,6 +212,7 @@ router.get('/gyms', (req, res) => {
     // Gym default display zone (client fallback when an event/booking carries none).
     timezone: g.timezone,
     theme: g.theme, labels: g.labels, capabilities: g.capabilities,
+    spotSectionPrefixes: g.spotSectionPrefixes || {},
     locationAliases: g.locationAliases || {},
     presentation: g.presentation,
     // Optional human summary of the gym's booking window (gym config bookingWindow.summary).

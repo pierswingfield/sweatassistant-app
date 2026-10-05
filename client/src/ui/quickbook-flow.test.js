@@ -24,6 +24,12 @@ describe('quickBookTap', () => {
     expect(await quickBookTap(d2)).toBe('confirmed');
     expect(d2.gate).not.toHaveBeenCalled();
   });
+  it('clean overlap check opens setup immediately when the spot map is unconfigured', async () => {
+    const d = mk({ immediate: true });
+    expect(await quickBookTap(d)).toBe('ran');
+    expect(d.run).toHaveBeenCalledWith({ overlapAcknowledged: false });
+    expect(d.arm).not.toHaveBeenCalled();
+  });
   it('ignores taps while busy', async () => {
     const d = mk({ busy: true });
     expect(await quickBookTap(d)).toBe('ignored');

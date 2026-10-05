@@ -51,6 +51,7 @@ let linkedGyms = [];
 let presentations = new Map();
 // Gym default display zone from the catalogue (GET /api/gyms `timezone`), by gym id.
 let gymZones = new Map();
+let spotSectionPrefixes = new Map();
 
 /** Gym-local IANA zone from the catalogue, or '' when unknown/not loaded. */
 export function getGymTimeZone(gymId) {
@@ -61,14 +62,32 @@ export function getGymTimeZone(gymId) {
 export function setGymCatalogue(catalogue) {
   presentations = new Map();
   gymZones = new Map();
+  spotSectionPrefixes = new Map();
   for (const g of Array.isArray(catalogue) ? catalogue : []) {
     if (g && g.id && g.timezone) gymZones.set(String(g.id), g.timezone);
+    if (g && g.id && g.spotSectionPrefixes) spotSectionPrefixes.set(String(g.id), g.spotSectionPrefixes);
     if (g && g.id && g.presentation) presentations.set(String(g.id), g.presentation);
   }
   injectGymPresentationCss();
   preloadGymWordmarks();
   loadWordmarkSprites(presentations);
   if (typeof window !== 'undefined') window.dispatchEvent(new Event('gym-catalogue-ready'));
+}
+
+/** Human-facing spot label with an optional gym-configured section prefix. */
+export function formatSpotLabel(gymId, spotOrLabel, section = undefined) {
+  const spot = spotOrLabel && typeof spotOrLabel === 'object' ? spotOrLabel : { label: spotOrLabel, section };
+  const label = spot.label ?? spot.slotLabel ?? spot.id ?? '';
+  const sectionName = spot.section ?? spot.spotSection ?? spot.spotType;
+  const prefixes = gymId && spotSectionPrefixes.get(String(gymId));
+  const configured = sectionName && prefixes
+    ? Object.entries(prefixes).find(([key]) => key.toLowerCase() === String(sectionName).toLowerCase())?.[1]
+    : null;
+  const prefix = configured || null;
+  const text = String(label);
+  const alreadyPrefixed = prefix && text.toLowerCase().startsWith(String(prefix).toLowerCase())
+    && /^\s*\d+$/.test(text.slice(String(prefix).length));
+  return prefix && !alreadyPrefixed ? `${prefix} ${text}` : text;
 }
 
 // Logos are re-created by every card re-render. Hold one decoded Image per wordmark asset so a

@@ -92,6 +92,7 @@ function makeSlot(s) {
     isAvailable: bool(s.isAvailable) ?? false,
     isPrimary: bool(s.isPrimary),
     spotType: s.spotType,
+    section: s.section,
     raw: s.raw,
   });
 }
@@ -181,6 +182,8 @@ function makeBookingResult(r) {
     ok: !!r.ok,
     bookingId: str(r.bookingId),
     slotId: str(r.slotId),
+    slotLabel: str(r.slotLabel),
+    spotSection: str(r.spotSection),
     error: r.error,
     // HTTP status of the underlying response, when known (WP-N3) — lets a
     // caller distinguish "auth expired, worth a relogin retry" (401) from any
@@ -211,6 +214,8 @@ function makeBooking(b) {
     bookingId: str(b.bookingId),
     eventId: str(b.eventId),
     slotId: str(b.slotId),
+    slotLabel: str(b.slotLabel),
+    spotSection: str(b.spotSection),
     isWaitlist: bool(b.isWaitlist) ?? false,
     // When the booking was made. Powers the free-cancellation grace period the
     // UI counts down — universal enough to belong on the shape, and the only
@@ -241,6 +246,8 @@ function makeHistoryEntry(h) {
     startAt: ev.startAt,
     timeZone: ev.timeZone,
     durationMin: num(ev.durationMin),
+    slotLabel: str(h.slotLabel),
+    spotSection: str(h.spotSection),
     name: ev.name,
     discipline: ev.discipline,
     instructorId: str(ins.id),

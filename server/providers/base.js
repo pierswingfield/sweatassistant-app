@@ -110,6 +110,7 @@
  * @property {boolean} isAvailable
  * @property {boolean=} isPrimary
  * @property {string=} spotType
+ * @property {string=} section           Provider-published section containing this spot.
  * @property {*=}      raw
  */
 
@@ -151,6 +152,8 @@
  * @property {boolean}  ok
  * @property {string=}  bookingId
  * @property {string=}  slotId
+ * @property {string=}  slotLabel
+ * @property {string=}  spotSection
  * @property {string=}  error
  * @property {number=}  status  HTTP status of the underlying response, when known
  *                               (WP-N3) — a 401 here is the signal a caller should
@@ -172,6 +175,8 @@
  * @property {string}  bookingId          Booking id (standard) or waitlist-entry id (waitlist).
  * @property {string=} eventId
  * @property {string=} slotId
+ * @property {string=} slotLabel
+ * @property {string=} spotSection
  * @property {boolean} isWaitlist
  * @property {NormalizedEvent=} event     Present when the provider's list response embeds
  *                                        full class details (MarianaTek's class_session).
@@ -194,6 +199,8 @@
  * @property {string=} startAt        ISO 8601 with the class's own zone offset.
  * @property {string=} timeZone
  * @property {number=} durationMin
+ * @property {string=} slotLabel
+ * @property {string=} spotSection
  * @property {string=} name
  * @property {string=} discipline
  * @property {string=} instructorId

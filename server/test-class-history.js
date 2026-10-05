@@ -78,6 +78,21 @@ check('sync stores rows; re-sync is idempotent; sync state recorded', async () =
   assert.ok(!('raw' in one), 'stored rows carry no raw');
 });
 
+check('class history persists normalized spot label and section metadata', async () => {
+  const uid = twoGymUser('spot-section');
+  try {
+    history.upsertEntries(uid, JAB, [{
+      bookingId: 'section-1', eventId: 'class-1', status: 'attended',
+      startAt: new Date(Date.now() - 864e5).toISOString(), name: 'Boxing',
+      slotLabel: '24', spotSection: 'Ground',
+    }]);
+    const rows = history.listHistory(uid, JAB, {});
+    const saved = rows.find((row) => row.bookingId === 'section-1');
+    assert.strictEqual(saved.slotLabel, '24');
+    assert.strictEqual(saved.spotSection, 'Ground');
+  } finally { db.deleteUser(uid); }
+});
+
 check('multi-gym isolation: one user, two gyms, and colliding provider booking ids', async () => {
   const uid = twoGymUser('iso');
   await history.syncUserGym(uid, PSYCLE);

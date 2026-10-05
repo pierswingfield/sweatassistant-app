@@ -22,6 +22,7 @@ const { getProvider } = require('./providers');
 const { cleanClassName: cleanClassNameShared, disciplineHead } = require('./class-name');
 const { policyOf, isRollingWeekly, mostRecentRelease } = require('./providers/booking-window');
 const { normalizeCalendarPrefs } = require('./calendar-prefs');
+const { formatSpotLabel } = require('./spot-label');
 
 // Interim single-gym bridge, same as scheduler.js/poller.js (WP-D3 will replace).
 // No module-level provider (WP-D7) — resolved per user, since a calendar feed is
@@ -218,7 +219,7 @@ async function fetchUserBookings(userId, gymId) {
       className: ev.className, groupName: ev.groupName, instructorName: ev.instructorName,
       studioName: ev.studioName, locationName: ev.locationName, locationAddress: ev.locationAddress,
       durationMin: ev.durationMin,
-      slotLabel: nb.slotId != null ? String(nb.slotId) : '',
+      slotLabel: formatSpotLabel(gymId, nb.slotLabel ?? nb.slotId ?? '', nb.spotSection),
     });
   }
   return out;

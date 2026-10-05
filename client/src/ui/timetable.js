@@ -3,7 +3,7 @@ import { buildWorkoutOptions } from './workout-options.js';
 import { COPY, appCopy, formatCopyText } from '../copy.js';
 import { getAvailableCreditsForEvent, hasUsableCredit, getIneligibleReason, isMetered } from './credit-allowance.js';
 import { isCreditInventoryLoaded, pickStudioPrefs as pickGymStudioPrefs } from './gym-isolation.js';
-import { canForGym, canAny, capabilityForGym, getLinkedGyms, getGymShortName, getLocationAlias, getDefaultGymId } from '../gym-context.js';
+import { canForGym, canAny, capabilityForGym, getLinkedGyms, getGymShortName, getLocationAlias, getDefaultGymId, formatSpotLabel } from '../gym-context.js';
 import { showToast, currentUser, userSettings, gymSetting, profileForGym, refreshUserData, updateCreditBadge, cache, debugConsole } from '../main';
 import { passesLocationFilter, formatFullDate, getClassReleaseTime, isFullWithoutWaitlist, isInGracePeriod, GRACE_PERIOD_MS, startGraceCountdown, noSept, zoneFor, formatInZone, dayKeyInZone, nowInZone, deviceZone } from '../lib';
 import { getGymTimeZone } from '../gym-context.js';
@@ -2311,10 +2311,16 @@ async function doQuickBook(event, btn) {
   // second tap (or the 4s revert timer) interfering while a modal is open.
   const confirmMsg = isWithin12Hours(event.startAt) ? COPY.timetable.confirmSoon : COPY.timetable.confirm;
   btn.dataset.qbBusy = '1';
+  let hasUnconfiguredMap = false;
+  try {
+    const { hasPrefs } = await resolveStudioPrefs(event);
+    hasUnconfiguredMap = getStudioMapInfo(event).hasMap && !hasPrefs;
+  } catch (_) { /* retain confirmation if preference state is unknown */ }
   const settle = () => { delete btn.dataset.qbBusy; };
   try {
     await quickBookTap({
       busy: false,
+      immediate: hasUnconfiguredMap,
       armed: btn.dataset.confirmState === 'confirm',
       gate: async () => { try { return await overlapGate(event, 'quickbook'); } finally { settle(); } },
       arm: () => twoTapConfirm(btn, confirmMsg, run),
@@ -3143,7 +3149,7 @@ async function quickBookClass(eventId, prefs, btn, gymId = null) {
     const lastBookingRes = lastBooked?.result ?? null;
     const bookedSlotLabels = attemptResult.booked.map(({ slotId }) => {
       const slot = slots.find(s => sameId(s.id, slotId));
-      return slot?.label ?? slotId;
+      return formatSpotLabel(gymId, slot || slotId);
     });
     const qbNoun = seatNoun(event.discipline || eventData.discipline);
 
@@ -3376,7 +3382,9 @@ export async function openBookingModal(c, mode, opts = {}) {
           saveAutoBookPreferences(c, [], [], qtyEl ? (parseInt(qtyEl.value) || 1) : 1, true, closeModal);
         };
       } else {
-        document.getElementById('btn-book-any').onclick = () => bookSeatDirect(c.id, availableSlots[0], closeModal, c);
+        document.getElementById('btn-book-any').onclick = () => bookSeatDirect(
+          c.id, availableSlots[0], closeModal, c, layoutSlots.find((slot) => sameId(slot.id, availableSlots[0]))
+        );
       }
       return;
     }
@@ -3600,7 +3608,7 @@ export async function openBookingModal(c, mode, opts = {}) {
           bubble.style.width = '36px';
           bubble.style.height = '36px';
           bubble.style.fontSize = '12px';
-          bubble.style.zIndex = '3';
+          bubble.style.zIndex = '5';
           bubble.textContent = layoutSlots.find(s => String(s.id) === chosenSlotId)?.label || chosenSlotId;
           bubble.setAttribute('aria-label', `Automatically chosen spot ${bubble.textContent}`);
         }
@@ -3643,12 +3651,13 @@ export async function openBookingModal(c, mode, opts = {}) {
 
       if (chosenSlotId) {
         const chosen = layoutSlots.find(s => String(s.id) === chosenSlotId);
-        const chosenLabel = escapeHtml(chosen?.label || chosenSlotId);
+        const chosenLabel = escapeHtml(formatSpotLabel(c.gymId, chosen || chosenSlotId));
         const notice = document.createElement('div');
         notice.className = 'psycle-auto-chosen-spot';
         notice.setAttribute('role', 'status');
         notice.setAttribute('aria-live', 'polite');
-        notice.innerHTML = `${appCopy(COPY.bookingFlow.autoChosenSpotLead)} <span class="psycle-auto-chosen-spot__badge">Spot ${chosenLabel}</span> ${escapeHtml(COPY.bookingFlow.autoChosenSpotTail)}`;
+        const sentence = escapeHtml(appCopy(COPY.bookingFlow.autoChosenSpotSentence));
+        notice.innerHTML = sentence.replace('{slot}', `<span class="psycle-auto-chosen-spot__badge">${chosenLabel}</span>`);
         floorGrid.appendChild(notice);
       }
 
@@ -3679,7 +3688,7 @@ export async function openBookingModal(c, mode, opts = {}) {
       if (summaryEl) {
         const spotLabels = state.selectedSlots.map(id => {
           const slot = layoutSlots.find(s => String(s.id) === id);
-          return slot?.label || String(id);
+          return formatSpotLabel(c.gymId, slot || id);
         });
         const rowLabels = Array.from(state.selectedRows).map(y => {
           const idx = rowYs.indexOf(y);
@@ -3949,7 +3958,7 @@ export async function openBookingModal(c, mode, opts = {}) {
             const bookedSlots = state.selectedSlots.slice(0, results.length);
             const bookedLabels = bookedSlots.map(id => {
               const s = layoutSlots.find(ls => String(ls.id) === String(id));
-              return s?.label ?? id;
+              return formatSpotLabel(c.gymId, s || id);
             });
             api.notifyBookingSuccess({
               source: 'manual', eventId: c.id, gymId: c.gymId || null, className: c.name || groupName, groupName,
@@ -4235,9 +4244,9 @@ async function tryAutoRegisterUpgrade(event, bookedSlotId, bookingRes, enableOve
 }
 
 // Perform direct booking of spot ID
-async function bookSeatDirect(eventId, slotId, callback, event) {
+async function bookSeatDirect(eventId, slotId, callback, event, slot = null) {
   try {
-    showToast(formatCopyText(COPY.timetable.bookingSpot, { slot: slotId }), 'info');
+    showToast(formatCopyText(COPY.timetable.bookingSpot, { slot: formatSpotLabel(event?.gymId, slot || slotId) }), 'info');
     const bookingRes = await api.book(eventId, slotId == null ? [] : [slotId], event?.gymId);
     if (!bookingRes.ok) throw new Error(bookingRes.error || COPY.timetable.bookingDeclined);
     callback();

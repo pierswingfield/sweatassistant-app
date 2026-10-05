@@ -19,6 +19,7 @@ const {
 const { getProvider } = require('./providers');
 const { zoneOfGym } = require('./providers/timezone');
 const { getGymConfig } = require('./gyms.config');
+const { formatSpotLabel } = require('./spot-label');
 const { policyOf, isRollingWeekly, mostRecentRelease } = require('./providers/booking-window');
 
 // Interim single-gym bridge: until multi-gym login lands (WP-D3), all polling
@@ -690,7 +691,7 @@ async function bookingCacheRowsFor(userId, gymId) {
       locationName: ev.locationName || '',
       locationAddress: ev.locationAddress || null,
       durationMin: ev.durationMin ?? null,
-      slotLabel: nb.slotId != null ? String(nb.slotId) : '',
+      slotLabel: formatSpotLabel(gymId, nb.slotLabel ?? nb.slotId ?? '', nb.spotSection),
     });
   }
   return rows;

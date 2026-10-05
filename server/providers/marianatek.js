@@ -727,6 +727,7 @@ class MarianaTekProvider extends GymProvider {
       isAvailable: s.is_available,
       isPrimary: s.spot_type && s.spot_type.is_primary,
       spotType: s.spot_type && s.spot_type.name,
+      section: s.spot_type && s.spot_type.name,
       raw: s,
     }));
   }
@@ -797,7 +798,8 @@ class MarianaTekProvider extends GymProvider {
           : undefined;
       return makeBookingResult({ ok: false, status: res.status, code, error: normalizedError, raw: data });
     }
-    return makeBookingResult({ ok: true, bookingId: data.id, slotId: data.spot && data.spot.id, raw: data });
+    return makeBookingResult({ ok: true, bookingId: data.id, slotId: data.spot && data.spot.id,
+      slotLabel: data.spot && data.spot.name, spotSection: data.spot && data.spot.spot_type && data.spot.spot_type.name, raw: data });
   }
 
   async cancelBooking(bookingId, session) {
@@ -857,7 +859,9 @@ class MarianaTekProvider extends GymProvider {
       .map((r) => makeBooking({
         bookingId: r.id,
         eventId: r.class_session && r.class_session.id,
-        slotId: r.spot && r.spot.id,
+          slotId: r.spot && r.spot.id,
+          slotLabel: r.spot && r.spot.name,
+          spotSection: r.spot && r.spot.spot_type && r.spot.spot_type.name,
         bookedAt: r.created_at || r.reserved_at,
         isWaitlist: reservationType === 'waitlist',
         event: r.class_session ? this.mapClassToEvent(r.class_session) : undefined,
@@ -919,7 +923,8 @@ class MarianaTekProvider extends GymProvider {
         const event = this.mapClassToEvent(r.class_session);
         const startMs = Date.parse(event.startAt);
         if (!Number.isFinite(startMs) || startMs >= nowMs) continue;
-        out.push(makeHistoryEntry({ bookingId: r.id, eventId: r.class_session.id, status, event, raw: r }));
+        out.push(makeHistoryEntry({ bookingId: r.id, eventId: r.class_session.id, status, event,
+          slotLabel: r.spot && r.spot.name, spotSection: r.spot && r.spot.spot_type && r.spot.spot_type.name, raw: r }));
       }
       const nextLink = (data.links && data.links.next) || data.next;
       path = null;

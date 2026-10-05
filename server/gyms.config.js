@@ -217,6 +217,9 @@ const GYMS = {
       displayAliases: { studios: { 'recovery 2.0': 'Recovery' } },
     },
     labels: { class: 'class', spot: 'spot' },
+    // Provider-published spot sections are humanized per tenant. Unmapped
+    // sections keep the provider's numeric spot label.
+    spotSectionPrefixes: { Ground: 'G', Bag: 'B' },
     // MarianaTek publishes a per-class release instant (`booking_start_datetime`),
     // already resolved server-side for the viewing account — MT supports both
     // interval (weekly) and rolling window configs and just tells us the answer.

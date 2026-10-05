@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from 'vitest';
-import { enableAutoUpgradeForGyms, getPostLoginDestination, shouldAnimateGymLogos } from './onboarding-routing.js';
+import { enableAutoUpgradeForGyms, getPostLoginDestination, shouldAnimateGymLogos, detectInstallContext, shouldOfferInstall } from './onboarding-routing.js';
 
 describe('post-login onboarding destination', () => {
   it('keeps the full flow when no gyms are connected', () => {
@@ -53,4 +53,37 @@ describe('gym logo strip mode', () => {
     expect([0, 1, 2, 3].map(shouldAnimateGymLogos)).toEqual([false, false, false, false]);
     expect([4, 5, 12].map(shouldAnimateGymLogos)).toEqual([true, true, true]);
   });
+});
+
+describe('install-to-home-screen detection', () => {
+  const IOS_SAFARI = 'Mozilla/5.0 (iPhone; CPU iPhone OS 17_4 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.4 Mobile/15E148 Safari/604.1';
+  const IOS_CHROME = 'Mozilla/5.0 (iPhone; CPU iPhone OS 17_4 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) CriOS/124.0.0.0 Mobile/15E148 Safari/604.1';
+  const ANDROID_CHROME = 'Mozilla/5.0 (Linux; Android 14; Pixel 8) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Mobile Safari/537.36';
+  const SAMSUNG = 'Mozilla/5.0 (Linux; Android 14; SM-S918B) AppleWebKit/537.36 (KHTML, like Gecko) SamsungBrowser/24.0 Chrome/117.0.0.0 Mobile Safari/537.36';
+  const DESKTOP = 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36';
+
+  it('classifies the mobile browsers', () => {
+    expect(detectInstallContext({ userAgent: IOS_SAFARI }).platform).toBe('ios-safari');
+    expect(detectInstallContext({ userAgent: IOS_CHROME }).platform).toBe('ios-other');
+    expect(detectInstallContext({ userAgent: ANDROID_CHROME }).platform).toBe('android-chrome');
+    expect(detectInstallContext({ userAgent: SAMSUNG }).platform).toBe('android-samsung');
+    expect(detectInstallContext({ userAgent: DESKTOP }).mobile).toBe(false);
+  });
+
+  it('treats iPadOS (desktop UA + touch) and narrow touch devices as mobile', () => {
+    expect(detectInstallContext({ userAgent: DESKTOP, maxTouchPoints: 5 }).platform).toBe('ios-safari');
+    expect(detectInstallContext({ userAgent: 'Unknown', maxTouchPoints: 2, viewportWidth: 400 }).mobile).toBe(true);
+    expect(detectInstallContext({ userAgent: 'Unknown', maxTouchPoints: 2, viewportWidth: 1400 }).mobile).toBe(false);
+  });
+
+  it('offers the step to mobile browser tabs until the persistent dismissal exists', () => {
+    const ctx = detectInstallContext({ userAgent: IOS_SAFARI });
+    expect(shouldOfferInstall(ctx)).toBe(true);
+    expect(shouldOfferInstall(ctx, false)).toBe(true);
+    expect(shouldOfferInstall(ctx, true)).toBe(false);
+    expect(shouldOfferInstall(detectInstallContext({ userAgent: IOS_SAFARI, standalone: true }), false)).toBe(false);
+    expect(shouldOfferInstall(detectInstallContext({ userAgent: IOS_SAFARI, displayStandalone: true }), false)).toBe(false);
+    expect(shouldOfferInstall(detectInstallContext({ userAgent: DESKTOP }), false)).toBe(false);
+  });
+
 });

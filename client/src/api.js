@@ -1,6 +1,7 @@
 import { debugLog } from './main.js';
 import { getDefaultGymId } from './gym-context.js';
-import { getCachedSWR, clearApiCache, setCacheKeyPrefix, invalidateApiCache, getOfflineSnapshot, setOfflineSnapshot } from './cache.js';
+import { createLayoutCache, MAX_AGE_MS as LAYOUT_MAX_AGE_MS } from './layout-cache.js';
+import { readCached, setCached, getCachedSWR, clearApiCache, setCacheKeyPrefix, invalidateApiCache, getOfflineSnapshot, setOfflineSnapshot } from './cache.js';
 import { classifyAuthFailure } from './auth-failure.js';
 import { COPY, formatCopyText } from './copy.js';
 import { assertMutationNetworkAvailable, isOfflineForMutation } from './network-write-guard.js';
@@ -40,7 +41,9 @@ async function withOfflineSnapshot(name, readLive) {
     setOfflineSnapshot(name, data);
     return data;
   } catch (err) {
-    if (isOfflineForMutation()) {
+    // A thrown fetch (TypeError) is a transport failure, not an auth answer, so the
+    // last good snapshot is safe even before the offline probe has latched the flag.
+    if (isOfflineForMutation() || err instanceof TypeError) {
       const data = await fromSnapshot();
       if (data !== null) return data;
     }
@@ -125,8 +128,23 @@ export async function apiFetch(endpoint, options = {}) {
   try {
     res = await fetch(url, fetchOptions);
   } catch (err) {
-    window.dispatchEvent(new CustomEvent('psycle-network-fail'));
-    throw err;
+    // Safari's generic "Load failed" TypeError also fires for a stale keep-alive
+    // socket after the PWA resumes. An idempotent read is safe to retry once on a
+    // fresh connection before anyone is told the network is down.
+    const method = String(options.method || 'GET').toUpperCase();
+    const quiet = !!options.quiet;
+    if (err instanceof TypeError && (method === 'GET' || method === 'HEAD') && !options.signal) {
+      await new Promise(r => setTimeout(r, 350));
+      try {
+        res = await fetch(url, fetchOptions);
+      } catch (retryErr) {
+        if (!quiet) window.dispatchEvent(new CustomEvent('psycle-network-fail'));
+        throw retryErr;
+      }
+    } else {
+      if (!quiet) window.dispatchEvent(new CustomEvent('psycle-network-fail'));
+      throw err;
+    }
   }
 
   window.dispatchEvent(new CustomEvent('psycle-network-ok'));
@@ -180,6 +198,26 @@ async function peekJson(res) {
     return null;
   }
 }
+
+// Floor plans: cache-first (IndexedDB `api-responses`, per-user prefix + gym + studio),
+// background revalidation is quiet so a flaky network never trips the offline banner.
+const layoutCache = createLayoutCache({
+  read: async (key) => {
+    const c = await readCached(key);
+    return c ? c.data : null;
+  },
+  write: (key, entry) => setCached(key, entry, LAYOUT_MAX_AGE_MS),
+  fetchLayout: async (studioId, gymId) => {
+    debugLog(`GET /api/studios/${studioId}/layout`, 'network');
+    const res = await apiFetch(`/api/studios/${encodeURIComponent(studioId)}/layout`, { gymId, quiet: true });
+    if (!res.ok) throw new Error('Failed to load studio layout');
+    const data = await res.json();
+    return { slots: data.slots || [], objects: data.objects || [] };
+  },
+  onChange: (detail) => {
+    try { window.dispatchEvent(new CustomEvent('psycle-layout-updated', { detail })); } catch (_) {}
+  },
+});
 
 export const api = {
   // Auth BFF
@@ -528,12 +566,11 @@ export const api = {
   // Returns { slots: NormalizedSlot[], objects: NormalizedLayoutObject[] }.
   // Empty `slots` means "no floor map available for this studio", not an error.
   async getStudioLayout(studioId, gymId = null) {
-    debugLog(`GET /api/studios/${studioId}/layout`, 'network');
-    const res = await apiFetch(`/api/studios/${encodeURIComponent(studioId)}/layout`, { gymId });
-    if (!res.ok) throw new Error('Failed to load studio layout');
-    const data = await res.json();
-    return { slots: data.slots || [], objects: data.objects || [] };
+    return layoutCache.get(gymId, studioId);
   },
+  // Sync read + seeding for the booking modal (one cache for floor plans).
+  peekStudioLayout(studioId, gymId = null) { return layoutCache.peek(gymId, studioId); },
+  rememberStudioLayout(studioId, gymId, slots, objects) { return layoutCache.remember(gymId, studioId, slots, objects); },
 
   // Returns a NormalizedBookingResult { ok, bookingId, slotId, error?, status? }.
   async book(eventId, slotIds = [], gymId = null) {
@@ -879,10 +916,10 @@ export const api = {
     return res.json();
   },
 
-  async updateAutoUpgrade(id, preferences) {
+  async updateAutoUpgrade(id, preferences, bookingId = null) {
     const res = await apiFetch(`/api/auto-upgrade/${id}`, {
       method: 'PUT',
-      body: JSON.stringify({ preferences })
+      body: JSON.stringify({ preferences, bookingId })
     });
     if (!res.ok) {
       const err = await res.json().catch(() => ({}));

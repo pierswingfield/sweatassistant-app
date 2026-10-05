@@ -175,6 +175,8 @@ app.get('/api/health', async (req, res) => {
   // is shorter than the gap between visits.
   let scheduleCacheStats = null;
   try { scheduleCacheStats = require('./schedule-cache').getStats(); } catch (_) {}
+  let layoutCacheStats = null;
+  try { layoutCacheStats = require('./routes-normalized').layoutCacheStats(); } catch (_) {}
   let instructorPhotoCache = null;
   try {
     const photoCache = require('./instructor-photo');
@@ -186,6 +188,7 @@ app.get('/api/health', async (req, res) => {
     time: new Date(now).toISOString(),
     uptimeSec: Math.round(process.uptime()),
     scheduleCache: scheduleCacheStats,
+    layoutCache: layoutCacheStats,
     instructorPhotoCache,
     nextReleaseAt: nextRelease,
     services,
@@ -637,14 +640,17 @@ app.post('/api/auto-upgrade', authenticateToken, bookingMutationLimiter, (req, r
       return res.status(429).json({ message: `Auto-upgrade monitor limit reached (${MAX_ACTIVE_AUTO_UPGRADES_PER_GYM} active monitors). Please cancel some before adding more.` });
     }
 
-    // Check if an active auto-upgrade already exists for this slot in this class
-    const activeUpgrades = db.getUserAutoUpgrades(req.userId, gymId).filter(u =>
-      String(u.event_id) === String(eventId) &&
-      String(u.current_slot_id) === String(currentSlotId) &&
-      u.status === 'active'
+    // One live monitor per held seat. Matches on booking id OR event+slot (a re-booked
+    // seat has a new booking id) and counts paused monitors too — the same set the
+    // client list shows as "has a monitor".
+    const live = db.getUserAutoUpgrades(req.userId, gymId).find(u =>
+      ['active', 'paused_no_credits'].includes(u.status) &&
+      (String(u.booking_id) === String(bookingId) ||
+        (String(u.event_id) === String(eventId) && String(u.current_slot_id) === String(currentSlotId)))
     );
-    if (activeUpgrades.length > 0) {
-      return res.status(400).json({ message: 'An active auto-upgrade monitor already exists for this slot.' });
+    if (live) {
+      if (String(live.booking_id) !== String(bookingId)) db.relinkAutoUpgradeBooking(live.id, req.userId, bookingId);
+      return res.status(409).json({ code: 'DUPLICATE_AUTO_UPGRADE', existingId: live.id, message: 'This spot already has an auto-upgrade monitor.' });
     }
 
     const id = db.addAutoUpgrade(req.userId, eventId, bookingId, currentSlotId, className, instructorName, studioName, locationName, startAt, preferences, studioId ?? null, groupName ?? null, gymId);
@@ -665,12 +671,12 @@ app.post('/api/auto-upgrade', authenticateToken, bookingMutationLimiter, (req, r
 
 app.put('/api/auto-upgrade/:id', authenticateToken, (req, res) => {
   const id = parseInt(req.params.id);
-  const { preferences } = req.body;
+  const { preferences, bookingId } = req.body;
   if (!preferences) return res.status(400).json({ message: 'Missing preferences' });
   try {
     // Reset cutoffAttempted so the new prefs get a fresh attempt window
     const cleanPrefs = { ...preferences, cutoffAttempted: false };
-    db.updateAutoUpgrade(id, req.userId, 'active', 'Preferences updated. Monitoring...', { preferences: cleanPrefs });
+    db.updateAutoUpgrade(id, req.userId, 'active', 'Preferences updated. Monitoring...', { preferences: cleanPrefs, bookingId: bookingId ?? undefined });
     res.json({ success: true });
   } catch (err) {
     res.status(500).json({ message: err.message });

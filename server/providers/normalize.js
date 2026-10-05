@@ -222,6 +222,37 @@ function makeBooking(b) {
   });
 }
 
+/**
+ * One past (or settled) booking for the class-history store (F-10-0).
+ * `status` is the NORMALIZED vocabulary, never a provider's own:
+ *   attended | unconfirmed | late-cancel | cancelled | no-show | class-cancelled
+ * `unconfirmed` = the class has passed with the booking intact but the platform
+ * gave no positive attendance signal (MarianaTek `pending` after start).
+ * @returns {import('./base').NormalizedHistoryEntry}
+ */
+const HISTORY_STATUSES = ['attended', 'unconfirmed', 'late-cancel', 'cancelled', 'no-show', 'class-cancelled'];
+function makeHistoryEntry(h) {
+  const ev = h.event || {};
+  const ins = (ev.instructors && ev.instructors[0]) || {};
+  return prune({
+    bookingId: str(h.bookingId),
+    eventId: str(h.eventId ?? ev.id),
+    status: HISTORY_STATUSES.includes(h.status) ? h.status : 'unconfirmed',
+    startAt: ev.startAt,
+    timeZone: ev.timeZone,
+    durationMin: num(ev.durationMin),
+    name: ev.name,
+    discipline: ev.discipline,
+    instructorId: str(ins.id),
+    instructorName: ins.name,
+    studioId: str(ev.studioId),
+    studioName: ev.studioName,
+    locationId: str(ev.locationId),
+    locationName: ev.locationName,
+    raw: h.raw,
+  });
+}
+
 // --- coercion helpers -------------------------------------------------------
 
 function str(v) { return v == null ? undefined : String(v); }
@@ -253,6 +284,9 @@ function makeStudio(s) {
     locationName: s.locationName,
     // Whether a floor plan exists at all — drives "pick a spot" vs "book any".
     hasLayout: bool(s.hasLayout),
+    // Whether the spot-map editor offers the whole-row preference for this studio.
+    // Gym policy (gyms.config spotMap.rowGroupStudios); default off.
+    rowGroups: s.rowGroups === true,
     raw: s.raw,
   });
 }
@@ -274,4 +308,4 @@ module.exports = {
   makeLocation,
   makeStudio,
   makeClassType,
-  makeMetadata, makeEvent, makeSlot, makeLayoutObject, makeInstructor, makeProfile, makeMembership, makeBookingResult, makeBooking, prune };
+  makeMetadata, makeEvent, makeSlot, makeLayoutObject, makeInstructor, makeProfile, makeMembership, makeBookingResult, makeBooking, makeHistoryEntry, HISTORY_STATUSES, prune };

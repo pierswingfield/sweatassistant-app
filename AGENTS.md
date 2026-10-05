@@ -45,7 +45,7 @@ App/
 ├── server/                  # Express.js backend
 │   ├── server.js            # Main server — routes, proxy, cart/checkout, SSE, rate limiters
 │   ├── auth.js              # CodexFit login, JWT issuance, auto-relogin on 401
-│   ├── db.js                # SQLite schema + CRUD (better-sqlite3, 15 tables)
+│   ├── db.js                # SQLite schema + CRUD (better-sqlite3, 17 tables)
 │   ├── crypto.js            # AES-256-GCM encrypt/decrypt for credentials (env key required)
 │   ├── scheduler.js         # Auto-book precision scheduler — queue-driven wake clock
 │   │                        #   (WP-I), priority tiers, SSE
@@ -69,12 +69,13 @@ App/
 │   │   └── marianatek.js    #   MarianaTek protocol (JAB's platform)
 │   ├── mock.js              # Dev-mode mock CodexFit API (dev@psycle.com)
 │   ├── mock-marianatek.js   # Dev-mode mock MarianaTek API (dev@jabboxing.mock)
+│   ├── class-history.js     # ★ H-0 class-history store + sync (the ONLY reader/writer of class_history)
 │   ├── schedule-cache.js    # ★ Shared user-agnostic provider cache (SWR + single-flight)
 │   ├── rate-limit-backoff.js # ★ Per-gym provider 429 backoff, shared by scheduler.js AND poller.js (C2-3/C2-3b)
 │   ├── run-tests.js         # Test runner — discovers server/test-*.js by filename
-│   └── test-*.js            # 48 suites; see Documentation/TESTING.md
+│   └── test-*.js            # 60 suites; see Documentation/TESTING.md
 ├── client/                  # Vite PWA frontend
-│   ├── index.html           # SPA shell with 5 tab panels + modals + iOS bottom nav
+│   ├── index.html           # SPA shell with 6 tab panels (Home first) + modals + iOS bottom nav
 │   ├── src/
 │   │   ├── main.js          # App init, auth, tab routing, push, theme, offline, pull-to-refresh, credit badge
 │   │   ├── api.js           # API abstraction layer (all server calls)
@@ -88,6 +89,9 @@ App/
 │   │   ├── gym-context.js   # ★ Active gym's capabilities/theme/labels — what the UI gates on
 │   │   ├── gym-context.test.js
 │   │   └── ui/
+│   │       ├── home.js        # Home tab (first tab, default landing): registers the 8 widgets; W4 auto-book count real, rest placeholders (H-1, [workstream](Documentation/Workstreams/H-home-page.md))
+│   │       ├── widget-registry.js # registerWidget + per-widget loading/empty/error(retry) mounter; widgets fail independently
+│   │       ├── home-routing.js # Pure default-tab rule: valid URL hash wins, else Home
 │   │       ├── timetable.js   # Class timetable, filters, booking modal, quick-book, floor plan, mobile cards
 │   │       ├── bookings.js    # My Bookings + Waitlists + Auto-Upgrade setup + edit-spots modal
 │   │       ├── autobook.js    # Auto-Book queue, countdown, SSE stream, favourites, edit modal
@@ -126,7 +130,7 @@ npm run dev:client           # Start Vite dev server only (port 5173, proxies /a
 npm run build:client         # Production build of client
 npm start                    # Production start (server serves built client)
 
-npm test                     # EVERYTHING: 48 server suites + the client Vitest suite
+npm test                     # EVERYTHING: 60 server suites + the client Vitest suite
 npm run test:server          # Server only
 npm run test:client          # Client only (vitest)
 ```
@@ -160,6 +164,7 @@ Server runs on port 3000. Vite dev server proxies `/api` to `localhost:3000`.
 - **`/profile` is ENVELOPED: `{ data: {...} }` (C2-7, 2026-09-27)**. The live response wraps the profile; `modular` read the fields at the top level, so every credit, eligibility and booking-cutoff read was `undefined`. Live, 2 real credits showed as 0 and every row said "Buy Credits". It also silently dropped the member's tier cutoff. `master` never hit this because its client did `res.data || res`, and that step was lost when the provider layer was built. `unwrapProfileEnvelope()` in `codexfit.js` accepts either shape. `/profile` is also single-flighted with a 30 s memo keyed by gym plus session token, never shared across users (C2-6), and invalidated by book, cancel, checkout and profile update.
 - **Mocks must mirror the LIVE envelope, not a convenient one.** This bug class has now shipped three times: `/events` relations, `/bundles` (`{data, relations}`, C2-3b) and `/profile` (C2-7). The mock returned a bare shape, every suite was green, and only a live browser check caught it. When you add a mock route, copy the envelope from `server/fixtures/codexfit-v2/*.json`, which are sanitized live captures.
 - **Waitlist verbs (C2-2, confirmed live 2026-09-26)**: join is `PUT /waitlists/{eventId}`; **leave is `DELETE /waitlists/{waitlistRowId}`, NOT the event id**. `leaveWaitlist()` resolves the row via `listWaitlists()` first. The doc previously said join was `POST`, which was wrong.
+- **Class history (H-0, formerly F-10-0, see [H-home-page.md](Documentation/Workstreams/H-home-page.md); 2026-10-05)**: `listBookingHistory(session, {sinceDate})` on both adapters returns `NormalizedHistoryEntry[]` (`makeHistoryEntry`). Stored via `server/class-history.js` (lazy backfill on gym link / first `GET /api/history`; incremental refresh 14-day overlap every 6h from the poller; pull uses the ROW's gym session). Q5 measured live: CodexFit past list is the v2 `/bookings?filter[type]=past&page[size]=100&page[number]=P` (complete history, no attendance/cancel signal so all `unconfirmed`; page by `meta.last_page`); MarianaTek `is_upcoming=false` (482 rows, 5 pages). See [H-home-page.md](Documentation/Workstreams/H-home-page.md).
 - **Booking response shape**: `POST /bookings` returns `{ success: true, bookings: { "8255409": 53 } }` — the key is the booking ID, value is the slot ID. The client's `tryAutoRegisterUpgrade` extracts the booking ID from this.
 - **No booking show/update endpoint**: `GET /bookings/{id}` and `PUT/PATCH /bookings/{id}` all return HTTP 500 `BadMethodCallException` (`BookingController::show`/`::update` does not exist). The routes exist (Laravel `Route::resource` boilerplate) but the methods are unimplemented. `BookingController` only implements `index` (list), `store` (create), `destroy` (cancel). **There is no atomic spot-swap API** — changing spots requires cancel-then-rebook (`DELETE /bookings/{id}` + `POST /bookings`). Confirmed via authenticated API testing; see [psycle_codexfit.md](file:///Users/pierswingfield/Desktop/AI%20Projects/psycle%20chrome/App/Documentation/Services/psycle_codexfit.md) "Spot Swapping Limitations".
 
@@ -242,6 +247,7 @@ The background services (auto-book scheduler, auto-upgrade poller, calendar feed
 | Feature | Status | Notes |
 |---------|--------|-------|
 | **Login/Auth** | ✅ Functional | Server BFF + JWT, direct login + auto-relogin on 401 |
+| **Home** | ⚠️ Shell only | First tab and default landing (valid hash still wins). Widget framework + 8 widgets; only W4 (auto-book count) is real, the rest are "coming soon" placeholders ([H](Documentation/Workstreams/H-home-page.md), formerly F-10) |
 | **Timetable** | ✅ Functional | Filters, date carousel, status badges, IndexedDB 4hr TTL cache |
 | **Studio Floor Plan** | ✅ Functional | Occupancy tooltip + booking modal with spot selection |
 | **Instructor Tooltip** | ✅ Functional | Hover tooltip (1s delay) + touch tap-to-toggle; Instagram/Spotify links |
@@ -339,6 +345,8 @@ GET    /api/events/:id              # { event, slots, objects, maxBookableSlots 
 GET    /api/studios/:id/layout      # { slots, objects } — empty slots = no floor map
 GET    /api/bookings                # NormalizedBooking[]
 GET    /api/waitlists               # NormalizedBooking[]
+GET    /api/attendance-totals       # Official attended total + this week/month/year + milestones (gyms with capabilities.attendanceTotals; 501 otherwise)
+GET    /api/history                 # H-0: past classes for the gym in x-gym-id (+ sync state + topInstructors); ?days&limit&top
 GET    /api/profile                 # NormalizedProfile
 GET    /api/credits                 # Credit inventory (empty for membership-based gyms)
 GET    /api/cancel-penalty/:id      # Whether cancelling incurs a penalty
@@ -420,7 +428,7 @@ POST   /api/notify/booking-success  # Client reports manual/quick booking → se
 POST   /api/bookings/sync           # Client pushes bookings to warm server reminder cache
 ```
 
-## SQLite Schema (15 tables)
+## SQLite Schema (17 tables)
 
 | Table | Purpose | Key columns |
 |-------|---------|-------------|
@@ -435,6 +443,8 @@ POST   /api/bookings/sync           # Client pushes bookings to warm server remi
 | `push_subscriptions` | Web Push endpoints | `subscription` (JSON string) |
 | `booking_cache` | Reminder cache (client-synced) | `booking_id`, `event_id`, `start_at`, `slot_label`, `duration_min`, `location_address`, `UNIQUE(user_id, booking_id)` |
 | `waitlist_cache` | Waitlist reminder cache (client-synced) | `event_id`, `start_at`, `studio_id`, `location_address`, `UNIQUE(user_id, event_id)` |
+| `class_history` | H-0 past classes, one row per (user, gym, provider booking id), normalized fields only (`status`: attended/unconfirmed/late-cancel/cancelled/no-show/class-cancelled; `start_ts` epoch ms for range queries). Written ONLY via `server/class-history.js`; shaped for C8-1 to adopt | `gym_id` NOT NULL, `booking_id`, `instructor_id/name`, `start_at`, `UNIQUE(user_id, gym_id, booking_id)` |
+| `class_history_sync` | Per (user, gym) last-synced time/error/row count | `last_synced_at`, `last_error`, PK `(user_id, gym_id)` |
 | `sent_notifications` | Notification dedupe | `dedupe_key`, `UNIQUE(user_id, dedupe_key)` |
 | `calendar_classes` | Per-user calendar event rows | `event_id`, `start_at`, `class_name`, `slot_label`, `status`, `upgrade_note`, `sequence`, `content_hash`, `UNIQUE(user_id, event_id)` |
 | `calendar_snapshots` | Generated .ics per user | `ics`, `etag`, `class_count`, `generated_at` (PK `user_id`) |

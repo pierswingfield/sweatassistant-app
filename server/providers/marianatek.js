@@ -13,7 +13,8 @@
 const crypto = require('crypto');
 const { GymProvider } = require('./base');
 const { resolveZone, toZonedISO } = require('./timezone');
-const { makeMetadata, makeProfile, makeMembership, makeEvent, makeSlot, makeBookingResult, makeBooking } = require('./normalize');
+const { studioHasRowGroups } = require('./spot-map');
+const { makeMetadata, makeProfile, makeMembership, makeEvent, makeSlot, makeBookingResult, makeBooking, makeHistoryEntry } = require('./normalize');
 const bookingWindow = require('./booking-window');
 
 // Dev-mode bypass (WP-M5), mirroring the dev@psycle.com / 'mock-jwt-token'
@@ -575,6 +576,7 @@ class MarianaTekProvider extends GymProvider {
           // A pick-a-spot class has a floor plan; a first-come-first-serve one
           // has none by definition.
           hasLayout: ev.layoutFormat === 'pick-a-spot',
+          rowGroups: studioHasRowGroups(this.gym, { id: ev.studioId, name: ev.studioName }),
         });
       }
       for (const i of (ev.instructors || [])) {
@@ -816,6 +818,73 @@ class MarianaTekProvider extends GymProvider {
   }
 
   async listBookings(session) { return this._listReservations(session, 'standard'); }
+
+  /**
+   * Map MarianaTek's reservation `status` onto the normalized history vocabulary.
+   * Documented values (marianatek.md s5): pending, check in, standard cancel,
+   * penalty cancel, graced cancel, penalty no show, graced no show, removed,
+   * class cancelled, penalty removed. `pending` AFTER the class started has no
+   * positive attendance signal => 'unconfirmed' (UNVERIFIED which of these a real
+   * studio actually emits; 'check in' needs staff or kiosk check-in). MEASURED LIVE 2026-10-05
+   * on 482 past JAB reservations: check in 396, penalty cancel 28, graced cancel 23,
+   * penalty no show 23, graced no show 12 (no pending / standard cancel / class cancelled). Returns null
+   * for statuses that are not a booking outcome (removed/penalty removed = waitlist).
+   */
+  _historyStatus(r) {
+    switch (r.status) {
+      case 'check in': return 'attended';
+      case 'pending': return 'unconfirmed';
+      case 'standard cancel': case 'graced cancel': return 'cancelled';
+      case 'penalty cancel': return 'late-cancel';
+      case 'penalty no show': case 'graced no show': return 'no-show';
+      case 'class cancelled': return 'class-cancelled';
+      default: return null;
+    }
+  }
+
+  /**
+   * F-10-0: past reservations. `GET /me/reservations?is_upcoming=false&page_size=100`
+   * (+ `min_start_date=YYYY-MM-DD` for incremental pulls; verified to filter). Q5 MEASURED
+   * LIVE 2026-10-05: envelope `{results, meta:{pagination:{page,pages,count}}, links:{first,
+   * last,next,prev}}` (no top-level `count`); `links.next` is an absolute URL and is followed.
+   * 482 rows over 5 pages of 100, back to 2024-11-23 on the measured account. Waitlist
+   * reservations are excluded.
+   */
+  async listBookingHistory(session, { sinceDate } = {}) {
+    const qs = new URLSearchParams({ is_upcoming: 'false', page_size: '100' });
+    if (sinceDate) qs.set('min_start_date', String(sinceDate).slice(0, 10));
+    let path = `/me/reservations?${qs}`;
+    const out = [];
+    const nowMs = Date.now();
+    for (let pages = 0; path && pages < 60; pages++) {
+      const res = await this.request(path, { token: session.accessToken });
+      if (!res.ok) {
+        const err = new Error(`listBookingHistory failed: ${res.status}`);
+        err.status = res.status;
+        throw err;
+      }
+      const data = await res.json();
+      for (const r of data.results || []) {
+        if (r.reservation_type === 'waitlist' || !r.class_session) continue;
+        const status = this._historyStatus(r);
+        if (!status) continue;
+        const event = this.mapClassToEvent(r.class_session);
+        const startMs = Date.parse(event.startAt);
+        if (!Number.isFinite(startMs) || startMs >= nowMs) continue;
+        out.push(makeHistoryEntry({ bookingId: r.id, eventId: r.class_session.id, status, event, raw: r }));
+      }
+      const nextLink = (data.links && data.links.next) || data.next;
+      path = null;
+      if (nextLink) {
+        try {
+          const u = new URL(nextLink, this.gym.apiBaseUrl);
+          path = `${u.pathname.replace(/^\/api\/customer\/v1/, '')}${u.search}`;
+        } catch (_) { path = null; }
+        if (path) await new Promise((r) => setTimeout(r, process.env.NODE_ENV === 'test' ? 0 : 250));
+      }
+    }
+    return out;
+  }
   async listWaitlists(session) { return this._listReservations(session, 'waitlist'); }
 
   /** Native spot swap — no cancel-then-rebook needed (unlike CodexFit). */

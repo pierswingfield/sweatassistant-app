@@ -28,11 +28,17 @@ const rateLimit = require('express-rate-limit');
 const { ipKeyGenerator } = require('express-rate-limit');
 const db = require('./db');
 const auth = require('./auth');
+const classHistory = require('./class-history');
 const { authenticateToken, triggerAutoRelogin } = auth;
 const { getProvider } = require('./providers');
 const { listGyms, getGymConfig } = require('./gyms.config');
 const calendar = require('./calendar');
 const scheduleCache = require('./schedule-cache');
+// Studio floor plans change rarely and are identical for every member: own cache
+// instance (own counters), keyed gymId:studioId — provider ids collide across gyms.
+const layoutCache = scheduleCache.createCache();
+const LAYOUT_TTL_MS = 24 * 60 * 60 * 1000;
+const LAYOUT_MAX_STALE_MS = 7 * 24 * 60 * 60 * 1000;
 
 // TTLs. The schedule's OCCUPANCY moves minute to minute, so it gets a short TTL
 // with stale-while-revalidate — a page is always instant and at most a minute
@@ -255,6 +261,9 @@ router.post('/my-gyms/link', authenticateToken, async (req, res) => {
   try {
     const link = await auth.linkGymAccount(req.userId, gymId, email, password);
     refreshCalendarAfterGymSetChange(req.userId);
+    // F-10-0: backfill class history for the gym just linked (or re-authenticated).
+    // Fire-and-forget; syncUserGym never throws and records its own failures.
+    classHistory.syncUserGym(req.userId, gymId).catch(() => {});
     res.json({ gym: link, gyms: db.getUserGymsPublic(req.userId) });
   } catch (err) {
     // A rejected gym credential is the user's problem to fix, not a server fault.
@@ -399,10 +408,17 @@ router.get('/events/:id', authenticateToken, readLimiter, async (req, res) => {
 // for the shared preferred-spot-map editor. Empty `slots` means "no floor map
 // available for this studio", not an error (see GymProvider.fetchStudioLayout).
 // `objects` are non-bookable fixtures (podium/stage) drawn alongside the slots.
-router.get('/studios/:id/layout', authenticateToken, readLimiter, async (req, res) => {
+router.get('/studios/:id/layout', authenticateToken, refreshLimiter, readLimiter, async (req, res) => {
   try {
-    const { provider, session } = resolveContext(req.userId);
-    const { slots, objects } = await withRelogin(req.userId, session, (s) => provider.fetchStudioLayout(req.params.id, s));
+    const { gymId, provider, session } = resolveContext(req.userId);
+    const { slots, objects } = await layoutCache.getOrFetch(
+      `layout|${gymId}|${req.params.id}`,
+      () => withRelogin(req.userId, session, (s) => provider.fetchStudioLayout(req.params.id, s)),
+      { ttlMs: LAYOUT_TTL_MS, maxStaleMs: LAYOUT_MAX_STALE_MS, force: req.query.refresh === '1' }
+    );
+    // Private (per-account auth) but safe to reuse; Express adds the ETag so the
+    // client gets conditional 304s.
+    res.set('Cache-Control', 'private, max-age=3600, stale-while-revalidate=86400');
     res.json({ slots, objects });
   } catch (err) {
     handleError(res, err);
@@ -519,6 +535,31 @@ router.get('/waitlists', authenticateToken, readLimiter, async (req, res) => {
   }
 });
 
+// GET /api/history?days=30&limit=200&top=5 — F-10-0: the member's class history for
+// the gym named by x-gym-id (normalized rows from the local store, never `.raw`), plus
+// the sync state and the top instructors over the same window. The first call for a
+// gym backfills (awaited); later calls serve the store and refresh it in the background
+// when stale. A failed pull still answers 200 with whatever is stored and the error
+// on `sync`, so one dead gym cannot blank a widget.
+router.get('/history', authenticateToken, readLimiter, async (req, res) => {
+  try {
+    const { gymId } = resolveContext(req.userId);
+    const days = Math.max(1, Math.min(3650, parseInt(req.query.days, 10) || 365));
+    const limit = Math.max(1, Math.min(1000, parseInt(req.query.limit, 10) || 200));
+    const top = Math.max(0, Math.min(20, req.query.top === undefined ? 5 : parseInt(req.query.top, 10) || 0));
+    await classHistory.ensureHistory(req.userId, gymId);
+    const sinceDate = new Date(Date.now() - days * 864e5).toISOString();
+    res.json({
+      gymId,
+      sync: classHistory.getSyncState(req.userId, gymId),
+      history: classHistory.listHistory(req.userId, gymId, { sinceDate, limit }),
+      topInstructors: top ? classHistory.topInstructors(req.userId, gymId, { days, limit: top }) : [],
+    });
+  } catch (err) {
+    handleError(res, err);
+  }
+});
+
 // GET /api/profile — normalized profile.
 router.get('/profile', authenticateToken, readLimiter, async (req, res) => {
   try {
@@ -625,6 +666,19 @@ router.get('/bundles', authenticateToken, extrasLimiter, async (req, res) => {
     requireCapability(gymId, 'creditPurchase');
     const result = await withRelogin(req.userId, session, (s) => provider.listBundles(s));
     res.json(result);
+  } catch (err) {
+    handleError(res, err);
+  }
+});
+
+// GET /api/attendance-totals — provider-published attended total, this week/month/year and
+// milestones (gyms with capabilities.attendanceTotals; 501 otherwise). F-10-8 "provided" stats.
+router.get('/attendance-totals', authenticateToken, readLimiter, async (req, res) => {
+  try {
+    const { gymId, provider, session } = resolveContext(req.userId);
+    requireCapability(gymId, 'attendanceTotals');
+    const totals = await withRelogin(req.userId, session, (s) => provider.getMilestones(s));
+    res.json({ gymId, ...totals });
   } catch (err) {
     handleError(res, err);
   }
@@ -767,3 +821,4 @@ module.exports = router;
 // same rationale calendar.js exports listWithRelogin — router itself stays the
 // default export so `require('./routes-normalized')` in server.js is unchanged.
 module.exports.withRelogin = withRelogin;
+module.exports.layoutCacheStats = () => layoutCache.getStats();

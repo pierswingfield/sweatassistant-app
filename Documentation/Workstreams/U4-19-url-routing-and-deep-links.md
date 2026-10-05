@@ -1,0 +1,76 @@
+# U4-19 — Clean URLs, browser history and timetable deep links
+
+Status: PLAN ONLY (2026-10-05). Parent: [U4](U4-ux-improvements.md). Feeds [H](H-home-page.md) (homepage widgets link to filtered timetables) and the per-gym instructor filter enhancement.
+
+## Today (verified in code)
+- Tabs live in the **hash** (`main.js` `switchTab` does `replaceState('#tab')`; `VALID_TABS`; a `popstate` handler re-reads the hash). Back/forward therefore never walk tab/day/filter history.
+- `modal-nav.js` already pushes `history.pushState({sweatNavId})` (no URL change) per mobile modal, with a capture-phase `popstate` that sets `e.sweatNavHandled`. Reuse it; do not fight it.
+- Filter state is module-level in `timetable.js` (`selectedGyms/Locations/Instructors/EventTypes`, `showBookmarksOnly`, `selectedTimetableDate`). Saved defaults: `localStorage[accountScopedKey('psycleUnifiedDefaultFilters')]`, loaded by `loadStoredFilters()`, written only by the save-defaults button.
+- Server: production-only `app.get('*')` serves `index.html` (so it would also return HTML for unknown `/api/*`); `/admin` is its own route; `.ics` is `/api/calendar/:token.ics`. Vite dev has no SPA fallback issue (it falls back by default) but proxies only `/api`.
+- `sw.js`: navigation = network-first, offline fallback `/index.html`; push click matches `pathname === '/'` and posts `{hash:'#my-bookings'}`. `manifest.json` `start_url: "/"`.
+
+## URL schema
+| Path | Tab | Notes |
+|---|---|---|
+| `/` | redirect-in-place to `/timetable` (future: homepage, H) | until H ships, `/` = timetable |
+| `/timetable` | class-timetable | params below |
+| `/bookings` `/auto-book` `/credits` | my-bookings, auto-book, buy-credits | no params |
+| `/settings`, `/settings/:section` | settings (+ `about`, per-gym entries) | section = existing sidebar id, `gym-<gymId>` |
+| `/admin`, `/api/*` | untouched | server routes win |
+
+Timetable params (all optional; repeated values comma-separated; absent = "use saved defaults"):
+| Param | Example | Meaning |
+|---|---|---|
+| `day` | `2026-10-07` | selected day, gym-local ISO date (via `lib.js` zone helpers) |
+| `gym` | `jab,psycle-london` | gym ids (config ids) |
+| `loc` | `jab:12,psycle-london:3` | locations, **always `gymId:id`** (ids are strings) |
+| `type` | `psycle-london:ride` | workouts / event types, `gymId:id` |
+| `instructor` | `psycle-london:123` | **`gymId:instructorId`** (compatible with the per-gym enhancement; bare ids rejected) |
+| `fav` | `1` | favourites only |
+| `q` | `boxing` | search text (reserved; parsed and round-tripped now, UI later) |
+| `f` | `all` | present with no other filter params = explicit "no filters", distinct from "use defaults" |
+
+**Decisions (2026-10-05):** the root path `/` stays the timetable until the homepage ([H](H-home-page.md), formerly F-10) ships; the search query param is `q` (see the timetable search spec; state lives in `client/src/ui/timetable-search-state.js`, URL wiring not yet implemented).
+
+Homepage link: `buildTimetableUrl({ gym:['psycle-london'], instructor:['psycle-london:123'], day })` returns a string; widgets render `<a href>` and a click handler calls `navigate(url)` (SPA push, no reload). Never hand-concatenate URLs.
+
+## Module: `client/src/url-state.js` (pure, no DOM)
+- `parseLocation(pathname, search) -> { tab, section, timetable: {day, gyms, locations, types, instructors, fav, q, explicit} }` (lenient: drops malformed tokens, validates tab and ISO date, caps list lengths, de-dupes; never throws).
+- `serializeState(state) -> '/timetable?...'` (stable param order, omits defaults, `encodeURIComponent` values, no personal data).
+- `isDeepLink(parsed)`; `legacyHashToPath('#my-bookings')`; `sameState(a,b)` for push-vs-replace.
+- Tests `url-state.test.js` (vitest): round-trip property over generated states, malformed/hostile input, string ids, `gym:id` splitting with colons in ids, legacy hashes, stable order.
+- Thin impure layer `client/src/router.js`: `navigate(url,{replace})`, `initRouter(handlers)`, `commitFilterChange()` (debounced ~1000 ms: rapid chip toggles coalesce into ONE `pushState`, first change of a burst pushes, later ones in the window `replaceState`), single `popstate` listener that applies state to tabs and timetable then ignores events flagged `sweatNavHandled` by modal-nav.
+
+## Deep-link behaviour
+- On entry with timetable params: apply them as a **temporary overlay** (in-memory only); `loadStoredFilters()` still reads saved defaults, and the save-defaults button and `localStorage` writes are guarded so an overlay is never persisted (guard asserted by test).
+- Banner above the list: "Filtered: Johan, Psycle  Clear". Labels resolve from metadata after load (id fallback while loading; unknown ids shown as "unavailable" and dropped from the query, never fatal). **Clear** = `replace` URL with params stripped and reload the SAVED set (not wiped). Manually editing filters afterwards pushes a normal entry and keeps the banner off.
+- Linked gym check: a `gym=` the user has not linked is ignored with a toast, not an error.
+
+## Phases
+| # | Phase | Risk | Test strategy | Est. |
+|---|---|---|---|---|
+| 1 | `url-state.js` + tests; `router.js` skeleton | Low | vitest (pure) | 3 h |
+| 2 | Server SPA fallback: allowlist of app paths, keep `/admin`, `/api/*` (unknown -> JSON 404, not HTML), `/gyms`, `/icons`, `/sw.js`, `/manifest.json`; Vite dev `appType: 'spa'` confirm; `/` and path routes template `index.html`. Add `<base>`-free absolute asset URLs check (built asset paths must be `/assets/...`, else nested paths like `/settings/gym-jab` break) | **High** (a mis-ordered `*` swallows APIs/.ics) | new `server/test-spa-fallback.js` (supertest style, like other suites): each path class + `.ics` + 404 JSON; `npm test` | 3 h |
+| 3 | Tabs onto paths: replace hash `switchTab`/`popstate`; legacy `#tab` and `#about` -> `replaceState` to path on boot (old links, old push payloads); push entry per tab change; settings sections | Med | vitest for mapping; browser: back/forward across tabs, refresh on each path | 4 h |
+| 4 | Timetable state sync: apply on load, push on day change, debounced push on filter-set change, popstate restores day+filters and re-renders without refetch loops (set-from-URL must not re-push) | **High** (render/popstate feedback loops, per-gym caches) | vitest on router coalescing with fake timers; browser matrix: chip bursts, day taps, back x3, forward | 6 h |
+| 5 | Deep-link overlay + banner + Clear-to-saved, defaults write-guard, i18n copy in `copy.js`, a11y (banner `role=status`, Clear focusable) | Med | vitest (guard, label resolve); browser: link in, Clear, Save-defaults disabled/safe, saved set intact | 4 h |
+| 6 | Modals in history: confirm `modal-nav.js` entries carry the current URL (they pass no URL, so they inherit it; fine) and desktop modals not yet wired push too; Back closes top modal before changing route | Med | existing `modal-nav.test.js` + browser | 3 h |
+| 7 | SW + manifest + auth return-to: navigation fallback already shell-based; stop matching `pathname === '/'` in `notificationclick` (use `NAVIGATE {path}`, open `/bookings`); `scope`/`start_url` stay `/`; login screen stores `returnTo` (validated same-origin path, sessionStorage) and restores after login/onboarding | **High** (stale SW, open redirect) | unit-test `returnTo` validator; browser with SW cache cleared (3 caches, see prod-deploy-cache-gotcha) | 4 h |
+| 8 | Docs (`DESIGN`/`TESTING`/H link contract), browser smoke on dev twin, iOS standalone check | Low | LIVE check on `sweat-dev` | 2 h |
+
+Total about 29 h (~4 working days) plus ~0.5 day dev-twin soak. Land phases 1-3 first (shippable alone), then 4-5.
+
+## Files affected
+New: `client/src/url-state.js`, `url-state.test.js`, `router.js`, `server/test-spa-fallback.js`. Edit: `client/src/main.js`, `ui/timetable.js`, `ui/filter-rail.js`, `ui/settings.js` (sections), `ui/modal-nav.js` (verify only), `copy.js`, `styles.css` (banner), `client/public/sw.js`, `server/server.js`, `client/vite.config.js` (verify), `Documentation/TESTING.md`.
+
+## Open risks
+- **iOS standalone PWA**: no URL bar, no reliable back gesture inside standalone; history still works for the swipe-back gesture but a deep link opened from elsewhere opens Safari, not the installed app. Needs a real-device check; do not promise "link opens the app".
+- **SW cache**: a cached `index.html` for `/timetable?...` keyed by full URL grows per filter combination; cache navigations under the shell key (`ignoreSearch`) and keep build-stamped names (C7-2).
+- **Auth return-to**: only same-origin relative paths; strip `//` and scheme; never put credentials or tokens in the URL.
+- **Cloudflare**: confirm no page rule/cache or Access policy treats non-root paths differently on `sweat*.wingfield.tech`.
+- **Hash links in the wild**: old bookmarks and push payloads; keep the legacy redirect permanently.
+- **Merged cache scoping**: URL gym ids must be validated against the linked set; instructor tokens without `gymId:` are rejected.
+- **popstate ordering** with `modal-nav.js` (capture listener) must be preserved.
+
+## Open decision for the user
+Should `/` stay the timetable until H ships, or show a stub homepage?

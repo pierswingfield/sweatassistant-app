@@ -17,7 +17,8 @@ const { DateTime } = require('luxon');
 const { GymProvider, classifyProviderThrottle } = require('./base');
 const bookingWindow = require('./booking-window');
 const { resolveZone, toZonedISO } = require('./timezone');
-const { makeMetadata, makeProfile, makeEvent, makeSlot, makeLayoutObject, makeBookingResult, makeBooking } = require('./normalize');
+const { studioHasRowGroups } = require('./spot-map');
+const { makeMetadata, makeProfile, makeEvent, makeSlot, makeLayoutObject, makeBookingResult, makeBooking, makeHistoryEntry, prune } = require('./normalize');
 const cart = require('./codexfit-cart');
 
 // Dev-mode bypass, aligned with MarianaTek's dev@jabboxing.mock convention.
@@ -639,6 +640,7 @@ class CodexFitProvider extends GymProvider {
         locationId: st.location_id || (st.location && st.location.id),
         locationName: st.location && st.location.name,
         hasLayout: !!(st.layout && Array.isArray(st.layout.slots) && st.layout.slots.length),
+        rowGroups: studioHasRowGroups(this.gym, st),
         raw: st,
       })),
       instructors: instructors.map((i) => ({
@@ -961,6 +963,87 @@ class CodexFitProvider extends GymProvider {
           raw: b,
         });
       });
+  }
+
+  /**
+   * F-10-0: the member's PAST bookings, paginated fully.
+   *
+   * Q5 MEASURED LIVE 2026-10-05 (read-only GETs, one real account):
+   *  - Endpoint is the v2 base, NOT v1: `GET {v2ApiBaseUrl}/bookings?filter[type]=past
+   *    &page[size]=N&page[number]=P` (v1's `limit`/`page` is the upcoming list's style).
+   *  - Page size: 9, 100 work; 500 -> Cloudflare 504. We use 100.
+   *  - Envelope: `{data, links, meta, message, relations:{events, instructors,
+   *    event_types, studios, locations}}`; `meta` = {current_page, last_page, per_page,
+   *    total, from, to, path, links[]}. `links.next` and `meta.links[]` repeat
+   *    `page[number]` twice (page 1 then the real one), so DO NOT follow them: count
+   *    pages from `meta.last_page`.
+   *  - Depth: complete, back to the member's first class (2016 on the measured account).
+   *    857 rows = profile `total_bookings` (858) minus 1 upcoming; 798 distinct events =
+   *    `total_unique_bookings` (799) minus the upcoming one. Past rows are ALL events with
+   *    `status: "finished"`.
+   *  - Statuses: the past list carries NO cancelled rows (`cancelled_at` null on all 857)
+   *    and no attended/no-show flag (booking keys: id, event_id, slot, booked_at,
+   *    cancelled_at, credits_used, subscription_used, ...). Profile says 770 of 798
+   *    events were attended, so ~28 are no-shows we cannot tell apart => every row is
+   *    'unconfirmed'. Several rows can share an event (multi-slot or guest bookings:
+   *    57 events), so aggregates count DISTINCT events (class-history.js).
+   */
+  async listBookingHistory(session, { sinceDate } = {}) {
+    const PAGE_SIZE = 100;
+    const sinceMs = sinceDate ? Date.parse(sinceDate) : null;
+    const nowMs = Date.now();
+    const out = [];
+    const MAX_PAGES = 60;
+    for (let page = 1; page <= MAX_PAGES; page++) {
+      const res = await this.requestV2(`/bookings?filter[type]=past&page[size]=${PAGE_SIZE}&page[number]=${page}`, { token: session.accessToken });
+      if (!res.ok) throw httpError(`listBookingHistory failed: ${res.status}`, res.status);
+      const data = await res.json();
+      const list = Array.isArray(data) ? data : (data.data || []);
+      const relations = (!Array.isArray(data) && data.relations) || {};
+      const eventsById = new Map((relations.events || []).map((e) => [String(e.id), e]));
+      for (const b of list) {
+        const eventId = b.event_id || (b.event && b.event.id);
+        const rawEvent = b.event || eventsById.get(String(eventId));
+        if (!rawEvent) continue; // no start time => cannot place it in history
+        const event = this.mapEventToNormalized(b.event ? rawEvent : this.resolveEventRelations(rawEvent, relations));
+        const startMs = Date.parse(event.startAt);
+        if (!Number.isFinite(startMs) || startMs >= nowMs) continue; // upcoming
+        if (sinceMs != null && startMs < sinceMs) continue;
+        // cancelled_at has never been seen set on the past list; kept defensively.
+        const status = b.cancelled_at ? 'cancelled' : 'unconfirmed';
+        out.push(makeHistoryEntry({ bookingId: b.id, eventId, status, event, raw: b }));
+      }
+      const lastPage = data && data.meta && data.meta.last_page;
+      if (!list.length || page >= (lastPage || 1)) break;
+      await new Promise((r) => setTimeout(r, process.env.NODE_ENV === 'test' ? 0 : 250)); // playbook s4 pacing
+    }
+    return out;
+  }
+
+  /**
+   * `GET {v2}/milestones` (live-captured 2026-10-05):
+   * `{overview:{this_week,this_month,this_year}, kinds:[{kind, kind_label, current_count,
+   * milestones:[{id, slug, name, description, threshold, window_days, bundle_handle,
+   * reward_summary, badge_label, card_width, color, current_count, earned, reached_at}]}]}`.
+   * `kinds[attended_events].current_count` is the OFFICIAL attended total (770 vs 857
+   * past booking rows / 798 distinct events on the measured account: it excludes
+   * no-shows, which the bookings list cannot distinguish).
+   */
+  async getMilestones(session) {
+    const res = await this.requestV2('/milestones', { token: session.accessToken });
+    if (!res.ok) throw httpError(`getMilestones failed: ${res.status}`, res.status);
+    const data = await res.json();
+    const kind = (data.kinds || []).find((k) => k.kind === 'attended_events') || {};
+    const ov = data.overview || {};
+    return {
+      attendedTotal: Number(kind.current_count) || 0,
+      thisWeek: ov.this_week, thisMonth: ov.this_month, thisYear: ov.this_year,
+      milestones: (kind.milestones || []).map((m) => prune({
+        id: String(m.id), slug: m.slug, name: String(m.name || '').trim(), description: m.description,
+        threshold: Number(m.threshold), earned: !!m.earned, reachedAt: m.reached_at || undefined,
+        rewardSummary: m.reward_summary || undefined,
+      })),
+    };
   }
 
   /**

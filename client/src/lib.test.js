@@ -19,6 +19,8 @@ import {
   clampOffsetDays,
   formatCountdown,
   isFullWithoutWaitlist,
+  formatFullDate,
+  passesLocationFilter,
 } from './lib.js';
 import { setLinkedGyms } from './gym-context.js';
 
@@ -210,5 +212,27 @@ describe('gym-local time display', () => {
   });
   it('nowInZone returns a DateTime in that zone', () => {
     expect(_nowZ(NY).zoneName).toBe(NY);
+  });
+});
+
+describe('formatFullDate', () => {
+  it('formats a calendar date for the timetable heading (no zone drift)', () => {
+    expect(formatFullDate('2026-10-02')).toBe('Friday, 2 October 2026');
+    expect(formatFullDate('2026-03-29')).toBe('Sunday, 29 March 2026');
+  });
+});
+
+describe('passesLocationFilter', () => {
+  it('shows everything when no location is selected', () => {
+    expect(passesLocationFilter([], '48717')).toBe(true);
+    expect(passesLocationFilter(undefined, undefined)).toBe(true);
+  });
+  it('with any selection, only classes at a selected location pass (gyms with none contribute nothing)', () => {
+    const selected = ['48751', '1', '15']; // JAB SW1, Psycle Oxford Circus + Victoria
+    expect(passesLocationFilter(selected, '48751')).toBe(true);
+    expect(passesLocationFilter(selected, 1)).toBe(true);        // raw numeric id vs string pick
+    expect(passesLocationFilter(selected, '48717')).toBe(false); // Aarmy NoHo, not selected
+    expect(passesLocationFilter(selected, undefined)).toBe(false);
+    expect(passesLocationFilter(selected, '')).toBe(false);
   });
 });

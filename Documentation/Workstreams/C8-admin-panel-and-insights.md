@@ -2,7 +2,7 @@
 
 **Priority:** P2 · **Size:** ~2 weeks across 7 phased increments  
 **Depends on:** C4 (modular multi-gym baseline in production), F-7 (dynamic presentation contract & registry discovery)  
-**Blocks:** Scaled multi-gym operations (3+ gyms), F-10 (Home Dashboard), F-11 (Class Stats & Insights)
+**Blocks:** Scaled multi-gym operations (3+ gyms), [H](H-home-page.md) (Home page), F-11 (Class Stats & Insights)
 
 > **Verify first:** before changing anything for an item, confirm its basis in the code **and**, for anything user-visible, **in a real browser** (CDP :9222 or Claude for Chrome). For server-only items, use a failing test or a request. Record the evidence. If a browser check is needed and no browser is available, stop with `BLOCKED`. See [AGENT_PROTOCOL.md](AGENT_PROTOCOL.md).
 
@@ -39,7 +39,7 @@ Every feature, chart, table, filter, background process, and batch action in the
 ### C8-1: Foundational Data Pipeline: Event Ledger, Booking Lifecycle & Profile Harvester
 
 #### Why This Exists
-Today, the server's data persistence is largely transient: `booking_cache` and `waitlist_cache` are continuously wiped and replaced by upstream syncs, execution logs live only as single message strings in `auto_bookings`, and gym profile data is cached as an ephemeral JSON blob. To power deep admin insights, historical analytics, and future user-facing features (F-10 Home Dashboard, F-11 Stats & Milestones, F-9 AI Assistant), the system requires durable foundational data capture.
+Today, the server's data persistence is largely transient: `booking_cache` and `waitlist_cache` are continuously wiped and replaced by upstream syncs, execution logs live only as single message strings in `auto_bookings`, and gym profile data is cached as an ephemeral JSON blob. To power deep admin insights, historical analytics, and future user-facing features ([H](H-home-page.md) Home page, F-11 Stats & Milestones, F-9 AI Assistant), the system requires durable foundational data capture.
 
 #### Architecture & Data Contracts
 1. **Immutable System Event Ledger (`system_events`)**:

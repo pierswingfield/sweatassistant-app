@@ -186,6 +186,38 @@
  */
 
 /**
+ * One row of a member's class history (F-10-0). Normalized fields only.
+ * @typedef {Object} NormalizedHistoryEntry
+ * @property {string}  bookingId
+ * @property {string=} eventId
+ * @property {'attended'|'unconfirmed'|'late-cancel'|'cancelled'|'no-show'|'class-cancelled'} status
+ * @property {string=} startAt        ISO 8601 with the class's own zone offset.
+ * @property {string=} timeZone
+ * @property {number=} durationMin
+ * @property {string=} name
+ * @property {string=} discipline
+ * @property {string=} instructorId
+ * @property {string=} instructorName
+ * @property {string=} studioId
+ * @property {string=} studioName
+ * @property {string=} locationId
+ * @property {string=} locationName
+ * @property {*=}      raw            Debug only; never serialised to the client.
+ */
+
+/**
+ * Provider-published attendance totals (F-10-8 "provided" stats). `attendedTotal` is the
+ * OFFICIAL count (excludes no-shows), unlike counting history rows.
+ * @typedef {Object} NormalizedAttendanceTotals
+ * @property {number}  attendedTotal
+ * @property {number=} thisWeek
+ * @property {number=} thisMonth
+ * @property {number=} thisYear
+ * @property {{id: string, slug?: string, name: string, description?: string, threshold: number,
+ *   earned: boolean, reachedAt?: string, rewardSummary?: string}[]} milestones
+ */
+
+/**
  * @typedef {Object} NormalizedProfile
  * @property {string=} id
  * @property {string=} email
@@ -227,6 +259,7 @@
  * @property {boolean} nativeWaitlist    Provider auto-fills waitlists itself.
  * @property {boolean} creditPurchase    In-app credit/bundle purchase supported.
  * @property {boolean} bookmarks         Favourites/bookmarks supported.
+ * @property {boolean} attendanceTotals  Provider publishes official attended totals/milestones (getMilestones).
  * @property {'rolling-weekly'|'per-class'} bookingWindow
  */
 
@@ -456,6 +489,22 @@ class GymProvider {
    * @returns {Promise<NormalizedBooking[]>}  (isWaitlist: true)
    */
   async listWaitlists(/* session */) { throw notImplemented('listWaitlists', this); }
+
+  /**
+   * List the user's PAST bookings (attended, late-cancelled, no-show, cancelled),
+   * paginating fully. F-10-0. Waitlist entries are excluded.
+   * @param {AuthSession} session
+   * @param {{sinceDate?: string}=} opts  ISO date/datetime; omit for "as far back as the API goes".
+   * @returns {Promise<NormalizedHistoryEntry[]>}
+   */
+  async listBookingHistory(/* session, opts */) { throw notImplemented('listBookingHistory', this); }
+
+  /**
+   * Official attendance totals + milestones. Gated on `capabilities.attendanceTotals`.
+   * @param {AuthSession} session
+   * @returns {Promise<NormalizedAttendanceTotals>}
+   */
+  async getMilestones(/* session */) { throw notImplemented('getMilestones', this); }
 
   // --- Auto-upgrade / spot swapping ----------------------------------------
 

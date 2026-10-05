@@ -137,20 +137,20 @@ export function renderGymSettingsSection(container, model, handlers = {}) {
       : (gym.theme?.primary || 'var(--accent)')
   );
   container.innerHTML = `
-    <div class="psycle-gym-settings-heading"><div><span class="psycle-eyebrow">${COPY.gymSettings.settings}</span><h3>${escapeHtml(gymName)}</h3></div><div class="psycle-settings-btn-row"><span class="psycle-badge ${status === 'active' ? 'success' : 'warning'}">${escapeHtml(statusLabel)}</span>${model.canAddGym ? `<button class="psycle-btn psycle-btn-mini" data-gym-action="add-gym">${COPY.gymSettings.addAnotherGym}</button>` : ''}</div></div>
+    <div class="psycle-gym-settings-heading"><div>${model.logoHtml || ''}<span class="psycle-eyebrow">${COPY.gymSettings.settings}</span><h3>${escapeHtml(gymName)}</h3></div><div class="psycle-settings-btn-row"><span class="psycle-badge ${status === 'active' ? 'success' : 'warning'}">${escapeHtml(statusLabel)}</span>${model.canAddGym ? `<button class="psycle-btn psycle-btn-mini" data-gym-action="add-gym">${COPY.gymSettings.addAnotherGym}</button>` : ''}</div></div>
     ${needsRelogin ? `<div class="psycle-gym-settings-warning"><strong>${COPY.gymSettings.reconnect}</strong><span>${COPY.gymSettings.reconnectHelp}</span></div>` : ''}
     <div class="psycle-settings-grid psycle-gym-settings-grid">
       <div class="psycle-settings-card">
         <h4>${COPY.gymSettings.connection}</h4><p class="psycle-card-desc">${escapeHtml(gymEmail)}</p>
         <div class="psycle-settings-btn-row"><button class="psycle-btn ${needsRelogin ? 'primary' : ''}" data-gym-action="reauth">${COPY.gymSettings.reauthenticate}</button><button class="psycle-btn variant-danger" data-gym-action="unlink">${COPY.gymSettings.unlink}</button></div>
       </div>
+      ${capability(gym, 'spotMaps') ? `<div class="psycle-settings-card"><h4>${COPY.spotMaps.preferredSpotMaps}</h4><p class="psycle-card-desc">${COPY.gymSettings.spotMapHelp}</p><button class="psycle-btn" data-gym-action="spot-maps">${COPY.gymSettings.manageMaps}</button></div>` : ''}
       <div class="psycle-settings-card"><h4>${COPY.gymSettings.membershipCredits}</h4>${membershipHtml(gym, membership, credits)}</div>
       <div class="psycle-settings-card">
         <h4>${COPY.gymSettings.bookingWindow}</h4><p class="psycle-card-desc">${escapeHtml(windowDescription)}</p>
         ${model.debugMode && bookingKind !== 'per-class' ? `<div class="psycle-setting-row"><div class="psycle-setting-label"><span>${COPY.gymSettings.manualOverride}</span><small>${COPY.gymSettings.debugOverrideHelp}</small></div><select class="psycle-select" data-gym-setting="manualBookingWindowWeeks"><option value="" ${!settings.manualBookingWindowWeeks ? 'selected' : ''}>${COPY.gymSettings.autoDetected}</option>${[1,2,3,4].map(n => `<option value="${n}" ${Number(settings.manualBookingWindowWeeks) === n ? 'selected' : ''}>${formatCopyText(n === 1 ? COPY.gymSettings.weekOptionOne : COPY.gymSettings.weekOptionMany, { count: n })}</option>`).join('')}</select></div>` : ''}
       </div>
       ${capability(gym, 'autoUpgrade') ? `<div class="psycle-settings-card"><h4>${COPY.gymSettings.autoUpgradeEngine}</h4>${autoUpgradeHtml(settings)}</div>` : ''}
-      ${capability(gym, 'spotMaps') ? `<div class="psycle-settings-card"><h4>${COPY.spotMaps.preferredSpotMaps}</h4><p class="psycle-card-desc">${COPY.gymSettings.spotMapHelp}</p><button class="psycle-btn" data-gym-action="spot-maps">${COPY.gymSettings.manageMaps}</button></div>` : ''}
       ${capability(gym, 'profile') ? `<div class="psycle-settings-card"><h4>${COPY.gymSettings.profileExplorer}</h4><p class="psycle-card-desc">${COPY.gymSettings.profileExplorerHelp}</p><button class="psycle-btn" data-gym-action="profile">${COPY.gymSettings.openProfileExplorer}</button></div>` : ''}
     </div>`;
 

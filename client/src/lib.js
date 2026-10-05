@@ -343,3 +343,18 @@ export function formatInZone(iso, zone, device = deviceZone()) {
   const suffix = zoneSuffix(iso, zone, device);
   return { date, time, suffix, timeLabel: suffix ? `${time} ${suffix}` : time };
 }
+
+/** "Friday, 2 October 2026" for a YYYY-MM-DD calendar date. Date-only strings carry no zone, so format in UTC. */
+export function formatFullDate(iso) {
+  return DateTime.fromISO(iso, { zone: 'UTC' }).setLocale('en-GB').toFormat('cccc, d LLLL yyyy');
+}
+
+/**
+ * Location filter: with ANY location selected, a class passes only if ITS OWN location is among them, so a gym
+ * with no selected location contributes no classes. Nothing selected = no filter. Ids compare as strings
+ * (normalized ids are strings, raw event ids numbers).
+ */
+export function passesLocationFilter(selected, locationId) {
+  if (!selected || !selected.length) return true;
+  return locationId != null && locationId !== '' && selected.map(String).includes(String(locationId));
+}

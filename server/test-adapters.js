@@ -588,6 +588,17 @@ check('MarianaTek derives all four lists from its class list', async () => {
   assert.ok(m.classTypes.length > 0);
 });
 
+check('row groups: Psycle ride studios flagged, JAB studios never', async () => {
+  const [a, b] = await Promise.all([
+    getProvider('psycle-london').fetchMetadata({}, { accessToken: 'mock-jwt-token' }),
+    getProvider('jab-boxing').fetchMetadata({}, { accessToken: 'mock-mt-token' }),
+  ]);
+  const ride = a.studios.filter((s) => /^ride/i.test(s.name));
+  assert.ok(ride.length > 0 && ride.every((s) => s.rowGroups === true), 'ride studios have rowGroups');
+  assert.ok(a.studios.filter((s) => !/^ride/i.test(s.name)).every((s) => s.rowGroups === false), 'others off');
+  assert.ok(b.studios.length > 0 && b.studios.every((s) => s.rowGroups === false), 'JAB studios off by default');
+});
+
 check('both platforms return the identical metadata shape', async () => {
   const [a, b] = await Promise.all([
     getProvider('psycle-london').fetchMetadata({}, { accessToken: 'mock-jwt-token' }),
@@ -599,7 +610,7 @@ check('both platforms return the identical metadata shape', async () => {
   // mock without addresses would otherwise make a real contract look violated.
   const ALLOWED = {
     locations: ['id', 'name', 'address', 'timeZone'],
-    studios: ['id', 'name', 'locationId', 'locationName', 'hasLayout'],
+    studios: ['id', 'name', 'locationId', 'locationName', 'hasLayout', 'rowGroups'],
     instructors: ['id', 'name', 'imageUrl'],
     classTypes: ['id', 'name', 'group'],
   };

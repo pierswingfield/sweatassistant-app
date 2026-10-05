@@ -213,7 +213,8 @@ const mockNow = new Date();
 const mockD1 = new Date(mockNow.getTime() + 2 * 864e5).toISOString();
 const mockD2 = new Date(mockNow.getTime() + 5 * 864e5).toISOString();
 
-const mockBookingsPath = path.join(__dirname, 'mock_bookings.dbjson');
+// MOCK_BOOKINGS_PATH lets a test point the mock at a private file (test isolation).
+const mockBookingsPath = process.env.MOCK_BOOKINGS_PATH || path.join(__dirname, 'mock_bookings.dbjson');
 let mockBookings = [];
 
 function loadMockBookings() {
@@ -265,6 +266,28 @@ function saveMockBookings() {
 
 // Load initially
 loadMockBookings();
+
+// 120 deterministic past bookings, 1..120 days back, so a 100-row page needs a second
+// page. Instructor ADAM (id 10) is deliberately the most frequent. Live past rows are never cancelled. start_at is the live timezone-naive London string.
+function mockPastBookings() {
+  const rows = [];
+  for (let i = 0; i < 120; i++) {
+    const d = new Date(Date.now() - (i + 1) * 864e5);
+    const ymd = d.toISOString().slice(0, 10);
+    const isEven = i % 2 === 0;
+    const instructor = i % 3 === 0 ? instructors[0] : instructors[1 + (i % 3)];
+    const eventId = 5000 + i;
+    rows.push({
+      id: 7000000 + i, event_id: eventId, slot: 10 + (i % 20), booked_at: `${ymd}T06:00:00.000000Z`,
+      cancelled_at: null, credits_used: 1, subscription_used: false, can_cancel: false, is_refundable: false,
+      __event: { event: {
+        id: eventId, event_type_id: isEven ? 20 : 21, instructor_id: instructor.id,
+        studio_id: isEven ? 138 : 139, start_at: `${ymd}T${isEven ? '08:30:00' : '18:30:00'}`, duration: isEven ? 45 : 55,
+      } },
+    });
+  }
+  return rows;
+}
 
 function handleMockRequest(pathName, method, body) {
   console.log(`[Mock Server] Intercepted ${method} ${pathName}`);
@@ -499,6 +522,27 @@ function handleMockRequest(pathName, method, body) {
     return createFakeResponse({ data: mockWaitlists.filter((w) => !w.cancelled_at) });
   }
 
+  // F-10-8: /milestones, LIVE v2 envelope (captured 2026-10-05, sanitised). current_count
+  // matches the mock profile's total_unique_bookings_attended.
+  if (pathName.startsWith('/milestones')) {
+    const count = 129;
+    const defs = [[3, 'reach-5-classes', 'Reach 5 Classes', 5, 'Receive a complimentary shake'], [1, 'reach-10-classes', 'Reach 10 Classes', 10, 'Receive a guest credit'],
+      [2, 'reach-25-classes', 'Reach 25 Classes', 25, 'Reward'], [4, 'reach-50-classes', 'Reach 50 Classes', 50, 'Reward'],
+      [6, 'reach-100-classes', 'Reach 100 Classes', 100, 'Reward'], [7, 'reach-250-classes', 'Reach 250 Classes', 250, 'Reward'],
+      [8, 'reach-500-classes', 'Reach 500 Classes', 500, 'Reward'], [5, 'reach-1000-classes', 'Reach 1,000 Classes', 1000, 'Priority perks, bespoke experiences and premium rewards.']];
+    return createFakeResponse({
+      overview: { this_week: 1, this_month: 4, this_year: 31 },
+      kinds: [{
+        kind: 'attended_events', kind_label: 'Events attended', current_count: count,
+        milestones: defs.map(([id, slug, name, threshold, reward]) => ({
+          id, slug, name, description: reward, threshold, window_days: null, bundle_handle: null,
+          reward_summary: reward, badge_label: null, card_width: threshold === 1000 ? 'long' : 'standard', color: null,
+          current_count: count, earned: count >= threshold, reached_at: count >= threshold ? '2026-08-11T10:00:00.000000Z' : null,
+        })),
+      }],
+    });
+  }
+
   if (pathName.startsWith('/bookings')) {
     // DELETE booking
     if (method === 'DELETE') {
@@ -580,6 +624,28 @@ function handleMockRequest(pathName, method, body) {
       });
     }
 
+    // F-10-0: past bookings, LIVE v2 envelope (captured 2026-10-05): `{data, links, meta,
+    // message, relations}` with events BY REFERENCE and Laravel `meta` (current_page,
+    // last_page, per_page, total). Query is `filter[type]=past&page[size]&page[number]`.
+    if (pathName.includes('filter[type]=past')) {
+      const q = new URLSearchParams(pathName.split('?')[1] || '');
+      const limit = Number(q.get('page[size]') || 15);
+      const page = Number(q.get('page[number]') || 1);
+      const all = mockPastBookings();
+      const rows = all.slice((page - 1) * limit, page * limit);
+      const lastPage = Math.max(1, Math.ceil(all.length / limit));
+      return createFakeResponse({
+        data: rows.map(({ __event, ...r }) => r),
+        links: { first: '?page[number]=1', last: `?page[number]=${lastPage}`, prev: null, next: page < lastPage ? `?page[number]=${page + 1}` : null },
+        meta: { current_page: page, from: rows.length ? (page - 1) * limit + 1 : null, last_page: lastPage, per_page: limit, to: (page - 1) * limit + rows.length, total: all.length },
+        message: null,
+        relations: {
+          events: rows.map((r) => r.__event.event),
+          instructors, event_types: eventTypes,
+          studios: studios.map(({ layout, ...s }) => s), locations,
+        },
+      });
+    }
     // GET bookings list
     return createFakeResponse(mockBookings);
   }

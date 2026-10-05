@@ -18,3 +18,19 @@ export function findActiveUpgradeForBooking(upgrades, bookingId, gymId) {
     ['active', 'paused_no_credits'].includes(upgrade.status)
   );
 }
+
+// The monitor that belongs to one held seat, for the My Bookings chip. Matches on
+// booking id, falling back to event+slot: cancel-then-rebook (edit spots, an
+// upgrade) mints a new booking id, and a chip keyed on the id alone silently loses
+// its monitor while the server still counts it. Live monitors win over stopped ones;
+// a stopped one is still returned so the chip can show it (and re-enable it).
+export function findUpgradeForSeat(upgrades, { bookingId, gymId, eventId, slotId }) {
+  const inGym = (u) => !gymId || String(u.gym_id ?? u.gymId) === String(gymId);
+  const mine = (upgrades || []).filter(u => inGym(u) && (
+    (bookingId != null && String(u.booking_id) === String(bookingId)) ||
+    (eventId != null && slotId != null && slotId !== '' &&
+      String(u.event_id) === String(eventId) && String(u.current_slot_id) === String(slotId))
+  ));
+  const live = mine.find(u => ['active', 'paused_no_credits'].includes(u.status));
+  return live || mine.find(u => u.status === 'stopped');
+}

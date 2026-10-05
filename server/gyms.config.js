@@ -40,6 +40,11 @@ const GYMS = {
     // adapter change. Never parse a naive gym datetime with bare `new Date()`:
     // that resolves in the SERVER's zone and drifts across DST.
     timezone: 'Europe/London',
+    // Spot-map policy: only the ride rooms stagger their rows, so only they offer
+    // the whole-row ("row group") preference. Every other studio, and every gym
+    // that declares nothing, has no row selector (default off). See
+    // providers/spot-map.js.
+    spotMap: { rowGroupStudios: { namePattern: '^ride' } },
     enabled: true,
     // CodexFit HTTP wiring (previously hardcoded in auth.js / server.js / scheduler.js).
     apiBaseUrl: 'https://psycle.codexfit.com/api/v1/customer',
@@ -129,6 +134,7 @@ const GYMS = {
       metered: true,            // classes cost credits from a balance
       creditPurchase: true,     // in-app Stripe cart
       bookmarks: true,          // native CodexFit bookmarks
+      attendanceTotals: true,   // GET /milestones: official attended total + per-period overview (F-10-8)
       bookingWindow: 'rolling-weekly',   // mirrors bookingWindow.kind, for the UI
       maxSpotsPerClass: null,   // unmetered/credits-limited
     },
@@ -242,6 +248,7 @@ const GYMS = {
       metered: false,
       creditPurchase: false,    // membership-based; no confirmed purchase API (D3)
       bookmarks: false,         // no MT bookmarks API
+      attendanceTotals: false,  // no known MarianaTek equivalent (derive from history)
       bookingWindow: 'per-class',   // mirrors bookingWindow.kind, for the UI
       maxSpotsPerClass: 1,      // 1 primary spot per member per class session
     },
@@ -320,6 +327,7 @@ const GYMS = {
       metered: true,            // credits-only gym: classes draw from a credit balance (like Psycle)
       creditPurchase: false,    // no confirmed in-app purchase API for MarianaTek
       bookmarks: false,
+      attendanceTotals: false,  // no known MarianaTek equivalent (derive from history)
       bookingWindow: 'per-class',
       maxSpotsPerClass: 1,
     },

@@ -167,6 +167,15 @@ Lists user's active, upcoming class bookings.
 * **Path:** `/api/v1/customer/bookings`
 * **Params:** `limit=100`, `page=1`
 
+#### Past Bookings (v2, live-verified 2026-10-05)
+* **Method/Path:** `GET https://psycle.codexfit.com/api/customer/v2/bookings?filter[type]=past&page[size]=100&page[number]=P` (also `filter[type]=cancelled`; allowed filters are only `event.id`, `customer.id`, `type`; no `include`s).
+* **Envelope:** `{data, links, meta, message, relations:{events, instructors, event_types, studios, locations}}`; page by `meta.last_page` (the `links` repeat `page[number]`). Page size 100 works, 500 gives a 504.
+* **Depth:** complete (857 rows back to 2016 on the measured account). Rows carry no attended/no-show flag and no cancelled rows appear in `past`.
+
+#### Milestones / Attendance Totals (v2, live-verified 2026-10-05)
+* **Method/Path:** `GET https://psycle.codexfit.com/api/customer/v2/milestones`
+* **Response:** `{overview:{this_week,this_month,this_year}, kinds:[{kind:"attended_events", kind_label, current_count, milestones:[{id, slug, name, description, threshold, window_days, bundle_handle, reward_summary, badge_label, card_width, color, current_count, earned, reached_at}]}]}`. `current_count` is the official attended total (excludes no-shows); it matches the profile's `stats.total_unique_bookings_attended` (770).
+
 #### Active Waitlists
 Lists user's active waitlist entries.
 * **Method:** `GET`

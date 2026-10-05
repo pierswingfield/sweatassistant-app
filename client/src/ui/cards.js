@@ -9,6 +9,7 @@ import { COPY } from '../copy.js';
 
 // ── Inline SVG icon set (themeable via currentColor) ─────────────────
 export const SVG_PATHS = {
+  search: '<circle cx="7" cy="7" r="4.5"/><path d="M10.5 10.5 14 14"/>',
   clock: '<circle cx="8" cy="8" r="6.25"/><path d="M8 4.5V8l2.5 1.5"/>',
   edit: '<path d="M11 2.5 13.5 5 6 12.5 3 13l.5-3L11 2.5Z"/>',
   close: '<path d="M4 4l8 8M12 4l-8 8"/>',
@@ -21,7 +22,9 @@ export const SVG_PATHS = {
   pause: '<path d="M6 4v8M10 4v8"/>',
   play: '<path d="M5.5 4l6 4-6 4z"/>',
   filter: '<path d="M2 4.5h7M12 4.5h2M2 11.5h2M7 11.5h7"/><circle cx="10.5" cy="4.5" r="1.6"/><circle cx="5.5" cy="11.5" r="1.6"/>',
-  user: '<circle cx="8" cy="5.3" r="2.4"/><path d="M3 13.5c.8-2.6 2.8-3.8 5-3.8s4.2 1.2 5 3.8"/>',
+  pin: '<path d="M12 6c0 3.5-4 8-4 8s-4-4.5-4-8a4 4 0 0 1 8 0Z"/><circle cx="8" cy="6" r="1.5"/>',
+  location: '<path d="M12 6c0 3.5-4 8-4 8s-4-4.5-4-8a4 4 0 0 1 8 0Z"/><circle cx="8" cy="6" r="1.5"/>',
+  user: '<circle cx="8" cy="5.5" r="2.7"/><path d="M2.8 13.8c.6-2.6 2.5-3.9 5.2-3.9s4.6 1.3 5.2 3.9"/>',
   heart: '<path d="M8 13.5S2.5 10 2.5 6.2A2.7 2.7 0 0 1 8 5a2.7 2.7 0 0 1 5.5 1.2C13.5 10 8 13.5 8 13.5Z"/>',
   bolt: '<path d="M8.5 1.5 3.5 9h3.5l-1 5.5L13 6.5H9z"/>',
   warning: '<path d="M8 2 14.5 13.5h-13L8 2Z"/><path d="M8 6.5v3M8 11.8h.01"/>',
@@ -32,7 +35,6 @@ export const SVG_PATHS = {
   // Settings menu glyphs (U1-10). Same 16px grid and 1.6 stroke as the rest.
   sliders: '<path d="M2.5 4.5H6M10.5 4.5h3M2.5 11.5h1.5M8 11.5h5.5"/><circle cx="8.25" cy="4.5" r="1.75"/><circle cx="6" cy="11.5" r="1.75"/>',
   bell: '<path d="M4 11V7.2a4 4 0 0 1 8 0V11l1.2 1.5H2.8L4 11Z"/><path d="M6.6 14a1.5 1.5 0 0 0 2.8 0"/>',
-  user: '<circle cx="8" cy="5.5" r="2.7"/><path d="M2.8 13.8c.6-2.6 2.5-3.9 5.2-3.9s4.6 1.3 5.2 3.9"/>',
   link: '<path d="M6.8 9.2a2.6 2.6 0 0 0 3.7 0l2-2a2.6 2.6 0 0 0-3.7-3.7l-.6.6"/><path d="M9.2 6.8a2.6 2.6 0 0 0-3.7 0l-2 2a2.6 2.6 0 0 0 3.7 3.7l.6-.6"/>',
   info: '<circle cx="8" cy="8" r="6.25"/><path d="M8 7.3v3.7M8 5h.01"/>',
   calendar: '<rect x="2.5" y="3.5" width="11" height="10" rx="2"/><path d="M2.5 7h11M5.5 2v3M10.5 2v3"/>',
@@ -311,6 +313,12 @@ export function gymBrand(gymId) {
     markHtml: w.mark ? img(`fr-mark-img${w.squareMark ? ' is-squaremark' : ''}`, w.mark) : `<span class="fr-mark-text" aria-hidden="true">${escapeHtml(String(p.shortName).charAt(0))}</span>`,
     logoSvg,
   };
+}
+
+/** The gym's FULL wordmark on its brand plate, sized as a page banner (Settings panes, Your Gyms,
+ *  link/re-auth form). Reuses gymChip so there is still exactly one place that knows a gym's assets. */
+export function gymLogoBanner(gymId) {
+  return `<span class="psycle-gym-logo-banner">${gymChip(gymId)}</span>`;
 }
 
 export function gymChip(gymId) {

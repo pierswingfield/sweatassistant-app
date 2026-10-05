@@ -9,19 +9,21 @@ is still valid as a design starting point.
 |---|---|---|---|---|
 | F-1 | **In-app 3-D Secure checkout.** When the bank asks for 3-D Secure, confirm the card in the app with Stripe.js instead of sending the user to the website. v2 carts expose `cart.metadata.stripe.secret`, which unblocks this. | C2-1, C2-G7 | [3d_secure_checkout.md](../Archive/2026-09-26/Backlog/3d_secure_checkout.md) | ~2 days |
 | F-2 | **MarianaTek guest-pass booking.** `resolvePaymentOption` already accepts `forGuest`, but `book()` never passes it and no route exposes it. | C4 | [archived BACKLOG](../Archive/2026-09-26/BACKLOG.md) "Guest Pass Booking Flow" | ~1 day |
-| F-3 | **Social class sharing.** Handles, a friend graph, "who's going", and iCal enrichment. | C4, C6 | [social-class-sharing.md](../Archive/2026-09-26/Backlog/social-class-sharing.md) | ~1 week |
+| F-3 | **Social class sharing.** Handles, a friend graph, "who's going", iCal enrichment, and quick weekly schedule export (share button on My Bookings tab formatting the week's booked classes to text via `navigator.share` / clipboard). | C4, C6 | [social-class-sharing.md](../Archive/2026-09-26/Backlog/social-class-sharing.md) | ~1 week |
 | F-4 | **MCP server** (stdio and SSE), so AI assistants can query the timetable and book. | C4 | [mcp-ai-server.md](../Archive/2026-09-26/Backlog/mcp-ai-server.md) | ~3–4 days |
 | F-5 | **MarianaTek credit purchase** for non-membership accounts, covering multi-studio chains. Open research: cart auth requirement, payment option shapes. [Q2, Q3, Q8] | C4 | [modular-gyms PROGRESS](../Archive/2026-09-26/Backlog/modular-gyms/PROGRESS.md) Q2/Q3/Q8 | research first |
 | F-6 | Monitor the MarianaTek refresh-token hard-expiry window in production. [Q1] | C4 | [LIVE_VERIFICATION_PLAYBOOK](../LIVE_VERIFICATION_PLAYBOOK.md) T1-1 | observe |
 | F-7 | **Gym onboarding and presentation contract.** First remove the two-gym client assumptions so a supported-platform gym can be added through config without editing `cards.js` or `styles.css`; then build the admin editor. The contract covers tenant URLs and ids, headers, capability flags, booking-window policy, timezone, brand assets/colours/short name, and display aliases. It needs validation plus a live "test connection" check against the backend. See [F-7 detail](#f-7--gym-onboarding-and-presentation-contract). Added 2026-09-29 at the user's request; expanded after the modularity assessment. | C4 | — | Stage A ~1–2 days; editor ~1 week |
 | F-8 | **MarianaTek profile explorer.** Explore and expose the provider-specific profile/account data available to MarianaTek gyms, including JAB, with a clear normalized view where practical and raw/provider detail where needed for diagnosis. | C4, F-7 | — | research first |
 | F-9 | **Gemini-powered booking and checking assistant.** Use the user's timetable, bookings, credits, preferences and related account data to answer questions and, within explicit user confirmation and safety gates, help check availability or initiate booking actions. | C4, F-8 | — | research first |
-| F-10 | **Home page / Dashboard.** High-level summary view: classes this week counter, next upcoming class(es) with quick countdown/status, habit-based quick-start booking based on past behavior (frequently used instructors, 1-tap rebook shortcuts), active auto-book count, aggregate credits summary across linked gyms, and quick-action shortcuts. Added 2026-09-29. | C4 | — | ~3–4 days |
-| F-11 | **Class counts, stats, and historical insights.** Attendance analytics and milestones: class consumption overview (total classes taken by gym/month/year), favorite instructors, concept breakdown (Ride vs Train vs Barre), streak tracking, and attendance trends computed from booking and calendar histories. Added 2026-09-29. | C4 | — | ~3–4 days |
+| F-10 | **Home page of widgets.** Moved to its own workstream: see [H-home-page.md](H-home-page.md) (items H-0..H-9, formerly F-10-0..F-10-9). | C4 | — | ~2 weeks |
+| F-11 | **Class counts, stats, and historical insights.** Shares the [H-0](H-home-page.md) history store and the [H-8](H-home-page.md) stats audit; build after H-8. Attendance analytics and milestones: class consumption overview (total classes taken by gym/month/year), favorite instructors, concept breakdown (Ride vs Train vs Barre), streak tracking, and attendance trends computed from booking and calendar histories. Added 2026-09-29. | C4 | — | ~3–4 days |
 | F-12 | **Gym-neutral favourites** for non-bookmark gyms (JAB/MarianaTek), keyed by studio + weekday + time. Psycle stays on native CodexFit bookmarks; enables Auto-Book Favourites data source. | C4, C5 | — | 3–4h build + ~1h browser check |
 | F-13 | **Calendar / weekly view of bookings and waitlists.** Alternate view toggle in the "My Bookings" tab: switch between the vertical card list and an interactive 7-day calendar/weekly schedule grid showing active bookings, waitlists, and queued auto-books mapped by time across all linked gyms. Tap a slot to view details, swap spot, or manage. Added 2026-09-29. | C4 | — | ~2–3 days |
 | F-14 | **SoulCycle gym integration.** Add SoulCycle as a third gym provider (`providers/soulcycle.js`). Bespoke PHP/monolith backend; requires cookie-jar auth (`SOULSESSION`), CSRF nonce pool management, studio HTML timetable scraping (or iOS app API reverse engineering), seat map normalization, and reserve/cancel endpoints. See [F-14 detail](#f-14--soulcycle-gym-integration) and [soulcycle.md](../Services/soulcycle.md). Added 2026-09-29. | C4, F-7 | [soulcycle.md](../Services/soulcycle.md) | ~1.5–2 weeks |
 | F-15 | ✅ **DONE 2026-09-29.** **Instructor photo proxy and cache.** Fetch each instructor photo once server-side, resize to WebP thumb/full via `sharp`, cache on disk and serve same-origin with immutable headers. Landed in `64218d3` and merged in `16555de`. Suite: `server/test-instructor-photo.js`. | C4 | — | ~2–3h |
+| F-16 | **Gym onboarding and editing from the admin panel.** Requires a first audit of all per-gym config in `gyms.config.js` that could be managed in UI: URLs, headers, theme, capabilities, booking-window policy, per-studio flags (e.g. the spot-map row-group selector flag) and location timezones. Extends F-7 Stage B. Added 2026-10-05. | F-7, C4 | — | audit first |
+| F-17 | **Instructor-change notification for any booked class.** Tell the member when the instructor of a class they hold a booking for changes, including bookings not made through Sweat Assistant. Spec only; see the F-17 section. | Spec only | `booking_cache` poll, `notifications.js` |
 
 Postgres and per-user key derivation are listed in C7.
 
@@ -181,3 +183,26 @@ Verified 2026-09-29: `sharp` is not installed; `normalize.js` (~line 108) maps `
 
 ### Dependencies & Size
 - **Depends on:** C4 (deploy path). **Rough size:** ~2–3h.
+
+---
+
+## F-10 — Home page of widgets (moved)
+
+Moved to [H-home-page.md](H-home-page.md) on 2026-10-05. Items F-10-0..F-10-9 are now H-0..H-9.
+
+## F-17 — Instructor-change notification (spec only, added 2026-10-05)
+
+**Goal.** A member books a class for its instructor. If the studio swaps the instructor, tell them (push) while there is still time to cancel for free. This must work for every booking on the member's account, however it was made (the gym's own website or app, not just Sweat Assistant).
+
+**Why it is cheap.** The server already reads the member's upcoming bookings from each gym on a schedule (the 3-hourly calendar poll in `calendar.js`, which refreshes `booking_cache` / `calendar_classes`, and the debounced refresh after booking mutations). Those bookings are the whole input; no new gym calls are needed.
+
+**Design.**
+1. **Store the instructor on the row.** Add `instructor_name` (and the provider's instructor id where there is one) to `booking_cache` and `calendar_classes` if absent, written by the same poll. Today a booking row carries the class and slot but the comparison needs the instructor as last seen.
+2. **Compare in the poll, per gym.** When the poll rewrites a booking row, compare the incoming instructor against the stored one for the same `(user_id, gym_id, booking_id)`. Run it inside the per-gym context, like the existing calendar fan-out, and key by `gymId:eventId` because provider event ids collide across gyms. Compare normalized ids when both sides have them, otherwise a trimmed, case-folded name. Only a change on a row that existed on the previous poll counts; the first sighting just records the value.
+3. **New notification type** `instructorChange` in `notifications.js`, with the usual per-user preference toggle (default on) and dedupe key `instructorChange:{gymId}:{bookingId}:{newInstructor}` in `sent_notifications`, so a flip-flop does not spam and a repeat poll does nothing. Body: class, time, "Instructor changed from X to Y". Deep-link to My Bookings.
+4. **Edge cases.** Past or cancelled classes are ignored. A class with no instructor yet (null to a name) is not a change. A booking cancelled between polls simply disappears. A gym that never publishes an instructor on bookings is skipped silently. Honour the per-gym throttle backoff (`rate-limit-backoff.js`) as the poll already does.
+5. **Latency.** Detection is bounded by the poll interval (up to about 3 hours). Acceptable for classes more than a day away; for classes inside 24 hours consider polling that user's imminent bookings more often (a follow-up, not part of this item).
+
+**Open questions.** Should a change to "no instructor" notify? Should the notification offer a one-tap cancel when the cancel window is still free? Does MarianaTek expose the instructor on the booking payload or only on the class lookup (check `marianatek.md`)?
+
+**Tests when built.** A pure comparison function with a table of cases (same, changed, null to name, name to null, id vs name, casing), plus a poll-level suite asserting one notification per distinct change and none on first sighting.

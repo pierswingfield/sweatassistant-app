@@ -173,12 +173,24 @@ function handleUpgradeThrottle(result, userId, gymId, claimKey) {
 }
 
 // true = still booked, false = gone (cancelled), null = could not tell.
+// A booking id can go stale (cancel-then-rebook mints a new one); if the id is gone
+// but the member still holds this event in this monitor's slot, follow the new id.
 async function originalBookingStillHeld(upgrade) {
   try {
     const bookings = await listBookingsWithRelogin(upgrade.user_id, upgrade.gym_id);
+    const live = (bookings || []).filter(b => b && !b.isWaitlist);
     const wanted = String(upgrade.booking_id ?? '');
-    return (bookings || []).some(b => b && !b.isWaitlist &&
-      (wanted ? String(b.bookingId) === wanted : String(b.eventId) === String(upgrade.event_id)));
+    if (live.some(b => wanted ? String(b.bookingId) === wanted : String(b.eventId) === String(upgrade.event_id))) return true;
+    if (wanted) {
+      const moved = live.find(b => String(b.eventId) === String(upgrade.event_id) &&
+        String(b.slotId) === String(upgrade.current_slot_id));
+      if (moved) {
+        upgrade.booking_id = Number(moved.bookingId);
+        try { db.relinkAutoUpgradeBooking(upgrade.id, upgrade.user_id, moved.bookingId); } catch (_) {}
+        return true;
+      }
+    }
+    return false;
   } catch (err) {
     console.warn(`[Poller] Could not verify booking for upgrade ${upgrade.id}:`, err.message);
     return null;
@@ -399,6 +411,9 @@ async function attemptUpgradeSlot(upgrade, isCutoffMode) {
         } else {
           db.updateAutoUpgrade(upgrade.id, userId, 'active', `Upgraded to slot ${candidateSlot}. Monitoring for better slots...`, {
             currentSlotId: candidateSlot,
+            // The original booking was cancelled and re-booked: follow the new id,
+            // or the card loses its indicator and the next check stops the monitor.
+            bookingId: (!usedAtomicSwap && newBookingId > 0) ? newBookingId : undefined,
             newBookingId,
             upgradedSlotId: candidateSlot,
             upgradedAt: nowStr,
@@ -861,6 +876,10 @@ module.exports = {
     cron.schedule('0 */6 * * *', async () => {
       console.log('[Reminders] Running booking-cache discovery poll...');
       await refreshBookingCaches();
+    });
+    // F-10-0: class-history incremental refresh (missing or >6h stale, every gym of every user).
+    cron.schedule('25 */6 * * *', async () => {
+      try { await require('./class-history').syncStale(); } catch (e) { console.warn('[History] sync scan failed:', e.message); }
     });
     // Warm the cache shortly after startup with a small random offset.
     setTimeout(() => { refreshBookingCaches().catch(() => {}); }, 45000 + Math.floor(Math.random() * 45000));

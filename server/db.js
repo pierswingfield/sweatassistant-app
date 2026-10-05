@@ -131,6 +131,48 @@ db.exec(`
     UNIQUE(user_id, booking_id)
   );
 
+  -- F-10-0: minimal per-user CLASS HISTORY (past bookings), shaped so C8-1's
+  -- booking_ledger can adopt it. One row per (user, gym, provider booking id), NORMALIZED
+  -- fields only. Written ONLY through server/class-history.js. start_ts (epoch ms)
+  -- exists because ISO strings with differing zone offsets do not sort lexically.
+  CREATE TABLE IF NOT EXISTS class_history (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    user_id INTEGER NOT NULL,
+    gym_id TEXT NOT NULL,
+    booking_id TEXT NOT NULL,
+    event_id TEXT,
+    status TEXT NOT NULL,
+    start_at TEXT NOT NULL,
+    start_ts INTEGER NOT NULL,
+    time_zone TEXT,
+    duration_min INTEGER,
+    class_name TEXT,
+    discipline TEXT,
+    instructor_id TEXT,
+    instructor_name TEXT,
+    studio_id TEXT,
+    studio_name TEXT,
+    location_id TEXT,
+    location_name TEXT,
+    fetched_at TEXT NOT NULL,
+    FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
+    FOREIGN KEY (gym_id) REFERENCES gyms(id),
+    UNIQUE(user_id, gym_id, booking_id)
+  );
+  CREATE INDEX IF NOT EXISTS idx_class_history_user_gym_ts ON class_history(user_id, gym_id, start_ts);
+
+  -- F-10-0: when each (user, gym) history was last pulled, and how it went.
+  CREATE TABLE IF NOT EXISTS class_history_sync (
+    user_id INTEGER NOT NULL,
+    gym_id TEXT NOT NULL,
+    last_synced_at TEXT,
+    last_attempt_at TEXT,
+    last_error TEXT,
+    row_count INTEGER NOT NULL DEFAULT 0,
+    FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
+    PRIMARY KEY (user_id, gym_id)
+  );
+
   -- Dedupe ledger for one-shot scheduled notifications (cancellation + booking-window reminders).
   CREATE TABLE IF NOT EXISTS sent_notifications (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -1385,6 +1427,11 @@ module.exports = {
       setClause.push('upgraded_at = ?');
       params.push(updates.upgradedAt);
     }
+    if (updates.bookingId !== undefined && updates.bookingId !== null) {
+      // Cancel-then-rebook mints a new booking id; the monitor must follow it.
+      setClause.push('booking_id = ?');
+      params.push(updates.bookingId);
+    }
     if (updates.newBookingId !== undefined) {
       setClause.push('new_booking_id = ?');
       params.push(updates.newBookingId);
@@ -1401,6 +1448,10 @@ module.exports = {
     const setStr = setClause.length > 0 ? ', ' + setClause.join(', ') : '';
     db.prepare(`UPDATE auto_upgrades SET status = ?, status_message = ? ${setStr} WHERE id = ? AND user_id = ?`)
       .run(...params, id, userId);
+  },
+  // Re-point a monitor at the booking that now holds its seat (no status change).
+  relinkAutoUpgradeBooking(id, userId, bookingId) {
+    db.prepare('UPDATE auto_upgrades SET booking_id = ? WHERE id = ? AND user_id = ?').run(Number(bookingId), id, userId);
   },
   // A cancelled booking must end its monitor. Otherwise the poller sees a "better
   // seat" and books the class again for a member who just cancelled it.
@@ -2062,7 +2113,8 @@ module.exports = {
   unlinkGym(userId, gymId) {
     const tx = db.transaction(() => {
       for (const table of ['auto_bookings', 'auto_upgrades', 'studio_preferences', 'settings',
-                           'booking_cache', 'waitlist_cache', 'calendar_classes']) {
+                           'booking_cache', 'waitlist_cache', 'calendar_classes',
+                           'class_history', 'class_history_sync']) {
         try { db.prepare(`DELETE FROM ${table} WHERE user_id = ? AND gym_id = ?`).run(userId, gymId); }
         catch (_) { /* table may predate its gym_id column on an old DB — skip */ }
       }

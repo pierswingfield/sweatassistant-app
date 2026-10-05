@@ -83,6 +83,20 @@ check('force bypasses the cache — what the refresh button needs', async () => 
   assert.deepStrictEqual(forced, [{ id: 'v2' }]);
 });
 
+check('createCache: own counters, maxStaleMs forces refetch but stale-if-error serves last good', async () => {
+  const c = cache.createCache();
+  const key = 'layout|psycle-london|1';
+  await c.getOrFetch(key, async () => ['v1'], { ttlMs: 5, maxStaleMs: 20 });
+  await sleep(40); // past ttl + maxStale
+  let calls = 0;
+  const v = await c.getOrFetch(key, async () => { calls++; throw new Error('provider down'); }, { ttlMs: 5, maxStaleMs: 20 });
+  assert.strictEqual(calls, 1, 'too-old entry awaits the provider');
+  assert.deepStrictEqual(v, ['v1'], 'provider failure falls back to last good value');
+  // gym id in the key keeps two gyms' studio 1 apart
+  await c.getOrFetch('layout|jab-boxing|1', async () => ['jab'], { ttlMs: 10000 });
+  assert.deepStrictEqual(await c.getOrFetch('layout|jab-boxing|1', async () => ['x'], { ttlMs: 10000 }), ['jab']);
+});
+
 check('invalidate drops one gym and leaves the other alone', async () => {
   const fetcher = async () => [{ id: 'x' }];
   await cache.getOrFetch('timetable|gym-a|d1|d2', fetcher, { ttlMs: 10000 });

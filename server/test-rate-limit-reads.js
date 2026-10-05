@@ -40,14 +40,12 @@ const path = require('path');
 const fs = require('fs');
 const { spawn } = require('child_process');
 
-const PORT = 3088;
+// Unique per-process port/DB/mock file so concurrent runs cannot collide.
+const PORT = 20000 + (process.pid % 20000);
 const BASE = `http://127.0.0.1:${PORT}`;
-const DB_PATH = path.join(__dirname, 'test-rate-limit-reads.db');
+const DB_PATH = path.join(require('os').tmpdir(), `test-rate-limit-reads-${process.pid}.db`);
 
-const MOCK_BOOKINGS_PATH = path.join(__dirname, 'mock_bookings.dbjson');
-const MOCK_BOOKINGS_BACKUP = `${MOCK_BOOKINGS_PATH}.ratelimit-backup`;
-const hadMockBookings = fs.existsSync(MOCK_BOOKINGS_PATH);
-if (hadMockBookings) fs.copyFileSync(MOCK_BOOKINGS_PATH, MOCK_BOOKINGS_BACKUP);
+const MOCK_BOOKINGS_PATH = path.join(require('os').tmpdir(), `test-rate-limit-reads-${process.pid}.dbjson`);
 
 for (const f of [DB_PATH, `${DB_PATH}-journal`, `${DB_PATH}-wal`, `${DB_PATH}-shm`]) {
   if (fs.existsSync(f)) fs.unlinkSync(f);
@@ -65,6 +63,7 @@ function spawnServer(extraEnv) {
       ...process.env,
       PORT: String(PORT),
       DB_PATH,
+      MOCK_BOOKINGS_PATH,
       NODE_ENV: 'development', // keeps dev@psycle.com mock login alive
       JWT_SECRET: 'test-rate-limit-reads-jwt-secret',
       ENCRYPTION_KEY: '0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef',
@@ -194,12 +193,7 @@ async function main() {
     for (const f of [DB_PATH, `${DB_PATH}-journal`, `${DB_PATH}-wal`, `${DB_PATH}-shm`]) {
       if (fs.existsSync(f)) fs.unlinkSync(f);
     }
-    if (hadMockBookings) {
-      fs.copyFileSync(MOCK_BOOKINGS_BACKUP, MOCK_BOOKINGS_PATH);
-      fs.unlinkSync(MOCK_BOOKINGS_BACKUP);
-    } else if (fs.existsSync(MOCK_BOOKINGS_PATH)) {
-      fs.unlinkSync(MOCK_BOOKINGS_PATH);
-    }
+    if (fs.existsSync(MOCK_BOOKINGS_PATH)) fs.unlinkSync(MOCK_BOOKINGS_PATH);
     process.exit(failed ? 1 : 0);
   }
 }

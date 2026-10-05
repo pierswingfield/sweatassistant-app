@@ -44,13 +44,15 @@ still open.
 |---|---|---|---|
 | [U1](U1-ux-bug-fixes.md) | UX bug fixes from QA | P1–P2 | ~1 day |
 | [U2](U2-components-accessibility.md) | Shared components and accessibility | P2 | ~2–3 days |
-| [U4](U4-ux-improvements.md) | UX improvements (user list 2026-09-29): U4-1, U4-3..5, U4-8..9, U4-11, U4-13, U4-16 done; U4-6 evaluated; U4-17 in progress; U4-7 open pre-launch; U4-2, U4-10, U4-12, U4-14, U4-15 post-launch | P2 | ~1–2 days pre-launch |
+| [U4](U4-ux-improvements.md) | UX improvements (user list 2026-09-29): U4-1, U4-3..5, U4-8..9, U4-11, U4-13, U4-16 done; U4-6 evaluated; U4-17, U4-18 in progress/open pre-launch; [U4-19](U4-19-url-routing-and-deep-links.md) URL routing and deep links (plan, 2026-10-05); U4-7 open pre-launch; U4-2, U4-10, U4-12, U4-14, U4-15 post-launch | P2 | ~1–2 days pre-launch |
+| [U5](U5-modal-fullscreen-and-spot-flow.md) | Mobile full-screen pages and the spot-map booking flow: U5-1..U5-11 done; U5-12..U5-15 known open items; U5-16..U5-20 new feedback, not started | P2 | ~3 days (remaining) |
 | [U3](U3-css-design-debt.md) | CSS and design-system debt | P3 | ~1 week |
 
 ### Later
 
 | ID | Workstream | Priority |
 |---|---|---|
+| [H](H-home-page.md) | Home page of widgets (formerly F-10): H-0 history pull and H-1 shell done 2026-10-05; H-2 name flow next | P2 | ~2 weeks |
 | [F](F-future-features.md) | Future features: in-app 3-D Secure, guest passes, gym-neutral favourites, social sharing, MCP server, Postgres | P2–P3 |
 
 ## Recommended order
@@ -75,7 +77,7 @@ still open.
    touches every screen and would invalidate acceptance screenshots.
 10. **F Future features**, plus the rest of C7.
 
-Added 2026-09-29: **U4** UX improvements (after the current U1 batch, before U3), **U1-11..U1-16** (current to-do), **F-7** gym config editor, **F-8** MarianaTek profile explorer, **F-9** Gemini-powered booking/checking assistant, **F-10** Home/Dashboard page, **F-11** class counts/stats/insights, **F-12** gym-neutral favourites, **F-13** calendar/weekly view of bookings, **F-14** SoulCycle gym integration, and **F-15** instructor photo proxy and cache.
+Added 2026-09-29: **U4** UX improvements (after the current U1 batch, before U3), **U1-11..U1-16** (current to-do), **F-7** gym config editor, **F-8** MarianaTek profile explorer, **F-9** Gemini-powered booking/checking assistant, **F-10** Home/Dashboard page (now its own workstream, [H](H-home-page.md)), **F-11** class counts/stats/insights, **F-12** gym-neutral favourites, **F-13** calendar/weekly view of bookings, **F-14** SoulCycle gym integration, and **F-15** instructor photo proxy and cache. Added 2026-10-05: **F-16** admin-panel gym onboarding and editing (audit of per-gym config first). **F-17** instructor-change notification for any booked class, detected in the existing booking poll (spec only; see [F-future-features.md](F-future-features.md)). Added 2026-10-05: **U5** mobile full-screen pages and spot-map booking flow (progress, open items, new feedback).
 
 Added 2026-09-27: **U2-5** (implement `TIMETABLE_FILTER_DESIGN_BRIEF.md`, after C4) and
 **U3-6** (sweep for leftover "Psycle" references in gym-agnostic code, done with U3-1).

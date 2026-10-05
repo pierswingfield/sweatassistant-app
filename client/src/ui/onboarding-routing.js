@@ -28,3 +28,38 @@ export const GYM_LOGO_STATIC_MAX = 3;
 export function shouldAnimateGymLogos(count) {
   return Number(count) > GYM_LOGO_STATIC_MAX;
 }
+
+/**
+ * Which install-to-home-screen situation is this browser in? Pure (all inputs injected) so it can be tested.
+ * `mobile` = an iOS/Android UA, or a touch device with a narrow viewport. `standalone` = already running as
+ * an installed app (display-mode: standalone / navigator.standalone), in which case there is nothing to offer.
+ * platform: ios-safari | ios-other | android-chrome | android-samsung | android-other | other
+ */
+export function detectInstallContext({
+  userAgent = '', standalone = false, displayStandalone = false,
+  maxTouchPoints = 0, viewportWidth = 1024, hasPromptEvent = false,
+} = {}) {
+  const ua = String(userAgent);
+  const iPadOS = /Macintosh/.test(ua) && maxTouchPoints > 1;           // iPadOS reports a desktop UA
+  const ios = /iPad|iPhone|iPod/.test(ua) || iPadOS;
+  const android = /Android/.test(ua);
+  const touchNarrow = maxTouchPoints > 0 && viewportWidth <= 820;
+  const mobile = ios || android || touchNarrow;
+  let platform = 'other';
+  if (ios) platform = /CriOS|FxiOS|EdgiOS|OPiOS|OPT\/|GSA\/|DuckDuckGo|YaBrowser/.test(ua) ? 'ios-other' : 'ios-safari';
+  else if (android) {
+    if (/SamsungBrowser/.test(ua)) platform = 'android-samsung';
+    else if (/Chrome\//.test(ua) && !/EdgA|OPR\/|Firefox|DuckDuckGo/.test(ua)) platform = 'android-chrome';
+    else platform = 'android-other';
+  }
+  return { mobile, platform, standalone: !!(standalone || displayStandalone), canPrompt: !!hasPromptEvent };
+}
+
+/**
+ * Offer the install step in a mobile browser tab (not an installed app) on every flow entry until the user
+ * has both chosen "Continue in browser" and logged in (`dismissed` = that persistent flag). Showing it
+ * never counts as seeing it.
+ */
+export function shouldOfferInstall(ctx, dismissed = false) {
+  return !!(ctx && ctx.mobile && !ctx.standalone && !dismissed);
+}

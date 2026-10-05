@@ -202,6 +202,48 @@ function makeReservation({ classId, spotId, reservationType, guestEmail }) {
   return reservation;
 }
 
+// F-10-0: 120 deterministic PAST reservations, newest first, in the live
+// UserReservation envelope ({count, results, links.next}). Mix of statuses; George
+// Davies (INSTRUCTORS[0]) is the most frequent. Every 17th is a waitlist
+// reservation (status "removed") that history must skip.
+function mockHistoryPage(query) {
+  const pageSize = Number(query.get('page_size') || 100);
+  const page = Number(query.get('page') || 1);
+  const minDate = query.get('min_start_date');
+  // Statuses seen LIVE on past JAB reservations (482 rows): check in, penalty cancel, graced cancel, graced no show, penalty no show.
+  // 'pending' and 'class cancelled' are documented-only but kept so the mapping stays covered.
+  const STATUS = ['check in', 'check in', 'check in', 'pending', 'check in', 'graced cancel', 'penalty cancel', 'penalty no show', 'graced no show', 'class cancelled'];
+  const types = Object.values(CLASS_TYPES);
+  const all = [];
+  for (let i = 0; i < 120; i++) {
+    const zone = activeZone;
+    const day = new Date(Date.now() - (i + 1) * 864e5).toISOString().slice(0, 10);
+    const startDatetime = DateTime.fromISO(`${day}T18:30:00`, { zone }).toUTC().toISO({ suppressMilliseconds: true });
+    if (minDate && day < minDate) continue;
+    const classType = types[i % types.length];
+    const waitlist = i % 17 === 5;
+    all.push({
+      id: `h${8000 + i}`, reservation_type: waitlist ? 'waitlist' : 'standard',
+      status: waitlist ? 'removed' : STATUS[i % STATUS.length],
+      is_upcoming: false, waitlist_position: null, booked_by: 'Dev User',
+      spot: { id: `mock-ground-${1 + (i % 10)}`, name: String(1 + (i % 10)) },
+      class_session: {
+        id: `h${9500 + i}`, name: classType.name, start_date: day, start_time: '18:30:00', start_datetime: startDatetime,
+        class_type: classType, classroom: { id: 'mock-room-BOXING', name: 'BOXING' }, classroom_name: 'BOXING',
+        instructors: [i % 3 === 0 ? INSTRUCTORS[0] : INSTRUCTORS[1 + (i % 4)]],
+        location: { ...LOCATION, timezone: zone }, layout_format: 'pick-a-spot',
+      },
+    });
+  }
+  const results = all.slice((page - 1) * pageSize, page * pageSize);
+  const hasNext = page * pageSize < all.length;
+  const nextQs = new URLSearchParams(query); nextQs.set('page', String(page + 1));
+  return [{
+    results, meta: { pagination: { page, pages: Math.max(1, Math.ceil(all.length / pageSize)), count: all.length } },
+    links: { next: hasNext ? `https://mock.local/api/customer/v1/me/reservations?${nextQs}` : null, previous: null },
+  }];
+}
+
 function handleMockRequest(pathName, method, body, gym) {
   activeZone = (gym && gym.timezone) || DEFAULT_ZONE;
   console.log(`[Mock MarianaTek] Intercepted ${method} ${pathName}`);
@@ -268,7 +310,7 @@ function handleMockRequest(pathName, method, body, gym) {
   if (path === '/me/reservations' && method === 'GET') {
     const isUpcoming = query.get('is_upcoming');
     let results = Array.from(reservations.values()).filter((r) => r.status !== 'standard cancel' && r.status !== 'removed');
-    if (isUpcoming === 'false') results = []; // mock has no history yet
+    if (isUpcoming === 'false') return createFakeResponse(...mockHistoryPage(query));
     return createFakeResponse({ count: results.length, results, meta: {}, links: {} });
   }
 

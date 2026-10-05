@@ -32,96 +32,111 @@
 
 const DEFAULT_TTL_MS = 60 * 1000;
 
-const store = new Map();   // key -> { value, fetchedAt, ttlMs }
-const inFlight = new Map(); // key -> Promise
+function createCache() {
 
-const stats = { hits: 0, staleHits: 0, misses: 0, coalesced: 0, refreshes: 0, errors: 0 };
+  const store = new Map();   // key -> { value, fetchedAt, ttlMs }
+  const inFlight = new Map(); // key -> Promise
 
-function isFresh(entry, now) {
-  return entry && (now - entry.fetchedAt) < entry.ttlMs;
-}
+  const stats = { hits: 0, staleHits: 0, misses: 0, coalesced: 0, refreshes: 0, errors: 0 };
 
-/**
- * @param {string} key      Must include every input that changes the RESULT —
- *                          gym and date range at minimum. A key that omits one
- *                          serves another gym's Tuesday.
- * @param {() => Promise<any>} fetcher
- * @param {{ ttlMs?: number, force?: boolean }} [opts]
- */
-async function getOrFetch(key, fetcher, opts = {}) {
-  const ttlMs = opts.ttlMs || DEFAULT_TTL_MS;
-  const now = Date.now();
-  const entry = store.get(key);
+  function isFresh(entry, now) {
+    return entry && (now - entry.fetchedAt) < entry.ttlMs;
+  }
 
-  if (opts.force) {
+  /**
+   * @param {string} key      Must include every input that changes the RESULT —
+   *                          gym and date range at minimum. A key that omits one
+   *                          serves another gym's Tuesday.
+   * @param {() => Promise<any>} fetcher
+   * @param {{ ttlMs?: number, force?: boolean }} [opts]
+   */
+  async function getOrFetch(key, fetcher, opts = {}) {
+    const ttlMs = opts.ttlMs || DEFAULT_TTL_MS;
+    const now = Date.now();
+    const entry = store.get(key);
+
+    if (opts.force) {
+      stats.misses++;
+      return single(key, fetcher, ttlMs);
+    }
+
+    if (isFresh(entry, now)) {
+      stats.hits++;
+      return entry.value;
+    }
+
+    // Beyond the usable-stale window the entry is too old to serve blindly: wait
+    // for the provider, but single() still falls back to it if the fetch fails
+    // (stale-if-error).
+    if (entry && opts.maxStaleMs && (now - entry.fetchedAt) > entry.ttlMs + opts.maxStaleMs) {
+      stats.misses++;
+      return single(key, fetcher, ttlMs);
+    }
+
+    if (entry) {
+      // Stale but usable: answer now, refresh behind the request. The user sees a
+      // fast page with data that is at most one TTL old, instead of waiting for
+      // the provider to decide how slow it feels today.
+      stats.staleHits++;
+      if (!inFlight.has(key)) {
+        stats.refreshes++;
+        single(key, fetcher, ttlMs).catch(() => {});
+      }
+      return entry.value;
+    }
+
     stats.misses++;
     return single(key, fetcher, ttlMs);
   }
 
-  if (isFresh(entry, now)) {
-    stats.hits++;
-    return entry.value;
-  }
-
-  if (entry) {
-    // Stale but usable: answer now, refresh behind the request. The user sees a
-    // fast page with data that is at most one TTL old, instead of waiting for
-    // the provider to decide how slow it feels today.
-    stats.staleHits++;
-    if (!inFlight.has(key)) {
-      stats.refreshes++;
-      single(key, fetcher, ttlMs).catch(() => {});
+  function single(key, fetcher, ttlMs) {
+    const existing = inFlight.get(key);
+    if (existing) {
+      stats.coalesced++;
+      return existing;
     }
-    return entry.value;
+    const p = (async () => {
+      try {
+        const value = await fetcher();
+        store.set(key, { value, fetchedAt: Date.now(), ttlMs });
+        return value;
+      } catch (err) {
+        stats.errors++;
+        // A failed refresh must NOT evict a usable stale entry — that turns a
+        // provider blip into an empty timetable for everyone.
+        const stale = store.get(key);
+        if (stale) return stale.value;
+        throw err;
+      } finally {
+        inFlight.delete(key);
+      }
+    })();
+    inFlight.set(key, p);
+    return p;
   }
 
-  stats.misses++;
-  return single(key, fetcher, ttlMs);
-}
-
-function single(key, fetcher, ttlMs) {
-  const existing = inFlight.get(key);
-  if (existing) {
-    stats.coalesced++;
-    return existing;
-  }
-  const p = (async () => {
-    try {
-      const value = await fetcher();
-      store.set(key, { value, fetchedAt: Date.now(), ttlMs });
-      return value;
-    } catch (err) {
-      stats.errors++;
-      // A failed refresh must NOT evict a usable stale entry — that turns a
-      // provider blip into an empty timetable for everyone.
-      const stale = store.get(key);
-      if (stale) return stale.value;
-      throw err;
-    } finally {
-      inFlight.delete(key);
+  /** Drop cached entries whose key starts with `prefix` (e.g. one gym's). */
+  function invalidate(prefix) {
+    let n = 0;
+    for (const key of store.keys()) {
+      if (key.startsWith(prefix)) { store.delete(key); n++; }
     }
-  })();
-  inFlight.set(key, p);
-  return p;
-}
-
-/** Drop cached entries whose key starts with `prefix` (e.g. one gym's). */
-function invalidate(prefix) {
-  let n = 0;
-  for (const key of store.keys()) {
-    if (key.startsWith(prefix)) { store.delete(key); n++; }
+    return n;
   }
-  return n;
+
+  function getStats() {
+    const total = stats.hits + stats.staleHits + stats.misses;
+    return {
+      ...stats,
+      entries: store.size,
+      inFlight: inFlight.size,
+      hitRate: total ? Number(((stats.hits + stats.staleHits) / total).toFixed(3)) : null,
+    };
+  }
+
+  return { getOrFetch, invalidate, getStats };
 }
 
-function getStats() {
-  const total = stats.hits + stats.staleHits + stats.misses;
-  return {
-    ...stats,
-    entries: store.size,
-    inFlight: inFlight.size,
-    hitRate: total ? Number(((stats.hits + stats.staleHits) / total).toFixed(3)) : null,
-  };
-}
+const shared = createCache();
 
-module.exports = { getOrFetch, invalidate, getStats, DEFAULT_TTL_MS };
+module.exports = { ...shared, createCache, DEFAULT_TTL_MS };

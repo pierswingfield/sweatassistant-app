@@ -4,6 +4,7 @@ import { setLinkedGyms, setGymCatalogue, getLinkedGyms, getGymShortName, getDefa
 import { initTooltips } from './ui/tooltips';
 import { setupPullToRefresh, cancelPullToRefresh } from './ui/pulltorefresh';
 import { markScrollBusy, isScrollBusy, isDocScroll, docScroller } from './ui/scroll-state.js';
+import { nextCollapseState } from './ui/scroll-collapse.js';
 import { initGymLogoLoader } from './ui/gym-logo-loader.js';
 import { setCacheKeyPrefix, clearApiCache, invalidateApiCache } from './cache.js';
 import { appConfig, initConfig } from './config';
@@ -1730,8 +1731,6 @@ window.addEventListener('popstate', (e) => {
  */
 function initHeaderAutoHide() {
   const mq = window.matchMedia('(max-width: 768px)');
-  const DEAD_ZONE = 12;      // px of net travel before a direction counts
-  const EDGE_ZONE = 32;      // px from top/bottom treated as bounce territory
   const COOLDOWN_MS = 300;   // ignore samples right after a toggle (transition + momentum)
   let app = null, header = null, ticking = false, target = null;
   let anchor = 0, hidden = false;
@@ -1748,6 +1747,7 @@ function initHeaderAutoHide() {
     if (!els() || hide === hidden) return;
     hidden = hide;
     app.classList.toggle('psycle-hdr-hidden', hide);
+    app.classList.toggle('psycle-tt-compact', hide); // timetable date strip + location chip shrink with the header
     // Safe-area cap + theme-color follow the header: header colour while it shows, page colour once it is gone.
     document.documentElement.toggleAttribute('data-hdr-hidden', hide);
     syncThemeColorMeta();
@@ -1761,22 +1761,14 @@ function initHeaderAutoHide() {
     if (!target) return;
     if (!mq.matches) { setHidden(false); return; }
     const sc = isDocScroll() ? docScroller() : target;
-    const raw = sc.scrollTop;
     const max = sc.scrollHeight - sc.clientHeight;
-    const headerH = (header && header.offsetHeight) || 47;
-    // Too short to scroll meaningfully: the header always stays; no toggling at all.
-    if (max < headerH + 48) { setHidden(false); anchor = 0; return; }
-    // iOS rubber-band samples: not real scrolling, never a direction change.
-    if (raw < 0 || raw > max) return;
-    const top = raw;
-    if (modalOpen() || top <= 4) { setHidden(false); anchor = top; return; }
-    if (isScrollBusy()) { anchor = top; return; }        // settle, then re-baseline
-    if (top >= max - EDGE_ZONE) { anchor = top; return; } // bottom bounce zone: keep state
-    if (top <= EDGE_ZONE && hidden === false) { anchor = top; return; }
-    const delta = top - anchor;
-    if (Math.abs(delta) < DEAD_ZONE) return;             // dead zone: keep the anchor so slow drags add up
-    setHidden(delta > 0);
-    anchor = top;
+    // Pure hysteresis (scroll-collapse.js): header hide and the timetable's compact bar share this one state.
+    const next = nextCollapseState({
+      top: sc.scrollTop, max, anchor, collapsed: hidden, busy: isScrollBusy(),
+      modalOpen: modalOpen(), headerH: (header && header.offsetHeight) || 47,
+    });
+    anchor = next.anchor;
+    setHidden(next.collapsed);
   };
 
   document.addEventListener('scroll', (e) => {

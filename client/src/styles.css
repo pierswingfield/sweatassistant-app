@@ -11128,3 +11128,40 @@ html.psycle-scroll-locked { overflow: hidden !important; background: var(--bg) !
 .fr-gymquick-btn:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
 .fr-gymquick-tick { position: absolute; right: -2px; bottom: -2px; width: 11px; height: 11px; padding: 1.5px; box-sizing: border-box; border-radius: 50%; background: var(--success); fill: none; stroke: #fff; stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round; box-shadow: 0 0 0 1.5px var(--surface-1, var(--surface-2)); }
 @media (prefers-reduced-motion: reduce) { .fr-gymquick-btn .fr-gym-dot.lg { transition: none; } }
+
+/* ===== Mobile scroll-collapse (5-10 enh 3) =====
+   main.js toggles `.psycle-tt-compact` on #psycle-app-container together with the header hide (one state,
+   see ui/scroll-collapse.js). MOBILE ONLY: everything is inside max-width:768px; desktop never matches.
+   Layout-jump guard: the day cells shrink by --tt-collapse-d and the sticky block gains the same
+   margin-bottom, on one shared duration/easing, so the in-flow footprint (and scrollHeight / scrollTop) is
+   constant at every frame. The strip just gets shorter at the top; the list does not move.
+   Source order: these sit after the base .psycle-wk-day / .psycle-sticky-top / .fr-chip rules. */
+@media (max-width: 768px) {
+  #psycle-helper-container .psycle-sticky-top { --tt-collapse-d: 16px; --tt-collapse-t: 0.25s cubic-bezier(0.25, 1, 0.5, 1); }
+  #psycle-helper-container .psycle-sticky-top {
+    transition: top 0.25s ease, margin-bottom var(--tt-collapse-t);
+  }
+  #psycle-app-container.psycle-tt-compact .psycle-sticky-top { margin-bottom: var(--tt-collapse-d); }
+  #psycle-helper-container .psycle-wk-day {
+    transition: height var(--tt-collapse-t, 0.25s ease), gap var(--tt-collapse-t, 0.25s ease), background-color 0.2s ease, border-color 0.2s ease;
+  }
+  #psycle-helper-container .psycle-wk-day .wk-num, #psycle-helper-container .psycle-wk-day .wk-name { transition: font-size var(--tt-collapse-t, 0.25s ease); }
+  #psycle-app-container.psycle-tt-compact .psycle-wk-day { height: calc(58px - var(--tt-collapse-d, 16px)); gap: 2px; }
+  #psycle-app-container.psycle-tt-compact .psycle-wk-day .wk-num { font-size: 17px; }
+  #psycle-app-container.psycle-tt-compact .psycle-wk-day .wk-name { font-size: 10px; }
+
+  /* Location chip: the logo + initials tile cross-fades into "N locations". */
+  #sweat-filter-rail .fr-tile-full, #sweat-filter-rail .fr-tile-compact { display: inline-flex; align-items: center; overflow: hidden; white-space: nowrap; transition: max-width var(--tt-collapse-t, 0.25s ease), opacity 0.2s ease; }
+  #sweat-filter-rail .fr-tile-full { max-width: 220px; opacity: 1; }
+  #sweat-filter-rail .fr-tile-compact { max-width: 0; opacity: 0; font-size: 11px; font-weight: 500; }
+  #psycle-app-container.psycle-tt-compact #sweat-filter-rail .fr-tile-full { max-width: 0; opacity: 0; }
+  #psycle-app-container.psycle-tt-compact #sweat-filter-rail .fr-tile-compact { max-width: 120px; opacity: 1; margin-left: 4px; }
+}
+@media (max-width: 768px) and (prefers-reduced-motion: reduce) {
+  #psycle-helper-container .psycle-sticky-top,
+  #psycle-helper-container .psycle-wk-day, #psycle-helper-container .psycle-wk-day .wk-num, #psycle-helper-container .psycle-wk-day .wk-name,
+  #sweat-filter-rail .fr-tile-full, #sweat-filter-rail .fr-tile-compact { transition: none !important; }
+}
+/* Desktop: the compact face never shows. */
+@media (min-width: 769px) { #sweat-filter-rail .fr-tile-compact { display: none; } }
+/* ===== END Mobile scroll-collapse ===== */

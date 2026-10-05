@@ -55,8 +55,8 @@ function avatar(instr) {
 // Which sheet section each chip's filter lives in (gym chips carry locations).
 const CHIP_SECTION = { gyms: 'locations', eventTypes: 'workouts', instructors: 'instructors' };
 
-function chip(html, clearKey, label) {
-  return `<span class="fr-chip" role="group" aria-label="${escapeHtml(label)}">`
+function chip(html, clearKey, label, extraClass = '') {
+  return `<span class="fr-chip${extraClass ? ' ' + extraClass : ''}" role="group" aria-label="${escapeHtml(label)}">`
     + `<button type="button" class="fr-chip-body" data-fr-open="1" data-fr-section="${CHIP_SECTION[clearKey] || ''}">${html}</button>`
     + `<button type="button" class="fr-chip-x" data-fr-clear="${clearKey}" aria-label="${escapeHtml(formatCopyText(COPY.filters.clearLabel, { label }))}">&#x2715;</button>`
     + `</span>`;
@@ -79,6 +79,16 @@ function gymTileHtml(ctx) {
     else if (locs.length > 2) text = `<b class="fr-num">${locs.length}</b>`;
     return `<span class="fr-tile-part">${gymDot(gymId)}${text ? `<span class="fr-initials">${text}</span>` : ''}</span>`;
   }).join('');
+}
+
+// Mobile scroll-collapse: the whole gym/location tile folds into "N locations". N = locations picked, or
+// (gym-only picks) every location those gyms have. Returns '' when unknown, so the chip just doesn't collapse.
+export function compactLocationsLabel(state, locations = []) {
+  const gymIds = state.gyms.map(String);
+  const n = state.locations.length
+    ? new Set(state.locations.map(String)).size
+    : locations.filter(l => gymIds.includes(String(l.gymId))).length;
+  return n ? formatCopyText(COPY.filters.locationsCompact, { count: n, plural: n === 1 ? '' : 's' }) : '';
 }
 
 function workoutLabel(s) {
@@ -124,7 +134,12 @@ export function renderFilterRail(ctx) {
   }
 
   if (state.gyms.length || state.locations.length) {
-    parts.push(chip(`${icon('pin', 13)}${gymTileHtml(ctx)}`, 'gyms', COPY.filters.clearFilterChip));
+    const compact = compactLocationsLabel(state, ctx.locations);
+    // Both faces stay in the DOM; CSS cross-fades them while the page is scrolled down (psycle-tt-compact).
+    const tile = compact
+      ? `<span class="fr-tile-full">${gymTileHtml(ctx)}</span><span class="fr-tile-compact" aria-hidden="true">${escapeHtml(compact)}</span>`
+      : gymTileHtml(ctx);
+    parts.push(chip(`${icon('pin', 13)}${tile}`, 'gyms', COPY.filters.clearFilterChip, compact ? 'has-compact' : ''));
   }
   if (state.eventTypes.length) {
     // One generic workout glyph (the same one JAB's TRAIN uses), not the first

@@ -33,7 +33,7 @@ import { buildSearchIndex, searchEvents, tokenize } from './timetable-search.js'
 import { getSearchQuery, setSearchQuery, onSearchChange, inSearchScope, enterSearchScope, leaveSearchScope, emptyFilters, filtersAreEmpty } from './timetable-search-state.js';
 import { ensureSearchUi, openSearch } from './timetable-search-ui.js';
 import { renderTimetableSkeleton } from './loading-skeleton.js';
-import { isDocScroll, docScroller } from './scroll-state.js';
+import { isDocScroll, docScroller, markScrollBusy } from './scroll-state.js';
 import { sortEvents } from './progressive-merge.js';
 import { captureScrollAnchor, restoreScrollAnchor } from './scroll-anchor.js';
 import { confirmOverlap } from './overlap-modal.js';
@@ -711,8 +711,10 @@ function renderPreservingScroll(reason) {
   const grid = document.getElementById('psycle-timetable-grid');
   const scroller = (isDocScroll() ? docScroller() : document.querySelector('main.psycle-body')) || grid;
   const anchor = captureScrollAnchor(scroller, grid);
+  // Restoring the anchor is a programmatic scroll: the collapse hysteresis must re-baseline, not toggle.
+  markScrollBusy(400);
   const result = renderTimetableGrid(reason);
-  const restore = () => restoreScrollAnchor(scroller, anchor, grid);
+  const restore = () => { markScrollBusy(400); restoreScrollAnchor(scroller, anchor, grid); };
   restore();
   if (result && typeof result.then === 'function') result.then(restore).catch(() => {});
   return result;

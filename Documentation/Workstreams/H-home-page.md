@@ -1,0 +1,98 @@
+# H — Home page of widgets
+
+**Priority:** P2 · **Size:** ~2 weeks incl. history pull · **Status:** H-0 and H-1 DONE 2026-10-05 (dev twin); H-2..H-9 not started
+**Depends on:** C4 (deploy path); F-7 Stage A (gym logos from the presentation contract); [F-8](F-future-features.md) (MarianaTek profile explorer, feeds the H-8 stats audit); [F-12](F-future-features.md) (gym-neutral favourites, for W6 on non-bookmark gyms); C8-1 (`booking_ledger`, which the history table is shaped to match)
+**Blocks:** [F-11](F-future-features.md) (class stats and historical insights shares the H-0 history store and the H-8 stats audit)
+
+> **Verify first:** see [AGENT_PROTOCOL.md](AGENT_PROTOCOL.md). Every widget is user-visible, so check it in a real browser before and after, at iPhone width as well as desktop. Server-only items (H-0, H-8) use a failing test or a request.
+
+Moved here from `F-future-features.md` (item F-10) on 2026-10-05. IDs map 1:1: **H-0..H-9 were F-10-0..F-10-9**; the "Formerly" column keeps old commit and code references resolvable. Scoped 2026-10-05 from the user's brief.
+
+## Scope
+
+Function first; layout and visual design are deferred (they follow DESIGN.md when we get there). Every widget is gym-agnostic: it reads normalized types and capability flags, and takes logos/colours from the gym's presentation config, never a gym id.
+
+### Widgets
+
+| # | Widget | Behaviour |
+|---|---|---|
+| W1 | **Welcome** | "Welcome, [name]!" at the top. Name source is an open decision, see Q1. |
+| W2 | **Book** | A row of square (1:1) gym logos, one per configured gym the user has linked, then a final **All** button. Tap a logo to open the timetable filtered to that gym. **All** opens the merged timetable. |
+| W3 | **Upcoming classes** | Two modes. (a) **2+ classes booked in the next 7 days:** a 7-day strip with booked classes on their days. Each entry shows the gym logo at half size, location, workout type and instructor photo. Tapping reveals the booking card (the same card as the Bookings page, or deep-links to it). (b) **One class, or none within 7 days:** show a single booking card from the Bookings page with a **View All** CTA to the Bookings tab. |
+| W4 | **Active Auto-Book count** | Count of pending auto-book entries (all gyms). Tap goes to the Auto-Book tab. |
+| W5 | **Credits** | Only gyms where the user holds credits or an active membership. Credit maths stays in `credit-allowance.js`; membership via `getEligibility()`. Gyms with neither are omitted. |
+| W6 | **Favourites** | Horizontally scrolling small cards for favourited classes in the next 7 days. Each: instructor photo with the gym logo overlaid at the bottom, day and time ("Wed 17:30"), class type ("RIDE"), and one CTA: Quick Book / Book / Auto-Book / Join Waitlist. **The CTA reuses the timetable's decision logic**, so extract it into a shared function rather than copy it. Initially favourites only; the card list is designed to take other recommendation sources later. |
+| W7 | **Top instructors** | Per configured gym, the user's most-frequented instructor over the last 30 days, from their own class history. Tap the photo to open the timetable pre-filtered to that instructor and gym. |
+| W8 | **Stats** | Headline: total classes taken across all gyms. Tap to expand into per-gym totals. Tap a gym for more (total minutes, number of instructors, etc). Provider-supplied stats are used where they exist; we compute only what the APIs do not give us. |
+
+### Items
+
+| # | Formerly | Item | Notes | Depends on | Size |
+|---|---|---|---|---|---|
+| **H-0** | F-10-0 | **DONE 2026-10-05 (server; Q5 measured live, see below).** **Class-history pull and store.** *The shared dependency for W7 and W8.* Fetch attended (past) bookings per gym via the adapter (`listBookingHistory`, normalized), paginate fully, and store durably: past classes are not cached today and `booking_cache` is purged on every sync. | C8-1 (`booking_ledger`) is the planned home for retained history. Either build H-0 on C8-1 or land a minimal ledger here and have C8-1 adopt it. Decide in Q2. | C4 | 3-4 days incl. both adapters |
+| **H-1** | F-10-1 | **Home shell and routing.** New tab, plus the widget container and per-widget loading/empty/error states (one failed gym must not blank the page). | **DONE 2026-10-05 (client only, dev twin).** Q3 decided: Home is the new FIRST tab and the default landing tab (a valid URL hash still wins, so deep links, push clicks and refresh are unchanged; onboarding now returns to `#home`). Framework: `ui/widget-registry.js` (`registerWidget`, per-widget loading/empty/error+retry, isolated loads), `ui/home.js` (eight widgets registered in order; W4 real, the rest "coming soon" placeholders), `ui/home-routing.js` (pure default-tab rule). Re-renders on gym-set change, pull-to-refresh and foreground. Gym-less accounts get a Connect-a-gym card. | C4 | 1 day |
+| **H-2** | F-10-2 | **W1 Welcome + name capture.** | Q1. **Name-flow decision (user, 2026-10-05):** ask AFTER the gym-connection step; infer the first name from linked gym profiles; if they agree, show "Can I call you [name]?" with a Yes button and an Edit button (edit, then continue); only ask outright when gyms conflict or give none; store as an account-level first name; fall back to plain "Welcome!". | H-1 | 0.5 day |
+| **H-3** | F-10-3 | **W2 Book row.** | Needs a way to open the timetable with a gym filter set programmatically. Check `filter-rail.js` for an existing entry point. Logos need the F-7 Stage A presentation contract (no hardcoded per-gym assets in `cards.js`). | H-1, F-7 Stage A | 0.5-1 day |
+| **H-4** | F-10-4 | **W3 Upcoming + W4 Auto-Book count.** | Reuses existing bookings data and the booking card from `bookings.js`; extracting the card into a reusable renderer is the main work. | H-1 | 1.5 days |
+| **H-5** | F-10-5 | **W5 Credits.** | Reuses `creditsFor()` / `eligibilityByGym`. Respect "not loaded is not zero": show a skeleton, never "0". | H-1 | 0.5-1 day |
+| **H-6** | F-10-6 | **W6 Favourites.** | Favourites differ by gym: Psycle uses native CodexFit bookmarks, JAB has none until F-12. Without F-12 the row is Psycle-only for now. Extract the timetable CTA logic first. | H-1, F-12 for non-bookmark gyms | 2 days |
+| **H-7** | F-10-7 | **W7 Top instructors.** | Aggregation over H-0 history, last 30 days, per gym. Photos via the existing instructor photo proxy (F-15). Needs an instructor filter entry point on the timetable. | H-0 | 1 day |
+| **H-8** | F-10-8 | **Stats API audit.** *Do this before building W8.* For each platform, list the stats already exposed (CodexFit profile and any class-count/attendance fields; MarianaTek `/me/account`, reservations, orders) and mark each stat as *provided*, *derivable from history* or *unavailable*. Output a table in `Documentation/Services/`. | Needs live account access under the [live-testing rules](../LIVE_VERIFICATION_PLAYBOOK.md). Overlaps F-8 (MarianaTek profile explorer): the MarianaTek half of the audit is F-8 work, so schedule them together. | H-0 for the "derivable" column; F-8 for MarianaTek | 1 day |
+| **H-9** | F-10-9 | **W8 Stats.** | Provided stats first, computed second. Expandable per-gym drill-down. | H-0, H-8 | 2 days |
+
+### Dependency map
+
+```
+C4 (modular live) --> everything below
+F-7 Stage A (logos from config) --> W2, W3, W6
+H-0 history pull --> W7, W8 (and F-11)
+   \-- C8-1 booking_ledger: build on it, or land a minimal ledger and let C8-1 adopt it (Q2)
+F-8 MarianaTek profile explorer --> H-8 audit --> W8
+F-12 gym-neutral favourites --> W6 for non-bookmark gyms (JAB)
+timetable CTA extraction --> W6 (shared function)
+bookings card extraction --> W3
+timetable entry points: gym filter (W2), instructor filter (W7)
+```
+
+### Open questions
+
+- **Q1 Name source.** The code only captures a name as a side effect: `users.display_name` is filled from the gym profile (first + last name), and `POST /api/auth/signup` collects no name. A gym-less account has no name at all. Options: (a) first name from the active gym profile (zero new UI, empty until a gym is linked); (b) ask for a first name at signup and in Settings, stored on the account (a few hours more, works for gym-less accounts); (c) (b) with (a) as the prefill. Recommend (c). Fall back to a plain "Welcome!" when no name is known.
+- **Q2 History storage.** Build on C8-1's ledger (cleaner, but pulls C8-1 forward) or land a minimal per-user history table now? Recommend a minimal table shaped to match the C8-1 ledger.
+- **Q3 Placement (DECIDED 2026-10-05: new first tab, default landing).** New first tab and default landing, or a tab among the existing five? The app has no home today.
+- **Q4 "Last 30 days" and ties.** Which attended statuses count (late-cancelled, no-show)? How are ties broken for top instructor? Proposed: attended only, ties go to the most recent.
+- **Q5 History depth: MEASURED LIVE 2026-10-05** (27 read-only GETs, playbook pacing, via the dev twin's stored sessions; no PII kept). *CodexFit (Psycle):* the past list is on the **v2 base**: `/bookings?filter[type]=past&page[size]=N&page[number]=P` (v1 `limit`/`page` is the upcoming style). Page size 9 and 100 work; 500 gives a Cloudflare 504, so we use 100. Envelope `{data, links, meta, message, relations}`, Laravel `meta` (current_page, last_page, per_page, total). `links.next`/`meta.links[]` repeat `page[number]` twice, so page by `meta.last_page`, never follow links. **Depth is complete**: 857 rows back to 2016 = profile `total_bookings` 858 minus 1 upcoming; 798 distinct events = `total_unique_bookings` 799 minus the upcoming one; all events `status: finished`. **No cancelled rows and no attended/no-show flag** (profile says 770 of 798 events attended, so about 28 no-shows are indistinguishable), so every row is `unconfirmed`. 57 events have more than one booking (multi-slot/guest), so aggregates count distinct events. `total_attended_minutes` 42075 vs 40110 summed over distinct past events: not exactly derivable, so keep it as a provided stat for W8. *MarianaTek (JAB):* `/me/reservations?is_upcoming=false&page_size=100` returns `{results, meta:{pagination:{page,pages,count}}, links:{first,last,next,prev}}`, 482 rows over 5 pages back to 2024-11-23; `min_start_date` filters correctly. Statuses seen: check in 396, penalty cancel 28, graced cancel 23, penalty no show 23, graced no show 12 (no pending, standard cancel or class cancelled in this sample).
+
+### H-0 decisions and build notes (2026-10-05)
+
+- **Q2 decided: minimal table, not the C8-1 ledger.** `class_history` (one row per user, gym, provider booking id; normalized fields only: `start_at` ISO with zone plus `start_ts`, duration, class/discipline, instructor id+name, studio/location ids+names, `status`, `fetched_at`) and `class_history_sync` (last synced/attempt/error/row count). All access is behind `server/class-history.js` so storage can later become aggregates only; C8-1 can adopt the table.
+- **Adapter:** `listBookingHistory(session, {sinceDate})` in `providers/base.js`, implemented in `codexfit.js` and `marianatek.js`, normalized by `makeHistoryEntry`; paginates fully; never exposes `.raw` over the API.
+- **Sync:** `syncUserGym` (first pull or `full` reads everything; later pulls overlap 14 days because outcomes settle after class; never throws, records errors), `ensureHistory` (lazy backfill awaited on first `GET /api/history`, background refresh when over 6h stale), poller cron `25 */6 * * *` via `syncStale` (all users and gyms, not active-gym filtered, skips suspended links and rate-limited gyms), and a fire-and-forget backfill on `POST /api/my-gyms/link`. Unlinking a gym deletes its history.
+- **Read:** `GET /api/history?days=365&limit=200&top=5` (gym via `x-gym-id`, readLimiter) returns rows, sync state and `topInstructors` (counts per instructor over `days`, ties to the most recent class).
+- **Q4 decided (2026-10-05):** aggregates count `attended` and `unconfirmed` (a past booking with no attendance signal: every CodexFit row, MarianaTek `pending`) and exclude cancelled, late-cancel, no-show and class-cancelled; distinct classes only. MarianaTek `check in` is `attended`; `graced` statuses map to cancelled / no-show.
+- Mocks (`mock.js` v2 `filter[type]=past`, `mock-marianatek.js` `is_upcoming=false`) serve 120 past bookings with the live envelopes. Tests: `server/test-class-history.js`.
+
+### H-8 findings so far: CodexFit attendance (measured live 2026-10-05) and reconciliation
+
+- **Official attended total: `GET {v2}/milestones`** returns `{overview:{this_week,this_month,this_year}, kinds:[{kind:"attended_events", kind_label, current_count, milestones:[{id, slug, name, description, threshold, window_days, bundle_handle, reward_summary, badge_label, card_width, color, current_count, earned, reached_at}]}]}`. `current_count` is the official attended total (**770** on the measured account; it excludes no-shows). Overview measured 0 / 0 / 9. Thresholds 5, 10, 25, 50, 100, 250, 500, 1000; `reached_at` was the same backfill date for every earned milestone, so it carries no per-event signal. Exposed as `provider.getMilestones()` (capability `attendanceTotals`, Psycle only) and `GET /api/attendance-totals`. **Stats = provided.** MarianaTek has no known equivalent yet (F-8).
+- **Reconciliation, rows vs 770: no per-row signal exists, so we do not force one.** All 857 past rows share one key set. `cancelled_at`, `cancelled_by_*`, `can_cancel`, `is_refundable`, `zoom_join_url`, `pre_order`, `metafields` are constant. Varying fields (`slot`, `booked_at`, `credits_used`, `subscription_used`, `booked_by_customer` 759 true / 98 false, `booked_by_user` 13) do not separate attended from no-show. Candidate counts: 798 distinct events; 709 with a customer-booked row; 781 credit-paid; none is 770 (gap of 28). Duplicate-event rows (57 events) differ only by slot and credit (extra spots/guests). `/bookings` only allows `filter[event.id|customer.id|type]` and no `include`; unknown `type` values behave as "all" (2008 rows = 857 past + 1 upcoming + 1150 cancelled); **`filter[type]=cancelled` lists the 1150 cancelled bookings** (unused so far; a future source for cancelled / late-cancel history). Conclusion: per-class attended is unknowable from history, so history rows stay `unconfirmed`; use `/milestones` for the official total and label history-derived counts as "classes booked".
+
+### Suggested build order
+
+1. H-0 history pull (longest pole), in parallel with H-8 audit and the two extractions (timetable CTA, booking card)
+2. H-1 shell, then W1, W2, W4, W5 (cheap, no history needed)
+3. W3, W6
+4. W7, then W8
+
+Widgets that need no history (W1-W6) can ship before H-0 lands.
+
+## Progress log
+
+- **2026-10-05, H-0 class-history pull: DONE (server, dev twin).** Minimal per-user history table behind `server/class-history.js`; adapters implement `listBookingHistory`. CodexFit: past bookings via `/bookings?filter[type]=past&page[size]=100`, paged by `meta.last_page` (`links.next` is broken); 857 rows back to 2016, reconciling with profile totals minus one upcoming. MarianaTek: 482 rows over 5 pages back to 2024-11-23. No attended/no-show/guest signal exists per row, so history rows are `unconfirmed` and history-derived counts are labelled "classes booked". The official attended total (770) comes from CodexFit `GET /milestones` via `getMilestones()` and `GET /api/attendance-totals`, behind the new `attendanceTotals` capability (Psycle only; 501 for JAB and Aarmy; overview this_week/month/year). Profile `total_attended_minutes` (42075) is a provided stat, not derivable (rows sum to 40110). Cancelled bookings (1150 via `filter[type]=cancelled`) are deliberately not pulled. Unconfirmed past bookings count as attended for Top Instructors.
+- **2026-10-05, H-1 Home shell: DONE (client, dev twin).** New FIRST tab and default landing for a fresh session (a valid URL hash still wins; the app never restored the last tab). Top nav plus iOS bottom nav (6 items at 10px labels looks tight at 375px; check at layout polish). Widget registry with per-widget loading/empty/error+retry and `Promise.allSettled` isolation; 8 widgets registered, W4 (active auto-book count) real, others "Coming soon". No-gym accounts get a Connect-a-gym card; the onboarding final step returns to `#home`. Files: `client/src/ui/home.js`, `widget-registry.js`, `home-routing.js` (plus tests). 60 server suites and 284 client tests passed; deployed to the dev twin (container fixed with `--force-recreate`, now `psycle-app-dev`). **No browser verification done yet.**
+- **2026-10-05, decisions log.** Q1 name flow: ask AFTER gym connection; infer the first name from linked gym profiles; "Can I call you [name]?" with Yes and Edit-then-continue buttons; ask outright only if gyms conflict or none; account-level first name; fallback plain "Welcome!". Q2: minimal history table (aggregates-only storage may replace it later; keep it behind `class-history.js`). Q3: placement is a new first tab.
+- H-2..H-9: not started. **Next suggested: H-2 name flow.**
+
+## Related
+
+- U4-19 URL routing and deep links ([U4-19](U4-19-url-routing-and-deep-links.md)) supplies `buildTimetableUrl` for W2/W7 links.
+- Psycle API details for the history and stats audit: [psycle_codexfit.md](../Services/psycle_codexfit.md).

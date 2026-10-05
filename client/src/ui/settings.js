@@ -2,6 +2,7 @@ import { api, apiFetch } from '../api';
 import { showToast, togglePushSubscription, updatePushStatusUI, userSettings, cache, getTheme, setTheme, debugConsole, loadGymContext, refreshUserData, updateDebugTerminalVisibility, getIsOffline } from '../main';
 import { getBookingOffset, describeBookingWindow } from '../lib';
 import { renderStudioFloorPlan } from './spotmap';
+import { currentRoute, navigate, pathFor } from '../router.js';
 import { openSpotSetup } from './spot-setup.js';
 import { isScrollBusy } from './scroll-state.js';
 import { cacheGet, resetTimetableForGymChange, rowGroupsForStudio } from './timetable';
@@ -1107,11 +1108,11 @@ function setupSettingsNavigation() {
   const sectionTitle = document.getElementById('psycle-settings-section-title');
   const backBtn = document.getElementById('psycle-settings-back-btn');
 
-  // Handle URL hash to select target section initially if hash contains a specific settings target
-  const hash = location.hash.replace('#', '');
-  const legacySectionMap = { booking: 'gyms', experience: 'account', advanced: 'account' };
-  let initialSection = legacySectionMap[hash] || 'account';
-  if (['account', 'gyms', 'about', 'calendar'].includes(hash)) initialSection = hash;
+  // U4-19: the initial section comes from the path (/settings/:section). Legacy #hash links
+  // were already rewritten to paths at boot (router.migrateLegacyHash).
+  const routeSection = currentRoute().section || '';
+  let initialSection = 'account';
+  if (['general', 'account', 'gyms', 'about', 'calendar', 'notifications'].includes(routeSection)) initialSection = routeSection;
 
   const activateSection = (sectionId) => {
     menuItems().forEach(item => {
@@ -1131,20 +1132,36 @@ function setupSettingsNavigation() {
     layout.classList.add('show-pane');
   };
 
+  // U4-19: keep /settings/:section in step with the visible pane. Initial activation
+  // never touches the URL; user clicks push an entry, programmatic selection replaces.
+  const syncSectionUrl = (sectionId, replace) => {
+    if (document.getElementById('psycle-panel-settings')?.style.display === 'none') return; // not the visible tab
+    navigate(pathFor({ tab: 'settings', section: sectionId }), { replace });
+  };
+
   // ONE delegated listener on the menu, so entries added later (the per-gym
   // ones) work without re-binding.
   layout.addEventListener('click', (event) => {
     const item = event.target.closest('.psycle-settings-menu-item');
     if (!item || !layout.contains(item)) return;
-    activateSection(item.getAttribute('data-settings-section'));
+    const id = item.getAttribute('data-settings-section');
+    activateSection(id);
+    syncSectionUrl(id, false);
   });
   // Exposed so renderGymsCard can select a gym's pane after creating it.
-  layout.__activateSettingsSection = activateSection;
+  layout.__activateSettingsSection = (id, { sync = true } = {}) => { activateSection(id); if (sync) syncSectionUrl(id, true); };
+  // Back/forward: apply the section (or the bare menu on mobile) without touching history.
+  layout.__applySettingsRoute = (section) => {
+    if (!section) { layout.classList.remove('show-pane'); return; }
+    if (section.startsWith('gym-')) { openGymSettings(section.slice(4), true); return; }
+    activateSection(section);
+  };
 
   // Attach mobile back button listener
   if (backBtn) {
     backBtn.addEventListener('click', () => {
       layout.classList.remove('show-pane');
+      navigate('/settings', { replace: true });
     });
   }
 
@@ -1203,8 +1220,8 @@ function setupSettingsNavigation() {
   // Set initial state
   activateSection(initialSection);
   // Remove show-pane class initially so list displays first on mobile,
-  // EXCEPT if the hash explicitly requested a section
-  if (!['account', 'gyms', 'about', 'booking', 'experience', 'advanced'].includes(hash)) {
+  // EXCEPT if the URL explicitly named a section (/settings/:section)
+  if (!routeSection) {
     layout.classList.remove('show-pane');
   }
 }
@@ -1805,12 +1822,15 @@ export function decorateSettingsMenu() {
  * mobile activateSection also drills into the pane, so Back / swipe-back work
  * exactly as after tapping the entry.
  */
-export async function openGymSettings(gymId) {
+export async function openGymSettings(gymId, fromHistory = false) {
   const layout = document.getElementById('psycle-settings-layout-wrapper');
   if (!layout) return;
   for (let i = 0; i < 40; i++) {
     const item = [...layout.querySelectorAll('[data-gym-nav]')].find((el) => el.getAttribute('data-gym-nav') === String(gymId));
-    if (item && layout.__activateSettingsSection) { layout.__activateSettingsSection(`gym-${gymId}`); return; }
+    if (item && layout.__activateSettingsSection) {
+      layout.__activateSettingsSection(`gym-${gymId}`, { sync: !fromHistory });
+      return;
+    }
     await new Promise((r) => setTimeout(r, 50));
   }
 }
@@ -1836,6 +1856,9 @@ export async function initSettings() {
   renderCalendarSection().catch(err => debugConsole('[Settings] Calendar section failed:', err.message));
   // Spot Maps section is ready; button opens the modal
   setupSettingsNavigation();
+  // A deep link to one gym's pane: its entry is built asynchronously by renderGymsCard.
+  const deep = currentRoute().section;
+  if (deep && deep.startsWith('gym-')) openGymSettings(deep.slice(4), true).catch(() => {});
 }
 
 // Open an external URL from inside the installed PWA. window.open('_blank') leaves a

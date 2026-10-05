@@ -1,7 +1,7 @@
 # Testing
 
 ```bash
-npm test              # everything: 60 server suites + the client suite
+npm test              # everything: 61 server suites + the client suite
 npm run test:server   # server only
 npm run test:client   # client only (vitest)
 ```
@@ -44,6 +44,7 @@ Three are worth knowing about specifically:
   the suite that matters** — plus `test-regression-psycle.js`, which boots the real server.
   *Fixture note:* a Psycle class only ~10 days out has already released, so it will not arm
   anything; use ~30 days out to get a future release Monday.
+- **`test-spa-fallback.js`** — U4-19: boots the server in production mode against a fixture `PUBLIC_DIR` and pins the SPA path allowlist (app paths serve the shell; unknown `/api/*` is JSON 404; `.ics`, `/admin`, `sw.js`, assets keep working).
 - **`test-no-gym-privilege.js`** — encodes the phase's acceptance criterion by scanning source:
   no module-level `getProvider(...)`, no `getProvider('literal')`, no hardcoded provider
   hostname, no identifier named after one platform. Source-scanning is normally a smell, but the

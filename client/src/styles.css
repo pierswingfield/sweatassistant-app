@@ -635,25 +635,6 @@ html, body {
 }
 
 /* Text utility classes — replace inline color/size styles */
-#psycle-helper-container .u-text { color: var(--text); }
-#psycle-helper-container .u-text-secondary { color: var(--text-secondary); }
-#psycle-helper-container .u-text-tertiary { color: var(--text-tertiary); }
-#psycle-helper-container .u-success { color: var(--success); }
-#psycle-helper-container .u-warning { color: var(--warning); }
-#psycle-helper-container .u-danger { color: var(--danger); }
-#psycle-helper-container .u-accent { color: var(--accent); }
-#psycle-helper-container .u-mono { font-family: var(--font-mono); }
-#psycle-helper-container .u-2xl { font-size: var(--text-2xl); }
-#psycle-helper-container .u-xl { font-size: var(--text-xl); }
-#psycle-helper-container .u-lg { font-size: var(--text-lg); }
-#psycle-helper-container .u-md { font-size: var(--text-md); }
-#psycle-helper-container .u-base { font-size: var(--text-base); }
-#psycle-helper-container .u-sm { font-size: var(--text-sm); }
-#psycle-helper-container .u-xs { font-size: var(--text-xs); }
-#psycle-helper-container .u-semibold { font-weight: 600; }
-#psycle-helper-container .u-bold { font-weight: 700; }
-#psycle-helper-container .u-center { text-align: center; }
-#psycle-helper-container .u-nowrap { white-space: nowrap; }
 
 /* Visibility helper — replaces inline display:none on panels */
 #psycle-helper-container .is-hidden { display: none !important; }
@@ -697,45 +678,11 @@ html, body {
 
 /* Small inline/icon buttons keep their visual size but guarantee a 44px
    hit area via padding-box expansion where they opt in. */
-#psycle-helper-container .tap-compact {
-  min-height: 0;
-  position: relative;
-}
-#psycle-helper-container .tap-compact::after {
-  content: "";
-  position: absolute;
-  top: 50%;
-  left: 50%;
-  width: max(100%, var(--tap-min));
-  height: max(100%, var(--tap-min));
-  transform: translate(-50%, -50%);
-}
 
 /* Shift Left when native cart drawer is visible */
-#psycle-helper-container.shift-left {
-  right: 480px !important;
-}
 
 /* Backdrop White Blur Overlay */
-#psycle-backdrop-blur {
-  position: fixed;
-  top: 0;
-  left: 0;
-  width: 100vw;
-  height: 100lvh;
-  background: color-mix(in srgb, var(--text) 8%, transparent);
-  backdrop-filter: blur(10px);
-  -webkit-backdrop-filter: blur(10px);
-  z-index: 999998;
-  opacity: 0;
-  pointer-events: none;
-  transition: opacity 0.4s cubic-bezier(0.25, 1, 0.5, 1);
-}
 
-#psycle-backdrop-blur.show {
-  opacity: 1;
-  pointer-events: auto;
-}
 
 /* Minimized Toggle Button */
 #psycle-helper-container .psycle-toggle-btn {
@@ -762,17 +709,8 @@ html, body {
   box-shadow: var(--shadow-sheet);
 }
 
-#psycle-helper-container .psycle-btn-text {
-  font-weight: 800;
-  font-size: 22px;
-  color: var(--text);
-  letter-spacing: 0.5px;
-}
 
 /* Pulse Animation for first 5 seconds */
-#psycle-helper-container .psycle-toggle-btn.pulse-active {
-  animation: pulse-ring 1.5s infinite;
-}
 
 @keyframes pulse-ring {
   0% { box-shadow: 0 0 0 0 color-mix(in srgb, var(--accent) 50%, transparent), var(--shadow-sheet); }
@@ -780,44 +718,9 @@ html, body {
   100% { box-shadow: 0 0 0 0 color-mix(in srgb, var(--accent) 0%, transparent), var(--shadow-sheet); }
 }
 
-#psycle-helper-container .psycle-btn-badge {
-  position: absolute;
-  top: 0px;
-  right: 0px;
-  background: var(--success);
-  color: var(--on-accent);
-  border-radius: 50%;
-  font-size: 12px;
-  font-weight: bold;
-  width: 20px;
-  height: 20px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  border: 2px solid var(--bg);
-  box-sizing: border-box;
-  line-height: 0;
-}
 
-#psycle-helper-container .psycle-btn-badge svg {
-  display: block !important;
-  position: static !important;
-  transform: none !important;
-  margin: 0 !important;
-  padding: 0 !important;
-  width: 10px !important;
-  height: 10px !important;
-  flex-shrink: 0 !important;
-  overflow: visible !important;
-}
 
-#psycle-helper-container .psycle-btn-badge.error {
-  background: var(--danger);
-}
 
-#psycle-helper-container .psycle-btn-badge.success {
-  background: var(--success);
-}
 
 /* Expanded State styling */
 
@@ -918,10 +821,6 @@ html, body {
   gap: 20px;
 }
 
-#psycle-helper-container .psycle-status-indicators {
-  display: flex;
-  gap: 10px;
-}
 
 #psycle-helper-container .psycle-close-btn {
   background: transparent;
@@ -986,9 +885,6 @@ html, body {
 }
 
 /* Settings/About segmented subnav — only used on mobile (desktop has both in the top bar) */
-#psycle-helper-container .psycle-subnav {
-  display: none;
-}
 
 /* Tab Content */
 #psycle-helper-container .psycle-tab-content {
@@ -1237,39 +1133,8 @@ html, body {
   border: 1px solid color-mix(in srgb, var(--danger) 15%, transparent);
 }
 
-#psycle-helper-container .fav-card-actions {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  border-top: 1px solid var(--separator);
-  padding-top: 10px;
-  margin-top: 0px;
-}
 
-#psycle-helper-container .fav-qty-selector {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  font-size: 12px;
-  color: var(--text-secondary);
-  font-weight: 600;
-  text-transform: uppercase;
-}
 
-#psycle-helper-container .fav-qty-input {
-  appearance: none;
-  -webkit-appearance: none;
-  width: 56px;
-  background: var(--surface-inset);
-  border: 1px solid var(--border-strong);
-  border-radius: 10px;
-  color: var(--text);
-  padding: 8px 10px;
-  text-align: center;
-  font-size: 14px;
-  outline: none;
-  font-weight: 700;
-}
 
 #psycle-helper-container .fav-buy-btn {
   appearance: none;
@@ -1293,52 +1158,12 @@ html, body {
 }
 
 /* Collapsible Table Section Header button */
-#psycle-helper-container .table-section-header {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  cursor: pointer;
-  padding: 8px 12px;
-  border-radius: 12px;
-  background: var(--surface-inset);
-  border: 1px solid var(--border);
-  transition: background 0.2s;
-}
 
-#psycle-helper-container .table-section-header:hover {
-  background: color-mix(in srgb, var(--text) 6%, transparent);
-}
 
-#psycle-helper-container .psycle-btn-text-action {
-  background: color-mix(in srgb, var(--text) 10%, transparent);
-  border: 1px solid var(--border-strong);
-  color: var(--text);
-  padding: 8px 20px;
-  border-radius: 20px;
-  font-size: 12px;
-  font-weight: 600;
-  letter-spacing: 0.3px;
-  cursor: pointer;
-  transition: all 0.2s ease;
-  box-shadow: var(--shadow-card);
-}
 
-#psycle-helper-container .psycle-btn-text-action:hover {
-  background: color-mix(in srgb, var(--text) 15%, transparent);
-  transform: translateY(-1px);
-}
 
 /* Folding logic */
-#psycle-helper-container .minimized-table .table-fold-content {
-  display: none;
-}
 
-#psycle-helper-container .table-fold-content {
-  display: flex;
-  flex-direction: column;
-  gap: 16px;
-  animation: fadeIn 0.3s ease;
-}
 
 @keyframes fadeIn {
   from { opacity: 0; transform: translateY(10px); }
@@ -1346,16 +1171,6 @@ html, body {
 }
 
 /* Dashboard Controls Layout */
-#psycle-helper-container .psycle-dashboard-controls {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  gap: 20px;
-  background: var(--surface-inset);
-  padding: 10px 16px;
-  border-radius: 16px;
-  border: 1px solid var(--separator);
-}
 
 #psycle-helper-container .psycle-search-box {
   position: relative;
@@ -1395,12 +1210,6 @@ html, body {
 }
 
 /* Advanced Filters Toggle Accordion */
-#psycle-helper-container .psycle-advanced-filters-wrapper {
-  display: flex;
-  flex-direction: column;
-  gap: 10px;
-  align-items: flex-start;
-}
 
 #psycle-helper-container .psycle-checkbox-filters {
   display: flex;
@@ -1463,58 +1272,13 @@ html, body {
   transform: rotate(45deg);
 }
 
-#psycle-helper-container .psycle-global-settings {
-  display: flex;
-  align-items: center;
-  gap: 16px;
-}
 
-#psycle-helper-container .psycle-global-settings label {
-  font-size: 12px;
-  font-weight: 600;
-  color: var(--text-secondary);
-  text-transform: uppercase;
-}
 
-#psycle-helper-container .psycle-global-settings .qty-group {
-  display: flex;
-  flex-direction: row;
-  align-items: center;
-  gap: 8px;
-}
 
-#psycle-helper-container .psycle-global-settings .qty-group input {
-  width: 48px;
-  background: var(--surface-inset);
-  border: 1px solid var(--border);
-  border-radius: 8px;
-  padding: 6px 8px;
-  color: var(--text);
-  outline: none;
-  font-family: inherit;
-  font-size: 13px;
-  text-align: center;
-}
 
-#psycle-helper-container .psycle-toggle-setting {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-}
 
 /* Custom switch toggle */
-#psycle-helper-container .psycle-switch-container {
-  position: relative;
-  display: inline-block;
-  width: 32px;
-  height: 18px;
-}
 
-#psycle-helper-container .psycle-switch-container input {
-  opacity: 0;
-  width: 0;
-  height: 0;
-}
 
 #psycle-helper-container .psycle-switch-slider {
   position: absolute;

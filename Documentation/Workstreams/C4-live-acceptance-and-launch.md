@@ -158,16 +158,16 @@ reopened on the last route.
 2. **JAB Enabled at Launch**: Staged rollout with JAB disabled is waived; multi-gym support (Psycle + JAB) launches enabled from day one.
 3. **Admin Panel Review Step**: Explicit verification of `/admin` both before deploy (on dev twin) and post-deploy (on prod).
 
-> **Status check 2026-10-06 (verified on oracle):** C4-11..15 are **NOT done**. Prod `psycle-app` has been up 2 months on the old `master` image (no `gym_id` in its `db.js`); only the dev twin runs `modular`. Nightly backups exist (cron 04:10 + stale check 09:30, `/usr/local/sbin/psycle-backup-sqlite.sh`), but the on-demand pre-deploy run (C4-11) must still be repeated immediately before cutover. Needs the user's explicit go-ahead; `./deploy.sh --prod` needs a typed confirmation.
+> **LAUNCHED 2026-10-06 10:24 BST.** Pre-deploy smoke test on the dev twin (real Chrome, desktop and 390 px): deep links, day/filter history, Clear banner, quick-selector, scroll-collapse, Back/Forward all passed; it found one bug (optional setup screen re-shown on every cold load), fixed in `36eb986` (unit-tested; **not re-verified in a browser**, the user chose to skip). Done: on-demand backup (`psycle-20261006-102227`, Drive), old DB archived to `~/services/psycleapp/data-archive-20261006/`, `JAB_BOXING_ENABLED=true` in prod `.env`, `./deploy.sh --prod`, container up, `/api/health` ok, `/api/gyms` = psycle-london + jab-boxing enabled / aarmy off, 0 users in the fresh DB. **C4-14 (admin check, sign up, link both gyms) is the user's step on the live site.** Registry and AGENTS.md updated (C4-15).
 
 | # | Step | Notes |
 |---|---|---|
 | **C4-10b** | ✅ **DONE (2026-10-01).** **Admin panel review on dev twin** | User reviewed and approved `/admin` on `sweat-dev.wingfield.tech`: user list, linked gym details, relogin indicators (C6-4), user detail drawer with gym picker (C3-8), priority tiers, and gym presentation editor (F-7). |
-| **C4-11** | **Back up prod DB with WAL (Approved, pre-deploy step)** | Run `sudo /usr/local/sbin/psycle-backup-sqlite.sh` on oracle to ensure existing prod DB is archived with WAL and copied to Google Drive before clean DB init. |
-| **C4-12** | **Prepare clean DB on prod host** | Move/archive `/home/piers/services/psycleapp/data/psycle.db` aside so `db.js` will initialize a pristine multi-gym schema on startup. |
-| **C4-13** | **Deploy `modular` with JAB enabled** | Ensure `JAB_BOXING_ENABLED=true` in prod config/env. Deploy via `./deploy.sh --prod`. Clear all 3 client caches on first load (SW, CacheStorage, IndexedDB). |
-| **C4-14** | **Prod Admin panel & first onboarding** | 1. Log in to `https://sweat.wingfield.tech/admin` and verify clean initial state.<br>2. Sign up the primary Sweat Assistant account on `sweat.wingfield.tech`.<br>3. Connect Psycle London and JAB Boxing in Settings → Your Gyms.<br>4. Re-check `/admin` to verify user and links show up cleanly. |
-| **C4-15** | **Update service registry and docs** | Update `AGENTS.md` status, the host registry, and mark C4 complete. |
+| ✅ **C4-11** (done 2026-10-06) | **Back up prod DB with WAL (Approved, pre-deploy step)** | Run `sudo /usr/local/sbin/psycle-backup-sqlite.sh` on oracle to ensure existing prod DB is archived with WAL and copied to Google Drive before clean DB init. |
+| ✅ **C4-12** (done 2026-10-06) | **Prepare clean DB on prod host** | Move/archive `/home/piers/services/psycleapp/data/psycle.db` aside so `db.js` will initialize a pristine multi-gym schema on startup. |
+| ✅ **C4-13** (done 2026-10-06) | **Deploy `modular` with JAB enabled** | Ensure `JAB_BOXING_ENABLED=true` in prod config/env. Deploy via `./deploy.sh --prod`. Clear all 3 client caches on first load (SW, CacheStorage, IndexedDB). |
+| **C4-14 (user, pending on prod)** | **Prod Admin panel & first onboarding** | 1. Log in to `https://sweat.wingfield.tech/admin` and verify clean initial state.<br>2. Sign up the primary Sweat Assistant account on `sweat.wingfield.tech`.<br>3. Connect Psycle London and JAB Boxing in Settings → Your Gyms.<br>4. Re-check `/admin` to verify user and links show up cleanly. |
+| ✅ **C4-15** (done 2026-10-06) | **Update service registry and docs** | Update `AGENTS.md` status, the host registry, and mark C4 complete. |
 
 ## Done when
 

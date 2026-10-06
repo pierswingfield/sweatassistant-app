@@ -22,7 +22,10 @@ dated STATUS line; open items are the only thing left to do.
 |---|---|
 | **Prod** (`sweat.wingfield.tech`) | **Multi-gym `modular` build since 2026-10-06** (Psycle + JAB + Aarmy enabled; fresh DB; `master` == `modular`). Buy Credits works (v2 cart). First account sign-up / `/admin` check is the user's step (C4-14). |
 | **Dev twin** (`sweat-dev.wingfield.tech`) | `modular` branch: multi-gym (Psycle/CodexFit + JAB/MarianaTek), merged timetable, per-account calendar, restructured Settings. JAB is enabled there by env var. |
+| **`optimisation` branch (2026-10-06)** | Perf work (C2-4/C2-5/MT cold-load/HTTP-cache fix, C7-3, F-3 share drawer) runs on the dev twin. **Not pushed, merged or deployed to prod.** Cold timetable, three gyms: first data 15.4 s, all gyms 18.5 s. |
 | **The milestone** | **C4 launched 2026-10-06.** What's open now is post-launch: see the workstream list below. |
+
+> **2026-10-06 note (`optimisation`):** C2-4 shipped as 7-day-chunked ranged v2 `/events` (4 calls per 28 days; unscoped ranges 502 from ~14 days live), not one 42-day call. C2-5 rebuilt as stamp-gated refresh with ceilings (timetable 5 min, metadata 6 h, layouts 7 d); occupancy can lag up to 5 min. C7-3 and C7-4 done. **Open:** prewarm (first data still ~15 s, one slow upstream), `METRICS_TOKEN` unset on dev, `optimisation` unmerged and not on prod, C7-7 re-evaluate.
 
 ## Workstreams
 
@@ -31,15 +34,15 @@ dated STATUS line; open items are the only thing left to do.
 | ID | Workstream | Priority | Size |
 |---|---|---|---|
 | C1 (archived) | ✅ **FINISHED, archived 2026-10-06** — [Archive/2026-10-06/C1-critical-fixes.md](../Archive/2026-10-06/C1-critical-fixes.md). Critical fixes: security, session, data safety. | P0 | done |
-| [C2](C2-psycle-api-v2.md) | Psycle API v2 compliance and efficiency | **P0** (phase 1), P1 (phase 2) | ~4–5 days |
+| [C2](C2-psycle-api-v2.md) | Psycle API v2 compliance and efficiency. Phase 1 done; phase 2 (C2-4 7-day-chunked ranged `/events`, C2-5 heartbeat-validated cache, C2-6, MarianaTek cold-load fix) built on `optimisation`, dev twin only; open: prewarm | **P0** (phase 1), P1 (phase 2) | phase 2 built, not shipped |
 | C3 (archived) | ✅ **FINISHED, archived 2026-10-06** — [Archive/2026-10-06/C3-multi-gym-correctness.md](../Archive/2026-10-06/C3-multi-gym-correctness.md). Multi-gym correctness; the last hunt candidate (failed fetch wiping reminder cache) fixed 2026-10-06. | P1 | done |
 | [C4](C4-live-acceptance-and-launch.md) | Live acceptance, promote to prod, JAB launch | **P0 milestone** | ~3 days of work over ~1–2 weeks elapsed |
 | [C5](C5-auto-book.md) | Auto-book gaps; Favourites build (P3) | P2 (Favourites P3) | ~2.5 days |
 | [C6](C6-accounts-auth.md) | Accounts and auth | P2 | ~2–3 days |
-| [C7](C7-platform-ops.md) | Platform, ops and security hardening | P1 (pre-launch subset), P2–P3 (rest) | ~1 day pre-launch, then ~1 week |
+| [C7](C7-platform-ops.md) | Platform, ops and security hardening (C7-3 logging/audit/`/metrics` and C7-4 image proxy done; C7-7 P3, re-evaluate) | P1 (pre-launch subset), P2–P3 (rest) | ~1 day pre-launch, then ~1 week |
 | [C8](C8-admin-panel-and-insights.md) | Admin panel, fleet intelligence, attendance & ops | P2 | ~1.5–2 weeks |
 | [C9](C9-gym-onboarding.md) | Gym onboarding: provider reuse, tenant evidence and activation gates | P1 | Ongoing playbook |
-| [C10](C10-aarmy-integration-acceptance.md) | Aarmy integration acceptance | **P0** | Outstanding live acceptance |
+| [C10](C10-aarmy-integration-acceptance.md) | Aarmy integration acceptance | **P0** | Acceptance done per user 2026-10-06 (Aarmy enabled in prod; write paths waived, first real booking is the test) |
 
 ### UX / design
 
@@ -77,10 +80,10 @@ dated STATUS line; open items are the only thing left to do.
 5. **C4 Live acceptance, promote `modular` to prod with clean DB and JAB enabled.**
    Includes user review of the `/admin` panel on the dev twin before deploy, a fresh DB
    rollout (no legacy migration debt), and multi-gym enabled at launch.
-6. **C2 phase 2 (efficient reads).** `/events` v2, `/heartbeat` cache invalidation, `/profile`
+6. **C2 phase 2 (efficient reads), built on `optimisation`, awaiting merge.** `/events` v2, `/heartbeat`-validated cache, `/profile`
    dedupe. Deliberately after launch so the upstream traffic shape changes in a separate deploy.
 7. **C5 Auto-book gaps** (Favourites build last, P3), then **C6 Accounts and auth**.
-8. **C10 Aarmy acceptance** only when an Aarmy activation is intended; C9 remains the standard
+8. **C10 Aarmy acceptance** (done per user 2026-10-06; write paths waived); C9 remains the standard
    onboarding path for future tenants.
 9. **U2 Components and accessibility**, then **U3 CSS debt.** U3 waits until after launch because it
    touches every screen and would invalidate acceptance screenshots.

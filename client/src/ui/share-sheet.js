@@ -10,7 +10,7 @@ import { gymPlate, wireDragToDismiss } from './filter-rail.js';
 import { escapeHtml } from './cards.js';
 import {
   SHARE_WINDOWS, DEFAULT_SHARE_WINDOW, buildShareItems, filterShareItems,
-  countShareItems, formatShareText, pickFirstName,
+  countShareItems, formatShare, gymsWithUpcoming, pickFirstName,
 } from './share-bookings.js';
 
 const WINDOW_KEY = 'sweatShareWindow';
@@ -35,7 +35,18 @@ export function closeShareSheet() {
   setTimeout(() => el.remove(), 280);
 }
 
-async function copyText(text) {
+// Rich copy: text/html (real bold and bullets for email, Notes, Docs) alongside
+// text/plain (what WhatsApp and iMessage take). Falls back to plain text only.
+async function copyText({ text, html }) {
+  try {
+    if (typeof ClipboardItem !== 'undefined' && navigator.clipboard?.write) {
+      await navigator.clipboard.write([new ClipboardItem({
+        'text/html': new Blob([html], { type: 'text/html' }),
+        'text/plain': new Blob([text], { type: 'text/plain' }),
+      })]);
+      return true;
+    }
+  } catch { /* fall through to plain text */ }
   try {
     await navigator.clipboard.writeText(text);
     return true;
@@ -60,7 +71,9 @@ export async function openShareSheet() {
     try { autoBooks = await api.getAutoBookings(); } catch { autoBooks = []; }
   }
   const items = buildShareItems({ bookings: cache.bookings || [], waitlists: cache.waitlists || [], autoBooks });
-  const linked = getLinkedGyms().map((g) => String(g.gym_id || g.id));
+  // Only gyms with something upcoming to share, in linked-gym order.
+  const upcoming = new Set(gymsWithUpcoming(items));
+  const linked = getLinkedGyms().map((g) => String(g.gym_id || g.id)).filter((id) => upcoming.has(id));
   const name = pickFirstName([...Object.values(cache.profilesByGym || {}), cache.profile]);
   const canNativeShare = typeof navigator.share === 'function';
   const state = { windowId: loadWindow(), gyms: new Set(linked), includeTbc: true };
@@ -78,8 +91,8 @@ export async function openShareSheet() {
   const compute = () => {
     const picked = filterShareItems(items, { windowId: state.windowId, gymIds: [...state.gyms], includeTbc: state.includeTbc });
     const counts = countShareItems(picked);
-    const text = formatShareText(picked, { name, windowId: state.windowId, appName: appConfig.appName });
-    return { picked, counts, text };
+    const doc = formatShare(picked, { name, windowId: state.windowId, appName: appConfig.appName });
+    return { picked, counts, text: doc.text, html: doc.html };
   };
   const countLabel = ({ total, tbc }) => {
     if (!total) return COPY.share.countNone;
@@ -88,9 +101,8 @@ export async function openShareSheet() {
   };
 
   const paint = () => {
-    const { counts, text } = compute();
+    const { counts, html } = compute();
     const empty = counts.total === 0;
-    const open = sheet.querySelector('.share-preview')?.open;
     sheet.innerHTML = `
       <div class="fr-grab" aria-hidden="true"></div>
       <div class="fr-head">
@@ -110,7 +122,7 @@ export async function openShareSheet() {
             return `<button type="button" class="fr-gymrow${on ? ' on' : ''}" data-share-gym="${escapeHtml(id)}" aria-pressed="${on}">${gymPlate(id)}</button>`;
           }).join('')}</div></div>` : ''}
         <label class="fr-sec fr-sec-plain share-sec share-tbc"><input type="checkbox" data-share-tbc="1"${state.includeTbc ? ' checked' : ''}><span>${COPY.share.includeTbc}</span></label>
-        <details class="share-preview"${open ? ' open' : ''}><summary>${COPY.share.preview}</summary><pre>${escapeHtml(empty ? COPY.share.countNone : text)}</pre></details>
+        <div class="share-preview"><div class="share-label">${COPY.share.preview}</div><div class="share-preview-box">${empty ? `<p>${escapeHtml(COPY.share.countNone)}</p>` : html}</div></div>
       </div>
       <div class="share-foot">
         <div class="share-cta${canNativeShare ? '' : ' is-single'}">
@@ -136,7 +148,7 @@ export async function openShareSheet() {
       return paint();
     }
     if (t.dataset.shareCopy) {
-      const ok = await copyText(compute().text);
+      const ok = await copyText(compute());
       if (!ok) return showToast(COPY.share.copyFailed, 'error');
       showToast(COPY.share.copied, 'success');
       return closeShareSheet();

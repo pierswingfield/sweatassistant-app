@@ -2,32 +2,27 @@
 // No DOM here, so the window, TBC and per-gym time zone rules are unit tested
 // (share-bookings.test.js). The drawer lives in share-sheet.js.
 import { zoneFor, formatInZone, noSept } from '../lib.js';
-import { getGymShortName, getLocationAlias } from '../gym-context.js';
-import { trimLocation, stripClassNamePrefix } from './cards.js';
+import { getGymShortName } from '../gym-context.js';
+import { trimLocation, escapeHtml } from './cards.js';
 import { COPY, formatCopyText } from '../copy.js';
 
 export const SHARE_WINDOWS = Object.freeze([
-  { id: '3d', days: 3, label: 'Next 3 days', heading: 'next 3 days' },
-  { id: '1w', days: 7, label: '1 week', heading: 'next week' },
-  { id: '2w', days: 14, label: '2 weeks', heading: 'next 2 weeks' },
+  { id: '3d', days: 3, label: 'Next 3 days', heading: '3 Days' },
+  { id: '1w', days: 7, label: '1 week', heading: '7 Days' },
+  { id: '2w', days: 14, label: '2 weeks', heading: '14 Days' },
 ]);
 export const DEFAULT_SHARE_WINDOW = '1w';
 
 const startOf = (e) => e?.startAt || e?.start_at || '';
 
-/** "Psycle OC": the gym's short name plus the location's alias, else its trimmed name. */
-export function shortLocationLabel(gymId, locationName) {
-  const gym = getGymShortName(gymId);
-  const trimmed = trimLocation(locationName || '', gym);
-  const place = getLocationAlias(gymId, trimmed) || trimmed;
-  return [gym, place].filter(Boolean).join(' ');
-}
-
 function baseItem(kind, gymId, eventId, startAt, zone, className, discipline, locationName, instructor) {
+  const gym = getGymShortName(gymId);
   return {
     kind, gymId, eventId: String(eventId ?? ''), startAt, zone,
-    className: stripClassNamePrefix(className || '', discipline || className || '') || COPY.autoBook.class,
-    location: shortLocationLabel(gymId, locationName),
+    gymName: gym,
+    // The semantic group ("RIDE", "TRAIN"), as the cards show it; the class name only as a fallback.
+    classType: discipline || className || COPY.autoBook.class,
+    location: trimLocation(locationName || '', gym),
     instructor: instructor || '',
   };
 }
@@ -110,22 +105,68 @@ function tag(kind) {
   return '';
 }
 
-export function formatShareText(items, { name = '', windowId = DEFAULT_SHARE_WINDOW, appName = '' } = {}) {
+// Plain-text messengers (WhatsApp, iMessage) drop HTML, so the plain flavour
+// carries emphasis as Unicode bold letters, which render everywhere without
+// markup. Only used for dates and times.
+export function boldUnicode(str) {
+  return String(str).replace(/[A-Za-z0-9]/g, (c) => {
+    const n = c.codePointAt(0);
+    if (n >= 65 && n <= 90) return String.fromCodePoint(0x1d5d4 + n - 65);
+    if (n >= 97 && n <= 122) return String.fromCodePoint(0x1d5ee + n - 97);
+    return String.fromCodePoint(0x1d7ec + n - 48);
+  });
+}
+
+/** Share document: a title, days of lines, an optional footer. Rendered to text and HTML below. */
+export function buildShareDoc(items, { name = '', windowId = DEFAULT_SHARE_WINDOW, appName = '' } = {}) {
   const win = SHARE_WINDOWS.find((w) => w.id === windowId) || SHARE_WINDOWS[1];
   const who = possessive(name);
-  const lines = [`${who ? `${who} classes` : 'My classes'} - ${win.heading}`];
-  let lastDay = null;
+  const days = [];
   for (const i of items) {
     const fmt = formatInZone(i.startAt, i.zone);
-    const day = noSept(fmt.date);
-    if (day !== lastDay) { lines.push('', day); lastDay = day; }
+    const date = noSept(fmt.date);
+    if (!days.length || days[days.length - 1].date !== date) days.push({ date, lines: [] });
     // Gym-local time; a zone suffix only when it is a short code ("ET"), never a long generic name.
-    const when = fmt.suffix && fmt.suffix.length <= 5 ? fmt.timeLabel : fmt.time;
-    const bits = [`${when} ${i.className}`, i.location, i.instructor].filter(Boolean);
-    lines.push(`${bits.join(' · ')}${tag(i.kind)}`);
+    const time = fmt.suffix && fmt.suffix.length <= 5 ? fmt.timeLabel : fmt.time;
+    const what = `${i.gymName ? `${i.gymName} - ` : ''}${i.classType}${i.instructor ? ` with ${i.instructor}` : ''}`;
+    days[days.length - 1].lines.push({ time, rest: `${what}${i.location ? ` · ${i.location}` : ''}${tag(i.kind)}` });
   }
-  if (appName) lines.push('', formatCopyText(COPY.share.footer, { app: appName }));
-  return lines.join('\n');
+  return {
+    title: `${who ? `${who} Classes` : 'My Classes'} - ${win.heading}`,
+    days,
+    footer: appName ? formatCopyText(COPY.share.footer, { app: appName }) : '',
+  };
+}
+
+export function renderSharePlain(doc) {
+  const out = [doc.title];
+  for (const d of doc.days) {
+    out.push('', boldUnicode(d.date));
+    for (const l of d.lines) out.push(`• ${boldUnicode(l.time)} ${l.rest}`);
+  }
+  if (doc.footer) out.push('', doc.footer);
+  return out.join('\n');
+}
+
+export function renderShareHtml(doc) {
+  const days = doc.days.map((d) => `<p><strong>${escapeHtml(d.date)}</strong></p><ul>${d.lines.map((l) =>
+    `<li><strong>${escapeHtml(l.time)}</strong> ${escapeHtml(l.rest)}</li>`).join('')}</ul>`).join('');
+  return `<p>${escapeHtml(doc.title)}</p>${days}${doc.footer ? `<p>${escapeHtml(doc.footer)}</p>` : ''}`;
+}
+
+/** Both flavours: `text` for plain targets and the native share sheet, `html` for rich paste (email, Notes, Docs). */
+export function formatShare(items, opts) {
+  const doc = buildShareDoc(items, opts);
+  return { text: renderSharePlain(doc), html: renderShareHtml(doc) };
+}
+
+/** Gyms that have at least one upcoming class (of any kind) to share. */
+export function gymsWithUpcoming(items, now = Date.now()) {
+  const ids = [];
+  for (const i of items) {
+    if (Date.parse(i.startAt) >= now && !ids.includes(String(i.gymId))) ids.push(String(i.gymId));
+  }
+  return ids;
 }
 
 /** First name from whichever gym profile carries one (normalized or raw CodexFit shape). */

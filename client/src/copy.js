@@ -703,8 +703,8 @@ export const COPY = Object.freeze({
     editCard: 'Edit',
   }),
   share: Object.freeze({
-    button: 'Share my classes', title: 'Share classes', window: 'Window', gyms: 'Gyms',
-    includeTbc: 'Include TBC (waitlists and auto-books)',
+    button: 'Share my classes', buttonLabel: 'Share', title: 'Share classes', window: 'Window', gyms: 'Gyms',
+    includeTbc: 'Include TBC (waitlists and scheduled for Auto-Book)',
     count: '{n} classes', countOne: '1 class', withTbc: '{base} · {tbc} TBC', countNone: 'No classes in this window',
     preview: 'Preview', copy: 'Copy to clipboard', share: 'Share', cancel: 'Cancel',
     copied: 'Copied to clipboard', copyFailed: 'Could not copy. Try Share instead.', shareFailed: 'Could not open the share sheet.',

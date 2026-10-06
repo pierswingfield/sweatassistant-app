@@ -11452,7 +11452,7 @@ html:not([data-credits-tab="on"]) .psycle-nav-btn[data-tab="buy-credits"] { disp
 .psycle-url-overlay-banner .psycle-url-overlay-clear:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
 
 /* ---- Share My Bookings (F-3): mobile-only header button + drawer extras ---- */
-#psycle-helper-container .psycle-share-btn { display: none; margin-left: auto; width: 36px; height: 36px; align-items: center; justify-content: center; background: transparent; border: 1px solid var(--border); border-radius: var(--radius-control); color: var(--text-secondary); cursor: pointer; padding: 0; flex-shrink: 0; }
+#psycle-helper-container .psycle-share-btn { display: none; margin-left: auto; height: 36px; padding: 0 12px !important; gap: 6px; font-size: 13px; font-weight: 600; font-family: inherit; align-items: center; justify-content: center; background: transparent; border: 1px solid var(--border); border-radius: var(--radius-control); color: var(--text-secondary); cursor: pointer; flex-shrink: 0; }
 #psycle-helper-container .psycle-share-btn:hover { color: var(--text); border-color: var(--border-strong); }
 @media (max-width: 768px) {
   #psycle-helper-container .psycle-share-btn { display: inline-flex; }
@@ -11461,9 +11461,11 @@ html:not([data-credits-tab="on"]) .psycle-nav-btn[data-tab="buy-credits"] { disp
 .share-sheet .share-sec { padding-bottom: 8px; }
 .share-sheet .share-tbc { display: flex; align-items: center; gap: 10px; min-height: 48px; font-size: 14px; cursor: pointer; }
 .share-sheet .share-tbc input { width: 20px; height: 20px; accent-color: var(--accent); flex-shrink: 0; }
-.share-sheet .share-preview { border-top: 1px solid var(--border); padding: 10px 0; }
-.share-sheet .share-preview summary { font-size: 13px; font-weight: 600; color: var(--text-secondary); cursor: pointer; min-height: 32px; display: flex; align-items: center; }
-.share-sheet .share-preview pre { margin: 8px 0 0; padding: 10px 12px; border-radius: 10px; background: var(--surface-2); border: 1px solid var(--border); font: inherit; font-size: 12px; line-height: 1.5; white-space: pre-wrap; word-break: break-word; max-height: 220px; overflow-y: auto; }
+.share-sheet .share-preview { border-top: 1px solid var(--border); padding-bottom: 10px; }
+.share-sheet .share-preview-box { padding: 10px 12px; border-radius: 10px; background: var(--surface-2); border: 1px solid var(--border); font-size: 13px; line-height: 1.5; max-height: 240px; overflow-y: auto; overscroll-behavior: contain; }
+.share-sheet .share-preview-box p { margin: 0 0 8px; }
+.share-sheet .share-preview-box ul { margin: 0 0 8px; padding-left: 20px; }
+.share-sheet .share-preview-box li { margin: 2px 0; }
 .share-sheet .share-foot { padding: 10px 16px 12px; border-top: 1px solid var(--border); display: flex; flex-direction: column; gap: 6px; }
 .share-sheet .share-cta { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; width: 100%; }
 .share-sheet .share-cta.is-single { grid-template-columns: 1fr; }

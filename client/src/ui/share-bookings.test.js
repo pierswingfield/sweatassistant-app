@@ -2,7 +2,7 @@ import { describe, it, expect, beforeEach } from 'vitest';
 import { setGymCatalogue, setLinkedGyms } from '../gym-context.js';
 import { CATALOGUE } from './gym-brand-fixture.js';
 import {
-  buildShareItems, filterShareItems, countShareItems, formatShareText, possessive, pickFirstName, shortLocationLabel,
+  buildShareItems, filterShareItems, countShareItems, formatShare, possessive, pickFirstName, boldUnicode, gymsWithUpcoming,
 } from './share-bookings.js';
 
 const NOW = Date.parse('2026-10-06T09:00:00Z');
@@ -21,11 +21,6 @@ describe('share-bookings', () => {
       { gym_id: 'psycle-london', shortName: 'Psycle', locationAliases: { 'oxford circus': 'OC' } },
       { gym_id: 'jab-boxing', shortName: 'JAB' },
     ]);
-  });
-
-  it('abbreviates the location: gym short name + alias', () => {
-    expect(shortLocationLabel('psycle-london', 'Psycle Oxford Circus')).toBe('Psycle OC');
-    expect(shortLocationLabel('jab-boxing', 'JAB Soho')).toBe('JAB Soho');
   });
 
   it('counts extra spots on one event as one class', () => {
@@ -77,26 +72,43 @@ describe('share-bookings', () => {
     expect(pickFirstName([{}])).toBe('');
   });
 
-  it('formats header, day groups, abbreviated location and TBC tags', () => {
+  it('plain text: title-cased header, bold date and time, bullets, full location', () => {
     const items = buildShareItems({
       bookings: [booking(1, 5)],
       waitlists: [{ event: { id: 3, name: 'RIDE 45', discipline: 'RIDE', startAt: iso(6), gymId: 'psycle-london', timeZone: 'Europe/London', locationName: 'Psycle Oxford Circus' } }],
-      autoBooks: [{ event_id: 9, gym_id: 'psycle-london', start_at: iso(30), status: 'pending', class_name: 'RIDE 45', location_name: 'Psycle Oxford Circus', instructor_name: 'Zed' }],
+      autoBooks: [{ event_id: 9, gym_id: 'psycle-london', start_at: iso(30), status: 'pending', class_name: 'RIDE 45', group_name: 'RIDE', location_name: 'Psycle Oxford Circus', instructor_name: 'Zed' }],
     });
-    const text = formatShareText(items, { name: 'Piers', windowId: '1w', appName: 'Sweat Assistant' });
+    const { text } = formatShare(items, { name: 'Piers', windowId: '1w', appName: 'Sweat Assistant' });
     const lines = text.split('\n');
-    expect(lines[0]).toBe("Piers's classes - next week");
-    expect(text).toContain('Psycle OC');
-    expect(text).toContain('Emma');
+    expect(lines[0]).toBe("Piers's Classes - 7 Days");
+    expect(text).toMatch(/• [\u{1d7ec}-\u{1d7f5}]{2}:[\u{1d7ec}-\u{1d7f5}]{2} Psycle - RIDE with Emma · Oxford Circus/u);
     expect(text).toContain('(waitlist)');
-    expect(text).toContain('(auto-book, TBC)');
+    expect(text).toContain('Psycle - RIDE with Zed · Oxford Circus (auto-book, TBC)');
+    expect(text).not.toContain('RIDE 45');
     expect(text).toMatch(/Shared from Sweat Assistant$/);
-    expect(text.match(/\n\n[A-Z][a-z]{2} \d+ [A-Z][a-z]{2}\n/g)).toHaveLength(2);
+    expect(text.match(/\n\n/g)).toHaveLength(3);
   });
 
-  it('shows a gym-local time with a zone suffix when it differs from the device', () => {
-    const items = buildShareItems({ bookings: [booking(1, 5, { timeZone: 'America/New_York', gymId: 'jab-boxing' })] });
-    const text = formatShareText(items, { name: '', windowId: '3d' });
-    expect(text.startsWith('My classes - next 3 days')).toBe(true);
+  it('html: bold dates and times, bullets as a list, escaped content', () => {
+    const items = buildShareItems({ bookings: [booking(1, 5, { instructors: [{ name: '<b>Em</b>' }] })] });
+    const { html } = formatShare(items, { name: 'Piers', windowId: '3d' });
+    expect(html).toContain('<p>Piers&#39;s Classes - 3 Days</p>');
+    expect(html).toMatch(/<p><strong>[^<]+<\/strong><\/p><ul><li><strong>\d\d:\d\d<\/strong> Psycle - RIDE with &lt;b&gt;Em&lt;\/b&gt; · Oxford Circus<\/li><\/ul>/);
+  });
+
+  it('omits "with" when there is no instructor, and handles no name', () => {
+    const items = buildShareItems({ bookings: [booking(1, 5, { instructors: [] })] });
+    const { text } = formatShare(items, { windowId: '2w' });
+    expect(text.startsWith('My Classes - 14 Days')).toBe(true);
+    expect(text).toContain('Psycle - RIDE · Oxford Circus');
+  });
+
+  it('boldUnicode maps letters and digits and leaves punctuation', () => {
+    expect(boldUnicode('Wed 7:30')).toBe('\u{1d5ea}\u{1d5f2}\u{1d5f1} \u{1d7f3}:\u{1d7ee}\u{1d7ec}'.replace('\u{1d7ee}\u{1d7ec}', '\u{1d7ef}\u{1d7ec}'));
+  });
+
+  it('only offers gyms that have something upcoming', () => {
+    const items = buildShareItems({ bookings: [booking(1, 5), booking(2, -3, { gymId: 'jab-boxing' })] });
+    expect(gymsWithUpcoming(items, NOW)).toEqual(['psycle-london']);
   });
 });

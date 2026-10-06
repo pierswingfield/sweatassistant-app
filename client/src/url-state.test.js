@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import {
-  parseLocation, serializeState, isDeepLink, sameState, legacyHashToPath, splitScoped, MAX_LIST,
+  parseLocation, serializeState, isDeepLink, sameState, legacyHashToPath, splitScoped, MAX_LIST, buildTimetableUrl,
 } from './url-state.js';
 
 const TABS = ['home', 'class-timetable', 'my-bookings', 'auto-book', 'buy-credits', 'settings'];
@@ -135,5 +135,19 @@ describe('legacy hash migration', () => {
     for (const h of ['', '#', '#nope', '#//evil.com', '#javascript:alert(1)', '#__proto__', '#constructor', null, undefined]) {
       expect(legacyHashToPath(h)).toBe(null);
     }
+  });
+});
+
+describe('buildTimetableUrl (H link contract)', () => {
+  it('builds a stable, parseable link', () => {
+    const u = buildTimetableUrl({ gym: ['psycle-london'], instructor: ['psycle-london:123'], day: '2026-10-07' });
+    expect(u).toBe('/timetable?day=2026-10-07&gym=psycle-london&instructor=psycle-london%3A123');
+    const [p, q] = u.split('?');
+    const t = parseLocation(p, `?${q}`).timetable;
+    expect(t.instructors).toEqual(['psycle-london:123']);
+    expect(t.day).toBe('2026-10-07');
+  });
+  it('drops bare instructor ids', () => {
+    expect(buildTimetableUrl({ instructor: ['123'] })).toBe('/timetable');
   });
 });

@@ -208,14 +208,15 @@ self.addEventListener('fetch', (event) => {
         // Cache the page response for future offline access
         // U4-19: every app path serves the same shell, so keep ONE copy under the shell key
         // (no per-URL growth for /settings/x or ?filters) and never cache an error page.
-        if (response.ok) {
+        // /admin is its own page, not the app shell: never let it overwrite the shell copy.
+        if (response.ok && !/^\/admin(\/|$)/.test(url.pathname)) {
           const clone = response.clone();
           caches.open(CACHE_NAME).then((cache) => cache.put('/index.html', clone));
         }
         return response;
       }).catch(() => {
         // Offline: serve the SPA shell so client-side path routing still works
-        return caches.match('/index.html');
+        return caches.match('/index.html', { ignoreSearch: true });
       })
     );
     return;

@@ -153,3 +153,15 @@ export function legacyHashToPath(hash) {
   if (Object.prototype.hasOwnProperty.call(LEGACY_SECTIONS, h)) return `/settings/${LEGACY_SECTIONS[h]}`;
   return null;
 }
+
+/**
+ * Homepage/widget link contract (U4-19, H): `buildTimetableUrl({ gym:['psycle-london'],
+ * instructor:['psycle-london:123'], day:'2026-10-07' })` -> '/timetable?...'. Never hand-concatenate.
+ * `type` tokens are `gymId:slug` (slug = lower-case label, e.g. 'psycle-london:ride').
+ */
+export function buildTimetableUrl({ day = null, gym = [], loc = [], type = [], instructor = [], fav = false, q = '', explicit = false } = {}) {
+  return serializeState({
+    tab: 'class-timetable',
+    timetable: { day, gyms: gym, locations: loc, types: type, instructors: instructor, fav, q, explicit },
+  });
+}

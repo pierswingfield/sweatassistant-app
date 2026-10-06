@@ -11304,3 +11304,17 @@ html.psycle-scroll-locked { overflow: hidden !important; background: var(--bg) !
 /* Desktop: the compact face never shows. */
 @media (min-width: 769px) { #sweat-filter-rail .fr-tile-compact { display: none; } }
 /* ===== END Mobile scroll-collapse ===== */
+
+/* U4-19 phase 5: deep-link filter banner ("Filtered: ... Clear") above the timetable list */
+.psycle-url-overlay-banner {
+  display: flex !important; align-items: center; justify-content: space-between; gap: 12px;
+  margin: 8px 0; padding: 8px 12px; border-radius: 12px;
+  background: var(--surface-2); border: 1px solid var(--border); color: var(--text);
+  font-size: var(--text-base); line-height: 1.3;
+}
+.psycle-url-overlay-banner .psycle-url-overlay-text { min-width: 0; overflow-wrap: anywhere; }
+.psycle-url-overlay-banner .psycle-url-overlay-clear {
+  flex: none; min-height: 32px; padding: 4px 14px; border-radius: 999px; cursor: pointer;
+  background: transparent; color: var(--text); border: 1px solid var(--accent); font: inherit; font-weight: 600;
+}
+.psycle-url-overlay-banner .psycle-url-overlay-clear:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }

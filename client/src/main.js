@@ -9,6 +9,7 @@ import { nextCollapseState } from './ui/scroll-collapse.js';
 import { initGymLogoLoader } from './ui/gym-logo-loader.js';
 import { setCacheKeyPrefix, clearApiCache, invalidateApiCache } from './cache.js';
 import { appConfig, initConfig } from './config';
+import { coldBootDestination } from './ui/onboarding-routing.js';
 import { shouldShowOnboarding, resumeOnboarding, getPostLoginDestination, isOnboardingActive, advanceAfterLogin, promoteInstallDismissal, offerInstallBeforeLogin } from './ui/onboarding';
 import { detectBookingWindow, noSept } from './lib';
 import { canBookAtAll, getIneligibleReason, unmeteredBadgeLabel } from './ui/credit-allowance.js';
@@ -1392,7 +1393,8 @@ async function checkAuth() {
       currentUser = { id: status.userId, email: status.email };
       setCacheKeyPrefix(currentUser.id);
       localStorage.setItem('psycleUserId', currentUser.id);
-      const destination = await getPostLoginDestination().catch(() => null);
+      // Cold load: honour an earlier "Set up later" (completion is per account); don't nag on every launch.
+      const destination = coldBootDestination(await getPostLoginDestination().catch(() => null), !shouldShowOnboarding());
       if (destination === 'full') {
         resumeOnboarding();
         return;

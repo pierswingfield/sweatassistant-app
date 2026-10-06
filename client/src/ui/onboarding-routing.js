@@ -10,6 +10,16 @@ export function getPostLoginDestination({
   return 'home';
 }
 
+/**
+ * Destination for a COLD LOAD with an existing session (reload, PWA launch, deep link).
+ * The optional setup screen is a post-login nudge: once the account has dismissed it ("Set up later"
+ * records completion), a cold load must not bring it back, or every launch and every deep link is
+ * interrupted. The full flow (no gym linked) is never suppressed.
+ */
+export function coldBootDestination(destination, dismissed) {
+  return destination === 'optional' && dismissed ? 'home' : destination;
+}
+
 /** Enable Auto-Upgrade polling for each linked gym that supports the feature. */
 export async function enableAutoUpgradeForGyms(linkedGyms, catalogue, updateSettings) {
   const configured = new Map((catalogue || []).map((gym) => [gym.id, gym]));

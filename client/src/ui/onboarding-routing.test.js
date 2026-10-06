@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from 'vitest';
-import { enableAutoUpgradeForGyms, getPostLoginDestination, shouldAnimateGymLogos, detectInstallContext, shouldOfferInstall } from './onboarding-routing.js';
+import { coldBootDestination, enableAutoUpgradeForGyms, getPostLoginDestination, shouldAnimateGymLogos, detectInstallContext, shouldOfferInstall } from './onboarding-routing.js';
 
 describe('post-login onboarding destination', () => {
   it('keeps the full flow when no gyms are connected', () => {
@@ -86,4 +86,18 @@ describe('install-to-home-screen detection', () => {
     expect(shouldOfferInstall(detectInstallContext({ userAgent: DESKTOP }), false)).toBe(false);
   });
 
+});
+
+describe('cold-boot destination', () => {
+  it('does not bring the optional setup back once the account dismissed it', () => {
+    expect(coldBootDestination('optional', true)).toBe('home');
+  });
+  it('still shows the optional setup to an account that has not dismissed it', () => {
+    expect(coldBootDestination('optional', false)).toBe('optional');
+  });
+  it('never suppresses the full flow or changes home', () => {
+    expect(coldBootDestination('full', true)).toBe('full');
+    expect(coldBootDestination('home', true)).toBe('home');
+    expect(coldBootDestination(null, true)).toBe(null);
+  });
 });

@@ -130,6 +130,9 @@ async function run() {
     assert.strictEqual(signup.status, 200, `signup failed: ${JSON.stringify(signupData)}`);
     assert.ok(signupData.token, 'signup issues a session immediately');
     assert.strictEqual(signupData.needsGym, true, 'and flags that a gym still needs linking');
+    // U4-17: the id must be real; the client keys onboarding resume on it and fell back to the email when null.
+    const statusAfterSignup = await (await fetch(`${BASE}/api/auth/status`, { headers: { authorization: `Bearer ${signupData.token}` } })).json();
+    assert.strictEqual(signupData.user.id, statusAfterSignup.userId, 'signup returns the real account id');
 
     // That account can reach the app, and gym-scoped routes tell it exactly why
     // they cannot serve — a distinct code, not a generic 401 login loop.

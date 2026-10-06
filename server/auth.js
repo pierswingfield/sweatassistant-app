@@ -443,7 +443,9 @@ async function handleSignup(email, password) {
   const localToken = jwt.sign({ userId, email: clean }, JWT_SECRET, { expiresIn: '30d' });
   return {
     token: localToken,
-    user: { id: null, email: clean, firstName: '', lastName: '', bookingCutoff: null, extendedCutoff: null },
+    // U4-17: the real id, not null. The client keys per-account state (onboarding step/completion) on it;
+    // with null it fell back to the email, so a reload re-keyed to the id and resume lost its place.
+    user: { id: userId, email: clean, firstName: '', lastName: '', bookingCutoff: null, extendedCutoff: null },
     needsGym: true, // the client sends them straight to "link a gym"
   };
 }

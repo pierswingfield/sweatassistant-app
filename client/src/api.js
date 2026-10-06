@@ -4,6 +4,8 @@ import { createLayoutCache, MAX_AGE_MS as LAYOUT_MAX_AGE_MS } from './layout-cac
 import { readCached, setCached, getCachedSWR, clearApiCache, setCacheKeyPrefix, invalidateApiCache, getOfflineSnapshot, setOfflineSnapshot, deleteOfflineSnapshot } from './cache.js';
 import { classifyAuthFailure } from './auth-failure.js';
 import { COPY, formatCopyText } from './copy.js';
+import { createProgressiveMerge } from './ui/progressive-merge.js';
+import { beginGymLoad, endGymLoad } from './ui/gym-load-state.js';
 import { assertMutationNetworkAvailable, isOfflineForMutation } from './network-write-guard.js';
 
 // API Abstraction layer for communicating with the Psycle PWA server
@@ -447,6 +449,59 @@ export const api = {
     return allEvents;
   },
 
+  // U4-7: same data as getTimetable, but delivered progressively. `onFlush`
+  // receives { events, pending, final } per createProgressiveMerge's grace rule
+  // (all gyms together if they land inside graceMs, else first-arrivals then
+  // each late gym). Gyms in flight are published to the header chips (U4-2).
+  // Resolves to the final merged events.
+  async getTimetableProgressive(params = {}, { graceMs = 4000, onFlush } = {}) {
+    const qs = new URLSearchParams();
+    if (params.startDate) qs.set('startDate', params.startDate);
+    if (params.endDate) qs.set('endDate', params.endDate);
+    if (params.refresh) qs.set('refresh', '1');
+    const suffix = qs.toString() ? `?${qs}` : '';
+
+    const myGymsRes = await this.getMyGyms().catch(() => ({ gyms: [] }));
+    const linked = myGymsRes.gyms || [];
+    const idOf = (g) => g.gym_id || g.gymId || g.id;
+
+    if (linked.length <= 1) {
+      const gid = linked[0] ? idOf(linked[0]) : getDefaultGymId();
+      beginGymLoad(gid);
+      try {
+        const events = await this.getTimetable(params);
+        onFlush?.({ events, pending: [], final: true, arrivedGyms: [String(gid)] });
+        return events;
+      } finally { endGymLoad(gid); }
+    }
+
+    const merge = createProgressiveMerge({
+      gymIds: linked.map(idOf),
+      graceMs,
+      onFlush: (info) => onFlush?.(info),
+    });
+    linked.forEach((g) => {
+      const gymId = idOf(g);
+      const gName = g.gym_name || g.name || gymId;
+      beginGymLoad(gymId);
+      (async () => {
+        try {
+          const res = await apiFetch(`/api/timetable${suffix}`, { gymId });
+          if (!res.ok) return merge.fail(gymId);
+          const data = await res.json();
+          merge.arrive(gymId, (data.events || []).map((ev) => ({
+            ...ev, gymId: ev.gymId || gymId, gymName: ev.gymName || gName,
+          })));
+        } catch (_) {
+          merge.fail(gymId);
+        } finally {
+          endGymLoad(gymId);
+        }
+      })();
+    });
+    return merge.done;
+  },
+
   // The four timetable filter lists, gym-agnostic (WP-D9). Replaces four raw
   // /api/proxy reads that only worked because they were CodexFit endpoints —
   // MarianaTek has none of them and derives all four from its class list.
@@ -705,7 +760,9 @@ export const api = {
         const gymId = g.gym_id || g.gymId || g.id;
         const gName = g.gym_name || g.name || gymId;
         try {
-          const res = await apiFetch('/api/bookings', { gymId });
+          beginGymLoad(gymId);
+          let res;
+          try { res = await apiFetch('/api/bookings', { gymId }); } finally { endGymLoad(gymId); }
           if (!res.ok) return [];
           const data = await res.json();
           return (data.bookings || []).map((b) => ({
@@ -750,7 +807,9 @@ export const api = {
         const gymId = g.gym_id || g.gymId || g.id;
         const gName = g.gym_name || g.name || gymId;
         try {
-          const res = await apiFetch('/api/waitlists', { gymId });
+          beginGymLoad(gymId);
+          let res;
+          try { res = await apiFetch('/api/waitlists', { gymId }); } finally { endGymLoad(gymId); }
           if (!res.ok) return [];
           const data = await res.json();
           return (data.waitlists || []).map((w) => ({

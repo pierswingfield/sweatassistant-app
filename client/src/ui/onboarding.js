@@ -171,7 +171,8 @@ async function finish() {
   }
   container().style.display = 'none';
   container().innerHTML = '';
-  location.hash = '#home';
+  // U4-19: leave the URL alone. initApp() reads the path, so a deep link survives onboarding and a
+  // fresh login (which starts at '/') lands on Home.
   await initApp();
 }
 

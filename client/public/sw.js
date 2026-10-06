@@ -61,17 +61,19 @@ self.addEventListener('notificationclick', (event) => {
   // Handle clicking on the notification - focus or open PWA window
   event.waitUntil(
     clients.matchAll({ type: 'window', includeUncontrolled: true }).then((clientList) => {
-      // If a window is already open, focus it
+      // If a window of this app is already open, focus it and ask it to go to My Bookings.
+      // (U4-19: the app lives at clean paths now, so any same-origin window qualifies; the old
+      // check for pathname === '/' would miss /timetable etc. and open a second window.)
       for (const client of clientList) {
-        if (new URL(client.url).pathname === '/' && 'focus' in client) {
+        if (new URL(client.url).origin === self.location.origin && 'focus' in client) {
           return client.focus().then(c => {
-            c.postMessage({ type: 'NAVIGATE', hash: '#my-bookings' });
+            (c || client).postMessage({ type: 'NAVIGATE', path: '/bookings' });
           });
         }
       }
       // Otherwise, open a new window
       if (clients.openWindow) {
-        return clients.openWindow('/#my-bookings');
+        return clients.openWindow('/bookings');
       }
     })
   );
@@ -204,11 +206,15 @@ self.addEventListener('fetch', (event) => {
     event.respondWith(
       fetch(request).then((response) => {
         // Cache the page response for future offline access
-        const clone = response.clone();
-        caches.open(CACHE_NAME).then((cache) => cache.put(request, clone));
+        // U4-19: every app path serves the same shell, so keep ONE copy under the shell key
+        // (no per-URL growth for /settings/x or ?filters) and never cache an error page.
+        if (response.ok) {
+          const clone = response.clone();
+          caches.open(CACHE_NAME).then((cache) => cache.put('/index.html', clone));
+        }
         return response;
       }).catch(() => {
-        // Offline: serve the SPA shell so client-side hash routing still works
+        // Offline: serve the SPA shell so client-side path routing still works
         return caches.match('/index.html');
       })
     );

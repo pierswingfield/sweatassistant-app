@@ -1,6 +1,9 @@
 # U4-19 — Clean URLs, browser history and timetable deep links
 
-Status: PLAN ONLY (2026-10-05). Parent: [U4](U4-ux-improvements.md). Feeds [H](H-home-page.md) (homepage widgets link to filtered timetables) and the per-gym instructor filter enhancement.
+Status: **Phases 1-3 DONE on branch `worktree-enh-5-10-timetable` (2026-10-05, not deployed); phases 4-8 open.** Plan approved 2026-10-05. Phase 7's `notificationclick` -> `NAVIGATE {path}` part landed early with phase 3 (the old `pathname === '/'` match would have broken on clean paths); `returnTo` and the rest of phase 7 are still open.
+Evidence (phases 1-3): vitest `url-state.test.js` (round-trips, hostile input), `server/test-spa-fallback.js`, `npm test` green on Node 20, and a real-Chrome CDP run (22/22) against a production build: refresh on each path, back/forward across tabs and settings sections, legacy `#hash` redirect, gym-pane deep link, with SW/CacheStorage/IndexedDB cleared first.
+Implementation notes: `client/src/url-state.js` (pure), `client/src/router.js` (`navigate`, `initRouter`, `migrateLegacyHash`; `commitFilterChange` deferred to phase 4). Server `SPA_PATH_RE` allowlist in `server.js`; unknown `/api/*` is JSON 404 in every mode; other unmatched production paths are plain 404. `PUBLIC_DIR` env overrides the built-client dir (used by the test). Onboarding `finish()` no longer rewrites the URL, so a deep link survives it. `home-routing.js resolveInitialTab` is now unused by `main.js` (kept, still tested). `/credits` while the Credits tab is debug-gated is replaced by `/timetable`. Unknown client paths replace to `/`.
+Original status line: PLAN ONLY (2026-10-05). Parent: [U4](U4-ux-improvements.md). Feeds [H](H-home-page.md) (homepage widgets link to filtered timetables) and the per-gym instructor filter enhancement.
 
 ## Today (verified in code)
 - Tabs live in the **hash** (`main.js` `switchTab` does `replaceState('#tab')`; `VALID_TABS`; a `popstate` handler re-reads the hash). Back/forward therefore never walk tab/day/filter history.
@@ -12,7 +15,7 @@ Status: PLAN ONLY (2026-10-05). Parent: [U4](U4-ux-improvements.md). Feeds [H](H
 ## URL schema
 | Path | Tab | Notes |
 |---|---|---|
-| `/` | redirect-in-place to `/timetable` (future: homepage, H) | until H ships, `/` = timetable |
+| `/` | home | **Decided 2026-10-05: `/` is Home** (the earlier "stays timetable until H ships" decision is withdrawn) |
 | `/timetable` | class-timetable | params below |
 | `/bookings` `/auto-book` `/credits` | my-bookings, auto-book, buy-credits | no params |
 | `/settings`, `/settings/:section` | settings (+ `about`, per-gym entries) | section = existing sidebar id, `gym-<gymId>` |
@@ -30,7 +33,7 @@ Timetable params (all optional; repeated values comma-separated; absent = "use s
 | `q` | `boxing` | search text (reserved; parsed and round-tripped now, UI later) |
 | `f` | `all` | present with no other filter params = explicit "no filters", distinct from "use defaults" |
 
-**Decisions (2026-10-05):** the root path `/` stays the timetable until the homepage ([H](H-home-page.md), formerly F-10) ships; the search query param is `q` (see the timetable search spec; state lives in `client/src/ui/timetable-search-state.js`, URL wiring not yet implemented).
+**Decisions (2026-10-05):** the root path `/` is Home (the homepage shell already exists, see [H](H-home-page.md)); the search query param is `q` (see the timetable search spec; state lives in `client/src/ui/timetable-search-state.js`, URL wiring not yet implemented).
 
 Homepage link: `buildTimetableUrl({ gym:['psycle-london'], instructor:['psycle-london:123'], day })` returns a string; widgets render `<a href>` and a click handler calls `navigate(url)` (SPA push, no reload). Never hand-concatenate URLs.
 
@@ -73,4 +76,4 @@ New: `client/src/url-state.js`, `url-state.test.js`, `router.js`, `server/test-s
 - **popstate ordering** with `modal-nav.js` (capture listener) must be preserved.
 
 ## Open decision for the user
-Should `/` stay the timetable until H ships, or show a stub homepage?
+None. Resolved 2026-10-05: `/` is Home. URL filters are a temporary overlay with a Clear banner and never overwrite saved defaults.

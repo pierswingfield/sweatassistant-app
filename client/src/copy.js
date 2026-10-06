@@ -695,6 +695,12 @@ export const COPY = Object.freeze({
   filters: Object.freeze({
     clearLabel: 'Clear {label}',
     clearFilterChip: 'gym and location filters',
+    locationsCompact: '{count} location{plural}',
+    gymQuickGroup: 'Show classes from',
+    gymQuickShown: '{name}, shown',
+    gymQuickHidden: '{name}, hidden',
+    gymQuickUnlinked: '{name}, not connected',
+    gymQuickConnectHint: 'Connect {name} in Settings > Your Gyms to see its classes.',
     workoutFilterChip: 'workout filters',
     instructorFilterChip: 'instructor filters',
     instructorFallback: 'Instructor',

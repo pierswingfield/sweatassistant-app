@@ -12,6 +12,7 @@ import { escapeHtml } from './cards.js';
 import { COPY, formatCopyText } from '../copy.js';
 import { pushLayer } from './modal-nav.js';
 import { summariseInstructorsByGym } from './instructor-filter.js';
+import { quickSelectItems } from './gym-quick-select.js';
 
 // Aliases come from the gym config (ctx.locationAlias). This is only the
 // fallback for a location that has none: word initials, or the first 3 letters.
@@ -55,8 +56,8 @@ function avatar(instr) {
 // Which sheet section each chip's filter lives in (gym chips carry locations).
 const CHIP_SECTION = { gyms: 'locations', eventTypes: 'workouts', instructors: 'instructors' };
 
-function chip(html, clearKey, label) {
-  return `<span class="fr-chip" role="group" aria-label="${escapeHtml(label)}">`
+function chip(html, clearKey, label, extraClass = '') {
+  return `<span class="fr-chip${extraClass ? ' ' + extraClass : ''}" role="group" aria-label="${escapeHtml(label)}">`
     + `<button type="button" class="fr-chip-body" data-fr-open="1" data-fr-section="${CHIP_SECTION[clearKey] || ''}">${html}</button>`
     + `<button type="button" class="fr-chip-x" data-fr-clear="${clearKey}" aria-label="${escapeHtml(formatCopyText(COPY.filters.clearLabel, { label }))}">&#x2715;</button>`
     + `</span>`;
@@ -79,6 +80,16 @@ function gymTileHtml(ctx) {
     else if (locs.length > 2) text = `<b class="fr-num">${locs.length}</b>`;
     return `<span class="fr-tile-part">${gymDot(gymId)}${text ? `<span class="fr-initials">${text}</span>` : ''}</span>`;
   }).join('');
+}
+
+// Mobile scroll-collapse: the whole gym/location tile folds into "N locations". N = locations picked, or
+// (gym-only picks) every location those gyms have. Returns '' when unknown, so the chip just doesn't collapse.
+export function compactLocationsLabel(state, locations = []) {
+  const gymIds = state.gyms.map(String);
+  const n = state.locations.length
+    ? new Set(state.locations.map(String)).size
+    : locations.filter(l => gymIds.includes(String(l.gymId))).length;
+  return n ? formatCopyText(COPY.filters.locationsCompact, { count: n, plural: n === 1 ? '' : 's' }) : '';
 }
 
 function workoutLabel(s) {
@@ -112,8 +123,24 @@ export function renderFilterRail(ctx) {
     parts.push(`<button type="button" class="fr-trigger fr-search-btn${ctx.searchActive ? ' active' : ''}" data-fr-search="1" aria-label="${COPY.filters.search}">${icon('search', 16)}</button>`);
   }
 
+  // Gym quick-selector: one small round logo per gym, beside Filters. Tap narrows to that gym.
+  const configured = (ctx.allGyms && ctx.allGyms.length ? ctx.allGyms : ctx.gyms) || [];
+  if (ctx.setGymQuick && configured.length > 1) {
+    const items = quickSelectItems(state.gyms, configured.map(g => g.id), ctx.gyms.map(g => g.id));
+    parts.push(`<span class="fr-gymquick" role="group" aria-label="${escapeHtml(COPY.filters.gymQuickGroup)}">${items.map(({ gymId, shown, linked }) => {
+      const name = gymBrand(gymId).name;
+      const label = formatCopyText(!linked ? COPY.filters.gymQuickUnlinked : shown ? COPY.filters.gymQuickShown : COPY.filters.gymQuickHidden, { name });
+      return `<button type="button" class="fr-gymquick-btn${shown ? ' is-shown' : ' is-off'}" data-fr-gymquick="${escapeHtml(gymId)}" aria-pressed="${shown}" aria-label="${escapeHtml(label)}">${gymDot(gymId, 'lg')}${shown ? '<svg class="fr-gymquick-tick" viewBox="0 0 10 10" aria-hidden="true"><path d="M2 5.2 4.2 7.4 8 2.8"/></svg>' : ''}</button>`;
+    }).join('')}</span>`);
+  }
+
   if (state.gyms.length || state.locations.length) {
-    parts.push(chip(`${icon('pin', 13)}${gymTileHtml(ctx)}`, 'gyms', COPY.filters.clearFilterChip));
+    const compact = compactLocationsLabel(state, ctx.locations);
+    // Both faces stay in the DOM; CSS cross-fades them while the page is scrolled down (psycle-tt-compact).
+    const tile = compact
+      ? `<span class="fr-tile-full">${gymTileHtml(ctx)}</span><span class="fr-tile-compact" aria-hidden="true">${escapeHtml(compact)}</span>`
+      : gymTileHtml(ctx);
+    parts.push(chip(`${icon('pin', 13)}${tile}`, 'gyms', COPY.filters.clearFilterChip, compact ? 'has-compact' : ''));
   }
   if (state.eventTypes.length) {
     // One generic workout glyph (the same one JAB's TRAIN uses), not the first
@@ -145,6 +172,8 @@ export function renderFilterRail(ctx) {
   rail.onclick = (e) => {
     const clear = e.target.closest('[data-fr-clear]');
     if (clear) { ctx.clear(clear.dataset.frClear); return; }
+    const gq = e.target.closest('[data-fr-gymquick]');
+    if (gq) { ctx.setGymQuick(gq.dataset.frGymquick); return; }
     if (e.target.closest('[data-fr-search]')) { ctx.openSearch(); return; }
     if (e.target.closest('[data-fr-heart]')) { ctx.toggleBookmarks(); return; }
     const opener = e.target.closest('[data-fr-open]');

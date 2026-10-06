@@ -206,6 +206,8 @@ app.get('/api/health', async (req, res) => {
 
 const fs = require('fs');
 const fileCache = {};
+// Built client directory. Overridable so tests (and the browser check) can serve a build from elsewhere.
+const PUBLIC_DIR = process.env.PUBLIC_DIR || path.join(__dirname, 'public');
 
 function sendTemplated(filePath, res, contentType) {
   if (!fileCache[filePath]) {
@@ -229,17 +231,17 @@ if (process.env.NODE_ENV === 'production') {
   // Intercept index.html (both '/' and '/index.html') before express.static
   // so the app name can be template-replaced.
   app.get(['/', '/index.html'], (req, res) => {
-    sendTemplated(path.join(__dirname, 'public', 'index.html'), res, 'text/html');
+    sendTemplated(path.join(PUBLIC_DIR, 'index.html'), res, 'text/html');
   });
   app.get('/manifest.json', (req, res) => {
-    sendTemplated(path.join(__dirname, 'public', 'manifest.json'), res, 'application/manifest+json');
+    sendTemplated(path.join(PUBLIC_DIR, 'manifest.json'), res, 'application/manifest+json');
   });
   app.get('/sw.js', (req, res) => {
-    sendTemplated(path.join(__dirname, 'public', 'sw.js'), res, 'application/javascript');
+    sendTemplated(path.join(PUBLIC_DIR, 'sw.js'), res, 'application/javascript');
   });
   // Gym wordmarks: long-lived + stale-while-revalidate (art changes bump the ?v= in gyms.config.js), and the
   // right MIME (avif was served as application/octet-stream). Everything else keeps Express's defaults.
-  app.use('/gyms', express.static(path.join(__dirname, 'public', 'gyms'), {
+  app.use('/gyms', express.static(path.join(PUBLIC_DIR, 'gyms'), {
     maxAge: '1d',
     setHeaders: (res, filePath) => {
       res.setHeader('Cache-Control', 'public, max-age=86400, stale-while-revalidate=604800');
@@ -247,7 +249,7 @@ if (process.env.NODE_ENV === 'production') {
       if (/\.svg$/i.test(filePath)) res.type('image/svg+xml');
     },
   }));
-  app.use(express.static(path.join(__dirname, 'public')));
+  app.use(express.static(PUBLIC_DIR));
 }
 
 // -------------------------------------------------------------
@@ -1035,10 +1037,27 @@ app.post('/api/config/import', authenticateToken, (req, res) => {
 // SPA FALLBACK
 // -------------------------------------------------------------
 
-// Fallback index.html for SPA router in production
+// U4-19: the client uses clean paths (/, /timetable, /bookings, /auto-book, /credits,
+// /settings[/:section]). ONLY those get index.html; this is an allowlist, never a
+// catch-all, so a mistyped /api/* can never come back as HTML. Keep in step with
+// client/src/url-state.js TAB_TO_PATH.
+const SPA_PATH_RE = /^\/(?:index\.html|timetable|bookings|auto-book|credits|settings(?:\/[a-z0-9][a-z0-9_-]{0,79})?)\/?$/i;
+
 if (process.env.NODE_ENV === 'production') {
-  app.get('*', (req, res) => {
-    sendTemplated(path.join(__dirname, 'public', 'index.html'), res, 'text/html');
+  app.get(SPA_PATH_RE, (req, res) => {
+    sendTemplated(path.join(PUBLIC_DIR, 'index.html'), res, 'text/html');
+  });
+}
+
+// Unknown /api/* is a JSON 404 in every mode (never the SPA shell).
+app.use('/api', (req, res) => {
+  res.status(404).json({ message: 'Not found', code: 'NOT_FOUND' });
+});
+
+// Anything else unmatched (production): plain 404.
+if (process.env.NODE_ENV === 'production') {
+  app.use((req, res) => {
+    res.status(404).type('text/plain').send('Not found');
   });
 }
 

@@ -1,9 +1,11 @@
-import { VALID_TABS, resolveInitialTab } from './ui/home-routing.js';
+import { parseLocation, legacyHashToPath } from './url-state.js';
+import { currentRoute, navigate, pathFor, migrateLegacyHash, initRouter } from './router.js';
 import { api, setToken, isLoggedIn } from './api';
 import { setLinkedGyms, setGymCatalogue, getLinkedGyms, getGymShortName, getDefaultGymId, getGymPresentation } from './gym-context.js';
 import { initTooltips } from './ui/tooltips';
 import { setupPullToRefresh, cancelPullToRefresh } from './ui/pulltorefresh';
 import { markScrollBusy, isScrollBusy, isDocScroll, docScroller } from './ui/scroll-state.js';
+import { nextCollapseState } from './ui/scroll-collapse.js';
 import { initGymLogoLoader } from './ui/gym-logo-loader.js';
 import { setCacheKeyPrefix, clearApiCache, invalidateApiCache } from './cache.js';
 import { appConfig, initConfig } from './config';
@@ -12,6 +14,7 @@ import { detectBookingWindow, noSept } from './lib';
 import { canBookAtAll, getIneligibleReason, hasConfirmedAccess } from './ui/credit-allowance.js';
 import { escapeHtml, gymBrand, wordmarkElement } from './ui/cards';
 import { installBookingState } from './ui/booking-state.js';
+import { applyGymLoadState, onGymLoadChange } from './ui/gym-load-state.js';
 import { applyStaticCopy } from './copy.js';
 import { COPY, formatCopyText } from './copy.js';
 
@@ -393,9 +396,12 @@ window.switchTab = switchTab;
 // The currently active tab — used by the shared pull-to-refresh dispatcher.
 let currentTabId = null;
 
-function switchTab(tabId) {
+// opts.history: 'push' (default: a user-initiated tab change adds an entry), 'replace',
+// or 'none' (boot / popstate: the URL already says where we are). opts.section: settings pane.
+function switchTab(tabId, opts = {}) {
+  let historyMode = opts.history || 'push';
   // TEMP: credits hidden unless debugMode (restore by removing gate)
-  if (tabId === 'buy-credits' && !creditsTabAllowed()) tabId = 'class-timetable';
+  if (tabId === 'buy-credits' && !creditsTabAllowed()) { tabId = 'class-timetable'; if (historyMode === 'none') historyMode = 'replace'; }
   cancelPullToRefresh();
   // Leaving the timetable ends search: its own filter scope is dropped and the normal filters return.
   if (tabId !== 'class-timetable') import('./ui/timetable-search-state.js').then(m => { if (m.inSearchScope()) import('./ui/timetable').then(t => t.exitSearch()); });
@@ -424,13 +430,22 @@ function switchTab(tabId) {
   // Each tab starts at the top (window on mobile, inner scroller on desktop).
   try { window.scrollTo(0, 0); document.querySelector('main.psycle-body')?.scrollTo?.(0, 0); } catch (e) { /* jsdom */ }
 
-  // Persist tab in URL hash so refresh restores location
-  if (history.replaceState) {
-    history.replaceState(null, '', `#${tabId}`);
+  // U4-19: the tab lives in the PATH (/bookings, /settings/about ...) so refresh, back/forward
+  // and shared links restore it. Skip when the URL already names this tab (keeps any query).
+  if (historyMode !== 'none' && routeDiffers(tabId, opts.section)) {
+    navigate(pathFor(tabId === 'about' ? { tab: 'settings', section: 'about' } : { tab: tabId, section: opts.section }),
+      { replace: historyMode === 'replace' });
   }
 
   // Trigger tab-specific loading/rendering
   triggerTabRender(tabId);
+}
+
+function routeDiffers(tabId, section) {
+  const r = currentRoute();
+  const want = tabId === 'about' ? 'settings' : tabId;
+  if (!r.valid || r.tab !== want) return true;
+  return want === 'settings' && !!section && r.section !== section;
 }
 
 async function triggerTabRender(tabId) {
@@ -591,10 +606,15 @@ async function registerServiceWorker() {
     navigator.serviceWorker.addEventListener('message', async (event) => {
       if (!event.data) return;
       if (event.data.type === 'NAVIGATE') {
-        window.location.hash = event.data.hash;
+        // New SW sends {path}; a still-cached old SW sends {hash}. Either way go through the router.
+        const target = event.data.path || (event.data.hash ? legacyHashToPath(event.data.hash) : null);
+        if (target) {
+          const r = parseLocation(target.split('?')[0], '');
+          if (r.valid) switchTab(r.tab, { section: r.section });
+        }
       } else if (event.data.type === 'PUSH_RECEIVED') {
         // If we are on the bookings tab, refresh it automatically so they see the new spot
-        if (window.location.hash === '#my-bookings') {
+        if (currentTabId === 'my-bookings') {
           try {
             const { invalidateApiCache } = await import('./cache');
             await invalidateApiCache('/api/bookings').catch(() => {});
@@ -803,6 +823,8 @@ function renderGymBadge(container, gymId, shortName, isMetered, total, credits) 
     import('./ui/settings').then((m) => m.openGymSettings(gymId)).catch((err) => console.error('Open gym settings failed:', err));
   };
   container.appendChild(badge);
+  // U4-2: a chip rebuilt mid-load must keep animating.
+  applyGymLoadState(container);
   fitHeaderBadges(true);
   requestAnimationFrame(() => fitHeaderBadges(true)); // re-check once layout has settled
 }
@@ -810,6 +832,8 @@ function renderGymBadge(container, gymId, shortName, isMetered, total, credits) 
 // Switch ALL badges to the small mark when the full set would overflow the header.
 // Full width is measured (with the wide logos) on each render and cached; resize
 // only compares against that cache, with 24px hysteresis so it cannot oscillate.
+// U4-2: header chips double as per-gym loading indicators (state in gym-load-state.js).
+onGymLoadChange(() => applyGymLoadState(document.getElementById('psycle-header-credits')));
 let fullBadgesWidth = 0;
 let badgeFitObserver = null;
 function fitHeaderBadges(remeasure) {
@@ -1320,9 +1344,12 @@ export async function initApp() {
 
   // Restore tab from URL hash if available, otherwise default to Home
   // A valid hash (deep link / push click / refresh) wins; a fresh session lands on Home.
-  const initialTab = resolveInitialTab(location.hash);
+  // U4-19: legacy #hash (old bookmarks / push payloads) -> clean path first, permanently.
+  migrateLegacyHash();
+  const route = currentRoute();
   applyCreditsTabGate(); // TEMP: credits hidden unless debugMode (restore by removing gate)
-  switchTab(initialTab);
+  // The URL already names the tab ('none'); an unknown path is normalised to Home ('replace').
+  switchTab(route.valid ? route.tab : 'home', { section: route.section, history: route.valid ? 'none' : 'replace' });
 }
 
 // Check auth status on launch
@@ -1704,15 +1731,12 @@ window.addEventListener('psycle-gym-needs-relogin', async (e) => {
   } catch (_) { /* Settings not mounted / not the active tab — nothing to refresh */ }
 });
 
-// Restore tab from URL hash on back/forward navigation
-window.addEventListener('popstate', (e) => {
-  if (e.sweatNavHandled) return; // a modal page consumed this pop (ui/modal-nav.js)
-  const hash = location.hash.replace('#', '');
-  if (VALID_TABS.includes(hash)) {
-    switchTab(hash);
-  } else if (hash === 'about') {
-    switchTab('settings');
-  }
+// Back/forward: apply the tab/section from the path. modal-nav's capture-phase popstate
+// listener runs first and flags events it consumed (sweatNavHandled); the router skips those.
+initRouter((route) => {
+  const tab = route.valid ? route.tab : 'home';
+  switchTab(tab, { section: route.section, history: 'none' });
+  if (tab === 'settings') document.getElementById('psycle-settings-layout-wrapper')?.__applySettingsRoute?.(route.section);
 });
 
 // App Launch
@@ -1725,8 +1749,6 @@ window.addEventListener('popstate', (e) => {
  */
 function initHeaderAutoHide() {
   const mq = window.matchMedia('(max-width: 768px)');
-  const DEAD_ZONE = 12;      // px of net travel before a direction counts
-  const EDGE_ZONE = 32;      // px from top/bottom treated as bounce territory
   const COOLDOWN_MS = 300;   // ignore samples right after a toggle (transition + momentum)
   let app = null, header = null, ticking = false, target = null;
   let anchor = 0, hidden = false;
@@ -1743,6 +1765,7 @@ function initHeaderAutoHide() {
     if (!els() || hide === hidden) return;
     hidden = hide;
     app.classList.toggle('psycle-hdr-hidden', hide);
+    app.classList.toggle('psycle-tt-compact', hide); // timetable date strip + location chip shrink with the header
     // Safe-area cap + theme-color follow the header: header colour while it shows, page colour once it is gone.
     document.documentElement.toggleAttribute('data-hdr-hidden', hide);
     syncThemeColorMeta();
@@ -1756,22 +1779,14 @@ function initHeaderAutoHide() {
     if (!target) return;
     if (!mq.matches) { setHidden(false); return; }
     const sc = isDocScroll() ? docScroller() : target;
-    const raw = sc.scrollTop;
     const max = sc.scrollHeight - sc.clientHeight;
-    const headerH = (header && header.offsetHeight) || 47;
-    // Too short to scroll meaningfully: the header always stays; no toggling at all.
-    if (max < headerH + 48) { setHidden(false); anchor = 0; return; }
-    // iOS rubber-band samples: not real scrolling, never a direction change.
-    if (raw < 0 || raw > max) return;
-    const top = raw;
-    if (modalOpen() || top <= 4) { setHidden(false); anchor = top; return; }
-    if (isScrollBusy()) { anchor = top; return; }        // settle, then re-baseline
-    if (top >= max - EDGE_ZONE) { anchor = top; return; } // bottom bounce zone: keep state
-    if (top <= EDGE_ZONE && hidden === false) { anchor = top; return; }
-    const delta = top - anchor;
-    if (Math.abs(delta) < DEAD_ZONE) return;             // dead zone: keep the anchor so slow drags add up
-    setHidden(delta > 0);
-    anchor = top;
+    // Pure hysteresis (scroll-collapse.js): header hide and the timetable's compact bar share this one state.
+    const next = nextCollapseState({
+      top: sc.scrollTop, max, anchor, collapsed: hidden, busy: isScrollBusy(),
+      modalOpen: modalOpen(), headerH: (header && header.offsetHeight) || 47,
+    });
+    anchor = next.anchor;
+    setHidden(next.collapsed);
   };
 
   document.addEventListener('scroll', (e) => {

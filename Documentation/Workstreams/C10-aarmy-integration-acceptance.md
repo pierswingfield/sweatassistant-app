@@ -1,5 +1,8 @@
 # C10 — Aarmy integration acceptance
 
+> **2026-10-06: Aarmy ENABLED in prod by user decision** (`AARMY_ENABLED=true`), before C10 acceptance. C10-5 (the activation decision) is therefore made. C10-1 (rotate the test account password), C10-2 (write-mutation policy), C10-3 (release-time fallback validation) and C10-4 (acceptance on the target environment, now prod) are **still open and now concern live users**: do them next, read-only first.
+
+
 **Priority:** P0 · **Depends on:** C9 · **Blocks:** enabling or deploying Aarmy
 
 > **Current status:** read-only onboarding passed on 2026-09-30; Aarmy remains disabled in

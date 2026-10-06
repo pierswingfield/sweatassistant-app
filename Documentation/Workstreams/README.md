@@ -20,7 +20,7 @@ dated STATUS line; open items are the only thing left to do.
 
 | | |
 |---|---|
-| **Prod** (`sweat.wingfield.tech`) | **Multi-gym `modular` build since 2026-10-06** (Psycle + JAB; fresh DB; `master` == `modular`). Buy Credits works (v2 cart). First account sign-up / `/admin` check is the user's step (C4-14). |
+| **Prod** (`sweat.wingfield.tech`) | **Multi-gym `modular` build since 2026-10-06** (Psycle + JAB + Aarmy enabled; fresh DB; `master` == `modular`). Buy Credits works (v2 cart). First account sign-up / `/admin` check is the user's step (C4-14). |
 | **Dev twin** (`sweat-dev.wingfield.tech`) | `modular` branch: multi-gym (Psycle/CodexFit + JAB/MarianaTek), merged timetable, per-account calendar, restructured Settings. JAB is enabled there by env var. |
 | **The milestone** | **C4 launched 2026-10-06.** What's open now is post-launch: see the workstream list below. |
 

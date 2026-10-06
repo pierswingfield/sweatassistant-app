@@ -3168,7 +3168,6 @@ function buildMobileClassRow(event, ctx, model) {
           ${/* Gym BEFORE the discipline pill (ownership is the first question a merged timetable answers). */ ''}
           ${gymChip(event.gymId)}
           ${disciplineTag(groupName)}
-          ${favIndicator}
         </div>
         <div class="psycle-mobile-line2">
           <span class="psycle-mobile-class-name">${strippedClassName}</span>
@@ -3180,6 +3179,8 @@ function buildMobileClassRow(event, ctx, model) {
       </div>
     </div>
     <div class="psycle-mobile-rail"></div>
+    ${/* Heart sits in the card's top-right corner, out of flow, so no row's chips or text lose width. */ ''}
+    ${favIndicator}
   `;
 
   const rail = card.querySelector('.psycle-mobile-rail');

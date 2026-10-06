@@ -6,7 +6,7 @@ import { isCreditInventoryLoaded, pickStudioPrefs as pickGymStudioPrefs } from '
 import { isRollingWeeklyGym } from '../gym-context.js';
 import { canForGym, canAny, capabilityForGym, getLinkedGyms, getGymShortName, getLocationAlias, getDefaultGymId, formatSpotLabel } from '../gym-context.js';
 import { showToast, currentUser, userSettings, gymSetting, isAutoUpgradeDefaultEnabled, favouritesForGym, setFavouriteLocal, refreshUserData, updateCreditBadge, cache, debugConsole } from '../main';
-import { heartButtonHtml } from '../favourite-heart.js';
+import { heartButtonHtml, mobileHeartHtml } from '../favourite-heart.js';
 import { slotOfEvent, favouriteId, labelsOfEvent, isFavouriteIn } from '../favourites.js';
 import { passesLocationFilter, formatFullDate, getClassReleaseTime, isFullWithoutWaitlist, isInGracePeriod, GRACE_PERIOD_MS, startGraceCountdown, noSept, zoneFor, formatInZone, dayKeyInZone, nowInZone, deviceZone } from '../lib';
 import { getGymTimeZone, getCatalogueGyms } from '../gym-context.js';
@@ -3146,8 +3146,9 @@ function buildMobileClassRow(event, ctx, model) {
   // Row 3 shows the studio's FULL location name ("Oxford Circus"), not the gym's contracted alias ("OC").
   const displayLoc = trimLocation(locName, getGymShortName(event.gymId));
 
-  // Favourite heart: a real button on every card (filled when favourited), 44px touch target via CSS.
-  const favIndicator = heartButtonHtml({ isFavourite: isBookmarked, eventId: event.id, label: COPY.timetable.favourite, pressedLabel: COPY.timetable.unfavourite, extraClass: 'psycle-mobile-fav-indicator' });
+  // Favourite heart: shown ONLY on a favourited card, right after the class-type chip. Favouriting a class is
+  // done from the kebab menu (buildOverflowItems), which carries Favourite/Unfavourite for every class.
+  const favIndicator = mobileHeartHtml({ isFavourite: isBookmarked, eventId: event.id, label: COPY.timetable.favourite, pressedLabel: COPY.timetable.unfavourite });
 
   // Photo (or a soft initial placeholder, same box, so nothing shifts while it loads). The image comes from the
   // ONE shared lookup (instructorAvatar: the event's own thumb first, else metadata by name).
@@ -3168,6 +3169,7 @@ function buildMobileClassRow(event, ctx, model) {
           ${/* Gym BEFORE the discipline pill (ownership is the first question a merged timetable answers). */ ''}
           ${gymChip(event.gymId)}
           ${disciplineTag(groupName)}
+          ${favIndicator}
         </div>
         <div class="psycle-mobile-line2">
           <span class="psycle-mobile-class-name">${strippedClassName}</span>
@@ -3179,8 +3181,6 @@ function buildMobileClassRow(event, ctx, model) {
       </div>
     </div>
     <div class="psycle-mobile-rail"></div>
-    ${/* Heart sits in the card's top-right corner, out of flow, so no row's chips or text lose width. */ ''}
-    ${favIndicator}
   `;
 
   const rail = card.querySelector('.psycle-mobile-rail');

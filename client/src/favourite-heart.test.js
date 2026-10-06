@@ -27,3 +27,18 @@ describe('heartButtonHtml (F-12 timetable heart)', () => {
     expect(heartButtonHtml({ isFavourite: false, eventId: 1, label: 'x', pressedLabel: 'y', extraClass: 'is-mobile' })).toContain('psycle-timetable-heart unbookmarked is-mobile');
   });
 });
+
+import { mobileHeartHtml } from './favourite-heart.js';
+
+describe('mobileHeartHtml (mobile card shows the heart only when favourited)', () => {
+  const base = { eventId: 9, label: 'Favourite', pressedLabel: 'Unfavourite' };
+  it('renders nothing for a class that is not a favourite', () => {
+    expect(mobileHeartHtml({ ...base, isFavourite: false })).toBe('');
+  });
+  it('renders a pressed filled heart carrying the mobile class for a favourite', () => {
+    const h = mobileHeartHtml({ ...base, isFavourite: true });
+    expect(h).toContain('psycle-mobile-fav-indicator');
+    expect(h).toContain('aria-pressed="true"');
+    expect(h).toContain('aria-label="Unfavourite"');
+  });
+});

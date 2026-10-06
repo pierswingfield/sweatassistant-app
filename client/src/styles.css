@@ -11482,7 +11482,7 @@ html:not([data-credits-tab="on"]) .psycle-nav-btn[data-tab="buy-credits"] { disp
 .fr-favrow { display: flex; align-items: center; gap: 10px; width: 100%; min-height: 48px; padding: 8px 14px; border-radius: 12px; border: 1px solid var(--border); background: var(--surface-2); color: var(--text); font-size: 15px; font-weight: 600; cursor: pointer; touch-action: manipulation; }
 .fr-favrow.on { border-color: var(--danger); color: var(--danger); }
 @media (max-width: 768px) {
-  /* Heart: out of flow in the card's top-right corner (no row loses width, no height change). */
-  #psycle-helper-container .psycle-mobile-class-card { position: relative; }
-  #psycle-helper-container .psycle-mobile-class-card > .psycle-mobile-fav-indicator { position: absolute; top: -6px; right: 0; margin: 0; width: 38px; height: 44px; z-index: 2; }
+  /* Heart: in the first row, right after the class-type chip; only rendered for a favourited class. 44px hit
+     area via negative margin so the row keeps its height. */
+  #psycle-helper-container .psycle-mobile-top-line > .psycle-mobile-fav-indicator { position: static; flex: 0 0 auto; width: 32px; height: 32px; margin: -8px -6px -8px -4px; }
 }

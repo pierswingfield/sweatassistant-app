@@ -285,6 +285,23 @@ Fix proposal (not implemented): the cold-path cost is in `providers/marianatek.j
 
 Dev env restored after the run (`.env` copied back, container recreated, `/api/health` ok); registry unchanged.
 
+### MT cold-load fix: shipped to dev twin (2026-10-06, commit on `optimisation`)
+
+**Change** (`providers/marianatek.js`, platform-level, no gym literals): one shared single-flight class-list fetch per (gym, window, filters) feeding both `fetchTimetable` and `fetchMetadata`; metadata is date-bounded (default 28 days, was the unbounded future schedule); page 1 reveals `meta.pagination.pages`, pages 2..N then go out in parallel with a cap of 4 (`CLASS_LIST_PAGE_CONCURRENCY`). Any failed page fails the whole fetch (no partial result), a 429 arms the per-gym C2-3 backoff and stops launching pages, more than 100 pages throws instead of truncating (the old silent 10-page / unparseable-`next` truncation is gone). `fetchStudioLayout` is bounded too. Tests: `server/test-marianatek-classlist.js` (8 checks); `mock-marianatek.js` now paginates (`MOCK_MT_PAGE_MS` latency knob).
+**Trade-off:** metadata filter lists cover the 28-day window only; the client also harvests options from loaded events.
+
+Cold, dev twin, container restarted before each run, 4 calls concurrent (seconds, timetable/metadata of a gym finish together):
+
+| Run | JAB | Aarmy | Whole page (wall) |
+|---|---|---|---|
+| Before (baseline) | ~36-41 | ~41-46 | ~52-54 |
+| After 1 | 12.3 | 23.9 | 23.9 |
+| After 2 | 11.1 | 21.4 | 21.4 |
+| After 3 | 9.7 | 22.8 | 22.8 |
+| **After median** | **11.1** | **22.8** | **22.8** |
+
+Aarmy stays slower (likely slower upstream pages); not investigated.
+
 ## Tests (spread across phases)
 
 - [x] **Cart v2 contract test against the G3 fixtures** (`server/test-codexfit-v2-cart.js`, added

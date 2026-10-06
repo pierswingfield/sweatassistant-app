@@ -183,3 +183,31 @@ mismatch. It must be run for groups 7, 8 and 11.
 - The B/A split for server comments is judged by reading samples, not every line.
 - `server/public`, `dist`, fixtures and Documentation were excluded by instruction. `server/public` is a build
   output and will mirror client renames on next build.
+
+## 10. Step 4 results (app-level rename, category B)
+
+Verified first: a real-Chrome capture (CDP) of login, all 6 tabs, 8 Settings panes and /admin in dev mode found no
+visible string that calls the APP "Psycle". Every visible hit names the gym ("Psycle London", the "Works with Psycle, ..."
+gym list). A repo-wide scan of non-test client/server code for bare `Psycle` found the same: of about 150 hits, all but
+the items below are correct gym-policy comments or gym labels. AFTER capture: zero text differences, npm test green
+(68/68 server suites, 62 client files / 465 tests), client build OK.
+
+Renamed (batch 1, 1 commit, 5 files):
+- `client/src/api.js`: header comment ("Psycle PWA server" -> "Sweat Assistant server"); the four `|| 'Psycle'` gym-name
+  fallbacks -> `'Gym'` (a gym-less link no longer labels itself Psycle).
+- `client/src/ui/timetable.js`: module-local `psycleEvents` -> `timetableEvents` (21 refs, not exported).
+- `server/poller.js`: cutoff note "ask Psycle to cancel" now names the row's gym.
+- `server/server.js`: ICS download filename `psycle.ics` -> `sweat.ics`.
+- `package.json`: description only.
+
+Kept, uncertain: `window.__psycleTimetablePerformance` (global read by browser checks); npm package names
+`psycle-pwa/-client/-server` and the `psycle.db` path in Dockerfile/backup script (deploy and lockfile coupling);
+`copy.js` "Supports Psycle, ..." (names gyms, correct); Docs/AGENTS.md title "Psycle PWA".
+
+Remaining category C for a later step (unchanged, all persisted or atomic-rename work): CSS classes/ids/`--psycle-*`
+(atomic sed over CSS+HTML+JS+tests); custom DOM events (shared constants module); `psycleAdminToken`; disposable
+caches `psycleUnified*`/`psycleCache*`; IndexedDB `psycle-cache` (deliberate reset plus deleteDatabase); config export
+keys `psycle*` (importer must accept old and new forever). Shim plan for identity storage (`psycleLocalToken`,
+`psycleUserId`, `psycleTheme` incl. the inline script in `client/index.html`, onboarding flags): ship a dual-read
+(new key, fall back to old, write new, delete old) first, rename the writes one or two releases later, drop the
+read fallback much later; otherwise mass logout and re-onboarding.

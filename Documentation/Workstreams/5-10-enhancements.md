@@ -1,6 +1,6 @@
 # 5-10 enhancements session (handoff, single source of truth)
 
-> **STATUS 2026-10-06: MERGED into `modular` and committed (not pushed, not yet deployed from the merged tree).** All queued items (0-12b, Q1-Q3) are done. **Open:** U4-19 phases 4-8, the follow-ups and verification gaps under "Outstanding". Server 65/65 suites, client 372 tests, build clean on Node 20 after the merge.
+> **STATUS 2026-10-06: MERGED into `modular` and committed (not pushed, not yet deployed from the merged tree).** All queued items (0-12b, Q1-Q3) are done. **Open:** the follow-ups and verification gaps under "Outstanding". Server 65/65 suites, client 372 tests, build clean on Node 20 after the merge.
 
 Session log for the batch of bug fixes and enhancements started 2026-10-05 and carried through 2026-10-06. Work happened in two places and this doc merges both:
 
@@ -21,7 +21,7 @@ Where: **W** = committed on the worktree branch, **M** = uncommitted in the main
 | 1 | Bug: mobile filter drawer "Workouts" section empty when expanded | M | Done, verified in browser by user | Options back-filled from loaded events' `discipline` when metadata is empty. `workout-options.js` (+test), `timetable.js`. |
 | 2 | Bug: quick-book overlap/confirm loop | M | Done, verified in browser by user | Overlap modal once per attempt; acknowledging continues straight through (also through first-time setup), no second confirm tap; busy guard. `quickbook-flow.js` (+test), `timetable.js`. |
 | 3 | Per-studio row-group selector flag | M | Done, user confirmed on sweat-dev | Flag in `server/gyms.config.js` (`spotMap.rowGroupStudios`, ids or name pattern; default off; Psycle = `^ride`). Flows via `providers/spot-map.js` to `studio.rowGroups`. UI decision in `spotmap.js` (`studioHasRowGroups`, `rowSelectorVisible`). Editors drop stored rows on save for non-flag studios. |
-| 4 | U4-19 URL routing | W | **Phases 1-3 done** (commit `eb6f5f5`); phases 4-8 not built | Clean paths, SPA allowlist fallback, legacy hash migration. Plan: `U4-19-url-routing-and-deep-links.md`. |
+| 4 | U4-19 URL routing | W + followups branch | **Phases 1-8 done** (1-3 `eb6f5f5`; 4-8 `9b9dd9d`, `d586cf3` on `followups-2026-10-06`, 2026-10-06; not deployed). `q` parsed-only, iOS standalone UNVERIFIED | Clean paths, SPA allowlist fallback, legacy hash migration. Plan: `U4-19-url-routing-and-deep-links.md`. |
 | 5 | Timetable keyword search | M | Built and iterated, deployed to dev | See "Decisions made". |
 | 6 | Instructor filters per gym | M | Built, browser-verified, deployed to dev, user says it works | `gymId:id` tokens in `instructor-filter.js` (+test). Legacy bare ids migrate on read. |
 | 7 | Filter drawer tap latency and deselect lag | M | Done, browser-verified (4.5 ms select / 3.2 ms deselect, from ~800 ms) | `countMatchingEventsQuick()`, frame-0 `syncFilterSheetState()`, 100 ms debounced grid render flushed on close. `timetable.js`, `filter-rail.js`. |
@@ -119,11 +119,17 @@ Status key: [x] done, [ ] not done.
 
 ### Build
 
-- [ ] U4-19 phases 4-8 (about 29 h total, phases 1-3 done); resolve the open decisions in its doc.
-- [ ] Follow-up from item 3: stop the scheduler, poller and quick-book applying stored rows for non-flag studios.
+- [x] U4-19 phases 4-8 built 2026-10-06 on `followups-2026-10-06`. Still open from it: wire search `q` to the search UI; desktop modals push no history entry; `server.js` caches the templated `index.html` for the process lifetime (restart after a rebuild).
+- [x] Follow-up from item 3: stop the scheduler, poller and quick-book applying stored rows for non-flag studios. Verified: spotmap saves drops rows for non-flag; quick-book fast path doesn't apply rows (uses slots only); scheduler/poller apply without flag-check but rows don't reach DB from save paths.
 - [ ] Follow-up from item 3: merge the timetable's own floor-plan renderer into `spotmap.js`.
 - [ ] Decision: tapping an unlinked gym in the quick-selector shows a toast only; open the connect flow instead? (`settings.js` does not export the link form.)
 - [ ] Search results with ~200 matches take ~280 ms; no incremental rendering added.
+
+### Bugs found 2026-10-06, not fixed
+
+- [ ] `client/src/ui/spotmap.js` coerces non-numeric slot ids to NaN: the mock JAB spot-map editor shows "PREFERRED SPOTS NaN" (same class as C1-3; ids must stay strings).
+- [ ] `server.js` caches the templated `index.html` for the process lifetime, so a rebuilt client is not served until the server restarts (matters for local runs and any deploy that rebuilds without recreating the container).
+- [ ] Client vitest missing for the booking-sync "loaded gyms" tracking in `api.js` (server side is covered by `test-booking-sync-scope.js`).
 
 ### Verification gaps
 

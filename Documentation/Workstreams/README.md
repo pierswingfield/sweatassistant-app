@@ -11,7 +11,7 @@ design detail is still valid, and items below link to it.
 
 Status last tidied **2026-10-06** after merging the 5-10 enhancements worktree and the guest-cancel /
 entitlement work into `modular`. **Finished workstreams are moved to
-[`../Archive/2026-10-06/`](../Archive/2026-10-06/)** (C1, U1). Each remaining doc opens with a
+[`../Archive/2026-10-06/`](../Archive/2026-10-06/)** (C1, C3, U1). Each remaining doc opens with a
 dated STATUS line; open items are the only thing left to do.
 
 ## Where things stand
@@ -30,7 +30,7 @@ dated STATUS line; open items are the only thing left to do.
 |---|---|---|---|
 | C1 (archived) | ✅ **FINISHED, archived 2026-10-06** — [Archive/2026-10-06/C1-critical-fixes.md](../Archive/2026-10-06/C1-critical-fixes.md). Critical fixes: security, session, data safety. | P0 | done |
 | [C2](C2-psycle-api-v2.md) | Psycle API v2 compliance and efficiency | **P0** (phase 1), P1 (phase 2) | ~4–5 days |
-| [C3](C3-multi-gym-correctness.md) | Multi-gym correctness. **C3-1..29 done; only the unverified "U1-20-class hunt" candidates remain** | P1 | ~0.5 day to verify |
+| C3 (archived) | ✅ **FINISHED, archived 2026-10-06** — [Archive/2026-10-06/C3-multi-gym-correctness.md](../Archive/2026-10-06/C3-multi-gym-correctness.md). Multi-gym correctness; the last hunt candidate (failed fetch wiping reminder cache) fixed 2026-10-06. | P1 | done |
 | [C4](C4-live-acceptance-and-launch.md) | Live acceptance, promote to prod, JAB launch | **P0 milestone** | ~3 days of work over ~1–2 weeks elapsed |
 | [C5](C5-auto-book.md) | Auto-book gaps; Favourites build (P3) | P2 (Favourites P3) | ~2.5 days |
 | [C6](C6-accounts-auth.md) | Accounts and auth | P2 | ~2–3 days |
@@ -44,8 +44,8 @@ dated STATUS line; open items are the only thing left to do.
 | ID | Workstream | Priority | Size |
 |---|---|---|---|
 | U1 (archived) | ✅ **FINISHED, archived 2026-10-06** — [Archive/2026-10-06/U1-ux-bug-fixes.md](../Archive/2026-10-06/U1-ux-bug-fixes.md) | P1–P2 | done |
-| [U2](U2-components-accessibility.md) | Shared components and accessibility (U2-5 filter redesign implemented; U2-1, U2-2, U2-4 open) | P2 | ~2 days |
-| [U4](U4-ux-improvements.md) | UX improvements (user list 2026-09-29): done: U4-1..5, U4-7..9, U4-11, U4-13, U4-15, U4-16, U4-18, U4-2; U4-6 evaluated; open: U4-17 (onboarding), U4-10, U4-12, U4-14 (post-launch); [U4-19](U4-19-url-routing-and-deep-links.md) URL routing phases 1-3 done, 4-8 open | P2 | ~1 day + U4-19 (~20 h) |
+| [U2](U2-components-accessibility.md) | Shared components and accessibility (U2-1, U2-2, U2-5 done; **U2-4 shared empty-state helper open**) | P2 | ~2 days |
+| [U4](U4-ux-improvements.md) | UX improvements: done: U4-1..5, U4-7..9, U4-11, U4-12 (accepted), U4-13, U4-14 (closed, logo dropped), U4-15, U4-16, U4-17, U4-18, U4-2, **U4-19 (URL routing phases 1-8, built 2026-10-06, not deployed)**; U4-6 evaluated; **open: U4-10 (more glass)** | P2 | ~1–2 days (glass) |
 | [U5](U5-modal-fullscreen-and-spot-flow.md) | Mobile full-screen pages and the spot-map booking flow: U5-1..U5-11, U5-13, U5-16..U5-25 done; open: U5-12 (iOS keyboard, device), U5-14, U5-15 | P2 | ~0.5 day + device check |
 | [U3](U3-css-design-debt.md) | CSS and design-system debt | P3 | ~1 week |
 
@@ -60,7 +60,7 @@ dated STATUS line; open items are the only thing left to do.
 
 | Doc | State |
 |---|---|
-| [5-10-enhancements.md](5-10-enhancements.md) | Merged into `modular` 2026-10-06; open: U4-19 phases 4-8, follow-ups and post-merge smoke test |
+| [5-10-enhancements.md](5-10-enhancements.md) | Merged into `modular` 2026-10-06; U4-19 built on branch `followups-2026-10-06` (not yet merged/deployed); open: browser smoke of merged tree on the dev twin, renderer merge, search-incremental rendering |
 
 ## Recommended order
 

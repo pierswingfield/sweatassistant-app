@@ -1,14 +1,16 @@
 # C3 — Multi-gym correctness
 
+> **ARCHIVED 2026-10-06 — FINISHED.** Moved from `Workstreams/`. All C3 items and the verified hunt are closed.
+
 > **STATUS 2026-10-06: FULLY DONE.** C3-1..C3-29 are all fixed and verified (fix log and evidence below). The U1-20-class hunt was verified on 2026-10-06: 15 of 16 candidates were invalid; **1 valid (M)** was a failed per-gym bookings/waitlists fetch wiping that gym's reminder cache—**fixed 2026-10-06 with test `test-booking-sync-scope.js`** (client tracks loaded gyms, server filters cache scope). C3 can be archived. C4 no longer waits on C3 rows.
 
 **Priority:** P1 · **Size:** ~3 days · **Depends on:** nothing (can run in parallel with C2)
 **Blocks:** C4 launch
 
-> **Verify first:** before changing anything for an item, confirm its basis in the code **and**, for anything user-visible, **in a real browser** (CDP :9222 or Claude for Chrome). For server-only items, use a failing test or a request. Record the evidence. If a browser check is needed and no browser is available, stop with `BLOCKED`. See [AGENT_PROTOCOL.md](AGENT_PROTOCOL.md).
+> **Verify first:** before changing anything for an item, confirm its basis in the code **and**, for anything user-visible, **in a real browser** (CDP :9222 or Claude for Chrome). For server-only items, use a failing test or a request. Record the evidence. If a browser check is needed and no browser is available, stop with `BLOCKED`. See [AGENT_PROTOCOL.md](../Workstreams/AGENT_PROTOCOL.md).
 
 The server-side "active gym" bug class was removed on 2026-09-16
-([audit](../Archive/2026-09-26/Backlog/active-gym-audit.md)). What remains: the client's
+([audit](../../Archive/2026-09-26/Backlog/active-gym-audit.md)). What remains: the client's
 equivalent, a few read-side leftovers, and the bugs the 2026-09-23 live run found against real
 Psycle and JAB accounts.
 

@@ -21,7 +21,7 @@ Prior results: [`QA/browser-runs/`](../QA/browser-runs/).
 | C4-1 | **Unattended future Auto-Book fires at a real release** (Psycle Monday release and a JAB rolling window) | Only verified while someone was watching | wait for a release |
 | C4-2 | MarianaTek **cancel inside the penalty window**: confirm the penalty warning and the actual outcome | Never exercised live [Q9] | 1 h + a booking |
 | C4-3 | MarianaTek **auto-upgrade cutoff** matches the real penalty boundary | Cutoff is assumed, not measured [Q9] | 1 h |
-| C4-4 | MarianaTek **native waitlist auto-fill** doesn't fight the app's own waitlist handling | Unknown interaction [Q7] | needs a full class |
+| C4-4 | ~~MarianaTek native waitlist auto-fill doesn't fight the app's own waitlist handling~~ **MOOT 2026-10-06 (user decision):** for waitlisted JAB classes we join the gym's native waitlist and the app does not handle waitlist actions itself, so there is no interaction to test. | — | — |
 | C4-5 | **Colliding provider IDs** across gyms (same event or location ID at Psycle and JAB) | Mock-tested only | 1 h |
 | C4-6 | **Fresh account onboarding** end to end, including linking a second gym | Done piecemeal, never on a clean account | 1 h |
 | C4-7 | **Installed PWA** on iOS: layout, offline, and push delivery for both gyms | Browser only so far | 1 h |
@@ -63,7 +63,7 @@ in the session scratchpad (not committed — contain live account/customer PII f
     booking was authorized for this session regardless of eligibility. Investigated as C3-13
     (2026-09-27): not reproduced as a code bug — a fresh live check the same day showed badge,
     eligibility and membership all agreeing ("Member" / `canBook:true` / `isActive:true`); see
-    `C3-multi-gym-correctness.md`.
+    `../Archive/2026-10-06/C3-multi-gym-correctness.md`.
   - Psycle: tab showed **"0 credits available — you cannot book here until you top up"** and every
     open timetable row showed "Buy Credits" instead of "Quick Book". Does not match the provider:
     `GET /api/profile` shows `raw.data.available_credits=[{count:2,...}]` and
@@ -146,8 +146,6 @@ reopened on the last route.
   cancel it knowing the credit/allowance may not be restored.
 - **C4-3**: a real JAB class with an active auto-upgrade monitor approaching its cutoff, observed
   live as it happens.
-- **C4-4**: a full JAB class with a spot opening up mid-observation — can't be manufactured safely;
-  opportunistic only.
 
 ## Waived as launch blockers (2026-09-28, user decision)
 
@@ -159,6 +157,8 @@ reopened on the last route.
 1. **Clean DB Rollout**: Prod currently holds only 3 test accounts with 0 pending auto-bookings. To avoid carrying forward legacy single-gym schema debt, vestigial columns, or NULL `password_hash`es, prod will roll a fresh SQLite DB on deploy instead of running the migration backfill. Old DB is backed up to Drive first.
 2. **JAB Enabled at Launch**: Staged rollout with JAB disabled is waived; multi-gym support (Psycle + JAB) launches enabled from day one.
 3. **Admin Panel Review Step**: Explicit verification of `/admin` both before deploy (on dev twin) and post-deploy (on prod).
+
+> **Status check 2026-10-06 (verified on oracle):** C4-11..15 are **NOT done**. Prod `psycle-app` has been up 2 months on the old `master` image (no `gym_id` in its `db.js`); only the dev twin runs `modular`. Nightly backups exist (cron 04:10 + stale check 09:30, `/usr/local/sbin/psycle-backup-sqlite.sh`), but the on-demand pre-deploy run (C4-11) must still be repeated immediately before cutover. Needs the user's explicit go-ahead; `./deploy.sh --prod` needs a typed confirmation.
 
 | # | Step | Notes |
 |---|---|---|

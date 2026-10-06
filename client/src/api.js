@@ -316,6 +316,37 @@ export const api = {
     return true;
   },
 
+  // F-12 gym-neutral favourites: ONE contract for every gym. The server stores them
+  // natively where the gym has bookmarks and locally where it does not; the client never
+  // asks which. A favourite is a recurring slot { studioId, dayOfWeek, startTime } read in
+  // the class's zone. Never cached in IndexedDB: the list is tiny and a stale copy would
+  // flip a heart back after a reload.
+  async getFavourites(gymId = null) {
+    debugLog('GET /api/favourites', 'network');
+    const res = await apiFetch('/api/favourites', { gymId });
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({}));
+      throw new Error(err.message || `Failed to load favourites: ${res.status}`);
+    }
+    return res.json(); // { gymId, native, favourites: [{ id, studioId, dayOfWeek, startTime, …labels }] }
+  },
+
+  // `slot` carries studioId/dayOfWeek/startTime plus optional display labels.
+  async setFavourite(slot, on, gymId = null) {
+    const id = `${slot.studioId}0000${slot.dayOfWeek}0000${slot.startTime}`;
+    debugLog(`${on ? 'PUT' : 'DELETE'} /api/favourites${on ? '' : `/${id}`}`, 'network');
+    const res = await apiFetch(on ? '/api/favourites' : `/api/favourites/${encodeURIComponent(id)}`, {
+      method: on ? 'PUT' : 'DELETE',
+      body: on ? JSON.stringify(slot) : undefined,
+      gymId,
+    });
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({}));
+      throw new Error(err.message || `Failed to update favourite: ${res.status}`);
+    }
+    return res.json();
+  },
+
   // Profile Explorer's hidden edit mode. No normal flow calls this.
   async updateProfileFields(payload, gymId = null) {
     debugLog('POST /api/profile/update', 'network');

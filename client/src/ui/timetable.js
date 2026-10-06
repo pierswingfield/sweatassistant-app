@@ -5,7 +5,8 @@ import { getAvailableCreditsForEvent, hasUsableCredit, getIneligibleReason, isMe
 import { isCreditInventoryLoaded, pickStudioPrefs as pickGymStudioPrefs } from './gym-isolation.js';
 import { isRollingWeeklyGym } from '../gym-context.js';
 import { canForGym, canAny, capabilityForGym, getLinkedGyms, getGymShortName, getLocationAlias, getDefaultGymId, formatSpotLabel } from '../gym-context.js';
-import { showToast, currentUser, userSettings, gymSetting, isAutoUpgradeDefaultEnabled, profileForGym, refreshUserData, updateCreditBadge, cache, debugConsole } from '../main';
+import { showToast, currentUser, userSettings, gymSetting, isAutoUpgradeDefaultEnabled, favouritesForGym, setFavouriteLocal, refreshUserData, updateCreditBadge, cache, debugConsole } from '../main';
+import { slotOfEvent, favouriteId, labelsOfEvent, isFavouriteIn } from '../favourites.js';
 import { passesLocationFilter, formatFullDate, getClassReleaseTime, isFullWithoutWaitlist, isInGracePeriod, GRACE_PERIOD_MS, startGraceCountdown, noSept, zoneFor, formatInZone, dayKeyInZone, nowInZone, deviceZone } from '../lib';
 import { getGymTimeZone, getCatalogueGyms } from '../gym-context.js';
 import { DateTime } from 'luxon';
@@ -1638,12 +1639,7 @@ function countMatchingEventsQuick() {
       const etGroupId = rawGroup != null ? discLabel(String(rawGroup), e.gymId) : null;
       if (!passesDisciplineFilter(selectedEventTypes, etGroupId)) continue;
     }
-    if (showBookmarksOnly) {
-      const identifier = generateBookmarkIdentifier(e);
-      if (!canForGym('bookmarks', e.gymId)) continue;
-      const bookmarks = profileForGym(e.gymId)?.metafields?.public?.bookmarks?.events || [];
-      if (!bookmarks.includes(identifier)) continue;
-    }
+    if (showBookmarksOnly && !isFavouriteEvent(e)) continue;
     count++;
   }
   return count;
@@ -1720,7 +1716,7 @@ function buildFilterRailCtx(eventsExcluding, resultCount) {
       .map(i => ({ ...i, rawId: i.id, id: instructorToken(i.gymId, i.id) })),
     openSearch,
     searchActive: inSearchScope(),
-    canBookmark: false, // Temporarily hidden on front-end until universal cross-gym favourite class solution
+    canBookmark: true, // F-12: gym-neutral favourites exist for every gym now
     flush: flushDeferredFilterRender,
     // Nothing picked = no filter (every chip shows unselected); picking chips
     // narrows to just those. OR within a section, AND across sections.
@@ -1957,12 +1953,8 @@ export async function renderTimetableGrid(reason = 'interaction') {
       if (!passesDisciplineFilter(selectedEventTypes, etGroupId)) return false;
     }
     // Filter by Bookmarked Only
-    if (showBookmarksOnly) {
-      const identifier = generateBookmarkIdentifier(e);
-      if (!canForGym('bookmarks', e.gymId)) return false; // gym has no favourites concept → nothing can match "favourites only"
-      const bookmarks = profileForGym(e.gymId)?.metafields?.public?.bookmarks?.events || [];
-      if (!bookmarks.includes(identifier)) return false;
-    }
+    // F-12: every gym has favourites now (native or local); the row's OWN gym's list decides.
+    if (showBookmarksOnly && !isFavouriteEvent(e)) return false;
     return true;
   });
 
@@ -2177,11 +2169,8 @@ export async function renderTimetableGrid(reason = 'interaction') {
       : null;
     const spotsText = availableSpots !== null ? `${availableSpots} / ${event.capacity}` : 'Open';
 
-    const identifier = generateBookmarkIdentifier(event);
-    // Bookmarks live in CodexFit profile metafields. A gym without the
-    // capability has none — don't reach into a provider-shaped blob for them.
-    const bookmarks = canForGym('bookmarks', event.gymId) ? (profileForGym(event.gymId)?.metafields?.public?.bookmarks?.events || []) : [];
-    const isBookmarked = bookmarks.includes(identifier);
+    // F-12: a favourite is a recurring slot, matched against THIS row's gym's list.
+    const isBookmarked = isFavouriteEvent(event);
     const heartChar = isBookmarked ? '♥' : '♡';
     const heartClass = isBookmarked ? 'psycle-timetable-heart bookmarked' : 'psycle-timetable-heart unbookmarked';
 
@@ -2274,7 +2263,7 @@ export async function renderTimetableGrid(reason = 'interaction') {
       <td class="col-gym">${gymChip(event.gymId)}</td>
       <td class="col-class">
         <div class="psycle-tt-class-cell">
-          ${canForGym('bookmarks', event.gymId) ? `<span class="${heartClass}" data-event-id="${event.id}" title="${isBookmarked ? COPY.timetable.removeBookmark : COPY.timetable.bookmarkClass}">${heartChar}</span>` : ''}
+          <span class="${heartClass}" data-event-id="${event.id}" title="${isBookmarked ? COPY.timetable.removeBookmark : COPY.timetable.bookmarkClass}">${heartChar}</span>
           ${disciplineTag(groupName)}
           <span class="psycle-tt-class-name">${strippedClassName}</span>
         </div>
@@ -2300,15 +2289,13 @@ export async function renderTimetableGrid(reason = 'interaction') {
 
     row.querySelector('.col-actions').appendChild(buildDesktopActions(actionModel, event, userSettings.debugMode, isBookmarked));
 
-    // Heart click listener — the element only exists when the gym HAS bookmarks
-    // (the markup above is capability-gated), so this must be optional. An
-    // unconditional querySelector here threw on every row for a gym without
-    // them, which emptied the whole timetable.
+    // Heart click listener (kept null-safe: an unconditional querySelector that threw
+    // once emptied the whole timetable).
     const heartEl = row.querySelector('.psycle-timetable-heart');
     if (heartEl) {
       heartEl.onclick = (e) => {
         e.stopPropagation();
-        toggleNativeBookmark(event, e.target);
+        toggleFavourite(event, e.target);
       };
     }
 
@@ -2897,14 +2884,12 @@ function buildActionMenuItems(event, model, isBookmarked) {
     items.push({ label: COPY.bookings.guestMenu, icon: 'userPlus', variant: 'book', action: () => openGuestBookingModal(event) });
   }
 
-  if (canForGym('bookmarks', event.gymId)) {
-    items.push({
-      label: isBookmarked ? COPY.timetable.unfavourite : COPY.timetable.favourite,
-      icon: 'heart',
-      variant: 'favourite',
-      action: () => toggleNativeBookmark(event, null),
-    });
-  }
+  items.push({
+    label: isBookmarked ? COPY.timetable.unfavourite : COPY.timetable.favourite,
+    icon: 'heart',
+    variant: 'favourite',
+    action: () => toggleFavourite(event, null),
+  });
 
   items.push({ label: COPY.timetable.studioOccupancy, icon: 'users', variant: '', action: () => openOccupancyModal(event) });
 
@@ -3166,7 +3151,7 @@ function buildMobileClassRow(event, ctx, model) {
   // bookmarked), sitting between the time and the discipline chip. Toggling
   // happens through the context menu instead.
   const favIndicator = isBookmarked
-    ? (canForGym('bookmarks', event.gymId) ? `<span class="psycle-mobile-fav-indicator" aria-label="${COPY.timetable.favourited}">${heartChar}</span>` : '')
+    ? `<span class="psycle-mobile-fav-indicator" aria-label="${COPY.timetable.favourited}">${heartChar}</span>`
     : '';
 
   // Photo (or a soft initial placeholder, same box, so nothing shifts while it loads). The image comes from the
@@ -3326,75 +3311,37 @@ async function openOccupancyModal(event) {
 // === END MOBILE TIMETABLE BLOCK ===
 
 
-// Resilient bookmark ID generator
+// F-12: the favourite key for an event (debug panel only; the server and client share one formula).
 function generateBookmarkIdentifier(event) {
-  if (!event) return '';
-  const studioId = event.studioId || (event.studio ? event.studioId : null);
-  if (!studioId || !event.startAt) return '';
-  
-  const dateObj = new Date(event.startAt);
-  const formatter = new Intl.DateTimeFormat('en-US', {
-    timeZone: zoneFor(event),
-    hour: '2-digit',
-    minute: '2-digit',
-    hour12: false,
-    weekday: 'short'
-  });
-  
-  try {
-    const parts = formatter.formatToParts(dateObj);
-    const wdayStr = parts.find(p => p.type === 'weekday').value;
-    const hourStr = parts.find(p => p.type === 'hour').value;
-    const minStr = parts.find(p => p.type === 'minute').value;
-    
-    const wdayMap = { 'Sun': 0, 'Mon': 1, 'Tue': 2, 'Wed': 3, 'Thu': 4, 'Fri': 5, 'Sat': 6 };
-    const d = wdayMap[wdayStr];
-    
-    return `${studioId}0000${d}0000${hourStr}${minStr}`;
-  } catch (e) {
-    console.error('[Timetable] Error formatting date for bookmark identifier:', e);
-    return '';
-  }
+  return favouriteId(slotOfEvent(event));
 }
 
-// Toggle Heart Bookmark state on CodexFit metafields
-async function toggleNativeBookmark(event, heartEl) {
-  const identifier = generateBookmarkIdentifier(event);
-  if (!identifier) {
+// Is this event a favourite at ITS OWN gym? Not loaded (null index) reads as "no".
+function isFavouriteEvent(event) {
+  return isFavouriteIn(favouritesForGym(event.gymId), event);
+}
+
+// Toggle the heart. Works for every gym through one API: the server stores it natively
+// (Psycle bookmarks) or locally; the client never asks which.
+async function toggleFavourite(event, heartEl) {
+  const slot = slotOfEvent(event);
+  if (!slot) {
     showToast(COPY.timetable.failedBookmarkId, 'error');
     return;
   }
-  
-  const bookmarks = profileForGym(event.gymId)?.metafields?.public?.bookmarks?.events || [];
-  const isCurrentlyBookmarked = bookmarks.includes(identifier);
-  
-  if (heartEl) {
-    heartEl.classList.add('loading');
-  }
-  
+  const wasFavourite = isFavouriteEvent(event);
+  if (heartEl) heartEl.classList.add('loading');
   try {
-    // Bookmarks exist on CodexFit only — MarianaTek has no equivalent — so the
-    // route is capability-gated server-side rather than universal. This client
-    // guard is the fast path; the server rejects independently with 501.
-    // The metafield path shape is the adapter's business, not this module's.
-    if (!canForGym('bookmarks', event.gymId)) {
-      showToast(COPY.timetable.noBookmarkSupport, 'info');
-      return;
-    }
-    await api.setBookmark(identifier, !isCurrentlyBookmarked, event.gymId);
-    
-    // Refresh user profile cache
-    await refreshUserData();
-    showToast(isCurrentlyBookmarked ? COPY.timetable.bookmarkRemoved : COPY.timetable.bookmarkAdded, 'success');
+    await api.setFavourite({ ...slot, ...labelsOfEvent(event) }, !wasFavourite, event.gymId);
+    setFavouriteLocal(event.gymId, slot, !wasFavourite);
+    showToast(wasFavourite ? COPY.timetable.bookmarkRemoved : COPY.timetable.bookmarkAdded, 'success');
     setupDropdownFilters();
     renderTimetableGrid();
   } catch (err) {
-    console.error('[Timetable] Bookmark toggle failed:', err);
+    console.error('[Timetable] Favourite toggle failed:', err);
     showToast(COPY.timetable.bookmarkUpdateFailed, 'error');
   } finally {
-    if (heartEl) {
-      heartEl.classList.remove('loading');
-    }
+    if (heartEl) heartEl.classList.remove('loading');
   }
 }
 

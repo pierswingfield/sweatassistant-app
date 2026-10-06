@@ -7,6 +7,7 @@ import { COPY, formatCopyText } from './copy.js';
 import { createProgressiveMerge } from './ui/progressive-merge.js';
 import { beginGymLoad, endGymLoad } from './ui/gym-load-state.js';
 import { assertMutationNetworkAvailable, isOfflineForMutation } from './network-write-guard.js';
+import { validateSelfBookingRequest } from './ui/booking-entitlement.js';
 
 // API Abstraction layer for communicating with the Psycle PWA server
 
@@ -634,7 +635,20 @@ export const api = {
   rememberStudioLayout(studioId, gymId, slots, objects) { return layoutCache.remember(gymId, studioId, slots, objects); },
 
   // Returns a NormalizedBookingResult { ok, bookingId, slotId, error?, status? }.
-  async book(eventId, slotIds = [], gymId = null, { timeoutMs = 20_000 } = {}) {
+  async book(eventId, slotIds = [], gymId = null, { timeoutMs = 20_000, selfBookingLimit, currentSelfBookings = 0 } = {}) {
+    if (selfBookingLimit !== undefined) {
+      const validation = validateSelfBookingRequest({ slotIds, currentSelfBookings, selfBookingLimit });
+      if (!validation.ok) {
+        return {
+          ok: false,
+          status: 400,
+          code: validation.code,
+          error: validation.code === 'ATTENDEE_LIMIT_EXCEEDED'
+            ? formatCopyText(COPY.bookingEditor.selfBookingLimit, { count: validation.limit })
+            : COPY.bookingEditor.bookingLimitUnavailable,
+        };
+      }
+    }
     const controller = new AbortController();
     let timedOut = false;
     const timer = setTimeout(() => {

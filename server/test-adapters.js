@@ -500,7 +500,7 @@ check('marianatek: booking entitlement separates one self reservation from guest
     guest: [{ id: 'membership' }],
   }), () => mt.getBookingEntitlement('123', { accessToken: 'tok' })));
   assert.deepStrictEqual(result, {
-    maxSelfBookings: 1, selfEligible: true, selfReason: undefined,
+    selfBookingLimit: 1, maxSelfBookings: 1, selfEligible: true, selfReason: undefined,
     guestSupported: true, maxGuestBookings: 1, guestEligible: true,
     guestPassesRemaining: 2, guestReason: undefined,
   });

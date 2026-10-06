@@ -24,7 +24,7 @@ import { openDB, accountScopedKey } from '../cache.js';
 import { bookingNotifyPayload } from './booking-notify.js';
 import { spotSelectionRule, needsSetupIntro, setupIntroCopy } from './spot-selection.js';
 import { disciplineTag, seatNoun, sparklesIcon, trendingUpIcon, icon, pulseIcon, trimLocation, displayStudioName, equalizeDiscTagWidths , gymChip , cleanClassName, getDiscipline, passesDisciplineFilter } from './cards';
-import { openEditBookingModal, syncBookingCache } from './bookings';
+import { openEditBookingModal, openGroupedCancellationModal, syncBookingCache } from './bookings';
 import { openStudioFloorPlanEditor } from './settings';
 import { studioHasRowGroups, rowSelectorVisible } from './spotmap.js';
 import { renderFilterRail, removeFilterRail, syncFilterSheetState, isFilterSheetOpen } from './filter-rail.js';
@@ -2285,10 +2285,14 @@ function buildActionModel(event, ctx) {
         },
       };
     }
-    // Multiple spots booked → manage in My Bookings
+    // Multiple spots booked (member + guest, or several records) → Cancel opens
+    // the grouped chooser straight away; each spot confirms inside the modal.
     return {
       primary, config: null,
-      secondary: { label: COPY.timetable.manage, variant: 'autoupgrade', run: () => window.switchTab('my-bookings') },
+      secondary: {
+        label: COPY.bookings.cancel, variant: 'danger', isCancel: true, opensModal: true,
+        run: () => doGroupedCancel(event),
+      },
     };
   }
 
@@ -2525,6 +2529,17 @@ async function doAutoBookToggle(event, btn, isScheduled) {
 
 // Edit a booked class — reuses the My Bookings edit-spots modal. Builds the
 // booking "group" it expects from the timetable's cached bookings + metadata.
+// Multi-spot classes skip the single-booking confirmation: the grouped modal
+// lists every spot and asks for one confirmation per cancellation.
+async function doGroupedCancel(event) {
+  const eventBookings = userBookings().filter(b => matchesEvent(b, event));
+  if (!eventBookings.length) { showToast(COPY.timetable.bookingNotFound, 'error'); return; }
+  openGroupedCancellationModal(
+    { eventId: event.id, event, bookings: eventBookings },
+    async () => { await refreshUserData(true); await refreshBookingState(); },
+  );
+}
+
 async function doEditBooking(event) {
   const eventBookings = userBookings().filter(b => matchesEvent(b, event));
   if (!eventBookings.length) { showToast(COPY.timetable.bookingNotFound, 'error'); return; }
@@ -2652,7 +2667,7 @@ function buildActionMenuItems(event, model, isBookmarked) {
       label: model.secondary.label,
       icon: model.secondary.isCancel ? 'close' : (isBookish ? 'bolt' : 'chevron'),
       variant: model.secondary.isCancel ? 'danger' : (isBookish ? 'book' : ''),
-      keepOpen: !!model.secondary.isCancel, // cancel runs its own two-tap confirm in place
+      keepOpen: !!model.secondary.isCancel && !model.secondary.opensModal, // cancel runs its own two-tap confirm in place (the grouped chooser is a modal)
       graceDeadline: model.secondary.graceDeadline,
       action: (el) => model.secondary.run(el),
     });

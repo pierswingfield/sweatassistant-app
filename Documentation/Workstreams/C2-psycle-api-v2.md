@@ -263,6 +263,28 @@ Fix proposal (not implemented): the cold-path cost is in `providers/marianatek.j
 
 `server/schedule-cache.js` check: the 60 s TTL is **stale-while-revalidate on request**, not a timer. `getOrFetch` serves fresh entries, serves a stale entry immediately and starts a background `single()` refresh on that request, and awaits only on a miss. There is no `setInterval`/`setTimeout` anywhere in it. Because the cache is in-process, a restart is always a cold miss.
 
+## MT cold-load investigation (2026-10-06, read-only, no code changed)
+
+**Method.** Dev twin with `LOG_LEVEL=debug` set temporarily in the dev `.env` (restored afterwards; nothing persistent changed), container recreated for a cold in-process cache, calls made from the signed-in Chrome tab using the page's own token (one tab, closed after).
+
+**Where the ~40 s goes.** `providers/marianatek.js fetchTimetable` pages `/classes?page_size=100` **serially** (`while (path && pageCount < 10)`, one await per page). Each page is 2-5 s upstream (MarianaTek, about 320 KB per 100 classes). Measured cold, JAB alone: `/api/timetable` (28 days, 788 classes) = **8 serial pages, 31.9 s**; `/api/metadata` = **10 serial pages (the cap), 25.5 s**. Both gyms together, all four calls concurrent: JAB timetable 29.1 s / metadata 22.6 s; Aarmy timetable 43.6 s (478 classes, 5 pages) / metadata 47.7 s; total wall 47.7 s (= slowest call). The two routes run concurrently from the client, so wall time is the slowest of them, but upstream load is doubled and slows each page.
+
+**Duplication: yes, and it is worse than the earlier note said.** `/api/metadata` is derived from a class list but is **not bounded**. The client calls `getMetadata({ttlMs})` with no dates (`ui/timetable.js loadMetadata`), and `fetchMetadata` builds its defaults under the keys `min_start_date`/`max_start_date`, which `fetchTimetable` never reads (it reads `startDate`/`endDate`). So the 28-day default is dead code and metadata fetches the **entire** future schedule up to the 1000-class cap (10 pages). Cache keys differ (`timetable|gym|from|to` vs `metadata|gym||`) and there is no single-flight across them, so the same class data is fetched about 18 times per gym per cold load. `schedule-cache.js` single-flights only identical keys.
+
+**Empty grid (optimisation run 3, unreproduced).** The server cannot return an empty success: `schedule-cache.js single()` caches only a resolved fetcher result, a thrown fetch caches nothing (and falls back to a stale entry if one exists, line 91-98), and a failed page throws out of the `fetchTimetable` loop. Partial results that CAN be cached as success: (a) the 10-page cap silently truncates at 1000 classes (marianatek.js, `maxPages`), (b) a `next` link that fails `new URL()` sets `path = null` and ends the loop with a partial list (the `catch (_)` branch). Neither explains an empty grid. Most likely cause is client-side: `getTimetableProgressive` turns a failed or non-OK gym into `[]` (`merge.fail`), and `progressive-merge.js` flushes the first arrival (Psycle at about 12 s, after the 4 s grace) with the others pending; with an empty unified cache and saved default filters naming JAB/Aarmy studios the grid shows "No classes match" until the MarianaTek gyms land (35-50 s later). `applyFlush` skips only a *final* empty flush. Needs a repro with browser console and the filter state; marked unproven.
+
+**Ranked options (not implemented; gains are estimates against the 30-48 s cold wall time).**
+1. Bound `fetchMetadata` to the same window as the timetable, or better derive metadata from the already-fetched timetable via one shared in-flight class-list fetch (single-flight keyed on gym+range, metadata reads its result). Removes about half the upstream calls and the 10-page unbounded fetch. Cold JAB roughly 32 s to 32 s alone but no contention; Aarmy 48 s to about 30 s.
+2. Parallel pagination: fetch page 1, read `count`, fire pages 2..N concurrently (concurrency 4). 8 serial pages (32 s) to about 8-10 s. Largest single gain; watch MarianaTek 429 (existing `rate-limit-backoff.js`).
+3. Prewarm schedule cache at boot and on a timer for each enabled gym with a linked user (needs a session; per-user token). Hides the cold path entirely for the common case; effort higher.
+4. First paint on 7 days, rest in background (client two-range request, or server returns first chunk). Cold first row in about 4-8 s. Complements 2.
+5. MarianaTek-only longer TTL (timetable 60 s to 5-10 min) plus the existing SWR: reduces how often the cold path recurs; does not help the first load.
+6. Smaller payloads: the response is about 2.5 MB for 788 classes (about 3.2 KB per event, `raw` included); stripping `raw` from the wire helps transfer and render, not the upstream wait.
+
+**Top next step:** options 1 + 2 together (shared, bounded, parallel class-list fetch).
+
+Dev env restored after the run (`.env` copied back, container recreated, `/api/health` ok); registry unchanged.
+
 ## Tests (spread across phases)
 
 - [x] **Cart v2 contract test against the G3 fixtures** (`server/test-codexfit-v2-cart.js`, added

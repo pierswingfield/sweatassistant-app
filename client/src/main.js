@@ -1,5 +1,5 @@
 import { parseLocation, legacyHashToPath } from './url-state.js';
-import { currentRoute, navigate, pathFor, migrateLegacyHash, initRouter } from './router.js';
+import { currentRoute, navigate, pathFor, migrateLegacyHash, initRouter, stashReturnTo, takeReturnTo } from './router.js';
 import { api, setToken, isLoggedIn } from './api';
 import { setLinkedGyms, setGymCatalogue, getLinkedGyms, getGymShortName, getDefaultGymId, getGymPresentation, canForGym } from './gym-context.js';
 import { initTooltips } from './ui/tooltips';
@@ -1359,6 +1359,12 @@ export async function initApp() {
   // A valid hash (deep link / push click / refresh) wins; a fresh session lands on Home.
   // U4-19: legacy #hash (old bookmarks / push payloads) -> clean path first, permanently.
   migrateLegacyHash();
+  // U4-19 phase 7: a validated returnTo (stashed when the login screen showed) restores the page the
+  // member was on if the URL was reset to the bare root in between. A URL that already names a page wins.
+  {
+    const rt = takeReturnTo();
+    if (rt && location.pathname === '/' && !location.search && !location.hash) history.replaceState(history.state, '', rt);
+  }
   const route = currentRoute();
   applyCreditsTabGate(); // TEMP: credits hidden unless debugMode (restore by removing gate)
   // The URL already names the tab ('none'); an unknown path is normalised to Home ('replace').
@@ -1372,6 +1378,9 @@ async function checkAuth() {
   await initConfig();
   applyAppName();
 
+  // U4-19: a logged-out visit to a deep link (including via onboarding, which never calls showLogin)
+  // remembers where it was headed.
+  if (!isLoggedIn()) stashReturnTo(location.pathname + location.search);
   if (isLoggedIn()) {
     // Restore per-user cache key prefix from localStorage so cached data
     // is found on reload (the prefix was set during login but is lost on reload).
@@ -1428,6 +1437,7 @@ async function checkAuth() {
 }
 
 function showLogin() {
+  stashReturnTo(location.pathname + location.search);   // U4-19: same-origin path only; validated on both ends
   setCacheKeyPrefix('');
   clearApiCache().catch(() => {});
   localStorage.removeItem('psycleUserId');
@@ -1748,6 +1758,11 @@ window.addEventListener('psycle-gym-needs-relogin', async (e) => {
 // listener runs first and flags events it consumed (sweatNavHandled); the router skips those.
 initRouter((route) => {
   const tab = route.valid ? route.tab : 'home';
+  // Same-tab timetable back/forward (day/filter entries): repaint from the URL, no tab churn or refetch.
+  if (tab === 'class-timetable' && currentTabId === 'class-timetable') {
+    import('./ui/timetable').then(t => t.restoreTimetableFromUrl(route.timetable));
+    return;
+  }
   switchTab(tab, { section: route.section, history: 'none' });
   if (tab === 'settings') document.getElementById('psycle-settings-layout-wrapper')?.__applySettingsRoute?.(route.section);
 });

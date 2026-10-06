@@ -11,6 +11,7 @@ const pushService = require('./push');
 const notifications = require('./notifications');
 const scheduler = require('./scheduler');
 const poller = require('./poller');
+const { resolveSyncScope } = require('./booking-sync-scope');
 const calendar = require('./calendar');
 const { normalizeCalendarPrefs, applyCalendarPatch } = require('./calendar-prefs');
 const { isRollingWeekly } = require('./providers/booking-window');
@@ -209,15 +210,25 @@ const fileCache = {};
 // Built client directory. Overridable so tests (and the browser check) can serve a build from elsewhere.
 const PUBLIC_DIR = process.env.PUBLIC_DIR || path.join(__dirname, 'public');
 
+// Cache the templated file keyed by path AND mtime: a rebuilt client (new hashed bundle names in
+// index.html) is served on the next request instead of after a process restart.
 function sendTemplated(filePath, res, contentType) {
-  if (!fileCache[filePath]) {
+  let mtimeMs;
+  try {
+    mtimeMs = fs.statSync(filePath).mtimeMs;
+  } catch {
+    return res.status(404).send('Not found');
+  }
+  let entry = fileCache[filePath];
+  if (!entry || entry.mtimeMs !== mtimeMs) {
     try {
-      fileCache[filePath] = fs.readFileSync(filePath, 'utf8');
+      entry = { mtimeMs, text: fs.readFileSync(filePath, 'utf8') };
+      fileCache[filePath] = entry;
     } catch {
       return res.status(404).send('Not found');
     }
   }
-  let content = fileCache[filePath];
+  let content = entry.text;
   if (config.appName !== 'Sweat Assistant') {
     content = content.replaceAll('Sweat Assistant', config.appName);
   }
@@ -382,14 +393,19 @@ app.post('/api/notify/booking-success', authenticateToken, async (req, res) => {
 // Client pushes its freshly-fetched bookings to keep the reminder cache warm (no extra CodexFit calls).
 app.post('/api/bookings/sync', authenticateToken, (req, res) => {
   try {
-    const { bookings } = req.body;
-    // The client syncs the MERGED list, so this call is authoritative for every
-    // linked gym: each row is filed under its own `gymId`, and a gym with no
-    // rows left is cleared rather than left holding stale reminders.
+    const { bookings, gymIds } = req.body;
+    const userGyms = db.getUserGyms(req.userId).map((g) => g.gym_id);
+
+    // If gymIds is provided, use it (only for gyms that actually loaded).
+    // Otherwise fall back to legacy behavior (all user's gyms).
+    // Validate that provided gymIds are a subset of the user's linked gyms.
+    const { scope, skip } = resolveSyncScope(gymIds, userGyms);
+    if (skip) return res.json({ success: true }); // nothing loaded: touch nothing
+
     db.replaceBookingCache(
       req.userId,
       Array.isArray(bookings) ? bookings : [],
-      db.getUserGyms(req.userId).map((g) => g.gym_id),
+      scope,
     );
     // Keep the calendar feed current the moment the client reports a change.
     try { calendar.regenerateSnapshot(req.userId); } catch (_) {}

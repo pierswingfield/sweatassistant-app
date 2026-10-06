@@ -19,6 +19,7 @@ function announceBookingMutation(detail) {
 
 let localToken = localStorage.getItem('psycleLocalToken') || null;
 const offlineSnapshotMeta = new Map();
+let lastLoadedGymIds = new Set(); // Track which gyms loaded successfully in getBookings/getWaitlists
 
 function publishOfflineSnapshot(name, snapshot) {
   offlineSnapshotMeta.set(name, snapshot.savedAt);
@@ -765,6 +766,7 @@ export const api = {
       const data = await res.json();
       const gymId = linked[0]?.gym_id || getDefaultGymId();
       const gymName = linked[0]?.gym_name || linked[0]?.name || 'Psycle';
+      lastLoadedGymIds = new Set([gymId]); // Single gym always loaded
       return (data.bookings || []).map((b) => ({
         ...b,
         gymId: b.gymId || gymId,
@@ -781,21 +783,29 @@ export const api = {
           beginGymLoad(gymId);
           let res;
           try { res = await apiFetch('/api/bookings', { gymId }); } finally { endGymLoad(gymId); }
-          if (!res.ok) return [];
+          if (!res.ok) return { data: [], gymId, loaded: false };
           const data = await res.json();
-          return (data.bookings || []).map((b) => ({
-            ...b,
-            gymId: b.gymId || gymId,
-            gymName: b.gymName || gName,
-            event: b.event ? { ...b.event, gymId: b.event.gymId || gymId, gymName: b.event.gymName || gName } : b.event,
-          }));
+          return {
+            data: (data.bookings || []).map((b) => ({
+              ...b,
+              gymId: b.gymId || gymId,
+              gymName: b.gymName || gName,
+              event: b.event ? { ...b.event, gymId: b.event.gymId || gymId, gymName: b.event.gymName || gName } : b.event,
+            })),
+            gymId,
+            loaded: true,
+          };
         } catch (err) {
           if (isOfflineForMutation()) throw err;
-          return [];
+          return { data: [], gymId, loaded: false };
         }
       })
     );
-    const all = results.flat();
+
+    // Track which gyms successfully loaded
+    lastLoadedGymIds = new Set(results.filter(r => r.loaded).map(r => r.gymId));
+
+    const all = results.flatMap(r => r.data);
     all.sort((a, b) => new Date(a.event?.startAt || a.event?.start_at || a.start_at || 0) - new Date(b.event?.startAt || b.event?.start_at || b.start_at || 0));
     return all;
     });
@@ -830,21 +840,27 @@ export const api = {
           beginGymLoad(gymId);
           let res;
           try { res = await apiFetch('/api/waitlists', { gymId }); } finally { endGymLoad(gymId); }
-          if (!res.ok) return [];
+          if (!res.ok) return { data: [], gymId, loaded: false };
           const data = await res.json();
-          return (data.waitlists || []).map((w) => ({
-            ...w,
-            gymId: w.gymId || gymId,
-            gymName: w.gymName || gName,
-            event: w.event ? { ...w.event, gymId: w.event.gymId || gymId, gymName: w.event.gymName || gName } : w.event,
-          }));
+          return {
+            data: (data.waitlists || []).map((w) => ({
+              ...w,
+              gymId: w.gymId || gymId,
+              gymName: w.gymName || gName,
+              event: w.event ? { ...w.event, gymId: w.event.gymId || gymId, gymName: w.event.gymName || gName } : w.event,
+            })),
+            gymId,
+            loaded: true,
+          };
         } catch (err) {
           if (isOfflineForMutation()) throw err;
-          return [];
+          return { data: [], gymId, loaded: false };
         }
       })
     );
-    const all = results.flat();
+
+
+    const all = results.flatMap(r => r.data);
     all.sort((a, b) => new Date(a.event?.startAt || a.event?.start_at || a.start_at || 0) - new Date(b.event?.startAt || b.event?.start_at || b.start_at || 0));
     return all;
     });
@@ -1243,10 +1259,14 @@ export const api = {
   },
 
   // Push freshly-fetched bookings to the server to keep the reminder cache warm.
+  // Only syncs gyms that successfully loaded (lastLoadedGymIds), so a transient
+  // fetch failure doesn't wipe that gym's reminder cache (C3-x, 2026-10-06).
   async syncBookings(bookings) {
+    // Skip sync if nothing loaded (withOfflineSnapshot returned cached snapshot)
+    if (lastLoadedGymIds.size === 0) return { success: true };
     const res = await apiFetch('/api/bookings/sync', {
       method: 'POST',
-      body: JSON.stringify({ bookings })
+      body: JSON.stringify({ bookings, gymIds: Array.from(lastLoadedGymIds) })
     });
     return res.json();
   },

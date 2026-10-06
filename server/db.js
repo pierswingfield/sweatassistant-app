@@ -1953,23 +1953,40 @@ module.exports = {
   // Waitlist cache (one row per waitlisted class)
   // Gym-scoped DELETE for the same reason as replaceBookingCache: an unscoped
   // wipe would drop the other gym's waitlists on every sync.
-  replaceWaitlistCache(userId, list) {
-    const gymId = resolveActiveGymId(userId);
+  // scopeGymIds: if provided, only these gyms' rows are cleared/replaced; defaults
+  // to the active gym for backward compatibility (legacy callers), or to the gyms
+  // present in the payload if scopeGymIds is explicitly an array.
+  replaceWaitlistCache(userId, list, scopeGymIds = null) {
+    const allList = Array.isArray(list) ? list : [];
+    const rowsByGym = new Map();
+    for (const w of allList) {
+      if (w.eventId == null || !w.startAt) continue;
+      const gym = w.gymId || resolveActiveGymId(userId);
+      if (!rowsByGym.has(gym)) rowsByGym.set(gym, []);
+      rowsByGym.get(gym).push(w);
+    }
+    // If scopeGymIds not provided, use active gym for backward compatibility.
+    const scope = (scopeGymIds && scopeGymIds.length)
+      ? [...new Set(scopeGymIds)]
+      : [resolveActiveGymId(userId)];
+
     const del = db.prepare('DELETE FROM waitlist_cache WHERE user_id = ? AND gym_id = ?');
     const ins = db.prepare(`
       INSERT OR REPLACE INTO waitlist_cache
         (user_id, gym_id, event_id, start_at, class_name, group_name, instructor_name, studio_name, location_name, studio_id, location_address, synced_at)
       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP)
     `);
-    const tx = db.transaction((uid, gym, rows) => {
-      del.run(uid, gym);
-      for (const w of rows) {
-        if (w.eventId == null || !w.startAt) continue;
-        ins.run(uid, gym, w.eventId, w.startAt, w.className ?? null, w.groupName ?? null,
-          w.instructorName ?? null, w.studioName ?? null, w.locationName ?? null, w.studioId ?? null, w.locationAddress ?? null);
+    const tx = db.transaction((uid) => {
+      for (const gym of scope) del.run(uid, gym);
+      for (const [gym, rows] of rowsByGym) {
+        if (!scope.includes(gym)) continue; // not ours to write
+        for (const w of rows) {
+          ins.run(uid, gym, w.eventId, w.startAt, w.className ?? null, w.groupName ?? null,
+            w.instructorName ?? null, w.studioName ?? null, w.locationName ?? null, w.studioId ?? null, w.locationAddress ?? null);
+        }
       }
     });
-    tx(userId, gymId, Array.isArray(list) ? list : []);
+    tx(userId);
   },
   getWaitlistCacheForUser(userId) {
     return db.prepare('SELECT * FROM waitlist_cache WHERE user_id = ? AND gym_id = ?')

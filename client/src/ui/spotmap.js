@@ -53,6 +53,17 @@ export function rowSelectorVisible({ rowGroups, rowCount, editing }) {
   return rowGroups === true && !!editing && rowCount > 1;
 }
 
+/**
+ * Canonical in-editor key for a slot id. Normalized ids are STRINGS and not all of them are numeric
+ * (MarianaTek spot ids like "mock-bag-1"), so `Number(id)` turns them into NaN and every such spot
+ * collapses onto one value. Canonical numeric ids stay numbers, because saved preferences are
+ * `number[]` for Psycle and the saved shape must not change; everything else stays a string.
+ */
+export function slotKey(id) {
+  const n = Number(id);
+  return Number.isFinite(n) && String(n) === String(id).trim() ? n : String(id);
+}
+
 export function renderStudioFloorPlan(container, layoutSlots, initialSlots, initialRows, onSave, options = {}) {
   const {
     saveLabel = COPY.spotMapEditor.saveDefaults,
@@ -83,15 +94,17 @@ export function renderStudioFloorPlan(container, layoutSlots, initialSlots, init
   // In read-only mode the map starts locked until the user clicks the edit button.
   let editing = !readOnly;
 
-  const selectedSlots = [...initialSlots];
+  const initialKeys = [...initialSlots].map(slotKey);
+  const selectedSlots = [...initialKeys];
+  const availableKeys = Array.isArray(availableSlots) ? availableSlots.map(slotKey) : [];
   // A studio without row groups neither shows nor applies stored rows; saving
   // drops them (they were never settable there), so nothing invisible lingers.
   const seedRows = rowGroups ? initialRows : [];
   const selectedRows = new Set(seedRows);
 
   const mapChanged = () => {
-    if (selectedSlots.length !== initialSlots.length) return true;
-    if (selectedSlots.some((id, i) => id !== initialSlots[i])) return true;
+    if (selectedSlots.length !== initialKeys.length) return true;
+    if (selectedSlots.some((id, i) => id !== initialKeys[i])) return true;
     if (selectedRows.size !== seedRows.length) return true;
     for (const r of selectedRows) if (!seedRows.includes(r)) return true;
     return false;
@@ -158,7 +171,7 @@ export function renderStudioFloorPlan(container, layoutSlots, initialSlots, init
     const summary = document.createElement('div');
     summary.style.cssText = 'font-size:12px;margin-bottom:10px;min-height:16px;';
     const spotLabels = selectedSlots.map(id => {
-      const slot = layoutSlots.find(s => Number(s.id) === id);
+      const slot = layoutSlots.find(s => slotKey(s.id) === id);
       return slot?.label || String(id);
     });
     const rowLabels = Array.from(selectedRows).map(y => {
@@ -263,15 +276,15 @@ export function renderStudioFloorPlan(container, layoutSlots, initialSlots, init
 
     // Slots
     layoutSlots.forEach(slot => {
-      const slotId = Number(slot.id);
+      const slotId = slotKey(slot.id);
       const priority = selectedSlots.indexOf(slotId) + 1;
       const inRow = selectedRows.has(slot.y);
       const label = slot.label || String(slotId);
       const short = shortLabels.get(String(slot.id)) || label;
 
       const hasAvailability = !!availableSlots;
-      const isAvailable = !hasAvailability || availableSlots.includes(slotId);
-      const isCurrent = currentSlotId !== null && Number(currentSlotId) === slotId;
+      const isAvailable = !hasAvailability || availableKeys.includes(slotId);
+      const isCurrent = currentSlotId !== null && slotKey(currentSlotId) === slotId;
       const reservationState = slotStates instanceof Map
         ? slotStates.get(String(slot.id))
         : slotStates?.[String(slot.id)];

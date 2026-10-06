@@ -52,6 +52,8 @@ import { instructorToken, migrateInstructorSelection, hasLegacyInstructors, pass
 import { bookCandidateSpots } from './booking-attempts.js';
 import { bookingQuantityOptions, maxAttendeesPerClass } from './booking-limits.js';
 import { renderStudioFloorPlan } from './spotmap.js';
+import { currentRoute, commitFilterChange, commitNow, replaceCurrent, pathFor } from '../router.js';
+import { stateToUrlTimetable, urlToState, savedToState, sameFilters, overlayLabels, guardedSaveDefaults, emptyFilterState } from './timetable-url-sync.js';
 
 async function cacheSet(key, value) {
   try {
@@ -609,10 +611,132 @@ function scheduleInstructorFit() {
   }
 }
 
+
+// ── U4-19 phases 4-5: URL <-> timetable state ─────────────────────────────────────────────
+// The URL carries day + the filter set when it differs from the SAVED defaults. Filters that
+// arrive from a link are an OVERLAY: in memory only, shown with a banner, never persisted.
+let savedFilterState = emptyFilterState();   // what localStorage holds (set by loadStoredFilters / save)
+let overlayActive = false;                   // current filters came from a URL and differ from saved
+let overlayDropped = 0;                      // ids in the link that no longer resolve
+let pendingUrlTimetable = null;              // parsed params waiting for metadata
+let urlReplaceOnce = true;                   // next sync corrects the current entry instead of pushing
+let lastSynced = null;                       // { day, filters } as last reflected in the URL
+let lastDefaultDay = null;                   // the day a bare /timetable lands on (omitted from the URL)
+
+const currentFilterState = () => ({ gyms: selectedGyms, locations: selectedLocations, instructors: selectedInstructors, eventTypes: selectedEventTypes, bookmarks: showBookmarksOnly });
+function setFilterState(st) {
+  selectedGyms = [...st.gyms]; selectedLocations = [...st.locations]; selectedInstructors = [...st.instructors];
+  selectedEventTypes = [...st.eventTypes]; showBookmarksOnly = !!st.bookmarks;
+}
+const copyOf = (st) => ({ gyms: [...st.gyms], locations: [...st.locations], instructors: [...st.instructors], eventTypes: [...st.eventTypes], bookmarks: !!st.bookmarks });
+
+function urlCtx() {
+  const workouts = buildWorkoutOptions({
+    eventTypes: metadata.eventTypes, events: psycleEvents, gymOk: () => true, labelOf: (g) => getDiscipline(g).label,
+  }).map(w => ({ label: w.name, gymId: String(w.gymId) }));
+  return {
+    linkedGymIds: (getLinkedGyms() || []).map(g => String(g.gym_id || g.id)),
+    locations: metadata.locations, instructors: metadata.instructors, workouts,
+    gymName: (id) => getGymShortName(id), locationName: (l) => locationBaseLabel(l),
+    favouritesLabel: COPY.timetable.overlayFavourites,
+  };
+}
+
+function timetableTabVisible() {
+  return currentRoute().tab === 'class-timetable' && !!document.getElementById('psycle-timetable-grid');
+}
+
+/** Apply parsed URL params (load, deep link, back/forward). Never pushes history. */
+function applyUrlTimetable(t) {
+  const r = urlToState(t, urlCtx());
+  if (r.ignoredGyms.length) {
+    showToast(formatCopyText(COPY.timetable.overlayGymIgnored, { gyms: r.ignoredGyms.map(g => getGymShortName(g) || g).join(', ') }), 'warning');
+  }
+  if (r.usesDefaults) {
+    setFilterState(copyOf(savedFilterState));
+    overlayActive = false; overlayDropped = 0;
+  } else {
+    setFilterState(r.state);
+    overlayActive = !sameFilters(r.state, savedFilterState);
+    overlayDropped = r.dropped.length;
+  }
+  selectedTimetableDate = r.day || null;   // render validates it against days that have classes
+  urlReplaceOnce = true;
+}
+
+/** Back/forward within the timetable: restore day + filters from the URL and repaint (no refetch). */
+export function restoreTimetableFromUrl(t) {
+  if (inSearchScope()) { restoreFromSearchScope(); if (getSearchQuery()) setSearchQuery(''); }
+  if (!metadata.locations.length) { pendingUrlTimetable = t || {}; return; }
+  applyUrlTimetable(t || {});
+  renderTimetableGrid('filter');
+}
+
+/** Reflect day + filters in the URL. Called from render once the day is validated. */
+function syncUrlFromState(defaultDay = lastDefaultDay) {
+  if (!timetableTabVisible() || inSearchScope() || pendingUrlTimetable || !metadata.locations.length) return;
+  const filters = currentFilterState();
+  const day = selectedTimetableDate || null;
+  const desired = pathFor({ tab: 'class-timetable', timetable: stateToUrlTimetable(filters, urlCtx(), { day, defaultDay, saved: savedFilterState }) });
+  const here = location.pathname + location.search;
+  const filtersChanged = !lastSynced || !sameFilters(filters, lastSynced.filters);
+  const dayChanged = !lastSynced || lastSynced.day !== day;
+  const replace = urlReplaceOnce;
+  urlReplaceOnce = false;
+  // A manual edit ends the overlay: the filters are now the user's own.
+  if (lastSynced && filtersChanged && !replace) { overlayActive = false; overlayDropped = 0; }
+  lastSynced = { day, filters: copyOf(filters) };
+  if (desired === here) return;
+  if (replace) replaceCurrent(desired);
+  else if (dayChanged && !filtersChanged) commitNow(desired);
+  else commitFilterChange(desired);
+}
+
+function renderOverlayBanner() {
+  const grid = document.getElementById('psycle-timetable-grid');
+  if (!grid || !grid.parentElement) return;
+  let el = document.getElementById('psycle-url-overlay-banner');
+  if (!overlayActive) { el?.remove(); return; }
+  const labels = overlayLabels(currentFilterState(), urlCtx());
+  const text = formatCopyText(COPY.timetable.overlayFiltered, { labels: labels.join(', ') || COPY.timetable.overlayNoFilters })
+    + (overlayDropped ? ` · ${formatCopyText(COPY.timetable.overlayUnavailable, { count: overlayDropped })}` : '');
+  if (!el) {
+    el = document.createElement('div');
+    el.id = 'psycle-url-overlay-banner';
+    el.className = 'psycle-url-overlay-banner';
+    el.setAttribute('role', 'status');
+    el.setAttribute('aria-live', 'polite');
+    el.innerHTML = '<span class="psycle-url-overlay-text"></span><button type="button" class="psycle-url-overlay-clear"></button>';
+    el.querySelector('button').onclick = clearUrlOverlay;
+    grid.parentElement.insertBefore(el, grid);
+  }
+  el.querySelector('.psycle-url-overlay-text').textContent = text;
+  el.querySelector('button').textContent = COPY.timetable.overlayClear;
+}
+
+/** Clear = back to the SAVED set (not wiped), URL params stripped via replace. */
+export function clearUrlOverlay() {
+  setFilterState(copyOf(savedFilterState));
+  overlayActive = false; overlayDropped = 0;
+  urlReplaceOnce = true;
+  document.getElementById('psycle-url-overlay-banner')?.remove();
+  renderTimetableGrid('filter').then(() => {
+    const grid = document.getElementById('psycle-timetable-grid');
+    if (grid) { grid.setAttribute('tabindex', '-1'); grid.focus({ preventScroll: true }); }
+  });
+}
+
+export function _overlayStateForTest() { return { overlayActive, savedFilterState }; }
+
 // Initializer
 export async function initTimetable() {
   const initStartedAt = timetablePerfNow();
   loadStoredFilters();
+  // U4-19: entering the tab from a URL that carries timetable params applies them as an overlay
+  // once metadata is available (render). Otherwise the saved defaults stand.
+  overlayActive = false; overlayDropped = 0; lastSynced = null; urlReplaceOnce = true;
+  const r = currentRoute();
+  pendingUrlTimetable = r.tab === 'class-timetable' ? r.timetable : null;
   setupDropdownFilters();
   await prefetchTimetableData();
   recordTimetableTiming('initialise-total', initStartedAt);
@@ -653,8 +777,9 @@ function loadStoredFilters() {
     let local = null;
     try { local = JSON.parse(localStorage.getItem(defaultFiltersKey()) || 'null'); } catch (_) {}
     const { filters, pushUp, writeLocal } = resolveDefaultFilters(userSettings && userSettings.defaultFilters, local);
-    if (!filters) return;
+    if (!filters) { savedFilterState = emptyFilterState(); return; }
     applyFilters(filters);
+    savedFilterState = savedToState(filters);   // U4-19: the SAVED set a deep-link overlay is cleared back to
     if (writeLocal) {
       try { localStorage.setItem(defaultFiltersKey(), JSON.stringify(filters)); } catch (_) {}
     }
@@ -1351,13 +1476,22 @@ function setupFilterEventListeners() {
       saveDefaultFiltersBtn.innerHTML = COPY.timetable.savingFilters;
 
       try {
-        localStorage.setItem(defaultFiltersKey(), JSON.stringify(defaultFilters));
+        if (!guardedSaveDefaults(localStorage, defaultFiltersKey(), defaultFilters, overlayActive)) {
+          // Filters that came from a link are never persisted (U4-19): Clear them first.
+          showToast(COPY.timetable.overlaySaveBlocked, 'warning');
+          isSavingDefaults = false;
+          saveDefaultFiltersBtn.innerHTML = originalText;
+          saveDefaultFiltersBtn.style.cursor = 'pointer';
+          return;
+        }
         // Persist to the account so it follows the user across devices. A failed
         // network save is non-fatal: the local copy is kept and re-pushed on next load.
         try {
           await api.updateSettings({ defaultFilters });
           userSettings.defaultFilters = defaultFilters;
         } catch (e) { console.warn('[Timetable] Server save of default filters failed:', e); }
+        savedFilterState = savedToState(defaultFilters);
+        urlReplaceOnce = true; syncUrlFromState();
         setTimeout(() => {
           saveDefaultFiltersBtn.innerHTML = COPY.timetable.savedFilters;
           saveDefaultFiltersBtn.style.background = 'var(--success)';
@@ -1686,6 +1820,7 @@ function normalizeStoredFilters() {
   if (coversAll(selectedInstructors, metadata.instructors.map(i => instructorToken(i.gymId, i.id)))) selectedInstructors = [];
   const labels = [...new Set(metadata.eventTypes.filter(t => t.group).map(t => discLabel(t.group, t.gymId)))];
   if (coversAll(selectedEventTypes, labels)) selectedEventTypes = [];
+  savedFilterState = copyOf(currentFilterState());   // saved set, after the one-time fold
 }
 
 // Core timetable grid and date selector rendering
@@ -1706,6 +1841,10 @@ export async function renderTimetableGrid(reason = 'interaction') {
   // Compute interdependent dropdown options: each filter shows only values present in events
   // that match ALL OTHER active filters (but not the filter for that dropdown itself).
   normalizeStoredFilters();
+  if (pendingUrlTimetable && metadata.locations.length) {
+    const t = pendingUrlTimetable; pendingUrlTimetable = null;
+    applyUrlTimetable(t);
+  }
   const now = new Date();
   const futureEvents = psycleEvents.filter(e => new Date(e.startAt) >= now);
 
@@ -1843,16 +1982,21 @@ export async function renderTimetableGrid(reason = 'interaction') {
   const daysWithEvents = Array.from(new Set(sortedEvents.map(e => dayKeyInZone(e.startAt, zoneFor(e))))).sort();
 
   // 4. Validate/Update selected date state
+  let defaultDay = null;
   if (daysWithEvents.length > 0) {
+    // "Today" is the gym-local day: check each zone present in the list.
+    const todays = [...new Set(sortedEvents.map(zoneFor))].map(z => nowInZone(z).toISODate());
+    defaultDay = todays.find(t => daysWithEvents.includes(t)) || daysWithEvents[0];
     if (!selectedTimetableDate || !daysWithEvents.includes(selectedTimetableDate)) {
-      // "Today" is the gym-local day: check each zone present in the list.
-      const todays = [...new Set(sortedEvents.map(zoneFor))].map(z => nowInZone(z).toISODate());
-      const todayStr = todays.find(t => daysWithEvents.includes(t));
-      selectedTimetableDate = todayStr || daysWithEvents[0];
+      selectedTimetableDate = defaultDay;
     }
   } else {
     selectedTimetableDate = null;
   }
+  // U4-19: reflect day + filters in the URL, and show/hide the deep-link banner.
+  lastDefaultDay = defaultDay;
+  syncUrlFromState(defaultDay);
+  renderOverlayBanner();
 
   // 5. Render Horizontal Date Carousel
   const carousel = document.getElementById('psycle-timetable-carousel');
@@ -3488,7 +3632,7 @@ export async function openGuestBookingModal(c) {
       });
       renderStudioFloorPlan(body.querySelector('#guest-booking-map'), slots, [], [], () => {}, {
         layoutObjects: details.objects || [],
-        availableSlots: available.map((slot) => Number(slot.id)),
+        availableSlots: available.map((slot) => String(slot.id)),
         slotStates: reservationStates,
         selectionLimit: 1,
         hideSummary: true,
@@ -4570,7 +4714,7 @@ async function tryAutoRegisterUpgrade(event, bookedSlotId, bookingRes, enableOve
         gymId: event.gymId || null,
         studioId: studioId || null,
         bookingId: Number(b.bookingId),
-        currentSlotId: Number(b.slotId),
+        currentSlotId: b.slotId,
         className: event.name || event.name || 'Class',
         instructorName: event.instructors?.[0]?.name || (event.instructors?.[0]?.name) || '',
         studioName: event.studioName || event.studioName || '',

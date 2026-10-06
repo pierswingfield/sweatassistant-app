@@ -497,3 +497,17 @@ While loading: skeleton until the first flush, then per-gym header chips spin (`
 6. Not worth it: bigger page_size (slower per row), Aarmy-specific tuning (per-row cost is the tenant's).
 
 Dev env restored: `.env` copied back, container recreated, `/api/health` 200, no debug lines. Registry unchanged (no deploy or exposure change).
+
+### Fix + re-measure (2026-10-06): cross-gym cache serialisation and empty-grid
+**Changes.** (1) `routes-normalized.js`: router-level `Vary: x-gym-id, Authorization` and default `Cache-Control: private, no-cache` on GETs (layout and entitlement keep their own policy), pinned by `server/test-gym-http-cache.js`. (2) `client/src/api.js apiFetch`: a gym-scoped GET also carries `&gym=<id>` in the URL, so the browser's per-URL cache lock no longer queues the gyms (`api-gym-url.test.js`). Chosen over header-only because a response header cannot help a request that is already waiting on the cache lock; the server ignores the param, so the shared schedule-cache keys (`gymId|range`) and the client cache keys (which sit above `apiFetch`) are unchanged. (3) `timetable.js` + `pending-gyms.js`: an empty filtered grid shows the skeleton while a selected gym is pending (failure counts as settled), the real empty state afterwards (`pending-gyms.test.js`).
+
+**Cold, dev twin, container restarted + SW/CacheStorage/IndexedDB cleared + real navigation, ms from navigation (one tab):**
+
+| Metric | Before (3 runs, median) | After (3 runs: 1 / 2 / 3, median) |
+|---|---|---|
+| First data (first `/api/timetable` ends) | 13.3-16.1 s (13.4 s) | 15.2 / 16.3 / 15.4 s (15.4 s) |
+| First rows visible | 23.3-25.1 s (24.4 s) | 16.4 / 16.9 / 17.0 s (16.9 s) |
+| All gyms loaded | 33.8-35.4 s (35.0 s) | 17.0 / 18.5 / 19.0 s (18.5 s) |
+| Empty "No classes match" flash | about 10 s, every run | none in 3 runs (40 ms polling) |
+
+Requests now start together (about 3.5-3.8 s) and all three gyms finish within about 1.5 s of each other; first data is not faster because it is bounded by the slowest-first upstream (Aarmy/JAB cold, about 11-12 s). Warm reload (server cache warm, IndexedDB cache present): 30 rows painted, no spinner, no timetable request needed within the first 7 s. Deploy note: Docker Hub 429 blocked `node:20`; deployed from a clean worktree of HEAD (the main checkout carries uncommitted H-home work) with `FROM mirror.gcr.io/library/node:20` substituted for that deploy only; repo Dockerfile unchanged.

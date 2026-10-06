@@ -11450,3 +11450,24 @@ html:not([data-credits-tab="on"]) .psycle-nav-btn[data-tab="buy-credits"] { disp
   background: transparent; color: var(--text); border: 1px solid var(--accent); font: inherit; font-weight: 600;
 }
 .psycle-url-overlay-banner .psycle-url-overlay-clear:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+
+/* ---- Share My Bookings (F-3): mobile-only header button + drawer extras ---- */
+#psycle-helper-container .psycle-share-btn { display: none; margin-left: auto; width: 36px; height: 36px; align-items: center; justify-content: center; background: transparent; border: 1px solid var(--border); border-radius: var(--radius-control); color: var(--text-secondary); cursor: pointer; padding: 0; flex-shrink: 0; }
+#psycle-helper-container .psycle-share-btn:hover { color: var(--text); border-color: var(--border-strong); }
+@media (max-width: 768px) {
+  #psycle-helper-container .psycle-share-btn { display: inline-flex; }
+}
+.share-sheet .share-label { font-size: 12px; font-weight: 700; letter-spacing: .06em; text-transform: uppercase; color: var(--text-secondary); padding: 12px 0 8px; }
+.share-sheet .share-sec { padding-bottom: 8px; }
+.share-sheet .share-tbc { display: flex; align-items: center; gap: 10px; min-height: 48px; font-size: 14px; cursor: pointer; }
+.share-sheet .share-tbc input { width: 20px; height: 20px; accent-color: var(--accent); flex-shrink: 0; }
+.share-sheet .share-preview { border-top: 1px solid var(--border); padding: 10px 0; }
+.share-sheet .share-preview summary { font-size: 13px; font-weight: 600; color: var(--text-secondary); cursor: pointer; min-height: 32px; display: flex; align-items: center; }
+.share-sheet .share-preview pre { margin: 8px 0 0; padding: 10px 12px; border-radius: 10px; background: var(--surface-2); border: 1px solid var(--border); font: inherit; font-size: 12px; line-height: 1.5; white-space: pre-wrap; word-break: break-word; max-height: 220px; overflow-y: auto; }
+.share-sheet .share-foot { padding: 10px 16px 12px; border-top: 1px solid var(--border); display: flex; flex-direction: column; gap: 6px; }
+.share-sheet .share-cta { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; width: 100%; }
+.share-sheet .share-cta.is-single { grid-template-columns: 1fr; }
+.share-sheet .share-cta button { width: 100%; height: 46px; border-radius: 12px; font-weight: 600; font-size: 14px; }
+.share-sheet .share-cta button:disabled { opacity: .4; cursor: default; }
+.share-sheet .share-cancel { height: 44px; background: none; border: 0; color: var(--text-secondary); font-size: 14px; font-weight: 600; cursor: pointer; }
+.share-sheet.fr-sheet { height: auto; max-height: 86dvh; }

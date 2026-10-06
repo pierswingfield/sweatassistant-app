@@ -41,7 +41,7 @@ function gymDot(gymId, cls = '') {
   const b = gymBrand(gymId);
   return `<span class="fr-gym-dot ${cls}" style="background:${b.brandBg}" title="${escapeHtml(b.name)}">${b.markHtml}</span>`;
 }
-function gymPlate(gymId) {
+export function gymPlate(gymId) {
   const b = gymBrand(gymId);
   return `<span class="fr-logo-plate" style="background:${b.brandBg}" title="${escapeHtml(b.name)}">${b.logoSvg}<span class="u-visually-hidden">${escapeHtml(b.name)}</span></span>`;
 }
@@ -562,7 +562,7 @@ function updateSheetState(sheet, ctx) {
   });
 }
 
-function wireDragToDismiss(sheet, onDismiss) {
+export function wireDragToDismiss(sheet, onDismiss) {
   if (!sheet) return;
   const handle = sheet.querySelector('.fr-grab');
   const head = sheet.querySelector('.fr-head');

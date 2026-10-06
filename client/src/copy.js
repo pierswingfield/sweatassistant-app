@@ -702,6 +702,14 @@ export const COPY = Object.freeze({
     hideCardActions: 'Hide actions',
     editCard: 'Edit',
   }),
+  share: Object.freeze({
+    button: 'Share my classes', title: 'Share classes', window: 'Window', gyms: 'Gyms',
+    includeTbc: 'Include TBC (waitlists and auto-books)',
+    count: '{n} classes', countOne: '1 class', withTbc: '{base} · {tbc} TBC', countNone: 'No classes in this window',
+    preview: 'Preview', copy: 'Copy to clipboard', share: 'Share', cancel: 'Cancel',
+    copied: 'Copied to clipboard', copyFailed: 'Could not copy. Try Share instead.', shareFailed: 'Could not open the share sheet.',
+    footer: 'Shared from {app}', close: 'Close',
+  }),
   filters: Object.freeze({
     clearLabel: 'Clear {label}',
     clearFilterChip: 'gym and location filters',

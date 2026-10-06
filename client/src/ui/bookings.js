@@ -187,6 +187,12 @@ export function syncBookingCache(bookings) {
 // ── Waitlist discoverability ─────────────────────────────────────────
 // Header counts ("Active Bookings (12)") + a sticky "Waitlists (N) ↓" bar
 // shown only while the waitlist section is off-screen.
+// F-3: the share drawer is loaded on first use (it pulls in the filter drawer's shell).
+document.addEventListener('click', (e) => {
+  if (!e.target.closest('#psycle-bookings-share-btn')) return;
+  import('./share-sheet.js').then((m) => m.openShareSheet()).catch((err) => console.error('[Bookings] Share failed:', err));
+});
+
 let bookedCount = 0;
 let waitlistCount = 0;
 let waitlistObserver = null;

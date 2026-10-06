@@ -1,5 +1,7 @@
 # Workstreams — Sweat Assistant roadmap
 
+> **Branching (2026-10-06):** the `modular` branch is retired; `master` is the single working branch and equals what prod runs. Older docs saying "`modular`" mean this code.
+
 **This folder is the single source of truth for what's next.** It replaced `BACKLOG.md`,
 `Backlog/*` and `Backlog/modular-gyms/*` on 2026-09-26. Those files are frozen in
 [`../Archive/2026-09-26/`](../Archive/2026-09-26/). Their status markers are stale, but their

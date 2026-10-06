@@ -4,7 +4,7 @@
 
 Server + PWA assistant for Psycle London (and future gym providers). It moves scheduling features (auto-book, auto-upgrade) to a background server so they run 24/7 and adds iOS support via Progressive Web App (PWA) and Web Push notifications.
 
-**Status**: **Prod (`sweat.wingfield.tech`) runs the multi-gym `modular` build (Psycle + JAB Boxing)** since 2026-10-06 (clean SQLite DB, `JAB_BOXING_ENABLED=true`, Aarmy off). `master` is fast-forwarded to `modular`, so `master` == what prod runs; the old single-gym build is history (rollback target `758a6ce`). The dev twin (`sweat-dev.wingfield.tech`) runs the same code plus Aarmy. Remaining roadmap and open items: `Documentation/Workstreams/README.md`; launch record: workstream C4.
+**Status**: **Prod (`sweat.wingfield.tech`) runs the multi-gym build (Psycle + JAB Boxing)** since 2026-10-06 (clean SQLite DB, `JAB_BOXING_ENABLED=true`, Aarmy off). **`master` is the one and only working branch**: the former `modular` branch was merged into it and retired on 2026-10-06 (older docs that say "`modular`" mean this code). The old single-gym build is history (rollback target `758a6ce`). Deploys: `./deploy.sh` (dev twin `sweat-dev.wingfield.tech`, same code plus Aarmy) and `./deploy.sh --prod` (typed confirmation); both ship the working tree, so deploy from a clean `master` checkout. Remaining roadmap and open items: `Documentation/Workstreams/README.md`; launch record: workstream C4.
 
 ## Key References
 

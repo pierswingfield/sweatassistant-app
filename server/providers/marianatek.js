@@ -16,6 +16,7 @@ const { resolveZone, toZonedISO } = require('./timezone');
 const { studioHasRowGroups, studioShowsSpotType } = require('./spot-map');
 const { makeMetadata, makeProfile, makeMembership, makeEvent, makeSlot, makeBookingResult, makeBooking, makeHistoryEntry } = require('./normalize');
 const bookingWindow = require('./booking-window');
+const { timedProviderFetch } = require('../logger');
 
 // Dev-mode bypass (WP-M5), mirroring the dev@psycle.com / 'mock-jwt-token'
 // convention already used for CodexFit (see server/auth.js, server/mock.js).
@@ -106,7 +107,7 @@ class MarianaTekProvider extends GymProvider {
     }, timeoutMs);
     opts.signal = controller.signal;
     try {
-      return await fetch(this.url(path), opts);
+      return await timedProviderFetch(this.gym.id, method, path, () => fetch(this.url(path), opts));
     } catch (err) {
       if (timedOut) {
         const timeout = new Error(`Booking request timed out after ${Math.ceil(timeoutMs / 1000)} seconds. Check My Bookings before trying again.`);

@@ -49,6 +49,7 @@ App/
 │   ├── push.js              # Web Push (VAPID) notification fan-out service
 │   ├── notifications.js     # Notification dispatch layer (5 types, per-user prefs)
 │   ├── calendar.js          # iCalendar (.ics) feed generation, token auth, 3-hourly poll
+│   ├── logger.js            # C7-3 structured JSON logger + request-log middleware (redacts by key; no bodies/headers/queries)
 │   ├── admin.js             # Admin panel API router (user list, detail, priority tiers, delete)
 │   ├── admin.html           # Standalone admin SPA served at /admin
 │   ├── config.js            # Central env config (appName, publicHost) — single source of truth
@@ -479,6 +480,7 @@ IndexedDB database `psycle-cache` (v2) has two stores: `cache` (raw timetable ev
 | `VAPID_PRIVATE_KEY` | `push.js` | VAPID private key for Web Push (auto-generated + DB-stored fallback) |
 | `VAPID_EMAIL` | `push.js` | `mailto:` VAPID contact (default: `mailto:admin@psycle.wingfield.tech`) |
 | `RATE_LIMIT_TEST_FORCE` | `routes-normalized.js` | Test-only: enables the production-only read/refresh limiters so suites can assert 429s. |
+| `LOG_LEVEL` | `logger.js` | `debug`/`info`/`warn`/`error` (default `info`). `debug` adds a line per upstream provider call (gym, method, path, status, durationMs) and health/static request lines. `LOG_PRETTY=1` indents the JSON. |
 | `ADMIN_PASSWORD` | `admin.js` | Password for admin panel login. If absent, all `/api/admin/*` routes return 503. |
 | `APP_NAME` | `server/config.js` → all server modules + client via `/api/config` | App display name (default: `Sweat Assistant`). |
 | `PUBLIC_HOST` | `server/config.js` → `calendar.js`, client via `/api/config` | Public domain for calendar feed URLs and UID generation (default: `psycle.wingfield.tech`). |

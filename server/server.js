@@ -5,6 +5,7 @@ const path = require('path');
 const rateLimit = require('express-rate-limit');
 const { ipKeyGenerator } = require('express-rate-limit');
 const db = require('./db');
+const { log, requestLogger } = require('./logger');
 const auth = require('./auth');
 const { handleLogin, authenticateToken, authenticateTokenSSE } = auth;
 const pushService = require('./push');
@@ -50,6 +51,7 @@ app.use(cors({
     cb(null, !origin || allowedOrigins.has(origin));
   },
 }));
+app.use(requestLogger(log)); // C7-3: JSON request log (no bodies/headers/query strings)
 app.use(express.json());
 
 // Strict brute-force limiters for the two password endpoints, keyed by IP.

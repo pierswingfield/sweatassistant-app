@@ -78,7 +78,7 @@ function notifyRateLimited(userId, gymId) {
     db.markNotificationSent(userId, key);
     notifications.notify(userId, 'providerThrottled', { gymId });
   } catch (err) {
-    console.error(`[RateLimit] Failed to send rate-limit notification (gym ${gymId}, user ${userId}):`, err.message);
+    require('./logger').log.error('failed to send rate-limit notification', { component: 'rate-limit', gymId, userId, err });
   }
 }
 

@@ -20,6 +20,7 @@ const { resolveZone, toZonedISO } = require('./timezone');
 const { studioHasRowGroups } = require('./spot-map');
 const { makeMetadata, makeProfile, makeEvent, makeSlot, makeLayoutObject, makeBookingResult, makeBooking, makeHistoryEntry, prune } = require('./normalize');
 const cart = require('./codexfit-cart');
+const { timedProviderFetch } = require('../logger');
 
 // Dev-mode bypass, aligned with MarianaTek's dev@jabboxing.mock convention.
 // login() must establish the sentinel session itself, since a fresh account
@@ -200,7 +201,7 @@ class CodexFitProvider extends GymProvider {
         delete opts.headers['content-type'];
       }
     }
-    return fetch(urlFn(pathOrUrl), opts);
+    return timedProviderFetch(this.gym.id, method, pathOrUrl, () => fetch(urlFn(pathOrUrl), opts));
   }
 
   /**
@@ -210,7 +211,7 @@ class CodexFitProvider extends GymProvider {
    * session is available — same convention as the MarianaTek adapter).
    */
   async publicRequest(pathOrUrl, { method = 'GET' } = {}) {
-    return fetch(this.url(pathOrUrl), { method, headers: this.buildHeaders(null, false) });
+    return timedProviderFetch(this.gym.id, method, pathOrUrl, () => fetch(this.url(pathOrUrl), { method, headers: this.buildHeaders(null, false) }));
   }
 
   // --- Authentication -------------------------------------------------------

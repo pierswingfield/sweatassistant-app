@@ -5136,6 +5136,17 @@ html, body {
   border-left: 3px solid var(--gym-settings-accent, var(--accent));
 }
 
+#psycle-helper-container .psycle-gym-settings-heading .psycle-gym-settings-brand {
+  display: flex;
+  align-items: center;
+}
+
+#psycle-helper-container .psycle-gym-settings-heading .psycle-settings-btn-row {
+  margin-top: 0;
+  display: flex;
+  align-items: center;
+}
+
 #psycle-helper-container .psycle-gym-settings-heading h3 {
   margin: 2px 0 0;
   color: var(--text);
@@ -5399,6 +5410,31 @@ html, body {
 }
 #psycle-helper-container .psycle-gym-conn-row {
   border-top: 1px solid var(--separator);
+  cursor: pointer;
+  transition: background-color .15s ease;
+}
+#psycle-helper-container .psycle-gym-conn-row:hover {
+  background-color: var(--surface-hover, rgba(255, 255, 255, 0.03));
+}
+#psycle-helper-container .psycle-gym-conn-inline-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-top: 4px;
+}
+#psycle-helper-container .psycle-gym-conn-inline-row .psycle-card-desc {
+  margin: 0;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+#psycle-helper-container .psycle-gym-conn-inline-row .psycle-settings-btn-row {
+  margin: 0;
+  display: flex;
+  gap: 6px;
+  flex-shrink: 0;
 }
 #psycle-helper-container .psycle-gym-conn-name {
   display: flex;
@@ -5465,16 +5501,61 @@ html, body {
   width: auto;
   white-space: nowrap;
 }
-/* Below ~720px the four columns stop being readable side by side; stack them
-   into a card per gym rather than letting each column shrink to nothing. */
-@media (max-width: 720px) {
+/* On mobile, stack each gym connection row:
+   Row 1: Logo banner (full width)
+   Row 2: Email (left) + Action buttons (right)
+   Row 3: Connected status (left) + Auth date (right) */
+@media (max-width: 768px) {
   #psycle-helper-container .psycle-gym-conn-head { display: none; }
   #psycle-helper-container .psycle-gym-conn-row {
-    grid-template-columns: 1fr;
-    gap: 6px;
-    padding: 12px 0;
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto;
+    align-items: center;
+    row-gap: 8px;
+    column-gap: 12px;
+    padding: 14px 0;
   }
-  #psycle-helper-container .psycle-gym-conn-actions { justify-content: flex-start; }
+  #psycle-helper-container .psycle-gym-conn-name {
+    display: contents;
+  }
+  #psycle-helper-container .psycle-gym-conn-name .psycle-gym-conn-logo {
+    grid-column: 1 / -1;
+    grid-row: 1;
+    margin-bottom: 2px;
+  }
+  #psycle-helper-container .psycle-gym-conn-name small {
+    grid-column: 1;
+    grid-row: 2;
+    font-size: var(--text-xs);
+    color: var(--text-secondary);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+  #psycle-helper-container .psycle-gym-conn-actions {
+    grid-column: 2;
+    grid-row: 2;
+    display: flex;
+    gap: 6px;
+    align-items: center;
+    justify-content: flex-end;
+  }
+  #psycle-helper-container .psycle-gym-conn-actions .psycle-btn {
+    padding: 5px 9px;
+    font-size: 11px;
+  }
+  #psycle-helper-container .psycle-gym-conn-health {
+    grid-column: 1;
+    grid-row: 3;
+    font-size: var(--text-xs);
+  }
+  #psycle-helper-container .psycle-gym-conn-when {
+    grid-column: 2;
+    grid-row: 3;
+    text-align: right;
+    font-size: var(--text-xs);
+    color: var(--text-secondary);
+  }
 }
 
 #psycle-helper-container .psycle-menu-item-flag {
@@ -9409,6 +9490,7 @@ html, body {
 .fr-trigger { width: 32px; height: 32px; border-radius: 50%; border: 1px solid var(--border-strong); background: color-mix(in srgb, var(--accent) 22%, var(--surface-2)); color: var(--text); display: inline-flex; align-items: center; justify-content: center; padding: 0; cursor: pointer; }
 .fr-chip { display: inline-flex; align-items: center; height: 32px; border-radius: 16px; border: 1px solid var(--border-strong); background: var(--surface-2); color: var(--text); }
 .fr-chip-body { display: inline-flex; align-items: center; gap: 3.5px; height: 100%; padding: 0 2px 0 6px; background: none; border: 0; color: inherit; font-size: 11px; cursor: pointer; }
+.fr-chip-body > svg:first-child { margin-right: 2px; }
 .fr-chip-x { width: 20px; height: 100%; background: none; border: 0; color: var(--text-secondary); font-size: 11px; cursor: pointer; padding: 0; }
 .fr-tile-part { display: inline-flex; align-items: center; gap: 2.5px; }
 .fr-gym-dot { width: 18px; height: 18px; border-radius: 50%; color: #f9f6f5; font-size: 9px; font-weight: 700; display: inline-flex; align-items: center; justify-content: center; }
@@ -9419,11 +9501,10 @@ html, body {
 .fr-heart { width: 30px; height: 30px; border-radius: 50%; border: 1px solid var(--border-strong); background: var(--surface-2); color: var(--text); cursor: pointer; padding: 0; font-size: 15px; }
 .fr-heart.active { color: var(--danger); border-color: var(--danger); }
 
-/* Sheet. Scoped under .fr-sheet and built from divs: bare h2/h3/section/header
-   selectors elsewhere in this stylesheet were adding their own margins. */
-.fr-sheet-overlay { position: fixed; inset: 0; z-index: 10050; background: rgba(0,0,0,.55); display: flex; align-items: flex-end; opacity: 0; transition: opacity .18s; }
-.fr-sheet-overlay.open { opacity: 1; }
-.fr-sheet { width: 100%; height: 86vh; max-height: 86vh; display: flex; flex-direction: column; background: #0d1020; color: var(--text); border-radius: 22px 22px 0 0; border-top: 1px solid var(--border-strong); padding-bottom: env(safe-area-inset-bottom); overflow: hidden; }
+.fr-sheet-overlay { position: fixed; inset: 0; z-index: 10050; background: rgba(0,0,0,.55); display: flex; align-items: flex-end; opacity: 0; pointer-events: none; transition: opacity .25s ease-out; }
+.fr-sheet-overlay.open { opacity: 1; pointer-events: auto; }
+.fr-sheet { width: 100%; height: 86dvh; max-height: 86dvh; display: flex; flex-direction: column; background: #0d1020; color: var(--text); border-radius: 22px 22px 0 0; border-top: 1px solid var(--border-strong); padding-bottom: env(safe-area-inset-bottom); overflow: hidden; transform: translateY(100%); transition: transform .28s cubic-bezier(0.2, 0.9, 0.3, 1); will-change: transform; }
+.fr-sheet-overlay.open .fr-sheet { transform: translateY(0); }
 .fr-sheet * { box-sizing: border-box; }
 .fr-sheet > * { flex-shrink: 0; }
 .fr-sheet > .fr-body { flex: 1 1 auto; min-height: 0; }
@@ -9470,11 +9551,10 @@ html, body {
 .fr-gym-dot { overflow: hidden; }
 .fr-gym-dot.sm { width: 20px; height: 20px; }
 .fr-logo-plate { display: inline-flex; align-items: center; justify-content: center; height: 30px; padding: 0 14px; border-radius: 8px; }
-.fr-sheet .fr-logo-plate .ab-gym-logo-img.is-full { display: block !important; height: 15px; width: auto; max-width: none; }
+.fr-sheet .fr-logo-plate .ab-gym-logo-img.is-full { display: block !important; height: 15px; width: auto; max-width: 100%; object-fit: contain; }
 .fr-sheet .fr-logo-plate .ab-gym-logo-img.is-half { display: none !important; }
-.fr-sheet .fr-logo-plate .ab-gym-logo-svg { height: 15px; width: auto; max-width: none; }
+.fr-sheet .fr-logo-plate .ab-gym-logo-svg { height: 15px; width: auto; max-width: 100%; object-fit: contain; }
 .fr-sec-plain { padding: 4px 0 8px; border-top: 0; }
-.fr-gymrows { display: flex; flex-direction: column; gap: 6px; }
 .fr-gymrow { display: flex; align-items: center; gap: 12px; min-height: 48px; padding: 8px 12px; border-radius: 12px; border: 1px solid var(--border); background: var(--surface-2); cursor: pointer; }
 .fr-gymrow.on { border-color: var(--accent); }
 .fr-check.on { background: var(--accent-btn-bg); border-color: transparent; color: #fff; }
@@ -9509,9 +9589,12 @@ html, body {
 .fr-chev { width: 26px; height: 26px; border-radius: 50%; background: var(--surface-inset); display: inline-flex; align-items: center; justify-content: center; font-size: 13px; flex-shrink: 0; }
 .fr-sec.open > .fr-sec-head { border-bottom: 1px solid var(--border); background: color-mix(in srgb, var(--accent) 7%, transparent); }
 .fr-sec-body { padding: 12px; }
-.fr-gymrows { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
-.fr-gymrow { flex-direction: row; justify-content: flex-start; gap: 8px; padding: 8px; min-height: 48px; }
-.fr-gymrow .fr-logo-plate { flex: 1; min-width: 0; padding: 0 6px; }
+.fr-gymrows { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px; width: 100%; box-sizing: border-box; }
+.fr-gymrow { min-width: 0; width: 100%; box-sizing: border-box; flex-direction: row; justify-content: center; align-items: center; gap: 8px; padding: 6px; min-height: 44px; overflow: hidden; }
+.fr-gymrow .fr-logo-plate { flex: 1 1 0; min-width: 0; max-width: 100%; width: 100%; padding: 0 4px; display: flex; align-items: center; justify-content: center; overflow: hidden; }
+.fr-sheet .fr-logo-plate .ab-gym-logo-img.is-full,
+.fr-sheet .fr-logo-plate .ab-gym-logo-svg { max-width: 100% !important; height: 15px; width: auto; object-fit: contain; }
+.fr-sheet button, .fr-opt, .fr-gymrow { touch-action: manipulation; -webkit-tap-highlight-color: transparent; }
 .fr-grid { padding: 0; gap: 8px; }
 .fr-opt { min-height: 44px; padding: 6px 8px; gap: 6px; }
 .fr-wgroup { margin: 0; }
@@ -10989,7 +11072,7 @@ body.psycle-scroll-locked { overscroll-behavior: none; }
 .psycle-gym-logo-banner .psycle-gym-chip-logo .ab-gym-logo-svg { height: 24px !important; max-width: 120px !important; width: auto; object-fit: contain; }
 .psycle-gym-logo-banner .ab-gym-logo-img.is-half { display: none !important; }
 .psycle-gym-logo-banner .ab-gym-logo-img.is-full { display: block !important; }
-.psycle-gym-settings-heading .psycle-gym-logo-banner { display: flex; margin-bottom: 10px; }
+.psycle-gym-settings-heading .psycle-gym-logo-banner { display: flex; margin-bottom: 0; align-items: center; }
 .psycle-gym-conn-name .psycle-gym-conn-logo { display: block; margin-bottom: 6px; }
 .psycle-gym-form-logo { margin: 0 0 12px; }
 /* Spot-maps picker: logos are mobile-only; desktop keeps the plain text header. */
@@ -11039,13 +11122,9 @@ html.psycle-scroll-locked { overflow: hidden !important; background: var(--bg) !
   .psycle-page .psycle-modal-body [style*="max-height"][style*="overflow"],
   .psycle-page .psycle-modal-body pre { max-height: none !important; overflow-y: visible !important; }
 }
-/* Logos added by the mobile feedback batch are mobile-only: desktop stays as it was. */
-.psycle-gym-settings-heading .psycle-gym-logo-banner,
-.psycle-gym-conn-name .psycle-gym-conn-logo,
+/* Form logo remains mobile-only; heading and connection logos show across all viewports. */
 .psycle-gym-form-logo { display: none; }
 @media (max-width: 768px) {
-  .psycle-gym-settings-heading .psycle-gym-logo-banner { display: flex; }
-  .psycle-gym-conn-name .psycle-gym-conn-logo { display: block; }
   .psycle-gym-form-logo { display: block; }
 }
 .psycle-modal-footer { display: none; }

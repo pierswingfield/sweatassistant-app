@@ -183,7 +183,7 @@ export const COPY = Object.freeze({
     unmappedSpots: '+ {count} unmapped open spots',
   }),
   disciplines: Object.freeze({
-    ride: 'Ride', barre: 'Barre', reformer: 'Reformer', recovery: 'Recovery', infrared: 'Infrared',
+    ride: 'Ride', barre: 'Barre', reformer: 'Reformer', pilates: 'Pilates', lagree: 'Lagree', recovery: 'Recovery', infrared: 'Infrared',
     yoga: 'Yoga', boxing: 'Boxing', train: 'Train', conditioning: 'Conditioning', strength: 'Strength',
     workshop: 'Workshop', bootcamp: 'Bootcamp', personalTraining: 'PT',
   }),

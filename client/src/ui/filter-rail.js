@@ -23,6 +23,7 @@ export function compressStudioName(name = '') {
 }
 
 let sheetEl = null;
+let sheetLayer = null;
 let lastCtx = null;
 
 const selectedCount = (s) =>
@@ -150,17 +151,70 @@ export function renderFilterRail(ctx) {
     if (opener) openSheet(ctx, opener.dataset.frSection || null);
   };
 
-  if (sheetEl) paintSheet(ctx);
+  if (sheetEl) {
+    const sheet = sheetEl.querySelector('.fr-sheet');
+    const gymsKey = (ctx.state.gyms || []).join(',');
+    if (gymsKey !== lastPaintedGymsKey || !sheet?.querySelector('.fr-body')) {
+      paintSheet(ctx);
+    } else {
+      updateSheetState(sheet, ctx);
+    }
+  }
+}
+
+export function isFilterSheetOpen() {
+  return !!(sheetEl && sheetEl.classList.contains('open'));
+}
+
+export function syncFilterSheetState(ctx) {
+  if (!sheetEl || !sheetEl.classList.contains('open')) return;
+  const sheet = sheetEl.querySelector('.fr-sheet');
+  if (!sheet) return;
+  const gymsKey = (ctx.state.gyms || []).join(',');
+  if (gymsKey !== lastPaintedGymsKey || !sheet.querySelector('.fr-body')) {
+    paintSheet(ctx);
+  } else {
+    updateSheetState(sheet, ctx);
+  }
 }
 
 export function removeFilterRail() {
   document.getElementById('sweat-filter-rail')?.remove();
-  closeSheet();
+  destroySheet();
+}
+
+let closeTimer = null;
+let lastPaintedGymsKey = '';
+
+function destroySheet() {
+  if (closeTimer) { clearTimeout(closeTimer); closeTimer = null; }
+  if (!sheetEl) return;
+  sheetEl.remove();
+  sheetEl = null;
+  lastPaintedGymsKey = '';
+}
+
+export function closeSheet() {
+  if (!sheetEl || !sheetEl.classList.contains('open')) return;
+  lastCtx?.flush?.();
+  if (sheetLayer) { const l = sheetLayer; sheetLayer = null; l.release(); }
+  sheetEl.classList.remove('open');
+  const targetEl = sheetEl;
+  if (closeTimer) clearTimeout(closeTimer);
+  closeTimer = setTimeout(() => {
+    closeTimer = null;
+    if (sheetEl === targetEl) {
+      destroySheet();
+    } else {
+      targetEl?.remove();
+    }
+  }, 280);
 }
 
 // U2-7: `focusKey` (from a chip) opens just that section, collapses the rest and
 // scrolls it into view. The trigger button passes none and keeps the last state.
 function openSheet(ctx, focusKey = null) {
+  if (closeTimer) { clearTimeout(closeTimer); closeTimer = null; }
   if (focusKey) {
     openSecs.clear();
     openSecs.add(focusKey);
@@ -178,8 +232,12 @@ function openSheet(ctx, focusKey = null) {
     sheetEl.addEventListener('click', (e) => { if (e.target === sheetEl) closeSheet(); });
     document.body.appendChild(sheetEl);
     // Mobile: hardware/iOS back closes the sheet, and body scroll is locked while it is open.
-    sheetLayer = pushLayer({ id: 'filter-sheet', lock: true, escCloses: true, onBack: () => { sheetLayer = null; destroySheet(); } });
-    requestAnimationFrame(() => sheetEl && sheetEl.classList.add('open'));
+    sheetLayer = pushLayer({ id: 'filter-sheet', lock: true, escCloses: true, onBack: () => { sheetLayer = null; closeSheet(); } });
+    // Force reflow so translateY(100%) initial frame commits, then transition smoothly to translateY(0)
+    void sheetEl.offsetWidth;
+    sheetEl.classList.add('open');
+  } else {
+    sheetEl.classList.add('open');
   }
   paintSheet(ctx);
   if (focusKey) {
@@ -187,18 +245,6 @@ function openSheet(ctx, focusKey = null) {
     const el = sheetEl.querySelector(`#fr-sec-${focusKey}`);
     requestAnimationFrame(() => requestAnimationFrame(() => el && el.scrollIntoView({ block: 'start' })));
   }
-}
-
-let sheetLayer = null;
-function destroySheet() {
-  if (!sheetEl) return;
-  sheetEl.remove();
-  sheetEl = null;
-}
-export function closeSheet() {
-  if (!sheetEl) return;
-  if (sheetLayer) { const l = sheetLayer; sheetLayer = null; l.release(); }
-  destroySheet();
 }
 
 // Accordion state survives repaints (every toggle re-renders the timetable,
@@ -274,6 +320,7 @@ function paintSheet(ctx) {
   const scrollTop = sheet.querySelector('.fr-body')?.scrollTop || 0;
   const listTop = sheet.querySelector('.fr-list')?.scrollTop || 0;
   const { state } = ctx;
+  lastPaintedGymsKey = (state.gyms || []).join(',');
   const total = selectedCount(state);
   const showGyms = ctx.gyms.length > 1;
   const gymName = (id) => (ctx.gyms.find(g => String(g.id) === String(id))?.name) || gymBrand(id).name;
@@ -335,6 +382,8 @@ function paintSheet(ctx) {
   const list = sheet.querySelector('.fr-list');
   if (list) list.scrollTop = listTop;
 
+  wireDragToDismiss(sheet, closeSheet);
+
   // Typing repaints only the list, so the input keeps focus and the keyboard.
   const search = sheet.querySelector('.fr-search');
   if (search) {
@@ -356,7 +405,15 @@ function paintSheet(ctx) {
     if (t.dataset.frClose) return closeSheet();
     if (t.dataset.frReset) return ctx.clearAll();
     if (t.dataset.frSave) return ctx.save();
-    if (t.dataset.frToggle) return ctx.toggle(t.dataset.frToggle, t.dataset.id);
+    if (t.dataset.frToggle) {
+      const group = t.dataset.frToggle;
+      const id = t.dataset.id;
+      // Optimistic instant visual update:
+      const willBeOn = !t.classList.contains('on');
+      t.classList.toggle('on', willBeOn);
+      t.setAttribute('aria-pressed', String(willBeOn));
+      return ctx.toggle(group, id);
+    }
     if (t.dataset.frSec) {
       const k = t.dataset.frSec;
       const opening = !openSecs.has(k);
@@ -373,6 +430,130 @@ function paintSheet(ctx) {
       if (opening) reveal(sheet.querySelector(`.fr-igroup-head[data-fr-igroup="${CSS.escape(k)}"]`)?.parentElement, false);
     }
   };
+}
+
+function updateSheetState(sheet, ctx) {
+  if (!sheet) return;
+  const { state } = ctx;
+  const total = selectedCount(state);
+
+  const badge = sheet.querySelector('.fr-badge');
+  if (badge) badge.textContent = `${ctx.resultCount} ${ctx.resultCount === 1 ? COPY.filters.class : COPY.filters.classes}`;
+
+  const resetBtn = sheet.querySelector('.fr-reset');
+  if (resetBtn) resetBtn.disabled = !total;
+
+  const doneBtn = sheet.querySelector('.fr-done');
+  if (doneBtn) doneBtn.textContent = ctx.resultCount === 0 ? COPY.filters.noClassesAdjust : COPY.filters.showClasses;
+
+  sheet.querySelectorAll('[data-fr-toggle]').forEach((btn) => {
+    const on = ctx.isOn(btn.dataset.frToggle, btn.dataset.id);
+    btn.classList.toggle('on', on);
+    btn.setAttribute('aria-pressed', String(on));
+  });
+
+  const nameOf = {
+    locations: state.locations.map(id => { const l = ctx.locations.find(x => String(x.id) === id); return l ? ctx.locationLabel(l) : id; }),
+    instructors: state.instructors.map(id => ctx.instructors.find(x => String(x.id) === id)?.name || id),
+  };
+
+  const updateSec = (key, summary, count, clearKey) => {
+    const secEl = sheet.querySelector(`#fr-sec-${key}`);
+    if (!secEl) return;
+    const sumEl = secEl.querySelector('.fr-sec-sum');
+    if (sumEl) {
+      sumEl.textContent = summary;
+      sumEl.classList.toggle('has', count > 0);
+    }
+    const secRow = secEl.querySelector('.fr-sec-row');
+    let clearBtn = secRow?.querySelector('.fr-sec-clear');
+    if (count > 0 && !clearBtn && secRow) {
+      clearBtn = document.createElement('button');
+      clearBtn.type = 'button';
+      clearBtn.className = 'fr-sec-clear';
+      clearBtn.dataset.frClear = clearKey;
+      clearBtn.textContent = COPY.filters.clear;
+      secRow.appendChild(clearBtn);
+    } else if (count === 0 && clearBtn) {
+      clearBtn.remove();
+    }
+  };
+
+  updateSec('locations', summarise(nameOf.locations), state.locations.length, 'locations');
+  updateSec('workouts', summarise(state.eventTypes), state.eventTypes.length, 'eventTypes');
+  updateSec('instructors', summarise(nameOf.instructors), state.instructors.length, 'instructors');
+
+  sheet.querySelectorAll('.fr-igroup').forEach((ig) => {
+    const head = ig.querySelector('.fr-igroup-head');
+    const gid = head?.dataset.frIgroup;
+    if (!gid) return;
+    const list = ctx.instructors.filter(i => (i.gymId || '') === gid);
+    const picked = list.filter(i => state.instructors.includes(String(i.id))).length;
+    let countEl = head.querySelector('.fr-count');
+    if (picked > 0) {
+      if (!countEl) {
+        countEl = document.createElement('span');
+        countEl.className = 'fr-count';
+        head.insertBefore(countEl, head.querySelector('.fr-chev'));
+      }
+      countEl.textContent = String(picked);
+    } else if (countEl) {
+      countEl.remove();
+    }
+  });
+}
+
+function wireDragToDismiss(sheet, onDismiss) {
+  if (!sheet) return;
+  const handle = sheet.querySelector('.fr-grab');
+  const head = sheet.querySelector('.fr-head');
+  let startY = 0;
+  let currentY = 0;
+  let isDragging = false;
+
+  const onTouchStart = (e) => {
+    if (e.touches.length !== 1) return;
+    startY = e.touches[0].clientY;
+    currentY = startY;
+    isDragging = true;
+    sheet.style.transition = 'none';
+  };
+
+  const onTouchMove = (e) => {
+    if (!isDragging) return;
+    currentY = e.touches[0].clientY;
+    const dy = currentY - startY;
+    if (dy > 0) {
+      sheet.style.transform = `translateY(${dy}px)`;
+      if (e.cancelable) e.preventDefault();
+    }
+  };
+
+  const onTouchEnd = () => {
+    if (!isDragging) return;
+    isDragging = false;
+    const dy = currentY - startY;
+    sheet.style.transition = '';
+    if (dy > 70) {
+      sheet.style.transform = '';
+      onDismiss();
+    } else {
+      sheet.style.transform = '';
+    }
+  };
+
+  handle?.addEventListener('touchstart', onTouchStart, { passive: true });
+  handle?.addEventListener('touchmove', onTouchMove, { passive: false });
+  handle?.addEventListener('touchend', onTouchEnd, { passive: true });
+
+  head?.addEventListener('touchstart', (e) => {
+    if (e.target.closest('button, input')) return;
+    onTouchStart(e);
+  }, { passive: true });
+  head?.addEventListener('touchmove', (e) => {
+    if (isDragging) onTouchMove(e);
+  }, { passive: false });
+  head?.addEventListener('touchend', onTouchEnd, { passive: true });
 }
 
 export function getLastCtx() { return lastCtx; }

@@ -1,5 +1,6 @@
 import { noSept } from '../lib';
 import { COPY, formatCopyText } from '../copy.js';
+import { gymLogoBanner } from './cards.js';
 // Reusable per-gym Settings section (Settings restructure Phase 2).
 //
 // This module owns markup and DOM binding only. The settings coordinator supplies
@@ -136,13 +137,20 @@ export function renderGymSettingsSection(container, model, handlers = {}) {
       ? `var(--gym-${gymIdForTheme}-ink, ${gym.theme?.primary || 'var(--accent)'})`
       : (gym.theme?.primary || 'var(--accent)')
   );
+  const logoBannerHtml = model.logoHtml || (gymIdForTheme ? gymLogoBanner(gymIdForTheme) : '');
   container.innerHTML = `
-    <div class="psycle-gym-settings-heading"><div>${model.logoHtml || ''}<span class="psycle-eyebrow">${COPY.gymSettings.settings}</span><h3>${escapeHtml(gymName)}</h3></div><div class="psycle-settings-btn-row"><span class="psycle-badge ${status === 'active' ? 'success' : 'warning'}">${escapeHtml(statusLabel)}</span>${model.canAddGym ? `<button class="psycle-btn psycle-btn-mini" data-gym-action="add-gym">${COPY.gymSettings.addAnotherGym}</button>` : ''}</div></div>
+    <div class="psycle-gym-settings-heading"><div class="psycle-gym-settings-brand">${logoBannerHtml}</div><div class="psycle-settings-btn-row"><span class="psycle-badge ${status === 'active' ? 'success' : 'warning'}">${escapeHtml(statusLabel)}</span>${model.canAddGym ? `<button class="psycle-btn psycle-btn-mini" data-gym-action="add-gym">${COPY.gymSettings.addAnotherGym}</button>` : ''}</div></div>
     ${needsRelogin ? `<div class="psycle-gym-settings-warning"><strong>${COPY.gymSettings.reconnect}</strong><span>${COPY.gymSettings.reconnectHelp}</span></div>` : ''}
     <div class="psycle-settings-grid psycle-gym-settings-grid">
       <div class="psycle-settings-card">
-        <h4>${COPY.gymSettings.connection}</h4><p class="psycle-card-desc">${escapeHtml(gymEmail)}</p>
-        <div class="psycle-settings-btn-row"><button class="psycle-btn ${needsRelogin ? 'primary' : ''}" data-gym-action="reauth">${COPY.gymSettings.reauthenticate}</button><button class="psycle-btn variant-danger" data-gym-action="unlink">${COPY.gymSettings.unlink}</button></div>
+        <h4>${COPY.gymSettings.connection}</h4>
+        <div class="psycle-gym-conn-inline-row">
+          <p class="psycle-card-desc">${escapeHtml(gymEmail)}</p>
+          <div class="psycle-settings-btn-row">
+            <button class="psycle-btn psycle-btn-mini ${needsRelogin ? 'primary' : ''}" data-gym-action="reauth">${COPY.gymSettings.reauthenticate}</button>
+            <button class="psycle-btn psycle-btn-mini variant-danger" data-gym-action="unlink">${COPY.gymSettings.unlink}</button>
+          </div>
+        </div>
       </div>
       ${capability(gym, 'spotMaps') ? `<div class="psycle-settings-card"><h4>${COPY.spotMaps.preferredSpotMaps}</h4><p class="psycle-card-desc">${COPY.gymSettings.spotMapHelp}</p><button class="psycle-btn" data-gym-action="spot-maps">${COPY.gymSettings.manageMaps}</button></div>` : ''}
       <div class="psycle-settings-card"><h4>${COPY.gymSettings.membershipCredits}</h4>${membershipHtml(gym, membership, credits)}</div>
@@ -153,6 +161,16 @@ export function renderGymSettingsSection(container, model, handlers = {}) {
       ${capability(gym, 'autoUpgrade') ? `<div class="psycle-settings-card"><h4>${COPY.gymSettings.autoUpgradeEngine}</h4>${autoUpgradeHtml(settings)}</div>` : ''}
       ${capability(gym, 'profile') ? `<div class="psycle-settings-card"><h4>${COPY.gymSettings.profileExplorer}</h4><p class="psycle-card-desc">${COPY.gymSettings.profileExplorerHelp}</p><button class="psycle-btn" data-gym-action="profile">${COPY.gymSettings.openProfileExplorer}</button></div>` : ''}
     </div>`;
+
+  const brandEl = container.querySelector('.psycle-gym-settings-brand');
+  if (brandEl && gymName) {
+    brandEl.setAttribute('title', gymName);
+    brandEl.setAttribute('aria-label', gymName);
+    const img = brandEl.querySelector('img');
+    if (img) img.setAttribute('alt', gymName);
+    const svg = brandEl.querySelector('svg');
+    if (svg) svg.setAttribute('aria-label', gymName);
+  }
 
   container.querySelectorAll('[data-gym-action]').forEach((button) => {
     button.addEventListener('click', () => handlers.onAction?.(button.dataset.gymAction, button));

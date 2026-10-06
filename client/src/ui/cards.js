@@ -83,9 +83,9 @@ export function getDiscipline(name = '') {
   const s = raw.toLowerCase();
   const D = (key, label) => ({ key, label, icon: SVG_PATHS[key] ? key : 'other' });
   if (/ride|cycle|spin/.test(s)) return D('ride', COPY.disciplines.ride);
-  if (/barre/.test(s)) return D('barre', COPY.disciplines.barre);
-  if (/reformer|pilates|lagree/.test(s)) return D('reformer', COPY.disciplines.reformer);
-  if (/recovery|sauna|bath|cold|ice|cryo/.test(s)) return D('recovery', COPY.disciplines.recovery);
+  if (/reformer/.test(s)) return D('reformer', COPY.disciplines.reformer);
+  if (/pilates/.test(s)) return { key: 'reformer', label: COPY.disciplines.pilates, icon: 'reformer' };
+  if (/lagree/.test(s)) return { key: 'reformer', label: COPY.disciplines.lagree, icon: 'reformer' };
   if (/infrared|hot|sweat/.test(s)) return D('infrared', COPY.disciplines.infrared);
   if (/yoga|flow|mind|meditat/.test(s)) return D('yoga', COPY.disciplines.yoga);
   if (/box|punch|bag|spar/.test(s)) return D('boxing', COPY.disciplines.boxing);
@@ -114,6 +114,18 @@ export function getDiscipline(name = '') {
   // Unrecognised: keep the gym's own wording rather than inventing a label.
   const label = raw ? raw.replace(/\b\w/g, c => c.toUpperCase()) : COPY.common.classFallback;
   return { key: 'other', label, icon: 'other' };
+}
+
+// Filter matcher for discipline labels: matches exact label, and treats
+// Pilates and Reformer as semantically equivalent so selecting either includes both.
+export function passesDisciplineFilter(selected, groupLabel) {
+  if (!selected || !selected.length) return true;
+  if (!groupLabel) return false;
+  if (selected.includes(groupLabel)) return true;
+  // Semantic equivalence between Pilates and Reformer for filtering
+  if (groupLabel === 'Pilates' && selected.includes('Reformer')) return true;
+  if (groupLabel === 'Reformer' && selected.includes('Pilates')) return true;
+  return false;
 }
 
 // Render a discipline tag chip (coloured pastel pill with glyph).

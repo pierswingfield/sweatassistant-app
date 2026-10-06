@@ -1113,7 +1113,15 @@ function setupSettingsNavigation() {
   let initialSection = legacySectionMap[hash] || 'account';
   if (['account', 'gyms', 'about', 'calendar'].includes(hash)) initialSection = hash;
 
-  const activateSection = (sectionId) => {
+  let navHistory = [];
+  let currentSection = initialSection;
+
+  const activateSection = (sectionId, pushHistory = true) => {
+    if (pushHistory && currentSection && currentSection !== sectionId) {
+      navHistory.push(currentSection);
+    }
+    currentSection = sectionId;
+
     menuItems().forEach(item => {
       const match = item.getAttribute('data-settings-section') === sectionId;
       item.classList.toggle('active', match);
@@ -1136,7 +1144,8 @@ function setupSettingsNavigation() {
   layout.addEventListener('click', (event) => {
     const item = event.target.closest('.psycle-settings-menu-item');
     if (!item || !layout.contains(item)) return;
-    activateSection(item.getAttribute('data-settings-section'));
+    navHistory = [];
+    activateSection(item.getAttribute('data-settings-section'), false);
   });
   // Exposed so renderGymsCard can select a gym's pane after creating it.
   layout.__activateSettingsSection = activateSection;
@@ -1144,7 +1153,12 @@ function setupSettingsNavigation() {
   // Attach mobile back button listener
   if (backBtn) {
     backBtn.addEventListener('click', () => {
-      layout.classList.remove('show-pane');
+      if (navHistory.length > 0) {
+        const prev = navHistory.pop();
+        activateSection(prev, false);
+      } else {
+        layout.classList.remove('show-pane');
+      }
     });
   }
 
@@ -1299,7 +1313,7 @@ function connRowCreate(g) {
   row.setAttribute('role', 'row');
   const id = escapeHtml(g.gym_id);
   row.innerHTML = `
-    <span role="cell" class="psycle-gym-conn-name"><span class="psycle-gym-conn-logo"></span><strong></strong><small></small></span>
+    <span role="cell" class="psycle-gym-conn-name"><span class="psycle-gym-conn-logo"></span><small></small></span>
     <span role="cell" class="psycle-gym-conn-health"><span class="psycle-gym-conn-dot" aria-hidden="true"></span><span class="psycle-gym-conn-label"></span></span>
     <span role="cell" class="psycle-gym-conn-when"></span>
     <span role="cell" class="psycle-gym-conn-actions">
@@ -1318,7 +1332,17 @@ function connRowUpdate(row, g) {
     logo.setAttribute('data-mark', logoKey);
     logo.innerHTML = gymLogoBanner(g.gym_id);
   }
-  row.querySelector('.psycle-gym-conn-name strong').textContent = g.gym_name || g.gym_id;
+  const gymName = g.gym_name || g.gym_id;
+  logo.setAttribute('title', gymName);
+  logo.setAttribute('aria-label', gymName);
+  const img = logo.querySelector('img');
+  if (img) img.setAttribute('alt', gymName);
+  const svg = logo.querySelector('svg');
+  if (svg) svg.setAttribute('aria-label', gymName);
+
+  const strong = row.querySelector('.psycle-gym-conn-name strong');
+  if (strong) strong.remove();
+
   row.querySelector('.psycle-gym-conn-name small').textContent = g.gym_email || g.provider || '';
   const h = row.querySelector('.psycle-gym-conn-health');
   h.className = `psycle-gym-conn-health ${health.cls}`;
@@ -1410,36 +1434,47 @@ async function onGymListClick(event) {
     return;
   }
   const btn = event.target.closest('[data-unlink-gym]');
-  if (!btn) return;
-
-  // Double-click confirm, matching how every other destructive action in the app
-  // behaves (cancel a booking, leave a waitlist).
-  if (btn.dataset.armed !== '1') {
-    btn.dataset.armed = '1';
-    btn.textContent = COPY.settings.confirmUnlink;
+  if (btn) {
+    // Double-click confirm, matching how every other destructive action in the app
+    // behaves (cancel a booking, leave a waitlist).
+    if (btn.dataset.armed !== '1') {
+      btn.dataset.armed = '1';
+      btn.textContent = COPY.settings.confirmUnlink;
+      clearTimeout(btn._armTimer);
+      btn._armTimer = setTimeout(() => { delete btn.dataset.armed; btn.textContent = COPY.settings.unlink; }, 4000);
+      return;
+    }
     clearTimeout(btn._armTimer);
-    btn._armTimer = setTimeout(() => { delete btn.dataset.armed; btn.textContent = COPY.settings.unlink; }, 4000);
+    btn.disabled = true;
+    try {
+      await api.unlinkGym(btn.dataset.unlinkGym);
+      showToast(COPY.settings.gymUnlinked, 'success');
+      // C3-1: unlinking changes the linked-gym set the header badges and
+      // capability gates read (client/src/gym-context.js), which settings.js
+      // re-rendering its own cards never refreshes — without this the header
+      // still shows the unlinked gym's badge until a full reload. loadGymContext()
+      // updates the linked-gym list capability gates read; refreshUserData()
+      // is what actually re-renders the header credit badges from that list
+      // (updateCreditBadge reads getLinkedGyms()).
+      await syncAfterGymSetChange();
+      await renderGymsCard();
+    } catch (err) {
+      showToast(err.message, 'error');
+      btn.disabled = false;
+      delete btn.dataset.armed;
+      btn.textContent = COPY.settings.unlink;
+    }
     return;
   }
-  clearTimeout(btn._armTimer);
-  btn.disabled = true;
-  try {
-    await api.unlinkGym(btn.dataset.unlinkGym);
-    showToast(COPY.settings.gymUnlinked, 'success');
-    // C3-1: unlinking changes the linked-gym set the header badges and
-    // capability gates read (client/src/gym-context.js), which settings.js
-    // re-rendering its own cards never refreshes — without this the header
-    // still shows the unlinked gym's badge until a full reload. loadGymContext()
-    // updates the linked-gym list capability gates read; refreshUserData()
-    // is what actually re-renders the header credit badges from that list
-    // (updateCreditBadge reads getLinkedGyms()).
-    await syncAfterGymSetChange();
-    await renderGymsCard();
-  } catch (err) {
-    showToast(err.message, 'error');
-    btn.disabled = false;
-    delete btn.dataset.armed;
-    btn.textContent = COPY.settings.unlink;
+
+  // Tapping anywhere else on the row navigates to the gym's specific settings pane
+  const row = event.target.closest('.psycle-gym-conn-row');
+  if (row) {
+    const gymId = row.getAttribute('data-gym-key');
+    if (gymId) {
+      const layout = document.getElementById('psycle-settings-layout-wrapper');
+      layout?.__activateSettingsSection?.(`gym-${gymId}`);
+    }
   }
 }
 

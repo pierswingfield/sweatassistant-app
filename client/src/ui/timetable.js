@@ -23,11 +23,10 @@ import { renderMinimap, instructorAvatar } from './tooltips.js';
 import { openDB, accountScopedKey } from '../cache.js';
 import { bookingNotifyPayload } from './booking-notify.js';
 import { spotSelectionRule, needsSetupIntro, setupIntroCopy } from './spot-selection.js';
-import { disciplineTag, seatNoun, sparklesIcon, trendingUpIcon, icon, pulseIcon, trimLocation, displayStudioName, equalizeDiscTagWidths , gymChip , cleanClassName, getDiscipline } from './cards';
+import { disciplineTag, seatNoun, sparklesIcon, trendingUpIcon, icon, pulseIcon, trimLocation, displayStudioName, equalizeDiscTagWidths , gymChip , cleanClassName, getDiscipline, passesDisciplineFilter } from './cards';
 import { openEditBookingModal, syncBookingCache } from './bookings';
 import { openStudioFloorPlanEditor } from './settings';
-import { studioHasRowGroups, rowSelectorVisible } from './spotmap.js';
-import { renderFilterRail, removeFilterRail } from './filter-rail.js';
+import { renderFilterRail, removeFilterRail, syncFilterSheetState, isFilterSheetOpen } from './filter-rail.js';
 import { buildSearchIndex, searchEvents, tokenize } from './timetable-search.js';
 import { getSearchQuery, setSearchQuery, onSearchChange, inSearchScope, enterSearchScope, leaveSearchScope, emptyFilters, filtersAreEmpty } from './timetable-search-state.js';
 import { ensureSearchUi, openSearch } from './timetable-search-ui.js';
@@ -1372,6 +1371,52 @@ function subscribeSearch() {
   });
 }
 
+export { passesDisciplineFilter } from './cards';
+
+let deferredFilterTimer = null;
+
+function scheduleDeferredFilterRender() {
+  if (deferredFilterTimer) clearTimeout(deferredFilterTimer);
+  deferredFilterTimer = setTimeout(() => {
+    deferredFilterTimer = null;
+    renderTimetableGrid('filter');
+  }, 100);
+}
+
+export function flushDeferredFilterRender() {
+  if (deferredFilterTimer) {
+    clearTimeout(deferredFilterTimer);
+    deferredFilterTimer = null;
+    renderTimetableGrid('filter');
+  }
+}
+
+function countMatchingEventsQuick() {
+  const now = new Date();
+  let count = 0;
+  for (let i = 0; i < psycleEvents.length; i++) {
+    const e = psycleEvents[i];
+    if (new Date(e.startAt) < now) continue;
+    if (selectedGyms.length > 0 && (!e.gymId || !selectedGyms.includes(String(e.gymId)))) continue;
+    if (!passesLocationFilter(selectedLocations, eventLocationId(e))) continue;
+    if (!passesInstructorFilter(selectedInstructors, e.gymId, (e.instructors || []).map(x => x.id))) continue;
+    if (selectedEventTypes.length > 0) {
+      const et = metadata.eventTypes.find(t => sameId(t.id, e.classTypeId) && (!e.gymId || t.gymId === e.gymId));
+      const rawGroup = e.discipline ?? (et?.group != null ? String(et.group) : null);
+      const etGroupId = rawGroup != null ? getDiscipline(String(rawGroup)).label : null;
+      if (!passesDisciplineFilter(selectedEventTypes, etGroupId)) continue;
+    }
+    if (showBookmarksOnly) {
+      const identifier = generateBookmarkIdentifier(e);
+      if (!canForGym('bookmarks', e.gymId)) continue;
+      const bookmarks = profileForGym(e.gymId)?.metafields?.public?.bookmarks?.events || [];
+      if (!bookmarks.includes(identifier)) continue;
+    }
+    count++;
+  }
+  return count;
+}
+
 // U2-5: adapter between this module's filter state and ui/filter-rail.js.
 // The rail owns no state; every mutation goes through here, then re-renders.
 function buildFilterRailCtx(eventsExcluding, resultCount) {
@@ -1396,8 +1441,30 @@ function buildFilterRailCtx(eventsExcluding, resultCount) {
   const gymOrder = linked.map(g => g.gym_id || g.id);
   const locations = metadata.locations.filter(l => gymOk(l.gymId)).sort((a, b) =>
     gymOrder.indexOf(a.gymId) - gymOrder.indexOf(b.gymId) || locationBaseLabel(a).localeCompare(locationBaseLabel(b)));
-  const rerender = () => renderTimetableGrid();
-  return {
+  const rerender = () => renderTimetableGrid('filter');
+
+  const syncQuick = (c) => {
+    c.state.gyms = selectedGyms;
+    c.state.locations = selectedLocations;
+    c.state.instructors = selectedInstructors;
+    c.state.eventTypes = selectedEventTypes;
+    c.state.bookmarks = showBookmarksOnly;
+    const gOk = (gid) => selectedGyms.length === 0 || selectedGyms.includes(String(gid));
+    const gOrder = linked.map(g => g.gym_id || g.id);
+    c.locations = metadata.locations.filter(l => gOk(l.gymId)).sort((a, b) =>
+      gOrder.indexOf(a.gymId) - gOrder.indexOf(b.gymId) || locationBaseLabel(a).localeCompare(locationBaseLabel(b)));
+    c.workouts = buildWorkoutOptions({
+      eventTypes: metadata.eventTypes, events: psycleEvents, gymOk: gOk,
+      labelOf: (g) => getDiscipline(g).label,
+    });
+    c.instructors = metadata.instructors.filter(i => gOk(i.gymId)).sort((a, b) => (a.name || '').localeCompare(b.name || ''))
+      .map(i => ({ ...i, rawId: i.id, id: instructorToken(i.gymId, i.id) }));
+    c.resultCount = countMatchingEventsQuick();
+    syncFilterSheetState(c);
+    scheduleDeferredFilterRender();
+  };
+
+  const ctx = {
     state: {
       gyms: selectedGyms, locations: selectedLocations, instructors: selectedInstructors,
       eventTypes: selectedEventTypes, bookmarks: showBookmarksOnly,
@@ -1414,6 +1481,7 @@ function buildFilterRailCtx(eventsExcluding, resultCount) {
     openSearch,
     searchActive: inSearchScope(),
     canBookmark: false, // Temporarily hidden on front-end until universal cross-gym favourite class solution
+    flush: flushDeferredFilterRender,
     // Nothing picked = no filter (every chip shows unselected); picking chips
     // narrows to just those. OR within a section, AND across sections.
     isOn: (key, id) => arrays[key]().includes(String(id)),
@@ -1425,22 +1493,42 @@ function buildFilterRailCtx(eventsExcluding, resultCount) {
         const gymOf = (list, i) => list.find(x => String(x.id) === i)?.gymId;
         selectedLocations = selectedLocations.filter(i => gymOk(gymOf(metadata.locations, i)));
         selectedInstructors = pruneInstructorSelection(selectedInstructors, gymOk);
-        selectedEventTypes = selectedEventTypes.filter(l => metadata.eventTypes.some(t => t.group && getDiscipline(t.group).label === l && gymOk(t.gymId)));
+        selectedEventTypes = selectedEventTypes.filter(l => metadata.eventTypes.some(t => t.group && passesDisciplineFilter([getDiscipline(t.group).label], l) && gymOk(t.gymId)));
       }
-      rerender();
+      if (isFilterSheetOpen()) {
+        syncQuick(ctx);
+      } else {
+        rerender();
+      }
     },
     clear: (key) => {
       if (key === 'gyms') { selectedGyms = []; selectedLocations = []; } else assign(key, []);
-      rerender();
+      if (isFilterSheetOpen()) {
+        syncQuick(ctx);
+      } else {
+        rerender();
+      }
     },
     clearAll: () => {
       selectedGyms = []; selectedLocations = []; selectedInstructors = []; selectedEventTypes = [];
       showBookmarksOnly = false;
-      rerender();
+      if (isFilterSheetOpen()) {
+        syncQuick(ctx);
+      } else {
+        rerender();
+      }
     },
-    toggleBookmarks: () => { showBookmarksOnly = !showBookmarksOnly; rerender(); },
+    toggleBookmarks: () => {
+      showBookmarksOnly = !showBookmarksOnly;
+      if (isFilterSheetOpen()) {
+        syncQuick(ctx);
+      } else {
+        rerender();
+      }
+    },
     save: () => document.getElementById('psycle-btn-save-default-filters')?.click(),
   };
+  return ctx;
 }
 
 // Instructor picks belong to ONE gym (locations are strict: see passesLocationFilter in lib.js).
@@ -1521,7 +1609,7 @@ export async function renderTimetableGrid(reason = 'interaction') {
         // whose specific class type buckets to Boxing, not just one literal
         // string.
         const etGroupId = (et?.group ?? e.discipline) != null ? getDiscipline(String(et?.group ?? e.discipline)).label : null;
-        if (!etGroupId || !selectedEventTypes.includes(etGroupId)) return false;
+        if (!passesDisciplineFilter(selectedEventTypes, etGroupId)) return false;
       }
       return true;
     });
@@ -1606,7 +1694,7 @@ export async function renderTimetableGrid(reason = 'interaction') {
       const et = metadata.eventTypes.find(t => sameId(t.id, e.classTypeId) && (!e.gymId || t.gymId === e.gymId));
       const rawGroup = e.discipline ?? (et?.group != null ? String(et.group) : null);
       const etGroupId = rawGroup != null ? getDiscipline(String(rawGroup)).label : null;
-      if (!etGroupId || !selectedEventTypes.includes(etGroupId)) return false;
+      if (!passesDisciplineFilter(selectedEventTypes, etGroupId)) return false;
     }
     // Filter by Bookmarked Only
     if (showBookmarksOnly) {

@@ -36,3 +36,41 @@ describe('cleanClassName (U1-11)', () => {
     expect(cleanClassName('', 'TRAIN')).toBe('');
   });
 });
+
+describe('getDiscipline & passesDisciplineFilter (Pilates vs Reformer)', () => {
+  it('differentiates Pilates and Reformer labels while sharing the reformer key/icon', async () => {
+    const { getDiscipline } = await import('./cards.js');
+    const pil = getDiscipline('Pilates');
+    expect(pil.label).toBe('Pilates');
+    expect(pil.key).toBe('reformer');
+    expect(pil.icon).toBe('reformer');
+
+    const ref = getDiscipline('Reformer');
+    expect(ref.label).toBe('Reformer');
+    expect(ref.key).toBe('reformer');
+    expect(ref.icon).toBe('reformer');
+  });
+
+  it('treats Pilates and Reformer as semantically equivalent for filtering', async () => {
+    const { passesDisciplineFilter } = await import('./cards.js');
+    expect(passesDisciplineFilter(['Pilates'], 'Pilates')).toBe(true);
+    expect(passesDisciplineFilter(['Pilates'], 'Reformer')).toBe(true);
+    expect(passesDisciplineFilter(['Reformer'], 'Pilates')).toBe(true);
+    expect(passesDisciplineFilter(['Reformer'], 'Reformer')).toBe(true);
+    expect(passesDisciplineFilter(['Ride'], 'Pilates')).toBe(false);
+    expect(passesDisciplineFilter(['Ride'], 'Reformer')).toBe(false);
+  });
+
+  it('labels Lagree separately and keeps it distinct from Reformer/Pilates', async () => {
+    const { getDiscipline, passesDisciplineFilter } = await import('./cards.js');
+    const lag = getDiscipline('Lagree');
+    expect(lag.label).toBe('Lagree');
+    expect(lag.key).toBe('reformer');
+
+    expect(passesDisciplineFilter(['Lagree'], 'Lagree')).toBe(true);
+    expect(passesDisciplineFilter(['Lagree'], 'Reformer')).toBe(false);
+    expect(passesDisciplineFilter(['Lagree'], 'Pilates')).toBe(false);
+    expect(passesDisciplineFilter(['Reformer'], 'Lagree')).toBe(false);
+    expect(passesDisciplineFilter(['Pilates'], 'Lagree')).toBe(false);
+  });
+});

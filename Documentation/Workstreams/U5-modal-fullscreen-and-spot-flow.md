@@ -46,3 +46,39 @@ Related documents: [QA/modal-audit.md](../QA/modal-audit.md) (inventory, with fi
 | U5-22 | **Quick-Book candidate, duplicate and attendee-limit handling.** | ✅ IMPLEMENTED 2026-10-06 | `timetable.js`, `booking-attempts.js`, `booking-limits.js`, `api.js`, `copy.js`, `marianatek.js`, `routes-normalized.js` | Step B is titled “Finish Quick-Book”; its chosen candidate is identified with app-name-aware copy. JAB self/guest eligibility is now account-and-class scoped from MarianaTek class state plus payment options: one primary self reservation, and a distinct single-guest flow with a guest email and pass check. Quantity selectors render only when the current self entitlement exceeds one; existing provider rules remain unchanged. Extra self bookings funded by ordinary credits and multiple guests remain deliberately unimplemented pending a confirmed provider contract. |
 
 **Verification:** `npm test` passed (60 server suites, 302 client tests); `npm run build:client` passed with existing Vite chunk-size/import warnings; `git diff --check` passed. No browser or computer-control check was run; U5-12 remains the device-only keyboard check. U5-14 (mock preference reload) and U5-15 (re-auth spec wording) remain open.
+
+## D. Commit summary and handoff
+
+This section is the staging ledger for the work completed during the 2026-10-05/06 implementation thread. It is intentionally descriptive: it does not replace the Git history and does not authorize committing unrelated working-tree changes.
+
+### Completed commits and deployments
+
+| Commit | Scope / handoff meaning | Deployment state |
+|---|---|---|
+| `c47519c` | U5 spot/modal feedback: setup Back navigation, shared Settings/onboarding entry, conditional row guidance, copy hierarchy, and simplified final setup step. | Superseded by later U5 commits. |
+| `0386e2d` | Initial Home dashboard development. | Included in the later dev tree; keep separate when staging. |
+| `dfc4dcb` | Remaining bugfixes and enhancements unrelated to the initial Home dashboard. | Included in the later dev tree; keep separate when staging. |
+| `f0ab68e` | Deployment records for the grouped work above. | Dev deployment record; production untouched. |
+| `63938db` | Spot-flow copy cleanup and deployment follow-up. | Deployed to sweat-dev. |
+| `5d730df` | Registry deployment note. This commit accidentally included pre-existing registry edits from the separate skills repository; nothing was deleted or reverted. | Do not rewrite history without explicit direction. |
+| `da7522a` | Booking timeout/duplicate handling, JAB attendee-limit handling, selected-candidate overlay, and related tests/docs. | Deployed to sweat-dev. |
+| `aa80cd1` | No-map Quick-Book entry behavior, full-map chosen-spot overlay, and MarianaTek Ground/Bag section normalization and G/B presentation labels. | Deployed to sweat-dev. |
+| `9e599a0` | Entitlement/guest v1: provider-based self/guest options, single guest entry points, no selector at one eligible self booking, and `Finish Quick-Book`. | Deployed to sweat-dev. |
+| `58807f2` | Guest live spot selection, self/guest/full ownership states, grouped guest cancellation safety, guest chips, `Guest` menu label, and plus icon. | Deployed to sweat-dev. |
+
+### Decisions and evidence to preserve
+
+- MarianaTek exposes separate `user_payment_options` and `guest_payment_options`; JAB live reads showed `guest_usage_limit=2` and `guest_remaining_usage_count=2`. The account’s self quota fields and ordinary credit balances were null/expired in the tested account.
+- A controlled self-booking probe on event `82530` (Friday 09 October 2026, 08:10 London, George Davies) returned HTTP 201 for the first self reservation and HTTP 422 for the duplicate self attempt. The reservation was subsequently cancelled by the user. No class inside the 48-hour safety window was touched.
+- `is_penalty_cancel` / `isPenalty` predicts a cancellation fee; it does not mean cancellation is forbidden or that usage will be lost. The frontend should use the provider cancellation-preview endpoint rather than deriving fee state only from a 12-hour heuristic.
+- Extra self bookings funded by ordinary credits remain unimplemented pending a provider capture from an account with live usable credits. Multiple guests in one action also remain deferred. Do not infer either behavior from class capacity or guest-pass allowance.
+- MarianaTek supplies `spot_type.name` such as Ground and Bag. G/B prefixes are JAB presentation policy: display `G 24` / `B 13` in textual labels, chips, bookings, history, and queues, while retaining bare numerals on the visual map.
+- Browser verification was performed only through raw CDP on isolated tabs; no computer-use tool was used. Live booking/cancellation mutations were not used for UI verification.
+- The shared workspace has repeatedly contained unrelated dirty Home/settings/filter/CSS/docs changes. Preserve them; stage only the requested U5 hunks. The final-round agents for cancellation-modal and edit-map eligibility work later hit the account usage limit before producing a verified commit.
+
+### Final-round work still to stage
+
+1. **Grouped cancellation modal:** when a class has multiple booked spots, the existing Cancel action must open a modal immediately (no old confirmation step). List every self/guest spot, provide an individual cancel action and a Cancel all action, require a separate confirmation tap for each action, update the modal after each cancellation, close on explicit dismissal or when the last spot is gone, and retain the single-booking confirmation flow for one spot. Guest cancellations must run before primary cancellation; failures must leave the primary and remaining guest state intact.
+2. **Guest copy verification:** confirm the My Bookings/timetable action reads exactly `Guest` and uses the plus icon; remove any lingering `Book Guest` copy.
+3. **Edit-map eligibility enforcement:** the booked-class Edit modal must use normalized entitlement and prevent over-selection in the UI, client request validation, and server route. It must account for self versus guest ownership, stale state, provider limits, and other-gym rules without restoring a global JAB hard cap.
+4. **Verification and release:** run focused tests for modal trigger/confirmation/order/failure/auto-close and edit-map exact-limit/over-limit behavior; run the full Node 20 suite/build/diff check; perform a raw-CDP non-mutating recheck; stage only these changes; deploy the exact clean commit to sweat-dev; update the registry/CHANGELOG narrowly; leave production untouched.

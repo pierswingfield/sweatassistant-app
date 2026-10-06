@@ -15,6 +15,7 @@ import { api } from '../api';
 import { showToast, getIsOffline } from '../main';
 import { escapeHtml, icon } from './cards';
 import { COPY, formatCopyText } from '../copy.js';
+import { openPage as openNavPage, closePage as closeNavPage } from './modal-nav.js';
 
 // Simplified inline marks (no hotlinking). They approximate the Apple and Google
 // Calendar app icons; they are not pixel-faithful reproductions.
@@ -202,7 +203,8 @@ export async function renderCalendarSection(targetContainer = null) {
 }
 
 /**
- * Calendar settings in a centred modal (onboarding), styled like the Preferred Spot Maps manager.
+ * Calendar settings in a modal (onboarding), built like the Preferred Spot Maps manager: a centred card
+ * on desktop and a full-screen page on mobile (modal-nav), with a Done button at the bottom.
  * Renders the same account-level section as Settings; `onClose` fires once however it is dismissed.
  */
 export function openCalendarSettingsModal({ zIndex = 2000, onChange = null, onClose = null } = {}) {
@@ -214,8 +216,8 @@ export function openCalendarSettingsModal({ zIndex = 2000, onChange = null, onCl
   overlay.innerHTML = `
     <div class="psycle-ovl-card" style="background:var(--bg);border:1px solid color-mix(in srgb, var(--text) 12%, transparent);border-radius:16px;width:100%;max-width:500px;max-height:90vh;display:flex;flex-direction:column;overflow:hidden;">
       <div class="psycle-ovl-header" style="display:flex;justify-content:space-between;align-items:center;padding:14px 18px;border-bottom:1px solid color-mix(in srgb, var(--text) 8%, transparent);flex-shrink:0;">
-        <h3 style="margin:0;font-size:16px;font-weight:700;color:var(--text);"></h3>
-        <button type="button" data-calendar-modal-close aria-label="${COPY.credits.closeModal}" style="background:none;border:none;color:var(--text-secondary);font-size:22px;cursor:pointer;padding:0;line-height:1;">×</button>
+        <h3 data-nav-title style="margin:0;font-size:16px;font-weight:700;color:var(--text);"></h3>
+        <button type="button" data-nav-close data-calendar-modal-close aria-label="${COPY.credits.closeModal}" style="background:none;border:none;color:var(--text-secondary);font-size:22px;cursor:pointer;padding:0;line-height:1;">×</button>
       </div>
       <div class="psycle-ovl-body" style="flex:1;overflow-y:auto;padding:16px;"><div data-calendar-modal-section></div></div>
       <div style="padding:12px 16px;border-top:1px solid color-mix(in srgb, var(--text) 8%, transparent);flex-shrink:0;">
@@ -227,20 +229,25 @@ export function openCalendarSettingsModal({ zIndex = 2000, onChange = null, onCl
 
   const section = overlay.querySelector('[data-calendar-modal-section]');
   let closed = false;
-  const onKey = (e) => { if (e.key === 'Escape') close(); };
-  const close = () => {
+  const cleanup = () => {
     if (closed) return;
     closed = true;
     document.removeEventListener('keydown', onKey);
-    overlay.remove();
     onClose?.();
   };
+  const close = () => {
+    if (closeNavPage(overlay)) return; // mobile: pops the page; onClose below runs cleanup
+    cleanup();
+    overlay.remove();
+  };
+  const onKey = (e) => { if (e.key === 'Escape') close(); };
   overlay.querySelectorAll('[data-calendar-modal-close]').forEach((b) => b.addEventListener('click', close));
   overlay.addEventListener('click', (e) => { if (e.target === overlay) close(); });
   document.addEventListener('keydown', onKey);
   if (onChange) section.addEventListener('psycle:calendar-action-complete', onChange);
 
   document.body.appendChild(overlay);
+  openNavPage(overlay, { id: 'calendar-settings', remove: true, onClose: cleanup });
   renderCalendarSection(section);
   return { close };
 }

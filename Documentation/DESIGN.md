@@ -299,6 +299,19 @@ box-shadow: var(--shadow-sheet);
 
 Overlay background: `color-mix(in srgb, var(--bg) 60%, transparent)` with `backdrop-filter: blur(10px)`.
 
+#### 6.2.1 Mobile: every modal is a full-screen page (`modal-nav.js`)
+
+At ≤ 768px a modal must become a full-screen page with its action pinned at the bottom (Done / Save). That is not done with CSS in the modal itself: register the overlay with `openPage` from `client/src/ui/modal-nav.js`. It adds `.psycle-page` (the full-screen CSS in `styles.css` keys off that class, so an un-registered modal stays a floating card on a phone), a history entry (hardware/iOS back closes it), a scroll lock, dialog semantics, focus and Escape. Above 768px it leaves the centred card alone.
+
+Follow the Preferred Spot Maps manager (`openManageSpotMapsModal` in `settings.js`) or `openCalendarSettingsModal` (`calendar-section.js`):
+
+1. **Markup:** overlay `.psycle-ovl` > `.psycle-ovl-card` > `.psycle-ovl-header` (title `<h3 data-nav-title>`, close `<button data-nav-close>`), `.psycle-ovl-body` (`flex:1; overflow-y:auto`) and a footer holding the full-width Done / primary button. The footer goes **inside the card** so the page layout pins it to the bottom.
+2. **Register:** append the overlay to `document.body`, then `openPage(overlay, { id: '<unique-id>', remove: true, onClose: cleanup })`.
+3. **Close:** every close path (×, Done, backdrop, Escape) calls `if (closePage(overlay)) return;` first. On mobile that pops the history entry and the page's `onClose` runs `cleanup`. Only when it returns false (desktop) do you run `cleanup()` and `overlay.remove()` yourself. Put teardown (listeners, callbacks to the opener) in `cleanup` so it runs exactly once on either path.
+4. **Stacking:** a modal opened from another page (e.g. from onboarding) is just another `openPage`, so Back returns to the page beneath. Give it the caller's `zIndex` (onboarding passes `1000000`).
+5. **Never** build a modal that only has `position:fixed` and a card; it works on desktop and is wrong on a phone. The `Done` footer is required on mobile for onboarding modals.
+6. **Test:** with `window.matchMedia` stubbed to match, assert the overlay gets `.psycle-page` and Done fires `onClose` once (see `client/src/ui/calendar-modal.test.js`).
+
 ### 6.3 Inputs & Dropdowns
 
 ```css

@@ -97,6 +97,7 @@ App/
 │   │       ├── autobook.js    # Auto-Book queue, countdown, SSE stream, favourites, edit modal
 │   │       ├── autoupgrade.js # Auto-Upgrade monitor list (rendered in Auto-Book tab)
 │   │       ├── credits.js     # Buy Credits bundle cards, filters, in-app cart + Stripe checkout
+│   │       ├── modal-nav.js   # ★ Mobile modal → full-screen page (openPage/closePage/pushLayer); REQUIRED for every modal
 │   │       ├── settings.js    # Account / Your Gyms / About coordination + gym drawer actions
 │   │       ├── gym-settings-section.js # Shared explicit-gym settings renderer
 │   │       ├── loading-skeleton.js # Shared timetable/card loading placeholders
@@ -191,6 +192,7 @@ Server runs on port 3000. Vite dev server proxies `/api` to `localhost:3000`.
 
 ## Architecture Constraints
 
+- **Every modal is a full-screen page on mobile, wired through `client/src/ui/modal-nav.js`.** Register the overlay with `openPage(overlay, { id, remove: true, onClose })`, give it `.psycle-ovl` / `.psycle-ovl-card` / `.psycle-ovl-header` (`data-nav-title`, `data-nav-close`) / `.psycle-ovl-body` markup with the Done/primary button in a footer inside the card, and close it with `if (closePage(overlay)) return;` before any manual teardown. A plain `position:fixed` card stays a small floating box on a phone. Copy `openManageSpotMapsModal` (`settings.js`) or `openCalendarSettingsModal` (`calendar-section.js`); full recipe in `Documentation/DESIGN.md` §6.2.1.
 - **Server must handle all background work** (auto-book scheduling, auto-upgrade polling, reminders, calendar feed polling). The PWA is just a UI + push notification receiver.
 - **Background work uses the ROW's gym session, never the active gym's (C3-12, 2026-09-26)**. `db.getUserById(userId).jwt` resolves the user's *active* gym. Anything that runs per queue or monitor row (`scheduler.js bookSlotWithRelogin`, `poller.js` fetches, swaps and cancel-then-rebook) must use `db.getUserSession(userId, row.gym_id)`. Otherwise a JAB auto-book for a user whose active gym is Psycle gets sent with Psycle's token. `server/test-background-gym-session.js` pins this.
 - **Auto-book precision**: T-50s staggered prefetch → T-5s `setTimeout` → `setInterval` every 10ms polling `Date.now()` until `>= targetRelease`.

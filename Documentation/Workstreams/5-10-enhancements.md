@@ -127,9 +127,9 @@ Status key: [x] done, [ ] not done.
 
 ### Bugs found 2026-10-06, not fixed
 
-- [ ] `client/src/ui/spotmap.js` coerces non-numeric slot ids to NaN: the mock JAB spot-map editor shows "PREFERRED SPOTS NaN" (same class as C1-3; ids must stay strings).
-- [ ] `server.js` caches the templated `index.html` for the process lifetime, so a rebuilt client is not served until the server restarts (matters for local runs and any deploy that rebuilds without recreating the container).
-- [ ] Client vitest missing for the booking-sync "loaded gyms" tracking in `api.js` (server side is covered by `test-booking-sync-scope.js`).
+- [x] FIXED 2026-10-06 (`slotKey()` in `spotmap.js`; callers in `timetable.js` stop coercing; test `spotmap-slotkey.test.js`). Was: `client/src/ui/spotmap.js` coerces non-numeric slot ids to NaN: the mock JAB spot-map editor shows "PREFERRED SPOTS NaN" (same class as C1-3; ids must stay strings).
+- [x] FIXED 2026-10-06 (cache keyed by file mtime; test in `test-spa-fallback.js`). Was: `server.js` caches the templated `index.html` for the process lifetime, so a rebuilt client is not served until the server restarts (matters for local runs and any deploy that rebuilds without recreating the container).
+- [x] FIXED 2026-10-06 (`client/src/api-bookings-sync-scope.test.js`). Was: client vitest missing for the booking-sync "loaded gyms" tracking in `api.js` (server side is covered by `test-booking-sync-scope.js`).
 
 ### Verification gaps
 

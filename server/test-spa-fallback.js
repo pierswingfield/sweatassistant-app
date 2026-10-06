@@ -116,6 +116,18 @@ async function run() {
   const shell = (await get('/settings/gym-jab')).text;
   assert.ok(!/(?:src|href)="(?!\/|https?:|#|data:)/.test(shell), 'shell uses root-absolute asset URLs');
   console.log('PASS asset URLs root-absolute');
+
+  // A rebuilt client must be served without restarting the server (templated index.html was cached for the process lifetime).
+  const indexPath = path.join(pub, 'index.html');
+  const rebuilt = '<!doctype html><title>SHELL</title><script type="module" src="/assets/app.REBUILT.js"></script>';
+  fs.writeFileSync(indexPath, rebuilt);
+  const future = new Date(Date.now() + 5000);
+  fs.utimesSync(indexPath, future, future); // guarantee a distinct mtime on coarse-mtime filesystems
+  const after = await get('/');
+  assert.ok(after.text.includes('app.REBUILT.js'), 'rebuilt index.html is served without a restart');
+  const afterDeep = await get('/timetable');
+  assert.ok(afterDeep.text.includes('app.REBUILT.js'), 'same for SPA fallback paths');
+  console.log('PASS rebuilt index.html served without restart');
 }
 
 run().then(() => { cleanup(); console.log('spa-fallback: all checks passed'); process.exit(0); })

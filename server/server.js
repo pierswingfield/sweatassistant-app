@@ -210,15 +210,25 @@ const fileCache = {};
 // Built client directory. Overridable so tests (and the browser check) can serve a build from elsewhere.
 const PUBLIC_DIR = process.env.PUBLIC_DIR || path.join(__dirname, 'public');
 
+// Cache the templated file keyed by path AND mtime: a rebuilt client (new hashed bundle names in
+// index.html) is served on the next request instead of after a process restart.
 function sendTemplated(filePath, res, contentType) {
-  if (!fileCache[filePath]) {
+  let mtimeMs;
+  try {
+    mtimeMs = fs.statSync(filePath).mtimeMs;
+  } catch {
+    return res.status(404).send('Not found');
+  }
+  let entry = fileCache[filePath];
+  if (!entry || entry.mtimeMs !== mtimeMs) {
     try {
-      fileCache[filePath] = fs.readFileSync(filePath, 'utf8');
+      entry = { mtimeMs, text: fs.readFileSync(filePath, 'utf8') };
+      fileCache[filePath] = entry;
     } catch {
       return res.status(404).send('Not found');
     }
   }
-  let content = fileCache[filePath];
+  let content = entry.text;
   if (config.appName !== 'Sweat Assistant') {
     content = content.replaceAll('Sweat Assistant', config.appName);
   }

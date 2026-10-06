@@ -3588,7 +3588,7 @@ export async function openGuestBookingModal(c) {
       });
       renderStudioFloorPlan(body.querySelector('#guest-booking-map'), slots, [], [], () => {}, {
         layoutObjects: details.objects || [],
-        availableSlots: available.map((slot) => Number(slot.id)),
+        availableSlots: available.map((slot) => String(slot.id)),
         slotStates: reservationStates,
         selectionLimit: 1,
         hideSummary: true,
@@ -4662,7 +4662,7 @@ async function tryAutoRegisterUpgrade(event, bookedSlotId, bookingRes, enableOve
         gymId: event.gymId || null,
         studioId: studioId || null,
         bookingId: Number(b.bookingId),
-        currentSlotId: Number(b.slotId),
+        currentSlotId: b.slotId,
         className: event.name || event.name || 'Class',
         instructorName: event.instructors?.[0]?.name || (event.instructors?.[0]?.name) || '',
         studioName: event.studioName || event.studioName || '',

@@ -84,6 +84,20 @@ function invalidateSchedule(gymId) {
 
 const router = express.Router();
 
+// C2-4: every GET here is per-user and, for gym-scoped routes, per-gym, but the
+// gym travels in the `x-gym-id` HEADER, which is not part of an HTTP cache key.
+// Without Vary a browser/proxy cache can hand one gym's (or user's) response to
+// another request for the same URL. Routes that set their own Cache-Control
+// later (layout, entitlement) override the default below; the Vary stays.
+router.use((req, res, next) => {
+  if (req.method === 'GET') {
+    res.vary('x-gym-id');
+    res.vary('Authorization');
+    res.set('Cache-Control', 'private, no-cache');
+  }
+  next();
+});
+
 // Resolve (gymId, provider, session) for the current authenticated user, via
 // the same seam every other gym-aware code path uses (db.resolveActiveGymId).
 function resolveContext(userId) {

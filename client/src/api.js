@@ -99,7 +99,7 @@ export function isLoggedIn() {
 
 // Global fetch wrapper with local auth and Cloudflare Zero Trust Access support
 export async function apiFetch(endpoint, options = {}) {
-  const url = endpoint.startsWith('/') ? endpoint : `/${endpoint}`;
+  let url = endpoint.startsWith('/') ? endpoint : `/${endpoint}`;
   assertMutationNetworkAvailable(options.method, COPY.api.offlineMutationBlocked);
   
   const headers = {
@@ -115,6 +115,14 @@ export async function apiFetch(endpoint, options = {}) {
   const targetGym = options.gymId;
   if (targetGym) {
     headers['x-gym-id'] = targetGym;
+    // C2-4: the gym also rides in the URL of a GET. Browsers key their HTTP cache on
+    // the URL, and serialise concurrent same-URL requests behind one cache entry, so
+    // N gyms asking for /api/timetable were answered one after another (cold 13/23/34 s
+    // instead of ~11 s in parallel). The server reads x-gym-id and ignores `gym`.
+    const m = String(options.method || 'GET').toUpperCase();
+    if ((m === 'GET' || m === 'HEAD') && !/[?&]gym=/.test(url)) {
+      url += `${url.includes('?') ? '&' : '?'}gym=${encodeURIComponent(targetGym)}`;
+    }
   }
 
   if (options.body && !(options.body instanceof FormData)) {

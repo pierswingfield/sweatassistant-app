@@ -22,6 +22,7 @@ import {
   isIndividualCancellationBlocked,
   requestGroupedCancellation,
 } from './grouped-cancellation.js';
+import { isExplainerDismissed, dismissExplainer, isKeepOriginalEnabled, keepOriginalForAutoCreate, keepOriginalInitial, summarizeSpotPrefs, currentSpotLabel } from './autoupgrade-setup.js';
 import { canSelectSelfSpot, countSelfBookingSlots, isCurrentModalRun } from './booking-entitlement.js';
 
 // Class starts within the free-cancel cutoff (12h). Edit is hidden inside this
@@ -172,7 +173,7 @@ export function syncBookingCache(bookings) {
         locationName,
         slotLabel: formatSpotLabel(event.gymId || b.gymId, {
           label: b.slotLabel ?? b.raw?.spot?.name ?? b.studio_slot?.label ?? b.slot ?? b.studio_slot_id ?? b.slot_id ?? b.slotId ?? '',
-          section: b.spotSection ?? b.raw?.spot?.spot_type?.name,
+          section: b.spotSection,
         }),
       };
     }).filter(Boolean);
@@ -309,7 +310,7 @@ function buildBookingCard(group, upgrades) {
     const slotId = slotIdOf(b);
     const slotLabel = formatSpotLabel(event.gymId || b.gymId, {
       label: b.slotLabel ?? b.raw?.spot?.name ?? b.studio_slot?.label ?? b.slot ?? b.studio_slot_id ?? b.slot_id ?? slotId ?? '?',
-      section: b.spotSection ?? b.raw?.spot?.spot_type?.name,
+      section: b.spotSection,
     });
 
     // Find active upgrade for this specific booking
@@ -325,7 +326,7 @@ function buildBookingCard(group, upgrades) {
       chipClass += ' state-stopped';
       iconHtml = '<span style="margin-right:4px;" aria-hidden="true">&#9208;</span>';
     } else if (activeUpgrade) {
-      if (activeUpgrade.status === 'paused_no_credits' || totalAvailableCredits(event.gymId) < 1) {
+      if (activeUpgrade.status === 'paused_no_credits' || activeUpgrade.status === 'paused_disabled' || totalAvailableCredits(event.gymId) < 1) {
         chipClass += ' state-warning';
         iconHtml = '<span style="margin-right:4px;">⚠</span>';
       } else {
@@ -426,6 +427,7 @@ function buildBookingCard(group, upgrades) {
         gymId: event.gymId,
         bookingId: bid,
         currentSlotId: slotId,
+        currentSlotLabel: slotLabel,
         studioId: event.studioId || event.studio_id || event.studio?.id || null,
         className,
         groupName,
@@ -579,7 +581,7 @@ export function openGroupedCancellationModal(group, onChange = renderBookings) {
   const labelFor = (booking) => formatSpotLabel(gymId, {
     label: booking.slotLabel ?? booking.raw?.spot?.name ?? booking.studio_slot?.label
       ?? booking.slot ?? booking.studio_slot_id ?? booking.slot_id ?? slotIdOf(booking) ?? '?',
-    section: booking.spotSection ?? booking.raw?.spot?.spot_type?.name,
+    section: booking.spotSection,
   });
 
   const render = () => {
@@ -598,10 +600,10 @@ export function openGroupedCancellationModal(group, onChange = renderBookings) {
       const disabled = busy || blocked;
       return `<div class="psycle-cancel-spot-row" style="display:flex;align-items:center;gap:10px;padding:11px 0;border-bottom:1px solid var(--border);">
         <div style="min-width:0;flex:1;display:flex;flex-direction:column;gap:2px;">
-          <strong style="font-size:14px;">${escapeHtml(role)} ${escapeHtml(labelFor(booking))}</strong>
+          <span style="display:flex;align-items:center;gap:8px;"><small style="font-size:12px;font-weight:600;color:var(--text-secondary);">${escapeHtml(role)}</small><span class="ab-spot-upgrade-chip${isGuest ? ' is-guest' : ''}" style="cursor:default;">${escapeHtml(labelFor(booking))}</span></span>
           ${blocked ? '<span style="font-size:12px;color:var(--text-secondary);">Cancel guest spots first</span>' : ''}
         </div>
-        <button class="psycle-btn danger grouped-cancel-one" data-booking-id="${escapeHtml(bookingId)}" ${disabled ? 'disabled' : ''} style="min-width:88px;${confirming ? 'background:var(--danger);border-color:var(--danger);color:var(--on-accent);' : ''}">${action}</button>
+        <button class="psycle-btn cancel-confirm grouped-cancel-one" data-booking-id="${escapeHtml(bookingId)}" ${disabled ? 'disabled' : ''} style="width:auto;flex:0 0 auto;min-width:88px;padding:10px 16px;">${action}</button>
       </div>`;
     }).join('');
     body.innerHTML = `
@@ -609,7 +611,7 @@ export function openGroupedCancellationModal(group, onChange = renderBookings) {
         <p style="margin:0;font-size:13px;line-height:1.45;color:var(--text-secondary);">Choose a ${escapeHtml(noun)} to cancel, or cancel every booked ${escapeHtml(noun)}. Guest spots are released before your own booking.</p>
         <div>${rows}</div>
         ${error}
-        <button class="psycle-btn danger grouped-cancel-all" ${busy ? 'disabled' : ''} style="width:100%;${confirmAll ? 'background:var(--danger);border-color:var(--danger);color:var(--on-accent);' : ''}">${confirmAll ? COPY.bookings.confirm : `Cancel all ${noun}s`}</button>
+        <button class="psycle-btn cancel-confirm grouped-cancel-all" ${busy ? 'disabled' : ''} style="width:100%;">${confirmAll ? COPY.bookings.confirm : `Cancel all ${noun}s`}</button>
       </div>`;
 
     body.querySelectorAll('.grouped-cancel-one').forEach((button) => {
@@ -1134,7 +1136,7 @@ function upgradeCreditShortfall(gymId) {
 }
 
 // Quick-register or open modal, like the auto-book flow
-async function handleUpgradeClick({ eventId, gymId, bookingId, currentSlotId, studioId, className, groupName, instructorName, studioName, locationName, startAt, existingUpgradeId, existingPrefs }) {
+async function handleUpgradeClick({ currentSlotLabel, eventId, gymId, bookingId, currentSlotId, studioId, className, groupName, instructorName, studioName, locationName, startAt, existingUpgradeId, existingPrefs }) {
   if (!eventId || !bookingId || currentSlotId === '' || currentSlotId == null || isNaN(Number(currentSlotId))) {
     showToast(COPY.bookings.currentSpotUnknown, 'error');
     return;
@@ -1142,7 +1144,7 @@ async function handleUpgradeClick({ eventId, gymId, bookingId, currentSlotId, st
 
   // If editing an existing monitor, always open the config modal
   if (existingUpgradeId !== null) {
-    openUpgradeConfigModal({ eventId, gymId, bookingId, currentSlotId, studioId, className, groupName, instructorName, studioName, locationName, startAt, existingUpgradeId, existingPrefs });
+    openUpgradeConfigModal({ eventId, gymId, bookingId, currentSlotId, currentSlotLabel, studioId, className, groupName, instructorName, studioName, locationName, startAt, existingUpgradeId, existingPrefs });
     return;
   }
 
@@ -1177,14 +1179,14 @@ async function handleUpgradeClick({ eventId, gymId, bookingId, currentSlotId, st
         startAt,
         creditShortfall: upgradeCreditShortfall(gymId),
         preferences: {
-          keepOriginalOnCutoff: true
+          keepOriginalOnCutoff: keepOriginalForAutoCreate(gymSetting(gymId, 'autoUpgradeKeepOriginalByDefault'))
         }
       });
       showToast(COPY.bookings.upgradeStartedWithMap, 'success');
       renderBookings();
     } else {
       // No prefs — open modal to configure
-      openUpgradeConfigModal({ eventId, gymId, bookingId, currentSlotId, studioId, className, groupName, instructorName, studioName, locationName, startAt, existingUpgradeId: null, existingPrefs: null });
+      openUpgradeConfigModal({ eventId, gymId, bookingId, currentSlotId, currentSlotLabel, studioId, className, groupName, instructorName, studioName, locationName, startAt, existingUpgradeId: null, existingPrefs: null });
     }
   } catch (err) {
     showToast(err.message, 'error');
@@ -1192,7 +1194,7 @@ async function handleUpgradeClick({ eventId, gymId, bookingId, currentSlotId, st
 }
 
 // Auto-Upgrade configuration modal (floor plan + options)
-export async function openUpgradeConfigModal({ eventId, gymId, bookingId, currentSlotId, studioId, className, groupName, instructorName, studioName, locationName, startAt, existingUpgradeId, existingPrefs }) {
+export async function openUpgradeConfigModal({ currentSlotLabel = '', eventId, gymId, bookingId, currentSlotId, studioId, className, groupName, instructorName, studioName, locationName, startAt, existingUpgradeId, existingPrefs }) {
   const modal = document.getElementById('psycle-booking-modal');
   const body = document.getElementById('psycle-booking-modal-body');
   const title = document.getElementById('psycle-booking-modal-title');
@@ -1251,13 +1253,16 @@ export async function openUpgradeConfigModal({ eventId, gymId, bookingId, curren
       return;
     }
 
-    // Auto-upgrade reads the LIVE shared studio map, so the editor edits that map
-    // directly. Seed from the shared map (or the existing monitor as a fallback).
-    const seedSlots = (studioPrefs?.preferredSlots || existingPrefs?.preferredSlots || []).map(Number);
-    const seedRows = studioPrefs?.preferredRows || [];
-    const seedKeepOriginal = existingPrefs?.keepOriginalOnCutoff ?? (gymSetting(gymId, 'autoUpgradeKeepOriginalByDefault') ?? false);
+    // Auto-upgrade reads the LIVE shared studio map. The map is hidden by default
+    // and edited in its own view (below); the form state survives the round trip.
+    const state = {
+      slots: (studioPrefs?.preferredSlots || existingPrefs?.preferredSlots || []).map(Number),
+      rows: [...(studioPrefs?.preferredRows || [])],
+      keepOriginal: keepOriginalInitial(existingPrefs, gymSetting(gymId, 'autoUpgradeKeepOriginalByDefault')),
+    };
+    const showKeepOriginal = isKeepOriginalEnabled(gymSetting(gymId, 'autoUpgradeKeepOriginalByDefault'));
 
-    const currentSlotLabel = layoutSlots.find(s => Number(s.id) === currentSlotId)?.label || String(currentSlotId);
+    const spotLabel = currentSpotLabel(layoutSlots, currentSlotId, currentSlotLabel);
 
     // Credit checking for auto-upgrade (needs +1 credit for the upgrade spot).
     // A membership gym's credit math is Infinity (correctly — nothing to
@@ -1274,84 +1279,128 @@ export async function openUpgradeConfigModal({ eventId, gymId, bookingId, curren
       ? `<div style="font-size:12px;color:var(--danger);background:color-mix(in srgb,var(--danger) 10%,transparent);border:1px solid color-mix(in srgb,var(--danger) 20%,transparent);border-radius:8px;padding:10px;margin-bottom:10px;line-height:1.5;">${ineligibleReason || formatCopyText(COPY.bookingEditor.upgradeNeedsCredits, { needed: upgradeCreditsNeeded - availableCredits, gym: escapeHtml(gym.name || gym.shortName || COPY.static.yourGymFallback) })}</div>`
       : '';
 
-    body.innerHTML = `<div id="psycle-upgrade-editor"></div>`;
-    const editorContainer = body.querySelector('#psycle-upgrade-editor');
+    const contextInfo = { className, instructorName: instructorName || '', startAt, gymId, timeZone: event.timeZone };
 
-    const bannerHtml = `
-      <div style="font-size:12px;color:var(--feat-autoupgrade);background:color-mix(in srgb,var(--feat-autoupgrade) 8%,transparent);border:1px solid color-mix(in srgb,var(--feat-autoupgrade) 18%,transparent);border-radius:8px;padding:8px 10px;margin-bottom:10px;line-height:1.5;">
-        ${formatCopyText(COPY.bookingEditor.sharedSpotMapHtml, { studioName: escapeHtml(studioName) })} Auto-Upgrade aims for these ${noun}s in priority order — and Quick-Book &amp; Auto-Book here use the same map. Your current ${noun} is <strong>${escapeHtml(currentSlotLabel)}</strong>.
-      </div>${creditWarningHtml}`;
+    const showForm = () => {
+      body.innerHTML = `
+        <div id="psycle-upgrade-editor" class="psycle-upgrade-setup">
+          ${isExplainerDismissed() ? '' : `
+          <div class="psycle-upgrade-explainer" id="upgrade-explainer">
+            <button type="button" class="psycle-upgrade-explainer-close" id="upgrade-explainer-close" aria-label="Dismiss explanation">&times;</button>
+            <strong>How Auto-Upgrade works</strong>
+            <p>We watch this class for you. When a better ${noun} frees up, we move you into it automatically, and keep checking until the cutoff.</p>
+            <p>Your <strong>preferred ${noun} map</strong> ranks which ${noun}s you would like, in priority order. It is shared for ${escapeHtml(studioName)}, so Quick-Book and Auto-Book use the same map.</p>
+          </div>`}
+          ${creditWarningHtml}
+          <div id="upgrade-context"></div>
+          <div class="psycle-upgrade-current">Your current ${noun}: <strong>${escapeHtml(spotLabel || '—')}</strong></div>
+          <div class="psycle-upgrade-map-summary">
+            <span id="upgrade-map-summary">${escapeHtml(summarizeSpotPrefs(state.slots, state.rows, noun))}</span>
+            <button type="button" class="psycle-btn psycle-upgrade-edit-map" id="upgrade-edit-map">Edit preferred ${noun} map for ${escapeHtml(studioName)}</button>
+          </div>
+          ${showKeepOriginal ? `
+          <label class="psycle-upgrade-keep">
+            <input type="checkbox" class="psycle-ms-checkbox" id="upgrade-keep-original" ${state.keepOriginal ? 'checked' : ''}>
+            <span><strong>${COPY.bookings.continuePastCutoff}</strong><br>
+              <span class="psycle-upgrade-keep-help">${formatCopyText(COPY.bookingEditor.finalUpgradeAttemptHelp, { noun: escapeHtml(noun) })}</span></span>
+          </label>` : ''}
+          <div class="psycle-spotmap-actions psycle-upgrade-actions" style="display:flex;gap:8px;">
+            <button type="button" class="psycle-btn" id="upgrade-save" style="flex:2;background:var(--feat-autoupgrade);color:#fff;">${isEditing ? COPY.bookings.saveChanges : COPY.bookings.startMonitoring}</button>
+            ${isEditing ? `<button type="button" class="psycle-btn" id="upgrade-disable" style="flex:1;background:color-mix(in srgb, var(--danger) 10%, transparent);border:1px solid color-mix(in srgb, var(--danger) 20%, transparent);color:var(--danger);">${COPY.bookings.disableUpgrade}</button>` : ''}
+          </div>
+        </div>`;
 
-    const extraControlsHtml = `
-      <label style="display:flex;align-items:flex-start;gap:10px;font-size:13px;cursor:pointer;line-height:1.4;background:var(--surface-inset);border:1px solid var(--border);border-radius:10px;padding:12px;">
-        <input type="checkbox" class="psycle-ms-checkbox" id="upgrade-keep-original" ${seedKeepOriginal ? 'checked' : ''} style="margin-top:2px;">
-        <span>
-          <strong>${COPY.bookings.continuePastCutoff}</strong><br>
-          <span style="font-size:12px;color:var(--text-tertiary);">${formatCopyText(COPY.bookingEditor.finalUpgradeAttemptHelp, { noun: escapeHtml(noun) })}</span>
-        </span>
-      </label>`;
+      const ctxHost = body.querySelector('#upgrade-context');
+      try { ctxHost.appendChild(bookingContextEl(contextInfo)); } catch (_) { /* context card is cosmetic */ }
 
-    const onDisable = isEditing ? async () => {
-      try {
-        showToast(COPY.bookings.disablingUpgrade, 'info');
-        await api.deleteAutoUpgrade(existingUpgradeId);
-        showToast(COPY.bookings.upgradeDisabled, 'success');
-        closeModal();
-        renderBookings();
-      } catch (err) {
-        showToast(err.message, 'error');
-      }
-    } : null;
+      body.querySelector('#upgrade-explainer-close')?.addEventListener('click', () => {
+        dismissExplainer();
+        body.querySelector('#upgrade-explainer')?.remove();
+      });
+      body.querySelector('#upgrade-keep-original')?.addEventListener('change', (e) => { state.keepOriginal = e.target.checked; });
+      body.querySelector('#upgrade-edit-map').onclick = () => showMap();
 
-    renderStudioFloorPlan(editorContainer, layoutSlots, seedSlots, seedRows, async (slots, rows, container) => {
-      if (slots.length === 0 && rows.length === 0) {
-        showToast(formatCopyText(COPY.bookings.preferredSpotRequiredFor, { noun }), 'warning');
-        return;
-      }
-
-      const keepOriginalOnCutoff = container.querySelector('#upgrade-keep-original')?.checked ?? true;
-
-      try {
-        // 1. Save the shared studio map (this is what every feature reads live)
-        if (resolvedStudioId) {
-          // Studio ids are PROVIDER ids — unique only within a gym — so a map
-          // saved without one lands on whichever gym the server resolves.
-          await api.updateStudioPreferences(resolvedStudioId, { preferredSlots: slots, preferredRows: rows }, gymId);
+      const disableBtn = body.querySelector('#upgrade-disable');
+      if (disableBtn) disableBtn.onclick = async () => {
+        try {
+          showToast(COPY.bookings.disablingUpgrade, 'info');
+          await api.deleteAutoUpgrade(existingUpgradeId);
+          showToast(COPY.bookings.upgradeDisabled, 'success');
+          closeModal();
+          renderBookings();
+        } catch (err) {
+          showToast(err.message, 'error');
         }
+      };
 
-        // 2. Create or update the monitor (per-monitor option only; slots are live)
-        if (isEditing) {
-          await api.updateAutoUpgrade(existingUpgradeId, { keepOriginalOnCutoff }, bookingId);
-          showToast(COPY.bookings.upgradeUpdated, 'success');
-        } else {
-          await api.addAutoUpgrade({
-            eventId, gymId: gymId || null, studioId: resolvedStudioId || null, bookingId, currentSlotId,
-            className, groupName, instructorName, studioName, locationName, startAt,
-            creditShortfall: upgradeCreditShortfall(gymId),
-            preferences: { keepOriginalOnCutoff }
-          });
-          showToast(COPY.bookings.monitorStarted, 'success');
+      body.querySelector('#upgrade-save').onclick = async () => {
+        if (state.slots.length === 0 && state.rows.length === 0) {
+          showToast(formatCopyText(COPY.bookings.preferredSpotRequiredFor, { noun }), 'warning');
+          return;
         }
+        // Hidden option => never sent as true.
+        const keepOriginalOnCutoff = showKeepOriginal && state.keepOriginal;
+        try {
+          if (isEditing) {
+            await api.updateAutoUpgrade(existingUpgradeId, { keepOriginalOnCutoff }, bookingId);
+            showToast(COPY.bookings.upgradeUpdated, 'success');
+          } else {
+            await api.addAutoUpgrade({
+              eventId, gymId: gymId || null, studioId: resolvedStudioId || null, bookingId, currentSlotId,
+              className, groupName, instructorName, studioName, locationName, startAt,
+              creditShortfall: upgradeCreditShortfall(gymId),
+              preferences: { keepOriginalOnCutoff }
+            });
+            showToast(COPY.bookings.monitorStarted, 'success');
+          }
+          closeModal();
+          renderBookings();
+        } catch (err) {
+          showToast(err.message, 'error');
+        }
+      };
+    };
 
-        closeModal();
-        renderBookings();
-      } catch (err) {
-        showToast(err.message, 'error');
-      }
-    }, {
-      saveLabel: isEditing ? COPY.bookings.saveChanges : COPY.bookings.startMonitoring,
-      layoutObjects,
-      rowGroups: rowGroupsForStudio(resolvedStudioId, gymId),
-      bannerHtml,
-      extraControlsHtml,
-      onDisable,
-      disableLabel: COPY.bookings.disableUpgrade,
-      availableSlots: layoutSlots.filter(s => s.isAvailable).map(s => Number(s.id)),
-      currentSlotId,
-      aboveMap: () => bookingContextEl({
-        className, instructorName: instructorName || '', startAt, gymId, timeZone: event.timeZone,
-      }, { helperId: 'spotmap-setup', helperText: COPY.bookingFlow.helperSetup })
-    });
+    const showMap = () => {
+      body.innerHTML = `<div id="psycle-upgrade-editor"></div>`;
+      const editorContainer = body.querySelector('#psycle-upgrade-editor');
+      const bannerHtml = `
+        <div style="font-size:12px;color:var(--text-secondary);background:var(--surface-inset);border:1px solid var(--border);border-radius:8px;padding:8px 10px;margin-bottom:10px;line-height:1.5;">
+          ${formatCopyText(COPY.bookingEditor.sharedSpotMapHtml, { studioName: escapeHtml(studioName) })} Your current ${noun} is <strong>${escapeHtml(spotLabel || '—')}</strong>.
+        </div>`;
+      renderStudioFloorPlan(editorContainer, layoutSlots, state.slots, state.rows, async (slots, rows) => {
+        try {
+          // Save the shared studio map (what every feature reads live). Studio ids
+          // are PROVIDER ids, so the gym must travel with them.
+          if (resolvedStudioId) {
+            await api.updateStudioPreferences(resolvedStudioId, { preferredSlots: slots, preferredRows: rows }, gymId);
+          }
+          state.slots = slots.map(Number);
+          state.rows = [...rows];
+          showForm();
+        } catch (err) {
+          showToast(err.message, 'error');
+        }
+      }, {
+        saveLabel: COPY.spotMapEditor.saveDefaults,
+        layoutObjects,
+        rowGroups: rowGroupsForStudio(resolvedStudioId, gymId),
+        bannerHtml,
+        hideClear: true,
+        // Deliberately no availability filter: this edits the studio-wide shared map, so occupied
+        // spots in this class must stay selectable.
+        currentSlotId,
+        aboveMap: () => bookingContextEl(contextInfo, { helperId: 'spotmap-setup', helperText: COPY.bookingFlow.helperSetup })
+      });
+      const back = document.createElement('button');
+      back.type = 'button';
+      back.className = 'psycle-btn psycle-upgrade-back';
+      back.textContent = COPY.autoUpgrade.backToUpgrade;
+      back.onclick = () => { if (discardOk()) showForm(); };
+      editorContainer.appendChild(back);
+    };
+
+    showForm();
 
   } catch (err) {
     console.error('[Bookings] Modal load layout failed:', err);

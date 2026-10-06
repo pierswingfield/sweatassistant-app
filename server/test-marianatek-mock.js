@@ -133,7 +133,8 @@ check('listBookings: an active booking is listed with a full embedded event', as
   assert.strictEqual(found.isWaitlist, false);
   assert.strictEqual(found.eventId, PICK_A_SPOT_ALT);
   assert.strictEqual(found.slotId, 'mock-ground-1');
-  assert.strictEqual(found.spotSection, 'Ground');
+  // Spot type is studio-specific (gyms.config spotMap.spotTypeStudios): BOXING shows it, TRAIN does not.
+  assert.strictEqual(found.spotSection, /^boxing$/i.test(found.event.studioName) ? 'Ground' : undefined, `studio ${found.event.studioName}`);
   assert.strictEqual(found.slotLabel, 'G1');
   assert.ok(found.event && found.event.gymId === 'jab-boxing', 'MT embeds a full NormalizedEvent for free (unlike CodexFit)');
   // Clean up so later checks (credits/memberships) see a consistent state.

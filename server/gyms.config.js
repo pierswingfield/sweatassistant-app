@@ -220,6 +220,10 @@ const GYMS = {
     // Provider-published spot sections are humanized per tenant. Unmapped
     // sections keep the provider's numeric spot label.
     spotSectionPrefixes: { Ground: 'G', Bag: 'B' },
+    // Which studios show the spot type in spot labels (providers/spot-map.js).
+    // BOXING (classroom 6286) does; TRAIN (6282) and anything unlisted do not.
+    // namePattern covers the dev mock, whose classroom ids are synthetic.
+    spotMap: { spotTypeStudios: { ids: ['6286'], namePattern: '^boxing$' } },
     // MarianaTek publishes a per-class release instant (`booking_start_datetime`),
     // already resolved server-side for the viewing account — MT supports both
     // interval (weekly) and rolling window configs and just tells us the answer.

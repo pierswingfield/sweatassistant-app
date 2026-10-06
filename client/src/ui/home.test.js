@@ -1,9 +1,17 @@
-import { describe, expect, it } from 'vitest';
-import { beforeAll } from 'vitest';
+import { describe, expect, it, beforeAll, vi } from 'vitest';
 
 let countPendingAutoBooks;
 beforeAll(async () => {
   window.matchMedia = window.matchMedia || (() => ({ matches: false, addEventListener() {}, removeEventListener() {}, addListener() {}, removeListener() {} }));
+  if (typeof localStorage === 'undefined' || localStorage === null || !localStorage.getItem) {
+    const store = new Map();
+    vi.stubGlobal('localStorage', {
+      getItem: (k) => (store.has(k) ? store.get(k) : null),
+      setItem: (k, v) => { store.set(k, String(v)); },
+      removeItem: (k) => { store.delete(k); },
+      clear: () => store.clear(),
+    });
+  }
   ({ countPendingAutoBooks } = await import('./home.js'));
 });
 

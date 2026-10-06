@@ -122,20 +122,45 @@ export function instructorAvatar(name, gymId = null, directUrl = null, { size = 
   return `<img class="${cls}" src="${url}" alt="" aria-hidden="true" data-instructor-initial="${initialFor(name)}" decoding="async"${lazy ? ' loading="lazy"' : ''} width="${size}" height="${size}">`;
 }
 
-function instructorTooltipHTML(instructorIdRaw, gymId = null) {
+const attrEsc = (v) => String(v ?? '').replace(/&/g, '&amp;').replace(/"/g, '&quot;').replace(/</g, '&lt;');
+
+/**
+ * data-* attributes for a `.psycle-instructor-hover` element, taken from the event's OWN
+ * instructors[0]. The popup looks the instructor up in `metadata.instructors` first, but for
+ * MarianaTek gyms that list is derived from the current class window and can miss the
+ * instructor (or the id), so name + photo travel on the element as the fallback.
+ */
+export function instructorHoverAttrs(instr, gymId = '', fallbackName = '') {
+  const name = (instr && instr.name) || fallbackName || '';
+  const photo = (instr && (instr.imageUrl || instr.thumbUrl)) || '';
+  return `data-id="${attrEsc(instr?.id ?? '')}" data-gym-id="${attrEsc(gymId || '')}" data-name="${attrEsc(name)}" data-photo="${attrEsc(photo)}"`;
+}
+
+export function instructorTooltipHTML(instructorIdRaw, gymId = null, fallback = null) {
   const instructorId = String(instructorIdRaw);
   // Normalized ids are strings; instructorId comes off a raw event as a number or string.
   // Gym-scoped: two gyms can have an instructor with the same numeric id
   // (found 2026-09-02 — this is what broke Psycle instructor photos/bios once
   // a merged multi-gym timetable made id collisions possible).
-  const instructor = metadata.instructors.find(i => String(i.id) === instructorId && (!gymId || i.gymId === gymId));
+  const list = metadata.instructors || [];
+  const wantedName = String(fallback?.name || '').trim().toLowerCase();
+  let instructor = (instructorIdRaw !== undefined && instructorIdRaw !== null && instructorIdRaw !== '' && instructorId !== 'undefined')
+    ? list.find(i => String(i.id) === instructorId && (!gymId || !i.gymId || i.gymId === gymId))
+    : null;
+  if (!instructor && wantedName) {
+    instructor = list.find(i => String(i.name || i.full_name || '').trim().toLowerCase() === wantedName && (!gymId || !i.gymId || i.gymId === gymId));
+  }
+  if (!instructor && fallback?.name) {
+    // Metadata lacks them: build the popup from the event's own instructor data (no bio).
+    instructor = { name: fallback.name, imageUrl: fallback.photo || '' };
+  }
   if (!instructor) return null;
 
   const photoUrl = instructor.imageUrl || instructor.photo || instructor.image_1 || '';
   const name = instructor.name || instructor.full_name || 'Instructor';
   const avatarHtml = photoUrl
     ? `<img src="${photoUrl}" class="psycle-tooltip-avatar" alt="${name}" data-instructor-initial="${initialFor(name)}">`
-    : `<div class="psycle-tooltip-avatar" style="display:flex; align-items:center; justify-content:center; background:color-mix(in srgb, var(--text) 8%, transparent); font-weight:bold; font-size:16px; color:#fff;">${(name || '?')[0]}</div>`;
+    : `<div class="psycle-tooltip-avatar" style="display:flex; align-items:center; justify-content:center; background:color-mix(in srgb, var(--text) 8%, transparent); font-weight:bold; font-size:24px; color:#fff;">${(name || '?')[0]}</div>`;
 
   const keywords = instructor.metafields?.keywords ? instructor.metafields.keywords.replace(/\|/g, ' • ') : '';
   const description = instructor.bio || instructor.metafields?.description || '';
@@ -166,9 +191,14 @@ function instructorTooltipHTML(instructorIdRaw, gymId = null) {
         ${keywords ? `<div class="psycle-tooltip-keywords">${keywords}</div>` : ''}
       </div>
     </div>
-    ${description ? `<p style="margin: 6px 0 0 0; display: -webkit-box; -webkit-line-clamp: 4; -webkit-box-orient: vertical; overflow: hidden; color: var(--text); font-size: 12px; line-height: 1.4;">${description}</p>` : ''}
+    ${description ? `<p style="margin: 6px 0 0 0; display: -webkit-box; -webkit-line-clamp: 4; -webkit-box-orient: vertical; overflow: hidden; color: var(--text); font-size: 15px; line-height: 1.45;">${description}</p>` : ''}
     ${(instagramHtml || spotifyHtml) ? `<div class="psycle-tooltip-socials" style="margin-top: 10px;">${instagramHtml}${spotifyHtml}</div>` : ''}
   `;
+}
+
+function targetFallback(target) {
+  const name = target.getAttribute('data-name');
+  return name ? { name, photo: target.getAttribute('data-photo') || '' } : null;
 }
 
 export function initTooltips() {
@@ -208,7 +238,7 @@ export function initTooltips() {
     if (hoverTimeout) clearTimeout(hoverTimeout);
 
     hoverTimeout = setTimeout(() => {
-      const html = instructorTooltipHTML(target.getAttribute('data-id'), target.getAttribute('data-gym-id'));
+      const html = instructorTooltipHTML(target.getAttribute('data-id'), target.getAttribute('data-gym-id'), targetFallback(target));
       if (!html) return;
       instructorTooltip.innerHTML = html;
       instructorTooltip.style.display = 'block';
@@ -244,7 +274,7 @@ export function initTooltips() {
       hideInstructor();
       return;
     }
-    const html = instructorTooltipHTML(target.getAttribute('data-id'), target.getAttribute('data-gym-id'));
+    const html = instructorTooltipHTML(target.getAttribute('data-id'), target.getAttribute('data-gym-id'), targetFallback(target));
     if (!html) return;
     activeHoverTarget = target;
     instructorTooltip.innerHTML = html;
@@ -409,6 +439,10 @@ function positionTooltip(target, tooltipEl) {
   }
   if (top < 10) {
     top = rect.bottom + 10;
+  }
+  // Never run off the bottom (taller popup, small mobile viewport): clamp, keep a 10px margin.
+  if (top + tooltipRect.height > window.innerHeight - 10) {
+    top = Math.max(10, window.innerHeight - tooltipRect.height - 10);
   }
   tooltipEl.style.left = `${left}px`;
   tooltipEl.style.top = `${top}px`;

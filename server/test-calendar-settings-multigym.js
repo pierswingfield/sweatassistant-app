@@ -55,6 +55,13 @@ async function run() {
   const seen = await get('/api/settings', t);
   assert.ok(seen && (seen.detectedBookingOffset === 15 || JSON.stringify(seen).includes('15')), 'fixture: gym key present in merged read');
 
+  // defaultFilters is ACCOUNT-scoped: saves without naming a gym on a two-gym account.
+  const filt = { gyms: ['jab-boxing'], locations: ['1'], instructors: [], eventTypes: [], showBookmarksOnly: false };
+  const fput = await fetch(`${BASE}/api/settings`, { method: 'PUT', headers: H(t), body: JSON.stringify({ defaultFilters: filt }) });
+  assert.strictEqual(fput.status, 200, `defaultFilters save on 2 gyms: ${fput.status}`);
+  assert.deepStrictEqual((await get('/api/settings', t)).defaultFilters, filt, 'defaultFilters round-trips');
+  assert.deepStrictEqual((await fetch(`${BASE}/api/config/export`, { headers: H(t) }).then((x) => x.json())).psycleSettings.defaultFilters, filt, 'defaultFilters in export');
+
   let r = await post('/api/calendar/enable', { includeTentative: true }, t);
   assert.strictEqual(r.status, 200, `enable on 2 gyms: ${r.status} ${await r.clone().text()}`);
   let st = await get('/api/calendar/status', t);

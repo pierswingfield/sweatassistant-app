@@ -33,6 +33,10 @@ export const SVG_PATHS = {
   // Row overflow-menu glyphs.
   cog: '<circle cx="8" cy="8" r="2.2"/><path d="M8 1.6v1.8M8 12.6v1.8M14.4 8h-1.8M3.4 8H1.6M12.5 3.5l-1.3 1.3M4.8 11.2l-1.3 1.3M12.5 12.5l-1.3-1.3M4.8 4.8 3.5 3.5"/>',
   grid: '<rect x="2" y="2" width="5" height="5" rx="1"/><rect x="9" y="2" width="5" height="5" rx="1"/><rect x="2" y="9" width="5" height="5" rx="1"/><rect x="9" y="9" width="5" height="5" rx="1"/>',
+  // Timetable row-menu glyphs: occupancy (people), guest (person+plus), spot picker (floor-plan dots).
+  users: '<circle cx="6" cy="5.5" r="2.4"/><path d="M1.8 13.5c.5-2.4 2.1-3.6 4.2-3.6s3.7 1.2 4.2 3.6"/><path d="M10.5 3.4a2.4 2.4 0 0 1 0 4.2M12 10.1c1.4.5 2.2 1.7 2.5 3.4"/>',
+  userPlus: '<circle cx="6.5" cy="5.5" r="2.6"/><path d="M1.6 13.8c.6-2.6 2.4-3.9 4.9-3.9 1 0 1.9.2 2.6.6"/><path d="M12.5 8.5v4M10.5 10.5h4"/>',
+  spot: '<rect x="2" y="2.5" width="12" height="11" rx="2"/><circle cx="5.5" cy="6" r=".6"/><circle cx="8" cy="6" r=".6"/><circle cx="10.5" cy="6" r=".6"/><circle cx="5.5" cy="9.5" r=".6"/><circle cx="8" cy="9.5" r=".6"/><circle cx="10.5" cy="9.5" r=".6"/>',
   // Settings menu glyphs (U1-10). Same 16px grid and 1.6 stroke as the rest.
   sliders: '<path d="M2.5 4.5H6M10.5 4.5h3M2.5 11.5h1.5M8 11.5h5.5"/><circle cx="8.25" cy="4.5" r="1.75"/><circle cx="6" cy="11.5" r="1.75"/>',
   bell: '<path d="M4 11V7.2a4 4 0 0 1 8 0V11l1.2 1.5H2.8L4 11Z"/><path d="M6.6 14a1.5 1.5 0 0 0 2.8 0"/>',
@@ -487,9 +491,18 @@ export function wireRailToggle(container) {
     };
     btn.addEventListener('click', () => {
       const open = !card.classList.contains('is-rail-open');
-      if (open) openRails.add(key); else openRails.delete(key);
+      if (open) {
+        // Only one card's edit options may be expanded at a time, across every
+        // list (bookings, waitlists, auto-book, auto-upgrade).
+        document.querySelectorAll('.ab-card.is-rail-open').forEach(other => {
+          if (other !== card && other._closeRail) other._closeRail();
+        });
+        openRails.clear();
+        openRails.add(key);
+      } else openRails.delete(key);
       apply(open);
     });
+    card._closeRail = () => { openRails.delete(key); apply(false); };
     footer.appendChild(btn);
     apply(openRails.has(key));
   });

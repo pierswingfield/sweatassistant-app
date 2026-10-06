@@ -1,7 +1,7 @@
 import { parseLocation, legacyHashToPath } from './url-state.js';
 import { currentRoute, navigate, pathFor, migrateLegacyHash, initRouter } from './router.js';
 import { api, setToken, isLoggedIn } from './api';
-import { setLinkedGyms, setGymCatalogue, getLinkedGyms, getGymShortName, getDefaultGymId, getGymPresentation } from './gym-context.js';
+import { setLinkedGyms, setGymCatalogue, getLinkedGyms, getGymShortName, getDefaultGymId, getGymPresentation, canForGym } from './gym-context.js';
 import { initTooltips } from './ui/tooltips';
 import { setupPullToRefresh, cancelPullToRefresh } from './ui/pulltorefresh';
 import { markScrollBusy, isScrollBusy, isDocScroll, docScroller } from './ui/scroll-state.js';
@@ -11,7 +11,7 @@ import { setCacheKeyPrefix, clearApiCache, invalidateApiCache } from './cache.js
 import { appConfig, initConfig } from './config';
 import { shouldShowOnboarding, resumeOnboarding, getPostLoginDestination, isOnboardingActive, advanceAfterLogin, promoteInstallDismissal, offerInstallBeforeLogin } from './ui/onboarding';
 import { detectBookingWindow, noSept } from './lib';
-import { canBookAtAll, getIneligibleReason, hasConfirmedAccess } from './ui/credit-allowance.js';
+import { canBookAtAll, getIneligibleReason, unmeteredBadgeLabel } from './ui/credit-allowance.js';
 import { escapeHtml, gymBrand, wordmarkElement } from './ui/cards';
 import { installBookingState } from './ui/booking-state.js';
 import { applyGymLoadState, onGymLoadChange } from './ui/gym-load-state.js';
@@ -116,6 +116,17 @@ export function gymSetting(gymId, key) {
   const perGym = gymId && cache.gymSettings ? cache.gymSettings[gymId] : null;
   if (perGym && key in perGym) return perGym[key];
   return userSettings[key];
+}
+
+/**
+ * Whether Auto-Upgrade is enabled by default for new bookings at this gym.
+ * Returns true iff the gym has the capability, the engine is enabled,
+ * and default auto-upgrading is turned on in gym settings.
+ */
+export function isAutoUpgradeDefaultEnabled(gymId) {
+  return canForGym('autoUpgrade', gymId)
+    && gymSetting(gymId, 'autoUpgradeEnabled') !== false
+    && !!gymSetting(gymId, 'autoUpgradeByDefault');
 }
 
 export function setGymSettingLocal(gymId, key, value) {
@@ -369,6 +380,8 @@ function applyCreditsTabGate() {
     btn.hidden = !allowed;
     btn.style.display = allowed ? '' : 'none';
   });
+  document.documentElement.setAttribute('data-credits-tab', allowed ? 'on' : 'off');
+  try { localStorage.setItem('sweatCreditsTabHint', allowed ? '1' : '0'); } catch (e) {}
   if (!allowed && currentTabId === 'buy-credits') switchTab('class-timetable');
   applyBackupMigrationGate();
 }
@@ -805,7 +818,7 @@ function renderGymBadge(container, gymId, shortName, isMetered, total, credits) 
     // eligibility hasn't loaded yet (same unknown-defaults-ON rule as
     // capabilities), but never shown once the server has confirmed this
     // account has no active membership at this gym.
-    badge.innerHTML = `${gymBadgeLogo(gymId, shortName)}<span class="psycle-hgb-pill member">${hasConfirmedAccess(gymId) ? '\u221E' : COPY.shell.member}</span>`;
+    badge.innerHTML = `${gymBadgeLogo(gymId, shortName)}<span class="psycle-hgb-pill member">${unmeteredBadgeLabel(gymId)}</span>`;
     badge.title = formatCopyText(COPY.shell.membershipBadgeTitle, { gymName: shortName });
   } else {
     // C3-3: an unmetered gym with no active membership (and no usable

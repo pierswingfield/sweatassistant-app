@@ -13,7 +13,7 @@
 const crypto = require('crypto');
 const { GymProvider } = require('./base');
 const { resolveZone, toZonedISO } = require('./timezone');
-const { studioHasRowGroups } = require('./spot-map');
+const { studioHasRowGroups, studioShowsSpotType } = require('./spot-map');
 const { makeMetadata, makeProfile, makeMembership, makeEvent, makeSlot, makeBookingResult, makeBooking, makeHistoryEntry } = require('./normalize');
 const bookingWindow = require('./booking-window');
 
@@ -506,7 +506,7 @@ class MarianaTekProvider extends GymProvider {
     const c = await res.json();
     return {
       event: this.mapClassToEvent(c),
-      slots: this.mapLayoutToSlots(c.layout),
+      slots: this.mapLayoutToSlots(c.layout, c.classroom),
       // MT's `layout` carries `spots` only — no podium/stage/pillar fixtures
       // exist in the schema (confirmed against the captured class-detail
       // fixtures), so there is nothing to normalize here. Kept explicit rather
@@ -718,7 +718,15 @@ class MarianaTekProvider extends GymProvider {
   // first-come-first-serve classes, confirmed via class-detail-fcfs.json) onto
   // NormalizedSlot[]. Returns [] for FCFS, matching the UI contract that no
   // floor-plan picker should render for those classes.
-  mapLayoutToSlots(layout) {
+  // Spot type shown as a label section ONLY for studios the gym config opts in
+  // (spotMap.spotTypeStudios). `spotType` on slots stays the raw provider value.
+  _spotSection(spot, classroom) {
+    const name = spot && spot.spot_type && spot.spot_type.name;
+    if (!name || !classroom) return undefined;
+    return studioShowsSpotType(this.gym, { id: classroom.id, name: classroom.name }) ? name : undefined;
+  }
+
+  mapLayoutToSlots(layout, classroom) {
     if (!layout || !Array.isArray(layout.spots)) return [];
     return layout.spots.map((s) => makeSlot({
       id: s.id,
@@ -728,7 +736,7 @@ class MarianaTekProvider extends GymProvider {
       isAvailable: s.is_available,
       isPrimary: s.spot_type && s.spot_type.is_primary,
       spotType: s.spot_type && s.spot_type.name,
-      section: s.spot_type && s.spot_type.name,
+      section: this._spotSection(s, classroom),
       raw: s,
     }));
   }
@@ -872,7 +880,7 @@ class MarianaTekProvider extends GymProvider {
       return makeBookingResult({ ok: false, status: res.status, code, error: normalizedError, raw: data });
     }
     return makeBookingResult({ ok: true, bookingId: data.id, slotId: data.spot && data.spot.id,
-      slotLabel: data.spot && data.spot.name, spotSection: data.spot && data.spot.spot_type && data.spot.spot_type.name, raw: data });
+      slotLabel: data.spot && data.spot.name, spotSection: this._spotSection(data.spot, data.class_session && data.class_session.classroom), raw: data });
   }
 
   async bookGuestSlot(eventId, slotId, guestEmail, session) {
@@ -923,7 +931,7 @@ class MarianaTekProvider extends GymProvider {
       return makeBookingResult({ ok: false, status: res.status, code, error: String(error), raw: data });
     }
     return makeBookingResult({ ok: true, bookingId: data.id, slotId: data.spot && data.spot.id,
-      slotLabel: data.spot && data.spot.name, spotSection: data.spot && data.spot.spot_type && data.spot.spot_type.name,
+      slotLabel: data.spot && data.spot.name, spotSection: this._spotSection(data.spot, data.class_session && data.class_session.classroom),
       isGuest: true, guestEmail: email, raw: data });
   }
 
@@ -986,7 +994,7 @@ class MarianaTekProvider extends GymProvider {
         eventId: r.class_session && r.class_session.id,
           slotId: r.spot && r.spot.id,
           slotLabel: r.spot && r.spot.name,
-        spotSection: r.spot && r.spot.spot_type && r.spot.spot_type.name,
+        spotSection: this._spotSection(r.spot, r.class_session && r.class_session.classroom),
         isGuest: r.is_booked_for_me === false || !!r.guest_email,
         guestEmail: r.guest_email,
         bookedAt: r.created_at || r.reserved_at,
@@ -1051,7 +1059,7 @@ class MarianaTekProvider extends GymProvider {
         const startMs = Date.parse(event.startAt);
         if (!Number.isFinite(startMs) || startMs >= nowMs) continue;
         out.push(makeHistoryEntry({ bookingId: r.id, eventId: r.class_session.id, status, event,
-          slotLabel: r.spot && r.spot.name, spotSection: r.spot && r.spot.spot_type && r.spot.spot_type.name, raw: r }));
+          slotLabel: r.spot && r.spot.name, spotSection: this._spotSection(r.spot, r.class_session && r.class_session.classroom), raw: r }));
       }
       const nextLink = (data.links && data.links.next) || data.next;
       path = null;

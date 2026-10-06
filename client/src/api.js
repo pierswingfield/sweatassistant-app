@@ -5,7 +5,7 @@ import { readCached, setCached, getCachedSWR, clearApiCache, setCacheKeyPrefix, 
 import { classifyAuthFailure } from './auth-failure.js';
 import { COPY, formatCopyText } from './copy.js';
 import { createProgressiveMerge } from './ui/progressive-merge.js';
-import { beginGymLoad, endGymLoad } from './ui/gym-load-state.js';
+import { beginGymLoad as _beginGymLoad, endGymLoad as _endGymLoad } from './ui/gym-load-state.js';
 import { assertMutationNetworkAvailable, isOfflineForMutation } from './network-write-guard.js';
 import { validateSelfBookingRequest } from './ui/booking-entitlement.js';
 
@@ -455,7 +455,9 @@ export const api = {
   // (all gyms together if they land inside graceMs, else first-arrivals then
   // each late gym). Gyms in flight are published to the header chips (U4-2).
   // Resolves to the final merged events.
-  async getTimetableProgressive(params = {}, { graceMs = 4000, onFlush } = {}) {
+  async getTimetableProgressive(params = {}, { graceMs = 4000, onFlush, silent = false } = {}) {
+    const beginGymLoad = silent ? () => {} : _beginGymLoad;
+    const endGymLoad = silent ? () => {} : _endGymLoad;
     const qs = new URLSearchParams();
     if (params.startDate) qs.set('startDate', params.startDate);
     if (params.endDate) qs.set('endDate', params.endDate);
@@ -750,7 +752,9 @@ export const api = {
   // 2026-07-03 for CodexFit — see providers/codexfit.js listBookings doc
   // comment — it resolves via the response's embedded `relations` block when
   // not already inline). bookings.js's renderBookings() is the first caller.
-  async getBookings() {
+  async getBookings({ silent = false } = {}) {
+    const beginGymLoad = silent ? () => {} : _beginGymLoad;
+    const endGymLoad = silent ? () => {} : _endGymLoad;
     return withOfflineSnapshot('bookings', async () => {
     debugLog('GET /api/bookings', 'network');
     const myGymsRes = await this.getMyGyms();
@@ -797,7 +801,9 @@ export const api = {
     });
   },
 
-  async getWaitlists() {
+  async getWaitlists({ silent = false } = {}) {
+    const beginGymLoad = silent ? () => {} : _beginGymLoad;
+    const endGymLoad = silent ? () => {} : _endGymLoad;
     return withOfflineSnapshot('waitlists', async () => {
     debugLog('GET /api/waitlists', 'network');
     const myGymsRes = await this.getMyGyms();

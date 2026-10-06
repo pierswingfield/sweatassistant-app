@@ -7,6 +7,15 @@ let spotSetupBookingOptions;
 
 beforeAll(async () => {
   window.matchMedia = (query) => ({ matches: false, media: query, addEventListener() {}, removeEventListener() {} });
+  if (typeof localStorage === 'undefined' || localStorage === null || !localStorage.getItem) {
+    const store = new Map();
+    vi.stubGlobal('localStorage', {
+      getItem: (k) => (store.has(k) ? store.get(k) : null),
+      setItem: (k, v) => { store.set(k, String(v)); },
+      removeItem: (k) => { store.delete(k); },
+      clear: () => store.clear(),
+    });
+  }
   ({ openSpotSetup, spotSetupHelperText, spotSetupBookingOptions } = await import('./spot-setup.js'));
 });
 

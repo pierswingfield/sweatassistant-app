@@ -13,9 +13,7 @@
 // studio ids are not stable/known up front (ride rooms stagger their rows).
 // This module knows no gym; adapters pass their own config in.
 
-/** @returns {boolean} true only when the gym config flags this studio. */
-function studioHasRowGroups(gym, studio) {
-  const cfg = gym && gym.spotMap && gym.spotMap.rowGroupStudios;
+function studioMatches(cfg, studio) {
   if (!cfg || !studio) return false;
   if (Array.isArray(cfg.ids) && studio.id != null && cfg.ids.map(String).includes(String(studio.id))) return true;
   if (cfg.namePattern && studio.name) {
@@ -24,4 +22,19 @@ function studioHasRowGroups(gym, studio) {
   return false;
 }
 
-module.exports = { studioHasRowGroups };
+/** @returns {boolean} true only when the gym config flags this studio. */
+function studioHasRowGroups(gym, studio) {
+  return studioMatches(gym && gym.spotMap && gym.spotMap.rowGroupStudios, studio);
+}
+
+/**
+ * Whether spot labels in this studio carry the provider's spot type / section
+ * (e.g. "B 13" vs "13"). Default OFF; a gym opts studios in with
+ *   spotMap: { spotTypeStudios: { ids: ['6286'], namePattern: '^boxing$' } }
+ * Same matching rules as rowGroupStudios. Unknown studio => off.
+ */
+function studioShowsSpotType(gym, studio) {
+  return studioMatches(gym && gym.spotMap && gym.spotMap.spotTypeStudios, studio);
+}
+
+module.exports = { studioHasRowGroups, studioShowsSpotType };

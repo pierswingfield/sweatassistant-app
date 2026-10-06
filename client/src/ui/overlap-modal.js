@@ -21,7 +21,7 @@ import { icon, disciplineTag, getDiscipline, renderGymRail, cleanClassName, trim
 import { instructorAvatar } from './tooltips.js';
 import { getGymShortName, getDefaultGymId } from '../gym-context.js';
 import { COPY, formatCopyText } from '../copy.js';
-import { pushLayer } from './modal-nav.js';
+import { openPage, closePage } from './modal-nav.js';
 
 const MAX_CLASHES_SHOWN = 3;
 
@@ -178,7 +178,7 @@ export function confirmOverlap({ subject, warnings, mode = 'autobook' }) {
     const finish = (result) => {
       if (done) return;
       done = true;
-      layer.release(); // mobile: pop our history entry (no-op if back already did)
+      closePage(root); // mobile: pop our history entry (no-op on desktop or if back already did)
       document.removeEventListener('keydown', onKeydown, true);
       pending = null;
       root.classList.remove('show');
@@ -188,6 +188,9 @@ export function confirmOverlap({ subject, warnings, mode = 'autobook' }) {
     };
 
     function onKeydown(e) {
+      // Mobile full-screen page: modal-nav owns Escape and the Tab trap (and routes both
+      // through onClose below), so doing it here too would pop history twice.
+      if (root.classList.contains('psycle-page')) return;
       if (e.key === 'Escape') {
         // Capture phase + stop: the auto-book config modal underneath must not
         // also see this Esc and close itself.
@@ -214,8 +217,9 @@ export function confirmOverlap({ subject, warnings, mode = 'autobook' }) {
     document.addEventListener('keydown', onKeydown, true);
 
     document.body.appendChild(root);
-    // Mobile: hardware/iOS back cancels this dialog only, not the page beneath it.
-    const layer = pushLayer({ id: uid, onBack: () => finish(false) });
+    // Mobile: full-screen page via the shared helper (header X / hardware back / Esc all
+    // cancel this page only, not the one beneath it). Desktop: unchanged dialog.
+    openPage(root, { id: uid, remove: true, onClose: () => finish(false) });
     equalizeDiscTagWidths(root);
     // Next frame so the opacity transition runs; focus straight away so a screen
     // reader announces the dialog rather than the page behind it.

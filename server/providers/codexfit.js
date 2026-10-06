@@ -668,12 +668,21 @@ class CodexFitProvider extends GymProvider {
   // for F-15. CodexFit exposes the complete instructor collection publicly.
   async findInstructorPhoto(instructorId) {
     const res = await this.publicRequest('/instructors');
-    if (!res.ok) return null;
-    const body = await res.json();
-    const instructors = Array.isArray(body) ? body : (body.data || []);
-    const match = instructors.find((i) => String(i.id) === String(instructorId));
-    const url = match && match.photo;
-    return url ? { imageUrl: url, thumbUrl: url } : null;
+    if (res.ok) {
+      const body = await res.json();
+      const instructors = Array.isArray(body) ? body : (body.data || []);
+      const match = instructors.find((i) => String(i.id) === String(instructorId));
+      if (match && match.photo) return { imageUrl: match.photo, thumbUrl: match.photo };
+    }
+    // Co-teach records (e.g. "Brittney Tam & Geoff") are absent from /instructors;
+    // fall back to the photo last seen on an event's own instructor.
+    const seen = this._eventPhotos && this._eventPhotos.get(String(instructorId));
+    return seen ? { imageUrl: seen, thumbUrl: seen } : null;
+  }
+
+  _rememberInstructorPhoto(i) {
+    if (!i || !i.photo || i.id == null) return;
+    (this._eventPhotos = this._eventPhotos || new Map()).set(String(i.id), i.photo);
   }
 
   resolveEventRelations(e, relations = {}) {
@@ -739,7 +748,16 @@ class CodexFitProvider extends GymProvider {
       locationAddress: e.studio && e.studio.location && e.studio.location.address,
       studioId: e.studio_id || (e.studio && e.studio.id),
       studioName: e.studio && e.studio.name,
-      instructors: e.instructor ? [{ id: e.instructor.id, name: e.instructor.full_name || e.instructor.name }] : [],
+      // `photo` rides on the event's own relations instructor. GET /instructors is
+      // incomplete (paged at 100 of 113; co-teach records such as
+      // "Brittney Tam & Geoff", id 576, are absent), so the metadata name lookup
+      // cannot be the only photo source.
+      instructors: e.instructor ? [{
+        id: (this._rememberInstructorPhoto(e.instructor), e.instructor.id),
+        name: e.instructor.full_name || e.instructor.name,
+        imageUrl: e.instructor.photo || undefined,
+        thumbUrl: e.instructor.photo || undefined,
+      }] : [],
       capacity: e.capacity,
       availableCount: e.capacity != null && e.occupancy != null ? Math.max(0, e.capacity - e.occupancy) : undefined,
       isFull: e.is_fully_booked,

@@ -98,7 +98,30 @@ function workoutLabel(s) {
   return `<b class="fr-num">${s.eventTypes.length}</b><span class="fr-thin">${COPY.filters.types}</span>`;
 }
 
+// Compact (scrolled) state stacks the gym logos; a tap on the stack spreads them until the page expands again.
+let gymStackOpen = false;
+let compactObserver = null;
+function appContainer() { return document.getElementById('psycle-app-container'); }
+function isGymStacked() {
+  const app = appContainer();
+  return !!(app && app.classList.contains('psycle-tt-compact') && !gymStackOpen
+    && window.matchMedia && window.matchMedia('(max-width: 768px)').matches);
+}
+function setGymStackOpen(open, rail) {
+  gymStackOpen = open;
+  (rail || document.getElementById('sweat-filter-rail'))?.querySelector('.fr-gymquick')?.classList.toggle('is-open', open);
+}
+function watchCompact() {
+  const app = appContainer();
+  if (compactObserver || !app || typeof MutationObserver === 'undefined') return;
+  compactObserver = new MutationObserver(() => {
+    if (!app.classList.contains('psycle-tt-compact') && gymStackOpen) setGymStackOpen(false);
+  });
+  compactObserver.observe(app, { attributes: true, attributeFilter: ['class'] });
+}
+
 export function renderFilterRail(ctx) {
+  watchCompact();
   lastCtx = ctx;
   const host = document.getElementById('psycle-timetable-filters-container');
   if (!host) return;
@@ -110,12 +133,22 @@ export function renderFilterRail(ctx) {
     host.prepend(rail);
   }
   const { state } = ctx;
-  const parts = [];
+  const parts = [];      // gym logos, search
+  const groupParts = []; // filter button + chips (visually grouped)
 
   // No filters applied: the button also says "Filters"; once any chip exists it is icon-only. The rail is
   // re-rendered on every filter change, so this re-evaluates for free.
   const noFilters = selectedCount(state) === 0;
-  parts.push(`<button type="button" class="fr-trigger${noFilters ? ' has-label' : ''}" data-fr-open="1" aria-label="${COPY.filters.filters}${selectedCount(state) ? `, ${formatCopyText(COPY.filters.activeFilters, { count: selectedCount(state) })}` : ''}">${icon('filter', 16)}${noFilters ? `<span class="fr-trigger-label">${COPY.filters.filters}</span>` : ''}</button>`);
+  // Gym quick-selector: one small round logo per gym, beside Filters. Tap narrows to that gym.
+  const configured = (ctx.allGyms && ctx.allGyms.length ? ctx.allGyms : ctx.gyms) || [];
+  if (ctx.setGymQuick && configured.length > 1) {
+    const items = quickSelectItems(state.gyms, configured.map(g => g.id), ctx.gyms.map(g => g.id));
+    parts.push(`<span class="fr-gymquick${gymStackOpen ? ' is-open' : ''}" role="group" aria-label="${escapeHtml(COPY.filters.gymQuickGroup)}">${items.map(({ gymId, shown, linked }, gi) => {
+      const name = gymBrand(gymId).name;
+      const label = formatCopyText(!linked ? COPY.filters.gymQuickUnlinked : shown ? COPY.filters.gymQuickShown : COPY.filters.gymQuickHidden, { name });
+      return `<button type="button" style="z-index:${items.length - gi}" class="fr-gymquick-btn${shown ? ' is-shown' : ' is-off'}" data-fr-gymquick="${escapeHtml(gymId)}" aria-pressed="${shown}" aria-label="${escapeHtml(label)}">${gymDot(gymId, 'lg')}${shown ? '<svg class="fr-gymquick-tick" viewBox="0 0 10 10" aria-hidden="true"><path d="M2 5.2 4.2 7.4 8 2.8"/></svg>' : ''}</button>`;
+    }).join('')}</span>`);
+  }
 
   // Search lives beside Filters; the input it opens is owned by timetable-search-ui.js
   // (persistent, so this per-render repaint can't destroy typed text).
@@ -123,16 +156,7 @@ export function renderFilterRail(ctx) {
     parts.push(`<button type="button" class="fr-trigger fr-search-btn${ctx.searchActive ? ' active' : ''}" data-fr-search="1" aria-label="${COPY.filters.search}">${icon('search', 16)}</button>`);
   }
 
-  // Gym quick-selector: one small round logo per gym, beside Filters. Tap narrows to that gym.
-  const configured = (ctx.allGyms && ctx.allGyms.length ? ctx.allGyms : ctx.gyms) || [];
-  if (ctx.setGymQuick && configured.length > 1) {
-    const items = quickSelectItems(state.gyms, configured.map(g => g.id), ctx.gyms.map(g => g.id));
-    parts.push(`<span class="fr-gymquick" role="group" aria-label="${escapeHtml(COPY.filters.gymQuickGroup)}">${items.map(({ gymId, shown, linked }) => {
-      const name = gymBrand(gymId).name;
-      const label = formatCopyText(!linked ? COPY.filters.gymQuickUnlinked : shown ? COPY.filters.gymQuickShown : COPY.filters.gymQuickHidden, { name });
-      return `<button type="button" class="fr-gymquick-btn${shown ? ' is-shown' : ' is-off'}" data-fr-gymquick="${escapeHtml(gymId)}" aria-pressed="${shown}" aria-label="${escapeHtml(label)}">${gymDot(gymId, 'lg')}${shown ? '<svg class="fr-gymquick-tick" viewBox="0 0 10 10" aria-hidden="true"><path d="M2 5.2 4.2 7.4 8 2.8"/></svg>' : ''}</button>`;
-    }).join('')}</span>`);
-  }
+  groupParts.push(`<button type="button" class="fr-trigger${noFilters ? ' has-label' : ''}" data-fr-open="1" aria-label="${COPY.filters.filters}${selectedCount(state) ? `, ${formatCopyText(COPY.filters.activeFilters, { count: selectedCount(state) })}` : ''}">${icon('filter', 16)}${noFilters ? `<span class="fr-trigger-label">${COPY.filters.filters}</span>` : ''}</button>`);
 
   if (state.gyms.length || state.locations.length) {
     const compact = compactLocationsLabel(state, ctx.locations);
@@ -140,12 +164,12 @@ export function renderFilterRail(ctx) {
     const tile = compact
       ? `<span class="fr-tile-full">${gymTileHtml(ctx)}</span><span class="fr-tile-compact" aria-hidden="true">${escapeHtml(compact)}</span>`
       : gymTileHtml(ctx);
-    parts.push(chip(`${icon('pin', 13)}${tile}`, 'gyms', COPY.filters.clearFilterChip, compact ? 'has-compact' : ''));
+    groupParts.push(chip(`${icon('pin', 13)}${tile}`, 'gyms', COPY.filters.clearFilterChip, compact ? 'has-compact' : ''));
   }
   if (state.eventTypes.length) {
     // One generic workout glyph (the same one JAB's TRAIN uses), not the first
     // pick's own icon, so the chip reads the same whatever is selected.
-    parts.push(chip(`${icon(getDiscipline('train').icon, 13)}<span>${workoutLabel(state)}</span>`, 'eventTypes', COPY.filters.workoutFilterChip));
+    groupParts.push(chip(`${icon(getDiscipline('train').icon, 13)}<span>${workoutLabel(state)}</span>`, 'eventTypes', COPY.filters.workoutFilterChip));
   }
   if (state.instructors.length) {
     const first = ctx.instructors.find(i => String(i.id) === state.instructors[0]);
@@ -157,23 +181,29 @@ export function renderFilterRail(ctx) {
       : state.instructors.length === 1
       ? `${icon('user', 13)}<span>${escapeHtml(((first && first.name) || COPY.filters.instructorFallback).split(' ')[0])}</span>`
       : `${icon('user', 13)}<span><b class="fr-num">${state.instructors.length}</b><span class="fr-thin">${COPY.filters.instructors}</span></span>`;
-    parts.push(chip(body, 'instructors', COPY.filters.instructorFilterChip));
+    groupParts.push(chip(body, 'instructors', COPY.filters.instructorFilterChip));
   }
+  const tail = [];
   if (ctx.canBookmark) {
     // The spacer soaks up free width, so the heart rides the right edge until
     // the chips reach it; once the row overflows the spacer is 0 and the heart is
     // just the last chip in the scroll.
     const heart = `<svg width="16" height="16" viewBox="0 0 16 16" aria-hidden="true" fill="${state.bookmarks ? 'currentColor' : 'none'}" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round"><path d="M8 13.5S2.5 10 2.5 6.2A2.7 2.7 0 0 1 8 5a2.7 2.7 0 0 1 5.5 1.2C13.5 10 8 13.5 8 13.5Z"/></svg>`;
-    parts.push(`<span class="fr-spacer" aria-hidden="true"></span>`);
-    parts.push(`<button type="button" class="fr-heart${state.bookmarks ? ' active' : ''}" data-fr-heart="1" aria-pressed="${state.bookmarks}" aria-label="${COPY.filters.bookmarkedOnly}">${heart}</button>`);
+    tail.push(`<span class="fr-spacer" aria-hidden="true"></span>`);
+    tail.push(`<button type="button" class="fr-heart${state.bookmarks ? ' active' : ''}" data-fr-heart="1" aria-pressed="${state.bookmarks}" aria-label="${COPY.filters.bookmarkedOnly}">${heart}</button>`);
   }
+  parts.push(`<span class="fr-filtergroup">${groupParts.join('')}</span>`);
+  parts.push(...tail);
   rail.innerHTML = parts.join('');
 
   rail.onclick = (e) => {
     const clear = e.target.closest('[data-fr-clear]');
     if (clear) { ctx.clear(clear.dataset.frClear); return; }
     const gq = e.target.closest('[data-fr-gymquick]');
-    if (gq) { ctx.setGymQuick(gq.dataset.frGymquick); return; }
+    if (gq) {
+      if (isGymStacked()) { setGymStackOpen(true, rail); return; }
+      ctx.setGymQuick(gq.dataset.frGymquick); return;
+    }
     if (e.target.closest('[data-fr-search]')) { ctx.openSearch(); return; }
     if (e.target.closest('[data-fr-heart]')) { ctx.toggleBookmarks(); return; }
     const opener = e.target.closest('[data-fr-open]');

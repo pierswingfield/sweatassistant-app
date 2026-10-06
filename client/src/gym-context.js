@@ -87,7 +87,7 @@ export function setGymCatalogue(catalogue) {
 export function formatSpotLabel(gymId, spotOrLabel, section = undefined) {
   const spot = spotOrLabel && typeof spotOrLabel === 'object' ? spotOrLabel : { label: spotOrLabel, section };
   const label = spot.label ?? spot.slotLabel ?? spot.id ?? '';
-  const sectionName = spot.section ?? spot.spotSection ?? spot.spotType;
+  const sectionName = spot.section ?? spot.spotSection;
   const prefixes = gymId && spotSectionPrefixes.get(String(gymId));
   const configured = sectionName && prefixes
     ? Object.entries(prefixes).find(([key]) => key.toLowerCase() === String(sectionName).toLowerCase())?.[1]

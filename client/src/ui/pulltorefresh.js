@@ -73,6 +73,21 @@ export function setupPullToRefresh(scrollEl, onRefresh, {
   }
   scrollTargets.forEach((t) => t.addEventListener('scroll', onScroll, { passive: true }));
 
+  // Mobile scrolls the DOCUMENT and `main` holds the sticky header/date block: any transform
+  // (even translate3d(0,0,0) / will-change) on it re-bases those sticky bars and leaves a gap
+  // after release. So on mobile the indicator overlays and the container is NEVER transformed.
+  function moveEl(y, transition) {
+    if (isDocScroll()) return;
+    scrollEl.style.willChange = 'transform';
+    scrollEl.style.transition = transition;
+    scrollEl.style.transform = `translate3d(0, ${y}px, 0)`;
+  }
+  function clearEl() {
+    scrollEl.style.transform = '';
+    scrollEl.style.transition = '';
+    scrollEl.style.willChange = '';
+  }
+
   function createIndicator() {
     if (indicator && indicator.parentNode) return indicator;
     indicator = document.createElement('div');
@@ -172,6 +187,7 @@ export function setupPullToRefresh(scrollEl, onRefresh, {
     if (isRefreshing) return;
     if (e.touches.length !== 1) return;
 
+    if (isDocScroll()) clearEl();
     startY = e.touches[0].clientY;
     startX = e.touches[0].clientX;
     engagedStartY = null;
@@ -216,9 +232,7 @@ export function setupPullToRefresh(scrollEl, onRefresh, {
         currentElasticY = calcElastic(pull, MAX_TOP_PULL);
         e.preventDefault();
 
-        scrollEl.style.willChange = 'transform';
-        scrollEl.style.transition = 'none';
-        scrollEl.style.transform = `translate3d(0, ${currentElasticY}px, 0)`;
+        moveEl(currentElasticY, 'none');
 
         if (isEnabled()) {
           const isArmed = currentElasticY >= PULL_THRESHOLD;
@@ -249,9 +263,7 @@ export function setupPullToRefresh(scrollEl, onRefresh, {
         currentElasticY = -calcElastic(pull, MAX_BOTTOM_PULL);
         e.preventDefault();
 
-        scrollEl.style.willChange = 'transform';
-        scrollEl.style.transition = 'none';
-        scrollEl.style.transform = `translate3d(0, ${currentElasticY}px, 0)`;
+        moveEl(currentElasticY, 'none');
         return;
       }
     } else if (isBottomPulling && rawDeltaY >= 0) {
@@ -276,8 +288,7 @@ export function setupPullToRefresh(scrollEl, onRefresh, {
         updateIndicator(PULL_THRESHOLD, false, true);
 
         // Snap to holding position (48px) with smooth deceleration
-        scrollEl.style.transition = 'transform 0.3s cubic-bezier(0.25, 1, 0.4, 1)';
-        scrollEl.style.transform = 'translate3d(0, 48px, 0)';
+        moveEl(48, 'transform 0.3s cubic-bezier(0.25, 1, 0.4, 1)');
 
         try {
           await onRefresh();
@@ -288,8 +299,7 @@ export function setupPullToRefresh(scrollEl, onRefresh, {
           isRefreshing = false;
           currentElasticY = 0;
           // Silky smooth return to 0
-          scrollEl.style.transition = 'transform 0.44s cubic-bezier(0.25, 1, 0.4, 1)';
-          scrollEl.style.transform = 'translate3d(0, 0, 0)';
+          moveEl(0, 'transform 0.44s cubic-bezier(0.25, 1, 0.4, 1)');
           hideIndicator();
           setTimeout(() => {
             if (!isTopPulling && !isRefreshing && !isBottomPulling) {
@@ -302,8 +312,7 @@ export function setupPullToRefresh(scrollEl, onRefresh, {
       } else {
         // Below threshold or released halfway: silky smooth damped return to 0 (no overshoot)
         currentElasticY = 0;
-        scrollEl.style.transition = 'transform 0.44s cubic-bezier(0.25, 1, 0.4, 1)';
-        scrollEl.style.transform = 'translate3d(0, 0, 0)';
+        moveEl(0, 'transform 0.44s cubic-bezier(0.25, 1, 0.4, 1)');
         hideIndicator();
         setTimeout(() => {
           if (!isTopPulling && !isRefreshing && !isBottomPulling) {
@@ -320,8 +329,7 @@ export function setupPullToRefresh(scrollEl, onRefresh, {
       isBottomPulling = false;
       currentElasticY = 0;
       // Bottom overscroll silky smooth damped return to 0
-      scrollEl.style.transition = 'transform 0.44s cubic-bezier(0.25, 1, 0.4, 1)';
-      scrollEl.style.transform = 'translate3d(0, 0, 0)';
+      moveEl(0, 'transform 0.44s cubic-bezier(0.25, 1, 0.4, 1)');
       setTimeout(() => {
         if (!isTopPulling && !isRefreshing && !isBottomPulling) {
           scrollEl.style.transform = '';

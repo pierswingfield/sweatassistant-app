@@ -565,10 +565,52 @@ async function resumePausedUpgrades() {
   }
 }
 
+// Stop rules that need no network and no polling: the 1h hard stop and the 12h
+// cutoff. Shared by the active loop and the paused_disabled sweep so a paused
+// monitor can never outlive its window. Returns true when it stopped the row.
+const CUTOFF_BUFFER_S = 5;
+function stopIfWindowClosed(upgrade, prefs, now, why) {
+  const classStart = DateTime.fromISO(upgrade.start_at, { zone: zoneOfGym(upgrade.gym_id) });
+  if (classStart.diff(now, 'hours').hours <= 1) {
+    db.updateAutoUpgrade(upgrade.id, upgrade.user_id, 'stopped', 'Class is within 1 hour — monitoring stopped.', { lastCheckedAt: now.toISO() });
+    return true;
+  }
+  if (classStart.diff(now, 'seconds').seconds <= 12 * 3600 + CUTOFF_BUFFER_S
+      && !(prefs.keepOriginalOnCutoff && !prefs.cutoffAttempted)) {
+    db.updateAutoUpgrade(upgrade.id, upgrade.user_id, 'stopped', why, { lastCheckedAt: now.toISO() });
+    return true;
+  }
+  return false;
+}
+
+/**
+ * Per-gym "polling" switch -> monitors. Least destructive model: turning polling
+ * OFF pauses that gym's monitors as 'paused_disabled' (rows, spot maps and
+ * prefs survive); turning it back ON resumes them, due immediately. A paused
+ * monitor whose class window closes meanwhile is stopped, never left dangling.
+ * Settings are read per ROW's gym, never the active gym's.
+ */
+function syncDisabledUpgrades(now) {
+  for (const upgrade of db.getPausedDisabledAutoUpgrades()) {
+    try {
+      const settings = db.getUserSettings(upgrade.user_id, upgrade.gym_id) || {};
+      if (settings.autoUpgradeEnabled === false) {
+        const prefs = JSON.parse(upgrade.preferences) || {};
+        stopIfWindowClosed(upgrade, prefs, now, 'Stopped at 12h cutoff while auto-upgrade polling was off.');
+      } else {
+        db.updateAutoUpgrade(upgrade.id, upgrade.user_id, 'active', 'Polling turned back on. Monitoring resumed.', { lastCheckedAt: null });
+      }
+    } catch (err) {
+      console.error(`[Poller] Disabled-sync failed for upgrade ID ${upgrade.id}:`, err.message);
+    }
+  }
+}
+
 // Orchestrate all upgrades checks
 async function executeAutoUpgradeChecks() {
   claimedSlots.clear();
   await resumePausedUpgrades();
+  syncDisabledUpgrades(DateTime.now());
   const active = db.getActiveAutoUpgrades();
   if (active.length === 0) return;
 
@@ -576,35 +618,31 @@ async function executeAutoUpgradeChecks() {
 
   for (const upgrade of active) {
     try {
-      // THIS monitor's own gym — autoUpgradeEnabled is gym-scoped, so reading
-      // the ambient default could pause (or fail to pause) a monitor based on
-      // an unrelated gym's setting.
+      // THIS monitor's own gym (settings are per user+gym, not the active gym's).
       const settings = db.getUserSettings(upgrade.user_id, upgrade.gym_id) || {};
-      if (settings.autoUpgradeEnabled === false) continue;
-
-      if (!shouldCheckUpgrade(upgrade, settings)) continue;
+      const pollingOn = settings.autoUpgradeEnabled !== false;
 
       const classStart = DateTime.fromISO(upgrade.start_at, { zone: zoneOfGym(upgrade.gym_id) });
       const hoursUntilClass = classStart.diff(now, 'hours').hours;
 
-      // Class already started or ≤1h away — hard stop
+      // Class already started or <=1h away: hard stop. Runs BEFORE the interval
+      // gate so a 1hr interval can't delay a stop by up to an hour.
       if (hoursUntilClass <= 1) {
         db.updateAutoUpgrade(upgrade.id, upgrade.user_id, 'stopped', 'Class is within 1 hour — monitoring stopped.', { lastCheckedAt: now.toISO() });
         continue;
       }
 
       const prefs = JSON.parse(upgrade.preferences) || {};
-      // C2-3b: a backed-off gym gets no attempts (its local stop rules above and
-      // below still run). Checked before the one-shot cutoff attempt is marked
-      // used, so backoff can't burn a member's final attempt.
+      // C2-3b: a backed-off gym gets no attempts. Checked before the one-shot
+      // cutoff attempt is marked used, so backoff can't burn the final attempt.
       const gymLimited = isGymRateLimited(upgrade.gym_id);
 
-      // 12h cutoff boundary — trigger 5 seconds early to avoid race conditions
-      // at the exact cancel-free boundary that could incur a late-cancel penalty.
-      const CUTOFF_BUFFER_S = 5;
+      // 12h cutoff boundary (5s early, to avoid the cancel-free boundary race).
+      // Also before the interval gate, so the stop / final attempt lands at the
+      // cutoff rather than up to one interval late.
       if (classStart.diff(now, 'seconds').seconds <= 12 * 3600 + CUTOFF_BUFFER_S) {
-        if (prefs.keepOriginalOnCutoff) {
-          // User opted in to continue past 12h: one final attempt (no cancel), then stop
+        if (prefs.keepOriginalOnCutoff && pollingOn) {
+          // Opted in to continue past 12h: one final attempt (no cancel), then stop
           if (!prefs.cutoffAttempted) {
             if (gymLimited) continue;
             console.log(`[Poller] Under 12h for event ${upgrade.event_id}. Final attempt — original seat will be kept.`);
@@ -615,16 +653,24 @@ async function executeAutoUpgradeChecks() {
             });
             await attemptUpgradeSlot(upgrade, true);
           } else {
-            // Already ran the one cutoff attempt — stop
             db.updateAutoUpgrade(upgrade.id, upgrade.user_id, 'stopped', 'Final 12h upgrade attempt already made. Monitoring stopped.', { lastCheckedAt: now.toISO() });
           }
         } else {
-          // Not opted in — stop at 12h, no attempt
+          // Not opted in (or polling off) — stop at 12h, no attempt
           db.updateAutoUpgrade(upgrade.id, upgrade.user_id, 'stopped', 'Stopped at 12h cutoff to avoid cancellation penalty.', { lastCheckedAt: now.toISO() });
           pushService.sendNotification(upgrade.user_id, 'Upgrade Monitor Stopped ⏳', `No better seat found for ${displayClass(upgrade)} before the 12h cutoff.`);
         }
         continue;
       }
+
+      // Polling switched off for this gym: pause (reversible) instead of polling.
+      if (!pollingOn) {
+        db.updateAutoUpgrade(upgrade.id, upgrade.user_id, 'paused_disabled', 'Paused — auto-upgrade polling is off for this gym. Resumes when turned back on.', { lastCheckedAt: upgrade.last_checked_at });
+        continue;
+      }
+
+      // The gym's CURRENT interval setting applies to existing monitors too.
+      if (!shouldCheckUpgrade(upgrade, settings)) continue;
 
       // Standard active check (>12h before class)
       if (gymLimited) continue;

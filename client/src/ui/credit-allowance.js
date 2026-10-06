@@ -122,6 +122,13 @@ export function hasConfirmedAccess(gymId) {
   return !!e && e.canBook === true;
 }
 
+/**
+ * Header chip text for an UNMETERED gym the account isn't confirmed ineligible
+ * for: always the infinity symbol. (A regression gated it on confirmed
+ * eligibility, so it read "Member" until the eligibility fetch landed.)
+ */
+export function unmeteredBadgeLabel() { return '\u221E'; }
+
 /** @returns {string|null} why booking is blocked, or null if it isn't. */
 export function getIneligibleReason(gymId) {
   const e = eligibilityFor(gymId);

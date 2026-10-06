@@ -54,7 +54,7 @@ db.exec(`
     location_name TEXT,
     start_at TEXT,
     preferences TEXT NOT NULL, -- JSON string (preferredSlots, keepOriginalOnCutoff)
-    status TEXT DEFAULT 'active', -- active, upgraded, stopped, paused_no_credits, cutoff_booked
+    status TEXT DEFAULT 'active', -- active, upgraded, stopped, paused_no_credits, paused_disabled, cutoff_booked
     status_message TEXT,
     upgraded_slot_id INTEGER,
     upgraded_at TEXT,
@@ -858,6 +858,9 @@ const ACCOUNT_SCOPED_SETTING_KEYS = new Set([
   // means "stop auto-booking for me". Left gym-scoped it was also unsavable:
   // the Auto-Book tab has no single gym to name.
   'autoBookPaused',
+  // Saved default timetable filters. The timetable is a MERGED multi-gym view,
+  // so the filters (which include a gym selector) belong to the person.
+  'defaultFilters',
 ]);
 
 function parseJsonOr(raw, fallback) {
@@ -1400,6 +1403,11 @@ module.exports = {
   getPausedNoCreditsAutoUpgrades() {
     return db.prepare("SELECT * FROM auto_upgrades WHERE status = 'paused_no_credits'").all();
   },
+  // Monitors paused because the gym's polling switch is off. Background scanner:
+  // no gym filter, the caller routes per row.
+  getPausedDisabledAutoUpgrades() {
+    return db.prepare("SELECT * FROM auto_upgrades WHERE status = 'paused_disabled'").all();
+  },
   getUserAutoUpgrades(userId, gymId = undefined) {
     if (gymId === 'all') {
       return db.prepare('SELECT * FROM auto_upgrades WHERE user_id = ? ORDER BY id DESC').all(userId);
@@ -1483,7 +1491,7 @@ module.exports = {
     const id = Number(bookingId);
     return db.prepare(`
       UPDATE auto_upgrades SET status = 'stopped', status_message = ?
-      WHERE user_id = ? AND gym_id = ? AND status IN ('active', 'paused_no_credits')
+      WHERE user_id = ? AND gym_id = ? AND status IN ('active', 'paused_no_credits', 'paused_disabled')
         AND (booking_id = ? OR new_booking_id = ?)
     `).run(message, userId, gymId, id, id).changes;
   },

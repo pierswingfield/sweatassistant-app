@@ -81,17 +81,18 @@ function autoUpgradeHtml(settings) {
       <div class="psycle-setting-label"><span>${COPY.gymSettings.enablePolling}</span><small>${COPY.gymSettings.pollingHelp}</small></div>
       <label class="psycle-switch"><input type="checkbox" data-gym-setting="autoUpgradeEnabled" ${settings.autoUpgradeEnabled !== false ? 'checked' : ''}><span class="psycle-slider"></span></label>
     </div>
-    <div class="psycle-setting-row">
+    <p class="psycle-card-desc" data-autoupgrade-off-note ${settings.autoUpgradeEnabled === false ? '' : 'hidden'}>${COPY.gymSettings.pollingOffNote}</p>
+    <div class="psycle-setting-row" data-autoupgrade-dependent ${settings.autoUpgradeEnabled === false ? 'aria-disabled="true" style="opacity:.5"' : ''}>
       <div class="psycle-setting-label"><span>${COPY.gymSettings.autoUpgradeByDefault}</span><small>${COPY.gymSettings.autoUpgradeByDefaultHelp}</small></div>
-      <label class="psycle-switch"><input type="checkbox" data-gym-setting="autoUpgradeByDefault" ${settings.autoUpgradeByDefault ? 'checked' : ''}><span class="psycle-slider"></span></label>
+      <label class="psycle-switch"><input type="checkbox" data-gym-setting="autoUpgradeByDefault" ${settings.autoUpgradeEnabled === false ? 'disabled' : ''} ${settings.autoUpgradeByDefault ? 'checked' : ''}><span class="psycle-slider"></span></label>
     </div>
-    <div class="psycle-setting-row">
+    <div class="psycle-setting-row" data-autoupgrade-dependent ${settings.autoUpgradeEnabled === false ? 'aria-disabled="true" style="opacity:.5"' : ''}>
       <div class="psycle-setting-label"><span>${COPY.gymSettings.continueCutoffByDefault}</span><small>${COPY.gymSettings.continueCutoffHelp}</small></div>
-      <label class="psycle-switch"><input type="checkbox" data-gym-setting="autoUpgradeKeepOriginalByDefault" ${settings.autoUpgradeKeepOriginalByDefault ? 'checked' : ''}><span class="psycle-slider"></span></label>
+      <label class="psycle-switch"><input type="checkbox" data-gym-setting="autoUpgradeKeepOriginalByDefault" ${settings.autoUpgradeEnabled === false ? 'disabled' : ''} ${settings.autoUpgradeKeepOriginalByDefault ? 'checked' : ''}><span class="psycle-slider"></span></label>
     </div>
-    <div class="psycle-setting-row">
+    <div class="psycle-setting-row" data-autoupgrade-dependent ${settings.autoUpgradeEnabled === false ? 'aria-disabled="true" style="opacity:.5"' : ''}>
       <div class="psycle-setting-label"><span>${COPY.gymSettings.pollingInterval}</span><small>${COPY.gymSettings.pollingIntervalHelp}</small></div>
-      <select class="psycle-select" data-gym-setting="autoUpgradeInterval">
+      <select class="psycle-select" data-gym-setting="autoUpgradeInterval" ${settings.autoUpgradeEnabled === false ? 'disabled' : ''}>
         <option value="1min" ${settings.autoUpgradeInterval === '1min' ? 'selected' : ''}>${COPY.gymSettings.pollingOneMinute}</option>
         <option value="15min" ${!settings.autoUpgradeInterval || settings.autoUpgradeInterval === '15min' ? 'selected' : ''}>${COPY.gymSettings.pollingFifteenMinutes}</option>
         <option value="1hr" ${settings.autoUpgradeInterval === '1hr' ? 'selected' : ''}>${COPY.gymSettings.pollingOneHour}</option>
@@ -175,8 +176,19 @@ export function renderGymSettingsSection(container, model, handlers = {}) {
   container.querySelectorAll('[data-gym-action]').forEach((button) => {
     button.addEventListener('click', () => handlers.onAction?.(button.dataset.gymAction, button));
   });
+  // Polling off => the controls that only matter while polling is on go inert.
+  const syncAutoUpgradeDependents = (pollingOn) => {
+    container.querySelectorAll('[data-autoupgrade-dependent]').forEach((row) => {
+      row.style.opacity = pollingOn ? '' : '.5';
+      if (pollingOn) row.removeAttribute('aria-disabled'); else row.setAttribute('aria-disabled', 'true');
+      row.querySelectorAll('[data-gym-setting]').forEach((c) => { c.disabled = !pollingOn; });
+    });
+    const note = container.querySelector('[data-autoupgrade-off-note]');
+    if (note) note.hidden = pollingOn;
+  };
   container.querySelectorAll('[data-gym-setting]').forEach((input) => {
     input.addEventListener('change', () => {
+      if (input.dataset.gymSetting === 'autoUpgradeEnabled') syncAutoUpgradeDependents(input.checked);
       const value = input.type === 'checkbox' ? input.checked : (input.value === '' ? null : input.value);
       handlers.onSettingChange?.(input.dataset.gymSetting, value, input);
     });

@@ -596,7 +596,7 @@ async function executeAutoBookForClass(booking) {
                 booking.studio_name,
                 booking.location_name,
                 booking.start_at,
-                { keepOriginalOnCutoff: true },
+                { keepOriginalOnCutoff: settings.autoUpgradeKeepOriginalByDefault === true },
                 booking.studio_id,
                 booking.group_name
               );

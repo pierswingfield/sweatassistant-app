@@ -75,14 +75,15 @@ function renderUpgradeList(upgrades, studioPrefs = {}) {
 
     const prefs = job.preferences || {};
 
-    // Resolve current spot label from layout slots if available
-    const layoutSlots = job.layout_slots || [];
+    // The monitor stores a provider slot id, which is NOT what the member sees on
+    // the map. Show the label from their booking; never print the raw id.
     let currentSpotLabel;
     if (job.current_slot_id == null || isNaN(Number(job.current_slot_id))) {
       currentSpotLabel = COPY.credits.notAvailable;
     } else {
-      const matched = layoutSlots.find(s => Number(s.id) === Number(job.current_slot_id));
-      currentSpotLabel = matched?.label || String(job.current_slot_id);
+      const booking = (cache.bookings || []).find(b => String(b.id ?? b.bookingId) === String(job.booking_id));
+      const matched = (job.layout_slots || []).find(s => Number(s.id) === Number(job.current_slot_id));
+      currentSpotLabel = booking?.slotLabel || matched?.label || COPY.credits.notAvailable;
     }
 
     // Client-side backup check. Shared module → Infinity on a membership gym,
@@ -93,7 +94,10 @@ function renderUpgradeList(upgrades, studioPrefs = {}) {
 
     let statusText = COPY.autoUpgrade.monitoring;
     let statusChipClass = 'state-active';
-    if (job.status === 'paused_no_credits' || hasInsufficientCredits || ineligibleReason) {
+    if (job.status === 'paused_disabled') {
+      statusText = COPY.autoUpgrade.pausedDisabled;
+      statusChipClass = 'state-warning';
+    } else if (job.status === 'paused_no_credits' || hasInsufficientCredits || ineligibleReason) {
       statusText = ineligibleReason ? `⚠ ${ineligibleReason}` : COPY.autoUpgrade.insufficientCredits;
       statusChipClass = 'state-warning';
     } else if (job.status === 'cutoff_booked') {
@@ -141,8 +145,10 @@ function renderUpgradeList(upgrades, studioPrefs = {}) {
     card.querySelector('.edit-upgrade-modal-btn').addEventListener('click', async () => {
       await openUpgradeConfigModal({
         eventId: job.event_id,
+        gymId: job.gym_id || null,
         bookingId: job.booking_id,
         currentSlotId: job.current_slot_id,
+        currentSlotLabel: currentSpotLabel,
         studioId: job.studio_id,
         className: job.class_name,
         groupName: job.group_name,

@@ -665,7 +665,7 @@ app.post('/api/auto-upgrade', authenticateToken, bookingMutationLimiter, (req, r
     // seat has a new booking id) and counts paused monitors too — the same set the
     // client list shows as "has a monitor".
     const live = db.getUserAutoUpgrades(req.userId, gymId).find(u =>
-      ['active', 'paused_no_credits'].includes(u.status) &&
+      ['active', 'paused_no_credits', 'paused_disabled'].includes(u.status) &&
       (String(u.booking_id) === String(bookingId) ||
         (String(u.event_id) === String(eventId) && String(u.current_slot_id) === String(currentSlotId)))
     );

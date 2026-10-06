@@ -1,10 +1,11 @@
 import { api } from '../api';
-import { buildWorkoutOptions } from './workout-options.js';
+import { buildWorkoutOptions, stripVariantSuffix } from './workout-options.js';
 import { COPY, appCopy, formatCopyText } from '../copy.js';
 import { getAvailableCreditsForEvent, hasUsableCredit, getIneligibleReason, isMetered } from './credit-allowance.js';
 import { isCreditInventoryLoaded, pickStudioPrefs as pickGymStudioPrefs } from './gym-isolation.js';
+import { isRollingWeeklyGym } from '../gym-context.js';
 import { canForGym, canAny, capabilityForGym, getLinkedGyms, getGymShortName, getLocationAlias, getDefaultGymId, formatSpotLabel } from '../gym-context.js';
-import { showToast, currentUser, userSettings, gymSetting, profileForGym, refreshUserData, updateCreditBadge, cache, debugConsole } from '../main';
+import { showToast, currentUser, userSettings, gymSetting, isAutoUpgradeDefaultEnabled, profileForGym, refreshUserData, updateCreditBadge, cache, debugConsole } from '../main';
 import { passesLocationFilter, formatFullDate, getClassReleaseTime, isFullWithoutWaitlist, isInGracePeriod, GRACE_PERIOD_MS, startGraceCountdown, noSept, zoneFor, formatInZone, dayKeyInZone, nowInZone, deviceZone } from '../lib';
 import { getGymTimeZone, getCatalogueGyms } from '../gym-context.js';
 import { DateTime } from 'luxon';
@@ -18,9 +19,10 @@ const WEEK_STRIP_DATE_SELECTOR = true;
 const SHOW_TIMETABLE_INSTRUCTOR_PHOTO = true;
 
 // === MOBILE TIMETABLE — import renderMinimap (added Jun 2026; delete this block to revert) ===
-import { renderMinimap, instructorAvatar } from './tooltips.js';
+import { renderMinimap, instructorAvatar, instructorHoverAttrs } from './tooltips.js';
 // === END MOBILE TIMETABLE BLOCK ===
 import { openDB, accountScopedKey } from '../cache.js';
+import { decideRefresh } from './refresh-policy.js';
 import { bookingNotifyPayload } from './booking-notify.js';
 import { spotSelectionRule, needsSetupIntro, setupIntroCopy } from './spot-selection.js';
 import { disciplineTag, seatNoun, sparklesIcon, trendingUpIcon, icon, pulseIcon, trimLocation, displayStudioName, equalizeDiscTagWidths , gymChip , cleanClassName, getDiscipline, passesDisciplineFilter } from './cards';
@@ -29,6 +31,7 @@ import { openStudioFloorPlanEditor } from './settings';
 import { studioHasRowGroups, rowSelectorVisible } from './spotmap.js';
 import { renderFilterRail, removeFilterRail, syncFilterSheetState, isFilterSheetOpen } from './filter-rail.js';
 import { nextGymSelection } from './gym-quick-select.js';
+import { resolveDefaultFilters } from './default-filters.js';
 import { buildSearchIndex, searchEvents, tokenize } from './timetable-search.js';
 import { getSearchQuery, setSearchQuery, onSearchChange, inSearchScope, enterSearchScope, leaveSearchScope, emptyFilters, filtersAreEmpty } from './timetable-search-state.js';
 import { ensureSearchUi, openSearch } from './timetable-search-ui.js';
@@ -40,6 +43,7 @@ import { confirmOverlap } from './overlap-modal.js';
 import { quickBookTap } from './quickbook-flow.js';
 import { redactSensitivePayload } from '../redact.js';
 import { haptic } from './haptics.js';
+import { keepOriginalForAutoCreate } from './autoupgrade-setup.js';
 import { openPage as openNavPage, closePage as closeNavPage, isMobile } from './modal-nav.js';
 import { applyBookingChrome, mountBookingContext, bannerEl } from './booking-chrome.js';
 import { openSpotSetup, setupDeferred, spotSetupBookingOptions } from './spot-setup.js';
@@ -633,16 +637,30 @@ function defaultFiltersKey() {
 }
 
 // Load default filter selections from localStorage
+function applyFilters(parsed) {
+  selectedGyms = parsed.gyms || [];
+  selectedLocations = parsed.locations || [];
+  selectedInstructors = parsed.instructors || [];
+  selectedEventTypes = parsed.eventTypes || [];
+  showBookmarksOnly = parsed.showBookmarksOnly || false;
+}
+
+// Server (account-scoped `defaultFilters` setting, hydrated into userSettings)
+// wins; localStorage is the fast/offline fallback. If only the device has
+// filters, push them up once (migration).
 function loadStoredFilters() {
   try {
-    const stored = localStorage.getItem(defaultFiltersKey());
-    if (stored) {
-      const parsed = JSON.parse(stored);
-      selectedGyms = parsed.gyms || [];
-      selectedLocations = parsed.locations || [];
-      selectedInstructors = parsed.instructors || [];
-      selectedEventTypes = parsed.eventTypes || [];
-      showBookmarksOnly = parsed.showBookmarksOnly || false;
+    let local = null;
+    try { local = JSON.parse(localStorage.getItem(defaultFiltersKey()) || 'null'); } catch (_) {}
+    const { filters, pushUp, writeLocal } = resolveDefaultFilters(userSettings && userSettings.defaultFilters, local);
+    if (!filters) return;
+    applyFilters(filters);
+    if (writeLocal) {
+      try { localStorage.setItem(defaultFiltersKey(), JSON.stringify(filters)); } catch (_) {}
+    }
+    if (pushUp) {
+      api.updateSettings({ defaultFilters: filters }).catch(() => {});
+      if (userSettings) userSettings.defaultFilters = filters;
     }
   } catch (e) {
     console.error('[Timetable] Failed to load default filters:', e);
@@ -674,7 +692,7 @@ export async function loadMetadata(force = false) {
 const CACHE_KEY_EVENTS = 'psycleUnifiedCacheEvents';
 const CACHE_KEY_META = 'psycleUnifiedCacheMeta';
 const CACHE_KEY_TIME = 'psycleUnifiedCacheTime';
-const CACHE_TTL_MS = 4 * 60 * 60 * 1000; // 4 hours
+let lastContextAt = 0; // when bookings/waitlists were last confirmed by the network
 
 async function cacheDel(key) {
   try {
@@ -765,6 +783,18 @@ export async function prefetchTimetableData(force = false) {
     console.warn('[Timetable] Cache read failed:', e);
   }
 
+  // Re-entry policy: trust a young timetable cache, keep bookings near-live,
+  // and never spin the chips for data that is already painted.
+  let cachedAt = 0;
+  try { cachedAt = Number(localStorage.getItem(accountScopedKey(CACHE_KEY_TIME))) || 0; } catch (_) {}
+  const plan = decideRefresh({
+    force, hasCached,
+    timetableAgeMs: cachedAt ? Date.now() - cachedAt : Infinity,
+    contextAgeMs: lastContextAt ? Date.now() - lastContextAt : Infinity,
+  });
+  if (plan.skip) return;
+  const silent = plan.silent;
+
   // 2. If cold start without any cached data, show spinner while initial fetch completes
   if (!hasCached) {
     ttContainer.innerHTML = renderTimetableSkeleton();
@@ -790,12 +820,13 @@ export async function prefetchTimetableData(force = false) {
 
     const contextP = Promise.all([
       loadMetadata(true).finally(() => recordTimetableTiming('metadata-refresh', metadataStartedAt)),
-      api.getBookings(),
-      api.getWaitlists(),
+      api.getBookings({ silent }),
+      api.getWaitlists({ silent }),
       api.getAutoBookings().catch(() => cache.autoBookings || []),
       api.getStudioPreferences().catch(() => cache.studioPrefs || {}),
     ]).then(([, bookingsRes, waitlistsRes, autoBookingsRes, studioPrefsRes]) => {
       if (generation !== prefetchGeneration) return;
+      lastContextAt = Date.now();
       cache.bookings = bookingsRes || [];
       cache.waitlists = waitlistsRes || [];
       // U1-12: the overlap check reads the server's booking_cache, so keep it as
@@ -848,9 +879,9 @@ export async function prefetchTimetableData(force = false) {
     // the one case that should reach past the SHARED server cache to the
     // provider. Ordinary renders ride the cache — that is what makes the second
     // load fast.
-    const freshEvents = await api.getTimetableProgressive(
+    const freshEvents = !plan.timetable ? psycleEvents : await api.getTimetableProgressive(
       { startDate: startStr, endDate: endStr, refresh: force },
-      { graceMs: PROGRESSIVE_GRACE_MS, onFlush: (info) => { flushChain = flushChain.then(() => applyFlush(info)).catch((e) => console.warn('[Timetable] merge failed:', e)); } },
+      { graceMs: PROGRESSIVE_GRACE_MS, silent, onFlush: (info) => { flushChain = flushChain.then(() => applyFlush(info)).catch((e) => console.warn('[Timetable] merge failed:', e)); } },
     );
     await flushChain;
     await contextP;
@@ -958,7 +989,7 @@ function setupDropdownFilters({ locationIds, instructorIds, classTypeIds } = {})
   const seenGroupKeys = new Set();
   const eventTypeGroups = eventTypesToRender
     .filter(t => t.group)
-    .map(t => ({ ...t, bucketLabel: getDiscipline(t.group).label }))
+    .map(t => ({ ...t, bucketLabel: discLabel(t.group, t.gymId) }))
     .filter(t => {
       const key = `${t.gymId || ''}:${t.bucketLabel}`;
       if (seenGroupKeys.has(key)) return false;
@@ -1302,7 +1333,7 @@ function setupFilterEventListeners() {
   const saveDefaultFiltersBtn = document.getElementById('psycle-btn-save-default-filters');
   let isSavingDefaults = false;
   if (saveDefaultFiltersBtn) {
-    saveDefaultFiltersBtn.onclick = () => {
+    saveDefaultFiltersBtn.onclick = async () => {
       if (isSavingDefaults) return;
       if (inSearchScope()) { showToast(COPY.search.saveBlocked, 'warning'); return; }   // search-scope filters are never saved
       isSavingDefaults = true;
@@ -1321,6 +1352,12 @@ function setupFilterEventListeners() {
 
       try {
         localStorage.setItem(defaultFiltersKey(), JSON.stringify(defaultFilters));
+        // Persist to the account so it follows the user across devices. A failed
+        // network save is non-fatal: the local copy is kept and re-pushed on next load.
+        try {
+          await api.updateSettings({ defaultFilters });
+          userSettings.defaultFilters = defaultFilters;
+        } catch (e) { console.warn('[Timetable] Server save of default filters failed:', e); }
         setTimeout(() => {
           saveDefaultFiltersBtn.innerHTML = COPY.timetable.savedFilters;
           saveDefaultFiltersBtn.style.background = 'var(--success)';
@@ -1441,6 +1478,14 @@ export function flushDeferredFilterRender() {
   }
 }
 
+// Workout bucket label for a class group. Gyms whose class types carry
+// duration/audience variants ("Recovery 30m") fold them into one bucket;
+// Psycle's (rolling-weekly) group is left exactly as the provider names it.
+function discLabel(group, gymId) {
+  const g = String(group);
+  return getDiscipline(gymId && !isRollingWeeklyGym(gymId) ? stripVariantSuffix(g) : g).label;
+}
+
 function countMatchingEventsQuick() {
   const now = new Date();
   let count = 0;
@@ -1453,7 +1498,7 @@ function countMatchingEventsQuick() {
     if (selectedEventTypes.length > 0) {
       const et = metadata.eventTypes.find(t => sameId(t.id, e.classTypeId) && (!e.gymId || t.gymId === e.gymId));
       const rawGroup = e.discipline ?? (et?.group != null ? String(et.group) : null);
-      const etGroupId = rawGroup != null ? getDiscipline(String(rawGroup)).label : null;
+      const etGroupId = rawGroup != null ? discLabel(String(rawGroup), e.gymId) : null;
       if (!passesDisciplineFilter(selectedEventTypes, etGroupId)) continue;
     }
     if (showBookmarksOnly) {
@@ -1486,7 +1531,7 @@ function buildFilterRailCtx(eventsExcluding, resultCount) {
   const gymOk = (gid) => selectedGyms.length === 0 || selectedGyms.includes(String(gid));
   const workouts = buildWorkoutOptions({
     eventTypes: metadata.eventTypes, events: psycleEvents, gymOk,
-    labelOf: (g) => getDiscipline(g).label,
+    labelOf: (g, gid) => discLabel(g, gid),
   });
   const gymOrder = linked.map(g => g.gym_id || g.id);
   const locations = metadata.locations.filter(l => gymOk(l.gymId)).sort((a, b) =>
@@ -1505,7 +1550,7 @@ function buildFilterRailCtx(eventsExcluding, resultCount) {
       gOrder.indexOf(a.gymId) - gOrder.indexOf(b.gymId) || locationBaseLabel(a).localeCompare(locationBaseLabel(b)));
     c.workouts = buildWorkoutOptions({
       eventTypes: metadata.eventTypes, events: psycleEvents, gymOk: gOk,
-      labelOf: (g) => getDiscipline(g).label,
+      labelOf: (g, gid) => discLabel(g, gid),
     });
     c.instructors = metadata.instructors.filter(i => gOk(i.gymId)).sort((a, b) => (a.name || '').localeCompare(b.name || ''))
       .map(i => ({ ...i, rawId: i.id, id: instructorToken(i.gymId, i.id) }));
@@ -1519,7 +1564,7 @@ function buildFilterRailCtx(eventsExcluding, resultCount) {
     const gymOf = (list, i) => list.find(x => String(x.id) === i)?.gymId;
     selectedLocations = selectedLocations.filter(i => gymOk(gymOf(metadata.locations, i)));
     selectedInstructors = pruneInstructorSelection(selectedInstructors, gymOk);
-    selectedEventTypes = selectedEventTypes.filter(l => metadata.eventTypes.some(t => t.group && passesDisciplineFilter([getDiscipline(t.group).label], l) && gymOk(t.gymId)));
+    selectedEventTypes = selectedEventTypes.filter(l => metadata.eventTypes.some(t => t.group && passesDisciplineFilter([discLabel(t.group, t.gymId)], l) && gymOk(t.gymId)));
   };
 
   const ctx = {
@@ -1639,7 +1684,7 @@ function normalizeStoredFilters() {
   if (coversAll(selectedGyms, gyms)) selectedGyms = [];
   if (coversAll(selectedLocations, metadata.locations.map(l => String(l.id)))) selectedLocations = [];
   if (coversAll(selectedInstructors, metadata.instructors.map(i => instructorToken(i.gymId, i.id)))) selectedInstructors = [];
-  const labels = [...new Set(metadata.eventTypes.filter(t => t.group).map(t => getDiscipline(t.group).label))];
+  const labels = [...new Set(metadata.eventTypes.filter(t => t.group).map(t => discLabel(t.group, t.gymId)))];
   if (coversAll(selectedEventTypes, labels)) selectedEventTypes = [];
 }
 
@@ -1677,7 +1722,7 @@ export async function renderTimetableGrid(reason = 'interaction') {
         // setupDropdownFilters) — a selected "Boxing" must match any event
         // whose specific class type buckets to Boxing, not just one literal
         // string.
-        const etGroupId = (et?.group ?? e.discipline) != null ? getDiscipline(String(et?.group ?? e.discipline)).label : null;
+        const etGroupId = (et?.group ?? e.discipline) != null ? discLabel(String(et?.group ?? e.discipline), e.gymId) : null;
         if (!passesDisciplineFilter(selectedEventTypes, etGroupId)) return false;
       }
       return true;
@@ -1762,7 +1807,7 @@ export async function renderTimetableGrid(reason = 'interaction') {
       // buckets to Boxing, not just one literal string.
       const et = metadata.eventTypes.find(t => sameId(t.id, e.classTypeId) && (!e.gymId || t.gymId === e.gymId));
       const rawGroup = e.discipline ?? (et?.group != null ? String(et.group) : null);
-      const etGroupId = rawGroup != null ? getDiscipline(String(rawGroup)).label : null;
+      const etGroupId = rawGroup != null ? discLabel(String(rawGroup), e.gymId) : null;
       if (!passesDisciplineFilter(selectedEventTypes, etGroupId)) return false;
     }
     // Filter by Bookmarked Only
@@ -2079,7 +2124,7 @@ export async function renderTimetableGrid(reason = 'interaction') {
           <span class="psycle-tt-class-name">${strippedClassName}</span>
         </div>
       </td>
-      <td class="col-instructor">${instrName ? `<span class="psycle-instructor-hover" data-id="${event.instructors?.[0]?.id}" data-gym-id="${event.gymId || ''}">${instrName}</span>` : ''}</td>
+      <td class="col-instructor">${instrName ? `<span class="psycle-instructor-hover" ${instructorHoverAttrs(event.instructors?.[0], event.gymId, instrName)}>${instrName}</span>` : ''}</td>
       ${/* MID-WIDTH COLUMN: instructor + top-level location only ("SW1",
            "Oxford Circus"), with the specific studio dropped — at that width
            the studio is the least useful thing on the row and the most
@@ -2087,7 +2132,7 @@ export async function renderTimetableGrid(reason = 'interaction') {
            Always rendered; CSS shows exactly one of {instructor+location} or
            {this} at any width, so a resize needs no re-render. */ ''}
       <td class="col-who-where">
-        ${instrName ? `<span class="psycle-ww-who psycle-instructor-hover" data-id="${event.instructors?.[0]?.id}" data-gym-id="${event.gymId || ''}">${instrName}</span>` : ''}
+        ${instrName ? `<span class="psycle-ww-who psycle-instructor-hover" ${instructorHoverAttrs(event.instructors?.[0], event.gymId, instrName)}>${instrName}</span>` : ''}
         ${locName ? `<span class="psycle-ww-loc">${trimLocation(locName, getGymShortName(event.gymId))}</span>` : ''}
       </td>
       <td class="col-location">
@@ -2463,6 +2508,7 @@ async function doQuickBook(event, btn) {
         preferredSlots: prefs.preferredSlots || [],
         preferredRows: prefs.preferredRows || [],
         requiredCount: 1, bookAny: true,
+        autoUpgrade: isAutoUpgradeDefaultEnabled(event.gymId),
       }, btn, event.gymId);
     } catch (err) {
       openBookingModal(event, 'quickbook', opts);
@@ -2665,7 +2711,7 @@ function buildActionMenuItems(event, model, isBookmarked) {
     const isBookish = /book/i.test(model.secondary.label || '');
     items.push({
       label: model.secondary.label,
-      icon: model.secondary.isCancel ? 'close' : (isBookish ? 'bolt' : 'chevron'),
+      icon: model.secondary.isCancel ? 'close' : (isBookish ? 'bolt' : (/edit/i.test(model.secondary.label || '') ? 'edit' : 'chevron')),
       variant: model.secondary.isCancel ? 'danger' : (isBookish ? 'book' : ''),
       keepOpen: !!model.secondary.isCancel && !model.secondary.opensModal, // cancel runs its own two-tap confirm in place (the grouped chooser is a modal)
       graceDeadline: model.secondary.graceDeadline,
@@ -2676,13 +2722,13 @@ function buildActionMenuItems(event, model, isBookmarked) {
   // The other way to do what the primary does — e.g. pick your own spot when
   // the primary quick-books one for you.
   if (model.alternate && model.alternate.run) {
-    items.push({ label: model.alternate.label, icon: 'grid', variant: 'book', action: () => model.alternate.run() });
+    items.push({ label: model.alternate.label, icon: 'spot', variant: 'book', action: () => model.alternate.run() });
   }
 
   if (model.config) {
     items.push({
       label: model.config === 'autobook' ? COPY.timetable.configureAutoBook : COPY.timetable.configureQuickBook,
-      icon: 'cog',
+      icon: 'sliders',
       variant: '',
       action: () => openBookingModal(event, model.config),
     });
@@ -2693,7 +2739,7 @@ function buildActionMenuItems(event, model, isBookmarked) {
   // a guest identity and must consume a guest pass, not another self spot.
   const hasSelfBooking = userBookings().some((booking) => matchesEvent(booking, event) && !booking.isGuest);
   if (canForGym('guestBooking', event.gymId) && hasSelfBooking) {
-    items.push({ label: COPY.bookings.guestMenu, icon: 'plus', variant: 'book', action: () => openGuestBookingModal(event) });
+    items.push({ label: COPY.bookings.guestMenu, icon: 'userPlus', variant: 'book', action: () => openGuestBookingModal(event) });
   }
 
   if (canForGym('bookmarks', event.gymId)) {
@@ -2705,7 +2751,7 @@ function buildActionMenuItems(event, model, isBookmarked) {
     });
   }
 
-  items.push({ label: COPY.timetable.studioOccupancy, icon: 'grid', variant: '', action: () => openOccupancyModal(event) });
+  items.push({ label: COPY.timetable.studioOccupancy, icon: 'users', variant: '', action: () => openOccupancyModal(event) });
 
   if (userSettings.debugMode) {
     items.push({ label: 'Debug', icon: 'bug', variant: 'debug', action: () => openDebugModal(event) });
@@ -2973,7 +3019,7 @@ function buildMobileClassRow(event, ctx, model) {
   const firstInstr = event.instructors?.[0];
   const instrId = firstInstr?.id || metadata.instructors?.find(i => (i.name === instrName || i.full_name === instrName) && (!event.gymId || i.gymId === event.gymId))?.id || '';
   const avatarHtml = SHOW_TIMETABLE_INSTRUCTOR_PHOTO && instrName
-    ? `<span class="psycle-mobile-avatar psycle-instructor-hover" data-id="${instrId}" data-gym-id="${event.gymId || ''}" data-initial="${escapeHtml(String(instrName).trim().charAt(0).toUpperCase())}" role="button" tabindex="0" aria-label="${formatCopyText(COPY.timetable.instructorProfileAria, { name: escapeHtml(instrName) })}">${instructorAvatar(instrName, event.gymId, firstInstr?.thumbUrl || firstInstr?.imageUrl || null, { size: 38, lazy: true, cls: 'psycle-mobile-avatar-img' })}</span>`
+    ? `<span class="psycle-mobile-avatar psycle-instructor-hover" ${instructorHoverAttrs(firstInstr ? { ...firstInstr, id: instrId || firstInstr.id } : { id: instrId }, event.gymId, instrName)} data-initial="${escapeHtml(String(instrName).trim().charAt(0).toUpperCase())}" role="button" tabindex="0" aria-label="${formatCopyText(COPY.timetable.instructorProfileAria, { name: escapeHtml(instrName) })}">${instructorAvatar(instrName, event.gymId, firstInstr?.thumbUrl || firstInstr?.imageUrl || null, { size: 38, lazy: true, cls: 'psycle-mobile-avatar-img' })}</span>`
     : '';
 
   card.innerHTML = `
@@ -2991,7 +3037,7 @@ function buildMobileClassRow(event, ctx, model) {
         </div>
         <div class="psycle-mobile-line2">
           <span class="psycle-mobile-class-name">${strippedClassName}</span>
-          ${instrName ? `<span class="psycle-mobile-dot">&middot;</span><span class="psycle-mobile-instructor psycle-instructor-hover" data-id="${event.instructors?.[0]?.id}" data-gym-id="${event.gymId || ''}">${instrName}</span>` : ''}
+          ${instrName ? `<span class="psycle-mobile-dot">&middot;</span><span class="psycle-mobile-instructor psycle-instructor-hover" ${instructorHoverAttrs(event.instructors?.[0], event.gymId, instrName)}>${instrName}</span>` : ''}
         </div>
         <div class="psycle-mobile-bottom-line">
           <span class="psycle-mobile-location">${displayLoc}</span>
@@ -3051,7 +3097,7 @@ function buildMobileClassRow(event, ctx, model) {
   // — otherwise Edit would be lost entirely on mobile.
   const menuItems = buildActionMenuItems(event, swapForCancel ? { ...model, secondary: null } : model, isBookmarked);
   if (swapForCancel) {
-    menuItems.unshift({ label: model.primary.label, icon: 'chevron', variant: '', action: () => model.primary.run() });
+    menuItems.unshift({ label: model.primary.label, icon: /edit/i.test(model.primary.label || '') ? 'edit' : 'chevron', variant: '', action: () => model.primary.run() });
   }
   const menu = buildActionMenuElement(menuItems);
 
@@ -3208,7 +3254,7 @@ async function quickBookClass(eventId, prefs, btn, gymId = null) {
   const preferredRows = prefs.preferredRows || [];
   const requiredCount = prefs.requiredCount || 1;
   const bookAny = prefs.bookAny !== false;
-  const autoUpgrade = prefs.autoUpgrade !== false;
+  const autoUpgrade = prefs.autoUpgrade !== undefined ? prefs.autoUpgrade : isAutoUpgradeDefaultEnabled(gymId);
 
   try {
     // WP-C1: reads the normalized event details endpoint instead of the raw
@@ -3349,7 +3395,7 @@ async function quickBookClass(eventId, prefs, btn, gymId = null) {
       await refreshUserData(true);
       await refreshBookingState();
       setTimeout(() => {
-        if (!upgradeRegistered && !gymSetting(event.gymId, 'autoUpgradeByDefault')) {
+        if (!upgradeRegistered && !isAutoUpgradeDefaultEnabled(event.gymId) && gymSetting(event.gymId, 'autoUpgradeEnabled') !== false) {
           showToast(COPY.timetable.autoUpgradeTip, 'info');
         }
       }, 2500);
@@ -3431,7 +3477,7 @@ export async function openGuestBookingModal(c) {
           </div>
           <div id="guest-booking-map"></div>
         </div>` : ''}
-        <button class="psycle-btn" id="guest-booking-submit" style="background:var(--success);color:var(--on-accent);">${COPY.bookings.guestBookingSubmit}</button>
+        <button class="psycle-btn" id="guest-booking-submit" style="background:var(--accent-fill);color:var(--on-accent-fill);">${COPY.bookings.guestBookingSubmit}</button>
       </div>`;
     const submit = body.querySelector('#guest-booking-submit');
     if (slots.length) {
@@ -3667,7 +3713,7 @@ export async function openBookingModal(c, mode, opts = {}) {
           <p style="margin-bottom: 16px;">${COPY.timetable.noFloorMap}</p>
           ${isAutoBookMode
             ? `<button class="psycle-btn" id="btn-save-simple-autobook" style="background: var(--feat-autoupgrade); color:var(--on-accent); display:flex; align-items:center; justify-content:center; gap:6px;">${sparklesIcon(14, 'currentColor')} ${COPY.timetable.scheduleAnySeat}</button>`
-            : `<button class="psycle-btn" id="btn-book-any" style="background: var(--success); color:var(--on-accent);">${formatCopyText(COPY.timetable.bookAnyAvailable, { noun: nounCap })}</button>`
+            : `<button class="psycle-btn" id="btn-book-any" style="background:var(--accent-fill);color:var(--on-accent-fill);">${formatCopyText(COPY.timetable.bookAnyAvailable, { noun: nounCap })}</button>`
           }
         </div>
       `;
@@ -4104,7 +4150,7 @@ export async function openBookingModal(c, mode, opts = {}) {
             ${(() => {
               const hasLayout = layoutSlots.length > 0;
               const hasPrefs = state.selectedSlots.length > 0 || state.selectedRows.size > 0;
-              if (!hasLayout) return '';
+              if (!hasLayout || !canForGym('autoUpgrade', c.gymId)) return '';
               if (!hasPrefs && isMobile()) return upgradeNeedsRowHtml();
               if (!hasPrefs) return `
                 <label style="display:flex;align-items:center;gap:8px;font-size:13px;color:var(--text-tertiary);user-select:none;cursor:not-allowed;">
@@ -4113,7 +4159,7 @@ export async function openBookingModal(c, mode, opts = {}) {
                 </label>`;
               return `
                 <label style="display:flex;align-items:center;gap:8px;font-size:13px;cursor:pointer;color:var(--text-secondary);user-select:none;">
-                  <input type="checkbox" class="psycle-ms-checkbox" id="autobook-auto-upgrade" ${gymSetting(c.gymId, 'autoUpgradeByDefault') ? 'checked' : ''}>
+                  <input type="checkbox" class="psycle-ms-checkbox" id="autobook-auto-upgrade" ${isAutoUpgradeDefaultEnabled(c.gymId) ? 'checked' : ''}>
                   <span style="display:flex;align-items:center;gap:4px;">${trendingUpIcon(12, 'currentColor', 2)} ${COPY.timetable.autoUpgradeKeepSearchingLabel}</span>
                 </label>`;
             })()}
@@ -4175,7 +4221,7 @@ export async function openBookingModal(c, mode, opts = {}) {
             ${(() => {
               const hasLayout = layoutSlots.length > 0;
               const hasPrefs = hasExistingPrefs;
-              if (!hasLayout) return '';
+              if (!hasLayout || !canForGym('autoUpgrade', c.gymId)) return '';
               if (!hasPrefs && isMobile()) return upgradeNeedsRowHtml();
               if (!hasPrefs) return `
                 <label style="display:flex;align-items:center;gap:8px;font-size:13px;color:var(--text-tertiary);user-select:none;cursor:not-allowed;font-weight:500;">
@@ -4184,12 +4230,12 @@ export async function openBookingModal(c, mode, opts = {}) {
                 </label>`;
               return `
                 <label style="display:flex;align-items:center;gap:8px;font-size:13px;cursor:pointer;color:var(--text-secondary);user-select:none;font-weight:500;">
-                  <input type="checkbox" class="psycle-ms-checkbox" id="simplebook-auto-upgrade" ${gymSetting(c.gymId, 'autoUpgradeByDefault') ? 'checked' : ''}>
+                  <input type="checkbox" class="psycle-ms-checkbox" id="simplebook-auto-upgrade" ${isAutoUpgradeDefaultEnabled(c.gymId) ? 'checked' : ''}>
                   <span style="display:flex;align-items:center;gap:4px;">${trendingUpIcon(12, 'currentColor', 2)} ${COPY.timetable.autoUpgradeKeepSearchingLabel}</span>
                 </label>`;
             })()}
             <div style="display:flex;gap:8px;">
-              <button class="psycle-btn" id="btn-book-simple" style="flex:1;background:var(--success);color:var(--on-accent);" ${!isDataLoaded || !hasEnoughCredits ? 'disabled' : ''}>${formatCopyText(COPY.timetable.bookSelectedPlain, { noun: nounCap })}</button>
+              <button class="psycle-btn" id="btn-book-simple" style="flex:1;background:var(--accent-fill);color:var(--on-accent-fill);" ${!isDataLoaded || !hasEnoughCredits ? 'disabled' : ''}>${formatCopyText(COPY.timetable.bookSelectedPlain, { noun: nounCap })}</button>
             </div>
           </div>
         `;
@@ -4337,7 +4383,7 @@ export async function openBookingModal(c, mode, opts = {}) {
             ${(() => {
               const hasLayout = layoutSlots.length > 0;
               const hasPrefs = state.selectedSlots.length > 0 || state.selectedRows.size > 0;
-              if (!hasLayout) return '';
+              if (!hasLayout || !canForGym('autoUpgrade', c.gymId)) return '';
               if (!hasPrefs && isMobile()) return upgradeNeedsRowHtml();
               if (!hasPrefs) return `
                 <label style="display:flex;align-items:center;gap:8px;font-size:13px;color:var(--text-tertiary);user-select:none;cursor:not-allowed;">
@@ -4346,11 +4392,11 @@ export async function openBookingModal(c, mode, opts = {}) {
                 </label>`;
               return `
                 <label style="display:flex;align-items:center;gap:8px;font-size:13px;cursor:pointer;color:var(--text-secondary);user-select:none;">
-                  <input type="checkbox" class="psycle-ms-checkbox" id="quickbook-auto-upgrade" ${gymSetting(c.gymId, 'autoUpgradeByDefault') ? 'checked' : ''}>
+                  <input type="checkbox" class="psycle-ms-checkbox" id="quickbook-auto-upgrade" ${isAutoUpgradeDefaultEnabled(c.gymId) ? 'checked' : ''}>
                   <span style="display:flex;align-items:center;gap:4px;">${trendingUpIcon(12, 'currentColor', 2)} ${COPY.timetable.autoUpgradeKeepSearchingLabel}</span>
                 </label>`;
             })()}
-            <button class="psycle-btn" id="btn-submit-quickbook" style="width:100%;background:var(--success);color:var(--on-accent);">${!opts.oneOffSpots && mapChanged() ? `${COPY.spotMapEditor.saveMapAnd} ` : ''}${COPY.timetable.quickBook}</button>
+            <button class="psycle-btn" id="btn-submit-quickbook" style="width:100%;background:var(--accent-fill);color:var(--on-accent-fill);">${!opts.oneOffSpots && mapChanged() ? `${COPY.spotMapEditor.saveMapAnd} ` : ''}${COPY.timetable.quickBook}</button>
           </div>
         `;
 
@@ -4454,7 +4500,7 @@ export async function openBookingModal(c, mode, opts = {}) {
       intro.innerHTML = `
         <p style="margin:0 0 10px;font-size:16px;font-weight:600;color:var(--text);">${copy.sub}</p>
         <p style="margin:0 0 20px;font-size:14px;line-height:1.5;color:var(--text-secondary);">${copy.bodyHtml}</p>
-        <button type="button" class="psycle-btn" id="psycle-setup-next" style="width:100%;background:var(--success);color:var(--on-accent);">${copy.next}</button>`;
+        <button type="button" class="psycle-btn" id="psycle-setup-next" style="width:100%;background:var(--accent-fill);color:var(--on-accent-fill);">${copy.next}</button>`;
       body.appendChild(intro);
       intro.querySelector('#psycle-setup-next').onclick = () => {
         intro.remove();
@@ -4471,11 +4517,19 @@ export async function openBookingModal(c, mode, opts = {}) {
 
 // Auto-register upgrade monitor after a successful booking if the setting is on
 async function tryAutoRegisterUpgrade(event, bookedSlotId, bookingRes, enableOverride, { silent = false } = {}) {
-  const shouldRegister = enableOverride !== undefined ? enableOverride : gymSetting(event?.gymId, 'autoUpgradeByDefault');
+  const shouldRegister = enableOverride !== undefined ? enableOverride : isAutoUpgradeDefaultEnabled(event?.gymId);
   debugConsole('[AutoUpgrade] tryAutoRegisterUpgrade called', { shouldRegister, bookedSlotId, eventId: event?.id });
   if (!shouldRegister) {
     debugConsole('[AutoUpgrade] Skipping — auto-upgrade is disabled. userSettings:', JSON.stringify(userSettings));
     return { registered: false };
+  }
+  if (event?.gymId && gymSetting(event.gymId, 'autoUpgradeEnabled') === false) {
+    try {
+      await api.updateSettings({ autoUpgradeEnabled: true }, event.gymId);
+      if (cache.gymSettings?.[event.gymId]) cache.gymSettings[event.gymId].autoUpgradeEnabled = true;
+    } catch (e) {
+      console.warn('[AutoUpgrade] Failed to enable autoUpgradeEnabled on explicit upgrade:', e.message);
+    }
   }
   try {
     const studioId = event.studioId;
@@ -4522,7 +4576,7 @@ async function tryAutoRegisterUpgrade(event, bookedSlotId, bookingRes, enableOve
         studioName: event.studioName || event.studioName || '',
         locationName: event.locationName || event.locationName || '',
         startAt: event.startAt || event.startAt,
-        preferences: { keepOriginalOnCutoff: true },
+        preferences: { keepOriginalOnCutoff: keepOriginalForAutoCreate(gymSetting(event.gymId, 'autoUpgradeKeepOriginalByDefault')) },
       }));
     }
 

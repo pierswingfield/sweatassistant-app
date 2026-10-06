@@ -27,7 +27,7 @@ import { describe, it, expect, beforeEach, vi } from 'vitest';
 const cache = { profile: null, eligibility: null };
 vi.mock('../main', () => ({ cache }));
 
-const { getAvailableCreditsForEvent, hasUsableCredit, getTotalCredits, isMetered, canBookAtAll, getIneligibleReason } =
+const { getAvailableCreditsForEvent, hasUsableCredit, getTotalCredits, isMetered, canBookAtAll, getIneligibleReason, unmeteredBadgeLabel } =
   await import('./credit-allowance.js');
 const { setLinkedGyms } = await import('../gym-context.js');
 import live from '../../../server/fixtures/codexfit-v2/u1-20-barre-credits.json';
@@ -180,6 +180,12 @@ describe('account-level eligibility (WP-J)', () => {
       expect(getTotalCredits(MEMBERSHIP_ID)).toBe(Infinity);
       // But the combined "can I actually book this" answer must be false.
       expect(hasUsableCredit({ gymId: MEMBERSHIP_ID, credit_types: [] })).toBe(false);
+    });
+
+    it('header chip shows infinity, never "Member", whether or not eligibility has loaded', () => {
+      expect(unmeteredBadgeLabel(MEMBERSHIP_ID)).toBe('\u221E');
+      cache.eligibility = { canBook: true };
+      expect(unmeteredBadgeLabel(MEMBERSHIP_ID)).toBe('\u221E');
     });
 
     it('defaults permissive while eligibility has not loaded yet', () => {

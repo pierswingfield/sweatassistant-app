@@ -19,6 +19,6 @@ describe('guest action copy', () => {
       expect(src).not.toMatch(/label:\s*COPY\.bookings\.bookGuest/);
     }
     expect(bookings).toMatch(/bk-guest-btn[^`]*\$\{icon\('plus'/);
-    expect(timetable).toMatch(/label: COPY\.bookings\.guestMenu, icon: 'plus'/);
+    expect(timetable).toMatch(/label: COPY\.bookings\.guestMenu, icon: 'userPlus'/);
   });
 });

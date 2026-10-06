@@ -2039,6 +2039,24 @@ html, body {
   transform: translateY(-1.5px);
 }
 
+/* Cancel/destructive modal fill: brand blue in dark, danger red in light */
+:root { --cancel-fill: var(--accent-fill); --on-cancel-fill: var(--on-accent-fill); }
+@media (prefers-color-scheme: light) {
+  :root:not([data-theme="dark"]) { --cancel-fill: var(--danger); --on-cancel-fill: #ffffff; }
+}
+:root[data-theme="light"] { --cancel-fill: var(--danger); --on-cancel-fill: #ffffff; }
+#psycle-helper-container .psycle-btn.cancel-confirm,
+.psycle-modal .psycle-btn.cancel-confirm {
+  background: var(--cancel-fill);
+  color: var(--on-cancel-fill);
+}
+#psycle-helper-container .psycle-btn.cancel-confirm:hover,
+.psycle-modal .psycle-btn.cancel-confirm:hover {
+  background: var(--cancel-fill);
+  filter: brightness(0.9);
+  transform: translateY(-1.5px);
+}
+
 #psycle-helper-container .psycle-btn:disabled,
 .psycle-modal .psycle-btn:disabled {
   background: var(--surface-2) !important;
@@ -11015,8 +11033,11 @@ body.psycle-scroll-locked { overflow: hidden; }
   }
   /* No dismissal while a charge is in flight. */
   .psycle-modal.psycle-page.is-busy .psycle-modal-close-btn { visibility: hidden; }
-  /* Overlap stays a centred dialog; Cancel is a real button, so the corner X is redundant. */
-  .psycle-overlap-modal .psycle-modal-close-btn { display: none; }
+  /* Overlap is a full-screen page (shared .psycle-page shell): header X closes, actions are a sticky footer. */
+  .psycle-overlap-modal.psycle-page .psycle-modal-card { width: 100% !important; }
+  .psycle-overlap-modal.psycle-page .psycle-overlap-actions {
+    position: sticky; bottom: 0; margin-top: auto; padding-top: 12px; background: var(--bg);
+  }
 }
 body.psycle-scroll-locked { overscroll-behavior: none; }
 
@@ -11245,18 +11266,19 @@ html.psycle-scroll-locked { overflow: hidden !important; background: var(--bg) !
   position: absolute;
   inset: 0;
   border-radius: inherit;
-  padding: 2px;
-  background: conic-gradient(from var(--hgb-spin), transparent 0deg, transparent 220deg, var(--gym-btn, var(--accent)) 360deg);
+  padding: 1px;
+  opacity: 0.6;
+  background: conic-gradient(from var(--hgb-spin), transparent 0deg, transparent 180deg, color-mix(in srgb, var(--gym-btn, var(--accent)) 55%, transparent) 360deg);
   -webkit-mask: linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0);
   -webkit-mask-composite: xor;
   mask: linear-gradient(#000 0 0) content-box exclude, linear-gradient(#000 0 0);
   pointer-events: none;
-  animation: hgb-spin 1s linear infinite;
+  animation: hgb-spin 1.6s linear infinite;
 }
 @keyframes hgb-spin { to { --hgb-spin: 360deg; } }
 @media (prefers-reduced-motion: reduce) {
   /* No rotation: a static dimmed ring still says "loading". */
-  .psycle-header-gym-badge.is-loading::after { animation: none; background: var(--gym-btn, var(--accent)); opacity: 0.45; }
+  .psycle-header-gym-badge.is-loading::after { animation: none; background: var(--gym-btn, var(--accent)); opacity: 0.2; }
 }
 
 /* ===== 5-10 enh 2: mobile gym quick-selector (inside the filter rail, so mobile-only) ===== */
@@ -11304,3 +11326,116 @@ html.psycle-scroll-locked { overflow: hidden !important; background: var(--bg) !
 /* Desktop: the compact face never shows. */
 @media (min-width: 769px) { #sweat-filter-rail .fr-tile-compact { display: none; } }
 /* ===== END Mobile scroll-collapse ===== */
+
+/* Workouts grid: equal, shrinkable columns; long names wrap instead of pushing the grid off-screen. */
+.fr-sheet .fr-grid.fr-grid3 { grid-template-columns: repeat(3, minmax(0, 1fr)) !important; width: 100%; box-sizing: border-box; }
+.fr-sheet .fr-grid3 .fr-opt-stack { min-width: 0; overflow: hidden; }
+.fr-sheet .fr-grid3 .fr-opt-stack .fr-opt-name { white-space: normal !important; overflow-wrap: anywhere; line-height: 1.15; text-align: center; }
+
+/* Credits & Membership nav is debug-only: hidden by default (incl. before JS runs, so no flash on iOS PWA
+   launch); revealed only when <html data-credits-tab="on"> (early hint, then main.js's authoritative gate). */
+html:not([data-credits-tab="on"]) .psycle-nav-btn[data-tab="buy-credits"] { display: none !important; }
+
+/* Mobile only: no app logo in the header bar (desktop unchanged). */
+@media (max-width: 768px) {
+  #psycle-helper-container .psycle-header .psycle-logo { display: none !important; }
+}
+
+/* Mobile timetable rows: row text +1px (~8%). Deliberately NOT the gym chip or the class-type
+   chip (.ab-disc-tag), which keep their sizes. Lead column widened 2px so 5-char times fit at 18px.
+   Sits last, with !important, because earlier rules set these sizes with !important. */
+@media (max-width: 768px) {
+  #psycle-helper-container .psycle-mobile-lead { flex-basis: 48px; width: 48px; }
+  #psycle-helper-container .psycle-mobile-lead > strong,
+  #psycle-helper-container .psycle-table td .psycle-mobile-top-line > strong { font-size: 18px !important; }
+  #psycle-helper-container .psycle-mobile-line2 .psycle-mobile-class-name,
+  #psycle-helper-container .psycle-mobile-line2 .psycle-mobile-instructor,
+  #psycle-helper-container .psycle-mobile-bottom-line .psycle-mobile-instructor { font-size: 15px !important; }
+  #psycle-helper-container .psycle-mobile-bottom-line .psycle-mobile-location { font-size: 14px !important; }
+}
+
+/* Instructor figure: a fixed-width, right-aligned slot so photos form one
+   column across cards whatever the name length (My Bookings + Auto-Book). */
+.ab-card-body > .ab-card-figure {
+  width: 84px !important;
+  max-width: 84px !important;
+  flex: 0 0 84px !important;
+  align-items: flex-end !important;
+  margin-left: auto;
+}
+.ab-card-body > .ab-card-figure .ab-card-instructor {
+  width: 100%;
+  justify-content: flex-end;
+  text-align: right !important;
+}
+@media (min-width: 768px) {
+  .ab-card-body > .ab-card-figure { width: 52px !important; max-width: 52px !important; flex: 0 0 52px !important; }
+}
+
+/* Instructor photo sizing + border (items A/B). Appended last on purpose: earlier rules use !important. */
+/* Shared avatar border = the instructor popup's treatment (2px accent @40%); theme tokens, so light/dark both follow. */
+.ab-card-avatar, .ab-card-instructor .ab-card-avatar { border: 2px solid color-mix(in srgb, var(--accent) 40%, transparent) !important; box-sizing: border-box; }
+/* Instructor popup: photo +50% (48 -> 72), text enlarged, popup widened (still clamped to the viewport). */
+#psycle-instructor-tooltip { width: 440px !important; max-width: calc(100vw - 20px) !important; padding: 20px !important; }
+#psycle-instructor-tooltip .psycle-tooltip-header { gap: 16px; }
+#psycle-instructor-tooltip .psycle-tooltip-avatar { width: 72px !important; height: 72px !important; flex-shrink: 0; box-sizing: border-box; }
+#psycle-instructor-tooltip .psycle-tooltip-name { font-size: 18px !important; }
+#psycle-instructor-tooltip .psycle-tooltip-keywords { font-size: 14px !important; }
+#psycle-instructor-tooltip .psycle-tooltip-socials, #psycle-instructor-tooltip .psycle-tooltip-socials .psycle-tooltip-social-link, #psycle-instructor-tooltip .psycle-tooltip-social-text { font-size: 14px !important; }
+#psycle-instructor-tooltip { max-height: calc(100vh - 20px); overflow-y: auto; }
+/* Timetable row photo +20% (38 -> 46); the mobile lead column (48px) already fits it. */
+@media (max-width: 768px) {
+  #psycle-helper-container .psycle-mobile-lead .psycle-mobile-avatar { flex: 0 0 46px !important; width: 46px !important; height: 46px !important; box-sizing: border-box; border: 2px solid color-mix(in srgb, var(--accent) 40%, transparent); }
+  #psycle-helper-container .psycle-mobile-avatar img { width: 100% !important; height: 100% !important; }
+  #psycle-helper-container .psycle-mobile-avatar::before { font-size: 18px; }
+}
+
+/* ===== Filter bar order + grouped filter chips; compact gym stack ===== */
+#sweat-filter-rail .fr-filtergroup { display: inline-flex; align-items: center; gap: 6px; flex-shrink: 0; padding: 3px; border-radius: 22px; border: 1px solid var(--border-strong); background: color-mix(in srgb, var(--text) 5%, var(--surface-1, var(--surface-2))); }
+:root[data-theme="light"] #sweat-filter-rail .fr-filtergroup { background: color-mix(in srgb, var(--text) 4%, var(--surface-2)); }
+@media (max-width: 768px) {
+  #sweat-filter-rail .fr-gymquick { gap: 6px; }
+  #sweat-filter-rail .fr-gymquick-btn { transition: margin-left var(--tt-collapse-t, 0.25s ease); }
+  #psycle-app-container.psycle-tt-compact #sweat-filter-rail .fr-gymquick:not(.is-open) .fr-gymquick-btn + .fr-gymquick-btn { margin-left: -20px !important; }
+  #psycle-app-container.psycle-tt-compact #sweat-filter-rail .fr-gymquick:not(.is-open) .fr-gymquick-btn .fr-gym-dot { box-shadow: 0 0 0 1.5px var(--surface-1, var(--surface-2)); }
+  #psycle-app-container.psycle-tt-compact #sweat-filter-rail .fr-gymquick:not(.is-open) { gap: 0; }
+}
+@media (max-width: 768px) and (prefers-reduced-motion: reduce) {
+  #sweat-filter-rail .fr-gymquick-btn { transition: none !important; }
+}
+
+/* Auto-Upgrade setup modal (bookings.js openUpgradeConfigModal) */
+.psycle-upgrade-explainer { position: relative; font-size: 13px; line-height: 1.5; color: var(--text); background: var(--surface-inset); border: 1px solid var(--border); border-left: 3px solid var(--feat-autoupgrade); border-radius: 10px; padding: 12px 36px 12px 12px; margin-bottom: 12px; }
+.psycle-upgrade-explainer p { margin: 6px 0 0; color: var(--text-secondary); }
+.psycle-upgrade-explainer-close { position: absolute; top: 4px; right: 6px; width: 28px; height: 28px; border: 0; background: transparent; color: var(--text-secondary); font-size: 20px; line-height: 1; cursor: pointer; }
+.psycle-upgrade-current { font-size: 13px; color: var(--text-secondary); margin: 10px 0; }
+.psycle-upgrade-map-summary { display: flex; flex-direction: column; gap: 8px; font-size: 13px; background: var(--surface-inset); border: 1px solid var(--border); border-radius: 10px; padding: 12px; margin-bottom: 12px; }
+.psycle-upgrade-edit-map, .psycle-upgrade-back { background: color-mix(in srgb, var(--text) 6%, transparent) !important; border: 1px solid color-mix(in srgb, var(--text) 12%, transparent) !important; color: var(--text) !important; }
+.psycle-upgrade-back { width: 100%; margin-top: 10px; }
+.psycle-upgrade-keep { display: flex; align-items: flex-start; gap: 10px; font-size: 13px; cursor: pointer; line-height: 1.4; background: var(--surface-inset); border: 1px solid var(--border); border-radius: 10px; padding: 12px; margin-bottom: 12px; }
+.psycle-upgrade-keep input { margin-top: 2px; }
+.psycle-upgrade-keep-help { font-size: 12px; color: var(--text-tertiary); }
+
+/* Mobile filter bar: breathing room between gym logos, search and the filter group; gym tick tokens. */
+:root { --gym-tick-bg: #047857; --gym-tick-fg: #fff; --gym-tick-ring: var(--surface-1, var(--surface-2)); }
+:root[data-theme="light"] { --gym-tick-bg: #047857; }
+#sweat-filter-rail .fr-gymquick { margin-right: 6px; }
+#sweat-filter-rail .fr-search-btn { margin-right: 6px; }
+#sweat-filter-rail .fr-gymquick-tick { background: var(--gym-tick-bg) !important; stroke: var(--gym-tick-fg) !important; box-shadow: 0 0 0 1.5px var(--gym-tick-ring) !important; }
+
+/* Timetable: instructor name = class name size (one shared value so they cannot drift). Hierarchy via
+   weight/colour only. Desktop table incl. the merged who/where column; mobile rows stay 15px (rule above).
+   Last in file with !important: `td { font-size: 13px !important }` and `.psycle-instructor-hover` also set sizes. */
+#psycle-helper-container .psycle-table td .psycle-tt-class-name,
+#psycle-helper-container .psycle-table td.col-instructor .psycle-instructor-hover,
+#psycle-helper-container .psycle-table td .psycle-ww-who { font-size: 14px !important; }
+@media (max-width: 768px) {
+  /* ROOT CAUSE of the small instructor: the card sits in a table cell and the instructor span also carries
+     .psycle-instructor-hover, so `#id .psycle-table td .psycle-instructor-hover { font-size: 13px !important }`
+     (specificity 1,2,1) beat every `.psycle-mobile-*` rule here (1,2,0) regardless of order. These selectors
+     include `.psycle-table td` so they out-rank it. One value for class, instructor and location. */
+  #psycle-helper-container .psycle-table td .psycle-mobile-main .psycle-mobile-line2 .psycle-mobile-class-name,
+  #psycle-helper-container .psycle-table td .psycle-mobile-main .psycle-mobile-line2 .psycle-mobile-instructor,
+  #psycle-helper-container .psycle-table td .psycle-mobile-main .psycle-mobile-bottom-line .psycle-mobile-instructor,
+  #psycle-helper-container .psycle-table td .psycle-mobile-main .psycle-mobile-bottom-line .psycle-mobile-location { font-size: 15px !important; }
+}

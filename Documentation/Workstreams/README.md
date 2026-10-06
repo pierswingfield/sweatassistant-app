@@ -20,10 +20,10 @@ dated STATUS line; open items are the only thing left to do.
 
 | | |
 |---|---|
-| **Prod** (`sweat.wingfield.tech`) | **Multi-gym `modular` build since 2026-10-06** (Psycle + JAB + Aarmy enabled; fresh DB; `master` == `modular`). Buy Credits works (v2 cart). First account sign-up / `/admin` check is the user's step (C4-14). |
-| **Dev twin** (`sweat-dev.wingfield.tech`) | `modular` branch: multi-gym (Psycle/CodexFit + JAB/MarianaTek), merged timetable, per-account calendar, restructured Settings. JAB is enabled there by env var. |
-| **`optimisation` branch (2026-10-06)** | Perf work (C2-4/C2-5/MT cold-load/HTTP-cache fix, C7-3, F-3 share drawer) runs on the dev twin. **Not pushed, merged or deployed to prod.** Cold timetable, three gyms: first data 15.4 s, all gyms 18.5 s. |
-| **The milestone** | **C4 launched 2026-10-06.** What's open now is post-launch: see the workstream list below. |
+| **Prod** (`sweat.wingfield.tech`) | **Multi-gym build deployed by the user 2026-10-06.** Psycle + JAB + Aarmy enabled; fresh DB; `master` branch. Buy Credits works (v2 cart). First account sign-up and `/admin` access remain user steps. |
+| **Dev twin** (`sweat-dev.wingfield.tech`) | Multi-gym (Psycle/CodexFit + JAB/MarianaTek), merged timetable, per-account calendar, restructured Settings. JAB enabled via env var. |
+| **`optimisation` branch** | Perf work (C2-4/C2-5 chunked `/events`, C7-3 metrics, C7-4 image proxy done; branch state unmerged/undeployed to prod). |
+| **Post-launch status** | **Live 2026-10-06.** U5 finished and archived. C6-3 closed (no legacy accounts). C7-5 deprioritised (acceptable design). Remaining work: workstream list below. |
 
 > **2026-10-06 note (`optimisation`):** C2-4 shipped as 7-day-chunked ranged v2 `/events` (4 calls per 28 days; unscoped ranges 502 from ~14 days live), not one 42-day call. C2-5 rebuilt as stamp-gated refresh with ceilings (timetable 5 min, metadata 6 h, layouts 7 d); occupancy can lag up to 5 min. C7-3 and C7-4 done. **Open:** prewarm (first data still ~15 s, one slow upstream), `METRICS_TOKEN` unset on dev, `optimisation` unmerged and not on prod, C7-7 re-evaluate.
 
@@ -51,7 +51,7 @@ dated STATUS line; open items are the only thing left to do.
 | U1 (archived) | ✅ **FINISHED, archived 2026-10-06** — [Archive/2026-10-06/U1-ux-bug-fixes.md](../Archive/2026-10-06/U1-ux-bug-fixes.md) | P1–P2 | done |
 | [U2](U2-components-accessibility.md) | Shared components and accessibility (U2-1, U2-2, U2-5 done; **U2-4 shared empty-state helper open**) | P2 | ~2 days |
 | [U4](U4-ux-improvements.md) | UX improvements: done: U4-1..5, U4-7..9, U4-11, U4-12 (accepted), U4-13, U4-14 (closed, logo dropped), U4-15, U4-16, U4-17, U4-18, U4-2, **U4-19 (URL routing phases 1-8, built 2026-10-06, not deployed)**; U4-6 evaluated; **open: U4-10 (more glass)** | P2 | ~1–2 days (glass) |
-| [U5](U5-modal-fullscreen-and-spot-flow.md) | Mobile full-screen pages and the spot-map booking flow: U5-1..U5-11, U5-13, U5-16..U5-25 done; open: U5-12 (iOS keyboard, device), U5-14, U5-15 | P2 | ~0.5 day + device check |
+| U5 (archived) | ✅ **FINISHED, archived 2026-10-06** — [Archive/2026-10-06/U5-modal-fullscreen-and-spot-flow.md](../Archive/2026-10-06/U5-modal-fullscreen-and-spot-flow.md). Mobile full-screen pages and spot-map booking flow. | P2 | done |
 | [U3](U3-css-design-debt.md) | CSS and design-system debt | P3 | ~1 week |
 
 ### Later

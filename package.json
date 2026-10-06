@@ -1,7 +1,7 @@
 {
   "name": "psycle-pwa",
   "version": "1.0.0",
-  "description": "Psycle Server + PWA Migration",
+  "description": "Sweat Assistant Server + PWA",
   "engines": {
     "node": ">=20 <21"
   },

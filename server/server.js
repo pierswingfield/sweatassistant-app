@@ -785,7 +785,7 @@ app.get('/api/calendar/:token.ics', calendarFeedLimiter, (req, res) => {
     }
 
     res.set('Content-Type', 'text/calendar; charset=utf-8');
-    res.set('Content-Disposition', 'inline; filename="psycle.ics"');
+    res.set('Content-Disposition', 'inline; filename="sweat.ics"');
     res.set('ETag', snap.etag);
     res.set('Cache-Control', 'no-cache, max-age=0');
     res.send(snap.ics);

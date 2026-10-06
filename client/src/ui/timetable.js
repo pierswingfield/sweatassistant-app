@@ -278,7 +278,7 @@ if (typeof window !== 'undefined') {
     renderTimetableGrid('preferences-mutated').catch(() => {});
   });
 }
-let psycleEvents = [];
+let timetableEvents = [];
 // U1-15: NOT a module-local copy. The timetable used to keep its own
 // `userBookings`/`userWaitlists`, refreshed only by its own prefetch, so a booking
 // cancelled in My Bookings (which updates cache.bookings) still painted as booked
@@ -632,7 +632,7 @@ const copyOf = (st) => ({ gyms: [...st.gyms], locations: [...st.locations], inst
 
 function urlCtx() {
   const workouts = buildWorkoutOptions({
-    eventTypes: metadata.eventTypes, events: psycleEvents, gymOk: () => true, labelOf: (g) => getDiscipline(g).label,
+    eventTypes: metadata.eventTypes, events: timetableEvents, gymOk: () => true, labelOf: (g) => getDiscipline(g).label,
   }).map(w => ({ label: w.name, gymId: String(w.gymId) }));
   return {
     linkedGymIds: (getLinkedGyms() || []).map(g => String(g.gym_id || g.id)),
@@ -838,7 +838,7 @@ async function cacheDel(key) {
  */
 export async function resetTimetableForGymChange() {
   prefetchGeneration++;
-  psycleEvents = [];
+  timetableEvents = [];
   await Promise.all([
     cacheDel(accountScopedKey(CACHE_KEY_EVENTS)),
     cacheDel(accountScopedKey(CACHE_KEY_META)),
@@ -890,7 +890,7 @@ export async function prefetchTimetableData(force = false) {
       eventCount: cachedEvents?.length || 0,
     });
     if (cachedEvents && cachedEvents.length > 0) {
-      psycleEvents = cachedEvents;
+      timetableEvents = cachedEvents;
       if (cachedMeta) {
         if (cachedMeta.locations?.length) metadata.locations = cachedMeta.locations;
         if (cachedMeta.studios?.length) metadata.studios = cachedMeta.studios;
@@ -961,7 +961,7 @@ export async function prefetchTimetableData(force = false) {
       cache.studioPrefs = studioPrefsRes || {};
     });
     // Context (bookings etc.) may land after the first paint: repaint so buttons are right.
-    contextP.then(() => { if (generation === prefetchGeneration && psycleEvents.length) renderPreservingScroll('context-ready'); }).catch(() => {});
+    contextP.then(() => { if (generation === prefetchGeneration && timetableEvents.length) renderPreservingScroll('context-ready'); }).catch(() => {});
     contextP.catch(() => {}); // a failure is surfaced below; the gate must not throw
     // The first paint waits for the page context only up to the grace window, so
     // a slow bookings call cannot hold the timetable back either.
@@ -969,7 +969,7 @@ export async function prefetchTimetableData(force = false) {
 
     // Cached rows of a gym that has not answered yet stay on screen (stale while
     // revalidate) so a late gym replaces its own rows in place instead of vanishing.
-    const staleEvents = psycleEvents.slice();
+    const staleEvents = timetableEvents.slice();
     let flushChain = Promise.resolve();
     const applyFlush = async ({ events, pending, final }) => {
       await contextGate;
@@ -979,12 +979,12 @@ export async function prefetchTimetableData(force = false) {
       const carried = stillPending.size
         ? staleEvents.filter((e) => stillPending.has(String(e.gymId)))
         : [];
-      psycleEvents = carried.length ? sortEvents([...events, ...carried]) : events;
-      mergeMetadataFromEvents(psycleEvents);
+      timetableEvents = carried.length ? sortEvents([...events, ...carried]) : events;
+      mergeMetadataFromEvents(timetableEvents);
       buildMetaMaps();
       if (final) {
         try {
-          await cacheSet(accountScopedKey(CACHE_KEY_EVENTS), psycleEvents);
+          await cacheSet(accountScopedKey(CACHE_KEY_EVENTS), timetableEvents);
           await cacheSet(accountScopedKey(CACHE_KEY_META), {
             locations: metadata.locations,
             studios: metadata.studios,
@@ -1004,7 +1004,7 @@ export async function prefetchTimetableData(force = false) {
     // the one case that should reach past the SHARED server cache to the
     // provider. Ordinary renders ride the cache — that is what makes the second
     // load fast.
-    const freshEvents = !plan.timetable ? psycleEvents : await api.getTimetableProgressive(
+    const freshEvents = !plan.timetable ? timetableEvents : await api.getTimetableProgressive(
       { startDate: startStr, endDate: endStr, refresh: force },
       { graceMs: PROGRESSIVE_GRACE_MS, silent, onFlush: (info) => { flushChain = flushChain.then(() => applyFlush(info)).catch((e) => console.warn('[Timetable] merge failed:', e)); } },
     );
@@ -1522,12 +1522,12 @@ function setupFilterEventListeners() {
 let searchIndexMemo = { events: null, minute: 0, index: null };
 function getSearchIndex() {
   const minute = Math.floor(Date.now() / 60000);
-  if (searchIndexMemo.events !== psycleEvents || searchIndexMemo.minute !== minute) {
+  if (searchIndexMemo.events !== timetableEvents || searchIndexMemo.minute !== minute) {
     const nowMs = Date.now();
     const linked = getLinkedGyms() || [];
     searchIndexMemo = {
-      events: psycleEvents, minute,
-      index: buildSearchIndex(psycleEvents.filter(e => new Date(e.startAt).getTime() >= nowMs), {
+      events: timetableEvents, minute,
+      index: buildSearchIndex(timetableEvents.filter(e => new Date(e.startAt).getTime() >= nowMs), {
         gymNames: (id) => {
           const g = linked.find(x => String(x.gym_id || x.id) === String(id));
           const names = [g?.name || g?.gym_name, g?.shortName].filter(Boolean);
@@ -1623,8 +1623,8 @@ function discLabel(group, gymId) {
 function countMatchingEventsQuick() {
   const now = new Date();
   let count = 0;
-  for (let i = 0; i < psycleEvents.length; i++) {
-    const e = psycleEvents[i];
+  for (let i = 0; i < timetableEvents.length; i++) {
+    const e = timetableEvents[i];
     if (new Date(e.startAt) < now) continue;
     if (selectedGyms.length > 0 && (!e.gymId || !selectedGyms.includes(String(e.gymId)))) continue;
     if (!passesLocationFilter(selectedLocations, eventLocationId(e))) continue;
@@ -1664,7 +1664,7 @@ function buildFilterRailCtx(eventsExcluding, resultCount) {
   // below offers only that gym's options (and stale picks are pruned on toggle).
   const gymOk = (gid) => selectedGyms.length === 0 || selectedGyms.includes(String(gid));
   const workouts = buildWorkoutOptions({
-    eventTypes: metadata.eventTypes, events: psycleEvents, gymOk,
+    eventTypes: metadata.eventTypes, events: timetableEvents, gymOk,
     labelOf: (g, gid) => discLabel(g, gid),
   });
   const gymOrder = linked.map(g => g.gym_id || g.id);
@@ -1683,7 +1683,7 @@ function buildFilterRailCtx(eventsExcluding, resultCount) {
     c.locations = metadata.locations.filter(l => gOk(l.gymId)).sort((a, b) =>
       gOrder.indexOf(a.gymId) - gOrder.indexOf(b.gymId) || locationBaseLabel(a).localeCompare(locationBaseLabel(b)));
     c.workouts = buildWorkoutOptions({
-      eventTypes: metadata.eventTypes, events: psycleEvents, gymOk: gOk,
+      eventTypes: metadata.eventTypes, events: timetableEvents, gymOk: gOk,
       labelOf: (g, gid) => discLabel(g, gid),
     });
     c.instructors = metadata.instructors.filter(i => gOk(i.gymId)).sort((a, b) => (a.name || '').localeCompare(b.name || ''))
@@ -1833,7 +1833,7 @@ export async function renderTimetableGrid(reason = 'interaction') {
   // eligibility repaint, a resize, a tab switch) has no events to draw and used
   // to wipe the loading skeleton for an empty grid, leaving a blank page until
   // the network answered. Keep the skeleton up until there is something to show.
-  if (isPrefetching && psycleEvents.length === 0) {
+  if (isPrefetching && timetableEvents.length === 0) {
     if (!ttGrid.querySelector('.psycle-skeleton, [data-skeleton]')) ttGrid.innerHTML = renderTimetableSkeleton();
     return;
   }
@@ -1846,7 +1846,7 @@ export async function renderTimetableGrid(reason = 'interaction') {
     applyUrlTimetable(t);
   }
   const now = new Date();
-  const futureEvents = psycleEvents.filter(e => new Date(e.startAt) >= now);
+  const futureEvents = timetableEvents.filter(e => new Date(e.startAt) >= now);
 
   function eventsExcluding(excludeFilter) {
     return futureEvents.filter(e => {
@@ -1925,7 +1925,7 @@ export async function renderTimetableGrid(reason = 'interaction') {
   const domStartedAt = timetablePerfNow();
 
   // 1. Filter events by selected dropdown metadata arrays
-  const filteredEvents = psycleEvents.filter(e => {
+  const filteredEvents = timetableEvents.filter(e => {
     // Filter out past classes
     if (new Date(e.startAt) < new Date()) return false;
 
@@ -2061,7 +2061,7 @@ export async function renderTimetableGrid(reason = 'interaction') {
 
   ensureSearchUi({
     getIndex: getSearchIndex,
-    isLoading: () => isPrefetching && psycleEvents.length === 0,
+    isLoading: () => isPrefetching && timetableEvents.length === 0,
     applyPick: applySearchPick,
   });
 

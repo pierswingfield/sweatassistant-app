@@ -9,7 +9,7 @@ import { beginGymLoad as _beginGymLoad, endGymLoad as _endGymLoad } from './ui/g
 import { assertMutationNetworkAvailable, isOfflineForMutation } from './network-write-guard.js';
 import { validateSelfBookingRequest } from './ui/booking-entitlement.js';
 
-// API Abstraction layer for communicating with the Psycle PWA server
+// API Abstraction layer for communicating with the Sweat Assistant server
 
 // U1-15: every successful booking mutation is announced so booking-state.js can
 // update the shared booked/waitlisted cache at once, whichever tab made it.
@@ -419,7 +419,7 @@ export const api = {
       if (!res.ok) throw new Error('Failed to load timetable');
       const data = await res.json();
       const gymId = linked[0]?.gym_id || getDefaultGymId();
-      const gymName = linked[0]?.gym_name || linked[0]?.name || 'Psycle';
+      const gymName = linked[0]?.gym_name || linked[0]?.name || 'Gym';
       return (data.events || []).map((ev) => ({
         ...ev,
         gymId: ev.gymId || gymId,
@@ -555,7 +555,7 @@ export const api = {
       if (!res.ok) throw new Error('Failed to load timetable metadata');
       const data = await res.json();
       const gymId = linked[0]?.gym_id || getDefaultGymId();
-      const gymName = linked[0]?.gym_name || linked[0]?.name || 'Psycle';
+      const gymName = linked[0]?.gym_name || linked[0]?.name || 'Gym';
       return {
         locations: (data.locations || []).map((l) => ({ ...l, gymId, gymName })),
         studios: (data.studios || []).map((s) => ({ ...s, gymId, gymName })),
@@ -765,7 +765,7 @@ export const api = {
       if (!res.ok) throw new Error('Failed to load bookings');
       const data = await res.json();
       const gymId = linked[0]?.gym_id || getDefaultGymId();
-      const gymName = linked[0]?.gym_name || linked[0]?.name || 'Psycle';
+      const gymName = linked[0]?.gym_name || linked[0]?.name || 'Gym';
       lastLoadedGymIds = new Set([gymId]); // Single gym always loaded
       return (data.bookings || []).map((b) => ({
         ...b,
@@ -823,7 +823,7 @@ export const api = {
       if (!res.ok) throw new Error('Failed to load waitlists');
       const data = await res.json();
       const gymId = linked[0]?.gym_id || getDefaultGymId();
-      const gymName = linked[0]?.gym_name || linked[0]?.name || 'Psycle';
+      const gymName = linked[0]?.gym_name || linked[0]?.name || 'Gym';
       return (data.waitlists || []).map((w) => ({
         ...w,
         gymId: w.gymId || gymId,

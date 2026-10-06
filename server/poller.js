@@ -394,7 +394,7 @@ async function attemptUpgradeSlot(upgrade, isCutoffMode) {
         // Update database upgrade job record
         const nowStr = new Date().toISOString();
         if (isCutoffMode) {
-          db.updateAutoUpgrade(upgrade.id, userId, 'cutoff_booked', `Upgraded to slot ${candidateSlot} within 12h window — original seat kept. Please ask Psycle to cancel original booking ${upgrade.booking_id}.`, {
+          db.updateAutoUpgrade(upgrade.id, userId, 'cutoff_booked', `Upgraded to slot ${candidateSlot} within 12h window — original seat kept. Please ask ${gym?.shortName || gym?.name || 'the gym'} to cancel original booking ${upgrade.booking_id}.`, {
             upgradedSlotId: candidateSlot,
             upgradedAt: nowStr,
             newBookingId,

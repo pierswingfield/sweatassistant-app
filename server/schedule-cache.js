@@ -32,15 +32,28 @@
 
 const DEFAULT_TTL_MS = 60 * 1000;
 
+// C2-5 (rebuilt 2026-10-06): OPTIONAL stamp-validated freshness.
+// A caller may pass `opts.stamp` (async () => string|null, e.g. a CodexFit /heartbeat
+// resource stamp) and `opts.ceilingMs`. When a TTL-stale entry is read, the stamp is
+// compared with the one captured when the entry was fetched: unchanged => the entry is
+// re-validated (freshness extended by another TTL, no refetch) until it is `ceilingMs`
+// old, after which it is refetched regardless (hard max-age). Changed, unavailable
+// (null/throw) or past the ceiling => the existing stale-while-revalidate path. The
+// stamp need not track every field of the value: for the schedule the `events` stamp
+// does NOT move on occupancy changes, so occupancy may lag up to the ceiling (accepted;
+// see AGENTS.md). Entries fetched without a stamp are never extended.
+const DEFAULT_STAMP_CEILING_MS = 5 * 60 * 1000;
+
 function createCache() {
 
-  const store = new Map();   // key -> { value, fetchedAt, ttlMs }
+  const store = new Map();   // key -> { value, fetchedAt, checkedAt, ttlMs, stamp }
   const inFlight = new Map(); // key -> Promise
 
-  const stats = { hits: 0, staleHits: 0, misses: 0, coalesced: 0, refreshes: 0, errors: 0 };
+  const stats = { hits: 0, staleHits: 0, misses: 0, coalesced: 0, refreshes: 0, errors: 0,
+    stampUnchanged: 0, stampChanged: 0, stampUnavailable: 0, ceilingRefetches: 0 };
 
   function isFresh(entry, now) {
-    return entry && (now - entry.fetchedAt) < entry.ttlMs;
+    return entry && (now - entry.checkedAt) < entry.ttlMs;
   }
 
   /**
@@ -57,7 +70,7 @@ function createCache() {
 
     if (opts.force) {
       stats.misses++;
-      return single(key, fetcher, ttlMs);
+      return single(key, fetcher, ttlMs, opts);
     }
 
     if (isFresh(entry, now)) {
@@ -65,12 +78,32 @@ function createCache() {
       return entry.value;
     }
 
+    if (entry && opts.stamp && entry.stamp != null) {
+      const ceilingMs = opts.ceilingMs || DEFAULT_STAMP_CEILING_MS;
+      if ((now - entry.fetchedAt) >= ceilingMs) {
+        stats.ceilingRefetches++;
+      } else {
+        let cur = null;
+        try { cur = await opts.stamp(); } catch (_) { cur = null; }
+        if (cur == null) {
+          stats.stampUnavailable++;
+        } else if (cur === entry.stamp && store.get(key) === entry) {
+          entry.checkedAt = Date.now();
+          stats.stampUnchanged++;
+          stats.hits++;
+          return entry.value;
+        } else if (cur !== entry.stamp) {
+          stats.stampChanged++;
+        }
+      }
+    }
+
     // Beyond the usable-stale window the entry is too old to serve blindly: wait
     // for the provider, but single() still falls back to it if the fetch fails
     // (stale-if-error).
-    if (entry && opts.maxStaleMs && (now - entry.fetchedAt) > entry.ttlMs + opts.maxStaleMs) {
+    if (entry && opts.maxStaleMs && (now - entry.checkedAt) > entry.ttlMs + opts.maxStaleMs) {
       stats.misses++;
-      return single(key, fetcher, ttlMs);
+      return single(key, fetcher, ttlMs, opts);
     }
 
     if (entry) {
@@ -80,16 +113,16 @@ function createCache() {
       stats.staleHits++;
       if (!inFlight.has(key)) {
         stats.refreshes++;
-        single(key, fetcher, ttlMs).catch(() => {});
+        single(key, fetcher, ttlMs, opts).catch(() => {});
       }
       return entry.value;
     }
 
     stats.misses++;
-    return single(key, fetcher, ttlMs);
+    return single(key, fetcher, ttlMs, opts);
   }
 
-  function single(key, fetcher, ttlMs) {
+  function single(key, fetcher, ttlMs, opts = {}) {
     const existing = inFlight.get(key);
     if (existing) {
       stats.coalesced++;
@@ -97,8 +130,14 @@ function createCache() {
     }
     const p = (async () => {
       try {
+        // The stamp is read BEFORE the fetch settles (started first, in parallel): if the
+        // upstream changes mid-fetch, the stored stamp is the older one, so the next
+        // check sees a difference and refetches (conservative).
+        const stampP = opts.stamp ? (async () => opts.stamp())().catch(() => null) : null;
         const value = await fetcher();
-        store.set(key, { value, fetchedAt: Date.now(), ttlMs });
+        const stamp = stampP ? await stampP : null;
+        const t = Date.now();
+        store.set(key, { value, fetchedAt: t, checkedAt: t, ttlMs, stamp });
         return value;
       } catch (err) {
         stats.errors++;
@@ -139,4 +178,4 @@ function createCache() {
 
 const shared = createCache();
 
-module.exports = { ...shared, createCache, DEFAULT_TTL_MS };
+module.exports = { ...shared, createCache, DEFAULT_TTL_MS, DEFAULT_STAMP_CEILING_MS };

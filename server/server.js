@@ -193,6 +193,7 @@ app.get('/api/health', async (req, res) => {
     time: new Date(now).toISOString(),
     uptimeSec: Math.round(process.uptime()),
     scheduleCache: scheduleCacheStats,
+    freshness: (() => { try { return require('./freshness').getStats(); } catch (_) { return null; } })(),
     layoutCache: layoutCacheStats,
     instructorPhotoCache,
     nextReleaseAt: nextRelease,
@@ -224,6 +225,8 @@ app.get('/metrics', (req, res) => {
   const now = Date.now();
   const gauge = (name, help, samples, type = 'gauge') => ({ name, help, type, samples });
   let cs = { hits: 0, staleHits: 0, misses: 0 };
+  let fs = { heartbeatChecks: 0, heartbeatFailures: 0 };
+  try { fs = require('./freshness').getStats(); } catch (_) {}
   try { cs = require('./schedule-cache').getStats(); } catch (_) {}
   let pending = 0;
   try { pending = db.db.prepare("SELECT COUNT(*) AS n FROM auto_bookings WHERE status = 'pending' AND executed_at IS NULL").get().n; } catch (_) {}
@@ -238,6 +241,11 @@ app.get('/metrics', (req, res) => {
   res.type('text/plain; version=0.0.4; charset=utf-8').send(metrics.render([
     gauge('schedule_cache_events_total', 'Shared schedule cache lookups by result.', [
       [{ result: 'hit' }, cs.hits], [{ result: 'stale' }, cs.staleHits], [{ result: 'miss' }, cs.misses]], 'counter'),
+    // C2-5: bounded labels (5 fixed results), no gym/user dimension.
+    gauge('schedule_cache_freshness_total', 'Stamp-validated cache outcomes (heartbeat-driven freshness).', [
+      [{ result: 'heartbeat_check' }, fs.heartbeatChecks || 0], [{ result: 'heartbeat_failure' }, fs.heartbeatFailures || 0],
+      [{ result: 'unchanged_saved' }, cs.stampUnchanged || 0], [{ result: 'refetch_changed' }, cs.stampChanged || 0],
+      [{ result: 'refetch_ceiling' }, cs.ceilingRefetches || 0]], 'counter'),
     gauge('scheduler_pending_bookings', 'Pending auto-book queue entries (all users, all gyms).', [[{}, pending]]),
     gauge('scheduler_next_release_timestamp_seconds', 'Armed next auto-book release (unix seconds; 0 when idle).', [[{}, Number.isFinite(next) ? Math.round(next / 1000) : 0]]),
     gauge('service_heartbeat_age_seconds', 'Seconds since a background service last wrote its heartbeat (-1 = never).', beats),

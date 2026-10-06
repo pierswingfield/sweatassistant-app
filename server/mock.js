@@ -360,6 +360,11 @@ function handleMockRequest(pathName, method, body) {
     ]);
   }
 
+  // C2-5: public heartbeat, live envelope (server/fixtures/codexfit-v2/heartbeat-v1-response.json).
+  if (pathName.startsWith('/heartbeat')) {
+    return createFakeResponse({ data: { ...mockHeartbeat, 'logged-in': false } });
+  }
+
   if (pathName.startsWith('/locations')) {
     return createFakeResponse(locations);
   }
@@ -840,7 +845,28 @@ function handleMockRequest(pathName, method, body) {
   return createFakeResponse([]);
 }
 
+// Controllable per-resource stamps for GET /heartbeat (tests / manual dev: bump `events` to
+// simulate the upstream schedule changing).
+const mockHeartbeat = {
+  bundles: '2026-09-25T10:27:07.000000Z',
+  'bundle-types': '2026-01-09T19:22:32.000000Z',
+  'credit-types': '2026-08-28T16:48:54.000000Z',
+  events: '2026-09-26T10:16:36.000000Z',
+  'event-type-groups': '2026-09-04T14:10:18.000000Z',
+  'event-types': '2026-09-25T13:31:06.000000Z',
+  instructors: '2026-09-25T12:53:44.000000Z',
+  locations: '2026-09-11T15:12:27.000000Z',
+  plans: '2026-09-25T08:41:13.000000Z',
+  products: '2026-09-23T08:36:06.000000Z',
+  'product-variants': '2026-09-16T15:26:55.000000Z',
+  studios: '2026-08-26T13:28:23.000000Z',
+  videos: '2026-09-26T21:40:43.000000Z',
+  'videos-collections': '2026-08-12T09:29:50.000000Z',
+};
+function setMockHeartbeatStamp(resource, iso) { mockHeartbeat[resource] = iso; }
+
 module.exports = {
+  setMockHeartbeatStamp,
   NO_LAYOUT_EVENT_ID, NO_LAYOUT_FULL_EVENT_ID,
   handleMockRequest
 };

@@ -667,6 +667,24 @@ class CodexFitProvider extends GymProvider {
     });
   }
 
+  // C2-5 (rebuilt): CodexFit's public `GET /api/v1/customer/heartbeat` (the official website polls
+  // it) returns `{ data: { <resource>: ISO, ..., "logged-in": false } }`. Each stamp moves when
+  // that resource is created/edited. The `events` stamp does NOT move on seat-count changes
+  // (measured 2026-10-06), so occupancy can lag; that is accepted (same as the website).
+  hasFreshnessStamps() { return true; }
+
+  async getFreshnessStamps(session) {
+    const res = (session && session.accessToken === MOCK_TOKEN)
+      ? await this.request('/heartbeat', { token: session.accessToken })
+      : await this.publicRequest('/heartbeat');
+    if (!res.ok) throw httpError(`heartbeat failed: ${res.status}`, res.status);
+    const body = await res.json();
+    const data = (body && body.data) || {};
+    const out = {};
+    for (const [k, v] of Object.entries(data)) if (typeof v === 'string') out[k] = v;
+    return out;
+  }
+
   // Public list lookup, not a client-supplied URL: this is the SSRF boundary
   // for F-15. CodexFit exposes the complete instructor collection publicly.
   async findInstructorPhoto(instructorId) {

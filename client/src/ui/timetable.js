@@ -6,6 +6,7 @@ import { isCreditInventoryLoaded, pickStudioPrefs as pickGymStudioPrefs } from '
 import { isRollingWeeklyGym } from '../gym-context.js';
 import { canForGym, canAny, capabilityForGym, getLinkedGyms, getGymShortName, getLocationAlias, getDefaultGymId, formatSpotLabel } from '../gym-context.js';
 import { showToast, currentUser, userSettings, gymSetting, isAutoUpgradeDefaultEnabled, favouritesForGym, setFavouriteLocal, refreshUserData, updateCreditBadge, cache, debugConsole } from '../main';
+import { heartButtonHtml } from '../favourite-heart.js';
 import { slotOfEvent, favouriteId, labelsOfEvent, isFavouriteIn } from '../favourites.js';
 import { passesLocationFilter, formatFullDate, getClassReleaseTime, isFullWithoutWaitlist, isInGracePeriod, GRACE_PERIOD_MS, startGraceCountdown, noSept, zoneFor, formatInZone, dayKeyInZone, nowInZone, deviceZone } from '../lib';
 import { getGymTimeZone, getCatalogueGyms } from '../gym-context.js';
@@ -2263,7 +2264,7 @@ export async function renderTimetableGrid(reason = 'interaction') {
       <td class="col-gym">${gymChip(event.gymId)}</td>
       <td class="col-class">
         <div class="psycle-tt-class-cell">
-          <span class="${heartClass}" data-event-id="${event.id}" title="${isBookmarked ? COPY.timetable.removeBookmark : COPY.timetable.bookmarkClass}">${heartChar}</span>
+          ${heartButtonHtml({ isFavourite: isBookmarked, eventId: event.id, label: COPY.timetable.favourite, pressedLabel: COPY.timetable.unfavourite })}
           ${disciplineTag(groupName)}
           <span class="psycle-tt-class-name">${strippedClassName}</span>
         </div>
@@ -2295,7 +2296,7 @@ export async function renderTimetableGrid(reason = 'interaction') {
     if (heartEl) {
       heartEl.onclick = (e) => {
         e.stopPropagation();
-        toggleFavourite(event, e.target);
+        toggleFavourite(event, e.currentTarget);
       };
     }
 
@@ -3091,8 +3092,6 @@ function injectMobileFilterHamburger() {
   const saveBtn = document.getElementById('psycle-btn-save-default-filters');
 
   const items = [];
-  // Favourites filter temporarily hidden until universal cross-gym solution
-  // if (favBtn) items.push({ label: showBookmarksOnly ? 'Bookmarked (on)' : 'Bookmarked', icon: 'heart', variant: 'favourite', action: () => favBtn.click() });
   if (clearBtn) items.push({ label: COPY.timetable.clearFilters, icon: 'close', variant: 'danger', action: () => clearBtn.click() });
   if (saveBtn) items.push({ label: COPY.timetable.saveDefaults, icon: 'check', variant: 'success', action: () => saveBtn.click() });
 
@@ -3147,12 +3146,8 @@ function buildMobileClassRow(event, ctx, model) {
   // Row 3 shows the studio's FULL location name ("Oxford Circus"), not the gym's contracted alias ("OC").
   const displayLoc = trimLocation(locName, getGymShortName(event.gymId));
 
-  // Favourite heart is a non-interactive indicator on mobile (only shown when
-  // bookmarked), sitting between the time and the discipline chip. Toggling
-  // happens through the context menu instead.
-  const favIndicator = isBookmarked
-    ? `<span class="psycle-mobile-fav-indicator" aria-label="${COPY.timetable.favourited}">${heartChar}</span>`
-    : '';
+  // Favourite heart: a real button on every card (filled when favourited), 44px touch target via CSS.
+  const favIndicator = heartButtonHtml({ isFavourite: isBookmarked, eventId: event.id, label: COPY.timetable.favourite, pressedLabel: COPY.timetable.unfavourite, extraClass: 'psycle-mobile-fav-indicator' });
 
   // Photo (or a soft initial placeholder, same box, so nothing shifts while it loads). The image comes from the
   // ONE shared lookup (instructorAvatar: the event's own thumb first, else metadata by name).
@@ -3188,6 +3183,11 @@ function buildMobileClassRow(event, ctx, model) {
   `;
 
   const rail = card.querySelector('.psycle-mobile-rail');
+
+  const mobileHeart = card.querySelector('.psycle-timetable-heart');
+  if (mobileHeart) {
+    mobileHeart.onclick = (e) => { e.stopPropagation(); toggleFavourite(event, e.currentTarget); };
+  }
 
   // Mobile shows exactly ONE visible action button (the rest collapse into
   // the ellipsis). For an already-booked single-spot class, buildActionModel

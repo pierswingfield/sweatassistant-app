@@ -183,17 +183,7 @@ export function renderFilterRail(ctx) {
       : `${icon('user', 13)}<span><b class="fr-num">${state.instructors.length}</b><span class="fr-thin">${COPY.filters.instructors}</span></span>`;
     groupParts.push(chip(body, 'instructors', COPY.filters.instructorFilterChip));
   }
-  const tail = [];
-  if (ctx.canBookmark) {
-    // The spacer soaks up free width, so the heart rides the right edge until
-    // the chips reach it; once the row overflows the spacer is 0 and the heart is
-    // just the last chip in the scroll.
-    const heart = `<svg width="16" height="16" viewBox="0 0 16 16" aria-hidden="true" fill="${state.bookmarks ? 'currentColor' : 'none'}" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round"><path d="M8 13.5S2.5 10 2.5 6.2A2.7 2.7 0 0 1 8 5a2.7 2.7 0 0 1 5.5 1.2C13.5 10 8 13.5 8 13.5Z"/></svg>`;
-    tail.push(`<span class="fr-spacer" aria-hidden="true"></span>`);
-    tail.push(`<button type="button" class="fr-heart${state.bookmarks ? ' active' : ''}" data-fr-heart="1" aria-pressed="${state.bookmarks}" aria-label="${COPY.filters.bookmarkedOnly}">${heart}</button>`);
-  }
   parts.push(`<span class="fr-filtergroup">${groupParts.join('')}</span>`);
-  parts.push(...tail);
   rail.innerHTML = parts.join('');
 
   rail.onclick = (e) => {
@@ -205,7 +195,6 @@ export function renderFilterRail(ctx) {
       ctx.setGymQuick(gq.dataset.frGymquick); return;
     }
     if (e.target.closest('[data-fr-search]')) { ctx.openSearch(); return; }
-    if (e.target.closest('[data-fr-heart]')) { ctx.toggleBookmarks(); return; }
     const opener = e.target.closest('[data-fr-open]');
     if (opener) openSheet(ctx, opener.dataset.frSection || null);
   };
@@ -422,6 +411,10 @@ function paintSheet(ctx) {
     instructors: state.instructors.map(id => ctx.instructors.find(x => String(x.id) === id)?.name || id),
   };
 
+  // F-12: Favourites only lives in the drawer on mobile (every gym has favourites now).
+  const favOn = !!state.bookmarks;
+  const favRow = !ctx.canBookmark ? '' : `<div class="fr-sec fr-sec-plain"><button type="button" class="fr-favrow${favOn ? ' on' : ''}" data-fr-fav="1" aria-pressed="${favOn}"><svg width="18" height="18" viewBox="0 0 16 16" aria-hidden="true" fill="${favOn ? 'currentColor' : 'none'}" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round"><path d="M8 13.5S2.5 10 2.5 6.2A2.7 2.7 0 0 1 8 5a2.7 2.7 0 0 1 5.5 1.2C13.5 10 8 13.5 8 13.5Z"/></svg><span>${COPY.filters.favouritesOnly}</span></button></div>`;
+
   sheet.innerHTML = `
     <div class="fr-grab" aria-hidden="true"></div>
     <div class="fr-head">
@@ -430,6 +423,7 @@ function paintSheet(ctx) {
       <button type="button" class="fr-close" data-fr-close="1" aria-label="${COPY.filters.closeFilters}">&#x2715;</button>
     </div>
     <div class="fr-body">
+      ${favRow}
       ${gymBlock}
       ${section('locations', COPY.filters.locations, summarise(nameOf.locations), state.locations.length, locInner, 'locations')}
       ${section('workouts', COPY.filters.workouts, summarise(state.eventTypes), state.eventTypes.length, workInner, 'eventTypes')}
@@ -463,6 +457,7 @@ function paintSheet(ctx) {
     if (t.dataset.frClear) return ctx.clear(t.dataset.frClear);
     if (t.dataset.frClose) return closeSheet();
     if (t.dataset.frReset) return ctx.clearAll();
+    if (t.dataset.frFav) return ctx.toggleBookmarks();
     if (t.dataset.frSave) return ctx.save();
     if (t.dataset.frToggle) {
       const group = t.dataset.frToggle;
@@ -504,6 +499,13 @@ function updateSheetState(sheet, ctx) {
 
   const doneBtn = sheet.querySelector('.fr-done');
   if (doneBtn) doneBtn.textContent = ctx.resultCount === 0 ? COPY.filters.noClassesAdjust : COPY.filters.showClasses;
+
+  const favBtn = sheet.querySelector('[data-fr-fav]');
+  if (favBtn) {
+    favBtn.classList.toggle('on', !!state.bookmarks);
+    favBtn.setAttribute('aria-pressed', String(!!state.bookmarks));
+    favBtn.querySelector('svg')?.setAttribute('fill', state.bookmarks ? 'currentColor' : 'none');
+  }
 
   sheet.querySelectorAll('[data-fr-toggle]').forEach((btn) => {
     const on = ctx.isOn(btn.dataset.frToggle, btn.dataset.id);

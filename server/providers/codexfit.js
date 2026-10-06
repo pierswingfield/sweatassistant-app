@@ -30,8 +30,10 @@ const DEV_EMAIL = 'dev@psycle.com';
 // with 'mock-jwt-token'). See request()'s doc comment below for why this check
 // lives here now, not just in the 5 pre-Phase-3 callers.
 const MOCK_TOKEN = 'mock-jwt-token';
-// C2-4: widest span one ranged /events call may cover (our own bound, not an API limit).
-const MAX_TIMETABLE_DAYS = 42;
+// C2-4: widest span one UNSCOPED ranged /events call may cover. Measured live
+// 2026-10-06: 7 days = 3 MB/7 s, 10 days = 4.2 MB/8 s, 14+ days = HTTP 502 (upstream
+// timeout), so the planned single 42-day call does not work unscoped. 7 keeps margin.
+const MAX_TIMETABLE_DAYS = 7;
 
 // C2-6: how long a fetched /profile is reused (see CodexFitProvider._fetchProfile).
 const PROFILE_MEMO_TTL_MS = 30 * 1000;
@@ -479,12 +481,11 @@ class CodexFitProvider extends GymProvider {
   }
 
   async fetchTimetable(params = {}, session) {
-    // C2-4: ONE ranged v2 `/events` call (unscoped: all locations) instead of
-    // `/locations` + one call per location. Live-confirmed 2026-10-06 (G4,
-    // fixtures/codexfit-v2/events-v2-ranges-g4.json): `filter[between]=a,b` (end
-    // exclusive for date-only values), unpaginated `{data, relations}`, no server
-    // span cap up to 56 days. The 42-day cap is OUR bound; a wider window is
-    // chunked into consecutive <=42-day calls.
+    // C2-4: ranged v2 `/events` calls (unscoped: all locations) instead of
+    // `/locations` + one call per location. `filter[between]=a,b` (end exclusive
+    // for date-only values), unpaginated `{data, relations}` (G4). The G4 "no cap
+    // up to 56 days" finding was LOCATION-SCOPED; unscoped it 502s from ~14 days
+    // (see MAX_TIMETABLE_DAYS), so the window is chunked into <=7-day calls.
     const fetcher = session
       ? (path) => this.requestV2(path, { token: session.accessToken })
       : (path) => this.requestV2(path);

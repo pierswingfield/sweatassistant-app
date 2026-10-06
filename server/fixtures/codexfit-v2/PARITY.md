@@ -130,3 +130,7 @@ Fixture: `heartbeat-vs-occupancy-c25-2026-10-06.json`. Read-only public GETs thr
 - So it likely tracks schedule edits (create/update/delete of event rows), not seat counts. A cache invalidated on it would serve stale occupancy indefinitely. **Do not build C2-5 on it.** The 60 s TTL stays.
 - Limits: usable window ~2 min, not 10-15. A page `setInterval` was frozen in the background tab and tool calls cap at 45 s. One counter-example is enough to disprove "moves iff occupancy changes", but a positive case (stamp moves on schedule edits) was not observed.
 - Heartbeat could still serve a *schedule-structure* signal (new/changed classes) with the TTL kept for occupancy; not pursued.
+
+## C2-4 correction (2026-10-06): unscoped `/events` ranges 502 from ~14 days
+
+Found by deploying C2-4 to the dev twin (Psycle rows vanished). Direct public GETs: unscoped 1d 200 (0.7 MB), 7d 200 (3.1 MB, 7 s), 10d 200 (4.3 MB, 8 s), **14d / 23d / 42d HTTP 502** (~10-14 s, upstream timeout). Location-scoped 42d is fine (oxford-circus 3.8 MB/5.8 s, clapham 0.7 MB, shoreditch 1.1 MB). The G4 "no cap up to 56 days" was location-scoped only. The adapter chunks unscoped calls at 7 days.

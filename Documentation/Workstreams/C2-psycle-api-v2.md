@@ -448,3 +448,49 @@ in the meantime.
 - **MarianaTek:** does *not* have the same pattern. `getProfile` (`/me/account`), `getCredits`
   (`/me/credits`) and `getMemberships` (`/me/memberships`) are different documents; only `getEligibility`
   fans out to two of them in parallel. Nothing to fix.
+
+## Aarmy analysis + first-paint (2026-10-06, read-only, no code changed)
+
+**Method.** Dev twin (`optimisation` 710e7f1), `LOG_LEVEL=debug` appended to the dev `.env` temporarily (backup copied back afterwards, container recreated, `/api/health` 200, 0 debug lines). Real Chrome (Claude for Chrome, one tab, closed after): container restarted before each run, SW + CacheStorage + IndexedDB + cache keys cleared, real navigation to `/?r=N#class-timetable`, DOM polled every 40 ms. No writes. The saved filter on this account is `gym=jab-boxing, location=48751`.
+
+### Q1: why Aarmy looked 2x JAB: it is mostly not Aarmy
+Three cold runs, ms from navigation. Requests leave the page at about 2.6-4.2 s.
+
+| Run | `/api/timetable` response end: 1st / 2nd / 3rd | Order |
+|---|---|---|
+| 1 | 15.8 / 24.4 / 34.8 s | Aarmy / JAB / Psycle |
+| 2 | 13.3 / 23.6 / 34.3 s | same |
+| 3 | 13.1 / 22.9 / 33.2 s | same |
+
+The three per-gym requests (and the three `/api/metadata` ones) are **serialized in the browser**: resource timing shows `requestStart` of request 2 equals `responseEnd` of request 1 (e.g. 13116 vs 13117 ms), and the server's own `request` log shows each starts only when the previous finished (11.3 s, then 8.7 s, then 10.4 s). Cause: all gyms hit the **same URL** (`/api/timetable?startDate&endDate`) and differ only by the `x-gym-id` request header. The responses carry an `ETag`, no `Cache-Control` and `Vary: Origin` only, so Chrome's HTTP cache treats them as one cacheable resource and holds the 2nd/3rd request behind the 1st (same-URL cache lock). Proof: the same three calls fired in-page with `cache: 'no-store'` on a cold server finished in **10.1 s (JAB), 10.8 s (Psycle), 11.6 s (Aarmy)**, i.e. wall 11.6 s instead of about 30 s. In-order sums also explain the earlier "JAB 11 s, Aarmy 23 s": a gym's time is its position in the queue plus its own work (about 10 s each).
+
+Aarmy's own cost (debug `provider call` lines, parallel run): 478 classes, **5 pages of 100**, page 1 about 5-6 s, then pages 2-5 in parallel at 4.3-4.9 s, about 11 s total. JAB: 788 classes, 8 pages, 1.6-3.8 s each, about 7.5 s of upstream. Psycle: 5 chunks of 7 days, 1.1-7.5 s. Per-gym extra upstream calls are the same for both MarianaTek gyms (`/me/account`, `/me/credits` x2-3, `/me/memberships`, `/me/reservations` x2, all 0.2-1 s; no per-class, location, studio or instructor lookups); no 429s, no backoff. Aarmy pages are about 1.6x slower per 100 rows (US tenant, heavier rows). Direct probe from oracle, page 1, 28-day window:
+
+| page_size | Aarmy | JAB |
+|---|---|---|
+| 100 | 4.5 s (5 pages) | 2.8 s (8 pages) |
+| 250 | 6.7 s (2 pages) | 4.2 s (4 pages) |
+| 500 | 17.1 s (1 page, superlinear) | 9.4 s (2 pages) |
+
+Bigger pages do not help (cost is per row, worse at 500). Payloads are small on the wire (Aarmy 36 KB, JAB 45 KB, Psycle 843 KB, compressed `/api/timetable`).
+
+### Q2: first paint vs full load, and what the user sees
+Cold, ms from navigation (requests start at 2.6-4.2 s):
+
+| Run | First flush (first gym lands) | First rows visible | All gyms done (chips stop spinning) |
+|---|---|---|---|
+| 1 | 16.1 s | 25.1 s | 35.4 s |
+| 2 | 13.4 s | 24.4 s | 35.0 s |
+| 3 | 13.3 s | 23.3 s | 33.8 s |
+
+While loading: skeleton until the first flush, then per-gym header chips spin (`.is-loading`, `gym-load-state.js`), then the grid paints each gym as it lands (`progressive-merge.js`, grace 0, confirmed working: flushes at each arrival). **The empty-grid case reproduces on every run**: when Aarmy (a gym the saved filter excludes) lands first, the grid shows "No classes match the current filters" for about 10 s (13.4 s to 24.4 s) with two chips still spinning, until JAB lands and rows appear. The saved gym filter hides the partial result, and nothing tells the user more gyms are pending. Code: `client/src/ui/timetable.js` `applyFlush` (about lines 974-1002) renders the partial list and ignores `pending`; `renderTimetableGrid` has no pending-gym awareness and its empty branch is at about lines 2070-2074 (`COPY.timetable.noClasses`, `copy.js:623/997`); the skeleton guard (about line 1836) only covers `psycleEvents.length === 0`, so it does not apply once any gym has landed. Related: `normalizeStoredFilters` (about line 1804) runs once on the first partial flush with partial metadata (`storedFiltersNormalized`), so a saved "all selected" test can be judged against a partial universe.
+
+### Q3: ranked speedups (estimates vs about 31 s from request start to all gyms)
+1. **Stop the browser serializing the gym requests** (largest, tiny change): add a gym segment to the URL (`?gym=` or a path) or send `Cache-Control: no-store` / `Vary: x-gym-id` on `/api/timetable` and `/api/metadata` (server `routes-normalized.js`), or `cache: 'no-store'` in `apiFetch` for these. Measured: whole page about 31 s to about 11 s; first data about 11 s to about 10 s, first rows to about 10-11 s. Also removes a latent cross-gym HTTP-cache hazard (one shared cache entry for several gyms' responses).
+2. **Empty-state fix**: while any gym is pending, show the skeleton or "Loading Aarmy..." instead of "No classes match" when the filtered result is empty. Removes the confusing 10 s blank.
+3. **One-round pagination** (after 1, Aarmy about 10.5 s to about 5-6 s, JAB about 7.5 s to about 4 s): fire date windows in parallel (e.g. 4 x 7 days with page_size about 150-200) instead of page 1 then pages 2..N, or speculate the page count from the last result.
+4. **Narrower first window**: 7 days first (about 120 Aarmy classes, one page, about 5 s), rest in background. First rows about 5-6 s.
+5. **Prewarm** the schedule cache at boot / on a timer for enabled gyms with a linked user: hides the cold path (the cache is user-agnostic, upstream needs one session).
+6. Not worth it: bigger page_size (slower per row), Aarmy-specific tuning (per-row cost is the tenant's).
+
+Dev env restored: `.env` copied back, container recreated, `/api/health` 200, no debug lines. Registry unchanged (no deploy or exposure change).

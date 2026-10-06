@@ -1,6 +1,6 @@
 # C10 — Aarmy integration acceptance
 
-> **2026-10-06: Aarmy ENABLED in prod by user decision** (`AARMY_ENABLED=true`), before C10 acceptance. C10-5 (the activation decision) is therefore made. C10-1 (rotate the test account password), C10-2 (write-mutation policy), C10-3 (release-time fallback validation) and C10-4 (acceptance on the target environment, now prod) are **still open and now concern live users**: do them next, read-only first.
+> **2026-10-06: Aarmy ENABLED in prod by user decision** (`AARMY_ENABLED=true`), before C10 acceptance, so C10-5 (activation) is made. User updates, same day: **C10-1 password rotation DONE** (per user, secret not recorded); **C10-3 release-time fallback DEFERRED** ("later"; the provisional 14-day fallback stays until validated, so a per-class `booking_start_datetime` is read when present and the fallback only applies when it is absent); **C10-4 target-environment acceptance WAIVED** (user is satisfied from the dev twin, where it works); **C10-2 write-path scope: decision pending** (see below).
 
 
 **Priority:** P0 · **Depends on:** C9 · **Blocks:** enabling or deploying Aarmy
@@ -36,8 +36,8 @@
 
 ## Done when
 
-- [ ] Password rotation is recorded without storing the secret.
+- [x] Password rotation is recorded without storing the secret (user, 2026-10-06).
 - [ ] Each mutation is passed with evidence or consciously waived.
-- [ ] The fallback policy is evidenced and protected by a test.
-- [ ] Target-environment Chrome acceptance passes after cache clearing.
-- [ ] Production enablement is explicitly approved, deployed and rechecked.
+- [ ] The fallback policy is evidenced and protected by a test. **Deferred by the user (2026-10-06).**
+- [x] Target-environment Chrome acceptance: **waived by the user 2026-10-06** (works on dev).
+- [x] Production enablement approved by the user and rechecked (`/api/gyms` in the prod container: aarmy enabled, `/api/health` ok), 2026-10-06.

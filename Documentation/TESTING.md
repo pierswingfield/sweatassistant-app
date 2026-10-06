@@ -44,6 +44,7 @@ Three are worth knowing about specifically:
   the suite that matters** — plus `test-regression-psycle.js`, which boots the real server.
   *Fixture note:* a Psycle class only ~10 days out has already released, so it will not arm
   anything; use ~30 days out to get a future release Monday.
+- **U4-19 client suites** — `client/src/url-state.test.js` (pure URL mapping, hostile input, `buildTimetableUrl`), `client/src/router.test.js` (jsdom + fake timers: a chip burst leaves ONE history entry, set-from-URL never pushes; the `returnTo` validator rejecting `//`, schemes, backslashes), `client/src/ui/timetable-url-sync.test.js` (filter-state <-> URL round trips, unknown ids dropped, and the overlay write-guard including a source scan that only `guardedSaveDefaults` writes the saved-defaults key). What they cannot catch: render/popstate feedback loops and stale service workers, so the browser matrix in the U4-19 doc is the check (clear SW, CacheStorage and IndexedDB first; a local production build via `NODE_ENV=production PUBLIC_DIR=client/dist`, restarted after each rebuild because the server caches the templated `index.html`).
 - **`test-spa-fallback.js`** — U4-19: boots the server in production mode against a fixture `PUBLIC_DIR` and pins the SPA path allowlist (app paths serve the shell; unknown `/api/*` is JSON 404; `.ics`, `/admin`, `sw.js`, assets keep working).
 - **`test-no-gym-privilege.js`** — encodes the phase's acceptance criterion by scanning source:
   no module-level `getProvider(...)`, no `getProvider('literal')`, no hardcoded provider

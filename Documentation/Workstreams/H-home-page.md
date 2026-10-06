@@ -94,5 +94,5 @@ Widgets that need no history (W1-W6) can ship before H-0 lands.
 
 ## Related
 
-- U4-19 URL routing and deep links ([U4-19](U4-19-url-routing-and-deep-links.md)) supplies `buildTimetableUrl` for W2/W7 links.
+- U4-19 URL routing and deep links ([U4-19](U4-19-url-routing-and-deep-links.md)) supplies `buildTimetableUrl` (in `client/src/url-state.js`, built 2026-10-06) for W2/W7 links. Contract: render `<a href=buildTimetableUrl({gym, instructor:['gymId:id'], day, ...})>` and call `router.navigate(url)` on click; instructor tokens must be `gymId:instructorId`, type tokens `gymId:slug`; the timetable treats the params as a temporary overlay with a Clear banner and never saves them.
 - Psycle API details for the history and stats audit: [psycle_codexfit.md](../Services/psycle_codexfit.md).

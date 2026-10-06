@@ -30,6 +30,8 @@ const DEV_EMAIL = 'dev@psycle.com';
 // with 'mock-jwt-token'). See request()'s doc comment below for why this check
 // lives here now, not just in the 5 pre-Phase-3 callers.
 const MOCK_TOKEN = 'mock-jwt-token';
+// C2-4: widest span one ranged /events call may cover (our own bound, not an API limit).
+const MAX_TIMETABLE_DAYS = 42;
 
 // C2-6: how long a fetched /profile is reused (see CodexFitProvider._fetchProfile).
 const PROFILE_MEMO_TTL_MS = 30 * 1000;
@@ -477,9 +479,15 @@ class CodexFitProvider extends GymProvider {
   }
 
   async fetchTimetable(params = {}, session) {
+    // C2-4: ONE ranged v2 `/events` call (unscoped: all locations) instead of
+    // `/locations` + one call per location. Live-confirmed 2026-10-06 (G4,
+    // fixtures/codexfit-v2/events-v2-ranges-g4.json): `filter[between]=a,b` (end
+    // exclusive for date-only values), unpaginated `{data, relations}`, no server
+    // span cap up to 56 days. The 42-day cap is OUR bound; a wider window is
+    // chunked into consecutive <=42-day calls.
     const fetcher = session
-      ? (path) => this.request(path, { token: session.accessToken })
-      : (path) => this.publicRequest(path);
+      ? (path) => this.requestV2(path, { token: session.accessToken })
+      : (path) => this.requestV2(path);
 
     const startDate = params.startDate
       ? DateTime.fromISO(params.startDate, { zone: this.gym.timezone })
@@ -487,38 +495,31 @@ class CodexFitProvider extends GymProvider {
     const endDate = params.endDate
       ? DateTime.fromISO(params.endDate, { zone: this.gym.timezone })
       : startDate.plus({ weeks: 4 });
-    const start = startDate.toFormat('yyyy-MM-dd') + ' 00:00:00';
-    const end = endDate.toFormat('yyyy-MM-dd') + ' 23:59:59';
+    const first = startDate.startOf('day');
+    const endExclusive = endDate.startOf('day').plus({ days: 1 });
 
-    const locRes = await fetcher('/locations');
-    if (!locRes.ok) throw httpError(`fetchTimetable failed to load locations: ${locRes.status}`, locRes.status);
-    const locData = await locRes.json();
-    const locations = Array.isArray(locData) ? locData : (locData.data || []);
+    const ranges = [];
+    for (let cur = first; cur < endExclusive; cur = cur.plus({ days: MAX_TIMETABLE_DAYS })) {
+      const next = DateTime.min(cur.plus({ days: MAX_TIMETABLE_DAYS }), endExclusive);
+      ranges.push([cur.toFormat('yyyy-MM-dd'), next.toFormat('yyyy-MM-dd')]);
+    }
 
-    // Best-effort per-location — one failing location shouldn't blank the
-    // whole timetable, matching the old client's own per-location try/catch.
-    const results = await Promise.allSettled(locations.map((loc) => {
-      const url = `/events?location=${loc.id}&start=${encodeURIComponent(start)}&end=${encodeURIComponent(end)}`;
-      return fetcher(url).then((res) => (res.ok ? res.json() : null));
-    }));
+    // Best-effort per chunk; if every chunk fails, surface the failure rather than an empty timetable.
+    const results = await Promise.allSettled(ranges.map(([a, b]) =>
+      fetcher(`/events?filter[between]=${a},${b}&sort=start_at`).then((res) => {
+        if (!res.ok) throw httpError(`fetchTimetable /events failed: ${res.status}`, res.status);
+        return res.json();
+      })));
+    if (results.length && results.every((r) => r.status === 'rejected')) throw results[0].reason;
 
     const seen = new Map();
     for (const r of results) {
       if (r.status !== 'fulfilled' || !r.value) continue;
       const list = Array.isArray(r.value) ? r.value : (r.value.data || []);
-      // The real `GET /events` returns id-referenced events (`event_type_id`,
-      // `instructor_id`, `studio_id`) plus a SIBLING `relations` bag — it does
-      // NOT embed them inline, whatever an earlier comment here claimed. Each
-      // location's response carries its own bag, so resolve within the response
-      // rather than pooling them.
-      //
-      // Skipping this is what caused the 2026-08-31 "CLASS" regression: with
-      // `event_type` unresolved, `mapEventToNormalized` produced events with no
-      // `discipline` (and no studio/location/instructor names), and the client —
-      // which had just lost its own relations-merge in WP-C1 — fell through to
-      // rendering a literal "CLASS" pill for any type missing from the base
-      // `/event_types` list. The dev mock hid it by embedding the relations
-      // inline, which the real API never does.
+      // `GET /events` returns events BY REFERENCE (event_type_id/instructor_id/
+      // studio_id) plus a SIBLING `relations` bag; resolve within each response
+      // (AGENTS.md "GET /events returns events BY REFERENCE"). Skipping this
+      // caused the 2026-08-31 "CLASS" regression.
       const relations = (r.value && r.value.relations) || {};
       for (const e of list) {
         if (!seen.has(String(e.id))) seen.set(String(e.id), this.resolveEventRelations(e, relations));

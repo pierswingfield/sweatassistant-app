@@ -748,10 +748,15 @@ function handleMockRequest(pathName, method, body) {
     // Ids stay stable per (day, slot) so a queued auto-book survives a reload.
     const classes = [];
     const now = new Date();
+    // C2-4: honour the live `filter[between]=a,b` range (end exclusive for date-only values).
+    const betweenMatch = /filter\[between\]=([^,&]+),([^&]+)/.exec(decodeURIComponent(pathName));
+    const rangeFrom = betweenMatch ? betweenMatch[1].slice(0, 10) : null;
+    const rangeTo = betweenMatch ? betweenMatch[2].slice(0, 10) : null;
 
     for (let i = 0; i < 14; i++) {
       const date = new Date(now.getTime() + i * 24 * 60 * 60 * 1000);
       const yyyymmdd = date.toISOString().split('T')[0];
+      if (rangeFrom && (yyyymmdd < rangeFrom || yyyymmdd >= rangeTo)) continue;
       const dow = date.getDay();
       const template = (dow === 0 || dow === 6) ? WEEKEND_SCHEDULE : WEEKDAY_SCHEDULE;
 

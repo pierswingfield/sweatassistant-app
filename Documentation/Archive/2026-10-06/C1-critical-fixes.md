@@ -1,8 +1,10 @@
 # C1 — Critical fixes (security, session, data safety)
 
+> **ARCHIVED 2026-10-06 — FINISHED.** C1-1 to C1-5 are done and verified. The "Unaddressed" section below is superseded: the dev twin has run `modular` (with these fixes) since 2026-09-27. Moved from `Workstreams/`; C4 no longer waits on C1.
+
 **Priority:** P0 · **Size:** ~1 day · **Depends on:** nothing · **Blocks:** C4 launch
 
-> **Verify first:** before changing anything for an item, confirm its basis in the code **and**, for anything user-visible, **in a real browser** (CDP :9222 or Claude for Chrome). For server-only items, use a failing test or a request. Record the evidence. If a browser check is needed and no browser is available, stop with `BLOCKED`. See [AGENT_PROTOCOL.md](AGENT_PROTOCOL.md).
+> **Verify first:** before changing anything for an item, confirm its basis in the code **and**, for anything user-visible, **in a real browser** (CDP :9222 or Claude for Chrome). For server-only items, use a failing test or a request. Record the evidence. If a browser check is needed and no browser is available, stop with `BLOCKED`. See [AGENT_PROTOCOL.md](../Workstreams/AGENT_PROTOCOL.md).
 
 Small, independent fixes. Each one is a real risk to users or data, not polish.
 
@@ -100,5 +102,5 @@ Deferred by the user on 2026-09-26. Still open, and still blocking C4:
       contact the admin."; restored the saved JWT afterward and confirmed still logged in.
 - [x] A backup file restores on a scratch container. *(2026-09-28: latest prod + dev files pulled from Drive, `integrity_check` ok; dev restore booted in a throwaway container of the dev image on 127.0.0.1:3399, `/api/health` 200; row counts equal to source: dev users/user_gyms/auto_bookings 429/677/4, prod users/auto_bookings 3/30. Container and temp files removed.)*
 
-**Detail:** [QA 2026-09-15 ISSUES](../QA/browser-runs/2026-09-15-local-mock/ISSUES.md),
-[QA 2026-09-23 ISSUES](../QA/browser-runs/2026-09-23-lane-live/ISSUES.md).
+**Detail:** [QA 2026-09-15 ISSUES](../../QA/browser-runs/2026-09-15-local-mock/ISSUES.md),
+[QA 2026-09-23 ISSUES](../../QA/browser-runs/2026-09-23-lane-live/ISSUES.md).

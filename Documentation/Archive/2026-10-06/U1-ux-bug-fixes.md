@@ -1,8 +1,10 @@
 # U1 — UX bug fixes from QA
 
+> **ARCHIVED 2026-10-06 — FINISHED.** Every U1 row is marked done with evidence. Moved from `Workstreams/`.
+
 **Priority:** P1–P2 · **Size:** ~1 day · **Depends on:** nothing · **Nice before:** C4
 
-> **Verify first:** before changing anything for an item, confirm its basis in the code **and**, for anything user-visible, **in a real browser** (CDP :9222 or Claude for Chrome). For server-only items, use a failing test or a request. Record the evidence. If a browser check is needed and no browser is available, stop with `BLOCKED`. See [AGENT_PROTOCOL.md](AGENT_PROTOCOL.md).
+> **Verify first:** before changing anything for an item, confirm its basis in the code **and**, for anything user-visible, **in a real browser** (CDP :9222 or Claude for Chrome). For server-only items, use a failing test or a request. Record the evidence. If a browser check is needed and no browser is available, stop with `BLOCKED`. See [AGENT_PROTOCOL.md](../Workstreams/AGENT_PROTOCOL.md).
 
 Cheap, visible fixes. Run them alongside C3 so they share the same live re-test.
 
@@ -207,7 +209,7 @@ close glyph).
 ## U1-6 … U1-10 — Settings and auto-book UX (2026-09-28, source: user dev-twin testing)
 
 Five items from the user's dev-twin testing session. Each entry below records the
-root cause **before** the fix, per [AGENT_PROTOCOL.md](AGENT_PROTOCOL.md).
+root cause **before** the fix, per [AGENT_PROTOCOL.md](../Workstreams/AGENT_PROTOCOL.md).
 
 ### U1-9 — "Last authenticated" always says "Not recorded"
 

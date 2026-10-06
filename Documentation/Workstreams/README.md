@@ -9,9 +9,10 @@ design detail is still valid, and items below link to it.
 > the bug or change in the code **and in a real browser** before changing anything. Fail hard if
 > no real browser is available. Use Gemini offload for reading and triage.
 
-Every item was checked against the code at commit `5a16e9b` (2026-09-16, `modular` branch). No code
-has changed since, so everything the 2026-09-23 live QA run and the 2026-09-26 API plan found is
-still open.
+Status last tidied **2026-10-06** after merging the 5-10 enhancements worktree and the guest-cancel /
+entitlement work into `modular`. **Finished workstreams are moved to
+[`../Archive/2026-10-06/`](../Archive/2026-10-06/)** (C1, U1). Each remaining doc opens with a
+dated STATUS line; open items are the only thing left to do.
 
 ## Where things stand
 
@@ -27,9 +28,9 @@ still open.
 
 | ID | Workstream | Priority | Size |
 |---|---|---|---|
-| [C1](C1-critical-fixes.md) | Critical fixes: security, session, data safety. **C1-1 to C1-4 done 2026-09-26; C1-5 and dev-twin deploy unaddressed** | **P0** | ~1 day |
+| C1 (archived) | ✅ **FINISHED, archived 2026-10-06** — [Archive/2026-10-06/C1-critical-fixes.md](../Archive/2026-10-06/C1-critical-fixes.md). Critical fixes: security, session, data safety. | P0 | done |
 | [C2](C2-psycle-api-v2.md) | Psycle API v2 compliance and efficiency | **P0** (phase 1), P1 (phase 2) | ~4–5 days |
-| [C3](C3-multi-gym-correctness.md) | Multi-gym correctness | P1 | ~3 days |
+| [C3](C3-multi-gym-correctness.md) | Multi-gym correctness. **C3-1..29 done; only the unverified "U1-20-class hunt" candidates remain** | P1 | ~0.5 day to verify |
 | [C4](C4-live-acceptance-and-launch.md) | Live acceptance, promote to prod, JAB launch | **P0 milestone** | ~3 days of work over ~1–2 weeks elapsed |
 | [C5](C5-auto-book.md) | Auto-book gaps; Favourites build (P3) | P2 (Favourites P3) | ~2.5 days |
 | [C6](C6-accounts-auth.md) | Accounts and auth | P2 | ~2–3 days |
@@ -42,10 +43,10 @@ still open.
 
 | ID | Workstream | Priority | Size |
 |---|---|---|---|
-| [U1](U1-ux-bug-fixes.md) | UX bug fixes from QA | P1–P2 | ~1 day |
-| [U2](U2-components-accessibility.md) | Shared components and accessibility | P2 | ~2–3 days |
-| [U4](U4-ux-improvements.md) | UX improvements (user list 2026-09-29): U4-1, U4-3..5, U4-8..9, U4-11, U4-13, U4-16 done; U4-6 evaluated; U4-17, U4-18 in progress/open pre-launch; [U4-19](U4-19-url-routing-and-deep-links.md) URL routing and deep links (plan, 2026-10-05); U4-7 open pre-launch; U4-2, U4-10, U4-12, U4-14, U4-15 post-launch | P2 | ~1–2 days pre-launch |
-| [U5](U5-modal-fullscreen-and-spot-flow.md) | Mobile full-screen pages and the spot-map booking flow: U5-1..U5-11 done; U5-12..U5-15 known open items; U5-16..U5-20 new feedback, not started | P2 | ~3 days (remaining) |
+| U1 (archived) | ✅ **FINISHED, archived 2026-10-06** — [Archive/2026-10-06/U1-ux-bug-fixes.md](../Archive/2026-10-06/U1-ux-bug-fixes.md) | P1–P2 | done |
+| [U2](U2-components-accessibility.md) | Shared components and accessibility (U2-5 filter redesign implemented; U2-1, U2-2, U2-4 open) | P2 | ~2 days |
+| [U4](U4-ux-improvements.md) | UX improvements (user list 2026-09-29): done: U4-1..5, U4-7..9, U4-11, U4-13, U4-15, U4-16, U4-18, U4-2; U4-6 evaluated; open: U4-17 (onboarding), U4-10, U4-12, U4-14 (post-launch); [U4-19](U4-19-url-routing-and-deep-links.md) URL routing phases 1-3 done, 4-8 open | P2 | ~1 day + U4-19 (~20 h) |
+| [U5](U5-modal-fullscreen-and-spot-flow.md) | Mobile full-screen pages and the spot-map booking flow: U5-1..U5-11, U5-13, U5-16..U5-25 done; open: U5-12 (iOS keyboard, device), U5-14, U5-15 | P2 | ~0.5 day + device check |
 | [U3](U3-css-design-debt.md) | CSS and design-system debt | P3 | ~1 week |
 
 ### Later
@@ -54,6 +55,12 @@ still open.
 |---|---|---|
 | [H](H-home-page.md) | Home page of widgets (formerly F-10): H-0 history pull and H-1 shell done 2026-10-05; H-2 name flow next | P2 | ~2 weeks |
 | [F](F-future-features.md) | Future features: in-app 3-D Secure, guest passes, gym-neutral favourites, social sharing, MCP server, Postgres | P2–P3 |
+
+### Session logs
+
+| Doc | State |
+|---|---|
+| [5-10-enhancements.md](5-10-enhancements.md) | Merged into `modular` 2026-10-06; open: U4-19 phases 4-8, follow-ups and post-merge smoke test |
 
 ## Recommended order
 

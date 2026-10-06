@@ -1,5 +1,7 @@
 # U5 — Mobile full-screen pages and the spot-map booking flow
 
+> **STATUS 2026-10-06:** U5-1..U5-11 and U5-13, U5-16..U5-25 done. **Open:** U5-12 (real-iOS keyboard check, needs a device), U5-14 (dev mock returns empty prefs after a spot-map save), U5-15 (re-auth spec wording). Final-round cancel/entitlement work is now merged into `modular` (see section D).
+
 **Priority:** P2 · **Depends on:** nothing hard · **Blocks:** nothing
 
 > **Verify first:** see [AGENT_PROTOCOL.md](AGENT_PROTOCOL.md). Everything here is user-visible: check at 390px and at a desktop width in real Chrome (CDP :9222), and iOS-specific behaviour on a device. Desktop (above 768px) must stay unchanged.
@@ -77,13 +79,13 @@ This section is the staging ledger for the work completed during the 2026-10-05/
 - Extra self bookings funded by ordinary credits remain unimplemented pending a provider capture from an account with live usable credits. Multiple guests in one action also remain deferred. Do not infer either behavior from class capacity or guest-pass allowance.
 - MarianaTek supplies `spot_type.name` such as Ground and Bag. G/B prefixes are JAB presentation policy: display `G 24` / `B 13` in textual labels, chips, bookings, history, and queues, while retaining bare numerals on the visual map.
 - Browser verification was performed only through raw CDP on isolated tabs; no computer-use tool was used. Live booking/cancellation mutations were not used for UI verification.
-- The shared workspace has repeatedly contained unrelated dirty Home/settings/filter/CSS/docs changes. Preserve them; stage only the requested U5 hunks. The final-round agents for cancellation-modal and edit-map eligibility work later hit the account usage limit before producing a verified commit.
+- The shared workspace has repeatedly contained unrelated dirty Home/settings/filter/CSS/docs changes. Preserve them; stage only the requested U5 hunks.
 
-### Final-round work still to stage
+### Final-round work (DONE 2026-10-06, merged into `modular`)
 
-1. **Grouped cancellation modal:** when a class has multiple booked spots, the existing Cancel action must open a modal immediately (no old confirmation step). List every self/guest spot, provide an individual cancel action and a Cancel all action, require a separate confirmation tap for each action, update the modal after each cancellation, close on explicit dismissal or when the last spot is gone, and retain the single-booking confirmation flow for one spot. Guest cancellations must run before primary cancellation; failures must leave the primary and remaining guest state intact.
-2. **Guest copy verification:** confirm the My Bookings/timetable action reads exactly `Guest` and uses the plus icon; remove any lingering `Book Guest` copy.
-3. **Edit-map eligibility enforcement:** the booked-class Edit modal must use normalized entitlement and prevent over-selection in the UI, client request validation, and server route. It must account for self versus guest ownership, stale state, provider limits, and other-gym rules without restoring a global JAB hard cap.
-4. **Verification and release:** run focused tests for modal trigger/confirmation/order/failure/auto-close and edit-map exact-limit/over-limit behavior; run the full Node 20 suite/build/diff check; perform a raw-CDP non-mutating recheck; stage only these changes; deploy the exact clean commit to sweat-dev; update the registry/CHANGELOG narrowly; leave production untouched.
+1. **Grouped cancellation modal** — done (U5-23, commit `d72cf7e`): Cancel on a multi-spot class opens the modal; per-spot and Cancel-all each need their own confirm; guests cancel before the primary.
+2. **Guest copy** — done (U5-24): action reads exactly `Guest` with the plus icon; `guest-label.test.js` fails if `Book Guest` returns.
+3. **Edit-map eligibility enforcement** — done (U5-25): normalized entitlement enforced in the UI, client validation and the server route (`booking-entitlement.js`, `test-booking-limit-route.js`).
+4. **Still to do from this section:** raw-CDP logged-in exercise of the modals (only unit and server tests cover them), and a clean-commit deploy of the merged `modular` to sweat-dev with the registry updated. Production untouched.
 
 **Final-round verification (2026-10-06, Node 20.19.0):** `npm test` passed (64 server suites, 45 client files / 317 tests); `npm run build:client` passed; `git diff --check` passed. Deployed to sweat-dev as `d72cf7e`; a raw-CDP load confirmed the new bundle (`index-U6rltNwq.js`) contains the grouped modal and limit code and no `Book Guest`. The modals themselves were not exercised in a logged-in browser (no live mutations), so U5-23 and U5-25 interaction is covered by unit and server tests only.

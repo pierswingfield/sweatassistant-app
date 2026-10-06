@@ -1,5 +1,7 @@
 # 5-10 enhancements session (handoff, single source of truth)
 
+> **STATUS 2026-10-06: MERGED into `modular` and committed (not pushed, not yet deployed from the merged tree).** All queued items (0-12b, Q1-Q3) are done. **Open:** U4-19 phases 4-8, the follow-ups and verification gaps under "Outstanding". Server 65/65 suites, client 372 tests, build clean on Node 20 after the merge.
+
 Session log for the batch of bug fixes and enhancements started 2026-10-05 and carried through 2026-10-06. Work happened in two places and this doc merges both:
 
 - **Worktree** branch `worktree-enh-5-10-timetable` (cut from local `modular` at `49cb376`): committed, not pushed, not deployed.
@@ -45,7 +47,7 @@ Where: **W** = committed on the worktree branch, **M** = uncommitted in the main
 
 ## Commit summaries
 
-### A. Worktree commits (branch `worktree-enh-5-10-timetable`, committed, not pushed)
+### A. Worktree commits (branch `worktree-enh-5-10-timetable`, merged into `modular` 2026-10-06)
 
 ```text
 27f3181 feat(timetable): progressive multi-gym load (U4-7) and gym chip loading indicators (U4-2)
@@ -57,7 +59,7 @@ eb6f5f5 feat(routing): clean URL paths, SPA allowlist fallback, legacy hash migr
 
 Note: the message of `27f3181` wrongly says "4s grace". Actual behaviour: render on the first gym to respond, grace 0. Fix the wording if squashing.
 
-### B. Main-checkout changes: NOT YET COMMITTED
+### B. Main-checkout changes (committed 2026-10-06 as `4ad6b4f` code + `06b38fd` docs)
 
 Proposed message (do not commit until the main agent is done):
 
@@ -133,7 +135,7 @@ Status key: [x] done, [ ] not done.
 - [ ] Quick-selector with real linked-gym data on the dev twin.
 - [ ] U4-19 behaviour on the dev twin after deploy (clear service worker + IndexedDB caches; see the prod deploy cache gotcha in memory).
 - [ ] Dark-mode screenshot of the instructor chip (12a).
-- [ ] Browser smoke test before any deploy (not covered by `npm test`).
+- [ ] **Post-merge CDP smoke test of the merged tree (progressive load, quick-selector, scroll-collapse, URL routing, filter sheet latency).** Browser smoke test before any deploy (not covered by `npm test`).
 - [x] Bugs 1 and 2 verified in browser by the user.
 
 ### Housekeeping
@@ -141,18 +143,10 @@ Status key: [x] done, [ ] not done.
 - [ ] Another session is editing/deploying Home-widget work (`home.js`, `home-routing.js`, `widget-registry.js`, tests; untracked). Those files shipped to dev as they stood.
 - [ ] A concurrent `docker compose up -d --force-recreate` on oracle left hash-prefixed container names (`42f659bac4d6_psycle-app-dev`) at last check; re-check `docker ps` on oracle and normalise.
 - [ ] `server/test-rate-limit-reads.js` was made isolation-safe (own port, temp DB, `MOCK_BOOKINGS_PATH` in `server/mock.js`); root cause (a concurrent run) inferred, not reproduced.
-- [ ] Commit the main-checkout changes (commit B) and review the full diff first.
+- [x] Main-checkout changes committed 2026-10-06.
 - [ ] Fix the "4s grace" wording of `27f3181` if squashing.
 - [ ] Vite dev server on :5173 died once mid-run; restart from `client/` if needed.
 
-## Merge instructions for the main-branch agent
+## Merge record (2026-10-06)
 
-1. **Commit main first.** Finish and commit the main-checkout changes as commit B (message above) on `modular`. Do not merge with a dirty tree.
-2. **Merge.** `git merge worktree-enh-5-10-timetable` into `modular`.
-3. **Expected conflicts:** `client/src/ui/timetable.js`, `client/src/styles.css`, `client/src/copy.js`, `client/src/api.js`, this doc; possibly `client/src/main.js`, `client/src/ui/settings.js`, `client/src/ui/filter-rail.js`. Resolve keeping BOTH sides' behaviour (progressive load, gym quick-selector, scroll-collapse, URL routing on the worktree side; filter-sheet latency path, discipline filter, search, instructor chip, gym settings layout on the main side). In `filter-rail.js` and `timetable.js` pay attention to rail rendering, filter state and the `'filter'`/`'search'` render reasons.
-4. **This doc:** take the worktree version (`git checkout --theirs` during the merge, or the worktree file); it already folds in main's content.
-5. **`package-lock.json`:** the worktree has an unrelated uncommitted change (adds `"engines": { "node": ">=20 <21" }` to the root package entry). Inspect it before including; it is not part of any commit above.
-6. **Post-merge checks:**
-   - `npm test` under Node 20 via nvm (server suites plus client vitest).
-   - CDP smoke test with ONE tab: progressive load (first gym renders without waiting for slow gyms; chips show loading), gym quick-selector (select / switch / reselect-to-show-all, no saved-default writes), scroll-collapse (mobile viewport, both themes, desktop unchanged), URL routing regression (clean paths, legacy hash migration, deep-link banner), filter drawer latency still ~5 ms, discipline filtering.
-   - Clear service worker, CacheStorage and IndexedDB before verifying (hash-route reload is not a real reload).
+Main checkout committed first (`4ad6b4f`, `06b38fd`), then `worktree-enh-5-10-timetable` merged. Conflicts resolved keeping both sides: `timetable.js` (debounced filter sheet + gym quick-selector via `pruneToGyms`/`setGymQuick`), `settings.js` (`navHistory` Back + `syncSectionUrl`/`navigate('/settings')`), `gym-context.js` (`spotSectionPrefixes` + `catalogueGyms`), this doc (worktree version). The worktree's uncommitted `package-lock.json` change (adds the root `engines` entry already in `package.json`) was applied. Post-merge CDP smoke test of the combined tree is still **not done** (see Verification gaps).

@@ -1,5 +1,7 @@
 # C3 — Multi-gym correctness
 
+> **STATUS 2026-10-06: DONE except one open follow-up.** C3-1..C3-29 are all fixed and verified (fix log and evidence below). **Open:** the "U1-20-class hunt, UNVERIFIED claims" section at the end — candidates from a Gemini hunt, none yet verified against the code. Verify each one first; some may be rejections. After that C3 can be archived. C4 no longer waits on C3 rows.
+
 **Priority:** P1 · **Size:** ~3 days · **Depends on:** nothing (can run in parallel with C2)
 **Blocks:** C4 launch
 

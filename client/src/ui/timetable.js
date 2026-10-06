@@ -36,6 +36,7 @@ import { buildSearchIndex, searchEvents, tokenize } from './timetable-search.js'
 import { getSearchQuery, setSearchQuery, onSearchChange, inSearchScope, enterSearchScope, leaveSearchScope, emptyFilters, filtersAreEmpty } from './timetable-search-state.js';
 import { ensureSearchUi, openSearch } from './timetable-search-ui.js';
 import { renderTimetableSkeleton } from './loading-skeleton.js';
+import { shouldShowPendingSkeleton } from './pending-gyms.js';
 import { isDocScroll, docScroller, markScrollBusy } from './scroll-state.js';
 import { sortEvents } from './progressive-merge.js';
 import { captureScrollAnchor, restoreScrollAnchor } from './scroll-anchor.js';
@@ -926,6 +927,7 @@ export async function prefetchTimetableData(force = false) {
   }
 
   isPrefetching = true;
+  pendingGymIds = null; // fetch started, nothing flushed yet: every gym counts as pending
   prefetchError = null;
   const generation = prefetchGeneration;
 
@@ -974,7 +976,8 @@ export async function prefetchTimetableData(force = false) {
     const applyFlush = async ({ events, pending, final }) => {
       await contextGate;
       if (generation !== prefetchGeneration) return;
-      if (final && !events.length) return; // every gym failed/empty: keep what we had
+      pendingGymIds = final ? [] : (pending || []).map(String);
+      if (final && !events.length) { renderPreservingScroll('network-refresh'); return; } // every gym failed/empty: keep what we had, drop the skeleton
       const stillPending = new Set((pending || []).map(String));
       const carried = stillPending.size
         ? staleEvents.filter((e) => stillPending.has(String(e.gymId)))
@@ -1823,6 +1826,10 @@ function normalizeStoredFilters() {
   savedFilterState = copyOf(currentFilterState());   // saved set, after the one-time fold
 }
 
+// C2-4: gyms the current network fetch is still waiting on. null = fetch running, no flush
+// yet (all pending); [] = nothing pending. Drives skeleton-vs-empty-state in the grid.
+let pendingGymIds = [];
+
 // Core timetable grid and date selector rendering
 export async function renderTimetableGrid(reason = 'interaction') {
   const renderStartedAt = timetablePerfNow();
@@ -2067,6 +2074,10 @@ export async function renderTimetableGrid(reason = 'interaction') {
 
   // 6. Render the Class Timetable Grid Table
   if (!selectedTimetableDate && !searching) {
+    if (shouldShowPendingSkeleton({ pendingGyms: isPrefetching ? pendingGymIds : [], selectedGyms, visibleCount: 0 })) {
+      if (!ttGrid.querySelector('.psycle-skeleton-table')) ttGrid.innerHTML = renderTimetableSkeleton();
+      return;
+    }
     ttGrid.innerHTML = `
       <div style="text-align: center; color: var(--text-secondary); padding: 40px; font-style: italic;">
         ${COPY.timetable.noClasses}

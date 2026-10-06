@@ -121,3 +121,12 @@ session.
 Live capture (ids/counts only) of one Psycle event's credit fields, the Psycle profile `available_credits` row, and the raw JAB credit row that
 ended up in `cache.profile.available_credits` when JAB was the first-linked gym. Used by `client/src/ui/credit-allowance.test.js` (U1-20);
 `server/mock-marianatek.js` `/me/credits` now returns the same JAB row.
+
+## C2-5 gate: heartbeat `events` stamp vs occupancy (2026-10-06) — FAILED
+
+Fixture: `heartbeat-vs-occupancy-c25-2026-10-06.json`. Read-only public GETs through Claude for Chrome (one tab). Heartbeat plus a fixed 4-day Oxford Circus `/events` range (176 events), ~30 s apart.
+
+- **The `events` stamp does not track occupancy.** Event 217529 went 22 -> 23 -> 22 (a booking, then a cancellation) at 10:03:11Z and 10:03:44Z while `events` stayed `09:47:32Z`. The stamp had also not moved for >15 min before that.
+- So it likely tracks schedule edits (create/update/delete of event rows), not seat counts. A cache invalidated on it would serve stale occupancy indefinitely. **Do not build C2-5 on it.** The 60 s TTL stays.
+- Limits: usable window ~2 min, not 10-15. A page `setInterval` was frozen in the background tab and tool calls cap at 45 s. One counter-example is enough to disprove "moves iff occupancy changes", but a positive case (stamp moves on schedule edits) was not observed.
+- Heartbeat could still serve a *schedule-structure* signal (new/changed classes) with the TTL kept for occupancy; not pursued.

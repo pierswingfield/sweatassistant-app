@@ -16,6 +16,7 @@ const { resolveZone, toZonedISO } = require('./timezone');
 const { studioHasRowGroups, studioShowsSpotType } = require('./spot-map');
 const { makeMetadata, makeProfile, makeMembership, makeEvent, makeSlot, makeBookingResult, makeBooking, makeHistoryEntry } = require('./normalize');
 const bookingWindow = require('./booking-window');
+const { noteThrottleError } = require('../rate-limit-backoff');
 const { timedProviderFetch } = require('../logger');
 
 // Dev-mode bypass (WP-M5), mirroring the dev@psycle.com / 'mock-jwt-token'
@@ -61,6 +62,31 @@ function extractCsrfToken(html) {
   const m = html.match(/name=["']csrfmiddlewaretoken["']\s+value=["']([^"']+)["']/);
   if (!m) throw new Error('Could not find csrfmiddlewaretoken in the MarianaTek login page HTML — page structure may have changed.');
   return m[1];
+}
+
+// C2-4 class-list fetch tuning (platform-level; see sharedClassList).
+// Concurrency 4: pages measured 2-5 s each upstream; 4 in flight cuts ~8 serial
+// pages to ~2 rounds without hammering a tenant (a 429 aborts + backs off).
+const CLASS_LIST_PAGE_CONCURRENCY = 4;
+const CLASS_LIST_MAX_PAGES = 100; // safety cap (10,000 classes at 100/page); beyond it we throw, never truncate
+const METADATA_DEFAULT_WINDOW_DAYS = 28;
+
+function classListWindow(params = {}) {
+  return {
+    startDate: params.startDate || '',
+    endDate: params.endDate || '',
+    locationId: params.locationId ? String(params.locationId) : '',
+    instructorId: params.instructorId ? String(params.instructorId) : '',
+    pageSize: Number(params.pageSize) || 100,
+  };
+}
+
+function classListError(message, res) {
+  const err = new Error(message);
+  err.status = res && res.status;
+  const ra = res && res.headers && typeof res.headers.get === 'function' ? Number(res.headers.get('retry-after')) : NaN;
+  if (Number.isFinite(ra) && ra > 0) err.retryAfterMs = ra * 1000;
+  return err;
 }
 
 class MarianaTekProvider extends GymProvider {
@@ -448,50 +474,127 @@ class MarianaTekProvider extends GymProvider {
       qs.set('page_size', String(params.pageSize || 100));
       qs.set('page', String(params.page));
 
-      const res = session
-        ? await this.request(`/classes?${qs}`, { token: session.accessToken })
-        : await this.publicRequest(`/classes?${qs}`);
-      if (!res.ok) throw new Error(`fetchTimetable failed: ${res.status}`);
+      const res = await this.classListRequest(`/classes?${qs}`, session);
+      if (!res.ok) throw classListError(`fetchTimetable failed: ${res.status}`, res);
       const data = await res.json();
       return (data.results || []).map((c) => this.mapClassToEvent(c));
     }
+    const results = await this.sharedClassList(params, session);
+    return results.map((c) => this.mapClassToEvent(c));
+  }
 
-    const qs = new URLSearchParams();
-    if (params.startDate) qs.set('min_start_date', params.startDate);
-    if (params.endDate) qs.set('max_start_date', params.endDate);
-    if (params.locationId) qs.set('location', params.locationId);
-    if (params.instructorId) qs.set('instructor', params.instructorId);
-    qs.set('page_size', String(params.pageSize || 100));
+  classListRequest(path, session) {
+    return session
+      ? this.request(path, { token: session.accessToken })
+      : this.publicRequest(path);
+  }
 
-    let path = `/classes?${qs}`;
-    const allResults = [];
-    let pageCount = 0;
-    const maxPages = 10; // Safety cap (up to 1,000 classes)
-
-    while (path && pageCount < maxPages) {
-      pageCount++;
-      const res = session
-        ? await this.request(path, { token: session.accessToken })
-        : await this.publicRequest(path);
-      if (!res.ok) throw new Error(`fetchTimetable failed: ${res.status}`);
-      const data = await res.json();
-      if (Array.isArray(data.results)) {
-        allResults.push(...data.results);
-      }
-      const nextLink = (data.links && data.links.next) || data.next;
-      if (nextLink) {
-        try {
-          const nextUrl = new URL(nextLink, this.gym.apiBaseUrl);
-          path = `${nextUrl.pathname.replace(/^\/api\/customer\/v1/, '')}${nextUrl.search}`;
-        } catch (_) {
-          path = null;
+  // --- Shared class-list fetch (C2-4) -----------------------------------------
+  //
+  // ONE upstream class-list fetch per (gym instance, window, filters), consumed
+  // by BOTH fetchTimetable and fetchMetadata (metadata is derived from the class
+  // list; it used to re-page the same endpoint with no date bound). Concurrent
+  // callers share the in-flight promise (single-flight). Nothing is retained
+  // after it settles: result caching is schedule-cache.js's job, and a rejected
+  // flight is dropped so a failure is never remembered as a result.
+  //
+  // Pagination: page 1 reveals meta.pagination.pages, then pages 2..N go out in
+  // parallel, at most CLASS_LIST_PAGE_CONCURRENCY at a time. A page that fails
+  // fails the WHOLE fetch (never a silently truncated list); a 429 additionally
+  // arms the per-gym backoff (rate-limit-backoff.js, C2-3) and stops launching
+  // pages. A payload without a page count falls back to following `next` links
+  // serially. More than CLASS_LIST_MAX_PAGES pages throws rather than truncates.
+  sharedClassList(params, session) {
+    const win = classListWindow(params);
+    if (!this._classFlights) this._classFlights = new Map();
+    const key = [win.startDate, win.endDate, win.locationId, win.instructorId, win.pageSize].join('|');
+    const exact = this._classFlights.get(key);
+    if (exact) return exact.promise;
+    // A flight with no location/instructor filter whose window covers this one
+    // can answer it (e.g. metadata's default window inside the timetable's).
+    if (win.startDate && win.endDate && !win.locationId && !win.instructorId) {
+      for (const f of this._classFlights.values()) {
+        const w = f.win;
+        if (w.startDate && w.endDate && !w.locationId && !w.instructorId
+          && w.startDate <= win.startDate && w.endDate >= win.endDate) {
+          return f.promise.then((rows) => rows.filter((c) => !c.start_date
+            || (c.start_date >= win.startDate && c.start_date <= win.endDate)));
         }
-      } else {
-        path = null;
       }
     }
+    const promise = this._fetchClassList(win, session);
+    const flight = { win, promise };
+    this._classFlights.set(key, flight);
+    const drop = () => { if (this._classFlights.get(key) === flight) this._classFlights.delete(key); };
+    promise.then(drop, drop);
+    return promise;
+  }
 
-    return allResults.map((c) => this.mapClassToEvent(c));
+  async _fetchClassList(win, session) {
+    const qs = new URLSearchParams();
+    if (win.startDate) qs.set('min_start_date', win.startDate);
+    if (win.endDate) qs.set('max_start_date', win.endDate);
+    if (win.locationId) qs.set('location', win.locationId);
+    if (win.instructorId) qs.set('instructor', win.instructorId);
+    qs.set('page_size', String(win.pageSize));
+
+    const getPage = async (path) => {
+      const res = await this.classListRequest(path, session);
+      if (!res.ok) {
+        const err = classListError(`fetchTimetable failed: ${res.status}`, res);
+        noteThrottleError(this.gymId, err);
+        throw err;
+      }
+      return res.json();
+    };
+
+    const first = await getPage(`/classes?${qs}`);
+    const pages = first && first.meta && first.meta.pagination && Number(first.meta.pagination.pages);
+    const firstRows = Array.isArray(first.results) ? first.results : [];
+
+    if (Number.isFinite(pages) && pages > 1) {
+      if (pages > CLASS_LIST_MAX_PAGES) {
+        throw classListError(`fetchTimetable: class list has ${pages} pages, exceeds the ${CLASS_LIST_MAX_PAGES}-page safety cap; narrow the date window`, { status: 502 });
+      }
+      const rowsByPage = new Array(pages + 1);
+      rowsByPage[1] = firstRows;
+      let nextPage = 2;
+      let aborted = false;
+      const worker = async () => {
+        while (!aborted && nextPage <= pages) {
+          const n = nextPage++;
+          const q = new URLSearchParams(qs); q.set('page', String(n));
+          try {
+            const data = await getPage(`/classes?${q}`);
+            rowsByPage[n] = Array.isArray(data.results) ? data.results : [];
+          } catch (err) { aborted = true; throw err; }
+        }
+      };
+      const workers = [];
+      for (let i = 0; i < Math.min(CLASS_LIST_PAGE_CONCURRENCY, pages - 1); i++) workers.push(worker());
+      const settled = await Promise.allSettled(workers);
+      const bad = settled.find((r) => r.status === 'rejected');
+      if (bad) throw bad.reason;
+      return rowsByPage.slice(1).flat();
+    }
+
+    // No page count published: follow `next` links serially (bounded).
+    const all = [...firstRows];
+    let data = first;
+    for (let n = 1; n < CLASS_LIST_MAX_PAGES; n++) {
+      const nextLink = (data.links && data.links.next) || data.next;
+      if (!nextLink) return all;
+      let path;
+      try {
+        const u = new URL(nextLink, this.gym.apiBaseUrl);
+        path = `${u.pathname.replace(/^\/api\/customer\/v1/, '')}${u.search}`;
+      } catch (_) {
+        throw classListError('fetchTimetable: unparseable next link; refusing to return a truncated list', { status: 502 });
+      }
+      data = await getPage(path);
+      if (Array.isArray(data.results)) all.push(...data.results);
+    }
+    throw classListError(`fetchTimetable: exceeds the ${CLASS_LIST_MAX_PAGES}-page safety cap`, { status: 502 });
   }
 
   /**
@@ -529,7 +632,10 @@ class MarianaTekProvider extends GymProvider {
    * through, same "no floor map available" contract as CodexFit's implementation.
    */
   async fetchStudioLayout(studioId, session) {
-    const events = await this.fetchTimetable({}, session);
+    // Bounded window: shares the in-flight class-list fetch with timetable/metadata.
+    const today = new Date().toISOString().slice(0, 10);
+    const end = new Date(Date.now() + METADATA_DEFAULT_WINDOW_DAYS * 864e5).toISOString().slice(0, 10);
+    const events = await this.fetchTimetable({ startDate: today, endDate: end }, session);
     const match = events.find((e) => String(e.studioId) === String(studioId));
     if (!match) return { slots: [], objects: [] };
     const { slots, objects } = await this.fetchEventDetails(match.id, session);
@@ -575,12 +681,19 @@ class MarianaTekProvider extends GymProvider {
   // filtering a timetable actually wants, but it is not the same guarantee
   // CodexFit's dedicated endpoints give.
   async fetchMetadata(params = {}, session) {
-    const defaultParams = {
-      min_start_date: new Date().toISOString().split('T')[0],
-      max_start_date: new Date(Date.now() + 28 * 864e5).toISOString().split('T')[0],
+    // Bounded: no dates means "the default window", NEVER the whole future
+    // schedule (it used to read min_start_date/max_start_date keys that
+    // fetchTimetable ignores, so it paged up to 1000 classes). Trade-off: a
+    // studio/instructor/type that only appears beyond the window is absent from
+    // this list; the client also harvests filter options from the events it
+    // actually loads (timetable.js), so the visible timetable stays filterable.
+    const today = new Date().toISOString().slice(0, 10);
+    const defaultEnd = new Date(Date.now() + METADATA_DEFAULT_WINDOW_DAYS * 864e5).toISOString().slice(0, 10);
+    const events = await this.fetchTimetable({
       ...params,
-    };
-    const events = await this.fetchTimetable(defaultParams, session);
+      startDate: params.startDate || today,
+      endDate: params.endDate || defaultEnd,
+    }, session);
     const locations = new Map();
     const studios = new Map();
     const instructors = new Map();
@@ -1089,4 +1202,5 @@ class MarianaTekProvider extends GymProvider {
   }
 }
 
+MarianaTekProvider.CLASS_LIST_PAGE_CONCURRENCY = CLASS_LIST_PAGE_CONCURRENCY;
 module.exports = MarianaTekProvider;

@@ -66,6 +66,27 @@ than proof the site omits them; flagged as a caveat, not a firm contradiction.
 - Interesting secondary finding: `logged-in: false` on both calls despite this being a fully authenticated session elsewhere (bearer JWT used on every other endpoint) — the heartbeat call was not observed carrying an `authorization` header, so `logged-in` likely reflects a separate session-cookie mechanism the BFF/PWA doesn't use, not the JWT auth state. Worth keeping in mind if `logged-in` is ever consulted for anything.
 - **Caveat**: one deliberate page reload (a final-state verification check) landed inside the passive window, so the window wasn't perfectly action-free; noted for transparency. It does not affect the response-shape finding, but does mean the cadence figure above is a lower bound on the interval, not a confirmed fixed period.
 
+## G4 re-capture (2026-10-06) — `/events` params, range and envelope
+
+Captured through the Claude for Chrome extension on the user's real Chrome (CDP 9222 was not listening). Read-only. Fixture: `events-v2-ranges-g4.json`. This supersedes the 2026-09-26 "location unknown, range unknown" gaps.
+
+- **Location param found**: `filter[location.handle]=<handle>` (e.g. `oxford-circus`). The earlier capture was the multi-location page, which sends no location filter. Server-side scoping verified on single-day and ranged calls (`relations.locations` held only that handle).
+- **The site still calls one day at a time**: three eager single-day calls on load (today, +1, +2), then one single-day call per date-tab click (14 tabs). `filter[between]=<start>,<end>`, `sort=start_at`; end bound is exclusive for date-only values.
+- **A ranged call works**: no server cap hit at 7, 42, 43 or 56 days (all 200). The publish horizon is about 23 days (last event 2026-10-29 on 2026-10-06), so ranges beyond it return the same set. The 42-day cap in C2-4 is our own bound, not an API limit. Unpaginated: no `links`/`meta`. A 42-day location-scoped call is about 3.8 MB for 986 events.
+- **Envelope**: `{data, relations}` without a token; `booking_cutoff`, `extended_cutoff`, `booked_events`, `friends_booked` appear only on authenticated calls. Every event carries `occupancy` and `capacity`.
+- **Unscoped caller seen**: the page also fired an unscoped 3-day call with offset ISO bounds (`2026-10-07T00:00:00+01:00,...`). ISO-with-offset bounds are accepted.
+- **Doc impact**: C2-4's "the website makes one ranged call" is wrong; it makes per-day calls. One ranged call is allowed by the API but is not website-shaped traffic, so weigh that against the 1+7 request saving.
+
+## G5 re-capture (2026-10-06) — heartbeat
+
+Fixture: `heartbeat-g5-2026-10-06.json`.
+
+- **Public and unauthenticated**: a bare GET with no Authorization header returns 200. It can be polled server-side with no session.
+- **Cadence: the site did not poll.** 0 site-initiated heartbeat calls in a 656 s passive window on a location timetable page. Combined with the 2026-09-26 result (calls only around page loads), there is no evidence of a recurring client timer. We choose our own polling interval.
+- **Granularity**: per-resource UTC last-modified, whole seconds. Cheap to compare by string.
+- **Does `events` track bookings?** `events` moved from 09:09:23Z to 09:47:32Z while two events' `occupancy` changed in the same window. Suggestive only. Before C2-5 relies on it for cache invalidation, run a longer paired check (heartbeat poll every 30 s alongside an occupancy diff) to confirm a bump on every occupancy change and no occupancy change without a bump.
+- `logged-in` stays false for an authenticated user; ignore it.
+
 ## G6 — Profile-edit route — UNOBSERVED (by design)
 
 - Located the real page: "My Profile" in the account sidebar navigates (SPA, no new network call) to `https://psyclelondon.com/pages/my-psycle#/details`, rendering a "PERSONAL DETAILS" form (First/Last name, Email, phone with country code, etc.). The form's HTML `action`/`method` are inert SPA placeholders (`GET` to the same hash URL) — the real save is wired to a JS handler, not a native submit.

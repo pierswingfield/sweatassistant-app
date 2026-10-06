@@ -1,0 +1,46 @@
+{
+  "captured": "2026-10-06",
+  "method": "Claude for Chrome extension on the user's real Chrome (CDP 9222 was not listening). Passive page load of https://psyclelondon.com/pages/oxford-circus-timetable read via Resource Timing, plus a handful of read-only GETs issued from the page context (no Authorization header, so unauthenticated). No writes.",
+  "site_calls_on_location_page_load": [
+    "GET /api/customer/v2/events?filter[between]=2026-10-06,2026-10-07&filter[location.handle]=oxford-circus&sort=start_at",
+    "GET /api/customer/v2/events?filter[between]=2026-10-07,2026-10-08&filter[location.handle]=oxford-circus&sort=start_at",
+    "GET /api/customer/v2/events?filter[between]=2026-10-08,2026-10-09&filter[location.handle]=oxford-circus&sort=start_at",
+    "GET /api/customer/v2/event-type-groups?fields[event-type-groups]=handle,name&sort=name",
+    "GET /api/customer/v2/instructors?fields[instructors]=handle,first_name",
+    "GET /api/v1/customer/bookings",
+    "GET /api/customer/v2/cart/<uuid>",
+    "GET /api/customer/v2/consent"
+  ],
+  "site_calls_after_clicking_a_later_date_tab": [
+    "GET /api/customer/v2/events?filter[between]=2026-10-19,2026-10-20&filter[location.handle]=oxford-circus&sort=start_at   (the clicked day, one call per day)",
+    "GET /api/customer/v2/events?filter[between]=2026-10-07T00:00:00+01:00,2026-10-10T00:00:00+01:00&sort=start_at   (NO location filter; offset-bearing ISO bounds, a different caller, fired alongside)"
+  ],
+  "date_carousel": "14 day tabs (today + 13). Each tab loads its own single-day range lazily; the first three days load eagerly.",
+  "location_param": "filter[location.handle]=<handle>. Honoured server-side: handle oxford-circus on 2026-10-07 returned 48 events across 7 studios and relations.locations had 1 entry; no filter returned 124 events, 22 studios, 8 locations (oxford-circus, clapham, psycle-bank, shoreditch, victoria, psycle-london-bridge, notting-hill, psycle-at-home).",
+  "between_semantics": "End bound is exclusive for date-only values: 2026-10-07,2026-10-08 returned events from 2026-10-07 only (first 06:20, last 20:15). ISO-with-offset bounds also accepted.",
+  "range_probes_location_oxford_circus": [
+    { "between": "2026-10-06,2026-10-13", "status": 200, "events": 283, "bytes": 1322675, "last_start_at": "2026-10-12T20:15:00" },
+    { "between": "2026-10-06,2026-11-17", "status": 200, "events": 986, "bytes": 3763476, "last_start_at": "2026-10-29T19:15:00", "note": "42-day span, accepted" },
+    { "between": "2026-10-06,2026-11-18", "status": 200, "events": 986, "bytes": 3763476, "note": "43-day span: NOT rejected, identical to the 42-day result" },
+    { "between": "2026-10-06,2026-12-01", "status": 200, "events": 986, "bytes": 3763476, "note": "56-day span: not rejected, identical" }
+  ],
+  "range_findings": [
+    "No server-side cap on span was hit up to 56 days; no 4xx.",
+    "The schedule's publish horizon is ~23 days out (last event 2026-10-29 on 2026-10-06), so any wider range returns the same set. The 42-day cap in C2-4 is a client-chosen safety bound, not an API limit.",
+    "Location scoping holds on ranged calls: re-checked with the site's param order, both the 7-day and 42-day calls returned relations.locations = [oxford-circus] only (283 and 986 events; about 48 per day across 7 studios is consistent).",
+    "Response is one unpaginated body: no links, no meta, no page params. Payload is large (about 3.8 MB for 986 events)."
+  ],
+  "envelope_unauthenticated": {
+    "top_level_keys": ["data", "relations"],
+    "relations_keys": ["instructors", "event_types", "studios", "locations", "credit_types", "plans"],
+    "relations_shape": "instructors/event_types/studios/locations/credit_types are arrays; plans is an object keyed by index",
+    "note": "booking_cutoff / extended_cutoff / booked_events / friends_booked (seen in events-v2-sample.json) are ABSENT without a bearer token; they appear only on authenticated calls.",
+    "response_headers_of_interest": "cache-control: no-cache, private. No rate-limit headers seen."
+  },
+  "event_fields": ["id","event_type_id","instructor_id","studio_id","start_at","duration","bookable_until","description","required_credits","credit_types","accepted_plans","accepted_credits","max_bookable_slots","is_visible","is_waitlistable","is_always_bookable","is_live_stream","is_video_event","is_fully_booked","status","metafields","tags","occupancy","capacity","pre_order_collection"],
+  "event_field_notes": {
+    "start_at": "timezone-naive local string, e.g. 2026-10-07T06:20:00",
+    "occupancy_and_capacity": "present on every event, so ranged /events carries live fill counts",
+    "status": "upcoming"
+  }
+}

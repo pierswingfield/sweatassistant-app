@@ -31,6 +31,7 @@ Server + PWA assistant for Psycle London (and future gym providers). It moves sc
 - **Verify first.** Before changing code for any backlog item, confirm the basis of the bug or change in the code **and**, for anything user-visible, **in a real browser**. For server-only items, use a failing test or a request. Record the evidence. See [Workstreams/AGENT_PROTOCOL.md](file:///Users/pierswingfield/Desktop/AI%20Projects/psycle%20chrome/App/Documentation/Workstreams/AGENT_PROTOCOL.md).
 - **Real browser = the user's Google Chrome**: CDP on `127.0.0.1:9222` (any agent), or the Claude for Chrome extension (native Claude agents; installed and signed in). If neither is reachable, **stop and report `BLOCKED: no real-browser access`**. jsdom, curl and fresh headless browsers are not substitutes.
 - **Gemini offload wherever possible** (`gemini-delegate`, `Model: 'flash'`; never `pro` or `inherit`) for reading, summarising, triage and locating code. Gemini has **no browser tools**, so browser verification and code edits need an agent that has them.
+- **Never name a workstream or task ID without a short summary.** Whenever you mention an ID such as C2-4, U5-12 or H-2 in a report, plan or message, add a few words saying what it is (e.g. "C2-4, the single ranged timetable fetch"). A bare ID forces the reader to look it up. This applies to chat/report text and docs prose alike; commit messages and code comments may keep the bare ID (required there above).
 
 ---
 

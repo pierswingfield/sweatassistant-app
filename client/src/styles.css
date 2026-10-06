@@ -3195,59 +3195,13 @@ html, body {
 
 /* --- DATE CAROUSEL STYLING --- */
 
-.psycle-date-carousel::-webkit-scrollbar {
-  display: none;
-}
 
-.psycle-date-item {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  justify-content: center;
-  flex: 0 0 75px;
-  padding: 10px;
-  border-radius: 16px;
-  background: color-mix(in srgb, var(--text) 4%, transparent);
-  border: 1px solid var(--border);
-  cursor: pointer;
-  transition: all 0.25s cubic-bezier(0.25, 1, 0.5, 1);
-}
 
-.psycle-date-item:hover {
-  background: color-mix(in srgb, var(--text) 8%, transparent);
-  border-color: var(--border-strong);
-  transform: translateY(-2px);
-}
 
-.psycle-date-item.active {
-  background: color-mix(in srgb, var(--accent) 15%, transparent);
-  border-color: var(--accent);
-  box-shadow: 0 0 15px color-mix(in srgb, var(--accent) 25%, transparent);
-}
 
-.psycle-date-item .day-name {
-  font-size: 12px;
-  font-weight: 600;
-  text-transform: uppercase;
-  color: var(--text-secondary);
-  margin-bottom: 4px;
-}
 
-.psycle-date-item.active .day-name {
-  color: var(--accent);
-}
 
-.psycle-date-item .day-num {
-  font-size: 20px;
-  font-weight: 800;
-  color: var(--text);
-}
 
-.psycle-date-item .month-name {
-  font-size: 12px;
-  color: var(--text-secondary);
-  margin-top: 2px;
-}
 
 /* --- DROPDOWN FILTERS STYLING --- */
 .psycle-filters-card {
@@ -3265,91 +3219,14 @@ html, body {
   flex-wrap: wrap;
 }
 
-.psycle-filter-select-wrapper {
-  display: flex;
-  flex-direction: column;
-  gap: 6px;
-  flex: 1;
-  min-width: 200px;
-  position: relative;
-}
 
-.psycle-filter-select-wrapper label {
-  font-size: 12px;
-  font-weight: 600;
-  text-transform: uppercase;
-  color: var(--text-secondary);
-  letter-spacing: 0.5px;
-}
 
-.psycle-multiselect-dropdown {
-  position: relative;
-  width: 100%;
-}
 
-.psycle-dropdown-trigger {
-  width: 100%;
-  padding: 10px 16px;
-  border-radius: 12px;
-  background: var(--surface-inset);
-  border: 1px solid var(--border);
-  color: var(--text);
-  font-size: 13px;
-  font-weight: 500;
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  cursor: pointer;
-  transition: all 0.2s ease;
-}
 
-.psycle-dropdown-trigger:hover {
-  border-color: var(--border-strong);
-}
 
-.psycle-dropdown-options {
-  position: absolute;
-  top: calc(100% + 8px);
-  left: 0;
-  width: 100%;
-  max-height: 250px;
-  overflow-y: auto;
-  border-radius: 16px;
-  background: var(--surface);
-  backdrop-filter: blur(20px);
-  -webkit-backdrop-filter: blur(20px);
-  border: 1px solid var(--border-strong);
-  box-shadow: var(--shadow-card);
-  z-index: 10000;
-  padding: 8px;
-}
 
-.psycle-dropdown-option {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  padding: 8px 12px;
-  border-radius: 8px;
-  cursor: pointer;
-  font-size: 13px;
-  color: var(--text-secondary);
-  transition: background 0.15s ease;
-}
 
-.psycle-dropdown-option:hover {
-  background: color-mix(in srgb, var(--text) 8%, transparent);
-  color: var(--text);
-}
 
-.psycle-dropdown-option input[type="checkbox"] {
-  width: 16px;
-  height: 16px;
-  border-radius: 4px;
-  border: 1.5px solid var(--border-strong);
-  background: transparent;
-  cursor: pointer;
-  accent-color: var(--accent);
-}
 
 /* Nav Bar at bottom for PWA */
 .psycle-nav {
@@ -3362,30 +3239,8 @@ html, body {
   flex-shrink: 0;
 }
 
-.psycle-nav-item {
-  background: transparent;
-  border: none;
-  color: var(--text-secondary);
-  padding: 12px 0;
-  font-size: 12px;
-  font-weight: 600;
-  cursor: pointer;
-  border-bottom: 2px solid transparent;
-  transition: all 0.2s ease;
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 4px;
-}
 
-.psycle-nav-item:hover {
-  color: var(--text);
-}
 
-.psycle-nav-item.active {
-  color: var(--accent);
-  border-bottom-color: var(--accent);
-}
 
 /* -------------------------------------------------------------
    PWA RESPONSIVE & MOBILE OVERRIDES
@@ -3659,51 +3514,12 @@ html, body {
   flex-direction: column;
 }
 
-#psycle-helper-container .psycle-table-wrapper {
-  overflow-x: auto;
-  width: 100%;
-}
 
-#psycle-helper-container .psycle-table-wrapper .psycle-table {
-  width: 100%;
-  border-collapse: collapse;
-  font-size: 13px;
-  text-align: left;
-  table-layout: auto;
-}
 
-#psycle-helper-container .psycle-table-wrapper .psycle-table th {
-  display: table-cell;
-  padding: 9px 14px;
-  color: var(--text-tertiary);
-  font-weight: 700;
-  font-size: 12px;
-  text-transform: uppercase;
-  letter-spacing: 0.6px;
-  border-bottom: 1px solid var(--border);
-  background: var(--surface-inset);
-  white-space: nowrap;
-}
 
-#psycle-helper-container .psycle-table-wrapper .psycle-table td {
-  padding: 10px 14px;
-  border-bottom: 1px solid var(--separator);
-  vertical-align: middle;
-  color: var(--text-secondary);
-}
 
-#psycle-helper-container .psycle-table-wrapper .psycle-table tbody tr:last-child td {
-  border-bottom: none;
-}
 
-#psycle-helper-container .psycle-table-wrapper .psycle-table tbody tr:hover {
-  background: var(--surface-2);
-}
 
-#psycle-helper-container .psycle-table-wrapper .psycle-table td strong {
-  color: var(--text);
-  font-weight: 600;
-}
 
 #psycle-helper-container .psycle-table-empty {
   text-align: center !important;
@@ -3749,13 +3565,6 @@ html, body {
   font-size: 22px;
 }
 
-#psycle-helper-container .psycle-gym-settings-heading .psycle-eyebrow {
-  color: var(--text-tertiary);
-  font-size: 11px;
-  font-weight: 700;
-  letter-spacing: 0.08em;
-  text-transform: uppercase;
-}
 
 #psycle-helper-container .psycle-gym-settings-grid {
   padding: 0 0 24px;
@@ -3813,51 +3622,10 @@ html, body {
   backdrop-filter: blur(3px);
 }
 
-.psycle-gym-settings-drawer {
-  width: min(720px, 92vw);
-  height: 100%;
-  display: flex;
-  flex-direction: column;
-  background: var(--bg);
-  border-left: 1px solid var(--border);
-  box-shadow: -18px 0 48px color-mix(in srgb, #000 24%, transparent);
-}
 
-.psycle-gym-settings-drawer-header {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  padding: 14px 18px;
-  border-bottom: 1px solid var(--separator);
-  color: var(--text);
-}
 
-.psycle-gym-settings-drawer-header .psycle-modal-close-btn {
-  width: 36px;
-  height: 36px;
-  border: 0;
-  background: transparent;
-  color: var(--text-secondary);
-  font-size: 24px;
-  cursor: pointer;
-}
 
-.psycle-gym-settings-drawer-body {
-  flex: 1;
-  overflow-y: auto;
-  padding: 18px;
-}
 
-@media (max-width: 640px) {
-  .psycle-gym-settings-drawer {
-    width: 100%;
-    border-left: 0;
-  }
-
-  .psycle-gym-settings-drawer-body {
-    padding: 14px;
-  }
-}
 
 #psycle-helper-container .psycle-settings-card {
   background: var(--surface-2);
@@ -4536,31 +4304,10 @@ html, body {
    ========================================================= */
 
 /* --- 1. TABLE ROWS — Enhanced hover & alternating rows --- */
-#psycle-helper-container .psycle-table-wrapper .psycle-table tbody tr:nth-child(even) {
-  background: color-mix(in srgb, var(--text) 2%, transparent);
-}
 
-#psycle-helper-container .psycle-table-wrapper .psycle-table tbody tr {
-  transition: all 0.2s cubic-bezier(0.25, 1, 0.5, 1);
-  border-left: 2px solid transparent;
-}
 
-#psycle-helper-container .psycle-table-wrapper .psycle-table tbody tr:hover {
-  background: color-mix(in srgb, var(--accent) 6%, transparent) !important;
-  border-left: 2px solid color-mix(in srgb, var(--accent) 50%, transparent);
-}
 
-#psycle-helper-container .psycle-table-wrapper .psycle-table tbody tr.row-beyond-cutoff:hover {
-  border-left-color: color-mix(in srgb, var(--text-secondary) 30%, transparent);
-}
 
-#psycle-helper-container .psycle-table-wrapper .psycle-table tbody tr.row-scheduled {
-  background: color-mix(in srgb, var(--feat-autoupgrade) 4%, transparent);
-}
-#psycle-helper-container .psycle-table-wrapper .psycle-table tbody tr.row-scheduled:hover {
-  background: color-mix(in srgb, var(--feat-autoupgrade) 10%, transparent) !important;
-  border-left-color: color-mix(in srgb, var(--feat-autoupgrade) 60%, transparent) !important;
-}
 
 /* --- 2. STATUS BADGES — Pill styling with color coding --- */
 #psycle-helper-container .badge-pill {
@@ -4622,22 +4369,6 @@ html, body {
 }
 
 /* No eligible credits warning text */
-#psycle-helper-container .psycle-no-credits-warning {
-  color: var(--no-credits-warning-color) !important;
-  background: color-mix(in srgb, var(--no-credits-warning-color) 10%, transparent) !important;
-  border-radius: 6px;
-  padding: 3px 8px;
-  display: inline-block;
-  margin-top: 4px;
-  margin-left: 8px;
-  font-size: 11px;
-  font-weight: 700;
-  text-transform: uppercase;
-  letter-spacing: 0.4px;
-  backdrop-filter: blur(4px);
-  -webkit-backdrop-filter: blur(4px);
-  white-space: nowrap;
-}
 
 /* --- 3. ACTION BUTTONS — flat, token-driven (no glow per design.md §10) --- */
 #psycle-helper-container .psycle-btn-mini {
@@ -4704,14 +4435,7 @@ html, body {
 }
 
 /* Manage bookings violet button */
-#psycle-helper-container .psycle-btn-manage-bookings {
-  box-shadow: none !important;
-}
 
-#psycle-helper-container .psycle-btn-manage-bookings:hover {
-  background: color-mix(in srgb, var(--feat-autoupgrade) 30%, transparent) !important;
-  box-shadow: none !important;
-}
 
 /* Debug button */
 #psycle-helper-container .psycle-debug-btn {
@@ -4724,32 +4448,8 @@ html, body {
 }
 
 /* --- 4. SPLIT BUTTON — Enhanced dropdown --- */
-#psycle-helper-container .psycle-split-dropdown {
-  background: var(--surface) !important;
-  backdrop-filter: blur(24px) saturate(180%) !important;
-  -webkit-backdrop-filter: blur(24px) saturate(180%) !important;
-  border: 1px solid var(--border-strong) !important;
-  border-radius: 14px !important;
-  box-shadow: var(--shadow-card) !important;
-  padding: 8px !important;
-  overflow: hidden;
-}
 
-#psycle-helper-container .psycle-split-dropdown-item {
-  border-radius: 10px !important;
-  font-weight: 600 !important;
-  letter-spacing: 0.2px;
-  transition: all 0.15s ease;
-  border: none !important;
-  background: transparent !important;
-  color: var(--text-secondary) !important;
-}
 
-#psycle-helper-container .psycle-split-dropdown-item:hover {
-  background: color-mix(in srgb, var(--text) 8%, transparent) !important;
-  transform: translateX(3px);
-  color: var(--text) !important;
-}
 
 /* --- 5. DATE CAROUSEL PILLS — flat active state --- */
 #psycle-helper-container .psycle-day-pill {
@@ -4911,10 +4611,6 @@ html, body {
   overflow: hidden;
 }
 
-#psycle-helper-container .psycle-countdown-time {
-  color: var(--text);
-  font-weight: 800;
-}
 
 #psycle-helper-container .psycle-countdown-status {
   background: color-mix(in srgb, var(--success) 10%, transparent) !important;
@@ -5032,34 +4728,6 @@ html, body {
 }
 
 /* ── Split button dropdown ──────────────────────────────────────── */
-.psycle-split-dropdown {
-  position: absolute;
-  top: 100%;
-  right: 0;
-  z-index: 1000;
-  min-width: 150px;
-  background: var(--surface);
-  border: 1px solid var(--border-strong);
-  border-radius: 8px;
-  padding: 4px 0;
-  margin-top: 4px;
-  box-shadow: var(--shadow-card);
-}
-.psycle-split-dropdown-item {
-  display: block;
-  width: 100%;
-  text-align: left;
-  padding: 8px 14px;
-  font-size: 12px;
-  color: var(--text);
-  background: none;
-  border: none;
-  cursor: pointer;
-  transition: background 0.15s;
-}
-.psycle-split-dropdown-item:hover {
-  background: color-mix(in srgb, var(--text) 6%, transparent);
-}
 
 /* ── Class type chip (group label in timetable rows) ───────────── */
 .psycle-class-type-chip {

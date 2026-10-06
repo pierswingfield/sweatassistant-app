@@ -125,6 +125,8 @@ describe('legacy hash migration', () => {
   it('maps old hashes', () => {
     expect(legacyHashToPath('#my-bookings')).toBe('/bookings');
     expect(legacyHashToPath('#home')).toBe('/');
+    expect(legacyHashToPath('#favourites')).toBe('/settings/favourites'); // F-12 Settings > Favourites pane
+    expect(parseLocation('/settings/favourites', '').section).toBe('favourites');
     expect(legacyHashToPath('#class-timetable')).toBe('/timetable');
     expect(legacyHashToPath('#buy-credits')).toBe('/credits');
     expect(legacyHashToPath('#about')).toBe('/settings/about');

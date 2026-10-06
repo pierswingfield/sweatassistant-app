@@ -87,6 +87,8 @@ App/
 │   │   ├── cache.test.js    # Gym-scoped cache-key isolation (WP-G)
 │   │   ├── gym-context.js   # ★ Active gym's capabilities/theme/labels — what the UI gates on
 │   │   ├── gym-context.test.js
+│   │   ├── favourites.js    # ★ F-12 (gym-neutral favourites) pure helpers: slotOfEvent/favouriteId/isFavouriteIn (a favourite = gym + studio + weekday + start time in the class zone)
+│   │   ├── favourite-heart.js # F-12 heart button markup; mobileHeartHtml renders ONLY for a favourited card
 │   │   └── ui/
 │   │       ├── home.js        # Home tab (first tab, default landing): registers the 8 widgets; W4 auto-book count real, rest placeholders (H-1, [workstream](Documentation/Workstreams/H-home-page.md))
 │   │       ├── widget-registry.js # registerWidget + per-widget loading/empty/error(retry) mounter; widgets fail independently
@@ -99,6 +101,8 @@ App/
 │   │       ├── modal-nav.js   # ★ Mobile modal → full-screen page (openPage/closePage/pushLayer); REQUIRED for every modal
 │   │       ├── settings.js    # Account / Your Gyms / About coordination + gym drawer actions
 │   │       ├── gym-settings-section.js # Shared explicit-gym settings renderer
+│   │       ├── favourites-pane.js # F-12 Settings > Favourites: all linked gyms' favourites by weekday (Mon-Sun), reusing the timetable's own rows via timetable.js renderEventRowsInto; no network of its own
+│   │       ├── favourites-pane-model.js # pure grouping + next-upcoming-class resolution for that pane
 │   │       ├── loading-skeleton.js # Shared timetable/card loading placeholders
 │   │       ├── status-line.js # Polite aria-live status region for the Auto-Book SSE line (U2-3)
 │   │       ├── spotmap.js     # Shared studio floor-plan editor (reused by bookings/timetable/settings/autobook/upgrade)

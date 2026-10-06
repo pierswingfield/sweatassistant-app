@@ -1030,6 +1030,7 @@ export async function prefetchTimetableData(force = false) {
   } catch (err) {
     isPrefetching = false;
     prefetchError = err.message;
+    announceTimetableRendered();
     console.error('[Timetable] Prefetch failed:', err);
     if (!hasCached) {
       ttContainer.innerHTML = `
@@ -1828,6 +1829,9 @@ function normalizeStoredFilters() {
 let pendingGymIds = [];
 
 // Core timetable grid and date selector rendering
+/** F-12: tell read-only views of the loaded schedule (Settings > Favourites) that it changed or finished loading. */
+function announceTimetableRendered() { window.dispatchEvent(new Event('sweat-timetable-rendered')); }
+
 export async function renderTimetableGrid(reason = 'interaction') {
   const renderStartedAt = timetablePerfNow();
   const ttGrid = document.getElementById('psycle-timetable-grid');
@@ -2076,6 +2080,7 @@ export async function renderTimetableGrid(reason = 'interaction') {
         ${COPY.timetable.noClasses}
       </div>
     `;
+    announceTimetableRendered();
     return;
   }
 
@@ -2129,178 +2134,7 @@ export async function renderTimetableGrid(reason = 'interaction') {
         tbody.appendChild(h);
       }
     }
-    // Primary: use embedded objects from event payload (CodexFit includes these)
-    // Fallback: use Maps built from merged metadata (Maps include both int and string keys)
-    const studioObj = event.studio || gymScopedGet(studioObjMap, event.studioId, event.gymId);
-    const studioName = studioObj?.name || gymScopedGet(studioMap, event.studioId, event.gymId) || '';
-    const locName = studioObj?.location?.name
-      || gymScopedGet(locationMap, studioObj?.locationId, event.gymId)
-      || gymScopedGet(locationMap, event.locationId, event.gymId)
-      || '';
-    const instrName = event.instructors?.[0]?.name || event.instructor?.name
-      || gymScopedGet(instructorMap, event.instructors?.[0]?.id, event.gymId) || '';
-    const eventTypeName = event.name || gymScopedGet(eventTypeMap, event.classTypeId, event.gymId) || 'Class';
-    const className = event.name || eventTypeName;
-    // Group name is the short type label (e.g., "Ride", "Barre", "Yoga")
-    const groupName = event.discipline
-      || gymScopedGet(eventTypeGroupMap, event.classTypeId, event.gymId)
-      || 'Class';
-    // Drop the discipline prefix the provider repeats into every class name, and
-    // normalise SHOUTING. This used to handle only "TYPE: " (colon + space),
-    // which left JAB's "TRAIN - Upper (Focus)" and "BOXING Core & Power"
-    // untouched — the discipline pill beside the name then said the same word
-    // twice while the name itself was squeezed into what was left.
-    const strippedClassName = cleanClassName(className, groupName);
-
-    const startDate = new Date(event.startAt);
-    const timeStr = formatInZone(event.startAt, zoneFor(event)).timeLabel;
-
-    // Cutoff status calculation (instant comparison; zone-free)
-    const classRelease = getClassReleaseTime(event, userSettings);
-    const now = DateTime.now();
-    const isLive = event.alwaysBookable ? true : (classRelease ? now >= classRelease : true);
-    const isFullyBooked = !!event.isFull;
-    const canWaitlist = !isFullWithoutWaitlist(event);
-
-    const isBooked = userBookings().some(b => matchesEvent(b, event));
-    const isOnWaitlist = userWaitlists().some(w => matchesEvent(w, event));
-
-    const availableSpots = (typeof event.capacity === 'number' && typeof (event.capacity != null && event.availableCount != null ? event.capacity - event.availableCount : undefined) === 'number')
-      ? Math.max(0, event.capacity - (event.capacity != null && event.availableCount != null ? event.capacity - event.availableCount : undefined))
-      : null;
-    const spotsText = availableSpots !== null ? `${availableSpots} / ${event.capacity}` : 'Open';
-
-    // F-12: a favourite is a recurring slot, matched against THIS row's gym's list.
-    const isBookmarked = isFavouriteEvent(event);
-    const heartChar = isBookmarked ? '♥' : '♡';
-    const heartClass = isBookmarked ? 'psycle-timetable-heart bookmarked' : 'psycle-timetable-heart unbookmarked';
-
-    // ── Status badge (kept as a restyled column) + shared action model ──
-    let statusBadge = '';
-    let rowClass = 'psycle-table-row';
-    let bookingId = null, isPenalty = false, slotsBookedCount = 0, waitlistId = null, graceDeadline = null;
-    const hasCredit = hasUsableCredit(event);
-
-    const isScheduled = autoBookedIds.has(event.id) || autoBookedIds.has(Number(event.id)) || autoBookedIds.has(String(event.id));
-
-    if (!isLive) {
-      if (isScheduled) {
-        rowClass = 'psycle-table-row row-beyond-cutoff row-scheduled';
-        statusBadge = `<span class="badge-pill scheduled psycle-occupancy-hover" data-id="${event.id}" data-gym-id="${event.gymId || ''}">${pulseIcon(12)}${COPY.timetable.autoBook.toUpperCase()}</span>`;
-      } else {
-        rowClass = 'psycle-table-row row-beyond-cutoff';
-        statusBadge = `<span class="badge-pill not-live psycle-occupancy-hover" data-id="${event.id}" data-gym-id="${event.gymId || ''}">${COPY.timetable.notLive}</span>`;
-      }
-    } else if (isBooked) {
-      const eventBookings = userBookings().filter(b => matchesEvent(b, event));
-      slotsBookedCount = eventBookings.length;
-      statusBadge = `<span class="badge-pill yes psycle-occupancy-hover" data-id="${event.id}" data-gym-id="${event.gymId || ''}" style="cursor: pointer;">${COPY.timetable.booked}${slotsBookedCount > 1 ? ` (${slotsBookedCount})` : ''}</span>`;
-      if (slotsBookedCount === 1) {
-        bookingId = eventBookings[0].bookingId ?? eventBookings[0].id;
-        const bookedAt = eventBookings[0].bookedAt ?? eventBookings[0].booked_at;
-        const diffHours = (startDate - new Date()) / (1000 * 60 * 60);
-        isPenalty = diffHours < 12 && diffHours > 0;
-        if (bookedAt && isInGracePeriod(bookedAt)) {
-          graceDeadline = new Date(bookedAt).getTime() + GRACE_PERIOD_MS;
-        }
-      }
-    } else if (isOnWaitlist) {
-      statusBadge = `<span class="badge-pill waitlisted psycle-occupancy-hover" data-id="${event.id}" data-gym-id="${event.gymId || ''}" style="cursor: pointer;">${COPY.timetable.waitlisted}</span>`;
-      const waitlistEntry = userWaitlists().find(w => matchesEvent(w, event));
-      // C2-2 fix (2026-09-26): this read `waitlistEntry.id`, a field that has
-      // never existed on a NormalizedBooking (it's `bookingId` — see base.js's
-      // doc comment) — so `waitlistId` was always undefined and the "Leave
-      // WL" button never rendered (buildActionModel below falls through to a
-      // disabled "On Waitlist" pill whenever `waitlistId` is falsy). The
-      // provider's leaveWaitlist() takes the CLASS event id and resolves the
-      // waitlist row internally (see codexfit.js/marianatek.js), so this
-      // passes `event.id`, not any field off the waitlist entry itself.
-      if (waitlistEntry) waitlistId = event.id;
-    } else if (isFullyBooked) {
-      statusBadge = canWaitlist
-        ? `<span class="badge-pill waitlist-open psycle-occupancy-hover" data-id="${event.id}" data-gym-id="${event.gymId || ''}" style="cursor: pointer;">${COPY.timetable.waitlist}</span>`
-        : `<span class="badge-pill no fully-booked psycle-occupancy-hover" data-id="${event.id}" data-gym-id="${event.gymId || ''}">${COPY.timetable.full}</span>`;
-    } else if (!hasCredit) {
-      // Short label in the pill, full reason in the tooltip — the column is
-      // narrow and "NO CREDITS AVAILABLE" spends all of it restating "no".
-      // NO badge here beyond the occupancy. The row's primary action already
-      // says "Buy Credits", so a "No credits" pill beside it is the same fact
-      // twice — and it was spending the narrowest column in the table to do it.
-      // The reason still reaches the user: it's the button's tooltip.
-      statusBadge = `<span class="badge-pill yes psycle-occupancy-hover" data-id="${event.id}" data-gym-id="${event.gymId || ''}" style="cursor: pointer;" title="${escapeHtml(getIneligibleReason(event.gymId) || COPY.timetable.noCredits)}">${spotsText}</span>`;
-    } else {
-      statusBadge = `<span class="badge-pill yes psycle-occupancy-hover" data-id="${event.id}" data-gym-id="${event.gymId || ''}" style="cursor: pointer;">${spotsText}</span>`;
-    }
-
-    const actionModel = buildActionModel(event, {
-      isLive, isBooked, isOnWaitlist, isFullyBooked, canWaitlist, hasCredit,
-      isScheduled,
-      bookingId, isPenalty, slotsBookedCount, waitlistId, graceDeadline,
-    });
-
-    // === MOBILE TIMETABLE — PWA MOBILE LAYOUT (added Jun 2026; delete this block to revert) ===
-    if (window.matchMedia('(max-width: 768px)').matches) {
-      tbody.appendChild(buildMobileClassRow(event, {
-        timeStr, groupName, strippedClassName, instrName, locName,
-        isBookmarked, heartChar, heartClass, rowClass
-      }, actionModel));
-      return; // skip desktop rendering for this row
-    }
-    // === END MOBILE TIMETABLE BLOCK ===
-
-    const row = document.createElement('tr');
-    row.className = rowClass;
-    row.setAttribute('data-gym', event.gymId || getDefaultGymId());
-    // Identity and layout kind on the row itself. Without these a rendered row
-    // cannot be traced back to its event from the DOM, which made verifying
-    // per-class behaviour ("is this FCFS?") impossible from outside the app —
-    // and layoutFormat is per CLASS, not per studio: JAB's BOXING room runs
-    // both first-come-first-serve and pick-a-spot classes, so inferring it from
-    // the studio is wrong for half of them.
-    row.setAttribute('data-event-id', event.id);
-    if (event.layoutFormat) row.setAttribute('data-layout-format', event.layoutFormat);
-    row.innerHTML = `
-      <td class="col-time"><strong>${timeStr}</strong></td>
-      <td class="col-gym">${gymChip(event.gymId)}</td>
-      <td class="col-class">
-        <div class="psycle-tt-class-cell">
-          ${heartButtonHtml({ isFavourite: isBookmarked, eventId: event.id, label: COPY.timetable.favourite, pressedLabel: COPY.timetable.unfavourite })}
-          ${disciplineTag(groupName)}
-          <span class="psycle-tt-class-name">${strippedClassName}</span>
-        </div>
-      </td>
-      <td class="col-instructor">${instrName ? `<span class="psycle-instructor-hover" ${instructorHoverAttrs(event.instructors?.[0], event.gymId, instrName)}>${instrName}</span>` : ''}</td>
-      ${/* MID-WIDTH COLUMN: instructor + top-level location only ("SW1",
-           "Oxford Circus"), with the specific studio dropped — at that width
-           the studio is the least useful thing on the row and the most
-           expensive, since it forces a second line.
-           Always rendered; CSS shows exactly one of {instructor+location} or
-           {this} at any width, so a resize needs no re-render. */ ''}
-      <td class="col-who-where">
-        ${instrName ? `<span class="psycle-ww-who psycle-instructor-hover" ${instructorHoverAttrs(event.instructors?.[0], event.gymId, instrName)}>${instrName}</span>` : ''}
-        ${locName ? `<span class="psycle-ww-loc">${trimLocation(locName, getGymShortName(event.gymId))}</span>` : ''}
-      </td>
-      <td class="col-location">
-        <span style="font-weight:600; display:block; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">${trimLocation(locName, getGymShortName(event.gymId))}</span>
-        ${studioName ? `<span style="font-size:12px; color:var(--text-secondary); display:block; margin-top:2px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">${displayStudioName(event.gymId, studioName)}</span>` : ''}
-      </td>
-      <td class="col-status">${statusBadge}</td>
-      <td class="col-actions"></td>
-    `;
-
-    row.querySelector('.col-actions').appendChild(buildDesktopActions(actionModel, event, userSettings.debugMode, isBookmarked));
-
-    // Heart click listener (kept null-safe: an unconditional querySelector that threw
-    // once emptied the whole timetable).
-    const heartEl = row.querySelector('.psycle-timetable-heart');
-    if (heartEl) {
-      heartEl.onclick = (e) => {
-        e.stopPropagation();
-        toggleFavourite(event, e.currentTarget);
-      };
-    }
-
-    tbody.appendChild(row);
+    tbody.appendChild(buildEventRow(event, autoBookedIds));
   });
 
   equalizeDiscTagWidths(ttGrid);
@@ -2315,6 +2149,224 @@ export async function renderTimetableGrid(reason = 'interaction') {
     reason,
     eventCount: sortedEvents.length,
   });
+  // F-12: let read-only views of the loaded schedule (Settings > Favourites) repaint when it changes.
+  announceTimetableRendered();
+}
+
+// The ONE per-event timetable row (desktop <tr> or mobile card <tr>). Extracted from renderTimetableGrid's
+// loop so the Settings Favourites pane reuses exactly the same rendering instead of a second copy (F-12).
+function buildEventRow(event, autoBookedIds) {
+  // Primary: use embedded objects from event payload (CodexFit includes these)
+  // Fallback: use Maps built from merged metadata (Maps include both int and string keys)
+  const studioObj = event.studio || gymScopedGet(studioObjMap, event.studioId, event.gymId);
+  const studioName = studioObj?.name || gymScopedGet(studioMap, event.studioId, event.gymId) || '';
+  const locName = studioObj?.location?.name
+    || gymScopedGet(locationMap, studioObj?.locationId, event.gymId)
+    || gymScopedGet(locationMap, event.locationId, event.gymId)
+    || '';
+  const instrName = event.instructors?.[0]?.name || event.instructor?.name
+    || gymScopedGet(instructorMap, event.instructors?.[0]?.id, event.gymId) || '';
+  const eventTypeName = event.name || gymScopedGet(eventTypeMap, event.classTypeId, event.gymId) || 'Class';
+  const className = event.name || eventTypeName;
+  // Group name is the short type label (e.g., "Ride", "Barre", "Yoga")
+  const groupName = event.discipline
+    || gymScopedGet(eventTypeGroupMap, event.classTypeId, event.gymId)
+    || 'Class';
+  // Drop the discipline prefix the provider repeats into every class name, and
+  // normalise SHOUTING. This used to handle only "TYPE: " (colon + space),
+  // which left JAB's "TRAIN - Upper (Focus)" and "BOXING Core & Power"
+  // untouched — the discipline pill beside the name then said the same word
+  // twice while the name itself was squeezed into what was left.
+  const strippedClassName = cleanClassName(className, groupName);
+
+  const startDate = new Date(event.startAt);
+  const timeStr = formatInZone(event.startAt, zoneFor(event)).timeLabel;
+
+  // Cutoff status calculation (instant comparison; zone-free)
+  const classRelease = getClassReleaseTime(event, userSettings);
+  const now = DateTime.now();
+  const isLive = event.alwaysBookable ? true : (classRelease ? now >= classRelease : true);
+  const isFullyBooked = !!event.isFull;
+  const canWaitlist = !isFullWithoutWaitlist(event);
+
+  const isBooked = userBookings().some(b => matchesEvent(b, event));
+  const isOnWaitlist = userWaitlists().some(w => matchesEvent(w, event));
+
+  const availableSpots = (typeof event.capacity === 'number' && typeof (event.capacity != null && event.availableCount != null ? event.capacity - event.availableCount : undefined) === 'number')
+    ? Math.max(0, event.capacity - (event.capacity != null && event.availableCount != null ? event.capacity - event.availableCount : undefined))
+    : null;
+  const spotsText = availableSpots !== null ? `${availableSpots} / ${event.capacity}` : 'Open';
+
+  // F-12: a favourite is a recurring slot, matched against THIS row's gym's list.
+  const isBookmarked = isFavouriteEvent(event);
+  const heartChar = isBookmarked ? '♥' : '♡';
+  const heartClass = isBookmarked ? 'psycle-timetable-heart bookmarked' : 'psycle-timetable-heart unbookmarked';
+
+  // ── Status badge (kept as a restyled column) + shared action model ──
+  let statusBadge = '';
+  let rowClass = 'psycle-table-row';
+  let bookingId = null, isPenalty = false, slotsBookedCount = 0, waitlistId = null, graceDeadline = null;
+  const hasCredit = hasUsableCredit(event);
+
+  const isScheduled = autoBookedIds.has(event.id) || autoBookedIds.has(Number(event.id)) || autoBookedIds.has(String(event.id));
+
+  if (!isLive) {
+    if (isScheduled) {
+      rowClass = 'psycle-table-row row-beyond-cutoff row-scheduled';
+      statusBadge = `<span class="badge-pill scheduled psycle-occupancy-hover" data-id="${event.id}" data-gym-id="${event.gymId || ''}">${pulseIcon(12)}${COPY.timetable.autoBook.toUpperCase()}</span>`;
+    } else {
+      rowClass = 'psycle-table-row row-beyond-cutoff';
+      statusBadge = `<span class="badge-pill not-live psycle-occupancy-hover" data-id="${event.id}" data-gym-id="${event.gymId || ''}">${COPY.timetable.notLive}</span>`;
+    }
+  } else if (isBooked) {
+    const eventBookings = userBookings().filter(b => matchesEvent(b, event));
+    slotsBookedCount = eventBookings.length;
+    statusBadge = `<span class="badge-pill yes psycle-occupancy-hover" data-id="${event.id}" data-gym-id="${event.gymId || ''}" style="cursor: pointer;">${COPY.timetable.booked}${slotsBookedCount > 1 ? ` (${slotsBookedCount})` : ''}</span>`;
+    if (slotsBookedCount === 1) {
+      bookingId = eventBookings[0].bookingId ?? eventBookings[0].id;
+      const bookedAt = eventBookings[0].bookedAt ?? eventBookings[0].booked_at;
+      const diffHours = (startDate - new Date()) / (1000 * 60 * 60);
+      isPenalty = diffHours < 12 && diffHours > 0;
+      if (bookedAt && isInGracePeriod(bookedAt)) {
+        graceDeadline = new Date(bookedAt).getTime() + GRACE_PERIOD_MS;
+      }
+    }
+  } else if (isOnWaitlist) {
+    statusBadge = `<span class="badge-pill waitlisted psycle-occupancy-hover" data-id="${event.id}" data-gym-id="${event.gymId || ''}" style="cursor: pointer;">${COPY.timetable.waitlisted}</span>`;
+    const waitlistEntry = userWaitlists().find(w => matchesEvent(w, event));
+    // C2-2 fix (2026-09-26): this read `waitlistEntry.id`, a field that has
+    // never existed on a NormalizedBooking (it's `bookingId` — see base.js's
+    // doc comment) — so `waitlistId` was always undefined and the "Leave
+    // WL" button never rendered (buildActionModel below falls through to a
+    // disabled "On Waitlist" pill whenever `waitlistId` is falsy). The
+    // provider's leaveWaitlist() takes the CLASS event id and resolves the
+    // waitlist row internally (see codexfit.js/marianatek.js), so this
+    // passes `event.id`, not any field off the waitlist entry itself.
+    if (waitlistEntry) waitlistId = event.id;
+  } else if (isFullyBooked) {
+    statusBadge = canWaitlist
+      ? `<span class="badge-pill waitlist-open psycle-occupancy-hover" data-id="${event.id}" data-gym-id="${event.gymId || ''}" style="cursor: pointer;">${COPY.timetable.waitlist}</span>`
+      : `<span class="badge-pill no fully-booked psycle-occupancy-hover" data-id="${event.id}" data-gym-id="${event.gymId || ''}">${COPY.timetable.full}</span>`;
+  } else if (!hasCredit) {
+    // Short label in the pill, full reason in the tooltip — the column is
+    // narrow and "NO CREDITS AVAILABLE" spends all of it restating "no".
+    // NO badge here beyond the occupancy. The row's primary action already
+    // says "Buy Credits", so a "No credits" pill beside it is the same fact
+    // twice — and it was spending the narrowest column in the table to do it.
+    // The reason still reaches the user: it's the button's tooltip.
+    statusBadge = `<span class="badge-pill yes psycle-occupancy-hover" data-id="${event.id}" data-gym-id="${event.gymId || ''}" style="cursor: pointer;" title="${escapeHtml(getIneligibleReason(event.gymId) || COPY.timetable.noCredits)}">${spotsText}</span>`;
+  } else {
+    statusBadge = `<span class="badge-pill yes psycle-occupancy-hover" data-id="${event.id}" data-gym-id="${event.gymId || ''}" style="cursor: pointer;">${spotsText}</span>`;
+  }
+
+  const actionModel = buildActionModel(event, {
+    isLive, isBooked, isOnWaitlist, isFullyBooked, canWaitlist, hasCredit,
+    isScheduled,
+    bookingId, isPenalty, slotsBookedCount, waitlistId, graceDeadline,
+  });
+
+  // === MOBILE TIMETABLE — PWA MOBILE LAYOUT (added Jun 2026; delete this block to revert) ===
+  if (window.matchMedia('(max-width: 768px)').matches) {
+    return buildMobileClassRow(event, {
+      timeStr, groupName, strippedClassName, instrName, locName,
+      isBookmarked, heartChar, heartClass, rowClass
+    }, actionModel); // skip desktop rendering for this row
+  }
+  // === END MOBILE TIMETABLE BLOCK ===
+
+  const row = document.createElement('tr');
+  row.className = rowClass;
+  row.setAttribute('data-gym', event.gymId || getDefaultGymId());
+  // Identity and layout kind on the row itself. Without these a rendered row
+  // cannot be traced back to its event from the DOM, which made verifying
+  // per-class behaviour ("is this FCFS?") impossible from outside the app —
+  // and layoutFormat is per CLASS, not per studio: JAB's BOXING room runs
+  // both first-come-first-serve and pick-a-spot classes, so inferring it from
+  // the studio is wrong for half of them.
+  row.setAttribute('data-event-id', event.id);
+  if (event.layoutFormat) row.setAttribute('data-layout-format', event.layoutFormat);
+  row.innerHTML = `
+    <td class="col-time"><strong>${timeStr}</strong></td>
+    <td class="col-gym">${gymChip(event.gymId)}</td>
+    <td class="col-class">
+      <div class="psycle-tt-class-cell">
+        ${heartButtonHtml({ isFavourite: isBookmarked, eventId: event.id, label: COPY.timetable.favourite, pressedLabel: COPY.timetable.unfavourite })}
+        ${disciplineTag(groupName)}
+        <span class="psycle-tt-class-name">${strippedClassName}</span>
+      </div>
+    </td>
+    <td class="col-instructor">${instrName ? `<span class="psycle-instructor-hover" ${instructorHoverAttrs(event.instructors?.[0], event.gymId, instrName)}>${instrName}</span>` : ''}</td>
+    ${/* MID-WIDTH COLUMN: instructor + top-level location only ("SW1",
+         "Oxford Circus"), with the specific studio dropped — at that width
+         the studio is the least useful thing on the row and the most
+         expensive, since it forces a second line.
+         Always rendered; CSS shows exactly one of {instructor+location} or
+         {this} at any width, so a resize needs no re-render. */ ''}
+    <td class="col-who-where">
+      ${instrName ? `<span class="psycle-ww-who psycle-instructor-hover" ${instructorHoverAttrs(event.instructors?.[0], event.gymId, instrName)}>${instrName}</span>` : ''}
+      ${locName ? `<span class="psycle-ww-loc">${trimLocation(locName, getGymShortName(event.gymId))}</span>` : ''}
+    </td>
+    <td class="col-location">
+      <span style="font-weight:600; display:block; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">${trimLocation(locName, getGymShortName(event.gymId))}</span>
+      ${studioName ? `<span style="font-size:12px; color:var(--text-secondary); display:block; margin-top:2px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">${displayStudioName(event.gymId, studioName)}</span>` : ''}
+    </td>
+    <td class="col-status">${statusBadge}</td>
+    <td class="col-actions"></td>
+  `;
+
+  row.querySelector('.col-actions').appendChild(buildDesktopActions(actionModel, event, userSettings.debugMode, isBookmarked));
+
+  // Heart click listener (kept null-safe: an unconditional querySelector that threw
+  // once emptied the whole timetable).
+  const heartEl = row.querySelector('.psycle-timetable-heart');
+  if (heartEl) {
+    heartEl.onclick = (e) => {
+      e.stopPropagation();
+      toggleFavourite(event, e.currentTarget);
+    };
+  }
+
+  return row;
+}
+
+/** F-12: the loaded (unified-cache) timetable events, for read-only consumers such as the Favourites pane. */
+export function getLoadedEvents() { return psycleEvents; }
+
+/** F-12: true while the first timetable fetch has produced nothing yet (an absent class is then "not loaded", not "none"). */
+export function isScheduleLoading() { return isPrefetching && psycleEvents.length === 0; }
+
+/** F-12: make sure the schedule is (being) loaded. The unified fetch is lazy (first Timetable visit), so a deep link
+ *  straight to Settings > Favourites would otherwise find nothing. Reuses the normal prefetch: cache paint first,
+ *  then the shared server cache, so this adds no new upstream call shape. */
+export function ensureScheduleLoaded() {
+  if (psycleEvents.length || isPrefetching) return;
+  prefetchTimetableData().catch(() => {});
+}
+
+/** F-12: remove a favourite slot that may have no loaded class (Settings > Favourites). Same contract as the heart. */
+export async function removeFavouriteSlot(gymId, slot, labels = {}) {
+  try {
+    await api.setFavourite({ studioId: slot.studioId, dayOfWeek: slot.dayOfWeek, startTime: slot.startTime, ...labels }, false, gymId);
+    setFavouriteLocal(gymId, slot, false);
+    showToast(COPY.timetable.bookmarkRemoved, 'success');
+    setupDropdownFilters();
+    renderTimetableGrid();
+    return true;
+  } catch (err) {
+    console.error('[Timetable] Favourite removal failed:', err);
+    showToast(COPY.timetable.bookmarkUpdateFailed, 'error');
+    return false;
+  }
+}
+
+/** Render `events` into `tbody` with the timetable's own rows (no filters, search or date strip). */
+export function renderEventRowsInto(tbody, events) {
+  const autoBookedIds = new Set();
+  (cache.autoBookings?.data || cache.autoBookings || []).forEach((x) => {
+    const id = x.event_id || x.eventId;
+    if (id != null) { autoBookedIds.add(id); autoBookedIds.add(Number(id)); autoBookedIds.add(String(id)); }
+  });
+  events.forEach((e) => tbody.appendChild(buildEventRow(e, autoBookedIds)));
 }
 
 export function equalizePrimaryCTAWidths(container = document) {

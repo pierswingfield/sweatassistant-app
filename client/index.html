@@ -476,6 +476,9 @@
               <button class="psycle-settings-menu-item" data-settings-section="notifications">
                 <span class="menu-item-text" data-copy-text="static.notifications">Notifications</span>
               </button>
+              <button class="psycle-settings-menu-item" data-settings-section="favourites">
+                <span class="menu-item-text" data-copy-text="static.favourites">Favourites</span>
+              </button>
               <button class="psycle-settings-menu-item" data-settings-section="gyms">
                 <span class="menu-item-text" data-copy-text="static.yourGyms">Your Gyms</span>
               </button>
@@ -614,6 +617,15 @@
                   <p data-copy-text="static.calendarDescription">One calendar feed covering every gym you've connected. Stays in sync with bookings, waitlists and cancellations.</p>
                 </div>
                 <div class="psycle-settings-grid" id="psycle-calendar-section" style="padding-left:0; padding-right:0;"><div class="psycle-settings-card"><p class="psycle-card-desc" data-copy-text="static.loading">Loading…</p></div></div>
+              </div>
+
+              <!-- SECTION: FAVOURITES (F-12, gym-neutral favourites). ACCOUNT-level: every linked gym, one list. -->
+              <div class="psycle-settings-section-pane" id="psycle-settings-pane-favourites">
+                <div class="psycle-tab-header" style="padding-left:0; padding-right:0; padding-top:0; border-bottom:none;">
+                  <h3 data-copy-text="static.favourites">Favourites</h3>
+                  <p data-copy-text="static.favouritesDescription">Your favourite weekly class slots across every connected gym.</p>
+                </div>
+                <div id="psycle-favourites-section"></div>
               </div>
 
               <div class="psycle-settings-section-pane" id="psycle-settings-pane-notifications">

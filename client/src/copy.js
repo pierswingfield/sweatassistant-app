@@ -682,6 +682,18 @@ export const COPY = Object.freeze({
     opensInHoursOne: '{prefix}{count} hour', opensInHoursMany: '{prefix}{count} hours',
     opensInMinutesOne: '{prefix}{count} min', opensInMinutesMany: '{prefix}{count} mins',
   }),
+  // F-12 (gym-neutral favourites): Settings > Favourites pane.
+  favouritesPane: Object.freeze({
+    note: 'The class shown is the next one on the timetable at this slot, so the instructor shown is whoever teaches it next.',
+    emptyTitle: 'No favourites yet',
+    emptyHelp: 'Open the timetable and use the heart (or the ⋯ menu, then Favourite) on a class to save its weekly slot here.',
+    noUpcoming: 'No upcoming class in the loaded schedule',
+    checkingSchedule: 'Checking the schedule…',
+    loadingFavourites: 'Loading your favourites',
+    dayListLabel: '{day} favourites',
+    unfavouriteAria: 'Unfavourite {slot}',
+    unfavouriteFailed: 'Could not remove that favourite. Try again.',
+  }),
   shell: Object.freeze({
     offline: "You're offline! Some features are unavailable.",
     offlineSavedData: "You're offline. Showing saved data from {time}; changes are disabled.",
@@ -936,6 +948,8 @@ export const COPY = Object.freeze({
     studioLocationBundles: 'Studio & location-specific', memberStudentBundles: 'Member, student & corporate',
     introBundles: 'Intro, promo & other',
     about: 'About', general: 'General', calendarSync: 'Calendar Sync', notifications: 'Notifications',
+    favourites: 'Favourites',
+    favouritesDescription: 'Your favourite weekly class slots across every connected gym.',
     yourGyms: 'Your Gyms', account: 'Account', back: 'Back', aboutHeading: 'Why?',
     features: 'Features', preferredSpotMaps: 'Preferred Spot Maps', pushNotifications: 'Push Notifications',
     welcomeTour: 'Welcome Tour', replayOnboarding: 'Replay Onboarding', appearance: 'Appearance',

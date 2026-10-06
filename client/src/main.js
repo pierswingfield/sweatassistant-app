@@ -158,6 +158,7 @@ export function setFavouriteLocal(gymId, slot, on) {
   const id = `${slot.studioId}0000${slot.dayOfWeek}0000${slot.startTime}`;
   const rest = cur.filter((f) => f.id !== id);
   cache.favouritesByGym[gymId] = indexFavourites(on ? [...rest, { ...slot, id }] : rest);
+  window.dispatchEvent(new Event('sweat-favourites-changed'));
 }
 
 // --- THEME (Auto / Light / Dark) ---
@@ -1223,6 +1224,7 @@ export async function refreshUserData(force = false) {
       cache.profilesByGym[r.gymId] = r.profile;
       if (r.gymSettings) cache.gymSettings[r.gymId] = r.gymSettings;
     }
+    window.dispatchEvent(new Event('sweat-favourites-changed')); // F-12: Settings > Favourites repaints
 
     // `cache.profile`/`cache.eligibility` remain as the SINGLE-gym fallbacks the
     // credit arithmetic reads when no gym is named. With several gyms they are

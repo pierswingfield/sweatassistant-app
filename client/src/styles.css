@@ -11484,5 +11484,32 @@ html:not([data-credits-tab="on"]) .psycle-nav-btn[data-tab="buy-credits"] { disp
 @media (max-width: 768px) {
   /* Heart: in the first row, right after the class-type chip; only rendered for a favourited class. 44px hit
      area via negative margin so the row keeps its height. */
-  #psycle-helper-container .psycle-mobile-top-line > .psycle-mobile-fav-indicator { position: static; flex: 0 0 auto; width: 32px; height: 32px; margin: -8px -6px -8px -4px; }
+  #psycle-helper-container .psycle-mobile-top-line > .psycle-mobile-fav-indicator { position: static; flex: 0 0 auto; width: 26px; height: 32px; margin: -8px -4px -8px -8px; }
+  /* A favourited card's chip may give up width (it keeps its equalised width whenever the row has room), so the
+     heart after it can never be pushed out of a narrow row, e.g. a wide gym chip plus a zone suffix. */
+  #psycle-helper-container .psycle-mobile-top-line .ab-disc-tag:has(+ .psycle-mobile-fav-indicator) { flex-shrink: 1 !important; min-width: 0 !important; overflow: hidden; text-overflow: ellipsis; }
+}
+
+/* F-12: Settings > Favourites pane. Rows are the timetable's own rows; this only adds the page furniture
+   (note, weekday headings) and the "no upcoming class" row. */
+.psycle-fav-note { margin: 4px 0 6px; font-size: 13px; line-height: 1.45; color: var(--text-secondary); max-width: 62ch; }
+.psycle-fav-day { margin-top: 18px; }
+.psycle-fav-day-title { margin: 0 0 6px 2px; font-size: 15px; font-weight: 600; color: var(--text); }
+.psycle-fav-missing { display: flex; align-items: center; gap: 12px; min-width: 0; }
+.psycle-fav-missing-time { flex: 0 0 auto; min-width: 44px; font-size: 14px; }
+.psycle-fav-missing-body { flex: 1 1 0; min-width: 0; display: flex; flex-direction: column; gap: 2px; }
+.psycle-fav-missing-title { display: flex; align-items: center; gap: 8px; min-width: 0; font-size: 14px; font-weight: 600; }
+.psycle-fav-missing-title > span { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.psycle-fav-missing-where { font-size: 12px; color: var(--text-secondary); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.psycle-fav-missing-note { font-size: 12px; font-style: italic; color: var(--text-tertiary, var(--text-secondary)); }
+.psycle-fav-missing-heart { flex: 0 0 auto; width: 36px; height: 36px; display: inline-flex; align-items: center; justify-content: center; color: var(--danger); background: none; border: 0; cursor: pointer; touch-action: manipulation; }
+.psycle-fav-missing-heart.loading { opacity: .5; pointer-events: none; }
+.psycle-fav-empty-title { font-size: 16px; margin: 0 0 8px; }
+.psycle-fav-empty-help { font-size: 13px; margin: 0 auto; max-width: 44ch; color: var(--text-tertiary, var(--text-secondary)); }
+.psycle-fav-empty { text-align: center; padding: 40px 20px; color: var(--text-secondary); }
+@media (max-width: 768px) {
+  #psycle-helper-container .psycle-fav-day { margin-top: 14px; }
+  #psycle-helper-container .psycle-fav-missing { flex-wrap: wrap; gap: 6px 10px; }
+  #psycle-helper-container .psycle-fav-missing-body { flex-basis: 100%; order: 3; }
+  #psycle-helper-container .psycle-fav-missing-heart { margin-left: auto; order: 2; }
 }

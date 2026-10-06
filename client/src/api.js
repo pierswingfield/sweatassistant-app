@@ -818,7 +818,6 @@ export const api = {
       const data = await res.json();
       const gymId = linked[0]?.gym_id || getDefaultGymId();
       const gymName = linked[0]?.gym_name || linked[0]?.name || 'Psycle';
-      lastLoadedGymIds = new Set([gymId]); // Single gym always loaded
       return (data.waitlists || []).map((w) => ({
         ...w,
         gymId: w.gymId || gymId,
@@ -854,8 +853,6 @@ export const api = {
       })
     );
 
-    // Track which gyms successfully loaded
-    lastLoadedGymIds = new Set(results.filter(r => r.loaded).map(r => r.gymId));
 
     const all = results.flatMap(r => r.data);
     all.sort((a, b) => new Date(a.event?.startAt || a.event?.start_at || a.start_at || 0) - new Date(b.event?.startAt || b.event?.start_at || b.start_at || 0));

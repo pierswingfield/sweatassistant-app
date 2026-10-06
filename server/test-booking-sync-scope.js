@@ -144,6 +144,16 @@ check('sync with unlinked gym in gymIds ignores it', () => {
 // Run all checks
 let passed = 0;
 let failed = 0;
+check('resolveSyncScope: route scope rules', () => {
+  const { resolveSyncScope } = require('./booking-sync-scope');
+  const linked = ['gym-a', 'gym-b'];
+  assert.deepStrictEqual(resolveSyncScope(['gym-a'], linked), { scope: ['gym-a'], skip: false }, 'only loaded gym');
+  assert.deepStrictEqual(resolveSyncScope(undefined, linked), { scope: linked, skip: false }, 'absent = legacy, all linked');
+  assert.deepStrictEqual(resolveSyncScope([], linked), { scope: [], skip: true }, 'explicit empty = nothing loaded, skip');
+  assert.deepStrictEqual(resolveSyncScope(['gym-z'], linked), { scope: [], skip: true }, 'unlinked ignored, nothing left = skip');
+  assert.deepStrictEqual(resolveSyncScope(['gym-a', 'gym-z', 'gym-a'], linked).scope, ['gym-a'], 'dedupes and filters');
+});
+
 console.log(`\n🔍 booking-sync-scope           ${checks.length} checks`);
 for (const { name, fn } of checks) {
   try {

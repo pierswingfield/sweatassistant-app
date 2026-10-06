@@ -11,6 +11,7 @@ const pushService = require('./push');
 const notifications = require('./notifications');
 const scheduler = require('./scheduler');
 const poller = require('./poller');
+const { resolveSyncScope } = require('./booking-sync-scope');
 const calendar = require('./calendar');
 const { normalizeCalendarPrefs, applyCalendarPatch } = require('./calendar-prefs');
 const { isRollingWeekly } = require('./providers/booking-window');
@@ -388,10 +389,8 @@ app.post('/api/bookings/sync', authenticateToken, (req, res) => {
     // If gymIds is provided, use it (only for gyms that actually loaded).
     // Otherwise fall back to legacy behavior (all user's gyms).
     // Validate that provided gymIds are a subset of the user's linked gyms.
-    let scope = userGyms;
-    if (Array.isArray(gymIds) && gymIds.length > 0) {
-      scope = gymIds.filter(id => userGyms.includes(id));
-    }
+    const { scope, skip } = resolveSyncScope(gymIds, userGyms);
+    if (skip) return res.json({ success: true }); // nothing loaded: touch nothing
 
     db.replaceBookingCache(
       req.userId,

@@ -1433,42 +1433,9 @@ html, body {
 
 
 
-#psycle-helper-container .detail-actions {
-  display: flex;
-  flex-direction: column;
-  gap: 20px;
-  background: var(--surface);
-  border: 1px solid var(--border);
-  border-radius: 20px;
-  padding: 24px;
-  justify-content: center;
-}
 
-#psycle-helper-container .qty-group-large {
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
-}
 
-#psycle-helper-container .qty-group-large label {
-  font-size: 12px;
-  font-weight: 600;
-  color: var(--text-secondary);
-  text-transform: uppercase;
-}
 
-#psycle-helper-container .qty-group-large input {
-  width: 100%;
-  background: var(--surface-inset);
-  border: 1px solid var(--border);
-  border-radius: 10px;
-  padding: 10px;
-  color: var(--text);
-  text-align: center;
-  font-size: 16px;
-  font-weight: 700;
-  outline: none;
-}
 
 #psycle-helper-container .psycle-btn,
 .psycle-modal .psycle-btn {
@@ -1546,18 +1513,7 @@ html, body {
 }
 
 /* Footer Section */
-#psycle-helper-container .psycle-footer {
-  padding: 14px 28px;
-  border-top: 1px solid var(--separator);
-  background: var(--surface-inset);
-}
 
-#psycle-helper-container .psycle-footer-info {
-  font-size: 12px;
-  color: var(--text-tertiary);
-  line-height: 1.4;
-  text-align: center;
-}
 
 /* Screen-wide Liquid Glass Dropdown Alert (Top of page, safe-area aware) */
 #psycle-helper-container #psycle-toast-container {
@@ -1679,90 +1635,14 @@ html, body {
 }
 
 /* Auth Overlay Styling */
-#psycle-helper-container .psycle-auth-overlay {
-  position: absolute;
-  top: 0;
-  left: 0;
-  width: 100%;
-  height: 100%;
-  background: color-mix(in srgb, var(--bg) 90%, transparent);
-  backdrop-filter: blur(15px);
-  -webkit-backdrop-filter: blur(15px);
-  z-index: 100;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  border-radius: 28px;
-}
 
-#psycle-helper-container .psycle-auth-message-box {
-  background: var(--surface);
-  border: 1px solid var(--border-strong);
-  padding: 40px;
-  border-radius: 20px;
-  text-align: center;
-  max-width: 400px;
-  box-shadow: var(--shadow-card);
-}
 
 /* Passcode Overlay Styling */
-#psycle-helper-container .psycle-password-overlay {
-  position: absolute;
-  top: 0;
-  left: 0;
-  width: 100%;
-  height: 100%;
-  background: color-mix(in srgb, var(--bg) 95%, transparent);
-  backdrop-filter: blur(20px);
-  -webkit-backdrop-filter: blur(20px);
-  z-index: 200;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  border-radius: 28px;
-}
 
-#psycle-helper-container .psycle-input-passcode {
-  width: 80%;
-  padding: 10px 14px;
-  border-radius: 10px;
-  border: 1px solid var(--border-strong);
-  background: var(--surface-inset);
-  color: var(--text);
-  text-align: center;
-  font-size: 16px;
-  margin-bottom: 16px;
-  outline: none;
-  transition: all 0.2s ease;
-}
 
-#psycle-helper-container .psycle-input-passcode:focus {
-  border-color: var(--feat-autoupgrade);
-  box-shadow: 0 0 0 3px color-mix(in srgb, var(--feat-autoupgrade) 20%, transparent);
-  background: var(--surface-inset);
-}
 
 /* Table Warning Banner Styling */
-#psycle-helper-container .psycle-warning-banner {
-  display: flex;
-  align-items: flex-start;
-  justify-content: space-between;
-  background: color-mix(in srgb, var(--warning) 10%, transparent);
-  border: 1px solid color-mix(in srgb, var(--warning) 25%, transparent);
-  padding: 12px 16px;
-  border-radius: 12px;
-  margin-bottom: 16px;
-  font-family: 'Inter', sans-serif;
-  color: var(--warning);
-  font-size: 12.5px;
-  line-height: 1.5;
-}
 
-#psycle-helper-container .warning-content {
-  display: flex;
-  align-items: flex-start;
-  flex: 1;
-}
 
 #psycle-helper-container .warning-dismiss-btn {
   background: none;
@@ -2152,27 +2032,8 @@ html, body {
   letter-spacing: 0.5px;
 }
 
-.debug-grid {
-  display: flex;
-  flex-direction: column;
-  gap: 10px;
-  background: var(--surface-inset);
-  padding: 14px;
-  border-radius: 12px;
-  border: 1px solid var(--border);
-}
 
-.debug-row {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  padding: 6px 0;
-  border-bottom: 1px solid var(--separator);
-}
 
-.debug-row:last-child {
-  border-bottom: none;
-}
 
 .debug-label {
   color: var(--text-secondary);
@@ -2180,24 +2041,7 @@ html, body {
   font-size: 12px;
 }
 
-.debug-value {
-  color: var(--text);
-  font-size: 12px;
-  display: flex;
-  align-items: center;
-  gap: 6px;
-}
 
-.debug-source {
-  font-size: 12px;
-  color: var(--feat-autoupgrade);
-  background: color-mix(in srgb, var(--feat-autoupgrade) 15%, transparent);
-  border: 1px solid color-mix(in srgb, var(--feat-autoupgrade) 25%, transparent);
-  padding: 2px 6px;
-  border-radius: 4px;
-  display: inline-block;
-  font-weight: 600;
-}
 
 .debug-json-block {
   background: var(--surface-inset);
@@ -2218,12 +2062,6 @@ html, body {
   to { transform: rotate(360deg); }
 }
 
-.refresh-icon {
-  transition: transform 0.6s cubic-bezier(0.25, 1, 0.5, 1);
-}
-.refresh-icon:active {
-  transform: rotate(360deg);
-}
 
 /* Day Selector horizontal scroll list */
 #psycle-helper-container .psycle-date-selector {
@@ -2348,108 +2186,20 @@ html, body {
   /* opacity/filter removed — treat same as live rows */
 }
 
-#psycle-helper-container .psycle-btn-autobook {
-  transition: all 0.2s ease;
-}
 
-#psycle-helper-container .psycle-btn-autobook:hover {
-  background: var(--feat-autoupgrade) !important;
-  transform: translateY(-0.5px);
-}
 
 /* Visual Studio Layout Map styling */
-.psycle-slots-map-container {
-  box-shadow: inset 0 1px 3px color-mix(in srgb, var(--text) 8%, transparent);
-}
 
-.psycle-slot-bubble {
-  width: 34px;
-  height: 34px;
-  border-radius: 50%;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  font-size: 12px;
-  font-weight: 700;
-  color: var(--text);
-  user-select: none;
-  transition: all 0.2s cubic-bezier(0.25, 1, 0.5, 1);
-}
 
-.psycle-slot-bubble.available {
-  background: color-mix(in srgb, var(--success) 12%, transparent);
-  border: 1.5px solid var(--success);
-  color: var(--success);
-  cursor: pointer;
-  box-shadow: none;
-}
 
-.psycle-slot-bubble.available:hover {
-  background: color-mix(in srgb, var(--success) 30%, transparent);
-  border-color: var(--success);
-  color: var(--on-accent);
-  transform: translate(-50%, -50%) scale(1.18);
-  box-shadow: 0 4px 12px color-mix(in srgb, var(--success) 40%, transparent);
-}
 
-.psycle-slot-bubble.available.selected {
-  background: var(--success) !important;
-  border-color: var(--success) !important;
-  color: var(--on-accent) !important;
-  transform: translate(-50%, -50%) scale(1.25);
-  box-shadow: 0 0 16px color-mix(in srgb, var(--success) 60%, transparent);
-  z-index: 10;
-}
 
-.psycle-slot-bubble.occupied {
-  background: var(--surface-inset);
-  border: 1px solid var(--border);
-  color: color-mix(in srgb, var(--text) 25%, transparent);
-  cursor: not-allowed;
-}
 
-.psycle-slot-bubble.booked {
-  background: var(--feat-autoupgrade) !important;
-  border-color: color-mix(in srgb, var(--feat-autoupgrade) 70%, #fff) !important;
-  color: var(--on-accent) !important;
-  box-shadow: 0 0 16px color-mix(in srgb, var(--feat-autoupgrade) 60%, transparent);
-  z-index: 10;
-}
 
 /* Auto-Book Preferred Selection Styling */
-.psycle-slot-bubble.autobook-selected {
-  background: var(--feat-autoupgrade) !important;
-  border-color: color-mix(in srgb, var(--feat-autoupgrade) 70%, #fff) !important;
-  color: var(--on-accent) !important;
-  transform: translate(-50%, -50%) scale(1.2);
-  box-shadow: 0 0 16px color-mix(in srgb, var(--feat-autoupgrade) 60%, transparent);
-  z-index: 10;
-}
 
-.psycle-slot-bubble.autobook-selected.occupied-selected {
-  background: color-mix(in srgb, var(--feat-autoupgrade) 35%, transparent) !important;
-  border-color: color-mix(in srgb, var(--feat-autoupgrade) 60%, transparent) !important;
-  color: color-mix(in srgb, var(--on-accent) 70%, transparent) !important;
-  border-style: dashed !important;
-  box-shadow: 0 0 12px color-mix(in srgb, var(--feat-autoupgrade) 30%, transparent);
-}
 
-.psycle-slot-bubble.autobook-row-selected {
-  background: var(--info) !important;
-  border-color: color-mix(in srgb, var(--info) 70%, #fff) !important;
-  color: var(--on-accent) !important;
-  transform: translate(-50%, -50%) scale(1.15);
-  box-shadow: 0 0 14px color-mix(in srgb, var(--info) 50%, transparent);
-  z-index: 9;
-}
 
-.psycle-slot-bubble.autobook-row-selected.occupied-selected {
-  background: color-mix(in srgb, var(--info) 30%, transparent) !important;
-  border-color: color-mix(in srgb, var(--info) 60%, transparent) !important;
-  color: color-mix(in srgb, var(--on-accent) 80%, transparent) !important;
-  border-style: dashed !important;
-  box-shadow: 0 0 8px color-mix(in srgb, var(--info) 30%, transparent);
-}
 
 .psycle-row-select-btn {
   transition: all 0.2s cubic-bezier(0.25, 1, 0.5, 1) !important;
@@ -2469,9 +2219,6 @@ html, body {
   box-shadow: 0 0 10px color-mix(in srgb, var(--danger) 40%, transparent) !important;
 }
 
-.psycle-row-backdrop {
-  animation: backdropFadeIn 0.2s cubic-bezier(0.25, 1, 0.5, 1);
-}
 
 @keyframes backdropFadeIn {
   from {
@@ -2484,18 +2231,7 @@ html, body {
   }
 }
 
-.psycle-slot-grid-btn.autobook-selected {
-  background: var(--feat-autoupgrade) !important;
-  border-color: color-mix(in srgb, var(--feat-autoupgrade) 70%, #fff) !important;
-  color: var(--on-accent) !important;
-  box-shadow: 0 0 12px color-mix(in srgb, var(--feat-autoupgrade) 45%, transparent);
-}
 
-.psycle-slot-grid-btn.autobook-selected.occupied-selected {
-  background: color-mix(in srgb, var(--feat-autoupgrade) 45%, transparent) !important;
-  border-color: color-mix(in srgb, var(--feat-autoupgrade) 60%, transparent) !important;
-  box-shadow: 0 0 8px color-mix(in srgb, var(--feat-autoupgrade) 30%, transparent);
-}
 
 .psycle-slot-grid-btn.occupied {
   background: color-mix(in srgb, var(--text) 3%, transparent) !important;
@@ -2504,61 +2240,11 @@ html, body {
 }
 
 /* Auto-Upgrade Bubble Styles */
-.psycle-upgrade-bubble {
-  position: absolute;
-  width: 28px;
-  height: 28px;
-  border-radius: 50%;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  font-size: 12px;
-  font-weight: 700;
-  cursor: pointer;
-  transition: all 0.2s cubic-bezier(0.25, 1, 0.5, 1);
-  transform: translate(-50%, -50%);
-  user-select: none;
-  z-index: 5;
-}
 
-.psycle-upgrade-bubble.current-slot {
-  background: var(--info) !important;
-  border: 2px solid color-mix(in srgb, var(--info) 70%, #fff) !important;
-  color: var(--on-accent) !important;
-  transform: translate(-50%, -50%) scale(1.25);
-  box-shadow: 0 0 16px color-mix(in srgb, var(--info) 60%, transparent);
-  z-index: 12;
-  cursor: default;
-}
 
-.psycle-upgrade-bubble.upgrade-selected {
-  background: var(--feat-autoupgrade) !important;
-  border-color: color-mix(in srgb, var(--feat-autoupgrade) 70%, #fff) !important;
-  color: var(--on-accent) !important;
-  transform: translate(-50%, -50%) scale(1.2);
-  box-shadow: 0 0 16px color-mix(in srgb, var(--feat-autoupgrade) 60%, transparent);
-  z-index: 10;
-}
 
-.psycle-upgrade-bubble.available {
-  background: color-mix(in srgb, var(--success) 20%, transparent) !important;
-  border: 1.5px solid color-mix(in srgb, var(--success) 50%, transparent) !important;
-  color: var(--success) !important;
-}
 
-.psycle-upgrade-bubble.available:hover {
-  background: color-mix(in srgb, var(--success) 35%, transparent) !important;
-  border-color: var(--success) !important;
-  transform: translate(-50%, -50%) scale(1.15);
-  box-shadow: 0 0 10px color-mix(in srgb, var(--success) 40%, transparent);
-}
 
-.psycle-upgrade-bubble.occupied {
-  background: color-mix(in srgb, var(--text) 4%, transparent) !important;
-  border: 1px solid var(--border) !important;
-  color: color-mix(in srgb, var(--text) 20%, transparent) !important;
-  cursor: not-allowed;
-}
 
 /* Auto-Upgrade button in My Bookings */
 .psycle-auto-upgrade-btn:hover {
@@ -2598,15 +2284,7 @@ html, body {
 }
 
 /* My Bookings layout and styling */
-#psycle-helper-container .psycle-booking-card {
-  box-shadow: var(--shadow-card);
-  transition: border-color 0.2s, background-color 0.2s;
-}
 
-#psycle-helper-container .psycle-booking-card:hover {
-  border-color: var(--border-strong) !important;
-  background-color: color-mix(in srgb, var(--text) 3%, var(--surface)) !important;
-}
 
 #psycle-helper-container .psycle-cancel-booking-btn {
   transition: all 0.2s ease;
@@ -2631,19 +2309,6 @@ html, body {
 }
 
 /* Extra slots container and bubbles styling override (avoids offset issues from translate(-50%, -50%)) */
-.psycle-modal .psycle-slot-bubble.extra-slot {
-  position: relative !important;
-  left: auto !important;
-  top: auto !important;
-  transform: none !important;
-  flex-shrink: 0;
-}
-.psycle-modal .psycle-slot-bubble.extra-slot:hover {
-  transform: scale(1.15) !important;
-}
-.psycle-modal .psycle-slot-bubble.extra-slot.selected {
-  transform: scale(1.2) !important;
-}
 
 /* --- INSTRUCTOR HOVER TOOLTIP & CLASS DEBUG OVERRIDES --- */
 
@@ -2748,12 +2413,6 @@ html, body {
 }
 
 /* Interactive JSON Explorer */
-.json-toggle:hover {
-  color: var(--accent) !important;
-}
-.json-nested li:hover {
-  background: color-mix(in srgb, var(--text) 3%, transparent);
-}
 
 /* Class Debug Modal Size Overrides */
 #psycle-debug-modal .psycle-modal-content {
@@ -2894,9 +2553,6 @@ html, body {
   }
 }
 
-.psycle-ms-dropdown-fade-in {
-  animation: fadeInMs 0.3s cubic-bezier(0.25, 1, 0.5, 1) forwards;
-}
 
 /* --- TIMETABLE VIEW TABLE RESET & ALIGNMENTS --- */
 

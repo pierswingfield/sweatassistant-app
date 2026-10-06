@@ -150,3 +150,5 @@ These were still listed as open in the old docs. The code shows them done.
 - Item IDs (`C3-4`, `U1-2`) are stable. Reference them in commits and code comments.
 - The old item IDs (QA-nn, WP-xx, Dn, Qn) are kept in brackets so the archive and QA logs can be
   traced.
+
+**Update 2026-10-06:** **F-12** (gym-neutral favourites: favouriting on gyms with no native bookmarks) is DONE on branch `favourites` (see [F-future-features.md](F-future-features.md)). User-confirmed corrections: **F-2** (MarianaTek guest passes) is DONE, nothing open; **F-11** (class counts and stats) is being built inside the Home page workstream ([H](H-home-page.md)); **C8-1** (admin event ledger and booking lifecycle) is a genuine job to be done and stays open.

@@ -861,6 +861,9 @@ const ACCOUNT_SCOPED_SETTING_KEYS = new Set([
   // Saved default timetable filters. The timetable is a MERGED multi-gym view,
   // so the filters (which include a gym selector) belong to the person.
   'defaultFilters',
+  // A person chooses what the app calls them once; gym profiles are merely the
+  // onboarding suggestion and must never change this account-level choice.
+  'firstName',
 ]);
 
 function parseJsonOr(raw, fallback) {
@@ -2093,6 +2096,7 @@ module.exports = {
   getUserGymsPublic(userId) {
     return db.prepare(`
       SELECT ug.gym_id, g.name AS gym_name, g.provider, g.enabled AS gym_enabled,
+             ug.display_name,
              ug.gym_email, ug.status, ug.priority,
              (ug.calendar_token IS NOT NULL) AS calendar_enabled,
              ug.created_at, ug.updated_at, ug.last_authenticated_at,

@@ -21,6 +21,7 @@ import { setGymCatalogue } from '../gym-context.js';
 import { COPY, formatCopyText, appCopy } from '../copy.js';
 import { escapeHtml, gymChip } from './cards';
 import { enableAutoUpgradeForGyms, shouldAnimateGymLogos, getPostLoginDestination as choosePostLoginDestination, detectInstallContext, shouldOfferInstall } from './onboarding-routing.js';
+import { cleanFirstName, inferFirstName } from './name-capture.js';
 
 const COMPLETE_KEY = 'psycleOnboardingComplete';
 const STEP_KEY = 'psycleOnboardingStep';
@@ -28,7 +29,7 @@ const STEP_KEY = 'psycleOnboardingStep';
 // v4: focused, resumable flow with one optional setup roll-up.
 const ONBOARDING_VERSION = '4';
 
-const STEPS = ['intro', 'install', 'authchoice', 'login', 'gyms', 'features'];
+const STEPS = ['intro', 'install', 'authchoice', 'login', 'gyms', 'name', 'features'];
 
 // --- platform / capability detection (mirrors main.js:279) ---
 const isIOS = () => /iPad|iPhone|iPod/.test(navigator.userAgent) && !window.MSStream;
@@ -643,6 +644,88 @@ function stepGyms() {
   });
 }
 
+// ---- STEP: account name (H-2) ---------------------------------------------
+// This deliberately runs after, rather than inside, each connection attempt:
+// a member may link several gyms and should see one suggestion only after we
+// can compare all of the linked profile names.
+function stepName() {
+  return new Promise(async (resolve) => {
+    let linkedGyms = [];
+    let settings = {};
+    try {
+      const [mine, saved] = await Promise.all([api.getMyGyms(), api.getSettings()]);
+      linkedGyms = mine.gyms || mine || [];
+      settings = saved || {};
+    } catch (_) {
+      // A transient read failure must not trap the member in onboarding.
+      resolve();
+      return;
+    }
+
+    if (!linkedGyms.length || cleanFirstName(settings.firstName)) {
+      resolve();
+      return;
+    }
+
+    const suggestion = inferFirstName(linkedGyms);
+    const save = async (value, sheet) => {
+      const firstName = cleanFirstName(value);
+      const errorEl = sheet.querySelector('.psycle-onb-name-error');
+      if (!firstName) {
+        errorEl.textContent = COPY.onboarding.nameRequired;
+        errorEl.style.display = 'block';
+        return;
+      }
+      errorEl.style.display = 'none';
+      try {
+        await api.updateSettings({ firstName });
+        resolve();
+      } catch (err) {
+        errorEl.textContent = err.message || COPY.onboarding.connectionFailed;
+        errorEl.style.display = 'block';
+      }
+    };
+
+    const renderEntry = (prefill = '') => {
+      const sheet = renderSheet({
+        eyebrow: COPY.onboarding.nameEyebrow,
+        title: COPY.onboarding.namePrompt,
+        body: `<p class="psycle-onb-lead"></p>
+          <label for="psycle-onb-first-name" style="font-size:12px;color:var(--text-tertiary);display:block;margin-bottom:4px;"></label>
+          <input id="psycle-onb-first-name" autocomplete="given-name" style="width:100%;box-sizing:border-box;" value="${escapeHtml(cleanFirstName(prefill))}">
+          <div class="psycle-login-error psycle-onb-name-error" style="display:none;margin-top:8px;"></div>`,
+        footer: `<button class="psycle-btn-primary psycle-onb-name-save" type="button"><span>${COPY.onboarding.saveAndContinue}</span></button>`,
+        onBack: suggestion ? renderSuggestion : () => resolve('back'),
+      });
+      sheet.querySelector('.psycle-onb-lead').textContent = suggestion ? COPY.onboarding.nameExplanation : '';
+      sheet.querySelector('label').textContent = COPY.onboarding.nameInputLabel;
+      sheet.querySelector('.psycle-onb-name-save').addEventListener('click', () => save(sheet.querySelector('#psycle-onb-first-name').value, sheet));
+      sheet.querySelector('#psycle-onb-first-name').addEventListener('keydown', (event) => {
+        if (event.key === 'Enter') save(event.currentTarget.value, sheet);
+      });
+    };
+
+    const renderSuggestion = () => {
+      const sheet = renderSheet({
+        eyebrow: COPY.onboarding.nameEyebrow,
+        // renderSheet interpolates titles as HTML, so a provider profile can
+        // never turn an untrusted display name into markup here.
+        title: escapeHtml(formatCopyText(COPY.onboarding.nameQuestion, { name: suggestion })),
+        body: `<p class="psycle-onb-lead"></p><div class="psycle-login-error psycle-onb-name-error" style="display:none;margin-top:8px;"></div>`,
+        footer: `<button class="psycle-btn-primary psycle-onb-name-yes" type="button"><span>${COPY.onboarding.yes}</span></button>
+          <button class="psycle-btn-mini psycle-onb-name-edit" type="button">${COPY.onboarding.edit}</button>`,
+        onBack: () => resolve('back'),
+      });
+      sheet.querySelector('.psycle-onb-lead').textContent = COPY.onboarding.nameExplanation;
+      sheet.querySelector('.psycle-onb-name-yes').addEventListener('click', () => save(suggestion, sheet));
+      sheet.querySelector('.psycle-onb-name-edit').addEventListener('click', () => renderEntry(suggestion));
+    };
+
+    if (suggestion) renderSuggestion();
+    else renderEntry();
+  });
+}
+
 // ---- STEP: notifications ----
 function stepNotifications() {
   return new Promise((resolve) => {
@@ -896,5 +979,6 @@ const STEP_HANDLERS = {
   authchoice: stepAuthChoice,
   login: stepLogin,
   gyms: stepGyms,
+  name: stepName,
   features: stepFeatures,
 };

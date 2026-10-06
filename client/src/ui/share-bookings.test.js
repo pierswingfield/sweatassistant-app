@@ -2,7 +2,7 @@ import { describe, it, expect, beforeEach } from 'vitest';
 import { setGymCatalogue, setLinkedGyms } from '../gym-context.js';
 import { CATALOGUE } from './gym-brand-fixture.js';
 import {
-  buildShareItems, filterShareItems, countShareItems, formatShare, possessive, pickFirstName, boldUnicode, gymsWithUpcoming,
+  buildShareItems, filterShareItems, countShareItems, formatShare, possessive, pickFirstName, gymsWithUpcoming,
 } from './share-bookings.js';
 
 const NOW = Date.parse('2026-10-06T09:00:00Z');
@@ -72,7 +72,7 @@ describe('share-bookings', () => {
     expect(pickFirstName([{}])).toBe('');
   });
 
-  it('plain text: title-cased header, bold date and time, bullets, full location', () => {
+  it('plain text: title-cased header, capitalised date, bullets, sentence-case type, full location', () => {
     const items = buildShareItems({
       bookings: [booking(1, 5)],
       waitlists: [{ event: { id: 3, name: 'RIDE 45', discipline: 'RIDE', startAt: iso(6), gymId: 'psycle-london', timeZone: 'Europe/London', locationName: 'Psycle Oxford Circus' } }],
@@ -81,9 +81,10 @@ describe('share-bookings', () => {
     const { text } = formatShare(items, { name: 'Piers', windowId: '1w', appName: 'Sweat Assistant' });
     const lines = text.split('\n');
     expect(lines[0]).toBe("Piers's Classes - 7 Days");
-    expect(text).toMatch(/• [\u{1d7ec}-\u{1d7f5}]{2}:[\u{1d7ec}-\u{1d7f5}]{2} Psycle - RIDE with Emma · Oxford Circus/u);
+    expect(text).toMatch(/• \d\d:\d\d Psycle - Ride with Emma · Oxford Circus/);
+    expect(text).toMatch(/\n[A-Z]{3},? \d+ [A-Z]{3}\n/);
     expect(text).toContain('(waitlist)');
-    expect(text).toContain('Psycle - RIDE with Zed · Oxford Circus (auto-book, TBC)');
+    expect(text).toContain('Psycle - Ride with Zed · Oxford Circus (auto-book, TBC)');
     expect(text).not.toContain('RIDE 45');
     expect(text).toMatch(/Shared from Sweat Assistant$/);
     expect(text.match(/\n\n/g)).toHaveLength(3);
@@ -93,18 +94,23 @@ describe('share-bookings', () => {
     const items = buildShareItems({ bookings: [booking(1, 5, { instructors: [{ name: '<b>Em</b>' }] })] });
     const { html } = formatShare(items, { name: 'Piers', windowId: '3d' });
     expect(html).toContain('<p>Piers&#39;s Classes - 3 Days</p>');
-    expect(html).toMatch(/<p><strong>[^<]+<\/strong><\/p><ul><li><strong>\d\d:\d\d<\/strong> Psycle - RIDE with &lt;b&gt;Em&lt;\/b&gt; · Oxford Circus<\/li><\/ul>/);
+    expect(html).toMatch(/<p><strong>[A-Z0-9, ]+<\/strong><\/p><ul><li><strong>\d\d:\d\d<\/strong> Psycle - Ride with &lt;b&gt;Em&lt;\/b&gt; · Oxford Circus<\/li><\/ul>/);
   });
 
   it('omits "with" when there is no instructor, and handles no name', () => {
     const items = buildShareItems({ bookings: [booking(1, 5, { instructors: [] })] });
     const { text } = formatShare(items, { windowId: '2w' });
     expect(text.startsWith('My Classes - 14 Days')).toBe(true);
-    expect(text).toContain('Psycle - RIDE · Oxford Circus');
+    expect(text).toContain('Psycle - Ride · Oxford Circus');
   });
 
-  it('boldUnicode maps letters and digits and leaves punctuation', () => {
-    expect(boldUnicode('Wed 7:30')).toBe('\u{1d5ea}\u{1d5f2}\u{1d5f1} \u{1d7f3}:\u{1d7ee}\u{1d7ec}'.replace('\u{1d7ee}\u{1d7ec}', '\u{1d7ef}\u{1d7ec}'));
+  it('class type is the sentence-case group, never the class name', () => {
+    const items = buildShareItems({ bookings: [
+      booking(1, 5, { gymId: 'jab-boxing', name: 'TRAIN - Chest, Back and Arms', discipline: 'TRAIN - Chest, Back and Arms', locationName: 'JAB Soho' }),
+    ] });
+    const { text } = formatShare(items, { windowId: '1w' });
+    expect(text).toContain('JAB - Train with Emma · Soho');
+    expect(text).not.toContain('Chest');
   });
 
   it('only offers gyms that have something upcoming', () => {

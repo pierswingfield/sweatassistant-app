@@ -3,7 +3,7 @@
 // (share-bookings.test.js). The drawer lives in share-sheet.js.
 import { zoneFor, formatInZone, noSept } from '../lib.js';
 import { getGymShortName } from '../gym-context.js';
-import { trimLocation, escapeHtml } from './cards.js';
+import { trimLocation, escapeHtml, getDiscipline } from './cards.js';
 import { COPY, formatCopyText } from '../copy.js';
 
 export const SHARE_WINDOWS = Object.freeze([
@@ -20,8 +20,9 @@ function baseItem(kind, gymId, eventId, startAt, zone, className, discipline, lo
   return {
     kind, gymId, eventId: String(eventId ?? ''), startAt, zone,
     gymName: gym,
-    // The semantic group ("RIDE", "TRAIN"), as the cards show it; the class name only as a fallback.
-    classType: discipline || className || COPY.autoBook.class,
+    // The semantic group in sentence case ("Ride", "Train"), grouped exactly as the cards do;
+    // never the class name ("TRAIN - Chest, Back and Arms" is just "Train").
+    classType: getDiscipline(discipline || className || '').label,
     location: trimLocation(locationName || '', gym),
     instructor: instructor || '',
   };
@@ -105,18 +106,6 @@ function tag(kind) {
   return '';
 }
 
-// Plain-text messengers (WhatsApp, iMessage) drop HTML, so the plain flavour
-// carries emphasis as Unicode bold letters, which render everywhere without
-// markup. Only used for dates and times.
-export function boldUnicode(str) {
-  return String(str).replace(/[A-Za-z0-9]/g, (c) => {
-    const n = c.codePointAt(0);
-    if (n >= 65 && n <= 90) return String.fromCodePoint(0x1d5d4 + n - 65);
-    if (n >= 97 && n <= 122) return String.fromCodePoint(0x1d5ee + n - 97);
-    return String.fromCodePoint(0x1d7ec + n - 48);
-  });
-}
-
 /** Share document: a title, days of lines, an optional footer. Rendered to text and HTML below. */
 export function buildShareDoc(items, { name = '', windowId = DEFAULT_SHARE_WINDOW, appName = '' } = {}) {
   const win = SHARE_WINDOWS.find((w) => w.id === windowId) || SHARE_WINDOWS[1];
@@ -141,15 +130,15 @@ export function buildShareDoc(items, { name = '', windowId = DEFAULT_SHARE_WINDO
 export function renderSharePlain(doc) {
   const out = [doc.title];
   for (const d of doc.days) {
-    out.push('', boldUnicode(d.date));
-    for (const l of d.lines) out.push(`• ${boldUnicode(l.time)} ${l.rest}`);
+    out.push('', d.date.toUpperCase());
+    for (const l of d.lines) out.push(`• ${l.time} ${l.rest}`);
   }
   if (doc.footer) out.push('', doc.footer);
   return out.join('\n');
 }
 
 export function renderShareHtml(doc) {
-  const days = doc.days.map((d) => `<p><strong>${escapeHtml(d.date)}</strong></p><ul>${d.lines.map((l) =>
+  const days = doc.days.map((d) => `<p><strong>${escapeHtml(d.date.toUpperCase())}</strong></p><ul>${d.lines.map((l) =>
     `<li><strong>${escapeHtml(l.time)}</strong> ${escapeHtml(l.rest)}</li>`).join('')}</ul>`).join('');
   return `<p>${escapeHtml(doc.title)}</p>${days}${doc.footer ? `<p>${escapeHtml(doc.footer)}</p>` : ''}`;
 }

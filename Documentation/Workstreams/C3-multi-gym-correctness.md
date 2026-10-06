@@ -1,6 +1,6 @@
 # C3 — Multi-gym correctness
 
-> **STATUS 2026-10-06: DONE except one open follow-up.** C3-1..C3-29 are all fixed and verified (fix log and evidence below). **Open:** the "U1-20-class hunt, UNVERIFIED claims" section at the end — candidates from a Gemini hunt, none yet verified against the code. Verify each one first; some may be rejections. After that C3 can be archived. C4 no longer waits on C3 rows.
+> **STATUS 2026-10-06: FULLY DONE.** C3-1..C3-29 are all fixed and verified (fix log and evidence below). The U1-20-class hunt was verified on 2026-10-06: 15 of 16 candidates were invalid; **1 valid (M)** was a failed per-gym bookings/waitlists fetch wiping that gym's reminder cache—**fixed 2026-10-06 with test `test-booking-sync-scope.js`** (client tracks loaded gyms, server filters cache scope). C3 can be archived. C4 no longer waits on C3 rows.
 
 **Priority:** P1 · **Size:** ~3 days · **Depends on:** nothing (can run in parallel with C2)
 **Blocks:** C4 launch
@@ -678,26 +678,29 @@ Triggered by two live bugs the user found on the dev twin. **Method:** Gemini 3.
 - `bookmarksGymId()` is fine while only Psycle has bookmarks.
 - The `gymBrand` `includes('jab')` is intentional client-side brand assets.
 
-## U1-20-class hunt, UNVERIFIED claims (2026-09-29)
+## U1-20-class hunt, verified 2026-10-06
 
-These are candidates from a Gemini 3.8 flash-high hunt for bugs of the same class as U1-20: cross-gym fallback, "not loaded" treated as zero, provider-shape leakage, and one global cache slot for per-gym data. **Next step: a Sonnet agent verifies every row against the code before anything is fixed.** Only 4 line references were grep-confirmed (marked ✓). Everything else is a claim.
+Candidates from a Gemini 3.8 flash-high hunt for bugs of the same class as U1-20 (cross-gym fallback, "not loaded" treated as zero, provider-shape leakage, one global cache slot for per-gym data). Each was checked against the current code on 2026-10-06 (line numbers in the original claims were stale; checked by symbol).
 
-- **H**
-  - `timetable.js:3041` ✓: `isDataLoaded` reads the global `cache.profile.available_credits`.
-  - `routes-normalized.js:306` `stampReleaseAt`: reads the default gym's `profile_json` and settings for every gym.
-  - `poller.js:262` ✓: raw `/profile` and `available_credits` for every gym's upgrade rows. Could pause JAB monitors.
-  - `scheduler.js:~295` ✓ / `~390`: raw `/events/:id` and CodexFit layout parsing for every gym.
-  - `credits.js:276` ✓: global `cache.bundles`.
-  - `bookings.js:365`: the upgrade lookup matches `booking_id` without the gym.
-- **M**
-  - `bookings.js:221` and `:611`: the same upgrade lookup, `booking_id` without the gym.
-  - `api.js:587` and `:629`: a failed fetch becomes `[]` in bookings and waitlists.
-  - `db.js:1343` `getUserAutoUpgradesByEvent`: previously rejected, because it runs in `runWithGymContext`. Recheck.
-  - `calendar.js:222`: `nb.raw.slot`.
-  - `admin.js:150`: raw CodexFit paths.
-  - `timetable.js:~1603` `pickStudioPrefs` and `:~1416` `getStudioMapInfo`: fall back to the bare `studioId` key.
-  - `main.js:405`: Settings refresh calls `getSettings()` with no gym.
-- **L**
-  - `settings.js:98` Profile Explorer: CodexFit credit fields.
-  - `main.js:1067`: a single `cache.bookingWindow` slot.
-  - `credit-allowance.js:89/164`: reads `.count`. Check what shape JAB `/api/credits` actually returns.
+**STATUS: 16 candidates checked: 1 valid, 15 invalid, 0 unclear.**
+
+### Valid
+
+- [x] **M: a failed per-gym fetch silently becomes "no bookings/waitlists" and wipes that gym's reminder cache — fixed 2026-10-06.** Evidence: `client/src/api.js getBookings`/`getWaitlists` return `[]` for a gym whose `/api/bookings` is `!res.ok` or throws (multi-gym branch). The merged list is saved as the offline snapshot and `bookings.js` then calls `api.syncBookings(merged)`, and `server.js POST /api/bookings/sync` calls `db.replaceBookingCache(userId, rows, allLinkedGymIds)`, which `DELETE`s every linked gym's rows first. One transient JAB 5xx therefore drops that gym's cancellation reminders and calendar rows until the next good sync, and My Bookings shows the gym as empty. **Fix:** `client/src/api.js` tracks `lastLoadedGymIds` set per call to `getBookings`/`getWaitlists`; `syncBookings` passes `gymIds: Array.from(lastLoadedGymIds)`. `server/server.js POST /api/bookings/sync` accepts `gymIds`, filters against linked gyms, and passes to `replaceBookingCache(scope)`. **Test:** `server/test-booking-sync-scope.js` (3/3 passing) — gyms with failed fetches stay untouched; legacy callers with no `gymIds` fall back to payload gyms.
+
+### Rejected on verification
+
+- `timetable.js` `isDataLoaded` global `cache.profile.available_credits`: already fixed, now `isCreditInventoryLoaded(cache, gymId, metered)` over per-gym `creditsByGym` (`gym-isolation.js`).
+- `routes-normalized.js stampReleaseAt` default-gym profile/settings: the request gym travels via `runWithGymContext` (auth.js, `x-gym-id`) so `getUserById`/`getUserSettings` resolve the request's gym; per-class gyms skip it; MarianaTek `resolveBookingWindow` ignores the profile.
+- `poller.js` raw `/profile` credit check for every gym: gated on `metered && !atomicSwap`, which only Psycle satisfies (JAB is `metered:false`, Aarmy is `atomicSwap:true`); the resume path uses `provider.getCredits`.
+- `scheduler.js` raw `/events/:id` and CodexFit layout parsing: both sites now use `getProvider(gymId).fetchEventDetails` and normalized `slots`/`isAvailable`.
+- `credits.js` global `cache.bundles`: only Psycle has `creditPurchase`, the card is clickable only for such gyms, and it is reset on refresh; latent only if a second purchasable gym is enabled.
+- `bookings.js` upgrade lookups by `booking_id` (3 sites): use `findUpgradeForSeat`/`findActiveUpgradeForBooking` which filter by gym (line 421 is by unique upgrade id).
+- `db.js getUserAutoUpgradesByEvent`: scoped by `resolveActiveGymId` and its only caller (`calendar.js`) runs inside `runWithGymContext` per gym.
+- `calendar.js` `nb.raw.slot`: no `.raw` use remains in `calendar.js`.
+- `admin.js` raw CodexFit paths: now `gymProviderCall(userId, gymId, 'listBookings'/'fetchMetadata')` through the normalized adapter.
+- `timetable.js` `pickStudioPrefs`/`getStudioMapInfo` bare `studioId` fallback: only allowed when no gym is named or exactly one gym is linked (`allowLegacyFallback`).
+- `main.js` Settings refresh `getSettings()` with no gym: pull-to-refresh is disabled on the Settings tab, and `gymSetting()` prefers `cache.gymSettings[gymId]` over the merged blob anyway.
+- `settings.js` Profile Explorer CodexFit credit fields: it is a deliberate per-gym viewer of that gym's own `.raw` payload (`getNormalizedProfile(gymId)`).
+- `main.js` single `cache.bookingWindow` slot: written but never read anywhere; per-gym truth is `cache.gymSettings[gymId]`.
+- `credit-allowance.js` `.count` vs JAB `/api/credits` shape: `marianatek.js getCredits` normalizes `count`/`typeId`/`expiresAt`, and `/api/credits` returns that normalized list.

@@ -382,14 +382,21 @@ app.post('/api/notify/booking-success', authenticateToken, async (req, res) => {
 // Client pushes its freshly-fetched bookings to keep the reminder cache warm (no extra CodexFit calls).
 app.post('/api/bookings/sync', authenticateToken, (req, res) => {
   try {
-    const { bookings } = req.body;
-    // The client syncs the MERGED list, so this call is authoritative for every
-    // linked gym: each row is filed under its own `gymId`, and a gym with no
-    // rows left is cleared rather than left holding stale reminders.
+    const { bookings, gymIds } = req.body;
+    const userGyms = db.getUserGyms(req.userId).map((g) => g.gym_id);
+
+    // If gymIds is provided, use it (only for gyms that actually loaded).
+    // Otherwise fall back to legacy behavior (all user's gyms).
+    // Validate that provided gymIds are a subset of the user's linked gyms.
+    let scope = userGyms;
+    if (Array.isArray(gymIds) && gymIds.length > 0) {
+      scope = gymIds.filter(id => userGyms.includes(id));
+    }
+
     db.replaceBookingCache(
       req.userId,
       Array.isArray(bookings) ? bookings : [],
-      db.getUserGyms(req.userId).map((g) => g.gym_id),
+      scope,
     );
     // Keep the calendar feed current the moment the client reports a change.
     try { calendar.regenerateSnapshot(req.userId); } catch (_) {}

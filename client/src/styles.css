@@ -1280,39 +1280,9 @@ html, body {
 /* Custom switch toggle */
 
 
-#psycle-helper-container .psycle-switch-slider {
-  position: absolute;
-  cursor: pointer;
-  top: 0;
-  left: 0;
-  right: 0;
-  bottom: 0;
-  background-color: color-mix(in srgb, var(--text) 15%, transparent);
-  transition: .3s;
-  border-radius: 18px;
-  border: 1px solid var(--border);
-}
 
-#psycle-helper-container .psycle-switch-slider:before {
-  position: absolute;
-  content: "";
-  height: 12px;
-  width: 12px;
-  left: 2px;
-  bottom: 2px;
-  background-color: var(--text-secondary);
-  transition: .3s;
-  border-radius: 50%;
-}
 
-#psycle-helper-container .psycle-switch-container input:checked + .psycle-switch-slider {
-  background-color: var(--accent-fill);
-}
 
-#psycle-helper-container .psycle-switch-container input:checked + .psycle-switch-slider:before {
-  transform: translateX(14px);
-  background-color: var(--on-accent);
-}
 
 #psycle-helper-container .psycle-switch-label {
   font-size: 12px;
@@ -1378,62 +1348,14 @@ html, body {
   background: color-mix(in srgb, var(--text) 30%, transparent);
 }
 
-#psycle-helper-container .psycle-dashboard-table {
-  width: 100%;
-  border-collapse: collapse;
-  font-size: 12px;
-  text-align: left;
-}
 
-#psycle-helper-container .psycle-dashboard-table th {
-  position: sticky;
-  top: 0;
-  background: var(--surface-inset);
-  color: var(--text-secondary);
-  font-weight: 600;
-  padding: 12px 14px;
-  border-bottom: 1px solid var(--border);
-  z-index: 10;
-  text-transform: uppercase;
-  font-size: 12px;
-  letter-spacing: 0.5px;
-}
 
-#psycle-helper-container .psycle-dashboard-table th.sortable {
-  cursor: pointer;
-  user-select: none;
-  transition: color 0.15s ease, background-color 0.15s ease;
-}
 
-#psycle-helper-container .psycle-dashboard-table th.sortable:hover {
-  color: var(--text);
-  background: color-mix(in srgb, var(--text) 5%, var(--surface-inset));
-}
 
-#psycle-helper-container .sort-arrow {
-  display: inline-block;
-  font-size: 12px;
-  color: color-mix(in srgb, var(--text) 25%, transparent);
-  margin-left: 2px;
-}
 
-#psycle-helper-container .sort-arrow.active {
-  color: var(--text);
-}
 
-#psycle-helper-container .psycle-dashboard-table td {
-  padding: 12px 14px;
-  border-bottom: 1px solid var(--separator);
-  vertical-align: middle;
-}
 
-#psycle-helper-container .psycle-dashboard-table tbody tr {
-  transition: background-color 0.15s ease;
-}
 
-#psycle-helper-container .psycle-dashboard-table tbody tr:hover {
-  background: color-mix(in srgb, var(--text) 3%, transparent);
-}
 
 /* Loading & Empty states */
 #psycle-helper-container .table-loading, #psycle-helper-container .table-error, #psycle-helper-container .table-empty {
@@ -1444,22 +1366,9 @@ html, body {
   font-size: 12px;
 }
 
-#psycle-helper-container .row-favorite {
-  background: color-mix(in srgb, var(--warning) 3%, transparent);
-}
 
-#psycle-helper-container .row-armed {
-  background: color-mix(in srgb, var(--danger) 4%, transparent) !important;
-  border-left: 3px solid var(--danger);
-}
 
 /* Favorites Cell */
-#psycle-helper-container .fav-id-cell {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  gap: 8px;
-}
 
 #psycle-helper-container .star-btn {
   cursor: pointer;
@@ -1476,199 +1385,37 @@ html, body {
   color: var(--warning);
 }
 
-#psycle-helper-container .bundle-id {
-  font-weight: 600;
-  color: var(--text-secondary);
-  font-family: monospace;
-}
 
 /* Bundle Name Cell */
-#psycle-helper-container .bundle-name-cell {
-  display: flex;
-  flex-direction: column;
-  gap: 2px;
-}
 
-#psycle-helper-container .bundle-name-cell strong {
-  font-size: 12.5px;
-  color: var(--text);
-}
 
-#psycle-helper-container .bundle-handle {
-  font-size: 10.5px;
-  color: var(--text-secondary);
-  font-family: monospace;
-}
 
-#psycle-helper-container .bundle-terms-pill {
-  align-self: flex-start;
-  font-size: 12px;
-  padding: 1px 6px;
-  border-radius: 4px;
-  background: color-mix(in srgb, var(--text) 4%, transparent);
-  color: var(--text-secondary);
-  margin-top: 3px;
-  cursor: help;
-  border: 1px solid var(--separator);
-}
 
 /* Status ticks/crosses */
-#psycle-helper-container .status-cell {
-  font-size: 12px;
-  font-weight: 500;
-  display: inline-block;
-  padding: 2px 8px;
-  border-radius: 6px;
-}
 
-#psycle-helper-container .status-cell.yes {
-  color: var(--success);
-  background: color-mix(in srgb, var(--success) 8%, transparent);
-}
 
-#psycle-helper-container .status-cell.no {
-  color: var(--danger);
-  background: color-mix(in srgb, var(--danger) 8%, transparent);
-}
 
-#psycle-helper-container .expiry-cell {
-  color: var(--text-secondary);
-}
 
 /* Pricing Cells */
-#psycle-helper-container .total-price-cell {
-  display: flex;
-  flex-direction: column;
-  align-items: flex-end;
-  gap: 2px;
-}
 
-#psycle-helper-container .price-value {
-  font-size: 14px;
-  font-weight: 700;
-  color: var(--text);
-}
 
-#psycle-helper-container .credits-total {
-  font-size: 12px;
-  color: var(--text-secondary);
-}
 
-#psycle-helper-container .cost-credit-cell {
-  display: flex;
-  flex-direction: column;
-  align-items: flex-end;
-}
 
-#psycle-helper-container .cost-value {
-  font-size: 13px;
-  font-weight: 600;
-  color: var(--accent);
-}
 
 /* Mini select button */
-#psycle-helper-container .psycle-action-btn-mini {
-  padding: 6px 12px;
-  border-radius: 8px;
-  font-size: 12px;
-  font-weight: 600;
-  cursor: pointer;
-  border: none;
-  transition: all 0.2s ease;
-  width: 72px;
-  text-align: center;
-  outline: none;
-}
 
-#psycle-helper-container .psycle-action-btn-mini.primary {
-  background: var(--accent-fill);
-  color: var(--on-accent-fill);
-}
-#psycle-helper-container .psycle-action-btn-mini.primary:hover {
-  background: var(--accent-fill-hover);
-  transform: translateY(-1px);
-}
 
 /* Collapsible Selected Detail view styling */
-#psycle-helper-container .selected-detail-section {
-  animation: slideIn 0.3s cubic-bezier(0.25, 1, 0.5, 1);
-  padding: 10px;
-}
 
-#psycle-helper-container .detail-header {
-  display: flex;
-  align-items: center;
-  gap: 16px;
-  margin-bottom: 20px;
-  border-bottom: 1px solid var(--separator);
-  padding-bottom: 12px;
-}
 
-#psycle-helper-container .detail-header h3 {
-  font-size: 14px;
-  color: var(--text) !important;
-}
 
-#psycle-helper-container .psycle-btn-back {
-  background: var(--surface-2);
-  border: 1px solid var(--border);
-  color: var(--text);
-  padding: 6px 12px;
-  border-radius: 8px;
-  font-size: 12px;
-  font-weight: 600;
-  cursor: pointer;
-  transition: background 0.2s ease;
-}
 
-#psycle-helper-container .psycle-btn-back:hover {
-  background: var(--surface-inset);
-}
 
-#psycle-helper-container .detail-layout {
-  display: grid;
-  grid-template-columns: 2fr 1fr;
-  gap: 28px;
-}
 
-#psycle-helper-container .detail-card {
-  background: var(--surface);
-  border: 1px solid var(--border);
-  border-radius: 20px;
-  padding: 24px;
-  display: flex;
-  flex-direction: column;
-  gap: 14px;
-}
 
-#psycle-helper-container .detail-card-name {
-  font-size: 18px;
-  font-weight: 700;
-  color: var(--text);
-}
 
-#psycle-helper-container .detail-card-handle {
-  font-size: 12px;
-  font-family: monospace;
-  color: var(--text-secondary);
-  margin-top: -8px;
-}
 
-#psycle-helper-container .detail-card-grid {
-  display: grid;
-  grid-template-columns: repeat(2, 1fr);
-  gap: 16px;
-  background: var(--surface-inset);
-  padding: 16px;
-  border-radius: 12px;
-  border: 1px solid var(--border);
-}
 
-#psycle-helper-container .detail-grid-item {
-  display: flex;
-  flex-direction: column;
-  gap: 4px;
-}
 
 #psycle-helper-container .grid-label {
   font-size: 12px;
@@ -1678,46 +1425,13 @@ html, body {
   letter-spacing: 0.5px;
 }
 
-#psycle-helper-container .grid-value {
-  font-size: 14px;
-  font-weight: 700;
-  color: var(--text);
-}
 
-#psycle-helper-container .grid-value.price-highlight {
-  font-size: 18px;
-  color: var(--text);
-}
 
-#psycle-helper-container .grid-value.credit-highlight {
-  color: var(--accent);
-}
 
-#psycle-helper-container .detail-card-restrictions {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 8px;
-}
 
 /* Consolidated badge-pills styles used here */
 
-#psycle-helper-container .detail-card-desc {
-  font-size: 12px;
-  color: var(--text-secondary);
-  line-height: 1.5;
-  border-top: 1px solid var(--separator);
-  padding-top: 14px;
-}
 
-#psycle-helper-container .detail-card-terms {
-  font-size: 12px;
-  color: var(--text-secondary);
-  font-style: italic;
-  background: var(--surface-inset);
-  padding: 8px 12px;
-  border-radius: 6px;
-  border-left: 2px solid var(--border-strong);
-}
 
 #psycle-helper-container .detail-actions {
   display: flex;

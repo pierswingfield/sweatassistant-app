@@ -781,7 +781,7 @@ function loadStoredFilters() {
     applyFilters(filters);
     savedFilterState = savedToState(filters);   // U4-19: the SAVED set a deep-link overlay is cleared back to
     if (writeLocal) {
-      try { localStorage.setItem(defaultFiltersKey(), JSON.stringify(filters)); } catch (_) {}
+      try { guardedSaveDefaults(localStorage, defaultFiltersKey(), filters, overlayActive); } catch (_) {}
     }
     if (pushUp) {
       api.updateSettings({ defaultFilters: filters }).catch(() => {});

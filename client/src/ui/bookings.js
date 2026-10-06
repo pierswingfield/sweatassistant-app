@@ -320,18 +320,16 @@ function buildBookingCard(group, upgrades) {
     });
 
     // Find active upgrade for this specific booking
-    const activeUpgrade = findUpgradeForSeat(upgrades, {
+    const foundUpgrade = findUpgradeForSeat(upgrades, {
       bookingId: bookingIdOf(b), gymId: event.gymId || b.gymId, eventId: group.eventId, slotId,
     });
+    // A stopped monitor (12h cutoff, already best seat) renders as not enabled.
+    const activeUpgrade = foundUpgrade?.status === 'stopped' ? null : foundUpgrade;
 
     let chipClass = 'ab-spot-upgrade-chip';
     let iconHtml = '';
 
-    if (activeUpgrade && activeUpgrade.status === 'stopped') {
-      // Ended (e.g. already in the best spot / window closed): visible, muted, tappable.
-      chipClass += ' state-stopped';
-      iconHtml = '<span style="margin-right:4px;" aria-hidden="true">&#9208;</span>';
-    } else if (activeUpgrade) {
+    if (activeUpgrade) {
       if (activeUpgrade.status === 'paused_no_credits' || activeUpgrade.status === 'paused_disabled' || totalAvailableCredits(event.gymId) < 1) {
         chipClass += ' state-warning';
         iconHtml = '<span style="margin-right:4px;">⚠</span>';

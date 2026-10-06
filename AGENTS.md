@@ -49,6 +49,7 @@ App/
 │   ├── push.js              # Web Push (VAPID) notification fan-out service
 │   ├── notifications.js     # Notification dispatch layer (5 types, per-user prefs)
 │   ├── calendar.js          # iCalendar (.ics) feed generation, token auth, 3-hourly poll
+│   ├── metrics.js           # C7-3 hand-rolled Prometheus registry + route-template HTTP middleware
 │   ├── logger.js            # C7-3 structured JSON logger + request-log middleware (redacts by key; no bodies/headers/queries)
 │   ├── admin.js             # Admin panel API router (user list, detail, priority tiers, delete)
 │   ├── admin.html           # Standalone admin SPA served at /admin
@@ -318,6 +319,7 @@ The background services (auto-book scheduler, auto-upgrade poller, calendar feed
 ```
 # Public Config + Health (no auth)
 GET    /api/config                # Returns { appName, publicHost } — needed before login to render UI
+GET    /metrics                   # C7-3 Prometheus text metrics; Bearer METRICS_TOKEN or admin JWT (401/403 otherwise); aggregate labels only, bounds in metrics.js
 GET    /api/health                # Liveness probe — 200 when heartbeats are fresh, 503 if degraded
 
 # Admin Panel
@@ -481,6 +483,7 @@ IndexedDB database `psycle-cache` (v2) has two stores: `cache` (raw timetable ev
 | `VAPID_EMAIL` | `push.js` | `mailto:` VAPID contact (default: `mailto:admin@psycle.wingfield.tech`) |
 | `RATE_LIMIT_TEST_FORCE` | `routes-normalized.js` | Test-only: enables the production-only read/refresh limiters so suites can assert 429s. |
 | `LOG_LEVEL` | `logger.js` | `debug`/`info`/`warn`/`error` (default `info`). `debug` adds a line per upstream provider call (gym, method, path, status, durationMs) and health/static request lines. `LOG_PRETTY=1` indents the JSON. |
+| `METRICS_TOKEN` | `server.js` | Bearer token for `GET /metrics` (Prometheus text). Alternative: a valid admin session JWT. If neither this nor `ADMIN_PASSWORD` is set, `/metrics` returns 503; it is never unauthenticated. |
 | `ADMIN_PASSWORD` | `admin.js` | Password for admin panel login. If absent, all `/api/admin/*` routes return 503. |
 | `APP_NAME` | `server/config.js` → all server modules + client via `/api/config` | App display name (default: `Sweat Assistant`). |
 | `PUBLIC_HOST` | `server/config.js` → `calendar.js`, client via `/api/config` | Public domain for calendar feed URLs and UID generation (default: `psycle.wingfield.tech`). |

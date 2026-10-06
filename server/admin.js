@@ -457,4 +457,7 @@ router.get('/audit', authenticateAdmin, (req, res) => {
   res.json({ entries: db.listAdminAudit({ limit: req.query.limit, offset: req.query.offset }) });
 });
 
+// Used by GET /metrics (server.js): true when the bearer token is a valid admin session JWT.
+router.verifyAdminToken = (token) => { try { return !!jwt.verify(token, JWT_SECRET).admin; } catch (_) { return false; } };
+
 module.exports = router;

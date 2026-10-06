@@ -56,12 +56,21 @@ const log = createLogger();
 // so the number of upstream /events calls behind one request is countable: LOG_LEVEL=debug.
 async function timedProviderFetch(gymId, method, pathOrUrl, doFetch) {
   const start = Date.now();
+  const outcomeOf = (st) => (st === 429 ? '429' : st >= 400 || st == null ? 'error' : 'ok');
+  const count = (st) => {
+    try {
+      const g = require('./gyms.config').getGymConfig(gymId);
+      require('./metrics').observeProvider(gymId, g ? g.provider : 'unknown', outcomeOf(st));
+    } catch (_) {}
+  };
   const path = String(pathOrUrl).replace(/^https?:\/\/[^/]+/i, '').split('?')[0];
   try {
     const res = await doFetch();
+    count(res && res.status);
     log.debug('provider call', { gymId, method, path, status: res && res.status, durationMs: Date.now() - start });
     return res;
   } catch (err) {
+    count(null);
     log.debug('provider call failed', { gymId, method, path, durationMs: Date.now() - start, err });
     throw err;
   }

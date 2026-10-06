@@ -15,7 +15,7 @@
 import { api, isLoggedIn } from '../api';
 import { consumeInstallPrompt, initApp, togglePushSubscription, warmCaches, showToast } from '../main';
 import { openManageSpotMapsModal } from './settings';
-import { renderCalendarSection } from './calendar-section.js';
+import { openCalendarSettingsModal } from './calendar-section.js';
 import { appConfig } from '../config';
 import { setGymCatalogue } from '../gym-context.js';
 import { COPY, formatCopyText, appCopy } from '../copy.js';
@@ -450,7 +450,8 @@ function stepLogin() {
     };
     container().style.display = 'none';
     login.style.display = 'flex';
-    if (requestedAuthMode === 'signup') document.getElementById('psycle-auth-to-signup')?.click();
+    // The login card keeps its mode between visits, so always select the one that was chosen.
+    document.getElementById(requestedAuthMode === 'signup' ? 'psycle-auth-to-signup' : 'psycle-auth-to-login')?.click();
   });
 }
 
@@ -691,8 +692,9 @@ async function stepCalendar() {
     const ios = isIOS();
 
     const showSubscribe = (links) => {
-      // iOS/Apple hands plain webcal:// to Calendar as http and warns; use the https form there.
-      const webcalUrl = (ios ? links?.webcals : '') || links?.webcal || '';
+      // webcal:// is the scheme iOS/macOS register for calendar subscriptions; webcals:// is not
+      // (Safari reports "invalid address").
+      const webcalUrl = links?.webcal || '';
       const gcalUrl = links?.google || '';
       const icsUrl = links?.https || links?.ics || '';
 
@@ -787,7 +789,6 @@ function stepFeatures() {
         <section class="psycle-onb-feature-card" data-feature="calendar">
           <div class="psycle-onb-feature-heading"><span class="psycle-onb-icon">${ICON.calendarSync}</span><div><h3>${COPY.onboarding.calendarFeatureTitle}</h3><p>${COPY.onboarding.calendarFeedDescription}</p></div></div>
           <div class="psycle-onb-feature-action"></div>
-          <div class="psycle-onb-calendar-settings" hidden></div>
         </section>
         <section class="psycle-onb-feature-card" data-feature="spotmaps">
           <div class="psycle-onb-feature-heading"><span class="psycle-onb-icon">${ICON.quickbook}</span><div><h3>${COPY.onboarding.preferredSpotFeatureTitle}</h3><p>${COPY.onboarding.preferredSpotFeatureDescription}</p></div></div>
@@ -878,18 +879,13 @@ function stepFeatures() {
       await refreshStatus();
     }
   });
-  calendarCard.addEventListener('click', async (event) => {
+  calendarCard.addEventListener('click', (event) => {
     if (!event.target.closest('[data-feature-action="calendar"]')) return;
-    const settings = calendarCard.querySelector('.psycle-onb-calendar-settings');
-    settings.hidden = !settings.hidden;
-    if (!settings.hidden) await renderCalendarSection(settings);
+    openCalendarSettingsModal({ zIndex: 1000000, onChange: refreshStatus, onClose: refreshStatus });
   });
   spotCard.addEventListener('click', (event) => {
     if (!event.target.closest('[data-feature-action="spotmaps"]')) return;
     openManageSpotMapsModal({ zIndex: 1000000, onDone: refreshStatus });
-  });
-  calendarCard.querySelector('.psycle-onb-calendar-settings').addEventListener('psycle:calendar-action-complete', async () => {
-    await refreshStatus();
   });
   });
 }

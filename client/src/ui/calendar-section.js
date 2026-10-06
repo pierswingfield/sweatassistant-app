@@ -165,8 +165,9 @@ export async function renderCalendarSection(targetContainer = null) {
       const action = button.dataset.calendarAction;
       const links = status.links || {};
 
-      // webcals:// (the https form): plain webcal:// makes Apple Calendar warn "connection is not secure".
-      if (action === 'apple') { const u = links.webcals || links.webcal; if (u) window.location.href = u; return; }
+      // webcal:// is the only subscribe scheme iOS/macOS register. webcals:// is not, so Safari on iOS
+      // answers it with "the address is invalid".
+      if (action === 'apple') { if (links.webcal) window.location.href = links.webcal; return; }
       if (action === 'google') { if (links.google) window.open(links.google, '_blank', 'noopener'); return; }
       if (action === 'copy') {
         try {
@@ -198,4 +199,48 @@ export async function renderCalendarSection(targetContainer = null) {
       }
     });
   });
+}
+
+/**
+ * Calendar settings in a centred modal (onboarding), styled like the Preferred Spot Maps manager.
+ * Renders the same account-level section as Settings; `onClose` fires once however it is dismissed.
+ */
+export function openCalendarSettingsModal({ zIndex = 2000, onChange = null, onClose = null } = {}) {
+  const overlay = document.createElement('div');
+  overlay.className = 'psycle-ovl';
+  overlay.setAttribute('role', 'dialog');
+  overlay.setAttribute('aria-modal', 'true');
+  overlay.style.cssText = `position:fixed;inset:0;background:color-mix(in srgb, var(--bg) 60%, transparent);z-index:${zIndex};display:flex;align-items:center;justify-content:center;padding:16px;`;
+  overlay.innerHTML = `
+    <div class="psycle-ovl-card" style="background:var(--bg);border:1px solid color-mix(in srgb, var(--text) 12%, transparent);border-radius:16px;width:100%;max-width:500px;max-height:90vh;display:flex;flex-direction:column;overflow:hidden;">
+      <div class="psycle-ovl-header" style="display:flex;justify-content:space-between;align-items:center;padding:14px 18px;border-bottom:1px solid color-mix(in srgb, var(--text) 8%, transparent);flex-shrink:0;">
+        <h3 style="margin:0;font-size:16px;font-weight:700;color:var(--text);"></h3>
+        <button type="button" data-calendar-modal-close aria-label="${COPY.credits.closeModal}" style="background:none;border:none;color:var(--text-secondary);font-size:22px;cursor:pointer;padding:0;line-height:1;">×</button>
+      </div>
+      <div class="psycle-ovl-body" style="flex:1;overflow-y:auto;padding:16px;"><div data-calendar-modal-section></div></div>
+      <div style="padding:12px 16px;border-top:1px solid color-mix(in srgb, var(--text) 8%, transparent);flex-shrink:0;">
+        <button type="button" class="psycle-btn-primary" data-calendar-modal-close style="width:100%;"></button>
+      </div>
+    </div>`;
+  overlay.querySelector('h3').textContent = COPY.onboarding.calendarFeatureTitle;
+  overlay.querySelector('.psycle-btn-primary').textContent = COPY.onboarding.done;
+
+  const section = overlay.querySelector('[data-calendar-modal-section]');
+  let closed = false;
+  const onKey = (e) => { if (e.key === 'Escape') close(); };
+  const close = () => {
+    if (closed) return;
+    closed = true;
+    document.removeEventListener('keydown', onKey);
+    overlay.remove();
+    onClose?.();
+  };
+  overlay.querySelectorAll('[data-calendar-modal-close]').forEach((b) => b.addEventListener('click', close));
+  overlay.addEventListener('click', (e) => { if (e.target === overlay) close(); });
+  document.addEventListener('keydown', onKey);
+  if (onChange) section.addEventListener('psycle:calendar-action-complete', onChange);
+
+  document.body.appendChild(overlay);
+  renderCalendarSection(section);
+  return { close };
 }

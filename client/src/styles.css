@@ -9125,9 +9125,6 @@ html, body {
 .psycle-onb-feature-card .psycle-onb-feature-action .psycle-btn-mini { min-height: 36px !important; padding: 6px 12px; font-size: var(--text-xs); white-space: normal; text-align: center; }
 .psycle-onb-auto-upgrade-option { display: flex; align-items: center; gap: 8px; margin-top: 8px; min-height: var(--tap-min); cursor: pointer; font-size: var(--text-sm); color: var(--text); }
 .psycle-onb-auto-upgrade-option input[type="checkbox"] { flex: 0 0 auto; width: 22px; height: 22px; accent-color: var(--accent); cursor: pointer; }
-.psycle-onb-calendar-settings { width: 100%; }
-.psycle-onb-calendar-settings[hidden] { display: none; }
-.psycle-onb-calendar-settings .psycle-settings-card { padding: 12px; }
 .psycle-onb-features .psycle-onb-footer { margin-top: 4px; }
 .psycle-onboarding-container .psycle-btn-secondary {
   display: inline-flex; align-items: center; justify-content: center; text-align: center; text-decoration: none;

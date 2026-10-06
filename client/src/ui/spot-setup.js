@@ -86,8 +86,11 @@ export function openSpotSetup({ event, className, onSaved, onContinue, onChooseF
   let after = null;       // what to do once the A1 layer has finished popping
   let saved = null;       // { slots, rows } once saved
 
+  // The "1 Your spots / 2 Book class" cue only makes sense when a class follows (className set).
+  // Onboarding and Settings open this with no class, so there is no booking step to show.
   const chrome = (stepper) => applyBookingChrome(el, {
-    titleText: COPY.spotSetup.title, gymId, locationName: event.locationName, studioName: event.studioName, stepper,
+    titleText: COPY.spotSetup.title, gymId, locationName: event.locationName, studioName: event.studioName,
+    stepper: className ? stepper : null,
   });
   const btn = (cls, text, onClick) => {
     const b = document.createElement('button');

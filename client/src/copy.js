@@ -140,7 +140,7 @@ export const COPY = Object.freeze({
     requiredGymCredentials: 'Gym, email and password are all required.',
     connecting: 'Connecting…',
     gymConnected: 'Gym connected',
-    createAccount: 'Create account',
+    createAccount: 'Create Account',
     createAccountButton: 'Create Account',
     resetPassword: 'Reset password',
     resetUnavailable: 'Self-service reset isn’t available yet — contact the admin.',

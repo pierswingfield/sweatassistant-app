@@ -1,6 +1,6 @@
 # Workstreams — Sweat Assistant roadmap
 
-> **Branching (2026-10-06):** the `modular` branch is retired; `master` is the single working branch and equals what prod runs. Older docs saying "`modular`" mean this code.
+> **Branching (2026-10-06):** **Update 2026-10-06:** the `optimisation` branch (C2-4/C2-5 chunked timetable fetch, C7-3 logging and metrics, MarianaTek speedup, F-12 client favourites) was fast-forward merged into `master` and retired locally; the remote `origin/optimisation` is retained until the user decides. the `modular` branch is retired; `master` is the single working branch and equals what prod runs. Older docs saying "`modular`" mean this code.
 
 **This folder is the single source of truth for what's next.** It replaced `BACKLOG.md`,
 `Backlog/*` and `Backlog/modular-gyms/*` on 2026-09-26. Those files are frozen in

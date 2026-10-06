@@ -393,6 +393,15 @@ class GymProvider {
    * each adapter owns the safe provider lookup that proves an id is real.
    * @returns {Promise<{imageUrl?: string, thumbUrl?: string}|null>}
    */
+  /**
+   * OPTIONAL (C2-5): does this platform publish cheap, unauthenticated "what changed"
+   * stamps? When true, `getFreshnessStamps()` returns `{ [resource]: ISO string }` and the
+   * shared schedule cache keeps entries until the relevant stamp moves (bounded by a hard
+   * ceiling). Default false: the cache keeps its plain TTL behaviour.
+   */
+  hasFreshnessStamps() { return false; }
+  async getFreshnessStamps(/* session? */) { return null; }
+
   async findInstructorPhoto(/* instructorId */) { throw notImplemented('findInstructorPhoto', this); }
 
   /**

@@ -35,6 +35,7 @@ const { listGyms, getGymConfig } = require('./gyms.config');
 const { countSelfBookings, validateSelfBookingLimit } = require('./booking-entitlement');
 const calendar = require('./calendar');
 const scheduleCache = require('./schedule-cache');
+const freshness = require('./freshness');
 // Studio floor plans change rarely and are identical for every member: own cache
 // instance (own counters), keyed gymId:studioId — provider ids collide across gyms.
 const layoutCache = scheduleCache.createCache();
@@ -47,6 +48,14 @@ const LAYOUT_MAX_STALE_MS = 7 * 24 * 60 * 60 * 1000;
 // a gym reorganises, i.e. rarely.
 const TIMETABLE_TTL_MS = 60 * 1000;
 const METADATA_TTL_MS = 30 * 60 * 1000;
+
+// C2-5 (rebuilt): for providers with freshness stamps (CodexFit /heartbeat) a TTL-stale entry is
+// kept while its stamp is unchanged, up to these hard max-ages. The schedule's `events` stamp does
+// NOT move on occupancy changes, so spot counts can lag up to TIMETABLE_STAMP_CEILING_MS (accepted,
+// as on the official website); write paths (book/cancel) still invalidate immediately.
+const TIMETABLE_STAMP_CEILING_MS = 5 * 60 * 1000;
+const METADATA_STAMP_CEILING_MS = 6 * 60 * 60 * 1000;
+const LAYOUT_STAMP_CEILING_MS = 7 * 24 * 60 * 60 * 1000;
 
 // A booking/waitlist mutation should show in the .ics feed without waiting for
 // the 3-hourly cron. This used to be stamped inside the `/api/proxy` handler,
@@ -354,7 +363,8 @@ router.get('/timetable', authenticateToken, refreshLimiter, readLimiter, async (
       () => withRelogin(req.userId, session, (s) =>
         provider.fetchTimetable({ startDate, endDate }, s)
       ),
-      { ttlMs: TIMETABLE_TTL_MS, force: req.query.refresh === '1' }
+      { ttlMs: TIMETABLE_TTL_MS, force: req.query.refresh === '1',
+        stamp: freshness.stampFor(gymId, provider, session, ['events']), ceilingMs: TIMETABLE_STAMP_CEILING_MS }
     );
 
     // `releaseAt` is stamped per request, AFTER the cache. It depends on the
@@ -384,7 +394,9 @@ router.get('/metadata', authenticateToken, refreshLimiter, readLimiter, async (r
       () => withRelogin(req.userId, session, (s) =>
         provider.fetchMetadata({ startDate, endDate }, s)
       ),
-      { ttlMs: METADATA_TTL_MS, force: req.query.refresh === '1' }
+      { ttlMs: METADATA_TTL_MS, force: req.query.refresh === '1',
+        stamp: freshness.stampFor(gymId, provider, session, ['locations', 'studios', 'instructors', 'event-types']),
+        ceilingMs: METADATA_STAMP_CEILING_MS }
     );
     res.json(meta);
   } catch (err) {
@@ -433,7 +445,8 @@ router.get('/studios/:id/layout', authenticateToken, refreshLimiter, readLimiter
     const { slots, objects } = await layoutCache.getOrFetch(
       `layout|${gymId}|${req.params.id}`,
       () => withRelogin(req.userId, session, (s) => provider.fetchStudioLayout(req.params.id, s)),
-      { ttlMs: LAYOUT_TTL_MS, maxStaleMs: LAYOUT_MAX_STALE_MS, force: req.query.refresh === '1' }
+      { ttlMs: LAYOUT_TTL_MS, maxStaleMs: LAYOUT_MAX_STALE_MS, force: req.query.refresh === '1',
+        stamp: freshness.stampFor(gymId, provider, session, ['studios']), ceilingMs: LAYOUT_STAMP_CEILING_MS }
     );
     // Private (per-account auth) but safe to reuse; Express adds the ETag so the
     // client gets conditional 304s.

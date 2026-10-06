@@ -3113,137 +3113,16 @@ html, body {
 .event-details {
   width: calc(100% - 100px) !important;
 }
-.event-controls-a {
-  width: 100px !important;
-  display: inline-flex !important;
-  align-items: center !important;
-  justify-content: flex-end !important;
-  flex-wrap: nowrap !important;
-  white-space: nowrap !important;
-}
-.event-controls-a > * {
-  flex-shrink: 0 !important;
-}
-.event-controls-a .more-info {
-  width: auto !important;
-  font-size: 12px !important;
-  margin: 0 4px !important;
-}
-.psycle-native-debug-info {
-  margin-left: 2px !important;
-  font-size: 14px !important;
-  color: var(--feat-autoupgrade) !important;
-  text-decoration: none !important;
-  cursor: pointer !important;
-  line-height: 1 !important;
-  display: inline-flex !important;
-  align-items: center !important;
-  justify-content: center !important;
-}
-.event-inner.inactive .psycle-native-debug-info {
-  color: var(--feat-autoupgrade) !important;
-}
 
 /* "Not open" badge for inactive event cards */
-.psycle-native-not-open {
-  display: inline-block;
-  font-size: 12px;
-  font-weight: 700;
-  text-transform: uppercase;
-  letter-spacing: 0.5px;
-  color: var(--danger);
-  background: color-mix(in srgb, var(--danger) 12%, transparent);
-  border: 1px solid color-mix(in srgb, var(--danger) 25%, transparent);
-  border-radius: 3px;
-  padding: 1px 5px;
-  margin-left: 4px;
-  vertical-align: middle;
-}
 
 /* Split button group for native timetable */
-.psycle-native-split-group {
-  display: inline-flex;
-  align-items: stretch;
-  min-height: var(--tap-min);
-  border-radius: 4px;
-  overflow: hidden;
-  vertical-align: middle;
-  box-shadow: none;
-}
-.psycle-native-split-group button {
-  border: none;
-  font-family: inherit;
-  font-size: 12px;
-  font-weight: 600;
-  cursor: pointer;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  outline: none;
-  margin: 0 !important;
-  box-sizing: border-box;
-  padding: 0 8px;
-  transition: all 0.2s ease;
-}
-.psycle-native-split-group .psycle-native-split-main {
-  border-radius: 4px 0 0 4px;
-}
-.psycle-native-split-group .psycle-native-split-cog {
-  border-radius: 0 4px 4px 0;
-  border-left: 1px solid color-mix(in srgb, var(--on-accent) 15%, transparent);
-  font-size: 15px !important;
-  padding: 0 6px;
-}
 
 /* Green split (Quick Book) — pastel */
-.psycle-native-split-group.quickbook .psycle-native-split-main {
-  background: color-mix(in srgb, var(--success) 45%, #fff);
-  color: color-mix(in srgb, var(--success) 65%, #000);
-}
-.psycle-native-split-group.quickbook .psycle-native-split-main:hover {
-  background: color-mix(in srgb, var(--success) 55%, #fff);
-}
-.psycle-native-split-group.quickbook .psycle-native-split-cog {
-  background: color-mix(in srgb, var(--success) 55%, #fff);
-  color: color-mix(in srgb, var(--success) 65%, #000);
-}
-.psycle-native-split-group.quickbook .psycle-native-split-cog:hover {
-  background: color-mix(in srgb, var(--success) 50%, #fff);
-}
 
 /* Purple split (Auto Book) — pastel */
-.psycle-native-split-group.autobook .psycle-native-split-main {
-  background: color-mix(in srgb, var(--feat-autoupgrade) 65%, #fff);
-  color: color-mix(in srgb, var(--feat-autoupgrade) 100%, #000);
-}
-.psycle-native-split-group.autobook .psycle-native-split-main:hover {
-  background: color-mix(in srgb, var(--feat-autoupgrade) 75%, #fff);
-}
-.psycle-native-split-group.autobook .psycle-native-split-cog {
-  background: color-mix(in srgb, var(--feat-autoupgrade) 75%, #fff);
-  color: color-mix(in srgb, var(--feat-autoupgrade) 100%, #000);
-}
-.psycle-native-split-group.autobook .psycle-native-split-cog:hover {
-  background: color-mix(in srgb, var(--feat-autoupgrade) 70%, #fff);
-}
 
 /* Scheduled state (already auto-booked) */
-.psycle-native-split-group.scheduled .psycle-native-split-main {
-  background: color-mix(in srgb, var(--feat-autoupgrade) 15%, transparent);
-  color: var(--feat-autoupgrade);
-  border: 1px solid color-mix(in srgb, var(--feat-autoupgrade) 30%, transparent);
-  border-right: none;
-  cursor: default;
-}
-.psycle-native-split-group.scheduled .psycle-native-split-cog {
-  background: color-mix(in srgb, var(--feat-autoupgrade) 15%, transparent);
-  color: var(--feat-autoupgrade);
-  border: 1px solid color-mix(in srgb, var(--feat-autoupgrade) 30%, transparent);
-  border-left: 1px solid color-mix(in srgb, var(--feat-autoupgrade) 20%, transparent);
-}
-.psycle-native-split-group.scheduled .psycle-native-split-cog:hover {
-  background: color-mix(in srgb, var(--feat-autoupgrade) 25%, transparent);
-}
 
 @keyframes psycle-spin {
   to { transform: rotate(360deg); }
@@ -3255,49 +3134,11 @@ html, body {
 }
 
 /* Slot selection in booking modal */
-.psycle-slot-dot {
-  position: absolute;
-  width: 22px;
-  height: 22px;
-  border-radius: 50%;
-  transform: translate(-50%, -50%);
-  transition: all 0.15s ease;
-  font-size: 12px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  color: var(--on-accent);
-  font-weight: 600;
-}
-.psycle-slot-available {
-  background: color-mix(in srgb, var(--success) 60%, transparent);
-  border: 2px solid color-mix(in srgb, var(--success) 80%, transparent);
-  cursor: pointer;
-}
-.psycle-slot-available:hover {
-  background: color-mix(in srgb, var(--success) 90%, transparent);
-  box-shadow: 0 0 8px color-mix(in srgb, var(--success) 60%, transparent);
-}
-.psycle-slot-occupied {
-  background: color-mix(in srgb, var(--danger) 40%, transparent);
-  border: 2px solid color-mix(in srgb, var(--danger) 60%, transparent);
-  cursor: not-allowed;
-}
 
 /* ===================================================================
    Profile Editor (Konami-gated hidden feature)
    =================================================================== */
 
-#psycle-helper-container .psycle-profile-editor-field {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  padding: 6px 0;
-  border-bottom: 1px dashed var(--separator);
-}
-#psycle-helper-container .psycle-profile-editor-field:last-child {
-  border-bottom: none;
-}
 
 #psycle-helper-container .psycle-profile-editor-field-label {
   flex: 0 0 130px;
@@ -3309,145 +3150,18 @@ html, body {
   text-overflow: ellipsis;
 }
 
-#psycle-helper-container .psycle-profile-editor-field-control {
-  flex: 1;
-  display: flex;
-  align-items: center;
-}
 
-#psycle-helper-container .psycle-profile-editor-input {
-  width: 100%;
-  background: var(--surface-inset);
-  border: 1px solid var(--border);
-  border-radius: 8px;
-  padding: 8px 12px;
-  color: var(--text);
-  font-size: 12px;
-  font-family: 'Inter', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
-  outline: none;
-  transition: border-color 0.2s ease, box-shadow 0.2s ease;
-}
-#psycle-helper-container .psycle-profile-editor-input:focus {
-  border-color: var(--feat-autoupgrade);
-  box-shadow: 0 0 0 2px color-mix(in srgb, var(--feat-autoupgrade) 25%, transparent);
-}
-#psycle-helper-container .psycle-profile-editor-input::placeholder {
-  color: var(--text-secondary);
-  font-style: italic;
-}
 
 /* Checkbox toggle for boolean fields */
-#psycle-helper-container .psycle-profile-editor-toggle {
-  width: 18px;
-  height: 18px;
-  cursor: pointer;
-  accent-color: var(--feat-autoupgrade);
-  flex: none;
-  padding: 0;
-  appearance: auto;
-  -webkit-appearance: auto;
-}
 
 /* Save button — appears on change */
-#psycle-helper-container .psycle-profile-editor-save {
-  flex: 0 0 auto;
-  background: color-mix(in srgb, var(--feat-autoupgrade) 20%, transparent);
-  border: 1.5px solid color-mix(in srgb, var(--feat-autoupgrade) 40%, transparent);
-  color: var(--feat-autoupgrade);
-  padding: 6px 14px;
-  border-radius: 8px;
-  font-weight: 700;
-  font-size: 12px;
-  cursor: pointer;
-  transition: all 0.2s ease;
-  white-space: nowrap;
-  display: flex;
-  align-items: center;
-  gap: 4px;
-}
-#psycle-helper-container .psycle-profile-editor-save:hover {
-  background: color-mix(in srgb, var(--feat-autoupgrade) 35%, transparent);
-  border-color: color-mix(in srgb, var(--feat-autoupgrade) 60%, transparent);
-}
-#psycle-helper-container .psycle-profile-editor-save.confirming,
-#psycle-helper-container .psycle-profile-editor-save[data-confirm="true"] {
-  background: color-mix(in srgb, var(--warning) 25%, transparent) !important;
-  border-color: var(--warning) !important;
-  color: var(--warning) !important;
-}
 
 /* Change log container */
-#psycle-helper-container .psycle-profile-editor-log {
-  max-height: 200px;
-}
 
 /* Individual log entry */
-#psycle-helper-container .psycle-profile-editor-log-entry {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  padding: 6px 10px;
-  margin-bottom: 4px;
-  border-radius: 6px;
-  background: var(--surface-inset);
-  border-left: 3px solid var(--border-strong);
-  font-size: 12px;
-  transition: background 0.15s ease;
-}
-#psycle-helper-container .psycle-profile-editor-log-entry:hover {
-  background: color-mix(in srgb, var(--text) 6%, transparent);
-}
 
 /* Status-based left border colors */
-#psycle-helper-container .psycle-profile-editor-log-entry.verified {
-  border-left-color: var(--success);
-}
-#psycle-helper-container .psycle-profile-editor-log-entry.sent {
-  border-left-color: var(--warning);
-}
-#psycle-helper-container .psycle-profile-editor-log-entry.failed {
-  border-left-color: var(--danger);
-}
-#psycle-helper-container .psycle-profile-editor-log-entry.reverted {
-  border-left-color: var(--text-secondary);
-}
 
-#psycle-helper-container .psycle-profile-editor-log-time {
-  color: var(--text-secondary);
-  font-family: monospace;
-  font-size: 12px;
-  flex: 0 0 auto;
-  min-width: 50px;
-}
-#psycle-helper-container .psycle-profile-editor-log-path {
-  color: var(--text-secondary);
-  font-family: monospace;
-  font-size: 12px;
-  flex: 0 0 auto;
-  min-width: 100px;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-#psycle-helper-container .psycle-profile-editor-log-change {
-  flex: 1;
-  font-size: 12px;
-  color: var(--text);
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-#psycle-helper-container .psycle-profile-editor-log-change .log-old {
-  color: var(--danger);
-}
-#psycle-helper-container .psycle-profile-editor-log-change .log-new {
-  color: var(--success);
-}
-#psycle-helper-container .psycle-profile-editor-log-status {
-  flex: 0 0 auto;
-  font-size: 13px;
-  line-height: 1;
-}
 
 /* -------------------------------------------------------------
    PWA LAYOUT BRIDGING STYLES
@@ -3478,26 +3192,8 @@ html, body {
   min-height: 0;
 }
 
-.psycle-tab-panel {
-  display: none;
-  flex-direction: column;
-  gap: 20px;
-  flex: 1;
-  min-height: 0;
-}
 
 /* --- DATE CAROUSEL STYLING --- */
-.psycle-date-carousel {
-  display: flex !important;
-  flex-direction: row !important;
-  gap: 12px;
-  overflow-x: auto !important;
-  padding: 12px 0;
-  scrollbar-width: none;
-  -ms-overflow-style: none;
-  flex-shrink: 0;
-  width: 100%;
-}
 
 .psycle-date-carousel::-webkit-scrollbar {
   display: none;

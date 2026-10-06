@@ -20,6 +20,7 @@ const { resolveZone, toZonedISO } = require('./timezone');
 const { studioHasRowGroups } = require('./spot-map');
 const { makeMetadata, makeProfile, makeEvent, makeSlot, makeLayoutObject, makeBookingResult, makeBooking, makeHistoryEntry, prune } = require('./normalize');
 const cart = require('./codexfit-cart');
+const favourites = require('../favourites');
 const { timedProviderFetch } = require('../logger');
 
 // Dev-mode bypass, aligned with MarianaTek's dev@jabboxing.mock convention.
@@ -1259,7 +1260,22 @@ class CodexFitProvider extends GymProvider {
       err.status = res.status;
       throw err;
     }
+    // The bookmark list lives on the profile; a memoised /profile would serve the
+    // old list for up to 30 s (C2-6), so a heart would flip back on the next read.
+    this.invalidateProfile(session);
     return true;
+  }
+
+  /** F-12: native favourites = the profile's bookmark keys, parsed back into slots. */
+  async listFavourites(session) {
+    const u = await this._profileFor(session, 'listFavourites');
+    const keys = (u && u.metafields && u.metafields.public && u.metafields.public.bookmarks
+      && u.metafields.public.bookmarks.events) || [];
+    return (Array.isArray(keys) ? keys : []).map((k) => favourites.parseIdentifier(String(k))).filter(Boolean);
+  }
+
+  async setFavourite(slot, on, session) {
+    return this.setBookmark(favourites.toIdentifier(slot), on, session);
   }
 
   async updateProfile(payload, session) {

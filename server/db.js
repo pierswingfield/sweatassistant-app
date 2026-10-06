@@ -193,6 +193,30 @@ db.exec(`
     PRIMARY KEY (user_id, gym_id)
   );
 
+  -- F-12: gym-neutral FAVOURITES for gyms with no native bookmarks. A favourite is a
+  -- recurring slot (studio + weekday + start time in the class's zone), the same shape as
+  -- CodexFit's native bookmark key so one API serves both. studio_id is a PROVIDER id,
+  -- unique only inside a gym; gym_id is NOT NULL with no default on purpose (WP-D6).
+  -- Label columns are display-only; a later Auto-Book rule (C5-2) may add discipline/instructor
+  -- MATCHING columns without touching the unique slot key.
+  CREATE TABLE IF NOT EXISTS favourites (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    user_id INTEGER NOT NULL,
+    gym_id TEXT NOT NULL,
+    studio_id TEXT NOT NULL,
+    day_of_week INTEGER NOT NULL,
+    start_time TEXT NOT NULL,
+    class_name TEXT,
+    discipline TEXT,
+    instructor_name TEXT,
+    studio_name TEXT,
+    location_name TEXT,
+    created_at TEXT DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
+    FOREIGN KEY (gym_id) REFERENCES gyms(id),
+    UNIQUE(user_id, gym_id, studio_id, day_of_week, start_time)
+  );
+
   -- C7-3: durable record of administrative actions. Never holds secrets (see recordAdminAudit).
   CREATE TABLE IF NOT EXISTS admin_audit_log (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -1537,6 +1561,52 @@ module.exports = {
     db.prepare('DELETE FROM auto_upgrades WHERE id = ? AND user_id = ?').run(id, userId);
   },
 
+  // F-12 favourites (gym-neutral). Per-user accessors scope to ONE gym; `studio_id` is a provider
+  // id, so an unscoped read would hand one gym's favourite to another's timetable. A multi-gym
+  // account with no gym named is a call-site bug (resolveGymStrict throws), not a guess.
+  listFavourites(userId, gymId = null) {
+    const g = resolveGymStrict(userId, gymId, 'listFavourites');
+    return db.prepare(`SELECT studio_id, day_of_week, start_time, class_name, discipline,
+        instructor_name, studio_name, location_name FROM favourites
+        WHERE user_id = ? AND gym_id = ? ORDER BY day_of_week, start_time, studio_id`).all(userId, g)
+      .map((r) => {
+        const o = { studioId: r.studio_id, dayOfWeek: r.day_of_week, startTime: r.start_time };
+        if (r.class_name) o.className = r.class_name;
+        if (r.discipline) o.discipline = r.discipline;
+        if (r.instructor_name) o.instructorName = r.instructor_name;
+        if (r.studio_name) o.studioName = r.studio_name;
+        if (r.location_name) o.locationName = r.location_name;
+        return o;
+      });
+  },
+  countFavourites(userId, gymId = null) {
+    const g = resolveGymStrict(userId, gymId, 'countFavourites');
+    return db.prepare('SELECT COUNT(*) c FROM favourites WHERE user_id = ? AND gym_id = ?').get(userId, g).c;
+  },
+  // Idempotent: re-adding refreshes the labels and keeps the one row.
+  addFavourite(userId, gymId, slot) {
+    const g = resolveGymStrict(userId, gymId, 'addFavourite');
+    db.prepare(`INSERT INTO favourites (user_id, gym_id, studio_id, day_of_week, start_time,
+        class_name, discipline, instructor_name, studio_name, location_name)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        ON CONFLICT(user_id, gym_id, studio_id, day_of_week, start_time) DO UPDATE SET
+          class_name = COALESCE(excluded.class_name, class_name),
+          discipline = COALESCE(excluded.discipline, discipline),
+          instructor_name = COALESCE(excluded.instructor_name, instructor_name),
+          studio_name = COALESCE(excluded.studio_name, studio_name),
+          location_name = COALESCE(excluded.location_name, location_name)`)
+      .run(userId, g, String(slot.studioId), slot.dayOfWeek, slot.startTime,
+        slot.className || null, slot.discipline || null, slot.instructorName || null,
+        slot.studioName || null, slot.locationName || null);
+    return true;
+  },
+  removeFavourite(userId, gymId, slot) {
+    const g = resolveGymStrict(userId, gymId, 'removeFavourite');
+    return db.prepare(`DELETE FROM favourites WHERE user_id = ? AND gym_id = ? AND studio_id = ?
+        AND day_of_week = ? AND start_time = ?`)
+      .run(userId, g, String(slot.studioId), slot.dayOfWeek, slot.startTime).changes > 0;
+  },
+
   // Studio Preferences
   // studio_id is a PROVIDER id, so these MUST be gym-scoped: Psycle studio 138
   // and a JAB studio 138 are different rooms with different floor plans, and an
@@ -2246,7 +2316,7 @@ module.exports = {
     const tx = db.transaction(() => {
       for (const table of ['auto_bookings', 'auto_upgrades', 'studio_preferences', 'settings',
                            'booking_cache', 'waitlist_cache', 'calendar_classes', 'guest_booking_groups',
-                           'class_history', 'class_history_sync']) {
+                           'class_history', 'class_history_sync', 'favourites']) {
         try { db.prepare(`DELETE FROM ${table} WHERE user_id = ? AND gym_id = ?`).run(userId, gymId); }
         catch (_) { /* table may predate its gym_id column on an old DB — skip */ }
       }

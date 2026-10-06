@@ -100,6 +100,25 @@ router.use((req, res, next) => {
 
 // Resolve (gymId, provider, session) for the current authenticated user, via
 // the same seam every other gym-aware code path uses (db.resolveActiveGymId).
+// The gym half of resolveContext, for routes that need NO provider session (F-12 local
+// favourites): the same NO_GYM_LINKED / GYM_REQUIRED rules, without the 401 for a dead
+// gym session, since a local read must not depend on the gym being reachable.
+function resolveGymOnly(userId) {
+  if (db.getUserGyms(userId).length === 0) {
+    const err = new Error('No gym linked to this account yet.');
+    err.status = 409;
+    err.code = 'NO_GYM_LINKED';
+    throw err;
+  }
+  try {
+    return db.resolveGymStrict(userId, null, 'gym-scoped route');
+  } catch (e) {
+    e.status = 400;
+    e.code = 'GYM_REQUIRED';
+    throw e;
+  }
+}
+
 function resolveContext(userId) {
   // A Sweat Assistant account can now exist with NO gym linked at all (signup is
   // gym-independent since Decision D4). That is a legitimate, expected state —
@@ -867,6 +886,75 @@ router.delete('/bookmarks/:identifier', authenticateToken, extrasLimiter, async 
     requireCapability(gymId, 'bookmarks');
     const ok = await withRelogin(req.userId, session, (s) => provider.setBookmark(req.params.identifier, false, s));
     res.json({ ok });
+  } catch (err) {
+    handleError(res, err);
+  }
+});
+
+// -------------------------------------------------------------
+// F-12 — gym-neutral FAVOURITES. One contract for every gym: a favourite is a recurring
+// slot (studio + weekday + start time, class-local). A gym that declares
+// `capabilities.bookmarks` stores them natively (provider.listFavourites/setFavourite);
+// every other gym uses the local `favourites` table. The route reads the CAPABILITY,
+// never the platform, so a future gym with native favourites needs no change here.
+// The id is the native-style key (`studio0000dow0000HHmm`) in both modes. The older
+// /api/bookmarks/:identifier routes above stay for compatibility; the client uses these.
+// -------------------------------------------------------------
+const favouriteStore = require('./favourites');
+const MAX_FAVOURITES_PER_GYM = 200;
+const hasNativeFavourites = (gymId) => !!(getGymConfig(gymId)?.capabilities?.bookmarks);
+
+// GET /api/favourites → { gymId, native, favourites: [{ id, studioId, dayOfWeek, startTime, …labels }] }
+router.get('/favourites', authenticateToken, readLimiter, async (req, res) => {
+  try {
+    if (hasNativeFavourites(resolveGymOnly(req.userId))) {
+      const { gymId, provider, session } = resolveContext(req.userId);
+      const slots = await withRelogin(req.userId, session, (s) => provider.listFavourites(s));
+      return res.json({ gymId, native: true, favourites: slots.map(favouriteStore.makeFavourite) });
+    }
+    const gymId = resolveGymOnly(req.userId);
+    res.json({ gymId, native: false, favourites: db.listFavourites(req.userId, gymId).map(favouriteStore.makeFavourite) });
+  } catch (err) {
+    handleError(res, err);
+  }
+});
+
+// PUT /api/favourites  { studioId, dayOfWeek, startTime, className?, … } → { ok, id }   (idempotent)
+router.put('/favourites', authenticateToken, extrasLimiter, async (req, res) => {
+  try {
+    const v = favouriteStore.validateSlot(req.body);
+    if (!v.ok) return res.status(400).json({ message: v.error, code: 'INVALID_FAVOURITE' });
+    const gymId = resolveGymOnly(req.userId);
+    if (hasNativeFavourites(gymId)) {
+      const ctx = resolveContext(req.userId);
+      await withRelogin(req.userId, ctx.session, (s) => ctx.provider.setFavourite(v.value, true, s));
+    } else {
+      const existing = db.listFavourites(req.userId, gymId);
+      const isNew = !existing.some((f) => favouriteStore.toIdentifier(f) === favouriteStore.toIdentifier(v.value));
+      if (isNew && existing.length >= MAX_FAVOURITES_PER_GYM) {
+        return res.status(429).json({ message: `You can save up to ${MAX_FAVOURITES_PER_GYM} favourites per gym.`, code: 'FAVOURITE_LIMIT' });
+      }
+      db.addFavourite(req.userId, gymId, v.value);
+    }
+    res.json({ ok: true, gymId, id: favouriteStore.toIdentifier(v.value) });
+  } catch (err) {
+    handleError(res, err);
+  }
+});
+
+// DELETE /api/favourites/:id   (id = the key GET returned)
+router.delete('/favourites/:id', authenticateToken, extrasLimiter, async (req, res) => {
+  try {
+    const slot = favouriteStore.parseIdentifier(req.params.id);
+    if (!slot) return res.status(400).json({ message: 'Unrecognised favourite id.', code: 'INVALID_FAVOURITE' });
+    const gymId = resolveGymOnly(req.userId);
+    if (hasNativeFavourites(gymId)) {
+      const ctx = resolveContext(req.userId);
+      await withRelogin(req.userId, ctx.session, (s) => ctx.provider.setFavourite(slot, false, s));
+    } else {
+      db.removeFavourite(req.userId, gymId, slot);
+    }
+    res.json({ ok: true, gymId, id: req.params.id });
   } catch (err) {
     handleError(res, err);
   }

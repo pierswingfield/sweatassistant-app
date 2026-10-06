@@ -594,6 +594,16 @@ class GymProvider {
   async setBookmark(/* identifier, on, session */) { throw notImplemented('setBookmark', this); }
 
   /**
+   * F-12 NATIVE favourites, for gyms that declare `capabilities.bookmarks`. The
+   * route layer picks this path from the capability flag (never from the platform);
+   * a gym without it uses the local `favourites` table and never reaches these.
+   * Slots are `{ studioId:string, dayOfWeek:0-6 (Sun=0), startTime:'HHmm' }` in the
+   * class's own zone. `listFavourites` returns every slot the member has saved.
+   */
+  async listFavourites(/* session */) { throw notImplemented('listFavourites', this); }
+  async setFavourite(/* slot, on, session */) { throw notImplemented('setFavourite', this); }
+
+  /**
    * Write arbitrary fields back to the account profile. Debug-surface only
    * (the Profile Explorer's hidden edit mode); no normal flow calls this.
    * @param {Object} payload

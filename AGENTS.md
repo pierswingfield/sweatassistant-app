@@ -41,7 +41,7 @@ App/
 ├── server/                  # Express.js backend
 │   ├── server.js            # Main server — routes, proxy, cart/checkout, SSE, rate limiters
 │   ├── auth.js              # CodexFit login, JWT issuance, auto-relogin on 401
-│   ├── db.js                # SQLite schema + CRUD (better-sqlite3, 17 tables)
+│   ├── db.js                # SQLite schema + CRUD (better-sqlite3, 18 tables)
 │   ├── crypto.js            # AES-256-GCM encrypt/decrypt for credentials (env key required)
 │   ├── scheduler.js         # Auto-book precision scheduler — queue-driven wake clock
 │   │                        #   (WP-I), priority tiers, SSE
@@ -322,6 +322,7 @@ GET    /api/health                # Liveness probe — 200 when heartbeats are f
 # Admin Panel
 GET    /admin                     # Serves admin.html (standalone admin SPA)
 POST   /api/admin/login           # Verify ADMIN_PASSWORD, issue 1h admin JWT
+GET    /api/admin/audit           # C7-3 audit log, newest first (?limit<=500&offset)
 GET    /api/admin/users           # List all users with queue counts + priority
 GET    /api/admin/users/:id       # Full user detail (profile, credits, bookings, queue, monitors, spot maps)
 PUT    /api/admin/users/:id/priority  # Update a user's priority tier (1–999)
@@ -426,7 +427,7 @@ POST   /api/notify/booking-success  # Client reports manual/quick booking → se
 POST   /api/bookings/sync           # Client pushes bookings to warm server reminder cache
 ```
 
-## SQLite Schema (17 tables)
+## SQLite Schema (18 tables)
 
 | Table | Purpose | Key columns |
 |-------|---------|-------------|
@@ -446,6 +447,7 @@ POST   /api/bookings/sync           # Client pushes bookings to warm server remi
 | `sent_notifications` | Notification dedupe | `dedupe_key`, `UNIQUE(user_id, dedupe_key)` |
 | `calendar_classes` | Per-user calendar event rows | `event_id`, `start_at`, `class_name`, `slot_label`, `status`, `upgrade_note`, `sequence`, `content_hash`, `UNIQUE(user_id, event_id)` |
 | `calendar_snapshots` | Generated .ics per user | `ics`, `etag`, `class_count`, `generated_at` (PK `user_id`) |
+| `admin_audit_log` | C7-3 admin action audit trail (append-only; never holds passwords/tokens; no FK so `user.delete` rows survive) | `ts`, `actor`, `action`, `target_user_id`, `ip`, `detail` (JSON, key-redacted) |
 | `server_kv` | Key-value store | `jwt_secret`, `vapid_public_key`, `vapid_private_key`, `locations_json`, `studio_name_map` |
 
 ## Client-Side Storage Schema (PWA)

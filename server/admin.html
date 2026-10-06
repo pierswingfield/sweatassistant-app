@@ -362,6 +362,20 @@
     </table>
   </div>
 
+  <section id="audit-log">
+    <h2>Audit log</h2>
+    <div class="table-wrap">
+      <table id="audit-table">
+        <thead><tr><th>Time</th><th>Action</th><th>Target user</th><th>IP</th><th>Detail</th></tr></thead>
+        <tbody id="audit-tbody"><tr><td colspan="5" class="loading">Loading…</td></tr></tbody>
+      </table>
+    </div>
+    <div style="display:flex;gap:10px;margin-top:8px">
+      <button class="btn" id="audit-newer" type="button">Newer</button>
+      <button class="btn" id="audit-older" type="button">Older</button>
+    </div>
+  </section>
+
   <section id="gym-editor">
     <h2>Gym presentation</h2>
     <p style="font-size:12px;color:var(--text-muted);margin-bottom:10px">Display only. Tenant URLs, headers, capabilities and booking policy are set in gyms.config.js and cannot be edited here.</p>
@@ -475,6 +489,7 @@
     document.getElementById('session-label').textContent = 'admin session';
     loadUsers();
     loadGymEditor();
+    loadAudit(0);
   }
 
   async function doLogin() {
@@ -1215,6 +1230,30 @@
     geEl('ge-badge').textContent = g.overridden ? 'Using admin override' : 'Using registry values';
     geMsg('');
   }
+
+  const AUDIT_PAGE = 25;
+  let auditOffset = 0;
+  async function loadAudit(offset) {
+    auditOffset = Math.max(0, offset);
+    const tbody = document.getElementById('audit-tbody');
+    try {
+      const res = await apiFetch(`/api/admin/audit?limit=${AUDIT_PAGE}&offset=${auditOffset}`);
+      const { entries } = await res.json();
+      document.getElementById('audit-newer').disabled = auditOffset === 0;
+      document.getElementById('audit-older').disabled = entries.length < AUDIT_PAGE;
+      tbody.innerHTML = entries.length ? entries.map(e => `<tr>
+        <td>${escHtml(new Date(e.ts).toLocaleString('en-GB'))}</td>
+        <td>${escHtml(e.action)}</td>
+        <td>${e.target_user_id == null ? '—' : escHtml(String(e.target_user_id))}</td>
+        <td>${escHtml(e.ip || '—')}</td>
+        <td>${e.detail ? escHtml(JSON.stringify(e.detail)) : '—'}</td></tr>`).join('')
+        : '<tr><td colspan="5" class="loading">No entries.</td></tr>';
+    } catch (e) {
+      if (adminToken) tbody.innerHTML = `<tr><td colspan="5" class="loading" style="color:var(--red)">${escHtml(e.message)}</td></tr>`;
+    }
+  }
+  document.getElementById('audit-newer').addEventListener('click', () => loadAudit(auditOffset - AUDIT_PAGE));
+  document.getElementById('audit-older').addEventListener('click', () => loadAudit(auditOffset + AUDIT_PAGE));
 
   async function loadGymEditor() {
     geBuildColourInputs();

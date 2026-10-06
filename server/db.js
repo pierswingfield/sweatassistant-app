@@ -193,6 +193,18 @@ db.exec(`
     PRIMARY KEY (user_id, gym_id)
   );
 
+  -- C7-3: durable record of administrative actions. Never holds secrets (see recordAdminAudit).
+  CREATE TABLE IF NOT EXISTS admin_audit_log (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    ts TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ','now')),
+    actor TEXT NOT NULL DEFAULT 'admin',
+    action TEXT NOT NULL,
+    target_user_id INTEGER,
+    ip TEXT,
+    detail TEXT
+  );
+  CREATE INDEX IF NOT EXISTS idx_admin_audit_ts ON admin_audit_log(id DESC);
+
   -- Dedupe ledger for one-shot scheduled notifications (cancellation + booking-window reminders).
   CREATE TABLE IF NOT EXISTS sent_notifications (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -1104,8 +1116,34 @@ function mergeUserWithGym(user, gymId) {
   };
 }
 
+// C7-3: admin audit log. No FK on target_user_id on purpose: a 'user.delete' row must outlive the user.
+const AUDIT_SECRET_KEY = /pass(word)?|token|secret|jwt|authorization/i;
+function redactAudit(v, depth = 0) {
+  if (v === null || typeof v !== 'object' || depth > 4) return v;
+  if (Array.isArray(v)) return v.map((x) => redactAudit(x, depth + 1));
+  const out = {};
+  for (const [k, val] of Object.entries(v)) out[k] = AUDIT_SECRET_KEY.test(k) ? '[redacted]' : redactAudit(val, depth + 1);
+  return out;
+}
+function recordAdminAudit({ action, targetUserId = null, ip = null, detail = null, actor = 'admin' }) {
+  try {
+    db.prepare('INSERT INTO admin_audit_log (actor, action, target_user_id, ip, detail) VALUES (?, ?, ?, ?, ?)')
+      .run(actor, String(action), targetUserId, ip, detail ? JSON.stringify(redactAudit(detail)) : null);
+  } catch (err) {
+    console.error('[Audit] failed to record admin action:', err.message); // never break the admin action itself
+  }
+}
+function listAdminAudit({ limit = 100, offset = 0 } = {}) {
+  const lim = Math.min(Math.max(parseInt(limit, 10) || 100, 1), 500);
+  const off = Math.max(parseInt(offset, 10) || 0, 0);
+  return db.prepare('SELECT * FROM admin_audit_log ORDER BY id DESC LIMIT ? OFFSET ?').all(lim, off)
+    .map((r) => ({ ...r, detail: r.detail ? JSON.parse(r.detail) : null }));
+}
+
 // Helper methods
 module.exports = {
+  recordAdminAudit,
+  listAdminAudit,
   // Direct access if needed
   db,
   migrateAutoUpgradeSettingsScope,

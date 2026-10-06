@@ -136,6 +136,8 @@ warnings are pre-existing and unrelated to this change).
 | # | Item | Evidence | Est. | Pri |
 |---|---|---|---|---|
 | C7-3 | Structured JSON logging plus a `/metrics` endpoint. Admin actions currently have no audit log. | Only `console.log` and `/api/health` | 1 day | P2 |
+
+> **C7-3 step 1 DONE 2026-10-06 (admin audit log).** Root cause: `admin.js` kept no durable record (only a `console.log` on reset-password). Added `admin_audit_log`, `db.recordAdminAudit`/`listAdminAudit`, calls from login success/failure, priority, delete, link-gym, reset-password and presentation update/reset, `GET /api/admin/audit`, an Audit log section in `admin.html`; test `server/test-admin-audit.js`. **C7-3 stays open:** step 2 structured JSON logging, step 3 `/metrics`.
 | C7-4 | Instructor image proxy and resize, so the client doesn't hotlink full-size provider images. | No image route | 3–4 h | P3 |
 | C7-5 | Per-user AES key derivation. Today one global key encrypts every user's gym credentials. | `server/crypto.js` L20 | 0.5 day plus a migration | P3 |
 | C7-6 | Migrate SQLite to Postgres. Not needed at current scale. | — | 2–3 days | P3 |

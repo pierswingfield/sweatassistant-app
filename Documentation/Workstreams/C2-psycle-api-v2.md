@@ -239,6 +239,30 @@ All four items above are **done (2026-09-26)** — see below for evidence, root 
 | C2-5 | ⛔ **Blocked at the gate (2026-10-06): not built.** Paired check showed the `events` stamp does NOT move when occupancy changes (event 217529 22->23->22, stamp frozen at 09:47:32Z), so it cannot invalidate an occupancy-bearing cache; see PARITY.md "C2-5 gate". The 60 s TTL stays. **C7-7 (occupancy warming poller) is therefore NOT made unnecessary.** Original item: Use **`/heartbeat`** to invalidate the shared schedule cache | Replaces the blind 60 s TTL in `schedule-cache.js`. Fewer calls, fresher data. Probably makes the old "occupancy warming poller" idea (C7-7) unnecessary. | 0.5 day |
 | C2-6 | ✅ **Single-flight `/profile`** (30 s memo per user) — *pulled forward into launch 2026-09-28*, done, see C2-6 section below | `getProfile`, `getEligibility` and `getCredits` each fetch it separately | 2 h |
 
+### C2-4 cold-load benchmark (2026-10-06, dev twin only)
+
+Does the 7-day chunking (C2-4 at `b6fd975`) make the cold timetable slower than `master`? **No: within noise.**
+Method: real Chrome (Claude for Chrome, one tab) on `sweat-dev`; before each run the dev container was restarted (empties the in-process schedule cache), SW + CacheStorage + IndexedDB + localStorage cache keys were cleared (login token kept), then a fresh navigation to `/timetable`. "Rendered" = first timetable row in the DOM, measured from navigation start. Three gyms are linked (Psycle, JAB, Aarmy), so each load is 3 `/api/timetable` (28-day) + 3 `/api/metadata` calls in parallel. The gym is carried in `x-gym-id`, which the network log does not show, so per-gym times come from a separate cold in-page harness (all six calls in parallel, explicit `x-gym-id`).
+
+| Branch | Rendered, cold, runs 1/2/3 | Median | Slowest `/api/timetable` per load | Warm 2nd load |
+|---|---|---|---|---|
+| `master` | 52.6 (data-arrival 52.0, render not instrumented) / 52.0 / 51.1 s | 52.0 s | 47.4-48.7 s | 4.3 s |
+| `optimisation` | 47.1 / 53.8 / 54.1 s | 53.8 s | 35.6-45.5 s | not run |
+
+Per-gym cold, parallel harness (`/api/timetable` 28 days, `/api/metadata`):
+
+| Gym | `master` | `optimisation` |
+|---|---|---|
+| Psycle (CodexFit) | 12.1 s / 0.7 s | 12.4 s / 0.8 s |
+| JAB (MarianaTek) | 36.4 s / 29.0 s | 40.7 s / 24.6 s |
+| Aarmy (MarianaTek) | 45.5 s / 50.3 s | 41.2 s / 48.1 s |
+
+Findings: (1) Psycle is the fastest gym on both branches (12 s cold, unchanged), so C2-4 did not slow it; the chunks are fired with `Promise.allSettled` in `providers/codexfit.js fetchTimetable`, i.e. in parallel, not sequentially. (2) The cold page is gated by the two **MarianaTek** gyms (JAB and Aarmy, 36-48 s each), whose `/timetable` and unranged `/metadata` are two separate slow upstream fetches (metadata is derived from a full class list). The first row appears about 0.6 s after the slowest gym lands. Run-to-run spread (about 5 s) is larger than any branch difference. (3) One run (`optimisation` #3, discarded and rerun) rendered "No classes match" despite all three responses arriving; not reproduced, not investigated. (4) `LOG_LEVEL=debug` per-chunk `provider call` lines were not collected because nothing pointed at Psycle.
+
+Fix proposal (not implemented): the cold-path cost is in `providers/marianatek.js fetchTimetable`/`fetchMetadata`, not C2-4. Share one in-flight class-list fetch between `timetable|gym|range` and `metadata|gym||` (single-flight on the underlying provider call, or derive metadata from the cached timetable), and prewarm both gyms' schedule cache at boot and on the 60 s refresh.
+
+`server/schedule-cache.js` check: the 60 s TTL is **stale-while-revalidate on request**, not a timer. `getOrFetch` serves fresh entries, serves a stale entry immediately and starts a background `single()` refresh on that request, and awaits only on a miss. There is no `setInterval`/`setTimeout` anywhere in it. Because the cache is in-process, a restart is always a cold miss.
+
 ## Tests (spread across phases)
 
 - [x] **Cart v2 contract test against the G3 fixtures** (`server/test-codexfit-v2-cart.js`, added

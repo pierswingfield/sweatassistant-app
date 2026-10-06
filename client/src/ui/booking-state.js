@@ -3,7 +3,7 @@
 // `cache.bookings` / `cache.waitlists` are the single source of truth the
 // timetable's Book/Edit/Cancel buttons and My Bookings both read. api.js announces
 // every successful mutation (book, cancel, swap, join/leave waitlist) as a
-// `psycle-bookings-mutated` event; this module reacts, whichever tab caused it:
+// `sweat-bookings-mutated` event; this module reacts, whichever tab caused it:
 //
 //   1. apply what the mutation already tells us, synchronously (a cancelled
 //      booking simply stops being booked), so the very next paint is right;
@@ -52,7 +52,7 @@ async function refetchBookingState() {
       cache.waitlists = waitlists || [];
       // Keep the server's booking_cache (what /api/overlap-check reads) current.
       import('./bookings.js').then((m) => m.syncBookingCache(cache.bookings)).catch(() => {});
-      window.dispatchEvent(new CustomEvent('psycle-booking-state-changed'));
+      window.dispatchEvent(new CustomEvent('sweat-booking-state-changed'));
     } catch (_) {
       // Keep the optimistic state; the next prefetch will reconcile.
     } finally {
@@ -66,10 +66,10 @@ let installed = false;
 export function installBookingState(onChanged = () => {}) {
   if (installed) return;
   installed = true;
-  window.addEventListener('psycle-bookings-mutated', (e) => {
+  window.addEventListener('sweat-bookings-mutated', (e) => {
     applyMutationToCache(e.detail || {});
     onChanged();                 // repaint now, from the state we already know
     refetchBookingState();       // then reconcile with the provider
   });
-  window.addEventListener('psycle-booking-state-changed', () => onChanged());
+  window.addEventListener('sweat-booking-state-changed', () => onChanged());
 }

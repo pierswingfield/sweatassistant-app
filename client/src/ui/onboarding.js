@@ -22,8 +22,8 @@ import { COPY, formatCopyText, appCopy } from '../copy.js';
 import { escapeHtml, gymChip } from './cards';
 import { enableAutoUpgradeForGyms, shouldAnimateGymLogos, getPostLoginDestination as choosePostLoginDestination, detectInstallContext, shouldOfferInstall } from './onboarding-routing.js';
 
-const COMPLETE_KEY = 'psycleOnboardingComplete';
-const STEP_KEY = 'psycleOnboardingStep';
+const COMPLETE_KEY = 'sweatOnboardingComplete';
+const STEP_KEY = 'sweatOnboardingStep';
 // Bump to re-trigger onboarding for all users after a significant change.
 // v4: focused, resumable flow with one optional setup roll-up.
 const ONBOARDING_VERSION = '4';
@@ -53,7 +53,7 @@ export function shouldShowOnboarding() {
 }
 
 function onboardingKey(base) {
-  const accountId = localStorage.getItem('psycleUserId');
+  const accountId = localStorage.getItem('sweatUserId');
   return accountId ? `${base}:${accountId}` : `${base}:anonymous`;
 }
 
@@ -164,7 +164,7 @@ export async function getPostLoginDestination() {
 }
 
 async function finish() {
-  const accountId = localStorage.getItem('psycleUserId');
+  const accountId = localStorage.getItem('sweatUserId');
   if (accountId) {
     localStorage.setItem(onboardingKey(COMPLETE_KEY), ONBOARDING_VERSION);
     localStorage.removeItem(onboardingKey(STEP_KEY));
@@ -298,8 +298,8 @@ function stepIntro() {
 // Install step: shown on EVERY flow entry in a mobile browser tab until BOTH the user has chosen "Continue in
 // browser" (pending, session-scoped) AND has logged in (which promotes it to the persistent dismissed flag).
 // Merely showing the step sets nothing.
-const INSTALL_PENDING_KEY = 'psycleInstallPending';
-const INSTALL_DISMISSED_KEY = 'psycleInstallDismissed';
+const INSTALL_PENDING_KEY = 'sweatInstallPending';
+const INSTALL_DISMISSED_KEY = 'sweatInstallDismissed';
 const installContext = () => detectInstallContext({
   userAgent: navigator.userAgent,
   standalone: window.navigator.standalone === true,

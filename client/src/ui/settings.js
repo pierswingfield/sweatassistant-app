@@ -1,4 +1,5 @@
 import { api, apiFetch } from '../api';
+import { removeStored } from '../storage-migrate.js';
 import { showToast, togglePushSubscription, updatePushStatusUI, userSettings, cache, getTheme, setTheme, debugConsole, loadGymContext, refreshUserData, updateDebugTerminalVisibility, getIsOffline } from '../main';
 import { getBookingOffset, describeBookingWindow } from '../lib';
 import { renderStudioFloorPlan } from './spotmap';
@@ -673,7 +674,7 @@ export async function openManageSpotMapsModal(options = {}) {
     openManageSpotMapsModal(options);
   };
   const cleanup = () => {
-    window.removeEventListener('psycle:gyms-changed', refreshOnGymChange);
+    window.removeEventListener('sweat:gyms-changed', refreshOnGymChange);
     if (closeSpotMapManager === close) closeSpotMapManager = null;
     if (activeSpotManager?.overlay === overlay) activeSpotManager = null;
   };
@@ -701,7 +702,7 @@ export async function openManageSpotMapsModal(options = {}) {
 
   header.querySelector('#manage-modal-close').onclick = close;
   overlay.addEventListener('click', e => { if (e.target === overlay) close(); });
-  window.addEventListener('psycle:gyms-changed', refreshOnGymChange);
+  window.addEventListener('sweat:gyms-changed', refreshOnGymChange);
   // Mobile page (X). Drill-down editor children are opened on top of it.
   openNavPage(overlay, { id: 'spot-maps', remove: true, onClose: cleanup });
   if (isMobile()) activeSpotManager = { overlay, reload: () => load() };
@@ -715,12 +716,12 @@ export async function openManageSpotMapsModal(options = {}) {
       // a request for a DIFFERENT gym must not read them. With the ambient
       // active-gym state gone, an explicit gymId is by definition not "the
       // cached one" — fetch fresh rather than serve another gym's layout.
-      options.gymId ? null : cacheGet(accountScopedKey('psycleUnifiedCacheMeta')),
+      options.gymId ? null : cacheGet(accountScopedKey('sweatUnifiedCacheMeta')),
       // C3-24: the unified timetable cache is what timetable.js writes; the old
-      // `psycleCacheEvents` keys had no writer, so this always missed and the
+      // `sweatCacheEvents` keys had no writer, so this always missed and the
       // active-studio filter never applied. It is merged across gyms, so it is
       // read for an explicit gym too and narrowed to that gym just below.
-      cacheGet(accountScopedKey('psycleUnifiedCacheEvents')),
+      cacheGet(accountScopedKey('sweatUnifiedCacheEvents')),
       api.getMyGyms().catch(() => ({ gyms: [] }))
     ]);
     const linkedGyms = linkedRes.gyms || linkedRes || [];
@@ -1507,7 +1508,7 @@ async function syncAfterGymSetChange() {
   await loadGymContext();
   await invalidateApiCache('/api/studio-preferences').catch(() => {});
   await refreshUserData(true);
-  window.dispatchEvent(new CustomEvent('psycle:gyms-changed'));
+  window.dispatchEvent(new CustomEvent('sweat:gyms-changed'));
   // Fire and forget: the fetch can take seconds and the settings panel must not wait.
   resetTimetableForGymChange().catch(() => {});
 }
@@ -2288,8 +2289,8 @@ function setupSettingsListeners() {
     replayBtn.dataset.listener = 'true';
     replayBtn.addEventListener('click', async () => {
       const { startOnboarding } = await import('./onboarding');
-      localStorage.removeItem('psycleOnboardingComplete');
-      localStorage.removeItem('psycleOnboardingStep');
+      removeStored('sweatOnboardingComplete');
+      removeStored('sweatOnboardingStep');
       startOnboarding();
     });
   }
@@ -2301,7 +2302,7 @@ function setupSettingsListeners() {
     logoutBtn.addEventListener('click', () => {
       showToast(COPY.settings.loggingOut, 'info');
       clearApiCache().catch(() => {}).finally(() => {
-        localStorage.removeItem('psycleLocalToken');
+        removeStored('sweatLocalToken');
         window.location.reload();
       });
     });
@@ -2335,7 +2336,7 @@ function setupSettingsListeners() {
       try {
         await apiFetch('/api/auth/me', { method: 'DELETE' });
         showToast(COPY.settings.allDataDeleted, 'success');
-        localStorage.removeItem('psycleLocalToken');
+        removeStored('sweatLocalToken');
         setTimeout(() => { window.location.reload(); }, 1500);
       } catch (err) {
         showToast(formatCopyText(COPY.settings.deleteFailed, { error: err.message }), 'error');

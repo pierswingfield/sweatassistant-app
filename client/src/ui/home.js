@@ -92,6 +92,6 @@ export { isNoGymError };
 // Re-render when the linked-gym set changes, and when the app returns to the foreground.
 if (typeof window !== 'undefined') {
   const onHome = () => !!document.getElementById('psycle-panel-home') && document.getElementById('psycle-panel-home').style.display !== 'none';
-  window.addEventListener('psycle:gyms-changed', () => { if (onHome()) renderHome(); });
+  window.addEventListener('sweat:gyms-changed', () => { if (onHome()) renderHome(); });
   document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'visible' && onHome()) renderHome(); });
 }

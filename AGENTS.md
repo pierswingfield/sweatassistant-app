@@ -450,19 +450,21 @@ POST   /api/bookings/sync           # Client pushes bookings to warm server remi
 
 ## Client-Side Storage Schema (PWA)
 
+Keys were renamed `psycle*` -> `sweat*` (naming audit step 5). `client/src/storage-migrate.js` copies each legacy key once (new key wins, old kept one release, `removeStored()` clears both on logout) and must be the FIRST import of `api.js` and `main.js`. Do not add new `psycle*` keys.
+
 | Key | Location | Purpose |
 |-----|----------|---------|
-| `psycleLocalToken` | `localStorage` | Local JWT (30-day, issued by server BFF) |
-| `psycleUserId` | `localStorage` | Per-user cache key prefix, set after login |
-| `psycleTheme` | `localStorage` | Theme preference: `auto` \| `light` \| `dark` |
-| `psycleDefaultFilters` | `localStorage` | Saved timetable filter selections (locations, instructors, eventTypes, bookmarks) |
-| `psycleCacheEvents` / `psycleCacheMeta` | IndexedDB | Cached timetable events + metadata |
-| `psycleCacheTime` | `localStorage` | Cache timestamp for TTL check |
-| `psycleActiveStudioIds` / `psycleActiveStudioIdsTime` | `localStorage` | Active studio IDs for Spot Maps manager (24h TTL) |
-| `psycleOnboardingComplete` | `localStorage` | Onboarding completion flag (value = version string) |
-| `psycleOnboardingStep` | `localStorage` | Current onboarding step (resumable on iOS after install relaunch) |
+| `sweatLocalToken` | `localStorage` | Local JWT (30-day, issued by server BFF) |
+| `sweatUserId` | `localStorage` | Per-user cache key prefix, set after login |
+| `sweatTheme` | `localStorage` | Theme preference: `auto` \| `light` \| `dark` |
+| `sweatDefaultFilters` | `localStorage` | Saved timetable filter selections (locations, instructors, eventTypes, bookmarks) |
+| `sweatCacheEvents` / `sweatCacheMeta` | IndexedDB | Cached timetable events + metadata |
+| `sweatCacheTime` | `localStorage` | Cache timestamp for TTL check |
+| `sweatActiveStudioIds` / `sweatActiveStudioIdsTime` | `localStorage` | Active studio IDs for Spot Maps manager (24h TTL) |
+| `sweatOnboardingComplete` | `localStorage` | Onboarding completion flag (value = version string) |
+| `sweatOnboardingStep` | `localStorage` | Current onboarding step (resumable on iOS after install relaunch) |
 
-IndexedDB database `psycle-cache` (v2) has two stores: `cache` (raw timetable events + metadata) and `api-responses` (all API GET response caching, per-user key prefix isolation).
+IndexedDB database `sweat-cache` (v3; renamed from `psycle-cache`, rows copied once by `client/src/storage-migrate.js`) has two stores: `cache` (raw timetable events + metadata) and `api-responses` (all API GET response caching, per-user key prefix isolation).
 
 ## Environment Variables
 

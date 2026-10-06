@@ -129,7 +129,7 @@ function recordTimetableTiming(phase, startedAt, detail = {}) {
   samples.push(sample);
   window.__psycleTimetablePerformance = samples.slice(-30);
   document.documentElement.dataset.timetablePerformance = JSON.stringify(window.__psycleTimetablePerformance);
-  window.dispatchEvent(new CustomEvent('psycle-timetable-performance', { detail: sample }));
+  window.dispatchEvent(new CustomEvent('sweat-timetable-performance', { detail: sample }));
 }
 
 // Normalized metadata ids are STRINGS; raw event fields (studio_id, instructor_id,
@@ -270,7 +270,7 @@ let weekStripSeenSelected = null;   // follow the selection only when IT changes
 // model can synchronously decide Quick-Book vs Book per studio.
 let studioPrefsMap = {};
 if (typeof window !== 'undefined') {
-  window.addEventListener('psycle-studio-preferences-mutated', (event) => {
+  window.addEventListener('sweat-studio-preferences-mutated', (event) => {
     const detail = event.detail || {};
     cache.studioPrefs = applyStudioPreferenceMutation(cache.studioPrefs || {}, detail);
     cache.studioPreferences = applyStudioPreferenceMutation(cache.studioPreferences || {}, detail);
@@ -754,7 +754,7 @@ export async function initTimetable() {
 // so the common case keeps its saved filters; anyone who has explicitly selected
 // a gym re-saves once. Losing a device-local preference beats loading the wrong
 // gym's filters.
-const FILTERS_KEY_BASE = 'psycleUnifiedDefaultFilters';
+const FILTERS_KEY_BASE = 'sweatUnifiedDefaultFilters';
 
 function defaultFiltersKey() {
   return accountScopedKey(FILTERS_KEY_BASE);
@@ -814,9 +814,9 @@ export async function loadMetadata(force = false) {
 
 // Fetch all events for the prefetch window in parallel across all linked gyms
 // Uses instant SWR: renders cached events in 0ms on startup, refreshes in background
-const CACHE_KEY_EVENTS = 'psycleUnifiedCacheEvents';
-const CACHE_KEY_META = 'psycleUnifiedCacheMeta';
-const CACHE_KEY_TIME = 'psycleUnifiedCacheTime';
+const CACHE_KEY_EVENTS = 'sweatUnifiedCacheEvents';
+const CACHE_KEY_META = 'sweatUnifiedCacheMeta';
+const CACHE_KEY_TIME = 'sweatUnifiedCacheTime';
 let lastContextAt = 0; // when bookings/waitlists were last confirmed by the network
 
 async function cacheDel(key) {

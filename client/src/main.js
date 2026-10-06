@@ -1,3 +1,5 @@
+import './storage-migrate.js'; // MUST stay first (legacy psycle* key migration)
+import { removeStored } from './storage-migrate.js';
 import { parseLocation, legacyHashToPath } from './url-state.js';
 import { currentRoute, navigate, pathFor, migrateLegacyHash, initRouter, stashReturnTo, takeReturnTo } from './router.js';
 import { api, setToken, isLoggedIn } from './api';
@@ -143,7 +145,7 @@ export function profileForGym(gymId) {
 
 // --- THEME (Auto / Light / Dark) ---
 // 'auto' follows the OS via prefers-color-scheme; 'light'/'dark' force via data-theme.
-const THEME_KEY = 'psycleTheme';
+const THEME_KEY = 'sweatTheme';
 
 export function getTheme() {
   return localStorage.getItem(THEME_KEY) || 'auto';
@@ -1084,13 +1086,13 @@ function initConnectivity() {
 
   window.addEventListener('offline', () => { setOffline('browser'); scheduleRecovery(); });
   window.addEventListener('online', () => probeConnectivity(0));
-  window.addEventListener('psycle-network-fail', () => verifyThenSetOffline('network-error'));
+  window.addEventListener('sweat-network-fail', () => verifyThenSetOffline('network-error'));
   // A successful API response IS proof of connectivity — no extra probe needed.
-  window.addEventListener('psycle-network-ok', () => { if (isOffline && navigator.onLine !== false) setOnline(); });
+  window.addEventListener('sweat-network-ok', () => { if (isOffline && navigator.onLine !== false) setOnline(); });
   document.addEventListener('visibilitychange', () => {
     if (document.visibilityState === 'visible' && isOffline) probeConnectivity(0);
   });
-  window.addEventListener('psycle-offline-snapshot', (event) => {
+  window.addEventListener('sweat-offline-snapshot', (event) => {
     const savedAt = Number(event.detail?.savedAt);
     if (!Number.isFinite(savedAt)) return;
     lastOfflineSnapshotAt = Math.max(lastOfflineSnapshotAt || 0, savedAt);
@@ -1385,14 +1387,14 @@ async function checkAuth() {
   if (isLoggedIn()) {
     // Restore per-user cache key prefix from localStorage so cached data
     // is found on reload (the prefix was set during login but is lost on reload).
-    const storedUserId = localStorage.getItem('psycleUserId');
+    const storedUserId = localStorage.getItem('sweatUserId');
     if (storedUserId) setCacheKeyPrefix(storedUserId);
 
     try {
       const status = await api.getStatus();
       currentUser = { id: status.userId, email: status.email };
       setCacheKeyPrefix(currentUser.id);
-      localStorage.setItem('psycleUserId', currentUser.id);
+      localStorage.setItem('sweatUserId', currentUser.id);
       // Cold load: honour an earlier "Set up later" (completion is per account); don't nag on every launch.
       const destination = coldBootDestination(await getPostLoginDestination().catch(() => null), !shouldShowOnboarding());
       if (destination === 'full') {
@@ -1406,14 +1408,14 @@ async function checkAuth() {
       initApp();
     } catch (err) {
       // Distinguish auth failure (401) from network error (offline).
-      // 401 errors fire 'psycle-logout-triggered' which already calls showLogin() + clears cache.
+      // 401 errors fire 'sweat-logout-triggered' which already calls showLogin() + clears cache.
       // Network errors (offline) should NOT log out — the token may still be valid.
       const isAuthError = err.message && err.message.includes('session has expired');
       if (isAuthError) {
-        // 401 — showLogin() already called by psycle-logout-triggered handler
+        // 401 — showLogin() already called by sweat-logout-triggered handler
       } else if (getIsOffline() || err instanceof TypeError) {
         // Network error (server unreachable) with valid token — init app with cached data.
-        // The offline banner is already showing via the psycle-network-fail event handler.
+        // The offline banner is already showing via the sweat-network-fail event handler.
         // Cache prefix was restored above from localStorage.
         // A cold reload can reach this catch before the connectivity event has
         // updated module state, so the fetch TypeError is also authoritative.
@@ -1442,7 +1444,7 @@ function showLogin() {
   stashReturnTo(location.pathname + location.search);   // U4-19: same-origin path only; validated on both ends
   setCacheKeyPrefix('');
   clearApiCache().catch(() => {});
-  localStorage.removeItem('psycleUserId');
+  removeStored('sweatUserId');
   // Reset settings to defaults so a new user doesn't inherit the previous
   // user's settings (e.g. debugMode). The server returns {} for a brand-new
   // user, which would skip the Object.assign merge and leave stale values.
@@ -1529,7 +1531,7 @@ if (loginForm) {
       const user = await api.login(email, password);
       currentUser = user;
       setCacheKeyPrefix(currentUser.id);
-      localStorage.setItem('psycleUserId', currentUser.id);
+      localStorage.setItem('sweatUserId', currentUser.id);
       showToast(COPY.auth.loginSuccess, 'success');
 
       await onLoginSuccess();
@@ -1705,7 +1707,7 @@ if (signupForm) {
       const { user } = await api.signup(email, password);
       currentUser = user;
       setCacheKeyPrefix(currentUser.id || email);
-      localStorage.setItem('psycleUserId', currentUser.id || email);
+      localStorage.setItem('sweatUserId', currentUser.id || email);
       showToast(COPY.auth.accountCreated, 'success');
       await onLoginSuccess();
     } catch (err) {
@@ -1732,7 +1734,7 @@ if (recoverFindBtn) {
 }
 
 // Listen for global logout triggers (e.g. from api.js 401 interceptor)
-window.addEventListener('psycle-logout-triggered', () => {
+window.addEventListener('sweat-logout-triggered', () => {
   setCacheKeyPrefix('');
   clearApiCache().catch(() => {});
   showToast(COPY.auth.sessionExpired, 'warning');
@@ -1746,7 +1748,7 @@ window.addEventListener('psycle-logout-triggered', () => {
 // just to reflect it without delay: toast which gym, and refresh the "Your
 // Gyms" list if Settings happens to be open so the "Re-authenticate" prompt
 // shows immediately rather than on the next visit to the tab.
-window.addEventListener('psycle-gym-needs-relogin', async (e) => {
+window.addEventListener('sweat-gym-needs-relogin', async (e) => {
   const gymId = e.detail?.gymId;
   const name = (gymId && getGymShortName(gymId)) || COPY.static.linkedGymFallback;
   showToast(formatCopyText(COPY.shell.gymSessionExpired, { gymName: name }), 'warning');
@@ -1841,7 +1843,7 @@ function initHeaderAutoHide() {
 
 document.addEventListener('DOMContentLoaded', () => {
   registerServiceWorker();
-  initConnectivity();  // Set up offline listeners BEFORE checkAuth so psycle-network-fail is caught
+  initConnectivity();  // Set up offline listeners BEFORE checkAuth so sweat-network-fail is caught
   initGymLogoLoader();
   // Once the inline-SVG sprite is ready, repaint the header badges so they use it (no <img> decode).
   document.addEventListener('gym-logos-ready', () => { updateCreditBadge().catch(() => {}); });

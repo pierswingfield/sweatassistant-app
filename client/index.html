@@ -29,7 +29,8 @@
     // prevents a theme flash on manual light/dark override).
     (function () {
       try {
-        var t = localStorage.getItem('psycleTheme');
+        // 'psycleTheme' is the pre-rename key (naming audit step 5); drop the fallback with storage-migrate.js.
+        var t = localStorage.getItem('sweatTheme') || localStorage.getItem('psycleTheme');
         if (t === 'light' || t === 'dark')
           document.documentElement.setAttribute('data-theme', t);
       } catch (e) {}

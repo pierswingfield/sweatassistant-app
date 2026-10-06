@@ -129,7 +129,7 @@ export async function renderCalendarSection(targetContainer = null) {
   container.innerHTML = feedCardHtml(status) + (status.enabled ? includeCardHtml(status) + remindersCardHtml(status) + addCardHtml(status) : '');
 
   const val = (key) => container.querySelector(`[data-calendar-setting="${key}"]`);
-  const notifyActionComplete = () => container.dispatchEvent(new CustomEvent('psycle:calendar-action-complete'));
+  const notifyActionComplete = () => container.dispatchEvent(new CustomEvent('sweat:calendar-action-complete'));
   const prefs = () => {
     // Feed off: the option controls are not on screen, so send nothing and keep saved prefs.
     if (!val('includeWaitlists')) return {};
@@ -244,7 +244,7 @@ export function openCalendarSettingsModal({ zIndex = 2000, onChange = null, onCl
   overlay.querySelectorAll('[data-calendar-modal-close]').forEach((b) => b.addEventListener('click', close));
   overlay.addEventListener('click', (e) => { if (e.target === overlay) close(); });
   document.addEventListener('keydown', onKey);
-  if (onChange) section.addEventListener('psycle:calendar-action-complete', onChange);
+  if (onChange) section.addEventListener('sweat:calendar-action-complete', onChange);
 
   document.body.appendChild(overlay);
   openNavPage(overlay, { id: 'calendar-settings', remove: true, onClose: cleanup });

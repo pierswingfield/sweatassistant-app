@@ -1409,7 +1409,7 @@ export async function openUpgradeConfigModal({ currentSlotLabel = '', eventId, g
 }
 
 // Re-render bookings when background SWR fetch updates IndexedDB cache.
-window.addEventListener('psycle-data-refreshed', (e) => {
+window.addEventListener('sweat-data-refreshed', (e) => {
   const { endpoint } = e.detail;
   if (
     endpoint.startsWith('/api/bookings') || 

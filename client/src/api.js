@@ -1,3 +1,5 @@
+import './storage-migrate.js'; // MUST stay first: migrates legacy psycle* keys before the token read below
+import { removeStored } from './storage-migrate.js';
 import { debugLog } from './main.js';
 import { getDefaultGymId } from './gym-context.js';
 import { createLayoutCache, MAX_AGE_MS as LAYOUT_MAX_AGE_MS } from './layout-cache.js';
@@ -14,16 +16,16 @@ import { validateSelfBookingRequest } from './ui/booking-entitlement.js';
 // U1-15: every successful booking mutation is announced so booking-state.js can
 // update the shared booked/waitlisted cache at once, whichever tab made it.
 function announceBookingMutation(detail) {
-  try { window.dispatchEvent(new CustomEvent('psycle-bookings-mutated', { detail })); } catch (_) {}
+  try { window.dispatchEvent(new CustomEvent('sweat-bookings-mutated', { detail })); } catch (_) {}
 }
 
-let localToken = localStorage.getItem('psycleLocalToken') || null;
+let localToken = localStorage.getItem('sweatLocalToken') || null;
 const offlineSnapshotMeta = new Map();
 let lastLoadedGymIds = new Set(); // Track which gyms loaded successfully in getBookings/getWaitlists
 
 function publishOfflineSnapshot(name, snapshot) {
   offlineSnapshotMeta.set(name, snapshot.savedAt);
-  try { window.dispatchEvent(new CustomEvent('psycle-offline-snapshot', { detail: { name, savedAt: snapshot.savedAt } })); } catch (_) {}
+  try { window.dispatchEvent(new CustomEvent('sweat-offline-snapshot', { detail: { name, savedAt: snapshot.savedAt } })); } catch (_) {}
   return snapshot.data;
 }
 
@@ -81,9 +83,9 @@ try { localStorage.removeItem('sweatActiveGymId'); } catch (_) {}
 export function setToken(token) {
   localToken = token;
   if (token) {
-    localStorage.setItem('psycleLocalToken', token);
+    localStorage.setItem('sweatLocalToken', token);
   } else {
-    localStorage.removeItem('psycleLocalToken');
+    removeStored('sweatLocalToken');
   }
 }
 
@@ -142,16 +144,16 @@ export async function apiFetch(endpoint, options = {}) {
       try {
         res = await fetch(url, fetchOptions);
       } catch (retryErr) {
-        if (!quiet) window.dispatchEvent(new CustomEvent('psycle-network-fail'));
+        if (!quiet) window.dispatchEvent(new CustomEvent('sweat-network-fail'));
         throw retryErr;
       }
     } else {
-      if (!quiet) window.dispatchEvent(new CustomEvent('psycle-network-fail'));
+      if (!quiet) window.dispatchEvent(new CustomEvent('sweat-network-fail'));
       throw err;
     }
   }
 
-  window.dispatchEvent(new CustomEvent('psycle-network-ok'));
+  window.dispatchEvent(new CustomEvent('sweat-network-ok'));
 
   // A 403 naming an unlinked gym means this call asked for a gym the account is
   // not linked to — it was unlinked, disabled, or this is a different account on
@@ -181,12 +183,12 @@ export async function apiFetch(endpoint, options = {}) {
     const decision = classifyAuthFailure(res.status, await peekJson(res), targetGym);
     if (decision.kind === 'gym') {
       console.warn(`[API] Gym "${decision.gymId || 'unknown'}" session expired — needs relogin.`);
-      window.dispatchEvent(new CustomEvent('psycle-gym-needs-relogin', { detail: { gymId: decision.gymId } }));
+      window.dispatchEvent(new CustomEvent('sweat-gym-needs-relogin', { detail: { gymId: decision.gymId } }));
       return res;
     }
     console.warn('[API] Received 401. Session expired. Logging out.');
     setToken(null);
-    window.dispatchEvent(new CustomEvent('psycle-logout-triggered'));
+    window.dispatchEvent(new CustomEvent('sweat-logout-triggered'));
     throw new Error(COPY.api.sessionExpired);
   }
 
@@ -219,7 +221,7 @@ const layoutCache = createLayoutCache({
     return { slots: data.slots || [], objects: data.objects || [] };
   },
   onChange: (detail) => {
-    try { window.dispatchEvent(new CustomEvent('psycle-layout-updated', { detail })); } catch (_) {}
+    try { window.dispatchEvent(new CustomEvent('sweat-layout-updated', { detail })); } catch (_) {}
   },
 });
 
@@ -1183,7 +1185,7 @@ export const api = {
       deleteOfflineSnapshot(`studio-preferences:${gymId || 'default'}`),
     ]);
     try {
-      window.dispatchEvent(new CustomEvent('psycle-studio-preferences-mutated', {
+      window.dispatchEvent(new CustomEvent('sweat-studio-preferences-mutated', {
         detail: { gymId, studioId, preferences },
       }));
     } catch (_) { /* non-browser test/runtime */ }
@@ -1347,7 +1349,7 @@ export const api = {
 };
 
 // Clear API response cache on logout to prevent cross-user data leakage
-window.addEventListener('psycle-logout-triggered', () => {
+window.addEventListener('sweat-logout-triggered', () => {
   setCacheKeyPrefix('');
   clearApiCache().catch(() => {});
 });

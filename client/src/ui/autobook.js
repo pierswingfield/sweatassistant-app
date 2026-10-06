@@ -71,7 +71,7 @@ function connectToAutoBookStream() {
 
   // Connect to SSE stream for real-time auto-book status updates
   // EventSource doesn't support custom headers, so pass token in URL query param
-  const token = localStorage.getItem('psycleLocalToken');
+  const token = localStorage.getItem('sweatLocalToken');
   const url = token ? `/api/auto-book/stream?token=${encodeURIComponent(token)}` : '/api/auto-book/stream';
   sseEventSource = new EventSource(url);
 

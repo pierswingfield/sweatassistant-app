@@ -15,7 +15,7 @@ import { instructorAvatar } from './tooltips.js';
 import { formatInZone, zoneFor } from '../lib.js';
 import { getLinkedGyms } from '../gym-context.js';
 
-const HELPER_KEY = (id) => `psycleHelperDismissed:${id}`;
+const HELPER_KEY = (id) => `sweatHelperDismissed:${id}`;
 
 export function helperDismissed(id) {
   try { return localStorage.getItem(HELPER_KEY(id)) === '1'; } catch (_) { return false; }
@@ -188,8 +188,8 @@ export function watchBookingGuards(modal, gymId) {
     new MutationObserver(() => modal.__bkGuardRun?.()).observe(modal, { childList: true, subtree: true });
     window.addEventListener('online', () => modal.__bkGuardRun?.());
     window.addEventListener('offline', () => modal.__bkGuardRun?.());
-    window.addEventListener('psycle:gyms-changed', () => modal.__bkGuardRun?.());
-    window.addEventListener('psycle-gym-needs-relogin', () => modal.__bkGuardRun?.());
+    window.addEventListener('sweat:gyms-changed', () => modal.__bkGuardRun?.());
+    window.addEventListener('sweat-gym-needs-relogin', () => modal.__bkGuardRun?.());
   }
   run();
 }

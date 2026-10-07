@@ -97,10 +97,10 @@ export function resumeOnboarding({ optionalOnly = false } = {}) {
 
 async function runFrom(startIndex) {
   active = true;
-  // Apply the body id that unlocks all #psycle-helper-container-scoped CSS
+  // Apply the body id that unlocks all #sa-helper-container-scoped CSS
   // (font-family, .psycle-btn-mini, etc.) so modals opened during onboarding
   // look identical to those opened from the main app.
-  document.body.id = 'psycle-helper-container';
+  document.body.id = 'sa-helper-container';
   try {
     let i = startIndex;
     while (i < STEPS.length) {
@@ -399,7 +399,7 @@ function stepInstall() {
  */
 export async function offerInstallBeforeLogin() {
   if (active || !installOffered()) return;
-  document.body.id = 'psycle-helper-container';
+  document.body.id = 'sa-helper-container';
   await stepInstall();
   const c = container();
   if (c) { c.style.display = 'none'; c.innerHTML = ''; }

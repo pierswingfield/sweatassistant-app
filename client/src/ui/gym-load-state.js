@@ -39,7 +39,7 @@ export function resetGymLoadState() {
 /** Mark/unmark every `[data-gym]` chip under `root` to match the store. */
 export function applyGymLoadState(root = document) {
   if (!root || !root.querySelectorAll) return;
-  root.querySelectorAll('.psycle-header-gym-badge[data-gym]').forEach((el) => {
+  root.querySelectorAll('.sa-header-gym-badge[data-gym]').forEach((el) => {
     const on = isGymLoading(el.getAttribute('data-gym'));
     el.classList.toggle('is-loading', on);
     if (on) el.setAttribute('aria-busy', 'true'); else el.removeAttribute('aria-busy');

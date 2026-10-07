@@ -807,7 +807,7 @@ function gymBadgeLogo(gymId, shortName) {
 function renderGymBadge(container, gymId, shortName, isMetered, total, credits) {
   const badge = document.createElement('button');
   badge.type = 'button';
-  badge.className = 'psycle-header-gym-badge';
+  badge.className = 'sa-header-gym-badge';
   badge.setAttribute('data-gym', gymId);
   if (isMetered) {
     badge.innerHTML = `${gymBadgeLogo(gymId, shortName)}<span class="psycle-hgb-pill">${total}<span class="psycle-hgb-unit"> ${COPY.shell.creditUnit}</span></span>`;
@@ -849,12 +849,12 @@ function renderGymBadge(container, gymId, shortName, isMetered, total, credits) 
 // Full width is measured (with the wide logos) on each render and cached; resize
 // only compares against that cache, with 24px hysteresis so it cannot oscillate.
 // U4-2: header chips double as per-gym loading indicators (state in gym-load-state.js).
-onGymLoadChange(() => applyGymLoadState(document.getElementById('psycle-header-credits')));
+onGymLoadChange(() => applyGymLoadState(document.getElementById('sa-header-credits')));
 let fullBadgesWidth = 0;
 let badgeFitObserver = null;
 function fitHeaderBadges(remeasure) {
-  const box = document.getElementById('psycle-header-credits');
-  const header = document.querySelector('.psycle-header');
+  const box = document.getElementById('sa-header-credits');
+  const header = document.querySelector('.sa-header');
   if (!box || !header) return;
   const wasCompact = box.classList.contains('psycle-badges-compact');
   if (remeasure) {
@@ -885,7 +885,7 @@ function fitHeaderBadges(remeasure) {
 // gyms each badge needs ITS OWN gym's balance, which `availableCredits` can't
 // provide — those are fetched here via `api.getCreditsByGym()`.
 export async function updateCreditBadge(availableCredits = null) {
-  const creditsContainer = document.getElementById('psycle-header-credits');
+  const creditsContainer = document.getElementById('sa-header-credits');
   if (!creditsContainer) return;
 
   const linked = getLinkedGyms();
@@ -1297,8 +1297,8 @@ export async function initApp() {
   document.getElementById('psycle-app-container').style.display = 'flex';
   
   // Set helper expanded classes to trigger standard styles
-  document.body.id = 'psycle-helper-container';
-  document.body.className = 'psycle-helper-expanded';
+  document.body.id = 'sa-helper-container';
+  document.body.className = 'sa-helper-expanded';
 
   // Load the active gym's capabilities + theme BEFORE the first render, so the
   // UI doesn't briefly show features this gym lacks. Awaited rather than
@@ -1453,8 +1453,8 @@ function showLogin() {
   // Per-gym copies belong to the previous account too.
   cache.profilesByGym = {};
   cache.gymSettings = {};
-  document.body.id = 'psycle-helper-container';
-  document.body.className = 'psycle-helper-expanded';
+  document.body.id = 'sa-helper-container';
+  document.body.className = 'sa-helper-expanded';
   document.getElementById('psycle-app-container').style.display = 'none';
   document.getElementById('psycle-login-container').style.display = 'flex';
 }
@@ -1787,11 +1787,11 @@ function initHeaderAutoHide() {
 
   const els = () => {
     if (!app) app = document.getElementById('psycle-app-container');
-    if (!header) header = document.querySelector('.psycle-header');
+    if (!header) header = document.querySelector('.sa-header');
     return app && header;
   };
   const measure = () => {
-    if (els() && header.offsetHeight) app.style.setProperty('--psycle-header-h', header.offsetHeight + 'px');
+    if (els() && header.offsetHeight) app.style.setProperty('--sa-header-h', header.offsetHeight + 'px');
   };
   const setHidden = (hide) => {
     if (!els() || hide === hidden) return;

@@ -143,6 +143,12 @@ function makeInstructor(i, gymId) {
  * @returns {import('./base').NormalizedProfile}
  */
 function makeProfile(p) {
+  const stats = p.stats && typeof p.stats === 'object' ? prune({
+    totalBookings: num(p.stats.totalBookings),
+    totalUniqueBookings: num(p.stats.totalUniqueBookings),
+    totalUniqueBookingsAttended: num(p.stats.totalUniqueBookingsAttended),
+    totalAttendedMinutes: num(p.stats.totalAttendedMinutes),
+  }) : undefined;
   return prune({
     id: str(p.id),
     email: p.email,
@@ -150,6 +156,7 @@ function makeProfile(p) {
     lastName: p.lastName,
     bookingCutoff: p.bookingCutoff,
     extendedCutoff: p.extendedCutoff,
+    stats: Object.keys(stats || {}).length ? stats : undefined,
     raw: p.raw,
   });
 }

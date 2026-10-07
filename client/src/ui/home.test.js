@@ -8,6 +8,8 @@ let getHomeCreditRows;
 let getHomeBookLinks;
 let getHomeTopInstructorRows;
 let getHomeFavouriteRows;
+let getHomeStats;
+let formatStatsMinutes;
 let primaryActionForEvent;
 let cache;
 beforeAll(async () => {
@@ -22,7 +24,7 @@ beforeAll(async () => {
     });
   }
   ({ cache } = await import('../main.js'));
-  ({ countPendingAutoBooks, getHomeCreditRows, getHomeBookLinks, getHomeTopInstructorRows, getHomeFavouriteRows } = await import('./home.js'));
+  ({ countPendingAutoBooks, getHomeCreditRows, getHomeBookLinks, getHomeTopInstructorRows, getHomeFavouriteRows, getHomeStats, formatStatsMinutes } = await import('./home.js'));
   ({ primaryActionForEvent } = await import('./timetable.js'));
 });
 
@@ -158,5 +160,38 @@ describe('W7 Home top instructors', () => {
     expect(getHomeTopInstructorRows([{ gym_id: 'gym-a' }], {
       'gym-a': { history: { topInstructors: [] }, metadata: { instructors: [] } },
     })).toEqual([]);
+  });
+});
+
+describe('W8 Home stats', () => {
+  const gyms = [
+    { gym_id: 'official-gym', shortName: 'Official' },
+    { gym_id: 'history-gym', shortName: 'History' },
+  ];
+
+  it('keeps official attendance and history-derived booking totals separate', () => {
+    setLinkedGyms(gyms);
+    const stats = getHomeStats(gyms, {
+      'official-gym': {
+        attendance: { attendedTotal: 129 },
+        profile: { stats: { totalAttendedMinutes: 6450 } },
+        history: { summary: { classCount: 138, totalMinutes: 6300, instructorCount: 14 } },
+      },
+      'history-gym': {
+        history: { summary: { classCount: 42, totalMinutes: 2520, instructorCount: 8 } },
+      },
+    });
+    expect(stats.officialAttendedTotal).toBe(129);
+    expect(stats.historyBookedTotal).toBe(42);
+    expect(stats.rows).toMatchObject([
+      { gymId: 'official-gym', attendanceTotal: 129, bookedCount: null, minutes: 6450, minutesSource: 'provider', instructorCount: 14 },
+      { gymId: 'history-gym', attendanceTotal: null, bookedCount: 42, minutes: 2520, minutesSource: 'history', instructorCount: 8 },
+    ]);
+  });
+
+  it('does not invent an unavailable gym statistic and formats supported durations', () => {
+    expect(getHomeStats([{ gym_id: 'unknown' }], { unknown: {} }).rows).toEqual([]);
+    expect(formatStatsMinutes(6450)).toBe('107h 30m');
+    expect(formatStatsMinutes(undefined)).toBe('');
   });
 });

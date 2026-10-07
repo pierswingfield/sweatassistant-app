@@ -6,7 +6,7 @@ import { registerWidget, registry, mountWidget, isNoGymError } from './widget-re
 import { renderCardSkeletons } from './loading-skeleton.js';
 import { welcomeText } from './name-capture.js';
 import { getTotalCredits, hasConfirmedAccess, isMetered } from './credit-allowance.js';
-import { getGymShortName } from '../gym-context.js';
+import { canForGym, getGymShortName } from '../gym-context.js';
 import { gymSquareChip } from './cards.js';
 import { buildTimetableUrl } from '../url-state.js';
 import { navigate } from '../router.js';
@@ -18,21 +18,6 @@ import { instructorAvatar } from './tooltips.js';
 import { indexFavourites, isFavouriteIn } from '../favourites.js';
 
 const goTo = (tabId) => (window.switchTab ? window.switchTab(tabId) : null);
-
-// Eight widgets in the agreed order. W8 remains a placeholder until its
-// provider-stats audit; W1-W7 are real.
-const PLACEHOLDERS = [
-  ['stats', 'stats', 80],
-];
-for (const [id, key, order] of PLACEHOLDERS) {
-  registerWidget({
-    id, order, title: COPY.home[key],
-    load: async () => null,
-    isEmpty: () => true,
-    emptyText: COPY.home.comingSoon,
-    render() {},
-  });
-}
 
 const gymIdOf = (gym) => String(gym?.gym_id || gym?.gymId || gym?.id || '');
 
@@ -92,6 +77,158 @@ registerWidget({
       row.appendChild(anchor);
     }
     el.appendChild(row);
+  },
+});
+
+const finite = (value) => Number.isFinite(Number(value));
+
+/** A compact duration label without claiming a provider's unit semantics. */
+export function formatStatsMinutes(value) {
+  const minutes = Number(value);
+  if (!Number.isFinite(minutes) || minutes < 0) return '';
+  const hours = Math.floor(minutes / 60);
+  const remainder = minutes % 60;
+  if (!hours) return `${remainder}m`;
+  return remainder ? `${hours}h ${remainder}m` : `${hours}h`;
+}
+
+/**
+ * Keep provided attendance and history-derived bookings in distinct buckets.
+ * It is tempting to add the two, but that would present non-equivalent source
+ * semantics as one cross-gym "classes taken" total.
+ */
+export function getHomeStats(gyms, byGym = {}) {
+  const rows = [];
+  for (const gym of Array.isArray(gyms) ? gyms : []) {
+    const gymId = gymIdOf(gym);
+    if (!gymId) continue;
+    const data = byGym[gymId] || {};
+    const attendance = data.attendance;
+    const summary = data.history?.summary;
+    const profileStats = data.profile?.stats;
+    const hasOfficial = finite(attendance?.attendedTotal);
+    const hasHistory = finite(summary?.classCount);
+    if (!hasOfficial && !hasHistory) continue;
+    const providerMinutes = finite(profileStats?.totalAttendedMinutes)
+      ? Number(profileStats.totalAttendedMinutes) : null;
+    const historyMinutes = finite(summary?.totalMinutes) ? Number(summary.totalMinutes) : null;
+    rows.push({
+      gymId,
+      gymName: getGymShortName(gymId) || gym.shortName || gym.name || gymId,
+      attendanceTotal: hasOfficial ? Number(attendance.attendedTotal) : null,
+      bookedCount: !hasOfficial && hasHistory ? Number(summary.classCount) : null,
+      // Prefer the provider's attended-minute figure. Only use history minutes
+      // where a provider does not expose that value.
+      minutes: providerMinutes ?? (!hasOfficial ? historyMinutes : null),
+      minutesSource: providerMinutes != null ? 'provider' : (!hasOfficial && historyMinutes != null ? 'history' : null),
+      instructorCount: finite(summary?.instructorCount) ? Number(summary.instructorCount) : null,
+    });
+  }
+  const officialAttendedTotal = rows.reduce((sum, row) => sum + (row.attendanceTotal || 0), 0);
+  const historyBookedTotal = rows.reduce((sum, row) => sum + (row.bookedCount || 0), 0);
+  return { rows, officialAttendedTotal, historyBookedTotal };
+}
+
+async function loadHomeStats(gyms) {
+  const linked = (Array.isArray(gyms) ? gyms : []).filter((gym) => gymIdOf(gym));
+  const settled = await Promise.allSettled(linked.map(async (gym) => {
+    const gymId = gymIdOf(gym);
+    // Capabilities are held by gym-context while public linked-gym rows stay
+    // deliberately small. Resolve this known gym through that shared contract.
+    const supportsOfficialAttendance = canForGym('attendanceTotals', gymId);
+    const [history, attendance, profile] = await Promise.allSettled([
+      api.getHistory(gymId, { limit: 1, top: 0 }),
+      supportsOfficialAttendance ? api.getAttendanceTotals(gymId) : Promise.resolve(null),
+      supportsOfficialAttendance ? api.getNormalizedProfile(gymId) : Promise.resolve(null),
+    ]);
+    const historyValue = history.status === 'fulfilled' ? history.value : null;
+    const data = {
+      history: historyValue && (!historyValue.sync?.lastError || historyValue.sync?.lastSyncedAt) ? historyValue : null,
+      attendance: attendance.status === 'fulfilled' ? attendance.value : null,
+      profile: profile.status === 'fulfilled' ? profile.value : null,
+      partial: history.status === 'rejected' || !!historyValue?.sync?.lastError || attendance.status === 'rejected' || profile.status === 'rejected',
+    };
+    const hasData = !!data.history || !!data.attendance;
+    if (!hasData) throw new Error('No stats source available');
+    return [gymId, data];
+  }));
+  const fulfilled = settled.filter((result) => result.status === 'fulfilled');
+  if (!fulfilled.length && linked.length) throw settled.find((result) => result.status === 'rejected')?.reason;
+  const model = getHomeStats(gyms, Object.fromEntries(fulfilled.map((result) => result.value)));
+  return { ...model, partial: fulfilled.length !== linked.length || fulfilled.some((result) => result.value[1].partial) };
+}
+
+function statsMetric(label, value, source) {
+  const metric = document.createElement('div');
+  metric.className = 'home-stats-metric';
+  const number = document.createElement('strong');
+  number.textContent = String(value);
+  const copy = document.createElement('span');
+  copy.textContent = label;
+  metric.append(number, copy);
+  if (source) metric.dataset.source = source;
+  return metric;
+}
+
+function statsRow(row) {
+  const detailId = `home-stats-${row.gymId}`.replace(/[^a-zA-Z0-9_-]/g, '-');
+  const item = document.createElement('div');
+  item.className = 'home-stats-row';
+  const button = document.createElement('button');
+  button.type = 'button';
+  button.className = 'home-stats-row-toggle';
+  button.setAttribute('aria-expanded', 'false');
+  button.setAttribute('aria-controls', detailId);
+  const primary = row.attendanceTotal != null
+    ? `${row.attendanceTotal} · ${COPY.home.statsProviderAttended}`
+    : `${row.bookedCount} · ${COPY.home.statsHistoryBooked}`;
+  button.innerHTML = '<span class="home-stats-gym"></span><span class="home-stats-primary"></span><span class="home-stats-chevron" aria-hidden="true">⌄</span>';
+  button.querySelector('.home-stats-gym').textContent = row.gymName;
+  button.querySelector('.home-stats-primary').textContent = primary;
+  const details = document.createElement('div');
+  details.id = detailId;
+  details.className = 'home-stats-details';
+  details.hidden = true;
+  if (row.attendanceTotal != null) details.appendChild(statsMetric(COPY.home.statsProviderAttended, row.attendanceTotal, 'provider'));
+  if (row.bookedCount != null) details.appendChild(statsMetric(COPY.home.statsHistoryBooked, row.bookedCount, 'history'));
+  if (row.minutes != null) details.appendChild(statsMetric(
+    row.minutesSource === 'provider' ? COPY.home.statsProviderMinutes : COPY.home.statsHistoryMinutes,
+    formatStatsMinutes(row.minutes), row.minutesSource,
+  ));
+  if (row.instructorCount != null) details.appendChild(statsMetric(COPY.home.statsHistoryInstructors, row.instructorCount, 'history'));
+  button.setAttribute('aria-label', COPY.home.statsShowDetails.replace('{gym}', row.gymName));
+  button.addEventListener('click', () => {
+    const expanded = button.getAttribute('aria-expanded') === 'true';
+    button.setAttribute('aria-expanded', String(!expanded));
+    button.setAttribute('aria-label', (expanded ? COPY.home.statsShowDetails : COPY.home.statsHideDetails).replace('{gym}', row.gymName));
+    details.hidden = expanded;
+  });
+  item.append(button, details);
+  return item;
+}
+
+registerWidget({
+  id: 'stats', order: 80, title: COPY.home.stats,
+  async load(ctx) { return loadHomeStats(ctx.gyms); },
+  isEmpty: (data) => Array.isArray(data?.rows) && data.rows.length === 0,
+  emptyText: COPY.home.statsNone,
+  render(el, data) {
+    const summary = document.createElement('div');
+    summary.className = 'home-stats-summary';
+    if (data.rows.some((row) => row.attendanceTotal != null)) summary.appendChild(statsMetric(COPY.home.statsProviderAttended, data.officialAttendedTotal, 'provider'));
+    if (data.rows.some((row) => row.bookedCount != null)) summary.appendChild(statsMetric(COPY.home.statsHistoryBooked, data.historyBookedTotal, 'history'));
+    // A known zero is still meaningful. The rows below retain its source label.
+    if (!summary.children.length) summary.textContent = COPY.home.statsNone;
+    const list = document.createElement('div');
+    list.className = 'home-stats-list';
+    data.rows.forEach((row) => list.appendChild(statsRow(row)));
+    el.append(summary, list);
+    if (data.partial) {
+      const note = document.createElement('p');
+      note.className = 'home-stats-partial';
+      note.textContent = COPY.home.statsPartial;
+      el.appendChild(note);
+    }
   },
 });
 

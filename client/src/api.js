@@ -979,6 +979,14 @@ export const api = {
     return res.json();
   },
 
+  // Official provider attendance totals are capability-gated server-side. The
+  // caller always names its gym, preserving per-gym provider isolation.
+  async getAttendanceTotals(gymId) {
+    const res = await apiFetch('/api/attendance-totals', { gymId });
+    if (!res.ok) throw new Error('Failed to load attendance totals');
+    return res.json();
+  },
+
   // Cached with a SHORT ttl: a balance changes when you book or a purchase
   // lands, so it must not be as stale as membership — but re-fetching it per
   // gym on every tab visit is what made Credits & Membership take seconds.

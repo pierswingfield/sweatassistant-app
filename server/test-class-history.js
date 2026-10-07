@@ -148,6 +148,20 @@ check('topInstructors counts distinct classes (multi-slot bookings on one event 
   assert.strictEqual(history.topInstructors(uid, PSYCLE)[0].count, 1);
 });
 
+check('summary is gym-scoped and counts each multi-slot class once', async () => {
+  const uid = db.createUser(`hist-summary-${Date.now()}@test.local`, 'enc:pw');
+  const t = new Date(Date.now() - 864e5).toISOString();
+  history.upsertEntries(uid, PSYCLE, [
+    { bookingId: 's1', eventId: 'event-1', status: 'unconfirmed', startAt: t, durationMin: 45, instructorId: 'a' },
+    { bookingId: 's2', eventId: 'event-1', status: 'unconfirmed', startAt: t, durationMin: 45, instructorId: 'a' },
+    { bookingId: 's3', eventId: 'event-2', status: 'attended', startAt: t, durationMin: 60, instructorId: 'b' },
+    { bookingId: 's4', eventId: 'cancelled', status: 'cancelled', startAt: t, durationMin: 90, instructorId: 'c' },
+  ]);
+  history.upsertEntries(uid, JAB, [{ bookingId: 'other', eventId: 'event-1', status: 'attended', startAt: t, durationMin: 30, instructorId: 'z' }]);
+  assert.deepStrictEqual(history.summary(uid, PSYCLE), { classCount: 2, totalMinutes: 105, instructorCount: 2 });
+  assert.deepStrictEqual(history.summary(uid, JAB), { classCount: 1, totalMinutes: 30, instructorCount: 1 });
+});
+
 check('failed pull is recorded, keeps stored rows, never throws', async () => {
   const uid = twoGymUser('fail');
   await history.syncUserGym(uid, PSYCLE);
@@ -203,6 +217,7 @@ check('GET /api/history: gym via x-gym-id, lazy backfill, normalized, no raw; 40
     assert.strictEqual(body.history.length, 5);
     assert.ok(body.history.every((r) => !('raw' in r)));
     assert.strictEqual(body.topInstructors[0].instructorName, 'George Davies');
+    assert.ok(body.summary.classCount > 0 && body.summary.totalMinutes > 0, 'history route returns its gym-scoped activity summary');
     assert.ok(body.sync.lastSyncedAt);
     assert.strictEqual(rowCount(uid, PSYCLE), 0, 'other gym untouched');
     const bare = await get('/history');

@@ -2,13 +2,13 @@ const { DateTime } = require('luxon');
 const { disciplineHead } = require('./class-name');
 const db = require('./db');
 const pushService = require('./push');
-const { getGymConfig, DEFAULT_GYM_ID } = require('./gyms.config');
+const { getGymConfig, listEnabledGyms } = require('./gyms.config');
 const { isRollingWeekly } = require('./providers/booking-window');
 const { appName } = require('./config');
 
 const { zoneOfGym } = require('./providers/timezone');
 // Display zone for a notification: the gym it is about, never a literal.
-const zoneFor = (gymId) => zoneOfGym(gymId || DEFAULT_GYM_ID);
+const zoneFor = (gymId) => zoneOfGym(gymId);
 
 // Default notification preferences. Stored per-user under settings.notifications.
 const DEFAULT_PREFS = {
@@ -118,11 +118,11 @@ function spotsLabel(slots) {
 //
 // Every title/body below used to hardcode "Psycle" — true only for a
 // single-gym build. `ctx.gymId` is how every notify() caller (see below) names
-// the gym a notification is actually about; falling back to the registry
-// default rather than throwing keeps a caller that forgets it from crashing a
+// the gym a notification is actually about; falling back to a generic label
+// rather than throwing keeps a caller that forgets it from crashing a
 // push send outright, but every real call site names its own gym explicitly.
 function gymShortName(gymId) {
-  const cfg = getGymConfig(gymId) || getGymConfig(DEFAULT_GYM_ID);
+  const cfg = getGymConfig(gymId);
   return (cfg && cfg.shortName) || 'Your gym';
 }
 
@@ -233,8 +233,10 @@ async function notify(userId, type, ctx = {}) {
 // ─── Debug samples (force-send, ignore prefs) ────────────────────────────────
 
 function buildSample(type) {
-  const soon = DateTime.now().setZone(zoneFor()).plus({ days: 1 }).set({ hour: 6, minute: 30, second: 0 }).toISO();
-  const base = { startAt: soon, groupName: 'RIDE', className: 'Signature 45', instructorName: 'Aanya Smith', slots: [5], slot: 5, gymId: DEFAULT_GYM_ID };
+  // Samples describe the first enabled gym in the registry; no gym is privileged.
+  const sampleGymId = (listEnabledGyms()[0] || {}).id;
+  const soon = DateTime.now().setZone(zoneFor(sampleGymId)).plus({ days: 1 }).set({ hour: 6, minute: 30, second: 0 }).toISO();
+  const base = { startAt: soon, groupName: 'RIDE', className: 'Signature 45', instructorName: 'Aanya Smith', slots: [5], slot: 5, gymId: sampleGymId };
   switch (type) {
     case 'booking': return buildBooking(base);
     case 'upgrade': return buildUpgrade({ ...base, keptOriginal: false });
@@ -242,11 +244,11 @@ function buildSample(type) {
     case 'creditWarning': return buildCreditWarning({ ...base, kind: 'autobook', spots: 2, creditsShort: 2 });
     case 'creditWarning-upgrade': return buildCreditWarning({ ...base, kind: 'autoupgrade' });
     case 'cancellationReminder':
-      return buildCancellationReminder({ ...base, startAt: DateTime.now().setZone(zoneFor()).plus({ hours: 24 }).toISO() });
-    case 'bookingWindow': return buildBookingWindow({ gymId: DEFAULT_GYM_ID, tip: 'You have 3 classes set to Auto-Book.' });
-    case 'bookingWindow-none': return buildBookingWindow({ gymId: DEFAULT_GYM_ID, tip: "Don't forget to set up Auto-Book!" });
-    case 'bookingWindow-nocredits': return buildBookingWindow({ gymId: DEFAULT_GYM_ID, tip: '⚠️ You have 3 classes set to Auto-Book, but you don\'t have enough credits.' });
-    case 'providerThrottled': return buildProviderThrottled({ gymId: DEFAULT_GYM_ID });
+      return buildCancellationReminder({ ...base, startAt: DateTime.now().setZone(zoneFor(sampleGymId)).plus({ hours: 24 }).toISO() });
+    case 'bookingWindow': return buildBookingWindow({ gymId: sampleGymId, tip: 'You have 3 classes set to Auto-Book.' });
+    case 'bookingWindow-none': return buildBookingWindow({ gymId: sampleGymId, tip: "Don't forget to set up Auto-Book!" });
+    case 'bookingWindow-nocredits': return buildBookingWindow({ gymId: sampleGymId, tip: '⚠️ You have 3 classes set to Auto-Book, but you don\'t have enough credits.' });
+    case 'providerThrottled': return buildProviderThrottled({ gymId: sampleGymId });
     default: return null;
   }
 }

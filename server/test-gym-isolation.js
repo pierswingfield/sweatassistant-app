@@ -26,6 +26,7 @@ process.env.DB_PATH = process.env.DB_PATH || ':memory:';
 const assert = require('assert');
 const db = require('./db');
 
+const testkit = require('./testkit');
 const checks = [];
 const check = (name, fn) => checks.push({ name, fn });
 
@@ -40,7 +41,7 @@ let seq = 0;
 // to be set any more (stage 4 of the active-gym audit removed the persisted
 // choice; resolution is deterministic).
 function twoGymUser() {
-  const uid = db.createUser(`iso-${Date.now()}-${seq++}@test.local`, 'enc:pw');
+  const uid = testkit.createUser(db, `iso-${Date.now()}-${seq++}@test.local`, 'enc:pw');
   db.upsertUserGym(uid, GYM_B, { gym_email: 'b@test.local', encrypted_password: 'enc:b' });
   return uid;
 }

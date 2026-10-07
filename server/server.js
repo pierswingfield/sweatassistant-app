@@ -569,6 +569,8 @@ app.post('/api/auto-book', authenticateToken, bookingMutationLimiter, (req, res)
   const gymId = reqGymId || req.headers['x-gym-id'] || null;
   try {
     const targetGymId = gymId || db.resolveActiveGymId(req.userId);
+    // An account with no gym is legitimate (signup is gym-less): say so, not a 500.
+    if (!targetGymId) return res.status(409).json({ code: 'NO_GYM_LINKED', message: 'No gym linked to this account yet.' });
     const caps = getGymConfig(targetGymId)?.capabilities || {};
     const maxSpots = caps.selfBookingPolicy === 'one-per-class' ? 1 : Number(caps.maxSpotsPerClass);
     const requestedSpots = Math.max(1, Number(preferences.requiredCount) || 1);
@@ -737,6 +739,10 @@ app.post('/api/auto-upgrade', authenticateToken, bookingMutationLimiter, (req, r
   }
   const gymId = reqGymId || req.headers['x-gym-id'] || null;
   try {
+    // An account with no gym is legitimate (signup is gym-less): say so, not a 500.
+    if (!gymId && !db.resolveActiveGymId(req.userId)) {
+      return res.status(409).json({ code: 'NO_GYM_LINKED', message: 'No gym linked to this account yet.' });
+    }
     // Quota: cap active monitors per user
     const activeCount = db.countActiveAutoUpgrades(req.userId, gymId);
     if (activeCount >= MAX_ACTIVE_AUTO_UPGRADES_PER_GYM) {
@@ -818,6 +824,7 @@ app.put('/api/settings', authenticateToken, (req, res) => {
     try { if (req.body && req.body.calendar) calendar.regenerateSnapshot(req.userId); } catch (_) {}
     res.json({ success: true });
   } catch (err) {
+    if (err.code === 'NO_GYM_LINKED') return res.status(409).json({ code: 'NO_GYM_LINKED', message: 'No gym linked to this account yet.' });
     res.status(/no gym specified/i.test(err.message) ? 400 : 500).json({ message: err.message });
   }
 });

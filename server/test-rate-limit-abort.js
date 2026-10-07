@@ -22,11 +22,11 @@ process.env.NODE_ENV = 'test';
 
 const assert = require('assert');
 const db = require('./db');
+const testkit = require('./testkit');
 const scheduler = require('./scheduler');
 const notifications = require('./notifications');
 const CodexFitProvider = require('./providers/codexfit');
 const MarianaTekProvider = require('./providers/marianatek');
-const { DEFAULT_GYM_ID } = require('./gyms.config');
 
 const PSYCLE = 'psycle-london'; // codexfit — the gym we rate-limit
 const JAB = 'jab-boxing';       // marianatek — must be unaffected
@@ -42,11 +42,7 @@ let seq = 0;
 // order is a different concern (db.js resolveActiveGymId) and not what this
 // test is about.
 function singleGymUser(gymId, label) {
-  const uid = db.createUser(`ratelimit-${label}-${Date.now()}-${seq++}@test.local`, 'enc:pw');
-  if (gymId !== DEFAULT_GYM_ID) {
-    db.db.prepare('DELETE FROM user_gyms WHERE user_id = ? AND gym_id = ?').run(uid, DEFAULT_GYM_ID);
-    db.upsertUserGym(uid, gymId, { gym_email: `${label}@test.local`, encrypted_password: 'enc:pw' });
-  }
+  const uid = testkit.createUser(db, `ratelimit-${label}-${Date.now()}-${seq++}@test.local`, 'enc:pw', gymId);
   db.setGymSession(uid, gymId, { accessToken: `fake-jwt-${uid}`, expiresAt: null });
   return uid;
 }

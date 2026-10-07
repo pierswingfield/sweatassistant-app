@@ -468,9 +468,6 @@ function listEnabledGyms() {
   return Object.values(GYMS).filter((g) => g.enabled);
 }
 
-/** The default gym existing single-tenant users are backfilled to. (Removed in the next commit.) */
-const DEFAULT_GYM_ID = 'psycle-london';
-
 /** Gyms that declare a dev mock identity (`devMock.email`), in registry order. */
 function listDevMockGyms() {
   return Object.values(GYMS).filter((g) => g.devMock && g.devMock.email);
@@ -483,4 +480,4 @@ function findDevMockGym(email) {
   return listDevMockGyms().find((g) => g.devMock.email.toLowerCase() === wanted) || null;
 }
 
-module.exports = { GYMS, validatePresentation, sanitizePresentation, setPresentation, resetPresentation, getBaselinePresentation, getGymConfig, listGyms, listEnabledGyms, listDevMockGyms, findDevMockGym, DEFAULT_GYM_ID };
+module.exports = { GYMS, validatePresentation, sanitizePresentation, setPresentation, resetPresentation, getBaselinePresentation, getGymConfig, listGyms, listEnabledGyms, listDevMockGyms, findDevMockGym };

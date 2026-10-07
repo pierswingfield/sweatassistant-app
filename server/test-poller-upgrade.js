@@ -13,7 +13,7 @@
 //
 // SAFETY: booking against the mock mutates the git-tracked mock_bookings.dbjson
 // fixture, so this backs it up before and restores it after — the same
-// discipline test-regression-psycle.js uses. The DB is an isolated temp file so
+// discipline test-regression-codexfit-mock.js uses. The DB is an isolated temp file so
 // the real dev/prod sqlite is never touched.
 
 process.env.ENCRYPTION_KEY = process.env.ENCRYPTION_KEY || 'a'.repeat(64);
@@ -33,6 +33,7 @@ const mockPath = path.join(__dirname, 'mock_bookings.dbjson');
 const mockBackup = fs.existsSync(mockPath) ? fs.readFileSync(mockPath) : null;
 
 const db = require('./db');
+const testkit = require('./testkit');
 const poller = require('./poller');
 const CodexFitProvider = require('./providers/codexfit');
 const MarianaTekProvider = require('./providers/marianatek');
@@ -63,7 +64,7 @@ function cleanup() {
     // Seed a dev user: email dev@psycle.com routes fetchCodexFit (profile) to the
     // mock; jwt 'mock-jwt-token' routes codexfit.bookSlot() to the mock. Both are
     // needed because the two halves of attemptUpgradeSlot use different call paths.
-    const userId = db.createUser('dev@psycle.com', 'x');
+    const userId = testkit.createUser(db, 'dev@psycle.com', 'x');
     db.updateUserJWT(userId, 'mock-jwt-token', new Date(Date.now() + 864e5).toISOString());
     assert.strictEqual(db.getUserById(userId).jwt, 'mock-jwt-token', 'dev jwt resolves through user_gyms merge');
 

@@ -5,11 +5,7 @@ const { encrypt, decrypt } = require('./crypto');
 const { getProvider } = require('./providers');
 const { log } = require('./logger');
 
-// The gym a BRAND-NEW account bootstraps against via the legacy email+password
-// login path (handleLogin). It is not a general fallback and must not be used as
-// one: an existing account resolves its OWN gym, and the modern path is signup
-// (gym-less) + POST /api/my-gyms/link. See handleLogin's note below.
-const { DEFAULT_GYM_ID, findDevMockGym } = require('./gyms.config');
+const { findDevMockGym } = require('./gyms.config');
 
 const JWT_SECRET = getJWTSecret();
 
@@ -125,125 +121,37 @@ async function handleLogin(email, password) {
 
   // --- the app account login (Decision D4) ---------------------------
   //
-  // An SA login used to BE a gym login: it round-tripped CodexFit every time, and
-  // the account only existed as long as the membership did. Now the SA credential
-  // is its own thing, so:
-  //   * a migrated account authenticates locally — no gym round-trip, so login
-  //     stays up (and fast) even when the gym's API is down or the membership
-  //     lapses, which is the entire point of D4;
-  //   * the gym session is NOT refreshed here. It doesn't need to be — the first
-  //     proxied call triggers triggerAutoRelogin() from the stored per-gym
-  //     credential if the session has expired.
+  // An app login is the account's OWN credential (scrypt hash), independent of any
+  // gym: it authenticates locally, with no gym round-trip, so login stays up when a
+  // gym's API is down or a membership lapses — which is the point of D4. The gym
+  // session is NOT touched here; the first gym call triggers triggerAutoRelogin()
+  // from the stored per-gym credential if the session has expired.
   //
-  // Existing accounts have no password_hash yet. They fall through to the gym
-  // login below, which sets one from the password they just proved they know —
-  // a silent migration, no forced reset, no user-visible step.
+  // There is deliberately NO gym-login fallback and no implicit account creation:
+  // accounts exist only via signup (POST /api/auth/signup, gym-less), and a gym is
+  // attached afterwards with POST /api/my-gyms/link. A failed password never falls
+  // back to gym auth, or an old gym password would bypass a changed app password.
   const existing = db.getUserByEmail(email);
-  if (existing && db.hasAccountPassword(existing.id)) {
-    if (!db.verifyAccountPassword(existing.id, password)) {
-      // Deliberately NOT falling back to gym auth on failure: once someone has
-      // changed their SA password, their old gym password must stop working as a
-      // way in, or the change was decorative.
-      throw new Error('Invalid email or password');
-    }
-    const localToken = jwt.sign({ userId: existing.id, email }, JWT_SECRET, { expiresIn: '30d' });
-    // getUserById (not the bare getUserByEmail row) — profile_json/display_name
-    // live in user_gyms since WP-D3, and this merges the active gym's link in.
-    const merged = db.getUserById(existing.id) || existing;
-    let profile = {};
-    try { profile = merged.profile_json ? JSON.parse(merged.profile_json) : {}; } catch (_) {}
-    const nameParts = (merged.display_name || '').split(' ');
-    return {
-      token: localToken,
-      user: {
-        id: profile.id || null,
-        email: merged.email,
-        firstName: profile.first_name || nameParts[0] || '',
-        lastName: profile.last_name || nameParts.slice(1).join(' ') || '',
-        bookingCutoff: profile.booking_cutoff || null,
-        extendedCutoff: profile.extended_cutoff || null,
-      },
-    };
+  if (!existing || !db.hasAccountPassword(existing.id) || !db.verifyAccountPassword(existing.id, password)) {
+    throw new Error('Invalid email or password');
   }
-
-  // 1. Authenticate against the gym.
-  //
-  // Which gym? An account that already exists resolves its OWN — assuming Psycle
-  // here would send a JAB-only user's credentials to the wrong provider. Only a
-  // genuinely new account has nothing to resolve from, and bootstraps against the
-  // default gym. That bootstrap is the LEGACY path, kept so existing single-gym
-  // users can keep signing in with one form; the modern flow is signup (gym-less)
-  // then POST /api/my-gyms/link, which names its gym explicitly.
-  const loginGymId = existing ? db.resolveActiveGymId(existing.id) : DEFAULT_GYM_ID;
-  const { session: gymSession, raw: data } = await loginToGym(loginGymId, email, password);
-  console.log(`[Auth] Login response from ${loginGymId}, keys:`, Object.keys(data || {}));
-  if (data.user) {
-    console.log('[Auth] data.user keys:', Object.keys(data.user));
-  } else {
-    // Safely log structure without leaking access_token
-    const safeData = { ...data };
-    if (safeData.access_token) safeData.access_token = '***';
-    console.log('[Auth] data.user is undefined. Full response structure:', JSON.stringify(safeData));
-  }
-  const gymToken = gymSession.accessToken;
-  const gymUser = data.user || data.customer || data.data || {};
-
-  // 2. Encrypt password for automatic re-login
-  const encryptedPassword = encrypt(password);
-
-  // Set JWT expiry for local DB tracking (CodexFit cookies are 365 days)
-  const expiresAt = new Date();
-  expiresAt.setDate(expiresAt.getDate() + 365);
-  const jwtExpiresAt = expiresAt.toISOString();
-
-  // 3. Store in DB
-  let user = db.getUserByEmail(email);
-  let userId;
-  // Named explicitly with the SAME gym `loginGymId` already resolved above —
-  // letting this re-resolve independently risked landing on a different answer
-  // than the gym the login actually authenticated against.
-  if (user) {
-    userId = user.id;
-    db.updateUserCredentials(userId, encryptedPassword, gymToken, jwtExpiresAt, loginGymId);
-  } else {
-    userId = db.createUser(email, encryptedPassword);
-    db.updateUserJWT(userId, gymToken, jwtExpiresAt, loginGymId);
-  }
-
-  // 3a. Adopt this password as the the app account password (Decision D4).
-  // The user just proved they know it against the gym, so it is safe to seed from
-  // — and it means every existing account migrates to an independent identity on
-  // its next login with no prompt. Best-effort: a hashing failure must not cost
-  // someone their login.
-  if (!db.hasAccountPassword(userId)) {
-    try { db.setAccountPassword(userId, password); } catch (err) {
-      console.warn('[Auth] Could not seed account password:', err.message);
-    }
-  }
-
-  // 3b. Cache display name for admin panel (best-effort — don't fail login if this errors)
-  const displayName = [gymUser.first_name, gymUser.last_name].filter(Boolean).join(' ');
-  if (displayName) {
-    try { db.updateUserDisplayName(userId, displayName, loginGymId); } catch (_) {}
-  }
-
-  // 4. Issue local signed JWT token for the PWA
-  const localToken = jwt.sign(
-    { userId, email },
-    JWT_SECRET,
-    { expiresIn: '30d' } // PWA session lasts 30 days before requiring CF Access / login again
-  );
-
+  const localToken = jwt.sign({ userId: existing.id, email }, JWT_SECRET, { expiresIn: '30d' });
+  // getUserById (not the bare getUserByEmail row) — profile_json/display_name live
+  // in user_gyms since WP-D3, and this merges the active gym's link in.
+  const merged = db.getUserById(existing.id) || existing;
+  let profile = {};
+  try { profile = merged.profile_json ? JSON.parse(merged.profile_json) : {}; } catch (_) {}
+  const nameParts = (merged.display_name || '').split(' ');
   return {
     token: localToken,
     user: {
-      id: gymUser.id || null,
-      email: gymUser.email || email,
-      firstName: gymUser.first_name || '',
-      lastName: gymUser.last_name || '',
-      bookingCutoff: gymUser.booking_cutoff || null,
-      extendedCutoff: gymUser.extended_cutoff || null
-    }
+      id: profile.id || null,
+      email: merged.email,
+      firstName: profile.first_name || nameParts[0] || '',
+      lastName: profile.last_name || nameParts.slice(1).join(' ') || '',
+      bookingCutoff: profile.booking_cutoff || null,
+      extendedCutoff: profile.extended_cutoff || null,
+    },
   };
 }
 

@@ -1,7 +1,7 @@
 // Active-gym resolution tests (WP-C2 slice 1a; revised 2026-09-15 for stage 4
 // of the active-gym audit — Documentation/Archive/2026-09-26/Backlog/active-gym-audit.md).
 //
-// resolveActiveGymId() used to be a two-line stub returning DEFAULT_GYM_ID. It is
+// resolveActiveGymId() used to be a two-line stub returning one fixed gym. It is
 // called from ~10 places inside db.js — every auth, session, credential, priority
 // and calendar-token read — so getting it wrong doesn't produce a wrong page, it
 // produces the WRONG ACCOUNT'S SESSION. Pinned here:
@@ -13,14 +13,16 @@
 //   3. There is no persisted "choice" any more. `setActiveGym`/`getActiveGymId`/
 //      `POST /api/my-gyms/active` were removed — the switcher they served was
 //      already gone, and every real write now names its own gym explicitly.
-//      A multi-gym account with no per-request gym resolves to the DEFAULT
-//      gym, deterministically, every time — never a remembered one.
+//      A multi-gym account with no per-request gym resolves to its EARLIEST
+//      link, deterministically, every time — never a remembered one — and an
+//      account with no link at all resolves to NO gym (null), never a guess.
 
 process.env.ENCRYPTION_KEY = process.env.ENCRYPTION_KEY || 'a'.repeat(64);
 process.env.DB_PATH = process.env.DB_PATH || ':memory:';
 
 const assert = require('assert');
 const db = require('./db');
+const testkit = require('./testkit');
 const auth = require('./auth');
 
 const checks = [];
@@ -35,7 +37,7 @@ const OTHER_GYM = 'jab-boxing';
 db.db.prepare('UPDATE gyms SET enabled = 1 WHERE id = ?').run(OTHER_GYM);
 
 function makeUser(email) {
-  const id = db.createUser(email, 'enc:' + email);
+  const id = testkit.createUser(db, email, 'enc:' + email);
   return typeof id === 'object' ? id.id : id;
 }
 
@@ -58,9 +60,9 @@ check('getUserById still resolves the default gym for a single-gym account', () 
     'and read the credential from user_gyms, not a stale users column');
 });
 
-check('an unknown user id degrades to the default gym rather than throwing', () => {
-  assert.strictEqual(db.resolveActiveGymId(999999), DEFAULT_GYM);
-  assert.strictEqual(db.resolveActiveGymId(null), DEFAULT_GYM);
+check('an unknown user id (or none) resolves to NO gym rather than guessing or throwing', () => {
+  assert.strictEqual(db.resolveActiveGymId(999999), null);
+  assert.strictEqual(db.resolveActiveGymId(null), null);
 });
 
 // --- 2. no stored choice any more (removed 2026-09-15, stage 4) -------------
@@ -69,13 +71,13 @@ check('an unknown user id degrades to the default gym rather than throwing', () 
 // client switcher they served was already deleted, and every real write now
 // names its own gym explicitly (stages 1-3). `resolveActiveGymId` on a
 // multi-gym account with no per-request gym now falls straight to the
-// deterministic default — never a remembered choice.
+// earliest link — never a remembered choice.
 
-check('two links, no per-request gym → the default gym wins deterministically', () => {
+check('two links, no per-request gym → the earliest link wins deterministically', () => {
   const uid = makeUser(`switch-${Date.now()}@test.local`);
   db.linkGym(uid, OTHER_GYM);
   assert.strictEqual(db.resolveActiveGymId(uid), DEFAULT_GYM,
-    'not "first alphabetically", not a remembered choice — the same answer every time');
+    'DEFAULT_GYM was linked first: not "first alphabetically", not a remembered choice — the same answer every time');
 });
 
 // --- 3. the per-request context ----------------------------------------------
@@ -228,7 +230,7 @@ check('unlinkGym removes the link but keeps the account (the D4 promise)', () =>
   assert.ok(db.getUserById(uid), 'the app account still exists');
   assert.strictEqual(db.isGymLinked(uid, OTHER_GYM), false);
   assert.strictEqual(db.resolveActiveGymId(uid), DEFAULT_GYM,
-    'and resolution falls back rather than pointing at a dead link');
+    'and resolution falls back to the remaining link rather than pointing at a dead one');
 });
 
 check('unlinking the LAST gym is allowed — the account outlives the membership', () => {
@@ -236,6 +238,7 @@ check('unlinking the LAST gym is allowed — the account outlives the membership
   db.setAccountPassword(uid, 'survives-the-gym');
   db.unlinkGym(uid, DEFAULT_GYM);
   assert.deepStrictEqual(db.getUserGyms(uid), [], 'no gyms left');
+  assert.strictEqual(db.resolveActiveGymId(uid), null, 'and no gym is invented in its place');
   assert.ok(db.getUserById(uid), 'account survives');
   assert.strictEqual(db.verifyAccountPassword(uid, 'survives-the-gym'), true,
     'and can still log in — cancelling a membership must not cost you the account');

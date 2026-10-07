@@ -32,7 +32,7 @@ function unit() {
   const read = (uid, gym) => db.getUserGym(uid, gym).last_authenticated_at;
 
   // 1. The column itself round-trips through the upsert (the actual root cause).
-  let uid = db.createUser(uniq('upsert'), 'enc:pw');
+  let uid = require('./testkit').createUser(db, uniq('upsert'), 'enc:pw');
   assert.strictEqual(read(uid, GYM), null, 'a link that has never authenticated records nothing');
   const stamp = '2026-09-01T10:00:00.000Z';
   db.upsertUserGym(uid, GYM, { last_authenticated_at: stamp });
@@ -43,7 +43,7 @@ function unit() {
   console.log('✅ upsertUserGym persists last_authenticated_at and preserves it across other writes.');
 
   // 2. Background session renewal stamps; clearing a session does not.
-  uid = db.createUser(uniq('renew'), 'enc:pw');
+  uid = require('./testkit').createUser(db, uniq('renew'), 'enc:pw');
   db.setGymSession(uid, GYM, { accessToken: 'tok', expiresAt: null });
   const afterRenew = read(uid, GYM);
   assert.ok(isIso(afterRenew), `setGymSession must stamp (got ${afterRenew})`);
@@ -52,20 +52,20 @@ function unit() {
   console.log('✅ setGymSession stamps a issued session and leaves the stamp alone when clearing one.');
 
   // 3. The primary login writers.
-  uid = db.createUser(uniq('login'), 'enc:pw');
+  uid = require('./testkit').createUser(db, uniq('login'), 'enc:pw');
   db.updateUserJWT(uid, 'jwt-1', null, GYM);
   assert.ok(isIso(read(uid, GYM)), 'updateUserJWT (new-user login) must stamp');
-  uid = db.createUser(uniq('login2'), 'enc:pw');
+  uid = require('./testkit').createUser(db, uniq('login2'), 'enc:pw');
   db.updateUserCredentials(uid, 'enc:pw2', 'jwt-2', null, GYM);
   assert.ok(isIso(read(uid, GYM)), 'updateUserCredentials (existing-user login) must stamp');
   // Storing a credential with no session is not an authentication.
-  uid = db.createUser(uniq('nosession'), 'enc:pw');
+  uid = require('./testkit').createUser(db, uniq('nosession'), 'enc:pw');
   db.updateUserCredentials(uid, 'enc:pw3', null, null, GYM);
   assert.strictEqual(read(uid, GYM), null, 'no session issued -> nothing recorded');
   console.log('✅ Login writers stamp only when a session was actually issued.');
 
   // 4. Stamps are per gym.
-  uid = db.createUser(uniq('pergym'), 'enc:pw');
+  uid = require('./testkit').createUser(db, uniq('pergym'), 'enc:pw');
   db.upsertUserGym(uid, OTHER, { gym_email: 'x@jab.example', encrypted_password: 'enc:jab' });
   db.setGymSession(uid, OTHER, { accessToken: 'jab-tok' });
   assert.ok(isIso(read(uid, OTHER)));

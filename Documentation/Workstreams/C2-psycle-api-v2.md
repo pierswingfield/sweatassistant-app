@@ -326,7 +326,7 @@ Aarmy stays slower (likely slower upstream pages); not investigated.
   gone (per the file's own former header comment's instructions), and it passes with zero hits: `server.js`
   no longer calls any retired v1 cart path (moved to `routes-normalized.js` + the v2 cart), and
   `server/mock.js` mirrors the v2 envelope instead.
-- [x] `test-regression-psycle.js` still green (26/26 server suites + 76/76 client tests, see `npm test`
+- [x] `test-regression-codexfit-mock.js` still green (26/26 server suites + 76/76 client tests, see `npm test`
   output in this item's evidence above).
 
 ## Decision (2026-09-26)

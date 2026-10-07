@@ -14,6 +14,7 @@ process.env.DB_PATH = process.env.DB_PATH || ':memory:';
 
 const assert = require('assert');
 const db = require('./db');
+const testkit = require('./testkit');
 const notifications = require('./notifications');
 const pushService = require('./push');
 
@@ -25,7 +26,7 @@ pushService.sendNotification = async (userId, title, body) => { captured = { tit
 
 const checks = [];
 const check = (name, fn) => checks.push({ name, fn });
-const uid = db.createUser(`text-${Date.now()}@test.local`, 'enc:pw');
+const uid = testkit.createUser(db, `text-${Date.now()}@test.local`, 'enc:pw');
 const startAt = new Date(Date.now() + 2 * 864e5).toISOString();
 
 async function send(type, ctx) {

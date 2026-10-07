@@ -1,6 +1,6 @@
-// C3-7 — db.getAllUsers() must not hardcode DEFAULT_GYM_ID.
+// C3-7 — db.getAllUsers() must not hardcode a gym.
 //
-// getAllUsers() used to LEFT JOIN user_gyms ON ug.gym_id = DEFAULT_GYM_ID, so a
+// getAllUsers() used to LEFT JOIN user_gyms on one literal gym id, so a
 // JAB-only account (no psycle-london link) never matched the join at all: its
 // display_name/priority/session came back blank/default, and the admin user
 // list only ever showed Psycle data (Documentation/Workstreams/C3-multi-gym-
@@ -13,6 +13,7 @@ process.env.DB_PATH = process.env.DB_PATH || ':memory:';
 const assert = require('assert');
 const db = require('./db');
 
+const testkit = require('./testkit');
 db.db.prepare('UPDATE gyms SET enabled = 1 WHERE id = ?').run('jab-boxing');
 
 const checks = [];
@@ -37,7 +38,7 @@ check('a JAB-only account shows its own display name, priority and gym in the ad
 });
 
 check('a Psycle-only account is unaffected (behaviour-preservation)', () => {
-  const uid = db.createUser(`psycleonly-${Date.now()}@test.local`, 'enc:pw');
+  const uid = testkit.createUser(db, `psycleonly-${Date.now()}@test.local`, 'enc:pw');
   db.upsertUserGym(uid, 'psycle-london', { display_name: 'Psycle Pete', priority: 42 });
 
   const row = db.getAllUsers().find((u) => u.id === uid);
@@ -47,8 +48,8 @@ check('a Psycle-only account is unaffected (behaviour-preservation)', () => {
   assert.strictEqual(row.priority, 42);
 });
 
-check('a two-gym account resolves to the default gym (psycle-london), same as resolveActiveGymId', () => {
-  const uid = db.createUser(`twogym-${Date.now()}@test.local`, 'enc:pw');
+check('a two-gym account resolves to its earliest link (psycle-london), same as resolveActiveGymId', () => {
+  const uid = testkit.createUser(db, `twogym-${Date.now()}@test.local`, 'enc:pw');
   db.linkGym(uid, 'jab-boxing', { encryptedPassword: 'enc:pw' });
   db.upsertUserGym(uid, 'psycle-london', { display_name: 'Psycle Side', priority: 10 });
   db.upsertUserGym(uid, 'jab-boxing', { display_name: 'JAB Side', priority: 20 });

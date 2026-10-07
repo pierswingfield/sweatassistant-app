@@ -38,6 +38,7 @@ function appModules() {
     .filter((f) => f.endsWith('.js'))
     .filter((f) => !f.startsWith('test-'))
     .filter((f) => f !== 'gyms.config.js')
+    .filter((f) => f !== 'testkit.js') // test fixtures, not application code
     .map((f) => ({ name: f, src: fs.readFileSync(path.join(SERVER_DIR, f), 'utf8') }));
 }
 
@@ -79,15 +80,11 @@ check('no application module hardcodes a gym id', () => {
     const code = stripComments(src);
     for (const line of code.split('\n')) {
       if (!/['"]psycle-london['"]|['"]jab-boxing['"]/.test(line)) continue;
-      // db.js's historical migration statements are the one legitimate case:
-      // they describe the schema as it was, and must NOT start reading the
-      // current default gym, or past migrations would change retroactively.
-      if (name === 'db.js' && /ensureColumn|DEFAULT|GYM_DEFAULT_RE|CREATE TABLE|gym_id TEXT/.test(line)) continue;
       offenders.push(`${name}: ${line.trim()}`);
     }
   }
   assert.deepStrictEqual(offenders, [],
-    'import DEFAULT_GYM_ID from gyms.config.js, or resolve the gym from the user/row');
+    'resolve the gym from the user/row/request, or read it from gyms.config.js');
 });
 
 check('no application module names a dev mock email (gyms.config devMock + adapter.isMockUser own that)', () => {

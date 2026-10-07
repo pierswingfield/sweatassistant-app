@@ -17,6 +17,7 @@ process.env.DB_PATH = process.env.DB_PATH || ':memory:';
 
 const assert = require('assert');
 const db = require('./db');
+const testkit = require('./testkit');
 const notifications = require('./notifications');
 const pushService = require('./push');
 
@@ -37,7 +38,7 @@ function restoreSpy() { pushService.sendNotification = originalSend; }
 
 let seq = 0;
 function makeUser() {
-  return db.createUser(`notif-${Date.now()}-${seq++}@test.local`, 'enc:pw');
+  return testkit.createUser(db, `notif-${Date.now()}-${seq++}@test.local`, 'enc:pw');
 }
 
 const CASES = [

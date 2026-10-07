@@ -11,7 +11,7 @@
 // back 200, none 429.
 //
 // This boots the REAL server as a child process (mirrors
-// test-regression-psycle.js), logs in as dev@psycle.com (mock CodexFit
+// test-regression-codexfit-mock.js), logs in as dev@psycle.com (mock CodexFit
 // backend, no network), and asserts:
 //   1. the new `readLimiter` is mounted on the previously-unlimited routes
 //      and returns 429 once its budget is exceeded;

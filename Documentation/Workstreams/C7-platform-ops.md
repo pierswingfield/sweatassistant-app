@@ -59,7 +59,7 @@ grep (no `Limiter` hit on any of those route declarations) and by looping 150 au
   at all.
 
 **Test.** `server/test-rate-limit-reads.js` (new, auto-discovered by `run-tests.js`). Boots the
-real server 3x as a child process (mirrors `test-regression-psycle.js`), logs in as
+real server 3x as a child process (mirrors `test-regression-codexfit-mock.js`), logs in as
 dev@psycle.com, and asserts: (1) `/api/timetable` returns 429 once the 300/min budget is
 exceeded (tripped at request #301); (2) `/api/bookings` and `/api/my-gyms` are ALREADY 429
 after that same burst — proving the budget is one shared per-user counter across routes, not

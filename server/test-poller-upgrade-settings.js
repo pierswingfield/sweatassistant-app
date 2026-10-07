@@ -24,6 +24,7 @@ const mockPath = path.join(__dirname, 'mock_bookings.dbjson');
 const mockBackup = fs.existsSync(mockPath) ? fs.readFileSync(mockPath) : null;
 
 const db = require('./db');
+const testkit = require('./testkit');
 const poller = require('./poller');
 const CodexFitProvider = require('./providers/codexfit');
 const heldFromDb = async () => db.db.prepare('SELECT booking_id, event_id FROM auto_upgrades')
@@ -47,7 +48,7 @@ const row = (userId, id) => db.getUserAutoUpgrades(userId).find(r => r.id === id
   let failed = 0;
   console.log('\n🧪 Auto-upgrade settings vs existing monitors + cutoff rules\n');
   try {
-    const userId = db.createUser('dev@psycle.com', 'x');
+    const userId = testkit.createUser(db, 'dev@psycle.com', 'x');
     db.updateUserJWT(userId, 'mock-jwt-token', new Date(Date.now() + 864e5).toISOString());
     // Slot 99 is not in the mock layout: an attempt finds nothing better, so
     // status transitions and last_checked_at are all that is observable.

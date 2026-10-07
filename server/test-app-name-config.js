@@ -88,7 +88,7 @@ async function run() {
     const cal = require('./calendar');
     const ics = cal.serializeCalendar(1, [], {}, [], []);
     const db = require('./db');
-    const uid = db.createUser("push@test.local", "enc:pw");
+    const uid = require('./testkit').createUser(db, "push@test.local", "enc:pw");
     db.addPushSubscription(uid, { endpoint: 'https://push.example/1', keys: {} });
     require('./notifications').sendGenericTest(uid).then(() => console.log(JSON.stringify({ ics, sent })));
   `;

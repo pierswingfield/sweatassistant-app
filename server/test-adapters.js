@@ -10,7 +10,7 @@
 //     mock's shapes were themselves modeled from these fixtures.
 //
 // Convention: plain-Node assertions (no test framework), matching
-// test-regression-psycle.js / test-auth-and-proxy.js. Run directly:
+// test-regression-codexfit-mock.js / test-auth-and-proxy.js. Run directly:
 //   node server/test-adapters.js
 //
 // SAFETY: this suite performs NO booking mutations. CodexFit write paths are

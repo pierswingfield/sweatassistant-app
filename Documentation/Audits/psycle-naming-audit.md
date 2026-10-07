@@ -211,3 +211,48 @@ keys `psycle*` (importer must accept old and new forever). Shim plan for identit
 `psycleUserId`, `psycleTheme` incl. the inline script in `client/index.html`, onboarding flags): ship a dual-read
 (new key, fall back to old, write new, delete old) first, rename the writes one or two releases later, drop the
 read fallback much later; otherwise mass logout and re-onboarding.
+
+## 11. Step 5 results (app-level `psycle-` -> `sa-` / `sweat`)
+
+**Phase A (persisted identifiers, commit `0909a12`).** localStorage keys `psycle*` -> `sweat*` (token, user id, theme,
+onboarding, install flags, helper/upgrade-explainer dismissals, default filters, unified caches, admin token), IndexedDB
+`psycle-cache` -> `sweat-cache`, and 13 custom DOM events -> `sweat-*` / `sweat:*`. `client/src/storage-migrate.js` is the
+shim: a one-time, marker-guarded copy (new key wins, old key kept for one release), imported FIRST by `api.js` and
+`main.js` so it runs before the token is read at module load; `removeStored()` clears new and legacy twins on logout so a
+signed-out device never keeps a live token; `cache.js openDB()` copies the old database's rows once (keys renamed too) and
+leaves it in place; `index.html` pre-paint script falls back to `psycleTheme`. `sw.js` needed no change: its activate
+handler is a whitelist, so every legacy cache name is already purged. 12 vitest cases (old-only, new-only, both, none,
+suffixed keys, run-once, blocked storage, removal, key maps).
+Real Chrome: a device seeded with old keys plus an old IndexedDB loaded the new build still signed in, theme dark, onboarding
+and filters copied, old IDB rows present in `sweat-cache`, token key survives a second load, `setToken(null)` leaves neither name.
+
+**Phase B (CSS/DOM, commits batch 1..6 + rest).** About 4,200 tokens across 36 files, by first-word family: 1 root scope id
+`#psycle-helper-container` + `--psycle-header-h`; 2 modal/overlay/page/booking/setup/debug; 3 table/timetable/filters/tooltips;
+4 onboarding/auth; 5 settings/gym/multiselect; 6 mobile/nav/shell/cards; rest = remainder. One token map, applied across
+styles.css, index.html, client/src (tests included), AGENTS.md and DESIGN.md, no rule reordered. `data-psycle-nav-inert`
+-> `data-sa-nav-inert`. Collision check before starting: no existing `sa-` name (only a test email); existing `sweat-*`
+classes (`sweat-filter-rail`, `sweat-search-*`) are untouched.
+Verification per batch: client vitest, then a real-Chrome (CDP, one tab) run of 101 views (6 tabs, 8 Settings panes, 8
+modals/overlays, login, 3 onboarding steps, admin login/list/detail; light+dark; 1280 and 390; date and Math.random frozen,
+transitions off). Computed style of every non-SVG-child element plus its box compared with two untouched baselines:
+**0 diffs** (views that flaked once, about 1-5 per run, all matched a baseline exactly on re-capture; SVG logo races are the
+baseline noise). Pixel residual <= baseline noise. No `@keyframes` missing. Harness gotchas learned: computed-style
+enumeration order of custom properties is random (sort them), and the credits tab renders the timetable for a gym without
+credit purchase.
+Final: `npm test` 68/68 server suites + 63 client files / 477 tests, client build OK.
+
+**Kept (decided by meaning).** Gym id `psycle-london`, `gyms.config.js`, `providers/codexfit*.js`, `mock.js`,
+`psyclelondon.com`, `dev@psycle.com`, `--gym-psycle` / `psycle-gym-mark-psycle-london` id segment, `/gyms/psycle-london*` assets.
+Calendar event UIDs `UID:psycle-${userId}-...` in `server/calendar.js` (subscribers' calendars key on them; renaming
+duplicates every event). Package names `psycle-client/-server`, container `psycle-app-dev`, doc names `C2-psycle-api-v2.md`.
+**Uncertain, not renamed:** localStorage `psycle-helper-favorites` (comment says it is shared with the Chrome extension),
+`window.__psycleTimetablePerformance` (read by browser checks), arbitrary test strings (`psycle-value`, `psycle-week2`,
+`my-secure-psycle-password-123!`), mock.js comment. Mixed prefixes remain by design: older `sweat-*` classes next to the
+new `sa-*`. Documentation outside AGENTS.md/DESIGN.md (workstreams, QA runs, archive) still names old tokens; historical.
+Not done from earlier plans: config export/import keys `psycleSettings` etc. (server importer must accept old and new
+forever; untouched).
+
+**Shim removal plan.** Release N (this): shim live, old keys kept. Release N+1 (after one active-user cycle, ~30 days, the
+JWT lifetime): stop copying, delete `storage-migrate.js` and its two import lines, the `psycleTheme` fallback in
+`index.html`, and run `indexedDB.deleteDatabase('psycle-cache')` plus a sweep removing any remaining `psycle*` keys once.
+Check first that no support path still seeds old keys (`server/dev-setup-jab.js` already prints `sweat*`).

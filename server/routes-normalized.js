@@ -973,8 +973,8 @@ router.delete('/favourites/:id', authenticateToken, extrasLimiter, async (req, r
 // (POST /api/cart/checkout/init/:bundleId → POST /api/cart/checkout/confirm,
 // including the `requires_action` → website-fallback shape client/src/ui/
 // credits.js already handles) — see Documentation/Workstreams/
-// C2-psycle-api-v2.md's C2-1 scope. The payment-method/checkout/finalise
-// steps are UNVERIFIED against live Psycle (no purchase was ever made — see
+// C2-psycle-api-v2.md's C2-1 scope (the CodexFit v2 cart). The payment-method/checkout/finalise
+// steps are UNVERIFIED against a live gym (no purchase was ever made — see
 // server/fixtures/codexfit-v2/PARITY.md G3); flagged again on
 // provider.finaliseCart's doc comment.
 
@@ -985,7 +985,7 @@ router.post('/cart/checkout/init/:bundleId', authenticateToken, extrasLimiter, a
     requireCapability(gymId, 'creditPurchase');
     // Express route params are always strings; CodexFit's bundle ids are
     // numeric and the v2 add-line body must send a number (mock.js and — per
-    // psycle_codexfit.md §2.5.2 #3 — the real API both compare/serialize it
+    // Services/psycle_codexfit.md §2.5.2 #3 — the real API both compare/serialize it
     // as one). Falls back to the raw param if somehow non-numeric rather than
     // silently sending NaN.
     const parsedBundleId = Number(req.params.bundleId);

@@ -418,7 +418,7 @@ function buildTitle(row) {
 }
 
 // Remove a leading gym name from a location label, for any gym — the old code
-// hardcoded /^psycle\s+/i, which silently did nothing for every other gym.
+// hardcoded a single gym-name prefix, which silently did nothing for every other gym.
 function stripGymPrefix(locationName, gym) {
   if (!gym) return locationName;
   for (const candidate of [gym.name, gym.shortName].filter(Boolean)) {

@@ -155,9 +155,9 @@ export function legacyHashToPath(hash) {
 }
 
 /**
- * Homepage/widget link contract (U4-19, H): `buildTimetableUrl({ gym:['psycle-london'],
- * instructor:['psycle-london:123'], day:'2026-10-07' })` -> '/timetable?...'. Never hand-concatenate.
- * `type` tokens are `gymId:slug` (slug = lower-case label, e.g. 'psycle-london:ride').
+ * Homepage/widget link contract (U4-19, H): `buildTimetableUrl({ gym:['gym-a'],
+ * instructor:['gym-a:123'], day:'2026-10-07' })` -> '/timetable?...'. Never hand-concatenate.
+ * `type` tokens are `gymId:slug` (slug = lower-case label, e.g. 'gym-a:ride').
  */
 export function buildTimetableUrl({ day = null, gym = [], loc = [], type = [], instructor = [], fav = false, q = '', explicit = false } = {}) {
   return serializeState({

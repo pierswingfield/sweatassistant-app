@@ -644,7 +644,7 @@ export async function openManageSpotMapsModal(options = {}) {
   const onDone = options.onDone ?? null;
 
   const overlay = document.createElement('div');
-  overlay.id = 'psycle-manage-spotmaps-overlay';
+  overlay.id = 'sa-manage-spotmaps-overlay';
   overlay.className = 'sa-ovl';
   overlay.style.cssText = `position:fixed;inset:0;background:color-mix(in srgb, var(--bg) 60%, transparent);z-index:${zIndex};display:flex;align-items:center;justify-content:center;padding:16px;`;
 
@@ -866,10 +866,10 @@ function renderManageSpotMapsModal(prefs, studios, locations, container, onClose
     const thisGym = `${gymId}:${gymName}`;
     if (thisGym !== previousGym) {
       const gymHeader = document.createElement('h4');
-      gymHeader.className = 'psycle-spm-gym';
+      gymHeader.className = 'sa-spm-gym';
       // Logo is shown on mobile only (CSS); the name stays for desktop and screen readers.
-      gymHeader.innerHTML = `${gymId ? gymLogoBanner(gymId) : ''}<span class="psycle-spm-gym-name"></span>`;
-      gymHeader.querySelector('.psycle-spm-gym-name').textContent = gymName;
+      gymHeader.innerHTML = `${gymId ? gymLogoBanner(gymId) : ''}<span class="sa-spm-gym-name"></span>`;
+      gymHeader.querySelector('.sa-spm-gym-name').textContent = gymName;
       gymHeader.style.cssText = 'margin:8px 0 2px;font-size:14px;font-weight:700;color:var(--text);';
       container.appendChild(gymHeader);
       previousGym = thisGym;
@@ -878,7 +878,7 @@ function renderManageSpotMapsModal(prefs, studios, locations, container, onClose
     locSection.style.cssText = 'margin:0 0 14px 12px;border-left:2px solid var(--border);padding-left:10px;';
 
     const locHeader = document.createElement('div');
-    locHeader.className = 'psycle-spm-loc';
+    locHeader.className = 'sa-spm-loc';
     locHeader.style.cssText = 'font-size:12px;font-weight:700;color:var(--text-secondary);text-transform:uppercase;letter-spacing:0.5px;padding:8px 0 6px 0;cursor:pointer;user-select:none;display:flex;justify-content:space-between;align-items:center;';
     const chevron = document.createElement('span');
     chevron.textContent = '▼';
@@ -894,14 +894,14 @@ function renderManageSpotMapsModal(prefs, studios, locations, container, onClose
       const hasPrefs = studioPrefs && (studioPrefs.preferredSlots?.length > 0 || studioPrefs.preferredRows?.length > 0);
 
       const row = document.createElement('div');
-      row.className = 'psycle-spm-row';
+      row.className = 'sa-spm-row';
       row.style.cssText = 'display:flex;justify-content:space-between;align-items:center;padding:8px 12px;background:color-mix(in srgb, var(--text) 3%, transparent);border:1px solid color-mix(in srgb, var(--text) 6%, transparent);border-radius:8px;';
 
       const info = document.createElement('div');
       info.style.cssText = 'flex:1;';
 
       const name = document.createElement('div');
-      name.className = 'psycle-spm-name';
+      name.className = 'sa-spm-name';
       name.style.cssText = 'font-size:13px;font-weight:500;color:var(--text);';
       name.textContent = studio.name;
       info.appendChild(name);
@@ -1097,17 +1097,17 @@ export async function openStudioFloorPlanEditor(studioId, studioName, onSaved, o
 }
 
 function setupSettingsNavigation() {
-  const layout = document.getElementById('psycle-settings-layout-wrapper');
+  const layout = document.getElementById('sa-settings-layout-wrapper');
   if (!layout || layout.dataset.navListener) return;
   layout.dataset.navListener = 'true';
 
   // Queried LIVE on every activation, not cached here: per-gym entries and panes
   // are created asynchronously by renderGymsCard after this runs, and a snapshot
   // taken at setup time would never see them (clicking a gym would do nothing).
-  const menuItems = () => layout.querySelectorAll('.psycle-settings-menu-item');
-  const panes = () => layout.querySelectorAll('.psycle-settings-section-pane');
-  const sectionTitle = document.getElementById('psycle-settings-section-title');
-  const backBtn = document.getElementById('psycle-settings-back-btn');
+  const menuItems = () => layout.querySelectorAll('.sa-settings-menu-item');
+  const panes = () => layout.querySelectorAll('.sa-settings-section-pane');
+  const sectionTitle = document.getElementById('sa-settings-section-title');
+  const backBtn = document.getElementById('sa-settings-back-btn');
 
   // U4-19: the initial section comes from the path (/settings/:section). Legacy #hash links
   // were already rewritten to paths at boot (router.migrateLegacyHash).
@@ -1133,7 +1133,7 @@ function setupSettingsNavigation() {
     });
 
     panes().forEach(pane => {
-      const paneId = `psycle-settings-pane-${sectionId}`;
+      const paneId = `sa-settings-pane-${sectionId}`;
       pane.classList.toggle('active', pane.id === paneId);
     });
 
@@ -1151,7 +1151,7 @@ function setupSettingsNavigation() {
   // ONE delegated listener on the menu, so entries added later (the per-gym
   // ones) work without re-binding.
   layout.addEventListener('click', (event) => {
-    const item = event.target.closest('.psycle-settings-menu-item');
+    const item = event.target.closest('.sa-settings-menu-item');
     if (!item || !layout.contains(item)) return;
     navHistory = [];
     const id = item.getAttribute('data-settings-section');
@@ -1186,7 +1186,7 @@ function setupSettingsNavigation() {
   // `touch-action: pan-y` on the content, so vertical scrolling is untouched. Requires
   // horizontal dominance and a distance/velocity threshold, and never starts while the
   // shared scroll clock (header transition) is busy.
-  const content = layout.querySelector('.psycle-settings-content');
+  const content = layout.querySelector('.sa-settings-content');
   if (content && backBtn) {
     const EDGE = 28, COMMIT = 90;
     const reduce = window.matchMedia('(prefers-reduced-motion: reduce)');
@@ -1274,16 +1274,16 @@ function escapeHtml(str) {
 // ═══════════════════════════════════════════════════════════════════════
 
 function gymModal() {
-  const modal = document.getElementById('psycle-gym-modal');
-  const body = document.getElementById('psycle-gym-modal-body');
-  const title = document.getElementById('psycle-gym-modal-title');
+  const modal = document.getElementById('sa-gym-modal');
+  const body = document.getElementById('sa-gym-modal-body');
+  const title = document.getElementById('sa-gym-modal-title');
   const close = () => {
     // Mobile page: pop its history entry (guard skipped, the work is done). Desktop: as before.
     if (closeNavPage(modal)) return;
     modal.classList.remove('show');
     setTimeout(() => { modal.style.display = 'none'; }, 300);
   };
-  document.getElementById('psycle-gym-modal-close').onclick = close;
+  document.getElementById('sa-gym-modal-close').onclick = close;
   modal.querySelector('.sa-modal-overlay').onclick = close;
   // navOpts: { id, back, canClose } for the mobile page shell (ui/modal-nav.js).
   const open = (navOpts = {}) => {
@@ -1312,30 +1312,30 @@ let connByGym = new Map();
 
 /** The connection table's static shell, built once per list host. */
 function ensureConnTable(list) {
-  if (list.querySelector('.psycle-gym-conn-table')) return list.querySelector('.psycle-gym-conn-table');
+  if (list.querySelector('.sa-gym-conn-table')) return list.querySelector('.sa-gym-conn-table');
   list.innerHTML = `
-    <div class="psycle-card-desc psycle-gym-conn-empty" style="padding:10px 0;" hidden>${COPY.settings.noGymsLinked}</div>
-    <div class="psycle-gym-conn-table" role="table" aria-label="${COPY.settings.gymConnections}">
-      <div class="psycle-gym-conn-head" role="row">
+    <div class="psycle-card-desc sa-gym-conn-empty" style="padding:10px 0;" hidden>${COPY.settings.noGymsLinked}</div>
+    <div class="sa-gym-conn-table" role="table" aria-label="${COPY.settings.gymConnections}">
+      <div class="sa-gym-conn-head" role="row">
         <span role="columnheader">${COPY.settings.gym}</span>
         <span role="columnheader">${COPY.settings.connection}</span>
       <span role="columnheader">${COPY.settings.lastAuthenticated}</span>
         <span role="columnheader"><span class="u-visually-hidden">${COPY.settings.actions}</span></span>
       </div>
     </div>`;
-  return list.querySelector('.psycle-gym-conn-table');
+  return list.querySelector('.sa-gym-conn-table');
 }
 
 function connRowCreate(g) {
   const row = document.createElement('div');
-  row.className = 'psycle-gym-conn-row';
+  row.className = 'sa-gym-conn-row';
   row.setAttribute('role', 'row');
   const id = escapeHtml(g.gym_id);
   row.innerHTML = `
-    <span role="cell" class="psycle-gym-conn-name"><span class="psycle-gym-conn-logo"></span><small></small></span>
-    <span role="cell" class="psycle-gym-conn-health"><span class="psycle-gym-conn-dot" aria-hidden="true"></span><span class="psycle-gym-conn-label"></span></span>
-    <span role="cell" class="psycle-gym-conn-when"></span>
-    <span role="cell" class="psycle-gym-conn-actions">
+    <span role="cell" class="sa-gym-conn-name"><span class="sa-gym-conn-logo"></span><small></small></span>
+    <span role="cell" class="sa-gym-conn-health"><span class="sa-gym-conn-dot" aria-hidden="true"></span><span class="sa-gym-conn-label"></span></span>
+    <span role="cell" class="sa-gym-conn-when"></span>
+    <span role="cell" class="sa-gym-conn-actions">
       <button class="psycle-btn psycle-btn-mini" data-reauth-gym="${id}">${COPY.settings.reauthenticate}</button>
       <button class="psycle-btn psycle-btn-mini variant-danger" data-unlink-gym="${id}">${COPY.settings.unlink}</button>
     </span>`;
@@ -1345,7 +1345,7 @@ function connRowCreate(g) {
 function connRowUpdate(row, g) {
   const health = connectionHealth(g);
   // Full logo; rebuilt when the resolved brand changes (a chip built before the catalogue loads is the neutral placeholder).
-  const logo = row.querySelector('.psycle-gym-conn-logo');
+  const logo = row.querySelector('.sa-gym-conn-logo');
   const logoKey = `${g.gym_id}:${gymBrand(g.gym_id).id}`;
   if (logo.getAttribute('data-mark') !== logoKey) {
     logo.setAttribute('data-mark', logoKey);
@@ -1359,20 +1359,20 @@ function connRowUpdate(row, g) {
   const svg = logo.querySelector('svg');
   if (svg) svg.setAttribute('aria-label', gymName);
 
-  const strong = row.querySelector('.psycle-gym-conn-name strong');
+  const strong = row.querySelector('.sa-gym-conn-name strong');
   if (strong) strong.remove();
 
-  row.querySelector('.psycle-gym-conn-name small').textContent = g.gym_email || g.provider || '';
-  const h = row.querySelector('.psycle-gym-conn-health');
-  h.className = `psycle-gym-conn-health ${health.cls}`;
-  h.querySelector('.psycle-gym-conn-dot').textContent = health.icon;
-  h.querySelector('.psycle-gym-conn-label').textContent = health.label;
-  row.querySelector('.psycle-gym-conn-when').textContent = lastAuthLabel(g.last_authenticated_at);
+  row.querySelector('.sa-gym-conn-name small').textContent = g.gym_email || g.provider || '';
+  const h = row.querySelector('.sa-gym-conn-health');
+  h.className = `sa-gym-conn-health ${health.cls}`;
+  h.querySelector('.sa-gym-conn-dot').textContent = health.icon;
+  h.querySelector('.sa-gym-conn-label').textContent = health.label;
+  row.querySelector('.sa-gym-conn-when').textContent = lastAuthLabel(g.last_authenticated_at);
 }
 
 function gymNavCreate() {
   const item = document.createElement('button');
-  item.className = 'psycle-settings-menu-item psycle-settings-menu-sub';
+  item.className = 'sa-settings-menu-item sa-settings-menu-sub';
   // U1-8: the gym's own 1:1 mark leads the entry (in place of a generic icon).
   item.innerHTML = '<span class="menu-item-lead"></span><span class="menu-item-text"></span>';
   return item;
@@ -1390,11 +1390,11 @@ function gymNavUpdate(item, g) {
   item.setAttribute('data-settings-section', `gym-${g.gym_id}`);
   item.setAttribute('data-gym-nav', g.gym_id);
   item.querySelector('.menu-item-text').textContent = g.gym_name || g.gym_id;
-  const flag = item.querySelector('.psycle-menu-item-flag');
+  const flag = item.querySelector('.sa-menu-item-flag');
   const needs = g.status === 'needs_relogin';
   if (needs && !flag) {
     const f = document.createElement('span');
-    f.className = 'psycle-menu-item-flag';
+    f.className = 'sa-menu-item-flag';
     f.title = COPY.settings.reconnectNeeded;
     f.textContent = '!';
     item.appendChild(f);
@@ -1405,8 +1405,8 @@ function gymNavUpdate(item, g) {
 
 function gymPaneCreate(g) {
   const pane = document.createElement('div');
-  pane.className = 'psycle-settings-section-pane';
-  pane.id = `psycle-settings-pane-gym-${g.gym_id}`;
+  pane.className = 'sa-settings-section-pane';
+  pane.id = `sa-settings-pane-gym-${g.gym_id}`;
   pane.setAttribute('data-gym-pane', g.gym_id);
   return pane;
 }
@@ -1420,7 +1420,7 @@ function paintGyms(linked, { list, layout, menu, panesHost }) {
   connByGym = new Map(linked.map((g) => [g.gym_id, g]));
 
   const table = ensureConnTable(list);
-  list.querySelector('.psycle-gym-conn-empty').hidden = linked.length > 0;
+  list.querySelector('.sa-gym-conn-empty').hidden = linked.length > 0;
   table.hidden = linked.length === 0;
   reconcileKeyed(table, linked, {
     keyAttr: 'data-gym-key', keyOf: (g) => g.gym_id, create: connRowCreate, update: connRowUpdate,
@@ -1487,11 +1487,11 @@ async function onGymListClick(event) {
   }
 
   // Tapping anywhere else on the row navigates to the gym's specific settings pane
-  const row = event.target.closest('.psycle-gym-conn-row');
+  const row = event.target.closest('.sa-gym-conn-row');
   if (row) {
     const gymId = row.getAttribute('data-gym-key');
     if (gymId) {
-      const layout = document.getElementById('psycle-settings-layout-wrapper');
+      const layout = document.getElementById('sa-settings-layout-wrapper');
       layout?.__activateSettingsSection?.(`gym-${gymId}`);
     }
   }
@@ -1515,12 +1515,12 @@ async function syncAfterGymSetChange() {
 
 async function renderGymsCard() {
   const token = gymsRenderGuard.begin();
-  const card = document.getElementById('psycle-gyms-card');
-  const list = document.getElementById('psycle-gyms-list');
-  const actions = document.getElementById('psycle-gyms-actions');
-  const layout = document.getElementById('psycle-settings-layout-wrapper');
-  const menu = layout?.querySelector('.psycle-settings-menu');
-  const panesHost = layout?.querySelector('.psycle-settings-section-panes');
+  const card = document.getElementById('sa-gyms-card');
+  const list = document.getElementById('sa-gyms-list');
+  const actions = document.getElementById('sa-gyms-actions');
+  const layout = document.getElementById('sa-settings-layout-wrapper');
+  const menu = layout?.querySelector('.sa-settings-menu');
+  const panesHost = layout?.querySelector('.sa-settings-section-panes');
   if (!list) return;
   const els = { list, layout, menu, panesHost };
 
@@ -1535,7 +1535,7 @@ async function renderGymsCard() {
 
   // The old single inline host is no longer used; keep it empty so a stale render
   // can't linger behind the per-gym panes.
-  const legacyInline = document.getElementById('psycle-gym-settings-section');
+  const legacyInline = document.getElementById('sa-gym-settings-section');
   if (legacyInline) { legacyInline.hidden = true; legacyInline.innerHTML = ''; }
 
   // ── Phase 1, synchronous: paint from the gyms the app already knows ────────
@@ -1596,13 +1596,13 @@ async function renderGymsCard() {
 // inline in the existing Booking pane; Phase 3 can call this same function from
 // an n=1 inline section or an n>=2 drawer without recreating any controls.
 export async function renderGymSettingsSection(requestedGymId = null, targetContainer = null) {
-  const container = targetContainer || document.getElementById('psycle-gym-settings-section');
+  const container = targetContainer || document.getElementById('sa-gym-settings-section');
   if (!container) return;
 
   // Keep already-rendered content while a refresh runs (U1-7: panes now persist
   // across renders); the placeholder is only for a pane that has nothing yet.
   if (!container.hasChildNodes()) {
-    container.innerHTML = `<div class="psycle-settings-card"><p class="psycle-card-desc">${COPY.settings.loadingGymSettings}</p></div>`;
+    container.innerHTML = `<div class="sa-settings-card"><p class="psycle-card-desc">${COPY.settings.loadingGymSettings}</p></div>`;
   }
 
   try {
@@ -1614,7 +1614,7 @@ export async function renderGymSettingsSection(requestedGymId = null, targetCont
     const gymId = requestedGymId || linked[0]?.gym_id;
     const link = linked.find(g => g.gym_id === gymId);
     if (!gymId || !link) {
-      container.innerHTML = `<div class="psycle-settings-card"><h4>${COPY.settings.connectGym}</h4><p class="psycle-card-desc">${COPY.settings.linkBeforeConfig}</p></div>`;
+      container.innerHTML = `<div class="sa-settings-card"><h4>${COPY.settings.connectGym}</h4><p class="psycle-card-desc">${COPY.settings.linkBeforeConfig}</p></div>`;
       return;
     }
 
@@ -1691,7 +1691,7 @@ export async function renderGymSettingsSection(requestedGymId = null, targetCont
             // (header badges, capability gates) must refresh too, not just this
             // panel's own card.
             await syncAfterGymSetChange();
-            container.closest('.psycle-gym-settings-overlay')?.remove();
+            container.closest('.sa-gym-settings-overlay')?.remove();
             await renderGymsCard();
           } catch (err) {
             showToast(formatCopyText(COPY.settings.unlinkFailed, { error: err.message }), 'error');
@@ -1721,21 +1721,21 @@ function openLinkGymModal(gymId, existing, addable = []) {
 
   const logoGymId = gymId || addable[0]?.id || '';
   body.innerHTML = `
-    <div id="sa-link-gym-logo" class="psycle-gym-form-logo">${logoGymId ? gymLogoBanner(logoGymId) : ''}</div>
+    <div id="sa-link-gym-logo" class="sa-gym-form-logo">${logoGymId ? gymLogoBanner(logoGymId) : ''}</div>
     <p class="psycle-card-desc" style="margin-top:0;">
       ${isReauth
         ? COPY.settings.addGymCredentialsHelp
         : COPY.settings.linkGymCredentialsHelp}
     </p>
     ${isReauth ? '' : `
-      <label class="psycle-setting-label" style="display:block;margin-bottom:4px;"><span>${COPY.settings.gym}</span></label>
+      <label class="sa-setting-label" style="display:block;margin-bottom:4px;"><span>${COPY.settings.gym}</span></label>
       <select id="sa-link-gym-id" class="psycle-select" style="width:100%;margin-bottom:10px;">
         ${addable.map(g => `<option value="${escapeHtml(g.id)}">${escapeHtml(g.name)}</option>`).join('')}
       </select>`}
-    <label class="psycle-setting-label" style="display:block;margin-bottom:4px;"><span>${COPY.settings.email}</span></label>
+    <label class="sa-setting-label" style="display:block;margin-bottom:4px;"><span>${COPY.settings.email}</span></label>
     <input id="sa-link-gym-email" type="email" class="psycle-input" autocomplete="username"
            style="width:100%;margin-bottom:10px;" placeholder="${COPY.static.exampleEmail}">
-    <label class="psycle-setting-label" style="display:block;margin-bottom:4px;"><span>${COPY.settings.password}</span></label>
+    <label class="sa-setting-label" style="display:block;margin-bottom:4px;"><span>${COPY.settings.password}</span></label>
     <input id="sa-link-gym-password" type="password" class="psycle-input" autocomplete="current-password"
            style="width:100%;margin-bottom:14px;">
     <div id="sa-link-gym-error" style="display:none;color:var(--danger);font-size:12px;margin-bottom:10px;"></div>
@@ -1792,13 +1792,13 @@ function openAccountPasswordModal() {
     <p class="psycle-card-desc" style="margin-top:0;">
       ${formatCopyText(COPY.settings.accountPasswordDescription, { appName: escapeHtml(appConfig.appName) })}
     </p>
-    <label class="psycle-setting-label" style="display:block;margin-bottom:4px;"><span>${COPY.settings.currentPassword}</span></label>
+    <label class="sa-setting-label" style="display:block;margin-bottom:4px;"><span>${COPY.settings.currentPassword}</span></label>
     <input id="sa-pw-current" type="password" class="psycle-input" autocomplete="current-password"
            style="width:100%;margin-bottom:10px;">
-    <label class="psycle-setting-label" style="display:block;margin-bottom:4px;"><span>${COPY.settings.newPassword}</span></label>
+    <label class="sa-setting-label" style="display:block;margin-bottom:4px;"><span>${COPY.settings.newPassword}</span></label>
     <input id="sa-pw-new" type="password" class="psycle-input" autocomplete="new-password"
            style="width:100%;margin-bottom:10px;" placeholder="${COPY.settings.newPasswordMinPlaceholder}">
-    <label class="psycle-setting-label" style="display:block;margin-bottom:4px;"><span>${COPY.settings.confirmNewPassword}</span></label>
+    <label class="sa-setting-label" style="display:block;margin-bottom:4px;"><span>${COPY.settings.confirmNewPassword}</span></label>
     <input id="sa-pw-confirm" type="password" class="psycle-input" autocomplete="new-password"
            style="width:100%;margin-bottom:14px;">
     <div id="sa-pw-error" style="display:none;color:var(--danger);font-size:12px;margin-bottom:10px;"></div>
@@ -1842,7 +1842,7 @@ function openAccountPasswordModal() {
 // app. Idempotent; per-gym entries lead with the gym's own mark instead (U1-8).
 const SETTINGS_MENU_ICONS = { general: 'sliders', calendar: 'calendar', notifications: 'bell', account: 'user', gyms: 'link', about: 'info' };
 export function decorateSettingsMenu() {
-  document.querySelectorAll('.psycle-settings-menu > [data-settings-section]').forEach((item) => {
+  document.querySelectorAll('.sa-settings-menu > [data-settings-section]').forEach((item) => {
     const name = SETTINGS_MENU_ICONS[item.getAttribute('data-settings-section')];
     if (!name || item.querySelector('.menu-item-lead')) return;
     const lead = document.createElement('span');
@@ -1860,7 +1860,7 @@ export function decorateSettingsMenu() {
  * exactly as after tapping the entry.
  */
 export async function openGymSettings(gymId, fromHistory = false) {
-  const layout = document.getElementById('psycle-settings-layout-wrapper');
+  const layout = document.getElementById('sa-settings-layout-wrapper');
   if (!layout) return;
   for (let i = 0; i < 40; i++) {
     const item = [...layout.querySelectorAll('[data-gym-nav]')].find((el) => el.getAttribute('data-gym-nav') === String(gymId));
@@ -1912,7 +1912,7 @@ function openExternal(url) {
 
 // ─── Theme toggle (Auto / Light / Dark) ──────────────────────────────────────
 function setupThemeToggle() {
-  const group = document.getElementById('psycle-theme-segmented');
+  const group = document.getElementById('sa-theme-segmented');
   if (!group || group.dataset.listener) return;
   group.dataset.listener = 'true';
 
@@ -2136,18 +2136,18 @@ function updateTestNotifCardVisibility() {
 }
 
 function loadSettingsInputs() {
-  const debugMode = document.getElementById('psycle-setting-debug-mode');
-  const prefetchWeeks = document.getElementById('psycle-setting-prefetch-weeks');
+  const debugMode = document.getElementById('sa-setting-debug-mode');
+  const prefetchWeeks = document.getElementById('sa-setting-prefetch-weeks');
 
   if (debugMode) debugMode.checked = !!userSettings.debugMode;
   if (prefetchWeeks) prefetchWeeks.value = String(userSettings.prefetchWeeks || 4);
 }
 
 function setupSettingsListeners() {
-  const debugMode = document.getElementById('psycle-setting-debug-mode');
-  const prefetchWeeks = document.getElementById('psycle-setting-prefetch-weeks');
+  const debugMode = document.getElementById('sa-setting-debug-mode');
+  const prefetchWeeks = document.getElementById('sa-setting-prefetch-weeks');
 
-  const accountPasswordBtn = document.getElementById('psycle-account-password-btn');
+  const accountPasswordBtn = document.getElementById('sa-account-password-btn');
   if (accountPasswordBtn && !accountPasswordBtn.dataset.listener) {
     accountPasswordBtn.dataset.listener = 'true';
     accountPasswordBtn.addEventListener('click', openAccountPasswordModal);
@@ -2189,14 +2189,14 @@ function setupSettingsListeners() {
   }
 
   // Push notification toggle button
-  const pushBtn = document.getElementById('psycle-push-toggle-btn');
+  const pushBtn = document.getElementById('sa-push-toggle-btn');
   if (pushBtn && !pushBtn.dataset.listener) {
     pushBtn.dataset.listener = 'true';
     pushBtn.addEventListener('click', togglePushSubscription);
   }
 
   // Export config button
-  const exportBtn = document.getElementById('psycle-settings-export-btn');
+  const exportBtn = document.getElementById('sa-settings-export-btn');
   if (exportBtn && !exportBtn.dataset.listener) {
     exportBtn.dataset.listener = 'true';
     exportBtn.addEventListener('click', async () => {
@@ -2209,7 +2209,7 @@ function setupSettingsListeners() {
         const url = URL.createObjectURL(blob);
         const link = document.createElement('a');
         link.href = url;
-        link.download = 'psycle-preferences-backup.json';
+        link.download = 'sa-preferences-backup.json';
         document.body.appendChild(link);
         link.click();
         document.body.removeChild(link);
@@ -2223,8 +2223,8 @@ function setupSettingsListeners() {
   }
 
   // Import config file triggers
-  const importBtn = document.getElementById('psycle-settings-import-btn');
-  const importFileInput = document.getElementById('psycle-settings-import-file');
+  const importBtn = document.getElementById('sa-settings-import-btn');
+  const importFileInput = document.getElementById('sa-settings-import-file');
 
   if (importBtn && importFileInput && !importBtn.dataset.listener) {
     importBtn.dataset.listener = 'true';
@@ -2309,7 +2309,7 @@ function setupSettingsListeners() {
   }
 
   // Delete all data button (two-step confirm)
-  const deleteDataBtn = document.getElementById('psycle-delete-data-btn');
+  const deleteDataBtn = document.getElementById('sa-delete-data-btn');
   if (deleteDataBtn && !deleteDataBtn.dataset.listener) {
     deleteDataBtn.dataset.listener = 'true';
     deleteDataBtn.addEventListener('click', async () => {

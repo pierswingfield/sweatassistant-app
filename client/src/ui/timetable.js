@@ -1050,7 +1050,7 @@ function setupDropdownFilters({ locationIds, instructorIds, classTypeIds } = {})
 
   // Gym filter (rendered only when >1 gym linked)
   const linked = getLinkedGyms() || [];
-  const gymDropdown = document.getElementById('psycle-ms-gym');
+  const gymDropdown = document.getElementById('sa-ms-gym');
   if (gymDropdown) {
     if (linked.length > 1) {
       gymDropdown.style.display = 'block';
@@ -1058,8 +1058,8 @@ function setupDropdownFilters({ locationIds, instructorIds, classTypeIds } = {})
         id: g.gym_id || g.id,
         name: g.gym_name || g.name || g.gym_id || g.id,
       }));
-      populateOptionsList('psycle-ms-gym', gymItems, selectedGyms, 'gym');
-      updateTriggerLabel('psycle-ms-gym', selectedGyms, COPY.timetable.allGyms, 'Gym');
+      populateOptionsList('sa-ms-gym', gymItems, selectedGyms, 'gym');
+      updateTriggerLabel('sa-ms-gym', selectedGyms, COPY.timetable.allGyms, 'Gym');
     } else {
       gymDropdown.style.display = 'none';
     }
@@ -1089,10 +1089,10 @@ function setupDropdownFilters({ locationIds, instructorIds, classTypeIds } = {})
     ? metadata.eventTypes
     : metadata.eventTypes.filter(t => hasId(classTypeIds, t.id));
 
-  populateOptionsList('psycle-ms-location', locationsToRender, selectedLocations, 'location');
+  populateOptionsList('sa-ms-location', locationsToRender, selectedLocations, 'location');
   // Normalized instructors expose `name`; the old raw CodexFit shape used
   // `full_name`, and the default labelField is already 'name'.
-  populateOptionsList('psycle-ms-instructor', instructorsToRender, selectedInstructors, 'instructor');
+  populateOptionsList('sa-ms-instructor', instructorsToRender, selectedInstructors, 'instructor');
 
   // Event Type groups (Ride, Strength, etc.)
   // `group` is a plain string on the normalized shape — it is both the id the
@@ -1124,12 +1124,12 @@ function setupDropdownFilters({ locationIds, instructorIds, classTypeIds } = {})
     .map(t => ({ id: t.bucketLabel, name: t.bucketLabel, gymId: t.gymId }))
     .sort((a, b) => a.name.localeCompare(b.name) || (a.gymId || '').localeCompare(b.gymId || ''));
 
-  populateOptionsList('psycle-ms-class-type', eventTypeGroups, selectedEventTypes, 'class-type');
+  populateOptionsList('sa-ms-class-type', eventTypeGroups, selectedEventTypes, 'class-type');
   
   // Set labels
-  updateTriggerLabel('psycle-ms-location', selectedLocations, COPY.timetable.allLocations, 'Location');
-  updateTriggerLabel('psycle-ms-instructor', selectedInstructors, COPY.timetable.allInstructors, 'Instructor');
-  updateTriggerLabel('psycle-ms-class-type', selectedEventTypes, COPY.timetable.allTypes, 'Type');
+  updateTriggerLabel('sa-ms-location', selectedLocations, COPY.timetable.allLocations, 'Location');
+  updateTriggerLabel('sa-ms-instructor', selectedInstructors, COPY.timetable.allInstructors, 'Instructor');
+  updateTriggerLabel('sa-ms-class-type', selectedEventTypes, COPY.timetable.allTypes, 'Type');
 
   // Bookmarked button class
   const bookmarksFilterBtn = document.getElementById('sa-filter-favorites-only');
@@ -1177,17 +1177,17 @@ function instructorBaseLabel(item) {
 function populateOptionsList(dropdownId, items, selectedArray, type, labelField = 'name') {
   const dropdown = document.getElementById(dropdownId);
   if (!dropdown) return;
-  const menu = dropdown.querySelector('.psycle-ms-menu');
-  const list = dropdown.querySelector('.psycle-ms-options-list');
+  const menu = dropdown.querySelector('.sa-ms-menu');
+  const list = dropdown.querySelector('.sa-ms-options-list');
   if (!list) return;
 
   // Instructor dropdown: inject instant-search input once, then wire it
-  if (dropdownId === 'psycle-ms-instructor' && menu) {
-    let searchInput = menu.querySelector('.psycle-ms-search');
+  if (dropdownId === 'sa-ms-instructor' && menu) {
+    let searchInput = menu.querySelector('.sa-ms-search');
     if (!searchInput) {
       searchInput = document.createElement('input');
       searchInput.type = 'text';
-      searchInput.className = 'psycle-ms-search';
+      searchInput.className = 'sa-ms-search';
       searchInput.placeholder = COPY.timetable.searchInstructors;
       menu.insertBefore(searchInput, list);
     }
@@ -1201,7 +1201,7 @@ function populateOptionsList(dropdownId, items, selectedArray, type, labelField 
       let currentHeadingHasMatch = false;
       const closeGroup = () => { if (currentHeading) currentHeading.style.display = currentHeadingHasMatch ? '' : 'none'; };
       Array.from(list.children).forEach(child => {
-        if (child.classList.contains('psycle-ms-group-heading')) {
+        if (child.classList.contains('sa-ms-group-heading')) {
           closeGroup();
           currentHeading = child;
           currentHeadingHasMatch = false;
@@ -1216,9 +1216,9 @@ function populateOptionsList(dropdownId, items, selectedArray, type, labelField 
     };
   }
 
-  const isLocation = dropdownId === 'psycle-ms-location';
-  const isInstructor = dropdownId === 'psycle-ms-instructor';
-  const isClassType = dropdownId === 'psycle-ms-class-type';
+  const isLocation = dropdownId === 'sa-ms-location';
+  const isInstructor = dropdownId === 'sa-ms-instructor';
+  const isClassType = dropdownId === 'sa-ms-class-type';
   // Location/instructor group AND disambiguate (two gyms' entries can share a
   // display name but are genuinely different things). Class-type groups only
   // — its id is deliberately the same across gyms (see setupDropdownFilters),
@@ -1244,7 +1244,7 @@ function populateOptionsList(dropdownId, items, selectedArray, type, labelField 
     const orderedGymIds = [...distinctGymIds].sort((a, b) => linkedOrder.indexOf(a) - linkedOrder.indexOf(b));
     orderedGymIds.forEach(gymId => {
       const heading = document.createElement('div');
-      heading.className = 'psycle-ms-group-heading';
+      heading.className = 'sa-ms-group-heading';
       heading.textContent = getGymShortName(gymId);
       list.appendChild(heading);
       items.filter(i => i.gymId === gymId).forEach(item => list.appendChild(buildFilterOptionLabel(item, labelOf(item), selectedArray, type)));
@@ -1261,9 +1261,9 @@ function populateOptionsList(dropdownId, items, selectedArray, type, labelField 
 function buildFilterOptionLabel(item, labelText, selectedArray, type) {
   const isChecked = selectedArray.includes(String(item.id));
   const label = document.createElement('label');
-  label.className = 'psycle-ms-option-label';
+  label.className = 'sa-ms-option-label';
   label.innerHTML = `
-    <input type="checkbox" class="psycle-ms-checkbox" data-type="${type}" data-id="${item.id}" ${isChecked ? 'checked' : ''} style="cursor: pointer;">
+    <input type="checkbox" class="sa-ms-checkbox" data-type="${type}" data-id="${item.id}" ${isChecked ? 'checked' : ''} style="cursor: pointer;">
     <span>${labelText}</span>
   `;
   return label;
@@ -1273,7 +1273,7 @@ function buildFilterOptionLabel(item, labelText, selectedArray, type) {
 function updateTriggerLabel(dropdownId, selectedArray, defaultText, labelSingular) {
   const dropdown = document.getElementById(dropdownId);
   if (!dropdown) return;
-  const labelTextEl = dropdown.querySelector('.psycle-ms-trigger-text');
+  const labelTextEl = dropdown.querySelector('.sa-ms-trigger-text');
   if (!labelTextEl) return;
 
   if (selectedArray.length === 0) {
@@ -1281,16 +1281,16 @@ function updateTriggerLabel(dropdownId, selectedArray, defaultText, labelSingula
   } else if (selectedArray.length === 1) {
     // Resolve single item name
     let name = formatCopyText(COPY.timetable.selectedOne, { count: 1 });
-    if (dropdownId === 'psycle-ms-gym') {
+    if (dropdownId === 'sa-ms-gym') {
       const g = (getLinkedGyms() || []).find(x => String(x.gym_id || x.id) === selectedArray[0]);
       if (g) name = g.gym_name || g.name || g.gym_id || g.id;
-    } else if (dropdownId === 'psycle-ms-location') {
+    } else if (dropdownId === 'sa-ms-location') {
       const loc = metadata.locations.find(l => String(l.id) === selectedArray[0]);
       if (loc) name = disambiguateGymLabel(loc, locationBaseLabel(loc), metadata.locations, locationBaseLabel);
-    } else if (dropdownId === 'psycle-ms-instructor') {
+    } else if (dropdownId === 'sa-ms-instructor') {
       const instr = findInstructor(metadata.instructors, selectedArray[0]);
       if (instr) name = disambiguateGymLabel(instr, instructorBaseLabel(instr), metadata.instructors, instructorBaseLabel);
-    } else if (dropdownId === 'psycle-ms-class-type') {
+    } else if (dropdownId === 'sa-ms-class-type') {
       // The selection id IS the bucket label (see setupDropdownFilters) — no
       // lookup needed, unlike the other dropdowns where the id is a provider id.
       name = selectedArray[0];
@@ -1309,17 +1309,17 @@ function setupFilterEventListeners() {
   if (!container) return;
 
   // 1. Toggle open dropdowns on trigger clicks
-  container.querySelectorAll('.psycle-ms-trigger').forEach(trigger => {
+  container.querySelectorAll('.sa-ms-trigger').forEach(trigger => {
     trigger.onclick = (e) => {
       e.stopPropagation();
       const dropdown = trigger.parentElement;
-      const menu = dropdown.querySelector('.psycle-ms-menu');
-      const arrow = trigger.querySelector('.psycle-ms-arrow');
+      const menu = dropdown.querySelector('.sa-ms-menu');
+      const arrow = trigger.querySelector('.sa-ms-arrow');
       const isVisible = menu.style.display === 'block';
 
       // Close all first
-      container.querySelectorAll('.psycle-ms-menu').forEach(m => m.style.display = 'none');
-      container.querySelectorAll('.psycle-ms-arrow').forEach(a => a.style.transform = 'rotate(0deg)');
+      container.querySelectorAll('.sa-ms-menu').forEach(m => m.style.display = 'none');
+      container.querySelectorAll('.sa-ms-arrow').forEach(a => a.style.transform = 'rotate(0deg)');
 
       if (!isVisible) {
         menu.style.display = 'block';
@@ -1332,19 +1332,19 @@ function setupFilterEventListeners() {
   });
 
   // Stop clicks inside dropdowns from propagating and closing the menu
-  container.querySelectorAll('.psycle-ms-dropdown').forEach(dropdown => {
+  container.querySelectorAll('.sa-ms-dropdown').forEach(dropdown => {
     dropdown.onclick = (e) => e.stopPropagation();
   });
 
   // Document listener to close dropdowns when clicking outside
   document.onclick = () => {
-    container.querySelectorAll('.psycle-ms-menu').forEach(m => m.style.display = 'none');
-    container.querySelectorAll('.psycle-ms-arrow').forEach(a => a.style.transform = 'rotate(0deg)');
+    container.querySelectorAll('.sa-ms-menu').forEach(m => m.style.display = 'none');
+    container.querySelectorAll('.sa-ms-arrow').forEach(a => a.style.transform = 'rotate(0deg)');
     openDropdownId = null;
   };
 
   // 2. Options checkbox change listeners
-  container.querySelectorAll('.psycle-ms-checkbox').forEach(checkbox => {
+  container.querySelectorAll('.sa-ms-checkbox').forEach(checkbox => {
     checkbox.onchange = (e) => {
       const type = checkbox.getAttribute('data-type');
       const id = checkbox.getAttribute('data-id');
@@ -1356,28 +1356,28 @@ function setupFilterEventListeners() {
         } else {
           selectedGyms = selectedGyms.filter(x => x !== id);
         }
-        updateTriggerLabel('psycle-ms-gym', selectedGyms, COPY.timetable.allGyms, 'Gym');
+        updateTriggerLabel('sa-ms-gym', selectedGyms, COPY.timetable.allGyms, 'Gym');
       } else if (type === 'location') {
         if (isChecked) {
           if (!selectedLocations.includes(id)) selectedLocations.push(id);
         } else {
           selectedLocations = selectedLocations.filter(x => x !== id);
         }
-        updateTriggerLabel('psycle-ms-location', selectedLocations, COPY.timetable.allLocations, 'Location');
+        updateTriggerLabel('sa-ms-location', selectedLocations, COPY.timetable.allLocations, 'Location');
       } else if (type === 'instructor') {
         if (isChecked) {
           if (!selectedInstructors.includes(id)) selectedInstructors.push(id);
         } else {
           selectedInstructors = selectedInstructors.filter(x => x !== id);
         }
-        updateTriggerLabel('psycle-ms-instructor', selectedInstructors, COPY.timetable.allInstructors, 'Instructor');
+        updateTriggerLabel('sa-ms-instructor', selectedInstructors, COPY.timetable.allInstructors, 'Instructor');
       } else if (type === 'class-type') {
         if (isChecked) {
           if (!selectedEventTypes.includes(id)) selectedEventTypes.push(id);
         } else {
           selectedEventTypes = selectedEventTypes.filter(x => x !== id);
         }
-        updateTriggerLabel('psycle-ms-class-type', selectedEventTypes, COPY.timetable.allTypes, 'Type');
+        updateTriggerLabel('sa-ms-class-type', selectedEventTypes, COPY.timetable.allTypes, 'Type');
       }
 
       renderTimetableGrid();
@@ -1385,26 +1385,26 @@ function setupFilterEventListeners() {
   });
 
   // 3. Clear button inside individual menus
-  container.querySelectorAll('.psycle-ms-dropdown').forEach(dropdown => {
-    const clearBtn = dropdown.querySelector('.psycle-ms-clear-btn');
+  container.querySelectorAll('.sa-ms-dropdown').forEach(dropdown => {
+    const clearBtn = dropdown.querySelector('.sa-ms-clear-btn');
     if (clearBtn) {
       clearBtn.onclick = (e) => {
         e.stopPropagation();
         const idAttr = dropdown.id;
-        dropdown.querySelectorAll('.psycle-ms-checkbox').forEach(c => c.checked = false);
+        dropdown.querySelectorAll('.sa-ms-checkbox').forEach(c => c.checked = false);
 
-        if (idAttr === 'psycle-ms-gym') {
+        if (idAttr === 'sa-ms-gym') {
           selectedGyms = [];
-          updateTriggerLabel('psycle-ms-gym', selectedGyms, COPY.timetable.allGyms, 'Gym');
-        } else if (idAttr === 'psycle-ms-location') {
+          updateTriggerLabel('sa-ms-gym', selectedGyms, COPY.timetable.allGyms, 'Gym');
+        } else if (idAttr === 'sa-ms-location') {
           selectedLocations = [];
-          updateTriggerLabel('psycle-ms-location', selectedLocations, COPY.timetable.allLocations, 'Location');
-        } else if (idAttr === 'psycle-ms-instructor') {
+          updateTriggerLabel('sa-ms-location', selectedLocations, COPY.timetable.allLocations, 'Location');
+        } else if (idAttr === 'sa-ms-instructor') {
           selectedInstructors = [];
-          updateTriggerLabel('psycle-ms-instructor', selectedInstructors, COPY.timetable.allInstructors, 'Instructor');
-        } else if (idAttr === 'psycle-ms-class-type') {
+          updateTriggerLabel('sa-ms-instructor', selectedInstructors, COPY.timetable.allInstructors, 'Instructor');
+        } else if (idAttr === 'sa-ms-class-type') {
           selectedEventTypes = [];
-          updateTriggerLabel('psycle-ms-class-type', selectedEventTypes, COPY.timetable.allTypes, 'Type');
+          updateTriggerLabel('sa-ms-class-type', selectedEventTypes, COPY.timetable.allTypes, 'Type');
         }
         renderTimetableGrid();
       };
@@ -1437,12 +1437,12 @@ function setupFilterEventListeners() {
       selectedEventTypes = [];
       showBookmarksOnly = false;
       
-      container.querySelectorAll('.psycle-ms-checkbox').forEach(c => c.checked = false);
+      container.querySelectorAll('.sa-ms-checkbox').forEach(c => c.checked = false);
       
-      updateTriggerLabel('psycle-ms-gym', selectedGyms, COPY.timetable.allGyms, 'Gym');
-      updateTriggerLabel('psycle-ms-location', selectedLocations, COPY.timetable.allLocations, 'Location');
-      updateTriggerLabel('psycle-ms-instructor', selectedInstructors, COPY.timetable.allInstructors, 'Instructor');
-      updateTriggerLabel('psycle-ms-class-type', selectedEventTypes, COPY.timetable.allTypes, 'Type');
+      updateTriggerLabel('sa-ms-gym', selectedGyms, COPY.timetable.allGyms, 'Gym');
+      updateTriggerLabel('sa-ms-location', selectedLocations, COPY.timetable.allLocations, 'Location');
+      updateTriggerLabel('sa-ms-instructor', selectedInstructors, COPY.timetable.allInstructors, 'Instructor');
+      updateTriggerLabel('sa-ms-class-type', selectedEventTypes, COPY.timetable.allTypes, 'Type');
       
       if (bookmarksFilterBtn) {
         bookmarksFilterBtn.classList.remove('active');
@@ -2915,13 +2915,13 @@ function buildActionMenuElement(menuItems) {
     // labels can include a class name, and those come from the provider.
     if (item.icon) {
       const ic = document.createElement('span');
-      ic.className = 'psycle-menu-item-icon';
+      ic.className = 'sa-menu-item-icon';
       ic.innerHTML = icon(item.icon, 15);
       ic.setAttribute('aria-hidden', 'true');
       div.appendChild(ic);
     }
     const label = document.createElement('span');
-    label.className = 'psycle-menu-item-label';
+    label.className = 'sa-menu-item-label';
     label.textContent = item.label;
     div.appendChild(label);
     if (item.variant) div.setAttribute('data-variant', item.variant);
@@ -3107,13 +3107,13 @@ function injectMobileFilterHamburger() {
     // labels can include a class name, and those come from the provider.
     if (item.icon) {
       const ic = document.createElement('span');
-      ic.className = 'psycle-menu-item-icon';
+      ic.className = 'sa-menu-item-icon';
       ic.innerHTML = icon(item.icon, 15);
       ic.setAttribute('aria-hidden', 'true');
       div.appendChild(ic);
     }
     const label = document.createElement('span');
-    label.className = 'psycle-menu-item-label';
+    label.className = 'sa-menu-item-label';
     label.textContent = item.label;
     div.appendChild(label);
     if (item.variant) div.setAttribute('data-variant', item.variant);
@@ -3610,7 +3610,7 @@ export async function openGuestBookingModal(c) {
       ? `<p style="margin:0 0 12px;color:var(--text-secondary);font-size:13px;">${formatCopyText(COPY.bookings.guestPassesRemaining, { count: passCount, plural: passCount === 1 ? '' : 'es' })}</p>`
       : '';
     body.innerHTML = `
-      <div class="psycle-guest-booking" style="display:flex;flex-direction:column;gap:14px;">
+      <div class="sa-guest-booking" style="display:flex;flex-direction:column;gap:14px;">
         ${passNote}
         <label style="display:flex;flex-direction:column;gap:6px;font-size:13px;color:var(--text-secondary);">${COPY.bookings.guestEmail}
           <input id="guest-booking-email" class="psycle-input" type="email" autocomplete="email" inputmode="email" required>
@@ -4286,7 +4286,7 @@ export async function openBookingModal(c, mode, opts = {}) {
               </div>` : ''}
               <div style="flex:1;padding-top:14px;">
                 <label style="display:flex;align-items:center;gap:8px;font-size:13px;cursor:pointer;color:var(--text-secondary);user-select:none;">
-                  <input type="checkbox" class="psycle-ms-checkbox" id="autobook-fallback-any" ${state.bookAny ? 'checked' : ''}>
+                  <input type="checkbox" class="sa-ms-checkbox" id="autobook-fallback-any" ${state.bookAny ? 'checked' : ''}>
                   <span>${COPY.timetable.bookAnyPreferredFallback}</span>
                 </label>
               </div>
@@ -4298,12 +4298,12 @@ export async function openBookingModal(c, mode, opts = {}) {
               if (!hasPrefs && isMobile()) return upgradeNeedsRowHtml();
               if (!hasPrefs) return `
                 <label style="display:flex;align-items:center;gap:8px;font-size:13px;color:var(--text-tertiary);user-select:none;cursor:not-allowed;">
-                  <input type="checkbox" class="psycle-ms-checkbox" id="autobook-auto-upgrade" disabled>
+                  <input type="checkbox" class="sa-ms-checkbox" id="autobook-auto-upgrade" disabled>
                   <span style="display:flex;align-items:center;gap:4px;">${trendingUpIcon(12, 'currentColor', 2)} ${COPY.timetable.autoUpgradeConfigurePrompt}</span>
                 </label>`;
               return `
                 <label style="display:flex;align-items:center;gap:8px;font-size:13px;cursor:pointer;color:var(--text-secondary);user-select:none;">
-                  <input type="checkbox" class="psycle-ms-checkbox" id="autobook-auto-upgrade" ${isAutoUpgradeDefaultEnabled(c.gymId) ? 'checked' : ''}>
+                  <input type="checkbox" class="sa-ms-checkbox" id="autobook-auto-upgrade" ${isAutoUpgradeDefaultEnabled(c.gymId) ? 'checked' : ''}>
                   <span style="display:flex;align-items:center;gap:4px;">${trendingUpIcon(12, 'currentColor', 2)} ${COPY.timetable.autoUpgradeKeepSearchingLabel}</span>
                 </label>`;
             })()}
@@ -4369,12 +4369,12 @@ export async function openBookingModal(c, mode, opts = {}) {
               if (!hasPrefs && isMobile()) return upgradeNeedsRowHtml();
               if (!hasPrefs) return `
                 <label style="display:flex;align-items:center;gap:8px;font-size:13px;color:var(--text-tertiary);user-select:none;cursor:not-allowed;font-weight:500;">
-                  <input type="checkbox" class="psycle-ms-checkbox" id="simplebook-auto-upgrade" disabled>
+                  <input type="checkbox" class="sa-ms-checkbox" id="simplebook-auto-upgrade" disabled>
                   <span style="display:flex;align-items:center;gap:4px;flex-wrap:wrap;">${trendingUpIcon(12, 'currentColor', 2)} ${formatCopyText(COPY.timetable.autoUpgradeConfigureFirstHtml, { studio: escapeHtml(studioName) })}</span>
                 </label>`;
               return `
                 <label style="display:flex;align-items:center;gap:8px;font-size:13px;cursor:pointer;color:var(--text-secondary);user-select:none;font-weight:500;">
-                  <input type="checkbox" class="psycle-ms-checkbox" id="simplebook-auto-upgrade" ${isAutoUpgradeDefaultEnabled(c.gymId) ? 'checked' : ''}>
+                  <input type="checkbox" class="sa-ms-checkbox" id="simplebook-auto-upgrade" ${isAutoUpgradeDefaultEnabled(c.gymId) ? 'checked' : ''}>
                   <span style="display:flex;align-items:center;gap:4px;">${trendingUpIcon(12, 'currentColor', 2)} ${COPY.timetable.autoUpgradeKeepSearchingLabel}</span>
                 </label>`;
             })()}
@@ -4519,7 +4519,7 @@ export async function openBookingModal(c, mode, opts = {}) {
               </div>` : ''}
               <div style="flex:1;padding-top:14px;">
                 <label style="display:flex;align-items:center;gap:8px;font-size:13px;cursor:pointer;color:var(--text-secondary);user-select:none;">
-                  <input type="checkbox" class="psycle-ms-checkbox" id="quickbook-fallback-any" ${state.bookAny ? 'checked' : ''}>
+                  <input type="checkbox" class="sa-ms-checkbox" id="quickbook-fallback-any" ${state.bookAny ? 'checked' : ''}>
                   <span>${COPY.timetable.bookAnyPreferredFallback}</span>
                 </label>
               </div>
@@ -4531,12 +4531,12 @@ export async function openBookingModal(c, mode, opts = {}) {
               if (!hasPrefs && isMobile()) return upgradeNeedsRowHtml();
               if (!hasPrefs) return `
                 <label style="display:flex;align-items:center;gap:8px;font-size:13px;color:var(--text-tertiary);user-select:none;cursor:not-allowed;">
-                  <input type="checkbox" class="psycle-ms-checkbox" id="quickbook-auto-upgrade" disabled>
+                  <input type="checkbox" class="sa-ms-checkbox" id="quickbook-auto-upgrade" disabled>
                   <span style="display:flex;align-items:center;gap:4px;">${trendingUpIcon(12, 'currentColor', 2)} ${COPY.timetable.autoUpgradeConfigurePrompt}</span>
                 </label>`;
               return `
                 <label style="display:flex;align-items:center;gap:8px;font-size:13px;cursor:pointer;color:var(--text-secondary);user-select:none;">
-                  <input type="checkbox" class="psycle-ms-checkbox" id="quickbook-auto-upgrade" ${isAutoUpgradeDefaultEnabled(c.gymId) ? 'checked' : ''}>
+                  <input type="checkbox" class="sa-ms-checkbox" id="quickbook-auto-upgrade" ${isAutoUpgradeDefaultEnabled(c.gymId) ? 'checked' : ''}>
                   <span style="display:flex;align-items:center;gap:4px;">${trendingUpIcon(12, 'currentColor', 2)} ${COPY.timetable.autoUpgradeKeepSearchingLabel}</span>
                 </label>`;
             })()}

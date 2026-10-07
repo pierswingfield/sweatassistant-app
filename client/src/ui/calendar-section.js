@@ -19,8 +19,8 @@ import { openPage as openNavPage, closePage as closeNavPage } from './modal-nav.
 
 // Simplified inline marks (no hotlinking). They approximate the Apple and Google
 // Calendar app icons; they are not pixel-faithful reproductions.
-const APPLE_CAL_LOGO = `<svg class="psycle-cal-logo" viewBox="0 0 32 32" aria-hidden="true"><rect x="1" y="1" width="30" height="30" rx="7" fill="#fff" stroke="#d1d1d6"/><text x="16" y="10.5" text-anchor="middle" font-family="-apple-system,Helvetica,Arial,sans-serif" font-size="6.5" font-weight="600" fill="#ff3b30">WED</text><text x="16" y="25" text-anchor="middle" font-family="-apple-system,Helvetica,Arial,sans-serif" font-size="15" font-weight="300" fill="#1c1c1e">17</text></svg>`;
-const GOOGLE_CAL_LOGO = `<svg class="psycle-cal-logo" viewBox="0 0 32 32" aria-hidden="true"><rect x="5" y="5" width="22" height="22" rx="2.5" fill="#fff"/><path d="M5 27V7.5A2.5 2.5 0 0 1 7.5 5H12v4H9v14h0v4H5z" fill="#4285f4"/><path d="M9 23h14v4H9z" fill="#34a853"/><path d="M23 9h4v14h-4z" fill="#fbbc04"/><path d="M23 23h4v2.5a1.5 1.5 0 0 1-1.5 1.5H23z" fill="#ea4335"/><path d="M23 5h2.5A1.5 1.5 0 0 1 27 6.5V9h-4z" fill="#1967d2"/><path d="M12 5h11v4H12z" fill="#4285f4"/><text x="16" y="21" text-anchor="middle" font-family="Arial,Helvetica,sans-serif" font-size="9" font-weight="700" fill="#4285f4">31</text></svg>`;
+const APPLE_CAL_LOGO = `<svg class="sa-cal-logo" viewBox="0 0 32 32" aria-hidden="true"><rect x="1" y="1" width="30" height="30" rx="7" fill="#fff" stroke="#d1d1d6"/><text x="16" y="10.5" text-anchor="middle" font-family="-apple-system,Helvetica,Arial,sans-serif" font-size="6.5" font-weight="600" fill="#ff3b30">WED</text><text x="16" y="25" text-anchor="middle" font-family="-apple-system,Helvetica,Arial,sans-serif" font-size="15" font-weight="300" fill="#1c1c1e">17</text></svg>`;
+const GOOGLE_CAL_LOGO = `<svg class="sa-cal-logo" viewBox="0 0 32 32" aria-hidden="true"><rect x="5" y="5" width="22" height="22" rx="2.5" fill="#fff"/><path d="M5 27V7.5A2.5 2.5 0 0 1 7.5 5H12v4H9v14h0v4H5z" fill="#4285f4"/><path d="M9 23h14v4H9z" fill="#34a853"/><path d="M23 9h4v14h-4z" fill="#fbbc04"/><path d="M23 23h4v2.5a1.5 1.5 0 0 1-1.5 1.5H23z" fill="#ea4335"/><path d="M23 5h2.5A1.5 1.5 0 0 1 27 6.5V9h-4z" fill="#1967d2"/><path d="M12 5h11v4H12z" fill="#4285f4"/><text x="16" y="21" text-anchor="middle" font-family="Arial,Helvetica,sans-serif" font-size="9" font-weight="700" fill="#4285f4">31</text></svg>`;
 
 function gymCoverageLine(status) {
   const gyms = status.gyms || [];
@@ -34,10 +34,10 @@ function gymCoverageLine(status) {
 function checkRow({ key, title, help, checked, disabled = false }) {
   const attrs = key ? `data-calendar-setting="${key}"` : '';
   return `
-    <label class="psycle-setting-row psycle-cal-check${disabled ? ' is-disabled' : ''}">
+    <label class="sa-setting-row sa-cal-check${disabled ? ' is-disabled' : ''}">
       <input type="checkbox" ${attrs} ${checked ? 'checked' : ''} ${disabled ? 'disabled' : ''}>
-      <span class="psycle-cal-box" aria-hidden="true"></span>
-      <span class="psycle-setting-label"><span>${escapeHtml(title)}</span><small>${escapeHtml(help)}</small></span>
+      <span class="sa-cal-box" aria-hidden="true"></span>
+      <span class="sa-setting-label"><span>${escapeHtml(title)}</span><small>${escapeHtml(help)}</small></span>
     </label>`;
 }
 
@@ -47,18 +47,18 @@ function feedCardHtml(status) {
     ? COPY.calendar.lastUpdated.replace('{date}', noSept(new Date(status.generatedAt).toLocaleString('en-GB', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' })))
     : COPY.calendar.notPublished;
   return `
-    <div class="psycle-settings-card">
+    <div class="sa-settings-card">
       <h4>${COPY.calendar.feedTitle}</h4>
-      <div class="psycle-setting-row">
-        <div class="psycle-setting-label">
+      <div class="sa-setting-row">
+        <div class="sa-setting-label">
           <span>${enabled ? COPY.calendar.feedOn : COPY.calendar.feedOff}</span>
           <small>${enabled ? escapeHtml(`${gymCoverageLine(status)} ${generated}`) : COPY.calendar.feedOffDescription}</small>
         </div>
       </div>
-      <div class="psycle-cal-feed-actions">
-        ${enabled ? `<button class="psycle-btn psycle-cal-feed-btn" data-calendar-action="refresh">${icon('refresh', 16)}<span>${COPY.calendar.refreshNow}</span></button>
-        <button class="psycle-btn psycle-cal-feed-btn variant-danger" data-calendar-action="disable">${icon('power', 16)}<span>${COPY.calendar.turnOffFeed}</span></button>`
-        : `<button class="psycle-btn psycle-cal-feed-btn" data-calendar-action="enable">${icon('power', 16)}<span>${COPY.calendar.turnOnFeed}</span></button>`}
+      <div class="sa-cal-feed-actions">
+        ${enabled ? `<button class="psycle-btn sa-cal-feed-btn" data-calendar-action="refresh">${icon('refresh', 16)}<span>${COPY.calendar.refreshNow}</span></button>
+        <button class="psycle-btn sa-cal-feed-btn variant-danger" data-calendar-action="disable">${icon('power', 16)}<span>${COPY.calendar.turnOffFeed}</span></button>`
+        : `<button class="psycle-btn sa-cal-feed-btn" data-calendar-action="enable">${icon('power', 16)}<span>${COPY.calendar.turnOnFeed}</span></button>`}
       </div>
     </div>`;
 }
@@ -67,7 +67,7 @@ function includeCardHtml(status) {
   const weekly = status.weeklyGyms || [];
   const names = weekly.map((g) => g.name).join(' and ');
   return `
-    <div class="psycle-settings-card">
+    <div class="sa-settings-card">
       <h4>${COPY.calendar.includeTitle}</h4>
       <p class="psycle-card-desc">${COPY.calendar.includeDescription}</p>
       ${checkRow({ title: COPY.calendar.bookedClasses, help: COPY.calendar.alwaysIncluded, checked: true, disabled: true })}
@@ -80,7 +80,7 @@ function includeCardHtml(status) {
 function remindersCardHtml(status) {
   const r = status.reminders || {};
   return `
-    <div class="psycle-settings-card">
+    <div class="sa-settings-card">
       <h4>${COPY.calendar.reminders}</h4>
       <p class="psycle-card-desc">${COPY.calendar.reminderDescription}</p>
       ${checkRow({ key: 'reminders.twoHour', title: COPY.calendar.twoHoursBefore, help: COPY.calendar.leaveReminder, checked: r.twoHour })}
@@ -90,26 +90,26 @@ function remindersCardHtml(status) {
 
 function addCardHtml(status) {
   return `
-    <div class="psycle-settings-card">
+    <div class="sa-settings-card">
       <h4>${COPY.calendar.addToCalendar}</h4>
       <p class="psycle-card-desc">${COPY.calendar.feedUpdatesDescription}</p>
-      <div class="psycle-cal-add-list">
-        <button class="psycle-btn psycle-cal-add-btn" data-calendar-action="apple">${APPLE_CAL_LOGO}<span>${COPY.calendar.appleCalendar}</span></button>
-        <button class="psycle-btn psycle-cal-add-btn" data-calendar-action="google">${GOOGLE_CAL_LOGO}<span>${COPY.calendar.googleCalendar}</span></button>
-        <button class="psycle-btn psycle-cal-add-btn" data-calendar-action="copy"><span class="psycle-cal-logo psycle-cal-logo-generic">${icon('link', 18)}</span><span>${COPY.calendar.copyLink}</span></button>
+      <div class="sa-cal-add-list">
+        <button class="psycle-btn sa-cal-add-btn" data-calendar-action="apple">${APPLE_CAL_LOGO}<span>${COPY.calendar.appleCalendar}</span></button>
+        <button class="psycle-btn sa-cal-add-btn" data-calendar-action="google">${GOOGLE_CAL_LOGO}<span>${COPY.calendar.googleCalendar}</span></button>
+        <button class="psycle-btn sa-cal-add-btn" data-calendar-action="copy"><span class="sa-cal-logo sa-cal-logo-generic">${icon('link', 18)}</span><span>${COPY.calendar.copyLink}</span></button>
       </div>
     </div>`;
 }
 
 export async function renderCalendarSection(targetContainer = null) {
-  const container = targetContainer || document.getElementById('psycle-calendar-section');
+  const container = targetContainer || document.getElementById('sa-calendar-section');
   if (!container) return;
 
   let status;
   try {
     status = await api.getCalendarStatus();
   } catch (err) {
-    const msg = `<div class="psycle-settings-card"><p class="${getIsOffline() ? 'psycle-card-desc' : 'psycle-card-error'}">${getIsOffline() ? COPY.calendar.noSavedStatus : formatCopyText(COPY.calendar.loadingFailed, { error: escapeHtml(err.message) })}</p></div>`;
+    const msg = `<div class="sa-settings-card"><p class="${getIsOffline() ? 'psycle-card-desc' : 'psycle-card-error'}">${getIsOffline() ? COPY.calendar.noSavedStatus : formatCopyText(COPY.calendar.loadingFailed, { error: escapeHtml(err.message) })}</p></div>`;
     container.innerHTML = msg;
     return;
   }

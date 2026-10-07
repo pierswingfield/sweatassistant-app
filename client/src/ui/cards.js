@@ -335,7 +335,7 @@ export function gymBrand(gymId) {
 /** The gym's FULL wordmark on its brand plate, sized as a page banner (Settings panes, Your Gyms,
  *  link/re-auth form). Reuses gymChip so there is still exactly one place that knows a gym's assets. */
 export function gymLogoBanner(gymId) {
-  return `<span class="psycle-gym-logo-banner">${gymChip(gymId)}</span>`;
+  return `<span class="sa-gym-logo-banner">${gymChip(gymId)}</span>`;
 }
 
 export function gymChip(gymId) {
@@ -349,8 +349,8 @@ export function gymChip(gymId) {
   // readers and to anyone who doesn't know the marks yet, since the image
   // itself is aria-hidden.
   const wStyle = brand.logoWidth ? `;--logo-w:${brand.logoWidth}px;min-width:${brand.logoWidth + 18}px` : '';
-  return `<span class="psycle-gym-chip psycle-gym-chip-${brand.id}${brand.logoWidth ? ' has-logo-w' : ''}" title="${brand.name}" style="background:${brand.brandBg};border:1px solid ${brand.brandBg}${wStyle}">`
-    + `<span class="psycle-gym-chip-logo">${brand.logoSvg}</span>`
+  return `<span class="sa-gym-chip sa-gym-chip-${brand.id}${brand.logoWidth ? ' has-logo-w' : ''}" title="${brand.name}" style="background:${brand.brandBg};border:1px solid ${brand.brandBg}${wStyle}">`
+    + `<span class="sa-gym-chip-logo">${brand.logoSvg}</span>`
     + `<span class="u-visually-hidden">${brand.name}</span>`
     + `</span>`;
 }
@@ -361,13 +361,13 @@ export function gymChip(gymId) {
  * `gymChip` is the wide table plate and `renderGymRail` the tall card rail; this
  * is the third shape, for places that want a small icon-sized identifier (the
  * per-gym Settings menu entries). Same assets and same brand colours as the other
- * two — the plate colour comes from `.psycle-gym-mark-<id>` in styles.css, which
- * mirrors `.psycle-gym-chip-<id>` — so the three can never disagree about what a
+ * two — the plate colour comes from `.sa-gym-mark-<id>` in styles.css, which
+ * mirrors `.sa-gym-chip-<id>` — so the three can never disagree about what a
  * gym looks like. Decorative: the gym's name is always rendered beside it.
  */
 export function gymSquareChip(gymId) {
   const brand = gymBrand(gymId);
-  return `<span class="psycle-gym-mark psycle-gym-mark-${brand.id}" style="background:${brand.brandBg}" aria-hidden="true">${brand.squareLogoSvg ?? brand.logoSvg}</span>`;
+  return `<span class="sa-gym-mark sa-gym-mark-${brand.id}" style="background:${brand.brandBg}" aria-hidden="true">${brand.squareLogoSvg ?? brand.logoSvg}</span>`;
 }
 
 export function renderGymRail(gymId) {

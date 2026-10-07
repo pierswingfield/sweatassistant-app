@@ -8,11 +8,11 @@ beforeAll(() => setGymCatalogue(CATALOGUE));
 describe('gymSquareChip (U1-8)', () => {
   it('renders each gym\'s own real logo on its own brand plate, decoratively', () => {
     const psycle = gymSquareChip('psycle-london');
-    expect(psycle).toContain('psycle-gym-mark-psycle-london');
+    expect(psycle).toContain('sa-gym-mark-psycle-london');
     expect(psycle).toContain('/gyms/psycle-london-half.avif');
     expect(psycle).toContain('aria-hidden="true"');
     const jab = gymSquareChip('jab-boxing');
-    expect(jab).toContain('psycle-gym-mark-jab-boxing');
+    expect(jab).toContain('sa-gym-mark-jab-boxing');
     expect(jab).toContain('ab-gym-logo-svg');
   });
   it('reuses the shared brand asset instead of a second copy', () => {

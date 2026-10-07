@@ -309,7 +309,7 @@ function formatMembershipDate(value) {
 }
 
 function renderMembershipSections(linked, memberships) {
-  const root = document.getElementById('psycle-membership-sections');
+  const root = document.getElementById('sa-membership-sections');
   if (!root) return;
 
   const membershipGyms = linked.filter((g) => g.capabilities?.creditPurchase !== true);
@@ -330,20 +330,20 @@ function renderMembershipSections(linked, memberships) {
     const facts = [renewal && COPY.credits.renews.replace('{date}', renewal), expiry && COPY.credits.expires.replace('{date}', expiry),
       membership?.bookingWindowLabel, guestText].filter(Boolean);
 
-    return `<section class="psycle-membership-section" data-gym="${escapeHtml(gymId)}">
+    return `<section class="sa-membership-section" data-gym="${escapeHtml(gymId)}">
       <div class="psycle-benefit-section-heading">
         <div><span class="psycle-benefit-gym">${escapeHtml(gym.name || gym.shortName || gymId)}</span><h4>${COPY.credits.membershipKind}</h4></div>
-        <span class="psycle-membership-status ${membership?.isActive ? 'is-active' : 'is-inactive'}">
+        <span class="sa-membership-status ${membership?.isActive ? 'is-active' : 'is-inactive'}">
           ${escapeHtml(membership?.isActive ? COPY.credits.member : COPY.credits.notActive)}
         </span>
       </div>
-      <div class="psycle-membership-card">
+      <div class="sa-membership-card">
         <div>
-          <div class="psycle-membership-name">${escapeHtml(membership?.name || COPY.credits.activeMembershipMissing)}</div>
-          ${facts.length ? `<div class="psycle-membership-facts">${facts.map(escapeHtml).join(' · ')}</div>` : ''}
-          <div class="psycle-membership-note">${formatCopyText(COPY.credits.managedByGym, { gym: escapeHtml(gym.shortName || gym.name || COPY.static.yourGymFallback) })}</div>
+          <div class="sa-membership-name">${escapeHtml(membership?.name || COPY.credits.activeMembershipMissing)}</div>
+          ${facts.length ? `<div class="sa-membership-facts">${facts.map(escapeHtml).join(' · ')}</div>` : ''}
+          <div class="sa-membership-note">${formatCopyText(COPY.credits.managedByGym, { gym: escapeHtml(gym.shortName || gym.name || COPY.static.yourGymFallback) })}</div>
         </div>
-        ${websiteUrl ? `<a class="psycle-btn-mini psycle-membership-manage" href="${escapeHtml(websiteUrl)}" target="_blank" rel="noopener noreferrer">${COPY.credits.openWebsite}</a>` : ''}
+        ${websiteUrl ? `<a class="psycle-btn-mini sa-membership-manage" href="${escapeHtml(websiteUrl)}" target="_blank" rel="noopener noreferrer">${COPY.credits.openWebsite}</a>` : ''}
       </div>
     </section>`;
   }).join('');

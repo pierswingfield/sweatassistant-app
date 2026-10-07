@@ -54,7 +54,7 @@ function membershipHtml(gym, membership, credits) {
     if (passes) dates.push(passes);
     const manageUrl = membership.manageUrl || gym.websiteUrl;
     return `
-      <div class="psycle-gym-setting-summary">
+      <div class="sa-gym-setting-summary">
         <div>
           <strong>${escapeHtml(membership.name || COPY.gymSettings.membershipName)}</strong>
           <div class="psycle-card-desc">${escapeHtml(membership.status || (membership.isActive ? COPY.gymSettings.membershipActive : COPY.credits.notActive))}${dates.length ? ` · ${dates.join(' · ')}` : ''}</div>
@@ -66,7 +66,7 @@ function membershipHtml(gym, membership, credits) {
   if (gym?.capabilities?.metered !== false) {
     const total = creditTotal(credits);
     return `
-      <div class="psycle-gym-setting-summary">
+      <div class="sa-gym-setting-summary">
         <div><strong>${total} ${total === 1 ? COPY.credits.creditAvailableOne : COPY.credits.creditAvailableMany}</strong><div class="psycle-card-desc">${COPY.gymSettings.activeCreditBundles}</div></div>
         ${gym?.capabilities?.creditPurchase !== false ? `<button class="psycle-btn psycle-btn-mini" data-gym-action="buy-credits">${COPY.credits.buyCredits}</button>` : ''}
       </div>`;
@@ -77,21 +77,21 @@ function membershipHtml(gym, membership, credits) {
 
 function autoUpgradeHtml(settings) {
   return `
-    <div class="psycle-setting-row">
-      <div class="psycle-setting-label"><span>${COPY.gymSettings.enablePolling}</span><small>${COPY.gymSettings.pollingHelp}</small></div>
+    <div class="sa-setting-row">
+      <div class="sa-setting-label"><span>${COPY.gymSettings.enablePolling}</span><small>${COPY.gymSettings.pollingHelp}</small></div>
       <label class="psycle-switch"><input type="checkbox" data-gym-setting="autoUpgradeEnabled" ${settings.autoUpgradeEnabled !== false ? 'checked' : ''}><span class="psycle-slider"></span></label>
     </div>
     <p class="psycle-card-desc" data-autoupgrade-off-note ${settings.autoUpgradeEnabled === false ? '' : 'hidden'}>${COPY.gymSettings.pollingOffNote}</p>
-    <div class="psycle-setting-row" data-autoupgrade-dependent ${settings.autoUpgradeEnabled === false ? 'aria-disabled="true" style="opacity:.5"' : ''}>
-      <div class="psycle-setting-label"><span>${COPY.gymSettings.autoUpgradeByDefault}</span><small>${COPY.gymSettings.autoUpgradeByDefaultHelp}</small></div>
+    <div class="sa-setting-row" data-autoupgrade-dependent ${settings.autoUpgradeEnabled === false ? 'aria-disabled="true" style="opacity:.5"' : ''}>
+      <div class="sa-setting-label"><span>${COPY.gymSettings.autoUpgradeByDefault}</span><small>${COPY.gymSettings.autoUpgradeByDefaultHelp}</small></div>
       <label class="psycle-switch"><input type="checkbox" data-gym-setting="autoUpgradeByDefault" ${settings.autoUpgradeEnabled === false ? 'disabled' : ''} ${settings.autoUpgradeByDefault ? 'checked' : ''}><span class="psycle-slider"></span></label>
     </div>
-    <div class="psycle-setting-row" data-autoupgrade-dependent ${settings.autoUpgradeEnabled === false ? 'aria-disabled="true" style="opacity:.5"' : ''}>
-      <div class="psycle-setting-label"><span>${COPY.gymSettings.continueCutoffByDefault}</span><small>${COPY.gymSettings.continueCutoffHelp}</small></div>
+    <div class="sa-setting-row" data-autoupgrade-dependent ${settings.autoUpgradeEnabled === false ? 'aria-disabled="true" style="opacity:.5"' : ''}>
+      <div class="sa-setting-label"><span>${COPY.gymSettings.continueCutoffByDefault}</span><small>${COPY.gymSettings.continueCutoffHelp}</small></div>
       <label class="psycle-switch"><input type="checkbox" data-gym-setting="autoUpgradeKeepOriginalByDefault" ${settings.autoUpgradeEnabled === false ? 'disabled' : ''} ${settings.autoUpgradeKeepOriginalByDefault ? 'checked' : ''}><span class="psycle-slider"></span></label>
     </div>
-    <div class="psycle-setting-row" data-autoupgrade-dependent ${settings.autoUpgradeEnabled === false ? 'aria-disabled="true" style="opacity:.5"' : ''}>
-      <div class="psycle-setting-label"><span>${COPY.gymSettings.pollingInterval}</span><small>${COPY.gymSettings.pollingIntervalHelp}</small></div>
+    <div class="sa-setting-row" data-autoupgrade-dependent ${settings.autoUpgradeEnabled === false ? 'aria-disabled="true" style="opacity:.5"' : ''}>
+      <div class="sa-setting-label"><span>${COPY.gymSettings.pollingInterval}</span><small>${COPY.gymSettings.pollingIntervalHelp}</small></div>
       <select class="psycle-select" data-gym-setting="autoUpgradeInterval" ${settings.autoUpgradeEnabled === false ? 'disabled' : ''}>
         <option value="1min" ${settings.autoUpgradeInterval === '1min' ? 'selected' : ''}>${COPY.gymSettings.pollingOneMinute}</option>
         <option value="15min" ${!settings.autoUpgradeInterval || settings.autoUpgradeInterval === '15min' ? 'selected' : ''}>${COPY.gymSettings.pollingFifteenMinutes}</option>
@@ -140,30 +140,30 @@ export function renderGymSettingsSection(container, model, handlers = {}) {
   );
   const logoBannerHtml = model.logoHtml || (gymIdForTheme ? gymLogoBanner(gymIdForTheme) : '');
   container.innerHTML = `
-    <div class="psycle-gym-settings-heading"><div class="psycle-gym-settings-brand">${logoBannerHtml}</div><div class="psycle-settings-btn-row"><span class="psycle-badge ${status === 'active' ? 'success' : 'warning'}">${escapeHtml(statusLabel)}</span>${model.canAddGym ? `<button class="psycle-btn psycle-btn-mini" data-gym-action="add-gym">${COPY.gymSettings.addAnotherGym}</button>` : ''}</div></div>
-    ${needsRelogin ? `<div class="psycle-gym-settings-warning"><strong>${COPY.gymSettings.reconnect}</strong><span>${COPY.gymSettings.reconnectHelp}</span></div>` : ''}
-    <div class="psycle-settings-grid psycle-gym-settings-grid">
-      <div class="psycle-settings-card">
+    <div class="sa-gym-settings-heading"><div class="sa-gym-settings-brand">${logoBannerHtml}</div><div class="sa-settings-btn-row"><span class="psycle-badge ${status === 'active' ? 'success' : 'warning'}">${escapeHtml(statusLabel)}</span>${model.canAddGym ? `<button class="psycle-btn psycle-btn-mini" data-gym-action="add-gym">${COPY.gymSettings.addAnotherGym}</button>` : ''}</div></div>
+    ${needsRelogin ? `<div class="sa-gym-settings-warning"><strong>${COPY.gymSettings.reconnect}</strong><span>${COPY.gymSettings.reconnectHelp}</span></div>` : ''}
+    <div class="sa-settings-grid sa-gym-settings-grid">
+      <div class="sa-settings-card">
         <h4>${COPY.gymSettings.connection}</h4>
-        <div class="psycle-gym-conn-inline-row">
+        <div class="sa-gym-conn-inline-row">
           <p class="psycle-card-desc">${escapeHtml(gymEmail)}</p>
-          <div class="psycle-settings-btn-row">
+          <div class="sa-settings-btn-row">
             <button class="psycle-btn psycle-btn-mini ${needsRelogin ? 'primary' : ''}" data-gym-action="reauth">${COPY.gymSettings.reauthenticate}</button>
             <button class="psycle-btn psycle-btn-mini variant-danger" data-gym-action="unlink">${COPY.gymSettings.unlink}</button>
           </div>
         </div>
       </div>
-      ${capability(gym, 'spotMaps') ? `<div class="psycle-settings-card"><h4>${COPY.spotMaps.preferredSpotMaps}</h4><p class="psycle-card-desc">${COPY.gymSettings.spotMapHelp}</p><button class="psycle-btn" data-gym-action="spot-maps">${COPY.gymSettings.manageMaps}</button></div>` : ''}
-      <div class="psycle-settings-card"><h4>${COPY.gymSettings.membershipCredits}</h4>${membershipHtml(gym, membership, credits)}</div>
-      <div class="psycle-settings-card">
+      ${capability(gym, 'spotMaps') ? `<div class="sa-settings-card"><h4>${COPY.spotMaps.preferredSpotMaps}</h4><p class="psycle-card-desc">${COPY.gymSettings.spotMapHelp}</p><button class="psycle-btn" data-gym-action="spot-maps">${COPY.gymSettings.manageMaps}</button></div>` : ''}
+      <div class="sa-settings-card"><h4>${COPY.gymSettings.membershipCredits}</h4>${membershipHtml(gym, membership, credits)}</div>
+      <div class="sa-settings-card">
         <h4>${COPY.gymSettings.bookingWindow}</h4><p class="psycle-card-desc">${escapeHtml(windowDescription)}</p>
-        ${model.debugMode && bookingKind !== 'per-class' ? `<div class="psycle-setting-row"><div class="psycle-setting-label"><span>${COPY.gymSettings.manualOverride}</span><small>${COPY.gymSettings.debugOverrideHelp}</small></div><select class="psycle-select" data-gym-setting="manualBookingWindowWeeks"><option value="" ${!settings.manualBookingWindowWeeks ? 'selected' : ''}>${COPY.gymSettings.autoDetected}</option>${[1,2,3,4].map(n => `<option value="${n}" ${Number(settings.manualBookingWindowWeeks) === n ? 'selected' : ''}>${formatCopyText(n === 1 ? COPY.gymSettings.weekOptionOne : COPY.gymSettings.weekOptionMany, { count: n })}</option>`).join('')}</select></div>` : ''}
+        ${model.debugMode && bookingKind !== 'per-class' ? `<div class="sa-setting-row"><div class="sa-setting-label"><span>${COPY.gymSettings.manualOverride}</span><small>${COPY.gymSettings.debugOverrideHelp}</small></div><select class="psycle-select" data-gym-setting="manualBookingWindowWeeks"><option value="" ${!settings.manualBookingWindowWeeks ? 'selected' : ''}>${COPY.gymSettings.autoDetected}</option>${[1,2,3,4].map(n => `<option value="${n}" ${Number(settings.manualBookingWindowWeeks) === n ? 'selected' : ''}>${formatCopyText(n === 1 ? COPY.gymSettings.weekOptionOne : COPY.gymSettings.weekOptionMany, { count: n })}</option>`).join('')}</select></div>` : ''}
       </div>
-      ${capability(gym, 'autoUpgrade') ? `<div class="psycle-settings-card"><h4>${COPY.gymSettings.autoUpgradeEngine}</h4>${autoUpgradeHtml(settings)}</div>` : ''}
-      ${capability(gym, 'profile') ? `<div class="psycle-settings-card"><h4>${COPY.gymSettings.profileExplorer}</h4><p class="psycle-card-desc">${COPY.gymSettings.profileExplorerHelp}</p><button class="psycle-btn" data-gym-action="profile">${COPY.gymSettings.openProfileExplorer}</button></div>` : ''}
+      ${capability(gym, 'autoUpgrade') ? `<div class="sa-settings-card"><h4>${COPY.gymSettings.autoUpgradeEngine}</h4>${autoUpgradeHtml(settings)}</div>` : ''}
+      ${capability(gym, 'profile') ? `<div class="sa-settings-card"><h4>${COPY.gymSettings.profileExplorer}</h4><p class="psycle-card-desc">${COPY.gymSettings.profileExplorerHelp}</p><button class="psycle-btn" data-gym-action="profile">${COPY.gymSettings.openProfileExplorer}</button></div>` : ''}
     </div>`;
 
-  const brandEl = container.querySelector('.psycle-gym-settings-brand');
+  const brandEl = container.querySelector('.sa-gym-settings-brand');
   if (brandEl && gymName) {
     brandEl.setAttribute('title', gymName);
     brandEl.setAttribute('aria-label', gymName);

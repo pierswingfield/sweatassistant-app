@@ -394,7 +394,7 @@ function applyCreditsTabGate() {
 // hidden/display:none in index.html) to restore it. Rides on applyCreditsTabGate's
 // call sites, so it applies at init and whenever debug toggles, no reload needed.
 function applyBackupMigrationGate() {
-  const card = document.getElementById('psycle-settings-backup-card');
+  const card = document.getElementById('sa-settings-backup-card');
   if (!card) return;
   const allowed = !!userSettings.debugMode;
   card.hidden = !allowed;
@@ -500,7 +500,7 @@ tabButtons.forEach(btn => {
     const group = (btn.getAttribute('data-tab-group') || '').split(' ');
     if ((tabId === 'settings' || group.includes('settings')) && (currentTabId === 'settings' || currentTabId === 'about')
         && window.matchMedia('(max-width: 900px)').matches) {
-      const lay = document.querySelector('.psycle-settings-layout');
+      const lay = document.querySelector('.sa-settings-layout');
       if (lay && lay.classList.contains('show-pane')) { lay.classList.remove('show-pane'); return; }
     }
     switchTab(tabId);
@@ -652,8 +652,8 @@ async function registerServiceWorker() {
 }
 
 export async function updatePushStatusUI() {
-  const toggleBtn = document.getElementById('psycle-push-toggle-btn');
-  const statusDesc = document.getElementById('psycle-push-status-desc');
+  const toggleBtn = document.getElementById('sa-push-toggle-btn');
+  const statusDesc = document.getElementById('sa-push-status-desc');
   if (!toggleBtn || !statusDesc) return;
 
   const isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent) && !window.MSStream;
@@ -726,7 +726,7 @@ export async function togglePushSubscription() {
 
   try {
     const subscription = await serviceWorkerRegistration.pushManager.getSubscription();
-    const toggleBtn = document.getElementById('psycle-push-toggle-btn');
+    const toggleBtn = document.getElementById('sa-push-toggle-btn');
     toggleBtn.disabled = true;
 
     if (subscription) {
@@ -762,7 +762,7 @@ export async function togglePushSubscription() {
     console.error('[Push] Toggle failed:', err);
     showToast(err.message, 'error');
   } finally {
-    const toggleBtn = document.getElementById('psycle-push-toggle-btn');
+    const toggleBtn = document.getElementById('sa-push-toggle-btn');
     toggleBtn.disabled = false;
     updatePushStatusUI();
   }
@@ -791,16 +791,16 @@ function gymBadgeLogo(gymId, shortName) {
   const wide = w.compact || w.full, mark = w.mark;
   const name = escapeHtml(brand.name || shortName);
   if (!wide && !mark) {
-    return `<span class="psycle-hgb-logo" aria-hidden="true" style="background:${brand.brandBg}"><span class="psycle-hgb-logo-text">${name}</span></span>`;
+    return `<span class="sa-hgb-logo" aria-hidden="true" style="background:${brand.brandBg}"><span class="sa-hgb-logo-text">${name}</span></span>`;
   }
   const img = (cls, src) => wordmarkElement(cls, src);
   // squareMark gyms (very wide wordmark): the header pill shows the short MARK, like the other gyms' marks.
   if (brand.squareMark && mark) {
-    return `<span class="psycle-hgb-logo is-markonly" aria-hidden="true" style="background:${brand.brandBg}">${img('psycle-hgb-logo-mark', mark.src)}</span>`;
+    return `<span class="sa-hgb-logo is-markonly" aria-hidden="true" style="background:${brand.brandBg}">${img('sa-hgb-logo-mark', mark.src)}</span>`;
   }
-  return `<span class="psycle-hgb-logo" aria-hidden="true" style="background:${brand.brandBg}">`
-    + (wide ? wordmarkElement('psycle-hgb-logo-wide', wide.src, brand.logoWidth ? ' style="height:9px"' : '') : '')
-    + (mark ? img('psycle-hgb-logo-mark', mark.src) : (wide ? img('psycle-hgb-logo-mark', wide.src) : ''))
+  return `<span class="sa-hgb-logo" aria-hidden="true" style="background:${brand.brandBg}">`
+    + (wide ? wordmarkElement('sa-hgb-logo-wide', wide.src, brand.logoWidth ? ' style="height:9px"' : '') : '')
+    + (mark ? img('sa-hgb-logo-mark', mark.src) : (wide ? img('sa-hgb-logo-mark', wide.src) : ''))
     + `</span>`;
 }
 
@@ -810,7 +810,7 @@ function renderGymBadge(container, gymId, shortName, isMetered, total, credits) 
   badge.className = 'sa-header-gym-badge';
   badge.setAttribute('data-gym', gymId);
   if (isMetered) {
-    badge.innerHTML = `${gymBadgeLogo(gymId, shortName)}<span class="psycle-hgb-pill">${total}<span class="psycle-hgb-unit"> ${COPY.shell.creditUnit}</span></span>`;
+    badge.innerHTML = `${gymBadgeLogo(gymId, shortName)}<span class="sa-hgb-pill">${total}<span class="sa-hgb-unit"> ${COPY.shell.creditUnit}</span></span>`;
     badge.title = formatCopyText(COPY.shell.creditBadgeTitle, { gymName: shortName, total, plural: total !== 1 ? 's' : '' });
   } else if (canBookAtAll(gymId)) {
     // "Active" alone reads as "this is the currently-selected gym" rather than
@@ -821,13 +821,13 @@ function renderGymBadge(container, gymId, shortName, isMetered, total, credits) 
     // eligibility hasn't loaded yet (same unknown-defaults-ON rule as
     // capabilities), but never shown once the server has confirmed this
     // account has no active membership at this gym.
-    badge.innerHTML = `${gymBadgeLogo(gymId, shortName)}<span class="psycle-hgb-pill member">${unmeteredBadgeLabel(gymId)}</span>`;
+    badge.innerHTML = `${gymBadgeLogo(gymId, shortName)}<span class="sa-hgb-pill member">${unmeteredBadgeLabel(gymId)}</span>`;
     badge.title = formatCopyText(COPY.shell.membershipBadgeTitle, { gymName: shortName });
   } else {
     // C3-3: an unmetered gym with no active membership (and no usable
     // credits) is a real, confirmed state — showing "Member" here was the
     // bug this branch exists to fix, not a permissive default to preserve.
-    badge.innerHTML = `${gymBadgeLogo(gymId, shortName)}<span class="psycle-hgb-pill">${COPY.shell.noMembershipBadge}</span>`;
+    badge.innerHTML = `${gymBadgeLogo(gymId, shortName)}<span class="sa-hgb-pill">${COPY.shell.noMembershipBadge}</span>`;
     badge.title = formatCopyText(COPY.shell.ineligibleBadgeTitle, { gymName: shortName, reason: getIneligibleReason(gymId) || COPY.shell.noActiveMembership });
   }
   // The chip is a shortcut to that gym's own Settings pane (the credit modal it
@@ -1768,7 +1768,7 @@ initRouter((route) => {
     return;
   }
   switchTab(tab, { section: route.section, history: 'none' });
-  if (tab === 'settings') document.getElementById('psycle-settings-layout-wrapper')?.__applySettingsRoute?.(route.section);
+  if (tab === 'settings') document.getElementById('sa-settings-layout-wrapper')?.__applySettingsRoute?.(route.section);
 });
 
 // App Launch

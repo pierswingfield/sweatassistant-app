@@ -598,7 +598,7 @@ export function openGroupedCancellationModal(group, onChange = renderBookings) {
       const role = isGuest ? COPY.bookings.guestSpotChip : COPY.bookings.selfSpotChip;
       const action = confirming ? COPY.bookings.confirm : COPY.bookings.cancel;
       const disabled = busy || blocked;
-      return `<div class="psycle-cancel-spot-row" style="display:flex;align-items:center;gap:10px;padding:11px 0;border-bottom:1px solid var(--border);">
+      return `<div class="sa-cancel-spot-row" style="display:flex;align-items:center;gap:10px;padding:11px 0;border-bottom:1px solid var(--border);">
         <div style="min-width:0;flex:1;display:flex;flex-direction:column;gap:2px;">
           <span style="display:flex;align-items:center;gap:8px;"><small style="font-size:12px;font-weight:600;color:var(--text-secondary);">${escapeHtml(role)}</small><span class="ab-spot-upgrade-chip${isGuest ? ' is-guest' : ''}" style="cursor:default;">${escapeHtml(labelFor(booking))}</span></span>
           ${blocked ? '<span style="font-size:12px;color:var(--text-secondary);">Cancel guest spots first</span>' : ''}
@@ -607,7 +607,7 @@ export function openGroupedCancellationModal(group, onChange = renderBookings) {
       </div>`;
     }).join('');
     body.innerHTML = `
-      <div class="psycle-grouped-cancellation" style="display:flex;flex-direction:column;gap:12px;">
+      <div class="sa-grouped-cancellation" style="display:flex;flex-direction:column;gap:12px;">
         <p style="margin:0;font-size:13px;line-height:1.45;color:var(--text-secondary);">Choose a ${escapeHtml(noun)} to cancel, or cancel every booked ${escapeHtml(noun)}. Guest spots are released before your own booking.</p>
         <div>${rows}</div>
         ${error}
@@ -1300,7 +1300,7 @@ export async function openUpgradeConfigModal({ currentSlotLabel = '', eventId, g
           </div>
           ${showKeepOriginal ? `
           <label class="sa-upgrade-keep">
-            <input type="checkbox" class="psycle-ms-checkbox" id="upgrade-keep-original" ${state.keepOriginal ? 'checked' : ''}>
+            <input type="checkbox" class="sa-ms-checkbox" id="upgrade-keep-original" ${state.keepOriginal ? 'checked' : ''}>
             <span><strong>${COPY.bookings.continuePastCutoff}</strong><br>
               <span class="sa-upgrade-keep-help">${formatCopyText(COPY.bookingEditor.finalUpgradeAttemptHelp, { noun: escapeHtml(noun) })}</span></span>
           </label>` : ''}

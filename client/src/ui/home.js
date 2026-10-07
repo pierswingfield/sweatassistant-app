@@ -10,13 +10,16 @@ import { getGymShortName } from '../gym-context.js';
 import { gymSquareChip } from './cards.js';
 import { buildTimetableUrl } from '../url-state.js';
 import { navigate } from '../router.js';
+import { DateTime } from 'luxon';
+import { groupBookingsByEvent, selectUpcoming } from './upcoming.js';
+import { mountBookingCard } from './bookings.js';
+import { formatInZone, zoneFor } from '../lib.js';
 
 const goTo = (tabId) => (window.switchTab ? window.switchTab(tabId) : null);
 
 // Eight widgets in the agreed order. W3 and W6-W8 are placeholders that later
 // items (H-4 and H-6 ... H-9) fill in; W1, W2, W4 and W5 are real.
 const PLACEHOLDERS = [
-  ['upcoming', 'upcoming', 30],
   ['favourites', 'favourites', 60],
   ['top-instructors', 'topInstructors', 70], ['stats', 'stats', 80],
 ];
@@ -152,6 +155,77 @@ registerWidget({
     greeting.className = 'home-welcome-greeting';
     greeting.textContent = welcomeText(settings?.firstName);
     el.appendChild(greeting);
+  },
+});
+
+function upcomingChip(group) {
+  const e = group.event;
+  const zone = zoneFor(e, group.gymId);
+  const when = formatInZone(e.startAt || e.start_at, zone).timeLabel;
+  const photo = e.instructors?.[0]?.thumbUrl || e.instructors?.[0]?.imageUrl || '';
+  const btn = document.createElement('button');
+  btn.type = 'button';
+  btn.className = 'home-up-chip';
+  btn.innerHTML = `<span class="home-up-gym">${gymSquareChip(group.gymId)}</span><span class="home-up-text"><span class="home-up-time"></span><span class="home-up-type"></span><span class="home-up-loc"></span></span>${photo ? '<img class="home-up-photo" alt="" loading="lazy">' : ''}`;
+  btn.querySelector('.home-up-time').textContent = when;
+  btn.querySelector('.home-up-type').textContent = e.discipline || e.name || '';
+  btn.querySelector('.home-up-loc').textContent = e.locationName || e.studioName || '';
+  if (photo) btn.querySelector('.home-up-photo').src = photo;
+  btn.setAttribute('aria-expanded', 'false');
+  return btn;
+}
+
+function viewAllBookings(ctx) {
+  const button = document.createElement('button');
+  button.type = 'button';
+  button.className = 'home-view-all';
+  button.textContent = COPY.home.viewAll;
+  button.addEventListener('click', () => ctx.navigate('my-bookings'));
+  return button;
+}
+
+registerWidget({
+  id: 'upcoming', order: 30, title: COPY.home.upcoming,
+  async load() {
+    const [bookings, upgrades] = await Promise.all([api.getBookings({ silent: true }), api.getAutoUpgrades().catch(() => [])]);
+    return { ...selectUpcoming(groupBookingsByEvent(bookings), DateTime.now()), upgrades: upgrades || [] };
+  },
+  isEmpty: (d) => d?.mode === 'card' && !d.next,
+  emptyText: COPY.home.upcomingNone,
+  renderEmpty(el, _d, ctx) {
+    const message = document.createElement('p');
+    message.className = 'home-widget-empty';
+    message.textContent = COPY.home.upcomingNone;
+    el.append(message, viewAllBookings(ctx));
+  },
+  render(el, d, ctx) {
+    if (d.mode === 'card') {
+      const holder = document.createElement('div'); holder.className = 'home-up-card';
+      mountBookingCard(holder, d.next, d.upgrades);
+      el.append(holder, viewAllBookings(ctx));
+      return;
+    }
+    const strip = document.createElement('div'); strip.className = 'home-up-strip'; strip.setAttribute('aria-label', COPY.home.upcomingStripLabel);
+    const detail = document.createElement('div'); detail.className = 'home-up-card';
+    let openChip = null;
+    for (const day of d.days) {
+      const col = document.createElement('div'); col.className = 'home-up-day' + (day.groups.length ? ' has-classes' : '');
+      const head = document.createElement('div'); head.className = 'home-up-day-head'; head.textContent = day.isToday ? COPY.home.upcomingToday : day.label;
+      col.appendChild(head);
+      for (const g of day.groups) {
+        const chip = upcomingChip(g);
+        chip.addEventListener('click', () => {
+          detail.innerHTML = '';
+          if (openChip === chip) { openChip.setAttribute('aria-expanded', 'false'); openChip = null; return; }
+          openChip?.setAttribute('aria-expanded', 'false');
+          chip.setAttribute('aria-expanded', 'true'); openChip = chip;
+          mountBookingCard(detail, g, d.upgrades);
+        });
+        col.appendChild(chip);
+      }
+      strip.appendChild(col);
+    }
+    el.append(strip, detail, viewAllBookings(ctx));
   },
 });
 

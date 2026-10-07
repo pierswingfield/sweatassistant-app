@@ -881,6 +881,7 @@ export const COPY = Object.freeze({
     welcome: 'Welcome', book: 'Book a class', bookAll: 'All', upcoming: 'Upcoming classes', autoBook: 'Auto-Book', credits: 'Credits',
     favourites: 'Favourites', topInstructors: 'Top instructors', stats: 'Your stats', noCredits: 'No credits or active memberships yet.',
     autoBookActive: 'active auto-book entries', autoBookNone: 'No active auto-book entries yet. Tap to set one up.', autoBookOne: 'active auto-book entry',
+    upcomingNone: 'No upcoming classes. Book one from the timetable.', viewAll: 'View all bookings', upcomingStripLabel: 'Next 7 days', upcomingToday: 'Today',
     refresh: 'Refresh Home',
   }),
   navigation: Object.freeze({

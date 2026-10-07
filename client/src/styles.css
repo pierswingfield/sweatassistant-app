@@ -11486,3 +11486,20 @@ html:not([data-credits-tab="on"]) .psycle-nav-btn[data-tab="buy-credits"] { disp
 .home-book-link:hover, .home-book-link:focus-visible { border-color: var(--text-secondary, #6b7280); transform: translateY(-1px); }
 .home-book-gym .psycle-gym-mark { width: 100%; height: 100%; border-radius: 0; }
 .home-book-all { background: var(--card-bg, transparent); font-weight: 700; }
+
+/* H-4 / W3: upcoming classes strip + reused booking card. */
+.home-up-strip { display: grid; grid-template-columns: repeat(7, minmax(0, 1fr)); gap: 6px; }
+.home-up-day { min-width: 0; display: flex; flex-direction: column; gap: 6px; padding: 6px 4px; border: 1px solid var(--border-color, #e5e7eb); border-radius: 10px; }
+.home-up-day:not(.has-classes) { opacity: .55; }
+.home-up-day-head { font-size: 0.75em; font-weight: 700; text-align: center; color: var(--text-secondary, #6b7280); }
+.home-up-chip { display: flex; flex-direction: column; align-items: center; gap: 2px; min-width: 0; padding: 4px 2px; border: 1px solid var(--border-color, #e5e7eb); border-radius: 8px; background: var(--card-bg, transparent); color: inherit; font: inherit; cursor: pointer; }
+.home-up-chip[aria-expanded="true"] { border-color: var(--accent, #6366f1); }
+.home-up-gym .psycle-gym-mark { width: 14px; height: 14px; }
+.home-up-text { display: flex; flex-direction: column; align-items: center; min-width: 0; max-width: 100%; font-size: 0.7em; line-height: 1.25; text-align: center; }
+.home-up-time { font-weight: 700; }
+.home-up-type, .home-up-loc { max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--text-secondary, #6b7280); }
+.home-up-photo { width: 22px; height: 22px; border-radius: 50%; object-fit: cover; }
+.home-up-card { margin-top: 10px; }
+.home-up-card:empty { display: none; }
+.home-view-all { margin-top: 10px; min-height: 40px; padding: 6px 14px; border: 1px solid var(--accent, #6366f1); border-radius: 999px; background: transparent; color: inherit; font: inherit; cursor: pointer; }
+@media (max-width: 480px) { .home-up-text { font-size: 0.62em; } .home-up-photo { display: none; } }

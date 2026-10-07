@@ -3290,8 +3290,8 @@ html, body {
 /* Onboarding + login are FULL-PAGE screens (no card/window chrome). The container is a fixed, scrollable
    column; the page inside it fills it, centres its content on both axes when it fits and grows (so the
    container scrolls) when it does not. dvh tracks the iOS dynamic toolbar; inset avoids any 100vw overflow. */
-.psycle-login-container,
-.psycle-onboarding-container {
+.sa-login-container,
+.sa-onboarding-container {
   position: fixed;
   inset: 0;
   display: flex;
@@ -3310,7 +3310,7 @@ html, body {
 }
 
 /* The one Back button: first child of every onboarding screen, same spot and style everywhere. */
-.psycle-onb-back-top {
+.sa-onb-back-top {
   flex: 0 0 auto;
   align-self: flex-start;
   display: inline-flex;
@@ -3327,9 +3327,9 @@ html, body {
   font-weight: 600;
   cursor: pointer;
 }
-.psycle-onb-back-top:hover { color: var(--text); }
+.sa-onb-back-top:hover { color: var(--text); }
 
-.psycle-login-container .psycle-login-card {
+.sa-login-container .sa-login-card {
   flex: 1 0 auto;
   align-self: center;
   width: 100%;
@@ -3344,11 +3344,11 @@ html, body {
   gap: 24px;
 }
 
-.psycle-login-logo {
+.sa-login-logo {
   text-align: center;
 }
 
-.psycle-login-logo h1 {
+.sa-login-logo h1 {
   font-family: var(--font-serif);
   font-size: 38px;
   font-weight: 600;
@@ -3357,13 +3357,13 @@ html, body {
   margin-bottom: 6px;
 }
 
-.psycle-login-logo p {
+.sa-login-logo p {
   font-size: 13px;
   color: var(--text-secondary);
   font-weight: 500;
 }
 
-.psycle-login-form {
+.sa-login-form {
   display: flex;
   flex-direction: column;
   gap: 20px;
@@ -3429,7 +3429,7 @@ html, body {
   box-shadow: none;
 }
 
-.psycle-login-error {
+.sa-login-error {
   width: 100%;
   padding: 10px 14px;
   border-radius: var(--radius-control);
@@ -3442,20 +3442,20 @@ html, body {
   text-align: center;
 }
 
-.psycle-login-footer {
+.sa-login-footer {
   font-size: 12px;
   color: var(--text-tertiary);
   text-align: center;
   line-height: 1.5;
 }
 
-.psycle-login-footer a {
+.sa-login-footer a {
   color: var(--accent);
   font-weight: 600;
   text-decoration: none;
 }
-.psycle-login-footer a:hover { color: var(--accent-hover, var(--accent)); text-decoration: underline; }
-.psycle-login-footer a:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; border-radius: 4px; }
+.sa-login-footer a:hover { color: var(--accent-hover, var(--accent)); text-decoration: underline; }
+.sa-login-footer a:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; border-radius: 4px; }
 
 /* =========================================================
    PWA SPECIFIC STRUCTURAL OVERRIDES
@@ -6997,7 +6997,7 @@ html, body {
    Tokens-only per DESIGN.md. Light/dark parity, 44px targets,
    serif headings, 12px text floor.
    ============================================================ */
-.psycle-onb-sheet {
+.sa-onb-sheet {
   position: relative;
   flex: 1 0 auto;
   align-self: center;
@@ -7014,7 +7014,7 @@ html, body {
   animation: slideIn 0.35s cubic-bezier(0.25, 1, 0.5, 1);
 }
 
-.psycle-onb-eyebrow {
+.sa-onb-eyebrow {
   font-family: var(--font-sans);
   font-size: var(--text-xs);
   font-weight: 600;
@@ -7023,7 +7023,7 @@ html, body {
   color: var(--accent);
 }
 
-.psycle-onb-title {
+.sa-onb-title {
   font-family: var(--font-serif);
   font-size: var(--text-2xl);
   font-weight: 600;
@@ -7032,14 +7032,14 @@ html, body {
   text-align: center;
 }
 
-.psycle-onb-body {
+.sa-onb-body {
   font-family: var(--font-sans);
   display: flex;
   flex-direction: column;
   gap: 16px;
 }
 
-.psycle-onb-lead {
+.sa-onb-lead {
   font-size: var(--text-base);
   line-height: 1.6;
   color: var(--text-secondary);
@@ -7047,27 +7047,27 @@ html, body {
   margin: 0;
 }
 
-.psycle-onb-footer {
+.sa-onb-footer {
   display: flex;
   flex-direction: column;
   gap: 10px;
   margin-top: 4px;
 }
 
-.psycle-onb-footer .psycle-btn-primary,
-.psycle-onb-footer .psycle-btn-mini {
+.sa-onb-footer .psycle-btn-primary,
+.sa-onb-footer .psycle-btn-mini {
   width: 100%;
   min-height: var(--tap-min);
 }
-.psycle-onb-footer .psycle-btn-mini {
+.sa-onb-footer .psycle-btn-mini {
   background: transparent;
   border: none;
   color: var(--text-secondary);
 }
-.psycle-onb-footer .psycle-btn-mini:hover { color: var(--text); }
+.sa-onb-footer .psycle-btn-mini:hover { color: var(--text); }
 
 /* Feature / step icon */
-.psycle-onb-icon {
+.sa-onb-icon {
   width: 56px;
   height: 56px;
   margin: 0 auto;
@@ -7078,21 +7078,21 @@ html, body {
   border-radius: var(--radius-card);
   background: color-mix(in srgb, currentColor 12%, transparent);
 }
-.psycle-onb-icon svg { width: 44px; height: 44px; }
+.sa-onb-icon svg { width: 44px; height: 44px; }
 
 /* --- Intro carousel --- */
-.psycle-onb-intro { text-align: center; width: 100%; justify-content: flex-start; gap: 12px; }
-.psycle-onb-intro .psycle-onb-carousel { margin: auto 0; }
-.psycle-onb-intro .psycle-onb-footer { margin-top: auto; padding-top: 8px; }
-.psycle-onb-intro .psycle-onb-title,
-.psycle-onb-intro .psycle-onb-eyebrow {
+.sa-onb-intro { text-align: center; width: 100%; justify-content: flex-start; gap: 12px; }
+.sa-onb-intro .sa-onb-carousel { margin: auto 0; }
+.sa-onb-intro .sa-onb-footer { margin-top: auto; padding-top: 8px; }
+.sa-onb-intro .sa-onb-title,
+.sa-onb-intro .sa-onb-eyebrow {
   text-align: center;
   width: 100%;
 }
 
 /* Welcome slide */
-.psycle-onb-slide-welcome { gap: 6px; padding: 4px 0; }
-.psycle-onb-wordmark {
+.sa-onb-slide-welcome { gap: 6px; padding: 4px 0; }
+.sa-onb-wordmark {
   font-family: var(--font-serif);
   font-size: 34px;
   font-weight: 700;
@@ -7100,58 +7100,58 @@ html, body {
   color: var(--accent);
   line-height: 1;
 }
-.psycle-onb-welcome-title {
+.sa-onb-welcome-title {
   font-size: var(--text-lg);
   font-weight: 500;
   color: var(--text-secondary);
   margin: 0;
 }
 
-.psycle-onb-perks { list-style: none; margin: 6px 0 0; padding: 0; display: grid; gap: 8px; width: 100%; text-align: left; }
-.psycle-onb-perk {
+.sa-onb-perks { list-style: none; margin: 6px 0 0; padding: 0; display: grid; gap: 8px; width: 100%; text-align: left; }
+.sa-onb-perk {
   display: flex; align-items: center; gap: 12px; padding: 8px 12px;
   background: var(--surface-inset); border: 1px solid var(--border);
   border-left: 3px solid var(--perk);
   border-radius: var(--radius-card);
 }
-.psycle-onb-perk-icon {
+.sa-onb-perk-icon {
   flex: 0 0 36px; width: 36px; height: 36px; display: grid; place-items: center;
   border-radius: var(--radius-control); color: var(--perk);
   background: color-mix(in srgb, var(--perk) 15%, transparent);
   border: 1px solid color-mix(in srgb, var(--perk) 25%, transparent);
 }
-.psycle-onb-perk-icon svg { width: 20px; height: 20px; }
-.psycle-onb-perk-body { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
-.psycle-onb-perk-body strong { font-family: var(--font-serif); font-size: var(--text-base); font-weight: 600; color: var(--text); }
-.psycle-onb-perk-body span { font-size: var(--text-xs); line-height: 1.35; color: var(--text-secondary); }
-.psycle-onb-gyms-line { margin: 2px 0 0; font-size: var(--text-xs); color: var(--text-tertiary); text-align: center; }
+.sa-onb-perk-icon svg { width: 20px; height: 20px; }
+.sa-onb-perk-body { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+.sa-onb-perk-body strong { font-family: var(--font-serif); font-size: var(--text-base); font-weight: 600; color: var(--text); }
+.sa-onb-perk-body span { font-size: var(--text-xs); line-height: 1.35; color: var(--text-secondary); }
+.sa-onb-gyms-line { margin: 2px 0 0; font-size: var(--text-xs); color: var(--text-tertiary); text-align: center; }
 
 /* Onboarding gym logo strip: every gym in the catalogue, full-size chips; >3 scroll as a marquee */
-.psycle-onb-gym-logos { --tt-chip-h: 48px; overflow: hidden; width: 100%; margin: 0 0 16px; border-radius: var(--radius-control); }
-.psycle-onb-gym-logos:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
-.psycle-onb-gym-logos-track { display: flex; width: max-content; max-width: none; }
-.psycle-onb-gym-logos-set { display: flex; gap: 10px; list-style: none; margin: 0; padding: 0 5px; flex: 0 0 auto; justify-content: center; }
-.psycle-onb-gym-logos:not(.is-marquee) { overflow: visible; }
-.psycle-onb-gym-logos:not(.is-marquee) .psycle-onb-gym-logos-track { width: 100%; }
-.psycle-onb-gym-logos:not(.is-marquee) .psycle-onb-gym-logos-set { flex-wrap: wrap; width: 100%; }
-.psycle-onb-gym-logo { flex: 0 0 auto; }
-.psycle-onb-gym-logo .psycle-gym-chip { min-width: 120px !important; height: 48px !important; padding: 0 14px !important; }
-.psycle-onb-gym-logo .psycle-gym-chip-logo .ab-gym-logo-img,
-.psycle-onb-gym-logo .psycle-gym-chip-logo .ab-gym-logo-svg { height: 24px !important; max-width: 110px !important; width: auto; object-fit: contain; }
-.psycle-onb-gym-logo .ab-gym-logo-img.is-half { display: none !important; }
-.psycle-onb-gym-logo .ab-gym-logo-img.is-full { display: block !important; }
-@keyframes psycle-onb-marquee { from { transform: translateX(0); } to { transform: translateX(-50%); } }
-.psycle-onb-gym-logos.is-marquee .psycle-onb-gym-logos-track { animation: psycle-onb-marquee 24s linear infinite; }
-.psycle-onb-gym-logos.is-marquee:hover .psycle-onb-gym-logos-track,
-.psycle-onb-gym-logos.is-marquee:focus-within .psycle-onb-gym-logos-track,
-.psycle-onb-gym-logos.is-marquee:focus .psycle-onb-gym-logos-track { animation-play-state: paused; }
+.sa-onb-gym-logos { --tt-chip-h: 48px; overflow: hidden; width: 100%; margin: 0 0 16px; border-radius: var(--radius-control); }
+.sa-onb-gym-logos:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+.sa-onb-gym-logos-track { display: flex; width: max-content; max-width: none; }
+.sa-onb-gym-logos-set { display: flex; gap: 10px; list-style: none; margin: 0; padding: 0 5px; flex: 0 0 auto; justify-content: center; }
+.sa-onb-gym-logos:not(.is-marquee) { overflow: visible; }
+.sa-onb-gym-logos:not(.is-marquee) .sa-onb-gym-logos-track { width: 100%; }
+.sa-onb-gym-logos:not(.is-marquee) .sa-onb-gym-logos-set { flex-wrap: wrap; width: 100%; }
+.sa-onb-gym-logo { flex: 0 0 auto; }
+.sa-onb-gym-logo .psycle-gym-chip { min-width: 120px !important; height: 48px !important; padding: 0 14px !important; }
+.sa-onb-gym-logo .psycle-gym-chip-logo .ab-gym-logo-img,
+.sa-onb-gym-logo .psycle-gym-chip-logo .ab-gym-logo-svg { height: 24px !important; max-width: 110px !important; width: auto; object-fit: contain; }
+.sa-onb-gym-logo .ab-gym-logo-img.is-half { display: none !important; }
+.sa-onb-gym-logo .ab-gym-logo-img.is-full { display: block !important; }
+@keyframes sa-onb-marquee { from { transform: translateX(0); } to { transform: translateX(-50%); } }
+.sa-onb-gym-logos.is-marquee .sa-onb-gym-logos-track { animation: sa-onb-marquee 24s linear infinite; }
+.sa-onb-gym-logos.is-marquee:hover .sa-onb-gym-logos-track,
+.sa-onb-gym-logos.is-marquee:focus-within .sa-onb-gym-logos-track,
+.sa-onb-gym-logos.is-marquee:focus .sa-onb-gym-logos-track { animation-play-state: paused; }
 @media (prefers-reduced-motion: reduce) {
-  .psycle-onb-gym-logos.is-marquee { overflow-x: auto; }
-  .psycle-onb-gym-logos.is-marquee .psycle-onb-gym-logos-track { animation: none; }
-  .psycle-onb-gym-logos .is-clone { display: none; }
+  .sa-onb-gym-logos.is-marquee { overflow-x: auto; }
+  .sa-onb-gym-logos.is-marquee .sa-onb-gym-logos-track { animation: none; }
+  .sa-onb-gym-logos .is-clone { display: none; }
 }
 
-.psycle-onb-skip {
+.sa-onb-skip {
   position: absolute;
   top: 14px;
   right: 14px;
@@ -7165,18 +7165,18 @@ html, body {
   min-height: var(--tap-min);
   padding: 0 10px;
 }
-.psycle-onb-skip:hover { color: var(--text); }
+.sa-onb-skip:hover { color: var(--text); }
 
-.psycle-onb-carousel {
+.sa-onb-carousel {
   overflow: hidden;
   width: 100%;
 }
-.psycle-onb-track {
+.sa-onb-track {
   display: flex;
   width: 100%;
   transition: transform 0.3s cubic-bezier(0.25, 1, 0.5, 1);
 }
-.psycle-onb-slide {
+.sa-onb-slide {
   flex: 0 0 100%;
   min-width: 0;
   width: 100%;
@@ -7188,7 +7188,7 @@ html, body {
   gap: 14px;
   padding: 8px 4px;
 }
-.psycle-onb-slide-text {
+.sa-onb-slide-text {
   font-family: var(--font-sans);
   font-size: var(--text-base);
   line-height: 1.6;
@@ -7200,12 +7200,12 @@ html, body {
 
 
 
-.psycle-onb-dots {
+.sa-onb-dots {
   display: flex;
   justify-content: center;
   gap: 8px;
 }
-.psycle-onb-dot {
+.sa-onb-dot {
   width: 8px;
   height: 8px;
   border-radius: 50%;
@@ -7215,14 +7215,14 @@ html, body {
   background: color-mix(in srgb, var(--text) 20%, transparent);
   transition: background 0.2s ease, width 0.2s ease;
 }
-.psycle-onb-dot.is-active {
+.sa-onb-dot.is-active {
   width: 22px;
   border-radius: 4px;
   background: var(--accent-fill);
 }
 
 /* --- Install step --- */
-.psycle-onb-reasons {
+.sa-onb-reasons {
   list-style: none;
   margin: 0;
   padding: 0;
@@ -7230,7 +7230,7 @@ html, body {
   flex-direction: column;
   gap: 14px;
 }
-.psycle-onb-reasons li {
+.sa-onb-reasons li {
   display: flex;
   gap: 12px;
   align-items: flex-start;
@@ -7238,8 +7238,8 @@ html, body {
   line-height: 1.5;
   color: var(--text-secondary);
 }
-.psycle-onb-reasons strong { color: var(--text); font-weight: 600; }
-.psycle-onb-reason-icon {
+.sa-onb-reasons strong { color: var(--text); font-weight: 600; }
+.sa-onb-reason-icon {
   flex: 0 0 auto;
   width: 34px;
   height: 34px;
@@ -7250,42 +7250,42 @@ html, body {
   color: var(--accent);
   background: color-mix(in srgb, var(--accent) 12%, transparent);
 }
-.psycle-onb-reason-icon svg { width: 18px; height: 18px; }
+.sa-onb-reason-icon svg { width: 18px; height: 18px; }
 
 
 @media (prefers-reduced-motion: reduce) {
-  .psycle-onb-sheet { animation: none; }
-  .psycle-onb-track,
-  .psycle-onb-dot { transition: none; }
+  .sa-onb-sheet { animation: none; }
+  .sa-onb-track,
+  .sa-onb-dot { transition: none; }
 }
 
 /* U4-17 focused onboarding and optional setup cards */
-.psycle-onb-features { max-width: 640px; }
-.psycle-onb-feature-list { display: grid; gap: 10px; width: 100%; }
-.psycle-onb-feature-card {
+.sa-onb-features { max-width: 640px; }
+.sa-onb-feature-list { display: grid; gap: 10px; width: 100%; }
+.sa-onb-feature-card {
   padding: 14px; border: 1px solid var(--border); border-radius: var(--radius-card);
   background: var(--surface); display: grid; gap: 12px;
 }
-.psycle-onb-feature-card.is-complete { border-color: color-mix(in srgb, var(--success) 45%, var(--border)); }
-.psycle-onb-feature-heading { display: flex; align-items: flex-start; gap: 12px; }
-.psycle-onb-feature-heading .psycle-onb-icon { flex: 0 0 42px; width: 42px; height: 42px; margin: 0; }
-.psycle-onb-feature-heading .psycle-onb-icon svg { width: 24px; height: 24px; }
-.psycle-onb-feature-heading h3 { margin: 0; font-size: var(--text-base); color: var(--text); }
-.psycle-onb-feature-heading p { margin: 4px 0 0; color: var(--text-secondary); font-size: var(--text-sm); line-height: 1.45; }
-.psycle-onb-recommended { color: var(--success); font-size: var(--text-xs); font-weight: 600; white-space: nowrap; }
-.psycle-onb-feature-action { display: flex; align-items: center; justify-content: space-between; gap: 10px; }
-.psycle-onb-feature-action .psycle-btn-mini { min-height: var(--tap-min); }
-.psycle-onb-complete { color: var(--success); font-size: var(--text-sm); font-weight: 600; }
+.sa-onb-feature-card.is-complete { border-color: color-mix(in srgb, var(--success) 45%, var(--border)); }
+.sa-onb-feature-heading { display: flex; align-items: flex-start; gap: 12px; }
+.sa-onb-feature-heading .sa-onb-icon { flex: 0 0 42px; width: 42px; height: 42px; margin: 0; }
+.sa-onb-feature-heading .sa-onb-icon svg { width: 24px; height: 24px; }
+.sa-onb-feature-heading h3 { margin: 0; font-size: var(--text-base); color: var(--text); }
+.sa-onb-feature-heading p { margin: 4px 0 0; color: var(--text-secondary); font-size: var(--text-sm); line-height: 1.45; }
+.sa-onb-recommended { color: var(--success); font-size: var(--text-xs); font-weight: 600; white-space: nowrap; }
+.sa-onb-feature-action { display: flex; align-items: center; justify-content: space-between; gap: 10px; }
+.sa-onb-feature-action .psycle-btn-mini { min-height: var(--tap-min); }
+.sa-onb-complete { color: var(--success); font-size: var(--text-sm); font-weight: 600; }
 /* Compact one-row cards: icon + text column + action; action wraps below only when too narrow */
-.psycle-onb-feature-card { display: flex !important; flex-wrap: wrap; align-items: center; gap: 10px 12px !important; }
-.psycle-onb-feature-card .psycle-onb-feature-heading { flex: 1 1 210px; min-width: 0; }
-.psycle-onb-feature-card .psycle-onb-feature-action { flex: 0 1 auto; justify-content: flex-end; }
-.psycle-onb-feature-card .psycle-onb-feature-action:empty { display: none; }
-.psycle-onb-feature-card .psycle-onb-feature-action .psycle-btn-mini { min-height: 36px !important; padding: 6px 12px; font-size: var(--text-xs); white-space: normal; text-align: center; }
-.psycle-onb-auto-upgrade-option { display: flex; align-items: center; gap: 8px; margin-top: 8px; min-height: var(--tap-min); cursor: pointer; font-size: var(--text-sm); color: var(--text); }
-.psycle-onb-auto-upgrade-option input[type="checkbox"] { flex: 0 0 auto; width: 22px; height: 22px; accent-color: var(--accent); cursor: pointer; }
-.psycle-onb-features .psycle-onb-footer { margin-top: 4px; }
-.psycle-onboarding-container .psycle-btn-secondary {
+.sa-onb-feature-card { display: flex !important; flex-wrap: wrap; align-items: center; gap: 10px 12px !important; }
+.sa-onb-feature-card .sa-onb-feature-heading { flex: 1 1 210px; min-width: 0; }
+.sa-onb-feature-card .sa-onb-feature-action { flex: 0 1 auto; justify-content: flex-end; }
+.sa-onb-feature-card .sa-onb-feature-action:empty { display: none; }
+.sa-onb-feature-card .sa-onb-feature-action .psycle-btn-mini { min-height: 36px !important; padding: 6px 12px; font-size: var(--text-xs); white-space: normal; text-align: center; }
+.sa-onb-auto-upgrade-option { display: flex; align-items: center; gap: 8px; margin-top: 8px; min-height: var(--tap-min); cursor: pointer; font-size: var(--text-sm); color: var(--text); }
+.sa-onb-auto-upgrade-option input[type="checkbox"] { flex: 0 0 auto; width: 22px; height: 22px; accent-color: var(--accent); cursor: pointer; }
+.sa-onb-features .sa-onb-footer { margin-top: 4px; }
+.sa-onboarding-container .psycle-btn-secondary {
   display: inline-flex; align-items: center; justify-content: center; text-align: center; text-decoration: none;
   width: 100%; min-height: var(--tap-min); padding: 12px; border-radius: var(--radius-control);
   border: 1px solid var(--border); background: var(--surface); color: var(--text);
@@ -7293,7 +7293,7 @@ html, body {
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .psycle-onb-feature-card { transition: none; }
+  .sa-onb-feature-card { transition: none; }
 }
 
 /* ─────────────────────────────────────────────────────────────
@@ -8993,21 +8993,21 @@ body::after { z-index: 1000002 !important; }
 }
 
 /* ===== Install-to-home-screen step: illustrated numbered steps (DESIGN.md 3.6c: blue in dark, clay in light) ===== */
-.psycle-install-steps { list-style: none; margin: 14px 0 0; padding: 0; display: flex; flex-direction: column; gap: 10px; counter-reset: install; }
-.psycle-install-step { display: flex; align-items: center; gap: 12px; counter-increment: install; font-size: var(--text-sm); line-height: 1.45; color: var(--text-secondary); }
-.psycle-install-step::before {
+.sa-install-steps { list-style: none; margin: 14px 0 0; padding: 0; display: flex; flex-direction: column; gap: 10px; counter-reset: install; }
+.sa-install-step { display: flex; align-items: center; gap: 12px; counter-increment: install; font-size: var(--text-sm); line-height: 1.45; color: var(--text-secondary); }
+.sa-install-step::before {
   content: counter(install); flex: 0 0 22px; width: 22px; height: 22px; border-radius: 50%;
   display: inline-flex; align-items: center; justify-content: center; font-size: 12px; font-weight: 700;
   background: var(--accent-fill); color: var(--on-accent-fill);
 }
-.psycle-install-ico {
+.sa-install-ico {
   flex: 0 0 34px; width: 34px; height: 34px; border-radius: var(--radius-control); display: inline-flex; align-items: center; justify-content: center;
   color: var(--accent); background: color-mix(in srgb, var(--accent) 12%, transparent);
 }
-.psycle-install-ico svg { width: 20px; height: 20px; }
-.psycle-install-txt strong { color: var(--text); font-weight: 600; }
-.psycle-install-note { margin: 12px 0 0; padding: 10px 12px; border-radius: var(--radius-control); font-size: var(--text-sm); line-height: 1.45; color: var(--text-secondary); background: color-mix(in srgb, var(--accent) 10%, transparent); }
-.psycle-install-note strong { color: var(--text); }
+.sa-install-ico svg { width: 20px; height: 20px; }
+.sa-install-txt strong { color: var(--text); font-weight: 600; }
+.sa-install-note { margin: 12px 0 0; padding: 10px 12px; border-radius: var(--radius-control); font-size: var(--text-sm); line-height: 1.45; color: var(--text-secondary); background: color-mix(in srgb, var(--accent) 10%, transparent); }
+.sa-install-note strong { color: var(--text); }
 
 /* ============================================================================
    MOBILE PAGE-MODALS (modal-to-fullscreen-spec, Batch 1).
@@ -9090,8 +9090,8 @@ body.psycle-scroll-locked { overflow: hidden; }
   .sa-modal.sa-page select,
   .sa-modal.sa-page textarea { font-size: 16px !important; }
   /* Primary action stays reachable above the keyboard / home indicator. */
-  .sa-modal.sa-page #psycle-link-gym-submit,
-  .sa-modal.sa-page #psycle-pw-submit { position: sticky; bottom: 0; flex-shrink: 0; }
+  .sa-modal.sa-page #sa-link-gym-submit,
+  .sa-modal.sa-page #sa-pw-submit { position: sticky; bottom: 0; flex-shrink: 0; }
 
   /* Favourites is built by autobook.js with inline styles (no .sa-modal shell). */
   .sa-ovl.sa-page {
@@ -9251,8 +9251,8 @@ html.psycle-scroll-locked { overflow: hidden !important; background: var(--bg) !
   .sa-modal.sa-page #psycle-gym-modal-body .psycle-setting-label { display: block; margin: 12px 0 6px; font-size: 14px; }
   .sa-modal.sa-page #psycle-gym-modal-body .psycle-input,
   .sa-modal.sa-page #psycle-gym-modal-body .psycle-select { min-height: 48px; }
-  .sa-modal.sa-page #psycle-link-gym-submit,
-  .sa-modal.sa-page #psycle-pw-submit { min-height: 48px; margin-top: 8px; }
+  .sa-modal.sa-page #sa-link-gym-submit,
+  .sa-modal.sa-page #sa-pw-submit { min-height: 48px; margin-top: 8px; }
 
   /* Spot-maps picker: logos, bigger type, >= 44px tap targets. */
   .psycle-spm-gym { display: flex !important; align-items: center; gap: 12px; margin: 14px 0 6px !important; font-size: 18px !important; }
@@ -9359,9 +9359,9 @@ html.psycle-scroll-locked { overflow: hidden !important; background: var(--bg) !
   .sa-setup-error[hidden] { display: none; }
 
   /* Auto-Upgrade needs spots: an explained state with a real button. */
-  .psycle-au-needs { display: flex; align-items: center; justify-content: space-between; gap: 10px; padding: 8px 0; font-size: 13px; color: var(--text-secondary); }
-  .psycle-au-needs .t { display: inline-flex; gap: 6px; align-items: center; flex: 1; }
-  .psycle-au-setup { min-height: 44px; padding: 8px 14px; font-size: 14px; white-space: nowrap; }
+  .sa-au-needs { display: flex; align-items: center; justify-content: space-between; gap: 10px; padding: 8px 0; font-size: 13px; color: var(--text-secondary); }
+  .sa-au-needs .t { display: inline-flex; gap: 6px; align-items: center; flex: 1; }
+  .sa-au-setup { min-height: 44px; padding: 8px 14px; font-size: 14px; white-space: nowrap; }
 }
 
 /* ===== Spot-map booking flow, batch 3: variants, banner, guards, compact page (mobile only) ===== */

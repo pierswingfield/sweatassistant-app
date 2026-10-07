@@ -40,27 +40,27 @@
   <!-- Boot splash (E5): the app shell stays hidden until the first styled paint is ready, so nothing
        renders unstyled while web fonts / logos / auth resolve. Inline on purpose (no external request),
        themed before JS via prefers-color-scheme + the data-theme the script below sets, and it can never
-       block forever: `psycle-ready` is added by main.js after checkAuth, or by the 3s timeout here. -->
-  <style id="psycle-boot-css">
+       block forever: `sa-ready` is added by main.js after checkAuth, or by the 3s timeout here. -->
+  <style id="sa-boot-css">
     html { background: #090d16; }
     @media (prefers-color-scheme: light) { html:not([data-theme="dark"]) { background: #f5f2ec; } }
     html[data-theme="light"] { background: #f5f2ec; }
     html[data-theme="dark"] { background: #090d16; }
-    html:not(.psycle-ready) body > * { visibility: hidden !important; }
-    html:not(.psycle-ready)::after {
+    html:not(.sa-ready) body > * { visibility: hidden !important; }
+    html:not(.sa-ready)::after {
       content: ''; position: fixed; top: 50%; left: 50%; width: 26px; height: 26px; margin: -13px 0 0 -13px;
       border-radius: 50%; border: 3px solid rgba(128,128,128,.25); border-top-color: rgba(128,128,128,.85);
-      animation: psycle-boot-spin .8s linear infinite;
+      animation: sa-boot-spin .8s linear infinite;
     }
-    @keyframes psycle-boot-spin { to { transform: rotate(360deg); } }
-    @media (prefers-reduced-motion: reduce) { html:not(.psycle-ready)::after { animation: none; } }
+    @keyframes sa-boot-spin { to { transform: rotate(360deg); } }
+    @media (prefers-reduced-motion: reduce) { html:not(.sa-ready)::after { animation: none; } }
   </style>
   <script>
     // Credits tab is debug-only. Hidden by CSS unless the last known debugMode (cached by main.js) was on;
     // main.js applyCreditsTabGate() then sets the authoritative value.
     try { if (localStorage.getItem('sweatCreditsTabHint') === '1') document.documentElement.setAttribute('data-credits-tab', 'on'); } catch (e) {}
   </script>
-  <script>setTimeout(function () { document.documentElement.classList.add('psycle-ready'); }, 3000);</script>
+  <script>setTimeout(function () { document.documentElement.classList.add('sa-ready'); }, 3000);</script>
 
   <!-- Web Fonts -->
   <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -75,70 +75,70 @@
   <div id="psycle-toast-container" class="psycle-toast-container"></div>
 
   <!-- 0. ONBOARDING (first-run guided flow) -->
-  <div id="psycle-onboarding-container" class="psycle-onboarding-container" style="display: none;"></div>
+  <div id="sa-onboarding-container" class="sa-onboarding-container" style="display: none;"></div>
 
   <!-- 1. LOGIN SCREEN -->
-  <div id="psycle-login-container" class="psycle-login-container" style="display: none;">
-    <div class="psycle-login-card">
-      <div class="psycle-login-logo">
-        <h1 id="psycle-auth-title">Log in</h1>
-        <p id="psycle-auth-subtitle">Sign in to your <span data-app-name>Sweat Assistant</span> account.</p>
+  <div id="sa-login-container" class="sa-login-container" style="display: none;">
+    <div class="sa-login-card">
+      <div class="sa-login-logo">
+        <h1 id="sa-auth-title">Log in</h1>
+        <p id="sa-auth-subtitle">Sign in to your <span data-app-name>Sweat Assistant</span> account.</p>
       </div>
 
       <!-- MODE: sign in -->
-      <form id="psycle-login-form" class="psycle-login-form">
+      <form id="sa-login-form" class="sa-login-form">
         <div class="psycle-form-group">
-          <label for="psycle-login-email" data-copy-text="static.emailAddress">Email Address</label>
-          <input type="email" id="psycle-login-email" required placeholder="name@example.com" data-copy-placeholder="static.exampleEmail" autocomplete="username">
+          <label for="sa-login-email" data-copy-text="static.emailAddress">Email Address</label>
+          <input type="email" id="sa-login-email" required placeholder="name@example.com" data-copy-placeholder="static.exampleEmail" autocomplete="username">
         </div>
         <div class="psycle-form-group">
-          <label for="psycle-login-password" data-copy-text="settings.password">Password</label>
-          <input type="password" id="psycle-login-password" required placeholder="••••••••" data-copy-placeholder="static.passwordPlaceholder" autocomplete="current-password">
+          <label for="sa-login-password" data-copy-text="settings.password">Password</label>
+          <input type="password" id="sa-login-password" required placeholder="••••••••" data-copy-placeholder="static.passwordPlaceholder" autocomplete="current-password">
         </div>
-        <div id="psycle-login-error" class="psycle-login-error" style="display:none;"></div>
-        <button type="submit" id="psycle-login-submit-btn" class="psycle-btn-primary">
+        <div id="sa-login-error" class="sa-login-error" style="display:none;"></div>
+        <button type="submit" id="sa-login-submit-btn" class="psycle-btn-primary">
           <span data-copy-text="auth.logIn">Log In</span>
         </button>
       </form>
 
       <!-- MODE: create account -->
-      <form id="psycle-signup-form" class="psycle-login-form" style="display:none;">
+      <form id="sa-signup-form" class="sa-login-form" style="display:none;">
         <div class="psycle-form-group">
-          <label for="psycle-signup-email" data-copy-text="static.emailAddress">Email Address</label>
-          <input type="email" id="psycle-signup-email" placeholder="name@example.com" data-copy-placeholder="static.exampleEmail" autocomplete="username">
+          <label for="sa-signup-email" data-copy-text="static.emailAddress">Email Address</label>
+          <input type="email" id="sa-signup-email" placeholder="name@example.com" data-copy-placeholder="static.exampleEmail" autocomplete="username">
         </div>
         <div class="psycle-form-group">
-          <label for="psycle-signup-password" data-copy-text="settings.password">Password</label>
-          <input type="password" id="psycle-signup-password" placeholder="At least 8 characters" data-copy-placeholder="static.passwordMinimumPlaceholder" autocomplete="new-password">
+          <label for="sa-signup-password" data-copy-text="settings.password">Password</label>
+          <input type="password" id="sa-signup-password" placeholder="At least 8 characters" data-copy-placeholder="static.passwordMinimumPlaceholder" autocomplete="new-password">
         </div>
         <div class="psycle-form-group">
-          <label for="psycle-signup-confirm" data-copy-text="static.confirmPassword">Confirm password</label>
-          <input type="password" id="psycle-signup-confirm" placeholder="••••••••" data-copy-placeholder="static.passwordPlaceholder" autocomplete="new-password">
+          <label for="sa-signup-confirm" data-copy-text="static.confirmPassword">Confirm password</label>
+          <input type="password" id="sa-signup-confirm" placeholder="••••••••" data-copy-placeholder="static.passwordPlaceholder" autocomplete="new-password">
         </div>
-        <div id="psycle-signup-error" class="psycle-login-error" style="display:none;"></div>
-        <button type="submit" id="psycle-signup-submit-btn" class="psycle-btn-primary">
+        <div id="sa-signup-error" class="sa-login-error" style="display:none;"></div>
+        <button type="submit" id="sa-signup-submit-btn" class="psycle-btn-primary">
           <span data-copy-text="auth.createAccountButton">Create Account</span>
         </button>
       </form>
 
       <!-- MODE: recover -->
-      <form id="psycle-recover-form" class="psycle-login-form" style="display:none;">
+      <form id="sa-recover-form" class="sa-login-form" style="display:none;">
         <div class="psycle-form-group">
-          <label for="psycle-recover-email" data-copy-html="static.email">Your <span data-app-name>Sweat Assistant</span> email</label>
-          <input type="email" id="psycle-recover-email" placeholder="name@example.com" data-copy-placeholder="static.exampleEmail" autocomplete="username">
+          <label for="sa-recover-email" data-copy-html="static.email">Your <span data-app-name>Sweat Assistant</span> email</label>
+          <input type="email" id="sa-recover-email" placeholder="name@example.com" data-copy-placeholder="static.exampleEmail" autocomplete="username">
         </div>
-        <div id="psycle-recover-step1" style="display:block;">
-          <div id="psycle-recover-error" class="psycle-login-error" style="display:none;"></div>
-          <button type="button" id="psycle-recover-find-btn" class="psycle-btn-primary"><span data-copy-text="static.emailContinue">Continue</span></button>
+        <div id="sa-recover-step1" style="display:block;">
+          <div id="sa-recover-error" class="sa-login-error" style="display:none;"></div>
+          <button type="button" id="sa-recover-find-btn" class="psycle-btn-primary"><span data-copy-text="static.emailContinue">Continue</span></button>
           <p class="psycle-card-desc" data-copy-text="auth.resetUnavailable" style="margin-top:12px;font-size:12px;">Self-service reset isn’t available yet — contact the admin.</p>
         </div>
       </form>
 
-      <div class="psycle-login-footer">
-        <p id="psycle-auth-switcher" style="margin-bottom:10px;">
-          <a href="#" id="psycle-auth-to-signup" data-copy-text="auth.createAnAccount">Create an account</a>
+      <div class="sa-login-footer">
+        <p id="sa-auth-switcher" style="margin-bottom:10px;">
+          <a href="#" id="sa-auth-to-signup" data-copy-text="auth.createAnAccount">Create an account</a>
           &nbsp;·&nbsp;
-          <a href="#" id="psycle-auth-to-recover" data-copy-text="auth.forgotPassword">Forgot password?</a>
+          <a href="#" id="sa-auth-to-recover" data-copy-text="auth.forgotPassword">Forgot password?</a>
         </p>
         <p data-copy-text="static.accountPrivacy">Your Sweat Assistant account is separate from your gym logins. Gym login credentials are encrypted and stored in a secure private cloud. Stored data can be deleted at any time from Settings.</p>
       </div>
@@ -664,7 +664,7 @@
                   <div class="psycle-settings-card" style="border-color:color-mix(in srgb, var(--danger) 20%, transparent);">
                     <h4 style="color:var(--danger);" data-copy-text="static.accountSession">Account Session</h4>
                     <p class="psycle-card-desc" data-copy-html="static.accountSessionDescription">Clear local session tokens and log out of <span data-app-name>Sweat Assistant</span>.</p>
-                    <button id="psycle-logout-btn" class="psycle-btn variant-danger" data-copy-text="static.logout">Log Out</button>
+                    <button id="sa-logout-btn" class="psycle-btn variant-danger" data-copy-text="static.logout">Log Out</button>
                   </div>
                   <div class="psycle-settings-card" style="border-color:color-mix(in srgb, var(--danger) 30%, transparent);">
                     <h4 style="color:var(--danger);" data-copy-text="static.deleteData">Delete All My Data</h4>

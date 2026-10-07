@@ -1721,7 +1721,7 @@ function openLinkGymModal(gymId, existing, addable = []) {
 
   const logoGymId = gymId || addable[0]?.id || '';
   body.innerHTML = `
-    <div id="psycle-link-gym-logo" class="psycle-gym-form-logo">${logoGymId ? gymLogoBanner(logoGymId) : ''}</div>
+    <div id="sa-link-gym-logo" class="psycle-gym-form-logo">${logoGymId ? gymLogoBanner(logoGymId) : ''}</div>
     <p class="psycle-card-desc" style="margin-top:0;">
       ${isReauth
         ? COPY.settings.addGymCredentialsHelp
@@ -1729,17 +1729,17 @@ function openLinkGymModal(gymId, existing, addable = []) {
     </p>
     ${isReauth ? '' : `
       <label class="psycle-setting-label" style="display:block;margin-bottom:4px;"><span>${COPY.settings.gym}</span></label>
-      <select id="psycle-link-gym-id" class="psycle-select" style="width:100%;margin-bottom:10px;">
+      <select id="sa-link-gym-id" class="psycle-select" style="width:100%;margin-bottom:10px;">
         ${addable.map(g => `<option value="${escapeHtml(g.id)}">${escapeHtml(g.name)}</option>`).join('')}
       </select>`}
     <label class="psycle-setting-label" style="display:block;margin-bottom:4px;"><span>${COPY.settings.email}</span></label>
-    <input id="psycle-link-gym-email" type="email" class="psycle-input" autocomplete="username"
+    <input id="sa-link-gym-email" type="email" class="psycle-input" autocomplete="username"
            style="width:100%;margin-bottom:10px;" placeholder="${COPY.static.exampleEmail}">
     <label class="psycle-setting-label" style="display:block;margin-bottom:4px;"><span>${COPY.settings.password}</span></label>
-    <input id="psycle-link-gym-password" type="password" class="psycle-input" autocomplete="current-password"
+    <input id="sa-link-gym-password" type="password" class="psycle-input" autocomplete="current-password"
            style="width:100%;margin-bottom:14px;">
-    <div id="psycle-link-gym-error" style="display:none;color:var(--danger);font-size:12px;margin-bottom:10px;"></div>
-    <button class="psycle-btn primary" id="psycle-link-gym-submit" style="width:100%;">
+    <div id="sa-link-gym-error" style="display:none;color:var(--danger);font-size:12px;margin-bottom:10px;"></div>
+    <button class="psycle-btn primary" id="sa-link-gym-submit" style="width:100%;">
       ${isReauth ? COPY.settings.reauthenticate : COPY.settings.link}
     </button>
   `;
@@ -1747,15 +1747,15 @@ function openLinkGymModal(gymId, existing, addable = []) {
   open({ id: isReauth ? 'gym-reauth' : 'gym-link', back: isReauth });
 
   // Link flow: the logo follows the gym picked in the select.
-  body.querySelector('#psycle-link-gym-id')?.addEventListener('change', (e) => {
-    body.querySelector('#psycle-link-gym-logo').innerHTML = gymLogoBanner(e.target.value);
+  body.querySelector('#sa-link-gym-id')?.addEventListener('change', (e) => {
+    body.querySelector('#sa-link-gym-logo').innerHTML = gymLogoBanner(e.target.value);
   });
-  const errEl = body.querySelector('#psycle-link-gym-error');
-  const submit = body.querySelector('#psycle-link-gym-submit');
+  const errEl = body.querySelector('#sa-link-gym-error');
+  const submit = body.querySelector('#sa-link-gym-submit');
   submit.onclick = async () => {
-    const targetGym = isReauth ? gymId : body.querySelector('#psycle-link-gym-id')?.value;
-    const email = body.querySelector('#psycle-link-gym-email').value.trim();
-    const password = body.querySelector('#psycle-link-gym-password').value;
+    const targetGym = isReauth ? gymId : body.querySelector('#sa-link-gym-id')?.value;
+    const email = body.querySelector('#sa-link-gym-email').value.trim();
+    const password = body.querySelector('#sa-link-gym-password').value;
     errEl.style.display = 'none';
     if (!targetGym || !email || !password) {
       errEl.textContent = COPY.auth.requiredGymCredentials;
@@ -1793,33 +1793,33 @@ function openAccountPasswordModal() {
       ${formatCopyText(COPY.settings.accountPasswordDescription, { appName: escapeHtml(appConfig.appName) })}
     </p>
     <label class="psycle-setting-label" style="display:block;margin-bottom:4px;"><span>${COPY.settings.currentPassword}</span></label>
-    <input id="psycle-pw-current" type="password" class="psycle-input" autocomplete="current-password"
+    <input id="sa-pw-current" type="password" class="psycle-input" autocomplete="current-password"
            style="width:100%;margin-bottom:10px;">
     <label class="psycle-setting-label" style="display:block;margin-bottom:4px;"><span>${COPY.settings.newPassword}</span></label>
-    <input id="psycle-pw-new" type="password" class="psycle-input" autocomplete="new-password"
+    <input id="sa-pw-new" type="password" class="psycle-input" autocomplete="new-password"
            style="width:100%;margin-bottom:10px;" placeholder="${COPY.settings.newPasswordMinPlaceholder}">
     <label class="psycle-setting-label" style="display:block;margin-bottom:4px;"><span>${COPY.settings.confirmNewPassword}</span></label>
-    <input id="psycle-pw-confirm" type="password" class="psycle-input" autocomplete="new-password"
+    <input id="sa-pw-confirm" type="password" class="psycle-input" autocomplete="new-password"
            style="width:100%;margin-bottom:14px;">
-    <div id="psycle-pw-error" style="display:none;color:var(--danger);font-size:12px;margin-bottom:10px;"></div>
-    <button class="psycle-btn primary" id="psycle-pw-submit" style="width:100%;">${COPY.settings.changePassword}</button>
+    <div id="sa-pw-error" style="display:none;color:var(--danger);font-size:12px;margin-bottom:10px;"></div>
+    <button class="psycle-btn primary" id="sa-pw-submit" style="width:100%;">${COPY.settings.changePassword}</button>
   `;
   // Any typed value means unsaved work: ask before a mobile Back/X/Esc discards it.
   open({
     id: 'account-password',
-    canClose: () => !['#psycle-pw-current', '#psycle-pw-new', '#psycle-pw-confirm']
+    canClose: () => !['#sa-pw-current', '#sa-pw-new', '#sa-pw-confirm']
       .some((s) => body.querySelector(s)?.value) || confirm(COPY.settings.discardUnsaved),
   });
 
-  const errEl = body.querySelector('#psycle-pw-error');
-  const submit = body.querySelector('#psycle-pw-submit');
+  const errEl = body.querySelector('#sa-pw-error');
+  const submit = body.querySelector('#sa-pw-submit');
   const fail = (msg) => { errEl.textContent = msg; errEl.style.display = 'block'; };
 
   submit.onclick = async () => {
     errEl.style.display = 'none';
-    const current = body.querySelector('#psycle-pw-current').value;
-    const next = body.querySelector('#psycle-pw-new').value;
-    const confirm = body.querySelector('#psycle-pw-confirm').value;
+    const current = body.querySelector('#sa-pw-current').value;
+    const next = body.querySelector('#sa-pw-new').value;
+    const confirm = body.querySelector('#sa-pw-confirm').value;
     if (next.length < 8) return fail(COPY.settings.passwordMinimumError);
     if (next !== confirm) return fail(COPY.settings.passwordMismatchError);
     submit.disabled = true;
@@ -2296,7 +2296,7 @@ function setupSettingsListeners() {
   }
 
   // Logout button
-  const logoutBtn = document.getElementById('psycle-logout-btn');
+  const logoutBtn = document.getElementById('sa-logout-btn');
   if (logoutBtn && !logoutBtn.dataset.listener) {
     logoutBtn.dataset.listener = 'true';
     logoutBtn.addEventListener('click', () => {

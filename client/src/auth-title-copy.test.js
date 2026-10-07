@@ -9,7 +9,7 @@ import { COPY } from './copy.js';
 describe('auth card heading', () => {
   const html = readFileSync(resolve(process.cwd(), 'index.html'), 'utf8');
 
-  it.each(['psycle-auth-title', 'psycle-auth-subtitle'])('%s is owned by setAuthMode, not static copy', (id) => {
+  it.each(['sa-auth-title', 'sa-auth-subtitle'])('%s is owned by setAuthMode, not static copy', (id) => {
     const tag = html.match(new RegExp(`<[^>]*id="${id}"[^>]*>`))[0];
     expect(tag).not.toMatch(/data-copy-/);
   });

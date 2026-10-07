@@ -3982,7 +3982,7 @@ export async function openBookingModal(c, mode, opts = {}) {
     // Hoisted so the read-only map's edit toggle can refresh banners/controls
     let updateSimpleBookControls = null;
     // Auto-Upgrade without saved spots: a visible, tappable way to fix it (never a silently greyed box).
-    const upgradeNeedsRowHtml = () => `<div class="psycle-au-needs"><span class="t">${trendingUpIcon(12, 'currentColor', 2)} ${COPY.spotSetup.needsSpots}</span><button type="button" class="psycle-btn psycle-au-setup" data-au-setup>${COPY.spotSetup.setUpSpots}</button></div>`;
+    const upgradeNeedsRowHtml = () => `<div class="sa-au-needs"><span class="t">${trendingUpIcon(12, 'currentColor', 2)} ${COPY.spotSetup.needsSpots}</span><button type="button" class="psycle-btn sa-au-setup" data-au-setup>${COPY.spotSetup.setUpSpots}</button></div>`;
     let openSetupChild = () => {};
     let updateQuickBookControls = null;
     let updateAutoBookControls = null;

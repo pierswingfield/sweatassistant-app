@@ -1293,7 +1293,7 @@ export async function initApp() {
   // U1-15: any booking/cancel/swap/waitlist mutation updates the shared booked
   // state at once and repaints the timetable (idempotent).
   installBookingState(() => repaintTimetableIfVisible());
-  document.getElementById('psycle-login-container').style.display = 'none';
+  document.getElementById('sa-login-container').style.display = 'none';
   document.getElementById('psycle-app-container').style.display = 'flex';
   
   // Set helper expanded classes to trigger standard styles
@@ -1456,7 +1456,7 @@ function showLogin() {
   document.body.id = 'sa-helper-container';
   document.body.className = 'sa-helper-expanded';
   document.getElementById('psycle-app-container').style.display = 'none';
-  document.getElementById('psycle-login-container').style.display = 'flex';
+  document.getElementById('sa-login-container').style.display = 'flex';
 }
 
 // Shared post-login routing. During onboarding we hand control back to the flow
@@ -1513,15 +1513,15 @@ async function onLoginSuccess() {
 }
 
 // Login Form Submit Listener
-const loginForm = document.getElementById('psycle-login-form');
+const loginForm = document.getElementById('sa-login-form');
 if (loginForm) {
   loginForm.addEventListener('submit', async (e) => {
     e.preventDefault();
-    const email = document.getElementById('psycle-login-email').value;
-    const password = document.getElementById('psycle-login-password').value;
-    const submitBtn = document.getElementById('psycle-login-submit-btn');
+    const email = document.getElementById('sa-login-email').value;
+    const password = document.getElementById('sa-login-password').value;
+    const submitBtn = document.getElementById('sa-login-submit-btn');
 
-    const errorEl = document.getElementById('psycle-login-error');
+    const errorEl = document.getElementById('sa-login-error');
     if (errorEl) errorEl.style.display = 'none';
 
     try {
@@ -1554,43 +1554,43 @@ if (loginForm) {
 // full-screen layout to maintain.
 function showNoGymScreen() {
   document.getElementById('psycle-app-container').style.display = 'none';
-  const loginContainer = document.getElementById('psycle-login-container');
+  const loginContainer = document.getElementById('sa-login-container');
   loginContainer.style.display = 'flex';
-  document.getElementById('psycle-auth-title').textContent = COPY.auth.connectGym;
-  document.getElementById('psycle-auth-subtitle').textContent =
+  document.getElementById('sa-auth-title').textContent = COPY.auth.connectGym;
+  document.getElementById('sa-auth-subtitle').textContent =
     formatCopyText(COPY.auth.accountReady, { appName: appConfig.appName });
-  ['psycle-login-form', 'psycle-signup-form', 'psycle-recover-form'].forEach(id => {
+  ['sa-login-form', 'sa-signup-form', 'sa-recover-form'].forEach(id => {
     document.getElementById(id).style.display = 'none';
   });
 
-  let panel = document.getElementById('psycle-nogym-panel');
+  let panel = document.getElementById('sa-nogym-panel');
   if (!panel) {
     panel = document.createElement('div');
-    panel.id = 'psycle-nogym-panel';
-    panel.className = 'psycle-login-form';
-    document.querySelector('.psycle-login-card').insertBefore(
-      panel, document.querySelector('.psycle-login-footer'));
+    panel.id = 'sa-nogym-panel';
+    panel.className = 'sa-login-form';
+    document.querySelector('.sa-login-card').insertBefore(
+      panel, document.querySelector('.sa-login-footer'));
   }
   panel.style.display = '';
   panel.innerHTML = `
     <div class="psycle-form-group">
-      <label for="psycle-nogym-gym">${COPY.static.gym}</label>
-      <select id="psycle-nogym-gym" class="psycle-select" style="width:100%;"><option>${COPY.static.loading}</option></select>
+      <label for="sa-nogym-gym">${COPY.static.gym}</label>
+      <select id="sa-nogym-gym" class="psycle-select" style="width:100%;"><option>${COPY.static.loading}</option></select>
     </div>
     <div class="psycle-form-group">
-      <label for="psycle-nogym-email">${COPY.auth.gymEmail}</label>
-      <input type="email" id="psycle-nogym-email" placeholder="${COPY.static.emailPlaceholder}" autocomplete="off">
+      <label for="sa-nogym-email">${COPY.auth.gymEmail}</label>
+      <input type="email" id="sa-nogym-email" placeholder="${COPY.static.emailPlaceholder}" autocomplete="off">
     </div>
     <div class="psycle-form-group">
-      <label for="psycle-nogym-password">${COPY.auth.gymPassword}</label>
-      <input type="password" id="psycle-nogym-password" placeholder="${COPY.static.passwordPlaceholder}" autocomplete="off">
+      <label for="sa-nogym-password">${COPY.auth.gymPassword}</label>
+      <input type="password" id="sa-nogym-password" placeholder="${COPY.static.passwordPlaceholder}" autocomplete="off">
     </div>
-    <div id="psycle-nogym-error" class="psycle-login-error" style="display:none;"></div>
-    <button type="button" id="psycle-nogym-submit" class="psycle-btn-primary"><span>${COPY.auth.connectGymButton}</span></button>
+    <div id="sa-nogym-error" class="sa-login-error" style="display:none;"></div>
+    <button type="button" id="sa-nogym-submit" class="psycle-btn-primary"><span>${COPY.auth.connectGymButton}</span></button>
   `;
 
-  const sel = panel.querySelector('#psycle-nogym-gym');
-  const errorEl = panel.querySelector('#psycle-nogym-error');
+  const sel = panel.querySelector('#sa-nogym-gym');
+  const errorEl = panel.querySelector('#sa-nogym-error');
   api.getGyms().then(gyms => {
     const available = gyms.filter(g => g.enabled);
     sel.innerHTML = available.length
@@ -1598,12 +1598,12 @@ function showNoGymScreen() {
       : `<option value="">${COPY.auth.noGymsAvailable}</option>`;
   }).catch(() => { sel.innerHTML = `<option value="">${COPY.auth.couldNotLoadGyms}</option>`; });
 
-  panel.querySelector('#psycle-nogym-submit').onclick = async () => {
-    const btn = panel.querySelector('#psycle-nogym-submit');
+  panel.querySelector('#sa-nogym-submit').onclick = async () => {
+    const btn = panel.querySelector('#sa-nogym-submit');
     errorEl.style.display = 'none';
     const gymId = sel.value;
-    const email = panel.querySelector('#psycle-nogym-email').value.trim();
-    const password = panel.querySelector('#psycle-nogym-password').value;
+    const email = panel.querySelector('#sa-nogym-email').value.trim();
+    const password = panel.querySelector('#sa-nogym-password').value;
     if (!gymId || !email || !password) {
       errorEl.textContent = COPY.auth.requiredGymCredentials;
       errorEl.style.display = 'block';
@@ -1643,33 +1643,33 @@ const AUTH_MODES = {
 
 function setAuthMode(mode) {
   const cfg = AUTH_MODES[mode] || AUTH_MODES.login;
-  document.getElementById('psycle-auth-title').textContent = cfg.title;
-  document.getElementById('psycle-auth-subtitle').textContent =
+  document.getElementById('sa-auth-title').textContent = cfg.title;
+  document.getElementById('sa-auth-subtitle').textContent =
     formatCopyText(cfg.subtitle, { appName: appConfig.appName });
-  document.getElementById('psycle-login-form').style.display = mode === 'login' ? '' : 'none';
-  document.getElementById('psycle-signup-form').style.display = mode === 'signup' ? '' : 'none';
-  document.getElementById('psycle-recover-form').style.display = mode === 'recover' ? '' : 'none';
+  document.getElementById('sa-login-form').style.display = mode === 'login' ? '' : 'none';
+  document.getElementById('sa-signup-form').style.display = mode === 'signup' ? '' : 'none';
+  document.getElementById('sa-recover-form').style.display = mode === 'recover' ? '' : 'none';
 
   // Recovery always restarts at step 1 — landing mid-flow with a stale gym list
   // would be confusing and could show gyms for a different email.
   //
-  // C1-4: `#psycle-recover-step2` was the gym-picker step of the self-service
+  // C1-4: `#sa-recover-step2` was the gym-picker step of the self-service
   // gym-login recovery flow removed by Decision D5 (2026-08-31, see the
   // AGENTS.md "Never make a gym credential a recovery factor" note). The
-  // markup went with it (client/index.html now has only `#psycle-recover-
+  // markup went with it (client/index.html now has only `#sa-recover-
   // step1`), but this reference to step2 didn't, so every "Forgot password?"
   // click threw a TypeError on `.style` of null and the mode never rendered.
   if (mode === 'recover') {
-    document.getElementById('psycle-recover-step1').style.display = 'block';
+    document.getElementById('sa-recover-step1').style.display = 'block';
   }
-  document.querySelectorAll('.psycle-login-error').forEach(el => { el.style.display = 'none'; });
-  const noGym = document.getElementById('psycle-nogym-panel');
+  document.querySelectorAll('.sa-login-error').forEach(el => { el.style.display = 'none'; });
+  const noGym = document.getElementById('sa-nogym-panel');
   if (noGym) noGym.style.display = 'none';
 
-  const switcher = document.getElementById('psycle-auth-switcher');
+  const switcher = document.getElementById('sa-auth-switcher');
   switcher.innerHTML = mode === 'login'
-    ? `<a href="#" id="psycle-auth-to-signup">${COPY.auth.createAnAccount}</a>&nbsp;·&nbsp;<a href="#" id="psycle-auth-to-recover">${COPY.auth.forgotPassword}</a>`
-    : `<a href="#" id="psycle-auth-to-login">${COPY.auth.backToLogIn}</a>`;
+    ? `<a href="#" id="sa-auth-to-signup">${COPY.auth.createAnAccount}</a>&nbsp;·&nbsp;<a href="#" id="sa-auth-to-recover">${COPY.auth.forgotPassword}</a>`
+    : `<a href="#" id="sa-auth-to-login">${COPY.auth.backToLogIn}</a>`;
   wireAuthSwitcher();
   applyAppName();
 }
@@ -1679,22 +1679,22 @@ function wireAuthSwitcher() {
     const el = document.getElementById(id);
     if (el) el.onclick = (e) => { e.preventDefault(); setAuthMode(mode); };
   };
-  bind('psycle-auth-to-signup', 'signup');
-  bind('psycle-auth-to-recover', 'recover');
-  bind('psycle-auth-to-login', 'login');
+  bind('sa-auth-to-signup', 'signup');
+  bind('sa-auth-to-recover', 'recover');
+  bind('sa-auth-to-login', 'login');
 }
 wireAuthSwitcher();
 
 // --- create account ---
-const signupForm = document.getElementById('psycle-signup-form');
+const signupForm = document.getElementById('sa-signup-form');
 if (signupForm) {
   signupForm.addEventListener('submit', async (e) => {
     e.preventDefault();
-    const email = document.getElementById('psycle-signup-email').value.trim();
-    const password = document.getElementById('psycle-signup-password').value;
-    const confirm = document.getElementById('psycle-signup-confirm').value;
-    const errorEl = document.getElementById('psycle-signup-error');
-    const btn = document.getElementById('psycle-signup-submit-btn');
+    const email = document.getElementById('sa-signup-email').value.trim();
+    const password = document.getElementById('sa-signup-password').value;
+    const confirm = document.getElementById('sa-signup-confirm').value;
+    const errorEl = document.getElementById('sa-signup-error');
+    const btn = document.getElementById('sa-signup-submit-btn');
     const fail = (m) => { errorEl.textContent = m; errorEl.style.display = 'block'; };
     errorEl.style.display = 'none';
 
@@ -1724,10 +1724,10 @@ if (signupForm) {
 // defeated Decision D4 — removed 2026-08-31. The replacement mechanism is an open
 // decision (Workstreams C6-1); until it lands the screen says so plainly rather than
 // offering a flow that cannot complete.
-const recoverFindBtn = document.getElementById('psycle-recover-find-btn');
+const recoverFindBtn = document.getElementById('sa-recover-find-btn');
 if (recoverFindBtn) {
   recoverFindBtn.onclick = () => {
-    const errorEl = document.getElementById('psycle-recover-error');
+    const errorEl = document.getElementById('sa-recover-error');
     errorEl.textContent = COPY.auth.recoveryUnavailableLong;
     errorEl.style.display = 'block';
   };
@@ -1849,7 +1849,7 @@ document.addEventListener('DOMContentLoaded', () => {
   document.addEventListener('gym-logos-ready', () => { updateCreditBadge().catch(() => {}); });
   // Reveal the shell once auth has decided which screen to show AND the fonts are ready
   // (each capped), so the first visible paint is the styled one. index.html also force-reveals at 3s.
-  const reveal = () => document.documentElement.classList.add('psycle-ready');
+  const reveal = () => document.documentElement.classList.add('sa-ready');
   Promise.resolve(checkAuth()).catch(() => {}).then(() =>
     Promise.race([document.fonts?.ready ?? Promise.resolve(), new Promise((r) => setTimeout(r, 1200))])
   ).then(() => requestAnimationFrame(reveal));

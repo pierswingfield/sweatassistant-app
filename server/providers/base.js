@@ -312,6 +312,34 @@ class GymProvider {
     return this.gym.capabilities;
   }
 
+  // --- Dev mock hook ----------------------------------------------------------
+  // Each adapter that has a dev mock sets `mockToken` (the sentinel its request()
+  // already routes to the mock) and the gym config declares `devMock.email`. Every
+  // caller above providers/ asks these instead of comparing against a dev email.
+
+  /** Sentinel access token that routes this adapter's requests to its mock (null: no mock). */
+  get mockToken() {
+    return null;
+  }
+
+  /** Is `email` this gym's dev mock login? Never true in production. */
+  isMockLogin(email) {
+    if (process.env.NODE_ENV === 'production') return false;
+    const dev = this.gym.devMock && this.gym.devMock.email;
+    return !!dev && String(email || '').trim().toLowerCase() === dev.toLowerCase();
+  }
+
+  /**
+   * Should background work for this user on THIS gym be served by the mock? True
+   * for a mock-token session, or for the app account whose email is this gym's dev
+   * mock identity. Never true in production.
+   */
+  isMockUser(user, session) {
+    if (process.env.NODE_ENV === 'production' || !this.mockToken) return false;
+    if (session && session.accessToken === this.mockToken) return true;
+    return !!user && this.isMockLogin(user.email);
+  }
+
   /** Whether a normalized path is a public (no-auth) read for this provider. */
   isPublicRead(/* method, path */) {
     return false;

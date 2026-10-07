@@ -90,6 +90,19 @@ check('no application module hardcodes a gym id', () => {
     'import DEFAULT_GYM_ID from gyms.config.js, or resolve the gym from the user/row');
 });
 
+check('no application module names a dev mock email (gyms.config devMock + adapter.isMockUser own that)', () => {
+  const MOCKS = new Set(['mock.js', 'mock-marianatek.js']); // the mocks' own fixture data
+  const offenders = [];
+  for (const { name, src } of appModules()) {
+    if (MOCKS.has(name)) continue;
+    for (const line of stripComments(src).split('\n')) {
+      if (/dev@[a-z0-9.-]+\.(com|mock)/i.test(line)) offenders.push(`${name}: ${line.trim()}`);
+    }
+  }
+  assert.deepStrictEqual(offenders, [],
+    'ask gym.devMock.email / provider.isMockLogin(email) / provider.isMockUser(user, session) instead');
+});
+
 // --- 2. no module hardcodes one platform's host or names it ------------------
 
 check('no application module hardcodes a provider hostname', () => {

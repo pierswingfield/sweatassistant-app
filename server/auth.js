@@ -9,7 +9,7 @@ const { log } = require('./logger');
 // login path (handleLogin). It is not a general fallback and must not be used as
 // one: an existing account resolves its OWN gym, and the modern path is signup
 // (gym-less) + POST /api/my-gyms/link. See handleLogin's note below.
-const { DEFAULT_GYM_ID } = require('./gyms.config');
+const { DEFAULT_GYM_ID, findDevMockGym } = require('./gyms.config');
 
 const JWT_SECRET = getJWTSecret();
 
@@ -41,8 +41,12 @@ async function handleLogin(email, password) {
     throw new Error('Email and password are required');
   }
 
-  // Development bypass check
-  if (email === 'dev@psycle.com') {
+  // Development bypass: an email that is some gym's configured `devMock.email`
+  // (gyms.config.js) logs in to the dev mocks. Never in production — outside dev
+  // this branch used to accept any password for that address.
+  const devGym = process.env.NODE_ENV === 'production' ? null : findDevMockGym(email);
+  if (devGym) {
+    const devToken = getProvider(devGym.id).mockToken;
     let user = db.getUserByEmail(email);
     let userId;
     const encryptedPassword = encrypt(password);
@@ -50,15 +54,18 @@ async function handleLogin(email, password) {
     expiresAt.setDate(expiresAt.getDate() + 365);
     const jwtExpiresAt = expiresAt.toISOString();
 
-    // dev@psycle.com's own mock login is always psycle-london — the loop below
-    // separately links every other enabled gym via linkGymAccount, which is
-    // already explicit about its own gym.
+    // The account is gym-less on creation; the loop below links every enabled gym
+    // (the dev email's own included) through linkGymAccount, which is explicit
+    // about its gym. An existing dev account just refreshes its mock session.
     if (user) {
       userId = user.id;
-      db.updateUserCredentials(userId, encryptedPassword, 'mock-jwt-token', jwtExpiresAt, DEFAULT_GYM_ID);
+      if (db.isGymLinked(userId, devGym.id)) {
+        db.updateUserCredentials(userId, encryptedPassword, devToken, jwtExpiresAt, devGym.id);
+      }
     } else {
-      userId = db.createUser(email, encryptedPassword);
-      db.updateUserJWT(userId, 'mock-jwt-token', jwtExpiresAt, DEFAULT_GYM_ID);
+      // The bypass never checks a local password (any password logs in), so the
+      // account gets an unguessable throwaway one — also sidesteps the policy minimum.
+      userId = db.createAccount(email, crypto.randomBytes(16).toString('hex'));
     }
 
     // Seed EVERY enabled gym onto the dev account, not just the default one.
@@ -74,10 +81,6 @@ async function handleLogin(email, password) {
     // purpose: a gym whose mock is unavailable must not block dev login.
     try {
       const { listEnabledGyms } = require('./gyms.config');
-      const DEV_LOGIN_BY_PROVIDER = {
-        codexfit: 'dev@psycle.com',
-        marianatek: 'dev@jabboxing.mock',
-      };
       for (const gym of listEnabledGyms()) {
         if (db.isGymLinked(userId, gym.id)) continue;
         // Aarmy is an opt-in tenant even in development: its config can be
@@ -85,11 +88,10 @@ async function handleLogin(email, password) {
         // unless the developer explicitly opts in. This also keeps the
         // default dev fixture aligned with Psycle + JAB.
         if (gym.id === 'aarmy' && process.env.AARMY_ENABLED !== 'true') continue;
-        // Tenants on one provider may have separate mock identities (for
-        // example JAB and Aarmy both use MarianaTek). Prefer the gym's own
-        // configured mock account, falling back to the provider default only
-        // for older configs that do not declare one.
-        const gymEmail = gym.mockEmail || DEV_LOGIN_BY_PROVIDER[gym.provider];
+        // Each gym declares its own mock identity (`devMock.email`); tenants on
+        // one provider (JAB and Aarmy on MarianaTek) have separate ones. A gym
+        // with none is not seeded.
+        const gymEmail = gym.devMock && gym.devMock.email;
         if (!gymEmail) continue;
         try {
           await linkGymAccount(userId, gym.id, gymEmail, password);

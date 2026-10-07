@@ -23,8 +23,6 @@ const { getGymConfig } = require('./gyms.config');
 const { formatSpotLabel } = require('./spot-label');
 const { policyOf, isRollingWeekly, mostRecentRelease } = require('./providers/booking-window');
 
-// Interim single-gym bridge: until multi-gym login lands (WP-D3), all polling
-// is CodexFit / Psycle London. See server/auth.js for the same bridge.
 // No module-level provider (WP-D7). Every fetch below resolves its gym — from
 // the ROW being processed where there is one (background work must run for a gym
 // the user isn't currently looking at), otherwise from the user's active gym.
@@ -32,36 +30,20 @@ const { policyOf, isRollingWeekly, mostRecentRelease } = require('./providers/bo
 // Track slots upgraded in the current poller check cycle to prevent double-booking/race conditions
 const claimedSlots = new Set();
 
-// Fetch public (no-auth) CodexFit endpoints (events, locations, studios, instructors).
-// These are documented as public — no Bearer token required.
-// Unauthenticated read (e.g. /events/:id, which most providers serve without a
-// token). `gymId` is explicit for the same reason as fetchFromGym: background
-// callers pass the row's gym, not the user's active one.
-async function fetchPublicFromGym(userId, gymId, path) {
-  const user = userId ? db.getUserById(userId) : null;
-  const isMock = (user && user.email === 'dev@psycle.com') || /\/events\/\d{4}(\b|$)/.test(path) || path.includes('/locations') || path.includes('/studios');
-  if (isMock) {
-    const mock = require('./mock');
-    return mock.handleMockRequest(path, 'GET', null);
-  }
-
-  return getProvider(gymId).publicRequest(path, { method: 'GET' });
-}
-
 // `gymId` is explicit: background callers pass the row's own gym. `path` is a
 // PATH, not a URL — the provider prepends its gym's base, which is the whole
 // point (an absolute URL would bypass it and pin every gym to Psycle's host).
 async function fetchFromGym(userId, gymId, path, options = {}) {
-  const user = db.getUserById(userId);
-  if (user && user.email === 'dev@psycle.com') {
-    const mock = require('./mock');
-    return mock.handleMockRequest(path, options.method || 'GET', options.body ? JSON.parse(options.body) : null);
-  }
-
   // The ROW's gym session — NOT db.getUserById(userId).jwt, which resolves the
   // user's ACTIVE gym (db.resolveActiveGymId) and is wrong for a background
   // call site processing a gym the user isn't currently looking at (C3-12).
   const session = db.getUserSession(userId, gymId);
+  // Dev mock: the adapter decides (never a dev email compared here), and serves it
+  // through its own request() via the mock sentinel token.
+  const adapter = getProvider(gymId);
+  if (adapter.isMockUser(db.getUserById(userId), session)) {
+    return adapter.request(path, { token: adapter.mockToken, method: options.method || 'GET', body: options.body, headers: options.headers });
+  }
   if (!session || !session.accessToken) {
     throw new Error('User has no active session. Please log in.');
   }

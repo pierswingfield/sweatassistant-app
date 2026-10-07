@@ -213,16 +213,16 @@ function getGymZone(gymId) {
 // PATH, not a URL — the provider prepends its gym's base, which is the whole
 // point (an absolute URL would bypass it and pin every gym to Psycle's host).
 async function fetchFromGym(userId, gymId, path, options = {}) {
-  const user = db.getUserById(userId);
-  if (user && user.email === 'dev@psycle.com') {
-    const mock = require('./mock');
-    return mock.handleMockRequest(path, options.method || 'GET', options.body ? JSON.parse(options.body) : null);
-  }
-
   // The ROW's gym session — NOT db.getUserById(userId).jwt, which resolves the
   // user's ACTIVE gym (db.resolveActiveGymId) and is wrong for a background
   // call site processing a gym the user isn't currently looking at (C3-12).
   const session = db.getUserSession(userId, gymId);
+  // Dev mock: the adapter decides (never a dev email compared here), and serves it
+  // through its own request() via the mock sentinel token.
+  const adapter = getProvider(gymId);
+  if (adapter.isMockUser(db.getUserById(userId), session)) {
+    return adapter.request(path, { token: adapter.mockToken, method: options.method || 'GET', body: options.body, headers: options.headers });
+  }
   if (!session || !session.accessToken) {
     throw new Error('User has no active session. Please log in.');
   }

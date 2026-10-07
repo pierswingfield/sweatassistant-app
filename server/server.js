@@ -57,7 +57,7 @@ app.use(express.json());
 
 // Strict brute-force limiters for the two password endpoints, keyed by IP.
 // Active in production only (consistent with the other limiters); dev login
-// (dev@psycle.com) stays frictionless.
+// (a gym's devMock.email) stays frictionless.
 // No custom keyGenerator — the library's default keys by client IP with correct
 // IPv6 subnet handling (in v8 the `ipKeyGenerator` helper takes an IP string,
 // not a req, so a hand-rolled key here would mis-key every request and never

@@ -205,7 +205,7 @@ function handleError(res, err) {
 // /bundles, /bookmarks and /profile/update (extrasLimiter, below) had a
 // budget. This is per-USER (all routes below share ONE counter, like
 // extrasLimiter), sized from a measured real two-gym browser session
-// (dev@psycle.com + JAB linked): app boot + touring all 5 tabs + back to
+// (the dev mock account, all mock gyms linked): app boot + touring all 5 tabs + back to
 // timetable produced ~73 combined calls to these routes in under a minute,
 // with /my-gyms alone peaking at 16 (every tab/settings render re-checks the
 // active gym) — see Documentation/Workstreams/C7-platform-ops.md for the
@@ -213,7 +213,7 @@ function handleError(res, err) {
 // fetch, so the budget needs multiplicative headroom, not just additive.
 // 300/min leaves ~4x over that measured peak. Production-only, same as every
 // other limiter here; RATE_LIMIT_TEST_FORCE lets a test force it on without
-// NODE_ENV=production, which would also disable the dev@psycle.com mock
+// NODE_ENV=production, which would also disable the dev mock logins
 // login these routes need in order to be testable at all (see
 // providers/codexfit.js DEV_EMAIL gate).
 const readLimiter = rateLimit({

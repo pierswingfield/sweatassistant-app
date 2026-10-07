@@ -1,8 +1,28 @@
-// Central configuration — values come from env vars with defaults matching the
-// original hardcoded values. This is the single server-side source of truth for
-// the app name and public host. All server modules that need these values should
-// import from here rather than reading process.env directly.
-const publicHost = process.env.PUBLIC_HOST || 'psycle.wingfield.tech';
+// Central configuration — values come from env vars. This is the single
+// server-side source of truth for the app name, public host and VAPID contact.
+// All server modules that need these values should import from here rather than
+// reading process.env directly.
+//
+// PUBLIC_HOST and VAPID_EMAIL identify the DEPLOYMENT (calendar feed URLs, push
+// contact), so no default is correct for production and none is invented: with
+// NODE_ENV=production the server refuses to start without them. Outside
+// production (dev, tests) they fall back to inert localhost values.
+const isProduction = process.env.NODE_ENV === 'production';
+
+function requiredInProduction(name, devDefault) {
+  const value = (process.env[name] || '').trim();
+  if (value) return value;
+  if (isProduction) {
+    throw new Error(`[Config] ${name} is required when NODE_ENV=production. Set it in the service's .env (see .env.example).`);
+  }
+  return devDefault;
+}
+
+const publicHost = requiredInProduction('PUBLIC_HOST', 'localhost');
+const vapidEmail = requiredInProduction('VAPID_EMAIL', 'mailto:admin@localhost.invalid');
+if (!/^(mailto:|https:\/\/)/.test(vapidEmail)) {
+  throw new Error('[Config] VAPID_EMAIL must be a mailto: address or an https:// URL.');
+}
 
 // Allowed browser origins for CORS. In production the PWA is served same-origin
 // from this server, so the allowlist only needs the public host (http + https).
@@ -15,5 +35,6 @@ const corsOrigins = process.env.CORS_ORIGINS
 module.exports = {
   appName: process.env.APP_NAME || 'Sweat Assistant',
   publicHost,
+  vapidEmail,
   corsOrigins,
 };

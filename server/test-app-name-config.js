@@ -28,6 +28,8 @@ const ENV = {
   JWT_SECRET: 'test-app-name-jwt',
   ENCRYPTION_KEY: '0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef',
   ADMIN_PASSWORD: 'test-admin-password',
+  PUBLIC_HOST: 'app.test.example',
+  VAPID_EMAIL: 'mailto:test@example.com',
 };
 
 async function withServer(port, appName, fn) {

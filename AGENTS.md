@@ -495,11 +495,11 @@ IndexedDB database `app-cache` (v3) has two stores: `cache` (raw timetable event
 | `ENCRYPTION_KEY` | `crypto.js` | **Required.** Master key for AES-256-GCM password encryption. Server refuses to start if absent (no DB fallback). |
 | `VAPID_PUBLIC_KEY` | `push.js` | VAPID public key for Web Push (auto-generated + DB-stored fallback) |
 | `VAPID_PRIVATE_KEY` | `push.js` | VAPID private key for Web Push (auto-generated + DB-stored fallback) |
-| `VAPID_EMAIL` | `push.js` | `mailto:` VAPID contact (default: `mailto:admin@psycle.wingfield.tech`) |
+| `VAPID_EMAIL` | `server/config.js` → `push.js` | `mailto:`/`https://` VAPID contact. **Required when `NODE_ENV=production`** (startup error otherwise); dev falls back to an inert localhost value. |
 | `RATE_LIMIT_TEST_FORCE` | `routes-normalized.js` | Test-only: enables the production-only read/refresh limiters so suites can assert 429s. |
 | `LOG_LEVEL` | `logger.js` | `debug`/`info`/`warn`/`error` (default `info`). `debug` adds a line per upstream provider call (gym, method, path, status, durationMs) and health/static request lines. `LOG_PRETTY=1` indents the JSON. |
 | `METRICS_TOKEN` | `server.js` | Bearer token for `GET /metrics` (Prometheus text). Alternative: a valid admin session JWT. If neither this nor `ADMIN_PASSWORD` is set, `/metrics` returns 503; it is never unauthenticated. |
 | `ADMIN_PASSWORD` | `admin.js` | Password for admin panel login. If absent, all `/api/admin/*` routes return 503. |
 | `APP_NAME` | `server/config.js` → all server modules + client via `/api/config` | App display name (default `Sweat Assistant`, defined ONLY in `config.js`). `index.html`, `manifest.json`, `sw.js` and `admin.html` carry the placeholder `__APP_NAME__`, templated per request (`server.js sendTemplated`; the `template-app-name` Vite plugin in dev). Never hardcode the name; `test-no-hardcoded-app-name.js` enforces it. |
-| `PUBLIC_HOST` | `server/config.js` → `calendar.js`, client via `/api/config` | Public domain for calendar feed URLs and UID generation (default: `psycle.wingfield.tech`). |
+| `PUBLIC_HOST` | `server/config.js` → `calendar.js`, client via `/api/config` | Public domain for calendar feed URLs, UIDs and the CORS allowlist. **Required when `NODE_ENV=production`** (startup error otherwise); dev falls back to `localhost`. See `.env.example`. |
 | `CORS_ORIGINS` | `server/config.js` → `server.js` | Comma-separated browser-origin allowlist for CORS. Defaults to `https://$PUBLIC_HOST` + `http://$PUBLIC_HOST`. |

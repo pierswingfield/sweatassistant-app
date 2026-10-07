@@ -1,10 +1,10 @@
 const webpush = require('web-push');
 const db = require('./db');
+const { vapidEmail } = require('./config');
 
 function initWebPush() {
   let publicKey = process.env.VAPID_PUBLIC_KEY;
   let privateKey = process.env.VAPID_PRIVATE_KEY;
-  const email = process.env.VAPID_EMAIL || 'mailto:admin@psycle.wingfield.tech';
 
   if (!publicKey || !privateKey) {
     publicKey = db.getKV('vapid_public_key');
@@ -20,7 +20,7 @@ function initWebPush() {
     }
   }
 
-  webpush.setVapidDetails(email, publicKey, privateKey);
+  webpush.setVapidDetails(vapidEmail, publicKey, privateKey);
   return publicKey;
 }
 

@@ -201,7 +201,7 @@ export function renderStudioFloorPlan(container, layoutSlots, initialSlots, init
     // the min-gap scale, so adjacent slots always keep >= MIN_GAP px between centres
     // (no overlap). When the min-gap width exceeds the viewport the map pans.
     const scroll = document.createElement('div');
-    scroll.className = 'psycle-floor-scroll';
+    scroll.className = 'sa-floor-scroll';
     container.appendChild(scroll); // append now to measure its real width (CSS breakout on mobile)
 
     // Reserve a lane on the right for the row +/- buttons so they sit beside the
@@ -211,7 +211,7 @@ export function renderStudioFloorPlan(container, layoutSlots, initialSlots, init
     const rowLaneW = hasRowButtons ? ROW_BTN + 8 : 0;
 
     const availW = scroll.clientWidth || (window.innerWidth - 80);
-    // Mirror .psycle-floor-scroll's max-height (min(60vh, 460px)) so we can fit
+    // Mirror .sa-floor-scroll's max-height (min(60vh, 460px)) so we can fit
     // the map within the box's height too, not just its width.
     const availH = Math.min(window.innerHeight * 0.6, 460);
     const fillScaleW = widthRange > 0 ? (availW - (container.closest('.sa-page') ? 2 : 0) - SLOT_SIZE - EDGE_PAD * 2 - rowLaneW) / widthRange : minGapScale;
@@ -253,7 +253,7 @@ export function renderStudioFloorPlan(container, layoutSlots, initialSlots, init
     const floorH = Math.ceil(heightRange * scaleY + SLOT_SIZE + EDGE_PAD * 2);
 
     const floor = document.createElement('div');
-    floor.className = 'psycle-floor';
+    floor.className = 'sa-floor';
     floor.style.width = floorW + 'px';
     floor.style.height = floorH + 'px';
     scroll.appendChild(floor);

@@ -509,7 +509,7 @@ tabButtons.forEach(btn => {
 
 // --- PULL-TO-REFRESH ---
 // On mobile the whole app scrolls inside a single <main class="psycle-body"> — the
-// individual tab panels (#psycle-timetable-grid etc.) grow to fit content and never
+// individual tab panels (#sa-timetable-grid etc.) grow to fit content and never
 // scroll themselves, so their scrollTop is always 0. Attaching pull-to-refresh to
 // those panels made every downward drag read as "at the top" and fire a refresh.
 // Instead, attach ONE pull-to-refresh to the real scroll container and dispatch the
@@ -1797,7 +1797,7 @@ function initHeaderAutoHide() {
     if (!els() || hide === hidden) return;
     hidden = hide;
     app.classList.toggle('psycle-hdr-hidden', hide);
-    app.classList.toggle('psycle-tt-compact', hide); // timetable date strip + location chip shrink with the header
+    app.classList.toggle('sa-tt-compact', hide); // timetable date strip + location chip shrink with the header
     // Safe-area cap + theme-color follow the header: header colour while it shows, page colour once it is gone.
     document.documentElement.toggleAttribute('data-hdr-hidden', hide);
     syncThemeColorMeta();

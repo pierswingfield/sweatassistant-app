@@ -50,12 +50,12 @@ function bookingsDataReady() {
 }
 
 export async function renderBookings() {
-  const bookingsList = document.getElementById('psycle-bookings-list');
-  const waitlistsList = document.getElementById('psycle-waitlists-list');
+  const bookingsList = document.getElementById('sa-bookings-list');
+  const waitlistsList = document.getElementById('sa-waitlists-list');
 
   // Show refreshing indicators
-  const bookingsRefreshing = document.getElementById('psycle-bookings-refreshing');
-  const waitlistsRefreshing = document.getElementById('psycle-waitlists-refreshing');
+  const bookingsRefreshing = document.getElementById('sa-bookings-refreshing');
+  const waitlistsRefreshing = document.getElementById('sa-waitlists-refreshing');
   if (bookingsRefreshing) bookingsRefreshing.style.display = '';
   if (waitlistsRefreshing) waitlistsRefreshing.style.display = '';
 
@@ -198,10 +198,10 @@ function setJumpVisible(jump, visible) {
   jump.setAttribute('aria-hidden', String(!visible));
 }
 function updateWaitlistAffordances() {
-  const jump = document.getElementById('psycle-waitlist-jump');
-  const target = document.getElementById('psycle-waitlists-header');
+  const jump = document.getElementById('sa-waitlist-jump');
+  const target = document.getElementById('sa-waitlists-header');
   if (waitlistObserver) { waitlistObserver.disconnect(); waitlistObserver = null; }
-  [['psycle-bookings-count', bookedCount], ['psycle-waitlists-count', waitlistCount]].forEach(([id, n]) => {
+  [['sa-bookings-count', bookedCount], ['sa-waitlists-count', waitlistCount]].forEach(([id, n]) => {
     const el = document.getElementById(id);
     if (!el) return;
     el.hidden = n === 0;
@@ -242,7 +242,7 @@ function updateWaitlistAffordances() {
 }
 
 function renderBookingsCards(bookings, upgrades) {
-  const container = document.getElementById('psycle-bookings-list');
+  const container = document.getElementById('sa-bookings-list');
   if (!container) return;
 
   const groups = new Map();
@@ -789,7 +789,7 @@ export async function openEditBookingModal(group, onChange = renderBookings) {
       <div class="guest-map-legend" aria-label="Spot map key">
         <span class="is-self">${COPY.bookings.guestMapSelf}</span><span class="is-guest">${COPY.bookings.guestMapGuest}</span><span class="is-available">${COPY.bookings.guestMapAvailable}</span><span class="is-unavailable">${COPY.bookings.guestMapUnavailable}</span>
       </div>
-      <div class="psycle-floor-plan-container" style="position:relative;height:${minMapHeight}px;background:var(--surface-inset);border:1px solid var(--border);border-radius:12px;margin-bottom:10px;overflow:hidden;">
+      <div class="sa-floor-plan-container" style="position:relative;height:${minMapHeight}px;background:var(--surface-inset);border:1px solid var(--border);border-radius:12px;margin-bottom:10px;overflow:hidden;">
         <div id="psycle-edit-floor-grid" style="width:100%;height:100%;"></div>
       </div>
       <div id="psycle-edit-summary" style="font-size:12px;color:var(--text-secondary);margin-bottom:12px;min-height:16px;"></div>
@@ -797,7 +797,7 @@ export async function openEditBookingModal(group, onChange = renderBookings) {
     `;
 
     const floorGrid = body.querySelector('#psycle-edit-floor-grid');
-    mountBookingContext(body, body.querySelector('.psycle-floor-plan-container'), {
+    mountBookingContext(body, body.querySelector('.sa-floor-plan-container'), {
       className, instructorName: event.instructors?.[0]?.name || '', instructorPhoto: event.instructors?.[0]?.thumbUrl || event.instructors?.[0]?.imageUrl,
       startAt: event.startAt, gymId: event.gymId, timeZone: event.timeZone,
       spotsLeft: layoutSlots.filter(s => s.isAvailable).length,
@@ -1017,7 +1017,7 @@ export async function openEditBookingModal(group, onChange = renderBookings) {
 // Same card design as bookings; a waitlist entry has no spot and no upgrade,
 // so the only rail action is Leave (two-tap confirm).
 function renderWaitlistsCards(waitlists) {
-  const container = document.getElementById('psycle-waitlists-list');
+  const container = document.getElementById('sa-waitlists-list');
   if (!container) return;
 
   const valid = (waitlists || []).filter(w => w.event && (w.event.startAt || w.event.start_at));

@@ -643,7 +643,7 @@ function renderHistoryPage() {
   if (!list) return;
 
   if (_historyAll.length === 0) {
-    list.innerHTML = `<div class="psycle-table-empty">${COPY.autoBook.noHistory}</div>`;
+    list.innerHTML = `<div class="sa-table-empty">${COPY.autoBook.noHistory}</div>`;
     if (paginationEl) paginationEl.innerHTML = '';
     return;
   }

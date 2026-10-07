@@ -320,11 +320,11 @@ const stripToday = () => nowInZone(getGymTimeZone(getDefaultGymId()) || deviceZo
 function mondayOfIso(iso) { const d = DateTime.fromISO(iso, { zone: STRIP_ZONE }); return d.minus({ days: d.weekday - 1 }).toISODate(); }
 let weekStripPage = 0;              // page (week) the user is looking at; survives re-renders
 function renderWeekStrip(carousel, daysWithEvents) {
-  carousel.classList.remove('psycle-date-selector');
-  carousel.classList.add('psycle-weekstrip');
-  carousel.parentElement?.classList.add('psycle-dates-first');
+  carousel.classList.remove('sa-date-selector');
+  carousel.classList.add('sa-weekstrip');
+  carousel.parentElement?.classList.add('sa-dates-first');
   if (!selectedTimetableDate) {
-    carousel.innerHTML = `<div class="psycle-wk-empty">${COPY.timetable.noDates}</div>`;
+    carousel.innerHTML = `<div class="sa-wk-empty">${COPY.timetable.noDates}</div>`;
     return;
   }
   const todayIso = stripToday();
@@ -348,18 +348,18 @@ function renderWeekStrip(carousel, daysWithEvents) {
       const iso = d.toISODate();
       const past = iso < todayIso;
       const disabled = past || !withEvents.has(iso);
-      const cls = ['psycle-wk-day', iso === selectedTimetableDate ? 'active' : '', iso === todayIso ? 'is-today' : '', past ? 'is-past' : '', disabled ? 'is-disabled' : ''].filter(Boolean).join(' ');
+      const cls = ['sa-wk-day', iso === selectedTimetableDate ? 'active' : '', iso === todayIso ? 'is-today' : '', past ? 'is-past' : '', disabled ? 'is-disabled' : ''].filter(Boolean).join(' ');
       cells.push(`<button type="button" class="${cls}" data-day="${iso}" ${disabled ? 'disabled' : ''} aria-pressed="${iso === selectedTimetableDate}" aria-label="${d.setLocale('en-GB').toFormat('cccc d LLLL')}">`
         + `<span class="wk-num">${d.day}</span><span class="wk-name">${d.setLocale('en-GB').toFormat('ccc').toUpperCase()}</span></button>`);
     }
-    pages.push(`<div class="psycle-wk-page">${cells.join('')}</div>`);
+    pages.push(`<div class="sa-wk-page">${cells.join('')}</div>`);
   }
   const desktop = window.matchMedia('(min-width: 769px)').matches;
-  const prevLeft = carousel.querySelector('.psycle-wk-scroller')?.scrollLeft || 0;
-  carousel.innerHTML = `<button type="button" class="psycle-wk-nav" data-wk-nav="-1" aria-label="${COPY.timetable.prevWeek}">&#x2039;</button>`
-    + `<div class="psycle-wk-scroller"><div class="psycle-wk-track">${pages.join('')}</div></div>`
-    + `<button type="button" class="psycle-wk-nav" data-wk-nav="1" aria-label="${COPY.timetable.nextWeek}">&#x203A;</button>`;
-  const scroller = carousel.querySelector('.psycle-wk-scroller');
+  const prevLeft = carousel.querySelector('.sa-wk-scroller')?.scrollLeft || 0;
+  carousel.innerHTML = `<button type="button" class="sa-wk-nav" data-wk-nav="-1" aria-label="${COPY.timetable.prevWeek}">&#x2039;</button>`
+    + `<div class="sa-wk-scroller"><div class="sa-wk-track">${pages.join('')}</div></div>`
+    + `<button type="button" class="sa-wk-nav" data-wk-nav="1" aria-label="${COPY.timetable.nextWeek}">&#x203A;</button>`;
+  const scroller = carousel.querySelector('.sa-wk-scroller');
   const track = scroller.firstElementChild;
   const goTo = (smooth) => {
     if (desktop) {
@@ -375,7 +375,7 @@ function renderWeekStrip(carousel, daysWithEvents) {
   goTo(false);
   if (selectionChanged && weeks > 1) requestAnimationFrame(() => goTo(false));
   // Desktop < > step the strip by one 2-week period.
-  carousel.querySelectorAll('.psycle-wk-nav').forEach((b) => {
+  carousel.querySelectorAll('.sa-wk-nav').forEach((b) => {
     b.onclick = () => scroller.scrollBy({ left: Number(b.dataset.wkNav) * scroller.clientWidth, behavior: 'smooth' });
   });
   const selectDay = (b) => {
@@ -383,12 +383,12 @@ function renderWeekStrip(carousel, daysWithEvents) {
     const dir = dayStr > selectedTimetableDate ? 1 : (dayStr < selectedTimetableDate ? -1 : 0);
     selectedTimetableDate = dayStr;
     // Optimistic: the strip highlight and full-date heading change NOW, before the list re-renders.
-    carousel.querySelectorAll('.psycle-wk-day').forEach((c) => { const on = c === b; c.classList.toggle('active', on); c.setAttribute('aria-pressed', String(on)); });
-    const head = document.querySelector('#psycle-timetable-grid .psycle-tt-fulldate');
+    carousel.querySelectorAll('.sa-wk-day').forEach((c) => { const on = c === b; c.classList.toggle('active', on); c.setAttribute('aria-pressed', String(on)); });
+    const head = document.querySelector('#sa-timetable-grid .sa-tt-fulldate');
     if (head) head.textContent = formatFullDate(dayStr);
     animateDateChange(dir, () => renderTimetableGrid());
   };
-  carousel.querySelectorAll('.psycle-wk-day:not(.is-disabled)').forEach((b) => { b.onclick = () => selectDay(b); });
+  carousel.querySelectorAll('.sa-wk-day:not(.is-disabled)').forEach((b) => { b.onclick = () => selectDay(b); });
 
   if (!desktop) {
     // Week pager on touch. The strip used to be a native overflow scroller with scroll-snap: after a flick iOS keeps
@@ -432,30 +432,30 @@ function renderWeekStrip(carousel, daysWithEvents) {
   }
 }
 
-function pageChild(grid) { return grid.querySelector('.psycle-table-container') || grid.firstElementChild; }
+function pageChild(grid) { return grid.querySelector('.sa-table-container') || grid.firstElementChild; }
 // === END WEEK STRIP ===
 
 let dateNavToken = 0;
 function centreActivePill() {
-  const carousel = document.getElementById('psycle-timetable-carousel');
-  const pill = carousel?.querySelector('.psycle-day-pill.active');
+  const carousel = document.getElementById('sa-timetable-carousel');
+  const pill = carousel?.querySelector('.sa-day-pill.active');
   if (!carousel || !pill) return;
-  const scroller = carousel.classList.contains('psycle-date-selector') ? carousel : carousel.querySelector('.psycle-date-selector') || carousel;
+  const scroller = carousel.classList.contains('sa-date-selector') ? carousel : carousel.querySelector('.sa-date-selector') || carousel;
   scroller.scrollTo?.({ left: pill.offsetLeft - (scroller.clientWidth - pill.offsetWidth) / 2, behavior: 'smooth' });
 }
 function animateDateChange(dir, render) {
-  const grid = document.getElementById('psycle-timetable-grid');
+  const grid = document.getElementById('sa-timetable-grid');
   const token = ++dateNavToken;
   // DESKTOP: instant. No slide/fade between days (mobile keeps its swipe-style transition).
   if (window.matchMedia('(min-width: 769px)').matches) {
-    grid?.querySelectorAll('.psycle-timetable-page-outgoing').forEach((el) => el.remove());
+    grid?.querySelectorAll('.sa-timetable-page-outgoing').forEach((el) => el.remove());
     render();
     return;
   }
   if (!grid || !dir || typeof grid.animate !== 'function') { render(); return; }
 
   // Clean up any in-flight transitions or clones from rapid clicks
-  grid.querySelectorAll('.psycle-timetable-page-outgoing').forEach((el) => el.remove());
+  grid.querySelectorAll('.sa-timetable-page-outgoing').forEach((el) => el.remove());
   grid.getAnimations().forEach((a) => a.cancel());
   grid.style.transform = '';
 
@@ -476,7 +476,7 @@ function animateDateChange(dir, render) {
 
   // Clone outgoing content into an absolute snapshot overlay so both old and new exist simultaneously
   const clone = oldChild.cloneNode(true);
-  clone.classList.add('psycle-timetable-page-outgoing');
+  clone.classList.add('sa-timetable-page-outgoing');
   const topOffset = oldChild.offsetTop;
   clone.style.cssText = `position: absolute; top: ${topOffset}px; left: 0; width: 100%; pointer-events: none; z-index: 2; margin: 0; box-sizing: border-box; will-change: transform, opacity;`;
 
@@ -519,7 +519,7 @@ function animateDateChange(dir, render) {
 // 20px left edge (iOS back / Settings swipe-back); passive listeners, so vertical scroll and pull-to-refresh are untouched.
 let swipeWired = false;
 function wireTimetableSwipe() {
-  const grid = document.getElementById('psycle-timetable-grid');
+  const grid = document.getElementById('sa-timetable-grid');
   if (!grid || swipeWired) return;
   swipeWired = true;
   const EDGE = 20, THRESHOLD = 48;
@@ -560,7 +560,7 @@ function wireTimetableSwipe() {
     locked = false;
     const fast = Math.abs(dx) / Math.max(1, performance.now() - st) > 0.5;
     if (!(Math.abs(dx) >= THRESHOLD || (fast && Math.abs(dx) > 24))) return;
-    const pills = [...document.querySelectorAll('#psycle-timetable-carousel .psycle-day-pill, #psycle-timetable-carousel .psycle-wk-day:not(.is-disabled)')];
+    const pills = [...document.querySelectorAll('#sa-timetable-carousel .sa-day-pill, #sa-timetable-carousel .sa-wk-day:not(.is-disabled)')];
     const i = pills.findIndex((p) => p.classList.contains('active'));
     const next = pills[i + (dx < 0 ? 1 : -1)];   // stops at the ends of the available range
     if (next) next.click();
@@ -575,7 +575,7 @@ function wireTimetableSwipe() {
 let instrFitObserver = null;
 let instrFitWidth = 0;
 function fitInstructorRows() {
-  const rows = [...document.querySelectorAll('#psycle-timetable-grid .psycle-mobile-main')];
+  const rows = [...document.querySelectorAll('#sa-timetable-grid .psycle-mobile-main')];
   if (!rows.length) return;
   rows.forEach((main) => {
     const line2 = main.querySelector('.psycle-mobile-line2');
@@ -600,7 +600,7 @@ function fitInstructorRows() {
 function scheduleInstructorFit() {
   if (!window.matchMedia('(max-width: 768px)').matches) return;
   requestAnimationFrame(fitInstructorRows);
-  const grid = document.getElementById('psycle-timetable-grid');
+  const grid = document.getElementById('sa-timetable-grid');
   if (grid && typeof ResizeObserver !== 'undefined' && !instrFitObserver) {
     instrFitObserver = new ResizeObserver(() => {
       const w = grid.clientWidth;
@@ -643,7 +643,7 @@ function urlCtx() {
 }
 
 function timetableTabVisible() {
-  return currentRoute().tab === 'class-timetable' && !!document.getElementById('psycle-timetable-grid');
+  return currentRoute().tab === 'class-timetable' && !!document.getElementById('sa-timetable-grid');
 }
 
 /** Apply parsed URL params (load, deep link, back/forward). Never pushes history. */
@@ -693,7 +693,7 @@ function syncUrlFromState(defaultDay = lastDefaultDay) {
 }
 
 function renderOverlayBanner() {
-  const grid = document.getElementById('psycle-timetable-grid');
+  const grid = document.getElementById('sa-timetable-grid');
   if (!grid || !grid.parentElement) return;
   let el = document.getElementById('psycle-url-overlay-banner');
   if (!overlayActive) { el?.remove(); return; }
@@ -721,7 +721,7 @@ export function clearUrlOverlay() {
   urlReplaceOnce = true;
   document.getElementById('psycle-url-overlay-banner')?.remove();
   renderTimetableGrid('filter').then(() => {
-    const grid = document.getElementById('psycle-timetable-grid');
+    const grid = document.getElementById('sa-timetable-grid');
     if (grid) { grid.setAttribute('tabindex', '-1'); grid.focus({ preventScroll: true }); }
   });
 }
@@ -854,7 +854,7 @@ const PROGRESSIVE_GRACE_MS = 0;
 // merged into a list someone may already be scrolled down, so anchor on the
 // first row in view (by event id) rather than a raw scrollTop that shifts.
 function renderPreservingScroll(reason) {
-  const grid = document.getElementById('psycle-timetable-grid');
+  const grid = document.getElementById('sa-timetable-grid');
   const scroller = (isDocScroll() ? docScroller() : document.querySelector('main.psycle-body')) || grid;
   const anchor = captureScrollAnchor(scroller, grid);
   // Restoring the anchor is a programmatic scroll: the collapse hysteresis must re-baseline, not toggle.
@@ -874,7 +874,7 @@ export async function prefetchTimetableData(force = false) {
     return;
   }
 
-  const ttContainer = document.getElementById('psycle-timetable-grid');
+  const ttContainer = document.getElementById('sa-timetable-grid');
   if (!ttContainer) return;
 
   // 1. Instant SWR: Read and display cached events & metadata from IndexedDB immediately (0ms delay!)
@@ -1031,10 +1031,10 @@ export async function prefetchTimetableData(force = false) {
         <div style="padding: 40px 20px; text-align: center; color: var(--text-secondary);">
           <p style="font-size:16px;margin-bottom:8px">${COPY.timetable.noCachedTimetable}</p>
           <p style="font-size:13px;color:var(--text-tertiary)">${COPY.timetable.connectInternet}</p>
-          <button id="psycle-timetable-retry-btn" class="psycle-btn variant-danger" style="margin-top: 12px; display: inline-block; width: auto; padding: 8px 16px; border-radius: 8px;">${COPY.timetable.retry}</button>
+          <button id="sa-timetable-retry-btn" class="psycle-btn variant-danger" style="margin-top: 12px; display: inline-block; width: auto; padding: 8px 16px; border-radius: 8px;">${COPY.timetable.retry}</button>
         </div>
       `;
-      const retryBtn = document.getElementById('psycle-timetable-retry-btn');
+      const retryBtn = document.getElementById('sa-timetable-retry-btn');
       if (retryBtn) {
         retryBtn.onclick = () => prefetchTimetableData(true);
       }
@@ -1045,7 +1045,7 @@ export async function prefetchTimetableData(force = false) {
 // Generate the dropdown filter option checklists
 // activeIds: { locationIds, instructorIds, classTypeIds } — each a Set of IDs from interdependently-filtered events
 function setupDropdownFilters({ locationIds, instructorIds, classTypeIds } = {}) {
-  const container = document.getElementById('psycle-timetable-filters-container');
+  const container = document.getElementById('sa-timetable-filters-container');
   if (!container) return;
 
   // Gym filter (rendered only when >1 gym linked)
@@ -1132,7 +1132,7 @@ function setupDropdownFilters({ locationIds, instructorIds, classTypeIds } = {})
   updateTriggerLabel('psycle-ms-class-type', selectedEventTypes, COPY.timetable.allTypes, 'Type');
 
   // Bookmarked button class
-  const bookmarksFilterBtn = document.getElementById('psycle-filter-favorites-only');
+  const bookmarksFilterBtn = document.getElementById('sa-filter-favorites-only');
   if (bookmarksFilterBtn) {
     if (showBookmarksOnly) {
       bookmarksFilterBtn.classList.add('active');
@@ -1305,7 +1305,7 @@ function updateTriggerLabel(dropdownId, selectedArray, defaultText, labelSingula
 
 // Setup multiselect dropdown toggle event bindings
 function setupFilterEventListeners() {
-  const container = document.getElementById('psycle-timetable-filters-container');
+  const container = document.getElementById('sa-timetable-filters-container');
   if (!container) return;
 
   // 1. Toggle open dropdowns on trigger clicks
@@ -1412,7 +1412,7 @@ function setupFilterEventListeners() {
   });
 
   // 4. Global Bookmarked toggle click handler
-  const bookmarksFilterBtn = document.getElementById('psycle-filter-favorites-only');
+  const bookmarksFilterBtn = document.getElementById('sa-filter-favorites-only');
   if (bookmarksFilterBtn) {
     bookmarksFilterBtn.onclick = () => {
       showBookmarksOnly = !showBookmarksOnly;
@@ -1826,7 +1826,7 @@ function normalizeStoredFilters() {
 // Core timetable grid and date selector rendering
 export async function renderTimetableGrid(reason = 'interaction') {
   const renderStartedAt = timetablePerfNow();
-  const ttGrid = document.getElementById('psycle-timetable-grid');
+  const ttGrid = document.getElementById('sa-timetable-grid');
   if (!ttGrid) return;
 
   // A render that arrives while the first fetch is still running (a credits or
@@ -1999,7 +1999,7 @@ export async function renderTimetableGrid(reason = 'interaction') {
   renderOverlayBanner();
 
   // 5. Render Horizontal Date Carousel
-  const carousel = document.getElementById('psycle-timetable-carousel');
+  const carousel = document.getElementById('sa-timetable-carousel');
   if (carousel) carousel.hidden = searching;   // a day strip means nothing for a cross-day list
   if (carousel && searching) {
     // leave the strip as it was
@@ -2019,7 +2019,7 @@ export async function renderTimetableGrid(reason = 'interaction') {
         const monthName = noSept(d.toLocaleDateString('en-GB', { month: 'short' }));
 
         const pill = document.createElement('div');
-        pill.className = `psycle-day-pill ${isSelected ? 'active' : ''}`;
+        pill.className = `sa-day-pill ${isSelected ? 'active' : ''}`;
         pill.innerHTML = `
           <span class="day-name">${dayName}</span>
           <div style="display: flex; align-items: baseline; gap: 4px; line-height: 1;">
@@ -2031,7 +2031,7 @@ export async function renderTimetableGrid(reason = 'interaction') {
           // Direction of travel: a LATER day slides the list out to the left and the new one in from the right.
           const dir = dayStr > selectedTimetableDate ? 1 : (dayStr < selectedTimetableDate ? -1 : 0);
           selectedTimetableDate = dayStr;
-          carousel.querySelectorAll('.psycle-day-pill').forEach(p => p.classList.remove('active'));
+          carousel.querySelectorAll('.sa-day-pill').forEach(p => p.classList.remove('active'));
           pill.classList.add('active');
           animateDateChange(dir, () => renderTimetableGrid());
         };
@@ -2077,21 +2077,21 @@ export async function renderTimetableGrid(reason = 'interaction') {
 
   const finalEvents = searching ? searchResults : sortedEvents.filter(e => dayKeyInZone(e.startAt, zoneFor(e)) === selectedTimetableDate);
 
-  // The outer #psycle-timetable-grid (.psycle-timetable-list) is the single scroll
+  // The outer #sa-timetable-grid (.sa-timetable-list) is the single scroll
   // container — see initTimetableTab for the pull-to-refresh wiring. The inner
   // container must NOT scroll, otherwise iOS has two nested scrollers and the
   // outer grid's scrollTop stays 0 (breaking the at-top check for pull-to-refresh).
   const fullDateHtml = searching
-    ? `<div class="psycle-tt-searchhead" role="status"><span class="sth-main"><span class="sth-ico" aria-hidden="true">${icon('search', 16)}</span><span class="sth-title" title="${escapeHtml(searchText)}">${escapeHtml(searchTokens.length ? formatCopyText(COPY.search.resultsFor, { text: searchText }) : COPY.search.filteredResults)}</span></span>`
-      + `<button type="button" class="sth-clear" id="psycle-search-clear">${COPY.search.clear}</button>`
+    ? `<div class="sa-tt-searchhead" role="status"><span class="sth-main"><span class="sth-ico" aria-hidden="true">${icon('search', 16)}</span><span class="sth-title" title="${escapeHtml(searchText)}">${escapeHtml(searchTokens.length ? formatCopyText(COPY.search.resultsFor, { text: searchText }) : COPY.search.filteredResults)}</span></span>`
+      + `<button type="button" class="sth-clear" id="sa-search-clear">${COPY.search.clear}</button>`
       + `<span class="sth-count">${finalEvents.length === 1 ? COPY.search.resultsOne : formatCopyText(COPY.search.results, { count: finalEvents.length })}</span></div>`
-      + (finalEvents.length ? '' : `<div class="psycle-tt-searchnone">${escapeHtml(formatCopyText(COPY.search.none, { text: searchText }))}</div>`)
+      + (finalEvents.length ? '' : `<div class="sa-tt-searchnone">${escapeHtml(formatCopyText(COPY.search.none, { text: searchText }))}</div>`)
     : WEEK_STRIP_DATE_SELECTOR
-    ? `<div class="psycle-tt-fulldate">${formatFullDate(selectedTimetableDate)}</div>`
+    ? `<div class="sa-tt-fulldate">${formatFullDate(selectedTimetableDate)}</div>`
     : '';
   ttGrid.innerHTML = `${fullDateHtml}
-    <div class="psycle-table-container">
-      <table class="psycle-table" style="width: 100%; border-collapse: collapse; text-align: left; table-layout: fixed;">
+    <div class="sa-table-container">
+      <table class="sa-table" style="width: 100%; border-collapse: collapse; text-align: left; table-layout: fixed;">
         <thead>
           <tr>
             <th style="width: 7%;">${COPY.timetable.timeColumn}</th>
@@ -2103,15 +2103,15 @@ export async function renderTimetableGrid(reason = 'interaction') {
             <th style="width: 20%; text-align: right;">${COPY.timetable.actionsColumn}</th>
           </tr>
         </thead>
-        <tbody id="psycle-timetable-rows"></tbody>
+        <tbody id="sa-timetable-rows"></tbody>
       </table>
     </div>
   `;
 
-  const tbody = ttGrid.querySelector('#psycle-timetable-rows');
-  const clearBtn = ttGrid.querySelector('#psycle-search-clear');
+  const tbody = ttGrid.querySelector('#sa-timetable-rows');
+  const clearBtn = ttGrid.querySelector('#sa-search-clear');
   if (clearBtn) clearBtn.onclick = () => exitSearch();
-  if (searching && !finalEvents.length) ttGrid.querySelector('.psycle-table-container')?.remove();
+  if (searching && !finalEvents.length) ttGrid.querySelector('.sa-table-container')?.remove();
   let lastSearchDay = null;
 
   finalEvents.forEach(event => {
@@ -2120,7 +2120,7 @@ export async function renderTimetableGrid(reason = 'interaction') {
       if (dayKey !== lastSearchDay) {
         lastSearchDay = dayKey;
         const h = document.createElement('tr');
-        h.className = 'psycle-search-day';
+        h.className = 'sa-search-day';
         h.innerHTML = `<td colspan="${window.matchMedia('(max-width: 768px)').matches ? 6 : 7}">${escapeHtml(formatFullDate(dayKey))}</td>`;
         tbody.appendChild(h);
       }
@@ -2172,11 +2172,11 @@ export async function renderTimetableGrid(reason = 'interaction') {
     const bookmarks = canForGym('bookmarks', event.gymId) ? (profileForGym(event.gymId)?.metafields?.public?.bookmarks?.events || []) : [];
     const isBookmarked = bookmarks.includes(identifier);
     const heartChar = isBookmarked ? '♥' : '♡';
-    const heartClass = isBookmarked ? 'psycle-timetable-heart bookmarked' : 'psycle-timetable-heart unbookmarked';
+    const heartClass = isBookmarked ? 'sa-timetable-heart bookmarked' : 'sa-timetable-heart unbookmarked';
 
     // ── Status badge (kept as a restyled column) + shared action model ──
     let statusBadge = '';
-    let rowClass = 'psycle-table-row';
+    let rowClass = 'sa-table-row';
     let bookingId = null, isPenalty = false, slotsBookedCount = 0, waitlistId = null, graceDeadline = null;
     const hasCredit = hasUsableCredit(event);
 
@@ -2184,16 +2184,16 @@ export async function renderTimetableGrid(reason = 'interaction') {
 
     if (!isLive) {
       if (isScheduled) {
-        rowClass = 'psycle-table-row row-beyond-cutoff row-scheduled';
-        statusBadge = `<span class="badge-pill scheduled psycle-occupancy-hover" data-id="${event.id}" data-gym-id="${event.gymId || ''}">${pulseIcon(12)}${COPY.timetable.autoBook.toUpperCase()}</span>`;
+        rowClass = 'sa-table-row row-beyond-cutoff row-scheduled';
+        statusBadge = `<span class="badge-pill scheduled sa-occupancy-hover" data-id="${event.id}" data-gym-id="${event.gymId || ''}">${pulseIcon(12)}${COPY.timetable.autoBook.toUpperCase()}</span>`;
       } else {
-        rowClass = 'psycle-table-row row-beyond-cutoff';
-        statusBadge = `<span class="badge-pill not-live psycle-occupancy-hover" data-id="${event.id}" data-gym-id="${event.gymId || ''}">${COPY.timetable.notLive}</span>`;
+        rowClass = 'sa-table-row row-beyond-cutoff';
+        statusBadge = `<span class="badge-pill not-live sa-occupancy-hover" data-id="${event.id}" data-gym-id="${event.gymId || ''}">${COPY.timetable.notLive}</span>`;
       }
     } else if (isBooked) {
       const eventBookings = userBookings().filter(b => matchesEvent(b, event));
       slotsBookedCount = eventBookings.length;
-      statusBadge = `<span class="badge-pill yes psycle-occupancy-hover" data-id="${event.id}" data-gym-id="${event.gymId || ''}" style="cursor: pointer;">${COPY.timetable.booked}${slotsBookedCount > 1 ? ` (${slotsBookedCount})` : ''}</span>`;
+      statusBadge = `<span class="badge-pill yes sa-occupancy-hover" data-id="${event.id}" data-gym-id="${event.gymId || ''}" style="cursor: pointer;">${COPY.timetable.booked}${slotsBookedCount > 1 ? ` (${slotsBookedCount})` : ''}</span>`;
       if (slotsBookedCount === 1) {
         bookingId = eventBookings[0].bookingId ?? eventBookings[0].id;
         const bookedAt = eventBookings[0].bookedAt ?? eventBookings[0].booked_at;
@@ -2204,7 +2204,7 @@ export async function renderTimetableGrid(reason = 'interaction') {
         }
       }
     } else if (isOnWaitlist) {
-      statusBadge = `<span class="badge-pill waitlisted psycle-occupancy-hover" data-id="${event.id}" data-gym-id="${event.gymId || ''}" style="cursor: pointer;">${COPY.timetable.waitlisted}</span>`;
+      statusBadge = `<span class="badge-pill waitlisted sa-occupancy-hover" data-id="${event.id}" data-gym-id="${event.gymId || ''}" style="cursor: pointer;">${COPY.timetable.waitlisted}</span>`;
       const waitlistEntry = userWaitlists().find(w => matchesEvent(w, event));
       // C2-2 fix (2026-09-26): this read `waitlistEntry.id`, a field that has
       // never existed on a NormalizedBooking (it's `bookingId` — see base.js's
@@ -2217,8 +2217,8 @@ export async function renderTimetableGrid(reason = 'interaction') {
       if (waitlistEntry) waitlistId = event.id;
     } else if (isFullyBooked) {
       statusBadge = canWaitlist
-        ? `<span class="badge-pill waitlist-open psycle-occupancy-hover" data-id="${event.id}" data-gym-id="${event.gymId || ''}" style="cursor: pointer;">${COPY.timetable.waitlist}</span>`
-        : `<span class="badge-pill no fully-booked psycle-occupancy-hover" data-id="${event.id}" data-gym-id="${event.gymId || ''}">${COPY.timetable.full}</span>`;
+        ? `<span class="badge-pill waitlist-open sa-occupancy-hover" data-id="${event.id}" data-gym-id="${event.gymId || ''}" style="cursor: pointer;">${COPY.timetable.waitlist}</span>`
+        : `<span class="badge-pill no fully-booked sa-occupancy-hover" data-id="${event.id}" data-gym-id="${event.gymId || ''}">${COPY.timetable.full}</span>`;
     } else if (!hasCredit) {
       // Short label in the pill, full reason in the tooltip — the column is
       // narrow and "NO CREDITS AVAILABLE" spends all of it restating "no".
@@ -2226,9 +2226,9 @@ export async function renderTimetableGrid(reason = 'interaction') {
       // says "Buy Credits", so a "No credits" pill beside it is the same fact
       // twice — and it was spending the narrowest column in the table to do it.
       // The reason still reaches the user: it's the button's tooltip.
-      statusBadge = `<span class="badge-pill yes psycle-occupancy-hover" data-id="${event.id}" data-gym-id="${event.gymId || ''}" style="cursor: pointer;" title="${escapeHtml(getIneligibleReason(event.gymId) || COPY.timetable.noCredits)}">${spotsText}</span>`;
+      statusBadge = `<span class="badge-pill yes sa-occupancy-hover" data-id="${event.id}" data-gym-id="${event.gymId || ''}" style="cursor: pointer;" title="${escapeHtml(getIneligibleReason(event.gymId) || COPY.timetable.noCredits)}">${spotsText}</span>`;
     } else {
-      statusBadge = `<span class="badge-pill yes psycle-occupancy-hover" data-id="${event.id}" data-gym-id="${event.gymId || ''}" style="cursor: pointer;">${spotsText}</span>`;
+      statusBadge = `<span class="badge-pill yes sa-occupancy-hover" data-id="${event.id}" data-gym-id="${event.gymId || ''}" style="cursor: pointer;">${spotsText}</span>`;
     }
 
     const actionModel = buildActionModel(event, {
@@ -2262,13 +2262,13 @@ export async function renderTimetableGrid(reason = 'interaction') {
       <td class="col-time"><strong>${timeStr}</strong></td>
       <td class="col-gym">${gymChip(event.gymId)}</td>
       <td class="col-class">
-        <div class="psycle-tt-class-cell">
+        <div class="sa-tt-class-cell">
           ${canForGym('bookmarks', event.gymId) ? `<span class="${heartClass}" data-event-id="${event.id}" title="${isBookmarked ? COPY.timetable.removeBookmark : COPY.timetable.bookmarkClass}">${heartChar}</span>` : ''}
           ${disciplineTag(groupName)}
-          <span class="psycle-tt-class-name">${strippedClassName}</span>
+          <span class="sa-tt-class-name">${strippedClassName}</span>
         </div>
       </td>
-      <td class="col-instructor">${instrName ? `<span class="psycle-instructor-hover" ${instructorHoverAttrs(event.instructors?.[0], event.gymId, instrName)}>${instrName}</span>` : ''}</td>
+      <td class="col-instructor">${instrName ? `<span class="sa-instructor-hover" ${instructorHoverAttrs(event.instructors?.[0], event.gymId, instrName)}>${instrName}</span>` : ''}</td>
       ${/* MID-WIDTH COLUMN: instructor + top-level location only ("SW1",
            "Oxford Circus"), with the specific studio dropped — at that width
            the studio is the least useful thing on the row and the most
@@ -2276,8 +2276,8 @@ export async function renderTimetableGrid(reason = 'interaction') {
            Always rendered; CSS shows exactly one of {instructor+location} or
            {this} at any width, so a resize needs no re-render. */ ''}
       <td class="col-who-where">
-        ${instrName ? `<span class="psycle-ww-who psycle-instructor-hover" ${instructorHoverAttrs(event.instructors?.[0], event.gymId, instrName)}>${instrName}</span>` : ''}
-        ${locName ? `<span class="psycle-ww-loc">${trimLocation(locName, getGymShortName(event.gymId))}</span>` : ''}
+        ${instrName ? `<span class="sa-ww-who sa-instructor-hover" ${instructorHoverAttrs(event.instructors?.[0], event.gymId, instrName)}>${instrName}</span>` : ''}
+        ${locName ? `<span class="sa-ww-loc">${trimLocation(locName, getGymShortName(event.gymId))}</span>` : ''}
       </td>
       <td class="col-location">
         <span style="font-weight:600; display:block; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">${trimLocation(locName, getGymShortName(event.gymId))}</span>
@@ -2293,7 +2293,7 @@ export async function renderTimetableGrid(reason = 'interaction') {
     // (the markup above is capability-gated), so this must be optional. An
     // unconditional querySelector here threw on every row for a gym without
     // them, which emptied the whole timetable.
-    const heartEl = row.querySelector('.psycle-timetable-heart');
+    const heartEl = row.querySelector('.sa-timetable-heart');
     if (heartEl) {
       heartEl.onclick = (e) => {
         e.stopPropagation();
@@ -2319,11 +2319,11 @@ export async function renderTimetableGrid(reason = 'interaction') {
 }
 
 export function equalizePrimaryCTAWidths(container = document) {
-  const root = container.querySelector?.('#psycle-timetable-rows') || container;
+  const root = container.querySelector?.('#sa-timetable-rows') || container;
   const buttons = [...root.querySelectorAll?.('.psycle-mobile-seg.primary') || []];
   if (!buttons.length) return;
 
-  const grid = document.getElementById('psycle-timetable-grid');
+  const grid = document.getElementById('sa-timetable-grid');
   if (!grid) return;
 
   // Base floor for the compact CTA (Batch N base)
@@ -2946,13 +2946,13 @@ function buildActionMenuElement(menuItems) {
 
 function buildDesktopActions(model, event, debugMode, isBookmarked = false) {
   const wrap = document.createElement('div');
-  wrap.className = 'psycle-tt-actions';
+  wrap.className = 'sa-tt-actions';
 
   const group = document.createElement('div');
-  group.className = 'psycle-tt-seg-group' + (model.config && model.showConfigButton !== false ? ' has-caret' : '');
+  group.className = 'sa-tt-seg-group' + (model.config && model.showConfigButton !== false ? ' has-caret' : '');
 
   const pbtn = document.createElement('button');
-  pbtn.className = `psycle-tt-seg primary variant-${model.primary.variant}` + (model.primary.scheduled ? ' scheduled' : '');
+  pbtn.className = `sa-tt-seg primary variant-${model.primary.variant}` + (model.primary.scheduled ? ' scheduled' : '');
   setSegLabel(pbtn, model.primary.label);
   if (model.primary.title) { pbtn.title = model.primary.title; pbtn.setAttribute('aria-label', model.primary.title); }
   if (model.primary.disabled) pbtn.disabled = true;
@@ -2962,7 +2962,7 @@ function buildDesktopActions(model, event, debugMode, isBookmarked = false) {
 
   if (model.config && model.showConfigButton !== false) {
     const caret = document.createElement('button');
-    caret.className = `psycle-tt-seg psycle-tt-seg-caret primary variant-${model.primary.variant}` + (model.primary.scheduled ? ' scheduled' : '');
+    caret.className = `sa-tt-seg sa-tt-seg-caret primary variant-${model.primary.variant}` + (model.primary.scheduled ? ' scheduled' : '');
     caret.innerHTML = '⚙';
     caret.title = model.config === 'autobook' ? COPY.timetable.configureAutoBookAria : COPY.timetable.configureQuickBookAria;
     caret.onclick = (e) => { e.stopPropagation(); openBookingModal(event, model.config); };
@@ -2976,7 +2976,7 @@ function buildDesktopActions(model, event, debugMode, isBookmarked = false) {
 
   if (model.secondary) {
     const sbtn = document.createElement('button');
-    sbtn.className = `psycle-tt-seg secondary variant-${model.secondary.variant}`;
+    sbtn.className = `sa-tt-seg secondary variant-${model.secondary.variant}`;
     setSegLabel(sbtn, model.secondary.label);
     if (model.secondary.disabled) sbtn.disabled = true;
     else if (model.secondary.run) sbtn.onclick = (e) => { e.stopPropagation(); model.secondary.run(sbtn); };
@@ -2995,7 +2995,7 @@ function buildDesktopActions(model, event, debugMode, isBookmarked = false) {
   const menuItems = buildActionMenuItems(event, model, isBookmarked);
   if (menuItems.length > 0) {
     const more = document.createElement('button');
-    more.className = 'psycle-tt-seg psycle-tt-seg-more';
+    more.className = 'sa-tt-seg sa-tt-seg-more';
     more.innerHTML = '⋯';
     more.setAttribute('aria-label', COPY.timetable.moreActions);
     more.setAttribute('aria-haspopup', 'menu');
@@ -3072,7 +3072,7 @@ function wireMobileMenuToggle(btn, menu, onOpen) {
 
 // === MOBILE TIMETABLE — injectMobileFilterHamburger (added Jun 2026; delete this block to revert) ===
 function injectMobileFilterHamburger() {
-  const filtersRow = document.querySelector('#psycle-timetable-filters-container .psycle-filters-row');
+  const filtersRow = document.querySelector('#sa-timetable-filters-container .sa-filters-row');
   if (!filtersRow) return;
 
   // Rebuild the trigger + menu every render. The grid clears all body-appended
@@ -3090,7 +3090,7 @@ function injectMobileFilterHamburger() {
   menu.className = 'psycle-mobile-menu';
   menu.style.display = 'none';
 
-  const favBtn = document.getElementById('psycle-filter-favorites-only');
+  const favBtn = document.getElementById('sa-filter-favorites-only');
   const clearBtn = document.getElementById('psycle-btn-clear-all-filters');
   const saveBtn = document.getElementById('psycle-btn-save-default-filters');
 
@@ -3163,7 +3163,7 @@ function buildMobileClassRow(event, ctx, model) {
   const firstInstr = event.instructors?.[0];
   const instrId = firstInstr?.id || metadata.instructors?.find(i => (i.name === instrName || i.full_name === instrName) && (!event.gymId || i.gymId === event.gymId))?.id || '';
   const avatarHtml = SHOW_TIMETABLE_INSTRUCTOR_PHOTO && instrName
-    ? `<span class="psycle-mobile-avatar psycle-instructor-hover" ${instructorHoverAttrs(firstInstr ? { ...firstInstr, id: instrId || firstInstr.id } : { id: instrId }, event.gymId, instrName)} data-initial="${escapeHtml(String(instrName).trim().charAt(0).toUpperCase())}" role="button" tabindex="0" aria-label="${formatCopyText(COPY.timetable.instructorProfileAria, { name: escapeHtml(instrName) })}">${instructorAvatar(instrName, event.gymId, firstInstr?.thumbUrl || firstInstr?.imageUrl || null, { size: 38, lazy: true, cls: 'psycle-mobile-avatar-img' })}</span>`
+    ? `<span class="psycle-mobile-avatar sa-instructor-hover" ${instructorHoverAttrs(firstInstr ? { ...firstInstr, id: instrId || firstInstr.id } : { id: instrId }, event.gymId, instrName)} data-initial="${escapeHtml(String(instrName).trim().charAt(0).toUpperCase())}" role="button" tabindex="0" aria-label="${formatCopyText(COPY.timetable.instructorProfileAria, { name: escapeHtml(instrName) })}">${instructorAvatar(instrName, event.gymId, firstInstr?.thumbUrl || firstInstr?.imageUrl || null, { size: 38, lazy: true, cls: 'psycle-mobile-avatar-img' })}</span>`
     : '';
 
   card.innerHTML = `
@@ -3181,7 +3181,7 @@ function buildMobileClassRow(event, ctx, model) {
         </div>
         <div class="psycle-mobile-line2">
           <span class="psycle-mobile-class-name">${strippedClassName}</span>
-          ${instrName ? `<span class="psycle-mobile-dot">&middot;</span><span class="psycle-mobile-instructor psycle-instructor-hover" ${instructorHoverAttrs(event.instructors?.[0], event.gymId, instrName)}>${instrName}</span>` : ''}
+          ${instrName ? `<span class="psycle-mobile-dot">&middot;</span><span class="psycle-mobile-instructor sa-instructor-hover" ${instructorHoverAttrs(event.instructors?.[0], event.gymId, instrName)}>${instrName}</span>` : ''}
         </div>
         <div class="psycle-mobile-bottom-line">
           <span class="psycle-mobile-location">${displayLoc}</span>
@@ -3895,23 +3895,23 @@ export async function openBookingModal(c, mode, opts = {}) {
 
     body.innerHTML = `
       <div id="sa-modal-info-banner" style="margin-bottom:10px;"></div>
-      <div class="psycle-floor-plan-container" style="position:relative;height:${minMapHeight}px;background:var(--surface-inset);border:1px solid var(--border);border-radius:12px;margin-bottom:10px;overflow:hidden;">
-        <div id="psycle-floor-plan-grid" style="width:100%;height:100%;"></div>
+      <div class="sa-floor-plan-container" style="position:relative;height:${minMapHeight}px;background:var(--surface-inset);border:1px solid var(--border);border-radius:12px;margin-bottom:10px;overflow:hidden;">
+        <div id="sa-floor-plan-grid" style="width:100%;height:100%;"></div>
       </div>
       <div id="psycle-map-edit-toggle"></div>
-      <div id="psycle-slot-summary" style="font-size:12px;color:var(--text-secondary);margin-bottom:12px;min-height:16px;${opts.setupFlow ? 'display:none;' : ''}"></div>
+      <div id="sa-slot-summary" style="font-size:12px;color:var(--text-secondary);margin-bottom:12px;min-height:16px;${opts.setupFlow ? 'display:none;' : ''}"></div>
       <div id="sa-modal-controls-container"></div>
     `;
 
-    const floorGrid = body.querySelector('#psycle-floor-plan-grid');
-    mountBookingContext(body, body.querySelector('.psycle-floor-plan-container'), classCtx, classHelper);
+    const floorGrid = body.querySelector('#sa-floor-plan-grid');
+    mountBookingContext(body, body.querySelector('.sa-floor-plan-container'), classCtx, classHelper);
 
     // Render Stage — NormalizedLayoutObject[]; empty for providers with none.
     layoutObjects.forEach(obj => {
       const left = widthRange === 0 ? 50 : ((obj.x - minX) / widthRange) * 80 + 10;
       const top = heightRange === 0 ? 10 : ((obj.y - minY) / heightRange) * 75 + 10;
       const stage = document.createElement('div');
-      stage.className = 'psycle-minimap-stage';
+      stage.className = 'sa-minimap-stage';
       stage.style.cssText = `position: absolute; left: ${left}%; top: ${top}%; transform: translate(-50%, -50%); background: color-mix(in srgb, var(--text) 15%, transparent); border: 1px solid color-mix(in srgb, var(--text) 30%, transparent); padding: 4px 16px; border-radius: 6px; font-size: 12px; font-weight: bold; color: #fff; letter-spacing: 0.5px;`;
       stage.textContent = COPY.timetable.stage;
       floorGrid.appendChild(stage);
@@ -4000,7 +4000,7 @@ export async function openBookingModal(c, mode, opts = {}) {
 
     const render = () => {
       floorGrid.innerHTML = '';
-      const summaryEl = body.querySelector('#psycle-slot-summary');
+      const summaryEl = body.querySelector('#sa-slot-summary');
 
       // Cyan row backdrops (rendered first, so they stay behind)
       state.selectedRows.forEach(y => {

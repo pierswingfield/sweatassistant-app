@@ -104,7 +104,7 @@ let compactObserver = null;
 function appContainer() { return document.getElementById('psycle-app-container'); }
 function isGymStacked() {
   const app = appContainer();
-  return !!(app && app.classList.contains('psycle-tt-compact') && !gymStackOpen
+  return !!(app && app.classList.contains('sa-tt-compact') && !gymStackOpen
     && window.matchMedia && window.matchMedia('(max-width: 768px)').matches);
 }
 function setGymStackOpen(open, rail) {
@@ -115,7 +115,7 @@ function watchCompact() {
   const app = appContainer();
   if (compactObserver || !app || typeof MutationObserver === 'undefined') return;
   compactObserver = new MutationObserver(() => {
-    if (!app.classList.contains('psycle-tt-compact') && gymStackOpen) setGymStackOpen(false);
+    if (!app.classList.contains('sa-tt-compact') && gymStackOpen) setGymStackOpen(false);
   });
   compactObserver.observe(app, { attributes: true, attributeFilter: ['class'] });
 }
@@ -123,7 +123,7 @@ function watchCompact() {
 export function renderFilterRail(ctx) {
   watchCompact();
   lastCtx = ctx;
-  const host = document.getElementById('psycle-timetable-filters-container');
+  const host = document.getElementById('sa-timetable-filters-container');
   if (!host) return;
   let rail = document.getElementById('sweat-filter-rail');
   if (!rail) {
@@ -160,7 +160,7 @@ export function renderFilterRail(ctx) {
 
   if (state.gyms.length || state.locations.length) {
     const compact = compactLocationsLabel(state, ctx.locations);
-    // Both faces stay in the DOM; CSS cross-fades them while the page is scrolled down (psycle-tt-compact).
+    // Both faces stay in the DOM; CSS cross-fades them while the page is scrolled down (sa-tt-compact).
     const tile = compact
       ? `<span class="fr-tile-full">${gymTileHtml(ctx)}</span><span class="fr-tile-compact" aria-hidden="true">${escapeHtml(compact)}</span>`
       : gymTileHtml(ctx);

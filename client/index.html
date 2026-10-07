@@ -208,8 +208,8 @@
         </div>
         <div class="psycle-sticky-top">
           <!-- Filters Area -->
-          <div class="psycle-filters-card" id="psycle-timetable-filters-container">
-            <div class="psycle-filters-row" style="display: flex; gap: 8px; margin-bottom: 6px; flex-wrap: wrap; align-items: center; width: 100%;">
+          <div class="sa-filters-card" id="sa-timetable-filters-container">
+            <div class="sa-filters-row" style="display: flex; gap: 8px; margin-bottom: 6px; flex-wrap: wrap; align-items: center; width: 100%;">
             
               <!-- Gym Dropdown (Visible when >1 gym linked) -->
               <div class="psycle-ms-dropdown" id="psycle-ms-gym" style="display: none; flex: 1; min-width: 140px; position: relative;">
@@ -272,7 +272,7 @@
               </div>
 
               <!-- Bookmarked Filter Toggle -->
-              <button id="psycle-filter-favorites-only" data-requires-capability="bookmarks" class="psycle-btn-mini" style="height: 40px !important; padding: 0 16px !important; border-radius: 12px !important; font-weight: 600; cursor: pointer;">
+              <button id="sa-filter-favorites-only" data-requires-capability="bookmarks" class="psycle-btn-mini" style="height: 40px !important; padding: 0 16px !important; border-radius: 12px !important; font-weight: 600; cursor: pointer;">
                 <span data-copy-text="static.bookmarked">♡ Bookmarked</span>
               </button>
 
@@ -286,13 +286,13 @@
           </div>
 
           <!-- Date Carousel -->
-          <div class="psycle-date-selector" id="psycle-timetable-carousel">
+          <div class="sa-date-selector" id="sa-timetable-carousel">
             <!-- Date items will be injected here -->
           </div>
         </div>
 
         <!-- Timetable Grid List -->
-        <div class="psycle-timetable-list" id="psycle-timetable-grid">
+        <div class="sa-timetable-list" id="sa-timetable-grid">
           <div class="psycle-loading-spinner-container">
             <div class="psycle-spinner"></div>
             <span data-copy-text="static.fetchingClasses">Fetching timetable classes...</span>
@@ -312,25 +312,25 @@
 
         <div class="psycle-section">
           <div class="psycle-section-header">
-            <h3 data-copy-text="static.activeBookings">Active Bookings</h3><span id="psycle-bookings-count" class="psycle-section-count" hidden></span>
-            <span id="psycle-bookings-refreshing" class="psycle-refreshing-chip" style="display: none;"><span class="psycle-spinner"></span> <span data-copy-text="static.refreshing">Refreshing...</span></span>
+            <h3 data-copy-text="static.activeBookings">Active Bookings</h3><span id="sa-bookings-count" class="psycle-section-count" hidden></span>
+            <span id="sa-bookings-refreshing" class="psycle-refreshing-chip" style="display: none;"><span class="psycle-spinner"></span> <span data-copy-text="static.refreshing">Refreshing...</span></span>
           </div>
-          <div id="psycle-bookings-list" class="psycle-bookings-list">
+          <div id="sa-bookings-list" class="sa-bookings-list">
             <div class="psycle-skeleton-list" role="status" aria-label="Loading bookings"><div class="psycle-skeleton-card" aria-hidden="true"><div class="psycle-skeleton-card-head"><span class="psycle-skeleton-line is-strong" style="--skeleton-width:34%" aria-hidden="true"></span><span class="psycle-skeleton-line is-chip" style="--skeleton-width:18%" aria-hidden="true"></span></div><span class="psycle-skeleton-line" style="--skeleton-width:64%" aria-hidden="true"></span><span class="psycle-skeleton-line is-short" style="--skeleton-width:56%" aria-hidden="true"></span></div><div class="psycle-skeleton-card" aria-hidden="true"><div class="psycle-skeleton-card-head"><span class="psycle-skeleton-line is-strong" style="--skeleton-width:42%" aria-hidden="true"></span><span class="psycle-skeleton-line is-chip" style="--skeleton-width:18%" aria-hidden="true"></span></div><span class="psycle-skeleton-line" style="--skeleton-width:72%" aria-hidden="true"></span><span class="psycle-skeleton-line is-short" style="--skeleton-width:48%" aria-hidden="true"></span></div></div>
           </div>
         </div>
 
-        <div class="psycle-section" id="psycle-waitlists-section" style="margin-top: 24px;">
-          <div class="psycle-section-header" id="psycle-waitlists-header">
-            <h3 data-copy-text="static.activeWaitlists">Active Waitlists</h3><span id="psycle-waitlists-count" class="psycle-section-count" hidden></span>
-            <span id="psycle-waitlists-refreshing" class="psycle-refreshing-chip" style="display: none;"><span class="psycle-spinner"></span> <span data-copy-text="static.refreshing">Refreshing...</span></span>
+        <div class="psycle-section" id="sa-waitlists-section" style="margin-top: 24px;">
+          <div class="psycle-section-header" id="sa-waitlists-header">
+            <h3 data-copy-text="static.activeWaitlists">Active Waitlists</h3><span id="sa-waitlists-count" class="psycle-section-count" hidden></span>
+            <span id="sa-waitlists-refreshing" class="psycle-refreshing-chip" style="display: none;"><span class="psycle-spinner"></span> <span data-copy-text="static.refreshing">Refreshing...</span></span>
           </div>
-          <div id="psycle-waitlists-list" class="psycle-bookings-list">
+          <div id="sa-waitlists-list" class="sa-bookings-list">
             <div class="psycle-skeleton-list" role="status" aria-label="Loading waitlists"><div class="psycle-skeleton-card" aria-hidden="true"><div class="psycle-skeleton-card-head"><span class="psycle-skeleton-line is-strong" style="--skeleton-width:34%" aria-hidden="true"></span><span class="psycle-skeleton-line is-chip" style="--skeleton-width:18%" aria-hidden="true"></span></div><span class="psycle-skeleton-line" style="--skeleton-width:64%" aria-hidden="true"></span><span class="psycle-skeleton-line is-short" style="--skeleton-width:56%" aria-hidden="true"></span></div></div>
           </div>
         </div>
 
-        <button type="button" id="psycle-waitlist-jump" class="psycle-waitlist-jump" inert aria-hidden="true"></button>
+        <button type="button" id="sa-waitlist-jump" class="sa-waitlist-jump" inert aria-hidden="true"></button>
 
       </section>
 
@@ -413,7 +413,7 @@
 
         <!-- Credit bundle list (shown only when a linked gym supports purchases) -->
         <div class="psycle-bundles-filters" id="psycle-bundles-filters">
-          <div class="psycle-search-box">
+          <div class="sa-search-box">
             <svg class="search-icon" viewBox="0 0 24 24" width="16" height="16">
               <path fill="currentColor" d="M15.5 14h-.79l-.28-.27C15.41 12.59 16 11.11 16 9.5 16 5.91 13.09 3 9.5 3S3 5.91 3 9.5 5.91 16 9.5 16c1.61 0 3.09-.59 4.23-1.57l.27.28v.79l5 4.99L20.49 19l-4.99-5zm-6 0C7.01 14 5 11.99 5 9.5S7.01 5 9.5 5 14 7.01 14 9.5 11.99 14 9.5 14z"/>
             </svg>
@@ -823,8 +823,8 @@
   </div>
 
   <!-- Absolute Tooltip Popups -->
-  <div id="psycle-instructor-tooltip" class="psycle-tooltip" style="display: none;"></div>
-  <div id="psycle-occupancy-tooltip" class="psycle-tooltip" style="display: none;"></div>
+  <div id="sa-instructor-tooltip" class="sa-tooltip" style="display: none;"></div>
+  <div id="sa-occupancy-tooltip" class="sa-tooltip" style="display: none;"></div>
 
   <!-- Debug Log Terminal -->
   <div id="sa-debug-terminal" style="display: none; position: fixed; bottom: 30px; right: 12px; width: 420px; max-height: 280px; background: color-mix(in srgb, var(--bg) 95%, transparent); border: 1px solid color-mix(in srgb, var(--feat-autoupgrade) 30%, transparent); border-radius: 12px; z-index: 10000; font-family: 'SF Mono', 'Fira Code', 'Consolas', monospace; font-size: 12px; color: var(--text); overflow: hidden; box-shadow: 0 8px 32px color-mix(in srgb, var(--bg) 50%, transparent);">

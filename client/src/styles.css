@@ -153,7 +153,7 @@
 
   /* Accessibility — minimum interactive hit target (WCAG 2.5.5) */
   --tap-min: 44px;
-  /* Timetable action lanes — see `.psycle-tt-actions`. One place to retune the
+  /* Timetable action lanes — see `.sa-tt-actions`. One place to retune the
      column, rather than a width repeated across several segment rules. */
   --tt-seg-w: 122px;
   --tt-caret-w: 40px;
@@ -518,8 +518,8 @@
   }
   .psycle-gym-chip-logo .ab-gym-logo-img { max-width: 48px; }
   .psycle-gym-chip-logo .ab-gym-logo-svg { max-width: 48px; height: 12px; }
-  #sa-helper-container .psycle-table td.col-gym,
-  #sa-helper-container .psycle-table th.col-gym { width: 78px !important; }
+  #sa-helper-container .sa-table td.col-gym,
+  #sa-helper-container .sa-table th.col-gym { width: 78px !important; }
 }
 
 /* BRAND PLATES — each gym's wordmark on each gym's own ground.
@@ -655,11 +655,11 @@ html, body {
 #sa-helper-container .psycle-btn-primary,
 #sa-helper-container .psycle-btn-mini,
 #sa-helper-container .psycle-action-btn-mini,
-#sa-helper-container .psycle-day-pill,
-#sa-helper-container .psycle-timetable-book-btn,
-#sa-helper-container .psycle-timetable-waitlist-btn,
-#sa-helper-container .psycle-timetable-cancel-booking-btn,
-#sa-helper-container .psycle-timetable-leave-waitlist-btn,
+#sa-helper-container .sa-day-pill,
+#sa-helper-container .sa-timetable-book-btn,
+#sa-helper-container .sa-timetable-waitlist-btn,
+#sa-helper-container .sa-timetable-cancel-booking-btn,
+#sa-helper-container .sa-timetable-leave-waitlist-btn,
 #sa-helper-container .psycle-ms-trigger,
 #sa-helper-container a[role="button"],
 #sa-helper-container [role="tab"],
@@ -1172,13 +1172,13 @@ html, body {
 
 /* Dashboard Controls Layout */
 
-#sa-helper-container .psycle-search-box {
+#sa-helper-container .sa-search-box {
   position: relative;
   flex: 1;
   max-width: 260px;
 }
 
-#sa-helper-container .psycle-search-box input {
+#sa-helper-container .sa-search-box input {
   width: 100%;
   background: var(--surface-inset);
   border: 1px solid var(--border);
@@ -1191,16 +1191,16 @@ html, body {
   transition: all 0.2s ease;
 }
 
-#sa-helper-container .psycle-search-box input:focus {
+#sa-helper-container .sa-search-box input:focus {
   background: var(--surface-inset);
   border-color: var(--border-strong);
 }
 
-#sa-helper-container .psycle-search-box input::placeholder {
+#sa-helper-container .sa-search-box input::placeholder {
   color: var(--text-secondary);
 }
 
-#sa-helper-container .psycle-search-box .search-icon {
+#sa-helper-container .sa-search-box .search-icon {
   position: absolute;
   left: 14px;
   top: 50%;
@@ -1310,7 +1310,7 @@ html, body {
 }
 
 /* Scrollable Table styling */
-#sa-helper-container .psycle-table-container {
+#sa-helper-container .sa-table-container {
   border: 1px solid var(--border);
   border-radius: 16px;
   background: var(--surface-inset);
@@ -1324,26 +1324,26 @@ html, body {
 
 
 /* Custom WebKit scrollbar styles consolidated */
-#sa-helper-container .psycle-table-container::-webkit-scrollbar,
-#sa-helper-container .psycle-date-selector::-webkit-scrollbar,
+#sa-helper-container .sa-table-container::-webkit-scrollbar,
+#sa-helper-container .sa-date-selector::-webkit-scrollbar,
 #sa-helper-container .psycle-ms-menu::-webkit-scrollbar {
   width: 6px;
   height: 6px;
 }
-#sa-helper-container .psycle-table-container::-webkit-scrollbar-track,
-#sa-helper-container .psycle-date-selector::-webkit-scrollbar-track,
+#sa-helper-container .sa-table-container::-webkit-scrollbar-track,
+#sa-helper-container .sa-date-selector::-webkit-scrollbar-track,
 #sa-helper-container .psycle-ms-menu::-webkit-scrollbar-track {
   background: color-mix(in srgb, var(--text) 3%, transparent);
   border-radius: 3px;
 }
-#sa-helper-container .psycle-table-container::-webkit-scrollbar-thumb,
-#sa-helper-container .psycle-date-selector::-webkit-scrollbar-thumb,
+#sa-helper-container .sa-table-container::-webkit-scrollbar-thumb,
+#sa-helper-container .sa-date-selector::-webkit-scrollbar-thumb,
 #sa-helper-container .psycle-ms-menu::-webkit-scrollbar-thumb {
   background: color-mix(in srgb, var(--text) 15%, transparent);
   border-radius: 3px;
 }
-#sa-helper-container .psycle-table-container::-webkit-scrollbar-thumb:hover,
-#sa-helper-container .psycle-date-selector::-webkit-scrollbar-thumb:hover,
+#sa-helper-container .sa-table-container::-webkit-scrollbar-thumb:hover,
+#sa-helper-container .sa-date-selector::-webkit-scrollbar-thumb:hover,
 #sa-helper-container .psycle-ms-menu::-webkit-scrollbar-thumb:hover {
   background: color-mix(in srgb, var(--text) 30%, transparent);
 }
@@ -1846,10 +1846,10 @@ html, body {
 
 /* --- SHARED SPOT-MAP FLOOR PLAN — pannable, min-gap, edge-to-edge on mobile ---
    spotmap.js builds a fixed-pixel floor of absolutely-positioned slots inside
-   .psycle-floor and measures .psycle-floor-scroll's width to pick a scale.
+   .sa-floor and measures .sa-floor-scroll's width to pick a scale.
    These rules are load-bearing: without position:relative the slots escape
    their box, and without overflow/max-height the map spills past the card. */
-.psycle-floor-scroll {
+.sa-floor-scroll {
   overflow: auto;
   -webkit-overflow-scrolling: touch;
   touch-action: pan-x pan-y;
@@ -1859,7 +1859,7 @@ html, body {
   border-radius: 8px;
 }
 
-.psycle-floor {
+.sa-floor {
   position: relative;
   margin: 0 auto;
   flex-shrink: 0;
@@ -2014,7 +2014,7 @@ html, body {
 }
 
 @media (max-width: 768px) {
-  .sa-modal-body .psycle-floor-scroll {
+  .sa-modal-body .sa-floor-scroll {
     margin-left: -18px;
     margin-right: -18px;
     width: calc(100% + 36px);
@@ -2064,7 +2064,7 @@ html, body {
 
 
 /* Day Selector horizontal scroll list */
-#sa-helper-container .psycle-date-selector {
+#sa-helper-container .sa-date-selector {
   display: flex;
   flex-shrink: 0 !important;
   gap: 6px;
@@ -2077,7 +2077,7 @@ html, body {
 
 /* Consolidated scrollbar styling used here */
 
-#sa-helper-container .psycle-day-pill {
+#sa-helper-container .sa-day-pill {
   display: inline-flex;
   flex-direction: column;
   align-items: center;
@@ -2093,19 +2093,19 @@ html, body {
   user-select: none;
 }
 
-#sa-helper-container .psycle-day-pill:hover {
+#sa-helper-container .sa-day-pill:hover {
   background: color-mix(in srgb, var(--text) 8%, transparent);
   border-color: var(--border-strong);
   transform: translateY(-1px);
 }
 
-#sa-helper-container .psycle-day-pill.active {
+#sa-helper-container .sa-day-pill.active {
   background: color-mix(in srgb, var(--accent) 12%, transparent);
   border-color: var(--accent);
   box-shadow: 0 0 12px color-mix(in srgb, var(--accent) 25%, transparent);
 }
 
-#sa-helper-container .psycle-day-pill .day-name {
+#sa-helper-container .sa-day-pill .day-name {
   font-size: 12px;
   font-weight: 400;
   color: var(--text-secondary);
@@ -2115,23 +2115,23 @@ html, body {
   line-height: 1 !important;
 }
 
-#sa-helper-container .psycle-day-pill.active .day-name {
+#sa-helper-container .sa-day-pill.active .day-name {
   color: var(--accent);
   opacity: 0.75;
 }
 
-#sa-helper-container .psycle-day-pill .day-num {
+#sa-helper-container .sa-day-pill .day-num {
   font-size: 13px;
   font-weight: 700;
   color: var(--text);
   line-height: 1 !important;
 }
 
-#sa-helper-container .psycle-day-pill.active .day-num {
+#sa-helper-container .sa-day-pill.active .day-num {
   color: var(--accent);
 }
 
-#sa-helper-container .psycle-day-pill .day-month {
+#sa-helper-container .sa-day-pill .day-month {
   font-size: 13px;
   font-weight: 700;
   text-transform: uppercase;
@@ -2140,12 +2140,12 @@ html, body {
   line-height: 1 !important;
 }
 
-#sa-helper-container .psycle-day-pill.active .day-month {
+#sa-helper-container .sa-day-pill.active .day-month {
   color: var(--accent);
 }
 
 /* Select Dropdown Filters styling */
-#sa-helper-container .psycle-filters-row {
+#sa-helper-container .sa-filters-row {
   display: flex;
   flex-shrink: 0 !important;
   gap: 8px;
@@ -2233,7 +2233,7 @@ html, body {
 
 
 
-.psycle-slot-grid-btn.occupied {
+.sa-slot-grid-btn.occupied {
   background: color-mix(in srgb, var(--text) 3%, transparent) !important;
   border: 1px solid var(--border) !important;
   color: color-mix(in srgb, var(--text) 20%, transparent) !important;
@@ -2255,7 +2255,7 @@ html, body {
 }
 
 /* Fallback Grid layout buttons */
-.psycle-slot-grid-btn {
+.sa-slot-grid-btn {
   background: var(--surface-inset);
   border: 1px solid var(--border);
   border-radius: 10px;
@@ -2269,14 +2269,14 @@ html, body {
   user-select: none;
 }
 
-.psycle-slot-grid-btn:hover {
+.sa-slot-grid-btn:hover {
   background: color-mix(in srgb, var(--success) 15%, transparent);
   border-color: color-mix(in srgb, var(--success) 45%, transparent);
   color: var(--text);
   transform: translateY(-1px);
 }
 
-.psycle-slot-grid-btn.selected {
+.sa-slot-grid-btn.selected {
   background: var(--success) !important;
   border-color: var(--success) !important;
   color: var(--on-accent) !important;
@@ -2313,7 +2313,7 @@ html, body {
 /* --- INSTRUCTOR HOVER TOOLTIP & CLASS DEBUG OVERRIDES --- */
 
 /* Instructor Tooltip styling */
-#psycle-instructor-tooltip {
+#sa-instructor-tooltip {
   position: fixed;
   z-index: 2200000; /* Ensure it floats above the modal (2000000) and other components */
   width: 350px;
@@ -2334,18 +2334,18 @@ html, body {
   transition: opacity 0.2s ease, transform 0.2s cubic-bezier(0.16, 1, 0.3, 1);
 }
 
-#psycle-instructor-tooltip.show {
+#sa-instructor-tooltip.show {
   opacity: 1;
   transform: scale(1);
 }
 
-.psycle-tooltip-header {
+.sa-tooltip-header {
   display: flex;
   gap: 12px;
   align-items: center;
 }
 
-.psycle-tooltip-avatar {
+.sa-tooltip-avatar {
   width: 48px;
   height: 48px;
   border-radius: 50%;
@@ -2353,7 +2353,7 @@ html, body {
   border: 2px solid color-mix(in srgb, var(--accent) 40%, transparent);
 }
 
-.psycle-tooltip-name {
+.sa-tooltip-name {
   font-size: 14px;
   font-weight: 700;
   color: var(--text);
@@ -2363,7 +2363,7 @@ html, body {
   text-overflow: ellipsis;
 }
 
-.psycle-tooltip-keywords {
+.sa-tooltip-keywords {
   font-size: 12px;
   color: color-mix(in srgb, var(--accent) 80%, var(--text) 20%);
   font-weight: 500;
@@ -2373,7 +2373,7 @@ html, body {
   white-space: nowrap;
 }
 
-.psycle-tooltip-socials {
+.sa-tooltip-socials {
   margin-top: 10px;
   display: flex;
   gap: 12px;
@@ -2381,14 +2381,14 @@ html, body {
   color: color-mix(in srgb, var(--accent) 80%, var(--text) 20%);
 }
 
-.psycle-tooltip-socials span,
-.psycle-tooltip-socials .psycle-tooltip-social-link {
+.sa-tooltip-socials span,
+.sa-tooltip-socials .sa-tooltip-social-link {
   display: flex;
   align-items: center;
   gap: 4px;
 }
 
-.psycle-tooltip-socials .psycle-tooltip-social-link {
+.sa-tooltip-socials .sa-tooltip-social-link {
   text-decoration: none;
   color: inherit;
   cursor: pointer;
@@ -2396,18 +2396,18 @@ html, body {
   transition: color 0.15s, text-decoration 0.15s;
 }
 
-.psycle-tooltip-socials .psycle-tooltip-social-link { min-width: 0; max-width: 100%; }
-.psycle-tooltip-socials .psycle-tooltip-social-text {
+.sa-tooltip-socials .sa-tooltip-social-link { min-width: 0; max-width: 100%; }
+.sa-tooltip-socials .sa-tooltip-social-text {
   min-width: 0;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
-.psycle-tooltip-socials { min-width: 0; flex-wrap: wrap; }
+.sa-tooltip-socials { min-width: 0; flex-wrap: wrap; }
 /* Instagram handle is never truncated: wrap instead. Only the long music link ellipsizes. */
-.psycle-tooltip-socials .psycle-tooltip-social-text.psycle-tooltip-social-wrap { overflow: visible; text-overflow: clip; white-space: normal; overflow-wrap: anywhere; }
+.sa-tooltip-socials .sa-tooltip-social-text.sa-tooltip-social-wrap { overflow: visible; text-overflow: clip; white-space: normal; overflow-wrap: anywhere; }
 
-.psycle-tooltip-socials .psycle-tooltip-social-link:hover {
+.sa-tooltip-socials .sa-tooltip-social-link:hover {
   color: var(--accent);
   text-decoration: underline;
 }
@@ -2556,7 +2556,7 @@ html, body {
 
 /* --- TIMETABLE VIEW TABLE RESET & ALIGNMENTS --- */
 
-#sa-helper-container .psycle-table {
+#sa-helper-container .sa-table {
   display: table !important;
   width: 100% !important;
   /* The table must NEVER exceed its container. Without this the actions
@@ -2575,52 +2575,52 @@ html, body {
   margin-top: 2px !important;
 }
 
-#sa-helper-container .psycle-table thead {
+#sa-helper-container .sa-table thead {
   display: table-header-group !important;
 }
 
-#sa-helper-container .psycle-table tbody {
+#sa-helper-container .sa-table tbody {
   display: table-row-group !important;
 }
 
-#sa-helper-container .psycle-table tr {
+#sa-helper-container .sa-table tr {
   display: table-row !important;
   border-bottom: 1px solid var(--separator) !important;
   background: transparent !important;
   transition: background-color 0.15s ease !important;
 }
 
-#sa-helper-container .psycle-table tr:hover {
+#sa-helper-container .sa-table tr:hover {
   background: color-mix(in srgb, var(--text) 4%, transparent) !important;
 }
 
-#sa-helper-container #psycle-timetable-rows {
+#sa-helper-container #sa-timetable-rows {
   background: var(--surface) !important;
 }
 
-#sa-helper-container #psycle-timetable-rows tr {
+#sa-helper-container #sa-timetable-rows tr {
   background: var(--surface) !important;
 }
 
-#sa-helper-container #psycle-timetable-rows tr:hover {
+#sa-helper-container #sa-timetable-rows tr:hover {
   background: color-mix(in srgb, var(--text) 4%, var(--surface)) !important;
 }
 
 /* Row tint by gym identity (2026-09-02, re-fixed same day) — same colours/
    opacities as the Auto-Book/Bookings card tint (`.ab-card[data-gym=...]`
-   below). First attempt used `.psycle-table tr[data-gym=...]` (one #id),
-   which never painted: `#psycle-timetable-rows tr` above has TWO #ids and
+   below). First attempt used `.sa-table tr[data-gym=...]` (one #id),
+   which never painted: `#sa-timetable-rows tr` above has TWO #ids and
    always won the cascade regardless of source order or `!important` on
    either side — CSS specificity compares id-count first, before class/
    attribute count. Matching that #id here is what makes this win. */
-#sa-helper-container #psycle-timetable-rows tr[data-gym] {
+#sa-helper-container #sa-timetable-rows tr[data-gym] {
   background: color-mix(in srgb, var(--gym-tint) 3%, var(--surface)) !important;
 }
-#sa-helper-container #psycle-timetable-rows tr[data-gym]:hover {
+#sa-helper-container #sa-timetable-rows tr[data-gym]:hover {
   background: color-mix(in srgb, var(--gym-tint) 7%, var(--surface)) !important;
 }
 
-#sa-helper-container .psycle-table th {
+#sa-helper-container .sa-table th {
   display: table-cell !important;
   padding: 6px 8px !important;
   color: var(--text-secondary) !important;
@@ -2636,7 +2636,7 @@ html, body {
   z-index: 10 !important;
 }
 
-#sa-helper-container .psycle-table td {
+#sa-helper-container .sa-table td {
   display: table-cell !important;
   padding: 6px 8px !important;
   vertical-align: middle !important;
@@ -2645,14 +2645,14 @@ html, body {
   color: var(--text-secondary) !important;
 }
 
-#sa-helper-container .psycle-table td strong {
+#sa-helper-container .sa-table td strong {
   font-size: 13px !important;
   font-weight: 600 !important;
   color: var(--text) !important;
 }
 
 
-#sa-helper-container .psycle-table td .psycle-instructor-hover {
+#sa-helper-container .sa-table td .sa-instructor-hover {
   font-size: 13px !important;
   font-weight: 500 !important;
 }
@@ -2661,7 +2661,7 @@ html, body {
 /* Match extension column proportions + handle overflow cleanly */
 
 
-#sa-helper-container .psycle-table td.col-time strong {
+#sa-helper-container .sa-table td.col-time strong {
   font-size: 14px !important;
   font-weight: 800 !important;
   color: var(--text) !important;
@@ -2690,32 +2690,32 @@ html, body {
    - Headers: the columns are self-evident (a time, a gym chip, a class name).
    - Heart: still reachable in the row's overflow menu, so nothing is lost.
    Both are one-line reverts — delete this block. */
-#sa-helper-container .psycle-table thead {
+#sa-helper-container .sa-table thead {
   display: none !important;
 }
-#sa-helper-container .psycle-timetable-heart {
+#sa-helper-container .sa-timetable-heart {
   display: none !important;
 }
 
-#sa-helper-container .psycle-table td.col-time,
-#sa-helper-container .psycle-table th.col-time { width: 72px !important; }
+#sa-helper-container .sa-table td.col-time,
+#sa-helper-container .sa-table th.col-time { width: 72px !important; }
 
 /* Hugs the brand plate as tightly as possible: the plate is 92px, so 96px plus
    minimal side padding leaves almost no dead space between the wordmark and the
    discipline pill beside it. Was 118px, which read as a gap in the row. */
-#sa-helper-container .psycle-table td.col-gym,
-#sa-helper-container .psycle-table th.col-gym { width: 96px !important; }
-#sa-helper-container .psycle-table td.col-gym { padding-left: 8px !important; padding-right: 0 !important; }
-#sa-helper-container .psycle-table td.col-class { padding-left: 6px !important; }
+#sa-helper-container .sa-table td.col-gym,
+#sa-helper-container .sa-table th.col-gym { width: 96px !important; }
+#sa-helper-container .sa-table td.col-gym { padding-left: 8px !important; padding-right: 0 !important; }
+#sa-helper-container .sa-table td.col-class { padding-left: 6px !important; }
 
-#sa-helper-container .psycle-table td.col-class {
+#sa-helper-container .sa-table td.col-class {
   font-weight: 600 !important;
   overflow: hidden !important;
   width: 28% !important;
   max-width: 0 !important;
 }
 
-#sa-helper-container .psycle-table td.col-instructor {
+#sa-helper-container .sa-table td.col-instructor {
   overflow: hidden !important;
   width: 13% !important;
   max-width: 0 !important;
@@ -2723,22 +2723,22 @@ html, body {
   text-overflow: ellipsis !important;
 }
 
-#sa-helper-container .psycle-table td.col-location {
+#sa-helper-container .sa-table td.col-location {
   overflow: hidden !important;
   width: 17% !important;
   max-width: 0 !important;
 }
 
-#sa-helper-container .psycle-table td.col-status {
+#sa-helper-container .sa-table td.col-status {
   white-space: nowrap !important;
   /* NO `overflow: hidden` + `text-overflow: ellipsis` here. It was added to stop
      the actions column overlapping this one, but that overlap is now fixed
-     properly by the fixed lanes in `.psycle-tt-actions` — and the side effect
+     properly by the fixed lanes in `.sa-tt-actions` — and the side effect
      was a literal "…" painted after the occupancy pill at many widths, with no
      content actually truncated. An ellipsis that hides nothing is pure noise. */
 }
 
-#sa-helper-container .psycle-table td.col-actions {
+#sa-helper-container .sa-table td.col-actions {
   text-align: right !important;
   padding: 0 !important;
   vertical-align: stretch !important;
@@ -2852,7 +2852,7 @@ html, body {
 
 
 /* --- OCCUPANCY HOVER TOOLTIP & MINIMAP --- */
-#psycle-occupancy-tooltip {
+#sa-occupancy-tooltip {
   position: fixed;
   z-index: 2200000; /* Float above standard components */
   width: 240px;
@@ -2871,12 +2871,12 @@ html, body {
   transition: opacity 0.2s ease, transform 0.2s cubic-bezier(0.16, 1, 0.3, 1);
 }
 
-#psycle-occupancy-tooltip.show {
+#sa-occupancy-tooltip.show {
   opacity: 1;
   transform: scale(1);
 }
 
-.psycle-minimap-container {
+.sa-minimap-container {
   position: relative;
   width: 100%;
   height: 150px;
@@ -2888,7 +2888,7 @@ html, body {
   padding: 8px;
 }
 
-.psycle-minimap-stage {
+.sa-minimap-stage {
   position: absolute;
   background: color-mix(in srgb, var(--text) 10%, transparent);
   border: 1px solid var(--border-strong);
@@ -2902,7 +2902,7 @@ html, body {
   text-align: center;
 }
 
-.psycle-minimap-dot {
+.sa-minimap-dot {
   position: absolute;
   width: 8px;
   height: 8px;
@@ -2910,17 +2910,17 @@ html, body {
   transform: translate(-50%, -50%);
 }
 
-.psycle-minimap-dot.available {
+.sa-minimap-dot.available {
   background: var(--success);
   box-shadow: 0 0 6px color-mix(in srgb, var(--success) 60%, transparent);
 }
 
-.psycle-minimap-dot.occupied {
+.sa-minimap-dot.occupied {
   background: var(--danger);
   box-shadow: 0 0 4px color-mix(in srgb, var(--danger) 40%, transparent);
 }
 
-.psycle-minimap-legend {
+.sa-minimap-legend {
   display: flex;
   justify-content: center;
   gap: 12px;
@@ -2929,24 +2929,24 @@ html, body {
   margin-top: 6px;
 }
 
-.psycle-minimap-legend-item {
+.sa-minimap-legend-item {
   display: flex;
   align-items: center;
   gap: 4px;
 }
 
-.psycle-minimap-legend-dot {
+.sa-minimap-legend-dot {
   width: 6px;
   height: 6px;
   border-radius: 50%;
 }
 
-.psycle-minimap-legend-dot.available {
+.sa-minimap-legend-dot.available {
   background: var(--success);
   box-shadow: 0 0 4px color-mix(in srgb, var(--success) 60%, transparent);
 }
 
-.psycle-minimap-legend-dot.occupied {
+.sa-minimap-legend-dot.occupied {
   background: var(--danger);
   box-shadow: 0 0 3px color-mix(in srgb, var(--danger) 40%, transparent);
 }
@@ -2954,7 +2954,7 @@ html, body {
 /* --- Bookmark & Auto-Book Pause UI Additions --- */
 
 /* Timetable Heart Icon */
-.psycle-timetable-heart {
+.sa-timetable-heart {
   display: inline-block;
   cursor: pointer;
   user-select: none;
@@ -2963,24 +2963,24 @@ html, body {
   transition: transform 0.15s cubic-bezier(0.25, 0.8, 0.25, 1), filter 0.15s ease;
 }
 
-.psycle-timetable-heart:hover {
+.sa-timetable-heart:hover {
   transform: scale(1.3);
 }
 
-.psycle-timetable-heart:active {
+.sa-timetable-heart:active {
   transform: scale(0.9);
 }
 
-.psycle-timetable-heart.bookmarked {
+.sa-timetable-heart.bookmarked {
   color: var(--danger) !important;
   filter: drop-shadow(0 0 5px color-mix(in srgb, var(--danger) 60%, transparent));
 }
 
-.psycle-timetable-heart.unbookmarked {
+.sa-timetable-heart.unbookmarked {
   color: color-mix(in srgb, var(--text) 35%, transparent) !important;
 }
 
-.psycle-timetable-heart.loading {
+.sa-timetable-heart.loading {
   opacity: 0.5;
   pointer-events: none;
   animation: heartPulse 1s infinite alternate;
@@ -2992,12 +2992,12 @@ html, body {
 }
 
 /* Bookmarks Filter Button (Temporarily hidden on front-end until cross-gym favourite solution) */
-#psycle-filter-favorites-only,
+#sa-filter-favorites-only,
 .fr-heart {
   display: none !important;
 }
 
-#psycle-filter-favorites-only {
+#sa-filter-favorites-only {
   background: var(--surface-inset);
   border: 1px solid var(--border);
   color: var(--text-secondary);
@@ -3013,12 +3013,12 @@ html, body {
   padding: 0 16px;
 }
 
-#psycle-filter-favorites-only:hover {
+#sa-filter-favorites-only:hover {
   background: color-mix(in srgb, var(--text) 8%, transparent);
   color: var(--text);
 }
 
-#psycle-filter-favorites-only.active {
+#sa-filter-favorites-only.active {
   background: color-mix(in srgb, var(--text) 14%, transparent) !important;
   border: 1.5px solid color-mix(in srgb, var(--text) 40%, transparent) !important;
   color: var(--text) !important;
@@ -3044,7 +3044,7 @@ html, body {
 
 
 
-.psycle-bookmark-slot-title {
+.sa-bookmark-slot-title {
   font-size: 13px;
   font-weight: 600;
   color: var(--text);
@@ -3204,7 +3204,7 @@ html, body {
 
 
 /* --- DROPDOWN FILTERS STYLING --- */
-.psycle-filters-card {
+.sa-filters-card {
   background: var(--surface-inset);
   border: 1px solid var(--border);
   border-radius: 20px;
@@ -3213,7 +3213,7 @@ html, body {
   flex-shrink: 0;
 }
 
-.psycle-filters-row {
+.sa-filters-row {
   display: flex;
   gap: 20px;
   flex-wrap: wrap;
@@ -3461,7 +3461,7 @@ html, body {
    PWA SPECIFIC STRUCTURAL OVERRIDES
    ========================================================= */
 
-#sa-helper-container .psycle-filters-card {
+#sa-helper-container .sa-filters-card {
   padding: 12px 36px;
   margin-bottom: 8px;
   border-bottom: 1px solid var(--separator);
@@ -3505,7 +3505,7 @@ html, body {
   overflow-y: auto;
 }
 
-#sa-helper-container .psycle-timetable-list {
+#sa-helper-container .sa-timetable-list {
   flex: 1;
   overflow-y: auto;
   padding: 0 36px 24px 36px;
@@ -3521,7 +3521,7 @@ html, body {
 
 
 
-#sa-helper-container .psycle-table-empty {
+#sa-helper-container .sa-table-empty {
   text-align: center !important;
   color: var(--text-tertiary) !important;
   font-style: italic !important;
@@ -4277,8 +4277,8 @@ html, body {
 
 @media (max-width: 900px) {
   #sa-helper-container .psycle-tab-header,
-  #sa-helper-container .psycle-filters-card,
-  #sa-helper-container .psycle-timetable-list,
+  #sa-helper-container .sa-filters-card,
+  #sa-helper-container .sa-timetable-list,
   #sa-helper-container .psycle-countdown-banner {
     padding-left: 16px;
     padding-right: 16px;
@@ -4363,7 +4363,7 @@ html, body {
 }
 
 /* Occupancy hover */
-#sa-helper-container .badge-pill.psycle-occupancy-hover:hover {
+#sa-helper-container .badge-pill.sa-occupancy-hover:hover {
   transform: translateY(-1px);
   box-shadow: none;
 }
@@ -4389,26 +4389,26 @@ html, body {
 }
 
 /* Green book button — pastel */
-#sa-helper-container .psycle-timetable-book-btn {
+#sa-helper-container .sa-timetable-book-btn {
   background: color-mix(in srgb, var(--success) 45%, #fff) !important;
   color: color-mix(in srgb, var(--success) 65%, #000) !important;
   border: 1px solid color-mix(in srgb, var(--success) 30%, transparent) !important;
   box-shadow: none !important;
 }
 
-#sa-helper-container .psycle-timetable-book-btn:hover {
+#sa-helper-container .sa-timetable-book-btn:hover {
   background: color-mix(in srgb, var(--success) 55%, #fff) !important;
 }
 
 /* Orange waitlist button — pastel */
-#sa-helper-container .psycle-timetable-waitlist-btn {
+#sa-helper-container .sa-timetable-waitlist-btn {
   background: color-mix(in srgb, var(--orange) 45%, #fff) !important;
   color: color-mix(in srgb, var(--orange) 70%, #000) !important;
   border: 1px solid color-mix(in srgb, var(--orange) 30%, transparent) !important;
   box-shadow: none !important;
 }
 
-#sa-helper-container .psycle-timetable-waitlist-btn:hover {
+#sa-helper-container .sa-timetable-waitlist-btn:hover {
   background: color-mix(in srgb, var(--orange) 55%, #fff) !important;
 }
 
@@ -4425,12 +4425,12 @@ html, body {
 }
 
 /* Cancel booking button — flat hover (no glow) */
-#sa-helper-container .psycle-timetable-cancel-booking-btn:hover {
+#sa-helper-container .sa-timetable-cancel-booking-btn:hover {
   box-shadow: none !important;
 }
 
 /* Leave waitlist button — flat hover (no glow) */
-#sa-helper-container .psycle-timetable-leave-waitlist-btn:hover {
+#sa-helper-container .sa-timetable-leave-waitlist-btn:hover {
   box-shadow: none !important;
 }
 
@@ -4452,17 +4452,17 @@ html, body {
 
 
 /* --- 5. DATE CAROUSEL PILLS — flat active state --- */
-#sa-helper-container .psycle-day-pill {
+#sa-helper-container .sa-day-pill {
   box-shadow: none;
 }
 
-#sa-helper-container .psycle-day-pill.active {
+#sa-helper-container .sa-day-pill.active {
   background: color-mix(in srgb, var(--accent) 15%, transparent) !important;
   border-color: color-mix(in srgb, var(--accent) 45%, transparent) !important;
   box-shadow: none !important;
 }
 
-#sa-helper-container .psycle-day-pill:hover {
+#sa-helper-container .sa-day-pill:hover {
   background: color-mix(in srgb, var(--text) 8%, transparent) !important;
   border-color: color-mix(in srgb, var(--text) 22%, transparent) !important;
   box-shadow: none;
@@ -4732,7 +4732,7 @@ html, body {
 /* ── Class type chip (group label in timetable rows) ───────────── */
 
 /* ── Instructor hover underline ────────────────────────────────── */
-.psycle-instructor-hover {
+.sa-instructor-hover {
   cursor: pointer;
   text-decoration: underline dotted color-mix(in srgb, var(--text) 30%, transparent);
 }
@@ -4818,21 +4818,21 @@ html, body {
 }
 
 /* ── Timetable class cell + full-height action segments ────────── */
-.psycle-tt-class-cell {
+.sa-tt-class-cell {
   display: flex;
   align-items: center;
   gap: 8px;
   flex-wrap: nowrap;
   overflow: hidden;
 }
-.psycle-tt-class-name {
+.sa-tt-class-name {
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
   color: var(--text);
 }
 
-#sa-helper-container .psycle-table td.col-actions {
+#sa-helper-container .sa-table td.col-actions {
   padding: 0 !important;
   vertical-align: stretch !important;
   text-align: right !important;
@@ -4848,7 +4848,7 @@ html, body {
        `table-layout: auto` at all; columns are sized from content.
 
      What works is leaving the cell alone and constraining its CONTENT — see
-     `min-width: max-content` on `.psycle-tt-actions`. The column then has to be
+     `min-width: max-content` on `.sa-tt-actions`. The column then has to be
      at least as wide as what it holds, which is the actual requirement. */
   white-space: nowrap !important;
 }
@@ -4858,7 +4858,7 @@ html, body {
    into. But `width: 1%` alone collapsed it to 14px with a 63px pill spilling
    out: the same mistake as the actions column, one cell to the left.
    Same remedy — constrain the CONTENT, then the column must accommodate it. */
-#sa-helper-container .psycle-table td.col-status {
+#sa-helper-container .sa-table td.col-status {
   /* An EXPLICIT px width, because that is the only thing `table-layout: auto`
      reliably honours. Everything else was tried and measured failing:
        `width: 1%`      → column collapsed to 14px with a 63px pill spilling out
@@ -4901,13 +4901,13 @@ html, body {
    a re-render and can never leave a cell empty. */
 
 /* WIDE — the merged column is a duplicate here, so it must be hidden.
-   `!important` is REQUIRED, not decorative: `.psycle-table td` carries
+   `!important` is REQUIRED, not decorative: `.sa-table td` carries
    `display: table-cell !important`, and an important declaration beats a
    non-important one no matter how specific the loser is. Without it this rule
    lost silently and the merged column rendered at desktop width ALONGSIDE the
    separate instructor and location columns — the same facts three times. */
-#sa-helper-container .psycle-table td.col-who-where,
-#sa-helper-container .psycle-table th.col-who-where { display: none !important; }
+#sa-helper-container .sa-table td.col-who-where,
+#sa-helper-container .sa-table th.col-who-where { display: none !important; }
 
 @media (max-width: 1240px) {
   :root {
@@ -4915,16 +4915,16 @@ html, body {
     --tt-caret-w: 36px;
     --tt-chip-h: 21px;
   }
-  #sa-helper-container .psycle-table td.col-time,
-  #sa-helper-container .psycle-table th.col-time { width: 58px !important; }
+  #sa-helper-container .sa-table td.col-time,
+  #sa-helper-container .sa-table th.col-time { width: 58px !important; }
 
   /* MERGE: separate instructor + location out, combined column in. */
-  #sa-helper-container .psycle-table td.col-instructor,
-  #sa-helper-container .psycle-table th.col-instructor,
-  #sa-helper-container .psycle-table td.col-location,
-  #sa-helper-container .psycle-table th.col-location { display: none !important; }
-  #sa-helper-container .psycle-table td.col-who-where,
-  #sa-helper-container .psycle-table th.col-who-where {
+  #sa-helper-container .sa-table td.col-instructor,
+  #sa-helper-container .sa-table th.col-instructor,
+  #sa-helper-container .sa-table td.col-location,
+  #sa-helper-container .sa-table th.col-location { display: none !important; }
+  #sa-helper-container .sa-table td.col-who-where,
+  #sa-helper-container .sa-table th.col-who-where {
     display: table-cell !important;
     width: 26% !important;
     max-width: 0 !important;
@@ -4932,7 +4932,7 @@ html, body {
     /* NOT nowrap on the cell — the two child lines each handle their own
        truncation, and a nowrap cell would collapse them back onto one line. */
   }
-  #sa-helper-container .psycle-table td.col-class { width: 34% !important; }
+  #sa-helper-container .sa-table td.col-class { width: 34% !important; }
 }
 
 @media (max-width: 1040px) {
@@ -4942,33 +4942,33 @@ html, body {
   }
   /* Occupancy is the only purely-informational column — last to arrive, first
      to go. The number is still on the row's tooltip and in the booking modal. */
-  #sa-helper-container .psycle-table td.col-status,
-  #sa-helper-container .psycle-table th.col-status { display: none !important; }
-  #sa-helper-container .psycle-table td.col-class { width: 38% !important; }
-  #sa-helper-container .psycle-table td.col-who-where { width: 28% !important; }
+  #sa-helper-container .sa-table td.col-status,
+  #sa-helper-container .sa-table th.col-status { display: none !important; }
+  #sa-helper-container .sa-table td.col-class { width: 38% !important; }
+  #sa-helper-container .sa-table td.col-who-where { width: 28% !important; }
 }
 
 /* The merged column stacks: WHO on top, WHERE beneath — same two-line shape as
    the Location column it replaces, so the row's rhythm doesn't change when the
    columns collapse into one. It was a single line with a middot, which read as
    one run-on fact rather than two. Each line truncates independently. */
-#sa-helper-container .psycle-ww-who,
-#sa-helper-container .psycle-ww-loc {
+#sa-helper-container .sa-ww-who,
+#sa-helper-container .sa-ww-loc {
   display: block;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
   max-width: 100%;
 }
-#sa-helper-container .psycle-ww-who {
-  /* `!important` because this element also carries `.psycle-instructor-hover`,
+#sa-helper-container .sa-ww-who {
+  /* `!important` because this element also carries `.sa-instructor-hover`,
      which sets `font-weight: 500 !important` for the dotted-underline hover
      affordance. Matches the Location column's bold first line, so the merged
      column has the same hierarchy as the one it replaces. */
   font-weight: 600 !important;
   color: var(--text) !important;
 }
-#sa-helper-container .psycle-ww-loc {
+#sa-helper-container .sa-ww-loc {
   margin-top: 2px;
   font-size: var(--text-xs);
   color: var(--text-secondary);
@@ -4991,7 +4991,7 @@ html, body {
    flush-right packing (so every row ends on the same edge). The only variation
    left is the 40px gear, present exactly where a studio has a seat map — which
    is information, not noise. */
-.psycle-tt-actions {
+.sa-tt-actions {
   display: flex;
   align-items: stretch;
   justify-content: flex-end;
@@ -5008,24 +5008,24 @@ html, body {
      it needs no magic number and no per-breakpoint upkeep. */
   min-width: max-content;
 }
-.psycle-tt-seg-group {
+.sa-tt-seg-group {
   display: flex;
   align-items: stretch;
   height: 100%;
 }
 /* Full-width segments are the LABELLED actions only. The two icon segments —
    the ⚙ and the ⋯ — are excluded here rather than overridden later:
-   `.psycle-tt-seg:not(.psycle-tt-seg-caret)` is two classes and
-   `.psycle-tt-seg-more` is one, so a later single-class rule loses the
+   `.sa-tt-seg:not(.sa-tt-seg-caret)` is two classes and
+   `.sa-tt-seg-more` is one, so a later single-class rule loses the
    specificity fight and the overflow button silently rendered 122px wide. */
-.psycle-tt-seg:not(.psycle-tt-seg-caret):not(.psycle-tt-seg-more) {
+.sa-tt-seg:not(.sa-tt-seg-caret):not(.sa-tt-seg-more) {
   width: var(--tt-seg-w);
   flex: 0 0 var(--tt-seg-w);
 }
 /* Desktop overflow trigger — same width as the ⚙ so the actions column keeps
    its fixed rhythm. */
-.psycle-tt-seg-more {
-  /* box-sizing AND !important both matter: the base `.psycle-tt-seg` sets
+.sa-tt-seg-more {
+  /* box-sizing AND !important both matter: the base `.sa-tt-seg` sets
      `padding: 0 12px`, and without border-box that padding is added OUTSIDE the
      40px width — the button measured 68px. */
   box-sizing: border-box !important;
@@ -5044,17 +5044,17 @@ html, body {
   border: none !important;
   border-left: 1px solid var(--border) !important;
 }
-.psycle-tt-seg-more:hover {
+.sa-tt-seg-more:hover {
   background: color-mix(in srgb, var(--text) 8%, var(--surface-inset)) !important;
   color: var(--text) !important;
 }
 
-.psycle-tt-seg-caret {
+.sa-tt-seg-caret {
   width: var(--tt-caret-w);
   flex: 0 0 var(--tt-caret-w);
 }
 
-.psycle-tt-seg {
+.sa-tt-seg {
   display: flex;
   flex-direction: row;
   align-items: center;
@@ -5068,7 +5068,7 @@ html, body {
      row-to-row as labels change ("Book" vs "Quick Book" vs "Auto-Book") —
      the caret (⚙) opts back out, it's meant to be narrow. */
 }
-.psycle-tt-seg:not(.psycle-tt-seg-caret):not(.psycle-tt-seg-more) {
+.sa-tt-seg:not(.sa-tt-seg-caret):not(.sa-tt-seg-more) {
   white-space: nowrap;
   box-sizing: border-box;
   margin: 0;
@@ -5084,13 +5084,13 @@ html, body {
   cursor: pointer;
   transition: filter .12s, background .12s, border-color .12s;
 }
-.psycle-tt-seg:hover:not(:disabled) { filter: brightness(1.08); }
-.psycle-tt-seg:disabled { opacity: .5; cursor: default; }
-.psycle-tt-seg-group.has-caret .psycle-tt-seg:first-child {
+.sa-tt-seg:hover:not(:disabled) { filter: brightness(1.08); }
+.sa-tt-seg:disabled { opacity: .5; cursor: default; }
+.sa-tt-seg-group.has-caret .sa-tt-seg:first-child {
   border-top-right-radius: 0 !important;
   border-bottom-right-radius: 0 !important;
 }
-.psycle-tt-seg-caret {
+.sa-tt-seg-caret {
   display: flex;
   flex-direction: row;
   align-items: center;
@@ -5107,7 +5107,7 @@ html, body {
   transition: background .12s, color .12s;
   font-size: 15px !important;
 }
-.psycle-tt-seg-caret:not(.primary):hover {
+.sa-tt-seg-caret:not(.primary):hover {
   background: color-mix(in srgb, var(--text) 8%, transparent);
   color: var(--text);
 }
@@ -5227,7 +5227,7 @@ html, body {
     opacity: 0;
   }
 }
-.psycle-tt-seg.confirming {
+.sa-tt-seg.confirming {
   background: var(--danger) !important;
   color: var(--on-accent) !important;
   border: none !important;
@@ -5276,20 +5276,20 @@ html, body {
    eye had nothing to lock onto. A row now has exactly one coloured action —
    the primary — and its secondaries recede. Destructive keeps red below,
    because there the colour is a warning rather than decoration. */
-.psycle-tt-seg.variant-success,
+.sa-tt-seg.variant-success,
 .psycle-mobile-seg.variant-success,
-.psycle-tt-seg.variant-success-muted,
+.sa-tt-seg.variant-success-muted,
 .psycle-mobile-seg.variant-success-muted,
-.psycle-tt-seg.variant-autoupgrade,
+.sa-tt-seg.variant-autoupgrade,
 .psycle-mobile-seg.variant-autoupgrade,
-.psycle-tt-seg.variant-debug,
+.sa-tt-seg.variant-debug,
 .psycle-mobile-seg.variant-debug,
-.psycle-tt-seg.variant-warning-solid,
+.sa-tt-seg.variant-warning-solid,
 .psycle-mobile-seg.variant-warning-solid,
-.psycle-tt-seg.variant-neutral,
+.sa-tt-seg.variant-neutral,
 .psycle-mobile-seg.variant-neutral { background: var(--surface-inset) !important; color: var(--text-secondary) !important; border: none !important; }
 
-.psycle-tt-seg.variant-danger,
+.sa-tt-seg.variant-danger,
 .psycle-mobile-seg.variant-danger { background: color-mix(in srgb, var(--danger) 10%, transparent) !important; color: var(--danger) !important; border: none !important; }
 
 /* Primary fills — THREE kinds of action, ONE hue.
@@ -5307,16 +5307,16 @@ html, body {
 
    Deriving from `--accent` means they follow the theme and any future brand
    change automatically, instead of being three more hardcoded values. */
-.psycle-tt-seg.primary,
+.sa-tt-seg.primary,
 .psycle-mobile-seg.primary { background: var(--cta-book) !important; color: var(--on-cta) !important; border: none !important; }
 
 /* "Book" that opens a picker is the same ACTION as Quick Book, so the same
    colour — it was outlined, which read as a different, lesser thing. */
-.psycle-tt-seg.primary.variant-success-outline,
+.sa-tt-seg.primary.variant-success-outline,
 .psycle-mobile-seg.primary.variant-success-outline { background: var(--cta-book) !important; color: var(--on-cta) !important; border: none !important; }
 
 /* Waitlist — the accent lightened toward the surface. */
-.psycle-tt-seg.primary.variant-warning-solid,
+.sa-tt-seg.primary.variant-warning-solid,
 .psycle-mobile-seg.primary.variant-warning-solid {
   background: var(--cta-wait) !important;
   color: var(--on-cta) !important;
@@ -5324,7 +5324,7 @@ html, body {
 }
 
 /* Auto-Book — the accent deepened. */
-.psycle-tt-seg.primary.variant-autoupgrade,
+.sa-tt-seg.primary.variant-autoupgrade,
 .psycle-mobile-seg.primary.variant-autoupgrade {
   background: var(--cta-auto) !important;
   color: var(--on-cta) !important;
@@ -5332,7 +5332,7 @@ html, body {
 }
 
 /* Destructive stays red — the one place hue is a warning, not decoration. */
-.psycle-tt-seg.primary.variant-danger,
+.sa-tt-seg.primary.variant-danger,
 .psycle-mobile-seg.primary.variant-danger {
   /* NO fill at all: this is a nudge to top up, not a warning, and a tinted
      block was the loudest thing in a column of otherwise calm rows. Text only,
@@ -5341,21 +5341,21 @@ html, body {
   color: color-mix(in srgb, var(--danger) 62%, var(--text-secondary)) !important;
   border: none !important;
 }
-#sa-helper-container .psycle-tt-seg.primary.variant-danger:hover {
+#sa-helper-container .sa-tt-seg.primary.variant-danger:hover {
   background: color-mix(in srgb, var(--danger) 6%, transparent) !important;
   color: var(--danger) !important;
 }
-.psycle-tt-seg.primary.variant-danger-strong,
+.sa-tt-seg.primary.variant-danger-strong,
 .psycle-mobile-seg.primary.variant-danger-strong { background: color-mix(in srgb, var(--danger) 30%, transparent) !important; color: var(--danger) !important; border: none !important; font-weight: 800; }
 
 /* An already-scheduled Auto-Book is a STATE, not an action to take — it must
    not wear the primary fill that means "do this next". */
-.psycle-tt-seg.primary.variant-autoupgrade.scheduled,
+.sa-tt-seg.primary.variant-autoupgrade.scheduled,
 .psycle-mobile-seg.primary.variant-autoupgrade.scheduled { background: color-mix(in srgb, var(--feat-autoupgrade) 20%, transparent) !important; color: var(--feat-autoupgrade) !important; border: none !important; }
 
 /* Restore the divider line on the caret (config) button regardless of which variant
    set border:none above — must come after all variant rules so it wins. */
-#sa-helper-container .psycle-tt-seg.psycle-tt-seg-caret {
+#sa-helper-container .sa-tt-seg.sa-tt-seg-caret {
   border-top: none !important;
   border-right: none !important;
   border-bottom: none !important;
@@ -6022,8 +6022,8 @@ html, body {
 .ab-rail-btn.confirming { background: var(--danger); color: var(--on-accent); }
 
 /* ── My Bookings / Waitlists card list ─────────────────────────── */
-.psycle-bookings-list { display: flex; flex-direction: column; gap: 10px; }
-.psycle-bookings-list .psycle-card-error { padding: 16px; text-align: center; color: var(--danger); }
+.sa-bookings-list { display: flex; flex-direction: column; gap: 10px; }
+.sa-bookings-list .psycle-card-error { padding: 16px; text-align: center; color: var(--danger); }
 /* footer auto-upgrade control reuses the upgrade status chip look */
 .bk-upgrade-btn { cursor: pointer; font-family: var(--font-sans); }
 .bk-upgrade-btn:hover { filter: brightness(1.08); }
@@ -6101,7 +6101,7 @@ html, body {
   opacity: .82;
 }
 
-.guest-live-map .psycle-floor-scroll { margin-top: 8px; }
+.guest-live-map .sa-floor-scroll { margin-top: 8px; }
 .guest-map-legend { display:flex; flex-wrap:wrap; gap:6px 10px; margin:0 0 7px; font-size:11px; color:var(--text-secondary); }
 .guest-map-legend span { display:inline-flex; align-items:center; gap:4px; }
 .guest-map-legend span::before { content:''; width:8px; height:8px; border-radius:3px; border:1px solid var(--border); background:var(--surface-inset); }
@@ -6167,7 +6167,7 @@ html, body {
   border-top: 1px solid var(--border);
 }
 .ab-history-list > .ab-hist-card:first-child { margin-top: 4px; }
-.ab-history-list .psycle-table-empty {
+.ab-history-list .sa-table-empty {
   padding: 20px;
   text-align: center;
   color: var(--text-secondary);
@@ -6601,18 +6601,18 @@ html, body {
     padding: 8px 0 !important;
   }
 
-  #sa-helper-container .psycle-filters-card {
+  #sa-helper-container .sa-filters-card {
     padding-left: 8px !important;
     padding-right: 8px !important;
   }
 
-  #sa-helper-container .psycle-date-selector,
-  #sa-helper-container #psycle-timetable-carousel {
+  #sa-helper-container .sa-date-selector,
+  #sa-helper-container #sa-timetable-carousel {
     padding-left: 8px !important;
     padding-right: 8px !important;
   }
 
-  #sa-helper-container .psycle-timetable-list {
+  #sa-helper-container .sa-timetable-list {
     padding-left: 8px !important;
     padding-right: 8px !important;
   }
@@ -6628,26 +6628,26 @@ html, body {
   /* Mobile table behaviour — fixed layout so the single full-width card cell is
      bounded to the viewport (auto layout let long class names push the row wider
      than the screen, hiding the ellipsis behind a horizontal scroll). */
-  #sa-helper-container .psycle-table {
+  #sa-helper-container .sa-table {
     table-layout: fixed !important;
     width: 100% !important;
   }
 
-  #sa-helper-container .psycle-table thead {
+  #sa-helper-container .sa-table thead {
     display: none !important;
   }
 
-  #sa-helper-container .psycle-table-container {
+  #sa-helper-container .sa-table-container {
     padding: 0 8px;
     overflow-x: hidden;
   }
 
   /* Mobile row card */
-  #sa-helper-container .psycle-table .psycle-mobile-row {
+  #sa-helper-container .sa-table .psycle-mobile-row {
     display: table-row !important;
   }
 
-  #sa-helper-container .psycle-table .psycle-mobile-row td {
+  #sa-helper-container .sa-table .psycle-mobile-row td {
     padding: 8px 0 !important;
     border-bottom: 1px solid var(--separator) !important;
     width: 100%;
@@ -6704,7 +6704,7 @@ html, body {
     -webkit-backdrop-filter: blur(10px);
   }
 
-  #sa-helper-container .psycle-table .psycle-mobile-row.row-scheduled .psycle-mobile-class-card {
+  #sa-helper-container .sa-table .psycle-mobile-row.row-scheduled .psycle-mobile-class-card {
     background: color-mix(in srgb, var(--feat-autoupgrade) 4%, transparent);
     border-color: color-mix(in srgb, var(--feat-autoupgrade) 25%, transparent);
   }
@@ -6853,7 +6853,7 @@ html, body {
   }
 
   /* Let dropdown menu expand beyond trigger width, up to filters card width */
-  #sa-helper-container .psycle-filters-card {
+  #sa-helper-container .sa-filters-card {
     position: relative !important;
   }
 
@@ -6900,20 +6900,20 @@ html, body {
     text-overflow: ellipsis;
   }
 
-  #sa-helper-container .psycle-filters-card {
+  #sa-helper-container .sa-filters-card {
     padding-top: 6px !important;
     padding-bottom: 6px !important;
   }
 
   /* Hide Bookmarked/Clear/Save buttons on mobile — moved to filter hamburger */
-  #sa-helper-container #psycle-filter-favorites-only,
+  #sa-helper-container #sa-filter-favorites-only,
   #sa-helper-container #psycle-btn-clear-all-filters,
   #sa-helper-container #psycle-btn-save-default-filters {
     display: none !important;
   }
 
   /* Hide the Save/Clear button container div */
-  #sa-helper-container .psycle-filters-row > div:last-child {
+  #sa-helper-container .sa-filters-row > div:last-child {
     display: none !important;
   }
 
@@ -6942,23 +6942,23 @@ html, body {
   #sa-helper-container #psycle-panel-class-timetable .psycle-tab-header {
     margin-bottom: 2px !important;
   }
-  #sa-helper-container #psycle-timetable-filters-container {
+  #sa-helper-container #sa-timetable-filters-container {
     margin-bottom: 4px !important;
   }
-  #sa-helper-container .psycle-filters-row {
+  #sa-helper-container .sa-filters-row {
     margin-bottom: 0 !important;
   }
-  #sa-helper-container #psycle-timetable-carousel {
+  #sa-helper-container #sa-timetable-carousel {
     margin: 2px 0 !important;
     padding-top: 2px !important;
     padding-bottom: 2px !important;
   }
-  #sa-helper-container #psycle-timetable-grid {
+  #sa-helper-container #sa-timetable-grid {
     margin-top: 2px !important;
   }
 
   /* Tighten the gap between class rows on mobile (desktop unchanged) */
-  #sa-helper-container .psycle-table .psycle-mobile-row td {
+  #sa-helper-container .sa-table .psycle-mobile-row td {
     padding: 4px 0 !important;
   }
 }
@@ -7656,7 +7656,7 @@ html, body {
 /* ===== U2-5: mobile filter rail + bottom sheet (Documentation/TIMETABLE_FILTER_DESIGN_BRIEF.md) ===== */
 .fr-rail { display: none; }
 @media (max-width: 768px) {
-  #sa-helper-container #psycle-timetable-filters-container .psycle-filters-row { display: none !important; }
+  #sa-helper-container #sa-timetable-filters-container .sa-filters-row { display: none !important; }
   .fr-rail { display: flex !important; align-items: center; gap: 6px; height: 40px; max-height: 40px; overflow-x: auto; overflow-y: hidden; overscroll-behavior-x: contain; touch-action: pan-x pan-y; -webkit-overflow-scrolling: touch; scrollbar-width: none; box-sizing: border-box; }
   .fr-rail::-webkit-scrollbar { display: none; }
 }
@@ -7780,10 +7780,10 @@ html, body {
 
 @media (max-width: 768px) {
   /* Bar -> date selector gap */
-  #sa-helper-container .psycle-filters-card { padding-top: 4px !important; padding-bottom: 4px !important; }
-  #sa-helper-container #psycle-timetable-filters-container { margin-bottom: 13px !important; }
+  #sa-helper-container .sa-filters-card { padding-top: 4px !important; padding-bottom: 4px !important; }
+  #sa-helper-container #sa-timetable-filters-container { margin-bottom: 13px !important; }
   .fr-rail { height: 36px; max-height: 36px; }
-  #sa-helper-container #psycle-timetable-carousel { margin: 0 !important; padding-top: 0 !important; }
+  #sa-helper-container #sa-timetable-carousel { margin: 0 !important; padding-top: 0 !important; }
   /* Gym logo chip on mobile rows: trim the side gutters */
   #sa-helper-container .psycle-mobile-top-line .psycle-gym-chip { min-width: 0; padding: 3px 4px; }
 }
@@ -7833,24 +7833,24 @@ html, body {
 
 /* Mobile: a few px of air between the filter bar and the date strip. */
 @media (max-width: 768px) {
-  #sa-helper-container .psycle-sticky-top #psycle-timetable-carousel { margin-top: 5px !important; }
+  #sa-helper-container .psycle-sticky-top #sa-timetable-carousel { margin-top: 5px !important; }
 }
 
 /* Date strip still scrolls sideways, just without the scrollbar. */
-#sa-helper-container .psycle-date-selector { scrollbar-width: none !important; -ms-overflow-style: none; }
-#sa-helper-container .psycle-date-selector::-webkit-scrollbar { display: none !important; width: 0; height: 0; }
+#sa-helper-container .sa-date-selector { scrollbar-width: none !important; -ms-overflow-style: none; }
+#sa-helper-container .sa-date-selector::-webkit-scrollbar { display: none !important; width: 0; height: 0; }
 
 /* Mobile: a few px under the date strip, inside the opaque pinned block. */
 @media (max-width: 768px) {
-  #sa-helper-container .psycle-sticky-top #psycle-timetable-carousel { padding-bottom: 6px !important; }
+  #sa-helper-container .psycle-sticky-top #sa-timetable-carousel { padding-bottom: 6px !important; }
 }
 
 .fr-dot { display: inline-block; margin: 0 4px; opacity: .55; font-weight: 700; }
 
 /* Equal top/bottom gap in the filters card (row's own 16px margin made it uneven) */
-#sa-helper-container .psycle-filters-card .psycle-filters-row { margin-bottom: 0 !important; }
+#sa-helper-container .sa-filters-card .sa-filters-row { margin-bottom: 0 !important; }
 @media (min-width: 769px) {
-  #sa-helper-container #psycle-timetable-filters-container { margin-bottom: 14px !important; }
+  #sa-helper-container #sa-timetable-filters-container { margin-bottom: 14px !important; }
 }
 
 /* Rail chips: gym logos and counts are the heavy elements; the words around them
@@ -7877,13 +7877,13 @@ html, body {
    screen edges, and trim its inner padding so the class cards stay close to them.
    Radii are untouched. */
 @media (max-width: 768px) {
-  #sa-helper-container #psycle-timetable-grid {
+  #sa-helper-container #sa-timetable-grid {
     margin-left: -8px !important;
     margin-right: -8px !important;
     padding-left: 0 !important;
     padding-right: 0 !important;
   }
-  #sa-helper-container #psycle-timetable-grid .psycle-table-container {
+  #sa-helper-container #sa-timetable-grid .sa-table-container {
     padding-left: 4px !important;
     padding-right: 4px !important;
   }
@@ -7918,8 +7918,8 @@ html, body {
 #sa-helper-container #psycle-panel-my-bookings .psycle-section h3 { color: var(--text); }
 
 .psycle-section-count { font-size: calc(var(--page-title-size) * 0.62); font-weight: 500; line-height: 1; color: var(--text-tertiary); }
-.psycle-section-count[hidden], .psycle-waitlist-jump[hidden] { display: none !important; }
-.psycle-waitlist-jump {
+.psycle-section-count[hidden], .sa-waitlist-jump[hidden] { display: none !important; }
+.sa-waitlist-jump {
   position: sticky;
   bottom: 0;
   align-self: stretch;
@@ -7943,14 +7943,14 @@ html, body {
   cursor: pointer;
 }
 @supports not ((backdrop-filter: blur(1px)) or (-webkit-backdrop-filter: blur(1px))) {
-  .psycle-waitlist-jump { background: var(--waitlist-bar-bg); }
+  .sa-waitlist-jump { background: var(--waitlist-bar-bg); }
 }
-.psycle-waitlist-jump:focus-visible { outline: 2px solid var(--text); outline-offset: 2px; }
+.sa-waitlist-jump:focus-visible { outline: 2px solid var(--text); outline-offset: 2px; }
 
 @media (max-width: 768px) {
   #sa-helper-container #psycle-panel-my-bookings > .psycle-tab-header { display: none !important; }
   /* Locked flush above the fixed bottom nav, edge to edge of the viewport. */
-  .psycle-waitlist-jump {
+  .sa-waitlist-jump {
     position: fixed;
     left: 0;
     right: 0;
@@ -7958,7 +7958,7 @@ html, body {
     width: auto;
   }
   /* Room so the last card is never hidden behind the bar. */
-  #sa-helper-container #psycle-waitlists-section { padding-bottom: var(--tap-min) !important; }
+  #sa-helper-container #sa-waitlists-section { padding-bottom: var(--tap-min) !important; }
 }
 
 /* Line 1 (date + time) never wraps, even with the rail open. */
@@ -7983,7 +7983,7 @@ html, body {
   border: none !important;
   padding: 0 !important;
 }
-#sa-helper-container #psycle-waitlists-section { margin-top: 2rem !important; }
+#sa-helper-container #sa-waitlists-section { margin-top: 2rem !important; }
 
 /* My Bookings only: spot-upgrade chip in brand clay (Auto-Book keeps purple).
    Tonal: light tint + subtle border; text is clay mixed toward --text for AA. */
@@ -8020,10 +8020,10 @@ html, body {
 .ab-queue-list.is-paused .ab-card-avatar { filter: grayscale(0.85); }
 
 /* Timetable filters sit flat on the page (no card chrome, light + dark). Side
-   padding equals .psycle-date-selector's own (2px desktop / 8px mobile) so the
+   padding equals .sa-date-selector's own (2px desktop / 8px mobile) so the
    controls' outer edges line up with the date pills below. Must stay last: the
    earlier card rules are !important at equal specificity. */
-#sa-helper-container .psycle-filters-card {
+#sa-helper-container .sa-filters-card {
   background: transparent !important;
   border: 0 !important;
   box-shadow: none !important;
@@ -8031,18 +8031,18 @@ html, body {
   padding: 8px 2px !important;
 }
 @media (max-width: 768px) {
-  #sa-helper-container .psycle-filters-card { padding: 4px 8px !important; }
+  #sa-helper-container .sa-filters-card { padding: 4px 8px !important; }
 }
 
 /* Sticky block rhythm: equal 8px above the filter rail, between the filter rail and
    the date strip, and below the date strip (measured control-edge to control-edge).
    Offsets account for each row's own intrinsic gap (date pills 3px, mobile rail 2px). */
-#sa-helper-container .psycle-filters-card { padding: 8px 2px 0 !important; }
-#sa-helper-container #psycle-timetable-filters-container { margin-bottom: 5px !important; }
+#sa-helper-container .sa-filters-card { padding: 8px 2px 0 !important; }
+#sa-helper-container #sa-timetable-filters-container { margin-bottom: 5px !important; }
 #sa-helper-container .psycle-sticky-top { padding-bottom: 1px; }
 @media (max-width: 768px) {
-  #sa-helper-container .psycle-filters-card { padding: 6px 8px 0 !important; }
-  #sa-helper-container #psycle-timetable-filters-container { margin-bottom: 6px !important; }
+  #sa-helper-container .sa-filters-card { padding: 6px 8px 0 !important; }
+  #sa-helper-container #sa-timetable-filters-container { margin-bottom: 6px !important; }
   #sa-helper-container .psycle-sticky-top { padding-bottom: 2px; }
 }
 
@@ -8091,18 +8091,18 @@ html, body {
 }
 /* The list's own 2px margin plus ~3px of first-row inset add 5px under the strip, which is already 8px
    padded: pull the list up so strip -> first row is the same 8px as the bar's top gap. */
-#sa-helper-container .psycle-sticky-top + #psycle-timetable-grid { margin-top: -3px !important; }
+#sa-helper-container .psycle-sticky-top + #sa-timetable-grid { margin-top: -3px !important; }
 
 /* Waitlist bar: slides/fades in and out (transform + opacity only, so the
    backdrop-filter glass is untouched). Hidden = out of the visual + tab order. */
-.psycle-waitlist-jump {
+.sa-waitlist-jump {
   transform: translateY(100%);
   opacity: 0;
   visibility: hidden;
   pointer-events: none;
   transition: transform 0.18s ease-in, opacity 0.18s ease-in, visibility 0s linear 0.18s;
 }
-.psycle-waitlist-jump.is-visible {
+.sa-waitlist-jump.is-visible {
   transform: translateY(0);
   opacity: 1;
   visibility: visible;
@@ -8110,8 +8110,8 @@ html, body {
   transition: transform 0.26s ease-out, opacity 0.26s ease-out, visibility 0s;
 }
 @media (prefers-reduced-motion: reduce) {
-  .psycle-waitlist-jump, .psycle-waitlist-jump.is-visible { transform: none; transition: opacity 0.12s linear, visibility 0s linear 0.12s; }
-  .psycle-waitlist-jump.is-visible { transition: opacity 0.12s linear, visibility 0s; }
+  .sa-waitlist-jump, .sa-waitlist-jump.is-visible { transform: none; transition: opacity 0.12s linear, visibility 0s linear 0.12s; }
+  .sa-waitlist-jump.is-visible { transition: opacity 0.12s linear, visibility 0s; }
 }
 
 /* Bottom nav: --surface-inset is itself translucent, so the old "96% of it" left the bar nearly
@@ -8262,7 +8262,7 @@ body::before {
     gap: 12px; justify-content: start; align-items: start;
   }
   /* Waitlist bar (stacked layout): full page width, not the padded content width. */
-  #sa-helper-container .psycle-waitlist-jump { margin-left: calc(-1 * var(--page-gutter-desktop)) !important; margin-right: calc(-1 * var(--page-gutter-desktop)) !important; width: calc(100% + 2 * var(--page-gutter-desktop)); }
+  #sa-helper-container .sa-waitlist-jump { margin-left: calc(-1 * var(--page-gutter-desktop)) !important; margin-right: calc(-1 * var(--page-gutter-desktop)) !important; width: calc(100% + 2 * var(--page-gutter-desktop)); }
 }
 @media (min-width: 900px) {
   /* TWO-PANE BREAKPOINT (single token: 900px = 2 columns of >=380px cards + 24px gutters + 20px gap + 16px column padding).
@@ -8277,8 +8277,8 @@ body::before {
     margin: 0 !important; padding: 16px !important; min-width: 0;
     background: var(--surface) !important; border: 1px solid var(--border-strong) !important; border-radius: var(--radius-card);
   }
-  #psycle-panel-my-bookings .psycle-bookings-list { align-items: stretch; }
-  #psycle-panel-my-bookings > .psycle-waitlist-jump { display: none !important; }
+  #psycle-panel-my-bookings .sa-bookings-list { align-items: stretch; }
+  #psycle-panel-my-bookings > .sa-waitlist-jump { display: none !important; }
 }
 
 /* ---- Batch A ---- */
@@ -8329,7 +8329,7 @@ body::before {
 #sa-helper-container .psycle-sticky-top { box-shadow: 0 -2px 0 var(--bg); }
 /* The list's -3px pull-up is the MOBILE 8px rhythm only; on desktop it hid the list's top border under the block. */
 @media (min-width: 769px) {
-  #sa-helper-container .psycle-sticky-top + #psycle-timetable-grid { margin-top: 0 !important; }
+  #sa-helper-container .psycle-sticky-top + #sa-timetable-grid { margin-top: 0 !important; }
 }
 
 /* ---- Batch C: bookings columns + desktop card rows ---- */
@@ -8361,7 +8361,7 @@ body::before {
    affordances) must not apply beside Active Bookings, or its column starts 32px lower. */
 @media (min-width: 900px) {
   #sa-helper-container #psycle-panel-my-bookings > .psycle-section,
-  #sa-helper-container #psycle-panel-my-bookings > #psycle-waitlists-section {
+  #sa-helper-container #psycle-panel-my-bookings > #sa-waitlists-section {
     margin: 0 !important; padding: 16px !important;
   }
 }
@@ -8533,7 +8533,7 @@ body::before {
    rows (clip-path also catches children with backdrop-filter, which escape overflow:hidden). */
 @media (max-width: 768px) {
   #sa-helper-container .psycle-mobile-class-card { border-radius: 0 !important; -webkit-backdrop-filter: none !important; backdrop-filter: none !important; }
-  #sa-helper-container #psycle-timetable-grid .psycle-table-container { clip-path: inset(0 round 16px); }
+  #sa-helper-container #sa-timetable-grid .sa-table-container { clip-path: inset(0 round 16px); }
   /* Time column: sized to the widest "HH:MM" (tabular figures) + 6px instead of a fixed 3.6em. */
   #sa-helper-container .psycle-mobile-top-line > strong { min-width: 43px; } /* widest 'HH:MM' measured 37.1px + 6px */
 }
@@ -8618,8 +8618,8 @@ svg.gym-logo-inline { display: block; opacity: 1 !important; transition: none !i
    the sticky bar, and the table's 2px margin + border-spacing pushed rows 3px below the container top.
    Now the container starts exactly at the sticky block's bottom edge and rows start at its top edge. */
 @media (max-width: 768px) {
-  #sa-helper-container .psycle-sticky-top + #psycle-timetable-grid { margin-top: 0 !important; }
-  #sa-helper-container #psycle-timetable-grid .psycle-table-container .psycle-table { margin-top: 0 !important; border-spacing: 0 !important; }
+  #sa-helper-container .psycle-sticky-top + #sa-timetable-grid { margin-top: 0 !important; }
+  #sa-helper-container #sa-timetable-grid .sa-table-container .sa-table { margin-top: 0 !important; border-spacing: 0 !important; }
 }
 
 /* 3+5. Row CTAs are real buttons: rounded, inset, taller than .ab-rail-toggle (28px) at 38px, 14px side padding,
@@ -8641,16 +8641,16 @@ svg.gym-logo-inline { display: block; opacity: 1 !important; transition: none !i
   #sa-helper-container .psycle-mobile-top-line > strong + .psycle-gym-chip { margin-left: -2px; }
 }
 @media (min-width: 769px) {
-  #sa-helper-container .psycle-tt-actions { align-items: center; gap: 6px; padding: 0 6px; } /* CTA->kebab gap (6) == kebab->edge (6); both measured to the kebab's box, whose glyph is centred */
-  #sa-helper-container .psycle-tt-seg-group { height: auto; align-items: center; }
-  #sa-helper-container .psycle-tt-seg:not(.psycle-tt-seg-caret):not(.psycle-tt-seg-more) {
+  #sa-helper-container .sa-tt-actions { align-items: center; gap: 6px; padding: 0 6px; } /* CTA->kebab gap (6) == kebab->edge (6); both measured to the kebab's box, whose glyph is centred */
+  #sa-helper-container .sa-tt-seg-group { height: auto; align-items: center; }
+  #sa-helper-container .sa-tt-seg:not(.sa-tt-seg-caret):not(.sa-tt-seg-more) {
     height: 38px !important; min-height: 38px !important; border: 0 !important; border-radius: 8px !important;
     padding: 0 14px; font-size: 13px; font-weight: 600;
   }
-  #sa-helper-container .psycle-tt-seg-caret {
+  #sa-helper-container .sa-tt-seg-caret {
     height: 38px !important; min-height: 38px !important; border-radius: 8px !important; border-left: 0 !important; margin-left: 4px !important;
   }
-  #sa-helper-container .psycle-tt-seg-more {
+  #sa-helper-container .sa-tt-seg-more {
     height: 38px !important; min-height: 38px !important; border: 0 !important; border-radius: 8px !important;
     background: transparent !important; color: var(--text) !important; font-weight: 900 !important;
   }
@@ -8692,7 +8692,7 @@ svg.gym-logo-inline { display: block; opacity: 1 !important; transition: none !i
     padding-bottom: 36px !important;
   }
   #sa-helper-container .psycle-mobile-seg.confirming,
-  #sa-helper-container .psycle-tt-seg.confirming {
+  #sa-helper-container .sa-tt-seg.confirming {
     width: auto !important;
     min-width: var(--timetable-cta-w, 74px) !important;
     padding-left: 8px !important;
@@ -8700,7 +8700,7 @@ svg.gym-logo-inline { display: block; opacity: 1 !important; transition: none !i
     white-space: nowrap !important;
   }
   #sa-helper-container .psycle-mobile-seg.confirming.success,
-  #sa-helper-container .psycle-tt-seg.confirming.success {
+  #sa-helper-container .sa-tt-seg.confirming.success {
     background: var(--warning, #e68a00) !important;
     color: #1a1206 !important;
   }
@@ -8747,17 +8747,17 @@ body::after { z-index: 1000002 !important; }
 /* ---- Batch L: mobile timetable = flat, full-width, three-row table ---- */
 @media (max-width: 768px) {
   /* 2. No card chrome: square, no border/radius/clip, edge to edge (cancels the body's 8px gutters). */
-  #sa-helper-container #psycle-timetable-grid {
+  #sa-helper-container #sa-timetable-grid {
     margin-left: calc(-1 * max(8px, env(safe-area-inset-left))) !important;
     margin-right: calc(-1 * max(8px, env(safe-area-inset-right))) !important;
     padding: 0 !important;
   }
-  #sa-helper-container #psycle-timetable-grid .psycle-table-container {
+  #sa-helper-container #sa-timetable-grid .sa-table-container {
     border: 0 !important; border-radius: 0 !important; clip-path: none !important; box-shadow: none !important;
     padding: 0 !important; background: transparent !important;
   }
   /* 3. Rows touch (divider only); the breathing room lives INSIDE the row. */
-  #sa-helper-container .psycle-table .psycle-mobile-row td { padding: 0 !important; }
+  #sa-helper-container .sa-table .psycle-mobile-row td { padding: 0 !important; }
   #sa-helper-container .psycle-mobile-class-card { border: 0 !important; align-items: stretch; }
   #sa-helper-container .psycle-mobile-content { padding: 4px 4px 4px 8px; display: flex; flex-direction: column; gap: 2px; min-width: 0; flex: 1 1 0; justify-content: center; }
   /* 1. Rows 2 and 3. Row 2: class name then instructor; the INSTRUCTOR truncates first. */
@@ -8804,7 +8804,7 @@ body::after { z-index: 1000002 !important; }
   /* 2. CTA: 36px high, ~+6px wider. */
   #sa-helper-container .psycle-mobile-seg.primary { height: 36px; min-width: 74px; max-width: 84px; }
   /* 3. Clear space between the sticky rail and the first row (inside the scroll area, transparent). */
-  #sa-helper-container #psycle-timetable-grid { padding-top: 14px !important; }
+  #sa-helper-container #sa-timetable-grid { padding-top: 14px !important; }
   /* 4. Row text +1px (NOT the gym chip, NOT the class-type chip). */
   #sa-helper-container .psycle-mobile-top-line > strong { font-size: 15px; }
   #sa-helper-container .psycle-mobile-line2 .psycle-mobile-class-name,
@@ -8826,7 +8826,7 @@ body::after { z-index: 1000002 !important; }
   #sa-helper-container .psycle-mobile-avatar img { position: relative; z-index: 1; display: block; width: 38px; height: 38px; object-fit: cover; border-radius: 50%; }
 }
 @media (max-width: 768px) {
-  #sa-helper-container .psycle-table td .psycle-mobile-top-line > strong { font-size: 15px !important; }
+  #sa-helper-container .sa-table td .psycle-mobile-top-line > strong { font-size: 15px !important; }
 }
 
 
@@ -8884,55 +8884,55 @@ body::after { z-index: 1000002 !important; }
 .ab-card-gym-rail .ab-gym-logo-svg.is-mark { width: auto; height: 38px; max-width: 80%; }
 
 /* Full with no waitlist: the action is blanked (status pill says it); keep the box so rows align. */
-.psycle-tt-seg.is-blank, .psycle-mobile-seg.is-blank { visibility: hidden !important; pointer-events: none !important; }
+.sa-tt-seg.is-blank, .psycle-mobile-seg.is-blank { visibility: hidden !important; pointer-events: none !important; }
 
 /* ===== WEEK-STRIP DATE SELECTOR (Task F/G) — delete this block + set WEEK_STRIP_DATE_SELECTOR=false in timetable.js to revert ===== */
-#sa-helper-container .psycle-sticky-top.psycle-dates-first { display: flex; flex-direction: column; }
-#sa-helper-container .psycle-sticky-top.psycle-dates-first > #psycle-timetable-carousel { order: -1; }
-#sa-helper-container .psycle-weekstrip { display: block; padding: 4px 0 2px; overflow: visible; }
+#sa-helper-container .psycle-sticky-top.sa-dates-first { display: flex; flex-direction: column; }
+#sa-helper-container .psycle-sticky-top.sa-dates-first > #sa-timetable-carousel { order: -1; }
+#sa-helper-container .sa-weekstrip { display: block; padding: 4px 0 2px; overflow: visible; }
 /* One week per page; swipe/scroll the strip to page between weeks. */
-#sa-helper-container .psycle-wk-scroller {
+#sa-helper-container .sa-wk-scroller {
   display: flex; overflow-x: auto; overflow-y: hidden; scroll-snap-type: x mandatory;
   -webkit-overflow-scrolling: touch; scrollbar-width: none; overscroll-behavior-x: contain; touch-action: manipulation;
 }
-#sa-helper-container .psycle-wk-day { touch-action: manipulation; -webkit-tap-highlight-color: transparent; }
+#sa-helper-container .sa-wk-day { touch-action: manipulation; -webkit-tap-highlight-color: transparent; }
 /* Mobile: the strip is a transform pager (JS), not a native scroller: no momentum phase that swallows taps. */
 @media (max-width: 768px) {
-  #sa-helper-container .psycle-wk-scroller { display: block; overflow: hidden; scroll-snap-type: none; touch-action: pan-y; }
-  #sa-helper-container .psycle-wk-track { display: flex; will-change: transform; }
+  #sa-helper-container .sa-wk-scroller { display: block; overflow: hidden; scroll-snap-type: none; touch-action: pan-y; }
+  #sa-helper-container .sa-wk-track { display: flex; will-change: transform; }
 }
 @media (min-width: 769px) {
-  #sa-helper-container .psycle-wk-track { display: contents; }
+  #sa-helper-container .sa-wk-track { display: contents; }
 }
-#sa-helper-container .psycle-wk-scroller::-webkit-scrollbar { display: none; }
-#sa-helper-container .psycle-wk-page {
+#sa-helper-container .sa-wk-scroller::-webkit-scrollbar { display: none; }
+#sa-helper-container .sa-wk-page {
   flex: 0 0 100%; scroll-snap-align: start; scroll-snap-stop: always; box-sizing: border-box;
   display: grid; grid-template-columns: repeat(7, minmax(0, 1fr)); gap: 5px; padding: 0 2px;
 }
-#sa-helper-container .psycle-wk-day {
+#sa-helper-container .sa-wk-day {
   display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 4px;
   height: 58px; padding: 0; border: 1px solid transparent; border-radius: 12px;
   background: var(--surface-inset); color: var(--text); font-family: var(--font-sans); cursor: pointer;
 }
-#sa-helper-container .psycle-wk-day .wk-num { font-size: 20px; font-weight: 700; line-height: 1; }
-#sa-helper-container .psycle-wk-day .wk-name { font-size: 11px; font-weight: 400; letter-spacing: .04em; line-height: 1; color: var(--text-secondary); }
-#sa-helper-container .psycle-wk-day.is-today { border-color: var(--cta-book); }
-#sa-helper-container .psycle-wk-day.active { background: var(--cta-book); color: var(--on-cta); border-color: var(--cta-book); }
-#sa-helper-container .psycle-wk-day.active .wk-name { color: inherit; }
-#sa-helper-container .psycle-wk-day.is-disabled { opacity: .35; cursor: default; background: transparent; }
-#sa-helper-container .psycle-wk-empty { color: var(--text-secondary); font-size: 12px; font-style: italic; padding: 8px; }
-#sa-helper-container .psycle-tt-fulldate { padding: 2px 4px 5px; font-size: 15px; font-weight: 400; color: var(--text); }
-#sa-helper-container .psycle-wk-nav { display: none; }
+#sa-helper-container .sa-wk-day .wk-num { font-size: 20px; font-weight: 700; line-height: 1; }
+#sa-helper-container .sa-wk-day .wk-name { font-size: 11px; font-weight: 400; letter-spacing: .04em; line-height: 1; color: var(--text-secondary); }
+#sa-helper-container .sa-wk-day.is-today { border-color: var(--cta-book); }
+#sa-helper-container .sa-wk-day.active { background: var(--cta-book); color: var(--on-cta); border-color: var(--cta-book); }
+#sa-helper-container .sa-wk-day.active .wk-name { color: inherit; }
+#sa-helper-container .sa-wk-day.is-disabled { opacity: .35; cursor: default; background: transparent; }
+#sa-helper-container .sa-wk-empty { color: var(--text-secondary); font-size: 12px; font-style: italic; padding: 8px; }
+#sa-helper-container .sa-tt-fulldate { padding: 2px 4px 5px; font-size: 15px; font-weight: 400; color: var(--text); }
+#sa-helper-container .sa-wk-nav { display: none; }
 @media (min-width: 769px) {
   /* Desktop: free horizontal scroll showing ~2 weeks, with < > stepping by 14 days. Mobile keeps one-week pages. */
-  #sa-helper-container .psycle-weekstrip { display: flex; align-items: center; gap: 6px; max-width: 940px; }
-  #sa-helper-container .psycle-wk-scroller {
+  #sa-helper-container .sa-weekstrip { display: flex; align-items: center; gap: 6px; max-width: 940px; }
+  #sa-helper-container .sa-wk-scroller {
     flex: 1 1 auto; min-width: 0; display: grid; grid-auto-flow: column; gap: 5px; scroll-snap-type: none;
     grid-auto-columns: calc((100% - 65px) / 14);
   }
-  #sa-helper-container .psycle-wk-page { display: contents; }
-  #sa-helper-container .psycle-wk-day { height: 62px; }
-  #sa-helper-container .psycle-wk-nav {
+  #sa-helper-container .sa-wk-page { display: contents; }
+  #sa-helper-container .sa-wk-day { height: 62px; }
+  #sa-helper-container .sa-wk-nav {
     display: inline-flex; align-items: center; justify-content: center; flex: 0 0 30px; width: 30px; height: 62px;
     padding: 0; border: 0; border-radius: 8px; background: transparent; color: var(--text); font-size: 22px; cursor: pointer;
   }
@@ -8949,19 +8949,19 @@ body::after { z-index: 1000002 !important; }
   #sa-helper-container .psycle-mobile-bottom-line .psycle-mobile-instructor { font-size: 14px !important; }
 }
 /* Timetable scroll container: no visible scrollbar, still scrolls. */
-#sa-helper-container #psycle-timetable-grid { scrollbar-width: none !important; -ms-overflow-style: none; }
-#sa-helper-container #psycle-timetable-grid::-webkit-scrollbar { display: none !important; width: 0; height: 0; }
+#sa-helper-container #sa-timetable-grid { scrollbar-width: none !important; -ms-overflow-style: none; }
+#sa-helper-container #sa-timetable-grid::-webkit-scrollbar { display: none !important; width: 0; height: 0; }
 /* A little vertical breathing room per row (desktop table rows + mobile cards). */
-#sa-helper-container #psycle-timetable-grid .psycle-table tbody td { padding-top: 11px !important; padding-bottom: 11px !important; }
+#sa-helper-container #sa-timetable-grid .sa-table tbody td { padding-top: 11px !important; padding-bottom: 11px !important; }
 @media (max-width: 768px) {
-  #sa-helper-container #psycle-timetable-grid .psycle-table tbody td { padding-top: 5px !important; padding-bottom: 5px !important; }
+  #sa-helper-container #sa-timetable-grid .sa-table tbody td { padding-top: 5px !important; padding-bottom: 5px !important; }
 }
 /* Auto-Book CTA: ~14px wider, contents centred precisely (equal icon/label gap, no stray padding). */
-.psycle-tt-seg.primary.variant-autoupgrade:not(.psycle-tt-seg-caret) {
+.sa-tt-seg.primary.variant-autoupgrade:not(.sa-tt-seg-caret) {
   width: calc(var(--tt-seg-w) + 14px) !important; flex-basis: calc(var(--tt-seg-w) + 14px) !important;
   padding: 0 !important; gap: 6px !important; justify-content: center !important; text-align: center;
 }
-.psycle-tt-seg.primary.variant-autoupgrade .psycle-seg-ico { margin: 0 !important; }
+.sa-tt-seg.primary.variant-autoupgrade .psycle-seg-ico { margin: 0 !important; }
 @media (max-width: 768px) {
   #sa-helper-container .psycle-mobile-seg.primary.variant-autoupgrade:not(.scheduled) {
     width: calc(var(--timetable-cta-w, 74px) + 14px) !important; min-width: calc(var(--timetable-cta-w, 74px) + 14px) !important;
@@ -8988,8 +8988,8 @@ body::after { z-index: 1000002 !important; }
 
 /* Reduced motion: no timetable day-change motion at all (the JS transition also bails out). */
 @media (prefers-reduced-motion: reduce) {
-  #sa-helper-container .psycle-wk-scroller { scroll-behavior: auto; }
-  #sa-helper-container .psycle-wk-day, #sa-helper-container #psycle-timetable-grid * { transition: none !important; animation: none !important; }
+  #sa-helper-container .sa-wk-scroller { scroll-behavior: auto; }
+  #sa-helper-container .sa-wk-day, #sa-helper-container #sa-timetable-grid * { transition: none !important; animation: none !important; }
 }
 
 /* ===== Install-to-home-screen step: illustrated numbered steps (DESIGN.md 3.6c: blue in dark, clay in light) ===== */
@@ -9129,7 +9129,7 @@ body.psycle-scroll-locked { overflow: hidden; }
   .sa-ovl.sa-page .sa-ovl-header [data-nav-close][data-nav="back"] { order: -1; font-size: 0 !important; }
   .sa-ovl.sa-page .sa-ovl-header [data-nav-close][data-nav="back"]::before { content: '\2039'; font-size: 32px; line-height: 1; }
   /* The map must use the full page width and pan without fighting page scroll. */
-  .sa-page .psycle-floor-scroll { touch-action: pan-x pan-y; }
+  .sa-page .sa-floor-scroll { touch-action: pan-x pan-y; }
 }
 @media (max-width: 768px) {
   /* Primary action = sticky footer, above the iOS home indicator. */
@@ -9147,11 +9147,11 @@ body.psycle-scroll-locked { overflow: hidden; }
 @media (max-width: 768px) {
   /* Page body padding is 16px; the legacy -18px breakout would overflow by 4px. */
   /* `#sa-helper-container * { margin: 0 }` outranks plain class rules, hence !important. */
-  .sa-page .sa-modal-body .psycle-floor-scroll { margin-left: -16px !important; margin-right: -16px !important; width: calc(100% + 32px); }
+  .sa-page .sa-modal-body .sa-floor-scroll { margin-left: -16px !important; margin-right: -16px !important; width: calc(100% + 32px); }
 }
 @media (max-width: 768px) {
   /* Dragging the map pans the map only: no page scroll behind it, no scroll chaining. */
-  .sa-page .psycle-floor-scroll { overscroll-behavior: contain; }
+  .sa-page .sa-floor-scroll { overscroll-behavior: contain; }
 }
 
 /* Batch 5: checkout page, overlap dialog, polish. */
@@ -9200,20 +9200,20 @@ body.psycle-scroll-locked { overscroll-behavior: none; }
 @media (max-width: 768px) {
   .sweat-search { display: none; flex: none; width: 100%; min-width: 0; }
   .sweat-search.open { display: block; }
-  #psycle-timetable-filters-container.sweat-searching .fr-rail { display: none !important; }
+  #sa-timetable-filters-container.sweat-searching .fr-rail { display: none !important; }
 }
 .fr-search-btn { position: relative; }
 .fr-search-btn::before { content: ''; position: absolute; inset: -6px; }   /* 44px hit area, 32px glyph */
 .fr-search-btn.active { background: color-mix(in srgb, var(--accent) 45%, var(--surface-2)); }
-#sa-helper-container .psycle-tt-searchhead { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; padding: 2px 4px 8px; color: var(--text); }
-.psycle-tt-searchhead .sth-main { flex: 1 1 0; min-width: 0; display: flex; align-items: center; gap: 8px; }
-.psycle-tt-searchhead .sth-ico { display: inline-flex; flex: none; color: var(--text-secondary); }
-.psycle-tt-searchhead .sth-title { font-size: 15px; font-weight: 600; min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-.psycle-tt-searchhead .sth-count { flex: 0 0 100%; order: 3; font-size: 12px; color: var(--text-secondary); }
-#sa-helper-container .psycle-tt-searchhead { flex-wrap: wrap; }
-.psycle-tt-searchhead .sth-clear { flex: none; margin-left: 0; min-height: 44px; min-width: 44px; padding: 0 14px; border-radius: var(--radius-control); border: 1px solid var(--border-strong); background: var(--surface-2); color: var(--text); font-weight: 600; cursor: pointer; }
-.psycle-tt-searchnone { padding: 28px 12px; text-align: center; color: var(--text-secondary); }
-#sa-helper-container .psycle-table tr.psycle-search-day > td { display: table-cell !important; padding: 14px 8px 6px !important; font-size: 15px !important; font-weight: 400 !important; color: var(--text) !important; background: transparent !important; border: 0 !important; }
+#sa-helper-container .sa-tt-searchhead { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; padding: 2px 4px 8px; color: var(--text); }
+.sa-tt-searchhead .sth-main { flex: 1 1 0; min-width: 0; display: flex; align-items: center; gap: 8px; }
+.sa-tt-searchhead .sth-ico { display: inline-flex; flex: none; color: var(--text-secondary); }
+.sa-tt-searchhead .sth-title { font-size: 15px; font-weight: 600; min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.sa-tt-searchhead .sth-count { flex: 0 0 100%; order: 3; font-size: 12px; color: var(--text-secondary); }
+#sa-helper-container .sa-tt-searchhead { flex-wrap: wrap; }
+.sa-tt-searchhead .sth-clear { flex: none; margin-left: 0; min-height: 44px; min-width: 44px; padding: 0 14px; border-radius: var(--radius-control); border: 1px solid var(--border-strong); background: var(--surface-2); color: var(--text); font-weight: 600; cursor: pointer; }
+.sa-tt-searchnone { padding: 28px 12px; text-align: center; color: var(--text-secondary); }
+#sa-helper-container .sa-table tr.sa-search-day > td { display: table-cell !important; padding: 14px 8px 6px !important; font-size: 15px !important; font-weight: 400 !important; color: var(--text) !important; background: transparent !important; border: 0 !important; }
 
 /* ===== Mobile feedback batch (2026-10-05) ===== */
 /* Gym logo banner: the full wordmark on its brand plate (same sizing as onboarding's). */
@@ -9419,36 +9419,36 @@ html.psycle-scroll-locked { overflow: hidden !important; background: var(--bg) !
 @media (prefers-reduced-motion: reduce) { .fr-gymquick-btn .fr-gym-dot.lg { transition: none; } }
 
 /* ===== Mobile scroll-collapse (5-10 enh 3) =====
-   main.js toggles `.psycle-tt-compact` on #psycle-app-container together with the header hide (one state,
+   main.js toggles `.sa-tt-compact` on #psycle-app-container together with the header hide (one state,
    see ui/scroll-collapse.js). MOBILE ONLY: everything is inside max-width:768px; desktop never matches.
    Layout-jump guard: the day cells shrink by --tt-collapse-d and the sticky block gains the same
    margin-bottom, on one shared duration/easing, so the in-flow footprint (and scrollHeight / scrollTop) is
    constant at every frame. The strip just gets shorter at the top; the list does not move.
-   Source order: these sit after the base .psycle-wk-day / .psycle-sticky-top / .fr-chip rules. */
+   Source order: these sit after the base .sa-wk-day / .psycle-sticky-top / .fr-chip rules. */
 @media (max-width: 768px) {
   #sa-helper-container .psycle-sticky-top { --tt-collapse-d: 16px; --tt-collapse-t: 0.25s cubic-bezier(0.25, 1, 0.5, 1); }
   #sa-helper-container .psycle-sticky-top {
     transition: top 0.25s ease, margin-bottom var(--tt-collapse-t);
   }
-  #psycle-app-container.psycle-tt-compact .psycle-sticky-top { margin-bottom: var(--tt-collapse-d); }
-  #sa-helper-container .psycle-wk-day {
+  #psycle-app-container.sa-tt-compact .psycle-sticky-top { margin-bottom: var(--tt-collapse-d); }
+  #sa-helper-container .sa-wk-day {
     transition: height var(--tt-collapse-t, 0.25s ease), gap var(--tt-collapse-t, 0.25s ease), background-color 0.2s ease, border-color 0.2s ease;
   }
-  #sa-helper-container .psycle-wk-day .wk-num, #sa-helper-container .psycle-wk-day .wk-name { transition: font-size var(--tt-collapse-t, 0.25s ease); }
-  #psycle-app-container.psycle-tt-compact .psycle-wk-day { height: calc(58px - var(--tt-collapse-d, 16px)); gap: 2px; }
-  #psycle-app-container.psycle-tt-compact .psycle-wk-day .wk-num { font-size: 17px; }
-  #psycle-app-container.psycle-tt-compact .psycle-wk-day .wk-name { font-size: 10px; }
+  #sa-helper-container .sa-wk-day .wk-num, #sa-helper-container .sa-wk-day .wk-name { transition: font-size var(--tt-collapse-t, 0.25s ease); }
+  #psycle-app-container.sa-tt-compact .sa-wk-day { height: calc(58px - var(--tt-collapse-d, 16px)); gap: 2px; }
+  #psycle-app-container.sa-tt-compact .sa-wk-day .wk-num { font-size: 17px; }
+  #psycle-app-container.sa-tt-compact .sa-wk-day .wk-name { font-size: 10px; }
 
   /* Location chip: the logo + initials tile cross-fades into "N locations". */
   #sweat-filter-rail .fr-tile-full, #sweat-filter-rail .fr-tile-compact { display: inline-flex; align-items: center; overflow: hidden; white-space: nowrap; transition: max-width var(--tt-collapse-t, 0.25s ease), opacity 0.2s ease; }
   #sweat-filter-rail .fr-tile-full { max-width: 220px; opacity: 1; }
   #sweat-filter-rail .fr-tile-compact { max-width: 0; opacity: 0; font-size: 11px; font-weight: 500; }
-  #psycle-app-container.psycle-tt-compact #sweat-filter-rail .fr-tile-full { max-width: 0; opacity: 0; }
-  #psycle-app-container.psycle-tt-compact #sweat-filter-rail .fr-tile-compact { max-width: 120px; opacity: 1; margin-left: 4px; }
+  #psycle-app-container.sa-tt-compact #sweat-filter-rail .fr-tile-full { max-width: 0; opacity: 0; }
+  #psycle-app-container.sa-tt-compact #sweat-filter-rail .fr-tile-compact { max-width: 120px; opacity: 1; margin-left: 4px; }
 }
 @media (max-width: 768px) and (prefers-reduced-motion: reduce) {
   #sa-helper-container .psycle-sticky-top,
-  #sa-helper-container .psycle-wk-day, #sa-helper-container .psycle-wk-day .wk-num, #sa-helper-container .psycle-wk-day .wk-name,
+  #sa-helper-container .sa-wk-day, #sa-helper-container .sa-wk-day .wk-num, #sa-helper-container .sa-wk-day .wk-name,
   #sweat-filter-rail .fr-tile-full, #sweat-filter-rail .fr-tile-compact { transition: none !important; }
 }
 /* Desktop: the compact face never shows. */
@@ -9475,7 +9475,7 @@ html:not([data-credits-tab="on"]) .psycle-nav-btn[data-tab="buy-credits"] { disp
 @media (max-width: 768px) {
   #sa-helper-container .psycle-mobile-lead { flex-basis: 48px; width: 48px; }
   #sa-helper-container .psycle-mobile-lead > strong,
-  #sa-helper-container .psycle-table td .psycle-mobile-top-line > strong { font-size: 18px !important; }
+  #sa-helper-container .sa-table td .psycle-mobile-top-line > strong { font-size: 18px !important; }
   #sa-helper-container .psycle-mobile-line2 .psycle-mobile-class-name,
   #sa-helper-container .psycle-mobile-line2 .psycle-mobile-instructor,
   #sa-helper-container .psycle-mobile-bottom-line .psycle-mobile-instructor { font-size: 15px !important; }
@@ -9504,13 +9504,13 @@ html:not([data-credits-tab="on"]) .psycle-nav-btn[data-tab="buy-credits"] { disp
 /* Shared avatar border = the instructor popup's treatment (2px accent @40%); theme tokens, so light/dark both follow. */
 .ab-card-avatar, .ab-card-instructor .ab-card-avatar { border: 2px solid color-mix(in srgb, var(--accent) 40%, transparent) !important; box-sizing: border-box; }
 /* Instructor popup: photo +50% (48 -> 72), text enlarged, popup widened (still clamped to the viewport). */
-#psycle-instructor-tooltip { width: 440px !important; max-width: calc(100vw - 20px) !important; padding: 20px !important; }
-#psycle-instructor-tooltip .psycle-tooltip-header { gap: 16px; }
-#psycle-instructor-tooltip .psycle-tooltip-avatar { width: 72px !important; height: 72px !important; flex-shrink: 0; box-sizing: border-box; }
-#psycle-instructor-tooltip .psycle-tooltip-name { font-size: 18px !important; }
-#psycle-instructor-tooltip .psycle-tooltip-keywords { font-size: 14px !important; }
-#psycle-instructor-tooltip .psycle-tooltip-socials, #psycle-instructor-tooltip .psycle-tooltip-socials .psycle-tooltip-social-link, #psycle-instructor-tooltip .psycle-tooltip-social-text { font-size: 14px !important; }
-#psycle-instructor-tooltip { max-height: calc(100vh - 20px); overflow-y: auto; }
+#sa-instructor-tooltip { width: 440px !important; max-width: calc(100vw - 20px) !important; padding: 20px !important; }
+#sa-instructor-tooltip .sa-tooltip-header { gap: 16px; }
+#sa-instructor-tooltip .sa-tooltip-avatar { width: 72px !important; height: 72px !important; flex-shrink: 0; box-sizing: border-box; }
+#sa-instructor-tooltip .sa-tooltip-name { font-size: 18px !important; }
+#sa-instructor-tooltip .sa-tooltip-keywords { font-size: 14px !important; }
+#sa-instructor-tooltip .sa-tooltip-socials, #sa-instructor-tooltip .sa-tooltip-socials .sa-tooltip-social-link, #sa-instructor-tooltip .sa-tooltip-social-text { font-size: 14px !important; }
+#sa-instructor-tooltip { max-height: calc(100vh - 20px); overflow-y: auto; }
 /* Timetable row photo +20% (38 -> 46); the mobile lead column (48px) already fits it. */
 @media (max-width: 768px) {
   #sa-helper-container .psycle-mobile-lead .psycle-mobile-avatar { flex: 0 0 46px !important; width: 46px !important; height: 46px !important; box-sizing: border-box; border: 2px solid color-mix(in srgb, var(--accent) 40%, transparent); }
@@ -9524,9 +9524,9 @@ html:not([data-credits-tab="on"]) .psycle-nav-btn[data-tab="buy-credits"] { disp
 @media (max-width: 768px) {
   #sweat-filter-rail .fr-gymquick { gap: 6px; }
   #sweat-filter-rail .fr-gymquick-btn { transition: margin-left var(--tt-collapse-t, 0.25s ease); }
-  #psycle-app-container.psycle-tt-compact #sweat-filter-rail .fr-gymquick:not(.is-open) .fr-gymquick-btn + .fr-gymquick-btn { margin-left: -20px !important; }
-  #psycle-app-container.psycle-tt-compact #sweat-filter-rail .fr-gymquick:not(.is-open) .fr-gymquick-btn .fr-gym-dot { box-shadow: 0 0 0 1.5px var(--surface-1, var(--surface-2)); }
-  #psycle-app-container.psycle-tt-compact #sweat-filter-rail .fr-gymquick:not(.is-open) { gap: 0; }
+  #psycle-app-container.sa-tt-compact #sweat-filter-rail .fr-gymquick:not(.is-open) .fr-gymquick-btn + .fr-gymquick-btn { margin-left: -20px !important; }
+  #psycle-app-container.sa-tt-compact #sweat-filter-rail .fr-gymquick:not(.is-open) .fr-gymquick-btn .fr-gym-dot { box-shadow: 0 0 0 1.5px var(--surface-1, var(--surface-2)); }
+  #psycle-app-container.sa-tt-compact #sweat-filter-rail .fr-gymquick:not(.is-open) { gap: 0; }
 }
 @media (max-width: 768px) and (prefers-reduced-motion: reduce) {
   #sweat-filter-rail .fr-gymquick-btn { transition: none !important; }
@@ -9553,19 +9553,19 @@ html:not([data-credits-tab="on"]) .psycle-nav-btn[data-tab="buy-credits"] { disp
 
 /* Timetable: instructor name = class name size (one shared value so they cannot drift). Hierarchy via
    weight/colour only. Desktop table incl. the merged who/where column; mobile rows stay 15px (rule above).
-   Last in file with !important: `td { font-size: 13px !important }` and `.psycle-instructor-hover` also set sizes. */
-#sa-helper-container .psycle-table td .psycle-tt-class-name,
-#sa-helper-container .psycle-table td.col-instructor .psycle-instructor-hover,
-#sa-helper-container .psycle-table td .psycle-ww-who { font-size: 14px !important; }
+   Last in file with !important: `td { font-size: 13px !important }` and `.sa-instructor-hover` also set sizes. */
+#sa-helper-container .sa-table td .sa-tt-class-name,
+#sa-helper-container .sa-table td.col-instructor .sa-instructor-hover,
+#sa-helper-container .sa-table td .sa-ww-who { font-size: 14px !important; }
 @media (max-width: 768px) {
   /* ROOT CAUSE of the small instructor: the card sits in a table cell and the instructor span also carries
-     .psycle-instructor-hover, so `#id .psycle-table td .psycle-instructor-hover { font-size: 13px !important }`
+     .sa-instructor-hover, so `#id .sa-table td .sa-instructor-hover { font-size: 13px !important }`
      (specificity 1,2,1) beat every `.psycle-mobile-*` rule here (1,2,0) regardless of order. These selectors
-     include `.psycle-table td` so they out-rank it. One value for class, instructor and location. */
-  #sa-helper-container .psycle-table td .psycle-mobile-main .psycle-mobile-line2 .psycle-mobile-class-name,
-  #sa-helper-container .psycle-table td .psycle-mobile-main .psycle-mobile-line2 .psycle-mobile-instructor,
-  #sa-helper-container .psycle-table td .psycle-mobile-main .psycle-mobile-bottom-line .psycle-mobile-instructor,
-  #sa-helper-container .psycle-table td .psycle-mobile-main .psycle-mobile-bottom-line .psycle-mobile-location { font-size: 15px !important; }
+     include `.sa-table td` so they out-rank it. One value for class, instructor and location. */
+  #sa-helper-container .sa-table td .psycle-mobile-main .psycle-mobile-line2 .psycle-mobile-class-name,
+  #sa-helper-container .sa-table td .psycle-mobile-main .psycle-mobile-line2 .psycle-mobile-instructor,
+  #sa-helper-container .sa-table td .psycle-mobile-main .psycle-mobile-bottom-line .psycle-mobile-instructor,
+  #sa-helper-container .sa-table td .psycle-mobile-main .psycle-mobile-bottom-line .psycle-mobile-location { font-size: 15px !important; }
 }
 
 /* U4-19 phase 5: deep-link filter banner ("Filtered: ... Clear") above the timetable list */

@@ -26,7 +26,7 @@ const list = () => el()?.querySelector('.sweat-search-list');
 function isOpen() { return el()?.classList.contains('open'); }
 
 function setHostState(open) {
-  document.getElementById('psycle-timetable-filters-container')?.classList.toggle('sweat-searching', !!open);
+  document.getElementById('sa-timetable-filters-container')?.classList.toggle('sweat-searching', !!open);
 }
 
 export function openSearch() {
@@ -178,12 +178,12 @@ function build() {
  */
 export function ensureSearchUi(h) {
   hooks = h;
-  const host = document.getElementById('psycle-timetable-filters-container');
+  const host = document.getElementById('sa-timetable-filters-container');
   if (!host) return;
   let root = el();
   if (!root) root = build();
   const mobile = matchMobile();
-  const row = host.querySelector('.psycle-filters-row');
+  const row = host.querySelector('.sa-filters-row');
   const wantParent = mobile || !row ? host : row;
   if (root.parentElement !== wantParent) {
     if (wantParent === host) host.appendChild(root); else row.prepend(root);

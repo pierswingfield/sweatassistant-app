@@ -548,8 +548,8 @@ pointer-events: none;
 Minimap sits inside the occupancy tooltip. Dots:
 
 ```css
-.psycle-minimap-dot.available { background: var(--success); }
-.psycle-minimap-dot.occupied  { background: var(--danger); }
+.sa-minimap-dot.available { background: var(--success); }
+.sa-minimap-dot.occupied  { background: var(--danger); }
 ```
 
 Loading spinner inside the tooltip uses `color: var(--feat-autoupgrade)` for the arc and `color: var(--text)` for label text.

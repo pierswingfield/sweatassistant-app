@@ -185,7 +185,7 @@ export function equalizeDiscTagWidths(container = document) {
   // took came out of the class NAME, which is the thing people read.
   //
   // Chips are now content-sized. Column alignment is preserved a level up
-  // instead: `.psycle-table td.col-class` has a fixed percentage width, so the
+  // instead: `.sa-table td.col-class` has a fixed percentage width, so the
   // COLUMN does not move even though the chip inside it varies.
   //
   // Kept as an exported no-op rather than deleted because several modules call

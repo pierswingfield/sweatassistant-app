@@ -15,13 +15,14 @@ import { groupBookingsByEvent, selectUpcoming } from './upcoming.js';
 import { mountBookingCard } from './bookings.js';
 import { formatInZone, zoneFor } from '../lib.js';
 import { instructorAvatar } from './tooltips.js';
+import { indexFavourites, isFavouriteIn } from '../favourites.js';
 
 const goTo = (tabId) => (window.switchTab ? window.switchTab(tabId) : null);
 
-// Eight widgets in the agreed order. W6 and W8 are placeholders that later
-// items (H-6 and H-8) fill in; W1-W5 and W7 are real.
+// Eight widgets in the agreed order. W8 remains a placeholder until its
+// provider-stats audit; W1-W7 are real.
 const PLACEHOLDERS = [
-  ['favourites', 'favourites', 60], ['stats', 'stats', 80],
+  ['stats', 'stats', 80],
 ];
 for (const [id, key, order] of PLACEHOLDERS) {
   registerWidget({
@@ -252,6 +253,103 @@ registerWidget({
 });
 
 /**
+ * Favourite classes in the next seven 24-hour days. A missing per-gym index
+ * remains loading, never an empty list: ids from two providers can collide,
+ * so a loaded gym must not stand in for another.
+ */
+export function getHomeFavouriteRows(gyms, {
+  favouritesByGym = {}, events = [], now = new Date(), scheduleLoading = false,
+} = {}) {
+  const gymIds = [...new Set((Array.isArray(gyms) ? gyms : []).map(gymIdOf).filter(Boolean))];
+  const start = now.getTime();
+  const end = start + (7 * 24 * 60 * 60 * 1000);
+  const loaded = new Set(gymIds.filter((gymId) => !!favouritesByGym[gymId]));
+  const rows = (Array.isArray(events) ? events : [])
+    .filter((event) => {
+      const gymId = String(event?.gymId || '');
+      const time = Date.parse(event?.startAt || '');
+      return loaded.has(gymId) && Number.isFinite(time) && time >= start && time < end
+        && isFavouriteIn(favouritesByGym[gymId], event);
+    })
+    .sort((a, b) => Date.parse(a.startAt) - Date.parse(b.startAt));
+  if (rows.length) return { state: 'list', rows };
+  if (scheduleLoading || loaded.size !== gymIds.length) return { state: 'loading', rows: [] };
+  return { state: 'empty', rows: [] };
+}
+
+async function loadHomeFavourites(gyms) {
+  const [{ cache }, timetable] = await Promise.all([
+    import('../main.js'), import('./timetable.js'),
+  ]);
+  const gymIds = [...new Set((Array.isArray(gyms) ? gyms : []).map(gymIdOf).filter(Boolean))];
+  const missing = gymIds.filter((gymId) => !cache.favouritesByGym?.[gymId]);
+  if (missing.length) {
+    const settled = await Promise.allSettled(missing.map((gymId) => api.getFavourites(gymId)));
+    cache.favouritesByGym = { ...(cache.favouritesByGym || {}) };
+    settled.forEach((result, index) => {
+      if (result.status === 'fulfilled' && Array.isArray(result.value?.favourites)) {
+        cache.favouritesByGym[missing[index]] = indexFavourites(result.value.favourites);
+      }
+    });
+  }
+  const events = timetable.getLoadedEvents();
+  if (!events.length) timetable.ensureScheduleLoaded();
+  return {
+    ...getHomeFavouriteRows(gyms, {
+      favouritesByGym: cache.favouritesByGym,
+      events,
+      scheduleLoading: timetable.isScheduleLoading(),
+    }),
+    primaryActionForEvent: timetable.primaryActionForEvent,
+  };
+}
+
+function favouriteCard(event, primaryActionForEvent) {
+  const zone = zoneFor(event);
+  const dt = DateTime.fromISO(String(event.startAt), { setZone: true }).setZone(zone);
+  const card = document.createElement('article');
+  card.className = 'home-favourite-card';
+  const photo = event.instructors?.[0]?.thumbUrl || event.instructors?.[0]?.imageUrl || null;
+  card.innerHTML = '<div class="home-favourite-photo"></div><div class="home-favourite-copy"><span class="home-favourite-when"></span><span class="home-favourite-type"></span></div><button type="button" class="home-favourite-cta"></button>';
+  const photoEl = card.querySelector('.home-favourite-photo');
+  const avatar = instructorAvatar(event.instructors?.[0]?.name || '', event.gymId, photo, { size: 56, cls: 'home-favourite-avatar' });
+  if (avatar) photoEl.innerHTML = avatar;
+  else {
+    photoEl.classList.add('is-initial');
+    photoEl.textContent = String(event.instructors?.[0]?.name || '').trim().charAt(0).toUpperCase() || '?';
+  }
+  photoEl.insertAdjacentHTML('beforeend', `<span class="home-favourite-gym">${gymSquareChip(event.gymId)}</span>`);
+  card.querySelector('.home-favourite-when').textContent = `${dt.isValid ? dt.toFormat('ccc') : ''} ${formatInZone(event.startAt, zone).timeLabel}`.trim();
+  card.querySelector('.home-favourite-type').textContent = event.discipline || event.name || COPY.common.classFallback;
+  const action = primaryActionForEvent(event);
+  const button = card.querySelector('.home-favourite-cta');
+  button.classList.add(`variant-${action.variant}`);
+  button.textContent = action.label;
+  if (action.title) { button.title = action.title; button.setAttribute('aria-label', action.title); }
+  if (action.disabled) button.disabled = true;
+  else if (action.run) button.addEventListener('click', () => action.run(button));
+  return card;
+}
+
+registerWidget({
+  id: 'favourites', order: 60, title: COPY.home.favourites,
+  async load(ctx) { return loadHomeFavourites(ctx.gyms); },
+  isEmpty: (data) => data?.state === 'empty',
+  emptyText: COPY.home.favouritesNone,
+  render(el, data) {
+    if (data.state === 'loading') {
+      el.innerHTML = renderCardSkeletons(2, COPY.home.loadingWidget);
+      return;
+    }
+    const strip = document.createElement('div');
+    strip.className = 'home-favourites-strip';
+    strip.setAttribute('aria-label', COPY.home.favourites);
+    data.rows.forEach((event) => strip.appendChild(favouriteCard(event, data.primaryActionForEvent)));
+    el.appendChild(strip);
+  },
+});
+
+/**
  * One most-frequent instructor per linked gym. History has no photo by design,
  * so pair its normalized instructor id with that gym's normalized metadata;
  * metadata photo URLs are the F-15 same-origin proxy URLs.
@@ -372,5 +470,7 @@ export { isNoGymError };
 if (typeof window !== 'undefined') {
   const onHome = () => !!document.getElementById('psycle-panel-home') && document.getElementById('psycle-panel-home').style.display !== 'none';
   window.addEventListener('psycle:gyms-changed', () => { if (onHome()) renderHome(); });
+  window.addEventListener('sweat-favourites-changed', () => { if (onHome()) renderHome(); });
+  window.addEventListener('sweat-timetable-rendered', () => { if (onHome()) renderHome(); });
   document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'visible' && onHome()) renderHome(); });
 }

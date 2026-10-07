@@ -1,10 +1,14 @@
 import { describe, expect, it, beforeAll, vi } from 'vitest';
 import { setLinkedGyms } from '../gym-context.js';
+import { indexFavourites } from '../favourites.js';
+import { COPY } from '../copy.js';
 
 let countPendingAutoBooks;
 let getHomeCreditRows;
 let getHomeBookLinks;
 let getHomeTopInstructorRows;
+let getHomeFavouriteRows;
+let primaryActionForEvent;
 let cache;
 beforeAll(async () => {
   window.matchMedia = window.matchMedia || (() => ({ matches: false, addEventListener() {}, removeEventListener() {}, addListener() {}, removeListener() {} }));
@@ -18,7 +22,8 @@ beforeAll(async () => {
     });
   }
   ({ cache } = await import('../main.js'));
-  ({ countPendingAutoBooks, getHomeCreditRows, getHomeBookLinks, getHomeTopInstructorRows } = await import('./home.js'));
+  ({ countPendingAutoBooks, getHomeCreditRows, getHomeBookLinks, getHomeTopInstructorRows, getHomeFavouriteRows } = await import('./home.js'));
+  ({ primaryActionForEvent } = await import('./timetable.js'));
 });
 
 describe('W2 Home book row', () => {
@@ -80,6 +85,53 @@ describe('W4 auto-book count', () => {
   it('never turns not-loaded into zero', () => {
     expect(countPendingAutoBooks(undefined)).toBeNull();
     expect(countPendingAutoBooks([])).toBe(0);
+  });
+});
+
+describe('W6 Home favourites', () => {
+  const gyms = [{ gym_id: 'gym-a' }, { gym_id: 'gym-b' }];
+  const event = (overrides = {}) => ({
+    id: 'class-a', gymId: 'gym-a', studioId: '7', startAt: '2026-10-08T17:30:00+01:00', timeZone: 'Europe/London', discipline: 'Ride',
+    ...overrides,
+  });
+  const favouritesByGym = {
+    'gym-a': indexFavourites([{ id: '70000400001730', studioId: '7', dayOfWeek: 4, startTime: '1730' }]),
+    'gym-b': indexFavourites([]),
+  };
+  const now = new Date('2026-10-06T12:00:00Z');
+
+  it('keeps only matched, gym-scoped classes in the next seven days', () => {
+    const result = getHomeFavouriteRows(gyms, {
+      favouritesByGym,
+      now,
+      events: [
+        event(),
+        event({ id: 'wrong-gym', gymId: 'gym-b' }),
+        event({ id: 'too-late', startAt: '2026-10-14T17:30:00+01:00' }),
+      ],
+    });
+    expect(result.state).toBe('list');
+    expect(result.rows.map((row) => row.id)).toEqual(['class-a']);
+  });
+
+  it('does not turn an unloaded gym into an empty favourites result', () => {
+    const result = getHomeFavouriteRows(gyms, {
+      favouritesByGym: { 'gym-a': favouritesByGym['gym-a'] }, now, events: [],
+    });
+    expect(result.state).toBe('loading');
+  });
+
+  it('reports empty only after every linked gym and the schedule are known', () => {
+    const result = getHomeFavouriteRows(gyms, { favouritesByGym, now, events: [] });
+    expect(result).toMatchObject({ state: 'empty', rows: [] });
+  });
+
+  it('uses the compact timetable decision for a full class without a waitlist', () => {
+    cache.bookings = [];
+    cache.waitlists = [];
+    cache.autoBookings = [];
+    expect(primaryActionForEvent(event({ id: 'full', alwaysBookable: true, isFull: true, waitlistAvailable: false })))
+      .toMatchObject({ label: COPY.timetable.full, disabled: true });
   });
 });
 

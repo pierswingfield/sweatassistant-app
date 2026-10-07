@@ -11510,6 +11510,25 @@ html:not([data-credits-tab="on"]) .psycle-nav-btn[data-tab="buy-credits"] { disp
 .home-instructor-meta { color: var(--text-secondary, #6b7280); font-size: 0.86em; }
 .home-instructor-gym { width: 32px; height: 32px; flex: 0 0 32px; }
 .home-instructor-gym .psycle-gym-mark { width: 100%; height: 100%; }
+
+/* H-6 / W6: compact, horizontal upcoming favourite cards. The booking action
+   comes from the timetable model; Home only gives that one action a card-sized home. */
+.home-favourites-strip { display: flex; gap: 10px; overflow-x: auto; padding: 2px 1px 8px; scroll-snap-type: x proximity; overscroll-behavior-inline: contain; }
+.home-favourite-card { display: grid; grid-template-columns: 56px minmax(108px, 1fr); grid-template-rows: 1fr auto; gap: 8px 10px; flex: 0 0 min(250px, 78vw); min-width: 0; padding: 10px; border: 1px solid var(--border-color, #e5e7eb); border-radius: 12px; background: var(--card-bg, transparent); scroll-snap-align: start; }
+.home-favourite-photo { position: relative; grid-row: 1 / span 2; width: 56px; height: 56px; border-radius: 50%; overflow: visible; background: color-mix(in srgb, var(--text) 8%, transparent); }
+.home-favourite-photo.is-initial { display: grid; place-items: center; color: var(--text-secondary, #6b7280); font-weight: 700; }
+.home-favourite-avatar { width: 56px; height: 56px; border-radius: 50%; object-fit: cover; }
+.home-favourite-gym { position: absolute; right: -3px; bottom: -3px; width: 22px; height: 22px; border: 2px solid var(--card-bg, #fff); border-radius: 7px; overflow: hidden; }
+.home-favourite-gym .psycle-gym-mark { width: 100%; height: 100%; border-radius: 0; }
+.home-favourite-copy { display: grid; align-content: center; gap: 2px; min-width: 0; }
+.home-favourite-when { font-size: .8em; font-weight: 700; color: var(--text-secondary, #6b7280); }
+.home-favourite-type { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-weight: 700; }
+.home-favourite-cta { min-height: 34px; border: 0; border-radius: 9px; padding: 6px 10px; font: inherit; font-size: .85em; font-weight: 700; cursor: pointer; color: var(--gym-on, #fff); background: var(--gym-btn, var(--accent, #6366f1)); }
+.home-favourite-cta.variant-warning-solid { color: var(--text, #111827); background: var(--warning, #fbbf24); }
+.home-favourite-cta.variant-danger, .home-favourite-cta.variant-danger-strong { background: var(--danger, #dc2626); }
+.home-favourite-cta.variant-neutral { color: var(--text-secondary, #6b7280); background: color-mix(in srgb, var(--text) 10%, transparent); }
+.home-favourite-cta:disabled { cursor: default; opacity: .65; }
+@media (max-width: 480px) { .home-favourite-card { flex-basis: min(226px, 76vw); } }
 /* F-12: favourite heart on every row. Mobile card: 44px hit area, visual stays compact. */
 .psycle-timetable-heart:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; border-radius: 8px; }
 .psycle-timetable-heart svg { display: block; pointer-events: none; }

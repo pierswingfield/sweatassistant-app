@@ -4,6 +4,7 @@ import { setLinkedGyms } from '../gym-context.js';
 let countPendingAutoBooks;
 let getHomeCreditRows;
 let getHomeBookLinks;
+let getHomeTopInstructorRows;
 let cache;
 beforeAll(async () => {
   window.matchMedia = window.matchMedia || (() => ({ matches: false, addEventListener() {}, removeEventListener() {}, addListener() {}, removeListener() {} }));
@@ -17,7 +18,7 @@ beforeAll(async () => {
     });
   }
   ({ cache } = await import('../main.js'));
-  ({ countPendingAutoBooks, getHomeCreditRows, getHomeBookLinks } = await import('./home.js'));
+  ({ countPendingAutoBooks, getHomeCreditRows, getHomeBookLinks, getHomeTopInstructorRows } = await import('./home.js'));
 });
 
 describe('W2 Home book row', () => {
@@ -79,5 +80,31 @@ describe('W4 auto-book count', () => {
   it('never turns not-loaded into zero', () => {
     expect(countPendingAutoBooks(undefined)).toBeNull();
     expect(countPendingAutoBooks([])).toBe(0);
+  });
+});
+
+describe('W7 Home top instructors', () => {
+  it('keeps an instructor identity and photo scoped to its own gym', () => {
+    setLinkedGyms([
+      { gym_id: 'gym-a', shortName: 'A' },
+      { gym_id: 'gym-b', shortName: 'B' },
+    ]);
+    const rows = getHomeTopInstructorRows([
+      { gym_id: 'gym-a', shortName: 'A' },
+      { gym_id: 'gym-b', shortName: 'B' },
+    ], {
+      'gym-a': { history: { topInstructors: [{ instructorId: '7', instructorName: 'Alex', count: 3 }] }, metadata: { instructors: [{ id: '7', thumbUrl: '/api/instructor-photo/gym-a/7?size=thumb&v=a' }] } },
+      'gym-b': { history: { topInstructors: [{ instructorId: '7', instructorName: 'Sam', count: 1 }] }, metadata: { instructors: [{ id: '7', thumbUrl: '/api/instructor-photo/gym-b/7?size=thumb&v=b' }] } },
+    });
+    expect(rows).toMatchObject([
+      { gymId: 'gym-a', instructorName: 'Alex', photoUrl: expect.stringContaining('/gym-a/7'), href: '/timetable?gym=gym-a&instructor=gym-a%3A7' },
+      { gymId: 'gym-b', instructorName: 'Sam', photoUrl: expect.stringContaining('/gym-b/7'), href: '/timetable?gym=gym-b&instructor=gym-b%3A7' },
+    ]);
+  });
+
+  it('omits a gym with no qualifying class instead of inventing an instructor', () => {
+    expect(getHomeTopInstructorRows([{ gym_id: 'gym-a' }], {
+      'gym-a': { history: { topInstructors: [] }, metadata: { instructors: [] } },
+    })).toEqual([]);
   });
 });

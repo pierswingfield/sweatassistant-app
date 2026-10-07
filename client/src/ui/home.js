@@ -14,14 +14,14 @@ import { DateTime } from 'luxon';
 import { groupBookingsByEvent, selectUpcoming } from './upcoming.js';
 import { mountBookingCard } from './bookings.js';
 import { formatInZone, zoneFor } from '../lib.js';
+import { instructorAvatar } from './tooltips.js';
 
 const goTo = (tabId) => (window.switchTab ? window.switchTab(tabId) : null);
 
-// Eight widgets in the agreed order. W3 and W6-W8 are placeholders that later
-// items (H-4 and H-6 ... H-9) fill in; W1, W2, W4 and W5 are real.
+// Eight widgets in the agreed order. W6 and W8 are placeholders that later
+// items (H-6 and H-8) fill in; W1-W5 and W7 are real.
 const PLACEHOLDERS = [
-  ['favourites', 'favourites', 60],
-  ['top-instructors', 'topInstructors', 70], ['stats', 'stats', 80],
+  ['favourites', 'favourites', 60], ['stats', 'stats', 80],
 ];
 for (const [id, key, order] of PLACEHOLDERS) {
   registerWidget({
@@ -248,6 +248,80 @@ registerWidget({
     btn.querySelector('.home-stat-label').textContent = n === 0 ? COPY.home.autoBookNone : (n === 1 ? COPY.home.autoBookOne : COPY.home.autoBookActive);
     btn.addEventListener('click', () => goTo('auto-book'));
     el.appendChild(btn);
+  },
+});
+
+/**
+ * One most-frequent instructor per linked gym. History has no photo by design,
+ * so pair its normalized instructor id with that gym's normalized metadata;
+ * metadata photo URLs are the F-15 same-origin proxy URLs.
+ */
+export function getHomeTopInstructorRows(gyms, byGym = {}) {
+  if (!Array.isArray(gyms)) return [];
+  return gyms.flatMap((gym) => {
+    const gymId = gymIdOf(gym);
+    const top = byGym[gymId]?.history?.topInstructors?.[0];
+    if (!gymId || !top?.instructorId || !top?.instructorName) return [];
+    const instructor = (byGym[gymId]?.metadata?.instructors || [])
+      .find((item) => String(item.id) === String(top.instructorId));
+    return [{
+      gymId,
+      gymName: getGymShortName(gymId) || gym.shortName || gym.name || gymId,
+      instructorId: String(top.instructorId),
+      instructorName: top.instructorName,
+      count: Number(top.count) || 0,
+      photoUrl: instructor?.thumbUrl || instructor?.imageUrl || null,
+      href: buildTimetableUrl({ gym: [gymId], instructor: [`${gymId}:${top.instructorId}`] }),
+    }];
+  });
+}
+
+async function loadHomeTopInstructors(gyms) {
+  const linked = (Array.isArray(gyms) ? gyms : []).filter((gym) => gymIdOf(gym));
+  const settled = await Promise.allSettled(linked.map(async (gym) => {
+    const gymId = gymIdOf(gym);
+    const history = await api.getHistory(gymId, { days: 30, limit: 1, top: 1 });
+    // A missing photo must not turn a useful history answer into a widget error.
+    const metadata = await api.getMetadata({ gymId }).catch(() => ({ instructors: [] }));
+    return [gymId, { history, metadata }];
+  }));
+  const fulfilled = settled.filter((result) => result.status === 'fulfilled');
+  if (!fulfilled.length && linked.length) throw settled.find((result) => result.status === 'rejected')?.reason;
+  return getHomeTopInstructorRows(gyms, Object.fromEntries(fulfilled.map((result) => result.value)));
+}
+
+registerWidget({
+  id: 'top-instructors', order: 70, title: COPY.home.topInstructors,
+  async load(ctx) { return loadHomeTopInstructors(ctx.gyms); },
+  isEmpty: (rows) => Array.isArray(rows) && rows.length === 0,
+  emptyText: COPY.home.topInstructorsNone,
+  render(el, rows) {
+    const list = document.createElement('div');
+    list.className = 'home-instructor-list';
+    for (const row of rows) {
+      const anchor = document.createElement('a');
+      anchor.className = 'home-instructor-card';
+      anchor.href = row.href;
+      anchor.setAttribute('aria-label', `${row.instructorName} · ${row.gymName}`);
+      anchor.innerHTML = `<span class="home-instructor-photo"></span><span class="home-instructor-text"><span class="home-instructor-name"></span><span class="home-instructor-meta"></span></span><span class="home-instructor-gym"></span>`;
+      const photo = anchor.querySelector('.home-instructor-photo');
+      const avatar = instructorAvatar(
+        row.instructorName, row.gymId, row.photoUrl, { size: 52, cls: 'home-instructor-avatar' },
+      );
+      if (avatar) photo.innerHTML = avatar;
+      else {
+        photo.classList.add('is-initial');
+        photo.textContent = String(row.instructorName).trim().charAt(0).toUpperCase() || '?';
+      }
+      anchor.querySelector('.home-instructor-name').textContent = row.instructorName;
+      anchor.querySelector('.home-instructor-meta').textContent = row.count === 1
+        ? COPY.home.topInstructorClassOne
+        : COPY.home.topInstructorClassMany.replace('{count}', String(row.count));
+      anchor.querySelector('.home-instructor-gym').innerHTML = gymSquareChip(row.gymId);
+      addTimetableLinkHandler(anchor, row.href);
+      list.appendChild(anchor);
+    }
+    el.appendChild(list);
   },
 });
 

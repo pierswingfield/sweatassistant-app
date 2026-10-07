@@ -930,6 +930,16 @@ export const api = {
     });
   },
 
+  // Normalized, durable class history for one explicitly-scoped gym. The
+  // server owns the lazy backfill and stale refresh; the client only asks for
+  // the small aggregate a Home widget needs.
+  async getHistory(gymId, { days = 30, limit = 1, top = 1 } = {}) {
+    const qs = new URLSearchParams({ days: String(days), limit: String(limit), top: String(top) });
+    const res = await apiFetch(`/api/history?${qs}`, { gymId });
+    if (!res.ok) throw new Error('Failed to load class history');
+    return res.json();
+  },
+
   // Cached with a SHORT ttl: a balance changes when you book or a purchase
   // lands, so it must not be as stale as membership — but re-fetching it per
   // gym on every tab visit is what made Credits & Membership take seconds.

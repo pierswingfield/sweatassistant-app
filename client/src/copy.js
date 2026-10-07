@@ -879,7 +879,7 @@ export const COPY = Object.freeze({
     connectGymTitle: 'Connect a gym', connectGymBody: 'Connect a gym to see your classes, bookings and credits here.', connectGymAction: '＋ Connect a gym',
     noGymWidget: 'Connect a gym to see this.', gymsLoadFailed: "Couldn't check your gyms.",
     welcome: 'Welcome', book: 'Book a class', bookAll: 'All', upcoming: 'Upcoming classes', autoBook: 'Auto-Book', credits: 'Credits',
-    favourites: 'Favourites', topInstructors: 'Top instructors', stats: 'Your stats', noCredits: 'No credits or active memberships yet.',
+    favourites: 'Favourites', topInstructors: 'Top instructors', topInstructorsNone: 'No classes in the last 30 days.', topInstructorClassOne: '1 class in the last 30 days', topInstructorClassMany: '{count} classes in the last 30 days', stats: 'Your stats', noCredits: 'No credits or active memberships yet.',
     autoBookActive: 'active auto-book entries', autoBookNone: 'No active auto-book entries yet. Tap to set one up.', autoBookOne: 'active auto-book entry',
     upcomingNone: 'No upcoming classes. Book one from the timetable.', viewAll: 'View all bookings', upcomingStripLabel: 'Next 7 days', upcomingToday: 'Today',
     refresh: 'Refresh Home',

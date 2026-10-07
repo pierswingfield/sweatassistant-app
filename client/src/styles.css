@@ -11503,3 +11503,16 @@ html:not([data-credits-tab="on"]) .psycle-nav-btn[data-tab="buy-credits"] { disp
 .home-up-card:empty { display: none; }
 .home-view-all { margin-top: 10px; min-height: 40px; padding: 6px 14px; border: 1px solid var(--accent, #6366f1); border-radius: 999px; background: transparent; color: inherit; font: inherit; cursor: pointer; }
 @media (max-width: 480px) { .home-up-text { font-size: 0.62em; } .home-up-photo { display: none; } }
+
+/* H-7 / W7: the last-30-days top instructor, one scoped card per linked gym. */
+.home-instructor-list { display: grid; gap: 8px; }
+.home-instructor-card { display: flex; align-items: center; gap: 10px; min-height: 68px; padding: 8px 10px; border: 1px solid var(--border-color, #e5e7eb); border-radius: 12px; background: var(--card-bg, transparent); color: inherit; text-decoration: none; }
+.home-instructor-card:hover, .home-instructor-card:focus-visible { border-color: var(--text-secondary, #6b7280); }
+.home-instructor-photo { width: 52px; height: 52px; flex: 0 0 52px; border-radius: 50%; overflow: hidden; background: color-mix(in srgb, var(--text) 8%, transparent); }
+.home-instructor-photo.is-initial { display: grid; place-items: center; color: var(--text-secondary, #6b7280); font-weight: 700; }
+.home-instructor-avatar, .home-instructor-photo .instructor-avatar-initial { width: 52px; height: 52px; border-radius: 50%; object-fit: cover; }
+.home-instructor-text { display: grid; gap: 2px; min-width: 0; flex: 1; }
+.home-instructor-name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-weight: 700; }
+.home-instructor-meta { color: var(--text-secondary, #6b7280); font-size: 0.86em; }
+.home-instructor-gym { width: 32px; height: 32px; flex: 0 0 32px; }
+.home-instructor-gym .psycle-gym-mark { width: 100%; height: 100%; }

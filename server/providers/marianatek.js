@@ -1,4 +1,4 @@
-// Sweat Assistant — MarianaTek provider adapter.
+// MarianaTek provider adapter.
 //
 // Auth (WP-M1) implements the confirmed headless OAuth2 + PKCE flow documented
 // in Documentation/Services/marianatek.md §1B/§1G (live-tested against the JAB

@@ -102,7 +102,7 @@ describe('write-guard coverage (source scan)', () => {
   });
   it('no other module writes the saved-defaults key', () => {
     for (const f of readdirSync(dir).filter((n) => n.endsWith('.js') && !n.endsWith('.test.js') && n !== 'timetable.js')) {
-      expect(readFileSync(join(dir, f), 'utf8')).not.toContain('sweatUnifiedDefaultFilters');
+      expect(readFileSync(join(dir, f), 'utf8')).not.toContain('appUnifiedDefaultFilters');
     }
   });
 });

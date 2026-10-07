@@ -4,7 +4,7 @@
 // linked gym's OWN session has died (routes-normalized.js `resolveContext`,
 // or a failed relogin in auth.js `triggerAutoRelogin`), tagged with
 // `code: 'GYM_SESSION_EXPIRED'` and the gym it belongs to. An invalid or
-// expired Sweat Assistant JWT is a 403 from auth.js `authenticateToken` — a
+// expired the app JWT is a 403 from auth.js `authenticateToken` — a
 // different path entirely, never this one.
 //
 // Pulled out of `api.js`'s fetch wrapper as a pure function (no fetch, no

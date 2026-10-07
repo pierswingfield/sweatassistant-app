@@ -1,4 +1,4 @@
-// Sweat Assistant — U1-9: "Last authenticated" was always "Not recorded".
+// U1-9: "Last authenticated" was always "Not recorded".
 //
 // Root cause: db.upsertUserGym() enumerated its columns in the INSERT and in the
 // ON CONFLICT ... DO UPDATE, and `last_authenticated_at` was in neither. So every

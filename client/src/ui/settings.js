@@ -1,5 +1,4 @@
 import { api, apiFetch } from '../api';
-import { removeStored } from '../storage-migrate.js';
 import { showToast, togglePushSubscription, updatePushStatusUI, userSettings, cache, getTheme, setTheme, debugConsole, loadGymContext, refreshUserData, updateDebugTerminalVisibility, getIsOffline } from '../main';
 import { getBookingOffset, describeBookingWindow } from '../lib';
 import { renderStudioFloorPlan } from './spotmap';
@@ -216,8 +215,8 @@ function buildSections(profile) {
 // ─── Modal Functions ────────────────────────────────────────────────────────
 
 async function openProfileExplorerModal(gymId = null, gymName = null) {
-  const modal = document.getElementById('sa-profile-explorer-modal');
-  const body = document.getElementById('sa-profile-explorer-body');
+  const modal = document.getElementById('app-profile-explorer-modal');
+  const body = document.getElementById('app-profile-explorer-body');
   if (!modal || !body) return;
 
   // Reset state
@@ -226,7 +225,7 @@ async function openProfileExplorerModal(gymId = null, gymName = null) {
   explorerModalOpen = true;
   changeLog = [];
   loadedProfileGymId = gymId;
-  const title = document.getElementById('sa-profile-explorer-title');
+  const title = document.getElementById('app-profile-explorer-title');
   if (title) title.textContent = gymName ? formatCopyText(COPY.profileExplorer.gymTitle, { gymName }) : COPY.profileExplorer.title;
 
   // Show loading state — use .show class for opacity transition (matches booking/debug modal convention)
@@ -236,13 +235,13 @@ async function openProfileExplorerModal(gymId = null, gymName = null) {
     // honour the unsaved-edit check here too.
     canClose: () => {
       if (!editMode) return true;
-      const b = document.getElementById('sa-profile-explorer-body');
-      const save = b && b.querySelector('.sa-profile-save-btn');
+      const b = document.getElementById('app-profile-explorer-body');
+      const save = b && b.querySelector('.app-profile-save-btn');
       return !(save && save.style.display !== 'none') || confirm(COPY.settings.discardUnsaved);
     },
     onClose: () => { explorerModalOpen = false; editMode = false; konamiProgress = 0; },
   });
-  body.innerHTML = `<div style="text-align:center;padding:40px;"><div class="sa-spinner" style="margin:0 auto;"></div><div style="color:var(--text-secondary);margin-top:10px;font-size:13px;">${COPY.profileExplorer.loading}</div></div>`;
+  body.innerHTML = `<div style="text-align:center;padding:40px;"><div class="app-spinner" style="margin:0 auto;"></div><div style="color:var(--text-secondary);margin-top:10px;font-size:13px;">${COPY.profileExplorer.loading}</div></div>`;
 
   // Set up close handlers
   setupExplorerModalClose(modal);
@@ -258,13 +257,13 @@ async function openProfileExplorerModal(gymId = null, gymName = null) {
     loadedProfile = res.raw || res;
     renderExplorerBody(body);
   } catch (err) {
-    body.innerHTML = `<div class="sa-card-error">${formatCopyText(COPY.settings.profileLoadFailed, { error: escapeHtml(err.message) })}</div>`;
+    body.innerHTML = `<div class="app-card-error">${formatCopyText(COPY.settings.profileLoadFailed, { error: escapeHtml(err.message) })}</div>`;
   }
 }
 
 function setupExplorerModalClose(modal) {
-  const closeBtn = document.getElementById('sa-profile-explorer-close');
-  const overlay = modal.querySelector('.sa-modal-overlay');
+  const closeBtn = document.getElementById('app-profile-explorer-close');
+  const overlay = modal.querySelector('.app-modal-overlay');
   const closer = () => {
     modal.classList.remove('show');
     setTimeout(() => { modal.style.display = 'none'; }, 300);
@@ -306,14 +305,14 @@ function toggleEditMode() {
   if (!loadedProfile) return;
   if (editMode) {
     // Exiting edit mode — check for unsaved changes
-    const body = document.getElementById('sa-profile-explorer-body');
-    const hasChanges = body.querySelector('.sa-profile-save-btn') && body.querySelector('.sa-profile-save-btn').style.display !== 'none';
+    const body = document.getElementById('app-profile-explorer-body');
+    const hasChanges = body.querySelector('.app-profile-save-btn') && body.querySelector('.app-profile-save-btn').style.display !== 'none';
     if (hasChanges) {
       if (!confirm(COPY.settings.discardUnsaved)) return;
     }
   }
   editMode = !editMode;
-  const body = document.getElementById('sa-profile-explorer-body');
+  const body = document.getElementById('app-profile-explorer-body');
   renderExplorerBody(body);
   if (editMode) {
     showToast(COPY.settings.editEnabled, 'info');
@@ -326,7 +325,7 @@ function toggleEditMode() {
 
 function renderExplorerBody(body) {
   if (!loadedProfile) {
-    body.innerHTML = `<div class="sa-card-error">${COPY.profileExplorer.dataUnavailable}</div>`;
+    body.innerHTML = `<div class="app-card-error">${COPY.profileExplorer.dataUnavailable}</div>`;
     return;
   }
 
@@ -351,27 +350,27 @@ function renderExplorerBody(body) {
   if (editMode) {
     const logEntriesHtml = renderLogEntriesHtml();
     html += `
-      <div class="sa-profile-log-panel" style="margin-top:12px;border:1px solid color-mix(in srgb, var(--text) 8%, transparent);border-radius:12px;overflow:hidden;">
-        <div class="sa-profile-section-header" id="sa-explorer-log-header" style="background:color-mix(in srgb, var(--text) 3%, transparent);padding:10px 16px;display:flex;justify-content:space-between;align-items:center;cursor:pointer;user-select:none;">
-          <span style="font-weight:700;font-size:13px;color:var(--text);display:flex;align-items:center;gap:6px;">${COPY.profileExplorer.changeLog} <span id="sa-explorer-log-count" style="font-weight:400;font-size:12px;color:var(--text-secondary);">(${changeLog.length})</span></span>
-          <span class="sa-accordion-arrow" id="sa-explorer-log-arrow" style="font-size:12px;color:var(--text-secondary);transition:transform 0.2s;">▲</span>
+      <div class="app-profile-log-panel" style="margin-top:12px;border:1px solid color-mix(in srgb, var(--text) 8%, transparent);border-radius:12px;overflow:hidden;">
+        <div class="app-profile-section-header" id="app-explorer-log-header" style="background:color-mix(in srgb, var(--text) 3%, transparent);padding:10px 16px;display:flex;justify-content:space-between;align-items:center;cursor:pointer;user-select:none;">
+          <span style="font-weight:700;font-size:13px;color:var(--text);display:flex;align-items:center;gap:6px;">${COPY.profileExplorer.changeLog} <span id="app-explorer-log-count" style="font-weight:400;font-size:12px;color:var(--text-secondary);">(${changeLog.length})</span></span>
+          <span class="app-accordion-arrow" id="app-explorer-log-arrow" style="font-size:12px;color:var(--text-secondary);transition:transform 0.2s;">▲</span>
         </div>
-        <div id="sa-explorer-log-container" style="max-height:200px;overflow-y:auto;padding:8px;background:var(--surface-inset);border-top:1px solid color-mix(in srgb, var(--text) 5%, transparent);">
+        <div id="app-explorer-log-container" style="max-height:200px;overflow-y:auto;padding:8px;background:var(--surface-inset);border-top:1px solid color-mix(in srgb, var(--text) 5%, transparent);">
           ${logEntriesHtml}
         </div>
       </div>
     `;
     // Save Changes button
-    html += `<button id="sa-profile-save-btn" class="sa-btn" style="width:100%;margin-top:12px;background:color-mix(in srgb, var(--feat-autoupgrade) 20%, transparent);border:1px solid color-mix(in srgb, var(--feat-autoupgrade) 40%, transparent);color:var(--feat-autoupgrade);font-weight:700;display:none;">${COPY.profileExplorer.saveChanges}</button>`;
+    html += `<button id="app-profile-save-btn" class="app-btn" style="width:100%;margin-top:12px;background:color-mix(in srgb, var(--feat-autoupgrade) 20%, transparent);border:1px solid color-mix(in srgb, var(--feat-autoupgrade) 40%, transparent);color:var(--feat-autoupgrade);font-weight:700;display:none;">${COPY.profileExplorer.saveChanges}</button>`;
   }
 
   body.innerHTML = html;
 
   // Attach accordion toggles
-  body.querySelectorAll('.sa-profile-section').forEach(sec => {
-    const header = sec.querySelector('.sa-profile-section-header');
-    const content = sec.querySelector('.sa-profile-section-content');
-    const arrow = sec.querySelector('.sa-accordion-arrow');
+  body.querySelectorAll('.app-profile-section').forEach(sec => {
+    const header = sec.querySelector('.app-profile-section-header');
+    const content = sec.querySelector('.app-profile-section-content');
+    const arrow = sec.querySelector('.app-accordion-arrow');
     if (header) {
       header.addEventListener('click', () => {
         const closed = content.style.display === 'none';
@@ -385,10 +384,10 @@ function renderExplorerBody(body) {
   });
 
   // Log toggle
-  const logHeader = document.getElementById('sa-explorer-log-header');
+  const logHeader = document.getElementById('app-explorer-log-header');
   if (logHeader) {
-    const logContainer = document.getElementById('sa-explorer-log-container');
-    const logArrow = document.getElementById('sa-explorer-log-arrow');
+    const logContainer = document.getElementById('app-explorer-log-container');
+    const logArrow = document.getElementById('app-explorer-log-arrow');
     logHeader.addEventListener('click', () => {
       const closed = logContainer.style.display === 'none';
       logContainer.style.display = closed ? 'block' : 'none';
@@ -421,13 +420,13 @@ function renderSectionAccordion(section, idx, isSpecial) {
         const isBool = typeof field.value === 'boolean';
         let inputHtml;
         if (isBool) {
-          inputHtml = `<input type="checkbox" class="sa-profile-edit-input" data-path="${field.path}" ${field.value ? 'checked' : ''} style="width:16px;height:16px;cursor:pointer;accent-color:var(--feat-autoupgrade);">`;
+          inputHtml = `<input type="checkbox" class="app-profile-edit-input" data-path="${field.path}" ${field.value ? 'checked' : ''} style="width:16px;height:16px;cursor:pointer;accent-color:var(--feat-autoupgrade);">`;
         } else {
           const val = field.value !== null && field.value !== undefined ? String(field.value) : '';
-          inputHtml = `<input type="text" class="sa-profile-edit-input" data-path="${field.path}" value="${val.replace(/"/g, '&quot;')}" placeholder="${field.value === null ? 'null' : ''}" style="flex:1;background:var(--surface-inset);border:1px solid color-mix(in srgb, var(--text) 10%, transparent);border-radius:5px;padding:4px 8px;font-size:12px;color:var(--text);font-family:inherit;">`;
+          inputHtml = `<input type="text" class="app-profile-edit-input" data-path="${field.path}" value="${val.replace(/"/g, '&quot;')}" placeholder="${field.value === null ? 'null' : ''}" style="flex:1;background:var(--surface-inset);border:1px solid color-mix(in srgb, var(--text) 10%, transparent);border-radius:5px;padding:4px 8px;font-size:12px;color:var(--text);font-family:inherit;">`;
         }
         contentHtml += `
-          <div class="sa-profile-field-row" data-path="${field.path}" style="display:flex;align-items:center;gap:8px;padding:5px 0;border-bottom:1px dashed color-mix(in srgb, var(--text) 5%, transparent);">
+          <div class="app-profile-field-row" data-path="${field.path}" style="display:flex;align-items:center;gap:8px;padding:5px 0;border-bottom:1px dashed color-mix(in srgb, var(--text) 5%, transparent);">
             <span style="color:var(--text-secondary);font-size:12px;font-weight:500;flex:0 0 160px;">${label}</span>
             ${inputHtml}
           </div>
@@ -451,12 +450,12 @@ function renderSectionAccordion(section, idx, isSpecial) {
   }
 
   return `
-    <div class="sa-profile-section" style="border:1px solid color-mix(in srgb, var(--text) 8%, transparent);border-radius:12px;overflow:hidden;flex-shrink:0;margin-bottom:10px;">
-      <div class="sa-profile-section-header" style="background:color-mix(in srgb, var(--text) 3%, transparent);padding:12px 16px;display:flex;justify-content:space-between;align-items:center;cursor:pointer;user-select:none;">
+    <div class="app-profile-section" style="border:1px solid color-mix(in srgb, var(--text) 8%, transparent);border-radius:12px;overflow:hidden;flex-shrink:0;margin-bottom:10px;">
+      <div class="app-profile-section-header" style="background:color-mix(in srgb, var(--text) 3%, transparent);padding:12px 16px;display:flex;justify-content:space-between;align-items:center;cursor:pointer;user-select:none;">
         <span style="font-weight:700;font-size:13px;color:var(--text);display:flex;align-items:center;gap:6px;">${section.emoji} ${section.title}${titleSuffix}</span>
-        <span class="sa-accordion-arrow" style="font-size:12px;color:var(--text-secondary);transition:transform 0.2s;">▼</span>
+        <span class="app-accordion-arrow" style="font-size:12px;color:var(--text-secondary);transition:transform 0.2s;">▼</span>
       </div>
-      <div class="sa-profile-section-content" style="display:none;padding:14px;background:var(--surface-inset);border-top:1px solid color-mix(in srgb, var(--text) 5%, transparent);">
+      <div class="app-profile-section-content" style="display:none;padding:14px;background:var(--surface-inset);border-top:1px solid color-mix(in srgb, var(--text) 5%, transparent);">
         ${contentHtml}
       </div>
     </div>
@@ -464,14 +463,14 @@ function renderSectionAccordion(section, idx, isSpecial) {
 }
 
 function setupEditListeners(body) {
-  const saveBtn = document.getElementById('sa-profile-save-btn');
+  const saveBtn = document.getElementById('app-profile-save-btn');
   if (!saveBtn) return;
 
   const originalProfile = JSON.parse(JSON.stringify(loadedProfile));
 
   const checkChanges = () => {
     let hasChanges = false;
-    body.querySelectorAll('.sa-profile-edit-input').forEach(input => {
+    body.querySelectorAll('.app-profile-edit-input').forEach(input => {
       const path = input.getAttribute('data-path');
       const origVal = getByPath(originalProfile, path);
       let curVal;
@@ -489,7 +488,7 @@ function setupEditListeners(body) {
     saveBtn.style.display = hasChanges ? 'block' : 'none';
   };
 
-  body.querySelectorAll('.sa-profile-edit-input').forEach(input => {
+  body.querySelectorAll('.app-profile-edit-input').forEach(input => {
     input.addEventListener('input', checkChanges);
     input.addEventListener('change', checkChanges);
   });
@@ -520,19 +519,19 @@ function renderLogEntriesHtml() {
 
 // Update the log container + count in the DOM without re-rendering the whole body
 function updateLogInPlace() {
-  const logContainer = document.getElementById('sa-explorer-log-container');
-  const logCount = document.getElementById('sa-explorer-log-count');
+  const logContainer = document.getElementById('app-explorer-log-container');
+  const logCount = document.getElementById('app-explorer-log-count');
   if (logContainer) logContainer.innerHTML = renderLogEntriesHtml();
   if (logCount) logCount.textContent = `(${changeLog.length})`;
 }
 
 async function saveProfileChanges(body, originalProfile) {
-  const saveBtn = document.getElementById('sa-profile-save-btn');
+  const saveBtn = document.getElementById('app-profile-save-btn');
   if (!saveBtn) return;
 
   // Collect changed fields
   const changes = [];
-  body.querySelectorAll('.sa-profile-edit-input').forEach(input => {
+  body.querySelectorAll('.app-profile-edit-input').forEach(input => {
     const path = input.getAttribute('data-path');
     const origVal = getByPath(originalProfile, path);
     let newVal;
@@ -600,7 +599,7 @@ async function saveProfileChanges(body, originalProfile) {
         }
 
         // Update the input element in-place to reflect verified/reverted value
-        const input = body.querySelector(`.sa-profile-edit-input[data-path="${entry.fieldPath}"]`);
+        const input = body.querySelector(`.app-profile-edit-input[data-path="${entry.fieldPath}"]`);
         if (input) {
           if (input.type === 'checkbox') {
             input.checked = verifiedVal === true;
@@ -645,23 +644,23 @@ export async function openManageSpotMapsModal(options = {}) {
   const onDone = options.onDone ?? null;
 
   const overlay = document.createElement('div');
-  overlay.id = 'sa-manage-spotmaps-overlay';
-  overlay.className = 'sa-ovl';
+  overlay.id = 'app-manage-spotmaps-overlay';
+  overlay.className = 'app-ovl';
   overlay.style.cssText = `position:fixed;inset:0;background:color-mix(in srgb, var(--bg) 60%, transparent);z-index:${zIndex};display:flex;align-items:center;justify-content:center;padding:16px;`;
 
   const modal = document.createElement('div');
-  modal.className = 'sa-ovl-card';
+  modal.className = 'app-ovl-card';
   modal.style.cssText = 'background:var(--bg);border:1px solid color-mix(in srgb, var(--text) 12%, transparent);border-radius:16px;width:100%;max-width:500px;max-height:90vh;display:flex;flex-direction:column;overflow:hidden;';
 
   const header = document.createElement('div');
-  header.className = 'sa-ovl-header';
+  header.className = 'app-ovl-header';
   header.style.cssText = 'display:flex;justify-content:space-between;align-items:center;padding:14px 18px;border-bottom:1px solid color-mix(in srgb, var(--text) 8%, transparent);flex-shrink:0;';
   header.innerHTML = `<h3 data-nav-title style="margin:0;font-size:16px;font-weight:700;color:var(--text);">${COPY.spotMaps.preferredSpotMaps}</h3><button data-nav-close style="background:none;border:none;color:var(--text-secondary);font-size:22px;cursor:pointer;padding:0;line-height:1;" id="manage-modal-close" aria-label="${COPY.credits.closeModal}">×</button>`;
 
   const body = document.createElement('div');
-  body.className = 'sa-ovl-body';
+  body.className = 'app-ovl-body';
   body.style.cssText = 'flex:1;overflow-y:auto;padding:16px;';
-  body.innerHTML = `<div style="text-align:center;padding:24px;"><div class="sa-spinner" style="margin:0 auto;"></div><div style="color:var(--text-secondary);margin-top:10px;font-size:13px;">${COPY.spotMaps.loadingStudios}</div></div>`;
+  body.innerHTML = `<div style="text-align:center;padding:24px;"><div class="app-spinner" style="margin:0 auto;"></div><div style="color:var(--text-secondary);margin-top:10px;font-size:13px;">${COPY.spotMaps.loadingStudios}</div></div>`;
 
   const loadingHtml = body.innerHTML;
   modal.appendChild(header);
@@ -675,7 +674,7 @@ export async function openManageSpotMapsModal(options = {}) {
     openManageSpotMapsModal(options);
   };
   const cleanup = () => {
-    window.removeEventListener('sweat:gyms-changed', refreshOnGymChange);
+    window.removeEventListener('app:gyms-changed', refreshOnGymChange);
     if (closeSpotMapManager === close) closeSpotMapManager = null;
     if (activeSpotManager?.overlay === overlay) activeSpotManager = null;
   };
@@ -690,7 +689,7 @@ export async function openManageSpotMapsModal(options = {}) {
     const footer = document.createElement('div');
     footer.style.cssText = 'padding:12px 16px;border-top:1px solid color-mix(in srgb, var(--text) 8%, transparent);flex-shrink:0;';
     const doneBtn = document.createElement('button');
-    doneBtn.className = 'sa-btn-primary';
+    doneBtn.className = 'app-btn-primary';
     doneBtn.style.cssText = 'width:100%;';
     doneBtn.textContent = COPY.settings.done;
     doneBtn.addEventListener('click', () => { close(); onDone(); });
@@ -703,7 +702,7 @@ export async function openManageSpotMapsModal(options = {}) {
 
   header.querySelector('#manage-modal-close').onclick = close;
   overlay.addEventListener('click', e => { if (e.target === overlay) close(); });
-  window.addEventListener('sweat:gyms-changed', refreshOnGymChange);
+  window.addEventListener('app:gyms-changed', refreshOnGymChange);
   // Mobile page (X). Drill-down editor children are opened on top of it.
   openNavPage(overlay, { id: 'spot-maps', remove: true, onClose: cleanup });
   if (isMobile()) activeSpotManager = { overlay, reload: () => load() };
@@ -717,12 +716,12 @@ export async function openManageSpotMapsModal(options = {}) {
       // a request for a DIFFERENT gym must not read them. With the ambient
       // active-gym state gone, an explicit gymId is by definition not "the
       // cached one" — fetch fresh rather than serve another gym's layout.
-      options.gymId ? null : cacheGet(accountScopedKey('sweatUnifiedCacheMeta')),
+      options.gymId ? null : cacheGet(accountScopedKey('appUnifiedCacheMeta')),
       // C3-24: the unified timetable cache is what timetable.js writes; the old
-      // `sweatCacheEvents` keys had no writer, so this always missed and the
+      // `appCacheEvents` keys had no writer, so this always missed and the
       // active-studio filter never applied. It is merged across gyms, so it is
       // read for an explicit gym too and narrowed to that gym just below.
-      cacheGet(accountScopedKey('sweatUnifiedCacheEvents')),
+      cacheGet(accountScopedKey('appUnifiedCacheEvents')),
       api.getMyGyms().catch(() => ({ gyms: [] }))
     ]);
     const linkedGyms = linkedRes.gyms || linkedRes || [];
@@ -821,7 +820,7 @@ export async function openManageSpotMapsModal(options = {}) {
 
     renderManageSpotMapsModal(prefs, studios, locations, body, close, activeStudioIds, options);
   } catch (err) {
-    body.innerHTML = `<div class="sa-card-error" style="padding:16px;">${formatCopyText(COPY.settings.studiosLoadFailed, { error: escapeHtml(err.message) })}</div>`;
+    body.innerHTML = `<div class="app-card-error" style="padding:16px;">${formatCopyText(COPY.settings.studiosLoadFailed, { error: escapeHtml(err.message) })}</div>`;
   }
   };
   load();
@@ -867,10 +866,10 @@ function renderManageSpotMapsModal(prefs, studios, locations, container, onClose
     const thisGym = `${gymId}:${gymName}`;
     if (thisGym !== previousGym) {
       const gymHeader = document.createElement('h4');
-      gymHeader.className = 'sa-spm-gym';
+      gymHeader.className = 'app-spm-gym';
       // Logo is shown on mobile only (CSS); the name stays for desktop and screen readers.
-      gymHeader.innerHTML = `${gymId ? gymLogoBanner(gymId) : ''}<span class="sa-spm-gym-name"></span>`;
-      gymHeader.querySelector('.sa-spm-gym-name').textContent = gymName;
+      gymHeader.innerHTML = `${gymId ? gymLogoBanner(gymId) : ''}<span class="app-spm-gym-name"></span>`;
+      gymHeader.querySelector('.app-spm-gym-name').textContent = gymName;
       gymHeader.style.cssText = 'margin:8px 0 2px;font-size:14px;font-weight:700;color:var(--text);';
       container.appendChild(gymHeader);
       previousGym = thisGym;
@@ -879,7 +878,7 @@ function renderManageSpotMapsModal(prefs, studios, locations, container, onClose
     locSection.style.cssText = 'margin:0 0 14px 12px;border-left:2px solid var(--border);padding-left:10px;';
 
     const locHeader = document.createElement('div');
-    locHeader.className = 'sa-spm-loc';
+    locHeader.className = 'app-spm-loc';
     locHeader.style.cssText = 'font-size:12px;font-weight:700;color:var(--text-secondary);text-transform:uppercase;letter-spacing:0.5px;padding:8px 0 6px 0;cursor:pointer;user-select:none;display:flex;justify-content:space-between;align-items:center;';
     const chevron = document.createElement('span');
     chevron.textContent = '▼';
@@ -895,14 +894,14 @@ function renderManageSpotMapsModal(prefs, studios, locations, container, onClose
       const hasPrefs = studioPrefs && (studioPrefs.preferredSlots?.length > 0 || studioPrefs.preferredRows?.length > 0);
 
       const row = document.createElement('div');
-      row.className = 'sa-spm-row';
+      row.className = 'app-spm-row';
       row.style.cssText = 'display:flex;justify-content:space-between;align-items:center;padding:8px 12px;background:color-mix(in srgb, var(--text) 3%, transparent);border:1px solid color-mix(in srgb, var(--text) 6%, transparent);border-radius:8px;';
 
       const info = document.createElement('div');
       info.style.cssText = 'flex:1;';
 
       const name = document.createElement('div');
-      name.className = 'sa-spm-name';
+      name.className = 'app-spm-name';
       name.style.cssText = 'font-size:13px;font-weight:500;color:var(--text);';
       name.textContent = studio.name;
       info.appendChild(name);
@@ -922,7 +921,7 @@ function renderManageSpotMapsModal(prefs, studios, locations, container, onClose
       btns.style.cssText = 'display:flex;gap:6px;';
 
       const editBtn = document.createElement('button');
-      editBtn.className = 'sa-btn-mini';
+      editBtn.className = 'app-btn-mini';
       editBtn.style.cssText = 'font-size:12px;padding:4px 10px;';
       editBtn.textContent = hasPrefs ? COPY.spotMaps.editSpots : COPY.spotMaps.chooseSpots;
       editBtn.addEventListener('click', () => {
@@ -953,7 +952,7 @@ function renderManageSpotMapsModal(prefs, studios, locations, container, onClose
 
       if (hasPrefs) {
         const removeBtn = document.createElement('button');
-        removeBtn.className = 'sa-btn-mini';
+        removeBtn.className = 'app-btn-mini';
         removeBtn.style.cssText = 'font-size:12px;padding:4px 10px;background:color-mix(in srgb, var(--danger) 10%, transparent);border-color:color-mix(in srgb, var(--danger) 25%, transparent);color:var(--danger);';
         removeBtn.textContent = COPY.spotMaps.remove;
         removeBtn.addEventListener('click', async () => {
@@ -1000,23 +999,23 @@ export async function openStudioFloorPlanEditor(studioId, studioName, onSaved, o
   // Build modal overlay
   const zIndex = (options.zIndex ?? 2000) + 1;
   const overlay = document.createElement('div');
-  overlay.id = 'sa-spotmap-editor-overlay';
-  overlay.className = 'sa-ovl';
+  overlay.id = 'app-spotmap-editor-overlay';
+  overlay.className = 'app-ovl';
   overlay.style.cssText = `position:fixed;inset:0;background:color-mix(in srgb, var(--bg) 60%, transparent);z-index:${zIndex};display:flex;align-items:center;justify-content:center;padding:16px;`;
 
   const modal = document.createElement('div');
-  modal.className = 'sa-ovl-card';
+  modal.className = 'app-ovl-card';
   modal.style.cssText = 'background:var(--bg);border:1px solid color-mix(in srgb, var(--text) 12%, transparent);border-radius:16px;width:100%;max-width:560px;max-height:90vh;display:flex;flex-direction:column;overflow:hidden;';
 
   const header = document.createElement('div');
-  header.className = 'sa-ovl-header';
+  header.className = 'app-ovl-header';
   header.style.cssText = 'display:flex;justify-content:space-between;align-items:center;padding:14px 18px;border-bottom:1px solid color-mix(in srgb, var(--text) 8%, transparent);flex-shrink:0;';
   header.innerHTML = `<div data-nav-title><div style="font-size:15px;font-weight:700;color:var(--text);">${COPY.spotMaps.spotMap}</div><div style="font-size:12px;color:var(--text-tertiary);margin-top:2px;">${studioName}</div></div><button data-nav-close style="background:none;border:none;color:var(--text-secondary);font-size:22px;cursor:pointer;padding:0;line-height:1;" id="spot-editor-close" aria-label="${COPY.credits.closeModal}">×</button>`;
 
   const body = document.createElement('div');
-  body.className = 'sa-ovl-body';
+  body.className = 'app-ovl-body';
   body.style.cssText = 'flex:1;overflow-y:auto;padding:16px;';
-  body.innerHTML = `<div style="text-align:center;padding:24px;"><div class="sa-spinner" style="margin:0 auto;"></div><div style="color:var(--text-secondary);margin-top:10px;font-size:13px;">${COPY.spotMaps.loadingFloorPlan}</div></div>`;
+  body.innerHTML = `<div style="text-align:center;padding:24px;"><div class="app-spinner" style="margin:0 auto;"></div><div style="color:var(--text-secondary);margin-top:10px;font-size:13px;">${COPY.spotMaps.loadingFloorPlan}</div></div>`;
 
   modal.appendChild(header);
   modal.appendChild(body);
@@ -1080,7 +1079,7 @@ export async function openStudioFloorPlanEditor(studioId, studioName, onSaved, o
           <div style="font-size:32px;margin-bottom:12px;">🗺️</div>
           <p style="margin:0 0 8px;color:var(--text);font-weight:500;">${COPY.spotMaps.noFloorMapAvailable}</p>
           <p style="font-size:12px;margin:0 0 20px;">${COPY.spotMaps.anySpotHelp}</p>
-          <button class="sa-btn" id="spot-save-any" style="background:var(--feat-autoupgrade);color:var(--on-accent);">${COPY.spotMaps.saveAnySpot}</button>
+          <button class="app-btn" id="spot-save-any" style="background:var(--feat-autoupgrade);color:var(--on-accent);">${COPY.spotMaps.saveAnySpot}</button>
         </div>
       `;
       body.querySelector('#spot-save-any').onclick = () => onSave([], existing.preferredRows || []);
@@ -1093,22 +1092,22 @@ export async function openStudioFloorPlanEditor(studioId, studioName, onSaved, o
       bannerHtml: `<div style="font-size:12px;color:var(--feat-autoupgrade);background:color-mix(in srgb, var(--feat-autoupgrade) 8%, transparent);border:1px solid color-mix(in srgb, var(--feat-autoupgrade) 18%, transparent);border-radius:8px;padding:8px 10px;margin-bottom:12px;line-height:1.5;">${formatCopyText(COPY.spotMaps.sharedSpotMapHtml, { studioName: escapeHtml(studioName) })}</div>`
     });
   } catch (err) {
-    body.innerHTML = `<div class="sa-card-error" style="padding:16px;">${formatCopyText(COPY.settings.floorPlanLoadFailed, { error: escapeHtml(err.message) })}</div>`;
+    body.innerHTML = `<div class="app-card-error" style="padding:16px;">${formatCopyText(COPY.settings.floorPlanLoadFailed, { error: escapeHtml(err.message) })}</div>`;
   }
 }
 
 function setupSettingsNavigation() {
-  const layout = document.getElementById('sa-settings-layout-wrapper');
+  const layout = document.getElementById('app-settings-layout-wrapper');
   if (!layout || layout.dataset.navListener) return;
   layout.dataset.navListener = 'true';
 
   // Queried LIVE on every activation, not cached here: per-gym entries and panes
   // are created asynchronously by renderGymsCard after this runs, and a snapshot
   // taken at setup time would never see them (clicking a gym would do nothing).
-  const menuItems = () => layout.querySelectorAll('.sa-settings-menu-item');
-  const panes = () => layout.querySelectorAll('.sa-settings-section-pane');
-  const sectionTitle = document.getElementById('sa-settings-section-title');
-  const backBtn = document.getElementById('sa-settings-back-btn');
+  const menuItems = () => layout.querySelectorAll('.app-settings-menu-item');
+  const panes = () => layout.querySelectorAll('.app-settings-section-pane');
+  const sectionTitle = document.getElementById('app-settings-section-title');
+  const backBtn = document.getElementById('app-settings-back-btn');
 
   // U4-19: the initial section comes from the path (/settings/:section). Legacy #hash links
   // were already rewritten to paths at boot (router.migrateLegacyHash).
@@ -1134,7 +1133,7 @@ function setupSettingsNavigation() {
     });
 
     panes().forEach(pane => {
-      const paneId = `sa-settings-pane-${sectionId}`;
+      const paneId = `app-settings-pane-${sectionId}`;
       pane.classList.toggle('active', pane.id === paneId);
     });
 
@@ -1148,14 +1147,14 @@ function setupSettingsNavigation() {
   // U4-19: keep /settings/:section in step with the visible pane. Initial activation
   // never touches the URL; user clicks push an entry, programmatic selection replaces.
   const syncSectionUrl = (sectionId, replace) => {
-    if (document.getElementById('sa-panel-settings')?.style.display === 'none') return; // not the visible tab
+    if (document.getElementById('app-panel-settings')?.style.display === 'none') return; // not the visible tab
     navigate(pathFor({ tab: 'settings', section: sectionId }), { replace });
   };
 
   // ONE delegated listener on the menu, so entries added later (the per-gym
   // ones) work without re-binding.
   layout.addEventListener('click', (event) => {
-    const item = event.target.closest('.sa-settings-menu-item');
+    const item = event.target.closest('.app-settings-menu-item');
     if (!item || !layout.contains(item)) return;
     navHistory = [];
     const id = item.getAttribute('data-settings-section');
@@ -1190,7 +1189,7 @@ function setupSettingsNavigation() {
   // `touch-action: pan-y` on the content, so vertical scrolling is untouched. Requires
   // horizontal dominance and a distance/velocity threshold, and never starts while the
   // shared scroll clock (header transition) is busy.
-  const content = layout.querySelector('.sa-settings-content');
+  const content = layout.querySelector('.app-settings-content');
   if (content && backBtn) {
     const EDGE = 28, COMMIT = 90;
     const reduce = window.matchMedia('(prefers-reduced-motion: reduce)');
@@ -1263,7 +1262,7 @@ function escapeHtml(str) {
 // ═══════════════════════════════════════════════════════════════════════
 //  YOUR GYMS — link/unlink and per-gym settings. NO SWITCHER.
 //
-//  A Sweat Assistant account holds N gym credentials (Decision D4), and the app
+//  An app account holds N gym credentials (Decision D4), and the app
 //  presents ONE unified view: the timetable, bookings, waitlists and queues show
 //  every linked gym at once, and every row reads and writes through its own
 //  `gymId`. There is therefore nothing for a user to switch BETWEEN, and a
@@ -1278,17 +1277,17 @@ function escapeHtml(str) {
 // ═══════════════════════════════════════════════════════════════════════
 
 function gymModal() {
-  const modal = document.getElementById('sa-gym-modal');
-  const body = document.getElementById('sa-gym-modal-body');
-  const title = document.getElementById('sa-gym-modal-title');
+  const modal = document.getElementById('app-gym-modal');
+  const body = document.getElementById('app-gym-modal-body');
+  const title = document.getElementById('app-gym-modal-title');
   const close = () => {
     // Mobile page: pop its history entry (guard skipped, the work is done). Desktop: as before.
     if (closeNavPage(modal)) return;
     modal.classList.remove('show');
     setTimeout(() => { modal.style.display = 'none'; }, 300);
   };
-  document.getElementById('sa-gym-modal-close').onclick = close;
-  modal.querySelector('.sa-modal-overlay').onclick = close;
+  document.getElementById('app-gym-modal-close').onclick = close;
+  modal.querySelector('.app-modal-overlay').onclick = close;
   // navOpts: { id, back, canClose } for the mobile page shell (ui/modal-nav.js).
   const open = (navOpts = {}) => {
     openNavPage(modal, { focusField: 'input, select', ...navOpts });
@@ -1316,32 +1315,32 @@ let connByGym = new Map();
 
 /** The connection table's static shell, built once per list host. */
 function ensureConnTable(list) {
-  if (list.querySelector('.sa-gym-conn-table')) return list.querySelector('.sa-gym-conn-table');
+  if (list.querySelector('.app-gym-conn-table')) return list.querySelector('.app-gym-conn-table');
   list.innerHTML = `
-    <div class="sa-card-desc sa-gym-conn-empty" style="padding:10px 0;" hidden>${COPY.settings.noGymsLinked}</div>
-    <div class="sa-gym-conn-table" role="table" aria-label="${COPY.settings.gymConnections}">
-      <div class="sa-gym-conn-head" role="row">
+    <div class="app-card-desc app-gym-conn-empty" style="padding:10px 0;" hidden>${COPY.settings.noGymsLinked}</div>
+    <div class="app-gym-conn-table" role="table" aria-label="${COPY.settings.gymConnections}">
+      <div class="app-gym-conn-head" role="row">
         <span role="columnheader">${COPY.settings.gym}</span>
         <span role="columnheader">${COPY.settings.connection}</span>
       <span role="columnheader">${COPY.settings.lastAuthenticated}</span>
         <span role="columnheader"><span class="u-visually-hidden">${COPY.settings.actions}</span></span>
       </div>
     </div>`;
-  return list.querySelector('.sa-gym-conn-table');
+  return list.querySelector('.app-gym-conn-table');
 }
 
 function connRowCreate(g) {
   const row = document.createElement('div');
-  row.className = 'sa-gym-conn-row';
+  row.className = 'app-gym-conn-row';
   row.setAttribute('role', 'row');
   const id = escapeHtml(g.gym_id);
   row.innerHTML = `
-    <span role="cell" class="sa-gym-conn-name"><span class="sa-gym-conn-logo"></span><small></small></span>
-    <span role="cell" class="sa-gym-conn-health"><span class="sa-gym-conn-dot" aria-hidden="true"></span><span class="sa-gym-conn-label"></span></span>
-    <span role="cell" class="sa-gym-conn-when"></span>
-    <span role="cell" class="sa-gym-conn-actions">
-      <button class="sa-btn sa-btn-mini" data-reauth-gym="${id}">${COPY.settings.reauthenticate}</button>
-      <button class="sa-btn sa-btn-mini variant-danger" data-unlink-gym="${id}">${COPY.settings.unlink}</button>
+    <span role="cell" class="app-gym-conn-name"><span class="app-gym-conn-logo"></span><small></small></span>
+    <span role="cell" class="app-gym-conn-health"><span class="app-gym-conn-dot" aria-hidden="true"></span><span class="app-gym-conn-label"></span></span>
+    <span role="cell" class="app-gym-conn-when"></span>
+    <span role="cell" class="app-gym-conn-actions">
+      <button class="app-btn app-btn-mini" data-reauth-gym="${id}">${COPY.settings.reauthenticate}</button>
+      <button class="app-btn app-btn-mini variant-danger" data-unlink-gym="${id}">${COPY.settings.unlink}</button>
     </span>`;
   return row;
 }
@@ -1349,7 +1348,7 @@ function connRowCreate(g) {
 function connRowUpdate(row, g) {
   const health = connectionHealth(g);
   // Full logo; rebuilt when the resolved brand changes (a chip built before the catalogue loads is the neutral placeholder).
-  const logo = row.querySelector('.sa-gym-conn-logo');
+  const logo = row.querySelector('.app-gym-conn-logo');
   const logoKey = `${g.gym_id}:${gymBrand(g.gym_id).id}`;
   if (logo.getAttribute('data-mark') !== logoKey) {
     logo.setAttribute('data-mark', logoKey);
@@ -1363,20 +1362,20 @@ function connRowUpdate(row, g) {
   const svg = logo.querySelector('svg');
   if (svg) svg.setAttribute('aria-label', gymName);
 
-  const strong = row.querySelector('.sa-gym-conn-name strong');
+  const strong = row.querySelector('.app-gym-conn-name strong');
   if (strong) strong.remove();
 
-  row.querySelector('.sa-gym-conn-name small').textContent = g.gym_email || g.provider || '';
-  const h = row.querySelector('.sa-gym-conn-health');
-  h.className = `sa-gym-conn-health ${health.cls}`;
-  h.querySelector('.sa-gym-conn-dot').textContent = health.icon;
-  h.querySelector('.sa-gym-conn-label').textContent = health.label;
-  row.querySelector('.sa-gym-conn-when').textContent = lastAuthLabel(g.last_authenticated_at);
+  row.querySelector('.app-gym-conn-name small').textContent = g.gym_email || g.provider || '';
+  const h = row.querySelector('.app-gym-conn-health');
+  h.className = `app-gym-conn-health ${health.cls}`;
+  h.querySelector('.app-gym-conn-dot').textContent = health.icon;
+  h.querySelector('.app-gym-conn-label').textContent = health.label;
+  row.querySelector('.app-gym-conn-when').textContent = lastAuthLabel(g.last_authenticated_at);
 }
 
 function gymNavCreate() {
   const item = document.createElement('button');
-  item.className = 'sa-settings-menu-item sa-settings-menu-sub';
+  item.className = 'app-settings-menu-item app-settings-menu-sub';
   // U1-8: the gym's own 1:1 mark leads the entry (in place of a generic icon).
   item.innerHTML = '<span class="menu-item-lead"></span><span class="menu-item-text"></span>';
   return item;
@@ -1394,11 +1393,11 @@ function gymNavUpdate(item, g) {
   item.setAttribute('data-settings-section', `gym-${g.gym_id}`);
   item.setAttribute('data-gym-nav', g.gym_id);
   item.querySelector('.menu-item-text').textContent = g.gym_name || g.gym_id;
-  const flag = item.querySelector('.sa-menu-item-flag');
+  const flag = item.querySelector('.app-menu-item-flag');
   const needs = g.status === 'needs_relogin';
   if (needs && !flag) {
     const f = document.createElement('span');
-    f.className = 'sa-menu-item-flag';
+    f.className = 'app-menu-item-flag';
     f.title = COPY.settings.reconnectNeeded;
     f.textContent = '!';
     item.appendChild(f);
@@ -1409,8 +1408,8 @@ function gymNavUpdate(item, g) {
 
 function gymPaneCreate(g) {
   const pane = document.createElement('div');
-  pane.className = 'sa-settings-section-pane';
-  pane.id = `sa-settings-pane-gym-${g.gym_id}`;
+  pane.className = 'app-settings-section-pane';
+  pane.id = `app-settings-pane-gym-${g.gym_id}`;
   pane.setAttribute('data-gym-pane', g.gym_id);
   return pane;
 }
@@ -1424,7 +1423,7 @@ function paintGyms(linked, { list, layout, menu, panesHost }) {
   connByGym = new Map(linked.map((g) => [g.gym_id, g]));
 
   const table = ensureConnTable(list);
-  list.querySelector('.sa-gym-conn-empty').hidden = linked.length > 0;
+  list.querySelector('.app-gym-conn-empty').hidden = linked.length > 0;
   table.hidden = linked.length === 0;
   reconcileKeyed(table, linked, {
     keyAttr: 'data-gym-key', keyOf: (g) => g.gym_id, create: connRowCreate, update: connRowUpdate,
@@ -1491,11 +1490,11 @@ async function onGymListClick(event) {
   }
 
   // Tapping anywhere else on the row navigates to the gym's specific settings pane
-  const row = event.target.closest('.sa-gym-conn-row');
+  const row = event.target.closest('.app-gym-conn-row');
   if (row) {
     const gymId = row.getAttribute('data-gym-key');
     if (gymId) {
-      const layout = document.getElementById('sa-settings-layout-wrapper');
+      const layout = document.getElementById('app-settings-layout-wrapper');
       layout?.__activateSettingsSection?.(`gym-${gymId}`);
     }
   }
@@ -1512,19 +1511,19 @@ async function syncAfterGymSetChange() {
   await loadGymContext();
   await invalidateApiCache('/api/studio-preferences').catch(() => {});
   await refreshUserData(true);
-  window.dispatchEvent(new CustomEvent('sweat:gyms-changed'));
+  window.dispatchEvent(new CustomEvent('app:gyms-changed'));
   // Fire and forget: the fetch can take seconds and the settings panel must not wait.
   resetTimetableForGymChange().catch(() => {});
 }
 
 async function renderGymsCard() {
   const token = gymsRenderGuard.begin();
-  const card = document.getElementById('sa-gyms-card');
-  const list = document.getElementById('sa-gyms-list');
-  const actions = document.getElementById('sa-gyms-actions');
-  const layout = document.getElementById('sa-settings-layout-wrapper');
-  const menu = layout?.querySelector('.sa-settings-menu');
-  const panesHost = layout?.querySelector('.sa-settings-section-panes');
+  const card = document.getElementById('app-gyms-card');
+  const list = document.getElementById('app-gyms-list');
+  const actions = document.getElementById('app-gyms-actions');
+  const layout = document.getElementById('app-settings-layout-wrapper');
+  const menu = layout?.querySelector('.app-settings-menu');
+  const panesHost = layout?.querySelector('.app-settings-section-panes');
   if (!list) return;
   const els = { list, layout, menu, panesHost };
 
@@ -1539,7 +1538,7 @@ async function renderGymsCard() {
 
   // The old single inline host is no longer used; keep it empty so a stale render
   // can't linger behind the per-gym panes.
-  const legacyInline = document.getElementById('sa-gym-settings-section');
+  const legacyInline = document.getElementById('app-gym-settings-section');
   if (legacyInline) { legacyInline.hidden = true; legacyInline.innerHTML = ''; }
 
   // ── Phase 1, synchronous: paint from the gyms the app already knows ────────
@@ -1554,7 +1553,7 @@ async function renderGymsCard() {
   } catch (err) {
     if (!gymsRenderGuard.isCurrent(token)) return;
     if (painted) debugConsole('[Settings] Could not refresh gym connections:', err.message);
-    else list.innerHTML = `<div class="sa-empty-state" style="padding:12px;">${getIsOffline() ? COPY.settings.noSavedGymData : formatCopyText(COPY.settings.couldNotLoadGyms, { error: escapeHtml(err.message) })}</div>`;
+    else list.innerHTML = `<div class="app-empty-state" style="padding:12px;">${getIsOffline() ? COPY.settings.noSavedGymData : formatCopyText(COPY.settings.couldNotLoadGyms, { error: escapeHtml(err.message) })}</div>`;
     return;
   }
   if (!gymsRenderGuard.isCurrent(token)) return;
@@ -1570,9 +1569,9 @@ async function renderGymsCard() {
   if (!gymsRenderGuard.isCurrent(token)) return;
 
   actions.innerHTML = addable.length
-    ? `<button class="sa-btn primary sa-btn-mini" id="sa-add-gym-btn">${COPY.settings.connectGymAction}</button>`
-    : `<p class="sa-card-desc" style="margin:0;">${COPY.settings.noAvailableGyms}</p>`;
-  const addBtn = document.getElementById('sa-add-gym-btn');
+    ? `<button class="app-btn primary app-btn-mini" id="app-add-gym-btn">${COPY.settings.connectGymAction}</button>`
+    : `<p class="app-card-desc" style="margin:0;">${COPY.settings.noAvailableGyms}</p>`;
+  const addBtn = document.getElementById('app-add-gym-btn');
   if (addBtn) addBtn.onclick = () => openLinkGymModal(null, null, addable);
 
   // ── Phase 3: each gym's own settings pane (its content is the slow part) ───
@@ -1600,13 +1599,13 @@ async function renderGymsCard() {
 // inline in the existing Booking pane; Phase 3 can call this same function from
 // an n=1 inline section or an n>=2 drawer without recreating any controls.
 export async function renderGymSettingsSection(requestedGymId = null, targetContainer = null) {
-  const container = targetContainer || document.getElementById('sa-gym-settings-section');
+  const container = targetContainer || document.getElementById('app-gym-settings-section');
   if (!container) return;
 
   // Keep already-rendered content while a refresh runs (U1-7: panes now persist
   // across renders); the placeholder is only for a pane that has nothing yet.
   if (!container.hasChildNodes()) {
-    container.innerHTML = `<div class="sa-settings-card"><p class="sa-card-desc">${COPY.settings.loadingGymSettings}</p></div>`;
+    container.innerHTML = `<div class="app-settings-card"><p class="app-card-desc">${COPY.settings.loadingGymSettings}</p></div>`;
   }
 
   try {
@@ -1618,7 +1617,7 @@ export async function renderGymSettingsSection(requestedGymId = null, targetCont
     const gymId = requestedGymId || linked[0]?.gym_id;
     const link = linked.find(g => g.gym_id === gymId);
     if (!gymId || !link) {
-      container.innerHTML = `<div class="sa-settings-card"><h4>${COPY.settings.connectGym}</h4><p class="sa-card-desc">${COPY.settings.linkBeforeConfig}</p></div>`;
+      container.innerHTML = `<div class="app-settings-card"><h4>${COPY.settings.connectGym}</h4><p class="app-card-desc">${COPY.settings.linkBeforeConfig}</p></div>`;
       return;
     }
 
@@ -1695,7 +1694,7 @@ export async function renderGymSettingsSection(requestedGymId = null, targetCont
             // (header badges, capability gates) must refresh too, not just this
             // panel's own card.
             await syncAfterGymSetChange();
-            container.closest('.sa-gym-settings-overlay')?.remove();
+            container.closest('.app-gym-settings-overlay')?.remove();
             await renderGymsCard();
           } catch (err) {
             showToast(formatCopyText(COPY.settings.unlinkFailed, { error: err.message }), 'error');
@@ -1709,7 +1708,7 @@ export async function renderGymSettingsSection(requestedGymId = null, targetCont
       },
     });
   } catch (err) {
-    container.innerHTML = `<div class="sa-${getIsOffline() ? 'empty-state' : 'card-error'}" style="padding:12px;">${getIsOffline() ? COPY.settings.noSavedGymSettings : formatCopyText(COPY.settings.loadGymSettingsFailed, { error: escapeHtml(err.message) })}</div>`;
+    container.innerHTML = `<div class="app-${getIsOffline() ? 'empty-state' : 'card-error'}" style="padding:12px;">${getIsOffline() ? COPY.settings.noSavedGymSettings : formatCopyText(COPY.settings.loadGymSettingsFailed, { error: escapeHtml(err.message) })}</div>`;
   }
 }
 
@@ -1725,25 +1724,25 @@ function openLinkGymModal(gymId, existing, addable = []) {
 
   const logoGymId = gymId || addable[0]?.id || '';
   body.innerHTML = `
-    <div id="sa-link-gym-logo" class="sa-gym-form-logo">${logoGymId ? gymLogoBanner(logoGymId) : ''}</div>
-    <p class="sa-card-desc" style="margin-top:0;">
+    <div id="app-link-gym-logo" class="app-gym-form-logo">${logoGymId ? gymLogoBanner(logoGymId) : ''}</div>
+    <p class="app-card-desc" style="margin-top:0;">
       ${isReauth
         ? COPY.settings.addGymCredentialsHelp
         : COPY.settings.linkGymCredentialsHelp}
     </p>
     ${isReauth ? '' : `
-      <label class="sa-setting-label" style="display:block;margin-bottom:4px;"><span>${COPY.settings.gym}</span></label>
-      <select id="sa-link-gym-id" class="sa-select" style="width:100%;margin-bottom:10px;">
+      <label class="app-setting-label" style="display:block;margin-bottom:4px;"><span>${COPY.settings.gym}</span></label>
+      <select id="app-link-gym-id" class="app-select" style="width:100%;margin-bottom:10px;">
         ${addable.map(g => `<option value="${escapeHtml(g.id)}">${escapeHtml(g.name)}</option>`).join('')}
       </select>`}
-    <label class="sa-setting-label" style="display:block;margin-bottom:4px;"><span>${COPY.settings.email}</span></label>
-    <input id="sa-link-gym-email" type="email" class="sa-input" autocomplete="username"
+    <label class="app-setting-label" style="display:block;margin-bottom:4px;"><span>${COPY.settings.email}</span></label>
+    <input id="app-link-gym-email" type="email" class="app-input" autocomplete="username"
            style="width:100%;margin-bottom:10px;" placeholder="${COPY.static.exampleEmail}">
-    <label class="sa-setting-label" style="display:block;margin-bottom:4px;"><span>${COPY.settings.password}</span></label>
-    <input id="sa-link-gym-password" type="password" class="sa-input" autocomplete="current-password"
+    <label class="app-setting-label" style="display:block;margin-bottom:4px;"><span>${COPY.settings.password}</span></label>
+    <input id="app-link-gym-password" type="password" class="app-input" autocomplete="current-password"
            style="width:100%;margin-bottom:14px;">
-    <div id="sa-link-gym-error" style="display:none;color:var(--danger);font-size:12px;margin-bottom:10px;"></div>
-    <button class="sa-btn primary" id="sa-link-gym-submit" style="width:100%;">
+    <div id="app-link-gym-error" style="display:none;color:var(--danger);font-size:12px;margin-bottom:10px;"></div>
+    <button class="app-btn primary" id="app-link-gym-submit" style="width:100%;">
       ${isReauth ? COPY.settings.reauthenticate : COPY.settings.link}
     </button>
   `;
@@ -1751,15 +1750,15 @@ function openLinkGymModal(gymId, existing, addable = []) {
   open({ id: isReauth ? 'gym-reauth' : 'gym-link', back: isReauth });
 
   // Link flow: the logo follows the gym picked in the select.
-  body.querySelector('#sa-link-gym-id')?.addEventListener('change', (e) => {
-    body.querySelector('#sa-link-gym-logo').innerHTML = gymLogoBanner(e.target.value);
+  body.querySelector('#app-link-gym-id')?.addEventListener('change', (e) => {
+    body.querySelector('#app-link-gym-logo').innerHTML = gymLogoBanner(e.target.value);
   });
-  const errEl = body.querySelector('#sa-link-gym-error');
-  const submit = body.querySelector('#sa-link-gym-submit');
+  const errEl = body.querySelector('#app-link-gym-error');
+  const submit = body.querySelector('#app-link-gym-submit');
   submit.onclick = async () => {
-    const targetGym = isReauth ? gymId : body.querySelector('#sa-link-gym-id')?.value;
-    const email = body.querySelector('#sa-link-gym-email').value.trim();
-    const password = body.querySelector('#sa-link-gym-password').value;
+    const targetGym = isReauth ? gymId : body.querySelector('#app-link-gym-id')?.value;
+    const email = body.querySelector('#app-link-gym-email').value.trim();
+    const password = body.querySelector('#app-link-gym-password').value;
     errEl.style.display = 'none';
     if (!targetGym || !email || !password) {
       errEl.textContent = COPY.auth.requiredGymCredentials;
@@ -1793,37 +1792,37 @@ function openAccountPasswordModal() {
   const { body, title, open, close } = gymModal();
   title.textContent = COPY.settings.changeAccountPassword;
   body.innerHTML = `
-    <p class="sa-card-desc" style="margin-top:0;">
+    <p class="app-card-desc" style="margin-top:0;">
       ${formatCopyText(COPY.settings.accountPasswordDescription, { appName: escapeHtml(appConfig.appName) })}
     </p>
-    <label class="sa-setting-label" style="display:block;margin-bottom:4px;"><span>${COPY.settings.currentPassword}</span></label>
-    <input id="sa-pw-current" type="password" class="sa-input" autocomplete="current-password"
+    <label class="app-setting-label" style="display:block;margin-bottom:4px;"><span>${COPY.settings.currentPassword}</span></label>
+    <input id="app-pw-current" type="password" class="app-input" autocomplete="current-password"
            style="width:100%;margin-bottom:10px;">
-    <label class="sa-setting-label" style="display:block;margin-bottom:4px;"><span>${COPY.settings.newPassword}</span></label>
-    <input id="sa-pw-new" type="password" class="sa-input" autocomplete="new-password"
+    <label class="app-setting-label" style="display:block;margin-bottom:4px;"><span>${COPY.settings.newPassword}</span></label>
+    <input id="app-pw-new" type="password" class="app-input" autocomplete="new-password"
            style="width:100%;margin-bottom:10px;" placeholder="${COPY.settings.newPasswordMinPlaceholder}">
-    <label class="sa-setting-label" style="display:block;margin-bottom:4px;"><span>${COPY.settings.confirmNewPassword}</span></label>
-    <input id="sa-pw-confirm" type="password" class="sa-input" autocomplete="new-password"
+    <label class="app-setting-label" style="display:block;margin-bottom:4px;"><span>${COPY.settings.confirmNewPassword}</span></label>
+    <input id="app-pw-confirm" type="password" class="app-input" autocomplete="new-password"
            style="width:100%;margin-bottom:14px;">
-    <div id="sa-pw-error" style="display:none;color:var(--danger);font-size:12px;margin-bottom:10px;"></div>
-    <button class="sa-btn primary" id="sa-pw-submit" style="width:100%;">${COPY.settings.changePassword}</button>
+    <div id="app-pw-error" style="display:none;color:var(--danger);font-size:12px;margin-bottom:10px;"></div>
+    <button class="app-btn primary" id="app-pw-submit" style="width:100%;">${COPY.settings.changePassword}</button>
   `;
   // Any typed value means unsaved work: ask before a mobile Back/X/Esc discards it.
   open({
     id: 'account-password',
-    canClose: () => !['#sa-pw-current', '#sa-pw-new', '#sa-pw-confirm']
+    canClose: () => !['#app-pw-current', '#app-pw-new', '#app-pw-confirm']
       .some((s) => body.querySelector(s)?.value) || confirm(COPY.settings.discardUnsaved),
   });
 
-  const errEl = body.querySelector('#sa-pw-error');
-  const submit = body.querySelector('#sa-pw-submit');
+  const errEl = body.querySelector('#app-pw-error');
+  const submit = body.querySelector('#app-pw-submit');
   const fail = (msg) => { errEl.textContent = msg; errEl.style.display = 'block'; };
 
   submit.onclick = async () => {
     errEl.style.display = 'none';
-    const current = body.querySelector('#sa-pw-current').value;
-    const next = body.querySelector('#sa-pw-new').value;
-    const confirm = body.querySelector('#sa-pw-confirm').value;
+    const current = body.querySelector('#app-pw-current').value;
+    const next = body.querySelector('#app-pw-new').value;
+    const confirm = body.querySelector('#app-pw-confirm').value;
     if (next.length < 8) return fail(COPY.settings.passwordMinimumError);
     if (next !== confirm) return fail(COPY.settings.passwordMismatchError);
     submit.disabled = true;
@@ -1846,7 +1845,7 @@ function openAccountPasswordModal() {
 // app. Idempotent; per-gym entries lead with the gym's own mark instead (U1-8).
 const SETTINGS_MENU_ICONS = { general: 'sliders', calendar: 'calendar', notifications: 'bell', favourites: 'heart', account: 'user', gyms: 'link', about: 'info' };
 export function decorateSettingsMenu() {
-  document.querySelectorAll('.sa-settings-menu > [data-settings-section]').forEach((item) => {
+  document.querySelectorAll('.app-settings-menu > [data-settings-section]').forEach((item) => {
     const name = SETTINGS_MENU_ICONS[item.getAttribute('data-settings-section')];
     if (!name || item.querySelector('.menu-item-lead')) return;
     const lead = document.createElement('span');
@@ -1864,7 +1863,7 @@ export function decorateSettingsMenu() {
  * exactly as after tapping the entry.
  */
 export async function openGymSettings(gymId, fromHistory = false) {
-  const layout = document.getElementById('sa-settings-layout-wrapper');
+  const layout = document.getElementById('app-settings-layout-wrapper');
   if (!layout) return;
   for (let i = 0; i < 40; i++) {
     const item = [...layout.querySelectorAll('[data-gym-nav]')].find((el) => el.getAttribute('data-gym-nav') === String(gymId));
@@ -1917,18 +1916,18 @@ function openExternal(url) {
 
 // ─── Theme toggle (Auto / Light / Dark) ──────────────────────────────────────
 function setupThemeToggle() {
-  const group = document.getElementById('sa-theme-segmented');
+  const group = document.getElementById('app-theme-segmented');
   if (!group || group.dataset.listener) return;
   group.dataset.listener = 'true';
 
   const sync = () => {
     const active = getTheme();
-    group.querySelectorAll('.sa-segmented-btn').forEach(btn => {
+    group.querySelectorAll('.app-segmented-btn').forEach(btn => {
       btn.classList.toggle('active', btn.dataset.themeMode === active);
     });
   };
 
-  group.querySelectorAll('.sa-segmented-btn').forEach(btn => {
+  group.querySelectorAll('.app-segmented-btn').forEach(btn => {
     btn.addEventListener('click', () => {
       setTheme(btn.dataset.themeMode);
       sync();
@@ -2006,9 +2005,9 @@ function renderPerGymToggles(key, parentPref) {
         return `
         <div style="display:flex;justify-content:space-between;align-items:center;gap:12px;padding:4px 0;${locked ? 'opacity:0.45;' : ''}">
           <span style="font-size:12px;color:var(--text-secondary);">${getGymShortName(gymId) || gymId}${locked ? `<br><small style="font-size:11px;color:var(--text-tertiary);">${COPY.settings.bookingWindowRollingNote}</small>` : ''}</span>
-          <label class="sa-switch" style="flex-shrink:0;">
+          <label class="app-switch" style="flex-shrink:0;">
             <input type="checkbox" class="notif-pergym-toggle" data-key="${key}" data-gym-id="${gymId}" ${locked ? 'disabled' : ''} ${perGymPrefOn(parentPref, g) ? 'checked' : ''}>
-            <span class="sa-slider"></span>
+            <span class="app-slider"></span>
           </label>
         </div>`;
       }).join('')}
@@ -2019,7 +2018,7 @@ function renderPerGymToggles(key, parentPref) {
 function anyPeriodicGym() { return (getLinkedGyms() || []).some(gymHasPeriodicWindow); }
 
 function renderNotifPrefs() {
-  const body = document.getElementById('sa-notif-prefs-body');
+  const body = document.getElementById('app-notif-prefs-body');
   if (!body) return;
   const prefs = getNotifPrefs();
 
@@ -2028,7 +2027,7 @@ function renderNotifPrefs() {
     ${NOTIF_ROWS.map(row => {
       const p = prefs[row.key];
       const dd = row.dropdown ? `
-        <select class="sa-select notif-dropdown" data-key="${row.key}" data-prop="${row.dropdown.prop}" style="margin-top:8px;width:100%;font-size:12px;">
+        <select class="app-select notif-dropdown" data-key="${row.key}" data-prop="${row.dropdown.prop}" style="margin-top:8px;width:100%;font-size:12px;">
           ${row.dropdown.options.map(([val, label]) => `<option value="${val}" ${p[row.dropdown.prop] === val ? 'selected' : ''}>${label}</option>`).join('')}
         </select>` : '';
       return `
@@ -2038,9 +2037,9 @@ function renderNotifPrefs() {
               <div style="font-size:13px;font-weight:600;color:var(--text);">${row.title}</div>
               <div style="font-size:12px;color:var(--text-secondary);margin-top:2px;line-height:1.4;">${row.desc}</div>
             </div>
-            <label class="sa-switch" style="flex-shrink:0;">
+            <label class="app-switch" style="flex-shrink:0;">
               <input type="checkbox" class="notif-toggle" data-key="${row.key}" ${row.perGym && !anyPeriodicGym() ? 'disabled' : ''} ${p.enabled && !(row.perGym && !anyPeriodicGym()) ? 'checked' : ''}>
-              <span class="sa-slider"></span>
+              <span class="app-slider"></span>
             </label>
           </div>
           ${dd ? `<div class="notif-dropdown-wrap" data-key="${row.key}" style="${p.enabled ? '' : 'opacity:0.4;pointer-events:none;'}">${dd}</div>` : ''}
@@ -2069,7 +2068,7 @@ function renderNotifPrefs() {
 }
 
 async function saveNotifPrefs() {
-  const body = document.getElementById('sa-notif-prefs-body');
+  const body = document.getElementById('app-notif-prefs-body');
   if (!body) return;
   const prefs = getNotifPrefs();
   body.querySelectorAll('.notif-toggle:not(:disabled)').forEach(el => {
@@ -2095,9 +2094,9 @@ async function saveNotifPrefs() {
 }
 
 function setupNotificationPrefs() {
-  const openBtn = document.getElementById('sa-notif-prefs-btn');
-  const modal = document.getElementById('sa-notif-prefs-modal');
-  const closeBtn = document.getElementById('sa-notif-prefs-close');
+  const openBtn = document.getElementById('app-notif-prefs-btn');
+  const modal = document.getElementById('app-notif-prefs-modal');
+  const closeBtn = document.getElementById('app-notif-prefs-close');
   debugConsole('[setupNotificationPrefs] openBtn:', openBtn, 'modal:', modal, 'closeBtn:', closeBtn);
   if (openBtn && !openBtn.dataset.listener) {
     openBtn.dataset.listener = 'true';
@@ -2111,7 +2110,7 @@ function setupNotificationPrefs() {
     closeBtn.dataset.listener = 'true';
     const close = () => { modal.classList.remove('show'); };
     closeBtn.addEventListener('click', close);
-    modal.querySelector('.sa-modal-overlay').addEventListener('click', close);
+    modal.querySelector('.app-modal-overlay').addEventListener('click', close);
   }
 
   // Debug test-notification buttons
@@ -2136,23 +2135,23 @@ function setupNotificationPrefs() {
 }
 
 function updateTestNotifCardVisibility() {
-  const card = document.getElementById('sa-test-notif-card');
+  const card = document.getElementById('app-test-notif-card');
   if (card) card.style.display = userSettings.debugMode ? 'block' : 'none';
 }
 
 function loadSettingsInputs() {
-  const debugMode = document.getElementById('sa-setting-debug-mode');
-  const prefetchWeeks = document.getElementById('sa-setting-prefetch-weeks');
+  const debugMode = document.getElementById('app-setting-debug-mode');
+  const prefetchWeeks = document.getElementById('app-setting-prefetch-weeks');
 
   if (debugMode) debugMode.checked = !!userSettings.debugMode;
   if (prefetchWeeks) prefetchWeeks.value = String(userSettings.prefetchWeeks || 4);
 }
 
 function setupSettingsListeners() {
-  const debugMode = document.getElementById('sa-setting-debug-mode');
-  const prefetchWeeks = document.getElementById('sa-setting-prefetch-weeks');
+  const debugMode = document.getElementById('app-setting-debug-mode');
+  const prefetchWeeks = document.getElementById('app-setting-prefetch-weeks');
 
-  const accountPasswordBtn = document.getElementById('sa-account-password-btn');
+  const accountPasswordBtn = document.getElementById('app-account-password-btn');
   if (accountPasswordBtn && !accountPasswordBtn.dataset.listener) {
     accountPasswordBtn.dataset.listener = 'true';
     accountPasswordBtn.addEventListener('click', openAccountPasswordModal);
@@ -2194,14 +2193,14 @@ function setupSettingsListeners() {
   }
 
   // Push notification toggle button
-  const pushBtn = document.getElementById('sa-push-toggle-btn');
+  const pushBtn = document.getElementById('app-push-toggle-btn');
   if (pushBtn && !pushBtn.dataset.listener) {
     pushBtn.dataset.listener = 'true';
     pushBtn.addEventListener('click', togglePushSubscription);
   }
 
   // Export config button
-  const exportBtn = document.getElementById('sa-settings-export-btn');
+  const exportBtn = document.getElementById('app-settings-export-btn');
   if (exportBtn && !exportBtn.dataset.listener) {
     exportBtn.dataset.listener = 'true';
     exportBtn.addEventListener('click', async () => {
@@ -2214,7 +2213,7 @@ function setupSettingsListeners() {
         const url = URL.createObjectURL(blob);
         const link = document.createElement('a');
         link.href = url;
-        link.download = 'sa-preferences-backup.json';
+        link.download = 'app-preferences-backup.json';
         document.body.appendChild(link);
         link.click();
         document.body.removeChild(link);
@@ -2228,8 +2227,8 @@ function setupSettingsListeners() {
   }
 
   // Import config file triggers
-  const importBtn = document.getElementById('sa-settings-import-btn');
-  const importFileInput = document.getElementById('sa-settings-import-file');
+  const importBtn = document.getElementById('app-settings-import-btn');
+  const importFileInput = document.getElementById('app-settings-import-file');
 
   if (importBtn && importFileInput && !importBtn.dataset.listener) {
     importBtn.dataset.listener = 'true';
@@ -2270,8 +2269,8 @@ function setupSettingsListeners() {
 
   // Profile explorer modal close (handled inside openProfileExplorerModal via setupExplorerModalClose,
   // but keep a fallback here for safety)
-  const explorerModal = document.getElementById('sa-profile-explorer-modal');
-  const explorerClose = document.getElementById('sa-profile-explorer-close');
+  const explorerModal = document.getElementById('app-profile-explorer-modal');
+  const explorerClose = document.getElementById('app-profile-explorer-close');
   if (explorerModal && explorerClose && !explorerClose.dataset.listener) {
     explorerClose.dataset.listener = 'true';
     const closeExplorer = () => {
@@ -2282,39 +2281,39 @@ function setupSettingsListeners() {
       konamiProgress = 0;
     };
     explorerClose.addEventListener('click', closeExplorer);
-    const overlay = explorerModal.querySelector('.sa-modal-overlay');
+    const overlay = explorerModal.querySelector('.app-modal-overlay');
     if (overlay) {
       overlay.addEventListener('click', closeExplorer);
     }
   }
 
   // Replay onboarding button
-  const replayBtn = document.getElementById('sa-replay-onboarding-btn');
+  const replayBtn = document.getElementById('app-replay-onboarding-btn');
   if (replayBtn && !replayBtn.dataset.listener) {
     replayBtn.dataset.listener = 'true';
     replayBtn.addEventListener('click', async () => {
       const { startOnboarding } = await import('./onboarding');
-      removeStored('sweatOnboardingComplete');
-      removeStored('sweatOnboardingStep');
+      localStorage.removeItem('appOnboardingComplete');
+      localStorage.removeItem('appOnboardingStep');
       startOnboarding();
     });
   }
 
   // Logout button
-  const logoutBtn = document.getElementById('sa-logout-btn');
+  const logoutBtn = document.getElementById('app-logout-btn');
   if (logoutBtn && !logoutBtn.dataset.listener) {
     logoutBtn.dataset.listener = 'true';
     logoutBtn.addEventListener('click', () => {
       showToast(COPY.settings.loggingOut, 'info');
       clearApiCache().catch(() => {}).finally(() => {
-        removeStored('sweatLocalToken');
+        localStorage.removeItem('appLocalToken');
         window.location.reload();
       });
     });
   }
 
   // Delete all data button (two-step confirm)
-  const deleteDataBtn = document.getElementById('sa-delete-data-btn');
+  const deleteDataBtn = document.getElementById('app-delete-data-btn');
   if (deleteDataBtn && !deleteDataBtn.dataset.listener) {
     deleteDataBtn.dataset.listener = 'true';
     deleteDataBtn.addEventListener('click', async () => {
@@ -2341,7 +2340,7 @@ function setupSettingsListeners() {
       try {
         await apiFetch('/api/auth/me', { method: 'DELETE' });
         showToast(COPY.settings.allDataDeleted, 'success');
-        removeStored('sweatLocalToken');
+        localStorage.removeItem('appLocalToken');
         setTimeout(() => { window.location.reload(); }, 1500);
       } catch (err) {
         showToast(formatCopyText(COPY.settings.deleteFailed, { error: err.message }), 'error');

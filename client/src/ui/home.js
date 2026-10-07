@@ -64,7 +64,7 @@ function renderConnectGym(root) {
 
 /** (Re)paint the whole page. Safe to call repeatedly; a newer call supersedes an older one. */
 export async function renderHome() {
-  host = host || document.getElementById('sa-home-widgets');
+  host = host || document.getElementById('app-home-widgets');
   if (!host) return;
   const run = ++renderRun;
   let gyms = null;
@@ -91,7 +91,7 @@ export { isNoGymError };
 
 // Re-render when the linked-gym set changes, and when the app returns to the foreground.
 if (typeof window !== 'undefined') {
-  const onHome = () => !!document.getElementById('sa-panel-home') && document.getElementById('sa-panel-home').style.display !== 'none';
-  window.addEventListener('sweat:gyms-changed', () => { if (onHome()) renderHome(); });
+  const onHome = () => !!document.getElementById('app-panel-home') && document.getElementById('app-panel-home').style.display !== 'none';
+  window.addEventListener('app:gyms-changed', () => { if (onHome()) renderHome(); });
   document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'visible' && onHome()) renderHome(); });
 }

@@ -1,4 +1,4 @@
-// Sweat Assistant — calendar.js adapter-routing regression test (WP-N3, calendar half).
+// calendar.js adapter-routing regression test (WP-N3, calendar half).
 //
 // calendar.js's fetchUserBookings/fetchUserWaitlists used to call raw
 // poller.fetchCodexFit() for the /bookings and /waitlists LIST endpoints. This

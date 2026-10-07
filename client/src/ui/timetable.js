@@ -128,11 +128,11 @@ function recordTimetableTiming(phase, startedAt, detail = {}) {
     durationMs: Math.round((timetablePerfNow() - startedAt) * 10) / 10,
     ...detail,
   };
-  const samples = window.__psycleTimetablePerformance || [];
+  const samples = window.__appTimetablePerformance || [];
   samples.push(sample);
-  window.__psycleTimetablePerformance = samples.slice(-30);
-  document.documentElement.dataset.timetablePerformance = JSON.stringify(window.__psycleTimetablePerformance);
-  window.dispatchEvent(new CustomEvent('sweat-timetable-performance', { detail: sample }));
+  window.__appTimetablePerformance = samples.slice(-30);
+  document.documentElement.dataset.timetablePerformance = JSON.stringify(window.__appTimetablePerformance);
+  window.dispatchEvent(new CustomEvent('app-timetable-performance', { detail: sample }));
 }
 
 // Normalized metadata ids are STRINGS; raw event fields (studio_id, instructor_id,
@@ -273,7 +273,7 @@ let weekStripSeenSelected = null;   // follow the selection only when IT changes
 // model can synchronously decide Quick-Book vs Book per studio.
 let studioPrefsMap = {};
 if (typeof window !== 'undefined') {
-  window.addEventListener('sweat-studio-preferences-mutated', (event) => {
+  window.addEventListener('app-studio-preferences-mutated', (event) => {
     const detail = event.detail || {};
     cache.studioPrefs = applyStudioPreferenceMutation(cache.studioPrefs || {}, detail);
     cache.studioPreferences = applyStudioPreferenceMutation(cache.studioPreferences || {}, detail);
@@ -323,11 +323,11 @@ const stripToday = () => nowInZone(getGymTimeZone(getDefaultGymId()) || deviceZo
 function mondayOfIso(iso) { const d = DateTime.fromISO(iso, { zone: STRIP_ZONE }); return d.minus({ days: d.weekday - 1 }).toISODate(); }
 let weekStripPage = 0;              // page (week) the user is looking at; survives re-renders
 function renderWeekStrip(carousel, daysWithEvents) {
-  carousel.classList.remove('sa-date-selector');
-  carousel.classList.add('sa-weekstrip');
-  carousel.parentElement?.classList.add('sa-dates-first');
+  carousel.classList.remove('app-date-selector');
+  carousel.classList.add('app-weekstrip');
+  carousel.parentElement?.classList.add('app-dates-first');
   if (!selectedTimetableDate) {
-    carousel.innerHTML = `<div class="sa-wk-empty">${COPY.timetable.noDates}</div>`;
+    carousel.innerHTML = `<div class="app-wk-empty">${COPY.timetable.noDates}</div>`;
     return;
   }
   const todayIso = stripToday();
@@ -351,18 +351,18 @@ function renderWeekStrip(carousel, daysWithEvents) {
       const iso = d.toISODate();
       const past = iso < todayIso;
       const disabled = past || !withEvents.has(iso);
-      const cls = ['sa-wk-day', iso === selectedTimetableDate ? 'active' : '', iso === todayIso ? 'is-today' : '', past ? 'is-past' : '', disabled ? 'is-disabled' : ''].filter(Boolean).join(' ');
+      const cls = ['app-wk-day', iso === selectedTimetableDate ? 'active' : '', iso === todayIso ? 'is-today' : '', past ? 'is-past' : '', disabled ? 'is-disabled' : ''].filter(Boolean).join(' ');
       cells.push(`<button type="button" class="${cls}" data-day="${iso}" ${disabled ? 'disabled' : ''} aria-pressed="${iso === selectedTimetableDate}" aria-label="${d.setLocale('en-GB').toFormat('cccc d LLLL')}">`
         + `<span class="wk-num">${d.day}</span><span class="wk-name">${d.setLocale('en-GB').toFormat('ccc').toUpperCase()}</span></button>`);
     }
-    pages.push(`<div class="sa-wk-page">${cells.join('')}</div>`);
+    pages.push(`<div class="app-wk-page">${cells.join('')}</div>`);
   }
   const desktop = window.matchMedia('(min-width: 769px)').matches;
-  const prevLeft = carousel.querySelector('.sa-wk-scroller')?.scrollLeft || 0;
-  carousel.innerHTML = `<button type="button" class="sa-wk-nav" data-wk-nav="-1" aria-label="${COPY.timetable.prevWeek}">&#x2039;</button>`
-    + `<div class="sa-wk-scroller"><div class="sa-wk-track">${pages.join('')}</div></div>`
-    + `<button type="button" class="sa-wk-nav" data-wk-nav="1" aria-label="${COPY.timetable.nextWeek}">&#x203A;</button>`;
-  const scroller = carousel.querySelector('.sa-wk-scroller');
+  const prevLeft = carousel.querySelector('.app-wk-scroller')?.scrollLeft || 0;
+  carousel.innerHTML = `<button type="button" class="app-wk-nav" data-wk-nav="-1" aria-label="${COPY.timetable.prevWeek}">&#x2039;</button>`
+    + `<div class="app-wk-scroller"><div class="app-wk-track">${pages.join('')}</div></div>`
+    + `<button type="button" class="app-wk-nav" data-wk-nav="1" aria-label="${COPY.timetable.nextWeek}">&#x203A;</button>`;
+  const scroller = carousel.querySelector('.app-wk-scroller');
   const track = scroller.firstElementChild;
   const goTo = (smooth) => {
     if (desktop) {
@@ -378,7 +378,7 @@ function renderWeekStrip(carousel, daysWithEvents) {
   goTo(false);
   if (selectionChanged && weeks > 1) requestAnimationFrame(() => goTo(false));
   // Desktop < > step the strip by one 2-week period.
-  carousel.querySelectorAll('.sa-wk-nav').forEach((b) => {
+  carousel.querySelectorAll('.app-wk-nav').forEach((b) => {
     b.onclick = () => scroller.scrollBy({ left: Number(b.dataset.wkNav) * scroller.clientWidth, behavior: 'smooth' });
   });
   const selectDay = (b) => {
@@ -386,12 +386,12 @@ function renderWeekStrip(carousel, daysWithEvents) {
     const dir = dayStr > selectedTimetableDate ? 1 : (dayStr < selectedTimetableDate ? -1 : 0);
     selectedTimetableDate = dayStr;
     // Optimistic: the strip highlight and full-date heading change NOW, before the list re-renders.
-    carousel.querySelectorAll('.sa-wk-day').forEach((c) => { const on = c === b; c.classList.toggle('active', on); c.setAttribute('aria-pressed', String(on)); });
-    const head = document.querySelector('#sa-timetable-grid .sa-tt-fulldate');
+    carousel.querySelectorAll('.app-wk-day').forEach((c) => { const on = c === b; c.classList.toggle('active', on); c.setAttribute('aria-pressed', String(on)); });
+    const head = document.querySelector('#app-timetable-grid .app-tt-fulldate');
     if (head) head.textContent = formatFullDate(dayStr);
     animateDateChange(dir, () => renderTimetableGrid());
   };
-  carousel.querySelectorAll('.sa-wk-day:not(.is-disabled)').forEach((b) => { b.onclick = () => selectDay(b); });
+  carousel.querySelectorAll('.app-wk-day:not(.is-disabled)').forEach((b) => { b.onclick = () => selectDay(b); });
 
   if (!desktop) {
     // Week pager on touch. The strip used to be a native overflow scroller with scroll-snap: after a flick iOS keeps
@@ -435,30 +435,30 @@ function renderWeekStrip(carousel, daysWithEvents) {
   }
 }
 
-function pageChild(grid) { return grid.querySelector('.sa-table-container') || grid.firstElementChild; }
+function pageChild(grid) { return grid.querySelector('.app-table-container') || grid.firstElementChild; }
 // === END WEEK STRIP ===
 
 let dateNavToken = 0;
 function centreActivePill() {
-  const carousel = document.getElementById('sa-timetable-carousel');
-  const pill = carousel?.querySelector('.sa-day-pill.active');
+  const carousel = document.getElementById('app-timetable-carousel');
+  const pill = carousel?.querySelector('.app-day-pill.active');
   if (!carousel || !pill) return;
-  const scroller = carousel.classList.contains('sa-date-selector') ? carousel : carousel.querySelector('.sa-date-selector') || carousel;
+  const scroller = carousel.classList.contains('app-date-selector') ? carousel : carousel.querySelector('.app-date-selector') || carousel;
   scroller.scrollTo?.({ left: pill.offsetLeft - (scroller.clientWidth - pill.offsetWidth) / 2, behavior: 'smooth' });
 }
 function animateDateChange(dir, render) {
-  const grid = document.getElementById('sa-timetable-grid');
+  const grid = document.getElementById('app-timetable-grid');
   const token = ++dateNavToken;
   // DESKTOP: instant. No slide/fade between days (mobile keeps its swipe-style transition).
   if (window.matchMedia('(min-width: 769px)').matches) {
-    grid?.querySelectorAll('.sa-timetable-page-outgoing').forEach((el) => el.remove());
+    grid?.querySelectorAll('.app-timetable-page-outgoing').forEach((el) => el.remove());
     render();
     return;
   }
   if (!grid || !dir || typeof grid.animate !== 'function') { render(); return; }
 
   // Clean up any in-flight transitions or clones from rapid clicks
-  grid.querySelectorAll('.sa-timetable-page-outgoing').forEach((el) => el.remove());
+  grid.querySelectorAll('.app-timetable-page-outgoing').forEach((el) => el.remove());
   grid.getAnimations().forEach((a) => a.cancel());
   grid.style.transform = '';
 
@@ -479,7 +479,7 @@ function animateDateChange(dir, render) {
 
   // Clone outgoing content into an absolute snapshot overlay so both old and new exist simultaneously
   const clone = oldChild.cloneNode(true);
-  clone.classList.add('sa-timetable-page-outgoing');
+  clone.classList.add('app-timetable-page-outgoing');
   const topOffset = oldChild.offsetTop;
   clone.style.cssText = `position: absolute; top: ${topOffset}px; left: 0; width: 100%; pointer-events: none; z-index: 2; margin: 0; box-sizing: border-box; will-change: transform, opacity;`;
 
@@ -522,11 +522,11 @@ function animateDateChange(dir, render) {
 // 20px left edge (iOS back / Settings swipe-back); passive listeners, so vertical scroll and pull-to-refresh are untouched.
 let swipeWired = false;
 function wireTimetableSwipe() {
-  const grid = document.getElementById('sa-timetable-grid');
+  const grid = document.getElementById('app-timetable-grid');
   if (!grid || swipeWired) return;
   swipeWired = true;
   const EDGE = 20, THRESHOLD = 48;
-  const BLOCK = '.sa-mobile-seg, .sa-mobile-menu, .sa-mobile-ellipsis, button, a, input, select, textarea, [data-no-swipe]';
+  const BLOCK = '.app-mobile-seg, .app-mobile-menu, .app-mobile-ellipsis, button, a, input, select, textarea, [data-no-swipe]';
   let sx = 0, sy = 0, st = 0, dx = 0, tracking = false, locked = false;
   const reduce = () => window.matchMedia('(prefers-reduced-motion: reduce)').matches;
   const hScrollable = (el) => {
@@ -563,7 +563,7 @@ function wireTimetableSwipe() {
     locked = false;
     const fast = Math.abs(dx) / Math.max(1, performance.now() - st) > 0.5;
     if (!(Math.abs(dx) >= THRESHOLD || (fast && Math.abs(dx) > 24))) return;
-    const pills = [...document.querySelectorAll('#sa-timetable-carousel .sa-day-pill, #sa-timetable-carousel .sa-wk-day:not(.is-disabled)')];
+    const pills = [...document.querySelectorAll('#app-timetable-carousel .app-day-pill, #app-timetable-carousel .app-wk-day:not(.is-disabled)')];
     const i = pills.findIndex((p) => p.classList.contains('active'));
     const next = pills[i + (dx < 0 ? 1 : -1)];   // stops at the ends of the available range
     if (next) next.click();
@@ -578,22 +578,22 @@ function wireTimetableSwipe() {
 let instrFitObserver = null;
 let instrFitWidth = 0;
 function fitInstructorRows() {
-  const rows = [...document.querySelectorAll('#sa-timetable-grid .sa-mobile-main')];
+  const rows = [...document.querySelectorAll('#app-timetable-grid .app-mobile-main')];
   if (!rows.length) return;
   rows.forEach((main) => {
-    const line2 = main.querySelector('.sa-mobile-line2');
-    const bottom = main.querySelector('.sa-mobile-bottom-line');
-    const moved = bottom.querySelectorAll('.sa-mobile-dot, .sa-mobile-instructor');
+    const line2 = main.querySelector('.app-mobile-line2');
+    const bottom = main.querySelector('.app-mobile-bottom-line');
+    const moved = bottom.querySelectorAll('.app-mobile-dot, .app-mobile-instructor');
     moved.forEach((n) => line2.appendChild(n));   // back to row 2 (dot then instructor keeps DOM order)
   });
   const flagged = rows.filter((main) => {
-    const cls = main.querySelector('.sa-mobile-class-name');
-    return main.querySelector('.sa-mobile-instructor') && cls.scrollWidth > cls.clientWidth;
+    const cls = main.querySelector('.app-mobile-class-name');
+    return main.querySelector('.app-mobile-instructor') && cls.scrollWidth > cls.clientWidth;
   });
   flagged.forEach((main) => {
-    const bottom = main.querySelector('.sa-mobile-bottom-line');
-    const dot = main.querySelector('.sa-mobile-line2 .sa-mobile-dot');
-    const ins = main.querySelector('.sa-mobile-line2 .sa-mobile-instructor');
+    const bottom = main.querySelector('.app-mobile-bottom-line');
+    const dot = main.querySelector('.app-mobile-line2 .app-mobile-dot');
+    const ins = main.querySelector('.app-mobile-line2 .app-mobile-instructor');
     if (dot) bottom.appendChild(dot);
     if (ins) bottom.appendChild(ins);
     main.classList.add('instr-below');
@@ -603,7 +603,7 @@ function fitInstructorRows() {
 function scheduleInstructorFit() {
   if (!window.matchMedia('(max-width: 768px)').matches) return;
   requestAnimationFrame(fitInstructorRows);
-  const grid = document.getElementById('sa-timetable-grid');
+  const grid = document.getElementById('app-timetable-grid');
   if (grid && typeof ResizeObserver !== 'undefined' && !instrFitObserver) {
     instrFitObserver = new ResizeObserver(() => {
       const w = grid.clientWidth;
@@ -646,7 +646,7 @@ function urlCtx() {
 }
 
 function timetableTabVisible() {
-  return currentRoute().tab === 'class-timetable' && !!document.getElementById('sa-timetable-grid');
+  return currentRoute().tab === 'class-timetable' && !!document.getElementById('app-timetable-grid');
 }
 
 /** Apply parsed URL params (load, deep link, back/forward). Never pushes history. */
@@ -696,24 +696,24 @@ function syncUrlFromState(defaultDay = lastDefaultDay) {
 }
 
 function renderOverlayBanner() {
-  const grid = document.getElementById('sa-timetable-grid');
+  const grid = document.getElementById('app-timetable-grid');
   if (!grid || !grid.parentElement) return;
-  let el = document.getElementById('sa-url-overlay-banner');
+  let el = document.getElementById('app-url-overlay-banner');
   if (!overlayActive) { el?.remove(); return; }
   const labels = overlayLabels(currentFilterState(), urlCtx());
   const text = formatCopyText(COPY.timetable.overlayFiltered, { labels: labels.join(', ') || COPY.timetable.overlayNoFilters })
     + (overlayDropped ? ` · ${formatCopyText(COPY.timetable.overlayUnavailable, { count: overlayDropped })}` : '');
   if (!el) {
     el = document.createElement('div');
-    el.id = 'sa-url-overlay-banner';
-    el.className = 'sa-url-overlay-banner';
+    el.id = 'app-url-overlay-banner';
+    el.className = 'app-url-overlay-banner';
     el.setAttribute('role', 'status');
     el.setAttribute('aria-live', 'polite');
-    el.innerHTML = '<span class="sa-url-overlay-text"></span><button type="button" class="sa-url-overlay-clear"></button>';
+    el.innerHTML = '<span class="app-url-overlay-text"></span><button type="button" class="app-url-overlay-clear"></button>';
     el.querySelector('button').onclick = clearUrlOverlay;
     grid.parentElement.insertBefore(el, grid);
   }
-  el.querySelector('.sa-url-overlay-text').textContent = text;
+  el.querySelector('.app-url-overlay-text').textContent = text;
   el.querySelector('button').textContent = COPY.timetable.overlayClear;
 }
 
@@ -722,9 +722,9 @@ export function clearUrlOverlay() {
   setFilterState(copyOf(savedFilterState));
   overlayActive = false; overlayDropped = 0;
   urlReplaceOnce = true;
-  document.getElementById('sa-url-overlay-banner')?.remove();
+  document.getElementById('app-url-overlay-banner')?.remove();
   renderTimetableGrid('filter').then(() => {
-    const grid = document.getElementById('sa-timetable-grid');
+    const grid = document.getElementById('app-timetable-grid');
     if (grid) { grid.setAttribute('tabindex', '-1'); grid.focus({ preventScroll: true }); }
   });
 }
@@ -744,7 +744,7 @@ export async function initTimetable() {
   await prefetchTimetableData();
   recordTimetableTiming('initialise-total', initStartedAt);
   // Pull-to-refresh is handled centrally in main.js (attached to the shared
-  // <main class="sa-body"> scroller, dispatched by active tab).
+  // <main class="app-body"> scroller, dispatched by active tab).
 }
 
 // Saved filters name PROVIDER ids (locations, instructors, class types), which are
@@ -753,11 +753,11 @@ export async function initTimetable() {
 // nothing and render an empty timetable that looks like a data-loading bug.
 // There is deliberately NO fallback to the unqualified key when a gym is set: it
 // would hand a gym with no saved filters the previous gym's ids, which is the bug
-// itself. A single-gym user with no `sweatActiveGymId` still reads the bare key,
+// itself. A single-gym user with no `appActiveGymId` still reads the bare key,
 // so the common case keeps its saved filters; anyone who has explicitly selected
 // a gym re-saves once. Losing a device-local preference beats loading the wrong
 // gym's filters.
-const FILTERS_KEY_BASE = 'sweatUnifiedDefaultFilters';
+const FILTERS_KEY_BASE = 'appUnifiedDefaultFilters';
 
 function defaultFiltersKey() {
   return accountScopedKey(FILTERS_KEY_BASE);
@@ -817,9 +817,9 @@ export async function loadMetadata(force = false) {
 
 // Fetch all events for the prefetch window in parallel across all linked gyms
 // Uses instant SWR: renders cached events in 0ms on startup, refreshes in background
-const CACHE_KEY_EVENTS = 'sweatUnifiedCacheEvents';
-const CACHE_KEY_META = 'sweatUnifiedCacheMeta';
-const CACHE_KEY_TIME = 'sweatUnifiedCacheTime';
+const CACHE_KEY_EVENTS = 'appUnifiedCacheEvents';
+const CACHE_KEY_META = 'appUnifiedCacheMeta';
+const CACHE_KEY_TIME = 'appUnifiedCacheTime';
 let lastContextAt = 0; // when bookings/waitlists were last confirmed by the network
 
 async function cacheDel(key) {
@@ -857,8 +857,8 @@ const PROGRESSIVE_GRACE_MS = 0;
 // merged into a list someone may already be scrolled down, so anchor on the
 // first row in view (by event id) rather than a raw scrollTop that shifts.
 function renderPreservingScroll(reason) {
-  const grid = document.getElementById('sa-timetable-grid');
-  const scroller = (isDocScroll() ? docScroller() : document.querySelector('main.sa-body')) || grid;
+  const grid = document.getElementById('app-timetable-grid');
+  const scroller = (isDocScroll() ? docScroller() : document.querySelector('main.app-body')) || grid;
   const anchor = captureScrollAnchor(scroller, grid);
   // Restoring the anchor is a programmatic scroll: the collapse hysteresis must re-baseline, not toggle.
   markScrollBusy(400);
@@ -877,7 +877,7 @@ export async function prefetchTimetableData(force = false) {
     return;
   }
 
-  const ttContainer = document.getElementById('sa-timetable-grid');
+  const ttContainer = document.getElementById('app-timetable-grid');
   if (!ttContainer) return;
 
   // 1. Instant SWR: Read and display cached events & metadata from IndexedDB immediately (0ms delay!)
@@ -1037,10 +1037,10 @@ export async function prefetchTimetableData(force = false) {
         <div style="padding: 40px 20px; text-align: center; color: var(--text-secondary);">
           <p style="font-size:16px;margin-bottom:8px">${COPY.timetable.noCachedTimetable}</p>
           <p style="font-size:13px;color:var(--text-tertiary)">${COPY.timetable.connectInternet}</p>
-          <button id="sa-timetable-retry-btn" class="sa-btn variant-danger" style="margin-top: 12px; display: inline-block; width: auto; padding: 8px 16px; border-radius: 8px;">${COPY.timetable.retry}</button>
+          <button id="app-timetable-retry-btn" class="app-btn variant-danger" style="margin-top: 12px; display: inline-block; width: auto; padding: 8px 16px; border-radius: 8px;">${COPY.timetable.retry}</button>
         </div>
       `;
-      const retryBtn = document.getElementById('sa-timetable-retry-btn');
+      const retryBtn = document.getElementById('app-timetable-retry-btn');
       if (retryBtn) {
         retryBtn.onclick = () => prefetchTimetableData(true);
       }
@@ -1051,12 +1051,12 @@ export async function prefetchTimetableData(force = false) {
 // Generate the dropdown filter option checklists
 // activeIds: { locationIds, instructorIds, classTypeIds } — each a Set of IDs from interdependently-filtered events
 function setupDropdownFilters({ locationIds, instructorIds, classTypeIds } = {}) {
-  const container = document.getElementById('sa-timetable-filters-container');
+  const container = document.getElementById('app-timetable-filters-container');
   if (!container) return;
 
   // Gym filter (rendered only when >1 gym linked)
   const linked = getLinkedGyms() || [];
-  const gymDropdown = document.getElementById('sa-ms-gym');
+  const gymDropdown = document.getElementById('app-ms-gym');
   if (gymDropdown) {
     if (linked.length > 1) {
       gymDropdown.style.display = 'block';
@@ -1064,8 +1064,8 @@ function setupDropdownFilters({ locationIds, instructorIds, classTypeIds } = {})
         id: g.gym_id || g.id,
         name: g.gym_name || g.name || g.gym_id || g.id,
       }));
-      populateOptionsList('sa-ms-gym', gymItems, selectedGyms, 'gym');
-      updateTriggerLabel('sa-ms-gym', selectedGyms, COPY.timetable.allGyms, 'Gym');
+      populateOptionsList('app-ms-gym', gymItems, selectedGyms, 'gym');
+      updateTriggerLabel('app-ms-gym', selectedGyms, COPY.timetable.allGyms, 'Gym');
     } else {
       gymDropdown.style.display = 'none';
     }
@@ -1095,10 +1095,10 @@ function setupDropdownFilters({ locationIds, instructorIds, classTypeIds } = {})
     ? metadata.eventTypes
     : metadata.eventTypes.filter(t => hasId(classTypeIds, t.id));
 
-  populateOptionsList('sa-ms-location', locationsToRender, selectedLocations, 'location');
+  populateOptionsList('app-ms-location', locationsToRender, selectedLocations, 'location');
   // Normalized instructors expose `name`; the old raw CodexFit shape used
   // `full_name`, and the default labelField is already 'name'.
-  populateOptionsList('sa-ms-instructor', instructorsToRender, selectedInstructors, 'instructor');
+  populateOptionsList('app-ms-instructor', instructorsToRender, selectedInstructors, 'instructor');
 
   // Event Type groups (Ride, Strength, etc.)
   // `group` is a plain string on the normalized shape — it is both the id the
@@ -1130,15 +1130,15 @@ function setupDropdownFilters({ locationIds, instructorIds, classTypeIds } = {})
     .map(t => ({ id: t.bucketLabel, name: t.bucketLabel, gymId: t.gymId }))
     .sort((a, b) => a.name.localeCompare(b.name) || (a.gymId || '').localeCompare(b.gymId || ''));
 
-  populateOptionsList('sa-ms-class-type', eventTypeGroups, selectedEventTypes, 'class-type');
+  populateOptionsList('app-ms-class-type', eventTypeGroups, selectedEventTypes, 'class-type');
   
   // Set labels
-  updateTriggerLabel('sa-ms-location', selectedLocations, COPY.timetable.allLocations, 'Location');
-  updateTriggerLabel('sa-ms-instructor', selectedInstructors, COPY.timetable.allInstructors, 'Instructor');
-  updateTriggerLabel('sa-ms-class-type', selectedEventTypes, COPY.timetable.allTypes, 'Type');
+  updateTriggerLabel('app-ms-location', selectedLocations, COPY.timetable.allLocations, 'Location');
+  updateTriggerLabel('app-ms-instructor', selectedInstructors, COPY.timetable.allInstructors, 'Instructor');
+  updateTriggerLabel('app-ms-class-type', selectedEventTypes, COPY.timetable.allTypes, 'Type');
 
   // Bookmarked button class
-  const bookmarksFilterBtn = document.getElementById('sa-filter-favorites-only');
+  const bookmarksFilterBtn = document.getElementById('app-filter-favorites-only');
   if (bookmarksFilterBtn) {
     if (showBookmarksOnly) {
       bookmarksFilterBtn.classList.add('active');
@@ -1183,17 +1183,17 @@ function instructorBaseLabel(item) {
 function populateOptionsList(dropdownId, items, selectedArray, type, labelField = 'name') {
   const dropdown = document.getElementById(dropdownId);
   if (!dropdown) return;
-  const menu = dropdown.querySelector('.sa-ms-menu');
-  const list = dropdown.querySelector('.sa-ms-options-list');
+  const menu = dropdown.querySelector('.app-ms-menu');
+  const list = dropdown.querySelector('.app-ms-options-list');
   if (!list) return;
 
   // Instructor dropdown: inject instant-search input once, then wire it
-  if (dropdownId === 'sa-ms-instructor' && menu) {
-    let searchInput = menu.querySelector('.sa-ms-search');
+  if (dropdownId === 'app-ms-instructor' && menu) {
+    let searchInput = menu.querySelector('.app-ms-search');
     if (!searchInput) {
       searchInput = document.createElement('input');
       searchInput.type = 'text';
-      searchInput.className = 'sa-ms-search';
+      searchInput.className = 'app-ms-search';
       searchInput.placeholder = COPY.timetable.searchInstructors;
       menu.insertBefore(searchInput, list);
     }
@@ -1207,7 +1207,7 @@ function populateOptionsList(dropdownId, items, selectedArray, type, labelField 
       let currentHeadingHasMatch = false;
       const closeGroup = () => { if (currentHeading) currentHeading.style.display = currentHeadingHasMatch ? '' : 'none'; };
       Array.from(list.children).forEach(child => {
-        if (child.classList.contains('sa-ms-group-heading')) {
+        if (child.classList.contains('app-ms-group-heading')) {
           closeGroup();
           currentHeading = child;
           currentHeadingHasMatch = false;
@@ -1222,9 +1222,9 @@ function populateOptionsList(dropdownId, items, selectedArray, type, labelField 
     };
   }
 
-  const isLocation = dropdownId === 'sa-ms-location';
-  const isInstructor = dropdownId === 'sa-ms-instructor';
-  const isClassType = dropdownId === 'sa-ms-class-type';
+  const isLocation = dropdownId === 'app-ms-location';
+  const isInstructor = dropdownId === 'app-ms-instructor';
+  const isClassType = dropdownId === 'app-ms-class-type';
   // Location/instructor group AND disambiguate (two gyms' entries can share a
   // display name but are genuinely different things). Class-type groups only
   // — its id is deliberately the same across gyms (see setupDropdownFilters),
@@ -1250,7 +1250,7 @@ function populateOptionsList(dropdownId, items, selectedArray, type, labelField 
     const orderedGymIds = [...distinctGymIds].sort((a, b) => linkedOrder.indexOf(a) - linkedOrder.indexOf(b));
     orderedGymIds.forEach(gymId => {
       const heading = document.createElement('div');
-      heading.className = 'sa-ms-group-heading';
+      heading.className = 'app-ms-group-heading';
       heading.textContent = getGymShortName(gymId);
       list.appendChild(heading);
       items.filter(i => i.gymId === gymId).forEach(item => list.appendChild(buildFilterOptionLabel(item, labelOf(item), selectedArray, type)));
@@ -1267,9 +1267,9 @@ function populateOptionsList(dropdownId, items, selectedArray, type, labelField 
 function buildFilterOptionLabel(item, labelText, selectedArray, type) {
   const isChecked = selectedArray.includes(String(item.id));
   const label = document.createElement('label');
-  label.className = 'sa-ms-option-label';
+  label.className = 'app-ms-option-label';
   label.innerHTML = `
-    <input type="checkbox" class="sa-ms-checkbox" data-type="${type}" data-id="${item.id}" ${isChecked ? 'checked' : ''} style="cursor: pointer;">
+    <input type="checkbox" class="app-ms-checkbox" data-type="${type}" data-id="${item.id}" ${isChecked ? 'checked' : ''} style="cursor: pointer;">
     <span>${labelText}</span>
   `;
   return label;
@@ -1279,7 +1279,7 @@ function buildFilterOptionLabel(item, labelText, selectedArray, type) {
 function updateTriggerLabel(dropdownId, selectedArray, defaultText, labelSingular) {
   const dropdown = document.getElementById(dropdownId);
   if (!dropdown) return;
-  const labelTextEl = dropdown.querySelector('.sa-ms-trigger-text');
+  const labelTextEl = dropdown.querySelector('.app-ms-trigger-text');
   if (!labelTextEl) return;
 
   if (selectedArray.length === 0) {
@@ -1287,16 +1287,16 @@ function updateTriggerLabel(dropdownId, selectedArray, defaultText, labelSingula
   } else if (selectedArray.length === 1) {
     // Resolve single item name
     let name = formatCopyText(COPY.timetable.selectedOne, { count: 1 });
-    if (dropdownId === 'sa-ms-gym') {
+    if (dropdownId === 'app-ms-gym') {
       const g = (getLinkedGyms() || []).find(x => String(x.gym_id || x.id) === selectedArray[0]);
       if (g) name = g.gym_name || g.name || g.gym_id || g.id;
-    } else if (dropdownId === 'sa-ms-location') {
+    } else if (dropdownId === 'app-ms-location') {
       const loc = metadata.locations.find(l => String(l.id) === selectedArray[0]);
       if (loc) name = disambiguateGymLabel(loc, locationBaseLabel(loc), metadata.locations, locationBaseLabel);
-    } else if (dropdownId === 'sa-ms-instructor') {
+    } else if (dropdownId === 'app-ms-instructor') {
       const instr = findInstructor(metadata.instructors, selectedArray[0]);
       if (instr) name = disambiguateGymLabel(instr, instructorBaseLabel(instr), metadata.instructors, instructorBaseLabel);
-    } else if (dropdownId === 'sa-ms-class-type') {
+    } else if (dropdownId === 'app-ms-class-type') {
       // The selection id IS the bucket label (see setupDropdownFilters) — no
       // lookup needed, unlike the other dropdowns where the id is a provider id.
       name = selectedArray[0];
@@ -1311,21 +1311,21 @@ function updateTriggerLabel(dropdownId, selectedArray, defaultText, labelSingula
 
 // Setup multiselect dropdown toggle event bindings
 function setupFilterEventListeners() {
-  const container = document.getElementById('sa-timetable-filters-container');
+  const container = document.getElementById('app-timetable-filters-container');
   if (!container) return;
 
   // 1. Toggle open dropdowns on trigger clicks
-  container.querySelectorAll('.sa-ms-trigger').forEach(trigger => {
+  container.querySelectorAll('.app-ms-trigger').forEach(trigger => {
     trigger.onclick = (e) => {
       e.stopPropagation();
       const dropdown = trigger.parentElement;
-      const menu = dropdown.querySelector('.sa-ms-menu');
-      const arrow = trigger.querySelector('.sa-ms-arrow');
+      const menu = dropdown.querySelector('.app-ms-menu');
+      const arrow = trigger.querySelector('.app-ms-arrow');
       const isVisible = menu.style.display === 'block';
 
       // Close all first
-      container.querySelectorAll('.sa-ms-menu').forEach(m => m.style.display = 'none');
-      container.querySelectorAll('.sa-ms-arrow').forEach(a => a.style.transform = 'rotate(0deg)');
+      container.querySelectorAll('.app-ms-menu').forEach(m => m.style.display = 'none');
+      container.querySelectorAll('.app-ms-arrow').forEach(a => a.style.transform = 'rotate(0deg)');
 
       if (!isVisible) {
         menu.style.display = 'block';
@@ -1338,19 +1338,19 @@ function setupFilterEventListeners() {
   });
 
   // Stop clicks inside dropdowns from propagating and closing the menu
-  container.querySelectorAll('.sa-ms-dropdown').forEach(dropdown => {
+  container.querySelectorAll('.app-ms-dropdown').forEach(dropdown => {
     dropdown.onclick = (e) => e.stopPropagation();
   });
 
   // Document listener to close dropdowns when clicking outside
   document.onclick = () => {
-    container.querySelectorAll('.sa-ms-menu').forEach(m => m.style.display = 'none');
-    container.querySelectorAll('.sa-ms-arrow').forEach(a => a.style.transform = 'rotate(0deg)');
+    container.querySelectorAll('.app-ms-menu').forEach(m => m.style.display = 'none');
+    container.querySelectorAll('.app-ms-arrow').forEach(a => a.style.transform = 'rotate(0deg)');
     openDropdownId = null;
   };
 
   // 2. Options checkbox change listeners
-  container.querySelectorAll('.sa-ms-checkbox').forEach(checkbox => {
+  container.querySelectorAll('.app-ms-checkbox').forEach(checkbox => {
     checkbox.onchange = (e) => {
       const type = checkbox.getAttribute('data-type');
       const id = checkbox.getAttribute('data-id');
@@ -1362,28 +1362,28 @@ function setupFilterEventListeners() {
         } else {
           selectedGyms = selectedGyms.filter(x => x !== id);
         }
-        updateTriggerLabel('sa-ms-gym', selectedGyms, COPY.timetable.allGyms, 'Gym');
+        updateTriggerLabel('app-ms-gym', selectedGyms, COPY.timetable.allGyms, 'Gym');
       } else if (type === 'location') {
         if (isChecked) {
           if (!selectedLocations.includes(id)) selectedLocations.push(id);
         } else {
           selectedLocations = selectedLocations.filter(x => x !== id);
         }
-        updateTriggerLabel('sa-ms-location', selectedLocations, COPY.timetable.allLocations, 'Location');
+        updateTriggerLabel('app-ms-location', selectedLocations, COPY.timetable.allLocations, 'Location');
       } else if (type === 'instructor') {
         if (isChecked) {
           if (!selectedInstructors.includes(id)) selectedInstructors.push(id);
         } else {
           selectedInstructors = selectedInstructors.filter(x => x !== id);
         }
-        updateTriggerLabel('sa-ms-instructor', selectedInstructors, COPY.timetable.allInstructors, 'Instructor');
+        updateTriggerLabel('app-ms-instructor', selectedInstructors, COPY.timetable.allInstructors, 'Instructor');
       } else if (type === 'class-type') {
         if (isChecked) {
           if (!selectedEventTypes.includes(id)) selectedEventTypes.push(id);
         } else {
           selectedEventTypes = selectedEventTypes.filter(x => x !== id);
         }
-        updateTriggerLabel('sa-ms-class-type', selectedEventTypes, COPY.timetable.allTypes, 'Type');
+        updateTriggerLabel('app-ms-class-type', selectedEventTypes, COPY.timetable.allTypes, 'Type');
       }
 
       renderTimetableGrid();
@@ -1391,26 +1391,26 @@ function setupFilterEventListeners() {
   });
 
   // 3. Clear button inside individual menus
-  container.querySelectorAll('.sa-ms-dropdown').forEach(dropdown => {
-    const clearBtn = dropdown.querySelector('.sa-ms-clear-btn');
+  container.querySelectorAll('.app-ms-dropdown').forEach(dropdown => {
+    const clearBtn = dropdown.querySelector('.app-ms-clear-btn');
     if (clearBtn) {
       clearBtn.onclick = (e) => {
         e.stopPropagation();
         const idAttr = dropdown.id;
-        dropdown.querySelectorAll('.sa-ms-checkbox').forEach(c => c.checked = false);
+        dropdown.querySelectorAll('.app-ms-checkbox').forEach(c => c.checked = false);
 
-        if (idAttr === 'sa-ms-gym') {
+        if (idAttr === 'app-ms-gym') {
           selectedGyms = [];
-          updateTriggerLabel('sa-ms-gym', selectedGyms, COPY.timetable.allGyms, 'Gym');
-        } else if (idAttr === 'sa-ms-location') {
+          updateTriggerLabel('app-ms-gym', selectedGyms, COPY.timetable.allGyms, 'Gym');
+        } else if (idAttr === 'app-ms-location') {
           selectedLocations = [];
-          updateTriggerLabel('sa-ms-location', selectedLocations, COPY.timetable.allLocations, 'Location');
-        } else if (idAttr === 'sa-ms-instructor') {
+          updateTriggerLabel('app-ms-location', selectedLocations, COPY.timetable.allLocations, 'Location');
+        } else if (idAttr === 'app-ms-instructor') {
           selectedInstructors = [];
-          updateTriggerLabel('sa-ms-instructor', selectedInstructors, COPY.timetable.allInstructors, 'Instructor');
-        } else if (idAttr === 'sa-ms-class-type') {
+          updateTriggerLabel('app-ms-instructor', selectedInstructors, COPY.timetable.allInstructors, 'Instructor');
+        } else if (idAttr === 'app-ms-class-type') {
           selectedEventTypes = [];
-          updateTriggerLabel('sa-ms-class-type', selectedEventTypes, COPY.timetable.allTypes, 'Type');
+          updateTriggerLabel('app-ms-class-type', selectedEventTypes, COPY.timetable.allTypes, 'Type');
         }
         renderTimetableGrid();
       };
@@ -1418,7 +1418,7 @@ function setupFilterEventListeners() {
   });
 
   // 4. Global Bookmarked toggle click handler
-  const bookmarksFilterBtn = document.getElementById('sa-filter-favorites-only');
+  const bookmarksFilterBtn = document.getElementById('app-filter-favorites-only');
   if (bookmarksFilterBtn) {
     bookmarksFilterBtn.onclick = () => {
       showBookmarksOnly = !showBookmarksOnly;
@@ -1434,7 +1434,7 @@ function setupFilterEventListeners() {
   }
 
   // 5. Global Clear All click handler
-  const clearAllFiltersBtn = document.getElementById('sa-btn-clear-all-filters');
+  const clearAllFiltersBtn = document.getElementById('app-btn-clear-all-filters');
   if (clearAllFiltersBtn) {
     clearAllFiltersBtn.onclick = () => {
       selectedGyms = [];
@@ -1443,12 +1443,12 @@ function setupFilterEventListeners() {
       selectedEventTypes = [];
       showBookmarksOnly = false;
       
-      container.querySelectorAll('.sa-ms-checkbox').forEach(c => c.checked = false);
+      container.querySelectorAll('.app-ms-checkbox').forEach(c => c.checked = false);
       
-      updateTriggerLabel('sa-ms-gym', selectedGyms, COPY.timetable.allGyms, 'Gym');
-      updateTriggerLabel('sa-ms-location', selectedLocations, COPY.timetable.allLocations, 'Location');
-      updateTriggerLabel('sa-ms-instructor', selectedInstructors, COPY.timetable.allInstructors, 'Instructor');
-      updateTriggerLabel('sa-ms-class-type', selectedEventTypes, COPY.timetable.allTypes, 'Type');
+      updateTriggerLabel('app-ms-gym', selectedGyms, COPY.timetable.allGyms, 'Gym');
+      updateTriggerLabel('app-ms-location', selectedLocations, COPY.timetable.allLocations, 'Location');
+      updateTriggerLabel('app-ms-instructor', selectedInstructors, COPY.timetable.allInstructors, 'Instructor');
+      updateTriggerLabel('app-ms-class-type', selectedEventTypes, COPY.timetable.allTypes, 'Type');
       
       if (bookmarksFilterBtn) {
         bookmarksFilterBtn.classList.remove('active');
@@ -1461,7 +1461,7 @@ function setupFilterEventListeners() {
   }
 
   // 6. Global Save Defaults click handler
-  const saveDefaultFiltersBtn = document.getElementById('sa-btn-save-default-filters');
+  const saveDefaultFiltersBtn = document.getElementById('app-btn-save-default-filters');
   let isSavingDefaults = false;
   if (saveDefaultFiltersBtn) {
     saveDefaultFiltersBtn.onclick = async () => {
@@ -1775,7 +1775,7 @@ function buildFilterRailCtx(eventsExcluding, resultCount) {
         rerender();
       }
     },
-    save: () => document.getElementById('sa-btn-save-default-filters')?.click(),
+    save: () => document.getElementById('app-btn-save-default-filters')?.click(),
   };
   return ctx;
 }
@@ -1830,11 +1830,11 @@ let pendingGymIds = [];
 
 // Core timetable grid and date selector rendering
 /** F-12: tell read-only views of the loaded schedule (Settings > Favourites) that it changed or finished loading. */
-function announceTimetableRendered() { window.dispatchEvent(new Event('sweat-timetable-rendered')); }
+function announceTimetableRendered() { window.dispatchEvent(new Event('app-timetable-rendered')); }
 
 export async function renderTimetableGrid(reason = 'interaction') {
   const renderStartedAt = timetablePerfNow();
-  const ttGrid = document.getElementById('sa-timetable-grid');
+  const ttGrid = document.getElementById('app-timetable-grid');
   if (!ttGrid) return;
 
   // A render that arrives while the first fetch is still running (a credits or
@@ -1842,7 +1842,7 @@ export async function renderTimetableGrid(reason = 'interaction') {
   // to wipe the loading skeleton for an empty grid, leaving a blank page until
   // the network answered. Keep the skeleton up until there is something to show.
   if (isPrefetching && timetableEvents.length === 0) {
-    if (!ttGrid.querySelector('.sa-skeleton, [data-skeleton]')) ttGrid.innerHTML = renderTimetableSkeleton();
+    if (!ttGrid.querySelector('.app-skeleton, [data-skeleton]')) ttGrid.innerHTML = renderTimetableSkeleton();
     return;
   }
 
@@ -2003,7 +2003,7 @@ export async function renderTimetableGrid(reason = 'interaction') {
   renderOverlayBanner();
 
   // 5. Render Horizontal Date Carousel
-  const carousel = document.getElementById('sa-timetable-carousel');
+  const carousel = document.getElementById('app-timetable-carousel');
   if (carousel) carousel.hidden = searching;   // a day strip means nothing for a cross-day list
   if (carousel && searching) {
     // leave the strip as it was
@@ -2023,7 +2023,7 @@ export async function renderTimetableGrid(reason = 'interaction') {
         const monthName = noSept(d.toLocaleDateString('en-GB', { month: 'short' }));
 
         const pill = document.createElement('div');
-        pill.className = `sa-day-pill ${isSelected ? 'active' : ''}`;
+        pill.className = `app-day-pill ${isSelected ? 'active' : ''}`;
         pill.innerHTML = `
           <span class="day-name">${dayName}</span>
           <div style="display: flex; align-items: baseline; gap: 4px; line-height: 1;">
@@ -2035,7 +2035,7 @@ export async function renderTimetableGrid(reason = 'interaction') {
           // Direction of travel: a LATER day slides the list out to the left and the new one in from the right.
           const dir = dayStr > selectedTimetableDate ? 1 : (dayStr < selectedTimetableDate ? -1 : 0);
           selectedTimetableDate = dayStr;
-          carousel.querySelectorAll('.sa-day-pill').forEach(p => p.classList.remove('active'));
+          carousel.querySelectorAll('.app-day-pill').forEach(p => p.classList.remove('active'));
           pill.classList.add('active');
           animateDateChange(dir, () => renderTimetableGrid());
         };
@@ -2048,9 +2048,9 @@ export async function renderTimetableGrid(reason = 'interaction') {
   // the mobile filter ellipsis + its menu. Both run BEFORE the table render (and
   // before the no-results early return) so the filter menu survives the purge
   // and is available even when no classes match the current filters.
-  document.querySelectorAll('body > .sa-mobile-menu').forEach(m => m.remove());
+  document.querySelectorAll('body > .app-mobile-menu').forEach(m => m.remove());
   if (window.matchMedia('(max-width: 768px)').matches) {
-    document.getElementById('sa-mobile-filter-trigger')?.remove();
+    document.getElementById('app-mobile-filter-trigger')?.remove();
     renderFilterRail(buildFilterRailCtx(eventsExcluding, filteredEvents.length));
   } else {
     removeFilterRail();
@@ -2060,7 +2060,7 @@ export async function renderTimetableGrid(reason = 'interaction') {
     // desktop filter row: present, unstyled for the wider layout, and its
     // click handler pointing at a menu of mobile-only filter controls that
     // no longer make sense next to the real dropdowns now visible.
-    document.getElementById('sa-mobile-filter-trigger')?.remove();
+    document.getElementById('app-mobile-filter-trigger')?.remove();
   }
 
   ensureSearchUi({
@@ -2072,7 +2072,7 @@ export async function renderTimetableGrid(reason = 'interaction') {
   // 6. Render the Class Timetable Grid Table
   if (!selectedTimetableDate && !searching) {
     if (shouldShowPendingSkeleton({ pendingGyms: isPrefetching ? pendingGymIds : [], selectedGyms, visibleCount: 0 })) {
-      if (!ttGrid.querySelector('.sa-skeleton-table')) ttGrid.innerHTML = renderTimetableSkeleton();
+      if (!ttGrid.querySelector('.app-skeleton-table')) ttGrid.innerHTML = renderTimetableSkeleton();
       return;
     }
     ttGrid.innerHTML = `
@@ -2086,21 +2086,21 @@ export async function renderTimetableGrid(reason = 'interaction') {
 
   const finalEvents = searching ? searchResults : sortedEvents.filter(e => dayKeyInZone(e.startAt, zoneFor(e)) === selectedTimetableDate);
 
-  // The outer #sa-timetable-grid (.sa-timetable-list) is the single scroll
+  // The outer #app-timetable-grid (.app-timetable-list) is the single scroll
   // container — see initTimetableTab for the pull-to-refresh wiring. The inner
   // container must NOT scroll, otherwise iOS has two nested scrollers and the
   // outer grid's scrollTop stays 0 (breaking the at-top check for pull-to-refresh).
   const fullDateHtml = searching
-    ? `<div class="sa-tt-searchhead" role="status"><span class="sth-main"><span class="sth-ico" aria-hidden="true">${icon('search', 16)}</span><span class="sth-title" title="${escapeHtml(searchText)}">${escapeHtml(searchTokens.length ? formatCopyText(COPY.search.resultsFor, { text: searchText }) : COPY.search.filteredResults)}</span></span>`
-      + `<button type="button" class="sth-clear" id="sa-search-clear">${COPY.search.clear}</button>`
+    ? `<div class="app-tt-searchhead" role="status"><span class="sth-main"><span class="sth-ico" aria-hidden="true">${icon('search', 16)}</span><span class="sth-title" title="${escapeHtml(searchText)}">${escapeHtml(searchTokens.length ? formatCopyText(COPY.search.resultsFor, { text: searchText }) : COPY.search.filteredResults)}</span></span>`
+      + `<button type="button" class="sth-clear" id="app-search-clear">${COPY.search.clear}</button>`
       + `<span class="sth-count">${finalEvents.length === 1 ? COPY.search.resultsOne : formatCopyText(COPY.search.results, { count: finalEvents.length })}</span></div>`
-      + (finalEvents.length ? '' : `<div class="sa-tt-searchnone">${escapeHtml(formatCopyText(COPY.search.none, { text: searchText }))}</div>`)
+      + (finalEvents.length ? '' : `<div class="app-tt-searchnone">${escapeHtml(formatCopyText(COPY.search.none, { text: searchText }))}</div>`)
     : WEEK_STRIP_DATE_SELECTOR
-    ? `<div class="sa-tt-fulldate">${formatFullDate(selectedTimetableDate)}</div>`
+    ? `<div class="app-tt-fulldate">${formatFullDate(selectedTimetableDate)}</div>`
     : '';
   ttGrid.innerHTML = `${fullDateHtml}
-    <div class="sa-table-container">
-      <table class="sa-table" style="width: 100%; border-collapse: collapse; text-align: left; table-layout: fixed;">
+    <div class="app-table-container">
+      <table class="app-table" style="width: 100%; border-collapse: collapse; text-align: left; table-layout: fixed;">
         <thead>
           <tr>
             <th style="width: 7%;">${COPY.timetable.timeColumn}</th>
@@ -2112,15 +2112,15 @@ export async function renderTimetableGrid(reason = 'interaction') {
             <th style="width: 20%; text-align: right;">${COPY.timetable.actionsColumn}</th>
           </tr>
         </thead>
-        <tbody id="sa-timetable-rows"></tbody>
+        <tbody id="app-timetable-rows"></tbody>
       </table>
     </div>
   `;
 
-  const tbody = ttGrid.querySelector('#sa-timetable-rows');
-  const clearBtn = ttGrid.querySelector('#sa-search-clear');
+  const tbody = ttGrid.querySelector('#app-timetable-rows');
+  const clearBtn = ttGrid.querySelector('#app-search-clear');
   if (clearBtn) clearBtn.onclick = () => exitSearch();
-  if (searching && !finalEvents.length) ttGrid.querySelector('.sa-table-container')?.remove();
+  if (searching && !finalEvents.length) ttGrid.querySelector('.app-table-container')?.remove();
   let lastSearchDay = null;
 
   finalEvents.forEach(event => {
@@ -2129,7 +2129,7 @@ export async function renderTimetableGrid(reason = 'interaction') {
       if (dayKey !== lastSearchDay) {
         lastSearchDay = dayKey;
         const h = document.createElement('tr');
-        h.className = 'sa-search-day';
+        h.className = 'app-search-day';
         h.innerHTML = `<td colspan="${window.matchMedia('(max-width: 768px)').matches ? 6 : 7}">${escapeHtml(formatFullDate(dayKey))}</td>`;
         tbody.appendChild(h);
       }
@@ -2200,11 +2200,11 @@ function buildEventRow(event, autoBookedIds) {
   // F-12: a favourite is a recurring slot, matched against THIS row's gym's list.
   const isBookmarked = isFavouriteEvent(event);
   const heartChar = isBookmarked ? '♥' : '♡';
-  const heartClass = isBookmarked ? 'sa-timetable-heart bookmarked' : 'sa-timetable-heart unbookmarked';
+  const heartClass = isBookmarked ? 'app-timetable-heart bookmarked' : 'app-timetable-heart unbookmarked';
 
   // ── Status badge (kept as a restyled column) + shared action model ──
   let statusBadge = '';
-  let rowClass = 'sa-table-row';
+  let rowClass = 'app-table-row';
   let bookingId = null, isPenalty = false, slotsBookedCount = 0, waitlistId = null, graceDeadline = null;
   const hasCredit = hasUsableCredit(event);
 
@@ -2212,16 +2212,16 @@ function buildEventRow(event, autoBookedIds) {
 
   if (!isLive) {
     if (isScheduled) {
-      rowClass = 'sa-table-row row-beyond-cutoff row-scheduled';
-      statusBadge = `<span class="badge-pill scheduled sa-occupancy-hover" data-id="${event.id}" data-gym-id="${event.gymId || ''}">${pulseIcon(12)}${COPY.timetable.autoBook.toUpperCase()}</span>`;
+      rowClass = 'app-table-row row-beyond-cutoff row-scheduled';
+      statusBadge = `<span class="badge-pill scheduled app-occupancy-hover" data-id="${event.id}" data-gym-id="${event.gymId || ''}">${pulseIcon(12)}${COPY.timetable.autoBook.toUpperCase()}</span>`;
     } else {
-      rowClass = 'sa-table-row row-beyond-cutoff';
-      statusBadge = `<span class="badge-pill not-live sa-occupancy-hover" data-id="${event.id}" data-gym-id="${event.gymId || ''}">${COPY.timetable.notLive}</span>`;
+      rowClass = 'app-table-row row-beyond-cutoff';
+      statusBadge = `<span class="badge-pill not-live app-occupancy-hover" data-id="${event.id}" data-gym-id="${event.gymId || ''}">${COPY.timetable.notLive}</span>`;
     }
   } else if (isBooked) {
     const eventBookings = userBookings().filter(b => matchesEvent(b, event));
     slotsBookedCount = eventBookings.length;
-    statusBadge = `<span class="badge-pill yes sa-occupancy-hover" data-id="${event.id}" data-gym-id="${event.gymId || ''}" style="cursor: pointer;">${COPY.timetable.booked}${slotsBookedCount > 1 ? ` (${slotsBookedCount})` : ''}</span>`;
+    statusBadge = `<span class="badge-pill yes app-occupancy-hover" data-id="${event.id}" data-gym-id="${event.gymId || ''}" style="cursor: pointer;">${COPY.timetable.booked}${slotsBookedCount > 1 ? ` (${slotsBookedCount})` : ''}</span>`;
     if (slotsBookedCount === 1) {
       bookingId = eventBookings[0].bookingId ?? eventBookings[0].id;
       const bookedAt = eventBookings[0].bookedAt ?? eventBookings[0].booked_at;
@@ -2232,7 +2232,7 @@ function buildEventRow(event, autoBookedIds) {
       }
     }
   } else if (isOnWaitlist) {
-    statusBadge = `<span class="badge-pill waitlisted sa-occupancy-hover" data-id="${event.id}" data-gym-id="${event.gymId || ''}" style="cursor: pointer;">${COPY.timetable.waitlisted}</span>`;
+    statusBadge = `<span class="badge-pill waitlisted app-occupancy-hover" data-id="${event.id}" data-gym-id="${event.gymId || ''}" style="cursor: pointer;">${COPY.timetable.waitlisted}</span>`;
     const waitlistEntry = userWaitlists().find(w => matchesEvent(w, event));
     // C2-2 fix (2026-09-26): this read `waitlistEntry.id`, a field that has
     // never existed on a NormalizedBooking (it's `bookingId` — see base.js's
@@ -2245,8 +2245,8 @@ function buildEventRow(event, autoBookedIds) {
     if (waitlistEntry) waitlistId = event.id;
   } else if (isFullyBooked) {
     statusBadge = canWaitlist
-      ? `<span class="badge-pill waitlist-open sa-occupancy-hover" data-id="${event.id}" data-gym-id="${event.gymId || ''}" style="cursor: pointer;">${COPY.timetable.waitlist}</span>`
-      : `<span class="badge-pill no fully-booked sa-occupancy-hover" data-id="${event.id}" data-gym-id="${event.gymId || ''}">${COPY.timetable.full}</span>`;
+      ? `<span class="badge-pill waitlist-open app-occupancy-hover" data-id="${event.id}" data-gym-id="${event.gymId || ''}" style="cursor: pointer;">${COPY.timetable.waitlist}</span>`
+      : `<span class="badge-pill no fully-booked app-occupancy-hover" data-id="${event.id}" data-gym-id="${event.gymId || ''}">${COPY.timetable.full}</span>`;
   } else if (!hasCredit) {
     // Short label in the pill, full reason in the tooltip — the column is
     // narrow and "NO CREDITS AVAILABLE" spends all of it restating "no".
@@ -2254,9 +2254,9 @@ function buildEventRow(event, autoBookedIds) {
     // says "Buy Credits", so a "No credits" pill beside it is the same fact
     // twice — and it was spending the narrowest column in the table to do it.
     // The reason still reaches the user: it's the button's tooltip.
-    statusBadge = `<span class="badge-pill yes sa-occupancy-hover" data-id="${event.id}" data-gym-id="${event.gymId || ''}" style="cursor: pointer;" title="${escapeHtml(getIneligibleReason(event.gymId) || COPY.timetable.noCredits)}">${spotsText}</span>`;
+    statusBadge = `<span class="badge-pill yes app-occupancy-hover" data-id="${event.id}" data-gym-id="${event.gymId || ''}" style="cursor: pointer;" title="${escapeHtml(getIneligibleReason(event.gymId) || COPY.timetable.noCredits)}">${spotsText}</span>`;
   } else {
-    statusBadge = `<span class="badge-pill yes sa-occupancy-hover" data-id="${event.id}" data-gym-id="${event.gymId || ''}" style="cursor: pointer;">${spotsText}</span>`;
+    statusBadge = `<span class="badge-pill yes app-occupancy-hover" data-id="${event.id}" data-gym-id="${event.gymId || ''}" style="cursor: pointer;">${spotsText}</span>`;
   }
 
   const actionModel = buildActionModel(event, {
@@ -2289,13 +2289,13 @@ function buildEventRow(event, autoBookedIds) {
     <td class="col-time"><strong>${timeStr}</strong></td>
     <td class="col-gym">${gymChip(event.gymId)}</td>
     <td class="col-class">
-      <div class="sa-tt-class-cell">
+      <div class="app-tt-class-cell">
         ${heartButtonHtml({ isFavourite: isBookmarked, eventId: event.id, label: COPY.timetable.favourite, pressedLabel: COPY.timetable.unfavourite })}
         ${disciplineTag(groupName)}
-        <span class="sa-tt-class-name">${strippedClassName}</span>
+        <span class="app-tt-class-name">${strippedClassName}</span>
       </div>
     </td>
-    <td class="col-instructor">${instrName ? `<span class="sa-instructor-hover" ${instructorHoverAttrs(event.instructors?.[0], event.gymId, instrName)}>${instrName}</span>` : ''}</td>
+    <td class="col-instructor">${instrName ? `<span class="app-instructor-hover" ${instructorHoverAttrs(event.instructors?.[0], event.gymId, instrName)}>${instrName}</span>` : ''}</td>
     ${/* MID-WIDTH COLUMN: instructor + top-level location only ("SW1",
          "Oxford Circus"), with the specific studio dropped — at that width
          the studio is the least useful thing on the row and the most
@@ -2303,8 +2303,8 @@ function buildEventRow(event, autoBookedIds) {
          Always rendered; CSS shows exactly one of {instructor+location} or
          {this} at any width, so a resize needs no re-render. */ ''}
     <td class="col-who-where">
-      ${instrName ? `<span class="sa-ww-who sa-instructor-hover" ${instructorHoverAttrs(event.instructors?.[0], event.gymId, instrName)}>${instrName}</span>` : ''}
-      ${locName ? `<span class="sa-ww-loc">${trimLocation(locName, getGymShortName(event.gymId))}</span>` : ''}
+      ${instrName ? `<span class="app-ww-who app-instructor-hover" ${instructorHoverAttrs(event.instructors?.[0], event.gymId, instrName)}>${instrName}</span>` : ''}
+      ${locName ? `<span class="app-ww-loc">${trimLocation(locName, getGymShortName(event.gymId))}</span>` : ''}
     </td>
     <td class="col-location">
       <span style="font-weight:600; display:block; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">${trimLocation(locName, getGymShortName(event.gymId))}</span>
@@ -2318,7 +2318,7 @@ function buildEventRow(event, autoBookedIds) {
 
   // Heart click listener (kept null-safe: an unconditional querySelector that threw
   // once emptied the whole timetable).
-  const heartEl = row.querySelector('.sa-timetable-heart');
+  const heartEl = row.querySelector('.app-timetable-heart');
   if (heartEl) {
     heartEl.onclick = (e) => {
       e.stopPropagation();
@@ -2370,11 +2370,11 @@ export function renderEventRowsInto(tbody, events) {
 }
 
 export function equalizePrimaryCTAWidths(container = document) {
-  const root = container.querySelector?.('#sa-timetable-rows') || container;
-  const buttons = [...root.querySelectorAll?.('.sa-mobile-seg.primary') || []];
+  const root = container.querySelector?.('#app-timetable-rows') || container;
+  const buttons = [...root.querySelectorAll?.('.app-mobile-seg.primary') || []];
   if (!buttons.length) return;
 
-  const grid = document.getElementById('sa-timetable-grid');
+  const grid = document.getElementById('app-timetable-grid');
   if (!grid) return;
 
   // Base floor for the compact CTA (Batch N base)
@@ -2874,7 +2874,7 @@ function actionGlyph(label) {
 // Set a button's label with an optional leading glyph icon.
 function setSegLabel(btn, label) {
   const glyph = actionGlyph(label);
-  if (glyph) btn.innerHTML = `<span class="sa-seg-ico" aria-hidden="true">${glyph}</span>${label}`;
+  if (glyph) btn.innerHTML = `<span class="app-seg-ico" aria-hidden="true">${glyph}</span>${label}`;
   else btn.textContent = label;
 }
 
@@ -2955,22 +2955,22 @@ function buildActionMenuItems(event, model, isBookmarked) {
 /** Build the floating menu element for a set of items (shared desktop/mobile). */
 function buildActionMenuElement(menuItems) {
   const menu = document.createElement('div');
-  menu.className = 'sa-mobile-menu';
+  menu.className = 'app-mobile-menu';
   menu.style.display = 'none';
   menuItems.forEach((item) => {
     const div = document.createElement('div');
-    div.className = 'sa-mobile-menu-item';
+    div.className = 'app-mobile-menu-item';
     // Icon + label. The label goes in its own span with textContent — menu
     // labels can include a class name, and those come from the provider.
     if (item.icon) {
       const ic = document.createElement('span');
-      ic.className = 'sa-menu-item-icon';
+      ic.className = 'app-menu-item-icon';
       ic.innerHTML = icon(item.icon, 15);
       ic.setAttribute('aria-hidden', 'true');
       div.appendChild(ic);
     }
     const label = document.createElement('span');
-    label.className = 'sa-menu-item-label';
+    label.className = 'app-menu-item-label';
     label.textContent = item.label;
     div.appendChild(label);
     if (item.variant) div.setAttribute('data-variant', item.variant);
@@ -2995,13 +2995,13 @@ function buildActionMenuElement(menuItems) {
 
 function buildDesktopActions(model, event, debugMode, isBookmarked = false) {
   const wrap = document.createElement('div');
-  wrap.className = 'sa-tt-actions';
+  wrap.className = 'app-tt-actions';
 
   const group = document.createElement('div');
-  group.className = 'sa-tt-seg-group' + (model.config && model.showConfigButton !== false ? ' has-caret' : '');
+  group.className = 'app-tt-seg-group' + (model.config && model.showConfigButton !== false ? ' has-caret' : '');
 
   const pbtn = document.createElement('button');
-  pbtn.className = `sa-tt-seg primary variant-${model.primary.variant}` + (model.primary.scheduled ? ' scheduled' : '');
+  pbtn.className = `app-tt-seg primary variant-${model.primary.variant}` + (model.primary.scheduled ? ' scheduled' : '');
   setSegLabel(pbtn, model.primary.label);
   if (model.primary.title) { pbtn.title = model.primary.title; pbtn.setAttribute('aria-label', model.primary.title); }
   if (model.primary.disabled) pbtn.disabled = true;
@@ -3011,7 +3011,7 @@ function buildDesktopActions(model, event, debugMode, isBookmarked = false) {
 
   if (model.config && model.showConfigButton !== false) {
     const caret = document.createElement('button');
-    caret.className = `sa-tt-seg sa-tt-seg-caret primary variant-${model.primary.variant}` + (model.primary.scheduled ? ' scheduled' : '');
+    caret.className = `app-tt-seg app-tt-seg-caret primary variant-${model.primary.variant}` + (model.primary.scheduled ? ' scheduled' : '');
     caret.innerHTML = '⚙';
     caret.title = model.config === 'autobook' ? COPY.timetable.configureAutoBookAria : COPY.timetable.configureQuickBookAria;
     caret.onclick = (e) => { e.stopPropagation(); openBookingModal(event, model.config); };
@@ -3025,7 +3025,7 @@ function buildDesktopActions(model, event, debugMode, isBookmarked = false) {
 
   if (model.secondary) {
     const sbtn = document.createElement('button');
-    sbtn.className = `sa-tt-seg secondary variant-${model.secondary.variant}`;
+    sbtn.className = `app-tt-seg secondary variant-${model.secondary.variant}`;
     setSegLabel(sbtn, model.secondary.label);
     if (model.secondary.disabled) sbtn.disabled = true;
     else if (model.secondary.run) sbtn.onclick = (e) => { e.stopPropagation(); model.secondary.run(sbtn); };
@@ -3044,7 +3044,7 @@ function buildDesktopActions(model, event, debugMode, isBookmarked = false) {
   const menuItems = buildActionMenuItems(event, model, isBookmarked);
   if (menuItems.length > 0) {
     const more = document.createElement('button');
-    more.className = 'sa-tt-seg sa-tt-seg-more';
+    more.className = 'app-tt-seg app-tt-seg-more';
     more.innerHTML = '⋯';
     more.setAttribute('aria-label', COPY.timetable.moreActions);
     more.setAttribute('aria-haspopup', 'menu');
@@ -3061,7 +3061,7 @@ function wireMobileMenuToggle(btn, menu, onOpen) {
   btn.onclick = (e) => {
     e.stopPropagation();
     const wasOpen = menu.style.display === 'block';
-    document.querySelectorAll('.sa-mobile-menu').forEach(m => { if (m !== menu) m.style.display = 'none'; });
+    document.querySelectorAll('.app-mobile-menu').forEach(m => { if (m !== menu) m.style.display = 'none'; });
     if (wasOpen) { menu.style.display = 'none'; return; }
     if (onOpen) onOpen();
     const rect = btn.getBoundingClientRect();
@@ -3121,27 +3121,27 @@ function wireMobileMenuToggle(btn, menu, onOpen) {
 
 // === MOBILE TIMETABLE — injectMobileFilterHamburger (added Jun 2026; delete this block to revert) ===
 function injectMobileFilterHamburger() {
-  const filtersRow = document.querySelector('#sa-timetable-filters-container .sa-filters-row');
+  const filtersRow = document.querySelector('#app-timetable-filters-container .app-filters-row');
   if (!filtersRow) return;
 
   // Rebuild the trigger + menu every render. The grid clears all body-appended
-  // .sa-mobile-menu nodes on each render (see renderTimetableGrid), which
+  // .app-mobile-menu nodes on each render (see renderTimetableGrid), which
   // would otherwise orphan a once-created menu and silently break opening.
-  document.getElementById('sa-mobile-filter-trigger')?.remove();
+  document.getElementById('app-mobile-filter-trigger')?.remove();
 
   const trigger = document.createElement('button');
-  trigger.id = 'sa-mobile-filter-trigger';
-  trigger.className = 'sa-mobile-ellipsis sa-mobile-filter-ellipsis';
+  trigger.id = 'app-mobile-filter-trigger';
+  trigger.className = 'app-mobile-ellipsis app-mobile-filter-ellipsis';
   trigger.innerHTML = '\u22ef';
   trigger.setAttribute('aria-label', COPY.timetable.filterOptions);
 
   const menu = document.createElement('div');
-  menu.className = 'sa-mobile-menu';
+  menu.className = 'app-mobile-menu';
   menu.style.display = 'none';
 
-  const favBtn = document.getElementById('sa-filter-favorites-only');
-  const clearBtn = document.getElementById('sa-btn-clear-all-filters');
-  const saveBtn = document.getElementById('sa-btn-save-default-filters');
+  const favBtn = document.getElementById('app-filter-favorites-only');
+  const clearBtn = document.getElementById('app-btn-clear-all-filters');
+  const saveBtn = document.getElementById('app-btn-save-default-filters');
 
   const items = [];
   if (clearBtn) items.push({ label: COPY.timetable.clearFilters, icon: 'close', variant: 'danger', action: () => clearBtn.click() });
@@ -3149,18 +3149,18 @@ function injectMobileFilterHamburger() {
 
   items.forEach(item => {
     const div = document.createElement('div');
-    div.className = 'sa-mobile-menu-item';
+    div.className = 'app-mobile-menu-item';
     // Icon + label. The label goes in its own span with textContent — menu
     // labels can include a class name, and those come from the provider.
     if (item.icon) {
       const ic = document.createElement('span');
-      ic.className = 'sa-menu-item-icon';
+      ic.className = 'app-menu-item-icon';
       ic.innerHTML = icon(item.icon, 15);
       ic.setAttribute('aria-hidden', 'true');
       div.appendChild(ic);
     }
     const label = document.createElement('span');
-    label.className = 'sa-menu-item-label';
+    label.className = 'app-menu-item-label';
     label.textContent = item.label;
     div.appendChild(label);
     if (item.variant) div.setAttribute('data-variant', item.variant);
@@ -3186,13 +3186,13 @@ function buildMobileClassRow(event, ctx, model) {
   } = ctx;
 
   const tr = document.createElement('tr');
-  tr.className = `sa-mobile-row ${rowClass || ''}`;
+  tr.className = `app-mobile-row ${rowClass || ''}`;
 
   const td = document.createElement('td');
   td.colSpan = 6;
 
   const card = document.createElement('div');
-  card.className = 'sa-mobile-class-card';
+  card.className = 'app-mobile-class-card';
   card.setAttribute('data-gym', event.gymId || getDefaultGymId());
 
   // Row 3 shows the studio's FULL location name ("Oxford Circus"), not the gym's contracted alias ("OC").
@@ -3207,37 +3207,37 @@ function buildMobileClassRow(event, ctx, model) {
   const firstInstr = event.instructors?.[0];
   const instrId = firstInstr?.id || metadata.instructors?.find(i => (i.name === instrName || i.full_name === instrName) && (!event.gymId || i.gymId === event.gymId))?.id || '';
   const avatarHtml = SHOW_TIMETABLE_INSTRUCTOR_PHOTO && instrName
-    ? `<span class="sa-mobile-avatar sa-instructor-hover" ${instructorHoverAttrs(firstInstr ? { ...firstInstr, id: instrId || firstInstr.id } : { id: instrId }, event.gymId, instrName)} data-initial="${escapeHtml(String(instrName).trim().charAt(0).toUpperCase())}" role="button" tabindex="0" aria-label="${formatCopyText(COPY.timetable.instructorProfileAria, { name: escapeHtml(instrName) })}">${instructorAvatar(instrName, event.gymId, firstInstr?.thumbUrl || firstInstr?.imageUrl || null, { size: 38, lazy: true, cls: 'sa-mobile-avatar-img' })}</span>`
+    ? `<span class="app-mobile-avatar app-instructor-hover" ${instructorHoverAttrs(firstInstr ? { ...firstInstr, id: instrId || firstInstr.id } : { id: instrId }, event.gymId, instrName)} data-initial="${escapeHtml(String(instrName).trim().charAt(0).toUpperCase())}" role="button" tabindex="0" aria-label="${formatCopyText(COPY.timetable.instructorProfileAria, { name: escapeHtml(instrName) })}">${instructorAvatar(instrName, event.gymId, firstInstr?.thumbUrl || firstInstr?.imageUrl || null, { size: 38, lazy: true, cls: 'app-mobile-avatar-img' })}</span>`
     : '';
 
   card.innerHTML = `
-    <div class="sa-mobile-content">
-      <div class="sa-mobile-lead">
+    <div class="app-mobile-content">
+      <div class="app-mobile-lead">
         <strong>${timeStr}</strong>
         ${avatarHtml}
       </div>
-      <div class="sa-mobile-main">
-        <div class="sa-mobile-top-line">
+      <div class="app-mobile-main">
+        <div class="app-mobile-top-line">
           ${/* Gym BEFORE the discipline pill (ownership is the first question a merged timetable answers). */ ''}
           ${gymChip(event.gymId)}
           ${disciplineTag(groupName)}
           ${favIndicator}
         </div>
-        <div class="sa-mobile-line2">
-          <span class="sa-mobile-class-name">${strippedClassName}</span>
-          ${instrName ? `<span class="sa-mobile-dot">&middot;</span><span class="sa-mobile-instructor sa-instructor-hover" ${instructorHoverAttrs(event.instructors?.[0], event.gymId, instrName)}>${instrName}</span>` : ''}
+        <div class="app-mobile-line2">
+          <span class="app-mobile-class-name">${strippedClassName}</span>
+          ${instrName ? `<span class="app-mobile-dot">&middot;</span><span class="app-mobile-instructor app-instructor-hover" ${instructorHoverAttrs(event.instructors?.[0], event.gymId, instrName)}>${instrName}</span>` : ''}
         </div>
-        <div class="sa-mobile-bottom-line">
-          <span class="sa-mobile-location">${displayLoc}</span>
+        <div class="app-mobile-bottom-line">
+          <span class="app-mobile-location">${displayLoc}</span>
         </div>
       </div>
     </div>
-    <div class="sa-mobile-rail"></div>
+    <div class="app-mobile-rail"></div>
   `;
 
-  const rail = card.querySelector('.sa-mobile-rail');
+  const rail = card.querySelector('.app-mobile-rail');
 
-  const mobileHeart = card.querySelector('.sa-timetable-heart');
+  const mobileHeart = card.querySelector('.app-timetable-heart');
   if (mobileHeart) {
     mobileHeart.onclick = (e) => { e.stopPropagation(); toggleFavourite(event, e.currentTarget); };
   }
@@ -3255,7 +3255,7 @@ function buildMobileClassRow(event, ctx, model) {
   // Primary action — a full-height segment flush to the card edge (mirrors the
   // desktop primary segment and the My Bookings rail, but laid out horizontally).
   const pbtn = document.createElement('button');
-  pbtn.className = `sa-mobile-seg primary variant-${mobilePrimary.variant}` + (mobilePrimary.scheduled ? ' scheduled' : '');
+  pbtn.className = `app-mobile-seg primary variant-${mobilePrimary.variant}` + (mobilePrimary.scheduled ? ' scheduled' : '');
   if (mobilePrimary.scheduled && mobilePrimary.variant === 'autoupgrade') {
     // "Scheduled" is too wide for 52px — abbreviate it.
     setSegLabel(pbtn, COPY.timetable.scheduledShort);
@@ -3263,7 +3263,7 @@ function buildMobileClassRow(event, ctx, model) {
     setSegLabel(pbtn, mobilePrimary.label);
     // "Auto-Book" stacks as Auto / Book (no hyphen) so the button stays narrow; the accessible name is unchanged.
     if (mobilePrimary.label === COPY.timetable.autoBook) {
-      pbtn.innerHTML = `<span class="sa-seg-ico" aria-hidden="true">${actionGlyph(COPY.timetable.autoBook)}</span><span class="sa-cta-2l"><span>${COPY.timetable.auto}</span><span>${COPY.timetable.book}</span></span>`;
+      pbtn.innerHTML = `<span class="app-seg-ico" aria-hidden="true">${actionGlyph(COPY.timetable.autoBook)}</span><span class="app-cta-2l"><span>${COPY.timetable.auto}</span><span>${COPY.timetable.book}</span></span>`;
       pbtn.setAttribute('aria-label', mobilePrimary.title || COPY.timetable.autoBook);
     }
   }
@@ -3280,7 +3280,7 @@ function buildMobileClassRow(event, ctx, model) {
 
   // Secondary action + extras collapse into the ellipsis context menu.
   const ellipsis = document.createElement('button');
-  ellipsis.className = 'sa-mobile-seg ellipsis';
+  ellipsis.className = 'app-mobile-seg ellipsis';
   ellipsis.innerHTML = '\u22EE'; // vertical ellipsis (kebab)
   ellipsis.setAttribute('aria-label', COPY.timetable.moreActions);
   rail.appendChild(ellipsis);
@@ -3305,30 +3305,30 @@ function buildMobileClassRow(event, ctx, model) {
 // === MOBILE TIMETABLE — openOccupancyModal (added Jun 2026; delete this block to revert) ===
 async function openOccupancyModal(event) {
   const overlay = document.createElement('div');
-  overlay.className = 'sa-modal';
+  overlay.className = 'app-modal';
   overlay.style.display = 'flex';
   overlay.style.zIndex = '2000001';
 
   const modalOverlay = document.createElement('div');
-  modalOverlay.className = 'sa-modal-overlay';
+  modalOverlay.className = 'app-modal-overlay';
 
   const card = document.createElement('div');
-  card.className = 'sa-modal-card';
+  card.className = 'app-modal-card';
   card.style.width = '420px';
   card.style.maxWidth = '95vw';
 
   const header = document.createElement('div');
-  header.className = 'sa-modal-header';
+  header.className = 'app-modal-header';
   header.innerHTML = `
     <h4>${COPY.timetable.studioOccupancy}</h4>
-    <button class="sa-modal-close-btn">&times;</button>
+    <button class="app-modal-close-btn">&times;</button>
   `;
 
   const body = document.createElement('div');
-  body.className = 'sa-modal-body';
+  body.className = 'app-modal-body';
   body.innerHTML = `
-    <div class="sa-loading-spinner-container" style="padding: 20px 0;">
-      <div class="sa-spinner"></div>
+    <div class="app-loading-spinner-container" style="padding: 20px 0;">
+      <div class="app-spinner"></div>
       <span>${COPY.occupancy.loadingLayout}</span>
     </div>
   `;
@@ -3346,7 +3346,7 @@ async function openOccupancyModal(event) {
     setTimeout(() => overlay.remove(), 300);
   };
 
-  header.querySelector('.sa-modal-close-btn').onclick = closeModal;
+  header.querySelector('.app-modal-close-btn').onclick = closeModal;
   modalOverlay.onclick = closeModal;
 
   try {
@@ -3582,22 +3582,22 @@ export async function openGuestBookingModal(c) {
     showToast(COPY.bookings.guestBookingUnavailable, 'warning');
     return;
   }
-  const modal = document.getElementById('sa-booking-modal');
-  const body = document.getElementById('sa-booking-modal-body');
-  const title = document.getElementById('sa-booking-modal-title');
+  const modal = document.getElementById('app-booking-modal');
+  const body = document.getElementById('app-booking-modal-body');
+  const title = document.getElementById('app-booking-modal-title');
   if (!modal || !body || !title) return;
 
   title.textContent = COPY.bookings.bookGuest;
   applyBookingChrome(modal, { titleText: COPY.bookings.bookGuest, gymId: c.gymId, locationName: c.locationName, studioName: c.studioName });
-  body.innerHTML = '<div class="sa-loading-spinner-container" style="padding:40px 0;"><div class="sa-spinner"></div><span>Checking guest eligibility…</span></div>';
+  body.innerHTML = '<div class="app-loading-spinner-container" style="padding:40px 0;"><div class="app-spinner"></div><span>Checking guest eligibility…</span></div>';
   openNavPage(modal, { id: 'book-guest' });
   const close = () => {
     if (closeNavPage(modal)) return;
     modal.classList.remove('show');
     setTimeout(() => { modal.style.display = 'none'; }, 300);
   };
-  document.getElementById('sa-booking-modal-close').onclick = close;
-  modal.querySelector('.sa-modal-overlay').onclick = close;
+  document.getElementById('app-booking-modal-close').onclick = close;
+  modal.querySelector('.app-modal-overlay').onclick = close;
 
   try {
     const [entitlement, details] = await Promise.all([
@@ -3605,7 +3605,7 @@ export async function openGuestBookingModal(c) {
       api.getEventDetails(c.id, c.gymId),
     ]);
     if (!entitlement.guestEligible) {
-      body.innerHTML = `<div class="sa-card-error" style="padding:24px;text-align:center;">${escapeHtml(COPY.bookings.guestBookingUnavailable)}</div>`;
+      body.innerHTML = `<div class="app-card-error" style="padding:24px;text-align:center;">${escapeHtml(COPY.bookings.guestBookingUnavailable)}</div>`;
       return;
     }
     const slots = details.slots || [];
@@ -3613,7 +3613,7 @@ export async function openGuestBookingModal(c) {
     // A pick-a-spot class requires a selection; FCFS has no slots and omits it.
     let selectedSlotId = available[0] ? String(available[0].id) : null;
     if ((details.slots || []).length && !selectedSlotId) {
-      body.innerHTML = `<div class="sa-card-error" style="padding:24px;text-align:center;">${escapeHtml(COPY.bookings.guestNoSpot)}</div>`;
+      body.innerHTML = `<div class="app-card-error" style="padding:24px;text-align:center;">${escapeHtml(COPY.bookings.guestNoSpot)}</div>`;
       return;
     }
     const passCount = Number(entitlement.guestPassesRemaining);
@@ -3621,10 +3621,10 @@ export async function openGuestBookingModal(c) {
       ? `<p style="margin:0 0 12px;color:var(--text-secondary);font-size:13px;">${formatCopyText(COPY.bookings.guestPassesRemaining, { count: passCount, plural: passCount === 1 ? '' : 'es' })}</p>`
       : '';
     body.innerHTML = `
-      <div class="sa-guest-booking" style="display:flex;flex-direction:column;gap:14px;">
+      <div class="app-guest-booking" style="display:flex;flex-direction:column;gap:14px;">
         ${passNote}
         <label style="display:flex;flex-direction:column;gap:6px;font-size:13px;color:var(--text-secondary);">${COPY.bookings.guestEmail}
-          <input id="guest-booking-email" class="sa-input" type="email" autocomplete="email" inputmode="email" required>
+          <input id="guest-booking-email" class="app-input" type="email" autocomplete="email" inputmode="email" required>
         </label>
         ${slots.length ? `<div class="guest-live-map"><div style="font-size:13px;color:var(--text-secondary);margin-bottom:8px;">${COPY.bookings.selectGuestSpot}</div>
           <div class="guest-map-legend" aria-label="Spot map key">
@@ -3632,7 +3632,7 @@ export async function openGuestBookingModal(c) {
           </div>
           <div id="guest-booking-map"></div>
         </div>` : ''}
-        <button class="sa-btn" id="guest-booking-submit" style="background:var(--accent-fill);color:var(--on-accent-fill);">${COPY.bookings.guestBookingSubmit}</button>
+        <button class="app-btn" id="guest-booking-submit" style="background:var(--accent-fill);color:var(--on-accent-fill);">${COPY.bookings.guestBookingSubmit}</button>
       </div>`;
     const submit = body.querySelector('#guest-booking-submit');
     if (slots.length) {
@@ -3673,7 +3673,7 @@ export async function openGuestBookingModal(c) {
       }
     };
   } catch (err) {
-    body.innerHTML = `<div class="sa-card-error" style="padding:24px;text-align:center;">${escapeHtml(formatCopyText(COPY.bookings.guestBookingError, { error: err.message }))}</div>`;
+    body.innerHTML = `<div class="app-card-error" style="padding:24px;text-align:center;">${escapeHtml(formatCopyText(COPY.bookings.guestBookingError, { error: err.message }))}</div>`;
   }
 }
 
@@ -3714,9 +3714,9 @@ export async function openBookingModal(c, mode, opts = {}) {
     } catch (_) { /* fall through to the combined modal */ }
   }
 
-  const modal = document.getElementById('sa-booking-modal');
-  const body = document.getElementById('sa-booking-modal-body');
-  const title = document.getElementById('sa-booking-modal-title');
+  const modal = document.getElementById('app-booking-modal');
+  const body = document.getElementById('app-booking-modal-body');
+  const title = document.getElementById('app-booking-modal-title');
   if (!modal || !body || !title) return;
 
   const noun = seatNoun(c.discipline);
@@ -3735,16 +3735,16 @@ export async function openBookingModal(c, mode, opts = {}) {
   const hasLayout = cachedLayout?.slots?.length > 0;
 
   body.innerHTML = `
-    <div class="sa-loading-spinner-container" style="padding: 40px 0;">
-      <div class="sa-spinner"></div>
+    <div class="app-loading-spinner-container" style="padding: 40px 0;">
+      <div class="app-spinner"></div>
       <span>${hasLayout ? COPY.timetable.checkingAvailability : COPY.timetable.loadingFloorMap}</span>
     </div>
   `;
 
   openNavPage(modal, { id: 'booking', replaceEl: opts.replaceEl });
 
-  const closeBtn = document.getElementById('sa-booking-modal-close');
-  const overlay = modal.querySelector('.sa-modal-overlay');
+  const closeBtn = document.getElementById('app-booking-modal-close');
+  const overlay = modal.querySelector('.app-modal-overlay');
 
   const closeModal = () => {
     if (closeNavPage(modal)) return; // mobile page: pop its history entry
@@ -3858,17 +3858,17 @@ export async function openBookingModal(c, mode, opts = {}) {
       // Mobile compact page for Auto-Book on a class with no assigned spots: explanation, quantity, one action.
       const compactAuto = isMobile() && isAutoBookMode;
       body.innerHTML = compactAuto ? `
-        <div class="sa-bk-compact">
+        <div class="app-bk-compact">
           <p>${COPY.bookingFlow.fcfsAutoBook}</p>
-          ${showAttendeeSelector ? `<label class="sa-bk-compact-qty"><span>${COPY.bookingFlow.spotsToBook}</span>
-            <select id="compact-autobook-qty" class="sa-select">${attendeeOptions.map(n => `<option value="${n}">${n}</option>`).join('')}</select></label>` : ''}
-          <button class="sa-btn" id="btn-save-simple-autobook" style="background: var(--feat-autoupgrade); color:var(--on-accent); display:flex; align-items:center; justify-content:center; gap:6px;">${COPY.bookingFlow.titleAutoBook}</button>
+          ${showAttendeeSelector ? `<label class="app-bk-compact-qty"><span>${COPY.bookingFlow.spotsToBook}</span>
+            <select id="compact-autobook-qty" class="app-select">${attendeeOptions.map(n => `<option value="${n}">${n}</option>`).join('')}</select></label>` : ''}
+          <button class="app-btn" id="btn-save-simple-autobook" style="background: var(--feat-autoupgrade); color:var(--on-accent); display:flex; align-items:center; justify-content:center; gap:6px;">${COPY.bookingFlow.titleAutoBook}</button>
         </div>` : `
         <div style="padding: 24px; text-align: center; color: var(--text-secondary);">
           <p style="margin-bottom: 16px;">${COPY.timetable.noFloorMap}</p>
           ${isAutoBookMode
-            ? `<button class="sa-btn" id="btn-save-simple-autobook" style="background: var(--feat-autoupgrade); color:var(--on-accent); display:flex; align-items:center; justify-content:center; gap:6px;">${sparklesIcon(14, 'currentColor')} ${COPY.timetable.scheduleAnySeat}</button>`
-            : `<button class="sa-btn" id="btn-book-any" style="background:var(--accent-fill);color:var(--on-accent-fill);">${formatCopyText(COPY.timetable.bookAnyAvailable, { noun: nounCap })}</button>`
+            ? `<button class="app-btn" id="btn-save-simple-autobook" style="background: var(--feat-autoupgrade); color:var(--on-accent); display:flex; align-items:center; justify-content:center; gap:6px;">${sparklesIcon(14, 'currentColor')} ${COPY.timetable.scheduleAnySeat}</button>`
+            : `<button class="app-btn" id="btn-book-any" style="background:var(--accent-fill);color:var(--on-accent-fill);">${formatCopyText(COPY.timetable.bookAnyAvailable, { noun: nounCap })}</button>`
           }
         </div>
       `;
@@ -3905,24 +3905,24 @@ export async function openBookingModal(c, mode, opts = {}) {
     const minMapHeight = Math.max(340, rowCount * 56);
 
     body.innerHTML = `
-      <div id="sa-modal-info-banner" style="margin-bottom:10px;"></div>
-      <div class="sa-floor-plan-container" style="position:relative;height:${minMapHeight}px;background:var(--surface-inset);border:1px solid var(--border);border-radius:12px;margin-bottom:10px;overflow:hidden;">
-        <div id="sa-floor-plan-grid" style="width:100%;height:100%;"></div>
+      <div id="app-modal-info-banner" style="margin-bottom:10px;"></div>
+      <div class="app-floor-plan-container" style="position:relative;height:${minMapHeight}px;background:var(--surface-inset);border:1px solid var(--border);border-radius:12px;margin-bottom:10px;overflow:hidden;">
+        <div id="app-floor-plan-grid" style="width:100%;height:100%;"></div>
       </div>
-      <div id="sa-map-edit-toggle"></div>
-      <div id="sa-slot-summary" style="font-size:12px;color:var(--text-secondary);margin-bottom:12px;min-height:16px;${opts.setupFlow ? 'display:none;' : ''}"></div>
-      <div id="sa-modal-controls-container"></div>
+      <div id="app-map-edit-toggle"></div>
+      <div id="app-slot-summary" style="font-size:12px;color:var(--text-secondary);margin-bottom:12px;min-height:16px;${opts.setupFlow ? 'display:none;' : ''}"></div>
+      <div id="app-modal-controls-container"></div>
     `;
 
-    const floorGrid = body.querySelector('#sa-floor-plan-grid');
-    mountBookingContext(body, body.querySelector('.sa-floor-plan-container'), classCtx, classHelper);
+    const floorGrid = body.querySelector('#app-floor-plan-grid');
+    mountBookingContext(body, body.querySelector('.app-floor-plan-container'), classCtx, classHelper);
 
     // Render Stage — NormalizedLayoutObject[]; empty for providers with none.
     layoutObjects.forEach(obj => {
       const left = widthRange === 0 ? 50 : ((obj.x - minX) / widthRange) * 80 + 10;
       const top = heightRange === 0 ? 10 : ((obj.y - minY) / heightRange) * 75 + 10;
       const stage = document.createElement('div');
-      stage.className = 'sa-minimap-stage';
+      stage.className = 'app-minimap-stage';
       stage.style.cssText = `position: absolute; left: ${left}%; top: ${top}%; transform: translate(-50%, -50%); background: color-mix(in srgb, var(--text) 15%, transparent); border: 1px solid color-mix(in srgb, var(--text) 30%, transparent); padding: 4px 16px; border-radius: 6px; font-size: 12px; font-weight: bold; color: #fff; letter-spacing: 0.5px;`;
       stage.textContent = COPY.timetable.stage;
       floorGrid.appendChild(stage);
@@ -3993,7 +3993,7 @@ export async function openBookingModal(c, mode, opts = {}) {
     // Hoisted so the read-only map's edit toggle can refresh banners/controls
     let updateSimpleBookControls = null;
     // Auto-Upgrade without saved spots: a visible, tappable way to fix it (never a silently greyed box).
-    const upgradeNeedsRowHtml = () => `<div class="sa-au-needs"><span class="t">${trendingUpIcon(12, 'currentColor', 2)} ${COPY.spotSetup.needsSpots}</span><button type="button" class="sa-btn sa-au-setup" data-au-setup>${COPY.spotSetup.setUpSpots}</button></div>`;
+    const upgradeNeedsRowHtml = () => `<div class="app-au-needs"><span class="t">${trendingUpIcon(12, 'currentColor', 2)} ${COPY.spotSetup.needsSpots}</span><button type="button" class="app-btn app-au-setup" data-au-setup>${COPY.spotSetup.setUpSpots}</button></div>`;
     let openSetupChild = () => {};
     let updateQuickBookControls = null;
     let updateAutoBookControls = null;
@@ -4011,7 +4011,7 @@ export async function openBookingModal(c, mode, opts = {}) {
 
     const render = () => {
       floorGrid.innerHTML = '';
-      const summaryEl = body.querySelector('#sa-slot-summary');
+      const summaryEl = body.querySelector('#app-slot-summary');
 
       // Cyan row backdrops (rendered first, so they stay behind)
       state.selectedRows.forEach(y => {
@@ -4154,11 +4154,11 @@ export async function openBookingModal(c, mode, opts = {}) {
         const chosen = layoutSlots.find(s => String(s.id) === chosenSlotId);
         const chosenLabel = escapeHtml(formatSpotLabel(c.gymId, chosen || chosenSlotId));
         const notice = document.createElement('div');
-        notice.className = 'sa-auto-chosen-spot';
+        notice.className = 'app-auto-chosen-spot';
         notice.setAttribute('role', 'status');
         notice.setAttribute('aria-live', 'polite');
         const sentence = escapeHtml(appCopy(COPY.bookingFlow.autoChosenSpotSentence));
-        notice.innerHTML = sentence.replace('{slot}', `<span class="sa-auto-chosen-spot__badge">${chosenLabel}</span>`);
+        notice.innerHTML = sentence.replace('{slot}', `<span class="app-auto-chosen-spot__badge">${chosenLabel}</span>`);
         floorGrid.appendChild(notice);
       }
 
@@ -4215,7 +4215,7 @@ export async function openBookingModal(c, mode, opts = {}) {
       if (isAutoBookMode) {
         const layoutSlotIds = new Set(layoutSlots.map(s => String(s.id)));
         const unmappedSlots = availableSlots.filter(id => !layoutSlotIds.has(id));
-        const unmappedEl = body.querySelector('#sa-unmapped-warning');
+        const unmappedEl = body.querySelector('#app-unmapped-warning');
         if (unmappedEl) {
           unmappedEl.style.display = unmappedSlots.length > 0 ? 'block' : 'none';
           if (unmappedSlots.length > 0) {
@@ -4232,7 +4232,7 @@ export async function openBookingModal(c, mode, opts = {}) {
 
     // Wide "edit preferred spots" button attached beneath the map (Quick-Book read-only mode)
     const updateMapEditToggle = () => {
-      const toggle = body.querySelector('#sa-map-edit-toggle');
+      const toggle = body.querySelector('#app-map-edit-toggle');
       if (!toggle) return;
       toggle.innerHTML = '';
       // Quick-Book follows the saved map directly; edit it later in Settings or
@@ -4240,7 +4240,7 @@ export async function openBookingModal(c, mode, opts = {}) {
       // its in-context editor because those preferences control a future job.
       if (!shouldShowPreferredMapEditToggle(mode, mapEditing)) return;
       const editBtn = document.createElement('button');
-      editBtn.className = 'sa-btn';
+      editBtn.className = 'app-btn';
       editBtn.style.cssText = 'width:100%;margin-bottom:12px;background:color-mix(in srgb, var(--feat-autoupgrade) 12%, transparent);border:1px solid color-mix(in srgb, var(--feat-autoupgrade) 30%, transparent);color:var(--feat-autoupgrade);';
       editBtn.textContent = formatCopyText(COPY.timetable.editPreferredSpots, { studio: studioName });
       editBtn.onclick = () => {
@@ -4254,7 +4254,7 @@ export async function openBookingModal(c, mode, opts = {}) {
 
     // ── Auto-Book controls ─────────────────────────────────────────────
     if (isAutoBookMode) {
-      const controls = body.querySelector('#sa-modal-controls-container');
+      const controls = body.querySelector('#app-modal-controls-container');
       const layoutSlotIds = new Set(layoutSlots.map(s => String(s.id)));
       const unmappedSlots = availableSlots.filter(id => !layoutSlotIds.has(id));
       const releaseStr = isLive ? '' : classReleaseTime.toFormat('EEE d MMM, HH:mm');
@@ -4267,12 +4267,12 @@ export async function openBookingModal(c, mode, opts = {}) {
           ? `${formatCopyText(COPY.timetable.autoBookCreditShortfall, { count: creditsNeeded - availableCredits, plural: creditsNeeded - availableCredits !== 1 ? 's' : '' })}`
           : '';
 
-        body.querySelector('#sa-modal-info-banner').hidden = !!(opts.setupFlow || opts.oneOffSpots);
-        body.querySelector('#sa-modal-info-banner').innerHTML = mapEditing
+        body.querySelector('#app-modal-info-banner').hidden = !!(opts.setupFlow || opts.oneOffSpots);
+        body.querySelector('#app-modal-info-banner').innerHTML = mapEditing
           ? `<div style="font-size:12px;color:var(--feat-autoupgrade);background:color-mix(in srgb,var(--feat-autoupgrade) 8%,transparent);border:1px solid color-mix(in srgb,var(--feat-autoupgrade) 18%,transparent);border-radius:8px;padding:8px 10px;line-height:1.5;">${formatCopyText(COPY.timetable.editingSharedMapHtml, { studio: escapeHtml(studioName), features: 'Quick-Book and Auto-Upgrade too' })}</div>`
           : `<div style="font-size:12px;color:var(--feat-autoupgrade);background:color-mix(in srgb,var(--feat-autoupgrade) 8%,transparent);border:1px solid color-mix(in srgb,var(--feat-autoupgrade) 18%,transparent);border-radius:8px;padding:8px 10px;line-height:1.5;">${formatCopyText(COPY.timetable.sharedMapForStudioHtml, { studio: escapeHtml(studioName) })}</div>`;
 
-        const toggleEl = body.querySelector('#sa-map-edit-toggle');
+        const toggleEl = body.querySelector('#app-map-edit-toggle');
         if (toggleEl && mapEditing && !opts.setupFlow && !opts.oneOffSpots) {
           const hint = toggleEl.querySelector('.ab-map-hint');
           if (!hint) {
@@ -4285,19 +4285,19 @@ export async function openBookingModal(c, mode, opts = {}) {
         }
 
         controls.innerHTML = `
-          <div class="sa-booking-controls${isSpotFlowStep ? ' is-spot-flow' : ''}" style="display:flex;flex-direction:column;gap:12px;background:var(--surface-inset);padding:14px;border-radius:12px;border:1px solid var(--border);">
-            ${unmappedSlots.length > 0 ? `<div id="sa-unmapped-warning" style="font-size:12px;color:var(--warning);background:color-mix(in srgb,var(--warning) 8%,transparent);border:1px solid color-mix(in srgb,var(--warning) 20%,transparent);border-radius:6px;padding:6px 10px;"></div>` : ''}
+          <div class="app-booking-controls${isSpotFlowStep ? ' is-spot-flow' : ''}" style="display:flex;flex-direction:column;gap:12px;background:var(--surface-inset);padding:14px;border-radius:12px;border:1px solid var(--border);">
+            ${unmappedSlots.length > 0 ? `<div id="app-unmapped-warning" style="font-size:12px;color:var(--warning);background:color-mix(in srgb,var(--warning) 8%,transparent);border:1px solid color-mix(in srgb,var(--warning) 20%,transparent);border-radius:6px;padding:6px 10px;"></div>` : ''}
             ${creditWarning ? `<div style="font-size:12px;color:var(--danger);background:color-mix(in srgb,var(--danger) 10%,transparent);border:1px solid color-mix(in srgb,var(--danger) 20%,transparent);border-radius:8px;padding:10px;line-height:1.5;">${creditWarning}</div>` : ''}
             <div style="display:flex;gap:14px;align-items:center;">
               ${showAttendeeSelector ? `<div style="width:110px;">
                 <label style="display:block;font-size:12px;color:var(--text-secondary);margin-bottom:4px;">${COPY.timetable.slotsToBook}</label>
-                <select id="autobook-qty" class="sa-select" style="width:100%;padding:6px 8px;font-size:13px;">
+                <select id="autobook-qty" class="app-select" style="width:100%;padding:6px 8px;font-size:13px;">
                   ${attendeeOptions.map(n => `<option value="${n}" ${state.qty===n?'selected':''}>${n}</option>`).join('')}
                 </select>
               </div>` : ''}
               <div style="flex:1;padding-top:14px;">
                 <label style="display:flex;align-items:center;gap:8px;font-size:13px;cursor:pointer;color:var(--text-secondary);user-select:none;">
-                  <input type="checkbox" class="sa-ms-checkbox" id="autobook-fallback-any" ${state.bookAny ? 'checked' : ''}>
+                  <input type="checkbox" class="app-ms-checkbox" id="autobook-fallback-any" ${state.bookAny ? 'checked' : ''}>
                   <span>${COPY.timetable.bookAnyPreferredFallback}</span>
                 </label>
               </div>
@@ -4309,16 +4309,16 @@ export async function openBookingModal(c, mode, opts = {}) {
               if (!hasPrefs && isMobile()) return upgradeNeedsRowHtml();
               if (!hasPrefs) return `
                 <label style="display:flex;align-items:center;gap:8px;font-size:13px;color:var(--text-tertiary);user-select:none;cursor:not-allowed;">
-                  <input type="checkbox" class="sa-ms-checkbox" id="autobook-auto-upgrade" disabled>
+                  <input type="checkbox" class="app-ms-checkbox" id="autobook-auto-upgrade" disabled>
                   <span style="display:flex;align-items:center;gap:4px;">${trendingUpIcon(12, 'currentColor', 2)} ${COPY.timetable.autoUpgradeConfigurePrompt}</span>
                 </label>`;
               return `
                 <label style="display:flex;align-items:center;gap:8px;font-size:13px;cursor:pointer;color:var(--text-secondary);user-select:none;">
-                  <input type="checkbox" class="sa-ms-checkbox" id="autobook-auto-upgrade" ${isAutoUpgradeDefaultEnabled(c.gymId) ? 'checked' : ''}>
+                  <input type="checkbox" class="app-ms-checkbox" id="autobook-auto-upgrade" ${isAutoUpgradeDefaultEnabled(c.gymId) ? 'checked' : ''}>
                   <span style="display:flex;align-items:center;gap:4px;">${trendingUpIcon(12, 'currentColor', 2)} ${COPY.timetable.autoUpgradeKeepSearchingLabel}</span>
                 </label>`;
             })()}
-            <button class="sa-btn" id="btn-save-autobook" style="width:100%;background:var(--feat-autoupgrade);color:var(--on-accent);display:flex;align-items:center;justify-content:center;gap:6px;">${sparklesIcon(14, 'currentColor')} ${!opts.oneOffSpots && mapChanged() ? `${COPY.spotMapEditor.saveMapAnd} ` : ''}${COPY.timetable.scheduleAutoBook}</button>
+            <button class="app-btn" id="btn-save-autobook" style="width:100%;background:var(--feat-autoupgrade);color:var(--on-accent);display:flex;align-items:center;justify-content:center;gap:6px;">${sparklesIcon(14, 'currentColor')} ${!opts.oneOffSpots && mapChanged() ? `${COPY.spotMapEditor.saveMapAnd} ` : ''}${COPY.timetable.scheduleAutoBook}</button>
             <div style="font-size:12px;text-align:center;color:${isLive ? 'var(--success)' : 'var(--text-tertiary)'};">
               ${isLive ? COPY.timetable.bookingWindowIsOpen : `${formatCopyText(COPY.timetable.bookingOpens, { date: `<span style="color:var(--text-secondary);">${escapeHtml(releaseStr)}</span>` })}`}
             </div>
@@ -4346,13 +4346,13 @@ export async function openBookingModal(c, mode, opts = {}) {
       updateAutoBookControls();
     } else if (isSimpleBookMode) {
       // ── Simple Book controls (just pick slots, no preferences) ────────────────────
-      const controls = body.querySelector('#sa-modal-controls-container');
+      const controls = body.querySelector('#app-modal-controls-container');
 
       // Mobile: set up preferred spots as a Back-arrow child; the live selection on this page survives.
       const openSimpleSetup = () => openStudioFloorPlanEditor(c.studioId, studioName, (slots = [], rows = []) => {
         hasExistingPrefs = slots.length > 0 || rows.length > 0;     // from the saved payload, not a racing refetch
         cache.studioPreferences = { ...(cache.studioPreferences || {}), [`${c.gymId}:${c.studioId}`]: { preferredSlots: slots, preferredRows: rows } };
-        body.querySelector('.sa-bk-banner')?.remove();
+        body.querySelector('.app-bk-banner')?.remove();
         updateSimpleBookControls();
       }, { gymId: c.gymId });
       if (isMobile() && !hasExistingPrefs && layoutSlots.length > 0) {
@@ -4370,7 +4370,7 @@ export async function openBookingModal(c, mode, opts = {}) {
           : '';
 
         controls.innerHTML = `
-          <div class="sa-booking-controls${isSpotFlowStep ? ' is-spot-flow' : ''}" style="display:flex;flex-direction:column;gap:12px;background:var(--surface-inset);padding:14px;border-radius:12px;border:1px solid var(--border);">
+          <div class="app-booking-controls${isSpotFlowStep ? ' is-spot-flow' : ''}" style="display:flex;flex-direction:column;gap:12px;background:var(--surface-inset);padding:14px;border-radius:12px;border:1px solid var(--border);">
             <div style="font-size:12px;color:var(--text-secondary);font-style:italic;">${formatCopyText(COPY.timetable.simpleBookPrompt, { noun: seatNoun(groupName), count: `<strong>${isDataLoaded ? availableCredits : '?'}</strong>`, plural: availableCredits !== 1 ? 's' : '' })}</div>
             ${creditWarning ? `<div style="font-size:12px;color:var(--danger);background:color-mix(in srgb,var(--danger) 10%,transparent);border:1px solid color-mix(in srgb,var(--danger) 20%,transparent);border-radius:8px;padding:10px;line-height:1.5;">${creditWarning}</div>` : ''}
             ${(() => {
@@ -4380,17 +4380,17 @@ export async function openBookingModal(c, mode, opts = {}) {
               if (!hasPrefs && isMobile()) return upgradeNeedsRowHtml();
               if (!hasPrefs) return `
                 <label style="display:flex;align-items:center;gap:8px;font-size:13px;color:var(--text-tertiary);user-select:none;cursor:not-allowed;font-weight:500;">
-                  <input type="checkbox" class="sa-ms-checkbox" id="simplebook-auto-upgrade" disabled>
+                  <input type="checkbox" class="app-ms-checkbox" id="simplebook-auto-upgrade" disabled>
                   <span style="display:flex;align-items:center;gap:4px;flex-wrap:wrap;">${trendingUpIcon(12, 'currentColor', 2)} ${formatCopyText(COPY.timetable.autoUpgradeConfigureFirstHtml, { studio: escapeHtml(studioName) })}</span>
                 </label>`;
               return `
                 <label style="display:flex;align-items:center;gap:8px;font-size:13px;cursor:pointer;color:var(--text-secondary);user-select:none;font-weight:500;">
-                  <input type="checkbox" class="sa-ms-checkbox" id="simplebook-auto-upgrade" ${isAutoUpgradeDefaultEnabled(c.gymId) ? 'checked' : ''}>
+                  <input type="checkbox" class="app-ms-checkbox" id="simplebook-auto-upgrade" ${isAutoUpgradeDefaultEnabled(c.gymId) ? 'checked' : ''}>
                   <span style="display:flex;align-items:center;gap:4px;">${trendingUpIcon(12, 'currentColor', 2)} ${COPY.timetable.autoUpgradeKeepSearchingLabel}</span>
                 </label>`;
             })()}
             <div style="display:flex;gap:8px;">
-              <button class="sa-btn" id="btn-book-simple" style="flex:1;background:var(--accent-fill);color:var(--on-accent-fill);" ${!isDataLoaded || !hasEnoughCredits ? 'disabled' : ''}>${formatCopyText(COPY.timetable.bookSelectedPlain, { noun: nounCap })}</button>
+              <button class="app-btn" id="btn-book-simple" style="flex:1;background:var(--accent-fill);color:var(--on-accent-fill);" ${!isDataLoaded || !hasEnoughCredits ? 'disabled' : ''}>${formatCopyText(COPY.timetable.bookSelectedPlain, { noun: nounCap })}</button>
             </div>
           </div>
         `;
@@ -4489,7 +4489,7 @@ export async function openBookingModal(c, mode, opts = {}) {
       updateSimpleBookControls();
     } else if (isQuickBookMode) {
       // ── Quick-Book controls (preference setter) ────────────────────────────────────────
-      const controls = body.querySelector('#sa-modal-controls-container');
+      const controls = body.querySelector('#app-modal-controls-container');
 
       updateQuickBookControls = () => {
         const selectedQty = parseInt(controls.querySelector('#quickbook-qty')?.value || state.qty) || 1;
@@ -4499,14 +4499,14 @@ export async function openBookingModal(c, mode, opts = {}) {
           ? `${formatCopyText(COPY.timetable.quickBookCreditShortfall, { count: creditsNeeded - availableCredits, plural: creditsNeeded - availableCredits !== 1 ? 's' : '' })}`
           : '';
 
-        body.querySelector('#sa-modal-info-banner').hidden = !!(opts.setupFlow || opts.oneOffSpots);
-        body.querySelector('#sa-modal-info-banner').innerHTML = !mapEditing
+        body.querySelector('#app-modal-info-banner').hidden = !!(opts.setupFlow || opts.oneOffSpots);
+        body.querySelector('#app-modal-info-banner').innerHTML = !mapEditing
           ? `<div style="font-size:12px;color:var(--feat-autoupgrade);background:color-mix(in srgb,var(--feat-autoupgrade) 8%,transparent);border:1px solid color-mix(in srgb,var(--feat-autoupgrade) 18%,transparent);border-radius:8px;padding:8px 10px;line-height:1.5;">${COPY.timetable.quickBookBannerHtml}</div>`
           : (hasExistingPrefs
             ? `<div style="font-size:12px;color:var(--feat-autoupgrade);background:color-mix(in srgb,var(--feat-autoupgrade) 8%,transparent);border:1px solid color-mix(in srgb,var(--feat-autoupgrade) 18%,transparent);border-radius:8px;padding:8px 10px;line-height:1.5;">${formatCopyText(COPY.timetable.editingQuickBookMapHtml, { studio: escapeHtml(studioName) })}</div>`
             : `<div style="font-size:12px;color:var(--text-tertiary);background:color-mix(in srgb,var(--feat-autoupgrade) 7%,transparent);border:1px solid color-mix(in srgb,var(--feat-autoupgrade) 15%,transparent);border-radius:8px;padding:10px 12px;line-height:1.5;">${formatCopyText(COPY.timetable.quickBookFirstSetupHtml, { studio: escapeHtml(studioName) })}</div>`);
 
-        const qbToggleEl = body.querySelector('#sa-map-edit-toggle');
+        const qbToggleEl = body.querySelector('#app-map-edit-toggle');
         if (qbToggleEl && mapEditing && !opts.setupFlow && !opts.oneOffSpots && !qbToggleEl.querySelector('.ab-map-hint')) {
           const h = document.createElement('div');
           h.className = 'ab-map-hint';
@@ -4524,13 +4524,13 @@ export async function openBookingModal(c, mode, opts = {}) {
             <div style="display:flex;gap:14px;align-items:center;">
               ${showAttendeeSelector ? `<div style="width:110px;">
                 <label style="display:block;font-size:12px;color:var(--text-secondary);margin-bottom:4px;">${COPY.timetable.slotsToBook}</label>
-                <select id="quickbook-qty" class="sa-select" style="width:100%;padding:6px 8px;font-size:13px;">
+                <select id="quickbook-qty" class="app-select" style="width:100%;padding:6px 8px;font-size:13px;">
                   ${attendeeOptions.map(n => `<option value="${n}" ${state.qty===n?'selected':''}>${n}</option>`).join('')}
                 </select>
               </div>` : ''}
               <div style="flex:1;padding-top:14px;">
                 <label style="display:flex;align-items:center;gap:8px;font-size:13px;cursor:pointer;color:var(--text-secondary);user-select:none;">
-                  <input type="checkbox" class="sa-ms-checkbox" id="quickbook-fallback-any" ${state.bookAny ? 'checked' : ''}>
+                  <input type="checkbox" class="app-ms-checkbox" id="quickbook-fallback-any" ${state.bookAny ? 'checked' : ''}>
                   <span>${COPY.timetable.bookAnyPreferredFallback}</span>
                 </label>
               </div>
@@ -4542,16 +4542,16 @@ export async function openBookingModal(c, mode, opts = {}) {
               if (!hasPrefs && isMobile()) return upgradeNeedsRowHtml();
               if (!hasPrefs) return `
                 <label style="display:flex;align-items:center;gap:8px;font-size:13px;color:var(--text-tertiary);user-select:none;cursor:not-allowed;">
-                  <input type="checkbox" class="sa-ms-checkbox" id="quickbook-auto-upgrade" disabled>
+                  <input type="checkbox" class="app-ms-checkbox" id="quickbook-auto-upgrade" disabled>
                   <span style="display:flex;align-items:center;gap:4px;">${trendingUpIcon(12, 'currentColor', 2)} ${COPY.timetable.autoUpgradeConfigurePrompt}</span>
                 </label>`;
               return `
                 <label style="display:flex;align-items:center;gap:8px;font-size:13px;cursor:pointer;color:var(--text-secondary);user-select:none;">
-                  <input type="checkbox" class="sa-ms-checkbox" id="quickbook-auto-upgrade" ${isAutoUpgradeDefaultEnabled(c.gymId) ? 'checked' : ''}>
+                  <input type="checkbox" class="app-ms-checkbox" id="quickbook-auto-upgrade" ${isAutoUpgradeDefaultEnabled(c.gymId) ? 'checked' : ''}>
                   <span style="display:flex;align-items:center;gap:4px;">${trendingUpIcon(12, 'currentColor', 2)} ${COPY.timetable.autoUpgradeKeepSearchingLabel}</span>
                 </label>`;
             })()}
-            <button class="sa-btn" id="btn-submit-quickbook" style="width:100%;background:var(--accent-fill);color:var(--on-accent-fill);">${!opts.oneOffSpots && mapChanged() ? `${COPY.spotMapEditor.saveMapAnd} ` : ''}${COPY.timetable.quickBook}</button>
+            <button class="app-btn" id="btn-submit-quickbook" style="width:100%;background:var(--accent-fill);color:var(--on-accent-fill);">${!opts.oneOffSpots && mapChanged() ? `${COPY.spotMapEditor.saveMapAnd} ` : ''}${COPY.timetable.quickBook}</button>
           </div>
         `;
 
@@ -4650,23 +4650,23 @@ export async function openBookingModal(c, mode, opts = {}) {
       held.forEach((el) => { el.dataset.setupDisplay = el.style.display || ''; el.style.display = 'none'; });
       title.textContent = copy.header;
       const intro = document.createElement('div');
-      intro.id = 'sa-setup-intro';
+      intro.id = 'app-setup-intro';
       intro.style.cssText = 'padding:8px 0 4px;';
       intro.innerHTML = `
         <p style="margin:0 0 10px;font-size:16px;font-weight:600;color:var(--text);">${copy.sub}</p>
         <p style="margin:0 0 20px;font-size:14px;line-height:1.5;color:var(--text-secondary);">${copy.bodyHtml}</p>
-        <button type="button" class="sa-btn" id="sa-setup-next" style="width:100%;background:var(--accent-fill);color:var(--on-accent-fill);">${copy.next}</button>`;
+        <button type="button" class="app-btn" id="app-setup-next" style="width:100%;background:var(--accent-fill);color:var(--on-accent-fill);">${copy.next}</button>`;
       body.appendChild(intro);
-      intro.querySelector('#sa-setup-next').onclick = () => {
+      intro.querySelector('#app-setup-next').onclick = () => {
         intro.remove();
         held.forEach((el) => { el.style.display = el.dataset.setupDisplay || ''; delete el.dataset.setupDisplay; });
         title.textContent = modeTitle;
       };
-      intro.querySelector('#sa-setup-next').focus();
+      intro.querySelector('#app-setup-next').focus();
     }
   } catch (err) {
     console.error('[Timetable] Modal load floor map failed:', err);
-    body.innerHTML = `<div class="sa-card-error" style="color: var(--danger); padding: 20px 0; text-align: center;">${formatCopyText(COPY.timetable.errorLoadingLayout, { error: escapeHtml(err.message) })}</div>`;
+    body.innerHTML = `<div class="app-card-error" style="color: var(--danger); padding: 20px 0; text-align: center;">${formatCopyText(COPY.timetable.errorLoadingLayout, { error: escapeHtml(err.message) })}</div>`;
   }
 }
 
@@ -4982,24 +4982,24 @@ function escapeHtml(str) {
 }
 
 export async function openDebugModal(event) {
-  const modal = document.getElementById('sa-debug-modal');
-  const body = document.getElementById('sa-debug-modal-body');
-  const title = document.getElementById('sa-debug-modal-title');
+  const modal = document.getElementById('app-debug-modal');
+  const body = document.getElementById('app-debug-modal-body');
+  const title = document.getElementById('app-debug-modal-title');
   if (!modal || !body || !title) return;
 
   // Debug modal: deliberately the RAW provider name (it exists to show what the API sent).
   title.textContent = `Debug: ${event.name || 'Class'} — ${event.startAt || ''}`;
   body.innerHTML = `
-    <div class="sa-loading-spinner-container" style="padding: 40px 0;">
-      <div class="sa-spinner"></div>
+    <div class="app-loading-spinner-container" style="padding: 40px 0;">
+      <div class="app-spinner"></div>
       <span>Loading debug data...</span>
     </div>
   `;
 
   openNavPage(modal, { id: 'debug-class', closeFooter: true });
 
-  const closeBtn = document.getElementById('sa-debug-modal-close');
-  const overlay = modal.querySelector('.sa-modal-overlay');
+  const closeBtn = document.getElementById('app-debug-modal-close');
+  const overlay = modal.querySelector('.app-modal-overlay');
 
   const closeModal = () => {
     modal.classList.remove('show');
@@ -5050,7 +5050,7 @@ export async function openDebugModal(event) {
       activeTab = tabId;
 
       // Update tab buttons
-      tabBar.querySelectorAll('.sa-debug-tab-btn').forEach(btn => {
+      tabBar.querySelectorAll('.app-debug-tab-btn').forEach(btn => {
         btn.classList.toggle('active', btn.dataset.tab === tabId);
         const isActive = btn.dataset.tab === tabId;
         btn.style.background = isActive ? 'color-mix(in srgb, var(--feat-autoupgrade) 20%, transparent)' : 'transparent';
@@ -5117,7 +5117,7 @@ export async function openDebugModal(event) {
         const typeInfo = metadata.eventTypes.find(t => sameId(t.id, event.classTypeId) && (!event.gymId || t.gymId === event.gymId));
 
         computedHtml = `
-          <div class="sa-debug-computed" style="background:color-mix(in srgb, var(--feat-autoupgrade) 8%, transparent); border:1px solid color-mix(in srgb, var(--feat-autoupgrade) 20%, transparent); border-radius:10px; padding:14px; margin-bottom:16px;">
+          <div class="app-debug-computed" style="background:color-mix(in srgb, var(--feat-autoupgrade) 8%, transparent); border:1px solid color-mix(in srgb, var(--feat-autoupgrade) 20%, transparent); border-radius:10px; padding:14px; margin-bottom:16px;">
             <h5 style="color:var(--feat-autoupgrade); margin:0 0 10px 0; font-size:13px; font-weight:700;">Key Computed Values</h5>
             <div style="display:grid; grid-template-columns:1fr 1fr; gap:6px 16px; font-size:12px;">
               <span style="color:var(--text-secondary);">isLive:</span><span style="color:var(--text); font-weight:600;">${isLive}</span>
@@ -5147,7 +5147,7 @@ export async function openDebugModal(event) {
       contentArea.innerHTML = `
         ${computedHtml}
         ${relationsMapHtml}
-        <div class="sa-debug-json-block">
+        <div class="app-debug-json-block">
           <h5 style="color:var(--feat-autoupgrade); margin:0 0 8px 0; font-size:12px; font-weight:600; text-transform:uppercase; letter-spacing:0.5px;">${tabLabel}</h5>
           <pre style="background:var(--surface-inset); border:1px solid var(--border); border-radius:8px; padding:14px; font-size:12px; line-height:1.5; color:var(--text); max-height:440px; overflow:auto; white-space:pre-wrap; word-break:break-all; margin:0;">${escapeHtml(JSON.stringify(redactSensitivePayload(jsonData), null, 2))}</pre>
         </div>
@@ -5156,7 +5156,7 @@ export async function openDebugModal(event) {
 
     // Helper: build human-readable relations map
     function buildRelationsMapHtml(rels, evt) {
-      let html = '<div class="sa-debug-relations-map" style="background:color-mix(in srgb, var(--feat-autoupgrade) 8%, transparent); border:1px solid color-mix(in srgb, var(--feat-autoupgrade) 20%, transparent); border-radius:10px; padding:14px; margin-bottom:16px;">';
+      let html = '<div class="app-debug-relations-map" style="background:color-mix(in srgb, var(--feat-autoupgrade) 8%, transparent); border:1px solid color-mix(in srgb, var(--feat-autoupgrade) 20%, transparent); border-radius:10px; padding:14px; margin-bottom:16px;">';
       html += '<h5 style="color:var(--feat-autoupgrade); margin:0 0 10px 0; font-size:13px; font-weight:700;">Relations Map</h5>';
 
       // Studios
@@ -5221,46 +5221,46 @@ export async function openDebugModal(event) {
     body.innerHTML = `
       <div style="display:flex; flex-direction:column; gap:4px;">
         <!-- Quick-Book / Auto-Book / native page buttons -->
-        <div id="sa-debug-action-bar" style="display:flex; gap:8px; padding-bottom:12px; border-bottom:1px solid var(--border); margin-bottom:4px; flex-wrap:wrap;">
-          <button id="sa-debug-quick-book-btn" class="sa-btn-mini variant-success-muted">Quick-Book</button>
-          <button id="sa-debug-auto-book-btn" class="sa-btn-mini variant-neutral">Auto-Book Config</button>
-          ${nativePageUrl ? `<a href="${escapeHtml(nativePageUrl)}" target="_blank" rel="noopener noreferrer" class="sa-btn-mini" style="display:inline-flex; align-items:center; gap:5px; background:color-mix(in srgb, var(--info) 14%, transparent); border-color:color-mix(in srgb, var(--info) 30%, transparent); color:var(--info); text-decoration:none;">
+        <div id="app-debug-action-bar" style="display:flex; gap:8px; padding-bottom:12px; border-bottom:1px solid var(--border); margin-bottom:4px; flex-wrap:wrap;">
+          <button id="app-debug-quick-book-btn" class="app-btn-mini variant-success-muted">Quick-Book</button>
+          <button id="app-debug-auto-book-btn" class="app-btn-mini variant-neutral">Auto-Book Config</button>
+          ${nativePageUrl ? `<a href="${escapeHtml(nativePageUrl)}" target="_blank" rel="noopener noreferrer" class="app-btn-mini" style="display:inline-flex; align-items:center; gap:5px; background:color-mix(in srgb, var(--info) 14%, transparent); border-color:color-mix(in srgb, var(--info) 30%, transparent); color:var(--info); text-decoration:none;">
             <svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/><polyline points="15 3 21 3 21 9"/><line x1="10" y1="14" x2="21" y2="3"/></svg>
             Open native booking page
           </a>` : ''}
         </div>
         <!-- Tab bar -->
-        <div class="sa-debug-tab-bar" style="display:flex; gap:4px; border-bottom:1px solid var(--border); padding-bottom:8px; margin-bottom:12px; flex-wrap:wrap;">
+        <div class="app-debug-tab-bar" style="display:flex; gap:4px; border-bottom:1px solid var(--border); padding-bottom:8px; margin-bottom:12px; flex-wrap:wrap;">
           ${tabs.map(t => `
-            <button class="sa-debug-tab-btn" data-tab="${t.id}" style="background:${t.id === activeTab ? 'color-mix(in srgb, var(--feat-autoupgrade) 20%, transparent)' : 'transparent'}; border:1px solid ${t.id === activeTab ? 'color-mix(in srgb, var(--feat-autoupgrade) 40%, transparent)' : 'var(--border)'}; color:${t.id === activeTab ? 'var(--feat-autoupgrade)' : 'var(--text-secondary)'}; padding:6px 14px; border-radius:8px; cursor:pointer; font-size:12px; font-weight:600; transition:all 0.15s;">
+            <button class="app-debug-tab-btn" data-tab="${t.id}" style="background:${t.id === activeTab ? 'color-mix(in srgb, var(--feat-autoupgrade) 20%, transparent)' : 'transparent'}; border:1px solid ${t.id === activeTab ? 'color-mix(in srgb, var(--feat-autoupgrade) 40%, transparent)' : 'var(--border)'}; color:${t.id === activeTab ? 'var(--feat-autoupgrade)' : 'var(--text-secondary)'}; padding:6px 14px; border-radius:8px; cursor:pointer; font-size:12px; font-weight:600; transition:all 0.15s;">
               ${t.label}
             </button>
           `).join('')}
         </div>
         <!-- Content area -->
-        <div id="sa-debug-content" style="min-height:200px;"></div>
+        <div id="app-debug-content" style="min-height:200px;"></div>
       </div>
     `;
 
-    body.querySelector('#sa-debug-quick-book-btn').addEventListener('click', (e) => {
+    body.querySelector('#app-debug-quick-book-btn').addEventListener('click', (e) => {
       e.stopPropagation();
       e.preventDefault();
       closeModal();
       setTimeout(() => openBookingModal(event, 'quickbook'), 320);
     });
-    body.querySelector('#sa-debug-auto-book-btn').addEventListener('click', (e) => {
+    body.querySelector('#app-debug-auto-book-btn').addEventListener('click', (e) => {
       e.stopPropagation();
       e.preventDefault();
       closeModal();
       setTimeout(() => openBookingModal(event, 'autobook'), 320);
     });
 
-    const tabBar = body.querySelector('.sa-debug-tab-bar');
-    const contentArea = body.querySelector('#sa-debug-content');
+    const tabBar = body.querySelector('.app-debug-tab-bar');
+    const contentArea = body.querySelector('#app-debug-content');
 
     // Tab switching
     tabBar.addEventListener('click', (e) => {
-      const btn = e.target.closest('.sa-debug-tab-btn');
+      const btn = e.target.closest('.app-debug-tab-btn');
       if (btn) {
         renderDebugTab(btn.dataset.tab);
       }
@@ -5274,10 +5274,10 @@ export async function openDebugModal(event) {
     body.innerHTML = `
       <div style="padding:20px; text-align:center;">
         <p style="color:var(--danger); margin-bottom:12px;">Error loading debug data: ${escapeHtml(err.message)}</p>
-        <button class="sa-btn-mini variant-autoupgrade" id="sa-debug-retry-btn">Retry</button>
+        <button class="app-btn-mini variant-autoupgrade" id="app-debug-retry-btn">Retry</button>
       </div>
     `;
-    const retryBtn = body.querySelector('#sa-debug-retry-btn');
+    const retryBtn = body.querySelector('#app-debug-retry-btn');
     if (retryBtn) {
       retryBtn.onclick = () => openDebugModal(event);
     }

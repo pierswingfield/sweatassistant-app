@@ -301,16 +301,16 @@ Overlay background: `color-mix(in srgb, var(--bg) 60%, transparent)` with `backd
 
 #### 6.2.1 Mobile: every modal is a full-screen page (`modal-nav.js`)
 
-At ≤ 768px a modal must become a full-screen page with its action pinned at the bottom (Done / Save). That is not done with CSS in the modal itself: register the overlay with `openPage` from `client/src/ui/modal-nav.js`. It adds `.sa-page` (the full-screen CSS in `styles.css` keys off that class, so an un-registered modal stays a floating card on a phone), a history entry (hardware/iOS back closes it), a scroll lock, dialog semantics, focus and Escape. Above 768px it leaves the centred card alone.
+At ≤ 768px a modal must become a full-screen page with its action pinned at the bottom (Done / Save). That is not done with CSS in the modal itself: register the overlay with `openPage` from `client/src/ui/modal-nav.js`. It adds `.app-page` (the full-screen CSS in `styles.css` keys off that class, so an un-registered modal stays a floating card on a phone), a history entry (hardware/iOS back closes it), a scroll lock, dialog semantics, focus and Escape. Above 768px it leaves the centred card alone.
 
 Follow the Preferred Spot Maps manager (`openManageSpotMapsModal` in `settings.js`) or `openCalendarSettingsModal` (`calendar-section.js`):
 
-1. **Markup:** overlay `.sa-ovl` > `.sa-ovl-card` > `.sa-ovl-header` (title `<h3 data-nav-title>`, close `<button data-nav-close>`), `.sa-ovl-body` (`flex:1; overflow-y:auto`) and a footer holding the full-width Done / primary button. The footer goes **inside the card** so the page layout pins it to the bottom.
+1. **Markup:** overlay `.app-ovl` > `.app-ovl-card` > `.app-ovl-header` (title `<h3 data-nav-title>`, close `<button data-nav-close>`), `.app-ovl-body` (`flex:1; overflow-y:auto`) and a footer holding the full-width Done / primary button. The footer goes **inside the card** so the page layout pins it to the bottom.
 2. **Register:** append the overlay to `document.body`, then `openPage(overlay, { id: '<unique-id>', remove: true, onClose: cleanup })`.
 3. **Close:** every close path (×, Done, backdrop, Escape) calls `if (closePage(overlay)) return;` first. On mobile that pops the history entry and the page's `onClose` runs `cleanup`. Only when it returns false (desktop) do you run `cleanup()` and `overlay.remove()` yourself. Put teardown (listeners, callbacks to the opener) in `cleanup` so it runs exactly once on either path.
 4. **Stacking:** a modal opened from another page (e.g. from onboarding) is just another `openPage`, so Back returns to the page beneath. Give it the caller's `zIndex` (onboarding passes `1000000`).
 5. **Never** build a modal that only has `position:fixed` and a card; it works on desktop and is wrong on a phone. The `Done` footer is required on mobile for onboarding modals.
-6. **Test:** with `window.matchMedia` stubbed to match, assert the overlay gets `.sa-page` and Done fires `onClose` once (see `client/src/ui/calendar-modal.test.js`).
+6. **Test:** with `window.matchMedia` stubbed to match, assert the overlay gets `.app-page` and Done fires `onClose` once (see `client/src/ui/calendar-modal.test.js`).
 
 ### 6.3 Inputs & Dropdowns
 
@@ -346,7 +346,7 @@ backdrop-filter: blur(20px);
 
 ### 6.5 Buttons
 
-#### `.sa-btn-primary` — Primary CTA
+#### `.app-btn-primary` — Primary CTA
 Used for major actions: Buy, Confirm, Schedule:
 ```css
 background: var(--success); /* or --accent for neutral primary */
@@ -356,7 +356,7 @@ border: none;
 box-shadow: none;
 ```
 
-#### `.sa-btn-mini` — Small inline action
+#### `.app-btn-mini` — Small inline action
 Default neutral state:
 ```css
 background: color-mix(in srgb, var(--text) 6%, transparent);
@@ -369,12 +369,12 @@ padding: 4px 10px;
 
 Apply a variant class for colored states (see §6.6).
 
-#### `.sa-action-btn-mini` — In-list action button
-Same as `.sa-btn-mini` but with taller minimum height (36px) for use inside cards and table rows.
+#### `.app-action-btn-mini` — In-list action button
+Same as `.app-btn-mini` but with taller minimum height (36px) for use inside cards and table rows.
 
 ### 6.6 Button Semantic Variant Classes
 
-Apply on `.sa-btn-mini` or `.sa-action-btn-mini`:
+Apply on `.app-btn-mini` or `.app-action-btn-mini`:
 
 | Class | Background | Border | Text |
 |---|---|---|---|
@@ -548,8 +548,8 @@ pointer-events: none;
 Minimap sits inside the occupancy tooltip. Dots:
 
 ```css
-.sa-minimap-dot.available { background: var(--success); }
-.sa-minimap-dot.occupied  { background: var(--danger); }
+.app-minimap-dot.available { background: var(--success); }
+.app-minimap-dot.occupied  { background: var(--danger); }
 ```
 
 Loading spinner inside the tooltip uses `color: var(--feat-autoupgrade)` for the arc and `color: var(--text)` for label text.

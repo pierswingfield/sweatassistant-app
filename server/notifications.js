@@ -4,6 +4,7 @@ const db = require('./db');
 const pushService = require('./push');
 const { getGymConfig, DEFAULT_GYM_ID } = require('./gyms.config');
 const { isRollingWeekly } = require('./providers/booking-window');
+const { appName } = require('./config');
 
 const { zoneOfGym } = require('./providers/timezone');
 // Display zone for a notification: the gym it is about, never a literal.
@@ -250,6 +251,17 @@ function buildSample(type) {
   }
 }
 
+// Generic "is push working" notification. The only push that names the APP
+// rather than a gym, so its text comes from the instance config.
+function buildGenericTest() {
+  return { title: `${appName}: Test Notification`, body: `Your ${appName} server is ready to notify you!` };
+}
+
+async function sendGenericTest(userId) {
+  const built = buildGenericTest();
+  await pushService.sendNotification(userId, built.title, built.body, { type: 'test' });
+}
+
 async function sendSample(userId, type) {
   const built = buildSample(type);
   if (!built) throw new Error('Unknown notification type: ' + type);
@@ -263,6 +275,8 @@ module.exports = {
   notify,
   sendSample,
   buildSample,
+  buildGenericTest,
+  sendGenericTest,
   // formatting helpers (used by the reminder engine)
   formatDayTime,
   formatTime,

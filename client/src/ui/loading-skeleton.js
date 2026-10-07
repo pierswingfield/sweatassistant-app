@@ -1,7 +1,7 @@
 import { COPY } from '../copy.js';
 
 function skeletonLine(width, extraClass = '') {
-  return `<span class="sa-skeleton-line ${extraClass}" style="--skeleton-width:${width}" aria-hidden="true"></span>`;
+  return `<span class="app-skeleton-line ${extraClass}" style="--skeleton-width:${width}" aria-hidden="true"></span>`;
 }
 
 function escapeAttribute(value) {
@@ -10,8 +10,8 @@ function escapeAttribute(value) {
 
 export function renderCardSkeletons(count = 2, label = COPY.accessibility.loadingCards) {
   const cards = Array.from({ length: count }, (_, index) => `
-    <div class="sa-skeleton-card" aria-hidden="true" data-skeleton-index="${index}">
-      <div class="sa-skeleton-card-head">
+    <div class="app-skeleton-card" aria-hidden="true" data-skeleton-index="${index}">
+      <div class="app-skeleton-card-head">
         ${skeletonLine(index % 2 ? '42%' : '34%', 'is-strong')}
         ${skeletonLine('18%', 'is-chip')}
       </div>
@@ -20,12 +20,12 @@ export function renderCardSkeletons(count = 2, label = COPY.accessibility.loadin
     </div>
   `).join('');
 
-  return `<div class="sa-skeleton-list" role="status" aria-label="${escapeAttribute(label)}">${cards}</div>`;
+  return `<div class="app-skeleton-list" role="status" aria-label="${escapeAttribute(label)}">${cards}</div>`;
 }
 
 export function renderTimetableSkeleton(count = 6) {
   const rows = Array.from({ length: count }, (_, index) => `
-    <div class="sa-skeleton-table-row" aria-hidden="true" data-skeleton-index="${index}">
+    <div class="app-skeleton-table-row" aria-hidden="true" data-skeleton-index="${index}">
       ${skeletonLine('58px', 'is-time')}
       ${skeletonLine('54px', 'is-chip')}
       ${skeletonLine(index % 2 ? '170px' : '205px', 'is-class')}
@@ -35,5 +35,5 @@ export function renderTimetableSkeleton(count = 6) {
     </div>
   `).join('');
 
-  return `<div class="sa-skeleton-table" role="status" aria-label="${COPY.timetable.loadingTimetable}">${rows}</div>`;
+  return `<div class="app-skeleton-table" role="status" aria-label="${COPY.timetable.loadingTimetable}">${rows}</div>`;
 }

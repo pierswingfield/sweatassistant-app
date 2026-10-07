@@ -1,4 +1,4 @@
-// Sweat Assistant — user-specific calendar feed (iCalendar / .ics).
+// user-specific calendar feed (iCalendar / .ics).
 //
 // Publishes one VEVENT per class (booked, plus optionally tentative auto-book /
 // waitlist) to a per-user, token-authenticated `.ics` URL that Apple/Google
@@ -518,7 +518,7 @@ function buildWindowVEvent(userId, w) {
   const title = `${w.gymName} booking window opens`;
   return [
     'BEGIN:VEVENT',
-    `UID:psycle-${userId}-bw-${w.gymId}-${w.dateKey}@${APP_HOST}`,
+    `UID:app-${userId}-bw-${w.gymId}-${w.dateKey}@${APP_HOST}`,
     'SEQUENCE:0',
     `DTSTAMP:${fmtUTC(DateTime.now())}`,
     dtProp('DTSTART', start),
@@ -544,7 +544,7 @@ function buildVEvent(userId, row, addrMap, reminders) {
 
   const lines = [
     'BEGIN:VEVENT',
-    `UID:psycle-${userId}-${row.event_id}@${APP_HOST}`,
+    `UID:app-${userId}-${row.event_id}@${APP_HOST}`,
     `SEQUENCE:${row.sequence || 0}`,
     `DTSTAMP:${fmtUTC(DateTime.now())}`,
     dtProp('DTSTART', start),

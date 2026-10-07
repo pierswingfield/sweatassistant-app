@@ -1,4 +1,4 @@
-// Sweat Assistant — CodexFit provider adapter.
+// CodexFit provider adapter.
 //
 // Extracted from the previously-inlined CodexFit logic in auth.js, server.js,
 // scheduler.js, poller.js and calendar.js. All CodexFit HTTP specifics (base URL,

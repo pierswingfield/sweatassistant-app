@@ -256,3 +256,55 @@ forever; untouched).
 JWT lifetime): stop copying, delete `storage-migrate.js` and its two import lines, the `psycleTheme` fallback in
 `index.html`, and run `indexedDB.deleteDatabase('psycle-cache')` plus a sweep removing any remaining `psycle*` keys once.
 Check first that no support path still seeds old keys (`server/dev-setup-jab.js` already prints `sweat*`).
+
+## 12. Step 6 results (neutral `app` prefix, shim deleted, app name from config)
+
+**Master merge (`210124c`).** Master (favourites F-12, share-my-bookings F-3, perf/logging) overlapped 12 of our files
+(styles.css, index.html, main.js, timetable.js, settings.js, bookings.js, filter-rail.js, api.js, admin.html, poller.js,
+server.js, AGENTS.md). Dry-run merge gave 12 conflict hunks in 4 files (index.html 4, main.js 1, styles.css 5,
+timetable.js 2); every one was our renamed copy of lines master had rewritten, so master's side was kept and `psycle-`
+re-applied (about 140 new tokens, `psycleEvents`). Verified afterwards: no master-added CSS line missing, no class with a
+base rule now rule-less while still referenced, JS differs from master only by the intended renames. Favourites click-through
+in Chrome: heart toggles bookmarked/unbookmarked on a row, the Settings > Favourites pane lists the class, revert works.
+New favourites views (heart, pane with an item, share drawer) were added to the before/after harness.
+
+**Batch 7: `sa-`/`sweat-` -> `app-` (about 5,050 replacements, 70 files).** CSS/DOM classes, ids, `--sa-header-h`,
+`data-app-nav-inert`, events (`app-network-fail`, `app:gyms-changed`...), storage keys (`appLocalToken`, `appTheme`...),
+`history.state` keys, IndexedDB `app-cache`, service-worker caches (`app-cache-<stamp>`, `app-images-v2`,
+`app-config-v1`). Collision check first (grep of `app-`, `--app-`, `app[A-Z]`, ids): the only real clash was
+`sa-search-box` vs the newer `sweat-search-box` (both would become `app-search-box`), so the older bookings search field is
+now `app-search-field`; `sa-app-container` collapses to `app-container` (not `app-app-container`). Pre-existing
+`appName/appConfig/appCopy` JS identifiers do not clash with any string key. The migration shim is gone:
+`storage-migrate.js` + tests, its imports (api.js, main.js, settings.js, cache.js), the `psycleTheme` fallback in index.html,
+the legacy-name notes in sw.js/vite.config.js/AGENTS.md. `psycle-helper-favorites` -> `app-helper-favorites`,
+`window.__psycleTimetablePerformance` -> `__appTimetablePerformance` (only consumer was timetable.js). Server: calendar
+UID prefix `psycle-<user>-` -> `app-<user>-` (+ test-calendar-prefs), config export/import no longer emits or reads the
+`psycle*` keys (new `autoBookings`; the flat legacy import branches are removed, tests updated), package names `app-pwa/-client/-server`.
+
+**Batch 8: app name from config.** Literal 'Sweat Assistant' in code: 23 lines in 6 files before (index.html, manifest.json,
+sw.js, admin.html, server.js, app.config.json), 0 after; 73 occurrences including comments, 0 after (comments reworded).
+`app.config.json` deleted (and its Dockerfile COPYs). The default exists only in `server/config.js`. Mechanism: the static
+files carry `__APP_NAME__`; `server.js sendTemplated` substitutes the configured name per request (escaped for HTML, JSON or
+JS), the `template-app-name` Vite plugin does the same in dev, `vite build` leaves the placeholder; client `config.js` takes
+the already-templated `document.title`, then `/api/config`; the generic push test now comes from
+`notifications.js sendGenericTest` (title `<name>: Test Notification`). Tests: `test-app-name-config.js` (APP_NAME='Test Gym App'
+and an awkward name: /api/config, index, manifest, sw.js, admin, calendar PRODID/X-WR-CALNAME, push payload; none contain
+'Sweat') and `test-no-hardcoded-app-name.js` (source scan outside config.js). Chrome with APP_NAME overridden and default:
+title, apple title meta, login, onboarding, Settings > About, manifest, admin all show the configured name; with the
+override no 'Sweat' anywhere in the DOM.
+
+**Verification.** `npm test`: 78/78 server suites, 69 client files / 515 tests; client build OK. Real Chrome (CDP, one tab),
+113 views (6 tabs, 9 Settings panes incl. Favourites, modals incl. booking/filters/notification prefs/password/spot maps/
+profile explorer/add gym/re-auth/share drawer, login, 3 onboarding steps, favourites heart + pane, admin; light/dark; 1280/390)
+against a baseline of the merged tree: computed styles of every non-SVG-child element and their boxes identical (flaky views
+re-captured until they matched a baseline exactly); admin views are checked by diff instead (admin.html changed only by the
+placeholder and the token key, and its localStorage lives on a separate origin so the harness cannot reset it).
+
+**Hardcoded Psycle special cases still in core (listed, not refactored).** (1) `dev@psycle.com` mock bypass: auth.js,
+poller.js (2), scheduler.js, dev-setup-jab.js, plus `DEV_EMAIL` in providers/codexfit.js. (2) `server/config.js` default
+`publicHost` `psycle.wingfield.tech` and `push.js` default VAPID mailto `admin@psycle.wingfield.tech`. (3) `client/src/ui/credits.js`
+fallback website URL and checkout copy that assume Psycle's storefront. (4) `client/src/copy.js` welcome line "Works with
+Psycle, Barry's, SoulCycle, Aarmy, JAB...". (5) Infra naming: `DB_PATH=/data/psycle.db` in the Dockerfile, `psycleapp*`
+remote dirs in deploy.sh, `psycle-sqlite` backup paths, container `psycle-app-dev`: renaming touches the live prod volume,
+so not done. (6) `DEFAULT_GYM_ID = 'psycle-london'` fallbacks (gyms.config, by design) and test names such as
+`test-regression-psycle.js` (gym black-box suite).

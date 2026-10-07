@@ -169,7 +169,7 @@ check('isGymLinked is the boundary the x-gym-id header is checked against', () =
   assert.strictEqual(db.isGymLinked(uid, OTHER_GYM), true);
 });
 
-// --- 5. Sweat Assistant account identity (Decision D4) -----------------------
+// --- 5. The app account identity (Decision D4) -----------------------
 //
 // The SA credential is what makes the account survive a cancelled membership.
 // The migration path matters most: every existing account has password_hash NULL
@@ -225,7 +225,7 @@ check('unlinkGym removes the link but keeps the account (the D4 promise)', () =>
   const uid = makeUser(`unlink-${Date.now()}@test.local`);
   db.linkGym(uid, OTHER_GYM);
   db.unlinkGym(uid, OTHER_GYM);
-  assert.ok(db.getUserById(uid), 'the Sweat Assistant account still exists');
+  assert.ok(db.getUserById(uid), 'the app account still exists');
   assert.strictEqual(db.isGymLinked(uid, OTHER_GYM), false);
   assert.strictEqual(db.resolveActiveGymId(uid), DEFAULT_GYM,
     'and resolution falls back rather than pointing at a dead link');

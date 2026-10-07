@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
-  <title>Sweat Assistant</title>
+  <title>__APP_NAME__</title>
   
   <!-- Web App Manifest for PWA Home Screen Installation -->
   <link rel="manifest" href="/manifest.json">
@@ -12,7 +12,7 @@
   <meta name="mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-status-bar-style" content="default">
-  <meta name="apple-mobile-web-app-title" content="Sweat Assistant">
+  <meta name="apple-mobile-web-app-title" content="__APP_NAME__">
   <!-- Status bar / notch area colour. Two media-query-based tags let iOS
        pick the correct colour at initial render (before JS runs), avoiding
        a black notch in light mode. applyTheme() in main.js overrides both
@@ -29,8 +29,7 @@
     // prevents a theme flash on manual light/dark override).
     (function () {
       try {
-        // 'psycleTheme' is the pre-rename key (naming audit step 5); drop the fallback with storage-migrate.js.
-        var t = localStorage.getItem('sweatTheme') || localStorage.getItem('psycleTheme');
+        var t = localStorage.getItem('appTheme');
         if (t === 'light' || t === 'dark')
           document.documentElement.setAttribute('data-theme', t);
       } catch (e) {}
@@ -40,27 +39,27 @@
   <!-- Boot splash (E5): the app shell stays hidden until the first styled paint is ready, so nothing
        renders unstyled while web fonts / logos / auth resolve. Inline on purpose (no external request),
        themed before JS via prefers-color-scheme + the data-theme the script below sets, and it can never
-       block forever: `sa-ready` is added by main.js after checkAuth, or by the 3s timeout here. -->
-  <style id="sa-boot-css">
+       block forever: `app-ready` is added by main.js after checkAuth, or by the 3s timeout here. -->
+  <style id="app-boot-css">
     html { background: #090d16; }
     @media (prefers-color-scheme: light) { html:not([data-theme="dark"]) { background: #f5f2ec; } }
     html[data-theme="light"] { background: #f5f2ec; }
     html[data-theme="dark"] { background: #090d16; }
-    html:not(.sa-ready) body > * { visibility: hidden !important; }
-    html:not(.sa-ready)::after {
+    html:not(.app-ready) body > * { visibility: hidden !important; }
+    html:not(.app-ready)::after {
       content: ''; position: fixed; top: 50%; left: 50%; width: 26px; height: 26px; margin: -13px 0 0 -13px;
       border-radius: 50%; border: 3px solid rgba(128,128,128,.25); border-top-color: rgba(128,128,128,.85);
-      animation: sa-boot-spin .8s linear infinite;
+      animation: app-boot-spin .8s linear infinite;
     }
-    @keyframes sa-boot-spin { to { transform: rotate(360deg); } }
-    @media (prefers-reduced-motion: reduce) { html:not(.sa-ready)::after { animation: none; } }
+    @keyframes app-boot-spin { to { transform: rotate(360deg); } }
+    @media (prefers-reduced-motion: reduce) { html:not(.app-ready)::after { animation: none; } }
   </style>
   <script>
     // Credits tab is debug-only. Hidden by CSS unless the last known debugMode (cached by main.js) was on;
     // main.js applyCreditsTabGate() then sets the authoritative value.
-    try { if (localStorage.getItem('sweatCreditsTabHint') === '1') document.documentElement.setAttribute('data-credits-tab', 'on'); } catch (e) {}
+    try { if (localStorage.getItem('appCreditsTabHint') === '1') document.documentElement.setAttribute('data-credits-tab', 'on'); } catch (e) {}
   </script>
-  <script>setTimeout(function () { document.documentElement.classList.add('sa-ready'); }, 3000);</script>
+  <script>setTimeout(function () { document.documentElement.classList.add('app-ready'); }, 3000);</script>
 
   <!-- Web Fonts -->
   <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -72,104 +71,104 @@
 </head>
 <body>
   <!-- Toast Notifications Container -->
-  <div id="sa-toast-container" class="sa-toast-container"></div>
+  <div id="app-toast-container" class="app-toast-container"></div>
 
   <!-- 0. ONBOARDING (first-run guided flow) -->
-  <div id="sa-onboarding-container" class="sa-onboarding-container" style="display: none;"></div>
+  <div id="app-onboarding-container" class="app-onboarding-container" style="display: none;"></div>
 
   <!-- 1. LOGIN SCREEN -->
-  <div id="sa-login-container" class="sa-login-container" style="display: none;">
-    <div class="sa-login-card">
-      <div class="sa-login-logo">
-        <h1 id="sa-auth-title">Log in</h1>
-        <p id="sa-auth-subtitle">Sign in to your <span data-app-name>Sweat Assistant</span> account.</p>
+  <div id="app-login-container" class="app-login-container" style="display: none;">
+    <div class="app-login-card">
+      <div class="app-login-logo">
+        <h1 id="app-auth-title">Log in</h1>
+        <p id="app-auth-subtitle">Sign in to your <span data-app-name>__APP_NAME__</span> account.</p>
       </div>
 
       <!-- MODE: sign in -->
-      <form id="sa-login-form" class="sa-login-form">
-        <div class="sa-form-group">
-          <label for="sa-login-email" data-copy-text="static.emailAddress">Email Address</label>
-          <input type="email" id="sa-login-email" required placeholder="name@example.com" data-copy-placeholder="static.exampleEmail" autocomplete="username">
+      <form id="app-login-form" class="app-login-form">
+        <div class="app-form-group">
+          <label for="app-login-email" data-copy-text="static.emailAddress">Email Address</label>
+          <input type="email" id="app-login-email" required placeholder="name@example.com" data-copy-placeholder="static.exampleEmail" autocomplete="username">
         </div>
-        <div class="sa-form-group">
-          <label for="sa-login-password" data-copy-text="settings.password">Password</label>
-          <input type="password" id="sa-login-password" required placeholder="••••••••" data-copy-placeholder="static.passwordPlaceholder" autocomplete="current-password">
+        <div class="app-form-group">
+          <label for="app-login-password" data-copy-text="settings.password">Password</label>
+          <input type="password" id="app-login-password" required placeholder="••••••••" data-copy-placeholder="static.passwordPlaceholder" autocomplete="current-password">
         </div>
-        <div id="sa-login-error" class="sa-login-error" style="display:none;"></div>
-        <button type="submit" id="sa-login-submit-btn" class="sa-btn-primary">
+        <div id="app-login-error" class="app-login-error" style="display:none;"></div>
+        <button type="submit" id="app-login-submit-btn" class="app-btn-primary">
           <span data-copy-text="auth.logIn">Log In</span>
         </button>
       </form>
 
       <!-- MODE: create account -->
-      <form id="sa-signup-form" class="sa-login-form" style="display:none;">
-        <div class="sa-form-group">
-          <label for="sa-signup-email" data-copy-text="static.emailAddress">Email Address</label>
-          <input type="email" id="sa-signup-email" placeholder="name@example.com" data-copy-placeholder="static.exampleEmail" autocomplete="username">
+      <form id="app-signup-form" class="app-login-form" style="display:none;">
+        <div class="app-form-group">
+          <label for="app-signup-email" data-copy-text="static.emailAddress">Email Address</label>
+          <input type="email" id="app-signup-email" placeholder="name@example.com" data-copy-placeholder="static.exampleEmail" autocomplete="username">
         </div>
-        <div class="sa-form-group">
-          <label for="sa-signup-password" data-copy-text="settings.password">Password</label>
-          <input type="password" id="sa-signup-password" placeholder="At least 8 characters" data-copy-placeholder="static.passwordMinimumPlaceholder" autocomplete="new-password">
+        <div class="app-form-group">
+          <label for="app-signup-password" data-copy-text="settings.password">Password</label>
+          <input type="password" id="app-signup-password" placeholder="At least 8 characters" data-copy-placeholder="static.passwordMinimumPlaceholder" autocomplete="new-password">
         </div>
-        <div class="sa-form-group">
-          <label for="sa-signup-confirm" data-copy-text="static.confirmPassword">Confirm password</label>
-          <input type="password" id="sa-signup-confirm" placeholder="••••••••" data-copy-placeholder="static.passwordPlaceholder" autocomplete="new-password">
+        <div class="app-form-group">
+          <label for="app-signup-confirm" data-copy-text="static.confirmPassword">Confirm password</label>
+          <input type="password" id="app-signup-confirm" placeholder="••••••••" data-copy-placeholder="static.passwordPlaceholder" autocomplete="new-password">
         </div>
-        <div id="sa-signup-error" class="sa-login-error" style="display:none;"></div>
-        <button type="submit" id="sa-signup-submit-btn" class="sa-btn-primary">
+        <div id="app-signup-error" class="app-login-error" style="display:none;"></div>
+        <button type="submit" id="app-signup-submit-btn" class="app-btn-primary">
           <span data-copy-text="auth.createAccountButton">Create Account</span>
         </button>
       </form>
 
       <!-- MODE: recover -->
-      <form id="sa-recover-form" class="sa-login-form" style="display:none;">
-        <div class="sa-form-group">
-          <label for="sa-recover-email" data-copy-html="static.email">Your <span data-app-name>Sweat Assistant</span> email</label>
-          <input type="email" id="sa-recover-email" placeholder="name@example.com" data-copy-placeholder="static.exampleEmail" autocomplete="username">
+      <form id="app-recover-form" class="app-login-form" style="display:none;">
+        <div class="app-form-group">
+          <label for="app-recover-email" data-copy-html="static.email">Your <span data-app-name>__APP_NAME__</span> email</label>
+          <input type="email" id="app-recover-email" placeholder="name@example.com" data-copy-placeholder="static.exampleEmail" autocomplete="username">
         </div>
-        <div id="sa-recover-step1" style="display:block;">
-          <div id="sa-recover-error" class="sa-login-error" style="display:none;"></div>
-          <button type="button" id="sa-recover-find-btn" class="sa-btn-primary"><span data-copy-text="static.emailContinue">Continue</span></button>
-          <p class="sa-card-desc" data-copy-text="auth.resetUnavailable" style="margin-top:12px;font-size:12px;">Self-service reset isn’t available yet — contact the admin.</p>
+        <div id="app-recover-step1" style="display:block;">
+          <div id="app-recover-error" class="app-login-error" style="display:none;"></div>
+          <button type="button" id="app-recover-find-btn" class="app-btn-primary"><span data-copy-text="static.emailContinue">Continue</span></button>
+          <p class="app-card-desc" data-copy-text="auth.resetUnavailable" style="margin-top:12px;font-size:12px;">Self-service reset isn’t available yet — contact the admin.</p>
         </div>
       </form>
 
-      <div class="sa-login-footer">
-        <p id="sa-auth-switcher" style="margin-bottom:10px;">
-          <a href="#" id="sa-auth-to-signup" data-copy-text="auth.createAnAccount">Create an account</a>
+      <div class="app-login-footer">
+        <p id="app-auth-switcher" style="margin-bottom:10px;">
+          <a href="#" id="app-auth-to-signup" data-copy-text="auth.createAnAccount">Create an account</a>
           &nbsp;·&nbsp;
-          <a href="#" id="sa-auth-to-recover" data-copy-text="auth.forgotPassword">Forgot password?</a>
+          <a href="#" id="app-auth-to-recover" data-copy-text="auth.forgotPassword">Forgot password?</a>
         </p>
-        <p data-copy-text="static.accountPrivacy">Your Sweat Assistant account is separate from your gym logins. Gym login credentials are encrypted and stored in a secure private cloud. Stored data can be deleted at any time from Settings.</p>
+        <p data-copy-text="static.accountPrivacy">Your __APP_NAME__ account is separate from your gym logins. Gym login credentials are encrypted and stored in a secure private cloud. Stored data can be deleted at any time from Settings.</p>
       </div>
     </div>
   </div>
 
   <!-- 2. MAIN APPLICATION SHELL -->
-  <div id="sa-app-container" class="sa-panel" style="display: none;">
+  <div id="app-container" class="app-panel" style="display: none;">
       
     <!-- Top Action Bar -->
-    <header class="sa-header">
-      <div class="sa-title-area">
-        <img src="/icons/icon-192.png" class="sa-logo" alt="Sweat Assistant Logo">
-        <div class="sa-title-text-group">
-          <div class="sa-title-row">
-            <h2><span data-app-name>Sweat Assistant</span></h2>
+    <header class="app-header">
+      <div class="app-title-area">
+        <img src="/icons/icon-192.png" class="app-logo" alt="__APP_NAME__ Logo">
+        <div class="app-title-text-group">
+          <div class="app-title-row">
+            <h2><span data-app-name>__APP_NAME__</span></h2>
           </div>
         </div>
       </div>
-      <div class="sa-header-actions" id="sa-header-user-status">
-        <span class="sa-user-email" style="font-size: 13px; font-weight: 500; color: var(--text-secondary);" data-copy-text="static.headerLoading"></span>
-        <div class="sa-credit-badges" id="sa-header-credits" style="display: flex; gap: 8px;"></div>
+      <div class="app-header-actions" id="app-header-user-status">
+        <span class="app-user-email" style="font-size: 13px; font-weight: 500; color: var(--text-secondary);" data-copy-text="static.headerLoading"></span>
+        <div class="app-credit-badges" id="app-header-credits" style="display: flex; gap: 8px;"></div>
       </div>
     </header>
 
     <!-- Top Navigation Bar -->
-    <div class="sa-nav-bar">
-      <button class="sa-nav-btn active" data-tab="home" data-copy-text="navigation.home">Home</button>
-      <button class="sa-nav-btn" data-tab="class-timetable" data-copy-text="navigation.timetable">Class Timetable</button>
-      <button class="sa-nav-btn" data-tab="my-bookings" data-copy-text="navigation.bookings">My Bookings</button>
-      <button class="sa-nav-btn" data-tab="auto-book">
+    <div class="app-nav-bar">
+      <button class="app-nav-btn active" data-tab="home" data-copy-text="navigation.home">Home</button>
+      <button class="app-nav-btn" data-tab="class-timetable" data-copy-text="navigation.timetable">Class Timetable</button>
+      <button class="app-nav-btn" data-tab="my-bookings" data-copy-text="navigation.bookings">My Bookings</button>
+      <button class="app-nav-btn" data-tab="auto-book">
         <svg fill="currentColor" viewBox="0 0 32 32" xmlns="http://www.w3.org/2000/svg" aria-hidden="true" style="display:inline-block;vertical-align:middle;margin-right:4px;width:15px;height:15px;position:relative;top:-2px;">
           <g data-name="Layer 2" id="Layer_2">
             <path d="M18,11a1,1,0,0,1-1,1,5,5,0,0,0-5,5,1,1,0,0,1-2,0,5,5,0,0,0-5-5,1,1,0,0,1,0-2,5,5,0,0,0,5-5,1,1,0,0,1,2,0,5,5,0,0,0,5,5A1,1,0,0,1,18,11Z"/>
@@ -177,185 +176,185 @@
             <path d="M28,17a1,1,0,0,1-1,1,4,4,0,0,0-4,4,1,1,0,0,1-2,0,4,4,0,0,0-4-4,1,1,0,0,1,0-2,4,4,0,0,0,4-4,1,1,0,0,1,2,0,4,4,0,0,0,4,4A1,1,0,0,1,28,17Z"/>
           </g>
         </svg><span data-copy-text="navigation.autoBook"></span></button>
-      <button class="sa-nav-btn" data-tab="buy-credits" hidden data-copy-text="navigation.credits">Credits &amp; Membership</button>
-      <button class="sa-nav-btn" data-tab="settings" data-copy-text="navigation.settings">Settings</button>
+      <button class="app-nav-btn" data-tab="buy-credits" hidden data-copy-text="navigation.credits">Credits &amp; Membership</button>
+      <button class="app-nav-btn" data-tab="settings" data-copy-text="navigation.settings">Settings</button>
     </div>
 
     <!-- Main Workspace Panels (Rendered dynamically based on active tab) -->
-    <main class="sa-body">
+    <main class="app-body">
       
       <!-- HOME TAB PANEL (F-10-1: widget page) -->
-      <section id="sa-panel-home" class="sa-tab-content" style="display: none;">
-        <div class="sa-tab-header">
+      <section id="app-panel-home" class="app-tab-content" style="display: none;">
+        <div class="app-tab-header">
           <h3 data-copy-text="home.title">Home</h3>
           <p data-copy-text="home.subtitle"></p>
-          <button class="sa-tab-refresh-btn" data-refresh-tab="home" aria-label="Refresh Home" data-copy-aria-label="home.refresh" title="Refresh" data-copy-title="static.refresh">
+          <button class="app-tab-refresh-btn" data-refresh-tab="home" aria-label="Refresh Home" data-copy-aria-label="home.refresh" title="Refresh" data-copy-title="static.refresh">
             <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="23 4 23 10 17 10"/><path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10"/></svg>
           </button>
         </div>
-        <div id="sa-home-widgets" class="home-widgets"></div>
+        <div id="app-home-widgets" class="home-widgets"></div>
       </section>
 
       <!-- TIMETABLE TAB PANEL -->
-      <section id="sa-panel-class-timetable" class="sa-tab-content" style="display: none;">
+      <section id="app-panel-class-timetable" class="app-tab-content" style="display: none;">
         <!-- Title scrolls away; only the filters + date strip below stay pinned -->
-        <div class="sa-tab-header">
+        <div class="app-tab-header">
           <h3 data-copy-text="navigation.timetable">Class Timetable</h3>
           <p><span data-timetable-subtitle data-copy-text="static.timetableSubtitle">Book classes directly or schedule them for release.</span></p>
-          <button class="sa-tab-refresh-btn" data-refresh-tab="class-timetable" aria-label="Refresh timetable" data-copy-aria-label="static.refreshTimetable" title="Refresh" data-copy-title="static.refresh">
+          <button class="app-tab-refresh-btn" data-refresh-tab="class-timetable" aria-label="Refresh timetable" data-copy-aria-label="static.refreshTimetable" title="Refresh" data-copy-title="static.refresh">
             <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="23 4 23 10 17 10"/><path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10"/></svg>
           </button>
         </div>
-        <div class="sa-sticky-top">
+        <div class="app-sticky-top">
           <!-- Filters Area -->
-          <div class="sa-filters-card" id="sa-timetable-filters-container">
-            <div class="sa-filters-row" style="display: flex; gap: 8px; margin-bottom: 6px; flex-wrap: wrap; align-items: center; width: 100%;">
+          <div class="app-filters-card" id="app-timetable-filters-container">
+            <div class="app-filters-row" style="display: flex; gap: 8px; margin-bottom: 6px; flex-wrap: wrap; align-items: center; width: 100%;">
             
               <!-- Gym Dropdown (Visible when >1 gym linked) -->
-              <div class="sa-ms-dropdown" id="sa-ms-gym" style="display: none; flex: 1; min-width: 140px; position: relative;">
-                <button class="sa-ms-trigger" style="width: 100%; display: flex; justify-content: space-between; align-items: center; height: 40px !important;">
-                  <span class="sa-ms-trigger-text" data-copy-text="static.allGyms">All Gyms</span>
-                  <span class="sa-ms-arrow" style="font-size: 12px; transition: transform 0.2s;">▼</span>
+              <div class="app-ms-dropdown" id="app-ms-gym" style="display: none; flex: 1; min-width: 140px; position: relative;">
+                <button class="app-ms-trigger" style="width: 100%; display: flex; justify-content: space-between; align-items: center; height: 40px !important;">
+                  <span class="app-ms-trigger-text" data-copy-text="static.allGyms">All Gyms</span>
+                  <span class="app-ms-arrow" style="font-size: 12px; transition: transform 0.2s;">▼</span>
                 </button>
-                <div class="sa-ms-menu" style="display: none;">
+                <div class="app-ms-menu" style="display: none;">
                   <div style="display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid color-mix(in srgb, var(--text) 8%, transparent); padding-bottom: 6px; margin-bottom: 6px;">
                     <span style="font-size: 12px; color: var(--text-secondary); font-weight: 700;" data-copy-text="static.gyms">GYMS</span>
-                    <button class="sa-ms-clear-btn" data-copy-text="static.clear" style="background: transparent; border: none; color: var(--feat-autoupgrade); font-size: 12px; cursor: pointer; font-weight: 600; padding: 0;"></button>
+                    <button class="app-ms-clear-btn" data-copy-text="static.clear" style="background: transparent; border: none; color: var(--feat-autoupgrade); font-size: 12px; cursor: pointer; font-weight: 600; padding: 0;"></button>
                   </div>
-                  <div class="sa-ms-options-list" style="display: flex; flex-direction: column; gap: 6px;"></div>
+                  <div class="app-ms-options-list" style="display: flex; flex-direction: column; gap: 6px;"></div>
                 </div>
               </div>
 
               <!-- Location Dropdown -->
-              <div class="sa-ms-dropdown" id="sa-ms-location" style="flex: 1; min-width: 170px; position: relative;">
-                <button class="sa-ms-trigger" style="width: 100%; display: flex; justify-content: space-between; align-items: center; height: 40px !important;">
-                  <span class="sa-ms-trigger-text" data-copy-text="static.allLocations">All Locations</span>
-                  <span class="sa-ms-arrow" style="font-size: 12px; transition: transform 0.2s;">▼</span>
+              <div class="app-ms-dropdown" id="app-ms-location" style="flex: 1; min-width: 170px; position: relative;">
+                <button class="app-ms-trigger" style="width: 100%; display: flex; justify-content: space-between; align-items: center; height: 40px !important;">
+                  <span class="app-ms-trigger-text" data-copy-text="static.allLocations">All Locations</span>
+                  <span class="app-ms-arrow" style="font-size: 12px; transition: transform 0.2s;">▼</span>
                 </button>
-                <div class="sa-ms-menu" style="display: none;">
+                <div class="app-ms-menu" style="display: none;">
                   <div style="display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid color-mix(in srgb, var(--text) 8%, transparent); padding-bottom: 6px; margin-bottom: 6px;">
                     <span style="font-size: 12px; color: var(--text-secondary); font-weight: 700;" data-copy-text="static.locations">LOCATIONS</span>
-                    <button class="sa-ms-clear-btn" data-copy-text="static.clear" style="background: transparent; border: none; color: var(--feat-autoupgrade); font-size: 12px; cursor: pointer; font-weight: 600; padding: 0;"></button>
+                    <button class="app-ms-clear-btn" data-copy-text="static.clear" style="background: transparent; border: none; color: var(--feat-autoupgrade); font-size: 12px; cursor: pointer; font-weight: 600; padding: 0;"></button>
                   </div>
-                  <div class="sa-ms-options-list" style="display: flex; flex-direction: column; gap: 6px;"></div>
+                  <div class="app-ms-options-list" style="display: flex; flex-direction: column; gap: 6px;"></div>
                 </div>
               </div>
 
               <!-- Instructor Dropdown -->
-              <div class="sa-ms-dropdown" id="sa-ms-instructor" style="flex: 1; min-width: 170px; position: relative;">
-                <button class="sa-ms-trigger" style="width: 100%; display: flex; justify-content: space-between; align-items: center; height: 40px !important;">
-                  <span class="sa-ms-trigger-text" data-copy-text="static.allInstructors">All Instructors</span>
-                  <span class="sa-ms-arrow" style="font-size: 12px; transition: transform 0.2s;">▼</span>
+              <div class="app-ms-dropdown" id="app-ms-instructor" style="flex: 1; min-width: 170px; position: relative;">
+                <button class="app-ms-trigger" style="width: 100%; display: flex; justify-content: space-between; align-items: center; height: 40px !important;">
+                  <span class="app-ms-trigger-text" data-copy-text="static.allInstructors">All Instructors</span>
+                  <span class="app-ms-arrow" style="font-size: 12px; transition: transform 0.2s;">▼</span>
                 </button>
-                <div class="sa-ms-menu" style="display: none;">
+                <div class="app-ms-menu" style="display: none;">
                   <div style="display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid color-mix(in srgb, var(--text) 8%, transparent); padding-bottom: 6px; margin-bottom: 6px;">
                     <span style="font-size: 12px; color: var(--text-secondary); font-weight: 700;" data-copy-text="static.instructors">INSTRUCTORS</span>
-                    <button class="sa-ms-clear-btn" data-copy-text="static.clear" style="background: transparent; border: none; color: var(--feat-autoupgrade); font-size: 12px; cursor: pointer; font-weight: 600; padding: 0;"></button>
+                    <button class="app-ms-clear-btn" data-copy-text="static.clear" style="background: transparent; border: none; color: var(--feat-autoupgrade); font-size: 12px; cursor: pointer; font-weight: 600; padding: 0;"></button>
                   </div>
-                  <div class="sa-ms-options-list" style="display: flex; flex-direction: column; gap: 6px;"></div>
+                  <div class="app-ms-options-list" style="display: flex; flex-direction: column; gap: 6px;"></div>
                 </div>
               </div>
 
               <!-- Class Type Dropdown -->
-              <div class="sa-ms-dropdown" id="sa-ms-class-type" style="flex: 1; min-width: 170px; position: relative;">
-                <button class="sa-ms-trigger" style="width: 100%; display: flex; justify-content: space-between; align-items: center; height: 40px !important;">
-                  <span class="sa-ms-trigger-text" data-copy-text="static.allTypes">All Types</span>
-                  <span class="sa-ms-arrow" style="font-size: 12px; transition: transform 0.2s;">▼</span>
+              <div class="app-ms-dropdown" id="app-ms-class-type" style="flex: 1; min-width: 170px; position: relative;">
+                <button class="app-ms-trigger" style="width: 100%; display: flex; justify-content: space-between; align-items: center; height: 40px !important;">
+                  <span class="app-ms-trigger-text" data-copy-text="static.allTypes">All Types</span>
+                  <span class="app-ms-arrow" style="font-size: 12px; transition: transform 0.2s;">▼</span>
                 </button>
-                <div class="sa-ms-menu" style="display: none;">
+                <div class="app-ms-menu" style="display: none;">
                   <div style="display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid color-mix(in srgb, var(--text) 8%, transparent); padding-bottom: 6px; margin-bottom: 6px;">
                     <span style="font-size: 12px; color: var(--text-secondary); font-weight: 700;" data-copy-text="static.workoutTypes">WORKOUT TYPES</span>
-                    <button class="sa-ms-clear-btn" data-copy-text="static.clear" style="background: transparent; border: none; color: var(--feat-autoupgrade); font-size: 12px; cursor: pointer; font-weight: 600; padding: 0;"></button>
+                    <button class="app-ms-clear-btn" data-copy-text="static.clear" style="background: transparent; border: none; color: var(--feat-autoupgrade); font-size: 12px; cursor: pointer; font-weight: 600; padding: 0;"></button>
                   </div>
-                  <div class="sa-ms-options-list" style="display: flex; flex-direction: column; gap: 6px;"></div>
+                  <div class="app-ms-options-list" style="display: flex; flex-direction: column; gap: 6px;"></div>
                 </div>
               </div>
 
               <!-- Bookmarked Filter Toggle -->
-              <button id="sa-filter-favorites-only" class="sa-btn-mini" style="height: 40px !important; padding: 0 16px !important; border-radius: 12px !important; font-weight: 600; cursor: pointer;">
+              <button id="app-filter-favorites-only" class="app-btn-mini" style="height: 40px !important; padding: 0 16px !important; border-radius: 12px !important; font-weight: 600; cursor: pointer;">
                 <span data-copy-text="static.bookmarked">♡ Bookmarked</span>
               </button>
 
               <!-- Save/Clear controls -->
               <div style="display: flex; gap: 6px; flex-shrink: 0; align-items: center; height: 40px !important;">
-                <button id="sa-btn-clear-all-filters" class="sa-btn-mini" data-copy-text="static.clear" style="background: color-mix(in srgb, var(--danger) 15%, transparent); border: 1px solid color-mix(in srgb, var(--danger) 30%, transparent); color: var(--danger); height: 40px !important; padding: 0 16px !important; border-radius: 12px !important; font-weight: 600; cursor: pointer;" title="Clear All Filters"></button>
-                <button id="sa-btn-save-default-filters" class="sa-btn-mini" data-copy-text="static.save" style="background: color-mix(in srgb, var(--success) 15%, transparent); border: 1px solid color-mix(in srgb, var(--success) 30%, transparent); color: var(--success); height: 40px !important; padding: 0 16px !important; border-radius: 12px !important; font-weight: 600; cursor: pointer;" title="Save current filters as default">Save</button>
+                <button id="app-btn-clear-all-filters" class="app-btn-mini" data-copy-text="static.clear" style="background: color-mix(in srgb, var(--danger) 15%, transparent); border: 1px solid color-mix(in srgb, var(--danger) 30%, transparent); color: var(--danger); height: 40px !important; padding: 0 16px !important; border-radius: 12px !important; font-weight: 600; cursor: pointer;" title="Clear All Filters"></button>
+                <button id="app-btn-save-default-filters" class="app-btn-mini" data-copy-text="static.save" style="background: color-mix(in srgb, var(--success) 15%, transparent); border: 1px solid color-mix(in srgb, var(--success) 30%, transparent); color: var(--success); height: 40px !important; padding: 0 16px !important; border-radius: 12px !important; font-weight: 600; cursor: pointer;" title="Save current filters as default">Save</button>
               </div>
 
             </div>
           </div>
 
           <!-- Date Carousel -->
-          <div class="sa-date-selector" id="sa-timetable-carousel">
+          <div class="app-date-selector" id="app-timetable-carousel">
             <!-- Date items will be injected here -->
           </div>
         </div>
 
         <!-- Timetable Grid List -->
-        <div class="sa-timetable-list" id="sa-timetable-grid">
-          <div class="sa-loading-spinner-container">
-            <div class="sa-spinner"></div>
+        <div class="app-timetable-list" id="app-timetable-grid">
+          <div class="app-loading-spinner-container">
+            <div class="app-spinner"></div>
             <span data-copy-text="static.fetchingClasses">Fetching timetable classes...</span>
           </div>
         </div>
       </section>
 
       <!-- MY BOOKINGS TAB PANEL -->
-      <section id="sa-panel-my-bookings" class="sa-tab-content" style="display: none;">
-        <div class="sa-tab-header">
+      <section id="app-panel-my-bookings" class="app-tab-content" style="display: none;">
+        <div class="app-tab-header">
           <h3 data-copy-text="static.bookingsTitle">My Bookings &amp; Waitlists</h3>
           <p data-copy-text="static.bookingsSubtitle">Manage your active slots, waiting list status, and seat upgrade preferences.</p>
-          <button class="sa-tab-refresh-btn" data-refresh-tab="my-bookings" aria-label="Refresh bookings" data-copy-aria-label="static.refreshBookings" title="Refresh" data-copy-title="static.refresh">
+          <button class="app-tab-refresh-btn" data-refresh-tab="my-bookings" aria-label="Refresh bookings" data-copy-aria-label="static.refreshBookings" title="Refresh" data-copy-title="static.refresh">
             <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="23 4 23 10 17 10"/><path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10"/></svg>
           </button>
         </div>
 
-        <div class="sa-section">
-          <div class="sa-section-header">
-            <h3 data-copy-text="static.activeBookings">Active Bookings</h3><span id="sa-bookings-count" class="sa-section-count" hidden></span>
-            <span id="sa-bookings-refreshing" class="sa-refreshing-chip" style="display: none;"><span class="sa-spinner"></span> <span data-copy-text="static.refreshing">Refreshing...</span></span>
-            <button class="sa-share-btn" id="sa-bookings-share-btn" type="button" aria-label="Share my classes" data-copy-aria-label="share.button" title="Share my classes" data-copy-title="share.button">
+        <div class="app-section">
+          <div class="app-section-header">
+            <h3 data-copy-text="static.activeBookings">Active Bookings</h3><span id="app-bookings-count" class="app-section-count" hidden></span>
+            <span id="app-bookings-refreshing" class="app-refreshing-chip" style="display: none;"><span class="app-spinner"></span> <span data-copy-text="static.refreshing">Refreshing...</span></span>
+            <button class="app-share-btn" id="app-bookings-share-btn" type="button" aria-label="Share my classes" data-copy-aria-label="share.button" title="Share my classes" data-copy-title="share.button">
               <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 12v7a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-7"/><polyline points="16 6 12 2 8 6"/><line x1="12" y1="2" x2="12" y2="15"/></svg><span data-copy-text="share.buttonLabel">Share</span>
             </button>
           </div>
-          <div id="sa-bookings-list" class="sa-bookings-list">
-            <div class="sa-skeleton-list" role="status" aria-label="Loading bookings"><div class="sa-skeleton-card" aria-hidden="true"><div class="sa-skeleton-card-head"><span class="sa-skeleton-line is-strong" style="--skeleton-width:34%" aria-hidden="true"></span><span class="sa-skeleton-line is-chip" style="--skeleton-width:18%" aria-hidden="true"></span></div><span class="sa-skeleton-line" style="--skeleton-width:64%" aria-hidden="true"></span><span class="sa-skeleton-line is-short" style="--skeleton-width:56%" aria-hidden="true"></span></div><div class="sa-skeleton-card" aria-hidden="true"><div class="sa-skeleton-card-head"><span class="sa-skeleton-line is-strong" style="--skeleton-width:42%" aria-hidden="true"></span><span class="sa-skeleton-line is-chip" style="--skeleton-width:18%" aria-hidden="true"></span></div><span class="sa-skeleton-line" style="--skeleton-width:72%" aria-hidden="true"></span><span class="sa-skeleton-line is-short" style="--skeleton-width:48%" aria-hidden="true"></span></div></div>
+          <div id="app-bookings-list" class="app-bookings-list">
+            <div class="app-skeleton-list" role="status" aria-label="Loading bookings"><div class="app-skeleton-card" aria-hidden="true"><div class="app-skeleton-card-head"><span class="app-skeleton-line is-strong" style="--skeleton-width:34%" aria-hidden="true"></span><span class="app-skeleton-line is-chip" style="--skeleton-width:18%" aria-hidden="true"></span></div><span class="app-skeleton-line" style="--skeleton-width:64%" aria-hidden="true"></span><span class="app-skeleton-line is-short" style="--skeleton-width:56%" aria-hidden="true"></span></div><div class="app-skeleton-card" aria-hidden="true"><div class="app-skeleton-card-head"><span class="app-skeleton-line is-strong" style="--skeleton-width:42%" aria-hidden="true"></span><span class="app-skeleton-line is-chip" style="--skeleton-width:18%" aria-hidden="true"></span></div><span class="app-skeleton-line" style="--skeleton-width:72%" aria-hidden="true"></span><span class="app-skeleton-line is-short" style="--skeleton-width:48%" aria-hidden="true"></span></div></div>
           </div>
         </div>
 
-        <div class="sa-section" id="sa-waitlists-section" style="margin-top: 24px;">
-          <div class="sa-section-header" id="sa-waitlists-header">
-            <h3 data-copy-text="static.activeWaitlists">Active Waitlists</h3><span id="sa-waitlists-count" class="sa-section-count" hidden></span>
-            <span id="sa-waitlists-refreshing" class="sa-refreshing-chip" style="display: none;"><span class="sa-spinner"></span> <span data-copy-text="static.refreshing">Refreshing...</span></span>
+        <div class="app-section" id="app-waitlists-section" style="margin-top: 24px;">
+          <div class="app-section-header" id="app-waitlists-header">
+            <h3 data-copy-text="static.activeWaitlists">Active Waitlists</h3><span id="app-waitlists-count" class="app-section-count" hidden></span>
+            <span id="app-waitlists-refreshing" class="app-refreshing-chip" style="display: none;"><span class="app-spinner"></span> <span data-copy-text="static.refreshing">Refreshing...</span></span>
           </div>
-          <div id="sa-waitlists-list" class="sa-bookings-list">
-            <div class="sa-skeleton-list" role="status" aria-label="Loading waitlists"><div class="sa-skeleton-card" aria-hidden="true"><div class="sa-skeleton-card-head"><span class="sa-skeleton-line is-strong" style="--skeleton-width:34%" aria-hidden="true"></span><span class="sa-skeleton-line is-chip" style="--skeleton-width:18%" aria-hidden="true"></span></div><span class="sa-skeleton-line" style="--skeleton-width:64%" aria-hidden="true"></span><span class="sa-skeleton-line is-short" style="--skeleton-width:56%" aria-hidden="true"></span></div></div>
+          <div id="app-waitlists-list" class="app-bookings-list">
+            <div class="app-skeleton-list" role="status" aria-label="Loading waitlists"><div class="app-skeleton-card" aria-hidden="true"><div class="app-skeleton-card-head"><span class="app-skeleton-line is-strong" style="--skeleton-width:34%" aria-hidden="true"></span><span class="app-skeleton-line is-chip" style="--skeleton-width:18%" aria-hidden="true"></span></div><span class="app-skeleton-line" style="--skeleton-width:64%" aria-hidden="true"></span><span class="app-skeleton-line is-short" style="--skeleton-width:56%" aria-hidden="true"></span></div></div>
           </div>
         </div>
 
-        <button type="button" id="sa-waitlist-jump" class="sa-waitlist-jump" inert aria-hidden="true"></button>
+        <button type="button" id="app-waitlist-jump" class="app-waitlist-jump" inert aria-hidden="true"></button>
 
       </section>
 
       <!-- AUTO-BOOK TAB PANEL -->
-      <section id="sa-panel-auto-book" class="sa-tab-content" style="display: none;">
+      <section id="app-panel-auto-book" class="app-tab-content" style="display: none;">
         <!-- Global Release Countdown banner -->
-        <div class="sa-countdown-banner ab-banner">
-          <button class="sa-tab-refresh-btn" data-refresh-tab="auto-book" aria-label="Refresh auto-book queue" data-copy-aria-label="static.refreshAutobookQueue" title="Refresh" data-copy-title="static.refresh">
+        <div class="app-countdown-banner ab-banner">
+          <button class="app-tab-refresh-btn" data-refresh-tab="auto-book" aria-label="Refresh auto-book queue" data-copy-aria-label="static.refreshAutobookQueue" title="Refresh" data-copy-title="static.refresh">
             <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="23 4 23 10 17 10"/><path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10"/></svg>
           </button>
           <div class="ab-banner-body">
             <div class="ab-banner-headline">
               <span class="ab-banner-label" data-copy-text="static.nextBookingIn">Next booking in</span>
-              <span id="sa-autobook-countdown" class="ab-banner-time">—</span>
+              <span id="app-autobook-countdown" class="ab-banner-time">—</span>
             </div>
-            <div class="ab-banner-status" id="sa-countdown-status-indicator">
+            <div class="ab-banner-status" id="app-countdown-status-indicator">
               <span class="ab-status-icon" aria-hidden="true"></span>
               <span class="ab-status-text" data-copy-text="static.readyToBook">Ready to book</span>
             </div>
           </div>
           <!-- Pause / Favourites / Simulate controls injected here by renderAutoBookControls -->
-          <div class="ab-banner-footer" id="sa-autobook-controls-bar"></div>
+          <div class="ab-banner-footer" id="app-autobook-controls-bar"></div>
         </div>
 
         <!-- Scrollable body (queue + history) -->
@@ -370,34 +369,34 @@
                   <path d="M28,17a1,1,0,0,1-1,1,4,4,0,0,0-4,4,1,1,0,0,1-2,0,4,4,0,0,0-4-4,1,1,0,0,1,0-2,4,4,0,0,0,4-4,1,1,0,0,1,2,0,4,4,0,0,0,4,4A1,1,0,0,1,28,17Z"/>
                 </g>
               </svg><span data-copy-text="static.autoBookQueue">Auto-Book Queue</span></h2>
-            <div class="sa-queue-list ab-queue-list" id="sa-autobook-queue-container">
+            <div class="app-queue-list ab-queue-list" id="app-autobook-queue-container">
               <!-- Scheduled bookings will be rendered here as list cards -->
             </div>
           </div>
 
           <!-- History (collapsible, closed by default) -->
           <div class="ab-history-card">
-            <button id="sa-autobook-history-toggle" class="ab-history-toggle" type="button">
+            <button id="app-autobook-history-toggle" class="ab-history-toggle" type="button">
               <span class="ab-history-toggle-label">
                 <span class="ab-history-icon" aria-hidden="true"></span>
                 <h2 class="ab-page-title" style="margin:0;" data-copy-text="static.history">History</h2>
               </span>
-              <span id="sa-autobook-history-chevron" class="ab-history-chevron" aria-hidden="true"></span>
+              <span id="app-autobook-history-chevron" class="ab-history-chevron" aria-hidden="true"></span>
             </button>
-            <div id="sa-autobook-history-content" style="display:none;">
-              <div class="ab-history-list" id="sa-autobook-history-list"></div>
-              <div class="ab-history-pagination" id="sa-autobook-history-pagination"></div>
+            <div id="app-autobook-history-content" style="display:none;">
+              <div class="ab-history-list" id="app-autobook-history-list"></div>
+              <div class="ab-history-pagination" id="app-autobook-history-pagination"></div>
             </div>
           </div>
         </div>
       </section>
 
       <!-- CREDITS TAB PANEL -->
-      <section id="sa-panel-buy-credits" class="sa-tab-content" style="display: none;">
-        <div class="sa-tab-header">
+      <section id="app-panel-buy-credits" class="app-tab-content" style="display: none;">
+        <div class="app-tab-header">
           <h3 data-copy-text="navigation.credits">Credits &amp; Membership</h3>
           <p data-copy-text="static.creditSubtitle">Your booking allowance and purchase options for each connected gym.</p>
-          <button class="sa-tab-refresh-btn" data-refresh-tab="buy-credits" aria-label="Refresh credit bundles" data-copy-aria-label="static.refreshCreditBundles" title="Refresh" data-copy-title="static.refresh">
+          <button class="app-tab-refresh-btn" data-refresh-tab="buy-credits" aria-label="Refresh credit bundles" data-copy-aria-label="static.refreshCreditBundles" title="Refresh" data-copy-title="static.refresh">
             <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="23 4 23 10 17 10"/><path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10"/></svg>
           </button>
         </div>
@@ -407,204 +406,204 @@
              is one gym's catalogue of ~100 products and has no business being
              the first thing you see on a page whose question is "what can I
              book with, at each of my gyms?". -->
-        <div class="sa-benefit-grid" id="sa-credits-summary"></div>
+        <div class="app-benefit-grid" id="app-credits-summary"></div>
 
         <!-- DETAIL: a single gym's purchase flow. Hidden until a card opens it. -->
-        <div id="sa-credits-detail" hidden>
-          <button class="sa-btn sa-btn-mini" id="sa-credits-back" style="width:auto;" data-copy-text="static.allGymsBack">← All gyms</button>
-          <div id="sa-credit-purchase-heading"></div>
+        <div id="app-credits-detail" hidden>
+          <button class="app-btn app-btn-mini" id="app-credits-back" style="width:auto;" data-copy-text="static.allGymsBack">← All gyms</button>
+          <div id="app-credit-purchase-heading"></div>
 
         <!-- Credit bundle list (shown only when a linked gym supports purchases) -->
-        <div class="sa-bundles-filters" id="sa-bundles-filters">
-          <div class="sa-search-box">
+        <div class="app-bundles-filters" id="app-bundles-filters">
+          <div class="app-search-field">
             <svg class="search-icon" viewBox="0 0 24 24" width="16" height="16">
               <path fill="currentColor" d="M15.5 14h-.79l-.28-.27C15.41 12.59 16 11.11 16 9.5 16 5.91 13.09 3 9.5 3S3 5.91 3 9.5 5.91 16 9.5 16c1.61 0 3.09-.59 4.23-1.57l.27.28v.79l5 4.99L20.49 19l-4.99-5zm-6 0C7.01 14 5 11.99 5 9.5S7.01 5 9.5 5 14 7.01 14 9.5 11.99 14 9.5 14z"/>
             </svg>
-            <input type="text" id="sa-bundle-search" data-copy-placeholder="static.searchBundles" placeholder="Search bundles (e.g. 5 pack, Clapham, Ride)...">
+            <input type="text" id="app-bundle-search" data-copy-placeholder="static.searchBundles" placeholder="Search bundles (e.g. 5 pack, Clapham, Ride)...">
           </div>
-          <button id="sa-toggle-bundle-filters" class="sa-btn-mini" data-copy-text="static.categories" style="background: color-mix(in srgb, var(--feat-autoupgrade) 15%, transparent); border: 1px solid color-mix(in srgb, var(--feat-autoupgrade) 30%, transparent); color: var(--feat-autoupgrade); font-size: 12px; padding: 4px 10px; border-radius: 8px; cursor: pointer; flex-shrink: 0;">Categories</button>
-          <div class="sa-checkbox-filters" id="sa-bundles-checkbox-filters" style="display: none; margin-left: auto; flex: 1; padding: 0 12px; background: transparent; border: none;">
-            <label class="sa-checkbox-label">
-              <input type="checkbox" id="sa-show-single-topup" />
+          <button id="app-toggle-bundle-filters" class="app-btn-mini" data-copy-text="static.categories" style="background: color-mix(in srgb, var(--feat-autoupgrade) 15%, transparent); border: 1px solid color-mix(in srgb, var(--feat-autoupgrade) 30%, transparent); color: var(--feat-autoupgrade); font-size: 12px; padding: 4px 10px; border-radius: 8px; cursor: pointer; flex-shrink: 0;">Categories</button>
+          <div class="app-checkbox-filters" id="app-bundles-checkbox-filters" style="display: none; margin-left: auto; flex: 1; padding: 0 12px; background: transparent; border: none;">
+            <label class="app-checkbox-label">
+              <input type="checkbox" id="app-show-single-topup" />
               <span class="custom-checkbox"></span>
               <span title="Single-class credits and top-up / add-on packs" data-copy-title="static.singleCreditsHelp" data-copy-text="static.singleCredits">Single credits &amp; top-ups</span>
             </label>
-            <label class="sa-checkbox-label">
-              <input type="checkbox" id="sa-show-studio-location" />
+            <label class="app-checkbox-label">
+              <input type="checkbox" id="app-show-studio-location" />
               <span class="custom-checkbox"></span>
               <span title="Bundles tied to a specific studio/location (Victoria, Clapham, Shoreditch, Bank…) and at-home/online" data-copy-title="static.studioLocationBundlesHelp" data-copy-text="static.studioLocationBundles">Studio &amp; location-specific</span>
             </label>
-            <label class="sa-checkbox-label">
-              <input type="checkbox" id="sa-show-member-student" />
+            <label class="app-checkbox-label">
+              <input type="checkbox" id="app-show-member-student" />
               <span class="custom-checkbox"></span>
               <span title="Student, member, corporate, graduate and unlimited/membership bundles" data-copy-title="static.memberStudentBundlesHelp" data-copy-text="static.memberStudentBundles">Member, student &amp; corporate</span>
             </label>
-            <label class="sa-checkbox-label">
-              <input type="checkbox" id="sa-show-intro-promo" />
+            <label class="app-checkbox-label">
+              <input type="checkbox" id="app-show-intro-promo" />
               <span class="custom-checkbox"></span>
               <span title="Intro/welcome offers, partner, event, promotional, free/test and expired bundles" data-copy-title="static.introBundlesHelp" data-copy-text="static.introBundles">Intro, promo &amp; other</span>
             </label>
           </div>
         </div>
 
-        <div class="sa-bundles-grid" id="sa-bundles-container">
+        <div class="app-bundles-grid" id="app-bundles-container">
           <!-- Bundles will be rendered as cards here -->
         </div>
-        </div><!-- /#sa-credits-detail -->
-        <div id="sa-membership-sections" hidden></div>
+        </div><!-- /#app-credits-detail -->
+        <div id="app-membership-sections" hidden></div>
       </section>
 
       <!-- SETTINGS TAB PANEL -->
-      <section id="sa-panel-settings" class="sa-tab-content" style="display: none;">
+      <section id="app-panel-settings" class="app-tab-content" style="display: none;">
         
-        <div class="sa-settings-layout" id="sa-settings-layout-wrapper">
+        <div class="app-settings-layout" id="app-settings-layout-wrapper">
           
           <!-- Left Sidebar (Desktop) / iOS-style List (Mobile) -->
-          <aside class="sa-settings-sidebar">
-            <div class="sa-settings-sidebar-header">
+          <aside class="app-settings-sidebar">
+            <div class="app-settings-sidebar-header">
               <h3 data-copy-text="navigation.settings">Settings</h3>
             </div>
-            <nav class="sa-settings-menu">
-              <button class="sa-settings-menu-item" data-settings-section="about">
+            <nav class="app-settings-menu">
+              <button class="app-settings-menu-item" data-settings-section="about">
                 <span class="menu-item-text" data-copy-text="static.about">About</span>
               </button>
-              <button class="sa-settings-menu-item active" data-settings-section="general">
+              <button class="app-settings-menu-item active" data-settings-section="general">
                 <span class="menu-item-text" data-copy-text="static.general">General</span>
               </button>
-              <button class="sa-settings-menu-item" data-settings-section="calendar">
+              <button class="app-settings-menu-item" data-settings-section="calendar">
                 <span class="menu-item-text" data-copy-text="static.calendarSync">Calendar Sync</span>
               </button>
-              <button class="sa-settings-menu-item" data-settings-section="notifications">
+              <button class="app-settings-menu-item" data-settings-section="notifications">
                 <span class="menu-item-text" data-copy-text="static.notifications">Notifications</span>
               </button>
-              <button class="sa-settings-menu-item" data-settings-section="favourites">
+              <button class="app-settings-menu-item" data-settings-section="favourites">
                 <span class="menu-item-text" data-copy-text="static.favourites">Favourites</span>
               </button>
-              <button class="sa-settings-menu-item" data-settings-section="gyms">
+              <button class="app-settings-menu-item" data-settings-section="gyms">
                 <span class="menu-item-text" data-copy-text="static.yourGyms">Your Gyms</span>
               </button>
               <!-- per-gym entries are inserted here (before Account) by renderGymsCard -->
-              <button class="sa-settings-menu-item" data-settings-section="account">
+              <button class="app-settings-menu-item" data-settings-section="account">
                 <span class="menu-item-text" data-copy-text="static.account">Account</span>
               </button>
             </nav>
           </aside>
 
           <!-- Main Content Area -->
-          <div class="sa-settings-content">
+          <div class="app-settings-content">
             
             <!-- Back button for mobile view -->
-            <div class="sa-settings-mobile-header">
-              <button id="sa-settings-back-btn" class="sa-settings-back-btn">
+            <div class="app-settings-mobile-header">
+              <button id="app-settings-back-btn" class="app-settings-back-btn">
                 <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><line x1="19" y1="12" x2="5" y2="12"/><polyline points="12 19 5 12 12 5"/></svg>
                 <span data-copy-text="static.back">Back</span>
               </button>
-              <h4 id="sa-settings-section-title" data-copy-text="static.general">General</h4>
+              <h4 id="app-settings-section-title" data-copy-text="static.general">General</h4>
             </div>
 
             <!-- Scrollable content sections -->
-            <div class="sa-settings-section-panes">
+            <div class="app-settings-section-panes">
               
               <!-- SECTION: ABOUT -->
-              <div class="sa-settings-section-pane" id="sa-settings-pane-about">
-                <div class="sa-tab-header" style="padding-left:0; padding-right:0; padding-top:0; border-bottom:none;">
-                  <h3><span data-copy-text="static.about">About</span> <span data-app-name>Sweat Assistant</span></h3>
+              <div class="app-settings-section-pane" id="app-settings-pane-about">
+                <div class="app-tab-header" style="padding-left:0; padding-right:0; padding-top:0; border-bottom:none;">
+                  <h3><span data-copy-text="static.about">About</span> <span data-app-name>__APP_NAME__</span></h3>
                   <p data-copy-html="about.taglineHtml"></p>
                 </div>
-                <div class="sa-settings-grid" style="padding-left:0; padding-right:0;">
-                  <div class="sa-settings-card">
+                <div class="app-settings-grid" style="padding-left:0; padding-right:0;">
+                  <div class="app-settings-card">
                     <h4 data-copy-text="static.aboutHeading">What is this?</h4>
-                    <p class="sa-card-desc" data-copy-html="about.disclaimerHtml" style="line-height:1.7;"></p>
-                    <p class="sa-card-desc" data-copy-text="static.aboutSecurity" style="line-height:1.7;margin-top:8px;">Gym login credentials are encrypted and stored in a secure private cloud. Your Sweat Assistant account is separate from your gym logins. You can delete stored data at any time from Settings.</p>
+                    <p class="app-card-desc" data-copy-html="about.disclaimerHtml" style="line-height:1.7;"></p>
+                    <p class="app-card-desc" data-copy-text="static.aboutSecurity" style="line-height:1.7;margin-top:8px;">Gym login credentials are encrypted and stored in a secure private cloud. Your __APP_NAME__ account is separate from your gym logins. You can delete stored data at any time from Settings.</p>
                   </div>
-                  <div class="sa-settings-card">
+                  <div class="app-settings-card">
                     <h4 data-copy-text="static.features">Features</h4>
                     <div style="display:flex;flex-direction:column;gap:10px;margin-top:4px;">
                       <div style="display:flex;gap:10px;align-items:flex-start;">
                         <span style="font-size:16px;flex-shrink:0;">📅</span>
-                        <div><strong style="color:var(--text);font-size:13px;" data-copy-text="navigation.autoBook">Auto-Book</strong><p class="sa-card-desc" data-copy-text="static.aboutAutoBook" style="margin:2px 0 0;">Schedules a booking to fire at the exact millisecond a class is released, giving you priority access. (Gyms differ: some release weekly, some per class — the countdown shows whichever applies.)</p></div>
+                        <div><strong style="color:var(--text);font-size:13px;" data-copy-text="navigation.autoBook">Auto-Book</strong><p class="app-card-desc" data-copy-text="static.aboutAutoBook" style="margin:2px 0 0;">Schedules a booking to fire at the exact millisecond a class is released, giving you priority access. (Gyms differ: some release weekly, some per class — the countdown shows whichever applies.)</p></div>
                       </div>
                       <div style="display:flex;gap:10px;align-items:flex-start;">
                         <span style="font-size:16px;flex-shrink:0;">⬆️</span>
-                        <div><strong style="color:var(--text);font-size:13px;">Auto-Upgrade</strong><p class="sa-card-desc" data-copy-text="static.aboutAutoUpgrade" style="margin:2px 0 0;">Continuously monitors your booked class and upgrades you to a better spot if one becomes available.</p></div>
+                        <div><strong style="color:var(--text);font-size:13px;">Auto-Upgrade</strong><p class="app-card-desc" data-copy-text="static.aboutAutoUpgrade" style="margin:2px 0 0;">Continuously monitors your booked class and upgrades you to a better spot if one becomes available.</p></div>
                       </div>
                       <div style="display:flex;gap:10px;align-items:flex-start;">
                         <span style="font-size:16px;flex-shrink:0;">⚡</span>
-                        <div><strong style="color:var(--text);font-size:13px;">Quick-Book</strong><p class="sa-card-desc" data-copy-text="static.aboutQuickBook" style="margin:2px 0 0;">Books your preferred spot in any class in one click, using your saved seat preferences per studio.</p></div>
+                        <div><strong style="color:var(--text);font-size:13px;">Quick-Book</strong><p class="app-card-desc" data-copy-text="static.aboutQuickBook" style="margin:2px 0 0;">Books your preferred spot in any class in one click, using your saved seat preferences per studio.</p></div>
                       </div>
                       <div style="display:flex;gap:10px;align-items:flex-start;">
                         <span style="font-size:16px;flex-shrink:0;">🗺️</span>
-                        <div><strong style="color:var(--text);font-size:13px;">Preferred Spot Maps</strong><p class="sa-card-desc" data-copy-text="static.aboutSpotMaps" style="margin:2px 0 0;">Save your favourite seat positions per studio — used automatically by Quick-Book, Auto-Book, and Auto-Upgrade.</p></div>
+                        <div><strong style="color:var(--text);font-size:13px;">Preferred Spot Maps</strong><p class="app-card-desc" data-copy-text="static.aboutSpotMaps" style="margin:2px 0 0;">Save your favourite seat positions per studio — used automatically by Quick-Book, Auto-Book, and Auto-Upgrade.</p></div>
                       </div>
                       <div style="display:flex;gap:10px;align-items:flex-start;">
                         <span style="font-size:16px;flex-shrink:0;">🔔</span>
-                        <div><strong style="color:var(--text);font-size:13px;" data-copy-text="static.pushNotifications">Push Notifications</strong><p class="sa-card-desc" data-copy-text="static.aboutPush" style="margin:2px 0 0;">Receive instant alerts on your device when Auto-Book or Auto-Upgrade takes action.</p></div>
+                        <div><strong style="color:var(--text);font-size:13px;" data-copy-text="static.pushNotifications">Push Notifications</strong><p class="app-card-desc" data-copy-text="static.aboutPush" style="margin:2px 0 0;">Receive instant alerts on your device when Auto-Book or Auto-Upgrade takes action.</p></div>
                       </div>
                       <div style="display:flex;gap:10px;align-items:flex-start;">
                         <span style="font-size:16px;flex-shrink:0;">📆</span>
-                        <div><strong style="color:var(--text);font-size:13px;" data-copy-text="static.calendarSync">Calendar Sync</strong><p class="sa-card-desc" data-copy-text="static.aboutCalendar" style="margin:2px 0 0;">Add your classes to Apple or Google Calendar. They stay in sync automatically — bookings, upgrades and cancellations update on their own.</p></div>
+                        <div><strong style="color:var(--text);font-size:13px;" data-copy-text="static.calendarSync">Calendar Sync</strong><p class="app-card-desc" data-copy-text="static.aboutCalendar" style="margin:2px 0 0;">Add your classes to Apple or Google Calendar. They stay in sync automatically — bookings, upgrades and cancellations update on their own.</p></div>
                       </div>
                     </div>
                   </div>
-                  <div class="sa-settings-card">
+                  <div class="app-settings-card">
                     <h4 data-copy-text="static.privacyData">Privacy & Data</h4>
-                    <p class="sa-card-desc" data-copy-text="static.privacyDescription" style="line-height:1.7;">Gym login credentials are encrypted and stored in a secure private cloud. Your Sweat Assistant account is separate from your gym logins. You can delete all stored data at any time from Settings.</p>
+                    <p class="app-card-desc" data-copy-text="static.privacyDescription" style="line-height:1.7;">Gym login credentials are encrypted and stored in a secure private cloud. Your __APP_NAME__ account is separate from your gym logins. You can delete all stored data at any time from Settings.</p>
                   </div>
                   <!-- Welcome Tour -->
-                  <div class="sa-settings-card">
+                  <div class="app-settings-card">
                     <h4 data-copy-text="static.welcomeTour">Welcome Tour</h4>
-                    <p class="sa-card-desc" data-copy-html="static.welcomeTourDescription">Replay the introduction and setup walkthrough for <span data-app-name>Sweat Assistant</span>.</p>
-                    <button id="sa-replay-onboarding-btn" class="sa-btn" data-copy-text="static.replayOnboarding" style="width: 100%;">Replay Onboarding</button>
+                    <p class="app-card-desc" data-copy-html="static.welcomeTourDescription">Replay the introduction and setup walkthrough for <span data-app-name>__APP_NAME__</span>.</p>
+                    <button id="app-replay-onboarding-btn" class="app-btn" data-copy-text="static.replayOnboarding" style="width: 100%;">Replay Onboarding</button>
                   </div>
                 </div>
               </div>
 
               <!-- SECTION: ACCOUNT -->
-              <div class="sa-settings-section-pane active" id="sa-settings-pane-general">
-                <div class="sa-tab-header" style="padding-left:0; padding-right:0; padding-top:0; border-bottom:none;">
+              <div class="app-settings-section-pane active" id="app-settings-pane-general">
+                <div class="app-tab-header" style="padding-left:0; padding-right:0; padding-top:0; border-bottom:none;">
                   <h3 data-copy-text="static.general">General</h3>
-                  <p data-copy-html="static.generalDescription">Appearance, behaviour and backup — settings that apply to your whole <span data-app-name>Sweat Assistant</span> account.</p>
+                  <p data-copy-html="static.generalDescription">Appearance, behaviour and backup — settings that apply to your whole <span data-app-name>__APP_NAME__</span> account.</p>
                 </div>
-                <div class="sa-settings-grid" style="padding-left:0; padding-right:0;">
-                  <div class="sa-settings-card">
+                <div class="app-settings-grid" style="padding-left:0; padding-right:0;">
+                  <div class="app-settings-card">
                     <h4 data-copy-text="static.appearance">Appearance</h4>
-                    <p class="sa-card-desc" data-copy-text="static.chooseTheme">Choose light or dark, or follow your device automatically.</p>
-                    <div class="sa-segmented" id="sa-theme-segmented" role="group" aria-label="Theme" data-copy-aria-label="static.theme">
-                      <button class="sa-segmented-btn" data-theme-mode="auto" data-copy-text="static.auto">Auto</button>
-                      <button class="sa-segmented-btn" data-theme-mode="light" data-copy-text="static.light">Light</button>
-                      <button class="sa-segmented-btn" data-theme-mode="dark" data-copy-text="static.dark">Dark</button>
+                    <p class="app-card-desc" data-copy-text="static.chooseTheme">Choose light or dark, or follow your device automatically.</p>
+                    <div class="app-segmented" id="app-theme-segmented" role="group" aria-label="Theme" data-copy-aria-label="static.theme">
+                      <button class="app-segmented-btn" data-theme-mode="auto" data-copy-text="static.auto">Auto</button>
+                      <button class="app-segmented-btn" data-theme-mode="light" data-copy-text="static.light">Light</button>
+                      <button class="app-segmented-btn" data-theme-mode="dark" data-copy-text="static.dark">Dark</button>
                     </div>
                   </div>
-                  <div class="sa-settings-card">
+                  <div class="app-settings-card">
                     <h4 data-copy-text="static.appBehaviour">App Behaviour</h4>
-                    <p class="sa-card-desc" data-copy-text="static.performancePreferences">Performance preferences shared across every linked gym.</p>
-                    <div class="sa-setting-row">
-                      <div class="sa-setting-label">
+                    <p class="app-card-desc" data-copy-text="static.performancePreferences">Performance preferences shared across every linked gym.</p>
+                    <div class="app-setting-row">
+                      <div class="app-setting-label">
                         <span data-copy-text="static.prefetchRange">Timetable Prefetch Range</span>
                         <small data-copy-text="static.prefetchHelp">Number of weeks to prefetch when loading the timetable (1–8).</small>
                       </div>
-                      <select id="sa-setting-prefetch-weeks" class="sa-select">
+                      <select id="app-setting-prefetch-weeks" class="app-select">
                         <option value="1" data-copy-text="static.prefetchWeek1">1 week</option><option value="2" data-copy-text="static.prefetchWeek2">2 weeks</option><option value="3" data-copy-text="static.prefetchWeek3">3 weeks</option><option value="4" selected data-copy-text="static.prefetchWeek4">4 weeks</option>
                         <option value="5" data-copy-text="static.prefetchWeek5">5 weeks</option><option value="6" data-copy-text="static.prefetchWeek6">6 weeks</option><option value="7" data-copy-text="static.prefetchWeek7">7 weeks</option><option value="8" data-copy-text="static.prefetchWeek8">8 weeks</option>
                       </select>
                     </div>
                   </div>
                   <!-- TEMP: hidden unless debugMode (toggled by applyBackupMigrationGate in main.js) -->
-                  <div class="sa-settings-card" id="sa-settings-backup-card" hidden style="display:none;">
+                  <div class="app-settings-card" id="app-settings-backup-card" hidden style="display:none;">
                     <h4 data-copy-text="static.backupMigration">Backup & Migration</h4>
-                    <p class="sa-card-desc" data-copy-text="static.configMigrationHelp">Import or export configuration JSON compatible with the Chrome extension.</p>
-                    <div class="sa-settings-btn-row">
-                      <button id="sa-settings-export-btn" class="sa-btn" data-copy-text="static.exportConfig">Export Config JSON</button>
-                      <button id="sa-settings-import-btn" class="sa-btn" data-copy-text="static.importConfig">Import Config JSON</button>
-                      <input type="file" id="sa-settings-import-file" style="display:none;" accept=".json">
+                    <p class="app-card-desc" data-copy-text="static.configMigrationHelp">Import or export configuration JSON compatible with the Chrome extension.</p>
+                    <div class="app-settings-btn-row">
+                      <button id="app-settings-export-btn" class="app-btn" data-copy-text="static.exportConfig">Export Config JSON</button>
+                      <button id="app-settings-import-btn" class="app-btn" data-copy-text="static.importConfig">Import Config JSON</button>
+                      <input type="file" id="app-settings-import-file" style="display:none;" accept=".json">
                     </div>
                   </div>
-                  <div class="sa-settings-card">
+                  <div class="app-settings-card">
                     <h4 data-copy-text="static.debugMode">Debug Mode</h4>
-                    <p class="sa-card-desc" data-copy-text="static.debugModeHelp">Show raw API diagnostics, class JSON and troubleshooting controls.</p>
-                    <div class="sa-setting-row">
-                      <div class="sa-setting-label"><span data-copy-text="static.enableDebugMode">Enable Debug Mode</span><small data-copy-text="static.debugModeDetail">Exposes debug actions throughout the app.</small></div>
-                      <label class="sa-switch"><input type="checkbox" id="sa-setting-debug-mode"><span class="sa-slider"></span></label>
+                    <p class="app-card-desc" data-copy-text="static.debugModeHelp">Show raw API diagnostics, class JSON and troubleshooting controls.</p>
+                    <div class="app-setting-row">
+                      <div class="app-setting-label"><span data-copy-text="static.enableDebugMode">Enable Debug Mode</span><small data-copy-text="static.debugModeDetail">Exposes debug actions throughout the app.</small></div>
+                      <label class="app-switch"><input type="checkbox" id="app-setting-debug-mode"><span class="app-slider"></span></label>
                     </div>
                   </div>
                 </div>
@@ -612,100 +611,100 @@
 
               <!-- SECTION: CALENDAR SYNC (U4-16). Calendar is ACCOUNT-level, not per gym
                    (2026-09-14): one feed carries every linked gym. -->
-              <div class="sa-settings-section-pane" id="sa-settings-pane-calendar">
-                <div class="sa-tab-header" style="padding-left:0; padding-right:0; padding-top:0; border-bottom:none;">
+              <div class="app-settings-section-pane" id="app-settings-pane-calendar">
+                <div class="app-tab-header" style="padding-left:0; padding-right:0; padding-top:0; border-bottom:none;">
                   <h3 data-copy-text="static.calendarSync">Calendar Sync</h3>
                   <p data-copy-text="static.calendarDescription">One calendar feed covering every gym you've connected. Stays in sync with bookings, waitlists and cancellations.</p>
                 </div>
-                <div class="sa-settings-grid" id="sa-calendar-section" style="padding-left:0; padding-right:0;"><div class="sa-settings-card"><p class="sa-card-desc" data-copy-text="static.loading">Loading…</p></div></div>
+                <div class="app-settings-grid" id="app-calendar-section" style="padding-left:0; padding-right:0;"><div class="app-settings-card"><p class="app-card-desc" data-copy-text="static.loading">Loading…</p></div></div>
               </div>
 
               <!-- SECTION: FAVOURITES (F-12, gym-neutral favourites). ACCOUNT-level: every linked gym, one list. -->
-              <div class="sa-settings-section-pane" id="sa-settings-pane-favourites">
-                <div class="sa-tab-header" style="padding-left:0; padding-right:0; padding-top:0; border-bottom:none;">
+              <div class="app-settings-section-pane" id="app-settings-pane-favourites">
+                <div class="app-tab-header" style="padding-left:0; padding-right:0; padding-top:0; border-bottom:none;">
                   <h3 data-copy-text="static.favourites">Favourites</h3>
                   <p data-copy-text="static.favouritesDescription">Your favourite weekly class slots across every connected gym.</p>
                 </div>
-                <div id="sa-favourites-section"></div>
+                <div id="app-favourites-section"></div>
               </div>
 
-              <div class="sa-settings-section-pane" id="sa-settings-pane-notifications">
-                <div class="sa-tab-header" style="padding-left:0; padding-right:0; padding-top:0; border-bottom:none;">
+              <div class="app-settings-section-pane" id="app-settings-pane-notifications">
+                <div class="app-tab-header" style="padding-left:0; padding-right:0; padding-top:0; border-bottom:none;">
                   <h3 data-copy-text="static.notifications">Notifications</h3>
                   <p data-copy-text="static.notificationsDescription">Push notifications on this device, and which kinds you want.</p>
                 </div>
-                <div class="sa-settings-grid" style="padding-left:0; padding-right:0;">
-                  <div class="sa-settings-card">
+                <div class="app-settings-grid" style="padding-left:0; padding-right:0;">
+                  <div class="app-settings-card">
                     <h4 data-copy-text="static.webPush">Web Push Notifications</h4>
-                    <p class="sa-card-desc" data-copy-text="static.registerPushHelp">Register this device to receive alerts on auto-bookings and upgrades.</p>
-                    <div class="sa-setting-row">
-                      <div class="sa-setting-label">
+                    <p class="app-card-desc" data-copy-text="static.registerPushHelp">Register this device to receive alerts on auto-bookings and upgrades.</p>
+                    <div class="app-setting-row">
+                      <div class="app-setting-label">
                         <span data-copy-text="static.pushSubscriptionStatus">Push Subscription Status</span>
-                        <small id="sa-push-status-desc" data-copy-text="static.pushSubscriptionHelp">Click button to enable notifications on this device.</small>
+                        <small id="app-push-status-desc" data-copy-text="static.pushSubscriptionHelp">Click button to enable notifications on this device.</small>
                       </div>
-                      <button id="sa-push-toggle-btn" class="sa-btn-mini" style="width: auto;" data-copy-text="static.enablePush">Enable Push</button>
+                      <button id="app-push-toggle-btn" class="app-btn-mini" style="width: auto;" data-copy-text="static.enablePush">Enable Push</button>
                     </div>
-                    <button id="sa-notif-prefs-btn" class="sa-btn" style="width: 100%; margin-top: 12px;" data-copy-text="static.customizeNotifications">Customise Notifications</button>
+                    <button id="app-notif-prefs-btn" class="app-btn" style="width: 100%; margin-top: 12px;" data-copy-text="static.customizeNotifications">Customise Notifications</button>
                   </div>
-                  <div class="sa-settings-card" id="sa-test-notif-card" style="display: none; border-color: color-mix(in srgb, var(--warning) 30%, transparent);">
+                  <div class="app-settings-card" id="app-test-notif-card" style="display: none; border-color: color-mix(in srgb, var(--warning) 30%, transparent);">
                     <h4 style="color:var(--warning);" data-copy-text="static.testNotifications">🔔 Test Notifications</h4>
-                    <p class="sa-card-desc" data-copy-text="static.testNotificationsHelp">Send a sample of each notification to all your signed-in devices.</p>
-                    <div id="sa-test-notif-buttons" style="display:flex; flex-direction:column; gap:6px;">
-                      <button class="sa-btn-mini test-notif-btn" data-type="booking" style="width:100%;" data-copy-text="static.spotBooked">Spot Booked</button>
-                      <button class="sa-btn-mini test-notif-btn" data-type="upgrade" style="width:100%;" data-copy-text="static.spotUpgraded">Spot Upgraded</button>
-                      <button class="sa-btn-mini test-notif-btn" data-type="upgrade-cutoff" style="width:100%;" data-copy-text="static.spotUpgradedKeptOriginal">Spot Upgraded (kept original, &lt;12h)</button>
-                      <button class="sa-btn-mini test-notif-btn" data-type="creditWarning" style="width:100%;" data-copy-text="static.creditWarningAutobook">Credit Warning (Auto-Book)</button>
-                      <button class="sa-btn-mini test-notif-btn" data-type="creditWarning-upgrade" style="width:100%;" data-copy-text="static.creditWarningUpgrade">Credit Warning (Auto-Upgrade)</button>
-                      <button class="sa-btn-mini test-notif-btn" data-type="cancellationReminder" style="width:100%;" data-copy-text="static.cancellationReminder">Cancellation Reminder</button>
-                      <button class="sa-btn-mini test-notif-btn" data-type="bookingWindow" style="width:100%;" data-copy-text="static.bookingWindowAutoBook">Booking Window (has Auto-Book)</button>
-                      <button class="sa-btn-mini test-notif-btn" data-type="bookingWindow-none" style="width:100%;" data-copy-text="static.bookingWindowNoAutobook">Booking Window (no Auto-Book)</button>
-                      <button class="sa-btn-mini test-notif-btn" data-type="bookingWindow-nocredits" style="width:100%;" data-copy-text="static.bookingWindowInsufficientCredits">Booking Window (insufficient credits)</button>
+                    <p class="app-card-desc" data-copy-text="static.testNotificationsHelp">Send a sample of each notification to all your signed-in devices.</p>
+                    <div id="app-test-notif-buttons" style="display:flex; flex-direction:column; gap:6px;">
+                      <button class="app-btn-mini test-notif-btn" data-type="booking" style="width:100%;" data-copy-text="static.spotBooked">Spot Booked</button>
+                      <button class="app-btn-mini test-notif-btn" data-type="upgrade" style="width:100%;" data-copy-text="static.spotUpgraded">Spot Upgraded</button>
+                      <button class="app-btn-mini test-notif-btn" data-type="upgrade-cutoff" style="width:100%;" data-copy-text="static.spotUpgradedKeptOriginal">Spot Upgraded (kept original, &lt;12h)</button>
+                      <button class="app-btn-mini test-notif-btn" data-type="creditWarning" style="width:100%;" data-copy-text="static.creditWarningAutobook">Credit Warning (Auto-Book)</button>
+                      <button class="app-btn-mini test-notif-btn" data-type="creditWarning-upgrade" style="width:100%;" data-copy-text="static.creditWarningUpgrade">Credit Warning (Auto-Upgrade)</button>
+                      <button class="app-btn-mini test-notif-btn" data-type="cancellationReminder" style="width:100%;" data-copy-text="static.cancellationReminder">Cancellation Reminder</button>
+                      <button class="app-btn-mini test-notif-btn" data-type="bookingWindow" style="width:100%;" data-copy-text="static.bookingWindowAutoBook">Booking Window (has Auto-Book)</button>
+                      <button class="app-btn-mini test-notif-btn" data-type="bookingWindow-none" style="width:100%;" data-copy-text="static.bookingWindowNoAutobook">Booking Window (no Auto-Book)</button>
+                      <button class="app-btn-mini test-notif-btn" data-type="bookingWindow-nocredits" style="width:100%;" data-copy-text="static.bookingWindowInsufficientCredits">Booking Window (insufficient credits)</button>
                     </div>
                   </div>
                 </div>
               </div>
 
-              <div class="sa-settings-section-pane" id="sa-settings-pane-account">
-                <div class="sa-tab-header" style="padding-left:0; padding-right:0; padding-top:0; border-bottom:none;">
+              <div class="app-settings-section-pane" id="app-settings-pane-account">
+                <div class="app-tab-header" style="padding-left:0; padding-right:0; padding-top:0; border-bottom:none;">
                   <h3 data-copy-text="static.account">Account</h3>
-                  <p data-copy-html="static.accountDescription">Your <span data-app-name>Sweat Assistant</span> login and your data.</p>
+                  <p data-copy-html="static.accountDescription">Your <span data-app-name>__APP_NAME__</span> login and your data.</p>
                 </div>
-                <div class="sa-settings-grid" style="padding-left:0; padding-right:0;">
-                  <div class="sa-settings-card">
+                <div class="app-settings-grid" style="padding-left:0; padding-right:0;">
+                  <div class="app-settings-card">
                     <h4 data-copy-text="static.accountPassword">Account Password</h4>
-                    <p class="sa-card-desc" data-copy-html="static.passwordDescription">Your <span data-app-name>Sweat Assistant</span> password is separate from every gym password.</p>
-                    <button id="sa-account-password-btn" class="sa-btn" data-copy-text="static.changeAccountPassword">Change account password</button>
+                    <p class="app-card-desc" data-copy-html="static.passwordDescription">Your <span data-app-name>__APP_NAME__</span> password is separate from every gym password.</p>
+                    <button id="app-account-password-btn" class="app-btn" data-copy-text="static.changeAccountPassword">Change account password</button>
                   </div>
-                  <div class="sa-settings-card" style="border-color:color-mix(in srgb, var(--danger) 20%, transparent);">
+                  <div class="app-settings-card" style="border-color:color-mix(in srgb, var(--danger) 20%, transparent);">
                     <h4 style="color:var(--danger);" data-copy-text="static.accountSession">Account Session</h4>
-                    <p class="sa-card-desc" data-copy-html="static.accountSessionDescription">Clear local session tokens and log out of <span data-app-name>Sweat Assistant</span>.</p>
-                    <button id="sa-logout-btn" class="sa-btn variant-danger" data-copy-text="static.logout">Log Out</button>
+                    <p class="app-card-desc" data-copy-html="static.accountSessionDescription">Clear local session tokens and log out of <span data-app-name>__APP_NAME__</span>.</p>
+                    <button id="app-logout-btn" class="app-btn variant-danger" data-copy-text="static.logout">Log Out</button>
                   </div>
-                  <div class="sa-settings-card" style="border-color:color-mix(in srgb, var(--danger) 30%, transparent);">
+                  <div class="app-settings-card" style="border-color:color-mix(in srgb, var(--danger) 30%, transparent);">
                     <h4 style="color:var(--danger);" data-copy-text="static.deleteData">Delete All My Data</h4>
-                    <p class="sa-card-desc" data-copy-text="static.deleteDataHelp">Permanently delete this account, encrypted credentials, queues, preferences and push subscriptions. This cannot be undone.</p>
-                    <button id="sa-delete-data-btn" class="sa-btn variant-danger" data-copy-text="static.deleteData">Delete All My Data</button>
+                    <p class="app-card-desc" data-copy-text="static.deleteDataHelp">Permanently delete this account, encrypted credentials, queues, preferences and push subscriptions. This cannot be undone.</p>
+                    <button id="app-delete-data-btn" class="app-btn variant-danger" data-copy-text="static.deleteData">Delete All My Data</button>
                   </div>
                 </div>
               </div>
 
               <!-- SECTION: YOUR GYMS -->
-              <div class="sa-settings-section-pane" id="sa-settings-pane-gyms">
-                <div class="sa-tab-header" style="padding-left:0; padding-right:0; padding-top:0; border-bottom:none;">
-                  <h3 id="sa-gyms-pane-title" data-copy-text="static.yourGyms">Your Gyms</h3>
+              <div class="app-settings-section-pane" id="app-settings-pane-gyms">
+                <div class="app-tab-header" style="padding-left:0; padding-right:0; padding-top:0; border-bottom:none;">
+                  <h3 id="app-gyms-pane-title" data-copy-text="static.yourGyms">Your Gyms</h3>
                   <p data-copy-text="static.gymsDescription">Connect gyms and manage each gym's own booking settings.</p>
                 </div>
-                <div class="sa-settings-grid" style="padding-left:0; padding-right:0;">
-                  <div class="sa-settings-card" id="sa-gyms-card">
+                <div class="app-settings-grid" style="padding-left:0; padding-right:0;">
+                  <div class="app-settings-card" id="app-gyms-card">
                     <h4 data-copy-text="static.yourGyms">Your Gyms</h4>
-                    <p class="sa-card-desc" data-copy-text="static.gymsHelp">Re-authenticate a gym, unlink one, or connect another. Every linked gym's classes already appear together in the timetable and your bookings.</p>
-                    <div id="sa-gyms-list" style="margin-top:12px;">
-                      <div class="sa-card-desc" data-copy-text="static.loading">Loading…</div>
+                    <p class="app-card-desc" data-copy-text="static.gymsHelp">Re-authenticate a gym, unlink one, or connect another. Every linked gym's classes already appear together in the timetable and your bookings.</p>
+                    <div id="app-gyms-list" style="margin-top:12px;">
+                      <div class="app-card-desc" data-copy-text="static.loading">Loading…</div>
                     </div>
-                    <div id="sa-gyms-actions" style="margin-top:14px;display:flex;gap:8px;flex-wrap:wrap;"></div>
+                    <div id="app-gyms-actions" style="margin-top:14px;display:flex;gap:8px;flex-wrap:wrap;"></div>
                   </div>
                 </div>
-                <div id="sa-gym-settings-section" hidden></div>
+                <div id="app-gym-settings-section" hidden></div>
               </div>
 
             </div>
@@ -718,28 +717,28 @@
     </main>
 
     <!-- Mobile Bottom Tab Bar (iOS-style — hidden on desktop, replaces top nav on mobile) -->
-    <nav class="sa-bottom-nav" data-copy-aria-label="static.navPrimary">
-      <button class="sa-nav-btn sa-bottom-nav-btn active" data-tab="home" data-copy-aria-label="static.navHome">
-        <svg class="sa-bn-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+    <nav class="app-bottom-nav" data-copy-aria-label="static.navPrimary">
+      <button class="app-nav-btn app-bottom-nav-btn active" data-tab="home" data-copy-aria-label="static.navHome">
+        <svg class="app-bn-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
           <path d="M3 10.5 12 3l9 7.5"/><path d="M5 9.5V20h14V9.5"/><path d="M10 20v-6h4v6"/>
         </svg>
         <span data-copy-text="static.navHome"></span>
       </button>
-      <button class="sa-nav-btn sa-bottom-nav-btn" data-tab="class-timetable" data-copy-aria-label="static.navTimetable">
-        <svg class="sa-bn-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+      <button class="app-nav-btn app-bottom-nav-btn" data-tab="class-timetable" data-copy-aria-label="static.navTimetable">
+        <svg class="app-bn-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
                   <rect x="3" y="4.5" width="18" height="16" rx="2.5"/><path d="M3 9h18"/><path d="M8 3v3M16 3v3"/>
                 </svg>
         <span data-copy-text="static.navTimetable"></span>
       </button>
-      <button class="sa-nav-btn sa-bottom-nav-btn" data-tab="my-bookings" data-copy-aria-label="static.navBookings">
-        <svg class="sa-bn-icon" viewBox="0 0 128 128" fill="currentColor" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round" aria-hidden="true">
+      <button class="app-nav-btn app-bottom-nav-btn" data-tab="my-bookings" data-copy-aria-label="static.navBookings">
+        <svg class="app-bn-icon" viewBox="0 0 128 128" fill="currentColor" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round" aria-hidden="true">
           <path d="M30 49c0 18.7 15.3 34 34 34s34-15.3 34-34-15.3-34-34-34-34 15.3-34 34zm60 0c0 14.3-11.7 26-26 26s-26-11.7-26-26 11.7-26 26-26 26 11.7 26 26z"/>
           <path d="M24.4 119.4C35 108.8 49 103 64 103s29 5.8 39.6 16.4l5.7-5.7C97.2 101.7 81.1 95 64 95s-33.2 6.7-45.3 18.7l5.7 5.7z"/>
         </svg>
         <span data-copy-text="static.navBookings"></span>
       </button>
-      <button class="sa-nav-btn sa-bottom-nav-btn" data-tab="auto-book" data-copy-aria-label="static.navAutoBook">
-        <svg class="sa-bn-icon" fill="currentColor" viewBox="0 0 32 32" xmlns="http://www.w3.org/2000/svg" aria-hidden="true" style="display:inline-block;vertical-align:middle;width:27px;height:27px;position:relative;">
+      <button class="app-nav-btn app-bottom-nav-btn" data-tab="auto-book" data-copy-aria-label="static.navAutoBook">
+        <svg class="app-bn-icon" fill="currentColor" viewBox="0 0 32 32" xmlns="http://www.w3.org/2000/svg" aria-hidden="true" style="display:inline-block;vertical-align:middle;width:27px;height:27px;position:relative;">
           <g data-name="Layer 2" id="Layer_2">
             <path d="M18,11a1,1,0,0,1-1,1,5,5,0,0,0-5,5,1,1,0,0,1-2,0,5,5,0,0,0-5-5,1,1,0,0,1,0-2,5,5,0,0,0,5-5,1,1,0,0,1,2,0,5,5,0,0,0,5,5A1,1,0,0,1,18,11Z"/>
             <path d="M19,24a1,1,0,0,1-1,1,2,2,0,0,0-2,2,1,1,0,0,1-2,0,2,2,0,0,0-2-2,1,1,0,0,1,0-2,2,2,0,0,0,2-2,1,1,0,0,1,2,0,2,2,0,0,0,2,2A1,1,0,0,1,19,24Z"/>
@@ -748,14 +747,14 @@
         </svg>
         <span data-copy-text="static.navAutoBook"></span>
       </button>
-      <button class="sa-nav-btn sa-bottom-nav-btn" data-tab="buy-credits" hidden data-copy-aria-label="static.navCredits">
-        <svg class="sa-bn-icon" viewBox="0 0 160 160" fill="currentColor" aria-hidden="true">
+      <button class="app-nav-btn app-bottom-nav-btn" data-tab="buy-credits" hidden data-copy-aria-label="static.navCredits">
+        <svg class="app-bn-icon" viewBox="0 0 160 160" fill="currentColor" aria-hidden="true">
           <path d="M140,51H99V40c0-10.477-8.523-19-19-19c-10.477,0-19,8.523-19,19v11H20c-1.232,0-2.395,0.567-3.153,1.539 c-0.758,0.971-1.026,2.237-0.728,3.432l20,80C36.564,137.751,38.165,139,40,139h80c1.836,0,3.436-1.249,3.881-3.029l20-80 c0.299-1.195,0.029-2.461-0.729-3.432C142.395,51.567,141.232,51,140,51z M69,40c0-6.065,4.935-11,11-11c6.064,0,11,4.935,11,11v11 H69V40z M116.877,131H43.123l-18-72h109.754L116.877,131z M58.96,109.434c0.312,2.188-1.208,4.215-3.394,4.526 c-0.192,0.026-0.383,0.04-0.571,0.04c-1.958,0-3.67-1.439-3.955-3.434l-5-35c-0.312-2.187,1.208-4.213,3.394-4.526 c2.191-0.313,4.213,1.208,4.526,3.394L58.96,109.434z M101.04,109.434l5-35c0.313-2.187,2.331-3.707,4.526-3.394 c2.186,0.313,3.705,2.339,3.394,4.526l-5,35c-0.285,1.994-1.997,3.434-3.955,3.434c-0.188,0-0.378-0.014-0.571-0.04 C102.248,113.646,100.729,111.621,101.04,109.434z M84,75v35c0,2.209-1.791,4-4,4s-4-1.791-4-4V75c0-2.209,1.791-4,4-4 S84,72.791,84,75z"/>
         </svg>
         <span data-copy-text="static.navCreditsVisual"></span>
       </button>
-      <button class="sa-nav-btn sa-bottom-nav-btn" data-tab="settings" data-copy-aria-label="static.navSettings">
-        <svg class="sa-bn-icon" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
+      <button class="app-nav-btn app-bottom-nav-btn" data-tab="settings" data-copy-aria-label="static.navSettings">
+        <svg class="app-bn-icon" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
           <g transform="matrix(0.040108, 0, 0, 0.040108, 2.4, 3.4)">
             <path d="M454.2,189.101l-33.6-5.7c-3.5-11.3-8-22.2-13.5-32.6l19.8-27.7c8.4-11.8,7.1-27.9-3.2-38.1l-29.8-29.8 c-5.6-5.6-13-8.7-20.9-8.7c-6.2,0-12.1,1.9-17.1,5.5l-27.8,19.8c-10.8-5.7-22.1-10.4-33.8-13.9l-5.6-33.2 c-2.4-14.3-14.7-24.7-29.2-24.7h-42.1c-14.5,0-26.8,10.4-29.2,24.7l-5.8,34c-11.2,3.5-22.1,8.1-32.5,13.7l-27.5-19.8 c-5-3.6-11-5.5-17.2-5.5c-7.9,0-15.4,3.1-20.9,8.7l-29.9,29.8c-10.2,10.2-11.6,26.3-3.2,38.1l20,28.1 c-5.5,10.5-9.9,21.4-13.3,32.7l-33.2,5.6c-14.3,2.4-24.7,14.7-24.7,29.2v42.1c0,14.5,10.4,26.8,24.7,29.2l34,5.8 c3.5,11.2,8.1,22.1,13.7,32.5l-19.7,27.4c-8.4,11.8-7.1,27.9,3.2,38.1l29.8,29.8c5.6,5.6,13,8.7,20.9,8.7c6.2,0,12.1-1.9,17.1-5.5 l28.1-20c10.1,5.3,20.7,9.6,31.6,13l5.6,33.6c2.4,14.3,14.7,24.7,29.2,24.7h42.2c14.5,0,26.8-10.4,29.2-24.7l5.7-33.6 c11.3-3.5,22.2-8,32.6-13.5l27.7,19.8c5,3.6,11,5.5,17.2,5.5l0,0c7.9,0,15.3-3.1,20.9-8.7l29.8-29.8c10.2-10.2,11.6-26.3,3.2-38.1 l-19.8-27.8c5.5-10.5,10.1-21.4,13.5-32.6l33.6-5.6c14.3-2.4,24.7-14.7,24.7-29.2v-42.1 C478.9,203.801,468.5,191.501,454.2,189.101z M451.9,260.401c0,1.3-0.9,2.4-2.2,2.6l-42,7c-5.3,0.9-9.5,4.8-10.8,9.9 c-3.8,14.7-9.6,28.8-17.4,41.9c-2.7,4.6-2.5,10.3,0.6,14.7l24.7,34.8c0.7,1,0.6,2.5-0.3,3.4l-29.8,29.8c-0.7,0.7-1.4,0.8-1.9,0.8 c-0.6,0-1.1-0.2-1.5-0.5l-34.7-24.7c-4.3-3.1-10.1-3.3-14.7-0.6c-13.1,7.8-27.2,13.6-41.9,17.4c-5.2,1.3-9.1,5.6-9.9,10.8l-7.1,42 c-0.2,1.3-1.3,2.2-2.6,2.2h-42.1c-1.3,0-2.4-0.9-2.6-2.2l-7-42c-0.9-5.3-4.8-9.5-9.9-10.8c-14.3-3.7-28.1-9.4-41-16.8 c-2.1-1.2-4.5-1.8-6.8-1.8c-2.7,0-5.5,0.8-7.8,2.5l-35,24.9c-0.5,0.3-1,0.5-1.5,0.5c-0.4,0-1.2-0.1-1.9-0.8l-29.8-29.8 c-0.9-0.9-1-2.3-0.3-3.4l24.6-34.5c3.1-4.4,3.3-10.2,0.6-14.8c-7.8-13-13.8-27.1-17.6-41.8c-1.4-5.1-5.6-9-10.8-9.9l-42.3-7.2 c-1.3-0.2-2.2-1.3-2.2-2.6v-42.1c0-1.3,0.9-2.4,2.2-2.6l41.7-7c5.3-0.9,9.6-4.8,10.9-10c3.7-14.7,9.4-28.9,17.1-42 c2.7-4.6,2.4-10.3-0.7-14.6l-24.9-35c-0.7-1-0.6-2.5,0.3-3.4l29.8-29.8c0.7-0.7,1.4-0.8,1.9-0.8c0.6,0,1.1,0.2,1.5,0.5l34.5,24.6 c4.4,3.1,10.2,3.3,14.8,0.6c13-7.8,27.1-13.8,41.8-17.6c5.1-1.4,9-5.6,9.9-10.8l7.2-42.3c0.2-1.3,1.3-2.2,2.6-2.2h42.1 c1.3,0,2.4,0.9,2.6,2.2l7,41.7c0.9,5.3,4.8,9.6,10,10.9c15.1,3.8,29.5,9.7,42.9,17.6c4.6,2.7,10.3,2.5,14.7-0.6l34.5-24.8 c0.5-0.3,1-0.5,1.5-0.5c0.4,0,1.2,0.1,1.9,0.8l29.8,29.8c0.9,0.9,1,2.3,0.3,3.4l-24.7,34.7c-3.1,4.3-3.3,10.1-0.6,14.7 c7.8,13.1,13.6,27.2,17.4,41.9c1.3,5.2,5.6,9.1,10.8,9.9l42,7.1c1.3,0.2,2.2,1.3,2.2,2.6v42.1H451.9z"/>
             <path d="M239.4,136.001c-57,0-103.3,46.3-103.3,103.3s46.3,103.3,103.3,103.3s103.3-46.3,103.3-103.3S296.4,136.001,239.4,136.001 z M239.4,315.601c-42.1,0-76.3-34.2-76.3-76.3s34.2-76.3,76.3-76.3s76.3,34.2,76.3,76.3S281.5,315.601,239.4,315.601z"/>
@@ -768,55 +767,55 @@
   </div>
 
   <!-- 3. INTERACTIVE BOOKING / SLOT SELECTION MODAL -->
-  <div id="sa-booking-modal" class="sa-modal" style="display: none;">
-    <div class="sa-modal-overlay"></div>
-    <div class="sa-modal-card">
-      <div class="sa-modal-header">
-        <h4 id="sa-booking-modal-title" data-copy-text="static.selectStudioSeat"></h4>
-        <button id="sa-booking-modal-close" class="sa-modal-close-btn">&times;</button>
+  <div id="app-booking-modal" class="app-modal" style="display: none;">
+    <div class="app-modal-overlay"></div>
+    <div class="app-modal-card">
+      <div class="app-modal-header">
+        <h4 id="app-booking-modal-title" data-copy-text="static.selectStudioSeat"></h4>
+        <button id="app-booking-modal-close" class="app-modal-close-btn">&times;</button>
       </div>
-      <div class="sa-modal-body" id="sa-booking-modal-body">
+      <div class="app-modal-body" id="app-booking-modal-body">
         <!-- Floor minimap slots and preference grids injected here -->
       </div>
     </div>
   </div>
 
   <!-- 4. PROFILE EXPLORER MODAL -->
-  <div id="sa-profile-explorer-modal" class="sa-modal" style="display: none;">
-    <div class="sa-modal-overlay"></div>
-    <div class="sa-modal-content" style="max-width: 800px; width: 100%; max-height: 90vh; display: flex; flex-direction: column;">
-      <div class="sa-modal-header">
-        <h4 id="sa-profile-explorer-title" data-copy-text="static.profileExplorer"></h4>
-        <button id="sa-profile-explorer-close" class="sa-modal-close-btn">&times;</button>
+  <div id="app-profile-explorer-modal" class="app-modal" style="display: none;">
+    <div class="app-modal-overlay"></div>
+    <div class="app-modal-content" style="max-width: 800px; width: 100%; max-height: 90vh; display: flex; flex-direction: column;">
+      <div class="app-modal-header">
+        <h4 id="app-profile-explorer-title" data-copy-text="static.profileExplorer"></h4>
+        <button id="app-profile-explorer-close" class="app-modal-close-btn">&times;</button>
       </div>
-      <div class="sa-modal-body" id="sa-profile-explorer-body" style="overflow-y: auto; flex: 1; padding: 16px;">
+      <div class="app-modal-body" id="app-profile-explorer-body" style="overflow-y: auto; flex: 1; padding: 16px;">
       </div>
     </div>
   </div>
 
   <!-- 4b. GYMS MODAL (WP-C2: link a gym / re-authenticate / change account password) -->
-  <div id="sa-gym-modal" class="sa-modal" style="display: none;">
-    <div class="sa-modal-overlay"></div>
-    <div class="sa-modal-card" style="max-width: 460px;">
-      <div class="sa-modal-header">
-        <h4 id="sa-gym-modal-title" data-copy-text="static.addGym"></h4>
-        <button id="sa-gym-modal-close" class="sa-modal-close-btn">&times;</button>
+  <div id="app-gym-modal" class="app-modal" style="display: none;">
+    <div class="app-modal-overlay"></div>
+    <div class="app-modal-card" style="max-width: 460px;">
+      <div class="app-modal-header">
+        <h4 id="app-gym-modal-title" data-copy-text="static.addGym"></h4>
+        <button id="app-gym-modal-close" class="app-modal-close-btn">&times;</button>
       </div>
-      <div class="sa-modal-body" id="sa-gym-modal-body"></div>
+      <div class="app-modal-body" id="app-gym-modal-body"></div>
     </div>
   </div>
 
   <!-- 5. DEBUG MODAL -->
-  <div id="sa-debug-modal" class="sa-modal" style="display: none;">
-    <div class="sa-modal-overlay"></div>
-    <div class="sa-modal-content" style="max-width: 800px; width: 800px;">
-      <div class="sa-modal-header">
-        <h4 id="sa-debug-modal-title" data-copy-text="static.debugClassDiagnostics"></h4>
-        <button id="sa-debug-modal-close" class="sa-modal-close-btn">&times;</button>
+  <div id="app-debug-modal" class="app-modal" style="display: none;">
+    <div class="app-modal-overlay"></div>
+    <div class="app-modal-content" style="max-width: 800px; width: 800px;">
+      <div class="app-modal-header">
+        <h4 id="app-debug-modal-title" data-copy-text="static.debugClassDiagnostics"></h4>
+        <button id="app-debug-modal-close" class="app-modal-close-btn">&times;</button>
       </div>
-      <div class="sa-modal-body" id="sa-debug-modal-body">
-        <div class="sa-loading-spinner-container" style="padding: 40px 0;">
-          <div class="sa-spinner"></div>
+      <div class="app-modal-body" id="app-debug-modal-body">
+        <div class="app-loading-spinner-container" style="padding: 40px 0;">
+          <div class="app-spinner"></div>
           <span data-copy-text="static.loadingDebugData"></span>
         </div>
       </div>
@@ -824,40 +823,40 @@
   </div>
 
   <!-- 6. NOTIFICATION PREFERENCES MODAL -->
-  <div id="sa-notif-prefs-modal" class="sa-modal">
-    <div class="sa-modal-overlay"></div>
-    <div class="sa-modal-content" style="max-width: 560px; width: 100%; max-height: 90vh; display: flex; flex-direction: column;">
-      <div class="sa-modal-header">
+  <div id="app-notif-prefs-modal" class="app-modal">
+    <div class="app-modal-overlay"></div>
+    <div class="app-modal-content" style="max-width: 560px; width: 100%; max-height: 90vh; display: flex; flex-direction: column;">
+      <div class="app-modal-header">
         <h4 data-copy-text="static.notificationPreferences"></h4>
-        <button id="sa-notif-prefs-close" class="sa-modal-close-btn">&times;</button>
+        <button id="app-notif-prefs-close" class="app-modal-close-btn">&times;</button>
       </div>
-      <div class="sa-modal-body" id="sa-notif-prefs-body" style="overflow-y: auto; flex: 1; padding: 16px;">
+      <div class="app-modal-body" id="app-notif-prefs-body" style="overflow-y: auto; flex: 1; padding: 16px;">
         <!-- Rendered dynamically by settings.js -->
       </div>
     </div>
   </div>
 
   <!-- Absolute Tooltip Popups -->
-  <div id="sa-instructor-tooltip" class="sa-tooltip" style="display: none;"></div>
-  <div id="sa-occupancy-tooltip" class="sa-tooltip" style="display: none;"></div>
+  <div id="app-instructor-tooltip" class="app-tooltip" style="display: none;"></div>
+  <div id="app-occupancy-tooltip" class="app-tooltip" style="display: none;"></div>
 
   <!-- Debug Log Terminal -->
-  <div id="sa-debug-terminal" style="display: none; position: fixed; bottom: 30px; right: 12px; width: 420px; max-height: 280px; background: color-mix(in srgb, var(--bg) 95%, transparent); border: 1px solid color-mix(in srgb, var(--feat-autoupgrade) 30%, transparent); border-radius: 12px; z-index: 10000; font-family: 'SF Mono', 'Fira Code', 'Consolas', monospace; font-size: 12px; color: var(--text); overflow: hidden; box-shadow: 0 8px 32px color-mix(in srgb, var(--bg) 50%, transparent);">
+  <div id="app-debug-terminal" style="display: none; position: fixed; bottom: 30px; right: 12px; width: 420px; max-height: 280px; background: color-mix(in srgb, var(--bg) 95%, transparent); border: 1px solid color-mix(in srgb, var(--feat-autoupgrade) 30%, transparent); border-radius: 12px; z-index: 10000; font-family: 'SF Mono', 'Fira Code', 'Consolas', monospace; font-size: 12px; color: var(--text); overflow: hidden; box-shadow: 0 8px 32px color-mix(in srgb, var(--bg) 50%, transparent);">
     <!-- Minimized FAB icon (shown only when collapsed to circle) -->
-    <div id="sa-debug-fab" style="display:none;width:100%;height:100%;align-items:center;justify-content:center;font-family:var(--font-sans);font-weight:700;font-size:15px;color:var(--feat-autoupgrade);cursor:pointer;user-select:none;">D</div>
-    <div style="display: flex; justify-content: space-between; align-items: center; padding: 6px 12px; background: color-mix(in srgb, var(--feat-autoupgrade) 15%, transparent); border-bottom: 1px solid color-mix(in srgb, var(--feat-autoupgrade) 20%, transparent); cursor: pointer;" id="sa-debug-terminal-header">
+    <div id="app-debug-fab" style="display:none;width:100%;height:100%;align-items:center;justify-content:center;font-family:var(--font-sans);font-weight:700;font-size:15px;color:var(--feat-autoupgrade);cursor:pointer;user-select:none;">D</div>
+    <div style="display: flex; justify-content: space-between; align-items: center; padding: 6px 12px; background: color-mix(in srgb, var(--feat-autoupgrade) 15%, transparent); border-bottom: 1px solid color-mix(in srgb, var(--feat-autoupgrade) 20%, transparent); cursor: pointer;" id="app-debug-terminal-header">
       <span data-copy-text="static.debugLog" style="font-weight: 700; font-size: 12px; color: var(--feat-autoupgrade);"></span>
       <div style="display: flex; gap: 8px; align-items: center;">
-        <button id="sa-debug-clear-btn" data-copy-text="static.clear" style="background: none; border: 1px solid color-mix(in srgb, var(--text) 15%, transparent); color: var(--text-secondary); font-size: 12px; padding: 2px 8px; border-radius: 4px; cursor: pointer;"></button>
-        <span id="sa-debug-toggle-icon" style="color: var(--text-secondary); font-size: 14px;">▼</span>
+        <button id="app-debug-clear-btn" data-copy-text="static.clear" style="background: none; border: 1px solid color-mix(in srgb, var(--text) 15%, transparent); color: var(--text-secondary); font-size: 12px; padding: 2px 8px; border-radius: 4px; cursor: pointer;"></button>
+        <span id="app-debug-toggle-icon" style="color: var(--text-secondary); font-size: 14px;">▼</span>
       </div>
     </div>
-    <div id="sa-debug-log" style="padding: 8px 12px; overflow-y: auto; max-height: 230px; min-height: 40px;"></div>
+    <div id="app-debug-log" style="padding: 8px 12px; overflow-y: auto; max-height: 230px; min-height: 40px;"></div>
   </div>
 
   <!-- Version Stamp -->
-  <div id="sa-version-stamp" style="position: fixed; bottom: 8px; right: 12px; font-size: 12px; color: color-mix(in srgb, var(--text) 25%, transparent); font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; pointer-events: none; z-index: 9999; user-select: none;">
-    v1.3.0 · <span id="sa-build-time"></span>
+  <div id="app-version-stamp" style="position: fixed; bottom: 8px; right: 12px; font-size: 12px; color: color-mix(in srgb, var(--text) 25%, transparent); font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; pointer-events: none; z-index: 9999; user-select: none;">
+    v1.3.0 · <span id="app-build-time"></span>
   </div>
 
   <!-- Entry Script -->

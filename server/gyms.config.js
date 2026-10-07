@@ -1,4 +1,4 @@
-// Sweat Assistant — static gym registry (single source of truth for provider wiring).
+// static gym registry (single source of truth for provider wiring).
 //
 // Why a static registry (not a DB table): gyms are few, and adding one is a code
 // change anyway (new provider config, theme, capability flags). Secrets stay in

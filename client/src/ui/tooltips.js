@@ -125,7 +125,7 @@ export function instructorAvatar(name, gymId = null, directUrl = null, { size = 
 const attrEsc = (v) => String(v ?? '').replace(/&/g, '&amp;').replace(/"/g, '&quot;').replace(/</g, '&lt;');
 
 /**
- * data-* attributes for a `.sa-instructor-hover` element, taken from the event's OWN
+ * data-* attributes for a `.app-instructor-hover` element, taken from the event's OWN
  * instructors[0]. The popup looks the instructor up in `metadata.instructors` first, but for
  * MarianaTek gyms that list is derived from the current class window and can miss the
  * instructor (or the id), so name + photo travel on the element as the fallback.
@@ -159,8 +159,8 @@ export function instructorTooltipHTML(instructorIdRaw, gymId = null, fallback = 
   const photoUrl = instructor.imageUrl || instructor.photo || instructor.image_1 || '';
   const name = instructor.name || instructor.full_name || 'Instructor';
   const avatarHtml = photoUrl
-    ? `<img src="${photoUrl}" class="sa-tooltip-avatar" alt="${name}" data-instructor-initial="${initialFor(name)}">`
-    : `<div class="sa-tooltip-avatar" style="display:flex; align-items:center; justify-content:center; background:color-mix(in srgb, var(--text) 8%, transparent); font-weight:bold; font-size:24px; color:#fff;">${(name || '?')[0]}</div>`;
+    ? `<img src="${photoUrl}" class="app-tooltip-avatar" alt="${name}" data-instructor-initial="${initialFor(name)}">`
+    : `<div class="app-tooltip-avatar" style="display:flex; align-items:center; justify-content:center; background:color-mix(in srgb, var(--text) 8%, transparent); font-weight:bold; font-size:24px; color:#fff;">${(name || '?')[0]}</div>`;
 
   const keywords = instructor.metafields?.keywords ? instructor.metafields.keywords.replace(/\|/g, ' • ') : '';
   const description = instructor.bio || instructor.metafields?.description || '';
@@ -172,7 +172,7 @@ export function instructorTooltipHTML(instructorIdRaw, gymId = null, fallback = 
   if (igUrl || igHandle) {
     const href = igUrl || `https://instagram.com/${igHandle}`;
     const label = igHandle || COPY.tooltips.instagram;
-    instagramHtml = `<a class="sa-tooltip-social-link" href="${href}" target="_blank" rel="noopener noreferrer">${INSTAGRAM_ICON}<span class="sa-tooltip-social-text sa-tooltip-social-wrap">${label}</span></a>`;
+    instagramHtml = `<a class="app-tooltip-social-link" href="${href}" target="_blank" rel="noopener noreferrer">${INSTAGRAM_ICON}<span class="app-tooltip-social-text app-tooltip-social-wrap">${label}</span></a>`;
   }
   let spotifyHtml = '';
   const spRaw = instructor.spotifyUrl || instructor.metafields?.spotify_handle || instructor.spotify_handle;
@@ -180,19 +180,19 @@ export function instructorTooltipHTML(instructorIdRaw, gymId = null, fallback = 
   if (spId || instructor.spotifyUrl) {
     const href = instructor.spotifyUrl || `https://open.spotify.com/user/${spId}`;
     const label = spId || COPY.tooltips.spotify;
-    spotifyHtml = `<a class="sa-tooltip-social-link" href="${href}" target="_blank" rel="noopener noreferrer">🎵 <span class="sa-tooltip-social-text">${label}</span></a>`;
+    spotifyHtml = `<a class="app-tooltip-social-link" href="${href}" target="_blank" rel="noopener noreferrer">🎵 <span class="app-tooltip-social-text">${label}</span></a>`;
   }
 
   return `
-    <div class="sa-tooltip-header">
+    <div class="app-tooltip-header">
       ${avatarHtml}
       <div style="min-width: 0; flex: 1;">
-        <h4 class="sa-tooltip-name">${name}</h4>
-        ${keywords ? `<div class="sa-tooltip-keywords">${keywords}</div>` : ''}
+        <h4 class="app-tooltip-name">${name}</h4>
+        ${keywords ? `<div class="app-tooltip-keywords">${keywords}</div>` : ''}
       </div>
     </div>
     ${description ? `<p style="margin: 6px 0 0 0; display: -webkit-box; -webkit-line-clamp: 4; -webkit-box-orient: vertical; overflow: hidden; color: var(--text); font-size: 15px; line-height: 1.45;">${description}</p>` : ''}
-    ${(instagramHtml || spotifyHtml) ? `<div class="sa-tooltip-socials" style="margin-top: 10px;">${instagramHtml}${spotifyHtml}</div>` : ''}
+    ${(instagramHtml || spotifyHtml) ? `<div class="app-tooltip-socials" style="margin-top: 10px;">${instagramHtml}${spotifyHtml}</div>` : ''}
   `;
 }
 
@@ -202,7 +202,7 @@ function targetFallback(target) {
 }
 
 export function initTooltips() {
-  const instructorTooltip = document.getElementById('sa-instructor-tooltip');
+  const instructorTooltip = document.getElementById('app-instructor-tooltip');
   // Scrolling the page dismisses the instructor popup, but only past a small threshold so
   // accidental micro-movement doesn't close it. Capture phase: scroll doesn't bubble.
   let scrollBase = null;
@@ -214,14 +214,14 @@ export function initTooltips() {
     if (!scrollBase || scrollBase.el !== el) { scrollBase = { el, top }; return; }
     if (Math.abs(top - scrollBase.top) >= 10) { scrollBase = null; hideInstructor(); }
   }, true);
-  const occupancyTooltip = document.getElementById('sa-occupancy-tooltip');
+  const occupancyTooltip = document.getElementById('app-occupancy-tooltip');
 
   if (!instructorTooltip || !occupancyTooltip) return;
 
   // Delegated mouse hover listeners for instructor tooltip
   document.body.addEventListener('mouseover', (e) => {
-    const target = e.target.closest('.sa-instructor-hover');
-    const tooltip = e.target.closest('#sa-instructor-tooltip');
+    const target = e.target.closest('.app-instructor-hover');
+    const tooltip = e.target.closest('#app-instructor-tooltip');
 
     if (tooltip || target) {
       if (hideTimeout) {
@@ -256,9 +256,9 @@ export function initTooltips() {
     instructorTooltip.style.display = 'none';
   };
   document.body.addEventListener('click', (e) => {
-    const target = e.target.closest('.sa-instructor-hover');
+    const target = e.target.closest('.app-instructor-hover');
     if (!target) {
-      if (instructorTooltip.classList.contains('show') && !e.target.closest('#sa-instructor-tooltip')) {
+      if (instructorTooltip.classList.contains('show') && !e.target.closest('#app-instructor-tooltip')) {
         hideInstructor();
       }
       return;
@@ -289,21 +289,21 @@ export function initTooltips() {
       hideInstructor();
       return;
     }
-    if ((e.key === 'Enter' || e.key === ' ') && e.target.closest?.('.sa-instructor-hover[role="button"]')) {
+    if ((e.key === 'Enter' || e.key === ' ') && e.target.closest?.('.app-instructor-hover[role="button"]')) {
       e.preventDefault();
-      e.target.closest('.sa-instructor-hover').click();
+      e.target.closest('.app-instructor-hover').click();
     }
   });
 
   document.body.addEventListener('mouseout', (e) => {
-    const target = e.target.closest('.sa-instructor-hover');
+    const target = e.target.closest('.app-instructor-hover');
     const toElement = e.relatedTarget;
 
-    if (toElement && (toElement.closest('.sa-instructor-hover') || toElement.closest('#sa-instructor-tooltip'))) {
+    if (toElement && (toElement.closest('.app-instructor-hover') || toElement.closest('#app-instructor-tooltip'))) {
       return;
     }
 
-    const fromTooltip = e.target.closest('#sa-instructor-tooltip');
+    const fromTooltip = e.target.closest('#app-instructor-tooltip');
     if (fromTooltip || target) {
       if (hoverTimeout) {
         clearTimeout(hoverTimeout);
@@ -320,7 +320,7 @@ export function initTooltips() {
   });
 
   document.body.addEventListener('mousemove', (e) => {
-    const target = e.target.closest('.sa-instructor-hover');
+    const target = e.target.closest('.app-instructor-hover');
     if (!target) return;
     if (instructorTooltip.classList.contains('show')) {
       positionTooltip(target, instructorTooltip);
@@ -329,8 +329,8 @@ export function initTooltips() {
 
   // Delegated mouse hover listeners for occupancy tooltip
   document.body.addEventListener('mouseover', (e) => {
-    const target = e.target.closest('.sa-occupancy-hover');
-    const tooltip = e.target.closest('#sa-occupancy-tooltip');
+    const target = e.target.closest('.app-occupancy-hover');
+    const tooltip = e.target.closest('#app-occupancy-tooltip');
 
     if (tooltip || target) {
       if (occupancyHideTimeout) {
@@ -364,7 +364,7 @@ export function initTooltips() {
       } else {
         occupancyTooltip.innerHTML = `
           <div style="display:flex; align-items:center; justify-content:center; padding:15px; color:var(--text); font-size:12px;">
-            <svg class="sa-spinner-svg" viewBox="0 0 24 24" style="animation: spin 1s linear infinite; width: 14px; height: 14px; margin-right: 8px; color: var(--feat-autoupgrade); display: inline-block;">
+            <svg class="app-spinner-svg" viewBox="0 0 24 24" style="animation: spin 1s linear infinite; width: 14px; height: 14px; margin-right: 8px; color: var(--feat-autoupgrade); display: inline-block;">
               <circle cx="12" cy="12" r="10" stroke="color-mix(in srgb, var(--text) 15%, transparent)" stroke-width="3" fill="none"></circle>
               <path d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" fill="currentColor"></path>
             </svg>
@@ -395,14 +395,14 @@ export function initTooltips() {
   });
 
   document.body.addEventListener('mouseout', (e) => {
-    const target = e.target.closest('.sa-occupancy-hover');
+    const target = e.target.closest('.app-occupancy-hover');
     const toElement = e.relatedTarget;
 
-    if (toElement && (toElement.closest('.sa-occupancy-hover') || toElement.closest('#sa-occupancy-tooltip'))) {
+    if (toElement && (toElement.closest('.app-occupancy-hover') || toElement.closest('#app-occupancy-tooltip'))) {
       return;
     }
 
-    const fromTooltip = e.target.closest('#sa-occupancy-tooltip');
+    const fromTooltip = e.target.closest('#app-occupancy-tooltip');
     if (fromTooltip || target) {
       if (occupancyHoverTimeout) {
         clearTimeout(occupancyHoverTimeout);
@@ -419,7 +419,7 @@ export function initTooltips() {
   });
 
   document.body.addEventListener('mousemove', (e) => {
-    const target = e.target.closest('.sa-occupancy-hover');
+    const target = e.target.closest('.app-occupancy-hover');
     if (!target) return;
     if (occupancyTooltip.classList.contains('show')) {
       positionTooltip(target, occupancyTooltip);
@@ -520,7 +520,7 @@ export function renderMinimap(payload, occupancyTooltip) {
     const left = widthRange === 0 ? 50 : ((obj.x - minX) / widthRange) * 80 + 10;
     const top = heightRange === 0 ? 10 : ((obj.y - minY) / heightRange) * 70 + 15;
     stageHtml += `
-      <div class="sa-minimap-stage" style="left: ${left}%; top: ${top}%; transform: translate(-50%, -50%);">
+      <div class="app-minimap-stage" style="left: ${left}%; top: ${top}%; transform: translate(-50%, -50%);">
         ${COPY.tooltips.stage}
       </div>
     `;
@@ -534,7 +534,7 @@ export function renderMinimap(payload, occupancyTooltip) {
     const label = slot.label || slot.id;
 
     dotsHtml += `
-      <div class="sa-minimap-dot ${isAvailable ? 'available' : 'occupied'}" title="${label}" style="left: ${left}%; top: ${top}%;"></div>
+      <div class="app-minimap-dot ${isAvailable ? 'available' : 'occupied'}" title="${label}" style="left: ${left}%; top: ${top}%;"></div>
     `;
   });
 
@@ -559,18 +559,18 @@ export function renderMinimap(payload, occupancyTooltip) {
       <span style="color:var(--success);">Open: ${openSlots}</span>
       <span style="color:var(--danger);">Booked: ${occupiedSlots}</span>
     </div>
-    <div class="sa-minimap-container">
+    <div class="app-minimap-container">
       ${stageHtml}
       ${dotsHtml}
     </div>
     ${extraSlotsHtml}
-    <div class="sa-minimap-legend">
-      <div class="sa-minimap-legend-item">
-        <div class="sa-minimap-legend-dot available"></div>
+    <div class="app-minimap-legend">
+      <div class="app-minimap-legend-item">
+        <div class="app-minimap-legend-dot available"></div>
         <span>${COPY.occupancy.available}</span>
       </div>
-      <div class="sa-minimap-legend-item">
-        <div class="sa-minimap-legend-dot occupied"></div>
+      <div class="app-minimap-legend-item">
+        <div class="app-minimap-legend-dot occupied"></div>
         <span>${COPY.occupancy.booked}</span>
       </div>
     </div>

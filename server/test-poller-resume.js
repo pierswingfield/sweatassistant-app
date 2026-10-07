@@ -1,4 +1,4 @@
-// Sweat Assistant — C5-1: paused_no_credits auto-upgrade monitors resume.
+// C5-1: paused_no_credits auto-upgrade monitors resume.
 //
 // poller.js sets status 'paused_no_credits' when a metered gym's balance is
 // empty, but getActiveAutoUpgrades() only selects 'active', so a paused monitor

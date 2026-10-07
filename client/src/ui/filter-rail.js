@@ -101,21 +101,21 @@ function workoutLabel(s) {
 // Compact (scrolled) state stacks the gym logos; a tap on the stack spreads them until the page expands again.
 let gymStackOpen = false;
 let compactObserver = null;
-function appContainer() { return document.getElementById('sa-app-container'); }
+function appContainer() { return document.getElementById('app-container'); }
 function isGymStacked() {
   const app = appContainer();
-  return !!(app && app.classList.contains('sa-tt-compact') && !gymStackOpen
+  return !!(app && app.classList.contains('app-tt-compact') && !gymStackOpen
     && window.matchMedia && window.matchMedia('(max-width: 768px)').matches);
 }
 function setGymStackOpen(open, rail) {
   gymStackOpen = open;
-  (rail || document.getElementById('sweat-filter-rail'))?.querySelector('.fr-gymquick')?.classList.toggle('is-open', open);
+  (rail || document.getElementById('app-filter-rail'))?.querySelector('.fr-gymquick')?.classList.toggle('is-open', open);
 }
 function watchCompact() {
   const app = appContainer();
   if (compactObserver || !app || typeof MutationObserver === 'undefined') return;
   compactObserver = new MutationObserver(() => {
-    if (!app.classList.contains('sa-tt-compact') && gymStackOpen) setGymStackOpen(false);
+    if (!app.classList.contains('app-tt-compact') && gymStackOpen) setGymStackOpen(false);
   });
   compactObserver.observe(app, { attributes: true, attributeFilter: ['class'] });
 }
@@ -123,12 +123,12 @@ function watchCompact() {
 export function renderFilterRail(ctx) {
   watchCompact();
   lastCtx = ctx;
-  const host = document.getElementById('sa-timetable-filters-container');
+  const host = document.getElementById('app-timetable-filters-container');
   if (!host) return;
-  let rail = document.getElementById('sweat-filter-rail');
+  let rail = document.getElementById('app-filter-rail');
   if (!rail) {
     rail = document.createElement('div');
-    rail.id = 'sweat-filter-rail';
+    rail.id = 'app-filter-rail';
     rail.className = 'fr-rail';
     host.prepend(rail);
   }
@@ -160,7 +160,7 @@ export function renderFilterRail(ctx) {
 
   if (state.gyms.length || state.locations.length) {
     const compact = compactLocationsLabel(state, ctx.locations);
-    // Both faces stay in the DOM; CSS cross-fades them while the page is scrolled down (sa-tt-compact).
+    // Both faces stay in the DOM; CSS cross-fades them while the page is scrolled down (app-tt-compact).
     const tile = compact
       ? `<span class="fr-tile-full">${gymTileHtml(ctx)}</span><span class="fr-tile-compact" aria-hidden="true">${escapeHtml(compact)}</span>`
       : gymTileHtml(ctx);
@@ -227,7 +227,7 @@ export function syncFilterSheetState(ctx) {
 }
 
 export function removeFilterRail() {
-  document.getElementById('sweat-filter-rail')?.remove();
+  document.getElementById('app-filter-rail')?.remove();
   destroySheet();
 }
 

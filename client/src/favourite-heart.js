@@ -6,12 +6,12 @@ const esc = (s) => String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replac
 
 export function heartButtonHtml({ isFavourite, eventId, label, pressedLabel, extraClass = '' }) {
   const text = esc(isFavourite ? pressedLabel : label);
-  const cls = `sa-timetable-heart ${isFavourite ? 'bookmarked' : 'unbookmarked'}${extraClass ? ` ${extraClass}` : ''}`;
+  const cls = `app-timetable-heart ${isFavourite ? 'bookmarked' : 'unbookmarked'}${extraClass ? ` ${extraClass}` : ''}`;
   return `<button type="button" class="${cls}" data-event-id="${esc(eventId)}" aria-pressed="${isFavourite ? 'true' : 'false'}" aria-label="${text}" title="${text}"><svg width="16" height="16" viewBox="0 0 16 16" aria-hidden="true" fill="${isFavourite ? 'currentColor' : 'none'}" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round"><path d="${HEART_PATH}"/></svg></button>`;
 }
 
 /** Mobile card: the heart is an indicator of an existing favourite only. Un-favourited cards render nothing
  *  (favouriting happens from the kebab menu), so a card is never cluttered by an empty heart. */
 export function mobileHeartHtml(opts) {
-  return opts.isFavourite ? heartButtonHtml({ ...opts, extraClass: 'sa-mobile-fav-indicator' }) : '';
+  return opts.isFavourite ? heartButtonHtml({ ...opts, extraClass: 'app-mobile-fav-indicator' }) : '';
 }

@@ -1,4 +1,4 @@
-// Sweat Assistant — routes-normalized.js 401-relogin ladder regression test.
+// routes-normalized.js 401-relogin ladder regression test.
 //
 // WP-N1's routes-normalized.js originally had NO 401 auto-relogin retry (a
 // documented gap in its own header comment) — a session that went stale mid-

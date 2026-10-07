@@ -201,7 +201,7 @@ export function renderStudioFloorPlan(container, layoutSlots, initialSlots, init
     // the min-gap scale, so adjacent slots always keep >= MIN_GAP px between centres
     // (no overlap). When the min-gap width exceeds the viewport the map pans.
     const scroll = document.createElement('div');
-    scroll.className = 'sa-floor-scroll';
+    scroll.className = 'app-floor-scroll';
     container.appendChild(scroll); // append now to measure its real width (CSS breakout on mobile)
 
     // Reserve a lane on the right for the row +/- buttons so they sit beside the
@@ -211,10 +211,10 @@ export function renderStudioFloorPlan(container, layoutSlots, initialSlots, init
     const rowLaneW = hasRowButtons ? ROW_BTN + 8 : 0;
 
     const availW = scroll.clientWidth || (window.innerWidth - 80);
-    // Mirror .sa-floor-scroll's max-height (min(60vh, 460px)) so we can fit
+    // Mirror .app-floor-scroll's max-height (min(60vh, 460px)) so we can fit
     // the map within the box's height too, not just its width.
     const availH = Math.min(window.innerHeight * 0.6, 460);
-    const fillScaleW = widthRange > 0 ? (availW - (container.closest('.sa-page') ? 2 : 0) - SLOT_SIZE - EDGE_PAD * 2 - rowLaneW) / widthRange : minGapScale;
+    const fillScaleW = widthRange > 0 ? (availW - (container.closest('.app-page') ? 2 : 0) - SLOT_SIZE - EDGE_PAD * 2 - rowLaneW) / widthRange : minGapScale;
     const fillScaleH = heightRange > 0 ? (availH - SLOT_SIZE - EDGE_PAD * 2 - 2) / heightRange : minGapScale;
     // Contain: fill the available box on whichever axis is tighter. Scaling is
     // uniform, so stretching a few-column studio (e.g. Reformer) to fill the full
@@ -226,7 +226,7 @@ export function renderStudioFloorPlan(container, layoutSlots, initialSlots, init
     // scroll container. On desktop, fill the available box for a roomier map.
     // Inside a full-screen mobile page there is a whole screen of width, so fill it
     // (width-driven; the vertical axis is compressed below if it would spill).
-    const inPage = !!container.closest('.sa-page');
+    const inPage = !!container.closest('.app-page');
     const scale = inPage ? Math.max(fillScaleW, minGapScale) : (isMobile ? minGapScale : Math.max(fillScale, minGapScale));
 
     // Scale X-axis and Y-axis independently if Y-axis gaps are too large and make the map spill.
@@ -253,7 +253,7 @@ export function renderStudioFloorPlan(container, layoutSlots, initialSlots, init
     const floorH = Math.ceil(heightRange * scaleY + SLOT_SIZE + EDGE_PAD * 2);
 
     const floor = document.createElement('div');
-    floor.className = 'sa-floor';
+    floor.className = 'app-floor';
     floor.style.width = floorW + 'px';
     floor.style.height = floorH + 'px';
     scroll.appendChild(floor);
@@ -435,7 +435,7 @@ export function renderStudioFloorPlan(container, layoutSlots, initialSlots, init
     // Read-only unlock button, attached beneath the map.
     if (!editing) {
       const editBtn = document.createElement('button');
-      editBtn.className = 'sa-btn';
+      editBtn.className = 'app-btn';
       editBtn.style.cssText = 'width:100%;margin-bottom:14px;background:color-mix(in srgb, var(--feat-autoupgrade) 12%, transparent);border:1px solid color-mix(in srgb, var(--feat-autoupgrade) 30%, transparent);color:var(--feat-autoupgrade);';
       editBtn.textContent = editLabel;
       editBtn.onclick = () => { editing = true; render(); };
@@ -460,12 +460,12 @@ export function renderStudioFloorPlan(container, layoutSlots, initialSlots, init
 
     // Actions
     const actions = document.createElement('div');
-    actions.className = 'sa-spotmap-actions';
+    actions.className = 'app-spotmap-actions';
     actions.style.cssText = 'display:flex;gap:8px;';
 
     if (!hideClear) {
       const clearBtn = document.createElement('button');
-      clearBtn.className = 'sa-btn';
+      clearBtn.className = 'app-btn';
       clearBtn.style.cssText = 'flex:1;background:color-mix(in srgb, var(--text) 6%, transparent);border:1px solid color-mix(in srgb, var(--text) 12%, transparent);color:var(--text);';
       clearBtn.textContent = COPY.spotMapEditor.clearPreferences;
       clearBtn.onclick = () => { selectedSlots.length = 0; selectedRows.clear(); render(); };
@@ -473,7 +473,7 @@ export function renderStudioFloorPlan(container, layoutSlots, initialSlots, init
     }
 
     const saveBtn = document.createElement('button');
-    saveBtn.className = 'sa-btn';
+    saveBtn.className = 'app-btn';
     saveBtn.style.cssText = `flex:${onDisable && !hideClear ? '1' : '2'};background:var(--feat-autoupgrade);color:#fff;`;
     saveBtn.textContent = mapChanged() ? `${COPY.spotMapEditor.saveMapAnd} ${saveLabel}` : saveLabel;
     saveBtn.onclick = () => onSave([...selectedSlots], [...selectedRows], container);
@@ -482,7 +482,7 @@ export function renderStudioFloorPlan(container, layoutSlots, initialSlots, init
 
     if (onDisable) {
       const disableBtn = document.createElement('button');
-      disableBtn.className = 'sa-btn';
+      disableBtn.className = 'app-btn';
       disableBtn.style.cssText = 'flex:1;background:color-mix(in srgb, var(--danger) 10%, transparent);border:1px solid color-mix(in srgb, var(--danger) 20%, transparent);color:var(--danger);';
       disableBtn.textContent = disableLabel;
       disableBtn.onclick = () => onDisable(container);

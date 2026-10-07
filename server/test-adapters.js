@@ -1,4 +1,4 @@
-// Sweat Assistant — provider adapter unit tests (WP-T1).
+// provider adapter unit tests (WP-T1).
 //
 // Deterministic, no-network normalization coverage for both providers:
 //   - server/providers/normalize.js  — the shared shape builders + coercion.

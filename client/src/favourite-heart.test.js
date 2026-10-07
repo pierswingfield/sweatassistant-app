@@ -15,7 +15,7 @@ describe('heartButtonHtml (F-12 timetable heart)', () => {
     const h = heartButtonHtml({ isFavourite: true, eventId: 7, label: 'Favourite', pressedLabel: 'Unfavourite' });
     expect(h).toContain('aria-pressed="true"');
     expect(h).toContain('aria-label="Unfavourite"');
-    expect(h).toContain('class="sa-timetable-heart bookmarked"');
+    expect(h).toContain('class="app-timetable-heart bookmarked"');
     expect(h).toContain('fill="currentColor"');
   });
   it('escapes ids and labels', () => {
@@ -24,7 +24,7 @@ describe('heartButtonHtml (F-12 timetable heart)', () => {
     expect(h).not.toContain('a"b');
   });
   it('accepts an extra class for the mobile card', () => {
-    expect(heartButtonHtml({ isFavourite: false, eventId: 1, label: 'x', pressedLabel: 'y', extraClass: 'is-mobile' })).toContain('sa-timetable-heart unbookmarked is-mobile');
+    expect(heartButtonHtml({ isFavourite: false, eventId: 1, label: 'x', pressedLabel: 'y', extraClass: 'is-mobile' })).toContain('app-timetable-heart unbookmarked is-mobile');
   });
 });
 
@@ -37,7 +37,7 @@ describe('mobileHeartHtml (mobile card shows the heart only when favourited)', (
   });
   it('renders a pressed filled heart carrying the mobile class for a favourite', () => {
     const h = mobileHeartHtml({ ...base, isFavourite: true });
-    expect(h).toContain('sa-mobile-fav-indicator');
+    expect(h).toContain('app-mobile-fav-indicator');
     expect(h).toContain('aria-pressed="true"');
     expect(h).toContain('aria-label="Unfavourite"');
   });

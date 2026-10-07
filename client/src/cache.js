@@ -1,17 +1,12 @@
 // IndexedDB-based read-through cache for API GET responses
-// Uses the same 'sweat-cache' DB as timetable.js but version 2, adding an 'api-responses' store.
+// Uses the same 'app-cache' DB as timetable.js but version 2, adding an 'api-responses' store.
 // Raw IndexedDB (no idb library) — matches pattern in timetable.js.
 //
 // Exports a shared openDB() that creates BOTH stores at version 2.
 // timetable.js should import openDB() instead of its own openCacheDB to
 // avoid version-conflict blocking. Uses per-user key prefixes for isolation.
 
-import { copyLegacyDatabase, IDB_MIGRATED_MARKER } from './storage-migrate.js';
-
-// Renamed from 'psycle-cache' (naming audit step 5). openDB() copies the old
-// database's rows across once (see storage-migrate.js) and leaves it in place for
-// one release; it is deleted when the shim is removed.
-const DB_NAME = 'sweat-cache';
+const DB_NAME = 'app-cache';
 const DB_VERSION = 3;
 const STORE = 'api-responses';
 const SNAPSHOT_STORE = 'offline-snapshots';
@@ -20,7 +15,7 @@ const SNAPSHOT_STORE = 'offline-snapshots';
 // Set via setCacheKeyPrefix() after login (e.g. to currentUser.id).
 //
 // There is NO gym segment (C3-24). WP-G once derived one from a localStorage key,
-// `sweatActiveGymId`, written by the old gym switcher; the switcher is gone and
+// `appActiveGymId`, written by the old gym switcher; the switcher is gone and
 // api.js removes that key on load, so the segment was always empty and
 // `gymScopedKey()` returned the bare key — dead code that read as isolation.
 // Gym isolation now lives where it is real: gym-specific responses carry the gym
@@ -52,21 +47,6 @@ function cacheKey(endpoint) {
 
 // --- Database ---
 
-// One-time copy of the pre-rename 'psycle-cache' database. Memoised so concurrent
-// openDB() callers share a single run, and marker-guarded so it never repeats.
-let legacyMigration = null;
-function migrateLegacyOnce(db) {
-  if (!legacyMigration) {
-    legacyMigration = (async () => {
-      try {
-        if (localStorage.getItem(IDB_MIGRATED_MARKER) === '1') return;
-        await copyLegacyDatabase(indexedDB, db);
-        localStorage.setItem(IDB_MIGRATED_MARKER, '1');
-      } catch (_) { /* disposable caches */ }
-    })();
-  }
-  return legacyMigration;
-}
 
 /**
  * Open (or create) the shared IndexedDB database at version 2.
@@ -103,7 +83,7 @@ export function openDB() {
       // Close this connection when another connection requests a version upgrade,
       // preventing the infamous "blocked" state.
       db.onversionchange = () => { db.close(); };
-      migrateLegacyOnce(db).then(() => resolve(db), () => resolve(db));
+      resolve(db);
     };
     req.onerror = () => {
       reject(req.error);
@@ -307,7 +287,7 @@ export async function getCachedSWR(endpoint, options = {}) {
 /**
  * Background refresh helper for SWR strategy.
  * Fires a network request and updates cache on success.
- * Dispatches 'sweat-data-refreshed' event with { endpoint, data } on success.
+ * Dispatches 'app-data-refreshed' event with { endpoint, data } on success.
  * Silently ignores failures.
  */
 async function performBackgroundFetch(endpoint, doFetch, ttlMs) {
@@ -320,7 +300,7 @@ async function performBackgroundFetch(endpoint, doFetch, ttlMs) {
     } catch (writeErr) {
       console.warn(`[Cache] Background write failed for ${endpoint}:`, writeErr);
     }
-    window.dispatchEvent(new CustomEvent('sweat-data-refreshed', {
+    window.dispatchEvent(new CustomEvent('app-data-refreshed', {
       detail: { endpoint, data }
     }));
   } catch (err) {

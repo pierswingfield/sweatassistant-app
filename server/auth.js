@@ -121,7 +121,7 @@ async function handleLogin(email, password) {
     };
   }
 
-  // --- Sweat Assistant account login (Decision D4) ---------------------------
+  // --- the app account login (Decision D4) ---------------------------
   //
   // An SA login used to BE a gym login: it round-tripped CodexFit every time, and
   // the account only existed as long as the membership did. Now the SA credential
@@ -208,7 +208,7 @@ async function handleLogin(email, password) {
     db.updateUserJWT(userId, gymToken, jwtExpiresAt, loginGymId);
   }
 
-  // 3a. Adopt this password as the Sweat Assistant account password (Decision D4).
+  // 3a. Adopt this password as the the app account password (Decision D4).
   // The user just proved they know it against the gym, so it is safe to seed from
   // — and it means every existing account migrates to an independent identity on
   // its next login with no prompt. Best-effort: a hashing failure must not cost
@@ -349,7 +349,7 @@ async function triggerAutoRelogin(userId, gymId = null) {
   try { session = link.session_json ? JSON.parse(link.session_json) : null; } catch (_) {}
 
   // Credentials for the ladder's re-login rung. `gym_email` is the address proven
-  // against THIS gym (WP-D5) — deliberately not users.email, which is the Sweat
+  // against THIS gym (WP-D5) — deliberately not users.email, which is the the app
   // Assistant identity and may be a different address entirely.
   let credentials = null;
   if (link.gym_email && link.encrypted_password) {
@@ -421,7 +421,7 @@ async function triggerAutoRelogin(userId, gymId = null) {
   }
 }
 
-// --- Sweat Assistant account signup (Decision D4) ---------------------------
+// --- the app account signup (Decision D4) ---------------------------
 //
 // Creates an account that has never had a gym. Before D4 this was impossible:
 // an account could only be born by logging into CodexFit, which is precisely
@@ -457,7 +457,7 @@ async function handleSignup(email, password) {
 // Rejected by the stakeholder, and rightly — it re-coupled the account to the gym,
 // which is precisely what Decision D4 exists to break:
 //   * cancel the membership and you lose the ability to recover the account;
-//   * the gym password becomes a permanent master key for the Sweat Assistant
+//   * the gym password becomes a permanent master key for the the app
 //     account, so a weak or reused gym password (and the gym's own security
 //     posture, which we do not control) silently becomes the account's floor;
 //   * it made the "independent identity" claim untrue in the one moment that
@@ -473,7 +473,7 @@ async function handleSignup(email, password) {
 // proof, there is no longer a "gym we just verified" to carve out — recovery now
 // resets ALL of them.
 
-// Link a gym to an existing Sweat Assistant account, or re-authenticate one whose
+// Link a gym to an existing the app account, or re-authenticate one whose
 // stored credential has gone stale (the user changed their password at the gym).
 // Deliberately ONE function for both: "link" and "re-auth" are the same operation
 // — prove the credential against the provider, then store it — and splitting them
@@ -499,7 +499,7 @@ async function linkGymAccount(userId, gymId, email, password) {
   db.upsertUserGym(userId, gymId, {
     // Store the email alongside the password — both were just proven against this
     // gym, and without it nothing can re-authenticate unattended for any account
-    // whose gym login differs from its Sweat Assistant login (WP-D5). Lower-cased
+    // whose gym login differs from its the app login (WP-D5). Lower-cased
     // (as handleSignup does for the SA email) so a re-link differing only in case
     // updates the link rather than reading as a different identity.
     gym_email: String(email).trim().toLowerCase(),
@@ -522,7 +522,7 @@ async function linkGymAccount(userId, gymId, email, password) {
   return db.getUserGymsPublic(userId).find((g) => g.gym_id === gymId);
 }
 
-// Unlink a gym. The Sweat Assistant account itself survives — that is the whole
+// Unlink a gym. The the app account itself survives — that is the whole
 // point of Decision D4: cancelling a Psycle membership must not cost you JAB.
 // Unlinking the last gym is allowed for the same reason; the account remains and
 // can link a different gym later.

@@ -19,8 +19,8 @@ import { openPage as openNavPage, closePage as closeNavPage } from './modal-nav.
 
 // Simplified inline marks (no hotlinking). They approximate the Apple and Google
 // Calendar app icons; they are not pixel-faithful reproductions.
-const APPLE_CAL_LOGO = `<svg class="sa-cal-logo" viewBox="0 0 32 32" aria-hidden="true"><rect x="1" y="1" width="30" height="30" rx="7" fill="#fff" stroke="#d1d1d6"/><text x="16" y="10.5" text-anchor="middle" font-family="-apple-system,Helvetica,Arial,sans-serif" font-size="6.5" font-weight="600" fill="#ff3b30">WED</text><text x="16" y="25" text-anchor="middle" font-family="-apple-system,Helvetica,Arial,sans-serif" font-size="15" font-weight="300" fill="#1c1c1e">17</text></svg>`;
-const GOOGLE_CAL_LOGO = `<svg class="sa-cal-logo" viewBox="0 0 32 32" aria-hidden="true"><rect x="5" y="5" width="22" height="22" rx="2.5" fill="#fff"/><path d="M5 27V7.5A2.5 2.5 0 0 1 7.5 5H12v4H9v14h0v4H5z" fill="#4285f4"/><path d="M9 23h14v4H9z" fill="#34a853"/><path d="M23 9h4v14h-4z" fill="#fbbc04"/><path d="M23 23h4v2.5a1.5 1.5 0 0 1-1.5 1.5H23z" fill="#ea4335"/><path d="M23 5h2.5A1.5 1.5 0 0 1 27 6.5V9h-4z" fill="#1967d2"/><path d="M12 5h11v4H12z" fill="#4285f4"/><text x="16" y="21" text-anchor="middle" font-family="Arial,Helvetica,sans-serif" font-size="9" font-weight="700" fill="#4285f4">31</text></svg>`;
+const APPLE_CAL_LOGO = `<svg class="app-cal-logo" viewBox="0 0 32 32" aria-hidden="true"><rect x="1" y="1" width="30" height="30" rx="7" fill="#fff" stroke="#d1d1d6"/><text x="16" y="10.5" text-anchor="middle" font-family="-apple-system,Helvetica,Arial,sans-serif" font-size="6.5" font-weight="600" fill="#ff3b30">WED</text><text x="16" y="25" text-anchor="middle" font-family="-apple-system,Helvetica,Arial,sans-serif" font-size="15" font-weight="300" fill="#1c1c1e">17</text></svg>`;
+const GOOGLE_CAL_LOGO = `<svg class="app-cal-logo" viewBox="0 0 32 32" aria-hidden="true"><rect x="5" y="5" width="22" height="22" rx="2.5" fill="#fff"/><path d="M5 27V7.5A2.5 2.5 0 0 1 7.5 5H12v4H9v14h0v4H5z" fill="#4285f4"/><path d="M9 23h14v4H9z" fill="#34a853"/><path d="M23 9h4v14h-4z" fill="#fbbc04"/><path d="M23 23h4v2.5a1.5 1.5 0 0 1-1.5 1.5H23z" fill="#ea4335"/><path d="M23 5h2.5A1.5 1.5 0 0 1 27 6.5V9h-4z" fill="#1967d2"/><path d="M12 5h11v4H12z" fill="#4285f4"/><text x="16" y="21" text-anchor="middle" font-family="Arial,Helvetica,sans-serif" font-size="9" font-weight="700" fill="#4285f4">31</text></svg>`;
 
 function gymCoverageLine(status) {
   const gyms = status.gyms || [];
@@ -34,10 +34,10 @@ function gymCoverageLine(status) {
 function checkRow({ key, title, help, checked, disabled = false }) {
   const attrs = key ? `data-calendar-setting="${key}"` : '';
   return `
-    <label class="sa-setting-row sa-cal-check${disabled ? ' is-disabled' : ''}">
+    <label class="app-setting-row app-cal-check${disabled ? ' is-disabled' : ''}">
       <input type="checkbox" ${attrs} ${checked ? 'checked' : ''} ${disabled ? 'disabled' : ''}>
-      <span class="sa-cal-box" aria-hidden="true"></span>
-      <span class="sa-setting-label"><span>${escapeHtml(title)}</span><small>${escapeHtml(help)}</small></span>
+      <span class="app-cal-box" aria-hidden="true"></span>
+      <span class="app-setting-label"><span>${escapeHtml(title)}</span><small>${escapeHtml(help)}</small></span>
     </label>`;
 }
 
@@ -47,18 +47,18 @@ function feedCardHtml(status) {
     ? COPY.calendar.lastUpdated.replace('{date}', noSept(new Date(status.generatedAt).toLocaleString('en-GB', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' })))
     : COPY.calendar.notPublished;
   return `
-    <div class="sa-settings-card">
+    <div class="app-settings-card">
       <h4>${COPY.calendar.feedTitle}</h4>
-      <div class="sa-setting-row">
-        <div class="sa-setting-label">
+      <div class="app-setting-row">
+        <div class="app-setting-label">
           <span>${enabled ? COPY.calendar.feedOn : COPY.calendar.feedOff}</span>
           <small>${enabled ? escapeHtml(`${gymCoverageLine(status)} ${generated}`) : COPY.calendar.feedOffDescription}</small>
         </div>
       </div>
-      <div class="sa-cal-feed-actions">
-        ${enabled ? `<button class="sa-btn sa-cal-feed-btn" data-calendar-action="refresh">${icon('refresh', 16)}<span>${COPY.calendar.refreshNow}</span></button>
-        <button class="sa-btn sa-cal-feed-btn variant-danger" data-calendar-action="disable">${icon('power', 16)}<span>${COPY.calendar.turnOffFeed}</span></button>`
-        : `<button class="sa-btn sa-cal-feed-btn" data-calendar-action="enable">${icon('power', 16)}<span>${COPY.calendar.turnOnFeed}</span></button>`}
+      <div class="app-cal-feed-actions">
+        ${enabled ? `<button class="app-btn app-cal-feed-btn" data-calendar-action="refresh">${icon('refresh', 16)}<span>${COPY.calendar.refreshNow}</span></button>
+        <button class="app-btn app-cal-feed-btn variant-danger" data-calendar-action="disable">${icon('power', 16)}<span>${COPY.calendar.turnOffFeed}</span></button>`
+        : `<button class="app-btn app-cal-feed-btn" data-calendar-action="enable">${icon('power', 16)}<span>${COPY.calendar.turnOnFeed}</span></button>`}
       </div>
     </div>`;
 }
@@ -67,9 +67,9 @@ function includeCardHtml(status) {
   const weekly = status.weeklyGyms || [];
   const names = weekly.map((g) => g.name).join(' and ');
   return `
-    <div class="sa-settings-card">
+    <div class="app-settings-card">
       <h4>${COPY.calendar.includeTitle}</h4>
-      <p class="sa-card-desc">${COPY.calendar.includeDescription}</p>
+      <p class="app-card-desc">${COPY.calendar.includeDescription}</p>
       ${checkRow({ title: COPY.calendar.bookedClasses, help: COPY.calendar.alwaysIncluded, checked: true, disabled: true })}
       ${checkRow({ key: 'includeWaitlists', title: COPY.calendar.waitlists, help: COPY.calendar.tentativeWaitlists, checked: status.includeWaitlists })}
       ${checkRow({ key: 'includeAutoBook', title: COPY.calendar.autoBook, help: COPY.calendar.tentativeAutoBook, checked: status.includeAutoBook })}
@@ -80,9 +80,9 @@ function includeCardHtml(status) {
 function remindersCardHtml(status) {
   const r = status.reminders || {};
   return `
-    <div class="sa-settings-card">
+    <div class="app-settings-card">
       <h4>${COPY.calendar.reminders}</h4>
-      <p class="sa-card-desc">${COPY.calendar.reminderDescription}</p>
+      <p class="app-card-desc">${COPY.calendar.reminderDescription}</p>
       ${checkRow({ key: 'reminders.twoHour', title: COPY.calendar.twoHoursBefore, help: COPY.calendar.leaveReminder, checked: r.twoHour })}
       ${checkRow({ key: 'reminders.cancelWindow', title: COPY.calendar.beforeCancellationEnds, help: COPY.calendar.cancellationReminder, checked: r.cancelWindow })}
     </div>`;
@@ -90,26 +90,26 @@ function remindersCardHtml(status) {
 
 function addCardHtml(status) {
   return `
-    <div class="sa-settings-card">
+    <div class="app-settings-card">
       <h4>${COPY.calendar.addToCalendar}</h4>
-      <p class="sa-card-desc">${COPY.calendar.feedUpdatesDescription}</p>
-      <div class="sa-cal-add-list">
-        <button class="sa-btn sa-cal-add-btn" data-calendar-action="apple">${APPLE_CAL_LOGO}<span>${COPY.calendar.appleCalendar}</span></button>
-        <button class="sa-btn sa-cal-add-btn" data-calendar-action="google">${GOOGLE_CAL_LOGO}<span>${COPY.calendar.googleCalendar}</span></button>
-        <button class="sa-btn sa-cal-add-btn" data-calendar-action="copy"><span class="sa-cal-logo sa-cal-logo-generic">${icon('link', 18)}</span><span>${COPY.calendar.copyLink}</span></button>
+      <p class="app-card-desc">${COPY.calendar.feedUpdatesDescription}</p>
+      <div class="app-cal-add-list">
+        <button class="app-btn app-cal-add-btn" data-calendar-action="apple">${APPLE_CAL_LOGO}<span>${COPY.calendar.appleCalendar}</span></button>
+        <button class="app-btn app-cal-add-btn" data-calendar-action="google">${GOOGLE_CAL_LOGO}<span>${COPY.calendar.googleCalendar}</span></button>
+        <button class="app-btn app-cal-add-btn" data-calendar-action="copy"><span class="app-cal-logo app-cal-logo-generic">${icon('link', 18)}</span><span>${COPY.calendar.copyLink}</span></button>
       </div>
     </div>`;
 }
 
 export async function renderCalendarSection(targetContainer = null) {
-  const container = targetContainer || document.getElementById('sa-calendar-section');
+  const container = targetContainer || document.getElementById('app-calendar-section');
   if (!container) return;
 
   let status;
   try {
     status = await api.getCalendarStatus();
   } catch (err) {
-    const msg = `<div class="sa-settings-card"><p class="${getIsOffline() ? 'sa-card-desc' : 'sa-card-error'}">${getIsOffline() ? COPY.calendar.noSavedStatus : formatCopyText(COPY.calendar.loadingFailed, { error: escapeHtml(err.message) })}</p></div>`;
+    const msg = `<div class="app-settings-card"><p class="${getIsOffline() ? 'app-card-desc' : 'app-card-error'}">${getIsOffline() ? COPY.calendar.noSavedStatus : formatCopyText(COPY.calendar.loadingFailed, { error: escapeHtml(err.message) })}</p></div>`;
     container.innerHTML = msg;
     return;
   }
@@ -129,7 +129,7 @@ export async function renderCalendarSection(targetContainer = null) {
   container.innerHTML = feedCardHtml(status) + (status.enabled ? includeCardHtml(status) + remindersCardHtml(status) + addCardHtml(status) : '');
 
   const val = (key) => container.querySelector(`[data-calendar-setting="${key}"]`);
-  const notifyActionComplete = () => container.dispatchEvent(new CustomEvent('sweat:calendar-action-complete'));
+  const notifyActionComplete = () => container.dispatchEvent(new CustomEvent('app:calendar-action-complete'));
   const prefs = () => {
     // Feed off: the option controls are not on screen, so send nothing and keep saved prefs.
     if (!val('includeWaitlists')) return {};
@@ -209,23 +209,23 @@ export async function renderCalendarSection(targetContainer = null) {
  */
 export function openCalendarSettingsModal({ zIndex = 2000, onChange = null, onClose = null } = {}) {
   const overlay = document.createElement('div');
-  overlay.className = 'sa-ovl';
+  overlay.className = 'app-ovl';
   overlay.setAttribute('role', 'dialog');
   overlay.setAttribute('aria-modal', 'true');
   overlay.style.cssText = `position:fixed;inset:0;background:color-mix(in srgb, var(--bg) 60%, transparent);z-index:${zIndex};display:flex;align-items:center;justify-content:center;padding:16px;`;
   overlay.innerHTML = `
-    <div class="sa-ovl-card" style="background:var(--bg);border:1px solid color-mix(in srgb, var(--text) 12%, transparent);border-radius:16px;width:100%;max-width:500px;max-height:90vh;display:flex;flex-direction:column;overflow:hidden;">
-      <div class="sa-ovl-header" style="display:flex;justify-content:space-between;align-items:center;padding:14px 18px;border-bottom:1px solid color-mix(in srgb, var(--text) 8%, transparent);flex-shrink:0;">
+    <div class="app-ovl-card" style="background:var(--bg);border:1px solid color-mix(in srgb, var(--text) 12%, transparent);border-radius:16px;width:100%;max-width:500px;max-height:90vh;display:flex;flex-direction:column;overflow:hidden;">
+      <div class="app-ovl-header" style="display:flex;justify-content:space-between;align-items:center;padding:14px 18px;border-bottom:1px solid color-mix(in srgb, var(--text) 8%, transparent);flex-shrink:0;">
         <h3 data-nav-title style="margin:0;font-size:16px;font-weight:700;color:var(--text);"></h3>
         <button type="button" data-nav-close data-calendar-modal-close aria-label="${COPY.credits.closeModal}" style="background:none;border:none;color:var(--text-secondary);font-size:22px;cursor:pointer;padding:0;line-height:1;">×</button>
       </div>
-      <div class="sa-ovl-body" style="flex:1;overflow-y:auto;padding:16px;"><div data-calendar-modal-section></div></div>
+      <div class="app-ovl-body" style="flex:1;overflow-y:auto;padding:16px;"><div data-calendar-modal-section></div></div>
       <div style="padding:12px 16px;border-top:1px solid color-mix(in srgb, var(--text) 8%, transparent);flex-shrink:0;">
-        <button type="button" class="sa-btn-primary" data-calendar-modal-close style="width:100%;"></button>
+        <button type="button" class="app-btn-primary" data-calendar-modal-close style="width:100%;"></button>
       </div>
     </div>`;
   overlay.querySelector('h3').textContent = COPY.onboarding.calendarFeatureTitle;
-  overlay.querySelector('.sa-btn-primary').textContent = COPY.onboarding.done;
+  overlay.querySelector('.app-btn-primary').textContent = COPY.onboarding.done;
 
   const section = overlay.querySelector('[data-calendar-modal-section]');
   let closed = false;
@@ -244,7 +244,7 @@ export function openCalendarSettingsModal({ zIndex = 2000, onChange = null, onCl
   overlay.querySelectorAll('[data-calendar-modal-close]').forEach((b) => b.addEventListener('click', close));
   overlay.addEventListener('click', (e) => { if (e.target === overlay) close(); });
   document.addEventListener('keydown', onKey);
-  if (onChange) section.addEventListener('sweat:calendar-action-complete', onChange);
+  if (onChange) section.addEventListener('app:calendar-action-complete', onChange);
 
   document.body.appendChild(overlay);
   openNavPage(overlay, { id: 'calendar-settings', remove: true, onClose: cleanup });

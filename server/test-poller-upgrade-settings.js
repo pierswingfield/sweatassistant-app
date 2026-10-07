@@ -1,4 +1,4 @@
-// Sweat Assistant — per-gym auto-upgrade settings drive EXISTING monitors, and
+// per-gym auto-upgrade settings drive EXISTING monitors, and
 // the 12h / 1h stop rules hold regardless of polling interval.
 //
 //  - polling OFF for the monitor's gym -> 'paused_disabled' (row survives, not polled)

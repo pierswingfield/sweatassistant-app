@@ -1,4 +1,4 @@
-// Sweat Assistant — CodexFit v2 cart & checkout protocol (C2-1, 2026-09-26).
+// CodexFit v2 cart & checkout protocol (C2-1, 2026-09-26).
 //
 // This is CodexFit protocol, not policy — it belongs alongside providers/codexfit.js
 // per WP-D7 (the platform module is the only thing that talks HTTP for its own

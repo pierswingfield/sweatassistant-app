@@ -23,7 +23,6 @@ const instructorPhotoRouter = require('./instructor-photo-routes');
 const config = require('./config');
 const competing = require('./competing-bookings');
 const { getGymConfig } = require('./gyms.config');
-const { appName } = config;
 
 // The old CodexFit proxy + cart routes that lived here (WP-D9's removed
 // `/api/proxy/*`, and C2-1's retired v1 cart flow) are both gone now — every
@@ -259,12 +258,21 @@ app.get('/metrics', (req, res) => {
 
 // -------------------------------------------------------------
 // TEMPLATED STATIC FILES
-// In production, intercept specific static files that contain the app name
-// and replace the default "Sweat Assistant" with the configured value.
-// This lets the same built client serve under a different name without a
-// rebuild. Files are read once and cached; the replace is a no-op when the
-// configured name equals the default.
+// index.html, manifest.json, sw.js and admin.html carry the placeholder
+// __APP_NAME__ wherever the product name appears. It is replaced here, per
+// request, with the instance's configured name (config.appName, from APP_NAME)
+// escaped for the file's own syntax, so the same built client serves under any
+// name with no rebuild and no flash of a wrong name. The default name lives
+// only in config.js.
 // -------------------------------------------------------------
+
+const APP_NAME_TOKEN = '__APP_NAME__';
+function escapeForType(name, contentType) {
+  if (/html/.test(contentType)) return name.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;').replace(/'/g, '&#39;');
+  if (/json/.test(contentType)) return JSON.stringify(name).slice(1, -1);
+  if (/javascript/.test(contentType)) return JSON.stringify(name).slice(1, -1).replace(/'/g, "\\'");
+  return name;
+}
 
 const fs = require('fs');
 const fileCache = {};
@@ -289,10 +297,7 @@ function sendTemplated(filePath, res, contentType) {
       return res.status(404).send('Not found');
     }
   }
-  let content = entry.text;
-  if (config.appName !== 'Sweat Assistant') {
-    content = content.replaceAll('Sweat Assistant', config.appName);
-  }
+  const content = entry.text.replaceAll(APP_NAME_TOKEN, escapeForType(config.appName, contentType));
   res.type(contentType).send(content);
 }
 
@@ -353,7 +358,7 @@ app.post('/api/auth/login', authLoginLimiter, async (req, res) => {
   }
 });
 
-// Create a Sweat Assistant account (Decision D4) — no gym involved. Shares the
+// Create an app account (Decision D4) — no gym involved. Shares the
 // login limiter: both are unauthenticated credential endpoints on the same IP.
 app.post('/api/auth/signup', authLoginLimiter, async (req, res) => {
   const { email, password } = req.body || {};
@@ -411,7 +416,7 @@ app.post('/api/push/unsubscribe', authenticateToken, (req, res) => {
 // For testing push notifications manually
 app.post('/api/push/test', authenticateToken, async (req, res) => {
   try {
-    await pushService.sendNotification(req.userId, 'Test Notification 🔔', `Your ${appName} server is ready to notify you!`);
+    await require('./notifications').sendGenericTest(req.userId);
     res.json({ success: true });
   } catch (err) {
     res.status(500).json({ message: err.message });
@@ -972,25 +977,21 @@ app.put('/api/studio-preferences/:id', authenticateToken, (req, res) => {
 
 app.get('/api/config/export', authenticateToken, (req, res) => {
   try {
-    const settings = db.getUserSettings(req.userId) || {};
     const gymIds = db.getUserGyms(req.userId).map((g) => g.gym_id).filter(Boolean);
-    // C3-16: settings split by scope, each gym's block naming its gym. The merged
-    // `psycleSettings` below cannot say which gym a gym-scoped key belongs to.
+    // C3-16: settings split by scope, each gym's block naming its gym.
     const accountSettings = db.getAccountSettings(req.userId);
     const gymSettings = gymIds.map((gymId) => ({ gymId, settings: db.getGymSettings(req.userId, gymId) }));
 
     // EVERY linked gym. Both of these are keyed by PROVIDER ids, which are
     // unique only within one gym, so a backup that captured a single gym would
     // restore one gym's spot maps over another's identically-numbered studios.
-    const formattedPrefs = {};      // legacy shape: { studioId: prefs } — one gym only
-    const studioPreferences = [];   // gym-qualified, what an import should read
+    const studioPreferences = [];   // gym-qualified, what an import reads
     const formattedBookings = [];
     for (const gymId of gymIds) {
       db.runWithGymContext(req.userId, gymId, () => {
         for (const p of db.getStudioPreferences(req.userId) || []) {
           const prefs = JSON.parse(p.preferences);
           studioPreferences.push({ gymId, studioId: p.studio_id, preferences: prefs });
-          if (gymIds.length === 1) formattedPrefs[p.studio_id] = prefs;
         }
         for (const b of db.getUserAutoBookings(req.userId, gymId) || []) {
           formattedBookings.push({
@@ -1008,17 +1009,11 @@ app.get('/api/config/export', authenticateToken, (req, res) => {
     }
 
     res.json({
-      version: '1.2.0',
+      version: '2.0.0',
       accountSettings,
       gymSettings,
-      // Merged blob, kept only so an older build can still read the file. An
-      // import prefers accountSettings/gymSettings above.
-      psycleSettings: settings,
-      // Kept for single-gym accounts so an export stays readable by an older
-      // build; `studioPreferences` is the one an import prefers.
-      psycleStudioPreferences: formattedPrefs,
       studioPreferences,
-      psycleAutoBookings: formattedBookings,
+      autoBookings: formattedBookings,
     });
   } catch (err) {
     res.status(500).json({ message: err.message });
@@ -1026,7 +1021,7 @@ app.get('/api/config/export', authenticateToken, (req, res) => {
 });
 
 app.post('/api/config/import', authenticateToken, (req, res) => {
-  const { psycleSettings, accountSettings, gymSettings, psycleStudioPreferences, studioPreferences, psycleAutoBookings } = req.body;
+  const { accountSettings, gymSettings, studioPreferences, autoBookings } = req.body;
   const skipped = []; // human-readable notes on anything not restored
   try {
     const linkedIds = db.getUserGyms(req.userId).map((g) => g.gym_id).filter(Boolean);
@@ -1044,42 +1039,19 @@ app.post('/api/config/import', authenticateToken, (req, res) => {
         const gymKeys = db.splitSettingsByScope(block.settings).gym;
         if (Object.keys(gymKeys).length) db.setUserSettings(req.userId, gymKeys, block.gymId);
       }
-    } else if (psycleSettings) {
-      // Old flat blob: account keys are unambiguous. Its gym keys carry no gym, so
-      // they can only go to the account's sole gym; with several, skip and say so.
-      const { account, gym } = db.splitSettingsByScope(psycleSettings);
-      if (Object.keys(account).length) db.setUserSettings(req.userId, account);
-      const gymKeyNames = Object.keys(gym);
-      if (gymKeyNames.length) {
-        if (linkedIds.length === 1) {
-          db.setUserSettings(req.userId, gym, linkedIds[0]);
-        } else {
-          skipped.push(`Per-gym settings (${gymKeyNames.join(', ')}) were skipped: this backup does not say which gym they belong to and your account has ${linkedIds.length} linked gyms. Export a fresh backup to include per-gym settings.`);
-        }
-      }
     }
 
-    // Prefer the gym-qualified list. The legacy `{ studioId: prefs }` object
-    // carries no gym, so it can only be restored unambiguously onto a
-    // single-gym account — `setStudioPreference` refuses to guess otherwise
-    // rather than writing one gym's map onto another's studio.
+    // Gym-qualified list: each spot map names its gym, so it can never land on
+    // another gym's identically-numbered studio.
     if (Array.isArray(studioPreferences)) {
       studioPreferences.forEach((p) => {
         if (p.gymId && !linkedIds.includes(p.gymId)) { skipped.push(`Spot map for studio ${p.studioId} was skipped: ${p.gymId} is not linked.`); return; }
         db.setStudioPreference(req.userId, p.studioId, p.preferences, p.gymId || null);
       });
-    } else if (psycleStudioPreferences && Object.keys(psycleStudioPreferences).length) {
-      if (linkedIds.length > 1) {
-        skipped.push('Studio spot maps were skipped: this backup does not say which gym they belong to. Export a fresh backup.');
-      } else {
-        Object.entries(psycleStudioPreferences).forEach(([studioId, prefs]) => {
-          db.setStudioPreference(req.userId, parseInt(studioId), prefs);
-        });
-      }
     }
 
-    if (psycleAutoBookings && Array.isArray(psycleAutoBookings)) {
-      psycleAutoBookings.forEach(b => {
+    if (autoBookings && Array.isArray(autoBookings)) {
+      autoBookings.forEach(b => {
         if (!b.gymId && linkedIds.length > 1) { skipped.push(`Auto-book entry for ${b.className || b.eventId} was skipped: no gym recorded and several are linked.`); return; }
         if (b.gymId && !linkedIds.includes(b.gymId)) { skipped.push(`Auto-book entry for ${b.className || b.eventId} was skipped: ${b.gymId} is not linked.`); return; }
         // Duplicate check is per gym: the same provider event id can legitimately

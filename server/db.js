@@ -305,7 +305,7 @@ db.exec(`
     updated_at TEXT DEFAULT CURRENT_TIMESTAMP
   );
 
-  -- One row per (account, gym) the account has linked. A Sweat Assistant account
+  -- One row per (account, gym) the account has linked. An app account
   -- (the users row) can link multiple gyms -- see PLAN.md D1 (multiple gyms per
   -- account). Per-gym credentials/session live here, NOT on users.
   --
@@ -357,7 +357,7 @@ ensureColumn('auto_upgrades', 'studio_id', 'INTEGER');
 // Store the event-type group (e.g. "RIDE") so notifications can render it without a re-fetch.
 ensureColumn('auto_bookings', 'group_name', 'TEXT');
 ensureColumn('auto_upgrades', 'group_name', 'TEXT');
-// Sweat Assistant's OWN password hash (WP-C2 / Decision D4). Until this, an SA
+// The app's OWN password hash (WP-C2 / Decision D4). Until this, an SA
 // login WAS a gym login — `users.email` + the gym credential were the same thing,
 // so losing a gym membership meant losing the account. This column makes the SA
 // identity independent: scrypt, salted, never the gym's password after the user
@@ -399,7 +399,7 @@ ensureColumn('auto_upgrades', 'original_slot_id', 'INTEGER');
 //
 // Until now a gym link stored the password but not the email, because there was
 // only ever one gym and `users.email` doubled as its login. Decision D4 broke
-// that equivalence deliberately — a Sweat Assistant account is no longer a gym
+// that equivalence deliberately — an app account is no longer a gym
 // account — which left re-authentication with nothing to authenticate AS for any
 // user whose gym email differs from their SA email. This column is the last place
 // the account still stood in for a gym.
@@ -483,7 +483,7 @@ function dropGymIdDefaults() {
 // --- Modular multi-gym migration (WP-D1) ---
 // Keeps the `gyms` table in sync with the static registry (server/gyms.config.js
 // is authoritative), then backfills a `user_gyms` row for every *legacy* user
-// against the default gym. A user with `password_hash` is a D4 Sweat Assistant
+// against the default gym. A user with `password_hash` is a D4 the app
 // account and may deliberately have no gym at all; creating an empty default-gym
 // link for one would turn its legitimate 409 NO_GYM_LINKED state into a 401 loop.
 // Both steps are idempotent: safe to run on every boot, safe to run against a
@@ -723,7 +723,7 @@ rebuildWithGymId('calendar_classes', `
 // the training wheels off. See dropGymIdDefaults() above.
 dropGymIdDefaults();
 
-// --- Sweat Assistant account password hashing (Decision D4) ---
+// --- the app account password hashing (Decision D4) ---
 // node:crypto scrypt — deliberately no new dependency. Parameters are stored in
 // the hash string so they can be raised later without invalidating existing rows.
 const nodeCrypto = require('crypto');
@@ -1133,7 +1133,7 @@ function mergeUserWithGym(user, gymId) {
     calendar_token: ug ? ug.calendar_token : user.calendar_token,
     gym_id: gymId,
     // The email this account logs in to THIS gym with (WP-D5). Deliberately a
-    // SEPARATE field from `.email`, which stays the Sweat Assistant account
+    // SEPARATE field from `.email`, which stays the the app account
     // identity — conflating them is the coupling D4 exists to break. NULL means
     // "not captured": re-authentication needs the user, not a fallback.
     gym_email: ug ? ug.gym_email : null,
@@ -1216,7 +1216,7 @@ module.exports = {
     this.upsertUserGym(userId, DEFAULT_GYM_ID, { gym_email: email, encrypted_password: encryptedPassword, priority: 200 });
     return userId;
   },
-  // Create a Sweat Assistant account with NO gym attached (Decision D4).
+  // Create an app account with NO gym attached (Decision D4).
   // Distinct from createUser(), which bootstraps a default-gym link because it
   // models the legacy "first gym login creates the account" flow. Signup is
   // gym-independent by design — the whole point is that the account can outlive
@@ -2285,7 +2285,7 @@ module.exports = {
     });
     return this.getUserGym(userId, gymId);
   },
-  // --- Sweat Assistant's own credential (Decision D4) ------------------------
+  // --- the app's own credential (Decision D4) ------------------------
   //
   // scrypt with a per-user random salt. Stored as `scrypt$N$r$p$salt$hash`, all
   // hex, so the work factor travels with the hash and can be raised later without

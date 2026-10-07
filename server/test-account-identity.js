@@ -1,6 +1,6 @@
-// Sweat Assistant account identity + gym linking (WP-C2 slice 1b, Decision D4).
+// The app account identity + gym linking (WP-C2 slice 1b, Decision D4).
 //
-// Until D4, a Sweat Assistant login WAS a gym login: `users.email` plus the gym's
+// Until D4, an app login WAS a gym login: `users.email` plus the gym's
 // password, re-verified against CodexFit on every sign-in. That meant the account
 // only existed as long as the membership did — cancel Psycle and you lose JAB too.
 //

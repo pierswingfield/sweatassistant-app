@@ -7,6 +7,6 @@ export function markScrollBusy(ms = 300) { busyUntil = Math.max(busyUntil, perfo
 export function isScrollBusy() { return performance.now() < busyUntil; }
 
 // Mobile (<= 768px) scrolls the DOCUMENT (so Safari's URL/toolbar can collapse); desktop keeps the inner
-// `main.sa-body` scroller. Everything that reads scroll position goes through these two helpers.
+// `main.app-body` scroller. Everything that reads scroll position goes through these two helpers.
 export const isDocScroll = () => typeof window !== 'undefined' && window.matchMedia('(max-width: 768px)').matches;
 export function docScroller() { return document.scrollingElement || document.documentElement; }

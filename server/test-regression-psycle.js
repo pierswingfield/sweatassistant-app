@@ -1,4 +1,4 @@
-// Sweat Assistant — Psycle (CodexFit) black-box regression harness. [WP-T3]
+// Psycle (CodexFit) black-box regression harness. [WP-T3]
 //
 // This is the safety net for the modular multi-gym refactor (see
 // Documentation/Archive/2026-09-26/Backlog/modular-gyms/PLAN.md §5). It boots the REAL Express
@@ -73,7 +73,7 @@ async function run() {
       NODE_ENV: 'development', // dev mode: rate limiters skipped, dev@psycle.com mock active
       JWT_SECRET: 'test-regression-jwt-secret',
       ENCRYPTION_KEY: '0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef',
-      APP_NAME: 'Sweat Assistant',
+      APP_NAME: 'Regression Test App',
       ADMIN_PASSWORD: 'test-admin-password', // enables /api/admin/* (503 without it)
     },
     stdio: ['ignore', 'pipe', 'pipe'],
@@ -94,7 +94,7 @@ async function run() {
     const res = await fetch(`${BASE}/api/config`);
     const data = await res.json();
     assert.strictEqual(res.status, 200);
-    assert.strictEqual(data.appName, 'Sweat Assistant');
+    assert.strictEqual(data.appName, 'Regression Test App');
     log('✅ GET /api/config returns configured appName.');
   }
 
@@ -123,7 +123,7 @@ async function run() {
       method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify(body),
     });
 
-    // A Sweat Assistant account can be created with no gym at all.
+    // An app account can be created with no gym at all.
     const email = `sa-signup-${Date.now()}@test.local`;
     const signup = await post('/api/auth/signup', { email, password: 'a-real-password' });
     const signupData = await signup.json();

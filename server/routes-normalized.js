@@ -1,4 +1,4 @@
-// Sweat Assistant — normalized API routes (WP-N1).
+// normalized API routes (WP-N1).
 //
 // The first gym-agnostic surface: routes here call through a GymProvider
 // adapter and return NormalizedEvent/NormalizedSlot/NormalizedBookingResult
@@ -120,7 +120,7 @@ function resolveGymOnly(userId) {
 }
 
 function resolveContext(userId) {
-  // A Sweat Assistant account can now exist with NO gym linked at all (signup is
+  // An app account can now exist with NO gym linked at all (signup is
   // gym-independent since Decision D4). That is a legitimate, expected state —
   // not a broken session — so it gets its own signal. Without this the account
   // would resolve to the default gym, find no credential, and surface as
@@ -147,7 +147,7 @@ function resolveContext(userId) {
   const user = db.getUserById(userId);
   if (!user || !user.jwt) {
     // C1-2: this 401 means ONE gym's session is missing/dead, not that the
-    // Sweat Assistant JWT itself is invalid (that case is a 403 — see
+    // The app JWT itself is invalid (that case is a 403 — see
     // auth.js authenticateToken). `code` lets the client branch on that
     // distinction instead of treating every 401 as SA logout.
     const err = new Error('No active session for this gym. Please log in.');
@@ -327,7 +327,7 @@ router.delete('/my-gyms/:gymId', authenticateToken, (req, res) => {
 });
 
 // POST /api/account/password  { currentPassword, newPassword }
-// Change the Sweat Assistant account password — independent of any gym's.
+// Change the the app account password — independent of any gym's.
 router.post('/account/password', authenticateToken, (req, res) => {
   const { currentPassword, newPassword } = req.body || {};
   try {

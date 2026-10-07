@@ -3,7 +3,7 @@ import fs from 'fs';
 import path from 'path';
 import { createRequire } from 'module';
 
-// C7-2: client/public/sw.js hand-versioned its cache name ('psycle-cache-v2'),
+// C7-2: client/public/sw.js hand-versioned its cache name,
 // so a forgotten bump shipped stale JS forever — the SW's own `activate`
 // handler only deletes caches that AREN'T its current name, and an unbumped
 // name is trivially still current. Two independent `npm run build` runs
@@ -92,8 +92,36 @@ function overlayLocalGymConfig() {
   };
 }
 
+// The product name appears in index.html, manifest.json and sw.js only as the
+// placeholder __APP_NAME__. In production the server substitutes the configured
+// name per request (server.js sendTemplated); `vite build` deliberately leaves
+// the placeholder in dist/. In dev (no server in front of the files) this plugin
+// does the same substitution from the server's config.js, the one place the
+// name is defined.
+function templateAppName() {
+  const esc = (name, type) => (type === 'html'
+    ? name.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;').replace(/'/g, '&#39;')
+    : JSON.stringify(name).slice(1, -1).replace(type === 'js' ? /'/g : /$^/, "\\'"));
+  const nameNow = () => createRequire(import.meta.url)('../server/config.js').appName;
+  return {
+    name: 'template-app-name',
+    apply: 'serve',
+    transformIndexHtml: (html) => html.replaceAll('__APP_NAME__', esc(nameNow(), 'html')),
+    configureServer(server) {
+      const files = { '/manifest.json': ['manifest.json', 'application/manifest+json', 'json'], '/sw.js': ['sw.js', 'application/javascript', 'js'] };
+      server.middlewares.use((req, res, next) => {
+        const hit = files[(req.url || '').split('?')[0]];
+        if (!hit) return next();
+        const text = fs.readFileSync(path.resolve(server.config.root, 'public', hit[0]), 'utf8');
+        res.setHeader('Content-Type', hit[1]);
+        res.end(text.replaceAll('__APP_NAME__', esc(nameNow(), hit[2])));
+      });
+    },
+  };
+}
+
 export default defineConfig({
-  plugins: [stampServiceWorker(), overlayLocalGymConfig()],
+  plugins: [stampServiceWorker(), overlayLocalGymConfig(), templateAppName()],
   test: {
     environment: 'jsdom',
   },

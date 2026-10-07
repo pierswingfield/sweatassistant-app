@@ -38,10 +38,10 @@ describe('preferred spot setup copy and entry', () => {
       event: { gymId: 'psycle-london', studioId: 'studio-1', studioName: 'Studio 1', locationName: 'Soho' },
       className: 'Ride', onChooseForNow,
     });
-    const actions = [...page.querySelectorAll('.sa-setup-footer button')].map((button) => button.textContent);
+    const actions = [...page.querySelectorAll('.app-setup-footer button')].map((button) => button.textContent);
     expect(actions).toContain(COPY.spotSetup.chooseForNow);
     expect(actions).not.toContain('Skip for now');
-    page.querySelector('.sa-setup-footer button:last-child').click();
+    page.querySelector('.app-setup-footer button:last-child').click();
     expect(onChooseForNow).toHaveBeenCalledWith(page);
   });
 
@@ -49,11 +49,11 @@ describe('preferred spot setup copy and entry', () => {
     window.matchMedia = (query) => ({ matches: true, media: query, addEventListener() {}, removeEventListener() {} });
     const event = { gymId: 'psycle-london', studioId: 'studio-1', studioName: 'Studio 1', locationName: 'Soho' };
     const withClass = openSpotSetup({ event, className: 'Ride' });
-    expect(withClass.querySelector('.sa-stepper')).not.toBeNull();
+    expect(withClass.querySelector('.app-stepper')).not.toBeNull();
     withClass.remove();
     // Onboarding / Settings: no class, so no "2 Book class" step.
     const noClass = openSpotSetup({ event, className: null });
-    expect(noClass.querySelector('.sa-stepper')).toBeNull();
+    expect(noClass.querySelector('.app-stepper')).toBeNull();
   });
 
   it('replaces the saved setup page with booking so success cannot return to the confirmation loop', () => {

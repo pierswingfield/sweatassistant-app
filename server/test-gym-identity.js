@@ -2,7 +2,7 @@
 //
 // A gym link stores the password but, until this WP, not the email — because
 // there was only ever one gym and `users.email` doubled as its login. Decision D4
-// broke that equivalence on purpose: a Sweat Assistant account is not a gym
+// broke that equivalence on purpose: an app account is not a gym
 // account. That left re-authentication with nothing to authenticate AS.
 //
 // The thing being pinned here is the SEPARATION, not just the column. The failure
@@ -70,7 +70,7 @@ check('account email and gym email stay distinct on the merged user', () => {
   db.upsertUserGym(uid, DEFAULT_GYM, { gym_email: 'different@gym.example' });
 
   const user = db.getUserById(uid);
-  assert.strictEqual(user.email, accountEmail, '.email remains the Sweat Assistant identity');
+  assert.strictEqual(user.email, accountEmail, '.email remains the app identity');
   assert.strictEqual(user.gym_email, 'different@gym.example', '.gym_email is the gym login');
   assert.notStrictEqual(user.email, user.gym_email, 'the two must not collapse into one');
 });

@@ -98,7 +98,7 @@ function die(msg, detail) {
   }
   console.log(`✓ ${target.name} is enabled (provider: ${target.provider})`);
 
-  // 3. Log in to the Sweat Assistant account (dev mock: any password).
+  // 3. Log in to the the app account (dev mock: any password).
   const login = await json(await fetch(`${BASE}/api/auth/login`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
@@ -146,8 +146,8 @@ function die(msg, detail) {
   }
 
   console.log(`\n── paste into the browser console at http://localhost:5173, then reload ──`);
-  console.log(`localStorage.setItem('sweatLocalToken', ${JSON.stringify(login.token)});`);
-  console.log(`localStorage.setItem('sweatUserId', ${JSON.stringify(String(userId))});`);
+  console.log(`localStorage.setItem('appLocalToken', ${JSON.stringify(login.token)});`);
+  console.log(`localStorage.setItem('appUserId', ${JSON.stringify(String(userId))});`);
   console.log(`location.reload();`);
   console.log(`\nSwitch back with:  node server/dev-setup-jab.js --gym ${cfg.DEFAULT_GYM_ID}`);
   console.log(`Remember to revert enabled:false on jab-boxing when you finish.\n`);

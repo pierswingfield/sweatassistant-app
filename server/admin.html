@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Sweat Assistant — Admin</title>
+  <title>__APP_NAME__ — Admin</title>
   <style>
     *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
 
@@ -321,7 +321,7 @@
 <body>
 
 <header>
-  <h1>Sweat Assistant — Admin</h1>
+  <h1>__APP_NAME__ — Admin</h1>
   <span id="session-label"></span>
 </header>
 
@@ -457,7 +457,7 @@
 </div>
 
 <script>
-  const TOKEN_KEY = 'sweatAdminToken';
+  const TOKEN_KEY = 'appAdminToken';
   let adminToken = localStorage.getItem(TOKEN_KEY);
   let pendingDelete = null;
   let currentDetail = null;

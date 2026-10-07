@@ -1,7 +1,7 @@
 import { afterEach, describe, expect, it } from 'vitest';
 import { assertMutationNetworkAvailable, isMutationMethod } from './network-write-guard.js';
 
-afterEach(() => document.documentElement.classList.remove('sa-offline'));
+afterEach(() => document.documentElement.classList.remove('app-offline'));
 
 describe('network write guard', () => {
   it('recognises every unsafe HTTP method', () => {
@@ -10,7 +10,7 @@ describe('network write guard', () => {
   });
 
   it('blocks writes when the app has confirmed offline state, while leaving reads available', () => {
-    document.documentElement.classList.add('sa-offline');
+    document.documentElement.classList.add('app-offline');
     expect(() => assertMutationNetworkAvailable('POST', 'Reconnect first')).toThrow('Reconnect first');
     expect(() => assertMutationNetworkAvailable('GET', 'Reconnect first')).not.toThrow();
   });

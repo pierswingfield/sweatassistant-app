@@ -10,12 +10,12 @@ import { openPage as openNavPage, closePage as closeNavPage } from './modal-nav.
 // Default is [792] (CRM bundle) — same as extension default.
 let favorites = [];
 try {
-  const storedFavs = localStorage.getItem('psycle-helper-favorites');
+  const storedFavs = localStorage.getItem('app-helper-favorites');
   if (storedFavs) {
     favorites = JSON.parse(storedFavs);
   } else {
     favorites = [792];
-    localStorage.setItem('psycle-helper-favorites', JSON.stringify(favorites));
+    localStorage.setItem('app-helper-favorites', JSON.stringify(favorites));
   }
 } catch (e) {
   favorites = [792];
@@ -37,7 +37,7 @@ let creditGymId = null;
 let creditGymWebsiteUrl = null;
 
 export async function initBundles() {
-  const summaryRoot = document.getElementById('sa-credits-summary');
+  const summaryRoot = document.getElementById('app-credits-summary');
   if (!summaryRoot) return;
 
   setupFilterListeners();
@@ -70,7 +70,7 @@ export async function initBundles() {
     } catch (_) { /* leave empty; the message below is then the truth */ }
   }
   if (linked.length === 0) {
-    summaryRoot.innerHTML = `<div class="sa-card-desc" style="padding:20px 0;">${COPY.credits.connectGym}</div>`;
+    summaryRoot.innerHTML = `<div class="app-card-desc" style="padding:20px 0;">${COPY.credits.connectGym}</div>`;
     return;
   }
 
@@ -101,7 +101,7 @@ export async function initBundles() {
 
 /** Swap ONE gym's skeleton for its real card, leaving the others alone. */
 function replaceSummaryCard(gym, membership, credits) {
-  const root = document.getElementById('sa-credits-summary');
+  const root = document.getElementById('app-credits-summary');
   if (!root) return;
   const gymId = gym.gym_id || gym.id;
   const existing = root.querySelector(`[data-gym="${CSS.escape(String(gymId))}"]`);
@@ -117,16 +117,16 @@ function replaceSummaryCard(gym, membership, credits) {
 /** A card's placeholder while its gym's numbers are in flight. */
 function summaryCardSkeleton(gym) {
   const gymId = gym.gym_id || gym.id;
-  return `<article class="sa-benefit-card is-loading" data-gym="${escapeHtml(gymId)}">
-    <div class="sa-benefit-card-head">
+  return `<article class="app-benefit-card is-loading" data-gym="${escapeHtml(gymId)}">
+    <div class="app-benefit-card-head">
       ${/* Shared builder — this used to hand-roll the chip with the gym's SHORT
             NAME as text. It picked up the brand background from the class name
             but never the wordmark, so the cards showed black text on the brand
             plate. Two places building the same chip will always drift. */ ''}
       ${gymChip(gymId)}
     </div>
-    <div class="sa-benefit-headline">…</div>
-    <div class="sa-card-desc">${COPY.credits.checkingAllowance}</div>
+    <div class="app-benefit-headline">…</div>
+    <div class="app-card-desc">${COPY.credits.checkingAllowance}</div>
   </article>`;
 }
 
@@ -190,23 +190,23 @@ function summaryCardHtml(gym, membership, credits) {
 
   const websiteUrl = membership?.manageUrl || gym.websiteUrl;
   const action = canPurchase
-    ? `<button class="sa-btn sa-btn-mini primary" data-open-credit-gym="${escapeHtml(gymId)}">${COPY.credits.buyCredits}</button>`
+    ? `<button class="app-btn app-btn-mini primary" data-open-credit-gym="${escapeHtml(gymId)}">${COPY.credits.buyCredits}</button>`
     : websiteUrl
-      ? `<a class="sa-btn sa-btn-mini" href="${escapeHtml(websiteUrl)}" target="_blank" rel="noopener noreferrer">${COPY.credits.manageAtGym}</a>`
+      ? `<a class="app-btn app-btn-mini" href="${escapeHtml(websiteUrl)}" target="_blank" rel="noopener noreferrer">${COPY.credits.manageAtGym}</a>`
       : '';
 
-  return `<article class="sa-benefit-card${canPurchase ? ' is-actionable' : ''}" data-gym="${escapeHtml(gymId)}">
-    <div class="sa-benefit-card-head">
+  return `<article class="app-benefit-card${canPurchase ? ' is-actionable' : ''}" data-gym="${escapeHtml(gymId)}">
+    <div class="app-benefit-card-head">
       ${/* Shared builder — this used to hand-roll the chip with the gym's SHORT
             NAME as text. It picked up the brand background from the class name
             but never the wordmark, so the cards showed black text on the brand
             plate. Two places building the same chip will always drift. */ ''}
       ${gymChip(gymId)}
-      <span class="sa-benefit-kind">${metered ? COPY.credits.creditsKind : COPY.credits.membershipKind}</span>
+      <span class="app-benefit-kind">${metered ? COPY.credits.creditsKind : COPY.credits.membershipKind}</span>
     </div>
-    <div class="sa-benefit-headline"><strong>${escapeHtml(headline)}</strong><span>${escapeHtml(sub)}</span></div>
-    ${facts.length ? `<ul class="sa-benefit-facts">${facts.map(f => `<li>${escapeHtml(f)}</li>`).join('')}</ul>` : ''}
-    ${action ? `<div class="sa-benefit-card-actions">${action}</div>` : ''}
+    <div class="app-benefit-headline"><strong>${escapeHtml(headline)}</strong><span>${escapeHtml(sub)}</span></div>
+    ${facts.length ? `<ul class="app-benefit-facts">${facts.map(f => `<li>${escapeHtml(f)}</li>`).join('')}</ul>` : ''}
+    ${action ? `<div class="app-benefit-card-actions">${action}</div>` : ''}
   </article>`;
 }
 
@@ -223,12 +223,12 @@ function wireSummaryCard(card) {
 }
 
 function setupCreditsBackButton() {
-  const back = document.getElementById('sa-credits-back');
+  const back = document.getElementById('app-credits-back');
   if (!back || back.dataset.wired) return;
   back.dataset.wired = 'true';
   back.onclick = () => {
-    document.getElementById('sa-credits-detail').hidden = true;
-    document.getElementById('sa-credits-summary').hidden = false;
+    document.getElementById('app-credits-detail').hidden = true;
+    document.getElementById('app-credits-summary').hidden = false;
   };
 }
 
@@ -242,21 +242,21 @@ async function openGymCreditDetail(gymId) {
   creditGymId = gymId;
   creditGymWebsiteUrl = gym.websiteUrl || null;
 
-  document.getElementById('sa-credits-summary').hidden = true;
-  const detail = document.getElementById('sa-credits-detail');
+  document.getElementById('app-credits-summary').hidden = true;
+  const detail = document.getElementById('app-credits-detail');
   detail.hidden = false;
 
-  const purchaseHeading = document.getElementById('sa-credit-purchase-heading');
+  const purchaseHeading = document.getElementById('app-credit-purchase-heading');
   if (purchaseHeading) {
-    purchaseHeading.innerHTML = `<div class="sa-benefit-section-heading" data-gym="${escapeHtml(gymId)}">
-      <div><span class="sa-benefit-gym">${escapeHtml(gym.name || creditGymName)}</span><h4>${COPY.credits.creditBundles}</h4></div>
-      <span class="sa-benefit-kind">${COPY.credits.creditsKind}</span>
+    purchaseHeading.innerHTML = `<div class="app-benefit-section-heading" data-gym="${escapeHtml(gymId)}">
+      <div><span class="app-benefit-gym">${escapeHtml(gym.name || creditGymName)}</span><h4>${COPY.credits.creditBundles}</h4></div>
+      <span class="app-benefit-kind">${COPY.credits.creditsKind}</span>
     </div>`;
   }
 
-  if (!document.querySelector('.sa-credits-alert')) {
+  if (!document.querySelector('.app-credits-alert')) {
     const alertDiv = document.createElement('div');
-    alertDiv.className = 'sa-credits-alert';
+    alertDiv.className = 'app-credits-alert';
     alertDiv.innerHTML = `
       <div style="display:flex; gap:10px; align-items:flex-start; padding:12px 14px; background:color-mix(in srgb, var(--warning) 15%, transparent); border:1px solid var(--warning); border-radius:10px; margin:12px 0;">
         <div style="font-size:20px; flex-shrink:0; line-height:1;">⚠</div>
@@ -268,10 +268,10 @@ async function openGymCreditDetail(gymId) {
     purchaseHeading.insertAdjacentElement('afterend', alertDiv);
   }
 
-  const container = document.getElementById('sa-bundles-container');
+  const container = document.getElementById('app-bundles-container');
   container.innerHTML = `
-    <div class="sa-loading-spinner-container">
-      <div class="sa-spinner"></div>
+    <div class="app-loading-spinner-container">
+      <div class="app-spinner"></div>
       <span>${COPY.credits.loadingBundles}</span>
     </div>`;
 
@@ -287,7 +287,7 @@ async function openGymCreditDetail(gymId) {
     renderBundles();
   } catch (err) {
     console.error('Failed to load bundles:', err);
-    container.innerHTML = `<div class="sa-empty-state" style="text-align:center;padding:40px 20px;color:var(--text-secondary)"><p style="font-size:16px;margin-bottom:8px">${COPY.credits.noCachedBundles}</p><p style="font-size:13px;color:var(--text-tertiary)">${COPY.credits.loadBundlesHelp}</p></div>`;
+    container.innerHTML = `<div class="app-empty-state" style="text-align:center;padding:40px 20px;color:var(--text-secondary)"><p style="font-size:16px;margin-bottom:8px">${COPY.credits.noCachedBundles}</p><p style="font-size:13px;color:var(--text-tertiary)">${COPY.credits.loadBundlesHelp}</p></div>`;
   }
 }
 
@@ -309,7 +309,7 @@ function formatMembershipDate(value) {
 }
 
 function renderMembershipSections(linked, memberships) {
-  const root = document.getElementById('sa-membership-sections');
+  const root = document.getElementById('app-membership-sections');
   if (!root) return;
 
   const membershipGyms = linked.filter((g) => g.capabilities?.creditPurchase !== true);
@@ -330,20 +330,20 @@ function renderMembershipSections(linked, memberships) {
     const facts = [renewal && COPY.credits.renews.replace('{date}', renewal), expiry && COPY.credits.expires.replace('{date}', expiry),
       membership?.bookingWindowLabel, guestText].filter(Boolean);
 
-    return `<section class="sa-membership-section" data-gym="${escapeHtml(gymId)}">
-      <div class="sa-benefit-section-heading">
-        <div><span class="sa-benefit-gym">${escapeHtml(gym.name || gym.shortName || gymId)}</span><h4>${COPY.credits.membershipKind}</h4></div>
-        <span class="sa-membership-status ${membership?.isActive ? 'is-active' : 'is-inactive'}">
+    return `<section class="app-membership-section" data-gym="${escapeHtml(gymId)}">
+      <div class="app-benefit-section-heading">
+        <div><span class="app-benefit-gym">${escapeHtml(gym.name || gym.shortName || gymId)}</span><h4>${COPY.credits.membershipKind}</h4></div>
+        <span class="app-membership-status ${membership?.isActive ? 'is-active' : 'is-inactive'}">
           ${escapeHtml(membership?.isActive ? COPY.credits.member : COPY.credits.notActive)}
         </span>
       </div>
-      <div class="sa-membership-card">
+      <div class="app-membership-card">
         <div>
-          <div class="sa-membership-name">${escapeHtml(membership?.name || COPY.credits.activeMembershipMissing)}</div>
-          ${facts.length ? `<div class="sa-membership-facts">${facts.map(escapeHtml).join(' · ')}</div>` : ''}
-          <div class="sa-membership-note">${formatCopyText(COPY.credits.managedByGym, { gym: escapeHtml(gym.shortName || gym.name || COPY.static.yourGymFallback) })}</div>
+          <div class="app-membership-name">${escapeHtml(membership?.name || COPY.credits.activeMembershipMissing)}</div>
+          ${facts.length ? `<div class="app-membership-facts">${facts.map(escapeHtml).join(' · ')}</div>` : ''}
+          <div class="app-membership-note">${formatCopyText(COPY.credits.managedByGym, { gym: escapeHtml(gym.shortName || gym.name || COPY.static.yourGymFallback) })}</div>
         </div>
-        ${websiteUrl ? `<a class="sa-btn-mini sa-membership-manage" href="${escapeHtml(websiteUrl)}" target="_blank" rel="noopener noreferrer">${COPY.credits.openWebsite}</a>` : ''}
+        ${websiteUrl ? `<a class="app-btn-mini app-membership-manage" href="${escapeHtml(websiteUrl)}" target="_blank" rel="noopener noreferrer">${COPY.credits.openWebsite}</a>` : ''}
       </div>
     </section>`;
   }).join('');
@@ -352,10 +352,10 @@ function renderMembershipSections(linked, memberships) {
 // The four "Show X" reveal toggles. Each is OFF by default, so its category is hidden
 // until the user opts to show it. Keyed by the group returned from bundleGroup().
 const SHOW_TOGGLE_IDS = {
-  singleTopup: 'sa-show-single-topup',
-  studioLocation: 'sa-show-studio-location',
-  memberStudent: 'sa-show-member-student',
-  introPromo: 'sa-show-intro-promo',
+  singleTopup: 'app-show-single-topup',
+  studioLocation: 'app-show-studio-location',
+  memberStudent: 'app-show-member-student',
+  introPromo: 'app-show-intro-promo',
 };
 
 function getFilterEls() {
@@ -364,13 +364,13 @@ function getFilterEls() {
     studioLocation: document.getElementById(SHOW_TOGGLE_IDS.studioLocation),
     memberStudent: document.getElementById(SHOW_TOGGLE_IDS.memberStudent),
     introPromo: document.getElementById(SHOW_TOGGLE_IDS.introPromo),
-    toggleBtn: document.getElementById('sa-toggle-bundle-filters'),
-    filtersContainer: document.getElementById('sa-bundles-checkbox-filters'),
+    toggleBtn: document.getElementById('app-toggle-bundle-filters'),
+    filtersContainer: document.getElementById('app-bundles-checkbox-filters'),
   };
 }
 
 function setupFilterListeners() {
-  const searchInput = document.getElementById('sa-bundle-search');
+  const searchInput = document.getElementById('app-bundle-search');
 
   if (searchInput && !searchInput.dataset.listenerAttached) {
     searchInput.dataset.listenerAttached = 'true';
@@ -494,7 +494,7 @@ function matchesFilterRules(b, searching = false) {
 // The tab is hidden by the capability gate, so this is the belt-and-braces path
 // for anyone who deep-links to #buy-credits.
 function renderNoPurchaseState() {
-  const container = document.getElementById('sa-bundles-container');
+  const container = document.getElementById('app-bundles-container');
   if (!container) return;
   container.innerHTML = `
     <div style="text-align:center;padding:32px 24px;color:var(--text-secondary);">
@@ -506,8 +506,8 @@ function renderNoPurchaseState() {
 }
 
 export function renderBundles() {
-  const container = document.getElementById('sa-bundles-container');
-  const searchInput = document.getElementById('sa-bundle-search');
+  const container = document.getElementById('app-bundles-container');
+  const searchInput = document.getElementById('app-bundle-search');
 
   const term = searchInput ? searchInput.value.toLowerCase().trim() : '';
 
@@ -547,7 +547,7 @@ export function renderBundles() {
   if (favs.length === 0) {
     // No favorites: show everything in a single grid
     const allGrid = document.createElement('div');
-    allGrid.className = 'sa-favorites-grid';
+    allGrid.className = 'app-favorites-grid';
     filtered.forEach(b => {
       allGrid.appendChild(createBundleCard(b, false));
     });
@@ -555,25 +555,25 @@ export function renderBundles() {
   } else {
     // Show favorites grid + All Credits collapsible section
     const favHeader = document.createElement('div');
-    favHeader.className = 'sa-section-subheader';
+    favHeader.className = 'app-section-subheader';
     favHeader.innerHTML = `<h4>${COPY.credits.favouriteBundles}</h4>`;
     container.appendChild(favHeader);
 
     const favGrid = document.createElement('div');
-    favGrid.className = 'sa-favorites-grid';
+    favGrid.className = 'app-favorites-grid';
     favs.forEach(b => {
       favGrid.appendChild(createBundleCard(b, true));
     });
     container.appendChild(favGrid);
 
     const allHeader = document.createElement('div');
-    allHeader.className = 'sa-section-subheader';
+    allHeader.className = 'app-section-subheader';
     allHeader.innerHTML = `<h4>${COPY.credits.allCredits} <span class="all-credits-chevron" style="font-size:12px; margin-left:8px;">▶\uFE0E</span></h4>`;
     container.appendChild(allHeader);
 
     // Render Grid — collapsed by default
     const allGrid = document.createElement('div');
-    allGrid.className = 'sa-favorites-grid';
+    allGrid.className = 'app-favorites-grid';
     allGrid.style.display = 'none';
     filtered.forEach(b => {
       if (!favorites.includes(b.id)) {
@@ -622,7 +622,7 @@ function createBundleCard(b, isFavSection) {
       <span class="badge-pill ${b.is_first_purchase_only ? 'badge-restricted' : 'badge-available'}">${b.is_first_purchase_only ? COPY.credits.firstOnly : COPY.credits.returningCustomer}</span>
       <span class="badge-pill ${b.is_one_time_purchase_only ? 'badge-restricted' : 'badge-available'}">${b.is_one_time_purchase_only ? COPY.credits.oneTime : COPY.credits.repeatPurchase}</span>
     </div>
-    <button class="sa-btn-primary fav-card-buy-btn" style="margin-top: 12px; padding: 8px;">
+    <button class="app-btn-primary fav-card-buy-btn" style="margin-top: 12px; padding: 8px;">
       ${formatCopyText(COPY.credits.buyFor, { price: formattedPrice })}
     </button>
   `;
@@ -649,15 +649,15 @@ export function openPurchaseModal(b) {
   const unitLabel = `£${(unitPence / 100).toFixed(2)}`;
 
   const overlay = document.createElement('div');
-  overlay.className = 'sa-modal sa-purchase-modal';
+  overlay.className = 'app-modal app-purchase-modal';
   overlay.innerHTML = `
-    <div class="sa-modal-overlay"></div>
-    <div class="sa-modal-card" style="width:420px; max-width:92vw;">
-      <div class="sa-modal-header" style="padding:14px 20px; display:flex; justify-content:space-between; align-items:center; border-bottom:1px solid var(--border-subtle);">
-        <h4 class="sa-checkout-title" style="margin:0; font-size:15px; font-weight:700; color:var(--text-primary);">${COPY.credits.cart}</h4>
-        <button class="sa-modal-close-btn" aria-label="${COPY.credits.closeModal}">×</button>
+    <div class="app-modal-overlay"></div>
+    <div class="app-modal-card" style="width:420px; max-width:92vw;">
+      <div class="app-modal-header" style="padding:14px 20px; display:flex; justify-content:space-between; align-items:center; border-bottom:1px solid var(--border-subtle);">
+        <h4 class="app-checkout-title" style="margin:0; font-size:15px; font-weight:700; color:var(--text-primary);">${COPY.credits.cart}</h4>
+        <button class="app-modal-close-btn" aria-label="${COPY.credits.closeModal}">×</button>
       </div>
-      <div class="sa-purchase-body" style="padding:20px;"></div>
+      <div class="app-purchase-body" style="padding:20px;"></div>
     </div>
   `;
   document.body.appendChild(overlay);
@@ -674,11 +674,11 @@ export function openPurchaseModal(b) {
     setTimeout(() => overlay.remove(), 300);
   };
 
-  overlay.querySelector('.sa-modal-overlay').addEventListener('click', closeModal);
-  overlay.querySelector('.sa-modal-close-btn').addEventListener('click', closeModal);
+  overlay.querySelector('.app-modal-overlay').addEventListener('click', closeModal);
+  overlay.querySelector('.app-modal-close-btn').addEventListener('click', closeModal);
 
-  const body = overlay.querySelector('.sa-purchase-body');
-  const titleEl = overlay.querySelector('.sa-checkout-title');
+  const body = overlay.querySelector('.app-purchase-body');
+  const titleEl = overlay.querySelector('.app-checkout-title');
 
   // ── Step 1: Cart ──────────────────────────────────────────────────────────
   let qty = 1;
@@ -692,35 +692,35 @@ export function openPurchaseModal(b) {
           <div style="font-size:12px; color:var(--text-tertiary); margin-top:3px;">${formatCopyText(COPY.credits.creditBreakdown, { count: b.total_credits, plural: b.total_credits !== 1 ? 's' : '', price: unitLabel })}</div>
         </div>
         <div style="display:flex; align-items:center; gap:8px; flex-shrink:0;">
-          <button class="sa-qty-btn sa-qty-dec" style="width:28px; height:28px; border-radius:6px; border:1px solid var(--border-subtle); background:var(--surface-raised); color:var(--text-primary); font-size:16px; cursor:pointer; line-height:1;">−</button>
-          <span class="sa-qty-val" style="min-width:20px; text-align:center; font-weight:700; color:var(--text-primary);">${qty}</span>
-          <button class="sa-qty-btn sa-qty-inc" style="width:28px; height:28px; border-radius:6px; border:1px solid var(--border-subtle); background:var(--surface-raised); color:var(--text-primary); font-size:16px; cursor:pointer; line-height:1;">+</button>
-          <button class="sa-qty-remove" title="${COPY.credits.remove}" style="margin-left:4px; background:none; border:none; color:var(--text-tertiary); font-size:18px; cursor:pointer; padding:2px 4px;">✕</button>
+          <button class="app-qty-btn app-qty-dec" style="width:28px; height:28px; border-radius:6px; border:1px solid var(--border-subtle); background:var(--surface-raised); color:var(--text-primary); font-size:16px; cursor:pointer; line-height:1;">−</button>
+          <span class="app-qty-val" style="min-width:20px; text-align:center; font-weight:700; color:var(--text-primary);">${qty}</span>
+          <button class="app-qty-btn app-qty-inc" style="width:28px; height:28px; border-radius:6px; border:1px solid var(--border-subtle); background:var(--surface-raised); color:var(--text-primary); font-size:16px; cursor:pointer; line-height:1;">+</button>
+          <button class="app-qty-remove" title="${COPY.credits.remove}" style="margin-left:4px; background:none; border:none; color:var(--text-tertiary); font-size:18px; cursor:pointer; padding:2px 4px;">✕</button>
         </div>
       </div>
       <div style="border-top:1px solid var(--border-subtle); padding-top:12px; margin-bottom:16px; display:flex; justify-content:space-between; align-items:center;">
         <span style="font-size:13px; color:var(--text-secondary);">${COPY.credits.totalIncVat}</span>
-        <span class="sa-cart-total" style="font-weight:700; font-size:16px; color:var(--text-primary);">${total}</span>
+        <span class="app-cart-total" style="font-weight:700; font-size:16px; color:var(--text-primary);">${total}</span>
       </div>
-      <button class="sa-btn-primary sa-checkout-btn" style="width:100%; padding:11px;">${COPY.credits.continueToPayment}</button>
+      <button class="app-btn-primary app-checkout-btn" style="width:100%; padding:11px;">${COPY.credits.continueToPayment}</button>
     `;
 
-    body.querySelector('.sa-qty-dec').addEventListener('click', () => {
+    body.querySelector('.app-qty-dec').addEventListener('click', () => {
       if (qty > 1) { qty--; renderCart(); }
     });
-    body.querySelector('.sa-qty-inc').addEventListener('click', () => {
+    body.querySelector('.app-qty-inc').addEventListener('click', () => {
       if (qty < 10) { qty++; renderCart(); }
     });
-    body.querySelector('.sa-qty-remove').addEventListener('click', closeModal);
-    body.querySelector('.sa-checkout-btn').addEventListener('click', () => proceedToPayment());
+    body.querySelector('.app-qty-remove').addEventListener('click', closeModal);
+    body.querySelector('.app-checkout-btn').addEventListener('click', () => proceedToPayment());
   }
 
   // ── Step 2: Payment ───────────────────────────────────────────────────────
   async function proceedToPayment() {
     titleEl.textContent = COPY.credits.payment;
     body.innerHTML = `
-      <div class="sa-loading-spinner-container">
-        <div class="sa-spinner"></div>
+      <div class="app-loading-spinner-container">
+        <div class="app-spinner"></div>
         <span>${COPY.credits.loadingSavedCards}</span>
       </div>
     `;
@@ -745,8 +745,8 @@ export function openPurchaseModal(b) {
     const defaultPm = methods.find(m => m.default) || methods[0];
 
     const cardOptions = methods.map(m => `
-      <label class="sa-pm-row" style="display:flex; align-items:center; gap:10px; padding:10px 12px; border:1px solid var(--border-subtle); border-radius:10px; margin-bottom:8px; cursor:pointer;">
-        <input type="radio" name="sa-pm" value="${m.id}" ${m.id === defaultPm.id ? 'checked' : ''}>
+      <label class="app-pm-row" style="display:flex; align-items:center; gap:10px; padding:10px 12px; border:1px solid var(--border-subtle); border-radius:10px; margin-bottom:8px; cursor:pointer;">
+        <input type="radio" name="app-pm" value="${m.id}" ${m.id === defaultPm.id ? 'checked' : ''}>
         <span style="text-transform:capitalize; font-weight:600; color:var(--text-primary);">${m.brand}</span>
         <span style="color:var(--text-secondary);">•••• ${m.last4}</span>
         <span style="margin-left:auto; font-size:12px; color:var(--text-tertiary);">${String(m.exp_month).padStart(2,'0')}/${m.exp_year}</span>
@@ -760,16 +760,16 @@ export function openPurchaseModal(b) {
         <span style="font-size:13px; color:var(--text-secondary);">${qty > 1 ? `${qty}× ${b.name}` : b.name}</span>
         <span style="font-weight:700; color:var(--text-primary);">${totalLabel}</span>
       </div>
-      <button class="sa-btn-primary sa-pay-btn" style="width:100%; padding:11px;">${formatCopyText(COPY.credits.payTotal, { total: totalLabel })}</button>
+      <button class="app-btn-primary app-pay-btn" style="width:100%; padding:11px;">${formatCopyText(COPY.credits.payTotal, { total: totalLabel })}</button>
     `;
 
-    body.querySelector('.sa-pay-btn').addEventListener('click', async () => {
-      const pmId = body.querySelector('input[name="sa-pm"]:checked')?.value;
+    body.querySelector('.app-pay-btn').addEventListener('click', async () => {
+      const pmId = body.querySelector('input[name="app-pm"]:checked')?.value;
       if (!pmId) return;
 
       body.innerHTML = `
-        <div class="sa-loading-spinner-container">
-          <div class="sa-spinner"></div>
+        <div class="app-loading-spinner-container">
+          <div class="app-spinner"></div>
           <span>${COPY.credits.processingPayment}</span>
         </div>
       `;
@@ -784,10 +784,10 @@ export function openPurchaseModal(b) {
               <div style="font-size:40px; margin-bottom:8px;">✅</div>
               <div style="font-weight:700; color:var(--text-primary);">${COPY.credits.paymentComplete}</div>
               <div style="font-size:13px; color:var(--text-secondary); margin-top:4px;">${formatCopyText(COPY.credits.creditsAdded, { count: b.total_credits * qty })}</div>
-              <button class="sa-btn-primary sa-done-btn" style="margin-top:16px; padding:10px 24px;">${COPY.credits.done}</button>
+              <button class="app-btn-primary app-done-btn" style="margin-top:16px; padding:10px 24px;">${COPY.credits.done}</button>
             </div>
           `;
-          body.querySelector('.sa-done-btn').addEventListener('click', closeModal);
+          body.querySelector('.app-done-btn').addEventListener('click', closeModal);
           showToast(COPY.credits.creditsPurchased, 'success');
         } else if (result.status === 'requires_action') {
           renderPurchaseError(body, b,
@@ -825,10 +825,10 @@ function renderPurchaseError(body, b, message, hint, secureTips) {
       <div style="font-weight:700; color:var(--text-primary);">${COPY.credits.paymentNotCompleted}</div>
       <div style="font-size:13px; color:var(--text-secondary); margin-top:4px;">${message}</div>
       ${tips}
-      <button class="sa-btn-primary sa-website-btn" style="margin-top:16px; padding:10px 20px;">${COPY.credits.finishOnWebsite}</button>
+      <button class="app-btn-primary app-website-btn" style="margin-top:16px; padding:10px 20px;">${COPY.credits.finishOnWebsite}</button>
     </div>
   `;
-  body.querySelector('.sa-website-btn').addEventListener('click', () => {
+  body.querySelector('.app-website-btn').addEventListener('click', () => {
     const handle = b.handle || '';
     if (!creditGymWebsiteUrl) return;
     const target = handle ? new URL(`products/${handle}`, creditGymWebsiteUrl).toString() : creditGymWebsiteUrl;
@@ -845,6 +845,6 @@ function toggleFavorite(id) {
     favorites.splice(index, 1);
     showToast(COPY.credits.bundleUnpinned, 'info');
   }
-  localStorage.setItem('psycle-helper-favorites', JSON.stringify(favorites));
+  localStorage.setItem('app-helper-favorites', JSON.stringify(favorites));
   renderBundles();
 }

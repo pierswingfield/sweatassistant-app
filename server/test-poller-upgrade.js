@@ -1,4 +1,4 @@
-// Sweat Assistant — poller auto-upgrade regression test (WP-N3 poller wiring).
+// poller auto-upgrade regression test (WP-N3 poller wiring).
 //
 // The auto-upgrade path had NO automated coverage (unlike auto-book, which the
 // Psycle regression harness exercises via /api/simulate-release). This is the

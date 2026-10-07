@@ -22,9 +22,9 @@ describe('onboarding calendar settings modal', () => {
     mobile(true);
     const onClose = vi.fn();
     openCalendarSettingsModal({ onClose });
-    const overlay = document.querySelector('.sa-ovl');
-    expect(overlay.classList.contains('sa-page')).toBe(true);
-    const done = overlay.querySelector('.sa-btn-primary[data-calendar-modal-close]');
+    const overlay = document.querySelector('.app-ovl');
+    expect(overlay.classList.contains('app-page')).toBe(true);
+    const done = overlay.querySelector('.app-btn-primary[data-calendar-modal-close]');
     expect(done).not.toBeNull();
     done.click();
     await vi.waitFor(() => expect(onClose).toHaveBeenCalled(), { timeout: 2000 });
@@ -35,8 +35,8 @@ describe('onboarding calendar settings modal', () => {
     mobile(false);
     const onClose = vi.fn();
     openCalendarSettingsModal({ onClose });
-    document.querySelector('.sa-btn-primary[data-calendar-modal-close]').click();
-    expect(document.querySelector('.sa-ovl')).toBeNull();
+    document.querySelector('.app-btn-primary[data-calendar-modal-close]').click();
+    expect(document.querySelector('.app-ovl')).toBeNull();
     expect(onClose).toHaveBeenCalledTimes(1);
   });
 });

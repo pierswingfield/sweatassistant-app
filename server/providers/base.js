@@ -1,4 +1,4 @@
-// Sweat Assistant — GymProvider abstract interface.
+// GymProvider abstract interface.
 //
 // Every gym provider (CodexFit, MarianaTek, …) implements this interface so the
 // rest of the server (routes, scheduler, poller, calendar) can speak one

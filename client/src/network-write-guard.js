@@ -9,7 +9,7 @@ export function isMutationMethod(method = 'GET') {
 
 export function isOfflineForMutation() {
   const markedOffline = typeof document !== 'undefined'
-    && document.documentElement?.classList.contains('sa-offline');
+    && document.documentElement?.classList.contains('app-offline');
   const browserOffline = typeof navigator !== 'undefined' && navigator.onLine === false;
   return markedOffline || browserOffline;
 }

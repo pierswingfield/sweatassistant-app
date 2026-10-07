@@ -1,5 +1,5 @@
 // API-response cache key isolation. (WP-G's gym segment was removed in C3-24: it
-// keyed off `sweatActiveGymId`, which nothing writes any more.)
+// keyed off `appActiveGymId`, which nothing writes any more.)
 //
 // Every body in the `api-responses` store is gym-specific — one gym's timetable,
 // its bookings, its studio layouts. Before WP-G the key carried only the user id,
@@ -17,7 +17,7 @@
 import { describe, it, expect, beforeEach } from 'vitest';
 import { setCacheKeyPrefix, cacheKeyPrefix, accountScopedKey, sanitiseOfflineSnapshot } from './cache.js';
 
-const GYM_KEY = 'sweatActiveGymId';
+const GYM_KEY = 'appActiveGymId';
 
 const mockStorage = {
   _data: {},
@@ -53,7 +53,7 @@ describe('cache key prefix', () => {
     expect(cacheKeyPrefix()).toBe('user123');
   });
 
-  it('ignores the retired sweatActiveGymId key entirely', () => {
+  it('ignores the retired appActiveGymId key entirely', () => {
     // The old switcher wrote this; nothing does now. If a stale value survives in
     // someone's storage it must not change any key.
     setCacheKeyPrefix('user123');

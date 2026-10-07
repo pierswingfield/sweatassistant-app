@@ -21,8 +21,8 @@ const { renderFavouritesPane, initFavouritesPane } = await import('./favourites-
 const fav = (studioId, dayOfWeek, startTime, extra = {}) => ({ studioId, dayOfWeek, startTime, id: `${studioId}0000${dayOfWeek}0000${startTime}`, ...extra });
 
 function mount() {
-  document.body.innerHTML = '<div id="sa-settings-pane-favourites" class="active"><div id="sa-favourites-section"></div></div>';
-  return document.getElementById('sa-favourites-section');
+  document.body.innerHTML = '<div id="app-settings-pane-favourites" class="active"><div id="app-favourites-section"></div></div>';
+  return document.getElementById('app-favourites-section');
 }
 
 describe('Favourites pane', () => {
@@ -32,15 +32,15 @@ describe('Favourites pane', () => {
     const host = mount();
     renderFavouritesPane(host);
     expect(host.querySelector('[role="status"]')).not.toBeNull();
-    expect(host.querySelector('.sa-fav-empty')).toBeNull();
+    expect(host.querySelector('.app-fav-empty')).toBeNull();
   });
 
   it('shows the empty state, with a pointer to the timetable, when loaded and nothing is favourited', () => {
     state.cache.favouritesByGym = { 'psycle-london': indexFavourites([]), 'jab-boxing': indexFavourites([]) };
     const host = mount();
     renderFavouritesPane(host);
-    expect(host.querySelector('.sa-fav-empty').textContent).toContain('No favourites yet');
-    expect(host.querySelector('.sa-fav-empty').textContent).toContain('timetable');
+    expect(host.querySelector('.app-fav-empty').textContent).toContain('No favourites yet');
+    expect(host.querySelector('.app-fav-empty').textContent).toContain('timetable');
   });
 
   it('groups by weekday Monday first, shows the instructor note, and a muted line when no class is loaded', () => {
@@ -51,11 +51,11 @@ describe('Favourites pane', () => {
     state.events = [{ id: 'next', gymId: 'jab-boxing', studioId: '9', startAt: '2099-01-05T07:00:00Z', timeZone: 'UTC' }];
     const host = mount();
     renderFavouritesPane(host);
-    expect([...host.querySelectorAll('.sa-fav-day-title')].map((e) => e.textContent)).toEqual(['Monday', 'Wednesday', 'Sunday']);
-    expect(host.querySelector('.sa-fav-note').textContent).toContain('whoever teaches it next');
+    expect([...host.querySelectorAll('.app-fav-day-title')].map((e) => e.textContent)).toEqual(['Monday', 'Wednesday', 'Sunday']);
+    expect(host.querySelector('.app-fav-note').textContent).toContain('whoever teaches it next');
     expect(host.querySelector('tr.tt-row').textContent).toBe('row:next');
-    expect(host.querySelectorAll('.sa-fav-missing-row')).toHaveLength(2);
-    expect(host.querySelector('.sa-fav-missing-note').textContent).toBe('No upcoming class in the loaded schedule');
+    expect(host.querySelectorAll('.app-fav-missing-row')).toHaveLength(2);
+    expect(host.querySelector('.app-fav-missing-note').textContent).toBe('No upcoming class in the loaded schedule');
   });
 
   it('says "checking" rather than "none" while the schedule is still loading', () => {
@@ -63,7 +63,7 @@ describe('Favourites pane', () => {
     state.loading = true;
     const host = mount();
     renderFavouritesPane(host);
-    expect(host.querySelector('.sa-fav-missing-note').textContent).toContain('Checking');
+    expect(host.querySelector('.app-fav-missing-note').textContent).toContain('Checking');
   });
 
   it('unfavourite control: labelled by slot, and removes that gym\'s favourite through the shared remover', async () => {
@@ -71,7 +71,7 @@ describe('Favourites pane', () => {
     const host = mount();
     renderFavouritesPane(host);
     initFavouritesPane();
-    const btn = host.querySelector('.sa-fav-missing-heart');
+    const btn = host.querySelector('.app-fav-missing-heart');
     expect(btn.getAttribute('aria-label')).toBe('Unfavourite Monday 07:00');
     expect(btn.getAttribute('aria-pressed')).toBe('true');
     btn.click();
@@ -85,8 +85,8 @@ describe('Favourites pane', () => {
     renderFavouritesPane(host);
     initFavouritesPane();
     state.cache.favouritesByGym = { 'jab-boxing': indexFavourites([]) };
-    window.dispatchEvent(new Event('sweat-favourites-changed'));
+    window.dispatchEvent(new Event('app-favourites-changed'));
     await new Promise((r) => setTimeout(r, 10));
-    expect(host.querySelector('.sa-fav-empty')).not.toBeNull();
+    expect(host.querySelector('.app-fav-empty')).not.toBeNull();
   });
 });

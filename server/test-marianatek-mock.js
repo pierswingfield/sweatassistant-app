@@ -1,4 +1,4 @@
-// Sweat Assistant — MarianaTek adapter integration suite (WP-T2, mock-backed).
+// MarianaTek adapter integration suite (WP-T2, mock-backed).
 //
 // The MT adapter (WP-M1–M5) was built and live/mock-verified during development,
 // but had NO committed, re-runnable regression test — unlike CodexFit, which has

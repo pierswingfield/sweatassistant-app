@@ -1,7 +1,7 @@
 # Testing
 
 ```bash
-npm test              # everything: 75 server suites + the client suite
+npm test              # everything: 78 server suites + the client suite
 npm run test:server   # server only
 npm run test:client   # client only (vitest)
 ```
@@ -46,6 +46,7 @@ Three are worth knowing about specifically:
   anything; use ~30 days out to get a future release Monday.
 - **U4-19 client suites** — `client/src/url-state.test.js` (pure URL mapping, hostile input, `buildTimetableUrl`), `client/src/router.test.js` (jsdom + fake timers: a chip burst leaves ONE history entry, set-from-URL never pushes; the `returnTo` validator rejecting `//`, schemes, backslashes), `client/src/ui/timetable-url-sync.test.js` (filter-state <-> URL round trips, unknown ids dropped, and the overlay write-guard including a source scan that only `guardedSaveDefaults` writes the saved-defaults key). What they cannot catch: render/popstate feedback loops and stale service workers, so the browser matrix in the U4-19 doc is the check (clear SW, CacheStorage and IndexedDB first; a local production build via `NODE_ENV=production PUBLIC_DIR=client/dist`, restarted after each rebuild because the server caches the templated `index.html`).
 - **`test-spa-fallback.js`** — U4-19: boots the server in production mode against a fixture `PUBLIC_DIR` and pins the SPA path allowlist (app paths serve the shell; unknown `/api/*` is JSON 404; `.ics`, `/admin`, `sw.js`, assets keep working).
+- **`test-app-name-config.js` / `test-no-hardcoded-app-name.js`** — the product name is configuration. The first boots the real server in production mode with `APP_NAME='Test Gym App'` (and a second time with an awkward name containing quotes, `&` and `<`) against the real `client/index.html`, `manifest.json`, `sw.js` and `server/admin.html`, and asserts the name reaches `/api/config`, every templated file (escaped per file type), the calendar `PRODID`/`X-WR-CALNAME` and the generic push payload, with no 'Sweat' anywhere. The second scans app source (comments ignored) and fails on a hardcoded 'Sweat Assistant' or bare 'Sweat' outside `server/config.js`. The static files carry the placeholder `__APP_NAME__`, substituted by `server.js sendTemplated` in production and by the `template-app-name` Vite plugin in dev.
 - **`test-no-gym-privilege.js`** — encodes the phase's acceptance criterion by scanning source:
   no module-level `getProvider(...)`, no `getProvider('literal')`, no hardcoded provider
   hostname, no identifier named after one platform. Source-scanning is normally a smell, but the

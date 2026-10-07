@@ -58,7 +58,7 @@ export function repaintAutoBookFromCache() {
 }
 
 // Pull-to-refresh action for the Auto-Book tab — dispatched by the shared
-// pull-to-refresh handler in main.js (attached to <main class="sa-body">).
+// pull-to-refresh handler in main.js (attached to <main class="app-body">).
 export async function refreshAutoBookTab() {
   await Promise.all([renderAutoBookTab(), refreshUserData()]);
 }
@@ -71,7 +71,7 @@ function connectToAutoBookStream() {
 
   // Connect to SSE stream for real-time auto-book status updates
   // EventSource doesn't support custom headers, so pass token in URL query param
-  const token = localStorage.getItem('sweatLocalToken');
+  const token = localStorage.getItem('appLocalToken');
   const url = token ? `/api/auto-book/stream?token=${encodeURIComponent(token)}` : '/api/auto-book/stream';
   sseEventSource = new EventSource(url);
 
@@ -113,7 +113,7 @@ function connectToAutoBookStream() {
 }
 
 function updateQueueDisplayForEvent(eventId, update) {
-  const queueContainer = document.getElementById('sa-autobook-queue-container');
+  const queueContainer = document.getElementById('app-autobook-queue-container');
   if (!queueContainer) return;
 
   // Find the card for this event
@@ -157,7 +157,7 @@ function updateQueueDisplayForEvent(eventId, update) {
 
 function renderAutoBookControls() {
   // Populate the segmented footer baked into the countdown banner
-  const bar = document.getElementById('sa-autobook-controls-bar');
+  const bar = document.getElementById('app-autobook-controls-bar');
   if (!bar) return;
   bar.innerHTML = '';
 
@@ -213,8 +213,8 @@ function renderAutoBookControls() {
 }
 
 async function renderAutoBookTab() {
-  const queueContainer = document.getElementById('sa-autobook-queue-container');
-  const historyList = document.getElementById('sa-autobook-history-list');
+  const queueContainer = document.getElementById('app-autobook-queue-container');
+  const historyList = document.getElementById('app-autobook-history-list');
 
   // Show cached data immediately if available (from prefetch)
   if (cache.autoBookings) {
@@ -254,7 +254,7 @@ async function renderAutoBookTab() {
   } catch (err) {
     console.error('[AutoBook] Failed to load:', err);
     if (queueContainer && !cache.autoBookings) {
-      queueContainer.innerHTML = `<div class="sa-empty-state" style="text-align:center;padding:40px 20px;color:var(--text-secondary)"><p style="font-size:16px;margin-bottom:8px">${COPY.autoBook.noCachedData}</p><p style="font-size:13px;color:var(--text-tertiary)">${COPY.autoBook.noCachedDataHelp}</p></div>`;
+      queueContainer.innerHTML = `<div class="app-empty-state" style="text-align:center;padding:40px 20px;color:var(--text-secondary)"><p style="font-size:16px;margin-bottom:8px">${COPY.autoBook.noCachedData}</p><p style="font-size:13px;color:var(--text-tertiary)">${COPY.autoBook.noCachedDataHelp}</p></div>`;
     }
   }
 
@@ -262,7 +262,7 @@ async function renderAutoBookTab() {
 
 
 function renderQueue(queue) {
-  const container = document.getElementById('sa-autobook-queue-container');
+  const container = document.getElementById('app-autobook-queue-container');
   if (!container) return;
 
   if (queue.length === 0) {
@@ -289,7 +289,7 @@ function renderQueue(queue) {
   container.innerHTML = '';
   sorted.forEach(q => {
     const card = document.createElement('div');
-    card.className = 'sa-autobook-card ab-card';
+    card.className = 'app-autobook-card ab-card';
     card.setAttribute('data-event-id', q.event_id);
     card.setAttribute('data-gym', q.gym_id || getDefaultGymId());
 
@@ -422,9 +422,9 @@ function wireCancelAutoBook(btn, card, q) {
 // Edit modal for updating an existing auto-book queue entry's configuration
 // (spot preferences, quantity, fallback toggle). Reuses the shared booking modal.
 export async function openAutoBookEditModal(q) {
-  const modal = document.getElementById('sa-booking-modal');
-  const body = document.getElementById('sa-booking-modal-body');
-  const title = document.getElementById('sa-booking-modal-title');
+  const modal = document.getElementById('app-booking-modal');
+  const body = document.getElementById('app-booking-modal-body');
+  const title = document.getElementById('app-booking-modal-title');
   if (!modal || !body || !title) return;
 
   const prefs = q.preferences || {};
@@ -436,8 +436,8 @@ export async function openAutoBookEditModal(q) {
   // Mobile: static title + identity strip; class details live in the class card above the map.
   applyBookingChrome(modal, { titleText: COPY.bookingFlow.titleEditAutoBook, gymId: q.gym_id, locationName: q.location_name, studioName: q.studio_name });
   body.innerHTML = `
-    <div class="sa-loading-spinner-container" style="padding: 40px 0;">
-      <div class="sa-spinner"></div>
+    <div class="app-loading-spinner-container" style="padding: 40px 0;">
+      <div class="app-spinner"></div>
       <span>${COPY.autoBook.loadingFloorMap}</span>
     </div>
   `;
@@ -446,8 +446,8 @@ export async function openAutoBookEditModal(q) {
   const discardOk = () => !spotMapDirty() || confirm(COPY.bookingEditor.discardChanges);
   openNavPage(modal, { id: 'autobook-edit', canClose: discardOk });
 
-  const closeBtn = document.getElementById('sa-booking-modal-close');
-  const overlay = modal.querySelector('.sa-modal-overlay');
+  const closeBtn = document.getElementById('app-booking-modal-close');
+  const overlay = modal.querySelector('.app-modal-overlay');
 
   const closeModal = () => {
     if (closeNavPage(modal)) return; // mobile page: pop its history entry
@@ -495,7 +495,7 @@ export async function openAutoBookEditModal(q) {
         <div style="display:flex;gap:14px;align-items:center;border-top:1px solid var(--separator);padding-top:12px;">
           <div style="width:110px;">
             <label style="display:block;font-size:12px;color:var(--text-secondary);margin-bottom:4px;">${COPY.autoBook.slotsToBook}</label>
-            <select id="autobook-edit-qty" class="sa-select" style="width:100%;padding:6px 8px;font-size:13px;">
+            <select id="autobook-edit-qty" class="app-select" style="width:100%;padding:6px 8px;font-size:13px;">
               ${[1,2,3,4].map(n => `<option value="${n}" ${currentQty===n?'selected':''}>${n}</option>`).join('')}
             </select>
           </div>
@@ -506,7 +506,7 @@ export async function openAutoBookEditModal(q) {
             </label>
           </div>
         </div>
-        <button class="sa-btn" id="btn-save-autobook-edit" style="background:var(--feat-autoupgrade);color:var(--on-accent);">${COPY.autoBook.saveChanges}</button>
+        <button class="app-btn" id="btn-save-autobook-edit" style="background:var(--feat-autoupgrade);color:var(--on-accent);">${COPY.autoBook.saveChanges}</button>
       `;
       body.appendChild(controlsDiv);
 
@@ -518,8 +518,8 @@ export async function openAutoBookEditModal(q) {
       return;
     }
 
-    body.innerHTML = `<div id="sa-autobook-edit-editor"></div>`;
-    const editorContainer = body.querySelector('#sa-autobook-edit-editor');
+    body.innerHTML = `<div id="app-autobook-edit-editor"></div>`;
+    const editorContainer = body.querySelector('#app-autobook-edit-editor');
 
     const bannerHtml = `
       <div style="font-size:12px;color:var(--feat-autoupgrade);background:color-mix(in srgb,var(--feat-autoupgrade) 8%,transparent);border:1px solid color-mix(in srgb,var(--feat-autoupgrade) 18%,transparent);border-radius:8px;padding:8px 10px;margin-bottom:10px;line-height:1.5;">
@@ -536,7 +536,7 @@ export async function openAutoBookEditModal(q) {
         <div style="display:flex;gap:14px;align-items:center;border-top:1px solid var(--separator);padding-top:12px;">
           <div style="width:110px;">
             <label style="display:block;font-size:12px;color:var(--text-secondary);margin-bottom:4px;">${COPY.autoBook.slotsToBook}</label>
-            <select id="autobook-edit-qty" class="sa-select" style="width:100%;padding:6px 8px;font-size:13px;">
+            <select id="autobook-edit-qty" class="app-select" style="width:100%;padding:6px 8px;font-size:13px;">
               ${[1,2,3,4].map(n => `<option value="${n}" ${currentQty===n?'selected':''}>${n}</option>`).join('')}
             </select>
           </div>
@@ -610,9 +610,9 @@ let _historyPage = 0;
 
 function renderHistory(history) {
   // Wire the collapsible toggle once
-  const toggle = document.getElementById('sa-autobook-history-toggle');
-  const content = document.getElementById('sa-autobook-history-content');
-  const chevron = document.getElementById('sa-autobook-history-chevron');
+  const toggle = document.getElementById('app-autobook-history-toggle');
+  const content = document.getElementById('app-autobook-history-content');
+  const chevron = document.getElementById('app-autobook-history-chevron');
   const histIcon = document.querySelector('.ab-history-icon');
   if (histIcon) histIcon.innerHTML = icon('history', 18);
   if (chevron) chevron.innerHTML = icon('chevron', 18);
@@ -627,7 +627,7 @@ function renderHistory(history) {
 
   history.sort((a, b) => new Date(b.executed_at) - new Date(a.executed_at));
   // Same identical-render skip as the queue (rows carry gym logos that flicker when rebuilt).
-  const histList = document.getElementById('sa-autobook-history-list');
+  const histList = document.getElementById('app-autobook-history-list');
   let histSig = null;
   try { histSig = JSON.stringify([history, metadata.instructors.length]); } catch (e) { histSig = null; }
   if (histSig && histList && histList.__histSig === histSig && histList.childElementCount > 0) return;
@@ -638,12 +638,12 @@ function renderHistory(history) {
 }
 
 function renderHistoryPage() {
-  const list = document.getElementById('sa-autobook-history-list');
-  const paginationEl = document.getElementById('sa-autobook-history-pagination');
+  const list = document.getElementById('app-autobook-history-list');
+  const paginationEl = document.getElementById('app-autobook-history-pagination');
   if (!list) return;
 
   if (_historyAll.length === 0) {
-    list.innerHTML = `<div class="sa-table-empty">${COPY.autoBook.noHistory}</div>`;
+    list.innerHTML = `<div class="app-table-empty">${COPY.autoBook.noHistory}</div>`;
     if (paginationEl) paginationEl.innerHTML = '';
     return;
   }
@@ -755,7 +755,7 @@ function nextQueuedRelease() {
 // Tick loop updates countdown texts on the screen
 function updateCountdowns() {
   const banner = document.querySelector('.ab-banner');
-  const mainCountdown = document.getElementById('sa-autobook-countdown');
+  const mainCountdown = document.getElementById('app-autobook-countdown');
   const statusIcon = document.querySelector('.ab-status-icon');
   const statusText = document.querySelector('.ab-status-text');
 
@@ -803,7 +803,7 @@ function updateCountdowns() {
     }
     if (banner) {
       banner.classList.toggle('is-paused', paused);
-      const qc = document.getElementById('sa-autobook-queue-container');
+      const qc = document.getElementById('app-autobook-queue-container');
       if (qc) qc.classList.toggle('is-paused', paused);
       banner.classList.toggle('is-urgent', urgent);
       banner.classList.toggle('is-active', active);

@@ -1,0 +1,37 @@
+{
+  "captured": "2026-10-06",
+  "request": "GET https://psycle.codexfit.com/api/v1/customer/heartbeat",
+  "auth": "None needed. Called from the page context with only accept: application/json, no Authorization header, and it returned 200. Public, unauthenticated.",
+  "passive_observation": {
+    "page": "https://psyclelondon.com/pages/oxford-circus-timetable (logged-in user's Chrome, via Claude for Chrome extension)",
+    "window_seconds": 656,
+    "site_initiated_heartbeat_calls": 0,
+    "note": "Resource Timing showed no heartbeat request from the site in the whole 11 minute window. The only two heartbeat entries (at 114s and 120s) were this capture's own fetches. The site made no other polling calls either; later /events calls were date-tab clicks and this capture's probes."
+  },
+  "response_shape": {
+    "data": {
+      "bundle-types": "2026-01-09T19:22:32.000000Z",
+      "bundles": "2026-10-05T16:30:17.000000Z",
+      "credit-types": "2026-08-28T16:48:54.000000Z",
+      "event-type-groups": "2026-10-01T12:01:50.000000Z",
+      "event-types": "2026-10-06T08:42:47.000000Z",
+      "events": "2026-10-06T09:09:23.000000Z",
+      "instructors": "2026-10-06T09:18:50.000000Z",
+      "locations": "2026-09-11T15:12:27.000000Z",
+      "logged-in": false,
+      "plans": "2026-10-02T09:05:40.000000Z",
+      "product-variants": "2026-09-30T08:27:21.000000Z",
+      "products": "2026-10-05T15:45:57.000000Z",
+      "studios": "2026-08-26T13:28:23.000000Z",
+      "videos": "2026-10-06T09:40:44.000000Z",
+      "videos-collections": "2026-08-12T09:29:50.000000Z"
+    }
+  },
+  "granularity": "Per-resource UTC last-modified, ISO 8601 with microsecond digits but whole-second precision (always .000000Z).",
+  "events_stamp_movement": {
+    "at_2026-10-06T09:44:13Z": "2026-10-06T09:09:23.000000Z",
+    "at_2026-10-06T09:53:17Z": "2026-10-06T09:47:32.000000Z",
+    "occupancy_check": "Between 09:43 and 09:53, 2 of 48 oxford-circus events on 2026-10-07 changed occupancy, and the events stamp moved at 09:47:32. That is consistent with the stamp bumping on booking changes, but one window cannot prove it; a bump with no occupancy change, or an occupancy change with no bump, would disprove it."
+  },
+  "logged_in_field": "false despite the user being signed in on the site; the heartbeat call carries no auth, so it does not reflect session state."
+}

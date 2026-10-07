@@ -15,6 +15,7 @@ import { createRenderGuard, reconcileKeyed, lastAuthLabel, connectionHealth } fr
 import { COPY, formatCopyText } from '../copy.js';
 import { appConfig } from '../config.js';
 import { openPage as openNavPage, closePage as closeNavPage, isMobile } from './modal-nav.js';
+import { initFavouritesPane, renderFavouritesPane } from './favourites-pane.js';
 
 let loadedProfile = null;
 let activeSpotEditorOverlay = null;
@@ -1112,7 +1113,7 @@ function setupSettingsNavigation() {
   // were already rewritten to paths at boot (router.migrateLegacyHash).
   const routeSection = currentRoute().section || '';
   let initialSection = 'account';
-  if (['general', 'account', 'gyms', 'about', 'calendar', 'notifications'].includes(routeSection)) initialSection = routeSection;
+  if (['general', 'account', 'gyms', 'about', 'calendar', 'notifications', 'favourites'].includes(routeSection)) initialSection = routeSection;
 
   let navHistory = [];
   let currentSection = initialSection;
@@ -1135,6 +1136,9 @@ function setupSettingsNavigation() {
       const paneId = `psycle-settings-pane-${sectionId}`;
       pane.classList.toggle('active', pane.id === paneId);
     });
+
+    // F-12: the Favourites pane is painted from live caches each time it is shown.
+    if (sectionId === 'favourites') renderFavouritesPane();
 
     // On mobile, drill down
     layout.classList.add('show-pane');
@@ -1839,7 +1843,7 @@ function openAccountPasswordModal() {
 // shared cards.js icon set) rather than pasted into index.html so the sidebar uses
 // exactly the same stroke, size and currentColor rules as every other icon in the
 // app. Idempotent; per-gym entries lead with the gym's own mark instead (U1-8).
-const SETTINGS_MENU_ICONS = { general: 'sliders', calendar: 'calendar', notifications: 'bell', account: 'user', gyms: 'link', about: 'info' };
+const SETTINGS_MENU_ICONS = { general: 'sliders', calendar: 'calendar', notifications: 'bell', favourites: 'heart', account: 'user', gyms: 'link', about: 'info' };
 export function decorateSettingsMenu() {
   document.querySelectorAll('.psycle-settings-menu > [data-settings-section]').forEach((item) => {
     const name = SETTINGS_MENU_ICONS[item.getAttribute('data-settings-section')];
@@ -1891,6 +1895,7 @@ export async function initSettings() {
   // Account-level calendar feed (General tab) — same fire-and-forget rationale.
   renderCalendarSection().catch(err => debugConsole('[Settings] Calendar section failed:', err.message));
   // Spot Maps section is ready; button opens the modal
+  initFavouritesPane();
   setupSettingsNavigation();
   // A deep link to one gym's pane: its entry is built asynchronously by renderGymsCard.
   const deep = currentRoute().section;

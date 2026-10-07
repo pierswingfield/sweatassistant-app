@@ -360,6 +360,11 @@ function handleMockRequest(pathName, method, body) {
     ]);
   }
 
+  // C2-5: public heartbeat, live envelope (server/fixtures/codexfit-v2/heartbeat-v1-response.json).
+  if (pathName.startsWith('/heartbeat')) {
+    return createFakeResponse({ data: { ...mockHeartbeat, 'logged-in': false } });
+  }
+
   if (pathName.startsWith('/locations')) {
     return createFakeResponse(locations);
   }
@@ -748,10 +753,23 @@ function handleMockRequest(pathName, method, body) {
     // Ids stay stable per (day, slot) so a queued auto-book survives a reload.
     const classes = [];
     const now = new Date();
+    // C2-4: honour the live `filter[between]=a,b` range (end exclusive for date-only values).
+    const betweenMatch = /filter\[between\]=([^,&]+),([^&]+)/.exec(decodeURIComponent(pathName));
+    const rangeFrom = betweenMatch ? betweenMatch[1].slice(0, 10) : null;
+    const rangeTo = betweenMatch ? betweenMatch[2].slice(0, 10) : null;
+    // LIVE BEHAVIOUR (measured 2026-10-06 through deploy to the dev twin): an UNSCOPED
+    // range (no filter[location.handle]) returns 200 up to 10 days (4.2 MB) but 502s
+    // from 14 days (upstream timeout). C2-4's first cut sent 42 days and broke live
+    // while this mock happily answered, so the mock now mirrors the limit.
+    if (rangeFrom && !/filter\[location\.handle\]/.test(decodeURIComponent(pathName))
+        && (Date.parse(rangeTo) - Date.parse(rangeFrom)) / 864e5 > 10) {
+      return createFakeResponse({ message: 'Bad Gateway' }, 502);
+    }
 
     for (let i = 0; i < 14; i++) {
       const date = new Date(now.getTime() + i * 24 * 60 * 60 * 1000);
       const yyyymmdd = date.toISOString().split('T')[0];
+      if (rangeFrom && (yyyymmdd < rangeFrom || yyyymmdd >= rangeTo)) continue;
       const dow = date.getDay();
       const template = (dow === 0 || dow === 6) ? WEEKEND_SCHEDULE : WEEKDAY_SCHEDULE;
 
@@ -827,7 +845,28 @@ function handleMockRequest(pathName, method, body) {
   return createFakeResponse([]);
 }
 
+// Controllable per-resource stamps for GET /heartbeat (tests / manual dev: bump `events` to
+// simulate the upstream schedule changing).
+const mockHeartbeat = {
+  bundles: '2026-09-25T10:27:07.000000Z',
+  'bundle-types': '2026-01-09T19:22:32.000000Z',
+  'credit-types': '2026-08-28T16:48:54.000000Z',
+  events: '2026-09-26T10:16:36.000000Z',
+  'event-type-groups': '2026-09-04T14:10:18.000000Z',
+  'event-types': '2026-09-25T13:31:06.000000Z',
+  instructors: '2026-09-25T12:53:44.000000Z',
+  locations: '2026-09-11T15:12:27.000000Z',
+  plans: '2026-09-25T08:41:13.000000Z',
+  products: '2026-09-23T08:36:06.000000Z',
+  'product-variants': '2026-09-16T15:26:55.000000Z',
+  studios: '2026-08-26T13:28:23.000000Z',
+  videos: '2026-09-26T21:40:43.000000Z',
+  'videos-collections': '2026-08-12T09:29:50.000000Z',
+};
+function setMockHeartbeatStamp(resource, iso) { mockHeartbeat[resource] = iso; }
+
 module.exports = {
+  setMockHeartbeatStamp,
   NO_LAYOUT_EVENT_ID, NO_LAYOUT_FULL_EVENT_ID,
   handleMockRequest
 };

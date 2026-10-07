@@ -3,6 +3,7 @@ const crypto = require('crypto');
 const db = require('./db');
 const { encrypt, decrypt } = require('./crypto');
 const { getProvider } = require('./providers');
+const { log } = require('./logger');
 
 // The gym a BRAND-NEW account bootstraps against via the legacy email+password
 // login path (handleLogin). It is not a general fallback and must not be used as
@@ -337,7 +338,7 @@ async function triggerAutoRelogin(userId, gymId = null) {
   // omit it and get the active gym, which is what they want.
   const targetGymId = gymId || db.resolveActiveGymId(userId);
   const gymName = (db.getGym(targetGymId) || {}).name || targetGymId;
-  console.log(`[Auth] Session expired for user ${userId} at ${gymName}. Attempting renewal...`);
+  log.info('relogin: session expired, attempting renewal', { userId, gymId: targetGymId });
 
   const link = db.getUserGym(userId, targetGymId);
   if (!link) {
@@ -394,10 +395,10 @@ async function triggerAutoRelogin(userId, gymId = null) {
     db.setGymSession(userId, targetGymId, renewed);
     db.setUserGymStatus(userId, targetGymId, 'active');
     db.clearReloginFailures(userId, targetGymId);
-    console.log(`[Auth] Session renewed for user ${userId} at ${gymName}.`);
+    log.info('relogin: session renewed', { userId, gymId: targetGymId });
     return renewed.accessToken;
   } catch (err) {
-    console.error(`[Auth] Session renewal failed for user ${userId} at ${gymName}:`, err.message);
+    log.error('relogin: session renewal failed', { userId, gymId: targetGymId, err });
     // Clear the dead session so callers stop retrying it in a loop, and flag the
     // link so the UI can prompt a re-link. The link itself SURVIVES: unlinking on
     // a transient provider outage would cost the user their queue, spot maps and
@@ -410,7 +411,7 @@ async function triggerAutoRelogin(userId, gymId = null) {
       maxRejections: RELOGIN_MAX_REJECTIONS,
     });
     if (counters && counters.relogin_suspended) {
-      console.warn(`[Auth] ${gymName} rejected user ${userId}'s stored credential ${counters.relogin_rejections} times — automatic sign-in suspended until they re-link.`);
+      log.warn('relogin: suspended after repeated credential rejections', { userId, gymId: targetGymId, rejections: counters.relogin_rejections });
     }
     const relErr = new Error(`Could not renew your ${gymName} session. Please log in to that gym again.`);
     relErr.status = 401;

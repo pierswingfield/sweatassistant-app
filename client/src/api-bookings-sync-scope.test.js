@@ -28,7 +28,8 @@ const booking = (id, gymId) => ({ bookingId: id, gymId, event: { startAt: '2030-
 // failing: { '/api/bookings': ['jab-boxing'], '/api/waitlists': [...] }
 function mockFetch(failing = {}) {
   const posts = [];
-  vi.stubGlobal('fetch', vi.fn(async (url, opts = {}) => {
+  vi.stubGlobal('fetch', vi.fn(async (rawUrl, opts = {}) => {
+    const url = String(rawUrl).split('?')[0]; // C2-4: GETs carry ?gym=
     const gym = opts.headers?.['x-gym-id'];
     if (opts.method === 'POST') {
       posts.push({ url, body: JSON.parse(opts.body) });

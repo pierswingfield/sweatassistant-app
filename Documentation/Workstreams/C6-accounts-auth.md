@@ -12,7 +12,7 @@ is an admin reset.
 |---|---|---|---|
 | C6-1 | **Self-service account recovery.** Only `POST /api/admin/users/:id/reset-password` exists. Mechanism **decided 2026-09-26: emailed single-use reset link** (see below). | `server/admin.js` ~L301–319 ("Self-service recovery does not exist") | ~1.5–2 days |
 | C6-2 | **Change account email.** No endpoint exists. | No `change-email` or `updateUserEmail` anywhere | 3–4 h |
-| C6-3 | **Legacy short passwords.** Legacy accounts keep sub-8-character passwords. Prompt an upgrade on next login, and show admins which accounts are affected. | `server/db.js` ~L1071 `setAccountPassword` (no re-check, by design) | 2–3 h |
+| C6-3 | ❌ **CLOSED 2026-10-06 (won't do: no legacy accounts on prod).** Legacy short passwords in old accounts were a migration concern only. Prod launched with a fresh DB, so this is not needed. | — | — |
 | C6-4 | ✅ (2026-09-28) **Track background relogin failures.** Count consecutive failures per user and gym. Surface them in admin, and stop retrying after N attempts so a bad password can't lock the upstream account. | `server/auth.js` L346/370 only set `needs_relogin` | 2 h |
 
 Copy fixes on the recover screen are in C1-4 and U1-4.

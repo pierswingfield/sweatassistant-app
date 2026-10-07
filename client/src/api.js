@@ -99,7 +99,7 @@ export function isLoggedIn() {
 
 // Global fetch wrapper with local auth and Cloudflare Zero Trust Access support
 export async function apiFetch(endpoint, options = {}) {
-  const url = endpoint.startsWith('/') ? endpoint : `/${endpoint}`;
+  let url = endpoint.startsWith('/') ? endpoint : `/${endpoint}`;
   assertMutationNetworkAvailable(options.method, COPY.api.offlineMutationBlocked);
   
   const headers = {
@@ -115,6 +115,14 @@ export async function apiFetch(endpoint, options = {}) {
   const targetGym = options.gymId;
   if (targetGym) {
     headers['x-gym-id'] = targetGym;
+    // C2-4: the gym also rides in the URL of a GET. Browsers key their HTTP cache on
+    // the URL, and serialise concurrent same-URL requests behind one cache entry, so
+    // N gyms asking for /api/timetable were answered one after another (cold 13/23/34 s
+    // instead of ~11 s in parallel). The server reads x-gym-id and ignores `gym`.
+    const m = String(options.method || 'GET').toUpperCase();
+    if ((m === 'GET' || m === 'HEAD') && !/[?&]gym=/.test(url)) {
+      url += `${url.includes('?') ? '&' : '?'}gym=${encodeURIComponent(targetGym)}`;
+    }
   }
 
   if (options.body && !(options.body instanceof FormData)) {
@@ -306,6 +314,37 @@ export const api = {
     // re-render the heart in its old state.
     await invalidateApiCache('/api/profile').catch(() => {});
     return true;
+  },
+
+  // F-12 gym-neutral favourites: ONE contract for every gym. The server stores them
+  // natively where the gym has bookmarks and locally where it does not; the client never
+  // asks which. A favourite is a recurring slot { studioId, dayOfWeek, startTime } read in
+  // the class's zone. Never cached in IndexedDB: the list is tiny and a stale copy would
+  // flip a heart back after a reload.
+  async getFavourites(gymId = null) {
+    debugLog('GET /api/favourites', 'network');
+    const res = await apiFetch('/api/favourites', { gymId });
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({}));
+      throw new Error(err.message || `Failed to load favourites: ${res.status}`);
+    }
+    return res.json(); // { gymId, native, favourites: [{ id, studioId, dayOfWeek, startTime, …labels }] }
+  },
+
+  // `slot` carries studioId/dayOfWeek/startTime plus optional display labels.
+  async setFavourite(slot, on, gymId = null) {
+    const id = `${slot.studioId}0000${slot.dayOfWeek}0000${slot.startTime}`;
+    debugLog(`${on ? 'PUT' : 'DELETE'} /api/favourites${on ? '' : `/${id}`}`, 'network');
+    const res = await apiFetch(on ? '/api/favourites' : `/api/favourites/${encodeURIComponent(id)}`, {
+      method: on ? 'PUT' : 'DELETE',
+      body: on ? JSON.stringify(slot) : undefined,
+      gymId,
+    });
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({}));
+      throw new Error(err.message || `Failed to update favourite: ${res.status}`);
+    }
+    return res.json();
   },
 
   // Profile Explorer's hidden edit mode. No normal flow calls this.

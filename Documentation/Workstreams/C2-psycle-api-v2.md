@@ -233,11 +233,80 @@ All four items above are **done (2026-09-26)** — see below for evidence, root 
 
 ## Phase 2 — Website-shaped, efficient reads (P1, ~2 days, after C4)
 
+> **Phase 2 status (2026-10-06, all on `optimisation`, dev twin only, not merged or deployed to prod).**
+> C2-4 done: 7-day-chunked ranged `/events` (see row). C2-5 rebuilt and merged (`f37e3b0`, `cd97a62`): stamp-gated refresh with ceilings (timetable 5 min on `events`, metadata 6 h, layouts 7 d); occupancy can lag up to the ceiling; MarianaTek unchanged. The first attempt was abandoned because the `events` stamp does not move on occupancy changes, and the earlier claim that the website never calls `/heartbeat` is superseded (the user observed it does). C2-6 done. MarianaTek cold-load fix (`5a014cb`, `710e7f1`: shared single-flight date-bounded parallel-paginated class list, metadata bounded to 28 days so filter lists cover that window only) and the HTTP-cache serialisation fix (`Vary: x-gym-id`, `private, no-cache`, `?gym=` on gym-scoped GETs; `cb12c58`, `1b1ac28`, pending-gym skeleton). Final cold numbers, three gyms: first data 15.4 s, first rows 16.9 s, all gyms 18.5 s, no empty flash. **Open:** prewarm (first data is still ~15 s, bounded by one slow upstream; Aarmy ~11 s over 5 pages); C7-7 stays P3, re-evaluate. Dated evidence sections: "C2-5 rebuilt", "C2-4 cold-load benchmark", "MT cold-load investigation/fix", "Aarmy analysis + first-paint".
+
 | # | Item | Why | Est. |
 |---|---|---|---|
-| C2-4 | Timetable from **v2 `/events` in one ranged call**, capped at 42 days | Today: 1 + 7 requests covering 28–56 days. The website makes one ranged call. | 1 day |
-| C2-5 | Use **`/heartbeat`** to invalidate the shared schedule cache | Replaces the blind 60 s TTL in `schedule-cache.js`. Fewer calls, fresher data. Probably makes the old "occupancy warming poller" idea (C7-7) unnecessary. | 0.5 day |
+| C2-4 | ✅ **Done (2026-10-06), REVISED same day after a live failure.** First cut (one unscoped 42-day call) passed mock tests but **502'd on the dev twin**: live, an unscoped range is 200 up to 10 days (4.2 MB/8 s) and 502 from 14 days; G4's "works to 56 days" was location-scoped, and the mock hid the limit. **Shipped:** `providers/codexfit.js fetchTimetable` makes unscoped ranged v2 `/events?filter[between]=a,b&sort=start_at` calls **chunked at 7 days** (4 calls for the client's 28 days; was 8 requests: `/locations` + one v1 call per location), fired in parallel with `Promise.allSettled`, deduped by id, relations resolved per response, `releaseAt` still stamped per request after the shared cache. `mock.js` honours `filter[between]` and 502s unscoped spans over 10 days. **Tests:** `server/test-codexfit-timetable-range.js`. Note: G4 found the website itself calls per day, so this is not website-shaped traffic. Evidence: the cold-load sections below. | Today: 1 + 7 requests covering 28–56 days. | 1 day |
+| C2-5 | ✅ **Rebuilt (2026-10-06)**: heartbeat-validated freshness with hard ceilings; accepts occupancy lag up to 5 min (see section below). Supersedes the blocked first attempt. | Fewer `/events` calls (a second load inside the ceiling makes none after the TTL check). | done |
 | C2-6 | ✅ **Single-flight `/profile`** (30 s memo per user) — *pulled forward into launch 2026-09-28*, done, see C2-6 section below | `getProfile`, `getEligibility` and `getCredits` each fetch it separately | 2 h |
+
+### C2-5 rebuilt: heartbeat-validated freshness (2026-10-06, branch `optimisation-c2-5`)
+Supersedes the abandoned first attempt (blocked at the gate because the `events` stamp does not move on occupancy changes). Decision (user): mirror the official website, which polls `/heartbeat` and also does not invalidate event data on occupancy changes, so **occupancy may be stale up to the ceiling, until a booking attempt**. Built: provider hook (`hasFreshnessStamps`/`getFreshnessStamps`, CodexFit only), `server/freshness.js` (memo/single-flight/timeout/negative memo), stamp-validated extension in `schedule-cache.js` with hard ceilings (timetable 5 min, metadata 6 h, studio layouts 7 d), counters on `/api/health` and `/metrics`, mock `/heartbeat`. Write-path invalidation unchanged; heartbeat failure falls back to the 60 s TTL. C7-7 (occupancy warming) is still not made unnecessary. Tests: `server/test-freshness-cache.js`.
+
+### C2-4 cold-load benchmark (2026-10-06, dev twin only)
+
+Does the 7-day chunking (C2-4 at `b6fd975`) make the cold timetable slower than `master`? **No: within noise.**
+Method: real Chrome (Claude for Chrome, one tab) on `sweat-dev`; before each run the dev container was restarted (empties the in-process schedule cache), SW + CacheStorage + IndexedDB + localStorage cache keys were cleared (login token kept), then a fresh navigation to `/timetable`. "Rendered" = first timetable row in the DOM, measured from navigation start. Three gyms are linked (Psycle, JAB, Aarmy), so each load is 3 `/api/timetable` (28-day) + 3 `/api/metadata` calls in parallel. The gym is carried in `x-gym-id`, which the network log does not show, so per-gym times come from a separate cold in-page harness (all six calls in parallel, explicit `x-gym-id`).
+
+| Branch | Rendered, cold, runs 1/2/3 | Median | Slowest `/api/timetable` per load | Warm 2nd load |
+|---|---|---|---|---|
+| `master` | 52.6 (data-arrival 52.0, render not instrumented) / 52.0 / 51.1 s | 52.0 s | 47.4-48.7 s | 4.3 s |
+| `optimisation` | 47.1 / 53.8 / 54.1 s | 53.8 s | 35.6-45.5 s | not run |
+
+Per-gym cold, parallel harness (`/api/timetable` 28 days, `/api/metadata`):
+
+| Gym | `master` | `optimisation` |
+|---|---|---|
+| Psycle (CodexFit) | 12.1 s / 0.7 s | 12.4 s / 0.8 s |
+| JAB (MarianaTek) | 36.4 s / 29.0 s | 40.7 s / 24.6 s |
+| Aarmy (MarianaTek) | 45.5 s / 50.3 s | 41.2 s / 48.1 s |
+
+Findings: (1) Psycle is the fastest gym on both branches (12 s cold, unchanged), so C2-4 did not slow it; the chunks are fired with `Promise.allSettled` in `providers/codexfit.js fetchTimetable`, i.e. in parallel, not sequentially. (2) The cold page is gated by the two **MarianaTek** gyms (JAB and Aarmy, 36-48 s each), whose `/timetable` and unranged `/metadata` are two separate slow upstream fetches (metadata is derived from a full class list). The first row appears about 0.6 s after the slowest gym lands. Run-to-run spread (about 5 s) is larger than any branch difference. (3) One run (`optimisation` #3, discarded and rerun) rendered "No classes match" despite all three responses arriving; not reproduced, not investigated. (4) `LOG_LEVEL=debug` per-chunk `provider call` lines were not collected because nothing pointed at Psycle.
+
+Fix proposal (not implemented): the cold-path cost is in `providers/marianatek.js fetchTimetable`/`fetchMetadata`, not C2-4. Share one in-flight class-list fetch between `timetable|gym|range` and `metadata|gym||` (single-flight on the underlying provider call, or derive metadata from the cached timetable), and prewarm both gyms' schedule cache at boot and on the 60 s refresh.
+
+`server/schedule-cache.js` check: the 60 s TTL is **stale-while-revalidate on request**, not a timer. `getOrFetch` serves fresh entries, serves a stale entry immediately and starts a background `single()` refresh on that request, and awaits only on a miss. There is no `setInterval`/`setTimeout` anywhere in it. Because the cache is in-process, a restart is always a cold miss.
+
+## MT cold-load investigation (2026-10-06, read-only, no code changed)
+
+**Method.** Dev twin with `LOG_LEVEL=debug` set temporarily in the dev `.env` (restored afterwards; nothing persistent changed), container recreated for a cold in-process cache, calls made from the signed-in Chrome tab using the page's own token (one tab, closed after).
+
+**Where the ~40 s goes.** `providers/marianatek.js fetchTimetable` pages `/classes?page_size=100` **serially** (`while (path && pageCount < 10)`, one await per page). Each page is 2-5 s upstream (MarianaTek, about 320 KB per 100 classes). Measured cold, JAB alone: `/api/timetable` (28 days, 788 classes) = **8 serial pages, 31.9 s**; `/api/metadata` = **10 serial pages (the cap), 25.5 s**. Both gyms together, all four calls concurrent: JAB timetable 29.1 s / metadata 22.6 s; Aarmy timetable 43.6 s (478 classes, 5 pages) / metadata 47.7 s; total wall 47.7 s (= slowest call). The two routes run concurrently from the client, so wall time is the slowest of them, but upstream load is doubled and slows each page.
+
+**Duplication: yes, and it is worse than the earlier note said.** `/api/metadata` is derived from a class list but is **not bounded**. The client calls `getMetadata({ttlMs})` with no dates (`ui/timetable.js loadMetadata`), and `fetchMetadata` builds its defaults under the keys `min_start_date`/`max_start_date`, which `fetchTimetable` never reads (it reads `startDate`/`endDate`). So the 28-day default is dead code and metadata fetches the **entire** future schedule up to the 1000-class cap (10 pages). Cache keys differ (`timetable|gym|from|to` vs `metadata|gym||`) and there is no single-flight across them, so the same class data is fetched about 18 times per gym per cold load. `schedule-cache.js` single-flights only identical keys.
+
+**Empty grid (optimisation run 3, unreproduced).** The server cannot return an empty success: `schedule-cache.js single()` caches only a resolved fetcher result, a thrown fetch caches nothing (and falls back to a stale entry if one exists, line 91-98), and a failed page throws out of the `fetchTimetable` loop. Partial results that CAN be cached as success: (a) the 10-page cap silently truncates at 1000 classes (marianatek.js, `maxPages`), (b) a `next` link that fails `new URL()` sets `path = null` and ends the loop with a partial list (the `catch (_)` branch). Neither explains an empty grid. Most likely cause is client-side: `getTimetableProgressive` turns a failed or non-OK gym into `[]` (`merge.fail`), and `progressive-merge.js` flushes the first arrival (Psycle at about 12 s, after the 4 s grace) with the others pending; with an empty unified cache and saved default filters naming JAB/Aarmy studios the grid shows "No classes match" until the MarianaTek gyms land (35-50 s later). `applyFlush` skips only a *final* empty flush. Needs a repro with browser console and the filter state; marked unproven.
+
+**Ranked options (not implemented; gains are estimates against the 30-48 s cold wall time).**
+1. Bound `fetchMetadata` to the same window as the timetable, or better derive metadata from the already-fetched timetable via one shared in-flight class-list fetch (single-flight keyed on gym+range, metadata reads its result). Removes about half the upstream calls and the 10-page unbounded fetch. Cold JAB roughly 32 s to 32 s alone but no contention; Aarmy 48 s to about 30 s.
+2. Parallel pagination: fetch page 1, read `count`, fire pages 2..N concurrently (concurrency 4). 8 serial pages (32 s) to about 8-10 s. Largest single gain; watch MarianaTek 429 (existing `rate-limit-backoff.js`).
+3. Prewarm schedule cache at boot and on a timer for each enabled gym with a linked user (needs a session; per-user token). Hides the cold path entirely for the common case; effort higher.
+4. First paint on 7 days, rest in background (client two-range request, or server returns first chunk). Cold first row in about 4-8 s. Complements 2.
+5. MarianaTek-only longer TTL (timetable 60 s to 5-10 min) plus the existing SWR: reduces how often the cold path recurs; does not help the first load.
+6. Smaller payloads: the response is about 2.5 MB for 788 classes (about 3.2 KB per event, `raw` included); stripping `raw` from the wire helps transfer and render, not the upstream wait.
+
+**Top next step:** options 1 + 2 together (shared, bounded, parallel class-list fetch).
+
+Dev env restored after the run (`.env` copied back, container recreated, `/api/health` ok); registry unchanged.
+
+### MT cold-load fix: shipped to dev twin (2026-10-06, commit on `optimisation`)
+
+**Change** (`providers/marianatek.js`, platform-level, no gym literals): one shared single-flight class-list fetch per (gym, window, filters) feeding both `fetchTimetable` and `fetchMetadata`; metadata is date-bounded (default 28 days, was the unbounded future schedule); page 1 reveals `meta.pagination.pages`, pages 2..N then go out in parallel with a cap of 4 (`CLASS_LIST_PAGE_CONCURRENCY`). Any failed page fails the whole fetch (no partial result), a 429 arms the per-gym C2-3 backoff and stops launching pages, more than 100 pages throws instead of truncating (the old silent 10-page / unparseable-`next` truncation is gone). `fetchStudioLayout` is bounded too. Tests: `server/test-marianatek-classlist.js` (8 checks); `mock-marianatek.js` now paginates (`MOCK_MT_PAGE_MS` latency knob).
+**Trade-off:** metadata filter lists cover the 28-day window only; the client also harvests options from loaded events.
+
+Cold, dev twin, container restarted before each run, 4 calls concurrent (seconds, timetable/metadata of a gym finish together):
+
+| Run | JAB | Aarmy | Whole page (wall) |
+|---|---|---|---|
+| Before (baseline) | ~36-41 | ~41-46 | ~52-54 |
+| After 1 | 12.3 | 23.9 | 23.9 |
+| After 2 | 11.1 | 21.4 | 21.4 |
+| After 3 | 9.7 | 22.8 | 22.8 |
+| **After median** | **11.1** | **22.8** | **22.8** |
+
+Aarmy stays slower (likely slower upstream pages); not investigated.
 
 ## Tests (spread across phases)
 
@@ -385,3 +454,63 @@ in the meantime.
 - **MarianaTek:** does *not* have the same pattern. `getProfile` (`/me/account`), `getCredits`
   (`/me/credits`) and `getMemberships` (`/me/memberships`) are different documents; only `getEligibility`
   fans out to two of them in parallel. Nothing to fix.
+
+## Aarmy analysis + first-paint (2026-10-06, read-only, no code changed)
+
+**Method.** Dev twin (`optimisation` 710e7f1), `LOG_LEVEL=debug` appended to the dev `.env` temporarily (backup copied back afterwards, container recreated, `/api/health` 200, 0 debug lines). Real Chrome (Claude for Chrome, one tab, closed after): container restarted before each run, SW + CacheStorage + IndexedDB + cache keys cleared, real navigation to `/?r=N#class-timetable`, DOM polled every 40 ms. No writes. The saved filter on this account is `gym=jab-boxing, location=48751`.
+
+### Q1: why Aarmy looked 2x JAB: it is mostly not Aarmy
+Three cold runs, ms from navigation. Requests leave the page at about 2.6-4.2 s.
+
+| Run | `/api/timetable` response end: 1st / 2nd / 3rd | Order |
+|---|---|---|
+| 1 | 15.8 / 24.4 / 34.8 s | Aarmy / JAB / Psycle |
+| 2 | 13.3 / 23.6 / 34.3 s | same |
+| 3 | 13.1 / 22.9 / 33.2 s | same |
+
+The three per-gym requests (and the three `/api/metadata` ones) are **serialized in the browser**: resource timing shows `requestStart` of request 2 equals `responseEnd` of request 1 (e.g. 13116 vs 13117 ms), and the server's own `request` log shows each starts only when the previous finished (11.3 s, then 8.7 s, then 10.4 s). Cause: all gyms hit the **same URL** (`/api/timetable?startDate&endDate`) and differ only by the `x-gym-id` request header. The responses carry an `ETag`, no `Cache-Control` and `Vary: Origin` only, so Chrome's HTTP cache treats them as one cacheable resource and holds the 2nd/3rd request behind the 1st (same-URL cache lock). Proof: the same three calls fired in-page with `cache: 'no-store'` on a cold server finished in **10.1 s (JAB), 10.8 s (Psycle), 11.6 s (Aarmy)**, i.e. wall 11.6 s instead of about 30 s. In-order sums also explain the earlier "JAB 11 s, Aarmy 23 s": a gym's time is its position in the queue plus its own work (about 10 s each).
+
+Aarmy's own cost (debug `provider call` lines, parallel run): 478 classes, **5 pages of 100**, page 1 about 5-6 s, then pages 2-5 in parallel at 4.3-4.9 s, about 11 s total. JAB: 788 classes, 8 pages, 1.6-3.8 s each, about 7.5 s of upstream. Psycle: 5 chunks of 7 days, 1.1-7.5 s. Per-gym extra upstream calls are the same for both MarianaTek gyms (`/me/account`, `/me/credits` x2-3, `/me/memberships`, `/me/reservations` x2, all 0.2-1 s; no per-class, location, studio or instructor lookups); no 429s, no backoff. Aarmy pages are about 1.6x slower per 100 rows (US tenant, heavier rows). Direct probe from oracle, page 1, 28-day window:
+
+| page_size | Aarmy | JAB |
+|---|---|---|
+| 100 | 4.5 s (5 pages) | 2.8 s (8 pages) |
+| 250 | 6.7 s (2 pages) | 4.2 s (4 pages) |
+| 500 | 17.1 s (1 page, superlinear) | 9.4 s (2 pages) |
+
+Bigger pages do not help (cost is per row, worse at 500). Payloads are small on the wire (Aarmy 36 KB, JAB 45 KB, Psycle 843 KB, compressed `/api/timetable`).
+
+### Q2: first paint vs full load, and what the user sees
+Cold, ms from navigation (requests start at 2.6-4.2 s):
+
+| Run | First flush (first gym lands) | First rows visible | All gyms done (chips stop spinning) |
+|---|---|---|---|
+| 1 | 16.1 s | 25.1 s | 35.4 s |
+| 2 | 13.4 s | 24.4 s | 35.0 s |
+| 3 | 13.3 s | 23.3 s | 33.8 s |
+
+While loading: skeleton until the first flush, then per-gym header chips spin (`.is-loading`, `gym-load-state.js`), then the grid paints each gym as it lands (`progressive-merge.js`, grace 0, confirmed working: flushes at each arrival). **The empty-grid case reproduces on every run**: when Aarmy (a gym the saved filter excludes) lands first, the grid shows "No classes match the current filters" for about 10 s (13.4 s to 24.4 s) with two chips still spinning, until JAB lands and rows appear. The saved gym filter hides the partial result, and nothing tells the user more gyms are pending. Code: `client/src/ui/timetable.js` `applyFlush` (about lines 974-1002) renders the partial list and ignores `pending`; `renderTimetableGrid` has no pending-gym awareness and its empty branch is at about lines 2070-2074 (`COPY.timetable.noClasses`, `copy.js:623/997`); the skeleton guard (about line 1836) only covers `psycleEvents.length === 0`, so it does not apply once any gym has landed. Related: `normalizeStoredFilters` (about line 1804) runs once on the first partial flush with partial metadata (`storedFiltersNormalized`), so a saved "all selected" test can be judged against a partial universe.
+
+### Q3: ranked speedups (estimates vs about 31 s from request start to all gyms)
+1. **Stop the browser serializing the gym requests** (largest, tiny change): add a gym segment to the URL (`?gym=` or a path) or send `Cache-Control: no-store` / `Vary: x-gym-id` on `/api/timetable` and `/api/metadata` (server `routes-normalized.js`), or `cache: 'no-store'` in `apiFetch` for these. Measured: whole page about 31 s to about 11 s; first data about 11 s to about 10 s, first rows to about 10-11 s. Also removes a latent cross-gym HTTP-cache hazard (one shared cache entry for several gyms' responses).
+2. **Empty-state fix**: while any gym is pending, show the skeleton or "Loading Aarmy..." instead of "No classes match" when the filtered result is empty. Removes the confusing 10 s blank.
+3. **One-round pagination** (after 1, Aarmy about 10.5 s to about 5-6 s, JAB about 7.5 s to about 4 s): fire date windows in parallel (e.g. 4 x 7 days with page_size about 150-200) instead of page 1 then pages 2..N, or speculate the page count from the last result.
+4. **Narrower first window**: 7 days first (about 120 Aarmy classes, one page, about 5 s), rest in background. First rows about 5-6 s.
+5. **Prewarm** the schedule cache at boot / on a timer for enabled gyms with a linked user: hides the cold path (the cache is user-agnostic, upstream needs one session).
+6. Not worth it: bigger page_size (slower per row), Aarmy-specific tuning (per-row cost is the tenant's).
+
+Dev env restored: `.env` copied back, container recreated, `/api/health` 200, no debug lines. Registry unchanged (no deploy or exposure change).
+
+### Fix + re-measure (2026-10-06): cross-gym cache serialisation and empty-grid
+**Changes.** (1) `routes-normalized.js`: router-level `Vary: x-gym-id, Authorization` and default `Cache-Control: private, no-cache` on GETs (layout and entitlement keep their own policy), pinned by `server/test-gym-http-cache.js`. (2) `client/src/api.js apiFetch`: a gym-scoped GET also carries `&gym=<id>` in the URL, so the browser's per-URL cache lock no longer queues the gyms (`api-gym-url.test.js`). Chosen over header-only because a response header cannot help a request that is already waiting on the cache lock; the server ignores the param, so the shared schedule-cache keys (`gymId|range`) and the client cache keys (which sit above `apiFetch`) are unchanged. (3) `timetable.js` + `pending-gyms.js`: an empty filtered grid shows the skeleton while a selected gym is pending (failure counts as settled), the real empty state afterwards (`pending-gyms.test.js`).
+
+**Cold, dev twin, container restarted + SW/CacheStorage/IndexedDB cleared + real navigation, ms from navigation (one tab):**
+
+| Metric | Before (3 runs, median) | After (3 runs: 1 / 2 / 3, median) |
+|---|---|---|
+| First data (first `/api/timetable` ends) | 13.3-16.1 s (13.4 s) | 15.2 / 16.3 / 15.4 s (15.4 s) |
+| First rows visible | 23.3-25.1 s (24.4 s) | 16.4 / 16.9 / 17.0 s (16.9 s) |
+| All gyms loaded | 33.8-35.4 s (35.0 s) | 17.0 / 18.5 / 19.0 s (18.5 s) |
+| Empty "No classes match" flash | about 10 s, every run | none in 3 runs (40 ms polling) |
+
+Requests now start together (about 3.5-3.8 s) and all three gyms finish within about 1.5 s of each other; first data is not faster because it is bounded by the slowest-first upstream (Aarmy/JAB cold, about 11-12 s). Warm reload (server cache warm, IndexedDB cache present): 30 rows painted, no spinner, no timetable request needed within the first 7 s. Deploy note: Docker Hub 429 blocked `node:20`; deployed from a clean worktree of HEAD (the main checkout carries uncommitted H-home work) with `FROM mirror.gcr.io/library/node:20` substituted for that deploy only; repo Dockerfile unchanged.

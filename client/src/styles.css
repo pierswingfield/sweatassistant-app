@@ -3572,9 +3572,6 @@ html, body {
 #psycle-helper-container .psycle-table thead {
   display: none !important;
 }
-#psycle-helper-container .psycle-timetable-heart {
-  display: none !important;
-}
 
 #psycle-helper-container .psycle-table td.col-time,
 #psycle-helper-container .psycle-table th.col-time { width: 72px !important; }
@@ -3936,10 +3933,18 @@ html, body {
 
 /* Timetable Heart Icon */
 .psycle-timetable-heart {
-  display: inline-block;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex: 0 0 auto;
+  width: 28px;
+  height: 28px;
+  padding: 0;
+  border: 0;
+  background: transparent;
   cursor: pointer;
   user-select: none;
-  margin-right: 8px;
+  margin-right: 6px;
   font-size: 14px;
   transition: transform 0.15s cubic-bezier(0.25, 0.8, 0.25, 1), filter 0.15s ease;
 }
@@ -3972,12 +3977,7 @@ html, body {
   100% { transform: scale(1.15); }
 }
 
-/* Bookmarks Filter Button (Temporarily hidden on front-end until cross-gym favourite solution) */
-#psycle-filter-favorites-only,
-.fr-heart {
-  display: none !important;
-}
-
+/* Favourites-only filter button (desktop filter bar; on mobile it lives in the filter drawer) */
 #psycle-filter-favorites-only {
   background: var(--surface-inset);
   border: 1px solid var(--border);
@@ -9513,8 +9513,6 @@ html, body {
 .fr-sep { opacity: .3; font-size: 9px; margin: 0 2px; }
 .fr-avatar { width: 22px; height: 22px; border-radius: 50%; object-fit: cover; flex-shrink: 0; }
 .fr-avatar-fallback { display: inline-flex; align-items: center; justify-content: center; background: var(--surface-inset); font-size: 10px; font-weight: 700; }
-.fr-heart { width: 30px; height: 30px; border-radius: 50%; border: 1px solid var(--border-strong); background: var(--surface-2); color: var(--text); cursor: pointer; padding: 0; font-size: 15px; }
-.fr-heart.active { color: var(--danger); border-color: var(--danger); }
 
 .fr-sheet-overlay { position: fixed; inset: 0; z-index: 10050; background: rgba(0,0,0,.55); display: flex; align-items: flex-end; opacity: 0; pointer-events: none; transition: opacity .25s ease-out; }
 .fr-sheet-overlay.open { opacity: 1; pointer-events: auto; }
@@ -9638,7 +9636,6 @@ html, body {
 .fr-wgroup + .fr-wgroup { margin-top: 14px; padding-top: 14px; }
 
 /* Rail: heart is an ordinary chip that rides the right edge when there is room. */
-.fr-heart { width: auto; min-width: 32px; height: 32px; padding: 0 12px; border-radius: 16px; margin-left: auto; font-size: 15px; line-height: 1; }
 
 @media (max-width: 768px) {
   /* Bar -> date selector gap */
@@ -9651,9 +9648,6 @@ html, body {
 }
 
 /* --- U2-5 round 5 --- */
-.fr-spacer { flex: 1 0 0; min-width: 0; }
-.fr-heart { margin-left: 0; }
-.fr-heart svg { display: block; }
 .fr-search { margin-bottom: 0; }
 .fr-search + .fr-list { padding-top: 12px; }
 .fr-wgroup-head { margin: 0; padding-bottom: 12px; }
@@ -10677,7 +10671,7 @@ body::after { z-index: 1000002 !important; }
   /* Row 1 order is time, gym chip, class type, heart: the heart is now trailing, so the time column only
      needs the time itself (re-tightened so every chip still shares one left edge). */
   #psycle-helper-container .psycle-mobile-top-line > strong { min-width: 44px; }
-  #psycle-helper-container .psycle-mobile-top-line .psycle-mobile-fav-indicator { flex: 0 0 auto; margin-left: 2px; font-size: 15px; }
+  #psycle-helper-container .psycle-mobile-top-line .psycle-mobile-fav-indicator { flex: 0 0 auto; font-size: 16px; }
   /* 5. Instructor photo spans rows 2-3; rows 2-3 indent to its right. */
   #psycle-helper-container .psycle-mobile-detail { display: flex; align-items: center; gap: 10px; min-width: 0; }
   #psycle-helper-container .psycle-mobile-detail-text { display: flex; flex-direction: column; gap: 8px; min-width: 0; flex: 1 1 0; }
@@ -11516,3 +11510,48 @@ html:not([data-credits-tab="on"]) .psycle-nav-btn[data-tab="buy-credits"] { disp
 .home-instructor-meta { color: var(--text-secondary, #6b7280); font-size: 0.86em; }
 .home-instructor-gym { width: 32px; height: 32px; flex: 0 0 32px; }
 .home-instructor-gym .psycle-gym-mark { width: 100%; height: 100%; }
+/* F-12: favourite heart on every row. Mobile card: 44px hit area, visual stays compact. */
+.psycle-timetable-heart:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; border-radius: 8px; }
+.psycle-timetable-heart svg { display: block; pointer-events: none; }
+@media (max-width: 768px) {
+  .psycle-timetable-heart.psycle-mobile-fav-indicator {
+    width: 44px; height: 44px; margin: -11px -8px -11px auto; pointer-events: auto !important;
+    font-size: 16px; touch-action: manipulation; -webkit-tap-highlight-color: transparent;
+  }
+  .psycle-timetable-heart.psycle-mobile-fav-indicator.unbookmarked { color: var(--text-secondary) !important; }
+}
+/* Drawer row: Favourites only */
+.fr-favrow { display: flex; align-items: center; gap: 10px; width: 100%; min-height: 48px; padding: 8px 14px; border-radius: 12px; border: 1px solid var(--border); background: var(--surface-2); color: var(--text); font-size: 15px; font-weight: 600; cursor: pointer; touch-action: manipulation; }
+.fr-favrow.on { border-color: var(--danger); color: var(--danger); }
+@media (max-width: 768px) {
+  /* Heart: in the first row, right after the class-type chip; only rendered for a favourited class. 44px hit
+     area via negative margin so the row keeps its height. */
+  #psycle-helper-container .psycle-mobile-top-line > .psycle-mobile-fav-indicator { position: static; flex: 0 0 auto; width: 26px; height: 32px; margin: -8px -4px -8px -8px; }
+  /* A favourited card's chip may give up width (it keeps its equalised width whenever the row has room), so the
+     heart after it can never be pushed out of a narrow row, e.g. a wide gym chip plus a zone suffix. */
+  #psycle-helper-container .psycle-mobile-top-line .ab-disc-tag:has(+ .psycle-mobile-fav-indicator) { flex-shrink: 1 !important; min-width: 0 !important; overflow: hidden; text-overflow: ellipsis; }
+}
+
+/* F-12: Settings > Favourites pane. Rows are the timetable's own rows; this only adds the page furniture
+   (note, weekday headings) and the "no upcoming class" row. */
+.psycle-fav-note { margin: 4px 0 6px; font-size: 13px; line-height: 1.45; color: var(--text-secondary); max-width: 62ch; }
+.psycle-fav-day { margin-top: 18px; }
+.psycle-fav-day-title { margin: 0 0 6px 2px; font-size: 15px; font-weight: 600; color: var(--text); }
+.psycle-fav-missing { display: flex; align-items: center; gap: 12px; min-width: 0; }
+.psycle-fav-missing-time { flex: 0 0 auto; min-width: 44px; font-size: 14px; }
+.psycle-fav-missing-body { flex: 1 1 0; min-width: 0; display: flex; flex-direction: column; gap: 2px; }
+.psycle-fav-missing-title { display: flex; align-items: center; gap: 8px; min-width: 0; font-size: 14px; font-weight: 600; }
+.psycle-fav-missing-title > span { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.psycle-fav-missing-where { font-size: 12px; color: var(--text-secondary); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.psycle-fav-missing-note { font-size: 12px; font-style: italic; color: var(--text-tertiary, var(--text-secondary)); }
+.psycle-fav-missing-heart { flex: 0 0 auto; width: 36px; height: 36px; display: inline-flex; align-items: center; justify-content: center; color: var(--danger); background: none; border: 0; cursor: pointer; touch-action: manipulation; }
+.psycle-fav-missing-heart.loading { opacity: .5; pointer-events: none; }
+.psycle-fav-empty-title { font-size: 16px; margin: 0 0 8px; }
+.psycle-fav-empty-help { font-size: 13px; margin: 0 auto; max-width: 44ch; color: var(--text-tertiary, var(--text-secondary)); }
+.psycle-fav-empty { text-align: center; padding: 40px 20px; color: var(--text-secondary); }
+@media (max-width: 768px) {
+  #psycle-helper-container .psycle-fav-day { margin-top: 14px; }
+  #psycle-helper-container .psycle-fav-missing { flex-wrap: wrap; gap: 6px 10px; }
+  #psycle-helper-container .psycle-fav-missing-body { flex-basis: 100%; order: 3; }
+  #psycle-helper-container .psycle-fav-missing-heart { margin-left: auto; order: 2; }
+}

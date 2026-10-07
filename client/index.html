@@ -271,7 +271,7 @@
               </div>
 
               <!-- Bookmarked Filter Toggle -->
-              <button id="psycle-filter-favorites-only" data-requires-capability="bookmarks" class="psycle-btn-mini" style="height: 40px !important; padding: 0 16px !important; border-radius: 12px !important; font-weight: 600; cursor: pointer;">
+              <button id="psycle-filter-favorites-only" class="psycle-btn-mini" style="height: 40px !important; padding: 0 16px !important; border-radius: 12px !important; font-weight: 600; cursor: pointer;">
                 <span data-copy-text="static.bookmarked">♡ Bookmarked</span>
               </button>
 
@@ -313,6 +313,9 @@
           <div class="psycle-section-header">
             <h3 data-copy-text="static.activeBookings">Active Bookings</h3><span id="psycle-bookings-count" class="psycle-section-count" hidden></span>
             <span id="psycle-bookings-refreshing" class="psycle-refreshing-chip" style="display: none;"><span class="psycle-spinner"></span> <span data-copy-text="static.refreshing">Refreshing...</span></span>
+            <button class="psycle-share-btn" id="psycle-bookings-share-btn" type="button" aria-label="Share my classes" data-copy-aria-label="share.button" title="Share my classes" data-copy-title="share.button">
+              <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 12v7a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-7"/><polyline points="16 6 12 2 8 6"/><line x1="12" y1="2" x2="12" y2="15"/></svg><span data-copy-text="share.buttonLabel">Share</span>
+            </button>
           </div>
           <div id="psycle-bookings-list" class="psycle-bookings-list">
             <div class="psycle-skeleton-list" role="status" aria-label="Loading bookings"><div class="psycle-skeleton-card" aria-hidden="true"><div class="psycle-skeleton-card-head"><span class="psycle-skeleton-line is-strong" style="--skeleton-width:34%" aria-hidden="true"></span><span class="psycle-skeleton-line is-chip" style="--skeleton-width:18%" aria-hidden="true"></span></div><span class="psycle-skeleton-line" style="--skeleton-width:64%" aria-hidden="true"></span><span class="psycle-skeleton-line is-short" style="--skeleton-width:56%" aria-hidden="true"></span></div><div class="psycle-skeleton-card" aria-hidden="true"><div class="psycle-skeleton-card-head"><span class="psycle-skeleton-line is-strong" style="--skeleton-width:42%" aria-hidden="true"></span><span class="psycle-skeleton-line is-chip" style="--skeleton-width:18%" aria-hidden="true"></span></div><span class="psycle-skeleton-line" style="--skeleton-width:72%" aria-hidden="true"></span><span class="psycle-skeleton-line is-short" style="--skeleton-width:48%" aria-hidden="true"></span></div></div>
@@ -473,6 +476,9 @@
               <button class="psycle-settings-menu-item" data-settings-section="notifications">
                 <span class="menu-item-text" data-copy-text="static.notifications">Notifications</span>
               </button>
+              <button class="psycle-settings-menu-item" data-settings-section="favourites">
+                <span class="menu-item-text" data-copy-text="static.favourites">Favourites</span>
+              </button>
               <button class="psycle-settings-menu-item" data-settings-section="gyms">
                 <span class="menu-item-text" data-copy-text="static.yourGyms">Your Gyms</span>
               </button>
@@ -611,6 +617,15 @@
                   <p data-copy-text="static.calendarDescription">One calendar feed covering every gym you've connected. Stays in sync with bookings, waitlists and cancellations.</p>
                 </div>
                 <div class="psycle-settings-grid" id="psycle-calendar-section" style="padding-left:0; padding-right:0;"><div class="psycle-settings-card"><p class="psycle-card-desc" data-copy-text="static.loading">Loading…</p></div></div>
+              </div>
+
+              <!-- SECTION: FAVOURITES (F-12, gym-neutral favourites). ACCOUNT-level: every linked gym, one list. -->
+              <div class="psycle-settings-section-pane" id="psycle-settings-pane-favourites">
+                <div class="psycle-tab-header" style="padding-left:0; padding-right:0; padding-top:0; border-bottom:none;">
+                  <h3 data-copy-text="static.favourites">Favourites</h3>
+                  <p data-copy-text="static.favouritesDescription">Your favourite weekly class slots across every connected gym.</p>
+                </div>
+                <div id="psycle-favourites-section"></div>
               </div>
 
               <div class="psycle-settings-section-pane" id="psycle-settings-pane-notifications">

@@ -100,7 +100,7 @@ export function setupPullToRefresh(scrollEl, onRefresh, {
           <polyline points="19 12 12 19 5 12"></polyline>
         </svg>
       </span>
-      <div class="psycle-spinner" style="display: none;"></div>
+      <div class="sa-spinner" style="display: none;"></div>
       <span class="sa-pull-text">${COPY.pullToRefresh.pull}</span>
     `;
     document.body.appendChild(indicator);
@@ -110,7 +110,7 @@ export function setupPullToRefresh(scrollEl, onRefresh, {
   function updateIndicator(elasticY, isArmed, isRefreshingState) {
     const ind = createIndicator();
     const text = ind.querySelector('.sa-pull-text');
-    const spinner = ind.querySelector('.psycle-spinner');
+    const spinner = ind.querySelector('.sa-spinner');
     const icon = ind.querySelector('.sa-pull-icon');
 
     if (isRefreshingState) {

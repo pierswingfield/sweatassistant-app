@@ -364,7 +364,7 @@ export function initTooltips() {
       } else {
         occupancyTooltip.innerHTML = `
           <div style="display:flex; align-items:center; justify-content:center; padding:15px; color:var(--text); font-size:12px;">
-            <svg class="psycle-spinner-svg" viewBox="0 0 24 24" style="animation: spin 1s linear infinite; width: 14px; height: 14px; margin-right: 8px; color: var(--feat-autoupgrade); display: inline-block;">
+            <svg class="sa-spinner-svg" viewBox="0 0 24 24" style="animation: spin 1s linear infinite; width: 14px; height: 14px; margin-right: 8px; color: var(--feat-autoupgrade); display: inline-block;">
               <circle cx="12" cy="12" r="10" stroke="color-mix(in srgb, var(--text) 15%, transparent)" stroke-width="3" fill="none"></circle>
               <path d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" fill="currentColor"></path>
             </svg>

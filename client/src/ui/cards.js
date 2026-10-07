@@ -246,7 +246,7 @@ export function trendingUpIcon(size = 14, color = 'currentColor', strokeWidth = 
 }
 
 export function pulseIcon(size = 14) {
-  return `<svg class="psycle-pulse-icon" width="${size}" height="${size}" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg" aria-hidden="true" style="display:inline-block;vertical-align:middle;margin-right:4px;">
+  return `<svg class="sa-pulse-icon" width="${size}" height="${size}" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg" aria-hidden="true" style="display:inline-block;vertical-align:middle;margin-right:4px;">
     <circle class="radar" cx="12" cy="12" r="2" />
     <circle class="core" cx="12" cy="12" r="2" />
   </svg>`;

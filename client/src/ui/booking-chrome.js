@@ -51,11 +51,11 @@ export function applyBookingChrome(modal, { titleText, gymId, locationName, stud
 
 /** Two-step progress cue (spec section 8): only while a flow includes Step A. 'A' | 'A2' | 'B' | null (remove). */
 function upsertStepper(card, strip, which) {
-  let st = card.querySelector(':scope > .psycle-stepper');
+  let st = card.querySelector(':scope > .sa-stepper');
   if (!which) { st?.remove(); return; }
   if (!st) {
     st = document.createElement('ol');
-    st.className = 'psycle-stepper';
+    st.className = 'sa-stepper';
     strip.insertAdjacentElement('afterend', st);
   }
   const s1 = which === 'A' ? 'current' : 'complete';
@@ -120,7 +120,7 @@ export function bannerEl(id, text, actionText, onAction) {
   if (!isMobile() || helperDismissed(id)) return null;
   const el = document.createElement('div');
   el.className = 'sa-bk-helper sa-bk-banner';
-  el.innerHTML = '<p></p><button type="button" class="psycle-btn sa-bk-banner-action"></button><button type="button" class="sa-bk-helper-x"></button>';
+  el.innerHTML = '<p></p><button type="button" class="sa-btn sa-bk-banner-action"></button><button type="button" class="sa-bk-helper-x"></button>';
   el.querySelector('p').textContent = text;
   const act = el.querySelector('.sa-bk-banner-action');
   act.textContent = actionText;
@@ -163,7 +163,7 @@ function applyGuards(modal, gymId) {
     n.appendChild(t);
     if (g.kind === 'relogin') {
       const b = document.createElement('button');
-      b.type = 'button'; b.className = 'psycle-btn sa-bk-notice-action'; b.textContent = COPY.bookingFlow.reconnectAction;
+      b.type = 'button'; b.className = 'sa-btn sa-bk-notice-action'; b.textContent = COPY.bookingFlow.reconnectAction;
       b.onclick = async () => {
         history.back();
         const s = await import('./settings.js');
@@ -172,7 +172,7 @@ function applyGuards(modal, gymId) {
       };
       n.appendChild(b);
     }
-    const anchor = card.querySelector(':scope > .psycle-stepper') || card.querySelector(':scope > .sa-bk-identity') || card.querySelector(':scope > .sa-modal-header');
+    const anchor = card.querySelector(':scope > .sa-stepper') || card.querySelector(':scope > .sa-bk-identity') || card.querySelector(':scope > .sa-modal-header');
     anchor.insertAdjacentElement('afterend', n);
   }
   modal.querySelectorAll(PRIMARY).forEach((b) => { if (!b.disabled) { b.disabled = true; b.setAttribute('data-bk-guard', '1'); } });

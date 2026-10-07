@@ -56,9 +56,9 @@ function feedCardHtml(status) {
         </div>
       </div>
       <div class="sa-cal-feed-actions">
-        ${enabled ? `<button class="psycle-btn sa-cal-feed-btn" data-calendar-action="refresh">${icon('refresh', 16)}<span>${COPY.calendar.refreshNow}</span></button>
-        <button class="psycle-btn sa-cal-feed-btn variant-danger" data-calendar-action="disable">${icon('power', 16)}<span>${COPY.calendar.turnOffFeed}</span></button>`
-        : `<button class="psycle-btn sa-cal-feed-btn" data-calendar-action="enable">${icon('power', 16)}<span>${COPY.calendar.turnOnFeed}</span></button>`}
+        ${enabled ? `<button class="sa-btn sa-cal-feed-btn" data-calendar-action="refresh">${icon('refresh', 16)}<span>${COPY.calendar.refreshNow}</span></button>
+        <button class="sa-btn sa-cal-feed-btn variant-danger" data-calendar-action="disable">${icon('power', 16)}<span>${COPY.calendar.turnOffFeed}</span></button>`
+        : `<button class="sa-btn sa-cal-feed-btn" data-calendar-action="enable">${icon('power', 16)}<span>${COPY.calendar.turnOnFeed}</span></button>`}
       </div>
     </div>`;
 }
@@ -94,9 +94,9 @@ function addCardHtml(status) {
       <h4>${COPY.calendar.addToCalendar}</h4>
       <p class="sa-card-desc">${COPY.calendar.feedUpdatesDescription}</p>
       <div class="sa-cal-add-list">
-        <button class="psycle-btn sa-cal-add-btn" data-calendar-action="apple">${APPLE_CAL_LOGO}<span>${COPY.calendar.appleCalendar}</span></button>
-        <button class="psycle-btn sa-cal-add-btn" data-calendar-action="google">${GOOGLE_CAL_LOGO}<span>${COPY.calendar.googleCalendar}</span></button>
-        <button class="psycle-btn sa-cal-add-btn" data-calendar-action="copy"><span class="sa-cal-logo sa-cal-logo-generic">${icon('link', 18)}</span><span>${COPY.calendar.copyLink}</span></button>
+        <button class="sa-btn sa-cal-add-btn" data-calendar-action="apple">${APPLE_CAL_LOGO}<span>${COPY.calendar.appleCalendar}</span></button>
+        <button class="sa-btn sa-cal-add-btn" data-calendar-action="google">${GOOGLE_CAL_LOGO}<span>${COPY.calendar.googleCalendar}</span></button>
+        <button class="sa-btn sa-cal-add-btn" data-calendar-action="copy"><span class="sa-cal-logo sa-cal-logo-generic">${icon('link', 18)}</span><span>${COPY.calendar.copyLink}</span></button>
       </div>
     </div>`;
 }
@@ -221,11 +221,11 @@ export function openCalendarSettingsModal({ zIndex = 2000, onChange = null, onCl
       </div>
       <div class="sa-ovl-body" style="flex:1;overflow-y:auto;padding:16px;"><div data-calendar-modal-section></div></div>
       <div style="padding:12px 16px;border-top:1px solid color-mix(in srgb, var(--text) 8%, transparent);flex-shrink:0;">
-        <button type="button" class="psycle-btn-primary" data-calendar-modal-close style="width:100%;"></button>
+        <button type="button" class="sa-btn-primary" data-calendar-modal-close style="width:100%;"></button>
       </div>
     </div>`;
   overlay.querySelector('h3').textContent = COPY.onboarding.calendarFeatureTitle;
-  overlay.querySelector('.psycle-btn-primary').textContent = COPY.onboarding.done;
+  overlay.querySelector('.sa-btn-primary').textContent = COPY.onboarding.done;
 
   const section = overlay.querySelector('[data-calendar-modal-section]');
   let closed = false;

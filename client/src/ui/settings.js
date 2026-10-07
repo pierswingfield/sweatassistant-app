@@ -241,7 +241,7 @@ async function openProfileExplorerModal(gymId = null, gymName = null) {
     },
     onClose: () => { explorerModalOpen = false; editMode = false; konamiProgress = 0; },
   });
-  body.innerHTML = `<div style="text-align:center;padding:40px;"><div class="psycle-spinner" style="margin:0 auto;"></div><div style="color:var(--text-secondary);margin-top:10px;font-size:13px;">${COPY.profileExplorer.loading}</div></div>`;
+  body.innerHTML = `<div style="text-align:center;padding:40px;"><div class="sa-spinner" style="margin:0 auto;"></div><div style="color:var(--text-secondary);margin-top:10px;font-size:13px;">${COPY.profileExplorer.loading}</div></div>`;
 
   // Set up close handlers
   setupExplorerModalClose(modal);
@@ -353,7 +353,7 @@ function renderExplorerBody(body) {
       <div class="sa-profile-log-panel" style="margin-top:12px;border:1px solid color-mix(in srgb, var(--text) 8%, transparent);border-radius:12px;overflow:hidden;">
         <div class="sa-profile-section-header" id="sa-explorer-log-header" style="background:color-mix(in srgb, var(--text) 3%, transparent);padding:10px 16px;display:flex;justify-content:space-between;align-items:center;cursor:pointer;user-select:none;">
           <span style="font-weight:700;font-size:13px;color:var(--text);display:flex;align-items:center;gap:6px;">${COPY.profileExplorer.changeLog} <span id="sa-explorer-log-count" style="font-weight:400;font-size:12px;color:var(--text-secondary);">(${changeLog.length})</span></span>
-          <span class="psycle-accordion-arrow" id="sa-explorer-log-arrow" style="font-size:12px;color:var(--text-secondary);transition:transform 0.2s;">▲</span>
+          <span class="sa-accordion-arrow" id="sa-explorer-log-arrow" style="font-size:12px;color:var(--text-secondary);transition:transform 0.2s;">▲</span>
         </div>
         <div id="sa-explorer-log-container" style="max-height:200px;overflow-y:auto;padding:8px;background:var(--surface-inset);border-top:1px solid color-mix(in srgb, var(--text) 5%, transparent);">
           ${logEntriesHtml}
@@ -361,7 +361,7 @@ function renderExplorerBody(body) {
       </div>
     `;
     // Save Changes button
-    html += `<button id="sa-profile-save-btn" class="psycle-btn" style="width:100%;margin-top:12px;background:color-mix(in srgb, var(--feat-autoupgrade) 20%, transparent);border:1px solid color-mix(in srgb, var(--feat-autoupgrade) 40%, transparent);color:var(--feat-autoupgrade);font-weight:700;display:none;">${COPY.profileExplorer.saveChanges}</button>`;
+    html += `<button id="sa-profile-save-btn" class="sa-btn" style="width:100%;margin-top:12px;background:color-mix(in srgb, var(--feat-autoupgrade) 20%, transparent);border:1px solid color-mix(in srgb, var(--feat-autoupgrade) 40%, transparent);color:var(--feat-autoupgrade);font-weight:700;display:none;">${COPY.profileExplorer.saveChanges}</button>`;
   }
 
   body.innerHTML = html;
@@ -370,7 +370,7 @@ function renderExplorerBody(body) {
   body.querySelectorAll('.sa-profile-section').forEach(sec => {
     const header = sec.querySelector('.sa-profile-section-header');
     const content = sec.querySelector('.sa-profile-section-content');
-    const arrow = sec.querySelector('.psycle-accordion-arrow');
+    const arrow = sec.querySelector('.sa-accordion-arrow');
     if (header) {
       header.addEventListener('click', () => {
         const closed = content.style.display === 'none';
@@ -453,7 +453,7 @@ function renderSectionAccordion(section, idx, isSpecial) {
     <div class="sa-profile-section" style="border:1px solid color-mix(in srgb, var(--text) 8%, transparent);border-radius:12px;overflow:hidden;flex-shrink:0;margin-bottom:10px;">
       <div class="sa-profile-section-header" style="background:color-mix(in srgb, var(--text) 3%, transparent);padding:12px 16px;display:flex;justify-content:space-between;align-items:center;cursor:pointer;user-select:none;">
         <span style="font-weight:700;font-size:13px;color:var(--text);display:flex;align-items:center;gap:6px;">${section.emoji} ${section.title}${titleSuffix}</span>
-        <span class="psycle-accordion-arrow" style="font-size:12px;color:var(--text-secondary);transition:transform 0.2s;">▼</span>
+        <span class="sa-accordion-arrow" style="font-size:12px;color:var(--text-secondary);transition:transform 0.2s;">▼</span>
       </div>
       <div class="sa-profile-section-content" style="display:none;padding:14px;background:var(--surface-inset);border-top:1px solid color-mix(in srgb, var(--text) 5%, transparent);">
         ${contentHtml}
@@ -660,7 +660,7 @@ export async function openManageSpotMapsModal(options = {}) {
   const body = document.createElement('div');
   body.className = 'sa-ovl-body';
   body.style.cssText = 'flex:1;overflow-y:auto;padding:16px;';
-  body.innerHTML = `<div style="text-align:center;padding:24px;"><div class="psycle-spinner" style="margin:0 auto;"></div><div style="color:var(--text-secondary);margin-top:10px;font-size:13px;">${COPY.spotMaps.loadingStudios}</div></div>`;
+  body.innerHTML = `<div style="text-align:center;padding:24px;"><div class="sa-spinner" style="margin:0 auto;"></div><div style="color:var(--text-secondary);margin-top:10px;font-size:13px;">${COPY.spotMaps.loadingStudios}</div></div>`;
 
   const loadingHtml = body.innerHTML;
   modal.appendChild(header);
@@ -689,7 +689,7 @@ export async function openManageSpotMapsModal(options = {}) {
     const footer = document.createElement('div');
     footer.style.cssText = 'padding:12px 16px;border-top:1px solid color-mix(in srgb, var(--text) 8%, transparent);flex-shrink:0;';
     const doneBtn = document.createElement('button');
-    doneBtn.className = 'psycle-btn-primary';
+    doneBtn.className = 'sa-btn-primary';
     doneBtn.style.cssText = 'width:100%;';
     doneBtn.textContent = COPY.settings.done;
     doneBtn.addEventListener('click', () => { close(); onDone(); });
@@ -921,7 +921,7 @@ function renderManageSpotMapsModal(prefs, studios, locations, container, onClose
       btns.style.cssText = 'display:flex;gap:6px;';
 
       const editBtn = document.createElement('button');
-      editBtn.className = 'psycle-btn-mini';
+      editBtn.className = 'sa-btn-mini';
       editBtn.style.cssText = 'font-size:12px;padding:4px 10px;';
       editBtn.textContent = hasPrefs ? COPY.spotMaps.editSpots : COPY.spotMaps.chooseSpots;
       editBtn.addEventListener('click', () => {
@@ -952,7 +952,7 @@ function renderManageSpotMapsModal(prefs, studios, locations, container, onClose
 
       if (hasPrefs) {
         const removeBtn = document.createElement('button');
-        removeBtn.className = 'psycle-btn-mini';
+        removeBtn.className = 'sa-btn-mini';
         removeBtn.style.cssText = 'font-size:12px;padding:4px 10px;background:color-mix(in srgb, var(--danger) 10%, transparent);border-color:color-mix(in srgb, var(--danger) 25%, transparent);color:var(--danger);';
         removeBtn.textContent = COPY.spotMaps.remove;
         removeBtn.addEventListener('click', async () => {
@@ -1015,7 +1015,7 @@ export async function openStudioFloorPlanEditor(studioId, studioName, onSaved, o
   const body = document.createElement('div');
   body.className = 'sa-ovl-body';
   body.style.cssText = 'flex:1;overflow-y:auto;padding:16px;';
-  body.innerHTML = `<div style="text-align:center;padding:24px;"><div class="psycle-spinner" style="margin:0 auto;"></div><div style="color:var(--text-secondary);margin-top:10px;font-size:13px;">${COPY.spotMaps.loadingFloorPlan}</div></div>`;
+  body.innerHTML = `<div style="text-align:center;padding:24px;"><div class="sa-spinner" style="margin:0 auto;"></div><div style="color:var(--text-secondary);margin-top:10px;font-size:13px;">${COPY.spotMaps.loadingFloorPlan}</div></div>`;
 
   modal.appendChild(header);
   modal.appendChild(body);
@@ -1079,7 +1079,7 @@ export async function openStudioFloorPlanEditor(studioId, studioName, onSaved, o
           <div style="font-size:32px;margin-bottom:12px;">🗺️</div>
           <p style="margin:0 0 8px;color:var(--text);font-weight:500;">${COPY.spotMaps.noFloorMapAvailable}</p>
           <p style="font-size:12px;margin:0 0 20px;">${COPY.spotMaps.anySpotHelp}</p>
-          <button class="psycle-btn" id="spot-save-any" style="background:var(--feat-autoupgrade);color:var(--on-accent);">${COPY.spotMaps.saveAnySpot}</button>
+          <button class="sa-btn" id="spot-save-any" style="background:var(--feat-autoupgrade);color:var(--on-accent);">${COPY.spotMaps.saveAnySpot}</button>
         </div>
       `;
       body.querySelector('#spot-save-any').onclick = () => onSave([], existing.preferredRows || []);
@@ -1336,8 +1336,8 @@ function connRowCreate(g) {
     <span role="cell" class="sa-gym-conn-health"><span class="sa-gym-conn-dot" aria-hidden="true"></span><span class="sa-gym-conn-label"></span></span>
     <span role="cell" class="sa-gym-conn-when"></span>
     <span role="cell" class="sa-gym-conn-actions">
-      <button class="psycle-btn psycle-btn-mini" data-reauth-gym="${id}">${COPY.settings.reauthenticate}</button>
-      <button class="psycle-btn psycle-btn-mini variant-danger" data-unlink-gym="${id}">${COPY.settings.unlink}</button>
+      <button class="sa-btn sa-btn-mini" data-reauth-gym="${id}">${COPY.settings.reauthenticate}</button>
+      <button class="sa-btn sa-btn-mini variant-danger" data-unlink-gym="${id}">${COPY.settings.unlink}</button>
     </span>`;
   return row;
 }
@@ -1566,9 +1566,9 @@ async function renderGymsCard() {
   if (!gymsRenderGuard.isCurrent(token)) return;
 
   actions.innerHTML = addable.length
-    ? `<button class="psycle-btn primary psycle-btn-mini" id="psycle-add-gym-btn">${COPY.settings.connectGymAction}</button>`
+    ? `<button class="sa-btn primary sa-btn-mini" id="sa-add-gym-btn">${COPY.settings.connectGymAction}</button>`
     : `<p class="sa-card-desc" style="margin:0;">${COPY.settings.noAvailableGyms}</p>`;
-  const addBtn = document.getElementById('psycle-add-gym-btn');
+  const addBtn = document.getElementById('sa-add-gym-btn');
   if (addBtn) addBtn.onclick = () => openLinkGymModal(null, null, addable);
 
   // ── Phase 3: each gym's own settings pane (its content is the slow part) ───
@@ -1729,17 +1729,17 @@ function openLinkGymModal(gymId, existing, addable = []) {
     </p>
     ${isReauth ? '' : `
       <label class="sa-setting-label" style="display:block;margin-bottom:4px;"><span>${COPY.settings.gym}</span></label>
-      <select id="sa-link-gym-id" class="psycle-select" style="width:100%;margin-bottom:10px;">
+      <select id="sa-link-gym-id" class="sa-select" style="width:100%;margin-bottom:10px;">
         ${addable.map(g => `<option value="${escapeHtml(g.id)}">${escapeHtml(g.name)}</option>`).join('')}
       </select>`}
     <label class="sa-setting-label" style="display:block;margin-bottom:4px;"><span>${COPY.settings.email}</span></label>
-    <input id="sa-link-gym-email" type="email" class="psycle-input" autocomplete="username"
+    <input id="sa-link-gym-email" type="email" class="sa-input" autocomplete="username"
            style="width:100%;margin-bottom:10px;" placeholder="${COPY.static.exampleEmail}">
     <label class="sa-setting-label" style="display:block;margin-bottom:4px;"><span>${COPY.settings.password}</span></label>
-    <input id="sa-link-gym-password" type="password" class="psycle-input" autocomplete="current-password"
+    <input id="sa-link-gym-password" type="password" class="sa-input" autocomplete="current-password"
            style="width:100%;margin-bottom:14px;">
     <div id="sa-link-gym-error" style="display:none;color:var(--danger);font-size:12px;margin-bottom:10px;"></div>
-    <button class="psycle-btn primary" id="sa-link-gym-submit" style="width:100%;">
+    <button class="sa-btn primary" id="sa-link-gym-submit" style="width:100%;">
       ${isReauth ? COPY.settings.reauthenticate : COPY.settings.link}
     </button>
   `;
@@ -1793,16 +1793,16 @@ function openAccountPasswordModal() {
       ${formatCopyText(COPY.settings.accountPasswordDescription, { appName: escapeHtml(appConfig.appName) })}
     </p>
     <label class="sa-setting-label" style="display:block;margin-bottom:4px;"><span>${COPY.settings.currentPassword}</span></label>
-    <input id="sa-pw-current" type="password" class="psycle-input" autocomplete="current-password"
+    <input id="sa-pw-current" type="password" class="sa-input" autocomplete="current-password"
            style="width:100%;margin-bottom:10px;">
     <label class="sa-setting-label" style="display:block;margin-bottom:4px;"><span>${COPY.settings.newPassword}</span></label>
-    <input id="sa-pw-new" type="password" class="psycle-input" autocomplete="new-password"
+    <input id="sa-pw-new" type="password" class="sa-input" autocomplete="new-password"
            style="width:100%;margin-bottom:10px;" placeholder="${COPY.settings.newPasswordMinPlaceholder}">
     <label class="sa-setting-label" style="display:block;margin-bottom:4px;"><span>${COPY.settings.confirmNewPassword}</span></label>
-    <input id="sa-pw-confirm" type="password" class="psycle-input" autocomplete="new-password"
+    <input id="sa-pw-confirm" type="password" class="sa-input" autocomplete="new-password"
            style="width:100%;margin-bottom:14px;">
     <div id="sa-pw-error" style="display:none;color:var(--danger);font-size:12px;margin-bottom:10px;"></div>
-    <button class="psycle-btn primary" id="sa-pw-submit" style="width:100%;">${COPY.settings.changePassword}</button>
+    <button class="sa-btn primary" id="sa-pw-submit" style="width:100%;">${COPY.settings.changePassword}</button>
   `;
   // Any typed value means unsaved work: ask before a mobile Back/X/Esc discards it.
   open({
@@ -1918,12 +1918,12 @@ function setupThemeToggle() {
 
   const sync = () => {
     const active = getTheme();
-    group.querySelectorAll('.psycle-segmented-btn').forEach(btn => {
+    group.querySelectorAll('.sa-segmented-btn').forEach(btn => {
       btn.classList.toggle('active', btn.dataset.themeMode === active);
     });
   };
 
-  group.querySelectorAll('.psycle-segmented-btn').forEach(btn => {
+  group.querySelectorAll('.sa-segmented-btn').forEach(btn => {
     btn.addEventListener('click', () => {
       setTheme(btn.dataset.themeMode);
       sync();
@@ -2001,9 +2001,9 @@ function renderPerGymToggles(key, parentPref) {
         return `
         <div style="display:flex;justify-content:space-between;align-items:center;gap:12px;padding:4px 0;${locked ? 'opacity:0.45;' : ''}">
           <span style="font-size:12px;color:var(--text-secondary);">${getGymShortName(gymId) || gymId}${locked ? `<br><small style="font-size:11px;color:var(--text-tertiary);">${COPY.settings.bookingWindowRollingNote}</small>` : ''}</span>
-          <label class="psycle-switch" style="flex-shrink:0;">
+          <label class="sa-switch" style="flex-shrink:0;">
             <input type="checkbox" class="notif-pergym-toggle" data-key="${key}" data-gym-id="${gymId}" ${locked ? 'disabled' : ''} ${perGymPrefOn(parentPref, g) ? 'checked' : ''}>
-            <span class="psycle-slider"></span>
+            <span class="sa-slider"></span>
           </label>
         </div>`;
       }).join('')}
@@ -2023,7 +2023,7 @@ function renderNotifPrefs() {
     ${NOTIF_ROWS.map(row => {
       const p = prefs[row.key];
       const dd = row.dropdown ? `
-        <select class="psycle-select notif-dropdown" data-key="${row.key}" data-prop="${row.dropdown.prop}" style="margin-top:8px;width:100%;font-size:12px;">
+        <select class="sa-select notif-dropdown" data-key="${row.key}" data-prop="${row.dropdown.prop}" style="margin-top:8px;width:100%;font-size:12px;">
           ${row.dropdown.options.map(([val, label]) => `<option value="${val}" ${p[row.dropdown.prop] === val ? 'selected' : ''}>${label}</option>`).join('')}
         </select>` : '';
       return `
@@ -2033,9 +2033,9 @@ function renderNotifPrefs() {
               <div style="font-size:13px;font-weight:600;color:var(--text);">${row.title}</div>
               <div style="font-size:12px;color:var(--text-secondary);margin-top:2px;line-height:1.4;">${row.desc}</div>
             </div>
-            <label class="psycle-switch" style="flex-shrink:0;">
+            <label class="sa-switch" style="flex-shrink:0;">
               <input type="checkbox" class="notif-toggle" data-key="${row.key}" ${row.perGym && !anyPeriodicGym() ? 'disabled' : ''} ${p.enabled && !(row.perGym && !anyPeriodicGym()) ? 'checked' : ''}>
-              <span class="psycle-slider"></span>
+              <span class="sa-slider"></span>
             </label>
           </div>
           ${dd ? `<div class="notif-dropdown-wrap" data-key="${row.key}" style="${p.enabled ? '' : 'opacity:0.4;pointer-events:none;'}">${dd}</div>` : ''}
@@ -2131,7 +2131,7 @@ function setupNotificationPrefs() {
 }
 
 function updateTestNotifCardVisibility() {
-  const card = document.getElementById('psycle-test-notif-card');
+  const card = document.getElementById('sa-test-notif-card');
   if (card) card.style.display = userSettings.debugMode ? 'block' : 'none';
 }
 

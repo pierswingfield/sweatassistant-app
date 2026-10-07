@@ -49,11 +49,11 @@ describe('preferred spot setup copy and entry', () => {
     window.matchMedia = (query) => ({ matches: true, media: query, addEventListener() {}, removeEventListener() {} });
     const event = { gymId: 'psycle-london', studioId: 'studio-1', studioName: 'Studio 1', locationName: 'Soho' };
     const withClass = openSpotSetup({ event, className: 'Ride' });
-    expect(withClass.querySelector('.psycle-stepper')).not.toBeNull();
+    expect(withClass.querySelector('.sa-stepper')).not.toBeNull();
     withClass.remove();
     // Onboarding / Settings: no class, so no "2 Book class" step.
     const noClass = openSpotSetup({ event, className: null });
-    expect(noClass.querySelector('.psycle-stepper')).toBeNull();
+    expect(noClass.querySelector('.sa-stepper')).toBeNull();
   });
 
   it('replaces the saved setup page with booking so success cannot return to the confirmation loop', () => {

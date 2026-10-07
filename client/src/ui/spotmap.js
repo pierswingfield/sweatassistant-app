@@ -435,7 +435,7 @@ export function renderStudioFloorPlan(container, layoutSlots, initialSlots, init
     // Read-only unlock button, attached beneath the map.
     if (!editing) {
       const editBtn = document.createElement('button');
-      editBtn.className = 'psycle-btn';
+      editBtn.className = 'sa-btn';
       editBtn.style.cssText = 'width:100%;margin-bottom:14px;background:color-mix(in srgb, var(--feat-autoupgrade) 12%, transparent);border:1px solid color-mix(in srgb, var(--feat-autoupgrade) 30%, transparent);color:var(--feat-autoupgrade);';
       editBtn.textContent = editLabel;
       editBtn.onclick = () => { editing = true; render(); };
@@ -465,7 +465,7 @@ export function renderStudioFloorPlan(container, layoutSlots, initialSlots, init
 
     if (!hideClear) {
       const clearBtn = document.createElement('button');
-      clearBtn.className = 'psycle-btn';
+      clearBtn.className = 'sa-btn';
       clearBtn.style.cssText = 'flex:1;background:color-mix(in srgb, var(--text) 6%, transparent);border:1px solid color-mix(in srgb, var(--text) 12%, transparent);color:var(--text);';
       clearBtn.textContent = COPY.spotMapEditor.clearPreferences;
       clearBtn.onclick = () => { selectedSlots.length = 0; selectedRows.clear(); render(); };
@@ -473,7 +473,7 @@ export function renderStudioFloorPlan(container, layoutSlots, initialSlots, init
     }
 
     const saveBtn = document.createElement('button');
-    saveBtn.className = 'psycle-btn';
+    saveBtn.className = 'sa-btn';
     saveBtn.style.cssText = `flex:${onDisable && !hideClear ? '1' : '2'};background:var(--feat-autoupgrade);color:#fff;`;
     saveBtn.textContent = mapChanged() ? `${COPY.spotMapEditor.saveMapAnd} ${saveLabel}` : saveLabel;
     saveBtn.onclick = () => onSave([...selectedSlots], [...selectedRows], container);
@@ -482,7 +482,7 @@ export function renderStudioFloorPlan(container, layoutSlots, initialSlots, init
 
     if (onDisable) {
       const disableBtn = document.createElement('button');
-      disableBtn.className = 'psycle-btn';
+      disableBtn.className = 'sa-btn';
       disableBtn.style.cssText = 'flex:1;background:color-mix(in srgb, var(--danger) 10%, transparent);border:1px solid color-mix(in srgb, var(--danger) 20%, transparent);color:var(--danger);';
       disableBtn.textContent = disableLabel;
       disableBtn.onclick = () => onDisable(container);

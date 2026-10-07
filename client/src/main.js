@@ -63,7 +63,7 @@ function applyAppName() {
   document.querySelectorAll('[data-app-name]').forEach((el) => {
     el.textContent = appConfig.appName;
   });
-  document.querySelectorAll('.psycle-logo').forEach((el) => {
+  document.querySelectorAll('.sa-logo').forEach((el) => {
     el.setAttribute('alt', `${appConfig.appName} logo`);
   });
   applyStaticCopy(document, { appName: appConfig.appName });
@@ -202,11 +202,11 @@ window.matchMedia('(prefers-color-scheme: dark)').addEventListener('change', () 
 
 // --- TOAST NOTIFICATIONS ---
 export function showToast(message, type = 'info') {
-  const container = document.getElementById('psycle-toast-container');
+  const container = document.getElementById('sa-toast-container');
   if (!container) return;
 
   // Dismiss any existing toasts gracefully so only one clean canopy is active
-  container.querySelectorAll('.psycle-toast').forEach((t) => {
+  container.querySelectorAll('.sa-toast').forEach((t) => {
     t.classList.remove('show');
     t.style.transform = 'translateY(-100%)';
     t.style.opacity = '0';
@@ -214,7 +214,7 @@ export function showToast(message, type = 'info') {
   });
 
   const toast = document.createElement('div');
-  toast.className = `psycle-toast ${type}`;
+  toast.className = `sa-toast ${type}`;
   toast.setAttribute('role', type === 'error' ? 'alert' : 'status');
   toast.setAttribute('aria-live', type === 'error' ? 'assertive' : 'polite');
 
@@ -226,18 +226,18 @@ export function showToast(message, type = 'info') {
   };
 
   const inner = document.createElement('div');
-  inner.className = 'psycle-toast-inner';
+  inner.className = 'sa-toast-inner';
 
   const iconEl = document.createElement('span');
-  iconEl.className = 'psycle-toast-icon toast-icon';
+  iconEl.className = 'sa-toast-icon toast-icon';
   iconEl.innerHTML = icons[type] || icons.info;
 
   const msgEl = document.createElement('span');
-  msgEl.className = 'psycle-toast-message toast-message';
+  msgEl.className = 'sa-toast-message toast-message';
   msgEl.textContent = message;
 
   const closeBtn = document.createElement('button');
-  closeBtn.className = 'psycle-toast-close toast-close';
+  closeBtn.className = 'sa-toast-close toast-close';
   closeBtn.type = 'button';
   closeBtn.setAttribute('aria-label', COPY.notifications.dismiss);
   closeBtn.innerHTML = '<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>';
@@ -696,11 +696,11 @@ export async function updatePushStatusUI() {
   const subscription = await serviceWorkerRegistration.pushManager.getSubscription();
   if (subscription) {
     toggleBtn.textContent = COPY.notifications.disablePush;
-    toggleBtn.className = 'psycle-btn-mini success';
+    toggleBtn.className = 'sa-btn-mini success';
     statusDesc.textContent = COPY.notifications.pushEnabled;
   } else {
     toggleBtn.textContent = COPY.notifications.enablePush;
-    toggleBtn.className = 'psycle-btn-mini';
+    toggleBtn.className = 'sa-btn-mini';
     statusDesc.textContent = COPY.notifications.pushHelp;
   }
 }
@@ -783,7 +783,7 @@ function sumCredits(credits) {
 }
 
 // Gym logo on the gym's brand plate. Both wordmark sizes are always in the DOM;
-// `.psycle-badges-compact` on the container (see fitHeaderBadges) picks the mark.
+// `.sa-badges-compact` on the container (see fitHeaderBadges) picks the mark.
 // Assets and plate come from the same presentation contract gymBrand() reads.
 function gymBadgeLogo(gymId, shortName) {
   const brand = gymBrand(gymId);
@@ -856,21 +856,21 @@ function fitHeaderBadges(remeasure) {
   const box = document.getElementById('sa-header-credits');
   const header = document.querySelector('.sa-header');
   if (!box || !header) return;
-  const wasCompact = box.classList.contains('psycle-badges-compact');
+  const wasCompact = box.classList.contains('sa-badges-compact');
   if (remeasure) {
-    box.classList.remove('psycle-badges-compact');
+    box.classList.remove('sa-badges-compact');
     const kids = [...box.children];
     const gap = parseFloat(getComputedStyle(box).columnGap) || 0;
     fullBadgesWidth = kids.reduce((n, k) => n + k.getBoundingClientRect().width, 0) + gap * Math.max(0, kids.length - 1);
   }
   const cs = getComputedStyle(header);
-  const title = header.querySelector('.psycle-title-area');
+  const title = header.querySelector('.sa-title-area');
   const email = header.querySelector('.sa-user-email');
   const emailW = email && getComputedStyle(email).display !== 'none' ? email.getBoundingClientRect().width + 16 : 0;
   const avail = header.clientWidth - parseFloat(cs.paddingLeft) - parseFloat(cs.paddingRight)
     - (title ? title.getBoundingClientRect().width : 0) - emailW - 16;
   const compact = wasCompact ? fullBadgesWidth + 24 > avail : fullBadgesWidth > avail;
-  box.classList.toggle('psycle-badges-compact', compact);
+  box.classList.toggle('sa-badges-compact', compact);
   if (!badgeFitObserver && typeof ResizeObserver !== 'undefined') {
     badgeFitObserver = new ResizeObserver(() => fitHeaderBadges(false));
     badgeFitObserver.observe(header);
@@ -1355,7 +1355,7 @@ export async function initApp() {
   }
   
   // Set build timestamp in version stamp
-  const buildTimeEl = document.getElementById('psycle-build-time');
+  const buildTimeEl = document.getElementById('sa-build-time');
   if (buildTimeEl) buildTimeEl.textContent = noSept(new Date().toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' }));
 
   // Restore tab from URL hash if available, otherwise default to Home
@@ -1573,20 +1573,20 @@ function showNoGymScreen() {
   }
   panel.style.display = '';
   panel.innerHTML = `
-    <div class="psycle-form-group">
+    <div class="sa-form-group">
       <label for="sa-nogym-gym">${COPY.static.gym}</label>
-      <select id="sa-nogym-gym" class="psycle-select" style="width:100%;"><option>${COPY.static.loading}</option></select>
+      <select id="sa-nogym-gym" class="sa-select" style="width:100%;"><option>${COPY.static.loading}</option></select>
     </div>
-    <div class="psycle-form-group">
+    <div class="sa-form-group">
       <label for="sa-nogym-email">${COPY.auth.gymEmail}</label>
       <input type="email" id="sa-nogym-email" placeholder="${COPY.static.emailPlaceholder}" autocomplete="off">
     </div>
-    <div class="psycle-form-group">
+    <div class="sa-form-group">
       <label for="sa-nogym-password">${COPY.auth.gymPassword}</label>
       <input type="password" id="sa-nogym-password" placeholder="${COPY.static.passwordPlaceholder}" autocomplete="off">
     </div>
     <div id="sa-nogym-error" class="sa-login-error" style="display:none;"></div>
-    <button type="button" id="sa-nogym-submit" class="psycle-btn-primary"><span>${COPY.auth.connectGymButton}</span></button>
+    <button type="button" id="sa-nogym-submit" class="sa-btn-primary"><span>${COPY.auth.connectGymButton}</span></button>
   `;
 
   const sel = panel.querySelector('#sa-nogym-gym');

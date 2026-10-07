@@ -436,8 +436,8 @@ export async function openAutoBookEditModal(q) {
   // Mobile: static title + identity strip; class details live in the class card above the map.
   applyBookingChrome(modal, { titleText: COPY.bookingFlow.titleEditAutoBook, gymId: q.gym_id, locationName: q.location_name, studioName: q.studio_name });
   body.innerHTML = `
-    <div class="psycle-loading-spinner-container" style="padding: 40px 0;">
-      <div class="psycle-spinner"></div>
+    <div class="sa-loading-spinner-container" style="padding: 40px 0;">
+      <div class="sa-spinner"></div>
       <span>${COPY.autoBook.loadingFloorMap}</span>
     </div>
   `;
@@ -495,7 +495,7 @@ export async function openAutoBookEditModal(q) {
         <div style="display:flex;gap:14px;align-items:center;border-top:1px solid var(--separator);padding-top:12px;">
           <div style="width:110px;">
             <label style="display:block;font-size:12px;color:var(--text-secondary);margin-bottom:4px;">${COPY.autoBook.slotsToBook}</label>
-            <select id="autobook-edit-qty" class="psycle-select" style="width:100%;padding:6px 8px;font-size:13px;">
+            <select id="autobook-edit-qty" class="sa-select" style="width:100%;padding:6px 8px;font-size:13px;">
               ${[1,2,3,4].map(n => `<option value="${n}" ${currentQty===n?'selected':''}>${n}</option>`).join('')}
             </select>
           </div>
@@ -506,7 +506,7 @@ export async function openAutoBookEditModal(q) {
             </label>
           </div>
         </div>
-        <button class="psycle-btn" id="btn-save-autobook-edit" style="background:var(--feat-autoupgrade);color:var(--on-accent);">${COPY.autoBook.saveChanges}</button>
+        <button class="sa-btn" id="btn-save-autobook-edit" style="background:var(--feat-autoupgrade);color:var(--on-accent);">${COPY.autoBook.saveChanges}</button>
       `;
       body.appendChild(controlsDiv);
 
@@ -536,7 +536,7 @@ export async function openAutoBookEditModal(q) {
         <div style="display:flex;gap:14px;align-items:center;border-top:1px solid var(--separator);padding-top:12px;">
           <div style="width:110px;">
             <label style="display:block;font-size:12px;color:var(--text-secondary);margin-bottom:4px;">${COPY.autoBook.slotsToBook}</label>
-            <select id="autobook-edit-qty" class="psycle-select" style="width:100%;padding:6px 8px;font-size:13px;">
+            <select id="autobook-edit-qty" class="sa-select" style="width:100%;padding:6px 8px;font-size:13px;">
               ${[1,2,3,4].map(n => `<option value="${n}" ${currentQty===n?'selected':''}>${n}</option>`).join('')}
             </select>
           </div>

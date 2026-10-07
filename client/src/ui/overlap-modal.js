@@ -168,8 +168,8 @@ export function confirmOverlap({ subject, warnings, mode = 'autobook' }) {
             </div>
           </div>
           <div class="sa-overlap-actions">
-            <button type="button" class="psycle-btn" data-overlap-cancel>${COPY.overlap.cancel}</button>
-            <button type="button" class="psycle-btn primary" data-overlap-confirm>${escapeHtml(info.confirmLabel)}</button>
+            <button type="button" class="sa-btn" data-overlap-cancel>${COPY.overlap.cancel}</button>
+            <button type="button" class="sa-btn primary" data-overlap-confirm>${escapeHtml(info.confirmLabel)}</button>
           </div>
         </div>
       </div>`;

@@ -1031,7 +1031,7 @@ export async function prefetchTimetableData(force = false) {
         <div style="padding: 40px 20px; text-align: center; color: var(--text-secondary);">
           <p style="font-size:16px;margin-bottom:8px">${COPY.timetable.noCachedTimetable}</p>
           <p style="font-size:13px;color:var(--text-tertiary)">${COPY.timetable.connectInternet}</p>
-          <button id="sa-timetable-retry-btn" class="psycle-btn variant-danger" style="margin-top: 12px; display: inline-block; width: auto; padding: 8px 16px; border-radius: 8px;">${COPY.timetable.retry}</button>
+          <button id="sa-timetable-retry-btn" class="sa-btn variant-danger" style="margin-top: 12px; display: inline-block; width: auto; padding: 8px 16px; border-radius: 8px;">${COPY.timetable.retry}</button>
         </div>
       `;
       const retryBtn = document.getElementById('sa-timetable-retry-btn');
@@ -1428,7 +1428,7 @@ function setupFilterEventListeners() {
   }
 
   // 5. Global Clear All click handler
-  const clearAllFiltersBtn = document.getElementById('psycle-btn-clear-all-filters');
+  const clearAllFiltersBtn = document.getElementById('sa-btn-clear-all-filters');
   if (clearAllFiltersBtn) {
     clearAllFiltersBtn.onclick = () => {
       selectedGyms = [];
@@ -1455,7 +1455,7 @@ function setupFilterEventListeners() {
   }
 
   // 6. Global Save Defaults click handler
-  const saveDefaultFiltersBtn = document.getElementById('psycle-btn-save-default-filters');
+  const saveDefaultFiltersBtn = document.getElementById('sa-btn-save-default-filters');
   let isSavingDefaults = false;
   if (saveDefaultFiltersBtn) {
     saveDefaultFiltersBtn.onclick = async () => {
@@ -1774,7 +1774,7 @@ function buildFilterRailCtx(eventsExcluding, resultCount) {
         rerender();
       }
     },
-    save: () => document.getElementById('psycle-btn-save-default-filters')?.click(),
+    save: () => document.getElementById('sa-btn-save-default-filters')?.click(),
   };
   return ctx;
 }
@@ -1834,7 +1834,7 @@ export async function renderTimetableGrid(reason = 'interaction') {
   // to wipe the loading skeleton for an empty grid, leaving a blank page until
   // the network answered. Keep the skeleton up until there is something to show.
   if (isPrefetching && timetableEvents.length === 0) {
-    if (!ttGrid.querySelector('.psycle-skeleton, [data-skeleton]')) ttGrid.innerHTML = renderTimetableSkeleton();
+    if (!ttGrid.querySelector('.sa-skeleton, [data-skeleton]')) ttGrid.innerHTML = renderTimetableSkeleton();
     return;
   }
 
@@ -2823,7 +2823,7 @@ function actionGlyph(label) {
 // Set a button's label with an optional leading glyph icon.
 function setSegLabel(btn, label) {
   const glyph = actionGlyph(label);
-  if (glyph) btn.innerHTML = `<span class="psycle-seg-ico" aria-hidden="true">${glyph}</span>${label}`;
+  if (glyph) btn.innerHTML = `<span class="sa-seg-ico" aria-hidden="true">${glyph}</span>${label}`;
   else btn.textContent = label;
 }
 
@@ -3091,8 +3091,8 @@ function injectMobileFilterHamburger() {
   menu.style.display = 'none';
 
   const favBtn = document.getElementById('sa-filter-favorites-only');
-  const clearBtn = document.getElementById('psycle-btn-clear-all-filters');
-  const saveBtn = document.getElementById('psycle-btn-save-default-filters');
+  const clearBtn = document.getElementById('sa-btn-clear-all-filters');
+  const saveBtn = document.getElementById('sa-btn-save-default-filters');
 
   const items = [];
   // Favourites filter temporarily hidden until universal cross-gym solution
@@ -3214,7 +3214,7 @@ function buildMobileClassRow(event, ctx, model) {
     setSegLabel(pbtn, mobilePrimary.label);
     // "Auto-Book" stacks as Auto / Book (no hyphen) so the button stays narrow; the accessible name is unchanged.
     if (mobilePrimary.label === COPY.timetable.autoBook) {
-      pbtn.innerHTML = `<span class="psycle-seg-ico" aria-hidden="true">${actionGlyph(COPY.timetable.autoBook)}</span><span class="psycle-cta-2l"><span>${COPY.timetable.auto}</span><span>${COPY.timetable.book}</span></span>`;
+      pbtn.innerHTML = `<span class="sa-seg-ico" aria-hidden="true">${actionGlyph(COPY.timetable.autoBook)}</span><span class="sa-cta-2l"><span>${COPY.timetable.auto}</span><span>${COPY.timetable.book}</span></span>`;
       pbtn.setAttribute('aria-label', mobilePrimary.title || COPY.timetable.autoBook);
     }
   }
@@ -3278,8 +3278,8 @@ async function openOccupancyModal(event) {
   const body = document.createElement('div');
   body.className = 'sa-modal-body';
   body.innerHTML = `
-    <div class="psycle-loading-spinner-container" style="padding: 20px 0;">
-      <div class="psycle-spinner"></div>
+    <div class="sa-loading-spinner-container" style="padding: 20px 0;">
+      <div class="sa-spinner"></div>
       <span>${COPY.occupancy.loadingLayout}</span>
     </div>
   `;
@@ -3578,7 +3578,7 @@ export async function openGuestBookingModal(c) {
 
   title.textContent = COPY.bookings.bookGuest;
   applyBookingChrome(modal, { titleText: COPY.bookings.bookGuest, gymId: c.gymId, locationName: c.locationName, studioName: c.studioName });
-  body.innerHTML = '<div class="psycle-loading-spinner-container" style="padding:40px 0;"><div class="psycle-spinner"></div><span>Checking guest eligibility…</span></div>';
+  body.innerHTML = '<div class="sa-loading-spinner-container" style="padding:40px 0;"><div class="sa-spinner"></div><span>Checking guest eligibility…</span></div>';
   openNavPage(modal, { id: 'book-guest' });
   const close = () => {
     if (closeNavPage(modal)) return;
@@ -3613,7 +3613,7 @@ export async function openGuestBookingModal(c) {
       <div class="sa-guest-booking" style="display:flex;flex-direction:column;gap:14px;">
         ${passNote}
         <label style="display:flex;flex-direction:column;gap:6px;font-size:13px;color:var(--text-secondary);">${COPY.bookings.guestEmail}
-          <input id="guest-booking-email" class="psycle-input" type="email" autocomplete="email" inputmode="email" required>
+          <input id="guest-booking-email" class="sa-input" type="email" autocomplete="email" inputmode="email" required>
         </label>
         ${slots.length ? `<div class="guest-live-map"><div style="font-size:13px;color:var(--text-secondary);margin-bottom:8px;">${COPY.bookings.selectGuestSpot}</div>
           <div class="guest-map-legend" aria-label="Spot map key">
@@ -3621,7 +3621,7 @@ export async function openGuestBookingModal(c) {
           </div>
           <div id="guest-booking-map"></div>
         </div>` : ''}
-        <button class="psycle-btn" id="guest-booking-submit" style="background:var(--accent-fill);color:var(--on-accent-fill);">${COPY.bookings.guestBookingSubmit}</button>
+        <button class="sa-btn" id="guest-booking-submit" style="background:var(--accent-fill);color:var(--on-accent-fill);">${COPY.bookings.guestBookingSubmit}</button>
       </div>`;
     const submit = body.querySelector('#guest-booking-submit');
     if (slots.length) {
@@ -3724,8 +3724,8 @@ export async function openBookingModal(c, mode, opts = {}) {
   const hasLayout = cachedLayout?.slots?.length > 0;
 
   body.innerHTML = `
-    <div class="psycle-loading-spinner-container" style="padding: 40px 0;">
-      <div class="psycle-spinner"></div>
+    <div class="sa-loading-spinner-container" style="padding: 40px 0;">
+      <div class="sa-spinner"></div>
       <span>${hasLayout ? COPY.timetable.checkingAvailability : COPY.timetable.loadingFloorMap}</span>
     </div>
   `;
@@ -3850,14 +3850,14 @@ export async function openBookingModal(c, mode, opts = {}) {
         <div class="sa-bk-compact">
           <p>${COPY.bookingFlow.fcfsAutoBook}</p>
           ${showAttendeeSelector ? `<label class="sa-bk-compact-qty"><span>${COPY.bookingFlow.spotsToBook}</span>
-            <select id="compact-autobook-qty" class="psycle-select">${attendeeOptions.map(n => `<option value="${n}">${n}</option>`).join('')}</select></label>` : ''}
-          <button class="psycle-btn" id="btn-save-simple-autobook" style="background: var(--feat-autoupgrade); color:var(--on-accent); display:flex; align-items:center; justify-content:center; gap:6px;">${COPY.bookingFlow.titleAutoBook}</button>
+            <select id="compact-autobook-qty" class="sa-select">${attendeeOptions.map(n => `<option value="${n}">${n}</option>`).join('')}</select></label>` : ''}
+          <button class="sa-btn" id="btn-save-simple-autobook" style="background: var(--feat-autoupgrade); color:var(--on-accent); display:flex; align-items:center; justify-content:center; gap:6px;">${COPY.bookingFlow.titleAutoBook}</button>
         </div>` : `
         <div style="padding: 24px; text-align: center; color: var(--text-secondary);">
           <p style="margin-bottom: 16px;">${COPY.timetable.noFloorMap}</p>
           ${isAutoBookMode
-            ? `<button class="psycle-btn" id="btn-save-simple-autobook" style="background: var(--feat-autoupgrade); color:var(--on-accent); display:flex; align-items:center; justify-content:center; gap:6px;">${sparklesIcon(14, 'currentColor')} ${COPY.timetable.scheduleAnySeat}</button>`
-            : `<button class="psycle-btn" id="btn-book-any" style="background:var(--accent-fill);color:var(--on-accent-fill);">${formatCopyText(COPY.timetable.bookAnyAvailable, { noun: nounCap })}</button>`
+            ? `<button class="sa-btn" id="btn-save-simple-autobook" style="background: var(--feat-autoupgrade); color:var(--on-accent); display:flex; align-items:center; justify-content:center; gap:6px;">${sparklesIcon(14, 'currentColor')} ${COPY.timetable.scheduleAnySeat}</button>`
+            : `<button class="sa-btn" id="btn-book-any" style="background:var(--accent-fill);color:var(--on-accent-fill);">${formatCopyText(COPY.timetable.bookAnyAvailable, { noun: nounCap })}</button>`
           }
         </div>
       `;
@@ -3898,7 +3898,7 @@ export async function openBookingModal(c, mode, opts = {}) {
       <div class="sa-floor-plan-container" style="position:relative;height:${minMapHeight}px;background:var(--surface-inset);border:1px solid var(--border);border-radius:12px;margin-bottom:10px;overflow:hidden;">
         <div id="sa-floor-plan-grid" style="width:100%;height:100%;"></div>
       </div>
-      <div id="psycle-map-edit-toggle"></div>
+      <div id="sa-map-edit-toggle"></div>
       <div id="sa-slot-summary" style="font-size:12px;color:var(--text-secondary);margin-bottom:12px;min-height:16px;${opts.setupFlow ? 'display:none;' : ''}"></div>
       <div id="sa-modal-controls-container"></div>
     `;
@@ -3982,7 +3982,7 @@ export async function openBookingModal(c, mode, opts = {}) {
     // Hoisted so the read-only map's edit toggle can refresh banners/controls
     let updateSimpleBookControls = null;
     // Auto-Upgrade without saved spots: a visible, tappable way to fix it (never a silently greyed box).
-    const upgradeNeedsRowHtml = () => `<div class="sa-au-needs"><span class="t">${trendingUpIcon(12, 'currentColor', 2)} ${COPY.spotSetup.needsSpots}</span><button type="button" class="psycle-btn sa-au-setup" data-au-setup>${COPY.spotSetup.setUpSpots}</button></div>`;
+    const upgradeNeedsRowHtml = () => `<div class="sa-au-needs"><span class="t">${trendingUpIcon(12, 'currentColor', 2)} ${COPY.spotSetup.needsSpots}</span><button type="button" class="sa-btn sa-au-setup" data-au-setup>${COPY.spotSetup.setUpSpots}</button></div>`;
     let openSetupChild = () => {};
     let updateQuickBookControls = null;
     let updateAutoBookControls = null;
@@ -4204,7 +4204,7 @@ export async function openBookingModal(c, mode, opts = {}) {
       if (isAutoBookMode) {
         const layoutSlotIds = new Set(layoutSlots.map(s => String(s.id)));
         const unmappedSlots = availableSlots.filter(id => !layoutSlotIds.has(id));
-        const unmappedEl = body.querySelector('#psycle-unmapped-warning');
+        const unmappedEl = body.querySelector('#sa-unmapped-warning');
         if (unmappedEl) {
           unmappedEl.style.display = unmappedSlots.length > 0 ? 'block' : 'none';
           if (unmappedSlots.length > 0) {
@@ -4221,7 +4221,7 @@ export async function openBookingModal(c, mode, opts = {}) {
 
     // Wide "edit preferred spots" button attached beneath the map (Quick-Book read-only mode)
     const updateMapEditToggle = () => {
-      const toggle = body.querySelector('#psycle-map-edit-toggle');
+      const toggle = body.querySelector('#sa-map-edit-toggle');
       if (!toggle) return;
       toggle.innerHTML = '';
       // Quick-Book follows the saved map directly; edit it later in Settings or
@@ -4229,7 +4229,7 @@ export async function openBookingModal(c, mode, opts = {}) {
       // its in-context editor because those preferences control a future job.
       if (!shouldShowPreferredMapEditToggle(mode, mapEditing)) return;
       const editBtn = document.createElement('button');
-      editBtn.className = 'psycle-btn';
+      editBtn.className = 'sa-btn';
       editBtn.style.cssText = 'width:100%;margin-bottom:12px;background:color-mix(in srgb, var(--feat-autoupgrade) 12%, transparent);border:1px solid color-mix(in srgb, var(--feat-autoupgrade) 30%, transparent);color:var(--feat-autoupgrade);';
       editBtn.textContent = formatCopyText(COPY.timetable.editPreferredSpots, { studio: studioName });
       editBtn.onclick = () => {
@@ -4261,7 +4261,7 @@ export async function openBookingModal(c, mode, opts = {}) {
           ? `<div style="font-size:12px;color:var(--feat-autoupgrade);background:color-mix(in srgb,var(--feat-autoupgrade) 8%,transparent);border:1px solid color-mix(in srgb,var(--feat-autoupgrade) 18%,transparent);border-radius:8px;padding:8px 10px;line-height:1.5;">${formatCopyText(COPY.timetable.editingSharedMapHtml, { studio: escapeHtml(studioName), features: 'Quick-Book and Auto-Upgrade too' })}</div>`
           : `<div style="font-size:12px;color:var(--feat-autoupgrade);background:color-mix(in srgb,var(--feat-autoupgrade) 8%,transparent);border:1px solid color-mix(in srgb,var(--feat-autoupgrade) 18%,transparent);border-radius:8px;padding:8px 10px;line-height:1.5;">${formatCopyText(COPY.timetable.sharedMapForStudioHtml, { studio: escapeHtml(studioName) })}</div>`;
 
-        const toggleEl = body.querySelector('#psycle-map-edit-toggle');
+        const toggleEl = body.querySelector('#sa-map-edit-toggle');
         if (toggleEl && mapEditing && !opts.setupFlow && !opts.oneOffSpots) {
           const hint = toggleEl.querySelector('.ab-map-hint');
           if (!hint) {
@@ -4275,12 +4275,12 @@ export async function openBookingModal(c, mode, opts = {}) {
 
         controls.innerHTML = `
           <div class="sa-booking-controls${isSpotFlowStep ? ' is-spot-flow' : ''}" style="display:flex;flex-direction:column;gap:12px;background:var(--surface-inset);padding:14px;border-radius:12px;border:1px solid var(--border);">
-            ${unmappedSlots.length > 0 ? `<div id="psycle-unmapped-warning" style="font-size:12px;color:var(--warning);background:color-mix(in srgb,var(--warning) 8%,transparent);border:1px solid color-mix(in srgb,var(--warning) 20%,transparent);border-radius:6px;padding:6px 10px;"></div>` : ''}
+            ${unmappedSlots.length > 0 ? `<div id="sa-unmapped-warning" style="font-size:12px;color:var(--warning);background:color-mix(in srgb,var(--warning) 8%,transparent);border:1px solid color-mix(in srgb,var(--warning) 20%,transparent);border-radius:6px;padding:6px 10px;"></div>` : ''}
             ${creditWarning ? `<div style="font-size:12px;color:var(--danger);background:color-mix(in srgb,var(--danger) 10%,transparent);border:1px solid color-mix(in srgb,var(--danger) 20%,transparent);border-radius:8px;padding:10px;line-height:1.5;">${creditWarning}</div>` : ''}
             <div style="display:flex;gap:14px;align-items:center;">
               ${showAttendeeSelector ? `<div style="width:110px;">
                 <label style="display:block;font-size:12px;color:var(--text-secondary);margin-bottom:4px;">${COPY.timetable.slotsToBook}</label>
-                <select id="autobook-qty" class="psycle-select" style="width:100%;padding:6px 8px;font-size:13px;">
+                <select id="autobook-qty" class="sa-select" style="width:100%;padding:6px 8px;font-size:13px;">
                   ${attendeeOptions.map(n => `<option value="${n}" ${state.qty===n?'selected':''}>${n}</option>`).join('')}
                 </select>
               </div>` : ''}
@@ -4307,7 +4307,7 @@ export async function openBookingModal(c, mode, opts = {}) {
                   <span style="display:flex;align-items:center;gap:4px;">${trendingUpIcon(12, 'currentColor', 2)} ${COPY.timetable.autoUpgradeKeepSearchingLabel}</span>
                 </label>`;
             })()}
-            <button class="psycle-btn" id="btn-save-autobook" style="width:100%;background:var(--feat-autoupgrade);color:var(--on-accent);display:flex;align-items:center;justify-content:center;gap:6px;">${sparklesIcon(14, 'currentColor')} ${!opts.oneOffSpots && mapChanged() ? `${COPY.spotMapEditor.saveMapAnd} ` : ''}${COPY.timetable.scheduleAutoBook}</button>
+            <button class="sa-btn" id="btn-save-autobook" style="width:100%;background:var(--feat-autoupgrade);color:var(--on-accent);display:flex;align-items:center;justify-content:center;gap:6px;">${sparklesIcon(14, 'currentColor')} ${!opts.oneOffSpots && mapChanged() ? `${COPY.spotMapEditor.saveMapAnd} ` : ''}${COPY.timetable.scheduleAutoBook}</button>
             <div style="font-size:12px;text-align:center;color:${isLive ? 'var(--success)' : 'var(--text-tertiary)'};">
               ${isLive ? COPY.timetable.bookingWindowIsOpen : `${formatCopyText(COPY.timetable.bookingOpens, { date: `<span style="color:var(--text-secondary);">${escapeHtml(releaseStr)}</span>` })}`}
             </div>
@@ -4379,7 +4379,7 @@ export async function openBookingModal(c, mode, opts = {}) {
                 </label>`;
             })()}
             <div style="display:flex;gap:8px;">
-              <button class="psycle-btn" id="btn-book-simple" style="flex:1;background:var(--accent-fill);color:var(--on-accent-fill);" ${!isDataLoaded || !hasEnoughCredits ? 'disabled' : ''}>${formatCopyText(COPY.timetable.bookSelectedPlain, { noun: nounCap })}</button>
+              <button class="sa-btn" id="btn-book-simple" style="flex:1;background:var(--accent-fill);color:var(--on-accent-fill);" ${!isDataLoaded || !hasEnoughCredits ? 'disabled' : ''}>${formatCopyText(COPY.timetable.bookSelectedPlain, { noun: nounCap })}</button>
             </div>
           </div>
         `;
@@ -4495,7 +4495,7 @@ export async function openBookingModal(c, mode, opts = {}) {
             ? `<div style="font-size:12px;color:var(--feat-autoupgrade);background:color-mix(in srgb,var(--feat-autoupgrade) 8%,transparent);border:1px solid color-mix(in srgb,var(--feat-autoupgrade) 18%,transparent);border-radius:8px;padding:8px 10px;line-height:1.5;">${formatCopyText(COPY.timetable.editingQuickBookMapHtml, { studio: escapeHtml(studioName) })}</div>`
             : `<div style="font-size:12px;color:var(--text-tertiary);background:color-mix(in srgb,var(--feat-autoupgrade) 7%,transparent);border:1px solid color-mix(in srgb,var(--feat-autoupgrade) 15%,transparent);border-radius:8px;padding:10px 12px;line-height:1.5;">${formatCopyText(COPY.timetable.quickBookFirstSetupHtml, { studio: escapeHtml(studioName) })}</div>`);
 
-        const qbToggleEl = body.querySelector('#psycle-map-edit-toggle');
+        const qbToggleEl = body.querySelector('#sa-map-edit-toggle');
         if (qbToggleEl && mapEditing && !opts.setupFlow && !opts.oneOffSpots && !qbToggleEl.querySelector('.ab-map-hint')) {
           const h = document.createElement('div');
           h.className = 'ab-map-hint';
@@ -4513,7 +4513,7 @@ export async function openBookingModal(c, mode, opts = {}) {
             <div style="display:flex;gap:14px;align-items:center;">
               ${showAttendeeSelector ? `<div style="width:110px;">
                 <label style="display:block;font-size:12px;color:var(--text-secondary);margin-bottom:4px;">${COPY.timetable.slotsToBook}</label>
-                <select id="quickbook-qty" class="psycle-select" style="width:100%;padding:6px 8px;font-size:13px;">
+                <select id="quickbook-qty" class="sa-select" style="width:100%;padding:6px 8px;font-size:13px;">
                   ${attendeeOptions.map(n => `<option value="${n}" ${state.qty===n?'selected':''}>${n}</option>`).join('')}
                 </select>
               </div>` : ''}
@@ -4540,7 +4540,7 @@ export async function openBookingModal(c, mode, opts = {}) {
                   <span style="display:flex;align-items:center;gap:4px;">${trendingUpIcon(12, 'currentColor', 2)} ${COPY.timetable.autoUpgradeKeepSearchingLabel}</span>
                 </label>`;
             })()}
-            <button class="psycle-btn" id="btn-submit-quickbook" style="width:100%;background:var(--accent-fill);color:var(--on-accent-fill);">${!opts.oneOffSpots && mapChanged() ? `${COPY.spotMapEditor.saveMapAnd} ` : ''}${COPY.timetable.quickBook}</button>
+            <button class="sa-btn" id="btn-submit-quickbook" style="width:100%;background:var(--accent-fill);color:var(--on-accent-fill);">${!opts.oneOffSpots && mapChanged() ? `${COPY.spotMapEditor.saveMapAnd} ` : ''}${COPY.timetable.quickBook}</button>
           </div>
         `;
 
@@ -4644,7 +4644,7 @@ export async function openBookingModal(c, mode, opts = {}) {
       intro.innerHTML = `
         <p style="margin:0 0 10px;font-size:16px;font-weight:600;color:var(--text);">${copy.sub}</p>
         <p style="margin:0 0 20px;font-size:14px;line-height:1.5;color:var(--text-secondary);">${copy.bodyHtml}</p>
-        <button type="button" class="psycle-btn" id="sa-setup-next" style="width:100%;background:var(--accent-fill);color:var(--on-accent-fill);">${copy.next}</button>`;
+        <button type="button" class="sa-btn" id="sa-setup-next" style="width:100%;background:var(--accent-fill);color:var(--on-accent-fill);">${copy.next}</button>`;
       body.appendChild(intro);
       intro.querySelector('#sa-setup-next').onclick = () => {
         intro.remove();
@@ -4979,8 +4979,8 @@ export async function openDebugModal(event) {
   // Debug modal: deliberately the RAW provider name (it exists to show what the API sent).
   title.textContent = `Debug: ${event.name || 'Class'} — ${event.startAt || ''}`;
   body.innerHTML = `
-    <div class="psycle-loading-spinner-container" style="padding: 40px 0;">
-      <div class="psycle-spinner"></div>
+    <div class="sa-loading-spinner-container" style="padding: 40px 0;">
+      <div class="sa-spinner"></div>
       <span>Loading debug data...</span>
     </div>
   `;
@@ -5211,9 +5211,9 @@ export async function openDebugModal(event) {
       <div style="display:flex; flex-direction:column; gap:4px;">
         <!-- Quick-Book / Auto-Book / native page buttons -->
         <div id="sa-debug-action-bar" style="display:flex; gap:8px; padding-bottom:12px; border-bottom:1px solid var(--border); margin-bottom:4px; flex-wrap:wrap;">
-          <button id="sa-debug-quick-book-btn" class="psycle-btn-mini variant-success-muted">Quick-Book</button>
-          <button id="sa-debug-auto-book-btn" class="psycle-btn-mini variant-neutral">Auto-Book Config</button>
-          ${nativePageUrl ? `<a href="${escapeHtml(nativePageUrl)}" target="_blank" rel="noopener noreferrer" class="psycle-btn-mini" style="display:inline-flex; align-items:center; gap:5px; background:color-mix(in srgb, var(--info) 14%, transparent); border-color:color-mix(in srgb, var(--info) 30%, transparent); color:var(--info); text-decoration:none;">
+          <button id="sa-debug-quick-book-btn" class="sa-btn-mini variant-success-muted">Quick-Book</button>
+          <button id="sa-debug-auto-book-btn" class="sa-btn-mini variant-neutral">Auto-Book Config</button>
+          ${nativePageUrl ? `<a href="${escapeHtml(nativePageUrl)}" target="_blank" rel="noopener noreferrer" class="sa-btn-mini" style="display:inline-flex; align-items:center; gap:5px; background:color-mix(in srgb, var(--info) 14%, transparent); border-color:color-mix(in srgb, var(--info) 30%, transparent); color:var(--info); text-decoration:none;">
             <svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/><polyline points="15 3 21 3 21 9"/><line x1="10" y1="14" x2="21" y2="3"/></svg>
             Open native booking page
           </a>` : ''}
@@ -5263,7 +5263,7 @@ export async function openDebugModal(event) {
     body.innerHTML = `
       <div style="padding:20px; text-align:center;">
         <p style="color:var(--danger); margin-bottom:12px;">Error loading debug data: ${escapeHtml(err.message)}</p>
-        <button class="psycle-btn-mini variant-autoupgrade" id="sa-debug-retry-btn">Retry</button>
+        <button class="sa-btn-mini variant-autoupgrade" id="sa-debug-retry-btn">Retry</button>
       </div>
     `;
     const retryBtn = body.querySelector('#sa-debug-retry-btn');

@@ -98,7 +98,7 @@ export function resumeOnboarding({ optionalOnly = false } = {}) {
 async function runFrom(startIndex) {
   active = true;
   // Apply the body id that unlocks all #sa-helper-container-scoped CSS
-  // (font-family, .psycle-btn-mini, etc.) so modals opened during onboarding
+  // (font-family, .sa-btn-mini, etc.) so modals opened during onboarding
   // look identical to those opened from the main app.
   document.body.id = 'sa-helper-container';
   try {
@@ -257,7 +257,7 @@ function stepIntro() {
         </div>
           ${slides.length > 1 ? `<div class="sa-onb-dots">${slides.map((_, i) => `<button class="sa-onb-dot${i === 0 ? ' is-active' : ''}" type="button" aria-label="${COPY.onboarding.slideLabel.replace('{number}', i + 1)}"></button>`).join('')}</div>` : ''}
         <div class="sa-onb-footer">
-          ${isLoggedIn() ? `<button class="psycle-btn-primary sa-onb-auth" type="button" data-auth-mode="continue">${COPY.onboarding.continueSetup}</button>` : introContinuesToInstall ? `<button class="psycle-btn-primary sa-onb-auth" type="button" data-auth-mode="login">${COPY.onboarding.continue}</button>` : `<button class="psycle-btn-primary sa-onb-auth" type="button" data-auth-mode="login">${COPY.onboarding.logInButton}</button><button class="psycle-btn-secondary sa-onb-auth" type="button" data-auth-mode="signup">${COPY.onboarding.createAccountButton}</button>`}
+          ${isLoggedIn() ? `<button class="sa-btn-primary sa-onb-auth" type="button" data-auth-mode="continue">${COPY.onboarding.continueSetup}</button>` : introContinuesToInstall ? `<button class="sa-btn-primary sa-onb-auth" type="button" data-auth-mode="login">${COPY.onboarding.continue}</button>` : `<button class="sa-btn-primary sa-onb-auth" type="button" data-auth-mode="login">${COPY.onboarding.logInButton}</button><button class="sa-btn-secondary sa-onb-auth" type="button" data-auth-mode="signup">${COPY.onboarding.createAccountButton}</button>`}
         </div>
       </div>`;
 
@@ -368,13 +368,13 @@ function stepInstall() {
     // Android Chrome: a native one-tap Install when the browser handed us the prompt; steps otherwise.
     const body = `<p class="sa-onb-lead">${lead}</p>${reasoning}${promptEvent ? '' : installStepsHtml(ctx.platform)}`;
     const primary = promptEvent
-      ? `<button class="psycle-btn-primary sa-onb-install" type="button"><span>${COPY.onboarding.installButton}</span></button>` : '';
+      ? `<button class="sa-btn-primary sa-onb-install" type="button"><span>${COPY.onboarding.installButton}</span></button>` : '';
 
     const sheet = renderSheet({
       eyebrow: COPY.onboarding.installEyebrow,
       title: appCopy(COPY.onboarding.installTitle),
       body,
-      footer: `${primary}<button class="psycle-btn-mini sa-onb-skip-inline" type="button">${COPY.onboarding.continueInBrowser}</button>`,
+      footer: `${primary}<button class="sa-btn-mini sa-onb-skip-inline" type="button">${COPY.onboarding.continueInBrowser}</button>`,
       onBack,
     });
 
@@ -413,7 +413,7 @@ function stepAuthChoice() {
     const sheet = renderSheet({
       title: appCopy(O.authChoiceTitle),
       body: `<p class="sa-onb-lead">${appCopy(O.authChoiceLead)}</p>`,
-      footer: `<button class="psycle-btn-primary sa-onb-auth" type="button" data-auth-mode="login">${O.logInButton}</button><button class="psycle-btn-secondary sa-onb-auth" type="button" data-auth-mode="signup">${O.createAccountButton}</button>`,
+      footer: `<button class="sa-btn-primary sa-onb-auth" type="button" data-auth-mode="login">${O.logInButton}</button><button class="sa-btn-secondary sa-onb-auth" type="button" data-auth-mode="signup">${O.createAccountButton}</button>`,
       onBack: () => resolve('back'),
     });
     sheet.querySelectorAll('[data-auth-mode]').forEach((b) => b.addEventListener('click', () => { requestedAuthMode = b.dataset.authMode; resolve(); }));
@@ -519,7 +519,7 @@ function stepGyms() {
                       ${gEmail ? `<div style="font-size:12px;color:var(--text-tertiary);">${gEmail}</div>` : ''}
                     </div>
                   </div>
-                  <span class="psycle-badge" style="font-size:11px;background:color-mix(in srgb,var(--success) 15%,transparent);color:var(--success);">${COPY.gyms.connected}</span>
+                  <span class="sa-badge" style="font-size:11px;background:color-mix(in srgb,var(--success) 15%,transparent);color:var(--success);">${COPY.gyms.connected}</span>
                 </div>
               `;}).join('')}
             </div>
@@ -541,7 +541,7 @@ function stepGyms() {
             </div>
             <div>
               <label style="font-size:12px;color:var(--text-tertiary);display:block;margin-bottom:4px;">${COPY.onboarding.selectGym}</label>
-              <select id="sa-onb-gym-select" class="psycle-select" style="width:100%;">
+              <select id="sa-onb-gym-select" class="sa-select" style="width:100%;">
                 ${unlinkedGyms.map(g => `<option value="${g.id}">${g.name}</option>`).join('')}
               </select>
             </div>
@@ -554,12 +554,12 @@ function stepGyms() {
               <input type="password" id="sa-onb-gym-password" placeholder="${COPY.onboarding.gymPasswordPlaceholder}" autocomplete="off" style="width:100%;box-sizing:border-box;">
             </div>
             <div id="sa-onb-gym-error" class="sa-login-error" style="display:none;margin-top:4px;"></div>
-            <button type="button" id="sa-onb-gym-submit" class="psycle-btn-primary" style="margin-top:4px;"><span>${escapeHtml(submitLabel(unlinkedGyms[0]?.id))}</span></button>
+            <button type="button" id="sa-onb-gym-submit" class="sa-btn-primary" style="margin-top:4px;"><span>${escapeHtml(submitLabel(unlinkedGyms[0]?.id))}</span></button>
 
           </div>
         `;
       } else if (unlinkedGyms.length > 0 && hasLinked) {
-        formHtml = `<button type="button" id="sa-onb-add-another" class="psycle-btn-secondary" style="width:100%;">${COPY.onboarding.connectAnotherLower}</button>`;
+        formHtml = `<button type="button" id="sa-onb-add-another" class="sa-btn-secondary" style="width:100%;">${COPY.onboarding.connectAnotherLower}</button>`;
       } else {
         formHtml = `
           <div style="padding:16px;text-align:center;background:color-mix(in srgb,var(--success) 10%,transparent);border:1px solid color-mix(in srgb,var(--success) 20%,transparent);border-radius:12px;color:var(--text-primary);margin-bottom:12px;">
@@ -570,8 +570,8 @@ function stepGyms() {
       }
 
       const continueBtnHtml = hasLinked
-        ? `<button class="psycle-btn-primary sa-onb-continue" type="button" style="${unlinkedGyms.length > 0 ? 'background:var(--surface-inset);border:1px solid var(--border);color:var(--text-primary);' : ''}"><span>${COPY.onboarding.continue}</span></button>`
-        : `<button class="psycle-btn-mini sa-onb-skip-inline" type="button">${COPY.onboarding.setupLater}</button>`;
+        ? `<button class="sa-btn-primary sa-onb-continue" type="button" style="${unlinkedGyms.length > 0 ? 'background:var(--surface-inset);border:1px solid var(--border);color:var(--text-primary);' : ''}"><span>${COPY.onboarding.continue}</span></button>`
+        : `<button class="sa-btn-mini sa-onb-skip-inline" type="button">${COPY.onboarding.setupLater}</button>`;
 
       const sheet = renderSheet({
         eyebrow: COPY.onboarding.yourGyms,
@@ -654,7 +654,7 @@ function stepNotifications() {
         eyebrow: COPY.onboarding.notificationsEyebrow,
         title: COPY.onboarding.iosNotificationTitle,
         body: `<p class="sa-onb-lead">${appCopy(COPY.onboarding.iosNotificationHelp)}</p>`,
-        footer: `<button class="psycle-btn-primary sa-onb-continue" type="button"><span>${COPY.onboarding.continue}</span></button>`,
+        footer: `<button class="sa-btn-primary sa-onb-continue" type="button"><span>${COPY.onboarding.continue}</span></button>`,
       });
       sheet.querySelector('.sa-onb-continue').addEventListener('click', resolve);
       return;
@@ -665,8 +665,8 @@ function stepNotifications() {
       title: COPY.onboarding.enablePushTitle,
       body: `<div class="sa-onb-icon" style="color: var(--feat-push, var(--accent));">${ICON.push}</div>
         <p class="sa-onb-lead">${COPY.onboarding.notificationsDescription}</p>`,
-      footer: `<button class="psycle-btn-primary sa-onb-notif-enable" type="button"><span>${COPY.onboarding.enableNotifications}</span></button>
-        <button class="psycle-btn-mini sa-onb-skip-inline" type="button">${COPY.onboarding.maybeLater}</button>`,
+      footer: `<button class="sa-btn-primary sa-onb-notif-enable" type="button"><span>${COPY.onboarding.enableNotifications}</span></button>
+        <button class="sa-btn-mini sa-onb-skip-inline" type="button">${COPY.onboarding.maybeLater}</button>`,
     });
 
     sheet.querySelector('.sa-onb-skip-inline').addEventListener('click', resolve);
@@ -705,11 +705,11 @@ async function stepCalendar() {
           <div class="sa-onb-icon" style="color: var(--accent);">${ICON.calendar}</div>
           <p class="sa-onb-lead">${COPY.onboarding.addLiveFeed}</p>
           <div class="sa-onb-cal-links">
-            ${webcalUrl ? `<a href="${webcalUrl}" class="psycle-btn-primary" style="display:block;text-align:center;text-decoration:none;margin-bottom:8px;"><span>${ios ? COPY.onboarding.appleCalendarButton : COPY.onboarding.webcalButton}</span></a>` : ''}
-            ${gcalUrl && !ios ? `<a href="${gcalUrl}" target="_blank" rel="noopener noreferrer" class="psycle-btn-secondary" style="display:block;text-align:center;text-decoration:none;margin-bottom:8px;"><span>${COPY.onboarding.googleCalendarButton}</span></a>` : ''}
-            ${icsUrl ? `<button class="psycle-btn-mini sa-onb-copy-ics" type="button" style="width:100%;">${COPY.onboarding.copyFeedUrl}</button>` : ''}
+            ${webcalUrl ? `<a href="${webcalUrl}" class="sa-btn-primary" style="display:block;text-align:center;text-decoration:none;margin-bottom:8px;"><span>${ios ? COPY.onboarding.appleCalendarButton : COPY.onboarding.webcalButton}</span></a>` : ''}
+            ${gcalUrl && !ios ? `<a href="${gcalUrl}" target="_blank" rel="noopener noreferrer" class="sa-btn-secondary" style="display:block;text-align:center;text-decoration:none;margin-bottom:8px;"><span>${COPY.onboarding.googleCalendarButton}</span></a>` : ''}
+            ${icsUrl ? `<button class="sa-btn-mini sa-onb-copy-ics" type="button" style="width:100%;">${COPY.onboarding.copyFeedUrl}</button>` : ''}
           </div>`,
-        footer: `<button class="psycle-btn-primary sa-onb-continue" type="button"><span>${COPY.onboarding.done}</span></button>`,
+        footer: `<button class="sa-btn-primary sa-onb-continue" type="button"><span>${COPY.onboarding.done}</span></button>`,
       });
 
       const copyBtn = sheet.querySelector('.sa-onb-copy-ics');
@@ -731,8 +731,8 @@ async function stepCalendar() {
       title: COPY.onboarding.calendarDescription,
       body: `<div class="sa-onb-icon" style="color: var(--accent);">${ICON.calendar}</div>
         <p class="sa-onb-lead">${COPY.onboarding.calendarEnableDescription.replace('{calendar}', ios ? 'Apple' : 'your')}</p>`,
-      footer: `<button class="psycle-btn-primary sa-onb-cal-enable" type="button"><span>${COPY.onboarding.enableCalendar}</span></button>
-        <button class="psycle-btn-mini sa-onb-skip-inline" type="button">${COPY.onboarding.setupLater}</button>`,
+      footer: `<button class="sa-btn-primary sa-onb-cal-enable" type="button"><span>${COPY.onboarding.enableCalendar}</span></button>
+        <button class="sa-btn-mini sa-onb-skip-inline" type="button">${COPY.onboarding.setupLater}</button>`,
     });
 
     const enableBtn = sheet.querySelector('.sa-onb-cal-enable');
@@ -761,8 +761,8 @@ async function stepSpotMaps() {
       title: COPY.onboarding.spotMapTitle,
       body: `<div class="sa-onb-icon" style="color: var(--feat-quickbook, var(--accent));">${ICON.quickbook}</div>
         <p class="sa-onb-lead">${COPY.onboarding.spotMapDescription}</p>`,
-      footer: `<button class="psycle-btn-primary sa-onb-setup" type="button"><span>${COPY.onboarding.setUpNow}</span></button>
-        <button class="psycle-btn-mini sa-onb-skip-inline" type="button">${COPY.onboarding.maybeLater}</button>`,
+      footer: `<button class="sa-btn-primary sa-onb-setup" type="button"><span>${COPY.onboarding.setUpNow}</span></button>
+        <button class="sa-btn-mini sa-onb-skip-inline" type="button">${COPY.onboarding.maybeLater}</button>`,
     });
 
     sheet.querySelector('.sa-onb-skip-inline').addEventListener('click', resolve);
@@ -801,7 +801,7 @@ function stepFeatures() {
       </section>
       </div>
       <div class="sa-onb-footer">
-        <button class="psycle-btn-primary sa-onb-finish" type="button">${COPY.onboarding.setupLater}</button>
+        <button class="sa-btn-primary sa-onb-finish" type="button">${COPY.onboarding.setupLater}</button>
       </div>
     </div>`;
 
@@ -815,7 +815,7 @@ function stepFeatures() {
     completion[name] = done;
     const target = cards[name].querySelector('.sa-onb-feature-action');
     const buttonText = name === 'calendar' && done ? COPY.onboarding.calendarSettings : text;
-    target.innerHTML = `${done ? `<span class="sa-onb-complete" role="status">✓ ${COPY.onboarding.setUp}</span>` : ''}${name === 'calendar' && done || !done ? `<button class="psycle-btn-mini" type="button" data-feature-action="${name}" ${disabled ? 'disabled' : ''}>${buttonText}</button>` : ''}`;
+    target.innerHTML = `${done ? `<span class="sa-onb-complete" role="status">✓ ${COPY.onboarding.setUp}</span>` : ''}${name === 'calendar' && done || !done ? `<button class="sa-btn-mini" type="button" data-feature-action="${name}" ${disabled ? 'disabled' : ''}>${buttonText}</button>` : ''}`;
     cards[name].classList.toggle('is-complete', done);
   };
 

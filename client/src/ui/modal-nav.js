@@ -53,7 +53,7 @@ function applyInert() {
   const top = pages.length ? pages[pages.length - 1].el : null;
   for (const child of Array.from(document.body.children)) {
     if (/^(SCRIPT|STYLE|LINK)$/.test(child.tagName)) continue;
-    if (child.querySelector?.('#psycle-toast-container') || child.id === 'psycle-toast-container') continue;
+    if (child.querySelector?.('#sa-toast-container') || child.id === 'sa-toast-container') continue;
     if (child.classList?.contains('sa-overlap-modal') || child.classList?.contains('fr-sheet-overlay')) continue; // dialog layers sit above pages
     const inert = !!top && child !== top;
     if (inert) { child.setAttribute('inert', ''); child.dataset.saNavInert = '1'; }
@@ -198,7 +198,7 @@ function ensureCloseFooter(el, entry) {
   if (!foot) {
     foot = document.createElement('div');
     foot.className = 'sa-modal-footer';
-    foot.innerHTML = '<button type="button" class="psycle-btn sa-page-close"></button>';
+    foot.innerHTML = '<button type="button" class="sa-btn sa-page-close"></button>';
     foot.firstChild.textContent = COPY.credits.closeModal;
     card.appendChild(foot);
   }

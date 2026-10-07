@@ -346,7 +346,7 @@ backdrop-filter: blur(20px);
 
 ### 6.5 Buttons
 
-#### `.psycle-btn-primary` — Primary CTA
+#### `.sa-btn-primary` — Primary CTA
 Used for major actions: Buy, Confirm, Schedule:
 ```css
 background: var(--success); /* or --accent for neutral primary */
@@ -356,7 +356,7 @@ border: none;
 box-shadow: none;
 ```
 
-#### `.psycle-btn-mini` — Small inline action
+#### `.sa-btn-mini` — Small inline action
 Default neutral state:
 ```css
 background: color-mix(in srgb, var(--text) 6%, transparent);
@@ -369,12 +369,12 @@ padding: 4px 10px;
 
 Apply a variant class for colored states (see §6.6).
 
-#### `.psycle-action-btn-mini` — In-list action button
-Same as `.psycle-btn-mini` but with taller minimum height (36px) for use inside cards and table rows.
+#### `.sa-action-btn-mini` — In-list action button
+Same as `.sa-btn-mini` but with taller minimum height (36px) for use inside cards and table rows.
 
 ### 6.6 Button Semantic Variant Classes
 
-Apply on `.psycle-btn-mini` or `.psycle-action-btn-mini`:
+Apply on `.sa-btn-mini` or `.sa-action-btn-mini`:
 
 | Class | Background | Border | Text |
 |---|---|---|---|

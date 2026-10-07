@@ -6,12 +6,12 @@ describe('loading skeletons', () => {
     const html = renderCardSkeletons(3, 'Loading bookings');
     expect(html).toContain('role="status"');
     expect(html).toContain('aria-label="Loading bookings"');
-    expect((html.match(/psycle-skeleton-card"/g) || []).length).toBe(3);
+    expect((html.match(/sa-skeleton-card"/g) || []).length).toBe(3);
   });
 
   it('renders timetable-shaped rows', () => {
     const html = renderTimetableSkeleton(5);
     expect(html).toContain('aria-label="Loading timetable"');
-    expect((html.match(/psycle-skeleton-table-row"/g) || []).length).toBe(5);
+    expect((html.match(/sa-skeleton-table-row"/g) || []).length).toBe(5);
   });
 });

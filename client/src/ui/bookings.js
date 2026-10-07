@@ -603,7 +603,7 @@ export function openGroupedCancellationModal(group, onChange = renderBookings) {
           <span style="display:flex;align-items:center;gap:8px;"><small style="font-size:12px;font-weight:600;color:var(--text-secondary);">${escapeHtml(role)}</small><span class="ab-spot-upgrade-chip${isGuest ? ' is-guest' : ''}" style="cursor:default;">${escapeHtml(labelFor(booking))}</span></span>
           ${blocked ? '<span style="font-size:12px;color:var(--text-secondary);">Cancel guest spots first</span>' : ''}
         </div>
-        <button class="psycle-btn cancel-confirm grouped-cancel-one" data-booking-id="${escapeHtml(bookingId)}" ${disabled ? 'disabled' : ''} style="width:auto;flex:0 0 auto;min-width:88px;padding:10px 16px;">${action}</button>
+        <button class="sa-btn cancel-confirm grouped-cancel-one" data-booking-id="${escapeHtml(bookingId)}" ${disabled ? 'disabled' : ''} style="width:auto;flex:0 0 auto;min-width:88px;padding:10px 16px;">${action}</button>
       </div>`;
     }).join('');
     body.innerHTML = `
@@ -611,7 +611,7 @@ export function openGroupedCancellationModal(group, onChange = renderBookings) {
         <p style="margin:0;font-size:13px;line-height:1.45;color:var(--text-secondary);">Choose a ${escapeHtml(noun)} to cancel, or cancel every booked ${escapeHtml(noun)}. Guest spots are released before your own booking.</p>
         <div>${rows}</div>
         ${error}
-        <button class="psycle-btn cancel-confirm grouped-cancel-all" ${busy ? 'disabled' : ''} style="width:100%;">${confirmAll ? COPY.bookings.confirm : `Cancel all ${noun}s`}</button>
+        <button class="sa-btn cancel-confirm grouped-cancel-all" ${busy ? 'disabled' : ''} style="width:100%;">${confirmAll ? COPY.bookings.confirm : `Cancel all ${noun}s`}</button>
       </div>`;
 
     body.querySelectorAll('.grouped-cancel-one').forEach((button) => {
@@ -694,7 +694,7 @@ export async function openEditBookingModal(group, onChange = renderBookings) {
 
   title.textContent = formatCopyText(COPY.bookings.editSpotsTitle, { noun: nounCap, className });
   applyBookingChrome(modal, { titleText: COPY.bookingFlow.titleEditSpots, gymId: event.gymId, locationName: event.locationName, studioName: event.studioName });
-  body.innerHTML = `<div class="psycle-loading-spinner-container" style="padding:40px 0;"><div class="psycle-spinner"></div><span>${COPY.bookings.loadingFloorMap}</span></div>`;
+  body.innerHTML = `<div class="sa-loading-spinner-container" style="padding:40px 0;"><div class="sa-spinner"></div><span>${COPY.bookings.loadingFloorMap}</span></div>`;
   let editDirty = () => false; // set once the selection exists
   openNavPage(modal, { id: 'edit-spots', canClose: () => !editDirty() || confirm(COPY.bookingEditor.discardChanges) });
 
@@ -790,20 +790,20 @@ export async function openEditBookingModal(group, onChange = renderBookings) {
         <span class="is-self">${COPY.bookings.guestMapSelf}</span><span class="is-guest">${COPY.bookings.guestMapGuest}</span><span class="is-available">${COPY.bookings.guestMapAvailable}</span><span class="is-unavailable">${COPY.bookings.guestMapUnavailable}</span>
       </div>
       <div class="sa-floor-plan-container" style="position:relative;height:${minMapHeight}px;background:var(--surface-inset);border:1px solid var(--border);border-radius:12px;margin-bottom:10px;overflow:hidden;">
-        <div id="psycle-edit-floor-grid" style="width:100%;height:100%;"></div>
+        <div id="sa-edit-floor-grid" style="width:100%;height:100%;"></div>
       </div>
-      <div id="psycle-edit-summary" style="font-size:12px;color:var(--text-secondary);margin-bottom:12px;min-height:16px;"></div>
-      <div id="psycle-edit-controls"></div>
+      <div id="sa-edit-summary" style="font-size:12px;color:var(--text-secondary);margin-bottom:12px;min-height:16px;"></div>
+      <div id="sa-edit-controls"></div>
     `;
 
-    const floorGrid = body.querySelector('#psycle-edit-floor-grid');
+    const floorGrid = body.querySelector('#sa-edit-floor-grid');
     mountBookingContext(body, body.querySelector('.sa-floor-plan-container'), {
       className, instructorName: event.instructors?.[0]?.name || '', instructorPhoto: event.instructors?.[0]?.thumbUrl || event.instructors?.[0]?.imageUrl,
       startAt: event.startAt, gymId: event.gymId, timeZone: event.timeZone,
       spotsLeft: layoutSlots.filter(s => s.isAvailable).length,
     }, { helperId: 'spotmap-live', helperText: COPY.bookingFlow.helperLive });
-    const summaryEl = body.querySelector('#psycle-edit-summary');
-    const controls = body.querySelector('#psycle-edit-controls');
+    const summaryEl = body.querySelector('#sa-edit-summary');
+    const controls = body.querySelector('#sa-edit-controls');
 
     // Stage marker(s) — NormalizedLayoutObject[]; empty for providers with none.
     layoutObjects.forEach(obj => {
@@ -847,8 +847,8 @@ export async function openEditBookingModal(group, onChange = renderBookings) {
         <div style="display:flex;flex-direction:column;gap:10px;background:var(--surface-inset);padding:14px;border-radius:12px;border:1px solid var(--border);">
           ${msg}
           <div style="display:flex;gap:8px;">
-            <button class="psycle-btn" id="bk-edit-close" style="flex:1;background:color-mix(in srgb,var(--text) 6%,transparent);border:1px solid color-mix(in srgb,var(--text) 12%,transparent);color:var(--text);">${COPY.bookings.close}</button>
-            <button class="psycle-btn" id="bk-edit-save" style="flex:2;background:var(--feat-autoupgrade);color:var(--on-accent);" ${(!changed || shortfall > 0) ? 'disabled' : ''}>${COPY.bookings.saveChanges}</button>
+            <button class="sa-btn" id="bk-edit-close" style="flex:1;background:color-mix(in srgb,var(--text) 6%,transparent);border:1px solid color-mix(in srgb,var(--text) 12%,transparent);color:var(--text);">${COPY.bookings.close}</button>
+            <button class="sa-btn" id="bk-edit-save" style="flex:2;background:var(--feat-autoupgrade);color:var(--on-accent);" ${(!changed || shortfall > 0) ? 'disabled' : ''}>${COPY.bookings.saveChanges}</button>
           </div>
         </div>`;
 
@@ -1202,8 +1202,8 @@ export async function openUpgradeConfigModal({ currentSlotLabel = '', eventId, g
 
   title.textContent = COPY.autoUpgrade.configureTitle;
   body.innerHTML = `
-    <div class="psycle-loading-spinner-container" style="padding: 40px 0;">
-      <div class="psycle-spinner"></div>
+    <div class="sa-loading-spinner-container" style="padding: 40px 0;">
+      <div class="sa-spinner"></div>
       <span>${COPY.bookings.fetchingFloorMap}</span>
     </div>
   `;
@@ -1296,7 +1296,7 @@ export async function openUpgradeConfigModal({ currentSlotLabel = '', eventId, g
           <div class="sa-upgrade-current">Your current ${noun}: <strong>${escapeHtml(spotLabel || '—')}</strong></div>
           <div class="sa-upgrade-map-summary">
             <span id="upgrade-map-summary">${escapeHtml(summarizeSpotPrefs(state.slots, state.rows, noun))}</span>
-            <button type="button" class="psycle-btn sa-upgrade-edit-map" id="upgrade-edit-map">Edit preferred ${noun} map for ${escapeHtml(studioName)}</button>
+            <button type="button" class="sa-btn sa-upgrade-edit-map" id="upgrade-edit-map">Edit preferred ${noun} map for ${escapeHtml(studioName)}</button>
           </div>
           ${showKeepOriginal ? `
           <label class="sa-upgrade-keep">
@@ -1305,8 +1305,8 @@ export async function openUpgradeConfigModal({ currentSlotLabel = '', eventId, g
               <span class="sa-upgrade-keep-help">${formatCopyText(COPY.bookingEditor.finalUpgradeAttemptHelp, { noun: escapeHtml(noun) })}</span></span>
           </label>` : ''}
           <div class="sa-spotmap-actions sa-upgrade-actions" style="display:flex;gap:8px;">
-            <button type="button" class="psycle-btn" id="upgrade-save" style="flex:2;background:var(--feat-autoupgrade);color:#fff;">${isEditing ? COPY.bookings.saveChanges : COPY.bookings.startMonitoring}</button>
-            ${isEditing ? `<button type="button" class="psycle-btn" id="upgrade-disable" style="flex:1;background:color-mix(in srgb, var(--danger) 10%, transparent);border:1px solid color-mix(in srgb, var(--danger) 20%, transparent);color:var(--danger);">${COPY.bookings.disableUpgrade}</button>` : ''}
+            <button type="button" class="sa-btn" id="upgrade-save" style="flex:2;background:var(--feat-autoupgrade);color:#fff;">${isEditing ? COPY.bookings.saveChanges : COPY.bookings.startMonitoring}</button>
+            ${isEditing ? `<button type="button" class="sa-btn" id="upgrade-disable" style="flex:1;background:color-mix(in srgb, var(--danger) 10%, transparent);border:1px solid color-mix(in srgb, var(--danger) 20%, transparent);color:var(--danger);">${COPY.bookings.disableUpgrade}</button>` : ''}
           </div>
         </div>`;
 
@@ -1394,7 +1394,7 @@ export async function openUpgradeConfigModal({ currentSlotLabel = '', eventId, g
       });
       const back = document.createElement('button');
       back.type = 'button';
-      back.className = 'psycle-btn sa-upgrade-back';
+      back.className = 'sa-btn sa-upgrade-back';
       back.textContent = COPY.autoUpgrade.backToUpgrade;
       back.onclick = () => { if (discardOk()) showForm(); };
       editorContainer.appendChild(back);

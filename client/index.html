@@ -72,7 +72,7 @@
 </head>
 <body>
   <!-- Toast Notifications Container -->
-  <div id="psycle-toast-container" class="psycle-toast-container"></div>
+  <div id="sa-toast-container" class="sa-toast-container"></div>
 
   <!-- 0. ONBOARDING (first-run guided flow) -->
   <div id="sa-onboarding-container" class="sa-onboarding-container" style="display: none;"></div>
@@ -87,49 +87,49 @@
 
       <!-- MODE: sign in -->
       <form id="sa-login-form" class="sa-login-form">
-        <div class="psycle-form-group">
+        <div class="sa-form-group">
           <label for="sa-login-email" data-copy-text="static.emailAddress">Email Address</label>
           <input type="email" id="sa-login-email" required placeholder="name@example.com" data-copy-placeholder="static.exampleEmail" autocomplete="username">
         </div>
-        <div class="psycle-form-group">
+        <div class="sa-form-group">
           <label for="sa-login-password" data-copy-text="settings.password">Password</label>
           <input type="password" id="sa-login-password" required placeholder="••••••••" data-copy-placeholder="static.passwordPlaceholder" autocomplete="current-password">
         </div>
         <div id="sa-login-error" class="sa-login-error" style="display:none;"></div>
-        <button type="submit" id="sa-login-submit-btn" class="psycle-btn-primary">
+        <button type="submit" id="sa-login-submit-btn" class="sa-btn-primary">
           <span data-copy-text="auth.logIn">Log In</span>
         </button>
       </form>
 
       <!-- MODE: create account -->
       <form id="sa-signup-form" class="sa-login-form" style="display:none;">
-        <div class="psycle-form-group">
+        <div class="sa-form-group">
           <label for="sa-signup-email" data-copy-text="static.emailAddress">Email Address</label>
           <input type="email" id="sa-signup-email" placeholder="name@example.com" data-copy-placeholder="static.exampleEmail" autocomplete="username">
         </div>
-        <div class="psycle-form-group">
+        <div class="sa-form-group">
           <label for="sa-signup-password" data-copy-text="settings.password">Password</label>
           <input type="password" id="sa-signup-password" placeholder="At least 8 characters" data-copy-placeholder="static.passwordMinimumPlaceholder" autocomplete="new-password">
         </div>
-        <div class="psycle-form-group">
+        <div class="sa-form-group">
           <label for="sa-signup-confirm" data-copy-text="static.confirmPassword">Confirm password</label>
           <input type="password" id="sa-signup-confirm" placeholder="••••••••" data-copy-placeholder="static.passwordPlaceholder" autocomplete="new-password">
         </div>
         <div id="sa-signup-error" class="sa-login-error" style="display:none;"></div>
-        <button type="submit" id="sa-signup-submit-btn" class="psycle-btn-primary">
+        <button type="submit" id="sa-signup-submit-btn" class="sa-btn-primary">
           <span data-copy-text="auth.createAccountButton">Create Account</span>
         </button>
       </form>
 
       <!-- MODE: recover -->
       <form id="sa-recover-form" class="sa-login-form" style="display:none;">
-        <div class="psycle-form-group">
+        <div class="sa-form-group">
           <label for="sa-recover-email" data-copy-html="static.email">Your <span data-app-name>Sweat Assistant</span> email</label>
           <input type="email" id="sa-recover-email" placeholder="name@example.com" data-copy-placeholder="static.exampleEmail" autocomplete="username">
         </div>
         <div id="sa-recover-step1" style="display:block;">
           <div id="sa-recover-error" class="sa-login-error" style="display:none;"></div>
-          <button type="button" id="sa-recover-find-btn" class="psycle-btn-primary"><span data-copy-text="static.emailContinue">Continue</span></button>
+          <button type="button" id="sa-recover-find-btn" class="sa-btn-primary"><span data-copy-text="static.emailContinue">Continue</span></button>
           <p class="sa-card-desc" data-copy-text="auth.resetUnavailable" style="margin-top:12px;font-size:12px;">Self-service reset isn’t available yet — contact the admin.</p>
         </div>
       </form>
@@ -150,17 +150,17 @@
       
     <!-- Top Action Bar -->
     <header class="sa-header">
-      <div class="psycle-title-area">
-        <img src="/icons/icon-192.png" class="psycle-logo" alt="Sweat Assistant Logo">
-        <div class="psycle-title-text-group">
-          <div class="psycle-title-row">
+      <div class="sa-title-area">
+        <img src="/icons/icon-192.png" class="sa-logo" alt="Sweat Assistant Logo">
+        <div class="sa-title-text-group">
+          <div class="sa-title-row">
             <h2><span data-app-name>Sweat Assistant</span></h2>
           </div>
         </div>
       </div>
       <div class="sa-header-actions" id="sa-header-user-status">
         <span class="sa-user-email" style="font-size: 13px; font-weight: 500; color: var(--text-secondary);" data-copy-text="static.headerLoading"></span>
-        <div class="psycle-credit-badges" id="sa-header-credits" style="display: flex; gap: 8px;"></div>
+        <div class="sa-credit-badges" id="sa-header-credits" style="display: flex; gap: 8px;"></div>
       </div>
     </header>
 
@@ -272,14 +272,14 @@
               </div>
 
               <!-- Bookmarked Filter Toggle -->
-              <button id="sa-filter-favorites-only" data-requires-capability="bookmarks" class="psycle-btn-mini" style="height: 40px !important; padding: 0 16px !important; border-radius: 12px !important; font-weight: 600; cursor: pointer;">
+              <button id="sa-filter-favorites-only" data-requires-capability="bookmarks" class="sa-btn-mini" style="height: 40px !important; padding: 0 16px !important; border-radius: 12px !important; font-weight: 600; cursor: pointer;">
                 <span data-copy-text="static.bookmarked">♡ Bookmarked</span>
               </button>
 
               <!-- Save/Clear controls -->
               <div style="display: flex; gap: 6px; flex-shrink: 0; align-items: center; height: 40px !important;">
-                <button id="psycle-btn-clear-all-filters" class="psycle-btn-mini" data-copy-text="static.clear" style="background: color-mix(in srgb, var(--danger) 15%, transparent); border: 1px solid color-mix(in srgb, var(--danger) 30%, transparent); color: var(--danger); height: 40px !important; padding: 0 16px !important; border-radius: 12px !important; font-weight: 600; cursor: pointer;" title="Clear All Filters"></button>
-                <button id="psycle-btn-save-default-filters" class="psycle-btn-mini" data-copy-text="static.save" style="background: color-mix(in srgb, var(--success) 15%, transparent); border: 1px solid color-mix(in srgb, var(--success) 30%, transparent); color: var(--success); height: 40px !important; padding: 0 16px !important; border-radius: 12px !important; font-weight: 600; cursor: pointer;" title="Save current filters as default">Save</button>
+                <button id="sa-btn-clear-all-filters" class="sa-btn-mini" data-copy-text="static.clear" style="background: color-mix(in srgb, var(--danger) 15%, transparent); border: 1px solid color-mix(in srgb, var(--danger) 30%, transparent); color: var(--danger); height: 40px !important; padding: 0 16px !important; border-radius: 12px !important; font-weight: 600; cursor: pointer;" title="Clear All Filters"></button>
+                <button id="sa-btn-save-default-filters" class="sa-btn-mini" data-copy-text="static.save" style="background: color-mix(in srgb, var(--success) 15%, transparent); border: 1px solid color-mix(in srgb, var(--success) 30%, transparent); color: var(--success); height: 40px !important; padding: 0 16px !important; border-radius: 12px !important; font-weight: 600; cursor: pointer;" title="Save current filters as default">Save</button>
               </div>
 
             </div>
@@ -293,8 +293,8 @@
 
         <!-- Timetable Grid List -->
         <div class="sa-timetable-list" id="sa-timetable-grid">
-          <div class="psycle-loading-spinner-container">
-            <div class="psycle-spinner"></div>
+          <div class="sa-loading-spinner-container">
+            <div class="sa-spinner"></div>
             <span data-copy-text="static.fetchingClasses">Fetching timetable classes...</span>
           </div>
         </div>
@@ -310,23 +310,23 @@
           </button>
         </div>
 
-        <div class="psycle-section">
-          <div class="psycle-section-header">
-            <h3 data-copy-text="static.activeBookings">Active Bookings</h3><span id="sa-bookings-count" class="psycle-section-count" hidden></span>
-            <span id="sa-bookings-refreshing" class="psycle-refreshing-chip" style="display: none;"><span class="psycle-spinner"></span> <span data-copy-text="static.refreshing">Refreshing...</span></span>
+        <div class="sa-section">
+          <div class="sa-section-header">
+            <h3 data-copy-text="static.activeBookings">Active Bookings</h3><span id="sa-bookings-count" class="sa-section-count" hidden></span>
+            <span id="sa-bookings-refreshing" class="sa-refreshing-chip" style="display: none;"><span class="sa-spinner"></span> <span data-copy-text="static.refreshing">Refreshing...</span></span>
           </div>
           <div id="sa-bookings-list" class="sa-bookings-list">
-            <div class="psycle-skeleton-list" role="status" aria-label="Loading bookings"><div class="psycle-skeleton-card" aria-hidden="true"><div class="psycle-skeleton-card-head"><span class="psycle-skeleton-line is-strong" style="--skeleton-width:34%" aria-hidden="true"></span><span class="psycle-skeleton-line is-chip" style="--skeleton-width:18%" aria-hidden="true"></span></div><span class="psycle-skeleton-line" style="--skeleton-width:64%" aria-hidden="true"></span><span class="psycle-skeleton-line is-short" style="--skeleton-width:56%" aria-hidden="true"></span></div><div class="psycle-skeleton-card" aria-hidden="true"><div class="psycle-skeleton-card-head"><span class="psycle-skeleton-line is-strong" style="--skeleton-width:42%" aria-hidden="true"></span><span class="psycle-skeleton-line is-chip" style="--skeleton-width:18%" aria-hidden="true"></span></div><span class="psycle-skeleton-line" style="--skeleton-width:72%" aria-hidden="true"></span><span class="psycle-skeleton-line is-short" style="--skeleton-width:48%" aria-hidden="true"></span></div></div>
+            <div class="sa-skeleton-list" role="status" aria-label="Loading bookings"><div class="sa-skeleton-card" aria-hidden="true"><div class="sa-skeleton-card-head"><span class="sa-skeleton-line is-strong" style="--skeleton-width:34%" aria-hidden="true"></span><span class="sa-skeleton-line is-chip" style="--skeleton-width:18%" aria-hidden="true"></span></div><span class="sa-skeleton-line" style="--skeleton-width:64%" aria-hidden="true"></span><span class="sa-skeleton-line is-short" style="--skeleton-width:56%" aria-hidden="true"></span></div><div class="sa-skeleton-card" aria-hidden="true"><div class="sa-skeleton-card-head"><span class="sa-skeleton-line is-strong" style="--skeleton-width:42%" aria-hidden="true"></span><span class="sa-skeleton-line is-chip" style="--skeleton-width:18%" aria-hidden="true"></span></div><span class="sa-skeleton-line" style="--skeleton-width:72%" aria-hidden="true"></span><span class="sa-skeleton-line is-short" style="--skeleton-width:48%" aria-hidden="true"></span></div></div>
           </div>
         </div>
 
-        <div class="psycle-section" id="sa-waitlists-section" style="margin-top: 24px;">
-          <div class="psycle-section-header" id="sa-waitlists-header">
-            <h3 data-copy-text="static.activeWaitlists">Active Waitlists</h3><span id="sa-waitlists-count" class="psycle-section-count" hidden></span>
-            <span id="sa-waitlists-refreshing" class="psycle-refreshing-chip" style="display: none;"><span class="psycle-spinner"></span> <span data-copy-text="static.refreshing">Refreshing...</span></span>
+        <div class="sa-section" id="sa-waitlists-section" style="margin-top: 24px;">
+          <div class="sa-section-header" id="sa-waitlists-header">
+            <h3 data-copy-text="static.activeWaitlists">Active Waitlists</h3><span id="sa-waitlists-count" class="sa-section-count" hidden></span>
+            <span id="sa-waitlists-refreshing" class="sa-refreshing-chip" style="display: none;"><span class="sa-spinner"></span> <span data-copy-text="static.refreshing">Refreshing...</span></span>
           </div>
           <div id="sa-waitlists-list" class="sa-bookings-list">
-            <div class="psycle-skeleton-list" role="status" aria-label="Loading waitlists"><div class="psycle-skeleton-card" aria-hidden="true"><div class="psycle-skeleton-card-head"><span class="psycle-skeleton-line is-strong" style="--skeleton-width:34%" aria-hidden="true"></span><span class="psycle-skeleton-line is-chip" style="--skeleton-width:18%" aria-hidden="true"></span></div><span class="psycle-skeleton-line" style="--skeleton-width:64%" aria-hidden="true"></span><span class="psycle-skeleton-line is-short" style="--skeleton-width:56%" aria-hidden="true"></span></div></div>
+            <div class="sa-skeleton-list" role="status" aria-label="Loading waitlists"><div class="sa-skeleton-card" aria-hidden="true"><div class="sa-skeleton-card-head"><span class="sa-skeleton-line is-strong" style="--skeleton-width:34%" aria-hidden="true"></span><span class="sa-skeleton-line is-chip" style="--skeleton-width:18%" aria-hidden="true"></span></div><span class="sa-skeleton-line" style="--skeleton-width:64%" aria-hidden="true"></span><span class="sa-skeleton-line is-short" style="--skeleton-width:56%" aria-hidden="true"></span></div></div>
           </div>
         </div>
 
@@ -337,7 +337,7 @@
       <!-- AUTO-BOOK TAB PANEL -->
       <section id="sa-panel-auto-book" class="sa-tab-content" style="display: none;">
         <!-- Global Release Countdown banner -->
-        <div class="psycle-countdown-banner ab-banner">
+        <div class="sa-countdown-banner ab-banner">
           <button class="sa-tab-refresh-btn" data-refresh-tab="auto-book" aria-label="Refresh auto-book queue" data-copy-aria-label="static.refreshAutobookQueue" title="Refresh" data-copy-title="static.refresh">
             <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="23 4 23 10 17 10"/><path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10"/></svg>
           </button>
@@ -346,7 +346,7 @@
               <span class="ab-banner-label" data-copy-text="static.nextBookingIn">Next booking in</span>
               <span id="sa-autobook-countdown" class="ab-banner-time">—</span>
             </div>
-            <div class="ab-banner-status" id="psycle-countdown-status-indicator">
+            <div class="ab-banner-status" id="sa-countdown-status-indicator">
               <span class="ab-status-icon" aria-hidden="true"></span>
               <span class="ab-status-text" data-copy-text="static.readyToBook">Ready to book</span>
             </div>
@@ -367,7 +367,7 @@
                   <path d="M28,17a1,1,0,0,1-1,1,4,4,0,0,0-4,4,1,1,0,0,1-2,0,4,4,0,0,0-4-4,1,1,0,0,1,0-2,4,4,0,0,0,4-4,1,1,0,0,1,2,0,4,4,0,0,0,4,4A1,1,0,0,1,28,17Z"/>
                 </g>
               </svg><span data-copy-text="static.autoBookQueue">Auto-Book Queue</span></h2>
-            <div class="psycle-queue-list ab-queue-list" id="sa-autobook-queue-container">
+            <div class="sa-queue-list ab-queue-list" id="sa-autobook-queue-container">
               <!-- Scheduled bookings will be rendered here as list cards -->
             </div>
           </div>
@@ -404,50 +404,50 @@
              is one gym's catalogue of ~100 products and has no business being
              the first thing you see on a page whose question is "what can I
              book with, at each of my gyms?". -->
-        <div class="psycle-benefit-grid" id="psycle-credits-summary"></div>
+        <div class="sa-benefit-grid" id="sa-credits-summary"></div>
 
         <!-- DETAIL: a single gym's purchase flow. Hidden until a card opens it. -->
-        <div id="psycle-credits-detail" hidden>
-          <button class="psycle-btn psycle-btn-mini" id="psycle-credits-back" style="width:auto;" data-copy-text="static.allGymsBack">← All gyms</button>
-          <div id="psycle-credit-purchase-heading"></div>
+        <div id="sa-credits-detail" hidden>
+          <button class="sa-btn sa-btn-mini" id="sa-credits-back" style="width:auto;" data-copy-text="static.allGymsBack">← All gyms</button>
+          <div id="sa-credit-purchase-heading"></div>
 
         <!-- Credit bundle list (shown only when a linked gym supports purchases) -->
-        <div class="psycle-bundles-filters" id="psycle-bundles-filters">
+        <div class="sa-bundles-filters" id="sa-bundles-filters">
           <div class="sa-search-box">
             <svg class="search-icon" viewBox="0 0 24 24" width="16" height="16">
               <path fill="currentColor" d="M15.5 14h-.79l-.28-.27C15.41 12.59 16 11.11 16 9.5 16 5.91 13.09 3 9.5 3S3 5.91 3 9.5 5.91 16 9.5 16c1.61 0 3.09-.59 4.23-1.57l.27.28v.79l5 4.99L20.49 19l-4.99-5zm-6 0C7.01 14 5 11.99 5 9.5S7.01 5 9.5 5 14 7.01 14 9.5 11.99 14 9.5 14z"/>
             </svg>
-            <input type="text" id="psycle-bundle-search" data-copy-placeholder="static.searchBundles" placeholder="Search bundles (e.g. 5 pack, Clapham, Ride)...">
+            <input type="text" id="sa-bundle-search" data-copy-placeholder="static.searchBundles" placeholder="Search bundles (e.g. 5 pack, Clapham, Ride)...">
           </div>
-          <button id="psycle-toggle-bundle-filters" class="psycle-btn-mini" data-copy-text="static.categories" style="background: color-mix(in srgb, var(--feat-autoupgrade) 15%, transparent); border: 1px solid color-mix(in srgb, var(--feat-autoupgrade) 30%, transparent); color: var(--feat-autoupgrade); font-size: 12px; padding: 4px 10px; border-radius: 8px; cursor: pointer; flex-shrink: 0;">Categories</button>
-          <div class="psycle-checkbox-filters" id="psycle-bundles-checkbox-filters" style="display: none; margin-left: auto; flex: 1; padding: 0 12px; background: transparent; border: none;">
-            <label class="psycle-checkbox-label">
-              <input type="checkbox" id="psycle-show-single-topup" />
+          <button id="sa-toggle-bundle-filters" class="sa-btn-mini" data-copy-text="static.categories" style="background: color-mix(in srgb, var(--feat-autoupgrade) 15%, transparent); border: 1px solid color-mix(in srgb, var(--feat-autoupgrade) 30%, transparent); color: var(--feat-autoupgrade); font-size: 12px; padding: 4px 10px; border-radius: 8px; cursor: pointer; flex-shrink: 0;">Categories</button>
+          <div class="sa-checkbox-filters" id="sa-bundles-checkbox-filters" style="display: none; margin-left: auto; flex: 1; padding: 0 12px; background: transparent; border: none;">
+            <label class="sa-checkbox-label">
+              <input type="checkbox" id="sa-show-single-topup" />
               <span class="custom-checkbox"></span>
               <span title="Single-class credits and top-up / add-on packs" data-copy-title="static.singleCreditsHelp" data-copy-text="static.singleCredits">Single credits &amp; top-ups</span>
             </label>
-            <label class="psycle-checkbox-label">
-              <input type="checkbox" id="psycle-show-studio-location" />
+            <label class="sa-checkbox-label">
+              <input type="checkbox" id="sa-show-studio-location" />
               <span class="custom-checkbox"></span>
               <span title="Bundles tied to a specific studio/location (Victoria, Clapham, Shoreditch, Bank…) and at-home/online" data-copy-title="static.studioLocationBundlesHelp" data-copy-text="static.studioLocationBundles">Studio &amp; location-specific</span>
             </label>
-            <label class="psycle-checkbox-label">
-              <input type="checkbox" id="psycle-show-member-student" />
+            <label class="sa-checkbox-label">
+              <input type="checkbox" id="sa-show-member-student" />
               <span class="custom-checkbox"></span>
               <span title="Student, member, corporate, graduate and unlimited/membership bundles" data-copy-title="static.memberStudentBundlesHelp" data-copy-text="static.memberStudentBundles">Member, student &amp; corporate</span>
             </label>
-            <label class="psycle-checkbox-label">
-              <input type="checkbox" id="psycle-show-intro-promo" />
+            <label class="sa-checkbox-label">
+              <input type="checkbox" id="sa-show-intro-promo" />
               <span class="custom-checkbox"></span>
               <span title="Intro/welcome offers, partner, event, promotional, free/test and expired bundles" data-copy-title="static.introBundlesHelp" data-copy-text="static.introBundles">Intro, promo &amp; other</span>
             </label>
           </div>
         </div>
 
-        <div class="psycle-bundles-grid" id="psycle-bundles-container">
+        <div class="sa-bundles-grid" id="sa-bundles-container">
           <!-- Bundles will be rendered as cards here -->
         </div>
-        </div><!-- /#psycle-credits-detail -->
+        </div><!-- /#sa-credits-detail -->
         <div id="sa-membership-sections" hidden></div>
       </section>
 
@@ -548,7 +548,7 @@
                   <div class="sa-settings-card">
                     <h4 data-copy-text="static.welcomeTour">Welcome Tour</h4>
                     <p class="sa-card-desc" data-copy-html="static.welcomeTourDescription">Replay the introduction and setup walkthrough for <span data-app-name>Sweat Assistant</span>.</p>
-                    <button id="sa-replay-onboarding-btn" class="psycle-btn" data-copy-text="static.replayOnboarding" style="width: 100%;">Replay Onboarding</button>
+                    <button id="sa-replay-onboarding-btn" class="sa-btn" data-copy-text="static.replayOnboarding" style="width: 100%;">Replay Onboarding</button>
                   </div>
                 </div>
               </div>
@@ -563,10 +563,10 @@
                   <div class="sa-settings-card">
                     <h4 data-copy-text="static.appearance">Appearance</h4>
                     <p class="sa-card-desc" data-copy-text="static.chooseTheme">Choose light or dark, or follow your device automatically.</p>
-                    <div class="psycle-segmented" id="sa-theme-segmented" role="group" aria-label="Theme" data-copy-aria-label="static.theme">
-                      <button class="psycle-segmented-btn" data-theme-mode="auto" data-copy-text="static.auto">Auto</button>
-                      <button class="psycle-segmented-btn" data-theme-mode="light" data-copy-text="static.light">Light</button>
-                      <button class="psycle-segmented-btn" data-theme-mode="dark" data-copy-text="static.dark">Dark</button>
+                    <div class="sa-segmented" id="sa-theme-segmented" role="group" aria-label="Theme" data-copy-aria-label="static.theme">
+                      <button class="sa-segmented-btn" data-theme-mode="auto" data-copy-text="static.auto">Auto</button>
+                      <button class="sa-segmented-btn" data-theme-mode="light" data-copy-text="static.light">Light</button>
+                      <button class="sa-segmented-btn" data-theme-mode="dark" data-copy-text="static.dark">Dark</button>
                     </div>
                   </div>
                   <div class="sa-settings-card">
@@ -577,7 +577,7 @@
                         <span data-copy-text="static.prefetchRange">Timetable Prefetch Range</span>
                         <small data-copy-text="static.prefetchHelp">Number of weeks to prefetch when loading the timetable (1–8).</small>
                       </div>
-                      <select id="sa-setting-prefetch-weeks" class="psycle-select">
+                      <select id="sa-setting-prefetch-weeks" class="sa-select">
                         <option value="1" data-copy-text="static.prefetchWeek1">1 week</option><option value="2" data-copy-text="static.prefetchWeek2">2 weeks</option><option value="3" data-copy-text="static.prefetchWeek3">3 weeks</option><option value="4" selected data-copy-text="static.prefetchWeek4">4 weeks</option>
                         <option value="5" data-copy-text="static.prefetchWeek5">5 weeks</option><option value="6" data-copy-text="static.prefetchWeek6">6 weeks</option><option value="7" data-copy-text="static.prefetchWeek7">7 weeks</option><option value="8" data-copy-text="static.prefetchWeek8">8 weeks</option>
                       </select>
@@ -588,8 +588,8 @@
                     <h4 data-copy-text="static.backupMigration">Backup & Migration</h4>
                     <p class="sa-card-desc" data-copy-text="static.configMigrationHelp">Import or export configuration JSON compatible with the Chrome extension.</p>
                     <div class="sa-settings-btn-row">
-                      <button id="sa-settings-export-btn" class="psycle-btn" data-copy-text="static.exportConfig">Export Config JSON</button>
-                      <button id="sa-settings-import-btn" class="psycle-btn" data-copy-text="static.importConfig">Import Config JSON</button>
+                      <button id="sa-settings-export-btn" class="sa-btn" data-copy-text="static.exportConfig">Export Config JSON</button>
+                      <button id="sa-settings-import-btn" class="sa-btn" data-copy-text="static.importConfig">Import Config JSON</button>
                       <input type="file" id="sa-settings-import-file" style="display:none;" accept=".json">
                     </div>
                   </div>
@@ -598,7 +598,7 @@
                     <p class="sa-card-desc" data-copy-text="static.debugModeHelp">Show raw API diagnostics, class JSON and troubleshooting controls.</p>
                     <div class="sa-setting-row">
                       <div class="sa-setting-label"><span data-copy-text="static.enableDebugMode">Enable Debug Mode</span><small data-copy-text="static.debugModeDetail">Exposes debug actions throughout the app.</small></div>
-                      <label class="psycle-switch"><input type="checkbox" id="sa-setting-debug-mode"><span class="psycle-slider"></span></label>
+                      <label class="sa-switch"><input type="checkbox" id="sa-setting-debug-mode"><span class="sa-slider"></span></label>
                     </div>
                   </div>
                 </div>
@@ -628,23 +628,23 @@
                         <span data-copy-text="static.pushSubscriptionStatus">Push Subscription Status</span>
                         <small id="sa-push-status-desc" data-copy-text="static.pushSubscriptionHelp">Click button to enable notifications on this device.</small>
                       </div>
-                      <button id="sa-push-toggle-btn" class="psycle-btn-mini" style="width: auto;" data-copy-text="static.enablePush">Enable Push</button>
+                      <button id="sa-push-toggle-btn" class="sa-btn-mini" style="width: auto;" data-copy-text="static.enablePush">Enable Push</button>
                     </div>
-                    <button id="sa-notif-prefs-btn" class="psycle-btn" style="width: 100%; margin-top: 12px;" data-copy-text="static.customizeNotifications">Customise Notifications</button>
+                    <button id="sa-notif-prefs-btn" class="sa-btn" style="width: 100%; margin-top: 12px;" data-copy-text="static.customizeNotifications">Customise Notifications</button>
                   </div>
-                  <div class="sa-settings-card" id="psycle-test-notif-card" style="display: none; border-color: color-mix(in srgb, var(--warning) 30%, transparent);">
+                  <div class="sa-settings-card" id="sa-test-notif-card" style="display: none; border-color: color-mix(in srgb, var(--warning) 30%, transparent);">
                     <h4 style="color:var(--warning);" data-copy-text="static.testNotifications">🔔 Test Notifications</h4>
                     <p class="sa-card-desc" data-copy-text="static.testNotificationsHelp">Send a sample of each notification to all your signed-in devices.</p>
-                    <div id="psycle-test-notif-buttons" style="display:flex; flex-direction:column; gap:6px;">
-                      <button class="psycle-btn-mini test-notif-btn" data-type="booking" style="width:100%;" data-copy-text="static.spotBooked">Spot Booked</button>
-                      <button class="psycle-btn-mini test-notif-btn" data-type="upgrade" style="width:100%;" data-copy-text="static.spotUpgraded">Spot Upgraded</button>
-                      <button class="psycle-btn-mini test-notif-btn" data-type="upgrade-cutoff" style="width:100%;" data-copy-text="static.spotUpgradedKeptOriginal">Spot Upgraded (kept original, &lt;12h)</button>
-                      <button class="psycle-btn-mini test-notif-btn" data-type="creditWarning" style="width:100%;" data-copy-text="static.creditWarningAutobook">Credit Warning (Auto-Book)</button>
-                      <button class="psycle-btn-mini test-notif-btn" data-type="creditWarning-upgrade" style="width:100%;" data-copy-text="static.creditWarningUpgrade">Credit Warning (Auto-Upgrade)</button>
-                      <button class="psycle-btn-mini test-notif-btn" data-type="cancellationReminder" style="width:100%;" data-copy-text="static.cancellationReminder">Cancellation Reminder</button>
-                      <button class="psycle-btn-mini test-notif-btn" data-type="bookingWindow" style="width:100%;" data-copy-text="static.bookingWindowAutoBook">Booking Window (has Auto-Book)</button>
-                      <button class="psycle-btn-mini test-notif-btn" data-type="bookingWindow-none" style="width:100%;" data-copy-text="static.bookingWindowNoAutobook">Booking Window (no Auto-Book)</button>
-                      <button class="psycle-btn-mini test-notif-btn" data-type="bookingWindow-nocredits" style="width:100%;" data-copy-text="static.bookingWindowInsufficientCredits">Booking Window (insufficient credits)</button>
+                    <div id="sa-test-notif-buttons" style="display:flex; flex-direction:column; gap:6px;">
+                      <button class="sa-btn-mini test-notif-btn" data-type="booking" style="width:100%;" data-copy-text="static.spotBooked">Spot Booked</button>
+                      <button class="sa-btn-mini test-notif-btn" data-type="upgrade" style="width:100%;" data-copy-text="static.spotUpgraded">Spot Upgraded</button>
+                      <button class="sa-btn-mini test-notif-btn" data-type="upgrade-cutoff" style="width:100%;" data-copy-text="static.spotUpgradedKeptOriginal">Spot Upgraded (kept original, &lt;12h)</button>
+                      <button class="sa-btn-mini test-notif-btn" data-type="creditWarning" style="width:100%;" data-copy-text="static.creditWarningAutobook">Credit Warning (Auto-Book)</button>
+                      <button class="sa-btn-mini test-notif-btn" data-type="creditWarning-upgrade" style="width:100%;" data-copy-text="static.creditWarningUpgrade">Credit Warning (Auto-Upgrade)</button>
+                      <button class="sa-btn-mini test-notif-btn" data-type="cancellationReminder" style="width:100%;" data-copy-text="static.cancellationReminder">Cancellation Reminder</button>
+                      <button class="sa-btn-mini test-notif-btn" data-type="bookingWindow" style="width:100%;" data-copy-text="static.bookingWindowAutoBook">Booking Window (has Auto-Book)</button>
+                      <button class="sa-btn-mini test-notif-btn" data-type="bookingWindow-none" style="width:100%;" data-copy-text="static.bookingWindowNoAutobook">Booking Window (no Auto-Book)</button>
+                      <button class="sa-btn-mini test-notif-btn" data-type="bookingWindow-nocredits" style="width:100%;" data-copy-text="static.bookingWindowInsufficientCredits">Booking Window (insufficient credits)</button>
                     </div>
                   </div>
                 </div>
@@ -659,17 +659,17 @@
                   <div class="sa-settings-card">
                     <h4 data-copy-text="static.accountPassword">Account Password</h4>
                     <p class="sa-card-desc" data-copy-html="static.passwordDescription">Your <span data-app-name>Sweat Assistant</span> password is separate from every gym password.</p>
-                    <button id="sa-account-password-btn" class="psycle-btn" data-copy-text="static.changeAccountPassword">Change account password</button>
+                    <button id="sa-account-password-btn" class="sa-btn" data-copy-text="static.changeAccountPassword">Change account password</button>
                   </div>
                   <div class="sa-settings-card" style="border-color:color-mix(in srgb, var(--danger) 20%, transparent);">
                     <h4 style="color:var(--danger);" data-copy-text="static.accountSession">Account Session</h4>
                     <p class="sa-card-desc" data-copy-html="static.accountSessionDescription">Clear local session tokens and log out of <span data-app-name>Sweat Assistant</span>.</p>
-                    <button id="sa-logout-btn" class="psycle-btn variant-danger" data-copy-text="static.logout">Log Out</button>
+                    <button id="sa-logout-btn" class="sa-btn variant-danger" data-copy-text="static.logout">Log Out</button>
                   </div>
                   <div class="sa-settings-card" style="border-color:color-mix(in srgb, var(--danger) 30%, transparent);">
                     <h4 style="color:var(--danger);" data-copy-text="static.deleteData">Delete All My Data</h4>
                     <p class="sa-card-desc" data-copy-text="static.deleteDataHelp">Permanently delete this account, encrypted credentials, queues, preferences and push subscriptions. This cannot be undone.</p>
-                    <button id="sa-delete-data-btn" class="psycle-btn variant-danger" data-copy-text="static.deleteData">Delete All My Data</button>
+                    <button id="sa-delete-data-btn" class="sa-btn variant-danger" data-copy-text="static.deleteData">Delete All My Data</button>
                   </div>
                 </div>
               </div>
@@ -800,8 +800,8 @@
         <button id="sa-debug-modal-close" class="sa-modal-close-btn">&times;</button>
       </div>
       <div class="sa-modal-body" id="sa-debug-modal-body">
-        <div class="psycle-loading-spinner-container" style="padding: 40px 0;">
-          <div class="psycle-spinner"></div>
+        <div class="sa-loading-spinner-container" style="padding: 40px 0;">
+          <div class="sa-spinner"></div>
           <span data-copy-text="static.loadingDebugData"></span>
         </div>
       </div>
@@ -841,8 +841,8 @@
   </div>
 
   <!-- Version Stamp -->
-  <div id="psycle-version-stamp" style="position: fixed; bottom: 8px; right: 12px; font-size: 12px; color: color-mix(in srgb, var(--text) 25%, transparent); font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; pointer-events: none; z-index: 9999; user-select: none;">
-    v1.3.0 · <span id="psycle-build-time"></span>
+  <div id="sa-version-stamp" style="position: fixed; bottom: 8px; right: 12px; font-size: 12px; color: color-mix(in srgb, var(--text) 25%, transparent); font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; pointer-events: none; z-index: 9999; user-select: none;">
+    v1.3.0 · <span id="sa-build-time"></span>
   </div>
 
   <!-- Entry Script -->

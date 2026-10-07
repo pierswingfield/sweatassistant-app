@@ -119,7 +119,7 @@ export function openSpotSetup({ event, className, onSaved, onContinue, onChooseF
     body.querySelector('.sa-setup-where').textContent = where;
     body.querySelector('.p1').textContent = formatCopyText(COPY.spotSetup.point1, { studio: studioName });
     setFooter(
-      btn('psycle-btn primary sa-setup-primary', COPY.spotSetup.choose, () => showA1()),
+      btn('sa-btn primary sa-setup-primary', COPY.spotSetup.choose, () => showA1()),
       ...(className ? [btn('sa-setup-link', COPY.spotSetup.chooseForNow, () => {
         markSetupDeferred(gymId, event.studioId);
         onChooseForNow?.(el);
@@ -142,7 +142,7 @@ export function openSpotSetup({ event, className, onSaved, onContinue, onChooseF
         else showA0();
       },
     });
-    body.innerHTML = `<div class="sa-setup-loading"><div class="psycle-spinner"></div></div>`;
+    body.innerHTML = `<div class="sa-setup-loading"><div class="sa-spinner"></div></div>`;
     setFooter();
     let slots, objects;
     try {
@@ -153,7 +153,7 @@ export function openSpotSetup({ event, className, onSaved, onContinue, onChooseF
       msg.className = 'sa-setup-error';
       msg.textContent = COPY.spotSetup.loadFailed;
       body.appendChild(msg);
-      setFooter(btn('psycle-btn primary sa-setup-primary', COPY.spotSetup.retry, () => { after = () => showA1(); layer?.release(); }));
+      setFooter(btn('sa-btn primary sa-setup-primary', COPY.spotSetup.retry, () => { after = () => showA1(); layer?.release(); }));
       return;
     }
     if (!slots?.length) { // no map after all: nothing to set up; carry on without prefs
@@ -162,7 +162,7 @@ export function openSpotSetup({ event, className, onSaved, onContinue, onChooseF
       msg.className = 'sa-setup-error';
       msg.textContent = COPY.spotSetup.loadFailed;
       body.appendChild(msg);
-      setFooter(btn('psycle-btn primary sa-setup-primary', COPY.spotSetup.retry, () => {
+      setFooter(btn('sa-btn primary sa-setup-primary', COPY.spotSetup.retry, () => {
         after = () => showA1();
         layer?.release();
       }));
@@ -177,7 +177,7 @@ export function openSpotSetup({ event, className, onSaved, onContinue, onChooseF
     const errBox = document.createElement('div');
     errBox.className = 'sa-setup-error';
     errBox.hidden = true;
-    const saveBtn = btn('psycle-btn primary sa-setup-primary', COPY.spotSetup.save, () => save());
+    const saveBtn = btn('sa-btn primary sa-setup-primary', COPY.spotSetup.save, () => save());
     setFooter(errBox, count, reason, saveBtn);
 
     const refreshFooter = (n) => {
@@ -229,7 +229,7 @@ export function openSpotSetup({ event, className, onSaved, onContinue, onChooseF
       </div>`;
     body.querySelector('.sa-setup-reassure').textContent = formatCopyText(COPY.spotSetup.savedBody, { studio: studioName });
     setFooter(
-      btn('psycle-btn primary sa-setup-primary', className ? formatCopyText(COPY.spotSetup.continueTo, { className }).trim() : COPY.settings.done, () => onContinue?.(el, saved)),
+      btn('sa-btn primary sa-setup-primary', className ? formatCopyText(COPY.spotSetup.continueTo, { className }).trim() : COPY.settings.done, () => onContinue?.(el, saved)),
       btn('sa-setup-link', COPY.spotSetup.editSpots, () => showA1()),
     );
     const h = body.querySelector('.sa-setup-headline'); h.setAttribute('tabindex', '-1'); h.focus({ preventScroll: true });

@@ -32,6 +32,12 @@ const GYMS = {
     // that gym's website, not the platform's; a gym with no such page omits it and
     // the button is hidden (C3-27).
     classPageUrl: 'https://psyclelondon.com/pages/class/{id}',
+    // Where a member finishes a credit purchase on the gym's own storefront when the
+    // in-app card charge needs 3-D Secure ({handle} = the bundle's product handle).
+    // Read only for gyms with capabilities.creditPurchase; the shop's URL layout is
+    // that gym's, so core never builds one itself. Omit and the client falls back to
+    // websiteUrl.
+    creditStoreUrl: 'https://psyclelondon.com/products/{handle}',
     provider: 'codexfit',
     // The gym's local timezone. CodexFit serves timezone-NAIVE datetimes
     // ("2026-09-01T19:30:00", no offset), so every parse has to be anchored

@@ -375,6 +375,8 @@ async function run() {
     assert.ok(psycle && psycle.capabilities && psycle.capabilities.bookingWindow === 'rolling-weekly', 'psycle-london gym + capabilities present');
     assert.strictEqual(psycle.websiteUrl, 'https://psyclelondon.com/', 'public gym metadata carries the configured website URL');
     assert.ok(gymsData.gyms.find((g) => g.id === 'jab-boxing'), 'jab-boxing registry entry present');
+    assert.ok(/\{handle\}/.test(psycle.creditStoreUrl), 'creditPurchase gym exposes its credit storefront template');
+    assert.ok(gymsData.gyms.filter((g) => !g.capabilities.creditPurchase).every((g) => g.creditStoreUrl === null), 'non-creditPurchase gyms expose no credit storefront');
     log(`✅ GET /api/gyms returns ${gymsData.gyms.length} gyms with capability flags.`);
   }
   {

@@ -251,6 +251,7 @@ const refreshLimiter = rateLimit({
 router.get('/gyms', (req, res) => {
   const gyms = listGyms().map((g) => ({
     id: g.id, name: g.name, shortName: g.shortName, websiteUrl: g.websiteUrl, classPageUrl: g.classPageUrl || null,
+    creditStoreUrl: (g.capabilities && g.capabilities.creditPurchase && g.creditStoreUrl) || null,
     provider: g.provider, enabled: g.enabled,
     // Gym default display zone (client fallback when an event/booking carries none).
     timezone: g.timezone,

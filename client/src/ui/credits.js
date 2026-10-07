@@ -28,13 +28,13 @@ let bundleTypes = [];
 // The gym this checkout flow targets (set in initBundles from `creditGym`) —
 // this whole module is CodexFit/Shopify-specific (see the capability gate
 // below), so its copy names the actual gym rather than assuming "Psycle".
-// The fallback website URL stays literally Psycle's: this checkout flow only
-// works against Psycle's Shopify storefront today (no other gym is
-// creditPurchase-capable yet), so a "generic" URL here would be a lie, not a
-// fix — see Documentation/Archive/2026-09-26/Backlog/multi-gym-buy-credits.md for the real fix.
+// The website fallback for a 3-D Secure purchase comes from the gym's own config
+// (`creditStoreUrl` template, exposed on /api/gyms for creditPurchase gyms, falling
+// back to `websiteUrl`); core assumes no storefront URL layout.
 let creditGymName = 'your gym';
 let creditGymId = null;
 let creditGymWebsiteUrl = null;
+let creditGymStoreUrl = null;
 
 export async function initBundles() {
   const summaryRoot = document.getElementById('app-credits-summary');
@@ -241,6 +241,7 @@ async function openGymCreditDetail(gymId) {
   creditGymName = gym.shortName || gym.name || COPY.static.yourGymFallback;
   creditGymId = gymId;
   creditGymWebsiteUrl = gym.websiteUrl || null;
+  creditGymStoreUrl = gym.creditStoreUrl || null;
 
   document.getElementById('app-credits-summary').hidden = true;
   const detail = document.getElementById('app-credits-detail');
@@ -830,8 +831,10 @@ function renderPurchaseError(body, b, message, hint, secureTips) {
   `;
   body.querySelector('.app-website-btn').addEventListener('click', () => {
     const handle = b.handle || '';
-    if (!creditGymWebsiteUrl) return;
-    const target = handle ? new URL(`products/${handle}`, creditGymWebsiteUrl).toString() : creditGymWebsiteUrl;
+    const target = (handle && creditGymStoreUrl)
+      ? creditGymStoreUrl.replace('{handle}', encodeURIComponent(handle))
+      : creditGymWebsiteUrl;
+    if (!target) return;
     window.open(target, '_blank', 'noopener,noreferrer');
   });
 }

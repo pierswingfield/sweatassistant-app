@@ -142,7 +142,7 @@ export function sameState(a, b) {
 }
 
 const LEGACY_SECTIONS = { booking: 'gyms', experience: 'account', advanced: 'account' };
-const SETTINGS_SECTIONS = ['general', 'about', 'calendar', 'notifications', 'gyms', 'account'];
+const SETTINGS_SECTIONS = ['general', 'about', 'calendar', 'notifications', 'favourites', 'gyms', 'account'];
 
 /** '#my-bookings' -> '/bookings'. Returns null for anything unrecognised (never invents a route). */
 export function legacyHashToPath(hash) {

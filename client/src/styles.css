@@ -2693,9 +2693,6 @@ html, body {
 #sa-helper-container .sa-table thead {
   display: none !important;
 }
-#sa-helper-container .sa-timetable-heart {
-  display: none !important;
-}
 
 #sa-helper-container .sa-table td.col-time,
 #sa-helper-container .sa-table th.col-time { width: 72px !important; }
@@ -2955,10 +2952,18 @@ html, body {
 
 /* Timetable Heart Icon */
 .sa-timetable-heart {
-  display: inline-block;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex: 0 0 auto;
+  width: 28px;
+  height: 28px;
+  padding: 0;
+  border: 0;
+  background: transparent;
   cursor: pointer;
   user-select: none;
-  margin-right: 8px;
+  margin-right: 6px;
   font-size: 14px;
   transition: transform 0.15s cubic-bezier(0.25, 0.8, 0.25, 1), filter 0.15s ease;
 }
@@ -2991,12 +2996,7 @@ html, body {
   100% { transform: scale(1.15); }
 }
 
-/* Bookmarks Filter Button (Temporarily hidden on front-end until cross-gym favourite solution) */
-#sa-filter-favorites-only,
-.fr-heart {
-  display: none !important;
-}
-
+/* Favourites-only filter button (desktop filter bar; on mobile it lives in the filter drawer) */
 #sa-filter-favorites-only {
   background: var(--surface-inset);
   border: 1px solid var(--border);
@@ -7671,8 +7671,6 @@ html, body {
 .fr-initials { font-size: 10px; font-weight: 300; letter-spacing: .5px; text-transform: uppercase; }
 .fr-avatar { width: 22px; height: 22px; border-radius: 50%; object-fit: cover; flex-shrink: 0; }
 .fr-avatar-fallback { display: inline-flex; align-items: center; justify-content: center; background: var(--surface-inset); font-size: 10px; font-weight: 700; }
-.fr-heart { width: 30px; height: 30px; border-radius: 50%; border: 1px solid var(--border-strong); background: var(--surface-2); color: var(--text); cursor: pointer; padding: 0; font-size: 15px; }
-.fr-heart.active { color: var(--danger); border-color: var(--danger); }
 
 .fr-sheet-overlay { position: fixed; inset: 0; z-index: 10050; background: rgba(0,0,0,.55); display: flex; align-items: flex-end; opacity: 0; pointer-events: none; transition: opacity .25s ease-out; }
 .fr-sheet-overlay.open { opacity: 1; pointer-events: auto; }
@@ -7776,7 +7774,6 @@ html, body {
 .fr-wgroup + .fr-wgroup { margin-top: 14px; padding-top: 14px; }
 
 /* Rail: heart is an ordinary chip that rides the right edge when there is room. */
-.fr-heart { width: auto; min-width: 32px; height: 32px; padding: 0 12px; border-radius: 16px; margin-left: auto; font-size: 15px; line-height: 1; }
 
 @media (max-width: 768px) {
   /* Bar -> date selector gap */
@@ -7789,9 +7786,6 @@ html, body {
 }
 
 /* --- U2-5 round 5 --- */
-.fr-spacer { flex: 1 0 0; min-width: 0; }
-.fr-heart { margin-left: 0; }
-.fr-heart svg { display: block; }
 .fr-search { margin-bottom: 0; }
 .fr-search + .fr-list { padding-top: 12px; }
 .fr-wgroup-head { margin: 0; padding-bottom: 12px; }
@@ -8813,7 +8807,7 @@ body::after { z-index: 1000002 !important; }
   /* Row 1 order is time, gym chip, class type, heart: the heart is now trailing, so the time column only
      needs the time itself (re-tightened so every chip still shares one left edge). */
   #sa-helper-container .sa-mobile-top-line > strong { min-width: 44px; }
-  #sa-helper-container .sa-mobile-top-line .sa-mobile-fav-indicator { flex: 0 0 auto; margin-left: 2px; font-size: 15px; }
+  #sa-helper-container .sa-mobile-top-line .sa-mobile-fav-indicator { flex: 0 0 auto; font-size: 16px; }
   /* 5. Instructor photo spans rows 2-3; rows 2-3 indent to its right. */
   #sa-helper-container .sa-mobile-avatar {
     position: relative; flex: 0 0 38px; width: 38px; height: 38px; border-radius: 50%; overflow: hidden;
@@ -9581,3 +9575,72 @@ html:not([data-credits-tab="on"]) .sa-nav-btn[data-tab="buy-credits"] { display:
   background: transparent; color: var(--text); border: 1px solid var(--accent); font: inherit; font-weight: 600;
 }
 .sa-url-overlay-banner .sa-url-overlay-clear:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+
+/* ---- Share My Bookings (F-3): mobile-only header button + drawer extras ---- */
+#sa-helper-container .sa-share-btn { display: none; margin-left: auto; height: 36px; padding: 0 12px !important; gap: 6px; font-size: 13px; font-weight: 600; font-family: inherit; align-items: center; justify-content: center; background: transparent; border: 1px solid var(--border); border-radius: var(--radius-control); color: var(--text-secondary); cursor: pointer; flex-shrink: 0; }
+#sa-helper-container .sa-share-btn:hover { color: var(--text); border-color: var(--border-strong); }
+@media (max-width: 768px) {
+  #sa-helper-container .sa-share-btn { display: inline-flex; }
+}
+.share-sheet .share-label { font-size: 12px; font-weight: 700; letter-spacing: .06em; text-transform: uppercase; color: var(--text-secondary); padding: 12px 0 8px; }
+.share-sheet .share-sec { padding-bottom: 8px; }
+.share-sheet .share-tbc { display: flex; align-items: center; gap: 10px; min-height: 48px; font-size: 14px; cursor: pointer; }
+.share-sheet .share-tbc input { width: 20px; height: 20px; accent-color: var(--accent); flex-shrink: 0; }
+.share-sheet .share-preview { border-top: 1px solid var(--border); padding-bottom: 10px; }
+.share-sheet .share-preview-box { padding: 10px 12px; border-radius: 10px; background: var(--surface-2); border: 1px solid var(--border); font-size: 13px; line-height: 1.5; max-height: 240px; overflow-y: auto; overscroll-behavior: contain; }
+.share-sheet .share-preview-box p { margin: 0 0 8px; }
+.share-sheet .share-preview-box ul { margin: 0 0 8px; padding-left: 20px; }
+.share-sheet .share-preview-box li { margin: 2px 0; }
+.share-sheet .share-foot { padding: 10px 16px 12px; border-top: 1px solid var(--border); display: flex; flex-direction: column; gap: 6px; }
+.share-sheet .share-cta { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; width: 100%; }
+.share-sheet .share-cta.is-single { grid-template-columns: 1fr; }
+.share-sheet .share-cta button { width: 100%; height: 46px; border-radius: 12px; font-weight: 600; font-size: 14px; }
+.share-sheet .share-cta button:disabled { opacity: .4; cursor: default; }
+.share-sheet .share-cancel { height: 44px; background: none; border: 0; color: var(--text-secondary); font-size: 14px; font-weight: 600; cursor: pointer; }
+.share-sheet.fr-sheet { height: auto; max-height: 86dvh; }
+
+/* F-12: favourite heart on every row. Mobile card: 44px hit area, visual stays compact. */
+.sa-timetable-heart:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; border-radius: 8px; }
+.sa-timetable-heart svg { display: block; pointer-events: none; }
+@media (max-width: 768px) {
+  .sa-timetable-heart.sa-mobile-fav-indicator {
+    width: 44px; height: 44px; margin: -11px -8px -11px auto; pointer-events: auto !important;
+    font-size: 16px; touch-action: manipulation; -webkit-tap-highlight-color: transparent;
+  }
+  .sa-timetable-heart.sa-mobile-fav-indicator.unbookmarked { color: var(--text-secondary) !important; }
+}
+/* Drawer row: Favourites only */
+.fr-favrow { display: flex; align-items: center; gap: 10px; width: 100%; min-height: 48px; padding: 8px 14px; border-radius: 12px; border: 1px solid var(--border); background: var(--surface-2); color: var(--text); font-size: 15px; font-weight: 600; cursor: pointer; touch-action: manipulation; }
+.fr-favrow.on { border-color: var(--danger); color: var(--danger); }
+@media (max-width: 768px) {
+  /* Heart: in the first row, right after the class-type chip; only rendered for a favourited class. 44px hit
+     area via negative margin so the row keeps its height. */
+  #sa-helper-container .sa-mobile-top-line > .sa-mobile-fav-indicator { position: static; flex: 0 0 auto; width: 26px; height: 32px; margin: -8px -4px -8px -8px; }
+  /* A favourited card's chip may give up width (it keeps its equalised width whenever the row has room), so the
+     heart after it can never be pushed out of a narrow row, e.g. a wide gym chip plus a zone suffix. */
+  #sa-helper-container .sa-mobile-top-line .ab-disc-tag:has(+ .sa-mobile-fav-indicator) { flex-shrink: 1 !important; min-width: 0 !important; overflow: hidden; text-overflow: ellipsis; }
+}
+
+/* F-12: Settings > Favourites pane. Rows are the timetable's own rows; this only adds the page furniture
+   (note, weekday headings) and the "no upcoming class" row. */
+.sa-fav-note { margin: 4px 0 6px; font-size: 13px; line-height: 1.45; color: var(--text-secondary); max-width: 62ch; }
+.sa-fav-day { margin-top: 18px; }
+.sa-fav-day-title { margin: 0 0 6px 2px; font-size: 15px; font-weight: 600; color: var(--text); }
+.sa-fav-missing { display: flex; align-items: center; gap: 12px; min-width: 0; }
+.sa-fav-missing-time { flex: 0 0 auto; min-width: 44px; font-size: 14px; }
+.sa-fav-missing-body { flex: 1 1 0; min-width: 0; display: flex; flex-direction: column; gap: 2px; }
+.sa-fav-missing-title { display: flex; align-items: center; gap: 8px; min-width: 0; font-size: 14px; font-weight: 600; }
+.sa-fav-missing-title > span { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.sa-fav-missing-where { font-size: 12px; color: var(--text-secondary); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.sa-fav-missing-note { font-size: 12px; font-style: italic; color: var(--text-tertiary, var(--text-secondary)); }
+.sa-fav-missing-heart { flex: 0 0 auto; width: 36px; height: 36px; display: inline-flex; align-items: center; justify-content: center; color: var(--danger); background: none; border: 0; cursor: pointer; touch-action: manipulation; }
+.sa-fav-missing-heart.loading { opacity: .5; pointer-events: none; }
+.sa-fav-empty-title { font-size: 16px; margin: 0 0 8px; }
+.sa-fav-empty-help { font-size: 13px; margin: 0 auto; max-width: 44ch; color: var(--text-tertiary, var(--text-secondary)); }
+.sa-fav-empty { text-align: center; padding: 40px 20px; color: var(--text-secondary); }
+@media (max-width: 768px) {
+  #sa-helper-container .sa-fav-day { margin-top: 14px; }
+  #sa-helper-container .sa-fav-missing { flex-wrap: wrap; gap: 6px 10px; }
+  #sa-helper-container .sa-fav-missing-body { flex-basis: 100%; order: 3; }
+  #sa-helper-container .sa-fav-missing-heart { margin-left: auto; order: 2; }
+}

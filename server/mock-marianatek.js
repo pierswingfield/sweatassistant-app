@@ -287,7 +287,23 @@ function handleMockRequest(pathName, method, body, gym) {
     const maxDate = query.get('max_start_date');
     if (minDate) results = results.filter((c) => c.start_date >= minDate);
     if (maxDate) results = results.filter((c) => c.start_date <= maxDate);
-    return createFakeResponse({ count: results.length, next: null, previous: null, results, meta: {} });
+    // Paginated like the live API (meta.pagination.pages + next link) so the
+    // adapter's parallel-page path is exercised in dev. MOCK_MT_PAGE_MS adds
+    // per-request latency (live pages take 2-5 s) for timing experiments.
+    const pageSize = Number(query.get('page_size') || 100);
+    const page = Number(query.get('page') || 1);
+    const total = results.length;
+    const pages = Math.max(1, Math.ceil(total / pageSize));
+    const pageRows = results.slice((page - 1) * pageSize, page * pageSize);
+    const nextQs = new URLSearchParams(query); nextQs.set('page', String(page + 1));
+    const body = {
+      count: total, previous: null, results: pageRows,
+      next: page < pages ? `https://mock.local/api/customer/v1/classes?${nextQs}` : null,
+      meta: { pagination: { page, pages, count: total, per_page: pageSize } },
+    };
+    const delay = Number(process.env.MOCK_MT_PAGE_MS || 0);
+    if (delay > 0) return new Promise((r) => setTimeout(() => r(createFakeResponse(body)), delay));
+    return createFakeResponse(body);
   }
 
   // GET /locations

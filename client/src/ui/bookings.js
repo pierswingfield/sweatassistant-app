@@ -187,6 +187,12 @@ export function syncBookingCache(bookings) {
 // ── Waitlist discoverability ─────────────────────────────────────────
 // Header counts ("Active Bookings (12)") + a sticky "Waitlists (N) ↓" bar
 // shown only while the waitlist section is off-screen.
+// F-3: the share drawer is loaded on first use (it pulls in the filter drawer's shell).
+document.addEventListener('click', (e) => {
+  if (!e.target.closest('#sa-bookings-share-btn')) return;
+  import('./share-sheet.js').then((m) => m.openShareSheet()).catch((err) => console.error('[Bookings] Share failed:', err));
+});
+
 let bookedCount = 0;
 let waitlistCount = 0;
 let waitlistObserver = null;
@@ -314,18 +320,16 @@ function buildBookingCard(group, upgrades) {
     });
 
     // Find active upgrade for this specific booking
-    const activeUpgrade = findUpgradeForSeat(upgrades, {
+    const foundUpgrade = findUpgradeForSeat(upgrades, {
       bookingId: bookingIdOf(b), gymId: event.gymId || b.gymId, eventId: group.eventId, slotId,
     });
+    // A stopped monitor (12h cutoff, already best seat) renders as not enabled.
+    const activeUpgrade = foundUpgrade?.status === 'stopped' ? null : foundUpgrade;
 
     let chipClass = 'ab-spot-upgrade-chip';
     let iconHtml = '';
 
-    if (activeUpgrade && activeUpgrade.status === 'stopped') {
-      // Ended (e.g. already in the best spot / window closed): visible, muted, tappable.
-      chipClass += ' state-stopped';
-      iconHtml = '<span style="margin-right:4px;" aria-hidden="true">&#9208;</span>';
-    } else if (activeUpgrade) {
+    if (activeUpgrade) {
       if (activeUpgrade.status === 'paused_no_credits' || activeUpgrade.status === 'paused_disabled' || totalAvailableCredits(event.gymId) < 1) {
         chipClass += ' state-warning';
         iconHtml = '<span style="margin-right:4px;">⚠</span>';

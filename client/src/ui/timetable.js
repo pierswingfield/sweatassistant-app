@@ -5,7 +5,9 @@ import { getAvailableCreditsForEvent, hasUsableCredit, getIneligibleReason, isMe
 import { isCreditInventoryLoaded, pickStudioPrefs as pickGymStudioPrefs } from './gym-isolation.js';
 import { isRollingWeeklyGym } from '../gym-context.js';
 import { canForGym, canAny, capabilityForGym, getLinkedGyms, getGymShortName, getLocationAlias, getDefaultGymId, formatSpotLabel } from '../gym-context.js';
-import { showToast, currentUser, userSettings, gymSetting, isAutoUpgradeDefaultEnabled, profileForGym, refreshUserData, updateCreditBadge, cache, debugConsole } from '../main';
+import { showToast, currentUser, userSettings, gymSetting, isAutoUpgradeDefaultEnabled, favouritesForGym, setFavouriteLocal, refreshUserData, updateCreditBadge, cache, debugConsole } from '../main';
+import { heartButtonHtml, mobileHeartHtml } from '../favourite-heart.js';
+import { slotOfEvent, favouriteId, labelsOfEvent, isFavouriteIn } from '../favourites.js';
 import { passesLocationFilter, formatFullDate, getClassReleaseTime, isFullWithoutWaitlist, isInGracePeriod, GRACE_PERIOD_MS, startGraceCountdown, noSept, zoneFor, formatInZone, dayKeyInZone, nowInZone, deviceZone } from '../lib';
 import { getGymTimeZone, getCatalogueGyms } from '../gym-context.js';
 import { DateTime } from 'luxon';
@@ -36,6 +38,7 @@ import { buildSearchIndex, searchEvents, tokenize } from './timetable-search.js'
 import { getSearchQuery, setSearchQuery, onSearchChange, inSearchScope, enterSearchScope, leaveSearchScope, emptyFilters, filtersAreEmpty } from './timetable-search-state.js';
 import { ensureSearchUi, openSearch } from './timetable-search-ui.js';
 import { renderTimetableSkeleton } from './loading-skeleton.js';
+import { shouldShowPendingSkeleton } from './pending-gyms.js';
 import { isDocScroll, docScroller, markScrollBusy } from './scroll-state.js';
 import { sortEvents } from './progressive-merge.js';
 import { captureScrollAnchor, restoreScrollAnchor } from './scroll-anchor.js';
@@ -926,6 +929,7 @@ export async function prefetchTimetableData(force = false) {
   }
 
   isPrefetching = true;
+  pendingGymIds = null; // fetch started, nothing flushed yet: every gym counts as pending
   prefetchError = null;
   const generation = prefetchGeneration;
 
@@ -974,7 +978,8 @@ export async function prefetchTimetableData(force = false) {
     const applyFlush = async ({ events, pending, final }) => {
       await contextGate;
       if (generation !== prefetchGeneration) return;
-      if (final && !events.length) return; // every gym failed/empty: keep what we had
+      pendingGymIds = final ? [] : (pending || []).map(String);
+      if (final && !events.length) { renderPreservingScroll('network-refresh'); return; } // every gym failed/empty: keep what we had, drop the skeleton
       const stillPending = new Set((pending || []).map(String));
       const carried = stillPending.size
         ? staleEvents.filter((e) => stillPending.has(String(e.gymId)))
@@ -1025,6 +1030,7 @@ export async function prefetchTimetableData(force = false) {
   } catch (err) {
     isPrefetching = false;
     prefetchError = err.message;
+    announceTimetableRendered();
     console.error('[Timetable] Prefetch failed:', err);
     if (!hasCached) {
       ttContainer.innerHTML = `
@@ -1635,12 +1641,7 @@ function countMatchingEventsQuick() {
       const etGroupId = rawGroup != null ? discLabel(String(rawGroup), e.gymId) : null;
       if (!passesDisciplineFilter(selectedEventTypes, etGroupId)) continue;
     }
-    if (showBookmarksOnly) {
-      const identifier = generateBookmarkIdentifier(e);
-      if (!canForGym('bookmarks', e.gymId)) continue;
-      const bookmarks = profileForGym(e.gymId)?.metafields?.public?.bookmarks?.events || [];
-      if (!bookmarks.includes(identifier)) continue;
-    }
+    if (showBookmarksOnly && !isFavouriteEvent(e)) continue;
     count++;
   }
   return count;
@@ -1717,7 +1718,7 @@ function buildFilterRailCtx(eventsExcluding, resultCount) {
       .map(i => ({ ...i, rawId: i.id, id: instructorToken(i.gymId, i.id) })),
     openSearch,
     searchActive: inSearchScope(),
-    canBookmark: false, // Temporarily hidden on front-end until universal cross-gym favourite class solution
+    canBookmark: true, // F-12: gym-neutral favourites exist for every gym now
     flush: flushDeferredFilterRender,
     // Nothing picked = no filter (every chip shows unselected); picking chips
     // narrows to just those. OR within a section, AND across sections.
@@ -1823,7 +1824,14 @@ function normalizeStoredFilters() {
   savedFilterState = copyOf(currentFilterState());   // saved set, after the one-time fold
 }
 
+// C2-4: gyms the current network fetch is still waiting on. null = fetch running, no flush
+// yet (all pending); [] = nothing pending. Drives skeleton-vs-empty-state in the grid.
+let pendingGymIds = [];
+
 // Core timetable grid and date selector rendering
+/** F-12: tell read-only views of the loaded schedule (Settings > Favourites) that it changed or finished loading. */
+function announceTimetableRendered() { window.dispatchEvent(new Event('sweat-timetable-rendered')); }
+
 export async function renderTimetableGrid(reason = 'interaction') {
   const renderStartedAt = timetablePerfNow();
   const ttGrid = document.getElementById('sa-timetable-grid');
@@ -1950,12 +1958,8 @@ export async function renderTimetableGrid(reason = 'interaction') {
       if (!passesDisciplineFilter(selectedEventTypes, etGroupId)) return false;
     }
     // Filter by Bookmarked Only
-    if (showBookmarksOnly) {
-      const identifier = generateBookmarkIdentifier(e);
-      if (!canForGym('bookmarks', e.gymId)) return false; // gym has no favourites concept → nothing can match "favourites only"
-      const bookmarks = profileForGym(e.gymId)?.metafields?.public?.bookmarks?.events || [];
-      if (!bookmarks.includes(identifier)) return false;
-    }
+    // F-12: every gym has favourites now (native or local); the row's OWN gym's list decides.
+    if (showBookmarksOnly && !isFavouriteEvent(e)) return false;
     return true;
   });
 
@@ -2067,11 +2071,16 @@ export async function renderTimetableGrid(reason = 'interaction') {
 
   // 6. Render the Class Timetable Grid Table
   if (!selectedTimetableDate && !searching) {
+    if (shouldShowPendingSkeleton({ pendingGyms: isPrefetching ? pendingGymIds : [], selectedGyms, visibleCount: 0 })) {
+      if (!ttGrid.querySelector('.sa-skeleton-table')) ttGrid.innerHTML = renderTimetableSkeleton();
+      return;
+    }
     ttGrid.innerHTML = `
       <div style="text-align: center; color: var(--text-secondary); padding: 40px; font-style: italic;">
         ${COPY.timetable.noClasses}
       </div>
     `;
+    announceTimetableRendered();
     return;
   }
 
@@ -2125,183 +2134,7 @@ export async function renderTimetableGrid(reason = 'interaction') {
         tbody.appendChild(h);
       }
     }
-    // Primary: use embedded objects from event payload (CodexFit includes these)
-    // Fallback: use Maps built from merged metadata (Maps include both int and string keys)
-    const studioObj = event.studio || gymScopedGet(studioObjMap, event.studioId, event.gymId);
-    const studioName = studioObj?.name || gymScopedGet(studioMap, event.studioId, event.gymId) || '';
-    const locName = studioObj?.location?.name
-      || gymScopedGet(locationMap, studioObj?.locationId, event.gymId)
-      || gymScopedGet(locationMap, event.locationId, event.gymId)
-      || '';
-    const instrName = event.instructors?.[0]?.name || event.instructor?.name
-      || gymScopedGet(instructorMap, event.instructors?.[0]?.id, event.gymId) || '';
-    const eventTypeName = event.name || gymScopedGet(eventTypeMap, event.classTypeId, event.gymId) || 'Class';
-    const className = event.name || eventTypeName;
-    // Group name is the short type label (e.g., "Ride", "Barre", "Yoga")
-    const groupName = event.discipline
-      || gymScopedGet(eventTypeGroupMap, event.classTypeId, event.gymId)
-      || 'Class';
-    // Drop the discipline prefix the provider repeats into every class name, and
-    // normalise SHOUTING. This used to handle only "TYPE: " (colon + space),
-    // which left JAB's "TRAIN - Upper (Focus)" and "BOXING Core & Power"
-    // untouched — the discipline pill beside the name then said the same word
-    // twice while the name itself was squeezed into what was left.
-    const strippedClassName = cleanClassName(className, groupName);
-
-    const startDate = new Date(event.startAt);
-    const timeStr = formatInZone(event.startAt, zoneFor(event)).timeLabel;
-
-    // Cutoff status calculation (instant comparison; zone-free)
-    const classRelease = getClassReleaseTime(event, userSettings);
-    const now = DateTime.now();
-    const isLive = event.alwaysBookable ? true : (classRelease ? now >= classRelease : true);
-    const isFullyBooked = !!event.isFull;
-    const canWaitlist = !isFullWithoutWaitlist(event);
-
-    const isBooked = userBookings().some(b => matchesEvent(b, event));
-    const isOnWaitlist = userWaitlists().some(w => matchesEvent(w, event));
-
-    const availableSpots = (typeof event.capacity === 'number' && typeof (event.capacity != null && event.availableCount != null ? event.capacity - event.availableCount : undefined) === 'number')
-      ? Math.max(0, event.capacity - (event.capacity != null && event.availableCount != null ? event.capacity - event.availableCount : undefined))
-      : null;
-    const spotsText = availableSpots !== null ? `${availableSpots} / ${event.capacity}` : 'Open';
-
-    const identifier = generateBookmarkIdentifier(event);
-    // Bookmarks live in CodexFit profile metafields. A gym without the
-    // capability has none — don't reach into a provider-shaped blob for them.
-    const bookmarks = canForGym('bookmarks', event.gymId) ? (profileForGym(event.gymId)?.metafields?.public?.bookmarks?.events || []) : [];
-    const isBookmarked = bookmarks.includes(identifier);
-    const heartChar = isBookmarked ? '♥' : '♡';
-    const heartClass = isBookmarked ? 'sa-timetable-heart bookmarked' : 'sa-timetable-heart unbookmarked';
-
-    // ── Status badge (kept as a restyled column) + shared action model ──
-    let statusBadge = '';
-    let rowClass = 'sa-table-row';
-    let bookingId = null, isPenalty = false, slotsBookedCount = 0, waitlistId = null, graceDeadline = null;
-    const hasCredit = hasUsableCredit(event);
-
-    const isScheduled = autoBookedIds.has(event.id) || autoBookedIds.has(Number(event.id)) || autoBookedIds.has(String(event.id));
-
-    if (!isLive) {
-      if (isScheduled) {
-        rowClass = 'sa-table-row row-beyond-cutoff row-scheduled';
-        statusBadge = `<span class="badge-pill scheduled sa-occupancy-hover" data-id="${event.id}" data-gym-id="${event.gymId || ''}">${pulseIcon(12)}${COPY.timetable.autoBook.toUpperCase()}</span>`;
-      } else {
-        rowClass = 'sa-table-row row-beyond-cutoff';
-        statusBadge = `<span class="badge-pill not-live sa-occupancy-hover" data-id="${event.id}" data-gym-id="${event.gymId || ''}">${COPY.timetable.notLive}</span>`;
-      }
-    } else if (isBooked) {
-      const eventBookings = userBookings().filter(b => matchesEvent(b, event));
-      slotsBookedCount = eventBookings.length;
-      statusBadge = `<span class="badge-pill yes sa-occupancy-hover" data-id="${event.id}" data-gym-id="${event.gymId || ''}" style="cursor: pointer;">${COPY.timetable.booked}${slotsBookedCount > 1 ? ` (${slotsBookedCount})` : ''}</span>`;
-      if (slotsBookedCount === 1) {
-        bookingId = eventBookings[0].bookingId ?? eventBookings[0].id;
-        const bookedAt = eventBookings[0].bookedAt ?? eventBookings[0].booked_at;
-        const diffHours = (startDate - new Date()) / (1000 * 60 * 60);
-        isPenalty = diffHours < 12 && diffHours > 0;
-        if (bookedAt && isInGracePeriod(bookedAt)) {
-          graceDeadline = new Date(bookedAt).getTime() + GRACE_PERIOD_MS;
-        }
-      }
-    } else if (isOnWaitlist) {
-      statusBadge = `<span class="badge-pill waitlisted sa-occupancy-hover" data-id="${event.id}" data-gym-id="${event.gymId || ''}" style="cursor: pointer;">${COPY.timetable.waitlisted}</span>`;
-      const waitlistEntry = userWaitlists().find(w => matchesEvent(w, event));
-      // C2-2 fix (2026-09-26): this read `waitlistEntry.id`, a field that has
-      // never existed on a NormalizedBooking (it's `bookingId` — see base.js's
-      // doc comment) — so `waitlistId` was always undefined and the "Leave
-      // WL" button never rendered (buildActionModel below falls through to a
-      // disabled "On Waitlist" pill whenever `waitlistId` is falsy). The
-      // provider's leaveWaitlist() takes the CLASS event id and resolves the
-      // waitlist row internally (see codexfit.js/marianatek.js), so this
-      // passes `event.id`, not any field off the waitlist entry itself.
-      if (waitlistEntry) waitlistId = event.id;
-    } else if (isFullyBooked) {
-      statusBadge = canWaitlist
-        ? `<span class="badge-pill waitlist-open sa-occupancy-hover" data-id="${event.id}" data-gym-id="${event.gymId || ''}" style="cursor: pointer;">${COPY.timetable.waitlist}</span>`
-        : `<span class="badge-pill no fully-booked sa-occupancy-hover" data-id="${event.id}" data-gym-id="${event.gymId || ''}">${COPY.timetable.full}</span>`;
-    } else if (!hasCredit) {
-      // Short label in the pill, full reason in the tooltip — the column is
-      // narrow and "NO CREDITS AVAILABLE" spends all of it restating "no".
-      // NO badge here beyond the occupancy. The row's primary action already
-      // says "Buy Credits", so a "No credits" pill beside it is the same fact
-      // twice — and it was spending the narrowest column in the table to do it.
-      // The reason still reaches the user: it's the button's tooltip.
-      statusBadge = `<span class="badge-pill yes sa-occupancy-hover" data-id="${event.id}" data-gym-id="${event.gymId || ''}" style="cursor: pointer;" title="${escapeHtml(getIneligibleReason(event.gymId) || COPY.timetable.noCredits)}">${spotsText}</span>`;
-    } else {
-      statusBadge = `<span class="badge-pill yes sa-occupancy-hover" data-id="${event.id}" data-gym-id="${event.gymId || ''}" style="cursor: pointer;">${spotsText}</span>`;
-    }
-
-    const actionModel = buildActionModel(event, {
-      isLive, isBooked, isOnWaitlist, isFullyBooked, canWaitlist, hasCredit,
-      isScheduled,
-      bookingId, isPenalty, slotsBookedCount, waitlistId, graceDeadline,
-    });
-
-    // === MOBILE TIMETABLE — PWA MOBILE LAYOUT (added Jun 2026; delete this block to revert) ===
-    if (window.matchMedia('(max-width: 768px)').matches) {
-      tbody.appendChild(buildMobileClassRow(event, {
-        timeStr, groupName, strippedClassName, instrName, locName,
-        isBookmarked, heartChar, heartClass, rowClass
-      }, actionModel));
-      return; // skip desktop rendering for this row
-    }
-    // === END MOBILE TIMETABLE BLOCK ===
-
-    const row = document.createElement('tr');
-    row.className = rowClass;
-    row.setAttribute('data-gym', event.gymId || getDefaultGymId());
-    // Identity and layout kind on the row itself. Without these a rendered row
-    // cannot be traced back to its event from the DOM, which made verifying
-    // per-class behaviour ("is this FCFS?") impossible from outside the app —
-    // and layoutFormat is per CLASS, not per studio: JAB's BOXING room runs
-    // both first-come-first-serve and pick-a-spot classes, so inferring it from
-    // the studio is wrong for half of them.
-    row.setAttribute('data-event-id', event.id);
-    if (event.layoutFormat) row.setAttribute('data-layout-format', event.layoutFormat);
-    row.innerHTML = `
-      <td class="col-time"><strong>${timeStr}</strong></td>
-      <td class="col-gym">${gymChip(event.gymId)}</td>
-      <td class="col-class">
-        <div class="sa-tt-class-cell">
-          ${canForGym('bookmarks', event.gymId) ? `<span class="${heartClass}" data-event-id="${event.id}" title="${isBookmarked ? COPY.timetable.removeBookmark : COPY.timetable.bookmarkClass}">${heartChar}</span>` : ''}
-          ${disciplineTag(groupName)}
-          <span class="sa-tt-class-name">${strippedClassName}</span>
-        </div>
-      </td>
-      <td class="col-instructor">${instrName ? `<span class="sa-instructor-hover" ${instructorHoverAttrs(event.instructors?.[0], event.gymId, instrName)}>${instrName}</span>` : ''}</td>
-      ${/* MID-WIDTH COLUMN: instructor + top-level location only ("SW1",
-           "Oxford Circus"), with the specific studio dropped — at that width
-           the studio is the least useful thing on the row and the most
-           expensive, since it forces a second line.
-           Always rendered; CSS shows exactly one of {instructor+location} or
-           {this} at any width, so a resize needs no re-render. */ ''}
-      <td class="col-who-where">
-        ${instrName ? `<span class="sa-ww-who sa-instructor-hover" ${instructorHoverAttrs(event.instructors?.[0], event.gymId, instrName)}>${instrName}</span>` : ''}
-        ${locName ? `<span class="sa-ww-loc">${trimLocation(locName, getGymShortName(event.gymId))}</span>` : ''}
-      </td>
-      <td class="col-location">
-        <span style="font-weight:600; display:block; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">${trimLocation(locName, getGymShortName(event.gymId))}</span>
-        ${studioName ? `<span style="font-size:12px; color:var(--text-secondary); display:block; margin-top:2px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">${displayStudioName(event.gymId, studioName)}</span>` : ''}
-      </td>
-      <td class="col-status">${statusBadge}</td>
-      <td class="col-actions"></td>
-    `;
-
-    row.querySelector('.col-actions').appendChild(buildDesktopActions(actionModel, event, userSettings.debugMode, isBookmarked));
-
-    // Heart click listener — the element only exists when the gym HAS bookmarks
-    // (the markup above is capability-gated), so this must be optional. An
-    // unconditional querySelector here threw on every row for a gym without
-    // them, which emptied the whole timetable.
-    const heartEl = row.querySelector('.sa-timetable-heart');
-    if (heartEl) {
-      heartEl.onclick = (e) => {
-        e.stopPropagation();
-        toggleNativeBookmark(event, e.target);
-      };
-    }
-
-    tbody.appendChild(row);
+    tbody.appendChild(buildEventRow(event, autoBookedIds));
   });
 
   equalizeDiscTagWidths(ttGrid);
@@ -2316,6 +2149,224 @@ export async function renderTimetableGrid(reason = 'interaction') {
     reason,
     eventCount: sortedEvents.length,
   });
+  // F-12: let read-only views of the loaded schedule (Settings > Favourites) repaint when it changes.
+  announceTimetableRendered();
+}
+
+// The ONE per-event timetable row (desktop <tr> or mobile card <tr>). Extracted from renderTimetableGrid's
+// loop so the Settings Favourites pane reuses exactly the same rendering instead of a second copy (F-12).
+function buildEventRow(event, autoBookedIds) {
+  // Primary: use embedded objects from event payload (CodexFit includes these)
+  // Fallback: use Maps built from merged metadata (Maps include both int and string keys)
+  const studioObj = event.studio || gymScopedGet(studioObjMap, event.studioId, event.gymId);
+  const studioName = studioObj?.name || gymScopedGet(studioMap, event.studioId, event.gymId) || '';
+  const locName = studioObj?.location?.name
+    || gymScopedGet(locationMap, studioObj?.locationId, event.gymId)
+    || gymScopedGet(locationMap, event.locationId, event.gymId)
+    || '';
+  const instrName = event.instructors?.[0]?.name || event.instructor?.name
+    || gymScopedGet(instructorMap, event.instructors?.[0]?.id, event.gymId) || '';
+  const eventTypeName = event.name || gymScopedGet(eventTypeMap, event.classTypeId, event.gymId) || 'Class';
+  const className = event.name || eventTypeName;
+  // Group name is the short type label (e.g., "Ride", "Barre", "Yoga")
+  const groupName = event.discipline
+    || gymScopedGet(eventTypeGroupMap, event.classTypeId, event.gymId)
+    || 'Class';
+  // Drop the discipline prefix the provider repeats into every class name, and
+  // normalise SHOUTING. This used to handle only "TYPE: " (colon + space),
+  // which left JAB's "TRAIN - Upper (Focus)" and "BOXING Core & Power"
+  // untouched — the discipline pill beside the name then said the same word
+  // twice while the name itself was squeezed into what was left.
+  const strippedClassName = cleanClassName(className, groupName);
+
+  const startDate = new Date(event.startAt);
+  const timeStr = formatInZone(event.startAt, zoneFor(event)).timeLabel;
+
+  // Cutoff status calculation (instant comparison; zone-free)
+  const classRelease = getClassReleaseTime(event, userSettings);
+  const now = DateTime.now();
+  const isLive = event.alwaysBookable ? true : (classRelease ? now >= classRelease : true);
+  const isFullyBooked = !!event.isFull;
+  const canWaitlist = !isFullWithoutWaitlist(event);
+
+  const isBooked = userBookings().some(b => matchesEvent(b, event));
+  const isOnWaitlist = userWaitlists().some(w => matchesEvent(w, event));
+
+  const availableSpots = (typeof event.capacity === 'number' && typeof (event.capacity != null && event.availableCount != null ? event.capacity - event.availableCount : undefined) === 'number')
+    ? Math.max(0, event.capacity - (event.capacity != null && event.availableCount != null ? event.capacity - event.availableCount : undefined))
+    : null;
+  const spotsText = availableSpots !== null ? `${availableSpots} / ${event.capacity}` : 'Open';
+
+  // F-12: a favourite is a recurring slot, matched against THIS row's gym's list.
+  const isBookmarked = isFavouriteEvent(event);
+  const heartChar = isBookmarked ? '♥' : '♡';
+  const heartClass = isBookmarked ? 'sa-timetable-heart bookmarked' : 'sa-timetable-heart unbookmarked';
+
+  // ── Status badge (kept as a restyled column) + shared action model ──
+  let statusBadge = '';
+  let rowClass = 'sa-table-row';
+  let bookingId = null, isPenalty = false, slotsBookedCount = 0, waitlistId = null, graceDeadline = null;
+  const hasCredit = hasUsableCredit(event);
+
+  const isScheduled = autoBookedIds.has(event.id) || autoBookedIds.has(Number(event.id)) || autoBookedIds.has(String(event.id));
+
+  if (!isLive) {
+    if (isScheduled) {
+      rowClass = 'sa-table-row row-beyond-cutoff row-scheduled';
+      statusBadge = `<span class="badge-pill scheduled sa-occupancy-hover" data-id="${event.id}" data-gym-id="${event.gymId || ''}">${pulseIcon(12)}${COPY.timetable.autoBook.toUpperCase()}</span>`;
+    } else {
+      rowClass = 'sa-table-row row-beyond-cutoff';
+      statusBadge = `<span class="badge-pill not-live sa-occupancy-hover" data-id="${event.id}" data-gym-id="${event.gymId || ''}">${COPY.timetable.notLive}</span>`;
+    }
+  } else if (isBooked) {
+    const eventBookings = userBookings().filter(b => matchesEvent(b, event));
+    slotsBookedCount = eventBookings.length;
+    statusBadge = `<span class="badge-pill yes sa-occupancy-hover" data-id="${event.id}" data-gym-id="${event.gymId || ''}" style="cursor: pointer;">${COPY.timetable.booked}${slotsBookedCount > 1 ? ` (${slotsBookedCount})` : ''}</span>`;
+    if (slotsBookedCount === 1) {
+      bookingId = eventBookings[0].bookingId ?? eventBookings[0].id;
+      const bookedAt = eventBookings[0].bookedAt ?? eventBookings[0].booked_at;
+      const diffHours = (startDate - new Date()) / (1000 * 60 * 60);
+      isPenalty = diffHours < 12 && diffHours > 0;
+      if (bookedAt && isInGracePeriod(bookedAt)) {
+        graceDeadline = new Date(bookedAt).getTime() + GRACE_PERIOD_MS;
+      }
+    }
+  } else if (isOnWaitlist) {
+    statusBadge = `<span class="badge-pill waitlisted sa-occupancy-hover" data-id="${event.id}" data-gym-id="${event.gymId || ''}" style="cursor: pointer;">${COPY.timetable.waitlisted}</span>`;
+    const waitlistEntry = userWaitlists().find(w => matchesEvent(w, event));
+    // C2-2 fix (2026-09-26): this read `waitlistEntry.id`, a field that has
+    // never existed on a NormalizedBooking (it's `bookingId` — see base.js's
+    // doc comment) — so `waitlistId` was always undefined and the "Leave
+    // WL" button never rendered (buildActionModel below falls through to a
+    // disabled "On Waitlist" pill whenever `waitlistId` is falsy). The
+    // provider's leaveWaitlist() takes the CLASS event id and resolves the
+    // waitlist row internally (see codexfit.js/marianatek.js), so this
+    // passes `event.id`, not any field off the waitlist entry itself.
+    if (waitlistEntry) waitlistId = event.id;
+  } else if (isFullyBooked) {
+    statusBadge = canWaitlist
+      ? `<span class="badge-pill waitlist-open sa-occupancy-hover" data-id="${event.id}" data-gym-id="${event.gymId || ''}" style="cursor: pointer;">${COPY.timetable.waitlist}</span>`
+      : `<span class="badge-pill no fully-booked sa-occupancy-hover" data-id="${event.id}" data-gym-id="${event.gymId || ''}">${COPY.timetable.full}</span>`;
+  } else if (!hasCredit) {
+    // Short label in the pill, full reason in the tooltip — the column is
+    // narrow and "NO CREDITS AVAILABLE" spends all of it restating "no".
+    // NO badge here beyond the occupancy. The row's primary action already
+    // says "Buy Credits", so a "No credits" pill beside it is the same fact
+    // twice — and it was spending the narrowest column in the table to do it.
+    // The reason still reaches the user: it's the button's tooltip.
+    statusBadge = `<span class="badge-pill yes sa-occupancy-hover" data-id="${event.id}" data-gym-id="${event.gymId || ''}" style="cursor: pointer;" title="${escapeHtml(getIneligibleReason(event.gymId) || COPY.timetable.noCredits)}">${spotsText}</span>`;
+  } else {
+    statusBadge = `<span class="badge-pill yes sa-occupancy-hover" data-id="${event.id}" data-gym-id="${event.gymId || ''}" style="cursor: pointer;">${spotsText}</span>`;
+  }
+
+  const actionModel = buildActionModel(event, {
+    isLive, isBooked, isOnWaitlist, isFullyBooked, canWaitlist, hasCredit,
+    isScheduled,
+    bookingId, isPenalty, slotsBookedCount, waitlistId, graceDeadline,
+  });
+
+  // === MOBILE TIMETABLE — PWA MOBILE LAYOUT (added Jun 2026; delete this block to revert) ===
+  if (window.matchMedia('(max-width: 768px)').matches) {
+    return buildMobileClassRow(event, {
+      timeStr, groupName, strippedClassName, instrName, locName,
+      isBookmarked, heartChar, heartClass, rowClass
+    }, actionModel); // skip desktop rendering for this row
+  }
+  // === END MOBILE TIMETABLE BLOCK ===
+
+  const row = document.createElement('tr');
+  row.className = rowClass;
+  row.setAttribute('data-gym', event.gymId || getDefaultGymId());
+  // Identity and layout kind on the row itself. Without these a rendered row
+  // cannot be traced back to its event from the DOM, which made verifying
+  // per-class behaviour ("is this FCFS?") impossible from outside the app —
+  // and layoutFormat is per CLASS, not per studio: JAB's BOXING room runs
+  // both first-come-first-serve and pick-a-spot classes, so inferring it from
+  // the studio is wrong for half of them.
+  row.setAttribute('data-event-id', event.id);
+  if (event.layoutFormat) row.setAttribute('data-layout-format', event.layoutFormat);
+  row.innerHTML = `
+    <td class="col-time"><strong>${timeStr}</strong></td>
+    <td class="col-gym">${gymChip(event.gymId)}</td>
+    <td class="col-class">
+      <div class="sa-tt-class-cell">
+        ${heartButtonHtml({ isFavourite: isBookmarked, eventId: event.id, label: COPY.timetable.favourite, pressedLabel: COPY.timetable.unfavourite })}
+        ${disciplineTag(groupName)}
+        <span class="sa-tt-class-name">${strippedClassName}</span>
+      </div>
+    </td>
+    <td class="col-instructor">${instrName ? `<span class="sa-instructor-hover" ${instructorHoverAttrs(event.instructors?.[0], event.gymId, instrName)}>${instrName}</span>` : ''}</td>
+    ${/* MID-WIDTH COLUMN: instructor + top-level location only ("SW1",
+         "Oxford Circus"), with the specific studio dropped — at that width
+         the studio is the least useful thing on the row and the most
+         expensive, since it forces a second line.
+         Always rendered; CSS shows exactly one of {instructor+location} or
+         {this} at any width, so a resize needs no re-render. */ ''}
+    <td class="col-who-where">
+      ${instrName ? `<span class="sa-ww-who sa-instructor-hover" ${instructorHoverAttrs(event.instructors?.[0], event.gymId, instrName)}>${instrName}</span>` : ''}
+      ${locName ? `<span class="sa-ww-loc">${trimLocation(locName, getGymShortName(event.gymId))}</span>` : ''}
+    </td>
+    <td class="col-location">
+      <span style="font-weight:600; display:block; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">${trimLocation(locName, getGymShortName(event.gymId))}</span>
+      ${studioName ? `<span style="font-size:12px; color:var(--text-secondary); display:block; margin-top:2px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">${displayStudioName(event.gymId, studioName)}</span>` : ''}
+    </td>
+    <td class="col-status">${statusBadge}</td>
+    <td class="col-actions"></td>
+  `;
+
+  row.querySelector('.col-actions').appendChild(buildDesktopActions(actionModel, event, userSettings.debugMode, isBookmarked));
+
+  // Heart click listener (kept null-safe: an unconditional querySelector that threw
+  // once emptied the whole timetable).
+  const heartEl = row.querySelector('.sa-timetable-heart');
+  if (heartEl) {
+    heartEl.onclick = (e) => {
+      e.stopPropagation();
+      toggleFavourite(event, e.currentTarget);
+    };
+  }
+
+  return row;
+}
+
+/** F-12: the loaded (unified-cache) timetable events, for read-only consumers such as the Favourites pane. */
+export function getLoadedEvents() { return timetableEvents; }
+
+/** F-12: true while the first timetable fetch has produced nothing yet (an absent class is then "not loaded", not "none"). */
+export function isScheduleLoading() { return isPrefetching && timetableEvents.length === 0; }
+
+/** F-12: make sure the schedule is (being) loaded. The unified fetch is lazy (first Timetable visit), so a deep link
+ *  straight to Settings > Favourites would otherwise find nothing. Reuses the normal prefetch: cache paint first,
+ *  then the shared server cache, so this adds no new upstream call shape. */
+export function ensureScheduleLoaded() {
+  if (timetableEvents.length || isPrefetching) return;
+  prefetchTimetableData().catch(() => {});
+}
+
+/** F-12: remove a favourite slot that may have no loaded class (Settings > Favourites). Same contract as the heart. */
+export async function removeFavouriteSlot(gymId, slot, labels = {}) {
+  try {
+    await api.setFavourite({ studioId: slot.studioId, dayOfWeek: slot.dayOfWeek, startTime: slot.startTime, ...labels }, false, gymId);
+    setFavouriteLocal(gymId, slot, false);
+    showToast(COPY.timetable.bookmarkRemoved, 'success');
+    setupDropdownFilters();
+    renderTimetableGrid();
+    return true;
+  } catch (err) {
+    console.error('[Timetable] Favourite removal failed:', err);
+    showToast(COPY.timetable.bookmarkUpdateFailed, 'error');
+    return false;
+  }
+}
+
+/** Render `events` into `tbody` with the timetable's own rows (no filters, search or date strip). */
+export function renderEventRowsInto(tbody, events) {
+  const autoBookedIds = new Set();
+  (cache.autoBookings?.data || cache.autoBookings || []).forEach((x) => {
+    const id = x.event_id || x.eventId;
+    if (id != null) { autoBookedIds.add(id); autoBookedIds.add(Number(id)); autoBookedIds.add(String(id)); }
+  });
+  events.forEach((e) => tbody.appendChild(buildEventRow(e, autoBookedIds)));
 }
 
 export function equalizePrimaryCTAWidths(container = document) {
@@ -2886,14 +2937,12 @@ function buildActionMenuItems(event, model, isBookmarked) {
     items.push({ label: COPY.bookings.guestMenu, icon: 'userPlus', variant: 'book', action: () => openGuestBookingModal(event) });
   }
 
-  if (canForGym('bookmarks', event.gymId)) {
-    items.push({
-      label: isBookmarked ? COPY.timetable.unfavourite : COPY.timetable.favourite,
-      icon: 'heart',
-      variant: 'favourite',
-      action: () => toggleNativeBookmark(event, null),
-    });
-  }
+  items.push({
+    label: isBookmarked ? COPY.timetable.unfavourite : COPY.timetable.favourite,
+    icon: 'heart',
+    variant: 'favourite',
+    action: () => toggleFavourite(event, null),
+  });
 
   items.push({ label: COPY.timetable.studioOccupancy, icon: 'users', variant: '', action: () => openOccupancyModal(event) });
 
@@ -3095,8 +3144,6 @@ function injectMobileFilterHamburger() {
   const saveBtn = document.getElementById('sa-btn-save-default-filters');
 
   const items = [];
-  // Favourites filter temporarily hidden until universal cross-gym solution
-  // if (favBtn) items.push({ label: showBookmarksOnly ? 'Bookmarked (on)' : 'Bookmarked', icon: 'heart', variant: 'favourite', action: () => favBtn.click() });
   if (clearBtn) items.push({ label: COPY.timetable.clearFilters, icon: 'close', variant: 'danger', action: () => clearBtn.click() });
   if (saveBtn) items.push({ label: COPY.timetable.saveDefaults, icon: 'check', variant: 'success', action: () => saveBtn.click() });
 
@@ -3151,12 +3198,9 @@ function buildMobileClassRow(event, ctx, model) {
   // Row 3 shows the studio's FULL location name ("Oxford Circus"), not the gym's contracted alias ("OC").
   const displayLoc = trimLocation(locName, getGymShortName(event.gymId));
 
-  // Favourite heart is a non-interactive indicator on mobile (only shown when
-  // bookmarked), sitting between the time and the discipline chip. Toggling
-  // happens through the context menu instead.
-  const favIndicator = isBookmarked
-    ? (canForGym('bookmarks', event.gymId) ? `<span class="sa-mobile-fav-indicator" aria-label="${COPY.timetable.favourited}">${heartChar}</span>` : '')
-    : '';
+  // Favourite heart: shown ONLY on a favourited card, right after the class-type chip. Favouriting a class is
+  // done from the kebab menu (buildOverflowItems), which carries Favourite/Unfavourite for every class.
+  const favIndicator = mobileHeartHtml({ isFavourite: isBookmarked, eventId: event.id, label: COPY.timetable.favourite, pressedLabel: COPY.timetable.unfavourite });
 
   // Photo (or a soft initial placeholder, same box, so nothing shifts while it loads). The image comes from the
   // ONE shared lookup (instructorAvatar: the event's own thumb first, else metadata by name).
@@ -3192,6 +3236,11 @@ function buildMobileClassRow(event, ctx, model) {
   `;
 
   const rail = card.querySelector('.sa-mobile-rail');
+
+  const mobileHeart = card.querySelector('.sa-timetable-heart');
+  if (mobileHeart) {
+    mobileHeart.onclick = (e) => { e.stopPropagation(); toggleFavourite(event, e.currentTarget); };
+  }
 
   // Mobile shows exactly ONE visible action button (the rest collapse into
   // the ellipsis). For an already-booked single-spot class, buildActionModel
@@ -3315,75 +3364,37 @@ async function openOccupancyModal(event) {
 // === END MOBILE TIMETABLE BLOCK ===
 
 
-// Resilient bookmark ID generator
+// F-12: the favourite key for an event (debug panel only; the server and client share one formula).
 function generateBookmarkIdentifier(event) {
-  if (!event) return '';
-  const studioId = event.studioId || (event.studio ? event.studioId : null);
-  if (!studioId || !event.startAt) return '';
-  
-  const dateObj = new Date(event.startAt);
-  const formatter = new Intl.DateTimeFormat('en-US', {
-    timeZone: zoneFor(event),
-    hour: '2-digit',
-    minute: '2-digit',
-    hour12: false,
-    weekday: 'short'
-  });
-  
-  try {
-    const parts = formatter.formatToParts(dateObj);
-    const wdayStr = parts.find(p => p.type === 'weekday').value;
-    const hourStr = parts.find(p => p.type === 'hour').value;
-    const minStr = parts.find(p => p.type === 'minute').value;
-    
-    const wdayMap = { 'Sun': 0, 'Mon': 1, 'Tue': 2, 'Wed': 3, 'Thu': 4, 'Fri': 5, 'Sat': 6 };
-    const d = wdayMap[wdayStr];
-    
-    return `${studioId}0000${d}0000${hourStr}${minStr}`;
-  } catch (e) {
-    console.error('[Timetable] Error formatting date for bookmark identifier:', e);
-    return '';
-  }
+  return favouriteId(slotOfEvent(event));
 }
 
-// Toggle Heart Bookmark state on CodexFit metafields
-async function toggleNativeBookmark(event, heartEl) {
-  const identifier = generateBookmarkIdentifier(event);
-  if (!identifier) {
+// Is this event a favourite at ITS OWN gym? Not loaded (null index) reads as "no".
+function isFavouriteEvent(event) {
+  return isFavouriteIn(favouritesForGym(event.gymId), event);
+}
+
+// Toggle the heart. Works for every gym through one API: the server stores it natively
+// (Psycle bookmarks) or locally; the client never asks which.
+async function toggleFavourite(event, heartEl) {
+  const slot = slotOfEvent(event);
+  if (!slot) {
     showToast(COPY.timetable.failedBookmarkId, 'error');
     return;
   }
-  
-  const bookmarks = profileForGym(event.gymId)?.metafields?.public?.bookmarks?.events || [];
-  const isCurrentlyBookmarked = bookmarks.includes(identifier);
-  
-  if (heartEl) {
-    heartEl.classList.add('loading');
-  }
-  
+  const wasFavourite = isFavouriteEvent(event);
+  if (heartEl) heartEl.classList.add('loading');
   try {
-    // Bookmarks exist on CodexFit only — MarianaTek has no equivalent — so the
-    // route is capability-gated server-side rather than universal. This client
-    // guard is the fast path; the server rejects independently with 501.
-    // The metafield path shape is the adapter's business, not this module's.
-    if (!canForGym('bookmarks', event.gymId)) {
-      showToast(COPY.timetable.noBookmarkSupport, 'info');
-      return;
-    }
-    await api.setBookmark(identifier, !isCurrentlyBookmarked, event.gymId);
-    
-    // Refresh user profile cache
-    await refreshUserData();
-    showToast(isCurrentlyBookmarked ? COPY.timetable.bookmarkRemoved : COPY.timetable.bookmarkAdded, 'success');
+    await api.setFavourite({ ...slot, ...labelsOfEvent(event) }, !wasFavourite, event.gymId);
+    setFavouriteLocal(event.gymId, slot, !wasFavourite);
+    showToast(wasFavourite ? COPY.timetable.bookmarkRemoved : COPY.timetable.bookmarkAdded, 'success');
     setupDropdownFilters();
     renderTimetableGrid();
   } catch (err) {
-    console.error('[Timetable] Bookmark toggle failed:', err);
+    console.error('[Timetable] Favourite toggle failed:', err);
     showToast(COPY.timetable.bookmarkUpdateFailed, 'error');
   } finally {
-    if (heartEl) {
-      heartEl.classList.remove('loading');
-    }
+    if (heartEl) heartEl.classList.remove('loading');
   }
 }
 

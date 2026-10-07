@@ -25,6 +25,11 @@ function safeEqual(a, b) {
 
 const router = express.Router();
 
+// C7-3: one-line audit helper. Detail must never contain secrets (db also redacts by key name).
+function audit(req, action, targetUserId, detail) {
+  db.recordAdminAudit({ action, targetUserId: targetUserId ?? null, ip: req.ip || null, detail });
+}
+
 // Admin auth uses the same JWT_SECRET as user auth but requires { admin: true } in the payload.
 // ADMIN_PASSWORD must be set in the environment; if absent all admin routes return 503.
 const JWT_SECRET = (() => {
@@ -90,8 +95,10 @@ router.post('/login', (req, res) => {
   if (!process.env.ADMIN_PASSWORD) return adminUnavailable(res);
   const { password } = req.body;
   if (!password || !safeEqual(password, process.env.ADMIN_PASSWORD)) {
+    audit(req, 'login.failure');
     return res.status(401).json({ message: 'Invalid admin password.' });
   }
+  audit(req, 'login.success');
   const token = jwt.sign({ admin: true }, JWT_SECRET, { expiresIn: '1h' });
   res.json({ token });
 });
@@ -259,6 +266,7 @@ router.put('/users/:id/priority', authenticateAdmin, (req, res) => {
   try {
     // No per-gym control in the admin UI — applies to every linked gym.
     db.setUserPriority(userId, priority);
+    audit(req, 'user.priority', userId, { priority });
     res.json({ success: true });
   } catch (err) {
     res.status(500).json({ message: err.message });
@@ -270,7 +278,9 @@ router.delete('/users/:id', authenticateAdmin, (req, res) => {
   const userId = parseInt(req.params.id, 10);
   if (isNaN(userId)) return res.status(400).json({ message: 'Invalid user ID.' });
   try {
+    const gone = db.getUserById(userId);
     db.deleteUser(userId);
+    audit(req, 'user.delete', userId, { email: gone ? gone.email : null });
     res.json({ success: true });
   } catch (err) {
     res.status(500).json({ message: err.message });
@@ -314,6 +324,7 @@ router.put('/gym-presentations/:gymId', authenticateAdmin, (req, res) => {
     const map = db.readPresentationOverrides();
     map[gymId] = clean;
     db.writePresentationOverrides(map);
+    audit(req, 'gym-presentation.update', null, { gymId });
     gymsConfig.setPresentation(gymId, clean);
     res.json(presentationView(gymsConfig.getGymConfig(gymId)));
   } catch (err) {
@@ -327,6 +338,7 @@ router.delete('/gym-presentations/:gymId', authenticateAdmin, (req, res) => {
   const map = db.readPresentationOverrides();
   delete map[gymId];
   db.writePresentationOverrides(map);
+  audit(req, 'gym-presentation.reset', null, { gymId });
   gymsConfig.resetPresentation(gymId);
   res.json(presentationView(gymsConfig.getGymConfig(gymId)));
 });
@@ -376,6 +388,7 @@ router.post('/users/:id/link-gym', authenticateAdmin, (req, res) => {
   }
   try {
     db.linkGym(userId, gymId);
+    audit(req, 'user.link-gym', userId, { gymId });
     // Return the stripped/public shape — never echo encrypted_password/session_json,
     // even ciphertext, back over an API response.
     const gyms = db.getUserGymsPublic(userId);
@@ -423,6 +436,7 @@ router.post('/users/:id/reset-password', authenticateAdmin, (req, res) => {
     // Audit trail. There is no structured logging yet (Workstreams C7-3), so this is
     // the only record that an account's credentials were administratively
     // changed — worth keeping even once proper logging lands.
+    audit(req, 'user.reset-password', userId, { gymCredentialsCleared: clearedGyms });
     console.log(`[Admin] Password reset for user ${userId} (${user.email}); ` +
       `gym credentials cleared: ${clearedGyms.length ? clearedGyms.join(', ') : 'none'}`);
 
@@ -437,5 +451,13 @@ router.post('/users/:id/reset-password', authenticateAdmin, (req, res) => {
     res.status(400).json({ message: err.message });
   }
 });
+
+// GET /api/admin/audit?limit=&offset= — read-only, newest first, capped at 500 (C7-3)
+router.get('/audit', authenticateAdmin, (req, res) => {
+  res.json({ entries: db.listAdminAudit({ limit: req.query.limit, offset: req.query.offset }) });
+});
+
+// Used by GET /metrics (server.js): true when the bearer token is a valid admin session JWT.
+router.verifyAdminToken = (token) => { try { return !!jwt.verify(token, JWT_SECRET).admin; } catch (_) { return false; } };
 
 module.exports = router;

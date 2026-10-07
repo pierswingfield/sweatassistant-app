@@ -5,6 +5,8 @@ const path = require('path');
 const rateLimit = require('express-rate-limit');
 const { ipKeyGenerator } = require('express-rate-limit');
 const db = require('./db');
+const { log, requestLogger } = require('./logger');
+const metrics = require('./metrics');
 const auth = require('./auth');
 const { handleLogin, authenticateToken, authenticateTokenSSE } = auth;
 const pushService = require('./push');
@@ -50,6 +52,8 @@ app.use(cors({
     cb(null, !origin || allowedOrigins.has(origin));
   },
 }));
+app.use(metrics.httpMetrics()); // C7-3: route-template request counters/histogram
+app.use(requestLogger(log)); // C7-3: JSON request log (no bodies/headers/query strings)
 app.use(express.json());
 
 // Strict brute-force limiters for the two password endpoints, keyed by IP.
@@ -189,12 +193,69 @@ app.get('/api/health', async (req, res) => {
     time: new Date(now).toISOString(),
     uptimeSec: Math.round(process.uptime()),
     scheduleCache: scheduleCacheStats,
+    freshness: (() => { try { return require('./freshness').getStats(); } catch (_) { return null; } })(),
     layoutCache: layoutCacheStats,
     instructorPhotoCache,
     nextReleaseAt: nextRelease,
     services,
   });
 });
+
+// -------------------------------------------------------------
+// METRICS (C7-3 step 3) — Prometheus text format. NOT public: requires
+// `Authorization: Bearer <METRICS_TOKEN>` or a valid admin session JWT.
+// 503 when neither METRICS_TOKEN nor ADMIN_PASSWORD is configured. Aggregate
+// counters only; label bounds are documented in metrics.js.
+// -------------------------------------------------------------
+app.get('/metrics', (req, res) => {
+  if (!process.env.METRICS_TOKEN && !process.env.ADMIN_PASSWORD) {
+    return res.status(503).type('text/plain').send('Metrics not configured.\n');
+  }
+  const h = req.headers.authorization;
+  const token = h && h.startsWith('Bearer ') ? h.slice(7) : null;
+  if (!token) return res.status(401).type('text/plain').send('Bearer token required.\n');
+  const eq = (a, b) => {
+    const x = require('crypto').createHash('sha256').update(String(a)).digest();
+    const y = require('crypto').createHash('sha256').update(String(b)).digest();
+    return require('crypto').timingSafeEqual(x, y);
+  };
+  const ok = (process.env.METRICS_TOKEN && eq(token, process.env.METRICS_TOKEN)) || adminRouter.verifyAdminToken(token);
+  if (!ok) return res.status(403).type('text/plain').send('Forbidden.\n');
+
+  const now = Date.now();
+  const gauge = (name, help, samples, type = 'gauge') => ({ name, help, type, samples });
+  let cs = { hits: 0, staleHits: 0, misses: 0 };
+  let fs = { heartbeatChecks: 0, heartbeatFailures: 0 };
+  try { fs = require('./freshness').getStats(); } catch (_) {}
+  try { cs = require('./schedule-cache').getStats(); } catch (_) {}
+  let pending = 0;
+  try { pending = db.db.prepare("SELECT COUNT(*) AS n FROM auto_bookings WHERE status = 'pending' AND executed_at IS NULL").get().n; } catch (_) {}
+  const next = Date.parse(db.getKV('scheduler_next_release') || '');
+  const { isGymRateLimited } = require('./rate-limit-backoff');
+  const gyms = require('./gyms.config').listGyms();
+  const beats = Object.keys(HEARTBEAT_LIMITS).map((n) => {
+    const raw = db.getKV(`heartbeat:${n}`);
+    return [{ service: n }, raw ? Math.max(0, (now - Number(raw)) / 1000) : -1];
+  });
+  const mem = process.memoryUsage();
+  res.type('text/plain; version=0.0.4; charset=utf-8').send(metrics.render([
+    gauge('schedule_cache_events_total', 'Shared schedule cache lookups by result.', [
+      [{ result: 'hit' }, cs.hits], [{ result: 'stale' }, cs.staleHits], [{ result: 'miss' }, cs.misses]], 'counter'),
+    // C2-5: bounded labels (5 fixed results), no gym/user dimension.
+    gauge('schedule_cache_freshness_total', 'Stamp-validated cache outcomes (heartbeat-driven freshness).', [
+      [{ result: 'heartbeat_check' }, fs.heartbeatChecks || 0], [{ result: 'heartbeat_failure' }, fs.heartbeatFailures || 0],
+      [{ result: 'unchanged_saved' }, cs.stampUnchanged || 0], [{ result: 'refetch_changed' }, cs.stampChanged || 0],
+      [{ result: 'refetch_ceiling' }, cs.ceilingRefetches || 0]], 'counter'),
+    gauge('scheduler_pending_bookings', 'Pending auto-book queue entries (all users, all gyms).', [[{}, pending]]),
+    gauge('scheduler_next_release_timestamp_seconds', 'Armed next auto-book release (unix seconds; 0 when idle).', [[{}, Number.isFinite(next) ? Math.round(next / 1000) : 0]]),
+    gauge('service_heartbeat_age_seconds', 'Seconds since a background service last wrote its heartbeat (-1 = never).', beats),
+    gauge('rate_limit_backoff_active', '1 while a gym is in provider rate-limit backoff.', gyms.map((g) => [{ gym: g.id }, isGymRateLimited(g.id) ? 1 : 0])),
+    gauge('process_uptime_seconds', 'Process uptime.', [[{}, Math.round(process.uptime())]]),
+    gauge('process_resident_memory_bytes', 'Resident set size.', [[{}, mem.rss]]),
+    gauge('process_heap_used_bytes', 'V8 heap used.', [[{}, mem.heapUsed]]),
+  ]));
+});
+
 
 // -------------------------------------------------------------
 // TEMPLATED STATIC FILES

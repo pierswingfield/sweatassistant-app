@@ -20,6 +20,8 @@ const { resolveZone, toZonedISO } = require('./timezone');
 const { studioHasRowGroups } = require('./spot-map');
 const { makeMetadata, makeProfile, makeEvent, makeSlot, makeLayoutObject, makeBookingResult, makeBooking, makeHistoryEntry, prune } = require('./normalize');
 const cart = require('./codexfit-cart');
+const favourites = require('../favourites');
+const { timedProviderFetch } = require('../logger');
 
 // Dev-mode bypass, aligned with MarianaTek's dev@jabboxing.mock convention.
 // login() must establish the sentinel session itself, since a fresh account
@@ -30,6 +32,10 @@ const DEV_EMAIL = 'dev@psycle.com';
 // with 'mock-jwt-token'). See request()'s doc comment below for why this check
 // lives here now, not just in the 5 pre-Phase-3 callers.
 const MOCK_TOKEN = 'mock-jwt-token';
+// C2-4: widest span one UNSCOPED ranged /events call may cover. Measured live
+// 2026-10-06: 7 days = 3 MB/7 s, 10 days = 4.2 MB/8 s, 14+ days = HTTP 502 (upstream
+// timeout), so the planned single 42-day call does not work unscoped. 7 keeps margin.
+const MAX_TIMETABLE_DAYS = 7;
 
 // C2-6: how long a fetched /profile is reused (see CodexFitProvider._fetchProfile).
 const PROFILE_MEMO_TTL_MS = 30 * 1000;
@@ -196,7 +202,7 @@ class CodexFitProvider extends GymProvider {
         delete opts.headers['content-type'];
       }
     }
-    return fetch(urlFn(pathOrUrl), opts);
+    return timedProviderFetch(this.gym.id, method, pathOrUrl, () => fetch(urlFn(pathOrUrl), opts));
   }
 
   /**
@@ -206,7 +212,7 @@ class CodexFitProvider extends GymProvider {
    * session is available — same convention as the MarianaTek adapter).
    */
   async publicRequest(pathOrUrl, { method = 'GET' } = {}) {
-    return fetch(this.url(pathOrUrl), { method, headers: this.buildHeaders(null, false) });
+    return timedProviderFetch(this.gym.id, method, pathOrUrl, () => fetch(this.url(pathOrUrl), { method, headers: this.buildHeaders(null, false) }));
   }
 
   // --- Authentication -------------------------------------------------------
@@ -477,9 +483,14 @@ class CodexFitProvider extends GymProvider {
   }
 
   async fetchTimetable(params = {}, session) {
+    // C2-4: ranged v2 `/events` calls (unscoped: all locations) instead of
+    // `/locations` + one call per location. `filter[between]=a,b` (end exclusive
+    // for date-only values), unpaginated `{data, relations}` (G4). The G4 "no cap
+    // up to 56 days" finding was LOCATION-SCOPED; unscoped it 502s from ~14 days
+    // (see MAX_TIMETABLE_DAYS), so the window is chunked into <=7-day calls.
     const fetcher = session
-      ? (path) => this.request(path, { token: session.accessToken })
-      : (path) => this.publicRequest(path);
+      ? (path) => this.requestV2(path, { token: session.accessToken })
+      : (path) => this.requestV2(path);
 
     const startDate = params.startDate
       ? DateTime.fromISO(params.startDate, { zone: this.gym.timezone })
@@ -487,38 +498,31 @@ class CodexFitProvider extends GymProvider {
     const endDate = params.endDate
       ? DateTime.fromISO(params.endDate, { zone: this.gym.timezone })
       : startDate.plus({ weeks: 4 });
-    const start = startDate.toFormat('yyyy-MM-dd') + ' 00:00:00';
-    const end = endDate.toFormat('yyyy-MM-dd') + ' 23:59:59';
+    const first = startDate.startOf('day');
+    const endExclusive = endDate.startOf('day').plus({ days: 1 });
 
-    const locRes = await fetcher('/locations');
-    if (!locRes.ok) throw httpError(`fetchTimetable failed to load locations: ${locRes.status}`, locRes.status);
-    const locData = await locRes.json();
-    const locations = Array.isArray(locData) ? locData : (locData.data || []);
+    const ranges = [];
+    for (let cur = first; cur < endExclusive; cur = cur.plus({ days: MAX_TIMETABLE_DAYS })) {
+      const next = DateTime.min(cur.plus({ days: MAX_TIMETABLE_DAYS }), endExclusive);
+      ranges.push([cur.toFormat('yyyy-MM-dd'), next.toFormat('yyyy-MM-dd')]);
+    }
 
-    // Best-effort per-location — one failing location shouldn't blank the
-    // whole timetable, matching the old client's own per-location try/catch.
-    const results = await Promise.allSettled(locations.map((loc) => {
-      const url = `/events?location=${loc.id}&start=${encodeURIComponent(start)}&end=${encodeURIComponent(end)}`;
-      return fetcher(url).then((res) => (res.ok ? res.json() : null));
-    }));
+    // Best-effort per chunk; if every chunk fails, surface the failure rather than an empty timetable.
+    const results = await Promise.allSettled(ranges.map(([a, b]) =>
+      fetcher(`/events?filter[between]=${a},${b}&sort=start_at`).then((res) => {
+        if (!res.ok) throw httpError(`fetchTimetable /events failed: ${res.status}`, res.status);
+        return res.json();
+      })));
+    if (results.length && results.every((r) => r.status === 'rejected')) throw results[0].reason;
 
     const seen = new Map();
     for (const r of results) {
       if (r.status !== 'fulfilled' || !r.value) continue;
       const list = Array.isArray(r.value) ? r.value : (r.value.data || []);
-      // The real `GET /events` returns id-referenced events (`event_type_id`,
-      // `instructor_id`, `studio_id`) plus a SIBLING `relations` bag — it does
-      // NOT embed them inline, whatever an earlier comment here claimed. Each
-      // location's response carries its own bag, so resolve within the response
-      // rather than pooling them.
-      //
-      // Skipping this is what caused the 2026-08-31 "CLASS" regression: with
-      // `event_type` unresolved, `mapEventToNormalized` produced events with no
-      // `discipline` (and no studio/location/instructor names), and the client —
-      // which had just lost its own relations-merge in WP-C1 — fell through to
-      // rendering a literal "CLASS" pill for any type missing from the base
-      // `/event_types` list. The dev mock hid it by embedding the relations
-      // inline, which the real API never does.
+      // `GET /events` returns events BY REFERENCE (event_type_id/instructor_id/
+      // studio_id) plus a SIBLING `relations` bag; resolve within each response
+      // (AGENTS.md "GET /events returns events BY REFERENCE"). Skipping this
+      // caused the 2026-08-31 "CLASS" regression.
       const relations = (r.value && r.value.relations) || {};
       for (const e of list) {
         if (!seen.has(String(e.id))) seen.set(String(e.id), this.resolveEventRelations(e, relations));
@@ -662,6 +666,24 @@ class CodexFitProvider extends GymProvider {
         id: t.id, name: t.name, group: t.group && t.group.name, raw: t,
       })),
     });
+  }
+
+  // C2-5 (rebuilt): CodexFit's public `GET /api/v1/customer/heartbeat` (the official website polls
+  // it) returns `{ data: { <resource>: ISO, ..., "logged-in": false } }`. Each stamp moves when
+  // that resource is created/edited. The `events` stamp does NOT move on seat-count changes
+  // (measured 2026-10-06), so occupancy can lag; that is accepted (same as the website).
+  hasFreshnessStamps() { return true; }
+
+  async getFreshnessStamps(session) {
+    const res = (session && session.accessToken === MOCK_TOKEN)
+      ? await this.request('/heartbeat', { token: session.accessToken })
+      : await this.publicRequest('/heartbeat');
+    if (!res.ok) throw httpError(`heartbeat failed: ${res.status}`, res.status);
+    const body = await res.json();
+    const data = (body && body.data) || {};
+    const out = {};
+    for (const [k, v] of Object.entries(data)) if (typeof v === 'string') out[k] = v;
+    return out;
   }
 
   // Public list lookup, not a client-supplied URL: this is the SSRF boundary
@@ -1238,7 +1260,22 @@ class CodexFitProvider extends GymProvider {
       err.status = res.status;
       throw err;
     }
+    // The bookmark list lives on the profile; a memoised /profile would serve the
+    // old list for up to 30 s (C2-6), so a heart would flip back on the next read.
+    this.invalidateProfile(session);
     return true;
+  }
+
+  /** F-12: native favourites = the profile's bookmark keys, parsed back into slots. */
+  async listFavourites(session) {
+    const u = await this._profileFor(session, 'listFavourites');
+    const keys = (u && u.metafields && u.metafields.public && u.metafields.public.bookmarks
+      && u.metafields.public.bookmarks.events) || [];
+    return (Array.isArray(keys) ? keys : []).map((k) => favourites.parseIdentifier(String(k))).filter(Boolean);
+  }
+
+  async setFavourite(slot, on, session) {
+    return this.setBookmark(favourites.toIdentifier(slot), on, session);
   }
 
   async updateProfile(payload, session) {

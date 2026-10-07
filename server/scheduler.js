@@ -3,6 +3,7 @@ const { cleanClassName: _cleanClassName } = require('./class-name');
 // U1-19b: push/SSE text names a class the way the UI does (no discipline prefix).
 const displayClass = (row) => _cleanClassName(row.class_name, row.group_name) || row.class_name;
 const db = require('./db');
+const { log } = require('./logger');
 const pushService = require('./push');
 const notifications = require('./notifications');
 const { triggerAutoRelogin } = require('./auth');
@@ -240,7 +241,7 @@ async function fetchFromGym(userId, gymId, path, options = {}) {
       const newJwt = await triggerAutoRelogin(userId, gymId);
       res = await runFetch(newJwt);
     } catch (err) {
-      console.error(`[Scheduler] Auto-relogin failed during api fetch for user ${userId}:`, err.message);
+      log.error('relogin failed during api fetch', { component: 'scheduler', userId, err });
       pushService.sendNotification(userId, 'Session Expired ⚠️', 'Failed to renew session. Auto-booking skipped.');
       throw err;
     }
@@ -325,7 +326,7 @@ async function bookSlotWithRelogin(userId, gymId, eventId, targetSlot) {
   const provider = getProvider(gymId);
   let result = await provider.bookSlot(eventId, [targetSlot], session);
   if (!result.ok && result.status === 401) {
-    console.log(`[Scheduler] Booking attempt got 401 for user ${userId} — attempting relogin and retry.`);
+    log.info('booking got 401, attempting relogin and retry', { component: 'scheduler', userId, gymId });
     const newJwt = await triggerAutoRelogin(userId, gymId);
     session = { accessToken: newJwt };
     result = await provider.bookSlot(eventId, [targetSlot], session);
@@ -363,7 +364,7 @@ async function executeAutoBookForClass(booking) {
   // recalled, but every job that hasn't started yet (the common case, thanks
   // to CLAIM_STAGGER_MS staggering) is stopped here.
   if (isGymRateLimited(gymId)) {
-    console.warn(`[Scheduler] Gym ${gymId} is rate-limited — skipping booking attempt for event ${eventId}, user ${userId}.`);
+    log.warn('gym rate-limited, skipping booking attempt', { component: 'scheduler', gymId, eventId, userId });
     emitStatusUpdate(userId, {
       eventId,
       status: 'rate-limited',
@@ -499,7 +500,7 @@ async function executeAutoBookForClass(booking) {
           // slot. Back off THIS gym (never a global backoff — WP-D7/WP-G),
           // notify once (deduped), and abort the rest of this class's attempts
           // rather than burning through the remaining fallback slots.
-          console.error(`[Scheduler] Gym ${gymId} rate-limited booking for event ${eventId} (slot ${targetSlot}): ${result.error}. Backing off and aborting further attempts for this gym.`);
+          log.error('gym rate-limited booking, backing off and aborting further attempts', { component: 'scheduler', gymId, eventId, slot: targetSlot, userId, reason: result.error });
           claimedSlots.delete(claimKey);
           const until = applyRateLimitBackoff(gymId, result.retryAfterMs);
           notifyRateLimited(userId, gymId);

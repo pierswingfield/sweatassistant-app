@@ -5,6 +5,8 @@
 
 > **Verify first:** before changing anything for an item, confirm its basis in the code **and**, for anything user-visible, **in a real browser** (CDP :9222 or Claude for Chrome). For server-only items, use a failing test or a request. Record the evidence. If a browser check is needed and no browser is available, stop with `BLOCKED`. See [AGENT_PROTOCOL.md](AGENT_PROTOCOL.md).
 
+> **Status (2026-10-06):** C7-3 DONE (on `optimisation`, dev twin only; `METRICS_TOKEN` is not set on dev, so `/metrics` needs an admin JWT there). C7-4 DONE (F-15). C7-7 stays P3, re-evaluate after the C2-5 rebuild. Rest open.
+
 ## Pre-launch subset (do before C4 Stage B)
 
 | # | Item | Evidence (verified 2026-09-26) | Est. |
@@ -135,11 +137,17 @@ warnings are pre-existing and unrelated to this change).
 
 | # | Item | Evidence | Est. | Pri |
 |---|---|---|---|---|
-| C7-3 | Structured JSON logging plus a `/metrics` endpoint. Admin actions currently have no audit log. | Only `console.log` and `/api/health` | 1 day | P2 |
-| C7-4 | Instructor image proxy and resize, so the client doesn't hotlink full-size provider images. | No image route | 3–4 h | P3 |
-| C7-5 | Per-user AES key derivation. Today one global key encrypts every user's gym credentials. | `server/crypto.js` L20 | 0.5 day plus a migration | P3 |
+| C7-3 | ✅ *done 2026-10-06* Structured JSON logging plus a `/metrics` endpoint. Admin audit log added (`7793bb7`), JSON logging (`a1ac399`, 122 `console.*` calls left to migrate), `/metrics` (`f8a6a22`, admin JWT or `METRICS_TOKEN`). | Only `console.log` and `/api/health` | 1 day | P2 |
+
+> **C7-3 step 1 DONE 2026-10-06 (admin audit log).** Root cause: `admin.js` kept no durable record (only a `console.log` on reset-password). Added `admin_audit_log`, `db.recordAdminAudit`/`listAdminAudit`, calls from login success/failure, priority, delete, link-gym, reset-password and presentation update/reset, `GET /api/admin/audit`, an Audit log section in `admin.html`; test `server/test-admin-audit.js`. **C7-3 stays open:** step 2 structured JSON logging, step 3 `/metrics`.
+>
+> **C7-3 step 2 DONE 2026-10-06 (structured JSON logging).** Root cause: only free-text `console.*` (~451 calls), no request log, and nothing to count upstream `/events` calls from. Added `server/logger.js` (JSON lines, `LOG_LEVEL`, key-name redaction, Errors reduced to message), a request-log middleware in `server.js` (method, path without query, status, durationMs, userId; calendar token path scrubbed), and debug `provider call` lines from both adapters' real fetches (mock paths do not emit them). Converted 13 relogin/throttle sites in `auth.js`, `scheduler.js`, `poller.js`, `rate-limit-backoff.js`. **Remaining free-text `console.*` calls in non-test server code: 122** (convert later). Test: `server/test-logger.js`. Step 3 `/metrics` still open.
+>
+> **C7-3 step 3 DONE 2026-10-06 (`/metrics`), so C7-3 is fully DONE.** Root cause: no metrics, only the `/api/health` JSON. Added `server/metrics.js` (hand-rolled registry, no prom-client) and `GET /metrics` gated by `METRICS_TOKEN` bearer or admin JWT (401 none, 403 wrong, 503 unconfigured). Series: HTTP count and duration by route template and status class, provider calls by gym/platform/outcome, schedule-cache hit/stale/miss, pending queue, next release, heartbeat ages, backoff-active per gym, uptime and memory. Label bounds are in the `metrics.js` header. Test: `server/test-metrics.js`.
+| C7-4 | ✅ *done* (done per user 2026-10-06; implemented as F-15, commits `64218d3`/`16555de`, 2026-09-29). Instructor image proxy and resize, so the client doesn't hotlink full-size provider images. | Server-side `sharp` proxy and disk cache, see F-15 | 3–4 h | P3 |
+| C7-5 | Per-user AES key derivation (P3, deprioritised 2026-10-06). Today one global key encrypts every user's gym credentials. Note: per-user keys would not stop admin visibility of bookings/profile data; true isolation would break background auto-relogin. Current design acceptable. | `server/crypto.js` L20 | 0.5 day plus a migration | P3 |
 | C7-6 | Migrate SQLite to Postgres. Not needed at current scale. | — | 2–3 days | P3 |
-| C7-7 | Proactive occupancy warming poller. **Re-evaluate after C2-5**: `/heartbeat` invalidation probably makes this unnecessary. | `schedule-cache.js` is reactive SWR only | — | P3 |
+| C7-7 | Proactive occupancy warming poller. **Re-evaluate after C2-5** (rebuilt 2026-10-06): the heartbeat `events` stamp does not track occupancy, so occupancy can lag up to 5 min and warming is NOT made unnecessary. | `schedule-cache.js` is reactive SWR only | — | P3 |
 | C7-8 | ✅ *pulled forward into launch 2026-09-28, done* Retire the stale `deploy.sh`, which still targets the Pi. The real deploy is rsync plus `docker compose up -d --build` on oracle. | Registry note | 15 min | P3 |
 
 ## C7-8 — stale `deploy.sh` retired (pulled forward into launch 2026-09-28) — DONE

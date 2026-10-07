@@ -1,6 +1,6 @@
 # U5 — Mobile full-screen pages and the spot-map booking flow
 
-> **STATUS 2026-10-06:** U5-1..U5-11 and U5-13, U5-16..U5-25 done. **Open:** U5-12 (real-iOS keyboard check, needs a device), U5-14 (dev mock returns empty prefs after a spot-map save), U5-15 (re-auth spec wording). Final-round cancel/entitlement work is now merged into `modular` (see section D).
+> **STATUS 2026-10-06:** **FINISHED.** U5-1..U5-11, U5-13, U5-16..U5-25 done. U5-12, U5-14, U5-15 closed as redundant 2026-10-06 (no real users on prod; dev-only and doc-only items). Final-round cancel/entitlement work merged into `modular` (see section D).
 
 **Priority:** P2 · **Depends on:** nothing hard · **Blocks:** nothing
 
@@ -30,10 +30,10 @@ Related documents: [QA/modal-audit.md](../QA/modal-audit.md) (inventory, with fi
 
 | # | Item | Notes |
 |---|---|---|
-| U5-12 | **Real-iOS keyboard check.** Confirm on a device that tapping an input shows no app behind or around the keyboard accessory bar (pages are pinned to the visual viewport). | Needs a device; the iOS Simulator tool needs a full Xcode install. Only simulated in Chrome so far. |
+| U5-12 | **Real-iOS keyboard check.** Confirm on a device that tapping an input shows no app behind or around the keyboard accessory bar (pages are pinned to the visual viewport). | ❌ CLOSED 2026-10-06 (redundant: no real users on prod, iOS device check not needed for post-launch housekeeping). |
 | U5-13 | **`openFavouritesModal` has no UI caller.** ✅ DONE 2026-10-05 | Removed the exported dead page, its private bookmark helpers, and unused copy. Root cause confirmed 2026-10-05: source search found only the exported definition and related helper/copy references; the local mock's Auto-Book page exposes the queue but no Favourites action, while the scheduler does not consume this setting. Acceptance: source search is clean; real Chrome at 390px and 1100px shows Auto-Book queue with no Favourites action; `npm test` passes (60 server suites, 287 client tests). |
-| U5-14 | **Dev mock returns empty prefs after a spot-map save.** The save toast succeeds but `GET /api/studio-preferences` returned `{}` for the gym in tests, so row labels never flip to "Edit Spots". | Investigate the mock or the prefs cache (`withOfflineSnapshot`). The client works around it by trusting the saved payload. |
-| U5-15 | **Gym re-auth has no step 1.** The spec's "Back returns to step 1 first" cannot happen, because re-auth opens straight from a gym row. | Spec acceptance was changed to "one Back closes it". Update the spec text. |
+| U5-14 | **Dev mock returns empty prefs after a spot-map save.** The save toast succeeds but `GET /api/studio-preferences` returned `{}` for the gym in tests, so row labels never flip to "Edit Spots". | ❌ CLOSED 2026-10-06 (redundant: no ongoing dev use after merge to prod). |
+| U5-15 | **Gym re-auth has no step 1.** The spec's "Back returns to step 1 first" cannot happen, because re-auth opens straight from a gym row. | ❌ CLOSED 2026-10-06 (redundant: spec wording is documentation only, not a user-facing fix). |
 
 ## C. Follow-up feedback (implemented 2026-10-05)
 

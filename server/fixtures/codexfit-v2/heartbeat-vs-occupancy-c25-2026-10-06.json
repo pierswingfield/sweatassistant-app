@@ -1,0 +1,14 @@
+{
+  "captured": "2026-10-06",
+  "purpose": "C2-5 gate: does heartbeat.data.events move iff event occupancy changes?",
+  "method": "Claude for Chrome, one tab on psyclelondon.com (public, unauthenticated, read-only GETs). Each sample: GET /api/v1/customer/heartbeat then GET /api/customer/v2/events?filter[between]=<today>,<+4d>&filter[location.handle]=oxford-circus&sort=start_at (176 events). Cadence ~25-35 s. A background setInterval was frozen by the browser (1 sample in ~15 min) and tool calls cap at 45 s, so the usable window was ~2 minutes (6 samples), not 10-15.",
+  "samples": [
+    {"t": "10:02:10Z", "events_stamp": "09:47:32Z", "total_occupancy": 2609, "event_217529": 22},
+    {"t": "10:02:38Z", "events_stamp": "09:47:32Z", "total_occupancy": 2609, "event_217529": 22},
+    {"t": "10:03:11Z", "events_stamp": "09:47:32Z", "total_occupancy": 2610, "event_217529": 23},
+    {"t": "10:03:34Z", "events_stamp": "09:47:32Z", "total_occupancy": 2610, "event_217529": 23},
+    {"t": "10:03:44Z", "events_stamp": "09:47:32Z", "total_occupancy": 2609, "event_217529": 22},
+    {"t": "10:04:08Z", "events_stamp": "09:47:32Z", "total_occupancy": 2609, "event_217529": 22}
+  ],
+  "result": "FAIL. Event 217529 occupancy went 22 -> 23 -> 22 (a booking then a cancellation by someone) and the `events` stamp stayed 09:47:32Z throughout. Stamp had been unchanged since the earlier 09:47:32Z observation (>15 min) while occupancy moved. The stamp does NOT track occupancy; it is a false-negative signal and unsafe as a cache-invalidation trigger."
+}

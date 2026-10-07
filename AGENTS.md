@@ -4,7 +4,7 @@
 
 Server + PWA assistant for Psycle London (and future gym providers). It moves scheduling features (auto-book, auto-upgrade) to a background server so they run 24/7 and adds iOS support via Progressive Web App (PWA) and Web Push notifications.
 
-**Status**: **Prod (`sweat.wingfield.tech`) runs the multi-gym build (Psycle + JAB Boxing)** since 2026-10-06 (clean SQLite DB, `JAB_BOXING_ENABLED=true`, `AARMY_ENABLED=true` per the user's go-ahead the same day). **`master` is the one and only working branch**: the former `modular` branch was merged into it and retired on 2026-10-06 (older docs that say "`modular`" mean this code). The old single-gym build is history (rollback target `758a6ce`). Deploys: `./deploy.sh` (dev twin `sweat-dev.wingfield.tech`, same code) and `./deploy.sh --prod` (typed confirmation); both ship the working tree, so deploy from a clean `master` checkout. Remaining roadmap and open items: `Documentation/Workstreams/README.md`; launch record: workstream C4.
+**Status**: **Update 2026-10-06:** the `optimisation` branch (C2-4/C2-5 chunked timetable fetch, C7-3 logging and metrics, MarianaTek speedup, F-12 client favourites) was fast-forward merged into `master` and retired locally; the remote `origin/optimisation` is retained until the user decides. **Prod (`sweat.wingfield.tech`) runs the multi-gym build (Psycle + JAB Boxing)** since 2026-10-06 (clean SQLite DB, `JAB_BOXING_ENABLED=true`, `AARMY_ENABLED=true` per the user's go-ahead the same day). **`master` is the one and only working branch**: the former `modular` branch was merged into it and retired on 2026-10-06 (older docs that say "`modular`" mean this code). The old single-gym build is history (rollback target `758a6ce`). Deploys: `./deploy.sh` (dev twin `sweat-dev.wingfield.tech`, same code) and `./deploy.sh --prod` (typed confirmation); both ship the working tree, so deploy from a clean `master` checkout. Remaining roadmap and open items: `Documentation/Workstreams/README.md`; launch record: workstream C4.
 
 ## Key References
 
@@ -31,6 +31,7 @@ Server + PWA assistant for Psycle London (and future gym providers). It moves sc
 - **Verify first.** Before changing code for any backlog item, confirm the basis of the bug or change in the code **and**, for anything user-visible, **in a real browser**. For server-only items, use a failing test or a request. Record the evidence. See [Workstreams/AGENT_PROTOCOL.md](file:///Users/pierswingfield/Desktop/AI%20Projects/psycle%20chrome/App/Documentation/Workstreams/AGENT_PROTOCOL.md).
 - **Real browser = the user's Google Chrome**: CDP on `127.0.0.1:9222` (any agent), or the Claude for Chrome extension (native Claude agents; installed and signed in). If neither is reachable, **stop and report `BLOCKED: no real-browser access`**. jsdom, curl and fresh headless browsers are not substitutes.
 - **Gemini offload wherever possible** (`gemini-delegate`, `Model: 'flash'`; never `pro` or `inherit`) for reading, summarising, triage and locating code. Gemini has **no browser tools**, so browser verification and code edits need an agent that has them.
+- **Never name a workstream or task ID without a short summary.** Whenever you mention an ID such as C2-4, U5-12 or H-2 in a report, plan or message, add a few words saying what it is (e.g. "C2-4, the single ranged timetable fetch"). A bare ID forces the reader to look it up. This applies to chat/report text and docs prose alike; commit messages and code comments may keep the bare ID (required there above).
 
 ---
 
@@ -41,7 +42,7 @@ App/
 ├── server/                  # Express.js backend
 │   ├── server.js            # Main server — routes, proxy, cart/checkout, SSE, rate limiters
 │   ├── auth.js              # CodexFit login, JWT issuance, auto-relogin on 401
-│   ├── db.js                # SQLite schema + CRUD (better-sqlite3, 17 tables)
+│   ├── db.js                # SQLite schema + CRUD (better-sqlite3, 18 tables)
 │   ├── crypto.js            # AES-256-GCM encrypt/decrypt for credentials (env key required)
 │   ├── scheduler.js         # Auto-book precision scheduler — queue-driven wake clock
 │   │                        #   (WP-I), priority tiers, SSE
@@ -49,6 +50,8 @@ App/
 │   ├── push.js              # Web Push (VAPID) notification fan-out service
 │   ├── notifications.js     # Notification dispatch layer (5 types, per-user prefs)
 │   ├── calendar.js          # iCalendar (.ics) feed generation, token auth, 3-hourly poll
+│   ├── metrics.js           # C7-3 hand-rolled Prometheus registry + route-template HTTP middleware
+│   ├── logger.js            # C7-3 structured JSON logger + request-log middleware (redacts by key; no bodies/headers/queries)
 │   ├── admin.js             # Admin panel API router (user list, detail, priority tiers, delete)
 │   ├── admin.html           # Standalone admin SPA served at /admin
 │   ├── config.js            # Central env config (appName, publicHost) — single source of truth
@@ -69,7 +72,7 @@ App/
 │   ├── schedule-cache.js    # ★ Shared user-agnostic provider cache (SWR + single-flight)
 │   ├── rate-limit-backoff.js # ★ Per-gym provider 429 backoff, shared by scheduler.js AND poller.js (C2-3/C2-3b)
 │   ├── run-tests.js         # Test runner — discovers server/test-*.js by filename
-│   └── test-*.js            # 60 suites; see Documentation/TESTING.md
+│   └── test-*.js            # 75 suites; see Documentation/TESTING.md
 ├── client/                  # Vite PWA frontend
 │   ├── index.html           # SPA shell with 6 tab panels (Home first) + modals + iOS bottom nav
 │   ├── src/
@@ -84,6 +87,8 @@ App/
 │   │   ├── cache.test.js    # Gym-scoped cache-key isolation (WP-G)
 │   │   ├── gym-context.js   # ★ Active gym's capabilities/theme/labels — what the UI gates on
 │   │   ├── gym-context.test.js
+│   │   ├── favourites.js    # ★ F-12 (gym-neutral favourites) pure helpers: slotOfEvent/favouriteId/isFavouriteIn (a favourite = gym + studio + weekday + start time in the class zone)
+│   │   ├── favourite-heart.js # F-12 heart button markup; mobileHeartHtml renders ONLY for a favourited card
 │   │   └── ui/
 │   │       ├── home.js        # Home tab (first tab, default landing): registers the 8 widgets; W4 auto-book count real, rest placeholders (H-1, [workstream](Documentation/Workstreams/H-home-page.md))
 │   │       ├── widget-registry.js # registerWidget + per-widget loading/empty/error(retry) mounter; widgets fail independently
@@ -96,6 +101,8 @@ App/
 │   │       ├── modal-nav.js   # ★ Mobile modal → full-screen page (openPage/closePage/pushLayer); REQUIRED for every modal
 │   │       ├── settings.js    # Account / Your Gyms / About coordination + gym drawer actions
 │   │       ├── gym-settings-section.js # Shared explicit-gym settings renderer
+│   │       ├── favourites-pane.js # F-12 Settings > Favourites: all linked gyms' favourites by weekday (Mon-Sun), reusing the timetable's own rows via timetable.js renderEventRowsInto; no network of its own
+│   │       ├── favourites-pane-model.js # pure grouping + next-upcoming-class resolution for that pane
 │   │       ├── loading-skeleton.js # Shared timetable/card loading placeholders
 │   │       ├── status-line.js # Polite aria-live status region for the Auto-Book SSE line (U2-3)
 │   │       ├── spotmap.js     # Shared studio floor-plan editor (reused by bookings/timetable/settings/autobook/upgrade)
@@ -127,7 +134,7 @@ npm run dev:client           # Start Vite dev server only (port 5173, proxies /a
 npm run build:client         # Production build of client
 npm start                    # Production start (server serves built client)
 
-npm test                     # EVERYTHING: 60 server suites + the client Vitest suite
+npm test                     # EVERYTHING: 75 server suites + the client Vitest suite
 npm run test:server          # Server only
 npm run test:client          # Client only (vitest)
 ```
@@ -283,8 +290,10 @@ The background services (auto-book scheduler, auto-upgrade poller, calendar feed
 ## Known Bugs, Open Work and Invariants
 
 - **Per-class credit cost and accepted types come from the PROVIDER, never from arithmetic on a balance (2026-09-15).** Psycle's public `GET /events` publishes `required_credits`, `credit_types`/`accepted_credits` and a `relations.credit_types` bag on every event — measured on 2,482 live events: 2,472 cost 1, **5 cost 2, 2 cost 3**, 3 cost 0, and **11 of 46 credit types are `is_guest_use_only`** (classes accept them, for booking a *guest* in). None of this was normalized, so `NormalizedEvent` had no `credit_types` at all, the client's per-class matching was dead code returning `Infinity`, and the only real check was the server's `sum(all credits) > 0` — wrong in both directions (bookable when you can't afford a 2-credit class; blocked when you hold the wrong type). Now `NormalizedEvent.credits = { required, acceptedTypeIds }` and `NormalizedCredit.isGuestOnly`; `getAvailableCreditsForEvent` returns **bookable spots** (`floor(usable / required)`), not a credit count. **An absent `credits` field means "the payload said nothing", not "free"** — treating it as free is what let the normalization gap go unnoticed, so it falls back to cost 1 / any type. `mock.js` models all of these fields; without that a regression here goes undetected.
-- **The schedule cache is SHARED and user-agnostic (`server/schedule-cache.js`, 2026-09-15).** The timetable was slow on the *second* load too, because nothing cached it server-side: live Psycle is **6,105ms cold for 2,482 events, 0ms warm**, and a merged two-gym view paid a cold fetch per gym per user per visit. Stale-while-revalidate with single-flight (N concurrent cold readers → one provider call, which is what a release instant looks like). **The key is `gymId + date range and deliberately carries no user id.** `releaseAt` depends on the member's own booking-window tier and is stamped per request *after* the cache — caching the stamped result serves one member's release times to another, a correctness bug rather than a staleness trade. Write paths invalidate their own gym; `?refresh=1` bypasses, set only by the explicit refresh control. A failed background refresh keeps the last good value rather than emptying the page for everyone. Counters on `/api/health`.
+- **The schedule cache is SHARED and user-agnostic (`server/schedule-cache.js`, 2026-09-15).** The timetable was slow on the *second* load too, because nothing cached it server-side: live Psycle is **6,105ms cold for 2,482 events, 0ms warm**, and a merged two-gym view paid a cold fetch per gym per user per visit. Stale-while-revalidate with single-flight (N concurrent cold readers → one provider call, which is what a release instant looks like). **The key is `gymId + date range and deliberately carries no user id.** `releaseAt` depends on the member's own booking-window tier and is stamped per request *after* the cache — caching the stamped result serves one member's release times to another, a correctness bug rather than a staleness trade. Write paths invalidate their own gym; `?refresh=1` bypasses, set only by the explicit refresh control. A failed background refresh keeps the last good value rather than emptying the page for everyone. Counters on `/api/health`. **Fetch window (C2-4, 2026-10-06):** CodexFit fills it with unscoped ranged v2 `/events` calls chunked at 7 days (live 502s from ~14 days unscoped); MarianaTek uses one shared single-flight date-bounded parallel-paginated class list, and its metadata is bounded to 28 days. **HTTP cache:** normalized responses carry `Vary: x-gym-id` and `Cache-Control: private, no-cache`, and the client appends `?gym=` to gym-scoped GETs, so the browser cache cannot serialise or cross-serve gyms.
+- **Heartbeat-validated freshness (C2-5 rebuilt, 2026-10-06; supersedes the abandoned first attempt).** Providers may implement the optional hook `hasFreshnessStamps()`/`getFreshnessStamps()` (CodexFit: public `GET /api/v1/customer/heartbeat`, in `providers/codexfit.js`; MarianaTek has none and keeps plain TTL). `server/freshness.js` memoises it per gym (5 s), single-flights it, times out at 4 s and negative-memoises failures/429 (15 s). `schedule-cache.js` `opts.stamp`/`opts.ceilingMs`: a TTL-stale entry whose stamp is unchanged is re-validated instead of refetched, until a hard max-age ceiling (timetable 5 min on `events`; metadata 6 h on `locations|studios|instructors|event-types`; studio layouts 7 d on `studios`). Changed stamp, ceiling, or heartbeat failure falls back to the existing SWR path (never empty). **Accepted staleness: the `events` stamp does NOT move on seat-count changes, so occupancy/'spots' can lag up to 5 min (the official website behaves the same); book/cancel still invalidate immediately.** Counters on `/api/health` (`scheduleCache.stamp*`, `ceilingRefetches`, `freshness.heartbeat*`) and `/metrics` (`schedule_cache_freshness_total{result}`). Mock: `/heartbeat` with `mock.setMockHeartbeatStamp()`. Test: `server/test-freshness-cache.js`. Bundles are not server-cached, so nothing to stamp there.
 - **Keep three separate questions separate: `metered`, `creditPurchase`, and eligibility.** Eligibility is now implemented through `provider.getEligibility()` → `GET /api/eligibility` → `cache.eligibility`; MarianaTek derives it from an active membership or usable credits. Credit arithmetic remains exclusively in `client/src/ui/credit-allowance.js` and returns `Infinity` when unmetered. Do not re-derive membership eligibility from a credit total, and keep `available_credits.reduce` inside that module only.
+- **Favourites are gym-neutral (F-12, 2026-10-06).** A favourite is a recurring slot (studio + weekday + start time in the CLASS zone), keyed like the CodexFit bookmark. Routes pick native vs local from the capability `bookmarks`, never the platform (`provider.listFavourites/setFavourite` vs `db.*Favourite`). Client keeps one index per gym in `cache.favouritesByGym`; absent = not loaded. `/api/bookmarks/:identifier` remains but nothing calls it. C5-2 (Auto-Book Favourites) will consume this table later.
 - **A one-platform feature gets a NAMED route, never a passthrough.** Bookmarks, `/bundles` and the Konami profile edit are CodexFit-only, and keeping them on a raw passthrough is what kept `/api/proxy` alive for three attempts to delete it. They are now `GET /api/bundles`, `PUT|DELETE /api/bookmarks/:identifier` and `POST /api/profile/update`, each gated on the **gym's** capability flag before the adapter is reached. `test-regression-psycle.js` asserts `/api/proxy/*` returns 404. Normalize `/bundles` properly when a second provider can sell packs.
 - **A capability or balance question in a LIST must be asked per row, with that row's gym (`canForGym`, 2026-09-15).** `can('metered')` answers for whichever gym the app defaults to, so in a merged timetable a JAB class was evaluated against Psycle's `metered: true` AND Psycle's credit balance — with no Psycle credits, *every* row (JAB membership classes included) showed "Buy Credits". Same for eligibility: `cache.eligibilityByGym` is keyed per gym, and with several gyms linked a missing entry falls back to **nothing**, not to the account-level value, because that value belongs to one gym.
 - **"Not loaded" is not "zero" (2026-09-15).** The per-gym credit/eligibility fan-out is fire-and-forget, so the first paint runs before it lands. Returning `[]`/`0` there reads as "you have no credits" and put "Buy Credits" on every row until the user switched days and forced a re-render. `creditsFor()` returns **null** when unknown and the arithmetic answers permissively — the same unknown-defaults-ON rule as capability flags — and `repaintTimetableIfVisible()` re-renders when the real answer arrives. Do not "simplify" the null away.
@@ -317,11 +326,13 @@ The background services (auto-book scheduler, auto-upgrade poller, calendar feed
 ```
 # Public Config + Health (no auth)
 GET    /api/config                # Returns { appName, publicHost } — needed before login to render UI
+GET    /metrics                   # C7-3 Prometheus text metrics; Bearer METRICS_TOKEN or admin JWT (401/403 otherwise); aggregate labels only, bounds in metrics.js
 GET    /api/health                # Liveness probe — 200 when heartbeats are fresh, 503 if degraded
 
 # Admin Panel
 GET    /admin                     # Serves admin.html (standalone admin SPA)
 POST   /api/admin/login           # Verify ADMIN_PASSWORD, issue 1h admin JWT
+GET    /api/admin/audit           # C7-3 audit log, newest first (?limit<=500&offset)
 GET    /api/admin/users           # List all users with queue counts + priority
 GET    /api/admin/users/:id       # Full user detail (profile, credits, bookings, queue, monitors, spot maps)
 PUT    /api/admin/users/:id/priority  # Update a user's priority tier (1–999)
@@ -362,6 +373,11 @@ POST   /api/waitlist/leave
 GET    /api/bundles                 # Credit packs (gyms with capabilities.creditPurchase)
 PUT    /api/bookmarks/:identifier   # Save a class (gyms with capabilities.bookmarks)
 DELETE /api/bookmarks/:identifier
+
+# Favourites (F-12) — the client uses these for EVERY gym; native bookmarks where capabilities.bookmarks, else local table
+GET    /api/favourites              # { gymId, native, favourites: [{ id, studioId, dayOfWeek, startTime, …labels }] }
+PUT    /api/favourites              # Save a recurring slot { studioId, dayOfWeek, startTime, …labels } (idempotent)
+DELETE /api/favourites/:id          # id = studioId+"0000"+dayOfWeek+"0000"+HHmm
 POST   /api/profile/update          # Profile Explorer's hidden edit mode
 
 # Gyms (multi-gym)
@@ -426,7 +442,7 @@ POST   /api/notify/booking-success  # Client reports manual/quick booking → se
 POST   /api/bookings/sync           # Client pushes bookings to warm server reminder cache
 ```
 
-## SQLite Schema (17 tables)
+## SQLite Schema (19 tables)
 
 | Table | Purpose | Key columns |
 |-------|---------|-------------|
@@ -443,9 +459,11 @@ POST   /api/bookings/sync           # Client pushes bookings to warm server remi
 | `waitlist_cache` | Waitlist reminder cache (client-synced) | `event_id`, `start_at`, `studio_id`, `location_address`, `UNIQUE(user_id, event_id)` |
 | `class_history` | H-0 past classes, one row per (user, gym, provider booking id), normalized fields only (`status`: attended/unconfirmed/late-cancel/cancelled/no-show/class-cancelled; `start_ts` epoch ms for range queries). Written ONLY via `server/class-history.js`; shaped for C8-1 to adopt | `gym_id` NOT NULL, `booking_id`, `instructor_id/name`, `start_at`, `UNIQUE(user_id, gym_id, booking_id)` |
 | `class_history_sync` | Per (user, gym) last-synced time/error/row count | `last_synced_at`, `last_error`, PK `(user_id, gym_id)` |
+| `favourites` | F-12 gym-neutral favourites for gyms without native bookmarks (Psycle uses native; capability `bookmarks`). One row per recurring slot | `gym_id` NOT NULL, `studio_id`, `day_of_week` (Sun=0), `start_time` HHmm (class-local), display labels, `UNIQUE(user_id, gym_id, studio_id, day_of_week, start_time)` |
 | `sent_notifications` | Notification dedupe | `dedupe_key`, `UNIQUE(user_id, dedupe_key)` |
 | `calendar_classes` | Per-user calendar event rows | `event_id`, `start_at`, `class_name`, `slot_label`, `status`, `upgrade_note`, `sequence`, `content_hash`, `UNIQUE(user_id, event_id)` |
 | `calendar_snapshots` | Generated .ics per user | `ics`, `etag`, `class_count`, `generated_at` (PK `user_id`) |
+| `admin_audit_log` | C7-3 admin action audit trail (append-only; never holds passwords/tokens; no FK so `user.delete` rows survive) | `ts`, `actor`, `action`, `target_user_id`, `ip`, `detail` (JSON, key-redacted) |
 | `server_kv` | Key-value store | `jwt_secret`, `vapid_public_key`, `vapid_private_key`, `locations_json`, `studio_name_map` |
 
 ## Client-Side Storage Schema (PWA)
@@ -479,6 +497,8 @@ IndexedDB database `sweat-cache` (v3; renamed from `psycle-cache`, rows copied o
 | `VAPID_PRIVATE_KEY` | `push.js` | VAPID private key for Web Push (auto-generated + DB-stored fallback) |
 | `VAPID_EMAIL` | `push.js` | `mailto:` VAPID contact (default: `mailto:admin@psycle.wingfield.tech`) |
 | `RATE_LIMIT_TEST_FORCE` | `routes-normalized.js` | Test-only: enables the production-only read/refresh limiters so suites can assert 429s. |
+| `LOG_LEVEL` | `logger.js` | `debug`/`info`/`warn`/`error` (default `info`). `debug` adds a line per upstream provider call (gym, method, path, status, durationMs) and health/static request lines. `LOG_PRETTY=1` indents the JSON. |
+| `METRICS_TOKEN` | `server.js` | Bearer token for `GET /metrics` (Prometheus text). Alternative: a valid admin session JWT. If neither this nor `ADMIN_PASSWORD` is set, `/metrics` returns 503; it is never unauthenticated. |
 | `ADMIN_PASSWORD` | `admin.js` | Password for admin panel login. If absent, all `/api/admin/*` routes return 503. |
 | `APP_NAME` | `server/config.js` → all server modules + client via `/api/config` | App display name (default: `Sweat Assistant`). |
 | `PUBLIC_HOST` | `server/config.js` → `calendar.js`, client via `/api/config` | Public domain for calendar feed URLs and UID generation (default: `psycle.wingfield.tech`). |

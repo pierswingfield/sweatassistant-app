@@ -14,6 +14,7 @@ import { appConfig, initConfig } from './config';
 import { coldBootDestination } from './ui/onboarding-routing.js';
 import { shouldShowOnboarding, resumeOnboarding, getPostLoginDestination, isOnboardingActive, advanceAfterLogin, promoteInstallDismissal, offerInstallBeforeLogin } from './ui/onboarding';
 import { detectBookingWindow, noSept } from './lib';
+import { indexFavourites } from './favourites.js';
 import { canBookAtAll, getIneligibleReason, unmeteredBadgeLabel } from './ui/credit-allowance.js';
 import { escapeHtml, gymBrand, wordmarkElement } from './ui/cards';
 import { installBookingState } from './ui/booking-state.js';
@@ -110,6 +111,9 @@ export let cache = {
   // ONE gym reads these through profileForGym() / gymSetting().
   profilesByGym: {},
   gymSettings: {},
+  // F-12: one favourites index PER GYM ({ items, ids }), keyed by gym id. A missing key
+  // means "not loaded" (callers treat it as no favourite, never as another gym's list).
+  favouritesByGym: {},
 };
 
 // The gym-scoped half of settings for one gym, e.g. autoUpgradeByDefault. Falls
@@ -141,6 +145,22 @@ export function setGymSettingLocal(gymId, key, value) {
 // loaded, which callers treat as "no bookmarks", never as another gym's list.
 export function profileForGym(gymId) {
   return (gymId && cache.profilesByGym && cache.profilesByGym[gymId]) || null;
+}
+
+// F-12: ONE gym's favourites index, or null when it has not loaded. Never falls back to
+// another gym's list: provider studio ids collide across gyms.
+export function favouritesForGym(gymId) {
+  return (gymId && cache.favouritesByGym && cache.favouritesByGym[gymId]) || null;
+}
+
+// Apply a successful toggle locally (the server answered ok) so the heart flips with no refetch.
+export function setFavouriteLocal(gymId, slot, on) {
+  if (!gymId) return;
+  const cur = favouritesForGym(gymId)?.items || [];
+  const id = `${slot.studioId}0000${slot.dayOfWeek}0000${slot.startTime}`;
+  const rest = cur.filter((f) => f.id !== id);
+  cache.favouritesByGym[gymId] = indexFavourites(on ? [...rest, { ...slot, id }] : rest);
+  window.dispatchEvent(new Event('sweat-favourites-changed'));
 }
 
 // --- THEME (Auto / Light / Dark) ---
@@ -1174,7 +1194,7 @@ export async function refreshUserData(force = false) {
     const targets = gymIds.length ? gymIds : [null]; // no gym linked yet: ambient, as before
     const perGym = await Promise.all(targets.map(async (gymId) => {
       try {
-        const [normalized, credits, eligibility, gymSettings] = await Promise.all([
+        const [normalized, credits, eligibility, gymSettings, favs] = await Promise.all([
           api.getNormalizedProfile(gymId),
           api.getNormalizedCredits(gymId).catch(() => null),
           // Allowed to fail on its own too — an adapter with no real
@@ -1182,8 +1202,11 @@ export async function refreshUserData(force = false) {
           // fetch should never itself block booking; see credit-allowance.js.
           api.getEligibility(gymId).catch(() => null),
           api.getSettings(gymId).catch(() => null),
+          // F-12: this gym's favourites (native or local, the server decides). Failing
+          // alone leaves the gym "not loaded", never blocks the refresh.
+          gymId ? api.getFavourites(gymId).catch(() => null) : Promise.resolve(null),
         ]);
-        return { gymId, profile: { ...(normalized.raw || {}), ...normalized }, credits, eligibility, gymSettings };
+        return { gymId, profile: { ...(normalized.raw || {}), ...normalized }, credits, eligibility, gymSettings, favs };
       } catch (error) {
         return { gymId, error };
       }
@@ -1193,11 +1216,17 @@ export async function refreshUserData(force = false) {
 
     cache.profilesByGym = {};
     cache.gymSettings = { ...(cache.gymSettings || {}) };
+    // Keep a still-linked gym's last known favourites if its fetch failed this time;
+    // drop an unlinked gym's entirely (nothing may leak across a change of gym set).
+    const prevFavs = cache.favouritesByGym || {};
+    cache.favouritesByGym = Object.fromEntries(gymIds.filter((g) => prevFavs[g]).map((g) => [g, prevFavs[g]]));
     for (const r of loaded) {
       if (!r.gymId) continue;
+      if (r.favs && Array.isArray(r.favs.favourites)) cache.favouritesByGym[r.gymId] = indexFavourites(r.favs.favourites);
       cache.profilesByGym[r.gymId] = r.profile;
       if (r.gymSettings) cache.gymSettings[r.gymId] = r.gymSettings;
     }
+    window.dispatchEvent(new Event('sweat-favourites-changed')); // F-12: Settings > Favourites repaints
 
     // `cache.profile`/`cache.eligibility` remain as the SINGLE-gym fallbacks the
     // credit arithmetic reads when no gym is named. With several gyms they are
@@ -1453,6 +1482,7 @@ function showLogin() {
   // Per-gym copies belong to the previous account too.
   cache.profilesByGym = {};
   cache.gymSettings = {};
+  cache.favouritesByGym = {};
   document.body.id = 'sa-helper-container';
   document.body.className = 'sa-helper-expanded';
   document.getElementById('sa-app-container').style.display = 'none';

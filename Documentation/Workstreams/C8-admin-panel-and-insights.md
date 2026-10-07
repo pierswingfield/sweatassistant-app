@@ -36,6 +36,8 @@ Every feature, chart, table, filter, background process, and batch action in the
 
 ## Detailed Specifications
 
+> **Confirmed 2026-10-06 (user): C8-1 is a genuine job-to-be-done. Keep it open** (admin event ledger, booking lifecycle and profile harvester).
+
 ### C8-1: Foundational Data Pipeline: Event Ledger, Booking Lifecycle & Profile Harvester
 
 #### Why This Exists

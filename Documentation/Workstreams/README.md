@@ -1,6 +1,6 @@
 # Workstreams — Sweat Assistant roadmap
 
-> **Branching (2026-10-06):** the `modular` branch is retired; `master` is the single working branch and equals what prod runs. Older docs saying "`modular`" mean this code.
+> **Branching (2026-10-06):** **Update 2026-10-06:** the `optimisation` branch (C2-4/C2-5 chunked timetable fetch, C7-3 logging and metrics, MarianaTek speedup, F-12 client favourites) was fast-forward merged into `master` and retired locally; the remote `origin/optimisation` is retained until the user decides. the `modular` branch is retired; `master` is the single working branch and equals what prod runs. Older docs saying "`modular`" mean this code.
 
 **This folder is the single source of truth for what's next.** It replaced `BACKLOG.md`,
 `Backlog/*` and `Backlog/modular-gyms/*` on 2026-09-26. Those files are frozen in
@@ -20,9 +20,12 @@ dated STATUS line; open items are the only thing left to do.
 
 | | |
 |---|---|
-| **Prod** (`sweat.wingfield.tech`) | **Multi-gym `modular` build since 2026-10-06** (Psycle + JAB + Aarmy enabled; fresh DB; `master` == `modular`). Buy Credits works (v2 cart). First account sign-up / `/admin` check is the user's step (C4-14). |
-| **Dev twin** (`sweat-dev.wingfield.tech`) | `modular` branch: multi-gym (Psycle/CodexFit + JAB/MarianaTek), merged timetable, per-account calendar, restructured Settings. JAB is enabled there by env var. |
-| **The milestone** | **C4 launched 2026-10-06.** What's open now is post-launch: see the workstream list below. |
+| **Prod** (`sweat.wingfield.tech`) | **Multi-gym build deployed by the user 2026-10-06.** Psycle + JAB + Aarmy enabled; fresh DB; `master` branch. Buy Credits works (v2 cart). First account sign-up and `/admin` access remain user steps. |
+| **Dev twin** (`sweat-dev.wingfield.tech`) | Multi-gym (Psycle/CodexFit + JAB/MarianaTek), merged timetable, per-account calendar, restructured Settings. JAB enabled via env var. |
+| **`optimisation` branch** | Perf work (C2-4/C2-5 chunked `/events`, C7-3 metrics, C7-4 image proxy done; branch state unmerged/undeployed to prod). |
+| **Post-launch status** | **Live 2026-10-06.** U5 finished and archived. C6-3 closed (no legacy accounts). C7-5 deprioritised (acceptable design). Remaining work: workstream list below. |
+
+> **2026-10-06 note (`optimisation`):** C2-4 shipped as 7-day-chunked ranged v2 `/events` (4 calls per 28 days; unscoped ranges 502 from ~14 days live), not one 42-day call. C2-5 rebuilt as stamp-gated refresh with ceilings (timetable 5 min, metadata 6 h, layouts 7 d); occupancy can lag up to 5 min. C7-3 and C7-4 done. **Open:** prewarm (first data still ~15 s, one slow upstream), `METRICS_TOKEN` unset on dev, `optimisation` unmerged and not on prod, C7-7 re-evaluate.
 
 ## Workstreams
 
@@ -31,15 +34,15 @@ dated STATUS line; open items are the only thing left to do.
 | ID | Workstream | Priority | Size |
 |---|---|---|---|
 | C1 (archived) | ✅ **FINISHED, archived 2026-10-06** — [Archive/2026-10-06/C1-critical-fixes.md](../Archive/2026-10-06/C1-critical-fixes.md). Critical fixes: security, session, data safety. | P0 | done |
-| [C2](C2-psycle-api-v2.md) | Psycle API v2 compliance and efficiency | **P0** (phase 1), P1 (phase 2) | ~4–5 days |
+| [C2](C2-psycle-api-v2.md) | Psycle API v2 compliance and efficiency. Phase 1 done; phase 2 (C2-4 7-day-chunked ranged `/events`, C2-5 heartbeat-validated cache, C2-6, MarianaTek cold-load fix) built on `optimisation`, dev twin only; open: prewarm | **P0** (phase 1), P1 (phase 2) | phase 2 built, not shipped |
 | C3 (archived) | ✅ **FINISHED, archived 2026-10-06** — [Archive/2026-10-06/C3-multi-gym-correctness.md](../Archive/2026-10-06/C3-multi-gym-correctness.md). Multi-gym correctness; the last hunt candidate (failed fetch wiping reminder cache) fixed 2026-10-06. | P1 | done |
 | [C4](C4-live-acceptance-and-launch.md) | Live acceptance, promote to prod, JAB launch | **P0 milestone** | ~3 days of work over ~1–2 weeks elapsed |
 | [C5](C5-auto-book.md) | Auto-book gaps; Favourites build (P3) | P2 (Favourites P3) | ~2.5 days |
 | [C6](C6-accounts-auth.md) | Accounts and auth | P2 | ~2–3 days |
-| [C7](C7-platform-ops.md) | Platform, ops and security hardening | P1 (pre-launch subset), P2–P3 (rest) | ~1 day pre-launch, then ~1 week |
+| [C7](C7-platform-ops.md) | Platform, ops and security hardening (C7-3 logging/audit/`/metrics` and C7-4 image proxy done; C7-7 P3, re-evaluate) | P1 (pre-launch subset), P2–P3 (rest) | ~1 day pre-launch, then ~1 week |
 | [C8](C8-admin-panel-and-insights.md) | Admin panel, fleet intelligence, attendance & ops | P2 | ~1.5–2 weeks |
 | [C9](C9-gym-onboarding.md) | Gym onboarding: provider reuse, tenant evidence and activation gates | P1 | Ongoing playbook |
-| [C10](C10-aarmy-integration-acceptance.md) | Aarmy integration acceptance | **P0** | Outstanding live acceptance |
+| [C10](C10-aarmy-integration-acceptance.md) | Aarmy integration acceptance | **P0** | Acceptance done per user 2026-10-06 (Aarmy enabled in prod; write paths waived, first real booking is the test) |
 
 ### UX / design
 
@@ -48,7 +51,7 @@ dated STATUS line; open items are the only thing left to do.
 | U1 (archived) | ✅ **FINISHED, archived 2026-10-06** — [Archive/2026-10-06/U1-ux-bug-fixes.md](../Archive/2026-10-06/U1-ux-bug-fixes.md) | P1–P2 | done |
 | [U2](U2-components-accessibility.md) | Shared components and accessibility (U2-1, U2-2, U2-5 done; **U2-4 shared empty-state helper open**) | P2 | ~2 days |
 | [U4](U4-ux-improvements.md) | UX improvements: done: U4-1..5, U4-7..9, U4-11, U4-12 (accepted), U4-13, U4-14 (closed, logo dropped), U4-15, U4-16, U4-17, U4-18, U4-2, **U4-19 (URL routing phases 1-8, built 2026-10-06, not deployed)**; U4-6 evaluated; **open: U4-10 (more glass)** | P2 | ~1–2 days (glass) |
-| [U5](U5-modal-fullscreen-and-spot-flow.md) | Mobile full-screen pages and the spot-map booking flow: U5-1..U5-11, U5-13, U5-16..U5-25 done; open: U5-12 (iOS keyboard, device), U5-14, U5-15 | P2 | ~0.5 day + device check |
+| U5 (archived) | ✅ **FINISHED, archived 2026-10-06** — [Archive/2026-10-06/U5-modal-fullscreen-and-spot-flow.md](../Archive/2026-10-06/U5-modal-fullscreen-and-spot-flow.md). Mobile full-screen pages and spot-map booking flow. | P2 | done |
 | [U3](U3-css-design-debt.md) | CSS and design-system debt | P3 | ~1 week |
 
 ### Later
@@ -77,10 +80,10 @@ dated STATUS line; open items are the only thing left to do.
 5. **C4 Live acceptance, promote `modular` to prod with clean DB and JAB enabled.**
    Includes user review of the `/admin` panel on the dev twin before deploy, a fresh DB
    rollout (no legacy migration debt), and multi-gym enabled at launch.
-6. **C2 phase 2 (efficient reads).** `/events` v2, `/heartbeat` cache invalidation, `/profile`
+6. **C2 phase 2 (efficient reads), built on `optimisation`, awaiting merge.** `/events` v2, `/heartbeat`-validated cache, `/profile`
    dedupe. Deliberately after launch so the upstream traffic shape changes in a separate deploy.
 7. **C5 Auto-book gaps** (Favourites build last, P3), then **C6 Accounts and auth**.
-8. **C10 Aarmy acceptance** only when an Aarmy activation is intended; C9 remains the standard
+8. **C10 Aarmy acceptance** (done per user 2026-10-06; write paths waived); C9 remains the standard
    onboarding path for future tenants.
 9. **U2 Components and accessibility**, then **U3 CSS debt.** U3 waits until after launch because it
    touches every screen and would invalidate acceptance screenshots.
@@ -147,3 +150,5 @@ These were still listed as open in the old docs. The code shows them done.
 - Item IDs (`C3-4`, `U1-2`) are stable. Reference them in commits and code comments.
 - The old item IDs (QA-nn, WP-xx, Dn, Qn) are kept in brackets so the archive and QA logs can be
   traced.
+
+**Update 2026-10-06:** **F-12** (gym-neutral favourites: favouriting on gyms with no native bookmarks) is DONE on branch `favourites` (see [F-future-features.md](F-future-features.md)). User-confirmed corrections: **F-2** (MarianaTek guest passes) is DONE, nothing open; **F-11** (class counts and stats) is being built inside the Home page workstream ([H](H-home-page.md)); **C8-1** (admin event ledger and booking lifecycle) is a genuine job to be done and stays open.

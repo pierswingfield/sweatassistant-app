@@ -4,6 +4,7 @@ const { cleanClassName: _cleanClassName } = require('./class-name');
 const displayClass = (row) => _cleanClassName(row.class_name, row.group_name) || row.class_name;
 const { DateTime } = require('luxon');
 const db = require('./db');
+const { log } = require('./logger');
 const pushService = require('./push');
 const notifications = require('./notifications');
 const { triggerAutoRelogin } = require('./auth');
@@ -79,7 +80,7 @@ async function fetchFromGym(userId, gymId, path, options = {}) {
       const newJwt = await triggerAutoRelogin(userId, gymId);
       res = await runFetch(newJwt);
     } catch (err) {
-      console.error(`[Poller] Auto-relogin failed for user ${userId}:`, err.message);
+      log.error('relogin failed', { component: 'poller', userId, err });
       pushService.sendNotification(userId, 'Session Expired ⚠️', 'Failed to renew session. Auto-upgrade paused.');
       throw err;
     }
@@ -127,7 +128,7 @@ async function bookSlotWithRelogin(userId, gymId, eventId, targetSlot) {
   const provider = getProvider(gymId);
   let result = await provider.bookSlot(eventId, [targetSlot], session);
   if (!result.ok && result.status === 401) {
-    console.log(`[Poller] Auto-upgrade booking got 401 for user ${userId} — attempting relogin and retry.`);
+    log.info('auto-upgrade booking got 401, attempting relogin and retry', { component: 'poller', userId, gymId });
     const newJwt = await triggerAutoRelogin(userId, gymId);
     session = { accessToken: newJwt };
     result = await provider.bookSlot(eventId, [targetSlot], session);
@@ -167,7 +168,7 @@ function shouldCheckUpgrade(upgrade, settings) {
 function handleUpgradeThrottle(result, userId, gymId, claimKey) {
   if (!result || result.code !== 'PROVIDER_RATE_LIMITED') return false;
   const until = applyRateLimitBackoff(gymId, result.retryAfterMs);
-  console.error(`[Poller] Gym ${gymId} rate-limited an auto-upgrade attempt (${result.error}). Backing off until ${new Date(until).toISOString()}.`);
+  log.error('gym rate-limited an auto-upgrade attempt, backing off', { component: 'poller', gymId, userId, reason: result.error, backoffUntil: new Date(until).toISOString() });
   claimedSlots.delete(claimKey);
   notifyRateLimited(userId, gymId);
   return true;
@@ -442,7 +443,7 @@ async function attemptUpgradeSlot(upgrade, isCutoffMode) {
   } catch (err) {
     // C2-3b: a thrown 429 from a read (event details, profile) backs the gym off too.
     if (noteThrottleError(gymId, err)) {
-      console.error(`[Poller] Gym ${gymId} rate-limited (${err.message}). Backing off auto-upgrade polling for this gym.`);
+      log.error('gym rate-limited, backing off auto-upgrade polling', { component: 'poller', gymId, userId, err });
       notifyRateLimited(userId, gymId);
     } else {
       console.error(`[Poller] Error in upgrade worker for event ${eventId}:`, err.message);

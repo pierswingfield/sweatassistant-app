@@ -30,7 +30,7 @@ describe('syncGymBrandedTags (U4-9)', () => {
 describe('syncGymBrandedTags is per page (tab panel), not per list', () => {
   it('counts gyms across both lists of one panel', () => {
     const panel = document.createElement('section');
-    panel.className = 'psycle-tab-content';
+    panel.className = 'sa-tab-content';
     panel.innerHTML = '<div id="a"><div data-gym="psycle-london"><span class="ab-disc-tag"></span></div></div>'
       + '<div id="b"><div data-gym="jab-boxing"><span class="ab-disc-tag"></span></div></div>';
     const a = panel.querySelector('#a'), b = panel.querySelector('#b');
@@ -40,7 +40,7 @@ describe('syncGymBrandedTags is per page (tab panel), not per list', () => {
   });
   it('stays single-gym when every list on the page is one gym', () => {
     const panel = document.createElement('section');
-    panel.className = 'psycle-tab-content';
+    panel.className = 'sa-tab-content';
     panel.innerHTML = '<div id="a"><div data-gym="jab-boxing"><span class="ab-disc-tag"></span></div></div>'
       + '<div id="b"><div data-gym="jab-boxing"><span class="ab-disc-tag"></span></div></div>';
     expect(syncGymBrandedTags(panel.querySelector('#a'))).toBe(false);

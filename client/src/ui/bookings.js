@@ -129,14 +129,14 @@ export async function renderBookings() {
 
     // Show a friendly empty state when offline and no cached data is available
     if (bookingsList && !bookingsDataReady()) {
-      bookingsList.innerHTML = `<div class="psycle-empty-state" style="text-align:center;padding:40px 20px;color:var(--text-secondary)"><p style="font-size:16px;margin-bottom:8px">${COPY.bookings.noCachedData}</p><p style="font-size:13px;color:var(--text-tertiary)">${COPY.bookings.connectInternetBookings}</p></div>`;
+      bookingsList.innerHTML = `<div class="sa-empty-state" style="text-align:center;padding:40px 20px;color:var(--text-secondary)"><p style="font-size:16px;margin-bottom:8px">${COPY.bookings.noCachedData}</p><p style="font-size:13px;color:var(--text-tertiary)">${COPY.bookings.connectInternetBookings}</p></div>`;
     } else if (bookingsList) {
-      bookingsList.innerHTML = `<div class="psycle-card-error">${formatCopyText(COPY.bookings.noCachedError, { error: escapeHtml(err.message) })}</div>`;
+      bookingsList.innerHTML = `<div class="sa-card-error">${formatCopyText(COPY.bookings.noCachedError, { error: escapeHtml(err.message) })}</div>`;
     }
     if (waitlistsList && !bookingsDataReady()) {
-      waitlistsList.innerHTML = `<div class="psycle-empty-state" style="text-align:center;padding:40px 20px;color:var(--text-secondary)"><p style="font-size:16px;margin-bottom:8px">${COPY.bookings.noCachedData}</p><p style="font-size:13px;color:var(--text-tertiary)">${COPY.bookings.connectInternetWaitlists}</p></div>`;
+      waitlistsList.innerHTML = `<div class="sa-empty-state" style="text-align:center;padding:40px 20px;color:var(--text-secondary)"><p style="font-size:16px;margin-bottom:8px">${COPY.bookings.noCachedData}</p><p style="font-size:13px;color:var(--text-tertiary)">${COPY.bookings.connectInternetWaitlists}</p></div>`;
     } else if (waitlistsList) {
-      waitlistsList.innerHTML = `<div class="psycle-card-error">${formatCopyText(COPY.bookings.noCachedError, { error: escapeHtml(err.message) })}</div>`;
+      waitlistsList.innerHTML = `<div class="sa-card-error">${formatCopyText(COPY.bookings.noCachedError, { error: escapeHtml(err.message) })}</div>`;
     }
 
     if (bookingsRefreshing) bookingsRefreshing.style.display = 'none';
@@ -361,7 +361,7 @@ function buildBookingCard(group, upgrades) {
     `<button class="ab-rail-btn bk-edit-btn" aria-label="${COPY.bookings.editSpots}">${icon('edit', 17)}<span>${COPY.accessibility.editCard}</span></button>`;
 
   const card = document.createElement('div');
-  card.className = 'psycle-autobook-card ab-card';
+  card.className = 'sa-autobook-card ab-card';
   card.setAttribute('data-event-id', group.eventId);
   card.setAttribute('data-gym', event.gymId || getDefaultGymId());
   card.innerHTML = `
@@ -1009,7 +1009,7 @@ export async function openEditBookingModal(group, onChange = renderBookings) {
   } catch (err) {
     if (!isCurrentRun()) return;
     console.error('[Bookings] Edit modal failed:', err);
-    body.innerHTML = `<div class="psycle-card-error" style="color:var(--danger);padding:20px 0;text-align:center;">${formatCopyText(COPY.bookings.loadingFloorMapError, { error: escapeHtml(err.message) })}</div>`;
+    body.innerHTML = `<div class="sa-card-error" style="color:var(--danger);padding:20px 0;text-align:center;">${formatCopyText(COPY.bookings.loadingFloorMapError, { error: escapeHtml(err.message) })}</div>`;
   }
 }
 
@@ -1051,7 +1051,7 @@ function buildWaitlistCard(w) {
   const locationLine = [event.studioName || event.studio?.name, trimLocation(event.locationName || event.studio?.location?.name, getGymShortName(event.gymId))].filter(Boolean).join(', ');
 
   const card = document.createElement('div');
-  card.className = 'psycle-autobook-card ab-card is-waitlist';
+  card.className = 'sa-autobook-card ab-card is-waitlist';
   card.setAttribute('data-event-id', event.id);
   card.setAttribute('data-gym', event.gymId || getDefaultGymId());
   card.innerHTML = `
@@ -1404,7 +1404,7 @@ export async function openUpgradeConfigModal({ currentSlotLabel = '', eventId, g
 
   } catch (err) {
     console.error('[Bookings] Modal load layout failed:', err);
-    body.innerHTML = `<div class="psycle-card-error">${formatCopyText(COPY.bookings.loadingSpotLayoutError, { error: escapeHtml(err.message) })}</div>`;
+    body.innerHTML = `<div class="sa-card-error">${formatCopyText(COPY.bookings.loadingSpotLayoutError, { error: escapeHtml(err.message) })}</div>`;
   }
 }
 
@@ -1416,7 +1416,7 @@ window.addEventListener('sweat-data-refreshed', (e) => {
     endpoint.startsWith('/api/waitlists') || 
     endpoint.startsWith('/api/auto-upgrade')
   ) {
-    const bookingsPanel = document.getElementById('psycle-panel-my-bookings');
+    const bookingsPanel = document.getElementById('sa-panel-my-bookings');
     if (bookingsPanel && bookingsPanel.style.display !== 'none') {
       renderBookings().catch(() => {});
     }

@@ -24,7 +24,7 @@ describe('modal-nav', () => {
     expect(el.classList.contains('show')).toBe(true);
     expect(el.classList.contains('sa-page')).toBe(false);
     expect(history.length).toBe(len);
-    expect(document.body.classList.contains('psycle-scroll-locked')).toBe(false);
+    expect(document.body.classList.contains('sa-scroll-locked')).toBe(false);
   });
 
   it('mobile: pushes history, locks scroll, sets dialog semantics, back closes', async () => {
@@ -36,13 +36,13 @@ describe('modal-nav', () => {
     expect(el.getAttribute('role')).toBe('dialog');
     expect(el.getAttribute('aria-modal')).toBe('true');
     expect(history.state.sweatNavId).toBe('b');
-    expect(document.body.classList.contains('psycle-scroll-locked')).toBe(true);
+    expect(document.body.classList.contains('sa-scroll-locked')).toBe(true);
     expect(openPageCount()).toBe(1);
     history.back();
     await tick(50);
     expect(openPageCount()).toBe(0);
     expect(onClose).toHaveBeenCalled();
-    expect(document.body.classList.contains('psycle-scroll-locked')).toBe(false);
+    expect(document.body.classList.contains('sa-scroll-locked')).toBe(false);
   });
 
   it('mobile: X goes through history.back and the dirty guard can veto', async () => {
@@ -68,11 +68,11 @@ describe('modal-nav', () => {
     document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }));
     await tick(50);
     expect(openPageCount()).toBe(1);
-    expect(document.body.classList.contains('psycle-scroll-locked')).toBe(true);
+    expect(document.body.classList.contains('sa-scroll-locked')).toBe(true);
     history.back();
     await tick(50);
     expect(openPageCount()).toBe(0);
-    expect(document.body.classList.contains('psycle-scroll-locked')).toBe(false);
+    expect(document.body.classList.contains('sa-scroll-locked')).toBe(false);
   });
 
   it('closePage on an unregistered element is a no-op', () => {
@@ -128,11 +128,11 @@ describe('modal-nav', () => {
     expect(history.state.sweatNavId).toBe('i');
     expect(history.state.sweatNavDepth).toBe(depthBefore);
     expect(onCloseA).toHaveBeenCalledTimes(1);
-    expect(document.documentElement.classList.contains('psycle-scroll-locked')).toBe(true);
+    expect(document.documentElement.classList.contains('sa-scroll-locked')).toBe(true);
     history.back();
     await tick(60);
     expect(openPageCount()).toBe(0);
-    expect(document.documentElement.classList.contains('psycle-scroll-locked')).toBe(false);
+    expect(document.documentElement.classList.contains('sa-scroll-locked')).toBe(false);
   });
 
   it('a layer that captures the header gets the X/Back click, guarded by its canClose', async () => {

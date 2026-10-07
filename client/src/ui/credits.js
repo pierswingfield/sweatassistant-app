@@ -70,7 +70,7 @@ export async function initBundles() {
     } catch (_) { /* leave empty; the message below is then the truth */ }
   }
   if (linked.length === 0) {
-    summaryRoot.innerHTML = `<div class="psycle-card-desc" style="padding:20px 0;">${COPY.credits.connectGym}</div>`;
+    summaryRoot.innerHTML = `<div class="sa-card-desc" style="padding:20px 0;">${COPY.credits.connectGym}</div>`;
     return;
   }
 
@@ -126,7 +126,7 @@ function summaryCardSkeleton(gym) {
       ${gymChip(gymId)}
     </div>
     <div class="psycle-benefit-headline">…</div>
-    <div class="psycle-card-desc">${COPY.credits.checkingAllowance}</div>
+    <div class="sa-card-desc">${COPY.credits.checkingAllowance}</div>
   </article>`;
 }
 
@@ -287,7 +287,7 @@ async function openGymCreditDetail(gymId) {
     renderBundles();
   } catch (err) {
     console.error('Failed to load bundles:', err);
-    container.innerHTML = `<div class="psycle-empty-state" style="text-align:center;padding:40px 20px;color:var(--text-secondary)"><p style="font-size:16px;margin-bottom:8px">${COPY.credits.noCachedBundles}</p><p style="font-size:13px;color:var(--text-tertiary)">${COPY.credits.loadBundlesHelp}</p></div>`;
+    container.innerHTML = `<div class="sa-empty-state" style="text-align:center;padding:40px 20px;color:var(--text-secondary)"><p style="font-size:16px;margin-bottom:8px">${COPY.credits.noCachedBundles}</p><p style="font-size:13px;color:var(--text-tertiary)">${COPY.credits.loadBundlesHelp}</p></div>`;
   }
 }
 
@@ -825,10 +825,10 @@ function renderPurchaseError(body, b, message, hint, secureTips) {
       <div style="font-weight:700; color:var(--text-primary);">${COPY.credits.paymentNotCompleted}</div>
       <div style="font-size:13px; color:var(--text-secondary); margin-top:4px;">${message}</div>
       ${tips}
-      <button class="psycle-btn-primary psycle-website-btn" style="margin-top:16px; padding:10px 20px;">${COPY.credits.finishOnWebsite}</button>
+      <button class="psycle-btn-primary sa-website-btn" style="margin-top:16px; padding:10px 20px;">${COPY.credits.finishOnWebsite}</button>
     </div>
   `;
-  body.querySelector('.psycle-website-btn').addEventListener('click', () => {
+  body.querySelector('.sa-website-btn').addEventListener('click', () => {
     const handle = b.handle || '';
     if (!creditGymWebsiteUrl) return;
     const target = handle ? new URL(`products/${handle}`, creditGymWebsiteUrl).toString() : creditGymWebsiteUrl;

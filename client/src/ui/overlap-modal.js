@@ -96,7 +96,7 @@ export function classSummaryCardHtml(item, tag) {
   const avatar = instructorAvatar(instructor, gymId, item.instructorImageUrl || null);
 
   return `
-    <div class="psycle-autobook-card ab-card sa-overlap-card" data-gym="${escapeHtml(gymId)}">
+    <div class="sa-autobook-card ab-card sa-overlap-card" data-gym="${escapeHtml(gymId)}">
       ${renderGymRail(gymId)}
       <div class="ab-card-main">
         <div class="ab-card-body">

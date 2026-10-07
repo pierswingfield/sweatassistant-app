@@ -257,7 +257,7 @@ async function openProfileExplorerModal(gymId = null, gymName = null) {
     loadedProfile = res.raw || res;
     renderExplorerBody(body);
   } catch (err) {
-    body.innerHTML = `<div class="psycle-card-error">${formatCopyText(COPY.settings.profileLoadFailed, { error: escapeHtml(err.message) })}</div>`;
+    body.innerHTML = `<div class="sa-card-error">${formatCopyText(COPY.settings.profileLoadFailed, { error: escapeHtml(err.message) })}</div>`;
   }
 }
 
@@ -325,7 +325,7 @@ function toggleEditMode() {
 
 function renderExplorerBody(body) {
   if (!loadedProfile) {
-    body.innerHTML = `<div class="psycle-card-error">${COPY.profileExplorer.dataUnavailable}</div>`;
+    body.innerHTML = `<div class="sa-card-error">${COPY.profileExplorer.dataUnavailable}</div>`;
     return;
   }
 
@@ -820,7 +820,7 @@ export async function openManageSpotMapsModal(options = {}) {
 
     renderManageSpotMapsModal(prefs, studios, locations, body, close, activeStudioIds, options);
   } catch (err) {
-    body.innerHTML = `<div class="psycle-card-error" style="padding:16px;">${formatCopyText(COPY.settings.studiosLoadFailed, { error: escapeHtml(err.message) })}</div>`;
+    body.innerHTML = `<div class="sa-card-error" style="padding:16px;">${formatCopyText(COPY.settings.studiosLoadFailed, { error: escapeHtml(err.message) })}</div>`;
   }
   };
   load();
@@ -1092,7 +1092,7 @@ export async function openStudioFloorPlanEditor(studioId, studioName, onSaved, o
       bannerHtml: `<div style="font-size:12px;color:var(--feat-autoupgrade);background:color-mix(in srgb, var(--feat-autoupgrade) 8%, transparent);border:1px solid color-mix(in srgb, var(--feat-autoupgrade) 18%, transparent);border-radius:8px;padding:8px 10px;margin-bottom:12px;line-height:1.5;">${formatCopyText(COPY.spotMaps.sharedSpotMapHtml, { studioName: escapeHtml(studioName) })}</div>`
     });
   } catch (err) {
-    body.innerHTML = `<div class="psycle-card-error" style="padding:16px;">${formatCopyText(COPY.settings.floorPlanLoadFailed, { error: escapeHtml(err.message) })}</div>`;
+    body.innerHTML = `<div class="sa-card-error" style="padding:16px;">${formatCopyText(COPY.settings.floorPlanLoadFailed, { error: escapeHtml(err.message) })}</div>`;
   }
 }
 
@@ -1144,7 +1144,7 @@ function setupSettingsNavigation() {
   // U4-19: keep /settings/:section in step with the visible pane. Initial activation
   // never touches the URL; user clicks push an entry, programmatic selection replaces.
   const syncSectionUrl = (sectionId, replace) => {
-    if (document.getElementById('psycle-panel-settings')?.style.display === 'none') return; // not the visible tab
+    if (document.getElementById('sa-panel-settings')?.style.display === 'none') return; // not the visible tab
     navigate(pathFor({ tab: 'settings', section: sectionId }), { replace });
   };
 
@@ -1314,7 +1314,7 @@ let connByGym = new Map();
 function ensureConnTable(list) {
   if (list.querySelector('.sa-gym-conn-table')) return list.querySelector('.sa-gym-conn-table');
   list.innerHTML = `
-    <div class="psycle-card-desc sa-gym-conn-empty" style="padding:10px 0;" hidden>${COPY.settings.noGymsLinked}</div>
+    <div class="sa-card-desc sa-gym-conn-empty" style="padding:10px 0;" hidden>${COPY.settings.noGymsLinked}</div>
     <div class="sa-gym-conn-table" role="table" aria-label="${COPY.settings.gymConnections}">
       <div class="sa-gym-conn-head" role="row">
         <span role="columnheader">${COPY.settings.gym}</span>
@@ -1550,7 +1550,7 @@ async function renderGymsCard() {
   } catch (err) {
     if (!gymsRenderGuard.isCurrent(token)) return;
     if (painted) debugConsole('[Settings] Could not refresh gym connections:', err.message);
-    else list.innerHTML = `<div class="psycle-empty-state" style="padding:12px;">${getIsOffline() ? COPY.settings.noSavedGymData : formatCopyText(COPY.settings.couldNotLoadGyms, { error: escapeHtml(err.message) })}</div>`;
+    else list.innerHTML = `<div class="sa-empty-state" style="padding:12px;">${getIsOffline() ? COPY.settings.noSavedGymData : formatCopyText(COPY.settings.couldNotLoadGyms, { error: escapeHtml(err.message) })}</div>`;
     return;
   }
   if (!gymsRenderGuard.isCurrent(token)) return;
@@ -1567,7 +1567,7 @@ async function renderGymsCard() {
 
   actions.innerHTML = addable.length
     ? `<button class="psycle-btn primary psycle-btn-mini" id="psycle-add-gym-btn">${COPY.settings.connectGymAction}</button>`
-    : `<p class="psycle-card-desc" style="margin:0;">${COPY.settings.noAvailableGyms}</p>`;
+    : `<p class="sa-card-desc" style="margin:0;">${COPY.settings.noAvailableGyms}</p>`;
   const addBtn = document.getElementById('psycle-add-gym-btn');
   if (addBtn) addBtn.onclick = () => openLinkGymModal(null, null, addable);
 
@@ -1602,7 +1602,7 @@ export async function renderGymSettingsSection(requestedGymId = null, targetCont
   // Keep already-rendered content while a refresh runs (U1-7: panes now persist
   // across renders); the placeholder is only for a pane that has nothing yet.
   if (!container.hasChildNodes()) {
-    container.innerHTML = `<div class="sa-settings-card"><p class="psycle-card-desc">${COPY.settings.loadingGymSettings}</p></div>`;
+    container.innerHTML = `<div class="sa-settings-card"><p class="sa-card-desc">${COPY.settings.loadingGymSettings}</p></div>`;
   }
 
   try {
@@ -1614,7 +1614,7 @@ export async function renderGymSettingsSection(requestedGymId = null, targetCont
     const gymId = requestedGymId || linked[0]?.gym_id;
     const link = linked.find(g => g.gym_id === gymId);
     if (!gymId || !link) {
-      container.innerHTML = `<div class="sa-settings-card"><h4>${COPY.settings.connectGym}</h4><p class="psycle-card-desc">${COPY.settings.linkBeforeConfig}</p></div>`;
+      container.innerHTML = `<div class="sa-settings-card"><h4>${COPY.settings.connectGym}</h4><p class="sa-card-desc">${COPY.settings.linkBeforeConfig}</p></div>`;
       return;
     }
 
@@ -1705,7 +1705,7 @@ export async function renderGymSettingsSection(requestedGymId = null, targetCont
       },
     });
   } catch (err) {
-    container.innerHTML = `<div class="psycle-${getIsOffline() ? 'empty-state' : 'card-error'}" style="padding:12px;">${getIsOffline() ? COPY.settings.noSavedGymSettings : formatCopyText(COPY.settings.loadGymSettingsFailed, { error: escapeHtml(err.message) })}</div>`;
+    container.innerHTML = `<div class="sa-${getIsOffline() ? 'empty-state' : 'card-error'}" style="padding:12px;">${getIsOffline() ? COPY.settings.noSavedGymSettings : formatCopyText(COPY.settings.loadGymSettingsFailed, { error: escapeHtml(err.message) })}</div>`;
   }
 }
 
@@ -1722,7 +1722,7 @@ function openLinkGymModal(gymId, existing, addable = []) {
   const logoGymId = gymId || addable[0]?.id || '';
   body.innerHTML = `
     <div id="sa-link-gym-logo" class="sa-gym-form-logo">${logoGymId ? gymLogoBanner(logoGymId) : ''}</div>
-    <p class="psycle-card-desc" style="margin-top:0;">
+    <p class="sa-card-desc" style="margin-top:0;">
       ${isReauth
         ? COPY.settings.addGymCredentialsHelp
         : COPY.settings.linkGymCredentialsHelp}
@@ -1789,7 +1789,7 @@ function openAccountPasswordModal() {
   const { body, title, open, close } = gymModal();
   title.textContent = COPY.settings.changeAccountPassword;
   body.innerHTML = `
-    <p class="psycle-card-desc" style="margin-top:0;">
+    <p class="sa-card-desc" style="margin-top:0;">
       ${formatCopyText(COPY.settings.accountPasswordDescription, { appName: escapeHtml(appConfig.appName) })}
     </p>
     <label class="sa-setting-label" style="display:block;margin-bottom:4px;"><span>${COPY.settings.currentPassword}</span></label>

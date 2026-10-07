@@ -58,7 +58,7 @@ export function repaintAutoBookFromCache() {
 }
 
 // Pull-to-refresh action for the Auto-Book tab — dispatched by the shared
-// pull-to-refresh handler in main.js (attached to <main class="psycle-body">).
+// pull-to-refresh handler in main.js (attached to <main class="sa-body">).
 export async function refreshAutoBookTab() {
   await Promise.all([renderAutoBookTab(), refreshUserData()]);
 }
@@ -113,7 +113,7 @@ function connectToAutoBookStream() {
 }
 
 function updateQueueDisplayForEvent(eventId, update) {
-  const queueContainer = document.getElementById('psycle-autobook-queue-container');
+  const queueContainer = document.getElementById('sa-autobook-queue-container');
   if (!queueContainer) return;
 
   // Find the card for this event
@@ -157,7 +157,7 @@ function updateQueueDisplayForEvent(eventId, update) {
 
 function renderAutoBookControls() {
   // Populate the segmented footer baked into the countdown banner
-  const bar = document.getElementById('psycle-autobook-controls-bar');
+  const bar = document.getElementById('sa-autobook-controls-bar');
   if (!bar) return;
   bar.innerHTML = '';
 
@@ -213,8 +213,8 @@ function renderAutoBookControls() {
 }
 
 async function renderAutoBookTab() {
-  const queueContainer = document.getElementById('psycle-autobook-queue-container');
-  const historyList = document.getElementById('psycle-autobook-history-list');
+  const queueContainer = document.getElementById('sa-autobook-queue-container');
+  const historyList = document.getElementById('sa-autobook-history-list');
 
   // Show cached data immediately if available (from prefetch)
   if (cache.autoBookings) {
@@ -254,7 +254,7 @@ async function renderAutoBookTab() {
   } catch (err) {
     console.error('[AutoBook] Failed to load:', err);
     if (queueContainer && !cache.autoBookings) {
-      queueContainer.innerHTML = `<div class="psycle-empty-state" style="text-align:center;padding:40px 20px;color:var(--text-secondary)"><p style="font-size:16px;margin-bottom:8px">${COPY.autoBook.noCachedData}</p><p style="font-size:13px;color:var(--text-tertiary)">${COPY.autoBook.noCachedDataHelp}</p></div>`;
+      queueContainer.innerHTML = `<div class="sa-empty-state" style="text-align:center;padding:40px 20px;color:var(--text-secondary)"><p style="font-size:16px;margin-bottom:8px">${COPY.autoBook.noCachedData}</p><p style="font-size:13px;color:var(--text-tertiary)">${COPY.autoBook.noCachedDataHelp}</p></div>`;
     }
   }
 
@@ -262,7 +262,7 @@ async function renderAutoBookTab() {
 
 
 function renderQueue(queue) {
-  const container = document.getElementById('psycle-autobook-queue-container');
+  const container = document.getElementById('sa-autobook-queue-container');
   if (!container) return;
 
   if (queue.length === 0) {
@@ -289,7 +289,7 @@ function renderQueue(queue) {
   container.innerHTML = '';
   sorted.forEach(q => {
     const card = document.createElement('div');
-    card.className = 'psycle-autobook-card ab-card';
+    card.className = 'sa-autobook-card ab-card';
     card.setAttribute('data-event-id', q.event_id);
     card.setAttribute('data-gym', q.gym_id || getDefaultGymId());
 
@@ -518,8 +518,8 @@ export async function openAutoBookEditModal(q) {
       return;
     }
 
-    body.innerHTML = `<div id="psycle-autobook-edit-editor"></div>`;
-    const editorContainer = body.querySelector('#psycle-autobook-edit-editor');
+    body.innerHTML = `<div id="sa-autobook-edit-editor"></div>`;
+    const editorContainer = body.querySelector('#sa-autobook-edit-editor');
 
     const bannerHtml = `
       <div style="font-size:12px;color:var(--feat-autoupgrade);background:color-mix(in srgb,var(--feat-autoupgrade) 8%,transparent);border:1px solid color-mix(in srgb,var(--feat-autoupgrade) 18%,transparent);border-radius:8px;padding:8px 10px;margin-bottom:10px;line-height:1.5;">
@@ -610,9 +610,9 @@ let _historyPage = 0;
 
 function renderHistory(history) {
   // Wire the collapsible toggle once
-  const toggle = document.getElementById('psycle-autobook-history-toggle');
-  const content = document.getElementById('psycle-autobook-history-content');
-  const chevron = document.getElementById('psycle-autobook-history-chevron');
+  const toggle = document.getElementById('sa-autobook-history-toggle');
+  const content = document.getElementById('sa-autobook-history-content');
+  const chevron = document.getElementById('sa-autobook-history-chevron');
   const histIcon = document.querySelector('.ab-history-icon');
   if (histIcon) histIcon.innerHTML = icon('history', 18);
   if (chevron) chevron.innerHTML = icon('chevron', 18);
@@ -627,7 +627,7 @@ function renderHistory(history) {
 
   history.sort((a, b) => new Date(b.executed_at) - new Date(a.executed_at));
   // Same identical-render skip as the queue (rows carry gym logos that flicker when rebuilt).
-  const histList = document.getElementById('psycle-autobook-history-list');
+  const histList = document.getElementById('sa-autobook-history-list');
   let histSig = null;
   try { histSig = JSON.stringify([history, metadata.instructors.length]); } catch (e) { histSig = null; }
   if (histSig && histList && histList.__histSig === histSig && histList.childElementCount > 0) return;
@@ -638,8 +638,8 @@ function renderHistory(history) {
 }
 
 function renderHistoryPage() {
-  const list = document.getElementById('psycle-autobook-history-list');
-  const paginationEl = document.getElementById('psycle-autobook-history-pagination');
+  const list = document.getElementById('sa-autobook-history-list');
+  const paginationEl = document.getElementById('sa-autobook-history-pagination');
   if (!list) return;
 
   if (_historyAll.length === 0) {
@@ -755,7 +755,7 @@ function nextQueuedRelease() {
 // Tick loop updates countdown texts on the screen
 function updateCountdowns() {
   const banner = document.querySelector('.ab-banner');
-  const mainCountdown = document.getElementById('psycle-autobook-countdown');
+  const mainCountdown = document.getElementById('sa-autobook-countdown');
   const statusIcon = document.querySelector('.ab-status-icon');
   const statusText = document.querySelector('.ab-status-text');
 
@@ -803,7 +803,7 @@ function updateCountdowns() {
     }
     if (banner) {
       banner.classList.toggle('is-paused', paused);
-      const qc = document.getElementById('psycle-autobook-queue-container');
+      const qc = document.getElementById('sa-autobook-queue-container');
       if (qc) qc.classList.toggle('is-paused', paused);
       banner.classList.toggle('is-urgent', urgent);
       banner.classList.toggle('is-active', active);

@@ -33,8 +33,8 @@ function lockScroll() {
   s.position = 'fixed';
   s.top = `-${savedScrollY}px`;
   s.width = '100%';
-  document.body.classList.add('psycle-scroll-locked');
-  document.documentElement.classList.add('psycle-scroll-locked'); // html must not scroll either
+  document.body.classList.add('sa-scroll-locked');
+  document.documentElement.classList.add('sa-scroll-locked'); // html must not scroll either
 }
 function unlockScroll() {
   if (lockCount === 0 || --lockCount > 0) return;
@@ -42,8 +42,8 @@ function unlockScroll() {
   s.position = '';
   s.top = '';
   s.width = '';
-  document.body.classList.remove('psycle-scroll-locked');
-  document.documentElement.classList.remove('psycle-scroll-locked');
+  document.body.classList.remove('sa-scroll-locked');
+  document.documentElement.classList.remove('sa-scroll-locked');
   window.scrollTo(0, savedScrollY);
 }
 

@@ -162,7 +162,7 @@ export function syncGymBrandedTags(container) {
   // containers, so evaluate across the whole tab panel that holds this container and mark
   // the panel. Every list re-runs this after it renders, so whichever lands last decides
   // with the full picture. Containers outside a tab panel (e.g. the overlap modal) are their own scope.
-  const scope = container.closest?.('.psycle-tab-content') || container;
+  const scope = container.closest?.('.sa-tab-content') || container;
   const gyms = new Set();
   scope.querySelectorAll('.ab-disc-tag').forEach((tag) => {
     const id = tag.closest('[data-gym]')?.getAttribute('data-gym');

@@ -379,7 +379,7 @@ function creditsTabAllowed() {
 
 function applyCreditsTabGate() {
   const allowed = creditsTabAllowed();
-  document.querySelectorAll('.psycle-nav-btn[data-tab="buy-credits"]').forEach(btn => {
+  document.querySelectorAll('.sa-nav-btn[data-tab="buy-credits"]').forEach(btn => {
     btn.hidden = !allowed;
     btn.style.display = allowed ? '' : 'none';
   });
@@ -402,8 +402,8 @@ function applyBackupMigrationGate() {
 }
 
 // --- TAB ROUTING ---
-const tabButtons = document.querySelectorAll('.psycle-nav-btn');
-const panels = document.querySelectorAll('.psycle-tab-content');
+const tabButtons = document.querySelectorAll('.sa-nav-btn');
+const panels = document.querySelectorAll('.sa-tab-content');
 
 // Expose on window so inline onclick handlers (e.g. "Buy Credits" button in timetable) can call it
 window.switchTab = switchTab;
@@ -422,9 +422,9 @@ function switchTab(tabId, opts = {}) {
   // Leaving the timetable ends search: its own filter scope is dropped and the normal filters return.
   if (tabId !== 'class-timetable') import('./ui/timetable-search-state.js').then(m => { if (m.inSearchScope()) import('./ui/timetable').then(t => t.exitSearch()); });
   currentTabId = tabId;
-  const targetPanelId = `psycle-panel-${tabId}`;
+  const targetPanelId = `sa-panel-${tabId}`;
 
-  // Update nav buttons (top, bottom, and subnav share the .psycle-nav-btn class).
+  // Update nav buttons (top, bottom, and subnav share the .sa-nav-btn class).
   // data-tab-group lets one button (e.g. the merged mobile Settings tab) stay
   // active across several tab ids (settings + about).
   tabButtons.forEach(btn => {
@@ -444,7 +444,7 @@ function switchTab(tabId, opts = {}) {
   });
 
   // Each tab starts at the top (window on mobile, inner scroller on desktop).
-  try { window.scrollTo(0, 0); document.querySelector('main.psycle-body')?.scrollTo?.(0, 0); } catch (e) { /* jsdom */ }
+  try { window.scrollTo(0, 0); document.querySelector('main.sa-body')?.scrollTo?.(0, 0); } catch (e) { /* jsdom */ }
 
   // U4-19: the tab lives in the PATH (/bookings, /settings/about ...) so refresh, back/forward
   // and shared links restore it. Skip when the URL already names this tab (keeps any query).
@@ -508,7 +508,7 @@ tabButtons.forEach(btn => {
 });
 
 // --- PULL-TO-REFRESH ---
-// On mobile the whole app scrolls inside a single <main class="psycle-body"> — the
+// On mobile the whole app scrolls inside a single <main class="sa-body"> — the
 // individual tab panels (#sa-timetable-grid etc.) grow to fit content and never
 // scroll themselves, so their scrollTop is always 0. Attaching pull-to-refresh to
 // those panels made every downward drag read as "at the top" and fire a refresh.
@@ -583,7 +583,7 @@ async function refreshActiveTab() {
   }
 }
 
-const scrollBody = document.querySelector('main.psycle-body');
+const scrollBody = document.querySelector('main.sa-body');
 if (scrollBody) {
   // Settings has no refreshable data and its panes are long forms: pull-to-refresh stays off there.
   setupPullToRefresh(scrollBody, refreshActiveTab, {
@@ -596,7 +596,7 @@ if (scrollBody) {
 }
 
 // --- TAB REFRESH BUTTONS ---
-document.querySelectorAll('.psycle-tab-refresh-btn').forEach(btn => {
+document.querySelectorAll('.sa-tab-refresh-btn').forEach(btn => {
   btn.addEventListener('click', async () => {
     if (btn.classList.contains('refreshing')) return;
     btn.classList.add('refreshing');
@@ -865,7 +865,7 @@ function fitHeaderBadges(remeasure) {
   }
   const cs = getComputedStyle(header);
   const title = header.querySelector('.psycle-title-area');
-  const email = header.querySelector('.psycle-user-email');
+  const email = header.querySelector('.sa-user-email');
   const emailW = email && getComputedStyle(email).display !== 'none' ? email.getBoundingClientRect().width + 16 : 0;
   const avail = header.clientWidth - parseFloat(cs.paddingLeft) - parseFloat(cs.paddingRight)
     - (title ? title.getBoundingClientRect().width : 0) - emailW - 16;
@@ -965,7 +965,7 @@ let lastOfflineSnapshotAt = null;
 function setOffline(reason) {
   if (isOffline) return;
   isOffline = true;
-  document.documentElement.classList.add('psycle-offline');
+  document.documentElement.classList.add('sa-offline');
   showOfflineBanner(reason);
   debugLog(`Offline: ${reason}`, 'warning');
 }
@@ -974,13 +974,13 @@ function setOnline() {
   if (!isOffline) return;
   isOffline = false;
   lastOfflineSnapshotAt = null;
-  document.documentElement.classList.remove('psycle-offline');
+  document.documentElement.classList.remove('sa-offline');
   hideOfflineBanner();
   debugLog('Back online', 'success');
 }
 
 function showOfflineBanner(reason) {
-  const banner = document.getElementById('psycle-offline-banner');
+  const banner = document.getElementById('sa-offline-banner');
   if (!banner) return;
   const textSpan = banner.querySelector('.offline-text');
   if (textSpan) {
@@ -997,7 +997,7 @@ function showOfflineBanner(reason) {
 }
 
 function hideOfflineBanner() {
-  const banner = document.getElementById('psycle-offline-banner');
+  const banner = document.getElementById('sa-offline-banner');
   if (!banner) return;
   banner.classList.remove('show');
   setTimeout(() => {
@@ -1063,20 +1063,20 @@ export function getIsOffline() {
 }
 
 function initConnectivity() {
-  const container = document.getElementById('psycle-app-container');
+  const container = document.getElementById('sa-app-container');
   if (!container) return;
-  if (document.getElementById('psycle-offline-banner')) return;
+  if (document.getElementById('sa-offline-banner')) return;
 
   const banner = document.createElement('div');
-  banner.className = 'psycle-offline-banner';
-  banner.id = 'psycle-offline-banner';
+  banner.className = 'sa-offline-banner';
+  banner.id = 'sa-offline-banner';
   banner.style.display = 'none';
   banner.setAttribute('role', 'status');
   banner.setAttribute('aria-live', 'polite');
-  banner.innerHTML = '<span class="offline-icon" aria-hidden="true">⚠</span><span class="offline-text"></span><button type="button" class="psycle-offline-retry">Retry</button>';
+  banner.innerHTML = '<span class="offline-icon" aria-hidden="true">⚠</span><span class="offline-text"></span><button type="button" class="sa-offline-retry">Retry</button>';
   container.insertBefore(banner, container.firstChild);
 
-  banner.querySelector('.psycle-offline-retry')?.addEventListener('click', async (e) => {
+  banner.querySelector('.sa-offline-retry')?.addEventListener('click', async (e) => {
     const btn = e.currentTarget;
     btn.disabled = true;
     const label = btn.textContent;
@@ -1220,7 +1220,7 @@ export async function refreshUserData(force = false) {
       updateCreditBadge().catch(() => {});
     }
 
-    const emailEl = document.querySelector('.psycle-user-email');
+    const emailEl = document.querySelector('.sa-user-email');
     if (emailEl) {
       emailEl.textContent = currentUser?.email || profile.email || '';
     }
@@ -1294,7 +1294,7 @@ export async function initApp() {
   // state at once and repaints the timetable (idempotent).
   installBookingState(() => repaintTimetableIfVisible());
   document.getElementById('sa-login-container').style.display = 'none';
-  document.getElementById('psycle-app-container').style.display = 'flex';
+  document.getElementById('sa-app-container').style.display = 'flex';
   
   // Set helper expanded classes to trigger standard styles
   document.body.id = 'sa-helper-container';
@@ -1455,7 +1455,7 @@ function showLogin() {
   cache.gymSettings = {};
   document.body.id = 'sa-helper-container';
   document.body.className = 'sa-helper-expanded';
-  document.getElementById('psycle-app-container').style.display = 'none';
+  document.getElementById('sa-app-container').style.display = 'none';
   document.getElementById('sa-login-container').style.display = 'flex';
 }
 
@@ -1553,7 +1553,7 @@ if (loginForm) {
 // after unlinking the last one. Reuses the login card so there is no third
 // full-screen layout to maintain.
 function showNoGymScreen() {
-  document.getElementById('psycle-app-container').style.display = 'none';
+  document.getElementById('sa-app-container').style.display = 'none';
   const loginContainer = document.getElementById('sa-login-container');
   loginContainer.style.display = 'flex';
   document.getElementById('sa-auth-title').textContent = COPY.auth.connectGym;
@@ -1786,7 +1786,7 @@ function initHeaderAutoHide() {
   let anchor = 0, hidden = false;
 
   const els = () => {
-    if (!app) app = document.getElementById('psycle-app-container');
+    if (!app) app = document.getElementById('sa-app-container');
     if (!header) header = document.querySelector('.sa-header');
     return app && header;
   };
@@ -1796,7 +1796,7 @@ function initHeaderAutoHide() {
   const setHidden = (hide) => {
     if (!els() || hide === hidden) return;
     hidden = hide;
-    app.classList.toggle('psycle-hdr-hidden', hide);
+    app.classList.toggle('sa-hdr-hidden', hide);
     app.classList.toggle('sa-tt-compact', hide); // timetable date strip + location chip shrink with the header
     // Safe-area cap + theme-color follow the header: header colour while it shows, page colour once it is gone.
     document.documentElement.toggleAttribute('data-hdr-hidden', hide);
@@ -1827,14 +1827,14 @@ function initHeaderAutoHide() {
       // Mobile: the DOCUMENT scrolls (scroll events target `document`); ignore inner boxes.
       if (t !== document && t !== document.documentElement && t !== document.body) return;
       t = docScroller();
-    } else if (!t || !t.classList || !(t.classList.contains('psycle-body') || t.classList.contains('psycle-main'))) return;
+    } else if (!t || !t.classList || !(t.classList.contains('sa-body') || t.classList.contains('sa-main'))) return;
     if (t !== target) { target = t; anchor = t.scrollTop; }
     if (!ticking) { ticking = true; requestAnimationFrame(update); }
   }, { passive: true, capture: true });
 
   mq.addEventListener?.('change', () => { setHidden(false); measure(); });
   document.addEventListener('click', (e) => {
-    if (e.target.closest?.('.psycle-bottom-nav-btn, .psycle-nav-btn')) { setHidden(false); anchor = 0; }
+    if (e.target.closest?.('.sa-bottom-nav-btn, .sa-nav-btn')) { setHidden(false); anchor = 0; }
   }, true);
   measure();
   if (typeof ResizeObserver !== 'undefined' && els()) new ResizeObserver(measure).observe(header);

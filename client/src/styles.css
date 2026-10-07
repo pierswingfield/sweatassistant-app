@@ -650,7 +650,7 @@ html, body {
    applied on every viewport. Targets the real action controls; small
    spacing-constrained controls inside the studio map are exempt per
    WCAG 2.5.5 and opt into a 44px *hit area* via .tap-compact instead. */
-#sa-helper-container .psycle-nav-btn,
+#sa-helper-container .sa-nav-btn,
 #sa-helper-container .psycle-segmented-btn,
 #sa-helper-container .psycle-btn-primary,
 #sa-helper-container .psycle-btn-mini,
@@ -729,7 +729,7 @@ html, body {
 }
 
 /* Main app shell — full-bleed (de-windowed from the floating-panel heritage) */
-#sa-helper-container.sa-helper-expanded .psycle-panel {
+#sa-helper-container.sa-helper-expanded .sa-panel {
   display: flex;
   flex-direction: column;
   width: 100%;
@@ -850,7 +850,7 @@ html, body {
 #sa-helper-container .psycle-badge.info { background: color-mix(in srgb, var(--accent) 15%, transparent); color: var(--accent); border: 1px solid color-mix(in srgb, var(--accent) 25%, transparent); white-space: nowrap; }
 
 /* Navigation Tabs */
-#sa-helper-container .psycle-nav-bar {
+#sa-helper-container .sa-nav-bar {
   display: flex;
   background: var(--surface-inset);
   border-bottom: 1px solid var(--border);
@@ -858,7 +858,7 @@ html, body {
   gap: 20px;
 }
 
-#sa-helper-container .psycle-nav-btn {
+#sa-helper-container .sa-nav-btn {
   background: transparent;
   border: none;
   color: var(--text-secondary);
@@ -870,37 +870,37 @@ html, body {
   transition: all 0.2s ease;
 }
 
-#sa-helper-container .psycle-nav-btn:hover {
+#sa-helper-container .sa-nav-btn:hover {
   color: var(--text);
 }
 
-#sa-helper-container .psycle-nav-btn.active {
+#sa-helper-container .sa-nav-btn.active {
   color: var(--accent);
   border-bottom-color: var(--accent);
 }
 
 /* Mobile bottom tab bar — hidden on desktop, shown in the ≤768px media query */
-#sa-helper-container .psycle-bottom-nav {
+#sa-helper-container .sa-bottom-nav {
   display: none;
 }
 
 /* Settings/About segmented subnav — only used on mobile (desktop has both in the top bar) */
 
 /* Tab Content */
-#sa-helper-container .psycle-tab-content {
+#sa-helper-container .sa-tab-content {
   display: none;
   flex-direction: column;
   gap: 20px;
 }
 
-#sa-helper-container .psycle-tab-content.active {
+#sa-helper-container .sa-tab-content.active {
   display: flex;
   flex: 1;
   min-height: 0;
 }
 
 /* Body Content */
-#sa-helper-container .psycle-body {
+#sa-helper-container .sa-body {
   flex: 1;
   min-height: 0;
   padding: 10px 36px 24px 36px;
@@ -967,7 +967,7 @@ html, body {
 }
 
 /* ── Pull-to-refresh liquid glass capsule indicator ─────────── */
-#sa-helper-container .psycle-pull-indicator {
+#sa-helper-container .sa-pull-indicator {
   position: fixed;
   top: calc(var(--sa-header-h, 47px) + max(8px, env(safe-area-inset-top, 0px)));
   left: 50%;
@@ -993,11 +993,11 @@ html, body {
   transition: opacity 0.22s ease, transform 0.25s cubic-bezier(0.16, 1, 0.3, 1);
 }
 
-#sa-helper-container .psycle-pull-indicator.visible {
+#sa-helper-container .sa-pull-indicator.visible {
   opacity: 1;
 }
 
-#sa-helper-container .psycle-pull-indicator .psycle-pull-icon {
+#sa-helper-container .sa-pull-indicator .sa-pull-icon {
   display: flex;
   align-items: center;
   justify-content: center;
@@ -1005,19 +1005,19 @@ html, body {
   transition: transform 0.22s cubic-bezier(0.16, 1, 0.3, 1);
 }
 
-#sa-helper-container .psycle-pull-indicator.armed .psycle-pull-icon {
+#sa-helper-container .sa-pull-indicator.armed .sa-pull-icon {
   transform: rotate(180deg);
   color: var(--accent);
 }
 
-#sa-helper-container .psycle-pull-indicator .psycle-spinner {
+#sa-helper-container .sa-pull-indicator .psycle-spinner {
   width: 13px;
   height: 13px;
   border-width: 2px;
   margin: 0;
 }
 
-#sa-helper-container .psycle-pull-indicator .psycle-pull-text {
+#sa-helper-container .sa-pull-indicator .sa-pull-text {
   white-space: nowrap;
 }
 
@@ -1660,7 +1660,7 @@ html, body {
 }
 
 /* Offline connectivity banner */
-#sa-helper-container .psycle-offline-banner {
+#sa-helper-container .sa-offline-banner {
   align-items: center;
   justify-content: center;
   gap: 10px;
@@ -1682,23 +1682,23 @@ html, body {
   overflow: hidden;
 }
 
-#sa-helper-container .psycle-offline-banner.show {
+#sa-helper-container .sa-offline-banner.show {
   max-height: 56px;
   opacity: 1;
   margin-bottom: 12px;
 }
 
-#sa-helper-container .psycle-offline-banner .offline-icon {
+#sa-helper-container .sa-offline-banner .offline-icon {
   flex-shrink: 0;
   font-size: 16px;
   line-height: 1;
 }
 
-#sa-helper-container .psycle-offline-banner .offline-text {
+#sa-helper-container .sa-offline-banner .offline-text {
   line-height: 1.4;
 }
 
-#sa-helper-container .psycle-offline-retry {
+#sa-helper-container .sa-offline-retry {
   border: 1px solid currentColor;
   border-radius: 999px;
   background: transparent;
@@ -1714,7 +1714,7 @@ html, body {
    while its header stays fixed. Keep the status in that fixed layer too: a
    flow banner would sit behind the header and push every page down. */
 @media (max-width: 768px) {
-  #sa-helper-container .psycle-offline-banner {
+  #sa-helper-container .sa-offline-banner {
     position: fixed;
     z-index: 401;
     top: var(--sa-header-h, 47px);
@@ -1723,20 +1723,20 @@ html, body {
     width: auto;
   }
 
-  #sa-helper-container .psycle-offline-banner.show {
+  #sa-helper-container .sa-offline-banner.show {
     margin-bottom: 0;
   }
 }
 
 /* Offline state — disable action buttons globally */
-.psycle-offline .psycle-btn,
-.psycle-offline .psycle-btn-primary,
-.psycle-offline .psycle-btn-mini,
-.psycle-offline .psycle-action-btn-mini,
-.psycle-offline button[data-action],
-.psycle-offline .sa-modal .psycle-btn,
-.psycle-offline .sa-modal .psycle-btn-mini,
-.psycle-offline .ab-rail-btn {
+.sa-offline .psycle-btn,
+.sa-offline .psycle-btn-primary,
+.sa-offline .psycle-btn-mini,
+.sa-offline .psycle-action-btn-mini,
+.sa-offline button[data-action],
+.sa-offline .sa-modal .psycle-btn,
+.sa-offline .sa-modal .psycle-btn-mini,
+.sa-offline .ab-rail-btn {
   pointer-events: none !important;
   opacity: 0.45 !important;
   filter: grayscale(0.5) !important;
@@ -1744,9 +1744,9 @@ html, body {
 }
 
 /* Ensure nav buttons stay functional when offline */
-.psycle-offline .psycle-nav-btn,
-.psycle-offline .psycle-bottom-nav-btn,
-.psycle-offline .sa-subnav-btn {
+.sa-offline .sa-nav-btn,
+.sa-offline .sa-bottom-nav-btn,
+.sa-offline .sa-subnav-btn {
   pointer-events: auto !important;
   opacity: 1 !important;
   filter: none !important;
@@ -1868,7 +1868,7 @@ html, body {
   border-radius: 8px;
 }
 
-.psycle-auto-chosen-spot {
+.sa-auto-chosen-spot {
   position: absolute;
   inset: 0;
   z-index: 4;
@@ -1887,7 +1887,7 @@ html, body {
   pointer-events: none;
 }
 
-.psycle-auto-chosen-spot__badge {
+.sa-auto-chosen-spot__badge {
   display: inline-block;
   margin: 0 0.12em;
   padding: 0.12em 0.48em;
@@ -1910,7 +1910,7 @@ html, body {
    bare text over the page, no surface, no padding, no hit targets.
    The class name still says "mobile" for continuity with the JS; it is the row
    action menu at every width. Do not move it back under a breakpoint. */
-.psycle-mobile-menu {
+.sa-mobile-menu {
   position: fixed;
   z-index: 100000;
   background: var(--surface);
@@ -1923,7 +1923,7 @@ html, body {
   -webkit-backdrop-filter: blur(20px) saturate(180%);
 }
 
-.psycle-mobile-menu-item {
+.sa-mobile-menu-item {
   padding: 14px 16px;
   margin-bottom: 4px;
   font-size: 14px;
@@ -1939,7 +1939,7 @@ html, body {
   border: 1px solid transparent;
 }
 
-.psycle-mobile-menu-item:last-child {
+.sa-mobile-menu-item:last-child {
   margin-bottom: 0;
 }
 
@@ -1959,57 +1959,57 @@ html, body {
   min-width: 0;
 }
 
-.psycle-mobile-menu-item:hover,
-.psycle-mobile-menu-item:active {
+.sa-mobile-menu-item:hover,
+.sa-mobile-menu-item:active {
   background: var(--surface-2);
 }
 
 /* Variant colours reflecting the buttons they replace */
-.psycle-mobile-menu-item[data-variant="book"] {
+.sa-mobile-menu-item[data-variant="book"] {
   background: color-mix(in srgb, var(--success) 12%, transparent);
   border-color: color-mix(in srgb, var(--success) 30%, transparent);
   color: var(--success);
 }
-.psycle-mobile-menu-item[data-variant="book"]:hover,
-.psycle-mobile-menu-item[data-variant="book"]:active {
+.sa-mobile-menu-item[data-variant="book"]:hover,
+.sa-mobile-menu-item[data-variant="book"]:active {
   background: color-mix(in srgb, var(--success) 20%, transparent);
 }
 
-.psycle-mobile-menu-item[data-variant="favourite"] {
+.sa-mobile-menu-item[data-variant="favourite"] {
   color: var(--danger);
 }
-.psycle-mobile-menu-item[data-variant="favourite"]:hover,
-.psycle-mobile-menu-item[data-variant="favourite"]:active {
+.sa-mobile-menu-item[data-variant="favourite"]:hover,
+.sa-mobile-menu-item[data-variant="favourite"]:active {
   background: color-mix(in srgb, #f43f5e 12%, transparent);
 }
 
-.psycle-mobile-menu-item[data-variant="danger"] {
+.sa-mobile-menu-item[data-variant="danger"] {
   background: color-mix(in srgb, var(--danger) 10%, transparent);
   border-color: color-mix(in srgb, var(--danger) 25%, transparent);
   color: var(--danger);
 }
-.psycle-mobile-menu-item[data-variant="danger"]:hover,
-.psycle-mobile-menu-item[data-variant="danger"]:active {
+.sa-mobile-menu-item[data-variant="danger"]:hover,
+.sa-mobile-menu-item[data-variant="danger"]:active {
   background: color-mix(in srgb, var(--danger) 18%, transparent);
 }
 
-.psycle-mobile-menu-item[data-variant="success"] {
+.sa-mobile-menu-item[data-variant="success"] {
   background: color-mix(in srgb, var(--success) 12%, transparent);
   border-color: color-mix(in srgb, var(--success) 30%, transparent);
   color: var(--success);
 }
-.psycle-mobile-menu-item[data-variant="success"]:hover,
-.psycle-mobile-menu-item[data-variant="success"]:active {
+.sa-mobile-menu-item[data-variant="success"]:hover,
+.sa-mobile-menu-item[data-variant="success"]:active {
   background: color-mix(in srgb, var(--success) 20%, transparent);
 }
 
-.psycle-mobile-menu-item[data-variant="debug"] {
+.sa-mobile-menu-item[data-variant="debug"] {
   background: color-mix(in srgb, var(--feat-autoupgrade) 15%, transparent);
   border-color: color-mix(in srgb, var(--feat-autoupgrade) 35%, transparent);
   color: var(--feat-autoupgrade);
 }
-.psycle-mobile-menu-item[data-variant="debug"]:hover,
-.psycle-mobile-menu-item[data-variant="debug"]:active {
+.sa-mobile-menu-item[data-variant="debug"]:hover,
+.sa-mobile-menu-item[data-variant="debug"]:active {
   background: color-mix(in srgb, var(--feat-autoupgrade) 25%, transparent);
 }
 
@@ -2247,7 +2247,7 @@ html, body {
 
 
 /* Auto-Upgrade button in My Bookings */
-.psycle-auto-upgrade-btn:hover {
+.sa-auto-upgrade-btn:hover {
   background: color-mix(in srgb, var(--success) 15%, transparent) !important;
   border-color: color-mix(in srgb, var(--success) 50%, transparent) !important;
   transform: translateY(-1px);
@@ -2807,7 +2807,7 @@ html, body {
 }
 
 /* Global Floating Refresh Button */
-#sa-helper-container .psycle-global-refresh-btn {
+#sa-helper-container .sa-global-refresh-btn {
   position: absolute;
   bottom: 74px;
   right: 24px;
@@ -2828,7 +2828,7 @@ html, body {
   border: 1px solid color-mix(in srgb, var(--on-accent) 15%, transparent);
 }
 
-#sa-helper-container .psycle-global-refresh-btn:hover {
+#sa-helper-container .sa-global-refresh-btn:hover {
   background: color-mix(in srgb, var(--feat-autoupgrade) 85%, #000);
   transform: scale(1.08);
   box-shadow: 0 6px 18px color-mix(in srgb, var(--feat-autoupgrade) 55%, transparent);
@@ -3058,7 +3058,7 @@ html, body {
 /* Container for injected buttons on native timetable */
 
 /* Base style for injected native timetable buttons */
-.psycle-native-btn {
+.sa-native-btn {
   display: inline-flex;
   align-items: center;
   justify-content: center;
@@ -3094,7 +3094,7 @@ html, body {
 /* Availability indicator text */
 
 /* Spinner inside native buttons */
-.psycle-native-btn .psycle-spinner {
+.sa-native-btn .psycle-spinner {
   display: inline-block;
   width: 10px;
   height: 10px;
@@ -3166,7 +3166,7 @@ html, body {
 /* -------------------------------------------------------------
    PWA LAYOUT BRIDGING STYLES
    ------------------------------------------------------------- */
-.psycle-app-container {
+.sa-app-container {
   display: flex;
   flex-direction: column;
   width: 1080px;
@@ -3182,7 +3182,7 @@ html, body {
   animation: slideIn 0.4s cubic-bezier(0.25, 1, 0.5, 1);
 }
 
-.psycle-main {
+.sa-main {
   flex: 1;
   padding: 10px 36px 24px 36px;
   display: flex;
@@ -3229,7 +3229,7 @@ html, body {
 
 
 /* Nav Bar at bottom for PWA */
-.psycle-nav {
+.sa-nav {
   display: flex;
   background: var(--surface-inset);
   border-top: 1px solid var(--border);
@@ -3254,7 +3254,7 @@ html, body {
     padding: 0 !important;
   }
 
-  .psycle-app-container {
+  .sa-app-container {
     width: 100vw !important;
     height: unset !important;
     max-height: none !important;
@@ -3269,13 +3269,13 @@ html, body {
     display: flex !important;
   }
   
-  .psycle-main {
+  .sa-main {
     flex: 1 !important;
     overflow-y: auto !important;
     padding: 10px 16px calc(56px + env(safe-area-inset-bottom)) 16px !important;
   }
 
-  .psycle-nav {
+  .sa-nav {
     padding: 0 10px !important;
   }
 
@@ -3498,10 +3498,10 @@ html, body {
 }
 
 /* My Bookings, Auto-Book, Settings, Credits — scroll the whole panel */
-#sa-helper-container #psycle-panel-my-bookings,
-#sa-helper-container #psycle-panel-auto-book,
-#sa-helper-container #psycle-panel-settings,
-#sa-helper-container #psycle-panel-buy-credits {
+#sa-helper-container #sa-panel-my-bookings,
+#sa-helper-container #sa-panel-auto-book,
+#sa-helper-container #sa-panel-settings,
+#sa-helper-container #sa-panel-buy-credits {
   overflow-y: auto;
 }
 
@@ -3646,7 +3646,7 @@ html, body {
   letter-spacing: 0.1px;
 }
 
-#sa-helper-container .psycle-card-desc {
+#sa-helper-container .sa-card-desc {
   font-size: 12px;
   color: var(--text-tertiary);
   line-height: 1.5;
@@ -3786,7 +3786,7 @@ html, body {
   gap: 12px;
   margin-top: 4px;
 }
-#sa-helper-container .sa-gym-conn-inline-row .psycle-card-desc {
+#sa-helper-container .sa-gym-conn-inline-row .sa-card-desc {
   margin: 0;
   min-width: 0;
   overflow: hidden;
@@ -4143,12 +4143,12 @@ html, body {
 }
 
 /* Tab header (page title block) — serif large-title, token-driven */
-#sa-helper-container .psycle-tab-header {
+#sa-helper-container .sa-tab-header {
   padding: 16px 36px 12px 36px;
   border-bottom: 1px solid var(--separator);
   flex-shrink: 0;
 }
-#sa-helper-container .psycle-tab-header h3 {
+#sa-helper-container .sa-tab-header h3 {
   font-family: var(--font-serif);
   font-size: 26px;
   font-weight: 600;
@@ -4157,7 +4157,7 @@ html, body {
   letter-spacing: 0.1px;
   margin: 0 0 4px 0;
 }
-#sa-helper-container .psycle-tab-header p {
+#sa-helper-container .sa-tab-header p {
   font-size: 13px;
   color: var(--text-secondary);
   margin: 0;
@@ -4165,11 +4165,11 @@ html, body {
 }
 
 /* ---- Tab refresh button ---- */
-#sa-helper-container .psycle-tab-header {
+#sa-helper-container .sa-tab-header {
   position: relative;
 }
 
-#sa-helper-container .psycle-tab-refresh-btn {
+#sa-helper-container .sa-tab-refresh-btn {
   position: absolute;
   right: 36px;
   top: 50%;
@@ -4189,18 +4189,18 @@ html, body {
   flex-shrink: 0;
 }
 
-#sa-helper-container .psycle-tab-refresh-btn:hover {
+#sa-helper-container .sa-tab-refresh-btn:hover {
   color: var(--text);
   background: color-mix(in srgb, var(--text) 8%, transparent);
   border-color: var(--border-strong);
 }
 
-#sa-helper-container .psycle-tab-refresh-btn.refreshing {
+#sa-helper-container .sa-tab-refresh-btn.refreshing {
   pointer-events: none;
   opacity: 0.55;
 }
 
-#sa-helper-container .psycle-tab-refresh-btn.refreshing svg {
+#sa-helper-container .sa-tab-refresh-btn.refreshing svg {
   animation: tab-refresh-spin 0.8s linear infinite;
 }
 
@@ -4214,7 +4214,7 @@ html, body {
   position: relative;
 }
 
-#sa-helper-container .ab-banner .psycle-tab-refresh-btn {
+#sa-helper-container .ab-banner .sa-tab-refresh-btn {
   top: 14px;
   right: 14px;
   transform: none;
@@ -4222,17 +4222,17 @@ html, body {
   border-color: color-mix(in srgb, var(--on-auto) 18%, transparent);
 }
 
-#sa-helper-container .ab-banner .psycle-tab-refresh-btn:hover {
+#sa-helper-container .ab-banner .sa-tab-refresh-btn:hover {
   color: var(--on-auto);
   background: color-mix(in srgb, var(--on-auto) 10%, transparent);
   border-color: color-mix(in srgb, var(--on-auto) 35%, transparent);
 }
 
 /* ---- Buy Credits — tightened vertical rhythm ----
-   The shared .psycle-tab-content gap (20px) pulls the title, filter bar,
+   The shared .sa-tab-content gap (20px) pulls the title, filter bar,
    experimental banner and bundle grid far apart. Collapse it here so the
    section borders/paddings carry the rhythm instead. */
-#sa-helper-container #psycle-panel-buy-credits {
+#sa-helper-container #sa-panel-buy-credits {
   gap: 0;
 }
 
@@ -4276,7 +4276,7 @@ html, body {
 }
 
 @media (max-width: 900px) {
-  #sa-helper-container .psycle-tab-header,
+  #sa-helper-container .sa-tab-header,
   #sa-helper-container .sa-filters-card,
   #sa-helper-container .sa-timetable-list,
   #sa-helper-container .psycle-countdown-banner {
@@ -5277,20 +5277,20 @@ html, body {
    the primary — and its secondaries recede. Destructive keeps red below,
    because there the colour is a warning rather than decoration. */
 .sa-tt-seg.variant-success,
-.psycle-mobile-seg.variant-success,
+.sa-mobile-seg.variant-success,
 .sa-tt-seg.variant-success-muted,
-.psycle-mobile-seg.variant-success-muted,
+.sa-mobile-seg.variant-success-muted,
 .sa-tt-seg.variant-autoupgrade,
-.psycle-mobile-seg.variant-autoupgrade,
+.sa-mobile-seg.variant-autoupgrade,
 .sa-tt-seg.variant-debug,
-.psycle-mobile-seg.variant-debug,
+.sa-mobile-seg.variant-debug,
 .sa-tt-seg.variant-warning-solid,
-.psycle-mobile-seg.variant-warning-solid,
+.sa-mobile-seg.variant-warning-solid,
 .sa-tt-seg.variant-neutral,
-.psycle-mobile-seg.variant-neutral { background: var(--surface-inset) !important; color: var(--text-secondary) !important; border: none !important; }
+.sa-mobile-seg.variant-neutral { background: var(--surface-inset) !important; color: var(--text-secondary) !important; border: none !important; }
 
 .sa-tt-seg.variant-danger,
-.psycle-mobile-seg.variant-danger { background: color-mix(in srgb, var(--danger) 10%, transparent) !important; color: var(--danger) !important; border: none !important; }
+.sa-mobile-seg.variant-danger { background: color-mix(in srgb, var(--danger) 10%, transparent) !important; color: var(--danger) !important; border: none !important; }
 
 /* Primary fills — THREE kinds of action, ONE hue.
    ------------------------------------------------------------------
@@ -5308,16 +5308,16 @@ html, body {
    Deriving from `--accent` means they follow the theme and any future brand
    change automatically, instead of being three more hardcoded values. */
 .sa-tt-seg.primary,
-.psycle-mobile-seg.primary { background: var(--cta-book) !important; color: var(--on-cta) !important; border: none !important; }
+.sa-mobile-seg.primary { background: var(--cta-book) !important; color: var(--on-cta) !important; border: none !important; }
 
 /* "Book" that opens a picker is the same ACTION as Quick Book, so the same
    colour — it was outlined, which read as a different, lesser thing. */
 .sa-tt-seg.primary.variant-success-outline,
-.psycle-mobile-seg.primary.variant-success-outline { background: var(--cta-book) !important; color: var(--on-cta) !important; border: none !important; }
+.sa-mobile-seg.primary.variant-success-outline { background: var(--cta-book) !important; color: var(--on-cta) !important; border: none !important; }
 
 /* Waitlist — the accent lightened toward the surface. */
 .sa-tt-seg.primary.variant-warning-solid,
-.psycle-mobile-seg.primary.variant-warning-solid {
+.sa-mobile-seg.primary.variant-warning-solid {
   background: var(--cta-wait) !important;
   color: var(--on-cta) !important;
   border: none !important;
@@ -5325,7 +5325,7 @@ html, body {
 
 /* Auto-Book — the accent deepened. */
 .sa-tt-seg.primary.variant-autoupgrade,
-.psycle-mobile-seg.primary.variant-autoupgrade {
+.sa-mobile-seg.primary.variant-autoupgrade {
   background: var(--cta-auto) !important;
   color: var(--on-cta) !important;
   border: none !important;
@@ -5333,7 +5333,7 @@ html, body {
 
 /* Destructive stays red — the one place hue is a warning, not decoration. */
 .sa-tt-seg.primary.variant-danger,
-.psycle-mobile-seg.primary.variant-danger {
+.sa-mobile-seg.primary.variant-danger {
   /* NO fill at all: this is a nudge to top up, not a warning, and a tinted
      block was the loudest thing in a column of otherwise calm rows. Text only,
      lightened so it recedes further still. */
@@ -5346,12 +5346,12 @@ html, body {
   color: var(--danger) !important;
 }
 .sa-tt-seg.primary.variant-danger-strong,
-.psycle-mobile-seg.primary.variant-danger-strong { background: color-mix(in srgb, var(--danger) 30%, transparent) !important; color: var(--danger) !important; border: none !important; font-weight: 800; }
+.sa-mobile-seg.primary.variant-danger-strong { background: color-mix(in srgb, var(--danger) 30%, transparent) !important; color: var(--danger) !important; border: none !important; font-weight: 800; }
 
 /* An already-scheduled Auto-Book is a STATE, not an action to take — it must
    not wear the primary fill that means "do this next". */
 .sa-tt-seg.primary.variant-autoupgrade.scheduled,
-.psycle-mobile-seg.primary.variant-autoupgrade.scheduled { background: color-mix(in srgb, var(--feat-autoupgrade) 20%, transparent) !important; color: var(--feat-autoupgrade) !important; border: none !important; }
+.sa-mobile-seg.primary.variant-autoupgrade.scheduled { background: color-mix(in srgb, var(--feat-autoupgrade) 20%, transparent) !important; color: var(--feat-autoupgrade) !important; border: none !important; }
 
 /* Restore the divider line on the caret (config) button regardless of which variant
    set border:none above — must come after all variant rules so it wins. */
@@ -5363,7 +5363,7 @@ html, body {
 }
 
 /* ── Auto-book / Auto-upgrade cards ────────────────────────────── */
-.psycle-autobook-card {
+.sa-autobook-card {
   background: var(--surface-2);
   border: 1px solid var(--border);
   border-radius: var(--radius-card);
@@ -5516,7 +5516,7 @@ html, body {
 .ab-footer-btn:disabled { opacity: 0.6; cursor: default; }
 
 /* ── Queue / Booking card (three-column: brand rail + content + action rail) ── */
-#sa-helper-container .psycle-autobook-card.ab-card {
+#sa-helper-container .sa-autobook-card.ab-card {
   display: flex;
   flex-direction: row;
   align-items: stretch;
@@ -5529,17 +5529,17 @@ html, body {
   box-shadow: var(--shadow-card);
   transition: border-color 0.15s ease, box-shadow 0.15s ease;
 }
-#sa-helper-container .psycle-autobook-card.ab-card:hover {
+#sa-helper-container .sa-autobook-card.ab-card:hover {
   border-color: var(--border-strong);
 }
-#sa-helper-container .psycle-autobook-card.ab-card { margin-bottom: 0; }
+#sa-helper-container .sa-autobook-card.ab-card { margin-bottom: 0; }
 
 /* Subtle per-gym card background tinting */
-#sa-helper-container .psycle-autobook-card.ab-card[data-gym] {
+#sa-helper-container .sa-autobook-card.ab-card[data-gym] {
   background: color-mix(in srgb, var(--gym-tint) 3%, var(--surface));
   border-color: color-mix(in srgb, var(--gym-tint) 20%, var(--border));
 }
-#sa-helper-container .psycle-autobook-card.ab-card[data-gym]:hover {
+#sa-helper-container .sa-autobook-card.ab-card[data-gym]:hover {
   border-color: color-mix(in srgb, var(--gym-tint) 36%, var(--border));
 }
 
@@ -6023,7 +6023,7 @@ html, body {
 
 /* ── My Bookings / Waitlists card list ─────────────────────────── */
 .sa-bookings-list { display: flex; flex-direction: column; gap: 10px; }
-.sa-bookings-list .psycle-card-error { padding: 16px; text-align: center; color: var(--danger); }
+.sa-bookings-list .sa-card-error { padding: 16px; text-align: center; color: var(--danger); }
 /* footer auto-upgrade control reuses the upgrade status chip look */
 .bk-upgrade-btn { cursor: pointer; font-family: var(--font-sans); }
 .bk-upgrade-btn:hover { filter: brightness(1.08); }
@@ -6071,7 +6071,7 @@ html, body {
 }
 
 #sa-helper-container .ab-spot-upgrade-chip.state-stopped,
-#sa-helper-container #psycle-panel-my-bookings .ab-spot-upgrade-chip.state-stopped {
+#sa-helper-container #sa-panel-my-bookings .ab-spot-upgrade-chip.state-stopped {
   color: var(--text-secondary);
   background: color-mix(in srgb, var(--text-secondary) 10%, transparent);
   border-color: color-mix(in srgb, var(--text-secondary) 22%, transparent);
@@ -6314,7 +6314,7 @@ html, body {
 /* === MOBILE TIMETABLE — PWA MOBILE LAYOUT (added Jun 2026; delete this block to revert) === */
 @media (max-width: 768px) {
   /* Mobile: constrain the app container to fill viewport via top:0 + bottom:0 stretch */
-  #psycle-app-container {
+  #sa-app-container {
     width: 100vw !important;
     height: unset !important;
     max-height: none !important;
@@ -6329,7 +6329,7 @@ html, body {
   }
 
   /* Override the expanded-panel rule — no explicit height, let fixed positioning stretch */
-  #sa-helper-container.sa-helper-expanded #psycle-app-container {
+  #sa-helper-container.sa-helper-expanded #sa-app-container {
     height: unset !important;
   }
 
@@ -6355,8 +6355,8 @@ html, body {
      portrait spacing is unchanged). This is the single outermost edge gutter
      for every tab — inner wrappers below drop to ~0 horizontal and defer to
      this, avoiding any double-padding. */
-  #sa-helper-container .psycle-body,
-  #sa-helper-container .psycle-main {
+  #sa-helper-container .sa-body,
+  #sa-helper-container .sa-main {
     padding-left: max(8px, env(safe-area-inset-left)) !important;
     padding-right: max(8px, env(safe-area-inset-right)) !important;
     padding-top: 12px !important;
@@ -6370,7 +6370,7 @@ html, body {
   /* ── Edge-to-edge cards on phone (Auto-Book & My Bookings) ───────
      Strip the heavy horizontal chrome from the two tab content wrappers so
      queue / booking cards stretch as wide as possible. The safe-area gutter
-     is provided by .psycle-body above (8px in portrait, notch-clearing in
+     is provided by .sa-body above (8px in portrait, notch-clearing in
      landscape). Auto-Book cards go to 0px inner padding so they align with
      the banner and the .psycle-section glass container in Bookings (both
      at 8px from the screen edge). Desktop & tablet (>768px) are untouched.
@@ -6431,7 +6431,7 @@ html, body {
     justify-content: flex-end !important;
   }
 
-  #sa-helper-container .psycle-user-email {
+  #sa-helper-container .sa-user-email {
     font-size: 11px !important;
     white-space: nowrap !important;
     overflow: hidden !important;
@@ -6445,12 +6445,12 @@ html, body {
   }
 
   /* On mobile the top nav bar is replaced by the bottom tab bar */
-  #sa-helper-container .psycle-nav-bar {
+  #sa-helper-container .sa-nav-bar {
     display: none !important;
   }
 
   /* iOS-style fixed bottom tab bar */
-  #sa-helper-container .psycle-bottom-nav {
+  #sa-helper-container .sa-bottom-nav {
     display: flex !important;
     position: fixed;
     left: 0;
@@ -6470,11 +6470,11 @@ html, body {
   }
 
   /* Email is redundant on mobile; keep desktop untouched */
-  #sa-helper-container .psycle-user-email {
+  #sa-helper-container .sa-user-email {
     display: none !important;
   }
 
-  #sa-helper-container .psycle-bottom-nav-btn {
+  #sa-helper-container .sa-bottom-nav-btn {
     flex: 1 1 0;
     min-width: 0;
     display: flex;
@@ -6496,25 +6496,25 @@ html, body {
     transition: color 0.15s ease;
   }
 
-  #sa-helper-container .psycle-bottom-nav-btn span {
+  #sa-helper-container .sa-bottom-nav-btn span {
     max-width: 100%;
     overflow: hidden;
     text-overflow: ellipsis;
     white-space: nowrap;
   }
 
-  #sa-helper-container .psycle-bn-icon {
+  #sa-helper-container .sa-bn-icon {
     width: 25px;
     height: 25px;
     flex-shrink: 0;
   }
 
-  #sa-helper-container .psycle-bottom-nav-btn.active {
+  #sa-helper-container .sa-bottom-nav-btn.active {
     color: var(--accent) !important;
     border-bottom: none !important;
   }
 
-  #sa-helper-container .psycle-bottom-nav-btn:active {
+  #sa-helper-container .sa-bottom-nav-btn:active {
     opacity: 0.6;
   }
 
@@ -6544,24 +6544,24 @@ html, body {
     display: none !important;
   }
 
-  #sa-helper-container .psycle-tab-header {
+  #sa-helper-container .sa-tab-header {
     padding-left: 8px !important;
     padding-right: 8px !important;
     margin-bottom: 0 !important;
   }
 
   /* Hide subtitle on mobile */
-  #sa-helper-container .psycle-tab-header p {
+  #sa-helper-container .sa-tab-header p {
     display: none !important;
   }
 
-  #sa-helper-container .psycle-tab-header h3 {
+  #sa-helper-container .sa-tab-header h3 {
     font-size: 17px !important;
     margin: 0 !important;
   }
 
   /* Pull-to-refresh covers mobile, so the refresh button is redundant. */
-  #sa-helper-container .psycle-tab-refresh-btn {
+  #sa-helper-container .sa-tab-refresh-btn {
     display: none !important;
   }
 
@@ -6643,11 +6643,11 @@ html, body {
   }
 
   /* Mobile row card */
-  #sa-helper-container .sa-table .psycle-mobile-row {
+  #sa-helper-container .sa-table .sa-mobile-row {
     display: table-row !important;
   }
 
-  #sa-helper-container .sa-table .psycle-mobile-row td {
+  #sa-helper-container .sa-table .sa-mobile-row td {
     padding: 8px 0 !important;
     border-bottom: 1px solid var(--separator) !important;
     width: 100%;
@@ -6656,40 +6656,40 @@ html, body {
 
   /* Keep the card within the cell and let the content (not the rail) shrink, so
      the primary + ellipsis rail stays on-screen. */
-  .psycle-mobile-class-card {
+  .sa-mobile-class-card {
     width: 100%;
     max-width: 100%;
     box-sizing: border-box;
   }
-  .psycle-mobile-top-line,
-  .psycle-mobile-bottom-line {
+  .sa-mobile-top-line,
+  .sa-mobile-bottom-line {
     min-width: 0;
     overflow: hidden;
     flex-wrap: nowrap;
   }
-  .psycle-mobile-instructor,
-  .psycle-mobile-class-name,
-  .psycle-mobile-location {
+  .sa-mobile-instructor,
+  .sa-mobile-class-name,
+  .sa-mobile-location {
     overflow: hidden;
     text-overflow: ellipsis;
     white-space: nowrap;
     min-width: 0;
   }
-  .psycle-mobile-top-line > strong,
-  .psycle-mobile-top-line .ab-disc-tag,
-  .psycle-mobile-fav-indicator,
-  .psycle-mobile-dot {
+  .sa-mobile-top-line > strong,
+  .sa-mobile-top-line .ab-disc-tag,
+  .sa-mobile-fav-indicator,
+  .sa-mobile-dot {
     flex-shrink: 0;
   }
 
   /* Compact discipline tag on mobile — matches surrounding body text sizing */
-  .psycle-mobile-top-line .ab-disc-tag {
+  .sa-mobile-top-line .ab-disc-tag {
     padding: 1px 5px;
     font-size: 13px;
     letter-spacing: normal;
   }
 
-  .psycle-mobile-class-card {
+  .sa-mobile-class-card {
     position: relative;
     background: var(--surface);
     border: 1px solid var(--border);
@@ -6704,18 +6704,18 @@ html, body {
     -webkit-backdrop-filter: blur(10px);
   }
 
-  #sa-helper-container .sa-table .psycle-mobile-row.row-scheduled .psycle-mobile-class-card {
+  #sa-helper-container .sa-table .sa-mobile-row.row-scheduled .sa-mobile-class-card {
     background: color-mix(in srgb, var(--feat-autoupgrade) 4%, transparent);
     border-color: color-mix(in srgb, var(--feat-autoupgrade) 25%, transparent);
   }
 
   /* Row tint by gym identity (2026-09-02) — same colours as the desktop row
      tint above and the Auto-Book/Bookings card tint. */
-  .psycle-mobile-class-card[data-gym] {
+  .sa-mobile-class-card[data-gym] {
     background: color-mix(in srgb, var(--gym-tint) 3%, var(--surface));
   }
 
-  .psycle-mobile-content {
+  .sa-mobile-content {
     flex: 1;
     min-width: 0;
     display: flex;
@@ -6725,7 +6725,7 @@ html, body {
     padding: 10px 12px;
   }
 
-  .psycle-mobile-top-line {
+  .sa-mobile-top-line {
     display: flex;
     align-items: center;
     gap: 8px;
@@ -6735,14 +6735,14 @@ html, body {
 
   /* Full-height action rail (primary action + ellipsis) flush to the card edge,
      like the My Bookings rail but laid out horizontally. */
-  .psycle-mobile-rail {
+  .sa-mobile-rail {
     display: flex;
     flex-direction: row;
     align-items: stretch;
     flex-shrink: 0;
   }
 
-  .psycle-mobile-seg {
+  .sa-mobile-seg {
     display: flex;
     flex-direction: column;
     align-items: center;
@@ -6764,22 +6764,22 @@ html, body {
     cursor: pointer;
     transition: filter 0.12s ease;
   }
-  .psycle-mobile-seg:active { filter: brightness(1.1); }
-  .psycle-mobile-seg:disabled { opacity: 0.55; }
-  .psycle-mobile-seg.ellipsis {
+  .sa-mobile-seg:active { filter: brightness(1.1); }
+  .sa-mobile-seg:disabled { opacity: 0.55; }
+  .sa-mobile-seg.ellipsis {
     width: 38px;
     min-width: 38px;
     padding: 0;
     font-size: 16px;
     color: var(--text-secondary);
   }
-  .psycle-mobile-seg.confirming {
+  .sa-mobile-seg.confirming {
     background: var(--danger) !important;
     color: var(--on-accent) !important;
   }
 
-  .psycle-mobile-hamburger,
-  .psycle-mobile-ellipsis {
+  .sa-mobile-hamburger,
+  .sa-mobile-ellipsis {
     background: var(--surface-2);
     border: 1px solid var(--border);
     color: var(--text-secondary);
@@ -6796,16 +6796,16 @@ html, body {
     flex-shrink: 0;
   }
 
-  .psycle-mobile-hamburger:hover,
-  .psycle-mobile-hamburger:active,
-  .psycle-mobile-ellipsis:hover,
-  .psycle-mobile-ellipsis:active {
+  .sa-mobile-hamburger:hover,
+  .sa-mobile-hamburger:active,
+  .sa-mobile-ellipsis:hover,
+  .sa-mobile-ellipsis:active {
     background: var(--surface-inset);
     color: var(--text);
   }
 
   /* Non-interactive favourite indicator between the time and the chip */
-  .psycle-mobile-fav-indicator {
+  .sa-mobile-fav-indicator {
     color: var(--danger);
     font-size: 13px;
     line-height: 1;
@@ -6813,7 +6813,7 @@ html, body {
     pointer-events: none;
   }
 
-  .psycle-mobile-bottom-line {
+  .sa-mobile-bottom-line {
     display: flex;
     align-items: center;
     gap: 6px;
@@ -6823,21 +6823,21 @@ html, body {
     line-height: 1.4;
   }
 
-  .psycle-mobile-class-name {
+  .sa-mobile-class-name {
     color: var(--text-secondary);
     font-weight: 500;
   }
 
-  .psycle-mobile-dot {
+  .sa-mobile-dot {
     color: var(--text-tertiary);
     font-weight: 700;
   }
 
-  .psycle-mobile-instructor {
+  .sa-mobile-instructor {
     color: var(--text-secondary);
   }
 
-  .psycle-mobile-location {
+  .sa-mobile-location {
     color: var(--text-tertiary);
     font-size: 12px;
   }
@@ -6918,28 +6918,28 @@ html, body {
   }
 
   /* Filter options ellipsis trigger */
-  #psycle-mobile-filter-trigger {
+  #sa-mobile-filter-trigger {
     width: 34px;
     height: 32px;
     font-size: 18px;
   }
 
-  /* On mobile, main.psycle-body is the sole scroll container (pull-to-refresh
+  /* On mobile, main.sa-body is the sole scroll container (pull-to-refresh
      target). These panels must NOT scroll themselves, otherwise iOS has two
      nested scrollers and the outer scrollTop stays 0, breaking scroll-up and
      misfiring pull-to-refresh. Mirrors the panel-layout.css override; repeated
      here because the base overflow-y:auto rule above (no media query) loads
      after panel-layout.css and would otherwise win the cascade. */
-  #sa-helper-container #psycle-panel-my-bookings,
-  #sa-helper-container #psycle-panel-auto-book,
-  #sa-helper-container #psycle-panel-settings,
-  #sa-helper-container #psycle-panel-buy-credits {
+  #sa-helper-container #sa-panel-my-bookings,
+  #sa-helper-container #sa-panel-auto-book,
+  #sa-helper-container #sa-panel-settings,
+  #sa-helper-container #sa-panel-buy-credits {
     overflow-y: visible;
   }
 
   /* Tighten the vertical rhythm between the title, filter bar, date
      scroller and table on mobile so more classes are visible. */
-  #sa-helper-container #psycle-panel-class-timetable .psycle-tab-header {
+  #sa-helper-container #sa-panel-class-timetable .sa-tab-header {
     margin-bottom: 2px !important;
   }
   #sa-helper-container #sa-timetable-filters-container {
@@ -6958,7 +6958,7 @@ html, body {
   }
 
   /* Tighten the gap between class rows on mobile (desktop unchanged) */
-  #sa-helper-container .sa-table .psycle-mobile-row td {
+  #sa-helper-container .sa-table .sa-mobile-row td {
     padding: 4px 0 !important;
   }
 }
@@ -7785,7 +7785,7 @@ html, body {
   .fr-rail { height: 36px; max-height: 36px; }
   #sa-helper-container #sa-timetable-carousel { margin: 0 !important; padding-top: 0 !important; }
   /* Gym logo chip on mobile rows: trim the side gutters */
-  #sa-helper-container .psycle-mobile-top-line .sa-gym-chip { min-width: 0; padding: 3px 4px; }
+  #sa-helper-container .sa-mobile-top-line .sa-gym-chip { min-width: 0; padding: 3px 4px; }
 }
 
 /* --- U2-5 round 5 --- */
@@ -7807,24 +7807,24 @@ html, body {
 /* Mobile timetable: the filter rail is the first thing on the page. Refresh is
    still available via pull-to-refresh. */
 @media (max-width: 768px) {
-  #sa-helper-container #psycle-panel-class-timetable .psycle-tab-header { display: none !important; }
+  #sa-helper-container #sa-panel-class-timetable .sa-tab-header { display: none !important; }
 }
 
 /* Sticky title + filters on the timetable tab (desktop and mobile).
    The section used to shrink to the viewport (flex:1; min-height:0) with its
-   content overflowing into the scrolling .psycle-body, which ends a sticky
+   content overflowing into the scrolling .sa-body, which ends a sticky
    child's containing block early and makes it un-stick partway down. Letting
    this one panel take its full height keeps the sticky range whole. */
-#sa-helper-container #psycle-panel-class-timetable.active { flex: 0 0 auto; min-height: auto; }
-#sa-helper-container .psycle-sticky-top { position: sticky; top: 0; z-index: 30; background: var(--bg); flex-shrink: 0; }
+#sa-helper-container #sa-panel-class-timetable.active { flex: 0 0 auto; min-height: auto; }
+#sa-helper-container .sa-sticky-top { position: sticky; top: 0; z-index: 30; background: var(--bg); flex-shrink: 0; }
 
 /* Sticky block: keep every pixel of it opaque.
    - flow-root stops child margins (the filter card's bottom margin, the date
      strip's) collapsing OUT of the wrapper, where they left unpainted gaps the
      timetable showed through;
-   - the box-shadow paints the 10px of .psycle-body top padding above it;
+   - the box-shadow paints the 10px of .sa-body top padding above it;
    - z-index sits above any row that raises itself (hover, swipe). */
-#sa-helper-container .psycle-sticky-top {
+#sa-helper-container .sa-sticky-top {
   display: flow-root;
   z-index: 200;
   background: var(--bg);
@@ -7833,7 +7833,7 @@ html, body {
 
 /* Mobile: a few px of air between the filter bar and the date strip. */
 @media (max-width: 768px) {
-  #sa-helper-container .psycle-sticky-top #sa-timetable-carousel { margin-top: 5px !important; }
+  #sa-helper-container .sa-sticky-top #sa-timetable-carousel { margin-top: 5px !important; }
 }
 
 /* Date strip still scrolls sideways, just without the scrollbar. */
@@ -7842,7 +7842,7 @@ html, body {
 
 /* Mobile: a few px under the date strip, inside the opaque pinned block. */
 @media (max-width: 768px) {
-  #sa-helper-container .psycle-sticky-top #sa-timetable-carousel { padding-bottom: 6px !important; }
+  #sa-helper-container .sa-sticky-top #sa-timetable-carousel { padding-bottom: 6px !important; }
 }
 
 .fr-dot { display: inline-block; margin: 0 4px; opacity: .55; font-weight: 700; }
@@ -7893,7 +7893,7 @@ html, body {
    longer shows in the 8px gutters beside it. The card and date strip keep their
    own 8px inner padding, so their contents line up with the class cards. */
 @media (max-width: 768px) {
-  #sa-helper-container .psycle-sticky-top { margin-left: -8px !important; margin-right: -8px !important; }
+  #sa-helper-container .sa-sticky-top { margin-left: -8px !important; margin-right: -8px !important; }
 }
 
 /* Neutral / text wordmark (F-7): gym with no image assets, or brand not yet loaded. */
@@ -7908,14 +7908,14 @@ html, body {
 .ab-rail-toggle::before { inset: -8px -4px; }
 
 /* Sections on My Bookings lose the white card, matching Auto-Book. */
-#sa-helper-container #psycle-panel-my-bookings .psycle-section {
+#sa-helper-container #sa-panel-my-bookings .psycle-section {
   background: transparent !important;
   border: none !important;
   box-shadow: none !important;
   border-radius: 0 !important;
   padding: 0 !important;
 }
-#sa-helper-container #psycle-panel-my-bookings .psycle-section h3 { color: var(--text); }
+#sa-helper-container #sa-panel-my-bookings .psycle-section h3 { color: var(--text); }
 
 .psycle-section-count { font-size: calc(var(--page-title-size) * 0.62); font-weight: 500; line-height: 1; color: var(--text-tertiary); }
 .psycle-section-count[hidden], .sa-waitlist-jump[hidden] { display: none !important; }
@@ -7948,7 +7948,7 @@ html, body {
 .sa-waitlist-jump:focus-visible { outline: 2px solid var(--text); outline-offset: 2px; }
 
 @media (max-width: 768px) {
-  #sa-helper-container #psycle-panel-my-bookings > .psycle-tab-header { display: none !important; }
+  #sa-helper-container #sa-panel-my-bookings > .sa-tab-header { display: none !important; }
   /* Locked flush above the fixed bottom nav, edge to edge of the viewport. */
   .sa-waitlist-jump {
     position: fixed;
@@ -7973,8 +7973,8 @@ html, body {
 
 /* My Bookings section headers: same title treatment as .ab-page-title,
    count on the same baseline. */
-#sa-helper-container #psycle-panel-my-bookings .psycle-section-header { align-items: baseline !important; }
-#sa-helper-container #psycle-panel-my-bookings .psycle-section h3 {
+#sa-helper-container #sa-panel-my-bookings .psycle-section-header { align-items: baseline !important; }
+#sa-helper-container #sa-panel-my-bookings .psycle-section h3 {
   font-size: var(--page-title-size) !important;
   font-weight: var(--page-title-weight) !important;
   letter-spacing: var(--page-title-ls) !important;
@@ -7987,12 +7987,12 @@ html, body {
 
 /* My Bookings only: spot-upgrade chip in brand clay (Auto-Book keeps purple).
    Tonal: light tint + subtle border; text is clay mixed toward --text for AA. */
-#sa-helper-container #psycle-panel-my-bookings .ab-spot-upgrade-chip:not(.state-active):not(.state-warning):not(.state-stopped) {
+#sa-helper-container #sa-panel-my-bookings .ab-spot-upgrade-chip:not(.state-active):not(.state-warning):not(.state-stopped) {
   color: color-mix(in srgb, var(--accent) 55%, var(--text));
   background: color-mix(in srgb, var(--accent) 14%, transparent);
   border-color: color-mix(in srgb, var(--accent) 30%, transparent);
 }
-#sa-helper-container #psycle-panel-my-bookings .ab-spot-upgrade-chip:not(.state-active):not(.state-warning):not(.state-stopped):hover {
+#sa-helper-container #sa-panel-my-bookings .ab-spot-upgrade-chip:not(.state-active):not(.state-warning):not(.state-stopped):hover {
   background: color-mix(in srgb, var(--accent) 22%, transparent);
   border-color: color-mix(in srgb, var(--accent) 42%, transparent);
 }
@@ -8039,11 +8039,11 @@ html, body {
    Offsets account for each row's own intrinsic gap (date pills 3px, mobile rail 2px). */
 #sa-helper-container .sa-filters-card { padding: 8px 2px 0 !important; }
 #sa-helper-container #sa-timetable-filters-container { margin-bottom: 5px !important; }
-#sa-helper-container .psycle-sticky-top { padding-bottom: 1px; }
+#sa-helper-container .sa-sticky-top { padding-bottom: 1px; }
 @media (max-width: 768px) {
   #sa-helper-container .sa-filters-card { padding: 6px 8px 0 !important; }
   #sa-helper-container #sa-timetable-filters-container { margin-bottom: 6px !important; }
-  #sa-helper-container .psycle-sticky-top { padding-bottom: 2px; }
+  #sa-helper-container .sa-sticky-top { padding-bottom: 2px; }
 }
 
 /* Filter sheet: light theme. Dark keeps its original #0d1020 surface; light uses
@@ -8083,15 +8083,15 @@ html, body {
    so scrolled content never butts against the strip), and the panel/list gaps below it are 0. */
 /* Sticky's constraint rectangle is the scroller's CONTENT box, so `top: 0` would pin the block 10-12px
    below the scroller's top edge (the body's padding): offset it by that padding. */
-#sa-helper-container #psycle-panel-class-timetable { margin-top: -10px; gap: 0 !important; }
-#sa-helper-container .psycle-sticky-top { top: -10px; }
+#sa-helper-container #sa-panel-class-timetable { margin-top: -10px; gap: 0 !important; }
+#sa-helper-container .sa-sticky-top { top: -10px; }
 @media (max-width: 768px) {
-  #sa-helper-container #psycle-panel-class-timetable { margin-top: -12px; }
-  #sa-helper-container .psycle-sticky-top { top: -12px; }
+  #sa-helper-container #sa-panel-class-timetable { margin-top: -12px; }
+  #sa-helper-container .sa-sticky-top { top: -12px; }
 }
 /* The list's own 2px margin plus ~3px of first-row inset add 5px under the strip, which is already 8px
    padded: pull the list up so strip -> first row is the same 8px as the bar's top gap. */
-#sa-helper-container .psycle-sticky-top + #sa-timetable-grid { margin-top: -3px !important; }
+#sa-helper-container .sa-sticky-top + #sa-timetable-grid { margin-top: -3px !important; }
 
 /* Waitlist bar: slides/fades in and out (transform + opacity only, so the
    backdrop-filter glass is untouched). Hidden = out of the visual + tab order. */
@@ -8118,33 +8118,33 @@ html, body {
    see-through. Composite it over the opaque page --bg instead: same header shade, fully opaque,
    so nothing scrolling beneath can hurt label contrast. Blur kept as a harmless extra. */
 @media (max-width: 768px) {
-  #sa-helper-container .psycle-bottom-nav {
+  #sa-helper-container .sa-bottom-nav {
     background: linear-gradient(var(--surface-inset), var(--surface-inset)), var(--bg) !important;
     border-top: 1px solid var(--border-strong) !important;
     box-shadow: 0 -6px 18px rgba(0, 0, 0, 0.12) !important;
   }
-  #sa-helper-container .psycle-bottom-nav-btn { color: var(--text-secondary); }
-  #sa-helper-container .psycle-bottom-nav-btn.active { color: var(--accent) !important; font-weight: 700; }
+  #sa-helper-container .sa-bottom-nav-btn { color: var(--text-secondary); }
+  #sa-helper-container .sa-bottom-nav-btn.active { color: var(--accent) !important; font-weight: 700; }
 }
 /* Light theme: the terracotta accent is only 2.75:1 on the bar, so darken the active label. */
 @media (max-width: 768px) and (prefers-color-scheme: light) {
-  :root:not([data-theme="dark"]) #sa-helper-container .psycle-bottom-nav-btn.active { color: color-mix(in srgb, var(--accent) 55%, var(--text)) !important; }
+  :root:not([data-theme="dark"]) #sa-helper-container .sa-bottom-nav-btn.active { color: color-mix(in srgb, var(--accent) 55%, var(--text)) !important; }
 }
 @media (max-width: 768px) {
-  :root[data-theme="light"] #sa-helper-container .psycle-bottom-nav-btn.active { color: color-mix(in srgb, var(--accent) 55%, var(--text)) !important; }
+  :root[data-theme="light"] #sa-helper-container .sa-bottom-nav-btn.active { color: color-mix(in srgb, var(--accent) 55%, var(--text)) !important; }
 }
 
 /* Mobile timetable rows: the gym plate is a fixed width (it used to shrink as a long instructor
    name squeezed the row), and the discipline pill and instructor share one type size. */
 @media (max-width: 768px) {
-  #sa-helper-container .psycle-mobile-top-line { --tt-mobile-meta-size: 13px; }
-  #sa-helper-container .psycle-mobile-top-line .sa-gym-chip {
+  #sa-helper-container .sa-mobile-top-line { --tt-mobile-meta-size: 13px; }
+  #sa-helper-container .sa-mobile-top-line .sa-gym-chip {
     flex: 0 0 62px; width: 62px; min-width: 62px; max-width: 62px; padding: 3px 4px; box-sizing: border-box;
   }
-  #sa-helper-container .psycle-mobile-top-line .sa-gym-chip-logo img,
-  #sa-helper-container .psycle-mobile-top-line .sa-gym-chip-logo svg { object-fit: contain; }
-  #sa-helper-container .psycle-mobile-top-line .ab-disc-tag,
-  #sa-helper-container .psycle-mobile-top-line .psycle-mobile-instructor {
+  #sa-helper-container .sa-mobile-top-line .sa-gym-chip-logo img,
+  #sa-helper-container .sa-mobile-top-line .sa-gym-chip-logo svg { object-fit: contain; }
+  #sa-helper-container .sa-mobile-top-line .ab-disc-tag,
+  #sa-helper-container .sa-mobile-top-line .sa-mobile-instructor {
     font-size: var(--tt-mobile-meta-size) !important;
   }
 }
@@ -8159,7 +8159,7 @@ html, body {
 }
 
 /* ---- Mobile header auto-hide, scroll-safe (transform only; scrollHeight never changes) ----
-   The header is an absolute overlay whose height is reserved as .psycle-body padding, so
+   The header is an absolute overlay whose height is reserved as .sa-body padding, so
    hiding/showing it moves NOTHING in the scroll layout (the earlier negative-margin version
    resized the scroller mid-scroll, which fights iOS momentum and rubber-banding). Only
    `transform` on the header and `top` on the sticky filter block change. */
@@ -8168,18 +8168,18 @@ html, body {
     position: absolute !important; top: 0; left: 0; right: 0; z-index: 400;
     transform: translateY(0); transition: transform 0.25s ease; will-change: transform;
   }
-  #psycle-app-container.psycle-hdr-hidden .sa-header { transform: translateY(-100%); pointer-events: none; }
-  #sa-helper-container .psycle-body,
-  #sa-helper-container .psycle-main {
+  #sa-app-container.sa-hdr-hidden .sa-header { transform: translateY(-100%); pointer-events: none; }
+  #sa-helper-container .sa-body,
+  #sa-helper-container .sa-main {
     padding-top: calc(var(--sa-header-h, 47px) + 12px) !important;
     overscroll-behavior-y: contain;
     -webkit-overflow-scrolling: touch;
   }
-  #sa-helper-container .psycle-sticky-top { transition: top 0.25s ease; }
-  #psycle-app-container.psycle-hdr-hidden .psycle-sticky-top { top: calc(-1 * (var(--sa-header-h, 47px) + 12px)); }
+  #sa-helper-container .sa-sticky-top { transition: top 0.25s ease; }
+  #sa-app-container.sa-hdr-hidden .sa-sticky-top { top: calc(-1 * (var(--sa-header-h, 47px) + 12px)); }
 }
 @media (max-width: 768px) and (prefers-reduced-motion: reduce) {
-  #sa-helper-container .sa-header, #sa-helper-container .psycle-sticky-top { transition: none; }
+  #sa-helper-container .sa-header, #sa-helper-container .sa-sticky-top { transition: none; }
 }
 
 /* ---- Settings: one shared vertical rhythm for stacked buttons / button rows (task 7) ----
@@ -8195,12 +8195,12 @@ html, body {
 /* ---- Settings on mobile: edge-to-edge, one scroller (task 6) ---- */
 @media (max-width: 768px) {
   /* Cancel the body's 8px side gutters and its 12px top gap (header space stays reserved above). */
-  #sa-helper-container #psycle-panel-settings {
+  #sa-helper-container #sa-panel-settings {
     margin: -12px calc(-1 * max(8px, env(safe-area-inset-left))) 0 calc(-1 * max(8px, env(safe-area-inset-right)));
     overflow: visible;
     flex: 1 0 auto;
   }
-  /* .psycle-body is the sole scroller: no nested height:100% / overflow:auto boxes. */
+  /* .sa-body is the sole scroller: no nested height:100% / overflow:auto boxes. */
   #sa-helper-container .sa-settings-layout,
   #sa-helper-container .sa-settings-content { height: auto; min-height: 100%; }
   #sa-helper-container .sa-settings-section-panes {
@@ -8226,7 +8226,7 @@ html, body {
 .ab-disc-tag[data-disc],
 [data-multi-gym] .ab-disc-tag[data-disc] { border: 0 !important; padding-left: 7px; padding-right: 7px; }
 @media (max-width: 768px) {
-  #sa-helper-container .psycle-mobile-top-line .ab-disc-tag { padding: 1px 6px !important; }
+  #sa-helper-container .sa-mobile-top-line .ab-disc-tag { padding: 1px 6px !important; }
 }
 
 /* ---- Safe-area cap: the status-bar region always wears the HEADER colour ----
@@ -8249,8 +8249,8 @@ body::before {
 :root { --ab-card-max-w: 680px; --page-gutter-desktop: 24px; }
 @media (min-width: 769px) {
   /* The shell already spans the viewport; the blank space came from 36px body gutters. */
-  #sa-helper-container .psycle-body,
-  #sa-helper-container .psycle-main { padding-left: var(--page-gutter-desktop) !important; padding-right: var(--page-gutter-desktop) !important; }
+  #sa-helper-container .sa-body,
+  #sa-helper-container .sa-main { padding-left: var(--page-gutter-desktop) !important; padding-right: var(--page-gutter-desktop) !important; }
 
   /* Cards: shared max width, desktop only (mobile keeps filling the screen). */
   #sa-helper-container .ab-card { max-width: var(--ab-card-max-w); width: 100%; }
@@ -8269,16 +8269,16 @@ body::before {
      The jump-bar hide below lives in this same block so the two can never diverge.
      Bookings: Active Bookings and Waitlists side by side, each in its own bordered column.
      The jump bar is pointless when both are on screen, so it is hidden here. */
-  #psycle-panel-my-bookings:not([style*="display: none"]) {
+  #sa-panel-my-bookings:not([style*="display: none"]) {
     display: grid !important; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 20px; align-items: start;
   }
-  #psycle-panel-my-bookings > .psycle-tab-header { grid-column: 1 / -1; }
-  #psycle-panel-my-bookings > .psycle-section {
+  #sa-panel-my-bookings > .sa-tab-header { grid-column: 1 / -1; }
+  #sa-panel-my-bookings > .psycle-section {
     margin: 0 !important; padding: 16px !important; min-width: 0;
     background: var(--surface) !important; border: 1px solid var(--border-strong) !important; border-radius: var(--radius-card);
   }
-  #psycle-panel-my-bookings .sa-bookings-list { align-items: stretch; }
-  #psycle-panel-my-bookings > .sa-waitlist-jump { display: none !important; }
+  #sa-panel-my-bookings .sa-bookings-list { align-items: stretch; }
+  #sa-panel-my-bookings > .sa-waitlist-jump { display: none !important; }
 }
 
 /* ---- Batch A ---- */
@@ -8296,29 +8296,29 @@ body::before {
    opaque page), heavy blur + saturation, hairline top border. Legibility comes from label colour
    (full --text, 600 weight) and a lighter/darker active tone chosen for worst-case backdrops. */
 @media (max-width: 768px) {
-  #sa-helper-container .psycle-bottom-nav {
+  #sa-helper-container .sa-bottom-nav {
     background: linear-gradient(var(--surface-inset), var(--surface-inset)), color-mix(in srgb, var(--bg) 76%, transparent) !important;
     -webkit-backdrop-filter: blur(30px) saturate(190%) !important;
     backdrop-filter: blur(30px) saturate(190%) !important;
     border-top: 1px solid var(--border-strong) !important;
     box-shadow: none !important;
   }
-  #sa-helper-container .psycle-bottom-nav-btn { color: var(--text) !important; font-weight: 600; }
-  #sa-helper-container .psycle-bottom-nav-btn.active {
+  #sa-helper-container .sa-bottom-nav-btn { color: var(--text) !important; font-weight: 600; }
+  #sa-helper-container .sa-bottom-nav-btn.active {
     color: color-mix(in srgb, var(--accent) 70%, #fff) !important; font-weight: 800;
   }
 }
 @media (max-width: 768px) and (prefers-color-scheme: light) {
-  :root:not([data-theme="dark"]) #sa-helper-container .psycle-bottom-nav-btn.active { color: var(--accent-hover) !important; }
+  :root:not([data-theme="dark"]) #sa-helper-container .sa-bottom-nav-btn.active { color: var(--accent-hover) !important; }
 }
 @media (max-width: 768px) {
-  :root[data-theme="light"] #sa-helper-container .psycle-bottom-nav-btn.active { color: var(--accent-hover) !important; }
+  :root[data-theme="light"] #sa-helper-container .sa-bottom-nav-btn.active { color: var(--accent-hover) !important; }
 }
 
 /* 3. Mobile timetable rows: narrower gym plate (62 -> 53px), tight gap to the class-type pill. */
 @media (max-width: 768px) {
-  #sa-helper-container .psycle-mobile-top-line .sa-gym-chip { flex: 0 0 53px; width: 53px; min-width: 53px; max-width: 53px; }
-  #sa-helper-container .psycle-mobile-top-line .sa-gym-chip + .ab-disc-tag { margin-left: -4px; } /* row gap 8px -> 4px */
+  #sa-helper-container .sa-mobile-top-line .sa-gym-chip { flex: 0 0 53px; width: 53px; min-width: 53px; max-width: 53px; }
+  #sa-helper-container .sa-mobile-top-line .sa-gym-chip + .ab-disc-tag { margin-left: -4px; } /* row gap 8px -> 4px */
 }
 
 /* ---- Batch B: desktop timetable header / sticky block ---- */
@@ -8326,18 +8326,18 @@ body::before {
    fill the body's top padding, but the block now sticks flush at the scroller's top (top: -10/-12px),
    so the shadow only covered the bottom of the tab header: it hid the subtitle and clipped the
    refresh button. A 2px cap is enough to hide any sub-pixel seam. */
-#sa-helper-container .psycle-sticky-top { box-shadow: 0 -2px 0 var(--bg); }
+#sa-helper-container .sa-sticky-top { box-shadow: 0 -2px 0 var(--bg); }
 /* The list's -3px pull-up is the MOBILE 8px rhythm only; on desktop it hid the list's top border under the block. */
 @media (min-width: 769px) {
-  #sa-helper-container .psycle-sticky-top + #sa-timetable-grid { margin-top: 0 !important; }
+  #sa-helper-container .sa-sticky-top + #sa-timetable-grid { margin-top: 0 !important; }
 }
 
 /* ---- Batch C: bookings columns + desktop card rows ---- */
 @media (min-width: 900px) {
   /* Same top for both columns: identical padding, no header margin differences, rows start together. */
-  #psycle-panel-my-bookings > .psycle-section { align-self: start; padding-top: 16px !important; }
-  #psycle-panel-my-bookings > .psycle-section > .psycle-section-header { margin: 0 0 12px !important; min-height: 28px; }
-  #psycle-panel-my-bookings > .psycle-section > .psycle-section-header h3 { margin: 0 !important; }
+  #sa-panel-my-bookings > .psycle-section { align-self: start; padding-top: 16px !important; }
+  #sa-panel-my-bookings > .psycle-section > .psycle-section-header { margin: 0 0 12px !important; min-height: 28px; }
+  #sa-panel-my-bookings > .psycle-section > .psycle-section-header h3 { margin: 0 !important; }
 }
 @media (min-width: 768px) {
   /* Row 1 date+time / Row 2 tag, class, dot, instructor / Row 3 location. Instructor moves from the
@@ -8360,8 +8360,8 @@ body::before {
 /* Two-pane: the waitlist section's own 2rem top margin / tap-min bottom padding (stacked-layout
    affordances) must not apply beside Active Bookings, or its column starts 32px lower. */
 @media (min-width: 900px) {
-  #sa-helper-container #psycle-panel-my-bookings > .psycle-section,
-  #sa-helper-container #psycle-panel-my-bookings > #sa-waitlists-section {
+  #sa-helper-container #sa-panel-my-bookings > .psycle-section,
+  #sa-helper-container #sa-panel-my-bookings > #sa-waitlists-section {
     margin: 0 !important; padding: 16px !important;
   }
 }
@@ -8456,13 +8456,13 @@ body::before {
 /* ---- Batch E ---- */
 /* E1. Mobile timetable bottom line truncates on one line (an earlier rule left flex-wrap: wrap). */
 @media (max-width: 768px) {
-  #sa-helper-container .psycle-mobile-bottom-line { flex-wrap: nowrap !important; min-width: 0; overflow: hidden; }
-  #sa-helper-container .psycle-mobile-bottom-line .psycle-mobile-class-name,
-  #sa-helper-container .psycle-mobile-bottom-line .psycle-mobile-location {
+  #sa-helper-container .sa-mobile-bottom-line { flex-wrap: nowrap !important; min-width: 0; overflow: hidden; }
+  #sa-helper-container .sa-mobile-bottom-line .sa-mobile-class-name,
+  #sa-helper-container .sa-mobile-bottom-line .sa-mobile-location {
     flex: 0 1 auto; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
   }
-  #sa-helper-container .psycle-mobile-bottom-line .psycle-mobile-dot { flex: 0 0 auto; }
-  #sa-helper-container .psycle-mobile-content { min-width: 0; }
+  #sa-helper-container .sa-mobile-bottom-line .sa-mobile-dot { flex: 0 0 auto; }
+  #sa-helper-container .sa-mobile-content { min-width: 0; }
 }
 
 /* E2. Per-gym wordmark optical scale (presentation.wordmark.scale -> --logo-scale); the chip is unchanged. */
@@ -8470,7 +8470,7 @@ body::before {
 
 /* E3. Bottom nav: 60% alpha, 15px blur (saturate + hairline kept). */
 @media (max-width: 768px) {
-  #sa-helper-container .psycle-bottom-nav {
+  #sa-helper-container .sa-bottom-nav {
     background: linear-gradient(var(--surface-inset), var(--surface-inset)), color-mix(in srgb, var(--bg) 60%, transparent) !important;
     -webkit-backdrop-filter: blur(15px) saturate(190%) !important;
     backdrop-filter: blur(15px) saturate(190%) !important;
@@ -8493,7 +8493,7 @@ body::before {
 /* ---- Batch F ---- */
 /* Timetable rows: a fixed-width time column so the gym chip starts at the same x on every row. */
 @media (max-width: 768px) {
-  #sa-helper-container .psycle-mobile-top-line > strong { flex: 0 0 auto; min-width: 3.6em; font-variant-numeric: tabular-nums; }
+  #sa-helper-container .sa-mobile-top-line > strong { flex: 0 0 auto; min-width: 3.6em; font-variant-numeric: tabular-nums; }
 }
 
 /* Calendar feed actions (U4-16): one column, every button the full card width,
@@ -8520,22 +8520,22 @@ body::before {
 /* Bottom nav active state: the design system's own clay accent (not a text-tinted brown).
    Light uses --accent-hover (#b5694e, the deeper clay: 3.6:1 over a white backdrop); dark uses --accent (#d2876b). */
 @media (max-width: 768px) {
-  #sa-helper-container .psycle-bottom-nav-btn.active { color: var(--accent) !important; }
+  #sa-helper-container .sa-bottom-nav-btn.active { color: var(--accent) !important; }
 }
 @media (max-width: 768px) and (prefers-color-scheme: light) {
-  :root:not([data-theme="dark"]) #sa-helper-container .psycle-bottom-nav-btn.active { color: var(--accent-hover) !important; }
+  :root:not([data-theme="dark"]) #sa-helper-container .sa-bottom-nav-btn.active { color: var(--accent-hover) !important; }
 }
 @media (max-width: 768px) {
-  :root[data-theme="light"] #sa-helper-container .psycle-bottom-nav-btn.active { color: var(--accent-hover) !important; }
+  :root[data-theme="light"] #sa-helper-container .sa-bottom-nav-btn.active { color: var(--accent-hover) !important; }
 }
 
 /* Timetable rows (mobile): square cards inside the rounded container; the container clips its
    rows (clip-path also catches children with backdrop-filter, which escape overflow:hidden). */
 @media (max-width: 768px) {
-  #sa-helper-container .psycle-mobile-class-card { border-radius: 0 !important; -webkit-backdrop-filter: none !important; backdrop-filter: none !important; }
+  #sa-helper-container .sa-mobile-class-card { border-radius: 0 !important; -webkit-backdrop-filter: none !important; backdrop-filter: none !important; }
   #sa-helper-container #sa-timetable-grid .sa-table-container { clip-path: inset(0 round 16px); }
   /* Time column: sized to the widest "HH:MM" (tabular figures) + 6px instead of a fixed 3.6em. */
-  #sa-helper-container .psycle-mobile-top-line > strong { min-width: 43px; } /* widest 'HH:MM' measured 37.1px + 6px */
+  #sa-helper-container .sa-mobile-top-line > strong { min-width: 43px; } /* widest 'HH:MM' measured 37.1px + 6px */
 }
 
 /* Safe-area cap follows the header state (data-hdr-hidden on <html>, set by initHeaderAutoHide):
@@ -8554,18 +8554,18 @@ html[data-hdr-hidden] { background: var(--bg); }
 /* 0a. Bottom nav active = the design system's semantic blue (--info): a vivid hue, deepened in light so it
    holds >=4.5:1 on the light glass, brightened in dark. */
 @media (max-width: 768px) {
-  #sa-helper-container .psycle-bottom-nav-btn.active { color: color-mix(in srgb, var(--info) 75%, #fff) !important; }
+  #sa-helper-container .sa-bottom-nav-btn.active { color: color-mix(in srgb, var(--info) 75%, #fff) !important; }
 }
 @media (max-width: 768px) and (prefers-color-scheme: light) {
-  :root:not([data-theme="dark"]) #sa-helper-container .psycle-bottom-nav-btn.active { color: color-mix(in srgb, var(--info) 78%, #000) !important; }
+  :root:not([data-theme="dark"]) #sa-helper-container .sa-bottom-nav-btn.active { color: color-mix(in srgb, var(--info) 78%, #000) !important; }
 }
 @media (max-width: 768px) {
-  :root[data-theme="light"] #sa-helper-container .psycle-bottom-nav-btn.active { color: color-mix(in srgb, var(--info) 78%, #000) !important; }
+  :root[data-theme="light"] #sa-helper-container .sa-bottom-nav-btn.active { color: color-mix(in srgb, var(--info) 78%, #000) !important; }
 }
 
 /* 2. ONE page-title treatment for every tab header, settings menu title and Auto-Book title.
-   (Timetable and My Bookings hide their .psycle-tab-header on mobile; the rule still applies on desktop.) */
-#sa-helper-container .psycle-tab-header h3,
+   (Timetable and My Bookings hide their .sa-tab-header on mobile; the rule still applies on desktop.) */
+#sa-helper-container .sa-tab-header h3,
 #sa-helper-container .sa-settings-sidebar-header h3,
 #sa-helper-container .ab-page-title {
   font-family: var(--font-serif) !important;
@@ -8585,8 +8585,8 @@ html[data-hdr-hidden] { background: var(--bg); }
 /* A. Timetable mobile bottom line: "Location · Class". The LOCATION shrinks (and ellipsises) first;
    the class name only truncates once the location is down to nothing. */
 @media (max-width: 768px) {
-  #sa-helper-container .psycle-mobile-bottom-line .psycle-mobile-location { flex: 0 100 auto; }
-  #sa-helper-container .psycle-mobile-bottom-line .psycle-mobile-class-name { flex: 0 1 auto; }
+  #sa-helper-container .sa-mobile-bottom-line .sa-mobile-location { flex: 0 100 auto; }
+  #sa-helper-container .sa-mobile-bottom-line .sa-mobile-class-name { flex: 0 1 auto; }
 }
 
 /* B. Waitlisted cards read as pending: colours at ~50% saturation, gym plate and tag paler, action
@@ -8608,37 +8608,37 @@ svg.gym-logo-inline { display: block; opacity: 1 !important; transition: none !i
 /* ---- Batch I ---- */
 /* 1. Bottom nav active: light = design clay #c9785c exactly; dark = the blue tint #88bcfb. */
 @media (max-width: 768px) and (prefers-color-scheme: light) {
-  :root:not([data-theme="dark"]) #sa-helper-container .psycle-bottom-nav-btn.active { color: #c9785c !important; }
+  :root:not([data-theme="dark"]) #sa-helper-container .sa-bottom-nav-btn.active { color: #c9785c !important; }
 }
 @media (max-width: 768px) {
-  :root[data-theme="light"] #sa-helper-container .psycle-bottom-nav-btn.active { color: #c9785c !important; }
+  :root[data-theme="light"] #sa-helper-container .sa-bottom-nav-btn.active { color: #c9785c !important; }
 }
 
 /* 2. Mobile timetable list: the -3px pull-up put the container's top edge (and its rounded corners) BEHIND
    the sticky bar, and the table's 2px margin + border-spacing pushed rows 3px below the container top.
    Now the container starts exactly at the sticky block's bottom edge and rows start at its top edge. */
 @media (max-width: 768px) {
-  #sa-helper-container .psycle-sticky-top + #sa-timetable-grid { margin-top: 0 !important; }
+  #sa-helper-container .sa-sticky-top + #sa-timetable-grid { margin-top: 0 !important; }
   #sa-helper-container #sa-timetable-grid .sa-table-container .sa-table { margin-top: 0 !important; border-spacing: 0 !important; }
 }
 
 /* 3+5. Row CTAs are real buttons: rounded, inset, taller than .ab-rail-toggle (28px) at 38px, 14px side padding,
    13px/600. Semantic colours come from the existing .variant-* / .primary rules (unchanged). */
 @media (max-width: 768px) {
-  #sa-helper-container .psycle-mobile-rail { align-items: center; gap: 4px; padding: 0 8px 0 4px; }
-  #sa-helper-container .psycle-mobile-seg.primary {
+  #sa-helper-container .sa-mobile-rail { align-items: center; gap: 4px; padding: 0 8px 0 4px; }
+  #sa-helper-container .sa-mobile-seg.primary {
     height: 38px; width: auto; min-width: 56px; padding: 0 14px; border: 0 !important; border-radius: 8px !important;
     font-size: 13px; font-weight: 600; flex-direction: row; white-space: nowrap;
   }
   /* Kebab: bolder glyph, ~25% narrower button (38 -> 29px), 44px-ish tap area kept via ::after. */
-  #sa-helper-container .psycle-mobile-seg.ellipsis {
+  #sa-helper-container .sa-mobile-seg.ellipsis {
     position: relative; width: 29px; min-width: 29px; height: 38px; padding: 0; border: 0 !important; border-radius: 8px;
     background: transparent; color: var(--text) !important; font-size: 24px; font-weight: 900; line-height: 1;
   }
-  #sa-helper-container .psycle-mobile-seg.ellipsis::after { content: ''; position: absolute; inset: -4px -8px; }
+  #sa-helper-container .sa-mobile-seg.ellipsis::after { content: ''; position: absolute; inset: -4px -8px; }
   /* 4b. gym chip a few px closer to the time: column 43 -> 40px (widest "HH:MM" 37.1px), gap 8 -> 6px. */
-  #sa-helper-container .psycle-mobile-top-line > strong { min-width: 40px; }
-  #sa-helper-container .psycle-mobile-top-line > strong + .sa-gym-chip { margin-left: -2px; }
+  #sa-helper-container .sa-mobile-top-line > strong { min-width: 40px; }
+  #sa-helper-container .sa-mobile-top-line > strong + .sa-gym-chip { margin-left: -2px; }
 }
 @media (min-width: 769px) {
   #sa-helper-container .sa-tt-actions { align-items: center; gap: 6px; padding: 0 6px; } /* CTA->kebab gap (6) == kebab->edge (6); both measured to the kebab's box, whose glyph is centred */
@@ -8663,7 +8663,7 @@ svg.gym-logo-inline { display: block; opacity: 1 !important; transition: none !i
 /* ======================================================================
    Batch J: MOBILE scrolls the DOCUMENT (not an inner box).
    Why: Safari only collapses its URL bar / toolbar when the page itself scrolls. Before, the app was a
-   fixed-position shell with an inner `main.psycle-body` scroller, so the document never scrolled.
+   fixed-position shell with an inner `main.sa-body` scroller, so the document never scrolled.
    Now (<= 768px) the shell is in normal flow, the header and bottom nav are position:fixed, and the
    body reserves space for them. Desktop keeps the inner scroller. Gated purely by this media query;
    ui/scroll-state.js `isDocScroll()` mirrors it for the JS.
@@ -8674,7 +8674,7 @@ svg.gym-logo-inline { display: block; opacity: 1 !important; transition: none !i
     position: static !important; display: block !important; overflow: visible !important;
     width: 100% !important; height: auto !important; min-height: 100dvh;
   }
-  #psycle-app-container {
+  #sa-app-container {
     position: static !important; display: block !important; width: 100% !important;
     height: auto !important; max-height: none !important; min-height: 100dvh;
     overflow: visible !important;
@@ -8682,16 +8682,16 @@ svg.gym-logo-inline { display: block; opacity: 1 !important; transition: none !i
     -webkit-backdrop-filter: none !important; backdrop-filter: none !important; transform: none !important; animation: none !important;
   }
   #sa-helper-container .sa-header { position: fixed !important; top: 0; left: 0; right: 0; }
-  #sa-helper-container .psycle-body,
-  #sa-helper-container .psycle-main {
+  #sa-helper-container .sa-body,
+  #sa-helper-container .sa-main {
     overflow: visible !important; height: auto !important; min-height: 100dvh;
     padding-top: calc(var(--sa-header-h, 47px) + 12px) !important;
     padding-bottom: calc(56px + env(safe-area-inset-bottom) + 36px) !important;
   }
-  #sa-helper-container #psycle-panel-my-bookings {
+  #sa-helper-container #sa-panel-my-bookings {
     padding-bottom: 36px !important;
   }
-  #sa-helper-container .psycle-mobile-seg.confirming,
+  #sa-helper-container .sa-mobile-seg.confirming,
   #sa-helper-container .sa-tt-seg.confirming {
     width: auto !important;
     min-width: var(--timetable-cta-w, 74px) !important;
@@ -8699,15 +8699,15 @@ svg.gym-logo-inline { display: block; opacity: 1 !important; transition: none !i
     padding-right: 8px !important;
     white-space: nowrap !important;
   }
-  #sa-helper-container .psycle-mobile-seg.confirming.success,
+  #sa-helper-container .sa-mobile-seg.confirming.success,
   #sa-helper-container .sa-tt-seg.confirming.success {
     background: var(--warning, #e68a00) !important;
     color: #1a1206 !important;
   }
   /* Sticky now sticks to the VIEWPORT: under the header while it shows, flush at the top once hidden. */
-  #sa-helper-container .psycle-sticky-top { top: var(--sa-header-h, 47px); }
-  #psycle-app-container.psycle-hdr-hidden .psycle-sticky-top { top: 0; }
-  #sa-helper-container .psycle-sticky-top { transition: top 0.25s ease; }
+  #sa-helper-container .sa-sticky-top { top: var(--sa-header-h, 47px); }
+  #sa-app-container.sa-hdr-hidden .sa-sticky-top { top: 0; }
+  #sa-helper-container .sa-sticky-top { transition: top 0.25s ease; }
 }
 
 /* Safe-area cap: paint ABOVE everything (the desktop shell used to sit at z-index 999999, over the
@@ -8734,14 +8734,14 @@ body::after { z-index: 1000002 !important; }
 
 /* 2. Mobile row rail: the kebab is ~37px wide (+33%) with no vertical divider line. */
 @media (max-width: 768px) {
-  #sa-helper-container .psycle-mobile-rail { align-items: stretch; gap: 0; padding: 0; }
-  #sa-helper-container .psycle-mobile-seg.primary { align-self: center; margin: 0 0 0 4px; } /* kebab box is flush to the edge, so CTA flush to it gives equal glyph gaps */
-  #sa-helper-container .psycle-mobile-seg.ellipsis {
+  #sa-helper-container .sa-mobile-rail { align-items: stretch; gap: 0; padding: 0; }
+  #sa-helper-container .sa-mobile-seg.primary { align-self: center; margin: 0 0 0 4px; } /* kebab box is flush to the edge, so CTA flush to it gives equal glyph gaps */
+  #sa-helper-container .sa-mobile-seg.ellipsis {
     align-self: stretch; height: auto; width: 37px; min-width: 37px; padding: 0;
     border: 0 !important; border-left: 0 !important; border-radius: 0 !important;
     background: var(--surface-inset); color: var(--text) !important; font-size: 24px; font-weight: 900;
   }
-  #sa-helper-container .psycle-mobile-seg.ellipsis::after { inset: 0 -8px 0 -8px; }
+  #sa-helper-container .sa-mobile-seg.ellipsis::after { inset: 0 -8px 0 -8px; }
 }
 
 /* ---- Batch L: mobile timetable = flat, full-width, three-row table ---- */
@@ -8757,76 +8757,76 @@ body::after { z-index: 1000002 !important; }
     padding: 0 !important; background: transparent !important;
   }
   /* 3. Rows touch (divider only); the breathing room lives INSIDE the row. */
-  #sa-helper-container .sa-table .psycle-mobile-row td { padding: 0 !important; }
-  #sa-helper-container .psycle-mobile-class-card { border: 0 !important; align-items: stretch; }
-  #sa-helper-container .psycle-mobile-content { padding: 4px 4px 4px 8px; display: flex; flex-direction: column; gap: 2px; min-width: 0; flex: 1 1 0; justify-content: center; }
+  #sa-helper-container .sa-table .sa-mobile-row td { padding: 0 !important; }
+  #sa-helper-container .sa-mobile-class-card { border: 0 !important; align-items: stretch; }
+  #sa-helper-container .sa-mobile-content { padding: 4px 4px 4px 8px; display: flex; flex-direction: column; gap: 2px; min-width: 0; flex: 1 1 0; justify-content: center; }
   /* 1. Rows 2 and 3. Row 2: class name then instructor; the INSTRUCTOR truncates first. */
-  #sa-helper-container .psycle-mobile-line2 { display: flex; align-items: center; gap: 6px; min-width: 0; overflow: hidden; flex-wrap: nowrap; }
-  #sa-helper-container .psycle-mobile-line2 .psycle-mobile-class-name { flex: 0 1 auto; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--text); font-weight: 600; font-size: 13px; }
-  #sa-helper-container .psycle-mobile-line2 .psycle-mobile-dot { flex: 0 0 auto; }
-  #sa-helper-container .psycle-mobile-line2 .psycle-mobile-instructor { flex: 0 100 auto; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-family: var(--font-serif); font-size: 13px; }
+  #sa-helper-container .sa-mobile-line2 { display: flex; align-items: center; gap: 6px; min-width: 0; overflow: hidden; flex-wrap: nowrap; }
+  #sa-helper-container .sa-mobile-line2 .sa-mobile-class-name { flex: 0 1 auto; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--text); font-weight: 600; font-size: 13px; }
+  #sa-helper-container .sa-mobile-line2 .sa-mobile-dot { flex: 0 0 auto; }
+  #sa-helper-container .sa-mobile-line2 .sa-mobile-instructor { flex: 0 100 auto; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-family: var(--font-serif); font-size: 13px; }
   /* Row 3: the full studio name, one line. */
-  #sa-helper-container .psycle-mobile-bottom-line { flex-wrap: nowrap !important; }
-  #sa-helper-container .psycle-mobile-bottom-line .psycle-mobile-location { flex: 0 1 auto; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 12px; color: var(--text-tertiary); }
+  #sa-helper-container .sa-mobile-bottom-line { flex-wrap: nowrap !important; }
+  #sa-helper-container .sa-mobile-bottom-line .sa-mobile-location { flex: 0 1 auto; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 12px; color: var(--text-tertiary); }
 }
 
 /* ---- Batch M: relaxed mobile rows, class-name-first truncation, smaller CTA ---- */
 @media (max-width: 768px) {
   /* 1. Room to breathe: 12px top/bottom, 14px left, 8px between the three lines. */
-  #sa-helper-container .psycle-mobile-content { padding: 12px 6px 12px 14px !important; gap: 8px !important; }
+  #sa-helper-container .sa-mobile-content { padding: 12px 6px 12px 14px !important; gap: 8px !important; }
   /* 2. Row 2: the CLASS NAME shrinks (ellipsis) long before the instructor does. */
-  #sa-helper-container .psycle-mobile-line2 .psycle-mobile-class-name { flex: 0 100 auto !important; }
-  #sa-helper-container .psycle-mobile-line2 .psycle-mobile-instructor { flex: 0 1 auto !important; }
+  #sa-helper-container .sa-mobile-line2 .sa-mobile-class-name { flex: 0 100 auto !important; }
+  #sa-helper-container .sa-mobile-line2 .sa-mobile-instructor { flex: 0 1 auto !important; }
   /* 3. Text styling back to sans + grey (timetable rows only; Bookings etc. keep their serif). */
-  #sa-helper-container .psycle-mobile-line2 .psycle-mobile-class-name,
-  #sa-helper-container .psycle-mobile-line2 .psycle-mobile-instructor,
-  #sa-helper-container .psycle-mobile-bottom-line .psycle-mobile-location { font-family: var(--font-sans) !important; }
-  #sa-helper-container .psycle-mobile-line2 .psycle-mobile-class-name,
-  #sa-helper-container .psycle-mobile-line2 .psycle-mobile-instructor { color: var(--text-secondary) !important; font-weight: 500; }
+  #sa-helper-container .sa-mobile-line2 .sa-mobile-class-name,
+  #sa-helper-container .sa-mobile-line2 .sa-mobile-instructor,
+  #sa-helper-container .sa-mobile-bottom-line .sa-mobile-location { font-family: var(--font-sans) !important; }
+  #sa-helper-container .sa-mobile-line2 .sa-mobile-class-name,
+  #sa-helper-container .sa-mobile-line2 .sa-mobile-instructor { color: var(--text-secondary) !important; font-weight: 500; }
   /* 4-6. CTA: 32px, 12px/600, 10px side padding, one shared min-width; long labels wrap to two lines. */
-  #sa-helper-container .psycle-mobile-seg.primary {
+  #sa-helper-container .sa-mobile-seg.primary {
     height: 32px; min-width: 68px; padding: 0 10px; font-size: 12px; font-weight: 600; line-height: 1.1;
     white-space: normal; text-align: center; gap: 4px;
   }
-  #sa-helper-container .psycle-mobile-seg.primary .psycle-cta-2l { display: inline-flex; flex-direction: column; align-items: center; line-height: 1.1; }
-  #sa-helper-container .psycle-mobile-seg.primary .psycle-cta-2l > span { display: block; }
+  #sa-helper-container .sa-mobile-seg.primary .psycle-cta-2l { display: inline-flex; flex-direction: column; align-items: center; line-height: 1.1; }
+  #sa-helper-container .sa-mobile-seg.primary .psycle-cta-2l > span { display: block; }
 }
 @media (max-width: 768px) {
   /* Cap the CTA width so long labels ("Join Waitlist", "Leave WL") wrap to two lines instead of widening it. */
-  #sa-helper-container .psycle-mobile-seg.primary { max-width: 78px; }
+  #sa-helper-container .sa-mobile-seg.primary { max-width: 78px; }
 }
 
 /* ---- Batch N ---- */
 @media (max-width: 768px) {
   /* 1. Kebab block: no fill (divider kept), subtle tint only while pressed. */
-  #sa-helper-container .psycle-mobile-seg.ellipsis { background: transparent !important; }
-  #sa-helper-container .psycle-mobile-seg.ellipsis:active { background: color-mix(in srgb, var(--text) 8%, transparent) !important; }
+  #sa-helper-container .sa-mobile-seg.ellipsis { background: transparent !important; }
+  #sa-helper-container .sa-mobile-seg.ellipsis:active { background: color-mix(in srgb, var(--text) 8%, transparent) !important; }
   /* 2. CTA: 36px high, ~+6px wider. */
-  #sa-helper-container .psycle-mobile-seg.primary { height: 36px; min-width: 74px; max-width: 84px; }
+  #sa-helper-container .sa-mobile-seg.primary { height: 36px; min-width: 74px; max-width: 84px; }
   /* 3. Clear space between the sticky rail and the first row (inside the scroll area, transparent). */
   #sa-helper-container #sa-timetable-grid { padding-top: 14px !important; }
   /* 4. Row text +1px (NOT the gym chip, NOT the class-type chip). */
-  #sa-helper-container .psycle-mobile-top-line > strong { font-size: 15px; }
-  #sa-helper-container .psycle-mobile-line2 .psycle-mobile-class-name,
-  #sa-helper-container .psycle-mobile-line2 .psycle-mobile-instructor { font-size: 14px !important; }
-  #sa-helper-container .psycle-mobile-bottom-line .psycle-mobile-location { font-size: 13px !important; }
+  #sa-helper-container .sa-mobile-top-line > strong { font-size: 15px; }
+  #sa-helper-container .sa-mobile-line2 .sa-mobile-class-name,
+  #sa-helper-container .sa-mobile-line2 .sa-mobile-instructor { font-size: 14px !important; }
+  #sa-helper-container .sa-mobile-bottom-line .sa-mobile-location { font-size: 13px !important; }
   /* Row 1 order is time, gym chip, class type, heart: the heart is now trailing, so the time column only
      needs the time itself (re-tightened so every chip still shares one left edge). */
-  #sa-helper-container .psycle-mobile-top-line > strong { min-width: 44px; }
-  #sa-helper-container .psycle-mobile-top-line .psycle-mobile-fav-indicator { flex: 0 0 auto; margin-left: 2px; font-size: 15px; }
+  #sa-helper-container .sa-mobile-top-line > strong { min-width: 44px; }
+  #sa-helper-container .sa-mobile-top-line .sa-mobile-fav-indicator { flex: 0 0 auto; margin-left: 2px; font-size: 15px; }
   /* 5. Instructor photo spans rows 2-3; rows 2-3 indent to its right. */
-  #sa-helper-container .psycle-mobile-avatar {
+  #sa-helper-container .sa-mobile-avatar {
     position: relative; flex: 0 0 38px; width: 38px; height: 38px; border-radius: 50%; overflow: hidden;
     background: color-mix(in srgb, var(--text) 10%, transparent);
   }
-  #sa-helper-container .psycle-mobile-avatar::before {
+  #sa-helper-container .sa-mobile-avatar::before {
     content: attr(data-initial); position: absolute; inset: 0; display: flex; align-items: center; justify-content: center;
     font-size: 15px; font-weight: 700; color: var(--text-secondary);
   }
-  #sa-helper-container .psycle-mobile-avatar img { position: relative; z-index: 1; display: block; width: 38px; height: 38px; object-fit: cover; border-radius: 50%; }
+  #sa-helper-container .sa-mobile-avatar img { position: relative; z-index: 1; display: block; width: 38px; height: 38px; object-fit: cover; border-radius: 50%; }
 }
 @media (max-width: 768px) {
-  #sa-helper-container .sa-table td .psycle-mobile-top-line > strong { font-size: 15px !important; }
+  #sa-helper-container .sa-table td .sa-mobile-top-line > strong { font-size: 15px !important; }
 }
 
 
@@ -8835,9 +8835,9 @@ body::after { z-index: 1000002 !important; }
    (its panel margin cancels gap + extra); Settings cancels only the base gap so it gets the extra 8px too. */
 @media (max-width: 768px) {
   :root { --hdr-gap: 12px; --hdr-extra: 8px; }
-  #sa-helper-container .psycle-body,
-  #sa-helper-container .psycle-main { padding-top: calc(var(--sa-header-h, 47px) + var(--hdr-gap) + var(--hdr-extra)) !important; }
-  #sa-helper-container #psycle-panel-class-timetable { margin-top: calc(-1 * (var(--hdr-gap) + var(--hdr-extra))) !important; }
+  #sa-helper-container .sa-body,
+  #sa-helper-container .sa-main { padding-top: calc(var(--sa-header-h, 47px) + var(--hdr-gap) + var(--hdr-extra)) !important; }
+  #sa-helper-container #sa-panel-class-timetable { margin-top: calc(-1 * (var(--hdr-gap) + var(--hdr-extra))) !important; }
 }
 
 
@@ -8845,9 +8845,9 @@ body::after { z-index: 1000002 !important; }
 @media (max-width: 768px) {
   /* 2. Left column = TIME above the instructor PHOTO (top-aligned, Y-aligned with row 1 chips), 12px clear of the text block.
         The chip's left edge is now simply "lead width + gap", identical on every row. */
-  #sa-helper-container .psycle-mobile-content { flex-direction: row !important; align-items: flex-start !important; gap: 12px !important; padding: 12px 6px 12px 12px !important; }
-  #sa-helper-container .psycle-mobile-lead { flex: 0 0 46px; width: 46px; display: flex; flex-direction: column; align-items: center; justify-content: flex-start; gap: 8px; }
-  #sa-helper-container .psycle-mobile-lead > strong {
+  #sa-helper-container .sa-mobile-content { flex-direction: row !important; align-items: flex-start !important; gap: 12px !important; padding: 12px 6px 12px 12px !important; }
+  #sa-helper-container .sa-mobile-lead { flex: 0 0 46px; width: 46px; display: flex; flex-direction: column; align-items: center; justify-content: flex-start; gap: 8px; }
+  #sa-helper-container .sa-mobile-lead > strong {
     height: var(--tt-chip-h, 22px);
     display: flex;
     align-items: center;
@@ -8857,21 +8857,21 @@ body::after { z-index: 1000002 !important; }
     line-height: 1;
     white-space: nowrap;
   }
-  #sa-helper-container .psycle-mobile-lead .psycle-mobile-avatar { flex: 0 0 38px; cursor: pointer; }
-  #sa-helper-container .psycle-mobile-main { flex: 1 1 0; min-width: 0; display: flex; flex-direction: column; gap: 8px; }
+  #sa-helper-container .sa-mobile-lead .sa-mobile-avatar { flex: 0 0 38px; cursor: pointer; }
+  #sa-helper-container .sa-mobile-main { flex: 1 1 0; min-width: 0; display: flex; flex-direction: column; gap: 8px; }
   /* 3. Gym chip -> class-type chip: 8px (the earlier -4px pull-in is gone). */
-  #sa-helper-container .psycle-mobile-top-line { height: var(--tt-chip-h, 22px); display: flex; align-items: center; gap: 8px; }
-  #sa-helper-container .psycle-mobile-top-line .sa-gym-chip + .ab-disc-tag { margin-left: 0 !important; }
+  #sa-helper-container .sa-mobile-top-line { height: var(--tt-chip-h, 22px); display: flex; align-items: center; gap: 8px; }
+  #sa-helper-container .sa-mobile-top-line .sa-gym-chip + .ab-disc-tag { margin-left: 0 !important; }
   /* 4. Instructor moved under: Row 3 = "Studio · Instructor" (instructor ellipsises first). */
-  #sa-helper-container .psycle-mobile-bottom-line { gap: 6px; }
-  #sa-helper-container .psycle-mobile-bottom-line .psycle-mobile-location { flex: 0 1 auto; }
-  #sa-helper-container .psycle-mobile-bottom-line .psycle-mobile-dot { flex: 0 0 auto; }
-  #sa-helper-container .psycle-mobile-bottom-line .psycle-mobile-instructor {
+  #sa-helper-container .sa-mobile-bottom-line { gap: 6px; }
+  #sa-helper-container .sa-mobile-bottom-line .sa-mobile-location { flex: 0 1 auto; }
+  #sa-helper-container .sa-mobile-bottom-line .sa-mobile-dot { flex: 0 0 auto; }
+  #sa-helper-container .sa-mobile-bottom-line .sa-mobile-instructor {
     flex: 0 100 auto; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
     font-family: var(--font-sans) !important; font-size: 13px !important; color: var(--text-secondary) !important;
   }
   /* 5. CTA 40px high, uniform width across date governed by the longest label on the page. */
-  #sa-helper-container .psycle-mobile-seg.primary {
+  #sa-helper-container .sa-mobile-seg.primary {
     height: 40px;
     width: var(--timetable-cta-w, 74px);
     min-width: var(--timetable-cta-w, 74px);
@@ -8884,11 +8884,11 @@ body::after { z-index: 1000002 !important; }
 .ab-card-gym-rail .ab-gym-logo-svg.is-mark { width: auto; height: 38px; max-width: 80%; }
 
 /* Full with no waitlist: the action is blanked (status pill says it); keep the box so rows align. */
-.sa-tt-seg.is-blank, .psycle-mobile-seg.is-blank { visibility: hidden !important; pointer-events: none !important; }
+.sa-tt-seg.is-blank, .sa-mobile-seg.is-blank { visibility: hidden !important; pointer-events: none !important; }
 
 /* ===== WEEK-STRIP DATE SELECTOR (Task F/G) — delete this block + set WEEK_STRIP_DATE_SELECTOR=false in timetable.js to revert ===== */
-#sa-helper-container .psycle-sticky-top.sa-dates-first { display: flex; flex-direction: column; }
-#sa-helper-container .psycle-sticky-top.sa-dates-first > #sa-timetable-carousel { order: -1; }
+#sa-helper-container .sa-sticky-top.sa-dates-first { display: flex; flex-direction: column; }
+#sa-helper-container .sa-sticky-top.sa-dates-first > #sa-timetable-carousel { order: -1; }
 #sa-helper-container .sa-weekstrip { display: block; padding: 4px 0 2px; overflow: visible; }
 /* One week per page; swipe/scroll the strip to page between weeks. */
 #sa-helper-container .sa-wk-scroller {
@@ -8946,7 +8946,7 @@ body::after { z-index: 1000002 !important; }
 }
 /* Instructor name = class name size (mobile row line 3 was 13px vs the class name's 14px). */
 @media (max-width: 768px) {
-  #sa-helper-container .psycle-mobile-bottom-line .psycle-mobile-instructor { font-size: 14px !important; }
+  #sa-helper-container .sa-mobile-bottom-line .sa-mobile-instructor { font-size: 14px !important; }
 }
 /* Timetable scroll container: no visible scrollbar, still scrolls. */
 #sa-helper-container #sa-timetable-grid { scrollbar-width: none !important; -ms-overflow-style: none; }
@@ -8963,12 +8963,12 @@ body::after { z-index: 1000002 !important; }
 }
 .sa-tt-seg.primary.variant-autoupgrade .psycle-seg-ico { margin: 0 !important; }
 @media (max-width: 768px) {
-  #sa-helper-container .psycle-mobile-seg.primary.variant-autoupgrade:not(.scheduled) {
+  #sa-helper-container .sa-mobile-seg.primary.variant-autoupgrade:not(.scheduled) {
     width: calc(var(--timetable-cta-w, 74px) + 14px) !important; min-width: calc(var(--timetable-cta-w, 74px) + 14px) !important;
     padding: 0 !important; gap: 5px !important; justify-content: center !important; align-items: center !important;
   }
-  #sa-helper-container .psycle-mobile-seg.primary.variant-autoupgrade .psycle-seg-ico,
-  #sa-helper-container .psycle-mobile-seg.primary.variant-autoupgrade .psycle-cta-2l { margin: 0 !important; }
+  #sa-helper-container .sa-mobile-seg.primary.variant-autoupgrade .psycle-seg-ico,
+  #sa-helper-container .sa-mobile-seg.primary.variant-autoupgrade .psycle-cta-2l { margin: 0 !important; }
 }
 
 /* Header pill for squareMark gyms: oblong pill with the short A mark (the normal logo imgs are hidden). */
@@ -9080,8 +9080,8 @@ body::after { z-index: 1000002 !important; }
 @media (max-width: 768px) and (prefers-reduced-motion: reduce) {
   .sa-modal.sa-page { transform: none; transition: opacity 0.15s ease !important; }
 }
-body.psycle-scroll-locked { overflow: hidden; }
-body.psycle-scroll-locked { overflow: hidden; }
+body.sa-scroll-locked { overflow: hidden; }
+body.sa-scroll-locked { overflow: hidden; }
 
 /* Batch 2: form pages (Gym link / re-auth / Change Password) and the Favourites page. */
 @media (max-width: 768px) {
@@ -9169,7 +9169,7 @@ body.psycle-scroll-locked { overflow: hidden; }
     position: sticky; bottom: 0; margin-top: auto; padding-top: 12px; background: var(--bg);
   }
 }
-body.psycle-scroll-locked { overscroll-behavior: none; }
+body.sa-scroll-locked { overscroll-behavior: none; }
 
 /* ======================================================================
    TIMETABLE KEYWORD SEARCH (ui/timetable-search-ui.js, timetable.js)
@@ -9230,9 +9230,9 @@ body.psycle-scroll-locked { overscroll-behavior: none; }
 .sa-spm-gym .sa-gym-logo-banner { display: none; }
 
 /* Double scrollbar / background bleed: while a page is open, nothing behind it renders or scrolls. */
-html.psycle-scroll-locked { overflow: hidden !important; background: var(--bg) !important; overscroll-behavior: none; }
+html.sa-scroll-locked { overflow: hidden !important; background: var(--bg) !important; overscroll-behavior: none; }
 @media (max-width: 768px) {
-  body.psycle-scroll-locked { background: var(--bg); }
+  body.sa-scroll-locked { background: var(--bg); }
   [data-sa-nav-inert] { visibility: hidden !important; }
   /* Pin pages to the VISUAL viewport (iOS keyboard): no app showing around the accessory bar. */
   .sa-modal.sa-page,
@@ -9419,35 +9419,35 @@ html.psycle-scroll-locked { overflow: hidden !important; background: var(--bg) !
 @media (prefers-reduced-motion: reduce) { .fr-gymquick-btn .fr-gym-dot.lg { transition: none; } }
 
 /* ===== Mobile scroll-collapse (5-10 enh 3) =====
-   main.js toggles `.sa-tt-compact` on #psycle-app-container together with the header hide (one state,
+   main.js toggles `.sa-tt-compact` on #sa-app-container together with the header hide (one state,
    see ui/scroll-collapse.js). MOBILE ONLY: everything is inside max-width:768px; desktop never matches.
    Layout-jump guard: the day cells shrink by --tt-collapse-d and the sticky block gains the same
    margin-bottom, on one shared duration/easing, so the in-flow footprint (and scrollHeight / scrollTop) is
    constant at every frame. The strip just gets shorter at the top; the list does not move.
-   Source order: these sit after the base .sa-wk-day / .psycle-sticky-top / .fr-chip rules. */
+   Source order: these sit after the base .sa-wk-day / .sa-sticky-top / .fr-chip rules. */
 @media (max-width: 768px) {
-  #sa-helper-container .psycle-sticky-top { --tt-collapse-d: 16px; --tt-collapse-t: 0.25s cubic-bezier(0.25, 1, 0.5, 1); }
-  #sa-helper-container .psycle-sticky-top {
+  #sa-helper-container .sa-sticky-top { --tt-collapse-d: 16px; --tt-collapse-t: 0.25s cubic-bezier(0.25, 1, 0.5, 1); }
+  #sa-helper-container .sa-sticky-top {
     transition: top 0.25s ease, margin-bottom var(--tt-collapse-t);
   }
-  #psycle-app-container.sa-tt-compact .psycle-sticky-top { margin-bottom: var(--tt-collapse-d); }
+  #sa-app-container.sa-tt-compact .sa-sticky-top { margin-bottom: var(--tt-collapse-d); }
   #sa-helper-container .sa-wk-day {
     transition: height var(--tt-collapse-t, 0.25s ease), gap var(--tt-collapse-t, 0.25s ease), background-color 0.2s ease, border-color 0.2s ease;
   }
   #sa-helper-container .sa-wk-day .wk-num, #sa-helper-container .sa-wk-day .wk-name { transition: font-size var(--tt-collapse-t, 0.25s ease); }
-  #psycle-app-container.sa-tt-compact .sa-wk-day { height: calc(58px - var(--tt-collapse-d, 16px)); gap: 2px; }
-  #psycle-app-container.sa-tt-compact .sa-wk-day .wk-num { font-size: 17px; }
-  #psycle-app-container.sa-tt-compact .sa-wk-day .wk-name { font-size: 10px; }
+  #sa-app-container.sa-tt-compact .sa-wk-day { height: calc(58px - var(--tt-collapse-d, 16px)); gap: 2px; }
+  #sa-app-container.sa-tt-compact .sa-wk-day .wk-num { font-size: 17px; }
+  #sa-app-container.sa-tt-compact .sa-wk-day .wk-name { font-size: 10px; }
 
   /* Location chip: the logo + initials tile cross-fades into "N locations". */
   #sweat-filter-rail .fr-tile-full, #sweat-filter-rail .fr-tile-compact { display: inline-flex; align-items: center; overflow: hidden; white-space: nowrap; transition: max-width var(--tt-collapse-t, 0.25s ease), opacity 0.2s ease; }
   #sweat-filter-rail .fr-tile-full { max-width: 220px; opacity: 1; }
   #sweat-filter-rail .fr-tile-compact { max-width: 0; opacity: 0; font-size: 11px; font-weight: 500; }
-  #psycle-app-container.sa-tt-compact #sweat-filter-rail .fr-tile-full { max-width: 0; opacity: 0; }
-  #psycle-app-container.sa-tt-compact #sweat-filter-rail .fr-tile-compact { max-width: 120px; opacity: 1; margin-left: 4px; }
+  #sa-app-container.sa-tt-compact #sweat-filter-rail .fr-tile-full { max-width: 0; opacity: 0; }
+  #sa-app-container.sa-tt-compact #sweat-filter-rail .fr-tile-compact { max-width: 120px; opacity: 1; margin-left: 4px; }
 }
 @media (max-width: 768px) and (prefers-reduced-motion: reduce) {
-  #sa-helper-container .psycle-sticky-top,
+  #sa-helper-container .sa-sticky-top,
   #sa-helper-container .sa-wk-day, #sa-helper-container .sa-wk-day .wk-num, #sa-helper-container .sa-wk-day .wk-name,
   #sweat-filter-rail .fr-tile-full, #sweat-filter-rail .fr-tile-compact { transition: none !important; }
 }
@@ -9462,7 +9462,7 @@ html.psycle-scroll-locked { overflow: hidden !important; background: var(--bg) !
 
 /* Credits & Membership nav is debug-only: hidden by default (incl. before JS runs, so no flash on iOS PWA
    launch); revealed only when <html data-credits-tab="on"> (early hint, then main.js's authoritative gate). */
-html:not([data-credits-tab="on"]) .psycle-nav-btn[data-tab="buy-credits"] { display: none !important; }
+html:not([data-credits-tab="on"]) .sa-nav-btn[data-tab="buy-credits"] { display: none !important; }
 
 /* Mobile only: no app logo in the header bar (desktop unchanged). */
 @media (max-width: 768px) {
@@ -9473,13 +9473,13 @@ html:not([data-credits-tab="on"]) .psycle-nav-btn[data-tab="buy-credits"] { disp
    chip (.ab-disc-tag), which keep their sizes. Lead column widened 2px so 5-char times fit at 18px.
    Sits last, with !important, because earlier rules set these sizes with !important. */
 @media (max-width: 768px) {
-  #sa-helper-container .psycle-mobile-lead { flex-basis: 48px; width: 48px; }
-  #sa-helper-container .psycle-mobile-lead > strong,
-  #sa-helper-container .sa-table td .psycle-mobile-top-line > strong { font-size: 18px !important; }
-  #sa-helper-container .psycle-mobile-line2 .psycle-mobile-class-name,
-  #sa-helper-container .psycle-mobile-line2 .psycle-mobile-instructor,
-  #sa-helper-container .psycle-mobile-bottom-line .psycle-mobile-instructor { font-size: 15px !important; }
-  #sa-helper-container .psycle-mobile-bottom-line .psycle-mobile-location { font-size: 14px !important; }
+  #sa-helper-container .sa-mobile-lead { flex-basis: 48px; width: 48px; }
+  #sa-helper-container .sa-mobile-lead > strong,
+  #sa-helper-container .sa-table td .sa-mobile-top-line > strong { font-size: 18px !important; }
+  #sa-helper-container .sa-mobile-line2 .sa-mobile-class-name,
+  #sa-helper-container .sa-mobile-line2 .sa-mobile-instructor,
+  #sa-helper-container .sa-mobile-bottom-line .sa-mobile-instructor { font-size: 15px !important; }
+  #sa-helper-container .sa-mobile-bottom-line .sa-mobile-location { font-size: 14px !important; }
 }
 
 /* Instructor figure: a fixed-width, right-aligned slot so photos form one
@@ -9513,9 +9513,9 @@ html:not([data-credits-tab="on"]) .psycle-nav-btn[data-tab="buy-credits"] { disp
 #sa-instructor-tooltip { max-height: calc(100vh - 20px); overflow-y: auto; }
 /* Timetable row photo +20% (38 -> 46); the mobile lead column (48px) already fits it. */
 @media (max-width: 768px) {
-  #sa-helper-container .psycle-mobile-lead .psycle-mobile-avatar { flex: 0 0 46px !important; width: 46px !important; height: 46px !important; box-sizing: border-box; border: 2px solid color-mix(in srgb, var(--accent) 40%, transparent); }
-  #sa-helper-container .psycle-mobile-avatar img { width: 100% !important; height: 100% !important; }
-  #sa-helper-container .psycle-mobile-avatar::before { font-size: 18px; }
+  #sa-helper-container .sa-mobile-lead .sa-mobile-avatar { flex: 0 0 46px !important; width: 46px !important; height: 46px !important; box-sizing: border-box; border: 2px solid color-mix(in srgb, var(--accent) 40%, transparent); }
+  #sa-helper-container .sa-mobile-avatar img { width: 100% !important; height: 100% !important; }
+  #sa-helper-container .sa-mobile-avatar::before { font-size: 18px; }
 }
 
 /* ===== Filter bar order + grouped filter chips; compact gym stack ===== */
@@ -9524,9 +9524,9 @@ html:not([data-credits-tab="on"]) .psycle-nav-btn[data-tab="buy-credits"] { disp
 @media (max-width: 768px) {
   #sweat-filter-rail .fr-gymquick { gap: 6px; }
   #sweat-filter-rail .fr-gymquick-btn { transition: margin-left var(--tt-collapse-t, 0.25s ease); }
-  #psycle-app-container.sa-tt-compact #sweat-filter-rail .fr-gymquick:not(.is-open) .fr-gymquick-btn + .fr-gymquick-btn { margin-left: -20px !important; }
-  #psycle-app-container.sa-tt-compact #sweat-filter-rail .fr-gymquick:not(.is-open) .fr-gymquick-btn .fr-gym-dot { box-shadow: 0 0 0 1.5px var(--surface-1, var(--surface-2)); }
-  #psycle-app-container.sa-tt-compact #sweat-filter-rail .fr-gymquick:not(.is-open) { gap: 0; }
+  #sa-app-container.sa-tt-compact #sweat-filter-rail .fr-gymquick:not(.is-open) .fr-gymquick-btn + .fr-gymquick-btn { margin-left: -20px !important; }
+  #sa-app-container.sa-tt-compact #sweat-filter-rail .fr-gymquick:not(.is-open) .fr-gymquick-btn .fr-gym-dot { box-shadow: 0 0 0 1.5px var(--surface-1, var(--surface-2)); }
+  #sa-app-container.sa-tt-compact #sweat-filter-rail .fr-gymquick:not(.is-open) { gap: 0; }
 }
 @media (max-width: 768px) and (prefers-reduced-motion: reduce) {
   #sweat-filter-rail .fr-gymquick-btn { transition: none !important; }
@@ -9560,24 +9560,24 @@ html:not([data-credits-tab="on"]) .psycle-nav-btn[data-tab="buy-credits"] { disp
 @media (max-width: 768px) {
   /* ROOT CAUSE of the small instructor: the card sits in a table cell and the instructor span also carries
      .sa-instructor-hover, so `#id .sa-table td .sa-instructor-hover { font-size: 13px !important }`
-     (specificity 1,2,1) beat every `.psycle-mobile-*` rule here (1,2,0) regardless of order. These selectors
+     (specificity 1,2,1) beat every `.sa-mobile-*` rule here (1,2,0) regardless of order. These selectors
      include `.sa-table td` so they out-rank it. One value for class, instructor and location. */
-  #sa-helper-container .sa-table td .psycle-mobile-main .psycle-mobile-line2 .psycle-mobile-class-name,
-  #sa-helper-container .sa-table td .psycle-mobile-main .psycle-mobile-line2 .psycle-mobile-instructor,
-  #sa-helper-container .sa-table td .psycle-mobile-main .psycle-mobile-bottom-line .psycle-mobile-instructor,
-  #sa-helper-container .sa-table td .psycle-mobile-main .psycle-mobile-bottom-line .psycle-mobile-location { font-size: 15px !important; }
+  #sa-helper-container .sa-table td .sa-mobile-main .sa-mobile-line2 .sa-mobile-class-name,
+  #sa-helper-container .sa-table td .sa-mobile-main .sa-mobile-line2 .sa-mobile-instructor,
+  #sa-helper-container .sa-table td .sa-mobile-main .sa-mobile-bottom-line .sa-mobile-instructor,
+  #sa-helper-container .sa-table td .sa-mobile-main .sa-mobile-bottom-line .sa-mobile-location { font-size: 15px !important; }
 }
 
 /* U4-19 phase 5: deep-link filter banner ("Filtered: ... Clear") above the timetable list */
-.psycle-url-overlay-banner {
+.sa-url-overlay-banner {
   display: flex !important; align-items: center; justify-content: space-between; gap: 12px;
   margin: 8px 0; padding: 8px 12px; border-radius: 12px;
   background: var(--surface-2); border: 1px solid var(--border); color: var(--text);
   font-size: var(--text-base); line-height: 1.3;
 }
-.psycle-url-overlay-banner .psycle-url-overlay-text { min-width: 0; overflow-wrap: anywhere; }
-.psycle-url-overlay-banner .psycle-url-overlay-clear {
+.sa-url-overlay-banner .sa-url-overlay-text { min-width: 0; overflow-wrap: anywhere; }
+.sa-url-overlay-banner .sa-url-overlay-clear {
   flex: none; min-height: 32px; padding: 4px 14px; border-radius: 999px; cursor: pointer;
   background: transparent; color: var(--text); border: 1px solid var(--accent); font: inherit; font-weight: 600;
 }
-.psycle-url-overlay-banner .psycle-url-overlay-clear:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+.sa-url-overlay-banner .sa-url-overlay-clear:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }

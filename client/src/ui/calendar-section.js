@@ -69,7 +69,7 @@ function includeCardHtml(status) {
   return `
     <div class="sa-settings-card">
       <h4>${COPY.calendar.includeTitle}</h4>
-      <p class="psycle-card-desc">${COPY.calendar.includeDescription}</p>
+      <p class="sa-card-desc">${COPY.calendar.includeDescription}</p>
       ${checkRow({ title: COPY.calendar.bookedClasses, help: COPY.calendar.alwaysIncluded, checked: true, disabled: true })}
       ${checkRow({ key: 'includeWaitlists', title: COPY.calendar.waitlists, help: COPY.calendar.tentativeWaitlists, checked: status.includeWaitlists })}
       ${checkRow({ key: 'includeAutoBook', title: COPY.calendar.autoBook, help: COPY.calendar.tentativeAutoBook, checked: status.includeAutoBook })}
@@ -82,7 +82,7 @@ function remindersCardHtml(status) {
   return `
     <div class="sa-settings-card">
       <h4>${COPY.calendar.reminders}</h4>
-      <p class="psycle-card-desc">${COPY.calendar.reminderDescription}</p>
+      <p class="sa-card-desc">${COPY.calendar.reminderDescription}</p>
       ${checkRow({ key: 'reminders.twoHour', title: COPY.calendar.twoHoursBefore, help: COPY.calendar.leaveReminder, checked: r.twoHour })}
       ${checkRow({ key: 'reminders.cancelWindow', title: COPY.calendar.beforeCancellationEnds, help: COPY.calendar.cancellationReminder, checked: r.cancelWindow })}
     </div>`;
@@ -92,7 +92,7 @@ function addCardHtml(status) {
   return `
     <div class="sa-settings-card">
       <h4>${COPY.calendar.addToCalendar}</h4>
-      <p class="psycle-card-desc">${COPY.calendar.feedUpdatesDescription}</p>
+      <p class="sa-card-desc">${COPY.calendar.feedUpdatesDescription}</p>
       <div class="sa-cal-add-list">
         <button class="psycle-btn sa-cal-add-btn" data-calendar-action="apple">${APPLE_CAL_LOGO}<span>${COPY.calendar.appleCalendar}</span></button>
         <button class="psycle-btn sa-cal-add-btn" data-calendar-action="google">${GOOGLE_CAL_LOGO}<span>${COPY.calendar.googleCalendar}</span></button>
@@ -109,7 +109,7 @@ export async function renderCalendarSection(targetContainer = null) {
   try {
     status = await api.getCalendarStatus();
   } catch (err) {
-    const msg = `<div class="sa-settings-card"><p class="${getIsOffline() ? 'psycle-card-desc' : 'psycle-card-error'}">${getIsOffline() ? COPY.calendar.noSavedStatus : formatCopyText(COPY.calendar.loadingFailed, { error: escapeHtml(err.message) })}</p></div>`;
+    const msg = `<div class="sa-settings-card"><p class="${getIsOffline() ? 'sa-card-desc' : 'sa-card-error'}">${getIsOffline() ? COPY.calendar.noSavedStatus : formatCopyText(COPY.calendar.loadingFailed, { error: escapeHtml(err.message) })}</p></div>`;
     container.innerHTML = msg;
     return;
   }

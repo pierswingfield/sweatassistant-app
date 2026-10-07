@@ -11,7 +11,7 @@ import { COPY, formatCopyText } from '../copy.js';
 
 
 export async function renderAutoUpgrades() {
-  const container = document.getElementById('psycle-autoupgrade-list-container');
+  const container = document.getElementById('sa-autoupgrade-list-container');
   if (!container) return;
 
   // Show cached data immediately if available (from prefetch)
@@ -37,13 +37,13 @@ export async function renderAutoUpgrades() {
   } catch (err) {
     console.error('[AutoUpgrade] Failed to load:', err);
     if (!hasCache) {
-      container.innerHTML = `<div class="psycle-card-error">${escapeHtml(formatCopyText(COPY.autoUpgrade.loadFailed, { error: err.message }))}</div>`;
+      container.innerHTML = `<div class="sa-card-error">${escapeHtml(formatCopyText(COPY.autoUpgrade.loadFailed, { error: err.message }))}</div>`;
     }
   }
 }
 
 function renderUpgradeList(upgrades, studioPrefs = {}) {
-  const container = document.getElementById('psycle-autoupgrade-list-container');
+  const container = document.getElementById('sa-autoupgrade-list-container');
   if (!container) return;
 
   // Filter only active/paused/cutoff upgrade records
@@ -62,9 +62,9 @@ function renderUpgradeList(upgrades, studioPrefs = {}) {
   activeJobs.forEach(job => {
     const card = document.createElement('div');
     // `ab-card` is required, not decorative: every per-gym tint rule is
-    // `.psycle-autobook-card.ab-card[data-gym=...]`, so without it these cards
+    // `.sa-autobook-card.ab-card[data-gym=...]`, so without it these cards
     // carried a data-gym that nothing ever painted.
-    card.className = 'psycle-autobook-card ab-card';
+    card.className = 'sa-autobook-card ab-card';
     card.setAttribute('data-gym', job.gym_id || getDefaultGymId());
 
     // Split date and time so the card can use the same `.ab-card-date` /

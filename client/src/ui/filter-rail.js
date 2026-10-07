@@ -101,7 +101,7 @@ function workoutLabel(s) {
 // Compact (scrolled) state stacks the gym logos; a tap on the stack spreads them until the page expands again.
 let gymStackOpen = false;
 let compactObserver = null;
-function appContainer() { return document.getElementById('psycle-app-container'); }
+function appContainer() { return document.getElementById('sa-app-container'); }
 function isGymStacked() {
   const app = appContainer();
   return !!(app && app.classList.contains('sa-tt-compact') && !gymStackOpen

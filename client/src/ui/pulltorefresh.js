@@ -91,17 +91,17 @@ export function setupPullToRefresh(scrollEl, onRefresh, {
   function createIndicator() {
     if (indicator && indicator.parentNode) return indicator;
     indicator = document.createElement('div');
-    indicator.className = 'psycle-pull-indicator';
+    indicator.className = 'sa-pull-indicator';
     indicator.setAttribute('aria-hidden', 'true');
     indicator.innerHTML = `
-      <span class="psycle-pull-icon">
+      <span class="sa-pull-icon">
         <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round">
           <line x1="12" y1="5" x2="12" y2="19"></line>
           <polyline points="19 12 12 19 5 12"></polyline>
         </svg>
       </span>
       <div class="psycle-spinner" style="display: none;"></div>
-      <span class="psycle-pull-text">${COPY.pullToRefresh.pull}</span>
+      <span class="sa-pull-text">${COPY.pullToRefresh.pull}</span>
     `;
     document.body.appendChild(indicator);
     return indicator;
@@ -109,9 +109,9 @@ export function setupPullToRefresh(scrollEl, onRefresh, {
 
   function updateIndicator(elasticY, isArmed, isRefreshingState) {
     const ind = createIndicator();
-    const text = ind.querySelector('.psycle-pull-text');
+    const text = ind.querySelector('.sa-pull-text');
     const spinner = ind.querySelector('.psycle-spinner');
-    const icon = ind.querySelector('.psycle-pull-icon');
+    const icon = ind.querySelector('.sa-pull-icon');
 
     if (isRefreshingState) {
       ind.classList.add('visible');

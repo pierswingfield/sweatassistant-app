@@ -50,7 +50,7 @@ describe('api.getMetadata — no gym linked (C3-10)', () => {
     vi.restoreAllMocks();
     cacheMocks.getOfflineSnapshot.mockReset();
     cacheMocks.setOfflineSnapshot.mockReset();
-    document.documentElement.classList.remove('psycle-offline');
+    document.documentElement.classList.remove('sa-offline');
   });
 
   it('resolves to the empty shape and never calls fetch when the account has no linked gym', async () => {
@@ -77,7 +77,7 @@ describe('api.getMetadata — no gym linked (C3-10)', () => {
   });
 
   it('restores saved filter metadata before attempting a fetch while offline', async () => {
-    document.documentElement.classList.add('psycle-offline');
+    document.documentElement.classList.add('sa-offline');
     cacheMocks.getOfflineSnapshot.mockResolvedValue({
       savedAt: 123,
       data: {

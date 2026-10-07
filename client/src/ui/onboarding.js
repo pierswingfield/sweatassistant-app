@@ -73,7 +73,7 @@ function container() {
 
 function show() {
   document.getElementById('sa-login-container').style.display = 'none';
-  document.getElementById('psycle-app-container').style.display = 'none';
+  document.getElementById('sa-app-container').style.display = 'none';
   const c = container();
   c.style.display = 'flex';
   return c;

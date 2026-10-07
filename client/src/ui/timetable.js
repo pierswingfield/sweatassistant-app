@@ -523,7 +523,7 @@ function wireTimetableSwipe() {
   if (!grid || swipeWired) return;
   swipeWired = true;
   const EDGE = 20, THRESHOLD = 48;
-  const BLOCK = '.psycle-mobile-seg, .psycle-mobile-menu, .psycle-mobile-ellipsis, button, a, input, select, textarea, [data-no-swipe]';
+  const BLOCK = '.sa-mobile-seg, .sa-mobile-menu, .sa-mobile-ellipsis, button, a, input, select, textarea, [data-no-swipe]';
   let sx = 0, sy = 0, st = 0, dx = 0, tracking = false, locked = false;
   const reduce = () => window.matchMedia('(prefers-reduced-motion: reduce)').matches;
   const hScrollable = (el) => {
@@ -575,22 +575,22 @@ function wireTimetableSwipe() {
 let instrFitObserver = null;
 let instrFitWidth = 0;
 function fitInstructorRows() {
-  const rows = [...document.querySelectorAll('#sa-timetable-grid .psycle-mobile-main')];
+  const rows = [...document.querySelectorAll('#sa-timetable-grid .sa-mobile-main')];
   if (!rows.length) return;
   rows.forEach((main) => {
-    const line2 = main.querySelector('.psycle-mobile-line2');
-    const bottom = main.querySelector('.psycle-mobile-bottom-line');
-    const moved = bottom.querySelectorAll('.psycle-mobile-dot, .psycle-mobile-instructor');
+    const line2 = main.querySelector('.sa-mobile-line2');
+    const bottom = main.querySelector('.sa-mobile-bottom-line');
+    const moved = bottom.querySelectorAll('.sa-mobile-dot, .sa-mobile-instructor');
     moved.forEach((n) => line2.appendChild(n));   // back to row 2 (dot then instructor keeps DOM order)
   });
   const flagged = rows.filter((main) => {
-    const cls = main.querySelector('.psycle-mobile-class-name');
-    return main.querySelector('.psycle-mobile-instructor') && cls.scrollWidth > cls.clientWidth;
+    const cls = main.querySelector('.sa-mobile-class-name');
+    return main.querySelector('.sa-mobile-instructor') && cls.scrollWidth > cls.clientWidth;
   });
   flagged.forEach((main) => {
-    const bottom = main.querySelector('.psycle-mobile-bottom-line');
-    const dot = main.querySelector('.psycle-mobile-line2 .psycle-mobile-dot');
-    const ins = main.querySelector('.psycle-mobile-line2 .psycle-mobile-instructor');
+    const bottom = main.querySelector('.sa-mobile-bottom-line');
+    const dot = main.querySelector('.sa-mobile-line2 .sa-mobile-dot');
+    const ins = main.querySelector('.sa-mobile-line2 .sa-mobile-instructor');
     if (dot) bottom.appendChild(dot);
     if (ins) bottom.appendChild(ins);
     main.classList.add('instr-below');
@@ -695,22 +695,22 @@ function syncUrlFromState(defaultDay = lastDefaultDay) {
 function renderOverlayBanner() {
   const grid = document.getElementById('sa-timetable-grid');
   if (!grid || !grid.parentElement) return;
-  let el = document.getElementById('psycle-url-overlay-banner');
+  let el = document.getElementById('sa-url-overlay-banner');
   if (!overlayActive) { el?.remove(); return; }
   const labels = overlayLabels(currentFilterState(), urlCtx());
   const text = formatCopyText(COPY.timetable.overlayFiltered, { labels: labels.join(', ') || COPY.timetable.overlayNoFilters })
     + (overlayDropped ? ` · ${formatCopyText(COPY.timetable.overlayUnavailable, { count: overlayDropped })}` : '');
   if (!el) {
     el = document.createElement('div');
-    el.id = 'psycle-url-overlay-banner';
-    el.className = 'psycle-url-overlay-banner';
+    el.id = 'sa-url-overlay-banner';
+    el.className = 'sa-url-overlay-banner';
     el.setAttribute('role', 'status');
     el.setAttribute('aria-live', 'polite');
-    el.innerHTML = '<span class="psycle-url-overlay-text"></span><button type="button" class="psycle-url-overlay-clear"></button>';
+    el.innerHTML = '<span class="sa-url-overlay-text"></span><button type="button" class="sa-url-overlay-clear"></button>';
     el.querySelector('button').onclick = clearUrlOverlay;
     grid.parentElement.insertBefore(el, grid);
   }
-  el.querySelector('.psycle-url-overlay-text').textContent = text;
+  el.querySelector('.sa-url-overlay-text').textContent = text;
   el.querySelector('button').textContent = COPY.timetable.overlayClear;
 }
 
@@ -719,7 +719,7 @@ export function clearUrlOverlay() {
   setFilterState(copyOf(savedFilterState));
   overlayActive = false; overlayDropped = 0;
   urlReplaceOnce = true;
-  document.getElementById('psycle-url-overlay-banner')?.remove();
+  document.getElementById('sa-url-overlay-banner')?.remove();
   renderTimetableGrid('filter').then(() => {
     const grid = document.getElementById('sa-timetable-grid');
     if (grid) { grid.setAttribute('tabindex', '-1'); grid.focus({ preventScroll: true }); }
@@ -741,7 +741,7 @@ export async function initTimetable() {
   await prefetchTimetableData();
   recordTimetableTiming('initialise-total', initStartedAt);
   // Pull-to-refresh is handled centrally in main.js (attached to the shared
-  // <main class="psycle-body"> scroller, dispatched by active tab).
+  // <main class="sa-body"> scroller, dispatched by active tab).
 }
 
 // Saved filters name PROVIDER ids (locations, instructors, class types), which are
@@ -855,7 +855,7 @@ const PROGRESSIVE_GRACE_MS = 0;
 // first row in view (by event id) rather than a raw scrollTop that shifts.
 function renderPreservingScroll(reason) {
   const grid = document.getElementById('sa-timetable-grid');
-  const scroller = (isDocScroll() ? docScroller() : document.querySelector('main.psycle-body')) || grid;
+  const scroller = (isDocScroll() ? docScroller() : document.querySelector('main.sa-body')) || grid;
   const anchor = captureScrollAnchor(scroller, grid);
   // Restoring the anchor is a programmatic scroll: the collapse hysteresis must re-baseline, not toggle.
   markScrollBusy(400);
@@ -2044,9 +2044,9 @@ export async function renderTimetableGrid(reason = 'interaction') {
   // the mobile filter ellipsis + its menu. Both run BEFORE the table render (and
   // before the no-results early return) so the filter menu survives the purge
   // and is available even when no classes match the current filters.
-  document.querySelectorAll('body > .psycle-mobile-menu').forEach(m => m.remove());
+  document.querySelectorAll('body > .sa-mobile-menu').forEach(m => m.remove());
   if (window.matchMedia('(max-width: 768px)').matches) {
-    document.getElementById('psycle-mobile-filter-trigger')?.remove();
+    document.getElementById('sa-mobile-filter-trigger')?.remove();
     renderFilterRail(buildFilterRailCtx(eventsExcluding, filteredEvents.length));
   } else {
     removeFilterRail();
@@ -2056,7 +2056,7 @@ export async function renderTimetableGrid(reason = 'interaction') {
     // desktop filter row: present, unstyled for the wider layout, and its
     // click handler pointing at a menu of mobile-only filter controls that
     // no longer make sense next to the real dropdowns now visible.
-    document.getElementById('psycle-mobile-filter-trigger')?.remove();
+    document.getElementById('sa-mobile-filter-trigger')?.remove();
   }
 
   ensureSearchUi({
@@ -2320,7 +2320,7 @@ export async function renderTimetableGrid(reason = 'interaction') {
 
 export function equalizePrimaryCTAWidths(container = document) {
   const root = container.querySelector?.('#sa-timetable-rows') || container;
-  const buttons = [...root.querySelectorAll?.('.psycle-mobile-seg.primary') || []];
+  const buttons = [...root.querySelectorAll?.('.sa-mobile-seg.primary') || []];
   if (!buttons.length) return;
 
   const grid = document.getElementById('sa-timetable-grid');
@@ -2906,11 +2906,11 @@ function buildActionMenuItems(event, model, isBookmarked) {
 /** Build the floating menu element for a set of items (shared desktop/mobile). */
 function buildActionMenuElement(menuItems) {
   const menu = document.createElement('div');
-  menu.className = 'psycle-mobile-menu';
+  menu.className = 'sa-mobile-menu';
   menu.style.display = 'none';
   menuItems.forEach((item) => {
     const div = document.createElement('div');
-    div.className = 'psycle-mobile-menu-item';
+    div.className = 'sa-mobile-menu-item';
     // Icon + label. The label goes in its own span with textContent — menu
     // labels can include a class name, and those come from the provider.
     if (item.icon) {
@@ -3012,7 +3012,7 @@ function wireMobileMenuToggle(btn, menu, onOpen) {
   btn.onclick = (e) => {
     e.stopPropagation();
     const wasOpen = menu.style.display === 'block';
-    document.querySelectorAll('.psycle-mobile-menu').forEach(m => { if (m !== menu) m.style.display = 'none'; });
+    document.querySelectorAll('.sa-mobile-menu').forEach(m => { if (m !== menu) m.style.display = 'none'; });
     if (wasOpen) { menu.style.display = 'none'; return; }
     if (onOpen) onOpen();
     const rect = btn.getBoundingClientRect();
@@ -3076,18 +3076,18 @@ function injectMobileFilterHamburger() {
   if (!filtersRow) return;
 
   // Rebuild the trigger + menu every render. The grid clears all body-appended
-  // .psycle-mobile-menu nodes on each render (see renderTimetableGrid), which
+  // .sa-mobile-menu nodes on each render (see renderTimetableGrid), which
   // would otherwise orphan a once-created menu and silently break opening.
-  document.getElementById('psycle-mobile-filter-trigger')?.remove();
+  document.getElementById('sa-mobile-filter-trigger')?.remove();
 
   const trigger = document.createElement('button');
-  trigger.id = 'psycle-mobile-filter-trigger';
-  trigger.className = 'psycle-mobile-ellipsis psycle-mobile-filter-ellipsis';
+  trigger.id = 'sa-mobile-filter-trigger';
+  trigger.className = 'sa-mobile-ellipsis sa-mobile-filter-ellipsis';
   trigger.innerHTML = '\u22ef';
   trigger.setAttribute('aria-label', COPY.timetable.filterOptions);
 
   const menu = document.createElement('div');
-  menu.className = 'psycle-mobile-menu';
+  menu.className = 'sa-mobile-menu';
   menu.style.display = 'none';
 
   const favBtn = document.getElementById('sa-filter-favorites-only');
@@ -3102,7 +3102,7 @@ function injectMobileFilterHamburger() {
 
   items.forEach(item => {
     const div = document.createElement('div');
-    div.className = 'psycle-mobile-menu-item';
+    div.className = 'sa-mobile-menu-item';
     // Icon + label. The label goes in its own span with textContent — menu
     // labels can include a class name, and those come from the provider.
     if (item.icon) {
@@ -3139,13 +3139,13 @@ function buildMobileClassRow(event, ctx, model) {
   } = ctx;
 
   const tr = document.createElement('tr');
-  tr.className = `psycle-mobile-row ${rowClass || ''}`;
+  tr.className = `sa-mobile-row ${rowClass || ''}`;
 
   const td = document.createElement('td');
   td.colSpan = 6;
 
   const card = document.createElement('div');
-  card.className = 'psycle-mobile-class-card';
+  card.className = 'sa-mobile-class-card';
   card.setAttribute('data-gym', event.gymId || getDefaultGymId());
 
   // Row 3 shows the studio's FULL location name ("Oxford Circus"), not the gym's contracted alias ("OC").
@@ -3155,7 +3155,7 @@ function buildMobileClassRow(event, ctx, model) {
   // bookmarked), sitting between the time and the discipline chip. Toggling
   // happens through the context menu instead.
   const favIndicator = isBookmarked
-    ? (canForGym('bookmarks', event.gymId) ? `<span class="psycle-mobile-fav-indicator" aria-label="${COPY.timetable.favourited}">${heartChar}</span>` : '')
+    ? (canForGym('bookmarks', event.gymId) ? `<span class="sa-mobile-fav-indicator" aria-label="${COPY.timetable.favourited}">${heartChar}</span>` : '')
     : '';
 
   // Photo (or a soft initial placeholder, same box, so nothing shifts while it loads). The image comes from the
@@ -3163,35 +3163,35 @@ function buildMobileClassRow(event, ctx, model) {
   const firstInstr = event.instructors?.[0];
   const instrId = firstInstr?.id || metadata.instructors?.find(i => (i.name === instrName || i.full_name === instrName) && (!event.gymId || i.gymId === event.gymId))?.id || '';
   const avatarHtml = SHOW_TIMETABLE_INSTRUCTOR_PHOTO && instrName
-    ? `<span class="psycle-mobile-avatar sa-instructor-hover" ${instructorHoverAttrs(firstInstr ? { ...firstInstr, id: instrId || firstInstr.id } : { id: instrId }, event.gymId, instrName)} data-initial="${escapeHtml(String(instrName).trim().charAt(0).toUpperCase())}" role="button" tabindex="0" aria-label="${formatCopyText(COPY.timetable.instructorProfileAria, { name: escapeHtml(instrName) })}">${instructorAvatar(instrName, event.gymId, firstInstr?.thumbUrl || firstInstr?.imageUrl || null, { size: 38, lazy: true, cls: 'psycle-mobile-avatar-img' })}</span>`
+    ? `<span class="sa-mobile-avatar sa-instructor-hover" ${instructorHoverAttrs(firstInstr ? { ...firstInstr, id: instrId || firstInstr.id } : { id: instrId }, event.gymId, instrName)} data-initial="${escapeHtml(String(instrName).trim().charAt(0).toUpperCase())}" role="button" tabindex="0" aria-label="${formatCopyText(COPY.timetable.instructorProfileAria, { name: escapeHtml(instrName) })}">${instructorAvatar(instrName, event.gymId, firstInstr?.thumbUrl || firstInstr?.imageUrl || null, { size: 38, lazy: true, cls: 'sa-mobile-avatar-img' })}</span>`
     : '';
 
   card.innerHTML = `
-    <div class="psycle-mobile-content">
-      <div class="psycle-mobile-lead">
+    <div class="sa-mobile-content">
+      <div class="sa-mobile-lead">
         <strong>${timeStr}</strong>
         ${avatarHtml}
       </div>
-      <div class="psycle-mobile-main">
-        <div class="psycle-mobile-top-line">
+      <div class="sa-mobile-main">
+        <div class="sa-mobile-top-line">
           ${/* Gym BEFORE the discipline pill (ownership is the first question a merged timetable answers). */ ''}
           ${gymChip(event.gymId)}
           ${disciplineTag(groupName)}
           ${favIndicator}
         </div>
-        <div class="psycle-mobile-line2">
-          <span class="psycle-mobile-class-name">${strippedClassName}</span>
-          ${instrName ? `<span class="psycle-mobile-dot">&middot;</span><span class="psycle-mobile-instructor sa-instructor-hover" ${instructorHoverAttrs(event.instructors?.[0], event.gymId, instrName)}>${instrName}</span>` : ''}
+        <div class="sa-mobile-line2">
+          <span class="sa-mobile-class-name">${strippedClassName}</span>
+          ${instrName ? `<span class="sa-mobile-dot">&middot;</span><span class="sa-mobile-instructor sa-instructor-hover" ${instructorHoverAttrs(event.instructors?.[0], event.gymId, instrName)}>${instrName}</span>` : ''}
         </div>
-        <div class="psycle-mobile-bottom-line">
-          <span class="psycle-mobile-location">${displayLoc}</span>
+        <div class="sa-mobile-bottom-line">
+          <span class="sa-mobile-location">${displayLoc}</span>
         </div>
       </div>
     </div>
-    <div class="psycle-mobile-rail"></div>
+    <div class="sa-mobile-rail"></div>
   `;
 
-  const rail = card.querySelector('.psycle-mobile-rail');
+  const rail = card.querySelector('.sa-mobile-rail');
 
   // Mobile shows exactly ONE visible action button (the rest collapse into
   // the ellipsis). For an already-booked single-spot class, buildActionModel
@@ -3206,7 +3206,7 @@ function buildMobileClassRow(event, ctx, model) {
   // Primary action — a full-height segment flush to the card edge (mirrors the
   // desktop primary segment and the My Bookings rail, but laid out horizontally).
   const pbtn = document.createElement('button');
-  pbtn.className = `psycle-mobile-seg primary variant-${mobilePrimary.variant}` + (mobilePrimary.scheduled ? ' scheduled' : '');
+  pbtn.className = `sa-mobile-seg primary variant-${mobilePrimary.variant}` + (mobilePrimary.scheduled ? ' scheduled' : '');
   if (mobilePrimary.scheduled && mobilePrimary.variant === 'autoupgrade') {
     // "Scheduled" is too wide for 52px — abbreviate it.
     setSegLabel(pbtn, COPY.timetable.scheduledShort);
@@ -3231,7 +3231,7 @@ function buildMobileClassRow(event, ctx, model) {
 
   // Secondary action + extras collapse into the ellipsis context menu.
   const ellipsis = document.createElement('button');
-  ellipsis.className = 'psycle-mobile-seg ellipsis';
+  ellipsis.className = 'sa-mobile-seg ellipsis';
   ellipsis.innerHTML = '\u22EE'; // vertical ellipsis (kebab)
   ellipsis.setAttribute('aria-label', COPY.timetable.moreActions);
   rail.appendChild(ellipsis);
@@ -3594,7 +3594,7 @@ export async function openGuestBookingModal(c) {
       api.getEventDetails(c.id, c.gymId),
     ]);
     if (!entitlement.guestEligible) {
-      body.innerHTML = `<div class="psycle-card-error" style="padding:24px;text-align:center;">${escapeHtml(COPY.bookings.guestBookingUnavailable)}</div>`;
+      body.innerHTML = `<div class="sa-card-error" style="padding:24px;text-align:center;">${escapeHtml(COPY.bookings.guestBookingUnavailable)}</div>`;
       return;
     }
     const slots = details.slots || [];
@@ -3602,7 +3602,7 @@ export async function openGuestBookingModal(c) {
     // A pick-a-spot class requires a selection; FCFS has no slots and omits it.
     let selectedSlotId = available[0] ? String(available[0].id) : null;
     if ((details.slots || []).length && !selectedSlotId) {
-      body.innerHTML = `<div class="psycle-card-error" style="padding:24px;text-align:center;">${escapeHtml(COPY.bookings.guestNoSpot)}</div>`;
+      body.innerHTML = `<div class="sa-card-error" style="padding:24px;text-align:center;">${escapeHtml(COPY.bookings.guestNoSpot)}</div>`;
       return;
     }
     const passCount = Number(entitlement.guestPassesRemaining);
@@ -3662,7 +3662,7 @@ export async function openGuestBookingModal(c) {
       }
     };
   } catch (err) {
-    body.innerHTML = `<div class="psycle-card-error" style="padding:24px;text-align:center;">${escapeHtml(formatCopyText(COPY.bookings.guestBookingError, { error: err.message }))}</div>`;
+    body.innerHTML = `<div class="sa-card-error" style="padding:24px;text-align:center;">${escapeHtml(formatCopyText(COPY.bookings.guestBookingError, { error: err.message }))}</div>`;
   }
 }
 
@@ -4143,11 +4143,11 @@ export async function openBookingModal(c, mode, opts = {}) {
         const chosen = layoutSlots.find(s => String(s.id) === chosenSlotId);
         const chosenLabel = escapeHtml(formatSpotLabel(c.gymId, chosen || chosenSlotId));
         const notice = document.createElement('div');
-        notice.className = 'psycle-auto-chosen-spot';
+        notice.className = 'sa-auto-chosen-spot';
         notice.setAttribute('role', 'status');
         notice.setAttribute('aria-live', 'polite');
         const sentence = escapeHtml(appCopy(COPY.bookingFlow.autoChosenSpotSentence));
-        notice.innerHTML = sentence.replace('{slot}', `<span class="psycle-auto-chosen-spot__badge">${chosenLabel}</span>`);
+        notice.innerHTML = sentence.replace('{slot}', `<span class="sa-auto-chosen-spot__badge">${chosenLabel}</span>`);
         floorGrid.appendChild(notice);
       }
 
@@ -4655,7 +4655,7 @@ export async function openBookingModal(c, mode, opts = {}) {
     }
   } catch (err) {
     console.error('[Timetable] Modal load floor map failed:', err);
-    body.innerHTML = `<div class="psycle-card-error" style="color: var(--danger); padding: 20px 0; text-align: center;">${formatCopyText(COPY.timetable.errorLoadingLayout, { error: escapeHtml(err.message) })}</div>`;
+    body.innerHTML = `<div class="sa-card-error" style="color: var(--danger); padding: 20px 0; text-align: center;">${formatCopyText(COPY.timetable.errorLoadingLayout, { error: escapeHtml(err.message) })}</div>`;
   }
 }
 

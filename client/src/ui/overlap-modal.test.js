@@ -44,7 +44,7 @@ describe('describeOverlap', () => {
 describe('classSummaryCardHtml', () => {
   it('uses the shared card: gym rail, discipline pill, class, instructor photo + name, location', () => {
     const html = classSummaryCardHtml(subject, 'New');
-    expect(html).toContain('psycle-autobook-card ab-card');
+    expect(html).toContain('sa-autobook-card ab-card');
     expect(html).toContain('data-gym="jab-boxing"');
     expect(html).toContain('ab-card-gym-rail');
     expect(html).toContain('ab-disc-tag');

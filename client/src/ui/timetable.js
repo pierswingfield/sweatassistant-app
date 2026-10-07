@@ -3256,27 +3256,27 @@ function buildMobileClassRow(event, ctx, model) {
 // === MOBILE TIMETABLE — openOccupancyModal (added Jun 2026; delete this block to revert) ===
 async function openOccupancyModal(event) {
   const overlay = document.createElement('div');
-  overlay.className = 'psycle-modal';
+  overlay.className = 'sa-modal';
   overlay.style.display = 'flex';
   overlay.style.zIndex = '2000001';
 
   const modalOverlay = document.createElement('div');
-  modalOverlay.className = 'psycle-modal-overlay';
+  modalOverlay.className = 'sa-modal-overlay';
 
   const card = document.createElement('div');
-  card.className = 'psycle-modal-card';
+  card.className = 'sa-modal-card';
   card.style.width = '420px';
   card.style.maxWidth = '95vw';
 
   const header = document.createElement('div');
-  header.className = 'psycle-modal-header';
+  header.className = 'sa-modal-header';
   header.innerHTML = `
     <h4>${COPY.timetable.studioOccupancy}</h4>
-    <button class="psycle-modal-close-btn">&times;</button>
+    <button class="sa-modal-close-btn">&times;</button>
   `;
 
   const body = document.createElement('div');
-  body.className = 'psycle-modal-body';
+  body.className = 'sa-modal-body';
   body.innerHTML = `
     <div class="psycle-loading-spinner-container" style="padding: 20px 0;">
       <div class="psycle-spinner"></div>
@@ -3297,7 +3297,7 @@ async function openOccupancyModal(event) {
     setTimeout(() => overlay.remove(), 300);
   };
 
-  header.querySelector('.psycle-modal-close-btn').onclick = closeModal;
+  header.querySelector('.sa-modal-close-btn').onclick = closeModal;
   modalOverlay.onclick = closeModal;
 
   try {
@@ -3571,9 +3571,9 @@ export async function openGuestBookingModal(c) {
     showToast(COPY.bookings.guestBookingUnavailable, 'warning');
     return;
   }
-  const modal = document.getElementById('psycle-booking-modal');
-  const body = document.getElementById('psycle-booking-modal-body');
-  const title = document.getElementById('psycle-booking-modal-title');
+  const modal = document.getElementById('sa-booking-modal');
+  const body = document.getElementById('sa-booking-modal-body');
+  const title = document.getElementById('sa-booking-modal-title');
   if (!modal || !body || !title) return;
 
   title.textContent = COPY.bookings.bookGuest;
@@ -3585,8 +3585,8 @@ export async function openGuestBookingModal(c) {
     modal.classList.remove('show');
     setTimeout(() => { modal.style.display = 'none'; }, 300);
   };
-  document.getElementById('psycle-booking-modal-close').onclick = close;
-  modal.querySelector('.psycle-modal-overlay').onclick = close;
+  document.getElementById('sa-booking-modal-close').onclick = close;
+  modal.querySelector('.sa-modal-overlay').onclick = close;
 
   try {
     const [entitlement, details] = await Promise.all([
@@ -3703,9 +3703,9 @@ export async function openBookingModal(c, mode, opts = {}) {
     } catch (_) { /* fall through to the combined modal */ }
   }
 
-  const modal = document.getElementById('psycle-booking-modal');
-  const body = document.getElementById('psycle-booking-modal-body');
-  const title = document.getElementById('psycle-booking-modal-title');
+  const modal = document.getElementById('sa-booking-modal');
+  const body = document.getElementById('sa-booking-modal-body');
+  const title = document.getElementById('sa-booking-modal-title');
   if (!modal || !body || !title) return;
 
   const noun = seatNoun(c.discipline);
@@ -3732,8 +3732,8 @@ export async function openBookingModal(c, mode, opts = {}) {
 
   openNavPage(modal, { id: 'booking', replaceEl: opts.replaceEl });
 
-  const closeBtn = document.getElementById('psycle-booking-modal-close');
-  const overlay = modal.querySelector('.psycle-modal-overlay');
+  const closeBtn = document.getElementById('sa-booking-modal-close');
+  const overlay = modal.querySelector('.sa-modal-overlay');
 
   const closeModal = () => {
     if (closeNavPage(modal)) return; // mobile page: pop its history entry
@@ -3847,9 +3847,9 @@ export async function openBookingModal(c, mode, opts = {}) {
       // Mobile compact page for Auto-Book on a class with no assigned spots: explanation, quantity, one action.
       const compactAuto = isMobile() && isAutoBookMode;
       body.innerHTML = compactAuto ? `
-        <div class="psycle-bk-compact">
+        <div class="sa-bk-compact">
           <p>${COPY.bookingFlow.fcfsAutoBook}</p>
-          ${showAttendeeSelector ? `<label class="psycle-bk-compact-qty"><span>${COPY.bookingFlow.spotsToBook}</span>
+          ${showAttendeeSelector ? `<label class="sa-bk-compact-qty"><span>${COPY.bookingFlow.spotsToBook}</span>
             <select id="compact-autobook-qty" class="psycle-select">${attendeeOptions.map(n => `<option value="${n}">${n}</option>`).join('')}</select></label>` : ''}
           <button class="psycle-btn" id="btn-save-simple-autobook" style="background: var(--feat-autoupgrade); color:var(--on-accent); display:flex; align-items:center; justify-content:center; gap:6px;">${COPY.bookingFlow.titleAutoBook}</button>
         </div>` : `
@@ -3894,13 +3894,13 @@ export async function openBookingModal(c, mode, opts = {}) {
     const minMapHeight = Math.max(340, rowCount * 56);
 
     body.innerHTML = `
-      <div id="psycle-modal-info-banner" style="margin-bottom:10px;"></div>
+      <div id="sa-modal-info-banner" style="margin-bottom:10px;"></div>
       <div class="psycle-floor-plan-container" style="position:relative;height:${minMapHeight}px;background:var(--surface-inset);border:1px solid var(--border);border-radius:12px;margin-bottom:10px;overflow:hidden;">
         <div id="psycle-floor-plan-grid" style="width:100%;height:100%;"></div>
       </div>
       <div id="psycle-map-edit-toggle"></div>
       <div id="psycle-slot-summary" style="font-size:12px;color:var(--text-secondary);margin-bottom:12px;min-height:16px;${opts.setupFlow ? 'display:none;' : ''}"></div>
-      <div id="psycle-modal-controls-container"></div>
+      <div id="sa-modal-controls-container"></div>
     `;
 
     const floorGrid = body.querySelector('#psycle-floor-plan-grid');
@@ -4243,7 +4243,7 @@ export async function openBookingModal(c, mode, opts = {}) {
 
     // ── Auto-Book controls ─────────────────────────────────────────────
     if (isAutoBookMode) {
-      const controls = body.querySelector('#psycle-modal-controls-container');
+      const controls = body.querySelector('#sa-modal-controls-container');
       const layoutSlotIds = new Set(layoutSlots.map(s => String(s.id)));
       const unmappedSlots = availableSlots.filter(id => !layoutSlotIds.has(id));
       const releaseStr = isLive ? '' : classReleaseTime.toFormat('EEE d MMM, HH:mm');
@@ -4256,8 +4256,8 @@ export async function openBookingModal(c, mode, opts = {}) {
           ? `${formatCopyText(COPY.timetable.autoBookCreditShortfall, { count: creditsNeeded - availableCredits, plural: creditsNeeded - availableCredits !== 1 ? 's' : '' })}`
           : '';
 
-        body.querySelector('#psycle-modal-info-banner').hidden = !!(opts.setupFlow || opts.oneOffSpots);
-        body.querySelector('#psycle-modal-info-banner').innerHTML = mapEditing
+        body.querySelector('#sa-modal-info-banner').hidden = !!(opts.setupFlow || opts.oneOffSpots);
+        body.querySelector('#sa-modal-info-banner').innerHTML = mapEditing
           ? `<div style="font-size:12px;color:var(--feat-autoupgrade);background:color-mix(in srgb,var(--feat-autoupgrade) 8%,transparent);border:1px solid color-mix(in srgb,var(--feat-autoupgrade) 18%,transparent);border-radius:8px;padding:8px 10px;line-height:1.5;">${formatCopyText(COPY.timetable.editingSharedMapHtml, { studio: escapeHtml(studioName), features: 'Quick-Book and Auto-Upgrade too' })}</div>`
           : `<div style="font-size:12px;color:var(--feat-autoupgrade);background:color-mix(in srgb,var(--feat-autoupgrade) 8%,transparent);border:1px solid color-mix(in srgb,var(--feat-autoupgrade) 18%,transparent);border-radius:8px;padding:8px 10px;line-height:1.5;">${formatCopyText(COPY.timetable.sharedMapForStudioHtml, { studio: escapeHtml(studioName) })}</div>`;
 
@@ -4274,7 +4274,7 @@ export async function openBookingModal(c, mode, opts = {}) {
         }
 
         controls.innerHTML = `
-          <div class="psycle-booking-controls${isSpotFlowStep ? ' is-spot-flow' : ''}" style="display:flex;flex-direction:column;gap:12px;background:var(--surface-inset);padding:14px;border-radius:12px;border:1px solid var(--border);">
+          <div class="sa-booking-controls${isSpotFlowStep ? ' is-spot-flow' : ''}" style="display:flex;flex-direction:column;gap:12px;background:var(--surface-inset);padding:14px;border-radius:12px;border:1px solid var(--border);">
             ${unmappedSlots.length > 0 ? `<div id="psycle-unmapped-warning" style="font-size:12px;color:var(--warning);background:color-mix(in srgb,var(--warning) 8%,transparent);border:1px solid color-mix(in srgb,var(--warning) 20%,transparent);border-radius:6px;padding:6px 10px;"></div>` : ''}
             ${creditWarning ? `<div style="font-size:12px;color:var(--danger);background:color-mix(in srgb,var(--danger) 10%,transparent);border:1px solid color-mix(in srgb,var(--danger) 20%,transparent);border-radius:8px;padding:10px;line-height:1.5;">${creditWarning}</div>` : ''}
             <div style="display:flex;gap:14px;align-items:center;">
@@ -4335,13 +4335,13 @@ export async function openBookingModal(c, mode, opts = {}) {
       updateAutoBookControls();
     } else if (isSimpleBookMode) {
       // ── Simple Book controls (just pick slots, no preferences) ────────────────────
-      const controls = body.querySelector('#psycle-modal-controls-container');
+      const controls = body.querySelector('#sa-modal-controls-container');
 
       // Mobile: set up preferred spots as a Back-arrow child; the live selection on this page survives.
       const openSimpleSetup = () => openStudioFloorPlanEditor(c.studioId, studioName, (slots = [], rows = []) => {
         hasExistingPrefs = slots.length > 0 || rows.length > 0;     // from the saved payload, not a racing refetch
         cache.studioPreferences = { ...(cache.studioPreferences || {}), [`${c.gymId}:${c.studioId}`]: { preferredSlots: slots, preferredRows: rows } };
-        body.querySelector('.psycle-bk-banner')?.remove();
+        body.querySelector('.sa-bk-banner')?.remove();
         updateSimpleBookControls();
       }, { gymId: c.gymId });
       if (isMobile() && !hasExistingPrefs && layoutSlots.length > 0) {
@@ -4359,7 +4359,7 @@ export async function openBookingModal(c, mode, opts = {}) {
           : '';
 
         controls.innerHTML = `
-          <div class="psycle-booking-controls${isSpotFlowStep ? ' is-spot-flow' : ''}" style="display:flex;flex-direction:column;gap:12px;background:var(--surface-inset);padding:14px;border-radius:12px;border:1px solid var(--border);">
+          <div class="sa-booking-controls${isSpotFlowStep ? ' is-spot-flow' : ''}" style="display:flex;flex-direction:column;gap:12px;background:var(--surface-inset);padding:14px;border-radius:12px;border:1px solid var(--border);">
             <div style="font-size:12px;color:var(--text-secondary);font-style:italic;">${formatCopyText(COPY.timetable.simpleBookPrompt, { noun: seatNoun(groupName), count: `<strong>${isDataLoaded ? availableCredits : '?'}</strong>`, plural: availableCredits !== 1 ? 's' : '' })}</div>
             ${creditWarning ? `<div style="font-size:12px;color:var(--danger);background:color-mix(in srgb,var(--danger) 10%,transparent);border:1px solid color-mix(in srgb,var(--danger) 20%,transparent);border-radius:8px;padding:10px;line-height:1.5;">${creditWarning}</div>` : ''}
             ${(() => {
@@ -4478,7 +4478,7 @@ export async function openBookingModal(c, mode, opts = {}) {
       updateSimpleBookControls();
     } else if (isQuickBookMode) {
       // ── Quick-Book controls (preference setter) ────────────────────────────────────────
-      const controls = body.querySelector('#psycle-modal-controls-container');
+      const controls = body.querySelector('#sa-modal-controls-container');
 
       updateQuickBookControls = () => {
         const selectedQty = parseInt(controls.querySelector('#quickbook-qty')?.value || state.qty) || 1;
@@ -4488,8 +4488,8 @@ export async function openBookingModal(c, mode, opts = {}) {
           ? `${formatCopyText(COPY.timetable.quickBookCreditShortfall, { count: creditsNeeded - availableCredits, plural: creditsNeeded - availableCredits !== 1 ? 's' : '' })}`
           : '';
 
-        body.querySelector('#psycle-modal-info-banner').hidden = !!(opts.setupFlow || opts.oneOffSpots);
-        body.querySelector('#psycle-modal-info-banner').innerHTML = !mapEditing
+        body.querySelector('#sa-modal-info-banner').hidden = !!(opts.setupFlow || opts.oneOffSpots);
+        body.querySelector('#sa-modal-info-banner').innerHTML = !mapEditing
           ? `<div style="font-size:12px;color:var(--feat-autoupgrade);background:color-mix(in srgb,var(--feat-autoupgrade) 8%,transparent);border:1px solid color-mix(in srgb,var(--feat-autoupgrade) 18%,transparent);border-radius:8px;padding:8px 10px;line-height:1.5;">${COPY.timetable.quickBookBannerHtml}</div>`
           : (hasExistingPrefs
             ? `<div style="font-size:12px;color:var(--feat-autoupgrade);background:color-mix(in srgb,var(--feat-autoupgrade) 8%,transparent);border:1px solid color-mix(in srgb,var(--feat-autoupgrade) 18%,transparent);border-radius:8px;padding:8px 10px;line-height:1.5;">${formatCopyText(COPY.timetable.editingQuickBookMapHtml, { studio: escapeHtml(studioName) })}</div>`
@@ -4639,19 +4639,19 @@ export async function openBookingModal(c, mode, opts = {}) {
       held.forEach((el) => { el.dataset.setupDisplay = el.style.display || ''; el.style.display = 'none'; });
       title.textContent = copy.header;
       const intro = document.createElement('div');
-      intro.id = 'psycle-setup-intro';
+      intro.id = 'sa-setup-intro';
       intro.style.cssText = 'padding:8px 0 4px;';
       intro.innerHTML = `
         <p style="margin:0 0 10px;font-size:16px;font-weight:600;color:var(--text);">${copy.sub}</p>
         <p style="margin:0 0 20px;font-size:14px;line-height:1.5;color:var(--text-secondary);">${copy.bodyHtml}</p>
-        <button type="button" class="psycle-btn" id="psycle-setup-next" style="width:100%;background:var(--accent-fill);color:var(--on-accent-fill);">${copy.next}</button>`;
+        <button type="button" class="psycle-btn" id="sa-setup-next" style="width:100%;background:var(--accent-fill);color:var(--on-accent-fill);">${copy.next}</button>`;
       body.appendChild(intro);
-      intro.querySelector('#psycle-setup-next').onclick = () => {
+      intro.querySelector('#sa-setup-next').onclick = () => {
         intro.remove();
         held.forEach((el) => { el.style.display = el.dataset.setupDisplay || ''; delete el.dataset.setupDisplay; });
         title.textContent = modeTitle;
       };
-      intro.querySelector('#psycle-setup-next').focus();
+      intro.querySelector('#sa-setup-next').focus();
     }
   } catch (err) {
     console.error('[Timetable] Modal load floor map failed:', err);
@@ -4971,9 +4971,9 @@ function escapeHtml(str) {
 }
 
 export async function openDebugModal(event) {
-  const modal = document.getElementById('psycle-debug-modal');
-  const body = document.getElementById('psycle-debug-modal-body');
-  const title = document.getElementById('psycle-debug-modal-title');
+  const modal = document.getElementById('sa-debug-modal');
+  const body = document.getElementById('sa-debug-modal-body');
+  const title = document.getElementById('sa-debug-modal-title');
   if (!modal || !body || !title) return;
 
   // Debug modal: deliberately the RAW provider name (it exists to show what the API sent).
@@ -4987,8 +4987,8 @@ export async function openDebugModal(event) {
 
   openNavPage(modal, { id: 'debug-class', closeFooter: true });
 
-  const closeBtn = document.getElementById('psycle-debug-modal-close');
-  const overlay = modal.querySelector('.psycle-modal-overlay');
+  const closeBtn = document.getElementById('sa-debug-modal-close');
+  const overlay = modal.querySelector('.sa-modal-overlay');
 
   const closeModal = () => {
     modal.classList.remove('show');
@@ -5039,7 +5039,7 @@ export async function openDebugModal(event) {
       activeTab = tabId;
 
       // Update tab buttons
-      tabBar.querySelectorAll('.psycle-debug-tab-btn').forEach(btn => {
+      tabBar.querySelectorAll('.sa-debug-tab-btn').forEach(btn => {
         btn.classList.toggle('active', btn.dataset.tab === tabId);
         const isActive = btn.dataset.tab === tabId;
         btn.style.background = isActive ? 'color-mix(in srgb, var(--feat-autoupgrade) 20%, transparent)' : 'transparent';
@@ -5106,7 +5106,7 @@ export async function openDebugModal(event) {
         const typeInfo = metadata.eventTypes.find(t => sameId(t.id, event.classTypeId) && (!event.gymId || t.gymId === event.gymId));
 
         computedHtml = `
-          <div class="psycle-debug-computed" style="background:color-mix(in srgb, var(--feat-autoupgrade) 8%, transparent); border:1px solid color-mix(in srgb, var(--feat-autoupgrade) 20%, transparent); border-radius:10px; padding:14px; margin-bottom:16px;">
+          <div class="sa-debug-computed" style="background:color-mix(in srgb, var(--feat-autoupgrade) 8%, transparent); border:1px solid color-mix(in srgb, var(--feat-autoupgrade) 20%, transparent); border-radius:10px; padding:14px; margin-bottom:16px;">
             <h5 style="color:var(--feat-autoupgrade); margin:0 0 10px 0; font-size:13px; font-weight:700;">Key Computed Values</h5>
             <div style="display:grid; grid-template-columns:1fr 1fr; gap:6px 16px; font-size:12px;">
               <span style="color:var(--text-secondary);">isLive:</span><span style="color:var(--text); font-weight:600;">${isLive}</span>
@@ -5136,7 +5136,7 @@ export async function openDebugModal(event) {
       contentArea.innerHTML = `
         ${computedHtml}
         ${relationsMapHtml}
-        <div class="psycle-debug-json-block">
+        <div class="sa-debug-json-block">
           <h5 style="color:var(--feat-autoupgrade); margin:0 0 8px 0; font-size:12px; font-weight:600; text-transform:uppercase; letter-spacing:0.5px;">${tabLabel}</h5>
           <pre style="background:var(--surface-inset); border:1px solid var(--border); border-radius:8px; padding:14px; font-size:12px; line-height:1.5; color:var(--text); max-height:440px; overflow:auto; white-space:pre-wrap; word-break:break-all; margin:0;">${escapeHtml(JSON.stringify(redactSensitivePayload(jsonData), null, 2))}</pre>
         </div>
@@ -5145,7 +5145,7 @@ export async function openDebugModal(event) {
 
     // Helper: build human-readable relations map
     function buildRelationsMapHtml(rels, evt) {
-      let html = '<div class="psycle-debug-relations-map" style="background:color-mix(in srgb, var(--feat-autoupgrade) 8%, transparent); border:1px solid color-mix(in srgb, var(--feat-autoupgrade) 20%, transparent); border-radius:10px; padding:14px; margin-bottom:16px;">';
+      let html = '<div class="sa-debug-relations-map" style="background:color-mix(in srgb, var(--feat-autoupgrade) 8%, transparent); border:1px solid color-mix(in srgb, var(--feat-autoupgrade) 20%, transparent); border-radius:10px; padding:14px; margin-bottom:16px;">';
       html += '<h5 style="color:var(--feat-autoupgrade); margin:0 0 10px 0; font-size:13px; font-weight:700;">Relations Map</h5>';
 
       // Studios
@@ -5210,46 +5210,46 @@ export async function openDebugModal(event) {
     body.innerHTML = `
       <div style="display:flex; flex-direction:column; gap:4px;">
         <!-- Quick-Book / Auto-Book / native page buttons -->
-        <div id="psycle-debug-action-bar" style="display:flex; gap:8px; padding-bottom:12px; border-bottom:1px solid var(--border); margin-bottom:4px; flex-wrap:wrap;">
-          <button id="psycle-debug-quick-book-btn" class="psycle-btn-mini variant-success-muted">Quick-Book</button>
-          <button id="psycle-debug-auto-book-btn" class="psycle-btn-mini variant-neutral">Auto-Book Config</button>
+        <div id="sa-debug-action-bar" style="display:flex; gap:8px; padding-bottom:12px; border-bottom:1px solid var(--border); margin-bottom:4px; flex-wrap:wrap;">
+          <button id="sa-debug-quick-book-btn" class="psycle-btn-mini variant-success-muted">Quick-Book</button>
+          <button id="sa-debug-auto-book-btn" class="psycle-btn-mini variant-neutral">Auto-Book Config</button>
           ${nativePageUrl ? `<a href="${escapeHtml(nativePageUrl)}" target="_blank" rel="noopener noreferrer" class="psycle-btn-mini" style="display:inline-flex; align-items:center; gap:5px; background:color-mix(in srgb, var(--info) 14%, transparent); border-color:color-mix(in srgb, var(--info) 30%, transparent); color:var(--info); text-decoration:none;">
             <svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/><polyline points="15 3 21 3 21 9"/><line x1="10" y1="14" x2="21" y2="3"/></svg>
             Open native booking page
           </a>` : ''}
         </div>
         <!-- Tab bar -->
-        <div class="psycle-debug-tab-bar" style="display:flex; gap:4px; border-bottom:1px solid var(--border); padding-bottom:8px; margin-bottom:12px; flex-wrap:wrap;">
+        <div class="sa-debug-tab-bar" style="display:flex; gap:4px; border-bottom:1px solid var(--border); padding-bottom:8px; margin-bottom:12px; flex-wrap:wrap;">
           ${tabs.map(t => `
-            <button class="psycle-debug-tab-btn" data-tab="${t.id}" style="background:${t.id === activeTab ? 'color-mix(in srgb, var(--feat-autoupgrade) 20%, transparent)' : 'transparent'}; border:1px solid ${t.id === activeTab ? 'color-mix(in srgb, var(--feat-autoupgrade) 40%, transparent)' : 'var(--border)'}; color:${t.id === activeTab ? 'var(--feat-autoupgrade)' : 'var(--text-secondary)'}; padding:6px 14px; border-radius:8px; cursor:pointer; font-size:12px; font-weight:600; transition:all 0.15s;">
+            <button class="sa-debug-tab-btn" data-tab="${t.id}" style="background:${t.id === activeTab ? 'color-mix(in srgb, var(--feat-autoupgrade) 20%, transparent)' : 'transparent'}; border:1px solid ${t.id === activeTab ? 'color-mix(in srgb, var(--feat-autoupgrade) 40%, transparent)' : 'var(--border)'}; color:${t.id === activeTab ? 'var(--feat-autoupgrade)' : 'var(--text-secondary)'}; padding:6px 14px; border-radius:8px; cursor:pointer; font-size:12px; font-weight:600; transition:all 0.15s;">
               ${t.label}
             </button>
           `).join('')}
         </div>
         <!-- Content area -->
-        <div id="psycle-debug-content" style="min-height:200px;"></div>
+        <div id="sa-debug-content" style="min-height:200px;"></div>
       </div>
     `;
 
-    body.querySelector('#psycle-debug-quick-book-btn').addEventListener('click', (e) => {
+    body.querySelector('#sa-debug-quick-book-btn').addEventListener('click', (e) => {
       e.stopPropagation();
       e.preventDefault();
       closeModal();
       setTimeout(() => openBookingModal(event, 'quickbook'), 320);
     });
-    body.querySelector('#psycle-debug-auto-book-btn').addEventListener('click', (e) => {
+    body.querySelector('#sa-debug-auto-book-btn').addEventListener('click', (e) => {
       e.stopPropagation();
       e.preventDefault();
       closeModal();
       setTimeout(() => openBookingModal(event, 'autobook'), 320);
     });
 
-    const tabBar = body.querySelector('.psycle-debug-tab-bar');
-    const contentArea = body.querySelector('#psycle-debug-content');
+    const tabBar = body.querySelector('.sa-debug-tab-bar');
+    const contentArea = body.querySelector('#sa-debug-content');
 
     // Tab switching
     tabBar.addEventListener('click', (e) => {
-      const btn = e.target.closest('.psycle-debug-tab-btn');
+      const btn = e.target.closest('.sa-debug-tab-btn');
       if (btn) {
         renderDebugTab(btn.dataset.tab);
       }
@@ -5263,10 +5263,10 @@ export async function openDebugModal(event) {
     body.innerHTML = `
       <div style="padding:20px; text-align:center;">
         <p style="color:var(--danger); margin-bottom:12px;">Error loading debug data: ${escapeHtml(err.message)}</p>
-        <button class="psycle-btn-mini variant-autoupgrade" id="psycle-debug-retry-btn">Retry</button>
+        <button class="psycle-btn-mini variant-autoupgrade" id="sa-debug-retry-btn">Retry</button>
       </div>
     `;
-    const retryBtn = body.querySelector('#psycle-debug-retry-btn');
+    const retryBtn = body.querySelector('#sa-debug-retry-btn');
     if (retryBtn) {
       retryBtn.onclick = () => openDebugModal(event);
     }

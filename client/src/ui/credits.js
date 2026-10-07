@@ -649,15 +649,15 @@ export function openPurchaseModal(b) {
   const unitLabel = `£${(unitPence / 100).toFixed(2)}`;
 
   const overlay = document.createElement('div');
-  overlay.className = 'psycle-modal psycle-purchase-modal';
+  overlay.className = 'sa-modal sa-purchase-modal';
   overlay.innerHTML = `
-    <div class="psycle-modal-overlay"></div>
-    <div class="psycle-modal-card" style="width:420px; max-width:92vw;">
-      <div class="psycle-modal-header" style="padding:14px 20px; display:flex; justify-content:space-between; align-items:center; border-bottom:1px solid var(--border-subtle);">
-        <h4 class="psycle-checkout-title" style="margin:0; font-size:15px; font-weight:700; color:var(--text-primary);">${COPY.credits.cart}</h4>
-        <button class="psycle-modal-close-btn" aria-label="${COPY.credits.closeModal}">×</button>
+    <div class="sa-modal-overlay"></div>
+    <div class="sa-modal-card" style="width:420px; max-width:92vw;">
+      <div class="sa-modal-header" style="padding:14px 20px; display:flex; justify-content:space-between; align-items:center; border-bottom:1px solid var(--border-subtle);">
+        <h4 class="sa-checkout-title" style="margin:0; font-size:15px; font-weight:700; color:var(--text-primary);">${COPY.credits.cart}</h4>
+        <button class="sa-modal-close-btn" aria-label="${COPY.credits.closeModal}">×</button>
       </div>
-      <div class="psycle-purchase-body" style="padding:20px;"></div>
+      <div class="sa-purchase-body" style="padding:20px;"></div>
     </div>
   `;
   document.body.appendChild(overlay);
@@ -674,11 +674,11 @@ export function openPurchaseModal(b) {
     setTimeout(() => overlay.remove(), 300);
   };
 
-  overlay.querySelector('.psycle-modal-overlay').addEventListener('click', closeModal);
-  overlay.querySelector('.psycle-modal-close-btn').addEventListener('click', closeModal);
+  overlay.querySelector('.sa-modal-overlay').addEventListener('click', closeModal);
+  overlay.querySelector('.sa-modal-close-btn').addEventListener('click', closeModal);
 
-  const body = overlay.querySelector('.psycle-purchase-body');
-  const titleEl = overlay.querySelector('.psycle-checkout-title');
+  const body = overlay.querySelector('.sa-purchase-body');
+  const titleEl = overlay.querySelector('.sa-checkout-title');
 
   // ── Step 1: Cart ──────────────────────────────────────────────────────────
   let qty = 1;
@@ -700,9 +700,9 @@ export function openPurchaseModal(b) {
       </div>
       <div style="border-top:1px solid var(--border-subtle); padding-top:12px; margin-bottom:16px; display:flex; justify-content:space-between; align-items:center;">
         <span style="font-size:13px; color:var(--text-secondary);">${COPY.credits.totalIncVat}</span>
-        <span class="psycle-cart-total" style="font-weight:700; font-size:16px; color:var(--text-primary);">${total}</span>
+        <span class="sa-cart-total" style="font-weight:700; font-size:16px; color:var(--text-primary);">${total}</span>
       </div>
-      <button class="psycle-btn-primary psycle-checkout-btn" style="width:100%; padding:11px;">${COPY.credits.continueToPayment}</button>
+      <button class="psycle-btn-primary sa-checkout-btn" style="width:100%; padding:11px;">${COPY.credits.continueToPayment}</button>
     `;
 
     body.querySelector('.psycle-qty-dec').addEventListener('click', () => {
@@ -712,7 +712,7 @@ export function openPurchaseModal(b) {
       if (qty < 10) { qty++; renderCart(); }
     });
     body.querySelector('.psycle-qty-remove').addEventListener('click', closeModal);
-    body.querySelector('.psycle-checkout-btn').addEventListener('click', () => proceedToPayment());
+    body.querySelector('.sa-checkout-btn').addEventListener('click', () => proceedToPayment());
   }
 
   // ── Step 2: Payment ───────────────────────────────────────────────────────
@@ -760,10 +760,10 @@ export function openPurchaseModal(b) {
         <span style="font-size:13px; color:var(--text-secondary);">${qty > 1 ? `${qty}× ${b.name}` : b.name}</span>
         <span style="font-weight:700; color:var(--text-primary);">${totalLabel}</span>
       </div>
-      <button class="psycle-btn-primary psycle-pay-btn" style="width:100%; padding:11px;">${formatCopyText(COPY.credits.payTotal, { total: totalLabel })}</button>
+      <button class="psycle-btn-primary sa-pay-btn" style="width:100%; padding:11px;">${formatCopyText(COPY.credits.payTotal, { total: totalLabel })}</button>
     `;
 
-    body.querySelector('.psycle-pay-btn').addEventListener('click', async () => {
+    body.querySelector('.sa-pay-btn').addEventListener('click', async () => {
       const pmId = body.querySelector('input[name="psycle-pm"]:checked')?.value;
       if (!pmId) return;
 
@@ -784,10 +784,10 @@ export function openPurchaseModal(b) {
               <div style="font-size:40px; margin-bottom:8px;">✅</div>
               <div style="font-weight:700; color:var(--text-primary);">${COPY.credits.paymentComplete}</div>
               <div style="font-size:13px; color:var(--text-secondary); margin-top:4px;">${formatCopyText(COPY.credits.creditsAdded, { count: b.total_credits * qty })}</div>
-              <button class="psycle-btn-primary psycle-done-btn" style="margin-top:16px; padding:10px 24px;">${COPY.credits.done}</button>
+              <button class="psycle-btn-primary sa-done-btn" style="margin-top:16px; padding:10px 24px;">${COPY.credits.done}</button>
             </div>
           `;
-          body.querySelector('.psycle-done-btn').addEventListener('click', closeModal);
+          body.querySelector('.sa-done-btn').addEventListener('click', closeModal);
           showToast(COPY.credits.creditsPurchased, 'success');
         } else if (result.status === 'requires_action') {
           renderPurchaseError(body, b,

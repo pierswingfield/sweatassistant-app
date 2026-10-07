@@ -822,7 +822,7 @@ html, body {
 }
 
 
-#sa-helper-container .psycle-close-btn {
+#sa-helper-container .sa-close-btn {
   background: transparent;
   border: none;
   color: var(--text-secondary);
@@ -832,7 +832,7 @@ html, body {
   transition: color 0.2s ease, transform 0.2s ease;
 }
 
-#sa-helper-container .psycle-close-btn:hover {
+#sa-helper-container .sa-close-btn:hover {
   color: var(--text);
   transform: rotate(90deg);
 }
@@ -1438,7 +1438,7 @@ html, body {
 
 
 #sa-helper-container .psycle-btn,
-.psycle-modal .psycle-btn {
+.sa-modal .psycle-btn {
   width: 100%;
   padding: 14px;
   border-radius: 10px;
@@ -1451,34 +1451,34 @@ html, body {
 }
 
 #sa-helper-container .psycle-btn.primary,
-.psycle-modal .psycle-btn.primary {
+.sa-modal .psycle-btn.primary {
   background: var(--accent-fill);
   color: var(--on-accent-fill);
 }
 #sa-helper-container .psycle-btn.primary:hover,
-.psycle-modal .psycle-btn.primary:hover {
+.sa-modal .psycle-btn.primary:hover {
   background: var(--accent-fill-hover);
   transform: translateY(-1.5px);
 }
 
 #sa-helper-container .psycle-btn.warning,
-.psycle-modal .psycle-btn.warning {
+.sa-modal .psycle-btn.warning {
   background: var(--accent-fill);
   color: var(--on-accent-fill);
 }
 #sa-helper-container .psycle-btn.warning:hover,
-.psycle-modal .psycle-btn.warning:hover {
+.sa-modal .psycle-btn.warning:hover {
   background: var(--accent-fill-hover);
   transform: translateY(-1.5px);
 }
 
 #sa-helper-container .psycle-btn.danger,
-.psycle-modal .psycle-btn.danger {
+.sa-modal .psycle-btn.danger {
   background: var(--danger);
   color: var(--on-accent);
 }
 #sa-helper-container .psycle-btn.danger:hover,
-.psycle-modal .psycle-btn.danger:hover {
+.sa-modal .psycle-btn.danger:hover {
   background: var(--danger);
   filter: brightness(0.9);
   transform: translateY(-1.5px);
@@ -1491,19 +1491,19 @@ html, body {
 }
 :root[data-theme="light"] { --cancel-fill: var(--danger); --on-cancel-fill: #ffffff; }
 #sa-helper-container .psycle-btn.cancel-confirm,
-.psycle-modal .psycle-btn.cancel-confirm {
+.sa-modal .psycle-btn.cancel-confirm {
   background: var(--cancel-fill);
   color: var(--on-cancel-fill);
 }
 #sa-helper-container .psycle-btn.cancel-confirm:hover,
-.psycle-modal .psycle-btn.cancel-confirm:hover {
+.sa-modal .psycle-btn.cancel-confirm:hover {
   background: var(--cancel-fill);
   filter: brightness(0.9);
   transform: translateY(-1.5px);
 }
 
 #sa-helper-container .psycle-btn:disabled,
-.psycle-modal .psycle-btn:disabled {
+.sa-modal .psycle-btn:disabled {
   background: var(--surface-2) !important;
   color: var(--text-tertiary) !important;
   cursor: not-allowed !important;
@@ -1734,8 +1734,8 @@ html, body {
 .psycle-offline .psycle-btn-mini,
 .psycle-offline .psycle-action-btn-mini,
 .psycle-offline button[data-action],
-.psycle-offline .psycle-modal .psycle-btn,
-.psycle-offline .psycle-modal .psycle-btn-mini,
+.psycle-offline .sa-modal .psycle-btn,
+.psycle-offline .sa-modal .psycle-btn-mini,
 .psycle-offline .ab-rail-btn {
   pointer-events: none !important;
   opacity: 0.45 !important;
@@ -1754,7 +1754,7 @@ html, body {
 }
 
 /* Glassmorphic Modal styling */
-.psycle-modal {
+.sa-modal {
   position: fixed;
   top: 0;
   left: 0;
@@ -1772,12 +1772,12 @@ html, body {
   transition: opacity 0.3s ease;
 }
 
-.psycle-modal.show {
+.sa-modal.show {
   opacity: 1;
   pointer-events: auto;
 }
 
-.psycle-modal-content {
+.sa-modal-content {
   background: var(--surface);
   border: 1px solid var(--border-strong);
   border-radius: var(--radius-sheet);
@@ -1798,7 +1798,7 @@ html, body {
   to { transform: translateY(0) scale(1); }
 }
 
-.psycle-modal-header {
+.sa-modal-header {
   padding: 14px 20px;
   display: flex;
   justify-content: space-between;
@@ -1807,8 +1807,8 @@ html, body {
   background: var(--surface-inset);
 }
 
-.psycle-modal-header h3,
-.psycle-modal-header h4 {
+.sa-modal-header h3,
+.sa-modal-header h4 {
   font-family: var(--font-serif);
   font-size: 18px;
   font-weight: 600;
@@ -1816,8 +1816,8 @@ html, body {
   margin: 0;
 }
 
-.psycle-modal-close,
-.psycle-modal-close-btn {
+.sa-modal-close,
+.sa-modal-close-btn {
   background: transparent;
   border: none;
   color: var(--text-secondary);
@@ -1827,12 +1827,12 @@ html, body {
   transition: color 0.2s;
 }
 
-.psycle-modal-close:hover,
-.psycle-modal-close-btn:hover {
+.sa-modal-close:hover,
+.sa-modal-close-btn:hover {
   color: var(--text);
 }
 
-.psycle-modal-body {
+.sa-modal-body {
   padding: 12px 18px;
   overflow-y: auto;
   font-size: 13px;
@@ -2014,7 +2014,7 @@ html, body {
 }
 
 @media (max-width: 768px) {
-  .psycle-modal-body .psycle-floor-scroll {
+  .sa-modal-body .psycle-floor-scroll {
     margin-left: -18px;
     margin-right: -18px;
     width: calc(100% + 36px);
@@ -2415,7 +2415,7 @@ html, body {
 /* Interactive JSON Explorer */
 
 /* Class Debug Modal Size Overrides */
-#psycle-debug-modal .psycle-modal-content {
+#sa-debug-modal .sa-modal-content {
   width: 860px;
   max-width: 95vw;
   height: 650px;
@@ -2789,7 +2789,7 @@ html, body {
 
 
 
-#sa-helper-container .psycle-maximize-btn {
+#sa-helper-container .sa-maximize-btn {
   background: transparent;
   border: none;
   color: var(--text-secondary);
@@ -2801,7 +2801,7 @@ html, body {
   padding: 4px;
 }
 
-#sa-helper-container .psycle-maximize-btn:hover {
+#sa-helper-container .sa-maximize-btn:hover {
   color: var(--text) !important;
   transform: scale(1.1);
 }
@@ -3140,7 +3140,7 @@ html, body {
    =================================================================== */
 
 
-#sa-helper-container .psycle-profile-editor-field-label {
+#sa-helper-container .sa-profile-editor-field-label {
   flex: 0 0 130px;
   font-size: 12px;
   font-weight: 500;
@@ -3280,7 +3280,7 @@ html, body {
   }
 
   /* Adjust modals on small screens */
-  .psycle-modal-card {
+  .sa-modal-card {
     width: 95vw !important;
     max-height: 90vh !important;
   }
@@ -4438,11 +4438,11 @@ html, body {
 
 
 /* Debug button */
-#sa-helper-container .psycle-debug-btn {
+#sa-helper-container .sa-debug-btn {
   box-shadow: none !important;
 }
 
-#sa-helper-container .psycle-debug-btn:hover {
+#sa-helper-container .sa-debug-btn:hover {
   background: color-mix(in srgb, var(--feat-autoupgrade) 45%, transparent) !important;
   box-shadow: none !important;
 }
@@ -4534,7 +4534,7 @@ html, body {
 }
 
 /* --- 8. BOOKING MODAL — Token-driven card & overlay --- */
-.psycle-modal-card {
+.sa-modal-card {
   background: var(--surface);
   backdrop-filter: blur(30px) saturate(200%);
   -webkit-backdrop-filter: blur(30px) saturate(200%);
@@ -4550,7 +4550,7 @@ html, body {
   animation: modalSlideIn 0.35s cubic-bezier(0.25, 1, 0.5, 1);
 }
 
-.psycle-modal-overlay {
+.sa-modal-overlay {
   position: absolute;
   top: 0;
   left: 0;
@@ -4561,8 +4561,8 @@ html, body {
   -webkit-backdrop-filter: blur(12px);
 }
 
-#psycle-booking-modal .psycle-modal-header,
-#psycle-debug-modal .psycle-modal-header {
+#sa-booking-modal .sa-modal-header,
+#sa-debug-modal .sa-modal-header {
   padding: 14px 20px;
   display: flex;
   justify-content: space-between;
@@ -4572,15 +4572,15 @@ html, body {
   flex-shrink: 0;
 }
 
-#psycle-booking-modal .psycle-modal-header h4,
-#psycle-debug-modal .psycle-modal-header h4 {
+#sa-booking-modal .sa-modal-header h4,
+#sa-debug-modal .sa-modal-header h4 {
   font-size: 15px;
   font-weight: 700;
   color: var(--text);
   margin: 0;
 }
 
-.psycle-modal-close-btn {
+.sa-modal-close-btn {
   background: transparent;
   border: none;
   color: var(--text-secondary);
@@ -4591,7 +4591,7 @@ html, body {
   padding: 4px;
 }
 
-.psycle-modal-close-btn:hover {
+.sa-modal-close-btn:hover {
   color: var(--text);
   transform: rotate(90deg);
 }
@@ -4642,14 +4642,14 @@ html, body {
 }
 
 /* ─── Profile Explorer ─────────────────────────────────────── */
-.psycle-profile-section {
+.sa-profile-section {
   border: 1px solid var(--border);
   border-radius: 12px;
   overflow: hidden;
   flex-shrink: 0;
   margin-bottom: 10px;
 }
-.psycle-profile-section-header {
+.sa-profile-section-header {
   background: var(--surface-inset);
   padding: 12px 16px;
   display: flex;
@@ -4658,10 +4658,10 @@ html, body {
   cursor: pointer;
   user-select: none;
 }
-.psycle-profile-section-header:hover {
+.sa-profile-section-header:hover {
   background: color-mix(in srgb, var(--text) 6%, transparent);
 }
-.psycle-profile-section-content {
+.sa-profile-section-content {
   padding: 14px;
   background: var(--surface-inset);
   border-top: 1px solid var(--separator);
@@ -4671,7 +4671,7 @@ html, body {
   color: var(--text-secondary);
   transition: transform 0.2s;
 }
-.psycle-profile-edit-input {
+.sa-profile-edit-input {
   flex: 1;
   background: var(--surface-inset);
   border: 1px solid var(--border);
@@ -4681,7 +4681,7 @@ html, body {
   color: var(--text);
   font-family: inherit;
 }
-.psycle-profile-edit-input:focus {
+.sa-profile-edit-input:focus {
   outline: none;
   border-color: color-mix(in srgb, var(--accent) 50%, transparent);
   box-shadow: 0 0 0 2px color-mix(in srgb, var(--accent) 15%, transparent);
@@ -5869,21 +5869,21 @@ html, body {
 }
 .ab-clash-warning svg { flex-shrink: 0; margin-top: 1px; }
 
-/* U1-6: overlap confirmation. The shell is the shared .psycle-modal card; the
+/* U1-6: overlap confirmation. The shell is the shared .sa-modal card; the
    class cards inside are the ordinary Auto-Book queue card (see overlap-modal.js).
    Sits above the auto-book config modal it is opened from (same z-index, later in
    the DOM). */
-.psycle-overlap-modal .psycle-modal-card {
+.sa-overlap-modal .sa-modal-card {
   width: 460px;
   /* --surface is translucent in the dark theme (glass over a blurred page). This
      dialog opens ON TOP of another modal, so composite it over the page colour to
      keep the text behind from bleeding through. Identical in light, where it is opaque. */
   background: linear-gradient(var(--surface), var(--surface)), var(--bg);
 }
-.psycle-overlap-modal .psycle-modal-body { gap: 14px; }
-.psycle-overlap-modal .ab-credit-warning.ab-clash-warning { align-self: stretch; margin-top: 0; }
-.psycle-overlap-group { display: flex; flex-direction: column; gap: 6px; }
-.psycle-overlap-label {
+.sa-overlap-modal .sa-modal-body { gap: 14px; }
+.sa-overlap-modal .ab-credit-warning.ab-clash-warning { align-self: stretch; margin-top: 0; }
+.sa-overlap-group { display: flex; flex-direction: column; gap: 6px; }
+.sa-overlap-label {
   margin: 0;
   font-size: var(--text-xs);
   font-weight: 700;
@@ -5891,13 +5891,13 @@ html, body {
   text-transform: uppercase;
   color: var(--text-tertiary);
 }
-.psycle-overlap-stack { display: flex; flex-direction: column; gap: 8px; }
-.psycle-overlap-more { margin: 0; font-size: var(--text-xs); color: var(--text-tertiary); }
-.psycle-overlap-actions { display: flex; justify-content: flex-end; gap: 10px; padding-top: 2px; }
-.psycle-overlap-actions .psycle-btn { min-height: 44px; padding-left: 18px; padding-right: 18px; }
+.sa-overlap-stack { display: flex; flex-direction: column; gap: 8px; }
+.sa-overlap-more { margin: 0; font-size: var(--text-xs); color: var(--text-tertiary); }
+.sa-overlap-actions { display: flex; justify-content: flex-end; gap: 10px; padding-top: 2px; }
+.sa-overlap-actions .psycle-btn { min-height: 44px; padding-left: 18px; padding-right: 18px; }
 @media (max-width: 480px) {
-  .psycle-overlap-actions { flex-direction: column-reverse; }
-  .psycle-overlap-actions .psycle-btn { width: 100%; }
+  .sa-overlap-actions { flex-direction: column-reverse; }
+  .sa-overlap-actions .psycle-btn { width: 100%; }
 }
 
 /* action rail — collapsed by default, slid in by .ab-rail-toggle (cards.js
@@ -6267,7 +6267,7 @@ html, body {
 }
 
 /* ── Auto-upgrade status chip variants ─────────────────────────── */
-.psycle-upgrade-status-chip {
+.sa-upgrade-status-chip {
   font-size: 12px;
   font-weight: 700;
   white-space: nowrap;
@@ -6276,22 +6276,22 @@ html, body {
   border: 1px solid transparent;
   flex-shrink: 0;
 }
-.psycle-upgrade-status-chip.state-active {
+.sa-upgrade-status-chip.state-active {
   color: var(--success);
   border-color: color-mix(in srgb, var(--success) 30%, transparent);
   background: color-mix(in srgb, var(--success) 15%, transparent);
 }
-.psycle-upgrade-status-chip.state-warning {
+.sa-upgrade-status-chip.state-warning {
   color: var(--warning);
   border-color: color-mix(in srgb, var(--warning) 30%, transparent);
   background: color-mix(in srgb, var(--warning) 15%, transparent);
 }
-.psycle-upgrade-status-chip.state-upgrade {
+.sa-upgrade-status-chip.state-upgrade {
   color: var(--feat-autoupgrade);
   border-color: color-mix(in srgb, var(--feat-autoupgrade) 30%, transparent);
   background: color-mix(in srgb, var(--feat-autoupgrade) 15%, transparent);
 }
-.psycle-upgrade-status-chip.state-stopped {
+.sa-upgrade-status-chip.state-stopped {
   color: var(--text-tertiary);
   border-color: color-mix(in srgb, var(--text) 20%, transparent);
   background: color-mix(in srgb, var(--text) 5%, transparent);
@@ -6969,7 +6969,7 @@ html, body {
    When minimized the terminal collapses to a tiny circle with "D",
    instead of a wide bar that overlaps the mobile bottom nav.
    ========================================================= */
-#psycle-debug-terminal.psycle-debug-minimized {
+#sa-debug-terminal.sa-debug-minimized {
   width: 36px !important;
   height: 36px !important;
   max-height: 36px !important;
@@ -6978,16 +6978,16 @@ html, body {
   cursor: pointer;
   transition: width 0.2s ease, height 0.2s ease, border-radius 0.2s ease;
 }
-#psycle-debug-terminal.psycle-debug-minimized #psycle-debug-fab {
+#sa-debug-terminal.sa-debug-minimized #sa-debug-fab {
   display: flex !important;
 }
-#psycle-debug-terminal.psycle-debug-minimized #psycle-debug-terminal-header,
-#psycle-debug-terminal.psycle-debug-minimized #psycle-debug-log {
+#sa-debug-terminal.sa-debug-minimized #sa-debug-terminal-header,
+#sa-debug-terminal.sa-debug-minimized #sa-debug-log {
   display: none !important;
 }
 /* On mobile, lift the FAB above the bottom nav bar so it doesn't overlap */
 @media (max-width: 768px) {
-  #psycle-debug-terminal.psycle-debug-minimized {
+  #sa-debug-terminal.sa-debug-minimized {
     bottom: calc(64px + env(safe-area-inset-bottom)) !important;
   }
 }
@@ -9011,12 +9011,12 @@ body::after { z-index: 1000002 !important; }
 
 /* ============================================================================
    MOBILE PAGE-MODALS (modal-to-fullscreen-spec, Batch 1).
-   Opt-in: ui/modal-nav.js adds `.psycle-page` to a modal only at <= 768px, so
+   Opt-in: ui/modal-nav.js adds `.sa-page` to a modal only at <= 768px, so
    un-wired modals and all desktop rendering are untouched. Kept LAST in the file
    (source order beats ties) and !important where it must beat inline widths.
    ============================================================================ */
 @media (max-width: 768px) {
-  .psycle-modal.psycle-page {
+  .sa-modal.sa-page {
     top: 0 !important; left: 0 !important;
     width: 100% !important;
     height: var(--vvh, 100dvh) !important;
@@ -9029,10 +9029,10 @@ body::after { z-index: 1000002 !important; }
     transform: translateY(100%);
     transition: transform 0.22s cubic-bezier(0.25, 1, 0.5, 1), opacity 0.22s ease !important;
   }
-  .psycle-modal.psycle-page.show { transform: none; }
-  .psycle-modal.psycle-page > .psycle-modal-overlay { display: none !important; }
-  .psycle-modal.psycle-page > .psycle-modal-card,
-  .psycle-modal.psycle-page > .psycle-modal-content {
+  .sa-modal.sa-page.show { transform: none; }
+  .sa-modal.sa-page > .sa-modal-overlay { display: none !important; }
+  .sa-modal.sa-page > .sa-modal-card,
+  .sa-modal.sa-page > .sa-modal-content {
     width: 100% !important;
     max-width: none !important;
     height: 100% !important;
@@ -9045,29 +9045,29 @@ body::after { z-index: 1000002 !important; }
     backdrop-filter: none !important;
     -webkit-backdrop-filter: none !important;
   }
-  .psycle-modal.psycle-page .psycle-modal-header {
+  .sa-modal.sa-page .sa-modal-header {
     flex-shrink: 0;
     min-height: 52px;
     padding: calc(env(safe-area-inset-top, 0px) + 8px) calc(8px + env(safe-area-inset-right, 0px)) 8px calc(8px + env(safe-area-inset-left, 0px)) !important;
     gap: 4px;
   }
-  .psycle-modal.psycle-page .psycle-modal-header::before { content: ''; flex: 0 0 44px; }
-  .psycle-modal.psycle-page .psycle-modal-header:has(> [data-nav="back"])::before { display: none; }
-  .psycle-modal.psycle-page .psycle-modal-header:has(> [data-nav="back"])::after { content: ''; flex: 0 0 44px; }
-  .psycle-modal.psycle-page .psycle-modal-header h3,
-  .psycle-modal.psycle-page .psycle-modal-header h4 {
+  .sa-modal.sa-page .sa-modal-header::before { content: ''; flex: 0 0 44px; }
+  .sa-modal.sa-page .sa-modal-header:has(> [data-nav="back"])::before { display: none; }
+  .sa-modal.sa-page .sa-modal-header:has(> [data-nav="back"])::after { content: ''; flex: 0 0 44px; }
+  .sa-modal.sa-page .sa-modal-header h3,
+  .sa-modal.sa-page .sa-modal-header h4 {
     flex: 1; min-width: 0; text-align: center;
     white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
     outline: none;
   }
-  .psycle-modal.psycle-page .psycle-modal-close-btn {
+  .sa-modal.sa-page .sa-modal-close-btn {
     flex: 0 0 44px; width: 44px; height: 44px; min-width: 44px;
     padding: 0 !important; display: inline-flex; align-items: center; justify-content: center;
     transform: none !important;
   }
-  .psycle-modal.psycle-page .psycle-modal-close-btn[data-nav="back"] { order: -1; font-size: 0; }
-  .psycle-modal.psycle-page .psycle-modal-close-btn[data-nav="back"]::before { content: '\2039'; font-size: 32px; line-height: 1; }
-  .psycle-modal.psycle-page .psycle-modal-body {
+  .sa-modal.sa-page .sa-modal-close-btn[data-nav="back"] { order: -1; font-size: 0; }
+  .sa-modal.sa-page .sa-modal-close-btn[data-nav="back"]::before { content: '\2039'; font-size: 32px; line-height: 1; }
+  .sa-modal.sa-page .sa-modal-body {
     flex: 1 1 auto;
     min-height: 0;
     max-height: none !important;
@@ -9078,7 +9078,7 @@ body::after { z-index: 1000002 !important; }
   }
 }
 @media (max-width: 768px) and (prefers-reduced-motion: reduce) {
-  .psycle-modal.psycle-page { transform: none; transition: opacity 0.15s ease !important; }
+  .sa-modal.sa-page { transform: none; transition: opacity 0.15s ease !important; }
 }
 body.psycle-scroll-locked { overflow: hidden; }
 body.psycle-scroll-locked { overflow: hidden; }
@@ -9086,57 +9086,57 @@ body.psycle-scroll-locked { overflow: hidden; }
 /* Batch 2: form pages (Gym link / re-auth / Change Password) and the Favourites page. */
 @media (max-width: 768px) {
   /* >= 16px stops iOS zooming on focus. */
-  .psycle-modal.psycle-page input,
-  .psycle-modal.psycle-page select,
-  .psycle-modal.psycle-page textarea { font-size: 16px !important; }
+  .sa-modal.sa-page input,
+  .sa-modal.sa-page select,
+  .sa-modal.sa-page textarea { font-size: 16px !important; }
   /* Primary action stays reachable above the keyboard / home indicator. */
-  .psycle-modal.psycle-page #psycle-link-gym-submit,
-  .psycle-modal.psycle-page #psycle-pw-submit { position: sticky; bottom: 0; flex-shrink: 0; }
+  .sa-modal.sa-page #psycle-link-gym-submit,
+  .sa-modal.sa-page #psycle-pw-submit { position: sticky; bottom: 0; flex-shrink: 0; }
 
-  /* Favourites is built by autobook.js with inline styles (no .psycle-modal shell). */
-  .psycle-ovl.psycle-page {
+  /* Favourites is built by autobook.js with inline styles (no .sa-modal shell). */
+  .sa-ovl.sa-page {
     inset: 0 !important; width: 100% !important; height: var(--vvh, 100dvh) !important;
     padding: 0 !important; align-items: stretch !important; justify-content: stretch !important;
     background: var(--bg) !important; z-index: 2000000 !important;
     transform: translateY(100%); transition: transform 0.22s cubic-bezier(0.25, 1, 0.5, 1);
   }
-  .psycle-ovl.psycle-page.show { transform: none; }
-  .psycle-ovl.psycle-page > .psycle-ovl-card {
+  .sa-ovl.sa-page.show { transform: none; }
+  .sa-ovl.sa-page > .sa-ovl-card {
     max-width: none !important; width: 100% !important; height: 100% !important; max-height: none !important;
     border: 0 !important; border-radius: 0 !important;
   }
-  .psycle-ovl.psycle-page .psycle-ovl-header {
+  .sa-ovl.sa-page .sa-ovl-header {
     min-height: 52px; gap: 4px;
     padding: calc(env(safe-area-inset-top, 0px) + 8px) calc(8px + env(safe-area-inset-right, 0px)) 8px calc(16px + env(safe-area-inset-left, 0px)) !important;
   }
-  .psycle-ovl.psycle-page .psycle-ovl-header h3 { outline: none; }
-  .psycle-ovl.psycle-page .psycle-ovl-body {
+  .sa-ovl.sa-page .sa-ovl-header h3 { outline: none; }
+  .sa-ovl.sa-page .sa-ovl-body {
     min-height: 0; overscroll-behavior: contain; -webkit-overflow-scrolling: touch;
     padding: 12px 16px calc(16px + env(safe-area-inset-bottom, 0px)) !important;
   }
-  .psycle-ovl.psycle-page .psycle-ovl-body > .psycle-btn { position: sticky; bottom: 0; }
+  .sa-ovl.sa-page .sa-ovl-body > .psycle-btn { position: sticky; bottom: 0; }
 }
 @media (max-width: 768px) and (prefers-reduced-motion: reduce) {
-  .psycle-ovl.psycle-page { transform: none; transition: none; }
+  .sa-ovl.sa-page { transform: none; transition: none; }
 }
 
 /* Batch 3: booking shell pages + spot-editor child page. */
 @media (max-width: 768px) {
-  .psycle-ovl.psycle-page .psycle-ovl-header [data-nav-title] { flex: 1; min-width: 0; text-align: center; outline: none; }
-  .psycle-ovl.psycle-page .psycle-ovl-header [data-nav-close] {
+  .sa-ovl.sa-page .sa-ovl-header [data-nav-title] { flex: 1; min-width: 0; text-align: center; outline: none; }
+  .sa-ovl.sa-page .sa-ovl-header [data-nav-close] {
     flex: 0 0 44px; width: 44px; height: 44px; font-size: 28px !important; display: inline-flex; align-items: center; justify-content: center;
   }
-  .psycle-ovl.psycle-page .psycle-ovl-header [data-nav-close][data-nav="back"] { order: -1; font-size: 0 !important; }
-  .psycle-ovl.psycle-page .psycle-ovl-header [data-nav-close][data-nav="back"]::before { content: '\2039'; font-size: 32px; line-height: 1; }
+  .sa-ovl.sa-page .sa-ovl-header [data-nav-close][data-nav="back"] { order: -1; font-size: 0 !important; }
+  .sa-ovl.sa-page .sa-ovl-header [data-nav-close][data-nav="back"]::before { content: '\2039'; font-size: 32px; line-height: 1; }
   /* The map must use the full page width and pan without fighting page scroll. */
-  .psycle-page .psycle-floor-scroll { touch-action: pan-x pan-y; }
+  .sa-page .psycle-floor-scroll { touch-action: pan-x pan-y; }
 }
 @media (max-width: 768px) {
   /* Primary action = sticky footer, above the iOS home indicator. */
-  .psycle-page #psycle-modal-controls-container,
-  .psycle-page #psycle-edit-controls,
-  .psycle-page .psycle-spotmap-actions,
-  .psycle-ovl.psycle-page .psycle-ovl-body > .psycle-btn {
+  .sa-page #sa-modal-controls-container,
+  .sa-page #psycle-edit-controls,
+  .sa-page .sa-spotmap-actions,
+  .sa-ovl.sa-page .sa-ovl-body > .psycle-btn {
     position: sticky; bottom: 0; z-index: 3;
     background: var(--bg);
     padding-top: 8px;
@@ -9147,25 +9147,25 @@ body.psycle-scroll-locked { overflow: hidden; }
 @media (max-width: 768px) {
   /* Page body padding is 16px; the legacy -18px breakout would overflow by 4px. */
   /* `#sa-helper-container * { margin: 0 }` outranks plain class rules, hence !important. */
-  .psycle-page .psycle-modal-body .psycle-floor-scroll { margin-left: -16px !important; margin-right: -16px !important; width: calc(100% + 32px); }
+  .sa-page .sa-modal-body .psycle-floor-scroll { margin-left: -16px !important; margin-right: -16px !important; width: calc(100% + 32px); }
 }
 @media (max-width: 768px) {
   /* Dragging the map pans the map only: no page scroll behind it, no scroll chaining. */
-  .psycle-page .psycle-floor-scroll { overscroll-behavior: contain; }
+  .sa-page .psycle-floor-scroll { overscroll-behavior: contain; }
 }
 
 /* Batch 5: checkout page, overlap dialog, polish. */
 @media (max-width: 768px) {
-  /* The purchase body is not a .psycle-modal-body; make it the scroller of the page. */
-  .psycle-modal.psycle-page .psycle-purchase-body {
+  /* The purchase body is not a .sa-modal-body; make it the scroller of the page. */
+  .sa-modal.sa-page .sa-purchase-body {
     flex: 1 1 auto; min-height: 0; overflow-y: auto; overscroll-behavior: contain;
     padding: 16px 16px calc(20px + env(safe-area-inset-bottom, 0px)) !important;
   }
   /* No dismissal while a charge is in flight. */
-  .psycle-modal.psycle-page.is-busy .psycle-modal-close-btn { visibility: hidden; }
-  /* Overlap is a full-screen page (shared .psycle-page shell): header X closes, actions are a sticky footer. */
-  .psycle-overlap-modal.psycle-page .psycle-modal-card { width: 100% !important; }
-  .psycle-overlap-modal.psycle-page .psycle-overlap-actions {
+  .sa-modal.sa-page.is-busy .sa-modal-close-btn { visibility: hidden; }
+  /* Overlap is a full-screen page (shared .sa-page shell): header X closes, actions are a sticky footer. */
+  .sa-overlap-modal.sa-page .sa-modal-card { width: 100% !important; }
+  .sa-overlap-modal.sa-page .sa-overlap-actions {
     position: sticky; bottom: 0; margin-top: auto; padding-top: 12px; background: var(--bg);
   }
 }
@@ -9233,26 +9233,26 @@ body.psycle-scroll-locked { overscroll-behavior: none; }
 html.psycle-scroll-locked { overflow: hidden !important; background: var(--bg) !important; overscroll-behavior: none; }
 @media (max-width: 768px) {
   body.psycle-scroll-locked { background: var(--bg); }
-  [data-psycle-nav-inert] { visibility: hidden !important; }
+  [data-sa-nav-inert] { visibility: hidden !important; }
   /* Pin pages to the VISUAL viewport (iOS keyboard): no app showing around the accessory bar. */
-  .psycle-modal.psycle-page,
-  .psycle-ovl.psycle-page { top: var(--vvt, 0px) !important; bottom: auto !important; }
-  .psycle-modal.psycle-page .psycle-modal-header { background: var(--bg) !important; }
+  .sa-modal.sa-page,
+  .sa-ovl.sa-page { top: var(--vvt, 0px) !important; bottom: auto !important; }
+  .sa-modal.sa-page .sa-modal-header { background: var(--bg) !important; }
 
   /* Sticky Close footer on single-step info pages (added by modal-nav closeFooter). */
-  .psycle-page .psycle-modal-footer {
+  .sa-page .sa-modal-footer {
     display: flex; flex-shrink: 0; padding: 10px 16px calc(10px + env(safe-area-inset-bottom, 0px));
     background: var(--bg); border-top: 1px solid var(--border);
   }
-  .psycle-page .psycle-modal-footer .psycle-page-close { width: 100%; min-height: 48px; font-size: 16px; font-weight: 600; }
+  .sa-page .sa-modal-footer .sa-page-close { width: 100%; min-height: 48px; font-size: 16px; font-weight: 600; }
 
   /* Link / re-auth / password form: normal top-aligned flow, not a stretched flex column. */
-  .psycle-modal.psycle-page #psycle-gym-modal-body { display: block !important; }
-  .psycle-modal.psycle-page #psycle-gym-modal-body .psycle-setting-label { display: block; margin: 12px 0 6px; font-size: 14px; }
-  .psycle-modal.psycle-page #psycle-gym-modal-body .psycle-input,
-  .psycle-modal.psycle-page #psycle-gym-modal-body .psycle-select { min-height: 48px; }
-  .psycle-modal.psycle-page #psycle-link-gym-submit,
-  .psycle-modal.psycle-page #psycle-pw-submit { min-height: 48px; margin-top: 8px; }
+  .sa-modal.sa-page #psycle-gym-modal-body { display: block !important; }
+  .sa-modal.sa-page #psycle-gym-modal-body .psycle-setting-label { display: block; margin: 12px 0 6px; font-size: 14px; }
+  .sa-modal.sa-page #psycle-gym-modal-body .psycle-input,
+  .sa-modal.sa-page #psycle-gym-modal-body .psycle-select { min-height: 48px; }
+  .sa-modal.sa-page #psycle-link-gym-submit,
+  .sa-modal.sa-page #psycle-pw-submit { min-height: 48px; margin-top: 8px; }
 
   /* Spot-maps picker: logos, bigger type, >= 44px tap targets. */
   .psycle-spm-gym { display: flex !important; align-items: center; gap: 12px; margin: 14px 0 6px !important; font-size: 18px !important; }
@@ -9264,60 +9264,60 @@ html.psycle-scroll-locked { overflow: hidden !important; background: var(--bg) !
 }
 @media (max-width: 768px) {
   /* Page titles take programmatic focus (a11y); never draw a ring around them. */
-  .psycle-page [tabindex="-1"]:focus, .psycle-page [tabindex="-1"]:focus-visible { outline: none !important; box-shadow: none !important; }
+  .sa-page [tabindex="-1"]:focus, .sa-page [tabindex="-1"]:focus-visible { outline: none !important; box-shadow: none !important; }
   .psycle-gym-form-logo { display: block; margin-bottom: 16px; }
 }
 @media (max-width: 768px) {
   /* ONE scrollbar per page: inner boxes with their own max-height + overflow (raw JSON <pre>, change log)
      flow into the page body instead of becoming a second scroller. */
-  .psycle-page .psycle-modal-body [style*="max-height"][style*="overflow"],
-  .psycle-page .psycle-modal-body pre { max-height: none !important; overflow-y: visible !important; }
+  .sa-page .sa-modal-body [style*="max-height"][style*="overflow"],
+  .sa-page .sa-modal-body pre { max-height: none !important; overflow-y: visible !important; }
 }
 /* Form logo remains mobile-only; heading and connection logos show across all viewports. */
 .psycle-gym-form-logo { display: none; }
 @media (max-width: 768px) {
   .psycle-gym-form-logo { display: block; }
 }
-.psycle-modal-footer { display: none; }
+.sa-modal-footer { display: none; }
 
 /* ===== Spot-map booking flow, batch 1: identity strip, class card, helper (mobile only) ===== */
-.psycle-bk-identity, .psycle-bk-classcard, .psycle-bk-helper { display: none; }
+.sa-bk-identity, .sa-bk-classcard, .sa-bk-helper { display: none; }
 @media (max-width: 768px) {
-  .psycle-modal.psycle-page .psycle-bk-identity {
+  .sa-modal.sa-page .sa-bk-identity {
     display: flex; align-items: center; gap: 12px; flex-shrink: 0;
     padding: 10px 16px; background: var(--bg); border-bottom: 1px solid var(--border);
   }
-  .psycle-bk-identity .psycle-gym-mark { width: 36px; height: 36px; flex-shrink: 0; }
-  .psycle-bk-identity-text { display: flex; flex-direction: column; min-width: 0; }
-  .psycle-bk-identity-text strong { font-size: 15px; color: var(--text); }
-  .psycle-bk-identity-text span { font-size: 13px; color: var(--text-secondary); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .sa-bk-identity .psycle-gym-mark { width: 36px; height: 36px; flex-shrink: 0; }
+  .sa-bk-identity-text { display: flex; flex-direction: column; min-width: 0; }
+  .sa-bk-identity-text strong { font-size: 15px; color: var(--text); }
+  .sa-bk-identity-text span { font-size: 13px; color: var(--text-secondary); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 
-  .psycle-modal.psycle-page .psycle-bk-helper {
+  .sa-modal.sa-page .sa-bk-helper {
     display: flex; align-items: flex-start; gap: 8px; margin: 0 0 2px; padding: 6px 4px 6px 12px;
     background: color-mix(in srgb, var(--feat-autoupgrade) 8%, var(--bg)); border: 1px solid color-mix(in srgb, var(--feat-autoupgrade) 18%, transparent); border-radius: 10px;
     font-size: 13px; line-height: 1.4; color: var(--text-secondary);
   }
-  .psycle-bk-helper p { margin: 0; flex: 1; }
-  .psycle-bk-helper-x { flex: 0 0 44px; width: 44px; height: 44px; margin: -10px 0 -10px 0; background: none; border: 0; font-size: 24px; color: var(--text-secondary); cursor: pointer; }
-  .psycle-booking-controls.is-spot-flow { background: transparent !important; border: 0 !important; border-radius: 0 !important; padding: 0 !important; gap: 8px !important; }
+  .sa-bk-helper p { margin: 0; flex: 1; }
+  .sa-bk-helper-x { flex: 0 0 44px; width: 44px; height: 44px; margin: -10px 0 -10px 0; background: none; border: 0; font-size: 24px; color: var(--text-secondary); cursor: pointer; }
+  .sa-booking-controls.is-spot-flow { background: transparent !important; border: 0 !important; border-radius: 0 !important; padding: 0 !important; gap: 8px !important; }
 
-  .psycle-modal.psycle-page .psycle-bk-classcard {
+  .sa-modal.sa-page .sa-bk-classcard {
     display: block; margin: 0 0 10px; padding: 10px 12px; background: var(--surface-inset); border: 1px solid var(--border); border-radius: 12px;
   }
-  .psycle-bk-classcard-label { font-size: 11px; font-weight: 700; letter-spacing: 0.06em; text-transform: uppercase; color: var(--text-tertiary); margin-bottom: 6px; }
-  .psycle-bk-classcard-main { display: flex; align-items: center; gap: 12px; }
-  .psycle-bk-classcard-text { display: flex; flex-direction: column; min-width: 0; }
-  .psycle-bk-class-name { font-size: 16px; color: var(--text); }
-  .psycle-bk-class-instructor, .psycle-bk-class-when { font-size: 13px; color: var(--text-secondary); }
+  .sa-bk-classcard-label { font-size: 11px; font-weight: 700; letter-spacing: 0.06em; text-transform: uppercase; color: var(--text-tertiary); margin-bottom: 6px; }
+  .sa-bk-classcard-main { display: flex; align-items: center; gap: 12px; }
+  .sa-bk-classcard-text { display: flex; flex-direction: column; min-width: 0; }
+  .sa-bk-class-name { font-size: 16px; color: var(--text); }
+  .sa-bk-class-instructor, .sa-bk-class-when { font-size: 13px; color: var(--text-secondary); }
 
   /* Auto-Upgrade rows: a real 44px tap target. */
-  .psycle-page label:has(> #simplebook-auto-upgrade), .psycle-page label:has(> #quickbook-auto-upgrade), .psycle-page label:has(> #autobook-auto-upgrade) { min-height: 44px; }
+  .sa-page label:has(> #simplebook-auto-upgrade), .sa-page label:has(> #quickbook-auto-upgrade), .sa-page label:has(> #autobook-auto-upgrade) { min-height: 44px; }
 }
 
 /* ===== Spot-map booking flow, batch 2: Step A page, stepper, Auto-Upgrade row (mobile only) ===== */
 .psycle-stepper { display: none; }
 @media (max-width: 768px) {
-  .psycle-modal.psycle-page .psycle-stepper {
+  .sa-modal.sa-page .psycle-stepper {
     display: flex; gap: 8px; list-style: none; margin: 0; padding: 8px 16px; flex-shrink: 0;
     background: var(--bg); border-bottom: 1px solid var(--border); font-size: 13px;
   }
@@ -9329,34 +9329,34 @@ html.psycle-scroll-locked { overflow: hidden !important; background: var(--bg) !
 
   /* Step A: body is a flex column; the inner block uses auto margins, so it is vertically centred when it
      fits and top-aligned (scrolling) when it does not, never clipped. */
-  .psycle-setup-page .psycle-setup-body { display: flex !important; flex-direction: column; }
-  .psycle-setup-inner { width: 100%; max-width: 390px; margin: auto auto !important; display: flex; flex-direction: column; align-items: center; text-align: center; gap: 12px; padding: 12px 14px; }
-  .psycle-setup-logo .psycle-gym-logo-banner { display: inline-flex; }
-  .psycle-setup-logo .psycle-gym-chip { min-width: 150px !important; height: 64px !important; }
-  .psycle-setup-logo .psycle-gym-chip-logo .ab-gym-logo-img, .psycle-setup-logo .psycle-gym-chip-logo .ab-gym-logo-svg { height: 32px !important; max-width: 150px !important; }
-  .psycle-setup-where { font-size: 14px; color: var(--text-secondary); }
-  .psycle-setup-preview { width: 200px; height: 84px; margin: 6px 0; }
-  .psycle-setup-preview .pv-spot { fill: color-mix(in srgb, var(--text) 10%, transparent); }
-  .psycle-setup-preview .pv-pick { fill: var(--accent); }
-  .psycle-setup-preview .pv-n { fill: var(--on-accent); font-size: 11px; font-weight: 700; }
-  .psycle-setup-eyebrow { margin: 4px 0 0; font-size: 12px; font-weight: 700; letter-spacing: 0.06em; text-transform: uppercase; color: var(--text-tertiary); }
-  .psycle-setup-headline { margin: 0; max-width: 330px; font-family: var(--font-serif); font-size: 27px; font-weight: 600; line-height: 1.12; color: var(--text); outline: none; }
-  .psycle-setup-points { width: 100%; max-width: 330px; margin: 2px 0 0; padding: 0; list-style: none; display: flex; flex-direction: column; gap: 10px; font-size: 15px; line-height: 1.4; color: var(--text-secondary); text-align: left; }
-  .psycle-setup-points li { position: relative; padding-left: 18px; }
-  .psycle-setup-points li::before { content: '•'; position: absolute; left: 2px; color: var(--accent); font-weight: 800; }
-  .psycle-setup-points .p1 { color: var(--text); font-weight: 600; }
-  .psycle-setup-reassure { margin: 2px 0 0; font-size: 13px; color: var(--text-tertiary); }
-  .psycle-setup-check { width: 64px; height: 64px; border-radius: 50%; background: color-mix(in srgb, var(--success) 15%, transparent); color: var(--success); display: flex; align-items: center; justify-content: center; font-size: 34px; }
-  .psycle-setup-loading { display: flex; justify-content: center; padding: 40px 0; }
+  .sa-setup-page .sa-setup-body { display: flex !important; flex-direction: column; }
+  .sa-setup-inner { width: 100%; max-width: 390px; margin: auto auto !important; display: flex; flex-direction: column; align-items: center; text-align: center; gap: 12px; padding: 12px 14px; }
+  .sa-setup-logo .psycle-gym-logo-banner { display: inline-flex; }
+  .sa-setup-logo .psycle-gym-chip { min-width: 150px !important; height: 64px !important; }
+  .sa-setup-logo .psycle-gym-chip-logo .ab-gym-logo-img, .sa-setup-logo .psycle-gym-chip-logo .ab-gym-logo-svg { height: 32px !important; max-width: 150px !important; }
+  .sa-setup-where { font-size: 14px; color: var(--text-secondary); }
+  .sa-setup-preview { width: 200px; height: 84px; margin: 6px 0; }
+  .sa-setup-preview .pv-spot { fill: color-mix(in srgb, var(--text) 10%, transparent); }
+  .sa-setup-preview .pv-pick { fill: var(--accent); }
+  .sa-setup-preview .pv-n { fill: var(--on-accent); font-size: 11px; font-weight: 700; }
+  .sa-setup-eyebrow { margin: 4px 0 0; font-size: 12px; font-weight: 700; letter-spacing: 0.06em; text-transform: uppercase; color: var(--text-tertiary); }
+  .sa-setup-headline { margin: 0; max-width: 330px; font-family: var(--font-serif); font-size: 27px; font-weight: 600; line-height: 1.12; color: var(--text); outline: none; }
+  .sa-setup-points { width: 100%; max-width: 330px; margin: 2px 0 0; padding: 0; list-style: none; display: flex; flex-direction: column; gap: 10px; font-size: 15px; line-height: 1.4; color: var(--text-secondary); text-align: left; }
+  .sa-setup-points li { position: relative; padding-left: 18px; }
+  .sa-setup-points li::before { content: '•'; position: absolute; left: 2px; color: var(--accent); font-weight: 800; }
+  .sa-setup-points .p1 { color: var(--text); font-weight: 600; }
+  .sa-setup-reassure { margin: 2px 0 0; font-size: 13px; color: var(--text-tertiary); }
+  .sa-setup-check { width: 64px; height: 64px; border-radius: 50%; background: color-mix(in srgb, var(--success) 15%, transparent); color: var(--success); display: flex; align-items: center; justify-content: center; font-size: 34px; }
+  .sa-setup-loading { display: flex; justify-content: center; padding: 40px 0; }
 
-  .psycle-setup-footer { flex-direction: column; gap: 8px; }
-  .psycle-setup-footer .psycle-setup-primary { width: 100%; min-height: 48px; font-size: 16px; font-weight: 600; }
-  .psycle-setup-link { background: none; border: 0; min-height: 44px; font-size: 15px; color: var(--accent); text-decoration: underline; cursor: pointer; }
-  .psycle-setup-count { font-size: 13px; font-weight: 600; color: var(--text-secondary); text-align: center; }
-  .psycle-setup-reason { font-size: 12px; color: var(--text-tertiary); text-align: center; min-height: 0; }
-  .psycle-setup-reason:empty { display: none; }
-  .psycle-setup-error { padding: 10px 12px; border-radius: 10px; font-size: 13px; color: var(--danger); background: color-mix(in srgb, var(--danger) 10%, transparent); border: 1px solid color-mix(in srgb, var(--danger) 25%, transparent); text-align: center; }
-  .psycle-setup-error[hidden] { display: none; }
+  .sa-setup-footer { flex-direction: column; gap: 8px; }
+  .sa-setup-footer .sa-setup-primary { width: 100%; min-height: 48px; font-size: 16px; font-weight: 600; }
+  .sa-setup-link { background: none; border: 0; min-height: 44px; font-size: 15px; color: var(--accent); text-decoration: underline; cursor: pointer; }
+  .sa-setup-count { font-size: 13px; font-weight: 600; color: var(--text-secondary); text-align: center; }
+  .sa-setup-reason { font-size: 12px; color: var(--text-tertiary); text-align: center; min-height: 0; }
+  .sa-setup-reason:empty { display: none; }
+  .sa-setup-error { padding: 10px 12px; border-radius: 10px; font-size: 13px; color: var(--danger); background: color-mix(in srgb, var(--danger) 10%, transparent); border: 1px solid color-mix(in srgb, var(--danger) 25%, transparent); text-align: center; }
+  .sa-setup-error[hidden] { display: none; }
 
   /* Auto-Upgrade needs spots: an explained state with a real button. */
   .psycle-au-needs { display: flex; align-items: center; justify-content: space-between; gap: 10px; padding: 8px 0; font-size: 13px; color: var(--text-secondary); }
@@ -9365,23 +9365,23 @@ html.psycle-scroll-locked { overflow: hidden !important; background: var(--bg) !
 }
 
 /* ===== Spot-map booking flow, batch 3: variants, banner, guards, compact page (mobile only) ===== */
-.psycle-bk-notice, .psycle-bk-compact { display: none; }
+.sa-bk-notice, .sa-bk-compact { display: none; }
 @media (max-width: 768px) {
-  .psycle-bk-class-release { font-size: 13px; font-weight: 600; color: var(--feat-autoupgrade); }
-  .psycle-bk-class-release[hidden] { display: none; }
-  .psycle-bk-banner .psycle-bk-banner-action { flex: 0 0 auto; min-height: 44px; padding: 8px 12px; font-size: 14px; align-self: center; white-space: nowrap; }
-  .psycle-modal.psycle-page .psycle-bk-notice {
+  .sa-bk-class-release { font-size: 13px; font-weight: 600; color: var(--feat-autoupgrade); }
+  .sa-bk-class-release[hidden] { display: none; }
+  .sa-bk-banner .sa-bk-banner-action { flex: 0 0 auto; min-height: 44px; padding: 8px 12px; font-size: 14px; align-self: center; white-space: nowrap; }
+  .sa-modal.sa-page .sa-bk-notice {
     display: flex; align-items: center; justify-content: space-between; gap: 10px; flex-shrink: 0;
     padding: 10px 16px; font-size: 13px; color: var(--danger);
     background: color-mix(in srgb, var(--danger) 10%, var(--bg)); border-bottom: 1px solid color-mix(in srgb, var(--danger) 25%, transparent);
   }
-  .psycle-bk-notice-action { min-height: 44px; padding: 8px 14px; }
-  .psycle-modal.psycle-page .psycle-bk-compact { display: flex; flex-direction: column; gap: 16px; padding: 8px 0; }
-  .psycle-bk-compact p { margin: 0; font-size: 15px; line-height: 1.45; color: var(--text-secondary); }
-  .psycle-bk-compact-qty { display: flex; align-items: center; justify-content: space-between; gap: 12px; font-size: 15px; color: var(--text); }
-  .psycle-bk-compact-qty select { width: 90px; min-height: 44px; }
-  .psycle-bk-compact .psycle-btn { min-height: 48px; font-size: 16px; font-weight: 600; position: sticky; bottom: 0; }
-  .psycle-bk-compact-qty { margin: 0; }
+  .sa-bk-notice-action { min-height: 44px; padding: 8px 14px; }
+  .sa-modal.sa-page .sa-bk-compact { display: flex; flex-direction: column; gap: 16px; padding: 8px 0; }
+  .sa-bk-compact p { margin: 0; font-size: 15px; line-height: 1.45; color: var(--text-secondary); }
+  .sa-bk-compact-qty { display: flex; align-items: center; justify-content: space-between; gap: 12px; font-size: 15px; color: var(--text); }
+  .sa-bk-compact-qty select { width: 90px; min-height: 44px; }
+  .sa-bk-compact .psycle-btn { min-height: 48px; font-size: 16px; font-weight: 600; position: sticky; bottom: 0; }
+  .sa-bk-compact-qty { margin: 0; }
   button[data-bk-guard] { opacity: 0.5; }
 }
 
@@ -9533,16 +9533,16 @@ html:not([data-credits-tab="on"]) .psycle-nav-btn[data-tab="buy-credits"] { disp
 }
 
 /* Auto-Upgrade setup modal (bookings.js openUpgradeConfigModal) */
-.psycle-upgrade-explainer { position: relative; font-size: 13px; line-height: 1.5; color: var(--text); background: var(--surface-inset); border: 1px solid var(--border); border-left: 3px solid var(--feat-autoupgrade); border-radius: 10px; padding: 12px 36px 12px 12px; margin-bottom: 12px; }
-.psycle-upgrade-explainer p { margin: 6px 0 0; color: var(--text-secondary); }
-.psycle-upgrade-explainer-close { position: absolute; top: 4px; right: 6px; width: 28px; height: 28px; border: 0; background: transparent; color: var(--text-secondary); font-size: 20px; line-height: 1; cursor: pointer; }
-.psycle-upgrade-current { font-size: 13px; color: var(--text-secondary); margin: 10px 0; }
-.psycle-upgrade-map-summary { display: flex; flex-direction: column; gap: 8px; font-size: 13px; background: var(--surface-inset); border: 1px solid var(--border); border-radius: 10px; padding: 12px; margin-bottom: 12px; }
-.psycle-upgrade-edit-map, .psycle-upgrade-back { background: color-mix(in srgb, var(--text) 6%, transparent) !important; border: 1px solid color-mix(in srgb, var(--text) 12%, transparent) !important; color: var(--text) !important; }
-.psycle-upgrade-back { width: 100%; margin-top: 10px; }
-.psycle-upgrade-keep { display: flex; align-items: flex-start; gap: 10px; font-size: 13px; cursor: pointer; line-height: 1.4; background: var(--surface-inset); border: 1px solid var(--border); border-radius: 10px; padding: 12px; margin-bottom: 12px; }
-.psycle-upgrade-keep input { margin-top: 2px; }
-.psycle-upgrade-keep-help { font-size: 12px; color: var(--text-tertiary); }
+.sa-upgrade-explainer { position: relative; font-size: 13px; line-height: 1.5; color: var(--text); background: var(--surface-inset); border: 1px solid var(--border); border-left: 3px solid var(--feat-autoupgrade); border-radius: 10px; padding: 12px 36px 12px 12px; margin-bottom: 12px; }
+.sa-upgrade-explainer p { margin: 6px 0 0; color: var(--text-secondary); }
+.sa-upgrade-explainer-close { position: absolute; top: 4px; right: 6px; width: 28px; height: 28px; border: 0; background: transparent; color: var(--text-secondary); font-size: 20px; line-height: 1; cursor: pointer; }
+.sa-upgrade-current { font-size: 13px; color: var(--text-secondary); margin: 10px 0; }
+.sa-upgrade-map-summary { display: flex; flex-direction: column; gap: 8px; font-size: 13px; background: var(--surface-inset); border: 1px solid var(--border); border-radius: 10px; padding: 12px; margin-bottom: 12px; }
+.sa-upgrade-edit-map, .sa-upgrade-back { background: color-mix(in srgb, var(--text) 6%, transparent) !important; border: 1px solid color-mix(in srgb, var(--text) 12%, transparent) !important; color: var(--text) !important; }
+.sa-upgrade-back { width: 100%; margin-top: 10px; }
+.sa-upgrade-keep { display: flex; align-items: flex-start; gap: 10px; font-size: 13px; cursor: pointer; line-height: 1.4; background: var(--surface-inset); border: 1px solid var(--border); border-radius: 10px; padding: 12px; margin-bottom: 12px; }
+.sa-upgrade-keep input { margin-top: 2px; }
+.sa-upgrade-keep-help { font-size: 12px; color: var(--text-tertiary); }
 
 /* Mobile filter bar: breathing room between gym logos, search and the filter group; gym tick tokens. */
 :root { --gym-tick-bg: #047857; --gym-tick-fg: #fff; --gym-tick-ring: var(--surface-1, var(--surface-2)); }

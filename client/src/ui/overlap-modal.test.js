@@ -75,10 +75,10 @@ describe('confirmOverlap dialog', () => {
   });
   afterEach(() => {
     // Every test closes its own dialog; this only guards against one that failed mid-way.
-    document.querySelector('.psycle-overlap-modal [data-overlap-cancel]')?.click();
+    document.querySelector('.sa-overlap-modal [data-overlap-cancel]')?.click();
   });
   const open = () => confirmOverlap({ subject, warnings: [clash] });
-  const dlg = () => document.querySelector('.psycle-overlap-modal');
+  const dlg = () => document.querySelector('.sa-overlap-modal');
   const press = (key, opts = {}) => {
     const e = new KeyboardEvent('keydown', { key, bubbles: true, cancelable: true, ...opts });
     (document.activeElement || document.body).dispatchEvent(e);
@@ -92,7 +92,7 @@ describe('confirmOverlap dialog', () => {
     expect(d.getAttribute('aria-modal')).toBe('true');
     expect(document.getElementById(d.getAttribute('aria-labelledby')).textContent).toBe('Overlapping class');
     expect(document.getElementById(d.getAttribute('aria-describedby')).textContent).toContain('overlaps');
-    expect(d.querySelectorAll('.psycle-overlap-card')).toHaveLength(2);
+    expect(d.querySelectorAll('.sa-overlap-card')).toHaveLength(2);
     expect(d.textContent).toContain('Auto-book anyway');
     expect(d.textContent).toContain('Cancel');
   });
@@ -111,11 +111,11 @@ describe('confirmOverlap dialog', () => {
   });
 
   it('Cancel, the close button and the backdrop all resolve false', async () => {
-    for (const sel of ['.psycle-overlap-actions [data-overlap-cancel]', '.psycle-modal-close-btn', '[data-overlap-dismiss]']) {
+    for (const sel of ['.sa-overlap-actions [data-overlap-cancel]', '.sa-modal-close-btn', '[data-overlap-dismiss]']) {
       const p = open();
       dlg().querySelector(sel).click();
       expect(await p).toBe(false);
-      document.querySelectorAll('.psycle-overlap-modal').forEach((n) => n.remove());
+      document.querySelectorAll('.sa-overlap-modal').forEach((n) => n.remove());
     }
   });
 
@@ -144,7 +144,7 @@ describe('confirmOverlap dialog', () => {
     const a = open();
     const b = open();
     expect(a).toBe(b);
-    expect(document.querySelectorAll('.psycle-overlap-modal')).toHaveLength(1);
+    expect(document.querySelectorAll('.sa-overlap-modal')).toHaveLength(1);
     dlg().querySelector('[data-overlap-confirm]').click();
     expect(await a).toBe(true);
   });

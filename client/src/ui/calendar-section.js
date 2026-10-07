@@ -209,17 +209,17 @@ export async function renderCalendarSection(targetContainer = null) {
  */
 export function openCalendarSettingsModal({ zIndex = 2000, onChange = null, onClose = null } = {}) {
   const overlay = document.createElement('div');
-  overlay.className = 'psycle-ovl';
+  overlay.className = 'sa-ovl';
   overlay.setAttribute('role', 'dialog');
   overlay.setAttribute('aria-modal', 'true');
   overlay.style.cssText = `position:fixed;inset:0;background:color-mix(in srgb, var(--bg) 60%, transparent);z-index:${zIndex};display:flex;align-items:center;justify-content:center;padding:16px;`;
   overlay.innerHTML = `
-    <div class="psycle-ovl-card" style="background:var(--bg);border:1px solid color-mix(in srgb, var(--text) 12%, transparent);border-radius:16px;width:100%;max-width:500px;max-height:90vh;display:flex;flex-direction:column;overflow:hidden;">
-      <div class="psycle-ovl-header" style="display:flex;justify-content:space-between;align-items:center;padding:14px 18px;border-bottom:1px solid color-mix(in srgb, var(--text) 8%, transparent);flex-shrink:0;">
+    <div class="sa-ovl-card" style="background:var(--bg);border:1px solid color-mix(in srgb, var(--text) 12%, transparent);border-radius:16px;width:100%;max-width:500px;max-height:90vh;display:flex;flex-direction:column;overflow:hidden;">
+      <div class="sa-ovl-header" style="display:flex;justify-content:space-between;align-items:center;padding:14px 18px;border-bottom:1px solid color-mix(in srgb, var(--text) 8%, transparent);flex-shrink:0;">
         <h3 data-nav-title style="margin:0;font-size:16px;font-weight:700;color:var(--text);"></h3>
         <button type="button" data-nav-close data-calendar-modal-close aria-label="${COPY.credits.closeModal}" style="background:none;border:none;color:var(--text-secondary);font-size:22px;cursor:pointer;padding:0;line-height:1;">×</button>
       </div>
-      <div class="psycle-ovl-body" style="flex:1;overflow-y:auto;padding:16px;"><div data-calendar-modal-section></div></div>
+      <div class="sa-ovl-body" style="flex:1;overflow-y:auto;padding:16px;"><div data-calendar-modal-section></div></div>
       <div style="padding:12px 16px;border-top:1px solid color-mix(in srgb, var(--text) 8%, transparent);flex-shrink:0;">
         <button type="button" class="psycle-btn-primary" data-calendar-modal-close style="width:100%;"></button>
       </div>

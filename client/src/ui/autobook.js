@@ -422,9 +422,9 @@ function wireCancelAutoBook(btn, card, q) {
 // Edit modal for updating an existing auto-book queue entry's configuration
 // (spot preferences, quantity, fallback toggle). Reuses the shared booking modal.
 export async function openAutoBookEditModal(q) {
-  const modal = document.getElementById('psycle-booking-modal');
-  const body = document.getElementById('psycle-booking-modal-body');
-  const title = document.getElementById('psycle-booking-modal-title');
+  const modal = document.getElementById('sa-booking-modal');
+  const body = document.getElementById('sa-booking-modal-body');
+  const title = document.getElementById('sa-booking-modal-title');
   if (!modal || !body || !title) return;
 
   const prefs = q.preferences || {};
@@ -446,8 +446,8 @@ export async function openAutoBookEditModal(q) {
   const discardOk = () => !spotMapDirty() || confirm(COPY.bookingEditor.discardChanges);
   openNavPage(modal, { id: 'autobook-edit', canClose: discardOk });
 
-  const closeBtn = document.getElementById('psycle-booking-modal-close');
-  const overlay = modal.querySelector('.psycle-modal-overlay');
+  const closeBtn = document.getElementById('sa-booking-modal-close');
+  const overlay = modal.querySelector('.sa-modal-overlay');
 
   const closeModal = () => {
     if (closeNavPage(modal)) return; // mobile page: pop its history entry

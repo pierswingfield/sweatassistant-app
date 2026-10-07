@@ -22,8 +22,8 @@ describe('onboarding calendar settings modal', () => {
     mobile(true);
     const onClose = vi.fn();
     openCalendarSettingsModal({ onClose });
-    const overlay = document.querySelector('.psycle-ovl');
-    expect(overlay.classList.contains('psycle-page')).toBe(true);
+    const overlay = document.querySelector('.sa-ovl');
+    expect(overlay.classList.contains('sa-page')).toBe(true);
     const done = overlay.querySelector('.psycle-btn-primary[data-calendar-modal-close]');
     expect(done).not.toBeNull();
     done.click();
@@ -36,7 +36,7 @@ describe('onboarding calendar settings modal', () => {
     const onClose = vi.fn();
     openCalendarSettingsModal({ onClose });
     document.querySelector('.psycle-btn-primary[data-calendar-modal-close]').click();
-    expect(document.querySelector('.psycle-ovl')).toBeNull();
+    expect(document.querySelector('.sa-ovl')).toBeNull();
     expect(onClose).toHaveBeenCalledTimes(1);
   });
 });

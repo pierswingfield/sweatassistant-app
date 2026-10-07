@@ -548,7 +548,7 @@
                   <div class="psycle-settings-card">
                     <h4 data-copy-text="static.welcomeTour">Welcome Tour</h4>
                     <p class="psycle-card-desc" data-copy-html="static.welcomeTourDescription">Replay the introduction and setup walkthrough for <span data-app-name>Sweat Assistant</span>.</p>
-                    <button id="psycle-replay-onboarding-btn" class="psycle-btn" data-copy-text="static.replayOnboarding" style="width: 100%;">Replay Onboarding</button>
+                    <button id="sa-replay-onboarding-btn" class="psycle-btn" data-copy-text="static.replayOnboarding" style="width: 100%;">Replay Onboarding</button>
                   </div>
                 </div>
               </div>
@@ -630,7 +630,7 @@
                       </div>
                       <button id="psycle-push-toggle-btn" class="psycle-btn-mini" style="width: auto;" data-copy-text="static.enablePush">Enable Push</button>
                     </div>
-                    <button id="psycle-notif-prefs-btn" class="psycle-btn" style="width: 100%; margin-top: 12px;" data-copy-text="static.customizeNotifications">Customise Notifications</button>
+                    <button id="sa-notif-prefs-btn" class="psycle-btn" style="width: 100%; margin-top: 12px;" data-copy-text="static.customizeNotifications">Customise Notifications</button>
                   </div>
                   <div class="psycle-settings-card" id="psycle-test-notif-card" style="display: none; border-color: color-mix(in srgb, var(--warning) 30%, transparent);">
                     <h4 style="color:var(--warning);" data-copy-text="static.testNotifications">🔔 Test Notifications</h4>
@@ -753,53 +753,53 @@
   </div>
 
   <!-- 3. INTERACTIVE BOOKING / SLOT SELECTION MODAL -->
-  <div id="psycle-booking-modal" class="psycle-modal" style="display: none;">
-    <div class="psycle-modal-overlay"></div>
-    <div class="psycle-modal-card">
-      <div class="psycle-modal-header">
-        <h4 id="psycle-booking-modal-title" data-copy-text="static.selectStudioSeat"></h4>
-        <button id="psycle-booking-modal-close" class="psycle-modal-close-btn">&times;</button>
+  <div id="sa-booking-modal" class="sa-modal" style="display: none;">
+    <div class="sa-modal-overlay"></div>
+    <div class="sa-modal-card">
+      <div class="sa-modal-header">
+        <h4 id="sa-booking-modal-title" data-copy-text="static.selectStudioSeat"></h4>
+        <button id="sa-booking-modal-close" class="sa-modal-close-btn">&times;</button>
       </div>
-      <div class="psycle-modal-body" id="psycle-booking-modal-body">
+      <div class="sa-modal-body" id="sa-booking-modal-body">
         <!-- Floor minimap slots and preference grids injected here -->
       </div>
     </div>
   </div>
 
   <!-- 4. PROFILE EXPLORER MODAL -->
-  <div id="psycle-profile-explorer-modal" class="psycle-modal" style="display: none;">
-    <div class="psycle-modal-overlay"></div>
-    <div class="psycle-modal-content" style="max-width: 800px; width: 100%; max-height: 90vh; display: flex; flex-direction: column;">
-      <div class="psycle-modal-header">
-        <h4 id="psycle-profile-explorer-title" data-copy-text="static.profileExplorer"></h4>
-        <button id="psycle-profile-explorer-close" class="psycle-modal-close-btn">&times;</button>
+  <div id="sa-profile-explorer-modal" class="sa-modal" style="display: none;">
+    <div class="sa-modal-overlay"></div>
+    <div class="sa-modal-content" style="max-width: 800px; width: 100%; max-height: 90vh; display: flex; flex-direction: column;">
+      <div class="sa-modal-header">
+        <h4 id="sa-profile-explorer-title" data-copy-text="static.profileExplorer"></h4>
+        <button id="sa-profile-explorer-close" class="sa-modal-close-btn">&times;</button>
       </div>
-      <div class="psycle-modal-body" id="psycle-profile-explorer-body" style="overflow-y: auto; flex: 1; padding: 16px;">
+      <div class="sa-modal-body" id="sa-profile-explorer-body" style="overflow-y: auto; flex: 1; padding: 16px;">
       </div>
     </div>
   </div>
 
   <!-- 4b. GYMS MODAL (WP-C2: link a gym / re-authenticate / change account password) -->
-  <div id="psycle-gym-modal" class="psycle-modal" style="display: none;">
-    <div class="psycle-modal-overlay"></div>
-    <div class="psycle-modal-card" style="max-width: 460px;">
-      <div class="psycle-modal-header">
+  <div id="psycle-gym-modal" class="sa-modal" style="display: none;">
+    <div class="sa-modal-overlay"></div>
+    <div class="sa-modal-card" style="max-width: 460px;">
+      <div class="sa-modal-header">
         <h4 id="psycle-gym-modal-title" data-copy-text="static.addGym"></h4>
-        <button id="psycle-gym-modal-close" class="psycle-modal-close-btn">&times;</button>
+        <button id="psycle-gym-modal-close" class="sa-modal-close-btn">&times;</button>
       </div>
-      <div class="psycle-modal-body" id="psycle-gym-modal-body"></div>
+      <div class="sa-modal-body" id="psycle-gym-modal-body"></div>
     </div>
   </div>
 
   <!-- 5. DEBUG MODAL -->
-  <div id="psycle-debug-modal" class="psycle-modal" style="display: none;">
-    <div class="psycle-modal-overlay"></div>
-    <div class="psycle-modal-content" style="max-width: 800px; width: 800px;">
-      <div class="psycle-modal-header">
-        <h4 id="psycle-debug-modal-title" data-copy-text="static.debugClassDiagnostics"></h4>
-        <button id="psycle-debug-modal-close" class="psycle-modal-close-btn">&times;</button>
+  <div id="sa-debug-modal" class="sa-modal" style="display: none;">
+    <div class="sa-modal-overlay"></div>
+    <div class="sa-modal-content" style="max-width: 800px; width: 800px;">
+      <div class="sa-modal-header">
+        <h4 id="sa-debug-modal-title" data-copy-text="static.debugClassDiagnostics"></h4>
+        <button id="sa-debug-modal-close" class="sa-modal-close-btn">&times;</button>
       </div>
-      <div class="psycle-modal-body" id="psycle-debug-modal-body">
+      <div class="sa-modal-body" id="sa-debug-modal-body">
         <div class="psycle-loading-spinner-container" style="padding: 40px 0;">
           <div class="psycle-spinner"></div>
           <span data-copy-text="static.loadingDebugData"></span>
@@ -809,14 +809,14 @@
   </div>
 
   <!-- 6. NOTIFICATION PREFERENCES MODAL -->
-  <div id="psycle-notif-prefs-modal" class="psycle-modal">
-    <div class="psycle-modal-overlay"></div>
-    <div class="psycle-modal-content" style="max-width: 560px; width: 100%; max-height: 90vh; display: flex; flex-direction: column;">
-      <div class="psycle-modal-header">
+  <div id="sa-notif-prefs-modal" class="sa-modal">
+    <div class="sa-modal-overlay"></div>
+    <div class="sa-modal-content" style="max-width: 560px; width: 100%; max-height: 90vh; display: flex; flex-direction: column;">
+      <div class="sa-modal-header">
         <h4 data-copy-text="static.notificationPreferences"></h4>
-        <button id="psycle-notif-prefs-close" class="psycle-modal-close-btn">&times;</button>
+        <button id="sa-notif-prefs-close" class="sa-modal-close-btn">&times;</button>
       </div>
-      <div class="psycle-modal-body" id="psycle-notif-prefs-body" style="overflow-y: auto; flex: 1; padding: 16px;">
+      <div class="sa-modal-body" id="sa-notif-prefs-body" style="overflow-y: auto; flex: 1; padding: 16px;">
         <!-- Rendered dynamically by settings.js -->
       </div>
     </div>
@@ -827,17 +827,17 @@
   <div id="psycle-occupancy-tooltip" class="psycle-tooltip" style="display: none;"></div>
 
   <!-- Debug Log Terminal -->
-  <div id="psycle-debug-terminal" style="display: none; position: fixed; bottom: 30px; right: 12px; width: 420px; max-height: 280px; background: color-mix(in srgb, var(--bg) 95%, transparent); border: 1px solid color-mix(in srgb, var(--feat-autoupgrade) 30%, transparent); border-radius: 12px; z-index: 10000; font-family: 'SF Mono', 'Fira Code', 'Consolas', monospace; font-size: 12px; color: var(--text); overflow: hidden; box-shadow: 0 8px 32px color-mix(in srgb, var(--bg) 50%, transparent);">
+  <div id="sa-debug-terminal" style="display: none; position: fixed; bottom: 30px; right: 12px; width: 420px; max-height: 280px; background: color-mix(in srgb, var(--bg) 95%, transparent); border: 1px solid color-mix(in srgb, var(--feat-autoupgrade) 30%, transparent); border-radius: 12px; z-index: 10000; font-family: 'SF Mono', 'Fira Code', 'Consolas', monospace; font-size: 12px; color: var(--text); overflow: hidden; box-shadow: 0 8px 32px color-mix(in srgb, var(--bg) 50%, transparent);">
     <!-- Minimized FAB icon (shown only when collapsed to circle) -->
-    <div id="psycle-debug-fab" style="display:none;width:100%;height:100%;align-items:center;justify-content:center;font-family:var(--font-sans);font-weight:700;font-size:15px;color:var(--feat-autoupgrade);cursor:pointer;user-select:none;">D</div>
-    <div style="display: flex; justify-content: space-between; align-items: center; padding: 6px 12px; background: color-mix(in srgb, var(--feat-autoupgrade) 15%, transparent); border-bottom: 1px solid color-mix(in srgb, var(--feat-autoupgrade) 20%, transparent); cursor: pointer;" id="psycle-debug-terminal-header">
+    <div id="sa-debug-fab" style="display:none;width:100%;height:100%;align-items:center;justify-content:center;font-family:var(--font-sans);font-weight:700;font-size:15px;color:var(--feat-autoupgrade);cursor:pointer;user-select:none;">D</div>
+    <div style="display: flex; justify-content: space-between; align-items: center; padding: 6px 12px; background: color-mix(in srgb, var(--feat-autoupgrade) 15%, transparent); border-bottom: 1px solid color-mix(in srgb, var(--feat-autoupgrade) 20%, transparent); cursor: pointer;" id="sa-debug-terminal-header">
       <span data-copy-text="static.debugLog" style="font-weight: 700; font-size: 12px; color: var(--feat-autoupgrade);"></span>
       <div style="display: flex; gap: 8px; align-items: center;">
-        <button id="psycle-debug-clear-btn" data-copy-text="static.clear" style="background: none; border: 1px solid color-mix(in srgb, var(--text) 15%, transparent); color: var(--text-secondary); font-size: 12px; padding: 2px 8px; border-radius: 4px; cursor: pointer;"></button>
-        <span id="psycle-debug-toggle-icon" style="color: var(--text-secondary); font-size: 14px;">▼</span>
+        <button id="sa-debug-clear-btn" data-copy-text="static.clear" style="background: none; border: 1px solid color-mix(in srgb, var(--text) 15%, transparent); color: var(--text-secondary); font-size: 12px; padding: 2px 8px; border-radius: 4px; cursor: pointer;"></button>
+        <span id="sa-debug-toggle-icon" style="color: var(--text-secondary); font-size: 14px;">▼</span>
       </div>
     </div>
-    <div id="psycle-debug-log" style="padding: 8px 12px; overflow-y: auto; max-height: 230px; min-height: 40px;"></div>
+    <div id="sa-debug-log" style="padding: 8px 12px; overflow-y: auto; max-height: 230px; min-height: 40px;"></div>
   </div>
 
   <!-- Version Stamp -->

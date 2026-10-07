@@ -123,7 +123,7 @@ function renderUpgradeList(upgrades, studioPrefs = {}) {
             <span class="ab-card-date">${dateStr.toUpperCase()}</span>
             <span class="ab-card-time">${timeOnly}</span>
           </div>
-          <div class="psycle-upgrade-status-chip ${statusChipClass}">${escapeHtml(statusText)}</div>
+          <div class="sa-upgrade-status-chip ${statusChipClass}">${escapeHtml(statusText)}</div>
         </div>
         <div class="ab-card-meta">
           ${disciplineTag(groupName)}

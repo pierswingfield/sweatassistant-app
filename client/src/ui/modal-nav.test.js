@@ -3,8 +3,8 @@ import { openPage, closePage, pushLayer, isMobile, openPageCount, _resetForTests
 
 function mkModal(id) {
   const el = document.createElement('div');
-  el.id = id; el.className = 'psycle-modal'; el.style.display = 'none';
-  el.innerHTML = '<div class="psycle-modal-overlay"></div><div class="psycle-modal-card"><div class="psycle-modal-header"><h4>T</h4><button class="psycle-modal-close-btn">x</button></div><div class="psycle-modal-body"></div></div>';
+  el.id = id; el.className = 'sa-modal'; el.style.display = 'none';
+  el.innerHTML = '<div class="sa-modal-overlay"></div><div class="sa-modal-card"><div class="sa-modal-header"><h4>T</h4><button class="sa-modal-close-btn">x</button></div><div class="sa-modal-body"></div></div>';
   document.body.appendChild(el);
   return el;
 }
@@ -22,7 +22,7 @@ describe('modal-nav', () => {
     expect(isMobile()).toBe(false);
     expect(el.style.display).toBe('flex');
     expect(el.classList.contains('show')).toBe(true);
-    expect(el.classList.contains('psycle-page')).toBe(false);
+    expect(el.classList.contains('sa-page')).toBe(false);
     expect(history.length).toBe(len);
     expect(document.body.classList.contains('psycle-scroll-locked')).toBe(false);
   });
@@ -32,7 +32,7 @@ describe('modal-nav', () => {
     const el = mkModal('b'); const onClose = vi.fn();
     openPage(el, { id: 'b', onClose });
     await tick();
-    expect(el.classList.contains('psycle-page')).toBe(true);
+    expect(el.classList.contains('sa-page')).toBe(true);
     expect(el.getAttribute('role')).toBe('dialog');
     expect(el.getAttribute('aria-modal')).toBe('true');
     expect(history.state.sweatNavId).toBe('b');
@@ -50,11 +50,11 @@ describe('modal-nav', () => {
     const el = mkModal('c'); let dirty = true;
     openPage(el, { id: 'c', canClose: () => !dirty });
     await tick();
-    el.querySelector('.psycle-modal-close-btn').click();
+    el.querySelector('.sa-modal-close-btn').click();
     await tick(50);
     expect(openPageCount()).toBe(1);
     dirty = false;
-    el.querySelector('.psycle-modal-close-btn').click();
+    el.querySelector('.sa-modal-close-btn').click();
     await tick(50);
     expect(openPageCount()).toBe(0);
   });
@@ -143,12 +143,12 @@ describe('modal-nav', () => {
     const onBack = vi.fn();
     pushLayer({ id: 'j-sub', captureHeader: true, canClose: () => !dirty, onBack });
     await tick();
-    el.querySelector('.psycle-modal-close-btn').click();
+    el.querySelector('.sa-modal-close-btn').click();
     await tick(60);
     expect(onBack).not.toHaveBeenCalled();     // vetoed
     expect(openPageCount()).toBe(2);
     dirty = false;
-    el.querySelector('.psycle-modal-close-btn').click();
+    el.querySelector('.sa-modal-close-btn').click();
     await tick(60);
     expect(onBack).toHaveBeenCalledTimes(1);
     expect(openPageCount()).toBe(1);           // the page itself stays

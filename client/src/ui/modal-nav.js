@@ -1,6 +1,6 @@
 // Shared mobile "modal -> full-screen page" helper (modal-to-fullscreen-spec, Batch 1).
 //
-// At <= 768px an opened modal becomes a page: it gets `.psycle-page` (the CSS block in
+// At <= 768px an opened modal becomes a page: it gets `.sa-page` (the CSS block in
 // styles.css keys off that class, so un-wired modals are untouched), a history entry
 // (hardware/iOS back closes it), a body scroll lock, dialog semantics, focus handling,
 // Escape, and the visual-viewport height variable. On wider screens openPage/closePage
@@ -54,10 +54,10 @@ function applyInert() {
   for (const child of Array.from(document.body.children)) {
     if (/^(SCRIPT|STYLE|LINK)$/.test(child.tagName)) continue;
     if (child.querySelector?.('#psycle-toast-container') || child.id === 'psycle-toast-container') continue;
-    if (child.classList?.contains('psycle-overlap-modal') || child.classList?.contains('fr-sheet-overlay')) continue; // dialog layers sit above pages
+    if (child.classList?.contains('sa-overlap-modal') || child.classList?.contains('fr-sheet-overlay')) continue; // dialog layers sit above pages
     const inert = !!top && child !== top;
-    if (inert) { child.setAttribute('inert', ''); child.dataset.psycleNavInert = '1'; }
-    else if (child.dataset.psycleNavInert) { child.removeAttribute('inert'); delete child.dataset.psycleNavInert; }
+    if (inert) { child.setAttribute('inert', ''); child.dataset.saNavInert = '1'; }
+    else if (child.dataset.saNavInert) { child.removeAttribute('inert'); delete child.dataset.saNavInert; }
   }
 }
 
@@ -119,7 +119,7 @@ function hide(el, entry) {
   timers.set(el, setTimeout(() => {
     if (entry.remove) el.remove();
     else if (entry.hadInlineHidden) el.style.display = 'none';
-    el.classList.remove('psycle-page');
+    el.classList.remove('sa-page');
     el.style.removeProperty('--vvh');
     el.style.removeProperty('--vvt');
   }, HIDE_MS));
@@ -192,13 +192,13 @@ if (typeof window !== 'undefined') ensureListeners();
 // Single-step info pages get a fixed-bottom Close button (hidden by CSS above 768px, so desktop
 // is unaffected even though the element persists on pre-built modals).
 function ensureCloseFooter(el, entry) {
-  const card = el.querySelector('.psycle-modal-card, .psycle-modal-content');
+  const card = el.querySelector('.sa-modal-card, .sa-modal-content');
   if (!card) return;
-  let foot = card.querySelector(':scope > .psycle-modal-footer');
+  let foot = card.querySelector(':scope > .sa-modal-footer');
   if (!foot) {
     foot = document.createElement('div');
-    foot.className = 'psycle-modal-footer';
-    foot.innerHTML = '<button type="button" class="psycle-btn psycle-page-close"></button>';
+    foot.className = 'sa-modal-footer';
+    foot.innerHTML = '<button type="button" class="psycle-btn sa-page-close"></button>';
     foot.firstChild.textContent = COPY.credits.closeModal;
     card.appendChild(foot);
   }
@@ -238,10 +238,10 @@ export function openPage(el, opts = {}) {
   } else {
     stack.push(entry);
   }
-  el.classList.add('psycle-page');
+  el.classList.add('sa-page');
   el.setAttribute('role', 'dialog');
   el.setAttribute('aria-modal', 'true');
-  const title = el.querySelector('.psycle-modal-header h3, .psycle-modal-header h4, [data-nav-title]');
+  const title = el.querySelector('.sa-modal-header h3, .sa-modal-header h4, [data-nav-title]');
   if (title) {
     if (!title.id) title.id = `${id}-title`;
     el.setAttribute('aria-labelledby', title.id);
@@ -263,7 +263,7 @@ export function openPage(el, opts = {}) {
     (field || title)?.focus({ preventScroll: true });
   }, 10);
 
-  const closeBtn = el.querySelector('.psycle-modal-close-btn, [data-nav-close]');
+  const closeBtn = el.querySelector('.sa-modal-close-btn, [data-nav-close]');
   if (closeBtn) {
     if (opts.back) closeBtn.dataset.nav = 'back';
     else delete closeBtn.dataset.nav;
@@ -274,7 +274,7 @@ export function openPage(el, opts = {}) {
     el.addEventListener('click', (ev) => {
       const e2 = stack.find((s) => s.el === el);
       if (!e2) return;
-      if (ev.target.closest('.psycle-modal-close-btn, [data-nav-close]') || ev.target.classList.contains('psycle-modal-overlay')) {
+      if (ev.target.closest('.sa-modal-close-btn, [data-nav-close]') || ev.target.classList.contains('sa-modal-overlay')) {
         ev.stopImmediatePropagation();
         ev.preventDefault();
         // A sub-step layer above this page (e.g. an in-page editor) owns the header Back arrow.

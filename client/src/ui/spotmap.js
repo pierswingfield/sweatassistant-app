@@ -214,7 +214,7 @@ export function renderStudioFloorPlan(container, layoutSlots, initialSlots, init
     // Mirror .psycle-floor-scroll's max-height (min(60vh, 460px)) so we can fit
     // the map within the box's height too, not just its width.
     const availH = Math.min(window.innerHeight * 0.6, 460);
-    const fillScaleW = widthRange > 0 ? (availW - (container.closest('.psycle-page') ? 2 : 0) - SLOT_SIZE - EDGE_PAD * 2 - rowLaneW) / widthRange : minGapScale;
+    const fillScaleW = widthRange > 0 ? (availW - (container.closest('.sa-page') ? 2 : 0) - SLOT_SIZE - EDGE_PAD * 2 - rowLaneW) / widthRange : minGapScale;
     const fillScaleH = heightRange > 0 ? (availH - SLOT_SIZE - EDGE_PAD * 2 - 2) / heightRange : minGapScale;
     // Contain: fill the available box on whichever axis is tighter. Scaling is
     // uniform, so stretching a few-column studio (e.g. Reformer) to fill the full
@@ -226,7 +226,7 @@ export function renderStudioFloorPlan(container, layoutSlots, initialSlots, init
     // scroll container. On desktop, fill the available box for a roomier map.
     // Inside a full-screen mobile page there is a whole screen of width, so fill it
     // (width-driven; the vertical axis is compressed below if it would spill).
-    const inPage = !!container.closest('.psycle-page');
+    const inPage = !!container.closest('.sa-page');
     const scale = inPage ? Math.max(fillScaleW, minGapScale) : (isMobile ? minGapScale : Math.max(fillScale, minGapScale));
 
     // Scale X-axis and Y-axis independently if Y-axis gaps are too large and make the map spill.
@@ -460,7 +460,7 @@ export function renderStudioFloorPlan(container, layoutSlots, initialSlots, init
 
     // Actions
     const actions = document.createElement('div');
-    actions.className = 'psycle-spotmap-actions';
+    actions.className = 'sa-spotmap-actions';
     actions.style.cssText = 'display:flex;gap:8px;';
 
     if (!hideClear) {

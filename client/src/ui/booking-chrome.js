@@ -1,6 +1,6 @@
 // Mobile booking-shell chrome (spotmap-booking-flow-spec, Batch 1).
 //
-// Three additions to `#psycle-booking-modal` on mobile only, shared by every flow that reuses the
+// Three additions to `#sa-booking-modal` on mobile only, shared by every flow that reuses the
 // shell (timetable book / Quick-Book / Auto-Book, Auto-Book edit, My Bookings edit-spots,
 // Auto-Upgrade configure):
 //   1. an identity strip under the header (gym logo, gym, location, studio);
@@ -26,23 +26,23 @@ function dismissHelper(id) {
 /** Static task title + identity strip. Call after the flow's own title assignments. */
 export function applyBookingChrome(modal, { titleText, gymId, locationName, studioName, stepper = null }) {
   if (!isMobile() || !modal) return;
-  const title = modal.querySelector('.psycle-modal-header h4');
+  const title = modal.querySelector('.sa-modal-header h4');
   if (title && titleText) title.textContent = titleText;
-  const card = modal.querySelector('.psycle-modal-card');
-  const header = card?.querySelector('.psycle-modal-header');
+  const card = modal.querySelector('.sa-modal-card');
+  const header = card?.querySelector('.sa-modal-header');
   if (!card || !header) return;
-  let strip = card.querySelector(':scope > .psycle-bk-identity');
+  let strip = card.querySelector(':scope > .sa-bk-identity');
   if (!strip) {
     strip = document.createElement('div');
-    strip.className = 'psycle-bk-identity';
+    strip.className = 'sa-bk-identity';
     header.insertAdjacentElement('afterend', strip);
   }
   const brand = gymBrand(gymId);
   const loc = trimLocation(locationName || '', brand.name);
   const studio = studioName ? displayStudioName(gymId, studioName) : '';
   const where = [loc, studio].filter(Boolean).join(' · ');
-  strip.innerHTML = `${gymSquareChip(gymId)}<div class="psycle-bk-identity-text"><strong></strong><span></span></div>`;
-  const txt = strip.querySelector('.psycle-bk-identity-text');
+  strip.innerHTML = `${gymSquareChip(gymId)}<div class="sa-bk-identity-text"><strong></strong><span></span></div>`;
+  const txt = strip.querySelector('.sa-bk-identity-text');
   txt.querySelector('strong').textContent = brand.name;
   txt.querySelector('span').textContent = where;
   upsertStepper(card, strip, stepper);
@@ -68,31 +68,31 @@ function upsertStepper(card, strip, which) {
 function classCardEl({ className, instructorName, instructorPhoto, startAt, zone, spotsLeft, gymId, releaseAt }) {
   const when = startAt ? formatInZone(startAt, zone) : null;
   const el = document.createElement('div');
-  el.className = 'psycle-bk-classcard';
+  el.className = 'sa-bk-classcard';
   el.setAttribute('role', 'group');
   el.setAttribute('aria-label', COPY.bookingFlow.thisClass);
   const avatar = instructorName ? instructorAvatar(instructorName, gymId, instructorPhoto || null) : '';
   el.innerHTML = `
-    <div class="psycle-bk-classcard-label"></div>
-    <div class="psycle-bk-classcard-main">
+    <div class="sa-bk-classcard-label"></div>
+    <div class="sa-bk-classcard-main">
       ${avatar}
-      <div class="psycle-bk-classcard-text">
-        <strong class="psycle-bk-class-name"></strong>
-        <span class="psycle-bk-class-instructor"></span>
-        <span class="psycle-bk-class-when"></span>
-        <span class="psycle-bk-class-release" hidden></span>
+      <div class="sa-bk-classcard-text">
+        <strong class="sa-bk-class-name"></strong>
+        <span class="sa-bk-class-instructor"></span>
+        <span class="sa-bk-class-when"></span>
+        <span class="sa-bk-class-release" hidden></span>
       </div>
     </div>`;
-  el.querySelector('.psycle-bk-classcard-label').textContent = COPY.bookingFlow.thisClass;
-  el.querySelector('.psycle-bk-class-name').textContent = className || '';
-  const ins = el.querySelector('.psycle-bk-class-instructor');
+  el.querySelector('.sa-bk-classcard-label').textContent = COPY.bookingFlow.thisClass;
+  el.querySelector('.sa-bk-class-name').textContent = className || '';
+  const ins = el.querySelector('.sa-bk-class-instructor');
   if (instructorName) ins.textContent = formatCopyText(COPY.bookingFlow.withInstructor, { instructor: instructorName }); else ins.remove();
-  const w = el.querySelector('.psycle-bk-class-when');
+  const w = el.querySelector('.sa-bk-class-when');
   if (when && when.time) {
     const left = Number.isFinite(spotsLeft) ? ` · ${formatCopyText(spotsLeft === 1 ? COPY.bookingFlow.spotLeft : COPY.bookingFlow.spotsLeft, { count: spotsLeft })}` : '';
     w.textContent = `${when.date}, ${when.timeLabel}${left}`;
   } else w.remove();
-  const rel = el.querySelector('.psycle-bk-class-release');
+  const rel = el.querySelector('.sa-bk-class-release');
   if (releaseAt) { rel.dataset.releaseAt = releaseAt; rel.hidden = false; paintRelease(rel); startTicker(); } else rel.remove();
   return el;
 }
@@ -109,7 +109,7 @@ function paintRelease(n) {
   n.textContent = ms > 0 ? formatCopyText(COPY.bookingFlow.opensIn, { countdown: fmtCountdown(ms) }) : COPY.bookingFlow.bookingOpen;
 }
 function tickReleases() {
-  const nodes = document.querySelectorAll('.psycle-bk-class-release[data-release-at]');
+  const nodes = document.querySelectorAll('.sa-bk-class-release[data-release-at]');
   nodes.forEach(paintRelease);
   if (!nodes.length && ticker) { clearInterval(ticker); ticker = null; }
 }
@@ -119,13 +119,13 @@ function startTicker() { if (!ticker) ticker = setInterval(tickReleases, 30000);
 export function bannerEl(id, text, actionText, onAction) {
   if (!isMobile() || helperDismissed(id)) return null;
   const el = document.createElement('div');
-  el.className = 'psycle-bk-helper psycle-bk-banner';
-  el.innerHTML = '<p></p><button type="button" class="psycle-btn psycle-bk-banner-action"></button><button type="button" class="psycle-bk-helper-x"></button>';
+  el.className = 'sa-bk-helper sa-bk-banner';
+  el.innerHTML = '<p></p><button type="button" class="psycle-btn sa-bk-banner-action"></button><button type="button" class="sa-bk-helper-x"></button>';
   el.querySelector('p').textContent = text;
-  const act = el.querySelector('.psycle-bk-banner-action');
+  const act = el.querySelector('.sa-bk-banner-action');
   act.textContent = actionText;
   act.onclick = onAction;
-  const x = el.querySelector('.psycle-bk-helper-x');
+  const x = el.querySelector('.sa-bk-helper-x');
   x.textContent = '×';
   x.setAttribute('aria-label', COPY.bookingFlow.dismissTip);
   x.onclick = () => { dismissHelper(id); el.remove(); };
@@ -141,11 +141,11 @@ function guardState(gymId) {
   return null;
 }
 function applyGuards(modal, gymId) {
-  if (!modal.classList.contains('psycle-page')) return;
-  const card = modal.querySelector('.psycle-modal-card');
+  if (!modal.classList.contains('sa-page')) return;
+  const card = modal.querySelector('.sa-modal-card');
   if (!card) return;
   const g = guardState(gymId);
-  let n = card.querySelector(':scope > .psycle-bk-notice');
+  let n = card.querySelector(':scope > .sa-bk-notice');
   if (!g) {
     n?.remove();
     modal.querySelectorAll('[data-bk-guard]').forEach((b) => { b.disabled = false; b.removeAttribute('data-bk-guard'); });
@@ -155,7 +155,7 @@ function applyGuards(modal, gymId) {
   if (!n || n.dataset.key !== key) {
     n?.remove();
     n = document.createElement('div');
-    n.className = 'psycle-bk-notice';
+    n.className = 'sa-bk-notice';
     n.dataset.key = key;
     n.setAttribute('role', 'status');
     const t = document.createElement('span');
@@ -163,7 +163,7 @@ function applyGuards(modal, gymId) {
     n.appendChild(t);
     if (g.kind === 'relogin') {
       const b = document.createElement('button');
-      b.type = 'button'; b.className = 'psycle-btn psycle-bk-notice-action'; b.textContent = COPY.bookingFlow.reconnectAction;
+      b.type = 'button'; b.className = 'psycle-btn sa-bk-notice-action'; b.textContent = COPY.bookingFlow.reconnectAction;
       b.onclick = async () => {
         history.back();
         const s = await import('./settings.js');
@@ -172,7 +172,7 @@ function applyGuards(modal, gymId) {
       };
       n.appendChild(b);
     }
-    const anchor = card.querySelector(':scope > .psycle-stepper') || card.querySelector(':scope > .psycle-bk-identity') || card.querySelector(':scope > .psycle-modal-header');
+    const anchor = card.querySelector(':scope > .psycle-stepper') || card.querySelector(':scope > .sa-bk-identity') || card.querySelector(':scope > .sa-modal-header');
     anchor.insertAdjacentElement('afterend', n);
   }
   modal.querySelectorAll(PRIMARY).forEach((b) => { if (!b.disabled) { b.disabled = true; b.setAttribute('data-bk-guard', '1'); } });
@@ -197,8 +197,8 @@ export function watchBookingGuards(modal, gymId) {
 function helperEl(id, text) {
   if (!text || helperDismissed(id)) return null;
   const el = document.createElement('div');
-  el.className = 'psycle-bk-helper';
-  el.innerHTML = '<p></p><button type="button" class="psycle-bk-helper-x"></button>';
+  el.className = 'sa-bk-helper';
+  el.innerHTML = '<p></p><button type="button" class="sa-bk-helper-x"></button>';
   el.querySelector('p').textContent = text;
   const x = el.querySelector('button');
   x.textContent = '×';
@@ -226,7 +226,7 @@ export function bookingContextEl(info, { helperId, helperText, helperOnly = fals
 export function mountBookingContext(body, anchor, info, opts) {
   const frag = bookingContextEl(info, opts);
   if (!frag || !body) return;
-  body.querySelectorAll(':scope .psycle-bk-helper, :scope .psycle-bk-classcard').forEach((n) => n.remove());
+  body.querySelectorAll(':scope .sa-bk-helper, :scope .sa-bk-classcard').forEach((n) => n.remove());
   if (anchor && anchor.parentNode) anchor.parentNode.insertBefore(frag, anchor);
   else body.prepend(frag);
 }

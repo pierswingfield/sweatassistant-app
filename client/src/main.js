@@ -323,8 +323,8 @@ let debugLogExpanded = true;
 export function debugLog(message, type = 'info') {
   if (!userSettings.debugMode) return;
   
-  const logEl = document.getElementById('psycle-debug-log');
-  const terminal = document.getElementById('psycle-debug-terminal');
+  const logEl = document.getElementById('sa-debug-log');
+  const terminal = document.getElementById('sa-debug-terminal');
   if (!logEl || !terminal) return;
   
   terminal.style.display = 'block';
@@ -364,7 +364,7 @@ export function debugConsole(...args) {
 }
 
 export function updateDebugTerminalVisibility() {
-  const terminal = document.getElementById('psycle-debug-terminal');
+  const terminal = document.getElementById('sa-debug-terminal');
   if (!terminal) return;
   terminal.style.display = userSettings.debugMode ? 'block' : 'none';
   applyCreditsTabGate();
@@ -1313,23 +1313,23 @@ export async function initApp() {
 
   // Setup debug terminal
   updateDebugTerminalVisibility();
-  const terminal = document.getElementById('psycle-debug-terminal');
-  const debugHeader = document.getElementById('psycle-debug-terminal-header');
-  const debugLog = document.getElementById('psycle-debug-log');
-  const debugClearBtn = document.getElementById('psycle-debug-clear-btn');
-  const debugToggleIcon = document.getElementById('psycle-debug-toggle-icon');
-  const debugFab = document.getElementById('psycle-debug-fab');
+  const terminal = document.getElementById('sa-debug-terminal');
+  const debugHeader = document.getElementById('sa-debug-terminal-header');
+  const debugLog = document.getElementById('sa-debug-log');
+  const debugClearBtn = document.getElementById('sa-debug-clear-btn');
+  const debugToggleIcon = document.getElementById('sa-debug-toggle-icon');
+  const debugFab = document.getElementById('sa-debug-fab');
 
   // Minimize: collapse to a tiny "D" circle. Expand: restore full panel.
   function setDebugMinimized(minimized) {
     debugLogExpanded = !minimized;
     if (minimized) {
-      terminal.classList.add('psycle-debug-minimized');
+      terminal.classList.add('sa-debug-minimized');
       debugLog.style.maxHeight = '0';
       debugLog.style.padding = '0 12px';
       if (debugToggleIcon) debugToggleIcon.textContent = '▶';
     } else {
-      terminal.classList.remove('psycle-debug-minimized');
+      terminal.classList.remove('sa-debug-minimized');
       debugLog.style.maxHeight = '230px';
       debugLog.style.padding = '8px 12px';
       if (debugToggleIcon) debugToggleIcon.textContent = '▼';
@@ -1804,7 +1804,7 @@ function initHeaderAutoHide() {
     markScrollBusy(COOLDOWN_MS);
   };
   const modalOpen = () =>
-    !!document.querySelector('.psycle-modal[style*="display: flex"], .psycle-modal[style*="display: block"], .psycle-modal.open, .psycle-modal.active');
+    !!document.querySelector('.sa-modal[style*="display: flex"], .sa-modal[style*="display: block"], .sa-modal.open, .sa-modal.active');
 
   const update = () => {
     ticking = false;
@@ -1863,8 +1863,8 @@ document.addEventListener('DOMContentLoaded', () => {
     // Collect all visible modal candidates with their z-index
     const candidates = [];
 
-    // Static .psycle-modal elements (booking, profile explorer, debug)
-    document.querySelectorAll('.psycle-modal').forEach(m => {
+    // Static .sa-modal elements (booking, profile explorer, debug)
+    document.querySelectorAll('.sa-modal').forEach(m => {
       if (m.classList.contains('show') || m.style.display === 'flex') {
         const z = parseInt(getComputedStyle(m).zIndex) || 0;
         candidates.push({ el: m, z, type: 'static' });
@@ -1873,7 +1873,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
     // Dynamic overlay divs (spot maps, auto-book favourites — direct children of body)
     document.body.querySelectorAll(':scope > div').forEach(d => {
-      if (d.classList.contains('psycle-modal')) return;
+      if (d.classList.contains('sa-modal')) return;
       const s = d.style;
       if (s.position === 'fixed' && s.display !== 'none' && s.zIndex) {
         const z = parseInt(s.zIndex) || 0;
@@ -1889,7 +1889,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
     if (top.type === 'static') {
       // Click the close button to trigger existing cleanup handlers (state reset, etc.)
-      const closeBtn = top.el.querySelector('.psycle-modal-close-btn');
+      const closeBtn = top.el.querySelector('.sa-modal-close-btn');
       if (closeBtn) {
         closeBtn.click();
       } else {

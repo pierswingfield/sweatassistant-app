@@ -38,10 +38,10 @@ describe('preferred spot setup copy and entry', () => {
       event: { gymId: 'psycle-london', studioId: 'studio-1', studioName: 'Studio 1', locationName: 'Soho' },
       className: 'Ride', onChooseForNow,
     });
-    const actions = [...page.querySelectorAll('.psycle-setup-footer button')].map((button) => button.textContent);
+    const actions = [...page.querySelectorAll('.sa-setup-footer button')].map((button) => button.textContent);
     expect(actions).toContain(COPY.spotSetup.chooseForNow);
     expect(actions).not.toContain('Skip for now');
-    page.querySelector('.psycle-setup-footer button:last-child').click();
+    page.querySelector('.sa-setup-footer button:last-child').click();
     expect(onChooseForNow).toHaveBeenCalledWith(page);
   });
 

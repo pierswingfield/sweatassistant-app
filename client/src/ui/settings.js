@@ -215,8 +215,8 @@ function buildSections(profile) {
 // ─── Modal Functions ────────────────────────────────────────────────────────
 
 async function openProfileExplorerModal(gymId = null, gymName = null) {
-  const modal = document.getElementById('psycle-profile-explorer-modal');
-  const body = document.getElementById('psycle-profile-explorer-body');
+  const modal = document.getElementById('sa-profile-explorer-modal');
+  const body = document.getElementById('sa-profile-explorer-body');
   if (!modal || !body) return;
 
   // Reset state
@@ -225,7 +225,7 @@ async function openProfileExplorerModal(gymId = null, gymName = null) {
   explorerModalOpen = true;
   changeLog = [];
   loadedProfileGymId = gymId;
-  const title = document.getElementById('psycle-profile-explorer-title');
+  const title = document.getElementById('sa-profile-explorer-title');
   if (title) title.textContent = gymName ? formatCopyText(COPY.profileExplorer.gymTitle, { gymName }) : COPY.profileExplorer.title;
 
   // Show loading state — use .show class for opacity transition (matches booking/debug modal convention)
@@ -235,8 +235,8 @@ async function openProfileExplorerModal(gymId = null, gymName = null) {
     // honour the unsaved-edit check here too.
     canClose: () => {
       if (!editMode) return true;
-      const b = document.getElementById('psycle-profile-explorer-body');
-      const save = b && b.querySelector('.psycle-profile-save-btn');
+      const b = document.getElementById('sa-profile-explorer-body');
+      const save = b && b.querySelector('.sa-profile-save-btn');
       return !(save && save.style.display !== 'none') || confirm(COPY.settings.discardUnsaved);
     },
     onClose: () => { explorerModalOpen = false; editMode = false; konamiProgress = 0; },
@@ -262,8 +262,8 @@ async function openProfileExplorerModal(gymId = null, gymName = null) {
 }
 
 function setupExplorerModalClose(modal) {
-  const closeBtn = document.getElementById('psycle-profile-explorer-close');
-  const overlay = modal.querySelector('.psycle-modal-overlay');
+  const closeBtn = document.getElementById('sa-profile-explorer-close');
+  const overlay = modal.querySelector('.sa-modal-overlay');
   const closer = () => {
     modal.classList.remove('show');
     setTimeout(() => { modal.style.display = 'none'; }, 300);
@@ -305,14 +305,14 @@ function toggleEditMode() {
   if (!loadedProfile) return;
   if (editMode) {
     // Exiting edit mode — check for unsaved changes
-    const body = document.getElementById('psycle-profile-explorer-body');
-    const hasChanges = body.querySelector('.psycle-profile-save-btn') && body.querySelector('.psycle-profile-save-btn').style.display !== 'none';
+    const body = document.getElementById('sa-profile-explorer-body');
+    const hasChanges = body.querySelector('.sa-profile-save-btn') && body.querySelector('.sa-profile-save-btn').style.display !== 'none';
     if (hasChanges) {
       if (!confirm(COPY.settings.discardUnsaved)) return;
     }
   }
   editMode = !editMode;
-  const body = document.getElementById('psycle-profile-explorer-body');
+  const body = document.getElementById('sa-profile-explorer-body');
   renderExplorerBody(body);
   if (editMode) {
     showToast(COPY.settings.editEnabled, 'info');
@@ -350,26 +350,26 @@ function renderExplorerBody(body) {
   if (editMode) {
     const logEntriesHtml = renderLogEntriesHtml();
     html += `
-      <div class="psycle-profile-log-panel" style="margin-top:12px;border:1px solid color-mix(in srgb, var(--text) 8%, transparent);border-radius:12px;overflow:hidden;">
-        <div class="psycle-profile-section-header" id="psycle-explorer-log-header" style="background:color-mix(in srgb, var(--text) 3%, transparent);padding:10px 16px;display:flex;justify-content:space-between;align-items:center;cursor:pointer;user-select:none;">
-          <span style="font-weight:700;font-size:13px;color:var(--text);display:flex;align-items:center;gap:6px;">${COPY.profileExplorer.changeLog} <span id="psycle-explorer-log-count" style="font-weight:400;font-size:12px;color:var(--text-secondary);">(${changeLog.length})</span></span>
-          <span class="psycle-accordion-arrow" id="psycle-explorer-log-arrow" style="font-size:12px;color:var(--text-secondary);transition:transform 0.2s;">▲</span>
+      <div class="sa-profile-log-panel" style="margin-top:12px;border:1px solid color-mix(in srgb, var(--text) 8%, transparent);border-radius:12px;overflow:hidden;">
+        <div class="sa-profile-section-header" id="sa-explorer-log-header" style="background:color-mix(in srgb, var(--text) 3%, transparent);padding:10px 16px;display:flex;justify-content:space-between;align-items:center;cursor:pointer;user-select:none;">
+          <span style="font-weight:700;font-size:13px;color:var(--text);display:flex;align-items:center;gap:6px;">${COPY.profileExplorer.changeLog} <span id="sa-explorer-log-count" style="font-weight:400;font-size:12px;color:var(--text-secondary);">(${changeLog.length})</span></span>
+          <span class="psycle-accordion-arrow" id="sa-explorer-log-arrow" style="font-size:12px;color:var(--text-secondary);transition:transform 0.2s;">▲</span>
         </div>
-        <div id="psycle-explorer-log-container" style="max-height:200px;overflow-y:auto;padding:8px;background:var(--surface-inset);border-top:1px solid color-mix(in srgb, var(--text) 5%, transparent);">
+        <div id="sa-explorer-log-container" style="max-height:200px;overflow-y:auto;padding:8px;background:var(--surface-inset);border-top:1px solid color-mix(in srgb, var(--text) 5%, transparent);">
           ${logEntriesHtml}
         </div>
       </div>
     `;
     // Save Changes button
-    html += `<button id="psycle-profile-save-btn" class="psycle-btn" style="width:100%;margin-top:12px;background:color-mix(in srgb, var(--feat-autoupgrade) 20%, transparent);border:1px solid color-mix(in srgb, var(--feat-autoupgrade) 40%, transparent);color:var(--feat-autoupgrade);font-weight:700;display:none;">${COPY.profileExplorer.saveChanges}</button>`;
+    html += `<button id="sa-profile-save-btn" class="psycle-btn" style="width:100%;margin-top:12px;background:color-mix(in srgb, var(--feat-autoupgrade) 20%, transparent);border:1px solid color-mix(in srgb, var(--feat-autoupgrade) 40%, transparent);color:var(--feat-autoupgrade);font-weight:700;display:none;">${COPY.profileExplorer.saveChanges}</button>`;
   }
 
   body.innerHTML = html;
 
   // Attach accordion toggles
-  body.querySelectorAll('.psycle-profile-section').forEach(sec => {
-    const header = sec.querySelector('.psycle-profile-section-header');
-    const content = sec.querySelector('.psycle-profile-section-content');
+  body.querySelectorAll('.sa-profile-section').forEach(sec => {
+    const header = sec.querySelector('.sa-profile-section-header');
+    const content = sec.querySelector('.sa-profile-section-content');
     const arrow = sec.querySelector('.psycle-accordion-arrow');
     if (header) {
       header.addEventListener('click', () => {
@@ -384,10 +384,10 @@ function renderExplorerBody(body) {
   });
 
   // Log toggle
-  const logHeader = document.getElementById('psycle-explorer-log-header');
+  const logHeader = document.getElementById('sa-explorer-log-header');
   if (logHeader) {
-    const logContainer = document.getElementById('psycle-explorer-log-container');
-    const logArrow = document.getElementById('psycle-explorer-log-arrow');
+    const logContainer = document.getElementById('sa-explorer-log-container');
+    const logArrow = document.getElementById('sa-explorer-log-arrow');
     logHeader.addEventListener('click', () => {
       const closed = logContainer.style.display === 'none';
       logContainer.style.display = closed ? 'block' : 'none';
@@ -420,13 +420,13 @@ function renderSectionAccordion(section, idx, isSpecial) {
         const isBool = typeof field.value === 'boolean';
         let inputHtml;
         if (isBool) {
-          inputHtml = `<input type="checkbox" class="psycle-profile-edit-input" data-path="${field.path}" ${field.value ? 'checked' : ''} style="width:16px;height:16px;cursor:pointer;accent-color:var(--feat-autoupgrade);">`;
+          inputHtml = `<input type="checkbox" class="sa-profile-edit-input" data-path="${field.path}" ${field.value ? 'checked' : ''} style="width:16px;height:16px;cursor:pointer;accent-color:var(--feat-autoupgrade);">`;
         } else {
           const val = field.value !== null && field.value !== undefined ? String(field.value) : '';
-          inputHtml = `<input type="text" class="psycle-profile-edit-input" data-path="${field.path}" value="${val.replace(/"/g, '&quot;')}" placeholder="${field.value === null ? 'null' : ''}" style="flex:1;background:var(--surface-inset);border:1px solid color-mix(in srgb, var(--text) 10%, transparent);border-radius:5px;padding:4px 8px;font-size:12px;color:var(--text);font-family:inherit;">`;
+          inputHtml = `<input type="text" class="sa-profile-edit-input" data-path="${field.path}" value="${val.replace(/"/g, '&quot;')}" placeholder="${field.value === null ? 'null' : ''}" style="flex:1;background:var(--surface-inset);border:1px solid color-mix(in srgb, var(--text) 10%, transparent);border-radius:5px;padding:4px 8px;font-size:12px;color:var(--text);font-family:inherit;">`;
         }
         contentHtml += `
-          <div class="psycle-profile-field-row" data-path="${field.path}" style="display:flex;align-items:center;gap:8px;padding:5px 0;border-bottom:1px dashed color-mix(in srgb, var(--text) 5%, transparent);">
+          <div class="sa-profile-field-row" data-path="${field.path}" style="display:flex;align-items:center;gap:8px;padding:5px 0;border-bottom:1px dashed color-mix(in srgb, var(--text) 5%, transparent);">
             <span style="color:var(--text-secondary);font-size:12px;font-weight:500;flex:0 0 160px;">${label}</span>
             ${inputHtml}
           </div>
@@ -450,12 +450,12 @@ function renderSectionAccordion(section, idx, isSpecial) {
   }
 
   return `
-    <div class="psycle-profile-section" style="border:1px solid color-mix(in srgb, var(--text) 8%, transparent);border-radius:12px;overflow:hidden;flex-shrink:0;margin-bottom:10px;">
-      <div class="psycle-profile-section-header" style="background:color-mix(in srgb, var(--text) 3%, transparent);padding:12px 16px;display:flex;justify-content:space-between;align-items:center;cursor:pointer;user-select:none;">
+    <div class="sa-profile-section" style="border:1px solid color-mix(in srgb, var(--text) 8%, transparent);border-radius:12px;overflow:hidden;flex-shrink:0;margin-bottom:10px;">
+      <div class="sa-profile-section-header" style="background:color-mix(in srgb, var(--text) 3%, transparent);padding:12px 16px;display:flex;justify-content:space-between;align-items:center;cursor:pointer;user-select:none;">
         <span style="font-weight:700;font-size:13px;color:var(--text);display:flex;align-items:center;gap:6px;">${section.emoji} ${section.title}${titleSuffix}</span>
         <span class="psycle-accordion-arrow" style="font-size:12px;color:var(--text-secondary);transition:transform 0.2s;">▼</span>
       </div>
-      <div class="psycle-profile-section-content" style="display:none;padding:14px;background:var(--surface-inset);border-top:1px solid color-mix(in srgb, var(--text) 5%, transparent);">
+      <div class="sa-profile-section-content" style="display:none;padding:14px;background:var(--surface-inset);border-top:1px solid color-mix(in srgb, var(--text) 5%, transparent);">
         ${contentHtml}
       </div>
     </div>
@@ -463,14 +463,14 @@ function renderSectionAccordion(section, idx, isSpecial) {
 }
 
 function setupEditListeners(body) {
-  const saveBtn = document.getElementById('psycle-profile-save-btn');
+  const saveBtn = document.getElementById('sa-profile-save-btn');
   if (!saveBtn) return;
 
   const originalProfile = JSON.parse(JSON.stringify(loadedProfile));
 
   const checkChanges = () => {
     let hasChanges = false;
-    body.querySelectorAll('.psycle-profile-edit-input').forEach(input => {
+    body.querySelectorAll('.sa-profile-edit-input').forEach(input => {
       const path = input.getAttribute('data-path');
       const origVal = getByPath(originalProfile, path);
       let curVal;
@@ -488,7 +488,7 @@ function setupEditListeners(body) {
     saveBtn.style.display = hasChanges ? 'block' : 'none';
   };
 
-  body.querySelectorAll('.psycle-profile-edit-input').forEach(input => {
+  body.querySelectorAll('.sa-profile-edit-input').forEach(input => {
     input.addEventListener('input', checkChanges);
     input.addEventListener('change', checkChanges);
   });
@@ -519,19 +519,19 @@ function renderLogEntriesHtml() {
 
 // Update the log container + count in the DOM without re-rendering the whole body
 function updateLogInPlace() {
-  const logContainer = document.getElementById('psycle-explorer-log-container');
-  const logCount = document.getElementById('psycle-explorer-log-count');
+  const logContainer = document.getElementById('sa-explorer-log-container');
+  const logCount = document.getElementById('sa-explorer-log-count');
   if (logContainer) logContainer.innerHTML = renderLogEntriesHtml();
   if (logCount) logCount.textContent = `(${changeLog.length})`;
 }
 
 async function saveProfileChanges(body, originalProfile) {
-  const saveBtn = document.getElementById('psycle-profile-save-btn');
+  const saveBtn = document.getElementById('sa-profile-save-btn');
   if (!saveBtn) return;
 
   // Collect changed fields
   const changes = [];
-  body.querySelectorAll('.psycle-profile-edit-input').forEach(input => {
+  body.querySelectorAll('.sa-profile-edit-input').forEach(input => {
     const path = input.getAttribute('data-path');
     const origVal = getByPath(originalProfile, path);
     let newVal;
@@ -599,7 +599,7 @@ async function saveProfileChanges(body, originalProfile) {
         }
 
         // Update the input element in-place to reflect verified/reverted value
-        const input = body.querySelector(`.psycle-profile-edit-input[data-path="${entry.fieldPath}"]`);
+        const input = body.querySelector(`.sa-profile-edit-input[data-path="${entry.fieldPath}"]`);
         if (input) {
           if (input.type === 'checkbox') {
             input.checked = verifiedVal === true;
@@ -645,20 +645,20 @@ export async function openManageSpotMapsModal(options = {}) {
 
   const overlay = document.createElement('div');
   overlay.id = 'psycle-manage-spotmaps-overlay';
-  overlay.className = 'psycle-ovl';
+  overlay.className = 'sa-ovl';
   overlay.style.cssText = `position:fixed;inset:0;background:color-mix(in srgb, var(--bg) 60%, transparent);z-index:${zIndex};display:flex;align-items:center;justify-content:center;padding:16px;`;
 
   const modal = document.createElement('div');
-  modal.className = 'psycle-ovl-card';
+  modal.className = 'sa-ovl-card';
   modal.style.cssText = 'background:var(--bg);border:1px solid color-mix(in srgb, var(--text) 12%, transparent);border-radius:16px;width:100%;max-width:500px;max-height:90vh;display:flex;flex-direction:column;overflow:hidden;';
 
   const header = document.createElement('div');
-  header.className = 'psycle-ovl-header';
+  header.className = 'sa-ovl-header';
   header.style.cssText = 'display:flex;justify-content:space-between;align-items:center;padding:14px 18px;border-bottom:1px solid color-mix(in srgb, var(--text) 8%, transparent);flex-shrink:0;';
   header.innerHTML = `<h3 data-nav-title style="margin:0;font-size:16px;font-weight:700;color:var(--text);">${COPY.spotMaps.preferredSpotMaps}</h3><button data-nav-close style="background:none;border:none;color:var(--text-secondary);font-size:22px;cursor:pointer;padding:0;line-height:1;" id="manage-modal-close" aria-label="${COPY.credits.closeModal}">×</button>`;
 
   const body = document.createElement('div');
-  body.className = 'psycle-ovl-body';
+  body.className = 'sa-ovl-body';
   body.style.cssText = 'flex:1;overflow-y:auto;padding:16px;';
   body.innerHTML = `<div style="text-align:center;padding:24px;"><div class="psycle-spinner" style="margin:0 auto;"></div><div style="color:var(--text-secondary);margin-top:10px;font-size:13px;">${COPY.spotMaps.loadingStudios}</div></div>`;
 
@@ -999,21 +999,21 @@ export async function openStudioFloorPlanEditor(studioId, studioName, onSaved, o
   // Build modal overlay
   const zIndex = (options.zIndex ?? 2000) + 1;
   const overlay = document.createElement('div');
-  overlay.id = 'psycle-spotmap-editor-overlay';
-  overlay.className = 'psycle-ovl';
+  overlay.id = 'sa-spotmap-editor-overlay';
+  overlay.className = 'sa-ovl';
   overlay.style.cssText = `position:fixed;inset:0;background:color-mix(in srgb, var(--bg) 60%, transparent);z-index:${zIndex};display:flex;align-items:center;justify-content:center;padding:16px;`;
 
   const modal = document.createElement('div');
-  modal.className = 'psycle-ovl-card';
+  modal.className = 'sa-ovl-card';
   modal.style.cssText = 'background:var(--bg);border:1px solid color-mix(in srgb, var(--text) 12%, transparent);border-radius:16px;width:100%;max-width:560px;max-height:90vh;display:flex;flex-direction:column;overflow:hidden;';
 
   const header = document.createElement('div');
-  header.className = 'psycle-ovl-header';
+  header.className = 'sa-ovl-header';
   header.style.cssText = 'display:flex;justify-content:space-between;align-items:center;padding:14px 18px;border-bottom:1px solid color-mix(in srgb, var(--text) 8%, transparent);flex-shrink:0;';
   header.innerHTML = `<div data-nav-title><div style="font-size:15px;font-weight:700;color:var(--text);">${COPY.spotMaps.spotMap}</div><div style="font-size:12px;color:var(--text-tertiary);margin-top:2px;">${studioName}</div></div><button data-nav-close style="background:none;border:none;color:var(--text-secondary);font-size:22px;cursor:pointer;padding:0;line-height:1;" id="spot-editor-close" aria-label="${COPY.credits.closeModal}">×</button>`;
 
   const body = document.createElement('div');
-  body.className = 'psycle-ovl-body';
+  body.className = 'sa-ovl-body';
   body.style.cssText = 'flex:1;overflow-y:auto;padding:16px;';
   body.innerHTML = `<div style="text-align:center;padding:24px;"><div class="psycle-spinner" style="margin:0 auto;"></div><div style="color:var(--text-secondary);margin-top:10px;font-size:13px;">${COPY.spotMaps.loadingFloorPlan}</div></div>`;
 
@@ -1284,7 +1284,7 @@ function gymModal() {
     setTimeout(() => { modal.style.display = 'none'; }, 300);
   };
   document.getElementById('psycle-gym-modal-close').onclick = close;
-  modal.querySelector('.psycle-modal-overlay').onclick = close;
+  modal.querySelector('.sa-modal-overlay').onclick = close;
   // navOpts: { id, back, canClose } for the mobile page shell (ui/modal-nav.js).
   const open = (navOpts = {}) => {
     openNavPage(modal, { focusField: 'input, select', ...navOpts });
@@ -2014,7 +2014,7 @@ function renderPerGymToggles(key, parentPref) {
 function anyPeriodicGym() { return (getLinkedGyms() || []).some(gymHasPeriodicWindow); }
 
 function renderNotifPrefs() {
-  const body = document.getElementById('psycle-notif-prefs-body');
+  const body = document.getElementById('sa-notif-prefs-body');
   if (!body) return;
   const prefs = getNotifPrefs();
 
@@ -2064,7 +2064,7 @@ function renderNotifPrefs() {
 }
 
 async function saveNotifPrefs() {
-  const body = document.getElementById('psycle-notif-prefs-body');
+  const body = document.getElementById('sa-notif-prefs-body');
   if (!body) return;
   const prefs = getNotifPrefs();
   body.querySelectorAll('.notif-toggle:not(:disabled)').forEach(el => {
@@ -2090,9 +2090,9 @@ async function saveNotifPrefs() {
 }
 
 function setupNotificationPrefs() {
-  const openBtn = document.getElementById('psycle-notif-prefs-btn');
-  const modal = document.getElementById('psycle-notif-prefs-modal');
-  const closeBtn = document.getElementById('psycle-notif-prefs-close');
+  const openBtn = document.getElementById('sa-notif-prefs-btn');
+  const modal = document.getElementById('sa-notif-prefs-modal');
+  const closeBtn = document.getElementById('sa-notif-prefs-close');
   debugConsole('[setupNotificationPrefs] openBtn:', openBtn, 'modal:', modal, 'closeBtn:', closeBtn);
   if (openBtn && !openBtn.dataset.listener) {
     openBtn.dataset.listener = 'true';
@@ -2106,7 +2106,7 @@ function setupNotificationPrefs() {
     closeBtn.dataset.listener = 'true';
     const close = () => { modal.classList.remove('show'); };
     closeBtn.addEventListener('click', close);
-    modal.querySelector('.psycle-modal-overlay').addEventListener('click', close);
+    modal.querySelector('.sa-modal-overlay').addEventListener('click', close);
   }
 
   // Debug test-notification buttons
@@ -2265,8 +2265,8 @@ function setupSettingsListeners() {
 
   // Profile explorer modal close (handled inside openProfileExplorerModal via setupExplorerModalClose,
   // but keep a fallback here for safety)
-  const explorerModal = document.getElementById('psycle-profile-explorer-modal');
-  const explorerClose = document.getElementById('psycle-profile-explorer-close');
+  const explorerModal = document.getElementById('sa-profile-explorer-modal');
+  const explorerClose = document.getElementById('sa-profile-explorer-close');
   if (explorerModal && explorerClose && !explorerClose.dataset.listener) {
     explorerClose.dataset.listener = 'true';
     const closeExplorer = () => {
@@ -2277,14 +2277,14 @@ function setupSettingsListeners() {
       konamiProgress = 0;
     };
     explorerClose.addEventListener('click', closeExplorer);
-    const overlay = explorerModal.querySelector('.psycle-modal-overlay');
+    const overlay = explorerModal.querySelector('.sa-modal-overlay');
     if (overlay) {
       overlay.addEventListener('click', closeExplorer);
     }
   }
 
   // Replay onboarding button
-  const replayBtn = document.getElementById('psycle-replay-onboarding-btn');
+  const replayBtn = document.getElementById('sa-replay-onboarding-btn');
   if (replayBtn && !replayBtn.dataset.listener) {
     replayBtn.dataset.listener = 'true';
     replayBtn.addEventListener('click', async () => {

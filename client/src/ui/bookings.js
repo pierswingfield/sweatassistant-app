@@ -537,9 +537,9 @@ function wireCancelBooking(btn, card, group, within12h) {
 // unclear.  This chooser keeps every provider command explicit while relying
 // on the server-side guest-first guard as the final safety net.
 export function openGroupedCancellationModal(group, onChange = renderBookings) {
-  const modal = document.getElementById('psycle-booking-modal');
-  const body = document.getElementById('psycle-booking-modal-body');
-  const title = document.getElementById('psycle-booking-modal-title');
+  const modal = document.getElementById('sa-booking-modal');
+  const body = document.getElementById('sa-booking-modal-body');
+  const title = document.getElementById('sa-booking-modal-title');
   if (!modal || !body || !title || !hasMultipleBookedSpots(group?.bookings)) return;
 
   const event = group.event || {};
@@ -575,8 +575,8 @@ export function openGroupedCancellationModal(group, onChange = renderBookings) {
     setTimeout(() => { modal.style.display = 'none'; }, 300);
     void syncAfterClose();
   };
-  document.getElementById('psycle-booking-modal-close').onclick = close;
-  modal.querySelector('.psycle-modal-overlay').onclick = close;
+  document.getElementById('sa-booking-modal-close').onclick = close;
+  modal.querySelector('.sa-modal-overlay').onclick = close;
 
   const labelFor = (booking) => formatSpotLabel(gymId, {
     label: booking.slotLabel ?? booking.raw?.spot?.name ?? booking.studio_slot?.label
@@ -678,9 +678,9 @@ export function openGroupedCancellationModal(group, onChange = renderBookings) {
 // CodexFit has no "move seat" call, so saving releases removed spots (refunding
 // their credits and freeing the seats) and then books the added spots.
 export async function openEditBookingModal(group, onChange = renderBookings) {
-  const modal = document.getElementById('psycle-booking-modal');
-  const body = document.getElementById('psycle-booking-modal-body');
-  const title = document.getElementById('psycle-booking-modal-title');
+  const modal = document.getElementById('sa-booking-modal');
+  const body = document.getElementById('sa-booking-modal-body');
+  const title = document.getElementById('sa-booking-modal-title');
   if (!modal || !body || !title) return;
   const modalRunId = ++editModalRunId;
   const isCurrentRun = () => isCurrentModalRun(modalRunId, editModalRunId, modal.classList.contains('show'));
@@ -698,8 +698,8 @@ export async function openEditBookingModal(group, onChange = renderBookings) {
   let editDirty = () => false; // set once the selection exists
   openNavPage(modal, { id: 'edit-spots', canClose: () => !editDirty() || confirm(COPY.bookingEditor.discardChanges) });
 
-  const closeBtn = document.getElementById('psycle-booking-modal-close');
-  const overlay = modal.querySelector('.psycle-modal-overlay');
+  const closeBtn = document.getElementById('sa-booking-modal-close');
+  const overlay = modal.querySelector('.sa-modal-overlay');
   const closeModal = () => {
     if (closeNavPage(modal)) return;
     if (modalRunId === editModalRunId) editModalRunId++;
@@ -1195,9 +1195,9 @@ async function handleUpgradeClick({ currentSlotLabel, eventId, gymId, bookingId,
 
 // Auto-Upgrade configuration modal (floor plan + options)
 export async function openUpgradeConfigModal({ currentSlotLabel = '', eventId, gymId, bookingId, currentSlotId, studioId, className, groupName, instructorName, studioName, locationName, startAt, existingUpgradeId, existingPrefs }) {
-  const modal = document.getElementById('psycle-booking-modal');
-  const body = document.getElementById('psycle-booking-modal-body');
-  const title = document.getElementById('psycle-booking-modal-title');
+  const modal = document.getElementById('sa-booking-modal');
+  const body = document.getElementById('sa-booking-modal-body');
+  const title = document.getElementById('sa-booking-modal-title');
   if (!modal || !body || !title) return;
 
   title.textContent = COPY.autoUpgrade.configureTitle;
@@ -1212,8 +1212,8 @@ export async function openUpgradeConfigModal({ currentSlotLabel = '', eventId, g
   const discardOk = () => !spotMapDirty() || confirm(COPY.bookingEditor.discardChanges);
   openNavPage(modal, { id: 'upgrade-config', canClose: discardOk });
 
-  const closeBtn = document.getElementById('psycle-booking-modal-close');
-  const overlay = modal.querySelector('.psycle-modal-overlay');
+  const closeBtn = document.getElementById('sa-booking-modal-close');
+  const overlay = modal.querySelector('.sa-modal-overlay');
   
   const closeModal = () => {
     if (closeNavPage(modal)) return;
@@ -1283,28 +1283,28 @@ export async function openUpgradeConfigModal({ currentSlotLabel = '', eventId, g
 
     const showForm = () => {
       body.innerHTML = `
-        <div id="psycle-upgrade-editor" class="psycle-upgrade-setup">
+        <div id="sa-upgrade-editor" class="sa-upgrade-setup">
           ${isExplainerDismissed() ? '' : `
-          <div class="psycle-upgrade-explainer" id="upgrade-explainer">
-            <button type="button" class="psycle-upgrade-explainer-close" id="upgrade-explainer-close" aria-label="Dismiss explanation">&times;</button>
+          <div class="sa-upgrade-explainer" id="upgrade-explainer">
+            <button type="button" class="sa-upgrade-explainer-close" id="upgrade-explainer-close" aria-label="Dismiss explanation">&times;</button>
             <strong>How Auto-Upgrade works</strong>
             <p>We watch this class for you. When a better ${noun} frees up, we move you into it automatically, and keep checking until the cutoff.</p>
             <p>Your <strong>preferred ${noun} map</strong> ranks which ${noun}s you would like, in priority order. It is shared for ${escapeHtml(studioName)}, so Quick-Book and Auto-Book use the same map.</p>
           </div>`}
           ${creditWarningHtml}
           <div id="upgrade-context"></div>
-          <div class="psycle-upgrade-current">Your current ${noun}: <strong>${escapeHtml(spotLabel || '—')}</strong></div>
-          <div class="psycle-upgrade-map-summary">
+          <div class="sa-upgrade-current">Your current ${noun}: <strong>${escapeHtml(spotLabel || '—')}</strong></div>
+          <div class="sa-upgrade-map-summary">
             <span id="upgrade-map-summary">${escapeHtml(summarizeSpotPrefs(state.slots, state.rows, noun))}</span>
-            <button type="button" class="psycle-btn psycle-upgrade-edit-map" id="upgrade-edit-map">Edit preferred ${noun} map for ${escapeHtml(studioName)}</button>
+            <button type="button" class="psycle-btn sa-upgrade-edit-map" id="upgrade-edit-map">Edit preferred ${noun} map for ${escapeHtml(studioName)}</button>
           </div>
           ${showKeepOriginal ? `
-          <label class="psycle-upgrade-keep">
+          <label class="sa-upgrade-keep">
             <input type="checkbox" class="psycle-ms-checkbox" id="upgrade-keep-original" ${state.keepOriginal ? 'checked' : ''}>
             <span><strong>${COPY.bookings.continuePastCutoff}</strong><br>
-              <span class="psycle-upgrade-keep-help">${formatCopyText(COPY.bookingEditor.finalUpgradeAttemptHelp, { noun: escapeHtml(noun) })}</span></span>
+              <span class="sa-upgrade-keep-help">${formatCopyText(COPY.bookingEditor.finalUpgradeAttemptHelp, { noun: escapeHtml(noun) })}</span></span>
           </label>` : ''}
-          <div class="psycle-spotmap-actions psycle-upgrade-actions" style="display:flex;gap:8px;">
+          <div class="sa-spotmap-actions sa-upgrade-actions" style="display:flex;gap:8px;">
             <button type="button" class="psycle-btn" id="upgrade-save" style="flex:2;background:var(--feat-autoupgrade);color:#fff;">${isEditing ? COPY.bookings.saveChanges : COPY.bookings.startMonitoring}</button>
             ${isEditing ? `<button type="button" class="psycle-btn" id="upgrade-disable" style="flex:1;background:color-mix(in srgb, var(--danger) 10%, transparent);border:1px solid color-mix(in srgb, var(--danger) 20%, transparent);color:var(--danger);">${COPY.bookings.disableUpgrade}</button>` : ''}
           </div>
@@ -1362,8 +1362,8 @@ export async function openUpgradeConfigModal({ currentSlotLabel = '', eventId, g
     };
 
     const showMap = () => {
-      body.innerHTML = `<div id="psycle-upgrade-editor"></div>`;
-      const editorContainer = body.querySelector('#psycle-upgrade-editor');
+      body.innerHTML = `<div id="sa-upgrade-editor"></div>`;
+      const editorContainer = body.querySelector('#sa-upgrade-editor');
       const bannerHtml = `
         <div style="font-size:12px;color:var(--text-secondary);background:var(--surface-inset);border:1px solid var(--border);border-radius:8px;padding:8px 10px;margin-bottom:10px;line-height:1.5;">
           ${formatCopyText(COPY.bookingEditor.sharedSpotMapHtml, { studioName: escapeHtml(studioName) })} Your current ${noun} is <strong>${escapeHtml(spotLabel || '—')}</strong>.
@@ -1394,7 +1394,7 @@ export async function openUpgradeConfigModal({ currentSlotLabel = '', eventId, g
       });
       const back = document.createElement('button');
       back.type = 'button';
-      back.className = 'psycle-btn psycle-upgrade-back';
+      back.className = 'psycle-btn sa-upgrade-back';
       back.textContent = COPY.autoUpgrade.backToUpgrade;
       back.onclick = () => { if (discardOk()) showForm(); };
       editorContainer.appendChild(back);

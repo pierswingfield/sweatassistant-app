@@ -1653,7 +1653,7 @@ export async function renderGymSettingsSection(requestedGymId = null, targetCont
           // C3-18: mirror into the in-memory copy KEYED BY GYM. This used to
           // compare against `getLinkedGyms()[0]` on the theory that it was the
           // gym the server defaults to, but /api/my-gyms sorts by gym_id, so [0]
-          // is jab-boxing while the server default is psycle-london: the mirror
+          // is not necessarily the gym the server resolves: the mirror
           // landed on the wrong gym's copy. Position says nothing about identity.
           cache.gymSettings[gymId] = { ...(cache.gymSettings[gymId] || {}), ...next };
           showToast(formatCopyText(COPY.settings.gymSettingsSaved, { gym: gym.name || gymId }), 'success');

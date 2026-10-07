@@ -372,7 +372,7 @@ export async function invalidateApiCache(pattern) {
       req.onsuccess = () => {
         const cursor = req.result;
         if (cursor) {
-          const key = cursor.key; // e.g. "user123@psycle-london:/api/auto-book"
+          const key = cursor.key; // e.g. "user123@gym-a:/api/auto-book"
           // Only delete entries for the current user AND gym
           const prefix = cacheKeyPrefix();
           const prefixStr = prefix ? prefix + ':' : '';

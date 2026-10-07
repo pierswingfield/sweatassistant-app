@@ -119,8 +119,10 @@ App/
 │       ├── sw.js             # Service worker (push + offline cache, network-first shell, cache-first assets)
 │       └── icons/            # App icons (128, 192, 512 — any + maskable)
 ├── Dockerfile               # Multi-stage build (client → server/public)
-├── docker-compose.yml       # Single-container deployment (port 3005→3000)
-├── deploy.sh                # oracle deploy: rsync + docker compose up -d --build (dev twin by default; --prod needs a typed confirmation; --print dry-runs)
+├── docker-compose.yml       # DEV twin: service/container `app-dev`, tailnet bind 3005→3000, ./data → /data (app.db)
+├── docker-compose.prod.yml  # PROD: service/container `app`, no published port (tunnel → app:3000 over `edge`)
+├── deploy.sh                # oracle deploy to ~/services/app-dev (default) or ~/services/app (--prod, typed confirmation): rsync + `docker compose -f <file> up -d --build`; --print dry-runs
+├── scripts/backup-sqlite.sh # nightly WAL-safe SQLite backups (installed on oracle as app-backup-sqlite.sh)
 └── package.json             # Root workspace (concurrently dev server + client)
 ```
 
@@ -492,7 +494,7 @@ IndexedDB database `app-cache` (v3) has two stores: `cache` (raw timetable event
 |----------|---------|---------|
 | `PORT` | `server.js` | HTTP server port (default 3000) |
 | `NODE_ENV` | `server.js` | If `production`, serves SPA static files |
-| `DB_PATH` | `db.js` | SQLite database file path |
+| `DB_PATH` | `db.js` | SQLite database file path (Docker: `/data/app.db`) |
 | `JWT_SECRET` | `auth.js`, `admin.js` | Secret for signing local PWA JWTs and admin JWTs (auto-generated + DB-stored fallback) |
 | `ENCRYPTION_KEY` | `crypto.js` | **Required.** Master key for AES-256-GCM password encryption. Server refuses to start if absent (no DB fallback). |
 | `VAPID_PUBLIC_KEY` | `push.js` | VAPID public key for Web Push (auto-generated + DB-stored fallback) |

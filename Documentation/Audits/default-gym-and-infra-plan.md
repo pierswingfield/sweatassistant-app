@@ -1,165 +1,86 @@
-# DEFAULT_GYM_ID removal and infra rename plan (READ-ONLY audit, 2026-10-07)
+# DEFAULT_GYM_ID removal and infra rename (2026-10-07)
 
-Nothing here has been executed. Evidence: grep of this worktree plus read-only `ssh oracle` (docker ps, ls, crontab).
+Status: **code and infra FILES are done on branch `agent/psycle-naming-css-audit-f37e1a` (step 7). No host has been touched.**
+The host cutover below is a runbook for the user to approve and run (dev first, then prod).
 
-## Root cause
+## What changed in the repo (one commit per item)
 
-`DEFAULT_GYM_ID = 'psycle-london'` (`server/gyms.config.js:461`) was the WP-D2 migration anchor for single-tenant
-users. It outlived the migration and now acts as a silent "guess Psycle" fallback inside a gym-agnostic core. The
-"psycle" infra names are the same legacy: the app was once the Psycle companion backend, and the dirs, containers,
-DB file and backup job kept the name. With no real users and a recreatable DB, both can go.
+| # | Item | Outcome |
+|---|------|---------|
+| 1 | Welcome/About copy | No hardcoded gym names (`copy.js`). |
+| 2 | Credit checkout fallback | `creditStoreUrl` (template with `{handle}`) on the gym config, exposed on `/api/gyms` only for `creditPurchase` gyms; `credits.js` reads it, falls back to `websiteUrl`. |
+| 3 | Stray `psycle` core tokens | Comments and `warm-instructor-photos.js` container name made neutral. |
+| 4 | `PUBLIC_HOST` / `VAPID_EMAIL` | Required when `NODE_ENV=production` (named startup error), inert localhost values in dev/test. `.env.example` added. Both prod and dev `.env` files already contain both keys (names verified read-only), so the new rule cannot break the cutover. |
+| 5 | Dev mock | `devMock: { email }` per gym in `gyms.config.js`; adapter hooks `isMockLogin`, `isMockUser`, `mockToken`. `auth.js`, `poller.js`, `scheduler.js`, `codexfit.js`, `marianatek.js` updated; `dev-setup-jab.js` -> `dev-setup-gym.js`. The app-level dev bypass is now **disabled in production** (it previously accepted any password for `dev@psycle.com` in any environment). A dead helper (`poller.fetchPublicFromGym`) was deleted. |
+| 6 | `DEFAULT_GYM_ID` | Removed. No linked gym => `resolveActiveGymId` is `null`, routes 409 `NO_GYM_LINKED`, settings PUT 409 for gym-scoped keys. Several links and none named => earliest link. `handleLogin` bootstrap and `db.createUser` deleted (signup is the only creator). One canonical `CREATE TABLE` block replaces WP-D1/D2/D6 migrations, `ensureColumn`, DDL defaults, backfills (schema diffed against the old fresh DB: identical except `auto_bookings.gym_id` and `auto_upgrades.gym_id` are now `NOT NULL`). `test-backfill-user-gyms.js` deleted, `server/testkit.js` added, `test-regression-psycle.js` -> `test-regression-codexfit-mock.js`. |
+| 7 | Infra files | Neutral names below, `docker-compose.prod.yml` added, `deploy.sh` and backup script updated. |
 
-## Part A. DEFAULT_GYM_ID
+New suites: `test-config-required`, `test-dev-mock-hook`, `test-no-gym-state`.
+Left alone on purpose: the three settings-scope data migrations in `db.js` (no-ops on a fresh DB, still tested), the `sweat(-dev).wingfield.tech` public hostnames, historical docs under `Documentation/Archive/` and workstream records.
 
-### A1. Every non-test use (server/ 6 files, client/ 0)
+## Names chosen (generic `app`) and collision check
 
-| # | Where | Purpose | Needed now? | Replace with |
-|---|-------|---------|-------------|--------------|
-| 1 | `gyms.config.js:461,463` | Definition and export | No | Delete. Keep nothing exported. |
-| 2 | `db.js:513,525` `backfillUserGyms()` | Boot migration: pre-D4 users (password_hash NULL) get a psycle link | No. DB recreated, no pre-D4 rows | Delete function and its boot call |
-| 3 | `db.js:549` `backfillGymEmails()` | Fill NULL gym_email for psycle links | No | Delete with #2 |
-| 4 | `db.js:779` `resolveActiveGymId(null)` | No user id yields default gym | Risky, see A3 | Return `null`; callers handle it |
-| 5 | `db.js:846-847` `resolvePersistedGymId` | 0 links or many links w/o a pick falls to psycle, else `links[0]` | Wrong for gym-agnostic | 1 link: it. 0 links: `null`. Many: stored `active_gym_id` if linked, else first by `linked_at`/id (deterministic), never psycle-first |
-| 6 | `db.js:1216` `createUser()` | Legacy "first gym login creates account + psycle link" | No. Signup + `POST /api/my-gyms/link` is the flow | Delete `createUser` default-link path, or make it take an explicit gymId |
-| 7 | `auth.js:175` `handleLogin` | New account logging in via a gym form bootstraps against psycle | No (legacy path) | New email with no SA account: 401 "sign up first". Removes the hidden gym-login-as-signup path |
-| 8 | `auth.js:58,61` dev mock login | `dev@psycle.com` mock is psycle | Dev only, but it is explicit intent | Pass `'psycle-london'` as a literal ONLY inside the mock block, or read from `mock.js` export (`MOCK_GYM_ID`). `test-no-gym-privilege.js` bans literals outside allowed files, so add `mock.js`/`auth.js` mock block to its allowlist |
-| 9 | `scheduler.js:159` `getClassReleaseTime` | `row.gym_id || DEFAULT` for bare-string callers | No. `gym_id` is NOT NULL on every row | If no gym_id return `null` (already the "skip" contract); fix the bare-string test callers |
-| 10 | `scheduler.js:774` | Comment only | n/a | Reword |
-| 11 | `notifications.js:11` `zoneFor` | Zone for a null gym | No | Return null; callers skip or use `getGymConfig` of the row gym |
-| 12 | `notifications.js:125` | Display config fallback | No | Neutral generic title via `config.appName` |
-| 13 | `notifications.js:237-249` | Sample payloads for `/api/push/test/:type` | Debug only | Use first enabled gym: `listEnabledGyms()[0].id` |
-| 14 | `dev-setup-jab.js:77-152` | CLI picks "the other gym" and prints a switch-back hint | Dev tool | Replace with `--gym` required arg, or switch-back = previously active gym id. Rename file to `dev-setup-gym.js` |
-| 15 | `db.js:586,756,1858,2338` | Comments referencing it | n/a | Reword |
+| Thing | Old | New |
+|-------|-----|-----|
+| Prod service / container | `psycle-app` | `app` |
+| Dev service / container | `psycle-app-dev` (service was `psycle-app`) | `app-dev` |
+| Remote dirs | `~/services/psycleapp`, `psycleapp-dev` | `~/services/app`, `~/services/app-dev` |
+| Compose projects (auto) | `psycleapp`, `psycleapp-dev` | `app`, `app-dev` (networks `app_default`, `app-dev_default`; images `app-app`, `app-dev-app-dev`) |
+| DB file | `/data/psycle.db` | `/data/app.db` |
+| Unused named volume | `psycle-data` (declared, never mounted; orphan `psycleapp-dev_psycle-data`) | declaration deleted; orphan removed in the runbook |
+| Backup | `psycle-backup-sqlite.sh`, `/var/backups/psycle-sqlite`, Drive `Backups/psycle-sqlite`, `psycle-*.db.gz`, `/var/log/psycle-backup-sqlite.log` | `app-backup-sqlite.sh`, `/var/backups/app-sqlite`, `Backups/app-sqlite`, `app-*.db.gz`, `/var/log/app-backup-sqlite.log` |
 
-Client: zero uses of `DEFAULT_GYM_ID`. The literal `'psycle-london'` in client/src appears only in tests, fixtures,
-comments (`url-state.js:158`, `cache.js:375`, `settings.js:1656`). Settings comment at 1656 says "server default is
-psycle-london", which becomes false; fix the wording.
+Collision check (read-only, 2026-10-07): oracle has no container, network, volume, image or `~/services/` entry named `app`, `app-dev`, `app_default`, `app-dev_default` or `app-data`; the Pi has `nginxproxymanager-docker-app-1` (different host, different name). Minimal disambiguation applied: **prod and dev use different service names** (`app` vs `app-dev`). Docker adds the service name as a DNS alias on every network the service joins, and the old dev and prod files both used `psycle-app` on the shared `edge` network, so the tunnel upstream `psycle-app:3000` could resolve to either container. Also note `app` is a very short name on a shared network: if another stack ever needs it, rename in one place (`docker-compose.prod.yml`, tunnel upstream, registry).
 
-### A2. DDL defaults, ensureColumn, migration regexes (`db.js`)
+## Cutover runbook
 
-| Line | What | Verdict |
-|------|------|---------|
-| 301 | Comment example id | Reword (use `gym-a`) |
-| 432-447 | `GYM_DEFAULT_RE` + `dropGymIdDefault()` rebuild that strips `DEFAULT 'psycle-london'` from 8 tables | Dead on a fresh DB: new DDL has no default. Delete the whole WP-D6 block (`GYM_SCOPED_TABLES`, `dropGymIdDefault`, its call) |
-| 591, 598 | `ensureColumn('auto_bookings'/'auto_upgrades','gym_id',"TEXT DEFAULT 'psycle-london'")` | Add `gym_id TEXT NOT NULL` into the two CREATE TABLE statements instead; delete both ensureColumns and `rebuildWithGymId` if only used here |
-| 623, 638, 663, 685, 713 | `gym_id TEXT NOT NULL DEFAULT 'psycle-london'` in 5 CREATE TABLEs | Drop `DEFAULT ...`. This is the actual "refuse to guess" end state the file already claims |
+Needs the user: every step marked **[CONFIRM]**. Nothing below has been run. Expected downtime: dev about 2 minutes, prod about 3 to 5 minutes (image build can be pre-warmed with the dev deploy; prod accounts are lost by design, so everyone signs up again and relinks gyms).
 
-Net: roughly 80-120 lines of migration code removed. All of it only matters for a DB created before 2026-09; recreating the DB makes it provably dead.
-Constraint: this is only safe if prod and dev DBs are recreated (Part B step 3). If any old DB survives, `NOT NULL` without default on an old table fails at INSERT. Do A2 and the DB recreate in the same deploy.
+### 0. Preconditions (local)
+1. Merge this branch to `master`; deploy from a clean `master` checkout (`deploy.sh` ships the working tree).
+2. `npm test` green and `npm run build:client` ok.
+3. `./deploy.sh --print` and `./deploy.sh --print --prod`: check the dirs and `-f` compose files.
+4. Pre-flight read-only on oracle: `docker ps --format '{{.Names}}'` (confirm `psycle-app`, `psycle-app-dev`), `ls ~/services`, and confirm both `.env` files contain `PUBLIC_HOST` and `VAPID_EMAIL` (`grep -c '^PUBLIC_HOST=' ~/services/psycleapp/.env`).
+5. Read the oracle tunnel's current ingress (Cloudflare API `GET /accounts/$CF_ACCOUNT/cfd_tunnel/<oracle-cloudflared id>/configurations`, token from `~/.cloudflare.env`, never print it). Record the exact upstreams for `sweat`, `sweat-dev` and `psycle` hostnames; save the JSON as a backup. The Pi tunnel is not involved.
 
-### A3. Where removal could break a real flow
+### 1. Dev twin first
+1. **[CONFIRM]** `ssh oracle 'sudo /usr/local/sbin/psycle-backup-sqlite.sh'`; verify a dated file in `/var/backups/psycle-sqlite/dev/` and on Drive (`rclone lsd`/`ls`).
+2. **[CONFIRM]** Stop and move: `cd ~/services/psycleapp-dev && docker compose down`; `cd ~/services && mv psycleapp-dev app-dev`.
+3. Archive the DB (no migration, the new build creates a fresh schema): `cd ~/services/app-dev && mv data data-archive-$(date +%Y%m%d) && mkdir data`. Keep `.env` as is.
+4. From the Mac: `./deploy.sh` (dev). It rsyncs into `~/services/app-dev/` and runs `docker compose -f docker-compose.yml up -d --build`.
+5. Verify (show the output): `ssh oracle 'docker ps --format "{{.Names}} {{.Status}} {{.Ports}}" | grep app'` shows `app-dev` Up on `100.86.226.52:3005->3000`; `curl -s https://sweat-dev.wingfield.tech/api/health` is `ok`; `docker exec app-dev ls -l /data` shows `app.db`.
+6. Tunnel: the dev hostname's upstream must name the new container (`app-dev:3000`, or the tailnet bind if that is what it uses; step 0.5 tells you). **[CONFIRM]** edit via GET, modify, PUT (a PUT replaces the entire config), then re-probe the hostname.
+7. Browser smoke on the dev host (real Chrome, one tab): signup, link a gym, timetable, Settings.
+8. Clean up: `docker rm` is not needed (compose down removed the old container); **[CONFIRM]** `docker volume rm psycleapp-dev_psycle-data` (empty, unused) and `docker network rm psycleapp-dev_default` after `docker network inspect` shows no endpoints.
+9. Install the renamed backup script (does not touch cron yet): `scp scripts/backup-sqlite.sh oracle:/tmp/ && ssh oracle 'sudo install -m 755 -o root -g root /tmp/backup-sqlite.sh /usr/local/sbin/app-backup-sqlite.sh'`. The prod source `~/services/app/data/app.db` does not exist until prod is cut over, so the first run reports `prod: source missing` and exits non-zero: expected, run it only after step 2.
 
-1. **Cron/background with no gym context.** `resolveActiveGymId(userId)` is called with no `AsyncLocalStorage`
-   context by poller, scheduler, calendar (`runWithGymContext` wraps most). Rows carry `gym_id`, so scanners are fine
-   (AGENTS.md rule: cross-user scanners must not filter by gym). Risk is a code path using `getUserById(...).jwt` for a
-   user with 2+ links and no persisted `active_gym_id`: today lands on psycle, after change on a deterministic first link.
-   Both are arbitrary, but behaviour is stable. Verify with `test-background-gym-session.js`.
-2. **Null return type.** `resolveActiveGymId` returning `null` for 0 links must not reach `getGymConfig(null)` or SQL
-   `gym_id = ?` (silently matches nothing: acceptable) or `NOT NULL` inserts (throws: acceptable, names itself). Audit the
-   about 10 callers; the NO_GYM_LINKED 409 path (`routes-normalized.js:104-131`, `db.js:488`) already handles it for routes.
-3. **Signup** (`createAccount`) is gym-less already, unaffected. **Legacy `handleLogin` bootstrap** (#7) is the one real
-   behaviour change: a new email can no longer log in straight against a gym. Check `client` login form and onboarding
-   do not rely on it (`api-no-gym.test.js`, `test-account-identity.js`).
-4. **Admin routes:** `getAllUsers` already gym-aware (C3-7). `POST /api/admin/users/:id/link-gym` names its gym. Fine.
-   Admin user detail for a 0-link user must tolerate null active gym (`test-admin-gym-aware.js`).
-5. **Calendar:** fans out over `db.getUserGyms()`, no default. Low risk.
-6. **Mocks/dev-setup:** `auth.js` mock login (#8) and `dev-setup-jab.js` (#14) are the two real consumers; both dev-only but
-   `npm run dev` login for `dev@psycle.com` must keep working. Run the dev login manually after.
-7. **test-no-gym-privilege.js** scans source for `psycle-london`/`jab-boxing` literals and tells you to "import
-   DEFAULT_GYM_ID" (line 90). Update the message and allowlist when the export goes.
+Let dev run for a day before prod.
 
-### A4. Tests that assert the old fallback (will change)
+### 2. Prod (typed confirmation required)
+1. **[CONFIRM]** On-demand backup with the old script (still installed): `ssh oracle 'sudo /usr/local/sbin/psycle-backup-sqlite.sh'`; verify the dated `prod` artefact locally and on Drive.
+2. **[CONFIRM]** Add the compatibility alias so the tunnel keeps resolving across the rename: temporarily put `aliases: [psycle-app]` under `networks: edge:` for the `app` service in the host's copy of `docker-compose.prod.yml` after the first deploy (or run step 5 immediately after step 4 to keep the gap to seconds). Skipping the alias means 502s on `sweat.wingfield.tech` until step 5.
+3. **[CONFIRM, destroys all prod accounts]** `cd ~/services/psycleapp && docker compose down && cd .. && mv psycleapp app && cd app && mv data data-archive-$(date +%Y%m%d) && mkdir data`. The old compose file left in the dir is `docker-compose.yml`; prod now uses `docker-compose.prod.yml`, so `mv docker-compose.yml docker-compose.yml.old-psycle`.
+4. **[CONFIRM, typed "deploy prod"]** `./deploy.sh --prod` from the Mac.
+5. **[CONFIRM]** Tunnel upstream for `sweat` (and `psycle` if kept, see step 8) from `psycle-app:3000` to `app:3000` (GET, back up, modify, PUT). Then remove the alias from the host compose and `docker compose -f docker-compose.prod.yml up -d`.
+6. Verify (show the output): `docker ps` shows `app` Up with no published port; `curl -s https://sweat.wingfield.tech/api/health` ok; `docker exec app wget -qO- localhost:3000/api/gyms` lists the expected gyms; `docker exec app ls -l /data` shows `app.db`; browser smoke (signup, link, timetable) on a clean cache (service worker, CacheStorage, IndexedDB all cleared).
+7. Cron: **[CONFIRM]** edit root crontab (absolute paths, always redirect): replace the two `psycle-backup-sqlite.sh` lines with `/usr/local/sbin/app-backup-sqlite.sh >> /var/log/app-backup-sqlite.log 2>&1` (04:10) and the `--check-stale` line (09:30). Also `grep -n psycleapp /usr/local/sbin/oracle-backup.sh` and update its source list (not read yet). Verify by artefact the next morning: dated `app-*.db.gz` under `/var/backups/app-sqlite/{prod,dev}` and `Backups/app-sqlite/{prod,dev}` on Drive (not by absence of an alert).
+8. Hostname retirement: the user decided to retire `psycle.wingfield.tech`. **[CONFIRM]** remove the tunnel ingress rule and DNS record for `psycle.wingfield.tech`, and remove it from the `psycle` Cloudflare Access app (hostnames `psycle`, `sweat`, `sweat-dev`); keep `psycle-bypass` for the `sweat` paths (`/api/calendar/*`, `/api/health`) and drop its `psycle` host. Warning: **calendar feed URLs and Chrome-extension API calls on the old host stop working**; `PUBLIC_HOST` already points at the sweat host in prod `.env`, so new feed URLs are correct, but any old subscription URL dies. Optional: rename the Access apps (cosmetic).
+9. Later, after a week and only on explicit say-so: delete `~/services/app/data-archive-*`, `docker-compose.yml.old-psycle`, Drive `Backups/psycle-sqlite`, local `/var/backups/psycle-sqlite`, `/usr/local/sbin/psycle-backup-sqlite.sh`, and the stopped Pi `psycle-app` container with `~/psycleapp`.
 
-| Suite | Assertion that changes |
-|-------|------------------------|
-| `test-active-gym.js` (lines 62-63, 77, 91-123, 230) | `resolveActiveGymId(999999)` and `(null)` equal psycle; a gym-less/unlinked case falls to default. New: `null`; after `unlinkGym` also null |
-| `test-admin-gym-aware.js` (50-57) | "two-gym account resolves to the default gym (psycle-london)". New: resolves per rule 5 (stored pick, else first link) |
-| `test-background-gym-session.js` (33,45) | imports `DEFAULT_GYM_ID`, sanity-asserts active = default. Use explicit `PSYCLE` const and set `active_gym_id` |
-| `test-poller-backoff.js` (28-41), `test-rate-limit-abort.js` (29-47) | import `DEFAULT_GYM_ID` to delete the auto-created default link in setup. Replace with explicit gym id; also the setup relies on `createUser()` creating the psycle link (#6) |
-| `test-no-gym-privilege.js` (8,81-90) | Guard text and allowlist |
-| `test-backfill-user-gyms.js` | Tests `backfillUserGyms`/`backfillGymEmails`: delete the suite |
-| `test-gym-identity.js` | Check for backfillGymEmails cases (WP-D5): delete those cases |
-| `test-no-active-gym.js`, `test-gym-required.js` | Likely extend: add 0-link null cases |
-| `test-scheduler-event-details.js`, `test-wake-clock.js` | Check for bare-string `getClassReleaseTime` callers (#9) |
-| `test-regression-psycle.js` | Does NOT use DEFAULT_GYM_ID. It sends `x-gym-id: psycle-london` explicitly in every authed call (lines 118, 315-356, 466), so it survives. It does assert psycle-london in `/api/gyms` and `clearedGyms` (374, 544): fine, the gym still exists. Only rename the file (`test-regression-psycle.js` to `test-regression-codexfit.js`, update `TESTING.md:44` and AGENTS.md) |
+### 3. Rollback
+- Dev or prod before step 2.4: `docker compose down` in the new dir, `mv` the dir back, `rm -r data && mv data-archive-<date> data`, restore the old compose file, `docker compose up -d`. The archived DB is `psycle.db`; the previous image still needs `DB_PATH=/data/psycle.db` (it has it baked in), so use the previous commit if you rebuild. Restore the saved tunnel JSON (PUT).
+- After prod accounts have re-signed up: rollback loses those accounts again; the pre-cutover backups on Drive and in `/var/backups/psycle-sqlite` are the only restore points.
+- Previous known-good code: current `master` before this merge (the `psycle` names).
 
-Many other suites use the literal `'psycle-london'` as a test fixture gym id; that is legitimate (a configured gym), leave it.
+### 4. Registry and docs edits needed (do NOT edit `~/.claude` files until the cutover happens)
+In `~/.claude/skills/selfhost-deploy/references/registry.md`:
+- Rows `psycle-app` / `psycle-app-dev` (lines about 73-74): container `app` / `app-dev`, compose project `app` / `app-dev`, container-name column `app-app` / `app-dev-app-dev`, dir `~/services/app*`, note the alias removal and the dropped `psycle.wingfield.tech` host.
+- Docker networks line (about 188): `app_default`, `app-dev_default` replace `psycleapp(_dev)_default`.
+- Pi standby row (about 159) unchanged until it is deleted.
+- Add a dated cutover note in the latest-deploy block with commit, backup artefacts and verification output.
+Also: `oracle.md` lines about 110 and 216-226 (script name, paths, `app.db`, log, Drive folder), `cloudflare.md` lines about 37-38 and 93-94 and 141 (hostname set, Access app names), `pi.md:47` (example dir), the memory file `sqlite-backups-oracle.md`, and `Server Management/CHANGELOG.md`.
 
-## Part B. Infra rename
-
-### B1. Inventory (verified on oracle 2026-10-07)
-
-| Thing | Current | Proposed |
-|-------|---------|----------|
-| Dockerfile `ENV DB_PATH` | `/data/psycle.db` | `/data/sweat.db` |
-| Compose service | `psycle-app` | `sweat-app` |
-| Container (prod / dev) | `psycle-app` / `psycle-app-dev` | `sweat-app` / `sweat-app-dev` |
-| Compose dir (prod / dev) | `~/services/psycleapp` / `psycleapp-dev` | `~/services/sweatapp` / `sweatapp-dev` |
-| Compose project -> image/network | `psycleapp(-dev)` -> `psycleapp-psycle-app`, `psycleapp_default` | auto: `sweatapp-sweat-app`, `sweatapp_default` |
-| Named volume `psycle-data` | declared, UNUSED (data is bind `./data:/data`); an orphan `psycleapp-dev_psycle-data` exists | Delete declaration from compose; `docker volume rm` the orphan (empty) |
-| DB file | `data/psycle.db` | `data/sweat.db` (or recreated) |
-| `deploy.sh` | REMOTE_DIR x2, comments | `~/services/sweatapp[-dev]` |
-| Backup script | `scripts/backup-sqlite.sh` installed as `/usr/local/sbin/psycle-backup-sqlite.sh`, SRC paths, `psycle-*.db.gz`, `ROOT=/var/backups/psycle-sqlite`, log `/var/log/psycle-backup-sqlite.log`, root cron 04:10 and 09:30 | `sweat-backup-sqlite.sh`, `/var/backups/sweat-sqlite`, `/var/log/sweat-backup-sqlite.log`, `sweat-*.db.gz`, Drive `Backups/sweat-sqlite/{prod,dev}` |
-| Ingress | cloudflared -> `edge` network -> `psycle-app:3000` (compose comment, registry). Dev: tailnet `100.86.226.52:3005` | Upstream target must change to `sweat-app:3000`. UNVERIFIED where the tunnel route lives (remote-managed in Cloudflare dashboard vs local cloudflared config; `grep` of `~/services/cloudflared` found nothing). Check before step 6 |
-| Cloudflare Access | apps `psycle`, `psycle-bypass` (hostnames psycle, sweat, sweat-dev; bypass `/api/calendar/*`, `/api/health`) | Leave names. Host `psycle.wingfield.tech` is a legacy alias: decide to drop (see decisions) |
-| Registry / docs | `registry.md` rows 5-30 (history), 73-74, 159 (pi standby), 174-188 (network names); `oracle.md:110,216-226`; `pi.md:47`; `cloudflare.md` 37-38, 93-94, 141; memory `sqlite-backups-oracle.md` | Update same turn per registry rule |
-| Pi standby | stopped `psycle-app`, `~/psycleapp` | Out of scope; delete or leave (it is a rollback relic of the pre-modular build). Do not rename |
-
-Health checks: only URLs (`sweat(-dev).wingfield.tech/api/health`), no container-name dependence. The `--check-stale`
-alert and `oracle-backup.sh` (03:30, snapshots `psycleapp` into `sqlite/`) hold paths: grep `/usr/local/sbin/oracle-backup.sh` for `psycleapp` and edit
-(UNVERIFIED, not read).
-
-### B2. Recommended path: recreate, do not copy
-
-Because `data/` is a bind mount, there is no volume copy at all: a rename is `mv` of a directory. Since there are no
-real users, recommend the simplest safe path: **take a final backup, create a fresh empty `data/`, let the new build
-create `sweat.db`**. This also satisfies the Part A requirement (no old schema anywhere). Keep the old `data-*-archive`
-dir for rollback; do not `docker volume prune`.
-
-### B3. Ordered steps (dev twin first)
-
-Code changes land first on a branch (A removal, Dockerfile, compose, deploy.sh, backup script), `npm test` green, merged to master.
-
-Dev twin:
-1. `ssh oracle 'sudo /usr/local/sbin/psycle-backup-sqlite.sh'`; verify dated `.db.gz` in `/var/backups/psycle-sqlite/dev` and on Drive.
-2. `ssh oracle 'cd ~/services/psycleapp-dev && docker compose down'` (dev only; ~1 min dev outage).
-3. `mv ~/services/psycleapp-dev ~/services/sweatapp-dev`; `mv data data-archive-<date>`; `mkdir data`; copy `.env` unchanged.
-4. Local: `./deploy.sh --print` then `./deploy.sh` (rsync to new dir, `docker compose up -d --build`). Needs `.env` present in new dir.
-5. Remove orphans: `docker volume rm psycleapp-dev_psycle-data`, `docker network rm psycleapp-dev_default` (verify unused first with `docker network inspect`).
-6. Verify: `docker ps` shows `sweat-app-dev`, tailnet and `https://sweat-dev.wingfield.tech/api/health` = ok, browser smoke (CDP 9222): signup, link dev gym, timetable. Confirm Cloudflare route for dev still resolves (dev host is bind/tailnet fronted; check what upstream it uses).
-7. Install new backup script: `sudo install ... /usr/local/sbin/sweat-backup-sqlite.sh`, new SRC paths, run once manually, check log and Drive `Backups/sweat-sqlite/dev`. Do NOT touch cron yet.
-
-Prod (only after dev is green for a day):
-8. Pre-deploy backup: `sudo /usr/local/sbin/psycle-backup-sqlite.sh` (or the new script), confirm dated artefact.
-9. Temporary compat: in prod compose give the service `networks: edge: aliases: [psycle-app]` so the tunnel upstream keeps resolving across the rename. Removes the ordering race between container rename and tunnel edit.
-10. `docker compose down`; `mv ~/services/psycleapp ~/services/sweatapp`; archive `data/` to `data-archive-<date>` and `mkdir data`; keep `.env` (ENCRYPTION_KEY unchanged is irrelevant for an empty DB but keep it).
-11. `./deploy.sh --prod` (typed "deploy prod"). Verify `docker ps`, `https://sweat.wingfield.tech/api/health`, `docker exec sweat-app wget -qO- localhost:3000/api/gyms`.
-12. Edit tunnel upstream to `sweat-app:3000` (Cloudflare dashboard or API: needs user go-ahead), re-probe, then drop the alias in compose and redeploy.
-13. Cron: replace the two root crontab lines with `sweat-backup-sqlite.sh` paths (absolute, `>> /var/log/... 2>&1`). Wait for the next 04:10 run and check the artefact by date (rule 9). Then remove old script, old Drive folder `Backups/psycle-sqlite` only on explicit user say-so (rclone/Drive deletes are not reversible).
-14. Edit `registry.md` (add rows, drop psycle rows, networks line), `oracle.md`, `cloudflare.md`, `pi.md`, memory file, append `Server Management/CHANGELOG.md`.
-15. Docs in this repo: AGENTS.md, TESTING.md, deploy.sh comments, backup script header.
-
-### B4. Downtime
-
-Dev: about 1-2 min. Prod: about 2-4 min (down, mv, rebuild, up; image rebuild is the long pole, can pre-build). The
-recreated prod DB means every account is gone: signup + gym relink required (accepted by the user).
-
-### B5. Rollback
-
-Dev/prod: `docker compose down`; `mv ~/services/sweatapp ~/services/psycleapp`; `rm -r data; mv data-archive-<date> data`
-(DB file keeps its old name inside the archive, so set `DB_PATH=/data/psycle.db` in `.env` or checkout the previous commit and `./deploy.sh`); restore tunnel upstream to `psycle-app:3000`. Old
-backups remain untouched in `/var/backups/psycle-sqlite` and Drive. Prior known-good code: current master before the merge.
-
-### B6. Needs the user's typed confirmation / explicit go
-
-- `./deploy.sh --prod` typed `deploy prod` (script-enforced).
-- Prod `docker compose down` and DB archive+recreate (destroys all prod accounts).
-- Any Cloudflare tunnel/Access edit (exposure-adjacent; rule 6).
-- Deleting old Drive backups `Backups/psycle-sqlite`, orphan volumes, the stopped Pi `psycle-app`.
-- Root crontab edits on oracle.
-
-## Decisions needed
-
-1. Recreate databases (clean `sweat.db`, drops all prod accounts) versus rename-in-place keeping `psycle.db` data (then A2 migrations must stay).
-2. Retire the legacy hostname `psycle.wingfield.tech` (and Access apps named `psycle`) or keep as alias.
-3. Keep `handleLogin` bootstrap (a gym login creates the account) or remove it so signup is the only account creation path.
+## Decisions still open
+1. Rename the public hostnames (`sweat.wingfield.tech`, `sweat-dev.wingfield.tech`)? Left unchanged; they are brand-ish names.
+2. Keep the Access apps named `psycle` / `psycle-bypass` (cosmetic) or rename.
+3. Whether `app` is acceptable as a bare DNS name on the shared `edge` network, or prefer a longer neutral name (one-place rename).

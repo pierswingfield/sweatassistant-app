@@ -333,7 +333,7 @@ db.exec(`
   -- integrity (FK from user_gyms) and so the admin panel can list/join on it without
   -- importing the config module.
   CREATE TABLE IF NOT EXISTS gyms (
-    id TEXT PRIMARY KEY,           -- e.g. "psycle-london", "jab-boxing"
+    id TEXT PRIMARY KEY,           -- a gym id from gyms.config.js
     name TEXT NOT NULL,
     provider TEXT NOT NULL,        -- "codexfit" | "marianatek"
     enabled INTEGER NOT NULL DEFAULT 1,

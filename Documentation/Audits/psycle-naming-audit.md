@@ -308,3 +308,33 @@ Psycle, Barry's, SoulCycle, Aarmy, JAB...". (5) Infra naming: `DB_PATH=/data/psy
 remote dirs in deploy.sh, `psycle-sqlite` backup paths, container `psycle-app-dev`: renaming touches the live prod volume,
 so not done. (6) `DEFAULT_GYM_ID = 'psycle-london'` fallbacks (gyms.config, by design) and test names such as
 `test-regression-psycle.js` (gym black-box suite).
+
+## Step 7 results (2026-10-07): the six special cases above are closed
+
+Branch `agent/psycle-naming-css-audit-f37e1a`, one commit per item, `naming/gym-agnostic: <item> (step 7)`. Details,
+names and the host cutover runbook: [default-gym-and-infra-plan.md](default-gym-and-infra-plan.md).
+
+1. **Welcome/About copy:** no gym names (`copy.js`).
+2. **Credit checkout:** `creditStoreUrl` template on the gym config, exposed on `/api/gyms` for `creditPurchase` gyms only;
+   `credits.js` reads it (falls back to `websiteUrl`), no storefront layout in core.
+3. **Stray tokens:** the five listed comment/container-name tokens neutralised (`warm-instructor-photos.js` now says `app-dev`).
+4. **`PUBLIC_HOST` / `VAPID_EMAIL`:** required when `NODE_ENV=production`, inert localhost values otherwise, `.env.example`
+   added, `test-config-required.js`.
+5. **Dev mock:** `devMock.email` per gym in `gyms.config.js`; adapter hooks `isMockLogin`/`isMockUser`/`mockToken`; no core file
+   names a dev email (`test-no-gym-privilege.js` enforces it); the app-level bypass no longer works in production;
+   `dev-setup-jab.js` is `dev-setup-gym.js`.
+6. **`DEFAULT_GYM_ID`:** deleted. No linked gym is `null` / 409 `NO_GYM_LINKED`; `handleLogin` no longer bootstraps or creates
+   accounts; `db.createUser` removed; the WP-D1/D2/D6 migrations, `ensureColumn`s and DDL defaults replaced by one canonical
+   schema (equivalence diffed; `auto_bookings`/`auto_upgrades.gym_id` now `NOT NULL`); `test-backfill-user-gyms.js` deleted,
+   `test-regression-psycle.js` -> `test-regression-codexfit-mock.js`.
+7. **Infra files:** `app` / `app-dev` containers, `~/services/app[-dev]`, `/data/app.db`, `app-backup-sqlite.sh`;
+   `docker-compose.prod.yml` added. Not applied to any host.
+
+**Verification.** `npm test`: 80/80 server suites (was 78: +3 new suites, -1 deleted), 69 client files / 515 tests; client build
+OK. Real Chrome (CDP, one tab, own API on :3107 and Vite on :5190 with a throwaway DB): welcome slide shows the generic line;
+UI login as `dev@psycle.com` and as `dev@jabboxing.mock` both seed Psycle and JAB and render 20 timetable rows from both gyms;
+fresh DB: UI signup -> onboarding "connect your gyms", `/api/timetable` 409 `NO_GYM_LINKED`, link the mock gym, timetable renders.
+
+**Leftover `psycle` tokens in core:** 0 in code (identifiers, strings, config) outside `gyms.config.js`, `providers/codexfit*.js`,
+`mock.js` and test fixtures; 90 explanatory comment mentions remain in non-test core (prose about Psycle's behaviour, e.g.
+booking-window history), none load-bearing.

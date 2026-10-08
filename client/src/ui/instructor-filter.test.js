@@ -2,6 +2,7 @@ import { describe, it, expect } from 'vitest';
 import {
   instructorToken, parseInstructorToken, migrateInstructorSelection, passesInstructorFilter,
   pruneInstructorSelection, findInstructor, serializeInstructorParam, parseInstructorParam, hasLegacyInstructors,
+  addInstructorSearchFilter,
 } from './instructor-filter.js';
 
 const pool = [
@@ -65,6 +66,19 @@ describe('helpers', () => {
     expect(findInstructor(pool, 'jab:5')).toBe(pool[3]);
     expect(serializeInstructorParam(['psy:1', '7', 'jab:9'])).toBe('psy:1,jab:9');
     expect(parseInstructorParam('psy:1, 7,psy:1,jab:9')).toEqual(['psy:1', 'jab:9']);
+  });
+});
+
+describe('instructor search scope', () => {
+  it('adds the instructor gym so unrelated gyms cannot leak through the per-gym filter', () => {
+    const first = addInstructorSearchFilter({ gyms: [], locations: ['psy:1'], instructors: [], eventTypes: ['Ride'], bookmarks: false }, 'psy', '1');
+    expect(first).toEqual({ gyms: ['psy'], locations: ['psy:1'], instructors: ['psy:1'], eventTypes: ['Ride'], bookmarks: false });
+    expect(passesInstructorFilter(first.instructors, 'psy', ['2'])).toBe(false);
+    expect(first.gyms.includes('jab')).toBe(false);
+
+    const both = addInstructorSearchFilter(first, 'jab', '9');
+    expect(both.gyms).toEqual(['psy', 'jab']);
+    expect(both.instructors).toEqual(['psy:1', 'jab:9']);
   });
 });
 

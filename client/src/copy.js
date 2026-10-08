@@ -269,6 +269,10 @@ export const COPY = Object.freeze({
     fetchingFloorMap: 'Fetching studio floor map...',
     loadingFloorMap: 'Loading studio floor map…', close: 'Close',
     disableUpgrade: 'Disable Auto-Upgrade',
+    bookingActionsTitle: 'Booking actions',
+    changeSpot: 'Change spot',
+    enableUpgrade: 'Enable Auto-Upgrade',
+    cancelBookingPrompt: 'This releases your booked spot. You cannot undo this action.',
   }),
   calendar: Object.freeze({
     onboardingIncludesGym: 'Includes your {gymName} classes.',
@@ -598,7 +602,7 @@ export const COPY = Object.freeze({
     quickBookError: 'Quick Book error: {error}', waitlistFailed: 'Waitlist failed: {error}',
     leftWaitlistError: 'Error leaving waitlist: {error}',
     bookingWaitlistTip: '💡 Tip: Enable "Auto-upgrade spots by default" in Settings to monitor for better slots automatically!',
-    autoUpgradeTip: '💡 Tip: Enable "Auto-upgrade spots by default" in Settings to monitor for better slots automatically!',
+    autoUpgradeTip: '💡 Tip: Enable Auto-Upgrade in gym settings so I can automatically grab you a better spot when one becomes available!',
     quickBookConfirmSoon: 'Starts soon — confirm?', confirm: 'Confirm?',
     cancelBooking: 'Cancelling booking...', occupiedNow: '⚠ Currently occupied — will be targeted when booking fires.',
 

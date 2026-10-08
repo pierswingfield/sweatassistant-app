@@ -52,9 +52,9 @@ export function savedToState(saved) {
  * State equal to the saved defaults emits NO filter params ("use saved defaults");
  * an empty state under non-empty saved defaults emits `f=all`.
  */
-export function stateToUrlTimetable(state, ctx, { day = null, defaultDay = null, saved = emptyFilterState() } = {}) {
+export function stateToUrlTimetable(state, ctx, { day = null, defaultDay = null, saved = emptyFilterState(), q = '' } = {}) {
   const st = { ...emptyFilterState(), ...(state || {}) };
-  const t = { day: day && day !== defaultDay ? day : null, gyms: [], locations: [], types: [], instructors: [], fav: false, q: '', explicit: false };
+  const t = { day: day && day !== defaultDay ? day : null, gyms: [], locations: [], types: [], instructors: [], fav: false, q: String(q || ''), explicit: false };
   if (sameFilters(st, saved)) return t;
   t.gyms = st.gyms.map(String);
   const gymOfLoc = (id) => (ctx.locations || []).find((l) => String(l.id) === String(id))?.gymId;
@@ -78,8 +78,8 @@ export function stateToUrlTimetable(state, ctx, { day = null, defaultDay = null,
  */
 export function urlToState(t, ctx) {
   const p = t || {};
-  const none = !(p.gyms?.length || p.locations?.length || p.types?.length || p.instructors?.length || p.fav || p.explicit);
-  const out = { usesDefaults: none, state: emptyFilterState(), day: p.day || null, dropped: [], ignoredGyms: [] };
+  const none = !(p.gyms?.length || p.locations?.length || p.types?.length || p.instructors?.length || p.fav || p.q || p.explicit);
+  const out = { usesDefaults: none, state: emptyFilterState(), day: p.day || null, q: String(p.q || ''), dropped: [], ignoredGyms: [] };
   if (none) return out;
   const linked = asSet(ctx.linkedGymIds);
   const ok = (g) => linked.has(String(g));
@@ -107,7 +107,7 @@ export function urlToState(t, ctx) {
 }
 
 /** Human labels for the banner, in the order gym, location, workout, instructor, favourites. */
-export function overlayLabels(state, ctx) {
+export function overlayLabels(state, ctx, q = '') {
   const st = { ...emptyFilterState(), ...(state || {}) };
   const out = [];
   st.gyms.forEach((g) => out.push(ctx.gymName ? ctx.gymName(g) : g));
@@ -119,6 +119,7 @@ export function overlayLabels(state, ctx) {
     out.push(ins?.name || tok.slice(i + 1));
   });
   if (st.bookmarks) out.push(ctx.favouritesLabel || 'Favourites');
+  if (q) out.push(ctx.searchLabel ? ctx.searchLabel(q) : `Search: ${q}`);
   return out;
 }
 

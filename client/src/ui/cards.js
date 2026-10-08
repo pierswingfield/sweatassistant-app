@@ -92,6 +92,7 @@ export function getDiscipline(name = '') {
   if (/lagree/.test(s)) return { key: 'reformer', label: COPY.disciplines.lagree, icon: 'reformer' };
   if (/infrared|hot|sweat/.test(s)) return D('infrared', COPY.disciplines.infrared);
   if (/yoga|flow|mind|meditat/.test(s)) return D('yoga', COPY.disciplines.yoga);
+  if (/recovery/.test(s)) return D('recovery', COPY.disciplines.recovery);
   if (/box|punch|bag|spar/.test(s)) return D('boxing', COPY.disciplines.boxing);
   // "Train" is JAB's own first-class discipline (its `discipline` field is
   // literally "TRAIN"), not a synonym for Psycle's "Conditioning" keyword

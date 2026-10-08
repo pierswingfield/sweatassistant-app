@@ -145,6 +145,7 @@ const GYMS = {
       metered: true,            // classes cost credits from a balance
       creditPurchase: true,     // in-app Stripe cart
       bookmarks: true,          // native CodexFit bookmarks
+      autoUpgrade: true,        // generic scheduler uses this gym's provider session
       attendanceTotals: true,   // GET /milestones: official attended total + per-period overview (F-10-8)
       bookingWindow: 'rolling-weekly',   // mirrors bookingWindow.kind, for the UI
       maxSpotsPerClass: null,   // unmetered/credits-limited
@@ -266,6 +267,7 @@ const GYMS = {
       metered: false,
       creditPurchase: false,    // membership-based; no confirmed purchase API (D3)
       bookmarks: false,         // no MT bookmarks API
+      autoUpgrade: true,        // generic scheduler uses this gym's provider session
       attendanceTotals: false,  // no known MarianaTek equivalent (derive from history)
       bookingWindow: 'per-class',   // mirrors bookingWindow.kind, for the UI
       bookingEntitlement: true, // resolve self and guest eligibility from authenticated class/payment state
@@ -347,6 +349,7 @@ const GYMS = {
       metered: true,            // credits-only gym: classes draw from a credit balance (like Psycle)
       creditPurchase: false,    // no confirmed in-app purchase API for MarianaTek
       bookmarks: false,
+      autoUpgrade: true,
       attendanceTotals: false,  // no known MarianaTek equivalent (derive from history)
       bookingWindow: 'per-class',
       maxSpotsPerClass: 1,

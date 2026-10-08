@@ -101,6 +101,19 @@ function addCardHtml(status) {
     </div>`;
 }
 
+// iOS standalone PWAs can leave a blank web view behind after window.open(). A
+// short-lived anchor hands the calendar provider URL to Safari while preserving
+// the PWA page the member returns to.
+export function openCalendarProvider(url) {
+  const anchor = document.createElement('a');
+  anchor.href = url;
+  anchor.target = '_blank';
+  anchor.rel = 'noopener noreferrer';
+  document.body.appendChild(anchor);
+  anchor.click();
+  anchor.remove();
+}
+
 export async function renderCalendarSection(targetContainer = null) {
   const container = targetContainer || document.getElementById('app-calendar-section');
   if (!container) return;
@@ -169,7 +182,7 @@ export async function renderCalendarSection(targetContainer = null) {
       // webcal:// is the only subscribe scheme iOS/macOS register. webcals:// is not, so Safari on iOS
       // answers it with "the address is invalid".
       if (action === 'apple') { if (links.webcal) window.location.href = links.webcal; return; }
-      if (action === 'google') { if (links.google) window.open(links.google, '_blank', 'noopener'); return; }
+      if (action === 'google') { if (links.google) openCalendarProvider(links.google); return; }
       if (action === 'copy') {
         try {
           await navigator.clipboard.writeText(links.https || '');

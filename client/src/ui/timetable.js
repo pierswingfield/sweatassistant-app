@@ -24,6 +24,7 @@ const SHOW_TIMETABLE_INSTRUCTOR_PHOTO = true;
 import { renderMinimap, instructorAvatar, instructorHoverAttrs } from './tooltips.js';
 // === END MOBILE TIMETABLE BLOCK ===
 import { openDB, accountScopedKey } from '../cache.js';
+import { claimAutoUpgradeTipOnce, hasDisabledAutoUpgradeGym } from './autoupgrade-tip.js';
 import { decideRefresh } from './refresh-policy.js';
 import { bookingNotifyPayload } from './booking-notify.js';
 import { spotSelectionRule, needsSetupIntro, setupIntroCopy } from './spot-selection.js';
@@ -51,7 +52,7 @@ import { openPage as openNavPage, closePage as closeNavPage, isMobile } from './
 import { applyBookingChrome, mountBookingContext, bannerEl } from './booking-chrome.js';
 import { openSpotSetup, setupDeferred, spotSetupBookingOptions } from './spot-setup.js';
 import { applyStudioPreferenceMutation, hasStudioPreferences, shouldShowPreferredMapEditToggle } from './studio-preferences-state.js';
-import { instructorToken, migrateInstructorSelection, hasLegacyInstructors, passesInstructorFilter, pruneInstructorSelection, findInstructor, parseInstructorToken } from './instructor-filter.js';
+import { instructorToken, addInstructorSearchFilter, migrateInstructorSelection, hasLegacyInstructors, passesInstructorFilter, pruneInstructorSelection, findInstructor, parseInstructorToken } from './instructor-filter.js';
 import { bookCandidateSpots } from './booking-attempts.js';
 import { bookingQuantityOptions, maxAttendeesPerClass } from './booking-limits.js';
 import { renderStudioFloorPlan } from './spotmap.js';
@@ -655,7 +656,17 @@ function applyUrlTimetable(t) {
   if (r.ignoredGyms.length) {
     showToast(formatCopyText(COPY.timetable.overlayGymIgnored, { gyms: r.ignoredGyms.map(g => getGymShortName(g) || g).join(', ') }), 'warning');
   }
-  if (r.usesDefaults) {
+  if (r.q) {
+    // A q deep link starts a search scope over the saved defaults, then applies
+    // any URL filters inside that temporary scope. Neither part is persisted.
+    if (inSearchScope()) restoreFromSearchScope();
+    if (getSearchQuery()) setSearchQuery('');
+    setFilterState(copyOf(savedFilterState));
+    ensureSearchScope();
+    setSearchQuery(r.q);
+    setFilterState(r.usesDefaults ? copyOf(emptyFilterState()) : copyOf(r.state));
+    overlayActive = true; overlayDropped = r.dropped.length;
+  } else if (r.usesDefaults) {
     setFilterState(copyOf(savedFilterState));
     overlayActive = false; overlayDropped = 0;
   } else {
@@ -677,18 +688,20 @@ export function restoreTimetableFromUrl(t) {
 
 /** Reflect day + filters in the URL. Called from render once the day is validated. */
 function syncUrlFromState(defaultDay = lastDefaultDay) {
-  if (!timetableTabVisible() || inSearchScope() || pendingUrlTimetable || !metadata.locations.length) return;
+  if (!timetableTabVisible() || pendingUrlTimetable || !metadata.locations.length) return;
   const filters = currentFilterState();
+  const q = getSearchQuery();
   const day = selectedTimetableDate || null;
-  const desired = pathFor({ tab: 'class-timetable', timetable: stateToUrlTimetable(filters, urlCtx(), { day, defaultDay, saved: savedFilterState }) });
+  const desired = pathFor({ tab: 'class-timetable', timetable: stateToUrlTimetable(filters, urlCtx(), { day, defaultDay, saved: savedFilterState, q }) });
   const here = location.pathname + location.search;
   const filtersChanged = !lastSynced || !sameFilters(filters, lastSynced.filters);
+  const queryChanged = !lastSynced || lastSynced.q !== q;
   const dayChanged = !lastSynced || lastSynced.day !== day;
   const replace = urlReplaceOnce;
   urlReplaceOnce = false;
   // A manual edit ends the overlay: the filters are now the user's own.
-  if (lastSynced && filtersChanged && !replace) { overlayActive = false; overlayDropped = 0; }
-  lastSynced = { day, filters: copyOf(filters) };
+  if (lastSynced && (filtersChanged || queryChanged) && !replace) { overlayActive = false; overlayDropped = 0; }
+  lastSynced = { day, filters: copyOf(filters), q };
   if (desired === here) return;
   if (replace) replaceCurrent(desired);
   else if (dayChanged && !filtersChanged) commitNow(desired);
@@ -700,7 +713,7 @@ function renderOverlayBanner() {
   if (!grid || !grid.parentElement) return;
   let el = document.getElementById('app-url-overlay-banner');
   if (!overlayActive) { el?.remove(); return; }
-  const labels = overlayLabels(currentFilterState(), urlCtx());
+  const labels = overlayLabels(currentFilterState(), { ...urlCtx(), searchLabel: (q) => formatCopyText(COPY.search.resultsFor, { text: q }) }, getSearchQuery());
   const text = formatCopyText(COPY.timetable.overlayFiltered, { labels: labels.join(', ') || COPY.timetable.overlayNoFilters })
     + (overlayDropped ? ` · ${formatCopyText(COPY.timetable.overlayUnavailable, { count: overlayDropped })}` : '');
   if (!el) {
@@ -719,7 +732,9 @@ function renderOverlayBanner() {
 
 /** Clear = back to the SAVED set (not wiped), URL params stripped via replace. */
 export function clearUrlOverlay() {
+  if (inSearchScope()) restoreFromSearchScope();
   setFilterState(copyOf(savedFilterState));
+  if (getSearchQuery()) setSearchQuery('');
   overlayActive = false; overlayDropped = 0;
   urlReplaceOnce = true;
   document.getElementById('app-url-overlay-banner')?.remove();
@@ -1577,7 +1592,11 @@ export function exitSearch() {
 function applySearchPick(item) {
   ensureSearchScope();
   const add = (arr, v) => (arr.includes(String(v)) ? arr : [...arr, String(v)]);
-  if (item.type === 'instructor') selectedInstructors = add(selectedInstructors, item.gymId ? instructorToken(item.gymId, item.id) : item.id);
+  if (item.type === 'instructor') {
+    const next = addInstructorSearchFilter(currentFilters(), item.gymId, item.id);
+    selectedGyms = next.gyms;
+    selectedInstructors = next.instructors;
+  }
   else if (item.type === 'location') selectedLocations = add(selectedLocations, item.id);
   else if (item.type === 'gym') selectedGyms = add(selectedGyms, item.id);
   else if (item.type === 'workout') selectedEventTypes = add(selectedEventTypes, item.id);
@@ -2068,6 +2087,7 @@ export async function renderTimetableGrid(reason = 'interaction') {
     isLoading: () => isPrefetching && timetableEvents.length === 0,
     applyPick: applySearchPick,
   });
+  if (getSearchQuery()) openSearch({ focus: false, suggestions: false });
 
   // 6. Render the Class Timetable Grid Table
   if (!selectedTimetableDate && !searching) {
@@ -3308,7 +3328,12 @@ function buildMobileClassRow(event, ctx, model) {
     // "Scheduled" is too wide for 52px — abbreviate it.
     setSegLabel(pbtn, COPY.timetable.scheduledShort);
   } else {
-    setSegLabel(pbtn, mobilePrimary.label);
+    if (mobilePrimary.label === COPY.timetable.book) {
+      // U6-3: mobile has a narrow action rail; name Quick Book without its glyph.
+      pbtn.textContent = COPY.timetable.quickBookLabel;
+    } else {
+      setSegLabel(pbtn, mobilePrimary.label);
+    }
     // "Auto-Book" stacks as Auto / Book (no hyphen) so the button stays narrow; the accessible name is unchanged.
     if (mobilePrimary.label === COPY.timetable.autoBook) {
       pbtn.innerHTML = `<span class="app-seg-ico" aria-hidden="true">${actionGlyph(COPY.timetable.autoBook)}</span><span class="app-cta-2l"><span>${COPY.timetable.auto}</span><span>${COPY.timetable.book}</span></span>`;
@@ -3598,7 +3623,9 @@ async function quickBookClass(eventId, prefs, btn, gymId = null) {
       await refreshUserData(true);
       await refreshBookingState();
       setTimeout(() => {
-        if (!upgradeRegistered && !isAutoUpgradeDefaultEnabled(event.gymId) && gymSetting(event.gymId, 'autoUpgradeEnabled') !== false) {
+        if (!upgradeRegistered
+          && hasDisabledAutoUpgradeGym(getLinkedGyms(), canForGym, gymSetting)
+          && claimAutoUpgradeTipOnce(localStorage, accountScopedKey('timetableAutoUpgradeTipShown'))) {
           showToast(COPY.timetable.autoUpgradeTip, 'info');
         }
       }, 2500);

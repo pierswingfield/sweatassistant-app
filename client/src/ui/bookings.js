@@ -25,6 +25,7 @@ import {
 import { isExplainerDismissed, dismissExplainer, isKeepOriginalEnabled, keepOriginalForAutoCreate, keepOriginalInitial, summarizeSpotPrefs, currentSpotLabel } from './autoupgrade-setup.js';
 import { canSelectSelfSpot, countSelfBookingSlots, isCurrentModalRun } from './booking-entitlement.js';
 import { groupBookingsByEvent } from './upcoming.js';
+import { bookingSpotActions } from './booking-spot-actions.js';
 
 // Class starts within the free-cancel cutoff (12h). Edit is hidden inside this
 // window; Cancel stays available but warns about the penalty.
@@ -429,7 +430,8 @@ function buildBookingCard(group, upgrades) {
       const matchingUpgrade = upgrades.find(u => Number(u.id) === upgradeId);
       const existingPrefs = matchingUpgrade?.preferences || null;
 
-      handleUpgradeClick({
+      openBookingSpotActionsModal({
+        group,
         eventId: group.eventId,
         gymId: event.gymId,
         bookingId: bid,
@@ -459,6 +461,95 @@ function buildBookingCard(group, upgrades) {
   wireCancelBooking(cancelBtn, card, group, within12h);
 
   return card;
+}
+
+/** Full-screen action chooser reached by tapping one of a booking's spot chips. */
+export function openBookingSpotActionsModal({ group, eventId, gymId, bookingId, currentSlotId, currentSlotLabel, studioId, className, groupName, instructorName, studioName, locationName, startAt, existingUpgradeId, existingPrefs }) {
+  const modal = document.getElementById('app-booking-modal');
+  const body = document.getElementById('app-booking-modal-body');
+  const title = document.getElementById('app-booking-modal-title');
+  if (!modal || !body || !title) return;
+
+  title.textContent = COPY.bookings.bookingActionsTitle;
+  applyBookingChrome(modal, { titleText: COPY.bookings.bookingActionsTitle, gymId, locationName, studioName });
+  openNavPage(modal, { id: 'booking-spot-actions' });
+  const close = () => {
+    if (closeNavPage(modal)) return;
+    modal.classList.remove('show');
+    setTimeout(() => { modal.style.display = 'none'; }, 300);
+  };
+  document.getElementById('app-booking-modal-close').onclick = close;
+  modal.querySelector('.app-modal-overlay').onclick = close;
+
+  const actions = bookingSpotActions({
+    canAutoUpgrade: canForGym('autoUpgrade', gymId),
+    hasActiveUpgrade: existingUpgradeId !== null,
+  });
+  body.innerHTML = `<div class="app-booking-action-chooser">${actions.map(({ id, label, danger }) =>
+    `<button type="button" class="app-btn app-booking-action${danger ? ' variant-danger' : ''}" data-booking-action="${id}">${escapeHtml(label)}</button>`
+  ).join('')}</div>`;
+
+  body.querySelectorAll('[data-booking-action]').forEach((button) => {
+    button.onclick = () => {
+      const action = button.dataset.bookingAction;
+      if (action === 'change-spot') {
+        openEditBookingModal(group);
+      } else if (action === 'auto-upgrade') {
+        // Always use the editor from the chooser. Enabling should be explicit,
+        // rather than silently creating a monitor from a saved map.
+        openUpgradeConfigModal({ eventId, gymId, bookingId, currentSlotId, currentSlotLabel, studioId, className, groupName, instructorName, studioName, locationName, startAt, existingUpgradeId, existingPrefs });
+      } else if (action === 'cancel') {
+        openBookingCancellationModal(group);
+      }
+    };
+  });
+}
+
+/** A cancellation confirmation page for a single member booking. */
+export function openBookingCancellationModal(group, onChange = renderBookings) {
+  if (hasMultipleBookedSpots(group?.bookings)) {
+    openGroupedCancellationModal(group, onChange);
+    return;
+  }
+  const modal = document.getElementById('app-booking-modal');
+  const body = document.getElementById('app-booking-modal-body');
+  const title = document.getElementById('app-booking-modal-title');
+  if (!modal || !body || !title) return;
+  const event = group.event || {};
+  const gymId = event.gymId || group.bookings?.[0]?.gymId || null;
+  title.textContent = COPY.bookings.cancelBookingLabel;
+  applyBookingChrome(modal, { titleText: COPY.bookings.cancelBookingLabel, gymId, locationName: event.locationName, studioName: event.studioName });
+  openNavPage(modal, { id: 'cancel-booking' });
+  const close = () => {
+    if (closeNavPage(modal)) return;
+    modal.classList.remove('show');
+    setTimeout(() => { modal.style.display = 'none'; }, 300);
+  };
+  document.getElementById('app-booking-modal-close').onclick = close;
+  modal.querySelector('.app-modal-overlay').onclick = close;
+  body.innerHTML = `<div class="app-booking-action-chooser"><p class="app-card-desc">${COPY.bookings.cancelBookingPrompt}</p><button type="button" class="app-btn variant-danger" id="confirm-booking-cancel">${COPY.bookings.cancel}</button></div>`;
+  body.querySelector('#confirm-booking-cancel').onclick = async () => {
+    const button = body.querySelector('#confirm-booking-cancel');
+    button.disabled = true;
+    try {
+      const primary = group.bookings.find((booking) => !booking.isGuest) || group.bookings[0];
+      showToast(COPY.bookings.cancelling, 'info');
+      await api.cancel(bookingIdOf(primary), primary.gymId || gymId);
+      const upgrade = findUpgradeForSeat(cache.upgrades, { bookingId: bookingIdOf(primary), gymId: primary.gymId || gymId, eventId: group.eventId, slotId: slotIdOf(primary) });
+      if (upgrade) { try { await api.deleteAutoUpgrade(upgrade.id); } catch (_) {} }
+      await invalidateApiCache('/api/bookings');
+      await invalidateApiCache('/api/waitlists');
+      haptic('warning');
+      showToast(COPY.bookings.bookingCancelled, 'success');
+      await refreshUserData(true);
+      close();
+      onChange();
+    } catch (err) {
+      haptic('error');
+      showToast(formatCopyText(COPY.bookings.cancellationFailed, { error: err.message }), 'error');
+      button.disabled = false;
+    }
+  };
 }
 
 // Two-tap confirm cancel for a whole class (all its booking records).

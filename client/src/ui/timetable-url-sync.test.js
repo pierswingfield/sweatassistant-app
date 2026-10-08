@@ -30,6 +30,11 @@ describe('state -> url', () => {
     const saved = { ...emptyFilterState(), gyms: ['jab'] };
     expect(path(stateToUrlTimetable(emptyFilterState(), ctx, { saved }))).toBe('/timetable?f=all');
   });
+  it('keeps a committed search query in the same URL as its filters', () => {
+    const st = { ...emptyFilterState(), gyms: ['jab'] };
+    expect(path(stateToUrlTimetable(st, ctx, { q: 'boxing class' })))
+      .toBe('/timetable?gym=jab&q=boxing%20class');
+  });
 });
 
 describe('url -> state', () => {
@@ -46,6 +51,12 @@ describe('url -> state', () => {
   });
   it('no params = use saved defaults', () => {
     expect(urlToState(parseLocation('/timetable', '').timetable, ctx).usesDefaults).toBe(true);
+  });
+  it('a q-only deep link is an explicit search overlay, not saved defaults', () => {
+    const r = urlToState(parseLocation('/timetable', '?q=boxing').timetable, ctx);
+    expect(r.usesDefaults).toBe(false);
+    expect(r.q).toBe('boxing');
+    expect(sameFilters(r.state, emptyFilterState())).toBe(true);
   });
   it('f=all is an explicit empty set, not defaults', () => {
     const r = urlToState(parseLocation('/timetable', '?f=all').timetable, ctx);
@@ -71,6 +82,10 @@ describe('banner labels', () => {
   it('names gym, workout, instructor, favourites', () => {
     const st = { gyms: ['jab'], locations: ['3'], instructors: ['psycle-london:123'], eventTypes: ['Ride'], bookmarks: true };
     expect(overlayLabels(st, { ...ctx, favouritesLabel: 'Favourites' })).toEqual(['JAB', 'Clapham', 'Ride', 'Johan', 'Favourites']);
+  });
+  it('labels a search query so Clear remains discoverable', () => {
+    expect(overlayLabels(emptyFilterState(), { ...ctx, searchLabel: (q) => `Search: ${q}` }, 'boxing'))
+      .toEqual(['Search: boxing']);
   });
 });
 

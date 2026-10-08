@@ -29,15 +29,15 @@ function setHostState(open) {
   document.getElementById('app-timetable-filters-container')?.classList.toggle('app-searching', !!open);
 }
 
-export function openSearch() {
+export function openSearch({ focus = true, suggestions = true } = {}) {
   const root = el();
   if (!root) return;
   root.classList.add('open');
   setHostState(true);
   const inp = input();
   inp.value = getSearchQuery();
-  inp.focus();
-  paintList();
+  if (focus) inp.focus();
+  if (suggestions) paintList(); else closeList();
 }
 
 function collapse(refocus = false) {

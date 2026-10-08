@@ -21,7 +21,7 @@ Where: **W** = committed on the worktree branch, **M** = uncommitted in the main
 | 1 | Bug: mobile filter drawer "Workouts" section empty when expanded | M | Done, verified in browser by user | Options back-filled from loaded events' `discipline` when metadata is empty. `workout-options.js` (+test), `timetable.js`. |
 | 2 | Bug: quick-book overlap/confirm loop | M | Done, verified in browser by user | Overlap modal once per attempt; acknowledging continues straight through (also through first-time setup), no second confirm tap; busy guard. `quickbook-flow.js` (+test), `timetable.js`. |
 | 3 | Per-studio row-group selector flag | M | Done, user confirmed on sweat-dev | Flag in `server/gyms.config.js` (`spotMap.rowGroupStudios`, ids or name pattern; default off; Psycle = `^ride`). Flows via `providers/spot-map.js` to `studio.rowGroups`. UI decision in `spotmap.js` (`studioHasRowGroups`, `rowSelectorVisible`). Editors drop stored rows on save for non-flag studios. |
-| 4 | U4-19 URL routing | W + followups branch | **Phases 1-8 done** (1-3 `eb6f5f5`; 4-8 `9b9dd9d`, `d586cf3` on `followups-2026-10-06`, 2026-10-06; not deployed). `q` parsed-only, iOS standalone UNVERIFIED | Clean paths, SPA allowlist fallback, legacy hash migration. Plan: `U4-19-url-routing-and-deep-links.md`. |
+| 4 | U4-19 URL routing | W + followups branch | **Phases 1-8 done** (1-3 `eb6f5f5`; 4-8 `9b9dd9d`, `d586cf3` on `followups-2026-10-06`, 2026-10-06; not deployed). Search `q` wired and locally browser-verified 2026-10-08; iOS standalone UNVERIFIED | Clean paths, SPA allowlist fallback, legacy hash migration. Plan: `U4-19-url-routing-and-deep-links.md`. |
 | 5 | Timetable keyword search | M | Built and iterated, deployed to dev | See "Decisions made". |
 | 6 | Instructor filters per gym | M | Built, browser-verified, deployed to dev, user says it works | `gymId:id` tokens in `instructor-filter.js` (+test). Legacy bare ids migrate on read. |
 | 7 | Filter drawer tap latency and deselect lag | M | Done, browser-verified (4.5 ms select / 3.2 ms deselect, from ~800 ms) | `countMatchingEventsQuick()`, frame-0 `syncFilterSheetState()`, 100 ms debounced grid render flushed on close. `timetable.js`, `filter-rail.js`. |
@@ -119,7 +119,7 @@ Status key: [x] done, [ ] not done.
 
 ### Build
 
-- [x] U4-19 phases 4-8 built 2026-10-06 on `followups-2026-10-06`. Still open from it: wire search `q` to the search UI; desktop modals push no history entry; `server.js` caches the templated `index.html` for the process lifetime (restart after a rebuild).
+- [x] U4-19 phases 4-8 built 2026-10-06 on `followups-2026-10-06`. Follow-up: wire search `q` to the search UI, committed locally and verified in Chrome 2026-10-08. Still open: desktop modals push no history entry; `server.js` caches the templated `index.html` for the process lifetime (restart after a rebuild).
 - [x] Follow-up from item 3: stop the scheduler, poller and quick-book applying stored rows for non-flag studios. Verified: spotmap saves drops rows for non-flag; quick-book fast path doesn't apply rows (uses slots only); scheduler/poller apply without flag-check but rows don't reach DB from save paths.
 - [ ] Follow-up from item 3: merge the timetable's own floor-plan renderer into `spotmap.js`.
 - [ ] Decision: tapping an unlinked gym in the quick-selector shows a toast only; open the connect flow instead? (`settings.js` does not export the link form.)

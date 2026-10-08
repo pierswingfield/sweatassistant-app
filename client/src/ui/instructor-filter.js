@@ -12,6 +12,22 @@ export function instructorToken(gymId, id) {
   return `${sid(gymId)}:${sid(id)}`;
 }
 
+// A search suggestion identifies an instructor within one gym. Add that gym to
+// the search scope as well as the instructor token: instructor filters are
+// intentionally permissive for gyms without a selected instructor, whereas a
+// search result must not leak unrelated classes from those gyms.
+export function addInstructorSearchFilter(filters, gymId, instructorId) {
+  const gym = sid(gymId);
+  const add = (items, value) => items.includes(value) ? [...items] : [...items, value];
+  const current = filters || {};
+  const instructors = add(current.instructors || [], gym ? instructorToken(gym, instructorId) : sid(instructorId));
+  return {
+    ...current,
+    gyms: gym ? add(current.gyms || [], gym) : [...(current.gyms || [])],
+    instructors,
+  };
+}
+
 // -> { gymId, id } | null. Bare ids (no gym) are rejected.
 export function parseInstructorToken(token) {
   const t = sid(token);

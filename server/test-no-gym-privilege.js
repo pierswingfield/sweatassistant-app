@@ -154,7 +154,7 @@ check('every configured gym resolves to a provider that implements the contract'
 
 check('every configured gym declares the capability flags the UI gates on', () => {
   const { listGyms } = require('./gyms.config');
-  const REQUIRED = ['atomicSwap', 'nativeWaitlist', 'metered', 'creditPurchase', 'bookmarks', 'bookingWindow'];
+  const REQUIRED = ['atomicSwap', 'nativeWaitlist', 'metered', 'creditPurchase', 'bookmarks', 'autoUpgrade', 'bookingWindow'];
   for (const gym of listGyms()) {
     const caps = gym.capabilities || {};
     const missing = REQUIRED.filter((k) => caps[k] === undefined);

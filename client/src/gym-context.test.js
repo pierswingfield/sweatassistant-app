@@ -69,6 +69,7 @@ describe('per-gym capabilities (canForGym)', () => {
     // atomicSwap's own default is OFF (CodexFit-shaped: no gym is assumed to
     // have it) — the permissive default is per-flag, not "always true".
     expect(canForGym('atomicSwap', 'some-other-gym')).toBe(false);
+    expect(canForGym('autoUpgrade', 'some-other-gym')).toBe(false);
   });
 
   it('with no gymId at all, answers permissively rather than guessing which gym', () => {

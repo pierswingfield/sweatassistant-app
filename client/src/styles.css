@@ -1710,14 +1710,14 @@ html, body {
   padding: 3px 9px;
 }
 
-/* The mobile shell is document-flow so Safari can collapse its browser chrome,
-   while its header stays fixed. Keep the status in that fixed layer too: a
-   flow banner would sit behind the header and push every page down. */
+/* U6-7: the mobile shell is document-flow so Safari can collapse its browser chrome.
+   Keep the offline status in the top overlay, above the header, so it does not
+   cover the first rows of page content. */
 @media (max-width: 768px) {
   #app-helper-container .app-offline-banner {
     position: fixed;
     z-index: 401;
-    top: var(--app-header-h, 47px);
+    top: 0;
     left: 0;
     right: 0;
     width: auto;
@@ -7665,6 +7665,9 @@ html, body {
 .fr-chip { display: inline-flex; align-items: center; height: 32px; border-radius: 16px; border: 1px solid var(--border-strong); background: var(--surface-2); color: var(--text); }
 .fr-chip-body { display: inline-flex; align-items: center; gap: 3.5px; height: 100%; padding: 0 2px 0 6px; background: none; border: 0; color: inherit; font-size: 11px; cursor: pointer; }
 .fr-chip-body > svg:first-child { margin-right: 2px; }
+/* The compact/full location faces sit in one flex item. Otherwise the hidden
+   full face can still donate its baseline to the inline wrapper in Safari. */
+.fr-chip-main { display: inline-flex; align-items: center; min-width: 0; }
 .fr-chip-x { width: 20px; height: 100%; background: none; border: 0; color: var(--text-secondary); font-size: 11px; cursor: pointer; padding: 0; }
 .fr-tile-part { display: inline-flex; align-items: center; gap: 2.5px; }
 .fr-gym-dot { width: 18px; height: 18px; border-radius: 50%; color: #f9f6f5; font-size: 9px; font-weight: 700; display: inline-flex; align-items: center; justify-content: center; }
@@ -9405,9 +9408,11 @@ html.app-scroll-locked { overflow: hidden !important; background: var(--bg) !imp
 
 /* ===== 5-10 enh 2: mobile gym quick-selector (inside the filter rail, so mobile-only) ===== */
 .fr-gymquick { display: inline-flex; align-items: center; gap: 6px; flex-shrink: 0; }
-.fr-gymquick-btn { position: relative; width: 28px; height: 28px; padding: 0; border: 0; background: none; border-radius: 50%; cursor: pointer; display: inline-flex; align-items: center; justify-content: center; -webkit-tap-highlight-color: transparent; }
+.fr-gymquick-btn { position: relative; width: 28px; height: 28px; padding: 0; border: 0; background: none; border-radius: 50%; cursor: pointer; display: inline-flex; align-items: center; justify-content: center; appearance: none; -webkit-appearance: none; -webkit-tap-highlight-color: transparent; }
 .fr-gymquick-btn .fr-gym-dot.lg { width: 26px !important; height: 26px !important; transition: filter .15s ease, opacity .15s ease; }
-.fr-gymquick-btn.is-off .fr-gym-dot { filter: blur(1px) saturate(.5) !important; opacity: .5 !important; }
+/* Safari can composite a filtered layer beyond overflow:hidden. Clip the muted
+   mark after its blur so it cannot paint a seam above the overlapping stack. */
+.fr-gymquick-btn.is-off .fr-gym-dot { filter: blur(1px) saturate(.5) !important; opacity: .5 !important; clip-path: circle(50%); -webkit-clip-path: circle(50%); }
 .fr-gymquick-btn:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
 .fr-gymquick-tick { position: absolute; right: -2px; bottom: -2px; width: 11px; height: 11px; padding: 1.5px; box-sizing: border-box; border-radius: 50%; background: var(--success); fill: none; stroke: #fff; stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round; box-shadow: 0 0 0 1.5px var(--surface-1, var(--surface-2)); }
 @media (prefers-reduced-motion: reduce) { .fr-gymquick-btn .fr-gym-dot.lg { transition: none; } }
@@ -9436,7 +9441,7 @@ html.app-scroll-locked { overflow: hidden !important; background: var(--bg) !imp
   /* Location chip: the logo + initials tile cross-fades into "N locations". */
   #app-filter-rail .fr-tile-full, #app-filter-rail .fr-tile-compact { display: inline-flex; align-items: center; overflow: hidden; white-space: nowrap; transition: max-width var(--tt-collapse-t, 0.25s ease), opacity 0.2s ease; }
   #app-filter-rail .fr-tile-full { max-width: 220px; opacity: 1; }
-  #app-filter-rail .fr-tile-compact { max-width: 0; opacity: 0; font-size: 11px; font-weight: 500; }
+  #app-filter-rail .fr-tile-compact { max-width: 0; opacity: 0; font-size: 11px; font-weight: 500; align-items: center; }
   #app-container.app-tt-compact #app-filter-rail .fr-tile-full { max-width: 0; opacity: 0; }
   #app-container.app-tt-compact #app-filter-rail .fr-tile-compact { max-width: 120px; opacity: 1; margin-left: 4px; }
 }
@@ -9448,6 +9453,12 @@ html.app-scroll-locked { overflow: hidden !important; background: var(--bg) !imp
 /* Desktop: the compact face never shows. */
 @media (min-width: 769px) { #app-filter-rail .fr-tile-compact { display: none; } }
 /* ===== END Mobile scroll-collapse ===== */
+
+/* U6-11: mobile pull-to-refresh supplies its own progress indicator, so avoid
+   a second spinner beside the Active Bookings heading. */
+@media (max-width: 768px) {
+  #app-bookings-refreshing { display: none !important; }
+}
 
 /* Workouts grid: equal, shrinkable columns; long names wrap instead of pushing the grid off-screen. */
 .fr-sheet .fr-grid.fr-grid3 { grid-template-columns: repeat(3, minmax(0, 1fr)) !important; width: 100%; box-sizing: border-box; }
@@ -9464,12 +9475,12 @@ html:not([data-credits-tab="on"]) .app-nav-btn[data-tab="buy-credits"] { display
 }
 
 /* Mobile timetable rows: row text +1px (~8%). Deliberately NOT the gym chip or the class-type
-   chip (.ab-disc-tag), which keep their sizes. Lead column widened 2px so 5-char times fit at 18px.
+   chip (.ab-disc-tag), which keep their sizes. Lead column widened 2px so 5-char times fit at 16px.
    Sits last, with !important, because earlier rules set these sizes with !important. */
 @media (max-width: 768px) {
   #app-helper-container .app-mobile-lead { flex-basis: 48px; width: 48px; }
-  #app-helper-container .app-mobile-lead > strong,
-  #app-helper-container .app-table td .app-mobile-top-line > strong { font-size: 18px !important; }
+  #app-helper-container .app-table td .app-mobile-lead > strong,
+  #app-helper-container .app-table td .app-mobile-top-line > strong { font-size: 16px !important; }
   #app-helper-container .app-mobile-line2 .app-mobile-class-name,
   #app-helper-container .app-mobile-line2 .app-mobile-instructor,
   #app-helper-container .app-mobile-bottom-line .app-mobile-instructor { font-size: 15px !important; }
@@ -9519,7 +9530,9 @@ html:not([data-credits-tab="on"]) .app-nav-btn[data-tab="buy-credits"] { display
   #app-filter-rail .fr-gymquick { gap: 6px; }
   #app-filter-rail .fr-gymquick-btn { transition: margin-left var(--tt-collapse-t, 0.25s ease); }
   #app-container.app-tt-compact #app-filter-rail .fr-gymquick:not(.is-open) .fr-gymquick-btn + .fr-gymquick-btn { margin-left: -20px !important; }
-  #app-container.app-tt-compact #app-filter-rail .fr-gymquick:not(.is-open) .fr-gymquick-btn .fr-gym-dot { box-shadow: 0 0 0 1.5px var(--surface-1, var(--surface-2)); }
+  /* U6-10: let the higher-z-index logo cover the one beneath it. A masking ring
+     becomes a visible dark seam above the overlap in iOS Safari. */
+  #app-container.app-tt-compact #app-filter-rail .fr-gymquick:not(.is-open) .fr-gymquick-btn .fr-gym-dot { box-shadow: none; }
   #app-container.app-tt-compact #app-filter-rail .fr-gymquick:not(.is-open) { gap: 0; }
 }
 @media (max-width: 768px) and (prefers-reduced-motion: reduce) {

@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { cleanClassName, SVG_PATHS } from './cards.js';
+import { cleanClassName, getDiscipline, SVG_PATHS } from './cards.js';
 
 it('has a distinct plus glyph for guest-booking actions', () => {
   expect(SVG_PATHS.plus).toContain('M8 3v10');
@@ -34,6 +34,12 @@ describe('cleanClassName (U1-11)', () => {
     expect(cleanClassName('BOXING', 'BOXING')).toBe('Boxing');
     expect(cleanClassName('Barre 55', 'Barre')).toBe('Barre 55');
     expect(cleanClassName('', 'TRAIN')).toBe('');
+  });
+});
+
+describe('JAB Recovery discipline label (U6-12)', () => {
+  it('normalises the member-qualified provider discipline to Recovery', () => {
+    expect(getDiscipline('RECOVERY (Members)').label).toBe('Recovery');
   });
 });
 

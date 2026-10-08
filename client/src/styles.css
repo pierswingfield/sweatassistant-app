@@ -9644,3 +9644,25 @@ html:not([data-credits-tab="on"]) .app-nav-btn[data-tab="buy-credits"] { display
   #app-helper-container .app-fav-missing-body { flex-basis: 100%; order: 3; }
   #app-helper-container .app-fav-missing-heart { margin-left: auto; order: 2; }
 }
+
+/* Mobile timetable fixes (end of file: wins ties on source order).
+   1. Instructor moved to row 3 ("instr-below"): the LOCATION is shown whole (wraps, never ellipsises);
+      the instructor takes the squeeze and truncates instead.
+   2. The whole sticky header block (filter bar + dates) gets a hairline + soft shadow at its bottom edge,
+      from the --border / --shadow-card tokens so it follows light and dark.
+   3. The filter rail was 36px tall holding a 40px filter group, clipping the rounded corners; 44px gives
+      the 2px of air each side that overflow-x:auto (which forces overflow-y clipping) needs. */
+@media (max-width: 768px) {
+  #psycle-helper-container .psycle-mobile-main.instr-below .psycle-mobile-bottom-line .psycle-mobile-location {
+    flex: 0 1 auto !important; overflow: visible !important; text-overflow: clip !important; white-space: normal !important;
+    max-width: 100%;
+  }
+  #psycle-helper-container .psycle-mobile-main.instr-below .psycle-mobile-bottom-line .psycle-mobile-instructor {
+    flex: 0 1 auto !important; min-width: 0; max-width: 100%;
+  }
+  #psycle-helper-container .psycle-mobile-main.instr-below .psycle-mobile-bottom-line { flex-wrap: wrap !important; overflow: visible !important; row-gap: 0; }
+  #psycle-helper-container .psycle-sticky-top {
+    box-shadow: 0 -2px 0 var(--bg), 0 1px 0 var(--border), var(--shadow-card) !important;
+  }
+  .fr-rail { height: 44px !important; max-height: 44px !important; }
+}

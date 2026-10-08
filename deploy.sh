@@ -4,8 +4,8 @@
 #
 # Both environments live on `oracle`:
 #
-#   dev twin  ~/services/app-dev/   compose: docker-compose.yml        sweat-dev.wingfield.tech  (default)
-#   prod      ~/services/app/       compose: docker-compose.prod.yml   sweat.wingfield.tech
+#   dev twin  ~/services/sweatassistant-dev/   compose: docker-compose.yml        sweat-dev.wingfield.tech  (default)
+#   prod      ~/services/sweatassistant/       compose: docker-compose.prod.yml   sweat.wingfield.tech
 #
 # The flow is what was done by hand: rsync the tree, then
 # `docker compose up -d --build` on the host. Nothing here writes .env or
@@ -39,11 +39,11 @@ for arg in "$@"; do
 done
 
 if [ "$TARGET" = prod ]; then
-  REMOTE_DIR='~/services/app'
+  REMOTE_DIR='~/services/sweatassistant'
   COMPOSE_FILE='docker-compose.prod.yml'
   HEALTH_URL='https://sweat.wingfield.tech/api/health'
 else
-  REMOTE_DIR='~/services/app-dev'
+  REMOTE_DIR='~/services/sweatassistant-dev'
   COMPOSE_FILE='docker-compose.yml'
   HEALTH_URL='https://sweat-dev.wingfield.tech/api/health'
 fi
@@ -53,8 +53,8 @@ EXCLUDES=(--exclude .env --exclude '.env.*' --exclude data/ --exclude node_modul
           --exclude client/node_modules/ --exclude server/node_modules/
           --exclude client/dist/ --exclude server/public/ --exclude .git/
           --exclude .DS_Store --exclude '*.db' --exclude '*.db-shm' --exclude '*.db-wal')
-# docker-compose.yml is the DEV twin's (container app-dev, bound to the tailnet
-# address); prod runs docker-compose.prod.yml (container app, no published port).
+# docker-compose.yml is the DEV twin's (container sweatassistant-dev, bound to the tailnet
+# address); prod runs docker-compose.prod.yml (container sweatassistant, no published port).
 # Each target ships only its own file so one can never overwrite the other.
 if [ "$TARGET" = prod ]; then EXCLUDES+=(--exclude docker-compose.yml); else EXCLUDES+=(--exclude docker-compose.prod.yml); fi
 

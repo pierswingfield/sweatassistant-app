@@ -4,7 +4,7 @@
 
 Server + PWA assistant for Psycle London (and future gym providers). It moves scheduling features (auto-book, auto-upgrade) to a background server so they run 24/7 and adds iOS support via Progressive Web App (PWA) and Web Push notifications.
 
-**Status**: **Update 2026-10-06:** the `optimisation` branch (C2-4/C2-5 chunked timetable fetch, C7-3 logging and metrics, MarianaTek speedup, F-12 client favourites) was fast-forward merged into `master` and retired locally; the remote `origin/optimisation` is retained until the user decides. **Prod (`sweat.wingfield.tech`) runs the multi-gym build (Psycle + JAB Boxing)** since 2026-10-06 (clean SQLite DB, `JAB_BOXING_ENABLED=true`, `AARMY_ENABLED=true` per the user's go-ahead the same day). **`master` is the one and only working branch**: the former `modular` branch was merged into it and retired on 2026-10-06 (older docs that say "`modular`" mean this code). The old single-gym build is history (rollback target `758a6ce`). Deploys: `./deploy.sh` (dev twin `app-dev.wingfield.tech`, same code) and `./deploy.sh --prod` (typed confirmation); both ship the working tree, so deploy from a clean `master` checkout. Remaining roadmap and open items: `Documentation/Workstreams/README.md`; launch record: workstream C4.
+**Status**: **Update 2026-10-06:** the `optimisation` branch (C2-4/C2-5 chunked timetable fetch, C7-3 logging and metrics, MarianaTek speedup, F-12 client favourites) was fast-forward merged into `master` and retired locally; the remote `origin/optimisation` is retained until the user decides. **Prod (`sweat.wingfield.tech`) runs the multi-gym build (Psycle + JAB Boxing)** since 2026-10-06 (clean SQLite DB, `JAB_BOXING_ENABLED=true`, `AARMY_ENABLED=true` per the user's go-ahead the same day). **`master` is the one and only working branch**: the former `modular` branch was merged into it and retired on 2026-10-06 (older docs that say "`modular`" mean this code). The old single-gym build is history (rollback target `758a6ce`). Deploys: `./deploy.sh` (dev twin `sweat-dev.wingfield.tech`, same code) and `./deploy.sh --prod` (typed confirmation); both ship the working tree, so deploy from a clean `master` checkout. Remaining roadmap and open items: `Documentation/Workstreams/README.md`; launch record: workstream C4.
 
 ## Key References
 
@@ -119,10 +119,10 @@ App/
 │       ├── sw.js             # Service worker (push + offline cache, network-first shell, cache-first assets)
 │       └── icons/            # App icons (128, 192, 512 — any + maskable)
 ├── Dockerfile               # Multi-stage build (client → server/public)
-├── docker-compose.yml       # DEV twin: service/container `app-dev`, tailnet bind 3005→3000, ./data → /data (app.db)
-├── docker-compose.prod.yml  # PROD: service/container `app`, no published port (tunnel → app:3000 over `edge`)
-├── deploy.sh                # oracle deploy to ~/services/app-dev (default) or ~/services/app (--prod, typed confirmation): rsync + `docker compose -f <file> up -d --build`; --print dry-runs
-├── scripts/backup-sqlite.sh # nightly WAL-safe SQLite backups (installed on oracle as app-backup-sqlite.sh)
+├── docker-compose.yml       # DEV twin: service/container `sweatassistant-dev`, tailnet bind 3005→3000, ./data → /data (app.db)
+├── docker-compose.prod.yml  # PROD: service/container `sweatassistant`, no published port (tunnel → sweatassistant:3000 over `edge`)
+├── deploy.sh                # oracle deploy to ~/services/sweatassistant-dev (default) or ~/services/sweatassistant (--prod, typed confirmation): rsync + `docker compose -f <file> up -d --build`; --print dry-runs
+├── scripts/backup-sqlite.sh # nightly WAL-safe SQLite backups (installed on oracle as sweatassistant-backup-sqlite.sh)
 └── package.json             # Root workspace (concurrently dev server + client)
 ```
 

@@ -69,6 +69,62 @@ Let dev run for a day before prod.
 8. Hostname retirement: the user decided to retire `psycle.wingfield.tech`. **[CONFIRM]** remove the tunnel ingress rule and DNS record for `psycle.wingfield.tech`, and remove it from the `psycle` Cloudflare Access app (hostnames `psycle`, `sweat`, `sweat-dev`); keep `psycle-bypass` for the `sweat` paths (`/api/calendar/*`, `/api/health`) and drop its `psycle` host. Warning: **calendar feed URLs and Chrome-extension API calls on the old host stop working**; `PUBLIC_HOST` already points at the sweat host in prod `.env`, so new feed URLs are correct, but any old subscription URL dies. Optional: rename the Access apps (cosmetic).
 9. Later, after a week and only on explicit say-so: delete `~/services/sweatassistant/data-archive-*`, `docker-compose.yml.old-psycle`, Drive `Backups/psycle-sqlite`, local `/var/backups/psycle-sqlite`, `/usr/local/sbin/psycle-backup-sqlite.sh`, and the stopped Pi `psycle-app` container with `~/psycleapp`.
 
+### 2A. Prod cutover: prepared state and post-deploy runbook (prepared 2026-10-08)
+
+**Host state already prepared (nothing running changed):** `~/services/sweatassistant/` exists on oracle with `.env` copied from `~/services/psycleapp/.env` (`cp -p`, identical, mode 644; holds ENCRYPTION_KEY, ADMIN_PASSWORD, PUBLIC_HOST=sweat.wingfield.tech, VAPID_EMAIL, JWT_SECRET, APP_NAME, JAB/AARMY flags; no VAPID keys, so the new app generates new ones and every user must re-subscribe to push) and an empty `data/`. The old `~/services/psycleapp/` (compose, `data/psycle.db`, image `psycleapp-psycle-app:latest`) is untouched and stays as the rollback. `deploy.sh --prod` rsyncs `./` to `~/services/sweatassistant/` and EXCLUDES `.env`, `.env.*`, `data/`, `*.db*`, `docker-compose.yml` (the dev file), `.git/` and `node_modules/`, so it cannot overwrite the env or data; it then runs `docker compose -f docker-compose.prod.yml up -d --build` (service/container `sweatassistant`, no published port, networks `default` + `edge`). Backups: pre-cutover prod snapshot `/var/backups/psycle-sqlite/prod/psycle-20261008-190154.db.gz` (and on Drive `Backups/psycle-sqlite/prod/`). The Pi needs nothing (its `psycle-app` container is already exited and not routed).
+
+**Run (user):** from this repo on a clean `master` checkout, `./deploy.sh --prod`, then type `deploy prod`. Expect `=== Deploy target: prod (oracle:~/services/sweatassistant) ===`, a build, then `Container sweatassistant Started`.
+
+**(a) Verify `sweatassistant` is healthy (old `psycle-app` still serving)**
+```
+ssh oracle 'docker ps --filter name=sweatassistant --format "{{.Names}} | {{.Status}} | [{{.Ports}}]"'      # Ports must be EMPTY (no 0.0.0.0, no published port)
+ssh oracle 'docker inspect sweatassistant --format "{{json .NetworkSettings.Networks}}" | grep -o "\"edge\"\|sweatassistant_default"'   # on edge
+ssh oracle 'docker exec sweatassistant wget -qO- localhost:3000/api/health'                              # status ok
+ssh oracle 'docker exec sweatassistant wget -qO- localhost:3000/api/config'                              # appName Sweat Assistant, publicHost sweat.wingfield.tech
+ssh oracle 'docker exec sweatassistant wget -qO- localhost:3000/api/gyms | head -c 400'                  # psycle-london, jab-boxing, aarmy enabled
+ssh oracle 'docker exec sweatassistant ls -l /data'                                                      # app.db present
+ssh oracle 'docker logs --tail 40 sweatassistant 2>&1 | grep -i -E "error|fatal"'                        # nothing
+```
+
+**(b) Repoint the tunnel (shared `oracle-cloudflared`; a PUT replaces the whole config, so GET, change only these rules, PUT)**
+```
+source ~/.cloudflare.env; T=0dfbf3e0-c0f5-4073-8f29-bd9835735f49   # oracle-cloudflared
+curl -s -H "Authorization: Bearer $CF_TOKEN" https://api.cloudflare.com/client/v4/accounts/$CF_ACCOUNT/cfd_tunnel/$T/configurations > tunnel-pre-prod-cutover.json   # BACKUP, keep it
+python3 - <<'EOF'
+import json
+j=json.load(open('tunnel-pre-prod-cutover.json')); cfg=j['result']['config']; n=0
+for r in cfg['ingress']:
+    if r.get('hostname') in ('sweat.wingfield.tech','psycle.wingfield.tech') and r['service']=='http://psycle-app:3000':
+        r['service']='http://sweatassistant:3000'; n+=1
+assert n==2, n
+json.dump({'config':cfg}, open('tunnel-new.json','w'))
+EOF
+curl -s -X PUT -H "Authorization: Bearer $CF_TOKEN" -H "Content-Type: application/json" --data @tunnel-new.json https://api.cloudflare.com/client/v4/accounts/$CF_ACCOUNT/cfd_tunnel/$T/configurations | python3 -c 'import sys,json;print(json.load(sys.stdin)["success"])'
+sleep 8; curl -s -o /dev/null -w "%{http_code}\n" https://sweat.wingfield.tech/api/health      # 200, and the body uptimeSec is small (new container)
+```
+`psycle.wingfield.tech` is repointed too so it does not 502 when `psycle-app` is removed; retiring that hostname stays step 8.
+
+**(c) Only after (a) and (b) pass: remove the old container (keep image, data dir, backups)**
+```
+ssh oracle 'cd ~/services/psycleapp && docker compose stop && docker compose rm -f'     # image psycleapp-psycle-app:latest and ./data/psycle.db remain
+ssh oracle 'docker ps --format "{{.Names}}" | grep -E "^(psycle-app|sweatassistant)$"'  # only sweatassistant
+curl -s -o /dev/null -w "%{http_code}\n" https://sweat.wingfield.tech/api/health
+```
+Then the cron swap (step 7 above): in root's crontab replace the two `psycle-backup-sqlite.sh` lines with `/usr/local/sbin/sweatassistant-backup-sqlite.sh >> /var/log/sweatassistant-backup-sqlite.log 2>&1` (04:10) and `... --check-stale ...` (09:30); run it once and expect `prod: ... integrity_check=ok` and `dev: ... integrity_check=ok` then `=== OK ===`. The new script is already installed; until the swap, the old script (dev path patched on 2026-10-08, original kept as `psycle-backup-sqlite.sh.pre-rename`) keeps the nightly job green.
+
+**(d) Registry** (`~/.claude/skills/selfhost-deploy/references/registry.md`): prod row `psycle-app` -> container `sweatassistant`, compose project `sweatassistant`, image `sweatassistant-sweatassistant`, no port, tunnel upstream `sweatassistant:3000` for `sweat` (and `psycle`); add a dated cutover note (commit, backup artefact above, health output); update the networks line to `sweatassistant_default`.
+
+**(e) Rollback (restore the old prod container and upstream)**
+```
+ssh oracle 'cd ~/services/psycleapp && docker compose up -d'        # old image + old data/psycle.db; validated with `docker compose config -q`
+# restore the tunnel: PUT the saved pre-cutover JSON back
+source ~/.cloudflare.env; python3 -c "import json;j=json.load(open('tunnel-pre-prod-cutover.json'));print(json.dumps({'config':j['result']['config']}))" > tunnel-restore.json
+curl -s -X PUT -H "Authorization: Bearer $CF_TOKEN" -H "Content-Type: application/json" --data @tunnel-restore.json https://api.cloudflare.com/client/v4/accounts/$CF_ACCOUNT/cfd_tunnel/$T/configurations
+ssh oracle 'cd ~/services/sweatassistant && docker compose -f docker-compose.prod.yml stop'   # optional: stop the new one
+curl -s -o /dev/null -w "%{http_code}\n" https://sweat.wingfield.tech/api/health
+```
+Accounts created on the new instance are lost on rollback; the old DB is the one backed up above.
+
 ### 3. Rollback
 - Dev or prod before step 2.4: `docker compose down` in the new dir, `mv` the dir back, `rm -r data && mv data-archive-<date> data`, restore the old compose file, `docker compose up -d`. The archived DB is `psycle.db`; the previous image still needs `DB_PATH=/data/psycle.db` (it has it baked in), so use the previous commit if you rebuild. Restore the saved tunnel JSON (PUT).
 - After prod accounts have re-signed up: rollback loses those accounts again; the pre-cutover backups on Drive and in `/var/backups/psycle-sqlite` are the only restore points.

@@ -1,8 +1,10 @@
 # U4 — UX improvements (user list, 2026-09-29)
 
+> **Archived 2026-10-08.** U4-10 is in the [central backlog](../../Workstreams/BACKLOG.md). U4-19 search URL wiring is tracked in the active [Member experience epic](../../Workstreams/EPIC-member-experience.md); PWA checks are user-confirmed complete.
+
 **Priority:** P2 · **Size:** ~4–5 days · **Depends on:** nothing hard; U4-1 and U4-7 touch the timetable, the main acceptance screen · **Blocks:** nothing
 
-> **Verify first:** see [AGENT_PROTOCOL.md](AGENT_PROTOCOL.md). Every item here is user-visible, so check it in a real browser before and after, at iPhone width (402pt) as well as desktop, in both themes.
+> **Verify first:** see [AGENT_PROTOCOL.md](../../Workstreams/AGENT_PROTOCOL.md). Every item here is user-visible, so check it in a real browser before and after, at iPhone width (402pt) as well as desktop, in both themes.
 
 Requested by the user after dev-twin testing on 2026-09-29.
 
@@ -23,7 +25,7 @@ Requested by the user after dev-twin testing on 2026-09-29.
 | U4-16 | ✅ **DONE (2026-09-29).** **Calendar Sync settings rework.** Calendar has its own pane "Calendar Sync" (feed on/off, Include, Reminders with targeted VALARMs, Add to calendar cards, booking window release events) (`1acea60`, `8f3b151`). | `client/src/ui/calendar-section.js`, `settings.js`, `index.html`, `server/calendar.js`, `server/calendar-prefs.js` | 1 day |
 | U4-17 | ✅ **DONE 2026-10-06 (browser acceptance recorded in the note below; two documented deviations).** Replace the long feature tour and sequential post-login setup with a focused, resumable full-screen core flow followed by one optional setup screen. See the plan below. | `client/src/ui/onboarding.js`, `settings.js`, `spotmap.js`, `calendar-section.js`, `index.html`, `styles.css` | 2–3 days |
 | U4-18 | ✅ **DONE (2026-10-06, 5-10 enh Q3, `de8aebc`; mobile scroll-collapse of date strip and location chip).** **Sticky date selector vertical compression on scroll.** When the mobile user scrolls and the top header row disappears, shrink the date selector bar vertically by reducing its vertical padding. Animate the transition smoothly (`transition: padding 0.2s ease, min-height 0.2s ease`). | `client/src/styles.css`, `client/src/ui/timetable.js` / header scroll observer | 1–2 h |
-| U4-19 | **Clean URLs, working browser history and timetable deep links.** Path routes, state in the URL (day, filters, search), history pushes, filter banner with Clear-to-saved-defaults. **Phases 1-8 built 2026-10-06 (not deployed; `q` parsed-only, iOS standalone UNVERIFIED), evidence in [U4-19](U4-19-url-routing-and-deep-links.md).** Added 2026-10-05. | U4-17; feeds [H](H-home-page.md) | ~29 h |
+| U4-19 | **Clean URLs, working browser history and timetable deep links.** Path routes, state in the URL (day, filters, search), history pushes, filter banner with Clear-to-saved-defaults. **Phases 1-8 built 2026-10-06; see [U4-19](U4-19-url-routing-and-deep-links.md) for remaining verification/status.** Added 2026-10-05. | U4-17; feeds [archived H](H-home-page.md) | ~29 h |
 
 > **U4-9 implementation (2026-09-29).** Root cause of the basis: discipline colours were unconditional (`.ab-disc-tag[data-disc]`). Now `syncGymBrandedTags(container)` in `cards.js` (called from `equalizeDiscTagWidths`, which every view already calls after each render/re-filter) sets `data-multi-gym` when the rendered rows span more than one `data-gym`; `styles.css` then recolours the pill from the row's `--gym-ink/--gym-wash`. Single-gym views keep discipline colours. Evidence: Timetable at 390px, multi=true, JAB `rgb(108,31,32)` on 0.08 wash (light) / `rgb(248,113,113)` on 0.12 (dark); Psycle `rgb(39,39,42)` / `rgb(228,228,231)`. Vitest: `ui/cards-gym-tags.test.js`. Bookings, Auto-Book, Auto-Upgrade and overlap views use the same hook but were not browser-checked.
 
@@ -53,7 +55,7 @@ Requested by the user after dev-twin testing on 2026-09-29.
 >
 > **Acceptance criteria.** The welcome title, shared About content, Log In/Create Account actions, Back behaviour and resumability are present and keyboard/touch usable. Gym labels come from gym configuration. The second-gym form collapses after the first successful connection. The security copy uses “encrypted and stored in a secure private cloud” plus data deletion. The roll-up has exactly three independent cards, the combined spot-map explanation, the required incomplete/complete bottom labels, and no forced setup. Preferred Spot Maps show the Gym → location → studio hierarchy with one active editor and fresh saved state. Calendar actions and copy align with U4-16. Light and dark themes, mobile width, no-gym, partial, denied and unsupported states are covered.
 >
-> **Verification required before marking done.** Follow [AGENT_PROTOCOL.md](AGENT_PROTOCOL.md): inspect the changed code, then use one real Chrome tab at approximately 402px and desktop width in light and dark themes. Clear service-worker/CacheStorage, IndexedDB and reload before checking. Capture evidence for a new account, resume/Back, first and optional second gym, each roll-up card, permission denial/unsupported notifications, calendar actions, spot-map hierarchy/modal cleanup and the final timetable hand-off. Run the relevant test/build command and record its actual result. This item does not authorise launch or deployment.
+> **Verification required before marking done.** Follow [AGENT_PROTOCOL.md](../../Workstreams/AGENT_PROTOCOL.md): inspect the changed code, then use one real Chrome tab at approximately 402px and desktop width in light and dark themes. Clear service-worker/CacheStorage, IndexedDB and reload before checking. Capture evidence for a new account, resume/Back, first and optional second gym, each roll-up card, permission denial/unsupported notifications, calendar actions, spot-map hierarchy/modal cleanup and the final timetable hand-off. Run the relevant test/build command and record its actual result. This item does not authorise launch or deployment.
 
 ## Post-launch UX improvements
 
@@ -95,4 +97,3 @@ You're now on Spot 14 for Mon 5 Oct 12:00 Ride Signature 45 with Siân.
    - Or putting key info directly in the title: `Spot 14 Booked` / `Spot 14 Upgraded`.
 2. **Shorten the App Attribution (`APP_NAME` / Manifest `short_name`)**:
    - If `short_name` in `manifest.json` (or `APP_NAME` in `.env`) is set to e.g. `"Sweat"`, the OS attribution becomes `from Sweat` (or on iOS banner: `SWEAT`), saving horizontal and vertical space on banners and lock screens.
-

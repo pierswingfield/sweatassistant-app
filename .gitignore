@@ -12,3 +12,7 @@ node_modules/
 client/dist/
 server/public/
 .DS_Store
+.taskmaster/
+PRD.md
+prd.txt
+scratch/

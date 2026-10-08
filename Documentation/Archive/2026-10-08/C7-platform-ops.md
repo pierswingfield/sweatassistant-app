@@ -1,9 +1,11 @@
 # C7 — Platform, ops and security hardening
 
+> **Archived 2026-10-08.** Remaining low-priority C7-5, C7-6, C7-7 and C7-9 are in the [central backlog](../../Workstreams/BACKLOG.md). C7-1..4 and C7-8 are complete.
+
 **Priority:** P1 for the pre-launch subset, P2–P3 for the rest · **Size:** ~1 day pre-launch, then ~1 week
 **Depends on:** nothing · **Blocks:** C4 (pre-launch subset only)
 
-> **Verify first:** before changing anything for an item, confirm its basis in the code **and**, for anything user-visible, **in a real browser** (CDP :9222 or Claude for Chrome). For server-only items, use a failing test or a request. Record the evidence. If a browser check is needed and no browser is available, stop with `BLOCKED`. See [AGENT_PROTOCOL.md](AGENT_PROTOCOL.md).
+> **Verify first:** before changing anything for an item, confirm its basis in the code **and**, for anything user-visible, **in a real browser** (CDP :9222 or Claude for Chrome). For server-only items, use a failing test or a request. Record the evidence. If a browser check is needed and no browser is available, stop with `BLOCKED`. See [AGENT_PROTOCOL.md](../../Workstreams/AGENT_PROTOCOL.md).
 
 > **Status (2026-10-06):** C7-3 DONE (on `optimisation`, dev twin only; `METRICS_TOKEN` is not set on dev, so `/metrics` needs an admin JWT there). C7-4 DONE (F-15). C7-7 stays P3, re-evaluate after the C2-5 rebuild. Rest open.
 

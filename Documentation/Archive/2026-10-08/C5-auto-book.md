@@ -1,8 +1,10 @@
 # C5 — Auto-book and auto-upgrade gaps
 
+> **Archived 2026-10-08.** The only remaining item, C5-2, is now in the [central backlog](../../Workstreams/BACKLOG.md). This file is retained as implementation history.
+
 **Priority:** P2 (C5-1, C5-3) · P3 (C5-2) · **Size:** ~2.5 days · **Depends on:** C4 for C5-2 · **Blocks:** nothing
 
-> **Verify first:** before changing anything for an item, confirm its basis in the code **and**, for anything user-visible, **in a real browser** (CDP :9222 or Claude for Chrome). For server-only items, use a failing test or a request. Record the evidence. If a browser check is needed and no browser is available, stop with `BLOCKED`. See [AGENT_PROTOCOL.md](AGENT_PROTOCOL.md).
+> **Verify first:** before changing anything for an item, confirm its basis in the code **and**, for anything user-visible, **in a real browser** (CDP :9222 or Claude for Chrome). For server-only items, use a failing test or a request. Record the evidence. If a browser check is needed and no browser is available, stop with `BLOCKED`. See [AGENT_PROTOCOL.md](../../Workstreams/AGENT_PROTOCOL.md).
 
 The scheduler core (queue-driven release wake clock, per-gym policies, native MarianaTek spot
 swap) is done and live-verified. These are the remaining gaps.
@@ -41,7 +43,7 @@ swap) is done and live-verified. These are the remaining gaps.
 
 ## C5-3 — done 2026-09-28
 
-> **Amended by [U1-6](../Archive/2026-10-06/U1-ux-bug-fixes.md) (2026-09-28):** an overlap is no longer committed and then announced with a toast. `POST /api/auto-book` now answers 409 `OVERLAP_CONFIRM_REQUIRED` (nothing inserted) until resubmitted with `confirmOverlap: true`, and the client shows a confirmation modal. The duplicate rule, warning codes and `GET` annotations below are unchanged.
+> **Amended by [U1-6](../2026-10-06/U1-ux-bug-fixes.md) (2026-09-28):** an overlap is no longer committed and then announced with a toast. `POST /api/auto-book` now answers 409 `OVERLAP_CONFIRM_REQUIRED` (nothing inserted) until resubmitted with `confirmOverlap: true`, and the client shows a confirmation modal. The duplicate rule, warning codes and `GET` annotations below are unchanged.
 
 **Basis (verified before changing):** `grep` of `server/` and `client/src/` for any queue-conflict logic found nothing: `POST /api/auto-book` inserted unconditionally, so the same class could be queued twice and a Psycle class could be queued over a JAB class at the same time. A second bug turned up on the client: `api.addAutoBooking()` returned `res.json()` for any status, so any refusal (429 quota today, 409 tomorrow) was announced as "Successfully scheduled". Nothing existed to make a failing test for, so the new suite was written alongside the code and asserts the previously-impossible outcomes (409, warnings).
 

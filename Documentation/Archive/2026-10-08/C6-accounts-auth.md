@@ -1,8 +1,10 @@
 # C6 — Accounts and auth
 
+> **Archived 2026-10-08.** C6-1 and C6-2 are deferred to the [central backlog](../../Workstreams/BACKLOG.md); completed items remain here as history.
+
 **Priority:** P2 · **Size:** ~2–3 days · **Depends on:** a mail sender (part of C6-1) · **Blocks:** nothing
 
-> **Verify first:** before changing anything for an item, confirm its basis in the code **and**, for anything user-visible, **in a real browser** (CDP :9222 or Claude for Chrome). For server-only items, use a failing test or a request. Record the evidence. If a browser check is needed and no browser is available, stop with `BLOCKED`. See [AGENT_PROTOCOL.md](AGENT_PROTOCOL.md).
+> **Verify first:** before changing anything for an item, confirm its basis in the code **and**, for anything user-visible, **in a real browser** (CDP :9222 or Claude for Chrome). For server-only items, use a failing test or a request. Record the evidence. If a browser check is needed and no browser is available, stop with `BLOCKED`. See [AGENT_PROTOCOL.md](../../Workstreams/AGENT_PROTOCOL.md).
 
 Sweat Assistant accounts have their own identity, separate from gym credentials [D4]. Recovery
 through a gym login was built and then rejected, because it re-coupled the two [D5]. The interim
@@ -43,7 +45,7 @@ Shape of the build:
 5. Admin reset stays as the fallback. Add a "verify email" step at signup so resets reach a real
    inbox. Existing accounts are verified on their first successful reset.
 
-**Detail:** [archived BACKLOG "Account recovery" and "Account setup"](../Archive/2026-09-26/BACKLOG.md).
+**Detail:** [archived BACKLOG "Account recovery" and "Account setup"](../2026-09-26/BACKLOG.md).
 
 ## C6-4 — background relogin failures (done 2026-09-28)
 

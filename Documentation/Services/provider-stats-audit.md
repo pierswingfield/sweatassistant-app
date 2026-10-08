@@ -6,7 +6,7 @@
 
 The 2026-10-07 live pass used the signed-in dev twin, sequential read-only app requests, and no mutation route. It made at most 14 provider reads even if the history cache had required its five-page refresh, below the 40-request playbook cap. No rate-limit header, `429`, WAF response, or authentication ambiguity occurred after the initial app-session check.
 
-Current live evidence is deliberately limited to response status and non-personal field names. The full-history depth and row semantics below remain the separately documented 2026-10-05 sanitized live study in [H-home-page.md](../Workstreams/H-home-page.md#open-questions), rather than a claim that the current pass repeated that pagination.
+Current live evidence is deliberately limited to response status and non-personal field names. The full-history depth and row semantics below remain the separately documented 2026-10-05 sanitized live study in [H-home-page.md](../Archive/2026-10-08/H-home-page.md#open-questions), rather than a claim that the current pass repeated that pagination.
 
 | Platform | Current 2026-10-07 read | What it proves |
 |---|---|---|

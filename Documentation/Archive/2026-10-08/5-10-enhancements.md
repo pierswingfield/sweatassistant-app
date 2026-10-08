@@ -1,6 +1,6 @@
-# 5-10 enhancements session (handoff, single source of truth)
+# 5-10 enhancements session (archived handoff)
 
-> **STATUS 2026-10-06: MERGED into `modular` and committed (not pushed, not yet deployed from the merged tree).** All queued items (0-12b, Q1-Q3) are done. **Open:** the follow-ups and verification gaps under "Outstanding". Server 65/65 suites, client 372 tests, build clean on Node 20 after the merge.
+> **CLOSED and archived 2026-10-08 by user confirmation:** the session follow-ups and PWA checks are considered complete. The checklist below is historical and superseded; its unchecked boxes are not current backlog. The separate U4-19 `q` URL-to-search wiring remains tracked in the active U4-19 document. This closure is user-confirmed, not a new verification run.
 
 Session log for the batch of bug fixes and enhancements started 2026-10-05 and carried through 2026-10-06. Work happened in two places and this doc merges both:
 
@@ -113,7 +113,7 @@ client/src/ui/timetable.js
 - Deployed to `sweat-dev.wingfield.tech` via `./deploy.sh`.
 - Chrome CDP (emulated iPhone 14): tap 4.5 ms / deselect 3.2 ms; gym grid 114/114/114 px; Your Gyms rows have no name text, email and buttons on one row, status below email; JAB row drills to `psycle-settings-pane-gym-jab-boxing`; gym pane has no h3 name, badge aligned with logo, email and buttons inline; Back returns to `psycle-settings-pane-gyms`.
 
-## Outstanding (consolidated)
+## Historical checklist (superseded 2026-10-08)
 
 Status key: [x] done, [ ] not done.
 

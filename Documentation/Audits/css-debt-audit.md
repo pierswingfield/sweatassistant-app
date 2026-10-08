@@ -14,7 +14,7 @@ The Workstream U3 numbers are stale: the file grew from ~7,300 to 11,452 lines a
 | Hard-coded `font-size: Npx` | 203 | **358** (vs 78 `var()`) |
 | Rules | n/a | 2,088 rules, 7,988 declarations |
 
-`panel-layout.css` does not exist in the tree (`git ls-files | grep css` returns only `styles.css`; no code references). Only stale prose remains: `Documentation/DESIGN.md:216-218`, `U3-css-design-debt.md`, and comments at `styles.css:8738,8740`.
+`panel-layout.css` does not exist in the tree (`git ls-files | grep css` returns only `styles.css`; no code references). Only stale prose remains: `Documentation/DESIGN.md:216-218`, the archived `Documentation/Archive/2026-10-08/U3-css-design-debt.md`, and comments at `styles.css:8738,8740`.
 
 ## 1. `!important`
 

@@ -140,6 +140,6 @@ Also: `oracle.md` lines about 110 and 216-226 (script name, paths, `app.db`, log
 
 ## Decisions (resolved 2026-10-08)
 1. Public hostnames stay `sweat.wingfield.tech` / `sweat-dev.wingfield.tech`.
-2. Cloudflare Access apps `psycle` / `psycle-bypass` are NOT renamed now; backlog item C7-17 (Workstreams/C7-platform-ops.md) tracks renaming legacy psycle-named Access apps, the `edge` network and docker names later if ever needed.
+2. Cloudflare Access apps `psycle` / `psycle-bypass` are NOT renamed now; backlog item C7-9 ([central backlog](../Workstreams/BACKLOG.md)) tracks optional cleanup of legacy Psycle-named Access apps, the `edge` network and Docker names.
 3. `app` as a bare edge DNS name: replaced by `sweatassistant` / `sweatassistant-dev`.
 4. No cutover has been run; this document is the runbook only.

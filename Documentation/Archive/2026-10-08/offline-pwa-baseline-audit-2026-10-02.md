@@ -1,10 +1,11 @@
 # Offline PWA baseline audit — 2026-10-02
 
-**Scope:** baseline plus the 2026-10-02 shared-foundation implementation for the installed iOS
-PWA report: offline launch, cached reads, assets, visual state and write safety across Psycle,
-JAB Boxing and the disabled Aarmy tenant. This is not a completed acceptance item. It supplements
-the existing records: C4-7 is a prior iOS pass for Psycle/JAB; C10 still requires post-deployment
-Aarmy acceptance. Neither record proves the remaining cases below on the current build.
+> **Closed and archived 2026-10-08 by user confirmation:** the PWA follow-up checks in this audit are considered complete. The audit below is historical evidence from 2026-10-02 and does not represent current open work. This closure is user-confirmed, not a new device verification.
+
+**Scope at audit time:** baseline plus the 2026-10-02 shared-foundation implementation for the
+installed iOS PWA report: offline launch, cached reads, assets, visual state and write safety
+across Psycle, JAB Boxing and Aarmy (then disabled). At the time, this was not a completed
+acceptance item. The 2026-10-08 user-confirmed closure above supersedes the follow-up list below.
 
 ## Evidence and boundary
 

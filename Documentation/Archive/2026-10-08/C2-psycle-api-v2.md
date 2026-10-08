@@ -1,17 +1,19 @@
 # C2 — Psycle (CodexFit) API v2 compliance and efficiency
 
+> **CLOSED and archived 2026-10-08.** API v2 compliance, caching, and multi-gym cold-load work are complete. The client prefetches timetable data after onboarding and on timetable entry. The earlier suggestion to add server-side schedule prewarming is closed as unnecessary follow-up; remaining upstream cold latency is recorded below, not an active C2 task.
+
 **Priority:** P0 (phase 1: broken in prod) · P1 (phase 2) · **Size:** ~4–5 days total
 **Depends on:** gate G1, a live traffic capture · **Blocks:** C4 (phase 1), F in-app 3-D Secure
 
-> **Verify first:** before changing anything for an item, confirm its basis in the code **and**, for anything user-visible, **in a real browser** (CDP :9222 or Claude for Chrome). For server-only items, use a failing test or a request. Record the evidence. If a browser check is needed and no browser is available, stop with `BLOCKED`. See [AGENT_PROTOCOL.md](AGENT_PROTOCOL.md).
+> **Verify first:** before changing anything for an item, confirm its basis in the code **and**, for anything user-visible, **in a real browser** (CDP :9222 or Claude for Chrome). For server-only items, use a failing test or a request. Record the evidence. If a browser check is needed and no browser is available, stop with `BLOCKED`. See [AGENT_PROTOCOL.md](../../Workstreams/AGENT_PROTOCOL.md).
 
 Goal: the app calls only live, current CodexFit endpoints. It makes no more requests than the
 Psycle website does, and its traffic looks like the website's. Scope is Psycle only. MarianaTek
 is out of scope (decided 2026-09-26).
 
 Full plan, gap analysis and rationale:
-[`Archive/2026-09-26/App_API_changes.md`](../Archive/2026-09-26/App_API_changes.md).
-Endpoint reference: [`Services/psycle_codexfit.md`](../Services/psycle_codexfit.md).
+[`Archive/2026-09-26/App_API_changes.md`](../2026-09-26/App_API_changes.md).
+Endpoint reference: [`Services/psycle_codexfit.md`](../../Services/psycle_codexfit.md).
 
 ## Phase 0 — Validate the doc before building on it (~0.5 day)
 
@@ -24,7 +26,7 @@ Endpoint reference: [`Services/psycle_codexfit.md`](../Services/psycle_codexfit.
 | C2-G5 | `/heartbeat` timestamp cadence and granularity | Leave the timetable open for 10 min | C2-5 |
 | C2-G6 / G7 | Profile-edit route; `cart.metadata.stripe.secret` and publishable key | Profile page; the G3 capture | F (3-D Secure) |
 
-Follow [`LIVE_VERIFICATION_PLAYBOOK.md`](../LIVE_VERIFICATION_PLAYBOOK.md) for any live write.
+Follow [`LIVE_VERIFICATION_PLAYBOOK.md`](../../LIVE_VERIFICATION_PLAYBOOK.md) for any live write.
 
 ## Phase 1 — Fix what's broken (P0, ~1.5 days)
 
@@ -233,8 +235,8 @@ All four items above are **done (2026-09-26)** — see below for evidence, root 
 
 ## Phase 2 — Website-shaped, efficient reads (P1, ~2 days, after C4)
 
-> **Phase 2 status (2026-10-06, all on `optimisation`, dev twin only, not merged or deployed to prod).**
-> C2-4 done: 7-day-chunked ranged `/events` (see row). C2-5 rebuilt and merged (`f37e3b0`, `cd97a62`): stamp-gated refresh with ceilings (timetable 5 min on `events`, metadata 6 h, layouts 7 d); occupancy can lag up to the ceiling; MarianaTek unchanged. The first attempt was abandoned because the `events` stamp does not move on occupancy changes, and the earlier claim that the website never calls `/heartbeat` is superseded (the user observed it does). C2-6 done. MarianaTek cold-load fix (`5a014cb`, `710e7f1`: shared single-flight date-bounded parallel-paginated class list, metadata bounded to 28 days so filter lists cover that window only) and the HTTP-cache serialisation fix (`Vary: x-gym-id`, `private, no-cache`, `?gym=` on gym-scoped GETs; `cb12c58`, `1b1ac28`, pending-gym skeleton). Final cold numbers, three gyms: first data 15.4 s, first rows 16.9 s, all gyms 18.5 s, no empty flash. **Open:** prewarm (first data is still ~15 s, bounded by one slow upstream; Aarmy ~11 s over 5 pages); C7-7 stays P3, re-evaluate. Dated evidence sections: "C2-5 rebuilt", "C2-4 cold-load benchmark", "MT cold-load investigation/fix", "Aarmy analysis + first-paint".
+> **Historical phase 2 status note (2026-10-06; superseded):** this snapshot predates the later merge to `master` and this 2026-10-08 archive.
+> C2-4 done: 7-day-chunked ranged `/events` (see row). C2-5 rebuilt and merged (`f37e3b0`, `cd97a62`): stamp-gated refresh with ceilings (timetable 5 min on `events`, metadata 6 h, layouts 7 d); occupancy can lag up to the ceiling; MarianaTek unchanged. The first attempt was abandoned because the `events` stamp does not move on occupancy changes, and the earlier claim that the website never calls `/heartbeat` is superseded (the user observed it does). C2-6 done. MarianaTek cold-load fix (`5a014cb`, `710e7f1`: shared single-flight date-bounded parallel-paginated class list, metadata bounded to 28 days so filter lists cover that window only) and the HTTP-cache serialisation fix (`Vary: x-gym-id`, `private, no-cache`, `?gym=` on gym-scoped GETs; `cb12c58`, `1b1ac28`, pending-gym skeleton). Final cold numbers, three gyms: first data 15.4 s, first rows 16.9 s, all gyms 18.5 s, no empty flash. The earlier server-prewarm proposal is closed; see the archive note above. C7-7 remains a separate P3 decision. Dated evidence sections: "C2-5 rebuilt", "C2-4 cold-load benchmark", "MT cold-load investigation/fix", "Aarmy analysis + first-paint".
 
 | # | Item | Why | Est. |
 |---|---|---|---|

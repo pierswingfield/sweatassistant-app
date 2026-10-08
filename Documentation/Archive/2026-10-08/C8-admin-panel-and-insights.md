@@ -1,10 +1,12 @@
 # C8 — Admin Panel, Fleet Intelligence, Data Foundation and Ops
 
-**Priority:** P2 · **Size:** ~2 weeks across 7 phased increments  
-**Depends on:** C4 (modular multi-gym baseline in production), F-7 (dynamic presentation contract & registry discovery)  
-**Blocks:** Scaled multi-gym operations (3+ gyms), [H](H-home-page.md) (Home page), F-11 (Class Stats & Insights)
+> **Archived 2026-10-08.** C8-1 is tracked in the active [Admin and operations epic](../../Workstreams/EPIC-admin-operations.md); C8-2..7 are in the [central backlog](../../Workstreams/BACKLOG.md). This file retains the detailed design.
 
-> **Verify first:** before changing anything for an item, confirm its basis in the code **and**, for anything user-visible, **in a real browser** (CDP :9222 or Claude for Chrome). For server-only items, use a failing test or a request. Record the evidence. If a browser check is needed and no browser is available, stop with `BLOCKED`. See [AGENT_PROTOCOL.md](AGENT_PROTOCOL.md).
+**Priority:** P2 · **Size:** ~2 weeks across 7 phased increments
+**Depends on:** C4 (modular multi-gym baseline in production), F-7 (dynamic presentation contract & registry discovery)
+**Blocks:** Scaled multi-gym operations (3+ gyms). The Home page and F-11 stats are complete; see the [archived H workstream](H-home-page.md).
+
+> **Verify first:** before changing anything for an item, confirm its basis in the code **and**, for anything user-visible, **in a real browser** (CDP :9222 or Claude for Chrome). For server-only items, use a failing test or a request. Record the evidence. If a browser check is needed and no browser is available, stop with `BLOCKED`. See [AGENT_PROTOCOL.md](../../Workstreams/AGENT_PROTOCOL.md).
 
 ---
 
@@ -41,7 +43,7 @@ Every feature, chart, table, filter, background process, and batch action in the
 ### C8-1: Foundational Data Pipeline: Event Ledger, Booking Lifecycle & Profile Harvester
 
 #### Why This Exists
-Today, the server's data persistence is largely transient: `booking_cache` and `waitlist_cache` are continuously wiped and replaced by upstream syncs, execution logs live only as single message strings in `auto_bookings`, and gym profile data is cached as an ephemeral JSON blob. To power deep admin insights, historical analytics, and future user-facing features ([H](H-home-page.md) Home page, F-11 Stats & Milestones, F-9 AI Assistant), the system requires durable foundational data capture.
+Today, the server's data persistence is largely transient: `booking_cache` and `waitlist_cache` are continuously wiped and replaced by upstream syncs, execution logs live only as single message strings in `auto_bookings`, and gym profile data is cached as an ephemeral JSON blob. To power deep admin insights, historical analytics, and future user-facing features (the completed [H Home page](H-home-page.md), F-11 Stats & Milestones, F-9 AI Assistant), the system requires durable foundational data capture.
 
 #### Architecture & Data Contracts
 1. **Immutable System Event Ledger (`system_events`)**:

@@ -1,9 +1,11 @@
 # U4-19 — Clean URLs, browser history and timetable deep links
 
-Status: **Phases 1-8 DONE on branches `worktree-enh-5-10-timetable` (1-3) and `followups-2026-10-06` (4-8), 2026-10-06, not deployed. Search `q` is wired locally 2026-10-08; local real-browser verification pending. iOS standalone UNVERIFIED; desktop modals unchanged (see phase 6).** Plan approved 2026-10-05. Phase 7's `notificationclick` -> `NAVIGATE {path}` part landed early with phase 3 (the old `pathname === '/'` match would have broken on clean paths); `returnTo` landed in phase 7 below.
+> **Archived 2026-10-08.** U4-19 `q` URL-to-search wiring was implemented and merged to `master`; the local Chrome checks passed. Deployment and iOS standalone verification remain unverified. This file retains the detailed routing design.
+
+Status (2026-10-08): **Phases 1-8 are merged to `master`, and `q` is synchronized with the timetable search UI.** Desktop modal history remains intentionally unchanged per phase 6's decision.
 Evidence (phases 1-3): vitest `url-state.test.js` (round-trips, hostile input), `server/test-spa-fallback.js`, `npm test` green on Node 20, and a real-Chrome CDP run (22/22) against a production build: refresh on each path, back/forward across tabs and settings sections, legacy `#hash` redirect, gym-pane deep link, with SW/CacheStorage/IndexedDB cleared first.
 Implementation notes: `client/src/url-state.js` (pure), `client/src/router.js` (`navigate`, `initRouter`, `migrateLegacyHash`; `commitFilterChange` deferred to phase 4). Server `SPA_PATH_RE` allowlist in `server.js`; unknown `/api/*` is JSON 404 in every mode; other unmatched production paths are plain 404. `PUBLIC_DIR` env overrides the built-client dir (used by the test). Onboarding `finish()` no longer rewrites the URL, so a deep link survives it. `home-routing.js resolveInitialTab` is now unused by `main.js` (kept, still tested). `/credits` while the Credits tab is debug-gated is replaced by `/timetable`. Unknown client paths replace to `/`.
-Original status line: PLAN ONLY (2026-10-05). Parent: [U4](U4-ux-improvements.md). Feeds [H](H-home-page.md) (homepage widgets link to filtered timetables) and the per-gym instructor filter enhancement.
+Original status line: PLAN ONLY (2026-10-05). Parent: [U4](U4-ux-improvements.md). Feeds the completed [H workstream](H-home-page.md) (homepage widgets link to filtered timetables) and the per-gym instructor filter enhancement.
 
 ## Today (verified in code)
 - Tabs live in the **hash** (`main.js` `switchTab` does `replaceState('#tab')`; `VALID_TABS`; a `popstate` handler re-reads the hash). Back/forward therefore never walk tab/day/filter history.
@@ -33,7 +35,7 @@ Timetable params (all optional; repeated values comma-separated; absent = "use s
 | `q` | `boxing` | committed search text, synchronized with the timetable search UI |
 | `f` | `all` | present with no other filter params = explicit "no filters", distinct from "use defaults" |
 
-**Decisions (2026-10-05):** the root path `/` is Home (the homepage shell already exists, see [H](H-home-page.md)); the search query param is `q` (see the timetable search spec; committed state lives in `client/src/ui/timetable-search-state.js`).
+**Decisions (2026-10-05):** the root path `/` is Home (see the [completed H workstream](H-home-page.md)); the search query param is `q` (see the timetable search spec; committed state lives in `client/src/ui/timetable-search-state.js`, with URL synchronization implemented).
 
 Homepage link: `buildTimetableUrl({ gym:['psycle-london'], instructor:['psycle-london:123'], day })` returns a string; widgets render `<a href>` and a click handler calls `navigate(url)` (SPA push, no reload). Never hand-concatenate URLs.
 

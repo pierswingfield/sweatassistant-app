@@ -1,18 +1,20 @@
 # C4 — Live acceptance, promote `modular` to prod, JAB launch
 
+> **Archived 2026-10-08.** C4-14 is tracked in the active [Admin and operations epic](../../Workstreams/EPIC-admin-operations.md); user-dependent C4-2 and C4-3 are in the [backlog](../../Workstreams/BACKLOG.md). This file is retained as launch evidence.
+
 **Priority:** P0 milestone · **Size:** ~3 days of hands-on work, ~1–2 weeks elapsed (some checks
 wait for real release windows and penalty windows)
 **Depends on:** C1, C2 phase 1, C3, C7 pre-launch subset · **Blocks:** C2 phase 2, U3, most of F
 
-> **Verify first:** before changing anything for an item, confirm its basis in the code **and**, for anything user-visible, **in a real browser** (CDP :9222 or Claude for Chrome). For server-only items, use a failing test or a request. Record the evidence. If a browser check is needed and no browser is available, stop with `BLOCKED`. See [AGENT_PROTOCOL.md](AGENT_PROTOCOL.md).
+> **Verify first:** before changing anything for an item, confirm its basis in the code **and**, for anything user-visible, **in a real browser** (CDP :9222 or Claude for Chrome). For server-only items, use a failing test or a request. Record the evidence. If a browser check is needed and no browser is available, stop with `BLOCKED`. See [AGENT_PROTOCOL.md](../../Workstreams/AGENT_PROTOCOL.md).
 
 Prod runs the old single-gym `master`. The dev twin runs `modular`. The mechanical suites are
 green, and most of the live matrix passed on 2026-09-15 and 09-23. This workstream closes the
 remaining live checks, ships `modular` to prod, and then turns JAB on.
 
-Rules for live testing: [`LIVE_VERIFICATION_PLAYBOOK.md`](../LIVE_VERIFICATION_PLAYBOOK.md).
-Flow matrix: [`QA/USER_FLOW_VALIDATION_PLAN.md`](../QA/USER_FLOW_VALIDATION_PLAN.md).
-Prior results: [`QA/browser-runs/`](../QA/browser-runs/).
+Rules for live testing: [`LIVE_VERIFICATION_PLAYBOOK.md`](../../LIVE_VERIFICATION_PLAYBOOK.md).
+Flow matrix: [`QA/USER_FLOW_VALIDATION_PLAN.md`](../../QA/USER_FLOW_VALIDATION_PLAN.md).
+Prior results: [`QA/browser-runs/`](../../QA/browser-runs/).
 
 ## Stage A — Remaining live verification (dev twin)
 
@@ -63,7 +65,7 @@ in the session scratchpad (not committed — contain live account/customer PII f
     booking was authorized for this session regardless of eligibility. Investigated as C3-13
     (2026-09-27): not reproduced as a code bug — a fresh live check the same day showed badge,
     eligibility and membership all agreeing ("Member" / `canBook:true` / `isActive:true`); see
-    `../Archive/2026-10-06/C3-multi-gym-correctness.md`.
+    `../2026-10-06/C3-multi-gym-correctness.md`.
   - Psycle: tab showed **"0 credits available — you cannot book here until you top up"** and every
     open timetable row showed "Buy Credits" instead of "Quick Book". Does not match the provider:
     `GET /api/profile` shows `raw.data.available_credits=[{count:2,...}]` and

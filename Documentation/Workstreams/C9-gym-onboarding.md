@@ -85,9 +85,9 @@ mock coverage passed 13/13; the integration run reported 57 server suites, 25 cl
 (188 tests), and the production client build passing.
 
 The mock fixture remains JAB-shaped and is not Aarmy data. No live Aarmy booking, cancellation,
-waitlist mutation, swap, checkout, payment or penalty check ran. Aarmy was not deployed or
-enabled in production. Its remaining P0 steps live in
-[C10 — Aarmy integration acceptance](C10-aarmy-integration-acceptance.md).
+waitlist mutation, swap, checkout, payment or penalty check ran; the user waived those checks,
+and Aarmy is enabled in production. Its acceptance record is archived at
+[C10 — Aarmy integration acceptance](../Archive/2026-10-08/C10-aarmy-integration-acceptance.md).
 
 ## Findings and planned improvements
 

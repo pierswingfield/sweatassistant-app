@@ -2153,6 +2153,49 @@ export async function renderTimetableGrid(reason = 'interaction') {
   announceTimetableRendered();
 }
 
+function autoBookingIdSet(rows = cache.autoBookings) {
+  const ids = new Set();
+  (rows?.data || rows || []).forEach((row) => {
+    const id = row.event_id || row.eventId;
+    if (id != null) { ids.add(id); ids.add(Number(id)); ids.add(String(id)); }
+  });
+  return ids;
+}
+
+/** The booking state consumed by the one shared action decision. */
+function eventActionState(event, autoBookedIds = autoBookingIdSet()) {
+  const startDate = new Date(event.startAt);
+  const classRelease = getClassReleaseTime(event, userSettings);
+  const isLive = event.alwaysBookable ? true : (classRelease ? DateTime.now() >= classRelease : true);
+  const isFullyBooked = !!event.isFull;
+  const canWaitlist = !isFullWithoutWaitlist(event);
+  const eventBookings = userBookings().filter((booking) => matchesEvent(booking, event));
+  const isBooked = eventBookings.length > 0;
+  const waitlistEntry = userWaitlists().find((entry) => matchesEvent(entry, event));
+  let bookingId = null;
+  let isPenalty = false;
+  let graceDeadline = null;
+  if (eventBookings.length === 1) {
+    bookingId = eventBookings[0].bookingId ?? eventBookings[0].id;
+    const bookedAt = eventBookings[0].bookedAt ?? eventBookings[0].booked_at;
+    const diffHours = (startDate - new Date()) / (1000 * 60 * 60);
+    isPenalty = diffHours < 12 && diffHours > 0;
+    if (bookedAt && isInGracePeriod(bookedAt)) graceDeadline = new Date(bookedAt).getTime() + GRACE_PERIOD_MS;
+  }
+  return {
+    isLive, isBooked, isOnWaitlist: !!waitlistEntry, isFullyBooked, canWaitlist, hasCredit: hasUsableCredit(event),
+    isScheduled: autoBookedIds.has(event.id) || autoBookedIds.has(Number(event.id)) || autoBookedIds.has(String(event.id)),
+    bookingId, isPenalty, slotsBookedCount: eventBookings.length,
+    // Providers leave by event id; they resolve their own waitlist row.
+    waitlistId: waitlistEntry ? event.id : null, graceDeadline,
+  };
+}
+
+/** Primary action for compact, read-only consumers such as Home favourites. */
+export function primaryActionForEvent(event) {
+  return buildActionModel(event, { ...eventActionState(event), compact: true }).primary;
+}
+
 // The ONE per-event timetable row (desktop <tr> or mobile card <tr>). Extracted from renderTimetableGrid's
 // loop so the Settings Favourites pane reuses exactly the same rendering instead of a second copy (F-12).
 function buildEventRow(event, autoBookedIds) {
@@ -2474,7 +2517,7 @@ function twoTapConfirm(btn, confirmLabel, run) {
 function buildActionModel(event, ctx) {
   const {
     isLive, isBooked, isOnWaitlist, isFullyBooked, canWaitlist, hasCredit,
-    isScheduled, bookingId, isPenalty, slotsBookedCount, waitlistId, graceDeadline,
+    isScheduled, bookingId, isPenalty, slotsBookedCount, waitlistId, graceDeadline, compact = false,
   } = ctx;
   const { hasMap } = getStudioMapInfo(event);
 
@@ -2560,7 +2603,12 @@ function buildActionModel(event, ctx) {
     }
     // Full and no waitlist: the status pill already says so. Blank the action (kept invisible so
     // the column/rail stays aligned) rather than a dead "Full" button.
-    return { primary: { label: '', variant: 'neutral', disabled: true, blank: true }, secondary: null, config: null };
+    return {
+      primary: {
+        label: compact ? COPY.timetable.full : '', variant: 'neutral', disabled: true, blank: !compact,
+      },
+      secondary: null, config: null,
+    };
   }
 
   // Not bookable — but WHY differs by gym shape (C3-2). `hasCredit` is

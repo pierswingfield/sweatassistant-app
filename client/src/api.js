@@ -9,21 +9,21 @@ import { beginGymLoad as _beginGymLoad, endGymLoad as _endGymLoad } from './ui/g
 import { assertMutationNetworkAvailable, isOfflineForMutation } from './network-write-guard.js';
 import { validateSelfBookingRequest } from './ui/booking-entitlement.js';
 
-// API Abstraction layer for communicating with the Psycle PWA server
+// API Abstraction layer for communicating with the the app server
 
 // U1-15: every successful booking mutation is announced so booking-state.js can
 // update the shared booked/waitlisted cache at once, whichever tab made it.
 function announceBookingMutation(detail) {
-  try { window.dispatchEvent(new CustomEvent('psycle-bookings-mutated', { detail })); } catch (_) {}
+  try { window.dispatchEvent(new CustomEvent('app-bookings-mutated', { detail })); } catch (_) {}
 }
 
-let localToken = localStorage.getItem('psycleLocalToken') || null;
+let localToken = localStorage.getItem('appLocalToken') || null;
 const offlineSnapshotMeta = new Map();
 let lastLoadedGymIds = new Set(); // Track which gyms loaded successfully in getBookings/getWaitlists
 
 function publishOfflineSnapshot(name, snapshot) {
   offlineSnapshotMeta.set(name, snapshot.savedAt);
-  try { window.dispatchEvent(new CustomEvent('psycle-offline-snapshot', { detail: { name, savedAt: snapshot.savedAt } })); } catch (_) {}
+  try { window.dispatchEvent(new CustomEvent('app-offline-snapshot', { detail: { name, savedAt: snapshot.savedAt } })); } catch (_) {}
   return snapshot.data;
 }
 
@@ -74,16 +74,16 @@ export function getOfflineSnapshotSavedAt(name) {
 // state here: it reintroduces "which gym am I looking at?", the question this
 // design exists to make unaskable.
 //
-// One legacy key is cleared on load: `sweatActiveGymId` was written by the old
+// One legacy key is cleared on load: `appActiveGymId` was written by the old
 // switcher and would otherwise keep stamping x-gym-id on every request forever.
-try { localStorage.removeItem('sweatActiveGymId'); } catch (_) {}
+try { localStorage.removeItem('appActiveGymId'); } catch (_) {}
 
 export function setToken(token) {
   localToken = token;
   if (token) {
-    localStorage.setItem('psycleLocalToken', token);
+    localStorage.setItem('appLocalToken', token);
   } else {
-    localStorage.removeItem('psycleLocalToken');
+    localStorage.removeItem('appLocalToken');
   }
 }
 
@@ -150,16 +150,16 @@ export async function apiFetch(endpoint, options = {}) {
       try {
         res = await fetch(url, fetchOptions);
       } catch (retryErr) {
-        if (!quiet) window.dispatchEvent(new CustomEvent('psycle-network-fail'));
+        if (!quiet) window.dispatchEvent(new CustomEvent('app-network-fail'));
         throw retryErr;
       }
     } else {
-      if (!quiet) window.dispatchEvent(new CustomEvent('psycle-network-fail'));
+      if (!quiet) window.dispatchEvent(new CustomEvent('app-network-fail'));
       throw err;
     }
   }
 
-  window.dispatchEvent(new CustomEvent('psycle-network-ok'));
+  window.dispatchEvent(new CustomEvent('app-network-ok'));
 
   // A 403 naming an unlinked gym means this call asked for a gym the account is
   // not linked to — it was unlinked, disabled, or this is a different account on
@@ -176,7 +176,7 @@ export async function apiFetch(endpoint, options = {}) {
   }
 
   if (res.status === 401 && localToken) {
-    // C1-2: a 401 here is NOT necessarily the Sweat Assistant session expiring.
+    // C1-2: a 401 here is NOT necessarily the the app session expiring.
     // The server (routes-normalized.js resolveContext / auth.js
     // triggerAutoRelogin) tags a dead GYM session — one linked gym's own
     // login going stale — with `code: 'GYM_SESSION_EXPIRED'` and the gym it
@@ -189,12 +189,12 @@ export async function apiFetch(endpoint, options = {}) {
     const decision = classifyAuthFailure(res.status, await peekJson(res), targetGym);
     if (decision.kind === 'gym') {
       console.warn(`[API] Gym "${decision.gymId || 'unknown'}" session expired — needs relogin.`);
-      window.dispatchEvent(new CustomEvent('psycle-gym-needs-relogin', { detail: { gymId: decision.gymId } }));
+      window.dispatchEvent(new CustomEvent('app-gym-needs-relogin', { detail: { gymId: decision.gymId } }));
       return res;
     }
     console.warn('[API] Received 401. Session expired. Logging out.');
     setToken(null);
-    window.dispatchEvent(new CustomEvent('psycle-logout-triggered'));
+    window.dispatchEvent(new CustomEvent('app-logout-triggered'));
     throw new Error(COPY.api.sessionExpired);
   }
 
@@ -227,7 +227,7 @@ const layoutCache = createLayoutCache({
     return { slots: data.slots || [], objects: data.objects || [] };
   },
   onChange: (detail) => {
-    try { window.dispatchEvent(new CustomEvent('psycle-layout-updated', { detail })); } catch (_) {}
+    try { window.dispatchEvent(new CustomEvent('app-layout-updated', { detail })); } catch (_) {}
   },
 });
 
@@ -247,7 +247,7 @@ export const api = {
     return data.user;
   },
 
-  // Create a Sweat Assistant account — no gym involved (Decision D4). Returns
+  // Create an app account — no gym involved (Decision D4). Returns
   // { user, needsGym } so the caller can route straight to "link a gym".
   async signup(email, password) {
     const res = await apiFetch('/api/auth/signup', {
@@ -416,7 +416,7 @@ export const api = {
     return data.gyms || [];
   },
 
-  // Change the Sweat Assistant account password — independent of any gym's.
+  // Change the the app account password — independent of any gym's.
   async changeAccountPassword(currentPassword, newPassword) {
     const res = await apiFetch('/api/account/password', {
       method: 'POST',
@@ -458,7 +458,7 @@ export const api = {
       if (!res.ok) throw new Error('Failed to load timetable');
       const data = await res.json();
       const gymId = linked[0]?.gym_id || getDefaultGymId();
-      const gymName = linked[0]?.gym_name || linked[0]?.name || 'Psycle';
+      const gymName = linked[0]?.gym_name || linked[0]?.name || 'Gym';
       return (data.events || []).map((ev) => ({
         ...ev,
         gymId: ev.gymId || gymId,
@@ -580,7 +580,7 @@ export const api = {
     const myGymsRes = await this.getMyGyms().catch(() => ({ gyms: [] }));
     const linked = myGymsRes.gyms || [];
 
-    // C3-10: a gym-less Sweat Assistant account (post-signup, or after unlinking
+    // C3-10: a gym-less the app account (post-signup, or after unlinking
     // the last gym) is a legitimate state, not an error — the server would answer
     // /api/metadata with 409 NO_GYM_LINKED for it. Answering empty here avoids the
     // request entirely rather than surfacing a "failed to load" toast for a state
@@ -594,7 +594,7 @@ export const api = {
       if (!res.ok) throw new Error('Failed to load timetable metadata');
       const data = await res.json();
       const gymId = linked[0]?.gym_id || getDefaultGymId();
-      const gymName = linked[0]?.gym_name || linked[0]?.name || 'Psycle';
+      const gymName = linked[0]?.gym_name || linked[0]?.name || 'Gym';
       return {
         locations: (data.locations || []).map((l) => ({ ...l, gymId, gymName })),
         studios: (data.studios || []).map((s) => ({ ...s, gymId, gymName })),
@@ -804,7 +804,7 @@ export const api = {
       if (!res.ok) throw new Error('Failed to load bookings');
       const data = await res.json();
       const gymId = linked[0]?.gym_id || getDefaultGymId();
-      const gymName = linked[0]?.gym_name || linked[0]?.name || 'Psycle';
+      const gymName = linked[0]?.gym_name || linked[0]?.name || 'Gym';
       lastLoadedGymIds = new Set([gymId]); // Single gym always loaded
       return (data.bookings || []).map((b) => ({
         ...b,
@@ -862,7 +862,7 @@ export const api = {
       if (!res.ok) throw new Error('Failed to load waitlists');
       const data = await res.json();
       const gymId = linked[0]?.gym_id || getDefaultGymId();
-      const gymName = linked[0]?.gym_name || linked[0]?.name || 'Psycle';
+      const gymName = linked[0]?.gym_name || linked[0]?.name || 'Gym';
       return (data.waitlists || []).map((w) => ({
         ...w,
         gymId: w.gymId || gymId,
@@ -1240,7 +1240,7 @@ export const api = {
       deleteOfflineSnapshot(`studio-preferences:${gymId || 'default'}`),
     ]);
     try {
-      window.dispatchEvent(new CustomEvent('psycle-studio-preferences-mutated', {
+      window.dispatchEvent(new CustomEvent('app-studio-preferences-mutated', {
         detail: { gymId, studioId, preferences },
       }));
     } catch (_) { /* non-browser test/runtime */ }
@@ -1404,7 +1404,7 @@ export const api = {
 };
 
 // Clear API response cache on logout to prevent cross-user data leakage
-window.addEventListener('psycle-logout-triggered', () => {
+window.addEventListener('app-logout-triggered', () => {
   setCacheKeyPrefix('');
   clearApiCache().catch(() => {});
 });

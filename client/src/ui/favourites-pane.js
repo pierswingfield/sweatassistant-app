@@ -11,8 +11,8 @@ import { renderTimetableSkeleton } from './loading-skeleton.js';
 import { getLoadedEvents, isScheduleLoading, ensureScheduleLoaded, renderEventRowsInto, removeFavouriteSlot } from './timetable.js';
 import { buildFavouriteGroups, paneState } from './favourites-pane-model.js';
 
-const PANE_ID = 'psycle-settings-pane-favourites';
-const HOST_ID = 'psycle-favourites-section';
+const PANE_ID = 'app-settings-pane-favourites';
+const HOST_ID = 'app-favourites-section';
 let lastScheduleAsk = 0;
 const isMobileWidth = () => !!window.matchMedia?.('(max-width: 768px)').matches;
 const timeLabel = (hhmm) => `${String(hhmm).slice(0, 2)}:${String(hhmm).slice(2, 4)}`;
@@ -34,19 +34,19 @@ function missingRow(item, dayLabel, scheduleLoading) {
   const title = fav.className || fav.studioName || COPY.common.classFallback;
   const where = [fav.studioName && fav.studioName !== title ? fav.studioName : '', fav.locationName].filter(Boolean).join(' · ');
   const tr = document.createElement('tr');
-  tr.className = 'psycle-table-row psycle-fav-missing-row';
+  tr.className = 'app-table-row app-fav-missing-row';
   tr.setAttribute('data-gym', gymId);
-  tr.innerHTML = `<td colspan="${isMobileWidth() ? 6 : 7}"><div class="psycle-fav-missing">
-    <strong class="psycle-fav-missing-time">${escapeHtml(timeLabel(fav.startTime))}</strong>
+  tr.innerHTML = `<td colspan="${isMobileWidth() ? 6 : 7}"><div class="app-fav-missing">
+    <strong class="app-fav-missing-time">${escapeHtml(timeLabel(fav.startTime))}</strong>
     ${gymChip(gymId)}
-    <div class="psycle-fav-missing-body">
-      <div class="psycle-fav-missing-title">${fav.discipline ? disciplineTag(fav.discipline) : ''}<span>${escapeHtml(title)}</span></div>
-      ${where ? `<div class="psycle-fav-missing-where">${escapeHtml(where)}</div>` : ''}
-      <div class="psycle-fav-missing-note">${escapeHtml(scheduleLoading ? COPY.favouritesPane.checkingSchedule : COPY.favouritesPane.noUpcoming)}</div>
+    <div class="app-fav-missing-body">
+      <div class="app-fav-missing-title">${fav.discipline ? disciplineTag(fav.discipline) : ''}<span>${escapeHtml(title)}</span></div>
+      ${where ? `<div class="app-fav-missing-where">${escapeHtml(where)}</div>` : ''}
+      <div class="app-fav-missing-note">${escapeHtml(scheduleLoading ? COPY.favouritesPane.checkingSchedule : COPY.favouritesPane.noUpcoming)}</div>
     </div>
-    ${heartButtonHtml({ isFavourite: true, eventId: fav.id, label: formatCopyText(COPY.favouritesPane.unfavouriteAria, { slot: slotLabel }), pressedLabel: formatCopyText(COPY.favouritesPane.unfavouriteAria, { slot: slotLabel }), extraClass: 'psycle-fav-missing-heart' })}
+    ${heartButtonHtml({ isFavourite: true, eventId: fav.id, label: formatCopyText(COPY.favouritesPane.unfavouriteAria, { slot: slotLabel }), pressedLabel: formatCopyText(COPY.favouritesPane.unfavouriteAria, { slot: slotLabel }), extraClass: 'app-fav-missing-heart' })}
   </div></td>`;
-  const heart = tr.querySelector('.psycle-timetable-heart');
+  const heart = tr.querySelector('.app-timetable-heart');
   heart.dataset.favGym = gymId;
   heart.dataset.favId = fav.id;
   return tr;
@@ -67,21 +67,21 @@ export function renderFavouritesPane(host = document.getElementById(HOST_ID)) {
     return;
   }
   if (model.state === 'empty') {
-    host.innerHTML = `<div class="psycle-empty-state psycle-fav-empty"><p class="psycle-fav-empty-title">${COPY.favouritesPane.emptyTitle}</p><p class="psycle-fav-empty-help">${COPY.favouritesPane.emptyHelp}</p></div>`;
+    host.innerHTML = `<div class="app-empty-state app-fav-empty"><p class="app-fav-empty-title">${COPY.favouritesPane.emptyTitle}</p><p class="app-fav-empty-help">${COPY.favouritesPane.emptyHelp}</p></div>`;
     return;
   }
   // Ask for the schedule at most once a minute (a failed fetch must not loop through the repaint event).
   let asked = false;
   if (!getLoadedEvents().length && Date.now() - lastScheduleAsk > 60000) { lastScheduleAsk = Date.now(); asked = true; ensureScheduleLoaded(); }
   const loading = asked || isScheduleLoading();
-  host.innerHTML = `<p class="psycle-fav-note" role="note">${COPY.favouritesPane.note}</p><div class="psycle-fav-days"></div>`;
-  const days = host.querySelector('.psycle-fav-days');
+  host.innerHTML = `<p class="app-fav-note" role="note">${COPY.favouritesPane.note}</p><div class="app-fav-days"></div>`;
+  const days = host.querySelector('.app-fav-days');
   for (const group of model.groups) {
     const section = document.createElement('section');
-    section.className = 'psycle-fav-day';
+    section.className = 'app-fav-day';
     section.setAttribute('aria-label', formatCopyText(COPY.favouritesPane.dayListLabel, { day: group.label }));
-    section.innerHTML = `<h4 class="psycle-fav-day-title">${escapeHtml(group.label)}</h4>
-      <div class="psycle-table-container"><table class="psycle-table psycle-fav-table" style="width: 100%; border-collapse: collapse; text-align: left; table-layout: fixed;">${TABLE_HEAD()}<tbody></tbody></table></div>`;
+    section.innerHTML = `<h4 class="app-fav-day-title">${escapeHtml(group.label)}</h4>
+      <div class="app-table-container"><table class="app-table app-fav-table" style="width: 100%; border-collapse: collapse; text-align: left; table-layout: fixed;">${TABLE_HEAD()}<tbody></tbody></table></div>`;
     const tbody = section.querySelector('tbody');
     for (const item of group.items) {
       if (item.event) renderEventRowsInto(tbody, [item.event]);
@@ -102,10 +102,10 @@ export function initFavouritesPane() {
     clearTimeout(timer); // coalesce a burst (favourites + schedule events) into one paint
     timer = setTimeout(() => renderFavouritesPane(), 0);
   };
-  window.addEventListener('sweat-favourites-changed', repaint);
-  window.addEventListener('sweat-timetable-rendered', repaint);
+  window.addEventListener('app-favourites-changed', repaint);
+  window.addEventListener('app-timetable-rendered', repaint);
   document.getElementById(HOST_ID)?.addEventListener('click', (e) => {
-    const btn = e.target.closest('.psycle-fav-missing-heart');
+    const btn = e.target.closest('.app-fav-missing-heart');
     if (!btn) return;
     e.stopPropagation();
     const gymId = btn.dataset.favGym;

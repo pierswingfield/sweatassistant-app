@@ -20,6 +20,7 @@ process.env.DB_PATH = process.env.DB_PATH || ':memory:';
 const assert = require('assert');
 const { DateTime } = require('luxon');
 const db = require('./db');
+const testkit = require('./testkit');
 const scheduler = require('./scheduler');
 
 const checks = [];
@@ -34,7 +35,7 @@ const now = () => DateTime.now().setZone(LDN);
 
 let seq = 0;
 function twoGymUser() {
-  const uid = db.createUser(`wake-${Date.now()}-${seq++}@test.local`, 'enc:pw');
+  const uid = testkit.createUser(db, `wake-${Date.now()}-${seq++}@test.local`, 'enc:pw');
   db.upsertUserGym(uid, JAB, { gym_email: 'b@test.local', encrypted_password: 'enc:b' });
   return uid;
 }

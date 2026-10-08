@@ -1,4 +1,4 @@
-// Sweat Assistant — CodexFit provider adapter.
+// CodexFit provider adapter.
 //
 // Extracted from the previously-inlined CodexFit logic in auth.js, server.js,
 // scheduler.js, poller.js and calendar.js. All CodexFit HTTP specifics (base URL,
@@ -23,14 +23,10 @@ const cart = require('./codexfit-cart');
 const favourites = require('../favourites');
 const { timedProviderFetch } = require('../logger');
 
-// Dev-mode bypass, aligned with MarianaTek's dev@jabboxing.mock convention.
-// login() must establish the sentinel session itself, since a fresh account
-// linking Psycle has no existing token for request() to recognise yet.
-const DEV_EMAIL = 'dev@psycle.com';
-
-// Matches the sentinel set by auth.js's dev@psycle.com bypass (db.updateUserJWT
-// with 'mock-jwt-token'). See request()'s doc comment below for why this check
-// lives here now, not just in the 5 pre-Phase-3 callers.
+// Dev-mode bypass, driven by the gym config's `devMock.email` (see BaseProvider's
+// isMockLogin/isMockUser). login() must establish the sentinel session itself,
+// since a fresh account linking the gym has no existing token for request() to
+// recognise yet. MOCK_TOKEN is the sentinel that routes request() to mock.js.
 const MOCK_TOKEN = 'mock-jwt-token';
 // C2-4: widest span one UNSCOPED ranged /events call may cover. Measured live
 // 2026-10-06: 7 days = 3 MB/7 s, 10 days = 4.2 MB/8 s, 14+ days = HTTP 502 (upstream
@@ -109,6 +105,10 @@ function mapLayoutObjects(studio) {
 }
 
 class CodexFitProvider extends GymProvider {
+  get mockToken() {
+    return MOCK_TOKEN;
+  }
+
   constructor(gymConfig) {
     super(gymConfig);
     // C2-6: per-adapter (= per-gym) /profile memo state; see _fetchProfile.
@@ -163,13 +163,9 @@ class CodexFitProvider extends GymProvider {
    * job (proxyRequest / fetchCodexFit already own that flow). Returns the raw
    * Response so callers keep their existing handling.
    *
-   * Dev-mode note: the 5 pre-Phase-3 callers (auth.js, server.js proxy,
-   * scheduler.js, poller.js, admin.js) each own a `user.email === 'dev@psycle.com'`
-   * check that intercepts BEFORE ever reaching this method — they call mock.js
-   * directly. Any NEW caller (e.g. WP-N1's routes-normalized.js) won't have that
-   * check, so this method also recognizes the mock sentinel token directly —
-   * purely additive, never fires for the 5 existing callers since they never
-   * construct a call with this token in the first place.
+   * Dev-mode note: this method recognizes the mock sentinel token itself, so every
+   * caller (routes, scheduler, poller) reaches the mock the same way — by asking
+   * `isMockUser()` and passing `mockToken`, never by comparing a dev email.
    */
   async request(pathOrUrl, opts = {}) {
     return this._doFetch(this.url.bind(this), pathOrUrl, opts);
@@ -222,7 +218,7 @@ class CodexFitProvider extends GymProvider {
    * raw payload so legacy callers can read `raw.access_token` / `raw.user`.
    */
   async login({ email, password }) {
-    if (process.env.NODE_ENV !== 'production' && email === DEV_EMAIL) {
+    if (this.isMockLogin(email)) {
       const session = {
         accessToken: MOCK_TOKEN,
         expiresAt: new Date(Date.now() + 365 * 864e5).toISOString(),

@@ -13,7 +13,7 @@ import {
   countShareItems, formatShare, gymsWithUpcoming, pickFirstName,
 } from './share-bookings.js';
 
-const WINDOW_KEY = 'sweatShareWindow';
+const WINDOW_KEY = 'appShareWindow';
 let overlay = null;
 let layer = null;
 

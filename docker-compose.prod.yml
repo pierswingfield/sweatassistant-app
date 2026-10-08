@@ -1,0 +1,22 @@
+# PROD (sweat.wingfield.tech), deployed by ./deploy.sh --prod to ~/services/sweatassistant/ on oracle.
+# No published port: the Cloudflare tunnel reaches the container as sweatassistant:3000 over the
+# shared `edge` network. The dev twin's file is docker-compose.yml (service `sweatassistant-dev`).
+services:
+  sweatassistant:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: sweatassistant
+    volumes:
+      - ./data:/data                # SQLite lives here (app.db); excluded from rsync
+    env_file:
+      - .env
+    restart: unless-stopped
+    networks:
+      - default
+      - edge
+
+networks:
+  edge:
+    external: true
+    name: edge

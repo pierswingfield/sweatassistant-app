@@ -7,6 +7,7 @@ process.env.NODE_ENV = 'test';
 
 const assert = require('assert');
 const db = require('./db');
+const testkit = require('./testkit');
 const scheduler = require('./scheduler');
 const CodexFitProvider = require('./providers/codexfit');
 const MarianaTekProvider = require('./providers/marianatek');
@@ -19,7 +20,7 @@ const checks = [];
 const check = (name, fn) => checks.push({ name, fn });
 
 function makeUser(label) {
-  const userId = db.createUser(`scheduler-details-${label}-${Date.now()}@test.local`, 'enc:pw');
+  const userId = testkit.createUser(db, `scheduler-details-${label}-${Date.now()}@test.local`, 'enc:pw');
   db.linkGym(userId, JAB, { encryptedPassword: 'enc:pw' });
   db.setGymSession(userId, JAB, { accessToken: `jab-token-${userId}` });
   return userId;

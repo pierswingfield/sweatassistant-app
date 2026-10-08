@@ -46,23 +46,24 @@ export async function warmCaches() {
   import('./ui/autobook').then(m => m.prefetchAutoBookData()).catch(() => {});
 }
 
-// Propagate the app name from the single source of truth (app.config.json at
-// build time, /api/config at runtime) to all user-visible static surfaces that
-// can't import it at runtime. initConfig() is called in checkAuth() to override
-// the build-time default with the server's configured value.
+// Propagate the app name from the single source of truth (the server's
+// config.js, via the templated index.html and /api/config) to all user-visible
+// static surfaces that can't import it at runtime. initConfig() is called in
+// checkAuth() to refresh it with the server's configured value.
 const appleMeta = document.querySelector('meta[name="apple-mobile-web-app-title"]');
 
 // Propagate the configured app name to the document title, the iOS web-app
 // title meta, and every static [data-app-name] span in the SPA shell. The
 // variable is the primary source; the server-side template-replace of the
-// literal "Sweat Assistant" remains only as a no-JS fallback.
+// __APP_NAME__ placeholder remains as the no-JS fallback.
 function applyAppName() {
+  if (!appConfig.appName) return;
   document.title = appConfig.appName;
   if (appleMeta) appleMeta.setAttribute('content', appConfig.appName);
   document.querySelectorAll('[data-app-name]').forEach((el) => {
     el.textContent = appConfig.appName;
   });
-  document.querySelectorAll('.psycle-logo').forEach((el) => {
+  document.querySelectorAll('.app-logo').forEach((el) => {
     el.setAttribute('alt', `${appConfig.appName} logo`);
   });
   applyStaticCopy(document, { appName: appConfig.appName });
@@ -158,12 +159,12 @@ export function setFavouriteLocal(gymId, slot, on) {
   const id = `${slot.studioId}0000${slot.dayOfWeek}0000${slot.startTime}`;
   const rest = cur.filter((f) => f.id !== id);
   cache.favouritesByGym[gymId] = indexFavourites(on ? [...rest, { ...slot, id }] : rest);
-  window.dispatchEvent(new Event('sweat-favourites-changed'));
+  window.dispatchEvent(new Event('app-favourites-changed'));
 }
 
 // --- THEME (Auto / Light / Dark) ---
 // 'auto' follows the OS via prefers-color-scheme; 'light'/'dark' force via data-theme.
-const THEME_KEY = 'psycleTheme';
+const THEME_KEY = 'appTheme';
 
 export function getTheme() {
   return localStorage.getItem(THEME_KEY) || 'auto';
@@ -220,11 +221,11 @@ window.matchMedia('(prefers-color-scheme: dark)').addEventListener('change', () 
 
 // --- TOAST NOTIFICATIONS ---
 export function showToast(message, type = 'info') {
-  const container = document.getElementById('psycle-toast-container');
+  const container = document.getElementById('app-toast-container');
   if (!container) return;
 
   // Dismiss any existing toasts gracefully so only one clean canopy is active
-  container.querySelectorAll('.psycle-toast').forEach((t) => {
+  container.querySelectorAll('.app-toast').forEach((t) => {
     t.classList.remove('show');
     t.style.transform = 'translateY(-100%)';
     t.style.opacity = '0';
@@ -232,7 +233,7 @@ export function showToast(message, type = 'info') {
   });
 
   const toast = document.createElement('div');
-  toast.className = `psycle-toast ${type}`;
+  toast.className = `app-toast ${type}`;
   toast.setAttribute('role', type === 'error' ? 'alert' : 'status');
   toast.setAttribute('aria-live', type === 'error' ? 'assertive' : 'polite');
 
@@ -244,18 +245,18 @@ export function showToast(message, type = 'info') {
   };
 
   const inner = document.createElement('div');
-  inner.className = 'psycle-toast-inner';
+  inner.className = 'app-toast-inner';
 
   const iconEl = document.createElement('span');
-  iconEl.className = 'psycle-toast-icon toast-icon';
+  iconEl.className = 'app-toast-icon toast-icon';
   iconEl.innerHTML = icons[type] || icons.info;
 
   const msgEl = document.createElement('span');
-  msgEl.className = 'psycle-toast-message toast-message';
+  msgEl.className = 'app-toast-message toast-message';
   msgEl.textContent = message;
 
   const closeBtn = document.createElement('button');
-  closeBtn.className = 'psycle-toast-close toast-close';
+  closeBtn.className = 'app-toast-close toast-close';
   closeBtn.type = 'button';
   closeBtn.setAttribute('aria-label', COPY.notifications.dismiss);
   closeBtn.innerHTML = '<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>';
@@ -341,8 +342,8 @@ let debugLogExpanded = true;
 export function debugLog(message, type = 'info') {
   if (!userSettings.debugMode) return;
   
-  const logEl = document.getElementById('psycle-debug-log');
-  const terminal = document.getElementById('psycle-debug-terminal');
+  const logEl = document.getElementById('app-debug-log');
+  const terminal = document.getElementById('app-debug-terminal');
   if (!logEl || !terminal) return;
   
   terminal.style.display = 'block';
@@ -382,7 +383,7 @@ export function debugConsole(...args) {
 }
 
 export function updateDebugTerminalVisibility() {
-  const terminal = document.getElementById('psycle-debug-terminal');
+  const terminal = document.getElementById('app-debug-terminal');
   if (!terminal) return;
   terminal.style.display = userSettings.debugMode ? 'block' : 'none';
   applyCreditsTabGate();
@@ -397,12 +398,12 @@ function creditsTabAllowed() {
 
 function applyCreditsTabGate() {
   const allowed = creditsTabAllowed();
-  document.querySelectorAll('.psycle-nav-btn[data-tab="buy-credits"]').forEach(btn => {
+  document.querySelectorAll('.app-nav-btn[data-tab="buy-credits"]').forEach(btn => {
     btn.hidden = !allowed;
     btn.style.display = allowed ? '' : 'none';
   });
   document.documentElement.setAttribute('data-credits-tab', allowed ? 'on' : 'off');
-  try { localStorage.setItem('sweatCreditsTabHint', allowed ? '1' : '0'); } catch (e) {}
+  try { localStorage.setItem('appCreditsTabHint', allowed ? '1' : '0'); } catch (e) {}
   if (!allowed && currentTabId === 'buy-credits') switchTab('class-timetable');
   applyBackupMigrationGate();
 }
@@ -412,7 +413,7 @@ function applyCreditsTabGate() {
 // hidden/display:none in index.html) to restore it. Rides on applyCreditsTabGate's
 // call sites, so it applies at init and whenever debug toggles, no reload needed.
 function applyBackupMigrationGate() {
-  const card = document.getElementById('psycle-settings-backup-card');
+  const card = document.getElementById('app-settings-backup-card');
   if (!card) return;
   const allowed = !!userSettings.debugMode;
   card.hidden = !allowed;
@@ -420,8 +421,8 @@ function applyBackupMigrationGate() {
 }
 
 // --- TAB ROUTING ---
-const tabButtons = document.querySelectorAll('.psycle-nav-btn');
-const panels = document.querySelectorAll('.psycle-tab-content');
+const tabButtons = document.querySelectorAll('.app-nav-btn');
+const panels = document.querySelectorAll('.app-tab-content');
 
 // Expose on window so inline onclick handlers (e.g. "Buy Credits" button in timetable) can call it
 window.switchTab = switchTab;
@@ -440,9 +441,9 @@ function switchTab(tabId, opts = {}) {
   // Leaving the timetable ends search: its own filter scope is dropped and the normal filters return.
   if (tabId !== 'class-timetable') import('./ui/timetable-search-state.js').then(m => { if (m.inSearchScope()) import('./ui/timetable').then(t => t.exitSearch()); });
   currentTabId = tabId;
-  const targetPanelId = `psycle-panel-${tabId}`;
+  const targetPanelId = `app-panel-${tabId}`;
 
-  // Update nav buttons (top, bottom, and subnav share the .psycle-nav-btn class).
+  // Update nav buttons (top, bottom, and subnav share the .app-nav-btn class).
   // data-tab-group lets one button (e.g. the merged mobile Settings tab) stay
   // active across several tab ids (settings + about).
   tabButtons.forEach(btn => {
@@ -462,7 +463,7 @@ function switchTab(tabId, opts = {}) {
   });
 
   // Each tab starts at the top (window on mobile, inner scroller on desktop).
-  try { window.scrollTo(0, 0); document.querySelector('main.psycle-body')?.scrollTo?.(0, 0); } catch (e) { /* jsdom */ }
+  try { window.scrollTo(0, 0); document.querySelector('main.app-body')?.scrollTo?.(0, 0); } catch (e) { /* jsdom */ }
 
   // U4-19: the tab lives in the PATH (/bookings, /settings/about ...) so refresh, back/forward
   // and shared links restore it. Skip when the URL already names this tab (keeps any query).
@@ -518,7 +519,7 @@ tabButtons.forEach(btn => {
     const group = (btn.getAttribute('data-tab-group') || '').split(' ');
     if ((tabId === 'settings' || group.includes('settings')) && (currentTabId === 'settings' || currentTabId === 'about')
         && window.matchMedia('(max-width: 900px)').matches) {
-      const lay = document.querySelector('.psycle-settings-layout');
+      const lay = document.querySelector('.app-settings-layout');
       if (lay && lay.classList.contains('show-pane')) { lay.classList.remove('show-pane'); return; }
     }
     switchTab(tabId);
@@ -526,8 +527,8 @@ tabButtons.forEach(btn => {
 });
 
 // --- PULL-TO-REFRESH ---
-// On mobile the whole app scrolls inside a single <main class="psycle-body"> — the
-// individual tab panels (#psycle-timetable-grid etc.) grow to fit content and never
+// On mobile the whole app scrolls inside a single <main class="app-body"> — the
+// individual tab panels (#app-timetable-grid etc.) grow to fit content and never
 // scroll themselves, so their scrollTop is always 0. Attaching pull-to-refresh to
 // those panels made every downward drag read as "at the top" and fire a refresh.
 // Instead, attach ONE pull-to-refresh to the real scroll container and dispatch the
@@ -601,7 +602,7 @@ async function refreshActiveTab() {
   }
 }
 
-const scrollBody = document.querySelector('main.psycle-body');
+const scrollBody = document.querySelector('main.app-body');
 if (scrollBody) {
   // Settings has no refreshable data and its panes are long forms: pull-to-refresh stays off there.
   setupPullToRefresh(scrollBody, refreshActiveTab, {
@@ -614,7 +615,7 @@ if (scrollBody) {
 }
 
 // --- TAB REFRESH BUTTONS ---
-document.querySelectorAll('.psycle-tab-refresh-btn').forEach(btn => {
+document.querySelectorAll('.app-tab-refresh-btn').forEach(btn => {
   btn.addEventListener('click', async () => {
     if (btn.classList.contains('refreshing')) return;
     btn.classList.add('refreshing');
@@ -670,8 +671,8 @@ async function registerServiceWorker() {
 }
 
 export async function updatePushStatusUI() {
-  const toggleBtn = document.getElementById('psycle-push-toggle-btn');
-  const statusDesc = document.getElementById('psycle-push-status-desc');
+  const toggleBtn = document.getElementById('app-push-toggle-btn');
+  const statusDesc = document.getElementById('app-push-status-desc');
   if (!toggleBtn || !statusDesc) return;
 
   const isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent) && !window.MSStream;
@@ -714,11 +715,11 @@ export async function updatePushStatusUI() {
   const subscription = await serviceWorkerRegistration.pushManager.getSubscription();
   if (subscription) {
     toggleBtn.textContent = COPY.notifications.disablePush;
-    toggleBtn.className = 'psycle-btn-mini success';
+    toggleBtn.className = 'app-btn-mini success';
     statusDesc.textContent = COPY.notifications.pushEnabled;
   } else {
     toggleBtn.textContent = COPY.notifications.enablePush;
-    toggleBtn.className = 'psycle-btn-mini';
+    toggleBtn.className = 'app-btn-mini';
     statusDesc.textContent = COPY.notifications.pushHelp;
   }
 }
@@ -744,7 +745,7 @@ export async function togglePushSubscription() {
 
   try {
     const subscription = await serviceWorkerRegistration.pushManager.getSubscription();
-    const toggleBtn = document.getElementById('psycle-push-toggle-btn');
+    const toggleBtn = document.getElementById('app-push-toggle-btn');
     toggleBtn.disabled = true;
 
     if (subscription) {
@@ -780,7 +781,7 @@ export async function togglePushSubscription() {
     console.error('[Push] Toggle failed:', err);
     showToast(err.message, 'error');
   } finally {
-    const toggleBtn = document.getElementById('psycle-push-toggle-btn');
+    const toggleBtn = document.getElementById('app-push-toggle-btn');
     toggleBtn.disabled = false;
     updatePushStatusUI();
   }
@@ -801,7 +802,7 @@ function sumCredits(credits) {
 }
 
 // Gym logo on the gym's brand plate. Both wordmark sizes are always in the DOM;
-// `.psycle-badges-compact` on the container (see fitHeaderBadges) picks the mark.
+// `.app-badges-compact` on the container (see fitHeaderBadges) picks the mark.
 // Assets and plate come from the same presentation contract gymBrand() reads.
 function gymBadgeLogo(gymId, shortName) {
   const brand = gymBrand(gymId);
@@ -809,26 +810,26 @@ function gymBadgeLogo(gymId, shortName) {
   const wide = w.compact || w.full, mark = w.mark;
   const name = escapeHtml(brand.name || shortName);
   if (!wide && !mark) {
-    return `<span class="psycle-hgb-logo" aria-hidden="true" style="background:${brand.brandBg}"><span class="psycle-hgb-logo-text">${name}</span></span>`;
+    return `<span class="app-hgb-logo" aria-hidden="true" style="background:${brand.brandBg}"><span class="app-hgb-logo-text">${name}</span></span>`;
   }
   const img = (cls, src) => wordmarkElement(cls, src);
   // squareMark gyms (very wide wordmark): the header pill shows the short MARK, like the other gyms' marks.
   if (brand.squareMark && mark) {
-    return `<span class="psycle-hgb-logo is-markonly" aria-hidden="true" style="background:${brand.brandBg}">${img('psycle-hgb-logo-mark', mark.src)}</span>`;
+    return `<span class="app-hgb-logo is-markonly" aria-hidden="true" style="background:${brand.brandBg}">${img('app-hgb-logo-mark', mark.src)}</span>`;
   }
-  return `<span class="psycle-hgb-logo" aria-hidden="true" style="background:${brand.brandBg}">`
-    + (wide ? wordmarkElement('psycle-hgb-logo-wide', wide.src, brand.logoWidth ? ' style="height:9px"' : '') : '')
-    + (mark ? img('psycle-hgb-logo-mark', mark.src) : (wide ? img('psycle-hgb-logo-mark', wide.src) : ''))
+  return `<span class="app-hgb-logo" aria-hidden="true" style="background:${brand.brandBg}">`
+    + (wide ? wordmarkElement('app-hgb-logo-wide', wide.src, brand.logoWidth ? ' style="height:9px"' : '') : '')
+    + (mark ? img('app-hgb-logo-mark', mark.src) : (wide ? img('app-hgb-logo-mark', wide.src) : ''))
     + `</span>`;
 }
 
 function renderGymBadge(container, gymId, shortName, isMetered, total, credits) {
   const badge = document.createElement('button');
   badge.type = 'button';
-  badge.className = 'psycle-header-gym-badge';
+  badge.className = 'app-header-gym-badge';
   badge.setAttribute('data-gym', gymId);
   if (isMetered) {
-    badge.innerHTML = `${gymBadgeLogo(gymId, shortName)}<span class="psycle-hgb-pill">${total}<span class="psycle-hgb-unit"> ${COPY.shell.creditUnit}</span></span>`;
+    badge.innerHTML = `${gymBadgeLogo(gymId, shortName)}<span class="app-hgb-pill">${total}<span class="app-hgb-unit"> ${COPY.shell.creditUnit}</span></span>`;
     badge.title = formatCopyText(COPY.shell.creditBadgeTitle, { gymName: shortName, total, plural: total !== 1 ? 's' : '' });
   } else if (canBookAtAll(gymId)) {
     // "Active" alone reads as "this is the currently-selected gym" rather than
@@ -839,13 +840,13 @@ function renderGymBadge(container, gymId, shortName, isMetered, total, credits) 
     // eligibility hasn't loaded yet (same unknown-defaults-ON rule as
     // capabilities), but never shown once the server has confirmed this
     // account has no active membership at this gym.
-    badge.innerHTML = `${gymBadgeLogo(gymId, shortName)}<span class="psycle-hgb-pill member">${unmeteredBadgeLabel(gymId)}</span>`;
+    badge.innerHTML = `${gymBadgeLogo(gymId, shortName)}<span class="app-hgb-pill member">${unmeteredBadgeLabel(gymId)}</span>`;
     badge.title = formatCopyText(COPY.shell.membershipBadgeTitle, { gymName: shortName });
   } else {
     // C3-3: an unmetered gym with no active membership (and no usable
     // credits) is a real, confirmed state — showing "Member" here was the
     // bug this branch exists to fix, not a permissive default to preserve.
-    badge.innerHTML = `${gymBadgeLogo(gymId, shortName)}<span class="psycle-hgb-pill">${COPY.shell.noMembershipBadge}</span>`;
+    badge.innerHTML = `${gymBadgeLogo(gymId, shortName)}<span class="app-hgb-pill">${COPY.shell.noMembershipBadge}</span>`;
     badge.title = formatCopyText(COPY.shell.ineligibleBadgeTitle, { gymName: shortName, reason: getIneligibleReason(gymId) || COPY.shell.noActiveMembership });
   }
   // The chip is a shortcut to that gym's own Settings pane (the credit modal it
@@ -867,28 +868,28 @@ function renderGymBadge(container, gymId, shortName, isMetered, total, credits) 
 // Full width is measured (with the wide logos) on each render and cached; resize
 // only compares against that cache, with 24px hysteresis so it cannot oscillate.
 // U4-2: header chips double as per-gym loading indicators (state in gym-load-state.js).
-onGymLoadChange(() => applyGymLoadState(document.getElementById('psycle-header-credits')));
+onGymLoadChange(() => applyGymLoadState(document.getElementById('app-header-credits')));
 let fullBadgesWidth = 0;
 let badgeFitObserver = null;
 function fitHeaderBadges(remeasure) {
-  const box = document.getElementById('psycle-header-credits');
-  const header = document.querySelector('.psycle-header');
+  const box = document.getElementById('app-header-credits');
+  const header = document.querySelector('.app-header');
   if (!box || !header) return;
-  const wasCompact = box.classList.contains('psycle-badges-compact');
+  const wasCompact = box.classList.contains('app-badges-compact');
   if (remeasure) {
-    box.classList.remove('psycle-badges-compact');
+    box.classList.remove('app-badges-compact');
     const kids = [...box.children];
     const gap = parseFloat(getComputedStyle(box).columnGap) || 0;
     fullBadgesWidth = kids.reduce((n, k) => n + k.getBoundingClientRect().width, 0) + gap * Math.max(0, kids.length - 1);
   }
   const cs = getComputedStyle(header);
-  const title = header.querySelector('.psycle-title-area');
-  const email = header.querySelector('.psycle-user-email');
+  const title = header.querySelector('.app-title-area');
+  const email = header.querySelector('.app-user-email');
   const emailW = email && getComputedStyle(email).display !== 'none' ? email.getBoundingClientRect().width + 16 : 0;
   const avail = header.clientWidth - parseFloat(cs.paddingLeft) - parseFloat(cs.paddingRight)
     - (title ? title.getBoundingClientRect().width : 0) - emailW - 16;
   const compact = wasCompact ? fullBadgesWidth + 24 > avail : fullBadgesWidth > avail;
-  box.classList.toggle('psycle-badges-compact', compact);
+  box.classList.toggle('app-badges-compact', compact);
   if (!badgeFitObserver && typeof ResizeObserver !== 'undefined') {
     badgeFitObserver = new ResizeObserver(() => fitHeaderBadges(false));
     badgeFitObserver.observe(header);
@@ -903,7 +904,7 @@ function fitHeaderBadges(remeasure) {
 // gyms each badge needs ITS OWN gym's balance, which `availableCredits` can't
 // provide — those are fetched here via `api.getCreditsByGym()`.
 export async function updateCreditBadge(availableCredits = null) {
-  const creditsContainer = document.getElementById('psycle-header-credits');
+  const creditsContainer = document.getElementById('app-header-credits');
   if (!creditsContainer) return;
 
   const linked = getLinkedGyms();
@@ -983,7 +984,7 @@ let lastOfflineSnapshotAt = null;
 function setOffline(reason) {
   if (isOffline) return;
   isOffline = true;
-  document.documentElement.classList.add('psycle-offline');
+  document.documentElement.classList.add('app-offline');
   showOfflineBanner(reason);
   debugLog(`Offline: ${reason}`, 'warning');
 }
@@ -992,13 +993,13 @@ function setOnline() {
   if (!isOffline) return;
   isOffline = false;
   lastOfflineSnapshotAt = null;
-  document.documentElement.classList.remove('psycle-offline');
+  document.documentElement.classList.remove('app-offline');
   hideOfflineBanner();
   debugLog('Back online', 'success');
 }
 
 function showOfflineBanner(reason) {
-  const banner = document.getElementById('psycle-offline-banner');
+  const banner = document.getElementById('app-offline-banner');
   if (!banner) return;
   const textSpan = banner.querySelector('.offline-text');
   if (textSpan) {
@@ -1015,7 +1016,7 @@ function showOfflineBanner(reason) {
 }
 
 function hideOfflineBanner() {
-  const banner = document.getElementById('psycle-offline-banner');
+  const banner = document.getElementById('app-offline-banner');
   if (!banner) return;
   banner.classList.remove('show');
   setTimeout(() => {
@@ -1081,20 +1082,20 @@ export function getIsOffline() {
 }
 
 function initConnectivity() {
-  const container = document.getElementById('psycle-app-container');
+  const container = document.getElementById('app-container');
   if (!container) return;
-  if (document.getElementById('psycle-offline-banner')) return;
+  if (document.getElementById('app-offline-banner')) return;
 
   const banner = document.createElement('div');
-  banner.className = 'psycle-offline-banner';
-  banner.id = 'psycle-offline-banner';
+  banner.className = 'app-offline-banner';
+  banner.id = 'app-offline-banner';
   banner.style.display = 'none';
   banner.setAttribute('role', 'status');
   banner.setAttribute('aria-live', 'polite');
-  banner.innerHTML = '<span class="offline-icon" aria-hidden="true">⚠</span><span class="offline-text"></span><button type="button" class="psycle-offline-retry">Retry</button>';
+  banner.innerHTML = '<span class="offline-icon" aria-hidden="true">⚠</span><span class="offline-text"></span><button type="button" class="app-offline-retry">Retry</button>';
   container.insertBefore(banner, container.firstChild);
 
-  banner.querySelector('.psycle-offline-retry')?.addEventListener('click', async (e) => {
+  banner.querySelector('.app-offline-retry')?.addEventListener('click', async (e) => {
     const btn = e.currentTarget;
     btn.disabled = true;
     const label = btn.textContent;
@@ -1104,13 +1105,13 @@ function initConnectivity() {
 
   window.addEventListener('offline', () => { setOffline('browser'); scheduleRecovery(); });
   window.addEventListener('online', () => probeConnectivity(0));
-  window.addEventListener('psycle-network-fail', () => verifyThenSetOffline('network-error'));
+  window.addEventListener('app-network-fail', () => verifyThenSetOffline('network-error'));
   // A successful API response IS proof of connectivity — no extra probe needed.
-  window.addEventListener('psycle-network-ok', () => { if (isOffline && navigator.onLine !== false) setOnline(); });
+  window.addEventListener('app-network-ok', () => { if (isOffline && navigator.onLine !== false) setOnline(); });
   document.addEventListener('visibilitychange', () => {
     if (document.visibilityState === 'visible' && isOffline) probeConnectivity(0);
   });
-  window.addEventListener('psycle-offline-snapshot', (event) => {
+  window.addEventListener('app-offline-snapshot', (event) => {
     const savedAt = Number(event.detail?.savedAt);
     if (!Number.isFinite(savedAt)) return;
     lastOfflineSnapshotAt = Math.max(lastOfflineSnapshotAt || 0, savedAt);
@@ -1224,7 +1225,7 @@ export async function refreshUserData(force = false) {
       cache.profilesByGym[r.gymId] = r.profile;
       if (r.gymSettings) cache.gymSettings[r.gymId] = r.gymSettings;
     }
-    window.dispatchEvent(new Event('sweat-favourites-changed')); // F-12: Settings > Favourites repaints
+    window.dispatchEvent(new Event('app-favourites-changed')); // F-12: Settings > Favourites repaints
 
     // `cache.profile`/`cache.eligibility` remain as the SINGLE-gym fallbacks the
     // credit arithmetic reads when no gym is named. With several gyms they are
@@ -1247,7 +1248,7 @@ export async function refreshUserData(force = false) {
       updateCreditBadge().catch(() => {});
     }
 
-    const emailEl = document.querySelector('.psycle-user-email');
+    const emailEl = document.querySelector('.app-user-email');
     if (emailEl) {
       emailEl.textContent = currentUser?.email || profile.email || '';
     }
@@ -1320,12 +1321,12 @@ export async function initApp() {
   // U1-15: any booking/cancel/swap/waitlist mutation updates the shared booked
   // state at once and repaints the timetable (idempotent).
   installBookingState(() => repaintTimetableIfVisible());
-  document.getElementById('psycle-login-container').style.display = 'none';
-  document.getElementById('psycle-app-container').style.display = 'flex';
+  document.getElementById('app-login-container').style.display = 'none';
+  document.getElementById('app-container').style.display = 'flex';
   
   // Set helper expanded classes to trigger standard styles
-  document.body.id = 'psycle-helper-container';
-  document.body.className = 'psycle-helper-expanded';
+  document.body.id = 'app-helper-container';
+  document.body.className = 'app-helper-expanded';
 
   // Load the active gym's capabilities + theme BEFORE the first render, so the
   // UI doesn't briefly show features this gym lacks. Awaited rather than
@@ -1340,23 +1341,23 @@ export async function initApp() {
 
   // Setup debug terminal
   updateDebugTerminalVisibility();
-  const terminal = document.getElementById('psycle-debug-terminal');
-  const debugHeader = document.getElementById('psycle-debug-terminal-header');
-  const debugLog = document.getElementById('psycle-debug-log');
-  const debugClearBtn = document.getElementById('psycle-debug-clear-btn');
-  const debugToggleIcon = document.getElementById('psycle-debug-toggle-icon');
-  const debugFab = document.getElementById('psycle-debug-fab');
+  const terminal = document.getElementById('app-debug-terminal');
+  const debugHeader = document.getElementById('app-debug-terminal-header');
+  const debugLog = document.getElementById('app-debug-log');
+  const debugClearBtn = document.getElementById('app-debug-clear-btn');
+  const debugToggleIcon = document.getElementById('app-debug-toggle-icon');
+  const debugFab = document.getElementById('app-debug-fab');
 
   // Minimize: collapse to a tiny "D" circle. Expand: restore full panel.
   function setDebugMinimized(minimized) {
     debugLogExpanded = !minimized;
     if (minimized) {
-      terminal.classList.add('psycle-debug-minimized');
+      terminal.classList.add('app-debug-minimized');
       debugLog.style.maxHeight = '0';
       debugLog.style.padding = '0 12px';
       if (debugToggleIcon) debugToggleIcon.textContent = '▶';
     } else {
-      terminal.classList.remove('psycle-debug-minimized');
+      terminal.classList.remove('app-debug-minimized');
       debugLog.style.maxHeight = '230px';
       debugLog.style.padding = '8px 12px';
       if (debugToggleIcon) debugToggleIcon.textContent = '▼';
@@ -1382,7 +1383,7 @@ export async function initApp() {
   }
   
   // Set build timestamp in version stamp
-  const buildTimeEl = document.getElementById('psycle-build-time');
+  const buildTimeEl = document.getElementById('app-build-time');
   if (buildTimeEl) buildTimeEl.textContent = noSept(new Date().toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' }));
 
   // Restore tab from URL hash if available, otherwise default to Home
@@ -1414,14 +1415,14 @@ async function checkAuth() {
   if (isLoggedIn()) {
     // Restore per-user cache key prefix from localStorage so cached data
     // is found on reload (the prefix was set during login but is lost on reload).
-    const storedUserId = localStorage.getItem('psycleUserId');
+    const storedUserId = localStorage.getItem('appUserId');
     if (storedUserId) setCacheKeyPrefix(storedUserId);
 
     try {
       const status = await api.getStatus();
       currentUser = { id: status.userId, email: status.email };
       setCacheKeyPrefix(currentUser.id);
-      localStorage.setItem('psycleUserId', currentUser.id);
+      localStorage.setItem('appUserId', currentUser.id);
       // Cold load: honour an earlier "Set up later" (completion is per account); don't nag on every launch.
       const destination = coldBootDestination(await getPostLoginDestination().catch(() => null), !shouldShowOnboarding());
       if (destination === 'full') {
@@ -1435,14 +1436,14 @@ async function checkAuth() {
       initApp();
     } catch (err) {
       // Distinguish auth failure (401) from network error (offline).
-      // 401 errors fire 'psycle-logout-triggered' which already calls showLogin() + clears cache.
+      // 401 errors fire 'app-logout-triggered' which already calls showLogin() + clears cache.
       // Network errors (offline) should NOT log out — the token may still be valid.
       const isAuthError = err.message && err.message.includes('session has expired');
       if (isAuthError) {
-        // 401 — showLogin() already called by psycle-logout-triggered handler
+        // 401 — showLogin() already called by app-logout-triggered handler
       } else if (getIsOffline() || err instanceof TypeError) {
         // Network error (server unreachable) with valid token — init app with cached data.
-        // The offline banner is already showing via the psycle-network-fail event handler.
+        // The offline banner is already showing via the app-network-fail event handler.
         // Cache prefix was restored above from localStorage.
         // A cold reload can reach this catch before the connectivity event has
         // updated module state, so the fetch TypeError is also authoritative.
@@ -1471,7 +1472,7 @@ function showLogin() {
   stashReturnTo(location.pathname + location.search);   // U4-19: same-origin path only; validated on both ends
   setCacheKeyPrefix('');
   clearApiCache().catch(() => {});
-  localStorage.removeItem('psycleUserId');
+  localStorage.removeItem('appUserId');
   // Reset settings to defaults so a new user doesn't inherit the previous
   // user's settings (e.g. debugMode). The server returns {} for a brand-new
   // user, which would skip the Object.assign merge and leave stale values.
@@ -1481,10 +1482,10 @@ function showLogin() {
   cache.profilesByGym = {};
   cache.gymSettings = {};
   cache.favouritesByGym = {};
-  document.body.id = 'psycle-helper-container';
-  document.body.className = 'psycle-helper-expanded';
-  document.getElementById('psycle-app-container').style.display = 'none';
-  document.getElementById('psycle-login-container').style.display = 'flex';
+  document.body.id = 'app-helper-container';
+  document.body.className = 'app-helper-expanded';
+  document.getElementById('app-container').style.display = 'none';
+  document.getElementById('app-login-container').style.display = 'flex';
 }
 
 // Shared post-login routing. During onboarding we hand control back to the flow
@@ -1514,7 +1515,7 @@ async function onLoginSuccess() {
     return;
   }
 
-  // A Sweat Assistant account can exist with no gym linked (signup is
+  // An app account can exist with no gym linked (signup is
   // gym-independent since Decision D4). Booting the full app in that state shows
   // an empty timetable and a wall of failing requests, so route to a dedicated
   // "connect a gym" screen instead. The server tells us with a 409/NO_GYM_LINKED.
@@ -1541,15 +1542,15 @@ async function onLoginSuccess() {
 }
 
 // Login Form Submit Listener
-const loginForm = document.getElementById('psycle-login-form');
+const loginForm = document.getElementById('app-login-form');
 if (loginForm) {
   loginForm.addEventListener('submit', async (e) => {
     e.preventDefault();
-    const email = document.getElementById('psycle-login-email').value;
-    const password = document.getElementById('psycle-login-password').value;
-    const submitBtn = document.getElementById('psycle-login-submit-btn');
+    const email = document.getElementById('app-login-email').value;
+    const password = document.getElementById('app-login-password').value;
+    const submitBtn = document.getElementById('app-login-submit-btn');
 
-    const errorEl = document.getElementById('psycle-login-error');
+    const errorEl = document.getElementById('app-login-error');
     if (errorEl) errorEl.style.display = 'none';
 
     try {
@@ -1559,7 +1560,7 @@ if (loginForm) {
       const user = await api.login(email, password);
       currentUser = user;
       setCacheKeyPrefix(currentUser.id);
-      localStorage.setItem('psycleUserId', currentUser.id);
+      localStorage.setItem('appUserId', currentUser.id);
       showToast(COPY.auth.loginSuccess, 'success');
 
       await onLoginSuccess();
@@ -1577,48 +1578,48 @@ if (loginForm) {
   });
 }
 
-// Shown when a Sweat Assistant account has no gym attached — after signup, or
+// Shown when an app account has no gym attached — after signup, or
 // after unlinking the last one. Reuses the login card so there is no third
 // full-screen layout to maintain.
 function showNoGymScreen() {
-  document.getElementById('psycle-app-container').style.display = 'none';
-  const loginContainer = document.getElementById('psycle-login-container');
+  document.getElementById('app-container').style.display = 'none';
+  const loginContainer = document.getElementById('app-login-container');
   loginContainer.style.display = 'flex';
-  document.getElementById('psycle-auth-title').textContent = COPY.auth.connectGym;
-  document.getElementById('psycle-auth-subtitle').textContent =
+  document.getElementById('app-auth-title').textContent = COPY.auth.connectGym;
+  document.getElementById('app-auth-subtitle').textContent =
     formatCopyText(COPY.auth.accountReady, { appName: appConfig.appName });
-  ['psycle-login-form', 'psycle-signup-form', 'psycle-recover-form'].forEach(id => {
+  ['app-login-form', 'app-signup-form', 'app-recover-form'].forEach(id => {
     document.getElementById(id).style.display = 'none';
   });
 
-  let panel = document.getElementById('psycle-nogym-panel');
+  let panel = document.getElementById('app-nogym-panel');
   if (!panel) {
     panel = document.createElement('div');
-    panel.id = 'psycle-nogym-panel';
-    panel.className = 'psycle-login-form';
-    document.querySelector('.psycle-login-card').insertBefore(
-      panel, document.querySelector('.psycle-login-footer'));
+    panel.id = 'app-nogym-panel';
+    panel.className = 'app-login-form';
+    document.querySelector('.app-login-card').insertBefore(
+      panel, document.querySelector('.app-login-footer'));
   }
   panel.style.display = '';
   panel.innerHTML = `
-    <div class="psycle-form-group">
-      <label for="psycle-nogym-gym">${COPY.static.gym}</label>
-      <select id="psycle-nogym-gym" class="psycle-select" style="width:100%;"><option>${COPY.static.loading}</option></select>
+    <div class="app-form-group">
+      <label for="app-nogym-gym">${COPY.static.gym}</label>
+      <select id="app-nogym-gym" class="app-select" style="width:100%;"><option>${COPY.static.loading}</option></select>
     </div>
-    <div class="psycle-form-group">
-      <label for="psycle-nogym-email">${COPY.auth.gymEmail}</label>
-      <input type="email" id="psycle-nogym-email" placeholder="${COPY.static.emailPlaceholder}" autocomplete="off">
+    <div class="app-form-group">
+      <label for="app-nogym-email">${COPY.auth.gymEmail}</label>
+      <input type="email" id="app-nogym-email" placeholder="${COPY.static.emailPlaceholder}" autocomplete="off">
     </div>
-    <div class="psycle-form-group">
-      <label for="psycle-nogym-password">${COPY.auth.gymPassword}</label>
-      <input type="password" id="psycle-nogym-password" placeholder="${COPY.static.passwordPlaceholder}" autocomplete="off">
+    <div class="app-form-group">
+      <label for="app-nogym-password">${COPY.auth.gymPassword}</label>
+      <input type="password" id="app-nogym-password" placeholder="${COPY.static.passwordPlaceholder}" autocomplete="off">
     </div>
-    <div id="psycle-nogym-error" class="psycle-login-error" style="display:none;"></div>
-    <button type="button" id="psycle-nogym-submit" class="psycle-btn-primary"><span>${COPY.auth.connectGymButton}</span></button>
+    <div id="app-nogym-error" class="app-login-error" style="display:none;"></div>
+    <button type="button" id="app-nogym-submit" class="app-btn-primary"><span>${COPY.auth.connectGymButton}</span></button>
   `;
 
-  const sel = panel.querySelector('#psycle-nogym-gym');
-  const errorEl = panel.querySelector('#psycle-nogym-error');
+  const sel = panel.querySelector('#app-nogym-gym');
+  const errorEl = panel.querySelector('#app-nogym-error');
   api.getGyms().then(gyms => {
     const available = gyms.filter(g => g.enabled);
     sel.innerHTML = available.length
@@ -1626,12 +1627,12 @@ function showNoGymScreen() {
       : `<option value="">${COPY.auth.noGymsAvailable}</option>`;
   }).catch(() => { sel.innerHTML = `<option value="">${COPY.auth.couldNotLoadGyms}</option>`; });
 
-  panel.querySelector('#psycle-nogym-submit').onclick = async () => {
-    const btn = panel.querySelector('#psycle-nogym-submit');
+  panel.querySelector('#app-nogym-submit').onclick = async () => {
+    const btn = panel.querySelector('#app-nogym-submit');
     errorEl.style.display = 'none';
     const gymId = sel.value;
-    const email = panel.querySelector('#psycle-nogym-email').value.trim();
-    const password = panel.querySelector('#psycle-nogym-password').value;
+    const email = panel.querySelector('#app-nogym-email').value.trim();
+    const password = panel.querySelector('#app-nogym-password').value;
     if (!gymId || !email || !password) {
       errorEl.textContent = COPY.auth.requiredGymCredentials;
       errorEl.style.display = 'block';
@@ -1655,7 +1656,7 @@ function showNoGymScreen() {
 }
 
 // ─── Auth screen modes (WP-C2 / Decision D4) ──────────────────────────────────
-// One card, three modes: sign in, create account, recover. A Sweat Assistant
+// One card, three modes: sign in, create account, recover. An app
 // account is its own thing now, so signing up no longer means handing over a gym
 // credential — gyms are linked afterwards.
 const AUTH_MODES = {
@@ -1663,7 +1664,7 @@ const AUTH_MODES = {
   signup: { title: COPY.auth.createAccount, subtitle: COPY.auth.signupSubtitle },
   // C1-4: this used to describe the gym-login recovery flow removed by
   // Decision D5 (2026-08-31) — a gym credential can no longer prove identity
-  // for the Sweat Assistant account. There is no self-service reset yet
+  // for the the app account. There is no self-service reset yet
   // (Workstreams C6-1); say so plainly instead of describing a flow that
   // can't complete.
   recover:{ title: COPY.auth.resetPassword, subtitle: COPY.auth.resetUnavailable },
@@ -1671,33 +1672,33 @@ const AUTH_MODES = {
 
 function setAuthMode(mode) {
   const cfg = AUTH_MODES[mode] || AUTH_MODES.login;
-  document.getElementById('psycle-auth-title').textContent = cfg.title;
-  document.getElementById('psycle-auth-subtitle').textContent =
+  document.getElementById('app-auth-title').textContent = cfg.title;
+  document.getElementById('app-auth-subtitle').textContent =
     formatCopyText(cfg.subtitle, { appName: appConfig.appName });
-  document.getElementById('psycle-login-form').style.display = mode === 'login' ? '' : 'none';
-  document.getElementById('psycle-signup-form').style.display = mode === 'signup' ? '' : 'none';
-  document.getElementById('psycle-recover-form').style.display = mode === 'recover' ? '' : 'none';
+  document.getElementById('app-login-form').style.display = mode === 'login' ? '' : 'none';
+  document.getElementById('app-signup-form').style.display = mode === 'signup' ? '' : 'none';
+  document.getElementById('app-recover-form').style.display = mode === 'recover' ? '' : 'none';
 
   // Recovery always restarts at step 1 — landing mid-flow with a stale gym list
   // would be confusing and could show gyms for a different email.
   //
-  // C1-4: `#psycle-recover-step2` was the gym-picker step of the self-service
+  // C1-4: `#app-recover-step2` was the gym-picker step of the self-service
   // gym-login recovery flow removed by Decision D5 (2026-08-31, see the
   // AGENTS.md "Never make a gym credential a recovery factor" note). The
-  // markup went with it (client/index.html now has only `#psycle-recover-
+  // markup went with it (client/index.html now has only `#app-recover-
   // step1`), but this reference to step2 didn't, so every "Forgot password?"
   // click threw a TypeError on `.style` of null and the mode never rendered.
   if (mode === 'recover') {
-    document.getElementById('psycle-recover-step1').style.display = 'block';
+    document.getElementById('app-recover-step1').style.display = 'block';
   }
-  document.querySelectorAll('.psycle-login-error').forEach(el => { el.style.display = 'none'; });
-  const noGym = document.getElementById('psycle-nogym-panel');
+  document.querySelectorAll('.app-login-error').forEach(el => { el.style.display = 'none'; });
+  const noGym = document.getElementById('app-nogym-panel');
   if (noGym) noGym.style.display = 'none';
 
-  const switcher = document.getElementById('psycle-auth-switcher');
+  const switcher = document.getElementById('app-auth-switcher');
   switcher.innerHTML = mode === 'login'
-    ? `<a href="#" id="psycle-auth-to-signup">${COPY.auth.createAnAccount}</a>&nbsp;·&nbsp;<a href="#" id="psycle-auth-to-recover">${COPY.auth.forgotPassword}</a>`
-    : `<a href="#" id="psycle-auth-to-login">${COPY.auth.backToLogIn}</a>`;
+    ? `<a href="#" id="app-auth-to-signup">${COPY.auth.createAnAccount}</a>&nbsp;·&nbsp;<a href="#" id="app-auth-to-recover">${COPY.auth.forgotPassword}</a>`
+    : `<a href="#" id="app-auth-to-login">${COPY.auth.backToLogIn}</a>`;
   wireAuthSwitcher();
   applyAppName();
 }
@@ -1707,22 +1708,22 @@ function wireAuthSwitcher() {
     const el = document.getElementById(id);
     if (el) el.onclick = (e) => { e.preventDefault(); setAuthMode(mode); };
   };
-  bind('psycle-auth-to-signup', 'signup');
-  bind('psycle-auth-to-recover', 'recover');
-  bind('psycle-auth-to-login', 'login');
+  bind('app-auth-to-signup', 'signup');
+  bind('app-auth-to-recover', 'recover');
+  bind('app-auth-to-login', 'login');
 }
 wireAuthSwitcher();
 
 // --- create account ---
-const signupForm = document.getElementById('psycle-signup-form');
+const signupForm = document.getElementById('app-signup-form');
 if (signupForm) {
   signupForm.addEventListener('submit', async (e) => {
     e.preventDefault();
-    const email = document.getElementById('psycle-signup-email').value.trim();
-    const password = document.getElementById('psycle-signup-password').value;
-    const confirm = document.getElementById('psycle-signup-confirm').value;
-    const errorEl = document.getElementById('psycle-signup-error');
-    const btn = document.getElementById('psycle-signup-submit-btn');
+    const email = document.getElementById('app-signup-email').value.trim();
+    const password = document.getElementById('app-signup-password').value;
+    const confirm = document.getElementById('app-signup-confirm').value;
+    const errorEl = document.getElementById('app-signup-error');
+    const btn = document.getElementById('app-signup-submit-btn');
     const fail = (m) => { errorEl.textContent = m; errorEl.style.display = 'block'; };
     errorEl.style.display = 'none';
 
@@ -1735,7 +1736,7 @@ if (signupForm) {
       const { user } = await api.signup(email, password);
       currentUser = user;
       setCacheKeyPrefix(currentUser.id || email);
-      localStorage.setItem('psycleUserId', currentUser.id || email);
+      localStorage.setItem('appUserId', currentUser.id || email);
       showToast(COPY.auth.accountCreated, 'success');
       await onLoginSuccess();
     } catch (err) {
@@ -1752,17 +1753,17 @@ if (signupForm) {
 // defeated Decision D4 — removed 2026-08-31. The replacement mechanism is an open
 // decision (Workstreams C6-1); until it lands the screen says so plainly rather than
 // offering a flow that cannot complete.
-const recoverFindBtn = document.getElementById('psycle-recover-find-btn');
+const recoverFindBtn = document.getElementById('app-recover-find-btn');
 if (recoverFindBtn) {
   recoverFindBtn.onclick = () => {
-    const errorEl = document.getElementById('psycle-recover-error');
+    const errorEl = document.getElementById('app-recover-error');
     errorEl.textContent = COPY.auth.recoveryUnavailableLong;
     errorEl.style.display = 'block';
   };
 }
 
 // Listen for global logout triggers (e.g. from api.js 401 interceptor)
-window.addEventListener('psycle-logout-triggered', () => {
+window.addEventListener('app-logout-triggered', () => {
   setCacheKeyPrefix('');
   clearApiCache().catch(() => {});
   showToast(COPY.auth.sessionExpired, 'warning');
@@ -1776,7 +1777,7 @@ window.addEventListener('psycle-logout-triggered', () => {
 // just to reflect it without delay: toast which gym, and refresh the "Your
 // Gyms" list if Settings happens to be open so the "Re-authenticate" prompt
 // shows immediately rather than on the next visit to the tab.
-window.addEventListener('psycle-gym-needs-relogin', async (e) => {
+window.addEventListener('app-gym-needs-relogin', async (e) => {
   const gymId = e.detail?.gymId;
   const name = (gymId && getGymShortName(gymId)) || COPY.static.linkedGymFallback;
   showToast(formatCopyText(COPY.shell.gymSessionExpired, { gymName: name }), 'warning');
@@ -1787,7 +1788,7 @@ window.addEventListener('psycle-gym-needs-relogin', async (e) => {
 });
 
 // Back/forward: apply the tab/section from the path. modal-nav's capture-phase popstate
-// listener runs first and flags events it consumed (sweatNavHandled); the router skips those.
+// listener runs first and flags events it consumed (appNavHandled); the router skips those.
 initRouter((route) => {
   const tab = route.valid ? route.tab : 'home';
   // Same-tab timetable back/forward (day/filter entries): repaint from the URL, no tab churn or refetch.
@@ -1796,7 +1797,7 @@ initRouter((route) => {
     return;
   }
   switchTab(tab, { section: route.section, history: 'none' });
-  if (tab === 'settings') document.getElementById('psycle-settings-layout-wrapper')?.__applySettingsRoute?.(route.section);
+  if (tab === 'settings') document.getElementById('app-settings-layout-wrapper')?.__applySettingsRoute?.(route.section);
 });
 
 // App Launch
@@ -1814,25 +1815,25 @@ function initHeaderAutoHide() {
   let anchor = 0, hidden = false;
 
   const els = () => {
-    if (!app) app = document.getElementById('psycle-app-container');
-    if (!header) header = document.querySelector('.psycle-header');
+    if (!app) app = document.getElementById('app-container');
+    if (!header) header = document.querySelector('.app-header');
     return app && header;
   };
   const measure = () => {
-    if (els() && header.offsetHeight) app.style.setProperty('--psycle-header-h', header.offsetHeight + 'px');
+    if (els() && header.offsetHeight) app.style.setProperty('--app-header-h', header.offsetHeight + 'px');
   };
   const setHidden = (hide) => {
     if (!els() || hide === hidden) return;
     hidden = hide;
-    app.classList.toggle('psycle-hdr-hidden', hide);
-    app.classList.toggle('psycle-tt-compact', hide); // timetable date strip + location chip shrink with the header
+    app.classList.toggle('app-hdr-hidden', hide);
+    app.classList.toggle('app-tt-compact', hide); // timetable date strip + location chip shrink with the header
     // Safe-area cap + theme-color follow the header: header colour while it shows, page colour once it is gone.
     document.documentElement.toggleAttribute('data-hdr-hidden', hide);
     syncThemeColorMeta();
     markScrollBusy(COOLDOWN_MS);
   };
   const modalOpen = () =>
-    !!document.querySelector('.psycle-modal[style*="display: flex"], .psycle-modal[style*="display: block"], .psycle-modal.open, .psycle-modal.active');
+    !!document.querySelector('.app-modal[style*="display: flex"], .app-modal[style*="display: block"], .app-modal.open, .app-modal.active');
 
   const update = () => {
     ticking = false;
@@ -1855,14 +1856,14 @@ function initHeaderAutoHide() {
       // Mobile: the DOCUMENT scrolls (scroll events target `document`); ignore inner boxes.
       if (t !== document && t !== document.documentElement && t !== document.body) return;
       t = docScroller();
-    } else if (!t || !t.classList || !(t.classList.contains('psycle-body') || t.classList.contains('psycle-main'))) return;
+    } else if (!t || !t.classList || !(t.classList.contains('app-body') || t.classList.contains('app-main'))) return;
     if (t !== target) { target = t; anchor = t.scrollTop; }
     if (!ticking) { ticking = true; requestAnimationFrame(update); }
   }, { passive: true, capture: true });
 
   mq.addEventListener?.('change', () => { setHidden(false); measure(); });
   document.addEventListener('click', (e) => {
-    if (e.target.closest?.('.psycle-bottom-nav-btn, .psycle-nav-btn')) { setHidden(false); anchor = 0; }
+    if (e.target.closest?.('.app-bottom-nav-btn, .app-nav-btn')) { setHidden(false); anchor = 0; }
   }, true);
   measure();
   if (typeof ResizeObserver !== 'undefined' && els()) new ResizeObserver(measure).observe(header);
@@ -1871,13 +1872,13 @@ function initHeaderAutoHide() {
 
 document.addEventListener('DOMContentLoaded', () => {
   registerServiceWorker();
-  initConnectivity();  // Set up offline listeners BEFORE checkAuth so psycle-network-fail is caught
+  initConnectivity();  // Set up offline listeners BEFORE checkAuth so app-network-fail is caught
   initGymLogoLoader();
   // Once the inline-SVG sprite is ready, repaint the header badges so they use it (no <img> decode).
   document.addEventListener('gym-logos-ready', () => { updateCreditBadge().catch(() => {}); });
   // Reveal the shell once auth has decided which screen to show AND the fonts are ready
   // (each capped), so the first visible paint is the styled one. index.html also force-reveals at 3s.
-  const reveal = () => document.documentElement.classList.add('psycle-ready');
+  const reveal = () => document.documentElement.classList.add('app-ready');
   Promise.resolve(checkAuth()).catch(() => {}).then(() =>
     Promise.race([document.fonts?.ready ?? Promise.resolve(), new Promise((r) => setTimeout(r, 1200))])
   ).then(() => requestAnimationFrame(reveal));
@@ -1891,8 +1892,8 @@ document.addEventListener('DOMContentLoaded', () => {
     // Collect all visible modal candidates with their z-index
     const candidates = [];
 
-    // Static .psycle-modal elements (booking, profile explorer, debug)
-    document.querySelectorAll('.psycle-modal').forEach(m => {
+    // Static .app-modal elements (booking, profile explorer, debug)
+    document.querySelectorAll('.app-modal').forEach(m => {
       if (m.classList.contains('show') || m.style.display === 'flex') {
         const z = parseInt(getComputedStyle(m).zIndex) || 0;
         candidates.push({ el: m, z, type: 'static' });
@@ -1901,7 +1902,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
     // Dynamic overlay divs (spot maps, auto-book favourites — direct children of body)
     document.body.querySelectorAll(':scope > div').forEach(d => {
-      if (d.classList.contains('psycle-modal')) return;
+      if (d.classList.contains('app-modal')) return;
       const s = d.style;
       if (s.position === 'fixed' && s.display !== 'none' && s.zIndex) {
         const z = parseInt(s.zIndex) || 0;
@@ -1917,7 +1918,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
     if (top.type === 'static') {
       // Click the close button to trigger existing cleanup handlers (state reset, etc.)
-      const closeBtn = top.el.querySelector('.psycle-modal-close-btn');
+      const closeBtn = top.el.querySelector('.app-modal-close-btn');
       if (closeBtn) {
         closeBtn.click();
       } else {

@@ -9,7 +9,7 @@ self.addEventListener('push', (event) => {
     // the only available fallback because this worker may be fully offline.
     const titlePromise = notification.title
       ? Promise.resolve(notification.title)
-      : configuredAppName().then((name) => `${name || 'Sweat Assistant'} Alert`);
+      : configuredAppName().then((name) => `${name || '__APP_NAME__'} Alert`);
     
     const options = {
       body: notification.body || '',
@@ -32,7 +32,7 @@ self.addEventListener('push', (event) => {
   }
 });
 
-const APP_CONFIG_CACHE = 'sweat-app-config-v1';
+const APP_CONFIG_CACHE = 'app-config-v1';
 const APP_CONFIG_KEY = new Request('/__app_config__');
 
 self.addEventListener('message', (event) => {
@@ -81,7 +81,7 @@ self.addEventListener('notificationclick', (event) => {
 
 // ─── Cache config ───────────────────────────────────────────────────────────
 
-// C7-2: the cache name used to be hand-versioned ('psycle-cache-v2') — a
+// C7-2: the cache name used to be hand-versioned — a
 // forgotten bump meant a rebuilt client kept serving the OLD cached shell/JS
 // forever, because `activate` only ever deletes caches NOT in its own
 // whitelist, and an unbumped name is trivially "in" it. `__BUILD_STAMP__` is
@@ -92,16 +92,15 @@ self.addEventListener('notificationclick', (event) => {
 // build) the placeholder is left literal, which is still a perfectly valid,
 // stable string — dev doesn't need per-build invalidation.
 //
-// Gym-neutral prefix ('sweat-cache', not 'psycle-cache'): this product now
-// serves more than one gym brand, and the cache name should say so.
+// Gym-neutral prefix: this product serves more than one gym brand.
 const BUILD_STAMP = '__BUILD_STAMP__';
-const CACHE_PREFIX = 'sweat-cache';
+const CACHE_PREFIX = 'app-cache';
 const CACHE_NAME = `${CACHE_PREFIX}-${BUILD_STAMP}`;
 const ASSETS_CACHE_NAME = `${CACHE_PREFIX}-assets-${BUILD_STAMP}`;
 // F-15 proxy images are immutable (their source URL hash is in `v=`). Keep a
 // small browser-local copy as the fastest tier; the server's `/data` cache is
 // the durable, bounded source of truth.
-const IMAGES_CACHE_NAME = 'sweat-images-v2';
+const IMAGES_CACHE_NAME = 'app-images-v2';
 const IMAGES_MAX_ENTRIES = 160;
 // Vite replaces the token only in dist/sw.js. In dev it is deliberately an
 // invalid JSON string, which yields an empty extra list while retaining a
@@ -133,11 +132,8 @@ self.addEventListener('install', (event) => {
 // ─── Activate: purge stale caches, claim clients ────────────────────────────
 
 // Whitelist, not prefix match: anything that isn't THIS build's exact two
-// cache names is deleted. That already covers every previous stamped build
-// AND the legacy hand-versioned names ('psycle-cache-v2' / 'psycle-assets-v2')
-// — neither is in this whitelist, so an existing install upgrading to the
-// stamped scheme cleans its old cache on the very first activate, same as any
-// other version bump.
+// cache names is deleted, which covers every previous stamped build (and any
+// older naming scheme) on the first activate after a version bump.
 const CACHE_WHITELIST = [CACHE_NAME, ASSETS_CACHE_NAME, IMAGES_CACHE_NAME];
 
 self.addEventListener('activate', (event) => {

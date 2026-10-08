@@ -1,5 +1,9 @@
-version: '3.8'
-
+# DEV twin (sweat-dev.wingfield.tech), deployed by ./deploy.sh to ~/services/sweatassistant-dev/ on oracle.
+# Prod has its own file: docker-compose.prod.yml (deploy.sh --prod ships that one).
+#
+# The service name is also a DNS alias on the shared `edge` network, so dev and prod
+# MUST differ (`sweatassistant-dev` here, `sweatassistant` in prod); a shared name would round-robin the
+# tunnel upstream between the two.
 services:
   sweatassistant-dev:
     build:
@@ -7,9 +11,9 @@ services:
       dockerfile: Dockerfile
     container_name: sweatassistant-dev
     ports:
-      - "100.86.226.52:3005:3000"
+      - "100.86.226.52:3005:3000"   # tailnet only, never 0.0.0.0
     volumes:
-      - ./data:/data
+      - ./data:/data                # SQLite lives here (app.db); excluded from rsync
     env_file:
       - .env
     restart: unless-stopped
@@ -21,6 +25,3 @@ networks:
   edge:
     external: true
     name: edge
-
-volumes:
-  psycle-data:

@@ -18,6 +18,7 @@ const http = require('http');
 const express = require('express');
 const jwt = require('jsonwebtoken');
 const db = require('./db');
+const testkit = require('./testkit');
 const { getProvider } = require('./providers');
 const history = require('./class-history');
 
@@ -27,7 +28,7 @@ db.db.prepare('UPDATE gyms SET enabled = 1 WHERE id = ?').run(JAB);
 
 let seq = 0;
 function twoGymUser(label) {
-  const uid = db.createUser(`hist-${label}-${Date.now()}-${seq++}@test.local`, 'enc:pw');
+  const uid = testkit.createUser(db, `hist-${label}-${Date.now()}-${seq++}@test.local`, 'enc:pw');
   db.linkGym(uid, JAB, { encryptedPassword: 'enc:pw' });
   db.setGymSession(uid, PSYCLE, { accessToken: 'mock-jwt-token' });
   db.setGymSession(uid, JAB, { accessToken: 'mock-mt-token' });
@@ -126,7 +127,7 @@ check('topInstructors: per gym, windowed, ties to most recent', async () => {
   const total30 = p.reduce((n, x) => n + x.count, 0);
   assert.ok(total30 <= 30, `window respected (${total30})`);
   // Cancelled classes do not count; tie-break prefers the most recent class.
-  const u2 = db.createUser(`hist-tie-${Date.now()}@test.local`, 'enc:pw');
+  const u2 = testkit.createUser(db, `hist-tie-${Date.now()}@test.local`, 'enc:pw');
   const t = (d) => new Date(Date.now() - d * 864e5).toISOString();
   history.upsertEntries(u2, PSYCLE, [
     { bookingId: 'a', status: 'attended', startAt: t(10), instructorId: '1', instructorName: 'Old' },
@@ -139,7 +140,7 @@ check('topInstructors: per gym, windowed, ties to most recent', async () => {
 });
 
 check('topInstructors counts distinct classes (multi-slot bookings on one event count once)', async () => {
-  const uid = db.createUser(`hist-dup-${Date.now()}@test.local`, 'enc:pw');
+  const uid = testkit.createUser(db, `hist-dup-${Date.now()}@test.local`, 'enc:pw');
   const t = new Date(Date.now() - 864e5).toISOString();
   history.upsertEntries(uid, PSYCLE, [
     { bookingId: 'm1', eventId: 'ev1', status: 'unconfirmed', startAt: t, instructorId: '1', instructorName: 'A' },
@@ -149,7 +150,7 @@ check('topInstructors counts distinct classes (multi-slot bookings on one event 
 });
 
 check('summary is gym-scoped and counts each multi-slot class once', async () => {
-  const uid = db.createUser(`hist-summary-${Date.now()}@test.local`, 'enc:pw');
+  const uid = testkit.createUser(db, `hist-summary-${Date.now()}@test.local`, 'enc:pw');
   const t = new Date(Date.now() - 864e5).toISOString();
   history.upsertEntries(uid, PSYCLE, [
     { bookingId: 's1', eventId: 'event-1', status: 'unconfirmed', startAt: t, durationMin: 45, instructorId: 'a' },

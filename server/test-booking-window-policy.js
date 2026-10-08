@@ -247,10 +247,13 @@ check('a rolling-weekly gym with no stored release still computes the old answer
     'existing Psycle queue entries (release_at NULL) must behave exactly as before');
 });
 
-check('a bare date string still works, for the legacy call shape', () => {
+check('a bare date string names no gym, so there is no policy to apply: null, not a guess', () => {
+  assert.strictEqual(scheduler.getClassReleaseTime('2026-09-15T19:30:00', { detectedBookingOffset: 16 }), null);
+});
+check('a row naming the rolling-weekly gym still equals the original algorithm', () => {
   const startAt = '2026-09-15T19:30:00';
   assert.strictEqual(
-    scheduler.getClassReleaseTime(startAt, { detectedBookingOffset: 16 }).toMillis(),
+    scheduler.getClassReleaseTime({ start_at: startAt, gym_id: 'psycle-london' }, { detectedBookingOffset: 16 }).toMillis(),
     originalGetClassReleaseTime(startAt, 16).toMillis());
 });
 

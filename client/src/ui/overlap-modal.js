@@ -11,7 +11,7 @@
 //      `confirmOverlap: true`; "Cancel" (button, Esc, backdrop, ×) resolves false
 //      and nothing was ever queued.
 //
-// Modal pattern: the `.psycle-modal` / `-overlay` / `-card` / `-header` / `-body`
+// Modal pattern: the `.app-modal` / `-overlay` / `-card` / `-header` / `-body`
 // shell used by every dialog in index.html, built on demand because it carries
 // per-call content. There is no shared modal component yet (U2-1) and this does
 // not build one; it only does the accessibility work such a component would.
@@ -96,7 +96,7 @@ export function classSummaryCardHtml(item, tag) {
   const avatar = instructorAvatar(instructor, gymId, item.instructorImageUrl || null);
 
   return `
-    <div class="psycle-autobook-card ab-card psycle-overlap-card" data-gym="${escapeHtml(gymId)}">
+    <div class="app-autobook-card ab-card app-overlap-card" data-gym="${escapeHtml(gymId)}">
       ${renderGymRail(gymId)}
       <div class="ab-card-main">
         <div class="ab-card-body">
@@ -138,38 +138,38 @@ export function confirmOverlap({ subject, warnings, mode = 'autobook' }) {
   pending = new Promise((resolve) => {
     const info = describeOverlap(warnings, mode);
     const opener = document.activeElement;
-    const uid = `psycle-overlap-${Date.now()}`;
+    const uid = `app-overlap-${Date.now()}`;
 
     const root = document.createElement('div');
-    root.className = 'psycle-modal psycle-overlap-modal';
+    root.className = 'app-modal app-overlap-modal';
     root.setAttribute('role', 'dialog');
     root.setAttribute('aria-modal', 'true');
     root.setAttribute('aria-labelledby', `${uid}-title`);
     root.setAttribute('aria-describedby', `${uid}-lead`);
     root.style.display = 'flex';
     root.innerHTML = `
-      <div class="psycle-modal-overlay" data-overlap-dismiss></div>
-      <div class="psycle-modal-card">
-        <div class="psycle-modal-header">
+      <div class="app-modal-overlay" data-overlap-dismiss></div>
+      <div class="app-modal-card">
+        <div class="app-modal-header">
           <h4 id="${uid}-title">${escapeHtml(info.title)}</h4>
-          <button type="button" class="psycle-modal-close-btn" data-overlap-cancel aria-label="${COPY.overlap.cancel}">&times;</button>
+          <button type="button" class="app-modal-close-btn" data-overlap-cancel aria-label="${COPY.overlap.cancel}">&times;</button>
         </div>
-        <div class="psycle-modal-body">
+        <div class="app-modal-body">
           <div class="ab-credit-warning ab-clash-warning" id="${uid}-lead">${icon('warning', 14)}<span>${escapeHtml(info.lead)}</span></div>
-          <div class="psycle-overlap-group" role="group" aria-label="${escapeHtml(info.newLabel)}">
-            <p class="psycle-overlap-label">${escapeHtml(info.newLabel)}</p>
+          <div class="app-overlap-group" role="group" aria-label="${escapeHtml(info.newLabel)}">
+            <p class="app-overlap-label">${escapeHtml(info.newLabel)}</p>
           ${classSummaryCardHtml(subject, COPY.overlap.new)}
           </div>
-          <div class="psycle-overlap-group" role="group" aria-label="${COPY.overlap.clashesWith}">
-            <p class="psycle-overlap-label">${COPY.overlap.clashesWith}</p>
-            <div class="psycle-overlap-stack">
+          <div class="app-overlap-group" role="group" aria-label="${COPY.overlap.clashesWith}">
+            <p class="app-overlap-label">${COPY.overlap.clashesWith}</p>
+            <div class="app-overlap-stack">
               ${info.clashes.map((c) => classSummaryCardHtml(c, c.tag)).join('')}
-              ${info.hiddenCount ? `<p class="psycle-overlap-more">${formatCopyText(COPY.overlap.more, { count: info.hiddenCount })}</p>` : ''}
+              ${info.hiddenCount ? `<p class="app-overlap-more">${formatCopyText(COPY.overlap.more, { count: info.hiddenCount })}</p>` : ''}
             </div>
           </div>
-          <div class="psycle-overlap-actions">
-            <button type="button" class="psycle-btn" data-overlap-cancel>${COPY.overlap.cancel}</button>
-            <button type="button" class="psycle-btn primary" data-overlap-confirm>${escapeHtml(info.confirmLabel)}</button>
+          <div class="app-overlap-actions">
+            <button type="button" class="app-btn" data-overlap-cancel>${COPY.overlap.cancel}</button>
+            <button type="button" class="app-btn primary" data-overlap-confirm>${escapeHtml(info.confirmLabel)}</button>
           </div>
         </div>
       </div>`;
@@ -190,7 +190,7 @@ export function confirmOverlap({ subject, warnings, mode = 'autobook' }) {
     function onKeydown(e) {
       // Mobile full-screen page: modal-nav owns Escape and the Tab trap (and routes both
       // through onClose below), so doing it here too would pop history twice.
-      if (root.classList.contains('psycle-page')) return;
+      if (root.classList.contains('app-page')) return;
       if (e.key === 'Escape') {
         // Capture phase + stop: the auto-book config modal underneath must not
         // also see this Esc and close itself.
@@ -224,7 +224,7 @@ export function confirmOverlap({ subject, warnings, mode = 'autobook' }) {
     // Next frame so the opacity transition runs; focus straight away so a screen
     // reader announces the dialog rather than the page behind it.
     requestAnimationFrame(() => root.classList.add('show'));
-    const cancel = root.querySelector('.psycle-overlap-actions [data-overlap-cancel]');
+    const cancel = root.querySelector('.app-overlap-actions [data-overlap-cancel]');
     if (cancel) cancel.focus();
   });
   return pending;

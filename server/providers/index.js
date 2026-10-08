@@ -1,4 +1,4 @@
-// Sweat Assistant — provider factory.
+// provider factory.
 //
 // Resolves a gym id → a concrete GymProvider adapter instance. Adapters are
 // stateless per user (they take a session per call), so we cache one instance

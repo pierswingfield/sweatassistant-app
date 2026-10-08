@@ -1,4 +1,4 @@
-// Sweat Assistant — first-run onboarding flow.
+// first-run onboarding flow.
 //
 // Runs before login on first launch and guides the user through:
 //   welcome → account access → gym connection → optional setup.
@@ -23,8 +23,8 @@ import { escapeHtml, gymChip } from './cards';
 import { enableAutoUpgradeForGyms, shouldAnimateGymLogos, getPostLoginDestination as choosePostLoginDestination, detectInstallContext, shouldOfferInstall } from './onboarding-routing.js';
 import { cleanFirstName, inferFirstName } from './name-capture.js';
 
-const COMPLETE_KEY = 'psycleOnboardingComplete';
-const STEP_KEY = 'psycleOnboardingStep';
+const COMPLETE_KEY = 'appOnboardingComplete';
+const STEP_KEY = 'appOnboardingStep';
 // Bump to re-trigger onboarding for all users after a significant change.
 // v4: focused, resumable flow with one optional setup roll-up.
 const ONBOARDING_VERSION = '4';
@@ -54,7 +54,7 @@ export function shouldShowOnboarding() {
 }
 
 function onboardingKey(base) {
-  const accountId = localStorage.getItem('psycleUserId');
+  const accountId = localStorage.getItem('appUserId');
   return accountId ? `${base}:${accountId}` : `${base}:anonymous`;
 }
 
@@ -69,12 +69,12 @@ export function advanceAfterLogin() {
 }
 
 function container() {
-  return document.getElementById('psycle-onboarding-container');
+  return document.getElementById('app-onboarding-container');
 }
 
 function show() {
-  document.getElementById('psycle-login-container').style.display = 'none';
-  document.getElementById('psycle-app-container').style.display = 'none';
+  document.getElementById('app-login-container').style.display = 'none';
+  document.getElementById('app-container').style.display = 'none';
   const c = container();
   c.style.display = 'flex';
   return c;
@@ -98,10 +98,10 @@ export function resumeOnboarding({ optionalOnly = false } = {}) {
 
 async function runFrom(startIndex) {
   active = true;
-  // Apply the body id that unlocks all #psycle-helper-container-scoped CSS
-  // (font-family, .psycle-btn-mini, etc.) so modals opened during onboarding
+  // Apply the body id that unlocks all #app-helper-container-scoped CSS
+  // (font-family, .app-btn-mini, etc.) so modals opened during onboarding
   // look identical to those opened from the main app.
-  document.body.id = 'psycle-helper-container';
+  document.body.id = 'app-helper-container';
   try {
     let i = startIndex;
     while (i < STEPS.length) {
@@ -165,7 +165,7 @@ export async function getPostLoginDestination() {
 }
 
 async function finish() {
-  const accountId = localStorage.getItem('psycleUserId');
+  const accountId = localStorage.getItem('appUserId');
   if (accountId) {
     localStorage.setItem(onboardingKey(COMPLETE_KEY), ONBOARDING_VERSION);
     localStorage.removeItem(onboardingKey(STEP_KEY));
@@ -181,19 +181,19 @@ async function finish() {
 
 // Renders a standard centred step "sheet" and returns its inner body element.
 // `onBack` adds the shared top Back button (same position and style on every screen).
-const backButtonHtml = () => `<button class="psycle-onb-back-top" type="button">${COPY.onboarding.back}</button>`;
+const backButtonHtml = () => `<button class="app-onb-back-top" type="button">${COPY.onboarding.back}</button>`;
 function renderSheet({ eyebrow, title, body, footer, onBack }) {
   const c = show();
   c.innerHTML = `
     ${onBack ? backButtonHtml() : ''}
-    <div class="psycle-onb-sheet" role="dialog" aria-modal="true">
-      ${eyebrow ? `<div class="psycle-onb-eyebrow">${eyebrow}</div>` : ''}
-      ${title ? `<h2 class="psycle-onb-title">${title}</h2>` : ''}
-      <div class="psycle-onb-body">${body || ''}</div>
-      <div class="psycle-onb-footer">${footer || ''}</div>
+    <div class="app-onb-sheet" role="dialog" aria-modal="true">
+      ${eyebrow ? `<div class="app-onb-eyebrow">${eyebrow}</div>` : ''}
+      ${title ? `<h2 class="app-onb-title">${title}</h2>` : ''}
+      <div class="app-onb-body">${body || ''}</div>
+      <div class="app-onb-footer">${footer || ''}</div>
     </div>`;
-  if (onBack) c.querySelector('.psycle-onb-back-top').addEventListener('click', onBack);
-  return c.querySelector('.psycle-onb-sheet');
+  if (onBack) c.querySelector('.app-onb-back-top').addEventListener('click', onBack);
+  return c.querySelector('.app-onb-sheet');
 }
 
 // ---- feature icons (inline SVG, themed via currentColor) ----
@@ -230,40 +230,40 @@ function stepIntro() {
       { icon: 'push', token: '--success', title: O.perkNotifyTitle, text: O.perkNotifyText },
     ].map((p) => ({ ...p, text: appCopy(p.text) }));
     c.innerHTML = `
-      <div class="psycle-onb-sheet psycle-onb-intro" role="dialog" aria-modal="true" aria-labelledby="psycle-onb-welcome-title">
-        <div class="psycle-onb-carousel">
-          <div class="psycle-onb-track">
+      <div class="app-onb-sheet app-onb-intro" role="dialog" aria-modal="true" aria-labelledby="app-onb-welcome-title">
+        <div class="app-onb-carousel">
+          <div class="app-onb-track">
             ${slides.map((s) => s.welcome ? `
-              <div class="psycle-onb-slide psycle-onb-slide-welcome">
-                <div class="psycle-onb-wordmark">${escapeHtml(appConfig.appName)}</div>
-                <h2 class="psycle-onb-title psycle-onb-welcome-title" id="psycle-onb-welcome-title">${s.title}</h2>
-                <ul class="psycle-onb-perks" role="list">
+              <div class="app-onb-slide app-onb-slide-welcome">
+                <div class="app-onb-wordmark">${escapeHtml(appConfig.appName)}</div>
+                <h2 class="app-onb-title app-onb-welcome-title" id="app-onb-welcome-title">${s.title}</h2>
+                <ul class="app-onb-perks" role="list">
                   ${perks.map((p, i) => `
-                  <li class="psycle-onb-perk" style="--perk: var(${p.token}); --i: ${i};">
-                    <span class="psycle-onb-perk-icon" aria-hidden="true">${ICON[p.icon]}</span>
-                    <div class="psycle-onb-perk-body">
+                  <li class="app-onb-perk" style="--perk: var(${p.token}); --i: ${i};">
+                    <span class="app-onb-perk-icon" aria-hidden="true">${ICON[p.icon]}</span>
+                    <div class="app-onb-perk-body">
                       <strong>${p.title}</strong>
                       <span>${p.text}</span>
                     </div>
                   </li>`).join('')}
                 </ul>
-                <p class="psycle-onb-gyms-line">${COPY.onboarding.welcomeGyms}</p>
+                <p class="app-onb-gyms-line">${COPY.onboarding.welcomeGyms}</p>
               </div>` : `
-              <div class="psycle-onb-slide">
-                <div class="psycle-onb-icon" style="color: var(--feat-${s.feat}, var(--accent));">${s.icon}</div>
-                <h2 class="psycle-onb-title">${s.title}</h2>
-                <p class="psycle-onb-slide-text">${s.text}</p>
+              <div class="app-onb-slide">
+                <div class="app-onb-icon" style="color: var(--feat-${s.feat}, var(--accent));">${s.icon}</div>
+                <h2 class="app-onb-title">${s.title}</h2>
+                <p class="app-onb-slide-text">${s.text}</p>
               </div>`).join('')}
           </div>
         </div>
-          ${slides.length > 1 ? `<div class="psycle-onb-dots">${slides.map((_, i) => `<button class="psycle-onb-dot${i === 0 ? ' is-active' : ''}" type="button" aria-label="${COPY.onboarding.slideLabel.replace('{number}', i + 1)}"></button>`).join('')}</div>` : ''}
-        <div class="psycle-onb-footer">
-          ${isLoggedIn() ? `<button class="psycle-btn-primary psycle-onb-auth" type="button" data-auth-mode="continue">${COPY.onboarding.continueSetup}</button>` : introContinuesToInstall ? `<button class="psycle-btn-primary psycle-onb-auth" type="button" data-auth-mode="login">${COPY.onboarding.continue}</button>` : `<button class="psycle-btn-primary psycle-onb-auth" type="button" data-auth-mode="login">${COPY.onboarding.logInButton}</button><button class="psycle-btn-secondary psycle-onb-auth" type="button" data-auth-mode="signup">${COPY.onboarding.createAccountButton}</button>`}
+          ${slides.length > 1 ? `<div class="app-onb-dots">${slides.map((_, i) => `<button class="app-onb-dot${i === 0 ? ' is-active' : ''}" type="button" aria-label="${COPY.onboarding.slideLabel.replace('{number}', i + 1)}"></button>`).join('')}</div>` : ''}
+        <div class="app-onb-footer">
+          ${isLoggedIn() ? `<button class="app-btn-primary app-onb-auth" type="button" data-auth-mode="continue">${COPY.onboarding.continueSetup}</button>` : introContinuesToInstall ? `<button class="app-btn-primary app-onb-auth" type="button" data-auth-mode="login">${COPY.onboarding.continue}</button>` : `<button class="app-btn-primary app-onb-auth" type="button" data-auth-mode="login">${COPY.onboarding.logInButton}</button><button class="app-btn-secondary app-onb-auth" type="button" data-auth-mode="signup">${COPY.onboarding.createAccountButton}</button>`}
         </div>
       </div>`;
 
-    const track = c.querySelector('.psycle-onb-track');
-    const dots = [...c.querySelectorAll('.psycle-onb-dot')];
+    const track = c.querySelector('.app-onb-track');
+    const dots = [...c.querySelectorAll('.app-onb-dot')];
     let index = 0;
 
     const goto = (i) => {
@@ -277,11 +277,11 @@ function stepIntro() {
       resolve();
     }));
     dots.forEach((d, di) => d.addEventListener('click', () => goto(di)));
-    c.querySelector('.psycle-onb-skip')?.addEventListener('click', resolve);
+    c.querySelector('.app-onb-skip')?.addEventListener('click', resolve);
 
     // Touch swipe
     let startX = 0, dragging = false;
-    const carousel = c.querySelector('.psycle-onb-carousel');
+    const carousel = c.querySelector('.app-onb-carousel');
     carousel.addEventListener('touchstart', (e) => { startX = e.touches[0].clientX; dragging = true; }, { passive: true });
     carousel.addEventListener('touchend', (e) => {
       if (!dragging) return;
@@ -299,8 +299,8 @@ function stepIntro() {
 // Install step: shown on EVERY flow entry in a mobile browser tab until BOTH the user has chosen "Continue in
 // browser" (pending, session-scoped) AND has logged in (which promotes it to the persistent dismissed flag).
 // Merely showing the step sets nothing.
-const INSTALL_PENDING_KEY = 'psycleInstallPending';
-const INSTALL_DISMISSED_KEY = 'psycleInstallDismissed';
+const INSTALL_PENDING_KEY = 'appInstallPending';
+const INSTALL_DISMISSED_KEY = 'appInstallDismissed';
 const installContext = () => detectInstallContext({
   userAgent: navigator.userAgent,
   standalone: window.navigator.standalone === true,
@@ -336,7 +336,7 @@ const INSTALL_ICON = {
 /** Numbered, illustrated steps for a platform. */
 function installStepsHtml(platform) {
   const O = COPY.onboarding;
-  const s = (icon, html) => `<li class="psycle-install-step"><span class="psycle-install-ico" aria-hidden="true">${INSTALL_ICON[icon]}</span><span class="psycle-install-txt">${html}</span></li>`;
+  const s = (icon, html) => `<li class="app-install-step"><span class="app-install-ico" aria-hidden="true">${INSTALL_ICON[icon]}</span><span class="app-install-txt">${html}</span></li>`;
   let steps;
   if (platform === 'ios-safari' || platform === 'ios-other') {
     steps = [s('share', O.installStepIosShare), s('addSquare', O.installStepIosAdd), s('check', O.installStepIosConfirm), s('open', appCopy(O.installStepIosOpen))];
@@ -347,8 +347,8 @@ function installStepsHtml(platform) {
   } else {
     steps = [s('kebab', O.installStepGenericMenu), s('addSquare', O.installStepGenericAdd)];
   }
-  const note = platform === 'ios-other' ? `<p class="psycle-install-note">${O.installIosOtherNote}</p>` : '';
-  return `${note}<ol class="psycle-install-steps">${steps.join('')}</ol>`;
+  const note = platform === 'ios-other' ? `<p class="app-install-note">${O.installIosOtherNote}</p>` : '';
+  return `${note}<ol class="app-install-steps">${steps.join('')}</ol>`;
 }
 
 function stepInstall() {
@@ -360,27 +360,27 @@ function stepInstall() {
 
     const promptEvent = consumeInstallPrompt();
     const reasoning = `
-      <ul class="psycle-onb-reasons">
-        <li><span class="psycle-onb-reason-icon">${ICON.push}</span><div><strong>${COPY.onboarding.pushReasonTitle}</strong><br>${COPY.onboarding.pushReason}</div></li>
-        <li><span class="psycle-onb-reason-icon">${ICON.offline}</span><div><strong>${COPY.onboarding.offlineReasonTitle}</strong><br>${COPY.onboarding.offlineReason}</div></li>
+      <ul class="app-onb-reasons">
+        <li><span class="app-onb-reason-icon">${ICON.push}</span><div><strong>${COPY.onboarding.pushReasonTitle}</strong><br>${COPY.onboarding.pushReason}</div></li>
+        <li><span class="app-onb-reason-icon">${ICON.offline}</span><div><strong>${COPY.onboarding.offlineReasonTitle}</strong><br>${COPY.onboarding.offlineReason}</div></li>
       </ul>`;
     const ios = ctx.platform.startsWith('ios');
     const lead = appCopy(ios ? COPY.onboarding.installForHomeScreen : COPY.onboarding.installForExperience);
     // Android Chrome: a native one-tap Install when the browser handed us the prompt; steps otherwise.
-    const body = `<p class="psycle-onb-lead">${lead}</p>${reasoning}${promptEvent ? '' : installStepsHtml(ctx.platform)}`;
+    const body = `<p class="app-onb-lead">${lead}</p>${reasoning}${promptEvent ? '' : installStepsHtml(ctx.platform)}`;
     const primary = promptEvent
-      ? `<button class="psycle-btn-primary psycle-onb-install" type="button"><span>${COPY.onboarding.installButton}</span></button>` : '';
+      ? `<button class="app-btn-primary app-onb-install" type="button"><span>${COPY.onboarding.installButton}</span></button>` : '';
 
     const sheet = renderSheet({
       eyebrow: COPY.onboarding.installEyebrow,
       title: appCopy(COPY.onboarding.installTitle),
       body,
-      footer: `${primary}<button class="psycle-btn-mini psycle-onb-skip-inline" type="button">${COPY.onboarding.continueInBrowser}</button>`,
+      footer: `${primary}<button class="app-btn-mini app-onb-skip-inline" type="button">${COPY.onboarding.continueInBrowser}</button>`,
       onBack,
     });
 
-    sheet.querySelector('.psycle-onb-skip-inline').addEventListener('click', () => { markInstallPending(); resolve(); });
-    const installBtn = sheet.querySelector('.psycle-onb-install');
+    sheet.querySelector('.app-onb-skip-inline').addEventListener('click', () => { markInstallPending(); resolve(); });
+    const installBtn = sheet.querySelector('.app-onb-install');
     if (installBtn && promptEvent) {
       installBtn.addEventListener('click', async () => {
         installBtn.disabled = true;
@@ -400,7 +400,7 @@ function stepInstall() {
  */
 export async function offerInstallBeforeLogin() {
   if (active || !installOffered()) return;
-  document.body.id = 'psycle-helper-container';
+  document.body.id = 'app-helper-container';
   await stepInstall();
   const c = container();
   if (c) { c.style.display = 'none'; c.innerHTML = ''; }
@@ -413,8 +413,8 @@ function stepAuthChoice() {
     const O = COPY.onboarding;
     const sheet = renderSheet({
       title: appCopy(O.authChoiceTitle),
-      body: `<p class="psycle-onb-lead">${appCopy(O.authChoiceLead)}</p>`,
-      footer: `<button class="psycle-btn-primary psycle-onb-auth" type="button" data-auth-mode="login">${O.logInButton}</button><button class="psycle-btn-secondary psycle-onb-auth" type="button" data-auth-mode="signup">${O.createAccountButton}</button>`,
+      body: `<p class="app-onb-lead">${appCopy(O.authChoiceLead)}</p>`,
+      footer: `<button class="app-btn-primary app-onb-auth" type="button" data-auth-mode="login">${O.logInButton}</button><button class="app-btn-secondary app-onb-auth" type="button" data-auth-mode="signup">${O.createAccountButton}</button>`,
       onBack: () => resolve('back'),
     });
     sheet.querySelectorAll('[data-auth-mode]').forEach((b) => b.addEventListener('click', () => { requestedAuthMode = b.dataset.authMode; resolve(); }));
@@ -426,10 +426,10 @@ function stepLogin() {
   return new Promise((resolve) => {
     if (isLoggedIn()) return resolve(); // already authenticated (resume case)
 
-    const login = document.getElementById('psycle-login-container');
+    const login = document.getElementById('app-login-container');
     const back = document.createElement('button');
     back.type = 'button';
-    back.className = 'psycle-onb-back-top';
+    back.className = 'app-onb-back-top';
     back.textContent = COPY.onboarding.back;
     back.addEventListener('click', () => {
       loginResolver = null;
@@ -452,19 +452,19 @@ function stepLogin() {
     container().style.display = 'none';
     login.style.display = 'flex';
     // The login card keeps its mode between visits, so always select the one that was chosen.
-    document.getElementById(requestedAuthMode === 'signup' ? 'psycle-auth-to-signup' : 'psycle-auth-to-login')?.click();
+    document.getElementById(requestedAuthMode === 'signup' ? 'app-auth-to-signup' : 'app-auth-to-login')?.click();
   });
 }
 
 /** Logos of every wired gym, from the catalogue. >3 gyms scroll as a marquee (duplicated track). */
 function gymLogoStripHtml(gyms) {
   if (!gyms.length) return '';
-  const items = gyms.map((g) => `<li class="psycle-onb-gym-logo">${gymChip(g.id)}</li>`).join('');
+  const items = gyms.map((g) => `<li class="app-onb-gym-logo">${gymChip(g.id)}</li>`).join('');
   const animate = shouldAnimateGymLogos(gyms.length);
-  return `<div class="psycle-onb-gym-logos${animate ? ' is-marquee' : ''}" role="group" tabindex="0" aria-label="${escapeHtml(COPY.onboarding.supportedGyms)}">
-    <div class="psycle-onb-gym-logos-track">
-      <ul class="psycle-onb-gym-logos-set" role="list">${items}</ul>
-      ${animate ? `<ul class="psycle-onb-gym-logos-set is-clone" aria-hidden="true">${items}</ul>` : ''}
+  return `<div class="app-onb-gym-logos${animate ? ' is-marquee' : ''}" role="group" tabindex="0" aria-label="${escapeHtml(COPY.onboarding.supportedGyms)}">
+    <div class="app-onb-gym-logos-track">
+      <ul class="app-onb-gym-logos-set" role="list">${items}</ul>
+      ${animate ? `<ul class="app-onb-gym-logos-set is-clone" aria-hidden="true">${items}</ul>` : ''}
     </div>
   </div>`;
 }
@@ -503,7 +503,7 @@ function stepGyms() {
       const hasLinked = myGyms.length > 0;
 
       const connectedListHtml = hasLinked
-        ? `<div class="psycle-onb-connected-gyms" style="margin-bottom:16px;">
+        ? `<div class="app-onb-connected-gyms" style="margin-bottom:16px;">
             <div style="font-size:12px;font-weight:600;text-transform:uppercase;letter-spacing:0.5px;color:var(--text-tertiary);margin-bottom:8px;">${COPY.onboarding.connectedGyms}</div>
             <div style="display:flex;flex-direction:column;gap:8px;">
               ${myGyms.map(g => {
@@ -520,7 +520,7 @@ function stepGyms() {
                       ${gEmail ? `<div style="font-size:12px;color:var(--text-tertiary);">${gEmail}</div>` : ''}
                     </div>
                   </div>
-                  <span class="psycle-badge" style="font-size:11px;background:color-mix(in srgb,var(--success) 15%,transparent);color:var(--success);">${COPY.gyms.connected}</span>
+                  <span class="app-badge" style="font-size:11px;background:color-mix(in srgb,var(--success) 15%,transparent);color:var(--success);">${COPY.gyms.connected}</span>
                 </div>
               `;}).join('')}
             </div>
@@ -536,31 +536,31 @@ function stepGyms() {
       let formHtml = '';
       if (unlinkedGyms.length > 0 && (!hasLinked || addingAnother)) {
         formHtml = `
-          <div class="psycle-onb-link-form" style="display:flex;flex-direction:column;gap:12px;background:var(--surface-inset);border:1px solid var(--border);border-radius:12px;padding:16px;">
+          <div class="app-onb-link-form" style="display:flex;flex-direction:column;gap:12px;background:var(--surface-inset);border:1px solid var(--border);border-radius:12px;padding:16px;">
             <div style="font-size:13px;font-weight:600;color:var(--text-secondary);">
               ${hasLinked ? COPY.onboarding.connectAnotherGym : COPY.onboarding.connectGymAccount}
             </div>
             <div>
               <label style="font-size:12px;color:var(--text-tertiary);display:block;margin-bottom:4px;">${COPY.onboarding.selectGym}</label>
-              <select id="psycle-onb-gym-select" class="psycle-select" style="width:100%;">
+              <select id="app-onb-gym-select" class="app-select" style="width:100%;">
                 ${unlinkedGyms.map(g => `<option value="${g.id}">${g.name}</option>`).join('')}
               </select>
             </div>
             <div>
               <label style="font-size:12px;color:var(--text-tertiary);display:block;margin-bottom:4px;">${COPY.onboarding.gymLoginEmail}</label>
-              <input type="email" id="psycle-onb-gym-email" placeholder="${COPY.onboarding.gymEmailPlaceholder}" autocomplete="off" style="width:100%;box-sizing:border-box;">
+              <input type="email" id="app-onb-gym-email" placeholder="${COPY.onboarding.gymEmailPlaceholder}" autocomplete="off" style="width:100%;box-sizing:border-box;">
             </div>
             <div>
               <label style="font-size:12px;color:var(--text-tertiary);display:block;margin-bottom:4px;">${COPY.onboarding.gymPassword}</label>
-              <input type="password" id="psycle-onb-gym-password" placeholder="${COPY.onboarding.gymPasswordPlaceholder}" autocomplete="off" style="width:100%;box-sizing:border-box;">
+              <input type="password" id="app-onb-gym-password" placeholder="${COPY.onboarding.gymPasswordPlaceholder}" autocomplete="off" style="width:100%;box-sizing:border-box;">
             </div>
-            <div id="psycle-onb-gym-error" class="psycle-login-error" style="display:none;margin-top:4px;"></div>
-            <button type="button" id="psycle-onb-gym-submit" class="psycle-btn-primary" style="margin-top:4px;"><span>${escapeHtml(submitLabel(unlinkedGyms[0]?.id))}</span></button>
+            <div id="app-onb-gym-error" class="app-login-error" style="display:none;margin-top:4px;"></div>
+            <button type="button" id="app-onb-gym-submit" class="app-btn-primary" style="margin-top:4px;"><span>${escapeHtml(submitLabel(unlinkedGyms[0]?.id))}</span></button>
 
           </div>
         `;
       } else if (unlinkedGyms.length > 0 && hasLinked) {
-        formHtml = `<button type="button" id="psycle-onb-add-another" class="psycle-btn-secondary" style="width:100%;">${COPY.onboarding.connectAnotherLower}</button>`;
+        formHtml = `<button type="button" id="app-onb-add-another" class="app-btn-secondary" style="width:100%;">${COPY.onboarding.connectAnotherLower}</button>`;
       } else {
         formHtml = `
           <div style="padding:16px;text-align:center;background:color-mix(in srgb,var(--success) 10%,transparent);border:1px solid color-mix(in srgb,var(--success) 20%,transparent);border-radius:12px;color:var(--text-primary);margin-bottom:12px;">
@@ -571,14 +571,14 @@ function stepGyms() {
       }
 
       const continueBtnHtml = hasLinked
-        ? `<button class="psycle-btn-primary psycle-onb-continue" type="button" style="${unlinkedGyms.length > 0 ? 'background:var(--surface-inset);border:1px solid var(--border);color:var(--text-primary);' : ''}"><span>${COPY.onboarding.continue}</span></button>`
-        : `<button class="psycle-btn-mini psycle-onb-skip-inline" type="button">${COPY.onboarding.setupLater}</button>`;
+        ? `<button class="app-btn-primary app-onb-continue" type="button" style="${unlinkedGyms.length > 0 ? 'background:var(--surface-inset);border:1px solid var(--border);color:var(--text-primary);' : ''}"><span>${COPY.onboarding.continue}</span></button>`
+        : `<button class="app-btn-mini app-onb-skip-inline" type="button">${COPY.onboarding.setupLater}</button>`;
 
       const sheet = renderSheet({
         eyebrow: COPY.onboarding.yourGyms,
         title: COPY.onboarding.connectGymAccounts,
         body: `
-          <p class="psycle-onb-lead" style="margin-bottom:16px;">${appCopy(COPY.onboarding.connectDescription)}</p>
+          <p class="app-onb-lead" style="margin-bottom:16px;">${appCopy(COPY.onboarding.connectDescription)}</p>
           ${gymLogoStripHtml(allGyms)}
           ${connectedListHtml}
           ${formHtml}
@@ -587,28 +587,28 @@ function stepGyms() {
         onBack: addingAnother && hasLinked ? () => { addingAnother = false; render(); } : () => resolve('welcome'),
       });
 
-      const addAnotherBtn = sheet.querySelector('#psycle-onb-add-another');
+      const addAnotherBtn = sheet.querySelector('#app-onb-add-another');
       if (addAnotherBtn) addAnotherBtn.addEventListener('click', () => { addingAnother = true; render(); });
 
 
-      const continueBtn = sheet.querySelector('.psycle-onb-continue');
+      const continueBtn = sheet.querySelector('.app-onb-continue');
       if (continueBtn) {
         continueBtn.addEventListener('click', resolve);
       }
-      const skipBtn = sheet.querySelector('.psycle-onb-skip-inline');
+      const skipBtn = sheet.querySelector('.app-onb-skip-inline');
       if (skipBtn) {
         skipBtn.addEventListener('click', resolve);
       }
 
-      const submitBtn = sheet.querySelector('#psycle-onb-gym-submit');
-      const gymSel = sheet.querySelector('#psycle-onb-gym-select');
+      const submitBtn = sheet.querySelector('#app-onb-gym-submit');
+      const gymSel = sheet.querySelector('#app-onb-gym-select');
       if (gymSel && submitBtn) gymSel.addEventListener('change', () => { submitBtn.querySelector('span').textContent = submitLabel(gymSel.value); });
       if (submitBtn) {
         submitBtn.addEventListener('click', async () => {
-          const gymSelect = sheet.querySelector('#psycle-onb-gym-select');
-          const emailInput = sheet.querySelector('#psycle-onb-gym-email');
-          const passInput = sheet.querySelector('#psycle-onb-gym-password');
-          const errorEl = sheet.querySelector('#psycle-onb-gym-error');
+          const gymSelect = sheet.querySelector('#app-onb-gym-select');
+          const emailInput = sheet.querySelector('#app-onb-gym-email');
+          const passInput = sheet.querySelector('#app-onb-gym-password');
+          const errorEl = sheet.querySelector('#app-onb-gym-error');
 
           const gymId = gymSelect?.value;
           const email = emailInput?.value?.trim();
@@ -736,24 +736,24 @@ function stepNotifications() {
       const sheet = renderSheet({
         eyebrow: COPY.onboarding.notificationsEyebrow,
         title: COPY.onboarding.iosNotificationTitle,
-        body: `<p class="psycle-onb-lead">${appCopy(COPY.onboarding.iosNotificationHelp)}</p>`,
-        footer: `<button class="psycle-btn-primary psycle-onb-continue" type="button"><span>${COPY.onboarding.continue}</span></button>`,
+        body: `<p class="app-onb-lead">${appCopy(COPY.onboarding.iosNotificationHelp)}</p>`,
+        footer: `<button class="app-btn-primary app-onb-continue" type="button"><span>${COPY.onboarding.continue}</span></button>`,
       });
-      sheet.querySelector('.psycle-onb-continue').addEventListener('click', resolve);
+      sheet.querySelector('.app-onb-continue').addEventListener('click', resolve);
       return;
     }
 
     const sheet = renderSheet({
       eyebrow: COPY.onboarding.notificationsTitle,
       title: COPY.onboarding.enablePushTitle,
-      body: `<div class="psycle-onb-icon" style="color: var(--feat-push, var(--accent));">${ICON.push}</div>
-        <p class="psycle-onb-lead">${COPY.onboarding.notificationsDescription}</p>`,
-      footer: `<button class="psycle-btn-primary psycle-onb-notif-enable" type="button"><span>${COPY.onboarding.enableNotifications}</span></button>
-        <button class="psycle-btn-mini psycle-onb-skip-inline" type="button">${COPY.onboarding.maybeLater}</button>`,
+      body: `<div class="app-onb-icon" style="color: var(--feat-push, var(--accent));">${ICON.push}</div>
+        <p class="app-onb-lead">${COPY.onboarding.notificationsDescription}</p>`,
+      footer: `<button class="app-btn-primary app-onb-notif-enable" type="button"><span>${COPY.onboarding.enableNotifications}</span></button>
+        <button class="app-btn-mini app-onb-skip-inline" type="button">${COPY.onboarding.maybeLater}</button>`,
     });
 
-    sheet.querySelector('.psycle-onb-skip-inline').addEventListener('click', resolve);
-    sheet.querySelector('.psycle-onb-notif-enable').addEventListener('click', async () => {
+    sheet.querySelector('.app-onb-skip-inline').addEventListener('click', resolve);
+    sheet.querySelector('.app-onb-notif-enable').addEventListener('click', async () => {
       try {
         await togglePushSubscription();
       } catch (_) {}
@@ -785,17 +785,17 @@ async function stepCalendar() {
         eyebrow: COPY.onboarding.calendarEnabled,
         title: COPY.onboarding.subscribeCalendarTitle,
         body: `
-          <div class="psycle-onb-icon" style="color: var(--accent);">${ICON.calendar}</div>
-          <p class="psycle-onb-lead">${COPY.onboarding.addLiveFeed}</p>
-          <div class="psycle-onb-cal-links">
-            ${webcalUrl ? `<a href="${webcalUrl}" class="psycle-btn-primary" style="display:block;text-align:center;text-decoration:none;margin-bottom:8px;"><span>${ios ? COPY.onboarding.appleCalendarButton : COPY.onboarding.webcalButton}</span></a>` : ''}
-            ${gcalUrl && !ios ? `<a href="${gcalUrl}" target="_blank" rel="noopener noreferrer" class="psycle-btn-secondary" style="display:block;text-align:center;text-decoration:none;margin-bottom:8px;"><span>${COPY.onboarding.googleCalendarButton}</span></a>` : ''}
-            ${icsUrl ? `<button class="psycle-btn-mini psycle-onb-copy-ics" type="button" style="width:100%;">${COPY.onboarding.copyFeedUrl}</button>` : ''}
+          <div class="app-onb-icon" style="color: var(--accent);">${ICON.calendar}</div>
+          <p class="app-onb-lead">${COPY.onboarding.addLiveFeed}</p>
+          <div class="app-onb-cal-links">
+            ${webcalUrl ? `<a href="${webcalUrl}" class="app-btn-primary" style="display:block;text-align:center;text-decoration:none;margin-bottom:8px;"><span>${ios ? COPY.onboarding.appleCalendarButton : COPY.onboarding.webcalButton}</span></a>` : ''}
+            ${gcalUrl && !ios ? `<a href="${gcalUrl}" target="_blank" rel="noopener noreferrer" class="app-btn-secondary" style="display:block;text-align:center;text-decoration:none;margin-bottom:8px;"><span>${COPY.onboarding.googleCalendarButton}</span></a>` : ''}
+            ${icsUrl ? `<button class="app-btn-mini app-onb-copy-ics" type="button" style="width:100%;">${COPY.onboarding.copyFeedUrl}</button>` : ''}
           </div>`,
-        footer: `<button class="psycle-btn-primary psycle-onb-continue" type="button"><span>${COPY.onboarding.done}</span></button>`,
+        footer: `<button class="app-btn-primary app-onb-continue" type="button"><span>${COPY.onboarding.done}</span></button>`,
       });
 
-      const copyBtn = sheet.querySelector('.psycle-onb-copy-ics');
+      const copyBtn = sheet.querySelector('.app-onb-copy-ics');
       if (copyBtn && icsUrl) {
         copyBtn.addEventListener('click', async () => {
           try {
@@ -806,19 +806,19 @@ async function stepCalendar() {
         });
       }
 
-      sheet.querySelector('.psycle-onb-continue').addEventListener('click', resolve);
+      sheet.querySelector('.app-onb-continue').addEventListener('click', resolve);
     };
 
     const sheet = renderSheet({
       eyebrow: COPY.onboarding.calendarTitle,
       title: COPY.onboarding.calendarDescription,
-      body: `<div class="psycle-onb-icon" style="color: var(--accent);">${ICON.calendar}</div>
-        <p class="psycle-onb-lead">${COPY.onboarding.calendarEnableDescription.replace('{calendar}', ios ? 'Apple' : 'your')}</p>`,
-      footer: `<button class="psycle-btn-primary psycle-onb-cal-enable" type="button"><span>${COPY.onboarding.enableCalendar}</span></button>
-        <button class="psycle-btn-mini psycle-onb-skip-inline" type="button">${COPY.onboarding.setupLater}</button>`,
+      body: `<div class="app-onb-icon" style="color: var(--accent);">${ICON.calendar}</div>
+        <p class="app-onb-lead">${COPY.onboarding.calendarEnableDescription.replace('{calendar}', ios ? 'Apple' : 'your')}</p>`,
+      footer: `<button class="app-btn-primary app-onb-cal-enable" type="button"><span>${COPY.onboarding.enableCalendar}</span></button>
+        <button class="app-btn-mini app-onb-skip-inline" type="button">${COPY.onboarding.setupLater}</button>`,
     });
 
-    const enableBtn = sheet.querySelector('.psycle-onb-cal-enable');
+    const enableBtn = sheet.querySelector('.app-onb-cal-enable');
     enableBtn.addEventListener('click', async () => {
       enableBtn.disabled = true;
       try {
@@ -828,7 +828,7 @@ async function stepCalendar() {
         resolve();
       }
     });
-    sheet.querySelector('.psycle-onb-skip-inline').addEventListener('click', resolve);
+    sheet.querySelector('.app-onb-skip-inline').addEventListener('click', resolve);
   });
 }
 
@@ -842,14 +842,14 @@ async function stepSpotMaps() {
     const sheet = renderSheet({
       eyebrow: COPY.onboarding.spotMapEyebrow,
       title: COPY.onboarding.spotMapTitle,
-      body: `<div class="psycle-onb-icon" style="color: var(--feat-quickbook, var(--accent));">${ICON.quickbook}</div>
-        <p class="psycle-onb-lead">${COPY.onboarding.spotMapDescription}</p>`,
-      footer: `<button class="psycle-btn-primary psycle-onb-setup" type="button"><span>${COPY.onboarding.setUpNow}</span></button>
-        <button class="psycle-btn-mini psycle-onb-skip-inline" type="button">${COPY.onboarding.maybeLater}</button>`,
+      body: `<div class="app-onb-icon" style="color: var(--feat-quickbook, var(--accent));">${ICON.quickbook}</div>
+        <p class="app-onb-lead">${COPY.onboarding.spotMapDescription}</p>`,
+      footer: `<button class="app-btn-primary app-onb-setup" type="button"><span>${COPY.onboarding.setUpNow}</span></button>
+        <button class="app-btn-mini app-onb-skip-inline" type="button">${COPY.onboarding.maybeLater}</button>`,
     });
 
-    sheet.querySelector('.psycle-onb-skip-inline').addEventListener('click', resolve);
-    sheet.querySelector('.psycle-onb-setup').addEventListener('click', () => {
+    sheet.querySelector('.app-onb-skip-inline').addEventListener('click', resolve);
+    sheet.querySelector('.app-onb-setup').addEventListener('click', () => {
       openManageSpotMapsModal({ zIndex: 1000000, onDone: resolve });
     });
   });
@@ -860,31 +860,31 @@ function stepFeatures() {
   const c = show();
   c.innerHTML = `
     ${backButtonHtml()}
-    <div class="psycle-onb-sheet psycle-onb-features" role="dialog" aria-modal="true" aria-labelledby="psycle-onb-features-title">
-      <div class="psycle-onb-eyebrow">${COPY.onboarding.optionalSetup}</div>
-      <h2 class="psycle-onb-title" id="psycle-onb-features-title">${COPY.onboarding.makeItYours}</h2>
-      <p class="psycle-onb-lead">${appCopy(COPY.onboarding.optionalSetupDescription)}</p>
-      <div class="psycle-onb-feature-list">
-        <section class="psycle-onb-feature-card" data-feature="notifications">
-          <div class="psycle-onb-feature-heading"><span class="psycle-onb-icon">${ICON.push}</span><div><h3>${COPY.static.notifications} <span class="psycle-onb-recommended">${COPY.onboarding.recommended}</span></h3><p>${COPY.onboarding.notificationUpdates}</p></div></div>
-          <div class="psycle-onb-feature-action"></div>
+    <div class="app-onb-sheet app-onb-features" role="dialog" aria-modal="true" aria-labelledby="app-onb-features-title">
+      <div class="app-onb-eyebrow">${COPY.onboarding.optionalSetup}</div>
+      <h2 class="app-onb-title" id="app-onb-features-title">${COPY.onboarding.makeItYours}</h2>
+      <p class="app-onb-lead">${appCopy(COPY.onboarding.optionalSetupDescription)}</p>
+      <div class="app-onb-feature-list">
+        <section class="app-onb-feature-card" data-feature="notifications">
+          <div class="app-onb-feature-heading"><span class="app-onb-icon">${ICON.push}</span><div><h3>${COPY.static.notifications} <span class="app-onb-recommended">${COPY.onboarding.recommended}</span></h3><p>${COPY.onboarding.notificationUpdates}</p></div></div>
+          <div class="app-onb-feature-action"></div>
         </section>
-        <section class="psycle-onb-feature-card" data-feature="calendar">
-          <div class="psycle-onb-feature-heading"><span class="psycle-onb-icon">${ICON.calendarSync}</span><div><h3>${COPY.onboarding.calendarFeatureTitle}</h3><p>${COPY.onboarding.calendarFeedDescription}</p></div></div>
-          <div class="psycle-onb-feature-action"></div>
+        <section class="app-onb-feature-card" data-feature="calendar">
+          <div class="app-onb-feature-heading"><span class="app-onb-icon">${ICON.calendarSync}</span><div><h3>${COPY.onboarding.calendarFeatureTitle}</h3><p>${COPY.onboarding.calendarFeedDescription}</p></div></div>
+          <div class="app-onb-feature-action"></div>
         </section>
-        <section class="psycle-onb-feature-card" data-feature="spotmaps">
-          <div class="psycle-onb-feature-heading"><span class="psycle-onb-icon">${ICON.quickbook}</span><div><h3>${COPY.onboarding.preferredSpotFeatureTitle}</h3><p>${COPY.onboarding.preferredSpotFeatureDescription}</p></div></div>
-          <div class="psycle-onb-feature-action"></div>
+        <section class="app-onb-feature-card" data-feature="spotmaps">
+          <div class="app-onb-feature-heading"><span class="app-onb-icon">${ICON.quickbook}</span><div><h3>${COPY.onboarding.preferredSpotFeatureTitle}</h3><p>${COPY.onboarding.preferredSpotFeatureDescription}</p></div></div>
+          <div class="app-onb-feature-action"></div>
         </section>
-      <section class="psycle-onb-feature-card" data-feature="autoupgrade">
-        <div class="psycle-onb-feature-heading"><span class="psycle-onb-icon">${ICON.autoupgrade}</span><div><h3>${COPY.onboarding.autoUpgradeFeatureTitle}</h3><p>${COPY.onboarding.autoUpgradeFeatureDescription}</p>
-          <label class="psycle-onb-auto-upgrade-option"><input type="checkbox" id="psycle-onb-auto-upgrade-all"><span>${COPY.onboarding.autoUpgradeAllGyms}</span></label></div></div>
-        <div class="psycle-onb-feature-action"></div>
+      <section class="app-onb-feature-card" data-feature="autoupgrade">
+        <div class="app-onb-feature-heading"><span class="app-onb-icon">${ICON.autoupgrade}</span><div><h3>${COPY.onboarding.autoUpgradeFeatureTitle}</h3><p>${COPY.onboarding.autoUpgradeFeatureDescription}</p>
+          <label class="app-onb-auto-upgrade-option"><input type="checkbox" id="app-onb-auto-upgrade-all"><span>${COPY.onboarding.autoUpgradeAllGyms}</span></label></div></div>
+        <div class="app-onb-feature-action"></div>
       </section>
       </div>
-      <div class="psycle-onb-footer">
-        <button class="psycle-btn-primary psycle-onb-finish" type="button">${COPY.onboarding.setupLater}</button>
+      <div class="app-onb-footer">
+        <button class="app-btn-primary app-onb-finish" type="button">${COPY.onboarding.setupLater}</button>
       </div>
     </div>`;
 
@@ -896,9 +896,9 @@ function stepFeatures() {
 
   const renderAction = (name, done, text, disabled = false) => {
     completion[name] = done;
-    const target = cards[name].querySelector('.psycle-onb-feature-action');
+    const target = cards[name].querySelector('.app-onb-feature-action');
     const buttonText = name === 'calendar' && done ? COPY.onboarding.calendarSettings : text;
-    target.innerHTML = `${done ? `<span class="psycle-onb-complete" role="status">✓ ${COPY.onboarding.setUp}</span>` : ''}${name === 'calendar' && done || !done ? `<button class="psycle-btn-mini" type="button" data-feature-action="${name}" ${disabled ? 'disabled' : ''}>${buttonText}</button>` : ''}`;
+    target.innerHTML = `${done ? `<span class="app-onb-complete" role="status">✓ ${COPY.onboarding.setUp}</span>` : ''}${name === 'calendar' && done || !done ? `<button class="app-btn-mini" type="button" data-feature-action="${name}" ${disabled ? 'disabled' : ''}>${buttonText}</button>` : ''}`;
     cards[name].classList.toggle('is-complete', done);
   };
 
@@ -922,20 +922,20 @@ function stepFeatures() {
     const linkedGyms = linkedRes.gyms || linkedRes || [];
     renderAction('spotmaps', hasSpotMap, linkedGyms.length ? COPY.onboarding.spotMapSetupButton : COPY.onboarding.connectGymForSpotMaps, linkedGyms.length === 0);
     const complete = Object.values(completion).every(Boolean);
-    c.querySelector('.psycle-onb-finish').textContent = complete ? COPY.onboarding.continueToTimetable : COPY.onboarding.setupLater;
+    c.querySelector('.app-onb-finish').textContent = complete ? COPY.onboarding.continueToTimetable : COPY.onboarding.setupLater;
   };
 
   const upgradeCard = c.querySelector('[data-feature="autoupgrade"]');
-  const upgradeBox = c.querySelector('#psycle-onb-auto-upgrade-all');
+  const upgradeBox = c.querySelector('#app-onb-auto-upgrade-all');
   upgradeBox.addEventListener('change', () => {
     upgradeCard.classList.toggle('is-complete', upgradeBox.checked);
-    upgradeCard.querySelector('.psycle-onb-feature-action').innerHTML = upgradeBox.checked ? `<span class="psycle-onb-complete" role="status">✓ ${COPY.onboarding.setUp}</span>` : '';
+    upgradeCard.querySelector('.app-onb-feature-action').innerHTML = upgradeBox.checked ? `<span class="app-onb-complete" role="status">✓ ${COPY.onboarding.setUp}</span>` : '';
   });
 
   await refreshStatus();
-  c.querySelector('.psycle-onb-back-top').addEventListener('click', () => { resolve('back'); });
-  c.querySelector('.psycle-onb-finish').addEventListener('click', async (event) => {
-    const checkbox = c.querySelector('#psycle-onb-auto-upgrade-all');
+  c.querySelector('.app-onb-back-top').addEventListener('click', () => { resolve('back'); });
+  c.querySelector('.app-onb-finish').addEventListener('click', async (event) => {
+    const checkbox = c.querySelector('#app-onb-auto-upgrade-all');
     const finishButton = event.currentTarget;
     if (checkbox.checked) {
       finishButton.disabled = true;

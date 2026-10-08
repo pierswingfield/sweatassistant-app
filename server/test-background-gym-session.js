@@ -26,11 +26,11 @@ process.env.NODE_ENV = 'test';
 
 const assert = require('assert');
 const db = require('./db');
+const testkit = require('./testkit');
 const scheduler = require('./scheduler');
 const poller = require('./poller');
 const CodexFitProvider = require('./providers/codexfit');
 const MarianaTekProvider = require('./providers/marianatek');
-const { DEFAULT_GYM_ID } = require('./gyms.config');
 
 const PSYCLE = 'psycle-london'; // codexfit — the user's ACTIVE (default) gym
 const JAB = 'jab-boxing';       // marianatek — the ROW's gym
@@ -41,8 +41,8 @@ const check = (name, fn) => checks.push({ name, fn });
 
 let seq = 0;
 function twoGymUser(label) {
-  const uid = db.createUser(`bgsession-${label}-${Date.now()}-${seq++}@test.local`, 'enc:pw');
-  assert.strictEqual(db.resolveActiveGymId(uid), DEFAULT_GYM_ID, 'sanity: default gym is psycle-london');
+  const uid = testkit.createUser(db, `bgsession-${label}-${Date.now()}-${seq++}@test.local`, 'enc:pw');
+  assert.strictEqual(db.resolveActiveGymId(uid), PSYCLE, 'sanity: the earliest-linked gym (psycle) is the active one');
   db.linkGym(uid, JAB, { encryptedPassword: 'enc:pw' });
   // Distinct tokens per gym so a cross-read is unmistakable.
   db.setGymSession(uid, PSYCLE, { accessToken: `PSYCLE-TOKEN-${uid}` });

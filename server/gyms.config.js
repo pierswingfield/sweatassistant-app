@@ -1,4 +1,4 @@
-// Sweat Assistant — static gym registry (single source of truth for provider wiring).
+// static gym registry (single source of truth for provider wiring).
 //
 // Why a static registry (not a DB table): gyms are few, and adding one is a code
 // change anyway (new provider config, theme, capability flags). Secrets stay in
@@ -26,12 +26,23 @@ const GYMS = {
       'victoria': 'VIC',
       'bank': 'BNK',
     },
+    // Development mock identity (NODE_ENV !== 'production' only). Logging in as this
+    // email — to the app (auth.js) or to this gym (provider.login) — uses the dev mock
+    // instead of the live API; the dev login also seeds every enabled gym that
+    // declares one. Core code never names a dev email: it asks the config / adapter.
+    devMock: { email: 'dev@psycle.com' },
     websiteUrl: 'https://psyclelondon.com/',
     // The gym's own public page for one class ({id} = the provider event id), for
     // the debug modal's "Open native booking page". Per gym because the path is
     // that gym's website, not the platform's; a gym with no such page omits it and
     // the button is hidden (C3-27).
     classPageUrl: 'https://psyclelondon.com/pages/class/{id}',
+    // Where a member finishes a credit purchase on the gym's own storefront when the
+    // in-app card charge needs 3-D Secure ({handle} = the bundle's product handle).
+    // Read only for gyms with capabilities.creditPurchase; the shop's URL layout is
+    // that gym's, so core never builds one itself. Omit and the client falls back to
+    // websiteUrl.
+    creditStoreUrl: 'https://psyclelondon.com/products/{handle}',
     provider: 'codexfit',
     // The gym's local timezone. CodexFit serves timezone-NAIVE datetimes
     // ("2026-09-01T19:30:00", no offset), so every parse has to be anchored
@@ -172,7 +183,7 @@ const GYMS = {
     tenant: 'jabboxingclub',
     // Local mock identity is intentionally separate from the live tenant slug.
     // The original JAB mock predates the public tenant name.
-    mockEmail: 'dev@jabboxing.mock',
+    devMock: { email: 'dev@jabboxing.mock' },
     apiBaseUrl: 'https://jabboxingclub.marianatek.com/api/customer/v1',
     oauthBaseUrl: 'https://jabboxingclub.marianatek.com/o',
     loginPageUrl: 'https://jabboxingclub.marianatek.com/auth/login/',
@@ -290,7 +301,7 @@ const GYMS = {
     enabled: process.env.AARMY_ENABLED === 'true'
       || (process.env.NODE_ENV !== 'production' && process.env.AARMY_ENABLED !== 'false'),
     tenant: 'aarmy',
-    mockEmail: 'dev@aarmy.mock',
+    devMock: { email: 'dev@aarmy.mock' },
     apiBaseUrl: 'https://aarmy.marianatek.com/api/customer/v1',
     oauthBaseUrl: 'https://aarmy.marianatek.com/o',
     loginPageUrl: 'https://aarmy.marianatek.com/auth/login/',
@@ -457,7 +468,16 @@ function listEnabledGyms() {
   return Object.values(GYMS).filter((g) => g.enabled);
 }
 
-/** The default gym existing single-tenant users are backfilled to. */
-const DEFAULT_GYM_ID = 'psycle-london';
+/** Gyms that declare a dev mock identity (`devMock.email`), in registry order. */
+function listDevMockGyms() {
+  return Object.values(GYMS).filter((g) => g.devMock && g.devMock.email);
+}
 
-module.exports = { GYMS, validatePresentation, sanitizePresentation, setPresentation, resetPresentation, getBaselinePresentation, getGymConfig, listGyms, listEnabledGyms, DEFAULT_GYM_ID };
+/** The gym whose `devMock.email` is `email` (case-insensitive), else null. */
+function findDevMockGym(email) {
+  const wanted = String(email || '').trim().toLowerCase();
+  if (!wanted) return null;
+  return listDevMockGyms().find((g) => g.devMock.email.toLowerCase() === wanted) || null;
+}
+
+module.exports = { GYMS, validatePresentation, sanitizePresentation, setPresentation, resetPresentation, getBaselinePresentation, getGymConfig, listGyms, listEnabledGyms, listDevMockGyms, findDevMockGym };

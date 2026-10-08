@@ -78,7 +78,7 @@ describe('share-bookings', () => {
       waitlists: [{ event: { id: 3, name: 'RIDE 45', discipline: 'RIDE', startAt: iso(6), gymId: 'psycle-london', timeZone: 'Europe/London', locationName: 'Psycle Oxford Circus' } }],
       autoBooks: [{ event_id: 9, gym_id: 'psycle-london', start_at: iso(30), status: 'pending', class_name: 'RIDE 45', group_name: 'RIDE', location_name: 'Psycle Oxford Circus', instructor_name: 'Zed' }],
     });
-    const { text } = formatShare(items, { name: 'Piers', windowId: '1w', appName: 'Sweat Assistant' });
+    const { text } = formatShare(items, { name: 'Piers', windowId: '1w', appName: 'Test Gym App' });
     const lines = text.split('\n');
     expect(lines[0]).toBe("Piers's Classes - 7 Days");
     expect(text).toMatch(/• \d\d:\d\d Psycle - Ride with Emma · Oxford Circus/);
@@ -86,7 +86,7 @@ describe('share-bookings', () => {
     expect(text).toContain('(waitlist)');
     expect(text).toContain('Psycle - Ride with Zed · Oxford Circus (auto-book, TBC)');
     expect(text).not.toContain('RIDE 45');
-    expect(text).toMatch(/Shared from Sweat Assistant$/);
+    expect(text).toMatch(/Shared from Test Gym App$/);
     expect(text.match(/\n\n/g)).toHaveLength(3);
   });
 

@@ -1,4 +1,4 @@
-// Sweat Assistant — C5-1: paused_no_credits auto-upgrade monitors resume.
+// C5-1: paused_no_credits auto-upgrade monitors resume.
 //
 // poller.js sets status 'paused_no_credits' when a metered gym's balance is
 // empty, but getActiveAutoUpgrades() only selects 'active', so a paused monitor
@@ -25,6 +25,7 @@ const mockPath = path.join(__dirname, 'mock_bookings.dbjson');
 const mockBackup = fs.existsSync(mockPath) ? fs.readFileSync(mockPath) : null;
 
 const db = require('./db');
+const testkit = require('./testkit');
 const poller = require('./poller');
 const scheduler = require('./scheduler');
 const { getProvider } = require('./providers');
@@ -55,7 +56,7 @@ const statusOf = (userId, id) => db.getUserAutoUpgrades(userId).find(r => r.id =
   let failed = 0;
   console.log('\n🧪 C5-1: paused_no_credits monitors resume\n');
   try {
-    const userId = db.createUser('dev@psycle.com', 'x');
+    const userId = testkit.createUser(db, 'dev@psycle.com', 'x');
     db.updateUserJWT(userId, 'mock-jwt-token', new Date(Date.now() + 864e5).toISOString());
 
     // Preferred slot 99 is not in the mock layout, so a RESUMED monitor finds

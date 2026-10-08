@@ -2,7 +2,7 @@
 //
 // A gym link stores the password but, until this WP, not the email — because
 // there was only ever one gym and `users.email` doubled as its login. Decision D4
-// broke that equivalence on purpose: a Sweat Assistant account is not a gym
+// broke that equivalence on purpose: an app account is not a gym
 // account. That left re-authentication with nothing to authenticate AS.
 //
 // The thing being pinned here is the SEPARATION, not just the column. The failure
@@ -23,6 +23,7 @@ process.env.DB_PATH = process.env.DB_PATH || ':memory:';
 const assert = require('assert');
 const db = require('./db');
 
+const testkit = require('./testkit');
 const checks = [];
 const check = (name, fn) => checks.push({ name, fn });
 
@@ -40,7 +41,7 @@ const uniq = (p) => `${p}-${Date.now()}-${seq++}@test.local`;
 
 check('a gym login captures the gym email on the link', () => {
   const email = uniq('login');
-  const uid = db.createUser(email, 'enc:pw');
+  const uid = testkit.createUser(db, email, 'enc:pw');
   const link = db.getUserGym(uid, DEFAULT_GYM);
   assert.strictEqual(link.gym_email, email,
     'createUser IS the gym-login path — the address was just proven against the gym');
@@ -55,7 +56,7 @@ check('signup with no gym captures no gym email anywhere', () => {
 });
 
 check('linking a second gym stores that gym\'s own email, lower-cased', () => {
-  const uid = db.createUser(uniq('multi'), 'enc:pw');
+  const uid = testkit.createUser(db, uniq('multi'), 'enc:pw');
   db.upsertUserGym(uid, OTHER_GYM, { gym_email: 'Boxer@JAB.example', encrypted_password: 'enc:jab' });
   assert.strictEqual(db.getUserGym(uid, OTHER_GYM).gym_email, 'Boxer@JAB.example',
     'db layer stores verbatim; auth.linkGymAccount is what lower-cases');
@@ -65,18 +66,18 @@ check('linking a second gym stores that gym\'s own email, lower-cased', () => {
 
 check('account email and gym email stay distinct on the merged user', () => {
   const accountEmail = uniq('account');
-  const uid = db.createUser(accountEmail, 'enc:pw');
+  const uid = testkit.createUser(db, accountEmail, 'enc:pw');
   // The user later re-links Psycle under a different address at the gym.
   db.upsertUserGym(uid, DEFAULT_GYM, { gym_email: 'different@gym.example' });
 
   const user = db.getUserById(uid);
-  assert.strictEqual(user.email, accountEmail, '.email remains the Sweat Assistant identity');
+  assert.strictEqual(user.email, accountEmail, '.email remains the app identity');
   assert.strictEqual(user.gym_email, 'different@gym.example', '.gym_email is the gym login');
   assert.notStrictEqual(user.email, user.gym_email, 'the two must not collapse into one');
 });
 
 check('gym_email resolves per request-scoped gym, not per account', () => {
-  const uid = db.createUser(uniq('perGym'), 'enc:pw');
+  const uid = testkit.createUser(db, uniq('perGym'), 'enc:pw');
   db.upsertUserGym(uid, DEFAULT_GYM, { gym_email: 'me@psycle.example' });
   db.upsertUserGym(uid, OTHER_GYM, { gym_email: 'me@jab.example' });
 
@@ -92,7 +93,7 @@ check('gym_email resolves per request-scoped gym, not per account', () => {
 
 check('a missing gym email reads as NULL — never as the account email', () => {
   const accountEmail = uniq('noFallback');
-  const uid = db.createUser(accountEmail, 'enc:pw');
+  const uid = testkit.createUser(db, accountEmail, 'enc:pw');
   db.upsertUserGym(uid, OTHER_GYM, { encrypted_password: 'enc:jab' }); // no gym_email
 
   const user = db.runWithGymContext(uid, OTHER_GYM, () => db.getUserById(uid));
@@ -103,7 +104,7 @@ check('a missing gym email reads as NULL — never as the account email', () => 
 });
 
 check('an unrelated link update does not clobber a stored gym email', () => {
-  const uid = db.createUser(uniq('preserve'), 'enc:pw');
+  const uid = testkit.createUser(db, uniq('preserve'), 'enc:pw');
   db.upsertUserGym(uid, DEFAULT_GYM, { gym_email: 'keep@me.example' });
   db.updateUserJWT(uid, 'new-token', new Date(Date.now() + 8.64e7).toISOString());
   assert.strictEqual(db.getUserGym(uid, DEFAULT_GYM).gym_email, 'keep@me.example',
@@ -114,7 +115,7 @@ check('an unrelated link update does not clobber a stored gym email', () => {
 
 check('a pre-D5 default-gym link backfills from the account email', () => {
   const accountEmail = uniq('backfill');
-  const uid = db.createUser(accountEmail, 'enc:pw');
+  const uid = testkit.createUser(db, accountEmail, 'enc:pw');
   // Simulate the pre-migration state: the column exists but was never populated.
   db.db.prepare('UPDATE user_gyms SET gym_email = NULL WHERE user_id = ?').run(uid);
 
@@ -129,7 +130,7 @@ check('a pre-D5 default-gym link backfills from the account email', () => {
 });
 
 check('a pre-D5 link to any OTHER gym is left NULL, not guessed', () => {
-  const uid = db.createUser(uniq('noGuess'), 'enc:pw');
+  const uid = testkit.createUser(db, uniq('noGuess'), 'enc:pw');
   db.upsertUserGym(uid, OTHER_GYM, { encrypted_password: 'enc:jab' });
   db.db.prepare('UPDATE user_gyms SET gym_email = NULL WHERE user_id = ?').run(uid);
 
@@ -146,7 +147,7 @@ check('a pre-D5 link to any OTHER gym is left NULL, not guessed', () => {
 // --- 4. exposure ------------------------------------------------------------
 
 check('getUserGymsPublic exposes gym_email and still withholds secrets', () => {
-  const uid = db.createUser(uniq('public'), 'enc:pw');
+  const uid = testkit.createUser(db, uniq('public'), 'enc:pw');
   db.upsertUserGym(uid, DEFAULT_GYM, { gym_email: 'shown@psycle.example' });
 
   const [row] = db.getUserGymsPublic(uid).filter((g) => g.gym_id === DEFAULT_GYM);

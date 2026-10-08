@@ -1,4 +1,4 @@
-// Sweat Assistant — C2-7 regression: CodexFit `/profile` envelope.
+// C2-7 regression: CodexFit `/profile` envelope.
 //
 // The live `GET /api/v1/customer/profile` wraps the profile in `{ data: {...} }`
 // (server/fixtures/codexfit-v2/PARITY.md G1, profile-v1-response.json). Before

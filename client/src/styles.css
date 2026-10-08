@@ -3541,7 +3541,7 @@ html, body {
 }
 
 #psycle-helper-container .psycle-table td.col-time strong {
-  font-size: 14px !important;
+  font-size: 15px !important;
   font-weight: 800 !important;
   color: var(--text) !important;
   white-space: nowrap !important;
@@ -9502,10 +9502,13 @@ html, body {
   .fr-rail::-webkit-scrollbar { display: none; }
 }
 .fr-rail > * { flex-shrink: 0; }
-.fr-trigger { width: 32px; height: 32px; border-radius: 50%; border: 1px solid var(--border-strong); background: color-mix(in srgb, var(--accent) 22%, var(--surface-2)); color: var(--text); display: inline-flex; align-items: center; justify-content: center; padding: 0; cursor: pointer; }
-.fr-chip { display: inline-flex; align-items: center; height: 32px; border-radius: 16px; border: 1px solid var(--border-strong); background: var(--surface-2); color: var(--text); }
+.fr-trigger { width: 32px; height: 32px; border-radius: 50%; border: 0; background: color-mix(in srgb, var(--accent) 22%, var(--surface-2)); color: var(--text); display: inline-flex; align-items: center; justify-content: center; padding: 0; cursor: pointer; }
+.fr-chip { display: inline-flex; align-items: center; height: 32px; border-radius: 16px; border: 0; background: color-mix(in srgb, #fff 14%, var(--surface-2)); color: var(--text); }
+:root[data-theme="light"] .fr-chip { background: color-mix(in srgb, #fff 70%, var(--surface-2)); }
+@media (prefers-color-scheme: light) { :root:not([data-theme]) .fr-chip { background: color-mix(in srgb, #fff 70%, var(--surface-2)); } }
 .fr-chip-body { display: inline-flex; align-items: center; gap: 3.5px; height: 100%; padding: 0 2px 0 6px; background: none; border: 0; color: inherit; font-size: 11px; cursor: pointer; }
 .fr-chip-body > svg:first-child { margin-right: 2px; }
+.fr-chip-main { display: inline-flex; align-items: center; min-width: 0; }
 .fr-chip-x { width: 20px; height: 100%; background: none; border: 0; color: var(--text-secondary); font-size: 11px; cursor: pointer; padding: 0; }
 .fr-tile-part { display: inline-flex; align-items: center; gap: 2.5px; }
 .fr-gym-dot { width: 18px; height: 18px; border-radius: 50%; color: #f9f6f5; font-size: 9px; font-weight: 700; display: inline-flex; align-items: center; justify-content: center; }
@@ -11307,7 +11310,7 @@ html.psycle-scroll-locked { overflow: hidden !important; background: var(--bg) !
   #sweat-filter-rail .fr-tile-full { max-width: 220px; opacity: 1; }
   #sweat-filter-rail .fr-tile-compact { max-width: 0; opacity: 0; font-size: 11px; font-weight: 500; }
   #psycle-app-container.psycle-tt-compact #sweat-filter-rail .fr-tile-full { max-width: 0; opacity: 0; }
-  #psycle-app-container.psycle-tt-compact #sweat-filter-rail .fr-tile-compact { max-width: 120px; opacity: 1; margin-left: 4px; }
+  #psycle-app-container.psycle-tt-compact #sweat-filter-rail .fr-tile-compact { max-width: 120px; opacity: 1; }
 }
 @media (max-width: 768px) and (prefers-reduced-motion: reduce) {
   #psycle-helper-container .psycle-sticky-top,
@@ -11337,7 +11340,7 @@ html:not([data-credits-tab="on"]) .psycle-nav-btn[data-tab="buy-credits"] { disp
    Sits last, with !important, because earlier rules set these sizes with !important. */
 @media (max-width: 768px) {
   #psycle-helper-container .psycle-mobile-lead { flex-basis: 48px; width: 48px; }
-  #psycle-helper-container .psycle-mobile-lead > strong,
+  #psycle-helper-container .psycle-table td .psycle-mobile-lead > strong,
   #psycle-helper-container .psycle-table td .psycle-mobile-top-line > strong { font-size: 18px !important; }
   #psycle-helper-container .psycle-mobile-line2 .psycle-mobile-class-name,
   #psycle-helper-container .psycle-mobile-line2 .psycle-mobile-instructor,
@@ -11382,7 +11385,7 @@ html:not([data-credits-tab="on"]) .psycle-nav-btn[data-tab="buy-credits"] { disp
 }
 
 /* ===== Filter bar order + grouped filter chips; compact gym stack ===== */
-#sweat-filter-rail .fr-filtergroup { display: inline-flex; align-items: center; gap: 6px; flex-shrink: 0; padding: 3px; border-radius: 22px; border: 1px solid var(--border-strong); background: color-mix(in srgb, var(--text) 5%, var(--surface-1, var(--surface-2))); }
+#sweat-filter-rail .fr-filtergroup { display: inline-flex; align-items: center; gap: 6px; flex-shrink: 0; padding: 3px; border-radius: 22px; border: 0; background: color-mix(in srgb, var(--text) 5%, var(--surface-1, var(--surface-2))); }
 :root[data-theme="light"] #sweat-filter-rail .fr-filtergroup { background: color-mix(in srgb, var(--text) 4%, var(--surface-2)); }
 @media (max-width: 768px) {
   #sweat-filter-rail .fr-gymquick { gap: 6px; }

@@ -84,18 +84,33 @@ function gymTileHtml(ctx) {
 
 // Mobile scroll-collapse: the whole gym/location tile folds into "N locations". N = locations picked, or
 // (gym-only picks) every location those gyms have. Returns '' when unknown, so the chip just doesn't collapse.
-export function compactLocationsLabel(state, locations = []) {
+function compactLocationsCount(state, locations = []) {
   const gymIds = state.gyms.map(String);
-  const n = state.locations.length
+  return state.locations.length
     ? new Set(state.locations.map(String)).size
     : locations.filter(l => gymIds.includes(String(l.gymId))).length;
+}
+export function compactLocationsLabel(state, locations = []) {
+  const n = compactLocationsCount(state, locations);
   return n ? formatCopyText(COPY.filters.locationsCompact, { count: n, plural: n === 1 ? '' : 's' }) : '';
+}
+
+// ONE renderer for every "N things" label in a rail chip (Types, Locations, Instructors): the count is always
+// bold (.fr-num), the word regular (.fr-thin), so no chip can drift from the others.
+function countLabelHtml(n, word) {
+  return `<b class="fr-num">${n}</b><span class="fr-thin">${escapeHtml(word)}</span>`;
+}
+
+// ONE wrapper for the icon + content of every rail chip (Locations, Types, Instructors): icon, then a single
+// .fr-chip-main span, so the icon-to-content gap is the chip body's own gap and never differs per section.
+function chipBodyHtml(iconHtml, contentHtml) {
+  return `${iconHtml}<span class="fr-chip-main">${contentHtml}</span>`;
 }
 
 function workoutLabel(s) {
   if (s.eventTypes.length === 1) return escapeHtml(s.eventTypes[0]);
   if (s.eventTypes.length === 2) return dotJoin(s.eventTypes);
-  return `<b class="fr-num">${s.eventTypes.length}</b><span class="fr-thin">${COPY.filters.types}</span>`;
+  return countLabelHtml(s.eventTypes.length, COPY.filters.types);
 }
 
 // Compact (scrolled) state stacks the gym logos; a tap on the stack spreads them until the page expands again.
@@ -162,25 +177,25 @@ export function renderFilterRail(ctx) {
     const compact = compactLocationsLabel(state, ctx.locations);
     // Both faces stay in the DOM; CSS cross-fades them while the page is scrolled down (psycle-tt-compact).
     const tile = compact
-      ? `<span class="fr-tile-full">${gymTileHtml(ctx)}</span><span class="fr-tile-compact" aria-hidden="true">${escapeHtml(compact)}</span>`
+      ? `<span class="fr-tile-full">${gymTileHtml(ctx)}</span><span class="fr-tile-compact" aria-hidden="true">${countLabelHtml(compactLocationsCount(state, ctx.locations), formatCopyText(COPY.filters.locationWord, { plural: compactLocationsCount(state, ctx.locations) === 1 ? '' : 's' }))}</span>`
       : gymTileHtml(ctx);
-    groupParts.push(chip(`${icon('pin', 13)}${tile}`, 'gyms', COPY.filters.clearFilterChip, compact ? 'has-compact' : ''));
+    groupParts.push(chip(chipBodyHtml(icon('pin', 13), tile), 'gyms', COPY.filters.clearFilterChip, compact ? 'has-compact' : ''));
   }
   if (state.eventTypes.length) {
     // One generic workout glyph (the same one JAB's TRAIN uses), not the first
     // pick's own icon, so the chip reads the same whatever is selected.
-    groupParts.push(chip(`${icon(getDiscipline('train').icon, 13)}<span>${workoutLabel(state)}</span>`, 'eventTypes', COPY.filters.workoutFilterChip));
+    groupParts.push(chip(chipBodyHtml(icon(getDiscipline('train').icon, 13), workoutLabel(state)), 'eventTypes', COPY.filters.workoutFilterChip));
   }
   if (state.instructors.length) {
     const first = ctx.instructors.find(i => String(i.id) === state.instructors[0]);
     const gymIds = (ctx.gyms || []).map(g => g.id);
     // Several gyms: same tile as the location chip, a count (or "All") per gym logo.
     const body = gymIds.length > 1
-      ? `${icon('user', 13)}` + summariseInstructorsByGym(state.instructors, gymIds).map(({ gymId, count }) =>
-          `<span class="fr-tile-part">${gymDot(gymId)}<span class="fr-initials">${count ? `<b class="fr-num">${count}</b>` : COPY.filters.all}</span></span>`).join('')
+      ? chipBodyHtml(icon('user', 13), summariseInstructorsByGym(state.instructors, gymIds).map(({ gymId, count }) =>
+          `<span class="fr-tile-part">${gymDot(gymId)}<span class="fr-initials">${count ? `<b class="fr-num">${count}</b>` : COPY.filters.all}</span></span>`).join(''))
       : state.instructors.length === 1
-      ? `${icon('user', 13)}<span>${escapeHtml(((first && first.name) || COPY.filters.instructorFallback).split(' ')[0])}</span>`
-      : `${icon('user', 13)}<span><b class="fr-num">${state.instructors.length}</b><span class="fr-thin">${COPY.filters.instructors}</span></span>`;
+      ? chipBodyHtml(icon('user', 13), escapeHtml(((first && first.name) || COPY.filters.instructorFallback).split(' ')[0]))
+      : chipBodyHtml(icon('user', 13), countLabelHtml(state.instructors.length, COPY.filters.instructors));
     groupParts.push(chip(body, 'instructors', COPY.filters.instructorFilterChip));
   }
   parts.push(`<span class="fr-filtergroup">${groupParts.join('')}</span>`);

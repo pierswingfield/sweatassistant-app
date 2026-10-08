@@ -660,7 +660,8 @@ function applyUrlTimetable(t) {
     overlayActive = false; overlayDropped = 0;
   } else {
     setFilterState(r.state);
-    overlayActive = !sameFilters(r.state, savedFilterState);
+    foldFullCoverageFilters();
+    overlayActive = !sameFilters(currentFilterState(), savedFilterState);
     overlayDropped = r.dropped.length;
   }
   selectedTimetableDate = r.day || null;   // render validates it against days that have classes
@@ -1802,6 +1803,18 @@ function eventLocationId(e) {
 // once, at load. Never runs again, so a user who ticks every chip on purpose
 // keeps their explicit picks.
 let storedFiltersNormalized = false;
+/** A pick that covers EVERY option is the same as no pick: fold it to empty. Applied to the saved set AND to
+ *  URL-supplied filters, so a link that spells out "everything" is not mistaken for a differing overlay. */
+function foldFullCoverageFilters() {
+  const coversAll = (picked, universe) => picked.length > 0 && universe.every(id => picked.includes(id));
+  const gyms = (getLinkedGyms() || []).map(g => String(g.gym_id || g.id));
+  if (coversAll(selectedGyms, gyms)) selectedGyms = [];
+  if (coversAll(selectedLocations, metadata.locations.map(l => String(l.id)))) selectedLocations = [];
+  if (coversAll(selectedInstructors, metadata.instructors.map(i => instructorToken(i.gymId, i.id)))) selectedInstructors = [];
+  const labels = [...new Set(metadata.eventTypes.filter(t => t.group).map(t => discLabel(t.group, t.gymId)))];
+  if (coversAll(selectedEventTypes, labels)) selectedEventTypes = [];
+}
+
 function normalizeStoredFilters() {
   if (storedFiltersNormalized || !metadata.locations.length) return;
   storedFiltersNormalized = true;
@@ -1814,13 +1827,7 @@ function normalizeStoredFilters() {
       if (raw) { const o = JSON.parse(raw); if (hasLegacyInstructors(o.instructors)) { o.instructors = migrateInstructorSelection(o.instructors, metadata.instructors, getDefaultGymId()); localStorage.setItem(k, JSON.stringify(o)); } }
     } catch { /* storage unavailable: in-memory migration still applies */ }
   }
-  const coversAll = (picked, universe) => picked.length > 0 && universe.every(id => picked.includes(id));
-  const gyms = (getLinkedGyms() || []).map(g => String(g.gym_id || g.id));
-  if (coversAll(selectedGyms, gyms)) selectedGyms = [];
-  if (coversAll(selectedLocations, metadata.locations.map(l => String(l.id)))) selectedLocations = [];
-  if (coversAll(selectedInstructors, metadata.instructors.map(i => instructorToken(i.gymId, i.id)))) selectedInstructors = [];
-  const labels = [...new Set(metadata.eventTypes.filter(t => t.group).map(t => discLabel(t.group, t.gymId)))];
-  if (coversAll(selectedEventTypes, labels)) selectedEventTypes = [];
+  foldFullCoverageFilters();
   savedFilterState = copyOf(currentFilterState());   // saved set, after the one-time fold
 }
 
@@ -2608,7 +2615,7 @@ function buildActionModel(event, ctx) {
   // "Book (choose a spot)" is the escape hatch when you don't want your
   // preferred spot this time. It only exists where there are spots to choose.
   return {
-    primary: { label: COPY.timetable.book, variant: 'success', title: COPY.timetable.quickBookTitle, run: (btn) => doQuickBook(event, btn) },
+    primary: { label: COPY.timetable.quickBookLabel, variant: 'success', title: COPY.timetable.quickBookTitle, run: (btn) => doQuickBook(event, btn) },
     // No ⚙ on the row: "Configure Quick-Book" is in the overflow menu, and two
     // affordances for one action spend 40px of every row to save one click on
     // a rare one. `config` is still set so the menu knows to offer it.
@@ -2866,7 +2873,6 @@ async function doLeaveWaitlist(waitlistId, btn, gymId = null) {
 
 // Unicode (non-emoji) glyph that prefixes certain action labels.
 function actionGlyph(label) {
-  if (label === 'Quick-Book' || label === 'Quick Book' || label === COPY.timetable.book) return '⚡︎';
   if (label === COPY.timetable.autoBook || label === COPY.timetable.autoBook.replace('-', ' ') || label === COPY.timetable.scheduled || label === COPY.timetable.scheduledShort) return sparklesIcon(16, 'currentColor');
   return '';
 }
@@ -3566,7 +3572,7 @@ async function quickBookClass(eventId, prefs, btn, gymId = null) {
   } finally {
     if (btn) {
       btn.disabled = false;
-      btn.innerHTML = COPY.timetable.book;
+      btn.textContent = COPY.timetable.quickBookLabel;
     }
   }
 }

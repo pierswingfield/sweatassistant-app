@@ -5,8 +5,8 @@
 # This REPLACES the old script, which rsynced to the retired Raspberry Pi
 # (/home/pi/psycleapp). Both environments now live on `oracle`:
 #
-#   dev twin  ~/services/psycleapp-dev/   sweat-dev.wingfield.tech   (default)
-#   prod      ~/services/psycleapp/       sweat.wingfield.tech
+#   dev twin  ~/services/sweatassistant-dev/   sweat-dev.wingfield.tech   (default)
+#   prod      ~/services/sweatassistant/       sweat.wingfield.tech
 #
 # The flow is what was done by hand: rsync the tree, then
 # `docker compose up -d --build` on the host. Nothing here writes .env or
@@ -40,10 +40,10 @@ for arg in "$@"; do
 done
 
 if [ "$TARGET" = prod ]; then
-  REMOTE_DIR='~/services/psycleapp'
+  REMOTE_DIR='~/services/sweatassistant'
   HEALTH_URL='https://sweat.wingfield.tech/api/health'
 else
-  REMOTE_DIR='~/services/psycleapp-dev'
+  REMOTE_DIR='~/services/sweatassistant-dev'
   HEALTH_URL='https://sweat-dev.wingfield.tech/api/health'
 fi
 
@@ -52,7 +52,7 @@ EXCLUDES=(--exclude .env --exclude '.env.*' --exclude data/ --exclude node_modul
           --exclude client/node_modules/ --exclude server/node_modules/
           --exclude client/dist/ --exclude server/public/ --exclude .git/
           --exclude .DS_Store --exclude '*.db' --exclude '*.db-shm' --exclude '*.db-wal')
-# This repo's docker-compose.yml is the DEV twin's (container psycle-app-dev,
+# This repo's docker-compose.yml is the DEV twin's (container sweatassistant-dev,
 # bound to the tailnet address). Never let it overwrite prod's own compose file.
 if [ "$TARGET" = prod ]; then EXCLUDES+=(--exclude docker-compose.yml); fi
 

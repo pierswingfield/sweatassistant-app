@@ -1,11 +1,11 @@
 version: '3.8'
 
 services:
-  psycle-app:
+  sweatassistant-dev:
     build:
       context: .
       dockerfile: Dockerfile
-    container_name: psycle-app-dev
+    container_name: sweatassistant-dev
     ports:
       - "100.86.226.52:3005:3000"
     volumes:

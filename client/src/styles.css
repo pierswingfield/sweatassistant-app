@@ -9653,15 +9653,15 @@ html:not([data-credits-tab="on"]) .app-nav-btn[data-tab="buy-credits"] { display
    3. The filter rail was 36px tall holding a 40px filter group, clipping the rounded corners; 44px gives
       the 2px of air each side that overflow-x:auto (which forces overflow-y clipping) needs. */
 @media (max-width: 768px) {
-  #psycle-helper-container .psycle-mobile-main.instr-below .psycle-mobile-bottom-line .psycle-mobile-location {
+  #app-helper-container .app-mobile-main.instr-below .app-mobile-bottom-line .app-mobile-location {
     flex: 0 1 auto !important; overflow: visible !important; text-overflow: clip !important; white-space: normal !important;
     max-width: 100%;
   }
-  #psycle-helper-container .psycle-mobile-main.instr-below .psycle-mobile-bottom-line .psycle-mobile-instructor {
+  #app-helper-container .app-mobile-main.instr-below .app-mobile-bottom-line .app-mobile-instructor {
     flex: 0 1 auto !important; min-width: 0; max-width: 100%;
   }
-  #psycle-helper-container .psycle-mobile-main.instr-below .psycle-mobile-bottom-line { flex-wrap: wrap !important; overflow: visible !important; row-gap: 0; }
-  #psycle-helper-container .psycle-sticky-top {
+  #app-helper-container .app-mobile-main.instr-below .app-mobile-bottom-line { flex-wrap: wrap !important; overflow: visible !important; row-gap: 0; }
+  #app-helper-container .app-sticky-top {
     box-shadow: 0 -2px 0 var(--bg), 0 1px 0 var(--border), var(--shadow-card) !important;
   }
   .fr-rail { height: 44px !important; max-height: 44px !important; }

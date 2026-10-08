@@ -149,6 +149,7 @@ warnings are pre-existing and unrelated to this change).
 | C7-6 | Migrate SQLite to Postgres. Not needed at current scale. | — | 2–3 days | P3 |
 | C7-7 | Proactive occupancy warming poller. **Re-evaluate after C2-5** (rebuilt 2026-10-06): the heartbeat `events` stamp does not track occupancy, so occupancy can lag up to 5 min and warming is NOT made unnecessary. | `schedule-cache.js` is reactive SWR only | — | P3 |
 | C7-8 | ✅ *pulled forward into launch 2026-09-28, done* Retire the stale `deploy.sh`, which still targets the Pi. The real deploy is rsync plus `docker compose up -d --build` on oracle. | Registry note | 15 min | P3 |
+| C7-9 | Rename the legacy psycle-named infra later, only if ever needed: Cloudflare Access apps `psycle` / `psycle-bypass`, the retired `psycle.wingfield.tech` ingress/DNS leftovers, the `edge` network and any remaining psycle-named docker objects or registry rows. Deliberately not done in the 2026-10-08 infra rename (user decision: Access apps are not renamed now). Runbook: `Documentation/Audits/default-gym-and-infra-plan.md`. | Audits/default-gym-and-infra-plan.md (decision 2) | 0.5 day | P3 |
 
 ## C7-8 — stale `deploy.sh` retired (pulled forward into launch 2026-09-28) — DONE
 

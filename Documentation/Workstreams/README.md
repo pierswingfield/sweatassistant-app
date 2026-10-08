@@ -39,7 +39,7 @@ dated STATUS line; open items are the only thing left to do.
 | [C4](C4-live-acceptance-and-launch.md) | Live acceptance, promote to prod, JAB launch (launched 2026-10-06) | P0 milestone, done | ~3 days of work over ~1–2 weeks elapsed |
 | [C5](C5-auto-book.md) | Auto-book gaps; C5-2 (Auto-Book Favourites build) is now unblocked by F-12 and is next | P2 (C5-2 P3) | ~2.5 days |
 | [C6](C6-accounts-auth.md) | Accounts and auth: C6-3 (legacy accounts) won't do; C6-1 (emailed reset link) and C6-2 (change email) open, not urgent with no real users yet | P2 | ~2–3 days |
-| [C7](C7-platform-ops.md) | Platform, ops and security hardening (C7-3 logging/audit/`/metrics` and C7-4 image proxy done; C7-5 per-user AES keys deprioritised, consider dropping: it covers stored gym passwords only and does not change admin visibility; C7-6 Postgres and C7-7 occupancy-warming poller open, P3) | P1 (pre-launch subset), P2–P3 (rest) | ~1 day pre-launch, then ~1 week |
+| [C7](C7-platform-ops.md) | Platform, ops and security hardening (C7-3 logging/audit/`/metrics` and C7-4 image proxy done; C7-5 per-user AES keys deprioritised, consider dropping: it covers stored gym passwords only and does not change admin visibility; C7-6 Postgres, C7-7 occupancy-warming poller and C7-9 later rename of legacy psycle-named Access apps/edge/docker names open, P3) | P1 (pre-launch subset), P2–P3 (rest) | ~1 day pre-launch, then ~1 week |
 | [C8](C8-admin-panel-and-insights.md) | Admin panel, fleet intelligence, attendance & ops; C8-1 (admin event ledger and booking lifecycle) is a confirmed real need and the first to do | P2 | ~1.5–2 weeks |
 | [C9](C9-gym-onboarding.md) | Gym onboarding: provider reuse, tenant evidence and activation gates | P1 | Ongoing playbook |
 | [C10](C10-aarmy-integration-acceptance.md) | Aarmy integration acceptance | P0 | Done per user 2026-10-06 (Aarmy enabled in prod; write paths waived, first real booking is the test) |
@@ -75,7 +75,7 @@ Launched 2026-10-06; the pre-launch sequence is history. Post-launch order:
 2. **C8-1 admin event ledger** (a confirmed real need), then the rest of C8.
 3. **C6-1 emailed reset link and C6-2 change email.** Not urgent while there are no real users.
 4. **U2-4 shared empty-state helper**, then **U3 CSS debt** (touches every screen), and **U4-10 more glass**.
-5. **C7-6 Postgres and C7-7 occupancy-warming poller** (P3); C7-5 per-user AES keys is deprioritised, consider dropping.
+5. **C7-6 Postgres, C7-7 occupancy-warming poller and C7-9 (rename legacy psycle-named Access apps/edge/docker names, only if ever needed)** (P3); C7-5 per-user AES keys is deprioritised, consider dropping.
 6. **F future features.** F-11 (class stats) is built inside the Home page workstream H, not separately.
 7. **H Home page.** Being built on `codex/home-screen`; merge to `master` when that agent finishes.
 

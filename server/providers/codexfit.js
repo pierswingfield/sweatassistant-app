@@ -261,6 +261,12 @@ class CodexFitProvider extends GymProvider {
         lastName: u.last_name,
         bookingCutoff: u.booking_cutoff,
         extendedCutoff: u.extended_cutoff,
+        stats: {
+          totalBookings: u.stats?.total_bookings,
+          totalUniqueBookings: u.stats?.total_unique_bookings,
+          totalUniqueBookingsAttended: u.stats?.total_unique_bookings_attended,
+          totalAttendedMinutes: u.stats?.total_attended_minutes,
+        },
         raw: u,
       }),
       raw: data,
@@ -353,6 +359,12 @@ class CodexFitProvider extends GymProvider {
       lastName: u.last_name,
       bookingCutoff: u.booking_cutoff,
       extendedCutoff: u.extended_cutoff,
+      stats: {
+        totalBookings: u.stats?.total_bookings,
+        totalUniqueBookings: u.stats?.total_unique_bookings,
+        totalUniqueBookingsAttended: u.stats?.total_unique_bookings_attended,
+        totalAttendedMinutes: u.stats?.total_attended_minutes,
+      },
       raw: u,
     });
   }

@@ -24,6 +24,7 @@ import {
 } from './grouped-cancellation.js';
 import { isExplainerDismissed, dismissExplainer, isKeepOriginalEnabled, keepOriginalForAutoCreate, keepOriginalInitial, summarizeSpotPrefs, currentSpotLabel } from './autoupgrade-setup.js';
 import { canSelectSelfSpot, countSelfBookingSlots, isCurrentModalRun } from './booking-entitlement.js';
+import { groupBookingsByEvent } from './upcoming.js';
 
 // Class starts within the free-cancel cutoff (12h). Edit is hidden inside this
 // window; Cancel stays available but warns about the penalty.
@@ -251,30 +252,32 @@ function renderBookingsCards(bookings, upgrades) {
   const container = document.getElementById('psycle-bookings-list');
   if (!container) return;
 
-  const groups = new Map();
-  bookings.forEach(b => {
-    const event = b.event || null;
-    const startAt = event?.startAt || event?.start_at;
-    if (!event || !startAt) return;
-    const key = String(event.id || b.eventId || b.event_id);
-    if (!groups.has(key)) groups.set(key, { eventId: key, event, bookings: [] });
-    groups.get(key).bookings.push(b);
-  });
+  const groups = groupBookingsByEvent(bookings);
 
-  bookedCount = groups.size;
-  if (groups.size === 0) {
+  bookedCount = groups.length;
+  if (groups.length === 0) {
     container.innerHTML = `<div class="fav-empty-state" style="padding:30px 0;">${COPY.bookings.noBookings}</div>`;
     updateWaitlistAffordances();
     return;
   }
 
-  const sorted = [...groups.values()].sort((a, b) => new Date(a.event.startAt || a.event.start_at) - new Date(b.event.startAt || b.event.start_at));
   container.innerHTML = '';
-  sorted.forEach(group => container.appendChild(buildBookingCard(group, upgrades)));
+  groups.forEach(group => container.appendChild(buildBookingCard(group, upgrades)));
   equalizeDiscTagWidths(container);
   observeLocationWrap(container);
   wireRailToggle(container);
   updateWaitlistAffordances();
+}
+
+/**
+ * H-4: the Home widget reuses the Bookings card. Mounts one group's card into
+ * `container` and runs the same post-render wiring renderBookingsCards does.
+ */
+export function mountBookingCard(container, group, upgrades = []) {
+  container.appendChild(buildBookingCard(group, upgrades));
+  equalizeDiscTagWidths(container);
+  observeLocationWrap(container);
+  wireRailToggle(container);
 }
 
 function buildBookingCard(group, upgrades) {

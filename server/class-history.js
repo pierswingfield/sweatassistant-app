@@ -116,6 +116,32 @@ function topInstructors(userId, gymId, { days = 30, statuses = COUNTED_STATUSES,
   }));
 }
 
+/**
+ * Gym-scoped, history-derived activity summary. A provider booking can have
+ * multiple spots, so every aggregate groups by the normalized event id first.
+ * This is a booking summary: no universal per-row attendance signal exists.
+ */
+function summary(userId, gymId, { statuses = COUNTED_STATUSES } = {}) {
+  const row = db.db.prepare(`
+    SELECT COUNT(*) AS class_count,
+           COALESCE(SUM(duration_min), 0) AS total_minutes,
+           COUNT(DISTINCT instructor_id) AS instructor_count
+    FROM (
+      SELECT COALESCE(NULLIF(event_id, ''), booking_id) AS class_key,
+             MAX(duration_min) AS duration_min,
+             MAX(instructor_id) AS instructor_id
+      FROM class_history
+      WHERE user_id = ? AND gym_id = ? AND status IN (${statuses.map(() => '?').join(',')})
+      GROUP BY COALESCE(NULLIF(event_id, ''), booking_id)
+    )
+  `).get(userId, gymId, ...statuses);
+  return {
+    classCount: Number(row?.class_count) || 0,
+    totalMinutes: Number(row?.total_minutes) || 0,
+    instructorCount: Number(row?.instructor_count) || 0,
+  };
+}
+
 function getSyncState(userId, gymId) {
   const r = db.db.prepare('SELECT * FROM class_history_sync WHERE user_id = ? AND gym_id = ?').get(userId, gymId);
   if (!r) return null;
@@ -222,6 +248,6 @@ async function syncStale({ maxAgeMs = DEFAULT_MAX_AGE_MS } = {}) {
 }
 
 module.exports = {
-  COUNTED_STATUSES, upsertEntries, listHistory, topInstructors, getSyncState,
+  COUNTED_STATUSES, upsertEntries, listHistory, topInstructors, summary, getSyncState,
   syncUserGym, ensureHistory, syncStale,
 };

@@ -1,6 +1,6 @@
 // Tiny widget framework for the Home page (F-10-1).
 //
-//   registerWidget({ id, title, order, load(ctx), render(el, data, ctx), isVisible?(ctx), isEmpty?(data, ctx), emptyText? })
+//   registerWidget({ id, title, order, load(ctx), render(el, data, ctx), isVisible?(ctx), isEmpty?(data, ctx), emptyText?, renderEmpty?(el, data, ctx) })
 //
 // Every widget loads, renders and fails independently: one rejection never reaches
 // a sibling. Pure registry + a small DOM mounter with loading / empty / error(retry).
@@ -53,7 +53,12 @@ export async function mountWidget(el, widget, ctx, { skeleton = () => '', copy =
     const b = body();
     if (widget.isEmpty && widget.isEmpty(data, ctx)) {
       el.dataset.widgetState = 'empty';
-      b.innerHTML = `<p class="home-widget-empty">${esc(widget.emptyText || copy.empty || '')}</p>`;
+      if (typeof widget.renderEmpty === 'function') {
+        b.innerHTML = '';
+        widget.renderEmpty(b, data, ctx);
+      } else {
+        b.innerHTML = `<p class="home-widget-empty">${esc(widget.emptyText || copy.empty || '')}</p>`;
+      }
       return;
     }
     el.dataset.widgetState = 'ready';

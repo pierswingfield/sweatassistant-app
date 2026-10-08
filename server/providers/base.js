@@ -237,6 +237,7 @@
  * @property {string=} lastName
  * @property {string=} bookingCutoff     ISO (CodexFit) — release-window detection input.
  * @property {string=} extendedCutoff    ISO (CodexFit)
+ * @property {{totalBookings?: number, totalUniqueBookings?: number, totalUniqueBookingsAttended?: number, totalAttendedMinutes?: number}=} stats
  * @property {*=}      raw
  */
 

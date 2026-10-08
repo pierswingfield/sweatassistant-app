@@ -59,6 +59,7 @@ check('getProfile unwraps the live { data: {...} } envelope', async () => {
   assert.strictEqual(profile.extendedCutoff, '2026-10-06T00:00:00', 'extended_cutoff unwrapped');
   assert.ok(profile.raw && profile.raw.id === 52155, 'raw is the unwrapped profile object, not the envelope');
   assert.ok(Array.isArray(profile.raw.available_credits), 'raw.available_credits reachable (client reads profile.raw.X)');
+  assert.strictEqual(profile.stats.totalAttendedMinutes, 42075, 'provider stats are exposed as normalized profile fields');
 });
 
 check('getEligibility reads real credits through the envelope (live: 2 credits, canBook true)', async () => {

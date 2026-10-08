@@ -37,6 +37,15 @@ describe('mountWidget states', () => {
     expect(el.dataset.widgetState).toBe('empty');
     expect(el.textContent).toContain('nothing');
   });
+  it('lets an empty widget render its own non-data CTA', async () => {
+    const el = document.createElement('section');
+    await mountWidget(el, w('a', 1, {
+      isEmpty: () => true,
+      renderEmpty(body) { body.innerHTML = '<button>View all</button>'; },
+    }), {});
+    expect(el.dataset.widgetState).toBe('empty');
+    expect(el.querySelector('button')?.textContent).toBe('View all');
+  });
   it('shows an error and retries only that widget', async () => {
     const el = document.createElement('section');
     let n = 0;

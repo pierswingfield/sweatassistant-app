@@ -736,6 +736,9 @@ router.get('/history', authenticateToken, readLimiter, async (req, res) => {
       sync: classHistory.getSyncState(req.userId, gymId),
       history: classHistory.listHistory(req.userId, gymId, { sinceDate, limit }),
       topInstructors: top ? classHistory.topInstructors(req.userId, gymId, { days, limit: top }) : [],
+      // All-time normalized-history activity. This remains a booking summary;
+      // official attendance belongs to the capability-gated route below.
+      summary: classHistory.summary(req.userId, gymId),
     });
   } catch (err) {
     handleError(res, err);

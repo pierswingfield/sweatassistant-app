@@ -1,6 +1,6 @@
 // Mobile booking-shell chrome (spotmap-booking-flow-spec, Batch 1).
 //
-// Three additions to `#psycle-booking-modal` on mobile only, shared by every flow that reuses the
+// Three additions to `#app-booking-modal` on mobile only, shared by every flow that reuses the
 // shell (timetable book / Quick-Book / Auto-Book, Auto-Book edit, My Bookings edit-spots,
 // Auto-Upgrade configure):
 //   1. an identity strip under the header (gym logo, gym, location, studio);
@@ -15,7 +15,7 @@ import { instructorAvatar } from './tooltips.js';
 import { formatInZone, zoneFor } from '../lib.js';
 import { getLinkedGyms } from '../gym-context.js';
 
-const HELPER_KEY = (id) => `psycleHelperDismissed:${id}`;
+const HELPER_KEY = (id) => `appHelperDismissed:${id}`;
 
 export function helperDismissed(id) {
   try { return localStorage.getItem(HELPER_KEY(id)) === '1'; } catch (_) { return false; }
@@ -26,23 +26,23 @@ function dismissHelper(id) {
 /** Static task title + identity strip. Call after the flow's own title assignments. */
 export function applyBookingChrome(modal, { titleText, gymId, locationName, studioName, stepper = null }) {
   if (!isMobile() || !modal) return;
-  const title = modal.querySelector('.psycle-modal-header h4');
+  const title = modal.querySelector('.app-modal-header h4');
   if (title && titleText) title.textContent = titleText;
-  const card = modal.querySelector('.psycle-modal-card');
-  const header = card?.querySelector('.psycle-modal-header');
+  const card = modal.querySelector('.app-modal-card');
+  const header = card?.querySelector('.app-modal-header');
   if (!card || !header) return;
-  let strip = card.querySelector(':scope > .psycle-bk-identity');
+  let strip = card.querySelector(':scope > .app-bk-identity');
   if (!strip) {
     strip = document.createElement('div');
-    strip.className = 'psycle-bk-identity';
+    strip.className = 'app-bk-identity';
     header.insertAdjacentElement('afterend', strip);
   }
   const brand = gymBrand(gymId);
   const loc = trimLocation(locationName || '', brand.name);
   const studio = studioName ? displayStudioName(gymId, studioName) : '';
   const where = [loc, studio].filter(Boolean).join(' · ');
-  strip.innerHTML = `${gymSquareChip(gymId)}<div class="psycle-bk-identity-text"><strong></strong><span></span></div>`;
-  const txt = strip.querySelector('.psycle-bk-identity-text');
+  strip.innerHTML = `${gymSquareChip(gymId)}<div class="app-bk-identity-text"><strong></strong><span></span></div>`;
+  const txt = strip.querySelector('.app-bk-identity-text');
   txt.querySelector('strong').textContent = brand.name;
   txt.querySelector('span').textContent = where;
   upsertStepper(card, strip, stepper);
@@ -51,11 +51,11 @@ export function applyBookingChrome(modal, { titleText, gymId, locationName, stud
 
 /** Two-step progress cue (spec section 8): only while a flow includes Step A. 'A' | 'A2' | 'B' | null (remove). */
 function upsertStepper(card, strip, which) {
-  let st = card.querySelector(':scope > .psycle-stepper');
+  let st = card.querySelector(':scope > .app-stepper');
   if (!which) { st?.remove(); return; }
   if (!st) {
     st = document.createElement('ol');
-    st.className = 'psycle-stepper';
+    st.className = 'app-stepper';
     strip.insertAdjacentElement('afterend', st);
   }
   const s1 = which === 'A' ? 'current' : 'complete';
@@ -68,31 +68,31 @@ function upsertStepper(card, strip, which) {
 function classCardEl({ className, instructorName, instructorPhoto, startAt, zone, spotsLeft, gymId, releaseAt }) {
   const when = startAt ? formatInZone(startAt, zone) : null;
   const el = document.createElement('div');
-  el.className = 'psycle-bk-classcard';
+  el.className = 'app-bk-classcard';
   el.setAttribute('role', 'group');
   el.setAttribute('aria-label', COPY.bookingFlow.thisClass);
   const avatar = instructorName ? instructorAvatar(instructorName, gymId, instructorPhoto || null) : '';
   el.innerHTML = `
-    <div class="psycle-bk-classcard-label"></div>
-    <div class="psycle-bk-classcard-main">
+    <div class="app-bk-classcard-label"></div>
+    <div class="app-bk-classcard-main">
       ${avatar}
-      <div class="psycle-bk-classcard-text">
-        <strong class="psycle-bk-class-name"></strong>
-        <span class="psycle-bk-class-instructor"></span>
-        <span class="psycle-bk-class-when"></span>
-        <span class="psycle-bk-class-release" hidden></span>
+      <div class="app-bk-classcard-text">
+        <strong class="app-bk-class-name"></strong>
+        <span class="app-bk-class-instructor"></span>
+        <span class="app-bk-class-when"></span>
+        <span class="app-bk-class-release" hidden></span>
       </div>
     </div>`;
-  el.querySelector('.psycle-bk-classcard-label').textContent = COPY.bookingFlow.thisClass;
-  el.querySelector('.psycle-bk-class-name').textContent = className || '';
-  const ins = el.querySelector('.psycle-bk-class-instructor');
+  el.querySelector('.app-bk-classcard-label').textContent = COPY.bookingFlow.thisClass;
+  el.querySelector('.app-bk-class-name').textContent = className || '';
+  const ins = el.querySelector('.app-bk-class-instructor');
   if (instructorName) ins.textContent = formatCopyText(COPY.bookingFlow.withInstructor, { instructor: instructorName }); else ins.remove();
-  const w = el.querySelector('.psycle-bk-class-when');
+  const w = el.querySelector('.app-bk-class-when');
   if (when && when.time) {
     const left = Number.isFinite(spotsLeft) ? ` · ${formatCopyText(spotsLeft === 1 ? COPY.bookingFlow.spotLeft : COPY.bookingFlow.spotsLeft, { count: spotsLeft })}` : '';
     w.textContent = `${when.date}, ${when.timeLabel}${left}`;
   } else w.remove();
-  const rel = el.querySelector('.psycle-bk-class-release');
+  const rel = el.querySelector('.app-bk-class-release');
   if (releaseAt) { rel.dataset.releaseAt = releaseAt; rel.hidden = false; paintRelease(rel); startTicker(); } else rel.remove();
   return el;
 }
@@ -109,7 +109,7 @@ function paintRelease(n) {
   n.textContent = ms > 0 ? formatCopyText(COPY.bookingFlow.opensIn, { countdown: fmtCountdown(ms) }) : COPY.bookingFlow.bookingOpen;
 }
 function tickReleases() {
-  const nodes = document.querySelectorAll('.psycle-bk-class-release[data-release-at]');
+  const nodes = document.querySelectorAll('.app-bk-class-release[data-release-at]');
   nodes.forEach(paintRelease);
   if (!nodes.length && ticker) { clearInterval(ticker); ticker = null; }
 }
@@ -119,13 +119,13 @@ function startTicker() { if (!ticker) ticker = setInterval(tickReleases, 30000);
 export function bannerEl(id, text, actionText, onAction) {
   if (!isMobile() || helperDismissed(id)) return null;
   const el = document.createElement('div');
-  el.className = 'psycle-bk-helper psycle-bk-banner';
-  el.innerHTML = '<p></p><button type="button" class="psycle-btn psycle-bk-banner-action"></button><button type="button" class="psycle-bk-helper-x"></button>';
+  el.className = 'app-bk-helper app-bk-banner';
+  el.innerHTML = '<p></p><button type="button" class="app-btn app-bk-banner-action"></button><button type="button" class="app-bk-helper-x"></button>';
   el.querySelector('p').textContent = text;
-  const act = el.querySelector('.psycle-bk-banner-action');
+  const act = el.querySelector('.app-bk-banner-action');
   act.textContent = actionText;
   act.onclick = onAction;
-  const x = el.querySelector('.psycle-bk-helper-x');
+  const x = el.querySelector('.app-bk-helper-x');
   x.textContent = '×';
   x.setAttribute('aria-label', COPY.bookingFlow.dismissTip);
   x.onclick = () => { dismissHelper(id); el.remove(); };
@@ -141,11 +141,11 @@ function guardState(gymId) {
   return null;
 }
 function applyGuards(modal, gymId) {
-  if (!modal.classList.contains('psycle-page')) return;
-  const card = modal.querySelector('.psycle-modal-card');
+  if (!modal.classList.contains('app-page')) return;
+  const card = modal.querySelector('.app-modal-card');
   if (!card) return;
   const g = guardState(gymId);
-  let n = card.querySelector(':scope > .psycle-bk-notice');
+  let n = card.querySelector(':scope > .app-bk-notice');
   if (!g) {
     n?.remove();
     modal.querySelectorAll('[data-bk-guard]').forEach((b) => { b.disabled = false; b.removeAttribute('data-bk-guard'); });
@@ -155,7 +155,7 @@ function applyGuards(modal, gymId) {
   if (!n || n.dataset.key !== key) {
     n?.remove();
     n = document.createElement('div');
-    n.className = 'psycle-bk-notice';
+    n.className = 'app-bk-notice';
     n.dataset.key = key;
     n.setAttribute('role', 'status');
     const t = document.createElement('span');
@@ -163,7 +163,7 @@ function applyGuards(modal, gymId) {
     n.appendChild(t);
     if (g.kind === 'relogin') {
       const b = document.createElement('button');
-      b.type = 'button'; b.className = 'psycle-btn psycle-bk-notice-action'; b.textContent = COPY.bookingFlow.reconnectAction;
+      b.type = 'button'; b.className = 'app-btn app-bk-notice-action'; b.textContent = COPY.bookingFlow.reconnectAction;
       b.onclick = async () => {
         history.back();
         const s = await import('./settings.js');
@@ -172,7 +172,7 @@ function applyGuards(modal, gymId) {
       };
       n.appendChild(b);
     }
-    const anchor = card.querySelector(':scope > .psycle-stepper') || card.querySelector(':scope > .psycle-bk-identity') || card.querySelector(':scope > .psycle-modal-header');
+    const anchor = card.querySelector(':scope > .app-stepper') || card.querySelector(':scope > .app-bk-identity') || card.querySelector(':scope > .app-modal-header');
     anchor.insertAdjacentElement('afterend', n);
   }
   modal.querySelectorAll(PRIMARY).forEach((b) => { if (!b.disabled) { b.disabled = true; b.setAttribute('data-bk-guard', '1'); } });
@@ -188,8 +188,8 @@ export function watchBookingGuards(modal, gymId) {
     new MutationObserver(() => modal.__bkGuardRun?.()).observe(modal, { childList: true, subtree: true });
     window.addEventListener('online', () => modal.__bkGuardRun?.());
     window.addEventListener('offline', () => modal.__bkGuardRun?.());
-    window.addEventListener('psycle:gyms-changed', () => modal.__bkGuardRun?.());
-    window.addEventListener('psycle-gym-needs-relogin', () => modal.__bkGuardRun?.());
+    window.addEventListener('app:gyms-changed', () => modal.__bkGuardRun?.());
+    window.addEventListener('app-gym-needs-relogin', () => modal.__bkGuardRun?.());
   }
   run();
 }
@@ -197,8 +197,8 @@ export function watchBookingGuards(modal, gymId) {
 function helperEl(id, text) {
   if (!text || helperDismissed(id)) return null;
   const el = document.createElement('div');
-  el.className = 'psycle-bk-helper';
-  el.innerHTML = '<p></p><button type="button" class="psycle-bk-helper-x"></button>';
+  el.className = 'app-bk-helper';
+  el.innerHTML = '<p></p><button type="button" class="app-bk-helper-x"></button>';
   el.querySelector('p').textContent = text;
   const x = el.querySelector('button');
   x.textContent = '×';
@@ -226,7 +226,7 @@ export function bookingContextEl(info, { helperId, helperText, helperOnly = fals
 export function mountBookingContext(body, anchor, info, opts) {
   const frag = bookingContextEl(info, opts);
   if (!frag || !body) return;
-  body.querySelectorAll(':scope .psycle-bk-helper, :scope .psycle-bk-classcard').forEach((n) => n.remove());
+  body.querySelectorAll(':scope .app-bk-helper, :scope .app-bk-classcard').forEach((n) => n.remove());
   if (anchor && anchor.parentNode) anchor.parentNode.insertBefore(frag, anchor);
   else body.prepend(frag);
 }

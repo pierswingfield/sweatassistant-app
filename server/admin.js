@@ -402,7 +402,7 @@ router.post('/users/:id/link-gym', authenticateAdmin, (req, res) => {
 //
 // Self-service recovery does not exist: the gym-login mechanism was removed
 // (Decision D5, it re-coupled the account to the gym) and no replacement has
-// been chosen yet, so without this a forgotten Sweat Assistant password means a
+// been chosen yet, so without this a forgotten the app password means a
 // permanently unreachable account. See Documentation/Workstreams/C6-accounts-auth.md (C6-1).
 //
 // The admin does NOT choose the password. The server generates a strong

@@ -1,4 +1,4 @@
-// Sweat Assistant — competing-booking detection (C5-3).
+// competing-booking detection (C5-3).
 //
 // PURE and gym-agnostic: no db, no provider, no gym ids compared to literals.
 // It answers "does this auto-book fight something else the SAME member has?":

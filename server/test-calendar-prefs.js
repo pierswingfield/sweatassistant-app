@@ -53,7 +53,7 @@ const row = (status, id, gym = PSY) => ({
 const rows = [row('confirmed', 1), row('waitlist', 2), row('autobook', 3), row('confirmed', 4, JAB)];
 const vevents = (ics) => ics.split('BEGIN:VEVENT').slice(1).map((b) => b.split('END:VEVENT')[0]);
 const alarmsOf = (v) => (v.match(/TRIGGER:[^\r\n]+/g) || []);
-const byUid = (evs, id) => evs.find((v) => v.includes(`psycle-7-${id}@`));
+const byUid = (evs, id) => evs.find((v) => v.includes(`app-7-${id}@`));
 
 let ics = calendar.serializeCalendar(7, rows, {}, { twoHour: true, cancelWindow: true }, []);
 let evs = vevents(ics);
@@ -83,7 +83,7 @@ for (const v of winEvs) {
   assert.deepStrictEqual(alarmsOf(v), ['TRIGGER:-PT15M'], 'window event: 15 minute reminder only');
   assert.ok(/SUMMARY:Psycle booking window opens/.test(v), 'gym name from gyms.config');
 }
-assert.ok(winEvs[0].includes('UID:psycle-7-bw-psycle-london-20990309@'));
+assert.ok(winEvs[0].includes('UID:app-7-bw-psycle-london-20990309@'));
 assert.ok(winEvs[0].includes('DTSTART;TZID=Europe/London:20990309T120000'));
 // Stable UIDs across regenerations (and when the clock moves within the same week).
 const uids = (i) => vevents(i).map((v) => v.match(/UID:[^\r\n]+/)[0]);

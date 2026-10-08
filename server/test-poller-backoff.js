@@ -19,13 +19,13 @@ process.env.NODE_ENV = 'test';
 
 const assert = require('assert');
 const db = require('./db');
+const testkit = require('./testkit');
 const scheduler = require('./scheduler');
 const poller = require('./poller');
 const notifications = require('./notifications');
 const backoff = require('./rate-limit-backoff');
 const CodexFitProvider = require('./providers/codexfit');
 const MarianaTekProvider = require('./providers/marianatek');
-const { DEFAULT_GYM_ID } = require('./gyms.config');
 
 const PSYCLE = 'psycle-london';
 const JAB = 'jab-boxing';
@@ -36,11 +36,7 @@ const check = (name, fn) => checks.push({ name, fn });
 
 let seq = 0;
 function singleGymUser(gymId, label) {
-  const uid = db.createUser(`pbackoff-${label}-${Date.now()}-${seq++}@test.local`, 'enc:pw');
-  if (gymId !== DEFAULT_GYM_ID) {
-    db.db.prepare('DELETE FROM user_gyms WHERE user_id = ? AND gym_id = ?').run(uid, DEFAULT_GYM_ID);
-    db.upsertUserGym(uid, gymId, { gym_email: `${label}@test.local`, encrypted_password: 'enc:pw' });
-  }
+  const uid = testkit.createUser(db, `pbackoff-${label}-${Date.now()}-${seq++}@test.local`, 'enc:pw', gymId);
   db.setGymSession(uid, gymId, { accessToken: `fake-jwt-${uid}`, expiresAt: null });
   return uid;
 }

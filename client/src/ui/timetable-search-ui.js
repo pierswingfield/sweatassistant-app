@@ -13,20 +13,20 @@ import { escapeHtml, icon } from './cards.js';
 import { suggest } from './timetable-search.js';
 import { getSearchQuery, setSearchQuery, clearSearch, onSearchChange } from './timetable-search-state.js';
 
-const ID = 'sweat-search';
+const ID = 'app-search';
 let hooks = null;       // { getIndex, isLoading, applyPick }
 let items = [];         // flat, selectable options currently shown
 let active = -1;
 let unsub = null;
 
 const el = () => document.getElementById(ID);
-const input = () => el()?.querySelector('.sweat-search-input');
-const list = () => el()?.querySelector('.sweat-search-list');
+const input = () => el()?.querySelector('.app-search-input');
+const list = () => el()?.querySelector('.app-search-list');
 
 function isOpen() { return el()?.classList.contains('open'); }
 
 function setHostState(open) {
-  document.getElementById('psycle-timetable-filters-container')?.classList.toggle('sweat-searching', !!open);
+  document.getElementById('app-timetable-filters-container')?.classList.toggle('app-searching', !!open);
 }
 
 export function openSearch() {
@@ -47,7 +47,7 @@ function collapse(refocus = false) {
   // Desktop keeps the box in the row; mobile folds back to the rail icon.
   root.classList.remove('open');
   setHostState(false);
-  if (refocus) document.getElementById('sweat-filter-rail')?.querySelector('[data-fr-search]')?.focus?.();   // keyboard users only
+  if (refocus) document.getElementById('app-filter-rail')?.querySelector('[data-fr-search]')?.focus?.();   // keyboard users only
 }
 
 function closeList() {
@@ -78,13 +78,13 @@ function paintList() {
   items = [{ type: 'text', label: text }];
   let html = '';
   let n = 0;
-  const opt = (it, body) => `<div class="sweat-search-opt" role="option" id="sweat-sg-${n}" data-i="${n++}" aria-selected="false">${body}</div>`;
+  const opt = (it, body) => `<div class="app-search-opt" role="option" id="app-sg-${n}" data-i="${n++}" aria-selected="false">${body}</div>`;
   html += opt(items[0], `<span class="ss-ico">${icon('search', 14)}</span><span class="ss-label">${escapeHtml(formatCopyText(COPY.search.searchFor, { text }))}</span>`);
   if (hooks.isLoading()) {
-    html += `<div class="sweat-search-note" role="status">${COPY.search.loading}</div>`;
+    html += `<div class="app-search-note" role="status">${COPY.search.loading}</div>`;
   } else {
     for (const g of suggest(hooks.getIndex(), text)) {
-      html += `<div role="group" aria-label="${escapeHtml(groupLabel(g.type))}"><div class="sweat-search-head" aria-hidden="true">${escapeHtml(groupLabel(g.type))}</div>`;
+      html += `<div role="group" aria-label="${escapeHtml(groupLabel(g.type))}"><div class="app-search-head" aria-hidden="true">${escapeHtml(groupLabel(g.type))}</div>`;
       for (const it of g.items) {
         items.push(it);
         html += opt(it, `<span class="ss-label">${escapeHtml(it.label)}${it.sub ? ` <span class="ss-sub">${escapeHtml(it.sub)}</span>` : ''}</span>`
@@ -123,14 +123,14 @@ const matchMobile = () => window.matchMedia('(max-width: 768px)').matches;
 function build() {
   const root = document.createElement('div');
   root.id = ID;
-  root.className = 'sweat-search';
-  root.innerHTML = `<div class="sweat-search-box">`
+  root.className = 'app-search';
+  root.innerHTML = `<div class="app-search-box">`
     + `<span class="ss-glass" aria-hidden="true">${icon('search', 16)}</span>`
-    + `<input class="sweat-search-input" type="text" role="combobox" aria-autocomplete="list" aria-expanded="false" aria-controls="sweat-search-list" autocomplete="off" autocapitalize="off" spellcheck="false" enterkeyhint="search" placeholder="${escapeHtml(COPY.search.placeholder)}" aria-label="${escapeHtml(COPY.search.label)}">`
-    + `<button type="button" class="sweat-search-x" aria-label="${escapeHtml(COPY.search.clearInput)}" hidden>&#x2715;</button>`
-    + `</div><div class="sweat-search-list" id="sweat-search-list" role="listbox" aria-label="${escapeHtml(COPY.search.suggestionsAria)}" hidden></div>`;
+    + `<input class="app-search-input" type="text" role="combobox" aria-autocomplete="list" aria-expanded="false" aria-controls="app-search-list" autocomplete="off" autocapitalize="off" spellcheck="false" enterkeyhint="search" placeholder="${escapeHtml(COPY.search.placeholder)}" aria-label="${escapeHtml(COPY.search.label)}">`
+    + `<button type="button" class="app-search-x" aria-label="${escapeHtml(COPY.search.clearInput)}" hidden>&#x2715;</button>`
+    + `</div><div class="app-search-list" id="app-search-list" role="listbox" aria-label="${escapeHtml(COPY.search.suggestionsAria)}" hidden></div>`;
   const inp = root.querySelector('input');
-  const x = root.querySelector('.sweat-search-x');
+  const x = root.querySelector('.app-search-x');
   const sync = () => { x.hidden = !inp.value; };
 
   inp.addEventListener('input', () => { sync(); paintList(); });
@@ -161,7 +161,7 @@ function build() {
     if (getSearchQuery()) clearSearch();
     inp.focus();
   });
-  const l = root.querySelector('.sweat-search-list');
+  const l = root.querySelector('.app-search-list');
   l.addEventListener('mousedown', (e) => e.preventDefault());   // keep input focus
   l.addEventListener('click', (e) => {
     const o = e.target.closest('[role=option]');
@@ -178,12 +178,12 @@ function build() {
  */
 export function ensureSearchUi(h) {
   hooks = h;
-  const host = document.getElementById('psycle-timetable-filters-container');
+  const host = document.getElementById('app-timetable-filters-container');
   if (!host) return;
   let root = el();
   if (!root) root = build();
   const mobile = matchMobile();
-  const row = host.querySelector('.psycle-filters-row');
+  const row = host.querySelector('.app-filters-row');
   const wantParent = mobile || !row ? host : row;
   if (root.parentElement !== wantParent) {
     if (wantParent === host) host.appendChild(root); else row.prepend(root);

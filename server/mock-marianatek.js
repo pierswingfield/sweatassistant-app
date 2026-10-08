@@ -1,4 +1,4 @@
-// Sweat Assistant — dev-mode mock MarianaTek API (JAB Boxing). Mirrors
+// dev-mode mock MarianaTek API (JAB Boxing). Mirrors
 // server/mock.js's role for CodexFit: lets a developer exercise the full
 // success path (browse -> book -> cancel -> waitlist) with no live network
 // calls and no real credits, using the `dev@jabboxing.mock` account.

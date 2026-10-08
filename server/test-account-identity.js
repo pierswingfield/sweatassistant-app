@@ -1,13 +1,12 @@
-// Sweat Assistant account identity + gym linking (WP-C2 slice 1b, Decision D4).
+// The app account identity + gym linking (WP-C2 slice 1b, Decision D4).
 //
-// Until D4, a Sweat Assistant login WAS a gym login: `users.email` plus the gym's
+// Until D4, an app login WAS a gym login: `users.email` plus the gym's
 // password, re-verified against CodexFit on every sign-in. That meant the account
 // only existed as long as the membership did — cancel Psycle and you lose JAB too.
 //
-// The riskiest part of changing this is not the new behaviour, it's the MIGRATION:
-// every existing account has `password_hash` NULL and must keep working, then gain
-// an SA password silently on its next login with no prompt and no reset. That is
-// what most of this file is about.
+// The legacy "log in with your gym password, get migrated" path is GONE (the
+// database was recreated, so nothing needs migrating): an account exists only via
+// signup, logs in with its own password, and links gyms explicitly.
 //
 // The gym provider is stubbed — these tests must never touch a real CodexFit or
 // MarianaTek server (AGENT_INSTRUCTIONS.md Golden Rule 8).
@@ -40,6 +39,7 @@ const fakeProvider = {
 providers.getProvider = () => fakeProvider;
 
 const db = require('./db');
+const testkit = require('./testkit');
 const auth = require('./auth');
 
 db.db.prepare("UPDATE gyms SET enabled = 1 WHERE id = 'jab-boxing'").run();
@@ -48,70 +48,66 @@ const checks = [];
 const check = (name, fn) => checks.push({ name, fn });
 const uniq = (p) => `${p}-${Date.now()}-${Math.floor(process.hrtime()[1] / 1000)}@test.local`;
 
-// --- 1. the migration path ---------------------------------------------------
+// --- 1. the app login: its own credential, no gym fallback, no implicit accounts --
 
-check('a legacy account (no SA password) still logs in via the gym, and is migrated silently', async () => {
-  const email = uniq('legacy');
-  // Simulate a pre-D4 account: exists, gym-linked, no password_hash.
-  const uid = db.createUser(email, 'encrypted-blob');
-  assert.strictEqual(db.hasAccountPassword(uid), false, 'precondition: legacy shape');
+const APP_PASSWORD = 'my-app-password-1';
 
+check('an account with no app password cannot log in, and the gym is never asked', async () => {
+  const email = uniq('nopw');
+  const uid = testkit.createUser(db, email, 'encrypted-blob');   // gym-linked, no password_hash
+  assert.strictEqual(db.hasAccountPassword(uid), false, 'precondition');
   const before = providerLoginCalls;
-  const result = await auth.handleLogin(email, GYM_PASSWORD);
-  assert.ok(result.token, 'login succeeds');
-  assert.strictEqual(providerLoginCalls, before + 1, 'it went to the gym, as a legacy account must');
-  assert.strictEqual(db.hasAccountPassword(uid), true,
-    'and the account now has its own password, seeded from the one just proven — no prompt, no reset');
+  await assert.rejects(() => auth.handleLogin(email, GYM_PASSWORD), /invalid email or password/i);
+  assert.strictEqual(providerLoginCalls, before, 'no gym-login fallback');
+  assert.strictEqual(db.hasAccountPassword(uid), false, 'and a failed login never seeds a password');
 });
 
-check('after migration the SAME password logs in WITHOUT touching the gym', async () => {
-  const email = uniq('migrated');
-  const uid = db.createUser(email, 'encrypted-blob');
-  await auth.handleLogin(email, GYM_PASSWORD);          // migrates
+check('an unknown email is rejected, creates nothing, and never reaches a gym', async () => {
+  const email = uniq('ghost');
   const before = providerLoginCalls;
-  const result = await auth.handleLogin(email, GYM_PASSWORD);
+  await assert.rejects(() => auth.handleLogin(email, GYM_PASSWORD), /invalid email or password/i);
+  assert.strictEqual(providerLoginCalls, before, 'the old bootstrap sent new emails to a default gym');
+  assert.strictEqual(db.getUserByEmail(email), undefined, 'signup is the only way an account is created');
+});
+
+check('an app login authenticates locally, WITHOUT touching the gym', async () => {
+  const email = uniq('local');
+  await auth.handleSignup(email, APP_PASSWORD);
+  const before = providerLoginCalls;
+  const result = await auth.handleLogin(email, APP_PASSWORD);
   assert.ok(result.token);
   assert.strictEqual(providerLoginCalls, before,
     'no gym round-trip — login stays up even when the gym API is down or the membership lapsed');
-  assert.ok(uid);
 });
 
 check('a wrong password is rejected and does NOT fall back to the gym', async () => {
   const email = uniq('wrongpw');
-  db.createUser(email, 'encrypted-blob');
-  await auth.handleLogin(email, GYM_PASSWORD);          // migrate first
-  const before = providerLoginCalls;
-  await assert.rejects(() => auth.handleLogin(email, 'not-the-password'), /invalid email or password/i);
-  assert.strictEqual(providerLoginCalls, before,
-    'falling back to gym auth here would let a stale gym password bypass a changed SA password');
-});
-
-check('changing the SA password stops the old gym password working as a way in', async () => {
-  const email = uniq('changed');
-  const uid = db.createUser(email, 'encrypted-blob');
-  await auth.handleLogin(email, GYM_PASSWORD);
-  db.setAccountPassword(uid, 'my-new-sweat-password');
-
-  await assert.rejects(() => auth.handleLogin(email, GYM_PASSWORD),
-    /invalid email or password/i, 'the old gym password must stop working, or the change was decorative');
-  const ok = await auth.handleLogin(email, 'my-new-sweat-password');
-  assert.ok(ok.token, 'and the new one works');
-});
-
-check('a legacy account whose gym password is rejected still cannot log in', async () => {
-  const email = uniq('badgym');
-  db.createUser(email, 'encrypted-blob');
-  await assert.rejects(() => auth.handleLogin(email, 'wrong-gym-password'));
+  const { token } = await auth.handleSignup(email, APP_PASSWORD);
+  assert.ok(token);
   const uid = db.getUserByEmail(email).id;
-  assert.strictEqual(db.hasAccountPassword(uid), false,
-    'a failed login must never seed an SA password');
+  await auth.linkGymAccount(uid, 'jab-boxing', 'jab@test.local', GYM_PASSWORD);
+  const before = providerLoginCalls;
+  await assert.rejects(() => auth.handleLogin(email, GYM_PASSWORD), /invalid email or password/i);
+  assert.strictEqual(providerLoginCalls, before,
+    'falling back to gym auth would let a gym password act as the app password');
+});
+
+check('changing the app password stops the old one working', async () => {
+  const email = uniq('changed');
+  await auth.handleSignup(email, APP_PASSWORD);
+  const uid = db.getUserByEmail(email).id;
+  db.setAccountPassword(uid, 'my-new-app-password');
+  await assert.rejects(() => auth.handleLogin(email, APP_PASSWORD),
+    /invalid email or password/i, 'the old password must stop working, or the change was decorative');
+  const ok = await auth.handleLogin(email, 'my-new-app-password');
+  assert.ok(ok.token, 'and the new one works');
 });
 
 // --- 2. linking a second gym -------------------------------------------------
 
 check('linkGymAccount stores credentials only after the provider accepts them', async () => {
   const email = uniq('link');
-  const uid = db.createUser(email, 'encrypted-blob');
+  const uid = testkit.createUser(db, email, 'encrypted-blob');
   await auth.linkGymAccount(uid, 'jab-boxing', 'jab@test.local', GYM_PASSWORD);
 
   assert.strictEqual(db.isGymLinked(uid, 'jab-boxing'), true);
@@ -123,7 +119,7 @@ check('linkGymAccount stores credentials only after the provider accepts them', 
 
 check('a rejected credential does not overwrite a working link', async () => {
   const email = uniq('noclobber');
-  const uid = db.createUser(email, 'encrypted-blob');
+  const uid = testkit.createUser(db, email, 'encrypted-blob');
   await auth.linkGymAccount(uid, 'jab-boxing', 'jab@test.local', GYM_PASSWORD);
   const good = db.getUserGym(uid, 'jab-boxing').encrypted_password;
 
@@ -134,7 +130,7 @@ check('a rejected credential does not overwrite a working link', async () => {
 
 check('re-authenticating preserves priority tier and calendar token', async () => {
   const email = uniq('reauth');
-  const uid = db.createUser(email, 'encrypted-blob');
+  const uid = testkit.createUser(db, email, 'encrypted-blob');
   await auth.linkGymAccount(uid, 'jab-boxing', 'jab@test.local', GYM_PASSWORD);
   db.upsertUserGym(uid, 'jab-boxing', { priority: 10, calendar_token: `tok-${Date.now()}` });
   const beforeLink = db.getUserGym(uid, 'jab-boxing');
@@ -146,7 +142,7 @@ check('re-authenticating preserves priority tier and calendar token', async () =
 });
 
 check('linking refuses an unknown or not-yet-enabled gym', async () => {
-  const uid = db.createUser(uniq('gated'), 'encrypted-blob');
+  const uid = testkit.createUser(db, uniq('gated'), 'encrypted-blob');
   await assert.rejects(() => auth.linkGymAccount(uid, 'no-such-gym', 'a@b.c', GYM_PASSWORD), /Unknown gym/i);
   db.db.prepare("UPDATE gyms SET enabled = 0 WHERE id = 'jab-boxing'").run();
   try {
@@ -158,12 +154,12 @@ check('linking refuses an unknown or not-yet-enabled gym', async () => {
 
 check('two gyms can be linked; each resolves via request context, not a stored choice', async () => {
   const email = uniq('twogyms');
-  const uid = db.createUser(email, 'encrypted-blob');
+  const uid = testkit.createUser(db, email, 'encrypted-blob');
   await auth.linkGymAccount(uid, 'jab-boxing', 'jab@test.local', GYM_PASSWORD);
 
   const gyms = db.getUserGymsPublic(uid).map((g) => g.gym_id).sort();
   assert.deepStrictEqual(gyms, ['jab-boxing', 'psycle-london']);
-  assert.strictEqual(db.resolveActiveGymId(uid), 'psycle-london', 'default wins with no per-request gym named');
+  assert.strictEqual(db.resolveActiveGymId(uid), 'psycle-london', 'the earliest link wins with no per-request gym named');
   // No more setActiveGym/persisted choice (removed 2026-09-15, stage 4 of the
   // active-gym audit) — a real request names its gym via the `x-gym-id`
   // header, which `runWithGymContext` stands in for here.
@@ -176,15 +172,16 @@ check('two gyms can be linked; each resolves via request context, not a stored c
 
 check('unlinking Psycle leaves a working JAB-only account (the D4 scenario, end to end)', async () => {
   const email = uniq('cancelled');
-  const uid = db.createUser(email, 'encrypted-blob');
-  await auth.handleLogin(email, GYM_PASSWORD);                       // migrate: SA password seeded
+  await auth.handleSignup(email, APP_PASSWORD);
+  const uid = db.getUserByEmail(email).id;
+  await auth.linkGymAccount(uid, 'psycle-london', 'psy@test.local', GYM_PASSWORD);
   await auth.linkGymAccount(uid, 'jab-boxing', 'jab@test.local', GYM_PASSWORD);
 
   auth.unlinkGymAccount(uid, 'psycle-london');                       // membership cancelled
 
   assert.deepStrictEqual(db.getUserGymsPublic(uid).map((g) => g.gym_id), ['jab-boxing']);
   assert.strictEqual(db.resolveActiveGymId(uid), 'jab-boxing', 'resolution follows to the surviving gym');
-  const login = await auth.handleLogin(email, GYM_PASSWORD);
+  const login = await auth.handleLogin(email, APP_PASSWORD);
   assert.ok(login.token, 'and the account still logs in with its own password');
 });
 
@@ -244,7 +241,7 @@ check('the gym-login recovery surface is gone, not merely unrouted', () => {
 
 check('resetGymCredentials clears every credential but keeps the links', async () => {
   const email = uniq('reset-all');
-  const uid = db.createUser(email, 'encrypted-blob');
+  const uid = testkit.createUser(db, email, 'encrypted-blob');
   await auth.linkGymAccount(uid, 'psycle-london', 'gym@test.local', GYM_PASSWORD);
   await auth.linkGymAccount(uid, 'jab-boxing', 'jab@test.local', GYM_PASSWORD);
   db.upsertUserGym(uid, 'jab-boxing', { ...db.getUserGym(uid, 'jab-boxing'), priority: 10 });

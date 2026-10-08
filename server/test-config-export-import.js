@@ -45,10 +45,11 @@ async function run() {
   if ((await gyms()).includes('jab-boxing')) await req('DELETE', '/api/my-gyms/jab-boxing', t);
   assert.deepStrictEqual(await gyms(), ['psycle-london'], 'fixture: single gym');
 
-  // ---- single gym: an OLD flat export still imports, gym keys go to the sole gym
+  // ---- single gym: a new-format export imports, the gym block goes to its gym
   let r = await req('POST', '/api/config/import', t, {
-    version: '1.1.0',
-    psycleSettings: { theme: 'dark', detectedBookingOffset: 17, prefetchWeeks: 3 },
+    version: '2.0.0',
+    accountSettings: { theme: 'dark', prefetchWeeks: 3 },
+    gymSettings: [{ gymId: 'psycle-london', settings: { detectedBookingOffset: 17 } }],
   });
   assert.strictEqual(r.status, 200, JSON.stringify(r.body));
   assert.deepStrictEqual(r.body.skipped || [], [], 'nothing skipped on a single gym');
@@ -88,14 +89,13 @@ async function run() {
   assert.strictEqual(after['jab-boxing'].detectedBookingOffset, 6);
   assert.strictEqual((await req('GET', '/api/config/export', t)).body.accountSettings.theme, 'light');
 
-  // ---- OLD flat export on two gyms: account keys applied, gym keys skipped with a clear message, no 500
+  // ---- the retired flat format is simply ignored: no 500, nothing written
   r = await req('POST', '/api/config/import', t, { psycleSettings: { theme: 'dark', detectedBookingOffset: 99 } });
-  assert.strictEqual(r.status, 200, `old flat blob on 2 gyms: ${r.status} ${JSON.stringify(r.body)}`);
-  assert.ok(r.body.skipped.length >= 1 && /detectedBookingOffset/.test(r.body.skipped.join(' ')), JSON.stringify(r.body.skipped));
+  assert.strictEqual(r.status, 200, `retired flat blob: ${r.status} ${JSON.stringify(r.body)}`);
   const after2 = await req('GET', '/api/config/export', t);
-  assert.strictEqual(after2.body.accountSettings.theme, 'dark', 'account keys still applied');
+  assert.strictEqual(after2.body.accountSettings.theme, 'light', 'retired blob changed nothing');
   assert.strictEqual(Object.fromEntries(after2.body.gymSettings.map((g) => [g.gymId, g.settings]))['psycle-london'].detectedBookingOffset, 5, 'gym key NOT written anywhere');
-  console.log('✅ Config export/import is per-gym; old flat exports import safely.');
+  console.log('✅ Config export/import is per-gym; the retired flat format is ignored.');
 }
 
 (async () => {

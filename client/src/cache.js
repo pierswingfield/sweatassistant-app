@@ -1,12 +1,12 @@
 // IndexedDB-based read-through cache for API GET responses
-// Uses the same 'psycle-cache' DB as timetable.js but version 2, adding an 'api-responses' store.
+// Uses the same 'app-cache' DB as timetable.js but version 2, adding an 'api-responses' store.
 // Raw IndexedDB (no idb library) — matches pattern in timetable.js.
 //
 // Exports a shared openDB() that creates BOTH stores at version 2.
 // timetable.js should import openDB() instead of its own openCacheDB to
 // avoid version-conflict blocking. Uses per-user key prefixes for isolation.
 
-const DB_NAME = 'psycle-cache';
+const DB_NAME = 'app-cache';
 const DB_VERSION = 3;
 const STORE = 'api-responses';
 const SNAPSHOT_STORE = 'offline-snapshots';
@@ -15,7 +15,7 @@ const SNAPSHOT_STORE = 'offline-snapshots';
 // Set via setCacheKeyPrefix() after login (e.g. to currentUser.id).
 //
 // There is NO gym segment (C3-24). WP-G once derived one from a localStorage key,
-// `sweatActiveGymId`, written by the old gym switcher; the switcher is gone and
+// `appActiveGymId`, written by the old gym switcher; the switcher is gone and
 // api.js removes that key on load, so the segment was always empty and
 // `gymScopedKey()` returned the bare key — dead code that read as isolation.
 // Gym isolation now lives where it is real: gym-specific responses carry the gym
@@ -46,6 +46,7 @@ function cacheKey(endpoint) {
 }
 
 // --- Database ---
+
 
 /**
  * Open (or create) the shared IndexedDB database at version 2.
@@ -286,7 +287,7 @@ export async function getCachedSWR(endpoint, options = {}) {
 /**
  * Background refresh helper for SWR strategy.
  * Fires a network request and updates cache on success.
- * Dispatches 'psycle-data-refreshed' event with { endpoint, data } on success.
+ * Dispatches 'app-data-refreshed' event with { endpoint, data } on success.
  * Silently ignores failures.
  */
 async function performBackgroundFetch(endpoint, doFetch, ttlMs) {
@@ -299,7 +300,7 @@ async function performBackgroundFetch(endpoint, doFetch, ttlMs) {
     } catch (writeErr) {
       console.warn(`[Cache] Background write failed for ${endpoint}:`, writeErr);
     }
-    window.dispatchEvent(new CustomEvent('psycle-data-refreshed', {
+    window.dispatchEvent(new CustomEvent('app-data-refreshed', {
       detail: { endpoint, data }
     }));
   } catch (err) {
@@ -371,7 +372,7 @@ export async function invalidateApiCache(pattern) {
       req.onsuccess = () => {
         const cursor = req.result;
         if (cursor) {
-          const key = cursor.key; // e.g. "user123@psycle-london:/api/auto-book"
+          const key = cursor.key; // e.g. "user123@gym-a:/api/auto-book"
           // Only delete entries for the current user AND gym
           const prefix = cacheKeyPrefix();
           const prefixStr = prefix ? prefix + ':' : '';

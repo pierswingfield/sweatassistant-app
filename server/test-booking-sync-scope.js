@@ -9,6 +9,7 @@ process.env.DB_PATH = process.env.DB_PATH || ':memory:';
 const assert = require('assert');
 const db = require('./db');
 
+const testkit = require('./testkit');
 const checks = [];
 const check = (name, fn) => checks.push({ name, fn });
 
@@ -19,7 +20,7 @@ db.db.prepare('UPDATE gyms SET enabled = 1 WHERE id = ?').run(GYM_B);
 
 check('sync with gymIds clears only those gyms', () => {
   // Create a test user linked to both gyms
-  const userId = db.createUser('sync-test-a@test.local', 'password');
+  const userId = testkit.createUser(db, 'sync-test-a@test.local', 'password');
   db.upsertUserGym(userId, GYM_B, { gym_email: 'b@test.local', encrypted_password: 'enc:b' });
 
   // Seed booking caches for both gyms
@@ -68,7 +69,7 @@ check('sync with gymIds clears only those gyms', () => {
 
 check('sync without gymIds falls back to payload gyms', () => {
   // Create a test user linked to both gyms
-  const userId = db.createUser('sync-test-b@test.local', 'password');
+  const userId = testkit.createUser(db, 'sync-test-b@test.local', 'password');
   db.upsertUserGym(userId, GYM_B, { gym_email: 'b@test.local', encrypted_password: 'enc:b' });
 
   // Seed booking caches for both gyms
@@ -109,7 +110,7 @@ check('sync without gymIds falls back to payload gyms', () => {
 
 check('sync with unlinked gym in gymIds ignores it', () => {
   // Create a test user linked to gym A only
-  const userId = db.createUser('sync-test-c@test.local', 'password');
+  const userId = testkit.createUser(db, 'sync-test-c@test.local', 'password');
 
   // Seed booking cache for gym A
   db.db.prepare(`

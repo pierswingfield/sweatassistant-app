@@ -1,8 +1,8 @@
-// Sweat Assistant — MarianaTek adapter integration suite (WP-T2, mock-backed).
+// MarianaTek adapter integration suite (WP-T2, mock-backed).
 //
 // The MT adapter (WP-M1–M5) was built and live/mock-verified during development,
 // but had NO committed, re-runnable regression test — unlike CodexFit, which has
-// test-regression-psycle.js. This is that missing safety net: it drives the FULL
+// test-regression-codexfit-mock.js. This is that missing safety net: it drives the FULL
 // success path of every M1–M5 method through the adapter → mock-marianatek.js,
 // chained realistically (book → availability decrements → cancel → availability
 // restores → waitlist join/leave → spot swap), and asserts the normalized shapes.

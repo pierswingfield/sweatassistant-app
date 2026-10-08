@@ -59,7 +59,7 @@ describe('safeReturnTo', () => {
     expect(takeReturnTo()).toBeNull();
   });
   it('a tampered stored value is re-validated on read', () => {
-    sessionStorage.setItem('sweatReturnTo', '//evil.com');
+    sessionStorage.setItem('appReturnTo', '//evil.com');
     expect(takeReturnTo()).toBeNull();
   });
 });

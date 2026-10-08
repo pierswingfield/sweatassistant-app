@@ -6,6 +6,7 @@ process.env.DB_PATH = process.env.DB_PATH || ':memory:';
 
 const assert = require('assert');
 const db = require('./db');
+const testkit = require('./testkit');
 const { cancelReservationGroup } = require('./routes-normalized');
 
 const GYM = 'jab-boxing';
@@ -13,7 +14,7 @@ let sequence = 0;
 const checks = [];
 const check = (name, fn) => checks.push({ name, fn });
 const user = () => {
-  const id = db.createUser(`guest-group-${Date.now()}-${sequence++}@test.local`, 'enc');
+  const id = testkit.createUser(db, `guest-group-${Date.now()}-${sequence++}@test.local`, 'enc');
   db.upsertUserGym(id, GYM, { gym_email: `guest-${sequence}@test.local`, encrypted_password: 'enc' });
   return id;
 };

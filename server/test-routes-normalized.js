@@ -1,4 +1,4 @@
-// Sweat Assistant — routes-normalized.js 401-relogin ladder regression test.
+// routes-normalized.js 401-relogin ladder regression test.
 //
 // WP-N1's routes-normalized.js originally had NO 401 auto-relogin retry (a
 // documented gap in its own header comment) — a session that went stale mid-
@@ -38,6 +38,7 @@ const tmpDb = path.join(os.tmpdir(), `routes-normalized-test-${process.pid}.db`)
 process.env.DB_PATH = tmpDb;
 
 const db = require('./db');
+const testkit = require('./testkit');
 const { encrypt } = require('./crypto');
 const { getProvider } = require('./providers');
 const { withRelogin } = require('./routes-normalized');
@@ -55,7 +56,7 @@ function cleanup() {
   console.log('\n🧪 routes-normalized.js 401-relogin ladder regression\n');
   try {
     // A real encrypted password — triggerAutoRelogin decrypt()s this for real.
-    const userId = db.createUser('dev@psycle.com', encrypt('dev-password'));
+    const userId = testkit.createUser(db, 'dev@psycle.com', encrypt('dev-password'));
     db.updateUserJWT(userId, 'stale-mock-jwt-token', new Date(Date.now() + 864e5).toISOString());
 
     const originalLogin = codexfit.login;

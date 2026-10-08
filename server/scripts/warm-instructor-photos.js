@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 // Warm the F-15 instructor photo cache for every enabled gym, through the same
-// pipeline the route uses. Optional `--gym <id>` limits it to one gym. Run: docker exec psycle-app-dev node server/scripts/warm-instructor-photos.js
+// pipeline the route uses. Optional `--gym <id>` limits it to one gym. Run: docker exec sweatassistant-dev node server/scripts/warm-instructor-photos.js
 const { listEnabledGyms } = require('../gyms.config');
 const { getProvider } = require('../providers');
 const { makeMetadata } = require('../providers/normalize');

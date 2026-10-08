@@ -1,4 +1,4 @@
-// Sweat Assistant — shared per-gym provider rate-limit backoff (C2-3, C2-3b).
+// shared per-gym provider rate-limit backoff (C2-3, C2-3b).
 //
 // ONE state, used by every background actor that talks to a gym: the
 // auto-book scheduler and the poller (auto-upgrade attempts, resume checks,

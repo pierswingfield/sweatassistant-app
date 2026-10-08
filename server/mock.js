@@ -49,7 +49,7 @@ function makeLayoutObjects() {
   return [{ id: 900, name: 'Podium', x: 450, y: 20 }];
 }
 
-// Studios 138/139 KEEP their layout and their ids: test-regression-psycle.js
+// Studios 138/139 KEEP their layout and their ids: test-regression-codexfit-mock.js
 // pins studio 138's floor plan, and event 1000 below must resolve to it.
 // 140/141 deliberately have NO layout — real CodexFit has studios without one
 // (Reformer rooms), and "no floor map available" needs to stay exercisable.
@@ -749,7 +749,7 @@ function handleMockRequest(pathName, method, body) {
     // merged-timetable ordering bug — all of which have shipped before.
     //
     // ID SCHEME: day 0's first class is id 1000 in Ride Studio 138, because
-    // test-regression-psycle.js pins exactly that event and that floor plan.
+    // test-regression-codexfit-mock.js pins exactly that event and that floor plan.
     // Ids stay stable per (day, slot) so a queued auto-book survives a reload.
     const classes = [];
     const now = new Date();

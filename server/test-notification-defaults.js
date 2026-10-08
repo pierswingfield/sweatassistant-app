@@ -13,6 +13,7 @@ process.env.DB_PATH = ':memory:';
 
 const assert = require('assert');
 const db = require('./db');
+const testkit = require('./testkit');
 const notifications = require('./notifications');
 const { getGymConfig } = require('./gyms.config');
 const { isRollingWeekly } = require('./providers/booking-window');
@@ -25,7 +26,7 @@ const check = (name, fn) => checks.push({ name, fn });
 
 let seq = 0;
 function twoGymUser() {
-  const uid = db.createUser(`notif-${++seq}@test.local`, 'x');
+  const uid = testkit.createUser(db, `notif-${++seq}@test.local`, 'x');
   db.upsertUserGym(uid, PSYCLE, { gym_email: 'a@test.local' });
   db.upsertUserGym(uid, JAB, { gym_email: 'b@test.local' });
   return uid;

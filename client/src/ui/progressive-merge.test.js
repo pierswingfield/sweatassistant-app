@@ -81,10 +81,10 @@ describe('progressive merge (U4-7)', () => {
 describe('gym load state (U4-2)', () => {
   it('counts overlapping loads per gym and marks chips', () => {
     resetGymLoadState();
-    document.body.innerHTML = '<button class="psycle-header-gym-badge" data-gym="jab"></button><button class="psycle-header-gym-badge" data-gym="psycle-london"></button>';
+    document.body.innerHTML = '<button class="app-header-gym-badge" data-gym="jab"></button><button class="app-header-gym-badge" data-gym="psycle-london"></button>';
     beginGymLoad('jab'); beginGymLoad('jab');
     applyGymLoadState(document);
-    const [jab, psy] = document.querySelectorAll('.psycle-header-gym-badge');
+    const [jab, psy] = document.querySelectorAll('.app-header-gym-badge');
     expect(jab.classList.contains('is-loading')).toBe(true);
     expect(jab.getAttribute('aria-busy')).toBe('true');
     expect(psy.classList.contains('is-loading')).toBe(false);

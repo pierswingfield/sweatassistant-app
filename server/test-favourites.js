@@ -62,7 +62,7 @@ check('validateSlot accepts only well-formed slots and trims labels', () => {
 check('favourites are gym-scoped, unique per slot, and cleared on unlink', () => {
   const db = require('./db');
   db.db.prepare('UPDATE gyms SET enabled = 1 WHERE id = ?').run('jab-boxing');
-  const uid = db.createUser(`fav-${Date.now()}@test.local`, 'enc:pw');
+  const uid = require('./testkit').createUser(db, `fav-${Date.now()}@test.local`, 'enc:pw');
   db.upsertUserGym(uid, 'jab-boxing', { gym_email: 'b@test.local', encrypted_password: 'enc:b' });
   const slot = { studioId: '138', dayOfWeek: 1, startTime: '1930', className: 'Ride' };
 

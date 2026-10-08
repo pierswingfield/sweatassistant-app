@@ -51,12 +51,12 @@ function bookingsDataReady() {
 }
 
 export async function renderBookings() {
-  const bookingsList = document.getElementById('psycle-bookings-list');
-  const waitlistsList = document.getElementById('psycle-waitlists-list');
+  const bookingsList = document.getElementById('app-bookings-list');
+  const waitlistsList = document.getElementById('app-waitlists-list');
 
   // Show refreshing indicators
-  const bookingsRefreshing = document.getElementById('psycle-bookings-refreshing');
-  const waitlistsRefreshing = document.getElementById('psycle-waitlists-refreshing');
+  const bookingsRefreshing = document.getElementById('app-bookings-refreshing');
+  const waitlistsRefreshing = document.getElementById('app-waitlists-refreshing');
   if (bookingsRefreshing) bookingsRefreshing.style.display = '';
   if (waitlistsRefreshing) waitlistsRefreshing.style.display = '';
 
@@ -130,14 +130,14 @@ export async function renderBookings() {
 
     // Show a friendly empty state when offline and no cached data is available
     if (bookingsList && !bookingsDataReady()) {
-      bookingsList.innerHTML = `<div class="psycle-empty-state" style="text-align:center;padding:40px 20px;color:var(--text-secondary)"><p style="font-size:16px;margin-bottom:8px">${COPY.bookings.noCachedData}</p><p style="font-size:13px;color:var(--text-tertiary)">${COPY.bookings.connectInternetBookings}</p></div>`;
+      bookingsList.innerHTML = `<div class="app-empty-state" style="text-align:center;padding:40px 20px;color:var(--text-secondary)"><p style="font-size:16px;margin-bottom:8px">${COPY.bookings.noCachedData}</p><p style="font-size:13px;color:var(--text-tertiary)">${COPY.bookings.connectInternetBookings}</p></div>`;
     } else if (bookingsList) {
-      bookingsList.innerHTML = `<div class="psycle-card-error">${formatCopyText(COPY.bookings.noCachedError, { error: escapeHtml(err.message) })}</div>`;
+      bookingsList.innerHTML = `<div class="app-card-error">${formatCopyText(COPY.bookings.noCachedError, { error: escapeHtml(err.message) })}</div>`;
     }
     if (waitlistsList && !bookingsDataReady()) {
-      waitlistsList.innerHTML = `<div class="psycle-empty-state" style="text-align:center;padding:40px 20px;color:var(--text-secondary)"><p style="font-size:16px;margin-bottom:8px">${COPY.bookings.noCachedData}</p><p style="font-size:13px;color:var(--text-tertiary)">${COPY.bookings.connectInternetWaitlists}</p></div>`;
+      waitlistsList.innerHTML = `<div class="app-empty-state" style="text-align:center;padding:40px 20px;color:var(--text-secondary)"><p style="font-size:16px;margin-bottom:8px">${COPY.bookings.noCachedData}</p><p style="font-size:13px;color:var(--text-tertiary)">${COPY.bookings.connectInternetWaitlists}</p></div>`;
     } else if (waitlistsList) {
-      waitlistsList.innerHTML = `<div class="psycle-card-error">${formatCopyText(COPY.bookings.noCachedError, { error: escapeHtml(err.message) })}</div>`;
+      waitlistsList.innerHTML = `<div class="app-card-error">${formatCopyText(COPY.bookings.noCachedError, { error: escapeHtml(err.message) })}</div>`;
     }
 
     if (bookingsRefreshing) bookingsRefreshing.style.display = 'none';
@@ -190,7 +190,7 @@ export function syncBookingCache(bookings) {
 // shown only while the waitlist section is off-screen.
 // F-3: the share drawer is loaded on first use (it pulls in the filter drawer's shell).
 document.addEventListener('click', (e) => {
-  if (!e.target.closest('#psycle-bookings-share-btn')) return;
+  if (!e.target.closest('#app-bookings-share-btn')) return;
   import('./share-sheet.js').then((m) => m.openShareSheet()).catch((err) => console.error('[Bookings] Share failed:', err));
 });
 
@@ -205,10 +205,10 @@ function setJumpVisible(jump, visible) {
   jump.setAttribute('aria-hidden', String(!visible));
 }
 function updateWaitlistAffordances() {
-  const jump = document.getElementById('psycle-waitlist-jump');
-  const target = document.getElementById('psycle-waitlists-header');
+  const jump = document.getElementById('app-waitlist-jump');
+  const target = document.getElementById('app-waitlists-header');
   if (waitlistObserver) { waitlistObserver.disconnect(); waitlistObserver = null; }
-  [['psycle-bookings-count', bookedCount], ['psycle-waitlists-count', waitlistCount]].forEach(([id, n]) => {
+  [['app-bookings-count', bookedCount], ['app-waitlists-count', waitlistCount]].forEach(([id, n]) => {
     const el = document.getElementById(id);
     if (!el) return;
     el.hidden = n === 0;
@@ -249,7 +249,7 @@ function updateWaitlistAffordances() {
 }
 
 function renderBookingsCards(bookings, upgrades) {
-  const container = document.getElementById('psycle-bookings-list');
+  const container = document.getElementById('app-bookings-list');
   if (!container) return;
 
   const groups = groupBookingsByEvent(bookings);
@@ -368,7 +368,7 @@ function buildBookingCard(group, upgrades) {
     `<button class="ab-rail-btn bk-edit-btn" aria-label="${COPY.bookings.editSpots}">${icon('edit', 17)}<span>${COPY.accessibility.editCard}</span></button>`;
 
   const card = document.createElement('div');
-  card.className = 'psycle-autobook-card ab-card';
+  card.className = 'app-autobook-card ab-card';
   card.setAttribute('data-event-id', group.eventId);
   card.setAttribute('data-gym', event.gymId || getDefaultGymId());
   card.innerHTML = `
@@ -544,9 +544,9 @@ function wireCancelBooking(btn, card, group, within12h) {
 // unclear.  This chooser keeps every provider command explicit while relying
 // on the server-side guest-first guard as the final safety net.
 export function openGroupedCancellationModal(group, onChange = renderBookings) {
-  const modal = document.getElementById('psycle-booking-modal');
-  const body = document.getElementById('psycle-booking-modal-body');
-  const title = document.getElementById('psycle-booking-modal-title');
+  const modal = document.getElementById('app-booking-modal');
+  const body = document.getElementById('app-booking-modal-body');
+  const title = document.getElementById('app-booking-modal-title');
   if (!modal || !body || !title || !hasMultipleBookedSpots(group?.bookings)) return;
 
   const event = group.event || {};
@@ -582,8 +582,8 @@ export function openGroupedCancellationModal(group, onChange = renderBookings) {
     setTimeout(() => { modal.style.display = 'none'; }, 300);
     void syncAfterClose();
   };
-  document.getElementById('psycle-booking-modal-close').onclick = close;
-  modal.querySelector('.psycle-modal-overlay').onclick = close;
+  document.getElementById('app-booking-modal-close').onclick = close;
+  modal.querySelector('.app-modal-overlay').onclick = close;
 
   const labelFor = (booking) => formatSpotLabel(gymId, {
     label: booking.slotLabel ?? booking.raw?.spot?.name ?? booking.studio_slot?.label
@@ -605,20 +605,20 @@ export function openGroupedCancellationModal(group, onChange = renderBookings) {
       const role = isGuest ? COPY.bookings.guestSpotChip : COPY.bookings.selfSpotChip;
       const action = confirming ? COPY.bookings.confirm : COPY.bookings.cancel;
       const disabled = busy || blocked;
-      return `<div class="psycle-cancel-spot-row" style="display:flex;align-items:center;gap:10px;padding:11px 0;border-bottom:1px solid var(--border);">
+      return `<div class="app-cancel-spot-row" style="display:flex;align-items:center;gap:10px;padding:11px 0;border-bottom:1px solid var(--border);">
         <div style="min-width:0;flex:1;display:flex;flex-direction:column;gap:2px;">
           <span style="display:flex;align-items:center;gap:8px;"><small style="font-size:12px;font-weight:600;color:var(--text-secondary);">${escapeHtml(role)}</small><span class="ab-spot-upgrade-chip${isGuest ? ' is-guest' : ''}" style="cursor:default;">${escapeHtml(labelFor(booking))}</span></span>
           ${blocked ? '<span style="font-size:12px;color:var(--text-secondary);">Cancel guest spots first</span>' : ''}
         </div>
-        <button class="psycle-btn cancel-confirm grouped-cancel-one" data-booking-id="${escapeHtml(bookingId)}" ${disabled ? 'disabled' : ''} style="width:auto;flex:0 0 auto;min-width:88px;padding:10px 16px;">${action}</button>
+        <button class="app-btn cancel-confirm grouped-cancel-one" data-booking-id="${escapeHtml(bookingId)}" ${disabled ? 'disabled' : ''} style="width:auto;flex:0 0 auto;min-width:88px;padding:10px 16px;">${action}</button>
       </div>`;
     }).join('');
     body.innerHTML = `
-      <div class="psycle-grouped-cancellation" style="display:flex;flex-direction:column;gap:12px;">
+      <div class="app-grouped-cancellation" style="display:flex;flex-direction:column;gap:12px;">
         <p style="margin:0;font-size:13px;line-height:1.45;color:var(--text-secondary);">Choose a ${escapeHtml(noun)} to cancel, or cancel every booked ${escapeHtml(noun)}. Guest spots are released before your own booking.</p>
         <div>${rows}</div>
         ${error}
-        <button class="psycle-btn cancel-confirm grouped-cancel-all" ${busy ? 'disabled' : ''} style="width:100%;">${confirmAll ? COPY.bookings.confirm : `Cancel all ${noun}s`}</button>
+        <button class="app-btn cancel-confirm grouped-cancel-all" ${busy ? 'disabled' : ''} style="width:100%;">${confirmAll ? COPY.bookings.confirm : `Cancel all ${noun}s`}</button>
       </div>`;
 
     body.querySelectorAll('.grouped-cancel-one').forEach((button) => {
@@ -685,9 +685,9 @@ export function openGroupedCancellationModal(group, onChange = renderBookings) {
 // CodexFit has no "move seat" call, so saving releases removed spots (refunding
 // their credits and freeing the seats) and then books the added spots.
 export async function openEditBookingModal(group, onChange = renderBookings) {
-  const modal = document.getElementById('psycle-booking-modal');
-  const body = document.getElementById('psycle-booking-modal-body');
-  const title = document.getElementById('psycle-booking-modal-title');
+  const modal = document.getElementById('app-booking-modal');
+  const body = document.getElementById('app-booking-modal-body');
+  const title = document.getElementById('app-booking-modal-title');
   if (!modal || !body || !title) return;
   const modalRunId = ++editModalRunId;
   const isCurrentRun = () => isCurrentModalRun(modalRunId, editModalRunId, modal.classList.contains('show'));
@@ -701,12 +701,12 @@ export async function openEditBookingModal(group, onChange = renderBookings) {
 
   title.textContent = formatCopyText(COPY.bookings.editSpotsTitle, { noun: nounCap, className });
   applyBookingChrome(modal, { titleText: COPY.bookingFlow.titleEditSpots, gymId: event.gymId, locationName: event.locationName, studioName: event.studioName });
-  body.innerHTML = `<div class="psycle-loading-spinner-container" style="padding:40px 0;"><div class="psycle-spinner"></div><span>${COPY.bookings.loadingFloorMap}</span></div>`;
+  body.innerHTML = `<div class="app-loading-spinner-container" style="padding:40px 0;"><div class="app-spinner"></div><span>${COPY.bookings.loadingFloorMap}</span></div>`;
   let editDirty = () => false; // set once the selection exists
   openNavPage(modal, { id: 'edit-spots', canClose: () => !editDirty() || confirm(COPY.bookingEditor.discardChanges) });
 
-  const closeBtn = document.getElementById('psycle-booking-modal-close');
-  const overlay = modal.querySelector('.psycle-modal-overlay');
+  const closeBtn = document.getElementById('app-booking-modal-close');
+  const overlay = modal.querySelector('.app-modal-overlay');
   const closeModal = () => {
     if (closeNavPage(modal)) return;
     if (modalRunId === editModalRunId) editModalRunId++;
@@ -796,21 +796,21 @@ export async function openEditBookingModal(group, onChange = renderBookings) {
       <div class="guest-map-legend" aria-label="Spot map key">
         <span class="is-self">${COPY.bookings.guestMapSelf}</span><span class="is-guest">${COPY.bookings.guestMapGuest}</span><span class="is-available">${COPY.bookings.guestMapAvailable}</span><span class="is-unavailable">${COPY.bookings.guestMapUnavailable}</span>
       </div>
-      <div class="psycle-floor-plan-container" style="position:relative;height:${minMapHeight}px;background:var(--surface-inset);border:1px solid var(--border);border-radius:12px;margin-bottom:10px;overflow:hidden;">
-        <div id="psycle-edit-floor-grid" style="width:100%;height:100%;"></div>
+      <div class="app-floor-plan-container" style="position:relative;height:${minMapHeight}px;background:var(--surface-inset);border:1px solid var(--border);border-radius:12px;margin-bottom:10px;overflow:hidden;">
+        <div id="app-edit-floor-grid" style="width:100%;height:100%;"></div>
       </div>
-      <div id="psycle-edit-summary" style="font-size:12px;color:var(--text-secondary);margin-bottom:12px;min-height:16px;"></div>
-      <div id="psycle-edit-controls"></div>
+      <div id="app-edit-summary" style="font-size:12px;color:var(--text-secondary);margin-bottom:12px;min-height:16px;"></div>
+      <div id="app-edit-controls"></div>
     `;
 
-    const floorGrid = body.querySelector('#psycle-edit-floor-grid');
-    mountBookingContext(body, body.querySelector('.psycle-floor-plan-container'), {
+    const floorGrid = body.querySelector('#app-edit-floor-grid');
+    mountBookingContext(body, body.querySelector('.app-floor-plan-container'), {
       className, instructorName: event.instructors?.[0]?.name || '', instructorPhoto: event.instructors?.[0]?.thumbUrl || event.instructors?.[0]?.imageUrl,
       startAt: event.startAt, gymId: event.gymId, timeZone: event.timeZone,
       spotsLeft: layoutSlots.filter(s => s.isAvailable).length,
     }, { helperId: 'spotmap-live', helperText: COPY.bookingFlow.helperLive });
-    const summaryEl = body.querySelector('#psycle-edit-summary');
-    const controls = body.querySelector('#psycle-edit-controls');
+    const summaryEl = body.querySelector('#app-edit-summary');
+    const controls = body.querySelector('#app-edit-controls');
 
     // Stage marker(s) — NormalizedLayoutObject[]; empty for providers with none.
     layoutObjects.forEach(obj => {
@@ -854,8 +854,8 @@ export async function openEditBookingModal(group, onChange = renderBookings) {
         <div style="display:flex;flex-direction:column;gap:10px;background:var(--surface-inset);padding:14px;border-radius:12px;border:1px solid var(--border);">
           ${msg}
           <div style="display:flex;gap:8px;">
-            <button class="psycle-btn" id="bk-edit-close" style="flex:1;background:color-mix(in srgb,var(--text) 6%,transparent);border:1px solid color-mix(in srgb,var(--text) 12%,transparent);color:var(--text);">${COPY.bookings.close}</button>
-            <button class="psycle-btn" id="bk-edit-save" style="flex:2;background:var(--feat-autoupgrade);color:var(--on-accent);" ${(!changed || shortfall > 0) ? 'disabled' : ''}>${COPY.bookings.saveChanges}</button>
+            <button class="app-btn" id="bk-edit-close" style="flex:1;background:color-mix(in srgb,var(--text) 6%,transparent);border:1px solid color-mix(in srgb,var(--text) 12%,transparent);color:var(--text);">${COPY.bookings.close}</button>
+            <button class="app-btn" id="bk-edit-save" style="flex:2;background:var(--feat-autoupgrade);color:var(--on-accent);" ${(!changed || shortfall > 0) ? 'disabled' : ''}>${COPY.bookings.saveChanges}</button>
           </div>
         </div>`;
 
@@ -1016,7 +1016,7 @@ export async function openEditBookingModal(group, onChange = renderBookings) {
   } catch (err) {
     if (!isCurrentRun()) return;
     console.error('[Bookings] Edit modal failed:', err);
-    body.innerHTML = `<div class="psycle-card-error" style="color:var(--danger);padding:20px 0;text-align:center;">${formatCopyText(COPY.bookings.loadingFloorMapError, { error: escapeHtml(err.message) })}</div>`;
+    body.innerHTML = `<div class="app-card-error" style="color:var(--danger);padding:20px 0;text-align:center;">${formatCopyText(COPY.bookings.loadingFloorMapError, { error: escapeHtml(err.message) })}</div>`;
   }
 }
 
@@ -1024,7 +1024,7 @@ export async function openEditBookingModal(group, onChange = renderBookings) {
 // Same card design as bookings; a waitlist entry has no spot and no upgrade,
 // so the only rail action is Leave (two-tap confirm).
 function renderWaitlistsCards(waitlists) {
-  const container = document.getElementById('psycle-waitlists-list');
+  const container = document.getElementById('app-waitlists-list');
   if (!container) return;
 
   const valid = (waitlists || []).filter(w => w.event && (w.event.startAt || w.event.start_at));
@@ -1058,7 +1058,7 @@ function buildWaitlistCard(w) {
   const locationLine = [event.studioName || event.studio?.name, trimLocation(event.locationName || event.studio?.location?.name, getGymShortName(event.gymId))].filter(Boolean).join(', ');
 
   const card = document.createElement('div');
-  card.className = 'psycle-autobook-card ab-card is-waitlist';
+  card.className = 'app-autobook-card ab-card is-waitlist';
   card.setAttribute('data-event-id', event.id);
   card.setAttribute('data-gym', event.gymId || getDefaultGymId());
   card.innerHTML = `
@@ -1202,15 +1202,15 @@ async function handleUpgradeClick({ currentSlotLabel, eventId, gymId, bookingId,
 
 // Auto-Upgrade configuration modal (floor plan + options)
 export async function openUpgradeConfigModal({ currentSlotLabel = '', eventId, gymId, bookingId, currentSlotId, studioId, className, groupName, instructorName, studioName, locationName, startAt, existingUpgradeId, existingPrefs }) {
-  const modal = document.getElementById('psycle-booking-modal');
-  const body = document.getElementById('psycle-booking-modal-body');
-  const title = document.getElementById('psycle-booking-modal-title');
+  const modal = document.getElementById('app-booking-modal');
+  const body = document.getElementById('app-booking-modal-body');
+  const title = document.getElementById('app-booking-modal-title');
   if (!modal || !body || !title) return;
 
   title.textContent = COPY.autoUpgrade.configureTitle;
   body.innerHTML = `
-    <div class="psycle-loading-spinner-container" style="padding: 40px 0;">
-      <div class="psycle-spinner"></div>
+    <div class="app-loading-spinner-container" style="padding: 40px 0;">
+      <div class="app-spinner"></div>
       <span>${COPY.bookings.fetchingFloorMap}</span>
     </div>
   `;
@@ -1219,8 +1219,8 @@ export async function openUpgradeConfigModal({ currentSlotLabel = '', eventId, g
   const discardOk = () => !spotMapDirty() || confirm(COPY.bookingEditor.discardChanges);
   openNavPage(modal, { id: 'upgrade-config', canClose: discardOk });
 
-  const closeBtn = document.getElementById('psycle-booking-modal-close');
-  const overlay = modal.querySelector('.psycle-modal-overlay');
+  const closeBtn = document.getElementById('app-booking-modal-close');
+  const overlay = modal.querySelector('.app-modal-overlay');
   
   const closeModal = () => {
     if (closeNavPage(modal)) return;
@@ -1290,30 +1290,30 @@ export async function openUpgradeConfigModal({ currentSlotLabel = '', eventId, g
 
     const showForm = () => {
       body.innerHTML = `
-        <div id="psycle-upgrade-editor" class="psycle-upgrade-setup">
+        <div id="app-upgrade-editor" class="app-upgrade-setup">
           ${isExplainerDismissed() ? '' : `
-          <div class="psycle-upgrade-explainer" id="upgrade-explainer">
-            <button type="button" class="psycle-upgrade-explainer-close" id="upgrade-explainer-close" aria-label="Dismiss explanation">&times;</button>
+          <div class="app-upgrade-explainer" id="upgrade-explainer">
+            <button type="button" class="app-upgrade-explainer-close" id="upgrade-explainer-close" aria-label="Dismiss explanation">&times;</button>
             <strong>How Auto-Upgrade works</strong>
             <p>We watch this class for you. When a better ${noun} frees up, we move you into it automatically, and keep checking until the cutoff.</p>
             <p>Your <strong>preferred ${noun} map</strong> ranks which ${noun}s you would like, in priority order. It is shared for ${escapeHtml(studioName)}, so Quick-Book and Auto-Book use the same map.</p>
           </div>`}
           ${creditWarningHtml}
           <div id="upgrade-context"></div>
-          <div class="psycle-upgrade-current">Your current ${noun}: <strong>${escapeHtml(spotLabel || '—')}</strong></div>
-          <div class="psycle-upgrade-map-summary">
+          <div class="app-upgrade-current">Your current ${noun}: <strong>${escapeHtml(spotLabel || '—')}</strong></div>
+          <div class="app-upgrade-map-summary">
             <span id="upgrade-map-summary">${escapeHtml(summarizeSpotPrefs(state.slots, state.rows, noun))}</span>
-            <button type="button" class="psycle-btn psycle-upgrade-edit-map" id="upgrade-edit-map">Edit preferred ${noun} map for ${escapeHtml(studioName)}</button>
+            <button type="button" class="app-btn app-upgrade-edit-map" id="upgrade-edit-map">Edit preferred ${noun} map for ${escapeHtml(studioName)}</button>
           </div>
           ${showKeepOriginal ? `
-          <label class="psycle-upgrade-keep">
-            <input type="checkbox" class="psycle-ms-checkbox" id="upgrade-keep-original" ${state.keepOriginal ? 'checked' : ''}>
+          <label class="app-upgrade-keep">
+            <input type="checkbox" class="app-ms-checkbox" id="upgrade-keep-original" ${state.keepOriginal ? 'checked' : ''}>
             <span><strong>${COPY.bookings.continuePastCutoff}</strong><br>
-              <span class="psycle-upgrade-keep-help">${formatCopyText(COPY.bookingEditor.finalUpgradeAttemptHelp, { noun: escapeHtml(noun) })}</span></span>
+              <span class="app-upgrade-keep-help">${formatCopyText(COPY.bookingEditor.finalUpgradeAttemptHelp, { noun: escapeHtml(noun) })}</span></span>
           </label>` : ''}
-          <div class="psycle-spotmap-actions psycle-upgrade-actions" style="display:flex;gap:8px;">
-            <button type="button" class="psycle-btn" id="upgrade-save" style="flex:2;background:var(--feat-autoupgrade);color:#fff;">${isEditing ? COPY.bookings.saveChanges : COPY.bookings.startMonitoring}</button>
-            ${isEditing ? `<button type="button" class="psycle-btn" id="upgrade-disable" style="flex:1;background:color-mix(in srgb, var(--danger) 10%, transparent);border:1px solid color-mix(in srgb, var(--danger) 20%, transparent);color:var(--danger);">${COPY.bookings.disableUpgrade}</button>` : ''}
+          <div class="app-spotmap-actions app-upgrade-actions" style="display:flex;gap:8px;">
+            <button type="button" class="app-btn" id="upgrade-save" style="flex:2;background:var(--feat-autoupgrade);color:#fff;">${isEditing ? COPY.bookings.saveChanges : COPY.bookings.startMonitoring}</button>
+            ${isEditing ? `<button type="button" class="app-btn" id="upgrade-disable" style="flex:1;background:color-mix(in srgb, var(--danger) 10%, transparent);border:1px solid color-mix(in srgb, var(--danger) 20%, transparent);color:var(--danger);">${COPY.bookings.disableUpgrade}</button>` : ''}
           </div>
         </div>`;
 
@@ -1369,8 +1369,8 @@ export async function openUpgradeConfigModal({ currentSlotLabel = '', eventId, g
     };
 
     const showMap = () => {
-      body.innerHTML = `<div id="psycle-upgrade-editor"></div>`;
-      const editorContainer = body.querySelector('#psycle-upgrade-editor');
+      body.innerHTML = `<div id="app-upgrade-editor"></div>`;
+      const editorContainer = body.querySelector('#app-upgrade-editor');
       const bannerHtml = `
         <div style="font-size:12px;color:var(--text-secondary);background:var(--surface-inset);border:1px solid var(--border);border-radius:8px;padding:8px 10px;margin-bottom:10px;line-height:1.5;">
           ${formatCopyText(COPY.bookingEditor.sharedSpotMapHtml, { studioName: escapeHtml(studioName) })} Your current ${noun} is <strong>${escapeHtml(spotLabel || '—')}</strong>.
@@ -1401,7 +1401,7 @@ export async function openUpgradeConfigModal({ currentSlotLabel = '', eventId, g
       });
       const back = document.createElement('button');
       back.type = 'button';
-      back.className = 'psycle-btn psycle-upgrade-back';
+      back.className = 'app-btn app-upgrade-back';
       back.textContent = COPY.autoUpgrade.backToUpgrade;
       back.onclick = () => { if (discardOk()) showForm(); };
       editorContainer.appendChild(back);
@@ -1411,19 +1411,19 @@ export async function openUpgradeConfigModal({ currentSlotLabel = '', eventId, g
 
   } catch (err) {
     console.error('[Bookings] Modal load layout failed:', err);
-    body.innerHTML = `<div class="psycle-card-error">${formatCopyText(COPY.bookings.loadingSpotLayoutError, { error: escapeHtml(err.message) })}</div>`;
+    body.innerHTML = `<div class="app-card-error">${formatCopyText(COPY.bookings.loadingSpotLayoutError, { error: escapeHtml(err.message) })}</div>`;
   }
 }
 
 // Re-render bookings when background SWR fetch updates IndexedDB cache.
-window.addEventListener('psycle-data-refreshed', (e) => {
+window.addEventListener('app-data-refreshed', (e) => {
   const { endpoint } = e.detail;
   if (
     endpoint.startsWith('/api/bookings') || 
     endpoint.startsWith('/api/waitlists') || 
     endpoint.startsWith('/api/auto-upgrade')
   ) {
-    const bookingsPanel = document.getElementById('psycle-panel-my-bookings');
+    const bookingsPanel = document.getElementById('app-panel-my-bookings');
     if (bookingsPanel && bookingsPanel.style.display !== 'none') {
       renderBookings().catch(() => {});
     }

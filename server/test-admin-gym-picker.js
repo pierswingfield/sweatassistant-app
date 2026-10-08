@@ -22,13 +22,14 @@ process.env.DB_PATH = process.env.DB_PATH || ':memory:';
 const assert = require('assert');
 const db = require('./db');
 
+const testkit = require('./testkit');
 db.db.prepare('UPDATE gyms SET enabled = 1 WHERE id = ?').run('jab-boxing');
 
 const checks = [];
 const check = (name, fn) => checks.push({ name, fn });
 
 check('with no gym context, a two-gym account\'s detail resolves to the default gym', () => {
-  const uid = db.createUser(`picker-a-${Date.now()}@test.local`, 'enc:pw');
+  const uid = testkit.createUser(db, `picker-a-${Date.now()}@test.local`, 'enc:pw');
   db.linkGym(uid, 'jab-boxing', { encryptedPassword: 'enc:pw' });
   db.upsertUserGym(uid, 'psycle-london', { display_name: 'Psycle Side', priority: 11 });
   db.upsertUserGym(uid, 'jab-boxing', { display_name: 'JAB Side', priority: 22 });
@@ -38,7 +39,7 @@ check('with no gym context, a two-gym account\'s detail resolves to the default 
 });
 
 check('runWithGymContext(uid, "jab-boxing") makes getUserDetail resolve the JAB side', () => {
-  const uid = db.createUser(`picker-b-${Date.now()}@test.local`, 'enc:pw');
+  const uid = testkit.createUser(db, `picker-b-${Date.now()}@test.local`, 'enc:pw');
   db.linkGym(uid, 'jab-boxing', { encryptedPassword: 'enc:pw' });
   db.upsertUserGym(uid, 'psycle-london', { display_name: 'Psycle Side', priority: 11 });
   db.upsertUserGym(uid, 'jab-boxing', { display_name: 'JAB Side', priority: 22 });
@@ -58,7 +59,7 @@ check('runWithGymContext(uid, "jab-boxing") makes getUserDetail resolve the JAB 
 });
 
 check('isGymLinked is the gate the route uses to validate ?gymId= before trusting it', () => {
-  const uid = db.createUser(`picker-c-${Date.now()}@test.local`, 'enc:pw');
+  const uid = testkit.createUser(db, `picker-c-${Date.now()}@test.local`, 'enc:pw');
   assert.strictEqual(db.isGymLinked(uid, 'jab-boxing'), false, 'not linked yet — the route must 403 this');
   db.linkGym(uid, 'jab-boxing', { encryptedPassword: 'enc:pw' });
   assert.strictEqual(db.isGymLinked(uid, 'jab-boxing'), true);
@@ -66,8 +67,8 @@ check('isGymLinked is the gate the route uses to validate ?gymId= before trustin
 });
 
 check('the per-request context does not leak across users (admin viewing account B while resolving account A)', () => {
-  const uidA = db.createUser(`picker-d1-${Date.now()}@test.local`, 'enc:pw');
-  const uidB = db.createUser(`picker-d2-${Date.now()}@test.local`, 'enc:pw');
+  const uidA = testkit.createUser(db, `picker-d1-${Date.now()}@test.local`, 'enc:pw');
+  const uidB = testkit.createUser(db, `picker-d2-${Date.now()}@test.local`, 'enc:pw');
   db.linkGym(uidA, 'jab-boxing', { encryptedPassword: 'enc:pw' });
 
   db.runWithGymContext(uidA, 'jab-boxing', () => {

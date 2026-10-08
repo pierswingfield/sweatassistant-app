@@ -13,6 +13,7 @@ if (fs.existsSync(process.env.DB_PATH)) {
 }
 
 const db = require('./db');
+const testkit = require('./testkit');
 const crypto = require('./crypto');
 const scheduler = require('./scheduler');
 
@@ -49,7 +50,7 @@ try {
   // User management
   const email = 'user@example.com';
   const pass = crypto.encrypt('password123');
-  const userId = db.createUser(email, pass);
+  const userId = testkit.createUser(db, email, pass);
   
   assert.ok(userId > 0, 'Created user should return valid row ID');
   
@@ -84,7 +85,7 @@ try {
   const classDate = '2026-06-24T18:30:00.000Z';
   
   const standardSettings = { advancedBooking: false, advancedBookingCredit: false };
-  const standardRelease = scheduler.getClassReleaseTime(classDate, standardSettings);
+  const standardRelease = scheduler.getClassReleaseTime({ start_at: classDate, gym_id: 'psycle-london' }, standardSettings);
   
   // London time check: should represent Monday June 15, 12:00 PM
   assert.strictEqual(standardRelease.year, 2026);
@@ -96,7 +97,7 @@ try {
   // Advanced booking user (+7 days, legacy offset = 14 + 7 = 21 days):
   // Mon 8 Jun + 21d = Mon 29 Jun >= 24 Jun → released Monday June 8, 12:00 PM
   const advSettings = { advancedBooking: true, advancedBookingCredit: false };
-  const advRelease = scheduler.getClassReleaseTime(classDate, advSettings);
+  const advRelease = scheduler.getClassReleaseTime({ start_at: classDate, gym_id: 'psycle-london' }, advSettings);
   
   assert.strictEqual(advRelease.year, 2026);
   assert.strictEqual(advRelease.month, 6);

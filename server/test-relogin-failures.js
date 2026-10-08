@@ -14,6 +14,7 @@ process.env.NODE_ENV = 'test';
 
 const assert = require('assert');
 const db = require('./db');
+const testkit = require('./testkit');
 const auth = require('./auth');
 const { encrypt } = require('./crypto');
 const { getProvider } = require('./providers');
@@ -29,7 +30,7 @@ const check = (name, fn) => checks.push({ name, fn });
 
 let seq = 0;
 function user() {
-  const uid = db.createUser(`relogin-${Date.now()}-${seq++}@test.local`, 'enc:pw');
+  const uid = testkit.createUser(db, `relogin-${Date.now()}-${seq++}@test.local`, 'enc:pw');
   db.upsertUserGym(uid, PSYCLE, { gym_email: 'p@test.local', encrypted_password: encrypt('pw-psycle') });
   db.linkGym(uid, JAB, { encryptedPassword: encrypt('pw-jab') });
   db.upsertUserGym(uid, JAB, { gym_email: 'j@test.local', priority: 200 });

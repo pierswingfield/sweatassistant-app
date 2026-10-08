@@ -1,4 +1,4 @@
-// Sweat Assistant — class history store (F-10-0).
+// class history store (F-10-0).
 //
 // A MINIMAL per-user history of past classes, one row per (user, gym, provider
 // booking id), NORMALIZED fields only, shaped so C8-1's booking_ledger can adopt

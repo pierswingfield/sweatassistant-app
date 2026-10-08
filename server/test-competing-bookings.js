@@ -1,4 +1,4 @@
-// Sweat Assistant — C5-3: competing booking detection.
+// C5-3: competing booking detection.
 //
 // Part 1: the pure detector (competing-bookings.js), including cross-gym time
 // overlap and the naive-datetime zone rule. Part 2: over real HTTP against the

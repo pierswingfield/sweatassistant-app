@@ -27,7 +27,7 @@ Prior results: [`QA/browser-runs/`](../QA/browser-runs/).
 | C4-7 | **Installed PWA** on iOS: layout, offline, and push delivery for both gyms | Browser only so far | 1 h |
 | C4-8 | **Calendar feed on a real phone**: one `.ics` spanning both gyms | Desktop only | 30 min |
 | C4-9 | **Credits & Membership** tab live acceptance for both gyms (after C2-1) | Built 2026-09-12, never accepted live | 1 h |
-| C4-10 | **Psycle regression** after C2 phase 1: `test-regression-psycle.js` plus a live book, cancel and waitlist cycle | New cart and waitlist code | 1 h |
+| C4-10 | **Psycle regression** after C2 phase 1: `test-regression-codexfit-mock.js` plus a live book, cancel and waitlist cycle | New cart and waitlist code | 1 h |
 
 ## Stage A results — 2026-09-27
 
@@ -39,7 +39,7 @@ in the session scratchpad (not committed — contain live account/customer PII f
 `relations` payloads). Only rows C4-1/5/6/9/10 were in scope for this pass.
 
 - [x] **C4-10 — PASS** (waitlist cycle), **book/cancel SKIPPED**.
-  - `node server/test-regression-psycle.js` (Node 20, `ENCRYPTION_KEY` generated ad hoc): **25/25
+  - `node server/test-regression-codexfit-mock.js` (Node 20, `ENCRYPTION_KEY` generated ad hoc): **25/25
     checks passed.**
   - Live waitlist join → leave on event 216705 ("BARRE: Abs & Arms 45", Oxford Circus, Tue 29 Sep
     07:30 BST, full, ~53h out at test time): `GET /api/waitlists` 0 → clicked **Join Waitlist**
@@ -75,7 +75,7 @@ in the session scratchpad (not committed — contain live account/customer PII f
       `GET /api/v1/customer/profile` returns `{ data: { available_credits, id, booking_cutoff, ... } }`
       — confirmed in `server/fixtures/codexfit-v2/PARITY.md` (2026-09-26) and reconfirmed live this
       session — and none of the three methods unwrap `.data`, so every field read is `undefined`.
-      Invisible to `test-regression-psycle.js` because `server/mock.js`'s dev `/profile` fixture
+      Invisible to `test-regression-codexfit-mock.js` because `server/mock.js`'s dev `/profile` fixture
       isn't wrapped in `{data:...}`. Not fixed here (out of scope); flagged as a follow-up task.
   - Buy Credits → bundle view (Psycle): opened, "EXPERIMENTAL" banner, bundles listed (e.g. "2
     Credit Offer" £25.00). Stopped there, no Buy click, no checkout.

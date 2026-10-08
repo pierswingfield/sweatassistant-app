@@ -109,5 +109,6 @@ describe('app name never renders as a literal placeholder', () => {
       }
     }
     expect(src).not.toMatch(/['"`>]Sweat Assistant/);
+    expect(src).not.toMatch(/Sweat Assistant/);
   });
 });

@@ -26,6 +26,7 @@ const tmpDb = path.join(os.tmpdir(), `reminder-sweep-${process.pid}.db`);
 process.env.DB_PATH = tmpDb;
 
 const db = require('./db');
+const testkit = require('./testkit');
 const poller = require('./poller');
 const { getProvider } = require('./providers');
 
@@ -49,7 +50,7 @@ function twoGymUser() {
   // Each adapter routes to its mock on the session TOKEN, so the account's own
   // email can be unique per check; the per-gym `gym_email` is what identifies
   // the member to each mock.
-  const userId = db.createUser(`sweep-${++seq}@test.local`, 'x');
+  const userId = testkit.createUser(db, `sweep-${++seq}@test.local`, 'x');
   db.upsertUserGym(userId, PSYCLE, {
     gym_email: 'dev@psycle.com', encrypted_password: 'x',
     session_json: JSON.stringify({ accessToken: CODEXFIT_MOCK_TOKEN }),

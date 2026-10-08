@@ -2,11 +2,10 @@
 #
 # Sweat Assistant: deploy to the oracle VM (C7-8).
 #
-# This REPLACES the old script, which rsynced to the retired Raspberry Pi
-# (/home/pi/psycleapp). Both environments now live on `oracle`:
+# Both environments live on `oracle`:
 #
-#   dev twin  ~/services/psycleapp-dev/   sweat-dev.wingfield.tech   (default)
-#   prod      ~/services/psycleapp/       sweat.wingfield.tech
+#   dev twin  ~/services/sweatassistant-dev/   compose: docker-compose.yml        sweat-dev.wingfield.tech  (default)
+#   prod      ~/services/sweatassistant/       compose: docker-compose.prod.yml   sweat.wingfield.tech
 #
 # The flow is what was done by hand: rsync the tree, then
 # `docker compose up -d --build` on the host. Nothing here writes .env or
@@ -40,10 +39,12 @@ for arg in "$@"; do
 done
 
 if [ "$TARGET" = prod ]; then
-  REMOTE_DIR='~/services/psycleapp'
+  REMOTE_DIR='~/services/sweatassistant'
+  COMPOSE_FILE='docker-compose.prod.yml'
   HEALTH_URL='https://sweat.wingfield.tech/api/health'
 else
-  REMOTE_DIR='~/services/psycleapp-dev'
+  REMOTE_DIR='~/services/sweatassistant-dev'
+  COMPOSE_FILE='docker-compose.yml'
   HEALTH_URL='https://sweat-dev.wingfield.tech/api/health'
 fi
 
@@ -52,12 +53,13 @@ EXCLUDES=(--exclude .env --exclude '.env.*' --exclude data/ --exclude node_modul
           --exclude client/node_modules/ --exclude server/node_modules/
           --exclude client/dist/ --exclude server/public/ --exclude .git/
           --exclude .DS_Store --exclude '*.db' --exclude '*.db-shm' --exclude '*.db-wal')
-# This repo's docker-compose.yml is the DEV twin's (container psycle-app-dev,
-# bound to the tailnet address). Never let it overwrite prod's own compose file.
-if [ "$TARGET" = prod ]; then EXCLUDES+=(--exclude docker-compose.yml); fi
+# docker-compose.yml is the DEV twin's (container sweatassistant-dev, bound to the tailnet
+# address); prod runs docker-compose.prod.yml (container sweatassistant, no published port).
+# Each target ships only its own file so one can never overwrite the other.
+if [ "$TARGET" = prod ]; then EXCLUDES+=(--exclude docker-compose.yml); else EXCLUDES+=(--exclude docker-compose.prod.yml); fi
 
 RSYNC=(rsync -az "${EXCLUDES[@]}" ./ "$HOST:$REMOTE_DIR/")
-REMOTE_UP="cd $REMOTE_DIR && $DOCKER compose up -d --build && $DOCKER compose ps"
+REMOTE_UP="cd $REMOTE_DIR && $DOCKER compose -f $COMPOSE_FILE up -d --build && $DOCKER compose -f $COMPOSE_FILE ps"
 
 run() { if [ "$PRINT" = 1 ]; then printf '  %q' "$@"; printf '\n'; else "$@"; fi; }
 

@@ -1,7 +1,7 @@
 // Pure helpers for the Auto-Upgrade setup modal (bookings.js openUpgradeConfigModal).
 // Kept free of DOM/network imports so they are unit-testable.
 
-const EXPLAINER_KEY = 'psycleUpgradeExplainerDismissed';
+const EXPLAINER_KEY = 'appUpgradeExplainerDismissed';
 
 export function isExplainerDismissed() {
   try { return localStorage.getItem(EXPLAINER_KEY) === '1'; } catch (_) { return false; }

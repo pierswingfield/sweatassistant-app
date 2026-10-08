@@ -1,4 +1,4 @@
-// Sweat Assistant — normalized API routes (WP-N1).
+// normalized API routes (WP-N1).
 //
 // The first gym-agnostic surface: routes here call through a GymProvider
 // adapter and return NormalizedEvent/NormalizedSlot/NormalizedBookingResult
@@ -120,7 +120,7 @@ function resolveGymOnly(userId) {
 }
 
 function resolveContext(userId) {
-  // A Sweat Assistant account can now exist with NO gym linked at all (signup is
+  // An app account can now exist with NO gym linked at all (signup is
   // gym-independent since Decision D4). That is a legitimate, expected state —
   // not a broken session — so it gets its own signal. Without this the account
   // would resolve to the default gym, find no credential, and surface as
@@ -147,7 +147,7 @@ function resolveContext(userId) {
   const user = db.getUserById(userId);
   if (!user || !user.jwt) {
     // C1-2: this 401 means ONE gym's session is missing/dead, not that the
-    // Sweat Assistant JWT itself is invalid (that case is a 403 — see
+    // The app JWT itself is invalid (that case is a 403 — see
     // auth.js authenticateToken). `code` lets the client branch on that
     // distinction instead of treating every 401 as SA logout.
     const err = new Error('No active session for this gym. Please log in.');
@@ -205,7 +205,7 @@ function handleError(res, err) {
 // /bundles, /bookmarks and /profile/update (extrasLimiter, below) had a
 // budget. This is per-USER (all routes below share ONE counter, like
 // extrasLimiter), sized from a measured real two-gym browser session
-// (dev@psycle.com + JAB linked): app boot + touring all 5 tabs + back to
+// (the dev mock account, all mock gyms linked): app boot + touring all 5 tabs + back to
 // timetable produced ~73 combined calls to these routes in under a minute,
 // with /my-gyms alone peaking at 16 (every tab/settings render re-checks the
 // active gym) — see Documentation/Workstreams/C7-platform-ops.md for the
@@ -213,7 +213,7 @@ function handleError(res, err) {
 // fetch, so the budget needs multiplicative headroom, not just additive.
 // 300/min leaves ~4x over that measured peak. Production-only, same as every
 // other limiter here; RATE_LIMIT_TEST_FORCE lets a test force it on without
-// NODE_ENV=production, which would also disable the dev@psycle.com mock
+// NODE_ENV=production, which would also disable the dev mock logins
 // login these routes need in order to be testable at all (see
 // providers/codexfit.js DEV_EMAIL gate).
 const readLimiter = rateLimit({
@@ -251,6 +251,7 @@ const refreshLimiter = rateLimit({
 router.get('/gyms', (req, res) => {
   const gyms = listGyms().map((g) => ({
     id: g.id, name: g.name, shortName: g.shortName, websiteUrl: g.websiteUrl, classPageUrl: g.classPageUrl || null,
+    creditStoreUrl: (g.capabilities && g.capabilities.creditPurchase && g.creditStoreUrl) || null,
     provider: g.provider, enabled: g.enabled,
     // Gym default display zone (client fallback when an event/booking carries none).
     timezone: g.timezone,
@@ -327,7 +328,7 @@ router.delete('/my-gyms/:gymId', authenticateToken, (req, res) => {
 });
 
 // POST /api/account/password  { currentPassword, newPassword }
-// Change the Sweat Assistant account password — independent of any gym's.
+// Change the the app account password — independent of any gym's.
 router.post('/account/password', authenticateToken, (req, res) => {
   const { currentPassword, newPassword } = req.body || {};
   try {
@@ -975,8 +976,8 @@ router.delete('/favourites/:id', authenticateToken, extrasLimiter, async (req, r
 // (POST /api/cart/checkout/init/:bundleId → POST /api/cart/checkout/confirm,
 // including the `requires_action` → website-fallback shape client/src/ui/
 // credits.js already handles) — see Documentation/Workstreams/
-// C2-psycle-api-v2.md's C2-1 scope. The payment-method/checkout/finalise
-// steps are UNVERIFIED against live Psycle (no purchase was ever made — see
+// C2-psycle-api-v2.md's C2-1 scope (the CodexFit v2 cart). The payment-method/checkout/finalise
+// steps are UNVERIFIED against a live gym (no purchase was ever made — see
 // server/fixtures/codexfit-v2/PARITY.md G3); flagged again on
 // provider.finaliseCart's doc comment.
 
@@ -987,7 +988,7 @@ router.post('/cart/checkout/init/:bundleId', authenticateToken, extrasLimiter, a
     requireCapability(gymId, 'creditPurchase');
     // Express route params are always strings; CodexFit's bundle ids are
     // numeric and the v2 add-line body must send a number (mock.js and — per
-    // psycle_codexfit.md §2.5.2 #3 — the real API both compare/serialize it
+    // Services/psycle_codexfit.md §2.5.2 #3 — the real API both compare/serialize it
     // as one). Falls back to the raw param if somehow non-numeric rather than
     // silently sending NaN.
     const parsedBundleId = Number(req.params.bundleId);

@@ -1,4 +1,4 @@
-// Sweat Assistant — MarianaTek provider adapter.
+// MarianaTek provider adapter.
 //
 // Auth (WP-M1) implements the confirmed headless OAuth2 + PKCE flow documented
 // in Documentation/Services/marianatek.md §1B/§1G (live-tested against the JAB
@@ -19,8 +19,8 @@ const bookingWindow = require('./booking-window');
 const { noteThrottleError } = require('../rate-limit-backoff');
 const { timedProviderFetch } = require('../logger');
 
-// Dev-mode bypass (WP-M5), mirroring the dev@psycle.com / 'mock-jwt-token'
-// convention already used for CodexFit (see server/auth.js, server/mock.js).
+// Dev-mode bypass (WP-M5), driven by the gym config's `devMock.email` exactly like
+// the CodexFit adapter (see BaseProvider.isMockLogin/isMockUser, server/mock.js).
 // login() short-circuits the real OAuth flow for this email; every other
 // method checks for MOCK_TOKEN and routes to mock-marianatek.js instead of a
 // live fetch — lets the full success path (book/cancel/waitlist/swap) be
@@ -90,6 +90,10 @@ function classListError(message, res) {
 }
 
 class MarianaTekProvider extends GymProvider {
+  get mockToken() {
+    return MOCK_TOKEN;
+  }
+
   url(path) {
     if (/^https?:\/\//i.test(path)) return path;
     return this.gym.apiBaseUrl + path;
@@ -173,7 +177,7 @@ class MarianaTekProvider extends GymProvider {
    * @returns {Promise<{session: import('./base').AuthSession, profile: import('./base').NormalizedProfile, raw: Object}>}
    */
   async login({ email, password }) {
-    if (email === (this.gym.mockEmail || `dev@${this.gym.tenant}.mock`)) {
+    if (this.isMockLogin(email)) {
       const session = { accessToken: MOCK_TOKEN, refreshToken: MOCK_TOKEN, expiresAt: new Date(Date.now() + 365 * 864e5).toISOString() };
       const profile = await this.getProfile(session);
       return { session, profile, raw: { access_token: MOCK_TOKEN, mock: true } };

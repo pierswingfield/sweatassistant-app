@@ -7,7 +7,7 @@ import { appConfig } from './config.js';
 export const COPY = Object.freeze({
   about: Object.freeze({
     taglineHtml: '{appName} — your boutique fitness concierge.',
-    disclaimerHtml: '{appName} gives you a one-stop-shop for finding and booking classes in your favuorute studios, all in one place:</br><ul><li>{appName} remembers your favourite spots and bikes, and books them for you automatically.<li><b>Auto-Book</b> secures your spot in class as soon as booking opens.<li><b>Auto-Upgrade</b> checks for a better spot 24/7, and upgrades you automatically.<li><b>Calendar Sync</b> keeps your Google and Apple Calendars up to date with classes as they are booked, changed or cancelled.<li><b>Flexible notifications</b> help you plan, and avoid cancellation penalties.</br><li>Supports Psycle, Barrys, SoulCycle, Aarmy, JAB Boxing Club and more!',
+    disclaimerHtml: '{appName} gives you a one-stop-shop for finding and booking classes in your favuorute studios, all in one place:</br><ul><li>{appName} remembers your favourite spots and bikes, and books them for you automatically.<li><b>Auto-Book</b> secures your spot in class as soon as booking opens.<li><b>Auto-Upgrade</b> checks for a better spot 24/7, and upgrades you automatically.<li><b>Calendar Sync</b> keeps your Google and Apple Calendars up to date with classes as they are booked, changed or cancelled.<li><b>Flexible notifications</b> help you plan, and avoid cancellation penalties.</br><li>Works with a growing list of boutique fitness studios.',
   }),
   onboarding: Object.freeze({
     welcomeTitle: 'Welcome to your boutique fitness concierge!',
@@ -20,7 +20,7 @@ export const COPY = Object.freeze({
     perkNotifyTitle: 'Smart notifications',
     perkNotifyText: 'Plan ahead and avoid cancellation penalties.',
     supportedGyms: 'Supported gyms and studios',
-    welcomeGyms: "Works with Psycle, Barry's, SoulCycle, Aarmy, JAB Boxing Club and more.",
+    welcomeGyms: 'Works with a growing list of boutique fitness studios.',
     installEyebrow: 'Get the full experience',
     installTitle: 'Install {appName}',
     installButton: 'Install app',

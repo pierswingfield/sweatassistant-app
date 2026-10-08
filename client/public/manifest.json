@@ -1,6 +1,6 @@
 {
-  "name": "Sweat Assistant",
-  "short_name": "Sweat Assistant",
+  "name": "__APP_NAME__",
+  "short_name": "__APP_NAME__",
   "description": "Progressive Web App for auto-booking and monitoring your gym classes.",
   "start_url": "/",
   "display": "standalone",

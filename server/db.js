@@ -1,7 +1,6 @@
 const Database = require('better-sqlite3');
 const path = require('path');
 const fs = require('fs');
-const { DEFAULT_GYM_ID } = require('./gyms.config');
 
 const dbPath = process.env.DB_PATH || path.join(__dirname, 'sqlite.db');
 
@@ -22,7 +21,18 @@ db.exec(`
     encrypted_password TEXT NOT NULL,
     jwt TEXT,
     jwt_expires_at TEXT,
-    created_at TEXT DEFAULT CURRENT_TIMESTAMP
+    created_at TEXT DEFAULT CURRENT_TIMESTAMP,
+    -- The account's OWN scrypt password hash (Decision D4), independent of any gym's.
+    password_hash TEXT,
+    -- Last-selected gym. NULL = never chose; resolution then uses the sole linked gym.
+    -- Deliberately NOT a foreign key: a stale value must degrade to the fallback chain.
+    active_gym_id TEXT,
+    priority INTEGER DEFAULT 100,
+    display_name TEXT,
+    profile_json TEXT,
+    profile_synced_at TEXT,
+    last_seen_at TEXT,
+    calendar_token TEXT
   );
 
   CREATE TABLE IF NOT EXISTS auto_bookings (
@@ -39,6 +49,12 @@ db.exec(`
     execution_message TEXT,
     executed_at TEXT,
     created_at TEXT DEFAULT CURRENT_TIMESTAMP,
+    gym_id TEXT NOT NULL,          -- no default on purpose: a forgotten gym is an error, not a guess
+    studio_id INTEGER,
+    group_name TEXT,               -- event-type group (e.g. "RIDE") for notifications
+    release_at TEXT,               -- booking-open instant captured at queue time (WP-D8)
+    instructor_image_url TEXT,
+    duration_min INTEGER,          -- for competing-booking overlap detection (C5-3)
     FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
   );
 
@@ -61,27 +77,36 @@ db.exec(`
     new_booking_id INTEGER,
     last_checked_at TEXT,
     created_at TEXT DEFAULT CURRENT_TIMESTAMP,
+    gym_id TEXT NOT NULL,
+    studio_id INTEGER,
+    group_name TEXT,
+    original_slot_id INTEGER,      -- first-booked slot, set once, for "originally bike 40"
     FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
   );
 
   CREATE TABLE IF NOT EXISTS studio_preferences (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     user_id INTEGER NOT NULL,
-    studio_id INTEGER NOT NULL,
+    gym_id TEXT NOT NULL,
+    studio_id INTEGER NOT NULL,    -- a PROVIDER id: unique only within a gym
     preferences TEXT NOT NULL, -- JSON string
     created_at TEXT DEFAULT CURRENT_TIMESTAMP,
     updated_at TEXT DEFAULT CURRENT_TIMESTAMP,
     FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
-    UNIQUE(user_id, studio_id)
+    FOREIGN KEY (gym_id) REFERENCES gyms(id),
+    UNIQUE(user_id, gym_id, studio_id)
   );
 
   CREATE TABLE IF NOT EXISTS settings (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
-    user_id INTEGER UNIQUE NOT NULL,
+    user_id INTEGER NOT NULL,
+    gym_id TEXT NOT NULL,
     preferences TEXT NOT NULL, -- JSON string
     created_at TEXT DEFAULT CURRENT_TIMESTAMP,
     updated_at TEXT DEFAULT CURRENT_TIMESTAMP,
-    FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+    FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
+    FOREIGN KEY (gym_id) REFERENCES gyms(id),
+    UNIQUE(user_id, gym_id)
   );
 
   -- Account-scoped settings (WP-D6). The "settings" table above is per-GYM; this
@@ -117,6 +142,7 @@ db.exec(`
   CREATE TABLE IF NOT EXISTS booking_cache (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     user_id INTEGER NOT NULL,
+    gym_id TEXT NOT NULL,
     booking_id INTEGER NOT NULL,
     event_id INTEGER,
     start_at TEXT,
@@ -127,8 +153,11 @@ db.exec(`
     location_name TEXT,
     slot_label TEXT,
     synced_at TEXT DEFAULT CURRENT_TIMESTAMP,
+    duration_min INTEGER,
+    location_address TEXT,
     FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
-    UNIQUE(user_id, booking_id)
+    FOREIGN KEY (gym_id) REFERENCES gyms(id),
+    UNIQUE(user_id, gym_id, booking_id)
   );
 
   -- A guest reservation is provider-side independent, but it is not an
@@ -244,6 +273,7 @@ db.exec(`
   CREATE TABLE IF NOT EXISTS waitlist_cache (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     user_id INTEGER NOT NULL,
+    gym_id TEXT NOT NULL,
     event_id INTEGER NOT NULL,
     start_at TEXT,
     class_name TEXT,
@@ -253,8 +283,10 @@ db.exec(`
     location_name TEXT,
     studio_id INTEGER,
     synced_at TEXT DEFAULT CURRENT_TIMESTAMP,
+    location_address TEXT,
     FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
-    UNIQUE(user_id, event_id)
+    FOREIGN KEY (gym_id) REFERENCES gyms(id),
+    UNIQUE(user_id, gym_id, event_id)
   );
 
   -- Persistent per-user class store that backs the calendar feed. UPSERTed from
@@ -263,6 +295,7 @@ db.exec(`
   CREATE TABLE IF NOT EXISTS calendar_classes (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     user_id INTEGER NOT NULL,
+    gym_id TEXT NOT NULL,
     event_id INTEGER NOT NULL,
     start_at TEXT,
     duration_min INTEGER,
@@ -278,8 +311,10 @@ db.exec(`
     sequence INTEGER DEFAULT 0,
     content_hash TEXT,
     updated_at TEXT DEFAULT CURRENT_TIMESTAMP,
+    location_address TEXT,
     FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
-    UNIQUE(user_id, event_id)
+    FOREIGN KEY (gym_id) REFERENCES gyms(id),
+    UNIQUE(user_id, gym_id, event_id)
   );
 
   -- Pre-built per-user ICS feed (the "publish" target). Served verbatim by the feed endpoint.
@@ -298,22 +333,16 @@ db.exec(`
   -- integrity (FK from user_gyms) and so the admin panel can list/join on it without
   -- importing the config module.
   CREATE TABLE IF NOT EXISTS gyms (
-    id TEXT PRIMARY KEY,           -- e.g. "psycle-london", "jab-boxing"
+    id TEXT PRIMARY KEY,           -- a gym id from gyms.config.js
     name TEXT NOT NULL,
     provider TEXT NOT NULL,        -- "codexfit" | "marianatek"
     enabled INTEGER NOT NULL DEFAULT 1,
     updated_at TEXT DEFAULT CURRENT_TIMESTAMP
   );
 
-  -- One row per (account, gym) the account has linked. A Sweat Assistant account
+  -- One row per (account, gym) the account has linked. An app account
   -- (the users row) can link multiple gyms -- see PLAN.md D1 (multiple gyms per
   -- account). Per-gym credentials/session live here, NOT on users.
-  --
-  -- NOTE (WP-D1 scope): this table is populated by an idempotent backfill migration
-  -- below, but application code does not read/write it yet -- users.jwt etc. remain
-  -- authoritative until WP-D3 (account bootstrap + gym linking) and WP-D4 (db.js CRUD
-  -- + admin gym-awareness) land. This keeps the migration additive and risk-free: it
-  -- can run against production data with zero behavior change.
   CREATE TABLE IF NOT EXISTS user_gyms (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     user_id INTEGER NOT NULL,
@@ -328,167 +357,27 @@ db.exec(`
     status TEXT DEFAULT 'active',  -- active | needs_relogin | disabled
     created_at TEXT DEFAULT CURRENT_TIMESTAMP,
     updated_at TEXT DEFAULT CURRENT_TIMESTAMP,
+    -- Gym login identity for THIS link (D5); NULL = never captured, NEVER falls back to users.email.
+    gym_email TEXT,
+    -- When the credential was last PROVEN against the gym (not updated_at).
+    last_authenticated_at TEXT,
+    -- Background relogin health (C6-4): consecutive failures / credential rejections / suspension.
+    relogin_failures INTEGER NOT NULL DEFAULT 0,
+    relogin_rejections INTEGER NOT NULL DEFAULT 0,
+    relogin_suspended INTEGER NOT NULL DEFAULT 0,
+    last_relogin_failure_at TEXT,
+    last_relogin_error TEXT,
     FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
     FOREIGN KEY (gym_id) REFERENCES gyms(id),
     UNIQUE(user_id, gym_id)
   );
 `);
 
-// --- Lightweight migrations ---
-// Add studio_id to auto_bookings / auto_upgrades so execution can resolve the
-// live shared studio spot map (single source of truth) rather than a snapshot.
-function ensureColumn(table, column, definition) {
-  const cols = db.prepare(`PRAGMA table_info(${table})`).all();
-  if (!cols.some(c => c.name === column)) {
-    db.exec(`ALTER TABLE ${table} ADD COLUMN ${column} ${definition}`);
-  }
-}
-// C6-4: background relogin health, per (user, gym) link. `relogin_failures` counts
-// consecutive failed renewals of any kind (outage or rejection) for the admin;
-// `relogin_rejections` counts only consecutive CREDENTIAL rejections and is what
-// suspends retrying; both reset on a successful renewal or a re-link.
-ensureColumn('user_gyms', 'relogin_failures', 'INTEGER NOT NULL DEFAULT 0');
-ensureColumn('user_gyms', 'relogin_rejections', 'INTEGER NOT NULL DEFAULT 0');
-ensureColumn('user_gyms', 'relogin_suspended', 'INTEGER NOT NULL DEFAULT 0');
-ensureColumn('user_gyms', 'last_relogin_failure_at', 'TEXT');
-ensureColumn('user_gyms', 'last_relogin_error', 'TEXT');
-ensureColumn('auto_bookings', 'studio_id', 'INTEGER');
-ensureColumn('auto_upgrades', 'studio_id', 'INTEGER');
-// Store the event-type group (e.g. "RIDE") so notifications can render it without a re-fetch.
-ensureColumn('auto_bookings', 'group_name', 'TEXT');
-ensureColumn('auto_upgrades', 'group_name', 'TEXT');
-// Sweat Assistant's OWN password hash (WP-C2 / Decision D4). Until this, an SA
-// login WAS a gym login — `users.email` + the gym credential were the same thing,
-// so losing a gym membership meant losing the account. This column makes the SA
-// identity independent: scrypt, salted, never the gym's password after the user
-// changes either one. NULL means "legacy account, not migrated yet" — the login
-// path fills it in transparently on the next successful gym login (see auth.js).
-ensureColumn('users', 'password_hash', 'TEXT');
-// The user's last-selected gym (WP-C2). NULL means "never chose one" — resolution
-// then falls back to their sole linked gym, so single-gym accounts behave exactly
-// as they did before multi-gym resolution existed. Deliberately NOT a foreign key:
-// a gym can be disabled or removed from gyms.config.js, and a stale value here must
-// degrade to the fallback chain rather than break every query for that user.
-ensureColumn('users', 'active_gym_id', 'TEXT');
-// User priority for contested-slot ordering: lower number = higher priority (default 100 = standard).
-// Set to a lower value (e.g. 10) to elevate a user above others in the same release window.
-ensureColumn('users', 'priority', 'INTEGER DEFAULT 100');
-// Display name cached from CodexFit profile on first login; shown in admin panel.
-ensureColumn('users', 'display_name', 'TEXT');
-// Full CodexFit profile snapshot (JSON) cached from /profile fetches — powers the admin
-// detail view (credits, subscriptions, stats, cutoffs) without an extra live API call.
-ensureColumn('users', 'profile_json', 'TEXT');
-ensureColumn('users', 'profile_synced_at', 'TEXT');
-// Last time this user's client hit the proxy — surfaced as "last seen" in the admin panel.
-ensureColumn('users', 'last_seen_at', 'TEXT');
-// Class length (minutes) so the calendar feed can compute DTEND. Optional; defaults at serialize.
-ensureColumn('booking_cache', 'duration_min', 'INTEGER');
-// Street address captured per-event from CodexFit, for the calendar LOCATION field.
-ensureColumn('booking_cache', 'location_address', 'TEXT');
-ensureColumn('class_history', 'slot_label', 'TEXT');
-ensureColumn('class_history', 'spot_section', 'TEXT');
-ensureColumn('waitlist_cache', 'location_address', 'TEXT');
-ensureColumn('calendar_classes', 'location_address', 'TEXT');
-// Per-user rotatable secret token authorising the public-by-URL calendar feed.
-ensureColumn('users', 'calendar_token', 'TEXT');
-// Original (first-booked) slot on an auto-upgrade monitor, so the calendar can show
-// "originally bike 40" after an upgrade. Set once at creation, never mutated.
-ensureColumn('auto_upgrades', 'original_slot_id', 'INTEGER');
-
-// The email this account authenticates to THIS gym with (WP-D5).
-//
-// Until now a gym link stored the password but not the email, because there was
-// only ever one gym and `users.email` doubled as its login. Decision D4 broke
-// that equivalence deliberately — a Sweat Assistant account is no longer a gym
-// account — which left re-authentication with nothing to authenticate AS for any
-// user whose gym email differs from their SA email. This column is the last place
-// the account still stood in for a gym.
-//
-// NULL means "we never captured it": either a pre-D5 link to a non-default gym
-// (we genuinely don't know, so the user must re-link), or a gym that doesn't
-// authenticate by email at all. Callers must treat NULL as "cannot re-login
-// unattended", never as "fall back to users.email" — that fallback is exactly
-// the account-stands-in-for-gym assumption being removed here.
-ensureColumn('user_gyms', 'gym_email', 'TEXT');
-// When this link's credential was last PROVEN against the gym — set by
-// linkGymAccount and by a successful session renewal, and by nothing else.
-// Deliberately not `updated_at`, which moves on any write to the row (a priority
-// change, a calendar token rotation) and so would report a connection as freshly
-// authenticated when it had not been touched in months.
-ensureColumn('user_gyms', 'last_authenticated_at', 'TEXT');
-
-// The instant booking opens for THIS queued class (WP-D8).
-//
-// A rolling-weekly gym (Psycle) can recompute this from the class date whenever
-// it likes. A per-class gym (MarianaTek) cannot: its release instant is
-// published per class by the API and has no relationship to any weekday rule, so
-// if we don't capture it when the entry is queued there is nothing to recompute
-// FROM. NULL means "recompute from the gym's policy", which is correct for
-// rolling-weekly gyms and the only sane answer for pre-D8 rows.
-ensureColumn('auto_bookings', 'release_at', 'TEXT');
-
-// --- Make the data layer refuse to guess (WP-D6) -----------------------------
-//
-// WP-D2 gave every per-user table `gym_id TEXT NOT NULL DEFAULT 'psycle-london'`.
-// That default was right while application code still wrote single-gym rows, and
-// is actively dangerous now that it doesn't: an INSERT that forgets its gym does
-// not error, it quietly files the row under Psycle. Silent mis-filing is the
-// failure mode this whole phase exists to remove, so the default has to go —
-// then a forgotten gym_id is a NOT NULL violation that names itself.
-//
-// Derives the new table SQL from the LIVE schema in sqlite_master rather than
-// restating it, so it cannot drift from what WP-D2 actually created, and so it
-// picks up any column added since. Idempotent: a table with no such default is
-// skipped, making this a no-op on every boot after the first.
-const GYM_SCOPED_TABLES = [
-  'studio_preferences', 'settings', 'booking_cache',
-  'waitlist_cache', 'calendar_classes', 'auto_bookings', 'auto_upgrades', 'guest_booking_groups',
-];
-const GYM_DEFAULT_RE = /\s+DEFAULT\s+'psycle-london'/i;
-
-function dropGymIdDefault(table) {
-  const row = db.prepare("SELECT sql FROM sqlite_master WHERE type = 'table' AND name = ?").get(table);
-  if (!row || !row.sql || !GYM_DEFAULT_RE.test(row.sql)) return false;
-
-  const cols = db.prepare(`PRAGMA table_info(${table})`).all().map((c) => c.name).join(', ');
-  const tmp = `${table}__d6migrate`;
-  const tmpSql = row.sql
-    .replace(GYM_DEFAULT_RE, '')
-    .replace(new RegExp(`CREATE TABLE\\s+"?${table}"?`, 'i'), `CREATE TABLE ${tmp}`);
-
-  // Any row still carrying a guessed gym would violate NOT NULL on copy. There
-  // should be none — D1/D2 backfilled every existing row — but assert rather than
-  // discover it halfway through a DROP.
-  const orphans = db.prepare(`SELECT COUNT(*) AS n FROM ${table} WHERE gym_id IS NULL`).get().n;
-  if (orphans > 0) {
-    console.warn(`[DB] ${table}: ${orphans} row(s) with no gym_id — leaving the default in place.`);
-    return false;
-  }
-
-  const tx = db.transaction(() => {
-    db.exec(tmpSql);
-    db.exec(`INSERT INTO ${tmp} (${cols}) SELECT ${cols} FROM ${table}`);
-    db.exec(`DROP TABLE ${table}`);
-    db.exec(`ALTER TABLE ${tmp} RENAME TO ${table}`);
-  });
-  tx();
-  return true;
-}
-
-function dropGymIdDefaults() {
-  const done = GYM_SCOPED_TABLES.filter((t) => dropGymIdDefault(t));
-  if (done.length) console.log(`[DB] WP-D6: dropped the Psycle gym_id default on ${done.join(', ')}.`);
-}
-
-// --- Modular multi-gym migration (WP-D1) ---
+// --- Gym registry mirror ---
 // Keeps the `gyms` table in sync with the static registry (server/gyms.config.js
-// is authoritative), then backfills a `user_gyms` row for every *legacy* user
-// against the default gym. A user with `password_hash` is a D4 Sweat Assistant
-// account and may deliberately have no gym at all; creating an empty default-gym
-// link for one would turn its legitimate 409 NO_GYM_LINKED state into a 401 loop.
-// Both steps are idempotent: safe to run on every boot, safe to run against a
-// fresh DB, and a no-op on repeat runs. See the `user_gyms` CREATE TABLE comment
-// above for why application code doesn't consume this table yet.
+// is authoritative) on every boot; user_gyms and the per-gym tables reference it.
+// Idempotent: safe to run on every boot and against a fresh DB. No account is ever
+// auto-linked to a gym — linking is always an explicit POST /api/my-gyms/link.
 function syncGymsFromConfig() {
   const { listGyms } = require('./gyms.config');
   const upsert = db.prepare(`
@@ -500,53 +389,6 @@ function syncGymsFromConfig() {
   for (const g of listGyms()) {
     upsert.run(g.id, g.name, g.provider, g.enabled ? 1 : 0);
   }
-}
-
-function backfillUserGyms() {
-  // `password_hash IS NULL` is the durable migration boundary: pre-D4 accounts
-  // had only a gym credential, while D4 accounts receive their own password at
-  // signup and can intentionally remain gym-less until they explicitly link one.
-  const users = db.prepare('SELECT * FROM users WHERE password_hash IS NULL').all();
-  if (users.length === 0) return;
-
-  const already = new Set(
-    db.prepare('SELECT user_id FROM user_gyms WHERE gym_id = ?').all(DEFAULT_GYM_ID).map((r) => r.user_id)
-  );
-  const insert = db.prepare(`
-    INSERT INTO user_gyms
-      (user_id, gym_id, gym_email, encrypted_password, session_json, display_name, profile_json, profile_synced_at, calendar_token, priority, status)
-    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'active')
-  `);
-  const tx = db.transaction(() => {
-    for (const u of users) {
-      if (already.has(u.id)) continue;
-      const session = u.jwt ? JSON.stringify({ accessToken: u.jwt, expiresAt: u.jwt_expires_at || null }) : null;
-      insert.run(
-        u.id, DEFAULT_GYM_ID, u.email, u.encrypted_password, session,
-        u.display_name || null, u.profile_json || null, u.profile_synced_at || null,
-        u.calendar_token || null, u.priority ?? 100
-      );
-    }
-  });
-  tx();
-}
-
-// Backfill gym_email on links that predate the column (WP-D5).
-//
-// Only the DEFAULT gym is backfillable, and only because `users.email` provably
-// WAS its login: before D4 an SA login was a CodexFit login, and handleLogin
-// passed `users.email` straight to the default gym's provider. For any other gym
-// the email was collected, used, and thrown away — we do not know it, and
-// guessing `users.email` would silently re-assert the coupling D4 removed. Those
-// links stay NULL and surface as "re-link needed".
-//
-// Idempotent: only fills NULLs, so it is a no-op on every boot after the first.
-function backfillGymEmails() {
-  db.prepare(`
-    UPDATE user_gyms
-       SET gym_email = (SELECT email FROM users WHERE users.id = user_gyms.user_id)
-     WHERE gym_email IS NULL AND gym_id = ?
-  `).run(DEFAULT_GYM_ID);
 }
 
 // F-7 Stage B: admin-edited presentation overrides live in server_kv as one JSON
@@ -569,161 +411,8 @@ function applyPresentationOverrides() {
 
 syncGymsFromConfig();
 applyPresentationOverrides();
-backfillUserGyms();
-backfillGymEmails();
 
-// --- Modular multi-gym migration (WP-D2) ---
-// Add gym_id to every per-user table so rows can be scoped to a specific gym
-// link. Two tables (auto_bookings, auto_upgrades) have no UNIQUE constraint —
-// a plain defaulted column is enough, and existing + future rows are backfilled
-// automatically by the column DEFAULT. The other five have a UNIQUE constraint
-// that must widen to include gym_id; SQLite cannot ALTER a constraint in place,
-// so those are rebuilt: create the new-shape table, copy data across (gym_id is
-// omitted from the copy so it picks up the DEFAULT), drop the old table, rename.
-// Idempotent — skipped per-table if gym_id already exists. As with WP-D1, this
-// is additive-only: no consumer code reads/writes gym_id yet (that's WP-D4).
-// The gym id is a LITERAL in these migration statements on purpose. They describe
-// the schema as it was at WP-D2, and history must not change if DEFAULT_GYM_ID
-// ever does — reading it from config here would silently rewrite what past
-// migrations did to existing databases. WP-D6's dropGymIdDefaults() strips these
-// defaults again immediately afterwards; they exist only so the ALTER is legal
-// (SQLite requires a default when adding a NOT NULL column).
-ensureColumn('auto_bookings', 'gym_id', "TEXT DEFAULT 'psycle-london'");
-// Persisted at queue time: a queue row outlives the timetable metadata that
-// could otherwise resolve the photo by name, and MarianaTek's instructor list
-// only covers the upcoming-class window.
-ensureColumn('auto_bookings', 'instructor_image_url', 'TEXT');
-// Class length in minutes, so competing-booking detection (C5-3) can test time overlap. Nullable: legacy rows.
-ensureColumn('auto_bookings', 'duration_min', 'INTEGER');
-ensureColumn('auto_upgrades', 'gym_id', "TEXT DEFAULT 'psycle-london'");
-
-function rebuildWithGymId(table, tmpCreateSql) {
-  const cols = db.prepare(`PRAGMA table_info(${table})`).all();
-  if (cols.length === 0 || cols.some((c) => c.name === 'gym_id')) return; // missing table or already migrated
-  const tmpTable = `${table}__d2migrate`;
-  const oldCols = cols.map((c) => c.name).join(', ');
-  const tx = db.transaction(() => {
-    db.exec(tmpCreateSql);
-    db.exec(`INSERT INTO ${tmpTable} (${oldCols}) SELECT ${oldCols} FROM ${table}`);
-    db.exec(`DROP TABLE ${table}`);
-    db.exec(`ALTER TABLE ${tmpTable} RENAME TO ${table}`);
-  });
-  tx();
-}
-
-// Shared spot maps: UNIQUE(user_id, studio_id) -> UNIQUE(user_id, gym_id, studio_id).
-rebuildWithGymId('studio_preferences', `
-  CREATE TABLE studio_preferences__d2migrate (
-    id INTEGER PRIMARY KEY AUTOINCREMENT,
-    user_id INTEGER NOT NULL,
-    studio_id INTEGER NOT NULL,
-    preferences TEXT NOT NULL,
-    created_at TEXT DEFAULT CURRENT_TIMESTAMP,
-    updated_at TEXT DEFAULT CURRENT_TIMESTAMP,
-    gym_id TEXT NOT NULL DEFAULT 'psycle-london',
-    FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
-    FOREIGN KEY (gym_id) REFERENCES gyms(id),
-    UNIQUE(user_id, gym_id, studio_id)
-  )
-`);
-
-// Settings: UNIQUE(user_id) -> UNIQUE(user_id, gym_id) (one settings blob per gym link).
-rebuildWithGymId('settings', `
-  CREATE TABLE settings__d2migrate (
-    id INTEGER PRIMARY KEY AUTOINCREMENT,
-    user_id INTEGER NOT NULL,
-    preferences TEXT NOT NULL,
-    created_at TEXT DEFAULT CURRENT_TIMESTAMP,
-    updated_at TEXT DEFAULT CURRENT_TIMESTAMP,
-    gym_id TEXT NOT NULL DEFAULT 'psycle-london',
-    FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
-    FOREIGN KEY (gym_id) REFERENCES gyms(id),
-    UNIQUE(user_id, gym_id)
-  )
-`);
-
-// Booking cache: UNIQUE(user_id, booking_id) -> UNIQUE(user_id, gym_id, booking_id)
-// (provider booking IDs are independent numbering spaces across gyms).
-rebuildWithGymId('booking_cache', `
-  CREATE TABLE booking_cache__d2migrate (
-    id INTEGER PRIMARY KEY AUTOINCREMENT,
-    user_id INTEGER NOT NULL,
-    booking_id INTEGER NOT NULL,
-    event_id INTEGER,
-    start_at TEXT,
-    class_name TEXT,
-    group_name TEXT,
-    instructor_name TEXT,
-    studio_name TEXT,
-    location_name TEXT,
-    slot_label TEXT,
-    synced_at TEXT DEFAULT CURRENT_TIMESTAMP,
-    duration_min INTEGER,
-    location_address TEXT,
-    gym_id TEXT NOT NULL DEFAULT 'psycle-london',
-    FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
-    FOREIGN KEY (gym_id) REFERENCES gyms(id),
-    UNIQUE(user_id, gym_id, booking_id)
-  )
-`);
-
-// Waitlist cache: UNIQUE(user_id, event_id) -> UNIQUE(user_id, gym_id, event_id).
-rebuildWithGymId('waitlist_cache', `
-  CREATE TABLE waitlist_cache__d2migrate (
-    id INTEGER PRIMARY KEY AUTOINCREMENT,
-    user_id INTEGER NOT NULL,
-    event_id INTEGER NOT NULL,
-    start_at TEXT,
-    class_name TEXT,
-    group_name TEXT,
-    instructor_name TEXT,
-    studio_name TEXT,
-    location_name TEXT,
-    studio_id INTEGER,
-    synced_at TEXT DEFAULT CURRENT_TIMESTAMP,
-    location_address TEXT,
-    gym_id TEXT NOT NULL DEFAULT 'psycle-london',
-    FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
-    FOREIGN KEY (gym_id) REFERENCES gyms(id),
-    UNIQUE(user_id, gym_id, event_id)
-  )
-`);
-
-// Calendar classes: UNIQUE(user_id, event_id) -> UNIQUE(user_id, gym_id, event_id).
-rebuildWithGymId('calendar_classes', `
-  CREATE TABLE calendar_classes__d2migrate (
-    id INTEGER PRIMARY KEY AUTOINCREMENT,
-    user_id INTEGER NOT NULL,
-    event_id INTEGER NOT NULL,
-    start_at TEXT,
-    duration_min INTEGER,
-    class_name TEXT,
-    group_name TEXT,
-    instructor_name TEXT,
-    studio_name TEXT,
-    location_name TEXT,
-    slot_label TEXT,
-    original_slot_label TEXT,
-    status TEXT,
-    upgrade_note TEXT,
-    sequence INTEGER DEFAULT 0,
-    content_hash TEXT,
-    updated_at TEXT DEFAULT CURRENT_TIMESTAMP,
-    location_address TEXT,
-    gym_id TEXT NOT NULL DEFAULT 'psycle-london',
-    FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
-    FOREIGN KEY (gym_id) REFERENCES gyms(id),
-    UNIQUE(user_id, gym_id, event_id)
-  )
-`);
-
-// Runs LAST of the schema migrations: WP-D2's rebuilds above create the tables
-// carrying the Psycle default, and D1's backfill needs it while it populates
-// existing rows. Only once both have finished is it safe — and correct — to take
-// the training wheels off. See dropGymIdDefaults() above.
-dropGymIdDefaults();
-
-// --- Sweat Assistant account password hashing (Decision D4) ---
+// --- the app account password hashing (Decision D4) ---
 // node:crypto scrypt — deliberately no new dependency. Parameters are stored in
 // the hash string so they can be raised later without invalidating existing rows.
 const nodeCrypto = require('crypto');
@@ -753,7 +442,7 @@ function verifyPassword(password, stored) {
 
 // --- Modular multi-gym account/session resolution (WP-D3 seam, WP-C2 implementation) ---
 //
-// This replaced a stub that always returned DEFAULT_GYM_ID. It is called from ~10
+// This replaced a stub that always returned one fixed gym. It is called from ~10
 // places inside db.js — every auth, session, priority and calendar-token read —
 // and none of those call sites (nor their callers in auth.js / server.js /
 // scheduler.js / poller.js / calendar.js / admin.js) pass a gym. Threading one
@@ -776,7 +465,7 @@ function runWithGymContext(userId, gymId, fn) {
 }
 
 function resolveActiveGymId(userId) {
-  if (userId == null) return DEFAULT_GYM_ID;
+  if (userId == null) return null;
   const ctx = gymContext.getStore();
 
   // 1. The gym this request explicitly asked for. Scoped to its own user on
@@ -822,7 +511,14 @@ function resolveGymStrict(userId, explicitGymId, opName) {
       + 'There is no active gym — pass the row\'s own gymId explicitly.',
     );
   }
-  return resolveActiveGymId(userId);
+  const resolved = resolveActiveGymId(userId);
+  if (!resolved) {
+    // No link at all: there is no gym to write to, and none is invented.
+    const err = new Error(`${opName}: no gym linked to this account yet (user ${userId}).`);
+    err.code = 'NO_GYM_LINKED';
+    throw err;
+  }
+  return resolved;
 }
 
 // The "stored choice" step (a persisted `users.active_gym_id`) was removed in
@@ -834,17 +530,21 @@ function resolveGymStrict(userId, explicitGymId, opName) {
 // unread) rather than run a destructive migration for a nullable field — same
 // call already made for `users.encrypted_password`.
 function resolvePersistedGymId(userId) {
-  const links = db.prepare('SELECT gym_id FROM user_gyms WHERE user_id = ?').all(userId);
+  const links = db.prepare('SELECT gym_id FROM user_gyms WHERE user_id = ? ORDER BY id').all(userId);
 
-  // 1. Sole linked gym. This is what every account looks like today, and it is
-  //    what makes this a no-op for existing single-gym users.
+  // 1. Sole linked gym: unambiguous.
   if (links.length === 1) return links[0].gym_id;
 
-  // 2. Nothing to go on (no links yet — pre-backfill, or mid-signup), or
-  //    several links with no per-request gym named. Default gym keeps
-  //    background work (cron, reads with no context) landing somewhere stable.
-  if (links.some((l) => l.gym_id === DEFAULT_GYM_ID)) return DEFAULT_GYM_ID;
-  return links.length > 0 ? links[0].gym_id : DEFAULT_GYM_ID;
+  // 2. No links: there is NO gym to resolve, and none is invented. Callers treat
+  //    null as "no gym linked" (routes answer 409 NO_GYM_LINKED; per-gym reads
+  //    match nothing; per-gym writes fail on the NOT NULL gym_id).
+  if (links.length === 0) return null;
+
+  // 3. Several links and no per-request gym named (cron, reads with no context):
+  //    the earliest-linked gym, so the answer is stable rather than preferring any
+  //    particular gym. Per-row background work never reaches here (it names its
+  //    row's gym), and gym-scoped routes demand an explicit gym (GYM_REQUIRED).
+  return links[0].gym_id;
 }
 
 // Merge a bare `users` identity row with its resolved-gym `user_gyms` link into the
@@ -1136,7 +836,7 @@ function mergeUserWithGym(user, gymId) {
     calendar_token: ug ? ug.calendar_token : user.calendar_token,
     gym_id: gymId,
     // The email this account logs in to THIS gym with (WP-D5). Deliberately a
-    // SEPARATE field from `.email`, which stays the Sweat Assistant account
+    // SEPARATE field from `.email`, which stays the the app account
     // identity — conflating them is the coupling D4 exists to break. NULL means
     // "not captured": re-authentication needs the user, not a fallback.
     gym_email: ug ? ug.gym_email : null,
@@ -1201,29 +901,10 @@ module.exports = {
     const user = db.prepare('SELECT * FROM users WHERE id = ?').get(id);
     return mergeUserWithGym(user, resolveActiveGymId(id));
   },
-  createUser(email, encryptedPassword) {
-    // All new users share priority 200 — one fixed tier below the founding users (100).
-    // Admins can promote individuals via the admin panel; new signups always start here.
-    // `users.*` columns below are kept in sync (dual-write) for defense-in-depth during
-    // the WP-D3 transition, but user_gyms is the real source of truth going forward.
-    const result = db.prepare('INSERT INTO users (email, encrypted_password, priority) VALUES (?, ?, 200)').run(email, encryptedPassword);
-    const userId = result.lastInsertRowid;
-    // Bootstrap the default gym link — this is the "first gym login creates the
-    // account + first user_gyms row" flow from PLAN.md D3, scoped to today's one
-    // gym. Additional gyms link via upsertUserGym directly (see D1) once Phase 5's
-    // client gym picker exists.
-    // gym_email is `email` here and only here: this path IS the gym-login flow
-    // (handleLogin), so the address was just proven against the default gym.
-    // Signup — which creates an account with no gym — goes through createAccount()
-    // instead and must never seed a gym email it has not verified.
-    this.upsertUserGym(userId, DEFAULT_GYM_ID, { gym_email: email, encrypted_password: encryptedPassword, priority: 200 });
-    return userId;
-  },
-  // Create a Sweat Assistant account with NO gym attached (Decision D4).
-  // Distinct from createUser(), which bootstraps a default-gym link because it
-  // models the legacy "first gym login creates the account" flow. Signup is
-  // gym-independent by design — the whole point is that the account can outlive
-  // any membership, so linking is a separate, later step.
+  // Create an app account with NO gym attached (Decision D4).
+  // The only way an account is created (signup and the dev mock login): it is
+  // gym-independent by design — the account can outlive any membership, so linking
+  // a gym is a separate, explicit step (POST /api/my-gyms/link).
   createAccount(email, password) {
     // `users.encrypted_password` is NOT NULL — a leftover from when an account
     // literally WAS a gym login. It has been vestigial since WP-D3 (user_gyms is
@@ -1855,17 +1536,14 @@ module.exports = {
     db.prepare('DELETE FROM sent_notifications WHERE sent_at < ?').run(beforeISO);
   },
 
-  // Admin queries (WP-D3: priority/display_name/profile_synced_at/session now come
-  // from user_gyms, scoped to each user's resolved gym — currently always the
-  // default gym, so this is a straight LEFT JOIN with no behavior change).
-  // C3-7: this used to LEFT JOIN user_gyms on the LITERAL DEFAULT_GYM_ID, so a
-  // JAB-only account (no psycle-london link at all) always missed the join and
-  // showed up with a blank display_name, priority defaulting to 100, and no
-  // session — i.e. the admin list only ever showed Psycle data. Each user's
+  // Admin queries (WP-D3: priority/display_name/profile_synced_at/session come
+  // from user_gyms, scoped to each user's resolved gym).
+  // C3-7: this used to LEFT JOIN user_gyms on one hardcoded gym id, so an account
+  // not linked to that gym showed a blank display_name, default priority and no
+  // session. Each user's
   // display_name/priority/profile_synced_at/session now come from THEIR OWN
-  // resolved gym (resolveActiveGymId — sole link, else the default gym, else
-  // their first link; same fallback chain used everywhere else with no request
-  // context), not a hardcoded one. `active_gym_id` is exposed so the admin UI
+  // resolved gym (resolveActiveGymId — sole link, else their earliest link; same
+  // fallback chain used everywhere else with no request context), not a hardcoded one. `active_gym_id` is exposed so the admin UI
   // can label which gym a row's summary fields belong to.
   getAllUsers() {
     const rows = db.prepare(`
@@ -2289,7 +1967,7 @@ module.exports = {
     });
     return this.getUserGym(userId, gymId);
   },
-  // --- Sweat Assistant's own credential (Decision D4) ------------------------
+  // --- the app's own credential (Decision D4) ------------------------
   //
   // scrypt with a per-user random salt. Stored as `scrypt$N$r$p$salt$hash`, all
   // hex, so the work factor travels with the hash and can be raised later without
@@ -2339,8 +2017,8 @@ module.exports = {
   },
 
   // Exported so WP-N1's normalized routes resolve gym context through the same
-  // seam as everything else in db.js, rather than hardcoding DEFAULT_GYM_ID a
-  // second time.
+  // seam as everything else in db.js, rather than hardcoding a gym
+  // a second time.
   resolveActiveGymId,
   // Explicit gym, else request gym, else the sole linked gym; throws for a multi-gym
   // account that names none. Exported for routes-normalized (C3-28).

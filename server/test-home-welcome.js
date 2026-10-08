@@ -5,8 +5,9 @@ process.env.DB_PATH = process.env.DB_PATH || ':memory:';
 
 const assert = require('assert');
 const db = require('./db');
+const testkit = require('./testkit');
 
-const uid = db.createUser(`home-welcome-${Date.now()}@test.local`, 'encrypted');
+const uid = testkit.createUser(db, `home-welcome-${Date.now()}@test.local`, 'encrypted');
 db.linkGym(uid, 'jab-boxing');
 db.upsertUserGym(uid, 'psycle-london', { display_name: 'Ada Lovelace' });
 db.upsertUserGym(uid, 'jab-boxing', { display_name: 'Grace Hopper' });

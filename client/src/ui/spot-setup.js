@@ -23,7 +23,7 @@ export const setupDeferred = (gymId, studioId) => deferred.has(setupKey(gymId, s
 export function markSetupDeferred(gymId, studioId) { deferred.add(setupKey(gymId, studioId)); }
 
 const previewSvg = `
-<svg class="psycle-setup-preview" viewBox="0 0 200 84" aria-hidden="true" focusable="false">
+<svg class="app-setup-preview" viewBox="0 0 200 84" aria-hidden="true" focusable="false">
   ${[0, 1, 2].map((r) => [0, 1, 2, 3, 4].map((c) => `<rect x="${14 + c * 36}" y="${10 + r * 24}" width="24" height="18" rx="5" class="pv-spot"/>`).join('')).join('')}
   ${[[1, 0, 1], [2, 1, 2], [0, 2, 3]].map(([c, r, n]) => `<g><rect x="${14 + c * 36}" y="${10 + r * 24}" width="24" height="18" rx="5" class="pv-pick"/><text x="${26 + c * 36}" y="${23 + r * 24}" text-anchor="middle" class="pv-n">${n}</text></g>`).join('')}
 </svg>`;
@@ -65,23 +65,23 @@ export function openSpotSetup({ event, className, onSaved, onContinue, onChooseF
   const where = [trimLocation(event.locationName || '', brand.name), studioName].filter(Boolean).join(' · ');
 
   const el = document.createElement('div');
-  el.id = 'psycle-spot-setup';
-  el.className = 'psycle-modal psycle-setup-page';
+  el.id = 'app-spot-setup';
+  el.className = 'app-modal app-setup-page';
   el.style.display = 'flex';
   el.innerHTML = `
-    <div class="psycle-modal-overlay"></div>
-    <div class="psycle-modal-card">
-      <div class="psycle-modal-header">
+    <div class="app-modal-overlay"></div>
+    <div class="app-modal-card">
+      <div class="app-modal-header">
         <h4 data-nav-title></h4>
-        <button type="button" class="psycle-modal-close-btn" data-nav-close aria-label="${COPY.credits.closeModal}">&times;</button>
+        <button type="button" class="app-modal-close-btn" data-nav-close aria-label="${COPY.credits.closeModal}">&times;</button>
       </div>
-      <div class="psycle-modal-body psycle-setup-body"></div>
-      <div class="psycle-modal-footer psycle-setup-footer"></div>
+      <div class="app-modal-body app-setup-body"></div>
+      <div class="app-modal-footer app-setup-footer"></div>
     </div>`;
   document.body.appendChild(el);
-  const body = el.querySelector('.psycle-setup-body');
-  const footer = el.querySelector('.psycle-setup-footer');
-  const closeBtn = el.querySelector('.psycle-modal-close-btn');
+  const body = el.querySelector('.app-setup-body');
+  const footer = el.querySelector('.app-setup-footer');
+  const closeBtn = el.querySelector('.app-modal-close-btn');
   let layer = null;
   let after = null;       // what to do once the A1 layer has finished popping
   let saved = null;       // { slots, rows } once saved
@@ -105,22 +105,22 @@ export function openSpotSetup({ event, className, onSaved, onContinue, onChooseF
     setHeaderMode(true);
     chrome('A');
     body.innerHTML = `
-      <div class="psycle-setup-inner">
-        <div class="psycle-setup-logo">${gymLogoBanner(gymId)}</div>
-        <div class="psycle-setup-where"></div>
+      <div class="app-setup-inner">
+        <div class="app-setup-logo">${gymLogoBanner(gymId)}</div>
+        <div class="app-setup-where"></div>
         ${previewSvg}
-        <p class="psycle-setup-eyebrow">${COPY.spotSetup.eyebrow}</p>
-        <h2 class="psycle-setup-headline">${COPY.spotSetup.headline}</h2>
-        <ul class="psycle-setup-points">
+        <p class="app-setup-eyebrow">${COPY.spotSetup.eyebrow}</p>
+        <h2 class="app-setup-headline">${COPY.spotSetup.headline}</h2>
+        <ul class="app-setup-points">
           <li class="p1"></li><li>${COPY.spotSetup.point2}</li><li>${COPY.spotSetup.point3}</li>
         </ul>
-        <p class="psycle-setup-reassure">${COPY.spotSetup.reassure}</p>
+        <p class="app-setup-reassure">${COPY.spotSetup.reassure}</p>
       </div>`;
-    body.querySelector('.psycle-setup-where').textContent = where;
+    body.querySelector('.app-setup-where').textContent = where;
     body.querySelector('.p1').textContent = formatCopyText(COPY.spotSetup.point1, { studio: studioName });
     setFooter(
-      btn('psycle-btn primary psycle-setup-primary', COPY.spotSetup.choose, () => showA1()),
-      ...(className ? [btn('psycle-setup-link', COPY.spotSetup.chooseForNow, () => {
+      btn('app-btn primary app-setup-primary', COPY.spotSetup.choose, () => showA1()),
+      ...(className ? [btn('app-setup-link', COPY.spotSetup.chooseForNow, () => {
         markSetupDeferred(gymId, event.studioId);
         onChooseForNow?.(el);
       })] : []),
@@ -142,7 +142,7 @@ export function openSpotSetup({ event, className, onSaved, onContinue, onChooseF
         else showA0();
       },
     });
-    body.innerHTML = `<div class="psycle-setup-loading"><div class="psycle-spinner"></div></div>`;
+    body.innerHTML = `<div class="app-setup-loading"><div class="app-spinner"></div></div>`;
     setFooter();
     let slots, objects;
     try {
@@ -150,34 +150,34 @@ export function openSpotSetup({ event, className, onSaved, onContinue, onChooseF
     } catch (err) {
       body.innerHTML = '';
       const msg = document.createElement('div');
-      msg.className = 'psycle-setup-error';
+      msg.className = 'app-setup-error';
       msg.textContent = COPY.spotSetup.loadFailed;
       body.appendChild(msg);
-      setFooter(btn('psycle-btn primary psycle-setup-primary', COPY.spotSetup.retry, () => { after = () => showA1(); layer?.release(); }));
+      setFooter(btn('app-btn primary app-setup-primary', COPY.spotSetup.retry, () => { after = () => showA1(); layer?.release(); }));
       return;
     }
     if (!slots?.length) { // no map after all: nothing to set up; carry on without prefs
       body.innerHTML = '';
       const msg = document.createElement('div');
-      msg.className = 'psycle-setup-error';
+      msg.className = 'app-setup-error';
       msg.textContent = COPY.spotSetup.loadFailed;
       body.appendChild(msg);
-      setFooter(btn('psycle-btn primary psycle-setup-primary', COPY.spotSetup.retry, () => {
+      setFooter(btn('app-btn primary app-setup-primary', COPY.spotSetup.retry, () => {
         after = () => showA1();
         layer?.release();
       }));
       return;
     }
-    body.innerHTML = '<div id="psycle-setup-editor"></div>';
-    const editor = body.querySelector('#psycle-setup-editor');
+    body.innerHTML = '<div id="app-setup-editor"></div>';
+    const editor = body.querySelector('#app-setup-editor');
     const count = document.createElement('div');
-    count.className = 'psycle-setup-count';
+    count.className = 'app-setup-count';
     const reason = document.createElement('div');
-    reason.className = 'psycle-setup-reason';
+    reason.className = 'app-setup-reason';
     const errBox = document.createElement('div');
-    errBox.className = 'psycle-setup-error';
+    errBox.className = 'app-setup-error';
     errBox.hidden = true;
-    const saveBtn = btn('psycle-btn primary psycle-setup-primary', COPY.spotSetup.save, () => save());
+    const saveBtn = btn('app-btn primary app-setup-primary', COPY.spotSetup.save, () => save());
     setFooter(errBox, count, reason, saveBtn);
 
     const refreshFooter = (n) => {
@@ -222,17 +222,17 @@ export function openSpotSetup({ event, className, onSaved, onContinue, onChooseF
     setHeaderMode(false);
     chrome('A2');
     body.innerHTML = `
-      <div class="psycle-setup-inner psycle-setup-done">
-        <div class="psycle-setup-check" aria-hidden="true">✓</div>
-        <h2 class="psycle-setup-headline">${COPY.spotSetup.savedTitle}</h2>
-        <p class="psycle-setup-reassure"></p>
+      <div class="app-setup-inner app-setup-done">
+        <div class="app-setup-check" aria-hidden="true">✓</div>
+        <h2 class="app-setup-headline">${COPY.spotSetup.savedTitle}</h2>
+        <p class="app-setup-reassure"></p>
       </div>`;
-    body.querySelector('.psycle-setup-reassure').textContent = formatCopyText(COPY.spotSetup.savedBody, { studio: studioName });
+    body.querySelector('.app-setup-reassure').textContent = formatCopyText(COPY.spotSetup.savedBody, { studio: studioName });
     setFooter(
-      btn('psycle-btn primary psycle-setup-primary', className ? formatCopyText(COPY.spotSetup.continueTo, { className }).trim() : COPY.settings.done, () => onContinue?.(el, saved)),
-      btn('psycle-setup-link', COPY.spotSetup.editSpots, () => showA1()),
+      btn('app-btn primary app-setup-primary', className ? formatCopyText(COPY.spotSetup.continueTo, { className }).trim() : COPY.settings.done, () => onContinue?.(el, saved)),
+      btn('app-setup-link', COPY.spotSetup.editSpots, () => showA1()),
     );
-    const h = body.querySelector('.psycle-setup-headline'); h.setAttribute('tabindex', '-1'); h.focus({ preventScroll: true });
+    const h = body.querySelector('.app-setup-headline'); h.setAttribute('tabindex', '-1'); h.focus({ preventScroll: true });
   };
 
   openPage(el, { id: 'spot-setup', remove: true });

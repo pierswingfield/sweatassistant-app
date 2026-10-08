@@ -1,4 +1,4 @@
-// Sweat Assistant — calendar.js adapter-routing regression test (WP-N3, calendar half).
+// calendar.js adapter-routing regression test (WP-N3, calendar half).
 //
 // calendar.js's fetchUserBookings/fetchUserWaitlists used to call raw
 // poller.fetchCodexFit() for the /bookings and /waitlists LIST endpoints. This
@@ -45,6 +45,7 @@ const mockPath = path.join(__dirname, 'mock_bookings.dbjson');
 const mockBackup = fs.existsSync(mockPath) ? fs.readFileSync(mockPath) : null;
 
 const db = require('./db');
+const testkit = require('./testkit');
 const calendar = require('./calendar');
 const { encrypt } = require('./crypto');
 const { getProvider } = require('./providers');
@@ -66,7 +67,7 @@ function cleanup() {
   try {
     // A real encrypted password (not a placeholder string) — triggerAutoRelogin's
     // 401-retry path below decrypt()s this for real, so it must be valid ciphertext.
-    const userId = db.createUser('dev@psycle.com', encrypt('dev-password'));
+    const userId = testkit.createUser(db, 'dev@psycle.com', encrypt('dev-password'));
     db.updateUserJWT(userId, 'mock-jwt-token', new Date(Date.now() + 864e5).toISOString());
     db.setUserSettings(userId, { calendar: { enabled: true, includeTentative: false } });
 

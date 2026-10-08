@@ -162,7 +162,7 @@ export function syncGymBrandedTags(container) {
   // containers, so evaluate across the whole tab panel that holds this container and mark
   // the panel. Every list re-runs this after it renders, so whichever lands last decides
   // with the full picture. Containers outside a tab panel (e.g. the overlap modal) are their own scope.
-  const scope = container.closest?.('.psycle-tab-content') || container;
+  const scope = container.closest?.('.app-tab-content') || container;
   const gyms = new Set();
   scope.querySelectorAll('.ab-disc-tag').forEach((tag) => {
     const id = tag.closest('[data-gym]')?.getAttribute('data-gym');
@@ -185,7 +185,7 @@ export function equalizeDiscTagWidths(container = document) {
   // took came out of the class NAME, which is the thing people read.
   //
   // Chips are now content-sized. Column alignment is preserved a level up
-  // instead: `.psycle-table td.col-class` has a fixed percentage width, so the
+  // instead: `.app-table td.col-class` has a fixed percentage width, so the
   // COLUMN does not move even though the chip inside it varies.
   //
   // Kept as an exported no-op rather than deleted because several modules call
@@ -246,7 +246,7 @@ export function trendingUpIcon(size = 14, color = 'currentColor', strokeWidth = 
 }
 
 export function pulseIcon(size = 14) {
-  return `<svg class="psycle-pulse-icon" width="${size}" height="${size}" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg" aria-hidden="true" style="display:inline-block;vertical-align:middle;margin-right:4px;">
+  return `<svg class="app-pulse-icon" width="${size}" height="${size}" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg" aria-hidden="true" style="display:inline-block;vertical-align:middle;margin-right:4px;">
     <circle class="radar" cx="12" cy="12" r="2" />
     <circle class="core" cx="12" cy="12" r="2" />
   </svg>`;
@@ -335,7 +335,7 @@ export function gymBrand(gymId) {
 /** The gym's FULL wordmark on its brand plate, sized as a page banner (Settings panes, Your Gyms,
  *  link/re-auth form). Reuses gymChip so there is still exactly one place that knows a gym's assets. */
 export function gymLogoBanner(gymId) {
-  return `<span class="psycle-gym-logo-banner">${gymChip(gymId)}</span>`;
+  return `<span class="app-gym-logo-banner">${gymChip(gymId)}</span>`;
 }
 
 export function gymChip(gymId) {
@@ -349,8 +349,8 @@ export function gymChip(gymId) {
   // readers and to anyone who doesn't know the marks yet, since the image
   // itself is aria-hidden.
   const wStyle = brand.logoWidth ? `;--logo-w:${brand.logoWidth}px;min-width:${brand.logoWidth + 18}px` : '';
-  return `<span class="psycle-gym-chip psycle-gym-chip-${brand.id}${brand.logoWidth ? ' has-logo-w' : ''}" title="${brand.name}" style="background:${brand.brandBg};border:1px solid ${brand.brandBg}${wStyle}">`
-    + `<span class="psycle-gym-chip-logo">${brand.logoSvg}</span>`
+  return `<span class="app-gym-chip app-gym-chip-${brand.id}${brand.logoWidth ? ' has-logo-w' : ''}" title="${brand.name}" style="background:${brand.brandBg};border:1px solid ${brand.brandBg}${wStyle}">`
+    + `<span class="app-gym-chip-logo">${brand.logoSvg}</span>`
     + `<span class="u-visually-hidden">${brand.name}</span>`
     + `</span>`;
 }
@@ -361,13 +361,13 @@ export function gymChip(gymId) {
  * `gymChip` is the wide table plate and `renderGymRail` the tall card rail; this
  * is the third shape, for places that want a small icon-sized identifier (the
  * per-gym Settings menu entries). Same assets and same brand colours as the other
- * two — the plate colour comes from `.psycle-gym-mark-<id>` in styles.css, which
- * mirrors `.psycle-gym-chip-<id>` — so the three can never disagree about what a
+ * two — the plate colour comes from `.app-gym-mark-<id>` in styles.css, which
+ * mirrors `.app-gym-chip-<id>` — so the three can never disagree about what a
  * gym looks like. Decorative: the gym's name is always rendered beside it.
  */
 export function gymSquareChip(gymId) {
   const brand = gymBrand(gymId);
-  return `<span class="psycle-gym-mark psycle-gym-mark-${brand.id}" style="background:${brand.brandBg}" aria-hidden="true">${brand.squareLogoSvg ?? brand.logoSvg}</span>`;
+  return `<span class="app-gym-mark app-gym-mark-${brand.id}" style="background:${brand.brandBg}" aria-hidden="true">${brand.squareLogoSvg ?? brand.logoSvg}</span>`;
 }
 
 export function renderGymRail(gymId) {

@@ -110,7 +110,7 @@ export function suggest(index, q, { perGroup = PER_GROUP } = {}) {
   for (const type of SUGGESTION_GROUPS) {
     const hits = [];
     for (const f of index.facets[type].values()) {
-      // A gym name may help a word match ("george psycle") but never carries a
+      // A gym name may help a word match ("george <gym name>") but never carries a
       // suggestion alone: "boxing" must not surface every instructor at JAB Boxing.
       const ctx = f.ctx || [];
       if (!allTokensIn(tokens, [...f.hay, ...ctx])) continue;

@@ -1,5 +1,5 @@
 // C1-2: one gym's dead session must not log the whole app out. `apiFetch`'s
-// 401 handler used to treat EVERY 401 as the Sweat Assistant session expiring
+// 401 handler used to treat EVERY 401 as the the app session expiring
 // — but the only 401 the server ever sends on an authenticated request is
 // routes-normalized.js `resolveContext` (or auth.js `triggerAutoRelogin`)
 // reporting that ONE linked gym's session is dead; an invalid/expired SA JWT

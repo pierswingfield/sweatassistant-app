@@ -17,7 +17,7 @@ const pub = path.join(tmp, 'public');
 fs.mkdirSync(path.join(pub, 'assets'), { recursive: true });
 fs.mkdirSync(path.join(pub, 'gyms'), { recursive: true });
 fs.writeFileSync(path.join(pub, 'index.html'), '<!doctype html><title>SHELL</title><script type="module" src="/assets/app.js"></script>');
-fs.writeFileSync(path.join(pub, 'manifest.json'), '{"name":"Sweat Assistant","start_url":"/"}');
+fs.writeFileSync(path.join(pub, 'manifest.json'), '{"name":"__APP_NAME__","start_url":"/"}');
 fs.writeFileSync(path.join(pub, 'sw.js'), '// sw');
 fs.writeFileSync(path.join(pub, 'assets', 'app.js'), 'console.log(1)');
 fs.writeFileSync(path.join(pub, 'gyms', 'x.svg'), '<svg xmlns="http://www.w3.org/2000/svg"/>');
@@ -44,6 +44,8 @@ async function run() {
       JWT_SECRET: 'test-spa-fallback-jwt',
       ENCRYPTION_KEY: '0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef',
       ADMIN_PASSWORD: 'test-admin-password',
+      PUBLIC_HOST: 'app.test.example',
+      VAPID_EMAIL: 'mailto:test@example.com',
     },
     stdio: ['ignore', 'pipe', 'pipe'],
   });

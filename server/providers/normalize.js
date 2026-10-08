@@ -1,4 +1,4 @@
-// Sweat Assistant — normalized-shape factory helpers.
+// normalized-shape factory helpers.
 //
 // Small, dependency-free builders that adapters use to produce consistent
 // NormalizedEvent / NormalizedSlot / etc. objects. Keeping construction here

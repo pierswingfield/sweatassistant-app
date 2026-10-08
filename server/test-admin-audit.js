@@ -9,6 +9,7 @@ const assert = require('assert');
 const http = require('http');
 const express = require('express');
 const db = require('./db');
+const testkit = require('./testkit');
 const adminRouter = require('./admin');
 
 const app = express();
@@ -41,7 +42,7 @@ function call(port, method, path, body, token) {
     const token = ok.json.token;
     assert.ok(token);
 
-    const uid = db.createUser('audit-target@test.local', 'enc:pw');
+    const uid = testkit.createUser(db, 'audit-target@test.local', 'enc:pw');
     assert.strictEqual((await call(port, 'PUT', `/api/admin/users/${uid}/priority`, { priority: 7 }, token)).status, 200);
     const reset = await call(port, 'POST', `/api/admin/users/${uid}/reset-password`, {}, token);
     assert.strictEqual(reset.status, 200);

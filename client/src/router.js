@@ -36,11 +36,11 @@ export function migrateLegacyHash() {
 /**
  * Register the single popstate consumer. `handler(parsedRoute)` applies
  * tab/section. Events consumed by a modal page (modal-nav sets
- * sweatNavHandled in its capture-phase listener) are ignored.
+ * appNavHandled in its capture-phase listener) are ignored.
  */
 export function initRouter(handler) {
   window.addEventListener('popstate', (e) => {
-    if (e.sweatNavHandled) return;
+    if (e.appNavHandled) return;
     handler(currentRoute());
   });
 }
@@ -100,7 +100,7 @@ export function safeReturnTo(raw) {
   return v;
 }
 
-const RETURN_KEY = 'sweatReturnTo';
+const RETURN_KEY = 'appReturnTo';
 export function stashReturnTo(path) {
   const safe = safeReturnTo(path);
   try { if (safe && safe !== '/') sessionStorage.setItem(RETURN_KEY, safe); } catch { /* storage blocked */ }

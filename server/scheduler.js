@@ -9,7 +9,7 @@ const notifications = require('./notifications');
 const { triggerAutoRelogin } = require('./auth');
 const { getProvider } = require('./providers');
 const { resolveZone, zoneOfGym } = require('./providers/timezone');
-const { getGymConfig, DEFAULT_GYM_ID } = require('./gyms.config');
+const { getGymConfig } = require('./gyms.config');
 
 // Interim single-gym bridge: until multi-gym login lands (WP-D3), the
 // scheduler only dispatches CodexFit / Psycle London bookings. See
@@ -153,10 +153,12 @@ function getBookingOffset(settings = {}) {
 // Accepts a booking ROW, not a bare date string: the row is what carries both the
 // published release and the gym whose policy applies.
 function getClassReleaseTime(booking, settings = {}) {
-  // Back-compat: a few call sites (and tests) still pass a bare ISO string.
-  const row = (typeof booking === 'string') ? { start_at: booking } : (booking || {});
+  const row = booking || {};
   const classDateStr = row.start_at;
-  const gymId = row.gym_id || DEFAULT_GYM_ID;
+  // A row names its own gym; a bare string names none, and there is no default gym
+  // to guess (no gym => no policy => nothing to resolve => null, the "skip" answer).
+  const gymId = row.gym_id;
+  if (!gymId) return null;
 
   if (row.release_at) {
     const published = DateTime.fromISO(row.release_at);
@@ -213,16 +215,16 @@ function getGymZone(gymId) {
 // PATH, not a URL — the provider prepends its gym's base, which is the whole
 // point (an absolute URL would bypass it and pin every gym to Psycle's host).
 async function fetchFromGym(userId, gymId, path, options = {}) {
-  const user = db.getUserById(userId);
-  if (user && user.email === 'dev@psycle.com') {
-    const mock = require('./mock');
-    return mock.handleMockRequest(path, options.method || 'GET', options.body ? JSON.parse(options.body) : null);
-  }
-
   // The ROW's gym session — NOT db.getUserById(userId).jwt, which resolves the
   // user's ACTIVE gym (db.resolveActiveGymId) and is wrong for a background
   // call site processing a gym the user isn't currently looking at (C3-12).
   const session = db.getUserSession(userId, gymId);
+  // Dev mock: the adapter decides (never a dev email compared here), and serves it
+  // through its own request() via the mock sentinel token.
+  const adapter = getProvider(gymId);
+  if (adapter.isMockUser(db.getUserById(userId), session)) {
+    return adapter.request(path, { token: adapter.mockToken, method: options.method || 'GET', body: options.body, headers: options.headers });
+  }
   if (!session || !session.accessToken) {
     throw new Error('User has no active session. Please log in.');
   }
@@ -770,9 +772,7 @@ function resolvePendingReleases() {
   for (const booking of db.getPendingAutoBookings()) {
     // THIS booking's own gym — reading the ambient/default gym's settings here
     // silently applied Psycle's rolling-weekly member-tier offset to it (or
-    // omitted it) regardless of which gym the row is actually for. It "worked"
-    // only because Psycle happens to be DEFAULT_GYM_ID, which the ambient
-    // fallback prefers on a multi-gym account — accidental, not correct.
+    // omitted it) regardless of which gym the row is actually for.
     const settings = db.getUserSettings(booking.user_id, booking.gym_id) || {};
     const releaseAt = getClassReleaseTime(booking, settings);
     if (!releaseAt) continue; // unresolvable → never dispatch on a guess

@@ -25,9 +25,15 @@ export function nextGymSelection(selected, allGymIds, tappedId) {
 }
 
 /** Per-gym view model for every CONFIGURED gym, in order. `linkedIds` (default: all) are the gyms
- *  with data; an unlinked gym is never shown. */
+ *  with data; an unlinked gym is never shown.
+ *  U6-14: active (shown) gym logos sit leftmost and stacked on top (higher z-index),
+ *  with blurred/excluded logos positioned behind and to the right. */
 export function quickSelectItems(selected, configuredIds, linkedIds = configuredIds) {
   const linked = new Set(norm(linkedIds));
   const shown = new Set(shownGyms(selected, [...linked]));
-  return norm(configuredIds).map(gymId => ({ gymId, linked: linked.has(gymId), shown: shown.has(gymId) }));
+  const items = norm(configuredIds).map(gymId => ({ gymId, linked: linked.has(gymId), shown: shown.has(gymId) }));
+  return [
+    ...items.filter(i => i.shown),
+    ...items.filter(i => !i.shown),
+  ];
 }

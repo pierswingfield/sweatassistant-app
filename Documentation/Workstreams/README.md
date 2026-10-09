@@ -8,7 +8,7 @@ Before starting an item, follow [AGENT_PROTOCOL.md](AGENT_PROTOCOL.md): confirm 
 
 | Epic | Focus | Active work |
 |---|---|---|
-| [Reported bugs and feedback](EPIC-member-experience.md) | Active register for the bugs and UI changes reported by the user; all U6 items are open pending implementation and verification. | U6-1..U6-12; U4-19 `q` search URL wiring |
+| [Reported bugs and feedback](EPIC-member-experience.md) | Active register for the bugs and UI changes reported by the user; all U6 items are open pending implementation and verification. | U6-1..U6-15; U4-19 `q` search URL wiring |
 | [Admin and operations](EPIC-admin-operations.md) | Improve durable admin data and finish user-owned production setup. | C8-1; C4-14 |
 | [Gym onboarding playbook](C9-gym-onboarding.md) | Repeatable tenant onboarding, provider evidence, and activation process. | Ongoing process, used when a gym is added |
 

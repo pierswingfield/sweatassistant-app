@@ -21,9 +21,9 @@ describe('nextGymSelection', () => {
 });
 
 describe('quickSelectItems', () => {
-  it('flags shown gyms in order', () => {
+  it('places active (shown) gyms first, followed by excluded gyms (U6-14)', () => {
     expect(quickSelectItems(['b'], ALL)).toEqual([
-      { gymId: 'a', linked: true, shown: false }, { gymId: 'b', linked: true, shown: true }, { gymId: 'c', linked: true, shown: false }]);
+      { gymId: 'b', linked: true, shown: true }, { gymId: 'a', linked: true, shown: false }, { gymId: 'c', linked: true, shown: false }]);
   });
   // Initial state = the saved default gym filter (see loadStoredFilters), or [] when none is saved.
   it('initial: one gym saved shows only that gym', () => {

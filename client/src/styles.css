@@ -9485,6 +9485,18 @@ html:not([data-credits-tab="on"]) .app-nav-btn[data-tab="buy-credits"] { display
   #app-helper-container .app-mobile-line2 .app-mobile-instructor,
   #app-helper-container .app-mobile-bottom-line .app-mobile-instructor { font-size: 15px !important; }
   #app-helper-container .app-mobile-bottom-line .app-mobile-location { font-size: 14px !important; }
+
+  /* U6-13: Make room for timezone-extended class times (e.g. AARMY when device
+     timezone differs from gym timezone) by shifting the gym logo and class type chip
+     right, and nudge the time text right for optical balance over the avatar. */
+  #app-helper-container .app-table td .app-mobile-lead > strong {
+    align-self: flex-start !important;
+    margin-left: 3px !important;
+    justify-content: flex-start !important;
+  }
+  #app-helper-container .app-mobile-top-line {
+    margin-left: 32px !important;
+  }
 }
 
 /* Instructor figure: a fixed-width, right-aligned slot so photos form one

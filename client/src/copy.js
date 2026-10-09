@@ -740,6 +740,8 @@ export const COPY = Object.freeze({
     clearFilterChip: 'gym and location filters',
     locationsCompact: '{count} Location{plural}',
     locationWord: 'Location{plural}',
+    instructorsCompact: '{count} Instructor{plural}',
+    instructorWord: 'Instructor{plural}',
     gymQuickGroup: 'Show classes from',
     gymQuickShown: '{name}, shown',
     gymQuickHidden: '{name}, hidden',

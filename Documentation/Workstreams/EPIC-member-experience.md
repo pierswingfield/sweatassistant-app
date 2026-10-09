@@ -21,6 +21,7 @@
 | **U6-12** | **Regression:** Display JAB Recovery classes as “Recovery”, without “(MEMBERS)”. |
 | **U6-13** | Adjust mobile timetable layout for timezone-extended times: move gym logo and class type chip right to make room, and nudge time right for optical alignment. |
 | **U6-14** | Re-order collapsed mobile filter gym logos: place active (unfiltered) gym logos leftmost and on top of blurred logos in z-index, with blurred logos behind and to the right. |
+| **U6-15** | Collapse mobile instructor filter on scroll to grand total count (e.g. “8 instructors” or “8+ instructors” if any configured gym has no instructor filter applied). |
 | **U4-19** | Wire the existing `q` URL parameter to the timetable search UI. Preserve the documented history and clear/restore behavior. |
 
 ## Acceptance notes

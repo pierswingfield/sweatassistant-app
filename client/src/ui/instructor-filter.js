@@ -86,6 +86,20 @@ export function summariseInstructorsByGym(selected, gymIds) {
   return (gymIds || []).map(g => ({ gymId: sid(g), count: toks.filter(p => p.gymId === sid(g)).length }));
 }
 
+// Grand total count and unfiltered flag for mobile scroll-collapse (U6-15).
+// e.g. { count: 8, hasUnfilteredGym: false, countLabel: '8' } -> "8 Instructors"
+// e.g. { count: 8, hasUnfilteredGym: true, countLabel: '8+' } -> "8+ Instructors"
+export function compactInstructorsCount(selected, gymIds) {
+  const summary = summariseInstructorsByGym(selected, gymIds);
+  const count = (selected || []).length;
+  const hasUnfilteredGym = (gymIds || []).length > 1 && summary.some(s => s.count === 0);
+  return {
+    count,
+    hasUnfilteredGym,
+    countLabel: `${count}${hasUnfilteredGym ? '+' : ''}`,
+  };
+}
+
 // Find the metadata instructor behind a token (gym AND id must match).
 export const findInstructor = (pool, token) => {
   const p = parseInstructorToken(token);

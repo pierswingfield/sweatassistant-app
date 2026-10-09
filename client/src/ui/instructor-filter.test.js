@@ -82,11 +82,37 @@ describe('instructor search scope', () => {
   });
 });
 
-import { summariseInstructorsByGym } from './instructor-filter.js';
+import { summariseInstructorsByGym, compactInstructorsCount } from './instructor-filter.js';
 describe('summariseInstructorsByGym', () => {
   it('counts per gym, 0 means All, ignores bare ids', () => {
     expect(summariseInstructorsByGym(['psy:1', 'psy:2', '7'], ['psy', 'jab'])).toEqual([{ gymId: 'psy', count: 2 }, { gymId: 'jab', count: 0 }]);
     expect(summariseInstructorsByGym(['jab:9'], ['psy', 'jab'])).toEqual([{ gymId: 'psy', count: 0 }, { gymId: 'jab', count: 1 }]);
     expect(summariseInstructorsByGym([], ['psy'])).toEqual([{ gymId: 'psy', count: 0 }]);
+  });
+});
+
+describe('compactInstructorsCount (U6-15)', () => {
+  it('grand total count without plus when every gym has a filter applied', () => {
+    expect(compactInstructorsCount(['psy:1', 'jab:2'], ['psy', 'jab'])).toEqual({
+      count: 2,
+      hasUnfilteredGym: false,
+      countLabel: '2',
+    });
+  });
+
+  it('adds plus suffix when any configured gym has no filter applied', () => {
+    expect(compactInstructorsCount(['psy:1', 'psy:2'], ['psy', 'jab'])).toEqual({
+      count: 2,
+      hasUnfilteredGym: true,
+      countLabel: '2+',
+    });
+  });
+
+  it('single gym never gets plus suffix', () => {
+    expect(compactInstructorsCount(['psy:1'], ['psy'])).toEqual({
+      count: 1,
+      hasUnfilteredGym: false,
+      countLabel: '1',
+    });
   });
 });

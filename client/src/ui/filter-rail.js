@@ -11,7 +11,7 @@ import { icon, gymBrand, getDiscipline } from './cards.js';
 import { escapeHtml } from './cards.js';
 import { COPY, formatCopyText } from '../copy.js';
 import { pushLayer } from './modal-nav.js';
-import { summariseInstructorsByGym } from './instructor-filter.js';
+import { summariseInstructorsByGym, compactInstructorsCount } from './instructor-filter.js';
 import { quickSelectItems } from './gym-quick-select.js';
 
 // Aliases come from the gym config (ctx.locationAlias). This is only the
@@ -93,6 +93,12 @@ function compactLocationsCount(state, locations = []) {
 export function compactLocationsLabel(state, locations = []) {
   const n = compactLocationsCount(state, locations);
   return n ? formatCopyText(COPY.filters.locationsCompact, { count: n, plural: n === 1 ? '' : 's' }) : '';
+}
+export function compactInstructorsLabel(state, gymIds = []) {
+  const info = compactInstructorsCount(state.instructors, gymIds);
+  const plural = info.count === 1 && !info.hasUnfilteredGym ? '' : 's';
+  const word = formatCopyText(COPY.filters.instructorWord, { plural });
+  return countLabelHtml(info.countLabel, word);
 }
 
 // ONE renderer for every "N things" label in a rail chip (Types, Locations, Instructors): the count is always
@@ -189,14 +195,23 @@ export function renderFilterRail(ctx) {
   if (state.instructors.length) {
     const first = ctx.instructors.find(i => String(i.id) === state.instructors[0]);
     const gymIds = (ctx.gyms || []).map(g => g.id);
-    // Several gyms: same tile as the location chip, a count (or "All") per gym logo.
-    const body = gymIds.length > 1
-      ? chipBodyHtml(icon('user', 13), summariseInstructorsByGym(state.instructors, gymIds).map(({ gymId, count }) =>
-          `<span class="fr-tile-part">${gymDot(gymId)}<span class="fr-initials">${count ? `<b class="fr-num">${count}</b>` : COPY.filters.all}</span></span>`).join(''))
-      : state.instructors.length === 1
-      ? chipBodyHtml(icon('user', 13), escapeHtml(((first && first.name) || COPY.filters.instructorFallback).split(' ')[0]))
-      : chipBodyHtml(icon('user', 13), countLabelHtml(state.instructors.length, COPY.filters.instructors));
-    groupParts.push(chip(body, 'instructors', COPY.filters.instructorFilterChip));
+    const configured = (ctx.allGyms && ctx.allGyms.length ? ctx.allGyms : ctx.gyms) || [];
+    const configuredGymIds = configured.map(g => g.id);
+    const targetGymIds = configuredGymIds.length > 1 ? configuredGymIds : gymIds;
+
+    // U6-15: Several gyms: tile folds into grand total count on scroll (e.g. "8 Instructors" or "8+ Instructors" if any configured gym has no instructor filter).
+    if (targetGymIds.length > 1) {
+      const fullTile = summariseInstructorsByGym(state.instructors, targetGymIds).map(({ gymId, count }) =>
+        `<span class="fr-tile-part">${gymDot(gymId)}<span class="fr-initials">${count ? `<b class="fr-num">${count}</b>` : COPY.filters.all}</span></span>`).join('');
+      const compactTile = `<span class="fr-tile-compact" aria-hidden="true">${compactInstructorsLabel(state, targetGymIds)}</span>`;
+      const tile = `<span class="fr-tile-full">${fullTile}</span>${compactTile}`;
+      groupParts.push(chip(chipBodyHtml(icon('user', 13), tile), 'instructors', COPY.filters.instructorFilterChip, 'has-compact'));
+    } else {
+      const body = state.instructors.length === 1
+        ? chipBodyHtml(icon('user', 13), escapeHtml(((first && first.name) || COPY.filters.instructorFallback).split(' ')[0]))
+        : chipBodyHtml(icon('user', 13), countLabelHtml(state.instructors.length, COPY.filters.instructors));
+      groupParts.push(chip(body, 'instructors', COPY.filters.instructorFilterChip));
+    }
   }
   parts.push(`<span class="fr-filtergroup">${groupParts.join('')}</span>`);
   rail.innerHTML = parts.join('');

@@ -9443,7 +9443,7 @@ html.app-scroll-locked { overflow: hidden !important; background: var(--bg) !imp
   #app-filter-rail .fr-tile-full { max-width: 220px; opacity: 1; }
   #app-filter-rail .fr-tile-compact { max-width: 0; opacity: 0; font-size: 11px; font-weight: 500; align-items: center; }
   #app-container.app-tt-compact #app-filter-rail .fr-tile-full { max-width: 0; opacity: 0; }
-  #app-container.app-tt-compact #app-filter-rail .fr-tile-compact { max-width: 120px; opacity: 1; margin-left: 4px; }
+  #app-container.app-tt-compact #app-filter-rail .fr-tile-compact { max-width: 120px; opacity: 1; }
 }
 @media (max-width: 768px) and (prefers-reduced-motion: reduce) {
   #app-helper-container .app-sticky-top,

@@ -15,6 +15,7 @@ const stack = []; // open pages, topmost last: { el, id, opts, opener, hideTimer
 const timers = new WeakMap();
 let lockCount = 0;
 let savedScrollY = 0;
+let savedScrollEl = null;
 let seq = 0;
 let listening = false;
 let pendingPops = 0; // history.back() calls we issued ourselves
@@ -29,14 +30,17 @@ export function openPageCount() { return stack.length; }
 function lockScroll() {
   if (lockCount++ > 0) return;
   const appScroller = document.querySelector('main.app-body');
-  savedScrollY = appScroller?.scrollTop || 0;
+  savedScrollEl = appScroller?.classList.contains('app-timetable-active')
+    ? appScroller.querySelector('.app-timetable-list') || appScroller
+    : appScroller;
+  savedScrollY = savedScrollEl?.scrollTop || 0;
   const s = document.body.style;
   s.position = 'fixed';
   s.top = '0';
   s.width = '100%';
   document.body.classList.add('app-scroll-locked');
   document.documentElement.classList.add('app-scroll-locked'); // html must not scroll either
-  appScroller?.classList.add('app-scroll-locked');
+  savedScrollEl?.classList.add('app-scroll-locked');
 }
 function unlockScroll() {
   if (lockCount === 0 || --lockCount > 0) return;
@@ -46,9 +50,9 @@ function unlockScroll() {
   s.width = '';
   document.body.classList.remove('app-scroll-locked');
   document.documentElement.classList.remove('app-scroll-locked');
-  const appScroller = document.querySelector('main.app-body');
-  appScroller?.classList.remove('app-scroll-locked');
-  if (appScroller) appScroller.scrollTop = savedScrollY;
+  savedScrollEl?.classList.remove('app-scroll-locked');
+  if (savedScrollEl) savedScrollEl.scrollTop = savedScrollY;
+  savedScrollEl = null;
 }
 
 // ── background inertness: only the topmost page is reachable ────────────────
@@ -324,5 +328,5 @@ export function closePage(el, { force = true } = {}) {
 
 // Test hook.
 export function _resetForTests() {
-  stack.length = 0; lockCount = 0; pendingPops = 0; seq = 0;
+  stack.length = 0; lockCount = 0; pendingPops = 0; seq = 0; savedScrollEl = null; savedScrollY = 0;
 }

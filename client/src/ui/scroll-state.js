@@ -6,5 +6,5 @@ let busyUntil = 0;
 export function markScrollBusy(ms = 300) { busyUntil = Math.max(busyUntil, performance.now() + ms); }
 export function isScrollBusy() { return performance.now() < busyUntil; }
 
-// App content always scrolls inside `main.app-body`, keeping fixed navigation
-// outside the momentum scroller on both mobile and desktop.
+// App content scrolls in `main.app-body`, except mobile timetable rows, which use
+// their own content scrollport to keep pinned rails outside native bounce.

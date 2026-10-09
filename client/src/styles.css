@@ -6935,12 +6935,10 @@ html, body, * {
     font-size: 18px;
   }
 
-  /* On mobile, main.app-body is the sole scroll container (pull-to-refresh
-     target). These panels must NOT scroll themselves, otherwise iOS has two
-     nested scrollers and the outer scrollTop stays 0, breaking scroll-up and
-     misfiring pull-to-refresh. Mirrors the panel-layout.css override; repeated
-     here because the base overflow-y:auto rule above (no media query) loads
-     after panel-layout.css and would otherwise win the cascade. */
+  /* On mobile, app-body is the shared scroll container (and pull-to-refresh
+     target) for these panels. The timetable rows use their own isolated surface;
+     these panels stay content-sized to avoid competing nested scrollers. Mirrors
+     panel-layout.css; repeated because the base overflow rule above loads later. */
   #app-helper-container #app-panel-my-bookings,
   #app-helper-container #app-panel-auto-book,
   #app-helper-container #app-panel-settings,
@@ -8669,10 +8667,9 @@ svg.gym-logo-inline { display: block; opacity: 1 !important; transition: none !i
 .fr-trigger .fr-trigger-label { font-size: 12px; font-weight: 600; line-height: 1; white-space: nowrap; }
 
 /* ======================================================================
-   Mobile content scrolls inside `main.app-body`.
-   Header and bottom navigation remain outside the scrollport, so momentum
-   cannot sit on top of their hit targets. Collapse and pull-to-refresh observe
-   the same app-body scroller at every viewport size.
+   Mobile content scrolls inside `main.app-body`; timetable rows use a separate
+   inner scrollport to keep the pinned date/filter rails outside edge bounce.
+   Header and bottom navigation stay outside the momentum surface.
    ====================================================================== */
 @media (max-width: 768px) {
   html, body { height: 100% !important; min-height: 100%; overflow: hidden !important; }
@@ -8974,6 +8971,37 @@ body::after { z-index: 1000002 !important; }
 @media (max-width: 768px) {
   #app-helper-container #app-timetable-grid .app-table tbody td { padding-top: 5px !important; padding-bottom: 5px !important; }
 }
+
+/* Keep the mobile timetable's elastic edge movement on class rows only. The
+   title/date/filter rails stay in the fixed app-body while the grid scrolls. */
+@media (max-width: 768px) {
+  #app-helper-container main.app-body.app-timetable-active {
+    overflow-y: hidden !important;
+    overscroll-behavior-y: none;
+  }
+  #app-container.app-hdr-hidden main.app-body.app-timetable-active {
+    padding-top: calc(var(--hdr-gap, 12px) + var(--hdr-extra, 8px)) !important;
+  }
+  #app-helper-container .app-body.app-timetable-active #app-panel-class-timetable {
+    flex: 1 1 0% !important;
+    min-height: 0 !important;
+    overflow: hidden !important;
+  }
+  #app-helper-container .app-body.app-timetable-active #app-panel-class-timetable > #app-timetable-grid {
+    flex: 1 1 0% !important;
+    min-height: 0 !important;
+    overflow-x: hidden !important;
+    overflow-y: auto !important;
+    overscroll-behavior-y: contain !important;
+    -webkit-overflow-scrolling: touch;
+    touch-action: pan-y;
+  }
+  #app-helper-container .app-body.app-timetable-active #app-timetable-grid .app-table-container {
+    overflow: visible !important;
+  }
+  #app-helper-container #app-timetable-grid.app-scroll-locked { overflow: hidden !important; }
+}
+
 /* Auto-Book CTA: ~14px wider, contents centred precisely (equal icon/label gap, no stray padding). */
 .app-tt-seg.primary.variant-autoupgrade:not(.app-tt-seg-caret) {
   width: calc(var(--tt-seg-w) + 14px) !important; flex-basis: calc(var(--tt-seg-w) + 14px) !important;

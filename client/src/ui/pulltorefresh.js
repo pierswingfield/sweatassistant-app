@@ -26,16 +26,14 @@ const PULL_THRESHOLD = 115; // Much higher threshold: deliberate ~245px finger d
 const MAX_TOP_PULL = 160;   // visual cap at top
 const MAX_BOTTOM_PULL = 75; // visual cap at bottom
 
-let activeCancelFn = null;
+const activeCancelFns = new Set();
 
 /**
  * Immediately cancels any active pull-to-refresh or rubber banding and removes the widget from DOM.
  * Call this on tab changes or navigation to ensure zero lingering artifacts.
  */
 export function cancelPullToRefresh() {
-  if (typeof activeCancelFn === 'function') {
-    activeCancelFn();
-  }
+  activeCancelFns.forEach((cancel) => cancel());
 }
 
 export function setupPullToRefresh(scrollEl, onRefresh, {
@@ -69,8 +67,8 @@ export function setupPullToRefresh(scrollEl, onRefresh, {
   }
   scrollTargets.forEach((t) => t.addEventListener('scroll', onScroll, { passive: true }));
 
-  // iOS supplies native rubber-banding for the isolated app-body scrollport; desktop
-  // keeps the synthetic elasticity below. The pull indicator observes both paths.
+  // iOS supplies native rubber-banding for the selected mobile content scrollport;
+  // desktop keeps the synthetic elasticity below. The pull indicator observes both paths.
   const usesNativeBounce = () => window.matchMedia('(max-width: 768px)').matches;
   function moveEl(y, transition) {
     if (usesNativeBounce()) return;
@@ -168,7 +166,7 @@ export function setupPullToRefresh(scrollEl, onRefresh, {
     indicator = null;
   }
 
-  activeCancelFn = forceReset;
+  activeCancelFns.add(forceReset);
 
   // Apple's exact UIScrollView logarithmic resistance formula
   function calcElastic(pull, maxPull) {
@@ -358,6 +356,6 @@ export function setupPullToRefresh(scrollEl, onRefresh, {
     window.removeEventListener('blur', forceReset);
     scrollTargets.forEach((t) => t.removeEventListener('scroll', onScroll));
     clearTimeout(scrollCooldownTimer);
-    activeCancelFn = null;
+    activeCancelFns.delete(forceReset);
   };
 }

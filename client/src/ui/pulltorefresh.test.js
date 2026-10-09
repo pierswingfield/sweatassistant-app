@@ -1,9 +1,9 @@
 import { describe, it, expect, vi, afterEach } from 'vitest';
-import { setupPullToRefresh } from './pulltorefresh.js';
+import { setupPullToRefresh, cancelPullToRefresh } from './pulltorefresh.js';
 
-function touch(scrollEl, type, y) {
+function touch(scrollEl, type, y, x = 100) {
   const event = new Event(type, { bubbles: true, cancelable: true });
-  const point = { clientX: 100, clientY: y };
+  const point = { clientX: x, clientY: y };
   Object.defineProperty(event, 'touches', { value: type === 'touchend' ? [] : [point] });
   Object.defineProperty(event, 'changedTouches', { value: [point] });
   scrollEl.dispatchEvent(event);
@@ -53,5 +53,48 @@ describe('pull-to-refresh on the mobile app scrollport', () => {
     const move = touch(scrollEl, 'touchmove', 100);
     expect(move.defaultPrevented).toBe(false);
     expect(scrollEl.style.transform).toBe('');
+  });
+
+  it('does not arm pull-to-refresh for a horizontal date or filter drag', () => {
+    window.matchMedia = vi.fn(() => ({ matches: true }));
+    const scrollEl = document.createElement('main');
+    document.body.appendChild(scrollEl);
+    cleanup = setupPullToRefresh(scrollEl, vi.fn(), {
+      getScrollTop: () => 0,
+      getMaxScroll: () => 1000,
+      scrollTargets: [scrollEl],
+    });
+    touch(scrollEl, 'touchstart', 100, 100);
+    const move = touch(scrollEl, 'touchmove', 104, 350);
+    expect(move.defaultPrevented).toBe(false);
+    expect(document.querySelector('.app-pull-indicator')).toBeNull();
+    touch(scrollEl, 'touchend', 104, 350);
+  });
+
+  it('cancels pending pull state on every registered scroll surface', () => {
+    window.matchMedia = vi.fn(() => ({ matches: true }));
+    const bodyScroller = document.createElement('main');
+    const timetableScroller = document.createElement('div');
+    document.body.append(bodyScroller, timetableScroller);
+    cleanup = setupPullToRefresh(bodyScroller, vi.fn(), {
+      isEnabled: () => true, getScrollTop: () => 0, getMaxScroll: () => 500, scrollTargets: [bodyScroller],
+    });
+    const cleanTimetable = setupPullToRefresh(timetableScroller, vi.fn(), {
+      isEnabled: () => true, getScrollTop: () => 0, getMaxScroll: () => 500, scrollTargets: [timetableScroller],
+    });
+    const start = (el, type, y) => {
+      const event = new Event(type, { bubbles: true, cancelable: true });
+      const point = { clientX: 100, clientY: y };
+      Object.defineProperty(event, 'touches', { value: type === 'touchend' ? [] : [point] });
+      Object.defineProperty(event, 'changedTouches', { value: [point] });
+      el.dispatchEvent(event);
+    };
+    start(bodyScroller, 'touchstart', 100); start(bodyScroller, 'touchmove', 300);
+    start(timetableScroller, 'touchstart', 100); start(timetableScroller, 'touchmove', 300);
+    expect(document.querySelectorAll('.app-pull-indicator')).toHaveLength(2);
+
+    cancelPullToRefresh();
+    expect(document.querySelectorAll('.app-pull-indicator')).toHaveLength(0);
+    cleanTimetable();
   });
 });

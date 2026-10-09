@@ -64,6 +64,29 @@ describe('modal-nav', () => {
     expect(scroller.scrollTop).toBe(87);
   });
 
+  it('mobile timetable: locks and restores the inner class-content scroller', async () => {
+    setMobile(true);
+    const scroller = document.createElement('main');
+    scroller.className = 'app-body app-timetable-active';
+    const grid = document.createElement('div');
+    grid.className = 'app-timetable-list';
+    grid.scrollTop = 231;
+    scroller.appendChild(grid);
+    document.body.appendChild(scroller);
+    const el = mkModal('timetable-scroll-lock');
+
+    openPage(el, { id: 'timetable-scroll-lock' });
+    await tick();
+    expect(scroller.classList.contains('app-scroll-locked')).toBe(false);
+    expect(grid.classList.contains('app-scroll-locked')).toBe(true);
+    expect(grid.scrollTop).toBe(231);
+
+    history.back();
+    await tick(50);
+    expect(grid.classList.contains('app-scroll-locked')).toBe(false);
+    expect(grid.scrollTop).toBe(231);
+  });
+
   it('mobile: X goes through history.back and the dirty guard can veto', async () => {
     setMobile(true);
     const el = mkModal('c'); let dirty = true;

@@ -6467,6 +6467,7 @@ html, body {
     -webkit-backdrop-filter: blur(28px) saturate(180%);
     border-top: 1px solid var(--border);
     box-shadow: 0 -1px 0 color-mix(in srgb, var(--border) 60%, transparent), 0 -6px 18px rgba(0, 0, 0, 0.10);
+    touch-action: none;
   }
 
   /* Email is redundant on mobile; keep desktop untouched */
@@ -6475,6 +6476,7 @@ html, body {
   }
 
   #app-helper-container .app-bottom-nav-btn {
+    touch-action: manipulation;
     flex: 1 1 0;
     min-width: 0;
     display: flex;
@@ -7657,7 +7659,7 @@ html, body {
 .fr-rail { display: none; }
 @media (max-width: 768px) {
   #app-helper-container #app-timetable-filters-container .app-filters-row { display: none !important; }
-  .fr-rail { display: flex !important; align-items: center; gap: 6px; height: 40px; max-height: 40px; overflow-x: auto; overflow-y: hidden; overscroll-behavior-x: contain; touch-action: pan-x pan-y; -webkit-overflow-scrolling: touch; scrollbar-width: none; box-sizing: border-box; }
+  .fr-rail { display: flex !important; align-items: center; gap: 6px; height: 40px; max-height: 40px; overflow-x: auto; overflow-y: hidden; overscroll-behavior-x: contain; touch-action: pan-x; -webkit-overflow-scrolling: touch; scrollbar-width: none; box-sizing: border-box; }
   .fr-rail::-webkit-scrollbar { display: none; }
 }
 .fr-rail > * { flex-shrink: 0; }
@@ -9494,7 +9496,7 @@ html:not([data-credits-tab="on"]) .app-nav-btn[data-tab="buy-credits"] { display
     margin-left: 3px !important;
     justify-content: flex-start !important;
   }
-  #app-helper-container .app-mobile-top-line {
+  #app-helper-container .app-mobile-class-card.has-tz .app-mobile-top-line {
     margin-left: 32px !important;
   }
 }

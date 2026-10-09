@@ -2242,8 +2242,9 @@ function buildEventRow(event, autoBookedIds) {
   // twice while the name itself was squeezed into what was left.
   const strippedClassName = cleanClassName(className, groupName);
 
-  const startDate = new Date(event.startAt);
-  const timeStr = formatInZone(event.startAt, zoneFor(event)).timeLabel;
+  const formattedTime = formatInZone(event.startAt, zoneFor(event));
+  const timeStr = formattedTime.timeLabel;
+  const hasTimezone = Boolean(formattedTime.suffix);
 
   // Cutoff status calculation (instant comparison; zone-free)
   const classRelease = getClassReleaseTime(event, userSettings);
@@ -2331,7 +2332,7 @@ function buildEventRow(event, autoBookedIds) {
   // === MOBILE TIMETABLE — PWA MOBILE LAYOUT (added Jun 2026; delete this block to revert) ===
   if (window.matchMedia('(max-width: 768px)').matches) {
     return buildMobileClassRow(event, {
-      timeStr, groupName, strippedClassName, instrName, locName,
+      timeStr, hasTimezone, groupName, strippedClassName, instrName, locName,
       isBookmarked, heartChar, heartClass, rowClass
     }, actionModel); // skip desktop rendering for this row
   }
@@ -3249,7 +3250,7 @@ function injectMobileFilterHamburger() {
 // === MOBILE TIMETABLE — buildMobileClassRow (added Jun 2026; delete this block to revert) ===
 function buildMobileClassRow(event, ctx, model) {
   const {
-    timeStr, groupName, strippedClassName, instrName, locName,
+    timeStr, hasTimezone, groupName, strippedClassName, instrName, locName,
     isBookmarked, heartChar, heartClass, rowClass
   } = ctx;
 
@@ -3260,7 +3261,7 @@ function buildMobileClassRow(event, ctx, model) {
   td.colSpan = 6;
 
   const card = document.createElement('div');
-  card.className = 'app-mobile-class-card';
+  card.className = `app-mobile-class-card${hasTimezone ? ' has-tz' : ''}`;
   card.setAttribute('data-gym', event.gymId || getDefaultGymId());
 
   // Row 3 shows the studio's FULL location name ("Oxford Circus"), not the gym's contracted alias ("OC").

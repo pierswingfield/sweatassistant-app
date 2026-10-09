@@ -10,3 +10,16 @@ export function isScrollBusy() { return performance.now() < busyUntil; }
 // `main.app-body` scroller. Everything that reads scroll position goes through these two helpers.
 export const isDocScroll = () => typeof window !== 'undefined' && window.matchMedia('(max-width: 768px)').matches;
 export function docScroller() { return document.scrollingElement || document.documentElement; }
+
+/**
+ * Immediately cancels any in-flight document/body momentum scroll without jumping.
+ * Used when the user touches stationary fixed/sticky chrome (nav bar, filter rail, header)
+ * while content is traveling, so touches/taps are not swallowed by momentum arrest.
+ */
+export function haltScrollMomentum() {
+  if (typeof window === 'undefined') return;
+  window.scrollTo(window.scrollX, window.scrollY);
+  const scroller = isDocScroll() ? docScroller() : document.querySelector('main.app-body');
+  if (scroller) scroller.scrollTop = scroller.scrollTop;
+}
+

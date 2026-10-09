@@ -39,3 +39,12 @@ Used the local mock app at `http://localhost:5173` in the user's Chrome extensio
 - Re-ran `npm run build:client` after all implementation and evidence edits: PASS, 83 modules transformed, built in 973ms. Existing mixed-import and >500KB chunk warnings remain.
 - Re-ran `git diff --check`: PASS (exit 0).
 - Independent browser tester verified nav taps after scrolling, modal scroll-offset restore, timetable header collapse/return, pinned rails, Settings scrolling, and hidden scrollbar. Native iOS momentum, bounce, and pull-to-refresh remain unverified.
+
+## Header-gap and short-page bounce follow-up (2026-10-09)
+
+Cause: `.app-body` begins at the viewport top and already reserves the visible header plus gap in its top padding. The mobile sticky inset counted the header a second time, creating a 61px gap on the 390x844 local viewport. Bookings and Auto-Book can fit their scrollport exactly, leaving no native overflow at either boundary.
+
+- CSS now subtracts the expanded header reserve from the expanded sticky inset, and the complete reserve while the header is collapsed. In real Chrome at 390x844, the timetable sticky block starts at y=41 with the 41px header visible and at y=0 with it collapsed; the timetable outer body remains the scroller at 1430/844.
+- Only the Bookings and Auto-Book panels receive `min-height: calc(100% + 1px)`. On Auto-Book at both 390x844 and 390x600, `.app-body` measured exactly one pixel of overflow. At 390x600, a real Chrome click from that edge switched to Bookings, whose normal longer content then had 111px of overflow. No booking/account action was triggered.
+- `npm test` with Node 20.19.0: PASS, 81/81 server suites and 74/74 client files / 559 tests. `npm run build:client`: PASS, 83 modules transformed; existing mixed-import and chunk-size warnings. `git diff --check`: PASS.
+- Desktop Chrome confirms scroll extent, header geometry, and navigation only. Native iOS bounce and pull-to-refresh remain device-unverified.

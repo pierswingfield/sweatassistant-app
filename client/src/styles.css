@@ -8713,9 +8713,14 @@ svg.gym-logo-inline { display: block; opacity: 1 !important; transition: none !i
     background: var(--warning, #e68a00) !important;
     color: #1a1206 !important;
   }
-  /* Sticky now sticks to the VIEWPORT: under the header while it shows, flush at the top once hidden. */
-  #app-helper-container .app-sticky-top { top: var(--app-header-h, 47px); }
-  #app-container.app-hdr-hidden .app-sticky-top { top: 0; }
+  /* The app-body scrollport starts at the viewport top and reserves header+gap in
+     padding. Subtract that reserve from sticky insets so the header isn't counted twice. */
+  #app-helper-container .app-sticky-top {
+    top: calc(-1 * (var(--hdr-gap, 12px) + var(--hdr-extra, 8px)));
+  }
+  #app-container.app-hdr-hidden .app-sticky-top {
+    top: calc(-1 * (var(--app-header-h, 47px) + var(--hdr-gap, 12px) + var(--hdr-extra, 8px)));
+  }
   #app-helper-container .app-sticky-top { transition: top 0.25s ease; }
 }
 
@@ -8847,6 +8852,10 @@ body::after { z-index: 1000002 !important; }
   #app-helper-container .app-body,
   #app-helper-container .app-main { padding-top: calc(var(--app-header-h, 47px) + var(--hdr-gap) + var(--hdr-extra)) !important; }
   #app-helper-container #app-panel-class-timetable { margin-top: calc(-1 * (var(--hdr-gap) + var(--hdr-extra))) !important; }
+  /* Keep app-body as the scrollport on the short Bookings and Auto-Book states;
+     a single extra pixel lets iOS enter native edge bounce without a blank screen of scroll. */
+  #app-helper-container #app-panel-my-bookings,
+  #app-helper-container #app-panel-auto-book { min-height: calc(100% + 1px); }
 }
 
 

@@ -18,7 +18,7 @@
 // - Global cancelPullToRefresh() exported so tab switches or navigation dismiss the widget immediately.
 // - Horizontal swipe guard: ensures carousel / tab swipes are never intercepted.
 
-import { isScrollBusy, isDocScroll, docScroller } from './scroll-state.js';
+import { isScrollBusy } from './scroll-state.js';
 import { haptic } from './haptics.js';
 import { COPY } from '../copy.js';
 
@@ -40,12 +40,8 @@ export function cancelPullToRefresh() {
 
 export function setupPullToRefresh(scrollEl, onRefresh, {
   isEnabled = () => true,
-  getScrollTop = () => (isDocScroll() ? docScroller().scrollTop : scrollEl.scrollTop),
+  getScrollTop = () => scrollEl.scrollTop,
   getMaxScroll = () => {
-    if (isDocScroll()) {
-      const ds = docScroller();
-      return Math.max(0, ds.scrollHeight - window.innerHeight);
-    }
     return Math.max(0, scrollEl.scrollHeight - scrollEl.clientHeight);
   },
   scrollTargets = [scrollEl, window],
@@ -73,11 +69,11 @@ export function setupPullToRefresh(scrollEl, onRefresh, {
   }
   scrollTargets.forEach((t) => t.addEventListener('scroll', onScroll, { passive: true }));
 
-  // Mobile scrolls the DOCUMENT and `main` holds the sticky header/date block: any transform
-  // (even translate3d(0,0,0) / will-change) on it re-bases those sticky bars and leaves a gap
-  // after release. So on mobile the indicator overlays and the container is NEVER transformed.
+  // iOS supplies native rubber-banding for the isolated app-body scrollport; desktop
+  // keeps the synthetic elasticity below. The pull indicator observes both paths.
+  const usesNativeBounce = () => window.matchMedia('(max-width: 768px)').matches;
   function moveEl(y, transition) {
-    if (isDocScroll()) return;
+    if (usesNativeBounce()) return;
     scrollEl.style.willChange = 'transform';
     scrollEl.style.transition = transition;
     scrollEl.style.transform = `translate3d(0, ${y}px, 0)`;
@@ -187,7 +183,6 @@ export function setupPullToRefresh(scrollEl, onRefresh, {
     if (isRefreshing) return;
     if (e.touches.length !== 1) return;
 
-    if (isDocScroll()) clearEl();
     startY = e.touches[0].clientY;
     startX = e.touches[0].clientX;
     engagedStartY = null;
@@ -230,9 +225,10 @@ export function setupPullToRefresh(scrollEl, onRefresh, {
       if (pull > 0) {
         isTopPulling = true;
         currentElasticY = calcElastic(pull, MAX_TOP_PULL);
-        e.preventDefault();
-
-        moveEl(currentElasticY, 'none');
+        if (!usesNativeBounce()) {
+          e.preventDefault();
+          moveEl(currentElasticY, 'none');
+        }
 
         if (isEnabled()) {
           const isArmed = currentElasticY >= PULL_THRESHOLD;
@@ -261,9 +257,10 @@ export function setupPullToRefresh(scrollEl, onRefresh, {
       if (pull > 0) {
         isBottomPulling = true;
         currentElasticY = -calcElastic(pull, MAX_BOTTOM_PULL);
-        e.preventDefault();
-
-        moveEl(currentElasticY, 'none');
+        if (!usesNativeBounce()) {
+          e.preventDefault();
+          moveEl(currentElasticY, 'none');
+        }
         return;
       }
     } else if (isBottomPulling && rawDeltaY >= 0) {

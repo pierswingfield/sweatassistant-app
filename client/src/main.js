@@ -4,7 +4,7 @@ import { api, setToken, isLoggedIn } from './api';
 import { setLinkedGyms, setGymCatalogue, getLinkedGyms, getGymShortName, getDefaultGymId, getGymPresentation, canForGym } from './gym-context.js';
 import { initTooltips } from './ui/tooltips';
 import { setupPullToRefresh, cancelPullToRefresh } from './ui/pulltorefresh';
-import { markScrollBusy, isScrollBusy, isDocScroll, docScroller } from './ui/scroll-state.js';
+import { markScrollBusy, isScrollBusy } from './ui/scroll-state.js';
 import { nextCollapseState } from './ui/scroll-collapse.js';
 import { initGymLogoLoader } from './ui/gym-logo-loader.js';
 import { setCacheKeyPrefix, clearApiCache, invalidateApiCache } from './cache.js';
@@ -527,12 +527,8 @@ tabButtons.forEach(btn => {
 });
 
 // --- PULL-TO-REFRESH ---
-// On mobile the whole app scrolls inside a single <main class="app-body"> — the
-// individual tab panels (#app-timetable-grid etc.) grow to fit content and never
-// scroll themselves, so their scrollTop is always 0. Attaching pull-to-refresh to
-// those panels made every downward drag read as "at the top" and fire a refresh.
-// Instead, attach ONE pull-to-refresh to the real scroll container and dispatch the
-// refresh action based on which tab is active.
+// The whole app scrolls inside one <main class="app-body"> — tab panels grow to
+// fit their content. Attach one pull-to-refresh there and dispatch by active tab.
 async function refreshActiveTab() {
   try {
     if (currentTabId === 'home') {
@@ -607,9 +603,8 @@ if (scrollBody) {
   // Settings has no refreshable data and its panes are long forms: pull-to-refresh stays off there.
   setupPullToRefresh(scrollBody, refreshActiveTab, {
     isEnabled: () => currentTabId !== 'settings',
-    // Mobile scrolls the document, desktop the inner <main>: read whichever is live.
-    getScrollTop: () => (isDocScroll() ? docScroller().scrollTop : scrollBody.scrollTop),
-    getMaxScroll: () => (isDocScroll() ? Math.max(0, docScroller().scrollHeight - window.innerHeight) : Math.max(0, scrollBody.scrollHeight - scrollBody.clientHeight)),
+    getScrollTop: () => scrollBody.scrollTop,
+    getMaxScroll: () => Math.max(0, scrollBody.scrollHeight - scrollBody.clientHeight),
     scrollTargets: [scrollBody, window],
   });
 }
@@ -1839,7 +1834,7 @@ function initHeaderAutoHide() {
     ticking = false;
     if (!target) return;
     if (!mq.matches) { setHidden(false); return; }
-    const sc = isDocScroll() ? docScroller() : target;
+    const sc = target;
     const max = sc.scrollHeight - sc.clientHeight;
     // Pure hysteresis (scroll-collapse.js): header hide and the timetable's compact bar share this one state.
     const next = nextCollapseState({
@@ -1852,11 +1847,7 @@ function initHeaderAutoHide() {
 
   document.addEventListener('scroll', (e) => {
     let t = e.target;
-    if (isDocScroll()) {
-      // Mobile: the DOCUMENT scrolls (scroll events target `document`); ignore inner boxes.
-      if (t !== document && t !== document.documentElement && t !== document.body) return;
-      t = docScroller();
-    } else if (!t || !t.classList || !(t.classList.contains('app-body') || t.classList.contains('app-main'))) return;
+    if (!t || !t.classList || !(t.classList.contains('app-body') || t.classList.contains('app-main'))) return;
     if (t !== target) { target = t; anchor = t.scrollTop; }
     if (!ticking) { ticking = true; requestAnimationFrame(update); }
   }, { passive: true, capture: true });

@@ -45,6 +45,25 @@ describe('modal-nav', () => {
     expect(document.body.classList.contains('app-scroll-locked')).toBe(false);
   });
 
+  it('mobile: locks and restores the isolated app-body scroll position', async () => {
+    setMobile(true);
+    const scroller = document.createElement('main');
+    scroller.className = 'app-body';
+    scroller.scrollTop = 87;
+    document.body.appendChild(scroller);
+    const el = mkModal('scroll-lock');
+
+    openPage(el, { id: 'scroll-lock' });
+    await tick();
+    expect(scroller.classList.contains('app-scroll-locked')).toBe(true);
+    expect(scroller.scrollTop).toBe(87);
+
+    history.back();
+    await tick(50);
+    expect(scroller.classList.contains('app-scroll-locked')).toBe(false);
+    expect(scroller.scrollTop).toBe(87);
+  });
+
   it('mobile: X goes through history.back and the dirty guard can veto', async () => {
     setMobile(true);
     const el = mkModal('c'); let dirty = true;

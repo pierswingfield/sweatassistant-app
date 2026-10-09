@@ -28,13 +28,15 @@ export function openPageCount() { return stack.length; }
 // ── scroll lock (counter based; iOS ignores overflow:hidden on body) ─────────
 function lockScroll() {
   if (lockCount++ > 0) return;
-  savedScrollY = window.scrollY || 0;
+  const appScroller = document.querySelector('main.app-body');
+  savedScrollY = appScroller?.scrollTop || 0;
   const s = document.body.style;
   s.position = 'fixed';
-  s.top = `-${savedScrollY}px`;
+  s.top = '0';
   s.width = '100%';
   document.body.classList.add('app-scroll-locked');
   document.documentElement.classList.add('app-scroll-locked'); // html must not scroll either
+  appScroller?.classList.add('app-scroll-locked');
 }
 function unlockScroll() {
   if (lockCount === 0 || --lockCount > 0) return;
@@ -44,7 +46,9 @@ function unlockScroll() {
   s.width = '';
   document.body.classList.remove('app-scroll-locked');
   document.documentElement.classList.remove('app-scroll-locked');
-  window.scrollTo(0, savedScrollY);
+  const appScroller = document.querySelector('main.app-body');
+  appScroller?.classList.remove('app-scroll-locked');
+  if (appScroller) appScroller.scrollTop = savedScrollY;
 }
 
 // ── background inertness: only the topmost page is reachable ────────────────

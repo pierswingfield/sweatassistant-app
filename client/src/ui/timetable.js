@@ -40,7 +40,7 @@ import { getSearchQuery, setSearchQuery, onSearchChange, inSearchScope, enterSea
 import { ensureSearchUi, openSearch } from './timetable-search-ui.js';
 import { renderTimetableSkeleton } from './loading-skeleton.js';
 import { shouldShowPendingSkeleton } from './pending-gyms.js';
-import { isDocScroll, docScroller, markScrollBusy } from './scroll-state.js';
+import { markScrollBusy } from './scroll-state.js';
 import { sortEvents } from './progressive-merge.js';
 import { captureScrollAnchor, restoreScrollAnchor } from './scroll-anchor.js';
 import { confirmOverlap } from './overlap-modal.js';
@@ -873,7 +873,7 @@ const PROGRESSIVE_GRACE_MS = 0;
 // first row in view (by event id) rather than a raw scrollTop that shifts.
 function renderPreservingScroll(reason) {
   const grid = document.getElementById('app-timetable-grid');
-  const scroller = (isDocScroll() ? docScroller() : document.querySelector('main.app-body')) || grid;
+  const scroller = document.querySelector('main.app-body') || grid;
   const anchor = captureScrollAnchor(scroller, grid);
   // Restoring the anchor is a programmatic scroll: the collapse hysteresis must re-baseline, not toggle.
   markScrollBusy(400);

@@ -4,7 +4,7 @@ import { api, setToken, isLoggedIn } from './api';
 import { setLinkedGyms, setGymCatalogue, getLinkedGyms, getGymShortName, getDefaultGymId, getGymPresentation, canForGym } from './gym-context.js';
 import { initTooltips } from './ui/tooltips';
 import { setupPullToRefresh, cancelPullToRefresh } from './ui/pulltorefresh';
-import { markScrollBusy, isScrollBusy, isDocScroll, docScroller } from './ui/scroll-state.js';
+import { markScrollBusy, isScrollBusy } from './ui/scroll-state.js';
 import { nextCollapseState } from './ui/scroll-collapse.js';
 import { initGymLogoLoader } from './ui/gym-logo-loader.js';
 import { setCacheKeyPrefix, clearApiCache, invalidateApiCache } from './cache.js';
@@ -462,8 +462,15 @@ function switchTab(tabId, opts = {}) {
     }
   });
 
+  const bodyScroller = document.querySelector('main.app-body');
+  bodyScroller?.classList.toggle('app-timetable-active', tabId === 'class-timetable');
+
   // Each tab starts at the top (window on mobile, inner scroller on desktop).
-  try { window.scrollTo(0, 0); document.querySelector('main.app-body')?.scrollTo?.(0, 0); } catch (e) { /* jsdom */ }
+  try {
+    window.scrollTo(0, 0);
+    bodyScroller?.scrollTo?.(0, 0);
+    document.querySelector('#app-timetable-grid')?.scrollTo?.(0, 0);
+  } catch (e) { /* jsdom */ }
 
   // U4-19: the tab lives in the PATH (/bookings, /settings/about ...) so refresh, back/forward
   // and shared links restore it. Skip when the URL already names this tab (keeps any query).
@@ -527,12 +534,8 @@ tabButtons.forEach(btn => {
 });
 
 // --- PULL-TO-REFRESH ---
-// On mobile the whole app scrolls inside a single <main class="app-body"> — the
-// individual tab panels (#app-timetable-grid etc.) grow to fit content and never
-// scroll themselves, so their scrollTop is always 0. Attaching pull-to-refresh to
-// those panels made every downward drag read as "at the top" and fire a refresh.
-// Instead, attach ONE pull-to-refresh to the real scroll container and dispatch the
-// refresh action based on which tab is active.
+// Most mobile tabs scroll inside <main class="app-body">. The timetable's class
+// rows use their own scrollport so its pinned date/filter rails do not bounce.
 async function refreshActiveTab() {
   try {
     if (currentTabId === 'home') {
@@ -604,13 +607,22 @@ async function refreshActiveTab() {
 
 const scrollBody = document.querySelector('main.app-body');
 if (scrollBody) {
+  // Timetable has a separate class-list scroller so its sticky rails stay outside native bounce.
   // Settings has no refreshable data and its panes are long forms: pull-to-refresh stays off there.
   setupPullToRefresh(scrollBody, refreshActiveTab, {
-    isEnabled: () => currentTabId !== 'settings',
-    // Mobile scrolls the document, desktop the inner <main>: read whichever is live.
-    getScrollTop: () => (isDocScroll() ? docScroller().scrollTop : scrollBody.scrollTop),
-    getMaxScroll: () => (isDocScroll() ? Math.max(0, docScroller().scrollHeight - window.innerHeight) : Math.max(0, scrollBody.scrollHeight - scrollBody.clientHeight)),
+    isEnabled: () => currentTabId !== 'settings' && currentTabId !== 'class-timetable',
+    getScrollTop: () => scrollBody.scrollTop,
+    getMaxScroll: () => Math.max(0, scrollBody.scrollHeight - scrollBody.clientHeight),
     scrollTargets: [scrollBody, window],
+  });
+}
+const timetableScroll = document.querySelector('#app-timetable-grid');
+if (timetableScroll) {
+  setupPullToRefresh(timetableScroll, refreshActiveTab, {
+    isEnabled: () => currentTabId === 'class-timetable',
+    getScrollTop: () => timetableScroll.scrollTop,
+    getMaxScroll: () => Math.max(0, timetableScroll.scrollHeight - timetableScroll.clientHeight),
+    scrollTargets: [timetableScroll],
   });
 }
 
@@ -1804,7 +1816,8 @@ initRouter((route) => {
 /**
  * Mobile: hide the top header on scroll down, reveal on scroll up / at top.
  * Scroll-safe by construction: the header is an overlay (see styles.css), so toggling it
- * never changes scrollHeight/clientHeight. Direction detection ignores iOS overscroll
+ * never changes body scrollHeight/clientHeight. Timetable collapse observes its class-list
+ * scrollport. Direction detection ignores iOS overscroll
  * (scrollTop < 0 or > max), uses a dead zone, a cool-down after each toggle, and does
  * nothing on pages too short to scroll or inside the top/bottom bounce zones.
  */
@@ -1839,7 +1852,7 @@ function initHeaderAutoHide() {
     ticking = false;
     if (!target) return;
     if (!mq.matches) { setHidden(false); return; }
-    const sc = isDocScroll() ? docScroller() : target;
+    const sc = target;
     const max = sc.scrollHeight - sc.clientHeight;
     // Pure hysteresis (scroll-collapse.js): header hide and the timetable's compact bar share this one state.
     const next = nextCollapseState({
@@ -1852,11 +1865,8 @@ function initHeaderAutoHide() {
 
   document.addEventListener('scroll', (e) => {
     let t = e.target;
-    if (isDocScroll()) {
-      // Mobile: the DOCUMENT scrolls (scroll events target `document`); ignore inner boxes.
-      if (t !== document && t !== document.documentElement && t !== document.body) return;
-      t = docScroller();
-    } else if (!t || !t.classList || !(t.classList.contains('app-body') || t.classList.contains('app-main'))) return;
+    if (!t || !t.classList || !(t.classList.contains('app-body') || t.classList.contains('app-main')
+        || t.classList.contains('app-timetable-list'))) return;
     if (t !== target) { target = t; anchor = t.scrollTop; }
     if (!ticking) { ticking = true; requestAnimationFrame(update); }
   }, { passive: true, capture: true });

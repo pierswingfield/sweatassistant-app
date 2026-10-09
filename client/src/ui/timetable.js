@@ -40,7 +40,7 @@ import { getSearchQuery, setSearchQuery, onSearchChange, inSearchScope, enterSea
 import { ensureSearchUi, openSearch } from './timetable-search-ui.js';
 import { renderTimetableSkeleton } from './loading-skeleton.js';
 import { shouldShowPendingSkeleton } from './pending-gyms.js';
-import { isDocScroll, docScroller, markScrollBusy } from './scroll-state.js';
+import { markScrollBusy } from './scroll-state.js';
 import { sortEvents } from './progressive-merge.js';
 import { captureScrollAnchor, restoreScrollAnchor } from './scroll-anchor.js';
 import { confirmOverlap } from './overlap-modal.js';
@@ -758,8 +758,8 @@ export async function initTimetable() {
   setupDropdownFilters();
   await prefetchTimetableData();
   recordTimetableTiming('initialise-total', initStartedAt);
-  // Pull-to-refresh is handled centrally in main.js (attached to the shared
-  // <main class="app-body"> scroller, dispatched by active tab).
+  // Pull-to-refresh is registered centrally on this mobile class list; other
+  // tabs continue to use the shared app-body scroller.
 }
 
 // Saved filters name PROVIDER ids (locations, instructors, class types), which are
@@ -873,7 +873,9 @@ const PROGRESSIVE_GRACE_MS = 0;
 // first row in view (by event id) rather than a raw scrollTop that shifts.
 function renderPreservingScroll(reason) {
   const grid = document.getElementById('app-timetable-grid');
-  const scroller = (isDocScroll() ? docScroller() : document.querySelector('main.app-body')) || grid;
+  const scroller = window.matchMedia?.('(max-width: 768px)').matches
+    ? grid
+    : document.querySelector('main.app-body') || grid;
   const anchor = captureScrollAnchor(scroller, grid);
   // Restoring the anchor is a programmatic scroll: the collapse hysteresis must re-baseline, not toggle.
   markScrollBusy(400);
@@ -2106,10 +2108,9 @@ export async function renderTimetableGrid(reason = 'interaction') {
 
   const finalEvents = searching ? searchResults : sortedEvents.filter(e => dayKeyInZone(e.startAt, zoneFor(e)) === selectedTimetableDate);
 
-  // The outer #app-timetable-grid (.app-timetable-list) is the single scroll
-  // container — see initTimetableTab for the pull-to-refresh wiring. The inner
-  // container must NOT scroll, otherwise iOS has two nested scrollers and the
-  // outer grid's scrollTop stays 0 (breaking the at-top check for pull-to-refresh).
+  // On mobile, #app-timetable-grid is the class-content scrollport. The date and
+  // filter rails are its siblings, so native edge bounce cannot move those rails.
+  // Desktop keeps the shared app-body scroll surface.
   const fullDateHtml = searching
     ? `<div class="app-tt-searchhead" role="status"><span class="sth-main"><span class="sth-ico" aria-hidden="true">${icon('search', 16)}</span><span class="sth-title" title="${escapeHtml(searchText)}">${escapeHtml(searchTokens.length ? formatCopyText(COPY.search.resultsFor, { text: searchText }) : COPY.search.filteredResults)}</span></span>`
       + `<button type="button" class="sth-clear" id="app-search-clear">${COPY.search.clear}</button>`

@@ -584,15 +584,26 @@
 }
 
 /* === iOS PWA base reset — fill notch + home-indicator safe areas with the
-   app background instead of black, and kill default body margin/bounce
+   app background instead of black, and remove the default body margin
    (added Jun 2026) === */
 html, body {
   margin: 0;
   padding: 0;
   height: 100%;
   background: var(--bg);
-  overscroll-behavior: none;
+  overscroll-behavior: auto;
   -webkit-text-size-adjust: 100%;
+}
+
+/* Keep scrolling native while hiding scrollbars throughout the app. */
+html, body, * {
+  scrollbar-width: none !important;
+  -ms-overflow-style: none !important;
+}
+::-webkit-scrollbar {
+  display: none !important;
+  width: 0 !important;
+  height: 0 !important;
 }
 
 #app-helper-container {
@@ -6924,12 +6935,10 @@ html, body {
     font-size: 18px;
   }
 
-  /* On mobile, main.app-body is the sole scroll container (pull-to-refresh
-     target). These panels must NOT scroll themselves, otherwise iOS has two
-     nested scrollers and the outer scrollTop stays 0, breaking scroll-up and
-     misfiring pull-to-refresh. Mirrors the panel-layout.css override; repeated
-     here because the base overflow-y:auto rule above (no media query) loads
-     after panel-layout.css and would otherwise win the cascade. */
+  /* On mobile, app-body is the shared scroll container (and pull-to-refresh
+     target) for these panels. The timetable rows use their own isolated surface;
+     these panels stay content-sized to avoid competing nested scrollers. Mirrors
+     panel-layout.css; repeated because the base overflow rule above loads later. */
   #app-helper-container #app-panel-my-bookings,
   #app-helper-container #app-panel-auto-book,
   #app-helper-container #app-panel-settings,
@@ -8658,33 +8667,33 @@ svg.gym-logo-inline { display: block; opacity: 1 !important; transition: none !i
 .fr-trigger .fr-trigger-label { font-size: 12px; font-weight: 600; line-height: 1; white-space: nowrap; }
 
 /* ======================================================================
-   Batch J: MOBILE scrolls the DOCUMENT (not an inner box).
-   Why: Safari only collapses its URL bar / toolbar when the page itself scrolls. Before, the app was a
-   fixed-position shell with an inner `main.app-body` scroller, so the document never scrolled.
-   Now (<= 768px) the shell is in normal flow, the header and bottom nav are position:fixed, and the
-   body reserves space for them. Desktop keeps the inner scroller. Gated purely by this media query;
-   ui/scroll-state.js `isDocScroll()` mirrors it for the JS.
+   Mobile content scrolls inside `main.app-body`; timetable rows use a separate
+   inner scrollport to keep the pinned date/filter rails outside edge bounce.
+   Header and bottom navigation stay outside the momentum surface.
    ====================================================================== */
 @media (max-width: 768px) {
-  html, body { height: auto !important; min-height: 100%; overflow: visible !important; }
+  html, body { height: 100% !important; min-height: 100%; overflow: hidden !important; }
   #app-helper-container {
-    position: static !important; display: block !important; overflow: visible !important;
-    width: 100% !important; height: auto !important; min-height: 100dvh;
+    position: fixed !important; inset: 0 !important; display: block !important; overflow: hidden !important;
+    width: 100% !important; height: 100dvh !important; min-height: 0;
   }
   #app-container {
-    position: static !important; display: block !important; width: 100% !important;
-    height: auto !important; max-height: none !important; min-height: 100dvh;
-    overflow: visible !important;
+    position: absolute !important; inset: 0 !important; display: flex !important; flex-direction: column;
+    width: 100% !important; height: 100% !important; max-height: 100% !important; min-height: 0;
+    overflow: hidden !important;
     /* A transform/filter/backdrop on an ancestor would make the fixed header/nav relative to it. */
     -webkit-backdrop-filter: none !important; backdrop-filter: none !important; transform: none !important; animation: none !important;
   }
-  #app-helper-container .app-header { position: fixed !important; top: 0; left: 0; right: 0; }
+  #app-helper-container .app-header { position: absolute !important; top: 0; left: 0; right: 0; }
   #app-helper-container .app-body,
   #app-helper-container .app-main {
-    overflow: visible !important; height: auto !important; min-height: 100dvh;
+    position: relative; flex: 1 1 auto; overflow-x: hidden !important; overflow-y: auto !important;
+    height: auto !important; min-height: 0 !important; overscroll-behavior-y: auto;
+    -webkit-overflow-scrolling: touch;
     padding-top: calc(var(--app-header-h, 47px) + 12px) !important;
     padding-bottom: calc(56px + env(safe-area-inset-bottom) + 36px) !important;
   }
+  #app-helper-container .app-body.app-scroll-locked { overflow: hidden !important; }
   #app-helper-container #app-panel-my-bookings {
     padding-bottom: 36px !important;
   }
@@ -8701,9 +8710,14 @@ svg.gym-logo-inline { display: block; opacity: 1 !important; transition: none !i
     background: var(--warning, #e68a00) !important;
     color: #1a1206 !important;
   }
-  /* Sticky now sticks to the VIEWPORT: under the header while it shows, flush at the top once hidden. */
-  #app-helper-container .app-sticky-top { top: var(--app-header-h, 47px); }
-  #app-container.app-hdr-hidden .app-sticky-top { top: 0; }
+  /* The app-body scrollport starts at the viewport top and reserves header+gap in
+     padding. Subtract that reserve from sticky insets so the header isn't counted twice. */
+  #app-helper-container .app-sticky-top {
+    top: calc(-1 * (var(--hdr-gap, 12px) + var(--hdr-extra, 8px)));
+  }
+  #app-container.app-hdr-hidden .app-sticky-top {
+    top: calc(-1 * (var(--app-header-h, 47px) + var(--hdr-gap, 12px) + var(--hdr-extra, 8px)));
+  }
   #app-helper-container .app-sticky-top { transition: top 0.25s ease; }
 }
 
@@ -8835,6 +8849,10 @@ body::after { z-index: 1000002 !important; }
   #app-helper-container .app-body,
   #app-helper-container .app-main { padding-top: calc(var(--app-header-h, 47px) + var(--hdr-gap) + var(--hdr-extra)) !important; }
   #app-helper-container #app-panel-class-timetable { margin-top: calc(-1 * (var(--hdr-gap) + var(--hdr-extra))) !important; }
+  /* Keep app-body as the scrollport on the short Bookings and Auto-Book states;
+     a single extra pixel lets iOS enter native edge bounce without a blank screen of scroll. */
+  #app-helper-container #app-panel-my-bookings,
+  #app-helper-container #app-panel-auto-book { min-height: calc(100% + 1px); }
 }
 
 
@@ -8953,6 +8971,37 @@ body::after { z-index: 1000002 !important; }
 @media (max-width: 768px) {
   #app-helper-container #app-timetable-grid .app-table tbody td { padding-top: 5px !important; padding-bottom: 5px !important; }
 }
+
+/* Keep the mobile timetable's elastic edge movement on class rows only. The
+   title/date/filter rails stay in the fixed app-body while the grid scrolls. */
+@media (max-width: 768px) {
+  #app-helper-container main.app-body.app-timetable-active {
+    overflow-y: hidden !important;
+    overscroll-behavior-y: none;
+  }
+  #app-container.app-hdr-hidden main.app-body.app-timetable-active {
+    padding-top: calc(var(--hdr-gap, 12px) + var(--hdr-extra, 8px)) !important;
+  }
+  #app-helper-container .app-body.app-timetable-active #app-panel-class-timetable {
+    flex: 1 1 0% !important;
+    min-height: 0 !important;
+    overflow: hidden !important;
+  }
+  #app-helper-container .app-body.app-timetable-active #app-panel-class-timetable > #app-timetable-grid {
+    flex: 1 1 0% !important;
+    min-height: 0 !important;
+    overflow-x: hidden !important;
+    overflow-y: auto !important;
+    overscroll-behavior-y: contain !important;
+    -webkit-overflow-scrolling: touch;
+    touch-action: pan-y;
+  }
+  #app-helper-container .app-body.app-timetable-active #app-timetable-grid .app-table-container {
+    overflow: visible !important;
+  }
+  #app-helper-container #app-timetable-grid.app-scroll-locked { overflow: hidden !important; }
+}
+
 /* Auto-Book CTA: ~14px wider, contents centred precisely (equal icon/label gap, no stray padding). */
 .app-tt-seg.primary.variant-autoupgrade:not(.app-tt-seg-caret) {
   width: calc(var(--tt-seg-w) + 14px) !important; flex-basis: calc(var(--tt-seg-w) + 14px) !important;

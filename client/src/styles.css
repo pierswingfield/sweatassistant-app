@@ -6602,8 +6602,8 @@ html, body {
   }
 
   #app-helper-container .app-filters-card {
-    padding-left: 8px !important;
-    padding-right: 8px !important;
+    padding-left: 0 !important;
+    padding-right: 0 !important;
   }
 
   #app-helper-container .app-date-selector,
@@ -7657,7 +7657,7 @@ html, body {
 .fr-rail { display: none; }
 @media (max-width: 768px) {
   #app-helper-container #app-timetable-filters-container .app-filters-row { display: none !important; }
-  .fr-rail { display: flex !important; align-items: center; gap: 6px; height: 40px; max-height: 40px; overflow-x: auto; overflow-y: hidden; overscroll-behavior-x: contain; touch-action: pan-x pan-y; -webkit-overflow-scrolling: touch; scrollbar-width: none; box-sizing: border-box; }
+  .fr-rail { display: flex !important; align-items: center; gap: 6px; height: 40px; max-height: 40px; overflow-x: auto; overflow-y: hidden; overscroll-behavior-x: contain; touch-action: pan-x pan-y; -webkit-overflow-scrolling: touch; scrollbar-width: none; box-sizing: border-box; width: 100%; padding-left: max(8px, env(safe-area-inset-left)) !important; padding-right: max(8px, env(safe-area-inset-right)) !important; }
   .fr-rail::-webkit-scrollbar { display: none; }
 }
 .fr-rail > * { flex-shrink: 0; }
@@ -8028,7 +8028,7 @@ html, body {
   padding: 8px 2px !important;
 }
 @media (max-width: 768px) {
-  #app-helper-container .app-filters-card { padding: 4px 8px !important; }
+  #app-helper-container .app-filters-card { padding: 6px 0 0 !important; }
 }
 
 /* Sticky block rhythm: equal 8px above the filter rail, between the filter rail and
@@ -8038,7 +8038,7 @@ html, body {
 #app-helper-container #app-timetable-filters-container { margin-bottom: 5px !important; }
 #app-helper-container .app-sticky-top { padding-bottom: 1px; }
 @media (max-width: 768px) {
-  #app-helper-container .app-filters-card { padding: 6px 8px 0 !important; }
+  #app-helper-container .app-filters-card { padding: 6px 0 0 !important; }
   #app-helper-container #app-timetable-filters-container { margin-bottom: 6px !important; }
   #app-helper-container .app-sticky-top { padding-bottom: 2px; }
 }
@@ -9195,7 +9195,7 @@ body.app-scroll-locked { overscroll-behavior: none; }
 .app-search-opt .ss-count { flex-shrink: 0; font-size: 12px; color: var(--text-secondary); }
 .app-search-note { padding: 10px; font-size: 13px; color: var(--text-secondary); }
 @media (max-width: 768px) {
-  .app-search { display: none; flex: none; width: 100%; min-width: 0; }
+  .app-search { display: none; flex: none; width: 100%; min-width: 0; box-sizing: border-box; padding-left: max(8px, env(safe-area-inset-left)); padding-right: max(8px, env(safe-area-inset-right)); }
   .app-search.open { display: block; }
   #app-timetable-filters-container.app-searching .fr-rail { display: none !important; }
 }

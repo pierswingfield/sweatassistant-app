@@ -325,7 +325,7 @@ const GYMS = {
         full: { src: '/gyms/aarmy-logo.png?v=2' },
         compact: { src: '/gyms/aarmy-logo.png?v=2' },
         mark: { src: '/gyms/aarmy-mark.png?v=2' },
-        logoWidth: 60, // px width of the (wide) wordmark inside table chips; chips widen to fit (see gymChip)
+        logoWidth: 40, // px width of the wordmark inside table chips (see gymChip)
         squareMark: true, // wide wordmark: use the mark in square/narrow chips (header badge, settings nav, card rail)
       },
       plate: '#111111', // dark plate + WHITE wordmark/mark, like Psycle and JAB

@@ -4,7 +4,7 @@ import { api, setToken, isLoggedIn } from './api';
 import { setLinkedGyms, setGymCatalogue, getLinkedGyms, getGymShortName, getDefaultGymId, getGymPresentation, canForGym } from './gym-context.js';
 import { initTooltips } from './ui/tooltips';
 import { setupPullToRefresh, cancelPullToRefresh } from './ui/pulltorefresh';
-import { markScrollBusy, isScrollBusy, isDocScroll, docScroller, haltScrollMomentum } from './ui/scroll-state.js';
+import { markScrollBusy, isScrollBusy, isDocScroll, docScroller } from './ui/scroll-state.js';
 import { nextCollapseState } from './ui/scroll-collapse.js';
 import { initGymLogoLoader } from './ui/gym-logo-loader.js';
 import { setCacheKeyPrefix, clearApiCache, invalidateApiCache } from './cache.js';
@@ -513,10 +513,7 @@ async function triggerTabRender(tabId) {
 
 // Attach Tab Navigation Listeners
 tabButtons.forEach(btn => {
-  let touchStart = null;
-  let touchHandledUntil = 0;
-
-  const activate = () => {
+  btn.addEventListener('click', () => {
     const tabId = btn.getAttribute('data-tab');
     // Re-tapping Settings while already in the Settings area (mobile) returns to the settings menu.
     const group = (btn.getAttribute('data-tab-group') || '').split(' ');
@@ -525,33 +522,7 @@ tabButtons.forEach(btn => {
       const lay = document.querySelector('.app-settings-layout');
       if (lay && lay.classList.contains('show-pane')) { lay.classList.remove('show-pane'); return; }
     }
-    haltScrollMomentum();
     switchTab(tabId);
-  };
-
-  btn.addEventListener('touchstart', (e) => {
-    if (e.touches.length !== 1) return;
-    const t = e.touches[0];
-    touchStart = { x: t.clientX, y: t.clientY, time: performance.now() };
-    haltScrollMomentum();
-  }, { passive: true });
-
-  btn.addEventListener('touchend', (e) => {
-    if (!touchStart) return;
-    const dt = performance.now() - touchStart.time;
-    const t = e.changedTouches[0];
-    const dx = Math.abs(t.clientX - touchStart.x);
-    const dy = Math.abs(t.clientY - touchStart.y);
-    touchStart = null;
-    if (dx < 14 && dy < 14 && dt < 500) {
-      touchHandledUntil = performance.now() + 500;
-      activate();
-    }
-  }, { passive: true });
-
-  btn.addEventListener('click', () => {
-    if (performance.now() < touchHandledUntil) return;
-    activate();
   });
 });
 
@@ -1894,13 +1865,6 @@ function initHeaderAutoHide() {
   document.addEventListener('click', (e) => {
     if (e.target.closest?.('.app-bottom-nav-btn, .app-nav-btn')) { setHidden(false); anchor = 0; }
   }, true);
-  // On mobile: touching fixed/sticky chrome (header, filter rail / date strip, bottom nav)
-  // halts document momentum scrolling immediately so taps and horizontal gestures are not swallowed.
-  document.addEventListener('touchstart', (e) => {
-    if (e.target.closest?.('.app-header, .app-sticky-top, .app-bottom-nav')) {
-      haltScrollMomentum();
-    }
-  }, { passive: true, capture: true });
   measure();
   if (typeof ResizeObserver !== 'undefined' && els()) new ResizeObserver(measure).observe(header);
   window.addEventListener('resize', measure, { passive: true });

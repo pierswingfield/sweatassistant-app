@@ -6467,7 +6467,6 @@ html, body {
     -webkit-backdrop-filter: blur(28px) saturate(180%);
     border-top: 1px solid var(--border);
     box-shadow: 0 -1px 0 color-mix(in srgb, var(--border) 60%, transparent), 0 -6px 18px rgba(0, 0, 0, 0.10);
-    touch-action: none;
   }
 
   /* Email is redundant on mobile; keep desktop untouched */
@@ -6476,7 +6475,6 @@ html, body {
   }
 
   #app-helper-container .app-bottom-nav-btn {
-    touch-action: manipulation;
     flex: 1 1 0;
     min-width: 0;
     display: flex;
@@ -7659,7 +7657,7 @@ html, body {
 .fr-rail { display: none; }
 @media (max-width: 768px) {
   #app-helper-container #app-timetable-filters-container .app-filters-row { display: none !important; }
-  .fr-rail { display: flex !important; align-items: center; gap: 6px; height: 40px; max-height: 40px; overflow-x: auto; overflow-y: hidden; overscroll-behavior-x: contain; touch-action: pan-x; -webkit-overflow-scrolling: touch; scrollbar-width: none; box-sizing: border-box; }
+  .fr-rail { display: flex !important; align-items: center; gap: 6px; height: 40px; max-height: 40px; overflow-x: auto; overflow-y: hidden; overscroll-behavior-x: contain; touch-action: pan-x pan-y; -webkit-overflow-scrolling: touch; scrollbar-width: none; box-sizing: border-box; }
   .fr-rail::-webkit-scrollbar { display: none; }
 }
 .fr-rail > * { flex-shrink: 0; }
@@ -8731,14 +8729,14 @@ body::after { z-index: 1000002 !important; }
   border: 0 !important;
 }
 
-/* 2. Mobile row rail: the kebab is ~37px wide (+33%) with no vertical divider line. */
+/* 2. Mobile row rail: CTA and kebab aligned to the bottom of the row with transparent background so app-mobile-top-line is not clipped. */
 @media (max-width: 768px) {
-  #app-helper-container .app-mobile-rail { align-items: stretch; gap: 0; padding: 0; }
-  #app-helper-container .app-mobile-seg.primary { align-self: center; margin: 0 0 0 4px; } /* kebab box is flush to the edge, so CTA flush to it gives equal glyph gaps */
+  #app-helper-container .app-mobile-rail { align-items: flex-end; gap: 0; padding: 0 0 12px 0; background: transparent !important; }
+  #app-helper-container .app-mobile-seg.primary { align-self: flex-end; margin: 0 0 0 4px; } /* kebab box is flush to the edge, so CTA flush to it gives equal glyph gaps */
   #app-helper-container .app-mobile-seg.ellipsis {
-    align-self: stretch; height: auto; width: 37px; min-width: 37px; padding: 0;
+    align-self: flex-end; height: 40px; width: 37px; min-width: 37px; padding: 0;
     border: 0 !important; border-left: 0 !important; border-radius: 0 !important;
-    background: var(--surface-inset); color: var(--text) !important; font-size: 24px; font-weight: 900;
+    background: transparent !important; color: var(--text) !important; font-size: 24px; font-weight: 900;
   }
   #app-helper-container .app-mobile-seg.ellipsis::after { inset: 0 -8px 0 -8px; }
 }
@@ -9497,7 +9495,10 @@ html:not([data-credits-tab="on"]) .app-nav-btn[data-tab="buy-credits"] { display
     justify-content: flex-start !important;
   }
   #app-helper-container .app-mobile-class-card.has-tz .app-mobile-top-line {
-    margin-left: 32px !important;
+    margin-left: 24px !important;
+  }
+  #app-helper-container .app-mobile-top-line {
+    overflow: visible !important;
   }
 }
 

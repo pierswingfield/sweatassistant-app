@@ -348,8 +348,7 @@ export function gymChip(gymId) {
   //
   // `title` and the visually-hidden name keep the gym readable to screen
   // readers and to anyone who doesn't know the marks yet, since the image
-  // itself is aria-hidden.
-  const wStyle = brand.logoWidth ? `;--logo-w:${brand.logoWidth}px;min-width:${brand.logoWidth + 18}px` : '';
+  const wStyle = brand.logoWidth ? `;--logo-w:${brand.logoWidth}px` : '';
   return `<span class="app-gym-chip app-gym-chip-${brand.id}${brand.logoWidth ? ' has-logo-w' : ''}" title="${brand.name}" style="background:${brand.brandBg};border:1px solid ${brand.brandBg}${wStyle}">`
     + `<span class="app-gym-chip-logo">${brand.logoSvg}</span>`
     + `<span class="u-visually-hidden">${brand.name}</span>`

@@ -927,7 +927,7 @@ class CodexFitProvider extends GymProvider {
     const startAt = DateTime.fromISO(booking.event.start_at, { zone: this.gym.timezone });
     const hoursUntilClass = startAt.diff(DateTime.now().setZone(this.gym.timezone), 'hours').hours;
     const isPenalty = hoursUntilClass < 12;
-    return { isPenalty, message: isPenalty ? 'Cancelling within 12 hours of class start forfeits the credit.' : undefined };
+    return { penalty: isPenalty ? 'credit' : 'none', isPenalty, message: isPenalty ? 'Cancelling within 12 hours of class start forfeits the credit.' : undefined };
   }
 
   /** PUT /waitlists/{eventId} — see psycle_codexfit.md "Join a Waitlist". */

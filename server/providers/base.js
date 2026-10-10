@@ -168,8 +168,10 @@
 
 /**
  * @typedef {Object} CancelPenalty
- * @property {boolean}  isPenalty
+ * @property {'none'|'credit'|'fee'|'unknown'} penalty  the consequence; the message beats a provider flag
+ * @property {boolean=} isPenalty  legacy; absent when penalty is 'unknown'
  * @property {string=}  message
+ * @property {string=}  deadline  display text, only when the provider publishes one
  */
 
 /**

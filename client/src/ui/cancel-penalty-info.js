@@ -4,11 +4,17 @@ import { COPY } from '../copy.js';
 
 /** @returns {{kind:'free'|'penalty'|'unknown', text:string}} */
 export function describeCancelPenalty(result) {
-  if (!result || typeof result.isPenalty !== 'boolean') return { kind: 'unknown', text: COPY.bookings.cancelPenaltyUnknown };
+  const unknown = { kind: 'unknown', text: COPY.bookings.cancelPenaltyUnknown };
+  if (!result) return unknown;
+  const level = result.penalty || (typeof result.isPenalty === 'boolean' ? (result.isPenalty ? 'credit' : 'none') : 'unknown');
+  if (level === 'none') {
+    const text = result.deadline ? COPY.bookings.cancelFreeUntil.replace('{deadline}', result.deadline) : COPY.bookings.cancelFree;
+    return { kind: 'free', text };
+  }
+  if (level !== 'credit' && level !== 'fee') return unknown;
   const message = result.message ? String(result.message).trim() : '';
-  const lead = result.isPenalty ? COPY.bookings.cancelPenaltyApplies : COPY.bookings.cancelFree;
   const deadline = result.deadline ? ` ${COPY.bookings.cancelDeadline.replace('{deadline}', result.deadline)}` : '';
-  return { kind: result.isPenalty ? 'penalty' : 'free', text: `${lead}${message ? ` ${message}` : ''}${deadline}` };
+  return { kind: 'penalty', text: `${COPY.bookings.cancelPenaltyApplies}${message ? ` ${message}` : ''}${deadline}` };
 }
 
 /** Never throws; a failed check is "unknown". */

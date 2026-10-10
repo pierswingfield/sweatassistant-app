@@ -25,7 +25,9 @@ describe('guest unavailable reasons', () => {
 
 describe('cancel penalty description', () => {
   it('free, penalty, with provider message and deadline', () => {
-    expect(describeCancelPenalty({ isPenalty: false })).toEqual({ kind: 'free', text: 'Free to cancel.' });
+    expect(describeCancelPenalty({ isPenalty: false })).toEqual({ kind: 'free', text: "Free cancellation — you won't lose a credit or be charged." });
+    expect(describeCancelPenalty({ penalty: 'none', isPenalty: false, deadline: '6:00 pm ET' }).text).toContain('until 6:00 pm ET');
+    expect(describeCancelPenalty({ penalty: 'none', isPenalty: false, message: 'x' }).text).not.toMatch(/penalty applies/);
     const p = describeCancelPenalty({ isPenalty: true, message: 'You will lose a credit.', deadline: '6pm the evening before' });
     expect(p.kind).toBe('penalty');
     expect(p.text).toContain('You will lose a credit.');

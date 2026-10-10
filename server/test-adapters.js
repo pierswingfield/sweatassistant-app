@@ -605,6 +605,26 @@ check('marianatek: getCancelPenalty maps is_penalty_cancel', async () => {
     () => mt.getCancelPenalty('r2', { accessToken: 'tok' }));
   assert.strictEqual(pen.isPenalty, true);
   assert.strictEqual(pen.message, 'Late cancel fee applies.');
+  assert.strictEqual(pen.penalty, 'fee');
+});
+
+check('marianatek: contradictory is_penalty_cancel:true + free message resolves to none (message wins)', async () => {
+  for (const gym of ['aarmy', 'jab-boxing']) {
+    const mt = getProvider(gym);
+    const run = (body) => withStub(mt, 'request', async () => fakeRes(body), () => mt.getCancelPenalty('r', { accessToken: 'tok' }));
+    const free = await run({ is_penalty_cancel: true, message: 'By canceling, you will not lose a usage and you will not be charged a fee.' });
+    assert.strictEqual(free.penalty, 'none');
+    assert.strictEqual(free.isPenalty, false);
+    const fee = await run({ is_penalty_cancel: true, message: 'You will be charged £8.33 for cancelling this reservation but you will not lose a usage.' });
+    assert.strictEqual(fee.penalty, 'fee');
+    const credit = await run({ is_penalty_cancel: true, message: 'You will lose a credit if you cancel.' });
+    assert.strictEqual(credit.penalty, 'credit');
+    const none = await run({ is_penalty_cancel: false, message: null });
+    assert.strictEqual(none.penalty, 'none');
+    const unk = await run({ is_penalty_cancel: true });
+    assert.strictEqual(unk.penalty, 'unknown');
+    assert.strictEqual(unk.isPenalty, undefined, 'unknown never claims free or penalty');
+  }
 });
 
 // ===========================================================================

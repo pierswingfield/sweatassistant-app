@@ -89,6 +89,32 @@ function classListError(message, res) {
   return err;
 }
 
+/**
+ * MarianaTek's `is_penalty_cancel` is a POLICY flag, not a verdict: live captures show it
+ * `true` both for a free cancel ("you will not lose a usage and you will not be charged a fee")
+ * and for a £8.33 late fee. The `message` text is the real consequence, so it wins over the flag.
+ * No deadline field exists on this endpoint (or on the reservation payload), so none is emitted.
+ * @returns {{penalty:'none'|'credit'|'fee'|'unknown', isPenalty?:boolean, message?:string}}
+ */
+function classifyCancelPenalty(data) {
+  const message = data && data.message ? String(data.message).trim() : '';
+  const flag = data && typeof data.is_penalty_cancel === 'boolean' ? data.is_penalty_cancel : null;
+  const noLose = /\bnot lose\b/i.test(message);
+  const noCharge = /\bnot be charged\b|\bno fee\b/i.test(message);
+  const charged = !noCharge && /\bcharged?\b|\bfee\b|[£$€]\s?\d/i.test(message);
+  const loses = !noLose && /\b(lose|forfeit)\b/i.test(message);
+  let penalty;
+  if (charged) penalty = 'fee';
+  else if (loses) penalty = 'credit';
+  else if (noLose && noCharge) penalty = 'none';
+  else if (!message && flag === false) penalty = 'none';
+  else penalty = 'unknown';
+  const out = { penalty };
+  if (penalty !== 'unknown') out.isPenalty = penalty !== 'none';
+  if (message) out.message = message;
+  return out;
+}
+
 class MarianaTekProvider extends GymProvider {
   get mockToken() {
     return MOCK_TOKEN;
@@ -1079,7 +1105,7 @@ class MarianaTekProvider extends GymProvider {
     const res = await this.request(`/me/reservations/${bookingId}/cancel_penalty`, { token: session.accessToken });
     if (!res.ok) throw new Error(`getCancelPenalty failed: ${res.status}`);
     const data = await res.json();
-    return { isPenalty: !!data.is_penalty_cancel, message: data.message || undefined };
+    return classifyCancelPenalty(data);
   }
 
   async joinWaitlist(eventId, session) {

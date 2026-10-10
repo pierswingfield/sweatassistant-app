@@ -633,8 +633,8 @@ async function executeAutoBookForClass(booking) {
       // Refresh the calendar feed so the new booking shows immediately.
       try { require('./calendar').regenerateSnapshot(userId); } catch (_) {}
 
-      // A group-aware upgrade would need an atomic group swap. Existing monitors
-      // operate one reservation at a time, so scheduled guests never opt in.
+      // Several reservations register ONE group monitor (moved together). Scheduled
+      // guests never opt in: swapping a guest reservation is unproven.
       if (layoutSlots.length > 0 && bookedPairs.length > 0 && scheduledGuests.length === 0) {
         // THIS booking's gym — autoUpgradeEnabled/autoUpgradeByDefault are
         // gym-scoped, and the ambient default would apply one gym's
@@ -646,21 +646,21 @@ async function executeAutoBookForClass(booking) {
             : settings.autoUpgradeByDefault;
           if (wantAutoUpgrade) {
             console.log(`[Scheduler] Auto-registering Auto-Upgrade monitoring for ${bookedPairs.length} booking(s) for event ${eventId}`);
-            for (const pair of bookedPairs) {
-              db.addAutoUpgrade(
-                userId,
-                eventId,
-                pair.bookingId,
-                pair.slotId,
-                booking.class_name,
-                booking.instructor_name,
-                booking.studio_name,
-                booking.location_name,
-                booking.start_at,
-                { keepOriginalOnCutoff: settings.autoUpgradeKeepOriginalByDefault === true },
-                booking.studio_id,
-                booking.group_name
-              );
+            const upgradePrefs = {
+              keepOriginalOnCutoff: settings.autoUpgradeKeepOriginalByDefault === true,
+              // The Auto-Book "together" option rides along so the group is upgraded to a tighter set too.
+              ...(prefs.prioritizeTogether === true ? { prioritizeTogether: true } : {}),
+            };
+            const addMonitor = (pair, members) => db.addAutoUpgrade(
+              userId, eventId, pair.bookingId, pair.slotId, booking.class_name, booking.instructor_name,
+              booking.studio_name, booking.location_name, booking.start_at, upgradePrefs, booking.studio_id,
+              booking.group_name, gymId, members
+            );
+            if (bookedPairs.length > 1) {
+              // ONE monitor for the whole group (moved together, never one by one).
+              addMonitor(bookedPairs[0], bookedPairs.map((p) => ({ bookingId: p.bookingId, slotId: p.slotId })));
+            } else {
+              for (const pair of bookedPairs) addMonitor(pair, null);
             }
           } else {
             console.log(`[Scheduler] Skipping auto-upgrade for booking ${eventId} because user disabled it for this booking/by default.`);

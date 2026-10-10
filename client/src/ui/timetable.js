@@ -3651,7 +3651,11 @@ async function quickBookClass(eventId, prefs, btn, gymId = null) {
       api.notifyBookingSuccess(bookingNotifyPayload(event, { source: 'quickbook', gymId, slots: bookedSlotLabels })).catch(() => {});
       let upgradeRegistered = false;
       if (lastBookedSlot !== null) {
-        const upgradeRes = await tryAutoRegisterUpgrade(event, lastBookedSlot, lastBookingRes, autoUpgrade, { silent: true });
+        // Several spots booked in one go register ONE group monitor (moved together).
+        const groupRes = attemptResult.booked.length > 1
+          ? { bookings: attemptResult.booked.map((b) => ({ bookingId: b.result?.bookingId, slotId: b.slotId })) }
+          : lastBookingRes;
+        const upgradeRes = await tryAutoRegisterUpgrade(event, lastBookedSlot, groupRes, autoUpgrade, { silent: true, prioritizeTogether: prefs.prioritizeTogether === true });
         upgradeRegistered = Boolean(upgradeRes?.registered);
       }
       const slotText = bookedSlotLabels.length > 0 ? ` ${qbNoun} ${bookedSlotLabels.join(', ')}` : '';
@@ -3963,6 +3967,10 @@ export async function openBookingModal(c, mode, opts = {}) {
     const selfLimitForMode = (isAutoBookMode ? scheduledSelfLimit : attendeeLimit);
     const guestPlacesFor = (qty) => guestSlotCount({ qty, selfLimit: selfLimitForMode, guestLimit: guestLimitForMode });
     const showAutoBookAttendeeSelector = autoBookAttendeeOptions.length > 1;
+    // Shown only for a group (more than one of your own spots); wording follows the gym's swap capability.
+    const groupUpgradeNote = (qty, gymId) => (qty - guestPlacesFor(qty)) > 1
+      ? `<div style="font-size:12px;color:var(--text-tertiary);line-height:1.45;">${canForGym('atomicSwap', gymId) ? COPY.timetable.autoUpgradeGroupAtomic : COPY.timetable.autoUpgradeGroupCancelRebook}</div>`
+      : '';
 
     // Determine if booking window is already open
     const classReleaseTime = getClassReleaseTime(c);
@@ -4553,7 +4561,7 @@ export async function openBookingModal(c, mode, opts = {}) {
               const hasLayout = layoutSlots.length > 0;
               const hasPrefs = state.selectedSlots.length > 0 || state.selectedRows.size > 0;
               if (!hasLayout || !canForGym('autoUpgrade', c.gymId)) return '';
-              if (selectedQty > 1) return `<div style="font-size:12px;color:var(--text-tertiary);line-height:1.45;">Auto-Upgrade is unavailable for multi-spot Auto-Books because independent upgrades can separate your group.</div>`;
+              if (guestPlacesFor(selectedQty) > 0) return `<div style="font-size:12px;color:var(--text-tertiary);line-height:1.45;">${COPY.timetable.autoUpgradeGuestUnavailable}</div>`;
               if (!hasPrefs && isMobile()) return upgradeNeedsRowHtml();
               if (!hasPrefs) return `
                 <label style="display:flex;align-items:center;gap:8px;font-size:13px;color:var(--text-tertiary);user-select:none;cursor:not-allowed;">
@@ -4564,7 +4572,7 @@ export async function openBookingModal(c, mode, opts = {}) {
                 <label style="display:flex;align-items:center;gap:8px;font-size:13px;cursor:pointer;color:var(--text-secondary);user-select:none;">
                   <input type="checkbox" class="app-ms-checkbox" id="autobook-auto-upgrade" ${(state.autoUpgrade ?? isAutoUpgradeDefaultEnabled(c.gymId)) ? 'checked' : ''}>
                   <span class="app-upgrade-label-text">${trendingUpIcon(12, 'currentColor', 2)} ${COPY.timetable.autoUpgradeKeepSearchingLabel}</span>
-                </label>`;
+                </label>${groupUpgradeNote(selectedQty, c.gymId)}`;
             })()}
             <button class="app-btn" id="btn-save-autobook" style="width:100%;background:var(--feat-autoupgrade);color:var(--on-accent);display:flex;align-items:center;justify-content:center;gap:6px;">${sparklesIcon(14, 'currentColor')} ${!opts.oneOffSpots && mapChanged() ? `${COPY.spotMapEditor.saveMapAnd} ` : ''}${COPY.timetable.scheduleAutoBook}</button>
             ${opts.autoBookEdit?.onRemove ? `<button type="button" class="app-btn" id="btn-remove-autobook" style="width:100%;background:transparent;border:1px solid var(--danger);color:var(--danger);">${COPY.timetable.removeAutoBook}</button>` : ''}
@@ -4605,9 +4613,10 @@ export async function openBookingModal(c, mode, opts = {}) {
             bookAny: controls.querySelector('#autobook-fallback-any').checked,
             prioritizeTogether: controls.querySelector('#autobook-prioritize-together')?.checked ?? false,
           });
-          const autoUpgrade = prioritizeTogether || qty > 1 ? false : (controls.querySelector('#autobook-auto-upgrade')?.checked ?? false);
-          state.autoUpgrade = autoUpgrade;
           const guestCount = guestPlacesFor(qty);
+          // Groups are upgraded together; only a guest in the booking keeps Auto-Upgrade off.
+          const autoUpgrade = guestCount > 0 ? false : (controls.querySelector('#autobook-auto-upgrade')?.checked ?? false);
+          state.autoUpgrade = autoUpgrade;
           if (!validateGuestDrafts(state.guestDrafts, guestCount).ok) return;
           const preferredSlots = [...state.selectedSlots];
           const preferredRows = [...state.selectedRows];
@@ -4829,7 +4838,8 @@ export async function openBookingModal(c, mode, opts = {}) {
             ${(() => {
               const hasLayout = layoutSlots.length > 0;
               const hasPrefs = state.selectedSlots.length > 0 || state.selectedRows.size > 0;
-              if (!hasLayout || !canForGym('autoUpgrade', c.gymId) || guestPlacesFor(selectedQty) > 0) return '';
+              if (!hasLayout || !canForGym('autoUpgrade', c.gymId)) return '';
+              if (guestPlacesFor(selectedQty) > 0) return `<div style="font-size:12px;color:var(--text-tertiary);line-height:1.45;">${COPY.timetable.autoUpgradeGuestUnavailable}</div>`;
               if (!hasPrefs && isMobile()) return upgradeNeedsRowHtml();
               if (!hasPrefs) return `
                 <label style="display:flex;align-items:center;gap:8px;font-size:13px;color:var(--text-tertiary);user-select:none;cursor:not-allowed;">
@@ -4840,7 +4850,7 @@ export async function openBookingModal(c, mode, opts = {}) {
                 <label style="display:flex;align-items:center;gap:8px;font-size:13px;cursor:pointer;color:var(--text-secondary);user-select:none;">
                   <input type="checkbox" class="app-ms-checkbox" id="quickbook-auto-upgrade" ${isAutoUpgradeDefaultEnabled(c.gymId) ? 'checked' : ''}>
                   <span class="app-upgrade-label-text">${trendingUpIcon(12, 'currentColor', 2)} ${COPY.timetable.autoUpgradeKeepSearchingLabel}</span>
-                </label>`;
+                </label>${groupUpgradeNote(selectedQty, c.gymId)}`;
             })()}
             <button class="app-btn" id="btn-submit-quickbook" style="width:100%;background:var(--accent-fill);color:var(--on-accent-fill);">${!opts.oneOffSpots && mapChanged() ? `${COPY.spotMapEditor.saveMapAnd} ` : ''}${COPY.timetable.quickBook}</button>
           </div>
@@ -4957,7 +4967,7 @@ export async function openBookingModal(c, mode, opts = {}) {
 }
 
 // Auto-register upgrade monitor after a successful booking if the setting is on
-async function tryAutoRegisterUpgrade(event, bookedSlotId, bookingRes, enableOverride, { silent = false } = {}) {
+async function tryAutoRegisterUpgrade(event, bookedSlotId, bookingRes, enableOverride, { silent = false, prioritizeTogether = false } = {}) {
   const shouldRegister = enableOverride !== undefined ? enableOverride : isAutoUpgradeDefaultEnabled(event?.gymId);
   debugConsole('[AutoUpgrade] tryAutoRegisterUpgrade called', { shouldRegister, bookedSlotId, eventId: event?.id });
   if (!shouldRegister) {
@@ -4995,7 +5005,12 @@ async function tryAutoRegisterUpgrade(event, bookedSlotId, bookingRes, enableOve
     // provider. This used to unpack CodexFit's `{ bookings: { id: slot } }` map
     // and fall back through two more raw shapes — none of which MarianaTek emits.
     const booked = [];
-    if (bookingRes?.bookingId != null) {
+    if (Array.isArray(bookingRes?.bookings) && bookingRes.bookings.filter(b => b?.bookingId != null).length > 1) {
+      // Several of your own spots: ONE group monitor, moved together.
+      for (const b of bookingRes.bookings) {
+        if (b?.bookingId != null) booked.push({ bookingId: b.bookingId, slotId: b.slotId ?? bookedSlotId });
+      }
+    } else if (bookingRes?.bookingId != null) {
       booked.push({ bookingId: bookingRes.bookingId, slotId: bookingRes.slotId ?? bookedSlotId });
     } else if (Array.isArray(bookingRes?.bookings)) {
       // Multi-slot: one result per booked spot.
@@ -5003,8 +5018,7 @@ async function tryAutoRegisterUpgrade(event, bookedSlotId, bookingRes, enableOve
         if (b?.bookingId != null) booked.push({ bookingId: b.bookingId, slotId: b.slotId ?? bookedSlotId });
       }
     }
-    for (const b of booked) {
-      registerPromises.push(api.addAutoUpgrade({
+    const monitorBody = (b, members) => ({
         eventId: event.id,
         // See the addAutoBooking note: without this the monitor is stored
         // against the account's active gym, not this class's own.
@@ -5017,8 +5031,16 @@ async function tryAutoRegisterUpgrade(event, bookedSlotId, bookingRes, enableOve
         studioName: event.studioName || event.studioName || '',
         locationName: event.locationName || event.locationName || '',
         startAt: event.startAt || event.startAt,
-        preferences: { keepOriginalOnCutoff: keepOriginalForAutoCreate(gymSetting(event.gymId, 'autoUpgradeKeepOriginalByDefault')) },
-      }));
+        preferences: {
+          keepOriginalOnCutoff: keepOriginalForAutoCreate(gymSetting(event.gymId, 'autoUpgradeKeepOriginalByDefault')),
+          ...(prioritizeTogether ? { prioritizeTogether: true } : {}),
+        },
+        ...(members ? { members: members.map(m => ({ bookingId: Number(m.bookingId), slotId: m.slotId })) } : {}),
+    });
+    if (booked.length > 1) {
+      registerPromises.push(api.addAutoUpgrade(monitorBody(booked[0], booked)));
+    } else {
+      for (const b of booked) registerPromises.push(api.addAutoUpgrade(monitorBody(b, null)));
     }
 
     if (registerPromises.length === 0) {

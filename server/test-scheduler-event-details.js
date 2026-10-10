@@ -143,6 +143,35 @@ check('multi-spot booking keeps a failed preferred attempt in the same spatial p
   }
 });
 
+check('multi-spot auto-book with Auto-Upgrade registers ONE group monitor carrying the together flag', async () => {
+  const userId = makeUser('group-upgrade', PSYCLE);
+  CodexFitProvider.prototype.fetchEventDetails = async () => ({
+    event: { id: '93006', name: 'Ride' },
+    slots: [
+      { id: 'p1', label: '1', x: 0, y: 0, isAvailable: true },
+      { id: 'p2', label: '2', x: 1, y: 0, isAvailable: true },
+      { id: 'p3', label: '3', x: 2, y: 0, isAvailable: true },
+    ], objects: [],
+  });
+  let n = 0;
+  CodexFitProvider.prototype.bookSlot = async function (_e, slotIds) { return { ok: true, bookingId: `${7000 + ++n}`, slotId: slotIds[0] }; };
+  try {
+    await scheduler.executeAutoBookForClass({
+      user_id: userId, gym_id: PSYCLE, event_id: '93006', studio_id: 55,
+      start_at: new Date(Date.now() + 3 * 864e5).toISOString(), group_name: 'RIDE',
+      class_name: 'Ride', instructor_name: 'Coach',
+      preferences: JSON.stringify({ preferredSlots: ['p1', 'p2'], preferredRows: [], requiredCount: 2, bookAny: true, autoUpgrade: true, prioritizeTogether: true }),
+    });
+    const monitors = db.db.prepare("SELECT * FROM auto_upgrades WHERE user_id = ? AND event_id = '93006'").all(userId);
+    assert.strictEqual(monitors.length, 1, 'one monitor for the whole group, not one per seat');
+    assert.strictEqual(monitors[0].gym_id, PSYCLE);
+    assert.strictEqual(db.getAutoUpgradeMembers(monitors[0].id).length, 2, 'both reservations are members');
+    assert.strictEqual(JSON.parse(monitors[0].preferences).prioritizeTogether, true, 'together flag carried over');
+  } finally {
+    restore();
+  }
+});
+
 check('scheduled named guest uses the primary first, persists both outcomes, and does not spend a second self place', async () => {
   const userId = makeUser('scheduled-guest');
   const preferences = normalizeAutoBookPreferences({ requiredCount: 2, guests: [{ email: 'guest@example.test', name: 'Sam' }], bookAny: true });

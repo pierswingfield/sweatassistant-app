@@ -2290,7 +2290,7 @@ function buildEventRow(event, autoBookedIds) {
     if (slotsBookedCount === 1) {
       bookingId = eventBookings[0].bookingId ?? eventBookings[0].id;
       const bookedAt = eventBookings[0].bookedAt ?? eventBookings[0].booked_at;
-      const diffHours = (startDate - new Date()) / (1000 * 60 * 60);
+      const diffHours = (new Date(event.startAt) - new Date()) / (1000 * 60 * 60);
       isPenalty = diffHours < 12 && diffHours > 0;
       if (bookedAt && isInGracePeriod(bookedAt)) {
         graceDeadline = new Date(bookedAt).getTime() + GRACE_PERIOD_MS;

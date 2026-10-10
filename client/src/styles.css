@@ -8693,6 +8693,16 @@ svg.gym-logo-inline { display: block; opacity: 1 !important; transition: none !i
     padding-top: calc(var(--app-header-h, 47px) + 12px) !important;
     padding-bottom: calc(56px + env(safe-area-inset-bottom) + 36px) !important;
   }
+  /* Timetable rails span the viewport; the other tabs keep their 8px gutters. */
+  #app-helper-container main.app-body.app-timetable-active {
+    padding-left: 0 !important;
+    padding-right: 0 !important;
+    padding-bottom: calc(56px + env(safe-area-inset-bottom)) !important;
+  }
+  #app-helper-container .app-body.app-timetable-active .app-sticky-top {
+    margin-left: 0 !important;
+    margin-right: 0 !important;
+  }
   #app-helper-container .app-body.app-scroll-locked { overflow: hidden !important; }
   #app-helper-container #app-panel-my-bookings {
     padding-bottom: 36px !important;
@@ -8748,19 +8758,20 @@ body::after { z-index: 1000002 !important; }
   #app-helper-container .app-mobile-rail { align-items: flex-end; gap: 0; padding: 0 0 12px 0; background: transparent !important; }
   #app-helper-container .app-mobile-seg.primary { align-self: flex-end; margin: 0 0 0 4px; } /* kebab box is flush to the edge, so CTA flush to it gives equal glyph gaps */
   #app-helper-container .app-mobile-seg.ellipsis {
-    align-self: flex-end; height: 40px; width: 37px; min-width: 37px; padding: 0;
+    align-self: flex-end; display: flex; align-items: center; justify-content: center;
+    height: 40px; width: 44px; min-width: 44px; padding: 0;
     border: 0 !important; border-left: 0 !important; border-radius: 0 !important;
     background: transparent !important; color: var(--text) !important; font-size: 24px; font-weight: 900;
   }
-  #app-helper-container .app-mobile-seg.ellipsis::after { inset: 0 -8px 0 -8px; }
+  #app-helper-container .app-mobile-seg.ellipsis::after { inset: 0; }
 }
 
 /* ---- Batch L: mobile timetable = flat, full-width, three-row table ---- */
 @media (max-width: 768px) {
-  /* 2. No card chrome: square, no border/radius/clip, edge to edge (cancels the body's 8px gutters). */
+  /* 2. No card chrome: square, no border/radius/clip, edge to edge. */
   #app-helper-container #app-timetable-grid {
-    margin-left: calc(-1 * max(8px, env(safe-area-inset-left))) !important;
-    margin-right: calc(-1 * max(8px, env(safe-area-inset-right))) !important;
+    margin-left: 0 !important;
+    margin-right: 0 !important;
     padding: 0 !important;
   }
   #app-helper-container #app-timetable-grid .app-table-container {
@@ -8896,7 +8907,7 @@ body::after { z-index: 1000002 !important; }
 
 /* squareMark gyms: the mark (portrait ~0.87:1) in square/narrow plates, sized by height. */
 .app-gym-mark .ab-gym-logo-svg.is-mark { width: auto; height: 15px; }
-.ab-card-gym-rail .ab-gym-logo-svg.is-mark { width: auto; height: 38px; max-width: 80%; }
+.ab-card-gym-rail .ab-gym-logo-svg.is-mark { width: auto; height: 38px; max-width: 100%; object-fit: contain; }
 
 /* Full with no waitlist: the action is blanked (status pill says it); keep the box so rows align. */
 .app-tt-seg.is-blank, .app-mobile-seg.is-blank { visibility: hidden !important; pointer-events: none !important; }
@@ -8995,6 +9006,23 @@ body::after { z-index: 1000002 !important; }
     overscroll-behavior-y: contain !important;
     -webkit-overflow-scrolling: touch;
     touch-action: pan-y;
+    margin-left: 0 !important;
+    margin-right: 0 !important;
+    position: relative;
+  }
+  /* A transparent one-pixel edge below the scrollport enables native bounce
+     for short lists without adding a visible blank row. */
+  #app-helper-container .app-body.app-timetable-active #app-timetable-grid::after {
+    content: '';
+    position: absolute;
+    left: 0;
+    right: 0;
+    bottom: -1px;
+    height: 1px;
+    pointer-events: none;
+  }
+  #app-helper-container .app-body.app-timetable-active #app-filter-rail .fr-gymquick {
+    margin-left: 8px;
   }
   #app-helper-container .app-body.app-timetable-active #app-timetable-grid .app-table-container {
     overflow: visible !important;
@@ -9469,16 +9497,15 @@ html.app-scroll-locked { overflow: hidden !important; background: var(--bg) !imp
 /* ===== Mobile scroll-collapse (5-10 enh 3) =====
    main.js toggles `.app-tt-compact` on #app-container together with the header hide (one state,
    see ui/scroll-collapse.js). MOBILE ONLY: everything is inside max-width:768px; desktop never matches.
-   Layout-jump guard: the day cells shrink by --tt-collapse-d and the sticky block gains the same
-   margin-bottom, on one shared duration/easing, so the in-flow footprint (and scrollHeight / scrollTop) is
-   constant at every frame. The strip just gets shorter at the top; the list does not move.
+   Layout-jump guard: the day cells shrink on one shared duration/easing. In the
+   timetable, rows have their own scrollport, so the list follows the shorter rail.
    Source order: these sit after the base .app-wk-day / .app-sticky-top / .fr-chip rules. */
 @media (max-width: 768px) {
   #app-helper-container .app-sticky-top { --tt-collapse-d: 16px; --tt-collapse-t: 0.25s cubic-bezier(0.25, 1, 0.5, 1); }
-  #app-helper-container .app-sticky-top {
-    transition: top 0.25s ease, margin-bottom var(--tt-collapse-t);
+  #app-helper-container .app-sticky-top { transition: top 0.25s ease; }
+  #app-container.app-tt-compact .app-body.app-timetable-active .app-sticky-top.app-dates-first {
+    margin-bottom: 0 !important;
   }
-  #app-container.app-tt-compact .app-sticky-top { margin-bottom: var(--tt-collapse-d); }
   #app-helper-container .app-wk-day {
     transition: height var(--tt-collapse-t, 0.25s ease), gap var(--tt-collapse-t, 0.25s ease), background-color 0.2s ease, border-color 0.2s ease;
   }

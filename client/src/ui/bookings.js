@@ -27,6 +27,7 @@ import { canSelectSelfSpot, countSelfBookingSlots, isCurrentModalRun } from './b
 import { groupBookingsByEvent } from './upcoming.js';
 import { canOfferGuestAction } from './guest-access.js';
 import { loadCancelInfo } from './cancel-penalty-info.js';
+import { resolveUpgradeGroup } from './upgrade-group.js';
 import { bookingSpotActions } from './booking-spot-actions.js';
 
 // Class starts within the free-cancel cutoff (12h). Edit is hidden inside this
@@ -1280,6 +1281,8 @@ async function handleUpgradeClick({ currentSlotLabel, eventId, gymId, bookingId,
     if (hasPrefs) {
       // Quick-register: the monitor reads the live shared studio map, so we only
       // store the per-monitor option here.
+      const grp = resolveUpgradeGroup(cache.bookings, { gymId, eventId, bookingId });
+      if (grp.kind === 'guest') { showToast(COPY.timetable.autoUpgradeGuestUnavailable, 'warning'); return; }
       showToast(COPY.bookings.startingUpgrade, 'info');
       await api.addAutoUpgrade({
         eventId,
@@ -1298,10 +1301,13 @@ async function handleUpgradeClick({ currentSlotLabel, eventId, gymId, bookingId,
         startAt,
         creditShortfall: upgradeCreditShortfall(gymId),
         preferences: {
-          keepOriginalOnCutoff: keepOriginalForAutoCreate(gymSetting(gymId, 'autoUpgradeKeepOriginalByDefault'))
-        }
+          keepOriginalOnCutoff: keepOriginalForAutoCreate(gymSetting(gymId, 'autoUpgradeKeepOriginalByDefault')),
+          // A group is kept together by default.
+          ...(grp.kind === 'group' ? { prioritizeTogether: true } : {}),
+        },
+        ...(grp.kind === 'group' ? { members: grp.members } : {}),
       });
-      showToast(COPY.bookings.upgradeStartedWithMap, 'success');
+      showToast(grp.kind === 'group' ? `${COPY.bookings.upgradeStartedWithMap} ${canForGym('atomicSwap', gymId) ? COPY.timetable.autoUpgradeGroupAtomic : COPY.timetable.autoUpgradeGroupCancelRebook}` : COPY.bookings.upgradeStartedWithMap, 'success');
       renderBookings();
     } else {
       // No prefs — open modal to configure
@@ -1411,6 +1417,13 @@ export async function openUpgradeConfigModal({ currentSlotLabel = '', eventId, g
             <p>Your <strong>preferred ${noun} map</strong> ranks which ${noun}s you would like, in priority order. It is shared for ${escapeHtml(studioName)}, so Quick-Book and Auto-Book use the same map.</p>
           </div>`}
           ${creditWarningHtml}
+          ${(() => {
+            if (isEditing) return '';
+            const g = resolveUpgradeGroup(cache.bookings, { gymId, eventId, bookingId });
+            if (g.kind === 'guest') return `<div class="app-card-error" style="font-size:12px;padding:8px 10px;">${COPY.timetable.autoUpgradeGuestUnavailable}</div>`;
+            if (g.kind !== 'group') return '';
+            return `<div style="font-size:12px;color:var(--text-tertiary);line-height:1.45;margin-bottom:8px;">${canForGym('atomicSwap', gymId) ? COPY.timetable.autoUpgradeGroupAtomic : COPY.timetable.autoUpgradeGroupCancelRebook}</div>`;
+          })()}
           <div id="upgrade-context"></div>
           <div class="app-upgrade-current">Your current ${noun}: <strong>${escapeHtml(spotLabel || '—')}</strong></div>
           <div class="app-upgrade-map-summary">
@@ -1464,11 +1477,14 @@ export async function openUpgradeConfigModal({ currentSlotLabel = '', eventId, g
             await api.updateAutoUpgrade(existingUpgradeId, { keepOriginalOnCutoff }, bookingId);
             showToast(COPY.bookings.upgradeUpdated, 'success');
           } else {
+            const grp = resolveUpgradeGroup(cache.bookings, { gymId, eventId, bookingId });
+            if (grp.kind === 'guest') { showToast(COPY.timetable.autoUpgradeGuestUnavailable, 'warning'); return; }
             await api.addAutoUpgrade({
               eventId, gymId: gymId || null, studioId: resolvedStudioId || null, bookingId, currentSlotId,
               className, groupName, instructorName, studioName, locationName, startAt,
               creditShortfall: upgradeCreditShortfall(gymId),
-              preferences: { keepOriginalOnCutoff }
+              preferences: { keepOriginalOnCutoff, ...(grp.kind === 'group' ? { prioritizeTogether: true } : {}) },
+              ...(grp.kind === 'group' ? { members: grp.members } : {}),
             });
             showToast(COPY.bookings.monitorStarted, 'success');
           }

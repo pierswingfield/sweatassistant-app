@@ -676,6 +676,10 @@ export const COPY = Object.freeze({
     mapEditRowsInstruction: 'You can also choose entire rows with the + button, but individual spots will be most preferred when booking.',
     autoUpgradeConfigurePrompt: 'Auto-Upgrade: Please configure your preferred spots for this studio first.',
     autoUpgradeKeepSearchingLabel: 'Auto-Upgrade: Keep searching for a better spot for me',
+    // Group Auto-Upgrade (several of your own spots on one class). Moves the whole group or none.
+    autoUpgradeGroupAtomic: 'For several spots, Auto-Upgrade only moves your whole group together, to spots that are better and at least as close. Each spot is swapped directly.',
+    autoUpgradeGroupCancelRebook: 'For several spots, Auto-Upgrade only moves your whole group together, to spots that are better and at least as close. It usually books the new spot before releasing the old one; if you have no spare credit, spots are cancelled and rebooked, so a rare failure could lose a spot.',
+    autoUpgradeGuestUnavailable: "Auto-Upgrade isn't available yet for bookings that include a guest.",
     bookAnyPreferredFallback: 'Book any slot if preferred is unavailable',
     preferredLabel: 'Preferred',
     rowLabel: 'Rows',

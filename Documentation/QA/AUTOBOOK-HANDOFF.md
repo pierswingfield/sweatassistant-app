@@ -3,6 +3,7 @@
 Updated: 2026-10-10. Working tree: `/Users/pierswingfield/.codex/worktrees/3b16/App`.
 
 ## Resume here
+- [Claude 2026-10-11] Committed and pushed `autobook-flow-rework`: 8808dd1 (uniform rotation scale), 484cd71 (guest flow fixes + bookings refresh), a24de8f (cancel-penalty normalization), 9493565 (guest places by default, helper text removed), 04a4ca3 (docs). Deployed to DEV twin only (sweatassistant-dev up; /api/health ok; served JS index-Cs9YKZ0w.js equals local build). Prod untouched.
 - [Claude 2026-10-10] Work is committed on branch `autobook-flow-rework` (from `c93ce44`; pushed to origin; master untouched; no PR): `b5cae2b` (feature code and tests), `4856885` (handoff and audit docs), plus the commit adding this note. Deployed to the DEV twin only (`sweatassistant-dev`, clean tree, served `index-BYu1FTXq.js` matches the local build); not on prod. Local 3190/3191 harness stopped.
 - [Claude 2026-10-10] Still open: real-window desktop CSS check of the flow pages; real iOS/Safari check; Aarmy guest cancellation policy for a real guest reservation (only the user's own reservation's penalty answer was seen); Aarmy credit-cancel deadline is not exposed by the API.
 - [Claude 2026-10-10] Older checkpoint text below is history; where it conflicts with the sections after "Retest round 2", the later sections win.

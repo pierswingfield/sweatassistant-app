@@ -850,6 +850,20 @@ export const api = {
     });
   },
 
+  // One gym's bookings straight from the provider (`refresh=1`), annotated like getBookings().
+  // Used after a booking/guest mutation so the shared cache never keeps a stale copy.
+  async getGymBookings(gymId, { refresh = true } = {}) {
+    if (refresh) await invalidateApiCache('/api/bookings').catch(() => {});
+    const res = await apiFetch(`/api/bookings${refresh ? '?refresh=1' : ''}`, { gymId });
+    if (!res.ok) throw new Error('Failed to load bookings');
+    const data = await res.json();
+    return (data.bookings || []).map((b) => ({
+      ...b,
+      gymId: b.gymId || gymId,
+      event: b.event ? { ...b.event, gymId: b.event.gymId || gymId } : b.event,
+    }));
+  },
+
   async getWaitlists({ silent = false } = {}) {
     const beginGymLoad = silent ? () => {} : _beginGymLoad;
     const endGymLoad = silent ? () => {} : _endGymLoad;

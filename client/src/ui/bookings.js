@@ -53,6 +53,13 @@ function bookingsDataReady() {
   return bookingsFetched || (Array.isArray(cache.bookings) && cache.bookings.length > 0);
 }
 
+/** Repaint the cards from the shared cache (no network); used after a booking mutation refetch. */
+export function repaintBookingsFromCache() {
+  if (!bookingsFetched || !document.getElementById('app-bookings-list')) return;
+  renderBookingsCards(cache.bookings || [], cache.upgrades || []);
+  renderWaitlistsCards(cache.waitlists || []);
+}
+
 export async function renderBookings() {
   const bookingsList = document.getElementById('app-bookings-list');
   const waitlistsList = document.getElementById('app-waitlists-list');
@@ -369,7 +376,7 @@ function buildBookingCard(group, upgrades) {
 
   const offerGuest = canOfferGuestAction({ supported: canForGym('guestBooking', event.gymId), bookings: group.bookings });
   // A direct, always-visible Guest action (a chip with the spot chips), not only inside the rail.
-  const guestChipHtml = offerGuest ? `<button type="button" class="ab-spot-upgrade-chip bk-guest-chip" aria-label="${GUEST_ACTION_LABEL}">${COPY.bookings.guestChip}</button>` : '';
+  const guestChipHtml = offerGuest ? `<button type="button" class="bk-guest-chip" aria-label="${GUEST_ACTION_LABEL}" title="${GUEST_ACTION_LABEL}">${COPY.bookings.guestChip}</button>` : '';
   const editBtnHtml = (within12h || !hasMap) ? '' :
     `<button class="ab-rail-btn bk-edit-btn" aria-label="${COPY.bookings.editSpots}">${icon('edit', 17)}<span>${COPY.accessibility.editCard}</span></button>`;
 
@@ -426,7 +433,7 @@ function buildBookingCard(group, upgrades) {
   card.querySelector('.bk-guest-chip')?.addEventListener('click', openGuest);
 
   // Auto-upgrade click listeners for each spot chip
-  card.querySelectorAll('button.ab-spot-upgrade-chip').forEach(btn => {
+  card.querySelectorAll('button.ab-spot-upgrade-chip:not(.bk-guest-chip)').forEach(btn => {
     btn.addEventListener('click', () => {
       const bid = Number(btn.getAttribute('data-booking-id'));
       const slotId = btn.getAttribute('data-slot-id');

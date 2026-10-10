@@ -93,6 +93,7 @@ export function renderStudioFloorPlan(container, layoutSlots, initialSlots, init
     aboveMap = null,   // () => Node: mobile booking context (helper + class card) placed directly above the map
     mobileRotation = 0,
     onSpotTap = null,  // called after a genuine spot tap, before selection rerenders
+    selectionTone = null, // 'guest': selected spot uses the guest (info) colour so it matches the map key
     clearBelowMap = false, // Step A editor: a "Clear selection" button under the map (draft only)
   } = options;
 
@@ -226,35 +227,13 @@ export function renderStudioFloorPlan(container, layoutSlots, initialSlots, init
     const availH = Math.min(window.innerHeight * 0.6, 460);
     const fillScaleW = widthRange > 0 ? (availW - (container.closest('.app-page') ? 2 : 0) - SLOT_SIZE - EDGE_PAD * 2 - rowLaneW) / widthRange : minGapScale;
     const fillScaleH = heightRange > 0 ? (availH - SLOT_SIZE - EDGE_PAD * 2 - 2) / heightRange : minGapScale;
-    // Contain: fill the available box on whichever axis is tighter. Scaling is
-    // uniform, so stretching a few-column studio (e.g. Reformer) to fill the full
-    // width also blew its row spacing up and forced vertical panning. Fitting the
-    // height instead keeps the rows compact and the whole map on screen.
-    const fillScale = Math.min(fillScaleW, fillScaleH);
-    // Mobile maps use the usable grid width. The unrotated map's smaller edge pad
-    // avoids the old needlessly bunched layout; vertical gaps are contained below.
-    const inPage = !!container.closest('.app-page');
-    const scale = (inPage || isMobile) ? Math.max(fillScaleW, minGapScale) : Math.max(fillScale, minGapScale);
-
-    // Scale X-axis and Y-axis independently if Y-axis gaps are too large and make the map spill.
+    // ONE uniform scale for both axes (aspect ratio and relative geometry preserved): contain the map in the
+    // available box, but never below the min-gap scale so 28px spots never overlap (the map pans instead).
+    // Independent per-axis scales used to stretch a rotated (tall) map: the rotated Y range is tiny steps
+    // of the original X, so the "min vertical gap" rule blew the Y scale up 6x and spread spots apart.
+    const scale = Math.max(Math.min(fillScaleW, fillScaleH), minGapScale);
     const scaleX = scale;
-    let scaleY = scale;
-    const maxFieldH = availH - SLOT_SIZE - EDGE_PAD * 2;
-    if (heightRange > 0 && scaleY * heightRange > maxFieldH) {
-      scaleY = maxFieldH / heightRange;
-      // Guarantee vertical slots do not overlap by checking min vertical coordinate diff
-      let minVerticalDist = Infinity;
-      for (let i = 0; i < viewSlots.length; i++) {
-        for (let j = i + 1; j < viewSlots.length; j++) {
-          const dy = Math.abs(viewSlots[i].y - viewSlots[j].y);
-          if (dy > 0.01 && dy < minVerticalDist) minVerticalDist = dy;
-        }
-      }
-      if (isFinite(minVerticalDist) && minVerticalDist > 0) {
-        const minVerticalScale = MIN_GAP / minVerticalDist;
-        if (scaleY < minVerticalScale) scaleY = minVerticalScale;
-      }
-    }
+    const scaleY = scale;
 
     const floorW = Math.ceil(widthRange * scaleX + SLOT_SIZE + EDGE_PAD * 2 + rowLaneW);
     const floorH = Math.ceil(heightRange * scaleY + SLOT_SIZE + EDGE_PAD * 2);
@@ -308,12 +287,13 @@ export function renderStudioFloorPlan(container, layoutSlots, initialSlots, init
        * to tell which square was which bike. The ranking is secondary
        * information; which seat it is, is the primary information.
        */
+      const selColor = selectionTone === 'guest' ? 'var(--info)' : 'var(--feat-autoupgrade)';
       const withPriorityBadge = (n) => {
         el.textContent = short;
         const badge = document.createElement('span');
         badge.textContent = String(n);
         badge.setAttribute('aria-hidden', 'true');
-        badge.style.cssText = 'position:absolute;top:-6px;right:-6px;min-width:15px;height:15px;padding:0 3px;border-radius:999px;background:var(--feat-autoupgrade);color:#fff;font-size:9px;line-height:15px;font-weight:800;text-align:center;box-shadow:0 0 0 2px var(--surface);box-sizing:border-box;';
+        badge.style.cssText = `position:absolute;top:-6px;right:-6px;min-width:15px;height:15px;padding:0 3px;border-radius:999px;background:${selColor};color:#fff;font-size:9px;line-height:15px;font-weight:800;text-align:center;box-shadow:0 0 0 2px var(--surface);box-sizing:border-box;`;
         el.appendChild(badge);
         el.title = formatCopyText(COPY.spotMapEditor.preferredPriority, { label, priority: n });
       };
@@ -344,8 +324,8 @@ export function renderStudioFloorPlan(container, layoutSlots, initialSlots, init
           el.title = formatCopyText(COPY.spotMapEditor.currentPreferredPriority, { label, priority });
         }
       } else if (priority > 0) {
-        el.style.background = 'var(--feat-autoupgrade)';
-        el.style.border = '2px solid var(--feat-autoupgrade)';
+        el.style.background = selColor;
+        el.style.border = `2px solid ${selColor}`;
         el.style.color = '#fff';
         withPriorityBadge(priority);
         if (hasAvailability && !isAvailable) {

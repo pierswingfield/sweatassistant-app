@@ -6093,6 +6093,17 @@ html, body, * {
   border-color: color-mix(in srgb, var(--warning) 40%, transparent);
 }
 
+/* "+" add-guest action beside the spot chips: borderless, quiet. */
+#app-helper-container .bk-guest-chip {
+  display: inline-flex; align-items: center; justify-content: center;
+  min-width: 28px; min-height: 28px; padding: 0 8px;
+  border: 0; border-radius: 999px; background: transparent;
+  color: var(--text-tertiary); font: inherit; font-size: var(--text-sm, 14px); font-weight: 600; line-height: 1;
+  cursor: pointer; transition: background .2s ease, color .2s ease;
+}
+#app-helper-container .bk-guest-chip:hover,
+#app-helper-container .bk-guest-chip:focus-visible { color: var(--text-secondary); background: color-mix(in srgb, var(--text-tertiary) 14%, transparent); }
+
 /* A guest is a distinct reservation/pass, not an upgradeable second self spot. */
 #app-helper-container .ab-spot-upgrade-chip.is-guest,
 #app-helper-container .ab-spot-open-floor.is-guest {
@@ -9826,3 +9837,10 @@ html:not([data-credits-tab="on"]) .app-nav-btn[data-tab="buy-credits"] { display
 
 .app-spotmap-clear { width: 100%; margin: 8px 0 0; background: color-mix(in srgb, var(--text) 6%, transparent); border: 1px solid color-mix(in srgb, var(--text) 12%, transparent); color: var(--text); }
 .app-spotmap-clear:disabled { opacity: 0.45; cursor: not-allowed; }
+
+/* [Claude 2026-10-11] Guest email fields: one per guest place, never wider than the card. */
+.app-guest-fields { display: flex; flex-direction: column; gap: 8px; min-width: 0; max-width: 100%; }
+.app-guest-field { display: flex; flex-direction: column; gap: 4px; min-width: 0; font-size: 12px; color: var(--text-secondary); }
+.app-guest-field .app-input { width: 100%; min-width: 0; box-sizing: border-box; }
+.app-guest-msg { display: block; min-height: 0; color: var(--text-tertiary); font-size: 12px; line-height: 1.4; overflow-wrap: anywhere; }
+.app-guest-msg:empty { display: none; }

@@ -9,7 +9,7 @@ import { loadCancelInfo } from './cancel-penalty-info.js';
 import { autoBookOutcomeToasts, autoBookFailureToast } from './autobook-outcome.js';
 import { bookStepLabel, preferredSummaryText, autoBookCreditWarning } from './booking-copy.js';
 import { resolveSpotLabels } from './spot-labels.js';
-import { makeDisplayRotator } from './spot-rotation.js';
+import { makeDisplayRotator, makeUniformFit } from './spot-rotation.js';
 import { isCreditInventoryLoaded, pickStudioPrefs as pickGymStudioPrefs } from './gym-isolation.js';
 import { isRollingWeeklyGym } from '../gym-context.js';
 import { canForGym, canAny, capabilityForGym, getLinkedGyms, getGymShortName, getLocationAlias, getDefaultGymId, formatSpotLabel } from '../gym-context.js';
@@ -62,8 +62,9 @@ import { openSpotSetup, setupDeferred, spotSetupBookingOptions } from './spot-se
 import { applyStudioPreferenceMutation, hasStudioPreferences } from './studio-preferences-state.js';
 import { instructorToken, addInstructorSearchFilter, migrateInstructorSelection, hasLegacyInstructors, passesInstructorFilter, pruneInstructorSelection, findInstructor, parseInstructorToken } from './instructor-filter.js';
 import { bookCandidateSpots } from './booking-attempts.js';
-import { bookingQuantityOptions, maxAttendeesPerClass, normalizeGroupOptions, applyTogetherChange, applyCountChange, applyFallbackChange } from './booking-limits.js';
+import { bookingQuantityOptions, maxAttendeesPerClass, normalizeGroupOptions, applyTogetherChange, applyCountChange, applyFallbackChange, scheduledGuestLimit, placeOptions, guestSlotCount, placesLabel, seedGuestDrafts, validateGuestDrafts, buildGuests } from './booking-limits.js';
 import { bookGuestAfterPrimary as bookGuestAfterPrimaryStep } from './quickbook-guest.js';
+import { guestFieldsHtml, wireGuestFields } from './guest-fields.js';
 import { renderStudioFloorPlan } from './spotmap.js';
 import { currentRoute, commitFilterChange, commitNow, replaceCurrent, pathFor } from '../router.js';
 import { stateToUrlTimetable, urlToState, savedToState, sameFilters, overlayLabels, guardedSaveDefaults, emptyFilterState } from './timetable-url-sync.js';
@@ -3762,6 +3763,7 @@ export async function openGuestBookingModal(c) {
         availableSlots: available.map((slot) => String(slot.id)),
         slotStates: reservationStates,
         selectionLimit: 1,
+        selectionTone: 'guest',
         hideSummary: true,
         hideActions: true,
         hideEditHint: true,
@@ -3950,7 +3952,16 @@ export async function openBookingModal(c, mode, opts = {}) {
       ? maxAttendeesPerClass({ providerLimit: bookingEntitlement.selfBookingLimit, gymLimit: capabilityForGym('maxSpotsPerClass', c.gymId) })
       : attendeeLimit;
     const scheduledGuestSupported = bookingEntitlement?.guestSupported === true;
-    const autoBookAttendeeOptions = bookingQuantityOptions(Math.max(scheduledSelfLimit, scheduledGuestSupported ? 2 : 1));
+    // [Claude 2026-10-11] Places above the self limit ARE guests (no checkbox): the count options are
+    // self limit + supported guest places, and each guest place gets a required email field.
+    const scheduledGuestMax = scheduledGuestLimit({ selfLimit: scheduledSelfLimit, guestSupported: scheduledGuestSupported });
+    const autoBookAttendeeOptions = placeOptions({ selfLimit: scheduledSelfLimit, guestLimit: scheduledGuestMax });
+    // Quick-Book books the guest live, so it also needs the guest to be eligible right now.
+    const quickGuestMax = scheduledGuestLimit({ selfLimit: attendeeLimit, guestSupported: scheduledGuestSupported && bookingEntitlement?.guestEligible === true });
+    const quickBookOptions = placeOptions({ selfLimit: attendeeLimit, guestLimit: quickGuestMax });
+    const guestLimitForMode = (isAutoBookMode ? scheduledGuestMax : quickGuestMax);
+    const selfLimitForMode = (isAutoBookMode ? scheduledSelfLimit : attendeeLimit);
+    const guestPlacesFor = (qty) => guestSlotCount({ qty, selfLimit: selfLimitForMode, guestLimit: guestLimitForMode });
     const showAutoBookAttendeeSelector = autoBookAttendeeOptions.length > 1;
 
     // Determine if booking window is already open
@@ -4053,7 +4064,11 @@ export async function openBookingModal(c, mode, opts = {}) {
     const rowCount = new Set(layoutSlots.map(s => s.y)).size;
     const minMapHeight = Math.max(340, rowCount * 56);
 
-    const initialMapHeight = isPreferredSummaryFlow ? Math.min(200, minMapHeight) : minMapHeight;
+    let initialMapHeight = isPreferredSummaryFlow ? Math.min(200, minMapHeight) : minMapHeight;
+    // One uniform scale for both axes (relative geometry kept); grow the box when a tall rotated room needs it.
+    const fitBoxW = Math.max(240, (body.clientWidth || 340) - 2);
+    const fit = makeUniformFit(displaySlots, { boxW: fitBoxW, boxH: initialMapHeight, pad: 10, padRight: rowGroupsForStudio(c.studioId, c.gymId) ? 36 : 10 });
+    initialMapHeight = Math.max(initialMapHeight, fit.neededH);
     if (isPreferredSummaryFlow) title.textContent = isAutoBookMode ? COPY.bookingFlow.titleAutoBook : COPY.bookingFlow.titleFinishQuickBook;
     const preferredSummaryIdentity = isPreferredSummaryFlow
       ? `<div class="app-preferred-summary-identity"><strong>${escapeHtml(classCtx.className)}</strong>${classCtx.instructorName ? `<span>${escapeHtml(formatCopyText(COPY.bookingFlow.withInstructor, { instructor: classCtx.instructorName }))}</span>` : ''}</div>${isAutoBookMode ? '<p class="app-preferred-summary-impact">Changing these studio preferences also affects your other Auto-Books here.</p>' : ''}`
@@ -4075,8 +4090,8 @@ export async function openBookingModal(c, mode, opts = {}) {
 
     // Render Stage — NormalizedLayoutObject[]; empty for providers with none.
     displayObjects.forEach(obj => {
-      const left = widthRange === 0 ? 50 : ((obj.x - minX) / widthRange) * 80 + 10;
-      const top = heightRange === 0 ? 10 : ((obj.y - minY) / heightRange) * 75 + 10;
+      const left = fit.xPct(obj.x);
+      const top = fit.yPct(obj.y);
       const stage = document.createElement('div');
       stage.className = 'app-minimap-stage';
       stage.style.cssText = `position: absolute; left: ${left}%; top: ${top}%; transform: translate(-50%, -50%); background: color-mix(in srgb, var(--text) 15%, transparent); border: 1px solid color-mix(in srgb, var(--text) 30%, transparent); padding: 4px 16px; border-radius: 6px; font-size: 12px; font-weight: bold; color: #fff; letter-spacing: 0.5px;`;
@@ -4103,8 +4118,7 @@ export async function openBookingModal(c, mode, opts = {}) {
       qty: isSimpleBookMode ? maxBookableSlots : 1,  // simple-book: limit selection to max available; quick-book/auto-book: qty selector controls this
       bookAny: true,
       prioritizeTogether: false,
-      scheduledGuest: false,
-      quickBookGuest: false,
+      guestDrafts: [],      // one { email, name } per guest place; derived from the count, never a checkbox
       autoUpgrade: opts.autoBookEdit?.preferences?.autoUpgrade ?? null,
     };
 
@@ -4133,7 +4147,8 @@ export async function openBookingModal(c, mode, opts = {}) {
       state.qty = Number(editPrefs.requiredCount) || 1;
       state.bookAny = editPrefs.bookAny !== false;
       state.prioritizeTogether = editPrefs.prioritizeTogether === true;
-      state.scheduledGuest = editPrefs.guests?.[0] || false;
+      state.guestDrafts = seedGuestDrafts(editPrefs.guests || [], editPrefs.guests?.length || 0);
+      state.seededGuests = editPrefs.guests || [];
       hasExistingPrefs = state.selectedSlots.length > 0 || state.selectedRows.size > 0;
     }
     // Arrived from Step A: use exactly what was just saved (a refetch can race the cache invalidation).
@@ -4151,8 +4166,8 @@ export async function openBookingModal(c, mode, opts = {}) {
       if (d.bookAny != null) state.bookAny = d.bookAny;
       if (d.prioritizeTogether != null) state.prioritizeTogether = d.prioritizeTogether;
       if (d.autoUpgrade !== undefined) state.autoUpgrade = d.autoUpgrade;
-      if (d.scheduledGuest !== undefined) state.scheduledGuest = d.scheduledGuest;
-      if (d.quickBookGuest !== undefined) state.quickBookGuest = d.quickBookGuest;
+      if (d.guestDrafts !== undefined) state.guestDrafts = d.guestDrafts;
+      if (d.seededGuests !== undefined) state.seededGuests = d.seededGuests;
     }
     const autoBookCurrentLimit = autoBookAttendeeOptions.at(-1);
     const requestedQty = Number(state.qty) || 1;
@@ -4161,8 +4176,11 @@ export async function openBookingModal(c, mode, opts = {}) {
     // a one-place queue during edit.
     state.qty = isAutoBookMode && opts.autoBookEdit
       ? Math.max(1, requestedQty)
-      : Math.max(1, Math.min(isAutoBookMode ? autoBookCurrentLimit : attendeeLimit, requestedQty));
-    if (state.qty === 1) state.prioritizeTogether = false;
+      : Math.max(1, Math.min(isAutoBookMode ? autoBookCurrentLimit : quickBookOptions.at(-1), requestedQty));
+    // Guest places follow the count; togetherness only means something between SELF places.
+    state.guestDrafts = seedGuestDrafts(state.guestDrafts, guestPlacesFor(state.qty));
+    if (state.qty - guestPlacesFor(state.qty) <= 1) state.prioritizeTogether = false;
+    state.seededGuests = state.seededGuests || [];
 
     // Quick-Book shows the saved map read-only until the user explicitly unlocks it.
     // First-time setup (no saved prefs) starts editable since there's nothing to lock.
@@ -4176,7 +4194,7 @@ export async function openBookingModal(c, mode, opts = {}) {
     const goBackToPreferredEditor = () => {
       const draft = {
         qty: state.qty, bookAny: state.bookAny, prioritizeTogether: state.prioritizeTogether,
-        autoUpgrade: state.autoUpgrade, scheduledGuest: state.scheduledGuest, quickBookGuest: state.quickBookGuest,
+        autoUpgrade: state.autoUpgrade, guestDrafts: state.guestDrafts, seededGuests: state.seededGuests,
       };
       openSpotSetup({
         event: c, className: c.discipline || c.name, rowGroups: rowGroupsForStudio(c.studioId, c.gymId),
@@ -4256,10 +4274,10 @@ export async function openBookingModal(c, mode, opts = {}) {
         const minXinRow = Math.min(...rowSlots.map(s => s.x));
         const maxXinRow = Math.max(...rowSlots.map(s => s.x));
 
-        const left = widthRange === 0 ? 5 : ((minXinRow - minX) / widthRange) * 78 + 5;
-        const top = heightRange === 0 ? 10 : ((minYinRow - minY) / heightRange) * 72 + 10;
-        const width = widthRange === 0 ? 70 : ((maxXinRow - minXinRow) / widthRange) * 78 + 8;
-        const height = heightRange === 0 ? 70 : ((maxYinRow - minYinRow) / heightRange) * 72 + 8;
+        const width = fit.wPct(maxXinRow - minXinRow);
+        const height = fit.hPct(maxYinRow - minYinRow);
+        const left = fit.xPct(minXinRow) - (14 / fitBoxW * 100);
+        const top = fit.yPct(minYinRow) - (14 / initialMapHeight * 100);
 
         const backdrop = document.createElement('div');
         backdrop.style.cssText = `position:absolute;left:${left}%;top:${top}%;width:${width}%;height:${height}%;background:color-mix(in srgb, var(--info) 10%, transparent);border:2px solid color-mix(in srgb, var(--info) 30%, transparent);border-radius:12px;pointer-events:none;z-index:0;`;
@@ -4276,8 +4294,8 @@ export async function openBookingModal(c, mode, opts = {}) {
         const priority = preferredSummary ? 0 : state.selectedSlots.indexOf(slotId) + 1;
         const inRow = !preferredSummary && state.selectedRows.has(slot.sourceY);
 
-        const left = widthRange === 0 ? 50 : ((slot.x - minX) / widthRange) * 78 + 8;
-        const top = heightRange === 0 ? 50 : ((slot.y - minY) / heightRange) * 72 + 14;
+        const left = fit.xPct(slot.x);
+        const top = fit.yPct(slot.y);
         const label = slot.label || String(slotId);
 
         const bubble = document.createElement('div');
@@ -4415,7 +4433,7 @@ export async function openBookingModal(c, mode, opts = {}) {
           if (rowSlots.length === 0) return;
           const midY = (Math.min(...rowSlots.map(s => s.y)) + Math.max(...rowSlots.map(s => s.y))) / 2;
 
-          const top = heightRange === 0 ? 50 : ((midY - minY) / heightRange) * 72 + 14;
+          const top = fit.yPct(midY);
           const btn = document.createElement('button');
           btn.style.cssText = `position:absolute;left:95.5%;top:${top}%;transform:translate(-50%,-50%);width:26px;height:26px;padding:0;border-radius:50%;background:${isOn ? 'color-mix(in srgb, var(--info) 30%, transparent)' : 'var(--surface-inset)'};border:1px solid ${isOn ? 'color-mix(in srgb, var(--info) 50%, transparent)' : 'var(--border-strong)'};color:${isOn ? 'var(--info)' : 'var(--text-secondary)'};font-size:16px;font-weight:700;cursor:pointer;display:flex;align-items:center;justify-content:center;transition:all 0.1s;z-index:2;`;
           btn.textContent = isOn ? '−' : '+';
@@ -4485,7 +4503,7 @@ export async function openBookingModal(c, mode, opts = {}) {
           ? bookingQuantityOptions(selectedQty)
           : autoBookAttendeeOptions;
         const countOverLimit = selectedQty > autoBookCurrentLimit;
-        const creditsNeeded = creditsNeededFor({ places: selectedQty, hasGuest: !!state.scheduledGuest, guestSource: bookingEntitlement?.guestSource });
+        const creditsNeeded = creditsNeededFor({ places: selectedQty, hasGuest: guestPlacesFor(selectedQty) > 0, guestSource: bookingEntitlement?.guestSource });
         const hasEnoughCredits = availableCredits >= creditsNeeded;
         const creditWarning = hasEnoughCredits ? '' : autoBookCreditWarning(missingCredits(availableCredits, creditsNeeded));
 
@@ -4510,11 +4528,11 @@ export async function openBookingModal(c, mode, opts = {}) {
           <div class="app-booking-controls${isSpotFlowStep ? ' is-spot-flow' : ''}" style="display:flex;flex-direction:column;gap:12px;background:var(--surface-inset);padding:14px;border-radius:12px;border:1px solid var(--border);">
             ${unmappedSlots.length > 0 ? `<div id="app-unmapped-warning" style="font-size:12px;color:var(--warning);background:color-mix(in srgb,var(--warning) 8%,transparent);border:1px solid color-mix(in srgb,var(--warning) 20%,transparent);border-radius:6px;padding:6px 10px;"></div>` : ''}
             ${creditWarning ? `<div style="font-size:12px;color:var(--danger);background:color-mix(in srgb,var(--danger) 10%,transparent);border:1px solid color-mix(in srgb,var(--danger) 20%,transparent);border-radius:8px;padding:10px;line-height:1.5;">${creditWarning}</div>` : ''}
-            <div style="display:flex;gap:14px;align-items:center;">
-              ${showAutoBookAttendeeSelector ? `<div style="width:110px;">
+            <div style="display:flex;gap:14px;align-items:center;${guestLimitForMode > 0 ? 'flex-wrap:wrap;' : ''}">
+              ${showAutoBookAttendeeSelector ? `<div style="${guestLimitForMode > 0 ? 'flex:1 1 100%;min-width:0;' : 'width:110px;'}">
                 <label style="display:block;font-size:12px;color:var(--text-secondary);margin-bottom:4px;">${COPY.timetable.slotsToBook}</label>
                 <select id="autobook-qty" class="app-select" style="width:100%;padding:6px 8px;font-size:13px;">
-                  ${autoBookQtyOptions.map(n => `<option value="${n}" ${state.qty===n?'selected':''}>${n}</option>`).join('')}
+                  ${autoBookQtyOptions.map(n => `<option value="${n}" ${state.qty===n?'selected':''}>${placesLabel(n, { selfLimit: selfLimitForMode, guestLimit: guestLimitForMode })}</option>`).join('')}
                 </select>
               </div>` : ''}
               <div style="flex:1;padding-top:14px;">
@@ -4522,23 +4540,14 @@ export async function openBookingModal(c, mode, opts = {}) {
                   <input type="checkbox" class="app-ms-checkbox" id="autobook-fallback-any" ${state.bookAny ? 'checked' : ''}>
                   <span>${COPY.timetable.bookAnyPreferredFallback}</span>
                 </label>
-                ${selectedQty > 1 ? `<label style="display:flex;align-items:flex-start;gap:8px;font-size:13px;cursor:pointer;color:var(--text-secondary);user-select:none;margin-top:8px;">
+                ${selectedQty - guestPlacesFor(selectedQty) > 1 ? `<label style="display:flex;align-items:flex-start;gap:8px;font-size:13px;cursor:pointer;color:var(--text-secondary);user-select:none;margin-top:8px;">
                   <input type="checkbox" class="app-ms-checkbox" id="autobook-prioritize-together" ${state.prioritizeTogether ? 'checked' : ''}>
-                  <span>Prioritise spots together over location<br><small style="color:var(--text-tertiary);">Also enables booking any available spot.</small></span>
+                  <span>Prioritise spots together over location</span>
                 </label>` : ''}
               </div>
             </div>
-            ${scheduledGuestSupported || state.scheduledGuest ? `<div style="font-size:13px;color:var(--text-secondary);">
-              <label style="display:flex;align-items:center;gap:8px;cursor:${selectedQty === 2 ? 'pointer' : 'not-allowed'};user-select:none;${selectedQty === 2 ? '' : 'opacity:.6;'}">
-                <input type="checkbox" class="app-ms-checkbox" id="autobook-scheduled-guest" ${state.scheduledGuest ? 'checked' : ''} ${selectedQty === 2 && scheduledGuestSupported ? '' : 'disabled'}>
-                <span>Book one named guest</span>
-              </label>
-              ${selectedQty === 2 && state.scheduledGuest ? `<div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin:8px 0 0 26px;">
-                <input id="autobook-guest-name" class="app-input" value="${escapeHtml(typeof state.scheduledGuest === 'object' ? state.scheduledGuest.name || '' : '')}" placeholder="Guest name (optional)" autocomplete="name">
-                <input id="autobook-guest-email" class="app-input" value="${escapeHtml(typeof state.scheduledGuest === 'object' ? state.scheduledGuest.email || '' : '')}" placeholder="Guest email" type="email" autocomplete="email">
-              </div>` : '<small style="display:block;margin:4px 0 0 26px;color:var(--text-tertiary);">A named guest is one of two total places; select 2 to add one.</small>'}
-              ${state.scheduledGuest && bookingEntitlement?.guestEligible === false ? '<small style="display:block;margin:6px 0 0 26px;color:var(--text-tertiary);">Guest eligibility will be checked again when Auto-Book runs.</small>' : ''}
-            </div>` : ''}
+            ${guestFieldsHtml({ idPrefix: 'autobook', drafts: state.guestDrafts, count: guestPlacesFor(selectedQty) })}
+            ${guestPlacesFor(selectedQty) > 0 && bookingEntitlement?.guestEligible === false ? '<small style="display:block;color:var(--text-tertiary);">Guest eligibility will be checked again when Auto-Book runs.</small>' : ''}
             ${countOverLimit ? `<div class="app-card-error" style="font-size:12px;padding:8px 10px;">This Auto-Book requests ${selectedQty} places, but this class currently allows ${autoBookCurrentLimit}. Choose ${autoBookCurrentLimit} or fewer to save.</div>` : ''}
             ${(() => {
               const hasLayout = layoutSlots.length > 0;
@@ -4569,7 +4578,8 @@ export async function openBookingModal(c, mode, opts = {}) {
         const qtySelector = controls.querySelector('#autobook-qty');
         if (qtySelector) qtySelector.onchange = () => {
           Object.assign(state, applyCountChange(state, parseInt(qtySelector.value) || 1));
-          if (state.qty !== 2) state.scheduledGuest = false;
+          state.guestDrafts = seedGuestDrafts(state.guestDrafts, guestPlacesFor(state.qty));
+          if (state.qty - guestPlacesFor(state.qty) <= 1) Object.assign(state, applyTogetherChange(state, false));
           if (preferredSummary) render(); // the summary sentence follows the count live
           updateAutoBookControls();
         };
@@ -4584,23 +4594,7 @@ export async function openBookingModal(c, mode, opts = {}) {
         controls.querySelector('#autobook-auto-upgrade')?.addEventListener('change', (event) => {
           state.autoUpgrade = event.target.checked;
         });
-        controls.querySelector('#autobook-scheduled-guest')?.addEventListener('change', (event) => {
-          state.scheduledGuest = event.target.checked ? { email: '', name: null } : false;
-          if (state.scheduledGuest) {
-            state.qty = 2;
-            state.prioritizeTogether = false;
-          }
-          updateAutoBookControls();
-        });
-        const saveScheduledGuestDraft = () => {
-          if (!state.scheduledGuest) return;
-          state.scheduledGuest = {
-            email: controls.querySelector('#autobook-guest-email')?.value.trim() || '',
-            name: controls.querySelector('#autobook-guest-name')?.value.trim() || null,
-          };
-        };
-        controls.querySelector('#autobook-guest-name')?.addEventListener('input', saveScheduledGuestDraft);
-        controls.querySelector('#autobook-guest-email')?.addEventListener('input', saveScheduledGuestDraft);
+        wireGuestFields(controls, { state, count: guestPlacesFor(selectedQty), cta: controls.querySelector('#btn-save-autobook') })();
 
         const removeBtn = controls.querySelector('#btn-remove-autobook');
         if (removeBtn) removeBtn.onclick = () => twoTapConfirm(removeBtn, COPY.timetable.confirmRemoveAutoBook, () => opts.autoBookEdit.onRemove({ close: closeModal }));
@@ -4613,15 +4607,11 @@ export async function openBookingModal(c, mode, opts = {}) {
           });
           const autoUpgrade = prioritizeTogether || qty > 1 ? false : (controls.querySelector('#autobook-auto-upgrade')?.checked ?? false);
           state.autoUpgrade = autoUpgrade;
-          const guestEmail = controls.querySelector('#autobook-guest-email')?.value.trim() || '';
-          const guestName = controls.querySelector('#autobook-guest-name')?.value.trim() || '';
-          if (state.scheduledGuest && !guestEmail) {
-            showToast('Enter your guest’s email address before scheduling.', 'warning');
-            return;
-          }
+          const guestCount = guestPlacesFor(qty);
+          if (!validateGuestDrafts(state.guestDrafts, guestCount).ok) return;
           const preferredSlots = [...state.selectedSlots];
           const preferredRows = [...state.selectedRows];
-          const guests = state.scheduledGuest ? [{ email: guestEmail, name: guestName || null }] : [];
+          const guests = buildGuests(state.guestDrafts, guestCount, state.seededGuests);
           if (qty > autoBookCurrentLimit) {
             showToast(`Choose ${autoBookCurrentLimit} or fewer places for this class.`, 'warning');
             return;
@@ -4821,11 +4811,11 @@ export async function openBookingModal(c, mode, opts = {}) {
         controls.innerHTML = `
           <div style="display:flex;flex-direction:column;gap:12px;background:var(--surface-inset);padding:14px;border-radius:12px;border:1px solid var(--border);">
             ${creditWarning ? `<div style="font-size:12px;color:var(--danger);background:color-mix(in srgb,var(--danger) 10%,transparent);border:1px solid color-mix(in srgb,var(--danger) 20%,transparent);border-radius:8px;padding:10px;line-height:1.5;">${creditWarning}</div>` : ''}
-            <div style="display:flex;gap:14px;align-items:center;">
-              ${showAttendeeSelector ? `<div style="width:110px;">
+            <div style="display:flex;gap:14px;align-items:center;${quickGuestMax > 0 ? 'flex-wrap:wrap;' : ''}">
+              ${quickBookOptions.length > 1 ? `<div style="${quickGuestMax > 0 ? 'flex:1 1 100%;min-width:0;' : 'width:110px;'}">
                 <label style="display:block;font-size:12px;color:var(--text-secondary);margin-bottom:4px;">${COPY.timetable.slotsToBook}</label>
                 <select id="quickbook-qty" class="app-select" style="width:100%;padding:6px 8px;font-size:13px;">
-                  ${attendeeOptions.map(n => `<option value="${n}" ${state.qty===n?'selected':''}>${n}</option>`).join('')}
+                  ${quickBookOptions.map(n => `<option value="${n}" ${state.qty===n?'selected':''}>${placesLabel(n, { selfLimit: attendeeLimit, guestLimit: quickGuestMax })}</option>`).join('')}
                 </select>
               </div>` : ''}
               <div style="flex:1;padding-top:14px;">
@@ -4835,20 +4825,11 @@ export async function openBookingModal(c, mode, opts = {}) {
                 </label>
               </div>
             </div>
-            ${bookingEntitlement?.guestSupported === true && bookingEntitlement?.guestEligible === true ? `<div style="font-size:13px;color:var(--text-secondary);">
-              <label style="display:flex;align-items:center;gap:8px;cursor:pointer;user-select:none;">
-                <input type="checkbox" class="app-ms-checkbox" id="quickbook-guest" ${state.quickBookGuest ? 'checked' : ''}>
-                <span>Book one named guest <small style="color:var(--text-tertiary);">(2 total places)</small></span>
-              </label>
-              ${state.quickBookGuest ? `<div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin:8px 0 0 26px;">
-                <input id="quickbook-guest-name" class="app-input" value="${escapeHtml(typeof state.quickBookGuest === 'object' ? state.quickBookGuest.name || '' : '')}" placeholder="Guest name (optional)" autocomplete="name">
-                <input id="quickbook-guest-email" class="app-input" value="${escapeHtml(typeof state.quickBookGuest === 'object' ? state.quickBookGuest.email || '' : '')}" placeholder="Guest email" type="email" autocomplete="email">
-              </div>` : ''}
-            </div>` : ''}
+            ${guestFieldsHtml({ idPrefix: 'quickbook', drafts: state.guestDrafts, count: guestPlacesFor(selectedQty) })}
             ${(() => {
               const hasLayout = layoutSlots.length > 0;
               const hasPrefs = state.selectedSlots.length > 0 || state.selectedRows.size > 0;
-              if (!hasLayout || !canForGym('autoUpgrade', c.gymId)) return '';
+              if (!hasLayout || !canForGym('autoUpgrade', c.gymId) || guestPlacesFor(selectedQty) > 0) return '';
               if (!hasPrefs && isMobile()) return upgradeNeedsRowHtml();
               if (!hasPrefs) return `
                 <label style="display:flex;align-items:center;gap:8px;font-size:13px;color:var(--text-tertiary);user-select:none;cursor:not-allowed;">
@@ -4866,19 +4847,7 @@ export async function openBookingModal(c, mode, opts = {}) {
         `;
 
         controls.querySelector('[data-au-setup]')?.addEventListener('click', () => openSetupChild());
-        controls.querySelector('#quickbook-guest')?.addEventListener('change', (event) => {
-          state.quickBookGuest = event.target.checked ? { email: '', name: null } : false;
-          updateQuickBookControls();
-        });
-        const saveQuickGuestDraft = () => {
-          if (!state.quickBookGuest) return;
-          state.quickBookGuest = {
-            email: controls.querySelector('#quickbook-guest-email')?.value.trim() || '',
-            name: controls.querySelector('#quickbook-guest-name')?.value.trim() || null,
-          };
-        };
-        controls.querySelector('#quickbook-guest-name')?.addEventListener('input', saveQuickGuestDraft);
-        controls.querySelector('#quickbook-guest-email')?.addEventListener('input', saveQuickGuestDraft);
+        wireGuestFields(controls, { state, count: guestPlacesFor(selectedQty), cta: controls.querySelector('#btn-submit-quickbook') })();
         controls.querySelector('#btn-submit-quickbook').onclick = async () => {
           if (state.selectedSlots.length === 0 && state.selectedRows.size === 0) {
             showToast(formatCopyText(COPY.timetable.pleaseSelectSpotOrRow, { noun: seatNoun(groupName) }), 'warning');
@@ -4904,17 +4873,13 @@ export async function openBookingModal(c, mode, opts = {}) {
           btn.textContent = COPY.timetable.booking;
           try {
             const qty = parseInt(controls.querySelector('#quickbook-qty')?.value || state.qty) || 1;
+            const guestCount = guestPlacesFor(qty);
             const fallbackAny = controls.querySelector('#quickbook-fallback-any').checked;
-            const autoUpgrade = state.quickBookGuest ? false : (controls.querySelector('#quickbook-auto-upgrade')?.checked ?? false);
-            const guestEmail = controls.querySelector('#quickbook-guest-email')?.value.trim() || '';
-            const guestName = controls.querySelector('#quickbook-guest-name')?.value.trim() || '';
-            if (state.quickBookGuest && !guestEmail) {
-              showToast('Enter your guest’s email address before booking.', 'warning');
-              return;
-            }
+            const autoUpgrade = guestCount > 0 ? false : (controls.querySelector('#quickbook-auto-upgrade')?.checked ?? false);
+            if (!validateGuestDrafts(state.guestDrafts, guestCount).ok) return;
             const slots = [...state.selectedSlots];
             const rows = [...state.selectedRows];
-            const requestedPlaces = state.quickBookGuest ? 2 : qty;
+            const requestedPlaces = qty - guestCount;
             const preferredCapacity = new Set([
               ...slots,
               ...rowYs.filter((y) => state.selectedRows.has(y)).flatMap((y) => (slotsByRow.get(y) || []).map((slot) => String(slot.id))),
@@ -4928,10 +4893,10 @@ export async function openBookingModal(c, mode, opts = {}) {
               preferredRows: rows,
               // The selected count remains a total in the UI. A named guest
               // is booked through its provider path after one primary place.
-              requiredCount: state.quickBookGuest ? 1 : qty,
+              requiredCount: qty - guestCount,
               bookAny: fallbackAny,
               autoUpgrade,
-              guests: state.quickBookGuest ? [{ email: guestEmail, name: guestName || null }] : []
+              guests: buildGuests(state.guestDrafts, guestCount, [])
             }, null, c.gymId);
             // `quickBookClass` owns the provider sequence and reports false if
             // no primary booking succeeded. Never publish a draft after that.
@@ -4956,7 +4921,7 @@ export async function openBookingModal(c, mode, opts = {}) {
         const quickbookQtySelector = controls.querySelector('#quickbook-qty');
         if (quickbookQtySelector) quickbookQtySelector.onchange = () => {
           state.qty = parseInt(quickbookQtySelector.value) || 1;
-          if (state.qty !== 2) state.quickBookGuest = false;
+          state.guestDrafts = seedGuestDrafts(state.guestDrafts, guestPlacesFor(state.qty));
           if (preferredSummary) render(); // the summary sentence follows the count live
           updateQuickBookControls();
         };

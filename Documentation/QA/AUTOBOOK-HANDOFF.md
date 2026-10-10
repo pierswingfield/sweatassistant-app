@@ -3,9 +3,9 @@
 Updated: 2026-10-10. Working tree: `/Users/pierswingfield/.codex/worktrees/3b16/App`.
 
 ## Resume here
-Implementation is **incomplete and not deployed**. Phase 5b is in progress: finish Quick-Book named-guest execution and reuse the shared preferred-map flow for existing Auto-Book edits, while retaining their distinct submit handlers and immediate-book branch. Phase 4 map code and checks are complete; its live-browser rendering remains pending until a changed build is served. Initial checkout was clean, detached HEAD `c93ce44`; subsequent work is local. Preserve all changes and verify current Git state.
-
-Read this file, then the existing audit/checklist: `Documentation/QA/browser-runs/2026-10-10-autobook-audit.md`. Read applicable AGENTS/protocol. Inspect only the specific source needed; this file is a checkpoint, not proof of current state.
+- [Claude 2026-10-10] Work is committed on branch `autobook-flow-rework` (from `c93ce44`; pushed to origin; master untouched; no PR): `b5cae2b` (feature code and tests), `4856885` (handoff and audit docs), plus the commit adding this note. Deployed to the DEV twin only (`sweatassistant-dev`, clean tree, served `index-BYu1FTXq.js` matches the local build); not on prod. Local 3190/3191 harness stopped.
+- [Claude 2026-10-10] Still open: real-window desktop CSS check of the flow pages; real iOS/Safari check; Aarmy guest cancellation policy for a real guest reservation (only the user's own reservation's penalty answer was seen); Aarmy credit-cancel deadline is not exposed by the API.
+- [Claude 2026-10-10] Older checkpoint text below is history; where it conflicts with the sections after "Retest round 2", the later sections win.
 
 ## Working rules
 - Parent owns UX decisions and must not run shell/Git or read source directly. Delegate implementation/evidence.

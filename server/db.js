@@ -110,6 +110,21 @@ db.exec(`
     FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
   );
 
+  -- Group Auto-Upgrade: the reservations a multi-seat monitor moves TOGETHER.
+  -- Additive (CREATE IF NOT EXISTS), so existing DBs gain it with no migration. A
+  -- monitor with no rows here is the legacy single-seat monitor. This set is the
+  -- ONLY authority on which bookings a group move may cancel.
+  CREATE TABLE IF NOT EXISTS auto_upgrade_members (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    upgrade_id INTEGER NOT NULL,
+    booking_id INTEGER NOT NULL,
+    slot_id TEXT NOT NULL,
+    original_slot_id TEXT,
+    is_guest INTEGER NOT NULL DEFAULT 0,
+    FOREIGN KEY (upgrade_id) REFERENCES auto_upgrades(id) ON DELETE CASCADE,
+    UNIQUE(upgrade_id, booking_id)
+  );
+
   CREATE TABLE IF NOT EXISTS studio_preferences (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     user_id INTEGER NOT NULL,
@@ -1278,13 +1293,83 @@ module.exports = {
     return db.prepare("SELECT COUNT(*) AS n FROM auto_upgrades WHERE user_id = ? AND gym_id = ? AND status = 'active'")
       .get(userId, targetGym).n;
   },
-  addAutoUpgrade(userId, eventId, bookingId, currentSlotId, className, instructorName, studioName, locationName, startAt, preferences, studioId = null, groupName = null, gymId = null) {
+  addAutoUpgrade(userId, eventId, bookingId, currentSlotId, className, instructorName, studioName, locationName, startAt, preferences, studioId = null, groupName = null, gymId = null, members = null) {
     const targetGym = resolveGymStrict(userId, gymId, 'addAutoUpgrade');
     const result = db.prepare(`
       INSERT INTO auto_upgrades (user_id, gym_id, event_id, studio_id, booking_id, current_slot_id, original_slot_id, class_name, instructor_name, studio_name, location_name, start_at, preferences, group_name)
       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     `).run(userId, targetGym, eventId, studioId, bookingId, currentSlotId, currentSlotId, className, instructorName, studioName, locationName, startAt, JSON.stringify(preferences), groupName);
+    // More than one reservation = a GROUP monitor (moved together). One row per
+    // reservation (the lead is included).
+    if (Array.isArray(members) && members.length > 1) {
+      const ins = db.prepare('INSERT OR IGNORE INTO auto_upgrade_members (upgrade_id, booking_id, slot_id, original_slot_id, is_guest) VALUES (?, ?, ?, ?, ?)');
+      for (const m of members) ins.run(result.lastInsertRowid, Number(m.bookingId), String(m.slotId), String(m.slotId), m.isGuest ? 1 : 0);
+    }
     return result.lastInsertRowid;
+  },
+  getAutoUpgradeMembers(upgradeId) {
+    return db.prepare('SELECT * FROM auto_upgrade_members WHERE upgrade_id = ? ORDER BY id ASC').all(upgradeId);
+  },
+  // After a member's spot moves: follow its new booking id and slot. Keeps the row (and
+  // original_slot_id) so "originally spot X" survives.
+  replaceAutoUpgradeMember(upgradeId, oldBookingId, newBookingId, newSlotId) {
+    db.prepare('UPDATE auto_upgrade_members SET booking_id = ?, slot_id = ? WHERE upgrade_id = ? AND booking_id = ?')
+      .run(Number(newBookingId), String(newSlotId), upgradeId, Number(oldBookingId));
+  },
+  setAutoUpgradeMemberSlot(upgradeId, bookingId, slotId) {
+    db.prepare('UPDATE auto_upgrade_members SET slot_id = ? WHERE upgrade_id = ? AND booking_id = ?')
+      .run(String(slotId), upgradeId, Number(bookingId));
+  },
+  // [Claude 2026-10-11] Re-add a member after a cancel-first rebook (the row was removed when the
+  // old reservation was released, so persisted state never names a cancelled booking).
+  addAutoUpgradeMember(upgradeId, bookingId, slotId, originalSlotId = null) {
+    db.prepare('INSERT OR REPLACE INTO auto_upgrade_members (upgrade_id, booking_id, slot_id, original_slot_id, is_guest) VALUES (?, ?, ?, ?, 0)')
+      .run(upgradeId, Number(bookingId), String(slotId), String(originalSlotId ?? slotId));
+  },
+  // [Claude 2026-10-11] A live GROUP monitor (>1 members) covering any of these bookings.
+  findLiveGroupAutoUpgradeForBookings(userId, gymId, bookingIds) {
+    const ids = (bookingIds || []).map(Number).filter(Number.isFinite);
+    if (!ids.length) return null;
+    const q = ids.map(() => '?').join(',');
+    return db.prepare(`
+      SELECT u.* FROM auto_upgrades u
+      WHERE u.user_id = ? AND u.gym_id = ? AND u.status IN ('active','paused_no_credits','paused_disabled')
+        AND (SELECT COUNT(*) FROM auto_upgrade_members m WHERE m.upgrade_id = u.id) > 1
+        AND (u.booking_id IN (${q}) OR u.id IN (SELECT upgrade_id FROM auto_upgrade_members WHERE booking_id IN (${q})))
+      LIMIT 1
+    `).get(userId, gymId, ...ids, ...ids) || null;
+  },
+  removeAutoUpgradeMember(upgradeId, bookingId) {
+    db.prepare('DELETE FROM auto_upgrade_members WHERE upgrade_id = ? AND booking_id = ?').run(upgradeId, Number(bookingId));
+  },
+  // Gym-scoped duplicate check: a live monitor that already covers this booking (as lead or member).
+  findLiveAutoUpgradeForBookings(userId, gymId, bookingIds) {
+    const ids = (bookingIds || []).map(Number).filter(Number.isFinite);
+    if (!ids.length) return null;
+    const q = ids.map(() => '?').join(',');
+    return db.prepare(`
+      SELECT u.* FROM auto_upgrades u
+      WHERE u.user_id = ? AND u.gym_id = ? AND u.status IN ('active','paused_no_credits','paused_disabled')
+        AND (u.booking_id IN (${q}) OR u.id IN (SELECT upgrade_id FROM auto_upgrade_members WHERE booking_id IN (${q})))
+      LIMIT 1
+    `).get(userId, gymId, ...ids, ...ids) || null;
+  },
+  // A new group monitor REPLACES single-seat monitors already covering its reservations, so a
+  // group and a lone-seat monitor can never act on the same booking at once. Returns the count.
+  replaceSingleAutoUpgradesForBookings(userId, gymId, bookingIds, message = 'Replaced by a group Auto-Upgrade monitor.') {
+    const ids = (bookingIds || []).map(Number).filter(Number.isFinite);
+    if (!ids.length) return 0;
+    const q = ids.map(() => '?').join(',');
+    return db.prepare(`
+      UPDATE auto_upgrades SET status = 'stopped', status_message = ?
+      WHERE user_id = ? AND gym_id = ? AND status IN ('active','paused_no_credits','paused_disabled')
+        AND booking_id IN (${q})
+        AND NOT EXISTS (SELECT 1 FROM auto_upgrade_members m WHERE m.upgrade_id = auto_upgrades.id)
+    `).run(message, userId, gymId, ...ids).changes;
+  },
+  hasGuestBookingGroupForEvent(userId, gymId, eventId) {
+    return !!db.prepare('SELECT 1 FROM guest_booking_groups WHERE user_id = ? AND gym_id = ? AND event_id = ? LIMIT 1')
+      .get(userId, gymId, String(eventId));
   },
   // All upgrade monitors for a user keyed by event_id — used by the calendar feed to
   // annotate confirmed classes with "(Auto-Upgrade is enabled -- originally bike X)".
@@ -1346,8 +1431,9 @@ module.exports = {
     return db.prepare(`
       UPDATE auto_upgrades SET status = 'stopped', status_message = ?
       WHERE user_id = ? AND gym_id = ? AND status IN ('active', 'paused_no_credits', 'paused_disabled')
-        AND (booking_id = ? OR new_booking_id = ?)
-    `).run(message, userId, gymId, id, id).changes;
+        AND (booking_id = ? OR new_booking_id = ?
+          OR id IN (SELECT upgrade_id FROM auto_upgrade_members WHERE booking_id = ?))
+    `).run(message, userId, gymId, id, id, id).changes;
   },
   deleteAutoUpgrade(id, userId) {
     db.prepare('DELETE FROM auto_upgrades WHERE id = ? AND user_id = ?').run(id, userId);

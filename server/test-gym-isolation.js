@@ -400,6 +400,33 @@ check('the poller\'s claim keys are gym-qualified too (C3-23)', () => {
   }
 });
 
+check('the group claim keys in poller.js are gym-qualified (group Auto-Upgrade)', () => {
+  const src = require('fs').readFileSync(require('path').join(__dirname, 'poller.js'), 'utf8');
+  const keys = (src.match(/const key = `[^`]*`/g) || []).filter((k) => /eventId/.test(k));
+  assert.ok(keys.length >= 2, 'expected the group claim keys in poller.js');
+  for (const k of keys) assert.ok(/\$\{gymId\}/.test(k), `group claim key is not gym-qualified: ${k}`);
+});
+
+check('group Auto-Upgrade members, duplicates and guest checks are scoped to their gym', () => {
+  const uid = twoGymUser();
+  const start = new Date(Date.now() + 2 * 864e5).toISOString();
+  // The SAME booking ids, event id and seat ids at both gyms (provider ids collide).
+  const mk = (gym) => on(uid, gym, () => db.addAutoUpgrade(uid, 'E1', 501, 'a', 'C', 'I', 'S', 'L', start, {}, 7, 'G', gym,
+    [{ bookingId: 501, slotId: 'a' }, { bookingId: 502, slotId: 'b' }]));
+  const idA = mk(GYM_A); const idB = mk(GYM_B);
+  assert.strictEqual(db.getAutoUpgradeMembers(idA).length, 2);
+  // A duplicate check names a gym: gym B's group is invisible from gym A and vice versa.
+  assert.strictEqual(db.findLiveAutoUpgradeForBookings(uid, GYM_A, [502]).id, idA);
+  assert.strictEqual(db.findLiveAutoUpgradeForBookings(uid, GYM_B, [502]).id, idB);
+  // A guest reservation at gym A must not block gym B's group on the same event id.
+  db.upsertGuestBookingGroup(uid, GYM_A, 'E1', '501', '999');
+  assert.strictEqual(db.hasGuestBookingGroupForEvent(uid, GYM_A, 'E1'), true);
+  assert.strictEqual(db.hasGuestBookingGroupForEvent(uid, GYM_B, 'E1'), false);
+  // Cancelling a member at gym A stops gym A's group only.
+  assert.strictEqual(db.stopAutoUpgradesForBooking(uid, GYM_A, 502), 1);
+  assert.strictEqual(db.db.prepare('SELECT status FROM auto_upgrades WHERE id = ?').get(idB).status, 'active');
+});
+
 // --- run --------------------------------------------------------------------
 
 let passed = 0;

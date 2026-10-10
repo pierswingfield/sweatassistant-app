@@ -748,7 +748,9 @@ app.get('/api/auto-upgrade', authenticateToken, (req, res) => {
     const upgrades = db.getUserAutoUpgrades(req.userId, gymId);
     const formatted = upgrades.map(u => ({
       ...u,
-      preferences: JSON.parse(u.preferences)
+      preferences: JSON.parse(u.preferences),
+      // Group monitors list every reservation they move together (empty = single seat).
+      members: db.getAutoUpgradeMembers(u.id),
     }));
     res.json(formatted);
   } catch (err) {
@@ -756,8 +758,8 @@ app.get('/api/auto-upgrade', authenticateToken, (req, res) => {
   }
 });
 
-app.post('/api/auto-upgrade', authenticateToken, bookingMutationLimiter, (req, res) => {
-  const { eventId, studioId, bookingId, currentSlotId, className, instructorName, studioName, locationName, startAt, preferences, groupName, creditShortfall, gymId: reqGymId } = req.body;
+app.post('/api/auto-upgrade', authenticateToken, bookingMutationLimiter, async (req, res) => {
+  const { eventId, studioId, bookingId, currentSlotId, className, instructorName, studioName, locationName, startAt, preferences, groupName, creditShortfall, gymId: reqGymId, members: reqMembers } = req.body;
   if (eventId == null || bookingId == null || currentSlotId == null || !preferences) {
     return res.status(400).json({ message: 'Missing required auto-upgrade fields' });
   }
@@ -773,6 +775,50 @@ app.post('/api/auto-upgrade', authenticateToken, bookingMutationLimiter, (req, r
       return res.status(429).json({ message: `Auto-upgrade monitor limit reached (${MAX_ACTIVE_AUTO_UPGRADES_PER_GYM} active monitors). Please cancel some before adding more.` });
     }
 
+    // GROUP monitor: several reservations moved together. Guests are refused server-side
+    // (swapping a guest reservation is unproven), so a hand-built request can't bypass the UI.
+    let members = null;
+    if (Array.isArray(reqMembers) && reqMembers.length > 1) {
+      const resolvedGym = gymId || db.resolveActiveGymId(req.userId);
+      if (reqMembers.some(m => m == null || m.bookingId == null || m.slotId == null)) {
+        return res.status(400).json({ message: 'Each group member needs a bookingId and slotId.' });
+      }
+      if (reqMembers.some(m => m.isGuest) || db.hasGuestBookingGroupForEvent(req.userId, resolvedGym, eventId)) {
+        return res.status(400).json({ code: 'GUEST_GROUP_UNSUPPORTED', message: "Auto-Upgrade isn't available yet for bookings that include a guest." });
+      }
+      // [Claude 2026-10-11] Client ids are only a SELECTION: members come from the user's own live
+      // bookings for this gym + event, so a foreign or other-event id can never reach a cancel.
+      let liveBookings;
+      try { liveBookings = await poller.listBookingsWithRelogin(req.userId, resolvedGym); }
+      catch (err) { return res.status(502).json({ message: `Could not verify your bookings: ${err.message}` }); }
+      const mine = (liveBookings || []).filter(b => b && !b.isWaitlist && String(b.eventId) === String(eventId));
+      const seen = new Set();
+      const verified = [];
+      for (const m of reqMembers) {
+        const row = mine.find(b => String(b.bookingId) === String(m.bookingId));
+        if (!row || seen.has(String(row.bookingId))) {
+          return res.status(400).json({ code: 'MEMBER_NOT_FOUND', message: 'One of the selected spots is not one of your current bookings for this class.' });
+        }
+        seen.add(String(row.bookingId));
+        verified.push({ bookingId: row.bookingId, slotId: row.slotId, isGuest: !!row.isGuest });
+      }
+      if (verified.some(m => m.isGuest)) {
+        return res.status(400).json({ code: 'GUEST_GROUP_UNSUPPORTED', message: "Auto-Upgrade isn't available yet for bookings that include a guest." });
+      }
+      members = verified;
+      // Duplicate check BEFORE any state change (a 409 must leave existing monitors untouched).
+      const dup = db.findLiveGroupAutoUpgradeForBookings(req.userId, resolvedGym, members.map(m => m.bookingId));
+      if (dup) return res.status(409).json({ code: 'DUPLICATE_AUTO_UPGRADE', existingId: dup.id, message: 'These spots already have an auto-upgrade monitor.' });
+      // Existing single-seat monitors on these bookings are replaced by the group.
+      db.replaceSingleAutoUpgradesForBookings(req.userId, resolvedGym, members.map(m => m.bookingId));
+    } else {
+      // A lone-seat monitor must not start on a reservation a live group already moves.
+      const g = db.findLiveAutoUpgradeForBookings(req.userId, gymId || db.resolveActiveGymId(req.userId), [bookingId]);
+      if (g && db.getAutoUpgradeMembers(g.id).length > 1) {
+        return res.status(409).json({ code: 'DUPLICATE_AUTO_UPGRADE', existingId: g.id, message: 'This spot is already part of a group auto-upgrade monitor.' });
+      }
+    }
+
     // One live monitor per held seat. Matches on booking id OR event+slot (a re-booked
     // seat has a new booking id) and counts paused monitors too — the same set the
     // client list shows as "has a monitor".
@@ -786,7 +832,7 @@ app.post('/api/auto-upgrade', authenticateToken, bookingMutationLimiter, (req, r
       return res.status(409).json({ code: 'DUPLICATE_AUTO_UPGRADE', existingId: live.id, message: 'This spot already has an auto-upgrade monitor.' });
     }
 
-    const id = db.addAutoUpgrade(req.userId, eventId, bookingId, currentSlotId, className, instructorName, studioName, locationName, startAt, preferences, studioId ?? null, groupName ?? null, gymId);
+    const id = db.addAutoUpgrade(req.userId, eventId, members ? members[0].bookingId : bookingId, members ? members[0].slotId : currentSlotId, className, instructorName, studioName, locationName, startAt, preferences, studioId ?? null, groupName ?? null, gymId, members);
 
     // Warn (via push) if auto-upgrade is enabled without a spare credit to book the upgraded seat.
     if (creditShortfall && creditShortfall > 0) {

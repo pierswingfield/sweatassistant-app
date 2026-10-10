@@ -68,7 +68,8 @@ const WEEKEND_SCHEDULE = [
 
 // Pick-a-spot layout — 20 spots (10 bags, 10 ground), same shape family as the
 // real 40-spot layout in class-detail-with-layout.json, just smaller for dev.
-function makeLayout(bookedSpotIds) {
+function makeLayout(bookedSpotIds, classroomName = null) {
+  if (classroomName === NOHO_ROOM) return makeNohoLayout(bookedSpotIds);
   const spots = [];
   for (let i = 1; i <= 10; i++) {
     spots.push({ id: `mock-bag-${i}`, name: `B${i}`, spot_type: { id: '6564', is_primary: true, name: 'Bag' }, x_position: i, y_position: 0, is_available: !bookedSpotIds.has(`mock-bag-${i}`) });
@@ -77,6 +78,29 @@ function makeLayout(bookedSpotIds) {
     spots.push({ id: `mock-ground-${i}`, name: `G${i}`, spot_type: { id: '6563', is_primary: true, name: 'Ground' }, x_position: i, y_position: 2, is_available: !bookedSpotIds.has(`mock-ground-${i}`) });
   }
   return { id: 'mock-layout', name: 'MOCK BOXING', spots };
+}
+
+const BOOTCAMP_CLASS_TYPE = { id: '7700', name: 'Bootcamp', duration: 50, duration_formatted: '50 minutes' };
+
+// Aarmy-only rotation-test room. The provider name is EXACTLY "NoHo Bootcamp"
+// (gyms.config.js matches it by name for the 90-degree mobile rotation). A
+// realistic 5 x 8 rectangle: user-facing labels run 1..40 row by row while the
+// internal provider ids are large and non-sequential-looking (37400+), so any
+// label-vs-id mix-up shows immediately.
+const NOHO_ROOM = 'NoHo Bootcamp';
+const NOHO_ID_BASE = 37400;
+const NOHO_ROWS = 5;
+const NOHO_COLS = 8;
+function makeNohoLayout(bookedSpotIds) {
+  const spots = [];
+  for (let r = 0; r < NOHO_ROWS; r++) {
+    for (let c = 0; c < NOHO_COLS; c++) {
+      const n = r * NOHO_COLS + c + 1;
+      const id = String(NOHO_ID_BASE + n - 1);
+      spots.push({ id, name: String(n), spot_type: { id: '6600', is_primary: true, name: 'Spot' }, x_position: c, y_position: r, is_available: !bookedSpotIds.has(id) });
+    }
+  }
+  return { id: 'mock-layout-noho', name: 'NOHO BOOTCAMP', spots };
 }
 
 const PAYMENT_OPTION = {
@@ -95,7 +119,39 @@ const reservations = new Map(); // id -> reservation object
 const bookedSpotsByClass = new Map(); // classId -> Set<spotId>
 let guestRemainingUsage = PAYMENT_OPTION.membership_payment.guest_remaining_usage_count;
 
+// Credit-based gyms (capabilities.metered, e.g. Aarmy): a guest draws a credit, exactly like the sanitized live
+// capture server/__fixtures__/marianatek/aarmy-guest-payment-options.json (same option in the user and guest
+// lists, credit_payment.is_valid_for_guests true, membership_payment null). Two credits so a guest is testable.
+const CREDIT_TOTAL = 2;
+let creditPool = CREDIT_TOTAL;
+let activeCreditBased = false;
+function creditOption() {
+  return {
+    id: 'credit-373019',
+    credit_payment: {
+      id: '373019', credits_remaining: creditPool, credits_total: CREDIT_TOTAL, credits_used: CREDIT_TOTAL - creditPool, product_id: '14694',
+      expiration_datetime: '2026-11-09T22:02:27.138534Z', is_expired: false, is_valid_for_guests: true, name: '1 NYC Session Credit',
+    },
+    description: `1 NYC Session Credit (${creditPool}/${CREDIT_TOTAL}, Exp. 11/9/2026)`,
+    description_status: `${creditPool}/${CREDIT_TOTAL}, Exp. `,
+    description_date: '2026-11-09T22:02:27.138534Z',
+    error_code: null,
+    error_message: null,
+    membership_payment: null,
+    name: '1 NYC Session Credit',
+    type: 'credit',
+  };
+}
+function paymentOptionLists() {
+  if (activeCreditBased) {
+    const options = creditPool > 0 ? [creditOption()] : [];
+    return { user_payment_options: options, guest_payment_options: options.map((o) => ({ ...o })) };
+  }
+  return { user_payment_options: [paymentOption()], guest_payment_options: [paymentOption()] };
+}
+
 function paymentOption() {
+  if (activeCreditBased) return creditOption();
   return {
     ...PAYMENT_OPTION,
     membership_payment: { ...PAYMENT_OPTION.membership_payment, guest_remaining_usage_count: guestRemainingUsage },
@@ -121,7 +177,7 @@ function bookedSpotsFor(classId) {
 // mock class was already open, so a JAB class could never be auto-booked in dev.
 const MOCK_ADVANCE_DAYS = 10;
 const FIRST_UNRELEASED_DAY = 11;
-function generateClasses(zone = DEFAULT_ZONE) {
+function generateClasses(zone = DEFAULT_ZONE, gymId = null) {
   const classes = [];
   const now = new Date();
   for (let i = 0; i < 14; i++) {
@@ -140,7 +196,29 @@ function generateClasses(zone = DEFAULT_ZONE) {
       classes.push(mockClass(`${9000 + i * 10 + slotIdx}`, classType, iso, `${time}:00`, room, layoutFormat, bookingStart, i * 7 + slotIdx, zone));
     });
   }
+  if (gymId === 'aarmy') classes.push(...nohoBootcampClasses(zone, now));
   return classes;
+}
+
+// Three released classes (days 1-3) and one NOT yet released (day 12: it opens
+// MOCK_ADVANCE_DAYS before it starts, i.e. in the future) for Auto-Book tests.
+function nohoBootcampClasses(zone, now) {
+  return [[1, '18:00'], [2, '07:00'], [3, '18:00'], [12, '18:00']].map(([dayOffset, time], idx) => {
+    const iso = new Date(now.getTime() + dayOffset * 864e5).toISOString().split('T')[0];
+    const startMs = DateTime.fromISO(`${iso}T${time}:00`, { zone }).toMillis();
+    const bookingStart = dayOffset >= FIRST_UNRELEASED_DAY
+      ? new Date(startMs - MOCK_ADVANCE_DAYS * 864e5).toISOString()
+      : new Date(now.getTime() - 864e5).toISOString();
+    const id = `${9600 + idx}`;
+    const cls = mockClass(id, BOOTCAMP_CLASS_TYPE, iso, `${time}:00`, NOHO_ROOM, 'pick-a-spot', bookingStart, idx, zone);
+    const booked = bookedSpotsFor(id);
+    booked.clear();
+    // A few taken spots at the back so the room is realistic but mostly free.
+    for (let n = NOHO_ROWS * NOHO_COLS; n > NOHO_ROWS * NOHO_COLS - 4 - idx; n--) booked.add(String(NOHO_ID_BASE + n - 1));
+    cls.capacity = NOHO_ROWS * NOHO_COLS;
+    cls.spot_options = { ...cls.spot_options, primary_capacity: cls.capacity };
+    return cls;
+  });
 }
 
 function mockClass(id, classType, dateStr, timeStr, classroomName, layoutFormat, bookingStart, seedIdx = 0, zone = DEFAULT_ZONE) {
@@ -181,10 +259,12 @@ function mockClass(id, classType, dateStr, timeStr, classroomName, layoutFormat,
 // JAB = London) with that gym's own zone, so local clock times are the same but UTC instants differ.
 const classCaches = new Map();
 let activeZone = DEFAULT_ZONE;
+let activeGymId = null;
 function getClasses() {
-  if (!classCaches.has(activeZone)) classCaches.set(activeZone, generateClasses(activeZone));
+  const cacheKey = `${activeGymId}|${activeZone}`;
+  if (!classCaches.has(cacheKey)) classCaches.set(cacheKey, generateClasses(activeZone, activeGymId));
   // Recompute availability counts live (bookedSpotsByClass mutates over the session).
-  return classCaches.get(activeZone).map((c) => {
+  return classCaches.get(cacheKey).map((c) => {
     const booked = bookedSpotsFor(c.id);
     const active = [...reservations.values()].filter((r) => r.class_session?.id === c.id && r.status === 'pending');
     return {
@@ -205,7 +285,7 @@ function makeReservation({ classId, spotId, reservationType, guestEmail }) {
   const cls = findClass(classId);
   const id = String(nextReservationId++);
   const spot = spotId
-    ? (makeLayout(bookedSpotsFor(classId)).spots.find((s) => s.id === spotId) || { id: spotId, name: spotId, spot_type: { id: '', name: '' }, x_position: null, y_position: null })
+    ? (makeLayout(bookedSpotsFor(classId), cls && cls.classroom_name).spots.find((s) => s.id === spotId) || { id: spotId, name: spotId, spot_type: { id: '', name: '' }, x_position: null, y_position: null })
     : { id: '', name: '', spot_type: { id: '', name: '' }, x_position: null, y_position: null };
   const reservation = {
     id, is_booked_by_me: true, is_booked_for_me: !guestEmail, reservation_type: reservationType,
@@ -261,6 +341,8 @@ function mockHistoryPage(query) {
 
 function handleMockRequest(pathName, method, body, gym) {
   activeZone = (gym && gym.timezone) || DEFAULT_ZONE;
+  activeGymId = (gym && gym.id) || null;
+  activeCreditBased = !!(gym && gym.capabilities && gym.capabilities.metered);
   console.log(`[Mock MarianaTek] Intercepted ${method} ${pathName}`);
   const [path, queryString] = pathName.split('?');
   const query = new URLSearchParams(queryString || '');
@@ -268,7 +350,7 @@ function handleMockRequest(pathName, method, body, gym) {
   // GET /classes/{id}/payment_options
   let m = path.match(/^\/classes\/([^/]+)\/payment_options$/);
   if (m && method === 'GET') {
-    return createFakeResponse({ user_payment_options: [paymentOption()], guest_payment_options: [paymentOption()] });
+    return createFakeResponse(paymentOptionLists());
   }
 
   // GET /classes/{id}
@@ -276,7 +358,7 @@ function handleMockRequest(pathName, method, body, gym) {
   if (m && method === 'GET') {
     const cls = findClass(m[1]);
     if (!cls) return createFakeResponse({ detail: 'No ClassSession matches the given query.' }, 404);
-    const layout = cls.layout_format === 'pick-a-spot' ? makeLayout(bookedSpotsFor(cls.id)) : null;
+    const layout = cls.layout_format === 'pick-a-spot' ? makeLayout(bookedSpotsFor(cls.id), cls.classroom_name) : null;
     return createFakeResponse({ ...cls, layout });
   }
 
@@ -322,6 +404,7 @@ function handleMockRequest(pathName, method, body, gym) {
 
   // GET /me/credits
   if (path === '/me/credits' && method === 'GET') {
+    if (activeCreditBased) return createFakeResponse({ count: 1, results: [creditOption().credit_payment], meta: {}, links: {} });
     // U1-20: the LIVE shape — an expired, fully used pack (credits_remaining 0, no
     // `count`, no type id). An empty list hid that a first-linked JAB credit list
     // was being read as a Psycle balance. Captured from live 2026-09-29, ids only.
@@ -334,6 +417,7 @@ function handleMockRequest(pathName, method, body, gym) {
 
   // GET /me/memberships
   if (path === '/me/memberships' && method === 'GET') {
+    if (activeCreditBased) return createFakeResponse({ count: 0, results: [], meta: {}, links: {} });
     return createFakeResponse({ count: 1, results: [paymentOption().membership_payment], meta: {}, links: {} });
   }
 
@@ -362,14 +446,19 @@ function handleMockRequest(pathName, method, body, gym) {
     if (isGuest && activeForClass.some((r) => !r.is_booked_for_me)) {
       return createFakeResponse({ non_field_errors: ['A guest is already reserved for this class.'] }, 422);
     }
-    if (isGuest && guestRemainingUsage < 1) {
+    const drawsCredit = activeCreditBased && (payload.reservation_type || 'standard') === 'standard';
+    if (drawsCredit && creditPool < 1) {
+      return createFakeResponse({ non_field_errors: ['No valid payment option for this class.'] }, 422);
+    }
+    if (isGuest && !activeCreditBased && guestRemainingUsage < 1) {
       return createFakeResponse({ non_field_errors: ['No guest usage remains.'] }, 422);
     }
     const reservationType = payload.reservation_type || 'standard';
     const spotId = payload.spot && payload.spot.id;
     if (reservationType === 'standard' && spotId) bookedSpotsFor(classId).add(spotId);
     const reservation = makeReservation({ classId, spotId, reservationType, guestEmail: payload.guest_email });
-    if (isGuest && reservationType === 'standard') guestRemainingUsage--;
+    if (drawsCredit) creditPool -= 1;
+    else if (isGuest && reservationType === 'standard') guestRemainingUsage--;
     return createFakeResponse(reservation, 201);
   }
 
@@ -387,7 +476,9 @@ function handleMockRequest(pathName, method, body, gym) {
     if (!reservation) return createFakeResponse({ detail: 'No Reservation matches the given query.' }, 404);
     // Matches the real §1H finding: zero-penalty cancel frees the spot back up.
     if (reservation.spot && reservation.spot.id) bookedSpotsFor(reservation.class_session.id).delete(reservation.spot.id);
-    if (reservation.is_booked_for_me === false && reservation.reservation_type === 'standard') {
+    if (activeCreditBased && reservation.reservation_type === 'standard') {
+      creditPool = Math.min(CREDIT_TOTAL, creditPool + 1); // zero-penalty cancel restores the credit
+    } else if (reservation.is_booked_for_me === false && reservation.reservation_type === 'standard') {
       guestRemainingUsage = Math.min(PAYMENT_OPTION.membership_payment.guest_usage_limit, guestRemainingUsage + 1);
     }
     reservation.status = reservation.reservation_type === 'waitlist' ? 'removed' : 'standard cancel';
@@ -403,7 +494,7 @@ function handleMockRequest(pathName, method, body, gym) {
     const payload = typeof body === 'string' ? JSON.parse(body) : (body || {});
     const targetSpotId = payload.spot;
     const classId = reservation.class_session.id;
-    const layout = makeLayout(bookedSpotsFor(classId));
+    const layout = makeLayout(bookedSpotsFor(classId), findClass(classId)?.classroom_name);
     const targetSpot = layout.spots.find((s) => s.id === targetSpotId);
     if (!targetSpot || !targetSpot.is_available) {
       return createFakeResponse({ non_field_errors: ['That spot is not available.'] }, 400);

@@ -306,6 +306,8 @@ function makeStudio(s) {
     // Whether the spot-map editor offers the whole-row preference for this studio.
     // Gym policy (gyms.config spotMap.rowGroupStudios); default off.
     rowGroups: s.rowGroups === true,
+    // Mobile-only display orientation. Layout coordinates stay unchanged.
+    mobileRotation: [0, 90, 180, 270].includes(Number(s.mobileRotation)) ? Number(s.mobileRotation) : 0,
     raw: s.raw,
   });
 }

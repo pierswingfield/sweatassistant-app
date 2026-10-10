@@ -5,7 +5,7 @@ import { renderStudioFloorPlan } from './spotmap';
 import { currentRoute, navigate, pathFor } from '../router.js';
 import { openSpotSetup } from './spot-setup.js';
 import { isScrollBusy } from './scroll-state.js';
-import { cacheGet, resetTimetableForGymChange, rowGroupsForStudio } from './timetable';
+import { cacheGet, resetTimetableForGymChange, rowGroupsForStudio, mobileRotationForStudio } from './timetable';
 import { clearApiCache, invalidateApiCache, accountScopedKey } from '../cache.js';
 import { renderGymSettingsSection as renderGymSettingsSectionView } from './gym-settings-section.js';
 import { renderCalendarSection } from './calendar-section.js';
@@ -936,6 +936,7 @@ function renderManageSpotMapsModal(prefs, studios, locations, container, onClose
             initialStep: hasPrefs ? 'editor' : 'intro',
             initialPrefs: studioPrefs,
             rowGroups: studio.rowGroups === true,
+            mobileRotation: mobileRotationForStudio(studio.id, studio.gymId),
             onSaved: () => {},
             onContinue: (pageEl) => {
               if (closeNavPage(pageEl)) openManageSpotMapsModal(options);
@@ -1089,6 +1090,7 @@ export async function openStudioFloorPlanEditor(studioId, studioName, onSaved, o
     renderStudioFloorPlan(body, layoutSlots, existing.preferredSlots || [], existing.preferredRows || [], onSave, {
       layoutObjects,
       rowGroups: options.rowGroups ?? rowGroupsForStudio(studioId, options.gymId),
+      mobileRotation: mobileRotationForStudio(studioId, options.gymId),
       bannerHtml: `<div style="font-size:12px;color:var(--feat-autoupgrade);background:color-mix(in srgb, var(--feat-autoupgrade) 8%, transparent);border:1px solid color-mix(in srgb, var(--feat-autoupgrade) 18%, transparent);border-radius:8px;padding:8px 10px;margin-bottom:12px;line-height:1.5;">${formatCopyText(COPY.spotMaps.sharedSpotMapHtml, { studioName: escapeHtml(studioName) })}</div>`
     });
   } catch (err) {

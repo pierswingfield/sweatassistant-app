@@ -181,3 +181,18 @@ export function getTotalCredits(gymId) {
   // "Insufficient Credits" (and holding one never reads as 'no credits' either way).
   return inventory.reduce((sum, c) => sum + (c.isGuestOnly === true ? 0 : (Number(c.count) || 0)), 0);
 }
+
+/** Credits still missing to cover `needed` places; 0 when unmetered (Infinity) or covered. */
+export function creditShortfall(available, needed) {
+  const missing = Number(needed) - Number(available);
+  return Number.isFinite(missing) && missing > 0 ? missing : 0;
+}
+
+/**
+ * Credits an Auto-Book of `places` total places needs. A guest draws a credit when the gym's guest
+ * allowance is credit-based (`guestSource === 'credit'`); a membership guest pass costs none.
+ */
+export function creditsNeededFor({ places, hasGuest = false, guestSource = null }) {
+  const total = Math.max(0, Math.floor(Number(places) || 0));
+  return hasGuest && guestSource !== 'credit' ? Math.max(0, total - 1) : total;
+}

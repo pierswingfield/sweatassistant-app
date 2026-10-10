@@ -58,6 +58,32 @@ db.exec(`
     FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
   );
 
+  -- Per-person Auto-Book outcomes. A successful primary or named guest is
+  -- durable so a retry can reconcile instead of recharging/rebooking them.
+  CREATE TABLE IF NOT EXISTS auto_booking_participants (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    auto_booking_id INTEGER NOT NULL,
+    user_id INTEGER NOT NULL,
+    gym_id TEXT NOT NULL,
+    event_id TEXT NOT NULL,
+    participant_key TEXT NOT NULL,
+    participant_type TEXT NOT NULL CHECK(participant_type IN ('self', 'guest')),
+    guest_email TEXT,
+    guest_name TEXT,
+    status TEXT NOT NULL DEFAULT 'pending' CHECK(status IN ('pending', 'success', 'failed', 'unknown')),
+    booking_id TEXT,
+    slot_id TEXT,
+    failure_code TEXT,
+    failure_message TEXT,
+    attempted_at TEXT,
+    resolved_at TEXT,
+    created_at TEXT DEFAULT CURRENT_TIMESTAMP,
+    updated_at TEXT DEFAULT CURRENT_TIMESTAMP,
+    UNIQUE(auto_booking_id, participant_key),
+    FOREIGN KEY (auto_booking_id) REFERENCES auto_bookings(id) ON DELETE CASCADE,
+    FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+  );
+
   CREATE TABLE IF NOT EXISTS auto_upgrades (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     user_id INTEGER NOT NULL,
@@ -1117,6 +1143,88 @@ module.exports = {
   updateAutoBookingPreferences(id, userId, preferences) {
     db.prepare('UPDATE auto_bookings SET preferences = ? WHERE id = ? AND user_id = ?')
       .run(JSON.stringify(preferences), id, userId);
+  },
+  getAutoBookingParticipants(autoBookingId, userId) {
+    return db.prepare(`SELECT * FROM auto_booking_participants
+      WHERE auto_booking_id = ? AND user_id = ? ORDER BY id ASC`).all(autoBookingId, userId);
+  },
+  replaceAutoBookingParticipants(autoBookingId, userId, gymId, eventId, participants) {
+    const tx = db.transaction(() => {
+      const current = this.getAutoBookingParticipants(autoBookingId, userId);
+      const currentByKey = new Map(current.map((row) => [row.participant_key, row]));
+      for (const row of current.filter((item) => item.status === 'success')) {
+        const incoming = participants.find((item) => item.participantKey === row.participant_key);
+        if (!incoming || incoming.participantType !== row.participant_type || incoming.guestEmail !== row.guest_email || incoming.guestName !== row.guest_name) {
+          const error = new Error('A participant with a successful reservation cannot be changed.');
+          error.code = 'BOOKED_PARTICIPANT_LOCKED'; error.status = 409; throw error;
+        }
+      }
+      db.prepare(`DELETE FROM auto_booking_participants
+        WHERE auto_booking_id = ? AND user_id = ? AND status != 'success'`).run(autoBookingId, userId);
+      const put = db.prepare(`INSERT INTO auto_booking_participants
+        (auto_booking_id, user_id, gym_id, event_id, participant_key, participant_type, guest_email, guest_name)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+        ON CONFLICT(auto_booking_id, participant_key) DO NOTHING`);
+      participants.forEach((item) => put.run(autoBookingId, userId, gymId, String(eventId), item.participantKey, item.participantType, item.guestEmail, item.guestName));
+    });
+    tx();
+  },
+  markAutoBookingParticipant(autoBookingId, userId, participantKey, patch = {}) {
+    const status = patch.status || 'pending';
+    db.prepare(`UPDATE auto_booking_participants SET status = ?, booking_id = COALESCE(?, booking_id),
+      slot_id = COALESCE(?, slot_id), failure_code = ?, failure_message = ?, attempted_at = CURRENT_TIMESTAMP,
+      resolved_at = CASE WHEN ? IN ('success', 'failed', 'unknown') THEN CURRENT_TIMESTAMP ELSE resolved_at END,
+      updated_at = CURRENT_TIMESTAMP
+      WHERE auto_booking_id = ? AND user_id = ? AND participant_key = ?`)
+      .run(status, patch.bookingId == null ? null : String(patch.bookingId), patch.slotId == null ? null : String(patch.slotId), patch.failureCode || null, patch.failureMessage || null, status, autoBookingId, userId, participantKey);
+  },
+  saveAutoBookingWithStudioDraft({ mode, id = null, userId, gymId, eventId, booking = null, preferences, participants, studioDraft = null }) {
+    const targetGym = resolveGymStrict(userId, gymId, 'saveAutoBookingWithStudioDraft');
+    if (studioDraft) {
+      if (String(studioDraft.studioId) !== String(booking?.studioId)) {
+        const error = new Error('The preferred-spot draft must belong to this class studio.'); error.code = 'STUDIO_DRAFT_MISMATCH'; error.status = 400; throw error;
+      }
+      if (studioDraft.gymId && studioDraft.gymId !== targetGym) {
+        const error = new Error('The preferred-spot draft belongs to another gym.'); error.code = 'STUDIO_DRAFT_GYM_MISMATCH'; error.status = 400; throw error;
+      }
+    }
+    const writeParticipants = (autoBookingId) => {
+      const existing = db.prepare(`SELECT * FROM auto_booking_participants WHERE auto_booking_id = ? AND user_id = ?`).all(autoBookingId, userId);
+      for (const row of existing.filter((item) => item.status === 'success')) {
+        const incoming = participants.find((item) => item.participantKey === row.participant_key);
+        if (!incoming || incoming.participantType !== row.participant_type || incoming.guestEmail !== row.guest_email || incoming.guestName !== row.guest_name) {
+          const error = new Error('A participant with a successful reservation cannot be changed.'); error.code = 'BOOKED_PARTICIPANT_LOCKED'; error.status = 409; throw error;
+        }
+      }
+      db.prepare(`DELETE FROM auto_booking_participants WHERE auto_booking_id = ? AND user_id = ? AND status != 'success'`).run(autoBookingId, userId);
+      const put = db.prepare(`INSERT INTO auto_booking_participants
+        (auto_booking_id, user_id, gym_id, event_id, participant_key, participant_type, guest_email, guest_name)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?) ON CONFLICT(auto_booking_id, participant_key) DO NOTHING`);
+      participants.forEach((item) => put.run(autoBookingId, userId, targetGym, String(eventId), item.participantKey, item.participantType, item.guestEmail, item.guestName));
+    };
+    const writeDraft = () => {
+      if (!studioDraft) return;
+      const hasSelections = (studioDraft.preferences?.preferredSlots?.length || 0) > 0 || (studioDraft.preferences?.preferredRows?.length || 0) > 0;
+      if (!hasSelections) db.prepare('DELETE FROM studio_preferences WHERE user_id = ? AND gym_id = ? AND studio_id = ?').run(userId, targetGym, studioDraft.studioId);
+      else db.prepare(`INSERT INTO studio_preferences (user_id, gym_id, studio_id, preferences, updated_at)
+        VALUES (?, ?, ?, ?, CURRENT_TIMESTAMP) ON CONFLICT(user_id, gym_id, studio_id) DO UPDATE SET preferences = excluded.preferences, updated_at = CURRENT_TIMESTAMP`)
+        .run(userId, targetGym, studioDraft.studioId, JSON.stringify(studioDraft.preferences));
+    };
+    return db.transaction(() => {
+      let autoBookingId = id;
+      if (mode === 'create') {
+        const result = db.prepare(`INSERT INTO auto_bookings (user_id, gym_id, event_id, studio_id, class_name, instructor_name, instructor_image_url, studio_name, location_name, start_at, preferences, group_name, release_at, duration_min)
+          VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`)
+          .run(userId, targetGym, eventId, booking.studioId, booking.className, booking.instructorName, booking.instructorImageUrl, booking.studioName, booking.locationName, booking.startAt, JSON.stringify(preferences), booking.groupName, booking.releaseAt, Number(booking.durationMin) > 0 ? Number(booking.durationMin) : null);
+        autoBookingId = result.lastInsertRowid;
+      } else {
+        const result = db.prepare('UPDATE auto_bookings SET preferences = ? WHERE id = ? AND user_id = ? AND gym_id = ?').run(JSON.stringify(preferences), id, userId, targetGym);
+        if (!result.changes) { const error = new Error('Auto-Book entry not found.'); error.code = 'AUTO_BOOK_NOT_FOUND'; error.status = 404; throw error; }
+      }
+      writeParticipants(autoBookingId);
+      writeDraft();
+      return autoBookingId;
+    })();
   },
   deleteAutoBooking(id, userId) {
     db.prepare('DELETE FROM auto_bookings WHERE id = ? AND user_id = ?').run(id, userId);

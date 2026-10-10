@@ -1068,13 +1068,20 @@ export const api = {
     return body;
   },
 
-  async updateAutoBooking(id, preferences) {
+  async updateAutoBooking(id, preferences, studioPreferenceDraft = null) {
     const res = await apiFetch(`/api/auto-book/${id}`, {
       method: 'PUT',
-      body: JSON.stringify({ preferences })
+      body: JSON.stringify({ preferences, studioPreferenceDraft })
     });
     if (res.ok) invalidateApiCache('/api/auto-book').catch(() => {});
-    return res.json();
+    const body = await res.json().catch(() => ({}));
+    if (!res.ok) {
+      const err = new Error(body.message || `Could not update auto-book (${res.status})`);
+      err.status = res.status;
+      err.code = body.code || null;
+      throw err;
+    }
+    return body;
   },
 
   async deleteAutoBooking(id) {

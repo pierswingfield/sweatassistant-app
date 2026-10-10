@@ -1,5 +1,6 @@
 import { api } from '../api';
-import { metadata } from './timetable';
+import { metadata, mobileRotationForStudio } from './timetable';
+import { makeDisplayRotator, effectiveRotation } from './spot-rotation.js';
 import { COPY, formatCopyText } from '../copy.js';
 
 let occupancyHoverTimeout = null;
@@ -503,6 +504,14 @@ export function renderMinimap(payload, occupancyTooltip) {
     `;
     return;
   }
+
+  // Same display-only rotation as the booking maps (mobile width, studios whose policy asks for it).
+  const rotation = effectiveRotation(
+    payload.mobileRotation ?? mobileRotationForStudio(payload.event?.studioId ?? payload.studioId, payload.event?.gymId ?? payload.gymId),
+  );
+  const rotate = makeDisplayRotator([...layoutSlots, ...layoutObjects], rotation);
+  layoutSlots = layoutSlots.map(rotate);
+  layoutObjects = layoutObjects.map(rotate);
 
   let minX = Infinity, maxX = -Infinity, minY = Infinity, maxY = -Infinity;
   layoutSlots.forEach(s => {

@@ -224,6 +224,9 @@ export function openPage(el, opts = {}) {
   if (el.style.display === 'none') el.style.display = 'flex';
 
   if (!isMobile()) {
+    el.__navRemove = !!opts.remove;
+    // A finished flow step is replaced in place (same as mobile's history-slot takeover).
+    if (opts.replaceEl && opts.replaceEl !== el) retireDesktop(opts.replaceEl);
     setTimeout(() => el.classList.add('show'), 10);
     // Desktop: callers' own close handlers keep working, untouched.
     return;
@@ -293,11 +296,76 @@ export function openPage(el, opts = {}) {
   }
 }
 
+// Desktop has no history stack: a replaced page is simply hidden (or removed) after its fade.
+function retireDesktop(el) {
+  el.classList.remove('show');
+  clearTimeout(timers.get(el));
+  timers.set(el, setTimeout(() => {
+    if (el.__navRemove) el.remove(); else el.style.display = 'none';
+  }, HIDE_MS));
+}
+
+// Desktop flow steps get a visible back arrow in the header (mobile reuses the close button as Back).
+export function setDesktopBack(el, show) {
+  if (!el || isMobile()) return;
+  const header = el.querySelector('.app-modal-header');
+  if (!header) return;
+  let btn = header.querySelector('.app-flow-back');
+  if (!btn) {
+    if (!show) return;
+    btn = document.createElement('button');
+    btn.type = 'button';
+    btn.className = 'app-flow-back';
+    btn.setAttribute('aria-label', 'Back');
+    btn.textContent = '\u2039';
+    header.insertBefore(btn, header.firstChild);
+  }
+  btn.hidden = !show;
+}
+
+// Desktop sub-step layers: no history entry, but the same contract (release() runs onBack, close()
+// asks canClose first, a captureHeader layer owns the header Back/X click).
+const desktopLayers = [];
+function pushDesktopLayer(opts) {
+  const entry = { opts };
+  desktopLayers.push(entry);
+  entry.handle = {
+    release() {
+      const i = desktopLayers.indexOf(entry);
+      if (i === -1) return;
+      desktopLayers.splice(i, 1);
+      // Deferred like mobile's popstate: the caller may open a new page/layer from onBack.
+      setTimeout(() => { try { opts.onBack?.(); } catch (e) { console.error('[modal-nav] onBack failed', e); } }, 0);
+    },
+    close() {
+      if (!desktopLayers.includes(entry)) return;
+      if (opts.canClose && opts.canClose() === false) return;
+      entry.handle.release();
+    },
+  };
+  if (typeof document !== 'undefined' && !desktopLayers.listening) {
+    desktopLayers.listening = true;
+    document.addEventListener('click', (ev) => {
+      if (isMobile() || !desktopLayers.length) return;
+      const top = desktopLayers[desktopLayers.length - 1];
+      if (!top.opts.captureHeader) return;
+      // Desktop: the x always means close; only the visible back arrow steps back.
+      if (ev.target.closest && ev.target.closest('.app-modal.show .app-flow-back')) {
+        ev.stopImmediatePropagation();
+        ev.preventDefault();
+        top.handle.close();
+      }
+    }, true);
+  }
+  return entry.handle;
+}
+
 // A non-page layer (confirm dialog, bottom sheet): gets a history entry so hardware/iOS back
 // dismisses it, and optionally locks body scroll. Mobile only; a no-op handle elsewhere.
 // opts: { id, onBack(), lock, escCloses, canClose(), captureHeader }.  Returns { release() } for programmatic close.
 export function pushLayer(opts = {}) {
-  if (!isMobile()) return { release() {} };
+  // Desktop has no history stack: only layers that opt in (flow steps) get a real, history-less layer.
+  if (!isMobile()) return opts.desktop ? pushDesktopLayer(opts) : { release() {} };
   const id = opts.id || `layer-${++seq}`;
   const entry = { el: null, id, opts, layer: true, skipGuard: false };
   stack.push(entry);
@@ -328,5 +396,6 @@ export function closePage(el, { force = true } = {}) {
 
 // Test hook.
 export function _resetForTests() {
+  desktopLayers.length = 0;
   stack.length = 0; lockCount = 0; pendingPops = 0; seq = 0; savedScrollEl = null; savedScrollY = 0;
 }

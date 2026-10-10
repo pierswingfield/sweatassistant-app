@@ -37,4 +37,16 @@ function studioShowsSpotType(gym, studio) {
   return studioMatches(gym && gym.spotMap && gym.spotMap.spotTypeStudios, studio);
 }
 
-module.exports = { studioHasRowGroups, studioShowsSpotType };
+/**
+ * Mobile display orientation for a provider studio. This is presentation policy
+ * attached to the stable provider room identity in gym config; it never changes
+ * normalized layout coordinates used by scheduling or booking.
+ */
+function studioMobileRotation(gym, studio) {
+  const cfg = gym && gym.spotMap && gym.spotMap.mobileRotationStudios;
+  if (!cfg || !studioMatches(cfg, studio)) return 0;
+  const degrees = Number(cfg.degrees);
+  return [0, 90, 180, 270].includes(degrees) ? degrees : 0;
+}
+
+module.exports = { studioHasRowGroups, studioShowsSpotType, studioMobileRotation };

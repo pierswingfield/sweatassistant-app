@@ -279,7 +279,7 @@ async function run() {
     const row = data.find((b) => b.id === autoBookId);
     assert.ok(row, 'newly queued auto-book row should be listed');
     assert.strictEqual(row.status, 'pending');
-    assert.deepStrictEqual(Object.keys(row.preferences).sort(), ['bookAny', 'preferredRows', 'preferredSlots', 'requiredCount'].sort());
+    assert.deepStrictEqual(Object.keys(row.preferences).sort(), ['bookAny', 'guests', 'preferredRows', 'preferredSlots', 'prioritizeTogether', 'requiredCount', 'selfCount'].sort());
     log('✅ GET /api/auto-book lists the queued row with status "pending".');
   }
 

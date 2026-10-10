@@ -334,6 +334,13 @@ const GYMS = {
       displayAliases: {},
     },
     labels: { class: 'class', spot: 'spot' },
+    // This room's portrait floor plan is materially easier to read sideways on
+    // phones. Exact provider room name keeps Cycle on its original orientation;
+    // ids can be added once a stable production room id is captured.
+    // Live room: id 6184, provider name "Bootcamp" at the NoHo location ("NoHo Bootcamp" is only how the
+    // UI joins location + room). Match the stable id first; the anchored name keeps "Bootcamp Zoom",
+    // "Cycle" and the rest on their original orientation. The dev mock names its room "NoHo Bootcamp".
+    spotMap: { mobileRotationStudios: { ids: ['6184'], namePattern: '^(NoHo )?Bootcamp$', degrees: 90 } },
     // MarianaTek publishes the server-resolved release time per class. Aarmy
     // falls back to the observed 14-day rolling window only when that field is
     // absent, preserving any membership-specific release in normal operation.
@@ -353,6 +360,11 @@ const GYMS = {
       attendanceTotals: false,  // no known MarianaTek equivalent (derive from history)
       bookingWindow: 'per-class',
       maxSpotsPerClass: 1,
+      // Credit-based: a guest draws a credit (valid-for-guests option); allowance read from the payment
+      // options, one named guest per reservation. Verified read-only 2026-10-10 (aarmy-guest-payment-options.json).
+      bookingEntitlement: true,
+      selfBookingPolicy: 'one-per-class',
+      guestBooking: true,
     },
     notifications: {
       bookingWindowReminder: false,

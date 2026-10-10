@@ -10,7 +10,7 @@
 
 import { COPY, formatCopyText } from '../copy.js';
 import { api } from '../api.js';
-import { openPage, pushLayer, closePage } from './modal-nav.js';
+import { openPage, pushLayer, closePage, setDesktopBack } from './modal-nav.js';
 import { applyBookingChrome } from './booking-chrome.js';
 import { gymLogoBanner, trimLocation, displayStudioName, gymBrand } from './cards.js';
 import { renderStudioFloorPlan } from './spotmap.js';
@@ -58,7 +58,7 @@ export function spotSetupBookingOptions(options, pageEl, saved) {
   };
 }
 
-export function openSpotSetup({ event, className, onSaved, onContinue, onChooseForNow, initialStep = 'intro', initialPrefs = null, rowGroups = false }) {
+export function openSpotSetup({ event, className, onSaved, onContinue, onChooseForNow, initialStep = 'intro', initialPrefs = null, rowGroups = false, mobileRotation = 0, deferPersist = false, stepBookLabel = null, replaceEl = null, skipSavedConfirm = false, onCancelEdit = null }) {
   const gymId = event.gymId;
   const brand = gymBrand(gymId);
   const studioName = displayStudioName(gymId, event.studioName || '') || event.studioName || COPY.spotSelection.thisStudio;
@@ -88,17 +88,30 @@ export function openSpotSetup({ event, className, onSaved, onContinue, onChooseF
 
   // The "1 Your spots / 2 Book class" cue only makes sense when a class follows (className set).
   // Onboarding and Settings open this with no class, so there is no booking step to show.
-  const chrome = (stepper) => applyBookingChrome(el, {
-    titleText: COPY.spotSetup.title, gymId, locationName: event.locationName, studioName: event.studioName,
-    stepper: className ? stepper : null,
-  });
+  const chrome = (stepper) => {
+    applyBookingChrome(el, {
+      titleText: COPY.spotSetup.title, gymId, locationName: event.locationName, studioName: event.studioName,
+      stepper: className ? stepper : null, stepBookLabel,
+    });
+    // The chrome (identity strip, stepper) is mobile-only; the title is needed at every width.
+    const titleEl = el.querySelector('[data-nav-title]');
+    if (titleEl && !titleEl.textContent) titleEl.textContent = COPY.spotSetup.title;
+  };
+  // Mobile pops the page's history entry; desktop (no history stack) removes the page itself.
+  const closeFlow = () => {
+    if (closePage(el)) return;
+    el.classList.remove('show');
+    setTimeout(() => el.remove(), 300);
+  };
+  closeBtn.onclick = () => closeFlow(); // mobile: modal-nav's capture handler runs first and wins
   const btn = (cls, text, onClick) => {
     const b = document.createElement('button');
     b.type = 'button'; b.className = cls; b.textContent = text; b.onclick = onClick;
     return b;
   };
   const setFooter = (...nodes) => { footer.replaceChildren(...nodes); };
-  const setHeaderMode = (back) => { if (back) closeBtn.dataset.nav = 'back'; else delete closeBtn.dataset.nav; };
+  // Mobile: the header button is Back on A0/A1. Desktop: the x always closes; only A1 (which has a layer to step back from) gets the arrow.
+  const setHeaderMode = (back, desktopArrow = false) => { if (back) closeBtn.dataset.nav = 'back'; else delete closeBtn.dataset.nav; setDesktopBack(el, !!desktopArrow); };
 
   // ── A0: intro ─────────────────────────────────────────────────────────────
   const showA0 = () => {
@@ -120,7 +133,7 @@ export function openSpotSetup({ event, className, onSaved, onContinue, onChooseF
     body.querySelector('.p1').textContent = formatCopyText(COPY.spotSetup.point1, { studio: studioName });
     setFooter(
       btn('app-btn primary app-setup-primary', COPY.spotSetup.choose, () => showA1()),
-      ...(className ? [btn('app-setup-link', COPY.spotSetup.chooseForNow, () => {
+      ...(className && onChooseForNow ? [btn('app-setup-link', COPY.spotSetup.chooseForNow, () => {
         markSetupDeferred(gymId, event.studioId);
         onChooseForNow?.(el);
       })] : []),
@@ -130,15 +143,15 @@ export function openSpotSetup({ event, className, onSaved, onContinue, onChooseF
   // ── A1: editor (an in-page step with its own history entry) ───────────────
   const showA1 = async () => {
     chrome('A');
-    setHeaderMode(true);
+    setHeaderMode(true, true);
     layer = pushLayer({
-      id: 'spot-setup-a1', captureHeader: true,
+      id: 'spot-setup-a1', captureHeader: true, desktop: true,
       canClose: () => !body.querySelector('[data-spotmap-root]')?.__isDirty?.() || confirm(COPY.spotSetup.discardConfirm),
       onBack: () => {
         layer = null;
         const next = after; after = null;
         if (next) next();
-        else if (initialStep === 'editor') closePage(el);
+        else if (initialStep === 'editor') { if (onCancelEdit) setTimeout(() => onCancelEdit(el), 0); else closeFlow(); }
         else showA0();
       },
     });
@@ -189,6 +202,9 @@ export function openSpotSetup({ event, className, onSaved, onContinue, onChooseF
     const selection = () => editor.__getSelection?.() || { slots: [], rows: [] };
 
     const persist = async (slotsOut, rowsOut) => {
+      // Booking wizards keep a private draft until their final action commits it.
+      // Standalone Your Spots remains an explicit, immediate global save.
+      if (deferPersist) return;
       await api.updateStudioPreferences(event.studioId, { preferredSlots: slotsOut, preferredRows: rowsOut }, gymId);
     };
     const save = async () => {
@@ -205,15 +221,20 @@ export function openSpotSetup({ event, className, onSaved, onContinue, onChooseF
       }
       saved = { slots: s, rows: r };
       onSaved?.(s, r);
-      after = () => showA2();
+      // Returning from the final summary: no "saved" page, straight back to the summary.
+      after = () => (skipSavedConfirm ? onContinue?.(el, saved) : showA2());
       layer?.release();
     };
-    const seedSlots = initialPrefs?.preferredSlots || [];
-    const seedRows = rowGroups ? (initialPrefs?.preferredRows || []) : [];
+    // Re-entering the editor (the "Edit spots" link on the saved page, or Back from the summary)
+    // restores the DRAFT selection, in order, never the saved map or an empty one.
+    const seedSlots = saved ? saved.slots : (initialPrefs?.preferredSlots || []);
+    const seedRows = rowGroups ? (saved ? saved.rows : (initialPrefs?.preferredRows || [])) : [];
     renderStudioFloorPlan(editor, slots, seedSlots, seedRows, () => {}, {
-      rowGroups, layoutObjects: objects || [], hideActions: true, hideEditHint: true,
+      rowGroups, layoutObjects: objects || [], mobileRotation, hideSummary: true, hideActions: true, hideEditHint: true,
       onSelectionChange: (s, r) => refreshFooter(s.length + r.length),
+      // The tip stays until the member dismisses it with its x (it no longer vanishes on a spot tap).
       aboveMap: () => bookingContextEl(null, { helperId: 'spotmap-setup', helperText: spotSetupHelperText(rowGroups, slots), helperOnly: true }),
+      clearBelowMap: true,
     });
   };
 
@@ -235,7 +256,7 @@ export function openSpotSetup({ event, className, onSaved, onContinue, onChooseF
     const h = body.querySelector('.app-setup-headline'); h.setAttribute('tabindex', '-1'); h.focus({ preventScroll: true });
   };
 
-  openPage(el, { id: 'spot-setup', remove: true });
+  openPage(el, { id: 'spot-setup', remove: true, ...(replaceEl ? { replaceEl } : {}) });
   if (initialStep === 'editor') showA1(); else showA0();
   return el;
 }

@@ -24,7 +24,7 @@ function dismissHelper(id) {
   try { localStorage.setItem(HELPER_KEY(id), '1'); } catch (_) { /* storage unavailable: dismissal lasts for this view only */ }
 }
 /** Static task title + identity strip. Call after the flow's own title assignments. */
-export function applyBookingChrome(modal, { titleText, gymId, locationName, studioName, stepper = null }) {
+export function applyBookingChrome(modal, { titleText, gymId, locationName, studioName, stepper = null, stepBookLabel = null }) {
   if (!isMobile() || !modal) return;
   const title = modal.querySelector('.app-modal-header h4');
   if (title && titleText) title.textContent = titleText;
@@ -45,12 +45,12 @@ export function applyBookingChrome(modal, { titleText, gymId, locationName, stud
   const txt = strip.querySelector('.app-bk-identity-text');
   txt.querySelector('strong').textContent = brand.name;
   txt.querySelector('span').textContent = where;
-  upsertStepper(card, strip, stepper);
+  upsertStepper(card, strip, stepper, stepBookLabel);
   watchBookingGuards(modal, gymId);
 }
 
 /** Two-step progress cue (spec section 8): only while a flow includes Step A. 'A' | 'A2' | 'B' | null (remove). */
-function upsertStepper(card, strip, which) {
+function upsertStepper(card, strip, which, stepBookLabel = null) {
   let st = card.querySelector(':scope > .app-stepper');
   if (!which) { st?.remove(); return; }
   if (!st) {
@@ -60,9 +60,10 @@ function upsertStepper(card, strip, which) {
   }
   const s1 = which === 'A' ? 'current' : 'complete';
   const s2 = which === 'B' ? 'current' : 'upcoming';
-  st.setAttribute('aria-label', which === 'B' ? COPY.spotSetup.stepLabelB : COPY.spotSetup.stepLabelA);
+  const bookLabel = stepBookLabel || COPY.spotSetup.stepBook;
+  st.setAttribute('aria-label', which === 'B' ? `Step 2 of 2: ${bookLabel}` : COPY.spotSetup.stepLabelA);
   st.innerHTML = `<li class="is-${s1}"${s1 === 'current' ? ' aria-current="step"' : ''}><span class="n">${s1 === 'complete' ? '✓' : '1'}</span> ${COPY.spotSetup.stepYourSpots}</li>`
-    + `<li class="is-${s2}"${s2 === 'current' ? ' aria-current="step"' : ''}><span class="n">2</span> ${COPY.spotSetup.stepBook}</li>`;
+    + `<li class="is-${s2}"${s2 === 'current' ? ' aria-current="step"' : ''}><span class="n">2</span> ${bookLabel}</li>`;
 }
 
 function classCardEl({ className, instructorName, instructorPhoto, startAt, zone, spotsLeft, gymId, releaseAt }) {
@@ -73,17 +74,14 @@ function classCardEl({ className, instructorName, instructorPhoto, startAt, zone
   el.setAttribute('aria-label', COPY.bookingFlow.thisClass);
   const avatar = instructorName ? instructorAvatar(instructorName, gymId, instructorPhoto || null) : '';
   el.innerHTML = `
-    <div class="app-bk-classcard-label"></div>
     <div class="app-bk-classcard-main">
       ${avatar}
       <div class="app-bk-classcard-text">
-        <strong class="app-bk-class-name"></strong>
-        <span class="app-bk-class-instructor"></span>
+        <div class="app-bk-class-line"><strong class="app-bk-class-name"></strong><span class="app-bk-class-instructor"></span></div>
         <span class="app-bk-class-when"></span>
         <span class="app-bk-class-release" hidden></span>
       </div>
     </div>`;
-  el.querySelector('.app-bk-classcard-label').textContent = COPY.bookingFlow.thisClass;
   el.querySelector('.app-bk-class-name').textContent = className || '';
   const ins = el.querySelector('.app-bk-class-instructor');
   if (instructorName) ins.textContent = formatCopyText(COPY.bookingFlow.withInstructor, { instructor: instructorName }); else ins.remove();

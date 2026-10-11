@@ -467,16 +467,22 @@ export function observeLocationWrap(container) {
 
 // Action rail toggle (shared by My Bookings, Waitlists, Auto-Book, Auto-Upgrade).
 // The rail is collapsed by default; a "more" button at the end of the footer
-// slides it in. Open state is remembered per card across re-renders.
-const openRails = new Set();
+// slides it in. Open state is deliberately NOT remembered: every (re)render starts
+// collapsed (a remembered open rail showed up pre-pressed on page load / after a
+// background refresh), and any modal opening collapses them all (closeAllRails).
 let railSeq = 0;
+
+export function closeAllRails(root = typeof document !== 'undefined' ? document : null) {
+  if (!root) return 0;
+  const open = Array.from(root.querySelectorAll('.ab-card.is-rail-open'));
+  open.forEach(card => { if (card._closeRail) card._closeRail(); else card.classList.remove('is-rail-open'); });
+  return open.length;
+}
 export function wireRailToggle(container) {
   container.querySelectorAll('.ab-card').forEach(card => {
     const rail = card.querySelector(':scope > .ab-card-rail');
     const footer = card.querySelector('.ab-card-footer');
     if (!rail || !footer || footer.querySelector('.ab-rail-toggle')) return;
-    const last = rail.querySelector('.ab-rail-btn:last-child');
-    const key = (last ? last.className : '') + '|' + (card.dataset.eventId || (last && last.dataset.id) || '') + '|' + (card.dataset.gym || '');
     rail.id = rail.id || `ab-rail-${++railSeq}`;
     const btn = document.createElement('button');
     btn.type = 'button';
@@ -497,13 +503,11 @@ export function wireRailToggle(container) {
         document.querySelectorAll('.ab-card.is-rail-open').forEach(other => {
           if (other !== card && other._closeRail) other._closeRail();
         });
-        openRails.clear();
-        openRails.add(key);
-      } else openRails.delete(key);
+      }
       apply(open);
     });
-    card._closeRail = () => { openRails.delete(key); apply(false); };
+    card._closeRail = () => apply(false);
     footer.appendChild(btn);
-    apply(openRails.has(key));
+    apply(false);
   });
 }

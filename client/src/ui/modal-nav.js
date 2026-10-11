@@ -7,6 +7,7 @@
 // reproduce the previous `display:flex` + `.show` contract exactly.
 
 import { COPY } from '../copy.js';
+import { closeAllRails } from './cards.js';
 
 const MQ = '(max-width: 768px)';
 const HIDE_MS = 300;
@@ -217,6 +218,7 @@ function ensureCloseFooter(el, entry) {
 // opts: { id, canClose(): bool|Promise<bool>, onClose(), back: bool, remove: bool }
 export function openPage(el, opts = {}) {
   if (!el) return;
+  closeAllRails(); // no card's edit options may stay expanded behind (or after) a modal
   clearTimeout(timers.get(el));
   // Remembered per element: a reopen during the 300 ms hide window sees display:flex, not 'none'.
   if (el.style.display === 'none') el.__navStartsHidden = true;

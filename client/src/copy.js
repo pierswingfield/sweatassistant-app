@@ -483,6 +483,8 @@ export const COPY = Object.freeze({
     autoUpgradeByDefaultHelp: 'Start monitoring after each new booking at this gym.',
     continueCutoffByDefault: 'Continue past 12h cutoff by default',
     continueCutoffHelp: 'Keep monitoring without cancelling the original spot.',
+    cancelRebook: 'Allow cancel & rebook to upgrade',
+    cancelRebookHelp: 'With no spare credit, Auto-Upgrade may cancel your spot and book the better one, only when the class has at least 3 free spots right now and is outside the cancellation-penalty period. There is a small risk the new spot is taken in between; it then tries to re-book your original.',
     pollingInterval: 'Polling check interval',
     pollingIntervalHelp: 'One-minute checks are faster but use more API calls.',
     membershipManagedByGym: 'Membership details are managed by the gym and are not available yet.',
@@ -576,6 +578,7 @@ export const COPY = Object.freeze({
     noFloorMap: 'No floor map layout available for this studio.',
     scheduleAnySeat: 'Schedule Auto-Book (Any Seat)',
     scheduleAutoBook: 'Auto-Book class',
+    saveChanges: 'Save changes', exitWithoutChanges: 'Exit without changes',
     studioOccupancy: 'Studio Occupancy',
     metadataFailed: 'Failed to load filters metadata.',
     allFiltersCleared: 'All filters cleared.',
@@ -678,7 +681,7 @@ export const COPY = Object.freeze({
     autoUpgradeKeepSearchingLabel: 'Auto-Upgrade: Keep searching for a better spot for me',
     // Group Auto-Upgrade (several of your own spots on one class). Moves the whole group or none.
     autoUpgradeGroupAtomic: 'For several spots, Auto-Upgrade only moves your whole group together, to spots that are better and at least as close. Each spot is swapped directly.',
-    autoUpgradeGroupCancelRebook: 'For several spots, Auto-Upgrade only moves your whole group together, to spots that are better and at least as close. It usually books the new spot before releasing the old one; if you have no spare credit, spots are cancelled and rebooked, so a rare failure could lose a spot.',
+    autoUpgradeGroupCancelRebook: 'For several spots, Auto-Upgrade only moves your whole group together, to spots that are better and at least as close. It books the new spot before releasing the old one when you have a spare credit. With no spare credit and "Allow cancel & rebook to upgrade" on (Gym settings), spots are cancelled and rebooked only if the class has at least 3 free spots and is outside the cancellation-penalty period, so a rare failure could lose a spot.',
     autoUpgradeGuestUnavailable: "Auto-Upgrade isn't available yet for bookings that include a guest.",
     bookAnyPreferredFallback: 'Book any slot if preferred is unavailable',
     preferredLabel: 'Preferred',
@@ -829,6 +832,7 @@ export const COPY = Object.freeze({
     next: 'Next', thisStudio: 'this studio',
   }),
   spotMapEditor: Object.freeze({
+    front: 'Front',
     preferred: 'Preferred', currentSeat: 'Spot {label} (Your current seat)',
     preferredPriority: 'Spot {label} — preference #{priority}',
     currentPreferredPriority: 'Spot {label} — preference #{priority} (your current seat)',
@@ -872,7 +876,7 @@ export const COPY = Object.freeze({
   }),
   bookingFlow: Object.freeze({
     titleBook: 'Book your spot', titleFinishQuickBook: 'Finish Quick-Book', titleAutoBook: 'Schedule Auto-Book', titleEditAutoBook: 'Edit Auto-Book',
-    stepAutoBook: 'Auto-Book class',
+    stepAutoBook: 'Auto-Book class', editPreferredSpots: 'Edit preferred spots',
     autoBookSummary: '{appName} will book {count} spots based on your preferred spot map.',
     autoBookSummaryOne: '{appName} will book {count} spot based on your preferred spot map.',
     quickBookSummary: 'Quick-Book will book {count} spots based on your preferred spot map.',

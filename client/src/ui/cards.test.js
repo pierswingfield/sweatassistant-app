@@ -80,3 +80,22 @@ describe('getDiscipline & passesDisciplineFilter (Pilates vs Reformer)', () => {
     expect(passesDisciplineFilter(['Pilates'], 'Lagree')).toBe(false);
   });
 });
+
+describe('action rail state', () => {
+  it('starts collapsed on every render and closeAllRails collapses open ones', async () => {
+    const { wireRailToggle, closeAllRails } = await import('./cards.js');
+    const mk = () => {
+      const c = document.createElement('div');
+      c.innerHTML = '<div class="ab-card" data-event-id="1" data-gym="g"><div class="ab-card-footer"></div><div class="ab-card-rail"><button class="ab-rail-btn bk-cancel-btn"></button></div></div>';
+      document.body.appendChild(c); wireRailToggle(c); return c;
+    };
+    const a = mk();
+    a.querySelector('.ab-rail-toggle').click();
+    expect(a.querySelector('.ab-card').classList.contains('is-rail-open')).toBe(true);
+    const b = mk(); // re-render of the same card must not restore the open state
+    expect(b.querySelector('.ab-card').classList.contains('is-rail-open')).toBe(false);
+    expect(closeAllRails()).toBe(1);
+    expect(a.querySelector('.ab-card').classList.contains('is-rail-open')).toBe(false);
+    expect(a.querySelector('.ab-rail-toggle').getAttribute('aria-expanded')).toBe('false');
+  });
+});

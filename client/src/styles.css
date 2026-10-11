@@ -9372,14 +9372,22 @@ html.app-scroll-locked { overflow: hidden !important; background: var(--bg) !imp
 
 /* ===== Spot-map booking flow, batch 1: identity strip, class card, helper (mobile only) ===== */
 .app-bk-identity, .app-bk-classcard, .app-bk-helper { display: none; }
+.app-floor-plan-container.is-preferred-summary {
+  /* The overlay is confined to this map box; the map itself never scrolls or pans in the summary. */
+  position: relative !important;
+  overflow: hidden !important;
+  touch-action: pan-y;
+  overscroll-behavior: none;
+}
 .app-floor-plan-container.is-preferred-summary #app-floor-plan-grid {
   filter: blur(2px);
   pointer-events: none;
+  overflow: hidden !important;
 }
 .app-preferred-summary-overlay {
-  position: absolute;
+  position: absolute !important;
   inset: 0;
-  z-index: 8;
+  z-index: 2;
   display: flex;
   align-items: center;
   justify-content: center;
@@ -9391,6 +9399,11 @@ html.app-scroll-locked { overflow: hidden !important; background: var(--bg) !imp
   color: var(--text);
   background: color-mix(in srgb, var(--bg) 68%, transparent);
   pointer-events: none;
+}
+.app-preferred-summary-overlay.has-action { flex-direction: column; gap: 8px; }
+.app-preferred-summary-edit {
+  pointer-events: auto; background: none; border: 0; padding: 4px 8px; cursor: pointer;
+  font: inherit; font-size: 13px; font-weight: 600; color: var(--feat-autoupgrade); text-decoration: underline;
 }
 .app-preferred-summary-identity {
   display: flex;
@@ -9844,3 +9857,31 @@ html:not([data-credits-tab="on"]) .app-nav-btn[data-tab="buy-credits"] { display
 .app-guest-field .app-input { width: 100%; min-width: 0; box-sizing: border-box; }
 .app-guest-msg { display: block; min-height: 0; color: var(--text-tertiary); font-size: 12px; line-height: 1.4; overflow-wrap: anywhere; }
 .app-guest-msg:empty { display: none; }
+
+/* Edit-spots modal (bookings.js openEditBookingModal): info notes render only with content,
+   and the Close / Save Changes panel is pinned to the bottom of the card on every viewport
+   (the modal body is the scroller; the footer is sticky inside it). Source order after the
+   base .app-modal-body rule; the mobile block above already pins it at <=768px. */
+.bk-edit-note {
+  font-size: 12px; color: var(--text-secondary); background: var(--surface-inset);
+  border: 1px solid var(--border); border-radius: 8px; padding: 8px 10px; margin-bottom: 10px; line-height: 1.5;
+}
+#app-booking-modal #app-edit-controls {
+  position: sticky !important; bottom: -12px; z-index: 3;
+  margin: auto -18px -12px; padding: 8px 18px calc(12px + env(safe-area-inset-bottom, 0px));
+  background: var(--bg);
+  box-shadow: 0 -8px 12px -8px color-mix(in srgb, var(--text) 18%, transparent);
+}
+@media (max-width: 768px) {
+  #app-booking-modal #app-edit-controls { bottom: -16px; margin: auto -16px -16px; padding: 8px 16px calc(12px + env(safe-area-inset-bottom, 0px)); }
+}
+
+/* Auto-Book / Quick-Book modal controls: the page-modal rule forces 16px on every input and select
+   (iOS focus-zoom guard), which made the "Slots to book" select and the guest email field oversized
+   next to the rest of the form. The viewport meta (maximum-scale=1) already stops the iOS focus zoom,
+   so these use the app's standard 13px form-control size. Placeholder inherits. */
+.app-modal.app-page #autobook-qty,
+.app-modal.app-page #quickbook-qty,
+.app-modal.app-page .app-guest-field .app-input,
+.app-guest-field .app-input { font-size: 13px !important; }
+.app-guest-field .app-input::placeholder { font-size: inherit; }

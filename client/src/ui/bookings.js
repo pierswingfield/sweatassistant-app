@@ -8,7 +8,7 @@ import { isInGracePeriod, GRACE_PERIOD_MS, startGraceCountdown, noSept, zoneFor,
 import { invalidateApiCache } from '../cache';
 import { renderCardSkeletons } from './loading-skeleton.js';
 import { instructorAvatar } from './tooltips.js';
-import { metadata, loadMetadata, getStudioMapInfo, pickStudioPrefs, rowGroupsForStudio, mobileRotationForStudio, openGuestBookingModal } from './timetable';
+import { metadata, loadMetadata, getStudioMapInfo, pickStudioPrefs, rowGroupsForStudio, mobileRotationForStudio, frontForStudio, openGuestBookingModal } from './timetable';
 import { findActiveUpgradeForBooking, findUpgradeForSeat } from './gym-isolation.js';
 import { haptic } from './haptics.js';
 import { COPY, formatCopyText } from '../copy.js';
@@ -803,7 +803,7 @@ export async function openEditBookingModal(group, onChange = renderBookings) {
   const title = document.getElementById('app-booking-modal-title');
   if (!modal || !body || !title) return;
   const modalRunId = ++editModalRunId;
-  const isCurrentRun = () => isCurrentModalRun(modalRunId, editModalRunId, modal.classList.contains('show'));
+  const isCurrentRun = () => isCurrentModalRun(modalRunId, editModalRunId, modal.style.display !== 'none');
 
   const event = group.event;
   const rawClassName = event.name || event.event_type?.name || COPY.autoBook.class;
@@ -816,7 +816,7 @@ export async function openEditBookingModal(group, onChange = renderBookings) {
   applyBookingChrome(modal, { titleText: COPY.bookingFlow.titleEditSpots, gymId: event.gymId, locationName: event.locationName, studioName: event.studioName });
   body.innerHTML = `<div class="app-loading-spinner-container" style="padding:40px 0;"><div class="app-spinner"></div><span>${COPY.bookings.loadingFloorMap}</span></div>`;
   let editDirty = () => false; // set once the selection exists
-  openNavPage(modal, { id: 'edit-spots', canClose: () => !editDirty() || confirm(COPY.bookingEditor.discardChanges) });
+  openNavPage(modal, { id: 'edit-spots', onClose: () => { if (modalRunId === editModalRunId) editModalRunId++; }, canClose: () => !editDirty() || confirm(COPY.bookingEditor.discardChanges) });
 
   const closeBtn = document.getElementById('app-booking-modal-close');
   const overlay = modal.querySelector('.app-modal-overlay');
@@ -895,17 +895,16 @@ export async function openEditBookingModal(group, onChange = renderBookings) {
     editDirty = () => guestsToCancel.size > 0 || selected.size !== currentSlots.length || currentSlots.some((x) => !selected.has(x));
     const labelFor = id => { const s = layoutSlots.find(ls => String(ls.id) === String(id)); return s?.label || String(id); };
 
+    const limitNote = entitlementUnavailable
+      ? COPY.bookingEditor.bookingLimitUnavailable
+      : Number.isFinite(selfBookingLimit)
+        ? formatCopyText(COPY.bookingEditor.selfBookingLimit, { count: selfBookingLimit, plural: selfBookingLimit === 1 ? '' : 's' })
+        : '';
     body.innerHTML = `
-      <div style="font-size:12px;color:var(--text-secondary);background:var(--surface-inset);border:1px solid var(--border);border-radius:8px;padding:8px 10px;margin-bottom:10px;line-height:1.5;">
+      <div class="bk-edit-note">
         ${formatCopyText(COPY.bookings.editSpotsInstructionHtml, { noun: escapeHtml(noun) })}
       </div>
-      <div style="font-size:12px;color:var(--text-secondary);background:var(--surface-inset);border:1px solid var(--border);border-radius:8px;padding:8px 10px;margin-bottom:10px;line-height:1.5;">
-        ${entitlementUnavailable
-          ? COPY.bookingEditor.bookingLimitUnavailable
-          : Number.isFinite(selfBookingLimit)
-            ? formatCopyText(COPY.bookingEditor.selfBookingLimit, { count: selfBookingLimit, plural: selfBookingLimit === 1 ? '' : 's' })
-            : ''}
-      </div>
+      ${String(limitNote).trim() ? `<div class="bk-edit-note">${limitNote}</div>` : ''}
       <div class="guest-map-legend" aria-label="Spot map key">
         <span class="is-self">${COPY.bookings.guestMapSelf}</span><span class="is-guest">${COPY.bookings.guestMapGuest}</span><span class="is-available">${COPY.bookings.guestMapAvailable}</span><span class="is-unavailable">${COPY.bookings.guestMapUnavailable}</span>
       </div>
@@ -1520,7 +1519,7 @@ export async function openUpgradeConfigModal({ currentSlotLabel = '', eventId, g
         saveLabel: COPY.spotMapEditor.saveDefaults,
         layoutObjects,
         rowGroups: rowGroupsForStudio(resolvedStudioId, gymId),
-        mobileRotation: mobileRotationForStudio(resolvedStudioId, gymId),
+        mobileRotation: mobileRotationForStudio(resolvedStudioId, gymId), front: frontForStudio(resolvedStudioId, gymId),
         bannerHtml,
         hideClear: true,
         // Deliberately no availability filter: this edits the studio-wide shared map, so occupied

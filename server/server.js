@@ -4,6 +4,7 @@ const cors = require('cors');
 const path = require('path');
 const rateLimit = require('express-rate-limit');
 const { ipKeyGenerator } = require('express-rate-limit');
+const cancelRebookPolicy = require('./cancel-rebook-policy');
 const db = require('./db');
 const { log, requestLogger } = require('./logger');
 const metrics = require('./metrics');
@@ -878,8 +879,10 @@ app.delete('/api/auto-upgrade/:id', authenticateToken, (req, res) => {
 
 app.get('/api/settings', authenticateToken, (req, res) => {
   try {
-    const settings = db.getUserSettings(req.userId);
-    res.json(settings || {});
+    const settings = db.getUserSettings(req.userId) || {};
+    // Gym-scoped default lives in ONE place (cancel-rebook-policy.js); the client reads the resolved value.
+    settings.autoUpgradeCancelRebook = cancelRebookPolicy.cancelRebookEnabled(settings);
+    res.json(settings);
   } catch (err) {
     res.status(500).json({ message: err.message });
   }

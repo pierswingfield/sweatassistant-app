@@ -10,7 +10,7 @@ const { triggerAutoRelogin } = require('./auth');
 const { getProvider } = require('./providers');
 const { resolveZone, zoneOfGym } = require('./providers/timezone');
 const { getGymConfig } = require('./gyms.config');
-const { planAutoBookSlots } = require('./spot-selection');
+const { planAutoBookSlots, planCompanionSlots } = require('./spot-selection');
 
 // Interim single-gym bridge: until multi-gym login lands (WP-D3), the
 // scheduler only dispatches CodexFit / Psycle London bookings. See
@@ -560,8 +560,17 @@ async function executeAutoBookForClass(booking) {
         if (participant?.status === 'success') continue;
         let guestResult = null;
         let guestBooked = false;
-        while (attemptIdx < slotsToTry.length) {
-          const targetSlot = slotsToTry[attemptIdx++];
+        // Re-plan around the primary's ACTUAL spot (it may differ from the plan): with togetherness the
+        // guest gets the nearest free spot; otherwise the normal plan minus spots already taken.
+        const primarySlotId = bookedPairs[0].slotId != null ? String(bookedPairs[0].slotId) : null;
+        const takenIds = [...bookedSlots, ...bookedPairs.map((p) => p.slotId)].filter((v) => v != null).map(String);
+        const guestOrder = planCompanionSlots({
+          layoutSlots, availableSlotIds: liveAvailable, primarySlotId, excludeIds: takenIds,
+          preferredSlots, preferredRows, bookAny, prioritizeTogether,
+        }).filter((id) => !claimedSlots.has(`${gymId}:${eventId}:${id}`) && !burnedSlots.has(`${gymId}:${eventId}:${id}`));
+        let guestIdx = 0;
+        while (guestIdx < guestOrder.length) {
+          const targetSlot = guestOrder[guestIdx++];
           try { guestResult = await provider.bookGuestSlot(eventId, targetSlot, guest.email, db.getUserSession(userId, gymId) || undefined); }
           catch (_) { guestResult = { ok: false, code: 'BOOKING_TIMEOUT', error: 'Guest booking result could not be confirmed.' }; }
           if (guestResult?.ok) {

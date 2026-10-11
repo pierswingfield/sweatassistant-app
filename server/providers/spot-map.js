@@ -49,4 +49,16 @@ function studioMobileRotation(gym, studio) {
   return [0, 90, 180, 270].includes(degrees) ? degrees : 0;
 }
 
-module.exports = { studioHasRowGroups, studioShowsSpotType, studioMobileRotation };
+/**
+ * Which side of the room is the front, in the ORIGINAL (unrotated) provider orientation:
+ *   spotMap: { frontStudios: { ids: ['6184'], side: 'top' } }
+ * Presentation only; the client moves the marker with the same rotation as the spots.
+ * @returns {'top'|'right'|'bottom'|'left'|null} null (no marker) unless the gym config names the studio.
+ */
+function studioFrontSide(gym, studio) {
+  const cfg = gym && gym.spotMap && gym.spotMap.frontStudios;
+  if (!cfg || !studioMatches(cfg, studio)) return null;
+  return ['top', 'right', 'bottom', 'left'].includes(cfg.side) ? cfg.side : null;
+}
+
+module.exports = { studioHasRowGroups, studioShowsSpotType, studioMobileRotation, studioFrontSide };

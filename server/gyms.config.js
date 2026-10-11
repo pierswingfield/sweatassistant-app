@@ -340,7 +340,13 @@ const GYMS = {
     // Live room: id 6184, provider name "Bootcamp" at the NoHo location ("NoHo Bootcamp" is only how the
     // UI joins location + room). Match the stable id first; the anchored name keeps "Bootcamp Zoom",
     // "Cycle" and the rest on their original orientation. The dev mock names its room "NoHo Bootcamp".
-    spotMap: { mobileRotationStudios: { ids: ['6184'], namePattern: '^(NoHo )?Bootcamp$', degrees: 90 } },
+    // Cycle (id 6182, read-only from live /api/metadata 2026-10-11) shares Bootcamp's portrait plan and
+    // rotation, matched by id only. The front of both rooms is the TOP of the unrotated plan; a 90 degree
+    // turn (x' = y, y' = maxX - x) carries top to LEFT. Other rooms (Zoom, Games, Live Stream) are untouched.
+    spotMap: {
+      mobileRotationStudios: { ids: ['6184', '6182'], namePattern: '^(NoHo )?Bootcamp$', degrees: 90 },
+      frontStudios: { ids: ['6184', '6182'], namePattern: '^(NoHo )?Bootcamp$', side: 'top' },
+    },
     // MarianaTek publishes the server-resolved release time per class. Aarmy
     // falls back to the observed 14-day rolling window only when that field is
     // absent, preserving any membership-specific release in normal operation.

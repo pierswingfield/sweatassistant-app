@@ -1,6 +1,6 @@
 import { shortSlotLabels, escapeHtml } from './cards';
 import { resolveSpotLabels } from './spot-labels.js';
-import { makeDisplayRotator } from './spot-rotation.js';
+import { makeDisplayRotator, chooseMapScale, displayFrontSide, makeFrontBar, FRONT_BAR_PX } from './spot-rotation.js';
 import { COPY, formatCopyText } from '../copy.js';
 // Shared preferred-spot-map editor.
 //
@@ -92,6 +92,7 @@ export function renderStudioFloorPlan(container, layoutSlots, initialSlots, init
     hideEditHint = false,
     aboveMap = null,   // () => Node: mobile booking context (helper + class card) placed directly above the map
     mobileRotation = 0,
+    front = null,      // side of the room that is the front, ORIGINAL orientation (gym config); drawn with the same rotation
     onSpotTap = null,  // called after a genuine spot tap, before selection rerenders
     selectionTone = null, // 'guest': selected spot uses the guest (info) colour so it matches the map key
     clearBelowMap = false, // Step A editor: a "Clear selection" button under the map (draft only)
@@ -127,6 +128,7 @@ export function renderStudioFloorPlan(container, layoutSlots, initialSlots, init
   const rotation = isMobile && [0, 90, 180, 270].includes(Number(mobileRotation)) ? Number(mobileRotation) : 0;
   // Rotate coordinates about the layout bounds, never the map or its labels.
   // Booking geometry remains provider-normalized; this is display-only.
+  const frontSide = displayFrontSide(front, rotation);
   const rotatePoint = makeDisplayRotator([...layoutSlots, ...layoutObjects], rotation);
   const viewSlots = layoutSlots.map(rotatePoint);
   const viewObjects = layoutObjects.map(rotatePoint);
@@ -149,7 +151,7 @@ export function renderStudioFloorPlan(container, layoutSlots, initialSlots, init
   // --- Floor-plan geometry (pixel-based to guarantee minimum gaps) ---
   const SLOT_SIZE = 28;
   const MIN_GAP = 32;   // min center-to-center px — just enough so 28px slots don't overlap (4px edge gap)
-  const EDGE_PAD = isMobile && rotation === 0 ? 4 : 14;  // unrotated mobile maps use the usable grid width
+  const EDGE_PAD = Math.max(isMobile && rotation === 0 ? 4 : 14, frontSide ? FRONT_BAR_PX + 4 : 0);  // unrotated mobile maps use the usable grid width
   // Smallest centre-to-centre distance between any two slots, in coordinate units.
   // Ride studios stagger alternate rows, so two slots can share a near-identical X
   // while sitting in different rows (far apart in 2D). Measuring true 2D nearest-
@@ -231,7 +233,9 @@ export function renderStudioFloorPlan(container, layoutSlots, initialSlots, init
     // available box, but never below the min-gap scale so 28px spots never overlap (the map pans instead).
     // Independent per-axis scales used to stretch a rotated (tall) map: the rotated Y range is tiny steps
     // of the original X, so the "min vertical gap" rule blew the Y scale up 6x and spread spots apart.
-    const scale = Math.max(Math.min(fillScaleW, fillScaleH), minGapScale);
+    // Rotated (vertical) maps are locked to the available width (fit to width, no x-scroll); unrotated maps keep
+    // the minimum spot size and scroll horizontally when wider than the box (chooseMapScale).
+    const { scale } = chooseMapScale({ rotated: rotation !== 0, fillScale: rotation !== 0 ? fillScaleW : Math.min(fillScaleW, fillScaleH), minGapScale });
     const scaleX = scale;
     const scaleY = scale;
 
@@ -242,6 +246,11 @@ export function renderStudioFloorPlan(container, layoutSlots, initialSlots, init
     floor.className = 'app-floor';
     floor.style.width = floorW + 'px';
     floor.style.height = floorH + 'px';
+    // Centre a floor narrower than its box (a rotated, tall map); a wider one still pans from the left.
+    floor.style.setProperty('margin-left', 'auto', 'important');
+    floor.style.setProperty('margin-right', 'auto', 'important');
+    const frontBar = makeFrontBar(frontSide);
+    if (frontBar) floor.appendChild(frontBar);
     scroll.appendChild(floor);
 
     const pxX = x => (x - minX) * scaleX + EDGE_PAD + SLOT_SIZE / 2;

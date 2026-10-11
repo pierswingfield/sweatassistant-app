@@ -757,7 +757,7 @@ check('both platforms return the identical metadata shape', async () => {
   // mock without addresses would otherwise make a real contract look violated.
   const ALLOWED = {
     locations: ['id', 'name', 'address', 'timeZone'],
-    studios: ['id', 'name', 'locationId', 'locationName', 'hasLayout', 'rowGroups', 'mobileRotation'],
+    studios: ['id', 'name', 'locationId', 'locationName', 'hasLayout', 'rowGroups', 'mobileRotation', 'front'],
     instructors: ['id', 'name', 'imageUrl'],
     classTypes: ['id', 'name', 'group'],
   };

@@ -13,7 +13,7 @@
 const crypto = require('crypto');
 const { GymProvider } = require('./base');
 const { resolveZone, toZonedISO } = require('./timezone');
-const { studioHasRowGroups, studioShowsSpotType, studioMobileRotation } = require('./spot-map');
+const { studioHasRowGroups, studioShowsSpotType, studioMobileRotation, studioFrontSide } = require('./spot-map');
 const { makeMetadata, makeProfile, makeMembership, makeEvent, makeSlot, makeBookingResult, makeBooking, makeHistoryEntry } = require('./normalize');
 const bookingWindow = require('./booking-window');
 const { noteThrottleError } = require('../rate-limit-backoff');
@@ -744,6 +744,7 @@ class MarianaTekProvider extends GymProvider {
           hasLayout: ev.layoutFormat === 'pick-a-spot',
           rowGroups: studioHasRowGroups(this.gym, { id: ev.studioId, name: ev.studioName }),
           mobileRotation: studioMobileRotation(this.gym, { id: ev.studioId, name: ev.studioName }),
+          front: studioFrontSide(this.gym, { id: ev.studioId, name: ev.studioName }),
         });
       }
       for (const i of (ev.instructors || [])) {

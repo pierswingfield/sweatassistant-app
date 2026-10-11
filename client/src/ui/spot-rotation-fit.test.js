@@ -54,3 +54,26 @@ describe('real Aarmy Bootcamp room (6184), rotated 90 degrees', () => {
     });
   });
 });
+
+import { chooseMapScale } from './spot-rotation.js';
+
+describe('fit vs scroll decision (every studio map)', () => {
+  it('unrotated: never below the minimum spot size, scrolls when wider than the box', () => {
+    expect(chooseMapScale({ rotated: false, fillScale: 10, minGapScale: 25 })).toEqual({ scale: 25, scrolls: true });
+    expect(chooseMapScale({ rotated: false, fillScale: 40, minGapScale: 25 })).toEqual({ scale: 40, scrolls: false });
+  });
+  it('rotated: locked to the width, never scrolls sideways', () => {
+    expect(chooseMapScale({ rotated: true, fillScale: 10, minGapScale: 25 })).toEqual({ scale: 10, scrolls: false });
+  });
+  it('makeUniformFit: wide unrotated box grows past the container; locked fit stays inside it', () => {
+    const wide = Array.from({ length: 20 }, (_, i) => ({ x: i * 1, y: (i % 2) * 1 }));
+    const scrolling = makeUniformFit(wide, { boxW: 300, boxH: 300, lockWidth: false });
+    expect(scrolling.scrolls).toBe(true);
+    expect(scrolling.boxWUsed).toBeGreaterThan(300);
+    expect(scrolling.scale * 1).toBeGreaterThanOrEqual(32 / Math.hypot(1, 1) - 1e-9);
+    const locked = makeUniformFit(wide, { boxW: 300, boxH: 300 });
+    expect(locked.scrolls).toBe(false);
+    expect(locked.boxWUsed).toBe(300);
+    expect(locked.xPct(19)).toBeLessThanOrEqual(100);
+  });
+});

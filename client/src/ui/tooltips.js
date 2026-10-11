@@ -1,6 +1,6 @@
 import { api } from '../api';
-import { metadata, mobileRotationForStudio } from './timetable';
-import { makeDisplayRotator, makeUniformFit, effectiveRotation } from './spot-rotation.js';
+import { metadata, mobileRotationForStudio, frontForStudio } from './timetable';
+import { makeDisplayRotator, makeUniformFit, effectiveRotation, displayFrontSide, makeFrontBar, FRONT_BAR_PX } from './spot-rotation.js';
 import { COPY, formatCopyText } from '../copy.js';
 
 let occupancyHoverTimeout = null;
@@ -509,6 +509,8 @@ export function renderMinimap(payload, occupancyTooltip) {
   const rotation = effectiveRotation(
     payload.mobileRotation ?? mobileRotationForStudio(payload.event?.studioId ?? payload.studioId, payload.event?.gymId ?? payload.gymId),
   );
+  const front = payload.front ?? frontForStudio(payload.event?.studioId ?? payload.studioId, payload.event?.gymId ?? payload.gymId);
+  const frontSide = displayFrontSide(front, rotation);
   const rotate = makeDisplayRotator([...layoutSlots, ...layoutObjects], rotation);
   layoutSlots = layoutSlots.map(rotate);
   layoutObjects = layoutObjects.map(rotate);
@@ -525,7 +527,7 @@ export function renderMinimap(payload, occupancyTooltip) {
   const heightRange = maxY - minY || 1;
 
   // Uniform scale (aspect ratio kept, centred) in the 150px minimap box, instead of stretching each axis.
-  const fit = layoutSlots.length ? makeUniformFit(layoutSlots, { boxW: 220, boxH: 150, pad: 8, itemPx: 10, minGapPx: 0 }) : null;
+  const fit = layoutSlots.length ? makeUniformFit(layoutSlots, { boxW: 220, boxH: 150, pad: frontSide ? 8 + FRONT_BAR_PX : 8, itemPx: 10, minGapPx: 0 }) : null;
   let stageHtml = '';
   layoutObjects.forEach(obj => {
     const left = fit ? fit.xPct(obj.x) : 50;
@@ -586,4 +588,7 @@ export function renderMinimap(payload, occupancyTooltip) {
       </div>
     </div>
   `;
+  const bar = makeFrontBar(frontSide);
+  const miniBox = occupancyTooltip.querySelector('.app-minimap-container');
+  if (bar && miniBox) { miniBox.style.position = 'relative'; miniBox.appendChild(bar); }
 }

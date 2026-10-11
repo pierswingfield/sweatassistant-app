@@ -58,7 +58,7 @@ export function spotSetupBookingOptions(options, pageEl, saved) {
   };
 }
 
-export function openSpotSetup({ event, className, onSaved, onContinue, onChooseForNow, initialStep = 'intro', initialPrefs = null, rowGroups = false, mobileRotation = 0, deferPersist = false, stepBookLabel = null, replaceEl = null, skipSavedConfirm = false, onCancelEdit = null }) {
+export function openSpotSetup({ event, className, onSaved, onContinue, onChooseForNow, initialStep = 'intro', initialPrefs = null, rowGroups = false, mobileRotation = 0, front = null, deferPersist = false, stepBookLabel = null, replaceEl = null, skipSavedConfirm = false, onCancelEdit = null }) {
   const gymId = event.gymId;
   const brand = gymBrand(gymId);
   const studioName = displayStudioName(gymId, event.studioName || '') || event.studioName || COPY.spotSelection.thisStudio;
@@ -230,7 +230,7 @@ export function openSpotSetup({ event, className, onSaved, onContinue, onChooseF
     const seedSlots = saved ? saved.slots : (initialPrefs?.preferredSlots || []);
     const seedRows = rowGroups ? (saved ? saved.rows : (initialPrefs?.preferredRows || [])) : [];
     renderStudioFloorPlan(editor, slots, seedSlots, seedRows, () => {}, {
-      rowGroups, layoutObjects: objects || [], mobileRotation, hideSummary: true, hideActions: true, hideEditHint: true,
+      rowGroups, layoutObjects: objects || [], mobileRotation, front, hideSummary: true, hideActions: true, hideEditHint: true,
       onSelectionChange: (s, r) => refreshFooter(s.length + r.length),
       // The tip stays until the member dismisses it with its x (it no longer vanishes on a spot tap).
       aboveMap: () => bookingContextEl(null, { helperId: 'spotmap-setup', helperText: spotSetupHelperText(rowGroups, slots), helperOnly: true }),

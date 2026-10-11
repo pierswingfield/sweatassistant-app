@@ -1,7 +1,7 @@
 // Row-group (whole-row preference) studio flag: gym config -> helper -> normalized studio.
 const assert = require('assert');
 const { getGymConfig } = require('./gyms.config');
-const { studioHasRowGroups, studioMobileRotation } = require('./providers/spot-map');
+const { studioHasRowGroups, studioMobileRotation, studioFrontSide } = require('./providers/spot-map');
 const { makeStudio, makeMetadata } = require('./providers/normalize');
 
 // Default OFF: no config, no studio, empty config.
@@ -39,7 +39,18 @@ assert.strictEqual(studioMobileRotation(aarmy, { id: '6184', name: 'Bootcamp' })
 assert.strictEqual(studioMobileRotation(aarmy, { id: 6184, name: 'anything' }), 90);
 assert.strictEqual(studioMobileRotation(aarmy, { id: 'x', name: 'bootcamp' }), 90);
 assert.strictEqual(studioMobileRotation(aarmy, { id: '6187', name: 'Bootcamp Zoom' }), 0);
-assert.strictEqual(studioMobileRotation(aarmy, { id: '6182', name: 'Cycle' }), 0);
+assert.strictEqual(studioMobileRotation(aarmy, { id: '6182', name: 'Cycle' }), 90);
+assert.strictEqual(studioMobileRotation(aarmy, { id: '6185', name: 'Cycle Live Stream' }), 0);
+
+// Front side: config lookup, id match only for Cycle, default none.
+assert.strictEqual(studioFrontSide(aarmy, { id: '6184', name: 'Bootcamp' }), 'top');
+assert.strictEqual(studioFrontSide(aarmy, { id: 6182, name: 'Cycle' }), 'top');
+assert.strictEqual(studioFrontSide(aarmy, { id: '6187', name: 'Bootcamp Zoom' }), null);
+assert.strictEqual(studioFrontSide(aarmy, { id: '6185', name: 'Cycle Live Stream' }), null);
+assert.strictEqual(studioFrontSide(psycle, { id: 108, name: 'Ride Studio 1' }), null);
+assert.strictEqual(studioFrontSide(null, { id: 1 }), null);
+assert.strictEqual(studioFrontSide({ spotMap: { frontStudios: { ids: ['1'], side: 'up' } } }, { id: 1 }), null);
+assert.strictEqual(studioFrontSide({ spotMap: { frontStudios: { ids: ['1'], side: 'left' } } }, { id: 1 }), 'left');
 assert.strictEqual(studioMobileRotation({ spotMap: { mobileRotationStudios: { ids: ['1'], degrees: 45 } } }, { id: 1 }), 0);
 
 // Normalized shape: always a boolean, only true when explicitly true.
@@ -49,5 +60,8 @@ assert.strictEqual(makeStudio({ id: 1, name: 'a', rowGroups: true }).rowGroups, 
 assert.strictEqual(makeMetadata({ studios: [{ id: 2, rowGroups: true }] }).studios[0].rowGroups, true);
 assert.strictEqual(makeStudio({ id: 1, mobileRotation: 90 }).mobileRotation, 90);
 assert.strictEqual(makeStudio({ id: 1, mobileRotation: 45 }).mobileRotation, 0);
+assert.strictEqual(makeStudio({ id: 1, front: 'top' }).front, 'top');
+assert.strictEqual(makeStudio({ id: 1, front: 'north' }).front, null);
+assert.strictEqual(makeStudio({ id: 1 }).front, null);
 
 console.log('row-groups: ok');

@@ -102,3 +102,30 @@ export function buildGuests(drafts = [], count = 0, seeded = []) {
     return { email, name: prior?.name || null };
   });
 }
+
+/** "Prioritise spots together" applies to any total of 2+ places, a named guest included (sit next to your guest). */
+export function showTogetherOption({ qty = 1 } = {}) {
+  return (Number(qty) || 1) > 1;
+}
+
+/**
+ * Has an edited Auto-Book changed from the seeded queue entry? Both sides are normalised the way a save
+ * would normalise them, so a revert (or a no-op like togetherness on a single place) is "not dirty".
+ * @param {{qty,bookAny,prioritizeTogether,guestEmails,autoUpgrade,slots,rows}} a baseline
+ * @param {{qty,bookAny,prioritizeTogether,guestEmails,autoUpgrade,slots,rows}} b current
+ */
+export function autoBookEditDirty(a, b) {
+  const norm = (x) => {
+    const together = Number(x.qty) > 1 && x.prioritizeTogether === true;
+    return JSON.stringify({
+      qty: Number(x.qty) || 1,
+      bookAny: together ? true : x.bookAny !== false,
+      together,
+      guests: (x.guestEmails || []).map((e) => String(e || '').trim().toLowerCase()),
+      autoUpgrade: x.autoUpgrade === true,
+      slots: (x.slots || []).map(String),                       // order is priority
+      rows: [...new Set((x.rows || []).map(Number))].sort((m, n) => m - n),
+    });
+  };
+  return norm(a) !== norm(b);
+}

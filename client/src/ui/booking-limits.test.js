@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { bookingQuantityOptions, maxAttendeesPerClass, normalizeGroupOptions, applyTogetherChange, applyCountChange, applyFallbackChange } from './booking-limits.js';
+import { bookingQuantityOptions, maxAttendeesPerClass, normalizeGroupOptions, applyTogetherChange, applyCountChange, applyFallbackChange, showTogetherOption, autoBookEditDirty } from './booking-limits.js';
 
 describe('per-class attendee limits', () => {
   it('turns a resolved one-self-booking entitlement into no quantity choice', () => {
@@ -54,5 +54,36 @@ describe('group option transitions', () => {
     const s = applyTogetherChange(applyCountChange(base, 3), true);
     expect(applyTogetherChange(s, false)).toMatchObject({ prioritizeTogether: false, bookAny: false });
     expect(applyFallbackChange(s, false)).toMatchObject({ prioritizeTogether: false, bookAny: false });
+  });
+});
+
+describe('edit Auto-Book: together option and dirty state', () => {
+  const base = { qty: 2, bookAny: true, prioritizeTogether: true, guestEmails: [], autoUpgrade: false, slots: ['1', '2'], rows: [] };
+  it('shows the together option for any total of 2+ places, guests included', () => {
+    expect(showTogetherOption({ qty: 2, guestPlaces: 0 })).toBe(true);
+    expect(showTogetherOption({ qty: 3, guestPlaces: 1 })).toBe(true);
+    expect(showTogetherOption({ qty: 1, guestPlaces: 0 })).toBe(false);
+    expect(showTogetherOption({ qty: 2, guestPlaces: 1 })).toBe(true); // you + 1 guest sit together too
+  });
+  it('is clean when nothing changed, and when a change is reverted', () => {
+    expect(autoBookEditDirty(base, { ...base })).toBe(false);
+    expect(autoBookEditDirty(base, { ...base, qty: 3 })).toBe(true);
+    expect(autoBookEditDirty(base, { ...base, qty: 3 })).toBe(true);
+    expect(autoBookEditDirty(base, { ...base, qty: 2 })).toBe(false);
+  });
+  it('detects option, guest, map and priority-order changes', () => {
+    expect(autoBookEditDirty(base, { ...base, prioritizeTogether: false })).toBe(true);
+    expect(autoBookEditDirty(base, { ...base, autoUpgrade: true })).toBe(true);
+    expect(autoBookEditDirty(base, { ...base, slots: ['2', '1'] })).toBe(true);
+    expect(autoBookEditDirty(base, { ...base, slots: ['1'] })).toBe(true);
+    expect(autoBookEditDirty(base, { ...base, rows: [3] })).toBe(true);
+    const g = { ...base, qty: 2, prioritizeTogether: false, guestEmails: ['a@b.co'] };
+    expect(autoBookEditDirty(g, { ...g, guestEmails: [' A@B.co '] })).toBe(false);
+    expect(autoBookEditDirty(g, { ...g, guestEmails: ['c@d.co'] })).toBe(true);
+  });
+  it('ignores togetherness that cannot apply (one place) and the forced fallback', () => {
+    const one = { ...base, qty: 1, prioritizeTogether: false };
+    expect(autoBookEditDirty(one, { ...one, prioritizeTogether: true })).toBe(false);
+    expect(autoBookEditDirty({ ...base, bookAny: false }, { ...base, bookAny: true })).toBe(false);
   });
 });

@@ -152,4 +152,25 @@ function planAutoBookSlots({ layoutSlots = [], availableSlotIds = [], preferredS
   return output;
 }
 
-module.exports = { planAutoBookSlots, preferredIdsForMap, contiguousRuns };
+/**
+ * Candidate order for a companion place (a named guest) once the primary's ACTUAL spot is known.
+ * With togetherness the whole group was planned together, but the primary may have landed elsewhere
+ * than planned, so the companion is re-planned around where the primary really is: nearest free spot
+ * first (adjacent when one exists), ties by provider order. Without togetherness (or without usable
+ * coordinates) it falls back to the normal plan minus the excluded spots.
+ */
+function planCompanionSlots({ layoutSlots = [], availableSlotIds = [], primarySlotId, excludeIds = [], preferredSlots = [], preferredRows = [], bookAny = true, prioritizeTogether = false }) {
+  const exclude = new Set([...excludeIds, primarySlotId].filter((v) => v != null).map(idOf));
+  const normal = planAutoBookSlots({ layoutSlots, availableSlotIds, preferredSlots, preferredRows, bookAny, prioritizeTogether }).filter((id) => !exclude.has(id));
+  if (!prioritizeTogether) return normal;
+  const byId = new Map(layoutSlots.map((slot) => [idOf(slot.id), slot]));
+  const primary = byId.get(idOf(primarySlotId));
+  if (!primary || !finiteCoordinate(primary)) return normal;
+  const index = new Map(normal.map((id, i) => [id, i]));
+  const pool = availableSlotIds.map(idOf).filter((id) => !exclude.has(id) && finiteCoordinate(byId.get(id)));
+  if (pool.length !== availableSlotIds.map(idOf).filter((id) => !exclude.has(id)).length) return normal;
+  const dist = (id) => Math.hypot(Number(byId.get(id).x) - Number(primary.x), Number(byId.get(id).y) - Number(primary.y));
+  return pool.sort((a, b) => (Math.abs(dist(a) - dist(b)) > EPSILON ? dist(a) - dist(b) : (index.get(a) ?? 1e9) - (index.get(b) ?? 1e9)));
+}
+
+module.exports = { planAutoBookSlots, planCompanionSlots, preferredIdsForMap, contiguousRuns };

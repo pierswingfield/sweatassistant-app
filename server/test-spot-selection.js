@@ -1,5 +1,5 @@
 const assert = require('assert');
-const { planAutoBookSlots } = require('./spot-selection');
+const { planAutoBookSlots, planCompanionSlots } = require('./spot-selection');
 
 const slots = [
   { id: 'alpha', label: '37458', x: 0, y: 0 },
@@ -43,5 +43,20 @@ plan = planAutoBookSlots({
   availableSlotIds: ['y', 'x', 'z'], preferredSlots: ['x', 'y'], bookAny: true, prioritizeTogether: true,
 });
 assert.deepStrictEqual(plan, ['x', 'y', 'z']);
+
+// Companion (guest) place: re-planned around the primary's ACTUAL spot, nearest free first.
+let comp = planCompanionSlots({ layoutSlots: slots, availableSlotIds: all, primarySlotId: 'bravo', preferredSlots: ['alpha', 'bravo', 'charlie'], bookAny: true, prioritizeTogether: true });
+assert.ok(!comp.includes('bravo'), 'never the primary own spot');
+assert.ok(['alpha', 'charlie', 'golf'].includes(comp[0]), 'adjacent to the primary first');
+// Plan said alpha+bravo, but the primary landed on echo (far side of the aisle): guest goes beside echo, not beside alpha.
+comp = planCompanionSlots({ layoutSlots: slots, availableSlotIds: all, primarySlotId: 'echo', excludeIds: ['echo'], preferredSlots: ['alpha', 'bravo'], bookAny: true, prioritizeTogether: true });
+assert.strictEqual(comp[0], 'delta');
+// Taken spots are excluded; without togetherness the normal plan order is kept.
+comp = planCompanionSlots({ layoutSlots: slots, availableSlotIds: all, primarySlotId: 'alpha', excludeIds: ['bravo'], preferredSlots: ['alpha', 'bravo', 'charlie'], bookAny: true, prioritizeTogether: false });
+assert.deepStrictEqual(comp.slice(0, 1), ['charlie']);
+assert.ok(!comp.includes('bravo') && !comp.includes('alpha'));
+// No coordinates: fall back to the normal plan minus the primary.
+comp = planCompanionSlots({ layoutSlots: [{ id: 'x' }, { id: 'y' }], availableSlotIds: ['x', 'y', 'z'], primarySlotId: 'x', preferredSlots: ['x', 'y'], bookAny: true, prioritizeTogether: true });
+assert.deepStrictEqual(comp, ['y', 'z']);
 
 console.log('✅ spatial candidate planner: preferred groups, together widening, boundaries, proximity, and no-geometry fallback.');

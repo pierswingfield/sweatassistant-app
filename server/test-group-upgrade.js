@@ -414,8 +414,9 @@ async function engineChecks(poller) {
     // Psycle now swaps in place (atomicSwap); these checks exercise the cancel-then-rebook path, so model a gym without a swap API.
     const _swapCaps = require('./gyms.config').getGymConfig('psycle-london').capabilities;
     const _prevSwap = _swapCaps.atomicSwap;
-    _swapCaps.atomicSwap = false;
-    try { await engineChecks(require('./poller')); } finally { _swapCaps.atomicSwap = _prevSwap; }
+    const _prevCr = _swapCaps.cancelRebookUpgrade;
+    _swapCaps.atomicSwap = false; _swapCaps.cancelRebookUpgrade = true; // model a gym that still cancels and rebooks
+    try { await engineChecks(require("./poller")); } finally { _swapCaps.atomicSwap = _prevSwap; _swapCaps.cancelRebookUpgrade = _prevCr; }
     console.log('\n🎉 GROUP AUTO-UPGRADE CHECKS PASSED.\n');
   } catch (err) {
     failed = 1;

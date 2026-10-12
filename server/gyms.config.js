@@ -141,7 +141,7 @@ const GYMS = {
     },
     capabilities: {
       atomicSwap: true,         // PATCH v2 /bookings/{id} {slot} (live 2026-10-11); adapter falls back to cancel-rebook only if the endpoint vanishes
-      cancelRebookUpgrade: true, // may cancel + rebook to upgrade (member setting, poller-honoured). Independent of atomicSwap: switch off per gym by what its backend supports
+      cancelRebookUpgrade: false, // OFF 2026-10-12: native swap exists, so cancel + rebook is never used (hides the member setting; poller policy gates on this)
       nativeWaitlist: false,
       metered: true,            // classes cost credits from a balance
       creditPurchase: true,     // in-app Stripe cart

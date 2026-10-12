@@ -1,0 +1,66 @@
+<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Rotated map compaction</title><style>
+:root{--bg:#f6f6f8;--card:#fff;--inset:#eef0f4;--text:#16181d;--mut:#6b7280;--bd:#d5d9e0;--spot:#fff;--spotbd:#8b93a1;--on:#2563eb;--onbg:#dbeafe;--bad:#dc2626}
+@media(prefers-color-scheme:dark){:root{--bg:#0e1014;--card:#171a20;--inset:#1f232b;--text:#e8eaee;--mut:#9aa1ad;--bd:#2d333d;--spot:#262b34;--spotbd:#5b6472;--on:#60a5fa;--onbg:#1e3a5f;--bad:#f87171}}
+body{margin:0;background:var(--bg);color:var(--text);font:14px/1.4 -apple-system,system-ui,sans-serif;padding:16px}
+h1{font-size:18px;margin:0 0 4px}h2{font-size:16px;margin:24px 0 8px}p.n{color:var(--mut);margin:0 0 8px;font-size:13px}
+.row{display:flex;gap:12px;overflow-x:auto;scroll-snap-type:x mandatory;padding-bottom:12px}
+.col{flex:0 0 358px;scroll-snap-align:start}.col h3{font-size:13px;margin:0 0 6px}
+.panel{position:relative;width:358px;background:var(--inset);border:1px solid var(--bd);border-radius:12px;overflow:hidden;box-sizing:border-box}
+.spot{position:absolute;display:flex;align-items:center;justify-content:center;box-sizing:border-box;background:var(--spot);border:1.5px solid var(--spotbd);color:var(--text);font-weight:600;border-radius:22%}
+.spot.on{background:var(--onbg);border-color:var(--on)}
+.front{position:absolute;display:flex;align-items:center;justify-content:center;font-size:8px;font-weight:700;letter-spacing:.18em;color:var(--mut);background:rgba(128,128,128,.14);border-radius:3px}
+.m{font-size:12px;color:var(--mut);margin-top:6px}.m b{color:var(--text)}.bad{color:var(--bad)!important}
+</style></head><body><h1>Rotated map compaction (Aarmy)</h1>
+<p class="n">Real layouts, 358px panels, swipe sideways between options. Blue = free spot. Rotation = 90 deg (front on the left), labels upright.</p><div id="root"></div>
+<script>
+const DATA={"Aarmy Bootcamp (6184)": [["1", 1.2, 0.8, 1], ["2", 2.4, 0.8, 1], ["3", 3.6, 0.8, 1], ["4", 4.8, 0, 1], ["5", 6, 0, 1], ["6", 7.2, 0, 1], ["7", 10, 0, 1], ["8", 11.2, 0, 1], ["9", 12.4, 0, 1], ["10", 13.6, 0, 1], ["11", 14.8, 0, 1], ["12", 0.2, 2, 1], ["13", 1.4, 2, 1], ["14", 2.6, 2, 1], ["15", 3.8, 2, 1], ["16", 5, 2, 1], ["17", 6.2, 2, 1], ["18", 7.4, 2, 1], ["19", 8.6, 2, 1], ["20", 9.8, 2, 1], ["21", 11, 2, 1], ["22", 12.2, 2, 1], ["23", 13.4, 2, 1], ["24", 14.6, 2, 1], ["25", 7.4, 3.4, 1], ["26", 8.6, 3.4, 1], ["27", 9.8, 3.4, 1], ["28", 12.2, 3.4, 1], ["29", 13.4, 3.4, 1], ["30", 14.6, 3.4, 1], ["31", 1.8, 4.8, 1], ["32", 3, 4.8, 1], ["33", 4.2, 4.8, 1], ["34", 5.4, 4.8, 1], ["35", 7, 4.8, 1], ["36", 8.2, 4.8, 1], ["37", 9.4, 4.8, 1], ["38", 10.6, 4.8, 1], ["39", 12.2, 4.8, 1], ["40", 13.4, 4.8, 1], ["41", 14.6, 4.8, 1], ["0", 0, 0.8, 1]], "Aarmy Cycle (6182)": [["1", 21.0, 3.2, 0], ["2", 19.8, 3.2, 0], ["3", 18.6, 3.2, 0], ["4", 15.8, 3.2, 0], ["5", 14.6, 3.2, 0], ["6", 13.4, 3.2, 0], ["7", 12.2, 3.2, 0], ["8", 11.0, 3.2, 0], ["9", 9.8, 3.2, 0], ["10", 8.6, 3.2, 0], ["11", 7.4, 3.2, 0], ["12", 6.2, 3.2, 0], ["13", 5.0, 3.2, 0], ["14", 2.4, 3.2, 0], ["15", 1.2, 3.2, 0], ["16", 0.0, 3.2, 1], ["17", 21.0, 4.4, 0], ["18", 19.8, 4.4, 0], ["19", 18.6, 4.4, 1], ["20", 15.8, 4.4, 0], ["21", 14.6, 4.4, 0], ["22", 13.4, 4.4, 0], ["23", 12.2, 4.4, 0], ["24", 11.0, 4.4, 0], ["25", 9.8, 4.4, 0], ["26", 8.6, 4.4, 0], ["27", 7.4, 4.4, 0], ["28", 6.2, 4.4, 0], ["29", 5.0, 4.4, 0], ["30", 2.4, 4.4, 0], ["31", 1.2, 4.4, 0], ["32", 0.0, 4.4, 1], ["33", 21.0, 5.6, 0], ["34", 19.8, 5.6, 0], ["35", 18.6, 5.6, 0], ["36", 15.8, 5.6, 0], ["37", 13.4, 5.6, 0], ["38", 12.2, 5.6, 0], ["39", 11.0, 5.6, 0], ["40", 9.8, 5.6, 0], ["41", 8.6, 5.6, 0], ["42", 7.4, 5.6, 0], ["43", 2.4, 5.6, 0], ["44", 1.2, 5.6, 1], ["45", 0.0, 5.6, 1], ["46", 16.6, 1.2, 0], ["47", 16.6, 0.0, 0], ["48", 18.0, 1.2, 1], ["49", 18.0, 0.0, 1], ["50", 19.4, 1.2, 1], ["51", 19.4, 0.0, 1], ["52", 20.8, 1.2, 1], ["53", 20.8, 0.0, 1], ["54", 4.4, 1.2, 0], ["55", 4.4, 0.0, 0], ["56", 3.0, 1.2, 1], ["57", 3.0, 0.0, 0], ["58", 1.6, 1.2, 1], ["59", 1.6, 0.0, 1], ["60", 0.2, 1.2, 1], ["61", 0.2, 0.0, 1]]};
+const W=358, FRONT=12, PADL=22, PADR=22, PADV=22; // matches app: pad 10 + FRONT_BAR_PX
+const rot=pts=>{const maxX=Math.max(...pts.map(p=>p.x)),minY=Math.min(...pts.map(p=>p.y));return pts.map(p=>({...p,x:p.y-minY,y:maxX-p.x}))};
+const norm=pts=>{const a=Math.min(...pts.map(p=>p.x)),b=Math.min(...pts.map(p=>p.y));return pts.map(p=>({...p,x:p.x-a,y:p.y-b}))};
+const ext=(pts,k)=>Math.max(...pts.map(p=>p[k]));
+function minDist(pts){let m=1e9;for(let i=0;i<pts.length;i++)for(let j=i+1;j<pts.length;j++){const d=Math.hypot(pts[i].x-pts[j].x,pts[i].y-pts[j].y);if(d>0&&d<m)m=d}return m}
+// B: clamp every gap along each axis to CAP units (never below original if already small => distances can only shrink where a gap exceeded CAP)
+function collapse(pts,k,cap){const vals=[...new Set(pts.map(p=>+p[k].toFixed(3)))].sort((a,b)=>a-b);const map=new Map();let acc=0;vals.forEach((v,i)=>{if(i)acc+=Math.min(v-vals[i-1],cap);map.set(v,acc)});return pts.map(p=>({...p,[k]:map.get(+p[k].toFixed(3))}))}
+// C: cluster coordinates (max spread TOL), cell index, +HALF cell extra at aisles
+function snap(pts,k,tol,aisleGap){const vals=[...new Set(pts.map(p=>+p[k].toFixed(3)))].sort((a,b)=>a-b);const cl=[];vals.forEach(v=>{const c=cl[cl.length-1];if(c&&v-c.min<=tol){c.max=v}else cl.push({min:v,max:v})});const pos=cl.map(()=>0);let acc=0;cl.forEach((c,i)=>{if(i){const gap=c.min-cl[i-1].max;acc+=gap>aisleGap?1.5:1}pos[i]=acc});const idx=v=>cl.findIndex(c=>v>=c.min-1e-6&&v<=c.max+1e-6);return pts.map(p=>({...p,[k]:pos[idx(+p[k].toFixed(3))]}))}
+function layout(pts,{spot,padL=PADL,padR=PADR,padV=PADV,fixedScale,maxSpot=28,gap=3}){
+  const w=ext(pts,'x'),h=ext(pts,'y'),md=minDist(pts);
+  const availW=W-padL-padR-(spot||maxSpot);
+  let scale=fixedScale||Math.min(availW/(w||1),(maxSpot+gap)/md);
+  const S=spot||Math.min(maxSpot,Math.floor(md*scale-gap));
+  const contentW=w*scale+S, offX=padL+(W-padL-padR-contentW)/2+S/2;
+  const H=Math.ceil(h*scale+S+2*padV);
+  const overlaps=countOverlaps(pts,scale,S);
+  return {scale,S,H,offX,offY:padV+S/2,overlaps,minC:md*scale,w:w*scale+S}
+}
+function countOverlaps(pts,sc,S){let n=0;for(let i=0;i<pts.length;i++)for(let j=i+1;j<pts.length;j++){if(Math.abs(pts[i].x-pts[j].x)*sc<S-0.5&&Math.abs(pts[i].y-pts[j].y)*sc<S-0.5)n++}return n}
+function currentFit(pts){ // port of makeUniformFit (lockWidth, itemPx 28, minGapPx 32, boxH 300 stand-in)
+  const itemPx=28,pad=PADL,padR=PADR,boxH=300,w=ext(pts,'x'),h=ext(pts,'y'),md=minDist(pts);
+  const minGapScale=32/md,availW=W-pad-padR-itemPx,availH=boxH-2*pad-itemPx;
+  const scale=Math.min(availW/w,Math.max(availH/h,minGapScale));
+  const H=Math.max(boxH,Math.ceil(h*scale+itemPx+2*pad));
+  return {scale,S:itemPx,H,offX:pad+(W-pad-padR-(w*scale+itemPx))/2+itemPx/2,offY:(H-(h*scale+itemPx))/2+itemPx/2,overlaps:countOverlaps(pts,scale,itemPx),minC:md*scale}
+}
+function render(pts,L,frontSide,title,sub){
+  const col=document.createElement('div');col.className='col';
+  const hh=L.H;let s='';
+  pts.forEach(p=>{const fs=Math.max(8,Math.floor(L.S*0.42));s+=`<div class="spot ${p.on?'on':''}" style="left:${(L.offX+p.x*L.scale-L.S/2).toFixed(1)}px;top:${(L.offY+p.y*L.scale-L.S/2).toFixed(1)}px;width:${L.S}px;height:${L.S}px;font-size:${fs}px">${p.label}</div>`});
+  const bar=frontSide==='left'?`<div class="front" style="left:2px;top:30%;height:40%;width:9px;writing-mode:vertical-rl;transform:rotate(180deg)">FRONT</div>`:`<div class="front" style="top:2px;left:30%;width:40%;height:9px">FRONT</div>`;
+  col.innerHTML=`<h3>${title}</h3><div class="panel" style="height:${hh}px">${bar}${s}</div><div class="m">${sub}<br>Height <b>${hh}px</b> · spot <b>${L.S}px</b> · nearest centres <b>${L.minC.toFixed(1)}px</b>${L.overlaps?` · <span class="bad"><b>${L.overlaps} overlapping pairs</b></span>`:' · no overlaps'}</div>`;
+  return col;
+}
+const root=document.getElementById('root');
+for(const [name,rows] of Object.entries(DATA)){
+  const base=rows.map(r=>({label:r[0],x:r[1],y:r[2],on:!!r[3]}));
+  const R=norm(rot(base));
+  const STEP=1.2, CAP=STEP*1.35;
+  const sec=document.createElement('div');sec.innerHTML=`<h2>${name} · ${base.length} spots</h2>`;
+  const row=document.createElement('div');row.className='row';
+  let A=currentFit(R);row.append(render(R,A,'left','A. Current (rotate + uniform fit)','As the app draws now: 28px spots, scale fitted from min-gap 32px.'));
+  let Bp=norm(collapse(collapse(R,'x',CAP),'y',CAP));let B=layout(Bp,{});row.append(render(Bp,B,'left','B. Compact gaps','Rotate, clamp every empty gap to 1.35 x the spot step (aisles stay visible), uniform scale.'));
+  let Cp=norm(snap(snap(R,'x',0.9,1.7),'y',0.9,1.7));let C=layout(Cp,{});row.append(render(Cp,C,'left','C. Snap to grid','Rotate, cluster into rows/columns (tolerance 0.9), tight grid, aisles = half-cell extra.'));
+  let Dp=norm(collapse(collapse(norm(base),'x',CAP),'y',CAP));let D=layout(Dp,{padL:10,padR:10,padV:22});row.append(render(Dp,D,'top','D. Unrotated, compacted','For comparison: same compaction as B without rotation (front on top).'));
+  sec.append(row);root.append(sec);
+}
+</script></body></html>

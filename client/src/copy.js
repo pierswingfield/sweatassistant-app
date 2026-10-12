@@ -877,6 +877,7 @@ export const COPY = Object.freeze({
   bookingFlow: Object.freeze({
     titleBook: 'Book your spot', titleFinishQuickBook: 'Finish Quick-Book', titleAutoBook: 'Schedule Auto-Book', titleEditAutoBook: 'Edit Auto-Book',
     stepAutoBook: 'Auto-Book class', editPreferredSpots: 'Edit preferred spots',
+    noPreferredMap: 'No preferred spot map for this studio', setPreferredSpots: 'Set preferred spots',
     autoBookSummary: '{appName} will book {count} spots based on your preferred spot map.',
     autoBookSummaryOne: '{appName} will book {count} spot based on your preferred spot map.',
     quickBookSummary: 'Quick-Book will book {count} spots based on your preferred spot map.',

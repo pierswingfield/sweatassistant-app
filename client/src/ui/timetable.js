@@ -9,7 +9,7 @@ import { loadCancelInfo } from './cancel-penalty-info.js';
 import { autoBookOutcomeToasts, autoBookFailureToast } from './autobook-outcome.js';
 import { bookStepLabel, preferredSummaryText, autoBookCreditWarning } from './booking-copy.js';
 import { resolveSpotLabels } from './spot-labels.js';
-import { makeDisplayRotator, makeUniformFit, displayFrontSide, makeFrontBar, FRONT_BAR_PX } from './spot-rotation.js';
+import { makeDisplayRotator, makeUniformFit, ROTATED_MIN_GAP_PX, displayFrontSide, makeFrontBar, FRONT_BAR_PX } from './spot-rotation.js';
 import { isCreditInventoryLoaded, pickStudioPrefs as pickGymStudioPrefs } from './gym-isolation.js';
 import { isRollingWeeklyGym } from '../gym-context.js';
 import { canForGym, canAny, capabilityForGym, getLinkedGyms, getGymShortName, getLocationAlias, getDefaultGymId, formatSpotLabel } from '../gym-context.js';
@@ -4092,20 +4092,23 @@ export async function openBookingModal(c, mode, opts = {}) {
     const rowCount = new Set(layoutSlots.map(s => s.y)).size;
     const minMapHeight = Math.max(340, rowCount * 56);
 
+    // The blurred summary preview is clipped to this height so the whole summary page (class line,
+    // overlay + "Edit preferred spots", controls, CTA) fits a ~393x852 phone without scrolling.
+    const SUMMARY_MAP_MAX_H = 140;
     let initialMapHeight = isPreferredSummaryFlow ? Math.min(200, minMapHeight) : minMapHeight;
     // One uniform scale for both axes (relative geometry kept); grow the box when a tall rotated room needs it.
     const fitBoxW = Math.max(240, (body.clientWidth || 340) - 2);
-    const fit = makeUniformFit(displaySlots, { boxW: fitBoxW, boxH: initialMapHeight, pad: frontSide ? 10 + FRONT_BAR_PX : 10, padRight: rowGroupsForStudio(c.studioId, c.gymId) ? 36 : (frontSide ? 10 + FRONT_BAR_PX : 10), lockWidth: mobileRotation !== 0 || isPreferredSummaryFlow });
+    const fit = makeUniformFit(displaySlots, { boxW: fitBoxW, boxH: initialMapHeight, pad: frontSide ? 10 + FRONT_BAR_PX : 10, padRight: rowGroupsForStudio(c.studioId, c.gymId) ? 36 : (frontSide ? 10 + FRONT_BAR_PX : 10), lockWidth: mobileRotation !== 0 || isPreferredSummaryFlow, rotated: mobileRotation !== 0, minGapPx: mobileRotation !== 0 ? ROTATED_MIN_GAP_PX : undefined });
     initialMapHeight = Math.max(initialMapHeight, fit.neededH);
     if (isPreferredSummaryFlow) title.textContent = isAutoBookMode ? COPY.bookingFlow.titleAutoBook : COPY.bookingFlow.titleFinishQuickBook;
     const preferredSummaryIdentity = isPreferredSummaryFlow
-      ? `<div class="app-preferred-summary-identity"><strong>${escapeHtml(classCtx.className)}</strong>${classCtx.instructorName ? `<span>${escapeHtml(formatCopyText(COPY.bookingFlow.withInstructor, { instructor: classCtx.instructorName }))}</span>` : ''}</div>${isAutoBookMode ? '<p class="app-preferred-summary-impact">Changing these studio preferences also affects your other Auto-Books here.</p>' : ''}`
+      ? `<div class="app-preferred-summary-identity"><strong>${escapeHtml(classCtx.className)}</strong>${classCtx.instructorName ? `<span>${escapeHtml(formatCopyText(COPY.bookingFlow.withInstructor, { instructor: classCtx.instructorName }))}</span>` : ''}</div>${isAutoBookMode && !opts.autoBookEdit ? '<p class="app-preferred-summary-impact">Changing these studio preferences also affects your other Auto-Books here.</p>' : ''}`
       : '';
     body.innerHTML = `
       <div id="app-modal-info-banner" style="margin-bottom:10px;"></div>
       ${preferredSummaryIdentity}
-      <div id="app-floor-plan-container" class="app-floor-plan-container${isPreferredSummaryFlow ? ' is-preferred-summary' : ''}" style="position:relative;height:${initialMapHeight}px;background:var(--surface-inset);border:1px solid var(--border);border-radius:12px;margin-bottom:10px;overflow:hidden;">
-        <div id="app-floor-plan-grid" style="width:100%;height:100%;"></div>
+      <div id="app-floor-plan-container" class="app-floor-plan-container${isPreferredSummaryFlow ? ' is-preferred-summary' : ''}" style="position:relative;height:${isPreferredSummaryFlow ? Math.min(initialMapHeight, SUMMARY_MAP_MAX_H) : initialMapHeight}px;background:var(--surface-inset);border:1px solid var(--border);border-radius:12px;margin-bottom:10px;overflow:hidden;">
+        <div id="app-floor-plan-grid" style="width:100%;height:${isPreferredSummaryFlow ? `${initialMapHeight}px` : '100%'};"></div>
       </div>
       ${isPreferredSummaryFlow ? '' : '<div id="app-map-hint"></div>'}
       <div id="app-slot-summary" style="font-size:12px;color:var(--text-secondary);margin-bottom:12px;min-height:16px;${opts.setupFlow ? 'display:none;' : ''}"></div>
@@ -4169,9 +4172,13 @@ export async function openBookingModal(c, mode, opts = {}) {
 
     // Pre-populate from saved studio prefs (auto-book and quick-book modes)
     let hasExistingPrefs = false;
+    // The LIVE shared map (what Auto-Book will actually use). Edit seeds from this,
+    // never from the queue entry's snapshot, so a removed map stays removed.
+    let liveMapPrefs = { preferredSlots: [], preferredRows: [] };
     try {
       const studioPrefs = await api.getStudioPreferences();
       const prefs = (c.gymId && studioPrefs[`${c.gymId}:${c.studioId}`]) || studioPrefs[c.studioId] || {};
+      liveMapPrefs = { preferredSlots: prefs.preferredSlots || [], preferredRows: prefs.preferredRows || [] };
       hasExistingPrefs = (prefs.preferredSlots?.length > 0) || (prefs.preferredRows?.length > 0);
       if (isAutoBookMode || isQuickBookMode) {
         (prefs.preferredSlots || []).forEach(s => state.selectedSlots.push(String(s)));
@@ -4187,8 +4194,8 @@ export async function openBookingModal(c, mode, opts = {}) {
     if (opts.autoBookEdit?.preferences) {
       const editPrefs = opts.autoBookEdit.preferences;
       state.selectedSlots.length = 0;
-      (editPrefs.preferredSlots || []).forEach((slot) => state.selectedSlots.push(String(slot)));
-      state.selectedRows = new Set(rowGroups ? (editPrefs.preferredRows || []).map(Number) : []);
+      liveMapPrefs.preferredSlots.forEach((slot) => state.selectedSlots.push(String(slot)));
+      state.selectedRows = new Set(rowGroups ? liveMapPrefs.preferredRows.map(Number) : []);
       state.qty = Number(editPrefs.requiredCount) || 1;
       state.bookAny = editPrefs.bookAny !== false;
       state.prioritizeTogether = editPrefs.prioritizeTogether === true;
@@ -4284,7 +4291,7 @@ export async function openBookingModal(c, mode, opts = {}) {
         qty, bookAny: ep.bookAny !== false, prioritizeTogether: ep.prioritizeTogether === true,
         guestEmails: (ep.guests || []).slice(0, guestCount).map((g) => g.email),
         autoUpgrade: guestCount > 0 ? false : (ep.autoUpgrade ?? isAutoUpgradeDefaultEnabled(c.gymId)) === true,
-        slots: (ep.preferredSlots || []).map(String), rows: rowGroups ? (ep.preferredRows || []).map(Number) : [],
+        slots: liveMapPrefs.preferredSlots.map(String), rows: rowGroups ? liveMapPrefs.preferredRows.map(Number) : [],
       };
     };
     const editCurrent = () => {
@@ -4488,7 +4495,11 @@ export async function openBookingModal(c, mode, opts = {}) {
         const overlay = document.createElement('div');
         overlay.className = 'app-preferred-summary-overlay';
         const text = document.createElement('div');
-        text.textContent = preferredSummaryText(isAutoBookMode ? 'autobook' : 'quickbook', state.qty, appConfig.appName || document.title);
+        const noMapOnEdit = !!opts.autoBookEdit && state.selectedSlots.length === 0 && state.selectedRows.size === 0;
+        text.textContent = noMapOnEdit
+          ? COPY.bookingFlow.noPreferredMap
+          : preferredSummaryText(isAutoBookMode ? 'autobook' : 'quickbook', state.qty, appConfig.appName || document.title);
+        if (noMapOnEdit) text.id = 'app-no-preferred-map';
         overlay.appendChild(text);
         if (opts.autoBookEdit) {
           // Editing an existing Auto-Book has no header Back to the map editor; this link replaces it.
@@ -4497,7 +4508,7 @@ export async function openBookingModal(c, mode, opts = {}) {
           link.type = 'button';
           link.className = 'app-preferred-summary-edit';
           link.id = 'btn-edit-preferred-spots';
-          link.textContent = COPY.bookingFlow.editPreferredSpots;
+          link.textContent = noMapOnEdit ? COPY.bookingFlow.setPreferredSpots : COPY.bookingFlow.editPreferredSpots;
           link.onclick = () => goBackToPreferredEditor();
           overlay.appendChild(link);
         } else {

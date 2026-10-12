@@ -35,9 +35,18 @@ d2('orderTogetherSlots (Quick-Book self group togetherness)', () => {
 });
 
 d2('cancel & rebook setting visibility', () => {
-  i2('hidden only for gyms with a direct swap', () => {
-    e2(showCancelRebookSetting({ capabilities: { atomicSwap: true } })).toBe(false);
-    e2(showCancelRebookSetting({ capabilities: { atomicSwap: false } })).toBe(true);
+  i2('follows the explicit cancelRebookUpgrade capability, not atomicSwap', () => {
+    e2(showCancelRebookSetting({ capabilities: { cancelRebookUpgrade: false, atomicSwap: false } })).toBe(false);
+    e2(showCancelRebookSetting({ capabilities: { cancelRebookUpgrade: true, atomicSwap: true } })).toBe(true);
+    e2(showCancelRebookSetting({ capabilities: { atomicSwap: true } })).toBe(true); // unknown defaults ON
     e2(showCancelRebookSetting({})).toBe(true);
+  });
+});
+
+d2('edit Auto-Book summary copy', () => {
+  i2('the "affects your other Auto-Books" note is not rendered when editing', async () => {
+    const src = (await import('./timetable.js?raw')).default;
+    const line = src.split('\n').find((l) => l.includes('app-preferred-summary-impact'));
+    e2(line).toContain('isAutoBookMode && !opts.autoBookEdit');
   });
 });

@@ -71,4 +71,3 @@ describe('renderFilterRail gym quick selection', () => {
     expect(btns[1].getAttribute('data-fr-gymquick')).toBe('jab');
   });
 });
-

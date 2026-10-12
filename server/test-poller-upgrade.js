@@ -73,7 +73,11 @@ function cleanup() {
     // single preferred slot 11 (best + available). start_at >12h away → not cutoff.
     const startAt = new Date(Date.now() + 2 * 864e5).toISOString();
     const prefs = { preferredSlots: [11], preferredRows: [] };
-    db.addAutoUpgrade(userId, 1000, 123456, 25, 'Ride 45', 'Instructor', 'Ride Studio', 'Mortimer Street', startAt, prefs, 138, 'Ride');
+    // Psycle upgrades with the native in-place swap (PATCH /bookings/{id}), which
+    // needs a booking that really exists in the mock, not a made-up id.
+    const seeded = await require('./providers').getProvider('psycle-london').bookSlot('1000', ['25'], { accessToken: 'mock-jwt-token' });
+    assert.ok(seeded.ok, 'seeded a real mock booking on slot 25');
+    db.addAutoUpgrade(userId, 1000, Number(seeded.bookingId), 25, 'Ride 45', 'Instructor', 'Ride Studio', 'Mortimer Street', startAt, prefs, 138, 'Ride');
     // The shared live studio map is the real source of truth the poller reads.
     db.setStudioPreference(userId, 138, prefs);
 

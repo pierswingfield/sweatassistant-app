@@ -140,7 +140,7 @@ const GYMS = {
       legacy: { advancedBookingDays: 7 },
     },
     capabilities: {
-      atomicSwap: false,        // no spot-swap API → cancel-then-rebook
+      atomicSwap: true,         // PATCH v2 /bookings/{id} {slot} (live 2026-10-11); adapter falls back to cancel-rebook only if the endpoint vanishes
       nativeWaitlist: false,
       metered: true,            // classes cost credits from a balance
       creditPurchase: true,     // in-app Stripe cart

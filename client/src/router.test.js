@@ -39,6 +39,12 @@ describe('commitFilterChange', () => {
     expect(history.length).toBe(start);
     expect(location.search).toBe('?gym=z');
   });
+  it('commitFilterChange and commitNow attach manualFilter: true to history.state', () => {
+    commitFilterChange('/timetable?gym=a');
+    expect(history.state?.manualFilter).toBe(true);
+    commitNow('/timetable?gym=a&day=2026-10-07');
+    expect(history.state?.manualFilter).toBe(true);
+  });
 });
 
 describe('safeReturnTo', () => {

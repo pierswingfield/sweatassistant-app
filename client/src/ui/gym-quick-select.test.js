@@ -32,9 +32,9 @@ describe('quickSelectItems', () => {
   it('initial: nothing saved shows every linked gym', () => {
     expect(quickSelectItems([], ALL).filter(i => i.shown).map(i => i.gymId)).toEqual(ALL);
   });
-  it('unlinked gyms render but are never shown, and never count as "all"', () => {
+  it('unlinked gyms are not rendered in quick select', () => {
     const items = quickSelectItems([], ALL, ['a', 'b']);
-    expect(items.map(i => [i.gymId, i.linked, i.shown])).toEqual([['a', true, true], ['b', true, true], ['c', false, false]]);
+    expect(items.map(i => [i.gymId, i.linked, i.shown])).toEqual([['a', true, true], ['b', true, true]]);
   });
   it('tapping an unlinked gym leaves the filter unchanged', () => {
     expect(nextGymSelection(['a'], ['a', 'b'], 'c')).toEqual(['a']);

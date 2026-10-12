@@ -161,12 +161,12 @@ export function renderFilterRail(ctx) {
   // re-rendered on every filter change, so this re-evaluates for free.
   const noFilters = selectedCount(state) === 0;
   // Gym quick-selector: one small round logo per gym, beside Filters. Tap narrows to that gym.
-  const configured = (ctx.allGyms && ctx.allGyms.length ? ctx.allGyms : ctx.gyms) || [];
-  if (ctx.setGymQuick && configured.length > 1) {
-    const items = quickSelectItems(state.gyms, configured.map(g => g.id), ctx.gyms.map(g => g.id));
-    parts.push(`<span class="fr-gymquick${gymStackOpen ? ' is-open' : ''}" role="group" aria-label="${escapeHtml(COPY.filters.gymQuickGroup)}">${items.map(({ gymId, shown, linked }, gi) => {
+  const linkedGyms = ctx.gyms || [];
+  if (ctx.setGymQuick && linkedGyms.length > 1) {
+    const items = quickSelectItems(state.gyms, linkedGyms.map(g => g.id));
+    parts.push(`<span class="fr-gymquick${gymStackOpen ? ' is-open' : ''}" role="group" aria-label="${escapeHtml(COPY.filters.gymQuickGroup)}">${items.map(({ gymId, shown }, gi) => {
       const name = gymBrand(gymId).name;
-      const label = formatCopyText(!linked ? COPY.filters.gymQuickUnlinked : shown ? COPY.filters.gymQuickShown : COPY.filters.gymQuickHidden, { name });
+      const label = formatCopyText(shown ? COPY.filters.gymQuickShown : COPY.filters.gymQuickHidden, { name });
       return `<button type="button" style="z-index:${items.length - gi}" class="fr-gymquick-btn${shown ? ' is-shown' : ' is-off'}" data-fr-gymquick="${escapeHtml(gymId)}" aria-pressed="${shown}" aria-label="${escapeHtml(label)}">${gymDot(gymId, 'lg')}${shown ? '<svg class="fr-gymquick-tick" viewBox="0 0 10 10" aria-hidden="true"><path d="M2 5.2 4.2 7.4 8 2.8"/></svg>' : ''}</button>`;
     }).join('')}</span>`);
   }
@@ -194,10 +194,7 @@ export function renderFilterRail(ctx) {
   }
   if (state.instructors.length) {
     const first = ctx.instructors.find(i => String(i.id) === state.instructors[0]);
-    const gymIds = (ctx.gyms || []).map(g => g.id);
-    const configured = (ctx.allGyms && ctx.allGyms.length ? ctx.allGyms : ctx.gyms) || [];
-    const configuredGymIds = configured.map(g => g.id);
-    const targetGymIds = configuredGymIds.length > 1 ? configuredGymIds : gymIds;
+    const targetGymIds = (ctx.gyms || []).map(g => g.id);
 
     // U6-15: Several gyms: tile folds into grand total count on scroll (e.g. "8 Instructors" or "8+ Instructors" if any configured gym has no instructor filter).
     if (targetGymIds.length > 1) {

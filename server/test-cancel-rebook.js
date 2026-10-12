@@ -29,9 +29,10 @@ function policyChecks() {
   assert.strictEqual(policy.cancelRebookEnabled({}, gc(undefined)), false, 'missing capability is off server-side');
   assert.strictEqual(policy.cancelRebookEnabled({}, null), false);
   const cfgs = require('./gyms.config');
-  assert.strictEqual(cfgs.getGymConfig('psycle-london').capabilities.cancelRebookUpgrade, true);
+  assert.strictEqual(cfgs.getGymConfig('psycle-london').capabilities.cancelRebookUpgrade, false);
   assert.strictEqual(cfgs.getGymConfig('jab-boxing').capabilities.cancelRebookUpgrade, false);
   assert.strictEqual(cfgs.getGymConfig('aarmy').capabilities.cancelRebookUpgrade, false);
+  assert.strictEqual(policy.cancelRebookEnabled({ autoUpgradeCancelRebook: true }, cfgs.getGymConfig('psycle-london')), false, 'Psycle (native swap) never cancels and rebooks, whatever the stored setting');
   assert.strictEqual(policy.evaluateCancelRebook(base).allowed, true);
   assert.strictEqual(policy.evaluateCancelRebook({ ...base, bookFirstPossible: true }).reason, 'book-first', 'spare credit: book-first');
   assert.strictEqual(policy.evaluateCancelRebook({ ...base, enabled: false }).reason, 'setting-off');
@@ -278,8 +279,9 @@ async function engineChecks(poller) {
     // Psycle now swaps in place (atomicSwap); these checks exercise the cancel-then-rebook path, so model a gym without a swap API.
     const _swapCaps = require('./gyms.config').getGymConfig('psycle-london').capabilities;
     const _prevSwap = _swapCaps.atomicSwap;
-    _swapCaps.atomicSwap = false;
-    try { await engineChecks(require('./poller')); } finally { _swapCaps.atomicSwap = _prevSwap; }
+    const _prevCr = _swapCaps.cancelRebookUpgrade;
+    _swapCaps.atomicSwap = false; _swapCaps.cancelRebookUpgrade = true; // model a gym that still cancels and rebooks
+    try { await engineChecks(require("./poller")); } finally { _swapCaps.atomicSwap = _prevSwap; _swapCaps.cancelRebookUpgrade = _prevCr; }
     console.log('\n🎉 CANCEL & REBOOK CHECKS PASSED.\n');
   } catch (err) { failed = 1; console.error('\n❌ FAILED:\n', err, '\n'); }
   finally { for (const f of [tmpDb, `${tmpDb}-wal`, `${tmpDb}-shm`]) { try { fs.unlinkSync(f); } catch (_) {} } }

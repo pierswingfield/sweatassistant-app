@@ -4,6 +4,8 @@ Updated: 2026-10-10. Working tree: `/Users/pierswingfield/.codex/worktrees/3b16/
 
 ## Resume here
 
+[Claude 2026-10-12] PR #12 merged as 4b71e02 into master and deployed to dev.
+[Claude 2026-10-12] Psycle cancel & rebook switched off (`cancelRebookUpgrade: false`) now that the native PATCH swap exists (this PR).
 [Claude 2026-10-12] Pushed 7512555, 3ce2a23, 7495cf8, dd04408, b90af3a on autobook-flow-rework; deployed to dev only (JS index-CoLpYJAy.js, health ok, pre-deploy backup taken). Prod untouched.
 - [Claude 2026-10-11] Committed and pushed `autobook-flow-rework`: 5c20b52 (rotated-map centring, front marker, overlay confinement), ec0381e (guest-group togetherness, companion planner), d6115b2 (per-gym cancel-and-rebook setting), 0a181bd (My Bookings/Edit Auto-Book UI). Deployed to DEV twin only (served JS index-D1w8XF4w.js matches local build, health ok, pre-deploy SQLite backup taken); prod untouched. Tests: 86/86 server, 644 client, build ok (Node 20).
 - [Claude 2026-10-11] Group Auto-Upgrade committed and pushed on `autobook-flow-rework`: 2d2a763 (server model/poller/route/tests), 6f4551c (My Bookings group monitor client), 102b4c2 (review-fix hardening). Tests: client 629 pass, server 85/85, build ok. Pre-deploy SQLite backup taken. Deployed to DEV twin only: container up, /api/health ok, served JS index-ChH3rRe9.js equals local build, `auto_upgrade_members` exists, 0 active auto_upgrades rows on dev. Prod untouched.

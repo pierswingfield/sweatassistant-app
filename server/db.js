@@ -1493,6 +1493,17 @@ module.exports = {
     return db.prepare('SELECT * FROM studio_preferences WHERE user_id = ? AND gym_id = ?')
       .all(userId, gymId || resolveActiveGymId(userId));
   },
+  // How many queued Auto-Books and live Auto-Upgrades depend on one studio's shared
+  // map (this gym + studio only). Shown before the member removes the map.
+  countStudioMapDependents(userId, studioId, gymId = null) {
+    const targetGym = resolveGymStrict(userId, gymId, 'countStudioMapDependents');
+    const sid = String(studioId);
+    const autoBooks = db.prepare("SELECT COUNT(*) AS n FROM auto_bookings WHERE user_id = ? AND gym_id = ? AND CAST(studio_id AS TEXT) = ? AND status = 'pending' AND executed_at IS NULL")
+      .get(userId, targetGym, sid).n;
+    const autoUpgrades = db.prepare("SELECT COUNT(*) AS n FROM auto_upgrades WHERE user_id = ? AND gym_id = ? AND CAST(studio_id AS TEXT) = ? AND status IN ('active','paused_no_credits','paused_disabled')")
+      .get(userId, targetGym, sid).n;
+    return { autoBooks, autoUpgrades };
+  },
   // Resolve a single studio's live preferred spot map (the shared source of truth).
   // `studio_id` is a PROVIDER id, unique only inside one gym — pass the ROW's own
   // gym whenever you have one, exactly as the writer (setStudioPreference) does.

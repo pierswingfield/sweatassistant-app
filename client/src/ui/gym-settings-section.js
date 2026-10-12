@@ -75,9 +75,10 @@ function membershipHtml(gym, membership, credits) {
   return `<p class="app-card-desc">${COPY.gymSettings.membershipManagedByGym}</p>`;
 }
 
-// Cancel & rebook only matters where there is no direct spot swap.
+// Per-gym capability `cancelRebookUpgrade` (gyms.config.js), independent of atomicSwap.
+// Unknown defaults ON like other capability flags.
 export function showCancelRebookSetting(gym) {
-  return gym?.capabilities?.atomicSwap !== true;
+  return gym?.capabilities?.cancelRebookUpgrade !== false;
 }
 
 function autoUpgradeHtml(settings, gym = {}) {

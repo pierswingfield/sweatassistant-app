@@ -12,7 +12,10 @@ const CANCEL_REBOOK_DEFAULT = true;
 const MIN_FREE_SPOTS = 3;     // unbooked spots in the class right now
 const CUTOFF_HOURS = 12;      // the gym's existing upgrade cutoff
 
-function cancelRebookEnabled(settings) {
+// `gymCfg` (gyms.config.js entry): the per-gym capability `cancelRebookUpgrade` must be true,
+// whatever the stored setting says. Omitted gymCfg = judge the setting alone (pure callers).
+function cancelRebookEnabled(settings, gymCfg) {
+  if (gymCfg !== undefined && !(gymCfg && gymCfg.capabilities && gymCfg.capabilities.cancelRebookUpgrade === true)) return false;
   const v = settings && settings.autoUpgradeCancelRebook;
   return typeof v === 'boolean' ? v : CANCEL_REBOOK_DEFAULT;
 }

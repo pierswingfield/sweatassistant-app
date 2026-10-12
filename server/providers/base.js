@@ -271,6 +271,7 @@
  * Capability flags — the UI/scheduler read these to decide what to show/do.
  * @typedef {Object} ProviderCapabilities
  * @property {boolean} atomicSwap        Native spot swap (MT) vs cancel-rebook (CodexFit).
+ * @property {boolean} cancelRebookUpgrade  Auto-Upgrade may cancel then rebook (per-gym config, independent of atomicSwap).
  * @property {boolean} nativeWaitlist    Provider auto-fills waitlists itself.
  * @property {boolean} creditPurchase    In-app credit/bundle purchase supported.
  * @property {boolean} bookmarks         Favourites/bookmarks supported.

@@ -141,6 +141,7 @@ const GYMS = {
     },
     capabilities: {
       atomicSwap: false,        // no spot-swap API → cancel-then-rebook
+      cancelRebookUpgrade: true, // may cancel + rebook to upgrade (member setting, poller-honoured). Independent of atomicSwap: switch off per gym by what its backend supports
       nativeWaitlist: false,
       metered: true,            // classes cost credits from a balance
       creditPurchase: true,     // in-app Stripe cart
@@ -259,6 +260,7 @@ const GYMS = {
     },
     capabilities: {
       atomicSwap: true,         // POST /me/reservations/{id}/swap_spots
+      cancelRebookUpgrade: false, // swap exists; cancel + rebook is never used
       nativeWaitlist: true,     // MT auto-fills + SMS
       // Membership-based: a class doesn't draw down a credit balance, so any
       // "you need N more credits" arithmetic is meaningless here. Distinct from
@@ -358,6 +360,7 @@ const GYMS = {
     },
     capabilities: {
       atomicSwap: true,
+      cancelRebookUpgrade: false,
       nativeWaitlist: true,
       metered: true,            // credits-only gym: classes draw from a credit balance (like Psycle)
       creditPurchase: false,    // no confirmed in-app purchase API for MarianaTek

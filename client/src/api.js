@@ -1247,6 +1247,13 @@ export const api = {
     });
   },
 
+  // Auto-Books/Auto-Upgrades that rely on this studio's shared map (gym-scoped).
+  async getStudioMapUsage(studioId, gymId = null) {
+    const res = await apiFetch(`/api/studio-preferences/${studioId}/usage`, { gymId });
+    if (!res.ok) throw new Error('Failed to load spot map usage');
+    return res.json();
+  },
+
   async updateStudioPreferences(studioId, preferences, gymId = null) {
     const res = await apiFetch(`/api/studio-preferences/${studioId}`, {
       method: 'PUT',

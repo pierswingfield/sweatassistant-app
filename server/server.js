@@ -1036,6 +1036,14 @@ app.get('/api/studio-preferences', authenticateToken, (req, res) => {
   }
 });
 
+app.get('/api/studio-preferences/:id/usage', authenticateToken, (req, res) => {
+  try {
+    res.json(db.countStudioMapDependents(req.userId, req.params.id));
+  } catch (err) {
+    res.status(/no gym specified/i.test(err.message) ? 400 : 500).json({ message: err.message });
+  }
+});
+
 app.put('/api/studio-preferences/:id', authenticateToken, (req, res) => {
   // MarianaTek provider ids can be opaque strings; preserve them exactly.
   const studioId = req.params.id;

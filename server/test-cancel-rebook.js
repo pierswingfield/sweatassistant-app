@@ -23,6 +23,15 @@ function policyChecks() {
   assert.strictEqual(policy.cancelRebookEnabled({}), true);
   assert.strictEqual(policy.cancelRebookEnabled({ autoUpgradeCancelRebook: false }), false);
   assert.strictEqual(policy.cancelRebookEnabled({ autoUpgradeCancelRebook: true }), true);
+  const gc = (v) => ({ capabilities: { cancelRebookUpgrade: v } });
+  assert.strictEqual(policy.cancelRebookEnabled({}, gc(true)), true);
+  assert.strictEqual(policy.cancelRebookEnabled({ autoUpgradeCancelRebook: true }, gc(false)), false, 'capability off beats the setting');
+  assert.strictEqual(policy.cancelRebookEnabled({}, gc(undefined)), false, 'missing capability is off server-side');
+  assert.strictEqual(policy.cancelRebookEnabled({}, null), false);
+  const cfgs = require('./gyms.config');
+  assert.strictEqual(cfgs.getGymConfig('psycle-london').capabilities.cancelRebookUpgrade, true);
+  assert.strictEqual(cfgs.getGymConfig('jab-boxing').capabilities.cancelRebookUpgrade, false);
+  assert.strictEqual(cfgs.getGymConfig('aarmy').capabilities.cancelRebookUpgrade, false);
   assert.strictEqual(policy.evaluateCancelRebook(base).allowed, true);
   assert.strictEqual(policy.evaluateCancelRebook({ ...base, bookFirstPossible: true }).reason, 'book-first', 'spare credit: book-first');
   assert.strictEqual(policy.evaluateCancelRebook({ ...base, enabled: false }).reason, 'setting-off');
@@ -123,6 +132,19 @@ async function engineChecks(poller) {
   assert.deepStrictEqual(G.ops, [], 'setting off: no cancel, no booking');
   assert.strictEqual(monitor(id).status, 'paused_no_credits', 'setting off keeps the old no-credit pause');
   console.log('✅ Setting off blocks cancel & rebook (single).');
+
+  // Capability off for the gym: whatever the stored setting (default ON) says, no cancel & rebook.
+  {
+    const caps = require('./gyms.config').getGymConfig(GYM).capabilities;
+    const prev = caps.cancelRebookUpgrade;
+    clear(); u = user(); setSetting(u, true);
+    reset({ held: [[6251, 9, u.tok]] });
+    id = addMonitor(u, 6251, '9', ['1']);
+    caps.cancelRebookUpgrade = false;
+    try { await poller.executeAutoUpgradeChecks(); } finally { caps.cancelRebookUpgrade = prev; }
+    assert.deepStrictEqual(G.ops, [], 'capability off: no cancel, no booking even with the setting on');
+    console.log('✅ Capability cancelRebookUpgrade=false blocks cancel & rebook despite the setting.');
+  }
 
   // Fewer than 3 free spots (12 seats: 9 held by others + own = 10 taken, 2 free).
   clear(); u = user();

@@ -1,0 +1,23 @@
+# EXPERIMENT twin (sweat-experiment.wingfield.tech), ~/services/sweatassistant-experiment/ on oracle.
+# Service name differs from dev/prod: it is a DNS alias on the shared edge network.
+services:
+  sweatassistant-experiment:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: sweatassistant-experiment
+    ports:
+      - "100.86.226.52:3006:3000"   # tailnet only, never 0.0.0.0
+    volumes:
+      - ./data:/data
+    env_file:
+      - .env
+    restart: unless-stopped
+    networks:
+      - default
+      - edge
+
+networks:
+  edge:
+    external: true
+    name: edge

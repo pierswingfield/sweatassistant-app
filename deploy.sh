@@ -2,10 +2,12 @@
 #
 # Sweat Assistant: deploy to the oracle VM (C7-8).
 #
-# Both environments live on `oracle`:
+# All environments live on `oracle`:
 #
 #   dev twin  ~/services/sweatassistant-dev/   compose: docker-compose.yml        sweat-dev.wingfield.tech  (default)
 #   prod      ~/services/sweatassistant/       compose: docker-compose.prod.yml   sweat.wingfield.tech
+#   experiment ~/services/sweatassistant-experiment/ compose: docker-compose.experiment.yml  sweat-experiment.wingfield.tech
+#             (throwaway twin for trying a branch; Piers-only Access; its DB is a copy, never prod's)
 #
 # The flow is what was done by hand: rsync the tree, then
 # `docker compose up -d --build` on the host. Nothing here writes .env or
@@ -18,6 +20,7 @@
 #   ./deploy.sh                 deploy to the dev twin
 #   ./deploy.sh --print         show every command, run nothing (no ssh at all)
 #   ./deploy.sh --prod          deploy to prod (asks you to type "deploy prod")
+#   ./deploy.sh --experiment    deploy the working tree (any branch/worktree) to the experiment twin
 #
 # Env: DEPLOY_HOST (default oracle), DEPLOY_DOCKER (default "docker"; set to
 # "sudo docker" if the login user is not in the docker group).
@@ -32,6 +35,7 @@ for arg in "$@"; do
   case "$arg" in
     --prod)  TARGET=prod ;;
     --dev)   TARGET=dev ;;
+    --experiment) TARGET=experiment ;;
     --print) PRINT=1 ;;
     -h|--help) sed -n '2,/^set -euo/p' "$0" | sed '$d' | sed 's/^# \{0,1\}//'; exit 0 ;;
     *) echo "Unknown argument: $arg (try --help)" >&2; exit 2 ;;
@@ -42,6 +46,10 @@ if [ "$TARGET" = prod ]; then
   REMOTE_DIR='~/services/sweatassistant'
   COMPOSE_FILE='docker-compose.prod.yml'
   HEALTH_URL='https://sweat.wingfield.tech/api/health'
+elif [ "$TARGET" = experiment ]; then
+  REMOTE_DIR='~/services/sweatassistant-experiment'
+  COMPOSE_FILE='docker-compose.experiment.yml'
+  HEALTH_URL='https://sweat-experiment.wingfield.tech/api/health'
 else
   REMOTE_DIR='~/services/sweatassistant-dev'
   COMPOSE_FILE='docker-compose.yml'
@@ -49,14 +57,18 @@ else
 fi
 
 # Always excluded: secrets, the database volume, build output, dependencies, VCS.
-EXCLUDES=(--exclude .env --exclude '.env.*' --exclude data/ --exclude node_modules/
-          --exclude client/node_modules/ --exclude server/node_modules/
-          --exclude client/dist/ --exclude server/public/ --exclude .git/
+EXCLUDES=(--exclude .env --exclude '.env.*' --exclude data/ --exclude node_modules
+          --exclude client/node_modules --exclude server/node_modules
+          --exclude client/dist/ --exclude server/public/ --exclude .git/ --exclude .claude/ --exclude scratch/
           --exclude .DS_Store --exclude '*.db' --exclude '*.db-shm' --exclude '*.db-wal')
 # docker-compose.yml is the DEV twin's (container sweatassistant-dev, bound to the tailnet
 # address); prod runs docker-compose.prod.yml (container sweatassistant, no published port).
 # Each target ships only its own file so one can never overwrite the other.
-if [ "$TARGET" = prod ]; then EXCLUDES+=(--exclude docker-compose.yml); else EXCLUDES+=(--exclude docker-compose.prod.yml); fi
+case "$TARGET" in
+  prod)       EXCLUDES+=(--exclude docker-compose.yml --exclude docker-compose.experiment.yml) ;;
+  experiment) EXCLUDES+=(--exclude docker-compose.yml --exclude docker-compose.prod.yml) ;;
+  *)          EXCLUDES+=(--exclude docker-compose.prod.yml --exclude docker-compose.experiment.yml) ;;
+esac
 
 RSYNC=(rsync -az "${EXCLUDES[@]}" ./ "$HOST:$REMOTE_DIR/")
 REMOTE_UP="cd $REMOTE_DIR && $DOCKER compose -f $COMPOSE_FILE up -d --build && $DOCKER compose -f $COMPOSE_FILE ps"

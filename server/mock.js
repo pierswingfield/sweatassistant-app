@@ -210,6 +210,8 @@ function mockWaitlistEventSummary(eventId) {
 }
 
 const mockNow = new Date();
+const UNRELEASED_EVENT_ID = 1036;
+const UNRELEASED_DAY = 18;
 const mockD1 = new Date(mockNow.getTime() + 2 * 864e5).toISOString();
 const mockD2 = new Date(mockNow.getTime() + 5 * 864e5).toISOString();
 
@@ -841,6 +843,25 @@ function handleMockRequest(pathName, method, body) {
           // below). The mock used to embed them, which made it more generous
           // than reality and hid the 2026-08-31 "CLASS" regression from tests.
         });
+      });
+    }
+
+    // Dev-only: one Ride Studio class 18 days out, beyond the booking window, so it is NOT yet
+    // released (Auto-Book count/togetherness testing). 40-spot map, plenty free. Id 1036 maps to
+    // day 18 in the GET /events/{id} detail derivation above, so list and detail agree.
+    const unreleasedDate = new Date(now.getTime() + UNRELEASED_DAY * 24 * 60 * 60 * 1000).toISOString().split('T')[0];
+    const rideSlot = WEEKDAY_SCHEDULE.find(([, , studioId]) => studioId === 138);
+    if (rideSlot && (!rangeFrom || (unreleasedDate >= rangeFrom && unreleasedDate < rangeTo))) {
+      const [, rideTypeId, rideStudioId] = rideSlot;
+      const rideType = eventTypes.find((t) => t.id === rideTypeId);
+      classes.push({
+        id: UNRELEASED_EVENT_ID, name: rideType.name, start_at: `${unreleasedDate}T08:30:00.000Z`,
+        studio_id: rideStudioId, location_id: studios.find((st) => st.id === rideStudioId).location_id,
+        instructor_id: instructors[0].id, event_type_id: rideTypeId, capacity: 40, occupancy: 5,
+        is_fully_booked: false, is_waitlistable: true, waitlist_available: false, is_waitlist_full: false,
+        is_always_bookable: false, max_bookable_slots: 10, required_credits: 1,
+        credit_types: [{ credit_type: 1 }, { credit_type: 2 }, { credit_type: 8 }, { credit_type: 3 }],
+        accepted_credits: [{ credit_type_id: 1 }, { credit_type_id: 2 }, { credit_type_id: 8 }, { credit_type_id: 3 }],
       });
     }
 

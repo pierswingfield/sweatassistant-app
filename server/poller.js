@@ -22,6 +22,8 @@ const { zoneOfGym } = require('./providers/timezone');
 const { getGymConfig } = require('./gyms.config');
 const { formatSpotLabel } = require('./spot-label');
 const { policyOf, isRollingWeekly, mostRecentRelease } = require('./providers/booking-window');
+const { planGroupUpgrade } = require('./group-upgrade');
+const cancelRebook = require('./cancel-rebook-policy');
 
 // No module-level provider (WP-D7). Every fetch below resolves its gym — from
 // the ROW being processed where there is one (background work must run for a gym
@@ -181,7 +183,502 @@ async function originalBookingStillHeld(upgrade) {
   }
 }
 
+
+// ─── Group Auto-Upgrade ──────────────────────────────────────────────────────
+// A monitor with >1 rows in auto_upgrade_members moves ALL its reservations or none
+// "by design": it upgrades only when planGroupUpgrade() finds a target SET that is
+// better by preferred-map rank and at least as together as the current set.
+//
+//   atomic-swap gyms (MarianaTek): sequential swapSpots, one call per reservation.
+//   Psycle (no atomic swap), per move:
+//     book-first   - when a spare credit AND the per-class self limit allow one more
+//                    reservation: BOOK the target, and only once confirmed CANCEL the old.
+//     cancel-first - otherwise: cancel old then rebook target; if the rebook fails, rebook
+//                    the original spot, then the nearest free one.
+//   The first failed move aborts the rest. Cancels are restricted to the group's
+//   own pre-move booking ids (`oldSet`), so this path can never cancel a seat that
+//   is not part of the group.
+
+// No preferred spot map exists for the monitor's studio (removed or never set):
+// there is nothing to upgrade towards. Stop the monitor and tell the member once.
+function stopForMissingSpotMap(upgrade) {
+  const msg = 'Stopped: no preferred spot map for this studio. Set one in Settings > Spot Maps, then re-enable.';
+  db.updateAutoUpgrade(upgrade.id, upgrade.user_id, 'stopped', msg, { lastCheckedAt: new Date().toISOString() });
+  const key = `nomap:upgrade:${upgrade.id}`;
+  if (db.wasNotificationSent(upgrade.user_id, key)) return;
+  db.markNotificationSent(upgrade.user_id, key);
+  notifications.notify(upgrade.user_id, 'upgrade', {
+    kind: 'noSpotMap', gymId: upgrade.gym_id, groupName: upgrade.group_name,
+    className: upgrade.class_name, studioName: upgrade.studio_name,
+  });
+}
+
+function preferredOrderFor(layout, preferredSlots, preferredRows) {
+  const ordered = [...preferredSlots.map(String)];
+  (preferredRows || []).forEach((ry) => {
+    layout.filter((s) => Math.round(s.y * 10) / 10 === Number(ry)).forEach((s) => {
+      if (!ordered.includes(String(s.id))) ordered.push(String(s.id));
+    });
+  });
+  return ordered;
+}
+
+function groupSlotLabels(layout, ids) {
+  return ids.map((id) => {
+    const s = layout.find((l) => String(l.id) === String(id));
+    return s?.label ?? String(id);
+  });
+}
+
+// [Claude 2026-10-11] One run per group monitor at a time, and the seats an in-flight run
+// holds survive the next cycle's claimedSlots.clear().
+const groupInFlight = new Set();
+const heldGroupClaims = new Set();
+const GROUP_COOLDOWN_MS = 30 * 60 * 1000;
+const GROUP_MAX_RECOVERIES = 3;
+
+async function attemptGroupUpgrade(upgrade, members, isCutoffMode) {
+  if (groupInFlight.has(upgrade.id)) return;
+  groupInFlight.add(upgrade.id);
+  try { return await attemptGroupUpgradeInner(upgrade, members, isCutoffMode); }
+  finally { groupInFlight.delete(upgrade.id); }
+}
+
+async function attemptGroupUpgradeInner(upgrade, members, isCutoffMode) {
+  const eventId = String(upgrade.event_id);
+  const userId = upgrade.user_id;
+  const gymId = upgrade.gym_id; // the ROW's gym (C3-12)
+  const gym = getGymConfig(gymId);
+  const isAtomic = !!(gym && gym.capabilities && gym.capabilities.atomicSwap);
+  const nowIso = () => new Date().toISOString();
+  const stop = (msg) => db.updateAutoUpgrade(upgrade.id, userId, 'stopped', msg, { lastCheckedAt: nowIso() });
+
+  // Guests: a swap of a guest reservation is unproven on every platform, so a group
+  // that includes one is never moved (and a guest on the same class blocks it too).
+  if (members.some((m) => m.is_guest) || db.hasGuestBookingGroupForEvent(userId, gymId, eventId)) {
+    return stop("Auto-Upgrade isn't available yet for bookings that include a guest.");
+  }
+  if (!isAtomic && isCutoffMode) return stop('Stopped at 12h cutoff to avoid cancellation penalty.');
+
+  const prefs = JSON.parse(upgrade.preferences) || {};
+  // Back off after a recovery (target taken): no cancel/rebook churn every cycle.
+  if (prefs.groupCooldownUntil && Date.parse(prefs.groupCooldownUntil) > Date.now()) return;
+  const liveMap = db.getStudioPreference(userId, upgrade.studio_id, gymId) || {};
+  const preferredSlots = (liveMap.preferredSlots || []).map(String);
+  const preferredRows = liveMap.preferredRows || [];
+  if (preferredSlots.length === 0 && preferredRows.length === 0) return stopForMissingSpotMap(upgrade);
+  if (isGymRateLimited(gymId)) return;
+
+  const claimed = [];
+  let committed = false;
+  try {
+    let details = getCachedEvent(gymId, eventId);
+    if (!details) {
+      const provider = getProvider(gymId);
+      details = await provider.fetchEventDetails(eventId, db.getUserSession(userId, gymId));
+      if (!details) return;
+      setCachedEvent(gymId, eventId, details, 30000);
+    }
+    const layout = details.slots || [];
+    const available = layout.filter((s) => s && s.isAvailable).map((s) => String(s.id));
+    const preferredOrder = preferredOrderFor(layout, preferredSlots, preferredRows);
+    if (preferredOrder.length === 0) return;
+
+    // Fail closed: every member must still be held, and none may be a guest.
+    let bookings;
+    try { bookings = await listBookingsWithRelogin(userId, gymId); }
+    catch (err) { console.warn(`[Poller] Could not verify group ${upgrade.id}:`, err.message); return; }
+    const live = (bookings || []).filter((b) => b && !b.isWaitlist);
+    const resolved = [];
+    for (const m of members) {
+      // Ownership: a member must be one of the user's own live reservations on THIS event.
+      const row = live.find((b) => String(b.bookingId) === String(m.booking_id) && String(b.eventId) === eventId)
+        || live.find((b) => String(b.eventId) === eventId && String(b.slotId) === String(m.slot_id) && !members.some((o) => o !== m && String(o.booking_id) === String(b.bookingId)));
+      if (!row) return stop('A booking in the group no longer exists — monitoring stopped.');
+      if (row.isGuest) return stop("Auto-Upgrade isn't available yet for bookings that include a guest.");
+      if (String(row.bookingId) !== String(m.booking_id)) db.replaceAutoUpgradeMember(upgrade.id, m.booking_id, row.bookingId, row.slotId);
+      else if (String(row.slotId) !== String(m.slot_id)) db.setAutoUpgradeMemberSlot(upgrade.id, m.booking_id, row.slotId);
+      resolved.push({ bookingId: String(row.bookingId), slotId: String(row.slotId) });
+    }
+    // The ONLY ids this path may ever cancel.
+    const oldSet = new Set(resolved.map((m) => m.bookingId));
+
+    const plan = planGroupUpgrade({
+      layoutSlots: layout,
+      availableSlotIds: available,
+      currentSlotIds: resolved.map((m) => m.slotId),
+      preferredOrder,
+      prioritizeTogether: prefs.prioritizeTogether === true,
+    });
+    if (!plan || plan.moves.length === 0) {
+      db.updateAutoUpgrade(upgrade.id, userId, 'active', 'No better arrangement for the whole group. Monitoring...', { lastCheckedAt: nowIso() });
+      return;
+    }
+
+    // Fail before mutating anything: the ROW's gym must have a usable session.
+    {
+      const sess = db.getUserSession(userId, gymId);
+      const adapter = getProvider(gymId);
+      let mock = false;
+      try { mock = !!adapter.isMockUser(db.getUserById(userId), sess); } catch (_) {}
+      if (!mock && !(sess && sess.accessToken)) {
+        db.updateAutoUpgrade(upgrade.id, userId, 'active', 'No active session for this gym; the group was not touched. Monitoring...', { lastCheckedAt: nowIso() });
+        return;
+      }
+    }
+
+    for (const mv of plan.moves) {
+      const key = `${gymId}:${eventId}:${mv.to}`; // gym-qualified (C3-23)
+      if (claimedSlots.has(key)) return; // another monitor of this cycle holds a target seat
+    }
+    for (const mv of plan.moves) {
+      const key = `${gymId}:${eventId}:${mv.to}`;
+      claimedSlots.add(key); claimed.push(key); heldGroupClaims.add(key);
+    }
+
+    // Book-first needs a spare credit AND room under the per-class self limit.
+    let bookFirst = false;
+    if (!isAtomic) {
+      const isMetered = gym?.capabilities?.metered !== false;
+      let creditOk = true;
+      if (isMetered) {
+        const profileRes = await fetchFromGym(userId, gymId, '/profile');
+        if (!profileRes.ok) return;
+        const profileData = await profileRes.json();
+        const profile = profileData.data || profileData;
+        try { db.cacheUserProfile(userId, profile, gymId); } catch (_) {}
+        creditOk = hasUsableCredits(
+          (profile.available_credits || []).map((c) => ({
+            typeId: c.credit_type && c.credit_type.id != null ? String(c.credit_type.id) : undefined,
+            count: Number(c.count) || 0,
+            expiresAt: c.expires_at || undefined,
+            isGuestOnly: c.credit_type && typeof c.credit_type.is_guest_use_only === 'boolean' ? c.credit_type.is_guest_use_only : undefined,
+          })),
+          details && details.event && details.event.credits
+        );
+      }
+      const limit = Number(details.maxBookableSlots);
+      bookFirst = creditOk && Number.isFinite(limit) && resolved.length + 1 <= limit;
+
+      // Cancel penalties: fail closed. Any penalty (or unreadable answer) means no move at all.
+      const provider = getProvider(gymId);
+      for (const mv of plan.moves) {
+        const old = resolved.find((m) => m.slotId === mv.from);
+        try {
+          const pen = await provider.getCancelPenalty(old.bookingId, db.getUserSession(userId, gymId));
+          if (!cancelRebook.penaltyIsNone(pen)) {
+            db.updateAutoUpgrade(upgrade.id, userId, 'active', 'Moving the group would incur a cancellation penalty. Monitoring...', { lastCheckedAt: nowIso() });
+            return;
+          }
+        } catch (_) { return; }
+      }
+
+      // Cancel & rebook (no direct swap, book-first impossible): only under the
+      // policy's conditions, judged on LIVE availability, else skip this cycle.
+      if (!bookFirst) {
+        let freeSpots = 0;
+        let targetsFree = false;
+        try {
+          const fresh = await getProvider(gymId).fetchEventDetails(eventId, db.getUserSession(userId, gymId));
+          if (fresh) {
+            setCachedEvent(gymId, eventId, fresh, 30000);
+            const freeNow = new Set((fresh.slots || []).filter((s) => s && s.isAvailable).map((s) => String(s.id)));
+            freeSpots = freeNow.size;
+            targetsFree = plan.moves.every((mv) => freeNow.has(String(mv.to)));
+          }
+        } catch (_) { return; }
+        const decision = cancelRebook.evaluateCancelRebook({
+          enabled: cancelRebook.cancelRebookEnabled(db.getUserSettings(userId, gymId), getGymConfig(gymId) || null),
+          atomic: false, bookFirstPossible: false, freeSpots,
+          hoursUntilClass: DateTime.fromISO(upgrade.start_at, { zone: zoneOfGym(gymId) }).diff(DateTime.now(), 'hours').hours,
+          isCutoffMode, penaltyNone: true, // every move's penalty answer was 'none' above
+        });
+        if (!decision.allowed || !targetsFree) {
+          db.updateAutoUpgrade(upgrade.id, userId, 'active', cancelRebook.SKIP_MESSAGES[decision.reason] || 'The better spots were taken. Monitoring...', { lastCheckedAt: nowIso() });
+          return;
+        }
+      }
+    }
+
+    await new Promise((r) => setTimeout(r, 300 + Math.floor(Math.random() * 600)));
+
+    const moved = [];            // { fromSlot, toSlot }
+    let failure = null;          // { message, lost }
+    const usedTargets = new Set(plan.moves.map((m) => m.to));
+    const heldNow = new Set(resolved.map((m) => m.slotId));
+
+    const cancelOld = async (bookingId) => {
+      if (!oldSet.has(String(bookingId))) throw new Error(`Refusing to cancel booking ${bookingId}: not part of this group.`);
+      await apiCancelBooking(userId, gymId, bookingId);
+    };
+    const bookedIdFor = async (res, slot) => {
+      if (Number(res.bookingId) > 0) return Number(res.bookingId);
+      try {
+        const fresh = (await listBookingsWithRelogin(userId, gymId)) || [];
+        const hit = fresh.find((b) => !b.isWaitlist && String(b.eventId) === eventId && String(b.slotId) === String(slot) && !oldSet.has(String(b.bookingId)));
+        return hit ? Number(hit.bookingId) : 0;
+      } catch (_) { return 0; }
+    };
+
+    const doMove = async (mv) => {
+      const old = resolved.find((m) => m.slotId === mv.from);
+      if (isAtomic) {
+        const r = await swapSpotsWithRelogin(userId, gymId, old.bookingId, old.slotId, mv.to);
+        if (!r.ok && handleUpgradeThrottle(r, userId, gymId, `${gymId}:${eventId}:${mv.to}`)) { failure = { message: 'The gym is rate-limiting requests.', nochange: true }; return false; }
+        if (!r.ok) { failure = { message: r.error || 'Spot swap failed.', nochange: true }; return false; }
+        // swap keeps the reservation id on this platform; follow whatever it reports.
+        const nid = Number(r.bookingId) > 0 ? Number(r.bookingId) : Number(old.bookingId);
+        db.replaceAutoUpgradeMember(upgrade.id, old.bookingId, nid, mv.to);
+        oldSet.add(String(nid));
+        moved.push({ fromSlot: mv.from, toSlot: mv.to });
+        return true;
+      }
+
+      if (bookFirst) {
+        let r;
+        try { r = await bookSlotWithRelogin(userId, gymId, eventId, mv.to); }
+        catch (err) { failure = { message: `The new spot could not be booked (${err.message}); your current spot is untouched.`, nochange: true }; return false; }
+        if (!r.ok && handleUpgradeThrottle(r, userId, gymId, `${gymId}:${eventId}:${mv.to}`)) { failure = { message: 'The gym is rate-limiting requests.', nochange: true }; return false; }
+        if (!r.ok) { failure = { message: r.error || 'The new spot could not be booked; your current spot is untouched.', nochange: true }; return false; }
+        const nid = await bookedIdFor(r, mv.to);
+        if (!nid) { failure = { message: 'EXTRA spot held: the new spot was booked but could not be confirmed, so your old spot is still held too. Please check My Bookings.', extra: true }; return false; }
+        let cancelled = true;
+        try { await cancelOld(old.bookingId); } catch (err) {
+          cancelled = false;
+          console.error(`[Poller] Group ${upgrade.id}: booked ${mv.to} but could not cancel old ${old.bookingId}:`, err.message);
+        }
+        // Persist after EVERY mutation: the member now follows the new reservation.
+        db.replaceAutoUpgradeMember(upgrade.id, old.bookingId, nid, mv.to);
+        moved.push({ fromSlot: mv.from, toSlot: mv.to });
+        if (!cancelled) { failure = { message: `An extra spot is held: the new spot was booked but the old one (booking ${old.bookingId}, spot ${mv.from}) could not be cancelled. Please cancel it manually.`, extra: true, keep: true }; return false; }
+        return true;
+      }
+
+      // cancel-first: release, rebook; on failure recover original, then nearest.
+      try { await cancelOld(old.bookingId); }
+      catch (err) { failure = { message: `Could not release the old spot: ${err.message}`, nochange: true }; return false; }
+      // The old reservation is gone: persist that now, so a later failure never leaves a cancelled id behind.
+      const origSlot = (db.getAutoUpgradeMembers(upgrade.id).find((m) => String(m.booking_id) === String(old.bookingId)) || {}).original_slot_id || old.slotId;
+      db.removeAutoUpgradeMember(upgrade.id, old.bookingId);
+      const tryBook = async (slot) => {
+        try { return await bookSlotWithRelogin(userId, gymId, eventId, slot); }
+        catch (err) { return { ok: false, error: err.message }; }
+      };
+      let r = await tryBook(mv.to);
+      let landed = mv.to;
+      if (!r.ok) {
+        const taken = new Set([...heldNow, ...usedTargets].filter((id) => id !== mv.from));
+        const byId = new Map(layout.map((s) => [String(s.id), s]));
+        const origin = byId.get(String(mv.from));
+        const nearest = available
+          .filter((id) => !taken.has(id) && id !== mv.to)
+          .sort((a, b) => {
+            const d = (id) => { const s = byId.get(id); return origin && s ? Math.hypot(s.x - origin.x, s.y - origin.y) : Infinity; };
+            return d(a) - d(b) || a.localeCompare(b);
+          })
+          .slice(0, 2);
+        landed = null;
+        for (const cand of [mv.from, ...nearest]) {
+          const rr = await tryBook(cand);
+          if (rr.ok) { r = rr; landed = cand; break; }
+        }
+        if (landed === null) {
+          failure = { message: 'A spot was released but could not be re-booked.', lost: true };
+          return false;
+        }
+        const rid = await bookedIdFor(r, landed);
+        // rid 0 (id unreadable): keep the old id with the REAL slot; the next verify re-matches by event+slot.
+        db.addAutoUpgradeMember(upgrade.id, rid || old.bookingId, landed, origSlot);
+        failure = { message: landed === mv.from ? 'The new spot was taken; your original spot was re-booked.' : 'The new spot was taken; a nearby spot was booked instead.', restoredOriginal: landed === mv.from, recovered: true, unconfirmedId: !rid };
+        return false;
+      }
+      const nid = await bookedIdFor(r, mv.to);
+      db.addAutoUpgradeMember(upgrade.id, nid || old.bookingId, mv.to, origSlot);
+      moved.push({ fromSlot: mv.from, toSlot: mv.to });
+      if (!nid) { failure = { message: 'The new spot was booked but its reservation id could not be confirmed; please check My Bookings.', unconfirmedId: true }; return false; }
+      return true;
+    };
+
+    for (const mv of plan.moves) {
+      let okMove = false;
+      try { okMove = await doMove(mv); }
+      catch (err) {
+        console.error(`[Poller] Group ${upgrade.id}: unexpected error during a move:`, err.message);
+        failure = failure || { message: `Unexpected error during the move: ${err.message}`, unexpected: true };
+      }
+      if (!okMove) break;
+    }
+
+    const finalMembers = db.getAutoUpgradeMembers(upgrade.id);
+    const lead = finalMembers[0];
+    const leadUpdate = lead ? { currentSlotId: lead.slot_id, bookingId: lead.booking_id } : {};
+    const finalSlots = finalMembers.map((m) => m.slot_id);
+    const labels = groupSlotLabels(layout, finalSlots);
+    const startedAt = nowIso();
+    const common = { lastCheckedAt: startedAt, ...leadUpdate };
+
+    if (!failure) {
+      committed = true;
+      db.updateAutoUpgrade(upgrade.id, userId, 'active', `Moved the group to ${labels.join(', ')}. Monitoring for better spots...`, {
+        ...common, upgradedSlotId: lead ? lead.slot_id : undefined, upgradedAt: startedAt,
+      });
+      notifications.notify(userId, 'upgrade', {
+        gymId, slot: labels.join(', '), startAt: upgrade.start_at, groupName: upgrade.group_name,
+        className: upgrade.class_name, instructorName: upgrade.instructor_name, keptOriginal: false,
+      });
+      try { require('./calendar').regenerateSnapshot(userId); } catch (_) {}
+      return;
+    }
+
+    if (moved.length === 0 && failure.nochange) {
+      // Nothing changed: stay armed and retry next cycle.
+      db.updateAutoUpgrade(upgrade.id, userId, 'active', `Group move did not start: ${failure.message} Monitoring...`, { lastCheckedAt: startedAt });
+      return;
+    }
+    if (moved.length === 0 && failure.restoredOriginal && !failure.unconfirmedId) {
+      // A spot was cancelled and re-booked as it was: back off (and give up after repeats) so
+      // the next cycles cannot churn cancel/rebook on the same taken target.
+      committed = true;
+      const n = (prefs.groupRecoveries || 0) + 1;
+      if (n >= GROUP_MAX_RECOVERIES) {
+        db.updateAutoUpgrade(upgrade.id, userId, 'stopped', `${failure.message} Stopped after ${n} failed attempts; your spots are as before.`, { ...common, preferences: { ...prefs, groupRecoveries: n } });
+      } else {
+        db.updateAutoUpgrade(upgrade.id, userId, 'active', `${failure.message} Retrying later. Monitoring...`, {
+          ...common, preferences: { ...prefs, groupRecoveries: n, groupCooldownUntil: new Date(Date.now() + GROUP_COOLDOWN_MS).toISOString() },
+        });
+      }
+      return;
+    }
+
+    // Something moved, was lost, or a recovery spot was used: the group may no longer be
+    // arranged as planned. Stop monitoring (no further changes) and tell the member.
+    committed = true;
+    const where = labels.length ? ` Current spots: ${labels.join(', ')}.` : '';
+    const title = failure.lost ? 'Auto-Upgrade: a spot was lost ⚠️'
+      : failure.extra ? 'Auto-Upgrade: an extra spot is held ⚠️'
+      : 'Auto-Upgrade moved only part of your group ⚠️';
+    const msg = `${failure.message}${where} Please check your bookings for ${displayClass(upgrade)}.`;
+    db.updateAutoUpgrade(upgrade.id, userId, 'stopped', msg, { ...common, upgradedSlotId: moved.length ? moved[moved.length - 1].toSlot : undefined, upgradedAt: moved.length ? startedAt : undefined });
+    pushService.sendNotification(userId, title, msg);
+    try { require('./calendar').regenerateSnapshot(userId); } catch (_) {}
+  } catch (err) {
+    if (noteThrottleError(gymId, err)) {
+      log.error('gym rate-limited, backing off group auto-upgrade', { component: 'poller', gymId, userId, err });
+      notifyRateLimited(userId, gymId);
+    } else {
+      console.error(`[Poller] Error in group upgrade worker for event ${eventId}:`, err.message);
+    }
+  } finally {
+    // Unused claims must not block another monitor this cycle.
+    if (!committed) claimed.forEach((k) => claimedSlots.delete(k));
+    claimed.forEach((k) => heldGroupClaims.delete(k));
+  }
+}
+
+/**
+ * Single-spot cancel & rebook (no spare credit, no direct swap). Runs only when
+ * cancel-rebook-policy.js allows: setting on, class outside the 12h cutoff, >= 3 free
+ * spots on LIVE availability, and the provider says cancelling has no penalty.
+ * Returns { done:true } when this cycle is finished (skipped / recovered / lost), or
+ * { bookResult } after a successful cancel + rebook of `candidateSlot`.
+ */
+async function cancelRebookSingle({ upgrade, candidateSlot, claimKey, isCutoffMode }) {
+  const userId = upgrade.user_id;
+  const gymId = upgrade.gym_id; // the ROW's gym (C3-12)
+  const eventId = String(upgrade.event_id);
+  const nowIso = () => new Date().toISOString();
+  const skip = (msg) => {
+    claimedSlots.delete(claimKey);
+    db.updateAutoUpgrade(upgrade.id, userId, 'active', msg, { lastCheckedAt: nowIso() });
+    return { done: true };
+  };
+  const provider = getProvider(gymId);
+  const session = db.getUserSession(userId, gymId);
+
+  let fresh;
+  try { fresh = await provider.fetchEventDetails(eventId, session); }
+  catch (_) { claimedSlots.delete(claimKey); return { done: true }; }
+  if (!fresh) { claimedSlots.delete(claimKey); return { done: true }; }
+  setCachedEvent(gymId, eventId, fresh, 30000);
+  const freeNow = new Set((fresh.slots || []).filter((s) => s && s.isAvailable).map((s) => String(s.id)));
+
+  let penaltyNone = false;
+  try { penaltyNone = cancelRebook.penaltyIsNone(await provider.getCancelPenalty(upgrade.booking_id, session)); }
+  catch (_) { penaltyNone = false; } // fail closed
+  const decision = cancelRebook.evaluateCancelRebook({
+    enabled: cancelRebook.cancelRebookEnabled(db.getUserSettings(userId, gymId), getGymConfig(gymId) || null),
+    atomic: false, bookFirstPossible: false, freeSpots: freeNow.size,
+    hoursUntilClass: DateTime.fromISO(upgrade.start_at, { zone: zoneOfGym(gymId) }).diff(DateTime.now(), 'hours').hours,
+    isCutoffMode, penaltyNone,
+  });
+  if (!decision.allowed || !freeNow.has(String(candidateSlot))) {
+    return skip(cancelRebook.SKIP_MESSAGES[decision.reason] || 'The better spot was taken. Monitoring...');
+  }
+
+  // Persist first, notify in its own try/catch: a throw must never skip state.
+  const settleStop = (msg, title) => {
+    claimedSlots.delete(claimKey);
+    try { db.updateAutoUpgrade(upgrade.id, userId, 'stopped', msg, { lastCheckedAt: nowIso() }); }
+    catch (e) { console.error(`[Poller] Could not persist stop for monitor ${upgrade.id}:`, e.message); }
+    try { Promise.resolve(pushService.sendNotification(userId, title, msg)).catch((e) => console.error('[Poller] notify failed:', e.message)); } catch (e) { console.error('[Poller] notify failed:', e.message); }
+    return { done: true };
+  };
+  // The truth about a booking after an ambiguous result: true/false, or null if unreadable.
+  const heldNow = async (bookingId) => {
+    try {
+      const live = (await listBookingsWithRelogin(userId, gymId)) || [];
+      return live.some((b) => b && !b.isWaitlist && String(b.eventId) === eventId && String(b.bookingId) === String(bookingId));
+    } catch (_) { return null; }
+  };
+  // Resolve the reservation id of our spot on this event from live bookings; 0 if unknown.
+  const idForSlot = async (res, slot) => {
+    if (Number(res && res.bookingId) > 0) return Number(res.bookingId);
+    try {
+      const live = (await listBookingsWithRelogin(userId, gymId)) || [];
+      const hit = live.find((b) => b && !b.isWaitlist && String(b.eventId) === eventId && String(b.slotId) === String(slot));
+      return hit ? Number(hit.bookingId) : 0;
+    } catch (_) { return 0; }
+  };
+  const label = displayClass(upgrade);
+
+  try { await apiCancelBooking(userId, gymId, upgrade.booking_id); }
+  catch (err) {
+    // The cancel may have succeeded upstream: learn the truth before deciding.
+    const still = await heldNow(upgrade.booking_id);
+    if (still === true) return skip(`Could not release the old spot (${err.message}); nothing changed. Monitoring...`);
+    if (still === null) return settleStop(`We could not confirm whether your spot for ${label} was released. Please check your bookings.`, 'Auto-Upgrade stopped ⚠️');
+    // still === false: it is gone; carry on as if the cancel succeeded.
+  }
+
+  let r;
+  try { r = await bookSlotWithRelogin(userId, gymId, eventId, candidateSlot); }
+  catch (err) { r = { ok: false, error: err.message }; }
+  if (r.ok) {
+    const nid = await idForSlot(r, candidateSlot);
+    if (!nid) return settleStop(`Your new spot for ${label} was booked but its reservation could not be confirmed. Please check your bookings.`, 'Auto-Upgrade stopped ⚠️');
+    return { bookResult: { ...r, bookingId: nid } };
+  }
+
+  // The new spot failed after the old one was released: put the original back.
+  claimedSlots.delete(claimKey);
+  let back;
+  try { back = await bookSlotWithRelogin(userId, gymId, eventId, upgrade.current_slot_id); }
+  catch (err) { back = { ok: false, error: err.message }; }
+  if (back.ok) {
+    const oid = await idForSlot(back, upgrade.current_slot_id);
+    if (!oid) return settleStop(`Your original spot for ${label} was re-booked but its reservation could not be confirmed. Please check your bookings.`, 'Auto-Upgrade stopped ⚠️');
+    try {
+      db.updateAutoUpgrade(upgrade.id, userId, 'active', 'The new spot was taken; your original spot was re-booked. Monitoring...', { bookingId: oid, lastCheckedAt: nowIso() });
+    } catch (e) { console.error(`[Poller] Could not persist recovery for monitor ${upgrade.id}:`, e.message); }
+    return { done: true };
+  }
+  return settleStop(`Your spot for ${label} was released but could not be re-booked. Please check your bookings.`, 'Auto-Upgrade: a spot was lost ⚠️');
+}
+
 async function attemptUpgradeSlot(upgrade, isCutoffMode) {
+  // Group monitors (several reservations) are planned and moved together.
+  const groupMembers = db.getAutoUpgradeMembers(upgrade.id);
+  if (groupMembers.length > 1) return attemptGroupUpgrade(upgrade, groupMembers, isCutoffMode);
   const eventId = String(upgrade.event_id);
   const userId = upgrade.user_id;
   // From the ROW, not the active gym: the poller scans every gym's monitors, and
@@ -192,14 +689,15 @@ async function attemptUpgradeSlot(upgrade, isCutoffMode) {
   // Set when an atomic swap moved the reservation, so the cancel-then-rebook
   // cleanup below knows there is nothing left to cancel.
   let usedAtomicSwap = false;
+  let usedCancelFirst = false; // the old spot was already cancelled before the rebook
   const currentSlotId = String(upgrade.current_slot_id);
   const prefs = JSON.parse(upgrade.preferences) || {};
-  // Preferred slots come from the LIVE shared studio map; fall back to snapshot for legacy records.
+  // Preferred slots come from the LIVE shared studio map only (no snapshot fallback).
   const liveMap = db.getStudioPreference(userId, upgrade.studio_id, gymId) || {};
-  const preferredSlots = (liveMap.preferredSlots || prefs.preferredSlots || []).map(String);
-  const preferredRows = liveMap.preferredRows || prefs.preferredRows || [];
+  const preferredSlots = (liveMap.preferredSlots || []).map(String);
+  const preferredRows = liveMap.preferredRows || [];
 
-  if (preferredSlots.length === 0 && preferredRows.length === 0) return;
+  if (preferredSlots.length === 0 && preferredRows.length === 0) return stopForMissingSpotMap(upgrade);
 
   // C2-3b: this gym is refusing us — send nothing until the backoff expires.
   // Returns before touching the monitor row, so it is simply due again after.
@@ -271,6 +769,7 @@ async function attemptUpgradeSlot(upgrade, isCutoffMode) {
         claimedSlots.add(claimKey);
 
         let bookResult;
+        let cancelFirst = false; // no spare credit: cancel the old spot, then book the new one
         try {
           const isMetered = gym?.capabilities?.metered !== false;
           const isAtomic = !!(gym && gym.capabilities && gym.capabilities.atomicSwap && upgrade.booking_id);
@@ -300,7 +799,14 @@ async function attemptUpgradeSlot(upgrade, isCutoffMode) {
               details && details.event && details.event.credits
             );
 
-            if (!hasCredits) {
+            // Book-first is possible only with a spare credit AND room under the per-class
+            // self limit. Otherwise a non-atomic gym may cancel & rebook, if the member's
+            // per-gym setting allows (gated again below by cancel-rebook-policy.js).
+            const selfLimit = Number(details && details.maxBookableSlots);
+            const bookFirstPossible = hasCredits && !(Number.isFinite(selfLimit) && selfLimit < 2);
+            if (!bookFirstPossible && cancelRebook.cancelRebookEnabled(db.getUserSettings(userId, gymId), getGymConfig(gymId) || null) && upgrade.booking_id) {
+              cancelFirst = true;
+            } else if (!hasCredits) {
               console.log(`[Poller] Auto-upgrade paused for user ${userId}: No available credits.`);
               db.updateAutoUpgrade(upgrade.id, userId, 'paused_no_credits', 'No credits available to claim upgraded slot.', { lastCheckedAt: new Date().toISOString() });
               pushService.sendNotification(userId, 'Upgrade Paused ⏳', `No credits available to upgrade ${displayClass(upgrade)}.`);
@@ -328,6 +834,11 @@ async function attemptUpgradeSlot(upgrade, isCutoffMode) {
               return; // Retry next cycle — nothing was given up.
             }
             usedAtomicSwap = true;
+          } else if (cancelFirst) {
+            const out = await cancelRebookSingle({ upgrade, candidateSlot, claimKey, isCutoffMode, labelForSlot });
+            if (out.done) return;
+            bookResult = out.bookResult;
+            usedCancelFirst = true;
           } else {
             bookResult = await bookSlotWithRelogin(userId, gymId, eventId, candidateSlot);
           }
@@ -355,7 +866,7 @@ async function attemptUpgradeSlot(upgrade, isCutoffMode) {
         // Cancel the original booking (if not in cutoff mode).
         // An atomic swap already moved the reservation — there is no second
         // booking to clean up, and cancelling here would cancel the upgrade.
-        if (!usedAtomicSwap && !isCutoffMode && upgrade.booking_id) {
+        if (!usedAtomicSwap && !isCutoffMode && !usedCancelFirst && upgrade.booking_id) {
           try {
             // Found during the C3-12 audit: this was missing gymId entirely
             // (apiCancelBooking(userId, gymId, bookingId)), so it silently
@@ -592,6 +1103,7 @@ function syncDisabledUpgrades(now) {
 // Orchestrate all upgrades checks
 async function executeAutoUpgradeChecks() {
   claimedSlots.clear();
+  heldGroupClaims.forEach((k) => claimedSlots.add(k)); // seats an in-flight group run still holds
   await resumePausedUpgrades();
   syncDisabledUpgrades(DateTime.now());
   const active = db.getActiveAutoUpgrades();
@@ -624,7 +1136,10 @@ async function executeAutoUpgradeChecks() {
       // Also before the interval gate, so the stop / final attempt lands at the
       // cutoff rather than up to one interval late.
       if (classStart.diff(now, 'seconds').seconds <= 12 * 3600 + CUTOFF_BUFFER_S) {
-        if (prefs.keepOriginalOnCutoff && pollingOn) {
+        // A group on a gym without an atomic swap cannot keep its originals (it would
+        // hold 2N seats), so the final-attempt opt-in does not apply: it stops at 12h.
+        const groupWithoutSwap = db.getAutoUpgradeMembers(upgrade.id).length > 1 && !getGymConfig(upgrade.gym_id)?.capabilities?.atomicSwap;
+        if (prefs.keepOriginalOnCutoff && pollingOn && !groupWithoutSwap) {
           // Opted in to continue past 12h: one final attempt (no cancel), then stop
           if (!prefs.cutoffAttempted) {
             if (gymLimited) continue;
@@ -917,5 +1432,6 @@ module.exports = {
   executeAutoUpgradeChecks,
   refreshBookingCaches,
   bookingCacheRowsFor,
-  fetchFromGym
+  fetchFromGym,
+  listBookingsWithRelogin
 };

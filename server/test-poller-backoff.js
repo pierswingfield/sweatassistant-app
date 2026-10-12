@@ -46,7 +46,8 @@ function monitor(uid, gymId, { cached = true } = {}) {
   const eventId = ++eventSeq;
   const startAt = new Date(Date.now() + 2 * 864e5).toISOString();
   const prefs = { preferredSlots: ['11'], preferredRows: [] };
-  db.addAutoUpgrade(uid, eventId, 500000 + eventId, 25, 'Ride', 'Coach', 'Studio', 'Loc', startAt, prefs, null, 'Ride', gymId);
+  db.addAutoUpgrade(uid, eventId, 500000 + eventId, 25, 'Ride', 'Coach', 'Studio', 'Loc', startAt, prefs, 'studio-bo', 'Ride', gymId);
+  db.setStudioPreference(uid, 'studio-bo', prefs, gymId); // live shared map (no snapshot fallback)
   if (cached) seedEvent(gymId, eventId);
   return eventId;
 }

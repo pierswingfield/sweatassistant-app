@@ -10,6 +10,7 @@ const { triggerAutoRelogin } = require('./auth');
 const { getProvider } = require('./providers');
 const { resolveZone, zoneOfGym } = require('./providers/timezone');
 const { getGymConfig } = require('./gyms.config');
+const { planAutoBookSlots, planCompanionSlots } = require('./spot-selection');
 
 // Interim single-gym bridge: until multi-gym login lands (WP-D3), the
 // scheduler only dispatches CodexFit / Psycle London bookings. See
@@ -297,20 +298,15 @@ async function prefetchAutoBookSlots(bookings, windowMs = 18000) {
   await Promise.allSettled(promises);
 }
 
-// Resolve the live shared studio spot map; fall back to the entry snapshot for
-// legacy records that predate studio_id or studios with no saved map.
-function resolveLiveMap(userId, studioId, snapshot, gymId = null) {
+// Resolve the LIVE shared studio spot map. There is deliberately no fallback to
+// the queue entry's snapshot: a map the member removed must stay removed, and a
+// snapshot would silently keep driving bookings (and recreate it on edit).
+// `exists` is false when the studio has no map at all.
+function resolveLiveMap(userId, studioId, gymId = null) {
   const live = db.getStudioPreference(userId, studioId, gymId);
-  if (live && (live.preferredSlots?.length || live.preferredRows?.length)) {
-    return {
-      preferredSlots: live.preferredSlots || [],
-      preferredRows: live.preferredRows || []
-    };
-  }
-  return {
-    preferredSlots: snapshot.preferredSlots || [],
-    preferredRows: snapshot.preferredRows || []
-  };
+  const preferredSlots = (live && live.preferredSlots) || [];
+  const preferredRows = (live && live.preferredRows) || [];
+  return { preferredSlots, preferredRows, exists: preferredSlots.length > 0 || preferredRows.length > 0 };
 }
 
 // Attempt one booking via the adapter, with the same 401-triggers-relogin
@@ -346,7 +342,7 @@ async function executeAutoBookForClass(booking) {
   const gymId = booking.gym_id;
   const prefs = JSON.parse(booking.preferences) || { preferredSlots: [], preferredRows: [], requiredCount: 1, bookAny: true };
   // Slots/rows come from the LIVE shared studio map; requiredCount/bookAny are per-entry.
-  const liveMap = resolveLiveMap(userId, booking.studio_id, prefs, gymId);
+  const liveMap = resolveLiveMap(userId, booking.studio_id, gymId);
   const preferredSlots = liveMap.preferredSlots;
   const preferredRows = liveMap.preferredRows;
   const capabilities = getGymConfig(gymId)?.capabilities || {};
@@ -358,7 +354,30 @@ async function executeAutoBookForClass(booking) {
   const requiredCount = capabilities.selfBookingPolicy === 'one-per-class'
     ? 1
     : (Number.isFinite(configuredLimit) && configuredLimit > 0 ? Math.min(requestedCount, configuredLimit) : requestedCount);
-  const bookAny = prefs.bookAny !== false;
+  // Named guests are separate provider reservations. The self loop must never
+  // spend their total-place count as extra member reservations.
+  const scheduledGuests = Array.isArray(prefs.guests) ? prefs.guests : [];
+  const selfRequiredCount = scheduledGuests.length ? 1 : requiredCount;
+  const participantRows = booking.id ? db.getAutoBookingParticipants(booking.id, userId) : [];
+  const selfParticipant = participantRows.find((row) => row.participant_key === 'self');
+  // Imported rows are defensively normalised here as well as at the API boundary.
+  // Togetherness needs fallback candidates to fulfil its stated wider search.
+  const prioritizeTogether = requiredCount > 1 && prefs.prioritizeTogether === true;
+  const bookAny = prioritizeTogether || prefs.bookAny !== false;
+
+  // No preferred map for this studio (removed, or never set): explain why the
+  // booking is not following one. Once per class, respects notification prefs.
+  if (!liveMap.exists) {
+    const key = `nomap:autobook:${gymId}:${eventId}`;
+    if (!db.wasNotificationSent(userId, key)) {
+      db.markNotificationSent(userId, key);
+      notifications.notify(userId, 'booking', {
+        source: 'autobook', kind: 'noSpotMap', bookAny, gymId,
+        startAt: booking.start_at, groupName: booking.group_name,
+        className: booking.class_name, studioName: booking.studio_name,
+      });
+    }
+  }
 
   // C2-3: a prior attempt this window already got PROVIDER_RATE_LIMITED for
   // this gym — don't start a new attempt (no network call at all) until the
@@ -375,7 +394,7 @@ async function executeAutoBookForClass(booking) {
     return;
   }
 
-  console.log(`[Scheduler] Running booking worker for User ${userId}, Event ${eventId}. Needs ${requiredCount} slots.`);
+  console.log(`[Scheduler] Running booking worker for User ${userId}, Event ${eventId}. Needs ${requiredCount} total places.`);
 
   try {
     // 1. Get live slot availability — use shared cache if prefetch populated it
@@ -394,37 +413,25 @@ async function executeAutoBookForClass(booking) {
 
     console.log(`[Scheduler] Live available slots for event ${eventId}:`, liveAvailable);
 
-    // 2. Filter preferred slots by availability
-    const primarySlots = preferredSlots.map(String).filter(id => liveAvailable.includes(id));
+    // Keep the selected map as the first search boundary. The planner uses
+    // normalised x/y layout data only (never labels), detects aisle-sized gaps,
+    // and appends every permitted fallback so a smaller contiguous group cannot
+    // reduce the total number of successful reservations.
+    const slotsToTry = planAutoBookSlots({
+      layoutSlots,
+      availableSlotIds: liveAvailable,
+      preferredSlots,
+      preferredRows,
+      bookAny,
+      prioritizeTogether,
+    });
 
-    // 3. Filter preferred rows by availability
-    const rowSlots = [];
-    if (preferredRows.length > 0 && layoutSlots.length > 0) {
-      preferredRows.forEach(ry => {
-        // Round coordinate coordinates to match extension rendering
-        const slotsInRow = layoutSlots.filter(s => Math.round(s.y * 10) / 10 === Number(ry));
-        const rowSlotIds = slotsInRow.map(s => String(s.id));
-        rowSlotIds.forEach(id => {
-          if (liveAvailable.includes(id) && !primarySlots.includes(id) && !rowSlots.includes(id)) {
-            rowSlots.push(id);
-          }
-        });
-      });
-    }
-
-    // 4. Combine priority lists
-    const slotsToTry = [...primarySlots, ...rowSlots];
-    const finalBookAny = layoutSlots.length === 0 || bookAny;
-
-    if (finalBookAny) {
-      const remainingAvailable = liveAvailable.filter(id => !slotsToTry.includes(id));
-      slotsToTry.push(...remainingAvailable);
-    }
-
-    let bookedCount = 0;
+    const selfAlreadySucceeded = selfParticipant?.status === 'success' && selfParticipant.booking_id;
+    let bookedCount = selfAlreadySucceeded ? selfRequiredCount : 0;
     let terminalBookingFailure = null;
-    const bookedSlots = [];
-    const bookedPairs = []; // array of { bookingId, slotId }
+    const bookedSlots = selfAlreadySucceeded && selfParticipant.slot_id ? [String(selfParticipant.slot_id)] : [];
+    // A durable successful primary must seed re-entry; never create it again.
+    const bookedPairs = selfAlreadySucceeded ? [{ bookingId: String(selfParticipant.booking_id), slotId: selfParticipant.slot_id }] : [];
     let attemptIdx = 0;
 
     console.log(`[Scheduler] Event ${eventId}: planning to attempt slots in order: [${slotsToTry.join(', ')}]`);
@@ -441,7 +448,7 @@ async function executeAutoBookForClass(booking) {
     //   claimedSlots — slot is in-flight or booked by another of our users → skip (no POST)
     //   burnedSlots  — slot POST already failed for another user this window → skip (externally taken)
     // Both short-circuit without a network call, letting subsequent users reach live slots faster.
-    while (bookedCount < requiredCount && attemptIdx < slotsToTry.length) {
+    while (bookedCount < selfRequiredCount && attemptIdx < slotsToTry.length) {
       const targetSlot = slotsToTry[attemptIdx++];
       // Gym-qualified: provider slot ids collide across gyms (WP-G).
       const claimKey = `${gymId}:${eventId}:${targetSlot}`;
@@ -489,8 +496,9 @@ async function executeAutoBookForClass(booking) {
         if (result.ok) {
           bookedCount++;
           bookedSlots.push(targetSlot);
-          const thisBookingId = result.bookingId ? Number(result.bookingId) : 0;
+          const thisBookingId = result.bookingId != null ? String(result.bookingId) : null;
           bookedPairs.push({ bookingId: thisBookingId, slotId: targetSlot });
+          if (selfParticipant) db.markAutoBookingParticipant(booking.id, userId, 'self', { status: 'success', bookingId: thisBookingId, slotId: targetSlot });
           console.log(`[Scheduler] Successfully booked slot ${targetSlot} for event ${eventId} (booking ID: ${thisBookingId})`);
           // Claim stays in claimedSlots — other users see it and skip without POSTing
         } else if (result.code === 'ALREADY_BOOKED' || result.code === 'BOOKING_TIMEOUT') {
@@ -525,7 +533,7 @@ async function executeAutoBookForClass(booking) {
         burnedSlots.add(claimKey);
       }
 
-      if (bookedCount < requiredCount && attemptIdx < slotsToTry.length) {
+      if (bookedCount < selfRequiredCount && attemptIdx < slotsToTry.length) {
         await new Promise(resolve => setTimeout(resolve, 400 + Math.floor(Math.random() * 400)));
       }
     }
@@ -546,9 +554,76 @@ async function executeAutoBookForClass(booking) {
       return;
     }
 
+    // A named guest is only attempted after a verified primary reservation. A
+    // successful participant is skipped on any re-entry. A timeout/transport
+    // ambiguity is reconciled from the provider list once, then halted as
+    // unknown rather than risking a duplicate guest charge.
+    let guestUnknown = false;
+    let guestFailures = 0;
+    if (scheduledGuests.length && bookedPairs.length) {
+      const provider = getProvider(gymId);
+      const primaryBookingId = bookedPairs[0].bookingId;
+      for (const guest of scheduledGuests) {
+        const key = `guest:${String(guest.email || '').trim().toLowerCase()}`;
+        const participant = participantRows.find((row) => row.participant_key === key);
+        if (participant?.status === 'success') continue;
+        let guestResult = null;
+        let guestBooked = false;
+        // Re-plan around the primary's ACTUAL spot (it may differ from the plan): with togetherness the
+        // guest gets the nearest free spot; otherwise the normal plan minus spots already taken.
+        const primarySlotId = bookedPairs[0].slotId != null ? String(bookedPairs[0].slotId) : null;
+        const takenIds = [...bookedSlots, ...bookedPairs.map((p) => p.slotId)].filter((v) => v != null).map(String);
+        const guestOrder = planCompanionSlots({
+          layoutSlots, availableSlotIds: liveAvailable, primarySlotId, excludeIds: takenIds,
+          preferredSlots, preferredRows, bookAny, prioritizeTogether,
+        }).filter((id) => !claimedSlots.has(`${gymId}:${eventId}:${id}`) && !burnedSlots.has(`${gymId}:${eventId}:${id}`));
+        let guestIdx = 0;
+        while (guestIdx < guestOrder.length) {
+          const targetSlot = guestOrder[guestIdx++];
+          try { guestResult = await provider.bookGuestSlot(eventId, targetSlot, guest.email, db.getUserSession(userId, gymId) || undefined); }
+          catch (_) { guestResult = { ok: false, code: 'BOOKING_TIMEOUT', error: 'Guest booking result could not be confirmed.' }; }
+          if (guestResult?.ok) {
+            db.markAutoBookingParticipant(booking.id, userId, key, { status: 'success', bookingId: guestResult.bookingId, slotId: guestResult.slotId || targetSlot });
+            db.upsertGuestBookingGroup(userId, gymId, eventId, primaryBookingId, guestResult.bookingId);
+            bookedSlots.push(guestResult.slotId || targetSlot);
+            guestBooked = true;
+            break;
+          }
+          if (guestResult?.code === 'SPOT_UNAVAILABLE') continue;
+          if (guestResult?.code === 'BOOKING_TIMEOUT') {
+            let liveGuest;
+            try { liveGuest = (await provider.listBookings(db.getUserSession(userId, gymId) || undefined)).find((row) => String(row.eventId) === String(eventId) && row.isGuest && String(row.guestEmail || '').toLowerCase() === String(guest.email).toLowerCase()); } catch (_) {}
+            if (liveGuest) {
+              db.markAutoBookingParticipant(booking.id, userId, key, { status: 'success', bookingId: liveGuest.bookingId, slotId: liveGuest.slotId });
+              db.upsertGuestBookingGroup(userId, gymId, eventId, primaryBookingId, liveGuest.bookingId);
+            } else {
+              db.markAutoBookingParticipant(booking.id, userId, key, { status: 'unknown', failureCode: 'GUEST_RESULT_UNKNOWN', failureMessage: 'Guest booking result could not be confirmed.' });
+              guestUnknown = true;
+            }
+          } else {
+            db.markAutoBookingParticipant(booking.id, userId, key, { status: 'failed', failureCode: guestResult?.code || 'GUEST_BOOKING_FAILED', failureMessage: guestResult?.error || 'Guest booking failed.' });
+            guestFailures++;
+          }
+          break;
+        }
+        if (!guestBooked && !guestResult) {
+          db.markAutoBookingParticipant(booking.id, userId, key, { status: 'failed', failureCode: 'NO_GUEST_SLOT_AVAILABLE', failureMessage: 'No remaining spot was available for this guest.' });
+          guestFailures++;
+        }
+      }
+    }
+    if (guestUnknown) {
+      const message = 'Your spot is booked, but a guest booking result is unknown. Check My Bookings before changing this Auto-Book.';
+      db.markAutoBookingExecuted(eventId, userId, gymId, 'failed', message, new Date().toISOString());
+      emitStatusUpdate(userId, { eventId, status: 'guest-result-unknown', message });
+      return;
+    }
+
     // 5. Check if booking succeeded
     if (bookedCount > 0) {
-      const msg = `Successfully booked slot${bookedSlots.length > 1 ? 's' : ''} ${bookedSlots.join(', ')}!`;
+      const msg = guestFailures
+        ? `Your spot is booked; ${guestFailures} guest booking could not be completed.`
+        : `Successfully booked slot${bookedSlots.length > 1 ? 's' : ''} ${bookedSlots.join(', ')}!`;
       db.markAutoBookingExecuted(eventId, userId, gymId, 'success', msg, new Date().toISOString());
 
       emitStatusUpdate(userId, {
@@ -576,8 +651,9 @@ async function executeAutoBookForClass(booking) {
       // Refresh the calendar feed so the new booking shows immediately.
       try { require('./calendar').regenerateSnapshot(userId); } catch (_) {}
 
-      // Automatically register auto-upgrade if studio layout exists
-      if (layoutSlots.length > 0 && bookedPairs.length > 0) {
+      // Several reservations register ONE group monitor (moved together). Scheduled
+      // guests never opt in: swapping a guest reservation is unproven.
+      if (layoutSlots.length > 0 && bookedPairs.length > 0 && scheduledGuests.length === 0) {
         // THIS booking's gym — autoUpgradeEnabled/autoUpgradeByDefault are
         // gym-scoped, and the ambient default would apply one gym's
         // auto-upgrade preference to a booking on another.
@@ -588,21 +664,21 @@ async function executeAutoBookForClass(booking) {
             : settings.autoUpgradeByDefault;
           if (wantAutoUpgrade) {
             console.log(`[Scheduler] Auto-registering Auto-Upgrade monitoring for ${bookedPairs.length} booking(s) for event ${eventId}`);
-            for (const pair of bookedPairs) {
-              db.addAutoUpgrade(
-                userId,
-                eventId,
-                pair.bookingId,
-                pair.slotId,
-                booking.class_name,
-                booking.instructor_name,
-                booking.studio_name,
-                booking.location_name,
-                booking.start_at,
-                { keepOriginalOnCutoff: settings.autoUpgradeKeepOriginalByDefault === true },
-                booking.studio_id,
-                booking.group_name
-              );
+            const upgradePrefs = {
+              keepOriginalOnCutoff: settings.autoUpgradeKeepOriginalByDefault === true,
+              // The Auto-Book "together" option rides along so the group is upgraded to a tighter set too.
+              ...(prefs.prioritizeTogether === true ? { prioritizeTogether: true } : {}),
+            };
+            const addMonitor = (pair, members) => db.addAutoUpgrade(
+              userId, eventId, pair.bookingId, pair.slotId, booking.class_name, booking.instructor_name,
+              booking.studio_name, booking.location_name, booking.start_at, upgradePrefs, booking.studio_id,
+              booking.group_name, gymId, members
+            );
+            if (bookedPairs.length > 1) {
+              // ONE monitor for the whole group (moved together, never one by one).
+              addMonitor(bookedPairs[0], bookedPairs.map((p) => ({ bookingId: p.bookingId, slotId: p.slotId })));
+            } else {
+              for (const pair of bookedPairs) addMonitor(pair, null);
             }
           } else {
             console.log(`[Scheduler] Skipping auto-upgrade for booking ${eventId} because user disabled it for this booking/by default.`);

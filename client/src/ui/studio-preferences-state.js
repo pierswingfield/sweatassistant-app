@@ -5,10 +5,6 @@ export function hasStudioPreferences(preferences) {
   return !!(preferences?.preferredSlots?.length || preferences?.preferredRows?.length);
 }
 
-export function shouldShowPreferredMapEditToggle(mode, mapEditing) {
-  return mode === 'autobook' && !mapEditing;
-}
-
 export function applyStudioPreferenceMutation(target, { gymId, studioId, preferences }) {
   if (!target || studioId == null) return target;
   const key = gymId ? `${gymId}:${studioId}` : String(studioId);

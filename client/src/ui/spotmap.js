@@ -1,4 +1,6 @@
 import { shortSlotLabels, escapeHtml } from './cards';
+import { resolveSpotLabels } from './spot-labels.js';
+import { makeDisplayRotator, chooseMapScale, minSeparation, ROTATED_MIN_GAP_PX, displayFrontSide, makeFrontBar, FRONT_BAR_PX } from './spot-rotation.js';
 import { COPY, formatCopyText } from '../copy.js';
 // Shared preferred-spot-map editor.
 //
@@ -88,11 +90,18 @@ export function renderStudioFloorPlan(container, layoutSlots, initialSlots, init
     hideActions = false,        // caller supplies its own footer actions (Step A page)
     onSelectionChange = null,   // (slots, rows) after every render; drives an external Save button
     hideEditHint = false,
-    aboveMap = null   // () => Node: mobile booking context (helper + class card) placed directly above the map
+    aboveMap = null,   // () => Node: mobile booking context (helper + class card) placed directly above the map
+    mobileRotation = 0,
+    front = null,      // side of the room that is the front, ORIGINAL orientation (gym config); drawn with the same rotation
+    onSpotTap = null,  // called after a genuine spot tap, before selection rerenders
+    selectionTone = null, // 'guest': selected spot uses the guest (info) colour so it matches the map key
+    clearBelowMap = false, // Step A editor: a "Clear selection" button under the map (draft only)
   } = options;
 
   // In read-only mode the map starts locked until the user clicks the edit button.
   let editing = !readOnly;
+  let pan = { left: 0, top: 0 };
+  let suppressSpotClick = false;
 
   const initialKeys = [...initialSlots].map(slotKey);
   const selectedSlots = [...initialKeys];
@@ -115,10 +124,16 @@ export function renderStudioFloorPlan(container, layoutSlots, initialSlots, init
   container.__isDirty = mapChanged;
   container.__getSelection = () => ({ slots: [...selectedSlots], rows: [...selectedRows] });
 
-  // Bounds include podium/stage objects so the floor expands to fit them (the
-  // scale below still measures slot spacing only — a podium isn't a seat).
+  const isMobile = window.matchMedia('(max-width: 768px)').matches;
+  const rotation = isMobile && [0, 90, 180, 270].includes(Number(mobileRotation)) ? Number(mobileRotation) : 0;
+  // Rotate coordinates about the layout bounds, never the map or its labels.
+  // Booking geometry remains provider-normalized; this is display-only.
+  const frontSide = displayFrontSide(front, rotation);
+  const rotatePoint = makeDisplayRotator([...layoutSlots, ...layoutObjects], rotation);
+  const viewSlots = layoutSlots.map(rotatePoint);
+  const viewObjects = layoutObjects.map(rotatePoint);
   let minX = Infinity, maxX = -Infinity, minY = Infinity, maxY = -Infinity;
-  [...layoutSlots, ...layoutObjects].forEach(s => {
+  [...viewSlots, ...viewObjects].forEach(s => {
     if (s.x < minX) minX = s.x;
     if (s.x > maxX) maxX = s.x;
     if (s.y < minY) minY = s.y;
@@ -131,13 +146,12 @@ export function renderStudioFloorPlan(container, layoutSlots, initialSlots, init
   const shortLabels = shortSlotLabels(layoutSlots);
   const rowYs = [...new Set(layoutSlots.map(s => s.y))].sort((a, b) => a - b);
   const slotsByRow = new Map();
-  rowYs.forEach(y => { slotsByRow.set(y, layoutSlots.filter(s => s.y === y)); });
+  rowYs.forEach(y => { slotsByRow.set(y, viewSlots.filter(s => s.sourceY === y)); });
 
   // --- Floor-plan geometry (pixel-based to guarantee minimum gaps) ---
   const SLOT_SIZE = 28;
-  const MIN_GAP = 32;   // min center-to-center px — just enough so 28px slots don't overlap (4px edge gap)
-  const EDGE_PAD = 14;  // padding inside the floor around the slot field
-  const isMobile = window.matchMedia('(max-width: 768px)').matches;
+  const MIN_GAP = rotation !== 0 ? ROTATED_MIN_GAP_PX : 32;   // min center-to-center px — just enough so 28px slots don't overlap (4px edge gap)
+  const EDGE_PAD = Math.max(isMobile && rotation === 0 ? 4 : 14, frontSide ? FRONT_BAR_PX + 4 : 0);  // unrotated mobile maps use the usable grid width
   // Smallest centre-to-centre distance between any two slots, in coordinate units.
   // Ride studios stagger alternate rows, so two slots can share a near-identical X
   // while sitting in different rows (far apart in 2D). Measuring true 2D nearest-
@@ -145,9 +159,10 @@ export function renderStudioFloorPlan(container, layoutSlots, initialSlots, init
   // being mistaken for an adjacent-seat gap and blowing the scale up (which made the
   // floor render thousands of px wide and spill past the card).
   let minNeighbourDist = Infinity;
-  for (let i = 0; i < layoutSlots.length; i++) {
-    for (let j = i + 1; j < layoutSlots.length; j++) {
-      const d = Math.hypot(layoutSlots[i].x - layoutSlots[j].x, layoutSlots[i].y - layoutSlots[j].y);
+  if (rotation !== 0) minNeighbourDist = minSeparation(viewSlots); // compacted: no-overlap guarantee on both axes
+  else for (let i = 0; i < viewSlots.length; i++) {
+    for (let j = i + 1; j < viewSlots.length; j++) {
+      const d = Math.hypot(viewSlots[i].x - viewSlots[j].x, viewSlots[i].y - viewSlots[j].y);
       if (d > 0 && d < minNeighbourDist) minNeighbourDist = d;
     }
   }
@@ -170,15 +185,11 @@ export function renderStudioFloorPlan(container, layoutSlots, initialSlots, init
     // Summary line
     const summary = document.createElement('div');
     summary.style.cssText = 'font-size:12px;margin-bottom:10px;min-height:16px;';
-    const spotLabels = selectedSlots.map(id => {
-      const slot = layoutSlots.find(s => slotKey(s.id) === id);
-      return slot?.label || String(id);
+    const { labels: spotLabels, unresolved: unresolvedSpots } = resolveSpotLabels(selectedSlots, layoutSlots, {
+      sameId: (slotId, id) => slotKey(slotId) === id,
     });
-    const rowLabels = Array.from(selectedRows).map(y => {
-      const idx = rowYs.indexOf(y);
-      return idx >= 0 ? String(idx + 1) : String(y);
-    });
-    if (spotLabels.length === 0 && rowLabels.length === 0) {
+    const rowLabels = Array.from(selectedRows).map(y => rowYs.indexOf(y)).filter(idx => idx >= 0).map(idx => String(idx + 1));
+    if (spotLabels.length === 0 && rowLabels.length === 0 && unresolvedSpots === 0) {
       summary.innerHTML = `<span style="color:var(--text-tertiary);font-style:italic;">${COPY.spotMapEditor.noneSelected}</span>`;
     } else {
       const fmt = (labels, noun) => {
@@ -188,6 +199,7 @@ export function renderStudioFloorPlan(container, layoutSlots, initialSlots, init
       };
       const parts = [];
       if (spotLabels.length > 0) parts.push(fmt(spotLabels, COPY.spotMapEditor.spots));
+      if (unresolvedSpots > 0) parts.push(`<span style="color:var(--text);font-weight:700;">${unresolvedSpots}</span> <span style="color:var(--text-secondary);font-size:11px;text-transform:uppercase;letter-spacing:0.05em;">${COPY.spotMapEditor.spots}${spotLabels.length ? ' more' : ''}</span>`);
       if (rowLabels.length > 0) parts.push(fmt(rowLabels, COPY.spotMapEditor.rows));
       const sep = ' <span style="color:var(--text-tertiary);margin:0 4px;">›</span> ';
       summary.innerHTML = `<span style="color:var(--text-secondary);font-size:11px;text-transform:uppercase;letter-spacing:0.05em;margin-right:6px;">${COPY.spotMapEditor.preferred}</span>${parts.join(sep)}`;
@@ -202,7 +214,11 @@ export function renderStudioFloorPlan(container, layoutSlots, initialSlots, init
     // (no overlap). When the min-gap width exceeds the viewport the map pans.
     const scroll = document.createElement('div');
     scroll.className = 'app-floor-scroll';
-    container.appendChild(scroll); // append now to measure its real width (CSS breakout on mobile)
+    // A rotated map is compact enough to show whole: the page scrolls, not an inner box.
+    if (rotation !== 0) scroll.style.setProperty('max-height', 'none', 'important');
+    scroll.addEventListener('scroll', () => { pan = { left: scroll.scrollLeft, top: scroll.scrollTop }; }, { passive: true });
+    container.appendChild(scroll);
+    requestAnimationFrame(() => { scroll.scrollLeft = pan.left; scroll.scrollTop = pan.top; }); // append now to measure its real width (CSS breakout on mobile)
 
     // Reserve a lane on the right for the row +/- buttons so they sit beside the
     // slot field rather than on top of the rightmost slot column (which hid them).
@@ -216,38 +232,15 @@ export function renderStudioFloorPlan(container, layoutSlots, initialSlots, init
     const availH = Math.min(window.innerHeight * 0.6, 460);
     const fillScaleW = widthRange > 0 ? (availW - (container.closest('.app-page') ? 2 : 0) - SLOT_SIZE - EDGE_PAD * 2 - rowLaneW) / widthRange : minGapScale;
     const fillScaleH = heightRange > 0 ? (availH - SLOT_SIZE - EDGE_PAD * 2 - 2) / heightRange : minGapScale;
-    // Contain: fill the available box on whichever axis is tighter. Scaling is
-    // uniform, so stretching a few-column studio (e.g. Reformer) to fill the full
-    // width also blew its row spacing up and forced vertical panning. Fitting the
-    // height instead keeps the rows compact and the whole map on screen.
-    const fillScale = Math.min(fillScaleW, fillScaleH);
-    // On mobile, don't stretch to fill — use the minimum scale so gaps stay
-    // tight (just enough to avoid overlap) and any overflow pans inside the
-    // scroll container. On desktop, fill the available box for a roomier map.
-    // Inside a full-screen mobile page there is a whole screen of width, so fill it
-    // (width-driven; the vertical axis is compressed below if it would spill).
-    const inPage = !!container.closest('.app-page');
-    const scale = inPage ? Math.max(fillScaleW, minGapScale) : (isMobile ? minGapScale : Math.max(fillScale, minGapScale));
-
-    // Scale X-axis and Y-axis independently if Y-axis gaps are too large and make the map spill.
+    // ONE uniform scale for both axes (aspect ratio and relative geometry preserved): contain the map in the
+    // available box, but never below the min-gap scale so 28px spots never overlap (the map pans instead).
+    // Independent per-axis scales used to stretch a rotated (tall) map: the rotated Y range is tiny steps
+    // of the original X, so the "min vertical gap" rule blew the Y scale up 6x and spread spots apart.
+    // Rotated (vertical) maps are locked to the available width (fit to width, no x-scroll); unrotated maps keep
+    // the minimum spot size and scroll horizontally when wider than the box (chooseMapScale).
+    const { scale } = chooseMapScale({ rotated: rotation !== 0, fillScale: rotation !== 0 ? fillScaleW : Math.min(fillScaleW, fillScaleH), minGapScale });
     const scaleX = scale;
-    let scaleY = scale;
-    const maxFieldH = availH - SLOT_SIZE - EDGE_PAD * 2;
-    if (heightRange > 0 && scaleY * heightRange > maxFieldH) {
-      scaleY = maxFieldH / heightRange;
-      // Guarantee vertical slots do not overlap by checking min vertical coordinate diff
-      let minVerticalDist = Infinity;
-      for (let i = 0; i < layoutSlots.length; i++) {
-        for (let j = i + 1; j < layoutSlots.length; j++) {
-          const dy = Math.abs(layoutSlots[i].y - layoutSlots[j].y);
-          if (dy > 0.01 && dy < minVerticalDist) minVerticalDist = dy;
-        }
-      }
-      if (isFinite(minVerticalDist) && minVerticalDist > 0) {
-        const minVerticalScale = MIN_GAP / minVerticalDist;
-        if (scaleY < minVerticalScale) scaleY = minVerticalScale;
-      }
-    }
+    const scaleY = scale;
 
     const floorW = Math.ceil(widthRange * scaleX + SLOT_SIZE + EDGE_PAD * 2 + rowLaneW);
     const floorH = Math.ceil(heightRange * scaleY + SLOT_SIZE + EDGE_PAD * 2);
@@ -256,6 +249,11 @@ export function renderStudioFloorPlan(container, layoutSlots, initialSlots, init
     floor.className = 'app-floor';
     floor.style.width = floorW + 'px';
     floor.style.height = floorH + 'px';
+    // Centre a floor narrower than its box (a rotated, tall map); a wider one still pans from the left.
+    floor.style.setProperty('margin-left', 'auto', 'important');
+    floor.style.setProperty('margin-right', 'auto', 'important');
+    const frontBar = makeFrontBar(frontSide);
+    if (frontBar) floor.appendChild(frontBar);
     scroll.appendChild(floor);
 
     const pxX = x => (x - minX) * scaleX + EDGE_PAD + SLOT_SIZE / 2;
@@ -275,10 +273,10 @@ export function renderStudioFloorPlan(container, layoutSlots, initialSlots, init
     });
 
     // Slots
-    layoutSlots.forEach(slot => {
+    viewSlots.forEach(slot => {
       const slotId = slotKey(slot.id);
       const priority = selectedSlots.indexOf(slotId) + 1;
-      const inRow = selectedRows.has(slot.y);
+      const inRow = selectedRows.has(slot.sourceY);
       const label = slot.label || String(slotId);
       const short = shortLabels.get(String(slot.id)) || label;
 
@@ -301,12 +299,13 @@ export function renderStudioFloorPlan(container, layoutSlots, initialSlots, init
        * to tell which square was which bike. The ranking is secondary
        * information; which seat it is, is the primary information.
        */
+      const selColor = selectionTone === 'guest' ? 'var(--info)' : 'var(--feat-autoupgrade)';
       const withPriorityBadge = (n) => {
         el.textContent = short;
         const badge = document.createElement('span');
         badge.textContent = String(n);
         badge.setAttribute('aria-hidden', 'true');
-        badge.style.cssText = 'position:absolute;top:-6px;right:-6px;min-width:15px;height:15px;padding:0 3px;border-radius:999px;background:var(--feat-autoupgrade);color:#fff;font-size:9px;line-height:15px;font-weight:800;text-align:center;box-shadow:0 0 0 2px var(--surface);box-sizing:border-box;';
+        badge.style.cssText = `position:absolute;top:-6px;right:-6px;min-width:15px;height:15px;padding:0 3px;border-radius:999px;background:${selColor};color:#fff;font-size:9px;line-height:15px;font-weight:800;text-align:center;box-shadow:0 0 0 2px var(--surface);box-sizing:border-box;`;
         el.appendChild(badge);
         el.title = formatCopyText(COPY.spotMapEditor.preferredPriority, { label, priority: n });
       };
@@ -337,8 +336,8 @@ export function renderStudioFloorPlan(container, layoutSlots, initialSlots, init
           el.title = formatCopyText(COPY.spotMapEditor.currentPreferredPriority, { label, priority });
         }
       } else if (priority > 0) {
-        el.style.background = 'var(--feat-autoupgrade)';
-        el.style.border = '2px solid var(--feat-autoupgrade)';
+        el.style.background = selColor;
+        el.style.border = `2px solid ${selColor}`;
         el.style.color = '#fff';
         withPriorityBadge(priority);
         if (hasAvailability && !isAvailable) {
@@ -370,7 +369,14 @@ export function renderStudioFloorPlan(container, layoutSlots, initialSlots, init
       const canSelect = editing && !reservationState && (!hasAvailability || isAvailable || priority > 0);
       if (canSelect) {
         el.style.cursor = 'pointer';
+        let pointerStart = null;
+        el.addEventListener('pointerdown', (event) => { pointerStart = { x: event.clientX, y: event.clientY }; suppressSpotClick = false; });
+        el.addEventListener('pointermove', (event) => {
+          if (pointerStart && Math.hypot(event.clientX - pointerStart.x, event.clientY - pointerStart.y) > 8) suppressSpotClick = true;
+        });
         el.addEventListener('click', () => {
+          if (suppressSpotClick) { suppressSpotClick = false; return; }
+          onSpotTap?.();
           const idx = selectedSlots.indexOf(slotId);
           if (idx !== -1) selectedSlots.splice(idx, 1);
           else {
@@ -390,7 +396,7 @@ export function renderStudioFloorPlan(container, layoutSlots, initialSlots, init
     // markers — not seats, so they're non-interactive (no click, no pointer).
     // `obj.label` comes from NormalizedLayoutObject; providers that don't name
     // their fixtures fall back to the historic "P" / "Podium" pair.
-    layoutObjects.forEach(obj => {
+    viewObjects.forEach(obj => {
       const objLabel = obj.label || COPY.spotMapEditor.podium;
       const el = document.createElement('div');
       el.style.cssText = `position:absolute;left:${pxX(obj.x)}px;top:${pxY(obj.y)}px;transform:translate(-50%,-50%);width:${SLOT_SIZE + 14}px;height:${SLOT_SIZE}px;border-radius:6px;display:flex;align-items:center;justify-content:center;font-size:12px;font-weight:700;background:var(--text-secondary);color:var(--bg);user-select:none;pointer-events:none;box-sizing:border-box;z-index:1;`;
@@ -427,7 +433,7 @@ export function renderStudioFloorPlan(container, layoutSlots, initialSlots, init
     // "Drag to pan" hint when the map overflows the scroll viewport
     if (floorW > scroll.clientWidth + 1 || floorH > scroll.clientHeight + 1) {
       const panHint = document.createElement('div');
-      panHint.style.cssText = 'font-size:11px;color:var(--text-tertiary);font-style:italic;margin:-4px 0 10px;text-align:center;';
+      panHint.style.cssText = 'font-size:11px;color:var(--text-tertiary);font-style:italic;margin:0 0 10px;text-align:center;';
       panHint.textContent = COPY.spotMapEditor.dragToPan;
       container.appendChild(panHint);
     }
@@ -456,6 +462,16 @@ export function renderStudioFloorPlan(container, layoutSlots, initialSlots, init
       extra.style.cssText = 'margin-bottom:12px;';
       extra.innerHTML = extraControlsHtml;
       container.appendChild(extra);
+    }
+
+    if (clearBelowMap) {
+      const clearSel = document.createElement('button');
+      clearSel.type = 'button';
+      clearSel.className = 'app-btn app-spotmap-clear';
+      clearSel.textContent = COPY.spotMapEditor.clearSelection;
+      clearSel.disabled = selectedSlots.length === 0 && selectedRows.size === 0;
+      clearSel.onclick = () => { selectedSlots.length = 0; selectedRows.clear(); render(); };
+      container.appendChild(clearSel);
     }
 
     // Actions

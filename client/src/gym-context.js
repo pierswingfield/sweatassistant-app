@@ -37,6 +37,7 @@ import { COPY } from './copy.js';
 
 const DEFAULTS = {
   atomicSwap: false,
+  cancelRebookUpgrade: true,
   nativeWaitlist: false,
   metered: true,
   creditPurchase: true,

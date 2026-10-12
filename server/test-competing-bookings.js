@@ -130,6 +130,8 @@ async function http() {
   const json = (r) => r.json();
   const post = (p, body, token) => fetch(`${BASE}${p}`, { method: 'POST',
     headers: { 'content-type': 'application/json', ...(token ? { authorization: `Bearer ${token}` } : {}) }, body: JSON.stringify(body) });
+  const put = (p, body, token) => fetch(`${BASE}${p}`, { method: 'PUT',
+    headers: { 'content-type': 'application/json', ...(token ? { authorization: `Bearer ${token}` } : {}) }, body: JSON.stringify(body) });
   const get = (p, token) => fetch(`${BASE}${p}`, { headers: { authorization: `Bearer ${token}` } });
 
   const login = await json(await post('/api/auth/login', { email: 'dev@psycle.com', password: 'x' }));
@@ -290,6 +292,38 @@ async function http() {
   list = await json(await get('/api/auto-book', token));
   assert.deepStrictEqual(list.find(x => x.id === firstId).warnings, []);
   console.log('✅ Removing one side clears the warning on the other.');
+
+  // Quantity edits preserve a valid supported count, and a capped gym rejects
+  // a higher count without replacing the existing stored preference.
+  r = await put(`/api/auto-book/${firstId}`, {
+    preferences: { preferredSlots: [], preferredRows: [], requiredCount: 2, bookAny: true },
+  }, token);
+  assert.strictEqual(r.status, 200, 'Psycle has no configured self-spot cap');
+  list = await json(await get('/api/auto-book?gymId=psycle-london', token));
+  assert.strictEqual(list.find(x => x.id === firstId).preferences.requiredCount, 2, 'valid multi-spot edit persists');
+
+  r = await add({ eventId: 'PSYCLE-TOGETHER-FALLBACK', gymId: 'psycle-london', startAt: t(3 * 24 * 60), durationMin: 45,
+    preferences: { preferredSlots: [], preferredRows: [], requiredCount: 2, bookAny: false, prioritizeTogether: true } });
+  b = await json(r);
+  assert.strictEqual(r.status, 200, 'supported multi-spot togetherness queues successfully');
+  list = await json(await get('/api/auto-book?gymId=psycle-london', token));
+  const together = list.find(x => x.id === b.id).preferences;
+  assert.strictEqual(together.prioritizeTogether, true);
+  assert.strictEqual(together.bookAny, true, 'togetherness must persist the required fallback permission');
+
+  r = await add({ eventId: 'JAB-COUNT-EDIT', gymId: 'jab-boxing', startAt: t(4 * 24 * 60), durationMin: 45 });
+  b = await json(r);
+  assert.strictEqual(r.status, 200, 'one self spot can be queued for JAB');
+  const cappedId = b.id;
+  r = await put(`/api/auto-book/${cappedId}`, {
+    preferences: { preferredSlots: [], preferredRows: [], requiredCount: 2, bookAny: true },
+  }, token);
+  b = await json(r);
+  assert.strictEqual(r.status, 400, 'JAB must reject an unsupported multi-self-spot edit');
+  assert.strictEqual(b.code, 'ATTENDEE_LIMIT_EXCEEDED');
+  list = await json(await get('/api/auto-book?gymId=jab-boxing', token));
+  assert.strictEqual(list.find(x => x.id === cappedId).preferences.requiredCount, 1, 'failed edit leaves the saved count untouched');
+  console.log('✅ Auto-Book count updates persist valid multi-spot values and preserve capped entries on refusal.');
 }
 
 (async () => {

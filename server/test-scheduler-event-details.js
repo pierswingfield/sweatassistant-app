@@ -11,6 +11,7 @@ const testkit = require('./testkit');
 const scheduler = require('./scheduler');
 const CodexFitProvider = require('./providers/codexfit');
 const MarianaTekProvider = require('./providers/marianatek');
+const { normalizeAutoBookPreferences, participantsForPreferences } = require('./auto-book-preferences');
 
 const PSYCLE = 'psycle-london';
 const JAB = 'jab-boxing';
@@ -19,10 +20,10 @@ db.db.prepare('UPDATE gyms SET enabled = 1 WHERE id = ?').run(JAB);
 const checks = [];
 const check = (name, fn) => checks.push({ name, fn });
 
-function makeUser(label) {
+function makeUser(label, gymId = JAB) {
   const userId = testkit.createUser(db, `scheduler-details-${label}-${Date.now()}@test.local`, 'enc:pw');
-  db.linkGym(userId, JAB, { encryptedPassword: 'enc:pw' });
-  db.setGymSession(userId, JAB, { accessToken: `jab-token-${userId}` });
+  db.linkGym(userId, gymId, { encryptedPassword: 'enc:pw' });
+  db.setGymSession(userId, gymId, { accessToken: `${gymId}-token-${userId}` });
   return userId;
 }
 
@@ -106,6 +107,93 @@ check('JAB auto-book reads normalized MarianaTek event details and books an avai
   } finally {
     restore();
   }
+});
+
+check('multi-spot booking keeps a failed preferred attempt in the same spatial plan before nearby fallback', async () => {
+  const userId = makeUser('spatial-fallback', PSYCLE);
+  const calls = [];
+  CodexFitProvider.prototype.fetchEventDetails = async () => ({
+    event: { id: '93004', name: 'Ride' },
+    slots: [
+      { id: 'alpha', label: '99', x: 0, y: 0, isAvailable: true },
+      { id: 'bravo', label: '1', x: 1, y: 0, isAvailable: false },
+      { id: 'charlie', label: '2', x: 2, y: 0, isAvailable: true },
+      { id: 'foxtrot', label: '3', x: 0, y: 1, isAvailable: true },
+      { id: 'golf', label: '4', x: 1, y: 1, isAvailable: true },
+      { id: 'hotel', label: '5', x: 2, y: 1, isAvailable: true },
+    ], objects: [],
+  });
+  CodexFitProvider.prototype.bookSlot = async function (_eventId, slotIds) {
+    const slotId = slotIds[0];
+    calls.push(slotId);
+    if (slotId === 'alpha') return { ok: false, message: 'just taken' };
+    return { ok: true, bookingId: `psycle-${slotId}`, slotId };
+  };
+
+  try {
+    await scheduler.executeAutoBookForClass({
+      user_id: userId, gym_id: PSYCLE, event_id: '93004', studio_id: null,
+      start_at: new Date(Date.now() + 3 * 864e5).toISOString(), group_name: 'RIDE',
+      class_name: 'Ride', instructor_name: 'Coach',
+      preferences: JSON.stringify({ preferredSlots: ['alpha', 'charlie'], preferredRows: [], requiredCount: 2, bookAny: true }),
+    });
+    assert.deepStrictEqual(calls, ['alpha', 'charlie', 'foxtrot'], 'after a failed preferred slot, preserve map order then choose a nearby fallback');
+  } finally {
+    restore();
+  }
+});
+
+check('multi-spot auto-book with Auto-Upgrade registers ONE group monitor carrying the together flag', async () => {
+  const userId = makeUser('group-upgrade', PSYCLE);
+  CodexFitProvider.prototype.fetchEventDetails = async () => ({
+    event: { id: '93006', name: 'Ride' },
+    slots: [
+      { id: 'p1', label: '1', x: 0, y: 0, isAvailable: true },
+      { id: 'p2', label: '2', x: 1, y: 0, isAvailable: true },
+      { id: 'p3', label: '3', x: 2, y: 0, isAvailable: true },
+    ], objects: [],
+  });
+  let n = 0;
+  CodexFitProvider.prototype.bookSlot = async function (_e, slotIds) { return { ok: true, bookingId: `${7000 + ++n}`, slotId: slotIds[0] }; };
+  try {
+    await scheduler.executeAutoBookForClass({
+      user_id: userId, gym_id: PSYCLE, event_id: '93006', studio_id: 55,
+      start_at: new Date(Date.now() + 3 * 864e5).toISOString(), group_name: 'RIDE',
+      class_name: 'Ride', instructor_name: 'Coach',
+      preferences: JSON.stringify({ preferredSlots: ['p1', 'p2'], preferredRows: [], requiredCount: 2, bookAny: true, autoUpgrade: true, prioritizeTogether: true }),
+    });
+    const monitors = db.db.prepare("SELECT * FROM auto_upgrades WHERE user_id = ? AND event_id = '93006'").all(userId);
+    assert.strictEqual(monitors.length, 1, 'one monitor for the whole group, not one per seat');
+    assert.strictEqual(monitors[0].gym_id, PSYCLE);
+    assert.strictEqual(db.getAutoUpgradeMembers(monitors[0].id).length, 2, 'both reservations are members');
+    assert.strictEqual(JSON.parse(monitors[0].preferences).prioritizeTogether, true, 'together flag carried over');
+  } finally {
+    restore();
+  }
+});
+
+check('scheduled named guest uses the primary first, persists both outcomes, and does not spend a second self place', async () => {
+  const userId = makeUser('scheduled-guest');
+  const preferences = normalizeAutoBookPreferences({ requiredCount: 2, guests: [{ email: 'guest@example.test', name: 'Sam' }], bookAny: true });
+  const queueId = db.addAutoBooking(userId, '93005', 'Boxing', 'Coach', 'Studio', '', new Date(Date.now() + 3 * 864e5).toISOString(), preferences, null, 'BOXING', null, JAB);
+  db.replaceAutoBookingParticipants(queueId, userId, JAB, '93005', participantsForPreferences(preferences));
+  const calls = [];
+  MarianaTekProvider.prototype.fetchEventDetails = async () => ({ event: { id: '93005', name: 'Boxing' }, slots: [
+    { id: 'self-slot', label: '1', x: 0, y: 0, isAvailable: true },
+    { id: 'guest-slot', label: '2', x: 1, y: 0, isAvailable: true },
+    { id: 'spacing-slot', label: '3', x: 2, y: 0, isAvailable: true },
+  ], objects: [] });
+  MarianaTekProvider.prototype.bookSlot = async (_eventId, slotIds) => { calls.push(`self:${slotIds[0]}`); return { ok: true, bookingId: 'primary-93005', slotId: slotIds[0] }; };
+  MarianaTekProvider.prototype.bookGuestSlot = async (_eventId, slotId, email) => { calls.push(`guest:${slotId}:${email}`); return { ok: true, bookingId: 'guest-93005', slotId }; };
+  try {
+    const booking = db.getUserAutoBookings(userId, JAB).find((row) => Number(row.id) === Number(queueId));
+    await scheduler.executeAutoBookForClass(booking);
+    assert.deepStrictEqual(calls, ['self:self-slot', 'guest:guest-slot:guest@example.test']);
+    assert.deepStrictEqual(db.getAutoBookingParticipants(queueId, userId).map((row) => [row.participant_key, row.status, row.booking_id]), [['self', 'success', 'primary-93005'], ['guest:guest@example.test', 'success', 'guest-93005']]);
+    assert.deepStrictEqual(db.getGuestBookingIdsForPrimary(userId, JAB, 'primary-93005'), ['guest-93005']);
+    await scheduler.executeAutoBookForClass(db.getUserAutoBookings(userId, JAB).find((row) => Number(row.id) === Number(queueId)));
+    assert.deepStrictEqual(calls, ['self:self-slot', 'guest:guest-slot:guest@example.test'], 'durable successes are not retried after re-entry');
+  } finally { restore(); }
 });
 
 check('JAB Auto-Book clamps a stale multi-attendee preference to one reservation', async () => {

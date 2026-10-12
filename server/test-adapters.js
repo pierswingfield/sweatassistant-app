@@ -502,8 +502,64 @@ check('marianatek: booking entitlement separates one self reservation from guest
   assert.deepStrictEqual(result, {
     selfBookingLimit: 1, maxSelfBookings: 1, selfEligible: true, selfReason: undefined,
     guestSupported: true, maxGuestBookings: 1, guestEligible: true,
-    guestPassesRemaining: 2, guestReason: undefined,
+    guestPassesRemaining: 2, guestSource: 'membership', guestReason: undefined,
   });
+});
+
+
+// Aarmy is credit-based: a guest draws a valid-for-guests credit. Platform logic, no gym-name branching.
+const aarmyFixture = require('./__fixtures__/marianatek/aarmy-guest-payment-options.json');
+const entitlementFor = (gymId, options, { booked = false, guestReserved = false } = {}) => {
+  const mt = getProvider(gymId);
+  return withStub(mt, 'fetchEventDetails', async () => ({
+    event: { isUserBooked: booked, raw: { available_spot_count: 6, is_user_guest_reserved: guestReserved } }, slots: [], objects: [],
+  }), () => withStub(mt, 'getClassPaymentOptions', async () => options, () => mt.getBookingEntitlement('123', { accessToken: 'tok' })));
+};
+const creditOption = (remaining, extra = {}) => ({ id: `credit-${remaining}`, type: 'credit', error_code: null, error_message: null, membership_payment: null, credit_payment: { credits_remaining: remaining, is_valid_for_guests: true, ...extra } });
+
+check('marianatek: credit-based guest allowance (sanitized Aarmy fixture envelope), holding one credit for the primary', async () => {
+  const opts = aarmyFixture.payment_options.body;
+  const before = await entitlementFor('aarmy', { user: opts.user_payment_options, guest: opts.guest_payment_options });
+  // One credit total and the primary not booked yet: it is needed for the primary, so no guest credit is left.
+  assert.strictEqual(before.guestSource, 'credit');
+  assert.strictEqual(before.guestPassesRemaining, 0);
+  assert.strictEqual(before.guestReason, 'NO_GUEST_PASSES');
+  const two = await entitlementFor('aarmy', { user: [creditOption(2)], guest: [creditOption(2)] });
+  assert.strictEqual(two.guestPassesRemaining, 1);
+  assert.strictEqual(two.guestEligible, true);
+  // After the primary is booked the options are re-read: only what remains counts.
+  const after = await entitlementFor('aarmy', { user: [creditOption(1)], guest: [creditOption(1)] }, { booked: true });
+  assert.strictEqual(after.guestPassesRemaining, 1);
+  assert.strictEqual(after.guestEligible, true);
+});
+
+check('marianatek: a credit not valid for guests gives no guest allowance', async () => {
+  const r = await entitlementFor('aarmy', { user: [creditOption(3, { is_valid_for_guests: false })], guest: [creditOption(3, { is_valid_for_guests: false })] }, { booked: true });
+  assert.strictEqual(r.guestSource, null);
+  assert.strictEqual(r.guestPassesRemaining, null);
+});
+
+check('marianatek: a null or absent guest count is unknown, not zero (JAB membership path unchanged)', async () => {
+  const unknown = await entitlementFor('jab-boxing', { user: [{ id: 'm', membership_payment: { guest_remaining_usage_count: null } }], guest: [{ id: 'm' }] });
+  assert.strictEqual(unknown.guestPassesRemaining, null);
+  assert.strictEqual(unknown.guestReason, 'GUEST_ALLOWANCE_UNKNOWN');
+  assert.strictEqual(unknown.guestEligible, true); // allowed; the provider decides at booking time
+  const zero = await entitlementFor('jab-boxing', { user: [{ id: 'm', membership_payment: { guest_remaining_usage_count: 0 } }], guest: [{ id: 'm' }] });
+  assert.strictEqual(zero.guestPassesRemaining, 0);
+  assert.strictEqual(zero.guestEligible, false);
+  assert.strictEqual(zero.guestReason, 'NO_GUEST_PASSES');
+});
+
+check('marianatek: bookGuestSlot re-reads the payment options at call time (after the primary booked)', async () => {
+  const mt = getProvider('aarmy');
+  let reads = 0;
+  const result = await withStub(mt, 'getBookingEntitlement', async () => { reads += 1; return { guestEligible: reads > 1 ? true : false, guestReason: 'NO_GUEST_PASSES' }; }, async () => {
+    const first = await mt.bookGuestSlot('123', null, 'guest@example.com', { accessToken: 'tok' });
+    assert.strictEqual(first.ok, false); // read 1: not eligible, nothing posted
+    assert.strictEqual(reads, 1);
+    return reads;
+  });
+  assert.strictEqual(result, 1);
 });
 
 check('marianatek: guest booking posts a separate attendee with email and guest payment option', async () => {
@@ -549,6 +605,26 @@ check('marianatek: getCancelPenalty maps is_penalty_cancel', async () => {
     () => mt.getCancelPenalty('r2', { accessToken: 'tok' }));
   assert.strictEqual(pen.isPenalty, true);
   assert.strictEqual(pen.message, 'Late cancel fee applies.');
+  assert.strictEqual(pen.penalty, 'fee');
+});
+
+check('marianatek: contradictory is_penalty_cancel:true + free message resolves to none (message wins)', async () => {
+  for (const gym of ['aarmy', 'jab-boxing']) {
+    const mt = getProvider(gym);
+    const run = (body) => withStub(mt, 'request', async () => fakeRes(body), () => mt.getCancelPenalty('r', { accessToken: 'tok' }));
+    const free = await run({ is_penalty_cancel: true, message: 'By canceling, you will not lose a usage and you will not be charged a fee.' });
+    assert.strictEqual(free.penalty, 'none');
+    assert.strictEqual(free.isPenalty, false);
+    const fee = await run({ is_penalty_cancel: true, message: 'You will be charged £8.33 for cancelling this reservation but you will not lose a usage.' });
+    assert.strictEqual(fee.penalty, 'fee');
+    const credit = await run({ is_penalty_cancel: true, message: 'You will lose a credit if you cancel.' });
+    assert.strictEqual(credit.penalty, 'credit');
+    const none = await run({ is_penalty_cancel: false, message: null });
+    assert.strictEqual(none.penalty, 'none');
+    const unk = await run({ is_penalty_cancel: true });
+    assert.strictEqual(unk.penalty, 'unknown');
+    assert.strictEqual(unk.isPenalty, undefined, 'unknown never claims free or penalty');
+  }
 });
 
 // ===========================================================================
@@ -681,7 +757,7 @@ check('both platforms return the identical metadata shape', async () => {
   // mock without addresses would otherwise make a real contract look violated.
   const ALLOWED = {
     locations: ['id', 'name', 'address', 'timeZone'],
-    studios: ['id', 'name', 'locationId', 'locationName', 'hasLayout', 'rowGroups'],
+    studios: ['id', 'name', 'locationId', 'locationName', 'hasLayout', 'rowGroups', 'mobileRotation', 'front'],
     instructors: ['id', 'name', 'imageUrl'],
     classTypes: ['id', 'name', 'group'],
   };

@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest';
-import { openPage, closePage, pushLayer, isMobile, openPageCount, _resetForTests } from './modal-nav.js';
+import { openPage, closePage, pushLayer, isMobile, openPageCount, setDesktopBack, _resetForTests } from './modal-nav.js';
 
 function mkModal(id) {
   const el = document.createElement('div');
@@ -194,5 +194,54 @@ describe('modal-nav', () => {
     await tick(60);
     expect(onBack).toHaveBeenCalledTimes(1);
     expect(openPageCount()).toBe(1);           // the page itself stays
+  });
+});
+
+describe('modal-nav desktop flow steps (desktop mirrors mobile)', () => {
+  it('a desktop layer that opts in runs onBack on release; others stay no-ops', async () => {
+    setMobile(false);
+    const onBack = vi.fn();
+    pushLayer({ id: 'plain', onBack }).release();
+    await tick(30);
+    expect(onBack).not.toHaveBeenCalled();
+    const onBack2 = vi.fn();
+    pushLayer({ id: 'flow', desktop: true, onBack: onBack2 }).release();
+    expect(onBack2).not.toHaveBeenCalled(); // deferred, so the caller may open a new page from onBack
+    await tick(30);
+    expect(onBack2).toHaveBeenCalledTimes(1);
+  });
+
+  it('desktop: the visible back arrow steps back, the x never does', async () => {
+    setMobile(false);
+    const el = mkModal('d'); openPage(el, { id: 'd' }); await tick();
+    const onBack = vi.fn();
+    pushLayer({ id: 'flow', desktop: true, captureHeader: true, onBack });
+    setDesktopBack(el, true);
+    const arrow = el.querySelector('.app-flow-back');
+    expect(arrow.hidden).toBe(false);
+    el.querySelector('.app-modal-close-btn').click();
+    await tick(30);
+    expect(onBack).not.toHaveBeenCalled();
+    arrow.click();
+    await tick(30);
+    expect(onBack).toHaveBeenCalledTimes(1);
+    setDesktopBack(el, false);
+    expect(arrow.hidden).toBe(true);
+  });
+
+  it('mobile never gets the extra arrow', () => {
+    setMobile(true);
+    const el = mkModal('m');
+    setDesktopBack(el, true);
+    expect(el.querySelector('.app-flow-back')).toBeNull();
+  });
+
+  it('replaceEl hides the replaced page on desktop', async () => {
+    setMobile(false);
+    const a = mkModal('ra'); const b = mkModal('rb');
+    openPage(a, { id: 'ra', remove: true }); await tick();
+    openPage(b, { id: 'rb', replaceEl: a }); await tick(350);
+    expect(document.getElementById('ra')).toBeNull();
+    expect(b.classList.contains('show')).toBe(true);
   });
 });

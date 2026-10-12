@@ -1,6 +1,6 @@
 import { api } from '../api';
 import { COPY, formatCopyText } from '../copy.js';
-import { getGymShortName, getLinkedGyms, getDefaultGymId } from '../gym-context.js';
+import { getGymShortName, getLinkedGyms, getDefaultGymId, canForGym, capabilityForGym } from '../gym-context.js';
 import { getAvailableCreditsForEvent, getTotalCredits, getIneligibleReason } from './credit-allowance.js';
 import { showToast, cache, userSettings, refreshUserData, debugConsole } from '../main';
 import { getClassReleaseTime, noSept, zoneFor, formatInZone } from '../lib';
@@ -10,9 +10,10 @@ import { instructorInlineHtml, cleanClassName, icon, disciplineTag, trimLocation
 import { renderCardSkeletons } from './loading-skeleton.js';
 import { ensureLiveStatusLine, setLiveStatusText } from './status-line.js';
 import { instructorAvatar } from './tooltips.js';
-import { pickStudioPrefs, metadata, loadMetadata, rowGroupsForStudio } from './timetable';
+import { openBookingModal, renderTimetableGrid, pickStudioPrefs, metadata, loadMetadata, rowGroupsForStudio, mobileRotationForStudio } from './timetable';
 import { openPage as openNavPage, closePage as closeNavPage } from './modal-nav.js';
 import { applyBookingChrome, bookingContextEl } from './booking-chrome.js';
+import { bookingQuantityOptions, maxAttendeesPerClass } from './booking-limits.js';
 
 let countdownInterval = null;
 let sseEventSource = null;
@@ -422,180 +423,82 @@ function wireCancelAutoBook(btn, card, q) {
 // Edit modal for updating an existing auto-book queue entry's configuration
 // (spot preferences, quantity, fallback toggle). Reuses the shared booking modal.
 export async function openAutoBookEditModal(q) {
-  const modal = document.getElementById('app-booking-modal');
-  const body = document.getElementById('app-booking-modal-body');
-  const title = document.getElementById('app-booking-modal-title');
-  if (!modal || !body || !title) return;
-
+  // The creation and edit screens deliberately share the same preferred-map
+  // renderer. Their submit boundaries stay separate: this callback can update
+  // only this queue entry and can never create a second one.
   const prefs = q.preferences || {};
-  const currentQty = prefs.requiredCount || 1;
-  const abClassName = cleanClassName(q.class_name || '', q.group_name || '') || q.group_name || q.class_name || COPY.autoBook.class;
-  const currentBookAny = prefs.bookAny ?? false;
-
-  title.textContent = formatCopyText(COPY.autoBook.editTitle, { className: cleanClassName(q.class_name || '', q.group_name || '') || q.group_name || q.class_name || COPY.autoBook.class });
-  // Mobile: static title + identity strip; class details live in the class card above the map.
-  applyBookingChrome(modal, { titleText: COPY.bookingFlow.titleEditAutoBook, gymId: q.gym_id, locationName: q.location_name, studioName: q.studio_name });
-  body.innerHTML = `
-    <div class="app-loading-spinner-container" style="padding: 40px 0;">
-      <div class="app-spinner"></div>
-      <span>${COPY.autoBook.loadingFloorMap}</span>
-    </div>
-  `;
-
-  const spotMapDirty = () => !!body.querySelector('[data-spotmap-root]')?.__isDirty?.();
-  const discardOk = () => !spotMapDirty() || confirm(COPY.bookingEditor.discardChanges);
-  openNavPage(modal, { id: 'autobook-edit', canClose: discardOk });
-
-  const closeBtn = document.getElementById('app-booking-modal-close');
-  const overlay = modal.querySelector('.app-modal-overlay');
-
-  const closeModal = () => {
-    if (closeNavPage(modal)) return; // mobile page: pop its history entry
-    modal.classList.remove('show');
-    setTimeout(() => modal.style.display = 'none', 300);
+  const guestRows = Array.isArray(q.participants)
+    ? q.participants.filter((participant) => participant.participant_type === 'guest')
+    : [];
+  const guests = Array.isArray(prefs.guests) && prefs.guests.length
+    ? prefs.guests
+    : guestRows.map((participant) => ({ email: participant.guest_email, name: participant.guest_name || null }));
+  const event = {
+    id: q.event_id,
+    gymId: q.gym_id,
+    studioId: q.studio_id,
+    name: q.class_name || q.group_name || COPY.autoBook.class,
+    discipline: q.group_name || q.class_name || COPY.autoBook.class,
+    instructors: q.instructor_name ? [{ name: q.instructor_name, imageUrl: q.instructor_image_url || null }] : [],
+    studioName: q.studio_name || '',
+    locationName: q.location_name || '',
+    startAt: q.start_at,
+    releaseAt: q.release_at || null,
+    timeZone: q.time_zone || q.timeZone,
+    durationMin: q.duration_min || null,
   };
+  await openBookingModal(event, 'autobook', {
+    overlapChecked: true,
+    setupDone: true,
+    setupFlow: true,
+    autoBookEdit: {
+      id: q.id,
+      preferences: { ...prefs, guests },
+      onRemove: ({ close }) => removeAutoBookEntry(q.id, close),
+      onSubmit: ({ slots, rows, qty, bookAny, prioritizeTogether, autoUpgrade, guests: draftGuests, close }) =>
+        saveAutoBookEdit(q.id, q.studio_id || event.studioId, slots, rows, qty, bookAny, close, q.gym_id, {
+          prioritizeTogether,
+          autoUpgrade,
+          guests: draftGuests,
+        }),
+    },
+  });
+}
 
-  closeBtn.onclick = closeModal;
-  overlay.onclick = closeModal;
-
+// Remove from the edit screen (the only removal outside the Auto-Book tab).
+async function removeAutoBookEntry(entryId, closeModal) {
   try {
-    // WP-C5: the floor plan is driven entirely by NormalizedSlot[] /
-    // NormalizedLayoutObject[] from the adapter — no raw `studio.layout` access
-    // — so a MarianaTek layout renders here unchanged. No live availability is
-    // shown in this config modal (preference-only), so `isAvailable` is unused.
-    const [{ event, slots: layoutSlots, objects: layoutObjects }, allPrefs] = await Promise.all([
-      api.getEventDetails(q.event_id, q.gym_id),
-      api.getStudioPreferences()
-    ]);
-
-    const resolvedStudioId = q.studio_id || event.studioId;
-    const studioPrefs = pickStudioPrefs(allPrefs, resolvedStudioId, q.gym_id);
-
-    // Seed from the shared studio map (live source of truth), fall back to entry prefs
-    const seedSlots = (studioPrefs?.preferredSlots || prefs.preferredSlots || []).map(Number);
-    const seedRows = studioPrefs?.preferredRows || prefs.preferredRows || [];
-    const studioName = q.studio_name || event.studioName || 'this studio';
-
-    // Explicit FCFS check rather than inferring it from an empty slot list —
-    // an FCFS class has no assigned spots at all, which is a different thing
-    // from a pick-a-spot studio whose floor map is missing. Both fall through
-    // to the same spot-less controls below, but the copy differs.
-    const isFcfs = event.layoutFormat === 'first-come-first-serve';
-    if (isFcfs || layoutSlots.length === 0) {
-      body.innerHTML = `
-        <div style="padding: 24px; text-align: center; color: var(--text-secondary);">
-          <p style="margin-bottom: 16px;">${isFcfs ? COPY.autoBook.unassignedSpots : COPY.autoBook.noFloorMap}</p>
-          <p style="font-size: 12px; color: var(--text-tertiary);">${COPY.autoBook.noFloorMapHelp}</p>
-        </div>
-      `;
-      // Render minimal controls without floor plan
-      const controlsDiv = document.createElement('div');
-      controlsDiv.style.cssText = 'display:flex;flex-direction:column;gap:12px;background:var(--surface-inset);padding:14px;border-radius:12px;border:1px solid var(--border);';
-      controlsDiv.innerHTML = `
-        <div style="display:flex;gap:14px;align-items:center;border-top:1px solid var(--separator);padding-top:12px;">
-          <div style="width:110px;">
-            <label style="display:block;font-size:12px;color:var(--text-secondary);margin-bottom:4px;">${COPY.autoBook.slotsToBook}</label>
-            <select id="autobook-edit-qty" class="app-select" style="width:100%;padding:6px 8px;font-size:13px;">
-              ${[1,2,3,4].map(n => `<option value="${n}" ${currentQty===n?'selected':''}>${n}</option>`).join('')}
-            </select>
-          </div>
-          <div style="flex:1;padding-top:14px;">
-            <label style="display:flex;align-items:center;gap:8px;font-size:13px;cursor:pointer;color:var(--text-secondary);user-select:none;">
-              <input type="checkbox" id="autobook-edit-fallback" ${currentBookAny ? 'checked' : ''}>
-              <span>${COPY.autoBook.fallbackAnySlot}</span>
-            </label>
-          </div>
-        </div>
-        <button class="app-btn" id="btn-save-autobook-edit" style="background:var(--feat-autoupgrade);color:var(--on-accent);">${COPY.autoBook.saveChanges}</button>
-      `;
-      body.appendChild(controlsDiv);
-
-      controlsDiv.querySelector('#btn-save-autobook-edit').onclick = async () => {
-        const qty = parseInt(controlsDiv.querySelector('#autobook-edit-qty').value) || 1;
-        const fallbackAny = controlsDiv.querySelector('#autobook-edit-fallback').checked;
-        await saveAutoBookEdit(q.id, resolvedStudioId, [], [], qty, fallbackAny, closeModal, q.gym_id);
-      };
-      return;
-    }
-
-    body.innerHTML = `<div id="app-autobook-edit-editor"></div>`;
-    const editorContainer = body.querySelector('#app-autobook-edit-editor');
-
-    const bannerHtml = `
-      <div style="font-size:12px;color:var(--feat-autoupgrade);background:color-mix(in srgb,var(--feat-autoupgrade) 8%,transparent);border:1px solid color-mix(in srgb,var(--feat-autoupgrade) 18%,transparent);border-radius:8px;padding:8px 10px;margin-bottom:10px;line-height:1.5;">
-        ${COPY.autoBook.preferredMapHelp}
-      </div>`;
-
-    const bannerHtmlEdit = `
-      <div style="font-size:12px;color:var(--feat-autoupgrade);background:color-mix(in srgb,var(--feat-autoupgrade) 8%,transparent);border:1px solid color-mix(in srgb,var(--feat-autoupgrade) 18%,transparent);border-radius:8px;padding:8px 10px;margin-bottom:10px;line-height:1.5;">
-        ${formatCopyText(COPY.autoBook.editingMapHtml, { studioName: escapeHtml(studioName) })}
-      </div>`;
-
-    const extraControlsHtml = `
-      <div style="display:flex;flex-direction:column;gap:12px;background:var(--surface-inset);padding:14px;border-radius:12px;border:1px solid var(--border);">
-        <div style="display:flex;gap:14px;align-items:center;border-top:1px solid var(--separator);padding-top:12px;">
-          <div style="width:110px;">
-            <label style="display:block;font-size:12px;color:var(--text-secondary);margin-bottom:4px;">${COPY.autoBook.slotsToBook}</label>
-            <select id="autobook-edit-qty" class="app-select" style="width:100%;padding:6px 8px;font-size:13px;">
-              ${[1,2,3,4].map(n => `<option value="${n}" ${currentQty===n?'selected':''}>${n}</option>`).join('')}
-            </select>
-          </div>
-          <div style="flex:1;padding-top:14px;">
-            <label style="display:flex;align-items:center;gap:8px;font-size:13px;cursor:pointer;color:var(--text-secondary);user-select:none;">
-              <input type="checkbox" id="autobook-edit-fallback" ${currentBookAny ? 'checked' : ''}>
-              <span>${COPY.autoBook.fallbackAnySlot}</span>
-            </label>
-          </div>
-        </div>
-      </div>`;
-
-    renderStudioFloorPlan(editorContainer, layoutSlots, seedSlots, seedRows, async (slots, rows, container) => {
-      const qty = parseInt(container.querySelector('#autobook-edit-qty')?.value || currentQty) || 1;
-      const fallbackAny = container.querySelector('#autobook-edit-fallback')?.checked ?? currentBookAny;
-      await saveAutoBookEdit(q.id, resolvedStudioId, slots, rows, qty, fallbackAny, closeModal, q.gym_id);
-    }, {
-      saveLabel: COPY.autoBook.saveChanges,
-      layoutObjects,
-      rowGroups: rowGroupsForStudio(resolvedStudioId, q.gym_id),
-      bannerHtml,
-      bannerHtmlEdit,
-      extraControlsHtml,
-      readOnly: true,
-      editLabel: formatCopyText(COPY.timetable.editPreferredSpots, { studio: studioName }),
-      hideClear: true,
-      aboveMap: () => bookingContextEl({
-        className: abClassName, instructorName: q.instructor_name || '', startAt: q.start_at, gymId: q.gym_id, timeZone: q.time_zone || q.timeZone,
-      }, { helperId: 'spotmap-setup', helperText: COPY.bookingFlow.helperSetup })
-    });
+    showToast(COPY.autoBook.removing, 'info');
+    await api.deleteAutoBooking(entryId);
+    showToast(COPY.autoBook.removed, 'success');
+    closeModal();
+    renderAutoBookTab();
+    renderTimetableGrid().catch(() => {});
   } catch (err) {
-    console.error('[AutoBook] Edit modal failed:', err);
-    body.innerHTML = `<div style="padding: 24px; text-align: center; color: var(--danger);">${formatCopyText(COPY.autoBook.failedStudioLayout, { error: escapeHtml(err.message) })}</div>`;
+    showToast(formatCopyText(COPY.autoBook.failed, { error: err.message }), 'error');
   }
 }
 
-// Save updated auto-book preferences (updates both the queue entry and the shared studio map)
-async function saveAutoBookEdit(entryId, studioId, slots, rows, qty, bookAny, closeModal, gymId = null) {
+// Save updated queue preferences and the studio-map draft atomically. A rejected
+// update keeps the editor open and leaves the shared map/cache unchanged.
+async function saveAutoBookEdit(entryId, studioId, slots, rows, qty, bookAny, closeModal, gymId = null, { prioritizeTogether = false, autoUpgrade = false, guests = [] } = {}) {
   try {
     showToast(COPY.autoBook.savingChanges, 'info');
-
-    // 1. Update the shared studio map (live source of truth for all features)
-    if (studioId && (slots.length > 0 || rows.length > 0)) {
-      try {
-        // Named explicitly: a studio id is unique only within its own gym.
-        await api.updateStudioPreferences(studioId, { preferredSlots: slots, preferredRows: rows }, gymId);
-      } catch (e) {
-        console.warn('[AutoBook] Could not persist studio map:', e.message);
-      }
-    }
-
-    // 2. Update the auto-book queue entry preferences
+    const studioPreferenceDraft = studioId
+      ? { gymId, studioId, preferences: { preferredSlots: slots, preferredRows: rows } }
+      : null;
     await api.updateAutoBooking(entryId, {
       preferredSlots: slots,
       preferredRows: rows,
       requiredCount: qty,
-      bookAny
-    });
-
+      bookAny,
+      prioritizeTogether: qty > 1 && prioritizeTogether,
+      autoUpgrade,
+      guests,
+    }, studioPreferenceDraft);
+    if (studioPreferenceDraft) {
+      cache.studioPreferences = { ...(cache.studioPreferences || {}), [`${gymId}:${studioId}`]: studioPreferenceDraft.preferences };
+    }
     showToast(COPY.autoBook.updated, 'success');
     closeModal();
     renderAutoBookTab();

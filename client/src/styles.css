@@ -6093,6 +6093,17 @@ html, body, * {
   border-color: color-mix(in srgb, var(--warning) 40%, transparent);
 }
 
+/* "+" add-guest action beside the spot chips: borderless, quiet. */
+#app-helper-container .bk-guest-chip {
+  display: inline-flex; align-items: center; justify-content: center;
+  min-width: 28px; min-height: 28px; padding: 0 8px;
+  border: 0; border-radius: 999px; background: transparent;
+  color: var(--text-tertiary); font: inherit; font-size: var(--text-sm, 14px); font-weight: 600; line-height: 1;
+  cursor: pointer; transition: background .2s ease, color .2s ease;
+}
+#app-helper-container .bk-guest-chip:hover,
+#app-helper-container .bk-guest-chip:focus-visible { color: var(--text-secondary); background: color-mix(in srgb, var(--text-tertiary) 14%, transparent); }
+
 /* A guest is a distinct reservation/pass, not an upgradeable second self spot. */
 #app-helper-container .ab-spot-upgrade-chip.is-guest,
 #app-helper-container .ab-spot-open-floor.is-guest {
@@ -9154,6 +9165,11 @@ body::after { z-index: 1000002 !important; }
 @media (max-width: 768px) and (prefers-reduced-motion: reduce) {
   .app-modal.app-page { transform: none; transition: opacity 0.15s ease !important; }
 }
+/* The page body is a flex column that scrolls: children must keep their own height. Without this the
+   floor plan (overflow:hidden) shrank to a sliver and the spots collapsed on top of each other. */
+@media (max-width: 768px) {
+  .app-modal.app-page .app-modal-body > * { flex-shrink: 0; }
+}
 body.app-scroll-locked { overflow: hidden; }
 body.app-scroll-locked { overflow: hidden; }
 
@@ -9356,6 +9372,50 @@ html.app-scroll-locked { overflow: hidden !important; background: var(--bg) !imp
 
 /* ===== Spot-map booking flow, batch 1: identity strip, class card, helper (mobile only) ===== */
 .app-bk-identity, .app-bk-classcard, .app-bk-helper { display: none; }
+.app-floor-plan-container.is-preferred-summary {
+  /* The overlay is confined to this map box; the map itself never scrolls or pans in the summary. */
+  position: relative !important;
+  overflow: hidden !important;
+  touch-action: pan-y;
+  overscroll-behavior: none;
+}
+.app-floor-plan-container.is-preferred-summary #app-floor-plan-grid {
+  filter: blur(2px);
+  pointer-events: none;
+  overflow: hidden !important;
+}
+.app-preferred-summary-overlay {
+  position: absolute !important;
+  inset: 0;
+  z-index: 2;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 18px;
+  text-align: center;
+  font-size: 14px;
+  font-weight: 600;
+  line-height: 1.4;
+  color: var(--text);
+  background: color-mix(in srgb, var(--bg) 68%, transparent);
+  pointer-events: none;
+}
+.app-preferred-summary-overlay.has-action { flex-direction: column; gap: 8px; }
+.app-preferred-summary-edit {
+  pointer-events: auto; background: none; border: 0; padding: 4px 8px; cursor: pointer;
+  font: inherit; font-size: 13px; font-weight: 600; color: var(--feat-autoupgrade); text-decoration: underline;
+}
+.app-preferred-summary-identity {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0 6px;
+  align-items: baseline;
+  margin: 0 0 8px;
+  font-size: 14px;
+  line-height: 1.4;
+}
+.app-preferred-summary-identity span { color: var(--text-secondary); }
+.app-preferred-summary-impact { margin: 0 0 8px; color: var(--text-secondary); font-size: 12px; line-height: 1.4; }
 @media (max-width: 768px) {
   .app-modal.app-page .app-bk-identity {
     display: flex; align-items: center; gap: 12px; flex-shrink: 0;
@@ -9367,7 +9427,7 @@ html.app-scroll-locked { overflow: hidden !important; background: var(--bg) !imp
   .app-bk-identity-text span { font-size: 13px; color: var(--text-secondary); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 
   .app-modal.app-page .app-bk-helper {
-    display: flex; align-items: flex-start; gap: 8px; margin: 0 0 2px; padding: 6px 4px 6px 12px;
+    display: flex; align-items: center; gap: 8px; margin: 0 0 2px; padding: 6px 4px 6px 12px;
     background: color-mix(in srgb, var(--feat-autoupgrade) 8%, var(--bg)); border: 1px solid color-mix(in srgb, var(--feat-autoupgrade) 18%, transparent); border-radius: 10px;
     font-size: 13px; line-height: 1.4; color: var(--text-secondary);
   }
@@ -9378,7 +9438,7 @@ html.app-scroll-locked { overflow: hidden !important; background: var(--bg) !imp
   .app-modal.app-page .app-bk-classcard {
     display: block; margin: 0 0 10px; padding: 10px 12px; background: var(--surface-inset); border: 1px solid var(--border); border-radius: 12px;
   }
-  .app-bk-classcard-label { font-size: 11px; font-weight: 700; letter-spacing: 0.06em; text-transform: uppercase; color: var(--text-tertiary); margin-bottom: 6px; }
+  .app-bk-class-line { display: flex; flex-wrap: wrap; gap: 0 6px; align-items: baseline; }
   .app-bk-classcard-main { display: flex; align-items: center; gap: 12px; }
   .app-bk-classcard-text { display: flex; flex-direction: column; min-width: 0; }
   .app-bk-class-name { font-size: 16px; color: var(--text); }
@@ -9401,41 +9461,44 @@ html.app-scroll-locked { overflow: hidden !important; background: var(--bg) !imp
   .app-stepper .is-current .n { background: var(--accent); border-color: var(--accent); color: var(--on-accent); }
   .app-stepper .is-complete { color: var(--success); }
 
-  /* Step A: body is a flex column; the inner block uses auto margins, so it is vertically centred when it
-     fits and top-aligned (scrolling) when it does not, never clipped. */
-  .app-setup-page .app-setup-body { display: flex !important; flex-direction: column; }
-  .app-setup-inner { width: 100%; max-width: 390px; margin: auto auto !important; display: flex; flex-direction: column; align-items: center; text-align: center; gap: 12px; padding: 12px 14px; }
-  .app-setup-logo .app-gym-logo-banner { display: inline-flex; }
-  .app-setup-logo .app-gym-chip { min-width: 150px !important; height: 64px !important; }
-  .app-setup-logo .app-gym-chip-logo .ab-gym-logo-img, .app-setup-logo .app-gym-chip-logo .ab-gym-logo-svg { height: 32px !important; max-width: 150px !important; }
-  .app-setup-where { font-size: 14px; color: var(--text-secondary); }
-  .app-setup-preview { width: 200px; height: 84px; margin: 6px 0; }
-  .app-setup-preview .pv-spot { fill: color-mix(in srgb, var(--text) 10%, transparent); }
-  .app-setup-preview .pv-pick { fill: var(--accent); }
-  .app-setup-preview .pv-n { fill: var(--on-accent); font-size: 11px; font-weight: 700; }
-  .app-setup-eyebrow { margin: 4px 0 0; font-size: 12px; font-weight: 700; letter-spacing: 0.06em; text-transform: uppercase; color: var(--text-tertiary); }
-  .app-setup-headline { margin: 0; max-width: 330px; font-family: var(--font-serif); font-size: 27px; font-weight: 600; line-height: 1.12; color: var(--text); outline: none; }
-  .app-setup-points { width: 100%; max-width: 330px; margin: 2px 0 0; padding: 0; list-style: none; display: flex; flex-direction: column; gap: 10px; font-size: 15px; line-height: 1.4; color: var(--text-secondary); text-align: left; }
-  .app-setup-points li { position: relative; padding-left: 18px; }
-  .app-setup-points li::before { content: '•'; position: absolute; left: 2px; color: var(--accent); font-weight: 800; }
-  .app-setup-points .p1 { color: var(--text); font-weight: 600; }
-  .app-setup-reassure { margin: 2px 0 0; font-size: 13px; color: var(--text-tertiary); }
-  .app-setup-check { width: 64px; height: 64px; border-radius: 50%; background: color-mix(in srgb, var(--success) 15%, transparent); color: var(--success); display: flex; align-items: center; justify-content: center; font-size: 34px; }
-  .app-setup-loading { display: flex; justify-content: center; padding: 40px 0; }
+}
+/* Setup flow pages: same styling at every width (desktop mirrors mobile). */
+/* Step A: body is a flex column; the inner block uses auto margins, so it is vertically centred when it
+   fits and top-aligned (scrolling) when it does not, never clipped. */
+.app-setup-page .app-setup-body { display: flex !important; flex-direction: column; }
+.app-setup-inner { width: 100%; max-width: 390px; margin: auto auto !important; display: flex; flex-direction: column; align-items: center; text-align: center; gap: 12px; padding: 12px 14px; }
+.app-setup-logo .app-gym-logo-banner { display: inline-flex; }
+.app-setup-logo .app-gym-chip { min-width: 150px !important; height: 64px !important; }
+.app-setup-logo .app-gym-chip-logo .ab-gym-logo-img, .app-setup-logo .app-gym-chip-logo .ab-gym-logo-svg { height: 32px !important; max-width: 150px !important; }
+.app-setup-where { font-size: 14px; color: var(--text-secondary); }
+.app-setup-preview { width: 200px; height: 84px; margin: 6px 0; }
+.app-setup-preview .pv-spot { fill: color-mix(in srgb, var(--text) 10%, transparent); }
+.app-setup-preview .pv-pick { fill: var(--accent); }
+.app-setup-preview .pv-n { fill: var(--on-accent); font-size: 11px; font-weight: 700; }
+.app-setup-eyebrow { margin: 4px 0 0; font-size: 12px; font-weight: 700; letter-spacing: 0.06em; text-transform: uppercase; color: var(--text-tertiary); }
+.app-setup-headline { margin: 0; max-width: 330px; font-family: var(--font-serif); font-size: 27px; font-weight: 600; line-height: 1.12; color: var(--text); outline: none; }
+.app-setup-points { width: 100%; max-width: 330px; margin: 2px 0 0; padding: 0; list-style: none; display: flex; flex-direction: column; gap: 10px; font-size: 15px; line-height: 1.4; color: var(--text-secondary); text-align: left; }
+.app-setup-points li { position: relative; padding-left: 18px; }
+.app-setup-points li::before { content: '•'; position: absolute; left: 2px; color: var(--accent); font-weight: 800; }
+.app-setup-points .p1 { color: var(--text); font-weight: 600; }
+.app-setup-reassure { margin: 2px 0 0; font-size: 13px; color: var(--text-tertiary); }
+.app-setup-check { width: 64px; height: 64px; border-radius: 50%; background: color-mix(in srgb, var(--success) 15%, transparent); color: var(--success); display: flex; align-items: center; justify-content: center; font-size: 34px; }
+.app-setup-loading { display: flex; justify-content: center; padding: 40px 0; }
 
-  .app-setup-footer { flex-direction: column; gap: 8px; }
-  .app-setup-footer .app-setup-primary { width: 100%; min-height: 48px; font-size: 16px; font-weight: 600; }
-  .app-setup-link { background: none; border: 0; min-height: 44px; font-size: 15px; color: var(--accent); text-decoration: underline; cursor: pointer; }
-  .app-setup-count { font-size: 13px; font-weight: 600; color: var(--text-secondary); text-align: center; }
-  .app-setup-reason { font-size: 12px; color: var(--text-tertiary); text-align: center; min-height: 0; }
-  .app-setup-reason:empty { display: none; }
-  .app-setup-error { padding: 10px 12px; border-radius: 10px; font-size: 13px; color: var(--danger); background: color-mix(in srgb, var(--danger) 10%, transparent); border: 1px solid color-mix(in srgb, var(--danger) 25%, transparent); text-align: center; }
-  .app-setup-error[hidden] { display: none; }
+.app-setup-page .app-modal-footer.app-setup-footer { display: flex !important; flex-direction: column; gap: 8px; padding: 12px 18px 16px; }
+.app-setup-footer .app-setup-primary { width: 100%; min-height: 48px; font-size: 16px; font-weight: 600; }
+.app-setup-link { background: none; border: 0; min-height: 44px; font-size: 15px; color: var(--accent); text-decoration: underline; cursor: pointer; }
+.app-setup-count { font-size: 13px; font-weight: 600; color: var(--text-secondary); text-align: center; }
+.app-setup-reason { font-size: 12px; color: var(--text-tertiary); text-align: center; min-height: 0; }
+.app-setup-reason:empty { display: none; }
+.app-setup-error { padding: 10px 12px; border-radius: 10px; font-size: 13px; color: var(--danger); background: color-mix(in srgb, var(--danger) 10%, transparent); border: 1px solid color-mix(in srgb, var(--danger) 25%, transparent); text-align: center; }
+.app-setup-error[hidden] { display: none; }
 
+@media (max-width: 768px) {
   /* Auto-Upgrade needs spots: an explained state with a real button. */
   .app-au-needs { display: flex; align-items: center; justify-content: space-between; gap: 10px; padding: 8px 0; font-size: 13px; color: var(--text-secondary); }
   .app-au-needs .t { display: inline-flex; gap: 6px; align-items: center; flex: 1; }
-  .app-au-setup { min-height: 44px; padding: 8px 14px; font-size: 14px; white-space: nowrap; }
+  .app-modal .app-au-setup { width: auto !important; flex: 0 0 auto; min-height: 44px; padding: 8px 14px; font-size: 14px; white-space: nowrap; }
 }
 
 /* ===== Spot-map booking flow, batch 3: variants, banner, guards, compact page (mobile only) ===== */
@@ -9443,7 +9506,7 @@ html.app-scroll-locked { overflow: hidden !important; background: var(--bg) !imp
 @media (max-width: 768px) {
   .app-bk-class-release { font-size: 13px; font-weight: 600; color: var(--feat-autoupgrade); }
   .app-bk-class-release[hidden] { display: none; }
-  .app-bk-banner .app-bk-banner-action { flex: 0 0 auto; min-height: 44px; padding: 8px 12px; font-size: 14px; align-self: center; white-space: nowrap; }
+  .app-modal .app-bk-banner .app-bk-banner-action { width: auto !important; flex: 0 0 auto; min-height: 44px; padding: 8px 12px; font-size: 14px; align-self: center; white-space: nowrap; }
   .app-modal.app-page .app-bk-notice {
     display: flex; align-items: center; justify-content: space-between; gap: 10px; flex-shrink: 0;
     padding: 10px 16px; font-size: 13px; color: var(--danger);
@@ -9770,3 +9833,55 @@ html:not([data-credits-tab="on"]) .app-nav-btn[data-tab="buy-credits"] { display
   }
   .fr-rail { height: 44px !important; max-height: 44px !important; }
 }
+
+/* Auto-Upgrade checkbox label: the graph icon sits inline with the first text line; wrapped text flows beneath it. */
+.app-upgrade-label-text { display: block; }
+.app-upgrade-label-text > svg { display: inline-block; vertical-align: -2px; margin-right: 4px; }
+
+/* Desktop flow steps: a visible back arrow in the header; the x always closes. Mobile reuses the close button as Back. */
+.app-flow-back { background: none; border: 0; padding: 0 10px 0 0; margin: 0 4px 0 -6px; font-size: 30px; line-height: 1; color: var(--text-secondary); cursor: pointer; }
+.app-flow-back:hover { color: var(--text); }
+.app-flow-back[hidden] { display: none; }
+@media (max-width: 768px) { .app-flow-back { display: none !important; } }
+/* Setup page on desktop: the body scrolls inside the card and the footer never overlaps it. */
+.app-setup-page .app-modal-card { max-height: 90vh; }
+.app-setup-page .app-setup-body { flex: 1 1 auto; min-height: 0; max-height: none; overflow-y: auto; }
+.app-setup-page .app-modal-footer.app-setup-footer { flex-shrink: 0; }
+
+.app-spotmap-clear { width: 100%; margin: 8px 0 0; background: color-mix(in srgb, var(--text) 6%, transparent); border: 1px solid color-mix(in srgb, var(--text) 12%, transparent); color: var(--text); }
+.app-spotmap-clear:disabled { opacity: 0.45; cursor: not-allowed; }
+
+/* [Claude 2026-10-11] Guest email fields: one per guest place, never wider than the card. */
+.app-guest-fields { display: flex; flex-direction: column; gap: 8px; min-width: 0; max-width: 100%; }
+.app-guest-field { display: flex; flex-direction: column; gap: 4px; min-width: 0; font-size: 12px; color: var(--text-secondary); }
+.app-guest-field .app-input { width: 100%; min-width: 0; box-sizing: border-box; }
+.app-guest-msg { display: block; min-height: 0; color: var(--text-tertiary); font-size: 12px; line-height: 1.4; overflow-wrap: anywhere; }
+.app-guest-msg:empty { display: none; }
+
+/* Edit-spots modal (bookings.js openEditBookingModal): info notes render only with content,
+   and the Close / Save Changes panel is pinned to the bottom of the card on every viewport
+   (the modal body is the scroller; the footer is sticky inside it). Source order after the
+   base .app-modal-body rule; the mobile block above already pins it at <=768px. */
+.bk-edit-note {
+  font-size: 12px; color: var(--text-secondary); background: var(--surface-inset);
+  border: 1px solid var(--border); border-radius: 8px; padding: 8px 10px; margin-bottom: 10px; line-height: 1.5;
+}
+#app-booking-modal #app-edit-controls {
+  position: sticky !important; bottom: -12px; z-index: 3;
+  margin: auto -18px -12px; padding: 8px 18px calc(12px + env(safe-area-inset-bottom, 0px));
+  background: var(--bg);
+  box-shadow: 0 -8px 12px -8px color-mix(in srgb, var(--text) 18%, transparent);
+}
+@media (max-width: 768px) {
+  #app-booking-modal #app-edit-controls { bottom: -16px; margin: auto -16px -16px; padding: 8px 16px calc(12px + env(safe-area-inset-bottom, 0px)); }
+}
+
+/* Auto-Book / Quick-Book modal controls: the page-modal rule forces 16px on every input and select
+   (iOS focus-zoom guard), which made the "Slots to book" select and the guest email field oversized
+   next to the rest of the form. The viewport meta (maximum-scale=1) already stops the iOS focus zoom,
+   so these use the app's standard 13px form-control size. Placeholder inherits. */
+.app-modal.app-page #autobook-qty,
+.app-modal.app-page #quickbook-qty,
+.app-modal.app-page .app-guest-field .app-input,
+.app-guest-field .app-input { font-size: 13px !important; }
+.app-guest-field .app-input::placeholder { font-size: inherit; }

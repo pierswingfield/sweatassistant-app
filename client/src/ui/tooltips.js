@@ -1,5 +1,6 @@
 import { api } from '../api';
-import { metadata } from './timetable';
+import { metadata, mobileRotationForStudio, frontForStudio } from './timetable';
+import { makeDisplayRotator, makeUniformFit, effectiveRotation, displayFrontSide, makeFrontBar, FRONT_BAR_PX } from './spot-rotation.js';
 import { COPY, formatCopyText } from '../copy.js';
 
 let occupancyHoverTimeout = null;
@@ -504,6 +505,16 @@ export function renderMinimap(payload, occupancyTooltip) {
     return;
   }
 
+  // Same display-only rotation as the booking maps (mobile width, studios whose policy asks for it).
+  const rotation = effectiveRotation(
+    payload.mobileRotation ?? mobileRotationForStudio(payload.event?.studioId ?? payload.studioId, payload.event?.gymId ?? payload.gymId),
+  );
+  const front = payload.front ?? frontForStudio(payload.event?.studioId ?? payload.studioId, payload.event?.gymId ?? payload.gymId);
+  const frontSide = displayFrontSide(front, rotation);
+  const rotate = makeDisplayRotator([...layoutSlots, ...layoutObjects], rotation);
+  layoutSlots = layoutSlots.map(rotate);
+  layoutObjects = layoutObjects.map(rotate);
+
   let minX = Infinity, maxX = -Infinity, minY = Infinity, maxY = -Infinity;
   layoutSlots.forEach(s => {
     if (s.x < minX) minX = s.x;
@@ -515,10 +526,12 @@ export function renderMinimap(payload, occupancyTooltip) {
   const widthRange = maxX - minX || 1;
   const heightRange = maxY - minY || 1;
 
+  // Uniform scale (aspect ratio kept, centred) in the 150px minimap box, instead of stretching each axis.
+  const fit = layoutSlots.length ? makeUniformFit(layoutSlots, { boxW: 220, boxH: 150, pad: frontSide ? 8 + FRONT_BAR_PX : 8, itemPx: 10, minGapPx: 0 }) : null;
   let stageHtml = '';
   layoutObjects.forEach(obj => {
-    const left = widthRange === 0 ? 50 : ((obj.x - minX) / widthRange) * 80 + 10;
-    const top = heightRange === 0 ? 10 : ((obj.y - minY) / heightRange) * 70 + 15;
+    const left = fit ? fit.xPct(obj.x) : 50;
+    const top = fit ? fit.yPct(obj.y) : 50;
     stageHtml += `
       <div class="app-minimap-stage" style="left: ${left}%; top: ${top}%; transform: translate(-50%, -50%);">
         ${COPY.tooltips.stage}
@@ -529,8 +542,8 @@ export function renderMinimap(payload, occupancyTooltip) {
   let dotsHtml = '';
   layoutSlots.forEach(slot => {
     const isAvailable = availableSlotIds.has(String(slot.id));
-    const left = widthRange === 0 ? 50 : ((slot.x - minX) / widthRange) * 80 + 10;
-    const top = heightRange === 0 ? 50 : ((slot.y - minY) / heightRange) * 70 + 15;
+    const left = fit.xPct(slot.x);
+    const top = fit.yPct(slot.y);
     const label = slot.label || slot.id;
 
     dotsHtml += `
@@ -575,4 +588,7 @@ export function renderMinimap(payload, occupancyTooltip) {
       </div>
     </div>
   `;
+  const bar = makeFrontBar(frontSide);
+  const miniBox = occupancyTooltip.querySelector('.app-minimap-container');
+  if (bar && miniBox) { miniBox.style.position = 'relative'; miniBox.appendChild(bar); }
 }

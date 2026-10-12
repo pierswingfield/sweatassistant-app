@@ -128,7 +128,28 @@ function gymShortName(gymId) {
 
 // ─── Body builders ───────────────────────────────────────────────────────────
 
+// No preferred spot map existed for the studio (removed or never set).
+function buildNoSpotMap(ctx) {
+  const gym = gymShortName(ctx.gymId);
+  const what = [ctx.groupName, ctx.className].filter(Boolean).join(' ') || 'your class';
+  const studio = ctx.studioName ? ` for ${ctx.studioName}` : ' for this studio';
+  if (ctx.upgrade) {
+    return {
+      title: `${gym}: Auto-Upgrade stopped`,
+      body: `No preferred spot map${studio}, so Auto-Upgrade for ${what} was stopped. Set one in Settings > Spot Maps and re-enable it.`,
+    };
+  }
+  const outcome = ctx.bookAny
+    ? 'Booking any available spot instead.'
+    : 'With nothing to aim for, it may not book (or will join the waitlist).';
+  return {
+    title: `${gym}: No preferred spot map`,
+    body: `No preferred spot map${studio} for ${what}. ${outcome}`,
+  };
+}
+
 function buildBooking(ctx) {
+  if (ctx.kind === 'noSpotMap') return buildNoSpotMap(ctx);
   const gym = gymShortName(ctx.gymId);
   const spots = spotsLabel(ctx.slots);
   const spotPart = spots ? ` - Spot ${spots}` : '';
@@ -206,7 +227,7 @@ async function notify(userId, type, ctx = {}) {
       break;
     case 'upgrade':
       if (!prefs.upgrade.enabled) return;
-      built = buildUpgrade(ctx);
+      built = ctx.kind === 'noSpotMap' ? buildNoSpotMap({ ...ctx, upgrade: true }) : buildUpgrade(ctx);
       break;
     case 'creditWarning':
       if (!prefs.creditWarning.enabled) return;

@@ -679,6 +679,7 @@ function timetableTabVisible() {
 /** Apply parsed URL params (load, deep link, back/forward). Never pushes history. */
 function applyUrlTimetable(t) {
   const r = urlToState(t, urlCtx());
+  const isManual = typeof history !== 'undefined' && !!(history.state && history.state.manualFilter);
   if (r.ignoredGyms.length) {
     showToast(formatCopyText(COPY.timetable.overlayGymIgnored, { gyms: r.ignoredGyms.map(g => getGymShortName(g) || g).join(', ') }), 'warning');
   }
@@ -691,13 +692,13 @@ function applyUrlTimetable(t) {
     ensureSearchScope();
     setSearchQuery(r.q);
     setFilterState(r.usesDefaults ? copyOf(emptyFilterState()) : copyOf(r.state));
-    overlayActive = true; overlayDropped = r.dropped.length;
+    overlayActive = !isManual; overlayDropped = r.dropped.length;
   } else if (r.usesDefaults) {
     setFilterState(copyOf(savedFilterState));
     overlayActive = false; overlayDropped = 0;
   } else {
     setFilterState(r.state);
-    overlayActive = !sameFilters(r.state, savedFilterState);
+    overlayActive = !isManual && !sameFilters(r.state, savedFilterState);
     overlayDropped = r.dropped.length;
   }
   selectedTimetableDate = r.day || null;   // render validates it against days that have classes
@@ -737,8 +738,14 @@ function syncUrlFromState(defaultDay = lastDefaultDay) {
 function renderOverlayBanner() {
   const grid = document.getElementById('app-timetable-grid');
   if (!grid || !grid.parentElement) return;
+  const filtersCard = document.getElementById('app-timetable-filters-container');
   let el = document.getElementById('app-url-overlay-banner');
-  if (!overlayActive) { el?.remove(); return; }
+  if (!overlayActive) {
+    el?.remove();
+    filtersCard?.classList.remove('app-overlay-active');
+    return;
+  }
+  filtersCard?.classList.add('app-overlay-active');
   const labels = overlayLabels(currentFilterState(), { ...urlCtx(), searchLabel: (q) => formatCopyText(COPY.search.resultsFor, { text: q }) }, getSearchQuery());
   const text = formatCopyText(COPY.timetable.overlayFiltered, { labels: labels.join(', ') || COPY.timetable.overlayNoFilters })
     + (overlayDropped ? ` · ${formatCopyText(COPY.timetable.overlayUnavailable, { count: overlayDropped })}` : '');
@@ -756,18 +763,25 @@ function renderOverlayBanner() {
   el.querySelector('button').textContent = COPY.timetable.overlayClear;
 }
 
-/** Clear = back to the SAVED set (not wiped), URL params stripped via replace. */
-export function clearUrlOverlay() {
+/** Reset to saved defaults and clean URL to /timetable. */
+export function resetToDefaultFilters() {
   if (inSearchScope()) restoreFromSearchScope();
   setFilterState(copyOf(savedFilterState));
   if (getSearchQuery()) setSearchQuery('');
   overlayActive = false; overlayDropped = 0;
   urlReplaceOnce = true;
   document.getElementById('app-url-overlay-banner')?.remove();
+  document.getElementById('app-timetable-filters-container')?.classList.remove('app-overlay-active');
+  replaceCurrent(pathFor({ tab: 'class-timetable' }));
   renderTimetableGrid('filter').then(() => {
     const grid = document.getElementById('app-timetable-grid');
     if (grid) { grid.setAttribute('tabindex', '-1'); grid.focus({ preventScroll: true }); }
   });
+}
+
+/** Clear = back to the SAVED set (not wiped), URL params stripped via replace. */
+export function clearUrlOverlay() {
+  resetToDefaultFilters();
 }
 
 export function _overlayStateForTest() { return { overlayActive, savedFilterState }; }
@@ -1782,13 +1796,9 @@ function buildFilterRailCtx(eventsExcluding, resultCount) {
       }
     },
     // Mobile quick-selector: in-memory only (never touches saved defaults, which change on Save only).
-    allGyms: getCatalogueGyms(),
+    allGyms: linked.map(g => ({ id: g.gym_id || g.id, name: g.gym_name || g.name })),
     setGymQuick: (gymId) => {
-      // Unlinked gym: nothing to filter to. Least invasive: leave filters alone and say how to connect it.
-      if (!gymOrder.includes(String(gymId))) {
-        showToast(formatCopyText(COPY.filters.gymQuickConnectHint, { name: getCatalogueGyms().find(g => g.id === String(gymId))?.name || String(gymId) }), 'info');
-        return;
-      }
+      if (!gymOrder.includes(String(gymId))) return;
       selectedGyms = nextGymSelection(selectedGyms, gymOrder, gymId);
       if (selectedGyms.length) pruneToGyms();
       if (isFilterSheetOpen()) {
@@ -1863,6 +1873,7 @@ function normalizeStoredFilters() {
   }
   const coversAll = (picked, universe) => picked.length > 0 && universe.every(id => picked.includes(id));
   const gyms = (getLinkedGyms() || []).map(g => String(g.gym_id || g.id));
+  selectedGyms = selectedGyms.filter(id => gyms.includes(String(id)));
   if (coversAll(selectedGyms, gyms)) selectedGyms = [];
   if (coversAll(selectedLocations, metadata.locations.map(l => String(l.id)))) selectedLocations = [];
   if (coversAll(selectedInstructors, metadata.instructors.map(i => instructorToken(i.gymId, i.id)))) selectedInstructors = [];

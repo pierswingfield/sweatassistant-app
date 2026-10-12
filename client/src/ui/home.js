@@ -44,7 +44,7 @@ export function getHomeBookLinks(gyms) {
 }
 
 function openTimetable(url) {
-  if (!navigate(url)) return;
+  if (!navigate(url, { state: { manualFilter: true } })) return;
   // navigate() owns the history entry; switchTab paints that route without
   // replacing it or committing the URL overlay into the saved filter defaults.
   window.switchTab?.('class-timetable', { history: 'none' });

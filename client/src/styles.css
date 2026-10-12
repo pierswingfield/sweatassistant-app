@@ -9742,6 +9742,8 @@ html:not([data-credits-tab="on"]) .app-nav-btn[data-tab="buy-credits"] { display
   background: transparent; color: var(--text); border: 1px solid var(--accent); font: inherit; font-weight: 600;
 }
 .app-url-overlay-banner .app-url-overlay-clear:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+#app-timetable-filters-container.app-overlay-active .fr-rail { display: none !important; }
+#app-timetable-filters-container.app-overlay-active { margin-bottom: 0 !important; padding-bottom: 0 !important; }
 
 /* ---- Share My Bookings (F-3): mobile-only header button + drawer extras ---- */
 #app-helper-container .app-share-btn { display: none; margin-left: auto; height: 36px; padding: 0 12px !important; gap: 6px; font-size: 13px; font-weight: 600; font-family: inherit; align-items: center; justify-content: center; background: transparent; border: 1px solid var(--border); border-radius: var(--radius-control); color: var(--text-secondary); cursor: pointer; flex-shrink: 0; }

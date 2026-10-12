@@ -34,3 +34,40 @@ describe('compactInstructorsLabel (U6-15)', () => {
       .toBe('<b class="fr-num">1</b><span class="fr-thin">Instructor</span>');
   });
 });
+
+import { renderFilterRail } from './filter-rail.js';
+
+describe('renderFilterRail gym quick selection', () => {
+  it('does not render fr-gymquick when only one gym is linked', () => {
+    document.body.innerHTML = '<div id="app-timetable-filters-container"></div>';
+    renderFilterRail({
+      state: { gyms: [], locations: [], instructors: [], eventTypes: [], times: [] },
+      gyms: [{ id: 'psycle-london', name: 'Psycle' }],
+      locations: [],
+      instructors: [],
+      eventTypes: [],
+      times: [],
+      setGymQuick: () => {},
+    });
+    expect(document.querySelector('.fr-gymquick')).toBeNull();
+  });
+
+  it('renders fr-gymquick when multiple gyms are linked, including only linked gyms', () => {
+    document.body.innerHTML = '<div id="app-timetable-filters-container"></div>';
+    renderFilterRail({
+      state: { gyms: [], locations: [], instructors: [], eventTypes: [], times: [] },
+      gyms: [{ id: 'psycle-london', name: 'Psycle' }, { id: 'jab', name: 'JAB' }],
+      locations: [],
+      instructors: [],
+      eventTypes: [],
+      times: [],
+      setGymQuick: () => {},
+    });
+    const quick = document.querySelector('.fr-gymquick');
+    expect(quick).not.toBeNull();
+    const btns = quick.querySelectorAll('.fr-gymquick-btn');
+    expect(btns.length).toBe(2);
+    expect(btns[0].getAttribute('data-fr-gymquick')).toBe('psycle-london');
+    expect(btns[1].getAttribute('data-fr-gymquick')).toBe('jab');
+  });
+});

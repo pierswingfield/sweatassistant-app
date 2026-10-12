@@ -522,6 +522,11 @@ async function triggerTabRender(tabId) {
 tabButtons.forEach(btn => {
   btn.addEventListener('click', () => {
     const tabId = btn.getAttribute('data-tab');
+    // Re-tapping Timetable while already on the Timetable tab restores default filters.
+    if (tabId === 'class-timetable' && currentTabId === 'class-timetable') {
+      import('./ui/timetable.js').then(m => m.resetToDefaultFilters?.());
+      return;
+    }
     // Re-tapping Settings while already in the Settings area (mobile) returns to the settings menu.
     const group = (btn.getAttribute('data-tab-group') || '').split(' ');
     if ((tabId === 'settings' || group.includes('settings')) && (currentTabId === 'settings' || currentTabId === 'about')

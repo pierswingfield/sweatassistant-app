@@ -30,8 +30,9 @@ export function nextGymSelection(selected, allGymIds, tappedId) {
  *  with blurred/excluded logos positioned behind and to the right. */
 export function quickSelectItems(selected, configuredIds, linkedIds = configuredIds) {
   const linked = new Set(norm(linkedIds));
-  const shown = new Set(shownGyms(selected, [...linked]));
-  const items = norm(configuredIds).map(gymId => ({ gymId, linked: linked.has(gymId), shown: shown.has(gymId) }));
+  const validIds = norm(configuredIds).filter(id => linked.has(id));
+  const shown = new Set(shownGyms(selected, validIds));
+  const items = validIds.map(gymId => ({ gymId, linked: true, shown: shown.has(gymId) }));
   return [
     ...items.filter(i => i.shown),
     ...items.filter(i => !i.shown),

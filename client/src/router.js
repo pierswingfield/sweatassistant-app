@@ -13,11 +13,12 @@ function currentUrl() { return location.pathname + location.search; }
  * the target equals the current URL (no duplicate entries). Same-origin
  * relative paths only.
  */
-export function navigate(url, { replace = false } = {}) {
+export function navigate(url, { replace = false, state = undefined } = {}) {
   if (typeof url !== 'string' || !url.startsWith('/') || url.startsWith('//')) return false;
   if (!history.pushState) return false;
-  if (replace || url === currentUrl()) history.replaceState(history.state, '', url);
-  else history.pushState(null, '', url);
+  const nextState = state !== undefined ? state : (replace ? history.state : null);
+  if (replace || url === currentUrl()) history.replaceState(nextState, '', url);
+  else history.pushState(nextState, '', url);
   return true;
 }
 
@@ -53,24 +54,27 @@ export const BURST_MS = 1000;
 let burstTimer = null;
 function endBurst() { if (burstTimer) { clearTimeout(burstTimer); burstTimer = null; } }
 
-export function commitFilterChange(url) {
+export function commitFilterChange(url, { state = {} } = {}) {
   if (url === currentUrl()) return false;
   const inBurst = !!burstTimer;
   endBurst();
   burstTimer = setTimeout(() => { burstTimer = null; }, BURST_MS);
-  return navigate(url, { replace: inBurst });
+  const nextState = { ...(history.state || {}), manualFilter: true, ...state };
+  return navigate(url, { replace: inBurst, state: nextState });
 }
 
 /** Discrete change (day tap): push immediately and close any open burst. */
-export function commitNow(url) {
+export function commitNow(url, { state = {} } = {}) {
   endBurst();
-  return navigate(url);
+  const nextState = { ...(history.state || {}), manualFilter: true, ...state };
+  return navigate(url, { state: nextState });
 }
 
 /** Correct the current entry without adding one (set-from-URL, load-time settling). */
-export function replaceCurrent(url) {
+export function replaceCurrent(url, { state = {} } = {}) {
   endBurst();
-  return navigate(url, { replace: true });
+  const nextState = { ...(history.state || {}), ...state };
+  return navigate(url, { replace: true, state: nextState });
 }
 
 export function _resetRouterForTest() { endBurst(); }

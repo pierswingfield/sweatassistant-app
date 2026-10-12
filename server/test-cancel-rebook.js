@@ -275,7 +275,11 @@ async function engineChecks(poller) {
   console.log('\n🧪 Cancel & rebook upgrade policy\n');
   try {
     policyChecks();
-    await engineChecks(require('./poller'));
+    // Psycle now swaps in place (atomicSwap); these checks exercise the cancel-then-rebook path, so model a gym without a swap API.
+    const _swapCaps = require('./gyms.config').getGymConfig('psycle-london').capabilities;
+    const _prevSwap = _swapCaps.atomicSwap;
+    _swapCaps.atomicSwap = false;
+    try { await engineChecks(require('./poller')); } finally { _swapCaps.atomicSwap = _prevSwap; }
     console.log('\n🎉 CANCEL & REBOOK CHECKS PASSED.\n');
   } catch (err) { failed = 1; console.error('\n❌ FAILED:\n', err, '\n'); }
   finally { for (const f of [tmpDb, `${tmpDb}-wal`, `${tmpDb}-shm`]) { try { fs.unlinkSync(f); } catch (_) {} } }

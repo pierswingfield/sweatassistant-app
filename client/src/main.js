@@ -19,6 +19,9 @@ import { installBookingState } from './ui/booking-state.js';
 import { applyGymLoadState, onGymLoadChange } from './ui/gym-load-state.js';
 import { applyStaticCopy } from './copy.js';
 import { COPY, formatCopyText } from './copy.js';
+import { resetWindowScroll, installStaleScrollGuard } from './scroll-reset.js';
+
+installStaleScrollGuard();
 
 // --- PWA install prompt capture ---
 // Android/desktop Chromium fire `beforeinstallprompt` before the page is ready
@@ -467,7 +470,7 @@ function switchTab(tabId, opts = {}) {
 
   // Each tab starts at the top (window on mobile, inner scroller on desktop).
   try {
-    window.scrollTo(0, 0);
+    resetWindowScroll();
     bodyScroller?.scrollTo?.(0, 0);
     document.querySelector('#app-timetable-grid')?.scrollTo?.(0, 0);
   } catch (e) { /* jsdom */ }

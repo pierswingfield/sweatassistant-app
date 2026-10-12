@@ -455,9 +455,22 @@ The timetable location is derived from the page URL and sent as a `preFilter` to
 
 ---
 
-## 4. Spot Swapping Limitations
+## 4. Spot Swapping
 
-### 4.1 Missing Controller Methods
+### 4.0 Native swap on the v2 route (captured 2026-10-11)
+Psycle's website now swaps a spot in place:
+```
+PATCH https://psycle.codexfit.com/api/customer/v2/bookings/{bookingId}
+{"slot": 9}
+-> {"success":true,"slot":9}
+```
+The follow-up `GET /api/customer/v2/events/{eventId}` showed the same booking id, `booked_at`, `refundable_until` and spent credit (`credits_used[0].used_for_booking_id`), with only `slot` changed and the new slot gone from the event's free `slots`. So a swap costs no credit and does not restart the free-cancel window. `swapSpots` uses it; `atomicSwap` is `true` for Psycle.
+
+**Not yet verified live:** the status and body for a taken or invalid slot, multi-seat bookings, and class cutoffs. The adapter treats every refusal as a plain failure and falls back to cancel-then-rebook only when the endpoint itself is missing (404/405/501, or the 500 BadMethodCallException below).
+
+Sections 4.1 and 4.2 describe the **v1** route and the pre-2026-10-11 behaviour; they remain accurate for v1 and as the fallback.
+
+### 4.1 Missing Controller Methods (v1)
 Probing the CodexFit Laravel backend reveals that `OPTIONS /api/v1/customer/bookings/{id}` lists `GET`, `PUT`, and `PATCH` as supported verbs. However, authenticated API testing shows that invoking any of these verbs yields an HTTP 500 error:
 ```
 BadMethodCallException: Method App\Http\Controllers\Api\Customer\BookingController::show does not exist

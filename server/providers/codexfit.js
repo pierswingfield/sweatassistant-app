@@ -1122,15 +1122,58 @@ class CodexFitProvider extends GymProvider {
   }
 
   /**
-   * No atomic swap API (capabilities.atomicSwap: false) — cancel-then-rebook,
-   * per psycle_codexfit.md "Spot Swapping Limitations". This has a real,
-   * documented race window: the original spot is released before the new one
-   * is confirmed, so a failure here can leave the user with NEITHER spot. The
-   * interface only provides bookingId/currentSlotId/targetSlotId (no eventId),
-   * so the booking's event_id is looked up first via the same bookings-list
-   * scan getCancelPenalty uses.
+   * Move a booking to another spot in place: `PATCH {v2}/bookings/{id}` with
+   * `{ slot }`. Observed live on psyclelondon.com 2026-10-11: reply
+   * `{"success":true,"slot":9}`, and the follow-up GET /events/{id} showed the
+   * SAME booking id, `booked_at`, `refundable_until` and spent credit, so the
+   * swap neither re-spends a credit nor restarts the free-cancel window.
+   * (The v1 `/bookings/{id}` verbs still 500 with BadMethodCallException.)
+   *
+   * UNVERIFIED live: the failure shape for a taken/invalid slot, multi-seat
+   * bookings, and cutoffs. Any non-2xx other than "endpoint missing" is
+   * returned as a failure and NEVER falls back, because cancel-then-rebook
+   * after a refused swap (e.g. slot taken) is exactly how a member loses
+   * their spot. The fallback runs only if the endpoint itself is gone
+   * (404/405/501, or the old BadMethodCallException 500).
    */
   async swapSpots(bookingId, currentSlotId, targetSlotId, session) {
+    let res;
+    try {
+      res = await this.requestV2(`/bookings/${bookingId}`, {
+        token: session.accessToken, method: 'PATCH', body: { slot: toWireId(targetSlotId) },
+      });
+    } finally {
+      this.invalidateProfile(session);
+    }
+    const data = await res.json().catch(() => ({}));
+    if (res.ok && data.success) {
+      return makeBookingResult({ ok: true, bookingId: String(bookingId), slotId: String(data.slot != null ? data.slot : targetSlotId), raw: data });
+    }
+    const endpointGone = [404, 405, 501].includes(res.status)
+      || (res.status === 500 && /BadMethodCallException/.test(JSON.stringify(data)));
+    if (!endpointGone) {
+      const throttle = classifyProviderThrottle(res, data);
+      console.warn(`[CodexFit] PATCH /bookings/${bookingId} -> ${res.status} slot=${targetSlotId} resp=${JSON.stringify(data).slice(0, 400)}`);
+      return makeBookingResult({
+        ok: false,
+        status: res.status,
+        error: upstreamMessage(data) || `HTTP ${res.status}`,
+        code: throttle.limited ? 'PROVIDER_RATE_LIMITED' : undefined,
+        retryAfterMs: throttle.limited ? throttle.retryAfterMs : undefined,
+        raw: data,
+      });
+    }
+    console.warn(`[CodexFit] PATCH /bookings/${bookingId} unsupported (${res.status}); falling back to cancel-then-rebook`);
+    return this._swapByCancelRebook(bookingId, targetSlotId, session);
+  }
+
+  /**
+   * Fallback only. Documented race window: the original spot is released
+   * before the new one is confirmed, so a failure can leave the user with
+   * NEITHER. The booking's event_id comes from the bookings-list scan
+   * getCancelPenalty uses, since there is no per-booking GET.
+   */
+  async _swapByCancelRebook(bookingId, targetSlotId, session) {
     const listRes = await this.request('/bookings?limit=100&page=1', { token: session.accessToken });
     const listData = await listRes.json().catch(() => ({}));
     const list = Array.isArray(listData) ? listData : (listData.data || []);

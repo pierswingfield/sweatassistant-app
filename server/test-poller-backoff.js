@@ -77,6 +77,7 @@ function stubHeldBookings(...protos) {
 }
 
 const origRequest = CodexFitProvider.prototype.request;
+const origRequestV2 = CodexFitProvider.prototype.requestV2;
 const origCFList = CodexFitProvider.prototype.listBookings;
 const origMTList = MarianaTekProvider.prototype.listBookings;
 const origSwap = MarianaTekProvider.prototype.swapSpots;
@@ -103,11 +104,22 @@ function install({ book = 'limited', eventsStatus = 200 } = {}) {
     if (path.startsWith('/bookings')) return Promise.resolve(res({ body: { data: [] } }));
     return Promise.resolve(res({ status: 400 }));
   };
+  // Psycle now upgrades with the native in-place swap: PATCH {v2}/bookings/{id}.
+  // It stands in for the old POST /bookings as "the write that gets throttled".
+  CodexFitProvider.prototype.requestV2 = function (p, opts = {}) {
+    psycleCalls.push(`${opts.method || 'GET'} ${this.toPath(p)}`);
+    if (opts.method !== 'PATCH') return Promise.resolve(res({ status: 400 }));
+    bookPosts++;
+    return Promise.resolve(book === 'limited'
+      ? res({ status: 429, body: { message: 'Too many requests' }, retryAfterSeconds: 30 })
+      : res({ body: { success: true, slot: 11 } }));
+  };
   MarianaTekProvider.prototype.swapSpots = async function () { swapCalls++; return { ok: true, bookingId: 'mt-1', slotId: '11' }; };
   notifications.notify = async (userId, type, ctx) => { notifyCalls.push({ userId, type, ctx }); return origNotify.call(notifications, userId, type, ctx); };
 }
 function restore() {
   CodexFitProvider.prototype.request = origRequest;
+  CodexFitProvider.prototype.requestV2 = origRequestV2;
   CodexFitProvider.prototype.listBookings = origCFList;
   MarianaTekProvider.prototype.listBookings = origMTList;
   MarianaTekProvider.prototype.swapSpots = origSwap;

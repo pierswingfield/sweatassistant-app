@@ -649,7 +649,15 @@ async function executeAutoBookForClass(booking) {
       });
 
       // Refresh the calendar feed so the new booking shows immediately.
-      try { require('./calendar').regenerateSnapshot(userId); } catch (_) {}
+      // regenerateSnapshot is DB-only: it would drop the executed row and the class
+      // would not be CONFIRMED until the 3-hourly poll. A debounced real refresh
+      // re-reads the gym's booking list (refreshUser walks every linked gym, so the
+      // row's own gym is covered) and then republishes with the class confirmed.
+      try {
+        const cal = require('./calendar');
+        cal.regenerateSnapshot(userId);
+        cal.scheduleRefresh(userId, 2000);
+      } catch (_) {}
 
       // Several reservations register ONE group monitor (moved together). Scheduled
       // guests never opt in: swapping a guest reservation is unproven.

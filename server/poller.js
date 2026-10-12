@@ -199,6 +199,20 @@ async function originalBookingStillHeld(upgrade) {
 //   own pre-move booking ids (`oldSet`), so this path can never cancel a seat that
 //   is not part of the group.
 
+// No preferred spot map exists for the monitor's studio (removed or never set):
+// there is nothing to upgrade towards. Stop the monitor and tell the member once.
+function stopForMissingSpotMap(upgrade) {
+  const msg = 'Stopped: no preferred spot map for this studio. Set one in Settings > Spot Maps, then re-enable.';
+  db.updateAutoUpgrade(upgrade.id, upgrade.user_id, 'stopped', msg, { lastCheckedAt: new Date().toISOString() });
+  const key = `nomap:upgrade:${upgrade.id}`;
+  if (db.wasNotificationSent(upgrade.user_id, key)) return;
+  db.markNotificationSent(upgrade.user_id, key);
+  notifications.notify(upgrade.user_id, 'upgrade', {
+    kind: 'noSpotMap', gymId: upgrade.gym_id, groupName: upgrade.group_name,
+    className: upgrade.class_name, studioName: upgrade.studio_name,
+  });
+}
+
 function preferredOrderFor(layout, preferredSlots, preferredRows) {
   const ordered = [...preferredSlots.map(String)];
   (preferredRows || []).forEach((ry) => {
@@ -250,9 +264,9 @@ async function attemptGroupUpgradeInner(upgrade, members, isCutoffMode) {
   // Back off after a recovery (target taken): no cancel/rebook churn every cycle.
   if (prefs.groupCooldownUntil && Date.parse(prefs.groupCooldownUntil) > Date.now()) return;
   const liveMap = db.getStudioPreference(userId, upgrade.studio_id, gymId) || {};
-  const preferredSlots = (liveMap.preferredSlots || prefs.preferredSlots || []).map(String);
-  const preferredRows = liveMap.preferredRows || prefs.preferredRows || [];
-  if (preferredSlots.length === 0 && preferredRows.length === 0) return;
+  const preferredSlots = (liveMap.preferredSlots || []).map(String);
+  const preferredRows = liveMap.preferredRows || [];
+  if (preferredSlots.length === 0 && preferredRows.length === 0) return stopForMissingSpotMap(upgrade);
   if (isGymRateLimited(gymId)) return;
 
   const claimed = [];
@@ -374,7 +388,7 @@ async function attemptGroupUpgradeInner(upgrade, members, isCutoffMode) {
           }
         } catch (_) { return; }
         const decision = cancelRebook.evaluateCancelRebook({
-          enabled: cancelRebook.cancelRebookEnabled(db.getUserSettings(userId, gymId)),
+          enabled: cancelRebook.cancelRebookEnabled(db.getUserSettings(userId, gymId), getGymConfig(gymId) || null),
           atomic: false, bookFirstPossible: false, freeSpots,
           hoursUntilClass: DateTime.fromISO(upgrade.start_at, { zone: zoneOfGym(gymId) }).diff(DateTime.now(), 'hours').hours,
           isCutoffMode, penaltyNone: true, // every move's penalty answer was 'none' above
@@ -592,7 +606,7 @@ async function cancelRebookSingle({ upgrade, candidateSlot, claimKey, isCutoffMo
   try { penaltyNone = cancelRebook.penaltyIsNone(await provider.getCancelPenalty(upgrade.booking_id, session)); }
   catch (_) { penaltyNone = false; } // fail closed
   const decision = cancelRebook.evaluateCancelRebook({
-    enabled: cancelRebook.cancelRebookEnabled(db.getUserSettings(userId, gymId)),
+    enabled: cancelRebook.cancelRebookEnabled(db.getUserSettings(userId, gymId), getGymConfig(gymId) || null),
     atomic: false, bookFirstPossible: false, freeSpots: freeNow.size,
     hoursUntilClass: DateTime.fromISO(upgrade.start_at, { zone: zoneOfGym(gymId) }).diff(DateTime.now(), 'hours').hours,
     isCutoffMode, penaltyNone,
@@ -678,12 +692,12 @@ async function attemptUpgradeSlot(upgrade, isCutoffMode) {
   let usedCancelFirst = false; // the old spot was already cancelled before the rebook
   const currentSlotId = String(upgrade.current_slot_id);
   const prefs = JSON.parse(upgrade.preferences) || {};
-  // Preferred slots come from the LIVE shared studio map; fall back to snapshot for legacy records.
+  // Preferred slots come from the LIVE shared studio map only (no snapshot fallback).
   const liveMap = db.getStudioPreference(userId, upgrade.studio_id, gymId) || {};
-  const preferredSlots = (liveMap.preferredSlots || prefs.preferredSlots || []).map(String);
-  const preferredRows = liveMap.preferredRows || prefs.preferredRows || [];
+  const preferredSlots = (liveMap.preferredSlots || []).map(String);
+  const preferredRows = liveMap.preferredRows || [];
 
-  if (preferredSlots.length === 0 && preferredRows.length === 0) return;
+  if (preferredSlots.length === 0 && preferredRows.length === 0) return stopForMissingSpotMap(upgrade);
 
   // C2-3b: this gym is refusing us — send nothing until the backoff expires.
   // Returns before touching the monitor row, so it is simply due again after.
@@ -790,7 +804,7 @@ async function attemptUpgradeSlot(upgrade, isCutoffMode) {
             // per-gym setting allows (gated again below by cancel-rebook-policy.js).
             const selfLimit = Number(details && details.maxBookableSlots);
             const bookFirstPossible = hasCredits && !(Number.isFinite(selfLimit) && selfLimit < 2);
-            if (!bookFirstPossible && cancelRebook.cancelRebookEnabled(db.getUserSettings(userId, gymId)) && upgrade.booking_id) {
+            if (!bookFirstPossible && cancelRebook.cancelRebookEnabled(db.getUserSettings(userId, gymId), getGymConfig(gymId) || null) && upgrade.booking_id) {
               cancelFirst = true;
             } else if (!hasCredits) {
               console.log(`[Poller] Auto-upgrade paused for user ${userId}: No available credits.`);

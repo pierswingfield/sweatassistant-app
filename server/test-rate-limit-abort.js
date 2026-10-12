@@ -104,6 +104,7 @@ const originalNotify = notifications.notify;
 function installNotifySpy() {
   notifyCalls = [];
   notifications.notify = async (userId, type, ctx) => {
+    if (ctx && ctx.kind === 'noSpotMap') return; // map-less fixtures; not what these checks count
     notifyCalls.push({ userId, type, ctx });
     return originalNotify.call(notifications, userId, type, ctx);
   };

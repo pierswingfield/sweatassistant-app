@@ -298,20 +298,15 @@ async function prefetchAutoBookSlots(bookings, windowMs = 18000) {
   await Promise.allSettled(promises);
 }
 
-// Resolve the live shared studio spot map; fall back to the entry snapshot for
-// legacy records that predate studio_id or studios with no saved map.
-function resolveLiveMap(userId, studioId, snapshot, gymId = null) {
+// Resolve the LIVE shared studio spot map. There is deliberately no fallback to
+// the queue entry's snapshot: a map the member removed must stay removed, and a
+// snapshot would silently keep driving bookings (and recreate it on edit).
+// `exists` is false when the studio has no map at all.
+function resolveLiveMap(userId, studioId, gymId = null) {
   const live = db.getStudioPreference(userId, studioId, gymId);
-  if (live && (live.preferredSlots?.length || live.preferredRows?.length)) {
-    return {
-      preferredSlots: live.preferredSlots || [],
-      preferredRows: live.preferredRows || []
-    };
-  }
-  return {
-    preferredSlots: snapshot.preferredSlots || [],
-    preferredRows: snapshot.preferredRows || []
-  };
+  const preferredSlots = (live && live.preferredSlots) || [];
+  const preferredRows = (live && live.preferredRows) || [];
+  return { preferredSlots, preferredRows, exists: preferredSlots.length > 0 || preferredRows.length > 0 };
 }
 
 // Attempt one booking via the adapter, with the same 401-triggers-relogin
@@ -347,7 +342,7 @@ async function executeAutoBookForClass(booking) {
   const gymId = booking.gym_id;
   const prefs = JSON.parse(booking.preferences) || { preferredSlots: [], preferredRows: [], requiredCount: 1, bookAny: true };
   // Slots/rows come from the LIVE shared studio map; requiredCount/bookAny are per-entry.
-  const liveMap = resolveLiveMap(userId, booking.studio_id, prefs, gymId);
+  const liveMap = resolveLiveMap(userId, booking.studio_id, gymId);
   const preferredSlots = liveMap.preferredSlots;
   const preferredRows = liveMap.preferredRows;
   const capabilities = getGymConfig(gymId)?.capabilities || {};
@@ -369,6 +364,20 @@ async function executeAutoBookForClass(booking) {
   // Togetherness needs fallback candidates to fulfil its stated wider search.
   const prioritizeTogether = requiredCount > 1 && prefs.prioritizeTogether === true;
   const bookAny = prioritizeTogether || prefs.bookAny !== false;
+
+  // No preferred map for this studio (removed, or never set): explain why the
+  // booking is not following one. Once per class, respects notification prefs.
+  if (!liveMap.exists) {
+    const key = `nomap:autobook:${gymId}:${eventId}`;
+    if (!db.wasNotificationSent(userId, key)) {
+      db.markNotificationSent(userId, key);
+      notifications.notify(userId, 'booking', {
+        source: 'autobook', kind: 'noSpotMap', bookAny, gymId,
+        startAt: booking.start_at, groupName: booking.group_name,
+        className: booking.class_name, studioName: booking.studio_name,
+      });
+    }
+  }
 
   // C2-3: a prior attempt this window already got PROVIDER_RATE_LIMITED for
   // this gym — don't start a new attempt (no network call at all) until the

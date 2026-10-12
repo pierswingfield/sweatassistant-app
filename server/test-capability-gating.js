@@ -26,12 +26,12 @@ check('the flags match what each platform can actually do', () => {
   const psycle = GYMS['psycle-london'].capabilities;
   const jab = GYMS['jab-boxing'].capabilities;
 
-  // CodexFit has no spot-swap API — GET/PUT /bookings/{id} return HTTP 500
-  // (BadMethodCallException), confirmed by authenticated testing. So upgrades
-  // there MUST be cancel-then-rebook, and the flag has to say so.
-  assert.strictEqual(psycle.atomicSwap, false);
-  assert.strictEqual(typeof getProvider('psycle-london').swapSpots, 'function',
-    'the method still exists — it just cancel-then-rebooks underneath');
+  // CodexFit's v1 /bookings/{id} verbs 500 (BadMethodCallException), but the
+  // v2 route PATCH /bookings/{id} {slot} moves a booking in place (live
+  // capture 2026-10-11), so the flag says atomic. The adapter keeps a
+  // cancel-then-rebook fallback for the day that endpoint disappears.
+  assert.strictEqual(psycle.atomicSwap, true);
+  assert.strictEqual(typeof getProvider('psycle-london').swapSpots, 'function');
 
   // MarianaTek has POST /reservations/{id}/swap_spots.
   assert.strictEqual(jab.atomicSwap, true);

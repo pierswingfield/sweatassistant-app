@@ -559,6 +559,24 @@ function handleMockRequest(pathName, method, body) {
       return createFakeResponse({ success: true });
     }
 
+    // PATCH (move spot in place). Live capture 2026-10-11:
+    // PATCH /v2/bookings/{id} {"slot":9} -> {"success":true,"slot":9}; the
+    // booking id and booked_at stay the same. The failure body below is a
+    // GUESS (unverified live), so assertions elsewhere use status only.
+    if (method === 'PATCH') {
+      const bookingId = parseInt(pathName.split('?')[0].split('/').pop());
+      const booking = mockBookings.find((b) => b.id === bookingId);
+      if (!booking) return createFakeResponse({ message: 'No query results for model [Booking].' }, 404);
+      if (typeof body?.slot !== 'number') {
+        return createFakeResponse({ message: 'The given data was invalid.', errors: { slot: ['The slot must be an integer.'] } }, 422);
+      }
+      const taken = mockBookings.some((b) => b.id !== bookingId && b.event_id === booking.event_id && b.studio_slot && b.studio_slot.id === body.slot);
+      if (taken) return createFakeResponse({ message: 'That spot is no longer available.' }, 422);
+      booking.studio_slot = { id: body.slot, label: String(body.slot) };
+      saveMockBookings();
+      return createFakeResponse({ success: true, slot: body.slot });
+    }
+
     // POST (create) booking
     if (method === 'POST') {
       // U1-19: validate like the live API's wire contract (numeric ids, as prod

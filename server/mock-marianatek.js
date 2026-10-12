@@ -69,7 +69,7 @@ const WEEKEND_SCHEDULE = [
 // Pick-a-spot layout — 20 spots (10 bags, 10 ground), same shape family as the
 // real 40-spot layout in class-detail-with-layout.json, just smaller for dev.
 function makeLayout(bookedSpotIds, classroomName = null) {
-  if (classroomName === NOHO_ROOM) return makeNohoLayout(bookedSpotIds);
+  if (NOHO_ROOMS[classroomName]) return makeNohoLayout(bookedSpotIds, classroomName);
   const spots = [];
   for (let i = 1; i <= 10; i++) {
     spots.push({ id: `mock-bag-${i}`, name: `B${i}`, spot_type: { id: '6564', is_primary: true, name: 'Bag' }, x_position: i, y_position: 0, is_available: !bookedSpotIds.has(`mock-bag-${i}`) });
@@ -80,27 +80,28 @@ function makeLayout(bookedSpotIds, classroomName = null) {
   return { id: 'mock-layout', name: 'MOCK BOXING', spots };
 }
 
+const CYCLE_CLASS_TYPE = { id: '7701', name: 'Cycle', duration: 45, duration_formatted: '45 minutes' };
 const BOOTCAMP_CLASS_TYPE = { id: '7700', name: 'Bootcamp', duration: 50, duration_formatted: '50 minutes' };
 
-// Aarmy-only rotation-test room. The provider name is EXACTLY "NoHo Bootcamp"
-// (gyms.config.js matches it by name for the 90-degree mobile rotation). A
-// realistic 5 x 8 rectangle: user-facing labels run 1..40 row by row while the
-// internal provider ids are large and non-sequential-looking (37400+), so any
-// label-vs-id mix-up shows immediately.
+// Aarmy-only rotation-test rooms. They use the REAL sanitized live layouts (ids, labels and x/y exactly as
+// the provider published them: Bootcamp 6184 = 42 spots, Cycle 6182 = 61), so local testing draws the same
+// shape and spacing a phone gets on sweat-dev. The provider name is EXACTLY "NoHo Bootcamp" (gyms.config.js
+// matches it by name for the 90-degree mobile rotation); Cycle is matched by its id, 6182.
 const NOHO_ROOM = 'NoHo Bootcamp';
-const NOHO_ID_BASE = 37400;
-const NOHO_ROWS = 5;
-const NOHO_COLS = 8;
-function makeNohoLayout(bookedSpotIds) {
-  const spots = [];
-  for (let r = 0; r < NOHO_ROWS; r++) {
-    for (let c = 0; c < NOHO_COLS; c++) {
-      const n = r * NOHO_COLS + c + 1;
-      const id = String(NOHO_ID_BASE + n - 1);
-      spots.push({ id, name: String(n), spot_type: { id: '6600', is_primary: true, name: 'Spot' }, x_position: c, y_position: r, is_available: !bookedSpotIds.has(id) });
-    }
-  }
-  return { id: 'mock-layout-noho', name: 'NOHO BOOTCAMP', spots };
+const NOHO_CYCLE_ROOM = 'NoHo Cycle';
+const NOHO_FIXTURE_DIR = require('path').join(__dirname, '..', 'client', 'src', 'ui', '__fixtures__');
+const NOHO_ROOMS = {
+  [NOHO_ROOM]: { id: '6184', fixture: require(`${NOHO_FIXTURE_DIR}/aarmy-bootcamp-6184.json`), layoutId: 'mock-layout-noho' },
+  [NOHO_CYCLE_ROOM]: { id: '6182', fixture: require(`${NOHO_FIXTURE_DIR}/aarmy-cycle-6182.json`), layoutId: 'mock-layout-noho-cycle' },
+};
+function nohoSpotIds(room) { return NOHO_ROOMS[room].fixture.slots.map((s) => String(s.id)); }
+function makeNohoLayout(bookedSpotIds, room = NOHO_ROOM) {
+  const def = NOHO_ROOMS[room];
+  const spots = def.fixture.slots.map((s) => ({
+    id: String(s.id), name: String(s.label), spot_type: { id: '6600', is_primary: true, name: 'Spot' },
+    x_position: s.x, y_position: s.y, is_available: !bookedSpotIds.has(String(s.id)),
+  }));
+  return { id: def.layoutId, name: room.toUpperCase(), spots };
 }
 
 const PAYMENT_OPTION = {
@@ -196,26 +197,36 @@ function generateClasses(zone = DEFAULT_ZONE, gymId = null) {
       classes.push(mockClass(`${9000 + i * 10 + slotIdx}`, classType, iso, `${time}:00`, room, layoutFormat, bookingStart, i * 7 + slotIdx, zone));
     });
   }
-  if (gymId === 'aarmy') classes.push(...nohoBootcampClasses(zone, now));
+  if (gymId === 'aarmy') classes.push(...nohoBootcampClasses(zone, now), ...nohoCycleClasses(zone, now));
   return classes;
 }
 
 // Three released classes (days 1-3) and one NOT yet released (day 12: it opens
 // MOCK_ADVANCE_DAYS before it starts, i.e. in the future) for Auto-Book tests.
 function nohoBootcampClasses(zone, now) {
-  return [[1, '18:00'], [2, '07:00'], [3, '18:00'], [12, '18:00']].map(([dayOffset, time], idx) => {
+  return nohoRoomClasses(zone, now, NOHO_ROOM, BOOTCAMP_CLASS_TYPE, [[1, '18:00'], [2, '07:00'], [3, '18:00'], [12, '18:00']], 9600);
+}
+
+// Cycle room (real layout 6182): one released and one unreleased class, ids 9620+.
+function nohoCycleClasses(zone, now) {
+  return nohoRoomClasses(zone, now, NOHO_CYCLE_ROOM, CYCLE_CLASS_TYPE, [[1, '19:00'], [12, '19:00']], 9620);
+}
+
+function nohoRoomClasses(zone, now, room, classType, days, idBase) {
+  const ids = nohoSpotIds(room);
+  return days.map(([dayOffset, time], idx) => {
     const iso = new Date(now.getTime() + dayOffset * 864e5).toISOString().split('T')[0];
     const startMs = DateTime.fromISO(`${iso}T${time}:00`, { zone }).toMillis();
     const bookingStart = dayOffset >= FIRST_UNRELEASED_DAY
       ? new Date(startMs - MOCK_ADVANCE_DAYS * 864e5).toISOString()
       : new Date(now.getTime() - 864e5).toISOString();
-    const id = `${9600 + idx}`;
-    const cls = mockClass(id, BOOTCAMP_CLASS_TYPE, iso, `${time}:00`, NOHO_ROOM, 'pick-a-spot', bookingStart, idx, zone);
+    const id = `${idBase + idx}`;
+    const cls = mockClass(id, classType, iso, `${time}:00`, room, 'pick-a-spot', bookingStart, idx, zone);
     const booked = bookedSpotsFor(id);
     booked.clear();
     // A few taken spots at the back so the room is realistic but mostly free.
-    for (let n = NOHO_ROWS * NOHO_COLS; n > NOHO_ROWS * NOHO_COLS - 4 - idx; n--) booked.add(String(NOHO_ID_BASE + n - 1));
-    cls.capacity = NOHO_ROWS * NOHO_COLS;
+    ids.slice(ids.length - 4 - idx).forEach((spotId) => booked.add(spotId));
+    cls.capacity = ids.length;
     cls.spot_options = { ...cls.spot_options, primary_capacity: cls.capacity };
     return cls;
   });
@@ -245,7 +256,7 @@ function mockClass(id, classType, dateStr, timeStr, classroomName, layoutFormat,
   return {
     id, name: classType.name, start_date: dateStr, start_time: timeStr, start_datetime: startDatetime,
     booking_start_datetime: bookingStart, capacity, available_spot_count: capacity - booked.size,
-    class_type: classType, classroom: { id: `mock-room-${classroomName}`, name: classroomName },
+    class_type: classType, classroom: { id: NOHO_ROOMS[classroomName]?.id || `mock-room-${classroomName}`, name: classroomName },
     classroom_name: classroomName, instructors: [INSTRUCTORS[Number(id) % INSTRUCTORS.length]],
     location: { ...LOCATION, timezone: zone }, layout_format: layoutFormat, is_free_class: false, is_cancelled: false,
     is_user_reserved: false, is_user_waitlisted: false, is_user_guest_reserved: false,

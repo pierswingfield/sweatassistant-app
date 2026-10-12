@@ -11,21 +11,77 @@ export function effectiveRotation(degrees) {
   return isMobileWidth() && [0, 90, 180, 270].includes(d) ? d : 0;
 }
 
+/** Typical centre-to-centre step of neighbouring spots along a source row (coordinate units). */
+function typicalStep(points) {
+  const rows = new Map();
+  points.forEach((p) => { const k = +p.y.toFixed(3); if (!rows.has(k)) rows.set(k, []); rows.get(k).push(p.x); });
+  const gaps = [];
+  rows.forEach((xs) => { xs.sort((a, b) => a - b); for (let i = 1; i < xs.length; i++) { const g = xs[i] - xs[i - 1]; if (g > 0.05) gaps.push(g); } });
+  if (!gaps.length) return 1;
+  gaps.sort((a, b) => a - b);
+  return gaps[Math.floor(gaps.length / 2)];
+}
+
+/** Collapse every gap along one axis to at most `cap` (order kept; values between known ones interpolate). */
+function makeAxisCollapser(values, cap) {
+  const vals = [...new Set(values.map((v) => +v.toFixed(3)))].sort((a, b) => a - b);
+  const pos = [];
+  let acc = 0;
+  vals.forEach((v, i) => { if (i) acc += Math.min(v - vals[i - 1], cap); pos.push(acc); });
+  return (v) => {
+    if (v <= vals[0]) return pos[0] + (v - vals[0]);
+    const last = vals.length - 1;
+    if (v >= vals[last]) return pos[last] + (v - vals[last]);
+    let i = 0; while (i < last && vals[i + 1] < v) i++;
+    const span = vals[i + 1] - vals[i];
+    return pos[i] + (span > 0 ? (v - vals[i]) / span * (pos[i + 1] - pos[i]) : 0);
+  };
+}
+
+/** Centre-to-centre px between neighbouring spots on a rotated (compacted) map: 28px spot + 3px gap. */
+export const ROTATED_MIN_GAP_PX = 31;
+
+/** Aisle width kept visible after compaction, as a multiple of the normal spot step. */
+export const AISLE_STEPS = 1.35;
+
+/**
+ * Smallest separation between any two points where the pair is non-overlapping at a given scale, i.e.
+ * the min over pairs of max(|dx|, |dy|). Scaling by (spotPx + gap) / this guarantees no two squares overlap
+ * (Euclidean nearest-neighbour does not: a diagonal pair can overlap on both axes).
+ */
+export function minSeparation(points) {
+  let m = Infinity;
+  for (let i = 0; i < points.length; i++) for (let j = i + 1; j < points.length; j++) {
+    const d = Math.max(Math.abs(points[i].x - points[j].x), Math.abs(points[i].y - points[j].y));
+    if (d > 1e-9 && d < m) m = d;
+  }
+  return m;
+}
+
 /**
  * @param {{x:number,y:number}[]} boundsPoints  points that define the rotation bounds
  * @param {number} rotation  0 | 90 | 180 | 270 (already gated for width)
+ * @param {{compact?:boolean}} [opts] compact (default: when rotated) collapses empty gaps along each display
+ *   axis to AISLE_STEPS x the normal spot step, so a rotated room keeps its spot spacing instead of being
+ *   stretched. Order is preserved and no gap shrinks below the spot step. Unrotated maps are untouched.
  * @returns {(point) => point} adds `sourceY` (the original row y) to every point
  */
-export function makeDisplayRotator(boundsPoints, rotation) {
+export function makeDisplayRotator(boundsPoints, rotation, { compact = rotation !== 0 } = {}) {
   const xs = boundsPoints.map((p) => p.x);
   const ys = boundsPoints.map((p) => p.y);
   const minX = Math.min(...xs), maxX = Math.max(...xs), minY = Math.min(...ys), maxY = Math.max(...ys);
-  return (point) => {
+  const turn = (point) => {
     if (rotation === 90) return { ...point, x: point.y - minY, y: maxX - point.x, sourceY: point.y };
     if (rotation === 180) return { ...point, x: maxX - point.x, y: maxY - point.y, sourceY: point.y };
     if (rotation === 270) return { ...point, x: maxY - point.y, y: point.x - minX, sourceY: point.y };
     return { ...point, sourceY: point.y };
   };
+  if (!compact || !boundsPoints.length) return turn;
+  const cap = typicalStep(boundsPoints) * AISLE_STEPS;
+  const turned = boundsPoints.map(turn);
+  const cx = makeAxisCollapser(turned.map((p) => p.x), cap);
+  const cy = makeAxisCollapser(turned.map((p) => p.y), cap);
+  return (point) => { const t = turn(point); return { ...t, x: cx(t.x), y: cy(t.y) }; };
 }
 
 /**
@@ -44,17 +100,20 @@ export function makeDisplayRotator(boundsPoints, rotation) {
  * @returns {{scale:number, scrolls:boolean}}
  */
 export function chooseMapScale({ rotated = false, fillScale, minGapScale }) {
-  if (rotated) return { scale: fillScale, scrolls: false };
+  // Rotated maps are compacted (makeDisplayRotator), so they are NEVER stretched past the minimum-gap
+  // scale to fill the width: they keep a readable spot size, are centred, and only shrink if the width forces it.
+  if (rotated) return { scale: Math.min(fillScale, minGapScale), scrolls: false };
   const scale = Math.max(fillScale, minGapScale);
   return { scale, scrolls: minGapScale > fillScale };
 }
 
-export function makeUniformFit(points, { boxW, boxH, pad = 12, padRight = pad, itemPx = 28, minGapPx = 32, lockWidth = true } = {}) {
+export function makeUniformFit(points, { boxW, boxH, pad = 12, padRight = pad, itemPx = 28, minGapPx = 32, lockWidth = true, rotated = false } = {}) {
   const xs = points.map((p) => p.x), ys = points.map((p) => p.y);
   const minX = Math.min(...xs), maxX = Math.max(...xs), minY = Math.min(...ys), maxY = Math.max(...ys);
   const w = maxX - minX, h = maxY - minY;
   let minDist = Infinity;
-  for (let i = 0; i < points.length; i++) for (let j = i + 1; j < points.length; j++) {
+  if (rotated) minDist = minSeparation(points);
+  else for (let i = 0; i < points.length; i++) for (let j = i + 1; j < points.length; j++) {
     const d = Math.hypot(points[i].x - points[j].x, points[i].y - points[j].y);
     if (d > 0 && d < minDist) minDist = d;
   }
@@ -64,7 +123,7 @@ export function makeUniformFit(points, { boxW, boxH, pad = 12, padRight = pad, i
   const heightFit = Math.min(fitW, Math.max(fitH, minGapScale));
   // lockWidth (rotated maps, non-scrolling previews): width-limited. Otherwise the minimum spot size wins
   // and the box grows wider than the container (the caller scrolls it horizontally).
-  let scale = lockWidth ? heightFit : chooseMapScale({ rotated: false, fillScale: heightFit, minGapScale }).scale;
+  let scale = rotated ? Math.min(fitW, minGapScale) : lockWidth ? heightFit : chooseMapScale({ rotated: false, fillScale: heightFit, minGapScale }).scale;
   if (!Number.isFinite(scale)) scale = 1;
   const contentW = w * scale + itemPx, contentH = h * scale + itemPx;
   const neededH = Math.ceil(contentH + 2 * pad);

@@ -1,6 +1,6 @@
 import { shortSlotLabels, escapeHtml } from './cards';
 import { resolveSpotLabels } from './spot-labels.js';
-import { makeDisplayRotator, chooseMapScale, displayFrontSide, makeFrontBar, FRONT_BAR_PX } from './spot-rotation.js';
+import { makeDisplayRotator, chooseMapScale, minSeparation, ROTATED_MIN_GAP_PX, displayFrontSide, makeFrontBar, FRONT_BAR_PX } from './spot-rotation.js';
 import { COPY, formatCopyText } from '../copy.js';
 // Shared preferred-spot-map editor.
 //
@@ -150,7 +150,7 @@ export function renderStudioFloorPlan(container, layoutSlots, initialSlots, init
 
   // --- Floor-plan geometry (pixel-based to guarantee minimum gaps) ---
   const SLOT_SIZE = 28;
-  const MIN_GAP = 32;   // min center-to-center px — just enough so 28px slots don't overlap (4px edge gap)
+  const MIN_GAP = rotation !== 0 ? ROTATED_MIN_GAP_PX : 32;   // min center-to-center px — just enough so 28px slots don't overlap (4px edge gap)
   const EDGE_PAD = Math.max(isMobile && rotation === 0 ? 4 : 14, frontSide ? FRONT_BAR_PX + 4 : 0);  // unrotated mobile maps use the usable grid width
   // Smallest centre-to-centre distance between any two slots, in coordinate units.
   // Ride studios stagger alternate rows, so two slots can share a near-identical X
@@ -159,7 +159,8 @@ export function renderStudioFloorPlan(container, layoutSlots, initialSlots, init
   // being mistaken for an adjacent-seat gap and blowing the scale up (which made the
   // floor render thousands of px wide and spill past the card).
   let minNeighbourDist = Infinity;
-  for (let i = 0; i < viewSlots.length; i++) {
+  if (rotation !== 0) minNeighbourDist = minSeparation(viewSlots); // compacted: no-overlap guarantee on both axes
+  else for (let i = 0; i < viewSlots.length; i++) {
     for (let j = i + 1; j < viewSlots.length; j++) {
       const d = Math.hypot(viewSlots[i].x - viewSlots[j].x, viewSlots[i].y - viewSlots[j].y);
       if (d > 0 && d < minNeighbourDist) minNeighbourDist = d;
@@ -213,6 +214,8 @@ export function renderStudioFloorPlan(container, layoutSlots, initialSlots, init
     // (no overlap). When the min-gap width exceeds the viewport the map pans.
     const scroll = document.createElement('div');
     scroll.className = 'app-floor-scroll';
+    // A rotated map is compact enough to show whole: the page scrolls, not an inner box.
+    if (rotation !== 0) scroll.style.setProperty('max-height', 'none', 'important');
     scroll.addEventListener('scroll', () => { pan = { left: scroll.scrollLeft, top: scroll.scrollTop }; }, { passive: true });
     container.appendChild(scroll);
     requestAnimationFrame(() => { scroll.scrollLeft = pan.left; scroll.scrollTop = pan.top; }); // append now to measure its real width (CSS breakout on mobile)

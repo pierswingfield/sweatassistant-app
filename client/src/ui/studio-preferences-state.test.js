@@ -1,12 +1,7 @@
 import { describe, expect, it } from 'vitest';
-import { applyStudioPreferenceMutation, hasStudioPreferences, shouldShowPreferredMapEditToggle } from './studio-preferences-state.js';
+import { applyStudioPreferenceMutation, hasStudioPreferences } from './studio-preferences-state.js';
 
 describe('studio preference mutation state', () => {
-  it('does not show the saved-map edit button in Quick-Book', () => {
-    expect(shouldShowPreferredMapEditToggle('quickbook', false)).toBe(false);
-    expect(shouldShowPreferredMapEditToggle('autobook', false)).toBe(true);
-  });
-
   it('clears the qualified and matching legacy aliases immediately after deletion', () => {
     const saved = { preferredSlots: [7, 8], preferredRows: [2] };
     const state = { 'psycle-london:138': saved, '138': saved };

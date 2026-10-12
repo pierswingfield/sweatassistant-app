@@ -8,7 +8,7 @@ import { isInGracePeriod, GRACE_PERIOD_MS, startGraceCountdown, noSept, zoneFor,
 import { invalidateApiCache } from '../cache';
 import { renderCardSkeletons } from './loading-skeleton.js';
 import { instructorAvatar } from './tooltips.js';
-import { metadata, loadMetadata, getStudioMapInfo, pickStudioPrefs, rowGroupsForStudio, openGuestBookingModal } from './timetable';
+import { metadata, loadMetadata, getStudioMapInfo, pickStudioPrefs, rowGroupsForStudio, mobileRotationForStudio, frontForStudio, openGuestBookingModal } from './timetable';
 import { findActiveUpgradeForBooking, findUpgradeForSeat } from './gym-isolation.js';
 import { haptic } from './haptics.js';
 import { COPY, formatCopyText } from '../copy.js';
@@ -25,6 +25,9 @@ import {
 import { isExplainerDismissed, dismissExplainer, isKeepOriginalEnabled, keepOriginalForAutoCreate, keepOriginalInitial, summarizeSpotPrefs, currentSpotLabel } from './autoupgrade-setup.js';
 import { canSelectSelfSpot, countSelfBookingSlots, isCurrentModalRun } from './booking-entitlement.js';
 import { groupBookingsByEvent } from './upcoming.js';
+import { canOfferGuestAction } from './guest-access.js';
+import { loadCancelInfo } from './cancel-penalty-info.js';
+import { resolveUpgradeGroup } from './upgrade-group.js';
 import { bookingSpotActions } from './booking-spot-actions.js';
 
 // Class starts within the free-cancel cutoff (12h). Edit is hidden inside this
@@ -49,6 +52,13 @@ let bookingsFetched = false;
 let editModalRunId = 0;
 function bookingsDataReady() {
   return bookingsFetched || (Array.isArray(cache.bookings) && cache.bookings.length > 0);
+}
+
+/** Repaint the cards from the shared cache (no network); used after a booking mutation refetch. */
+export function repaintBookingsFromCache() {
+  if (!bookingsFetched || !document.getElementById('app-bookings-list')) return;
+  renderBookingsCards(cache.bookings || [], cache.upgrades || []);
+  renderWaitlistsCards(cache.waitlists || []);
 }
 
 export async function renderBookings() {
@@ -365,6 +375,9 @@ function buildBookingCard(group, upgrades) {
             </button>`;
   }).join('');
 
+  const offerGuest = canOfferGuestAction({ supported: canForGym('guestBooking', event.gymId), bookings: group.bookings });
+  // A direct, always-visible Guest action (a chip with the spot chips), not only inside the rail.
+  const guestChipHtml = offerGuest ? `<button type="button" class="bk-guest-chip" aria-label="${GUEST_ACTION_LABEL}" title="${GUEST_ACTION_LABEL}">${COPY.bookings.guestChip}</button>` : '';
   const editBtnHtml = (within12h || !hasMap) ? '' :
     `<button class="ab-rail-btn bk-edit-btn" aria-label="${COPY.bookings.editSpots}">${icon('edit', 17)}<span>${COPY.accessibility.editCard}</span></button>`;
 
@@ -399,12 +412,12 @@ function buildBookingCard(group, upgrades) {
           ? `<div class="ab-card-figure">${instructorAvatar(instructorName, event.gymId, instructorPhotoUrl) || ''}${instructorName ? `<span class="ab-card-instructor">${instructorName}</span>` : ''}</div>` : ''}
       </div>
       <div class="ab-card-footer" style="justify-content:flex-start;">
-        <div class="ab-chip-group">${chipsHtml}</div>
+        <div class="ab-chip-group">${chipsHtml}${guestChipHtml}</div>
       </div>
     </div>
     <div class="ab-card-rail">
       ${editBtnHtml}
-      ${canForGym('guestBooking', event.gymId) ? `<button class="ab-rail-btn bk-guest-btn" aria-label="${GUEST_ACTION_LABEL}">${icon('plus', 17)}<span>${GUEST_ACTION_LABEL}</span></button>` : ''}
+      ${offerGuest ? `<button class="ab-rail-btn bk-guest-btn" aria-label="${GUEST_ACTION_LABEL}">${icon('plus', 17)}<span>${GUEST_ACTION_LABEL}</span></button>` : ''}
       <button class="ab-rail-btn danger bk-cancel-btn" aria-label="${COPY.bookings.cancelBookingLabel}">${icon('close', 17)}<span>${COPY.bookings.cancel}</span></button>
     </div>
   `;
@@ -412,15 +425,16 @@ function buildBookingCard(group, upgrades) {
   // Edit spots
   const editBtn = card.querySelector('.bk-edit-btn');
   if (editBtn) editBtn.addEventListener('click', () => openEditBookingModal(group));
-  const guestBtn = card.querySelector('.bk-guest-btn');
-  if (guestBtn) guestBtn.addEventListener('click', () => openGuestBookingModal({
+  const openGuest = () => openGuestBookingModal({
     ...event,
     id: group.eventId,
     gymId: event.gymId || group.bookings[0]?.gymId,
-  }));
+  });
+  card.querySelector('.bk-guest-btn')?.addEventListener('click', openGuest);
+  card.querySelector('.bk-guest-chip')?.addEventListener('click', openGuest);
 
   // Auto-upgrade click listeners for each spot chip
-  card.querySelectorAll('button.ab-spot-upgrade-chip').forEach(btn => {
+  card.querySelectorAll('button.ab-spot-upgrade-chip:not(.bk-guest-chip)').forEach(btn => {
     btn.addEventListener('click', () => {
       const bid = Number(btn.getAttribute('data-booking-id'));
       const slotId = btn.getAttribute('data-slot-id');
@@ -615,6 +629,8 @@ function wireCancelBooking(btn, card, group, within12h) {
       haptic('medium');
       confirmState = true;
       labelSpan.textContent = within12h ? COPY.bookings.penaltyQuestion : COPY.bookings.confirm;
+      const primaryBooking = group.bookings.find((booking) => !booking.isGuest) || group.bookings[0];
+      loadCancelInfo(api, bookingIdOf(primaryBooking), primaryBooking.gymId || group.event?.gymId).then((info) => showToast(info.text, info.kind === 'free' ? 'info' : 'warning'));
       btn.classList.add('confirming');
       setTimeout(() => {
         confirmState = false;
@@ -682,6 +698,11 @@ export function openGroupedCancellationModal(group, onChange = renderBookings) {
     section: booking.spotSection,
   });
 
+  const cancelInfo = new Map(); // bookingId -> { kind, text }
+  group.bookings.forEach((booking) => {
+    loadCancelInfo(api, bookingIdOf(booking), booking.gymId || gymId).then((info) => { cancelInfo.set(String(bookingIdOf(booking)), info); render(); });
+  });
+
   const render = () => {
     const confirmAll = state.confirmation?.all;
     const error = state.error
@@ -700,6 +721,7 @@ export function openGroupedCancellationModal(group, onChange = renderBookings) {
         <div style="min-width:0;flex:1;display:flex;flex-direction:column;gap:2px;">
           <span style="display:flex;align-items:center;gap:8px;"><small style="font-size:12px;font-weight:600;color:var(--text-secondary);">${escapeHtml(role)}</small><span class="ab-spot-upgrade-chip${isGuest ? ' is-guest' : ''}" style="cursor:default;">${escapeHtml(labelFor(booking))}</span></span>
           ${blocked ? '<span style="font-size:12px;color:var(--text-secondary);">Cancel guest spots first</span>' : ''}
+          ${(() => { const info = cancelInfo.get(String(bookingId)); return info ? `<span class="cancel-info is-${info.kind}" style="font-size:12px;color:${info.kind === 'free' ? 'var(--text-secondary)' : 'var(--warning)'};">${escapeHtml(info.text)}</span>` : '<span style="font-size:12px;color:var(--text-tertiary);">Checking cancellation policy…</span>'; })()}
         </div>
         <button class="app-btn cancel-confirm grouped-cancel-one" data-booking-id="${escapeHtml(bookingId)}" ${disabled ? 'disabled' : ''} style="width:auto;flex:0 0 auto;min-width:88px;padding:10px 16px;">${action}</button>
       </div>`;
@@ -781,7 +803,7 @@ export async function openEditBookingModal(group, onChange = renderBookings) {
   const title = document.getElementById('app-booking-modal-title');
   if (!modal || !body || !title) return;
   const modalRunId = ++editModalRunId;
-  const isCurrentRun = () => isCurrentModalRun(modalRunId, editModalRunId, modal.classList.contains('show'));
+  const isCurrentRun = () => isCurrentModalRun(modalRunId, editModalRunId, modal.style.display !== 'none');
 
   const event = group.event;
   const rawClassName = event.name || event.event_type?.name || COPY.autoBook.class;
@@ -794,7 +816,7 @@ export async function openEditBookingModal(group, onChange = renderBookings) {
   applyBookingChrome(modal, { titleText: COPY.bookingFlow.titleEditSpots, gymId: event.gymId, locationName: event.locationName, studioName: event.studioName });
   body.innerHTML = `<div class="app-loading-spinner-container" style="padding:40px 0;"><div class="app-spinner"></div><span>${COPY.bookings.loadingFloorMap}</span></div>`;
   let editDirty = () => false; // set once the selection exists
-  openNavPage(modal, { id: 'edit-spots', canClose: () => !editDirty() || confirm(COPY.bookingEditor.discardChanges) });
+  openNavPage(modal, { id: 'edit-spots', onClose: () => { if (modalRunId === editModalRunId) editModalRunId++; }, canClose: () => !editDirty() || confirm(COPY.bookingEditor.discardChanges) });
 
   const closeBtn = document.getElementById('app-booking-modal-close');
   const overlay = modal.querySelector('.app-modal-overlay');
@@ -873,17 +895,16 @@ export async function openEditBookingModal(group, onChange = renderBookings) {
     editDirty = () => guestsToCancel.size > 0 || selected.size !== currentSlots.length || currentSlots.some((x) => !selected.has(x));
     const labelFor = id => { const s = layoutSlots.find(ls => String(ls.id) === String(id)); return s?.label || String(id); };
 
+    const limitNote = entitlementUnavailable
+      ? COPY.bookingEditor.bookingLimitUnavailable
+      : Number.isFinite(selfBookingLimit)
+        ? formatCopyText(COPY.bookingEditor.selfBookingLimit, { count: selfBookingLimit, plural: selfBookingLimit === 1 ? '' : 's' })
+        : '';
     body.innerHTML = `
-      <div style="font-size:12px;color:var(--text-secondary);background:var(--surface-inset);border:1px solid var(--border);border-radius:8px;padding:8px 10px;margin-bottom:10px;line-height:1.5;">
+      <div class="bk-edit-note">
         ${formatCopyText(COPY.bookings.editSpotsInstructionHtml, { noun: escapeHtml(noun) })}
       </div>
-      <div style="font-size:12px;color:var(--text-secondary);background:var(--surface-inset);border:1px solid var(--border);border-radius:8px;padding:8px 10px;margin-bottom:10px;line-height:1.5;">
-        ${entitlementUnavailable
-          ? COPY.bookingEditor.bookingLimitUnavailable
-          : Number.isFinite(selfBookingLimit)
-            ? formatCopyText(COPY.bookingEditor.selfBookingLimit, { count: selfBookingLimit, plural: selfBookingLimit === 1 ? '' : 's' })
-            : ''}
-      </div>
+      ${String(limitNote).trim() ? `<div class="bk-edit-note">${limitNote}</div>` : ''}
       <div class="guest-map-legend" aria-label="Spot map key">
         <span class="is-self">${COPY.bookings.guestMapSelf}</span><span class="is-guest">${COPY.bookings.guestMapGuest}</span><span class="is-available">${COPY.bookings.guestMapAvailable}</span><span class="is-unavailable">${COPY.bookings.guestMapUnavailable}</span>
       </div>
@@ -1259,6 +1280,8 @@ async function handleUpgradeClick({ currentSlotLabel, eventId, gymId, bookingId,
     if (hasPrefs) {
       // Quick-register: the monitor reads the live shared studio map, so we only
       // store the per-monitor option here.
+      const grp = resolveUpgradeGroup(cache.bookings, { gymId, eventId, bookingId });
+      if (grp.kind === 'guest') { showToast(COPY.timetable.autoUpgradeGuestUnavailable, 'warning'); return; }
       showToast(COPY.bookings.startingUpgrade, 'info');
       await api.addAutoUpgrade({
         eventId,
@@ -1277,10 +1300,13 @@ async function handleUpgradeClick({ currentSlotLabel, eventId, gymId, bookingId,
         startAt,
         creditShortfall: upgradeCreditShortfall(gymId),
         preferences: {
-          keepOriginalOnCutoff: keepOriginalForAutoCreate(gymSetting(gymId, 'autoUpgradeKeepOriginalByDefault'))
-        }
+          keepOriginalOnCutoff: keepOriginalForAutoCreate(gymSetting(gymId, 'autoUpgradeKeepOriginalByDefault')),
+          // A group is kept together by default.
+          ...(grp.kind === 'group' ? { prioritizeTogether: true } : {}),
+        },
+        ...(grp.kind === 'group' ? { members: grp.members } : {}),
       });
-      showToast(COPY.bookings.upgradeStartedWithMap, 'success');
+      showToast(grp.kind === 'group' ? `${COPY.bookings.upgradeStartedWithMap} ${canForGym('atomicSwap', gymId) ? COPY.timetable.autoUpgradeGroupAtomic : COPY.timetable.autoUpgradeGroupCancelRebook}` : COPY.bookings.upgradeStartedWithMap, 'success');
       renderBookings();
     } else {
       // No prefs — open modal to configure
@@ -1390,6 +1416,13 @@ export async function openUpgradeConfigModal({ currentSlotLabel = '', eventId, g
             <p>Your <strong>preferred ${noun} map</strong> ranks which ${noun}s you would like, in priority order. It is shared for ${escapeHtml(studioName)}, so Quick-Book and Auto-Book use the same map.</p>
           </div>`}
           ${creditWarningHtml}
+          ${(() => {
+            if (isEditing) return '';
+            const g = resolveUpgradeGroup(cache.bookings, { gymId, eventId, bookingId });
+            if (g.kind === 'guest') return `<div class="app-card-error" style="font-size:12px;padding:8px 10px;">${COPY.timetable.autoUpgradeGuestUnavailable}</div>`;
+            if (g.kind !== 'group') return '';
+            return `<div style="font-size:12px;color:var(--text-tertiary);line-height:1.45;margin-bottom:8px;">${canForGym('atomicSwap', gymId) ? COPY.timetable.autoUpgradeGroupAtomic : COPY.timetable.autoUpgradeGroupCancelRebook}</div>`;
+          })()}
           <div id="upgrade-context"></div>
           <div class="app-upgrade-current">Your current ${noun}: <strong>${escapeHtml(spotLabel || '—')}</strong></div>
           <div class="app-upgrade-map-summary">
@@ -1443,11 +1476,14 @@ export async function openUpgradeConfigModal({ currentSlotLabel = '', eventId, g
             await api.updateAutoUpgrade(existingUpgradeId, { keepOriginalOnCutoff }, bookingId);
             showToast(COPY.bookings.upgradeUpdated, 'success');
           } else {
+            const grp = resolveUpgradeGroup(cache.bookings, { gymId, eventId, bookingId });
+            if (grp.kind === 'guest') { showToast(COPY.timetable.autoUpgradeGuestUnavailable, 'warning'); return; }
             await api.addAutoUpgrade({
               eventId, gymId: gymId || null, studioId: resolvedStudioId || null, bookingId, currentSlotId,
               className, groupName, instructorName, studioName, locationName, startAt,
               creditShortfall: upgradeCreditShortfall(gymId),
-              preferences: { keepOriginalOnCutoff }
+              preferences: { keepOriginalOnCutoff, ...(grp.kind === 'group' ? { prioritizeTogether: true } : {}) },
+              ...(grp.kind === 'group' ? { members: grp.members } : {}),
             });
             showToast(COPY.bookings.monitorStarted, 'success');
           }
@@ -1483,6 +1519,7 @@ export async function openUpgradeConfigModal({ currentSlotLabel = '', eventId, g
         saveLabel: COPY.spotMapEditor.saveDefaults,
         layoutObjects,
         rowGroups: rowGroupsForStudio(resolvedStudioId, gymId),
+        mobileRotation: mobileRotationForStudio(resolvedStudioId, gymId), front: frontForStudio(resolvedStudioId, gymId),
         bannerHtml,
         hideClear: true,
         // Deliberately no availability filter: this edits the studio-wide shared map, so occupied

@@ -1,7 +1,15 @@
 import { api } from '../api';
+import { appConfig } from '../config.js';
 import { buildWorkoutOptions, stripVariantSuffix } from './workout-options.js';
 import { COPY, appCopy, formatCopyText } from '../copy.js';
-import { getAvailableCreditsForEvent, hasUsableCredit, getIneligibleReason, isMetered } from './credit-allowance.js';
+import { getAvailableCreditsForEvent, hasUsableCredit, getIneligibleReason, isMetered, creditShortfall as missingCredits, creditsNeededFor } from './credit-allowance.js';
+import { autoBookTapAction, findScheduledEntry } from './autobook-tap.js';
+import { guestUnavailableMessage } from './guest-access.js';
+import { loadCancelInfo } from './cancel-penalty-info.js';
+import { autoBookOutcomeToasts, autoBookFailureToast } from './autobook-outcome.js';
+import { bookStepLabel, preferredSummaryText, autoBookCreditWarning } from './booking-copy.js';
+import { resolveSpotLabels } from './spot-labels.js';
+import { makeDisplayRotator, makeUniformFit, ROTATED_MIN_GAP_PX, displayFrontSide, makeFrontBar, FRONT_BAR_PX } from './spot-rotation.js';
 import { isCreditInventoryLoaded, pickStudioPrefs as pickGymStudioPrefs } from './gym-isolation.js';
 import { isRollingWeeklyGym } from '../gym-context.js';
 import { canForGym, canAny, capabilityForGym, getLinkedGyms, getGymShortName, getLocationAlias, getDefaultGymId, formatSpotLabel } from '../gym-context.js';
@@ -27,7 +35,7 @@ import { openDB, accountScopedKey } from '../cache.js';
 import { claimAutoUpgradeTipOnce, hasDisabledAutoUpgradeGym } from './autoupgrade-tip.js';
 import { decideRefresh } from './refresh-policy.js';
 import { bookingNotifyPayload } from './booking-notify.js';
-import { spotSelectionRule, needsSetupIntro, setupIntroCopy } from './spot-selection.js';
+import { spotSelectionRule } from './spot-selection.js';
 import { disciplineTag, seatNoun, sparklesIcon, trendingUpIcon, icon, pulseIcon, trimLocation, displayStudioName, equalizeDiscTagWidths , gymChip , cleanClassName, getDiscipline, passesDisciplineFilter } from './cards';
 import { openEditBookingModal, openGroupedCancellationModal, syncBookingCache } from './bookings';
 import { openStudioFloorPlanEditor } from './settings';
@@ -48,13 +56,16 @@ import { quickBookTap } from './quickbook-flow.js';
 import { redactSensitivePayload } from '../redact.js';
 import { haptic } from './haptics.js';
 import { keepOriginalForAutoCreate } from './autoupgrade-setup.js';
-import { openPage as openNavPage, closePage as closeNavPage, isMobile } from './modal-nav.js';
+import { openPage as openNavPage, closePage as closeNavPage, pushLayer, setDesktopBack, isMobile } from './modal-nav.js';
 import { applyBookingChrome, mountBookingContext, bannerEl } from './booking-chrome.js';
 import { openSpotSetup, setupDeferred, spotSetupBookingOptions } from './spot-setup.js';
-import { applyStudioPreferenceMutation, hasStudioPreferences, shouldShowPreferredMapEditToggle } from './studio-preferences-state.js';
+import { applyStudioPreferenceMutation, hasStudioPreferences } from './studio-preferences-state.js';
 import { instructorToken, addInstructorSearchFilter, migrateInstructorSelection, hasLegacyInstructors, passesInstructorFilter, pruneInstructorSelection, findInstructor, parseInstructorToken } from './instructor-filter.js';
 import { bookCandidateSpots } from './booking-attempts.js';
-import { bookingQuantityOptions, maxAttendeesPerClass } from './booking-limits.js';
+import { bookingQuantityOptions, maxAttendeesPerClass, normalizeGroupOptions, showTogetherOption, autoBookEditDirty, applyTogetherChange, applyCountChange, applyFallbackChange, scheduledGuestLimit, placeOptions, guestSlotCount, placesLabel, seedGuestDrafts, validateGuestDrafts, buildGuests } from './booking-limits.js';
+import { bookGuestAfterPrimary as bookGuestAfterPrimaryStep } from './quickbook-guest.js';
+import { orderCompanionSlots, orderTogetherSlots } from './companion-slots.js';
+import { guestFieldsHtml, wireGuestFields } from './guest-fields.js';
 import { renderStudioFloorPlan } from './spotmap.js';
 import { currentRoute, commitFilterChange, commitNow, replaceCurrent, pathFor } from '../router.js';
 import { stateToUrlTimetable, urlToState, savedToState, sameFilters, overlayLabels, guardedSaveDefaults, emptyFilterState } from './timetable-url-sync.js';
@@ -215,6 +226,21 @@ export function rowGroupsForStudio(studioId, gymId) {
   const studio = gymScopedGet(studioObjMap, studioId, gymId)
     || metadata.studios.find(s => sameId(s.id, studioId) && (!gymId || s.gymId === gymId));
   return studioHasRowGroups(studio);
+}
+
+/** Mobile-only map orientation supplied by the server's per-studio policy. */
+export function mobileRotationForStudio(studioId, gymId) {
+  const studio = gymScopedGet(studioObjMap, studioId, gymId)
+    || metadata.studios.find(s => sameId(s.id, studioId) && (!gymId || s.gymId === gymId));
+  const rotation = Number(studio?.mobileRotation);
+  return [0, 90, 180, 270].includes(rotation) ? rotation : 0;
+}
+
+/** Which side of the room is the front in the ORIGINAL orientation (gym config), or null. */
+export function frontForStudio(studioId, gymId) {
+  const studio = gymScopedGet(studioObjMap, studioId, gymId)
+    || metadata.studios.find(s => sameId(s.id, studioId) && (!gymId || s.gymId === gymId));
+  return ['top', 'right', 'bottom', 'left'].includes(studio?.front) ? studio.front : null;
 }
 
 export function mergeMetadataFromEvents(events) {
@@ -2815,15 +2841,13 @@ async function doQuickBook(event, btn) {
 
 async function doAutoBookToggle(event, btn, isScheduled) {
   if (isScheduled) {
+    // A queued class opens its Edit Auto-Book screen (shared summary, update handler). Removal lives
+    // there and in the Auto-Book tab; a tap on the row never deletes.
     try {
-      showToast(COPY.timetable.removingScheduled, 'info');
-      const autoBookings = await api.getAutoBookings();
-      const existing = (autoBookings.data || autoBookings || []).find(x => String(x.event_id || x.eventId) === String(event.id));
-      if (existing) {
-        await api.deleteAutoBooking(existing.id);
-        showToast(COPY.timetable.scheduledCancelled, 'info');
-        renderTimetableGrid();
-      }
+      const entry = findScheduledEntry(await api.getAutoBookings(), event);
+      if (!entry) { showToast(formatCopyText(COPY.timetable.errorPrefix, { error: COPY.timetable.scheduledNotFound }), 'error'); return; }
+      const { openAutoBookEditModal } = await import('./autobook.js');
+      await openAutoBookEditModal(entry);
     } catch (err) {
       showToast(formatCopyText(COPY.timetable.errorPrefix, { error: err.message }), 'error');
     }
@@ -2832,21 +2856,17 @@ async function doAutoBookToggle(event, btn, isScheduled) {
   // No seat map for this studio (FCFS/recovery) — nothing to configure, so
   // this is one tap, same as Quick Book's own no-map case.
   const { hasMap } = getStudioMapInfo(event);
-  if (!hasMap) {
-    saveAutoBookPreferences(event, [], [], 1, true, () => {});
+  let prefs = {};
+  let hasPrefs = false;
+  if (hasMap) {
+    try { ({ prefs, hasPrefs } = await resolveStudioPrefs(event)); } catch (_) { /* unknown: treat as no saved map */ }
+  }
+  // Same defaults as one-tap Quick-Book: one place, the member's own book-any setting, together off.
+  if (autoBookTapAction({ hasMap, hasPrefs }) === 'queue-now') {
+    saveAutoBookPreferences(event, prefs.preferredSlots || [], prefs.preferredRows || [], 1, prefs.bookAny !== false, () => {});
     return;
   }
-  try {
-    const autoBookAllPrefs = await api.getStudioPreferences();
-    const prefs = (event.gymId && autoBookAllPrefs[`${event.gymId}:${event.studioId}`]) || autoBookAllPrefs[event.studioId] || {};
-    if (prefs.preferredSlots?.length > 0 || prefs.preferredRows?.length > 0) {
-      saveAutoBookPreferences(event, prefs.preferredSlots || [], prefs.preferredRows || [], 1, true, () => {});
-    } else {
-      openBookingModal(event, 'autobook');
-    }
-  } catch (err) {
-    openBookingModal(event, 'autobook');
-  }
+  openBookingModal(event, 'autobook'); // no saved map: the shared setup flow
 }
 
 // Edit a booked class — reuses the My Bookings edit-spots modal. Builds the
@@ -3494,8 +3514,20 @@ async function quickBookClass(eventId, prefs, btn, gymId = null) {
   const preferredSlots = prefs.preferredSlots || [];
   const preferredRows = prefs.preferredRows || [];
   const requiredCount = prefs.requiredCount || 1;
-  const bookAny = prefs.bookAny !== false;
-  const autoUpgrade = prefs.autoUpgrade !== undefined ? prefs.autoUpgrade : isAutoUpgradeDefaultEnabled(gymId);
+  const prioritizeTogether = (prefs.requiredCount || 1) + (Array.isArray(prefs.guests) ? prefs.guests.length : 0) > 1 && prefs.prioritizeTogether === true;
+  const bookAny = prioritizeTogether || prefs.bookAny !== false;
+  const guests = Array.isArray(prefs.guests) ? prefs.guests : [];
+  if (guests.length > 1) {
+    showToast('Quick-Book currently supports one named guest.', 'warning');
+    return false;
+  }
+  const guest = guests[0] || null;
+  // An independent upgrade can split a primary/guest pair. Keep the existing
+  // single self behaviour, but never imply it preserves a guest group.
+  const autoUpgrade = guest ? false : (prefs.autoUpgrade !== undefined ? prefs.autoUpgrade : isAutoUpgradeDefaultEnabled(gymId));
+
+  const bookGuestAfterPrimary = (candidateSlotId = null) =>
+    bookGuestAfterPrimaryStep({ guest, bookGuest: api.bookGuest, eventId, slotId: candidateSlotId, gymId });
 
   try {
     // WP-C1: reads the normalized event details endpoint instead of the raw
@@ -3548,8 +3580,13 @@ async function quickBookClass(eventId, prefs, btn, gymId = null) {
         haptic('success');
         showToast(COPY.timetable.quickBooked, 'success');
         api.notifyBookingSuccess(bookingNotifyPayload(event, { source: 'quickbook', gymId, slots: [] })).catch(() => {});
+        const guestOutcome = await bookGuestAfterPrimary(null);
+        if (!guestOutcome.ok) {
+          showToast(`Your place was booked, but ${guestOutcome.message}`, 'warning');
+        }
         await refreshUserData(true);
         await refreshBookingState();
+        return true;
       } catch (err) {
         haptic('error');
         showToast(formatCopyText(COPY.timetable.quickBookFailedMessage, { error: err.message }), 'error');
@@ -3606,6 +3643,12 @@ async function quickBookClass(eventId, prefs, btn, gymId = null) {
       return;
     }
 
+    // Several own spots with togetherness: book the tightest set (adjacent when free).
+    if (prioritizeTogether && !guest && requiredCount > 1) {
+      const ordered = orderTogetherSlots({ slots, candidates: slotsToTry, count: requiredCount, preferredCount: primarySlots.length + rowSlots.length });
+      slotsToTry.splice(0, slotsToTry.length, ...ordered);
+    }
+
     const attemptResult = await bookCandidateSpots({
       candidates: slotsToTry,
       requiredCount,
@@ -3622,16 +3665,35 @@ async function quickBookClass(eventId, prefs, btn, gymId = null) {
     const qbNoun = seatNoun(event.discipline || eventData.discipline);
 
     if (bookedCount > 0) {
+      // The primary result is durable before this call. Do not retry or roll it
+      // back if the separately charged guest attendee fails.
+      // With togetherness the guest is re-planned around where the primary actually landed: nearest free spot.
+      const guestPool = slotsToTry.filter((slotId) => !attemptResult.booked.some((booked) => String(booked.slotId) === String(slotId)));
+      const guestCandidate = guest
+        ? (prioritizeTogether
+          ? orderCompanionSlots({ slots, candidates: guestPool, primarySlotId: lastBookedSlot })[0]
+          : guestPool[0]) || null
+        : null;
+      const guestOutcome = guest && !guestCandidate
+        ? { attempted: false, ok: false, message: 'No remaining spot was available for your guest.' }
+        : await bookGuestAfterPrimary(guestCandidate);
       haptic('success');
       api.notifyBookingSuccess(bookingNotifyPayload(event, { source: 'quickbook', gymId, slots: bookedSlotLabels })).catch(() => {});
       let upgradeRegistered = false;
       if (lastBookedSlot !== null) {
-        const upgradeRes = await tryAutoRegisterUpgrade(event, lastBookedSlot, lastBookingRes, autoUpgrade, { silent: true });
+        // Several spots booked in one go register ONE group monitor (moved together).
+        const groupRes = attemptResult.booked.length > 1
+          ? { bookings: attemptResult.booked.map((b) => ({ bookingId: b.result?.bookingId, slotId: b.slotId })) }
+          : lastBookingRes;
+        const upgradeRes = await tryAutoRegisterUpgrade(event, lastBookedSlot, groupRes, autoUpgrade, { silent: true, prioritizeTogether: prefs.prioritizeTogether === true });
         upgradeRegistered = Boolean(upgradeRes?.registered);
       }
       const slotText = bookedSlotLabels.length > 0 ? ` ${qbNoun} ${bookedSlotLabels.join(', ')}` : '';
       const upgradeNote = upgradeRegistered ? COPY.timetable.upgradeEnabledNote : '';
       showToast(formatCopyText(COPY.timetable.quickBookedDetail, { slots: slotText, upgrade: upgradeNote }), 'success');
+      if (!guestOutcome.ok) {
+        showToast(`Your place was booked, but ${guestOutcome.message}`, 'warning');
+      }
 
       await refreshUserData(true);
       await refreshBookingState();
@@ -3642,6 +3704,7 @@ async function quickBookClass(eventId, prefs, btn, gymId = null) {
           showToast(COPY.timetable.autoUpgradeTip, 'info');
         }
       }, 2500);
+      return true;
     } else {
       haptic('error');
       const failure = attemptResult.terminalError;
@@ -3667,7 +3730,7 @@ async function quickBookClass(eventId, prefs, btn, gymId = null) {
  */
 export async function openGuestBookingModal(c) {
   if (!canForGym('guestBooking', c.gymId)) {
-    showToast(COPY.bookings.guestBookingUnavailable, 'warning');
+    showToast(guestUnavailableMessage('GUEST_BOOKING_UNSUPPORTED'), 'warning');
     return;
   }
   const modal = document.getElementById('app-booking-modal');
@@ -3693,7 +3756,7 @@ export async function openGuestBookingModal(c) {
       api.getEventDetails(c.id, c.gymId),
     ]);
     if (!entitlement.guestEligible) {
-      body.innerHTML = `<div class="app-card-error" style="padding:24px;text-align:center;">${escapeHtml(COPY.bookings.guestBookingUnavailable)}</div>`;
+      body.innerHTML = `<div class="app-card-error" style="padding:24px;text-align:center;">${escapeHtml(guestUnavailableMessage(entitlement.guestReason))}</div>`;
       return;
     }
     const slots = details.slots || [];
@@ -3734,9 +3797,11 @@ export async function openGuestBookingModal(c) {
         availableSlots: available.map((slot) => String(slot.id)),
         slotStates: reservationStates,
         selectionLimit: 1,
+        selectionTone: 'guest',
         hideSummary: true,
         hideActions: true,
         hideEditHint: true,
+        mobileRotation: mobileRotationForStudio(c.studioId, c.gymId), front: frontForStudio(c.studioId, c.gymId),
         onSelectionChange: (selected) => {
           selectedSlotId = selected.length ? String(selected[0]) : null;
           submit.disabled = !selectedSlotId;
@@ -3777,25 +3842,31 @@ export async function openBookingModal(c, mode, opts = {}) {
   const isQuickBookMode = mode === 'quickbook';
   const isSimpleBookMode = mode === 'book';
   const isSpotFlowStep = !!(opts.setupFlow || opts.oneOffSpots);
+  // Step B is a review of the private preferred-map draft. It intentionally
+  // differs from Quick-Book's manual "choose for now" surface, which remains
+  // an interactive `book` flow.
+  const isPreferredSummaryFlow = !!opts.setupFlow && (isAutoBookMode || isQuickBookMode);
 
   // Mobile, Step A gate (spotmap-booking-flow-spec section 2): Quick-Book / Auto-Book on a map gym
   // with no saved spots go through the one-time setup page first. "Choose a spot" never does.
-  if (isMobile() && (isQuickBookMode || isAutoBookMode) && !opts.setupDone) {
+  if ((isQuickBookMode || isAutoBookMode) && !opts.setupDone) {
     try {
       const { hasPrefs } = await resolveStudioPrefs(c);
       const { hasMap } = getStudioMapInfo(c);
       if (hasMap && !hasPrefs && !setupDeferred(c.gymId, c.studioId)) {
         const next = (extra) => (pageEl, saved) => openBookingModal(c, mode, { ...opts, overlapChecked: true, setupDone: true, replaceEl: pageEl, savedPrefs: saved || null, ...extra });
         openSpotSetup({
-          event: c, className: c.discipline || c.name, rowGroups: rowGroupsForStudio(c.studioId, c.gymId),
-          onSaved: (slots, rows) => {
-            // Keep the shared prefs cache in step (resolveStudioPrefs reads it); a refetch can race invalidation.
-            cache.studioPreferences = { ...(cache.studioPreferences || {}), [`${c.gymId}:${c.studioId}`]: { preferredSlots: slots, preferredRows: rows } };
-          },
+          event: c, className: c.discipline || c.name, rowGroups: rowGroupsForStudio(c.studioId, c.gymId), mobileRotation: mobileRotationForStudio(c.studioId, c.gymId), front: frontForStudio(c.studioId, c.gymId),
+          // Keep this class flow's selections private until its final action.
+          // Auto-Book commits them atomically with the queue; Quick-Book saves
+          // only after the immediate booking succeeds.
+          deferPersist: true,
+          stepBookLabel: bookStepLabel(isAutoBookMode ? 'autobook' : 'other'),
+          onSaved: () => {},
           onContinue: (pageEl, saved) => openBookingModal(c, mode, spotSetupBookingOptions(opts, pageEl, saved)),
-          onChooseForNow: (pageEl) => openBookingModal(c, 'book', {
+          ...(isQuickBookMode ? { onChooseForNow: (pageEl) => openBookingModal(c, 'book', {
             ...opts, overlapChecked: true, setupDone: true, replaceEl: pageEl, oneOffSpots: true,
-          }),
+          }) } : {}),
         });
         return;
       }
@@ -3812,6 +3883,7 @@ export async function openBookingModal(c, mode, opts = {}) {
   const bookingChrome = () => applyBookingChrome(modal, {
     titleText: isAutoBookMode ? COPY.bookingFlow.titleAutoBook : (isQuickBookMode ? COPY.bookingFlow.titleFinishQuickBook : COPY.bookingFlow.titleBook),
     gymId: c.gymId, locationName: c.locationName, studioName: c.studioName, stepper: opts.setupFlow ? 'B' : null,
+    stepBookLabel: bookStepLabel(isAutoBookMode ? 'autobook' : 'other'),
   });
   bookingChrome();
 
@@ -3834,15 +3906,23 @@ export async function openBookingModal(c, mode, opts = {}) {
   const closeBtn = document.getElementById('app-booking-modal-close');
   const overlay = modal.querySelector('.app-modal-overlay');
 
-  const closeModal = () => {
+  // Final preferred-map summary: its header Back arrow is a nav layer (see goBackToPreferredEditor).
+  let summaryLayer = null;
+  let summaryAfterRelease = null;
+  const closeModalNow = () => {
     if (closeNavPage(modal)) return; // mobile page: pop its history entry
     modal.classList.remove('show');
     setTimeout(() => modal.style.display = 'none', 300);
+  };
+  const closeModal = () => {
+    if (summaryLayer) { summaryAfterRelease = closeModalNow; summaryLayer.release(); return; }
+    closeModalNow();
   };
 
   closeBtn.onclick = closeModal;
   overlay.onclick = closeModal;
   delete closeBtn.dataset.nav;
+  setDesktopBack(modal, false);
 
   // Refresh credits when opening booking modal (force — user needs accurate counts)
   await refreshUserData(true);
@@ -3899,6 +3979,28 @@ export async function openBookingModal(c, mode, opts = {}) {
       });
     const attendeeOptions = bookingQuantityOptions(attendeeLimit);
     const showAttendeeSelector = attendeeOptions.length > 1;
+    // A scheduled guest has a separately validated entitlement. The live
+    // guest allowance can be zero before release or before the primary exists,
+    // so do not use it to erase an otherwise supported planned place.
+    const scheduledSelfLimit = bookingEntitlement
+      ? maxAttendeesPerClass({ providerLimit: bookingEntitlement.selfBookingLimit, gymLimit: capabilityForGym('maxSpotsPerClass', c.gymId) })
+      : attendeeLimit;
+    const scheduledGuestSupported = bookingEntitlement?.guestSupported === true;
+    // [Claude 2026-10-11] Places above the self limit ARE guests (no checkbox): the count options are
+    // self limit + supported guest places, and each guest place gets a required email field.
+    const scheduledGuestMax = scheduledGuestLimit({ selfLimit: scheduledSelfLimit, guestSupported: scheduledGuestSupported });
+    const autoBookAttendeeOptions = placeOptions({ selfLimit: scheduledSelfLimit, guestLimit: scheduledGuestMax });
+    // Quick-Book books the guest live, so it also needs the guest to be eligible right now.
+    const quickGuestMax = scheduledGuestLimit({ selfLimit: attendeeLimit, guestSupported: scheduledGuestSupported && bookingEntitlement?.guestEligible === true });
+    const quickBookOptions = placeOptions({ selfLimit: attendeeLimit, guestLimit: quickGuestMax });
+    const guestLimitForMode = (isAutoBookMode ? scheduledGuestMax : quickGuestMax);
+    const selfLimitForMode = (isAutoBookMode ? scheduledSelfLimit : attendeeLimit);
+    const guestPlacesFor = (qty) => guestSlotCount({ qty, selfLimit: selfLimitForMode, guestLimit: guestLimitForMode });
+    const showAutoBookAttendeeSelector = autoBookAttendeeOptions.length > 1;
+    // Shown only for a group (more than one of your own spots); wording follows the gym's swap capability.
+    const groupUpgradeNote = (qty, gymId) => (qty - guestPlacesFor(qty)) > 1
+      ? `<div style="font-size:12px;color:var(--text-tertiary);line-height:1.45;">${canForGym('atomicSwap', gymId) ? COPY.timetable.autoUpgradeGroupAtomic : COPY.timetable.autoUpgradeGroupCancelRebook}</div>`
+      : '';
 
     // Determine if booking window is already open
     const classReleaseTime = getClassReleaseTime(c);
@@ -3923,6 +4025,7 @@ export async function openBookingModal(c, mode, opts = {}) {
     applyBookingChrome(modal, {
       titleText: isAutoBookMode ? COPY.bookingFlow.titleAutoBook : COPY.bookingFlow.titleBook,
       gymId: c.gymId, locationName: c.locationName, studioName, stepper: opts.setupFlow ? 'B' : null,
+      stepBookLabel: bookStepLabel(isAutoBookMode ? 'autobook' : 'other'),
     });
     const classCtx = {
       className: groupName === c.name || !c.name ? groupName : c.name, instructorName: instrName || c.instructors?.[0]?.name || '',
@@ -3944,7 +4047,7 @@ export async function openBookingModal(c, mode, opts = {}) {
 
     if (layoutSlots.length === 0) {
       // Mobile compact page for Auto-Book on a class with no assigned spots: explanation, quantity, one action.
-      const compactAuto = isMobile() && isAutoBookMode;
+      const compactAuto = isAutoBookMode;
       body.innerHTML = compactAuto ? `
         <div class="app-bk-compact">
           <p>${COPY.bookingFlow.fcfsAutoBook}</p>
@@ -3975,8 +4078,16 @@ export async function openBookingModal(c, mode, opts = {}) {
       return;
     }
 
+    // The quick-book and live booking map has its own interaction surface, so
+    // transform only its display coordinates here. Stored preference rows,
+    // booking candidates and provider layout coordinates remain unrotated.
+    const mobileRotation = isMobile() ? mobileRotationForStudio(c.studioId, c.gymId) : 0;
+    const frontSide = displayFrontSide(frontForStudio(c.studioId, c.gymId), mobileRotation);
+    const rotateForDisplay = makeDisplayRotator(layoutSlots, mobileRotation);
+    const displaySlots = layoutSlots.map(rotateForDisplay);
+    const displayObjects = layoutObjects.map(rotateForDisplay);
     let minX = Infinity, maxX = -Infinity, minY = Infinity, maxY = -Infinity;
-    layoutSlots.forEach(s => {
+    displaySlots.forEach(s => {
       if (s.x < minX) minX = s.x;
       if (s.x > maxX) maxX = s.x;
       if (s.y < minY) minY = s.y;
@@ -3992,23 +4103,54 @@ export async function openBookingModal(c, mode, opts = {}) {
     const rowCount = new Set(layoutSlots.map(s => s.y)).size;
     const minMapHeight = Math.max(340, rowCount * 56);
 
+    // The blurred summary preview is clipped to this height so the whole summary page (class line,
+    // overlay + "Edit preferred spots", controls, CTA) fits a ~393x852 phone without scrolling.
+    const SUMMARY_MAP_MAX_H = 140;
+    let initialMapHeight = isPreferredSummaryFlow ? Math.min(200, minMapHeight) : minMapHeight;
+    // One uniform scale for both axes (relative geometry kept); grow the box when a tall rotated room needs it.
+    const fitBoxW = Math.max(240, (body.clientWidth || 340) - 2);
+    const fit = makeUniformFit(displaySlots, { boxW: fitBoxW, boxH: initialMapHeight, pad: frontSide ? 10 + FRONT_BAR_PX : 10, padRight: rowGroupsForStudio(c.studioId, c.gymId) ? 36 : (frontSide ? 10 + FRONT_BAR_PX : 10), lockWidth: mobileRotation !== 0 || isPreferredSummaryFlow, rotated: mobileRotation !== 0, minGapPx: mobileRotation !== 0 ? ROTATED_MIN_GAP_PX : undefined });
+    initialMapHeight = Math.max(initialMapHeight, fit.neededH);
+    if (isPreferredSummaryFlow) title.textContent = isAutoBookMode ? COPY.bookingFlow.titleAutoBook : COPY.bookingFlow.titleFinishQuickBook;
+    const preferredSummaryIdentity = isPreferredSummaryFlow
+      ? `<div class="app-preferred-summary-identity"><strong>${escapeHtml(classCtx.className)}</strong>${classCtx.instructorName ? `<span>${escapeHtml(formatCopyText(COPY.bookingFlow.withInstructor, { instructor: classCtx.instructorName }))}</span>` : ''}</div>${isAutoBookMode && !opts.autoBookEdit ? '<p class="app-preferred-summary-impact">Changing these studio preferences also affects your other Auto-Books here.</p>' : ''}`
+      : '';
     body.innerHTML = `
       <div id="app-modal-info-banner" style="margin-bottom:10px;"></div>
-      <div class="app-floor-plan-container" style="position:relative;height:${minMapHeight}px;background:var(--surface-inset);border:1px solid var(--border);border-radius:12px;margin-bottom:10px;overflow:hidden;">
-        <div id="app-floor-plan-grid" style="width:100%;height:100%;"></div>
+      ${preferredSummaryIdentity}
+      <div id="app-floor-plan-container" class="app-floor-plan-container${isPreferredSummaryFlow ? ' is-preferred-summary' : ''}" style="position:relative;height:${isPreferredSummaryFlow ? Math.min(initialMapHeight, SUMMARY_MAP_MAX_H) : initialMapHeight}px;background:var(--surface-inset);border:1px solid var(--border);border-radius:12px;margin-bottom:10px;overflow:hidden;">
+        <div id="app-floor-plan-grid" style="width:100%;height:${isPreferredSummaryFlow ? `${initialMapHeight}px` : '100%'};"></div>
       </div>
-      <div id="app-map-edit-toggle"></div>
+      ${isPreferredSummaryFlow ? '' : '<div id="app-map-hint"></div>'}
       <div id="app-slot-summary" style="font-size:12px;color:var(--text-secondary);margin-bottom:12px;min-height:16px;${opts.setupFlow ? 'display:none;' : ''}"></div>
       <div id="app-modal-controls-container"></div>
     `;
 
     const floorGrid = body.querySelector('#app-floor-plan-grid');
-    mountBookingContext(body, body.querySelector('.app-floor-plan-container'), classCtx, classHelper);
+    const floorContainer = body.querySelector('#app-floor-plan-container');
+    // Unrotated maps keep a minimum spot size: wider than the box = pan sideways (rotated maps and the
+    // blurred summary preview are width-locked and never scroll).
+    if (fit.scrolls) {
+      floorContainer.style.overflowX = 'auto';
+      floorContainer.style.overflowY = 'hidden';
+      floorContainer.style.touchAction = 'pan-x pan-y';
+      floorGrid.style.width = `${fit.boxWUsed}px`;
+      const mapHint = body.querySelector('#app-map-hint');
+      if (mapHint) {
+        const pan = document.createElement('div');
+        pan.className = 'app-pan-hint';
+        pan.style.cssText = 'font-size:11px;color:var(--text-tertiary);font-style:italic;margin:0 0 10px;text-align:center;';
+        pan.textContent = COPY.spotMapEditor.dragToPan;
+        mapHint.appendChild(pan);
+      }
+    }
+    if (!isPreferredSummaryFlow) mountBookingContext(body, floorContainer, classCtx, classHelper);
+    { const frontBar = makeFrontBar(frontSide); if (frontBar) floorContainer.appendChild(frontBar); }
 
     // Render Stage — NormalizedLayoutObject[]; empty for providers with none.
-    layoutObjects.forEach(obj => {
-      const left = widthRange === 0 ? 50 : ((obj.x - minX) / widthRange) * 80 + 10;
-      const top = heightRange === 0 ? 10 : ((obj.y - minY) / heightRange) * 75 + 10;
+    displayObjects.forEach(obj => {
+      const left = fit.xPct(obj.x);
+      const top = fit.yPct(obj.y);
       const stage = document.createElement('div');
       stage.className = 'app-minimap-stage';
       stage.style.cssText = `position: absolute; left: ${left}%; top: ${top}%; transform: translate(-50%, -50%); background: color-mix(in srgb, var(--text) 15%, transparent); border: 1px solid color-mix(in srgb, var(--text) 30%, transparent); padding: 4px 16px; border-radius: 6px; font-size: 12px; font-weight: bold; color: #fff; letter-spacing: 0.5px;`;
@@ -4033,22 +4175,45 @@ export async function openBookingModal(c, mode, opts = {}) {
       selectedSlots: [],    // ordered array of slot IDs (index 0 = priority 1)
       selectedRows: new Set(),
       qty: isSimpleBookMode ? maxBookableSlots : 1,  // simple-book: limit selection to max available; quick-book/auto-book: qty selector controls this
-      bookAny: true
+      bookAny: true,
+      prioritizeTogether: false,
+      guestDrafts: [],      // one { email, name } per guest place; derived from the count, never a checkbox
+      autoUpgrade: opts.autoBookEdit?.preferences?.autoUpgrade ?? null,
     };
 
     // Pre-populate from saved studio prefs (auto-book and quick-book modes)
     let hasExistingPrefs = false;
+    // The LIVE shared map (what Auto-Book will actually use). Edit seeds from this,
+    // never from the queue entry's snapshot, so a removed map stays removed.
+    let liveMapPrefs = { preferredSlots: [], preferredRows: [] };
     try {
       const studioPrefs = await api.getStudioPreferences();
       const prefs = (c.gymId && studioPrefs[`${c.gymId}:${c.studioId}`]) || studioPrefs[c.studioId] || {};
+      liveMapPrefs = { preferredSlots: prefs.preferredSlots || [], preferredRows: prefs.preferredRows || [] };
       hasExistingPrefs = (prefs.preferredSlots?.length > 0) || (prefs.preferredRows?.length > 0);
       if (isAutoBookMode || isQuickBookMode) {
         (prefs.preferredSlots || []).forEach(s => state.selectedSlots.push(String(s)));
         if (rowGroups) (prefs.preferredRows || []).forEach(r => state.selectedRows.add(Number(r)));
         state.qty = prefs.requiredCount || 1;
         state.bookAny = prefs.bookAny !== false;
+        state.prioritizeTogether = prefs.prioritizeTogether === true;
       }
     } catch (e) {}
+    // Existing Auto-Book edits seed from the queue snapshot rather than only
+    // the studio-global map. The map stays shared, while count, fallback,
+    // togetherness and participant identity remain queue-specific drafts.
+    if (opts.autoBookEdit?.preferences) {
+      const editPrefs = opts.autoBookEdit.preferences;
+      state.selectedSlots.length = 0;
+      liveMapPrefs.preferredSlots.forEach((slot) => state.selectedSlots.push(String(slot)));
+      state.selectedRows = new Set(rowGroups ? liveMapPrefs.preferredRows.map(Number) : []);
+      state.qty = Number(editPrefs.requiredCount) || 1;
+      state.bookAny = editPrefs.bookAny !== false;
+      state.prioritizeTogether = editPrefs.prioritizeTogether === true;
+      state.guestDrafts = seedGuestDrafts(editPrefs.guests || [], editPrefs.guests?.length || 0);
+      state.seededGuests = editPrefs.guests || [];
+      hasExistingPrefs = state.selectedSlots.length > 0 || state.selectedRows.size > 0;
+    }
     // Arrived from Step A: use exactly what was just saved (a refetch can race the cache invalidation).
     if (opts.savedPrefs && (isAutoBookMode || isQuickBookMode)) {
       state.selectedSlots.length = 0;
@@ -4056,15 +4221,99 @@ export async function openBookingModal(c, mode, opts = {}) {
       state.selectedRows = new Set(rowGroups ? (opts.savedPrefs.rows || []).map(Number) : []);
       hasExistingPrefs = state.selectedSlots.length > 0 || state.selectedRows.size > 0;
     }
-    state.qty = Math.max(1, Math.min(attendeeLimit, Number(state.qty) || 1));
+    // Returning from the Your Spots editor (Back on the final summary): restore the in-memory
+    // count/options/guest draft that was on screen.
+    if (opts.summaryDraft) {
+      const d = opts.summaryDraft;
+      if (d.qty != null) state.qty = d.qty;
+      if (d.bookAny != null) state.bookAny = d.bookAny;
+      if (d.prioritizeTogether != null) state.prioritizeTogether = d.prioritizeTogether;
+      if (d.autoUpgrade !== undefined) state.autoUpgrade = d.autoUpgrade;
+      if (d.guestDrafts !== undefined) state.guestDrafts = d.guestDrafts;
+      if (d.seededGuests !== undefined) state.seededGuests = d.seededGuests;
+    }
+    const autoBookCurrentLimit = autoBookAttendeeOptions.at(-1);
+    const requestedQty = Number(state.qty) || 1;
+    // An existing queue outside a newly-reported allowance remains visible so
+    // the member can correct it. Never silently turn a three-place queue into
+    // a one-place queue during edit.
+    state.qty = isAutoBookMode && opts.autoBookEdit
+      ? Math.max(1, requestedQty)
+      : Math.max(1, Math.min(isAutoBookMode ? autoBookCurrentLimit : quickBookOptions.at(-1), requestedQty));
+    // Guest places follow the count; togetherness only means something between SELF places.
+    state.guestDrafts = seedGuestDrafts(state.guestDrafts, guestPlacesFor(state.qty));
+    if (state.qty <= 1) state.prioritizeTogether = false;
+    state.seededGuests = state.seededGuests || [];
 
     // Quick-Book shows the saved map read-only until the user explicitly unlocks it.
     // First-time setup (no saved prefs) starts editable since there's nothing to lock.
-    let mapEditing = !((isQuickBookMode || isAutoBookMode) && hasExistingPrefs);
+    let preferredSummary = isPreferredSummaryFlow;
+    // Auto-Book always opens editable (no read-only state, so no unlock toggle); the setup flow's
+    // read-only summary has its own Back-to-editor control.
+    let mapEditing = preferredSummary ? false : !(isQuickBookMode && hasExistingPrefs);
+
+    // Back on the final summary returns to the same Your Spots editor step (no confirmation page),
+    // carrying the count/options/guest draft. The header Back arrow is the control (modal-nav layer).
+    const goBackToPreferredEditor = () => {
+      const draft = {
+        qty: state.qty, bookAny: state.bookAny, prioritizeTogether: state.prioritizeTogether,
+        autoUpgrade: state.autoUpgrade, guestDrafts: state.guestDrafts, seededGuests: state.seededGuests,
+      };
+      openSpotSetup({
+        event: c, className: c.discipline || c.name, rowGroups: rowGroupsForStudio(c.studioId, c.gymId),
+        mobileRotation: mobileRotationForStudio(c.studioId, c.gymId), front: frontForStudio(c.studioId, c.gymId),
+        initialStep: 'editor', deferPersist: true, skipSavedConfirm: true, replaceEl: modal,
+        initialPrefs: { preferredSlots: [...state.selectedSlots], preferredRows: [...state.selectedRows] },
+        stepBookLabel: bookStepLabel(isAutoBookMode ? 'autobook' : 'other'),
+        onSaved: () => {},
+        onContinue: (pageEl, saved) => openBookingModal(c, mode, { ...spotSetupBookingOptions(opts, pageEl, saved), summaryDraft: draft }),
+        // Back from the editor without saving: return to the summary exactly as it was.
+        onCancelEdit: (pageEl) => openBookingModal(c, mode, {
+          ...spotSetupBookingOptions(opts, pageEl, { slots: [...state.selectedSlots], rows: [...state.selectedRows] }), summaryDraft: draft,
+        }),
+      });
+    };
+    if (preferredSummary && !opts.autoBookEdit) {
+      summaryLayer = pushLayer({
+        id: 'preferred-summary-back', captureHeader: true, desktop: true,
+        onBack: () => {
+          summaryLayer = null;
+          setDesktopBack(modal, false);
+          const next = summaryAfterRelease; summaryAfterRelease = null;
+          // Deferred: onBack runs inside modal-nav's pop loop, which would tear down any page or
+          // layer opened synchronously from here.
+          setTimeout(next || goBackToPreferredEditor, 0);
+        },
+      });
+      closeBtn.dataset.nav = 'back';
+      setDesktopBack(modal, true);
+    }
 
     // Snapshot so we can detect whether the user changed the spot map from its saved state.
     const initialSlots = [...state.selectedSlots];
     const initialRowsArr = [...state.selectedRows];
+    // Edit-mode dirty state: always compared with the seeded queue entry (not with whatever the editor
+    // round-trip handed back), so reverting every change returns the CTA to "Exit without changes".
+    const editBaseline = () => {
+      const ep = opts.autoBookEdit?.preferences || {};
+      const qty = Math.max(1, Number(ep.requiredCount) || 1);
+      const guestCount = guestPlacesFor(qty);
+      return {
+        qty, bookAny: ep.bookAny !== false, prioritizeTogether: ep.prioritizeTogether === true,
+        guestEmails: (ep.guests || []).slice(0, guestCount).map((g) => g.email),
+        autoUpgrade: guestCount > 0 ? false : (ep.autoUpgrade ?? isAutoUpgradeDefaultEnabled(c.gymId)) === true,
+        slots: liveMapPrefs.preferredSlots.map(String), rows: rowGroups ? liveMapPrefs.preferredRows.map(Number) : [],
+      };
+    };
+    const editCurrent = () => {
+      const guestCount = guestPlacesFor(state.qty);
+      return {
+        qty: state.qty, bookAny: state.bookAny, prioritizeTogether: state.prioritizeTogether,
+        guestEmails: state.guestDrafts.slice(0, guestCount).map((g) => g.email),
+        autoUpgrade: guestCount > 0 ? false : (state.autoUpgrade ?? isAutoUpgradeDefaultEnabled(c.gymId)) === true,
+        slots: [...state.selectedSlots], rows: [...state.selectedRows],
+      };
+    };
     const mapChanged = () => {
       if (state.selectedSlots.length !== initialSlots.length) return true;
       if (state.selectedSlots.some((id, i) => id !== initialSlots[i])) return true;
@@ -4103,17 +4352,17 @@ export async function openBookingModal(c, mode, opts = {}) {
 
       // Cyan row backdrops (rendered first, so they stay behind)
       state.selectedRows.forEach(y => {
-        const rowSlots = slotsByRow.get(y) || [];
+        const rowSlots = displaySlots.filter((slot) => slot.sourceY === y);
         if (rowSlots.length === 0) return;
         const minYinRow = Math.min(...rowSlots.map(s => s.y));
         const maxYinRow = Math.max(...rowSlots.map(s => s.y));
         const minXinRow = Math.min(...rowSlots.map(s => s.x));
         const maxXinRow = Math.max(...rowSlots.map(s => s.x));
 
-        const left = widthRange === 0 ? 5 : ((minXinRow - minX) / widthRange) * 78 + 5;
-        const top = heightRange === 0 ? 10 : ((minYinRow - minY) / heightRange) * 72 + 10;
-        const width = widthRange === 0 ? 70 : ((maxXinRow - minXinRow) / widthRange) * 78 + 8;
-        const height = heightRange === 0 ? 70 : ((maxYinRow - minYinRow) / heightRange) * 72 + 8;
+        const width = fit.wPct(maxXinRow - minXinRow);
+        const height = fit.hPct(maxYinRow - minYinRow);
+        const left = fit.xPct(minXinRow) - (14 / fitBoxW * 100);
+        const top = fit.yPct(minYinRow) - (14 / initialMapHeight * 100);
 
         const backdrop = document.createElement('div');
         backdrop.style.cssText = `position:absolute;left:${left}%;top:${top}%;width:${width}%;height:${height}%;background:color-mix(in srgb, var(--info) 10%, transparent);border:2px solid color-mix(in srgb, var(--info) 30%, transparent);border-radius:12px;pointer-events:none;z-index:0;`;
@@ -4121,15 +4370,17 @@ export async function openBookingModal(c, mode, opts = {}) {
       });
 
       // Slot bubbles
-      const chosenSlotId = opts.setupFlow && isQuickBookMode ? autoChosenSlot() : null;
-      layoutSlots.forEach(slot => {
+      const chosenSlotId = !preferredSummary && opts.setupFlow && isQuickBookMode ? autoChosenSlot() : null;
+      displaySlots.forEach(slot => {
         const slotId = String(slot.id);
         const isAvailable = availableSlots.includes(slotId);
-        const priority = state.selectedSlots.indexOf(slotId) + 1;
-        const inRow = state.selectedRows.has(slot.y);
+        // A final preferred-map summary conveys the map, not a live plan. Do
+        // not imply that these are specific booked seats.
+        const priority = preferredSummary ? 0 : state.selectedSlots.indexOf(slotId) + 1;
+        const inRow = !preferredSummary && state.selectedRows.has(slot.sourceY);
 
-        const left = widthRange === 0 ? 50 : ((slot.x - minX) / widthRange) * 78 + 8;
-        const top = heightRange === 0 ? 50 : ((slot.y - minY) / heightRange) * 72 + 14;
+        const left = fit.xPct(slot.x);
+        const top = fit.yPct(slot.y);
         const label = slot.label || String(slotId);
 
         const bubble = document.createElement('div');
@@ -4250,15 +4501,42 @@ export async function openBookingModal(c, mode, opts = {}) {
         floorGrid.appendChild(notice);
       }
 
+      floorContainer.querySelector('.app-preferred-summary-overlay')?.remove();
+      if (preferredSummary) {
+        const overlay = document.createElement('div');
+        overlay.className = 'app-preferred-summary-overlay';
+        const text = document.createElement('div');
+        const noMapOnEdit = !!opts.autoBookEdit && state.selectedSlots.length === 0 && state.selectedRows.size === 0;
+        text.textContent = noMapOnEdit
+          ? COPY.bookingFlow.noPreferredMap
+          : preferredSummaryText(isAutoBookMode ? 'autobook' : 'quickbook', state.qty, appConfig.appName || document.title);
+        if (noMapOnEdit) text.id = 'app-no-preferred-map';
+        overlay.appendChild(text);
+        if (opts.autoBookEdit) {
+          // Editing an existing Auto-Book has no header Back to the map editor; this link replaces it.
+          overlay.classList.add('has-action');
+          const link = document.createElement('button');
+          link.type = 'button';
+          link.className = 'app-preferred-summary-edit';
+          link.id = 'btn-edit-preferred-spots';
+          link.textContent = noMapOnEdit ? COPY.bookingFlow.setPreferredSpots : COPY.bookingFlow.editPreferredSpots;
+          link.onclick = () => goBackToPreferredEditor();
+          overlay.appendChild(link);
+        } else {
+          overlay.setAttribute('aria-hidden', 'true');
+        }
+        floorContainer.appendChild(overlay);
+      }
+
       // Row +/- buttons (overlaid on right edge) — only for preference modes, not simple book, and only while editing
       if (rowSelectorVisible({ rowGroups, rowCount: rowYs.length, editing: !isSimpleBookMode && mapEditing })) {
         rowYs.forEach((y, idx) => {
           const isOn = state.selectedRows.has(y);
-          const rowSlots = slotsByRow.get(y) || [];
+          const rowSlots = displaySlots.filter((slot) => slot.sourceY === y);
           if (rowSlots.length === 0) return;
           const midY = (Math.min(...rowSlots.map(s => s.y)) + Math.max(...rowSlots.map(s => s.y))) / 2;
 
-          const top = heightRange === 0 ? 50 : ((midY - minY) / heightRange) * 72 + 14;
+          const top = fit.yPct(midY);
           const btn = document.createElement('button');
           btn.style.cssText = `position:absolute;left:95.5%;top:${top}%;transform:translate(-50%,-50%);width:26px;height:26px;padding:0;border-radius:50%;background:${isOn ? 'color-mix(in srgb, var(--info) 30%, transparent)' : 'var(--surface-inset)'};border:1px solid ${isOn ? 'color-mix(in srgb, var(--info) 50%, transparent)' : 'var(--border-strong)'};color:${isOn ? 'var(--info)' : 'var(--text-secondary)'};font-size:16px;font-weight:700;cursor:pointer;display:flex;align-items:center;justify-content:center;transition:all 0.1s;z-index:2;`;
           btn.textContent = isOn ? '−' : '+';
@@ -4275,15 +4553,11 @@ export async function openBookingModal(c, mode, opts = {}) {
 
       // Update summary
       if (summaryEl) {
-        const spotLabels = state.selectedSlots.map(id => {
-          const slot = layoutSlots.find(s => String(s.id) === id);
-          return formatSpotLabel(c.gymId, slot || id);
+        const { labels: spotLabels, unresolved: unresolvedSpots } = resolveSpotLabels(state.selectedSlots, layoutSlots, {
+          format: (slot) => formatSpotLabel(c.gymId, slot),
         });
-        const rowLabels = Array.from(state.selectedRows).map(y => {
-          const idx = rowYs.indexOf(y);
-          return idx >= 0 ? String(idx + 1) : String(y);
-        });
-        if (spotLabels.length === 0 && rowLabels.length === 0) {
+        const rowLabels = Array.from(state.selectedRows).map(y => rowYs.indexOf(y)).filter(idx => idx >= 0).map(idx => String(idx + 1));
+        if (spotLabels.length === 0 && rowLabels.length === 0 && unresolvedSpots === 0) {
           summaryEl.innerHTML = `<span style="color:var(--text-tertiary);font-style:italic;">${COPY.spotMapEditor.noneSelected}</span>`;
         } else {
           const fmt = (labels, noun) => {
@@ -4293,6 +4567,7 @@ export async function openBookingModal(c, mode, opts = {}) {
           };
           const parts = [];
           if (spotLabels.length > 0) parts.push(fmt(spotLabels, COPY.timetable.spotLabel));
+          if (unresolvedSpots > 0) parts.push(`<span style="color:var(--text);font-weight:700;">${unresolvedSpots}</span> <span style="color:var(--text-secondary);font-size:11px;text-transform:uppercase;letter-spacing:0.05em;">${COPY.timetable.spotLabel}${spotLabels.length ? ' more' : ''}</span>`);
           if (rowLabels.length > 0) parts.push(fmt(rowLabels, COPY.timetable.rowLabel));
           const sep = ' <span style="color:var(--text-tertiary);margin:0 4px;">›</span> ';
           summaryEl.innerHTML = `<span style="color:var(--text-tertiary);font-size:11px;text-transform:uppercase;letter-spacing:0.05em;margin-right:6px;">${COPY.timetable.preferredLabel}</span>${parts.join(sep)}`;
@@ -4318,28 +4593,6 @@ export async function openBookingModal(c, mode, opts = {}) {
       }
     };
 
-    // Wide "edit preferred spots" button attached beneath the map (Quick-Book read-only mode)
-    const updateMapEditToggle = () => {
-      const toggle = body.querySelector('#app-map-edit-toggle');
-      if (!toggle) return;
-      toggle.innerHTML = '';
-      // Quick-Book follows the saved map directly; edit it later in Settings or
-      // choose a one-off spot through the separate Book action. Auto-Book keeps
-      // its in-context editor because those preferences control a future job.
-      if (!shouldShowPreferredMapEditToggle(mode, mapEditing)) return;
-      const editBtn = document.createElement('button');
-      editBtn.className = 'app-btn';
-      editBtn.style.cssText = 'width:100%;margin-bottom:12px;background:color-mix(in srgb, var(--feat-autoupgrade) 12%, transparent);border:1px solid color-mix(in srgb, var(--feat-autoupgrade) 30%, transparent);color:var(--feat-autoupgrade);';
-      editBtn.textContent = formatCopyText(COPY.timetable.editPreferredSpots, { studio: studioName });
-      editBtn.onclick = () => {
-        mapEditing = true;
-        render();
-        if (typeof updateQuickBookControls === 'function') updateQuickBookControls();
-        if (typeof updateAutoBookControls === 'function') updateAutoBookControls();
-      };
-      toggle.appendChild(editBtn);
-    };
-
     // ── Auto-Book controls ─────────────────────────────────────────────
     if (isAutoBookMode) {
       const controls = body.querySelector('#app-modal-controls-container');
@@ -4348,19 +4601,21 @@ export async function openBookingModal(c, mode, opts = {}) {
       const releaseStr = isLive ? '' : classReleaseTime.toFormat('EEE d MMM, HH:mm');
 
       updateAutoBookControls = () => {
-        const selectedQty = parseInt(controls.querySelector('#autobook-qty')?.value || state.qty) || 1;
-        const creditsNeeded = selectedQty;
+        const selectedQty = state.qty;
+        const autoBookQtyOptions = selectedQty > autoBookCurrentLimit
+          ? bookingQuantityOptions(selectedQty)
+          : autoBookAttendeeOptions;
+        const countOverLimit = selectedQty > autoBookCurrentLimit;
+        const creditsNeeded = creditsNeededFor({ places: selectedQty, hasGuest: guestPlacesFor(selectedQty) > 0, guestSource: bookingEntitlement?.guestSource });
         const hasEnoughCredits = availableCredits >= creditsNeeded;
-        const creditWarning = !hasEnoughCredits
-          ? `${formatCopyText(COPY.timetable.autoBookCreditShortfall, { count: creditsNeeded - availableCredits, plural: creditsNeeded - availableCredits !== 1 ? 's' : '' })}`
-          : '';
+        const creditWarning = hasEnoughCredits ? '' : autoBookCreditWarning(missingCredits(availableCredits, creditsNeeded));
 
         body.querySelector('#app-modal-info-banner').hidden = !!(opts.setupFlow || opts.oneOffSpots);
         body.querySelector('#app-modal-info-banner').innerHTML = mapEditing
           ? `<div style="font-size:12px;color:var(--feat-autoupgrade);background:color-mix(in srgb,var(--feat-autoupgrade) 8%,transparent);border:1px solid color-mix(in srgb,var(--feat-autoupgrade) 18%,transparent);border-radius:8px;padding:8px 10px;line-height:1.5;">${formatCopyText(COPY.timetable.editingSharedMapHtml, { studio: escapeHtml(studioName), features: 'Quick-Book and Auto-Upgrade too' })}</div>`
           : `<div style="font-size:12px;color:var(--feat-autoupgrade);background:color-mix(in srgb,var(--feat-autoupgrade) 8%,transparent);border:1px solid color-mix(in srgb,var(--feat-autoupgrade) 18%,transparent);border-radius:8px;padding:8px 10px;line-height:1.5;">${formatCopyText(COPY.timetable.sharedMapForStudioHtml, { studio: escapeHtml(studioName) })}</div>`;
 
-        const toggleEl = body.querySelector('#app-map-edit-toggle');
+        const toggleEl = body.querySelector('#app-map-hint');
         if (toggleEl && mapEditing && !opts.setupFlow && !opts.oneOffSpots) {
           const hint = toggleEl.querySelector('.ab-map-hint');
           if (!hint) {
@@ -4376,11 +4631,11 @@ export async function openBookingModal(c, mode, opts = {}) {
           <div class="app-booking-controls${isSpotFlowStep ? ' is-spot-flow' : ''}" style="display:flex;flex-direction:column;gap:12px;background:var(--surface-inset);padding:14px;border-radius:12px;border:1px solid var(--border);">
             ${unmappedSlots.length > 0 ? `<div id="app-unmapped-warning" style="font-size:12px;color:var(--warning);background:color-mix(in srgb,var(--warning) 8%,transparent);border:1px solid color-mix(in srgb,var(--warning) 20%,transparent);border-radius:6px;padding:6px 10px;"></div>` : ''}
             ${creditWarning ? `<div style="font-size:12px;color:var(--danger);background:color-mix(in srgb,var(--danger) 10%,transparent);border:1px solid color-mix(in srgb,var(--danger) 20%,transparent);border-radius:8px;padding:10px;line-height:1.5;">${creditWarning}</div>` : ''}
-            <div style="display:flex;gap:14px;align-items:center;">
-              ${showAttendeeSelector ? `<div style="width:110px;">
+            <div style="display:flex;gap:14px;align-items:center;${guestLimitForMode > 0 ? 'flex-wrap:wrap;' : ''}">
+              ${showAutoBookAttendeeSelector ? `<div style="${guestLimitForMode > 0 ? 'flex:1 1 100%;min-width:0;' : 'width:110px;'}">
                 <label style="display:block;font-size:12px;color:var(--text-secondary);margin-bottom:4px;">${COPY.timetable.slotsToBook}</label>
                 <select id="autobook-qty" class="app-select" style="width:100%;padding:6px 8px;font-size:13px;">
-                  ${attendeeOptions.map(n => `<option value="${n}" ${state.qty===n?'selected':''}>${n}</option>`).join('')}
+                  ${autoBookQtyOptions.map(n => `<option value="${n}" ${state.qty===n?'selected':''}>${placesLabel(n, { selfLimit: selfLimitForMode, guestLimit: guestLimitForMode })}</option>`).join('')}
                 </select>
               </div>` : ''}
               <div style="flex:1;padding-top:14px;">
@@ -4388,25 +4643,34 @@ export async function openBookingModal(c, mode, opts = {}) {
                   <input type="checkbox" class="app-ms-checkbox" id="autobook-fallback-any" ${state.bookAny ? 'checked' : ''}>
                   <span>${COPY.timetable.bookAnyPreferredFallback}</span>
                 </label>
+                ${showTogetherOption({ qty: selectedQty }) ? `<label style="display:flex;align-items:flex-start;gap:8px;font-size:13px;cursor:pointer;color:var(--text-secondary);user-select:none;margin-top:8px;">
+                  <input type="checkbox" class="app-ms-checkbox" id="autobook-prioritize-together" ${state.prioritizeTogether ? 'checked' : ''}>
+                  <span>Prioritise spots together over location</span>
+                </label>` : ''}
               </div>
             </div>
+            ${guestFieldsHtml({ idPrefix: 'autobook', drafts: state.guestDrafts, count: guestPlacesFor(selectedQty) })}
+            ${guestPlacesFor(selectedQty) > 0 && bookingEntitlement?.guestEligible === false ? '<small style="display:block;color:var(--text-tertiary);">Guest eligibility will be checked again when Auto-Book runs.</small>' : ''}
+            ${countOverLimit ? `<div class="app-card-error" style="font-size:12px;padding:8px 10px;">This Auto-Book requests ${selectedQty} places, but this class currently allows ${autoBookCurrentLimit}. Choose ${autoBookCurrentLimit} or fewer to save.</div>` : ''}
             ${(() => {
               const hasLayout = layoutSlots.length > 0;
               const hasPrefs = state.selectedSlots.length > 0 || state.selectedRows.size > 0;
               if (!hasLayout || !canForGym('autoUpgrade', c.gymId)) return '';
+              if (guestPlacesFor(selectedQty) > 0) return `<div style="font-size:12px;color:var(--text-tertiary);line-height:1.45;">${COPY.timetable.autoUpgradeGuestUnavailable}</div>`;
               if (!hasPrefs && isMobile()) return upgradeNeedsRowHtml();
               if (!hasPrefs) return `
                 <label style="display:flex;align-items:center;gap:8px;font-size:13px;color:var(--text-tertiary);user-select:none;cursor:not-allowed;">
                   <input type="checkbox" class="app-ms-checkbox" id="autobook-auto-upgrade" disabled>
-                  <span style="display:flex;align-items:center;gap:4px;">${trendingUpIcon(12, 'currentColor', 2)} ${COPY.timetable.autoUpgradeConfigurePrompt}</span>
+                  <span class="app-upgrade-label-text">${trendingUpIcon(12, 'currentColor', 2)} ${COPY.timetable.autoUpgradeConfigurePrompt}</span>
                 </label>`;
               return `
                 <label style="display:flex;align-items:center;gap:8px;font-size:13px;cursor:pointer;color:var(--text-secondary);user-select:none;">
-                  <input type="checkbox" class="app-ms-checkbox" id="autobook-auto-upgrade" ${isAutoUpgradeDefaultEnabled(c.gymId) ? 'checked' : ''}>
-                  <span style="display:flex;align-items:center;gap:4px;">${trendingUpIcon(12, 'currentColor', 2)} ${COPY.timetable.autoUpgradeKeepSearchingLabel}</span>
-                </label>`;
+                  <input type="checkbox" class="app-ms-checkbox" id="autobook-auto-upgrade" ${(state.autoUpgrade ?? isAutoUpgradeDefaultEnabled(c.gymId)) ? 'checked' : ''}>
+                  <span class="app-upgrade-label-text">${trendingUpIcon(12, 'currentColor', 2)} ${COPY.timetable.autoUpgradeKeepSearchingLabel}</span>
+                </label>${groupUpgradeNote(selectedQty, c.gymId)}`;
             })()}
             <button class="app-btn" id="btn-save-autobook" style="width:100%;background:var(--feat-autoupgrade);color:var(--on-accent);display:flex;align-items:center;justify-content:center;gap:6px;">${sparklesIcon(14, 'currentColor')} ${!opts.oneOffSpots && mapChanged() ? `${COPY.spotMapEditor.saveMapAnd} ` : ''}${COPY.timetable.scheduleAutoBook}</button>
+            ${opts.autoBookEdit?.onRemove ? `<button type="button" class="app-btn" id="btn-remove-autobook" style="width:100%;background:transparent;border:1px solid var(--danger);color:var(--danger);">${COPY.timetable.removeAutoBook}</button>` : ''}
             <div style="font-size:12px;text-align:center;color:${isLive ? 'var(--success)' : 'var(--text-tertiary)'};">
               ${isLive ? COPY.timetable.bookingWindowIsOpen : `${formatCopyText(COPY.timetable.bookingOpens, { date: `<span style="color:var(--text-secondary);">${escapeHtml(releaseStr)}</span>` })}`}
             </div>
@@ -4416,17 +4680,85 @@ export async function openBookingModal(c, mode, opts = {}) {
         controls.querySelector('[data-au-setup]')?.addEventListener('click', () => openSetupChild());
         const qtySelector = controls.querySelector('#autobook-qty');
         if (qtySelector) qtySelector.onchange = () => {
-          state.qty = parseInt(qtySelector.value) || 1;
+          Object.assign(state, applyCountChange(state, parseInt(qtySelector.value) || 1));
+          state.guestDrafts = seedGuestDrafts(state.guestDrafts, guestPlacesFor(state.qty));
+          if (state.qty <= 1) Object.assign(state, applyTogetherChange(state, false));
+          if (preferredSummary) render(); // the summary sentence follows the count live
           updateAutoBookControls();
         };
+        controls.querySelector('#autobook-fallback-any').onchange = (event) => {
+          Object.assign(state, applyFallbackChange(state, event.target.checked));
+          updateAutoBookControls();
+        };
+        controls.querySelector('#autobook-prioritize-together')?.addEventListener('change', (event) => {
+          Object.assign(state, applyTogetherChange(state, event.target.checked));
+          updateAutoBookControls();
+        });
+        controls.querySelector('#autobook-auto-upgrade')?.addEventListener('change', (event) => {
+          state.autoUpgrade = event.target.checked;
+        });
+        wireGuestFields(controls, { state, count: guestPlacesFor(selectedQty), cta: controls.querySelector('#btn-save-autobook') })();
 
-        controls.querySelector('#btn-save-autobook').onclick = () => {
+        const removeBtn = controls.querySelector('#btn-remove-autobook');
+        if (removeBtn) removeBtn.onclick = () => twoTapConfirm(removeBtn, COPY.timetable.confirmRemoveAutoBook, () => opts.autoBookEdit.onRemove({ close: closeModal }));
+        // Editing an existing Auto-Book: the CTA is a filled primary only while something differs from the
+        // seeded entry (count, options, guest, map draft); otherwise it is a plain "Exit without changes".
+        const saveCta = controls.querySelector('#btn-save-autobook');
+        const refreshEditCta = () => {
+          if (!opts.autoBookEdit) return;
+          const dirty = autoBookEditDirty(editBaseline(), editCurrent());
+          saveCta.dataset.dirty = dirty ? '1' : '0';
+          if (dirty) {
+            saveCta.style.cssText = 'width:100%;background:var(--feat-autoupgrade);color:var(--on-accent);display:flex;align-items:center;justify-content:center;gap:6px;';
+            saveCta.innerHTML = `${sparklesIcon(14, 'currentColor')} ${COPY.timetable.saveChanges}`;
+            saveCta.classList.remove('is-secondary');
+          } else {
+            saveCta.style.cssText = 'width:100%;background:transparent;border:1px solid var(--border-strong);color:var(--text);display:flex;align-items:center;justify-content:center;gap:6px;';
+            saveCta.textContent = COPY.timetable.exitWithoutChanges;
+            saveCta.classList.add('is-secondary');
+            saveCta.disabled = false;
+          }
+        };
+        refreshEditCta();
+        controls.__refreshEditCta = refreshEditCta;
+        if (!controls.dataset.editCtaWired) {
+          controls.dataset.editCtaWired = '1';
+          controls.addEventListener('input', () => controls.__refreshEditCta?.());
+          controls.addEventListener('change', () => controls.__refreshEditCta?.());
+        }
+        saveCta.onclick = () => {
+          if (opts.autoBookEdit && saveCta.dataset.dirty === '0') { closeModal(); return; }
           const qty = parseInt(controls.querySelector('#autobook-qty')?.value || state.qty) || 1;
-          const fallbackAny = controls.querySelector('#autobook-fallback-any').checked;
-          const autoUpgrade = controls.querySelector('#autobook-auto-upgrade')?.checked ?? false;
+          const { bookAny: fallbackAny, prioritizeTogether } = normalizeGroupOptions({
+            qty,
+            bookAny: controls.querySelector('#autobook-fallback-any').checked,
+            prioritizeTogether: controls.querySelector('#autobook-prioritize-together')?.checked ?? false,
+          });
+          const guestCount = guestPlacesFor(qty);
+          // Groups are upgraded together; only a guest in the booking keeps Auto-Upgrade off.
+          const autoUpgrade = guestCount > 0 ? false : (controls.querySelector('#autobook-auto-upgrade')?.checked ?? false);
+          state.autoUpgrade = autoUpgrade;
+          if (!validateGuestDrafts(state.guestDrafts, guestCount).ok) return;
           const preferredSlots = [...state.selectedSlots];
           const preferredRows = [...state.selectedRows];
-          saveAutoBookPreferences(c, preferredSlots, preferredRows, qty, fallbackAny, closeModal, isLive, autoUpgrade, !opts.oneOffSpots);
+          const guests = buildGuests(state.guestDrafts, guestCount, state.seededGuests);
+          if (qty > autoBookCurrentLimit) {
+            showToast(`Choose ${autoBookCurrentLimit} or fewer places for this class.`, 'warning');
+            return;
+          }
+          const preferredCapacity = new Set([
+            ...preferredSlots,
+            ...rowYs.filter((y) => state.selectedRows.has(y)).flatMap((y) => (slotsByRow.get(y) || []).map((slot) => String(slot.id))),
+          ]).size;
+          if (!fallbackAny && preferredCapacity < qty) {
+            showToast(`Choose at least ${qty} preferred spots or allow an available fallback.`, 'warning');
+            return;
+          }
+          if (opts.autoBookEdit?.onSubmit) {
+            opts.autoBookEdit.onSubmit({ slots: preferredSlots, rows: preferredRows, qty, bookAny: fallbackAny, prioritizeTogether, autoUpgrade, guests, close: closeModal });
+            return;
+          }
+          saveAutoBookPreferences(c, preferredSlots, preferredRows, qty, fallbackAny, closeModal, isLive, autoUpgrade, !opts.oneOffSpots, prioritizeTogether, guests);
         };
 
       };
@@ -4474,7 +4806,7 @@ export async function openBookingModal(c, mode, opts = {}) {
               return `
                 <label style="display:flex;align-items:center;gap:8px;font-size:13px;cursor:pointer;color:var(--text-secondary);user-select:none;font-weight:500;">
                   <input type="checkbox" class="app-ms-checkbox" id="simplebook-auto-upgrade" ${isAutoUpgradeDefaultEnabled(c.gymId) ? 'checked' : ''}>
-                  <span style="display:flex;align-items:center;gap:4px;">${trendingUpIcon(12, 'currentColor', 2)} ${COPY.timetable.autoUpgradeKeepSearchingLabel}</span>
+                  <span class="app-upgrade-label-text">${trendingUpIcon(12, 'currentColor', 2)} ${COPY.timetable.autoUpgradeKeepSearchingLabel}</span>
                 </label>`;
             })()}
             <div style="display:flex;gap:8px;">
@@ -4580,7 +4912,7 @@ export async function openBookingModal(c, mode, opts = {}) {
       const controls = body.querySelector('#app-modal-controls-container');
 
       updateQuickBookControls = () => {
-        const selectedQty = parseInt(controls.querySelector('#quickbook-qty')?.value || state.qty) || 1;
+        const selectedQty = state.qty;
         const creditsNeeded = selectedQty;
         const hasEnoughCredits = availableCredits >= creditsNeeded;
         const creditWarning = !hasEnoughCredits
@@ -4594,7 +4926,7 @@ export async function openBookingModal(c, mode, opts = {}) {
             ? `<div style="font-size:12px;color:var(--feat-autoupgrade);background:color-mix(in srgb,var(--feat-autoupgrade) 8%,transparent);border:1px solid color-mix(in srgb,var(--feat-autoupgrade) 18%,transparent);border-radius:8px;padding:8px 10px;line-height:1.5;">${formatCopyText(COPY.timetable.editingQuickBookMapHtml, { studio: escapeHtml(studioName) })}</div>`
             : `<div style="font-size:12px;color:var(--text-tertiary);background:color-mix(in srgb,var(--feat-autoupgrade) 7%,transparent);border:1px solid color-mix(in srgb,var(--feat-autoupgrade) 15%,transparent);border-radius:8px;padding:10px 12px;line-height:1.5;">${formatCopyText(COPY.timetable.quickBookFirstSetupHtml, { studio: escapeHtml(studioName) })}</div>`);
 
-        const qbToggleEl = body.querySelector('#app-map-edit-toggle');
+        const qbToggleEl = body.querySelector('#app-map-hint');
         if (qbToggleEl && mapEditing && !opts.setupFlow && !opts.oneOffSpots && !qbToggleEl.querySelector('.ab-map-hint')) {
           const h = document.createElement('div');
           h.className = 'ab-map-hint';
@@ -4609,11 +4941,11 @@ export async function openBookingModal(c, mode, opts = {}) {
         controls.innerHTML = `
           <div style="display:flex;flex-direction:column;gap:12px;background:var(--surface-inset);padding:14px;border-radius:12px;border:1px solid var(--border);">
             ${creditWarning ? `<div style="font-size:12px;color:var(--danger);background:color-mix(in srgb,var(--danger) 10%,transparent);border:1px solid color-mix(in srgb,var(--danger) 20%,transparent);border-radius:8px;padding:10px;line-height:1.5;">${creditWarning}</div>` : ''}
-            <div style="display:flex;gap:14px;align-items:center;">
-              ${showAttendeeSelector ? `<div style="width:110px;">
+            <div style="display:flex;gap:14px;align-items:center;${quickGuestMax > 0 ? 'flex-wrap:wrap;' : ''}">
+              ${quickBookOptions.length > 1 ? `<div style="${quickGuestMax > 0 ? 'flex:1 1 100%;min-width:0;' : 'width:110px;'}">
                 <label style="display:block;font-size:12px;color:var(--text-secondary);margin-bottom:4px;">${COPY.timetable.slotsToBook}</label>
                 <select id="quickbook-qty" class="app-select" style="width:100%;padding:6px 8px;font-size:13px;">
-                  ${attendeeOptions.map(n => `<option value="${n}" ${state.qty===n?'selected':''}>${n}</option>`).join('')}
+                  ${quickBookOptions.map(n => `<option value="${n}" ${state.qty===n?'selected':''}>${placesLabel(n, { selfLimit: attendeeLimit, guestLimit: quickGuestMax })}</option>`).join('')}
                 </select>
               </div>` : ''}
               <div style="flex:1;padding-top:14px;">
@@ -4621,29 +4953,36 @@ export async function openBookingModal(c, mode, opts = {}) {
                   <input type="checkbox" class="app-ms-checkbox" id="quickbook-fallback-any" ${state.bookAny ? 'checked' : ''}>
                   <span>${COPY.timetable.bookAnyPreferredFallback}</span>
                 </label>
+                ${showTogetherOption({ qty: selectedQty }) ? `<label style="display:flex;align-items:flex-start;gap:8px;font-size:13px;cursor:pointer;color:var(--text-secondary);user-select:none;margin-top:8px;">
+                  <input type="checkbox" class="app-ms-checkbox" id="quickbook-prioritize-together" ${state.prioritizeTogether ? 'checked' : ''}>
+                  <span>Prioritise spots together over location</span>
+                </label>` : ''}
               </div>
             </div>
+            ${guestFieldsHtml({ idPrefix: 'quickbook', drafts: state.guestDrafts, count: guestPlacesFor(selectedQty) })}
             ${(() => {
               const hasLayout = layoutSlots.length > 0;
               const hasPrefs = state.selectedSlots.length > 0 || state.selectedRows.size > 0;
               if (!hasLayout || !canForGym('autoUpgrade', c.gymId)) return '';
+              if (guestPlacesFor(selectedQty) > 0) return `<div style="font-size:12px;color:var(--text-tertiary);line-height:1.45;">${COPY.timetable.autoUpgradeGuestUnavailable}</div>`;
               if (!hasPrefs && isMobile()) return upgradeNeedsRowHtml();
               if (!hasPrefs) return `
                 <label style="display:flex;align-items:center;gap:8px;font-size:13px;color:var(--text-tertiary);user-select:none;cursor:not-allowed;">
                   <input type="checkbox" class="app-ms-checkbox" id="quickbook-auto-upgrade" disabled>
-                  <span style="display:flex;align-items:center;gap:4px;">${trendingUpIcon(12, 'currentColor', 2)} ${COPY.timetable.autoUpgradeConfigurePrompt}</span>
+                  <span class="app-upgrade-label-text">${trendingUpIcon(12, 'currentColor', 2)} ${COPY.timetable.autoUpgradeConfigurePrompt}</span>
                 </label>`;
               return `
                 <label style="display:flex;align-items:center;gap:8px;font-size:13px;cursor:pointer;color:var(--text-secondary);user-select:none;">
                   <input type="checkbox" class="app-ms-checkbox" id="quickbook-auto-upgrade" ${isAutoUpgradeDefaultEnabled(c.gymId) ? 'checked' : ''}>
-                  <span style="display:flex;align-items:center;gap:4px;">${trendingUpIcon(12, 'currentColor', 2)} ${COPY.timetable.autoUpgradeKeepSearchingLabel}</span>
-                </label>`;
+                  <span class="app-upgrade-label-text">${trendingUpIcon(12, 'currentColor', 2)} ${COPY.timetable.autoUpgradeKeepSearchingLabel}</span>
+                </label>${groupUpgradeNote(selectedQty, c.gymId)}`;
             })()}
             <button class="app-btn" id="btn-submit-quickbook" style="width:100%;background:var(--accent-fill);color:var(--on-accent-fill);">${!opts.oneOffSpots && mapChanged() ? `${COPY.spotMapEditor.saveMapAnd} ` : ''}${COPY.timetable.quickBook}</button>
           </div>
         `;
 
         controls.querySelector('[data-au-setup]')?.addEventListener('click', () => openSetupChild());
+        wireGuestFields(controls, { state, count: guestPlacesFor(selectedQty), cta: controls.querySelector('#btn-submit-quickbook') })();
         controls.querySelector('#btn-submit-quickbook').onclick = async () => {
           if (state.selectedSlots.length === 0 && state.selectedRows.size === 0) {
             showToast(formatCopyText(COPY.timetable.pleaseSelectSpotOrRow, { noun: seatNoun(groupName) }), 'warning');
@@ -4669,21 +5008,47 @@ export async function openBookingModal(c, mode, opts = {}) {
           btn.textContent = COPY.timetable.booking;
           try {
             const qty = parseInt(controls.querySelector('#quickbook-qty')?.value || state.qty) || 1;
-            const fallbackAny = controls.querySelector('#quickbook-fallback-any').checked;
-            const autoUpgrade = controls.querySelector('#quickbook-auto-upgrade')?.checked ?? false;
+            const guestCount = guestPlacesFor(qty);
+            const { bookAny: fallbackAny, prioritizeTogether } = normalizeGroupOptions({
+              qty,
+              bookAny: controls.querySelector('#quickbook-fallback-any').checked,
+              prioritizeTogether: controls.querySelector('#quickbook-prioritize-together')?.checked ?? false,
+            });
+            const autoUpgrade = guestCount > 0 ? false : (controls.querySelector('#quickbook-auto-upgrade')?.checked ?? false);
+            if (!validateGuestDrafts(state.guestDrafts, guestCount).ok) return;
             const slots = [...state.selectedSlots];
             const rows = [...state.selectedRows];
-            if (mapChanged() && c.studioId && !opts.oneOffSpots) {
-              // This class's gym — a studio id is unique only within one.
-              await api.updateStudioPreferences(c.studioId, { preferredSlots: slots, preferredRows: rows }, c.gymId);
+            const requestedPlaces = qty - guestCount;
+            const preferredCapacity = new Set([
+              ...slots,
+              ...rowYs.filter((y) => state.selectedRows.has(y)).flatMap((y) => (slotsByRow.get(y) || []).map((slot) => String(slot.id))),
+            ]).size;
+            if (!fallbackAny && preferredCapacity < requestedPlaces) {
+              showToast(`Choose at least ${requestedPlaces} preferred spots or allow an available fallback.`, 'warning');
+              return;
             }
-            await quickBookClass(c.id, {
+            const booked = await quickBookClass(c.id, {
               preferredSlots: slots,
               preferredRows: rows,
-              requiredCount: qty,
+              // The selected count remains a total in the UI. A named guest
+              // is booked through its provider path after one primary place.
+              requiredCount: qty - guestCount,
               bookAny: fallbackAny,
-              autoUpgrade
+              prioritizeTogether,
+              autoUpgrade,
+              guests: buildGuests(state.guestDrafts, guestCount, [])
             }, null, c.gymId);
+            // `quickBookClass` owns the provider sequence and reports false if
+            // no primary booking succeeded. Never publish a draft after that.
+            if (!booked) return;
+            if (mapChanged() && c.studioId && !opts.oneOffSpots) {
+              try {
+                await api.updateStudioPreferences(c.studioId, { preferredSlots: slots, preferredRows: rows }, c.gymId);
+                cache.studioPreferences = { ...(cache.studioPreferences || {}), [`${c.gymId}:${c.studioId}`]: { preferredSlots: slots, preferredRows: rows } };
+              } catch (mapError) {
+                showToast(`Your class was booked, but preferred spots were not saved: ${mapError.message}`, 'warning');
+              }
+            }
             closeModal();
           } catch (err) {
             showToast(formatCopyText(COPY.timetable.quickBookError, { error: err.message }), 'error');
@@ -4693,9 +5058,20 @@ export async function openBookingModal(c, mode, opts = {}) {
           }
         };
 
+        controls.querySelector('#quickbook-fallback-any').onchange = (event) => {
+          Object.assign(state, applyFallbackChange(state, event.target.checked));
+          updateQuickBookControls();
+        };
+        controls.querySelector('#quickbook-prioritize-together')?.addEventListener('change', (event) => {
+          Object.assign(state, applyTogetherChange(state, event.target.checked));
+          updateQuickBookControls();
+        });
         const quickbookQtySelector = controls.querySelector('#quickbook-qty');
         if (quickbookQtySelector) quickbookQtySelector.onchange = () => {
           state.qty = parseInt(quickbookQtySelector.value) || 1;
+          if (state.qty <= 1) Object.assign(state, applyTogetherChange(state, false));
+          state.guestDrafts = seedGuestDrafts(state.guestDrafts, guestPlacesFor(state.qty));
+          if (preferredSummary) render(); // the summary sentence follows the count live
           updateQuickBookControls();
         };
       };
@@ -4716,42 +5092,13 @@ export async function openBookingModal(c, mode, opts = {}) {
       initialRowsArr.length = 0; initialRowsArr.push(...state.selectedRows);
       hasExistingPrefs = state.selectedSlots.length > 0 || state.selectedRows.size > 0;
       cache.studioPreferences = { ...(cache.studioPreferences || {}), [`${c.gymId}:${c.studioId}`]: { preferredSlots: slots, preferredRows: rows } };
-      mapEditing = !hasExistingPrefs;
+      mapEditing = isAutoBookMode ? true : !hasExistingPrefs;
       render();
-      updateMapEditToggle();
       if (typeof updateQuickBookControls === 'function') updateQuickBookControls();
       if (typeof updateAutoBookControls === 'function') updateAutoBookControls();
     }, { gymId: c.gymId });
 
     render();
-    updateMapEditToggle();
-
-    // U1-14: first-time setup. A studio with a seat map but no saved preferred map
-    // opens on an intro; Next swaps in the map that is already rendered behind it.
-    if (!isMobile() && needsSetupIntro({ mode, hasSavedMap: hasExistingPrefs, hasSeatMap: layoutSlots.length > 0 })) {
-      const copy = setupIntroCopy({
-        gymName: getGymShortName(c.gymId),
-        locationName: trimLocation(c.locationName || '', getGymShortName(c.gymId)),
-      });
-      const modeTitle = title.textContent;
-      const held = [...body.children];
-      held.forEach((el) => { el.dataset.setupDisplay = el.style.display || ''; el.style.display = 'none'; });
-      title.textContent = copy.header;
-      const intro = document.createElement('div');
-      intro.id = 'app-setup-intro';
-      intro.style.cssText = 'padding:8px 0 4px;';
-      intro.innerHTML = `
-        <p style="margin:0 0 10px;font-size:16px;font-weight:600;color:var(--text);">${copy.sub}</p>
-        <p style="margin:0 0 20px;font-size:14px;line-height:1.5;color:var(--text-secondary);">${copy.bodyHtml}</p>
-        <button type="button" class="app-btn" id="app-setup-next" style="width:100%;background:var(--accent-fill);color:var(--on-accent-fill);">${copy.next}</button>`;
-      body.appendChild(intro);
-      intro.querySelector('#app-setup-next').onclick = () => {
-        intro.remove();
-        held.forEach((el) => { el.style.display = el.dataset.setupDisplay || ''; delete el.dataset.setupDisplay; });
-        title.textContent = modeTitle;
-      };
-      intro.querySelector('#app-setup-next').focus();
-    }
   } catch (err) {
     console.error('[Timetable] Modal load floor map failed:', err);
     body.innerHTML = `<div class="app-card-error" style="color: var(--danger); padding: 20px 0; text-align: center;">${formatCopyText(COPY.timetable.errorLoadingLayout, { error: escapeHtml(err.message) })}</div>`;
@@ -4759,7 +5106,7 @@ export async function openBookingModal(c, mode, opts = {}) {
 }
 
 // Auto-register upgrade monitor after a successful booking if the setting is on
-async function tryAutoRegisterUpgrade(event, bookedSlotId, bookingRes, enableOverride, { silent = false } = {}) {
+async function tryAutoRegisterUpgrade(event, bookedSlotId, bookingRes, enableOverride, { silent = false, prioritizeTogether = false } = {}) {
   const shouldRegister = enableOverride !== undefined ? enableOverride : isAutoUpgradeDefaultEnabled(event?.gymId);
   debugConsole('[AutoUpgrade] tryAutoRegisterUpgrade called', { shouldRegister, bookedSlotId, eventId: event?.id });
   if (!shouldRegister) {
@@ -4797,7 +5144,12 @@ async function tryAutoRegisterUpgrade(event, bookedSlotId, bookingRes, enableOve
     // provider. This used to unpack CodexFit's `{ bookings: { id: slot } }` map
     // and fall back through two more raw shapes — none of which MarianaTek emits.
     const booked = [];
-    if (bookingRes?.bookingId != null) {
+    if (Array.isArray(bookingRes?.bookings) && bookingRes.bookings.filter(b => b?.bookingId != null).length > 1) {
+      // Several of your own spots: ONE group monitor, moved together.
+      for (const b of bookingRes.bookings) {
+        if (b?.bookingId != null) booked.push({ bookingId: b.bookingId, slotId: b.slotId ?? bookedSlotId });
+      }
+    } else if (bookingRes?.bookingId != null) {
       booked.push({ bookingId: bookingRes.bookingId, slotId: bookingRes.slotId ?? bookedSlotId });
     } else if (Array.isArray(bookingRes?.bookings)) {
       // Multi-slot: one result per booked spot.
@@ -4805,8 +5157,7 @@ async function tryAutoRegisterUpgrade(event, bookedSlotId, bookingRes, enableOve
         if (b?.bookingId != null) booked.push({ bookingId: b.bookingId, slotId: b.slotId ?? bookedSlotId });
       }
     }
-    for (const b of booked) {
-      registerPromises.push(api.addAutoUpgrade({
+    const monitorBody = (b, members) => ({
         eventId: event.id,
         // See the addAutoBooking note: without this the monitor is stored
         // against the account's active gym, not this class's own.
@@ -4819,8 +5170,16 @@ async function tryAutoRegisterUpgrade(event, bookedSlotId, bookingRes, enableOve
         studioName: event.studioName || event.studioName || '',
         locationName: event.locationName || event.locationName || '',
         startAt: event.startAt || event.startAt,
-        preferences: { keepOriginalOnCutoff: keepOriginalForAutoCreate(gymSetting(event.gymId, 'autoUpgradeKeepOriginalByDefault')) },
-      }));
+        preferences: {
+          keepOriginalOnCutoff: keepOriginalForAutoCreate(gymSetting(event.gymId, 'autoUpgradeKeepOriginalByDefault')),
+          ...(prioritizeTogether ? { prioritizeTogether: true } : {}),
+        },
+        ...(members ? { members: members.map(m => ({ bookingId: Number(m.bookingId), slotId: m.slotId })) } : {}),
+    });
+    if (booked.length > 1) {
+      registerPromises.push(api.addAutoUpgrade(monitorBody(booked[0], booked)));
+    } else {
+      for (const b of booked) registerPromises.push(api.addAutoUpgrade(monitorBody(b, null)));
     }
 
     if (registerPromises.length === 0) {
@@ -4926,6 +5285,8 @@ async function cancelBookingDirect(bookingId, isPenalty, btn, gymId) {
     haptic('medium');
     btn.dataset.confirmState = 'confirm';
     btn.textContent = isPenalty ? COPY.timetable.confirmPenaltyCancel : COPY.timetable.confirmCancel;
+    // The provider's own answer on what this cancel costs (or an honest "unknown").
+    loadCancelInfo(api, bookingId, gymId).then((info) => showToast(info.text, info.kind === 'free' ? 'info' : 'warning'));
     btn.style.background = 'var(--danger)';
     btn.style.borderColor = 'var(--danger)';
     btn.style.color = 'var(--on-accent)';
@@ -4948,7 +5309,7 @@ async function cancelBookingDirect(bookingId, isPenalty, btn, gymId) {
 }
 
 // Save scheduled auto-booking record to database
-async function saveAutoBookPreferences(c, slots, rows, qty, bookAny, callback, skipImmediate = false, autoUpgrade = false, persistStudioMap = true) {
+async function saveAutoBookPreferences(c, slots, rows, qty, bookAny, callback, skipImmediate = false, autoUpgrade = false, persistStudioMap = true, prioritizeTogether = false, guests = []) {
   const gymMatch = (x) => !c.gymId || x.gymId === c.gymId;
   // The EVENT's own instructor wins over a metadata lookup: the caller already
   // has the name and photo, and for MarianaTek the by-id lookup misses often
@@ -4982,16 +5343,11 @@ async function saveAutoBookPreferences(c, slots, rows, qty, bookAny, callback, s
   try {
     showToast(COPY.timetable.scheduling, 'info');
 
-    // The studio spot map is the shared source of truth. If the user picked
-    // spots/rows here, persist them to the studio map so the live resolver (and
-    // every other feature for this studio) uses the same selection.
-    if (persistStudioMap && c.studioId && (slots.length > 0 || rows.length > 0)) {
-      try {
-        await api.updateStudioPreferences(c.studioId, { preferredSlots: slots, preferredRows: rows }, c.gymId);
-      } catch (e) {
-        console.warn('[AutoBook] Could not persist studio map:', e.message);
-      }
-    }
+    // Keep a map change as a wizard draft until the queue save succeeds. The
+    // server commits this with the queue and participants in one transaction.
+    const studioPreferenceDraft = persistStudioMap && c.studioId
+      ? { gymId: c.gymId || null, studioId: c.studioId, preferences: { preferredSlots: slots, preferredRows: rows } }
+      : null;
 
     const availForAB = getAvailableCreditsForEvent(c);
     const creditShortfall = Number.isFinite(availForAB) ? Math.max(0, qty - availForAB) : 0;
@@ -5023,8 +5379,11 @@ async function saveAutoBookPreferences(c, slots, rows, qty, bookAny, callback, s
         preferredRows: rows,
         requiredCount: qty,
         bookAny,
-        autoUpgrade
-      }
+        prioritizeTogether: qty > 1 && prioritizeTogether,
+        autoUpgrade,
+        guests
+      },
+      studioPreferenceDraft
     };
 
     // U1-6: the server refuses an overlapping auto-book (409 OVERLAP_CONFIRM_REQUIRED,
@@ -5032,8 +5391,9 @@ async function saveAutoBookPreferences(c, slots, rows, qty, bookAny, callback, s
     // a confirmation; only "Auto-book anyway" resubmits with confirmOverlap. Backing
     // out leaves the config modal open and nothing queued. (An exact duplicate is a
     // different, unconfirmable 409 and falls through to the error toast below.)
+    let queued;
     try {
-      await api.addAutoBooking(autoBookBody);
+      queued = await api.addAutoBooking(autoBookBody);
     } catch (err) {
       if (err.code !== 'OVERLAP_CONFIRM_REQUIRED') throw err;
       const confirmed = await confirmOverlap({
@@ -5050,14 +5410,20 @@ async function saveAutoBookPreferences(c, slots, rows, qty, bookAny, callback, s
         warnings: err.warnings,
       });
       if (!confirmed) return;
-      await api.addAutoBooking({ ...autoBookBody, confirmOverlap: true });
+      queued = await api.addAutoBooking({ ...autoBookBody, confirmOverlap: true });
     }
 
-    showToast(formatCopyText(COPY.timetable.autoBookScheduled, { className: strippedClassName }), 'success');
+    if (studioPreferenceDraft) {
+      cache.studioPreferences = { ...(cache.studioPreferences || {}), [`${c.gymId}:${c.studioId}`]: studioPreferenceDraft.preferences };
+    }
+    autoBookOutcomeToasts({
+      className: strippedClassName, warnings: queued?.warnings, shortfall: creditShortfall, guestWarning: queued?.guestEligibilityWarning,
+    }).forEach((t) => showToast(t.text, t.type));
     callback();
     renderTimetableGrid();
   } catch (err) {
-    showToast(formatCopyText(COPY.timetable.autoBookScheduleFailed, { error: err.message }), 'error');
+    const failure = autoBookFailureToast(err);
+    showToast(failure.text, failure.type);
   }
 }
 

@@ -850,6 +850,20 @@ export const api = {
     });
   },
 
+  // One gym's bookings straight from the provider (`refresh=1`), annotated like getBookings().
+  // Used after a booking/guest mutation so the shared cache never keeps a stale copy.
+  async getGymBookings(gymId, { refresh = true } = {}) {
+    if (refresh) await invalidateApiCache('/api/bookings').catch(() => {});
+    const res = await apiFetch(`/api/bookings${refresh ? '?refresh=1' : ''}`, { gymId });
+    if (!res.ok) throw new Error('Failed to load bookings');
+    const data = await res.json();
+    return (data.bookings || []).map((b) => ({
+      ...b,
+      gymId: b.gymId || gymId,
+      event: b.event ? { ...b.event, gymId: b.event.gymId || gymId } : b.event,
+    }));
+  },
+
   async getWaitlists({ silent = false } = {}) {
     const beginGymLoad = silent ? () => {} : _beginGymLoad;
     const endGymLoad = silent ? () => {} : _endGymLoad;
@@ -1068,13 +1082,20 @@ export const api = {
     return body;
   },
 
-  async updateAutoBooking(id, preferences) {
+  async updateAutoBooking(id, preferences, studioPreferenceDraft = null) {
     const res = await apiFetch(`/api/auto-book/${id}`, {
       method: 'PUT',
-      body: JSON.stringify({ preferences })
+      body: JSON.stringify({ preferences, studioPreferenceDraft })
     });
     if (res.ok) invalidateApiCache('/api/auto-book').catch(() => {});
-    return res.json();
+    const body = await res.json().catch(() => ({}));
+    if (!res.ok) {
+      const err = new Error(body.message || `Could not update auto-book (${res.status})`);
+      err.status = res.status;
+      err.code = body.code || null;
+      throw err;
+    }
+    return body;
   },
 
   async deleteAutoBooking(id) {
@@ -1224,6 +1245,13 @@ export const api = {
     });
     return merged;
     });
+  },
+
+  // Auto-Books/Auto-Upgrades that rely on this studio's shared map (gym-scoped).
+  async getStudioMapUsage(studioId, gymId = null) {
+    const res = await apiFetch(`/api/studio-preferences/${studioId}/usage`, { gymId });
+    if (!res.ok) throw new Error('Failed to load spot map usage');
+    return res.json();
   },
 
   async updateStudioPreferences(studioId, preferences, gymId = null) {

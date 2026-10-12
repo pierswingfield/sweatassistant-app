@@ -13,7 +13,7 @@
 const crypto = require('crypto');
 const { GymProvider } = require('./base');
 const { resolveZone, toZonedISO } = require('./timezone');
-const { studioHasRowGroups, studioShowsSpotType } = require('./spot-map');
+const { studioHasRowGroups, studioShowsSpotType, studioMobileRotation, studioFrontSide } = require('./spot-map');
 const { makeMetadata, makeProfile, makeMembership, makeEvent, makeSlot, makeBookingResult, makeBooking, makeHistoryEntry } = require('./normalize');
 const bookingWindow = require('./booking-window');
 const { noteThrottleError } = require('../rate-limit-backoff');
@@ -87,6 +87,32 @@ function classListError(message, res) {
   const ra = res && res.headers && typeof res.headers.get === 'function' ? Number(res.headers.get('retry-after')) : NaN;
   if (Number.isFinite(ra) && ra > 0) err.retryAfterMs = ra * 1000;
   return err;
+}
+
+/**
+ * MarianaTek's `is_penalty_cancel` is a POLICY flag, not a verdict: live captures show it
+ * `true` both for a free cancel ("you will not lose a usage and you will not be charged a fee")
+ * and for a £8.33 late fee. The `message` text is the real consequence, so it wins over the flag.
+ * No deadline field exists on this endpoint (or on the reservation payload), so none is emitted.
+ * @returns {{penalty:'none'|'credit'|'fee'|'unknown', isPenalty?:boolean, message?:string}}
+ */
+function classifyCancelPenalty(data) {
+  const message = data && data.message ? String(data.message).trim() : '';
+  const flag = data && typeof data.is_penalty_cancel === 'boolean' ? data.is_penalty_cancel : null;
+  const noLose = /\bnot lose\b/i.test(message);
+  const noCharge = /\bnot be charged\b|\bno fee\b/i.test(message);
+  const charged = !noCharge && /\bcharged?\b|\bfee\b|[£$€]\s?\d/i.test(message);
+  const loses = !noLose && /\b(lose|forfeit)\b/i.test(message);
+  let penalty;
+  if (charged) penalty = 'fee';
+  else if (loses) penalty = 'credit';
+  else if (noLose && noCharge) penalty = 'none';
+  else if (!message && flag === false) penalty = 'none';
+  else penalty = 'unknown';
+  const out = { penalty };
+  if (penalty !== 'unknown') out.isPenalty = penalty !== 'none';
+  if (message) out.message = message;
+  return out;
 }
 
 class MarianaTekProvider extends GymProvider {
@@ -717,6 +743,8 @@ class MarianaTekProvider extends GymProvider {
           // has none by definition.
           hasLayout: ev.layoutFormat === 'pick-a-spot',
           rowGroups: studioHasRowGroups(this.gym, { id: ev.studioId, name: ev.studioName }),
+          mobileRotation: studioMobileRotation(this.gym, { id: ev.studioId, name: ev.studioName }),
+          front: studioFrontSide(this.gym, { id: ev.studioId, name: ev.studioName }),
         });
       }
       for (const i of (ev.instructors || [])) {
@@ -912,13 +940,25 @@ class MarianaTekProvider extends GymProvider {
     const guestOptions = paymentOptions.guest.filter(usable);
     const available = Number(raw.available_spot_count);
     const hasAvailability = !Number.isFinite(available) || available > 0;
-    // The membership object has appeared under both user and guest payment
-    // options in captures. Treat the provider-published allowance as the
-    // source of truth whichever valid option carries it.
-    const guestRemainingValues = [...paymentOptions.user, ...paymentOptions.guest]
-      .map((option) => Number(option && option.membership_payment && option.membership_payment.guest_remaining_usage_count))
-      .filter(Number.isFinite);
-    const guestPassesRemaining = guestRemainingValues.length ? Math.max(...guestRemainingValues) : null;
+    // Guest allowance comes from whichever payment mechanism the account actually has. A null or
+    // absent count is UNKNOWN, never 0 (Number(null) is 0, which used to read as "no passes").
+    const countOrNull = (value) => (value === null || value === undefined || value === '' || !Number.isFinite(Number(value)) ? null : Number(value));
+    // Membership: the provider-published guest usage allowance (carried under user or guest options).
+    const membershipValues = [...paymentOptions.user, ...paymentOptions.guest]
+      .map((option) => countOrNull(option && option.membership_payment && option.membership_payment.guest_remaining_usage_count))
+      .filter((value) => value !== null);
+    // Credit packs: a guest draws a credit, so the allowance is the credits remaining on valid guest options.
+    const guestCreditValues = guestOptions
+      .filter((option) => option.credit_payment && option.credit_payment.is_valid_for_guests !== false)
+      .map((option) => countOrNull(option.credit_payment.credits_remaining))
+      .filter((value) => value !== null);
+    const guestSource = membershipValues.length ? 'membership' : (guestCreditValues.length ? 'credit' : null);
+    // A credit shared with the primary reservation: until the primary is booked, hold one back for it.
+    const primaryCreditNeeded = guestSource === 'credit' && event.isUserBooked !== true
+      && userOptions.some((option) => option.credit_payment) ? 1 : 0;
+    const guestPassesRemaining = guestSource === 'membership'
+      ? Math.max(...membershipValues)
+      : (guestSource === 'credit' ? Math.max(0, guestCreditValues.reduce((sum, value) => sum + value, 0) - primaryCreditNeeded) : null);
     const alreadyBooked = event.isUserBooked === true;
     const alreadyHasGuest = raw.is_user_guest_reserved === true;
     const configuredLimit = Number(this.gym && this.gym.capabilities && this.gym.capabilities.maxSpotsPerClass);
@@ -929,8 +969,11 @@ class MarianaTekProvider extends GymProvider {
       ? Math.min(policyLimit, Number.isFinite(available) ? available : policyLimit)
       : 0;
     const guestEnabled = this.gym?.capabilities?.guestBooking === true;
-    const maxGuestBookings = guestEnabled && !alreadyHasGuest && guestOptions.length && guestPassesRemaining > 0 && hasAvailability
-      ? Math.min(1, guestPassesRemaining, Number.isFinite(available) ? available : 1)
+    // Unknown allowance with a valid guest option: allow the attempt (the provider has the final say) and
+    // flag it so a scheduled save can warn that eligibility is re-checked at run time.
+    const allowanceUnknown = guestPassesRemaining === null;
+    const maxGuestBookings = guestEnabled && !alreadyHasGuest && guestOptions.length && (allowanceUnknown || guestPassesRemaining > 0) && hasAvailability
+      ? Math.min(1, allowanceUnknown ? 1 : guestPassesRemaining, Number.isFinite(available) ? available : 1)
       : 0;
     return {
       selfBookingLimit: policyLimit,
@@ -943,12 +986,13 @@ class MarianaTekProvider extends GymProvider {
       maxGuestBookings,
       guestEligible: maxGuestBookings > 0,
       guestPassesRemaining,
+      guestSource,
       guestReason: !guestEnabled ? 'GUEST_BOOKING_UNSUPPORTED'
         : alreadyHasGuest ? 'GUEST_ALREADY_BOOKED'
           : !guestOptions.length ? 'NO_VALID_GUEST_PAYMENT_OPTION'
-            : guestPassesRemaining === null ? 'GUEST_ALLOWANCE_UNKNOWN'
-              : guestPassesRemaining < 1 ? 'NO_GUEST_PASSES'
-                : !hasAvailability ? 'CLASS_FULL' : undefined,
+            : !hasAvailability ? 'CLASS_FULL'
+              : allowanceUnknown ? 'GUEST_ALLOWANCE_UNKNOWN'
+                : guestPassesRemaining < 1 ? 'NO_GUEST_PASSES' : undefined,
     };
   }
 
@@ -1062,7 +1106,7 @@ class MarianaTekProvider extends GymProvider {
     const res = await this.request(`/me/reservations/${bookingId}/cancel_penalty`, { token: session.accessToken });
     if (!res.ok) throw new Error(`getCancelPenalty failed: ${res.status}`);
     const data = await res.json();
-    return { isPenalty: !!data.is_penalty_cancel, message: data.message || undefined };
+    return classifyCancelPenalty(data);
   }
 
   async joinWaitlist(eventId, session) {

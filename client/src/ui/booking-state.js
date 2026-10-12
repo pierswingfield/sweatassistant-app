@@ -41,14 +41,37 @@ export function applyMutationToCache(detail = {}) {
   else if (detail.type === 'leaveWaitlist') dropWaitlistFromCache(detail.eventId, detail.gymId);
 }
 
+/** Replace one gym's bookings in `existing` with `fresh` (other gyms untouched). Pure. */
+export function mergeGymBookings(existing, gymId, fresh) {
+  const keep = (existing || []).filter((b) => b.gymId && b.gymId !== gymId);
+  return [...keep, ...(fresh || [])];
+}
+
+/** Mutations whose result only a provider re-read can show (a new/removed guest row). */
+export const NEEDS_PROVIDER_REREAD = new Set(['bookGuest', 'cancel']);
+
 let refetching = null;
-async function refetchBookingState() {
-  // Coalesce: a burst of mutations (multi-spot cancel) triggers one refetch.
+let pendingGyms = new Set();
+async function refetchBookingState(detail = {}) {
+  // Coalesce: a burst of mutations (multi-spot cancel) triggers one refetch, but a
+  // mutation that lands mid-flight queues a follow-up so it is never served a stale read.
+  const gymId = NEEDS_PROVIDER_REREAD.has(detail.type) ? detail.gymId : null;
+  if (gymId) pendingGyms.add(gymId);
   if (refetching) return refetching;
   refetching = (async () => {
     try {
-      const [bookings, waitlists] = await Promise.all([api.getBookings(), api.getWaitlists()]);
-      cache.bookings = bookings || [];
+      const gyms = [...pendingGyms];
+      pendingGyms = new Set();
+      const [bookings, waitlists] = await Promise.all([
+        gyms.length ? Promise.resolve(null) : api.getBookings(),
+        api.getWaitlists(),
+      ]);
+      if (bookings) cache.bookings = bookings;
+      else {
+        let merged = cache.bookings || [];
+        for (const g of gyms) merged = mergeGymBookings(merged, g, await api.getGymBookings(g, { refresh: true }));
+        cache.bookings = merged;
+      }
       cache.waitlists = waitlists || [];
       // Keep the server's booking_cache (what /api/overlap-check reads) current.
       import('./bookings.js').then((m) => m.syncBookingCache(cache.bookings)).catch(() => {});
@@ -57,6 +80,7 @@ async function refetchBookingState() {
       // Keep the optimistic state; the next prefetch will reconcile.
     } finally {
       refetching = null;
+      if (pendingGyms.size) refetchBookingState();
     }
   })();
   return refetching;
@@ -69,7 +93,7 @@ export function installBookingState(onChanged = () => {}) {
   window.addEventListener('app-bookings-mutated', (e) => {
     applyMutationToCache(e.detail || {});
     onChanged();                 // repaint now, from the state we already know
-    refetchBookingState();       // then reconcile with the provider
+    refetchBookingState(e.detail || {}); // then reconcile with the provider
   });
   window.addEventListener('app-booking-state-changed', () => onChanged());
 }

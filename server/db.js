@@ -58,6 +58,32 @@ db.exec(`
     FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
   );
 
+  -- Per-person Auto-Book outcomes. A successful primary or named guest is
+  -- durable so a retry can reconcile instead of recharging/rebooking them.
+  CREATE TABLE IF NOT EXISTS auto_booking_participants (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    auto_booking_id INTEGER NOT NULL,
+    user_id INTEGER NOT NULL,
+    gym_id TEXT NOT NULL,
+    event_id TEXT NOT NULL,
+    participant_key TEXT NOT NULL,
+    participant_type TEXT NOT NULL CHECK(participant_type IN ('self', 'guest')),
+    guest_email TEXT,
+    guest_name TEXT,
+    status TEXT NOT NULL DEFAULT 'pending' CHECK(status IN ('pending', 'success', 'failed', 'unknown')),
+    booking_id TEXT,
+    slot_id TEXT,
+    failure_code TEXT,
+    failure_message TEXT,
+    attempted_at TEXT,
+    resolved_at TEXT,
+    created_at TEXT DEFAULT CURRENT_TIMESTAMP,
+    updated_at TEXT DEFAULT CURRENT_TIMESTAMP,
+    UNIQUE(auto_booking_id, participant_key),
+    FOREIGN KEY (auto_booking_id) REFERENCES auto_bookings(id) ON DELETE CASCADE,
+    FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+  );
+
   CREATE TABLE IF NOT EXISTS auto_upgrades (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     user_id INTEGER NOT NULL,
@@ -82,6 +108,21 @@ db.exec(`
     group_name TEXT,
     original_slot_id INTEGER,      -- first-booked slot, set once, for "originally bike 40"
     FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+  );
+
+  -- Group Auto-Upgrade: the reservations a multi-seat monitor moves TOGETHER.
+  -- Additive (CREATE IF NOT EXISTS), so existing DBs gain it with no migration. A
+  -- monitor with no rows here is the legacy single-seat monitor. This set is the
+  -- ONLY authority on which bookings a group move may cancel.
+  CREATE TABLE IF NOT EXISTS auto_upgrade_members (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    upgrade_id INTEGER NOT NULL,
+    booking_id INTEGER NOT NULL,
+    slot_id TEXT NOT NULL,
+    original_slot_id TEXT,
+    is_guest INTEGER NOT NULL DEFAULT 0,
+    FOREIGN KEY (upgrade_id) REFERENCES auto_upgrades(id) ON DELETE CASCADE,
+    UNIQUE(upgrade_id, booking_id)
   );
 
   CREATE TABLE IF NOT EXISTS studio_preferences (
@@ -1118,6 +1159,88 @@ module.exports = {
     db.prepare('UPDATE auto_bookings SET preferences = ? WHERE id = ? AND user_id = ?')
       .run(JSON.stringify(preferences), id, userId);
   },
+  getAutoBookingParticipants(autoBookingId, userId) {
+    return db.prepare(`SELECT * FROM auto_booking_participants
+      WHERE auto_booking_id = ? AND user_id = ? ORDER BY id ASC`).all(autoBookingId, userId);
+  },
+  replaceAutoBookingParticipants(autoBookingId, userId, gymId, eventId, participants) {
+    const tx = db.transaction(() => {
+      const current = this.getAutoBookingParticipants(autoBookingId, userId);
+      const currentByKey = new Map(current.map((row) => [row.participant_key, row]));
+      for (const row of current.filter((item) => item.status === 'success')) {
+        const incoming = participants.find((item) => item.participantKey === row.participant_key);
+        if (!incoming || incoming.participantType !== row.participant_type || incoming.guestEmail !== row.guest_email || incoming.guestName !== row.guest_name) {
+          const error = new Error('A participant with a successful reservation cannot be changed.');
+          error.code = 'BOOKED_PARTICIPANT_LOCKED'; error.status = 409; throw error;
+        }
+      }
+      db.prepare(`DELETE FROM auto_booking_participants
+        WHERE auto_booking_id = ? AND user_id = ? AND status != 'success'`).run(autoBookingId, userId);
+      const put = db.prepare(`INSERT INTO auto_booking_participants
+        (auto_booking_id, user_id, gym_id, event_id, participant_key, participant_type, guest_email, guest_name)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+        ON CONFLICT(auto_booking_id, participant_key) DO NOTHING`);
+      participants.forEach((item) => put.run(autoBookingId, userId, gymId, String(eventId), item.participantKey, item.participantType, item.guestEmail, item.guestName));
+    });
+    tx();
+  },
+  markAutoBookingParticipant(autoBookingId, userId, participantKey, patch = {}) {
+    const status = patch.status || 'pending';
+    db.prepare(`UPDATE auto_booking_participants SET status = ?, booking_id = COALESCE(?, booking_id),
+      slot_id = COALESCE(?, slot_id), failure_code = ?, failure_message = ?, attempted_at = CURRENT_TIMESTAMP,
+      resolved_at = CASE WHEN ? IN ('success', 'failed', 'unknown') THEN CURRENT_TIMESTAMP ELSE resolved_at END,
+      updated_at = CURRENT_TIMESTAMP
+      WHERE auto_booking_id = ? AND user_id = ? AND participant_key = ?`)
+      .run(status, patch.bookingId == null ? null : String(patch.bookingId), patch.slotId == null ? null : String(patch.slotId), patch.failureCode || null, patch.failureMessage || null, status, autoBookingId, userId, participantKey);
+  },
+  saveAutoBookingWithStudioDraft({ mode, id = null, userId, gymId, eventId, booking = null, preferences, participants, studioDraft = null }) {
+    const targetGym = resolveGymStrict(userId, gymId, 'saveAutoBookingWithStudioDraft');
+    if (studioDraft) {
+      if (String(studioDraft.studioId) !== String(booking?.studioId)) {
+        const error = new Error('The preferred-spot draft must belong to this class studio.'); error.code = 'STUDIO_DRAFT_MISMATCH'; error.status = 400; throw error;
+      }
+      if (studioDraft.gymId && studioDraft.gymId !== targetGym) {
+        const error = new Error('The preferred-spot draft belongs to another gym.'); error.code = 'STUDIO_DRAFT_GYM_MISMATCH'; error.status = 400; throw error;
+      }
+    }
+    const writeParticipants = (autoBookingId) => {
+      const existing = db.prepare(`SELECT * FROM auto_booking_participants WHERE auto_booking_id = ? AND user_id = ?`).all(autoBookingId, userId);
+      for (const row of existing.filter((item) => item.status === 'success')) {
+        const incoming = participants.find((item) => item.participantKey === row.participant_key);
+        if (!incoming || incoming.participantType !== row.participant_type || incoming.guestEmail !== row.guest_email || incoming.guestName !== row.guest_name) {
+          const error = new Error('A participant with a successful reservation cannot be changed.'); error.code = 'BOOKED_PARTICIPANT_LOCKED'; error.status = 409; throw error;
+        }
+      }
+      db.prepare(`DELETE FROM auto_booking_participants WHERE auto_booking_id = ? AND user_id = ? AND status != 'success'`).run(autoBookingId, userId);
+      const put = db.prepare(`INSERT INTO auto_booking_participants
+        (auto_booking_id, user_id, gym_id, event_id, participant_key, participant_type, guest_email, guest_name)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?) ON CONFLICT(auto_booking_id, participant_key) DO NOTHING`);
+      participants.forEach((item) => put.run(autoBookingId, userId, targetGym, String(eventId), item.participantKey, item.participantType, item.guestEmail, item.guestName));
+    };
+    const writeDraft = () => {
+      if (!studioDraft) return;
+      const hasSelections = (studioDraft.preferences?.preferredSlots?.length || 0) > 0 || (studioDraft.preferences?.preferredRows?.length || 0) > 0;
+      if (!hasSelections) db.prepare('DELETE FROM studio_preferences WHERE user_id = ? AND gym_id = ? AND studio_id = ?').run(userId, targetGym, studioDraft.studioId);
+      else db.prepare(`INSERT INTO studio_preferences (user_id, gym_id, studio_id, preferences, updated_at)
+        VALUES (?, ?, ?, ?, CURRENT_TIMESTAMP) ON CONFLICT(user_id, gym_id, studio_id) DO UPDATE SET preferences = excluded.preferences, updated_at = CURRENT_TIMESTAMP`)
+        .run(userId, targetGym, studioDraft.studioId, JSON.stringify(studioDraft.preferences));
+    };
+    return db.transaction(() => {
+      let autoBookingId = id;
+      if (mode === 'create') {
+        const result = db.prepare(`INSERT INTO auto_bookings (user_id, gym_id, event_id, studio_id, class_name, instructor_name, instructor_image_url, studio_name, location_name, start_at, preferences, group_name, release_at, duration_min)
+          VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`)
+          .run(userId, targetGym, eventId, booking.studioId, booking.className, booking.instructorName, booking.instructorImageUrl, booking.studioName, booking.locationName, booking.startAt, JSON.stringify(preferences), booking.groupName, booking.releaseAt, Number(booking.durationMin) > 0 ? Number(booking.durationMin) : null);
+        autoBookingId = result.lastInsertRowid;
+      } else {
+        const result = db.prepare('UPDATE auto_bookings SET preferences = ? WHERE id = ? AND user_id = ? AND gym_id = ?').run(JSON.stringify(preferences), id, userId, targetGym);
+        if (!result.changes) { const error = new Error('Auto-Book entry not found.'); error.code = 'AUTO_BOOK_NOT_FOUND'; error.status = 404; throw error; }
+      }
+      writeParticipants(autoBookingId);
+      writeDraft();
+      return autoBookingId;
+    })();
+  },
   deleteAutoBooking(id, userId) {
     db.prepare('DELETE FROM auto_bookings WHERE id = ? AND user_id = ?').run(id, userId);
   },
@@ -1170,13 +1293,83 @@ module.exports = {
     return db.prepare("SELECT COUNT(*) AS n FROM auto_upgrades WHERE user_id = ? AND gym_id = ? AND status = 'active'")
       .get(userId, targetGym).n;
   },
-  addAutoUpgrade(userId, eventId, bookingId, currentSlotId, className, instructorName, studioName, locationName, startAt, preferences, studioId = null, groupName = null, gymId = null) {
+  addAutoUpgrade(userId, eventId, bookingId, currentSlotId, className, instructorName, studioName, locationName, startAt, preferences, studioId = null, groupName = null, gymId = null, members = null) {
     const targetGym = resolveGymStrict(userId, gymId, 'addAutoUpgrade');
     const result = db.prepare(`
       INSERT INTO auto_upgrades (user_id, gym_id, event_id, studio_id, booking_id, current_slot_id, original_slot_id, class_name, instructor_name, studio_name, location_name, start_at, preferences, group_name)
       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     `).run(userId, targetGym, eventId, studioId, bookingId, currentSlotId, currentSlotId, className, instructorName, studioName, locationName, startAt, JSON.stringify(preferences), groupName);
+    // More than one reservation = a GROUP monitor (moved together). One row per
+    // reservation (the lead is included).
+    if (Array.isArray(members) && members.length > 1) {
+      const ins = db.prepare('INSERT OR IGNORE INTO auto_upgrade_members (upgrade_id, booking_id, slot_id, original_slot_id, is_guest) VALUES (?, ?, ?, ?, ?)');
+      for (const m of members) ins.run(result.lastInsertRowid, Number(m.bookingId), String(m.slotId), String(m.slotId), m.isGuest ? 1 : 0);
+    }
     return result.lastInsertRowid;
+  },
+  getAutoUpgradeMembers(upgradeId) {
+    return db.prepare('SELECT * FROM auto_upgrade_members WHERE upgrade_id = ? ORDER BY id ASC').all(upgradeId);
+  },
+  // After a member's spot moves: follow its new booking id and slot. Keeps the row (and
+  // original_slot_id) so "originally spot X" survives.
+  replaceAutoUpgradeMember(upgradeId, oldBookingId, newBookingId, newSlotId) {
+    db.prepare('UPDATE auto_upgrade_members SET booking_id = ?, slot_id = ? WHERE upgrade_id = ? AND booking_id = ?')
+      .run(Number(newBookingId), String(newSlotId), upgradeId, Number(oldBookingId));
+  },
+  setAutoUpgradeMemberSlot(upgradeId, bookingId, slotId) {
+    db.prepare('UPDATE auto_upgrade_members SET slot_id = ? WHERE upgrade_id = ? AND booking_id = ?')
+      .run(String(slotId), upgradeId, Number(bookingId));
+  },
+  // [Claude 2026-10-11] Re-add a member after a cancel-first rebook (the row was removed when the
+  // old reservation was released, so persisted state never names a cancelled booking).
+  addAutoUpgradeMember(upgradeId, bookingId, slotId, originalSlotId = null) {
+    db.prepare('INSERT OR REPLACE INTO auto_upgrade_members (upgrade_id, booking_id, slot_id, original_slot_id, is_guest) VALUES (?, ?, ?, ?, 0)')
+      .run(upgradeId, Number(bookingId), String(slotId), String(originalSlotId ?? slotId));
+  },
+  // [Claude 2026-10-11] A live GROUP monitor (>1 members) covering any of these bookings.
+  findLiveGroupAutoUpgradeForBookings(userId, gymId, bookingIds) {
+    const ids = (bookingIds || []).map(Number).filter(Number.isFinite);
+    if (!ids.length) return null;
+    const q = ids.map(() => '?').join(',');
+    return db.prepare(`
+      SELECT u.* FROM auto_upgrades u
+      WHERE u.user_id = ? AND u.gym_id = ? AND u.status IN ('active','paused_no_credits','paused_disabled')
+        AND (SELECT COUNT(*) FROM auto_upgrade_members m WHERE m.upgrade_id = u.id) > 1
+        AND (u.booking_id IN (${q}) OR u.id IN (SELECT upgrade_id FROM auto_upgrade_members WHERE booking_id IN (${q})))
+      LIMIT 1
+    `).get(userId, gymId, ...ids, ...ids) || null;
+  },
+  removeAutoUpgradeMember(upgradeId, bookingId) {
+    db.prepare('DELETE FROM auto_upgrade_members WHERE upgrade_id = ? AND booking_id = ?').run(upgradeId, Number(bookingId));
+  },
+  // Gym-scoped duplicate check: a live monitor that already covers this booking (as lead or member).
+  findLiveAutoUpgradeForBookings(userId, gymId, bookingIds) {
+    const ids = (bookingIds || []).map(Number).filter(Number.isFinite);
+    if (!ids.length) return null;
+    const q = ids.map(() => '?').join(',');
+    return db.prepare(`
+      SELECT u.* FROM auto_upgrades u
+      WHERE u.user_id = ? AND u.gym_id = ? AND u.status IN ('active','paused_no_credits','paused_disabled')
+        AND (u.booking_id IN (${q}) OR u.id IN (SELECT upgrade_id FROM auto_upgrade_members WHERE booking_id IN (${q})))
+      LIMIT 1
+    `).get(userId, gymId, ...ids, ...ids) || null;
+  },
+  // A new group monitor REPLACES single-seat monitors already covering its reservations, so a
+  // group and a lone-seat monitor can never act on the same booking at once. Returns the count.
+  replaceSingleAutoUpgradesForBookings(userId, gymId, bookingIds, message = 'Replaced by a group Auto-Upgrade monitor.') {
+    const ids = (bookingIds || []).map(Number).filter(Number.isFinite);
+    if (!ids.length) return 0;
+    const q = ids.map(() => '?').join(',');
+    return db.prepare(`
+      UPDATE auto_upgrades SET status = 'stopped', status_message = ?
+      WHERE user_id = ? AND gym_id = ? AND status IN ('active','paused_no_credits','paused_disabled')
+        AND booking_id IN (${q})
+        AND NOT EXISTS (SELECT 1 FROM auto_upgrade_members m WHERE m.upgrade_id = auto_upgrades.id)
+    `).run(message, userId, gymId, ...ids).changes;
+  },
+  hasGuestBookingGroupForEvent(userId, gymId, eventId) {
+    return !!db.prepare('SELECT 1 FROM guest_booking_groups WHERE user_id = ? AND gym_id = ? AND event_id = ? LIMIT 1')
+      .get(userId, gymId, String(eventId));
   },
   // All upgrade monitors for a user keyed by event_id — used by the calendar feed to
   // annotate confirmed classes with "(Auto-Upgrade is enabled -- originally bike X)".
@@ -1238,8 +1431,9 @@ module.exports = {
     return db.prepare(`
       UPDATE auto_upgrades SET status = 'stopped', status_message = ?
       WHERE user_id = ? AND gym_id = ? AND status IN ('active', 'paused_no_credits', 'paused_disabled')
-        AND (booking_id = ? OR new_booking_id = ?)
-    `).run(message, userId, gymId, id, id).changes;
+        AND (booking_id = ? OR new_booking_id = ?
+          OR id IN (SELECT upgrade_id FROM auto_upgrade_members WHERE booking_id = ?))
+    `).run(message, userId, gymId, id, id, id).changes;
   },
   deleteAutoUpgrade(id, userId) {
     db.prepare('DELETE FROM auto_upgrades WHERE id = ? AND user_id = ?').run(id, userId);
@@ -1298,6 +1492,17 @@ module.exports = {
   getStudioPreferences(userId, gymId = null) {
     return db.prepare('SELECT * FROM studio_preferences WHERE user_id = ? AND gym_id = ?')
       .all(userId, gymId || resolveActiveGymId(userId));
+  },
+  // How many queued Auto-Books and live Auto-Upgrades depend on one studio's shared
+  // map (this gym + studio only). Shown before the member removes the map.
+  countStudioMapDependents(userId, studioId, gymId = null) {
+    const targetGym = resolveGymStrict(userId, gymId, 'countStudioMapDependents');
+    const sid = String(studioId);
+    const autoBooks = db.prepare("SELECT COUNT(*) AS n FROM auto_bookings WHERE user_id = ? AND gym_id = ? AND CAST(studio_id AS TEXT) = ? AND status = 'pending' AND executed_at IS NULL")
+      .get(userId, targetGym, sid).n;
+    const autoUpgrades = db.prepare("SELECT COUNT(*) AS n FROM auto_upgrades WHERE user_id = ? AND gym_id = ? AND CAST(studio_id AS TEXT) = ? AND status IN ('active','paused_no_credits','paused_disabled')")
+      .get(userId, targetGym, sid).n;
+    return { autoBooks, autoUpgrades };
   },
   // Resolve a single studio's live preferred spot map (the shared source of truth).
   // `studio_id` is a PROVIDER id, unique only inside one gym — pass the ROW's own

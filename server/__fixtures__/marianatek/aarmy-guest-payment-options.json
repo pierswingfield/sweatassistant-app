@@ -1,0 +1,197 @@
+{
+  "_label": "AARMY (aarmy.marianatek.com) live capture, READ-ONLY GETs only, 2026-10-10. Sanitized: no tokens, emails or personal data. Class 23944 Cycle, Mon 12 Oct 2026 18:30 ET. Aarmy is CREDIT-based (no memberships).",
+  "classId": "23944",
+  "class_detail_guest_relevant": {
+    "id": "23944",
+    "name": "Cycle",
+    "start_datetime": "2026-10-12T22:30:00Z",
+    "booking_start_datetime": "2026-10-05T11:00:00-04:00",
+    "capacity": 61,
+    "available_spot_count": 47,
+    "is_user_guest_reserved": false,
+    "is_user_reserved": true,
+    "is_late_cancel_overridden": false,
+    "layout_format": "pick-a-spot",
+    "spot_options": {
+      "primary_availability": 47,
+      "primary_capacity": 61,
+      "secondary_availability": 0,
+      "secondary_capacity": 0,
+      "standby_availability": 0,
+      "standby_capacity": 0,
+      "waitlist_availability": null,
+      "waitlist_capacity": null
+    },
+    "classroom_name": "Cycle",
+    "status": null
+  },
+  "payment_options": {
+    "path": "/classes/{id}/payment_options",
+    "status": 200,
+    "body": {
+      "user_payment_options": [
+        {
+          "id": "credit-373019",
+          "credit_payment": {
+            "id": "373019",
+            "credits_remaining": 1,
+            "credits_total": 1,
+            "credits_used": 0,
+            "product_id": "14694",
+            "expiration_datetime": "2026-11-09T22:02:27.138534Z",
+            "is_expired": false,
+            "is_valid_for_guests": true,
+            "name": "1 NYC Session Credit"
+          },
+          "description": "1 NYC Session Credit (1/1, Exp. 11/9/2026)",
+          "description_status": "1/1, Exp. ",
+          "description_date": "2026-11-09T22:02:27.138534Z",
+          "error_code": null,
+          "error_message": null,
+          "membership_payment": null,
+          "name": "1 NYC Session Credit",
+          "type": "credit"
+        }
+      ],
+      "guest_payment_options": [
+        {
+          "id": "credit-373019",
+          "credit_payment": {
+            "id": "373019",
+            "credits_remaining": 1,
+            "credits_total": 1,
+            "credits_used": 0,
+            "product_id": "14694",
+            "expiration_datetime": "2026-11-09T22:02:27.138534Z",
+            "is_expired": false,
+            "is_valid_for_guests": true,
+            "name": "1 NYC Session Credit"
+          },
+          "description": "1 NYC Session Credit (1/1, Exp. 11/9/2026)",
+          "description_status": "1/1, Exp. ",
+          "description_date": "2026-11-09T22:02:27.138534Z",
+          "error_code": null,
+          "error_message": null,
+          "membership_payment": null,
+          "name": "1 NYC Session Credit",
+          "type": "credit"
+        }
+      ]
+    }
+  },
+  "memberships": {
+    "path": "/me/memberships",
+    "status": 200,
+    "body": {
+      "results": [],
+      "meta": {
+        "pagination": {
+          "page": 1,
+          "pages": 1,
+          "count": 0
+        }
+      },
+      "links": {
+        "first": "https://aarmy.marianatek.com/api/customer/v1/me/memberships?page=1",
+        "last": "https://aarmy.marianatek.com/api/customer/v1/me/memberships?page=1",
+        "next": null,
+        "prev": null
+      }
+    }
+  },
+  "credits": {
+    "path": "/me/credits",
+    "status": 200,
+    "body": {
+      "results": [
+        {
+          "id": "235559",
+          "credits_remaining": 0,
+          "credits_total": 3,
+          "credits_used": 3,
+          "product_id": "14796",
+          "expiration_datetime": "2026-02-11T13:33:17.094756Z",
+          "is_expired": true,
+          "is_valid_for_guests": false,
+          "name": "New Client Special: 3 for $60"
+        },
+        {
+          "id": "235606",
+          "credits_remaining": 0,
+          "credits_total": 1,
+          "credits_used": 1,
+          "product_id": "14694",
+          "expiration_datetime": "2026-02-11T15:06:17.930811Z",
+          "is_expired": true,
+          "is_valid_for_guests": true,
+          "name": "1 NYC Session Credit"
+        },
+        {
+          "id": "288142",
+          "credits_remaining": 0,
+          "credits_total": 1,
+          "credits_used": 1,
+          "product_id": "14694",
+          "expiration_datetime": "2026-05-23T18:12:42.201147Z",
+          "is_expired": true,
+          "is_valid_for_guests": true,
+          "name": "1 NYC Session Credit"
+        },
+        {
+          "id": "330687",
+          "credits_remaining": 0,
+          "credits_total": 3,
+          "credits_used": 3,
+          "product_id": "14796",
+          "expiration_datetime": "2026-08-12T17:28:02.593098Z",
+          "is_expired": true,
+          "is_valid_for_guests": false,
+          "name": "New Client Package: 3 for $60"
+        },
+        {
+          "id": "373019",
+          "credits_remaining": 1,
+          "credits_total": 1,
+          "credits_used": 0,
+          "product_id": "14694",
+          "expiration_datetime": "2026-11-09T22:02:27.138534Z",
+          "is_expired": false,
+          "is_valid_for_guests": true,
+          "name": "1 NYC Session Credit"
+        },
+        {
+          "id": "373018",
+          "credits_remaining": 0,
+          "credits_total": 1,
+          "credits_used": 1,
+          "product_id": "14694",
+          "expiration_datetime": "2026-11-09T22:02:27.138534Z",
+          "is_expired": false,
+          "is_valid_for_guests": true,
+          "name": "1 NYC Session Credit"
+        }
+      ],
+      "meta": {
+        "pagination": {
+          "page": 1,
+          "pages": 1,
+          "count": 6
+        }
+      },
+      "links": {
+        "first": "https://aarmy.marianatek.com/api/customer/v1/me/credits?page=1",
+        "last": "https://aarmy.marianatek.com/api/customer/v1/me/credits?page=1",
+        "next": null,
+        "prev": null
+      }
+    }
+  },
+  "cancel_penalty_sample_of_users_own_upcoming_reservation": {
+    "path": "/me/reservations/{id}/cancel_penalty",
+    "status": 200,
+    "body": {
+      "is_penalty_cancel": true,
+      "message": "By canceling, you will not lose a credit and you will not be charged a fee."
+    }
+  }
+}

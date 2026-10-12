@@ -1,5 +1,3 @@
-import { COPY } from '../copy.js';
-
 // U1-14 — rules for the spot picker, kept pure so they can be tested.
 //
 // The picker runs in three modes:
@@ -16,20 +14,4 @@ export function spotSelectionRule({ mode, isAvailable }) {
   // Auto-Book keeps its explanatory toast: it really will target that spot when
   // booking fires. Quick-Book has nothing to add.
   return { allowed: true, notice: mode === 'autobook' ? 'will-target' : null };
-}
-
-/** The first-time-setup intro shows for a preference mode on a studio with a seat map and no saved map. */
-export function needsSetupIntro({ mode, hasSavedMap, hasSeatMap }) {
-  return (mode === 'quickbook' || mode === 'autobook') && !!hasSeatMap && !hasSavedMap;
-}
-
-/** Exact copy for the intro. `gymName`/`locationName` are display names. */
-export function setupIntroCopy({ gymName = '', locationName = '' } = {}) {
-  const where = [gymName, locationName].map((s) => String(s || '').trim()).filter(Boolean).join(' ');
-  return {
-    header: COPY.spotSelection.firstTimeSetup,
-    sub: COPY.spotSelection.chooseSpots.replace('{where}', where || COPY.spotSelection.thisStudio),
-    bodyHtml: COPY.spotSelection.setupBodyHtml,
-    next: COPY.spotSelection.next,
-  };
 }

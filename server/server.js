@@ -4,6 +4,7 @@ const cors = require('cors');
 const path = require('path');
 const rateLimit = require('express-rate-limit');
 const { ipKeyGenerator } = require('express-rate-limit');
+const cancelRebookPolicy = require('./cancel-rebook-policy');
 const db = require('./db');
 const { log, requestLogger } = require('./logger');
 const metrics = require('./metrics');
@@ -12,6 +13,9 @@ const { handleLogin, authenticateToken, authenticateTokenSSE } = auth;
 const pushService = require('./push');
 const notifications = require('./notifications');
 const scheduler = require('./scheduler');
+const { normalizeAutoBookPreferences, participantsForPreferences } = require('./auto-book-preferences');
+const { validateScheduledGuestEligibility } = require('./auto-book-guests');
+const { getProvider } = require('./providers');
 const poller = require('./poller');
 const { resolveSyncScope } = require('./booking-sync-scope');
 const calendar = require('./calendar');
@@ -553,6 +557,7 @@ app.get('/api/auto-book', authenticateToken, (req, res) => {
     const formatted = bookings.map(b => ({
       ...b,
       preferences: JSON.parse(b.preferences),
+      participants: db.getAutoBookingParticipants(b.id, req.userId),
       warnings: conflicts[b.id] || [],
     }));
     res.json(formatted);
@@ -561,8 +566,8 @@ app.get('/api/auto-book', authenticateToken, (req, res) => {
   }
 });
 
-app.post('/api/auto-book', authenticateToken, bookingMutationLimiter, (req, res) => {
-  const { eventId, studioId, className, instructorName, instructorImageUrl, studioName, locationName, startAt, preferences, skipImmediate, groupName, creditShortfall, releaseAt, durationMin, confirmOverlap, gymId: reqGymId } = req.body;
+app.post('/api/auto-book', authenticateToken, bookingMutationLimiter, async (req, res) => {
+  const { eventId, studioId, className, instructorName, instructorImageUrl, studioName, locationName, startAt, preferences, skipImmediate, groupName, creditShortfall, releaseAt, durationMin, confirmOverlap, studioPreferenceDraft = null, gymId: reqGymId } = req.body;
   if (!eventId || !preferences) {
     return res.status(400).json({ message: 'eventId and preferences are required' });
   }
@@ -571,15 +576,20 @@ app.post('/api/auto-book', authenticateToken, bookingMutationLimiter, (req, res)
     const targetGymId = gymId || db.resolveActiveGymId(req.userId);
     // An account with no gym is legitimate (signup is gym-less): say so, not a 500.
     if (!targetGymId) return res.status(409).json({ code: 'NO_GYM_LINKED', message: 'No gym linked to this account yet.' });
+    const normalizedPreferences = normalizeAutoBookPreferences(preferences);
     const caps = getGymConfig(targetGymId)?.capabilities || {};
     const maxSpots = caps.selfBookingPolicy === 'one-per-class' ? 1 : Number(caps.maxSpotsPerClass);
-    const requestedSpots = Math.max(1, Number(preferences.requiredCount) || 1);
+    const requestedSpots = normalizedPreferences.selfCount;
     if (Number.isFinite(maxSpots) && maxSpots > 0 && requestedSpots > maxSpots) {
       return res.status(400).json({
         code: 'ATTENDEE_LIMIT_EXCEEDED',
         message: `This gym allows at most ${maxSpots} self spot per class.`,
       });
     }
+    const guestEligibility = await validateScheduledGuestEligibility({
+      provider: getProvider(targetGymId), eventId, session: db.getUserSession(req.userId, targetGymId) || undefined,
+      guestCount: normalizedPreferences.guests.length,
+    });
     const pendingCount = db.countPendingAutoBookings(req.userId, gymId);
     if (pendingCount >= MAX_PENDING_AUTO_BOOKINGS_PER_GYM) {
       return res.status(429).json({ message: `Auto-book queue limit reached (${MAX_PENDING_AUTO_BOOKINGS_PER_GYM} pending entries). Please remove some entries before adding more.` });
@@ -616,13 +626,17 @@ app.post('/api/auto-book', authenticateToken, bookingMutationLimiter, (req, res)
     // Capture the class's own release instant when the gym publishes one (WP-D8).
     // A per-class gym's release has no weekday rule to recompute it from later,
     // so if it isn't stored now it is gone.
-    const id = db.addAutoBooking(req.userId, eventId, className, instructorName, studioName, locationName, startAt, preferences, studioId ?? null, groupName ?? null, releaseAt ?? null, gymId, instructorImageUrl ?? null, durationMin ?? null);
+    const id = db.saveAutoBookingWithStudioDraft({
+      mode: 'create', userId: req.userId, gymId: targetGymId, eventId, preferences: normalizedPreferences,
+      participants: participantsForPreferences(normalizedPreferences), studioDraft: studioPreferenceDraft,
+      booking: { studioId: studioId ?? null, className, instructorName, instructorImageUrl: instructorImageUrl ?? null, studioName, locationName, startAt, groupName: groupName ?? null, releaseAt: releaseAt ?? null, durationMin },
+    });
 
     // Warn (via push) if the user set this up without enough credits.
     if (creditShortfall && creditShortfall > 0) {
       notifications.notify(req.userId, 'creditWarning', {
         kind: 'autobook', startAt, groupName, className, instructorName, gymId,
-        spots: preferences.requiredCount || 1, creditsShort: creditShortfall,
+        spots: normalizedPreferences.requiredCount, creditsShort: creditShortfall,
       });
     }
 
@@ -636,11 +650,12 @@ app.post('/api/auto-book', authenticateToken, bookingMutationLimiter, (req, res)
     // the next dispatch to recompute it.
     scheduler.rearm();
 
-    res.json({ id, success: true, warnings });
+    res.json({ id, success: true, warnings, guestEligibilityWarning: guestEligibility.warning });
   } catch (err) {
     // A gym-ambiguous write is a client bug (the caller didn't name its gym),
     // not a server fault — say so with a 400 rather than a generic 500.
-    res.status(/no gym specified/i.test(err.message) ? 400 : 500).json({ message: err.message });
+    const status = err.status || (/no gym specified/i.test(err.message) ? 400 : 500);
+    res.status(status).json({ code: err.code, message: err.message });
   }
 });
 
@@ -678,27 +693,37 @@ app.get('/api/auto-book/stream', authenticateTokenSSE, (req, res) => {
   res.write(': SSE stream connected\n\n');
 });
 
-app.put('/api/auto-book/:id', authenticateToken, (req, res) => {
+app.put('/api/auto-book/:id', authenticateToken, async (req, res) => {
   const id = parseInt(req.params.id);
-  const { preferences } = req.body;
+  const { preferences, studioPreferenceDraft = null } = req.body;
   if (!preferences) {
     return res.status(400).json({ message: 'preferences are required' });
   }
   try {
     const entry = db.getUserAutoBookings(req.userId, 'all').find((row) => Number(row.id) === id);
+    const normalizedPreferences = normalizeAutoBookPreferences(preferences);
     const caps = entry ? (getGymConfig(entry.gym_id)?.capabilities || {}) : {};
     const maxSpots = caps.selfBookingPolicy === 'one-per-class' ? 1 : Number(caps.maxSpotsPerClass);
-    const requestedSpots = Math.max(1, Number(preferences.requiredCount) || 1);
+    const requestedSpots = normalizedPreferences.selfCount;
     if (Number.isFinite(maxSpots) && maxSpots > 0 && requestedSpots > maxSpots) {
       return res.status(400).json({
         code: 'ATTENDEE_LIMIT_EXCEEDED',
         message: `This gym allows at most ${maxSpots} self spot per class.`,
       });
     }
-    db.updateAutoBookingPreferences(id, req.userId, preferences);
-    res.json({ success: true });
+    if (!entry) return res.status(404).json({ code: 'AUTO_BOOK_NOT_FOUND', message: 'Auto-Book entry not found.' });
+    const guestEligibility = await validateScheduledGuestEligibility({
+      provider: getProvider(entry.gym_id), eventId: entry.event_id, session: db.getUserSession(req.userId, entry.gym_id) || undefined,
+      guestCount: normalizedPreferences.guests.length,
+    });
+    db.saveAutoBookingWithStudioDraft({
+      mode: 'edit', id, userId: req.userId, gymId: entry.gym_id, eventId: entry.event_id,
+      preferences: normalizedPreferences, participants: participantsForPreferences(normalizedPreferences),
+      studioDraft: studioPreferenceDraft, booking: { studioId: entry.studio_id },
+    });
+    res.json({ success: true, guestEligibilityWarning: guestEligibility.warning });
   } catch (err) {
-    res.status(500).json({ message: err.message });
+    res.status(err.status || 500).json({ code: err.code, message: err.message });
   }
 });
 
@@ -724,7 +749,9 @@ app.get('/api/auto-upgrade', authenticateToken, (req, res) => {
     const upgrades = db.getUserAutoUpgrades(req.userId, gymId);
     const formatted = upgrades.map(u => ({
       ...u,
-      preferences: JSON.parse(u.preferences)
+      preferences: JSON.parse(u.preferences),
+      // Group monitors list every reservation they move together (empty = single seat).
+      members: db.getAutoUpgradeMembers(u.id),
     }));
     res.json(formatted);
   } catch (err) {
@@ -732,8 +759,8 @@ app.get('/api/auto-upgrade', authenticateToken, (req, res) => {
   }
 });
 
-app.post('/api/auto-upgrade', authenticateToken, bookingMutationLimiter, (req, res) => {
-  const { eventId, studioId, bookingId, currentSlotId, className, instructorName, studioName, locationName, startAt, preferences, groupName, creditShortfall, gymId: reqGymId } = req.body;
+app.post('/api/auto-upgrade', authenticateToken, bookingMutationLimiter, async (req, res) => {
+  const { eventId, studioId, bookingId, currentSlotId, className, instructorName, studioName, locationName, startAt, preferences, groupName, creditShortfall, gymId: reqGymId, members: reqMembers } = req.body;
   if (eventId == null || bookingId == null || currentSlotId == null || !preferences) {
     return res.status(400).json({ message: 'Missing required auto-upgrade fields' });
   }
@@ -749,6 +776,50 @@ app.post('/api/auto-upgrade', authenticateToken, bookingMutationLimiter, (req, r
       return res.status(429).json({ message: `Auto-upgrade monitor limit reached (${MAX_ACTIVE_AUTO_UPGRADES_PER_GYM} active monitors). Please cancel some before adding more.` });
     }
 
+    // GROUP monitor: several reservations moved together. Guests are refused server-side
+    // (swapping a guest reservation is unproven), so a hand-built request can't bypass the UI.
+    let members = null;
+    if (Array.isArray(reqMembers) && reqMembers.length > 1) {
+      const resolvedGym = gymId || db.resolveActiveGymId(req.userId);
+      if (reqMembers.some(m => m == null || m.bookingId == null || m.slotId == null)) {
+        return res.status(400).json({ message: 'Each group member needs a bookingId and slotId.' });
+      }
+      if (reqMembers.some(m => m.isGuest) || db.hasGuestBookingGroupForEvent(req.userId, resolvedGym, eventId)) {
+        return res.status(400).json({ code: 'GUEST_GROUP_UNSUPPORTED', message: "Auto-Upgrade isn't available yet for bookings that include a guest." });
+      }
+      // [Claude 2026-10-11] Client ids are only a SELECTION: members come from the user's own live
+      // bookings for this gym + event, so a foreign or other-event id can never reach a cancel.
+      let liveBookings;
+      try { liveBookings = await poller.listBookingsWithRelogin(req.userId, resolvedGym); }
+      catch (err) { return res.status(502).json({ message: `Could not verify your bookings: ${err.message}` }); }
+      const mine = (liveBookings || []).filter(b => b && !b.isWaitlist && String(b.eventId) === String(eventId));
+      const seen = new Set();
+      const verified = [];
+      for (const m of reqMembers) {
+        const row = mine.find(b => String(b.bookingId) === String(m.bookingId));
+        if (!row || seen.has(String(row.bookingId))) {
+          return res.status(400).json({ code: 'MEMBER_NOT_FOUND', message: 'One of the selected spots is not one of your current bookings for this class.' });
+        }
+        seen.add(String(row.bookingId));
+        verified.push({ bookingId: row.bookingId, slotId: row.slotId, isGuest: !!row.isGuest });
+      }
+      if (verified.some(m => m.isGuest)) {
+        return res.status(400).json({ code: 'GUEST_GROUP_UNSUPPORTED', message: "Auto-Upgrade isn't available yet for bookings that include a guest." });
+      }
+      members = verified;
+      // Duplicate check BEFORE any state change (a 409 must leave existing monitors untouched).
+      const dup = db.findLiveGroupAutoUpgradeForBookings(req.userId, resolvedGym, members.map(m => m.bookingId));
+      if (dup) return res.status(409).json({ code: 'DUPLICATE_AUTO_UPGRADE', existingId: dup.id, message: 'These spots already have an auto-upgrade monitor.' });
+      // Existing single-seat monitors on these bookings are replaced by the group.
+      db.replaceSingleAutoUpgradesForBookings(req.userId, resolvedGym, members.map(m => m.bookingId));
+    } else {
+      // A lone-seat monitor must not start on a reservation a live group already moves.
+      const g = db.findLiveAutoUpgradeForBookings(req.userId, gymId || db.resolveActiveGymId(req.userId), [bookingId]);
+      if (g && db.getAutoUpgradeMembers(g.id).length > 1) {
+        return res.status(409).json({ code: 'DUPLICATE_AUTO_UPGRADE', existingId: g.id, message: 'This spot is already part of a group auto-upgrade monitor.' });
+      }
+    }
+
     // One live monitor per held seat. Matches on booking id OR event+slot (a re-booked
     // seat has a new booking id) and counts paused monitors too — the same set the
     // client list shows as "has a monitor".
@@ -762,7 +833,7 @@ app.post('/api/auto-upgrade', authenticateToken, bookingMutationLimiter, (req, r
       return res.status(409).json({ code: 'DUPLICATE_AUTO_UPGRADE', existingId: live.id, message: 'This spot already has an auto-upgrade monitor.' });
     }
 
-    const id = db.addAutoUpgrade(req.userId, eventId, bookingId, currentSlotId, className, instructorName, studioName, locationName, startAt, preferences, studioId ?? null, groupName ?? null, gymId);
+    const id = db.addAutoUpgrade(req.userId, eventId, members ? members[0].bookingId : bookingId, members ? members[0].slotId : currentSlotId, className, instructorName, studioName, locationName, startAt, preferences, studioId ?? null, groupName ?? null, gymId, members);
 
     // Warn (via push) if auto-upgrade is enabled without a spare credit to book the upgraded seat.
     if (creditShortfall && creditShortfall > 0) {
@@ -808,8 +879,10 @@ app.delete('/api/auto-upgrade/:id', authenticateToken, (req, res) => {
 
 app.get('/api/settings', authenticateToken, (req, res) => {
   try {
-    const settings = db.getUserSettings(req.userId);
-    res.json(settings || {});
+    const settings = db.getUserSettings(req.userId) || {};
+    // Gym-scoped default lives in ONE place (cancel-rebook-policy.js); the client reads the resolved value.
+    settings.autoUpgradeCancelRebook = cancelRebookPolicy.cancelRebookEnabled(settings);
+    res.json(settings);
   } catch (err) {
     res.status(500).json({ message: err.message });
   }
@@ -960,6 +1033,14 @@ app.get('/api/studio-preferences', authenticateToken, (req, res) => {
     res.json(formatted);
   } catch (err) {
     res.status(500).json({ message: err.message });
+  }
+});
+
+app.get('/api/studio-preferences/:id/usage', authenticateToken, (req, res) => {
+  try {
+    res.json(db.countStudioMapDependents(req.userId, req.params.id));
+  } catch (err) {
+    res.status(/no gym specified/i.test(err.message) ? 400 : 500).json({ message: err.message });
   }
 });
 

@@ -1,11 +1,12 @@
 import { api, apiFetch } from '../api';
+import { mapRemovalWarning } from './spot-map-usage.js';
 import { showToast, togglePushSubscription, updatePushStatusUI, userSettings, cache, getTheme, setTheme, debugConsole, loadGymContext, refreshUserData, updateDebugTerminalVisibility, getIsOffline } from '../main';
 import { getBookingOffset, describeBookingWindow } from '../lib';
 import { renderStudioFloorPlan } from './spotmap';
 import { currentRoute, navigate, pathFor } from '../router.js';
 import { openSpotSetup } from './spot-setup.js';
 import { isScrollBusy } from './scroll-state.js';
-import { cacheGet, resetTimetableForGymChange, rowGroupsForStudio } from './timetable';
+import { cacheGet, resetTimetableForGymChange, rowGroupsForStudio, mobileRotationForStudio, frontForStudio } from './timetable';
 import { clearApiCache, invalidateApiCache, accountScopedKey } from '../cache.js';
 import { renderGymSettingsSection as renderGymSettingsSectionView } from './gym-settings-section.js';
 import { renderCalendarSection } from './calendar-section.js';
@@ -936,6 +937,8 @@ function renderManageSpotMapsModal(prefs, studios, locations, container, onClose
             initialStep: hasPrefs ? 'editor' : 'intro',
             initialPrefs: studioPrefs,
             rowGroups: studio.rowGroups === true,
+            // The listed studio already carries its own policy; the timetable's metadata may not be loaded yet (cold Settings).
+            mobileRotation: studio.mobileRotation ?? mobileRotationForStudio(studio.id, studio.gymId), front: studio.front ?? frontForStudio(studio.id, studio.gymId),
             onSaved: () => {},
             onContinue: (pageEl) => {
               if (closeNavPage(pageEl)) openManageSpotMapsModal(options);
@@ -946,7 +949,7 @@ function renderManageSpotMapsModal(prefs, studios, locations, container, onClose
         close();
         openStudioFloorPlanEditor(studio.id, studio.name, () => {
           openManageSpotMapsModal(options);
-        }, { ...options, gymId: studio.gymId, rowGroups: studio.rowGroups === true, onDismiss: () => openManageSpotMapsModal(options) });
+        }, { ...options, gymId: studio.gymId, rowGroups: studio.rowGroups === true, mobileRotation: studio.mobileRotation, front: studio.front, onDismiss: () => openManageSpotMapsModal(options) });
       });
       btns.appendChild(editBtn);
 
@@ -956,7 +959,33 @@ function renderManageSpotMapsModal(prefs, studios, locations, container, onClose
         removeBtn.style.cssText = 'font-size:12px;padding:4px 10px;background:color-mix(in srgb, var(--danger) 10%, transparent);border-color:color-mix(in srgb, var(--danger) 25%, transparent);color:var(--danger);';
         removeBtn.textContent = COPY.spotMaps.remove;
         removeBtn.addEventListener('click', async () => {
-          if (!confirm(COPY.settings.confirmRemove)) return;
+          // In-app two-tap confirm (same pattern as Unlink gym): first tap arms the button and shows what depends
+          // on the map inline; second tap removes. Disarms after 6s.
+          if (removeBtn.dataset.armed !== '1') {
+            removeBtn.disabled = true;
+            let usage = null;
+            try { usage = await api.getStudioMapUsage(studio.id, studio.gymId || options.gymId); } catch (_) { /* warn-only; removal still allowed */ }
+            removeBtn.disabled = false;
+            const warning = mapRemovalWarning(usage);
+            let note = row.querySelector('.app-spm-remove-warning');
+            if (warning) {
+              if (!note) {
+                note = document.createElement('div');
+                note.className = 'app-spm-remove-warning';
+                note.setAttribute('role', 'alert');
+                note.style.cssText = 'flex-basis:100%;width:100%;font-size:12px;line-height:1.4;color:var(--danger);margin-top:6px;';
+                row.style.flexWrap = 'wrap';
+                row.appendChild(note);
+              }
+              note.textContent = warning;
+            }
+            removeBtn.dataset.armed = '1';
+            removeBtn.textContent = COPY.settings.confirmRemove;
+            clearTimeout(removeBtn._armTimer);
+            removeBtn._armTimer = setTimeout(() => { delete removeBtn.dataset.armed; removeBtn.textContent = COPY.spotMaps.remove; note?.remove(); }, 6000);
+            return;
+          }
+          clearTimeout(removeBtn._armTimer);
           removeBtn.disabled = true;
           removeBtn.textContent = COPY.spotMaps.removing;
           try {
@@ -1089,6 +1118,7 @@ export async function openStudioFloorPlanEditor(studioId, studioName, onSaved, o
     renderStudioFloorPlan(body, layoutSlots, existing.preferredSlots || [], existing.preferredRows || [], onSave, {
       layoutObjects,
       rowGroups: options.rowGroups ?? rowGroupsForStudio(studioId, options.gymId),
+      mobileRotation: options.mobileRotation ?? mobileRotationForStudio(studioId, options.gymId), front: options.front ?? frontForStudio(studioId, options.gymId),
       bannerHtml: `<div style="font-size:12px;color:var(--feat-autoupgrade);background:color-mix(in srgb, var(--feat-autoupgrade) 8%, transparent);border:1px solid color-mix(in srgb, var(--feat-autoupgrade) 18%, transparent);border-radius:8px;padding:8px 10px;margin-bottom:12px;line-height:1.5;">${formatCopyText(COPY.spotMaps.sharedSpotMapHtml, { studioName: escapeHtml(studioName) })}</div>`
     });
   } catch (err) {

@@ -28,6 +28,8 @@ export function findUpgradeForSeat(upgrades, { bookingId, gymId, eventId, slotId
   const inGym = (u) => !gymId || String(u.gym_id ?? u.gymId) === String(gymId);
   const mine = (upgrades || []).filter(u => inGym(u) && (
     (bookingId != null && String(u.booking_id) === String(bookingId)) ||
+    // A group monitor covers every reservation it moves together, not only its lead.
+    (bookingId != null && Array.isArray(u.members) && u.members.some(m => String(m.booking_id) === String(bookingId))) ||
     (eventId != null && slotId != null && slotId !== '' &&
       String(u.event_id) === String(eventId) && String(u.current_slot_id) === String(slotId))
   ));

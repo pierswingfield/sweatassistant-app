@@ -141,6 +141,7 @@ const GYMS = {
     },
     capabilities: {
       atomicSwap: true,         // PATCH v2 /bookings/{id} {slot} (live 2026-10-11); adapter falls back to cancel-rebook only if the endpoint vanishes
+      cancelRebookUpgrade: false, // OFF 2026-10-12: native swap exists, so cancel + rebook is never used (hides the member setting; poller policy gates on this)
       nativeWaitlist: false,
       metered: true,            // classes cost credits from a balance
       creditPurchase: true,     // in-app Stripe cart
@@ -259,6 +260,7 @@ const GYMS = {
     },
     capabilities: {
       atomicSwap: true,         // POST /me/reservations/{id}/swap_spots
+      cancelRebookUpgrade: false, // swap exists; cancel + rebook is never used
       nativeWaitlist: true,     // MT auto-fills + SMS
       // Membership-based: a class doesn't draw down a credit balance, so any
       // "you need N more credits" arithmetic is meaningless here. Distinct from
@@ -334,6 +336,19 @@ const GYMS = {
       displayAliases: {},
     },
     labels: { class: 'class', spot: 'spot' },
+    // This room's portrait floor plan is materially easier to read sideways on
+    // phones. Exact provider room name keeps Cycle on its original orientation;
+    // ids can be added once a stable production room id is captured.
+    // Live room: id 6184, provider name "Bootcamp" at the NoHo location ("NoHo Bootcamp" is only how the
+    // UI joins location + room). Match the stable id first; the anchored name keeps "Bootcamp Zoom",
+    // "Cycle" and the rest on their original orientation. The dev mock names its room "NoHo Bootcamp".
+    // Cycle (id 6182, read-only from live /api/metadata 2026-10-11) shares Bootcamp's portrait plan and
+    // rotation, matched by id only. The front of both rooms is the TOP of the unrotated plan; a 90 degree
+    // turn (x' = y, y' = maxX - x) carries top to LEFT. Other rooms (Zoom, Games, Live Stream) are untouched.
+    spotMap: {
+      mobileRotationStudios: { ids: ['6184', '6182'], namePattern: '^(NoHo )?Bootcamp$', degrees: 90 },
+      frontStudios: { ids: ['6184', '6182'], namePattern: '^(NoHo )?Bootcamp$', side: 'top' },
+    },
     // MarianaTek publishes the server-resolved release time per class. Aarmy
     // falls back to the observed 14-day rolling window only when that field is
     // absent, preserving any membership-specific release in normal operation.
@@ -345,6 +360,7 @@ const GYMS = {
     },
     capabilities: {
       atomicSwap: true,
+      cancelRebookUpgrade: false,
       nativeWaitlist: true,
       metered: true,            // credits-only gym: classes draw from a credit balance (like Psycle)
       creditPurchase: false,    // no confirmed in-app purchase API for MarianaTek
@@ -353,6 +369,11 @@ const GYMS = {
       attendanceTotals: false,  // no known MarianaTek equivalent (derive from history)
       bookingWindow: 'per-class',
       maxSpotsPerClass: 1,
+      // Credit-based: a guest draws a credit (valid-for-guests option); allowance read from the payment
+      // options, one named guest per reservation. Verified read-only 2026-10-10 (aarmy-guest-payment-options.json).
+      bookingEntitlement: true,
+      selfBookingPolicy: 'one-per-class',
+      guestBooking: true,
     },
     notifications: {
       bookingWindowReminder: false,

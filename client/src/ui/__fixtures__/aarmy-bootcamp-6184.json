@@ -1,0 +1,303 @@
+{
+ "_note": "Sanitized live Aarmy 'Bootcamp' room layout (sweat-dev /api/studios/6184/layout, 2026-10-10): ids/labels/coordinates only.",
+ "studioId": "6184",
+ "gymId": "aarmy",
+ "mobileRotation": 90,
+ "slots": [
+  {
+   "id": "37438",
+   "label": "1",
+   "x": 1.2,
+   "y": 0.8,
+   "isAvailable": true
+  },
+  {
+   "id": "37439",
+   "label": "2",
+   "x": 2.4,
+   "y": 0.8,
+   "isAvailable": true
+  },
+  {
+   "id": "37440",
+   "label": "3",
+   "x": 3.6,
+   "y": 0.8,
+   "isAvailable": true
+  },
+  {
+   "id": "37441",
+   "label": "4",
+   "x": 4.8,
+   "y": 0,
+   "isAvailable": true
+  },
+  {
+   "id": "37442",
+   "label": "5",
+   "x": 6,
+   "y": 0,
+   "isAvailable": true
+  },
+  {
+   "id": "37443",
+   "label": "6",
+   "x": 7.2,
+   "y": 0,
+   "isAvailable": true
+  },
+  {
+   "id": "37444",
+   "label": "7",
+   "x": 10,
+   "y": 0,
+   "isAvailable": true
+  },
+  {
+   "id": "37445",
+   "label": "8",
+   "x": 11.2,
+   "y": 0,
+   "isAvailable": true
+  },
+  {
+   "id": "37446",
+   "label": "9",
+   "x": 12.4,
+   "y": 0,
+   "isAvailable": true
+  },
+  {
+   "id": "37447",
+   "label": "10",
+   "x": 13.6,
+   "y": 0,
+   "isAvailable": true
+  },
+  {
+   "id": "37448",
+   "label": "11",
+   "x": 14.8,
+   "y": 0,
+   "isAvailable": true
+  },
+  {
+   "id": "37449",
+   "label": "12",
+   "x": 0.2,
+   "y": 2,
+   "isAvailable": true
+  },
+  {
+   "id": "37450",
+   "label": "13",
+   "x": 1.4,
+   "y": 2,
+   "isAvailable": true
+  },
+  {
+   "id": "37451",
+   "label": "14",
+   "x": 2.6,
+   "y": 2,
+   "isAvailable": true
+  },
+  {
+   "id": "37452",
+   "label": "15",
+   "x": 3.8,
+   "y": 2,
+   "isAvailable": true
+  },
+  {
+   "id": "37453",
+   "label": "16",
+   "x": 5,
+   "y": 2,
+   "isAvailable": true
+  },
+  {
+   "id": "37454",
+   "label": "17",
+   "x": 6.2,
+   "y": 2,
+   "isAvailable": true
+  },
+  {
+   "id": "37455",
+   "label": "18",
+   "x": 7.4,
+   "y": 2,
+   "isAvailable": true
+  },
+  {
+   "id": "37456",
+   "label": "19",
+   "x": 8.6,
+   "y": 2,
+   "isAvailable": true
+  },
+  {
+   "id": "37457",
+   "label": "20",
+   "x": 9.8,
+   "y": 2,
+   "isAvailable": true
+  },
+  {
+   "id": "37458",
+   "label": "21",
+   "x": 11,
+   "y": 2,
+   "isAvailable": true
+  },
+  {
+   "id": "37459",
+   "label": "22",
+   "x": 12.2,
+   "y": 2,
+   "isAvailable": true
+  },
+  {
+   "id": "37460",
+   "label": "23",
+   "x": 13.4,
+   "y": 2,
+   "isAvailable": true
+  },
+  {
+   "id": "37461",
+   "label": "24",
+   "x": 14.6,
+   "y": 2,
+   "isAvailable": true
+  },
+  {
+   "id": "37462",
+   "label": "25",
+   "x": 7.4,
+   "y": 3.4,
+   "isAvailable": true
+  },
+  {
+   "id": "37463",
+   "label": "26",
+   "x": 8.6,
+   "y": 3.4,
+   "isAvailable": true
+  },
+  {
+   "id": "37464",
+   "label": "27",
+   "x": 9.8,
+   "y": 3.4,
+   "isAvailable": true
+  },
+  {
+   "id": "37465",
+   "label": "28",
+   "x": 12.2,
+   "y": 3.4,
+   "isAvailable": true
+  },
+  {
+   "id": "37466",
+   "label": "29",
+   "x": 13.4,
+   "y": 3.4,
+   "isAvailable": true
+  },
+  {
+   "id": "37467",
+   "label": "30",
+   "x": 14.6,
+   "y": 3.4,
+   "isAvailable": true
+  },
+  {
+   "id": "37468",
+   "label": "31",
+   "x": 1.8,
+   "y": 4.8,
+   "isAvailable": true
+  },
+  {
+   "id": "37469",
+   "label": "32",
+   "x": 3,
+   "y": 4.8,
+   "isAvailable": true
+  },
+  {
+   "id": "37470",
+   "label": "33",
+   "x": 4.2,
+   "y": 4.8,
+   "isAvailable": true
+  },
+  {
+   "id": "37471",
+   "label": "34",
+   "x": 5.4,
+   "y": 4.8,
+   "isAvailable": true
+  },
+  {
+   "id": "37472",
+   "label": "35",
+   "x": 7,
+   "y": 4.8,
+   "isAvailable": true
+  },
+  {
+   "id": "37473",
+   "label": "36",
+   "x": 8.2,
+   "y": 4.8,
+   "isAvailable": true
+  },
+  {
+   "id": "37474",
+   "label": "37",
+   "x": 9.4,
+   "y": 4.8,
+   "isAvailable": true
+  },
+  {
+   "id": "37475",
+   "label": "38",
+   "x": 10.6,
+   "y": 4.8,
+   "isAvailable": true
+  },
+  {
+   "id": "37476",
+   "label": "39",
+   "x": 12.2,
+   "y": 4.8,
+   "isAvailable": true
+  },
+  {
+   "id": "37477",
+   "label": "40",
+   "x": 13.4,
+   "y": 4.8,
+   "isAvailable": true
+  },
+  {
+   "id": "37478",
+   "label": "41",
+   "x": 14.6,
+   "y": 4.8,
+   "isAvailable": true
+  },
+  {
+   "id": "37479",
+   "label": "0",
+   "x": 0,
+   "y": 0.8,
+   "isAvailable": true
+  }
+ ],
+ "objects": []
+}

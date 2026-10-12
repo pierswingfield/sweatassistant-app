@@ -52,3 +52,14 @@ describe('findUpgradeForSeat', () => {
     expect(findUpgradeForSeat(ups, { bookingId: 421951, gymId: 'psycle-london', eventId: 82484, slotId: 36272 })?.status).toBe('stopped');
   });
 });
+
+describe('findUpgradeForSeat with a group monitor', () => {
+  const group = [{ id: 7, gym_id: 'psycle-london', event_id: 5, booking_id: 101, current_slot_id: 3, status: 'active',
+    members: [{ booking_id: 101 }, { booking_id: 102 }] }];
+  it('matches every reservation the group moves together, not only its lead', () => {
+    expect(findUpgradeForSeat(group, { bookingId: 102, gymId: 'psycle-london', eventId: 5, slotId: 9 })?.id).toBe(7);
+  });
+  it('stays gym scoped for members', () => {
+    expect(findUpgradeForSeat(group, { bookingId: 102, gymId: 'jab-boxing', eventId: 5, slotId: 9 })).toBeUndefined();
+  });
+});

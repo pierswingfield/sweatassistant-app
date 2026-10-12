@@ -17,7 +17,7 @@ const { DateTime } = require('luxon');
 const { GymProvider, classifyProviderThrottle } = require('./base');
 const bookingWindow = require('./booking-window');
 const { resolveZone, toZonedISO } = require('./timezone');
-const { studioHasRowGroups } = require('./spot-map');
+const { studioHasRowGroups, studioMobileRotation } = require('./spot-map');
 const { makeMetadata, makeProfile, makeEvent, makeSlot, makeLayoutObject, makeBookingResult, makeBooking, makeHistoryEntry, prune } = require('./normalize');
 const cart = require('./codexfit-cart');
 const favourites = require('../favourites');
@@ -653,6 +653,7 @@ class CodexFitProvider extends GymProvider {
         locationName: st.location && st.location.name,
         hasLayout: !!(st.layout && Array.isArray(st.layout.slots) && st.layout.slots.length),
         rowGroups: studioHasRowGroups(this.gym, st),
+        mobileRotation: studioMobileRotation(this.gym, st),
         raw: st,
       })),
       instructors: instructors.map((i) => ({
@@ -926,7 +927,7 @@ class CodexFitProvider extends GymProvider {
     const startAt = DateTime.fromISO(booking.event.start_at, { zone: this.gym.timezone });
     const hoursUntilClass = startAt.diff(DateTime.now().setZone(this.gym.timezone), 'hours').hours;
     const isPenalty = hoursUntilClass < 12;
-    return { isPenalty, message: isPenalty ? 'Cancelling within 12 hours of class start forfeits the credit.' : undefined };
+    return { penalty: isPenalty ? 'credit' : 'none', isPenalty, message: isPenalty ? 'Cancelling within 12 hours of class start forfeits the credit.' : undefined };
   }
 
   /** PUT /waitlists/{eventId} — see psycle_codexfit.md "Join a Waitlist". */

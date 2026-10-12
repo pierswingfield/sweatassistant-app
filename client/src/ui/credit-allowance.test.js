@@ -277,3 +277,22 @@ describe('a Psycle row on a two-gym account before per-gym credits have loaded (
     expect(getAvailableCreditsForEvent(barre)).toBe(1);
   });
 });
+
+describe('creditShortfall', () => {
+  it('is the missing credit count, zero when covered or unmetered', async () => {
+    const { creditShortfall } = await import('./credit-allowance.js');
+    expect(creditShortfall(1, 3)).toBe(2);
+    expect(creditShortfall(3, 3)).toBe(0);
+    expect(creditShortfall(Infinity, 2)).toBe(0);
+  });
+});
+
+describe('creditsNeededFor', () => {
+  it('counts self + guest when the guest draws a credit, only self for a membership guest pass', async () => {
+    const { creditsNeededFor } = await import('./credit-allowance.js');
+    expect(creditsNeededFor({ places: 2, hasGuest: true, guestSource: 'credit' })).toBe(2);
+    expect(creditsNeededFor({ places: 2, hasGuest: true, guestSource: 'membership' })).toBe(1);
+    expect(creditsNeededFor({ places: 2, hasGuest: true })).toBe(1);
+    expect(creditsNeededFor({ places: 3, hasGuest: false })).toBe(3);
+  });
+});

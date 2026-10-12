@@ -1337,7 +1337,7 @@ async function syncDetectedBookingWindow(profile, credits, gymId = null) {
 export async function initApp() {
   // U1-15: any booking/cancel/swap/waitlist mutation updates the shared booked
   // state at once and repaints the timetable (idempotent).
-  installBookingState(() => repaintTimetableIfVisible());
+  installBookingState(() => { repaintTimetableIfVisible(); import('./ui/bookings.js').then((m) => m.repaintBookingsFromCache()).catch(() => {}); });
   document.getElementById('app-login-container').style.display = 'none';
   document.getElementById('app-container').style.display = 'flex';
   

@@ -75,7 +75,13 @@ function membershipHtml(gym, membership, credits) {
   return `<p class="app-card-desc">${COPY.gymSettings.membershipManagedByGym}</p>`;
 }
 
-function autoUpgradeHtml(settings) {
+// Per-gym capability `cancelRebookUpgrade` (gyms.config.js), independent of atomicSwap.
+// Unknown defaults ON like other capability flags.
+export function showCancelRebookSetting(gym) {
+  return gym?.capabilities?.cancelRebookUpgrade !== false;
+}
+
+function autoUpgradeHtml(settings, gym = {}) {
   return `
     <div class="app-setting-row">
       <div class="app-setting-label"><span>${COPY.gymSettings.enablePolling}</span><small>${COPY.gymSettings.pollingHelp}</small></div>
@@ -90,6 +96,10 @@ function autoUpgradeHtml(settings) {
       <div class="app-setting-label"><span>${COPY.gymSettings.continueCutoffByDefault}</span><small>${COPY.gymSettings.continueCutoffHelp}</small></div>
       <label class="app-switch"><input type="checkbox" data-gym-setting="autoUpgradeKeepOriginalByDefault" ${settings.autoUpgradeEnabled === false ? 'disabled' : ''} ${settings.autoUpgradeKeepOriginalByDefault ? 'checked' : ''}><span class="app-slider"></span></label>
     </div>
+    ${showCancelRebookSetting(gym) ? `<div class="app-setting-row" data-autoupgrade-dependent ${settings.autoUpgradeEnabled === false ? 'aria-disabled="true" style="opacity:.5"' : ''}>
+      <div class="app-setting-label"><span>${COPY.gymSettings.cancelRebook}</span><small>${COPY.gymSettings.cancelRebookHelp}</small></div>
+      <label class="app-switch"><input type="checkbox" data-gym-setting="autoUpgradeCancelRebook" ${settings.autoUpgradeEnabled === false ? 'disabled' : ''} ${settings.autoUpgradeCancelRebook === true ? 'checked' : ''}><span class="app-slider"></span></label>
+    </div>` : ''}
     <div class="app-setting-row" data-autoupgrade-dependent ${settings.autoUpgradeEnabled === false ? 'aria-disabled="true" style="opacity:.5"' : ''}>
       <div class="app-setting-label"><span>${COPY.gymSettings.pollingInterval}</span><small>${COPY.gymSettings.pollingIntervalHelp}</small></div>
       <select class="app-select" data-gym-setting="autoUpgradeInterval" ${settings.autoUpgradeEnabled === false ? 'disabled' : ''}>
@@ -159,7 +169,7 @@ export function renderGymSettingsSection(container, model, handlers = {}) {
         <h4>${COPY.gymSettings.bookingWindow}</h4><p class="app-card-desc">${escapeHtml(windowDescription)}</p>
         ${model.debugMode && bookingKind !== 'per-class' ? `<div class="app-setting-row"><div class="app-setting-label"><span>${COPY.gymSettings.manualOverride}</span><small>${COPY.gymSettings.debugOverrideHelp}</small></div><select class="app-select" data-gym-setting="manualBookingWindowWeeks"><option value="" ${!settings.manualBookingWindowWeeks ? 'selected' : ''}>${COPY.gymSettings.autoDetected}</option>${[1,2,3,4].map(n => `<option value="${n}" ${Number(settings.manualBookingWindowWeeks) === n ? 'selected' : ''}>${formatCopyText(n === 1 ? COPY.gymSettings.weekOptionOne : COPY.gymSettings.weekOptionMany, { count: n })}</option>`).join('')}</select></div>` : ''}
       </div>
-      ${capability(gym, 'autoUpgrade') ? `<div class="app-settings-card"><h4>${COPY.gymSettings.autoUpgradeEngine}</h4>${autoUpgradeHtml(settings)}</div>` : ''}
+      ${capability(gym, 'autoUpgrade') ? `<div class="app-settings-card"><h4>${COPY.gymSettings.autoUpgradeEngine}</h4>${autoUpgradeHtml(settings, gym)}</div>` : ''}
       ${capability(gym, 'profile') ? `<div class="app-settings-card"><h4>${COPY.gymSettings.profileExplorer}</h4><p class="app-card-desc">${COPY.gymSettings.profileExplorerHelp}</p><button class="app-btn" data-gym-action="profile">${COPY.gymSettings.openProfileExplorer}</button></div>` : ''}
     </div>`;
 

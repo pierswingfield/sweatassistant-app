@@ -168,8 +168,10 @@
 
 /**
  * @typedef {Object} CancelPenalty
- * @property {boolean}  isPenalty
+ * @property {'none'|'credit'|'fee'|'unknown'} penalty  the consequence; the message beats a provider flag
+ * @property {boolean=} isPenalty  legacy; absent when penalty is 'unknown'
  * @property {string=}  message
+ * @property {string=}  deadline  display text, only when the provider publishes one
  */
 
 /**
@@ -269,6 +271,7 @@
  * Capability flags — the UI/scheduler read these to decide what to show/do.
  * @typedef {Object} ProviderCapabilities
  * @property {boolean} atomicSwap        Native spot swap (MT) vs cancel-rebook (CodexFit).
+ * @property {boolean} cancelRebookUpgrade  Auto-Upgrade may cancel then rebook (per-gym config, independent of atomicSwap).
  * @property {boolean} nativeWaitlist    Provider auto-fills waitlists itself.
  * @property {boolean} creditPurchase    In-app credit/bundle purchase supported.
  * @property {boolean} bookmarks         Favourites/bookmarks supported.

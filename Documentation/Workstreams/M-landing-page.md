@@ -11,7 +11,7 @@ A public, glassy, animated marketing page that presents the app as a **concierge
 | # | Decision |
 |---|---|
 | M-D1 | **Name: "Front Row"** (landing page only). The in-app name stays "Sweat Assistant" (`APP_NAME`); a full rename is a separate decision. Run domain, app-store and trademark availability checks as the first build task. |
-| M-D2 | **Host:** separate static site on `concierge.wingfield.tech` (placeholder; confirm final subdomain). Own folder `landing/` in this repo, tiny nginx container on oracle behind the existing Cloudflare tunnel, own `deploy-landing.sh` mirroring `deploy.sh`. Zero coupling to the SPA, its routes (`/` is the SPA, PWA `start_url` is `/`) or the service worker. |
+| M-D2 | **Host:** separate static site on `frontrow.wingfield.tech` (confirmed). Own folder `landing/` in this repo, tiny nginx container on oracle behind the existing Cloudflare tunnel, own `deploy-landing.sh` mirroring `deploy.sh`. Zero coupling to the SPA, its routes (`/` is the SPA, PWA `start_url` is `/`) or the service worker. |
 | M-D3 | **Audience and hook:** public gym-goers. Headline "Your fitness life, handled." / hero line "Be first in the room." Auto-book is the proof point, not the whole story. Calm, premium, warm tone, no hype. |
 | M-D4 | **Brands:** show the Psycle, JAB Boxing and AARMY **logos** in a "Works with" strip (copy assets from `client/public/gyms` into `landing/`, never hotlink) with a footer disclaimer: unofficial, not affiliated with or endorsed by any gym. |
 | M-D5 | **Product visuals:** coded, sanitised mock UI built from the app's own tokens with fake data; no screenshots. |

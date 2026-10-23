@@ -8938,7 +8938,8 @@ body::after { z-index: 1000002 !important; }
   #app-helper-container .app-mobile-seg.ellipsis::after { inset: 0; }
   /* Horizontal ellipsis stacked ABOVE the CTA, both right-aligned, so the CTA sits at the card's right edge. */
   #app-helper-container .app-mobile-rail { flex-direction: column; align-items: flex-end; justify-content: flex-end; gap: 0; padding: 0 8px 12px 0; }
-  #app-helper-container .app-mobile-seg.ellipsis { order: -1; align-self: flex-end; height: 24px; width: 44px; min-width: 44px; line-height: 1; }
+  /* The ellipsis fills the space above the CTA (glyph centred in it) and is a large tap target. */
+  #app-helper-container .app-mobile-seg.ellipsis { order: -1; align-self: flex-end; flex: 1 1 auto; height: auto; min-height: 36px; width: 60px; min-width: 60px; line-height: 1; color: var(--text-secondary) !important; }
   #app-helper-container .app-mobile-seg.primary { margin: 0; }
 }
 

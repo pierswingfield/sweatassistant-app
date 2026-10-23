@@ -708,6 +708,7 @@ export const COPY = Object.freeze({
     failedOccupancy: 'Failed to load occupancy data.',
     stage: 'STAGE', savingFilters: 'Saving...', savedFilters: '✓ Saved!',
     selectedOne: '{count} Selected', selectedMany: '{count} {label}{plural}',
+    opensInPrefix: 'Opens in ',
     opensInPrefixHtml: '<span class="ab-cd-prefix">Opens in </span>',
     opensInDaysOne: '{prefix}{count} day', opensInDaysMany: '{prefix}{count} days',
     opensInHoursOne: '{prefix}{count} hour', opensInHoursMany: '{prefix}{count} hours',
@@ -930,10 +931,10 @@ export const COPY = Object.freeze({
     comingSoon: 'Coming soon', loadingWidget: 'Loading', error: "Couldn't load this.", retry: 'Retry',
     connectGymTitle: 'Connect a gym', connectGymBody: 'Connect a gym to see your classes, bookings and credits here.', connectGymAction: '＋ Connect a gym',
     noGymWidget: 'Connect a gym to see this.', gymsLoadFailed: "Couldn't check your gyms.",
-    welcome: 'Welcome', book: 'Book a class', bookAll: 'All', upcoming: 'Upcoming classes', autoBook: 'Auto-Book', credits: 'Credits',
-    favourites: 'Favourites', favouritesNone: 'No favourite classes in the next 7 days.', topInstructors: 'Top instructors', topInstructorsNone: 'No classes in the last 30 days.', topInstructorClassOne: '1 class in the last 30 days', topInstructorClassMany: '{count} classes in the last 30 days', stats: 'Your stats', statsNone: 'No class statistics are available yet.', statsPartial: 'Some gym statistics could not be loaded.', statsProviderAttended: 'Provider-reported classes attended', statsHistoryBooked: 'History-derived classes booked', statsProviderMinutes: 'Provider-reported attended minutes', statsHistoryMinutes: 'History-derived booked minutes', statsHistoryInstructors: 'Instructors in booking history', statsShowDetails: 'Show details for {gym}', statsHideDetails: 'Hide details for {gym}', noCredits: 'No credits or active memberships yet.',
-    autoBookActive: 'active auto-book entries', autoBookNone: 'No active auto-book entries yet. Tap to set one up.', autoBookOne: 'active auto-book entry',
-    upcomingNone: 'No upcoming classes. Book one from the timetable.', viewAll: 'View all bookings', upcomingStripLabel: 'Next 7 days', upcomingToday: 'Today',
+    welcome: 'Welcome', goodMorning: 'Good morning', book: 'Book a class', findClass: 'Find a class', bookAll: 'See full timetable', upcoming: 'Booked Classes', autoBook: 'Auto-Book', autoBookQueue: 'Auto-Book queue', autoBookCount: 'Auto-Book ({count} classes in queue)', autoBookEmpty: 'No classes queued', autoBookReady: 'Classes ready to book', credits: 'Credits & passes',
+    favourites: 'Upcoming favourite classes', favouritesNone: 'No favourite classes in the next 7 days.', topInstructors: 'Your trending instructors', topInstructorsNone: 'No classes in the last 30 days.', topInstructorClassOne: '1 class in the last 30 days', topInstructorClassMany: '{count} classes in the last 30 days', stats: 'Your activity', statsSubtitle: 'All-time classes attended', statsNone: 'No attendance data is available yet.', statsPartial: 'Some gym attendance data could not be loaded.', statsProviderAttended: 'Classes attended', noCredits: 'No credits or active memberships yet.',
+    autoBookActive: 'active auto-book entries', autoBookNone: 'No active auto-book entries yet. Tap to set one up.', autoBookOne: 'active auto-book entry', autoBookUnavailable: 'Auto-Book status unavailable.',
+    upcomingNone: 'No upcoming classes. Find one on the timetable.', findNextClass: 'Find your next class', viewAll: 'View all bookings', upcomingStripLabel: 'Next five days', upcomingToday: 'Today',
     refresh: 'Refresh Home',
   }),
   navigation: Object.freeze({
@@ -1053,6 +1054,13 @@ function lookupCopy(key) {
 /** Fill trusted, authored HTML slots in the SPA shell before onboarding clones them. */
 export function formatCopyText(template, values = {}) {
   return String(template).replace(/\{([a-zA-Z0-9_]+)\}/g, (match, key) => (key in values ? String(values[key]) : match));
+}
+
+/** Format a count with the authored singular/plural noun used by the caller. */
+export function formatCountLabel(count, singular, plural = `${singular}s`) {
+  const value = Number(count);
+  const normalized = Number.isFinite(value) ? value : 0;
+  return `${normalized} ${normalized === 1 ? singular : plural}`;
 }
 
 /** Format authored copy with the runtime app name (HTML-escaped). The one path for {appName}. */

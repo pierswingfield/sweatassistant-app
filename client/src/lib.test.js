@@ -198,6 +198,15 @@ describe('gym-local time display', () => {
     expect(same.suffix).toBe('');
     expect(same.timeLabel).toBe('19:30');
   });
+  it('uses a short specific label for London when viewed from New York', () => {
+    const away = _fmtZ('2026-10-21T06:30:00+01:00', 'Europe/London', NY);
+    expect(away.suffix).toBe('BST');
+    expect(away.suffix).not.toMatch(/United Kingdom Time/i);
+    expect(away.timeLabel).toBe(`06:30 ${away.suffix}`);
+  });
+  it('preserves compact New York zone labels', () => {
+    expect(_sufZ('2026-01-12T14:15:00Z', NY, 'Europe/London')).toBe('ET');
+  });
   it('compares by offset at the instant, so equal-offset zones show no suffix', () => {
     expect(_sufZ('2026-01-12T14:15:00Z', NY, 'America/Toronto')).toBe('');
   });

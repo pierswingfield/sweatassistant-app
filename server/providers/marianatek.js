@@ -18,6 +18,7 @@ const { makeMetadata, makeProfile, makeMembership, makeEvent, makeSlot, makeBook
 const bookingWindow = require('./booking-window');
 const { noteThrottleError } = require('../rate-limit-backoff');
 const { timedProviderFetch } = require('../logger');
+const scheduleCache = require('../schedule-cache');
 
 // Dev-mode bypass (WP-M5), driven by the gym config's `devMock.email` exactly like
 // the CodexFit adapter (see BaseProvider.isMockLogin/isMockUser, server/mock.js).
@@ -70,6 +71,8 @@ function extractCsrfToken(html) {
 const CLASS_LIST_PAGE_CONCURRENCY = 4;
 const CLASS_LIST_MAX_PAGES = 100; // safety cap (10,000 classes at 100/page); beyond it we throw, never truncate
 const METADATA_DEFAULT_WINDOW_DAYS = 28;
+const RESERVATION_CLASS_LOOKUP_TTL_MS = 60 * 1000;
+const RESERVATION_CLASS_LOOKUP_MAX_DAYS = 90;
 
 function classListWindow(params = {}) {
   return {
@@ -558,6 +561,62 @@ class MarianaTekProvider extends GymProvider {
     const drop = () => { if (this._classFlights.get(key) === flight) this._classFlights.delete(key); };
     promise.then(drop, drop);
     return promise;
+  }
+
+  /**
+   * Booking responses are user-specific but their embedded class_session is a
+   * deliberately small shape: the captured /me/reservations response omits
+   * instructors. Fill only that missing normalized field from the shared class
+   * list, keyed by the provider's class-session id. This keeps the booking's
+   * own availability/identity fields intact and avoids one detail request per
+   * reservation.
+   */
+  async _reservationClassEvents(rows, session) {
+    const candidates = rows.filter((row) => {
+      const c = row && row.class_session;
+      if (!c || !c.id) return false;
+      const instructors = Array.isArray(c.instructors) ? c.instructors : [];
+      return !instructors.length || instructors.some((i) => !i || !(
+        i.imageUrl || i.thumbUrl
+        || (i.photo_urls && (i.photo_urls.large_url || i.photo_urls.thumbnail_url))
+      ));
+    });
+    if (!candidates.length) return new Map();
+
+    const ids = new Set(candidates.map((row) => String(row.class_session.id)));
+    const dates = candidates.map((row) => {
+      const c = row.class_session;
+      return c.start_date || (c.start_datetime && String(c.start_datetime).slice(0, 10));
+    }).filter(Boolean).sort();
+    if (!dates.length) return new Map();
+    const startDate = dates[0];
+    const endDate = dates[dates.length - 1];
+    const spanDays = Math.floor((Date.parse(`${endDate}T00:00:00Z`) - Date.parse(`${startDate}T00:00:00Z`)) / 864e5);
+    // A malformed or unexpectedly broad booking window must never turn a
+    // bookings read into an unbounded schedule crawl. The booking itself is
+    // still returned with its embedded event below.
+    if (!Number.isFinite(spanDays) || spanDays < 0 || spanDays > RESERVATION_CLASS_LOOKUP_MAX_DAYS) return new Map();
+
+    const cacheKey = `marianatek:reservation-classes:${this.gymId}:${startDate}:${endDate}`;
+    let classes;
+    try {
+      classes = await scheduleCache.getOrFetch(
+        cacheKey,
+        () => this.sharedClassList({ startDate, endDate, pageSize: 100 }, session),
+        { ttlMs: RESERVATION_CLASS_LOOKUP_TTL_MS },
+      );
+    } catch (_) {
+      // Portrait enrichment is best-effort. A provider class-list outage must
+      // not hide an otherwise valid booking response.
+      return new Map();
+    }
+    const byId = new Map();
+    for (const c of classes || []) {
+      if (!c || c.id == null || !ids.has(String(c.id))) continue;
+      const event = this.mapClassToEvent(c);
+      if (event.instructors && event.instructors.length) byId.set(String(c.id), event);
+    }
+    return byId;
   }
 
   async _fetchClassList(win, session) {
@@ -1138,32 +1197,41 @@ class MarianaTekProvider extends GymProvider {
   /**
    * Shared list fetch backing listBookings/listWaitlists — both are just
    * /me/reservations filtered client-side by reservation_type (same endpoint
-   * leaveWaitlist already uses for its reservation-by-event lookup). Every
-   * reservation embeds a full class_session (confirmed: prod-booking-
-   * response-membership.json), so — unlike CodexFit — this gets a full
-   * NormalizedEvent for free via the same mapClassToEvent used by the
-   * timetable, no extra request needed.
+   * leaveWaitlist already uses for its reservation-by-event lookup). The
+   * reservation embeds the booking state, while its class_session may omit
+   * instructors; _reservationClassEvents fills that one shared field by exact
+   * class-session id when the timetable data can supply it.
    */
   async _listReservations(session, reservationType) {
     const res = await this.request('/me/reservations?is_upcoming=true&page_size=100', { token: session.accessToken });
     if (!res.ok) throw new Error(`listReservations failed: ${res.status}`);
     const data = await res.json();
     const results = data.results || [];
+    const classEvents = await this._reservationClassEvents(results, session);
     return results
       .filter((r) => r.reservation_type === reservationType)
-      .map((r) => makeBooking({
-        bookingId: r.id,
-        eventId: r.class_session && r.class_session.id,
+      .map((r) => {
+        const embedded = r.class_session ? this.mapClassToEvent(r.class_session) : undefined;
+        const enriched = r.class_session && classEvents.get(String(r.class_session.id));
+        // Keep all booking-specific class state from /me/reservations. Only
+        // replace the instructor list, and only after an exact event-id match.
+        if (embedded && enriched && enriched.instructors && enriched.instructors.length) {
+          embedded.instructors = enriched.instructors;
+        }
+        return makeBooking({
+          bookingId: r.id,
+          eventId: r.class_session && r.class_session.id,
           slotId: r.spot && r.spot.id,
           slotLabel: r.spot && r.spot.name,
-        spotSection: this._spotSection(r.spot, r.class_session && r.class_session.classroom),
-        isGuest: r.is_booked_for_me === false || !!r.guest_email,
-        guestEmail: r.guest_email,
-        bookedAt: r.created_at || r.reserved_at,
-        isWaitlist: reservationType === 'waitlist',
-        event: r.class_session ? this.mapClassToEvent(r.class_session) : undefined,
-        raw: r,
-      }));
+          spotSection: this._spotSection(r.spot, r.class_session && r.class_session.classroom),
+          isGuest: r.is_booked_for_me === false || !!r.guest_email,
+          guestEmail: r.guest_email,
+          bookedAt: r.created_at || r.reserved_at,
+          isWaitlist: reservationType === 'waitlist',
+          event: embedded,
+          raw: r,
+        });
+      });
   }
 
   async listBookings(session) { return this._listReservations(session, 'standard'); }
@@ -1236,6 +1304,25 @@ class MarianaTekProvider extends GymProvider {
     return out;
   }
   async listWaitlists(session) { return this._listReservations(session, 'waitlist'); }
+
+  /**
+   * Official all-time attendance total from MarianaTek's achievements endpoint.
+   *
+   * The normalized contract uses `classes_completed`; unlike CodexFit's
+   * milestones response this endpoint does not publish period totals or
+   * milestone rows. Preserve that distinction rather than deriving a count
+   * from class history (which contains bookings, not attendance).
+   */
+  async getMilestones(session) {
+    const res = await this.request('/me/achievements', { token: session.accessToken });
+    if (!res.ok) throw new Error(`getMilestones failed: ${res.status}`);
+    const data = await res.json().catch(() => ({}));
+    const attendedTotal = data && data.classes_completed;
+    if (!Number.isInteger(attendedTotal) || attendedTotal < 0) {
+      throw new Error('getMilestones returned no valid classes_completed attendance total');
+    }
+    return { attendedTotal, milestones: [] };
+  }
 
   /** Native spot swap — no cancel-then-rebook needed (unlike CodexFit). */
   async swapSpots(bookingId, currentSlotId, targetSlotId, session) {

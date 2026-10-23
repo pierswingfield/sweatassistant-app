@@ -119,6 +119,23 @@ const ASSETS_TO_CACHE = [
   ...PRECACHE_ASSETS
 ];
 
+// A warm PWA must not wait forever for a stalled document request. The value
+// is deliberately short enough to retain the instant cached-shell path while
+// still giving a normal navigation its first chance at fresh HTML.
+const NAVIGATION_NETWORK_BUDGET_MS = 700;
+
+// Only cache a network shell when every local hashed asset it references is in
+// this worker generation's install manifest. That keeps a deploy's new HTML
+// from being written into an old cache generation that cannot serve its chunks.
+async function cacheCoherentShell(cache, response) {
+  const html = await response.clone().text();
+  const assetUrls = [...html.matchAll(/(?:src|href)=["']([^"']+)["']/gi)]
+    .map((match) => new URL(match[1], self.location.origin))
+    .filter((asset) => asset.origin === self.location.origin && /^(?:\/assets\/|\/gyms\/)/.test(asset.pathname));
+  if (!assetUrls.every((asset) => ASSETS_TO_CACHE.includes(asset.pathname))) return;
+  await cache.put('/index.html', response);
+}
+
 // ─── Install: precache shell + skip waiting ─────────────────────────────────
 
 self.addEventListener('install', (event) => {
@@ -196,24 +213,37 @@ self.addEventListener('fetch', (event) => {
     return; // everything else cross-origin: browser default
   }
 
-  // ── Navigation requests: network-first, fallback to /index.html ─────────
+  // ── Navigation requests: bounded network-first, fallback to this build's shell ─
 
   if (request.mode === 'navigate') {
     event.respondWith(
-      fetch(request).then((response) => {
-        // Cache the page response for future offline access
-        // U4-19: every app path serves the same shell, so keep ONE copy under the shell key
-        // (no per-URL growth for /settings/x or ?filters) and never cache an error page.
-        // /admin is its own page, not the app shell: never let it overwrite the shell copy.
-        if (response.ok && !/^\/admin(\/|$)/.test(url.pathname)) {
-          const clone = response.clone();
-          caches.open(CACHE_NAME).then((cache) => cache.put('/index.html', clone));
-        }
-        return response;
-      }).catch(() => {
-        // Offline: serve the SPA shell so client-side path routing still works
-        return caches.match('/index.html', { ignoreSearch: true });
-      })
+      caches.open(CACHE_NAME).then(async (cache) => {
+        const shell = await cache.match('/index.html');
+        const network = fetch(request).then((response) => {
+          // The navigation itself may use fresh HTML immediately. A late
+          // response only replaces the fallback shell after the referenced
+          // hashed assets prove it belongs to this installed generation.
+          if (response.ok && !/^\/admin(\/|$)/.test(url.pathname)) {
+            event.waitUntil(cacheCoherentShell(cache, response.clone()).catch(() => {}));
+          }
+          return response;
+        });
+
+        // Keep a late successful request alive to refresh the same-generation
+        // shell after the cached fallback has already painted.
+        event.waitUntil(network.catch(() => {}));
+
+        // A genuinely cold cache still uses ordinary network semantics: do
+        // not manufacture a shell or turn a useful server error into a blank
+        // page. The budget applies only when an atomic installed shell exists.
+        if (!shell) return network;
+
+        const withinBudget = await Promise.race([
+          network,
+          new Promise((resolve) => setTimeout(() => resolve(null), NAVIGATION_NETWORK_BUDGET_MS)),
+        ]);
+        return withinBudget || shell;
+      }).catch(() => caches.open(CACHE_NAME).then((cache) => cache.match('/index.html')))
     );
     return;
   }

@@ -10,6 +10,18 @@ const DB_NAME = 'app-cache';
 const DB_VERSION = 3;
 const STORE = 'api-responses';
 const SNAPSHOT_STORE = 'offline-snapshots';
+const pendingSWR = new Map();
+const pendingBackground = new Map();
+const entryVersions = new Map();
+let clearVersion = 0;
+
+function versionOf(key) {
+  return `${clearVersion}:${entryVersions.get(key) || 0}`;
+}
+
+function bumpVersion(key) {
+  entryVersions.set(key, (entryVersions.get(key) || 0) + 1);
+}
 
 // --- Per-user key prefix ---
 // Set via setCacheKeyPrefix() after login (e.g. to currentUser.id).
@@ -114,18 +126,24 @@ async function idbRead(key) {
   }
 }
 
-async function idbWrite(key, value) {
+async function idbWrite(key, value, shouldWrite = () => true) {
   try {
     const db = await openDB();
     const tx = db.transaction(STORE, 'readwrite');
     const store = tx.objectStore(STORE);
-    store.put(value, key);
+    const check = store.get(key);
+    let wrote = false;
+    check.onsuccess = () => {
+      if (shouldWrite()) { store.put(value, key); wrote = true; }
+    };
     await new Promise((resolve, reject) => {
       tx.oncomplete = () => { db.close(); resolve(); };
       tx.onerror = () => { db.close(); reject(tx.error); };
     });
+    return wrote;
   } catch (e) {
     // IDB unavailable or write failed — silently skip cache writes
+    return false;
   }
 }
 
@@ -228,7 +246,7 @@ export async function deleteOfflineSnapshot(name) {
  * @returns {Promise<{data: any, stale: boolean}>}
  */
 export async function getCached(endpoint, options = {}) {
-  const { ttlMs = 300000, allowStale = true, fetcher } = options;
+  const { ttlMs = 300000, allowStale = true, fetcher, shouldCache } = options;
   const doFetch = fetcher || window.fetch.bind(window);
 
   try {
@@ -237,7 +255,7 @@ export async function getCached(endpoint, options = {}) {
     const data = await res.json();
     // On success: write to cache (failures silently ignored)
     try {
-      await setCached(endpoint, data, ttlMs);
+      await setCached(endpoint, data, ttlMs, { shouldWrite: shouldCache });
     } catch (writeErr) {
       console.warn(`[Cache] Failed to cache ${endpoint}:`, writeErr);
     }
@@ -281,7 +299,21 @@ export async function getCachedSWR(endpoint, options = {}) {
   }
 
   // 4. Not cached — must do network fetch (blocking)
-  return getCached(endpoint, { ttlMs, allowStale: true, fetcher });
+  const key = cacheKey(endpoint);
+  // Make even a not-yet-persisted miss visible to invalidateApiCache().
+  if (!entryVersions.has(key)) entryVersions.set(key, 0);
+  const version = versionOf(key);
+  const flightKey = `${key}@${version}`;
+  if (pendingSWR.has(flightKey)) return pendingSWR.get(flightKey);
+  const pending = getCached(endpoint, { ttlMs, allowStale: true, fetcher, shouldCache: () => versionOf(key) === version })
+    .then((result) => {
+      if (versionOf(key) === version) return result;
+      if (cacheKey(endpoint) !== key) throw new Error('Cache account changed during request');
+      return getCachedSWR(endpoint, options);
+    })
+    .finally(() => pendingSWR.delete(flightKey));
+  pendingSWR.set(flightKey, pending);
+  return pending;
 }
 
 /**
@@ -291,12 +323,24 @@ export async function getCachedSWR(endpoint, options = {}) {
  * Silently ignores failures.
  */
 async function performBackgroundFetch(endpoint, doFetch, ttlMs) {
+  const key = cacheKey(endpoint);
+  const version = versionOf(key);
+  const flightKey = `${key}@${version}`;
+  if (pendingBackground.has(flightKey)) return pendingBackground.get(flightKey);
+  const pending = performBackgroundFetchOnce(endpoint, doFetch, ttlMs, key, version)
+    .finally(() => pendingBackground.delete(flightKey));
+  pendingBackground.set(flightKey, pending);
+  return pending;
+}
+
+async function performBackgroundFetchOnce(endpoint, doFetch, ttlMs, key, version) {
   try {
     const res = await doFetch(endpoint);
     if (!res.ok) return;
     const data = await res.json();
     try {
-      await setCached(endpoint, data, ttlMs);
+      const saved = await setCached(endpoint, data, ttlMs, { shouldWrite: () => versionOf(key) === version });
+      if (!saved) return;
     } catch (writeErr) {
       console.warn(`[Cache] Background write failed for ${endpoint}:`, writeErr);
     }
@@ -316,11 +360,12 @@ async function performBackgroundFetch(endpoint, doFetch, ttlMs) {
  * @param {any} data - The data to cache
  * @param {number} [ttlMs=300000] - Time-to-live in milliseconds
  */
-export async function setCached(endpoint, data, ttlMs = 300000) {
+export async function setCached(endpoint, data, ttlMs = 300000, { shouldWrite } = {}) {
   try {
-    await idbWrite(cacheKey(endpoint), { data, ts: Date.now(), ttlMs });
+    return await idbWrite(cacheKey(endpoint), { data, ts: Date.now(), ttlMs }, shouldWrite);
   } catch (e) {
     console.warn(`[Cache] setCached failed for ${endpoint}:`, e);
+    return false;
   }
 }
 
@@ -343,6 +388,7 @@ export async function readCached(endpoint) {
  * Call on logout / account deletion to prevent cross-user data leakage.
  */
 export async function clearApiCache() {
+  clearVersion += 1;
   await idbClearStore();
 }
 
@@ -379,12 +425,18 @@ export async function invalidateApiCache(pattern) {
           if (key.startsWith(prefixStr)) {
             const unprefixed = key.slice(prefixStr.length);
             if (unprefixed.startsWith(pattern)) {
+              bumpVersion(key);
               cursor.delete();
             }
           }
           cursor.continue();
         }
       };
+      // Also invalidate in-flight misses, which have not written a cursor row yet.
+      const prefixStr = cacheKeyPrefix() ? `${cacheKeyPrefix()}:` : '';
+      entryVersions.forEach((_version, key) => {
+        if (key.startsWith(prefixStr) && key.slice(prefixStr.length).startsWith(pattern)) bumpVersion(key);
+      });
       tx.oncomplete = () => { db.close(); resolve(); };
       tx.onerror = () => { db.close(); reject(tx.error); };
     });

@@ -1,4 +1,5 @@
 import { api } from '../api';
+import { invalidateApiCache } from '../cache.js';
 import { appConfig } from '../config.js';
 import { buildWorkoutOptions, stripVariantSuffix } from './workout-options.js';
 import { COPY, appCopy, formatCopyText } from '../copy.js';
@@ -858,7 +859,10 @@ export async function loadMetadata(force = false) {
   try {
     if (force || !metadata.locations.length || !metadata.instructors.length
         || !metadata.eventTypes.length || !metadata.studios.length) {
-      const m = await api.getMetadata({ ttlMs: 3600000 });
+      // Reuse the same per-gym SWR keys as Home. Explicit refreshes invalidate
+      // first; normal timetable bootstrap reads fresh metadata without network.
+      if (force) await invalidateApiCache('/api/metadata');
+      const m = await api.getMetadata({ ttlMs: 300000, loading: true });
       metadata.locations = m.locations || [];
       metadata.instructors = m.instructors || [];
       metadata.studios = m.studios || [];
@@ -1005,8 +1009,8 @@ export async function prefetchTimetableData(force = false) {
     const endStr = endDate.toISOString().split('T')[0];
 
     const contextP = Promise.all([
-      loadMetadata(true).finally(() => recordTimetableTiming('metadata-refresh', metadataStartedAt)),
-      api.getBookings({ silent }),
+      loadMetadata(force).finally(() => recordTimetableTiming('metadata-refresh', metadataStartedAt)),
+      api.getBookings({ silent, cacheTtlMs: 120000 }),
       api.getWaitlists({ silent }),
       api.getAutoBookings().catch(() => cache.autoBookings || []),
       api.getStudioPreferences().catch(() => cache.studioPrefs || {}),
@@ -2966,7 +2970,7 @@ async function doLeaveWaitlist(waitlistId, btn, gymId = null) {
 }
 
 // Unicode (non-emoji) glyph that prefixes certain action labels.
-function actionGlyph(label) {
+export function actionGlyph(label) {
   if (label === 'Quick-Book' || label === 'Quick Book' || label === COPY.timetable.book) return '⚡︎';
   if (label === COPY.timetable.autoBook || label === COPY.timetable.autoBook.replace('-', ' ') || label === COPY.timetable.scheduled || label === COPY.timetable.scheduledShort) return sparklesIcon(16, 'currentColor');
   return '';
@@ -3335,6 +3339,23 @@ function buildMobileClassRow(event, ctx, model) {
     </div>
     <div class="app-mobile-rail"></div>
   `;
+
+  // When a zone suffix is present, measure it after insertion so the gym chip
+  // can maintain the same visual gap from the complete label.
+  if (hasTimezone) {
+    requestAnimationFrame(() => {
+      const timeNode = card.querySelector('.app-mobile-lead > strong');
+      const lead = card.querySelector('.app-mobile-lead');
+      const topLine = card.querySelector('.app-mobile-top-line');
+      if (!timeNode || !lead || !topLine || !card.isConnected) return;
+      const textRange = document.createRange();
+      textRange.selectNodeContents(timeNode);
+      const textRight = textRange.getBoundingClientRect().right;
+      const gap = 12;
+      const shift = Math.max(0, textRight + gap - topLine.getBoundingClientRect().left);
+      card.style.setProperty('--tt-tz-chip-shift', `${shift}px`);
+    });
+  }
 
   const rail = card.querySelector('.app-mobile-rail');
 

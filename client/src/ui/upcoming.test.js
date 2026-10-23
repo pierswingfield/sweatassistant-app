@@ -24,14 +24,22 @@ describe('H-4 upcoming selection', () => {
     const g = groupBookingsByEvent([bk(3, '2026-10-20T09:00:00+01:00')]);
     expect(selectUpcoming(g, now, 'Europe/London').next.eventId).toBe('3');
   });
-  it('is strip mode with 7 days when 2+ classes fall in the window', () => {
+  it('is strip mode with five days when 2+ classes fall in the window', () => {
     const g = groupBookingsByEvent([bk(1, '2026-10-06T18:00:00+01:00'), bk(2, '2026-10-08T09:00:00+01:00'), bk(3, '2026-10-13T09:00:00+01:00')]);
     const r = selectUpcoming(g, now, 'Europe/London');
     expect(r.mode).toBe('strip');
-    expect(r.days).toHaveLength(7);
+    expect(r.days).toHaveLength(5);
     expect(r.days[0].isToday).toBe(true);
     expect(r.days[0].groups.map((x) => x.eventId)).toEqual(['1']);
     expect(r.days[2].groups.map((x) => x.eventId)).toEqual(['2']);
     expect(r.days.flatMap((d) => d.groups)).toHaveLength(2); // day 8 (13 Oct) is outside
+    expect(r.days[0].href).toBe('/bookings?day=2026-10-06');
+  });
+  it('returns only the next two compact cards even when the strip is shown', () => {
+    const g = groupBookingsByEvent([
+      bk(1, '2026-10-06T18:00:00+01:00'), bk(2, '2026-10-07T09:00:00+01:00'),
+      bk(3, '2026-10-08T09:00:00+01:00'), bk(4, '2026-10-09T09:00:00+01:00'),
+    ]);
+    expect(selectUpcoming(g, now, 'Europe/London').cards.map((x) => x.eventId)).toEqual(['1', '2']);
   });
 });

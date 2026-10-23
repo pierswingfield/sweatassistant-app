@@ -17,7 +17,7 @@
 // not build one; it only does the accessibility work such a component would.
 
 import { noSept, zoneFor, formatInZone } from '../lib';
-import { icon, disciplineTag, getDiscipline, renderGymRail, cleanClassName, trimLocation, escapeHtml, equalizeDiscTagWidths } from './cards.js';
+import { icon, disciplineTag, getDiscipline, renderGymRail, cleanClassName, trimLocation, escapeHtml, equalizeDiscTagWidths, instructorNameLengthClass } from './cards.js';
 import { instructorAvatar } from './tooltips.js';
 import { getGymShortName, getDefaultGymId } from '../gym-context.js';
 import { COPY, formatCopyText } from '../copy.js';
@@ -104,7 +104,7 @@ export function classSummaryCardHtml(item, tag) {
             <div class="ab-card-line1">
               ${dateStr ? `<span class="ab-card-date">${escapeHtml(dateStr)}</span>` : ''}
               ${timeStr ? `<span class="ab-card-time">${escapeHtml(timeStr)}</span>` : ''}
-              ${instructor ? `<span class="ab-card-instructor">${escapeHtml(instructor)}</span>` : ''}
+              ${instructor ? `<span class="ab-card-instructor ${instructorNameLengthClass(instructor)}">${escapeHtml(instructor)}</span>` : ''}
             </div>
             <div class="ab-card-line2">
               ${disciplineTag(item.groupName || item.className)}

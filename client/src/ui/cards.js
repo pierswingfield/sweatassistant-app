@@ -355,6 +355,12 @@ export function gymChip(gymId) {
     + `</span>`;
 }
 
+/** A compact full-wordmark plate shared by the timetable filter drawer and Home. */
+export function gymLogoPlate(gymId) {
+  const brand = gymBrand(gymId);
+  return `<span class="fr-logo-plate fr-logo-plate--selector" style="background:${brand.brandBg}" title="${escapeHtml(brand.name)}">${brand.logoSvg}<span class="u-visually-hidden">${escapeHtml(brand.name)}</span></span>`;
+}
+
 /**
  * A SQUARE (1:1) gym mark: the gym's own wordmark on the gym's own brand plate.
  *
@@ -393,6 +399,12 @@ export function escapeHtml(value) {
     .replace(/>/g, '&gt;')
     .replace(/"/g, '&quot;')
     .replace(/'/g, '&#39;');
+}
+
+/** Choose the instructor label layout from the name's visible Unicode characters. */
+export function instructorNameLengthClass(value) {
+  const visibleName = String(value ?? '').trim();
+  return Array.from(visibleName).length < 10 ? 'is-short-name' : 'is-long-name';
 }
 
 

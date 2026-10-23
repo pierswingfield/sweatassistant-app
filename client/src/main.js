@@ -20,6 +20,7 @@ import { applyGymLoadState, onGymLoadChange } from './ui/gym-load-state.js';
 import { applyStaticCopy } from './copy.js';
 import { COPY, formatCopyText } from './copy.js';
 import { resetWindowScroll, installStaleScrollGuard } from './scroll-reset.js';
+import { syncTabScrollState } from './tab-scroll-state.js';
 
 installStaleScrollGuard();
 
@@ -427,6 +428,10 @@ function applyBackupMigrationGate() {
 const tabButtons = document.querySelectorAll('.app-nav-btn');
 const panels = document.querySelectorAll('.app-tab-content');
 
+// Assigned by initHeaderAutoHide once its stateful scroll controller is ready.
+// Routing can run earlier during boot, when a no-op is the safe behaviour.
+let resetHeaderAutoHide = () => {};
+
 // Expose on window so inline onclick handlers (e.g. "Buy Credits" button in timetable) can call it
 window.switchTab = switchTab;
 
@@ -440,6 +445,9 @@ function switchTab(tabId, opts = {}) {
   let historyMode = opts.history || 'push';
   // TEMP: credits hidden unless debugMode (restore by removing gate)
   if (tabId === 'buy-credits' && !creditsTabAllowed()) { tabId = 'class-timetable'; if (historyMode === 'none') historyMode = 'replace'; }
+  // A route change always starts with the full header. Reset the controller as
+  // well as its classes so a later scroll can hide it again.
+  resetHeaderAutoHide();
   cancelPullToRefresh();
   // Leaving the timetable ends search: its own filter scope is dropped and the normal filters return.
   if (tabId !== 'class-timetable') import('./ui/timetable-search-state.js').then(m => { if (m.inSearchScope()) import('./ui/timetable').then(t => t.exitSearch()); });
@@ -466,7 +474,7 @@ function switchTab(tabId, opts = {}) {
   });
 
   const bodyScroller = document.querySelector('main.app-body');
-  bodyScroller?.classList.toggle('app-timetable-active', tabId === 'class-timetable');
+  syncTabScrollState(bodyScroller, tabId);
 
   // Each tab starts at the top (window on mobile, inner scroller on desktop).
   try {
@@ -548,9 +556,16 @@ async function refreshActiveTab() {
   try {
     if (currentTabId === 'home') {
       await invalidateApiCache('/api/auto-book');
+      await invalidateApiCache('/api/auto-upgrade');
       await invalidateApiCache('/api/bookings');
+      await invalidateApiCache('/api/favourites');
       await invalidateApiCache('/api/profile');
       await invalidateApiCache('/api/credits');
+      await invalidateApiCache('/api/eligibility');
+      await invalidateApiCache('/api/membership');
+      await invalidateApiCache('/api/attendance-totals');
+      await invalidateApiCache('/api/history');
+      await invalidateApiCache('/api/metadata');
       const { refreshHome } = await import('./ui/home');
       await refreshHome();
     } else if (currentTabId === 'class-timetable') {
@@ -1181,6 +1196,16 @@ export async function loadGymContext() {
   }
 }
 
+// A stale-while-revalidate context can paint a returning account immediately.
+// Reapply it when either source is refreshed so a gym link/unlink made in
+// another session never leaves Home using an old capability or brand map.
+window.addEventListener('app-data-refreshed', (event) => {
+  const endpoint = String(event.detail?.endpoint || '');
+  if (endpoint === '/api/gyms' || endpoint === '/api/my-gyms') {
+    loadGymContext();
+  }
+});
+
 export async function refreshUserData(force = false) {
   try {
     if (force) {
@@ -1354,8 +1379,6 @@ export async function initApp() {
   // flash of Buy Credits on a membership gym.
   await loadGymContext();
 
-  await refreshUserData();
-
   // Prefetch auto-book tab data in the background for instant tab load
   import('./ui/autobook').then(m => m.prefetchAutoBookData()).catch(() => {});
 
@@ -1420,6 +1443,15 @@ export async function initApp() {
   applyCreditsTabGate(); // TEMP: credits hidden unless debugMode (restore by removing gate)
   // The URL already names the tab ('none'); an unknown path is normalised to Home ('replace').
   switchTab(route.valid ? route.tab : 'home', { section: route.section, history: route.valid ? 'none' : 'replace' });
+
+  // First paint is deliberately limited to the authenticated, account-scoped
+  // gym context and each widget's own cached response. Profile, credit and
+  // eligibility validation may take seconds on a provider-backed account, so
+  // refresh it after the Home route has mounted. The event lets visible Home
+  // widgets reconcile against changed data without replacing their stable DOM.
+  refreshUserData().finally(() => {
+    window.dispatchEvent(new Event('app-user-data-refreshed'));
+  });
 }
 
 // Check auth status on launch
@@ -1852,6 +1884,10 @@ function initHeaderAutoHide() {
     document.documentElement.toggleAttribute('data-hdr-hidden', hide);
     syncThemeColorMeta();
     markScrollBusy(COOLDOWN_MS);
+  };
+  resetHeaderAutoHide = () => {
+    anchor = 0;
+    setHidden(false);
   };
   const modalOpen = () =>
     !!document.querySelector('.app-modal[style*="display: flex"], .app-modal[style*="display: block"], .app-modal.open, .app-modal.active');

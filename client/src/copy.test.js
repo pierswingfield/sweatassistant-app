@@ -1,6 +1,6 @@
 import { beforeEach, describe, expect, it } from 'vitest';
 import fs from 'node:fs';
-import { applyStaticCopy, appCopy, COPY, formatCopyText } from './copy.js';
+import { applyStaticCopy, appCopy, COPY, formatCopyText, formatCountLabel } from './copy.js';
 import { appConfig } from './config.js';
 
 describe('application copy', () => {
@@ -30,6 +30,12 @@ describe('application copy', () => {
     expect(document.querySelector('[data-app-name]').textContent).toBe('existing name marker');
     expect(document.querySelector('[data-copy-text="onboarding.welcomeTitle"]').textContent).toBe('Welcome to your boutique fitness concierge!');
     expect(COPY.onboarding.welcomeTitle).toBe('Welcome to your boutique fitness concierge!');
+  });
+
+  it('formats singular and plural count labels centrally', () => {
+    expect(formatCountLabel(1, 'gym')).toBe('1 gym');
+    expect(formatCountLabel(2, 'gym')).toBe('2 gyms');
+    expect(formatCountLabel(2, 'person', 'people')).toBe('2 people');
   });
 });
 

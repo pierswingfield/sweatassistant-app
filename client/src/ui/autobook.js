@@ -3,10 +3,10 @@ import { COPY, formatCopyText } from '../copy.js';
 import { getGymShortName, getLinkedGyms, getDefaultGymId, canForGym, capabilityForGym } from '../gym-context.js';
 import { getAvailableCreditsForEvent, getTotalCredits, getIneligibleReason } from './credit-allowance.js';
 import { showToast, cache, userSettings, refreshUserData, debugConsole } from '../main';
-import { getClassReleaseTime, noSept, zoneFor, formatInZone } from '../lib';
+import { getClassReleaseTime, noSept, zoneFor, formatInZone, formatOpensIn } from '../lib';
 import { DateTime } from 'luxon';
 import { renderStudioFloorPlan } from './spotmap';
-import { instructorInlineHtml, cleanClassName, icon, disciplineTag, trimLocation, seatNoun, pulseIcon, renderGymRail, equalizeDiscTagWidths, observeLocationWrap, wireRailToggle, escapeHtml, gymBrand, gymChip } from './cards';
+import { instructorInlineHtml, instructorNameLengthClass, cleanClassName, icon, disciplineTag, trimLocation, seatNoun, pulseIcon, renderGymRail, equalizeDiscTagWidths, observeLocationWrap, wireRailToggle, escapeHtml, gymBrand, gymChip } from './cards';
 import { renderCardSkeletons } from './loading-skeleton.js';
 import { ensureLiveStatusLine, setLiveStatusText } from './status-line.js';
 import { instructorAvatar } from './tooltips.js';
@@ -347,7 +347,7 @@ function renderQueue(queue) {
             </div>
           </div>
           ${(instructorAvatar(instructorName, q.gym_id, instructorPhotoUrl) || instructorName)
-          ? `<div class="ab-card-figure">${instructorAvatar(instructorName, q.gym_id, instructorPhotoUrl) || ''}${instructorName ? `<span class="ab-card-instructor">${instructorName}</span>` : ''}</div>` : ''}
+          ? `<div class="ab-card-figure ${instructorNameLengthClass(instructorName)}">${instructorAvatar(instructorName, q.gym_id, instructorPhotoUrl) || ''}${instructorName ? `<span class="ab-card-instructor ${instructorNameLengthClass(instructorName)}">${escapeHtml(instructorName)}</span>` : ''}</div>` : ''}
         </div>
         <div class="ab-card-footer">
           <span class="ab-countdown state-pending" data-start-at="${q.start_at}" data-gym-id="${q.gym_id || ''}" ${(() => { const r = getClassReleaseTime(q, userSettings); return r ? `data-release-at="${r.toISO()}"` : ''; })()}>
@@ -622,21 +622,6 @@ function formatBannerCountdown(ms) {
   if (ms > 12 * 3600e3) return `${hours}h ${mins}m`;
   return `${hours}h ${mins}m ${secs}s`;
 }
-
-// Friendly relative phrasing for per-card release countdowns ("Opens in 3 days").
-function formatOpensIn(ms) {
-  const totalMin = Math.floor(ms / 60000);
-  const days = Math.floor(totalMin / 1440);
-  const hours = Math.floor((totalMin % 1440) / 60);
-  const mins = totalMin % 60;
-  // The "Opens in " prefix is its own span so CSS can drop it while the card's
-  // action rail is open (.is-rail-open .ab-cd-prefix) without a re-render.
-  const prefix = COPY.timetable.opensInPrefixHtml;
-  if (days >= 1) return formatCopyText(days === 1 ? COPY.timetable.opensInDaysOne : COPY.timetable.opensInDaysMany, { prefix, count: days });
-  if (hours >= 1) return formatCopyText(hours === 1 ? COPY.timetable.opensInHoursOne : COPY.timetable.opensInHoursMany, { prefix, count: hours });
-  return formatCopyText(mins === 1 ? COPY.timetable.opensInMinutesOne : COPY.timetable.opensInMinutesMany, { prefix, count: mins });
-}
-
 
 // The soonest release among the cards currently on screen, with the class it
 // belongs to. Reads the DOM rather than the queue array so it always agrees with

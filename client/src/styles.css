@@ -1739,6 +1739,163 @@ html, body, * {
   }
 }
 
+/* H-10 Home booking summary and five-day cue. These surfaces deliberately reuse
+   the existing booking card rail and gym marks; only the presentation density is
+   Home-specific. */
+.home-widget { min-width: 0; padding: 0; border: 0; border-radius: 0; background: transparent; }
+.home-widget + .home-widget { margin-top: 24px; }
+.home-widget-title { margin: 0; color: var(--text); font-size: var(--text-lg); line-height: 1.2; }
+.home-widget-empty, .home-widget-error { margin: 4px 0 0; color: var(--text-secondary); line-height: 1.4; }
+.home-widget-error { color: var(--danger); }
+.home-empty-action { margin-top: 12px; min-height: 44px; }
+.home-book-row, .home-favourites-strip, .home-instructor-list { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
+.home-book-link, .home-credits-row, .home-stat-tile, .home-instructor-card { min-height: 44px; border: 1px solid var(--border); border-radius: 12px; background: var(--surface-2); color: var(--text); text-decoration: none; }
+.home-book-link { display: inline-flex; align-items: center; gap: 6px; padding: 6px 10px; font-weight: 700; }
+.home-book-link:hover, .home-credits-row:hover, .home-stat-tile:hover, .home-instructor-card:hover { border-color: var(--border-strong); background: var(--surface); }
+.home-credits-list { display: grid; gap: 8px; }
+.home-credits-row { width: 100%; padding: 8px 12px; display: flex; align-items: center; justify-content: space-between; gap: 12px; cursor: pointer; font: inherit; text-align: left; }
+.home-credits-gym { min-width: 0; display: inline-flex; align-items: center; gap: 8px; font-weight: 700; }
+.home-credits-mark, .home-credits-mark .app-gym-mark { width: 28px; height: 28px; flex: 0 0 28px; }
+.home-credits-mark .app-gym-mark { border-radius: 7px; }
+.home-credits-name { min-width: 0; }
+.home-credits-detail, .home-instructor-meta { color: var(--text-secondary); font-size: var(--text-sm); }
+.home-stat-tile { padding: 8px 12px; display: inline-flex; align-items: baseline; gap: 8px; cursor: pointer; font: inherit; }
+.home-stat-number { font-size: 1.2rem; font-weight: 800; }
+.home-stat-label { color: var(--text-secondary); font-size: var(--text-sm); }
+.home-attendance-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px; }
+.home-attendance-tile { min-width: 0; min-height: 112px; padding: 10px 6px; display: grid; grid-template-rows: 32px auto auto auto; align-items: center; justify-items: center; gap: 3px; border: 1px solid var(--border); border-radius: 12px; background: var(--surface-2); text-align: center; }
+.home-attendance-mark, .home-attendance-mark .app-gym-mark { width: 32px; height: 32px; display: inline-flex; }
+.home-attendance-mark .app-gym-mark { border-radius: 8px; }
+.home-attendance-number { color: var(--text); font-size: 1.45rem; line-height: 1.1; }
+.home-attendance-label { color: var(--text-secondary); font-size: var(--text-xs); line-height: 1.2; }
+.home-attendance-gym { min-width: 0; max-width: 100%; overflow: hidden; color: var(--text); font-size: var(--text-sm); font-weight: 700; text-overflow: ellipsis; white-space: nowrap; }
+.home-stats-partial { margin: 10px 0 0; color: var(--text-secondary); font-size: var(--text-sm); }
+.home-instructor-card { padding: 6px 10px 6px 6px; display: inline-flex; align-items: center; gap: 8px; }
+.home-instructor-photo { width: 36px; height: 36px; border-radius: 50%; overflow: hidden; background: var(--surface-inset); display: inline-flex; align-items: center; justify-content: center; }
+.home-instructor-avatar { width: 100%; height: 100%; object-fit: cover; }
+.home-instructor-text { display: flex; flex-direction: column; gap: 2px; }
+.home-instructor-name { font-weight: 700; }
+.home-instructor-gym { display: inline-flex; }
+.home-widget-heading { display: flex; align-items: baseline; gap: 12px; }
+.home-widget-heading .home-widget-title { flex: 1 1 auto; min-width: 0; }
+.home-widget-meta { flex: 0 0 auto; margin-left: auto; color: var(--text-secondary); font-size: var(--text-sm); white-space: nowrap; }
+.home-widget-heading [data-widget-action] { flex: 0 0 auto; }
+.home-widget-heading [data-widget-action]:empty { display: none; }
+
+/* Home lower sections: compact flat tiles with one shared rhythm. */
+.home-widget + .home-widget { margin-top: 32px !important; }
+.home-widget-heading { min-height: 28px; margin-bottom: 8px !important; }
+.home-widget > [data-widget-body] { min-width: 0; }
+.home-widget[data-widget-id="auto-book-count"] > .home-widget-heading { display: none; }
+.home-book-row { width: 100%; display: flex; flex-direction: column; gap: 8px; }
+.home-book-gym-row { width: 100%; display: grid; grid-template-columns: repeat(var(--home-gym-count), minmax(0, 1fr)); gap: 8px; }
+.home-book-gym-row.is-centered { display: flex; justify-content: center; }
+.home-book-gym-row.is-centered .home-book-gym { flex: 0 1 calc((100% - 16px) / 3); }
+.home-book-link { border: 0; }
+.home-book-gym { min-width: 0; min-height: 64px; max-height: none; justify-content: center; padding: 8px; }
+.home-book-gym .fr-logo-plate { width: 100%; max-width: 120px; min-width: 0; box-sizing: border-box; }
+.home-book-all { width: 100%; min-height: 48px; justify-content: center; gap: 8px; border-radius: 999px; background: var(--accent-fill); color: var(--on-accent-fill); }
+.home-book-all:hover { border-color: var(--accent-fill-hover); background: var(--accent-fill-hover); }
+
+.home-credits-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(0, 1fr)); gap: 8px; max-width: 720px; }
+.home-credits-tile { min-width: 0; min-height: 132px; padding: 12px 10px; display: grid; grid-template-rows: 28px auto auto auto 1fr; align-items: center; justify-items: center; gap: 3px; border: 1px solid var(--border); border-radius: 14px; background: var(--surface-2); color: var(--text); cursor: pointer; font: inherit; text-align: center; }
+.home-credits-tile:hover { border-color: var(--border-strong); background: var(--surface); }
+.home-credits-tile:focus-visible, .home-autobook-row:focus-visible { outline: 2px solid var(--accent); outline-offset: 3px; }
+.home-credits-mark, .home-credits-mark .app-gym-mark { width: 28px; height: 28px; flex: 0 0 28px; }
+.home-credits-mark .app-gym-mark { border-radius: 7px; }
+.home-credits-name { min-width: 0; max-width: 100%; overflow: hidden; color: var(--text); font-size: var(--text-sm); font-weight: 700; text-overflow: ellipsis; white-space: nowrap; }
+.home-credits-kind { color: var(--text-secondary); font-size: var(--text-xs); line-height: 1.2; }
+.home-credits-balance { color: var(--text); font-size: 1.35rem; line-height: 1.1; }
+.home-credits-detail { align-self: end; min-height: 1.2em; color: var(--text-secondary); font-size: var(--text-xs); line-height: 1.2; }
+
+.home-autobook-row { width: 100%; min-height: 56px; padding: 8px 14px; display: grid; grid-template-columns: 32px minmax(0, 1fr) auto; align-items: center; gap: 6px; border: 1px solid var(--border); border-radius: 999px; background: var(--surface-inset); color: var(--text); cursor: pointer; font: inherit; text-align: left; }
+.home-autobook-icon { width: 30px; height: 30px; display: inline-flex; align-items: center; justify-content: center; border-radius: 50%; background: var(--accent-fill); color: var(--on-accent-fill); font-size: 1.1rem; font-weight: 800; }
+.home-autobook-copy { min-width: 0; display: flex; flex-direction: column; gap: 2px; }
+.home-autobook-title { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.home-autobook-subtitle, .home-autobook-status span { color: var(--text-secondary); font-size: var(--text-xs); line-height: 1.2; }
+.home-autobook-status { display: flex; align-items: center; justify-content: flex-end; white-space: nowrap; }
+.home-autobook-count { font-size: 0.95rem; line-height: 1.1; }
+
+.home-section-subtitle { margin: 0; color: var(--text-secondary); font-size: var(--text-sm); line-height: 1.35; }
+.home-section-divider { height: 1px; margin: 10px 0; background: var(--border); }
+.home-attendance-grid { grid-template-columns: repeat(auto-fit, minmax(0, 1fr)); gap: 8px; max-width: 720px; }
+.home-attendance-tile { min-height: 104px; padding: 10px 8px; grid-template-rows: 28px auto auto; gap: 4px; border-radius: 14px; }
+.home-attendance-mark, .home-attendance-mark .app-gym-mark { width: 28px; height: 28px; }
+.home-attendance-mark .app-gym-mark { border-radius: 7px; }
+.home-attendance-number { font-size: 1.35rem; }
+.home-attendance-gym { font-size: var(--text-sm); }
+
+@media (max-width: 480px) {
+  .home-credits-tile { min-height: 124px; padding-inline: 7px; }
+  .home-credits-balance { font-size: 1.2rem; }
+}
+
+@media (max-width: 768px) {
+  /* Home shares the app-body gutter; its header stays clear of the fixed app header. */
+  #app-helper-container #app-panel-home { padding-inline: 0 !important; }
+  #app-helper-container #app-panel-home > .app-tab-header {
+    padding-inline: 0 !important;
+    padding-top: 0;
+    margin-top: calc(var(--app-header-h, 47px) + 4px);
+  }
+  #app-helper-container #app-panel-home .home-widget + .home-widget { margin-top: 32px !important; }
+  #app-helper-container #app-panel-home .home-favourites-strip {
+    --home-rail-bleed: max(8px, env(safe-area-inset-left), env(safe-area-inset-right));
+    width: calc(100% + (2 * var(--home-rail-bleed)));
+    margin-inline: calc(-1 * var(--home-rail-bleed));
+    padding-inline: var(--home-rail-bleed);
+    box-sizing: border-box;
+  }
+}
+
+/* Home uses the shared app-body side gutter as its content edge and starts
+   directly under the fixed app header/navigation. Other tabs keep their own
+   scrollport padding and header clearance. */
+#app-helper-container #app-panel-home { padding: 0 !important; }
+#app-helper-container #app-panel-home > .app-tab-header { padding-top: 4px; }
+@media (max-width: 768px) {
+  #app-helper-container #app-panel-home > .app-tab-header { padding-top: 0 !important; }
+}
+.home-widget-meta { text-align: right; }
+.home-view-all::after { content: ' →'; }
+
+/* Keep the widget shell rule adjacent to its heading rules so late-loading
+   stylesheets still paint the stable Home footprint. */
+.home-widget { min-width: 0; padding: 0; border: 0; border-radius: 0; background: transparent; }
+.home-widget + .home-widget { margin-top: 24px; }
+.home-widget-title { margin: 0; color: var(--text); font-size: var(--text-lg); line-height: 1.2; }
+.home-widget-empty, .home-widget-error { margin: 4px 0 0; color: var(--text-secondary); line-height: 1.4; }
+.home-widget-error { color: var(--danger); }
+.home-view-all { min-height: 44px; padding: 6px 0; border: 0; background: none; color: var(--accent); font: inherit; font-size: var(--text-sm); font-weight: 700; cursor: pointer; }
+.home-view-all:focus-visible, .home-booking-card:focus-visible, .home-up-day:focus-visible { outline: 2px solid var(--accent); outline-offset: 3px; }
+.home-booking-cards { display: grid; gap: 10px; min-width: 0; width: 100%; }
+.home-booking-cards > * { min-width: 0; width: 100%; }
+.home-booking-card { cursor: pointer; margin: 0; min-width: 0; width: 100%; max-width: none !important; transition: border-color .15s ease; }
+.home-booking-card:hover { border-color: var(--border-strong); }
+.home-page-header { align-items: center; justify-content: space-between; gap: 12px; }
+.home-greeting-lead { min-width: 0; display: flex; align-items: center; gap: 12px; }
+.home-greeting-avatar { width: 40px; height: 40px; flex: 0 0 40px; display: inline-flex; align-items: center; justify-content: center; border-radius: 50%; background: var(--surface-inset); border: 1px solid var(--border); color: var(--text-secondary); font-family: var(--font-serif); font-weight: 700; }
+.home-greeting-copy { min-width: 0; display: flex; flex-direction: column; gap: 0; }
+.home-greeting-kicker { color: var(--text-secondary); font-size: var(--text-sm); line-height: 1.2; }
+.home-greeting-name { margin: 0; color: var(--text); font-family: var(--font-serif); font-size: var(--text-lg); line-height: 1.2; }
+.home-up-strip { display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 6px; margin-top: 10px; }
+.home-up-day { min-width: 0; min-height: 58px; padding: 8px 4px; display: flex; flex-direction: column; align-items: center; gap: 7px; border: 1px solid transparent; border-radius: var(--radius-card); background: var(--surface-2); color: var(--text); text-decoration: none; }
+.home-up-day.has-classes { min-height: 64px; background: var(--surface); }
+.home-up-day.is-today { border-color: var(--accent); }
+.home-up-day-head { min-width: 0; max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--text-secondary); font-size: var(--text-xs); font-weight: 700; }
+.home-up-day-marks { min-width: 0; display: flex; flex-wrap: wrap; justify-content: center; gap: 4px; }
+.home-up-day-mark { display: inline-flex; width: 22px; height: 22px; }
+.home-up-day-mark .app-gym-mark { width: 22px; height: 22px; border-radius: 6px; }
+@media (max-width: 768px) {
+  .home-up-strip { gap: 4px; }
+  .home-up-day { padding-inline: 2px; }
+  .home-up-day-head { font-size: 11px; }
+  .home-up-day-mark, .home-up-day-mark .app-gym-mark { width: 20px; height: 20px; }
+}
+@media (max-width: 360px) {
+  .home-attendance-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+}
+
 /* Offline state — disable action buttons globally */
 .app-offline .app-btn,
 .app-offline .app-btn-primary,
@@ -5416,7 +5573,8 @@ html, body, * {
 .ab-ico { display: inline-block; vertical-align: -2px; flex-shrink: 0; }
 
 /* ── Page title + queue section (on the page background, no card) ── */
-#app-helper-container .ab-page-title {
+#app-helper-container .ab-page-title,
+#app-helper-container .home-widget-heading .home-widget-title {
   font-family: var(--font-serif);
   font-size: var(--page-title-size);
   font-weight: var(--page-title-weight);
@@ -5537,8 +5695,8 @@ html, body, * {
   background: var(--surface);
   border: 1px solid var(--border);
   border-radius: var(--radius-card);
-  box-shadow: var(--shadow-card);
-  transition: border-color 0.15s ease, box-shadow 0.15s ease;
+  box-shadow: none;
+  transition: border-color 0.15s ease;
 }
 #app-helper-container .app-autobook-card.ab-card:hover {
   border-color: var(--border-strong);
@@ -5709,7 +5867,7 @@ html, body, * {
 .ab-card-body {
   display: flex;
   align-items: flex-start;
-  gap: 14px;
+  gap: 0px;
 }
 .ab-card-lines {
   flex: 1;
@@ -7733,9 +7891,9 @@ html, body, * {
 .fr-gym-dot { overflow: hidden; }
 .fr-gym-dot.sm { width: 20px; height: 20px; }
 .fr-logo-plate { display: inline-flex; align-items: center; justify-content: center; height: 30px; padding: 0 14px; border-radius: 8px; }
-.fr-sheet .fr-logo-plate .ab-gym-logo-img.is-full { display: block !important; height: 15px; width: auto; max-width: 100%; object-fit: contain; }
-.fr-sheet .fr-logo-plate .ab-gym-logo-img.is-half { display: none !important; }
-.fr-sheet .fr-logo-plate .ab-gym-logo-svg { height: 15px; width: auto; max-width: 100%; object-fit: contain; }
+.fr-logo-plate .ab-gym-logo-img.is-full { display: block !important; height: 15px; width: auto; max-width: 100%; object-fit: contain; }
+.fr-logo-plate .ab-gym-logo-img.is-half { display: none !important; }
+.fr-logo-plate .ab-gym-logo-svg { height: 15px; width: auto; max-width: 100%; object-fit: contain; }
 .fr-sec-plain { padding: 4px 0 8px; border-top: 0; }
 .fr-gymrow { display: flex; align-items: center; gap: 12px; min-height: 48px; padding: 8px 12px; border-radius: 12px; border: 1px solid var(--border); background: var(--surface-2); cursor: pointer; }
 .fr-gymrow.on { border-color: var(--accent); }
@@ -7767,9 +7925,9 @@ html, body, * {
 .fr-sec-body { padding: 12px; }
 .fr-gymrows { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px; width: 100%; box-sizing: border-box; }
 .fr-gymrow { min-width: 0; width: 100%; box-sizing: border-box; flex-direction: row; justify-content: center; align-items: center; gap: 8px; padding: 6px; min-height: 44px; overflow: hidden; }
-.fr-gymrow .fr-logo-plate { flex: 1 1 0; min-width: 0; max-width: 100%; width: 100%; padding: 0 4px; display: flex; align-items: center; justify-content: center; overflow: hidden; }
-.fr-sheet .fr-logo-plate .ab-gym-logo-img.is-full,
-.fr-sheet .fr-logo-plate .ab-gym-logo-svg { max-width: 100% !important; height: 15px; width: auto; object-fit: contain; }
+.fr-logo-plate--selector { flex: 1 1 0; min-width: 0; max-width: 100%; width: 100%; padding: 0 4px; display: flex; align-items: center; justify-content: center; overflow: hidden; }
+.fr-logo-plate .ab-gym-logo-img.is-full,
+.fr-logo-plate .ab-gym-logo-svg { max-width: 100% !important; height: 15px; width: auto; object-fit: contain; }
 .fr-sheet button, .fr-opt, .fr-gymrow { touch-action: manipulation; -webkit-tap-highlight-color: transparent; }
 .fr-grid { padding: 0; gap: 8px; }
 .fr-opt { min-height: 44px; padding: 6px 8px; gap: 6px; }
@@ -8870,6 +9028,11 @@ body::after { z-index: 1000002 !important; }
   :root { --hdr-gap: 12px; --hdr-extra: 8px; }
   #app-helper-container .app-body,
   #app-helper-container .app-main { padding-top: calc(var(--app-header-h, 47px) + var(--hdr-gap) + var(--hdr-extra)) !important; }
+  /* Home owns its offset through switchTab's explicit scroller state. Do not
+     infer it from a child panel's display state: standalone WebKit can defer
+     :has() invalidation across a tab change and retain the previous tab's gap. */
+  #app-helper-container .app-body.app-home-active,
+  #app-helper-container .app-main.app-home-active { padding-top: 0 !important; }
   #app-helper-container #app-panel-class-timetable { margin-top: calc(-1 * (var(--hdr-gap) + var(--hdr-extra))) !important; }
   /* Keep app-body as the scrollport on the short Bookings and Auto-Book states;
      a single extra pixel lets iOS enter native edge bounce without a blank screen of scroll. */
@@ -9613,6 +9776,7 @@ html:not([data-credits-tab="on"]) .app-nav-btn[data-tab="buy-credits"] { display
   #app-helper-container .app-header .app-logo { display: none !important; }
 }
 
+
 /* Mobile timetable rows: row text +1px (~8%). Deliberately NOT the gym chip or the class-type
    chip (.ab-disc-tag), which keep their sizes. Lead column widened 2px so 5-char times fit at 16px.
    Sits last, with !important, because earlier rules set these sizes with !important. */
@@ -9650,10 +9814,25 @@ html:not([data-credits-tab="on"]) .app-nav-btn[data-tab="buy-credits"] { display
   align-items: flex-end !important;
   margin-left: auto;
 }
+.ab-card-body > .ab-card-figure.is-long-name { align-items: flex-end !important; }
 .ab-card-body > .ab-card-figure .ab-card-instructor {
   width: 100%;
   justify-content: flex-end;
   text-align: right !important;
+}
+.ab-card-body > .ab-card-figure .ab-card-instructor.is-short-name {
+  width: 52px;
+  align-self: flex-end;
+  text-align: center !important;
+  white-space: nowrap;
+}
+.ab-card-body > .ab-card-figure .ab-card-instructor.is-long-name {
+  text-align: right !important;
+  white-space: normal;
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+  overflow: hidden;
 }
 @media (min-width: 768px) {
   .ab-card-body > .ab-card-figure { width: 52px !important; max-width: 52px !important; flex: 0 0 52px !important; }
@@ -9887,3 +10066,387 @@ html:not([data-credits-tab="on"]) .app-nav-btn[data-tab="buy-credits"] { display
 .app-modal.app-page .app-guest-field .app-input,
 .app-guest-field .app-input { font-size: 13px !important; }
 .app-guest-field .app-input::placeholder { font-size: inherit; }
+
+/* Final Home lower-widget alignment and a compact queue row. */
+.home-credits-grid,
+.home-attendance-grid {
+  grid-template-columns: repeat(auto-fit, minmax(0, 1fr));
+  width: 100%;
+  max-width: 720px;
+}
+.home-autobook-row {
+  min-height: 52px;
+  padding: 8px 12px;
+  border-radius: 16px;
+  background: var(--surface);
+  box-shadow: none;
+}
+.home-autobook-row { gap: 4px; }
+.home-autobook-title { font-size: var(--text-sm); }
+.home-autobook-count { color: var(--text-secondary); font-size: var(--text-xs); }
+.home-autobook-icon {
+  width: 24px;
+  height: 24px;
+  background: transparent;
+  color: var(--accent);
+}
+.home-autobook-icon svg { width: 16px; height: 16px; }
+/* H-10: a portrait rail plus three flowing facts keeps each favourite compact. */
+.home-favourites-strip {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: 12px;
+  width: 100%;
+  min-width: 0;
+  align-items: stretch;
+}
+.home-favourite-card {
+  min-width: 0;
+  overflow: hidden;
+  display: grid;
+  grid-template-columns: 56px minmax(0, 1fr);
+  align-items: start;
+  gap: 12px;
+  padding: 12px 14px;
+  border: 0;
+  border-radius: 16px;
+  background: var(--surface-2);
+  color: var(--text);
+}
+.home-favourite-media {
+  min-width: 0;
+  width: 44px;
+  display: grid;
+  justify-items: center;
+  gap: 4px;
+  background: transparent;
+}
+.home-favourite-avatar,
+.home-favourite-initial {
+  width: 44px;
+  height: 44px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  object-fit: cover;
+  color: var(--text-secondary);
+  font-family: var(--font-serif);
+  font-size: 2rem;
+  font-weight: 700;
+  border-radius: 50%;
+}
+.home-favourite-avatar { object-fit: cover; }
+.home-favourite-gym {
+  width: 28px;
+  height: 28px;
+  display: inline-flex;
+  flex: 0 0 28px;
+}
+.home-favourite-gym .app-gym-mark { width: 28px; height: 28px; border-radius: 8px; }
+.home-favourite-body {
+  min-width: 0;
+  display: grid;
+  grid-template-columns: 28px minmax(0, 1fr);
+  grid-template-areas: "gym when" "class class" "status status" "action action";
+  align-items: center;
+  column-gap: 8px;
+  row-gap: 3px;
+}
+.home-favourite-meta {
+  display: contents;
+}
+.home-favourite-gym { grid-area: gym; align-self: center; }
+.home-favourite-when {
+  grid-area: when;
+  min-width: 0;
+  overflow: hidden;
+  color: var(--text-secondary);
+  font-size: var(--text-xs);
+  font-weight: 700;
+  letter-spacing: .02em;
+  text-overflow: ellipsis;
+  text-transform: uppercase;
+  white-space: nowrap;
+}
+.home-favourite-instructor {
+  max-width: 56px;
+  overflow: hidden;
+  color: var(--text);
+  font-family: var(--font-serif);
+  font-size: var(--text-xs);
+  line-height: 1.15;
+  text-align: center;
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+}
+.home-favourite-class {
+  grid-area: class;
+  min-width: 0;
+  overflow: hidden;
+  color: var(--text);
+  font-size: var(--text-sm);
+  font-weight: 700;
+  line-height: 1.25;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.home-favourite-status {
+  grid-area: status;
+  min-width: 0;
+  margin: 0;
+  color: var(--text-secondary);
+  font-size: var(--text-xs);
+  line-height: 1.25;
+}
+.home-favourite-status.is-release { color: var(--accent); }
+.home-favourite-status.is-open { color: var(--success); }
+.home-favourite-status.is-full,
+.home-favourite-status.is-waitlist { color: var(--warning); }
+.home-favourite-cta {
+  grid-area: action;
+  justify-self: end;
+  margin-top: 2px;
+  min-height: 36px;
+  max-width: 100%;
+  padding: 7px 14px;
+  overflow: hidden;
+  border: 0;
+  border-radius: 999px;
+  background: var(--accent-fill);
+  color: var(--on-accent-fill);
+  cursor: pointer;
+  font: inherit;
+  font-size: var(--text-sm);
+  font-weight: 700;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.home-favourite-cta.variant-autoupgrade { background: var(--feature-violet, var(--accent-fill)); }
+.home-favourite-cta.variant-neutral,
+.home-favourite-cta:disabled { background: var(--surface-inset); color: var(--text-secondary); cursor: default; }
+.home-favourite-cta.variant-danger,
+.home-favourite-cta.variant-danger-strong { background: var(--danger); color: var(--on-danger, #fff); }
+.home-favourite-cta:focus-visible { outline: 2px solid var(--accent); outline-offset: 3px; }
+
+/* Credits and activity use one centred, responsive component contract. */
+.home-credits-grid,
+.home-attendance-grid {
+  grid-template-columns: repeat(auto-fit, minmax(112px, 1fr));
+}
+.home-credits-tile,
+.home-attendance-tile {
+  min-width: 0;
+  min-height: 0;
+  aspect-ratio: 1;
+  box-sizing: border-box;
+  padding: 12px 10px 10px;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  grid-template-rows: 28px minmax(0, 1fr) auto;
+  grid-template-areas: "mark" "value" "detail";
+  align-items: center;
+  justify-items: center;
+  gap: 3px;
+  border: 0;
+  border-radius: 14px;
+  background: transparent;
+  color: var(--text);
+  box-shadow: none;
+  text-align: center;
+}
+.home-credits-tile .home-credits-mark,
+.home-attendance-tile .home-attendance-mark { grid-area: mark; }
+.home-credits-tile .home-credits-value { grid-area: value; min-width: 0; max-width: 100%; display: inline-flex; flex-direction: column; align-items: center; justify-content: center; gap: 3px; }
+.home-credits-tile .home-credits-balance { justify-self: auto; max-width: 100%; overflow-wrap: anywhere; font-size: 1.55rem; line-height: 1; }
+.home-credits-tile.is-membership .home-credits-balance {
+  font-size: clamp(.875rem, 3.8vw, 1rem);
+  line-height: 1.15;
+  overflow-wrap: normal;
+  white-space: nowrap;
+}
+.home-credits-tile .home-credits-kind { justify-self: auto; text-align: center; }
+.home-credits-tile .home-credits-detail { grid-area: detail; align-self: end; justify-self: center; }
+.home-attendance-tile { grid-template-rows: 28px minmax(0, 1fr); grid-template-areas: "mark" "value"; }
+.home-attendance-tile .home-attendance-stat { grid-area: value; align-self: stretch; justify-self: stretch; display: inline-flex; flex-direction: column; align-items: center; justify-content: center; gap: 3px; }
+.home-attendance-tile .home-attendance-number { font-size: 1.55rem; line-height: 1; }
+.home-attendance-unit { color: var(--text-secondary); font-size: var(--text-sm); line-height: 1.2; }
+.home-attendance-tile { border: 0; cursor: pointer; font: inherit; }
+.home-attendance-tile:focus-visible { outline: 2px solid var(--accent); outline-offset: 3px; }
+
+/* Every Home section owns a quiet tonal surface; its controls stay flat within it. */
+#app-helper-container #app-panel-home .home-widget {
+  padding: 16px 8px;
+  border-radius: 16px;
+  background: color-mix(in srgb, var(--surface) 90%, var(--text) 10%);
+}
+#app-helper-container #app-panel-home .home-widget .home-widget-heading {
+  margin-bottom: 16px !important;
+}
+
+@media (max-width: 768px) {
+  .home-favourites-strip {
+    display: flex;
+    flex-wrap: nowrap;
+    gap: 12px;
+    overflow-x: auto;
+    overflow-y: hidden;
+    padding-bottom: 4px;
+    overscroll-behavior-x: contain;
+    scrollbar-width: none;
+    touch-action: pan-x pan-y;
+    -webkit-overflow-scrolling: touch;
+  }
+  .home-favourites-strip::-webkit-scrollbar { display: none; }
+  .home-favourite-card {
+    flex: 0 0 286px;
+    width: 286px;
+    grid-template-columns: 56px minmax(0, 1fr);
+    grid-template-rows: auto;
+    align-items: start;
+    gap: 12px;
+    padding: 12px 14px;
+  }
+  .home-favourite-media { width: 44px; padding: 0; }
+  .home-credits-tile .home-credits-value,
+  .home-attendance-tile .home-attendance-stat { gap: 1px; }
+  .home-credits-tile .home-credits-kind,
+  .home-attendance-unit { font-size: var(--text-xs); }
+}
+
+@media (max-width: 768px) {
+  #app-helper-container #app-panel-home > .app-tab-header {
+    margin-top: calc(var(--app-header-h, 47px) + 8px);
+  }
+}
+
+/* H-home desktop composition: the two columns are independent vertical flows;
+   syncHomeDesktopFlow keeps the registry's reading order on mobile. */
+@media (min-width: 769px) {
+  #app-helper-container #app-panel-home > .app-tab-header,
+  #app-helper-container #app-panel-home > #app-home-widgets {
+    width: min(100%, 1120px);
+    margin-inline: auto;
+  }
+
+  #app-helper-container #app-panel-home > #app-home-widgets {
+    display: grid;
+    grid-template-columns: minmax(0, 1.2fr) minmax(320px, 0.8fr);
+    column-gap: 32px;
+    align-items: start;
+  }
+
+  #app-helper-container #app-panel-home > #app-home-widgets > .home-desktop-column {
+    min-width: 0;
+    width: auto;
+    display: flex;
+    flex-direction: column;
+    gap: 32px;
+  }
+
+  #app-helper-container #app-panel-home > #app-home-widgets > .home-desktop-column > .home-widget {
+    min-width: 0;
+    width: auto;
+    margin: 0 !important;
+  }
+}
+
+@media (max-width: 768px) {
+  #app-helper-container #app-panel-home > #app-home-widgets {
+    display: block;
+  }
+
+  #app-helper-container #app-panel-home > #app-home-widgets > .home-widget {
+    grid-area: auto;
+  }
+
+  #app-helper-container #app-panel-home > #app-home-widgets > .home-desktop-column {
+    display: contents;
+  }
+}
+
+/* Keep the gym mark aligned with the card text when local time needs no zone
+   label, and give the mark a measured clearance when the time is extended. */
+@media (max-width: 768px) {
+  #app-helper-container .app-table td .app-mobile-lead > strong {
+    margin-left: 0 !important;
+    justify-content: flex-start !important;
+  }
+  #app-helper-container .app-mobile-class-card.has-tz .app-mobile-top-line {
+    margin-left: var(--tt-tz-chip-shift, 0px) !important;
+  }
+}
+
+/* Booked cards and their queue deliberately read as one short sequence. */
+#app-helper-container #app-panel-home .home-widget[data-widget-id="upcoming"] + .home-widget[data-widget-id="auto-book-count"] { margin-top: 16px !important; }
+@media (min-width: 769px) {
+  #app-helper-container #app-panel-home > #app-home-widgets > .home-desktop-column > .home-widget[data-widget-id="upcoming"] + .home-widget[data-widget-id="auto-book-count"] { margin-top: -16px !important; }
+}
+
+.home-instructor-list {
+  width: 100%;
+  display: grid;
+  align-items: stretch;
+}
+
+.home-instructor-card {
+  box-sizing: border-box;
+  width: 100%;
+  min-width: 0;
+  min-height: 60px;
+  padding: 8px 12px;
+  display: grid;
+  grid-template-columns: 68px minmax(0, 1fr);
+  align-items: center;
+  gap: 10px;
+}
+
+.home-instructor-identities {
+  width: 68px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+}
+
+.home-instructor-photo {
+  width: 36px;
+  height: 36px;
+  flex: 0 0 36px;
+}
+
+.home-instructor-gym,
+.home-instructor-gym .app-gym-mark {
+  width: 24px;
+  height: 24px;
+  flex: 0 0 24px;
+}
+
+.home-instructor-gym .app-gym-mark { border-radius: 6px; }
+.home-instructor-text { min-width: 0; }
+
+/* Home keeps its section wells quiet; interactive tiles sit one local tonal
+   step above them in both themes without changing shared surface tokens. */
+#app-helper-container #app-panel-home .home-credits-tile,
+#app-helper-container #app-panel-home .home-attendance-tile,
+#app-helper-container #app-panel-home .home-favourite-card {
+  background: color-mix(in srgb, var(--surface) 84%, var(--text) 16%);
+}
+#app-helper-container #app-panel-home .home-credits-tile:hover,
+#app-helper-container #app-panel-home .home-attendance-tile:hover,
+#app-helper-container #app-panel-home .home-favourite-card:hover {
+  background: color-mix(in srgb, var(--surface) 78%, var(--text) 22%);
+}
+
+#app-helper-container #app-panel-home .home-book-all {
+  width: min(100%, 250px);
+  margin-inline: auto;
+  justify-content: space-between;
+  padding-inline: 18px;
+}
+.home-book-all-arrow { margin-left: auto; font-size: 1.1em; line-height: 1; }
+
+.home-upcoming-queue {
+  margin-top: 12px;
+  padding-top: 12px;
+}

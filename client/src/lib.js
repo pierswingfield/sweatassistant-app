@@ -206,6 +206,18 @@ export function formatCountdown(diffMs) {
   return `${String(hours).padStart(2, '0')}:${String(mins).padStart(2, '0')}:${String(secs).padStart(2, '0')}`;
 }
 
+// Friendly relative phrasing shared by Auto-Book and Home favourite cards.
+export function formatOpensIn(ms, { html = true } = {}) {
+  const totalMin = Math.max(0, Math.floor(ms / 60000));
+  const days = Math.floor(totalMin / 1440);
+  const hours = Math.floor((totalMin % 1440) / 60);
+  const mins = totalMin % 60;
+  const prefix = html ? COPY.timetable.opensInPrefixHtml : COPY.timetable.opensInPrefix;
+  if (days >= 1) return formatCopyText(days === 1 ? COPY.timetable.opensInDaysOne : COPY.timetable.opensInDaysMany, { prefix, count: days });
+  if (hours >= 1) return formatCopyText(hours === 1 ? COPY.timetable.opensInHoursOne : COPY.timetable.opensInHoursMany, { prefix, count: hours });
+  return formatCopyText(mins === 1 ? COPY.timetable.opensInMinutesOne : COPY.timetable.opensInMinutesMany, { prefix, count: mins });
+}
+
 // ── 60-second cancellation grace period ──────────────────────────────
 // CodexFit bookings carry a `booked_at` timestamp. For the first 60 seconds
 // after booking, the cancel is free (no penalty) and requires no confirmation.
@@ -320,12 +332,20 @@ export function zoneSuffix(iso, zone, device = deviceZone()) {
   if (!dt) return '';
   if (dt.offset === dt.setZone(device).offset) return '';
   const d = dt.toJSDate();
-  for (const style of ['shortGeneric', 'short']) {
+  // Keep compact generic labels such as ET/PT when available. Some browsers
+  // return long names ("United Kingdom Time"), so fall back to a short,
+  // season-specific label; en-GB yields BST where en-US may say GMT+1.
+  try {
+    const generic = new Intl.DateTimeFormat('en-US', { timeZone: zone, timeZoneName: 'shortGeneric' })
+      .formatToParts(d).find((p) => p.type === 'timeZoneName')?.value;
+    if (generic && generic.length <= 5 && !/^GMT/i.test(generic)) return generic;
+  } catch { /* try short specific names */ }
+  for (const locale of ['en-GB', 'en-US']) {
     try {
-      const part = new Intl.DateTimeFormat('en-US', { timeZone: zone, timeZoneName: style })
+      const part = new Intl.DateTimeFormat(locale, { timeZone: zone, timeZoneName: 'short' })
         .formatToParts(d).find((p) => p.type === 'timeZoneName');
       if (part && part.value) return part.value;
-    } catch { /* try next style */ }
+    } catch { /* try next locale */ }
   }
   return '';
 }

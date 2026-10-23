@@ -31,7 +31,7 @@ const { getProvider } = require('./providers');
 // the adapter. What the test actually needs is "a pick-a-spot class" and "an
 // FCFS class", so that is what it asks for.
 // Spots remain mock-bag-1..10 / mock-ground-1..10 (see makeLayout).
-let PICK_A_SPOT, PICK_A_SPOT_ALT, FCFS;
+let PICK_A_SPOT, PICK_A_SPOT_ALT, PORTRAIT_CLASS, FCFS;
 
 let passed = 0;
 const checks = [];
@@ -72,6 +72,8 @@ check('fetchTimetable: normalizes classes with both layout formats + releaseAt',
   const picks = events.filter((e) => e.layoutFormat === 'pick-a-spot');
   PICK_A_SPOT = picks[0].id;
   PICK_A_SPOT_ALT = picks[1].id;
+  PORTRAIT_CLASS = picks.find((e) => e.instructors.some((i) => i.name === 'Nickol'))?.id;
+  assert.ok(PORTRAIT_CLASS, 'mock includes a pick-a-spot class with captured Nickol portrait data');
   FCFS = events.find((e) => e.layoutFormat === 'first-come-first-serve').id;
 });
 
@@ -125,7 +127,7 @@ check('waitlist: join then leave (leave resolves reservation-by-event indirectio
 
 check('listBookings: an active booking is listed with a full embedded event', async () => {
   const mt = getProvider('jab-boxing');
-  const booked = await mt.bookSlot(PICK_A_SPOT_ALT, ['mock-ground-1'], ctx.session);
+  const booked = await mt.bookSlot(PORTRAIT_CLASS, ['mock-ground-1'], ctx.session);
   assert.strictEqual(booked.ok, true, 'seed booking for listBookings');
   const bookings = await mt.listBookings(ctx.session);
   const found = bookings.find((b) => b.bookingId === booked.bookingId);
@@ -137,6 +139,8 @@ check('listBookings: an active booking is listed with a full embedded event', as
   assert.strictEqual(found.spotSection, /^boxing$/i.test(found.event.studioName) ? 'Ground' : undefined, `studio ${found.event.studioName}`);
   assert.strictEqual(found.slotLabel, 'G1');
   assert.ok(found.event && found.event.gymId === 'jab-boxing', 'MT embeds a full NormalizedEvent for free (unlike CodexFit)');
+  assert.strictEqual(found.event.instructors[0].name, 'Nickol', 'booking class is enriched by exact class id');
+  assert.match(found.event.instructors[0].thumbUrl, /\/api\/instructor-photo\/jab-boxing\/6255\?size=thumb&v=/, 'captured portrait is normalized to the photo proxy');
   // Clean up so later checks (credits/memberships) see a consistent state.
   await mt.cancelBooking(booked.bookingId, ctx.session);
 });

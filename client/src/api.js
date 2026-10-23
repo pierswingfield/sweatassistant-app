@@ -55,6 +55,32 @@ async function withOfflineSnapshot(name, readLive) {
   }
 }
 
+function withGymLoadState(gymIds, run, enabled = true) {
+  const ids = enabled ? [...new Set((Array.isArray(gymIds) ? gymIds : [gymIds]).filter(Boolean).map(String))] : [];
+  ids.forEach(_beginGymLoad);
+  return Promise.resolve()
+    .then(run)
+    .finally(() => ids.forEach(_endGymLoad));
+}
+
+async function getCachedGymResponse(path, gymId, {
+  ttlMs = 300000, loading = false, query = {}, errorMessage = 'Request failed',
+} = {}) {
+  const keyParams = new URLSearchParams({ ...query, ...(gymId ? { gymId: String(gymId) } : {}) });
+  const key = `${path}${keyParams.size ? `?${keyParams}` : ''}`;
+  const result = await getCachedSWR(key, {
+    ttlMs,
+    fetcher: (url, options) => withGymLoadState(gymId, async () => {
+      const requestParams = new URLSearchParams(query);
+      const requestUrl = `${path}${requestParams.size ? `?${requestParams}` : ''}`;
+      const res = await apiFetch(requestUrl, { ...options, gymId });
+      if (!res.ok) throw new Error(errorMessage);
+      return res;
+    }, loading),
+  });
+  return result.data;
+}
+
 export function getOfflineSnapshotSavedAt(name) {
   return offlineSnapshotMeta.get(name) || null;
 }
@@ -319,10 +345,15 @@ export const api = {
   // F-12 gym-neutral favourites: ONE contract for every gym. The server stores them
   // natively where the gym has bookmarks and locally where it does not; the client never
   // asks which. A favourite is a recurring slot { studioId, dayOfWeek, startTime } read in
-  // the class's zone. Never cached in IndexedDB: the list is tiny and a stale copy would
-  // flip a heart back after a reload.
-  async getFavourites(gymId = null) {
+  // the class's zone. Cache by explicit gym so Home can restore the same list immediately;
+  // setFavourite invalidates this entry before its local optimistic update is announced.
+  async getFavourites(gymId = null, { ttlMs = 300000, loading = false } = {}) {
     debugLog('GET /api/favourites', 'network');
+    if (ttlMs) {
+      return getCachedGymResponse('/api/favourites', gymId, {
+        ttlMs, loading, errorMessage: 'Failed to load favourites',
+      });
+    }
     const res = await apiFetch('/api/favourites', { gymId });
     if (!res.ok) {
       const err = await res.json().catch(() => ({}));
@@ -344,6 +375,7 @@ export const api = {
       const err = await res.json().catch(() => ({}));
       throw new Error(err.message || `Failed to update favourite: ${res.status}`);
     }
+    await invalidateApiCache('/api/favourites').catch(() => {});
     return res.json();
   },
 
@@ -373,23 +405,38 @@ export const api = {
 
   // Public gym registry + capability flags (for the Phase 5 gym picker).
   async getGyms() {
-    return withOfflineSnapshot('gym-catalogue', async () => {
-      const res = await apiFetch('/api/gyms');
-      if (!res.ok) throw new Error('Failed to load gyms');
-      const data = await res.json();
-      return data.gyms || [];
+    // The catalogue is required before Home can safely render its branded,
+    // capability-gated cards. Keep it in the account-prefixed API cache so a
+    // returning authenticated member can paint those cards while a stale copy
+    // is revalidated in the background. `checkAuth()` has already validated
+    // the account token before this method is reached.
+    const result = await getCachedSWR('/api/gyms', {
+      ttlMs: 300000,
+      fetcher: async () => {
+        const res = await apiFetch('/api/gyms');
+        if (!res.ok) throw new Error('Failed to load gyms');
+        return res;
+      },
     });
+    const gyms = result.data?.gyms || result.data || [];
+    setOfflineSnapshot('gym-catalogue', gyms);
+    return gyms;
   },
 
   // The gyms THIS account is linked to, plus which one is currently active.
   // `getGyms()` above is the public catalogue of everything configured; this is
   // the per-account view Settings → Your Gyms renders from.
   async getMyGyms() {
-    return withOfflineSnapshot('my-gyms', async () => {
-      const res = await apiFetch('/api/my-gyms');
-      if (!res.ok) throw new Error('Failed to load your gyms');
-      return res.json(); // { gyms: [...], activeGymId }
+    const result = await getCachedSWR('/api/my-gyms', {
+      ttlMs: 300000,
+      fetcher: async () => {
+        const res = await apiFetch('/api/my-gyms');
+        if (!res.ok) throw new Error('Failed to load your gyms');
+        return res;
+      },
     });
+    setOfflineSnapshot('my-gyms', result.data);
+    return result.data; // { gyms: [...], activeGymId }
   },
 
   // NOTE: `setActiveGym()` used to live here and is deliberately gone, along
@@ -406,6 +453,11 @@ export const api = {
     });
     const data = await res.json();
     if (!res.ok) throw new Error(data.message || 'Could not link that gym');
+    // `getMyGyms()` is a five-minute SWR read that defines Home's capabilities
+    // and the no-gym route. A successful mutation must invalidate it before
+    // callers reload their gym context, otherwise a newly linked gym remains
+    // invisible until the TTL expires.
+    await invalidateApiCache('/api/my-gyms');
     return data;
   },
 
@@ -413,6 +465,7 @@ export const api = {
     const res = await apiFetch(`/api/my-gyms/${encodeURIComponent(gymId)}`, { method: 'DELETE' });
     const data = await res.json();
     if (!res.ok) throw new Error(data.message || 'Could not unlink that gym');
+    await invalidateApiCache('/api/my-gyms');
     return data.gyms || [];
   },
 
@@ -565,6 +618,21 @@ export const api = {
     const suffix = qs.toString() ? `?${qs}` : '';
 
     if (params.gymId) {
+      if (params.ttlMs) {
+        const data = await getCachedGymResponse('/api/metadata', params.gymId, {
+          ttlMs: params.ttlMs,
+          loading: !!params.loading,
+          query: { ...(params.startDate ? { startDate: params.startDate } : {}), ...(params.endDate ? { endDate: params.endDate } : {}), ...(params.refresh ? { refresh: '1' } : {}) },
+          errorMessage: 'Failed to load timetable metadata',
+        });
+        const withGym = (items) => (items || []).map(item => ({ ...item, gymId: params.gymId }));
+        return {
+          locations: withGym(data.locations),
+          studios: withGym(data.studios),
+          instructors: withGym(data.instructors),
+          eventTypes: withGym(data.eventTypes),
+        };
+      }
       const res = await apiFetch(`/api/metadata${suffix}`, { gymId: params.gymId });
       if (!res.ok) throw new Error('Failed to load timetable metadata');
       const data = await res.json();
@@ -590,10 +658,18 @@ export const api = {
     }
 
     if (linked.length <= 1) {
-      const res = await apiFetch(`/api/metadata${suffix}`);
-      if (!res.ok) throw new Error('Failed to load timetable metadata');
-      const data = await res.json();
       const gymId = linked[0]?.gym_id || getDefaultGymId();
+      const data = params.ttlMs
+        ? await getCachedGymResponse('/api/metadata', gymId, {
+          ttlMs: params.ttlMs, loading: !!params.loading,
+          query: { ...(params.startDate ? { startDate: params.startDate } : {}), ...(params.endDate ? { endDate: params.endDate } : {}) },
+          errorMessage: 'Failed to load timetable metadata',
+        })
+        : await (async () => {
+          const res = await apiFetch(`/api/metadata${suffix}`, { gymId });
+          if (!res.ok) throw new Error('Failed to load timetable metadata');
+          return res.json();
+        })();
       const gymName = linked[0]?.gym_name || linked[0]?.name || 'Gym';
       return {
         locations: (data.locations || []).map((l) => ({ ...l, gymId, gymName })),
@@ -608,9 +684,18 @@ export const api = {
         const gymId = g.gym_id || g.gymId || g.id;
         const gName = g.gym_name || g.name || gymId;
         try {
-          const res = await apiFetch(`/api/metadata${suffix}`, { gymId });
-          if (!res.ok) return null;
-          const data = await res.json();
+          const data = params.ttlMs
+            ? await getCachedGymResponse('/api/metadata', gymId, {
+              ttlMs: params.ttlMs, loading: !!params.loading,
+              query: { ...(params.startDate ? { startDate: params.startDate } : {}), ...(params.endDate ? { endDate: params.endDate } : {}) },
+              errorMessage: 'Failed to load timetable metadata',
+            })
+            : await (async () => {
+              const res = await apiFetch(`/api/metadata${suffix}`, { gymId });
+              if (!res.ok) return null;
+              return res.json();
+            })();
+          if (!data) return null;
           return { gymId, gymName: gName, ...data };
         } catch (_) {
           return null;
@@ -792,38 +877,46 @@ export const api = {
   // 2026-07-03 for CodexFit — see providers/codexfit.js listBookings doc
   // comment — it resolves via the response's embedded `relations` block when
   // not already inline). bookings.js's renderBookings() is the first caller.
-  async getBookings({ silent = false } = {}) {
-    const beginGymLoad = silent ? () => {} : _beginGymLoad;
-    const endGymLoad = silent ? () => {} : _endGymLoad;
+  async getBookings({ silent = false, cacheTtlMs = 0, gyms = null } = {}) {
     return withOfflineSnapshot('bookings', async () => {
-    debugLog('GET /api/bookings', 'network');
-    const myGymsRes = await this.getMyGyms();
-    const linked = myGymsRes.gyms || [];
-    if (linked.length <= 1) {
-      const res = await apiFetch('/api/bookings');
-      if (!res.ok) throw new Error('Failed to load bookings');
-      const data = await res.json();
-      const gymId = linked[0]?.gym_id || getDefaultGymId();
-      const gymName = linked[0]?.gym_name || linked[0]?.name || 'Gym';
-      lastLoadedGymIds = new Set([gymId]); // Single gym always loaded
-      return (data.bookings || []).map((b) => ({
-        ...b,
-        gymId: b.gymId || gymId,
-        gymName: b.gymName || gymName,
-        event: b.event ? { ...b.event, gymId: b.event.gymId || gymId, gymName: b.event.gymName || gymName } : b.event,
-      }));
-    }
+      debugLog('GET /api/bookings', 'network');
+      const myGymsRes = gyms ? null : await this.getMyGyms();
+      const linked = gyms || myGymsRes.gyms || [];
+      const readOne = async (gymId) => {
+        const path = '/api/bookings';
+        const key = `${path}?gymId=${encodeURIComponent(gymId)}`;
+        const fetcher = (url, options) => withGymLoadState(gymId, () => apiFetch(path, { ...options, gymId }), !silent);
+        if (cacheTtlMs) return (await getCachedSWR(key, { ttlMs: cacheTtlMs, fetcher })).data;
+        const res = await fetcher(path);
+        if (!res.ok) throw new Error('Failed to load bookings');
+        return res.json();
+      };
 
-    const results = await Promise.all(
-      linked.map(async (g) => {
+      if (linked.length <= 1) {
+        const gymId = linked[0]?.gym_id || linked[0]?.gymId || linked[0]?.id || null;
+        if (!gymId) {
+          const res = await apiFetch('/api/bookings');
+          if (!res.ok) throw new Error('Failed to load bookings');
+          const data = await res.json();
+          lastLoadedGymIds = new Set();
+          return data.bookings || [];
+        }
+        const data = await readOne(gymId);
+        const gymName = linked[0]?.gym_name || linked[0]?.name || 'Gym';
+        lastLoadedGymIds = new Set([gymId]); // Single gym always loaded
+        return (data.bookings || []).map((b) => ({
+          ...b,
+          gymId: b.gymId || gymId,
+          gymName: b.gymName || gymName,
+          event: b.event ? { ...b.event, gymId: b.event.gymId || gymId, gymName: b.event.gymName || gymName } : b.event,
+        }));
+      }
+
+      const results = await Promise.all(linked.map(async (g) => {
         const gymId = g.gym_id || g.gymId || g.id;
         const gName = g.gym_name || g.name || gymId;
         try {
-          beginGymLoad(gymId);
-          let res;
-          try { res = await apiFetch('/api/bookings', { gymId }); } finally { endGymLoad(gymId); }
-          if (!res.ok) return { data: [], gymId, loaded: false };
-          const data = await res.json();
+          const data = await readOne(gymId);
           return {
             data: (data.bookings || []).map((b) => ({
               ...b,
@@ -838,15 +931,12 @@ export const api = {
           if (isOfflineForMutation()) throw err;
           return { data: [], gymId, loaded: false };
         }
-      })
-    );
+      }));
 
-    // Track which gyms successfully loaded
-    lastLoadedGymIds = new Set(results.filter(r => r.loaded).map(r => r.gymId));
-
-    const all = results.flatMap(r => r.data);
-    all.sort((a, b) => new Date(a.event?.startAt || a.event?.start_at || a.start_at || 0) - new Date(b.event?.startAt || b.event?.start_at || b.start_at || 0));
-    return all;
+      lastLoadedGymIds = new Set(results.filter(r => r.loaded).map(r => r.gymId));
+      const all = results.flatMap(r => r.data);
+      all.sort((a, b) => new Date(a.event?.startAt || a.event?.start_at || a.start_at || 0) - new Date(b.event?.startAt || b.event?.start_at || b.start_at || 0));
+      return all;
     });
   },
 
@@ -921,8 +1011,9 @@ export const api = {
 
   // "Can this account book at all" (WP-J) — distinct from credit arithmetic,
   // which answers "can it afford THIS class".
-  async getEligibility(gymId = null) {
+  async getEligibility(gymId = null, { ttlMs = 300000, loading = false } = {}) {
     return withOfflineSnapshot(`eligibility:${gymId || 'default'}`, async () => {
+      if (ttlMs) return getCachedGymResponse('/api/eligibility', gymId, { ttlMs, loading, errorMessage: 'Failed to load eligibility' });
       const res = await apiFetch('/api/eligibility', { gymId });
       if (!res.ok) throw new Error('Failed to load eligibility');
       return res.json();
@@ -932,13 +1023,13 @@ export const api = {
   // Eligibility for EVERY linked gym, keyed by gym id. A merged list needs each
   // row's own gym's answer: one gym being ineligible (no credits, lapsed
   // membership) must not disable booking on another gym's classes.
-  async getEligibilityByGym() {
-    const myGymsRes = await this.getMyGyms().catch(() => ({ gyms: [] }));
-    const linked = myGymsRes.gyms || [];
+  async getEligibilityByGym({ gyms = null, loading = false } = {}) {
+    const myGymsRes = gyms ? null : await this.getMyGyms().catch(() => ({ gyms: [] }));
+    const linked = gyms || myGymsRes.gyms || [];
     const entries = await Promise.all(
       linked.map(async (g) => {
         const gymId = g.gym_id || g.gymId || g.id;
-        try { return [gymId, await this.getEligibility(gymId)]; }
+        try { return [gymId, await this.getEligibility(gymId, { loading })]; }
         catch (_) { return [gymId, null]; }
       })
     );
@@ -949,30 +1040,31 @@ export const api = {
   // IndexedDB SWR cache as every other GET. Without a TTL the Credits &
   // Membership tab re-fetched one provider call PER GYM on every visit, which is
   // why it took seconds to show data that had not changed since the last look.
-  async getMembership(gymId = null, { ttlMs = 10 * 60 * 1000 } = {}) {
+  async getMembership(gymId = null, { ttlMs = 10 * 60 * 1000, loading = false } = {}) {
     const url = gymId ? `/api/membership?gymId=${encodeURIComponent(gymId)}` : '/api/membership';
     const result = await getCachedSWR(url, {
       ttlMs,
-      fetcher: (u, o) => apiFetch(u.split('?')[0], { ...o, gymId }),
+      fetcher: (u, o) => withGymLoadState(gymId, () => apiFetch(u.split('?')[0], { ...o, gymId }), loading),
     });
     const data = result.data || {};
     return data.membership || null;
   },
 
   // One normalized membership result per linked gym. A credit-based gym
-  // contributes null; one provider failing does not blank the other sections.
-  async getMembershipsByGym() {
-    const myGymsRes = await this.getMyGyms().catch(() => ({ gyms: [] }));
-    const linked = myGymsRes.gyms || [];
+  // contributes an explicit null; one provider failing is left out so Home can
+  // keep failed membership data distinct from a confirmed no-membership answer.
+  async getMembershipsByGym({ gyms = null, loading = false } = {}) {
+    const myGymsRes = gyms ? null : await this.getMyGyms().catch(() => ({ gyms: [] }));
+    const linked = gyms || myGymsRes.gyms || [];
     const entries = await Promise.all(linked.map(async (g) => {
       const gymId = g.gym_id || g.gymId || g.id;
       try {
-        return [gymId, await this.getMembership(gymId)];
+        return [gymId, await this.getMembership(gymId, { loading })];
       } catch (_) {
-        return [gymId, null];
+        return null;
       }
     }));
-    return Object.fromEntries(entries);
+    return Object.fromEntries(entries.filter(Boolean));
   },
 
   async getNormalizedProfile(gymId = null) {
@@ -986,8 +1078,10 @@ export const api = {
   // Normalized, durable class history for one explicitly-scoped gym. The
   // server owns the lazy backfill and stale refresh; the client only asks for
   // the small aggregate a Home widget needs.
-  async getHistory(gymId, { days = 30, limit = 1, top = 1 } = {}) {
-    const qs = new URLSearchParams({ days: String(days), limit: String(limit), top: String(top) });
+  async getHistory(gymId, { days = 30, limit = 1, top = 1, ttlMs = 6 * 60 * 60 * 1000, loading = false } = {}) {
+    const query = { days: String(days), limit: String(limit), top: String(top) };
+    if (ttlMs) return getCachedGymResponse('/api/history', gymId, { ttlMs, loading, query, errorMessage: 'Failed to load class history' });
+    const qs = new URLSearchParams(query);
     const res = await apiFetch(`/api/history?${qs}`, { gymId });
     if (!res.ok) throw new Error('Failed to load class history');
     return res.json();
@@ -995,7 +1089,8 @@ export const api = {
 
   // Official provider attendance totals are capability-gated server-side. The
   // caller always names its gym, preserving per-gym provider isolation.
-  async getAttendanceTotals(gymId) {
+  async getAttendanceTotals(gymId, { ttlMs = 300000, loading = false } = {}) {
+    if (ttlMs) return getCachedGymResponse('/api/attendance-totals', gymId, { ttlMs, loading, errorMessage: 'Failed to load attendance totals' });
     const res = await apiFetch('/api/attendance-totals', { gymId });
     if (!res.ok) throw new Error('Failed to load attendance totals');
     return res.json();
@@ -1005,11 +1100,11 @@ export const api = {
   // lands, so it must not be as stale as membership — but re-fetching it per
   // gym on every tab visit is what made Credits & Membership take seconds.
   // Booking invalidates it explicitly (see invalidateApiCache callers).
-  async getNormalizedCredits(gymId = null, { ttlMs = 60 * 1000 } = {}) {
+  async getNormalizedCredits(gymId = null, { ttlMs = 60 * 1000, loading = false } = {}) {
     const url = gymId ? `/api/credits?gymId=${encodeURIComponent(gymId)}` : '/api/credits';
     const result = await getCachedSWR(url, {
       ttlMs,
-      fetcher: (u, o) => apiFetch(u.split('?')[0], { ...o, gymId }),
+      fetcher: (u, o) => withGymLoadState(gymId, () => apiFetch(u.split('?')[0], { ...o, gymId }), loading),
     });
     return (result.data && result.data.credits) || [];
   },
@@ -1022,14 +1117,14 @@ export const api = {
   // the map, never given `[]` (U1-13): `[]` means "you hold no credits", and the
   // Auto-Book card read that as "Insufficient Credits" for a member with credit.
   // A missing key is "unknown", which credit-allowance.js answers permissively.
-  async getCreditsByGym() {
-    const myGymsRes = await this.getMyGyms().catch(() => ({ gyms: [] }));
-    const linked = myGymsRes.gyms || [];
+  async getCreditsByGym({ gyms = null, loading = false } = {}) {
+    const myGymsRes = gyms ? null : await this.getMyGyms().catch(() => ({ gyms: [] }));
+    const linked = gyms || myGymsRes.gyms || [];
     const entries = await Promise.all(
       linked.map(async (g) => {
         const gymId = g.gym_id || g.gymId || g.id;
         try {
-          return [gymId, await this.getNormalizedCredits(gymId)];
+          return [gymId, await this.getNormalizedCredits(gymId, { loading })];
         } catch (_) {
           return null;
         }
@@ -1055,8 +1150,11 @@ export const api = {
   },
 
   // Auto-Book Queue
-  async getAutoBookings() {
-    const result = await getCachedSWR('/api/auto-book', { ttlMs: 30000, fetcher: apiFetch });
+  async getAutoBookings({ gymIds = [], loading = false } = {}) {
+    const result = await getCachedSWR('/api/auto-book', {
+      ttlMs: 30000,
+      fetcher: (url, options) => withGymLoadState(gymIds, () => apiFetch(url, options), loading),
+    });
     return result.data;
   },
 
@@ -1112,8 +1210,11 @@ export const api = {
   },
 
   // Auto-Upgrade
-  async getAutoUpgrades() {
-    const result = await getCachedSWR('/api/auto-upgrade', { ttlMs: 30000, fetcher: apiFetch });
+  async getAutoUpgrades({ gymIds = [], loading = false } = {}) {
+    const result = await getCachedSWR('/api/auto-upgrade', {
+      ttlMs: 30000,
+      fetcher: (url, options) => withGymLoadState(gymIds, () => apiFetch(url, options), loading),
+    });
     return result.data;
   },
 

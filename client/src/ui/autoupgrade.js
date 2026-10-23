@@ -4,7 +4,7 @@ import { getDefaultGymId } from '../gym-context.js';
 import { getAvailableCreditsForEvent, getTotalCredits, getIneligibleReason } from './credit-allowance.js';
 import { showToast, cache, refreshUserData } from '../main';
 import { openUpgradeConfigModal } from './bookings';
-import { seatNoun, disciplineTag, renderGymRail, icon, cleanClassName, wireRailToggle, escapeHtml } from './cards';
+import { seatNoun, disciplineTag, renderGymRail, icon, cleanClassName, wireRailToggle, escapeHtml, instructorNameLengthClass } from './cards';
 import { renderCardSkeletons } from './loading-skeleton.js';
 import { instructorAvatar } from './tooltips.js';
 import { COPY, formatCopyText } from '../copy.js';
@@ -129,7 +129,7 @@ function renderUpgradeList(upgrades, studioPrefs = {}) {
           ${disciplineTag(groupName)}
           <span class="ab-card-class">${classLabel}</span>
           <span class="ab-meta-dot">·</span>
-          <span class="ab-card-instructor">${instructorAvatar(job.instructor_name, job.gym_id)}${job.instructor_name}</span>
+          <span class="ab-card-instructor ${instructorNameLengthClass(job.instructor_name)}">${instructorAvatar(job.instructor_name, job.gym_id)}${escapeHtml(job.instructor_name)}</span>
         </div>
         <div class="ab-card-footer">
           <span class="ab-spots-pill">${seatCap} ${currentSpotLabel}</span>

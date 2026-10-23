@@ -227,14 +227,17 @@ check('GET /api/history: gym via x-gym-id, lazy backfill, normalized, no raw; 40
   } finally { server.close(); }
 });
 
-check('getMilestones: CodexFit normalizes the live /milestones envelope; capability gates the route', async () => {
+check('getMilestones: CodexFit and MarianaTek normalize provider attendance; capability gates the route', async () => {
   const t = await getProvider(PSYCLE).getMilestones({ accessToken: 'mock-jwt-token' });
   assert.strictEqual(t.attendedTotal, 129);
   assert.deepStrictEqual([t.thisWeek, t.thisMonth, t.thisYear], [1, 4, 31]);
   assert.strictEqual(t.milestones.length, 8);
   assert.ok(t.milestones.find((m) => m.threshold === 100).earned && !t.milestones.find((m) => m.threshold === 1000).earned);
   assert.ok(t.milestones.every((m) => !('raw' in m)));
-  await assert.rejects(() => getProvider(JAB).getMilestones({ accessToken: 'x' }), /not implemented|getMilestones/i);
+  const mt = await getProvider(JAB).getMilestones({ accessToken: 'mock-mt-token' });
+  assert.strictEqual(mt.attendedTotal, require('./__fixtures__/marianatek/prod-achievements.json').response_body.classes_completed);
+  assert.deepStrictEqual(mt.milestones, []);
+  assert.ok(!('thisWeek' in mt) && !('thisMonth' in mt) && !('thisYear' in mt), 'MarianaTek does not publish period totals');
   const router = require('./routes-normalized');
   const app = express(); app.use(express.json()); app.use('/api', router);
   const server = await new Promise((resolve) => { const s = app.listen(0, '127.0.0.1', () => resolve(s)); });
@@ -245,9 +248,9 @@ check('getMilestones: CodexFit normalizes the live /milestones envelope; capabil
     const ok = await get(PSYCLE);
     assert.strictEqual(ok.status, 200);
     assert.strictEqual((await ok.json()).attendedTotal, 129);
-    const no = await get(JAB);
-    assert.strictEqual(no.status, 501);
-    assert.strictEqual((await no.json()).code, 'CAPABILITY_UNSUPPORTED');
+    const mtOk = await get(JAB);
+    assert.strictEqual(mtOk.status, 200);
+    assert.strictEqual((await mtOk.json()).attendedTotal, require('./__fixtures__/marianatek/prod-achievements.json').response_body.classes_completed);
   } finally { server.close(); }
 });
 

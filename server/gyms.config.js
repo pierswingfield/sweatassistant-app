@@ -270,7 +270,7 @@ const GYMS = {
       creditPurchase: false,    // membership-based; no confirmed purchase API (D3)
       bookmarks: false,         // no MT bookmarks API
       autoUpgrade: true,        // generic scheduler uses this gym's provider session
-      attendanceTotals: false,  // no known MarianaTek equivalent (derive from history)
+      attendanceTotals: true,   // GET /me/achievements classes_completed (all-time attended)
       bookingWindow: 'per-class',   // mirrors bookingWindow.kind, for the UI
       bookingEntitlement: true, // resolve self and guest eligibility from authenticated class/payment state
       selfBookingPolicy: 'one-per-class', // membership permits one primary reservation; extra self credits are not supported yet
@@ -366,7 +366,7 @@ const GYMS = {
       creditPurchase: false,    // no confirmed in-app purchase API for MarianaTek
       bookmarks: false,
       autoUpgrade: true,
-      attendanceTotals: false,  // no known MarianaTek equivalent (derive from history)
+      attendanceTotals: true,   // GET /me/achievements classes_completed (all-time attended)
       bookingWindow: 'per-class',
       maxSpotsPerClass: 1,
       // Credit-based: a guest draws a credit (valid-for-guests option); allowance read from the payment

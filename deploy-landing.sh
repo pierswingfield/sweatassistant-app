@@ -35,7 +35,7 @@ done
 cd "$(dirname "$0")"
 [ -f landing/docker-compose.yml ] && [ -f landing/index.html ] || { echo "landing/ not found." >&2; exit 1; }
 
-RSYNC=(rsync -az --delete --exclude .DS_Store --exclude sync-gyms.sh --exclude .gitignore landing/ "$HOST:$REMOTE_DIR/")
+RSYNC=(rsync -az --delete --exclude .DS_Store --exclude sync-gyms.sh --exclude .gitignore --exclude 'ins[0-9]*' landing/ "$HOST:$REMOTE_DIR/")
 REMOTE_UP="mkdir -p $REMOTE_DIR && cd $REMOTE_DIR && $DOCKER compose up -d --build && $DOCKER compose ps"
 
 run() { if [ "$PRINT" = 1 ]; then printf '  %q' "$@"; printf '\n'; else "$@"; fi; }

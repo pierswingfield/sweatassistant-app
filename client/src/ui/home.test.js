@@ -14,6 +14,7 @@ let getHomeFavouriteRows;
 let getHomeFavouriteStatus;
 let renderHomeFavouriteCard;
 let getHomeStats;
+let getHomeActivityMeta;
 let primaryActionForEvent;
 let actionGlyph;
 let formatInZone;
@@ -35,7 +36,7 @@ beforeAll(async () => {
   }
   ({ cache } = await import('../main.js'));
   ({ formatInZone } = await import('../lib.js'));
-  ({ countPendingAutoBooks, getHomeCreditRows, getHomeBookLinks, groupHomeGymLinks, getHomeTopInstructorRows, getHomeFavouriteRows, getHomeStats, getHomeFavouriteStatus, renderHomeFavouriteCard, syncHomeDesktopFlow } = await import('./home.js'));
+  ({ countPendingAutoBooks, getHomeCreditRows, getHomeBookLinks, groupHomeGymLinks, getHomeTopInstructorRows, getHomeFavouriteRows, getHomeStats, getHomeActivityMeta, getHomeFavouriteStatus, renderHomeFavouriteCard, syncHomeDesktopFlow } = await import('./home.js'));
   ({ primaryActionForEvent, actionGlyph } = await import('./timetable.js'));
   ({ registry: homeRegistry, mountWidget } = await import('./widget-registry.js'));
 });
@@ -552,6 +553,20 @@ describe('W8 Home stats', () => {
       { gymId: 'jab-boxing', gymName: 'JAB', attendanceTotal: 0 },
       { gymId: 'aarmy', gymName: 'AARMY', attendanceTotal: 389 },
     ]);
+  });
+
+  it('shows a cumulative header total only when every linked gym has valid attendance', () => {
+    const widget = homeRegistry.list().find((item) => item.id === 'stats');
+    const complete = getHomeStats(gyms, {
+      'psycle-london': { attendance: { attendedTotal: 1 } },
+      'jab-boxing': { attendance: { attendedTotal: 0 } },
+      aarmy: { attendance: { attendedTotal: 899 } },
+    });
+    expect(widget.headerMeta(complete)).toBe('900 classes');
+    expect(getHomeActivityMeta({ rows: [{ attendanceTotal: 1 }], partial: false })).toBe('1 class');
+    expect(getHomeActivityMeta({ rows: [{ attendanceTotal: 4 }, { attendanceTotal: Infinity }], partial: false })).toBe('');
+    expect(getHomeActivityMeta({ rows: [{ attendanceTotal: 4 }], partial: true })).toBe('');
+    expect(getHomeActivityMeta({ rows: [], partial: false })).toBe('');
   });
 
   it('omits unknown attendance and never substitutes booking history', () => {

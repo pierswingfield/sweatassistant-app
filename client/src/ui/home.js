@@ -152,6 +152,18 @@ export function getHomeStats(gyms, byGym = {}) {
   return { rows, partial: unavailable > 0 };
 }
 
+/** Show an all-gym total only when every linked gym has valid attendance. */
+export function getHomeActivityMeta({ rows, partial } = {}) {
+  if (partial || !Array.isArray(rows) || rows.length === 0) return '';
+  const total = rows.reduce((sum, row) => {
+    const count = Number(row?.attendanceTotal);
+    return Number.isSafeInteger(count) && count >= 0 ? sum + count : NaN;
+  }, 0);
+  return Number.isSafeInteger(total) && total >= 0
+    ? formatCountLabel(total, 'class', 'classes')
+    : '';
+}
+
 async function loadHomeStats(gyms) {
   const linked = (Array.isArray(gyms) ? gyms : []).filter((gym) => gymIdOf(gym));
   const settled = await Promise.allSettled(linked.map(async (gym) => {
@@ -190,6 +202,7 @@ function attendanceTile(row, ctx) {
 registerWidget({
   id: 'stats', order: 70, title: COPY.home.stats,
   cacheKeys(ctx) { return uniqueGymIds(ctx.gyms).filter((id) => canForGym('attendanceTotals', id)).map((id) => gymCacheKey('/api/attendance-totals', id)); },
+  headerMeta: getHomeActivityMeta,
   async load(ctx) { return loadHomeStats(ctx.gyms); },
   isEmpty: (data) => Array.isArray(data?.rows) && data.rows.length === 0,
   emptyText: COPY.home.statsNone,

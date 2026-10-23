@@ -488,3 +488,9 @@ load error after the other Home sources completed, so the final queue divider
 and shared-card gap were source- and test-verified rather than fixture-visible.
 Merged-PR and branch-retirement details are recorded with the final integration
 commit.
+
+## Your Activity cumulative total — 2026-10-23
+
+Your Activity now shows a cumulative `N classes` header value when every linked gym provides a valid, non-negative safe-integer attendance count. A missing, failed, partial, empty, or invalid response leaves the header blank, avoiding a partial sum presented as complete. Existing per-gym attendance tiles and Settings navigation stay unchanged. Provider-published attendance is the only source; booking history is not a substitute. Singular counts render as `1 class`.
+
+Verification: the focused Home test and production client build are recorded with the PR. Real-Chrome verification was unavailable because local CDP endpoints 9222, 9223, and 9224 were closed. No deployment occurred.

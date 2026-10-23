@@ -42,7 +42,7 @@ App/
 ├── server/                  # Express.js backend
 │   ├── server.js            # Main server — routes, proxy, cart/checkout, SSE, rate limiters
 │   ├── auth.js              # CodexFit login, JWT issuance, auto-relogin on 401
-│   ├── db.js                # SQLite schema + CRUD (better-sqlite3, 18 tables)
+│   ├── db.js                # SQLite schema + CRUD (better-sqlite3, 20 tables)
 │   ├── crypto.js            # AES-256-GCM encrypt/decrypt for credentials (env key required)
 │   ├── scheduler.js         # Auto-book precision scheduler — queue-driven wake clock
 │   │                        #   (WP-I), priority tiers, SSE
@@ -69,10 +69,11 @@ App/
 │   ├── mock.js              # Dev-mode mock CodexFit API (the gym's devMock.email)
 │   ├── mock-marianatek.js   # Dev-mode mock MarianaTek API (the gym's devMock.email)
 │   ├── class-history.js     # ★ H-0 class-history store + sync (the ONLY reader/writer of class_history)
+│   ├── landing-events.js    # M step 3: ONLY reader/writer of landing_events + public /_a/pv, /_a/go routes (cookieless, daily-hash visitors)
 │   ├── schedule-cache.js    # ★ Shared user-agnostic provider cache (SWR + single-flight)
 │   ├── rate-limit-backoff.js # ★ Per-gym provider 429 backoff, shared by scheduler.js AND poller.js (C2-3/C2-3b)
 │   ├── run-tests.js         # Test runner — discovers server/test-*.js by filename
-│   └── test-*.js            # 75 suites; see Documentation/TESTING.md
+│   └── test-*.js            # 76 suites; see Documentation/TESTING.md
 ├── client/                  # Vite PWA frontend
 │   ├── index.html           # SPA shell with 6 tab panels (Home first) + modals + iOS bottom nav
 │   ├── src/
@@ -136,7 +137,7 @@ npm run dev:client           # Start Vite dev server only (port 5173, proxies /a
 npm run build:client         # Production build of client
 npm start                    # Production start (server serves built client)
 
-npm test                     # EVERYTHING: 75 server suites + the client Vitest suite
+npm test                     # EVERYTHING: 76 server suites + the client Vitest suite
 npm run test:server          # Server only
 npm run test:client          # Client only (vitest)
 ```
@@ -446,7 +447,7 @@ POST   /api/notify/booking-success  # Client reports manual/quick booking → se
 POST   /api/bookings/sync           # Client pushes bookings to warm server reminder cache
 ```
 
-## SQLite Schema (19 tables)
+## SQLite Schema (20 tables)
 
 | Table | Purpose | Key columns |
 |-------|---------|-------------|
@@ -463,6 +464,7 @@ POST   /api/bookings/sync           # Client pushes bookings to warm server remi
 | `waitlist_cache` | Waitlist reminder cache (client-synced) | `event_id`, `start_at`, `studio_id`, `location_address`, `UNIQUE(user_id, event_id)` |
 | `class_history` | H-0 past classes, one row per (user, gym, provider booking id), normalized fields only (`status`: attended/unconfirmed/late-cancel/cancelled/no-show/class-cancelled; `start_ts` epoch ms for range queries). Written ONLY via `server/class-history.js`; shaped for C8-1 to adopt | `gym_id` NOT NULL, `booking_id`, `instructor_id/name`, `start_at`, `UNIQUE(user_id, gym_id, booking_id)` |
 | `class_history_sync` | Per (user, gym) last-synced time/error/row count | `last_synced_at`, `last_error`, PK `(user_id, gym_id)` |
+| `landing_events` | M step 3 landing analytics (pageview/cta/open). No user id, no IP: `visitor_hash` is a daily-rotating hash. Written/read ONLY via `server/landing-events.js`; purged after 13 months (poller cron 03:40) | `ts`, `type`, `referrer_host`, `country`, `device`, `utm_campaign`, `cta_src`, `is_bot` |
 | `favourites` | F-12 gym-neutral favourites for gyms without native bookmarks (Psycle uses native; capability `bookmarks`). One row per recurring slot | `gym_id` NOT NULL, `studio_id`, `day_of_week` (Sun=0), `start_time` HHmm (class-local), display labels, `UNIQUE(user_id, gym_id, studio_id, day_of_week, start_time)` |
 | `sent_notifications` | Notification dedupe | `dedupe_key`, `UNIQUE(user_id, dedupe_key)` |
 | `calendar_classes` | Per-user calendar event rows | `event_id`, `start_at`, `class_name`, `slot_label`, `status`, `upgrade_note`, `sequence`, `content_hash`, `UNIQUE(user_id, event_id)` |

@@ -350,6 +350,9 @@ app.get('/admin', (req, res) => {
   sendTemplated(path.join(__dirname, 'admin.html'), res, 'text/html');
 });
 
+// M step 3: public landing analytics (pageview pixel + CTA redirect), own limiter inside.
+app.use('/_a', require('./landing-events').router);
+
 app.use('/api/admin/login', adminLoginLimiter);
 app.use('/api/admin', adminRouter);
 app.use('/api', instructorPhotoRouter);

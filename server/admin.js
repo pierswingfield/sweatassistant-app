@@ -452,6 +452,11 @@ router.post('/users/:id/reset-password', authenticateAdmin, (req, res) => {
   }
 });
 
+// GET /api/admin/landing-stats?days=&includeBots=1 — M step 3 landing analytics (bots excluded by default)
+router.get('/landing-stats', authenticateAdmin, (req, res) => {
+  res.json(require('./landing-events').stats({ days: req.query.days, includeBots: req.query.includeBots === '1' }));
+});
+
 // GET /api/admin/audit?limit=&offset= — read-only, newest first, capped at 500 (C7-3)
 router.get('/audit', authenticateAdmin, (req, res) => {
   res.json({ entries: db.listAdminAudit({ limit: req.query.limit, offset: req.query.offset }) });

@@ -32,7 +32,11 @@ const corsOrigins = process.env.CORS_ORIGINS
   ? process.env.CORS_ORIGINS.split(',').map((s) => s.trim()).filter(Boolean)
   : [`https://${publicHost}`, `http://${publicHost}`];
 
+// Where /_a/go sends the landing-page CTA. Fixed here, never taken from request input.
+const landingCtaTarget = 'https://sweat.wingfield.tech';
+
 module.exports = {
+  landingCtaTarget,
   appName: process.env.APP_NAME || 'Sweat Assistant',
   publicHost,
   vapidEmail,

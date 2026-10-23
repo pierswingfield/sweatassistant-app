@@ -10,6 +10,7 @@ Before starting an item, follow [AGENT_PROTOCOL.md](AGENT_PROTOCOL.md): confirm 
 |---|---|---|
 | [Reported bugs and feedback](EPIC-member-experience.md) | Active register for the bugs and UI changes reported by the user; all U6 items are open pending implementation and verification. | U6-1..U6-15; U4-19 `q` search URL wiring |
 | [Admin and operations](EPIC-admin-operations.md) | Improve durable admin data and finish user-owned production setup. | C8-1; C4-14 |
+| [Front Row landing page](M-landing-page.md) | Public glass-style marketing page with an install CTA and server-side analytics. Specified, not built. | M-D1..M-D8 |
 | [Gym onboarding playbook](C9-gym-onboarding.md) | Repeatable tenant onboarding, provider evidence, and activation process. | Ongoing process, used when a gym is added |
 
 Lower-priority, deferred, research-first, and user-dependent items belong in [BACKLOG.md](BACKLOG.md), not in active epic documents.

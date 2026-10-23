@@ -1,0 +1,17 @@
+# Landing site (workstream M). Deployed by ../deploy-landing.sh to ~/services/landing on oracle.
+# No published port: the Cloudflare tunnel reaches it as landing:80 over the shared `edge`
+# network (tunnel ingress for the subdomain is a MANUAL step). It reaches the app as
+# sweatassistant:3000 over the same network.
+services:
+  landing:
+    build:
+      context: .
+    container_name: landing
+    restart: unless-stopped
+    networks:
+      - edge
+
+networks:
+  edge:
+    external: true
+    name: edge

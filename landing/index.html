@@ -1,0 +1,739 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Front Row: your fitness life, handled</title>
+<meta name="description" content="A concierge for every gym you train at. It books the classes you want, the second they open, in the spot you like, and keeps it all in one calendar.">
+<script>document.documentElement.classList.add('js');
+/* Instructor photo fallback: neutral initials circle until landing/instructors/<slug>.jpg exists */
+function frAv(img) {
+  var n = (img.getAttribute('data-name') || '').split(/\s+/), i = '';
+  for (var k = 0; k < n.length && i.length < 2; k++) if (n[k]) i += n[k].charAt(0).toUpperCase();
+  var d = document.createElement('span');
+  d.className = 'av av-fb'; d.setAttribute('aria-hidden', 'true'); d.textContent = i;
+  img.onerror = null;
+  if (img.parentNode) img.parentNode.replaceChild(d, img);
+}
+</script>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,500;9..144,600&family=Inter:wght@400;500;600&display=swap">
+<style>
+/* ===== Tokens: the only place raw colours live ===== */
+:root {
+  color-scheme: light;
+
+  /* surfaces */
+  --bg: #f5f2ec;
+  --surface: #fbfaf7;
+  --glass: rgba(255, 255, 255, 0.62);
+  --glass-strong: rgba(255, 255, 255, 0.82);
+  --glass-edge: rgba(255, 255, 255, 0.85);
+  --surface-inset: rgba(31, 27, 22, 0.04);
+
+  /* text */
+  --text: #1f1b16;
+  --text-secondary: #6b6358;
+  --text-tertiary: #938a7c;
+
+  /* borders */
+  --border: rgba(31, 27, 22, 0.10);
+  --border-strong: rgba(31, 27, 22, 0.18);
+  --separator: rgba(31, 27, 22, 0.07);
+
+  /* accents */
+  --accent: #c9785c;
+  --accent-hover: #b5694e;
+  --on-accent: #ffffff;
+  --slate: #6f8aab;
+  --success: #059669;
+  --violet: #7c5cdb;
+  --warning: #c2870a;
+
+  /* gym plates (the dark chips the white wordmarks are designed for) */
+  --plate-psycle: #212121;
+  --plate-jab: #6c1f20;
+  --plate-aarmy: #000000;
+
+  /* shadow discipline: two values only, never on buttons */
+  --shadow-card: 0 4px 12px rgba(31, 27, 22, 0.08);
+  --shadow-sheet: 0 18px 48px rgba(31, 27, 22, 0.12);
+
+  /* type */
+  --font-serif: Fraunces, "Source Serif 4", Georgia, "Times New Roman", serif;
+  --font-sans: Inter, system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  --text-xs: 12px;
+  --text-sm: 14px;
+  --text-md: 16px;
+  --text-lg: 18px;
+
+  /* shape and motion */
+  --radius-card: 20px;
+  --radius-control: 12px;
+  --tap-min: 44px;
+  --spring: cubic-bezier(0.25, 1, 0.5, 1);
+  --gutter: 20px;
+  --maxw: 1120px;
+}
+
+/* ===== Base ===== */
+*, *::before, *::after { box-sizing: border-box; }
+html { scroll-behavior: smooth; -webkit-text-size-adjust: 100%; }
+body {
+  margin: 0;
+  background: var(--bg);
+  color: var(--text);
+  font-family: var(--font-sans);
+  font-size: var(--text-md);
+  line-height: 1.6;
+  overflow-x: clip;
+  -webkit-font-smoothing: antialiased;
+}
+h1, h2, h3, h4 { font-family: var(--font-serif); font-weight: 600; line-height: 1.15; margin: 0; letter-spacing: -0.01em; }
+p { margin: 0; }
+a { color: inherit; }
+img, svg { display: block; max-width: 100%; }
+:focus-visible { outline: 2px solid var(--accent); outline-offset: 3px; border-radius: 6px; }
+.wrap { width: 100%; max-width: var(--maxw); margin: 0 auto; padding: 0 var(--gutter); }
+.sr-only { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
+.pv { position: absolute; top: 0; left: 0; width: 1px; height: 1px; opacity: 0; pointer-events: none; }
+
+/* ===== Background blobs ===== */
+.blobs { position: fixed; inset: 0; z-index: -1; overflow: hidden; pointer-events: none; }
+.blob { position: absolute; border-radius: 50%; filter: blur(70px); opacity: 0.55; }
+.blob.b1 { width: 52vmax; height: 52vmax; left: -14vmax; top: -12vmax; background: radial-gradient(circle at 50% 50%, var(--accent), transparent 68%); }
+.blob.b2 { width: 48vmax; height: 48vmax; right: -16vmax; top: 18vh; background: radial-gradient(circle at 50% 50%, var(--slate), transparent 68%); }
+.blob.b3 { width: 40vmax; height: 40vmax; left: 18vw; bottom: -18vmax; background: radial-gradient(circle at 50% 50%, color-mix(in srgb, var(--accent) 60%, var(--slate)), transparent 68%); opacity: 0.4; }
+
+/* ===== Glass ===== */
+.glass {
+  background: var(--glass);
+  border: 1px solid var(--glass-edge);
+  outline: 1px solid var(--border);
+  outline-offset: -1px;
+  border-radius: var(--radius-card);
+  box-shadow: var(--shadow-card);
+  -webkit-backdrop-filter: blur(18px) saturate(1.25);
+  backdrop-filter: blur(18px) saturate(1.25);
+}
+@supports not ((backdrop-filter: blur(1px)) or (-webkit-backdrop-filter: blur(1px))) {
+  .glass { background: var(--glass-strong); }
+}
+
+/* ===== Buttons ===== */
+.btn {
+  display: inline-flex; align-items: center; justify-content: center; gap: 8px;
+  min-height: var(--tap-min); padding: 10px 22px;
+  border-radius: var(--radius-control);
+  font: 600 var(--text-md)/1.2 var(--font-sans);
+  text-decoration: none; cursor: pointer; border: 1px solid transparent;
+  transition: background-color 0.2s ease, border-color 0.2s ease, transform 0.2s ease;
+  box-shadow: none;
+}
+.btn-primary { background: var(--accent); color: var(--on-accent); }
+.btn-primary:hover { background: var(--accent-hover); transform: translateY(-1px); }
+.btn-sm { min-height: 40px; padding: 8px 16px; font-size: var(--text-sm); }
+.link-quiet { color: var(--text-secondary); font-size: var(--text-sm); text-decoration: underline; text-underline-offset: 3px; text-decoration-color: var(--border-strong); display: inline-flex; align-items: center; min-height: var(--tap-min); }
+.link-quiet:hover { color: var(--text); }
+
+/* ===== Nav ===== */
+.nav { position: sticky; top: 0; z-index: 20; margin: 0; border-radius: 0; border-width: 0 0 1px; outline: none; box-shadow: none; border-bottom: 1px solid var(--border); }
+.nav .wrap { display: flex; align-items: center; justify-content: space-between; min-height: 60px; gap: 16px; }
+.brand { font-family: var(--font-serif); font-weight: 600; font-size: var(--text-lg); text-decoration: none; letter-spacing: -0.01em; display: inline-flex; align-items: center; gap: 8px; }
+.brand-mark { width: 22px; height: 22px; border-radius: 7px; background: var(--accent); color: var(--on-accent); display: grid; place-items: center; }
+.brand-mark svg { width: 14px; height: 14px; }
+.nav-links { display: none; gap: 24px; align-items: center; }
+.nav-links a { text-decoration: none; color: var(--text-secondary); font-size: var(--text-sm); font-weight: 500; }
+.nav-links a:hover { color: var(--text); }
+@media (min-width: 760px) { .nav-links { display: flex; } }
+
+/* ===== Sections ===== */
+section { padding: 72px 0; }
+.eyebrow { font-size: var(--text-xs); font-weight: 600; letter-spacing: 0.08em; text-transform: uppercase; color: var(--accent-hover); margin-bottom: 12px; }
+.section-head { max-width: 640px; margin-bottom: 40px; }
+.section-head h2 { font-size: clamp(28px, 5vw, 40px); }
+.section-head p { margin-top: 14px; color: var(--text-secondary); font-size: var(--text-lg); }
+
+/* ===== Hero ===== */
+.hero { padding: 40px 0 56px; }
+.hero-grid { display: grid; grid-template-columns: minmax(0, 1fr); gap: 32px; align-items: center; }
+.hero h1 { font-size: clamp(38px, 9vw, 64px); letter-spacing: -0.02em; }
+.hero .kicker { font-family: var(--font-serif); font-style: normal; font-size: clamp(20px, 4vw, 26px); color: var(--accent-hover); margin-top: 14px; font-weight: 500; }
+.hero .sub { margin-top: 20px; color: var(--text-secondary); font-size: var(--text-lg); max-width: 520px; }
+.cta-row { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 20px; margin-top: 28px; }
+.install-hint { margin-top: 6px; font-size: var(--text-sm); color: var(--text-secondary); max-width: 460px; }
+.install-hint strong { color: var(--text); font-weight: 600; }
+@media (min-width: 920px) { .hero-grid { grid-template-columns: 1.05fr 0.95fr; gap: 56px; } .hero { padding: 88px 0 96px; } }
+
+.stage { position: relative; padding: 8px 8px 64px; align-self: start; }
+@media (min-width: 920px) { .stage { align-self: center; } }
+.tilt {
+  transform: perspective(1000px) rotateX(var(--rx, 0deg)) rotateY(var(--ry, 0deg));
+  transition: transform 0.35s var(--spring);
+  transform-style: preserve-3d;
+}
+
+/* mock UI shared */
+.mock { padding: 18px; box-shadow: var(--shadow-sheet); }
+.mock-head { display: flex; align-items: center; justify-content: space-between; margin-bottom: 14px; }
+.mock-title { font-family: var(--font-serif); font-weight: 600; font-size: var(--text-md); }
+.mock-note { font-size: var(--text-xs); color: var(--text-tertiary); }
+.row { display: grid; grid-template-columns: auto 1fr auto; gap: 12px; align-items: center; padding: 12px; border-radius: 14px; background: var(--glass-strong); border: 1px solid var(--separator); }
+.row.booked { border-color: color-mix(in srgb, var(--violet) 35%, var(--separator)); }
+.av { width: 40px; height: 40px; border-radius: 50%; object-fit: cover; background: var(--surface-inset); flex: none; }
+.av.av-fb { display: grid; place-items: center; font-size: var(--text-xs); font-weight: 600; letter-spacing: 0.02em; color: var(--text-secondary); background: var(--surface-inset); border: 1px solid var(--separator); }
+.cls-body { min-width: 0; }
+.cls-l1 { display: flex; align-items: center; flex-wrap: wrap; gap: 4px 8px; }
+.cls-body .meta { margin-top: 3px; }
+.cls-body .when { font-weight: 600; color: var(--text); font-variant-numeric: tabular-nums; }
+.cls-status { justify-self: end; }
+@media (max-width: 480px) {
+  .row.cls { grid-template-columns: auto 1fr; }
+  .row.cls .cls-status { grid-column: 2; justify-self: start; }
+}
+.row + .row { margin-top: 8px; }
+.row .name { font-weight: 600; font-size: var(--text-sm); line-height: 1.3; }
+.row .meta { font-size: var(--text-xs); color: var(--text-secondary); }
+.gchip { display: inline-flex; align-items: center; justify-content: center; flex: none; height: 24px; padding: 0 8px; border-radius: 8px; }
+.gchip img { max-width: none; width: auto; flex: none; }
+.gchip.psycle { background: var(--plate-psycle); }
+.gchip.jab { background: var(--plate-jab); }
+.gchip.aarmy { background: var(--plate-aarmy); }
+.pill { display: inline-flex; align-items: center; gap: 6px; border-radius: 999px; padding: 4px 10px; font-size: var(--text-xs); font-weight: 600; background: color-mix(in srgb, var(--accent) 14%, transparent); color: var(--accent-hover); white-space: nowrap; }
+.pill.upg { background: color-mix(in srgb, var(--violet) 14%, transparent); color: var(--violet); }
+.pill.ok { background: color-mix(in srgb, var(--success) 14%, transparent); color: var(--success); }
+
+/* countdown component (static state = booked) */
+.cd { display: inline-grid; align-items: center; justify-items: end; }
+.cd > * { grid-area: 1 / 1; }
+.cd-time { font-variant-numeric: tabular-nums; font-weight: 600; font-size: var(--text-sm); color: var(--accent-hover); background: color-mix(in srgb, var(--accent) 14%, transparent); padding: 4px 10px; border-radius: 999px; opacity: 0; transition: opacity 0.2s ease; }
+.cd-done { opacity: 1; transition: opacity 0.2s ease; }
+.cd.counting .cd-time { opacity: 1; }
+.cd.counting .cd-done { opacity: 0; }
+
+.float-card { position: absolute; right: 8px; bottom: 0; padding: 12px 16px; display: flex; align-items: center; gap: 12px; box-shadow: var(--shadow-sheet); }
+.float-card .ico { width: 32px; height: 32px; border-radius: 10px; display: grid; place-items: center; background: color-mix(in srgb, var(--success) 14%, transparent); color: var(--success); }
+.float-card b { display: block; font-size: var(--text-sm); }
+.float-card span.s { font-size: var(--text-xs); color: var(--text-secondary); }
+
+/* ===== Works with ===== */
+.works { padding: 8px 0 24px; }
+.works-inner { display: flex; flex-direction: column; align-items: center; gap: 18px; }
+.works-label { font-size: var(--text-xs); font-weight: 600; letter-spacing: 0.08em; text-transform: uppercase; color: var(--text-secondary); }
+.logos { display: flex; flex-wrap: wrap; justify-content: center; gap: 12px; }
+.plate { display: flex; align-items: center; justify-content: center; flex: none; height: 56px; padding: 0 24px; border-radius: var(--radius-control); box-shadow: var(--shadow-card); }
+.plate img { height: 18px; width: auto; max-width: none; flex: none; }
+@media (max-width: 639px) {
+  .logos { flex-wrap: nowrap; gap: 8px; width: 100%; }
+  .plate { flex: 0 1 auto; height: 44px; padding: 0 12px; }
+  .plate img { height: 12px; }
+  .plate.jab img { height: 14px; }
+  .plate.aarmy img { height: 16px; }
+}
+.plate.psycle { background: var(--plate-psycle); }
+.plate.jab { background: var(--plate-jab); }
+.plate.aarmy { background: var(--plate-aarmy); }
+.plate.aarmy img { height: 22px; }
+.works-note { font-size: var(--text-xs); color: var(--text-tertiary); text-align: center; }
+
+/* ===== Features ===== */
+.feature { display: grid; gap: 28px; align-items: center; padding: 28px 0; }
+.feature + .feature { border-top: 1px solid var(--separator); padding-top: 48px; margin-top: 20px; }
+.feature h3 { font-size: clamp(24px, 4.5vw, 32px); }
+.feature p { margin-top: 14px; color: var(--text-secondary); }
+.feat-tag { display: inline-flex; align-items: center; gap: 8px; font-size: var(--text-xs); font-weight: 600; letter-spacing: 0.06em; text-transform: uppercase; margin-bottom: 14px; }
+.feat-tag i { width: 8px; height: 8px; border-radius: 50%; background: var(--accent); }
+.feat-tag.upg { color: var(--violet); }
+.feat-tag.upg i { background: var(--violet); }
+.feat-tag.one { color: var(--slate); }
+.feat-tag.one i { background: var(--slate); }
+.feat-tag.auto { color: var(--accent-hover); }
+@media (min-width: 900px) {
+  .feature { grid-template-columns: 1fr 1fr; gap: 64px; }
+  .feature.flip .scene { order: -1; }
+}
+.scene { padding: 22px; box-shadow: var(--shadow-sheet); min-height: 250px; display: flex; flex-direction: column; justify-content: center; }
+.scene-cap { margin-top: 14px; font-size: var(--text-xs); color: var(--text-tertiary); }
+
+/* scene 1: auto-book */
+.big-cd { text-align: center; padding: 6px 0 18px; }
+.big-cd .label { font-size: var(--text-xs); font-weight: 600; letter-spacing: 0.08em; text-transform: uppercase; color: var(--text-secondary); }
+.big-time { font-family: var(--font-serif); font-variant-numeric: tabular-nums; font-size: clamp(40px, 11vw, 56px); font-weight: 600; margin-top: 6px; letter-spacing: 0.01em; }
+.booked-badge { display: inline-flex; align-items: center; gap: 8px; margin-top: 10px; padding: 8px 16px; border-radius: 999px; font-weight: 600; font-size: var(--text-sm); background: color-mix(in srgb, var(--success) 14%, transparent); color: var(--success); opacity: 1; transform: none; transition: opacity 0.3s var(--spring), transform 0.3s var(--spring); }
+.big-cd.counting .booked-badge { opacity: 0; transform: translateY(8px); }
+.big-cd.counting .big-time { color: var(--accent-hover); }
+
+/* scene 2: auto-upgrade seat map */
+.stagebar { height: 8px; width: 60%; margin: 0 auto 14px; border-radius: 999px; background: var(--border-strong); }
+.seats { position: relative; display: grid; grid-template-columns: repeat(6, 1fr); gap: 10px; max-width: 300px; margin: 0 auto; }
+.seat { aspect-ratio: 1; border-radius: 9px; border: 1.5px solid var(--border-strong); background: var(--glass-strong); display: grid; place-items: center; font-size: var(--text-xs); font-weight: 600; color: var(--text-tertiary); position: relative; }
+.seat.t { background: var(--surface-inset); border-color: var(--separator); color: transparent; }
+/* the member's token: static state = already moved into spot 5 (row 0, column 4) */
+.you-token { position: absolute; left: 0; top: 0; width: calc((100% - 50px) / 6); aspect-ratio: 1; border-radius: 9px; background: var(--violet); color: var(--on-accent); display: grid; place-items: center; font-size: var(--text-xs); font-weight: 600; transform: translate(calc(4 * (100% + 10px)), 0); }
+.seat-status { position: relative; height: 24px; margin-top: 18px; text-align: center; font-size: var(--text-sm); font-weight: 500; }
+.seat-status span { position: absolute; inset: 0; transition: none; }
+.seat-status .a { opacity: 0; color: var(--text-secondary); }
+.seat-status .b { opacity: 1; color: var(--violet); font-weight: 600; }
+
+/* scene 3: one timetable */
+.gym-key { display: flex; gap: 8px; margin-bottom: 14px; flex-wrap: wrap; }
+.merge .row:nth-child(odd) { --fx: -36px; }
+.merge .row:nth-child(even) { --fx: 36px; }
+
+/* ===== Stays out of your way ===== */
+.cards4 { display: grid; gap: 16px; grid-template-columns: 1fr; }
+@media (min-width: 640px) { .cards4 { grid-template-columns: 1fr 1fr; } }
+@media (min-width: 1000px) { .cards4 { grid-template-columns: repeat(4, 1fr); } }
+.card { padding: 24px; }
+.card .ic { width: 44px; height: 44px; border-radius: 14px; display: grid; place-items: center; background: color-mix(in srgb, var(--accent) 14%, transparent); color: var(--accent-hover); margin-bottom: 16px; }
+.card .ic svg { width: 22px; height: 22px; }
+.card h3 { font-size: var(--text-lg); }
+.card p { margin-top: 8px; color: var(--text-secondary); font-size: var(--text-sm); }
+
+/* ===== Trust ===== */
+.trust-grid { display: grid; gap: 16px; }
+@media (min-width: 820px) { .trust-grid { grid-template-columns: repeat(3, 1fr); } }
+.trust-item { padding: 26px; }
+.trust-item .ic { width: 40px; height: 40px; border-radius: 12px; background: var(--surface-inset); display: grid; place-items: center; margin-bottom: 14px; color: var(--text); }
+.trust-item .ic svg { width: 20px; height: 20px; }
+.trust-item h3 { font-size: var(--text-lg); }
+.trust-item p { margin-top: 8px; color: var(--text-secondary); font-size: var(--text-sm); }
+.trust-item code { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: var(--text-xs); background: var(--surface-inset); padding: 1px 6px; border-radius: 6px; }
+
+/* ===== Install ===== */
+.frames { display: grid; gap: 16px; }
+@media (min-width: 820px) { .frames { grid-template-columns: repeat(3, 1fr); } }
+.frame { padding: 22px; display: flex; flex-direction: column; gap: 16px; }
+.frame .n { font-weight: 600; font-size: var(--text-xs); letter-spacing: 0.08em; text-transform: uppercase; color: var(--accent-hover); font-family: var(--font-sans); }
+.frame h3 { font-size: var(--text-lg); }
+.frame p { color: var(--text-secondary); font-size: var(--text-sm); }
+.phone { border-radius: 22px; border: 1px solid var(--border-strong); background: var(--surface); padding: 14px; min-height: 170px; display: flex; flex-direction: column; justify-content: flex-end; gap: 10px; overflow: hidden; }
+.urlbar { display: flex; align-items: center; gap: 8px; padding: 9px 12px; border-radius: 12px; background: var(--surface-inset); font-size: var(--text-xs); color: var(--text-secondary); }
+.urlbar svg { width: 12px; height: 12px; flex: none; }
+.sheet-row { display: flex; align-items: center; justify-content: space-between; gap: 10px; padding: 11px 12px; border-radius: 12px; background: var(--glass-strong); border: 1px solid var(--separator); font-size: var(--text-sm); }
+.sheet-row.hl { border-color: var(--accent); background: color-mix(in srgb, var(--accent) 10%, var(--glass-strong)); font-weight: 600; }
+.sheet-row svg { width: 18px; height: 18px; flex: none; }
+.homescreen { display: grid; grid-template-columns: repeat(4, 1fr); gap: 12px; align-content: end; }
+.hs-icon { display: grid; justify-items: center; gap: 4px; font-size: var(--text-xs); color: var(--text-secondary); }
+.hs-icon i { width: 100%; max-width: 48px; aspect-ratio: 1; border-radius: 13px; background: var(--surface-inset); display: block; }
+.hs-icon.app i { background: var(--accent); color: var(--on-accent); display: grid; place-items: center; }
+.hs-icon.app i svg { width: 22px; height: 22px; }
+.install-cta { margin-top: 32px; display: flex; flex-wrap: wrap; align-items: center; gap: 8px 20px; }
+
+/* ===== Final CTA + footer ===== */
+.final { text-align: center; padding: 48px 28px; }
+.final h2 { font-size: clamp(28px, 6vw, 44px); }
+.final p { margin: 14px auto 0; color: var(--text-secondary); max-width: 480px; font-size: var(--text-lg); }
+.final .cta-row { justify-content: center; }
+footer { padding: 32px 0 56px; color: var(--text-secondary); font-size: var(--text-xs); }
+.foot { display: grid; gap: 16px; }
+.foot-top { display: flex; flex-wrap: wrap; justify-content: space-between; align-items: center; gap: 12px; }
+.foot .disclaimer { max-width: 680px; line-height: 1.6; }
+
+/* ===== Motion (everything below is opt-in; base state is the still, finished state) ===== */
+@media (prefers-reduced-motion: no-preference) {
+  .blob.b1 { animation: drift1 38s ease-in-out infinite alternate; }
+  .blob.b2 { animation: drift2 46s ease-in-out infinite alternate; }
+  .blob.b3 { animation: drift3 52s ease-in-out infinite alternate; }
+  @keyframes drift1 { to { transform: translate(14vw, 10vh) scale(1.08); } }
+  @keyframes drift2 { to { transform: translate(-12vw, -8vh) scale(1.12); } }
+  @keyframes drift3 { to { transform: translate(10vw, -12vh) scale(0.94); } }
+
+  html.js .reveal { opacity: 0; transform: translateY(24px); transition: opacity 0.35s var(--spring), transform 0.35s var(--spring); transition-delay: calc(var(--i, 0) * 70ms); }
+  html.js .reveal.in { opacity: 1; transform: none; }
+
+  html.js .scene:not(.live) *, html.js .scene:not(.live) *::before, html.js .scene:not(.live) *::after { animation-play-state: paused !important; }
+
+  /* auto-upgrade: 10s loop. The token slides from spot 23 (back row) to spot 5 (front row) once it frees up. */
+  .you-token { animation: token-move 10s var(--spring) infinite; }
+  .seat.s5 { animation: s5-free 10s ease infinite; }
+  .seat-status .a { animation: stat-a 10s ease infinite; }
+  .seat-status .b { animation: stat-b 10s ease infinite; }
+  @keyframes token-move {
+    0%, 40% { transform: translate(calc(4 * (100% + 10px)), calc(3 * (100% + 10px))); background: var(--accent); }
+    58%, 92% { transform: translate(calc(4 * (100% + 10px)), 0); background: var(--violet); }
+    100% { transform: translate(calc(4 * (100% + 10px)), calc(3 * (100% + 10px))); background: var(--accent); }
+  }
+  @keyframes s5-free {
+    0%, 28% { background: var(--surface-inset); border-color: var(--separator); color: transparent; }
+    34%, 52% { background: var(--glass-strong); border-color: var(--violet); color: var(--text-tertiary); }
+    58%, 100% { background: var(--glass-strong); border-color: var(--border-strong); color: var(--text-tertiary); }
+  }
+  @keyframes stat-a { 0%, 34% { opacity: 1; } 42%, 100% { opacity: 0; } }
+  @keyframes stat-b { 0%, 56% { opacity: 0; } 64%, 92% { opacity: 1; } 100% { opacity: 0; } }
+
+  /* one timetable: rows slide in from their own gym */
+  .merge .row { animation: merge-in 9s var(--spring) infinite; animation-delay: calc(var(--k, 0) * 0.45s); }
+  @keyframes merge-in {
+    0% { opacity: 0; transform: translate(var(--fx), 10px); }
+    14%, 84% { opacity: 1; transform: none; }
+    96%, 100% { opacity: 0; transform: translate(0, -6px); }
+  }
+}
+</style>
+</head>
+<body>
+<img class="pv" src="/_a/pv" width="1" height="1" alt="">
+
+<div class="blobs" aria-hidden="true"><div class="blob b1"></div><div class="blob b2"></div><div class="blob b3"></div></div>
+
+<!-- 1. Nav -->
+<header class="nav glass">
+  <div class="wrap">
+    <a class="brand" href="#top" aria-label="Front Row, home">
+      <span class="brand-mark" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12.5l4.5 4.5L19 7.5"/></svg></span>
+      Front Row
+    </a>
+    <nav class="nav-links" aria-label="Sections">
+      <a href="#features">How it works</a>
+      <a href="#extras">Extras</a>
+      <a href="#trust">Trust</a>
+      <a href="#install">Install</a>
+    </nav>
+    <a class="btn btn-primary btn-sm" href="/_a/go?src=nav">Get the app</a>
+  </div>
+</header>
+
+<main id="top">
+<!-- 2. Hero -->
+<section class="hero">
+  <div class="wrap hero-grid" id="hero">
+    <div>
+      <div class="reveal"><p class="eyebrow">Front Row</p></div>
+      <h1 class="reveal" style="--i:1">Your fitness life, handled.</h1>
+      <p class="kicker reveal" style="--i:2">Be first in the room.</p>
+      <p class="sub reveal" style="--i:3">A concierge for every gym you train at: it books the classes you want, the second they open, in the spot you like, and keeps it all in one calendar.</p>
+      <div class="cta-row reveal" style="--i:4">
+        <a class="btn btn-primary" href="/_a/go?src=hero">Get the app</a>
+        <a class="link-quiet" href="/_a/go?src=open">Already a member? Open the app</a>
+      </div>
+      <p class="install-hint reveal" style="--i:5" data-install-hint>Install it from your browser: Share, then Add to Home Screen on iPhone; the browser menu, then Install app on Android and desktop.</p>
+    </div>
+
+    <div class="stage reveal" style="--i:2">
+      <div class="glass mock tilt" data-tilt>
+        <div class="mock-head">
+          <span class="mock-title">This week</span>
+          <span class="mock-note">Illustrative data</span>
+        </div>
+        <div class="row cls booked"><img class="av" src="instructors/maya-okafor.jpg" alt="" width="40" height="40" data-name="Maya Okafor" onerror="frAv(this)"><div class="cls-body"><div class="cls-l1"><span class="name">RIDE 60</span><span class="gchip psycle"><img src="gyms/psycle-london.svg" alt="Psycle" width="89" height="12"></span></div><div class="meta"><span class="when">Tue 07:00</span> · Maya Okafor</div></div><div class="cls-status"><span class="sr-only">Booked. </span><span class="pill upg">✓ Upgraded to spot 5</span></div></div>
+        <div class="row cls"><img class="av" src="instructors/jonah-reyes.jpg" alt="" width="40" height="40" data-name="Jonah Reyes" onerror="frAv(this)"><div class="cls-body"><div class="cls-l1"><span class="name">Boxing Drills</span><span class="gchip jab"><img src="gyms/jab-boxing.svg" alt="JAB Boxing" width="37" height="14"></span></div><div class="meta"><span class="when">Thu 08:15</span> · Jonah Reyes</div></div><div class="cls-status"><div class="cd" data-cd><span class="cd-time" data-cd-time data-prefix="Opens in ">Opens in 00:00:00</span><span class="cd-done pill ok">Booked ✓</span></div></div></div>
+        <div class="row cls"><img class="av" src="instructors/priya-raman.jpg" alt="" width="40" height="40" data-name="Priya Raman" onerror="frAv(this)"><div class="cls-body"><div class="cls-l1"><span class="name">Lower Body Strength</span><span class="gchip aarmy"><img src="gyms/aarmy-logo.png" alt="AARMY" width="63" height="14"></span></div><div class="meta"><span class="when">Fri 18:30</span> · Priya Raman</div></div><div class="cls-status"><span class="pill">Opens in 2d 4h</span></div></div>
+      </div>
+      <div class="glass float-card" aria-hidden="true">
+        <span class="ico"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12.5l4.5 4.5L19 7.5"/></svg></span>
+        <div><b>Booked, spot 5</b><span class="s">Boxing Drills, Thu 08:15</span></div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- 3. Works with -->
+<section class="works" aria-label="Works with">
+  <div class="wrap works-inner reveal">
+    <p class="works-label">Works with</p>
+    <div class="logos">
+      <div class="plate psycle"><img src="gyms/psycle-london.svg" alt="Psycle" width="150" height="20"></div>
+      <div class="plate jab"><img src="gyms/jab-boxing.svg" alt="JAB Boxing" width="54" height="20"></div>
+      <div class="plate aarmy"><img src="gyms/aarmy-logo.png" alt="AARMY" width="100" height="22"></div>
+    </div>
+    <p class="works-note">Front Row is an independent tool. Logos belong to their owners.</p>
+  </div>
+</section>
+
+<!-- 4. Features -->
+<section id="features">
+  <div class="wrap">
+    <div class="section-head reveal">
+      <p class="eyebrow">How it works</p>
+      <h2>Set it once. Turn up.</h2>
+      <p>Choose your favourites once. Front Row handles the waiting, the booking and the moving.</p>
+    </div>
+
+    <!-- Auto-Book -->
+    <div class="feature">
+      <div class="reveal">
+        <span class="feat-tag auto"><i></i>Auto-Book</span>
+        <h3>There the second the doors open.</h3>
+        <p>Set your favourite spots for every studio once, and they are booked in one tap. Queue a class and a server waits for the exact moment booking opens, whether your phone is on the desk or in a locker.</p>
+      </div>
+      <div class="reveal" style="--i:1">
+        <div class="glass scene" data-scene>
+          <div class="big-cd" data-cd>
+            <div class="label">Booking opens in</div>
+            <div class="big-time" data-cd-time>00:00:00</div>
+            <span class="booked-badge">Booked ✓ Spot 5</span>
+          </div>
+          <div class="row cls"><img class="av" src="instructors/maya-okafor.jpg" alt="" width="40" height="40" data-name="Maya Okafor" onerror="frAv(this)"><div class="cls-body"><div class="cls-l1"><span class="name">RIDE 60</span><span class="gchip psycle"><img src="gyms/psycle-london.svg" alt="Psycle" width="89" height="12"></span></div><div class="meta"><span class="when">Mon 07:00</span> · Maya Okafor</div></div><div class="cls-status"><span class="pill">Queued</span></div></div>
+          <p class="scene-cap">Favourite spots: 5, 6, front row</p>
+        </div>
+      </div>
+    </div>
+
+    <!-- Auto-Upgrade -->
+    <div class="feature flip">
+      <div class="reveal">
+        <span class="feat-tag upg"><i></i>Auto-Upgrade</span>
+        <h3>Book now, keep looking for a better spot.</h3>
+        <p>Grab a place in the class the moment you can. Front Row keeps monitoring for a better spot and moves you into it as soon as one frees up, until shortly before class.</p>
+      </div>
+      <div class="reveal" style="--i:1">
+        <div class="glass scene" data-scene>
+          <div class="stagebar" aria-hidden="true"></div>
+          <div class="seats" role="img" aria-label="Seat map: the member starts in spot 23 at the back, a front-row spot 5 frees up, and the member is moved into it">
+            <span class="seat">1</span><span class="seat">2</span><span class="seat t">3</span><span class="seat">4</span><span class="seat s5">5</span><span class="seat">6</span><span class="seat">7</span><span class="seat t">8</span><span class="seat">9</span><span class="seat t">10</span><span class="seat t">11</span><span class="seat">12</span><span class="seat">13</span><span class="seat t">14</span><span class="seat">15</span><span class="seat t">16</span><span class="seat">17</span><span class="seat t">18</span><span class="seat">19</span><span class="seat">20</span><span class="seat t">21</span><span class="seat">22</span><span class="seat">23</span><span class="seat">24</span>
+            <span class="you-token" aria-hidden="true">You</span>
+          </div>
+          <div class="seat-status" aria-live="off"><span class="a">Monitoring for a better spot…</span><span class="b">A spot freed up. You've been upgraded!</span></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- One timetable -->
+    <div class="feature">
+      <div class="reveal">
+        <span class="feat-tag one"><i></i>One timetable</span>
+        <h3>All your gyms, one schedule.</h3>
+        <p>Book classes at Psycle, JAB, AARMY and more, and manage them in one place. A single calendar covers them all.</p>
+      </div>
+      <div class="reveal" style="--i:1">
+        <div class="glass scene" data-scene>
+          <div class="gym-key"><span class="gchip psycle"><img src="gyms/psycle-london.svg" alt="Psycle" width="89" height="12"></span><span class="gchip jab"><img src="gyms/jab-boxing.svg" alt="JAB Boxing" width="37" height="14"></span><span class="gchip aarmy"><img src="gyms/aarmy-logo.png" alt="AARMY" width="63" height="14"></span></div>
+          <div class="merge">
+            <div class="row cls" style="--k:0"><img class="av" src="instructors/maya-okafor.jpg" alt="" width="40" height="40" data-name="Maya Okafor" onerror="frAv(this)"><div class="cls-body"><div class="cls-l1"><span class="name">RIDE 60</span><span class="gchip psycle"><img src="gyms/psycle-london.svg" alt="Psycle" width="89" height="12"></span></div><div class="meta"><span class="when">Mon 07:00</span> · Maya Okafor</div></div></div>
+            <div class="row cls" style="--k:1"><img class="av" src="instructors/jonah-reyes.jpg" alt="" width="40" height="40" data-name="Jonah Reyes" onerror="frAv(this)"><div class="cls-body"><div class="cls-l1"><span class="name">Boxing Drills</span><span class="gchip jab"><img src="gyms/jab-boxing.svg" alt="JAB Boxing" width="37" height="14"></span></div><div class="meta"><span class="when">Tue 08:15</span> · Jonah Reyes</div></div></div>
+            <div class="row cls" style="--k:2"><img class="av" src="instructors/priya-raman.jpg" alt="" width="40" height="40" data-name="Priya Raman" onerror="frAv(this)"><div class="cls-body"><div class="cls-l1"><span class="name">Lower Body Strength</span><span class="gchip aarmy"><img src="gyms/aarmy-logo.png" alt="AARMY" width="63" height="14"></span></div><div class="meta"><span class="when">Wed 12:15</span> · Priya Raman</div></div></div>
+            <div class="row cls" style="--k:3"><img class="av" src="instructors/theo-marsh.jpg" alt="" width="40" height="40" data-name="Theo Marsh" onerror="frAv(this)"><div class="cls-body"><div class="cls-l1"><span class="name">RIDE 60</span><span class="gchip psycle"><img src="gyms/psycle-london.svg" alt="Psycle" width="89" height="12"></span></div><div class="meta"><span class="when">Thu 18:00</span> · Theo Marsh</div></div></div>
+          </div>
+          <p class="scene-cap">Illustrative data</p>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- 5. Stays out of your way -->
+<section id="extras">
+  <div class="wrap">
+    <div class="section-head reveal">
+      <p class="eyebrow">Stays out of your way</p>
+      <h2>Works for you in the background.</h2>
+      <p>Front Row books your classes, keeps you updated, and then gets out of the way.</p>
+    </div>
+    <div class="cards4">
+      <article class="glass card reveal" style="--i:0">
+        <div class="ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 8a6 6 0 1 1 12 0c0 7 3 8 3 8H3s3-1 3-8"/><path d="M10 20a2 2 0 0 0 4 0"/></svg></div>
+        <h3>Push alerts</h3>
+        <p>A tap on the shoulder when a class is booked, when you've been upgraded, and before your free-cancel window closes.</p>
+      </article>
+      <article class="glass card reveal" style="--i:1">
+        <div class="ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="5" width="18" height="16" rx="3"/><path d="M3 10h18M8 3v4M16 3v4"/></svg></div>
+        <h3>Syncs with your calendar app.</h3>
+        <p>Your Apple or Google Calendar is updated when you book, change, or cancel classes.</p>
+      </article>
+      <article class="glass card reveal" style="--i:2">
+        <div class="ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="M12 7v6M12 16.5v.5"/></svg></div>
+        <h3>Credit warnings</h3>
+        <p>Get a helpful reminder when your credits are low, ensuring your classes are booked reliably.</p>
+      </article>
+      <article class="glass card reveal" style="--i:3">
+        <div class="ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 20s-7-4.4-7-10a4 4 0 0 1 7-2.6A4 4 0 0 1 19 10c0 5.6-7 10-7 10z"/></svg></div>
+        <h3>Favourites</h3>
+        <p>Heart your favourite classes and instructors. They're one tap away across every gym.</p>
+      </article>
+    </div>
+  </div>
+</section>
+
+<!-- 6. Trust -->
+<section id="trust">
+  <div class="wrap">
+    <div class="section-head reveal">
+      <p class="eyebrow">Trust</p>
+      <h2>Putting your data first.</h2>
+      <p>Front Row securely uses your gym's credentials to book for you. We're transparent about how.</p>
+    </div>
+    <div class="trust-grid">
+      <article class="glass trust-item reveal" style="--i:0">
+        <div class="ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="4" y="10" width="16" height="11" rx="3"/><path d="M8 10V7a4 4 0 0 1 8 0v3"/></svg></div>
+        <h3>Encrypted at rest</h3>
+        <p>Your gym passwords are stored encrypted with <code>AES-256-GCM</code>, and the key is kept outside the database. Your Front Row password is its own, separate from any gym's.</p>
+      </article>
+      <article class="glass trust-item reveal" style="--i:1">
+        <div class="ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="M5.6 5.6l12.8 12.8"/></svg></div>
+        <h3>No gym affiliation</h3>
+        <p>Front Row is an independent tool. It is not affiliated with, endorsed by or sponsored by Psycle, JAB Boxing, AARMY or any other gym.</p>
+      </article>
+      <article class="glass trust-item reveal" style="--i:2">
+        <div class="ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 7h16M9 7V4h6v3M6 7l1 13h10l1-13M10 11v6M14 11v6"/></svg></div>
+        <h3>Leave any time</h3>
+        <p>Unlink a gym, or delete your account and everything stored with it, whenever you like. Your gym membership itself is never touched.</p>
+      </article>
+    </div>
+  </div>
+</section>
+
+<!-- 7. Install -->
+<section id="install">
+  <div class="wrap">
+    <div class="section-head reveal">
+      <p class="eyebrow">Install</p>
+      <h2>Three taps to your home screen.</h2>
+      <p data-install-hint-long>On iPhone, open the app in Safari and add it to your Home Screen. On Android and desktop, your browser will offer to install it.</p>
+    </div>
+    <div class="frames">
+      <article class="glass frame reveal" style="--i:0">
+        <div class="phone" aria-hidden="true">
+          <div class="urlbar"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><rect x="5" y="11" width="14" height="9" rx="2"/><path d="M8 11V8a4 4 0 0 1 8 0v3"/></svg>sweat.wingfield.tech</div>
+        </div>
+        <div><span class="n">Step 1</span><h3>Open it in your browser</h3><p>Tap Get the app. On iPhone, use Safari.</p></div>
+      </article>
+      <article class="glass frame reveal" style="--i:1">
+        <div class="phone" aria-hidden="true">
+          <div class="sheet-row"><span>Share or browser menu</span><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="8" y="8" width="12" height="12" rx="2"/><path d="M16 8V6a2 2 0 0 0-2-2H6a2 2 0 0 0-2 2v8a2 2 0 0 0 2 2h2"/></svg></div>
+          <div class="sheet-row hl"><span>Add to Home Screen / Install app</span><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="4" y="4" width="16" height="16" rx="4"/><path d="M12 8.5v7M8.5 12h7"/></svg></div>
+        </div>
+        <div><span class="n">Step 2</span><h3 data-step2-title>Add it to your Home Screen</h3><p data-step2-text>On iPhone, tap Share, then Add to Home Screen. On Android or desktop, choose Install app from the menu or address bar.</p></div>
+      </article>
+      <article class="glass frame reveal" style="--i:2">
+        <div class="phone" aria-hidden="true">
+          <div class="homescreen">
+            <div class="hs-icon"><i></i></div><div class="hs-icon"><i></i></div><div class="hs-icon"><i></i></div>
+            <div class="hs-icon app"><i><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12.5l4.5 4.5L19 7.5"/></svg></i>App</div>
+          </div>
+        </div>
+        <div><span class="n">Step 3</span><h3>Open it from your Home Screen</h3><p>Sign up, link your gyms and queue your first class. Push alerts need the installed app on iPhone.</p></div>
+      </article>
+    </div>
+    <div class="install-cta reveal">
+      <a class="btn btn-primary" href="/_a/go?src=install">Get the app</a>
+      <a class="link-quiet" href="/_a/go?src=open">Already a member? Open the app</a>
+    </div>
+  </div>
+</section>
+
+<!-- 8. Final CTA -->
+<section>
+  <div class="wrap">
+    <div class="glass final reveal">
+      <h2>Be first in the room.</h2>
+      <p>Set up takes a few minutes. After that, Front Row does the waiting.</p>
+      <div class="cta-row">
+        <a class="btn btn-primary" href="/_a/go?src=footer">Get the app</a>
+        <a class="link-quiet" href="/_a/go?src=open">Already a member? Open the app</a>
+      </div>
+    </div>
+  </div>
+</section>
+</main>
+
+<footer>
+  <div class="wrap foot">
+    <div class="foot-top">
+      <a class="brand" href="#top">Front Row</a>
+      <a class="link-quiet" href="/_a/go?src=footer">Get the app</a>
+    </div>
+    <p class="disclaimer">Front Row is an independent, unofficial tool. It is not affiliated with, authorised by or endorsed by Psycle, JAB Boxing, AARMY or any other gym. All names and logos are trademarks of their respective owners and are shown only to indicate which gyms the app works with.</p>
+  </div>
+</footer>
+
+<script>
+(function () {
+  var reduce = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+
+  /* Platform-aware install hint (M-D8) */
+  var ua = navigator.userAgent || '';
+  var iOS = /iPhone|iPad|iPod/.test(ua) || (/Macintosh/.test(ua) && navigator.maxTouchPoints > 1);
+  var android = /Android/.test(ua);
+  var short, long;
+  if (iOS && /CriOS|FxiOS|EdgiOS|OPiOS/.test(ua)) {
+    short = '<strong>On iPhone:</strong> open the app in Safari, tap Share, then Add to Home Screen.';
+    long = 'This browser cannot install web apps on iPhone. Open the app in Safari, tap Share, then Add to Home Screen.';
+  } else if (iOS) {
+    short = '<strong>On iPhone:</strong> tap Share, then Add to Home Screen.';
+    long = 'In Safari, tap the Share button, then Add to Home Screen.';
+  } else if (android) {
+    short = '<strong>On Android:</strong> open the browser menu, then tap Install app.';
+    long = 'Open your browser menu and tap Install app (or Add to Home screen).';
+  } else {
+    short = '<strong>On desktop:</strong> use the install icon in the address bar of Chrome or Edge.';
+    long = 'In Chrome or Edge, click the install icon in the address bar, or open the browser menu and choose Install.';
+  }
+  var s2t, s2p;
+  if (iOS) { s2t = 'Share, then Add to Home Screen'; s2p = 'Tap the Share button, then choose Add to Home Screen.'; }
+  else if (android) { s2t = 'Menu, then Install app'; s2p = 'Open the browser menu and tap Install app (or Add to Home screen).'; }
+  else { s2t = 'Install from the address bar'; s2p = 'Click the install icon in the address bar of Chrome or Edge, or choose Install from the menu.'; }
+  var e1 = document.querySelector('[data-step2-title]'); if (e1) e1.textContent = s2t;
+  var e2 = document.querySelector('[data-step2-text]'); if (e2) e2.textContent = s2p;
+  var h = document.querySelector('[data-install-hint]'); if (h) h.innerHTML = short;
+  var hl = document.querySelector('[data-install-hint-long]'); if (hl) hl.textContent = long;
+
+  if (reduce || !('IntersectionObserver' in window)) {
+    /* Stillness: reveal everything, no loops, no tilt. Base markup is the finished state. */
+    var all = document.querySelectorAll('.reveal');
+    for (var i = 0; i < all.length; i++) all[i].classList.add('in');
+    var cds0 = document.querySelectorAll('[data-cd]');
+    for (var j = 0; j < cds0.length; j++) cds0[j].classList.remove('counting');
+    return;
+  }
+
+  /* Scroll reveal */
+  var rio = new IntersectionObserver(function (es) {
+    es.forEach(function (e) { if (e.isIntersecting) { e.target.classList.add('in'); rio.unobserve(e.target); } });
+  }, { threshold: 0.12, rootMargin: '0px 0px -6% 0px' });
+  document.querySelectorAll('.reveal').forEach(function (el) { rio.observe(el); });
+
+  /* Scene visibility gate (pauses CSS loops offscreen) */
+  var sio = new IntersectionObserver(function (es) {
+    es.forEach(function (e) { e.target.classList.toggle('live', e.isIntersecting); });
+  }, { threshold: 0.2 });
+  document.querySelectorAll('[data-scene]').forEach(function (el) { sio.observe(el); });
+
+  /* Countdown loops: 12:00:00 release, then Booked */
+  function pad(n) { return (n < 10 ? '0' : '') + n; }
+  function runCountdown(el) {
+    var t = el.querySelector('[data-cd-time]');
+    var s = 8, timer = null, visible = false;
+    var pre = t.getAttribute('data-prefix') || '';
+    function show() { t.textContent = pre + '00:00:' + pad(s); }
+    function tick() {
+      timer = null;
+      if (!visible) return;
+      if (s > 0) { s--; show(); if (s === 0) { el.classList.remove('counting'); timer = setTimeout(tick, 3200); } else { timer = setTimeout(tick, 1000); } }
+      else { s = 8; el.classList.add('counting'); show(); timer = setTimeout(tick, 1000); }
+    }
+    el.classList.add('counting'); show();
+    new IntersectionObserver(function (es) {
+      visible = es[0].isIntersecting;
+      if (visible && !timer) timer = setTimeout(tick, 1000);
+    }, { threshold: 0.3 }).observe(el);
+  }
+  document.querySelectorAll('[data-cd]').forEach(runCountdown);
+
+  /* Pointer-parallax tilt on hero cards (fine pointers only) */
+  if (window.matchMedia('(hover: hover) and (pointer: fine)').matches) {
+    var hero = document.getElementById('hero');
+    var tilts = hero ? hero.querySelectorAll('[data-tilt]') : [];
+    var raf = 0;
+    hero.addEventListener('pointermove', function (ev) {
+      if (raf) return;
+      raf = requestAnimationFrame(function () {
+        raf = 0;
+        var r = hero.getBoundingClientRect();
+        var x = (ev.clientX - r.left) / r.width - 0.5;
+        var y = (ev.clientY - r.top) / r.height - 0.5;
+        tilts.forEach(function (el) {
+          el.style.setProperty('--ry', (x * 8).toFixed(2) + 'deg');
+          el.style.setProperty('--rx', (-y * 6).toFixed(2) + 'deg');
+        });
+      });
+    });
+    hero.addEventListener('pointerleave', function () {
+      tilts.forEach(function (el) { el.style.setProperty('--ry', '0deg'); el.style.setProperty('--rx', '0deg'); });
+    });
+  }
+})();
+</script>
+</body>
+</html>

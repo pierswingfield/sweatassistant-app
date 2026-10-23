@@ -1426,6 +1426,10 @@ module.exports = {
     cron.schedule('25 */6 * * *', async () => {
       try { await require('./class-history').syncStale(); } catch (e) { console.warn('[History] sync scan failed:', e.message); }
     });
+    // M step 3: nightly purge of landing analytics older than 13 months.
+    cron.schedule('40 3 * * *', () => {
+      try { require('./landing-events').purgeOld(); } catch (e) { console.warn('[Landing] purge failed:', e.message); }
+    });
     // Warm the cache shortly after startup with a small random offset.
     setTimeout(() => { refreshBookingCaches().catch(() => {}); }, 45000 + Math.floor(Math.random() * 45000));
   },

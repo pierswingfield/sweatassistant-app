@@ -251,6 +251,23 @@ db.exec(`
   );
   CREATE INDEX IF NOT EXISTS idx_class_history_user_gym_ts ON class_history(user_id, gym_id, start_ts);
 
+  -- M step 3: first-party landing-page analytics. Written/read ONLY via server/landing-events.js.
+  -- No user id, no IP: visitor_hash is a daily-rotating hash. Purged after 13 months.
+  CREATE TABLE IF NOT EXISTS landing_events (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    ts TEXT NOT NULL,
+    type TEXT NOT NULL,
+    path TEXT,
+    referrer_host TEXT,
+    country TEXT,
+    device TEXT NOT NULL,
+    utm_campaign TEXT,
+    cta_src TEXT,
+    is_bot INTEGER NOT NULL DEFAULT 0,
+    visitor_hash TEXT NOT NULL
+  );
+  CREATE INDEX IF NOT EXISTS idx_landing_events_ts ON landing_events(ts);
+
   -- F-10-0: when each (user, gym) history was last pulled, and how it went.
   CREATE TABLE IF NOT EXISTS class_history_sync (
     user_id INTEGER NOT NULL,

@@ -32,6 +32,7 @@ const classHistory = require('./class-history');
 const { authenticateToken, triggerAutoRelogin } = auth;
 const { getProvider } = require('./providers');
 const { listGyms, getGymConfig } = require('./gyms.config');
+const { isRollingWeekly } = require('./providers/booking-window');
 const { countSelfBookings, validateSelfBookingLimit } = require('./booking-entitlement');
 const calendar = require('./calendar');
 const scheduleCache = require('./schedule-cache');
@@ -357,23 +358,39 @@ router.post('/account/password', authenticateToken, (req, res) => {
 // Doing it here, once, is what lets the client read a timestamp and compute
 // nothing. It used to reimplement Psycle's Monday-noon model in lib.js, which
 // meant every gym got Psycle's rule whether it applied or not.
-function stampReleaseAt(events, provider, userId) {
+async function getCurrentProfile(userId, gymId, provider, session) {
+  const profile = await withRelogin(userId, session, (s) => provider.getProfile(s));
+  // The raw provider profile is the shared persistence shape used by the
+  // adapter's booking-window resolver and the admin profile view. Keep it
+  // explicitly scoped: merged accounts can refresh several gyms in parallel.
+  if (profile && profile.raw && typeof profile.raw === 'object') {
+    try { db.cacheUserProfile(userId, profile.raw, gymId); } catch (_) { /* best-effort snapshot; the current response still has the profile */ }
+  }
+  return profile;
+}
+
+async function stampReleaseAt(events, provider, userId, gymId, session) {
   if (!Array.isArray(events) || events.length === 0) return events;
   // Nothing to compute for a gym that publishes per-class releases.
   if (events.every((e) => e && e.releaseAt)) return events;
 
-  let window = null;
-  try {
-    const user = db.getUserById(userId);
-    const profile = user && user.profile_json ? JSON.parse(user.profile_json) : null;
-    const settings = db.getUserSettings(userId) || {};
-    window = provider.resolveBookingWindow(profile, settings.cachedCredits || []);
-    // A debug override still wins, so the "simulate a different tier" workflow
-    // keeps working — but it is now scoped to the gym whose window it describes.
-    if (settings.debugMode && settings.manualBookingWindowDays) {
-      window = { offsetDays: Number(settings.manualBookingWindowDays), source: 'debug' };
-    }
-  } catch (_) { /* fall through to the adapter's own default */ }
+  const settings = db.getUserSettings(userId, gymId) || {};
+  // A rolling-weekly window is per member, so a timetable-first request must
+  // fetch this member's profile before it can stamp any computed releases. This
+  // uses the provider's existing memo/single-flight path. A provider error must
+  // reach the route error handler: falling back to yesterday's persisted cutoff
+  // can put the release after the class and make Quick-Book appear available.
+  // Other policies (including a per-class gym's declared fallback) do not need
+  // the member profile and remain available during an unrelated profile outage.
+  const profile = isRollingWeekly(provider.gym)
+    ? await getCurrentProfile(userId, gymId, provider, session)
+    : null;
+  let window = provider.resolveBookingWindow(profile && profile.raw, settings.cachedCredits || []);
+  // A debug override still wins, so the "simulate a different tier" workflow
+  // keeps working — and is scoped to the same gym as the timetable.
+  if (settings.debugMode && settings.manualBookingWindowDays) {
+    window = { offsetDays: Number(settings.manualBookingWindowDays), source: 'debug' };
+  }
 
   return events.map((e) => (e && e.releaseAt) ? e : { ...e, releaseAt: provider.releaseAtFor(e.startAt, window) });
 }
@@ -405,7 +422,7 @@ router.get('/timetable', authenticateToken, refreshLimiter, readLimiter, async (
     // member's own booking-window tier, so caching the stamped result would
     // serve one member's release times to another — a correctness bug, where
     // the cache itself is only ever a staleness trade.
-    res.json({ events: stampReleaseAt(events, provider, req.userId) });
+    res.json({ events: await stampReleaseAt(events, provider, req.userId, gymId, session) });
   } catch (err) {
     handleError(res, err);
   }
@@ -441,10 +458,10 @@ router.get('/metadata', authenticateToken, refreshLimiter, readLimiter, async (r
 // GET /api/events/:id
 router.get('/events/:id', authenticateToken, readLimiter, async (req, res) => {
   try {
-    const { provider, session } = resolveContext(req.userId);
+    const { gymId, provider, session } = resolveContext(req.userId);
     const details = await withRelogin(req.userId, session, (s) => provider.fetchEventDetails(req.params.id, s));
     if (details && details.event) {
-      details.event = stampReleaseAt([details.event], provider, req.userId)[0];
+      details.event = (await stampReleaseAt([details.event], provider, req.userId, gymId, session))[0];
     }
     res.json(details);
   } catch (err) {
@@ -750,7 +767,7 @@ router.get('/history', authenticateToken, readLimiter, async (req, res) => {
 router.get('/profile', authenticateToken, readLimiter, async (req, res) => {
   try {
     const { gymId, provider, session } = resolveContext(req.userId);
-    const profile = await withRelogin(req.userId, session, (s) => provider.getProfile(s));
+    const profile = await getCurrentProfile(req.userId, gymId, provider, session);
     // Stamped so the client never has to infer which gym this profile describes.
     // The booking window is derived from ITS cutoffs and saved as a gym-scoped
     // setting, so the answer has to travel with the data rather than be guessed.

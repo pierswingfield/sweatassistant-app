@@ -16,6 +16,11 @@ describe('paths', () => {
     }
   });
   it('/ is Home', () => expect(parseLocation('/', '').tab).toBe('home'));
+  it('parses only valid booking day links', () => {
+    expect(parseLocation('/bookings', '?day=2026-10-07').bookings.day).toBe('2026-10-07');
+    expect(parseLocation('/bookings', '?day=2026-02-30').bookings.day).toBeNull();
+    expect(parseLocation('/bookings', '?day=2026-10-07&gym=jab').bookings.day).toBe('2026-10-07');
+  });
   it('tolerates trailing slash, case and double slashes', () => {
     expect(parseLocation('/Timetable/', '').tab).toBe('class-timetable');
     expect(parseLocation('//bookings', '').tab).toBe('my-bookings');
@@ -151,5 +156,13 @@ describe('buildTimetableUrl (H link contract)', () => {
   });
   it('drops bare instructor ids', () => {
     expect(buildTimetableUrl({ instructor: ['123'] })).toBe('/timetable');
+  });
+});
+
+describe('buildBookingsDayUrl (H day handoff contract)', () => {
+  it('serializes a valid viewer-local day and drops malformed input', async () => {
+    const { buildBookingsDayUrl } = await import('./url-state.js');
+    expect(buildBookingsDayUrl('2026-10-07')).toBe('/bookings?day=2026-10-07');
+    expect(buildBookingsDayUrl('2026-02-30')).toBe('/bookings');
   });
 });

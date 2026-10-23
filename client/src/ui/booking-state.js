@@ -16,6 +16,7 @@
 
 import { cache } from '../main';
 import { api } from '../api';
+import { setCached } from '../cache.js';
 
 const sameId = (a, b) => a != null && b != null && String(a) === String(b);
 const bookingIdOf = (b) => b?.bookingId ?? b?.id;
@@ -50,6 +51,16 @@ export function mergeGymBookings(existing, gymId, fresh) {
 /** Mutations whose result only a provider re-read can show (a new/removed guest row). */
 export const NEEDS_PROVIDER_REREAD = new Set(['bookGuest', 'cancel']);
 
+// Home reads each gym through a 120s SWR entry. A mutation's provider re-read
+// is newer than that entry, so write the matching gym response before asking
+// Home to repaint. This avoids a second provider request and prevents the old
+// Home cards from winning the refresh race.
+async function refreshHomeBookingsCache(gymId, bookings) {
+  if (!gymId) return;
+  const fresh = (bookings || []).filter((booking) => String(booking.gymId || booking.event?.gymId || '') === String(gymId));
+  await setCached(`/api/bookings?gymId=${encodeURIComponent(gymId)}`, { bookings: fresh }, 120000);
+}
+
 let refetching = null;
 let pendingGyms = new Set();
 async function refetchBookingState(detail = {}) {
@@ -73,6 +84,7 @@ async function refetchBookingState(detail = {}) {
         cache.bookings = merged;
       }
       cache.waitlists = waitlists || [];
+      await refreshHomeBookingsCache(detail.gymId, cache.bookings);
       // Keep the server's booking_cache (what /api/overlap-check reads) current.
       import('./bookings.js').then((m) => m.syncBookingCache(cache.bookings)).catch(() => {});
       window.dispatchEvent(new CustomEvent('app-booking-state-changed'));

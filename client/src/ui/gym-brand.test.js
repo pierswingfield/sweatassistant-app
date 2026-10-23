@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeEach } from 'vitest';
-import { gymBrand, gymChip } from './cards.js';
+import { gymBrand, gymChip, gymLogoPlate } from './cards.js';
 import { setGymCatalogue, getGymPresentation } from '../gym-context.js';
 import { CATALOGUE } from './gym-brand-fixture.js';
 
@@ -31,6 +31,12 @@ describe('gymBrand: presentation contract lookup (F-7 item 2)', () => {
     expect(b.logoSvg).toContain('THIRD');
     expect(b.brandBg).toBe('#0a7a3c');
     expect(gymChip('third-gym')).toContain('background:#0a7a3c');
+  });
+  it('uses the filter drawer logo-plate contract for compact full wordmarks', () => {
+    const plate = gymLogoPlate('psycle-london');
+    expect(plate).toContain('fr-logo-plate');
+    expect(plate).toContain('is-full');
+    expect(plate).not.toContain('app-gym-chip');
   });
   it('escapes wordmark text', () => {
     setGymCatalogue([{ id: 'x', presentation: { ...CATALOGUE[2].presentation, wordmark: { text: '<b>X</b>' } } }]);

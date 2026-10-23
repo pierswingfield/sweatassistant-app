@@ -22,6 +22,7 @@ function createFakeResponse(data, status = 200) {
 }
 
 const { DateTime } = require('luxon');
+const ACHIEVEMENTS = require('./__fixtures__/marianatek/prod-achievements.json').response_body;
 const DEFAULT_ZONE = require('./gyms.config').listGyms().find((g) => g.provider === 'marianatek').timezone; // the first MT gym's zone, from config
 const LOCATION = {
   id: '48751', name: 'SW1', address_line_one: 'Unit 5, Colonnade Walk, 151 Buckingham Palace Road',
@@ -31,7 +32,14 @@ const LOCATION = {
 
 const INSTRUCTORS = [
   { id: '7197', name: 'George Davies', photo_urls: { thumbnail_url: null } },
-  { id: '6255', name: 'Nickol', photo_urls: { thumbnail_url: null } },
+  // These are the sanitized published MarianaTek URLs from
+  // __fixtures__/marianatek/classes-list.json. Keep the mock's existing
+  // instructor identity while giving portrait coverage to the enrichment
+  // path; other mock instructors intentionally remain photo-less.
+  { id: '6255', name: 'Nickol', photo_urls: {
+    large_url: 'https://mtproduction-files.s3.amazonaws.com/media/public_images/2_IaLH0XH.png',
+    thumbnail_url: 'https://mtproduction-files.s3.amazonaws.com/media/public_images/2_r9cgZUz.png',
+  } },
   { id: '6301', name: 'Aaron Reid', photo_urls: { thumbnail_url: null } },
   { id: '6412', name: 'Simi', photo_urls: { thumbnail_url: null } },
   { id: '6580', name: 'Leila Haddad', photo_urls: { thumbnail_url: null } },
@@ -298,10 +306,14 @@ function makeReservation({ classId, spotId, reservationType, guestEmail }) {
   const spot = spotId
     ? (makeLayout(bookedSpotsFor(classId), cls && cls.classroom_name).spots.find((s) => s.id === spotId) || { id: spotId, name: spotId, spot_type: { id: '', name: '' }, x_position: null, y_position: null })
     : { id: '', name: '', spot_type: { id: '', name: '' }, x_position: null, y_position: null };
+  // /me/reservations in the captured production response omits instructors;
+  // the adapter must enrich from the exact class-session id rather than rely
+  // on the booking payload carrying a portrait.
+  const { instructors: _omittedInstructors, ...bookingClassSession } = cls || {};
   const reservation = {
     id, is_booked_by_me: true, is_booked_for_me: !guestEmail, reservation_type: reservationType,
     spot, status: 'pending', waitlist_position: null, booked_by: 'Dev User', guest_email: guestEmail || null,
-    is_change_spots_enabled: true, is_upcoming: true, class_session: cls || { id: classId },
+    is_change_spots_enabled: true, is_upcoming: true, class_session: cls ? bookingClassSession : { id: classId },
     payment_option: paymentOption(),
   };
   reservations.set(id, reservation);
@@ -430,6 +442,12 @@ function handleMockRequest(pathName, method, body, gym) {
   if (path === '/me/memberships' && method === 'GET') {
     if (activeCreditBased) return createFakeResponse({ count: 0, results: [], meta: {}, links: {} });
     return createFakeResponse({ count: 1, results: [paymentOption().membership_payment], meta: {}, links: {} });
+  }
+
+  // GET /me/achievements — sanitized production capture; classes_completed is
+  // the provider's all-time attendance total for the normalized seam.
+  if (path === '/me/achievements' && method === 'GET') {
+    return createFakeResponse({ ...ACHIEVEMENTS });
   }
 
   // GET /me/reservations?is_upcoming=...

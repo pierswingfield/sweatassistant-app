@@ -758,7 +758,7 @@ check('both platforms return the identical metadata shape', async () => {
   const ALLOWED = {
     locations: ['id', 'name', 'address', 'timeZone'],
     studios: ['id', 'name', 'locationId', 'locationName', 'hasLayout', 'rowGroups', 'mobileRotation', 'front'],
-    instructors: ['id', 'name', 'imageUrl'],
+    instructors: ['id', 'name', 'imageUrl', 'thumbUrl'],
     classTypes: ['id', 'name', 'group'],
   };
   const keysOf = (list) => [...new Set(list.flatMap((x) => Object.keys(x)))].filter((k) => k !== 'raw');

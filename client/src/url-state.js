@@ -23,6 +23,10 @@ export function emptyTimetable() {
   return { day: null, gyms: [], locations: [], types: [], instructors: [], fav: false, q: '', explicit: false };
 }
 
+export function emptyBookings() {
+  return { day: null };
+}
+
 export function isValidIsoDay(s) {
   const m = DAY_RE.exec(String(s || ''));
   if (!m) return false;
@@ -66,7 +70,7 @@ function safeParams(search) {
  * (callers fall back to Home). Timetable params apply to /timetable only.
  */
 export function parseLocation(pathname, search = '') {
-  const out = { tab: 'home', section: null, valid: true, timetable: emptyTimetable() };
+  const out = { tab: 'home', section: null, valid: true, timetable: emptyTimetable(), bookings: emptyBookings() };
   let p = String(pathname || '/');
   try { p = decodeURI(p); } catch { /* keep raw */ }
   p = p.split(/[?#]/)[0].replace(/\/{2,}/g, '/');
@@ -82,9 +86,14 @@ export function parseLocation(pathname, search = '') {
   const tab = Object.prototype.hasOwnProperty.call(PATH_TO_TAB, p) ? PATH_TO_TAB[p] : null;
   if (!tab) { out.valid = false; return out; }
   out.tab = tab;
+  const sp = safeParams(search);
+  if (tab === 'my-bookings') {
+    const day = sp.get('day');
+    out.bookings.day = isValidIsoDay(day) ? day : null;
+    return out;
+  }
   if (tab !== 'class-timetable') return out;
 
-  const sp = safeParams(search);
   const t = out.timetable;
   const day = sp.get('day');
   t.day = isValidIsoDay(day) ? day : null;
@@ -108,6 +117,10 @@ export function serializeState(rawState) {
     return s ? `/settings/${s}` : '/settings';
   }
   const base = TAB_TO_PATH[tab];
+  if (tab === 'my-bookings') {
+    const day = state.bookings?.day ?? state.day;
+    return isValidIsoDay(day) ? `${base}?day=${day}` : base;
+  }
   if (tab !== 'class-timetable') return base;
   const t = { ...emptyTimetable(), ...(state.timetable || {}) };
   const parts = [];
@@ -133,7 +146,7 @@ export function serializeState(rawState) {
 export function isDeepLink(parsed) {
   if (!parsed) return false;
   const t = parsed.timetable || emptyTimetable();
-  return !!(parsed.section || t.day || t.gyms.length || t.locations.length || t.types.length
+  return !!(parsed.section || parsed.bookings?.day || t.day || t.gyms.length || t.locations.length || t.types.length
     || t.instructors.length || t.fav || t.q || t.explicit);
 }
 
@@ -164,4 +177,8 @@ export function buildTimetableUrl({ day = null, gym = [], loc = [], type = [], i
     tab: 'class-timetable',
     timetable: { day, gyms: gym, locations: loc, types: type, instructors: instructor, fav, q, explicit },
   });
+}
+
+export function buildBookingsDayUrl(day) {
+  return serializeState({ tab: 'my-bookings', bookings: { day } });
 }

@@ -3,8 +3,10 @@ import { describe, it, expect, beforeEach, vi } from 'vitest';
 const cache = { bookings: null, waitlists: null };
 vi.mock('../main', () => ({ cache }));
 vi.mock('../api', () => ({ api: { getBookings: vi.fn(), getWaitlists: vi.fn() } }));
+const setCached = vi.fn();
+vi.mock('../cache.js', () => ({ setCached }));
 
-const { applyMutationToCache, dropBookingFromCache, dropWaitlistFromCache } = await import('./booking-state.js');
+const { applyMutationToCache, dropBookingFromCache, dropWaitlistFromCache, installBookingState } = await import('./booking-state.js');
 
 describe('booking-state (U1-15)', () => {
   beforeEach(() => {
@@ -16,6 +18,7 @@ describe('booking-state (U1-15)', () => {
       { eventId: '9043', gymId: 'jab-boxing' },
       { eventId: '9043', gymId: 'psycle-london' }, // same provider id, different gym
     ];
+    setCached.mockReset();
   });
 
   it('a cancel makes the booking disappear from the shared cache synchronously', () => {
@@ -44,5 +47,18 @@ describe('booking-state (U1-15)', () => {
   it('is safe before anything has loaded', () => {
     cache.bookings = null; cache.waitlists = null;
     expect(() => { dropBookingFromCache('1'); dropWaitlistFromCache('1'); }).not.toThrow();
+  });
+
+  it('primes the Home gym SWR entry with fresh bookings before it announces a booking-state change', async () => {
+    const api = (await import('../api')).api;
+    api.getBookings.mockResolvedValue([{ bookingId: 99, gymId: 'jab-boxing', event: { id: 'fresh', gymId: 'jab-boxing' } }]);
+    api.getWaitlists.mockResolvedValue([]);
+    installBookingState();
+    const changed = new Promise((resolve) => window.addEventListener('app-booking-state-changed', resolve, { once: true }));
+    window.dispatchEvent(new CustomEvent('app-bookings-mutated', { detail: { type: 'book', gymId: 'jab-boxing', eventId: 'fresh' } }));
+    await changed;
+    expect(setCached).toHaveBeenCalledWith('/api/bookings?gymId=jab-boxing', {
+      bookings: [{ bookingId: 99, gymId: 'jab-boxing', event: { id: 'fresh', gymId: 'jab-boxing' } }],
+    }, 120000);
   });
 });

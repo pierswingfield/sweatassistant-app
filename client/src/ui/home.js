@@ -1,25 +1,34 @@
 // Home tab: a page of independent widgets (F-10-1).
 // Framework lives in widget-registry.js; this file registers the widgets and paints the page.
 import { api } from '../api.js';
-import { COPY } from '../copy.js';
+import { COPY, formatCountLabel } from '../copy.js';
 import { registerWidget, registry, mountWidget, isNoGymError } from './widget-registry.js';
 import { renderCardSkeletons } from './loading-skeleton.js';
 import { welcomeText } from './name-capture.js';
-import { getTotalCredits, hasConfirmedAccess, isMetered } from './credit-allowance.js';
-import { canForGym, getGymShortName } from '../gym-context.js';
-import { gymSquareChip } from './cards.js';
+import { getTotalCredits, isMetered } from './credit-allowance.js';
+import { canForGym, getGymShortName, getLinkedGyms } from '../gym-context.js';
+import { readCached } from '../cache.js';
+import { cleanClassName, gymLogoPlate, gymSquareChip, icon, sparklesIcon } from './cards.js';
 import { buildTimetableUrl } from '../url-state.js';
 import { navigate } from '../router.js';
 import { DateTime } from 'luxon';
 import { groupBookingsByEvent, selectUpcoming } from './upcoming.js';
 import { mountBookingCard } from './bookings.js';
-import { formatInZone, zoneFor } from '../lib.js';
+import { formatInZone, formatOpensIn, getClassReleaseTime, zoneFor } from '../lib.js';
 import { instructorAvatar } from './tooltips.js';
 import { indexFavourites, isFavouriteIn } from '../favourites.js';
 
 const goTo = (tabId) => (window.switchTab ? window.switchTab(tabId) : null);
 
 const gymIdOf = (gym) => String(gym?.gym_id || gym?.gymId || gym?.id || '');
+const gymCacheKey = (path, gymId, extra = {}) => {
+  const params = new URLSearchParams(extra);
+  params.set('gymId', String(gymId));
+  return `${path}?${params}`;
+};
+const uniqueGymIds = (gyms) => [...new Set((Array.isArray(gyms) ? gyms : []).map(gymIdOf).filter(Boolean))];
+const homeContextKey = (gyms) => `${localStorage.getItem('appUserId') || ''}:${uniqueGymIds(gyms).sort().join(',')}`;
+const isCurrentHomeContext = (ctx) => !!ctx?.contextKey && ctx.contextKey === homeContextKey(getLinkedGyms());
 
 /**
  * W2 routes are URL overlays, rather than saved timetable defaults. The final
@@ -58,75 +67,89 @@ function addTimetableLinkHandler(anchor, url) {
   });
 }
 
+function addBookingsDayLinkHandler(anchor, url) {
+  anchor.addEventListener('click', (event) => {
+    // Keep the real href for copy/open-in-new-tab and only take over an ordinary
+    // primary click. The Bookings renderer reads the pushed day URL and focuses
+    // its cached card before the refresh completes.
+    if (event.defaultPrevented || event.button !== 0 || event.metaKey || event.ctrlKey || event.shiftKey || event.altKey) return;
+    event.preventDefault();
+    if (!navigate(url)) return;
+    window.switchTab?.('my-bookings', { history: 'none' });
+  });
+}
+
+export function groupHomeGymLinks(links) {
+  const items = Array.isArray(links) ? links : [];
+  const perRow = items.length > 4 ? 3 : Math.max(items.length, 1);
+  const rows = [];
+  for (let offset = 0; offset < items.length; offset += perRow) rows.push(items.slice(offset, offset + perRow));
+  return rows;
+}
+
 registerWidget({
-  id: 'book', order: 20, title: COPY.home.book,
+  id: 'book', order: 40, title: COPY.home.findClass,
   async load(ctx) { return getHomeBookLinks(ctx.gyms); },
   isEmpty: () => false,
   render(el, links) {
     const row = document.createElement('div');
     row.className = 'home-book-row';
-    for (const link of links) {
+    const gymLinks = links.filter((link) => link.gymId);
+    const gymRows = groupHomeGymLinks(gymLinks);
+    for (const gymGroup of gymRows) {
+      const gymRow = document.createElement('div');
+      gymRow.className = `home-book-gym-row${gymLinks.length > 4 ? ' is-centered' : ''}`;
+      if (gymLinks.length <= 4) gymRow.style.setProperty('--home-gym-count', String(gymLinks.length));
+      for (const link of gymGroup) {
+        const anchor = document.createElement('a');
+        anchor.className = 'home-book-link home-book-gym';
+        anchor.href = link.href;
+        anchor.title = `${COPY.home.findClass} · ${link.name}`;
+        anchor.setAttribute('aria-label', `${COPY.home.findClass} · ${link.name}`);
+        anchor.innerHTML = gymLogoPlate(link.gymId);
+        addTimetableLinkHandler(anchor, link.href);
+        gymRow.appendChild(anchor);
+      }
+      row.appendChild(gymRow);
+    }
+    const allGymsLink = links.find((link) => !link.gymId);
+    if (allGymsLink) {
       const anchor = document.createElement('a');
-      anchor.className = link.gymId ? 'home-book-link home-book-gym' : 'home-book-link home-book-all';
-      anchor.href = link.href;
-      anchor.title = link.gymId ? `${COPY.home.book} · ${link.name}` : COPY.home.bookAll;
-      anchor.setAttribute('aria-label', link.gymId ? `${COPY.home.book} · ${link.name}` : COPY.home.bookAll);
-      if (link.gymId) anchor.innerHTML = gymSquareChip(link.gymId);
-      else anchor.textContent = link.name;
-      addTimetableLinkHandler(anchor, link.href);
+      anchor.className = 'home-book-link home-book-all';
+      anchor.href = allGymsLink.href;
+      anchor.title = COPY.home.findClass;
+      anchor.setAttribute('aria-label', COPY.home.findClass);
+      anchor.innerHTML = `${icon('calendar', 16)}<span class="home-book-all-label"></span><span class="home-book-all-arrow" aria-hidden="true">→</span>`;
+      anchor.querySelector('.home-book-all-label').textContent = allGymsLink.name;
+      addTimetableLinkHandler(anchor, allGymsLink.href);
       row.appendChild(anchor);
     }
     el.appendChild(row);
   },
 });
 
-const finite = (value) => Number.isFinite(Number(value));
-
-/** A compact duration label without claiming a provider's unit semantics. */
-export function formatStatsMinutes(value) {
-  const minutes = Number(value);
-  if (!Number.isFinite(minutes) || minutes < 0) return '';
-  const hours = Math.floor(minutes / 60);
-  const remainder = minutes % 60;
-  if (!hours) return `${remainder}m`;
-  return remainder ? `${hours}h ${remainder}m` : `${hours}h`;
-}
-
-/**
- * Keep provided attendance and history-derived bookings in distinct buckets.
- * It is tempting to add the two, but that would present non-equivalent source
- * semantics as one cross-gym "classes taken" total.
- */
+/** Build one truthful, provider-published attendance row per linked gym. */
 export function getHomeStats(gyms, byGym = {}) {
   const rows = [];
+  let unavailable = 0;
   for (const gym of Array.isArray(gyms) ? gyms : []) {
     const gymId = gymIdOf(gym);
     if (!gymId) continue;
     const data = byGym[gymId] || {};
     const attendance = data.attendance;
-    const summary = data.history?.summary;
-    const profileStats = data.profile?.stats;
-    const hasOfficial = finite(attendance?.attendedTotal);
-    const hasHistory = finite(summary?.classCount);
-    if (!hasOfficial && !hasHistory) continue;
-    const providerMinutes = finite(profileStats?.totalAttendedMinutes)
-      ? Number(profileStats.totalAttendedMinutes) : null;
-    const historyMinutes = finite(summary?.totalMinutes) ? Number(summary.totalMinutes) : null;
+    const rawTotal = attendance?.attendedTotal;
+    const total = Number(rawTotal);
+    if (rawTotal == null || rawTotal === '' || !Number.isInteger(total) || total < 0) {
+      unavailable += 1;
+      continue;
+    }
     rows.push({
       gymId,
       gymName: getGymShortName(gymId) || gym.shortName || gym.name || gymId,
-      attendanceTotal: hasOfficial ? Number(attendance.attendedTotal) : null,
-      bookedCount: !hasOfficial && hasHistory ? Number(summary.classCount) : null,
-      // Prefer the provider's attended-minute figure. Only use history minutes
-      // where a provider does not expose that value.
-      minutes: providerMinutes ?? (!hasOfficial ? historyMinutes : null),
-      minutesSource: providerMinutes != null ? 'provider' : (!hasOfficial && historyMinutes != null ? 'history' : null),
-      instructorCount: finite(summary?.instructorCount) ? Number(summary.instructorCount) : null,
+      attendanceTotal: total,
     });
   }
-  const officialAttendedTotal = rows.reduce((sum, row) => sum + (row.attendanceTotal || 0), 0);
-  const historyBookedTotal = rows.reduce((sum, row) => sum + (row.bookedCount || 0), 0);
-  return { rows, officialAttendedTotal, historyBookedTotal };
+  return { rows, partial: unavailable > 0 };
 }
 
 async function loadHomeStats(gyms) {
@@ -136,93 +159,45 @@ async function loadHomeStats(gyms) {
     // Capabilities are held by gym-context while public linked-gym rows stay
     // deliberately small. Resolve this known gym through that shared contract.
     const supportsOfficialAttendance = canForGym('attendanceTotals', gymId);
-    const [history, attendance, profile] = await Promise.allSettled([
-      api.getHistory(gymId, { limit: 1, top: 0 }),
-      supportsOfficialAttendance ? api.getAttendanceTotals(gymId) : Promise.resolve(null),
-      supportsOfficialAttendance ? api.getNormalizedProfile(gymId) : Promise.resolve(null),
-    ]);
-    const historyValue = history.status === 'fulfilled' ? history.value : null;
-    const data = {
-      history: historyValue && (!historyValue.sync?.lastError || historyValue.sync?.lastSyncedAt) ? historyValue : null,
-      attendance: attendance.status === 'fulfilled' ? attendance.value : null,
-      profile: profile.status === 'fulfilled' ? profile.value : null,
-      partial: history.status === 'rejected' || !!historyValue?.sync?.lastError || attendance.status === 'rejected' || profile.status === 'rejected',
-    };
-    const hasData = !!data.history || !!data.attendance;
-    if (!hasData) throw new Error('No stats source available');
-    return [gymId, data];
+    if (!supportsOfficialAttendance) return [gymId, {}];
+    return [gymId, { attendance: await api.getAttendanceTotals(gymId, { loading: true }) }];
   }));
-  const fulfilled = settled.filter((result) => result.status === 'fulfilled');
-  if (!fulfilled.length && linked.length) throw settled.find((result) => result.status === 'rejected')?.reason;
-  const model = getHomeStats(gyms, Object.fromEntries(fulfilled.map((result) => result.value)));
-  return { ...model, partial: fulfilled.length !== linked.length || fulfilled.some((result) => result.value[1].partial) };
+  const byGym = Object.fromEntries(settled
+    .filter((result) => result.status === 'fulfilled')
+    .map((result) => result.value));
+  return getHomeStats(gyms, byGym);
 }
 
-function statsMetric(label, value, source) {
-  const metric = document.createElement('div');
-  metric.className = 'home-stats-metric';
-  const number = document.createElement('strong');
-  number.textContent = String(value);
-  const copy = document.createElement('span');
-  copy.textContent = label;
-  metric.append(number, copy);
-  if (source) metric.dataset.source = source;
-  return metric;
-}
-
-function statsRow(row) {
-  const detailId = `home-stats-${row.gymId}`.replace(/[^a-zA-Z0-9_-]/g, '-');
-  const item = document.createElement('div');
-  item.className = 'home-stats-row';
-  const button = document.createElement('button');
-  button.type = 'button';
-  button.className = 'home-stats-row-toggle';
-  button.setAttribute('aria-expanded', 'false');
-  button.setAttribute('aria-controls', detailId);
-  const primary = row.attendanceTotal != null
-    ? `${row.attendanceTotal} · ${COPY.home.statsProviderAttended}`
-    : `${row.bookedCount} · ${COPY.home.statsHistoryBooked}`;
-  button.innerHTML = '<span class="home-stats-gym"></span><span class="home-stats-primary"></span><span class="home-stats-chevron" aria-hidden="true">⌄</span>';
-  button.querySelector('.home-stats-gym').textContent = row.gymName;
-  button.querySelector('.home-stats-primary').textContent = primary;
-  const details = document.createElement('div');
-  details.id = detailId;
-  details.className = 'home-stats-details';
-  details.hidden = true;
-  if (row.attendanceTotal != null) details.appendChild(statsMetric(COPY.home.statsProviderAttended, row.attendanceTotal, 'provider'));
-  if (row.bookedCount != null) details.appendChild(statsMetric(COPY.home.statsHistoryBooked, row.bookedCount, 'history'));
-  if (row.minutes != null) details.appendChild(statsMetric(
-    row.minutesSource === 'provider' ? COPY.home.statsProviderMinutes : COPY.home.statsHistoryMinutes,
-    formatStatsMinutes(row.minutes), row.minutesSource,
-  ));
-  if (row.instructorCount != null) details.appendChild(statsMetric(COPY.home.statsHistoryInstructors, row.instructorCount, 'history'));
-  button.setAttribute('aria-label', COPY.home.statsShowDetails.replace('{gym}', row.gymName));
-  button.addEventListener('click', () => {
-    const expanded = button.getAttribute('aria-expanded') === 'true';
-    button.setAttribute('aria-expanded', String(!expanded));
-    button.setAttribute('aria-label', (expanded ? COPY.home.statsShowDetails : COPY.home.statsHideDetails).replace('{gym}', row.gymName));
-    details.hidden = expanded;
+function openGymSettings(gymId) {
+  goTo('settings');
+  import('./settings.js').then((module) => module.openGymSettings(gymId)).catch((err) => {
+    console.error('Open gym settings failed:', err);
   });
-  item.append(button, details);
+}
+
+function attendanceTile(row, ctx) {
+  const item = document.createElement('button');
+  item.type = 'button';
+  item.className = 'home-attendance-tile';
+  item.setAttribute('aria-label', `Open ${row.gymName} settings: ${row.attendanceTotal} ${COPY.home.statsProviderAttended}`);
+  item.innerHTML = '<span class="home-attendance-mark"></span><span class="home-attendance-stat"><strong class="home-attendance-number"></strong><span class="home-attendance-unit">classes</span></span>';
+  item.querySelector('.home-attendance-mark').innerHTML = gymSquareChip(row.gymId);
+  item.querySelector('.home-attendance-number').textContent = String(row.attendanceTotal);
+  item.addEventListener('click', () => ctx.openGymSettings(row.gymId));
   return item;
 }
 
 registerWidget({
-  id: 'stats', order: 80, title: COPY.home.stats,
+  id: 'stats', order: 70, title: COPY.home.stats,
+  cacheKeys(ctx) { return uniqueGymIds(ctx.gyms).filter((id) => canForGym('attendanceTotals', id)).map((id) => gymCacheKey('/api/attendance-totals', id)); },
   async load(ctx) { return loadHomeStats(ctx.gyms); },
   isEmpty: (data) => Array.isArray(data?.rows) && data.rows.length === 0,
   emptyText: COPY.home.statsNone,
-  render(el, data) {
-    const summary = document.createElement('div');
-    summary.className = 'home-stats-summary';
-    if (data.rows.some((row) => row.attendanceTotal != null)) summary.appendChild(statsMetric(COPY.home.statsProviderAttended, data.officialAttendedTotal, 'provider'));
-    if (data.rows.some((row) => row.bookedCount != null)) summary.appendChild(statsMetric(COPY.home.statsHistoryBooked, data.historyBookedTotal, 'history'));
-    // A known zero is still meaningful. The rows below retain its source label.
-    if (!summary.children.length) summary.textContent = COPY.home.statsNone;
-    const list = document.createElement('div');
-    list.className = 'home-stats-list';
-    data.rows.forEach((row) => list.appendChild(statsRow(row)));
-    el.append(summary, list);
+  render(el, data, ctx) {
+    const grid = document.createElement('div');
+    grid.className = 'home-attendance-grid';
+    data.rows.forEach((row) => grid.appendChild(attendanceTile(row, ctx)));
+    el.appendChild(grid);
     if (data.partial) {
       const note = document.createElement('p');
       note.className = 'home-stats-partial';
@@ -232,67 +207,109 @@ registerWidget({
   },
 });
 
-/** Build useful per-gym allowances without treating an unknown answer as zero. */
-export function getHomeCreditRows(gyms, { creditsByGym = {}, eligibilityByGym = {} } = {}) {
+function guestCreditBalance(credits) {
+  if (!Array.isArray(credits)) return { known: false, count: null };
+  const guestRows = credits.filter((credit) => credit && credit.isGuestOnly === true);
+  if (!guestRows.length) return { known: false, count: null };
+  const counts = guestRows.map((credit) => Number(credit.count));
+  if (counts.some((count) => !Number.isFinite(count) || count < 0)) return { known: false, count: null };
+  return { known: true, count: counts.reduce((sum, count) => sum + count, 0) };
+}
+
+/** Build one Home allowance row per linked gym while keeping missing answers unknown. */
+export function getHomeCreditRows(gyms, { creditsByGym = {}, eligibilityByGym = {}, membershipByGym = {} } = {}) {
   if (!Array.isArray(gyms)) return [];
   return gyms.flatMap((gym) => {
     const gymId = String(gym.gym_id || gym.gymId || gym.id || '');
     if (!gymId) return [];
     const metered = isMetered(gymId);
     const hasCreditAnswer = Object.prototype.hasOwnProperty.call(creditsByGym, gymId);
-    const hasEligibilityAnswer = Object.prototype.hasOwnProperty.call(eligibilityByGym, gymId);
     if (metered) {
-      if (!hasCreditAnswer) return [];
-      const count = getTotalCredits(gymId);
-      return count > 0 ? [{ gymId, name: getGymShortName(gymId) || gym.shortName || gym.name || gymId, kind: 'credits', count }] : [];
+      // Keep member credits on the existing shared arithmetic path. Guest-only
+      // rows are deliberately a separate balance and never increase `count`.
+      const hasCreditInventory = hasCreditAnswer && Array.isArray(creditsByGym[gymId]);
+      const count = hasCreditInventory ? getTotalCredits(gymId) : null;
+      const guest = hasCreditInventory ? guestCreditBalance(creditsByGym[gymId]) : { known: false, count: null };
+      return [{
+        gymId,
+        name: getGymShortName(gymId) || gym.shortName || gym.name || gymId,
+        kind: 'credits',
+        count,
+        memberCredits: count,
+        guestCredits: guest.known ? guest.count : null,
+        balanceKnown: hasCreditInventory,
+      }];
     }
-    if (!hasEligibilityAnswer || !hasConfirmedAccess(gymId)) return [];
-    return [{ gymId, name: getGymShortName(gymId) || gym.shortName || gym.name || gymId, kind: 'membership' }];
+    const eligibility = Object.prototype.hasOwnProperty.call(eligibilityByGym, gymId)
+      ? eligibilityByGym[gymId]
+      : null;
+    const membershipStatus = eligibility?.canBook === true
+      ? 'active'
+      : eligibility?.canBook === false ? 'inactive' : 'unknown';
+    const membership = Object.prototype.hasOwnProperty.call(membershipByGym, gymId)
+      ? membershipByGym[gymId]
+      : null;
+    const rawGuestPasses = membership?.guestPassesRemaining;
+    const guestPasses = membershipStatus === 'active' && rawGuestPasses != null && rawGuestPasses !== ''
+      && Number.isFinite(Number(rawGuestPasses)) && Number(rawGuestPasses) >= 0
+      ? Number(rawGuestPasses)
+      : null;
+    return [{
+      gymId,
+      name: getGymShortName(gymId) || gym.shortName || gym.name || gymId,
+      kind: 'membership',
+      membershipStatus,
+      guestPasses,
+    }];
   });
 }
 
 registerWidget({
-  id: 'credits', order: 50, title: COPY.home.credits,
+  id: 'credits', order: 60, title: COPY.home.credits,
+  cacheKeys(ctx) {
+    return uniqueGymIds(ctx.gyms).flatMap((id) => [gymCacheKey('/api/credits', id), gymCacheKey('/api/eligibility', id), gymCacheKey('/api/membership', id)]);
+  },
+  headerMeta: (rows) => Array.isArray(rows) && rows.length ? formatCountLabel(rows.length, 'gym') : '',
   async load(ctx) {
     const { cache } = await import('../main.js');
-    const [creditsByGym, eligibilityByGym] = await Promise.all([
-      api.getCreditsByGym(),
-      api.getEligibilityByGym(),
+    const [creditsByGym, eligibilityByGym, membershipByGym] = await Promise.all([
+      api.getCreditsByGym({ gyms: ctx.gyms, loading: true }),
+      api.getEligibilityByGym({ gyms: ctx.gyms, loading: true }),
+      api.getMembershipsByGym({ gyms: ctx.gyms, loading: true }),
     ]);
-    cache.creditsByGym = { ...(cache.creditsByGym || {}), ...creditsByGym };
-    cache.eligibilityByGym = { ...(cache.eligibilityByGym || {}), ...eligibilityByGym };
-    return getHomeCreditRows(ctx.gyms, { creditsByGym, eligibilityByGym });
+    if (isCurrentHomeContext(ctx)) {
+      cache.creditsByGym = { ...(cache.creditsByGym || {}), ...creditsByGym };
+      cache.eligibilityByGym = { ...(cache.eligibilityByGym || {}), ...eligibilityByGym };
+    }
+    return getHomeCreditRows(ctx.gyms, { creditsByGym, eligibilityByGym, membershipByGym });
   },
   isEmpty: (rows) => Array.isArray(rows) && rows.length === 0,
   emptyText: COPY.home.noCredits,
   render(el, rows, ctx) {
     const list = document.createElement('div');
-    list.className = 'home-credits-list';
+    list.className = 'home-credits-grid';
     for (const row of rows) {
       const item = document.createElement('button');
       item.type = 'button';
-      item.className = 'home-credits-row';
-      const detail = row.kind === 'membership'
-        ? COPY.credits.membershipKind
-        : `${row.count} ${row.count === 1 ? COPY.credits.creditAvailableOne : COPY.credits.creditAvailableMany}`;
-      item.innerHTML = '<span class="home-credits-gym"></span><span class="home-credits-detail"></span>';
-      item.querySelector('.home-credits-gym').textContent = row.name;
-      item.querySelector('.home-credits-detail').textContent = detail;
-      item.addEventListener('click', () => ctx.navigate('buy-credits'));
+      const membership = row.kind === 'membership';
+      item.className = `home-credits-tile${membership ? ` is-membership is-${row.membershipStatus}` : row.balanceKnown ? '' : ' is-unknown'}`;
+      const kind = membership ? '' : 'Class credits';
+      const balance = membership
+        ? row.membershipStatus === 'active' ? 'Membership' : row.membershipStatus === 'inactive' ? COPY.timetable.noMembership : 'Unavailable'
+        : row.balanceKnown ? String(row.memberCredits) : 'Unavailable';
+      const guest = membership
+        ? (row.guestPasses == null ? '' : `Guest passes: ${row.guestPasses}`)
+        : (row.guestCredits == null ? '' : `Guest credits: ${row.guestCredits}`);
+      item.setAttribute('aria-label', `${row.name}: ${balance}${guest ? `, ${guest}` : ''}`);
+      item.innerHTML = '<span class="home-credits-mark"></span><span class="home-credits-value"><strong class="home-credits-balance"></strong><span class="home-credits-kind"></span></span><span class="home-credits-detail"></span>';
+      item.querySelector('.home-credits-mark').innerHTML = gymSquareChip(row.gymId);
+      item.querySelector('.home-credits-kind').textContent = kind;
+      item.querySelector('.home-credits-balance').textContent = balance;
+      item.querySelector('.home-credits-detail').textContent = guest;
+      item.addEventListener('click', () => ctx.openGymSettings(row.gymId));
       list.appendChild(item);
     }
     el.appendChild(list);
-  },
-});
-
-registerWidget({
-  id: 'welcome', order: 10, title: COPY.home.welcome,
-  async load() { return api.getSettings(); },
-  render(el, settings) {
-    const greeting = document.createElement('p');
-    greeting.className = 'home-welcome-greeting';
-    greeting.textContent = welcomeText(settings?.firstName);
-    el.appendChild(greeting);
   },
 });
 
@@ -313,57 +330,167 @@ function upcomingChip(group) {
   return btn;
 }
 
-function viewAllBookings(ctx) {
+function viewAllBookingsLabel(count) {
+  if (!Number.isFinite(Number(count))) return COPY.home.viewAll;
+  const noun = Number(count) === 1 ? 'booking' : 'bookings';
+  return `View all ${count} ${noun}`;
+}
+
+function viewAllBookings(ctx, count) {
   const button = document.createElement('button');
   button.type = 'button';
   button.className = 'home-view-all';
-  button.textContent = COPY.home.viewAll;
+  button.textContent = viewAllBookingsLabel(count);
   button.addEventListener('click', () => ctx.navigate('my-bookings'));
   return button;
 }
 
+function updateViewAllBookings(actionSlot, count) {
+  const button = actionSlot.querySelector('.home-view-all');
+  if (!button) return;
+  const label = viewAllBookingsLabel(count);
+  if (button.textContent !== label) button.textContent = label;
+}
+
+function clearHomeUpcomingStrip() {
+  document.querySelectorAll('#app-panel-home > .home-up-strip').forEach((strip) => strip.remove());
+}
+
+function mountHomeBookingCard(container, group, ctx) {
+  mountBookingCard(container, group, []);
+  const card = container.querySelector('.ab-card');
+  if (!card) return;
+  card.classList.add('home-booking-card');
+  card.querySelector('.ab-card-footer')?.remove();
+  card.querySelector('.ab-card-rail')?.remove();
+  const event = group.event || {};
+  const label = [event.name || event.discipline || COPY.autoBook.class, event.startAt || event.start_at].filter(Boolean).join(' · ');
+  card.setAttribute('role', 'link');
+  card.setAttribute('tabindex', '0');
+  card.setAttribute('aria-label', label);
+  const open = () => ctx.navigate('my-bookings');
+  card.addEventListener('click', open);
+  card.addEventListener('keydown', (event) => {
+    if (event.key === 'Enter' || event.key === ' ') { event.preventDefault(); open(); }
+  });
+}
+
+function mountHomeBookingCards(container, groups, ctx) {
+  const list = document.createElement('div');
+  list.className = 'home-booking-cards';
+  groups.forEach((group) => {
+    const holder = document.createElement('div');
+    mountHomeBookingCard(holder, group, ctx);
+    list.appendChild(holder);
+  });
+  container.appendChild(list);
+}
+
+function renderBookingDay(day) {
+  const target = day.groups.length ? document.createElement('a') : document.createElement('div');
+  target.className = `home-up-day${day.groups.length ? ' has-classes' : ''}${day.isToday ? ' is-today' : ''}`;
+  if (day.groups.length) {
+    target.href = day.href;
+    target.setAttribute('aria-label', `${day.label}: ${day.groups.length} ${day.groups.length === 1 ? 'class' : 'classes'}`);
+    addBookingsDayLinkHandler(target, day.href);
+  }
+  const head = document.createElement('span');
+  head.className = 'home-up-day-head';
+  head.textContent = day.isToday ? COPY.home.upcomingToday : day.label;
+  target.appendChild(head);
+  const marks = document.createElement('span');
+  marks.className = 'home-up-day-marks';
+  day.groups.forEach((group) => {
+    const mark = document.createElement('span');
+    mark.className = 'home-up-day-mark';
+    mark.innerHTML = gymSquareChip(group.gymId);
+    mark.setAttribute('aria-hidden', 'true');
+    marks.appendChild(mark);
+  });
+  target.appendChild(marks);
+  return target;
+}
+
+function paintHomeGreeting(settings) {
+  const header = document.querySelector('#app-panel-home > .app-tab-header');
+  if (!header) return;
+  const firstName = String(settings?.firstName || '').trim().split(/\s+/)[0] || '';
+  const initial = (firstName || 'S').charAt(0).toUpperCase();
+  const greetingName = firstName || welcomeText();
+  const existing = header.querySelector('.home-greeting-lead');
+  if (existing) {
+    // Foreground/cache refreshes routinely revisit Home. Updating the three
+    // text nodes keeps the header's focusable refresh control and DOM identity.
+    existing.querySelector('.home-greeting-avatar').textContent = initial;
+    existing.querySelector('.home-greeting-kicker').textContent = COPY.home.goodMorning;
+    existing.querySelector('.home-greeting-name').textContent = greetingName;
+    header.classList.add('home-page-header');
+    return;
+  }
+  const greeting = document.createElement('div');
+  greeting.className = 'home-greeting-lead';
+  const avatar = document.createElement('span');
+  avatar.className = 'home-greeting-avatar';
+  avatar.setAttribute('aria-hidden', 'true');
+  avatar.textContent = initial;
+  const copy = document.createElement('span');
+  copy.className = 'home-greeting-copy';
+  const kicker = document.createElement('span');
+  kicker.className = 'home-greeting-kicker';
+  kicker.textContent = COPY.home.goodMorning;
+  const name = document.createElement('h1');
+  name.className = 'home-greeting-name';
+  name.textContent = greetingName;
+  copy.append(kicker, name);
+  greeting.append(avatar, copy);
+  const refresh = header.querySelector('[data-refresh-tab="home"]');
+  header.replaceChildren(greeting);
+  if (refresh) header.appendChild(refresh);
+  header.classList.add('home-page-header');
+}
+
 registerWidget({
-  id: 'upcoming', order: 30, title: COPY.home.upcoming,
-  async load() {
-    const [bookings, upgrades] = await Promise.all([api.getBookings({ silent: true }), api.getAutoUpgrades().catch(() => [])]);
-    return { ...selectUpcoming(groupBookingsByEvent(bookings), DateTime.now()), upgrades: upgrades || [] };
+  id: 'upcoming', order: 20,
+  title: () => COPY.home.upcoming,
+  headerAction: (ctx) => viewAllBookings(ctx),
+  updateHeaderAction: (slot, _ctx, data) => updateViewAllBookings(slot, data?.bookedCount),
+  cacheKeys(ctx) { return [...uniqueGymIds(ctx.gyms).map((id) => gymCacheKey('/api/bookings', id)), '/api/auto-upgrade', '/api/auto-book']; },
+  async load(ctx) {
+    const [bookings, upgrades, queue] = await Promise.all([
+      api.getBookings({ cacheTtlMs: 120000, gyms: ctx.gyms }),
+      api.getAutoUpgrades({ gymIds: uniqueGymIds(ctx.gyms), loading: true }).catch(() => []),
+      api.getAutoBookings({ gymIds: uniqueGymIds(ctx.gyms), loading: true }).catch(() => null),
+    ]);
+    const now = DateTime.now();
+    const groups = groupBookingsByEvent(bookings);
+    const bookedCount = groups.filter((group) => Date.parse(group.event.startAt || group.event.start_at) >= now.toMillis()).length;
+    return { ...selectUpcoming(groups, now), bookedCount, upgrades: upgrades || [], queueCount: countPendingAutoBooks(queue) };
   },
   isEmpty: (d) => d?.mode === 'card' && !d.next,
   emptyText: COPY.home.upcomingNone,
-  renderEmpty(el, _d, ctx) {
+  renderEmpty(el) {
+    clearHomeUpcomingStrip();
     const message = document.createElement('p');
     message.className = 'home-widget-empty';
-    message.textContent = COPY.home.upcomingNone;
-    el.append(message, viewAllBookings(ctx));
+    message.textContent = COPY.home.findNextClass;
+    el.appendChild(message);
+    renderAutoBookQueue(el, d?.queueCount);
   },
   render(el, d, ctx) {
-    if (d.mode === 'card') {
-      const holder = document.createElement('div'); holder.className = 'home-up-card';
-      mountBookingCard(holder, d.next, d.upgrades);
-      el.append(holder, viewAllBookings(ctx));
-      return;
+    mountHomeBookingCards(el, d.cards?.length ? d.cards : (d.next ? [d.next] : []), ctx);
+    if (d.mode === 'strip') {
+      clearHomeUpcomingStrip();
+      const strip = document.createElement('div');
+      strip.className = 'home-up-strip';
+      strip.setAttribute('aria-label', COPY.home.upcomingStripLabel);
+      d.days.forEach((day) => strip.appendChild(renderBookingDay(day)));
+      const header = document.querySelector('#app-panel-home > .app-tab-header.home-page-header');
+      if (header) header.insertAdjacentElement('afterend', strip);
+      else strip.remove();
+    } else {
+      clearHomeUpcomingStrip();
     }
-    const strip = document.createElement('div'); strip.className = 'home-up-strip'; strip.setAttribute('aria-label', COPY.home.upcomingStripLabel);
-    const detail = document.createElement('div'); detail.className = 'home-up-card';
-    let openChip = null;
-    for (const day of d.days) {
-      const col = document.createElement('div'); col.className = 'home-up-day' + (day.groups.length ? ' has-classes' : '');
-      const head = document.createElement('div'); head.className = 'home-up-day-head'; head.textContent = day.isToday ? COPY.home.upcomingToday : day.label;
-      col.appendChild(head);
-      for (const g of day.groups) {
-        const chip = upcomingChip(g);
-        chip.addEventListener('click', () => {
-          detail.innerHTML = '';
-          if (openChip === chip) { openChip.setAttribute('aria-expanded', 'false'); openChip = null; return; }
-          openChip?.setAttribute('aria-expanded', 'false');
-          chip.setAttribute('aria-expanded', 'true'); openChip = chip;
-          mountBookingCard(detail, g, d.upgrades);
-        });
-        col.appendChild(chip);
-      }
-      strip.appendChild(col);
-    }
-    el.append(strip, detail, viewAllBookings(ctx));
+    renderAutoBookQueue(el, d.queueCount);
   },
 });
 
@@ -373,21 +500,28 @@ export function countPendingAutoBooks(rows) {
   return rows.filter((r) => !r.executed_at).length;
 }
 
-registerWidget({
-  id: 'auto-book-count', order: 40, title: COPY.home.autoBook,
-  async load() { return countPendingAutoBooks(await api.getAutoBookings()); },
-  render(el, count) {
-    const n = count ?? 0;
+function renderAutoBookQueue(el, count) {
+  const section = document.createElement('div');
+  section.className = 'home-upcoming-queue';
+  if (count == null) {
+    const unavailable = document.createElement('p');
+    unavailable.className = 'home-widget-empty';
+    unavailable.textContent = COPY.home.autoBookUnavailable;
+    section.appendChild(unavailable);
+  } else {
+    const n = count;
     const btn = document.createElement('button');
     btn.type = 'button';
-    btn.className = 'home-stat-tile';
-    btn.innerHTML = `<span class="home-stat-number"></span><span class="home-stat-label"></span>`;
-    btn.querySelector('.home-stat-number').textContent = String(n);
-    btn.querySelector('.home-stat-label').textContent = n === 0 ? COPY.home.autoBookNone : (n === 1 ? COPY.home.autoBookOne : COPY.home.autoBookActive);
+    btn.className = 'home-autobook-row';
+    btn.innerHTML = `<span class="home-autobook-icon" aria-hidden="true">${sparklesIcon(16)}</span><strong class="home-autobook-title"></strong><span class="home-autobook-status"><strong class="home-autobook-count"></strong></span>`;
+    btn.querySelector('.home-autobook-title').textContent = COPY.home.autoBookQueue;
+    btn.querySelector('.home-autobook-count').textContent = n === 0 ? '0' : `${n} Pending`;
+    btn.setAttribute('aria-label', `${COPY.home.autoBookQueue}: ${btn.querySelector('.home-autobook-count').textContent}`);
     btn.addEventListener('click', () => goTo('auto-book'));
-    el.appendChild(btn);
-  },
-});
+    section.appendChild(btn);
+  }
+  el.appendChild(section);
+}
 
 /**
  * Favourite classes in the next seven 24-hour days. A missing per-gym index
@@ -414,74 +548,152 @@ export function getHomeFavouriteRows(gyms, {
   return { state: 'empty', rows: [] };
 }
 
-async function loadHomeFavourites(gyms) {
+async function loadHomeFavourites(ctx) {
+  const { gyms } = ctx;
   const [{ cache }, timetable] = await Promise.all([
     import('../main.js'), import('./timetable.js'),
   ]);
   const gymIds = [...new Set((Array.isArray(gyms) ? gyms : []).map(gymIdOf).filter(Boolean))];
-  const missing = gymIds.filter((gymId) => !cache.favouritesByGym?.[gymId]);
-  if (missing.length) {
-    const settled = await Promise.allSettled(missing.map((gymId) => api.getFavourites(gymId)));
-    cache.favouritesByGym = { ...(cache.favouritesByGym || {}) };
-    settled.forEach((result, index) => {
-      if (result.status === 'fulfilled' && Array.isArray(result.value?.favourites)) {
-        cache.favouritesByGym[missing[index]] = indexFavourites(result.value.favourites);
-      }
-    });
-  }
+  const settled = await Promise.allSettled(gymIds.map((gymId) => api.getFavourites(gymId, { loading: true })));
+  const favouritesByGym = { ...(cache.favouritesByGym || {}) };
+  settled.forEach((result, index) => {
+    if (result.status === 'fulfilled' && Array.isArray(result.value?.favourites)) {
+      favouritesByGym[gymIds[index]] = indexFavourites(result.value.favourites);
+    }
+  });
+  if (isCurrentHomeContext(ctx)) cache.favouritesByGym = favouritesByGym;
   const events = timetable.getLoadedEvents();
   if (!events.length) timetable.ensureScheduleLoaded();
   return {
     ...getHomeFavouriteRows(gyms, {
-      favouritesByGym: cache.favouritesByGym,
+      favouritesByGym,
       events,
       scheduleLoading: timetable.isScheduleLoading(),
     }),
     primaryActionForEvent: timetable.primaryActionForEvent,
+    actionGlyph: timetable.actionGlyph,
   };
 }
 
-function favouriteCard(event, primaryActionForEvent) {
+export function getHomeFavouriteStatus(event, now = DateTime.now(), viewingZone) {
+  const release = getClassReleaseTime(event);
+  if (release?.isValid && release.toMillis() > now.toMillis()) {
+    return { kind: 'release', label: formatOpensIn(release.toMillis() - now.toMillis(), { html: false }) };
+  }
+  if (event?.isFull) {
+    return event.waitlistAvailable === false
+      ? { kind: 'full', label: 'Full' }
+      : { kind: 'waitlist', label: 'Full · waitlist available' };
+  }
+  if (Number.isFinite(Number(event?.availableCount))) {
+    const count = Number(event.availableCount);
+    return { kind: count === 0 ? 'full' : 'open', label: `${count} ${count === 1 ? 'spot' : 'spots'} left` };
+  }
+  if (event?.alwaysBookable || release?.isValid) return { kind: 'open', label: 'Open' };
+  return { kind: 'unknown', label: 'Availability not published' };
+}
+
+export function renderHomeFavouriteCard(event, primaryActionForEvent, actionGlyph = null) {
   const zone = zoneFor(event);
   const dt = DateTime.fromISO(String(event.startAt), { setZone: true }).setZone(zone);
+  const formatted = formatInZone(event.startAt, zone);
+  const instructor = event.instructors?.[0] || {};
+  const instructorName = String(instructor.name || '').trim();
+  const status = getHomeFavouriteStatus(event);
   const card = document.createElement('article');
   card.className = 'home-favourite-card';
-  const photo = event.instructors?.[0]?.thumbUrl || event.instructors?.[0]?.imageUrl || null;
-  card.innerHTML = '<div class="home-favourite-photo"></div><div class="home-favourite-copy"><span class="home-favourite-when"></span><span class="home-favourite-type"></span></div><button type="button" class="home-favourite-cta"></button>';
-  const photoEl = card.querySelector('.home-favourite-photo');
-  const avatar = instructorAvatar(event.instructors?.[0]?.name || '', event.gymId, photo, { size: 56, cls: 'home-favourite-avatar' });
-  if (avatar) photoEl.innerHTML = avatar;
-  else {
-    photoEl.classList.add('is-initial');
-    photoEl.textContent = String(event.instructors?.[0]?.name || '').trim().charAt(0).toUpperCase() || '?';
+  const media = document.createElement('div');
+  media.className = 'home-favourite-media';
+  const photo = instructor.thumbUrl || instructor.imageUrl || null;
+  const avatar = instructorAvatar(instructorName, event.gymId, photo, { size: 128, cls: 'home-favourite-avatar' });
+  if (avatar) {
+    const holder = document.createElement('span');
+    holder.innerHTML = avatar;
+    media.appendChild(holder.firstElementChild);
+  } else {
+    const initial = document.createElement('span');
+    initial.className = 'home-favourite-initial';
+    initial.textContent = instructorName.charAt(0).toUpperCase() || '?';
+    media.appendChild(initial);
   }
-  photoEl.insertAdjacentHTML('beforeend', `<span class="home-favourite-gym">${gymSquareChip(event.gymId)}</span>`);
-  card.querySelector('.home-favourite-when').textContent = `${dt.isValid ? dt.toFormat('ccc') : ''} ${formatInZone(event.startAt, zone).timeLabel}`.trim();
-  card.querySelector('.home-favourite-type').textContent = event.discipline || event.name || COPY.common.classFallback;
+  const instructorLabel = document.createElement('span');
+  instructorLabel.className = 'home-favourite-instructor';
+  instructorLabel.textContent = instructorName || COPY.timetable.instructor;
+  instructorLabel.title = instructorLabel.textContent;
+  media.appendChild(instructorLabel);
+
+  const body = document.createElement('div');
+  body.className = 'home-favourite-body';
+  const meta = document.createElement('div');
+  meta.className = 'home-favourite-meta';
+  const gym = document.createElement('span');
+  gym.className = 'home-favourite-gym';
+  gym.innerHTML = gymSquareChip(event.gymId);
+  const when = document.createElement('div');
+  when.className = 'home-favourite-when';
+  when.textContent = `${formatted.date || (dt.isValid ? dt.toFormat('ccc d LLL') : '')} · ${formatted.timeLabel}`.trim();
+  meta.append(gym, when);
+  const className = document.createElement('div');
+  className.className = 'home-favourite-class';
+  className.textContent = cleanClassName(event.name || '', event.discipline || '') || event.name || COPY.common.classFallback;
+  className.title = className.textContent;
+  const availability = document.createElement('p');
+  availability.className = `home-favourite-status is-${status.kind}`;
+  availability.textContent = status.label;
+  body.append(meta, className, availability);
+
   const action = primaryActionForEvent(event);
-  const button = card.querySelector('.home-favourite-cta');
+  const button = document.createElement('button');
+  button.type = 'button';
+  button.className = 'home-favourite-cta';
   button.classList.add(`variant-${action.variant}`);
-  button.textContent = action.label;
+  const glyph = typeof actionGlyph === 'function' ? actionGlyph(action.label) : '';
+  if (glyph) {
+    const icon = document.createElement('span');
+    icon.className = 'app-seg-ico';
+    icon.setAttribute('aria-hidden', 'true');
+    if (glyph.startsWith('<')) icon.innerHTML = glyph;
+    else icon.textContent = glyph;
+    button.append(icon);
+  }
+  button.append(document.createTextNode(action.label));
   if (action.title) { button.title = action.title; button.setAttribute('aria-label', action.title); }
   if (action.disabled) button.disabled = true;
   else if (action.run) button.addEventListener('click', () => action.run(button));
+  body.append(button);
+  card.append(media, body);
   return card;
 }
 
+const favouriteCard = renderHomeFavouriteCard;
+
 registerWidget({
-  id: 'favourites', order: 60, title: COPY.home.favourites,
-  async load(ctx) { return loadHomeFavourites(ctx.gyms); },
+  id: 'favourites', order: 50, title: COPY.home.favourites,
+  cacheKeys(ctx) { return uniqueGymIds(ctx.gyms).map((id) => gymCacheKey('/api/favourites', id)); },
+  async load(ctx) { return loadHomeFavourites(ctx); },
+  // Event objects alone do not change when a release instant passes. Include
+  // the time-derived status/action so a foreground refresh moves Auto-Book to
+  // Quick book and updates relative release copy at the right moment.
+  dataSignature(data) {
+    return {
+      state: data?.state,
+      rows: data?.rows || [],
+      dynamic: (data?.rows || []).map((event) => ({
+        status: getHomeFavouriteStatus(event),
+        action: data.primaryActionForEvent?.(event),
+      })),
+    };
+  },
   isEmpty: (data) => data?.state === 'empty',
   emptyText: COPY.home.favouritesNone,
   render(el, data) {
-    if (data.state === 'loading') {
-      el.innerHTML = renderCardSkeletons(2, COPY.home.loadingWidget);
-      return;
-    }
+    // The widget-level cache probe owns cold skeletons. Timetable availability
+    // may still be hydrating while cached favourites are already available.
+    if (data.state === 'loading') return;
     const strip = document.createElement('div');
     strip.className = 'home-favourites-strip';
     strip.setAttribute('aria-label', COPY.home.favourites);
-    data.rows.forEach((event) => strip.appendChild(favouriteCard(event, data.primaryActionForEvent)));
+    data.rows.forEach((event) => strip.appendChild(favouriteCard(event, data.primaryActionForEvent, data.actionGlyph)));
     el.appendChild(strip);
   },
 });
@@ -515,9 +727,9 @@ async function loadHomeTopInstructors(gyms) {
   const linked = (Array.isArray(gyms) ? gyms : []).filter((gym) => gymIdOf(gym));
   const settled = await Promise.allSettled(linked.map(async (gym) => {
     const gymId = gymIdOf(gym);
-    const history = await api.getHistory(gymId, { days: 30, limit: 1, top: 1 });
+    const history = await api.getHistory(gymId, { days: 30, limit: 1, top: 1, loading: true });
     // A missing photo must not turn a useful history answer into a widget error.
-    const metadata = await api.getMetadata({ gymId }).catch(() => ({ instructors: [] }));
+    const metadata = await api.getMetadata({ gymId, ttlMs: 300000, loading: true }).catch(() => ({ instructors: [] }));
     return [gymId, { history, metadata }];
   }));
   const fulfilled = settled.filter((result) => result.status === 'fulfilled');
@@ -526,7 +738,13 @@ async function loadHomeTopInstructors(gyms) {
 }
 
 registerWidget({
-  id: 'top-instructors', order: 70, title: COPY.home.topInstructors,
+  id: 'top-instructors', order: 80, title: COPY.home.topInstructors,
+  cacheKeys(ctx) {
+    return uniqueGymIds(ctx.gyms).flatMap((id) => [
+      gymCacheKey('/api/history', id, { days: '30', limit: '1', top: '1' }),
+      gymCacheKey('/api/metadata', id),
+    ]);
+  },
   async load(ctx) { return loadHomeTopInstructors(ctx.gyms); },
   isEmpty: (rows) => Array.isArray(rows) && rows.length === 0,
   emptyText: COPY.home.topInstructorsNone,
@@ -538,7 +756,7 @@ registerWidget({
       anchor.className = 'home-instructor-card';
       anchor.href = row.href;
       anchor.setAttribute('aria-label', `${row.instructorName} · ${row.gymName}`);
-      anchor.innerHTML = `<span class="home-instructor-photo"></span><span class="home-instructor-text"><span class="home-instructor-name"></span><span class="home-instructor-meta"></span></span><span class="home-instructor-gym"></span>`;
+      anchor.innerHTML = `<span class="home-instructor-identities"><span class="home-instructor-photo"></span><span class="home-instructor-gym"></span></span><span class="home-instructor-text"><span class="home-instructor-name"></span><span class="home-instructor-meta"></span></span>`;
       const photo = anchor.querySelector('.home-instructor-photo');
       const avatar = instructorAvatar(
         row.instructorName, row.gymId, row.photoUrl, { size: 52, cls: 'home-instructor-avatar' },
@@ -563,11 +781,65 @@ registerWidget({
 let host = null;
 let renderRun = 0;
 
+const HOME_MOBILE_ORDER = ['upcoming', 'book', 'favourites', 'credits', 'stats', 'top-instructors'];
+const HOME_LEFT_COLUMN_ORDER = ['upcoming', 'book', 'stats'];
+const HOME_RIGHT_COLUMN_ORDER = ['credits', 'favourites', 'top-instructors'];
+
+/**
+ * Keep the registry's reading order on mobile while giving desktop its two
+ * independent vertical flows. Moving the existing sections preserves their
+ * mounted DOM, actions and widget run tokens across a breakpoint change.
+ */
+export function syncHomeDesktopFlow(root) {
+  if (!root || typeof window === 'undefined' || typeof window.matchMedia !== 'function') return;
+  const currentMedia = window.matchMedia('(min-width: 769px)');
+  const media = root._homeDesktopMedia;
+  if (!media || media.matches !== currentMedia.matches) {
+    if (media && root._homeDesktopMediaListener) {
+      if (typeof media.removeEventListener === 'function') media.removeEventListener('change', root._homeDesktopMediaListener);
+      else media.removeListener?.(root._homeDesktopMediaListener);
+    }
+    root._homeDesktopMedia = currentMedia;
+    const onChange = () => syncHomeDesktopFlow(root);
+    if (typeof currentMedia.addEventListener === 'function') currentMedia.addEventListener('change', onChange);
+    else currentMedia.addListener?.(onChange);
+    root._homeDesktopMediaListener = onChange;
+  }
+  const activeMedia = root._homeDesktopMedia;
+
+  const widgets = [...root.querySelectorAll('.home-widget')];
+  if (!activeMedia.matches) {
+    const byId = new Map(widgets.map((widget) => [widget.dataset.widgetId, widget]));
+    HOME_MOBILE_ORDER.forEach((id) => {
+      const widget = byId.get(id);
+      if (widget) root.appendChild(widget);
+    });
+    root.querySelectorAll(':scope > .home-desktop-column').forEach((column) => column.remove());
+    return;
+  }
+
+  let left = root.querySelector(':scope > .home-desktop-column--left');
+  let right = root.querySelector(':scope > .home-desktop-column--right');
+  if (!left || !right) {
+    left = document.createElement('div');
+    left.className = 'home-desktop-column home-desktop-column--left';
+    right = document.createElement('div');
+    right.className = 'home-desktop-column home-desktop-column--right';
+    root.append(left, right);
+  }
+  const byId = new Map(widgets.map((widget) => [widget.dataset.widgetId, widget]));
+  [...HOME_LEFT_COLUMN_ORDER, ...HOME_RIGHT_COLUMN_ORDER].forEach((id) => {
+    const widget = byId.get(id);
+    if (widget) (HOME_LEFT_COLUMN_ORDER.includes(id) ? left : right).appendChild(widget);
+  });
+}
+
 function widgetCopy() {
   return { empty: COPY.home.comingSoon, error: COPY.home.error, retry: COPY.home.retry, noGym: COPY.home.noGymWidget };
 }
 
 function renderConnectGym(root) {
+  clearHomeUpcomingStrip();
   root.innerHTML = `<div class="home-connect-gym"><h4></h4><p></p><button type="button" class="home-connect-btn"></button></div>`;
   root.querySelector('h4').textContent = COPY.home.connectGymTitle;
   root.querySelector('p').textContent = COPY.home.connectGymBody;
@@ -581,21 +853,45 @@ export async function renderHome() {
   host = host || document.getElementById('app-home-widgets');
   if (!host) return;
   const run = ++renderRun;
-  let gyms = null;
-  try { gyms = (await api.getMyGyms()).gyms || []; } catch (_) { /* widgets still try on their own */ }
+  const gyms = getLinkedGyms();
+  const contextKey = homeContextKey(gyms);
+  const previousKey = host.dataset.homeContextKey || '';
+  if (previousKey !== contextKey) {
+    clearHomeUpcomingStrip();
+    host.replaceChildren();
+    host.dataset.homeContextKey = contextKey;
+  }
+  let settings = null;
+  try { settings = await api.getSettings(); } catch (_) { /* neutral greeting */ }
   if (run !== renderRun) return;
+  paintHomeGreeting(settings);
   if (Array.isArray(gyms) && gyms.length === 0) { renderConnectGym(host); return; }
-  const ctx = { gyms, navigate: goTo };
+  const ctx = { gyms, navigate: goTo, openGymSettings, contextKey };
   const widgets = registry.list(ctx);
-  host.innerHTML = '';
   const skeleton = () => renderCardSkeletons(1, COPY.home.loadingWidget);
+  // syncHomeDesktopFlow nests sections inside columns; include those mounted
+  // sections so a refresh moves/reuses them instead of appending duplicates.
+  const existing = new Map([...host.querySelectorAll('.home-widget')].map((el) => [el.dataset.widgetId, el]));
   for (const w of widgets) {
-    const el = document.createElement('section');
-    el.className = 'home-widget';
+    const el = existing.get(w.id) || document.createElement('section');
+    el.classList.add('home-widget');
     el.dataset.widgetId = w.id;
     host.appendChild(el);
-    mountWidget(el, w, ctx, { skeleton, copy: widgetCopy() }); // independent; never awaited together
+    existing.delete(w.id);
+    mountWidget(el, w, ctx, {
+      skeleton,
+      copy: widgetCopy(),
+      contextKey,
+      hasCachedData: async (widget) => {
+        const keys = typeof widget.cacheKeys === 'function' ? widget.cacheKeys(ctx) : [];
+        if (!keys.length) return false;
+        const rows = await Promise.all(keys.map((key) => readCached(key)));
+        return rows.every(Boolean);
+      },
+    }); // independent; never awaited together
   }
+  existing.forEach((el) => el.remove());
+  syncHomeDesktopFlow(host);
 }
 
 export function initHome() { return renderHome(); }
@@ -609,5 +905,20 @@ if (typeof window !== 'undefined') {
   window.addEventListener('app:gyms-changed', () => { if (onHome()) renderHome(); });
   window.addEventListener('app-favourites-changed', () => { if (onHome()) renderHome(); });
   window.addEventListener('app-timetable-rendered', () => { if (onHome()) renderHome(); });
+  // booking-state dispatches only after it has refreshed the shared cache and
+  // the corresponding Home SWR row, so this repaint never reuses a 120s-old
+  // booking response after a successful booking.
+  window.addEventListener('app-booking-state-changed', () => { if (onHome()) renderHome(); });
+  let refreshQueued = false;
+  window.addEventListener('app-data-refreshed', (event) => {
+    if (!onHome() || refreshQueued) return;
+    const endpoint = String(event.detail?.endpoint || '');
+    if (!endpoint.startsWith('/api/')) return;
+    refreshQueued = true;
+    queueMicrotask(() => { refreshQueued = false; if (onHome()) renderHome(); });
+  });
+  window.addEventListener('app-user-data-refreshed', () => {
+    if (onHome()) renderHome();
+  });
   document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'visible' && onHome()) renderHome(); });
 }

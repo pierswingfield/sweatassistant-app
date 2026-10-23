@@ -3,7 +3,7 @@ import { canForGym, getGymShortName, getDefaultGymId, formatSpotLabel } from '..
 import { getAvailableCreditsForEvent, getTotalCredits, getIneligibleReason } from './credit-allowance.js';
 import { showToast, cache, refreshUserData, updateCreditBadge, userSettings, gymSetting } from '../main';
 import { renderStudioFloorPlan } from './spotmap';
-import { instructorInlineHtml, icon, disciplineTag, trimLocation, seatNoun, stripClassNamePrefix, trendingUpIcon, pulseIcon, renderGymRail, equalizeDiscTagWidths, observeLocationWrap, wireRailToggle, shortSlotLabels, escapeHtml} from './cards';
+import { instructorInlineHtml, instructorNameLengthClass, icon, disciplineTag, trimLocation, seatNoun, stripClassNamePrefix, trendingUpIcon, pulseIcon, renderGymRail, equalizeDiscTagWidths, observeLocationWrap, wireRailToggle, shortSlotLabels, escapeHtml} from './cards';
 import { isInGracePeriod, GRACE_PERIOD_MS, startGraceCountdown, noSept, zoneFor, formatInZone } from '../lib';
 import { invalidateApiCache } from '../cache';
 import { renderCardSkeletons } from './loading-skeleton.js';
@@ -29,6 +29,8 @@ import { canOfferGuestAction } from './guest-access.js';
 import { loadCancelInfo } from './cancel-penalty-info.js';
 import { resolveUpgradeGroup } from './upgrade-group.js';
 import { bookingSpotActions } from './booking-spot-actions.js';
+import { currentRoute } from '../router.js';
+import { DateTime } from 'luxon';
 
 // Class starts within the free-cancel cutoff (12h). Edit is hidden inside this
 // window; Cancel stays available but warns about the penalty.
@@ -59,9 +61,32 @@ export function repaintBookingsFromCache() {
   if (!bookingsFetched || !document.getElementById('app-bookings-list')) return;
   renderBookingsCards(cache.bookings || [], cache.upgrades || []);
   renderWaitlistsCards(cache.waitlists || []);
+  focusBookingsDay(currentRoute().bookings?.day);
 }
 
-export async function renderBookings() {
+function focusBookingsDay(day) {
+  if (!day) return;
+  const target = document.querySelector(`#app-bookings-list .ab-card[data-booking-day="${day}"]`);
+  if (!target) return; // A stale day is a quiet no-op.
+  const reduce = window.matchMedia?.('(prefers-reduced-motion: reduce)')?.matches;
+  let sc = target.parentElement;
+  while (sc && sc !== document.body) {
+    const oy = getComputedStyle(sc).overflowY;
+    if ((oy === 'auto' || oy === 'scroll') && sc.scrollHeight > sc.clientHeight) break;
+    sc = sc.parentElement;
+  }
+  const behavior = reduce ? 'auto' : 'smooth';
+  if (!sc || sc === document.body) {
+    const y = target.getBoundingClientRect().top + window.scrollY - 12;
+    window.scrollTo({ top: Math.max(0, y), behavior });
+  } else {
+    const y = target.getBoundingClientRect().top - sc.getBoundingClientRect().top + sc.scrollTop - 12;
+    sc.scrollTo({ top: Math.max(0, y), behavior });
+  }
+  target.focus({ preventScroll: true });
+}
+
+export async function renderBookings(day = currentRoute().bookings?.day) {
   const bookingsList = document.getElementById('app-bookings-list');
   const waitlistsList = document.getElementById('app-waitlists-list');
 
@@ -76,6 +101,7 @@ export async function renderBookings() {
   if (hasLoadedBefore) {
     renderBookingsCards(cache.bookings || [], cache.upgrades || []);
     renderWaitlistsCards(cache.waitlists || []);
+    focusBookingsDay(day);
   } else {
     // First visit — no cached data yet
     if (bookingsList) bookingsList.innerHTML = renderCardSkeletons(2, COPY.bookings.loadingBookings);
@@ -128,6 +154,7 @@ export async function renderBookings() {
 
     renderBookingsCards(bookings, upgrades);
     renderWaitlistsCards(waitlists);
+    focusBookingsDay(day);
 
     // Hide refreshing indicators
     if (bookingsRefreshing) bookingsRefreshing.style.display = 'none';
@@ -385,6 +412,9 @@ function buildBookingCard(group, upgrades) {
   card.className = 'app-autobook-card ab-card';
   card.setAttribute('data-event-id', group.eventId);
   card.setAttribute('data-gym', event.gymId || getDefaultGymId());
+  const bookingDay = DateTime.fromISO(String(startAt), { setZone: true }).setZone(zoneFor(event, group.gymId || group.gym_id)).toFormat('yyyy-MM-dd');
+  card.setAttribute('data-booking-day', bookingDay);
+  card.setAttribute('tabindex', '-1');
   card.innerHTML = `
     ${renderGymRail(event.gymId || getDefaultGymId())}
     <div class="ab-card-main">
@@ -409,7 +439,7 @@ function buildBookingCard(group, upgrades) {
           </div>
         </div>
         ${(instructorAvatar(instructorName, event.gymId, instructorPhotoUrl) || instructorName)
-          ? `<div class="ab-card-figure">${instructorAvatar(instructorName, event.gymId, instructorPhotoUrl) || ''}${instructorName ? `<span class="ab-card-instructor">${instructorName}</span>` : ''}</div>` : ''}
+          ? `<div class="ab-card-figure ${instructorNameLengthClass(instructorName)}">${instructorAvatar(instructorName, event.gymId, instructorPhotoUrl) || ''}${instructorName ? `<span class="ab-card-instructor ${instructorNameLengthClass(instructorName)}">${escapeHtml(instructorName)}</span>` : ''}</div>` : ''}
       </div>
       <div class="ab-card-footer" style="justify-content:flex-start;">
         <div class="ab-chip-group">${chipsHtml}${guestChipHtml}</div>
@@ -1197,7 +1227,7 @@ function buildWaitlistCard(w) {
           </div>
         </div>
         ${(instructorAvatar(instructorName, event.gymId, instructorPhotoUrl) || instructorName)
-          ? `<div class="ab-card-figure">${instructorAvatar(instructorName, event.gymId, instructorPhotoUrl) || ''}${instructorName ? `<span class="ab-card-instructor">${instructorName}</span>` : ''}</div>` : ''}
+          ? `<div class="ab-card-figure ${instructorNameLengthClass(instructorName)}">${instructorAvatar(instructorName, event.gymId, instructorPhotoUrl) || ''}${instructorName ? `<span class="ab-card-instructor ${instructorNameLengthClass(instructorName)}">${escapeHtml(instructorName)}</span>` : ''}</div>` : ''}
       </div>
       <div class="ab-card-footer">
         <span class="ab-spots-pill" style="gap:5px;color:var(--warning);background:color-mix(in srgb,var(--warning) 12%,transparent);">${icon('clock', 12)} ${COPY.bookings.waitlisted}</span>

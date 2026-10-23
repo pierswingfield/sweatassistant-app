@@ -7,7 +7,7 @@
 // Ids are compared as strings throughout (normalized ids are strings, raw event
 // fields are numbers — see AGENTS.md).
 
-import { icon, gymBrand, getDiscipline } from './cards.js';
+import { icon, gymBrand, gymLogoPlate, getDiscipline } from './cards.js';
 import { escapeHtml } from './cards.js';
 import { COPY, formatCopyText } from '../copy.js';
 import { pushLayer } from './modal-nav.js';
@@ -42,8 +42,7 @@ function gymDot(gymId, cls = '') {
   return `<span class="fr-gym-dot ${cls}" style="background:${b.brandBg}" title="${escapeHtml(b.name)}">${b.markHtml}</span>`;
 }
 export function gymPlate(gymId) {
-  const b = gymBrand(gymId);
-  return `<span class="fr-logo-plate" style="background:${b.brandBg}" title="${escapeHtml(b.name)}">${b.logoSvg}<span class="u-visually-hidden">${escapeHtml(b.name)}</span></span>`;
+  return gymLogoPlate(gymId);
 }
 
 function avatar(instr) {

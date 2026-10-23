@@ -172,7 +172,13 @@ async function loadHomeStats(gyms) {
     // deliberately small. Resolve this known gym through that shared contract.
     const supportsOfficialAttendance = canForGym('attendanceTotals', gymId);
     if (!supportsOfficialAttendance) return [gymId, {}];
-    return [gymId, { attendance: await api.getAttendanceTotals(gymId, { loading: true }) }];
+    const valid = (a) => a && a.attendedTotal != null && a.attendedTotal !== '' && Number.isInteger(Number(a.attendedTotal)) && Number(a.attendedTotal) >= 0;
+    let attendance = null;
+    try { attendance = await api.getAttendanceTotals(gymId, { loading: true }); } catch (_) { /* retried live below */ }
+    // A failed or unusable answer (or a bad one served from the cache) gets one uncached retry, so a
+    // transient failure cannot pin the widget to a partial result across app restarts.
+    if (!valid(attendance)) attendance = await api.getAttendanceTotals(gymId, { ttlMs: 0, loading: true });
+    return [gymId, { attendance }];
   }));
   const byGym = Object.fromEntries(settled
     .filter((result) => result.status === 'fulfilled')

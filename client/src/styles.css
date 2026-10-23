@@ -10236,10 +10236,12 @@ html:not([data-credits-tab="on"]) .app-nav-btn[data-tab="buy-credits"] { display
 .home-favourite-cta.variant-danger-strong { background: var(--danger); color: var(--on-danger, #fff); }
 .home-favourite-cta:focus-visible { outline: 2px solid var(--accent); outline-offset: 3px; }
 
-/* Credits and activity use one centred, responsive component contract. */
+/* Credits and activity use one centred, responsive component contract. auto-FILL, not auto-fit: with
+   auto-fit a lone tile (one gym answered, the others failed) collapsed the empty tracks and stretched to
+   the full card width as a ~387px square. */
 .home-credits-grid,
 .home-attendance-grid {
-  grid-template-columns: repeat(auto-fit, minmax(112px, 1fr));
+  grid-template-columns: repeat(auto-fill, minmax(112px, 1fr));
 }
 .home-credits-tile,
 .home-attendance-tile {

@@ -101,6 +101,17 @@ function initialFor(name) {
  * have its full-size image pulled for a 26px circle. Falling back to `imageUrl`
  * is a deliberate trade — CodexFit publishes one size only.
  */
+// URLs that have already loaded once this session. A re-render replaces the <img> elements, and a fresh element
+// with async decode / lazy loading paints blank for a frame even from the HTTP cache — the flash seen when
+// returning to the timetable. Known-loaded URLs are emitted eager + synchronous so they paint in the same frame.
+const loadedAvatarUrls = new Set();
+if (typeof document !== 'undefined') {
+  document.addEventListener('load', (e) => {
+    const el = e.target;
+    if (el && el.tagName === 'IMG' && el.hasAttribute('data-instructor-initial') && el.currentSrc) loadedAvatarUrls.add(el.getAttribute('src'));
+  }, true);
+}
+
 export function instructorAvatar(name, gymId = null, directUrl = null, { size = 52, lazy = false, cls = 'ab-card-avatar' } = {}) {
   let url = directUrl || null;
   if (!url) {
@@ -120,7 +131,8 @@ export function instructorAvatar(name, gymId = null, directUrl = null, { size = 
   // whose element gets replaced before the browser schedules its viewport
   // check never starts loading at all — indistinguishable from "missing".
   // `lazy` is opt-in for long stable lists (the timetable); the default stays eager for the reason above.
-  return `<img class="${cls}" src="${url}" alt="" aria-hidden="true" data-instructor-initial="${initialFor(name)}" decoding="async"${lazy ? ' loading="lazy"' : ''} width="${size}" height="${size}">`;
+  const warm = loadedAvatarUrls.has(url);
+  return `<img class="${cls}" src="${url}" alt="" aria-hidden="true" data-instructor-initial="${initialFor(name)}" decoding="${warm ? 'sync' : 'async'}"${lazy && !warm ? ' loading="lazy"' : ''} width="${size}" height="${size}">`;
 }
 
 const attrEsc = (v) => String(v ?? '').replace(/&/g, '&amp;').replace(/"/g, '&quot;').replace(/</g, '&lt;');

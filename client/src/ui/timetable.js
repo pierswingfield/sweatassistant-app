@@ -3408,7 +3408,7 @@ function buildMobileClassRow(event, ctx, model) {
   // Secondary action + extras collapse into the ellipsis context menu.
   const ellipsis = document.createElement('button');
   ellipsis.className = 'app-mobile-seg ellipsis';
-  ellipsis.innerHTML = '\u22EE'; // vertical ellipsis (kebab)
+  ellipsis.innerHTML = '\u22EF'; // horizontal ellipsis, stacked above the CTA
   ellipsis.setAttribute('aria-label', COPY.timetable.moreActions);
   rail.appendChild(ellipsis);
 

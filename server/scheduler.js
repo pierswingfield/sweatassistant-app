@@ -163,7 +163,10 @@ function getClassReleaseTime(booking, settings = {}) {
 
   if (row.release_at) {
     const published = DateTime.fromISO(row.release_at);
-    if (published.isValid) return published.setZone(getGymZone(gymId));
+    // A release at or after the class itself is nonsense (a client that mis-detected its window stored one);
+    // ignore it and fall through to the policy rather than waiting for a moment that can never book anything.
+    const start = classDateStr ? DateTime.fromISO(classDateStr) : null;
+    if (published.isValid && !(start && start.isValid && published >= start)) return published.setZone(getGymZone(gymId));
   }
   // No published release AND no class start to derive one from: there is nothing
   // to resolve, so refuse — same contract as the unresolvable case below.
@@ -853,7 +856,15 @@ const MISSED_RELEASE_GRACE_MS = 5 * 60 * 1000;
 // Every pending entry paired with its resolved release instant.
 function resolvePendingReleases() {
   const out = [];
+  const now = DateTime.now();
   for (const booking of db.getPendingAutoBookings()) {
+    // A class that has already started can never be booked: retire the entry instead of leaving it
+    // "pending" (and counting towards the quota) forever.
+    const start = booking.start_at ? DateTime.fromISO(booking.start_at) : null;
+    if (start && start.isValid && start <= now) {
+      db.markAutoBookingExecuted(booking.event_id, booking.user_id, booking.gym_id, 'failed', 'Class started before booking could be made', new Date().toISOString());
+      continue;
+    }
     // THIS booking's own gym — reading the ambient/default gym's settings here
     // silently applied Psycle's rolling-weekly member-tier offset to it (or
     // omitted it) regardless of which gym the row is actually for.

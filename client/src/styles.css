@@ -8862,6 +8862,9 @@ svg.gym-logo-inline { display: block; opacity: 1 !important; transition: none !i
     padding-top: calc(var(--app-header-h, 47px) + 12px) !important;
     padding-bottom: calc(56px + env(safe-area-inset-bottom) + 36px) !important;
   }
+  /* Tab panels must not flex-shrink below their content: overflowing children don't count toward the scroll
+     padding, so the last row ended up hidden behind the bottom nav. */
+  #app-helper-container .app-tab-content { flex-shrink: 0 !important; }
   /* Timetable rails span the viewport; the other tabs keep their 8px gutters. */
   #app-helper-container main.app-body.app-timetable-active {
     padding-left: 0 !important;
@@ -8933,6 +8936,10 @@ body::after { z-index: 1000002 !important; }
     background: transparent !important; color: var(--text) !important; font-size: 24px; font-weight: 900;
   }
   #app-helper-container .app-mobile-seg.ellipsis::after { inset: 0; }
+  /* Horizontal ellipsis stacked ABOVE the CTA, both right-aligned, so the CTA sits at the card's right edge. */
+  #app-helper-container .app-mobile-rail { flex-direction: column; align-items: flex-end; justify-content: flex-end; gap: 0; padding: 0 8px 12px 0; }
+  #app-helper-container .app-mobile-seg.ellipsis { order: -1; align-self: flex-end; height: 24px; width: 44px; min-width: 44px; line-height: 1; }
+  #app-helper-container .app-mobile-seg.primary { margin: 0; }
 }
 
 /* ---- Batch L: mobile timetable = flat, full-width, three-row table ---- */

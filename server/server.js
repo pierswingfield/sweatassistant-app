@@ -46,6 +46,14 @@ if (process.env.NODE_ENV !== 'production') {
   ['http://localhost:5173', 'http://localhost:3000', 'http://127.0.0.1:5173', 'http://127.0.0.1:3000']
     .forEach((o) => allowedOrigins.add(o));
 }
+// A client-supplied release instant is only kept when it precedes the class; otherwise the scheduler derives it.
+function sanePublishedRelease(releaseAt, startAt) {
+  if (!releaseAt) return null;
+  const r = Date.parse(releaseAt);
+  const c = Date.parse(startAt);
+  return Number.isFinite(r) && (!Number.isFinite(c) || r < c) ? releaseAt : null;
+}
+
 app.use(cors({
   origin(origin, cb) {
     // Allow listed origins (and requests with no Origin: curl, native calendar
@@ -629,7 +637,7 @@ app.post('/api/auto-book', authenticateToken, bookingMutationLimiter, async (req
     const id = db.saveAutoBookingWithStudioDraft({
       mode: 'create', userId: req.userId, gymId: targetGymId, eventId, preferences: normalizedPreferences,
       participants: participantsForPreferences(normalizedPreferences), studioDraft: studioPreferenceDraft,
-      booking: { studioId: studioId ?? null, className, instructorName, instructorImageUrl: instructorImageUrl ?? null, studioName, locationName, startAt, groupName: groupName ?? null, releaseAt: releaseAt ?? null, durationMin },
+      booking: { studioId: studioId ?? null, className, instructorName, instructorImageUrl: instructorImageUrl ?? null, studioName, locationName, startAt, groupName: groupName ?? null, releaseAt: sanePublishedRelease(releaseAt, startAt), durationMin },
     });
 
     // Warn (via push) if the user set this up without enough credits.

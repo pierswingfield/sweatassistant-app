@@ -43,6 +43,25 @@ self.addEventListener('message', (event) => {
     }))));
 });
 
+// Lifecycle breadcrumbs, readable by the page (main.js swStateSummary), so a
+// phone without devtools can report where an install died. Bounded to the
+// last 12 steps; failures to record are ignored.
+const SW_DIAG_CACHE = 'app-sw-diag';
+const SW_DIAG_KEY = new Request('/__sw_diag__');
+let swDiagChain = Promise.resolve();
+function swDiag(step, detail) {
+  const entry = { t: Date.now(), step, ...(detail === undefined ? {} : { detail: String(detail).slice(0, 160) }) };
+  swDiagChain = swDiagChain.then(async () => {
+    const cache = await caches.open(SW_DIAG_CACHE);
+    const previous = await cache.match(SW_DIAG_KEY).then((r) => (r ? r.json() : [])).catch(() => []);
+    const next = [...previous, entry].slice(-12);
+    await cache.put(SW_DIAG_KEY, new Response(JSON.stringify(next), { headers: { 'Content-Type': 'application/json' } }));
+  }).catch(() => {});
+  return swDiagChain;
+}
+self.addEventListener('error', (event) => { swDiag('error', event.message || event.error); });
+self.addEventListener('unhandledrejection', (event) => { swDiag('rejection', event.reason?.message || event.reason); });
+
 async function configuredAppName() {
   try {
     const cache = await caches.open(APP_CONFIG_CACHE);
@@ -155,8 +174,9 @@ async function cacheCoherentShell(cache, response) {
 const PRECACHE_BUDGET_MS = 20000;
 
 self.addEventListener('install', (event) => {
+  const started = Date.now();
   event.waitUntil(
-    caches.open(CACHE_NAME).then(async (cache) => {
+    swDiag('install-start', BUILD_STAMP).then(() => caches.open(CACHE_NAME)).then(async (cache) => {
       // A stalled request would hang install just as surely as a failed one
       // breaks it, so the whole precache is bounded and a timeout counts as failure.
       const results = await Promise.race([
@@ -164,12 +184,17 @@ self.addEventListener('install', (event) => {
         new Promise((resolve) => setTimeout(() => resolve(null), PRECACHE_BUDGET_MS)),
       ]);
       const failed = results ? ASSETS_TO_CACHE.filter((_, i) => results[i].status === 'rejected') : ['(timed out)'];
+      await swDiag('precache', `${Date.now() - started}ms failed=${failed.join('|') || 'none'}`);
       if (failed.length) {
         console.warn('[Service Worker] Precache incomplete, shell not cached:', failed);
         await Promise.all(['/', '/index.html'].map((key) => cache.delete(key)));
       }
-    }).catch((err) => console.warn('[Service Worker] Precache failed:', err))
+    }).catch((err) => {
+      console.warn('[Service Worker] Precache failed:', err);
+      return swDiag('precache-error', err?.message || err);
+    })
       .then(() => self.skipWaiting())
+      .then(() => swDiag('install-done', `${Date.now() - started}ms`))
   );
 });
 
@@ -178,9 +203,10 @@ self.addEventListener('install', (event) => {
 // Whitelist, not prefix match: anything that isn't THIS build's exact two
 // cache names is deleted, which covers every previous stamped build (and any
 // older naming scheme) on the first activate after a version bump.
-const CACHE_WHITELIST = [CACHE_NAME, ASSETS_CACHE_NAME, IMAGES_CACHE_NAME];
+const CACHE_WHITELIST = [CACHE_NAME, ASSETS_CACHE_NAME, IMAGES_CACHE_NAME, APP_CONFIG_CACHE, SW_DIAG_CACHE];
 
 self.addEventListener('activate', (event) => {
+  swDiag('activate', BUILD_STAMP);
   event.waitUntil(
     caches.keys().then((keys) => {
       return Promise.all(

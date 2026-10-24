@@ -686,6 +686,19 @@ let serviceWorkerRegistration = null;
 // What the worker did on this device, shown with the "not ready" error so a
 // phone (no devtools) can report why push cannot start.
 const swDiagnostics = { registerError: '', lastState: '' };
+// The worker's own install breadcrumbs (sw.js swDiag), oldest first, as offsets in seconds.
+async function swInstallTrail() {
+  try {
+    const cache = await caches.open('app-sw-diag');
+    const res = await cache.match('/__sw_diag__');
+    const steps = res ? await res.json() : [];
+    if (!steps.length) return '; sw: no steps recorded';
+    const t0 = steps[0].t;
+    return `; sw: ${steps.map((s) => `+${Math.round((s.t - t0) / 1000)}s ${s.step}${s.detail ? ` ${s.detail}` : ''}`).join(' > ')}`;
+  } catch (err) {
+    return `; sw: unreadable (${err?.message || err})`;
+  }
+}
 function swStateSummary(reg) {
   const parts = [
     `active=${reg?.active?.state || 'none'}`,
@@ -836,7 +849,7 @@ export async function togglePushSubscription() {
 
   try {
     const registration = await activeRegistration();
-    if (!registration) throw new Error(`${COPY.notifications.workerNotReady} (${swStateSummary(serviceWorkerRegistration)})`);
+    if (!registration) throw new Error(`${COPY.notifications.workerNotReady} (${swStateSummary(serviceWorkerRegistration)}${await swInstallTrail()})`);
     const subscription = await registration.pushManager.getSubscription();
     const toggleBtn = document.getElementById('app-push-toggle-btn');
     toggleBtn.disabled = true;

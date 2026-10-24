@@ -3761,7 +3761,7 @@ export async function openGuestBookingModal(c) {
 
   title.textContent = COPY.bookings.bookGuest;
   applyBookingChrome(modal, { titleText: COPY.bookings.bookGuest, gymId: c.gymId, locationName: c.locationName, studioName: c.studioName });
-  body.innerHTML = '<div class="app-loading-spinner-container" style="padding:40px 0;"><div class="app-spinner"></div><span>Checking guest eligibility…</span></div>';
+  body.innerHTML = '<div class="app-loading-spinner-container u-empty-40"><div class="app-spinner"></div><span>Checking guest eligibility…</span></div>';
   openNavPage(modal, { id: 'book-guest' });
   const close = () => {
     if (closeNavPage(modal)) return;
@@ -3777,7 +3777,7 @@ export async function openGuestBookingModal(c) {
       api.getEventDetails(c.id, c.gymId),
     ]);
     if (!entitlement.guestEligible) {
-      body.innerHTML = `<div class="app-card-error" style="padding:24px;text-align:center;">${escapeHtml(guestUnavailableMessage(entitlement.guestReason))}</div>`;
+      body.innerHTML = `<div class="app-card-error u-empty-24">${escapeHtml(guestUnavailableMessage(entitlement.guestReason))}</div>`;
       return;
     }
     const slots = details.slots || [];
@@ -3785,7 +3785,7 @@ export async function openGuestBookingModal(c) {
     // A pick-a-spot class requires a selection; FCFS has no slots and omits it.
     let selectedSlotId = available[0] ? String(available[0].id) : null;
     if ((details.slots || []).length && !selectedSlotId) {
-      body.innerHTML = `<div class="app-card-error" style="padding:24px;text-align:center;">${escapeHtml(COPY.bookings.guestNoSpot)}</div>`;
+      body.innerHTML = `<div class="app-card-error u-empty-24">${escapeHtml(COPY.bookings.guestNoSpot)}</div>`;
       return;
     }
     const passCount = Number(entitlement.guestPassesRemaining);
@@ -3847,7 +3847,7 @@ export async function openGuestBookingModal(c) {
       }
     };
   } catch (err) {
-    body.innerHTML = `<div class="app-card-error" style="padding:24px;text-align:center;">${escapeHtml(formatCopyText(COPY.bookings.guestBookingError, { error: err.message }))}</div>`;
+    body.innerHTML = `<div class="app-card-error u-empty-24">${escapeHtml(formatCopyText(COPY.bookings.guestBookingError, { error: err.message }))}</div>`;
   }
 }
 
@@ -3916,7 +3916,7 @@ export async function openBookingModal(c, mode, opts = {}) {
   const hasLayout = cachedLayout?.slots?.length > 0;
 
   body.innerHTML = `
-    <div class="app-loading-spinner-container" style="padding: 40px 0;">
+    <div class="app-loading-spinner-container u-empty-40">
       <div class="app-spinner"></div>
       <span>${hasLayout ? COPY.timetable.checkingAvailability : COPY.timetable.loadingFloorMap}</span>
     </div>
@@ -4020,7 +4020,7 @@ export async function openBookingModal(c, mode, opts = {}) {
     const showAutoBookAttendeeSelector = autoBookAttendeeOptions.length > 1;
     // Shown only for a group (more than one of your own spots); wording follows the gym's swap capability.
     const groupUpgradeNote = (qty, gymId) => (qty - guestPlacesFor(qty)) > 1
-      ? `<div style="font-size:12px;color:var(--text-tertiary);line-height:1.45;">${canForGym('atomicSwap', gymId) ? COPY.timetable.autoUpgradeGroupAtomic : COPY.timetable.autoUpgradeGroupCancelRebook}</div>`
+      ? `<div class="u-caption">${canForGym('atomicSwap', gymId) ? COPY.timetable.autoUpgradeGroupAtomic : COPY.timetable.autoUpgradeGroupCancelRebook}</div>`
       : '';
 
     // Determine if booking window is already open
@@ -4386,7 +4386,8 @@ export async function openBookingModal(c, mode, opts = {}) {
         const top = fit.yPct(minYinRow) - (14 / initialMapHeight * 100);
 
         const backdrop = document.createElement('div');
-        backdrop.style.cssText = `position:absolute;left:${left}%;top:${top}%;width:${width}%;height:${height}%;background:color-mix(in srgb, var(--info) 10%, transparent);border:2px solid color-mix(in srgb, var(--info) 30%, transparent);border-radius:12px;pointer-events:none;z-index:0;`;
+        backdrop.className = 'app-spot-rowband';
+        backdrop.style.cssText = `left:${left}%;top:${top}%;width:${width}%;height:${height}%;`;
         floorGrid.appendChild(backdrop);
       });
 
@@ -4405,71 +4406,39 @@ export async function openBookingModal(c, mode, opts = {}) {
         const label = slot.label || String(slotId);
 
         const bubble = document.createElement('div');
-        bubble.style.position = 'absolute';
+        bubble.className = 'app-spot';
         bubble.style.left = `${left}%`;
         bubble.style.top = `${top}%`;
-        bubble.style.transform = 'translate(-50%,-50%)';
-        bubble.style.width = '28px';
-        bubble.style.height = '28px';
-        bubble.style.borderRadius = '6px';
-        bubble.style.display = 'flex';
-        bubble.style.alignItems = 'center';
-        bubble.style.justifyContent = 'center';
-        bubble.style.fontSize = '10px';
-        bubble.style.fontWeight = '700';
-        bubble.style.cursor = mapEditing ? 'pointer' : 'default';
-        bubble.style.userSelect = 'none';
-        bubble.style.transition = 'all 0.1s';
-        bubble.style.boxSizing = 'border-box';
-        bubble.style.zIndex = '1';
+        if (mapEditing) bubble.classList.add('is-editable');
         bubble.title = formatCopyText(COPY.timetable.seatTitle, { label });
 
         if (opts.setupFlow && isQuickBookMode && priority > 0) {
           // On the final setup step, make the actual current candidate obvious
           // instead of presenting every preferred spot as if all were chosen.
-          bubble.style.background = 'color-mix(in srgb, var(--gym-btn) 12%, transparent)';
-          bubble.style.border = '1px solid color-mix(in srgb, var(--gym-btn) 35%, transparent)';
-          bubble.style.color = 'var(--gym-ink)';
+          bubble.classList.add('is-pref');
           bubble.textContent = label;
         } else if (priority > 0) {
           // Selected
-          bubble.style.background = 'var(--feat-autoupgrade)';
-          bubble.style.border = '2px solid color-mix(in srgb, var(--feat-autoupgrade) 70%, #000)';
-          bubble.style.color = '#fff';
+          bubble.classList.add('is-selected');
           bubble.textContent = String(priority);
-          if (!isAvailable) {
-            // Occupied but selected = danger ring
-            bubble.style.boxShadow = '0 0 0 2px var(--danger)';
-          }
+          // Occupied but selected = danger ring
+          if (!isAvailable) bubble.classList.add('is-conflict');
         } else if (inRow) {
-          // In selected row — cyan is a floor-plan-specific indicator, kept literal
-          bubble.style.background = 'color-mix(in srgb, var(--info) 25%, transparent)';
-          bubble.style.border = '1px solid color-mix(in srgb, var(--info) 50%, transparent)';
-          bubble.style.color = 'var(--info)';
+          // In a selected row
+          bubble.classList.add('is-in-row');
           bubble.textContent = label;
         } else if (isAvailable) {
           // Available, not selected
-          bubble.style.background = 'color-mix(in srgb, var(--success) 15%, transparent)';
-          bubble.style.border = '1px solid color-mix(in srgb, var(--success) 35%, transparent)';
-          bubble.style.color = 'var(--success)';
+          bubble.classList.add('is-available');
           bubble.textContent = label;
         } else {
           // Occupied, not selected
-          bubble.style.background = 'var(--surface-inset)';
-          bubble.style.border = '1px solid var(--border)';
-          bubble.style.color = 'var(--text-tertiary)';
+          bubble.classList.add('is-occupied');
           bubble.textContent = label;
         }
 
         if (chosenSlotId === slotId) {
-          bubble.style.background = 'var(--gym-btn)';
-          bubble.style.border = '2px solid color-mix(in srgb, var(--gym-btn) 75%, #000)';
-          bubble.style.color = 'var(--gym-on)';
-          bubble.style.boxShadow = '0 0 0 4px color-mix(in srgb, var(--gym-btn) 28%, transparent), 0 0 18px color-mix(in srgb, var(--gym-btn) 55%, transparent)';
-          bubble.style.width = '36px';
-          bubble.style.height = '36px';
-          bubble.style.fontSize = '12px';
-          bubble.style.zIndex = '5';
+          bubble.classList.add('is-chosen');
           bubble.textContent = layoutSlots.find(s => String(s.id) === chosenSlotId)?.label || chosenSlotId;
           bubble.setAttribute('aria-label', `Automatically chosen spot ${bubble.textContent}`);
         }
@@ -4584,11 +4553,11 @@ export async function openBookingModal(c, mode, opts = {}) {
           const fmt = (labels, noun) => {
             const shown = labels.slice(0, 3);
             const rest = labels.length > 3 ? ` <span style="color:var(--text-tertiary);">${formatCopyText(COPY.timetable.moreCount, { count: labels.length - 3 })}</span>` : '';
-            return `<span style="color:var(--text-secondary);font-size:11px;text-transform:uppercase;letter-spacing:0.05em;">${noun}</span> <span style="color:var(--text);font-weight:700;">${shown.map(escapeHtml).join(', ')}</span>${rest}`;
+            return `<span style="color:var(--text-secondary);font-size:11px;text-transform:uppercase;letter-spacing:0.05em;">${noun}</span> <span class="u-strong">${shown.map(escapeHtml).join(', ')}</span>${rest}`;
           };
           const parts = [];
           if (spotLabels.length > 0) parts.push(fmt(spotLabels, COPY.timetable.spotLabel));
-          if (unresolvedSpots > 0) parts.push(`<span style="color:var(--text);font-weight:700;">${unresolvedSpots}</span> <span style="color:var(--text-secondary);font-size:11px;text-transform:uppercase;letter-spacing:0.05em;">${COPY.timetable.spotLabel}${spotLabels.length ? ' more' : ''}</span>`);
+          if (unresolvedSpots > 0) parts.push(`<span class="u-strong">${unresolvedSpots}</span> <span style="color:var(--text-secondary);font-size:11px;text-transform:uppercase;letter-spacing:0.05em;">${COPY.timetable.spotLabel}${spotLabels.length ? ' more' : ''}</span>`);
           if (rowLabels.length > 0) parts.push(fmt(rowLabels, COPY.timetable.rowLabel));
           const sep = ' <span style="color:var(--text-tertiary);margin:0 4px;">›</span> ';
           summaryEl.innerHTML = `<span style="color:var(--text-tertiary);font-size:11px;text-transform:uppercase;letter-spacing:0.05em;margin-right:6px;">${COPY.timetable.preferredLabel}</span>${parts.join(sep)}`;
@@ -4633,8 +4602,8 @@ export async function openBookingModal(c, mode, opts = {}) {
 
         body.querySelector('#app-modal-info-banner').hidden = !!(opts.setupFlow || opts.oneOffSpots);
         body.querySelector('#app-modal-info-banner').innerHTML = mapEditing
-          ? `<div style="font-size:12px;color:var(--feat-autoupgrade);background:color-mix(in srgb,var(--feat-autoupgrade) 8%,transparent);border:1px solid color-mix(in srgb,var(--feat-autoupgrade) 18%,transparent);border-radius:8px;padding:8px 10px;line-height:1.5;">${formatCopyText(COPY.timetable.editingSharedMapHtml, { studio: escapeHtml(studioName), features: 'Quick-Book and Auto-Upgrade too' })}</div>`
-          : `<div style="font-size:12px;color:var(--feat-autoupgrade);background:color-mix(in srgb,var(--feat-autoupgrade) 8%,transparent);border:1px solid color-mix(in srgb,var(--feat-autoupgrade) 18%,transparent);border-radius:8px;padding:8px 10px;line-height:1.5;">${formatCopyText(COPY.timetable.sharedMapForStudioHtml, { studio: escapeHtml(studioName) })}</div>`;
+          ? `<div class="app-hint app-hint--upgrade">${formatCopyText(COPY.timetable.editingSharedMapHtml, { studio: escapeHtml(studioName), features: 'Quick-Book and Auto-Upgrade too' })}</div>`
+          : `<div class="app-hint app-hint--upgrade">${formatCopyText(COPY.timetable.sharedMapForStudioHtml, { studio: escapeHtml(studioName) })}</div>`;
 
         const toggleEl = body.querySelector('#app-map-hint');
         if (toggleEl && mapEditing && !opts.setupFlow && !opts.oneOffSpots) {
@@ -4651,16 +4620,16 @@ export async function openBookingModal(c, mode, opts = {}) {
         controls.innerHTML = `
           <div class="app-booking-controls${isSpotFlowStep ? ' is-spot-flow' : ''}" style="display:flex;flex-direction:column;gap:12px;background:var(--surface-inset);padding:14px;border-radius:12px;border:1px solid var(--border);">
             ${unmappedSlots.length > 0 ? `<div id="app-unmapped-warning" style="font-size:12px;color:var(--warning);background:color-mix(in srgb,var(--warning) 8%,transparent);border:1px solid color-mix(in srgb,var(--warning) 20%,transparent);border-radius:6px;padding:6px 10px;"></div>` : ''}
-            ${creditWarning ? `<div style="font-size:12px;color:var(--danger);background:color-mix(in srgb,var(--danger) 10%,transparent);border:1px solid color-mix(in srgb,var(--danger) 20%,transparent);border-radius:8px;padding:10px;line-height:1.5;">${creditWarning}</div>` : ''}
+            ${creditWarning ? `<div class="app-hint app-hint--danger">${creditWarning}</div>` : ''}
             <div style="display:flex;gap:14px;align-items:center;${guestLimitForMode > 0 ? 'flex-wrap:wrap;' : ''}">
               ${showAutoBookAttendeeSelector ? `<div style="${guestLimitForMode > 0 ? 'flex:1 1 100%;min-width:0;' : 'width:110px;'}">
-                <label style="display:block;font-size:12px;color:var(--text-secondary);margin-bottom:4px;">${COPY.timetable.slotsToBook}</label>
+                <label class="u-field-label">${COPY.timetable.slotsToBook}</label>
                 <select id="autobook-qty" class="app-select" style="width:100%;padding:6px 8px;font-size:13px;">
                   ${autoBookQtyOptions.map(n => `<option value="${n}" ${state.qty===n?'selected':''}>${placesLabel(n, { selfLimit: selfLimitForMode, guestLimit: guestLimitForMode })}</option>`).join('')}
                 </select>
               </div>` : ''}
               <div style="flex:1;padding-top:14px;">
-                <label style="display:flex;align-items:center;gap:8px;font-size:13px;cursor:pointer;color:var(--text-secondary);user-select:none;">
+                <label class="app-check-row">
                   <input type="checkbox" class="app-ms-checkbox" id="autobook-fallback-any" ${state.bookAny ? 'checked' : ''}>
                   <span>${COPY.timetable.bookAnyPreferredFallback}</span>
                 </label>
@@ -4677,7 +4646,7 @@ export async function openBookingModal(c, mode, opts = {}) {
               const hasLayout = layoutSlots.length > 0;
               const hasPrefs = state.selectedSlots.length > 0 || state.selectedRows.size > 0;
               if (!hasLayout || !canForGym('autoUpgrade', c.gymId)) return '';
-              if (guestPlacesFor(selectedQty) > 0) return `<div style="font-size:12px;color:var(--text-tertiary);line-height:1.45;">${COPY.timetable.autoUpgradeGuestUnavailable}</div>`;
+              if (guestPlacesFor(selectedQty) > 0) return `<div class="u-caption">${COPY.timetable.autoUpgradeGuestUnavailable}</div>`;
               if (!hasPrefs && isMobile()) return upgradeNeedsRowHtml();
               if (!hasPrefs) return `
                 <label style="display:flex;align-items:center;gap:8px;font-size:13px;color:var(--text-tertiary);user-select:none;cursor:not-allowed;">
@@ -4685,7 +4654,7 @@ export async function openBookingModal(c, mode, opts = {}) {
                   <span class="app-upgrade-label-text">${trendingUpIcon(12, 'currentColor', 2)} ${COPY.timetable.autoUpgradeConfigurePrompt}</span>
                 </label>`;
               return `
-                <label style="display:flex;align-items:center;gap:8px;font-size:13px;cursor:pointer;color:var(--text-secondary);user-select:none;">
+                <label class="app-check-row">
                   <input type="checkbox" class="app-ms-checkbox" id="autobook-auto-upgrade" ${(state.autoUpgrade ?? isAutoUpgradeDefaultEnabled(c.gymId)) ? 'checked' : ''}>
                   <span class="app-upgrade-label-text">${trendingUpIcon(12, 'currentColor', 2)} ${COPY.timetable.autoUpgradeKeepSearchingLabel}</span>
                 </label>${groupUpgradeNote(selectedQty, c.gymId)}`;
@@ -4693,7 +4662,7 @@ export async function openBookingModal(c, mode, opts = {}) {
             <button class="app-btn" id="btn-save-autobook" style="width:100%;background:var(--feat-autoupgrade);color:var(--on-accent);display:flex;align-items:center;justify-content:center;gap:6px;">${sparklesIcon(14, 'currentColor')} ${!opts.oneOffSpots && mapChanged() ? `${COPY.spotMapEditor.saveMapAnd} ` : ''}${COPY.timetable.scheduleAutoBook}</button>
             ${opts.autoBookEdit?.onRemove ? `<button type="button" class="app-btn" id="btn-remove-autobook" style="width:100%;background:transparent;border:1px solid var(--danger);color:var(--danger);">${COPY.timetable.removeAutoBook}</button>` : ''}
             <div style="font-size:12px;text-align:center;color:${isLive ? 'var(--success)' : 'var(--text-tertiary)'};">
-              ${isLive ? COPY.timetable.bookingWindowIsOpen : `${formatCopyText(COPY.timetable.bookingOpens, { date: `<span style="color:var(--text-secondary);">${escapeHtml(releaseStr)}</span>` })}`}
+              ${isLive ? COPY.timetable.bookingWindowIsOpen : `${formatCopyText(COPY.timetable.bookingOpens, { date: `<span class="u-text-2">${escapeHtml(releaseStr)}</span>` })}`}
             </div>
           </div>
         `;
@@ -4813,7 +4782,7 @@ export async function openBookingModal(c, mode, opts = {}) {
         controls.innerHTML = `
           <div class="app-booking-controls${isSpotFlowStep ? ' is-spot-flow' : ''}" style="display:flex;flex-direction:column;gap:12px;background:var(--surface-inset);padding:14px;border-radius:12px;border:1px solid var(--border);">
             <div style="font-size:12px;color:var(--text-secondary);font-style:italic;">${formatCopyText(COPY.timetable.simpleBookPrompt, { noun: seatNoun(groupName), count: `<strong>${isDataLoaded ? availableCredits : '?'}</strong>`, plural: availableCredits !== 1 ? 's' : '' })}</div>
-            ${creditWarning ? `<div style="font-size:12px;color:var(--danger);background:color-mix(in srgb,var(--danger) 10%,transparent);border:1px solid color-mix(in srgb,var(--danger) 20%,transparent);border-radius:8px;padding:10px;line-height:1.5;">${creditWarning}</div>` : ''}
+            ${creditWarning ? `<div class="app-hint app-hint--danger">${creditWarning}</div>` : ''}
             ${(() => {
               const hasLayout = layoutSlots.length > 0;
               const hasPrefs = hasExistingPrefs;
@@ -4942,9 +4911,9 @@ export async function openBookingModal(c, mode, opts = {}) {
 
         body.querySelector('#app-modal-info-banner').hidden = !!(opts.setupFlow || opts.oneOffSpots);
         body.querySelector('#app-modal-info-banner').innerHTML = !mapEditing
-          ? `<div style="font-size:12px;color:var(--feat-autoupgrade);background:color-mix(in srgb,var(--feat-autoupgrade) 8%,transparent);border:1px solid color-mix(in srgb,var(--feat-autoupgrade) 18%,transparent);border-radius:8px;padding:8px 10px;line-height:1.5;">${COPY.timetable.quickBookBannerHtml}</div>`
+          ? `<div class="app-hint app-hint--upgrade">${COPY.timetable.quickBookBannerHtml}</div>`
           : (hasExistingPrefs
-            ? `<div style="font-size:12px;color:var(--feat-autoupgrade);background:color-mix(in srgb,var(--feat-autoupgrade) 8%,transparent);border:1px solid color-mix(in srgb,var(--feat-autoupgrade) 18%,transparent);border-radius:8px;padding:8px 10px;line-height:1.5;">${formatCopyText(COPY.timetable.editingQuickBookMapHtml, { studio: escapeHtml(studioName) })}</div>`
+            ? `<div class="app-hint app-hint--upgrade">${formatCopyText(COPY.timetable.editingQuickBookMapHtml, { studio: escapeHtml(studioName) })}</div>`
             : `<div style="font-size:12px;color:var(--text-tertiary);background:color-mix(in srgb,var(--feat-autoupgrade) 7%,transparent);border:1px solid color-mix(in srgb,var(--feat-autoupgrade) 15%,transparent);border-radius:8px;padding:10px 12px;line-height:1.5;">${formatCopyText(COPY.timetable.quickBookFirstSetupHtml, { studio: escapeHtml(studioName) })}</div>`);
 
         const qbToggleEl = body.querySelector('#app-map-hint');
@@ -4960,17 +4929,17 @@ export async function openBookingModal(c, mode, opts = {}) {
         }
 
         controls.innerHTML = `
-          <div style="display:flex;flex-direction:column;gap:12px;background:var(--surface-inset);padding:14px;border-radius:12px;border:1px solid var(--border);">
-            ${creditWarning ? `<div style="font-size:12px;color:var(--danger);background:color-mix(in srgb,var(--danger) 10%,transparent);border:1px solid color-mix(in srgb,var(--danger) 20%,transparent);border-radius:8px;padding:10px;line-height:1.5;">${creditWarning}</div>` : ''}
+          <div class="app-inset-card">
+            ${creditWarning ? `<div class="app-hint app-hint--danger">${creditWarning}</div>` : ''}
             <div style="display:flex;gap:14px;align-items:center;${quickGuestMax > 0 ? 'flex-wrap:wrap;' : ''}">
               ${quickBookOptions.length > 1 ? `<div style="${quickGuestMax > 0 ? 'flex:1 1 100%;min-width:0;' : 'width:110px;'}">
-                <label style="display:block;font-size:12px;color:var(--text-secondary);margin-bottom:4px;">${COPY.timetable.slotsToBook}</label>
+                <label class="u-field-label">${COPY.timetable.slotsToBook}</label>
                 <select id="quickbook-qty" class="app-select" style="width:100%;padding:6px 8px;font-size:13px;">
                   ${quickBookOptions.map(n => `<option value="${n}" ${state.qty===n?'selected':''}>${placesLabel(n, { selfLimit: attendeeLimit, guestLimit: quickGuestMax })}</option>`).join('')}
                 </select>
               </div>` : ''}
               <div style="flex:1;padding-top:14px;">
-                <label style="display:flex;align-items:center;gap:8px;font-size:13px;cursor:pointer;color:var(--text-secondary);user-select:none;">
+                <label class="app-check-row">
                   <input type="checkbox" class="app-ms-checkbox" id="quickbook-fallback-any" ${state.bookAny ? 'checked' : ''}>
                   <span>${COPY.timetable.bookAnyPreferredFallback}</span>
                 </label>
@@ -4985,7 +4954,7 @@ export async function openBookingModal(c, mode, opts = {}) {
               const hasLayout = layoutSlots.length > 0;
               const hasPrefs = state.selectedSlots.length > 0 || state.selectedRows.size > 0;
               if (!hasLayout || !canForGym('autoUpgrade', c.gymId)) return '';
-              if (guestPlacesFor(selectedQty) > 0) return `<div style="font-size:12px;color:var(--text-tertiary);line-height:1.45;">${COPY.timetable.autoUpgradeGuestUnavailable}</div>`;
+              if (guestPlacesFor(selectedQty) > 0) return `<div class="u-caption">${COPY.timetable.autoUpgradeGuestUnavailable}</div>`;
               if (!hasPrefs && isMobile()) return upgradeNeedsRowHtml();
               if (!hasPrefs) return `
                 <label style="display:flex;align-items:center;gap:8px;font-size:13px;color:var(--text-tertiary);user-select:none;cursor:not-allowed;">
@@ -4993,7 +4962,7 @@ export async function openBookingModal(c, mode, opts = {}) {
                   <span class="app-upgrade-label-text">${trendingUpIcon(12, 'currentColor', 2)} ${COPY.timetable.autoUpgradeConfigurePrompt}</span>
                 </label>`;
               return `
-                <label style="display:flex;align-items:center;gap:8px;font-size:13px;cursor:pointer;color:var(--text-secondary);user-select:none;">
+                <label class="app-check-row">
                   <input type="checkbox" class="app-ms-checkbox" id="quickbook-auto-upgrade" ${isAutoUpgradeDefaultEnabled(c.gymId) ? 'checked' : ''}>
                   <span class="app-upgrade-label-text">${trendingUpIcon(12, 'currentColor', 2)} ${COPY.timetable.autoUpgradeKeepSearchingLabel}</span>
                 </label>${groupUpgradeNote(selectedQty, c.gymId)}`;
@@ -5465,7 +5434,7 @@ export async function openDebugModal(event) {
   // Debug modal: deliberately the RAW provider name (it exists to show what the API sent).
   title.textContent = `Debug: ${event.name || 'Class'} — ${event.startAt || ''}`;
   body.innerHTML = `
-    <div class="app-loading-spinner-container" style="padding: 40px 0;">
+    <div class="app-loading-spinner-container u-empty-40">
       <div class="app-spinner"></div>
       <span>Loading debug data...</span>
     </div>
@@ -5551,15 +5520,15 @@ export async function openDebugModal(event) {
           <div style="background:color-mix(in srgb, var(--feat-autoupgrade) 8%, transparent);border:1px solid color-mix(in srgb, var(--feat-autoupgrade) 20%, transparent);border-radius:10px;padding:14px;margin-bottom:12px;">
             <h5 style="color:var(--feat-autoupgrade);margin:0 0 10px 0;font-size:13px;font-weight:700;">Spot Availability</h5>
             <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:6px 0;font-size:12px;">
-              <span style="color:var(--text-secondary);">Layout spots:</span><span style="color:var(--text);font-weight:600;">${totalLayout}</span><span></span>
-              <span style="color:var(--text-secondary);">Available:</span><span style="color:var(--success);font-weight:600;">${totalAvail}</span><span></span>
-              <span style="color:var(--text-secondary);">Occupied:</span><span style="color:var(--danger);font-weight:600;">${occupied}</span><span></span>
-              <span style="color:var(--text-secondary);">Capacity:</span><span style="color:var(--text);font-weight:600;">${event.capacity ?? 'N/A'}</span><span></span>
-              <span style="color:var(--text-secondary);">Occupancy:</span><span style="color:var(--text);font-weight:600;">${(event.capacity != null && event.availableCount != null ? event.capacity - event.availableCount : undefined) ?? 'N/A'}</span><span></span>
+              <span class="u-text-2">Layout spots:</span><span class="u-strong">${totalLayout}</span><span></span>
+              <span class="u-text-2">Available:</span><span style="color:var(--success);font-weight:600;">${totalAvail}</span><span></span>
+              <span class="u-text-2">Occupied:</span><span style="color:var(--danger);font-weight:600;">${occupied}</span><span></span>
+              <span class="u-text-2">Capacity:</span><span class="u-strong">${event.capacity ?? 'N/A'}</span><span></span>
+              <span class="u-text-2">Occupancy:</span><span class="u-strong">${(event.capacity != null && event.availableCount != null ? event.capacity - event.availableCount : undefined) ?? 'N/A'}</span><span></span>
             </div>
           </div>
           ${unmapped.length > 0 ? `<div style="font-size:12px;color:var(--warning);background:color-mix(in srgb, var(--warning) 8%, transparent);border:1px solid color-mix(in srgb, var(--warning) 20%, transparent);border-radius:6px;padding:8px 12px;margin-bottom:12px;">⚠ ${unmapped.length} available slot${unmapped.length>1?'s are':' is'} not on the layout map — IDs: ${unmapped.join(', ')}</div>` : ''}
-          ${rows.length > 0 ? `<table style="width:100%;border-collapse:collapse;"><thead><tr style="font-size:12px;color:var(--text-tertiary);"><th style="padding:3px 8px;text-align:left;">Row</th><th style="padding:3px 8px;text-align:left;">Total</th><th style="padding:3px 8px;text-align:left;">Available</th><th style="padding:3px 8px;text-align:left;">Occupied</th></tr></thead><tbody>${rowsHtml}</tbody></table>` : ''}
+          ${rows.length > 0 ? `<table style="width:100%;border-collapse:collapse;"><thead><tr style="font-size:12px;color:var(--text-tertiary);"><th class="u-cell">Row</th><th class="u-cell">Total</th><th class="u-cell">Available</th><th class="u-cell">Occupied</th></tr></thead><tbody>${rowsHtml}</tbody></table>` : ''}
           <div style="margin-top:12px;"><h5 style="color:var(--feat-autoupgrade);margin:0 0 6px 0;font-size:12px;font-weight:600;text-transform:uppercase;letter-spacing:0.5px;">Available Slot IDs</h5><pre style="background:var(--surface-inset);border:1px solid var(--border);border-radius:8px;padding:10px;font-size:12px;color:var(--text);white-space:pre-wrap;word-break:break-all;margin:0;">${JSON.stringify(availableSlots)}</pre></div>
         `;
         return;
@@ -5595,19 +5564,19 @@ export async function openDebugModal(event) {
           <div class="app-debug-computed" style="background:color-mix(in srgb, var(--feat-autoupgrade) 8%, transparent); border:1px solid color-mix(in srgb, var(--feat-autoupgrade) 20%, transparent); border-radius:10px; padding:14px; margin-bottom:16px;">
             <h5 style="color:var(--feat-autoupgrade); margin:0 0 10px 0; font-size:13px; font-weight:700;">Key Computed Values</h5>
             <div style="display:grid; grid-template-columns:1fr 1fr; gap:6px 16px; font-size:12px;">
-              <span style="color:var(--text-secondary);">isLive:</span><span style="color:var(--text); font-weight:600;">${isLive}</span>
-              <span style="color:var(--text-secondary);">classReleaseTime:</span><span style="color:var(--text); font-weight:600;">${classRelease ? classRelease.toISO() : 'unknown'}</span>
-              <span style="color:var(--text-secondary);">bookingCutoff:</span><span style="color:var(--text); font-weight:600;">${bookingCutoff}</span>
-              <span style="color:var(--text-secondary);">extendedCutoff:</span><span style="color:var(--text); font-weight:600;">${extendedCutoff}</span>
-              <span style="color:var(--text-secondary);">isFullyBooked:</span><span style="color:var(--text); font-weight:600;">${!!event.isFull}</span>
-              <span style="color:var(--text-secondary);">isAlwaysBookable:</span><span style="color:var(--text); font-weight:600;">${!!event.alwaysBookable}</span>
-              <span style="color:var(--text-secondary);">capacity:</span><span style="color:var(--text); font-weight:600;">${event.capacity ?? 'N/A'}</span>
-              <span style="color:var(--text-secondary);">occupancy:</span><span style="color:var(--text); font-weight:600;">${(event.capacity != null && event.availableCount != null ? event.capacity - event.availableCount : undefined) ?? 'N/A'}</span>
-              ${studio ? `<span style="color:var(--text-secondary);">Studio:</span><span style="color:var(--text); font-weight:600;">${studio.name} (ID: ${studio.id})</span>` : ''}
-              ${loc ? `<span style="color:var(--text-secondary);">Location:</span><span style="color:var(--text); font-weight:600;">${loc.name} (ID: ${loc.id})</span>` : ''}
-              ${instructor ? `<span style="color:var(--text-secondary);">Instructor:</span><span style="color:var(--text); font-weight:600;">${instructor.full_name || instructor.name} (ID: ${instructor.id})</span>` : ''}
-              ${typeInfo ? `<span style="color:var(--text-secondary);">Event Type:</span><span style="color:var(--text); font-weight:600;">${typeInfo.name} (ID: ${typeInfo.id})</span>` : ''}
-              <span style="color:var(--text-secondary);">Bookmark ID:</span><span style="color:var(--text); font-weight:600; word-break:break-all;">${generateBookmarkIdentifier(event) || 'N/A'}</span>
+              <span class="u-text-2">isLive:</span><span class="u-strong">${isLive}</span>
+              <span class="u-text-2">classReleaseTime:</span><span class="u-strong">${classRelease ? classRelease.toISO() : 'unknown'}</span>
+              <span class="u-text-2">bookingCutoff:</span><span class="u-strong">${bookingCutoff}</span>
+              <span class="u-text-2">extendedCutoff:</span><span class="u-strong">${extendedCutoff}</span>
+              <span class="u-text-2">isFullyBooked:</span><span class="u-strong">${!!event.isFull}</span>
+              <span class="u-text-2">isAlwaysBookable:</span><span class="u-strong">${!!event.alwaysBookable}</span>
+              <span class="u-text-2">capacity:</span><span class="u-strong">${event.capacity ?? 'N/A'}</span>
+              <span class="u-text-2">occupancy:</span><span class="u-strong">${(event.capacity != null && event.availableCount != null ? event.capacity - event.availableCount : undefined) ?? 'N/A'}</span>
+              ${studio ? `<span class="u-text-2">Studio:</span><span class="u-strong">${studio.name} (ID: ${studio.id})</span>` : ''}
+              ${loc ? `<span class="u-text-2">Location:</span><span class="u-strong">${loc.name} (ID: ${loc.id})</span>` : ''}
+              ${instructor ? `<span class="u-text-2">Instructor:</span><span class="u-strong">${instructor.full_name || instructor.name} (ID: ${instructor.id})</span>` : ''}
+              ${typeInfo ? `<span class="u-text-2">Event Type:</span><span class="u-strong">${typeInfo.name} (ID: ${typeInfo.id})</span>` : ''}
+              <span class="u-text-2">Bookmark ID:</span><span style="color:var(--text); font-weight:600; word-break:break-all;">${generateBookmarkIdentifier(event) || 'N/A'}</span>
             </div>
           </div>
         `;
@@ -5636,49 +5605,49 @@ export async function openDebugModal(event) {
 
       // Studios
       const studioList = rels.studios || [];
-      html += '<div style="margin-bottom:8px;"><strong style="color:var(--text); font-size:12px;">Studios:</strong>';
+      html += '<div class="u-mb-2"><strong class="u-text-12">Studios:</strong>';
       if (studioList.length === 0) {
-        html += '<span style="color:var(--text-secondary); font-size:12px; margin-left:6px;">None</span>';
+        html += '<span class="u-meta-ml-sm">None</span>';
       } else {
         studioList.forEach(s => {
-          html += `<div style="margin-left:12px; font-size:12px; color:var(--text-secondary);">• ${s.name || 'Unnamed'} (ID: ${s.id}, Location ID: ${s.locationId ?? s.locationId})</div>`;
+          html += `<div class="u-meta-ml">• ${s.name || 'Unnamed'} (ID: ${s.id}, Location ID: ${s.locationId ?? s.locationId})</div>`;
         });
       }
       html += '</div>';
 
       // Locations
       const locList = rels.locations || [];
-      html += '<div style="margin-bottom:8px;"><strong style="color:var(--text); font-size:12px;">Locations:</strong>';
+      html += '<div class="u-mb-2"><strong class="u-text-12">Locations:</strong>';
       if (locList.length === 0) {
-        html += '<span style="color:var(--text-secondary); font-size:12px; margin-left:6px;">None</span>';
+        html += '<span class="u-meta-ml-sm">None</span>';
       } else {
         locList.forEach(l => {
-          html += `<div style="margin-left:12px; font-size:12px; color:var(--text-secondary);">• ${l.name || 'Unnamed'} (ID: ${l.id})</div>`;
+          html += `<div class="u-meta-ml">• ${l.name || 'Unnamed'} (ID: ${l.id})</div>`;
         });
       }
       html += '</div>';
 
       // Instructors
       const instrList = rels.instructors || [];
-      html += '<div style="margin-bottom:8px;"><strong style="color:var(--text); font-size:12px;">Instructors:</strong>';
+      html += '<div class="u-mb-2"><strong class="u-text-12">Instructors:</strong>';
       if (instrList.length === 0) {
-        html += '<span style="color:var(--text-secondary); font-size:12px; margin-left:6px;">None</span>';
+        html += '<span class="u-meta-ml-sm">None</span>';
       } else {
         instrList.forEach(i => {
-          html += `<div style="margin-left:12px; font-size:12px; color:var(--text-secondary);">• ${i.full_name || i.name || 'Unnamed'} (ID: ${i.id})</div>`;
+          html += `<div class="u-meta-ml">• ${i.full_name || i.name || 'Unnamed'} (ID: ${i.id})</div>`;
         });
       }
       html += '</div>';
 
       // Event Types
       const etList = rels.event_types || [];
-      html += '<div style="margin-bottom:4px;"><strong style="color:var(--text); font-size:12px;">Event Types:</strong>';
+      html += '<div style="margin-bottom:4px;"><strong class="u-text-12">Event Types:</strong>';
       if (etList.length === 0) {
-        html += '<span style="color:var(--text-secondary); font-size:12px; margin-left:6px;">None</span>';
+        html += '<span class="u-meta-ml-sm">None</span>';
       } else {
         etList.forEach(et => {
           const groupName = et.group || '';
-          html += `<div style="margin-left:12px; font-size:12px; color:var(--text-secondary);">• ${et.name || 'Unnamed'} (ID: ${et.id}${groupName ? `, Group: ${groupName}` : ''})</div>`;
+          html += `<div class="u-meta-ml">• ${et.name || 'Unnamed'} (ID: ${et.id}${groupName ? `, Group: ${groupName}` : ''})</div>`;
         });
       }
       html += '</div>';

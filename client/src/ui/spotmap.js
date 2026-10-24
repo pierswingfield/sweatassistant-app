@@ -268,7 +268,8 @@ export function renderStudioFloorPlan(container, layoutSlots, initialSlots, init
       const minYinRow = Math.min(...rowSlots.map(s => s.y));
       const maxYinRow = Math.max(...rowSlots.map(s => s.y));
       const backdrop = document.createElement('div');
-      backdrop.style.cssText = `position:absolute;left:${pxX(minXinRow) - SLOT_SIZE / 2}px;top:${pxY(minYinRow) - SLOT_SIZE / 2}px;width:${(maxXinRow - minXinRow) * scaleX + SLOT_SIZE}px;height:${(maxYinRow - minYinRow) * scaleY + SLOT_SIZE}px;background:color-mix(in srgb, var(--info) 10%, transparent);border:2px solid color-mix(in srgb, var(--info) 30%, transparent);border-radius:12px;pointer-events:none;z-index:0;`;
+      backdrop.className = 'app-spot-rowband';
+      backdrop.style.cssText = `left:${pxX(minXinRow) - SLOT_SIZE / 2}px;top:${pxY(minYinRow) - SLOT_SIZE / 2}px;width:${(maxXinRow - minXinRow) * scaleX + SLOT_SIZE}px;height:${(maxYinRow - minYinRow) * scaleY + SLOT_SIZE}px;`;
       floor.appendChild(backdrop);
     });
 
@@ -288,7 +289,9 @@ export function renderStudioFloorPlan(container, layoutSlots, initialSlots, init
         : slotStates?.[String(slot.id)];
 
       const el = document.createElement('div');
-      el.style.cssText = `position:absolute;left:${pxX(slot.x)}px;top:${pxY(slot.y)}px;transform:translate(-50%,-50%);width:${SLOT_SIZE}px;height:${SLOT_SIZE}px;border-radius:6px;display:flex;align-items:center;justify-content:center;font-size:12px;font-weight:700;line-height:1;text-align:center;white-space:nowrap;overflow:visible;cursor:${editing ? 'pointer' : 'default'};user-select:none;transition:all 0.1s;box-sizing:border-box;z-index:1;`;
+      el.className = 'app-spot app-spot--map';
+      el.style.cssText = `left:${pxX(slot.x)}px;top:${pxY(slot.y)}px;width:${SLOT_SIZE}px;height:${SLOT_SIZE}px;`;
+      if (editing) el.classList.add('is-editable');
       el.title = `Spot ${label}`;
 
       /**
@@ -299,76 +302,59 @@ export function renderStudioFloorPlan(container, layoutSlots, initialSlots, init
        * to tell which square was which bike. The ranking is secondary
        * information; which seat it is, is the primary information.
        */
-      const selColor = selectionTone === 'guest' ? 'var(--info)' : 'var(--feat-autoupgrade)';
+      const guestTone = selectionTone === 'guest';
       const withPriorityBadge = (n) => {
         el.textContent = short;
         const badge = document.createElement('span');
         badge.textContent = String(n);
         badge.setAttribute('aria-hidden', 'true');
-        badge.style.cssText = `position:absolute;top:-6px;right:-6px;min-width:15px;height:15px;padding:0 3px;border-radius:999px;background:${selColor};color:#fff;font-size:9px;line-height:15px;font-weight:800;text-align:center;box-shadow:0 0 0 2px var(--surface);box-sizing:border-box;`;
+        badge.className = 'app-spot-badge';
         el.appendChild(badge);
         el.title = formatCopyText(COPY.spotMapEditor.preferredPriority, { label, priority: n });
       };
 
       if (reservationState === 'self') {
-        el.style.background = 'color-mix(in srgb, var(--feat-autoupgrade) 16%, transparent)';
-        el.style.border = '2px solid var(--feat-autoupgrade)';
-        el.style.color = 'var(--feat-autoupgrade)';
+        el.classList.add('is-self');
         el.textContent = short;
         el.title = `${COPY.bookings.guestMapSelf}: ${label}`;
       } else if (reservationState === 'guest') {
-        el.style.background = 'color-mix(in srgb, var(--info) 17%, transparent)';
-        el.style.border = '2px dashed var(--info)';
-        el.style.color = 'var(--info)';
+        el.classList.add('is-guest');
         el.textContent = short;
         el.title = `${COPY.bookings.guestMapGuest}: ${label}`;
       } else if (isCurrent) {
-        el.style.background = 'color-mix(in srgb, var(--feat-autoupgrade) 15%, transparent)';
-        el.style.border = '2px dashed var(--feat-autoupgrade)';
-        el.style.color = 'var(--feat-autoupgrade)';
+        el.classList.add('is-current');
         el.textContent = short;
         el.title = formatCopyText(COPY.spotMapEditor.currentSeat, { label });
         if (priority > 0) {
-          el.style.background = 'var(--feat-autoupgrade)';
-          el.style.border = '2px dashed #fff';
-          el.style.color = '#fff';
+          el.classList.add('is-current-preferred');
           withPriorityBadge(priority);
           el.title = formatCopyText(COPY.spotMapEditor.currentPreferredPriority, { label, priority });
         }
       } else if (priority > 0) {
-        el.style.background = selColor;
-        el.style.border = `2px solid ${selColor}`;
-        el.style.color = '#fff';
+        el.classList.add('is-selected');
+        if (guestTone) el.classList.add('is-guest-tone');
         withPriorityBadge(priority);
         if (hasAvailability && !isAvailable) {
-          el.style.boxShadow = '0 0 0 2px var(--danger)';
+          el.classList.add('is-conflict');
           el.title = formatCopyText(COPY.spotMapEditor.occupiedPreferredSeat, { label });
         }
       } else if (inRow) {
-        el.style.background = 'color-mix(in srgb, var(--info) 25%, transparent)';
-        el.style.border = '1px solid color-mix(in srgb, var(--info) 50%, transparent)';
-        el.style.color = 'var(--info)';
+        el.classList.add('is-in-row');
         el.textContent = short;
       } else if (hasAvailability && isAvailable) {
-        el.style.background = 'color-mix(in srgb, var(--success) 15%, transparent)';
-        el.style.border = '1px solid color-mix(in srgb, var(--success) 35%, transparent)';
-        el.style.color = 'var(--success)';
+        el.classList.add('is-available');
         el.textContent = short;
       } else if (hasAvailability && !isAvailable) {
-        el.style.background = 'var(--surface-inset)';
-        el.style.border = '1px solid var(--border)';
-        el.style.color = 'var(--text-tertiary)';
+        el.classList.add('is-occupied');
         el.textContent = short;
       } else {
-        el.style.background = 'color-mix(in srgb, var(--text) 5%, transparent)';
-        el.style.border = '1px solid color-mix(in srgb, var(--text) 8%, transparent)';
-        el.style.color = 'var(--text-tertiary)';
+        el.classList.add('is-neutral');
         el.textContent = short;
       }
 
       const canSelect = editing && !reservationState && (!hasAvailability || isAvailable || priority > 0);
       if (canSelect) {
-        el.style.cursor = 'pointer';
+        el.classList.add('is-editable');
         let pointerStart = null;
         el.addEventListener('pointerdown', (event) => { pointerStart = { x: event.clientX, y: event.clientY }; suppressSpotClick = false; });
         el.addEventListener('pointermove', (event) => {
@@ -386,7 +372,7 @@ export function renderStudioFloorPlan(container, layoutSlots, initialSlots, init
           render();
         });
       } else if (reservationState || (hasAvailability && !isAvailable)) {
-        el.style.cursor = 'default';
+        el.classList.remove('is-editable');
       }
 
       floor.appendChild(el);
@@ -399,7 +385,8 @@ export function renderStudioFloorPlan(container, layoutSlots, initialSlots, init
     viewObjects.forEach(obj => {
       const objLabel = obj.label || COPY.spotMapEditor.podium;
       const el = document.createElement('div');
-      el.style.cssText = `position:absolute;left:${pxX(obj.x)}px;top:${pxY(obj.y)}px;transform:translate(-50%,-50%);width:${SLOT_SIZE + 14}px;height:${SLOT_SIZE}px;border-radius:6px;display:flex;align-items:center;justify-content:center;font-size:12px;font-weight:700;background:var(--text-secondary);color:var(--bg);user-select:none;pointer-events:none;box-sizing:border-box;z-index:1;`;
+      el.className = 'app-spot-object';
+      el.style.cssText = `left:${pxX(obj.x)}px;top:${pxY(obj.y)}px;width:${SLOT_SIZE + 14}px;height:${SLOT_SIZE}px;`;
       el.textContent = objLabel[0].toUpperCase();
       el.title = objLabel;
       floor.appendChild(el);
@@ -415,7 +402,8 @@ export function renderStudioFloorPlan(container, layoutSlots, initialSlots, init
         const midY = (Math.min(...rowSlots.map(s => s.y)) + Math.max(...rowSlots.map(s => s.y))) / 2;
 
         const btn = document.createElement('button');
-        btn.style.cssText = `position:absolute;left:${rowBtnX}px;top:${pxY(midY)}px;transform:translate(-50%,-50%);width:26px;height:26px;padding:0;border-radius:50%;background:${isOn ? 'color-mix(in srgb, var(--info) 30%, transparent)' : 'color-mix(in srgb, var(--text) 8%, transparent)'};border:1px solid ${isOn ? 'color-mix(in srgb, var(--info) 50%, transparent)' : 'color-mix(in srgb, var(--text) 15%, transparent)'};color:${isOn ? 'var(--info)' : 'var(--text-secondary)'};font-size:16px;font-weight:700;cursor:pointer;display:flex;align-items:center;justify-content:center;transition:all 0.1s;z-index:2;`;
+        btn.className = 'app-spot-rowbtn' + (isOn ? ' is-on' : '');
+        btn.style.cssText = `left:${rowBtnX}px;top:${pxY(midY)}px;`;
         btn.textContent = isOn ? '−' : '+';
         btn.title = isOn
           ? formatCopyText(COPY.timetable.removeRow, { row: idx + 1 })

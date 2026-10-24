@@ -10523,3 +10523,211 @@ html:not([data-credits-tab="on"]) .app-nav-btn[data-tab="buy-credits"] { display
   margin-top: 12px;
   padding-top: 12px;
 }
+
+/* =========================================================================================
+   CSSv2 PHASE 4a (U3-4, U3-5): shell, controls, Home, Timetable, modals. Appended last so it wins ties;
+   rules are tokens-only. Mobile (375-430) is the design target, desktop rules are untouched unless said.
+   ========================================================================================= */
+
+/* 4a.1 Hit areas. Dense controls keep their look but get a >=44px invisible hit box (::before centred
+   on the control), per DESIGN.md 3.6. Controls that already own ::before are excluded. */
+@media (max-width: 768px) {
+  :is(.app-header-gym-badge, .fr-gymquick-btn, .fr-trigger, .fr-chip-body, .fr-chip-x, .fr-reset, .fr-close,
+      .app-share-btn, .home-favourite-cta, .home-widget-retry, .bk-guest-chip, .ab-spot-upgrade-chip,
+      .app-toast-close, .app-mobile-seg:not(.ellipsis), .app-wk-nav) {
+    position: relative;
+  }
+  :is(.app-header-gym-badge, .fr-gymquick-btn, .fr-trigger, .fr-chip-body, .fr-chip-x, .fr-reset, .fr-close,
+      .app-share-btn, .home-favourite-cta, .home-widget-retry, .bk-guest-chip, .ab-spot-upgrade-chip,
+      .app-toast-close, .app-mobile-seg:not(.ellipsis), .app-wk-nav)::before {
+    content: '';
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    width: max(100%, var(--tap-min));
+    height: max(100%, var(--tap-min));
+    transform: translate(-50%, -50%);
+  }
+  /* Modal close: a real 44px box (it is a text glyph, so padding is the honest fix). */
+  .app-modal-close-btn:not([data-nav="back"]) {
+    min-width: var(--tap-min); min-height: var(--tap-min);
+    display: inline-flex; align-items: center; justify-content: center; padding: 0;
+  }
+  /* Filter chips: 12px floor (was 11px). */
+  .fr-chip-body, .fr-chip-x { font-size: var(--text-xs); }
+}
+
+/* 4a.2 Buttons (DESIGN.md 3.6): ghost / secondary / destructive recipes for shared markup. */
+.app-btn-secondary, .home-widget-retry {
+  display: inline-flex; align-items: center; justify-content: center; gap: 6px;
+  min-height: 36px; padding: 0 var(--space-4);
+  background: var(--surface-2); color: var(--text);
+  border: 1px solid var(--border-strong); border-radius: var(--radius-control);
+  font-family: var(--font-sans); font-size: var(--text-base); font-weight: 600; line-height: 1;
+  cursor: pointer; transition: background var(--dur-base) var(--ease-out), border-color var(--dur-base) var(--ease-out);
+}
+.app-btn-secondary:hover, .home-widget-retry:hover { background: color-mix(in srgb, var(--text) 7%, transparent); border-color: var(--text-tertiary); }
+.app-btn-secondary:active, .home-widget-retry:active { background: color-mix(in srgb, var(--text) 10%, transparent); }
+.app-btn-ghost { background: transparent; color: var(--accent); border: 0; font-weight: 600; cursor: pointer; }
+.app-btn-ghost:hover { color: var(--accent-hover); }
+.app-btn-destructive { background: var(--danger); color: #fff; border: 0; border-radius: var(--radius-control); font-weight: 600; cursor: pointer; }
+:root:not([data-theme="light"]) .app-btn-destructive { background: color-mix(in srgb, var(--danger) 14%, transparent); color: var(--danger); border: 1px solid color-mix(in srgb, var(--danger) 45%, transparent); }
+@media (prefers-color-scheme: light) { :root:not([data-theme="dark"]) .app-btn-destructive { background: var(--danger); color: #fff; border: 0; } }
+.home-widget-error + .home-widget-retry { margin-top: var(--space-2); }
+
+/* 4a.3 Inputs: 16px on touch so iOS never zooms on focus; 44px height. */
+@media (max-width: 768px) {
+  :is(#app-helper-container, .app-modal, .app-ovl, .app-page) :is(input:not([type="checkbox"]):not([type="radio"]):not([type="range"]), select, textarea) {
+    font-size: 16px;
+  }
+}
+
+/* 4a.4 Toasts: tokenised shadow, readable close target. */
+#app-helper-container .app-toast { box-shadow: var(--shadow-sheet); background: var(--surface-raised); }
+
+/* 4a.5 Shared card recipe (U3-5): Home widgets read as DESIGN.md 6.1 cards, not tonal grey slabs. */
+#app-helper-container #app-panel-home .home-widget {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-card);
+  box-shadow: var(--shadow-card);
+  padding: var(--space-4) var(--space-3);
+}
+
+/* 4a.6 Timetable chrome: sticky top becomes restrained glass (opaque fallback); the full-date line is a
+   quiet section label rather than body text. */
+@media (max-width: 768px) {
+  #app-helper-container .app-sticky-top {
+    background: var(--glass-bg);
+    -webkit-backdrop-filter: var(--glass-blur);
+    backdrop-filter: var(--glass-blur);
+  }
+  #app-helper-container .app-tt-fulldate {
+    padding: var(--space-2) 4px var(--space-1);
+    font-size: var(--text-sm); font-weight: 600; letter-spacing: .02em; color: var(--text-secondary);
+  }
+}
+@supports not ((backdrop-filter: blur(1px)) or (-webkit-backdrop-filter: blur(1px))) {
+  #app-helper-container .app-sticky-top { background: var(--glass-solid); }
+}
+
+/* 4a.7 Timetable mobile cards: inset, rounded, hairline-bordered cards (DESIGN.md 6.1) instead of
+   edge-to-edge strips. The Status column / desktop table is untouched (mobile only). */
+@media (max-width: 768px) {
+  #app-helper-container .app-mobile-class-card {
+    width: calc(100% - var(--space-3)); max-width: none; margin: 0 auto;
+    border: 1px solid var(--border) !important;
+    border-radius: var(--radius-control) !important;
+    box-shadow: var(--shadow-card);
+  }
+}
+
+/* U6-4: mobile timetable time slightly larger (16 -> 17px), tabular so columns of times align. */
+@media (max-width: 768px) {
+  #app-helper-container .app-mobile-top-line > strong { font-size: 17px; font-variant-numeric: tabular-nums; letter-spacing: -0.01em; }
+}
+
+/* 4a.8 Home: widget titles are section headings (18px, DESIGN.md 4.1), not page titles; tighter rhythm. */
+#app-helper-container #app-panel-home .home-widget-heading .home-widget-title {
+  font-size: var(--text-xl); line-height: var(--lh-snug); letter-spacing: 0; margin: 0;
+}
+@media (max-width: 768px) {
+  #app-helper-container #app-panel-home .home-widget + .home-widget { margin-top: var(--space-4) !important; }
+  #app-helper-container #app-panel-home .home-widget .home-widget-heading { margin-bottom: var(--space-3) !important; }
+}
+
+/* 4a.9 Floor-plan spots (timetable.js booking / quick-book / auto-book map; U3-4). Selection is clay, never
+   violet (violet is reserved for Auto-Upgrade). Position (left/top) stays inline: it is computed per spot. */
+.app-spot {
+  position: absolute; transform: translate(-50%, -50%); z-index: 1;
+  width: 28px; height: 28px; box-sizing: border-box;
+  display: flex; align-items: center; justify-content: center;
+  border-radius: 6px; border: 1px solid var(--border);
+  font-size: 10px; font-weight: 700; user-select: none;
+  transition: background var(--dur-fast) var(--ease-out), border-color var(--dur-fast) var(--ease-out), box-shadow var(--dur-fast) var(--ease-out);
+}
+.app-spot.is-editable { cursor: pointer; }
+.app-spot.is-available { background: color-mix(in srgb, var(--success) 15%, transparent); border-color: color-mix(in srgb, var(--success) 35%, transparent); color: var(--success); }
+.app-spot.is-occupied { background: var(--surface-inset); border-color: var(--border); color: var(--text-tertiary); }
+.app-spot.is-in-row { background: color-mix(in srgb, var(--accent) 16%, transparent); border-color: color-mix(in srgb, var(--accent) 45%, transparent); color: var(--accent); }
+.app-spot.is-selected { background: var(--accent-fill); border: 2px solid color-mix(in srgb, var(--accent-fill) 70%, #000); color: var(--on-accent-fill); }
+.app-spot.is-selected.is-conflict { box-shadow: 0 0 0 2px var(--danger); }
+.app-spot.is-pref { background: color-mix(in srgb, var(--accent) 12%, transparent); border-color: color-mix(in srgb, var(--accent) 35%, transparent); color: var(--accent); }
+.app-spot.is-chosen {
+  width: 36px; height: 36px; z-index: 5; font-size: 12px;
+  background: var(--accent-fill); color: var(--on-accent-fill);
+  border: 2px solid color-mix(in srgb, var(--accent-fill) 75%, #000);
+  box-shadow: 0 0 0 4px color-mix(in srgb, var(--accent-fill) 28%, transparent);
+}
+.app-spot-rowband {
+  position: absolute; z-index: 0; pointer-events: none; border-radius: var(--radius-control);
+  background: color-mix(in srgb, var(--accent) 8%, transparent);
+  border: 2px solid color-mix(in srgb, var(--accent) 28%, transparent);
+}
+
+/* spotmap.js renderer (pixel based): same .app-spot family, sized inline from SLOT_SIZE. */
+.app-spot--map { font-size: 12px; line-height: 1; text-align: center; white-space: nowrap; overflow: visible; }
+.app-spot.is-neutral { background: color-mix(in srgb, var(--text) 5%, transparent); border-color: color-mix(in srgb, var(--text) 8%, transparent); color: var(--text-tertiary); }
+.app-spot.is-guest-tone { background: var(--info); border-color: var(--info); color: #fff; }
+.app-spot--map.is-selected { color: var(--on-accent-fill); }
+.app-spot--map.is-guest-tone .app-spot-badge { background: var(--info); }
+/* Reservation states in the guest map: your own seat is clay, a guest seat is info-blue dashed. */
+.app-spot.is-self { background: color-mix(in srgb, var(--accent) 16%, transparent); border: 2px solid var(--accent); color: var(--accent); }
+.app-spot.is-guest { background: color-mix(in srgb, var(--info) 17%, transparent); border: 2px dashed var(--info); color: var(--info); }
+/* Auto-Upgrade "current seat" keeps the reserved violet. */
+.app-spot.is-current { background: color-mix(in srgb, var(--feat-autoupgrade) 15%, transparent); border: 2px dashed var(--feat-autoupgrade); color: var(--feat-autoupgrade); }
+.app-spot.is-current.is-current-preferred { background: var(--feat-autoupgrade); border: 2px dashed #fff; color: #fff; }
+.app-spot-badge {
+  position: absolute; top: -6px; right: -6px; min-width: 15px; height: 15px; padding: 0 3px; box-sizing: border-box;
+  border-radius: var(--radius-pill); background: var(--accent-fill); color: var(--on-accent-fill);
+  font-size: 9px; line-height: 15px; font-weight: 800; text-align: center; box-shadow: 0 0 0 2px var(--surface);
+}
+.app-spot-object { position: absolute; transform: translate(-50%, -50%); z-index: 1; box-sizing: border-box; display: flex; align-items: center; justify-content: center; border-radius: 6px; font-size: 12px; font-weight: 700; background: var(--text-secondary); color: var(--bg); user-select: none; pointer-events: none; }
+.app-spot-rowbtn {
+  position: absolute; transform: translate(-50%, -50%); z-index: 2; width: 26px; height: 26px; padding: 0;
+  display: flex; align-items: center; justify-content: center; border-radius: 50%; cursor: pointer;
+  font-size: 16px; font-weight: 700; color: var(--text-secondary);
+  background: color-mix(in srgb, var(--text) 8%, transparent); border: 1px solid color-mix(in srgb, var(--text) 15%, transparent);
+  transition: background var(--dur-fast) var(--ease-out);
+}
+.app-spot-rowbtn.is-on { background: color-mix(in srgb, var(--accent) 22%, transparent); border-color: color-mix(in srgb, var(--accent) 50%, transparent); color: var(--accent); }
+.app-spot-rowbtn::before { content: ''; position: absolute; top: 50%; left: 50%; width: var(--tap-min); height: var(--tap-min); transform: translate(-50%, -50%); }
+
+/* 4a.10 Utility + hint classes replacing static inline styles in timetable.js (U3-4). Appended last, same
+   specificity as the component rules they replace the inline style of, so source order decides. */
+.u-text-2 { color: var(--text-secondary); }
+.u-strong { color: var(--text); font-weight: 600; }
+.u-pointer { cursor: pointer; }
+.u-cell { padding: 3px 8px; text-align: left; }
+.u-meta-ml { margin-left: 12px; font-size: 12px; color: var(--text-secondary); }
+.u-meta-ml-sm { margin-left: 6px; font-size: 12px; color: var(--text-secondary); }
+.u-text-12 { color: var(--text); font-size: 12px; }
+.u-empty-24 { padding: 24px; text-align: center; }
+.u-empty-40 { padding: 40px 0; }
+.u-mb-2 { margin-bottom: 8px; }
+.u-caption { font-size: 12px; color: var(--text-tertiary); line-height: 1.45; }
+.u-field-label { display: block; font-size: 12px; color: var(--text-secondary); margin-bottom: 4px; }
+.app-hint { font-size: 12px; line-height: 1.5; border-radius: var(--radius-sm); padding: 8px 10px; }
+.app-hint--upgrade { color: var(--feat-autoupgrade); background: color-mix(in srgb, var(--feat-autoupgrade) 8%, transparent); border: 1px solid color-mix(in srgb, var(--feat-autoupgrade) 18%, transparent); }
+.app-hint--danger { color: var(--danger); background: color-mix(in srgb, var(--danger) 10%, transparent); border: 1px solid color-mix(in srgb, var(--danger) 20%, transparent); padding: 10px; }
+.app-check-row { display: flex; align-items: center; gap: 8px; font-size: 13px; cursor: pointer; color: var(--text-secondary); user-select: none; }
+.app-inset-card { display: flex; flex-direction: column; gap: 12px; background: var(--surface-inset); padding: 14px; border-radius: var(--radius-control); border: 1px solid var(--border); }
+
+/* 4a.11 index.html: timetable multi-select filter bar and About list (U3-4). Same rules the inline styles carried. */
+.app-ms-trigger-layout { width: 100%; display: flex; justify-content: space-between; align-items: center; height: 40px !important; }
+.app-ms-arrow-style { font-size: 12px; transition: transform var(--dur-base); }
+.app-ms-menu-head { display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid var(--separator); padding-bottom: 6px; margin-bottom: 6px; }
+.app-ms-menu-title { font-size: 12px; color: var(--text-secondary); font-weight: 700; }
+.app-ms-clear-style { background: transparent; border: none; color: var(--accent); font-size: 12px; cursor: pointer; font-weight: 600; padding: 0; position: relative; }
+.app-ms-options-style { display: flex; flex-direction: column; gap: 6px; }
+.app-ms-dropdown-style { flex: 1; min-width: 170px; position: relative; }
+.app-about-icon { font-size: 16px; flex-shrink: 0; }
+.app-about-desc { margin: 2px 0 0; }
+.app-about-item { display: flex; gap: 10px; align-items: flex-start; }
+.app-about-name { color: var(--text); font-size: 13px; }
+
+/* The credit badges row clips overflow; padding it out (and cancelling with a negative margin) lets the
+   gym badges' 44px hit area live inside the clip box without moving anything. */
+@media (max-width: 768px) {
+  #app-helper-container .app-credit-badges { padding: 10px 0; margin: -10px 0; }
+}

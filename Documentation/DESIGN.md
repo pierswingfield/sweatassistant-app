@@ -69,7 +69,7 @@ Allowed ONLY on the bottom nav, sticky top bars and modal headers. Tokens: `--gl
 | Primary | `--accent-fill` (hover `--accent-fill-hover`) | `--on-accent-fill` | none | one per view/section (Book, Quick Book, Done) |
 | Secondary | `--surface-2` | `--text` | 1px `--border-strong` | alternate actions (Filters, Share) |
 | Ghost | transparent | `--accent` | none | tertiary, inline links |
-| Destructive | `--danger` (light), `--cancel-fill` | `#fff` | none | Cancel booking, delete; dark uses a tinted `--danger` outline with `--danger` text |
+| Destructive | `--danger` (light) | `#fff` | none | Cancel booking, delete; dark uses a tinted `--danger` outline with `--danger` text |
 Height 44px minimum hit area on every interactive control (`--tap-min`); visually smaller controls (32-40px chips) extend their hit area with padding or a `::after` inset. Radius `--radius-control`; dense inline buttons `--radius-sm`. Label: Inter 600 14px.
 
 ### 3.7 Focus

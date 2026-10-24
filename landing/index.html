@@ -25,9 +25,7 @@ function frAv(img) {
   color-scheme: light;
 
   /* surfaces */
-  --bg: #faf4f0; /* matches the droplet video ground so it has no visible edge */
-  --mask-on: #000000;
-  --mask-off: transparent;
+  --bg: #faf4f0;
   --surface: #fbfaf7;
   --glass: rgba(255, 255, 255, 0.62);
   --glass-strong: rgba(255, 255, 255, 0.82);
@@ -144,7 +142,9 @@ img, svg { display: block; max-width: 100%; }
 .nav { position: sticky; top: 0; z-index: 20; margin: 0; border-radius: 0; border-width: 0 0 1px; outline: none; box-shadow: none; border-bottom: 1px solid var(--border); }
 .nav .wrap { display: flex; align-items: center; justify-content: space-between; min-height: 60px; gap: 16px; }
 .brand { font-family: var(--font-serif); font-weight: 600; font-size: var(--text-lg); text-decoration: none; letter-spacing: -0.01em; display: inline-flex; align-items: center; gap: 8px; }
-.brand-mark { display: block; width: 48px; height: 32px; flex: none; }
+.brand-mark { display: block; position: relative; width: 43px; height: 46px; flex: none; overflow: hidden; }
+/* the GIF canvas (632x424) carries wide transparent padding; this crops to the visible droplet (x185-447, y66-349) at 46px tall */
+.brand-mark img { position: absolute; max-width: none; width: 103px; height: auto; left: -30px; top: -11px; }
 .brand-text { display: flex; flex-direction: column; line-height: 1.1; }
 .brand-sub { font-family: var(--font-sans); font-weight: 500; font-size: var(--text-xs); letter-spacing: 0; color: var(--text-secondary); margin-top: 2px; }
 .nav-links { display: none; gap: 24px; align-items: center; }
@@ -160,9 +160,10 @@ section { padding: 72px 0; }
 .section-head p { margin-top: 14px; color: var(--text-secondary); font-size: var(--text-lg); }
 
 /* ===== Hero ===== */
-.hero { padding: 40px 0 56px; }
+.hero { padding: 40px 0 56px; overflow-x: clip; }
 .hero-grid { display: grid; grid-template-columns: minmax(0, 1fr); gap: 32px; align-items: center; }
-.hero h1 { font-size: clamp(38px, 9vw, 64px); letter-spacing: -0.02em; }
+.hero-head { display: flex; align-items: center; font-size: clamp(38px, 9vw, 64px); }
+.hero h1 { font-size: 1em; letter-spacing: -0.02em; flex: 0 1 auto; min-width: 0; }
 .hero .kicker { font-family: var(--font-serif); font-style: normal; font-size: clamp(20px, 4vw, 26px); color: var(--accent-hover); margin-top: 14px; font-weight: 500; }
 .hero .sub { margin-top: 20px; color: var(--text-secondary); font-size: var(--text-lg); max-width: 520px; }
 .cta-row { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 20px; margin-top: 28px; }
@@ -170,16 +171,17 @@ section { padding: 72px 0; }
 .install-hint strong { color: var(--text); font-weight: 600; }
 @media (min-width: 920px) { .hero-grid { grid-template-columns: 1.05fr 0.95fr; gap: 56px; } .hero { padding: 88px 0 96px; } }
 
-/* Droplet run-in: base state is the finished layout; .pre (added by JS, motion allowed) is the start */
-.run { display: none; }
-html.js .run { display: grid; grid-template-rows: 1fr; transition: grid-template-rows 0.9s var(--spring); }
-.run-clip { min-height: 0; overflow: hidden; }
-.run-frame { width: min(100%, 280px); aspect-ratio: 750 / 690; margin-bottom: 8px; transition: transform 0.9s var(--spring); }
-.run video { mix-blend-mode: darken; display: block; width: 100%; height: 100%; object-fit: cover; pointer-events: none;
-  -webkit-mask-image: radial-gradient(ellipse at center, var(--mask-on) 58%, var(--mask-off) 100%);
-  mask-image: radial-gradient(ellipse at center, var(--mask-on) 58%, var(--mask-off) 100%); }
-html.js .run.pre { grid-template-rows: 0fr; transition: none; }
-html.js .run.pre .run-frame { transform: translateX(110%); transition: none; }
+/* Droplet run-in. The slot sits beside the headline at about two headline lines tall. Final layout is the base state;
+   .pre (added by JS, motion allowed) is the start: slot width 0, video a viewport-width off to the right.
+   Slot width and video travel share one duration and curve, so the headline is displaced in sync. */
+.run { display: none; --run-h: 2em; --run-gap: 0.3em; }
+html.js .run { display: flex; justify-content: flex-end; flex: none; width: calc(var(--run-h) * 750 / 690 + var(--run-gap)); transition: width 1.2s var(--spring); }
+.run-frame { position: relative; flex: none; width: calc(var(--run-h) * 750 / 690); height: var(--run-h); transition: transform 1.2s var(--spring); }
+/* the video only feeds the canvas (the page keys the ground out per frame); it is never shown itself */
+.run video { position: absolute; width: 1px; height: 1px; opacity: 0; pointer-events: none; }
+.run canvas { display: block; width: 100%; height: 100%; pointer-events: none; }
+html.js .run.pre { width: 0; transition: none; }
+html.js .run.pre .run-frame { transform: translateX(100vw); transition: none; }
 @media (prefers-reduced-motion: reduce) { html.js .run, .run-frame { transition: none; } }
 
 .stage { position: relative; padding: 8px; align-self: start; }
@@ -470,7 +472,7 @@ footer { padding: 32px 0 56px; color: var(--text-secondary); font-size: var(--te
 <header class="nav glass">
   <div class="wrap">
     <a class="brand" href="#top" aria-label="Dibs, your fitness assistant, home">
-      <img class="brand-mark" src="dibs/droplet.gif" alt="" width="48" height="32">
+      <span class="brand-mark"><img src="dibs/droplet.gif" alt="" width="632" height="424"></span>
       <span class="brand-text"><span class="brand-name">Dibs</span><span class="brand-sub">Your fitness assistant</span></span>
     </a>
     <nav class="nav-links" aria-label="Sections">
@@ -488,13 +490,11 @@ footer { padding: 32px 0 56px; color: var(--text-secondary); font-size: var(--te
 <section class="hero">
   <div class="wrap hero-grid" id="hero">
     <div>
-      <div class="run" aria-hidden="true">
-        <div class="run-clip">
-          <div class="run-frame"><video muted playsinline preload="auto" tabindex="-1" width="750" height="690" src="dibs/droplet-run.webm"></video></div>
-        </div>
-      </div>
       <div class="reveal"><p class="eyebrow">Dibs</p></div>
-      <h1 class="reveal" style="--i:1">Your fitness life, handled.</h1>
+      <div class="hero-head">
+        <h1 class="reveal" style="--i:1">Your fitness life, handled.</h1>
+        <div class="run" aria-hidden="true"><div class="run-frame"><canvas width="320" height="294"></canvas><video muted playsinline preload="auto" tabindex="-1" width="750" height="690" src="dibs/droplet-run.webm"></video></div></div>
+      </div>
       <p class="kicker reveal" style="--i:2">Be first in the room.</p>
       <p class="sub reveal" style="--i:3">A concierge for every gym you train at: it books the classes you want, the second they open, in the spot you like, and keeps it all in one calendar.</p>
       <div class="cta-row reveal" style="--i:4">
@@ -731,17 +731,72 @@ footer { padding: 32px 0 56px; color: var(--text-secondary); font-size: var(--te
 (function () {
   var reduce = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
 
-  /* Droplet run-in: plays off-screen right, slides in and pushes the headline down, then freezes on its last frame */
+  /* Droplet run-in: the webm has an opaque, slightly uneven warm ground (not a flat colour), so a blend mode can never hide it.
+     Instead each frame is drawn to a canvas, the ground is estimated smoothly from the frame's own border, and pixels near it
+     become transparent. The canvas is empty until the first frame is drawn, so no rectangle is ever visible. */
   (function () {
     var run = document.querySelector('.run');
     var v = run && run.querySelector('video');
-    if (!v) return;
+    var cv = run && run.querySelector('canvas');
+    if (!v || !cv) return;
+    var W = cv.width, H = cv.height, ctx = cv.getContext('2d', { willReadFrequently: true });
+    var T = new Float32Array(W * 3), B = new Float32Array(W * 3), L = new Float32Array(H * 3), R = new Float32Array(H * 3);
+    function smooth(a, n, r) { /* box blur, per channel, rejects specks on the border */
+      var o = new Float32Array(a.length);
+      for (var i = 0; i < n; i++) for (var c = 0; c < 3; c++) {
+        var s = 0, k = 0;
+        for (var j = Math.max(0, i - r); j <= Math.min(n - 1, i + r); j++) { s += a[j * 3 + c]; k++; }
+        o[i * 3 + c] = s / k;
+      }
+      return o;
+    }
+    function draw() {
+      ctx.imageSmoothingQuality = 'high';
+      ctx.clearRect(0, 0, W, H);
+      ctx.drawImage(v, 0, 0, W, H);
+      var im = ctx.getImageData(0, 0, W, H), d = im.data, x, y, c, i, e = 3;
+      for (x = 0; x < W; x++) for (c = 0; c < 3; c++) {
+        var t = 0, b = 0;
+        for (y = 0; y < e; y++) { t += d[(y * W + x) * 4 + c]; b += d[((H - 1 - y) * W + x) * 4 + c]; }
+        T[x * 3 + c] = t / e; B[x * 3 + c] = b / e;
+      }
+      for (y = 0; y < H; y++) for (c = 0; c < 3; c++) {
+        var l = 0, r = 0;
+        for (x = 0; x < e; x++) { l += d[(y * W + x) * 4 + c]; r += d[(y * W + W - 1 - x) * 4 + c]; }
+        L[y * 3 + c] = l / e; R[y * 3 + c] = r / e;
+      }
+      var Ts = smooth(T, W, 12), Bs = smooth(B, W, 12), Ls = smooth(L, H, 12), Rs = smooth(R, H, 12);
+      for (y = 0; y < H; y++) {
+        var vv = y / (H - 1);
+        for (x = 0; x < W; x++) {
+          var uu = x / (W - 1), p = (y * W + x) * 4, dm = 0, g = [0, 0, 0];
+          for (c = 0; c < 3; c++) {
+            var tl = (1 - vv) * Ts[c] + vv * Bs[c], tr = (1 - vv) * Ts[(W - 1) * 3 + c] + vv * Bs[(W - 1) * 3 + c];
+            g[c] = (1 - vv) * Ts[x * 3 + c] + vv * Bs[x * 3 + c]
+              + (1 - uu) * (Ls[y * 3 + c] - tl) + uu * (Rs[y * 3 + c] - tr);
+            dm = Math.max(dm, Math.abs(d[p + c] - g[c]));
+          }
+          var q = (dm - 9) / 26; q = q < 0 ? 0 : q > 1 ? 1 : q;
+          var a = q * q * (3 - 2 * q);
+          if (a < 0.02) { d[p + 3] = 0; continue; }
+          for (c = 0; c < 3; c++) { var o = g[c] + (d[p + c] - g[c]) / a; d[p + c] = o < 0 ? 0 : o > 255 ? 255 : o; }
+          d[p + 3] = a * 255;
+        }
+      }
+      ctx.putImageData(im, 0, 0);
+    }
+    function loop() {
+      draw();
+      if (v.ended || v.paused) return;
+      if (v.requestVideoFrameCallback) v.requestVideoFrameCallback(loop); else requestAnimationFrame(loop);
+    }
+    function safeDraw() { try { draw(); } catch (e) { run.remove(); } }
     function finish() {
       run.classList.remove('pre');
-      try { v.pause(); if (isFinite(v.duration)) v.currentTime = v.duration; } catch (e) {}
+      try { v.pause(); v.addEventListener('seeked', safeDraw, { once: true }); if (isFinite(v.duration)) v.currentTime = v.duration; else safeDraw(); } catch (e) { safeDraw(); }
     }
     v.addEventListener('error', function () { run.remove(); });
-    v.addEventListener('ended', function () { v.pause(); });
+    v.addEventListener('ended', function () { v.pause(); safeDraw(); });
     if (reduce) {
       if (v.readyState >= 1) finish(); else v.addEventListener('loadedmetadata', finish, { once: true });
       return;
@@ -753,7 +808,7 @@ footer { padding: 32px 0 56px; color: var(--text-secondary); font-size: var(--te
       started = true;
       var p = v.play();
       run.classList.remove('pre');
-      if (p && p.catch) p.catch(finish);
+      if (p && p.then) p.then(loop, finish); else loop();
     }
     var fonts = Promise.race([document.fonts ? document.fonts.ready : Promise.resolve(), new Promise(function (r) { setTimeout(r, 2500); })]);
     var media = new Promise(function (res) {

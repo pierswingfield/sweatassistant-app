@@ -11,6 +11,12 @@ tag.
 Local development and verification use the matching `.nvmrc` value. Run
 `nvm use` before `npm ci`, `npm test`, or `npm run build:client`.
 
+On ARM64, the current `better-sqlite3` release has no Node 22.23.4 prebuild.
+The runtime Docker stage therefore installs `python3`, `make`, and `g++` only
+while `npm ci --omit=dev` compiles the native module, then purges them in the
+same layer. Do not remove those build prerequisites unless an ARM64 prebuild is
+confirmed in the exact image build; they are not retained in the final image.
+
 Before a separately authorised deployment, the release owner must:
 
 1. start from a clean, reviewed commit in a dedicated release worktree;
@@ -19,7 +25,8 @@ Before a separately authorised deployment, the release owner must:
 3. verify `node --version` in the new image/container is `v22.23.4` or a later
    explicitly approved patched Node 22 release;
 4. run `docker compose config`, the full test suite, and the production client
-   build before recreation; and
+   build before recreation, and confirm the Docker build completes the native
+   `better-sqlite3` compilation; and
 5. keep the existing Cloudflare WAF mitigation enabled while completing the
    normal health and authenticated smoke checks.
 

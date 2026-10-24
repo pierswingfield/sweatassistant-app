@@ -2055,9 +2055,8 @@ html, body, * {
   #app-helper-container #app-panel-my-bookings,
   #app-helper-container #app-panel-auto-book { min-height: calc(100% + 1px); }
 
-  #app-container.app-hdr-hidden main.app-body.app-timetable-active {
-    padding-top: calc(var(--hdr-gap, 12px) + var(--hdr-extra, 8px)) !important;
-  }
+  /* (Removed: padding-top used to snap here when the header hid, jumping the whole timetable.
+     The filter block now slides with transform; see "Timetable glass block" at the end of this file.) */
 
   #app-helper-container .app-body.app-timetable-active #app-panel-class-timetable {
     flex: 1 1 0% !important;
@@ -2290,8 +2289,9 @@ html, body, * {
 .home-book-gym-row { width: 100%; display: grid; grid-template-columns: repeat(var(--home-gym-count), minmax(0, 1fr)); gap: 8px; }
 .home-book-gym-row.is-centered { display: flex; justify-content: center; }
 .home-book-gym-row.is-centered .home-book-gym { flex: 0 1 calc((100% - 16px) / 3); }
-.home-book-gym { min-width: 0; min-height: 64px; max-height: none; justify-content: center; padding: 8px; }
-.home-book-gym .fr-logo-plate { width: 100%; max-width: 120px; min-width: 0; box-sizing: border-box; }
+.home-book-gym { min-width: 0; min-height: 48px; max-height: none; justify-content: center; padding: 6px; }   /* tile 64 -> 48 (-25%); still >= 44 tap target */
+.home-book-gym .fr-logo-plate { width: 100%; max-width: 90px; min-width: 0; box-sizing: border-box; height: 23px; padding: 0 10px; }
+.home-book-gym .fr-logo-plate .ab-gym-logo-img.is-full, .home-book-gym .fr-logo-plate .ab-gym-logo-svg { height: 11px; }
 .home-book-all { width: 100%; min-height: 48px; justify-content: center; gap: 8px; border-radius: 999px; background: var(--accent-fill); color: var(--on-accent-fill); }
 .home-book-all:hover { border-color: var(--accent-fill-hover); background: var(--accent-fill-hover); }
 
@@ -2349,10 +2349,9 @@ html, body, * {
 .home-booking-card:hover { border-color: var(--border-strong); }
 .home-page-header { align-items: center; justify-content: space-between; gap: 12px; }
 .home-greeting-lead { min-width: 0; display: flex; align-items: center; gap: 12px; }
-.home-greeting-avatar { width: 40px; height: 40px; flex: 0 0 40px; display: inline-flex; align-items: center; justify-content: center; border-radius: 50%; background: var(--surface-inset); border: 1px solid var(--border); color: var(--text-secondary); font-family: var(--font-sans); font-weight: 700; }
+.home-greeting-avatar { width: 40px; height: 40px; flex: 0 0 40px; display: block; object-fit: cover; border-radius: 10px; border: 1px solid var(--border); }
 .home-greeting-copy { min-width: 0; display: flex; flex-direction: column; gap: 0; }
-.home-greeting-kicker { color: var(--text-secondary); font-size: var(--text-sm); line-height: 1.2; }
-.home-greeting-name { margin: 0; color: var(--text); font-size: var(--text-lg); line-height: 1.2; }
+.home-greeting-name { margin: 0; color: var(--text); font-size: var(--text-lg); line-height: 1.2; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .home-up-strip { display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 6px; margin-top: 10px; }
 .home-up-day { min-width: 0; min-height: 58px; padding: 8px 4px; display: flex; flex-direction: column; align-items: center; gap: 7px; border: 1px solid transparent; border-radius: var(--radius-card); background: var(--surface-2); color: var(--text); text-decoration: none; }
 .home-up-day.has-classes { min-height: 64px; background: var(--surface); }
@@ -9618,6 +9617,7 @@ body.app-scroll-locked { overflow: hidden; overscroll-behavior: none; }
 .app-search-input::placeholder { color: var(--text-tertiary); }
 .app-search-x { width: 44px; height: 44px; margin: -2px -1px -2px 0; background: none; border: 0; color: var(--text-secondary); font-size: 13px; cursor: pointer; }
 .app-search-x[hidden] { display: none !important; }
+.app-search-cancel { display: none; }   /* mobile only (see max-width: 768px block): desktop's inline box clears with its x / Esc */
 .app-search-list { position: absolute; top: calc(100% + 6px); left: 0; right: 0; z-index: 400; max-height: min(60vh, 420px); overflow-y: auto; background-color: var(--bg); background-image: linear-gradient(var(--surface), var(--surface)), linear-gradient(var(--surface-2), var(--surface-2)); border: 1px solid var(--border-strong); border-radius: var(--radius-control); box-shadow: var(--shadow-sheet); padding: 4px; }   /* opaque in both themes: --surface is translucent in dark */
 .app-search-list[hidden] { display: none !important; }
 .app-search-head { padding: 8px 10px 2px; font-size: var(--text-xs, 12px); font-weight: 600; letter-spacing: .04em; text-transform: uppercase; color: var(--text-tertiary); }
@@ -9632,7 +9632,10 @@ body.app-scroll-locked { overflow: hidden; overscroll-behavior: none; }
 /*  Mobile overrides (max-width: 768px): Modals, overlays and the spot map  */
 @media (max-width: 768px) {
   .app-search { display: none; flex: none; width: 100%; min-width: 0; box-sizing: border-box; padding-left: max(8px, env(safe-area-inset-left)); padding-right: max(8px, env(safe-area-inset-right)); }
-  .app-search.open { display: block; }
+  .app-search.open { display: flex; align-items: center; gap: 4px; }
+  .app-search.open .app-search-box { flex: 1 1 auto; min-width: 0; }
+  .app-search-cancel { display: inline-flex; align-items: center; justify-content: center; flex: 0 0 auto; min-width: 44px; min-height: 44px; padding: 0 8px; background: none; border: 0; color: var(--accent); font: inherit; font-size: 16px; font-weight: 600; cursor: pointer; border-radius: 10px; }
+  .app-search-cancel:focus-visible { outline: 2px solid var(--accent); outline-offset: -2px; }
 
   /* Spot-maps picker: logos, bigger type, >= 44px tap targets. */
 
@@ -10510,10 +10513,20 @@ html:not([data-credits-tab="on"]) .app-nav-btn[data-tab="buy-credits"] { display
 #app-helper-container #app-panel-home .home-book-all {
   width: min(100%, 250px);
   margin-inline: auto;
-  justify-content: space-between;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
   padding-inline: 18px;
 }
-.home-book-all-arrow { margin-left: auto; font-size: 1.1em; line-height: 1; }
+.home-book-all-arrow { margin-left: 0; font-size: 1.1em; line-height: 1; }
+.home-waitlist-line {
+  display: block; width: 100%; margin: 10px 0 0; padding: 8px 4px; min-height: 36px;
+  background: none; border: 0; color: var(--text-secondary); font: inherit; font-size: var(--text-sm);
+  font-weight: 600; text-align: center; cursor: pointer; border-radius: 10px;
+}
+.home-waitlist-line:hover { color: var(--text); }
+.home-waitlist-line:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
 
 .home-upcoming-queue {
   margin-top: 12px;
@@ -10590,21 +10603,12 @@ html:not([data-credits-tab="on"]) .app-nav-btn[data-tab="buy-credits"] { display
   padding: var(--space-4) var(--space-3);
 }
 
-/* 4a.6 Timetable chrome: sticky top becomes restrained glass (opaque fallback); the full-date line is a
-   quiet section label rather than body text. */
+/* 4a.6 Timetable chrome: the sticky filter block is Liquid Glass; see "Timetable glass block" at the end. */
 @media (max-width: 768px) {
-  #app-helper-container .app-sticky-top {
-    background: var(--glass-bg);
-    -webkit-backdrop-filter: var(--glass-blur);
-    backdrop-filter: var(--glass-blur);
-  }
   #app-helper-container .app-tt-fulldate {
     padding: var(--space-2) 4px var(--space-1);
     font-size: var(--text-sm); font-weight: 600; letter-spacing: .02em; color: var(--text-secondary);
   }
-}
-@supports not ((backdrop-filter: blur(1px)) or (-webkit-backdrop-filter: blur(1px))) {
-  #app-helper-container .app-sticky-top { background: var(--glass-solid); }
 }
 
 /* 4a.7 Timetable mobile cards: inset, rounded, hairline-bordered cards (DESIGN.md 6.1) instead of
@@ -11556,3 +11560,68 @@ html:not([data-credits-tab="on"]) .app-nav-btn[data-tab="buy-credits"] { display
 @media (prefers-reduced-motion: reduce) {
   .app-login-container .app-login-card { animation: onb-fade var(--dur-base) linear backwards; }
 }
+
+
+/* ==========================================================================
+   Timetable glass block (CSSv2): mobile only.
+   - The class list is full height: it spans the page and scrolls UNDER both the glass filter block (top)
+     and the glass bottom nav, reserving --tt-sticky-h (top) and --nav-clear (bottom) as padding so the
+     first and last rows are reachable. --tt-sticky-h is the block's expanded height, set in main.js.
+   - Header hide/show = transform only: the block slides up by the header height in the same 240ms
+     decelerate ease as the header; nothing re-lays-out the list (main's padding-top no longer snaps).
+   - Material = the --lg-* tokens (blur + saturate, specular edge), opaque and reduced-transparency fallbacks.
+   ========================================================================== */
+@media (max-width: 768px) {
+  #app-helper-container main.app-body.app-timetable-active { padding-bottom: 0 !important; }
+  /* The block is taken out of flow so its compact/expanded height never moves the list; the panel stops
+     clipping so the block can slide up over the header's strip (main still clips at the viewport). */
+  #app-helper-container .app-body.app-timetable-active #app-panel-class-timetable { position: relative; overflow: visible !important; }
+  #app-helper-container .app-body.app-timetable-active #app-panel-class-timetable > .app-sticky-top {
+    position: absolute; top: 0 !important; left: 0; right: 0; margin: 0 !important;
+  }
+  #app-helper-container .app-body.app-timetable-active #app-panel-class-timetable > #app-timetable-grid {
+    margin-top: 0 !important;
+    padding-top: var(--tt-sticky-h, 0px) !important;
+    padding-bottom: calc(var(--nav-clear) + 12px) !important;
+  }
+  #app-helper-container .app-body.app-timetable-active .app-sticky-top {
+    background: linear-gradient(180deg, color-mix(in srgb, var(--lg-spec) 22%, transparent), transparent 60%), var(--lg-fill);
+    -webkit-backdrop-filter: var(--lg-blur); backdrop-filter: var(--lg-blur);
+    box-shadow: inset 0 1px 0 var(--lg-spec), inset 0 -1px 0 color-mix(in srgb, var(--lg-spec) 25%, transparent),
+                0 6px 18px color-mix(in srgb, var(--tone-ink) 12%, transparent) !important;
+    border-bottom-left-radius: var(--radius-card); border-bottom-right-radius: var(--radius-card);
+    transform: translate3d(0, 0, 0);
+    transition: transform var(--dur-slow) var(--ease-out);
+  }
+  #app-container.app-hdr-hidden .app-body.app-timetable-active .app-sticky-top {
+    transform: translate3d(0, calc(-1 * var(--app-header-h, 41px)), 0);
+  }
+  #app-container.app-tt-moving .app-body.app-timetable-active .app-sticky-top,
+  #app-container.app-tt-moving .app-header { will-change: transform; }
+}
+@media (max-width: 768px) {
+  @supports not ((backdrop-filter: blur(1px)) or (-webkit-backdrop-filter: blur(1px))) {
+    #app-helper-container .app-body.app-timetable-active .app-sticky-top { background: var(--glass-solid); }
+  }
+}
+@media (max-width: 768px) and (prefers-reduced-transparency: reduce) {
+  #app-helper-container .app-body.app-timetable-active .app-sticky-top {
+    background: var(--glass-solid); -webkit-backdrop-filter: none; backdrop-filter: none;
+  }
+}
+@media (max-width: 768px) and (prefers-reduced-motion: reduce) {
+  #app-helper-container .app-body.app-timetable-active .app-sticky-top { transition: none !important; }
+}
+
+/* Settings (mobile list): same page background as every other tab (the sidebar used the tinted inset
+   surface, which also ended in a hard edge above the nav). The card's shadow is clipped at the viewport edge
+   by the scroller's overflow-x:hidden (8px gutter < 12px blur), so its horizontal reach is pulled inside the
+   gutter with a negative spread; the card itself keeps overflow:hidden for its rounded rows. */
+@media (max-width: 900px) {
+  #app-helper-container .app-settings-layout:not(.show-pane) .app-settings-sidebar { background: transparent; padding-bottom: var(--space-3); }
+  #app-helper-container .app-settings-menu { box-shadow: 0 6px 10px -4px rgba(84, 56, 24, 0.14), 0 1px 3px rgba(84, 56, 24, 0.08); }
+}
+@media (max-width: 900px) and (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) #app-helper-container .app-settings-menu { box-shadow: 0 6px 10px -4px rgba(0, 0, 0, 0.45), 0 1px 3px rgba(0, 0, 0, 0.30); }
+}
+:root[data-theme="dark"] #app-helper-container .app-settings-menu { box-shadow: 0 6px 10px -4px rgba(0, 0, 0, 0.45), 0 1px 3px rgba(0, 0, 0, 0.30); }

@@ -600,3 +600,20 @@ describe('W8 Home stats', () => {
   });
 
 });
+
+describe('Home booked-classes widget visibility and waitlist line', () => {
+  it('hides with no booked and no waitlisted; waitlist-only still shows', async () => {
+    const { homeUpcomingMode, waitlistLineText, countUpcomingWaitlists } = await import('./home.js');
+    expect(homeUpcomingMode(0, 0)).toBe('hidden');
+    expect(homeUpcomingMode(0, null)).toBe('hidden');
+    expect(homeUpcomingMode(0, 2)).toBe('waitlist-only');
+    expect(homeUpcomingMode(3, 0)).toBe('booked');
+    expect(waitlistLineText(1)).toBe('+ 1 waitlisted class');
+    expect(waitlistLineText(2)).toBe('+ 2 waitlisted classes');
+    expect(waitlistLineText(2, { withPlus: false })).toBe('2 waitlisted classes');
+    expect(waitlistLineText(0)).toBe('');
+    const now = Date.parse('2026-10-25T12:00:00Z');
+    expect(countUpcomingWaitlists([{ event: { startAt: '2026-10-26T09:00:00Z' } }, { event: { startAt: '2026-10-24T09:00:00Z' } }], now)).toBe(1);
+    expect(countUpcomingWaitlists(null, now)).toBeNull();
+  });
+});

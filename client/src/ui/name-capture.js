@@ -1,3 +1,4 @@
+import { COPY } from '../copy.js';
 // Account-name helpers shared by the post-link onboarding step and Home W1.
 // Gym profile names are suggestions only; the saved account setting is the
 // single source of truth once a member has confirmed or edited it.
@@ -14,6 +15,25 @@ export function inferFirstName(linkedGyms) {
     if (name && !byCanonical.has(name.toLocaleLowerCase())) byCanonical.set(name.toLocaleLowerCase(), name);
   }
   return byCanonical.size === 1 ? [...byCanonical.values()][0] : '';
+}
+
+/**
+ * Time-of-day greeting for the Home header. Device-local hour on purpose: it is about
+ * the person's day, not the class zone. Morning 05:00-11:59, afternoon 12:00-17:59,
+ * evening 18:00-04:59.
+ */
+export function greetingPhrase(hour) {
+  const h = Number(hour);
+  if (h >= 5 && h < 12) return COPY.home.goodMorning;
+  if (h >= 12 && h < 18) return COPY.home.goodAfternoon;
+  return COPY.home.goodEvening;
+}
+
+/** One line: "Good morning, Piers!" or "Good morning!" with no name. */
+export function greetingText(firstName, date = new Date()) {
+  const name = cleanFirstName(firstName);
+  const phrase = greetingPhrase(date.getHours());
+  return name ? `${phrase}, ${name}!` : `${phrase}!`;
 }
 
 export function welcomeText(firstName) {

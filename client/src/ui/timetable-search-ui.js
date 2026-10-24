@@ -128,10 +128,27 @@ function build() {
     + `<span class="ss-glass" aria-hidden="true">${icon('search', 16)}</span>`
     + `<input class="app-search-input" type="text" role="combobox" aria-autocomplete="list" aria-expanded="false" aria-controls="app-search-list" autocomplete="off" autocapitalize="off" spellcheck="false" enterkeyhint="search" placeholder="${escapeHtml(COPY.search.placeholder)}" aria-label="${escapeHtml(COPY.search.label)}">`
     + `<button type="button" class="app-search-x" aria-label="${escapeHtml(COPY.search.clearInput)}" hidden>&#x2715;</button>`
-    + `</div><div class="app-search-list" id="app-search-list" role="listbox" aria-label="${escapeHtml(COPY.search.suggestionsAria)}" hidden></div>`;
+    + `</div><button type="button" class="app-search-cancel">${escapeHtml(COPY.search.cancel)}</button>`
+    + `<div class="app-search-list" id="app-search-list" role="listbox" aria-label="${escapeHtml(COPY.search.suggestionsAria)}" hidden></div>`;
   const inp = root.querySelector('input');
   const x = root.querySelector('.app-search-x');
   const sync = () => { x.hidden = !inp.value; };
+
+  // Cancel = leave search entirely: clear the field and the committed query (the unfiltered list
+  // comes back through onSearchChange), hide the bar and hand focus back to the rail's search toggle.
+  // Same single source of truth as everything else: the root's `open` class + search-state query.
+  const cancel = () => {
+    inp.value = ''; sync(); closeList();
+    if (getSearchQuery()) clearSearch();
+    if (matchMobile()) {
+      collapse(true);
+      // The rail repaints when the query clears, which can replace the toggle: focus the live one too.
+      requestAnimationFrame(() => { if (!isOpen()) document.querySelector('#app-filter-rail [data-fr-search]')?.focus?.(); });
+    } else inp.blur();
+  };
+  const cx = root.querySelector('.app-search-cancel');
+  cx.addEventListener('mousedown', (e) => e.preventDefault());   // keep the input from blurring (and collapsing) first
+  cx.addEventListener('click', cancel);
 
   inp.addEventListener('input', () => { sync(); paintList(); });
   inp.addEventListener('focus', () => { if (inp.value.trim()) paintList(); });
@@ -146,8 +163,8 @@ function build() {
       else { clearSearch(); if (matchMobile()) collapse(); }
     } else if (e.key === 'Escape') {
       e.preventDefault();
-      if (!list().hidden) { closeList(); }
-      else { inp.value = getSearchQuery(); sync(); if (matchMobile()) collapse(true); else inp.blur(); }
+      if (!list().hidden) closeList();
+      else cancel();
     }
   });
   inp.addEventListener('blur', () => {

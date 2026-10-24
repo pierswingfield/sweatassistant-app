@@ -1,10 +1,11 @@
 // Home tab: a page of independent widgets (F-10-1).
 // Framework lives in widget-registry.js; this file registers the widgets and paints the page.
 import { api } from '../api.js';
-import { COPY, formatCountLabel } from '../copy.js';
+import { appConfig } from '../config.js';
+import { COPY, formatCountLabel, formatCopyText } from '../copy.js';
 import { registerWidget, registry, mountWidget, isNoGymError } from './widget-registry.js';
 import { renderCardSkeletons } from './loading-skeleton.js';
-import { welcomeText } from './name-capture.js';
+import { greetingText } from './name-capture.js';
 import { getTotalCredits, isMetered } from './credit-allowance.js';
 import { canForGym, getGymShortName, getLinkedGyms } from '../gym-context.js';
 import { readCached } from '../cache.js';
@@ -350,7 +351,7 @@ function upcomingChip(group) {
 }
 
 function viewAllBookingsLabel(count) {
-  if (!Number.isFinite(Number(count))) return COPY.home.viewAll;
+  if (!Number.isFinite(Number(count)) || Number(count) === 0) return COPY.home.viewAll;
   const noun = Number(count) === 1 ? 'booking' : 'bookings';
   return `View all ${count} ${noun}`;
 }
@@ -434,33 +435,31 @@ function paintHomeGreeting(settings) {
   const header = document.querySelector('#app-panel-home > .app-tab-header');
   if (!header) return;
   const firstName = String(settings?.firstName || '').trim().split(/\s+/)[0] || '';
-  const initial = (firstName || 'S').charAt(0).toUpperCase();
-  const greetingName = firstName || welcomeText();
+  const greetingLine = greetingText(firstName);
   const existing = header.querySelector('.home-greeting-lead');
   if (existing) {
     // Foreground/cache refreshes routinely revisit Home. Updating the three
     // text nodes keeps the header's focusable refresh control and DOM identity.
-    existing.querySelector('.home-greeting-avatar').textContent = initial;
-    existing.querySelector('.home-greeting-kicker').textContent = COPY.home.goodMorning;
-    existing.querySelector('.home-greeting-name').textContent = greetingName;
+    existing.querySelector('.home-greeting-avatar').alt = appConfig.appName || '';
+    existing.querySelector('.home-greeting-name').textContent = greetingLine;
     header.classList.add('home-page-header');
     return;
   }
   const greeting = document.createElement('div');
   greeting.className = 'home-greeting-lead';
-  const avatar = document.createElement('span');
+  // The app's own icon (not the member's initial). 192px source for a 40px slot stays crisp at 3x.
+  const avatar = document.createElement('img');
   avatar.className = 'home-greeting-avatar';
-  avatar.setAttribute('aria-hidden', 'true');
-  avatar.textContent = initial;
+  avatar.src = '/icons/icon-192.png';
+  avatar.width = 40; avatar.height = 40;
+  avatar.alt = appConfig.appName || '';
+  avatar.decoding = 'async';
   const copy = document.createElement('span');
   copy.className = 'home-greeting-copy';
-  const kicker = document.createElement('span');
-  kicker.className = 'home-greeting-kicker';
-  kicker.textContent = COPY.home.goodMorning;
   const name = document.createElement('h1');
   name.className = 'home-greeting-name';
-  name.textContent = greetingName;
-  copy.append(kicker, name);
+  name.textContent = greetingLine;
+  copy.append(name);
   greeting.append(avatar, copy);
   const refresh = header.querySelector('[data-refresh-tab="home"]');
   header.replaceChildren(greeting);
@@ -468,33 +467,62 @@ function paintHomeGreeting(settings) {
   header.classList.add('home-page-header');
 }
 
+/** Count waitlisted classes that have not started yet. Unknown (null) is not zero. */
+export function countUpcomingWaitlists(waitlists, now = Date.now()) {
+  if (!Array.isArray(waitlists)) return null;
+  return waitlists.filter((w) => {
+    const t = Date.parse(w?.event?.startAt || w?.event?.start_at || w?.startAt || w?.start_at || '');
+    return !Number.isFinite(t) || t >= now;
+  }).length;
+}
+
+/** 'hidden' = no booked and no waitlisted classes; 'waitlist-only' = no booked but waitlisted. */
+export function homeUpcomingMode(bookedCount, waitlistCount) {
+  const booked = Number(bookedCount) || 0;
+  const waitlisted = Number(waitlistCount) || 0;
+  if (!booked && !waitlisted) return 'hidden';
+  return booked ? 'booked' : 'waitlist-only';
+}
+
+/** '+ 2 waitlisted classes' under booked cards; '1 waitlisted class' when it is the only content. */
+export function waitlistLineText(count, { withPlus = true } = {}) {
+  const n = Number(count) || 0;
+  if (n <= 0) return '';
+  const text = formatCopyText(n === 1 ? COPY.home.waitlistedOne : COPY.home.waitlistedMany, { count: n });
+  return withPlus ? `+ ${text}` : text;
+}
+
+function renderWaitlistLine(el, count, withPlus, ctx) {
+  const text = waitlistLineText(count, { withPlus });
+  if (!text) return;
+  const btn = document.createElement('button');
+  btn.type = 'button';
+  btn.className = 'home-waitlist-line';
+  btn.textContent = text;
+  btn.addEventListener('click', () => ctx.navigate('my-bookings'));
+  el.appendChild(btn);
+}
+
 registerWidget({
   id: 'upcoming', order: 20,
   title: () => COPY.home.upcoming,
   headerAction: (ctx) => viewAllBookings(ctx),
   updateHeaderAction: (slot, _ctx, data) => updateViewAllBookings(slot, data?.bookedCount),
-  cacheKeys(ctx) { return [...uniqueGymIds(ctx.gyms).map((id) => gymCacheKey('/api/bookings', id)), '/api/auto-upgrade', '/api/auto-book']; },
+  cacheKeys(ctx) { return [...uniqueGymIds(ctx.gyms).map((id) => gymCacheKey('/api/bookings', id)), ...uniqueGymIds(ctx.gyms).map((id) => gymCacheKey('/api/waitlists', id)), '/api/auto-upgrade', '/api/auto-book']; },
   async load(ctx) {
-    const [bookings, upgrades, queue] = await Promise.all([
+    const [bookings, waitlists, upgrades, queue] = await Promise.all([
       api.getBookings({ cacheTtlMs: 120000, gyms: ctx.gyms }),
+      api.getWaitlists({ cacheTtlMs: 120000, gyms: ctx.gyms, silent: true }).catch(() => null),
       api.getAutoUpgrades({ gymIds: uniqueGymIds(ctx.gyms), loading: true }).catch(() => []),
       api.getAutoBookings({ gymIds: uniqueGymIds(ctx.gyms), loading: true }).catch(() => null),
     ]);
     const now = DateTime.now();
     const groups = groupBookingsByEvent(bookings);
     const bookedCount = groups.filter((group) => Date.parse(group.event.startAt || group.event.start_at) >= now.toMillis()).length;
-    return { ...selectUpcoming(groups, now), bookedCount, upgrades: upgrades || [], queueCount: countPendingAutoBooks(queue) };
+    return { ...selectUpcoming(groups, now), bookedCount, waitlistCount: countUpcomingWaitlists(waitlists, now.toMillis()), upgrades: upgrades || [], queueCount: countPendingAutoBooks(queue) };
   },
-  isEmpty: (d) => d?.mode === 'card' && !d.next,
-  emptyText: COPY.home.upcomingNone,
-  renderEmpty(el) {
-    clearHomeUpcomingStrip();
-    const message = document.createElement('p');
-    message.className = 'home-widget-empty';
-    message.textContent = COPY.home.findNextClass;
-    el.appendChild(message);
-    renderAutoBookQueue(el, d?.queueCount);
-  },
+  isHidden: (d) => homeUpcomingMode(d?.bookedCount, d?.waitlistCount) === 'hidden',
+  onHide: () => clearHomeUpcomingStrip(),
   render(el, d, ctx) {
     mountHomeBookingCards(el, d.cards?.length ? d.cards : (d.next ? [d.next] : []), ctx);
     if (d.mode === 'strip') {
@@ -509,6 +537,7 @@ registerWidget({
     } else {
       clearHomeUpcomingStrip();
     }
+    renderWaitlistLine(el, d.waitlistCount, d.bookedCount > 0, ctx);
     renderAutoBookQueue(el, d.queueCount);
   },
 });

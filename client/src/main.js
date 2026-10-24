@@ -1884,7 +1884,7 @@ function initHeaderAutoHide() {
   const mq = window.matchMedia('(max-width: 768px)');
   const COOLDOWN_MS = 300;   // ignore samples right after a toggle (transition + momentum)
   let app = null, header = null, ticking = false, target = null;
-  let anchor = 0, hidden = false;
+  let anchor = 0, hidden = false, movingTimer = 0, sticky = null;
 
   const els = () => {
     if (!app) app = document.getElementById('app-container');
@@ -1893,12 +1893,24 @@ function initHeaderAutoHide() {
   };
   const measure = () => {
     if (els() && header.offsetHeight) app.style.setProperty('--app-header-h', header.offsetHeight + 'px');
+    // The timetable list scrolls UNDER the glass filter block, so it reserves the block's
+    // expanded height as padding (styles.css). Only sample the expanded face, never the compact one.
+    if (app) {
+      sticky = sticky || document.querySelector('.app-sticky-top');
+      if (sticky && sticky.offsetHeight && !hidden && !app.classList.contains('app-tt-compact')) {
+        app.style.setProperty('--tt-sticky-h', sticky.offsetHeight + 'px');
+      }
+    }
   };
   const setHidden = (hide) => {
     if (!els() || hide === hidden) return;
     hidden = hide;
     app.classList.toggle('app-hdr-hidden', hide);
     app.classList.toggle('app-tt-compact', hide); // timetable date strip + location chip shrink with the header
+    // will-change: transform only for the duration of the slide (styles.css .app-tt-moving).
+    app.classList.add('app-tt-moving');
+    clearTimeout(movingTimer);
+    movingTimer = setTimeout(() => app.classList.remove('app-tt-moving'), 360);
     // Safe-area cap + theme-color follow the header: header colour while it shows, page colour once it is gone.
     document.documentElement.toggleAttribute('data-hdr-hidden', hide);
     syncThemeColorMeta();
@@ -1939,7 +1951,12 @@ function initHeaderAutoHide() {
     if (e.target.closest?.('.app-bottom-nav-btn, .app-nav-btn')) { setHidden(false); anchor = 0; }
   }, true);
   measure();
-  if (typeof ResizeObserver !== 'undefined' && els()) new ResizeObserver(measure).observe(header);
+  if (typeof ResizeObserver !== 'undefined' && els()) {
+    const ro = new ResizeObserver(measure);
+    ro.observe(header);
+    const stickyEl = document.querySelector('.app-sticky-top');
+    if (stickyEl) ro.observe(stickyEl);
+  }
   window.addEventListener('resize', measure, { passive: true });
 }
 

@@ -90,18 +90,34 @@ export async function mountWidget(el, widget, ctx, { skeleton = () => '', copy =
     const meta = el.querySelector('[data-widget-meta]');
     if (meta && typeof widget.headerMeta === 'function') meta.textContent = widget.headerMeta(data, ctx) || '';
     const b = body();
-    const empty = !!(widget.isEmpty && widget.isEmpty(data, ctx));
-    const outcome = empty ? 'empty' : 'ready';
+    // isHidden(data, ctx): the widget has nothing to say and should take no space at all
+    // (no card, no gap). Distinct from isEmpty, which still renders an empty-state card.
+    const hidden = !!(widget.isHidden && widget.isHidden(data, ctx));
+    const empty = !hidden && !!(widget.isEmpty && widget.isEmpty(data, ctx));
+    const outcome = hidden ? 'hidden' : empty ? 'empty' : 'ready';
     const signature = dataSignature(widget, data, ctx);
     const unchanged = canKeepContent
       && signature !== null
       && el._wOutcome === outcome
       && el._wDataSignature === signature;
     if (unchanged) {
+      el.hidden = outcome === 'hidden';
       el.dataset.widgetState = outcome;
       el.dataset.widgetStale = 'false';
       return;
     }
+    if (hidden) {
+      el.hidden = true;
+      el.dataset.widgetState = 'hidden';
+      b.innerHTML = '';
+      if (typeof widget.onHide === 'function') widget.onHide(ctx);
+      el.dataset.widgetHasContent = 'true';
+      el.dataset.widgetStale = 'false';
+      el._wOutcome = outcome;
+      el._wDataSignature = signature;
+      return;
+    }
+    el.hidden = false;
     if (empty) {
       el.dataset.widgetState = 'empty';
       if (typeof widget.renderEmpty === 'function') {
@@ -131,6 +147,7 @@ export async function mountWidget(el, widget, ctx, { skeleton = () => '', copy =
       el.dataset.widgetStale = 'true';
       return;
     }
+    el.hidden = false;
     el.dataset.widgetState = 'error';
     const b = body();
     if (isNoGymError(err)) {

@@ -138,3 +138,21 @@ describe('mountWidget states', () => {
     expect(el.textContent).toContain('new');
   });
 });
+
+describe('mountWidget isHidden', () => {
+  it('hides the section (no card) and un-hides when data returns', async () => {
+    const { mountWidget } = await import('./widget-registry.js');
+    let n = 0; let hid = 0;
+    const w = { id: 'h', title: 'T', load: async () => ({ n }), isHidden: (d) => d.n === 0, onHide: () => { hid += 1; }, render: (b) => { b.textContent = 'x'; } };
+    const el = document.createElement('section');
+    await mountWidget(el, w, {}, { contextKey: 'k' });
+    expect(el.hidden).toBe(true);
+    expect(el.dataset.widgetState).toBe('hidden');
+    expect(hid).toBe(1);
+    n = 1;
+    await mountWidget(el, w, {}, { contextKey: 'k' });
+    expect(el.hidden).toBe(false);
+    expect(el.dataset.widgetState).toBe('ready');
+    expect(el.querySelector('[data-widget-body]').textContent).toBe('x');
+  });
+});

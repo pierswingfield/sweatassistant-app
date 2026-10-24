@@ -954,18 +954,28 @@ export const api = {
     }));
   },
 
-  async getWaitlists({ silent = false } = {}) {
+  async getWaitlists({ silent = false, cacheTtlMs = 0, gyms = null } = {}) {
     const beginGymLoad = silent ? () => {} : _beginGymLoad;
     const endGymLoad = silent ? () => {} : _endGymLoad;
     return withOfflineSnapshot('waitlists', async () => {
     debugLog('GET /api/waitlists', 'network');
-    const myGymsRes = await this.getMyGyms();
-    const linked = myGymsRes.gyms || [];
+    const myGymsRes = gyms ? null : await this.getMyGyms();
+    const linked = gyms || myGymsRes.gyms || [];
+    // Home passes cacheTtlMs so a repaint reuses the SWR row instead of a network call per render.
+    const readCachedGym = async (gymId) => {
+      const path = '/api/waitlists';
+      const fetcher = (url, options) => apiFetch(path, { ...options, gymId });
+      return (await getCachedSWR(`${path}?gymId=${encodeURIComponent(gymId)}`, { ttlMs: cacheTtlMs, fetcher })).data;
+    };
     if (linked.length <= 1) {
-      const res = await apiFetch('/api/waitlists');
-      if (!res.ok) throw new Error('Failed to load waitlists');
-      const data = await res.json();
-      const gymId = linked[0]?.gym_id || getDefaultGymId();
+      const gymId = linked[0]?.gym_id || linked[0]?.gymId || linked[0]?.id || getDefaultGymId();
+      let data;
+      if (cacheTtlMs && linked[0]) data = await readCachedGym(gymId);
+      else {
+        const res = await apiFetch('/api/waitlists');
+        if (!res.ok) throw new Error('Failed to load waitlists');
+        data = await res.json();
+      }
       const gymName = linked[0]?.gym_name || linked[0]?.name || 'Gym';
       return (data.waitlists || []).map((w) => ({
         ...w,
@@ -981,10 +991,15 @@ export const api = {
         const gName = g.gym_name || g.name || gymId;
         try {
           beginGymLoad(gymId);
-          let res;
-          try { res = await apiFetch('/api/waitlists', { gymId }); } finally { endGymLoad(gymId); }
-          if (!res.ok) return { data: [], gymId, loaded: false };
-          const data = await res.json();
+          let data;
+          try {
+            if (cacheTtlMs) data = await readCachedGym(gymId);
+            else {
+              const res = await apiFetch('/api/waitlists', { gymId });
+              if (!res.ok) return { data: [], gymId, loaded: false };
+              data = await res.json();
+            }
+          } finally { endGymLoad(gymId); }
           return {
             data: (data.waitlists || []).map((w) => ({
               ...w,

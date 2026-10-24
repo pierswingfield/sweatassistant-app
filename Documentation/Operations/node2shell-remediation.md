@@ -1,7 +1,8 @@
 # Node2Shell runtime remediation
 
-**Status:** implementation prepared locally on 2026-10-24; no environment has
-been deployed or recreated by this change.
+**Status:** deployed to the isolated `sweatassistant-experiment` environment on
+2026-10-24. Dev remains on its existing master build and production has not
+been recreated.
 
 Sweat Assistant's build and runtime are pinned to `node:22.23.4-bookworm-slim`
 in both Docker stages. Node 22.23.4 is the minimum approved runtime for this
@@ -17,7 +18,7 @@ while `npm ci --omit=dev` compiles the native module, then purges them in the
 same layer. Do not remove those build prerequisites unless an ARM64 prebuild is
 confirmed in the exact image build; they are not retained in the final image.
 
-Before a separately authorised deployment, the release owner must:
+Before deploying another environment, the release owner must:
 
 1. start from a clean, reviewed commit in a dedicated release worktree;
 2. build the image from the committed Dockerfile and record its immutable image

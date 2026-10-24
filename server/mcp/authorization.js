@@ -268,6 +268,12 @@ function mountAuthorization(app, resourceConfig, options = {}) {
     log.info('MCP connection revoked', { userId: tx.user_id, grantId: req.body.grant });
     return connections(res, tx, 'Access revoked.');
   });
+  // Attach at Express's matched route rather than inspecting req.path: router
+  // matching is case-insensitive and permits a trailing slash by default.
+  router.all('/oauth/token', (req, res, next) => {
+    res.once('finish', () => require('../metrics').observeMcpHttp('oauth_token', req.method, res.statusCode));
+    next();
+  });
   router.post('/oauth/token', asyncRoute(async (req, res) => {
     if (Object.keys(req.query).length || Object.values(req.body).some(v => typeof v !== 'string') || req.body.resource !== config.resource ||
       !['authorization_code', 'refresh_token'].includes(req.body.grant_type)) return res.status(400).json({ error: 'invalid_request' });
@@ -279,7 +285,6 @@ function mountAuthorization(app, resourceConfig, options = {}) {
   router.use((err, _req, res, _next) => page(res, 'Request rejected', '<p>This request has expired or is invalid. Return to the app or AI client and start again.</p>', err.type === 'entity.too.large' ? 413 : 400));
   app.use((req, res, next) => {
     if (!req.path.startsWith('/oauth/') && req.path !== '/.well-known/oauth-authorization-server') return next();
-    if (req.path === '/oauth/token') res.once('finish', () => require('../metrics').observeMcpHttp('oauth_token', req.method, res.statusCode));
     return router(req, res, next);
   });
   return { oauth, model };

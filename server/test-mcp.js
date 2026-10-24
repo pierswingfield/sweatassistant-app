@@ -65,8 +65,13 @@ function clearBudgets() { db.db.prepare('DELETE FROM mcp_budgets').run(); }
   const disabled = express(); mountMcp(disabled);
   const disabledServer = disabled.listen(0, '127.0.0.1');
   await new Promise(r => disabledServer.once('listening', r));
+  const disabled4xxBefore = metricValue('mcp_http_requests_total', { route: 'mcp', method: 'get', status: '4xx' });
   const disabledResponse = await fetch(`http://127.0.0.1:${disabledServer.address().port}/mcp`);
   check(disabledResponse.status === 404, 'disabled endpoint inaccessible');
+  const disabledVariant = await fetch(`http://127.0.0.1:${disabledServer.address().port}/MCP/`);
+  const disabled4xxAfter = metricValue('mcp_http_requests_total', { route: 'mcp', method: 'get', status: '4xx' });
+  check(disabledVariant.status === 404 && disabled4xxAfter === disabled4xxBefore + 2,
+    'disabled MCP 404s and case/trailing-slash route variants are counted once');
   await new Promise(r => disabledServer.close(r));
 
   jose = await import('jose');

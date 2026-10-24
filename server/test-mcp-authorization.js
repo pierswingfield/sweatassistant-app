@@ -139,6 +139,12 @@ async function refresh(value, patch = {}) { return http('/oauth/token', { body: 
   check((await exchange(code, { resource: `${origin}/other` })).status === 400, 'token resource substitution rejected');
   check((await exchange(code, { client_id: 'confidential' })).status === 400, 'confidential client requires secret');
   check((await http('/oauth/token', { body: { grant_type: 'password', client_id: 'pilot', resource, username: 'oauth@example.test', password } })).status === 400, 'password grant unavailable');
+  const token4xxBeforeVariants = metricValue('mcp_http_requests_total', { route: 'oauth_token', method: 'post', status: '4xx' });
+  const invalidGrant = { grant_type: 'password', client_id: 'pilot', resource };
+  check((await http('/oauth/TOKEN', { body: invalidGrant })).status === 400 &&
+    (await http('/oauth/token/', { body: invalidGrant })).status === 400 &&
+    metricValue('mcp_http_requests_total', { route: 'oauth_token', method: 'post', status: '4xx' }) === token4xxBeforeVariants + 2,
+  'OAuth token case/trailing-slash route variants are counted once');
   clearBudgets();
   tokens = await exchange((await issue()).code);
   check(tokens.status === 200, 'new connection after revoked family');

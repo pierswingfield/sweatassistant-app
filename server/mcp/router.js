@@ -4,6 +4,13 @@ const { configuration, SCOPES } = require('./config');
 // Mounted before the PWA JSON parser/CORS; its smaller limit cannot be bypassed.
 function mountMcp(app, config = configuration()) {
   const metadataPath = '/.well-known/oauth-protected-resource/mcp';
+  // Observe the canonical MCP route before the feature-flag branch so disabled
+  // requests are counted too. Express route matching also covers its normal
+  // case-insensitive and optional-trailing-slash variants.
+  app.all('/mcp', (req, res, next) => {
+    res.once('finish', () => require('../metrics').observeMcpHttp('mcp', req.method, res.statusCode));
+    next();
+  });
   if (!config.enabled) {
     app.all(['/mcp', metadataPath], (_req, res) => res.status(404).json({ code: 'NOT_FOUND' }));
     return;
@@ -91,7 +98,6 @@ function mountMcp(app, config = configuration()) {
   router.use((err, _req, res, _next) => res.status(err.type === 'entity.too.large' ? 413 : 400).json({ code: err.type === 'entity.too.large' ? 'REQUEST_TOO_LARGE' : 'INVALID_JSON' }));
   app.use((req, res, next) => {
     if (req.path === '/mcp' || req.path === metadataPath) {
-      if (req.path === '/mcp') res.once('finish', () => require('../metrics').observeMcpHttp('mcp', req.method, res.statusCode));
       return router(req, res, next);
     }
     next();

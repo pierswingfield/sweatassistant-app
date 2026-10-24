@@ -223,6 +223,7 @@ router.get('/my-gyms', authenticateToken, readLimiter, (req, res) => {
 // allowed to fail the link/unlink itself.
 function refreshCalendarAfterGymSetChange(userId) {
   try {
+    if (!require('./mcp/stage-profile-only').linkSideEffectsEnabled()) return;
     const cal = (db.getUserSettings(userId) || {}).calendar || {};
     if (!cal.enabled) return;
     calendar.regenerateSnapshot(userId);
@@ -235,12 +236,13 @@ function refreshCalendarAfterGymSetChange(userId) {
 // Same endpoint for both — see auth.linkGymAccount.
 router.post('/my-gyms/link', authenticateToken, async (req, res) => {
   const { gymId, email, password } = req.body || {};
+  if (require('./mcp/stage-profile-only').enabled() && !require('./mcp/stage-profile-only').permitsProvider(getGymConfig(gymId))) return res.status(403).json({ message: 'Only the approved profile link is available in stage profile-only mode' });
   try {
     const link = await auth.linkGymAccount(req.userId, gymId, email, password);
     refreshCalendarAfterGymSetChange(req.userId);
     // F-10-0: backfill class history for the gym just linked (or re-authenticated).
     // Fire-and-forget; syncUserGym never throws and records its own failures.
-    classHistory.syncUserGym(req.userId, gymId).catch(() => {});
+    if (require('./mcp/stage-profile-only').linkSideEffectsEnabled()) classHistory.syncUserGym(req.userId, gymId).catch(() => {});
     res.json({ gym: link, gyms: db.getUserGymsPublic(req.userId) });
   } catch (err) {
     // A rejected gym credential is the user's problem to fix, not a server fault.

@@ -15,6 +15,9 @@ services:
       MCP_ENABLED: ${MCP_STAGE_ENABLED:-true}
       MCP_AUTH_SERVER_ENABLED: ${MCP_STAGE_ENABLED:-true}
       MCP_PROVIDER_READS_ENABLED: "false"
+      MCP_STAGE_JAB_PROFILE_ONLY: "true"
+      MCP_STAGE_JAB_GATEWAY_URL: http://jab-profile-egress:3100
+      MCP_STAGE_JAB_GATEWAY_KEY: ${MCP_STAGE_JAB_GATEWAY_KEY:?Set a private stage gateway key}
       MCP_RESOURCE_URL: https://sweat-mcp-stage.wingfield.tech/mcp
       MCP_ISSUER: https://sweat-mcp-stage.wingfield.tech/
       MCP_JWKS_FILE: /private/mcp/jwks.json
@@ -38,8 +41,26 @@ services:
       options: { max-size: "10m", max-file: "3" }
     restart: unless-stopped
     networks: [mcp-stage-private]
-    # No host listener and no route to cloudflared or provider APIs.
+    # No provider egress. JAB login/profile goes through the constrained gateway only.
+  jab-profile-egress:
+    image: ${MCP_STAGE_IMAGE:?Set an immutable candidate image tag or digest}
+    container_name: jab-profile-egress
+    command: ["node", "server/mcp-stage-jab-egress.js"]
+    environment:
+      MCP_STAGE_JAB_GATEWAY_KEY: ${MCP_STAGE_JAB_GATEWAY_KEY:?Set a private stage gateway key}
+      MCP_STAGE_JAB_GATEWAY_PORT: "3100"
+    mem_limit: 128m
+    cpus: "0.25"
+    pids_limit: 32
+    logging:
+      driver: json-file
+      options: { max-size: "5m", max-file: "2" }
+    restart: unless-stopped
+    networks: [mcp-stage-private, mcp-stage-egress]
+    # No host listener. Its only allowed upstream requests are hard-coded JAB auth/profile paths.
 networks:
   mcp-stage-private:
     driver: bridge
     internal: true
+  mcp-stage-egress:
+    driver: bridge

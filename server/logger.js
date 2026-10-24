@@ -124,6 +124,31 @@ function abortable(promise, signal) {
 function credentialProviderFetch(gymId, url, options = {}) {
   const gym = require('./gyms.config').getGymConfig(gymId);
   const target = new URL(url);
+  if (require('./mcp/stage-profile-only').enabled()) {
+    if (!require('./mcp/stage-profile-only').permitsProvider(gym)) throw Object.assign(new Error('Provider access is disabled in stage profile-only mode'), { code: 'PROVIDER_WORK_DISABLED', status: 403 });
+    const { assertAllowedProfileRequest } = require('./mcp/jab-profile-policy');
+    assertAllowedProfileRequest(target, options);
+    const gateway = process.env.MCP_STAGE_JAB_GATEWAY_URL;
+    const key = process.env.MCP_STAGE_JAB_GATEWAY_KEY;
+    if (!gateway || !key) throw Object.assign(new Error('Stage profile gateway is not configured'), { code: 'PROVIDER_WORK_DISABLED', status: 503 });
+    return timedProviderFetch(gymId, options.method || 'GET', target.pathname, async signal => {
+      const headers = new Headers(options.headers || {});
+      const body = options.body == null ? null : String(options.body);
+      const signals = [signal, options.signal].filter(Boolean);
+      const response = await fetch(gateway.replace(/\/$/, '') + '/profile-request', {
+        method: 'POST', redirect: 'manual', ...(signals.length ? { signal: AbortSignal.any(signals) } : {}),
+        headers: { 'content-type': 'application/json', 'x-stage-egress-key': key },
+        body: JSON.stringify({ url: target.toString(), method: options.method || 'GET', headers: Object.fromEntries(headers), body }),
+      });
+      const payload = await response.json();
+      const responseHeaders = { ...(payload.headers || {}) };
+      const cookies = responseHeaders['set-cookie']; delete responseHeaders['set-cookie'];
+      const result = new Response(Buffer.from(payload.body || '', 'base64'), { status: payload.status, headers: responseHeaders });
+      if (Array.isArray(cookies)) result.headers.getSetCookie = () => cookies;
+      else if (cookies) result.headers.set('set-cookie', cookies);
+      return result;
+    }, 'credential');
+  }
   const origins = [gym?.apiBaseUrl, gym?.oauthBaseUrl].filter(Boolean).map(value => new URL(value).origin);
   if (target.username || target.password || !origins.includes(target.origin)) {
     throw Object.assign(new Error('Gym authentication redirect is not permitted'), { code: 'PROVIDER_WORK_DISABLED', status: 403 });

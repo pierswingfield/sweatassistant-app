@@ -166,6 +166,10 @@ class MarianaTekProvider extends GymProvider {
     }, timeoutMs);
     opts.signal = controller.signal;
     try {
+      if (require('../mcp/stage-profile-only').enabled()) {
+        const url = this.url(path);
+        return await credentialProviderFetch(this.gym.id, url, opts);
+      }
       return await timedProviderFetch(this.gym.id, method, path, (signal) => fetch(this.url(path), { ...(require('../provider-admission').enabled() ? { redirect: 'manual' } : {}), ...opts, signal: signal ? AbortSignal.any([signal, opts.signal]) : opts.signal }));
     } catch (err) {
       if (timedOut) {
@@ -185,6 +189,7 @@ class MarianaTekProvider extends GymProvider {
   // once logged in (see fetchTimetable/fetchEventDetails, which prefer
   // request() whenever a session is available).
   async publicRequest(path, { method = 'GET' } = {}) {
+    if (require('../mcp/stage-profile-only').enabled()) throw Object.assign(new Error('Public provider reads are disabled in stage profile-only mode'), { code: 'PROVIDER_WORK_DISABLED', status: 403 });
     return timedProviderFetch(this.gym.id, method, path, (signal) => fetch(this.url(path), { ...(require('../provider-admission').enabled() ? { redirect: 'manual' } : {}), method, headers: this.buildHeaders(null), ...(signal ? { signal } : {}) }));
   }
 

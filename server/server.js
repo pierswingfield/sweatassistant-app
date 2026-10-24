@@ -168,6 +168,10 @@ app.get('/api/health', async (req, res) => {
   let allHealthy = true;
 
   for (const [name, limit] of Object.entries(HEARTBEAT_LIMITS)) {
+    if (!require('./mcp/stage-profile-only').backgroundServicesEnabled()) {
+      services[name] = { healthy: true, state: 'disabled_by_stage_profile_only' };
+      continue;
+    }
     const raw = db.getKV(`heartbeat:${name}`);
     const last = raw ? Number(raw) : null;
     const ageMs = last ? now - last : null;
@@ -1218,7 +1222,11 @@ app.listen(PORT, () => {
   console.log(`[Server] Express server running on port ${PORT} in ${process.env.NODE_ENV || 'development'} mode.`);
   
   // Start schedulers
-  scheduler.init();
-  poller.init();
-  calendar.init();
+  if (!require('./mcp/stage-profile-only').backgroundServicesEnabled()) {
+    console.log('[Server] Stage profile-only mode: background provider services disabled.');
+  } else {
+    scheduler.init();
+    poller.init();
+    calendar.init();
+  }
 });

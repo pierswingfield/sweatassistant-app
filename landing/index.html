@@ -197,6 +197,8 @@ section { padding: 72px 0; }
 .row .meta { font-size: var(--text-xs); color: var(--text-secondary); }
 .gchip { display: inline-flex; align-items: center; justify-content: center; flex: none; height: 24px; padding: 0 8px; border-radius: 8px; }
 .gchip img { max-width: none; width: auto; flex: none; }
+.row .gchip { height: 18px; padding: 0 6px; border-radius: 6px; }
+.row .gchip img { height: 9px; width: auto; }
 .gchip.psycle { background: var(--plate-psycle); }
 .gchip.jab { background: var(--plate-jab); }
 .gchip.aarmy { background: var(--plate-aarmy); }
@@ -213,6 +215,8 @@ section { padding: 72px 0; }
 .cd.counting .cd-done { opacity: 0; }
 
 .float-card { position: absolute; right: 8px; bottom: 0; padding: 12px 16px; display: flex; align-items: center; gap: 12px; box-shadow: var(--shadow-sheet); }
+.float-card { transition: opacity 0.3s ease, visibility 0.3s ease; }
+.float-card.wait { opacity: 0; visibility: hidden; }
 .float-card .ico { width: 32px; height: 32px; border-radius: 10px; display: grid; place-items: center; background: color-mix(in srgb, var(--success) 14%, transparent); color: var(--success); }
 .float-card b { display: block; font-size: var(--text-sm); }
 .float-card span.s { font-size: var(--text-xs); color: var(--text-secondary); }
@@ -448,7 +452,7 @@ footer { padding: 32px 0 56px; color: var(--text-secondary); font-size: var(--te
     <div class="section-head reveal">
       <p class="eyebrow">How it works</p>
       <h2>Set it once. Turn up.</h2>
-      <p>Choose your favourites once. Front Row handles the waiting, the booking and the moving.</p>
+      <p>Choose your favourite bikes, benches and spots in every studio. Front Row handles booking in one tap, and upgrades you to a better spot automatically.</p>
     </div>
 
     <!-- Auto-Book -->
@@ -591,19 +595,19 @@ footer { padding: 32px 0 56px; color: var(--text-secondary); font-size: var(--te
       </article>
       <article class="glass frame reveal" style="--i:1">
         <div class="phone" aria-hidden="true">
-          <div class="sheet-row"><span>Share or browser menu</span><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="8" y="8" width="12" height="12" rx="2"/><path d="M16 8V6a2 2 0 0 0-2-2H6a2 2 0 0 0-2 2v8a2 2 0 0 0 2 2h2"/></svg></div>
-          <div class="sheet-row hl"><span>Add to Home Screen / Install app</span><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="4" y="4" width="16" height="16" rx="4"/><path d="M12 8.5v7M8.5 12h7"/></svg></div>
+          <div class="sheet-row"><span>Share or browser menu</span><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 15V3M8.5 6.5L12 3l3.5 3.5"/><path d="M7 10H6a2 2 0 0 0-2 2v7a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-7a2 2 0 0 0-2-2h-1"/></svg></div>
+          <div class="sheet-row hl"><span>Add to Home Screen</span><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="4" y="4" width="16" height="16" rx="4"/><path d="M12 8.5v7M8.5 12h7"/></svg></div>
         </div>
-        <div><span class="n">Step 2</span><h3 data-step2-title>Add it to your Home Screen</h3><p data-step2-text>On iPhone, tap Share, then Add to Home Screen. On Android or desktop, choose Install app from the menu or address bar.</p></div>
+        <div><span class="n">Step 2</span><h3 data-step2-title>Add it to your Home Screen</h3><p data-step2-text>Add the app to your phone's Home Screen, or install it to your desktop browser.</p></div>
       </article>
       <article class="glass frame reveal" style="--i:2">
         <div class="phone" aria-hidden="true">
           <div class="homescreen">
             <div class="hs-icon"><i></i></div><div class="hs-icon"><i></i></div><div class="hs-icon"><i></i></div>
-            <div class="hs-icon app"><i><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12.5l4.5 4.5L19 7.5"/></svg></i>App</div>
+            <div class="hs-icon app"><i><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12.5l4.5 4.5L19 7.5"/></svg></i>Front Row</div>
           </div>
         </div>
-        <div><span class="n">Step 3</span><h3>Open it from your Home Screen</h3><p>Sign up, link your gyms and queue your first class. Push alerts need the installed app on iPhone.</p></div>
+        <div><span class="n">Step 3</span><h3>Open Front Row</h3><p>Sign up, link your gyms and queue your first class. Push alerts need the installed app on iPhone.</p></div>
       </article>
     </div>
     <div class="install-cta reveal">
@@ -663,7 +667,7 @@ footer { padding: 32px 0 56px; color: var(--text-secondary); font-size: var(--te
   var s2t, s2p;
   if (iOS) { s2t = 'Share, then Add to Home Screen'; s2p = 'Tap the Share button, then choose Add to Home Screen.'; }
   else if (android) { s2t = 'Menu, then Install app'; s2p = 'Open the browser menu and tap Install app (or Add to Home screen).'; }
-  else { s2t = 'Install from the address bar'; s2p = 'Click the install icon in the address bar of Chrome or Edge, or choose Install from the menu.'; }
+  else { s2t = 'Install it to your Home Screen.'; s2p = 'Add the app to your phone\'s Home Screen, or install it to your desktop browser.'; }
   var e1 = document.querySelector('[data-step2-title]'); if (e1) e1.textContent = s2t;
   var e2 = document.querySelector('[data-step2-text]'); if (e2) e2.textContent = s2p;
   var h = document.querySelector('[data-install-hint]'); if (h) h.innerHTML = short;
@@ -700,10 +704,12 @@ footer { padding: 32px 0 56px; color: var(--text-secondary); font-size: var(--te
     function tick() {
       timer = null;
       if (!visible) return;
-      if (s > 0) { s--; show(); if (s === 0) { el.classList.remove('counting'); timer = setTimeout(tick, 3200); } else { timer = setTimeout(tick, 1000); } }
-      else { s = 8; el.classList.add('counting'); show(); timer = setTimeout(tick, 1000); }
+      if (s > 0) { s--; show(); if (s === 0) { el.classList.remove('counting'); sync(); timer = setTimeout(tick, 3200); } else { timer = setTimeout(tick, 1000); } }
+      else { s = 8; el.classList.add('counting'); sync(); show(); timer = setTimeout(tick, 1000); }
     }
-    el.classList.add('counting'); show();
+    var toast = el.closest('#hero') ? document.querySelector('#hero .float-card') : null;
+    function sync() { if (toast) toast.classList.toggle('wait', el.classList.contains('counting')); }
+    el.classList.add('counting'); show(); sync();
     new IntersectionObserver(function (es) {
       visible = es[0].isIntersecting;
       if (visible && !timer) timer = setTimeout(tick, 1000);

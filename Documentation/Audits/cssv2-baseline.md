@@ -66,3 +66,25 @@ Mobile (measured on sweat-dev through 390/375/430 iframes; identical at all thre
 9. Tap targets under 44px (visible interactive elements, count per screen: Home 6, Timetable 31, Bookings 12, Auto-Book 4, Settings 4): `app-header-gym-badge` 61-70x24; `app-mobile-seg` 91x40 (16 on Timetable); filter chips `fr-chip-body` 30px tall, `fr-chip-x` 20x30, `fr-gymquick-btn` 28x28, `fr-trigger` 32x32; `ab-rail-toggle` 57x28; `ab-spot-upgrade-chip` 62-67x23-28; `bk-guest-chip` 28x28; `app-share-btn` 84x36; `home-favourite-cta` 102x36; `app-modal-close-btn` 22x32; the "..." row menu.
 10. Inputs/selects/textareas with computed font-size under 16px (iOS zoom on focus): none found on the five main screens at rest (body is 14px; the timetable search field was not focused/measured separately; inputs inside modals not measured).
 11. Body font 14px Inter; Fraunces is applied by the blanket heading rule (class names in cards stay Inter).
+
+## 6. Phase 3 result (2026-10-24, U3-2 cascade and `!important` cleanup)
+
+Measured with the same postcss script on `client/src/styles.css` (Phase 2 commit vs Phase 3):
+
+| Metric | Phase 2 | Phase 3 |
+|---|---|---|
+| Lines / rules | 10,540 / 2,021 | 10,526 / 1,879 |
+| `!important` | 1,056 | 847 (-20%; the 25% aim was not reached safely) |
+| Duplicate (media + selector) preludes | 163 | 93 (8 are the intentional `:root` token/theme blocks) |
+| `@media (max-width: 768px)` blocks | 95 | 32 |
+| `.app-sticky-top` mobile rules | 9 | 2 |
+| `backdrop-filter` declarations | 44 | 2 (bottom nav `--glass-blur`, plus its `@supports` fallback) |
+| `font-family: var(--font-serif)` | 19 | 4 (type-role block + brand wordmark role) |
+
+Method (all cascade-preserving): a rule or declaration only moves or loses `!important` when no other declaration of the same property family, at equal importance and equal specificity, could sit between the old and new place (class co-occurrence taken from the rendered DOM). `!important` was dropped only where a computed-style test in the real DOM (390/375/430/1200, light and dark, all main tabs, filter sheet, booking and spot-map modal, settings sections, login, onboarding, offline, search) showed no change, no inline style on the element, no hover/focus competitor that would then win, no animation targeting the property, and no unseen competitor that could match the same element, and no second `!important` rule of the same family that could hit the same elements (two such rules mask each other in a one-at-a-time test; the first run of this pass broke the active bottom-nav colour that way and the equivalence run caught it). Declarations in families JS also writes inline (display, transform, opacity, transition, position, max-height, z-index) were left alone, as were `[hidden]`, the toast `:not()` catch-all, the Status column width and reduced-motion rules.
+
+Equivalence: 132 rendered states (8 viewport/theme blocks) compared by computed style and layout against the Phase 2 stylesheet. Only the intended differences remain: removed `backdrop-filter`, and opaque backgrounds on the offline banner, waitlist jump bar, toast and pull indicator. Remaining differences are async-data noise (a favourite heart or home widget loaded in one run and not the other), also present between two runs of the unchanged CSS.
+
+Deleted with evidence (class token absent from `client/src`, `index.html`, `public`): `.fav-buy-btn`, `.grid-label`, `.warning-dismiss-btn`, `.debug-section-title`, `.debug-label`, `.bk-upgrade-btn`, `.home-empty-action`, `.home-credits-list/row/gym`, `.home-stat-tile/number/label`, `.home-attendance-label`, `.home-autobook-copy`; keyframes `pulse-ring`, `backdropFadeIn`, `fadeInMs`, `app-pulse-confirm` (referenced nowhere). `.t-card-title` and `.t-caption` are token-layer roles and were kept.
+
+Not done / debt for Phase 4: physical re-ordering into sections (the file is banner-labelled, not reshuffled, because source order is the cascade), the 847 remaining `!important` (mostly beating `#app-helper-container` specificity and inline styles), the 93 duplicate preludes blocked by genuine ordering conflicts, presentational inline styles in JS, and unseen states (hover/focus variants of important rules, rarely rendered UI) which were kept conservatively.

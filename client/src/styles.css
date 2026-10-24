@@ -1,3 +1,23 @@
+/* 
+   SECTION MAP (CSSv2 Phase 3, U3-2). Source order IS the cascade, so sections are banner-labelled where a
+   domain begins rather than physically reshuffled (moving a rule past another that sets the same
+   property at equal specificity changes the result). Banners, in file order:
+   1. Credits, membership and billing
+   2. Shell, header and navigation
+   3. Controls (buttons, toasts, badges, inputs)
+   4. Home tab
+   5. Timetable, tooltips and mobile class cards
+   6. Settings and gym sections
+   7. Auto-Book tab and Auto-Upgrade
+   8. Onboarding
+   9. Timetable filter rail and sheet
+   10. Modals, overlays and the spot map
+   11. Bookings and share sheet
+   Mobile overrides: all @media (max-width: 768px) rules were consolidated into a few blocks; the first
+   one is the main mobile layer. Invariants to keep: [hidden] rule, toast :not() catch-all, Status column
+   px width, .app-table max-width, one glass declaration set (bottom nav) via --glass-* tokens.
+    */
+
 /* Single stylesheet. Order: [hidden] rule, CSSv2 token layer + type roles, then components. */
 
 /* The `hidden` attribute must actually hide (WP-D14).
@@ -389,6 +409,10 @@
   font-weight: 600;
   line-height: var(--lh-snug);
 }
+
+/* 
+   ===== Credits, membership and billing =====
+    */
 .t-stat,
 #app-helper-container .app-benefit-headline strong,
 #app-helper-container .ab-banner-time {
@@ -711,6 +735,10 @@ html, body, * {
   overflow: hidden;
   font-size: var(--text-base);
 }
+
+/* 
+   ===== Shell, header and navigation =====
+    */
 
 #app-helper-container * {
   box-sizing: border-box;
@@ -1210,6 +1238,10 @@ html, body, * {
 
 /* Folding logic */
 
+/* 
+   ===== Controls (buttons, toasts, badges, inputs) =====
+    */
+
 
 @keyframes fadeIn {
   from { opacity: 0; transform: translateY(10px); }
@@ -1230,7 +1262,7 @@ html, body, * {
   border: 1px solid var(--border);
   border-radius: 12px;
   padding: 10px 14px 10px 42px;
-  color: var(--text) !important;
+  color: var(--text);
   font-family: inherit;
   font-size: 13px;
   outline: none;
@@ -1702,6 +1734,10 @@ html, body, * {
   line-height: 1;
 }
 
+/* 
+   ===== Home tab =====
+    */
+
 #app-helper-container .app-offline-banner .offline-text {
   line-height: 1.4;
 }
@@ -1721,6 +1757,8 @@ html, body, * {
 /* U6-7: the mobile shell is document-flow so Safari can collapse its browser chrome.
    Keep the offline status in the top overlay, above the header, so it does not
    cover the first rows of page content. */
+
+/*  Mobile overrides (max-width: 768px): Timetable, tooltips and mobile class cards  */
 @media (max-width: 768px) {
   #app-helper-container .app-offline-banner {
     position: fixed;
@@ -1775,7 +1813,7 @@ html, body, * {
     inset: 0 !important;
     display: flex !important;
     flex-direction: column;
-    width: 100% !important;
+    width: 100%;
     height: 100% !important;
     max-height: 100% !important;
     min-height: 0;
@@ -1795,9 +1833,9 @@ html, body, * {
 
   #app-helper-container .app-countdown-banner.ab-banner {
     display: flex !important;
-    flex-direction: column !important;
+    flex-direction: column;
     overflow: visible !important;
-    flex-shrink: 0 !important;
+    flex-shrink: 0;
   }
 
   #app-helper-container .app-title-row h2 {
@@ -1933,14 +1971,14 @@ html, body, * {
 
   #app-helper-container .app-mobile-top-line .ab-disc-tag,
   #app-helper-container .app-mobile-top-line .app-mobile-instructor {
-    font-size: var(--tt-mobile-meta-size) !important;
+    font-size: var(--tt-mobile-meta-size);
   }
 
   #app-container.app-hdr-hidden .app-sticky-top { top: calc(-1 * (var(--app-header-h, 47px) + var(--hdr-gap, 12px) + var(--hdr-extra, 8px))); }
 
   #app-helper-container .app-settings-content { touch-action: pan-y; will-change: transform; }
 
-  #app-helper-container .app-mobile-top-line .ab-disc-tag { padding: 1px 6px !important; }
+  #app-helper-container .app-mobile-top-line .ab-disc-tag { padding: 1px 6px; }
 
   #app-helper-container .app-header::before {
     content: ''; position: absolute; left: 0; right: 0; top: -3px; height: 3px; background: var(--header-solid-bg);
@@ -1969,7 +2007,7 @@ html, body, * {
   #app-helper-container .app-body.app-scroll-locked { overflow: hidden !important; }
 
   #app-helper-container #app-panel-my-bookings {
-    padding-bottom: 36px !important;
+    padding-bottom: 36px;
   }
 
   #app-helper-container .app-mobile-seg.confirming.success,
@@ -1997,7 +2035,7 @@ html, body, * {
     font-size: 18px;
   }
 
-  #app-helper-container .app-mobile-avatar img { position: relative; z-index: 1; display: block; width: 38px; height: 38px; object-fit: cover; border-radius: 50%; width: 100% !important; height: 100% !important; }
+  #app-helper-container .app-mobile-avatar img { position: relative; z-index: 1; display: block; width: 38px; height: 38px; object-fit: cover; border-radius: 50%; width: 100%; height: 100%; }
 
   :root { --hdr-gap: 12px; --hdr-extra: 8px; }
 
@@ -2020,13 +2058,13 @@ html, body, * {
 
   #app-helper-container .app-body.app-timetable-active #app-panel-class-timetable {
     flex: 1 1 0% !important;
-    min-height: 0 !important;
+    min-height: 0;
     overflow: hidden !important;
   }
 
   #app-helper-container .app-body.app-timetable-active #app-panel-class-timetable > #app-timetable-grid {
-    flex: 1 1 0% !important;
-    min-height: 0 !important;
+    flex: 1 1 0%;
+    min-height: 0;
     overflow-x: hidden !important;
     overflow-y: auto !important;
     overscroll-behavior-y: contain !important;
@@ -2152,9 +2190,9 @@ html, body, * {
      right, and nudge the time text right for optical balance over the avatar. */
 
   #app-helper-container .app-table td .app-mobile-lead > strong {
-    align-self: flex-start !important;
+    align-self: flex-start;
     margin-left: 0 !important;
-    justify-content: flex-start !important;
+    justify-content: flex-start;
   }
 
   #app-container.app-tt-compact #app-filter-rail .fr-gymquick:not(.is-open) .fr-gymquick-btn + .fr-gymquick-btn { margin-left: -20px !important; }
@@ -2182,12 +2220,12 @@ html, body, * {
   #app-helper-container .app-mobile-top-line .ab-disc-tag:has(+ .app-mobile-fav-indicator) { flex-shrink: 1 !important; min-width: 0 !important; overflow: hidden; text-overflow: ellipsis; }
 
   #app-helper-container .app-mobile-main.instr-below .app-mobile-bottom-line .app-mobile-location {
-    flex: 0 1 auto !important; overflow: visible !important; text-overflow: clip !important; white-space: normal !important;
+    flex: 0 1 auto; overflow: visible !important; text-overflow: clip; white-space: normal;
     max-width: 100%;
   }
 
   #app-helper-container .app-mobile-main.instr-below .app-mobile-bottom-line .app-mobile-instructor {
-    flex: 0 1 auto !important; min-width: 0; max-width: 100%;
+    flex: 0 1 auto; min-width: 0; max-width: 100%;
   }
 
   #app-helper-container .app-mobile-main.instr-below .app-mobile-bottom-line { flex-wrap: wrap !important; overflow: visible !important; row-gap: 0; }
@@ -2320,6 +2358,8 @@ html, body, * {
 .home-up-day-marks { min-width: 0; display: flex; flex-wrap: wrap; justify-content: center; gap: 4px; }
 .home-up-day-mark { display: inline-flex; width: 22px; height: 22px; }
 .home-up-day-mark .app-gym-mark { width: 22px; height: 22px; border-radius: 6px; }
+
+/*  Mobile overrides (max-width: 768px): Home tab  */
 @media (max-width: 768px) {
   .home-up-strip { gap: 4px; }
   .home-up-day { padding-inline: 2px; }
@@ -2518,6 +2558,10 @@ html, body, * {
   min-width: 200px;
 }
 
+/* 
+   ===== Timetable, tooltips and mobile class cards =====
+    */
+
 .app-mobile-menu-item {
   padding: 14px 16px;
   margin-bottom: 4px;
@@ -2635,7 +2679,7 @@ html, body, * {
 /* Day Selector horizontal scroll list */
 #app-helper-container .app-date-selector {
   display: flex;
-  flex-shrink: 0 !important;
+  flex-shrink: 0;
   gap: 6px;
   overflow-x: auto;
   padding: 3px 2px;
@@ -2888,9 +2932,9 @@ html, body, * {
   opacity: 0;
   transform: scale(0.95);
   transition: opacity 0.2s ease, transform 0.2s cubic-bezier(0.16, 1, 0.3, 1);
-  width: 440px !important;
-  max-width: calc(100vw - 20px) !important;
-  padding: 20px !important;
+  width: 440px;
+  max-width: calc(100vw - 20px);
+  padding: 20px;
   max-height: calc(100vh - 20px);
   overflow-y: auto;
 }
@@ -3035,7 +3079,7 @@ html, body, * {
   font-size: 12px;
   color: var(--text-secondary);
   cursor: pointer;
-  padding: 8px 12px !important;
+  padding: 8px 12px;
   border-radius: 8px;
   transition: all 0.2s ease;
   user-select: none;
@@ -3045,7 +3089,7 @@ html, body, * {
    dropdown only groups this way when its current options actually span more
    than one gym (populateOptionsList in timetable.js). */
 #app-helper-container .app-ms-group-heading {
-  padding: 8px 12px 4px !important;
+  padding: 8px 12px 4px;
   font-size: 10px;
   font-weight: 700;
   text-transform: uppercase;
@@ -3118,11 +3162,11 @@ html, body, * {
      with the flexible columns' `max-width: 0` (which lets them shrink to
      nothing), the table always fits and the slack is taken from text, not from
      the controls. */
-  max-width: 100% !important;
+  max-width: 100%;
   table-layout: auto !important;
   border-collapse: collapse !important;
-  font-family: 'Inter', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif !important;
-  font-size: 13px !important;
+  font-family: 'Inter', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+  font-size: 13px;
   text-align: left !important;
   margin-top: 2px !important;
 }
@@ -3197,14 +3241,14 @@ html, body, * {
 
 #app-helper-container .app-table th {
   display: table-cell !important;
-  padding: 6px 8px !important;
-  color: var(--text-secondary) !important;
-  font-weight: 600 !important;
-  font-size: 12px !important;
+  padding: 6px 8px;
+  color: var(--text-secondary);
+  font-weight: 600;
+  font-size: 12px;
   text-transform: uppercase !important;
-  letter-spacing: 0.5px !important;
+  letter-spacing: 0.5px;
   border-bottom: 1px solid var(--border) !important;
-  vertical-align: middle !important;
+  vertical-align: middle;
   position: sticky !important;
   top: 0 !important;
   background: var(--surface-inset) !important;
@@ -3217,7 +3261,7 @@ html, body, * {
   vertical-align: middle !important;
   border-bottom: 1px solid var(--separator) !important;
   font-size: 13px !important;
-  color: var(--text-secondary) !important;
+  color: var(--text-secondary);
 }
 
 #app-helper-container .app-table td strong {
@@ -3240,7 +3284,7 @@ html, body, * {
   font-size: 14px !important;
   font-weight: 800 !important;
   color: var(--text) !important;
-  white-space: nowrap !important;
+  white-space: nowrap;
 }
 
 #app-helper-container .app-table td.col-time,
@@ -3252,20 +3296,20 @@ html, body, * {
 #app-helper-container .app-table td.col-gym,
 #app-helper-container .app-table th.col-gym { width: 96px !important; }
 #app-helper-container .app-table td.col-gym { padding-left: 8px !important; padding-right: 0 !important; }
-#app-helper-container .app-table td.col-class { padding-left: 6px !important; font-weight: 600 !important; overflow: hidden !important; width: 28% !important; max-width: 0 !important; }
+#app-helper-container .app-table td.col-class { padding-left: 6px !important; font-weight: 600 !important; overflow: hidden !important; width: 28% !important; max-width: 0; }
 
 #app-helper-container .app-table td.col-instructor {
   overflow: hidden !important;
-  width: 13% !important;
-  max-width: 0 !important;
-  white-space: nowrap !important;
-  text-overflow: ellipsis !important;
+  width: 13%;
+  max-width: 0;
+  white-space: nowrap;
+  text-overflow: ellipsis;
 }
 
 #app-helper-container .app-table td.col-location {
   overflow: hidden !important;
-  width: 17% !important;
-  max-width: 0 !important;
+  width: 17%;
+  max-width: 0;
 }
 
 /* Status holds ONE pill, so it should HUG it — it was resolving to 388px of
@@ -3293,7 +3337,7 @@ html, body, * {
 #app-helper-container .app-table td.col-actions {
   padding: 0 !important;
   vertical-align: stretch !important;
-  text-align: right !important;
+  text-align: right;
   /* NO `width: 1px` and NO `min-width` here — both were tried and both failed,
      in different ways, and the failures looked identical from the outside:
 
@@ -3308,7 +3352,7 @@ html, body, * {
      What works is leaving the cell alone and constraining its CONTENT — see
      `min-width: max-content` on `.app-tt-actions`. The column then has to be
      at least as wide as what it holds, which is the actual requirement. */
-  white-space: nowrap !important;
+  white-space: nowrap;
 }
 
 
@@ -3335,8 +3379,8 @@ html, body, * {
   font-size: 12px !important;
   font-weight: 600 !important;
   display: inline-flex !important;
-  align-items: center !important;
-  justify-content: center !important;
+  align-items: center;
+  justify-content: center;
 }
 
 /* Refresh Dimming Visual State */
@@ -3543,12 +3587,12 @@ html, body, * {
 }
 
 .app-timetable-heart.bookmarked {
-  color: var(--danger) !important;
+  color: var(--danger);
   filter: drop-shadow(0 0 5px color-mix(in srgb, var(--danger) 60%, transparent));
 }
 
 .app-timetable-heart.unbookmarked {
-  color: color-mix(in srgb, var(--text) 35%, transparent) !important;
+  color: color-mix(in srgb, var(--text) 35%, transparent);
 }
 
 .app-timetable-heart.loading {
@@ -3788,6 +3832,10 @@ html, body, * {
 
 
 /* Nav Bar at bottom for PWA */
+
+/* 
+   ===== Controls (buttons, toasts, badges, inputs) =====
+    */
 .app-nav {
   display: flex;
   background: var(--surface-inset);
@@ -3810,7 +3858,7 @@ html, body, * {
     width: 100% !important;
     height: 100% !important;
     margin: 0 !important;
-    padding: 0 !important;
+    padding: 0;
   }
 
   .app-container {
@@ -4080,11 +4128,11 @@ html, body, * {
 
 
 #app-helper-container .app-table-empty {
-  text-align: center !important;
-  color: var(--text-tertiary) !important;
-  font-style: italic !important;
-  padding: 36px 20px !important;
-  font-size: 12px !important;
+  text-align: center;
+  color: var(--text-tertiary);
+  font-style: italic;
+  padding: 36px 20px;
+  font-size: 12px;
   border-bottom: none !important;
 }
 
@@ -4309,6 +4357,10 @@ html, body, * {
 /* ── Gym connection table (Settings → Your Gyms) ──────────────────────────
    One question per column: which gym, is it connected, when did it last prove
    its credential, what can I do about it. */
+
+/* 
+   ===== Settings and gym sections =====
+    */
 #app-helper-container .app-gym-conn-table {
   display: flex;
   flex-direction: column;
@@ -4428,6 +4480,8 @@ html, body, * {
    Row 1: Logo banner (full width)
    Row 2: Email (left) + Action buttons (right)
    Row 3: Connected status (left) + Auth date (right) */
+
+/*  Mobile overrides (max-width: 768px): Timetable, tooltips and mobile class cards  */
 @media (max-width: 768px) {
   #app-helper-container .app-gym-conn-head { display: none; }
   #app-helper-container .app-gym-conn-row {
@@ -4485,8 +4539,8 @@ html, body, * {
   }
 
   .ab-banner-footer {
-    min-height: var(--tap-min, 44px) !important;
-    flex-shrink: 0 !important;
+    min-height: var(--tap-min, 44px);
+    flex-shrink: 0;
   }
 
   /* Hide the "PWA" version badge on mobile — not essential */
@@ -4499,15 +4553,15 @@ html, body, * {
 
   #app-helper-container .app-user-email {
     font-size: 11px !important;
-    white-space: nowrap !important;
+    white-space: nowrap;
     overflow: hidden !important;
-    text-overflow: ellipsis !important;
-    max-width: 120px !important;
+    text-overflow: ellipsis;
+    max-width: 120px;
     display: none !important;
   }
 
   #app-helper-container .app-credit-badges {
-    flex-wrap: nowrap !important;
+    flex-wrap: nowrap;
     overflow: hidden !important;
   }
 
@@ -5062,6 +5116,10 @@ html, body, * {
   border-color: color-mix(in srgb, var(--on-accent) 25%, transparent) !important;
 }
 
+/* 
+   ===== Timetable, tooltips and mobile class cards =====
+    */
+
 #app-helper-container .app-btn-mini:active {
   transform: translateY(0px);
 }
@@ -5152,7 +5210,7 @@ html, body, * {
   border: 1px solid var(--border-strong) !important;
   border-radius: 16px !important;
   box-shadow: var(--shadow-card) !important;
-  padding: 10px !important;
+  padding: 10px;
   max-height: 300px;
   overflow-y: auto;
 }
@@ -5560,7 +5618,7 @@ html, body, * {
   #app-helper-container .app-table th.col-who-where {
     display: table-cell !important;
     width: 26% !important;
-    max-width: 0 !important;
+    max-width: 0;
     overflow: hidden !important;
     /* NOT nowrap on the cell — the two child lines each handle their own
        truncation, and a nowrap cell would collapse them back onto one line. */
@@ -5599,7 +5657,7 @@ html, body, * {
      affordance. Matches the Location column's bold first line, so the merged
      column has the same hierarchy as the one it replaces. */
   font-weight: 600 !important;
-  color: var(--text) !important;
+  color: var(--text);
 }
 #app-helper-container .app-ww-loc {
   margin-top: 2px;
@@ -5675,10 +5733,10 @@ html, body, * {
   /* box-sizing AND !important both matter: the base `.app-tt-seg` sets
      `padding: 0 12px`, and without border-box that padding is added OUTSIDE the
      40px width — the button measured 68px. */
-  box-sizing: border-box !important;
-  width: var(--tt-caret-w) !important;
+  box-sizing: border-box;
+  width: var(--tt-caret-w);
   min-width: var(--tt-caret-w) !important;
-  max-width: var(--tt-caret-w) !important;
+  max-width: var(--tt-caret-w);
   flex: 0 0 var(--tt-caret-w) !important;
   display: flex;
   align-items: center;
@@ -5763,7 +5821,7 @@ html, body, * {
 .app-header-gym-badge[data-gym] {
   background: linear-gradient(var(--gym-wash), var(--gym-wash)), color-mix(in srgb, var(--gym-tint) 8%, var(--surface)) !important;
   border: 0 !important;
-  color: var(--text) !important;
+  color: var(--text);
 }
 .app-hgb-pill {
   padding: 2px 7px;
@@ -5777,12 +5835,14 @@ html, body, * {
   background: var(--gym-btn) !important;
   color: var(--gym-on) !important;
 }
+
+/*  Mobile overrides (max-width: 768px): Shell, header and navigation  */
 @media (max-width: 768px) { .app-hgb-unit { display: none; }
 
   #app-helper-container .app-logo {
-    width: 30px !important;
-    height: 30px !important;
-    font-size: 18px !important;
+    width: 30px;
+    height: 30px;
+    font-size: 18px;
     border-radius: 8px !important;
   }
 
@@ -5804,7 +5864,7 @@ html, body, * {
 .app-badges-compact .app-hgb-logo .app-hgb-logo-mark { display: block; }
 .app-badges-compact .app-hgb-logo { padding: 0 4px; }
 .app-header-gym-badge[data-gym] .app-hgb-pill,
-.app-hgb-pill { background: none !important; padding: 0 !important; color: var(--text) !important; }
+.app-hgb-pill { background: none !important; padding: 0; color: var(--text) !important; }
 .app-header-gym-badge[data-gym] .app-hgb-pill.inactive,
 .app-hgb-pill.inactive {
   color: var(--warning) !important;
@@ -6007,6 +6067,10 @@ html, body, * {
 }
 
 /* ── Auto-book / Auto-upgrade cards ────────────────────────────── */
+
+/* 
+   ===== Auto-Book tab and Auto-Upgrade =====
+    */
 .app-autobook-card {
   background: var(--surface-2);
   border: 1px solid var(--border);
@@ -6090,7 +6154,7 @@ html, body, * {
   background: var(--auto-banner);
   border: 1px solid color-mix(in srgb, #000 18%, var(--auto-banner));
   color: var(--on-auto);
-  gap: 0 !important;
+  gap: 0;
 }
 .ab-banner-body {
   padding: 18px 24px 16px;
@@ -6397,7 +6461,7 @@ html, body, * {
 .ab-card-line2 .ab-card-titlegroup .ab-card-class { flex: 0 1 auto; }
 .ab-card-line2 .ab-disc-tag,
 .ab-card-line2 .ab-card-class {
-  white-space: nowrap !important;
+  white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
   min-width: 0;
@@ -6971,6 +7035,8 @@ html, body, * {
 }
 
 /* === MOBILE TIMETABLE — PWA MOBILE LAYOUT (added Jun 2026; delete this block to revert) === */
+
+/*  Mobile overrides (max-width: 768px): Timetable, tooltips and mobile class cards  */
 @media (max-width: 768px) {
 
   /* Neutralise double insets on mobile.
@@ -6986,7 +7052,7 @@ html, body, * {
     padding-right: max(8px, env(safe-area-inset-right)) !important;
     padding-top: 12px !important;
     padding-bottom: calc(56px + env(safe-area-inset-bottom)) !important;
-    gap: 12px !important;
+    gap: 12px;
     flex: 1;
     min-height: 0;
     overflow-y: auto;
@@ -7002,8 +7068,8 @@ html, body, * {
      Vertical padding/margins are preserved, including the safe-area-inset-
      bottom behaviour for the iOS home indicator. */
   #app-helper-container .ab-body {
-    padding-left: 0 !important;
-    padding-right: 0 !important;
+    padding-left: 0;
+    padding-right: 0;
   }
   /* My Bookings wraps cards in .app-section glass cards. Tighten only the
      horizontal padding (20px → 4px) and neutralise the ≤900px 16px side
@@ -7017,31 +7083,31 @@ html, body, * {
     margin-right: 0 !important;
     padding-left: 4px !important;
     padding-right: 4px !important;
-    gap: 8px !important;
+    gap: 8px;
     margin-top: 0 !important;
   }
 
   /* Mobile header */
   #app-helper-container .app-header {
-    padding: 8px 12px !important;
+    padding: 8px 12px;
 /*    padding-top: env(safe-area-inset-top) !important; */
     box-sizing: border-box !important;
-    max-width: 100vw !important;
+    max-width: 100vw;
     overflow: hidden !important;
     flex-shrink: 0;
   }
 
   #app-helper-container .app-title-area {
-    gap: 10px !important;
-    min-width: 0 !important;
+    gap: 10px;
+    min-width: 0;
     overflow: hidden !important;
   }
 
   #app-helper-container .app-header-actions {
-    gap: 10px !important;
-    min-width: 0 !important;
-    flex-shrink: 1 !important;
-    justify-content: flex-end !important;
+    gap: 10px;
+    min-width: 0;
+    flex-shrink: 1;
+    justify-content: flex-end;
   }
 
   /* iOS-style fixed bottom tab bar */
@@ -7070,7 +7136,7 @@ html, body, * {
     align-items: center;
     justify-content: center;
     gap: 3px;
-    padding: 6px 2px 4px !important;
+    padding: 6px 2px 4px;
     margin: 0;
     border: none !important;
     border-bottom: none !important;
@@ -7118,22 +7184,22 @@ html, body, * {
   }
 
   #app-helper-container .app-section-header {
-    gap: 8px !important;
+    gap: 8px;
     margin-bottom: 0 !important;
   }
 
   #app-helper-container .app-settings-grid {
-    gap: 10px !important;
+    gap: 10px;
     padding: 0 !important;
   }
 
   #app-helper-container .app-settings-card {
     padding: 12px 16px !important;
-    gap: 3px !important;
+    gap: 3px;
   }
 
   #app-helper-container .app-setting-row {
-    padding: 8px 0 !important;
+    padding: 8px 0;
   }
 
   /* Let dropdown menu expand beyond trigger width, up to filters card width */
@@ -7156,11 +7222,11 @@ html, body, * {
   }
 
   #app-helper-container .app-bundles-grid {
-    gap: 10px !important;
+    gap: 10px;
   }
 
   #app-helper-container .app-queue-list {
-    gap: 8px !important;
+    gap: 8px;
   }
 
   #app-helper-container .app-table-container {
@@ -7350,8 +7416,8 @@ html, body, * {
   #app-helper-container .app-ms-menu {
     position: absolute !important;
     left: 0 !important;
-    min-width: 240px !important;
-    max-width: 100% !important;
+    min-width: 240px;
+    max-width: 100%;
     overflow-x: hidden !important;
     overflow-wrap: break-word;
     word-wrap: break-word;
@@ -7373,7 +7439,7 @@ html, body, * {
   }
 
   #app-helper-container .app-ms-trigger-text {
-    font-size: 14px !important;
+    font-size: 14px;
     white-space: nowrap;
     overflow: hidden;
     text-overflow: ellipsis;
@@ -7405,11 +7471,11 @@ html, body, * {
 
   .app-modal.app-page {
     top: 0 !important; left: 0 !important;
-    width: 100% !important;
-    height: var(--vvh, 100dvh) !important;
-    align-items: stretch !important;
-    justify-content: stretch !important;
-    flex-direction: column !important;
+    width: 100%;
+    height: var(--vvh, 100dvh);
+    align-items: stretch;
+    justify-content: stretch;
+    flex-direction: column;
     background: var(--bg) !important;
     transform: translateY(100%);
     transition: transform 0.22s cubic-bezier(0.25, 1, 0.5, 1), opacity 0.22s ease !important;
@@ -7426,6 +7492,10 @@ html, body, * {
    When minimized the terminal collapses to a tiny circle with "D",
    instead of a wide bar that overlaps the mobile bottom nav.
    ========================================================= */
+
+/* 
+   ===== Onboarding =====
+    */
 #app-debug-terminal.app-debug-minimized {
   width: 36px !important;
   height: 36px !important;
@@ -7727,7 +7797,7 @@ html, body, * {
 .app-onb-feature-action .app-btn-mini { min-height: var(--tap-min); }
 .app-onb-complete { color: var(--success); font-size: var(--text-sm); font-weight: 600; }
 /* Compact one-row cards: icon + text column + action; action wraps below only when too narrow */
-.app-onb-feature-card { display: flex !important; flex-wrap: wrap; align-items: center; gap: 10px 12px !important; }
+.app-onb-feature-card { display: flex !important; flex-wrap: wrap; align-items: center; gap: 10px 12px; }
 .app-onb-feature-card .app-onb-feature-heading { flex: 1 1 210px; min-width: 0; }
 .app-onb-feature-card .app-onb-feature-action { flex: 0 1 auto; justify-content: flex-end; }
 .app-onb-feature-card .app-onb-feature-action:empty { display: none; }
@@ -7749,6 +7819,10 @@ html, body, * {
 /* ─────────────────────────────────────────────────────────────
    NEW GROUPED SETTINGS LAYOUT STYLES
    ───────────────────────────────────────────────────────────── */
+
+/* 
+   ===== Settings and gym sections =====
+    */
 
 #app-helper-container .app-settings-layout {
   display: flex;
@@ -7951,7 +8025,7 @@ html, body, * {
 /* Mobile Media Queries */
 @media (max-width: 900px) {
   #app-helper-container .app-settings-sidebar {
-    width: 100% !important;
+    width: 100%;
     border-right: none;
     padding: 16px 0;
   }
@@ -8076,6 +8150,10 @@ html, body, * {
   animation: app-skeleton-shimmer 1.25s ease-in-out infinite;
 }
 
+/* 
+   ===== Timetable filter rail and sheet =====
+    */
+
 .app-skeleton-line.is-strong { height: 13px; }
 .app-skeleton-line.is-chip { height: 20px; }
 .app-skeleton-line.is-short { opacity: 0.72; }
@@ -8085,6 +8163,8 @@ html, body, * {
   to { background-position: -100% 0; }
 }
 
+/*  Mobile overrides (max-width: 768px): Shell, header and navigation  */
+
 @media (max-width: 768px) {
   .app-skeleton-table-row {
     grid-template-columns: 58px 54px 1fr;
@@ -8093,7 +8173,7 @@ html, body, * {
 
   #app-helper-container #app-timetable-filters-container .app-filters-row { display: none !important; }
 
-  .fr-rail { display: flex !important; align-items: center; gap: 6px; height: 40px; max-height: 40px; overflow-x: auto; overflow-y: hidden; overscroll-behavior-x: contain; touch-action: pan-x pan-y; -webkit-overflow-scrolling: touch; scrollbar-width: none; box-sizing: border-box; width: 100%; padding-left: max(8px, env(safe-area-inset-left)) !important; padding-right: max(8px, env(safe-area-inset-right)) !important; }
+  .fr-rail { display: flex !important; align-items: center; gap: 6px; height: 40px; max-height: 40px; overflow-x: auto; overflow-y: hidden; overscroll-behavior-x: contain; touch-action: pan-x pan-y; -webkit-overflow-scrolling: touch; scrollbar-width: none; box-sizing: border-box; width: 100%; padding-left: max(8px, env(safe-area-inset-left)); padding-right: max(8px, env(safe-area-inset-right)); }
 
   /* Bar -> date selector gap */
 
@@ -8107,14 +8187,14 @@ html, body, * {
   #app-helper-container .app-sticky-top #app-timetable-carousel { margin-top: 5px !important; padding-bottom: 6px !important; }
 
   #app-helper-container #app-timetable-grid .app-table-container {
-    padding-left: 4px !important;
-    padding-right: 4px !important;
+    padding-left: 4px;
+    padding-right: 4px;
     clip-path: inset(0 round 16px);
     border: 0 !important;
     border-radius: 0 !important;
     clip-path: none !important;
     box-shadow: none !important;
-    padding: 0 !important;
+    padding: 0;
     background: transparent !important;
   }
 
@@ -8279,7 +8359,7 @@ html, body, * {
 .fr-gymrow { min-width: 0; width: 100%; box-sizing: border-box; flex-direction: row; justify-content: center; align-items: center; gap: 8px; padding: 6px; min-height: 44px; overflow: hidden; }
 .fr-logo-plate--selector { flex: 1 1 0; min-width: 0; max-width: 100%; width: 100%; padding: 0 4px; display: flex; align-items: center; justify-content: center; overflow: hidden; }
 .fr-logo-plate .ab-gym-logo-img.is-full,
-.fr-logo-plate .ab-gym-logo-svg { max-width: 100% !important; height: 15px; width: auto; object-fit: contain; }
+.fr-logo-plate .ab-gym-logo-svg { max-width: 100%; height: 15px; width: auto; object-fit: contain; }
 .fr-sheet button, .fr-opt, .fr-gymrow { touch-action: manipulation; -webkit-tap-highlight-color: transparent; }
 .fr-grid { padding: 0; gap: 8px; }
 .fr-opt { min-height: 44px; padding: 6px 8px; gap: 6px; }
@@ -8309,8 +8389,10 @@ html, body, * {
 
 /* Rail: heart is an ordinary chip that rides the right edge when there is room. */
 
+/*  Mobile overrides (max-width: 768px): Timetable filter rail and sheet  */
+
 @media (max-width: 768px) {
-  .fr-rail { height: 36px; max-height: 36px; height: 44px !important; max-height: 44px !important; }
+  .fr-rail { height: 36px; max-height: 36px; height: 44px; max-height: 44px !important; }
 }
 .fr-search + .fr-list { padding-top: 12px; }
 .fr-wgroup-head { margin: 0; padding-bottom: 12px; }
@@ -8387,6 +8469,8 @@ html, body, * {
 /* Mobile: the pinned block reaches the screen edges too, so the timetable no
    longer shows in the 8px gutters beside it. The card and date strip keep their
    own 8px inner padding, so their contents line up with the class cards. */
+
+/*  Mobile overrides (max-width: 768px): Shell, header and navigation  */
 @media (max-width: 768px) {
   /* The app-body scrollport starts at the viewport top and reserves header+gap in
      padding. Subtract that reserve from sticky insets so the header isn't counted twice. */
@@ -8400,7 +8484,7 @@ html, body, * {
 
 /* ---- U4: My Bookings polish (appended last: source order + !important) ---- */
 /* Footer snug: was margin-top 3 + padding-top 12 with a 32px button (-4px margins). */
-.ab-card-footer { margin-top: 0 !important; padding-top: 8px !important; min-height: 0 !important; line-height: 1.2; }
+.ab-card-footer { margin-top: 0 !important; padding-top: 8px; min-height: 0; line-height: 1.2; }
 .ab-rail-toggle { margin-block: -2px; }
 
 /* Sections on My Bookings lose the white card, matching Auto-Book. */
@@ -8411,7 +8495,11 @@ html, body, * {
   border-radius: 0 !important;
   padding: 0 !important;
 }
-#app-helper-container #app-panel-my-bookings .app-section h3 { color: var(--text); font-size: var(--page-title-size) !important; font-weight: var(--page-title-weight) !important; letter-spacing: var(--page-title-ls) !important; line-height: 1.1; text-transform: none !important; border: none !important; padding: 0 !important; }
+#app-helper-container #app-panel-my-bookings .app-section h3 { color: var(--text); font-size: var(--page-title-size) !important; font-weight: var(--page-title-weight) !important; letter-spacing: var(--page-title-ls); line-height: 1.1; text-transform: none; border: none !important; padding: 0; }
+
+/* 
+   ===== Auto-Book tab and Auto-Upgrade =====
+    */
 
 .app-section-count { font-size: calc(var(--page-title-size) * 0.62); font-weight: 500; line-height: 1; color: var(--text-tertiary); }
 .app-section-count[hidden], .app-waitlist-jump[hidden] { display: none !important; }
@@ -8449,6 +8537,8 @@ html, body, * {
 }
 .app-waitlist-jump:focus-visible { outline: 2px solid var(--text); outline-offset: 2px; }
 
+/*  Mobile overrides (max-width: 768px): Timetable, tooltips and mobile class cards  */
+
 @media (max-width: 768px) {
   /* Locked flush above the fixed bottom nav, edge to edge of the viewport. */
   .app-waitlist-jump {
@@ -8462,7 +8552,7 @@ html, body, * {
 
 /* Line 1 (date + time) never wraps, even with the rail open. */
 .ab-card-line1 {
-  flex-wrap: nowrap !important;
+  flex-wrap: nowrap;
   overflow: hidden;
   min-width: 0;
 }
@@ -8472,7 +8562,7 @@ html, body, * {
 
 /* My Bookings section headers: same title treatment as .ab-page-title,
    count on the same baseline. */
-#app-helper-container #app-panel-my-bookings .app-section-header { align-items: baseline !important; }
+#app-helper-container #app-panel-my-bookings .app-section-header { align-items: baseline; }
 #app-helper-container #app-waitlists-section { margin-top: 2rem !important; }
 
 /* My Bookings only: spot-upgrade chip in brand clay (Auto-Book keeps purple).
@@ -8516,6 +8606,8 @@ html, body, * {
   border-radius: 0 !important;
   padding: 8px 2px !important;
 }
+
+/*  Mobile overrides (max-width: 768px): Modals, overlays and the spot map  */
 @media (max-width: 768px) {
   #app-helper-container .app-filters-card { padding: 6px 0 0 !important; }
 
@@ -8523,7 +8615,7 @@ html, body, * {
 
   .app-modal.app-page .app-modal-close-btn {
     flex: 0 0 44px; width: 44px; height: 44px; min-width: 44px;
-    padding: 0 !important; display: inline-flex; align-items: center; justify-content: center;
+    padding: 0; display: inline-flex; align-items: center; justify-content: center;
     transform: none !important;
   }
 
@@ -8553,7 +8645,13 @@ html, body, * {
    the date strip, and below the date strip (measured control-edge to control-edge).
    Offsets account for each row's own intrinsic gap (date pills 3px, mobile rail 2px). */
 #app-helper-container .app-filters-card { padding: 8px 2px 0 !important; }
+
+/* 
+   ===== Timetable filter rail and sheet =====
+    */
 #app-helper-container #app-timetable-filters-container { margin-bottom: 5px !important; }
+
+/*  Mobile overrides (max-width: 768px): Settings and gym sections  */
 @media (max-width: 768px) {
   #app-helper-container .app-filters-card { padding: 6px 0 0 !important; }
   #app-helper-container #app-timetable-filters-container { margin-bottom: 6px !important; }
@@ -8567,7 +8665,7 @@ html, body, * {
 
   #app-helper-container .app-settings-section-panes {
     overflow: visible; flex: 1 0 auto;
-    padding: 12px 0 8px !important;
+    padding: 12px 0 8px;
   }
 
   /* Cards run to the screen edges; inner row padding is kept (safe-area aware). */
@@ -8578,7 +8676,7 @@ html, body, * {
     padding-right: max(16px, env(safe-area-inset-right)) !important;
   }
 
-  #app-helper-container .app-settings-sidebar-header { padding: 8px 24px 8px !important; }
+  #app-helper-container .app-settings-sidebar-header { padding: 8px 24px 8px; }
 }
 
 /* Filter sheet: light theme. Dark keeps its original #0d1020 surface; light uses
@@ -8592,7 +8690,7 @@ html, body, * {
 
 /* ---- Filter sheet polish (appended last: source order + !important) ---- */
 /* Drag handle: centred at the top of the sheet (a global margin reset had zeroed its auto margins). */
-.fr-sheet .fr-grab { align-self: center !important; margin: 8px 0 0 !important; }
+.fr-sheet .fr-grab { align-self: center; margin: 8px 0 0 !important; }
 /* Header: title + count on the left, Reset all + close pushed to the right. */
 .fr-sheet .fr-head { justify-content: flex-start; }
 .fr-sheet .fr-head .fr-badge { margin-right: auto !important; }
@@ -8618,15 +8716,17 @@ html, body, * {
    so scrolled content never butts against the strip), and the panel/list gaps below it are 0. */
 /* Sticky's constraint rectangle is the scroller's CONTENT box, so `top: 0` would pin the block 10-12px
    below the scroller's top edge (the body's padding): offset it by that padding. */
-#app-helper-container #app-panel-class-timetable { margin-top: -10px; gap: 0 !important; }
+#app-helper-container #app-panel-class-timetable { margin-top: -10px; gap: 0; }
+
+/*  Mobile overrides (max-width: 768px): Modals, overlays and the spot map  */
 @media (max-width: 768px) {
   #app-helper-container #app-panel-class-timetable { margin-top: -12px; margin-top: calc(-1 * (var(--hdr-gap) + var(--hdr-extra))) !important; }
 
   .app-modal.app-page > .app-modal-card,
   .app-modal.app-page > .app-modal-content {
     width: 100% !important;
-    max-width: none !important;
-    height: 100% !important;
+    max-width: none;
+    height: 100%;
     max-height: none !important;
     border: 0 !important;
     border-radius: 0 !important;
@@ -8661,6 +8761,8 @@ html, body, * {
 @media (max-width: 768px) and (prefers-color-scheme: light) {
   :root:not([data-theme="dark"]) #app-helper-container .app-bottom-nav-btn.active { color: color-mix(in srgb, var(--accent) 55%, var(--text)) !important; }
 }
+
+/*  Mobile overrides (max-width: 768px): tokens  */
 @media (max-width: 768px) {
   :root[data-theme="light"] #app-helper-container .app-bottom-nav-btn.active { color: color-mix(in srgb, var(--accent) 55%, var(--text)) !important; }
 
@@ -8730,7 +8832,7 @@ body::before {
 @media (min-width: 769px) {
   /* The shell already spans the viewport; the blank space came from 36px body gutters. */
   #app-helper-container .app-body,
-  #app-helper-container .app-main { padding-left: var(--page-gutter-desktop) !important; padding-right: var(--page-gutter-desktop) !important; }
+  #app-helper-container .app-main { padding-left: var(--page-gutter-desktop); padding-right: var(--page-gutter-desktop); }
 
   /* Cards: shared max width, desktop only (mobile keeps filling the screen). */
   #app-helper-container .ab-card { max-width: var(--ab-card-max-w); width: 100%; }
@@ -8775,6 +8877,8 @@ body::before {
 @media (max-width: 768px) and (prefers-color-scheme: light) {
   :root:not([data-theme="dark"]) #app-helper-container .app-bottom-nav-btn.active { color: var(--accent-hover) !important; }
 }
+
+/*  Mobile overrides (max-width: 768px): Timetable, tooltips and mobile class cards  */
 @media (max-width: 768px) {
   :root[data-theme="light"] #app-helper-container .app-bottom-nav-btn.active { color: var(--accent-hover) !important; }
 
@@ -8804,6 +8908,10 @@ body::before {
   #app-panel-my-bookings > .app-section > .app-section-header { margin: 0 0 12px !important; min-height: 28px; }
   #app-panel-my-bookings > .app-section > .app-section-header h3 { margin: 0 !important; }
 }
+
+/* 
+   ===== Settings and gym sections =====
+    */
 @media (min-width: 768px) {
   /* Row 1 date+time / Row 2 tag, class, dot, instructor / Row 3 location. Instructor moves from the
      right-hand figure (avatar stays there) into row 2. Mobile (<768px) keeps the old layout. */
@@ -8921,6 +9029,8 @@ body::before {
 
 /* ---- Batch E ---- */
 /* E1. Mobile timetable bottom line truncates on one line (an earlier rule left flex-wrap: wrap). */
+
+/*  Mobile overrides (max-width: 768px): Timetable, tooltips and mobile class cards  */
 @media (max-width: 768px) {
   /* Row 3: the full studio name, one line. */
   /* 4. Instructor moved under: Row 3 = "Studio · Instructor" (instructor ellipsises first). */
@@ -8928,7 +9038,7 @@ body::before {
 
   #app-helper-container .app-mobile-class-card { border-radius: 0 !important; border: 0 !important; align-items: stretch; }
 
-  #app-helper-container .app-settings-sidebar { padding: 0 !important; gap: 0 !important; }
+  #app-helper-container .app-settings-sidebar { padding: 0; gap: 0; }
 
   #app-helper-container .app-mobile-seg.primary {
     height: 38px; width: auto; min-width: 56px; padding: 0 14px; border: 0 !important; border-radius: 8px !important;
@@ -8972,7 +9082,7 @@ body::before {
   #app-helper-container .app-body,
   #app-helper-container .app-main {
     position: relative; flex: 1 1 auto; overflow-x: hidden !important; overflow-y: auto !important;
-    height: auto !important; min-height: 0 !important; overscroll-behavior-y: auto;
+    height: auto; min-height: 0; overscroll-behavior-y: auto;
     -webkit-overflow-scrolling: touch;
     padding-top: calc(var(--app-header-h, 47px) + 12px) !important;
     padding-bottom: calc(56px + env(safe-area-inset-bottom) + 36px) !important;
@@ -9006,12 +9116,12 @@ body::before {
 
   /* 2. Row 2: the CLASS NAME shrinks (ellipsis) long before the instructor does. */
 
-  #app-helper-container .app-mobile-line2 .app-mobile-class-name { flex: 0 1 auto; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--text); font-weight: 600; font-size: 13px; flex: 0 100 auto !important; }
+  #app-helper-container .app-mobile-line2 .app-mobile-class-name { flex: 0 1 auto; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--text); font-weight: 600; font-size: 13px; flex: 0 100 auto; }
 
-  #app-helper-container .app-mobile-line2 .app-mobile-instructor { flex: 0 100 auto; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-family: var(--font-sans); font-size: 13px; flex: 0 1 auto !important; }
+  #app-helper-container .app-mobile-line2 .app-mobile-instructor { flex: 0 100 auto; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-family: var(--font-sans); font-size: 13px; flex: 0 1 auto; }
 
   #app-helper-container .app-mobile-line2 .app-mobile-class-name,
-  #app-helper-container .app-mobile-line2 .app-mobile-instructor { color: var(--text-secondary) !important; font-weight: 500; font-size: 14px !important; }
+  #app-helper-container .app-mobile-line2 .app-mobile-instructor { color: var(--text-secondary); font-weight: 500; font-size: 14px !important; }
 
   /* 4-6. CTA: 32px, 12px/600, 10px side padding, one shared min-width; long labels wrap to two lines. */
 
@@ -9042,7 +9152,7 @@ body::before {
   /* 2. Left column = TIME above the instructor PHOTO (top-aligned, Y-aligned with row 1 chips), 12px clear of the text block.
         The chip's left edge is now simply "lead width + gap", identical on every row. */
 
-  #app-helper-container .app-mobile-content { flex-direction: row !important; align-items: flex-start !important; gap: 12px !important; padding: 12px 6px 12px 12px !important; }
+  #app-helper-container .app-mobile-content { flex-direction: row; align-items: flex-start; gap: 12px !important; padding: 12px 6px 12px 12px !important; }
 
   #app-helper-container .app-mobile-lead { flex: 0 0 46px; width: 46px; display: flex; flex-direction: column; align-items: center; justify-content: flex-start; gap: 8px; }
 
@@ -9080,6 +9190,10 @@ body::before {
    late loads fade in, cached ones appear instantly, failures fall back to the gym initial. */
 .js-logo-fade :is(.ab-gym-logo-img, .ab-gym-logo-svg, .fr-mark-img, .app-hgb-logo img):not(.is-loaded) { opacity: 0; }
 .js-logo-fade :is(.ab-gym-logo-img, .ab-gym-logo-svg, .fr-mark-img, .app-hgb-logo img).is-late { transition: opacity 0.2s ease; }
+
+/* 
+   ===== Auto-Book tab and Auto-Upgrade =====
+    */
 .js-logo-fade :is(.ab-gym-logo-img, .ab-gym-logo-svg, .fr-mark-img, .app-hgb-logo img).is-failed { display: none !important; }
 .is-logo-fallback::after { content: attr(data-initial); color: #fff; font-weight: 700; font-size: 12px; line-height: 1; }
 @media (prefers-reduced-motion: reduce) {
@@ -9093,16 +9207,16 @@ body::before {
    so Refresh and Turn off/on share width, height and alignment by construction. */
 #app-helper-container .app-cal-feed-actions {
   display: grid !important;
-  grid-template-columns: minmax(0, 1fr) !important;
-  gap: 10px !important;
+  grid-template-columns: minmax(0, 1fr);
+  gap: 10px;
   margin-top: 12px;
 }
 #app-helper-container .app-cal-feed-btn {
   display: inline-flex !important;
-  align-items: center !important;
-  justify-content: center !important;
-  gap: 8px !important;
-  width: 100% !important;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  width: 100%;
   min-height: 44px;
   box-sizing: border-box;
   margin: 0 !important;
@@ -9115,12 +9229,14 @@ body::before {
 @media (max-width: 768px) and (prefers-color-scheme: light) {
   :root:not([data-theme="dark"]) #app-helper-container .app-bottom-nav-btn.active { color: var(--accent-hover) !important; }
 }
+
+/*  Mobile overrides (max-width: 768px): Timetable, tooltips and mobile class cards  */
 @media (max-width: 768px) {
   :root[data-theme="light"] #app-helper-container .app-bottom-nav-btn.active { color: var(--accent-hover) !important; }
 
   #app-helper-container .app-mobile-top-line .app-mobile-fav-indicator { flex: 0 0 auto; font-size: 16px; }
 
-  #app-helper-container .app-mobile-lead .app-mobile-avatar { flex: 0 0 38px; cursor: pointer; flex: 0 0 46px !important; width: 46px !important; height: 46px !important; box-sizing: border-box; border: 2px solid color-mix(in srgb, var(--accent) 40%, transparent); }
+  #app-helper-container .app-mobile-lead .app-mobile-avatar { flex: 0 0 38px; cursor: pointer; flex: 0 0 46px; width: 46px; height: 46px; box-sizing: border-box; border: 2px solid color-mix(in srgb, var(--accent) 40%, transparent); }
 
   #app-helper-container .app-mobile-bottom-line .app-mobile-location { flex: 0 1 auto; font-size: 14px !important; }
 
@@ -9128,7 +9244,7 @@ body::before {
 
   #app-helper-container .app-mobile-bottom-line .app-mobile-instructor {
     flex: 0 100 auto; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
-    font-family: var(--font-sans) !important; color: var(--text-secondary) !important;
+    font-family: var(--font-sans) !important; color: var(--text-secondary);
     font-size: 14px !important;
   }
 
@@ -9156,6 +9272,8 @@ html[data-hdr-hidden] { background: var(--bg); }
 @media (max-width: 768px) and (prefers-color-scheme: light) {
   :root:not([data-theme="dark"]) #app-helper-container .app-bottom-nav-btn.active { color: var(--nav-active) !important; }
 }
+
+/*  Mobile overrides (max-width: 768px): tokens  */
 @media (max-width: 768px) {
   :root[data-theme="light"] #app-helper-container .app-bottom-nav-btn.active { color: var(--nav-active) !important; }
 }
@@ -9167,9 +9285,9 @@ html[data-hdr-hidden] { background: var(--bg); }
 #app-helper-container .ab-page-title {
   font-size: var(--page-title-size) !important;
   font-weight: var(--page-title-weight) !important;
-  line-height: 1.15 !important;
-  letter-spacing: var(--page-title-ls) !important;
-  color: var(--text) !important;
+  line-height: 1.15;
+  letter-spacing: var(--page-title-ls);
+  color: var(--text);
   margin: 0 !important;
 }
 
@@ -9196,6 +9314,8 @@ svg.gym-logo-inline { display: block; opacity: 1 !important; transition: none !i
 @media (max-width: 768px) and (prefers-color-scheme: light) {
   :root:not([data-theme="dark"]) #app-helper-container .app-bottom-nav-btn.active { color: var(--nav-active) !important; }
 }
+
+/*  Mobile overrides (max-width: 768px): tokens  */
 @media (max-width: 768px) {
   :root[data-theme="light"] #app-helper-container .app-bottom-nav-btn.active { color: var(--nav-active) !important; }
 }
@@ -9210,14 +9330,14 @@ svg.gym-logo-inline { display: block; opacity: 1 !important; transition: none !i
   #app-helper-container .app-tt-actions { align-items: center; gap: 6px; padding: 0 6px; } /* CTA->kebab gap (6) == kebab->edge (6); both measured to the kebab's box, whose glyph is centred */
   #app-helper-container .app-tt-seg-group { height: auto; align-items: center; }
   #app-helper-container .app-tt-seg:not(.app-tt-seg-caret):not(.app-tt-seg-more) {
-    height: 38px !important; min-height: 38px !important; border: 0 !important; border-radius: 8px !important;
+    height: 38px; min-height: 38px; border: 0 !important; border-radius: 8px !important;
     padding: 0 14px; font-size: 13px; font-weight: 600;
   }
   #app-helper-container .app-tt-seg-caret {
     height: 38px !important; min-height: 38px !important; border-radius: 8px !important; border-left: 0 !important; margin-left: 4px !important;
   }
   #app-helper-container .app-tt-seg-more {
-    height: 38px !important; min-height: 38px !important; border: 0 !important; border-radius: 8px !important;
+    height: 38px; min-height: 38px; border: 0 !important; border-radius: 8px !important;
     background: transparent !important; color: var(--text) !important; font-weight: 900 !important;
   }
 }
@@ -9262,6 +9382,10 @@ svg.gym-logo-inline { display: block; opacity: 1 !important; transition: none !i
 /* ---- Batch P ---- */
 
 /* squareMark gyms: the mark (portrait ~0.87:1) in square/narrow plates, sized by height. */
+
+/* 
+   ===== Timetable, tooltips and mobile class cards =====
+    */
 .app-gym-mark .ab-gym-logo-svg.is-mark { width: auto; height: 15px; }
 .ab-card-gym-rail .ab-gym-logo-svg.is-mark { width: auto; height: 38px; max-width: 100%; object-fit: contain; }
 
@@ -9279,6 +9403,8 @@ svg.gym-logo-inline { display: block; opacity: 1 !important; transition: none !i
 }
 #app-helper-container .app-wk-day { touch-action: manipulation; -webkit-tap-highlight-color: transparent; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 4px; height: 58px; padding: 0; border: 1px solid transparent; border-radius: 12px; background: var(--surface-inset); color: var(--text); font-family: var(--font-sans); cursor: pointer; }
 /* Mobile: the strip is a transform pager (JS), not a native scroller: no momentum phase that swallows taps. */
+
+/*  Mobile overrides (max-width: 768px): Timetable, tooltips and mobile class cards  */
 @media (max-width: 768px) {
   #app-helper-container .app-wk-scroller { display: block; overflow: hidden; scroll-snap-type: none; touch-action: pan-y; }
 
@@ -9345,6 +9471,8 @@ svg.gym-logo-inline { display: block; opacity: 1 !important; transition: none !i
 #app-helper-container #app-timetable-grid::-webkit-scrollbar { display: none !important; width: 0; height: 0; }
 /* A little vertical breathing room per row (desktop table rows + mobile cards). */
 #app-helper-container #app-timetable-grid .app-table tbody td { padding-top: 11px !important; padding-bottom: 11px !important; }
+
+/*  Mobile overrides (max-width: 768px): Timetable, tooltips and mobile class cards  */
 @media (max-width: 768px) {
   #app-helper-container #app-timetable-grid .app-table tbody td { padding-top: 5px !important; padding-bottom: 5px !important; }
 
@@ -9359,8 +9487,8 @@ svg.gym-logo-inline { display: block; opacity: 1 !important; transition: none !i
 
 /* Auto-Book CTA: ~14px wider, contents centred precisely (equal icon/label gap, no stray padding). */
 .app-tt-seg.primary.variant-autoupgrade:not(.app-tt-seg-caret) {
-  width: calc(var(--tt-seg-w) + 14px) !important; flex-basis: calc(var(--tt-seg-w) + 14px) !important;
-  padding: 0 !important; gap: 6px !important; justify-content: center !important; text-align: center;
+  width: calc(var(--tt-seg-w) + 14px); flex-basis: calc(var(--tt-seg-w) + 14px);
+  padding: 0 !important; gap: 6px; justify-content: center; text-align: center;
 }
 .app-tt-seg.primary.variant-autoupgrade .app-seg-ico { margin: 0 !important; }
 
@@ -9368,13 +9496,17 @@ svg.gym-logo-inline { display: block; opacity: 1 !important; transition: none !i
 .app-hgb-logo.is-markonly { padding: 0 9px; }
 .app-hgb-logo.is-markonly .app-hgb-logo-mark { display: block !important; height: 9px; width: auto; }
 /* Square mark glyph in the filter pane's gym dots: 20% smaller than before. */
+
+/* 
+   ===== Modals, overlays and the spot map =====
+    */
 .fr-gym-dot .fr-mark-img.is-squaremark { padding: 5px; }
 
 /* Settings nav: gym entries indented under "Your Gyms" on the mobile list too. The mobile rule above sets
    `padding: 18px 24px` (24px left), which left the 30px sub indent only 6px deeper. This sits after it
    and chains both classes (see the source-order note above). */
 @media (max-width: 900px) {
-  #app-helper-container .app-settings-menu-item.app-settings-menu-sub { padding-left: 46px !important; }
+  #app-helper-container .app-settings-menu-item.app-settings-menu-sub { padding-left: 46px; }
   #app-helper-container .app-settings-menu-item.app-settings-menu-sub::before,
   #app-helper-container .app-settings-menu-item.app-settings-menu-sub::after { left: 32px; }
 }
@@ -9416,6 +9548,8 @@ svg.gym-logo-inline { display: block; opacity: 1 !important; transition: none !i
 body.app-scroll-locked { overflow: hidden; overscroll-behavior: none; }
 
 /* Batch 2: form pages (Gym link / re-auth / Change Password) and the Favourites page. */
+
+/*  Mobile overrides (max-width: 768px): Modals, overlays and the spot map  */
 @media (max-width: 768px) {
 
   /* Favourites is built by autobook.js with inline styles (no .app-modal shell). */
@@ -9495,6 +9629,8 @@ body.app-scroll-locked { overflow: hidden; overscroll-behavior: none; }
 .app-search-opt .ss-sub { margin-left: 6px; font-size: 12px; color: var(--text-secondary); }
 .app-search-opt .ss-count { flex-shrink: 0; font-size: 12px; color: var(--text-secondary); }
 .app-search-note { padding: 10px; font-size: 13px; color: var(--text-secondary); }
+
+/*  Mobile overrides (max-width: 768px): Modals, overlays and the spot map  */
 @media (max-width: 768px) {
   .app-search { display: none; flex: none; width: 100%; min-width: 0; box-sizing: border-box; padding-left: max(8px, env(safe-area-inset-left)); padding-right: max(8px, env(safe-area-inset-right)); }
   .app-search.open { display: block; }
@@ -9524,7 +9660,7 @@ body.app-scroll-locked { overflow: hidden; overscroll-behavior: none; }
 /* ===== Mobile feedback batch (2026-10-05) ===== */
 /* Gym logo banner: the full wordmark on its brand plate (same sizing as onboarding's). */
 .app-gym-logo-banner { display: inline-flex; vertical-align: middle; }
-.app-gym-logo-banner .app-gym-chip { min-width: 120px !important; height: 48px !important; padding: 0 16px !important; }
+.app-gym-logo-banner .app-gym-chip { min-width: 120px !important; height: 48px !important; padding: 0 16px; }
 .app-gym-logo-banner .app-gym-chip-logo .ab-gym-logo-img,
 .app-gym-logo-banner .app-gym-chip-logo .ab-gym-logo-svg { height: 24px !important; max-width: 120px !important; width: auto; object-fit: contain; }
 .app-gym-logo-banner .ab-gym-logo-img.is-half { display: none !important; }
@@ -9537,6 +9673,8 @@ body.app-scroll-locked { overflow: hidden; overscroll-behavior: none; }
 
 /* Double scrollbar / background bleed: while a page is open, nothing behind it renders or scrolls. */
 html.app-scroll-locked { overflow: hidden !important; background: var(--bg) !important; overscroll-behavior: none; }
+
+/*  Mobile overrides (max-width: 768px): Modals, overlays and the spot map  */
 @media (max-width: 768px) {
 
   /* Sticky Close footer on single-step info pages (added by modal-nav closeFooter). */
@@ -9587,6 +9725,8 @@ html.app-scroll-locked { overflow: hidden !important; background: var(--bg) !imp
 }
 /* Form logo remains mobile-only; heading and connection logos show across all viewports. */
 .app-gym-form-logo { display: none; }
+
+/*  Mobile overrides (max-width: 768px): Settings and gym sections  */
 @media (max-width: 768px) {
   .app-gym-form-logo { display: block; }
 }
@@ -9638,6 +9778,8 @@ html.app-scroll-locked { overflow: hidden !important; background: var(--bg) !imp
 }
 .app-preferred-summary-identity span { color: var(--text-secondary); }
 .app-preferred-summary-impact { margin: 0 0 8px; color: var(--text-secondary); font-size: 12px; line-height: 1.4; }
+
+/*  Mobile overrides (max-width: 768px): Bookings and share sheet  */
 @media (max-width: 768px) {
   .app-bk-identity .app-gym-mark { width: 36px; height: 36px; flex-shrink: 0; }
   .app-bk-identity-text { display: flex; flex-direction: column; min-width: 0; }
@@ -9684,6 +9826,8 @@ html.app-scroll-locked { overflow: hidden !important; background: var(--bg) !imp
 .app-setup-error { padding: 10px 12px; border-radius: 10px; font-size: 13px; color: var(--danger); background: color-mix(in srgb, var(--danger) 10%, transparent); border: 1px solid color-mix(in srgb, var(--danger) 25%, transparent); text-align: center; }
 .app-setup-error[hidden] { display: none; }
 
+/*  Mobile overrides (max-width: 768px): Bookings and share sheet  */
+
 @media (max-width: 768px) {
   /* Auto-Upgrade needs spots: an explained state with a real button. */
   .app-au-needs { display: flex; align-items: center; justify-content: space-between; gap: 10px; padding: 8px 0; font-size: 13px; color: var(--text-secondary); }
@@ -9711,6 +9855,8 @@ html.app-scroll-locked { overflow: hidden !important; background: var(--bg) !imp
 
 /* ===== Spot-map booking flow, batch 3: variants, banner, guards, compact page (mobile only) ===== */
 .app-bk-notice, .app-bk-compact { display: none; }
+
+/*  Mobile overrides (max-width: 768px): Bookings and share sheet  */
 @media (max-width: 768px) {
   .app-bk-compact-qty { display: flex; align-items: center; justify-content: space-between; gap: 12px; font-size: 15px; color: var(--text); margin: 0; }
 }
@@ -9742,7 +9888,7 @@ html.app-scroll-locked { overflow: hidden !important; background: var(--bg) !imp
 /* ===== 5-10 enh 2: mobile gym quick-selector (inside the filter rail, so mobile-only) ===== */
 .fr-gymquick { display: inline-flex; align-items: center; gap: 6px; flex-shrink: 0; }
 .fr-gymquick-btn { position: relative; width: 28px; height: 28px; padding: 0; border: 0; background: none; border-radius: 50%; cursor: pointer; display: inline-flex; align-items: center; justify-content: center; appearance: none; -webkit-appearance: none; -webkit-tap-highlight-color: transparent; }
-.fr-gymquick-btn .fr-gym-dot.lg { width: 26px !important; height: 26px !important; transition: filter .15s ease, opacity .15s ease; }
+.fr-gymquick-btn .fr-gym-dot.lg { width: 26px; height: 26px; transition: filter .15s ease, opacity .15s ease; }
 /* Safari can composite a filtered layer beyond overflow:hidden. Clip the muted
    mark after its blur so it cannot paint a seam above the overlapping stack. */
 .fr-gymquick-btn.is-off .fr-gym-dot { filter: blur(1px) saturate(.5) !important; opacity: .5 !important; clip-path: circle(50%); -webkit-clip-path: circle(50%); }
@@ -9786,6 +9932,10 @@ html:not([data-credits-tab="on"]) .app-nav-btn[data-tab="buy-credits"] { display
 
 /* Instructor figure: a fixed-width, right-aligned slot so photos form one
    column across cards whatever the name length (My Bookings + Auto-Book). */
+
+/* 
+   ===== Auto-Book tab and Auto-Upgrade =====
+    */
 .ab-card-body > .ab-card-figure {
   width: 84px !important;
   max-width: 84px !important;
@@ -9830,6 +9980,8 @@ html:not([data-credits-tab="on"]) .app-nav-btn[data-tab="buy-credits"] { display
 /* ===== Filter bar order + grouped filter chips; compact gym stack ===== */
 #app-filter-rail .fr-filtergroup { display: inline-flex; align-items: center; gap: 6px; flex-shrink: 0; padding: 3px; border-radius: 22px; border: 1px solid var(--border-strong); background: color-mix(in srgb, var(--text) 5%, var(--surface-1, var(--surface-2))); }
 :root[data-theme="light"] #app-filter-rail .fr-filtergroup { background: color-mix(in srgb, var(--text) 4%, var(--surface-2)); }
+
+/*  Mobile overrides (max-width: 768px): Timetable filter rail and sheet  */
 @media (max-width: 768px) {
   #app-filter-rail .fr-gymquick { gap: 6px; }
 }
@@ -9854,7 +10006,7 @@ html:not([data-credits-tab="on"]) .app-nav-btn[data-tab="buy-credits"] { display
 :root[data-theme="light"] { --gym-tick-bg: #047857; }
 #app-filter-rail .fr-gymquick { margin-right: 6px; }
 #app-filter-rail .fr-search-btn { margin-right: 6px; }
-#app-filter-rail .fr-gymquick-tick { background: var(--gym-tick-bg) !important; stroke: var(--gym-tick-fg) !important; box-shadow: 0 0 0 1.5px var(--gym-tick-ring) !important; }
+#app-filter-rail .fr-gymquick-tick { background: var(--gym-tick-bg) !important; stroke: var(--gym-tick-fg); box-shadow: 0 0 0 1.5px var(--gym-tick-ring) !important; }
 
 /* Timetable: instructor name = class name size (one shared value so they cannot drift). Hierarchy via
    weight/colour only. Desktop table incl. the merged who/where column; mobile rows stay 15px (rule above).
@@ -9875,13 +10027,19 @@ html:not([data-credits-tab="on"]) .app-nav-btn[data-tab="buy-credits"] { display
   flex: none; min-height: 32px; padding: 4px 14px; border-radius: 999px; cursor: pointer;
   background: transparent; color: var(--text); border: 1px solid var(--accent); font: inherit; font-weight: 600;
 }
+
+/* 
+   ===== Bookings and share sheet =====
+    */
 .app-url-overlay-banner .app-url-overlay-clear:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
 #app-timetable-filters-container.app-overlay-active .fr-rail { display: none !important; }
 #app-timetable-filters-container.app-overlay-active { margin-bottom: 0 !important; padding-bottom: 0 !important; }
 
 /* ---- Share My Bookings (F-3): mobile-only header button + drawer extras ---- */
-#app-helper-container .app-share-btn { display: none; margin-left: auto; height: 36px; padding: 0 12px !important; gap: 6px; font-size: 13px; font-weight: 600; font-family: inherit; align-items: center; justify-content: center; background: transparent; border: 1px solid var(--border); border-radius: var(--radius-control); color: var(--text-secondary); cursor: pointer; flex-shrink: 0; }
+#app-helper-container .app-share-btn { display: none; margin-left: auto; height: 36px; padding: 0 12px; gap: 6px; font-size: 13px; font-weight: 600; font-family: inherit; align-items: center; justify-content: center; background: transparent; border: 1px solid var(--border); border-radius: var(--radius-control); color: var(--text-secondary); cursor: pointer; flex-shrink: 0; }
 #app-helper-container .app-share-btn:hover { color: var(--text); border-color: var(--border-strong); }
+
+/*  Mobile overrides (max-width: 768px): Settings and gym sections  */
 @media (max-width: 768px) {
   #app-helper-container .app-share-btn { display: inline-flex; }
 
@@ -9913,6 +10071,12 @@ html:not([data-credits-tab="on"]) .app-nav-btn[data-tab="buy-credits"] { display
 /* F-12: favourite heart on every row. Mobile card: 44px hit area, visual stays compact. */
 .app-timetable-heart:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; border-radius: 8px; }
 .app-timetable-heart svg { display: block; pointer-events: none; }
+
+/* 
+   ===== Settings and gym sections =====
+    */
+
+/*  Mobile overrides (max-width: 768px): Timetable, tooltips and mobile class cards  */
 @media (max-width: 768px) {
   .app-timetable-heart.app-mobile-fav-indicator {
     width: 44px; height: 44px; margin: -11px -8px -11px auto; pointer-events: auto !important;
@@ -9986,6 +10150,8 @@ html:not([data-credits-tab="on"]) .app-nav-btn[data-tab="buy-credits"] { display
   background: var(--bg);
   box-shadow: 0 -8px 12px -8px color-mix(in srgb, var(--text) 18%, transparent);
 }
+
+/*  Mobile overrides (max-width: 768px): Bookings and share sheet  */
 @media (max-width: 768px) {
   #app-booking-modal #app-edit-controls { bottom: -16px; margin: auto -16px -16px; padding: 8px 16px calc(12px + env(safe-area-inset-bottom, 0px)); }
 }
@@ -9998,6 +10164,10 @@ html:not([data-credits-tab="on"]) .app-nav-btn[data-tab="buy-credits"] { display
 .app-modal.app-page #quickbook-qty,
 .app-modal.app-page .app-guest-field .app-input,
 .app-guest-field .app-input { font-size: 13px !important; }
+
+/* 
+   ===== Home tab =====
+    */
 .app-guest-field .app-input::placeholder { font-size: inherit; }
 
 /* Final Home lower-widget alignment and a compact queue row. */
@@ -10214,6 +10384,8 @@ html:not([data-credits-tab="on"]) .app-nav-btn[data-tab="buy-credits"] { display
 #app-helper-container #app-panel-home .home-widget .home-widget-heading {
   margin-bottom: 16px !important;
 }
+
+/*  Mobile overrides (max-width: 768px): Home tab  */
 
 @media (max-width: 768px) {
   .home-favourites-strip {

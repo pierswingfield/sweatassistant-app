@@ -20,6 +20,8 @@ fs.writeFileSync(path.join(pub, 'index.html'), '<!doctype html><title>SHELL</tit
 fs.writeFileSync(path.join(pub, 'manifest.json'), '{"name":"__APP_NAME__","start_url":"/"}');
 fs.writeFileSync(path.join(pub, 'sw.js'), '// sw');
 fs.writeFileSync(path.join(pub, 'assets', 'app.js'), 'console.log(1)');
+fs.mkdirSync(path.join(pub, 'icons'), { recursive: true });
+fs.writeFileSync(path.join(pub, 'icons', 'icon-192.png'), 'png');
 fs.writeFileSync(path.join(pub, 'gyms', 'x.svg'), '<svg xmlns="http://www.w3.org/2000/svg"/>');
 
 let child;
@@ -104,6 +106,12 @@ async function run() {
   assert.ok(/javascript/.test(asset.type));
   assert.strictEqual((await get('/gyms/x.svg')).res.status, 200);
   assert.strictEqual((await get('/assets/missing.js')).res.status, 404);
+  // Files whose body changes under one name must revalidate, or an edge cache
+  // (Cloudflare) serves a stale sw.js whose precache names deleted chunks.
+  for (const p of ['/sw.js', '/manifest.json', '/', '/index.html', '/timetable', '/icons/icon-192.png']) {
+    assert.strictEqual((await get(p)).res.headers.get('cache-control'), 'no-cache', `${p} must be Cache-Control: no-cache`);
+  }
+  assert.ok(/immutable/.test((await get('/assets/app.js')).res.headers.get('cache-control') || ''), 'hashed assets are immutable');
   console.log('PASS static assets, sw.js, manifest, gyms');
 
   // Non-app paths are a real 404, not the shell.

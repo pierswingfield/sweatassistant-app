@@ -310,6 +310,10 @@ function sendTemplated(filePath, res, contentType) {
     }
   }
   const content = entry.text.replaceAll(APP_NAME_TOKEN, escapeForType(config.appName, contentType));
+  // Always revalidate. Without an explicit header Cloudflare cached sw.js at
+  // the edge for 4 h, so phones kept installing a worker that precached the
+  // previous build's deleted chunks; its install failed and push never started.
+  res.set('Cache-Control', 'no-cache');
   res.type(contentType).send(content);
 }
 
@@ -338,7 +342,15 @@ if (process.env.NODE_ENV === 'production') {
       if (/\.svg$/i.test(filePath)) res.type('image/svg+xml');
     },
   }));
-  app.use(express.static(PUBLIC_DIR));
+  // Hashed build output never changes under one name; everything else at the
+  // root (icons, characters, favicon) can, so it revalidates instead of being
+  // cached by the edge for hours under a stale body.
+  app.use(express.static(PUBLIC_DIR, {
+    setHeaders: (res, filePath) => {
+      const rel = path.relative(PUBLIC_DIR, filePath).split(path.sep).join('/');
+      res.setHeader('Cache-Control', rel.startsWith('assets/') ? 'public, max-age=31536000, immutable' : 'no-cache');
+    },
+  }));
 }
 
 // -------------------------------------------------------------

@@ -142,9 +142,9 @@ img, svg { display: block; max-width: 100%; }
 .nav { position: sticky; top: 0; z-index: 20; margin: 0; border-radius: 0; border-width: 0 0 1px; outline: none; box-shadow: none; border-bottom: 1px solid var(--border); }
 .nav .wrap { display: flex; align-items: center; justify-content: space-between; min-height: 60px; gap: 16px; }
 .brand { font-family: var(--font-serif); font-weight: 600; font-size: var(--text-lg); text-decoration: none; letter-spacing: -0.01em; display: inline-flex; align-items: center; gap: 8px; }
-.brand-mark { display: block; position: relative; width: 43px; height: 46px; flex: none; overflow: hidden; }
-/* the GIF canvas (632x424) carries wide transparent padding; this crops to the visible droplet (x185-447, y66-349) at 46px tall */
-.brand-mark img { position: absolute; max-width: none; width: 103px; height: auto; left: -30px; top: -11px; }
+.brand-mark { display: block; position: relative; width: 33px; height: 35px; flex: none; overflow: hidden; }
+/* the GIF canvas (632x424) carries wide transparent padding; this crops to the visible droplet (x185-447, y66-349) at 35px tall */
+.brand-mark img { position: absolute; max-width: none; width: 78.4px; height: auto; left: -22.8px; top: -8.4px; }
 .brand-text { display: flex; flex-direction: column; line-height: 1.1; }
 .brand-sub { font-family: var(--font-sans); font-weight: 500; font-size: var(--text-xs); letter-spacing: 0; color: var(--text-secondary); margin-top: 2px; }
 .nav-links { display: none; gap: 24px; align-items: center; }
@@ -172,16 +172,16 @@ section { padding: 72px 0; }
 @media (min-width: 920px) { .hero-grid { grid-template-columns: 1.05fr 0.95fr; gap: 56px; } .hero { padding: 88px 0 96px; } }
 
 /* Droplet run-in. The slot sits beside the headline at about two headline lines tall. Final layout is the base state;
-   .pre (added by JS, motion allowed) is the start: slot width 0, video a viewport-width off to the right.
+   .pre (added by JS, motion allowed) is the start: slot width 0, video a viewport-width off to the left.
    Slot width and video travel share one duration and curve, so the headline is displaced in sync. */
 .run { display: none; --run-h: 2em; --run-gap: 0.3em; }
-html.js .run { display: flex; justify-content: flex-end; flex: none; width: calc(var(--run-h) * 750 / 690 + var(--run-gap)); transition: width 1.2s var(--spring); }
+html.js .run { display: flex; justify-content: flex-start; flex: none; width: calc(var(--run-h) * 750 / 690 + var(--run-gap)); transition: width 1.2s var(--spring); }
 .run-frame { position: relative; flex: none; width: calc(var(--run-h) * 750 / 690); height: var(--run-h); transition: transform 1.2s var(--spring); }
 /* the video only feeds the canvas (the page keys the ground out per frame); it is never shown itself */
 .run video { position: absolute; width: 1px; height: 1px; opacity: 0; pointer-events: none; }
 .run canvas { display: block; width: 100%; height: 100%; pointer-events: none; }
 html.js .run.pre { width: 0; transition: none; }
-html.js .run.pre .run-frame { transform: translateX(100vw); transition: none; }
+html.js .run.pre .run-frame { transform: translateX(-100vw); transition: none; }
 @media (prefers-reduced-motion: reduce) { html.js .run, .run-frame { transition: none; } }
 
 .stage { position: relative; padding: 8px; align-self: start; }
@@ -492,8 +492,8 @@ footer { padding: 32px 0 56px; color: var(--text-secondary); font-size: var(--te
     <div>
       <div class="reveal"><p class="eyebrow">Dibs</p></div>
       <div class="hero-head">
-        <h1 class="reveal" style="--i:1">Your fitness life, handled.</h1>
         <div class="run" aria-hidden="true"><div class="run-frame"><canvas width="320" height="294"></canvas><video muted playsinline preload="auto" tabindex="-1" width="750" height="690" src="dibs/droplet-run.webm"></video></div></div>
+        <h1 class="reveal" style="--i:1">Your fitness life, handled.</h1>
       </div>
       <p class="kicker reveal" style="--i:2">Be first in the room.</p>
       <p class="sub reveal" style="--i:3">A concierge for every gym you train at: it books the classes you want, the second they open, in the spot you like, and keeps it all in one calendar.</p>

@@ -1675,6 +1675,26 @@ html, body, * {
   color: var(--accent);
 }
 
+/* Debug terminal is inline-styled 420px wide: never wider than a phone viewport. */
+#app-debug-terminal { max-width: calc(100vw - 24px); box-sizing: border-box; }
+
+/* Keyboard focus must scroll clear of a sticky modal footer (booking modal's is ~173px). */
+.app-modal-body { scroll-padding-bottom: 190px; }
+
+/* Large text: a widget title never overlaps its action; the action drops below instead (Phase 6, 200% text check). */
+#app-helper-container .home-widget-heading { flex-wrap: wrap; }
+#app-helper-container .home-widget-heading .home-widget-title { min-width: min-content; }
+
+/* Catch-all (AGENTS.md invariant): any variant not styled above still gets a readable surface, text and icon. */
+#app-helper-container .app-toast:not(.success):not(.error):not(.warning):not(.info) {
+  background: var(--surface-raised);
+  color: var(--text);
+}
+#app-helper-container .app-toast:not(.success):not(.error):not(.warning):not(.info) .app-toast-icon {
+  background: color-mix(in srgb, var(--text) 10%, transparent);
+  color: var(--text);
+}
+
 /* Auth Overlay Styling */
 
 
@@ -4295,7 +4315,7 @@ html, body, * {
   font-weight: 700;
   letter-spacing: 0.04em;
   text-transform: uppercase;
-  color: var(--text-tertiary);
+  color: var(--text-secondary);
 }
 #app-helper-container .app-benefit-headline {
   display: flex;
@@ -4777,6 +4797,7 @@ html, body, * {
 }
 
 #app-helper-container .app-switch input:checked + .app-slider::before {
+  background: var(--on-accent-fill);
   transform: translateX(16px);
 }
 
@@ -6012,7 +6033,7 @@ html, body, * {
   color: var(--danger) !important;
 }
 .app-tt-seg.primary.variant-danger-strong,
-.app-mobile-seg.primary.variant-danger-strong { background: color-mix(in srgb, var(--danger) 30%, transparent) !important; color: var(--danger) !important; border: none !important; font-weight: 800; }
+.app-mobile-seg.primary.variant-danger-strong { background: color-mix(in srgb, var(--danger) 12%, transparent) !important; color: color-mix(in srgb, var(--danger) 80%, var(--text)) !important; border: none !important; font-weight: 800; }
 
 /* An already-scheduled Auto-Book is a STATE, not an action to take — it must
    not wear the primary fill that means "do this next". */
@@ -6317,19 +6338,19 @@ html, body, * {
   text-transform: uppercase;
   letter-spacing: 0.03em;
   white-space: nowrap;
-  color: var(--disc-other);
+  color: color-mix(in srgb, var(--disc-other) 58%, var(--text));
   background: transparent !important;
   border: 1px solid color-mix(in srgb, var(--disc-other) 24%, transparent);
 }
-.ab-disc-tag[data-disc="ride"]     { color: var(--disc-ride);     background: transparent !important; border-color: color-mix(in srgb, var(--disc-ride) 24%, transparent); }
-.ab-disc-tag[data-disc="barre"]    { color: var(--disc-barre);    background: transparent !important; border-color: color-mix(in srgb, var(--disc-barre) 24%, transparent); }
-.ab-disc-tag[data-disc="strength"] { color: var(--disc-strength); background: transparent !important; border-color: color-mix(in srgb, var(--disc-strength) 24%, transparent); }
-.ab-disc-tag[data-disc="infrared"] { color: var(--disc-infrared); background: transparent !important; border-color: color-mix(in srgb, var(--disc-infrared) 24%, transparent); }
-.ab-disc-tag[data-disc="reformer"] { color: var(--disc-reformer); background: transparent !important; border-color: color-mix(in srgb, var(--disc-reformer) 24%, transparent); }
-.ab-disc-tag[data-disc="recovery"] { color: var(--disc-recovery); background: transparent !important; border-color: color-mix(in srgb, var(--disc-recovery) 24%, transparent); }
-.ab-disc-tag[data-disc="yoga"]     { color: var(--disc-yoga);     background: transparent !important; border-color: color-mix(in srgb, var(--disc-yoga) 24%, transparent); }
-.ab-disc-tag[data-disc="boxing"]       { color: var(--disc-boxing, var(--disc-other));       background: transparent !important; border-color: color-mix(in srgb, var(--disc-boxing, var(--disc-other)) 24%, transparent); }
-.ab-disc-tag[data-disc="conditioning"] { color: var(--disc-conditioning, var(--disc-other)); background: transparent !important; border-color: color-mix(in srgb, var(--disc-conditioning, var(--disc-other)) 24%, transparent); }
+.ab-disc-tag[data-disc="ride"]     { color: color-mix(in srgb, var(--disc-ride) 58%, var(--text));     background: transparent !important; border-color: color-mix(in srgb, var(--disc-ride) 24%, transparent); }
+.ab-disc-tag[data-disc="barre"]    { color: color-mix(in srgb, var(--disc-barre) 58%, var(--text));    background: transparent !important; border-color: color-mix(in srgb, var(--disc-barre) 24%, transparent); }
+.ab-disc-tag[data-disc="strength"] { color: color-mix(in srgb, var(--disc-strength) 58%, var(--text)); background: transparent !important; border-color: color-mix(in srgb, var(--disc-strength) 24%, transparent); }
+.ab-disc-tag[data-disc="infrared"] { color: color-mix(in srgb, var(--disc-infrared) 58%, var(--text)); background: transparent !important; border-color: color-mix(in srgb, var(--disc-infrared) 24%, transparent); }
+.ab-disc-tag[data-disc="reformer"] { color: color-mix(in srgb, var(--disc-reformer) 58%, var(--text)); background: transparent !important; border-color: color-mix(in srgb, var(--disc-reformer) 24%, transparent); }
+.ab-disc-tag[data-disc="recovery"] { color: color-mix(in srgb, var(--disc-recovery) 58%, var(--text)); background: transparent !important; border-color: color-mix(in srgb, var(--disc-recovery) 24%, transparent); }
+.ab-disc-tag[data-disc="yoga"]     { color: color-mix(in srgb, var(--disc-yoga) 58%, var(--text));     background: transparent !important; border-color: color-mix(in srgb, var(--disc-yoga) 24%, transparent); }
+.ab-disc-tag[data-disc="boxing"]       { color: color-mix(in srgb, var(--disc-boxing, var(--disc-other)) 58%, var(--text));       background: transparent !important; border-color: color-mix(in srgb, var(--disc-boxing, var(--disc-other)) 24%, transparent); }
+.ab-disc-tag[data-disc="conditioning"] { color: color-mix(in srgb, var(--disc-conditioning, var(--disc-other)) 58%, var(--text)); background: transparent !important; border-color: color-mix(in srgb, var(--disc-conditioning, var(--disc-other)) 24%, transparent); }
 
 .ab-card-meta {
   display: flex;
@@ -8279,7 +8300,7 @@ html, body, * {
 .fr-list { max-height: 264px; overflow-y: auto; overscroll-behavior: contain; display: flex; flex-direction: column; gap: 6px; border: 1px solid var(--border); border-radius: 12px; padding: 0 8px 8px; }
 .fr-foot { display: flex; gap: 8px; padding: 10px 16px; border-top: 1px solid var(--border); }
 .fr-save, .fr-done { flex: 1; height: 46px; border-radius: 12px; font-weight: 600; cursor: pointer; border: 1px solid var(--border-strong); background: var(--surface-2); color: var(--text); }
-.fr-done { background: var(--accent-btn-bg); border-color: transparent; color: #fff; }
+.fr-done { background: var(--accent-btn-bg); border-color: transparent; color: var(--on-accent-button); }
 
 /* --- U2-5 round 2: logos, checkbox rows, grouped workouts/instructors --- */
 .fr-gym-dot { overflow: hidden; }
@@ -11116,4 +11137,9 @@ html:not([data-credits-tab="on"]) .app-nav-btn[data-tab="buy-credits"] { display
   .app-timetable-heart.loading { transform: none; }
   .app-modal.app-page, .app-ovl.app-page { transform: none !important; transition: opacity var(--dur-fast) linear !important; }
   #app-helper-container .app-toast { transform: none !important; transition: opacity var(--dur-fast) linear !important; }
+}
+
+/* Large text: the lead column (time + avatar) grows with the time instead of letting it spill over the chips. */
+@media (max-width: 768px) {
+  #app-helper-container .app-mobile-lead { flex: 0 0 auto; width: auto; min-width: 48px; }
 }

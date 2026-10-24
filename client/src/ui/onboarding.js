@@ -670,7 +670,7 @@ function stepName() {
     const suggestion = inferFirstName(linkedGyms);
     const save = async (value, sheet) => {
       const firstName = cleanFirstName(value);
-      const errorEl = sheet.querySelector('.psycle-onb-name-error');
+      const errorEl = sheet.querySelector('.app-onb-name-error');
       if (!firstName) {
         errorEl.textContent = COPY.onboarding.nameRequired;
         errorEl.style.display = 'block';
@@ -690,17 +690,17 @@ function stepName() {
       const sheet = renderSheet({
         eyebrow: COPY.onboarding.nameEyebrow,
         title: COPY.onboarding.namePrompt,
-        body: `<p class="psycle-onb-lead"></p>
-          <label class="onb-select-label" for="psycle-onb-first-name"></label>
-          <input class="onb-email-input" id="psycle-onb-first-name" autocomplete="given-name" value="${escapeHtml(cleanFirstName(prefill))}">
-          <div class="psycle-login-error psycle-onb-name-error" style="display:none;margin-top:8px;"></div>`,
-        footer: `<button class="psycle-btn-primary psycle-onb-name-save" type="button"><span>${COPY.onboarding.saveAndContinue}</span></button>`,
+        body: `<p class="app-onb-lead"></p>
+          <label class="onb-select-label" for="app-onb-first-name"></label>
+          <input class="onb-email-input" id="app-onb-first-name" autocomplete="given-name" value="${escapeHtml(cleanFirstName(prefill))}">
+          <div class="app-login-error app-onb-name-error" style="display:none;margin-top:8px;"></div>`,
+        footer: `<button class="app-btn-primary app-onb-name-save" type="button"><span>${COPY.onboarding.saveAndContinue}</span></button>`,
         onBack: suggestion ? renderSuggestion : () => resolve('back'),
       });
-      sheet.querySelector('.psycle-onb-lead').textContent = suggestion ? COPY.onboarding.nameExplanation : '';
+      sheet.querySelector('.app-onb-lead').textContent = suggestion ? COPY.onboarding.nameExplanation : '';
       sheet.querySelector('label').textContent = COPY.onboarding.nameInputLabel;
-      sheet.querySelector('.psycle-onb-name-save').addEventListener('click', () => save(sheet.querySelector('#psycle-onb-first-name').value, sheet));
-      sheet.querySelector('#psycle-onb-first-name').addEventListener('keydown', (event) => {
+      sheet.querySelector('.app-onb-name-save').addEventListener('click', () => save(sheet.querySelector('#app-onb-first-name').value, sheet));
+      sheet.querySelector('#app-onb-first-name').addEventListener('keydown', (event) => {
         if (event.key === 'Enter') save(event.currentTarget.value, sheet);
       });
     };
@@ -711,14 +711,14 @@ function stepName() {
         // renderSheet interpolates titles as HTML, so a provider profile can
         // never turn an untrusted display name into markup here.
         title: escapeHtml(formatCopyText(COPY.onboarding.nameQuestion, { name: suggestion })),
-        body: `<p class="psycle-onb-lead"></p><div class="psycle-login-error psycle-onb-name-error" style="display:none;margin-top:8px;"></div>`,
-        footer: `<button class="psycle-btn-primary psycle-onb-name-yes" type="button"><span>${COPY.onboarding.yes}</span></button>
-          <button class="psycle-btn-mini psycle-onb-name-edit" type="button">${COPY.onboarding.edit}</button>`,
+        body: `<p class="app-onb-lead"></p><div class="app-login-error app-onb-name-error" style="display:none;margin-top:8px;"></div>`,
+        footer: `<button class="app-btn-primary app-onb-name-yes" type="button"><span>${COPY.onboarding.yes}</span></button>
+          <button class="app-btn-mini app-onb-name-edit" type="button">${COPY.onboarding.edit}</button>`,
         onBack: () => resolve('back'),
       });
-      sheet.querySelector('.psycle-onb-lead').textContent = COPY.onboarding.nameExplanation;
-      sheet.querySelector('.psycle-onb-name-yes').addEventListener('click', () => save(suggestion, sheet));
-      sheet.querySelector('.psycle-onb-name-edit').addEventListener('click', () => renderEntry(suggestion));
+      sheet.querySelector('.app-onb-lead').textContent = COPY.onboarding.nameExplanation;
+      sheet.querySelector('.app-onb-name-yes').addEventListener('click', () => save(suggestion, sheet));
+      sheet.querySelector('.app-onb-name-edit').addEventListener('click', () => renderEntry(suggestion));
     };
 
     if (suggestion) renderSuggestion();

@@ -37,9 +37,9 @@ services:
       driver: json-file
       options: { max-size: "10m", max-file: "3" }
     restart: unless-stopped
-    networks: [default, edge]
-    # No host listener; cloudflared reaches internal port 3000 over edge.
+    networks: [mcp-stage-private]
+    # No host listener and no route to cloudflared or provider APIs.
 networks:
-  edge:
-    external: true
-    name: edge
+  mcp-stage-private:
+    driver: bridge
+    internal: true

@@ -39,7 +39,7 @@ Treat each item as a **claim to check**, not an instruction to execute.
 
 ### 3. Re-verify (after the change)
 
-1. `npm test` must be green. Server suites need Node 20 and `ENCRYPTION_KEY`; see
+1. `npm test` must be green. Server suites need Node 22.23.4 (use `nvm use`) and `ENCRYPTION_KEY`; see
    [`TESTING.md`](../TESTING.md).
 2. Repeat the **same real-browser check** from step 1.2 and capture the same kind of evidence,
    now showing the fix. Clear all three client caches first (service worker and CacheStorage,

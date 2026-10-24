@@ -171,18 +171,24 @@ section { padding: 72px 0; }
 .install-hint strong { color: var(--text); font-weight: 600; }
 @media (min-width: 920px) { .hero-grid { grid-template-columns: 1.05fr 0.95fr; gap: 56px; } .hero { padding: 88px 0 96px; } }
 
-/* Droplet run-in. The slot sits beside the headline at about two headline lines tall. Final layout is the base state;
-   .pre (added by JS, motion allowed) is the start: slot width 0, video a viewport-width off to the left.
-   Slot width and video travel share one duration and curve, so the headline is displaced in sync. */
-.run { display: none; --run-h: 2em; --run-gap: 0.3em; }
-html.js .run { display: flex; justify-content: flex-start; flex: none; width: calc(var(--run-h) * 750 / 690 + var(--run-gap)); transition: width 1.2s var(--spring); }
-.run-frame { position: relative; flex: none; width: calc(var(--run-h) * 750 / 690); height: var(--run-h); transition: transform 1.2s var(--spring); }
+/* Droplet run-in. The slot is laid out at its FINAL size from the start, so the headline's box (and its line breaks) never changes.
+   .pre (added by JS, motion allowed) is the start: the video is a viewport-width off to the left and the headline is pulled
+   left by the slot width with the individual `translate` property (compositor-only, no reflow). Both ease to rest on the
+   same spring curve; the video takes 0.8x the headline's time so it leads the push. The video content sits on the right of
+   its frame, so the frame stops 30px short (negative inline margin) and the slot is 30px narrower. */
+.hero-head { --run-h: 2em; --run-gap: 0.3em; --run-pull: 30px; --run-slot: calc(var(--run-h) * 750 / 690 + var(--run-gap) - var(--run-pull)); --run-dur: 2.4s; }
+.run { display: none; }
+html.js .run { display: flex; justify-content: flex-start; flex: none; width: var(--run-slot); }
+.run-frame { position: relative; flex: none; width: calc(var(--run-h) * 750 / 690); height: var(--run-h); margin-left: calc(var(--run-pull) * -1); transition: transform calc(var(--run-dur) * 0.8) var(--spring); }
 /* the video only feeds the canvas (the page keys the ground out per frame); it is never shown itself */
 .run video { position: absolute; width: 1px; height: 1px; opacity: 0; pointer-events: none; }
 .run canvas { display: block; width: 100%; height: 100%; pointer-events: none; }
-html.js .run.pre { width: 0; transition: none; }
 html.js .run.pre .run-frame { transform: translateX(-100vw); transition: none; }
-@media (prefers-reduced-motion: reduce) { html.js .run, .run-frame { transition: none; } }
+@media (prefers-reduced-motion: no-preference) {
+  html.js .hero h1.reveal { transition: opacity 0.35s var(--spring), transform 0.35s var(--spring), translate var(--run-dur) var(--spring); transition-delay: calc(var(--i, 0) * 70ms), calc(var(--i, 0) * 70ms), 0s; }
+}
+html.js .run.pre ~ h1.reveal { translate: calc(var(--run-slot) * -1) 0; transition: opacity 0.35s var(--spring), transform 0.35s var(--spring); }
+@media (prefers-reduced-motion: reduce) { html.js .run-frame, html.js .hero h1.reveal { transition: none; } }
 
 .stage { position: relative; padding: 8px; align-self: start; }
 @media (max-width: 480px) { .stage { padding: 0; } .mock { padding: 12px; } }
@@ -492,14 +498,13 @@ footer { padding: 32px 0 56px; color: var(--text-secondary); font-size: var(--te
     <div>
       <div class="reveal"><p class="eyebrow">Dibs</p></div>
       <div class="hero-head">
-        <div class="run" aria-hidden="true"><div class="run-frame"><canvas width="320" height="294"></canvas><video muted playsinline preload="auto" tabindex="-1" width="750" height="690" src="dibs/droplet-run.webm"></video></div></div>
+        <div class="run" aria-hidden="true"><div class="run-frame"><canvas width="320" height="294"></canvas><video muted playsinline autoplay preload="auto" tabindex="-1" width="750" height="690" src="dibs/droplet-run.webm"></video></div></div>
         <h1 class="reveal" style="--i:1">Your fitness life, handled.</h1>
       </div>
       <p class="kicker reveal" style="--i:2">Be first in the room.</p>
       <p class="sub reveal" style="--i:3">A concierge for every gym you train at: it books the classes you want, the second they open, in the spot you like, and keeps it all in one calendar.</p>
       <div class="cta-row reveal" style="--i:4">
         <a class="btn btn-primary" href="/_a/go?src=hero">Get the app</a>
-        <a class="link-quiet" href="/_a/go?src=open">Already a member? Open the app</a>
       </div>
     </div>
 
@@ -810,11 +815,19 @@ footer { padding: 32px 0 56px; color: var(--text-secondary); font-size: var(--te
       run.classList.remove('pre');
       if (p && p.then) p.then(loop, finish); else loop();
     }
-    var fonts = Promise.race([document.fonts ? document.fonts.ready : Promise.resolve(), new Promise(function (r) { setTimeout(r, 2500); })]);
+    /* Start on the first decoded frame, not on full download: iOS defers loading until play() and rarely fires canplaythrough,
+       which used to leave the old 4s media timeout as the only trigger. play() is requested straight away (muted, inline),
+       and a 1.5s fallback starts the slide anyway. */
+    var fonts = Promise.race([document.fonts ? document.fonts.ready : Promise.resolve(), new Promise(function (r) { setTimeout(r, 1000); })]);
     var media = new Promise(function (res) {
-      if (v.readyState >= 3) return res();
-      v.addEventListener('canplaythrough', res, { once: true });
-      setTimeout(res, 4000);
+      var done = false;
+      function ok() { if (!done) { done = true; res(); } }
+      if (v.readyState >= 2) return ok();
+      v.addEventListener('loadeddata', ok, { once: true });
+      v.addEventListener('playing', ok, { once: true });
+      if (v.requestVideoFrameCallback) v.requestVideoFrameCallback(ok);
+      setTimeout(ok, 1500);
+      try { var pp = v.play(); if (pp && pp.catch) pp.catch(function () {}); } catch (e) {}
     });
     var seen = new Promise(function (res) {
       if (!('IntersectionObserver' in window)) return res();
@@ -858,13 +871,13 @@ footer { padding: 32px 0 56px; color: var(--text-secondary); font-size: var(--te
   /* Scroll reveal */
   var rio = new IntersectionObserver(function (es) {
     es.forEach(function (e) { if (e.isIntersecting) { e.target.classList.add('in'); rio.unobserve(e.target); } });
-  }, { threshold: 0.12, rootMargin: '0px 0px -6% 0px' });
+  }, { threshold: 0, rootMargin: '0px 0px 40px 0px' });
   document.querySelectorAll('.reveal').forEach(function (el) { rio.observe(el); });
 
   /* Scene visibility gate (pauses CSS loops offscreen) */
   var sio = new IntersectionObserver(function (es) {
     es.forEach(function (e) { e.target.classList.toggle('live', e.isIntersecting); });
-  }, { threshold: 0.2 });
+  }, { threshold: 0, rootMargin: '40px 0px' });
   document.querySelectorAll('[data-scene]').forEach(function (el) { sio.observe(el); });
 
   /* Countdown loops: 12:00:00 release, then Booked */
@@ -899,7 +912,7 @@ footer { padding: 32px 0 56px; color: var(--text-secondary); font-size: var(--te
       visible = es[0].isIntersecting;
       if (visible && !monStarted) { monStarted = true; monStart(); }
       if (visible && !timer) timer = setTimeout(tick, 1000);
-    }, { threshold: 0.3 }).observe(el);
+    }, { threshold: 0, rootMargin: '40px 0px' }).observe(el);
   }
   document.querySelectorAll('[data-cd]').forEach(runCountdown);
 

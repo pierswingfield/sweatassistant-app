@@ -653,7 +653,7 @@ export function openPurchaseModal(b) {
   overlay.className = 'app-modal app-purchase-modal';
   overlay.innerHTML = `
     <div class="app-modal-overlay"></div>
-    <div class="app-modal-card i-cr-17">
+    <div class="app-modal-card app-purchase-card">
       <div class="app-modal-header i-cr-18">
         <h4 class="app-checkout-title i-cr-19">${COPY.credits.cart}</h4>
         <button class="app-modal-close-btn" aria-label="${COPY.credits.closeModal}">×</button>

@@ -717,7 +717,11 @@ function swStateSummary(reg) {
 async function registerServiceWorker() {
   if (!('serviceWorker' in navigator)) return;
   try {
-    const reg = await navigator.serviceWorker.register('/sw.js', { scope: '/' });
+    // Versioned by this bundle's own hashed file name. An edge cache keys on
+    // the full URL, so each build fetches a fresh worker even if an older
+    // /sw.js is still cached somewhere (Cloudflare held one for 4 h).
+    const swVersion = new URL(import.meta.url).pathname.split('/').pop().replace(/\.js$/, '');
+    const reg = await navigator.serviceWorker.register(`/sw.js?v=${encodeURIComponent(swVersion)}`, { scope: '/' });
     serviceWorkerRegistration = reg;
     debugConsole('[SW] Service Worker registered successfully scope:', reg.scope);
     swDiagnostics.registerError = '';

@@ -14,6 +14,7 @@ function mountMcp(app, config = configuration()) {
   const store = require('./store');
   const { catalog, registerTools } = require('./tools');
   const verify = verifier(config);
+  require('./authorization').mountAuthorization(app, config);
   const router = express.Router();
   const metadata = new URL(metadataPath, config.resource).href;
   function challenge(res, error, scope) {

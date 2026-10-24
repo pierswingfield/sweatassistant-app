@@ -139,7 +139,8 @@ const MAX_ACTIVE_AUTO_UPGRADES_PER_GYM = 10;
 // -------------------------------------------------------------
 
 app.get('/api/config', (req, res) => {
-  res.json({ appName: config.appName, publicHost: config.publicHost });
+  res.json({ appName: config.appName, publicHost: config.publicHost,
+    aiConnectionsEnabled: process.env.MCP_ENABLED === 'true' && process.env.MCP_AUTH_SERVER_ENABLED === 'true' });
 });
 
 // -------------------------------------------------------------

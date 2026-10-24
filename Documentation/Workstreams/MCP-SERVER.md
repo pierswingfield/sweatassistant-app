@@ -1,6 +1,6 @@
-# MCP server foundation
+# MCP server implementation
 
-**2026-10-24: implemented server foundation, not a user-facing release candidate.** See [delivery plan](PLAN-mcp-server.md) and [session evidence](MCP-SESSION-LOG.md). No deployment or live gym request was made.
+**2026-10-24: implemented read-only server and first-party OAuth/connection controls; release gates remain.** See [delivery plan](PLAN-mcp-server.md) and [session evidence](MCP-SESSION-LOG.md). No deployment or live gym request was made.
 
 ## Runnable scope
 
@@ -23,9 +23,13 @@ Both PWA read routes and MCP reuse `server/normalized-reads.js`. Normal PWA requ
 
 ## Authorization contract and operator controls
 
-This is an OAuth **resource server**, using JOSE to verify access tokens. It is not an OAuth authorization server and does not replace the local account login. Production authorization-server selection/integration is incomplete. The deterministic SDK integration fixture in `server/test-mcp.js` is the runnable local integration: it creates ephemeral signing keys and explicitly bound mock grants; it never represents human consent.
+The resource server uses JOSE to verify access tokens. An opt-in first-party authorization server now integrates maintained **@node-oauth/oauth2-server 5.3.1**; it owns authorization-code/PKCE/redirect validation and refresh rotation. The application supplies local account proof, explicit consent and durable hashed storage. No external subject/email is accepted as proof of a local account, and the gym-development login bypass is not used.
 
-The eventual maintained authorization server must use authorization code + S256 PKCE, exact preregistered redirects, anti-CSRF state, refresh rotation/reuse defense, and a verified first-party local-account login/consent interaction. It must issue RFC 9068 access JWTs with `typ=at+jwt`, RS256 or ES256, exact single `aud=MCP_RESOURCE_URL`, matching `iss`, `iat`, `exp` no more than 15 minutes after issue, `sub`, `client_id`, `jti`, `scope`, and `sa_grant_id`. PWA JWTs and gym tokens are rejected.
+With `MCP_AUTH_SERVER_ENABLED=true`, the issuer must be the resource origin with a trailing slash. Discovery is `/.well-known/oauth-authorization-server`; browser sign-in and consent begin at `/oauth/authorize`, and token exchange is `/oauth/token`. Only authorization-code plus S256 and refresh grants are enabled. Exact configured callbacks, an explicit exact `resource`, client state (16–512 printable characters), and explicit read scopes are required. Both public and confidential preregistered clients are supported; confidential secrets are checked against operator-configured SHA-256 hashes. There is no dynamic registration, remote client metadata or password grant.
+
+Browser interactions use ten-minute opaque Secure/HttpOnly/SameSite=Lax host-only cookies, separate CSRF values, exact first-party Origin checks, account password fingerprints, and one-use consent. Local sign-in has independent IP and hashed-account budgets (10 attempts/15 minutes). All requested scopes and gyms start unchecked. The resulting grant expires in 30 days; access JWTs expire in ten minutes. Authorization codes expire in 60 seconds and are atomically consumed before PKCE validation. Refresh tokens rotate, are stored only as hashes, and reuse revokes the entire grant including descendants and access JWTs. Concurrent refresh failure also revokes the family.
+
+The authorization server issues RFC 9068 access JWTs with `typ=at+jwt`, RS256 or ES256, exact single `aud=MCP_RESOURCE_URL`, matching `iss`, `iat`, `exp` no more than 15 minutes after issue, `sub`, `client_id`, `jti`, `scope`, and `sa_grant_id`. PWA JWTs and gym tokens are rejected.
 
 `server/mcp/store.js` exposes an **internal** consent/provisioning seam: register a known client, then create a grant binding the proven subject and issuer to an existing local account, registered client, approved read scopes, explicitly selected current gym links, expiry (maximum 30 days), and consent reference. There is no HTTP provisioning endpoint. A caller must not use an arbitrary external email/subject as proof of the local account or label an operator-created record as user consent.
 
@@ -39,7 +43,36 @@ node server/mcp/manage.js revoke USER_ID GRANT_ID
 node server/mcp/manage.js revoke-all USER_ID
 ```
 
-These commands do not mint credentials. User-facing connection/revocation controls remain unimplemented.
+These commands do not mint credentials. Settings → Account now exposes **AI connections** only when both MCP and the local authorization-server flags are enabled. `/oauth/connections` requires a fresh local account sign-in and shows approved scopes/gyms, expiry and last use, with revoke-one/all controls. This is a separate account page, not an application modal.
+
+### Private configuration (no deployment performed)
+
+Generate a new private ES256 key pair offline:
+
+```bash
+node server/mcp/create-keys.js /private/mcp
+```
+
+The directory should be private to the service user. The helper creates mode-0600 `signing.json` and `jwks.json` and refuses to replace existing files. Keep keys and client secrets out of git and logs. Supply an operator-owned JSON clients file:
+
+```json
+{
+  "clients": [
+    {
+      "id": "invited-client",
+      "name": "Invited AI client",
+      "public": true,
+      "redirectUris": ["https://client.example/EXACT_CALLBACK_FROM_CLIENT"]
+    }
+  ]
+}
+```
+
+For a confidential client, set `public:false` and `secretHash` to the 64-character lowercase SHA-256 digest of a separately exchanged high-entropy client secret. Do not guess ChatGPT/Claude callbacks: copy exact values from the intended client's configuration and verify them during acceptance. Each client ID/name is persisted on startup; disabled IDs remain disabled. Configuration supports at most ten clients, five exact canonical HTTPS callbacks each. Client metadata is never fetched.
+
+Set `MCP_ENABLED=true`, `MCP_AUTH_SERVER_ENABLED=true`, `MCP_RESOURCE_URL=https://YOUR_HOST/mcp`, `MCP_ISSUER=https://YOUR_HOST/`, `MCP_JWKS_FILE=/private/mcp/jwks.json`, `MCP_SIGNING_KEY_FILE=/private/mcp/signing.json` and `MCP_CLIENTS_FILE=/private/mcp/clients.json`. The signing public key must match the pinned resource JWKS. Retain `MCP_PROVIDER_READS_ENABLED=false` pending the upstream-protection gate. No configuration here enables a public listener or deployment by itself.
+
+Browser pages use the single existing stylesheet, no script, no framing and same-origin referrers. Consent alone permits its immutable configured callback origin in CSP `form-action` because Chrome applies that directive across OAuth redirects. Both the same-origin POST and cross-origin redirect were verified in the user's real Chrome. TLS certificate acceptance for the isolated self-signed test fixture was scoped to the owned test tab; production requires valid HTTPS.
 
 ## Admission and its limits
 
@@ -49,7 +82,7 @@ Actual MCP-caused provider HTTP attempts through the shared transport hook cost 
 
 **Incomplete:** PWA/background/login traffic is not universally admitted by a common global budget. MCP-triggered credential renewal is therefore refused: reconnect the gym through the app. This prevents hidden login fan-out but is a deliberate limitation against the final plan. Public and authenticated adapter read transports participate; existing non-MCP traffic keeps its prior behavior. The provider-read flag must stay false for public deployment until common admission, capacity reservation/fairness, all login hops, cache/SWR interactions, cancellation and deadlines have been reviewed. Budget state is durable; concurrency/cache/backoff are process-local, so only one instance is supported. Fixed windows can allow a boundary burst; no sliding-window guarantee is made.
 
-Structured audit records include local account/client/grant, tool, gym, result code and duration, without raw provider bodies or credentials. Full upstream-cost/cache-hit/reject dashboards, retention policy and abuse alerts remain release gates.
+Structured audit records include local account/client/grant, tool, gym, result code and duration, without raw provider bodies or credentials. Consent/revoke/refresh-replay events are also redacted audit records. Interactions and codes are deleted at expiry; consumed refresh hashes remain until expiry to detect replay. Expired/revoked grants are deleted after 30 days. Cleanup runs per OAuth request and every 15 minutes while the local authorization server is active. General log rotation and full upstream-cost/cache-hit/reject dashboards and abuse alerts remain release gates.
 
 ## Verification and release gates
 
@@ -57,8 +90,8 @@ Run `npm test` under the repository-required Node 20 and `npm run build:client`.
 
 Before an invited read-only release:
 
-1. Implement and verify the maintained authorization server's local SA identity bridge, code/PKCE/redirect/state and refresh flow. Wire real consent to the internal grant seam; no manual subject/email mapping as proof of identity.
-2. Use the actual user's Chrome CDP endpoint `http://100.108.68.20:9222`; verify consent/settings before and after changes. Implement AI connections, explicit gym selection, expiry/last-use and revoke-one/all. Chrome 155 is now reachable (read-only `/json/version` verified); consent/settings browser acceptance has not been performed.
+1. Independently review the maintained OAuth integration and its local identity/consent/storage policy. The new HTTP suite and real Chrome flows now prove the implementation, including cross-origin callbacks.
+2. Complete named-client and device acceptance beyond the local fixture. Chrome 155 browser evidence covers local SA sign-in, unchecked scope/gym consent, SDK exchange/read, connection inspection and revoke, Settings link flag gating, and a 390px mobile layout. This does not establish actual iOS or ChatGPT/Claude compatibility.
 3. Complete common provider admission, renewal accounting, scheduler/PWA reserved capacity, restart/failure/load tests, metrics/alerts and retention. Review shared-cache cancellation/SWR interaction under MCP deadlines before enabling provider reads.
 4. Target both **ChatGPT and Claude**, as selected by the user, and prove OAuth consent, reads, revoke/reconnect, discovery, HTTPS proxy Host/Origin handling and request deadlines through the intended deployment. SDK interoperability alone is insufficient.
 5. Resolve applicable dependency audit findings, independent security review and rollback/kill-switch acceptance. No deploy/production configuration has been changed.

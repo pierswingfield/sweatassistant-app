@@ -7,6 +7,7 @@ const templated = typeof document !== 'undefined' ? document.title : '';
 export const appConfig = {
   appName: templated && templated !== '__APP_NAME__' ? templated : '',
   publicHost: '',
+  aiConnectionsEnabled: false,
 };
 
 let initialized = false;
@@ -23,6 +24,7 @@ export async function initConfig() {
       const data = await res.json();
       if (data.appName) appConfig.appName = data.appName;
       if (data.publicHost) appConfig.publicHost = data.publicHost;
+      appConfig.aiConnectionsEnabled = data.aiConnectionsEnabled === true;
     }
   } catch (_) { /* keep the templated defaults */ }
 }

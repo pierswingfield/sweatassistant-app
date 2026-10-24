@@ -10460,3 +10460,15 @@ html:not([data-credits-tab="on"]) .app-nav-btn[data-tab="buy-credits"] { display
   margin-top: 12px;
   padding-top: 12px;
 }
+
+/* First-party OAuth consent and account connections; served without scripts. */
+.mcp-page { max-width: 38rem; margin: 2rem auto; padding: 1.5rem; font-family: system-ui, sans-serif; color: var(--text, #202020); background: var(--surface, #fff); border-radius: 1rem; }
+.mcp-page h1 { font-size: 1.8rem; margin-bottom: 1rem; }
+.mcp-page p, .mcp-page fieldset, .mcp-page section { margin: 1rem 0; }
+.mcp-page label { display: block; margin: 1rem 0; }
+.mcp-page input[type=email], .mcp-page input[type=password] { display: block; width: 100%; padding: .8rem; border: 1px solid #777; border-radius: .4rem; }
+.mcp-page input[type=checkbox] { margin-right: .65rem; }
+.mcp-page button { padding: .8rem 1rem; margin: .5rem .5rem .5rem 0; border: 1px solid #555; border-radius: .4rem; cursor: pointer; }
+.mcp-page fieldset, .mcp-page section { padding: 1rem; border: 1px solid #888; border-radius: .5rem; }
+.mcp-page a { display: inline-block; margin-top: 1rem; text-decoration: underline; }
+@media (max-width: 600px) { .mcp-page { margin: 0; padding: 1.25rem; border-radius: 0; } }

@@ -2178,6 +2178,8 @@ function loadSettingsInputs() {
 }
 
 function setupSettingsListeners() {
+  const aiConnectionsCard = document.getElementById('app-ai-connections-card');
+  if (aiConnectionsCard) aiConnectionsCard.hidden = !appConfig.aiConnectionsEnabled;
   const debugMode = document.getElementById('app-setting-debug-mode');
   const prefetchWeeks = document.getElementById('app-setting-prefetch-weeks');
 

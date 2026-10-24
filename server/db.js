@@ -457,6 +457,30 @@ db.exec(`
     expires_at INTEGER NOT NULL,
     PRIMARY KEY (budget_key, window_id)
   );
+  CREATE TABLE IF NOT EXISTS mcp_oauth_interactions (
+    id TEXT PRIMARY KEY,
+    cookie_hash TEXT NOT NULL,
+    csrf TEXT NOT NULL,
+    request_json TEXT NOT NULL,
+    user_id INTEGER REFERENCES users(id) ON DELETE CASCADE,
+    account_fingerprint TEXT,
+    expires_at INTEGER NOT NULL,
+    consumed_at INTEGER
+  );
+  CREATE TABLE IF NOT EXISTS mcp_oauth_codes (
+    token_hash TEXT PRIMARY KEY,
+    grant_id TEXT NOT NULL REFERENCES mcp_grants(id) ON DELETE CASCADE,
+    data_json TEXT NOT NULL,
+    expires_at INTEGER NOT NULL,
+    consumed_at INTEGER
+  );
+  CREATE TABLE IF NOT EXISTS mcp_oauth_refresh (
+    token_hash TEXT PRIMARY KEY,
+    grant_id TEXT NOT NULL REFERENCES mcp_grants(id) ON DELETE CASCADE,
+    scope_json TEXT NOT NULL,
+    expires_at INTEGER NOT NULL,
+    consumed_at INTEGER
+  );
 `);
 
 // --- Gym registry mirror ---

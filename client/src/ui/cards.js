@@ -230,7 +230,7 @@ export function seatNoun(groupName = '') {
 }
 
 export function sparklesIcon(size = 14, color = 'currentColor') {
-  return `<svg class="i-cd-1" width="${size}" height="${size}" viewBox="0 0 32 32" fill="${color}" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
+  return `<svg class="cd-svg-icon" width="${size}" height="${size}" viewBox="0 0 32 32" fill="${color}" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
 <g data-name="Layer 2" id="Layer_2">
 <path d="M18,11a1,1,0,0,1-1,1,5,5,0,0,0-5,5,1,1,0,0,1-2,0,5,5,0,0,0-5-5,1,1,0,0,1,0-2,5,5,0,0,0,5-5,1,1,0,0,1,2,0,5,5,0,0,0,5,5A1,1,0,0,1,18,11Z"/>
 <path d="M19,24a1,1,0,0,1-1,1,2,2,0,0,0-2,2,1,1,0,0,1-2,0,2,2,0,0,0-2-2,1,1,0,0,1,0-2,2,2,0,0,0,2-2,1,1,0,0,1,2,0,2,2,0,0,0,2,2A1,1,0,0,1,19,24Z"/>
@@ -240,14 +240,14 @@ export function sparklesIcon(size = 14, color = 'currentColor') {
 }
 
 export function trendingUpIcon(size = 14, color = 'currentColor', strokeWidth = 2) {
-  return `<svg width="${size}" height="${size}" viewBox="0 0 24 24" fill="none" stroke="${color}" stroke-width="${strokeWidth}" stroke-linecap="round" stroke-linejoin="round" class="feather feather-trending-up i-cd-1" aria-hidden="true">
+  return `<svg width="${size}" height="${size}" viewBox="0 0 24 24" fill="none" stroke="${color}" stroke-width="${strokeWidth}" stroke-linecap="round" stroke-linejoin="round" class="feather feather-trending-up cd-svg-icon" aria-hidden="true">
 <polyline points="23 6 13.5 15.5 8.5 10.5 1 18"></polyline>
 <polyline points="17 6 23 6 23 12"></polyline>
 </svg>`;
 }
 
 export function pulseIcon(size = 14) {
-  return `<svg class="app-pulse-icon i-cd-2" width="${size}" height="${size}" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
+  return `<svg class="app-pulse-icon cd-pulse-icon" width="${size}" height="${size}" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
     <circle class="radar" cx="12" cy="12" r="2" />
     <circle class="core" cx="12" cy="12" r="2" />
   </svg>`;

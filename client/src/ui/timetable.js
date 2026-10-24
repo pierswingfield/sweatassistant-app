@@ -1894,6 +1894,8 @@ let pendingGymIds = [];
 /** F-12: tell read-only views of the loaded schedule (Settings > Favourites) that it changed or finished loading. */
 function announceTimetableRendered() { window.dispatchEvent(new Event('app-timetable-rendered')); }
 
+let ttStaggerPlayed = false;
+
 export async function renderTimetableGrid(reason = 'interaction') {
   const renderStartedAt = timetablePerfNow();
   const ttGrid = document.getElementById('app-timetable-grid');
@@ -2198,6 +2200,14 @@ export async function renderTimetableGrid(reason = 'interaction') {
     }
     tbody.appendChild(buildEventRow(event, autoBookedIds));
   });
+
+  // Phase 5 motion: capped stagger (first 8 rows, 24 ms step, CSS-owned) on the FIRST arrival of
+  // content only. Never on filter, date, refresh or background re-renders.
+  if (!ttStaggerPlayed && finalEvents.length) {
+    ttStaggerPlayed = true;
+    tbody.classList.add('app-stagger-in');
+    setTimeout(() => tbody.classList.remove('app-stagger-in'), 700);
+  }
 
   equalizeDiscTagWidths(ttGrid);
   equalizePrimaryCTAWidths(ttGrid);
@@ -3517,6 +3527,11 @@ async function toggleFavourite(event, heartEl) {
     showToast(wasFavourite ? COPY.timetable.bookmarkRemoved : COPY.timetable.bookmarkAdded, 'success');
     setupDropdownFilters();
     renderTimetableGrid();
+    // Tactile pop on the confirmed new favourite only (after the server said yes, never optimistic).
+    if (!wasFavourite) {
+      document.querySelectorAll(`.app-timetable-heart.bookmarked[data-event-id="${String(event.id).replace(/"/g, '')}"]`)
+        .forEach((h) => { h.classList.add('is-pop'); setTimeout(() => h.classList.remove('is-pop'), 400); });
+    }
   } catch (err) {
     console.error('[Timetable] Favourite toggle failed:', err);
     showToast(COPY.timetable.bookmarkUpdateFailed, 'error');

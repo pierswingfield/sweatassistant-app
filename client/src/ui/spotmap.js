@@ -67,6 +67,7 @@ export function slotKey(id) {
 }
 
 export function renderStudioFloorPlan(container, layoutSlots, initialSlots, initialRows, onSave, options = {}) {
+  let justPicked = null;
   const {
     saveLabel = COPY.spotMapEditor.saveDefaults,
     bannerHtml = '',
@@ -332,6 +333,7 @@ export function renderStudioFloorPlan(container, layoutSlots, initialSlots, init
         }
       } else if (priority > 0) {
         el.classList.add('is-selected');
+        if (justPicked === slotId) el.classList.add('is-pop'); // 140 ms feedback on the tapped seat only, never on re-render
         if (guestTone) el.classList.add('is-guest-tone');
         withPriorityBadge(priority);
         if (hasAvailability && !isAvailable) {
@@ -368,8 +370,10 @@ export function renderStudioFloorPlan(container, layoutSlots, initialSlots, init
           else {
             if (Number.isFinite(selectionLimit) && selectedSlots.length >= selectionLimit) selectedSlots.splice(0, selectedSlots.length);
             selectedSlots.push(slotId);
+            justPicked = slotId;
           }
           render();
+          justPicked = null;
         });
       } else if (reservationState || (hasAvailability && !isAvailable)) {
         el.classList.remove('is-editable');

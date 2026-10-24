@@ -70,7 +70,7 @@ export async function initBundles() {
     } catch (_) { /* leave empty; the message below is then the truth */ }
   }
   if (linked.length === 0) {
-    summaryRoot.innerHTML = `<div class="app-card-desc i-cr-1">${COPY.credits.connectGym}</div>`;
+    summaryRoot.innerHTML = `<div class="app-card-desc cr-desc-pad">${COPY.credits.connectGym}</div>`;
     return;
   }
 
@@ -259,10 +259,10 @@ async function openGymCreditDetail(gymId) {
     const alertDiv = document.createElement('div');
     alertDiv.className = 'app-credits-alert';
     alertDiv.innerHTML = `
-      <div class="i-cr-2">
-        <div class="i-cr-3">⚠</div>
-        <div class="i-cr-4">
-          <div class="i-cr-5">${COPY.credits.experimental}</div>
+      <div class="cr-warning-box">
+        <div class="cr-warning-icon">⚠</div>
+        <div class="cr-warning-content">
+          <div class="cr-warning-title">${COPY.credits.experimental}</div>
           <div>${COPY.credits.experimentalPurchaseNotice.replace('{gymName}', escapeHtml(creditGymName))}</div>
         </div>
       </div>`;
@@ -288,7 +288,7 @@ async function openGymCreditDetail(gymId) {
     renderBundles();
   } catch (err) {
     console.error('Failed to load bundles:', err);
-    container.innerHTML = `<div class="app-empty-state i-cr-6"><p class="i-cr-7">${COPY.credits.noCachedBundles}</p><p class="i-cr-8">${COPY.credits.loadBundlesHelp}</p></div>`;
+    container.innerHTML = `<div class="app-empty-state cr-empty-container"><p class="cr-empty-title">${COPY.credits.noCachedBundles}</p><p class="cr-empty-help">${COPY.credits.loadBundlesHelp}</p></div>`;
   }
 }
 
@@ -498,10 +498,10 @@ function renderNoPurchaseState() {
   const container = document.getElementById('app-bundles-container');
   if (!container) return;
   container.innerHTML = `
-    <div class="i-cr-9">
-      <div class="i-cr-10">\u{1F39F}\u{FE0F}</div>
-      <p class="i-cr-11">${COPY.credits.noCreditPacks}</p>
-      <p class="i-cr-12">${COPY.credits.membershipTopUpDescription}</p>
+    <div class="cr-packs-empty">
+      <div class="cr-packs-emoji">\u{1F39F}\u{FE0F}</div>
+      <p class="cr-packs-title">${COPY.credits.noCreditPacks}</p>
+      <p class="cr-packs-desc">${COPY.credits.membershipTopUpDescription}</p>
     </div>
   `;
 }
@@ -569,7 +569,7 @@ export function renderBundles() {
 
     const allHeader = document.createElement('div');
     allHeader.className = 'app-section-subheader';
-    allHeader.innerHTML = `<h4>${COPY.credits.allCredits} <span class="all-credits-chevron i-cr-13">▶\uFE0E</span></h4>`;
+    allHeader.innerHTML = `<h4>${COPY.credits.allCredits} <span class="all-credits-chevron cr-header-chevron">▶\uFE0E</span></h4>`;
     container.appendChild(allHeader);
 
     // Render Grid — collapsed by default
@@ -606,7 +606,7 @@ function createBundleCard(b, isFavSection) {
     <div class="fav-card-header">
       <div>
         <div class="fav-card-title">${b.name}</div>
-        <div class="fav-card-handle i-cr-14">${b.handle} ${formatCopyText(COPY.credits.bundleId, { id: b.id })}</div>
+        <div class="fav-card-handle cr-bundle-handle">${b.handle} ${formatCopyText(COPY.credits.bundleId, { id: b.id })}</div>
       </div>
       <button class="fav-card-star-btn ${isFav ? 'active' : ''}" title="${isFav ? COPY.credits.unpinBundle : COPY.credits.pinBundle}">
         ${isFav ? '★' : '☆'}
@@ -617,13 +617,13 @@ function createBundleCard(b, isFavSection) {
       <div class="fav-cost">£${costPerCredit} ${COPY.credits.creditUnit}</div>
     </div>
     <div class="fav-card-pills">
-      <span class="badge-pill i-cr-15">${formatCopyText(COPY.credits.creditsCount, { count: b.total_credits })}</span>
+      <span class="badge-pill cr-bundle-badge">${formatCopyText(COPY.credits.creditsCount, { count: b.total_credits })}</span>
       <span class="badge-pill ${allStudios ? 'valid' : 'invalid'}">${allStudios ? COPY.credits.allStudios : COPY.credits.selectStudios}</span>
       <span class="badge-pill ${allClasses ? 'valid' : 'invalid'}">${allClasses ? COPY.credits.allWorkouts : COPY.credits.excludesLagree}</span>
       <span class="badge-pill ${b.is_first_purchase_only ? 'badge-restricted' : 'badge-available'}">${b.is_first_purchase_only ? COPY.credits.firstOnly : COPY.credits.returningCustomer}</span>
       <span class="badge-pill ${b.is_one_time_purchase_only ? 'badge-restricted' : 'badge-available'}">${b.is_one_time_purchase_only ? COPY.credits.oneTime : COPY.credits.repeatPurchase}</span>
     </div>
-    <button class="app-btn-primary fav-card-buy-btn i-cr-16">
+    <button class="app-btn-primary fav-card-buy-btn cr-bundle-button">
       ${formatCopyText(COPY.credits.buyFor, { price: formattedPrice })}
     </button>
   `;
@@ -654,11 +654,11 @@ export function openPurchaseModal(b) {
   overlay.innerHTML = `
     <div class="app-modal-overlay"></div>
     <div class="app-modal-card app-purchase-card">
-      <div class="app-modal-header i-cr-18">
-        <h4 class="app-checkout-title i-cr-19">${COPY.credits.cart}</h4>
+      <div class="app-modal-header cr-cart-header">
+        <h4 class="app-checkout-title cr-cart-title">${COPY.credits.cart}</h4>
         <button class="app-modal-close-btn" aria-label="${COPY.credits.closeModal}">×</button>
       </div>
-      <div class="app-purchase-body i-cr-20"></div>
+      <div class="app-purchase-body cr-cart-body"></div>
     </div>
   `;
   document.body.appendChild(overlay);
@@ -687,23 +687,23 @@ export function openPurchaseModal(b) {
   function renderCart() {
     const total = `£${((unitPence * qty) / 100).toFixed(2)}`;
     body.innerHTML = `
-      <div class="i-cr-21">
-        <div class="i-cr-22">
-          <div class="i-cr-23">${b.name}</div>
-          <div class="i-cr-24">${formatCopyText(COPY.credits.creditBreakdown, { count: b.total_credits, plural: b.total_credits !== 1 ? 's' : '', price: unitLabel })}</div>
+      <div class="cr-item-row">
+        <div class="cr-item-info">
+          <div class="cr-item-name">${b.name}</div>
+          <div class="cr-item-breakdown">${formatCopyText(COPY.credits.creditBreakdown, { count: b.total_credits, plural: b.total_credits !== 1 ? 's' : '', price: unitLabel })}</div>
         </div>
-        <div class="i-cr-25">
-          <button class="app-qty-btn app-qty-dec i-cr-26">−</button>
-          <span class="app-qty-val i-cr-27">${qty}</span>
-          <button class="app-qty-btn app-qty-inc i-cr-26">+</button>
-          <button class="app-qty-remove i-cr-28" title="${COPY.credits.remove}">✕</button>
+        <div class="cr-item-controls">
+          <button class="app-qty-btn app-qty-dec cr-qty-decrease">−</button>
+          <span class="app-qty-val cr-qty-value">${qty}</span>
+          <button class="app-qty-btn app-qty-inc cr-qty-decrease">+</button>
+          <button class="app-qty-remove cr-qty-remove" title="${COPY.credits.remove}">✕</button>
         </div>
       </div>
-      <div class="i-cr-29">
-        <span class="i-cr-30">${COPY.credits.totalIncVat}</span>
-        <span class="app-cart-total i-cr-31">${total}</span>
+      <div class="cr-cart-footer">
+        <span class="cr-total-label">${COPY.credits.totalIncVat}</span>
+        <span class="app-cart-total cr-total-amount">${total}</span>
       </div>
-      <button class="app-btn-primary app-checkout-btn i-cr-32">${COPY.credits.continueToPayment}</button>
+      <button class="app-btn-primary app-checkout-btn cr-checkout-submit">${COPY.credits.continueToPayment}</button>
     `;
 
     body.querySelector('.app-qty-dec').addEventListener('click', () => {
@@ -746,22 +746,22 @@ export function openPurchaseModal(b) {
     const defaultPm = methods.find(m => m.default) || methods[0];
 
     const cardOptions = methods.map(m => `
-      <label class="app-pm-row i-cr-33">
+      <label class="app-pm-row cr-payment-row">
         <input type="radio" name="app-pm" value="${m.id}" ${m.id === defaultPm.id ? 'checked' : ''}>
-        <span class="i-cr-34">${m.brand}</span>
-        <span class="i-cr-35">•••• ${m.last4}</span>
-        <span class="i-cr-36">${String(m.exp_month).padStart(2,'0')}/${m.exp_year}</span>
+        <span class="cr-payment-brand">${m.brand}</span>
+        <span class="cr-payment-digits">•••• ${m.last4}</span>
+        <span class="cr-payment-expiry">${String(m.exp_month).padStart(2,'0')}/${m.exp_year}</span>
       </label>
     `).join('');
 
     body.innerHTML = `
-      <div class="i-cr-37">${COPY.credits.payWith}</div>
+      <div class="cr-payment-title">${COPY.credits.payWith}</div>
       ${cardOptions}
-      <div class="i-cr-38">
-        <span class="i-cr-30">${qty > 1 ? `${qty}× ${b.name}` : b.name}</span>
-        <span class="i-cr-39">${totalLabel}</span>
+      <div class="cr-summary-row">
+        <span class="cr-total-label">${qty > 1 ? `${qty}× ${b.name}` : b.name}</span>
+        <span class="cr-summary-total">${totalLabel}</span>
       </div>
-      <button class="app-btn-primary app-pay-btn i-cr-32">${formatCopyText(COPY.credits.payTotal, { total: totalLabel })}</button>
+      <button class="app-btn-primary app-pay-btn cr-checkout-submit">${formatCopyText(COPY.credits.payTotal, { total: totalLabel })}</button>
     `;
 
     body.querySelector('.app-pay-btn').addEventListener('click', async () => {
@@ -781,11 +781,11 @@ export function openPurchaseModal(b) {
         setBusy(false);
         if (result.status === 'paid') {
           body.innerHTML = `
-            <div class="i-cr-40">
-              <div class="i-cr-41">✅</div>
-              <div class="i-cr-39">${COPY.credits.paymentComplete}</div>
-              <div class="i-cr-42">${formatCopyText(COPY.credits.creditsAdded, { count: b.total_credits * qty })}</div>
-              <button class="app-btn-primary app-done-btn i-cr-43">${COPY.credits.done}</button>
+            <div class="cr-success-container">
+              <div class="cr-success-emoji">✅</div>
+              <div class="cr-summary-total">${COPY.credits.paymentComplete}</div>
+              <div class="cr-success-desc">${formatCopyText(COPY.credits.creditsAdded, { count: b.total_credits * qty })}</div>
+              <button class="app-btn-primary app-done-btn cr-success-done">${COPY.credits.done}</button>
             </div>
           `;
           body.querySelector('.app-done-btn').addEventListener('click', closeModal);
@@ -812,21 +812,21 @@ export function openPurchaseModal(b) {
 // secureTips=true adds concise guidance for 3DS issues + website fallback.
 function renderPurchaseError(body, b, message, hint, secureTips) {
   const tips = secureTips ? `
-    <div class="i-cr-44">
-      <div class="i-cr-45">${COPY.credits.avoidsThreeDSecure}</div>
+    <div class="cr-secure-notice">
+      <div class="cr-secure-title">${COPY.credits.avoidsThreeDSecure}</div>
       • ${COPY.credits.cardTrustedTip.replace('{gymName}', escapeHtml(creditGymName))}<br>
       • ${COPY.credits.websitePurchaseTip.replace('{gymName}', escapeHtml(creditGymName))}<br>
       • ${COPY.credits.amexTip}
     </div>
-  ` : (hint ? `<div class="i-cr-46">${hint}</div>` : '');
+  ` : (hint ? `<div class="cr-secure-hint">${hint}</div>` : '');
 
   body.innerHTML = `
-    <div class="i-cr-47">
-      <div class="i-cr-48">⚠️</div>
-      <div class="i-cr-39">${COPY.credits.paymentNotCompleted}</div>
-      <div class="i-cr-42">${message}</div>
+    <div class="cr-error-container">
+      <div class="cr-error-emoji">⚠️</div>
+      <div class="cr-summary-total">${COPY.credits.paymentNotCompleted}</div>
+      <div class="cr-success-desc">${message}</div>
       ${tips}
-      <button class="app-btn-primary app-website-btn i-cr-49">${COPY.credits.finishOnWebsite}</button>
+      <button class="app-btn-primary app-website-btn cr-error-website">${COPY.credits.finishOnWebsite}</button>
     </div>
   `;
   body.querySelector('.app-website-btn').addEventListener('click', () => {

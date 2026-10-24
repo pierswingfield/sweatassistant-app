@@ -168,12 +168,12 @@ export async function renderBookings(day = currentRoute().bookings?.day) {
 
     // Show a friendly empty state when offline and no cached data is available
     if (bookingsList && !bookingsDataReady()) {
-      bookingsList.innerHTML = `<div class="app-empty-state i-bk-1"><p class="i-bk-2">${COPY.bookings.noCachedData}</p><p class="i-bk-3">${COPY.bookings.connectInternetBookings}</p></div>`;
+      bookingsList.innerHTML = `<div class="app-empty-state bk-empty-container"><p class="bk-empty-title">${COPY.bookings.noCachedData}</p><p class="bk-empty-help">${COPY.bookings.connectInternetBookings}</p></div>`;
     } else if (bookingsList) {
       bookingsList.innerHTML = `<div class="app-card-error">${formatCopyText(COPY.bookings.noCachedError, { error: escapeHtml(err.message) })}</div>`;
     }
     if (waitlistsList && !bookingsDataReady()) {
-      waitlistsList.innerHTML = `<div class="app-empty-state i-bk-1"><p class="i-bk-2">${COPY.bookings.noCachedData}</p><p class="i-bk-3">${COPY.bookings.connectInternetWaitlists}</p></div>`;
+      waitlistsList.innerHTML = `<div class="app-empty-state bk-empty-container"><p class="bk-empty-title">${COPY.bookings.noCachedData}</p><p class="bk-empty-help">${COPY.bookings.connectInternetWaitlists}</p></div>`;
     } else if (waitlistsList) {
       waitlistsList.innerHTML = `<div class="app-card-error">${formatCopyText(COPY.bookings.noCachedError, { error: escapeHtml(err.message) })}</div>`;
     }
@@ -294,7 +294,7 @@ function renderBookingsCards(bookings, upgrades) {
 
   bookedCount = groups.length;
   if (groups.length === 0) {
-    container.innerHTML = `<div class="fav-empty-state i-bk-4">${COPY.bookings.noBookings}</div>`;
+    container.innerHTML = `<div class="fav-empty-state bk-empty-pad">${COPY.bookings.noBookings}</div>`;
     updateWaitlistAffordances();
     return;
   }
@@ -373,7 +373,7 @@ function buildBookingCard(group, upgrades) {
     if (activeUpgrade) {
       if (activeUpgrade.status === 'paused_no_credits' || activeUpgrade.status === 'paused_disabled' || totalAvailableCredits(event.gymId) < 1) {
         chipClass += ' state-warning';
-        iconHtml = '<span class="i-bk-5">⚠</span>';
+        iconHtml = '<span class="bk-icon-spacing">⚠</span>';
       } else {
         chipClass += ' state-active';
         iconHtml = pulseIcon(12) + '&nbsp;';
@@ -441,7 +441,7 @@ function buildBookingCard(group, upgrades) {
         ${(instructorAvatar(instructorName, event.gymId, instructorPhotoUrl) || instructorName)
           ? `<div class="ab-card-figure ${instructorNameLengthClass(instructorName)}">${instructorAvatar(instructorName, event.gymId, instructorPhotoUrl) || ''}${instructorName ? `<span class="ab-card-instructor ${instructorNameLengthClass(instructorName)}">${escapeHtml(instructorName)}</span>` : ''}</div>` : ''}
       </div>
-      <div class="ab-card-footer i-bk-6">
+      <div class="ab-card-footer bk-footer-start">
         <div class="ab-chip-group">${chipsHtml}${guestChipHtml}</div>
       </div>
     </div>
@@ -736,7 +736,7 @@ export function openGroupedCancellationModal(group, onChange = renderBookings) {
   const render = () => {
     const confirmAll = state.confirmation?.all;
     const error = state.error
-      ? `<div class="i-bk-7" role="alert">${escapeHtml(state.error)}</div>`
+      ? `<div class="bk-error-alert" role="alert">${escapeHtml(state.error)}</div>`
       : '';
     const rows = state.bookings.map((booking) => {
       const bookingId = bookingIdOf(booking);
@@ -747,21 +747,21 @@ export function openGroupedCancellationModal(group, onChange = renderBookings) {
       const role = isGuest ? COPY.bookings.guestSpotChip : COPY.bookings.selfSpotChip;
       const action = confirming ? COPY.bookings.confirm : COPY.bookings.cancel;
       const disabled = busy || blocked;
-      return `<div class="app-cancel-spot-row i-bk-8">
-        <div class="i-bk-9">
-          <span class="i-bk-10"><small class="i-bk-11">${escapeHtml(role)}</small><span class="ab-spot-upgrade-chip${isGuest ? ' is-guest' : ''} i-bk-12">${escapeHtml(labelFor(booking))}</span></span>
-          ${blocked ? '<span class="i-bk-13">Cancel guest spots first</span>' : ''}
-          ${(() => { const info = cancelInfo.get(String(bookingId)); return info ? `<span class="cancel-info is-${info.kind}" style="font-size:12px;color:${info.kind === 'free' ? 'var(--text-secondary)' : 'var(--warning)'};">${escapeHtml(info.text)}</span>` : '<span class="i-bk-14">Checking cancellation policy…</span>'; })()}
+      return `<div class="app-cancel-spot-row bk-cancel-row">
+        <div class="bk-cancel-info">
+          <span class="bk-role-container"><small class="bk-role-label">${escapeHtml(role)}</small><span class="ab-spot-upgrade-chip${isGuest ? ' is-guest' : ''} bk-upgrade-chip">${escapeHtml(labelFor(booking))}</span></span>
+          ${blocked ? '<span class="bk-guest-warning">Cancel guest spots first</span>' : ''}
+          ${(() => { const info = cancelInfo.get(String(bookingId)); return info ? `<span class="cancel-info is-${info.kind}" style="font-size:12px;color:${info.kind === 'free' ? 'var(--text-secondary)' : 'var(--warning)'};">${escapeHtml(info.text)}</span>` : '<span class="bk-cancel-meta">Checking cancellation policy…</span>'; })()}
         </div>
-        <button class="app-btn cancel-confirm grouped-cancel-one i-bk-15" data-booking-id="${escapeHtml(bookingId)}" ${disabled ? 'disabled' : ''}>${action}</button>
+        <button class="app-btn cancel-confirm grouped-cancel-one bk-cancel-action" data-booking-id="${escapeHtml(bookingId)}" ${disabled ? 'disabled' : ''}>${action}</button>
       </div>`;
     }).join('');
     body.innerHTML = `
-      <div class="app-grouped-cancellation i-bk-16">
-        <p class="i-bk-17">Choose a ${escapeHtml(noun)} to cancel, or cancel every booked ${escapeHtml(noun)}. Guest spots are released before your own booking.</p>
+      <div class="app-grouped-cancellation bk-grouped-stack">
+        <p class="bk-grouped-desc">Choose a ${escapeHtml(noun)} to cancel, or cancel every booked ${escapeHtml(noun)}. Guest spots are released before your own booking.</p>
         <div>${rows}</div>
         ${error}
-        <button class="app-btn cancel-confirm grouped-cancel-all i-bk-18" ${busy ? 'disabled' : ''}>${confirmAll ? COPY.bookings.confirm : `Cancel all ${noun}s`}</button>
+        <button class="app-btn cancel-confirm grouped-cancel-all bk-grouped-submit" ${busy ? 'disabled' : ''}>${confirmAll ? COPY.bookings.confirm : `Cancel all ${noun}s`}</button>
       </div>`;
 
     body.querySelectorAll('.grouped-cancel-one').forEach((button) => {
@@ -844,7 +844,7 @@ export async function openEditBookingModal(group, onChange = renderBookings) {
 
   title.textContent = formatCopyText(COPY.bookings.editSpotsTitle, { noun: nounCap, className });
   applyBookingChrome(modal, { titleText: COPY.bookingFlow.titleEditSpots, gymId: event.gymId, locationName: event.locationName, studioName: event.studioName });
-  body.innerHTML = `<div class="app-loading-spinner-container i-bk-19"><div class="app-spinner"></div><span>${COPY.bookings.loadingFloorMap}</span></div>`;
+  body.innerHTML = `<div class="app-loading-spinner-container bk-loading-container"><div class="app-spinner"></div><span>${COPY.bookings.loadingFloorMap}</span></div>`;
   let editDirty = () => false; // set once the selection exists
   openNavPage(modal, { id: 'edit-spots', onClose: () => { if (modalRunId === editModalRunId) editModalRunId++; }, canClose: () => !editDirty() || confirm(COPY.bookingEditor.discardChanges) });
 
@@ -908,7 +908,7 @@ export async function openEditBookingModal(group, onChange = renderBookings) {
       const why = isFcfs
         ? formatCopyText(COPY.bookingEditor.noAssignedSpots, { noun: escapeHtml(noun) })
         : formatCopyText(COPY.bookingEditor.noFloorMap, { noun: escapeHtml(noun) });
-      body.innerHTML = `<div class="i-bk-20">${formatCopyText(COPY.bookings.noSpotsBookingHelp, { reason: why })}</div>`;
+      body.innerHTML = `<div class="bk-loading-help">${formatCopyText(COPY.bookings.noSpotsBookingHelp, { reason: why })}</div>`;
       return;
     }
 
@@ -939,9 +939,9 @@ export async function openEditBookingModal(group, onChange = renderBookings) {
         <span class="is-self">${COPY.bookings.guestMapSelf}</span><span class="is-guest">${COPY.bookings.guestMapGuest}</span><span class="is-available">${COPY.bookings.guestMapAvailable}</span><span class="is-unavailable">${COPY.bookings.guestMapUnavailable}</span>
       </div>
       <div class="app-floor-plan-container" style="position:relative;height:${minMapHeight}px;background:var(--surface-inset);border:1px solid var(--border);border-radius:12px;margin-bottom:10px;overflow:hidden;">
-        <div class="i-bk-21" id="app-edit-floor-grid"></div>
+        <div class="bk-floor-grid" id="app-edit-floor-grid"></div>
       </div>
-      <div class="i-bk-22" id="app-edit-summary"></div>
+      <div class="bk-edit-summary" id="app-edit-summary"></div>
       <div id="app-edit-controls"></div>
     `;
 
@@ -975,29 +975,29 @@ export async function openEditBookingModal(group, onChange = renderBookings) {
 
       let msg = '';
       if (!changed) {
-        msg = `<div class="i-bk-14">${COPY.bookings.noChanges}</div>`;
+        msg = `<div class="bk-cancel-meta">${COPY.bookings.noChanges}</div>`;
       } else if (desired.length === 0) {
-        msg = `<div class="i-bk-23">${formatCopyText(COPY.bookingEditor.cancelBookingReleaseSpots, { noun: escapeHtml(noun) })}</div>`;
+        msg = `<div class="bk-edit-error">${formatCopyText(COPY.bookingEditor.cancelBookingReleaseSpots, { noun: escapeHtml(noun) })}</div>`;
       } else if (desired.length > selfBookingLimit) {
-        msg = `<div class="i-bk-23">${formatCopyText(COPY.bookingEditor.selfBookingLimitExceeded, { count: selfBookingLimit, plural: selfBookingLimit === 1 ? '' : 's' })}</div>`;
+        msg = `<div class="bk-edit-error">${formatCopyText(COPY.bookingEditor.selfBookingLimitExceeded, { count: selfBookingLimit, plural: selfBookingLimit === 1 ? '' : 's' })}</div>`;
       } else if (shortfall > 0) {
-        msg = `<div class="i-bk-23">${formatCopyText(COPY.bookingEditor.creditShortfall, { shortfall, creditPlural: shortfall !== 1 ? 's' : '', count: toAdd.length, noun: escapeHtml(noun), nounPlural: toAdd.length !== 1 ? 's' : '' })}</div>`;
+        msg = `<div class="bk-edit-error">${formatCopyText(COPY.bookingEditor.creditShortfall, { shortfall, creditPlural: shortfall !== 1 ? 's' : '', count: toAdd.length, noun: escapeHtml(noun), nounPlural: toAdd.length !== 1 ? 's' : '' })}</div>`;
       }
 
       const parts = [];
-      if (toAdd.length) parts.push(`<span class="i-bk-24">+${toAdd.map(labelFor).join(', ')}</span>`);
-      if (toRemove.length) parts.push(`<span class="i-bk-25">−${toRemove.map(labelFor).join(', ')}</span>`);
-      if (guestsToCancel.size) parts.push(`<span class="i-bk-26">− ${COPY.bookings.guestSpotChip} ${[...guestsToCancel].map(labelFor).join(', ')}</span>`);
+      if (toAdd.length) parts.push(`<span class="bk-add-highlight">+${toAdd.map(labelFor).join(', ')}</span>`);
+      if (toRemove.length) parts.push(`<span class="bk-remove-highlight">−${toRemove.map(labelFor).join(', ')}</span>`);
+      if (guestsToCancel.size) parts.push(`<span class="bk-guest-highlight">− ${COPY.bookings.guestSpotChip} ${[...guestsToCancel].map(labelFor).join(', ')}</span>`);
       summaryEl.innerHTML = parts.length
-        ? `<span class="i-bk-27">${COPY.bookings.changes}</span>${parts.join('&nbsp;&nbsp;')}`
-        : `<span class="i-bk-28">${formatCopyText(COPY.bookings.selectedSpots, { count: desired.length, noun: escapeHtml(noun), plural: desired.length !== 1 ? 's' : '' })}</span>`;
+        ? `<span class="bk-changes-label">${COPY.bookings.changes}</span>${parts.join('&nbsp;&nbsp;')}`
+        : `<span class="bk-selected-label">${formatCopyText(COPY.bookings.selectedSpots, { count: desired.length, noun: escapeHtml(noun), plural: desired.length !== 1 ? 's' : '' })}</span>`;
 
       controls.innerHTML = `
-        <div class="i-bk-29">
+        <div class="bk-editor-panel">
           ${msg}
-          <div class="i-bk-30">
-            <button class="app-btn i-bk-31" id="bk-edit-close">${COPY.bookings.close}</button>
-            <button class="app-btn i-bk-32" id="bk-edit-save" ${(!changed || shortfall > 0) ? 'disabled' : ''}>${COPY.bookings.saveChanges}</button>
+          <div class="bk-editor-actions">
+            <button class="app-btn bk-editor-close" id="bk-edit-close">${COPY.bookings.close}</button>
+            <button class="app-btn bk-editor-save" id="bk-edit-save" ${(!changed || shortfall > 0) ? 'disabled' : ''}>${COPY.bookings.saveChanges}</button>
           </div>
         </div>`;
 
@@ -1158,7 +1158,7 @@ export async function openEditBookingModal(group, onChange = renderBookings) {
   } catch (err) {
     if (!isCurrentRun()) return;
     console.error('[Bookings] Edit modal failed:', err);
-    body.innerHTML = `<div class="app-card-error i-bk-33">${formatCopyText(COPY.bookings.loadingFloorMapError, { error: escapeHtml(err.message) })}</div>`;
+    body.innerHTML = `<div class="app-card-error bk-map-error">${formatCopyText(COPY.bookings.loadingFloorMapError, { error: escapeHtml(err.message) })}</div>`;
   }
 }
 
@@ -1172,7 +1172,7 @@ function renderWaitlistsCards(waitlists) {
   const valid = (waitlists || []).filter(w => w.event && (w.event.startAt || w.event.start_at));
   waitlistCount = valid.length;
   if (valid.length === 0) {
-    container.innerHTML = `<div class="fav-empty-state i-bk-4">${COPY.bookings.noWaitlists}</div>`;
+    container.innerHTML = `<div class="fav-empty-state bk-empty-pad">${COPY.bookings.noWaitlists}</div>`;
     updateWaitlistAffordances();
     return;
   }
@@ -1230,7 +1230,7 @@ function buildWaitlistCard(w) {
           ? `<div class="ab-card-figure ${instructorNameLengthClass(instructorName)}">${instructorAvatar(instructorName, event.gymId, instructorPhotoUrl) || ''}${instructorName ? `<span class="ab-card-instructor ${instructorNameLengthClass(instructorName)}">${escapeHtml(instructorName)}</span>` : ''}</div>` : ''}
       </div>
       <div class="ab-card-footer">
-        <span class="ab-spots-pill i-bk-34">${icon('clock', 12)} ${COPY.bookings.waitlisted}</span>
+        <span class="ab-spots-pill bk-waitlist-pill">${icon('clock', 12)} ${COPY.bookings.waitlisted}</span>
       </div>
     </div>
     <div class="ab-card-rail">
@@ -1356,7 +1356,7 @@ export async function openUpgradeConfigModal({ currentSlotLabel = '', eventId, g
 
   title.textContent = COPY.autoUpgrade.configureTitle;
   body.innerHTML = `
-    <div class="app-loading-spinner-container i-bk-35">
+    <div class="app-loading-spinner-container bk-loading-pad">
       <div class="app-spinner"></div>
       <span>${COPY.bookings.fetchingFloorMap}</span>
     </div>
@@ -1403,7 +1403,7 @@ export async function openUpgradeConfigModal({ currentSlotLabel = '', eventId, g
       const why = isFcfs
         ? formatCopyText(COPY.bookingEditor.noAssignedUpgradeSpots, { noun })
         : COPY.bookingEditor.noMapForUpgrade;
-      body.innerHTML = `<div class="i-bk-36">${why}</div>`;
+      body.innerHTML = `<div class="bk-help-box">${why}</div>`;
       return;
     }
 
@@ -1430,7 +1430,7 @@ export async function openUpgradeConfigModal({ currentSlotLabel = '', eventId, g
     const upgradeCreditsNeeded = 1; // Auto-upgrade needs 1 credit for the additional spot
     const hasEnoughCredits = !ineligibleReason && availableCredits >= upgradeCreditsNeeded;
     const creditWarningHtml = !hasEnoughCredits
-      ? `<div class="i-bk-37">${ineligibleReason || formatCopyText(COPY.bookingEditor.upgradeNeedsCredits, { needed: upgradeCreditsNeeded - availableCredits, gym: escapeHtml(gym.name || gym.shortName || COPY.static.yourGymFallback) })}</div>`
+      ? `<div class="bk-upgrade-error">${ineligibleReason || formatCopyText(COPY.bookingEditor.upgradeNeedsCredits, { needed: upgradeCreditsNeeded - availableCredits, gym: escapeHtml(gym.name || gym.shortName || COPY.static.yourGymFallback) })}</div>`
       : '';
 
     const contextInfo = { className, instructorName: instructorName || '', startAt, gymId, timeZone: event.timeZone };
@@ -1449,9 +1449,9 @@ export async function openUpgradeConfigModal({ currentSlotLabel = '', eventId, g
           ${(() => {
             if (isEditing) return '';
             const g = resolveUpgradeGroup(cache.bookings, { gymId, eventId, bookingId });
-            if (g.kind === 'guest') return `<div class="app-card-error i-bk-38">${COPY.timetable.autoUpgradeGuestUnavailable}</div>`;
+            if (g.kind === 'guest') return `<div class="app-card-error bk-guest-unavailable">${COPY.timetable.autoUpgradeGuestUnavailable}</div>`;
             if (g.kind !== 'group') return '';
-            return `<div class="i-bk-39">${canForGym('atomicSwap', gymId) ? COPY.timetable.autoUpgradeGroupAtomic : COPY.timetable.autoUpgradeGroupCancelRebook}</div>`;
+            return `<div class="bk-upgrade-hint">${canForGym('atomicSwap', gymId) ? COPY.timetable.autoUpgradeGroupAtomic : COPY.timetable.autoUpgradeGroupCancelRebook}</div>`;
           })()}
           <div id="upgrade-context"></div>
           <div class="app-upgrade-current">Your current ${noun}: <strong>${escapeHtml(spotLabel || '—')}</strong></div>
@@ -1465,9 +1465,9 @@ export async function openUpgradeConfigModal({ currentSlotLabel = '', eventId, g
             <span><strong>${COPY.bookings.continuePastCutoff}</strong><br>
               <span class="app-upgrade-keep-help">${formatCopyText(COPY.bookingEditor.finalUpgradeAttemptHelp, { noun: escapeHtml(noun) })}</span></span>
           </label>` : ''}
-          <div class="app-spotmap-actions app-upgrade-actions i-bk-30">
-            <button type="button" class="app-btn i-bk-40" id="upgrade-save">${isEditing ? COPY.bookings.saveChanges : COPY.bookings.startMonitoring}</button>
-            ${isEditing ? `<button type="button" class="app-btn i-bk-41" id="upgrade-disable">${COPY.bookings.disableUpgrade}</button>` : ''}
+          <div class="app-spotmap-actions app-upgrade-actions bk-editor-actions">
+            <button type="button" class="app-btn bk-upgrade-submit" id="upgrade-save">${isEditing ? COPY.bookings.saveChanges : COPY.bookings.startMonitoring}</button>
+            ${isEditing ? `<button type="button" class="app-btn bk-upgrade-disable" id="upgrade-disable">${COPY.bookings.disableUpgrade}</button>` : ''}
           </div>
         </div>`;
 
@@ -1529,7 +1529,7 @@ export async function openUpgradeConfigModal({ currentSlotLabel = '', eventId, g
       body.innerHTML = `<div id="app-upgrade-editor"></div>`;
       const editorContainer = body.querySelector('#app-upgrade-editor');
       const bannerHtml = `
-        <div class="i-bk-42">
+        <div class="bk-upgrade-banner">
           ${formatCopyText(COPY.bookingEditor.sharedSpotMapHtml, { studioName: escapeHtml(studioName) })} Your current ${noun} is <strong>${escapeHtml(spotLabel || '—')}</strong>.
         </div>`;
       renderStudioFloorPlan(editorContainer, layoutSlots, state.slots, state.rows, async (slots, rows) => {

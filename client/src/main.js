@@ -439,6 +439,21 @@ window.switchTab = switchTab;
 // The currently active tab — used by the shared pull-to-refresh dispatcher.
 let currentTabId = null;
 
+// Phase 5 motion: a directional one-shot enter (opacity + 12px translate, CSS-owned) on the panel that
+// becomes visible. Direction follows the bottom-nav order. Not played on first paint or for the same tab;
+// the class is removed on animationend with a timeout fallback so a skipped event can never leave it on.
+const TAB_ORDER = ['home', 'class-timetable', 'my-bookings', 'auto-book', 'buy-credits', 'settings', 'about'];
+function playTabEnter(panel, fromId, toId) {
+  if (!panel || !fromId || fromId === toId) return;
+  const dir = TAB_ORDER.indexOf(toId) >= TAB_ORDER.indexOf(fromId) ? 'fwd' : 'back';
+  panel.classList.remove('tab-enter-fwd', 'tab-enter-back');
+  void panel.offsetWidth; // restart on rapid repeated taps
+  panel.classList.add(`tab-enter-${dir}`);
+  const done = () => panel.classList.remove('tab-enter-fwd', 'tab-enter-back');
+  panel.addEventListener('animationend', done, { once: true });
+  setTimeout(done, 400);
+}
+
 // opts.history: 'push' (default: a user-initiated tab change adds an entry), 'replace',
 // or 'none' (boot / popstate: the URL already says where we are). opts.section: settings pane.
 function switchTab(tabId, opts = {}) {
@@ -451,6 +466,7 @@ function switchTab(tabId, opts = {}) {
   cancelPullToRefresh();
   // Leaving the timetable ends search: its own filter scope is dropped and the normal filters return.
   if (tabId !== 'class-timetable') import('./ui/timetable-search-state.js').then(m => { if (m.inSearchScope()) import('./ui/timetable').then(t => t.exitSearch()); });
+  const prevTabId = currentTabId;
   currentTabId = tabId;
   const targetPanelId = `app-panel-${tabId}`;
 
@@ -472,6 +488,8 @@ function switchTab(tabId, opts = {}) {
       panel.style.display = 'none';
     }
   });
+
+  playTabEnter(document.getElementById(targetPanelId), prevTabId, tabId);
 
   const bodyScroller = document.querySelector('main.app-body');
   syncTabScrollState(bodyScroller, tabId);

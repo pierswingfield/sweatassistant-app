@@ -94,34 +94,34 @@ function isScalar(val) {
 }
 
 function formatVal(val) {
-  if (val === null || val === undefined) return '<span class="i-set-1">null</span>';
+  if (val === null || val === undefined) return '<span class="set-null-text">null</span>';
   if (typeof val === 'object') {
-    return `<pre class="i-set-2">${JSON.stringify(val, null, 2)}</pre>`;
+    return `<pre class="set-json-box">${JSON.stringify(val, null, 2)}</pre>`;
   }
   if (typeof val === 'boolean') {
-    return val ? '<span class="i-set-3">true</span>' : '<span class="i-set-4">false</span>';
+    return val ? '<span class="set-bool-true">true</span>' : '<span class="set-bool-false">false</span>';
   }
-  return `<span class="i-set-5">${String(val)}</span>`;
+  return `<span class="set-value-text">${String(val)}</span>`;
 }
 
 // ─── Special Section Renderers ──────────────────────────────────────────────
 
 function renderCreditsHtml(credits) {
-  if (!credits || credits.length === 0) return `<div class="i-set-6">${COPY.profileExplorer.noActiveCredits}</div>`;
+  if (!credits || credits.length === 0) return `<div class="set-credits-empty">${COPY.profileExplorer.noActiveCredits}</div>`;
   return credits.map(c => `
-    <div class="i-set-7">
-      <div class="i-set-8">
-        <strong class="i-set-9">${c.credit_type?.name || COPY.profileExplorer.unknown}</strong>
-        <span class="i-set-10">${formatCopyText(COPY.profileExplorer.creditHandle, { handle: escapeHtml(c.credit_type?.handle || '—') })}</span>
+    <div class="set-credit-row">
+      <div class="set-credit-stack">
+        <strong class="set-credit-name">${c.credit_type?.name || COPY.profileExplorer.unknown}</strong>
+        <span class="set-credit-handle">${formatCopyText(COPY.profileExplorer.creditHandle, { handle: escapeHtml(c.credit_type?.handle || '—') })}</span>
       </div>
-      <span class="i-set-11">${formatCopyText(COPY.profileExplorer.creditsLeft, { count: c.count })}</span>
+      <span class="set-credit-badge">${formatCopyText(COPY.profileExplorer.creditsLeft, { count: c.count })}</span>
     </div>
   `).join('');
 }
 
 function renderSubsHtml(subs, statuses) {
   const allSubs = [...(subs || []), ...(statuses || [])];
-  if (allSubs.length === 0) return `<div class="i-set-6">${COPY.profileExplorer.noPlans}</div>`;
+  if (allSubs.length === 0) return `<div class="set-credits-empty">${COPY.profileExplorer.noPlans}</div>`;
   return allSubs.map(s => {
     const status = s.status || 'inactive';
     const isCancelled = status === 'cancelled';
@@ -129,10 +129,10 @@ function renderSubsHtml(subs, statuses) {
     const statusBorder = isCancelled ? 'color-mix(in srgb, var(--danger) 30%, transparent)' : 'color-mix(in srgb, var(--success) 30%, transparent)';
     const statusColor = isCancelled ? 'var(--danger)' : 'var(--success)';
     return `
-      <div class="i-set-12">
-        <div class="i-set-13">
-          <span class="i-set-14">${s.name || '—'}</span>
-          <span class="i-set-10">${formatCopyText(COPY.profileExplorer.planHandle, { handle: escapeHtml(s.handle || '—') })}</span>
+      <div class="set-studio-row">
+        <div class="set-studio-stack">
+          <span class="set-studio-name">${s.name || '—'}</span>
+          <span class="set-credit-handle">${formatCopyText(COPY.profileExplorer.planHandle, { handle: escapeHtml(s.handle || '—') })}</span>
         </div>
         <span style="background:${statusBg};border:1px solid ${statusBorder};color:${statusColor};border-radius:6px;padding:3px 8px;font-size:12px;font-weight:700;text-transform:uppercase;letter-spacing:0.5px;">${status}</span>
       </div>
@@ -242,7 +242,7 @@ async function openProfileExplorerModal(gymId = null, gymName = null) {
     },
     onClose: () => { explorerModalOpen = false; editMode = false; konamiProgress = 0; },
   });
-  body.innerHTML = `<div class="i-set-15"><div class="app-spinner i-set-16"></div><div class="i-set-17">${COPY.profileExplorer.loading}</div></div>`;
+  body.innerHTML = `<div class="set-loading-container"><div class="app-spinner set-loading-spinner"></div><div class="set-loading-text">${COPY.profileExplorer.loading}</div></div>`;
 
   // Set up close handlers
   setupExplorerModalClose(modal);
@@ -335,9 +335,9 @@ function renderExplorerBody(body) {
 
   // Edit mode banner
   if (editMode) {
-    html += `<div class="i-set-18">
-      <span class="i-set-19">${COPY.profileExplorer.editBanner}</span>
-      <span class="i-set-20">${COPY.profileExplorer.exitEdit}</span>
+    html += `<div class="set-edit-banner">
+      <span class="set-banner-title">${COPY.profileExplorer.editBanner}</span>
+      <span class="set-banner-action">${COPY.profileExplorer.exitEdit}</span>
     </div>`;
   }
 
@@ -351,12 +351,12 @@ function renderExplorerBody(body) {
   if (editMode) {
     const logEntriesHtml = renderLogEntriesHtml();
     html += `
-      <div class="app-profile-log-panel i-set-21">
-        <div class="app-profile-section-header i-set-22" id="app-explorer-log-header">
-          <span class="i-set-23">${COPY.profileExplorer.changeLog} <span class="i-set-24" id="app-explorer-log-count">(${changeLog.length})</span></span>
-          <span class="app-accordion-arrow i-set-25" id="app-explorer-log-arrow">▲</span>
+      <div class="app-profile-log-panel set-changelog-panel">
+        <div class="app-profile-section-header set-changelog-header" id="app-explorer-log-header">
+          <span class="set-changelog-title">${COPY.profileExplorer.changeLog} <span class="set-changelog-count" id="app-explorer-log-count">(${changeLog.length})</span></span>
+          <span class="app-accordion-arrow set-accordion-arrow" id="app-explorer-log-arrow">▲</span>
         </div>
-        <div class="i-set-26" id="app-explorer-log-container">
+        <div class="set-changelog-body" id="app-explorer-log-container">
           ${logEntriesHtml}
         </div>
       </div>
@@ -414,29 +414,29 @@ function renderSectionAccordion(section, idx, isSpecial) {
     contentHtml = renderSubsHtml(getByPath(loadedProfile, 'subscriptions'), getByPath(loadedProfile, 'subscription_statuses'));
   } else {
     // Regular key-value rows
-    contentHtml = '<div class="i-set-27">';
+    contentHtml = '<div class="set-field-stack">';
     section.fields.forEach(field => {
       const label = humanizeKey(field.key);
       if (editMode && field.editable) {
         const isBool = typeof field.value === 'boolean';
         let inputHtml;
         if (isBool) {
-          inputHtml = `<input type="checkbox" class="app-profile-edit-input i-set-28" data-path="${field.path}" ${field.value ? 'checked' : ''}>`;
+          inputHtml = `<input type="checkbox" class="app-profile-edit-input set-field-checkbox" data-path="${field.path}" ${field.value ? 'checked' : ''}>`;
         } else {
           const val = field.value !== null && field.value !== undefined ? String(field.value) : '';
-          inputHtml = `<input type="text" class="app-profile-edit-input i-set-29" data-path="${field.path}" value="${val.replace(/"/g, '&quot;')}" placeholder="${field.value === null ? 'null' : ''}">`;
+          inputHtml = `<input type="text" class="app-profile-edit-input set-field-input" data-path="${field.path}" value="${val.replace(/"/g, '&quot;')}" placeholder="${field.value === null ? 'null' : ''}">`;
         }
         contentHtml += `
-          <div class="app-profile-field-row i-set-30" data-path="${field.path}">
-            <span class="i-set-31">${label}</span>
+          <div class="app-profile-field-row set-field-row" data-path="${field.path}">
+            <span class="set-field-label">${label}</span>
             ${inputHtml}
           </div>
         `;
       } else {
         contentHtml += `
-          <div class="i-set-32">
-            <span class="i-set-33">${label}</span>
-            <div class="i-set-34">${formatVal(field.value)}</div>
+          <div class="set-field-group">
+            <span class="set-field-sublabel">${label}</span>
+            <div class="set-field-value">${formatVal(field.value)}</div>
           </div>
         `;
       }
@@ -447,14 +447,14 @@ function renderSectionAccordion(section, idx, isSpecial) {
   // For special sections in edit mode, add a read-only badge
   let titleSuffix = '';
   if (editMode && isSpecial) {
-    titleSuffix = ` <span class="i-set-35">${COPY.profileExplorer.readOnly}</span>`;
+    titleSuffix = ` <span class="set-field-readonly">${COPY.profileExplorer.readOnly}</span>`;
   }
 
   return `
-    <div class="app-profile-section i-set-36">
-      <div class="app-profile-section-header i-set-37">
-        <span class="i-set-23">${section.emoji} ${section.title}${titleSuffix}</span>
-        <span class="app-accordion-arrow i-set-25">▼</span>
+    <div class="app-profile-section set-profile-section">
+      <div class="app-profile-section-header set-section-header">
+        <span class="set-changelog-title">${section.emoji} ${section.title}${titleSuffix}</span>
+        <span class="app-accordion-arrow set-accordion-arrow">▼</span>
       </div>
       <div class="app-profile-section-content" style="display:none;padding:14px;background:var(--surface-inset);border-top:1px solid color-mix(in srgb, var(--text) 5%, transparent);">
         ${contentHtml}
@@ -500,7 +500,7 @@ function setupEditListeners(body) {
 // Render log entries HTML from the module-level changeLog (used by renderExplorerBody and saveProfileChanges)
 function renderLogEntriesHtml() {
   if (changeLog.length === 0) {
-    return `<div class="i-set-38">${COPY.profileExplorer.noChanges}</div>`;
+    return `<div class="set-changes-empty">${COPY.profileExplorer.noChanges}</div>`;
   }
   const reversed = [...changeLog].reverse();
   return reversed.map(e => {
@@ -509,10 +509,10 @@ function renderLogEntriesHtml() {
     const newS = e.newValue == null ? 'null' : String(e.newValue);
     const icon = e.status === 'verified' ? '✅' : e.status === 'sent' ? '⚠️' : e.status === 'failed' ? '❌' : '🔙';
     const color = e.status === 'verified' ? 'var(--success)' : e.status === 'sent' ? 'var(--warning)' : e.status === 'failed' ? 'var(--danger)' : 'var(--text-secondary)';
-    return `<div class="i-set-39">
-      <span class="i-set-40">${ts}</span>
-      <span class="i-set-41">${e.fieldPath}</span>
-      <span class="i-set-42">${oldS} → <span class="i-set-43">${newS}</span></span>
+    return `<div class="set-change-row">
+      <span class="set-change-time">${ts}</span>
+      <span class="set-change-path">${e.fieldPath}</span>
+      <span class="set-change-desc">${oldS} → <span class="set-change-new">${newS}</span></span>
       <span style="color:${color};">${icon}</span>
     </div>`;
   }).join('');
@@ -656,12 +656,12 @@ export async function openManageSpotMapsModal(options = {}) {
   const header = document.createElement('div');
   header.className = 'app-ovl-header';
   header.style.cssText = 'display:flex;justify-content:space-between;align-items:center;padding:14px 18px;border-bottom:1px solid color-mix(in srgb, var(--text) 8%, transparent);flex-shrink:0;';
-  header.innerHTML = `<h3 class="i-set-44" data-nav-title>${COPY.spotMaps.preferredSpotMaps}</h3><button class="i-set-45" data-nav-close id="manage-modal-close" aria-label="${COPY.credits.closeModal}">×</button>`;
+  header.innerHTML = `<h3 class="set-modal-title" data-nav-title>${COPY.spotMaps.preferredSpotMaps}</h3><button class="set-modal-close" data-nav-close id="manage-modal-close" aria-label="${COPY.credits.closeModal}">×</button>`;
 
   const body = document.createElement('div');
   body.className = 'app-ovl-body';
   body.style.cssText = 'flex:1;overflow-y:auto;padding:16px;';
-  body.innerHTML = `<div class="i-set-46"><div class="app-spinner i-set-16"></div><div class="i-set-17">${COPY.spotMaps.loadingStudios}</div></div>`;
+  body.innerHTML = `<div class="set-studios-loading"><div class="app-spinner set-loading-spinner"></div><div class="set-loading-text">${COPY.spotMaps.loadingStudios}</div></div>`;
 
   const loadingHtml = body.innerHTML;
   modal.appendChild(header);
@@ -821,7 +821,7 @@ export async function openManageSpotMapsModal(options = {}) {
 
     renderManageSpotMapsModal(prefs, studios, locations, body, close, activeStudioIds, options);
   } catch (err) {
-    body.innerHTML = `<div class="app-card-error i-set-47">${formatCopyText(COPY.settings.studiosLoadFailed, { error: escapeHtml(err.message) })}</div>`;
+    body.innerHTML = `<div class="app-card-error set-studios-error">${formatCopyText(COPY.settings.studiosLoadFailed, { error: escapeHtml(err.message) })}</div>`;
   }
   };
   load();
@@ -858,7 +858,7 @@ function renderManageSpotMapsModal(prefs, studios, locations, container, onClose
 
   if (sortedGroups.length === 0) {
     const noData = studios.length === 0;
-    container.innerHTML = `<div class="i-set-48"><div class="i-set-49">🗺️</div><p class="i-set-50">${noData ? COPY.spotMaps.noTimetableData : COPY.spotMaps.noSeatMaps}</p><p class="i-set-51">${noData ? COPY.spotMaps.loadTimetableFirst : COPY.spotMaps.noSeatLayouts}</p></div>`;
+    container.innerHTML = `<div class="set-seatmaps-empty"><div class="set-seatmaps-emoji">🗺️</div><p class="set-seatmaps-title">${noData ? COPY.spotMaps.noTimetableData : COPY.spotMaps.noSeatMaps}</p><p class="set-seatmaps-help">${noData ? COPY.spotMaps.loadTimetableFirst : COPY.spotMaps.noSeatLayouts}</p></div>`;
     return;
   }
 
@@ -1039,12 +1039,12 @@ export async function openStudioFloorPlanEditor(studioId, studioName, onSaved, o
   const header = document.createElement('div');
   header.className = 'app-ovl-header';
   header.style.cssText = 'display:flex;justify-content:space-between;align-items:center;padding:14px 18px;border-bottom:1px solid color-mix(in srgb, var(--text) 8%, transparent);flex-shrink:0;';
-  header.innerHTML = `<div data-nav-title><div class="i-set-52">${COPY.spotMaps.spotMap}</div><div class="i-set-53">${studioName}</div></div><button class="i-set-45" data-nav-close id="spot-editor-close" aria-label="${COPY.credits.closeModal}">×</button>`;
+  header.innerHTML = `<div data-nav-title><div class="set-editor-title">${COPY.spotMaps.spotMap}</div><div class="set-editor-subtitle">${studioName}</div></div><button class="set-modal-close" data-nav-close id="spot-editor-close" aria-label="${COPY.credits.closeModal}">×</button>`;
 
   const body = document.createElement('div');
   body.className = 'app-ovl-body';
   body.style.cssText = 'flex:1;overflow-y:auto;padding:16px;';
-  body.innerHTML = `<div class="i-set-46"><div class="app-spinner i-set-16"></div><div class="i-set-17">${COPY.spotMaps.loadingFloorPlan}</div></div>`;
+  body.innerHTML = `<div class="set-studios-loading"><div class="app-spinner set-loading-spinner"></div><div class="set-loading-text">${COPY.spotMaps.loadingFloorPlan}</div></div>`;
 
   modal.appendChild(header);
   modal.appendChild(body);
@@ -1104,11 +1104,11 @@ export async function openStudioFloorPlanEditor(studioId, studioName, onSaved, o
 
     if (layoutSlots.length === 0) {
       body.innerHTML = `
-        <div class="i-set-54">
-          <div class="i-set-49">🗺️</div>
-          <p class="i-set-55">${COPY.spotMaps.noFloorMapAvailable}</p>
-          <p class="i-set-56">${COPY.spotMaps.anySpotHelp}</p>
-          <button class="app-btn i-set-57" id="spot-save-any">${COPY.spotMaps.saveAnySpot}</button>
+        <div class="set-floor-empty">
+          <div class="set-seatmaps-emoji">🗺️</div>
+          <p class="set-floor-title">${COPY.spotMaps.noFloorMapAvailable}</p>
+          <p class="set-floor-help">${COPY.spotMaps.anySpotHelp}</p>
+          <button class="app-btn set-floor-save" id="spot-save-any">${COPY.spotMaps.saveAnySpot}</button>
         </div>
       `;
       body.querySelector('#spot-save-any').onclick = () => onSave([], existing.preferredRows || []);
@@ -1119,10 +1119,10 @@ export async function openStudioFloorPlanEditor(studioId, studioName, onSaved, o
       layoutObjects,
       rowGroups: options.rowGroups ?? rowGroupsForStudio(studioId, options.gymId),
       mobileRotation: options.mobileRotation ?? mobileRotationForStudio(studioId, options.gymId), front: options.front ?? frontForStudio(studioId, options.gymId),
-      bannerHtml: `<div class="i-set-58">${formatCopyText(COPY.spotMaps.sharedSpotMapHtml, { studioName: escapeHtml(studioName) })}</div>`
+      bannerHtml: `<div class="set-floor-banner">${formatCopyText(COPY.spotMaps.sharedSpotMapHtml, { studioName: escapeHtml(studioName) })}</div>`
     });
   } catch (err) {
-    body.innerHTML = `<div class="app-card-error i-set-47">${formatCopyText(COPY.settings.floorPlanLoadFailed, { error: escapeHtml(err.message) })}</div>`;
+    body.innerHTML = `<div class="app-card-error set-studios-error">${formatCopyText(COPY.settings.floorPlanLoadFailed, { error: escapeHtml(err.message) })}</div>`;
   }
 }
 
@@ -1347,7 +1347,7 @@ let connByGym = new Map();
 function ensureConnTable(list) {
   if (list.querySelector('.app-gym-conn-table')) return list.querySelector('.app-gym-conn-table');
   list.innerHTML = `
-    <div class="app-card-desc app-gym-conn-empty i-set-59" hidden>${COPY.settings.noGymsLinked}</div>
+    <div class="app-card-desc app-gym-conn-empty set-gyms-empty" hidden>${COPY.settings.noGymsLinked}</div>
     <div class="app-gym-conn-table" role="table" aria-label="${COPY.settings.gymConnections}">
       <div class="app-gym-conn-head" role="row">
         <span role="columnheader">${COPY.settings.gym}</span>
@@ -1583,7 +1583,7 @@ async function renderGymsCard() {
   } catch (err) {
     if (!gymsRenderGuard.isCurrent(token)) return;
     if (painted) debugConsole('[Settings] Could not refresh gym connections:', err.message);
-    else list.innerHTML = `<div class="app-empty-state i-set-60">${getIsOffline() ? COPY.settings.noSavedGymData : formatCopyText(COPY.settings.couldNotLoadGyms, { error: escapeHtml(err.message) })}</div>`;
+    else list.innerHTML = `<div class="app-empty-state set-gyms-error">${getIsOffline() ? COPY.settings.noSavedGymData : formatCopyText(COPY.settings.couldNotLoadGyms, { error: escapeHtml(err.message) })}</div>`;
     return;
   }
   if (!gymsRenderGuard.isCurrent(token)) return;
@@ -1600,7 +1600,7 @@ async function renderGymsCard() {
 
   actions.innerHTML = addable.length
     ? `<button class="app-btn primary app-btn-mini" id="app-add-gym-btn">${COPY.settings.connectGymAction}</button>`
-    : `<p class="app-card-desc i-set-50">${COPY.settings.noAvailableGyms}</p>`;
+    : `<p class="app-card-desc set-seatmaps-title">${COPY.settings.noAvailableGyms}</p>`;
   const addBtn = document.getElementById('app-add-gym-btn');
   if (addBtn) addBtn.onclick = () => openLinkGymModal(null, null, addable);
 
@@ -1738,7 +1738,7 @@ export async function renderGymSettingsSection(requestedGymId = null, targetCont
       },
     });
   } catch (err) {
-    container.innerHTML = `<div class="app-${getIsOffline() ? 'empty-state' : 'card-error'} i-set-60">${getIsOffline() ? COPY.settings.noSavedGymSettings : formatCopyText(COPY.settings.loadGymSettingsFailed, { error: escapeHtml(err.message) })}</div>`;
+    container.innerHTML = `<div class="app-${getIsOffline() ? 'empty-state' : 'card-error'} set-gyms-error">${getIsOffline() ? COPY.settings.noSavedGymSettings : formatCopyText(COPY.settings.loadGymSettingsFailed, { error: escapeHtml(err.message) })}</div>`;
   }
 }
 
@@ -1755,24 +1755,24 @@ function openLinkGymModal(gymId, existing, addable = []) {
   const logoGymId = gymId || addable[0]?.id || '';
   body.innerHTML = `
     <div id="app-link-gym-logo" class="app-gym-form-logo">${logoGymId ? gymLogoBanner(logoGymId) : ''}</div>
-    <p class="app-card-desc i-set-61">
+    <p class="app-card-desc set-gyms-desc">
       ${isReauth
         ? COPY.settings.addGymCredentialsHelp
         : COPY.settings.linkGymCredentialsHelp}
     </p>
     ${isReauth ? '' : `
-      <label class="app-setting-label i-set-62"><span>${COPY.settings.gym}</span></label>
-      <select id="app-link-gym-id" class="app-select i-set-63">
+      <label class="app-setting-label set-gym-label"><span>${COPY.settings.gym}</span></label>
+      <select id="app-link-gym-id" class="app-select set-gym-select">
         ${addable.map(g => `<option value="${escapeHtml(g.id)}">${escapeHtml(g.name)}</option>`).join('')}
       </select>`}
-    <label class="app-setting-label i-set-62"><span>${COPY.settings.email}</span></label>
-    <input id="app-link-gym-email" type="email" class="app-input i-set-63" autocomplete="username"
+    <label class="app-setting-label set-gym-label"><span>${COPY.settings.email}</span></label>
+    <input id="app-link-gym-email" type="email" class="app-input set-gym-select" autocomplete="username"
            placeholder="${COPY.static.exampleEmail}">
-    <label class="app-setting-label i-set-62"><span>${COPY.settings.password}</span></label>
-    <input id="app-link-gym-password" type="password" class="app-input i-set-64" autocomplete="current-password"
+    <label class="app-setting-label set-gym-label"><span>${COPY.settings.password}</span></label>
+    <input id="app-link-gym-password" type="password" class="app-input set-gym-password" autocomplete="current-password"
           >
     <div id="app-link-gym-error" style="display:none;color:var(--danger);font-size:12px;margin-bottom:10px;"></div>
-    <button class="app-btn primary i-set-65" id="app-link-gym-submit">
+    <button class="app-btn primary set-gym-submit" id="app-link-gym-submit">
       ${isReauth ? COPY.settings.reauthenticate : COPY.settings.link}
     </button>
   `;
@@ -1822,20 +1822,20 @@ function openAccountPasswordModal() {
   const { body, title, open, close } = gymModal();
   title.textContent = COPY.settings.changeAccountPassword;
   body.innerHTML = `
-    <p class="app-card-desc i-set-61">
+    <p class="app-card-desc set-gyms-desc">
       ${formatCopyText(COPY.settings.accountPasswordDescription, { appName: escapeHtml(appConfig.appName) })}
     </p>
-    <label class="app-setting-label i-set-62"><span>${COPY.settings.currentPassword}</span></label>
-    <input id="app-pw-current" type="password" class="app-input i-set-63" autocomplete="current-password"
+    <label class="app-setting-label set-gym-label"><span>${COPY.settings.currentPassword}</span></label>
+    <input id="app-pw-current" type="password" class="app-input set-gym-select" autocomplete="current-password"
           >
-    <label class="app-setting-label i-set-62"><span>${COPY.settings.newPassword}</span></label>
-    <input id="app-pw-new" type="password" class="app-input i-set-63" autocomplete="new-password"
+    <label class="app-setting-label set-gym-label"><span>${COPY.settings.newPassword}</span></label>
+    <input id="app-pw-new" type="password" class="app-input set-gym-select" autocomplete="new-password"
            placeholder="${COPY.settings.newPasswordMinPlaceholder}">
-    <label class="app-setting-label i-set-62"><span>${COPY.settings.confirmNewPassword}</span></label>
-    <input id="app-pw-confirm" type="password" class="app-input i-set-64" autocomplete="new-password"
+    <label class="app-setting-label set-gym-label"><span>${COPY.settings.confirmNewPassword}</span></label>
+    <input id="app-pw-confirm" type="password" class="app-input set-gym-password" autocomplete="new-password"
           >
     <div id="app-pw-error" style="display:none;color:var(--danger);font-size:12px;margin-bottom:10px;"></div>
-    <button class="app-btn primary i-set-65" id="app-pw-submit">${COPY.settings.changePassword}</button>
+    <button class="app-btn primary set-gym-submit" id="app-pw-submit">${COPY.settings.changePassword}</button>
   `;
   // Any typed value means unsaved work: ask before a mobile Back/X/Esc discards it.
   open({
@@ -2034,8 +2034,8 @@ function renderPerGymToggles(key, parentPref) {
         const locked = key === 'bookingWindow' && !gymHasPeriodicWindow(g);
         return `
         <div style="display:flex;justify-content:space-between;align-items:center;gap:12px;padding:4px 0;${locked ? 'opacity:0.45;' : ''}">
-          <span class="i-set-10">${getGymShortName(gymId) || gymId}${locked ? `<br><small class="i-set-66">${COPY.settings.bookingWindowRollingNote}</small>` : ''}</span>
-          <label class="app-switch i-set-67">
+          <span class="set-credit-handle">${getGymShortName(gymId) || gymId}${locked ? `<br><small class="set-gym-note">${COPY.settings.bookingWindowRollingNote}</small>` : ''}</span>
+          <label class="app-switch set-gym-switch">
             <input type="checkbox" class="notif-pergym-toggle" data-key="${key}" data-gym-id="${gymId}" ${locked ? 'disabled' : ''} ${perGymPrefOn(parentPref, g) ? 'checked' : ''}>
             <span class="app-slider"></span>
           </label>
@@ -2053,21 +2053,21 @@ function renderNotifPrefs() {
   const prefs = getNotifPrefs();
 
   body.innerHTML = `
-    <p class="i-set-68">${COPY.notifications.customizePush}</p>
+    <p class="set-push-desc">${COPY.notifications.customizePush}</p>
     ${NOTIF_ROWS.map(row => {
       const p = prefs[row.key];
       const dd = row.dropdown ? `
-        <select class="app-select notif-dropdown i-set-69" data-key="${row.key}" data-prop="${row.dropdown.prop}">
+        <select class="app-select notif-dropdown set-push-dropdown" data-key="${row.key}" data-prop="${row.dropdown.prop}">
           ${row.dropdown.options.map(([val, label]) => `<option value="${val}" ${p[row.dropdown.prop] === val ? 'selected' : ''}>${label}</option>`).join('')}
         </select>` : '';
       return `
-        <div class="i-set-70">
-          <div class="i-set-71">
-            <div class="i-set-72">
-              <div class="i-set-73">${row.title}</div>
-              <div class="i-set-74">${row.desc}</div>
+        <div class="set-push-card">
+          <div class="set-push-row">
+            <div class="set-push-info">
+              <div class="set-push-title">${row.title}</div>
+              <div class="set-push-subtitle">${row.desc}</div>
             </div>
-            <label class="app-switch i-set-67">
+            <label class="app-switch set-gym-switch">
               <input type="checkbox" class="notif-toggle" data-key="${row.key}" ${row.perGym && !anyPeriodicGym() ? 'disabled' : ''} ${p.enabled && !(row.perGym && !anyPeriodicGym()) ? 'checked' : ''}>
               <span class="app-slider"></span>
             </label>

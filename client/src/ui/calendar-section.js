@@ -227,14 +227,14 @@ export function openCalendarSettingsModal({ zIndex = 2000, onChange = null, onCl
   overlay.setAttribute('aria-modal', 'true');
   overlay.style.cssText = `position:fixed;inset:0;background:color-mix(in srgb, var(--bg) 60%, transparent);z-index:${zIndex};display:flex;align-items:center;justify-content:center;padding:16px;`;
   overlay.innerHTML = `
-    <div class="app-ovl-card i-cal-1">
-      <div class="app-ovl-header i-cal-2">
-        <h3 class="i-cal-3" data-nav-title></h3>
-        <button class="i-cal-4" type="button" data-nav-close data-calendar-modal-close aria-label="${COPY.credits.closeModal}">×</button>
+    <div class="app-ovl-card cal-modal-card">
+      <div class="app-ovl-header cal-modal-header">
+        <h3 class="cal-modal-title" data-nav-title></h3>
+        <button class="cal-modal-close" type="button" data-nav-close data-calendar-modal-close aria-label="${COPY.credits.closeModal}">×</button>
       </div>
-      <div class="app-ovl-body i-cal-5"><div data-calendar-modal-section></div></div>
-      <div class="i-cal-6">
-        <button type="button" class="app-btn-primary i-cal-7" data-calendar-modal-close></button>
+      <div class="app-ovl-body cal-modal-body"><div data-calendar-modal-section></div></div>
+      <div class="cal-modal-footer">
+        <button type="button" class="app-btn-primary cal-modal-submit" data-calendar-modal-close></button>
       </div>
     </div>`;
   overlay.querySelector('h3').textContent = COPY.onboarding.calendarFeatureTitle;

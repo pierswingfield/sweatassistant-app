@@ -41,7 +41,7 @@ if (typeof document !== 'undefined') {
 // Returns null if the instructor isn't in metadata yet. Shared by the hover
 // (desktop) and tap (touch) code paths.
 
-const INSTAGRAM_ICON = '<svg class="ab-ico i-tip-1" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="3" width="18" height="18" rx="5"/><circle cx="12" cy="12" r="4"/><circle cx="17.5" cy="6.5" r="0.6" fill="currentColor"/></svg>';
+const INSTAGRAM_ICON = '<svg class="ab-ico tip-instagram-icon" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="3" width="18" height="18" rx="5"/><circle cx="12" cy="12" r="4"/><circle cx="17.5" cy="6.5" r="0.6" fill="currentColor"/></svg>';
 
 // Instagram: expect "username" or "@username" → https://instagram.com/username
 function parseInstagramHandle(raw) {
@@ -173,7 +173,7 @@ export function instructorTooltipHTML(instructorIdRaw, gymId = null, fallback = 
   const name = instructor.name || instructor.full_name || 'Instructor';
   const avatarHtml = photoUrl
     ? `<img src="${photoUrl}" class="app-tooltip-avatar" alt="${name}" data-instructor-initial="${initialFor(name)}">`
-    : `<div class="app-tooltip-avatar i-tip-2">${(name || '?')[0]}</div>`;
+    : `<div class="app-tooltip-avatar tip-avatar-box">${(name || '?')[0]}</div>`;
 
   const keywords = instructor.metafields?.keywords ? instructor.metafields.keywords.replace(/\|/g, ' • ') : '';
   const description = instructor.bio || instructor.metafields?.description || '';
@@ -199,13 +199,13 @@ export function instructorTooltipHTML(instructorIdRaw, gymId = null, fallback = 
   return `
     <div class="app-tooltip-header">
       ${avatarHtml}
-      <div class="i-tip-3">
+      <div class="tip-content-box">
         <h4 class="app-tooltip-name">${name}</h4>
         ${keywords ? `<div class="app-tooltip-keywords">${keywords}</div>` : ''}
       </div>
     </div>
-    ${description ? `<p class="i-tip-4">${description}</p>` : ''}
-    ${(instagramHtml || spotifyHtml) ? `<div class="app-tooltip-socials i-tip-5">${instagramHtml}${spotifyHtml}</div>` : ''}
+    ${description ? `<p class="tip-description-text">${description}</p>` : ''}
+    ${(instagramHtml || spotifyHtml) ? `<div class="app-tooltip-socials tip-socials-container">${instagramHtml}${spotifyHtml}</div>` : ''}
   `;
 }
 
@@ -376,12 +376,12 @@ export function initTooltips() {
         renderMinimap(eventDetailsCache.get(cacheKey), occupancyTooltip);
       } else {
         occupancyTooltip.innerHTML = `
-          <div class="i-tip-6">
-            <svg class="app-spinner-svg i-tip-7" viewBox="0 0 24 24">
+          <div class="tip-loading-box">
+            <svg class="app-spinner-svg tip-spinner-svg" viewBox="0 0 24 24">
               <circle cx="12" cy="12" r="10" stroke="color-mix(in srgb, var(--text) 15%, transparent)" stroke-width="3" fill="none"></circle>
               <path d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" fill="currentColor"></path>
             </svg>
-            <span class="i-tip-8">${COPY.occupancy.loadingLayout}</span>
+            <span class="tip-loading-text">${COPY.occupancy.loadingLayout}</span>
           </div>
         `;
         positionTooltip(target, occupancyTooltip);
@@ -396,7 +396,7 @@ export function initTooltips() {
           console.error('[Timetable] Failed to fetch event slots for minimap:', err);
           if (activeOccupancyHoverTarget === target) {
             occupancyTooltip.innerHTML = `
-              <div class="i-tip-9">
+              <div class="tip-error-box">
                 ${COPY.occupancy.failedLayout}
               </div>
             `;
@@ -496,21 +496,21 @@ export function renderMinimap(payload, occupancyTooltip) {
   if (layoutSlots.length === 0) {
     // FCFS or rooms without a spot map layout (recovery, boxing, etc.)
     occupancyTooltip.innerHTML = `
-      <div class="i-tip-10">
+      <div class="tip-title-center">
         ${COPY.occupancy.class}
       </div>
-      <div class="i-tip-11">
-        <div class="i-tip-12">
-          <div class="i-tip-13">${COPY.occupancy.total}</div>
-          <div class="i-tip-14">${totalSlots || 'N/A'}</div>
+      <div class="tip-stats-grid">
+        <div class="tip-stat-item">
+          <div class="tip-stat-label">${COPY.occupancy.total}</div>
+          <div class="tip-stat-total">${totalSlots || 'N/A'}</div>
         </div>
-        <div class="i-tip-12">
-          <div class="i-tip-13">${COPY.occupancy.open}</div>
-          <div class="i-tip-15">${openSlots}</div>
+        <div class="tip-stat-item">
+          <div class="tip-stat-label">${COPY.occupancy.open}</div>
+          <div class="tip-stat-open">${openSlots}</div>
         </div>
-        <div class="i-tip-12">
-          <div class="i-tip-13">${COPY.occupancy.booked}</div>
-          <div class="i-tip-16">${occupiedSlots}</div>
+        <div class="tip-stat-item">
+          <div class="tip-stat-label">${COPY.occupancy.booked}</div>
+          <div class="tip-stat-booked">${occupiedSlots}</div>
         </div>
       </div>
     `;
@@ -569,20 +569,20 @@ export function renderMinimap(payload, occupancyTooltip) {
   let extraSlotsHtml = '';
   if (unmappedCount > 0) {
     extraSlotsHtml += `
-      <div class="i-tip-17">
+      <div class="tip-footer-box">
         ${formatCopyText(COPY.tooltips.unmappedSpots, { count: unmappedCount })}
       </div>
     `;
   }
 
   occupancyTooltip.innerHTML = `
-    <div class="i-tip-18">
+    <div class="tip-header-title">
       ${COPY.occupancy.studio}
     </div>
-    <div class="i-tip-19">
+    <div class="tip-header-row">
       <span>Total: ${totalSlots || 'N/A'}</span>
-      <span class="i-tip-20">Open: ${openSlots}</span>
-      <span class="i-tip-21">Booked: ${occupiedSlots}</span>
+      <span class="tip-badge-open">Open: ${openSlots}</span>
+      <span class="tip-badge-booked">Booked: ${occupiedSlots}</span>
     </div>
     <div class="app-minimap-container">
       ${stageHtml}

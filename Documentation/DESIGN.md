@@ -69,7 +69,7 @@ Allowed ONLY on the bottom nav, sticky top bars and modal headers. Tokens: `--gl
 | Primary | `--accent-fill` (hover `--accent-fill-hover`) | `--on-accent-fill` | none | one per view/section (Book, Quick Book, Done) |
 | Secondary | `--surface-2` | `--text` | 1px `--border-strong` | alternate actions (Filters, Share) |
 | Ghost | transparent | `--accent` | none | tertiary, inline links |
-| Destructive | `--danger` (light) | `#fff` | none | Cancel booking, delete; dark uses a tinted `--danger` outline with `--danger` text |
+| Destructive | `--danger` (light) | `#fff` | none | Cancel booking, delete; dark uses a 14% `--danger` tint fill, a 45% `--danger` border and `--danger` text (no solid red block on the dark surface) |
 Height 44px minimum hit area on every interactive control (`--tap-min`); visually smaller controls (32-40px chips) extend their hit area with padding or a `::after` inset. Radius `--radius-control`; dense inline buttons `--radius-sm`. Label: Inter 600 14px.
 
 ### 3.7 Focus
@@ -468,6 +468,8 @@ scrollbar-color: color-mix(in srgb, var(--text) 15%, transparent) transparent;
 ## 9. Motion
 
 Tokens (Phase 5 adopts them; existing 23 ad-hoc durations migrate to these): durations `--dur-fast` 100ms (press, colour), `--dur-base` 180ms (hover, toggles), `--dur-slow` 240ms (cards, sheets opening), `--dur-page` 300ms (tab/page transitions); easings `--ease-out` `cubic-bezier(.25,1,.5,1)` (entrances, default) and `--ease-in-out` `cubic-bezier(.4,0,.2,1)` (moves between two resting states). Animate `transform` and `opacity` only. Every animation must be neutralised by the existing `prefers-reduced-motion: reduce` rules.
+
+**Implemented (Phase 5).** All durations/easings in `styles.css` use the tokens (loop-only timings such as spinners keep their own). Patterns: mobile full-screen pages slide in from the right (`--dur-slow`, `translateX(100%)` to none; `modal-nav.js` removes the page after its 300 ms hide timer, so a missed `transitionend` cannot strand an overlay); desktop modals fade + 12px rise; tab change plays `tab-enter-fwd/back` (opacity + 14px, direction from bottom-nav order, class removed on `animationend` with a 400 ms fallback); the timetable's first arrival staggers the first 8 rows at 24 ms steps (`app-stagger-in`, once per session, never on re-render); a confirmed favourite and a tapped spot pop once (`is-pop`, 100-180 ms); a success toast settles its icon once. Reduced motion is one block at the end of `styles.css`: transitions 1 ms, one-shot animations off, pages and toasts keep an opacity fade only; spinners stay (progress, not decoration).
 
 ## 10. Anti-Patterns
 

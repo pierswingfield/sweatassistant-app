@@ -126,15 +126,15 @@
           <label for="app-recover-email" data-copy-html="static.email">Your <span data-app-name>__APP_NAME__</span> email</label>
           <input type="email" id="app-recover-email" placeholder="name@example.com" data-copy-placeholder="static.exampleEmail" autocomplete="username">
         </div>
-        <div class="i-html-1" id="app-recover-step1">
+        <div class="ui-recover-step" id="app-recover-step1">
           <div id="app-recover-error" class="app-login-error" style="display:none;"></div>
           <button type="button" id="app-recover-find-btn" class="app-btn-primary"><span data-copy-text="static.emailContinue">Continue</span></button>
-          <p class="app-card-desc i-html-2" data-copy-text="auth.resetUnavailable">Self-service reset isn’t available yet — contact the admin.</p>
+          <p class="app-card-desc ui-reset-unavailable" data-copy-text="auth.resetUnavailable">Self-service reset isn’t available yet — contact the admin.</p>
         </div>
       </form>
 
       <div class="app-login-footer">
-        <p class="i-html-3" id="app-auth-switcher">
+        <p class="ui-auth-switcher" id="app-auth-switcher">
           <a href="#" id="app-auth-to-signup" data-copy-text="auth.createAnAccount">Create an account</a>
           &nbsp;·&nbsp;
           <a href="#" id="app-auth-to-recover" data-copy-text="auth.forgotPassword">Forgot password?</a>
@@ -158,8 +158,8 @@
         </div>
       </div>
       <div class="app-header-actions" id="app-header-user-status">
-        <span class="app-user-email i-html-4" data-copy-text="static.headerLoading"></span>
-        <div class="app-credit-badges i-html-5" id="app-header-credits"></div>
+        <span class="app-user-email ui-user-email" data-copy-text="static.headerLoading"></span>
+        <div class="app-credit-badges ui-header-credits" id="app-header-credits"></div>
       </div>
     </header>
 
@@ -169,7 +169,7 @@
       <button class="app-nav-btn" data-tab="class-timetable" data-copy-text="navigation.timetable">Class Timetable</button>
       <button class="app-nav-btn" data-tab="my-bookings" data-copy-text="navigation.bookings">My Bookings</button>
       <button class="app-nav-btn" data-tab="auto-book">
-        <svg class="i-html-6" fill="currentColor" viewBox="0 0 32 32" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
+        <svg class="ui-header-icon" fill="currentColor" viewBox="0 0 32 32" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
           <g data-name="Layer 2" id="Layer_2">
             <path d="M18,11a1,1,0,0,1-1,1,5,5,0,0,0-5,5,1,1,0,0,1-2,0,5,5,0,0,0-5-5,1,1,0,0,1,0-2,5,5,0,0,0,5-5,1,1,0,0,1,2,0,5,5,0,0,0,5,5A1,1,0,0,1,18,11Z"/>
             <path d="M19,24a1,1,0,0,1-1,1,2,2,0,0,0-2,2,1,1,0,0,1-2,0,2,2,0,0,0-2-2,1,1,0,0,1,0-2,2,2,0,0,0,2-2,1,1,0,0,1,2,0,2,2,0,0,0,2,2A1,1,0,0,1,19,24Z"/>
@@ -208,7 +208,7 @@
         <div class="app-sticky-top">
           <!-- Filters Area -->
           <div class="app-filters-card" id="app-timetable-filters-container">
-            <div class="app-filters-row i-html-7">
+            <div class="app-filters-row ui-filters-row">
             
               <!-- Gym Dropdown (Visible when >1 gym linked) -->
               <div class="app-ms-dropdown" id="app-ms-gym" style="display: none; flex: 1; min-width: 140px; position: relative;">
@@ -318,17 +318,17 @@
             </button>
           </div>
           <div id="app-bookings-list" class="app-bookings-list">
-            <div class="app-skeleton-list" role="status" aria-label="Loading bookings"><div class="app-skeleton-card" aria-hidden="true"><div class="app-skeleton-card-head"><span class="app-skeleton-line is-strong i-html-8" aria-hidden="true"></span><span class="app-skeleton-line is-chip i-html-9" aria-hidden="true"></span></div><span class="app-skeleton-line i-html-10" aria-hidden="true"></span><span class="app-skeleton-line is-short i-html-11" aria-hidden="true"></span></div><div class="app-skeleton-card" aria-hidden="true"><div class="app-skeleton-card-head"><span class="app-skeleton-line is-strong i-html-12" aria-hidden="true"></span><span class="app-skeleton-line is-chip i-html-9" aria-hidden="true"></span></div><span class="app-skeleton-line i-html-13" aria-hidden="true"></span><span class="app-skeleton-line is-short i-html-14" aria-hidden="true"></span></div></div>
+            <div class="app-skeleton-list" role="status" aria-label="Loading bookings"><div class="app-skeleton-card" aria-hidden="true"><div class="app-skeleton-card-head"><span class="app-skeleton-line is-strong ui-skeleton-primary" aria-hidden="true"></span><span class="app-skeleton-line is-chip ui-skeleton-secondary" aria-hidden="true"></span></div><span class="app-skeleton-line ui-skeleton-tertiary" aria-hidden="true"></span><span class="app-skeleton-line is-short ui-skeleton-quarter" aria-hidden="true"></span></div><div class="app-skeleton-card" aria-hidden="true"><div class="app-skeleton-card-head"><span class="app-skeleton-line is-strong ui-skeleton-fifth" aria-hidden="true"></span><span class="app-skeleton-line is-chip ui-skeleton-secondary" aria-hidden="true"></span></div><span class="app-skeleton-line ui-skeleton-sixth" aria-hidden="true"></span><span class="app-skeleton-line is-short ui-skeleton-seventh" aria-hidden="true"></span></div></div>
           </div>
         </div>
 
-        <div class="app-section i-html-15" id="app-waitlists-section">
+        <div class="app-section ui-waitlists-section" id="app-waitlists-section">
           <div class="app-section-header" id="app-waitlists-header">
             <h3 data-copy-text="static.activeWaitlists">Active Waitlists</h3><span id="app-waitlists-count" class="app-section-count" hidden></span>
             <span id="app-waitlists-refreshing" class="app-refreshing-chip" style="display: none;"><span class="app-spinner"></span> <span data-copy-text="static.refreshing">Refreshing...</span></span>
           </div>
           <div id="app-waitlists-list" class="app-bookings-list">
-            <div class="app-skeleton-list" role="status" aria-label="Loading waitlists"><div class="app-skeleton-card" aria-hidden="true"><div class="app-skeleton-card-head"><span class="app-skeleton-line is-strong i-html-8" aria-hidden="true"></span><span class="app-skeleton-line is-chip i-html-9" aria-hidden="true"></span></div><span class="app-skeleton-line i-html-10" aria-hidden="true"></span><span class="app-skeleton-line is-short i-html-11" aria-hidden="true"></span></div></div>
+            <div class="app-skeleton-list" role="status" aria-label="Loading waitlists"><div class="app-skeleton-card" aria-hidden="true"><div class="app-skeleton-card-head"><span class="app-skeleton-line is-strong ui-skeleton-primary" aria-hidden="true"></span><span class="app-skeleton-line is-chip ui-skeleton-secondary" aria-hidden="true"></span></div><span class="app-skeleton-line ui-skeleton-tertiary" aria-hidden="true"></span><span class="app-skeleton-line is-short ui-skeleton-quarter" aria-hidden="true"></span></div></div>
           </div>
         </div>
 
@@ -361,8 +361,8 @@
         <div class="ab-body">
           <!-- Queue -->
           <div class="ab-queue-section">
-            <h2 class="ab-page-title i-html-16">
-              <svg class="i-html-17" fill="currentColor" viewBox="0 0 32 32" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
+            <h2 class="ab-page-title ui-title-container">
+              <svg class="ui-title-icon" fill="currentColor" viewBox="0 0 32 32" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
                 <g data-name="Layer 2" id="Layer_2">
                   <path d="M18,11a1,1,0,0,1-1,1,5,5,0,0,0-5,5,1,1,0,0,1-2,0,5,5,0,0,0-5-5,1,1,0,0,1,0-2,5,5,0,0,0,5-5,1,1,0,0,1,2,0,5,5,0,0,0,5,5A1,1,0,0,1,18,11Z"/>
                   <path d="M19,24a1,1,0,0,1-1,1,2,2,0,0,0-2,2,1,1,0,0,1-2,0,2,2,0,0,0-2-2,1,1,0,0,1,0-2,2,2,0,0,0,2-2,1,1,0,0,1,2,0,2,2,0,0,0,2,2A1,1,0,0,1,19,24Z"/>
@@ -379,7 +379,7 @@
             <button id="app-autobook-history-toggle" class="ab-history-toggle" type="button">
               <span class="ab-history-toggle-label">
                 <span class="ab-history-icon" aria-hidden="true"></span>
-                <h2 class="ab-page-title i-html-18" data-copy-text="static.history">History</h2>
+                <h2 class="ab-page-title ui-history-title" data-copy-text="static.history">History</h2>
               </span>
               <span id="app-autobook-history-chevron" class="ab-history-chevron" aria-hidden="true"></span>
             </button>
@@ -410,7 +410,7 @@
 
         <!-- DETAIL: a single gym's purchase flow. Hidden until a card opens it. -->
         <div id="app-credits-detail" hidden>
-          <button class="app-btn app-btn-mini i-html-19" id="app-credits-back" data-copy-text="static.allGymsBack">← All gyms</button>
+          <button class="app-btn app-btn-mini ui-gyms-back" id="app-credits-back" data-copy-text="static.allGymsBack">← All gyms</button>
           <div id="app-credit-purchase-heading"></div>
 
         <!-- Credit bundle list (shown only when a linked gym supports purchases) -->
@@ -506,19 +506,19 @@
               
               <!-- SECTION: ABOUT -->
               <div class="app-settings-section-pane" id="app-settings-pane-about">
-                <div class="app-tab-header i-html-21">
+                <div class="app-tab-header ui-tab-header">
                   <h3><span data-copy-text="static.about">About</span> <span data-app-name>__APP_NAME__</span></h3>
                   <p data-copy-html="about.taglineHtml"></p>
                 </div>
-                <div class="app-settings-grid i-html-22">
+                <div class="app-settings-grid ui-settings-grid">
                   <div class="app-settings-card">
                     <h4 data-copy-text="static.aboutHeading">What is this?</h4>
-                    <p class="app-card-desc i-html-23" data-copy-html="about.disclaimerHtml"></p>
-                    <p class="app-card-desc i-html-24" data-copy-text="static.aboutSecurity">Gym login credentials are encrypted and stored in a secure private cloud. Your __APP_NAME__ account is separate from your gym logins. You can delete stored data at any time from Settings.</p>
+                    <p class="app-card-desc ui-disclaimer-text" data-copy-html="about.disclaimerHtml"></p>
+                    <p class="app-card-desc ui-security-desc" data-copy-text="static.aboutSecurity">Gym login credentials are encrypted and stored in a secure private cloud. Your __APP_NAME__ account is separate from your gym logins. You can delete stored data at any time from Settings.</p>
                   </div>
                   <div class="app-settings-card">
                     <h4 data-copy-text="static.features">Features</h4>
-                    <div class="i-html-25">
+                    <div class="ui-settings-stack">
                       <div class="app-about-item">
                         <span class="app-about-icon">📅</span>
                         <div><strong class="app-about-name" data-copy-text="navigation.autoBook">Auto-Book</strong><p class="app-card-desc app-about-desc" data-copy-text="static.aboutAutoBook">Schedules a booking to fire at the exact millisecond a class is released, giving you priority access. (Gyms differ: some release weekly, some per class — the countdown shows whichever applies.)</p></div>
@@ -547,24 +547,24 @@
                   </div>
                   <div class="app-settings-card">
                     <h4 data-copy-text="static.privacyData">Privacy & Data</h4>
-                    <p class="app-card-desc i-html-23" data-copy-text="static.privacyDescription">Gym login credentials are encrypted and stored in a secure private cloud. Your __APP_NAME__ account is separate from your gym logins. You can delete all stored data at any time from Settings.</p>
+                    <p class="app-card-desc ui-disclaimer-text" data-copy-text="static.privacyDescription">Gym login credentials are encrypted and stored in a secure private cloud. Your __APP_NAME__ account is separate from your gym logins. You can delete all stored data at any time from Settings.</p>
                   </div>
                   <!-- Welcome Tour -->
                   <div class="app-settings-card">
                     <h4 data-copy-text="static.welcomeTour">Welcome Tour</h4>
                     <p class="app-card-desc" data-copy-html="static.welcomeTourDescription">Replay the introduction and setup walkthrough for <span data-app-name>__APP_NAME__</span>.</p>
-                    <button id="app-replay-onboarding-btn" class="app-btn i-html-26" data-copy-text="static.replayOnboarding">Replay Onboarding</button>
+                    <button id="app-replay-onboarding-btn" class="app-btn ui-replay-onboarding" data-copy-text="static.replayOnboarding">Replay Onboarding</button>
                   </div>
                 </div>
               </div>
 
               <!-- SECTION: ACCOUNT -->
               <div class="app-settings-section-pane active" id="app-settings-pane-general">
-                <div class="app-tab-header i-html-21">
+                <div class="app-tab-header ui-tab-header">
                   <h3 data-copy-text="static.general">General</h3>
                   <p data-copy-html="static.generalDescription">Appearance, behaviour and backup — settings that apply to your whole <span data-app-name>__APP_NAME__</span> account.</p>
                 </div>
-                <div class="app-settings-grid i-html-22">
+                <div class="app-settings-grid ui-settings-grid">
                   <div class="app-settings-card">
                     <h4 data-copy-text="static.appearance">Appearance</h4>
                     <p class="app-card-desc" data-copy-text="static.chooseTheme">Choose light or dark, or follow your device automatically.</p>
@@ -612,16 +612,16 @@
               <!-- SECTION: CALENDAR SYNC (U4-16). Calendar is ACCOUNT-level, not per gym
                    (2026-09-14): one feed carries every linked gym. -->
               <div class="app-settings-section-pane" id="app-settings-pane-calendar">
-                <div class="app-tab-header i-html-21">
+                <div class="app-tab-header ui-tab-header">
                   <h3 data-copy-text="static.calendarSync">Calendar Sync</h3>
                   <p data-copy-text="static.calendarDescription">One calendar feed covering every gym you've connected. Stays in sync with bookings, waitlists and cancellations.</p>
                 </div>
-                <div class="app-settings-grid i-html-22" id="app-calendar-section"><div class="app-settings-card"><p class="app-card-desc" data-copy-text="static.loading">Loading…</p></div></div>
+                <div class="app-settings-grid ui-settings-grid" id="app-calendar-section"><div class="app-settings-card"><p class="app-card-desc" data-copy-text="static.loading">Loading…</p></div></div>
               </div>
 
               <!-- SECTION: FAVOURITES (F-12, gym-neutral favourites). ACCOUNT-level: every linked gym, one list. -->
               <div class="app-settings-section-pane" id="app-settings-pane-favourites">
-                <div class="app-tab-header i-html-21">
+                <div class="app-tab-header ui-tab-header">
                   <h3 data-copy-text="static.favourites">Favourites</h3>
                   <p data-copy-text="static.favouritesDescription">Your favourite weekly class slots across every connected gym.</p>
                 </div>
@@ -629,11 +629,11 @@
               </div>
 
               <div class="app-settings-section-pane" id="app-settings-pane-notifications">
-                <div class="app-tab-header i-html-21">
+                <div class="app-tab-header ui-tab-header">
                   <h3 data-copy-text="static.notifications">Notifications</h3>
                   <p data-copy-text="static.notificationsDescription">Push notifications on this device, and which kinds you want.</p>
                 </div>
-                <div class="app-settings-grid i-html-22">
+                <div class="app-settings-grid ui-settings-grid">
                   <div class="app-settings-card">
                     <h4 data-copy-text="static.webPush">Web Push Notifications</h4>
                     <p class="app-card-desc" data-copy-text="static.registerPushHelp">Register this device to receive alerts on auto-bookings and upgrades.</p>
@@ -642,45 +642,45 @@
                         <span data-copy-text="static.pushSubscriptionStatus">Push Subscription Status</span>
                         <small id="app-push-status-desc" data-copy-text="static.pushSubscriptionHelp">Click button to enable notifications on this device.</small>
                       </div>
-                      <button id="app-push-toggle-btn" class="app-btn-mini i-html-27" data-copy-text="static.enablePush">Enable Push</button>
+                      <button id="app-push-toggle-btn" class="app-btn-mini ui-enable-push" data-copy-text="static.enablePush">Enable Push</button>
                     </div>
-                    <button id="app-notif-prefs-btn" class="app-btn i-html-28" data-copy-text="static.customizeNotifications">Customise Notifications</button>
+                    <button id="app-notif-prefs-btn" class="app-btn ui-customize-notifications" data-copy-text="static.customizeNotifications">Customise Notifications</button>
                   </div>
                   <div class="app-settings-card" id="app-test-notif-card" style="display: none; border-color: color-mix(in srgb, var(--warning) 30%, transparent);">
                     <h4 class="is-warning" data-copy-text="static.testNotifications">🔔 Test Notifications</h4>
                     <p class="app-card-desc" data-copy-text="static.testNotificationsHelp">Send a sample of each notification to all your signed-in devices.</p>
-                    <div class="i-html-30" id="app-test-notif-buttons">
-                      <button class="app-btn-mini test-notif-btn i-html-31" data-type="booking" data-copy-text="static.spotBooked">Spot Booked</button>
-                      <button class="app-btn-mini test-notif-btn i-html-31" data-type="upgrade" data-copy-text="static.spotUpgraded">Spot Upgraded</button>
-                      <button class="app-btn-mini test-notif-btn i-html-31" data-type="upgrade-cutoff" data-copy-text="static.spotUpgradedKeptOriginal">Spot Upgraded (kept original, &lt;12h)</button>
-                      <button class="app-btn-mini test-notif-btn i-html-31" data-type="creditWarning" data-copy-text="static.creditWarningAutobook">Credit Warning (Auto-Book)</button>
-                      <button class="app-btn-mini test-notif-btn i-html-31" data-type="creditWarning-upgrade" data-copy-text="static.creditWarningUpgrade">Credit Warning (Auto-Upgrade)</button>
-                      <button class="app-btn-mini test-notif-btn i-html-31" data-type="cancellationReminder" data-copy-text="static.cancellationReminder">Cancellation Reminder</button>
-                      <button class="app-btn-mini test-notif-btn i-html-31" data-type="bookingWindow" data-copy-text="static.bookingWindowAutoBook">Booking Window (has Auto-Book)</button>
-                      <button class="app-btn-mini test-notif-btn i-html-31" data-type="bookingWindow-none" data-copy-text="static.bookingWindowNoAutobook">Booking Window (no Auto-Book)</button>
-                      <button class="app-btn-mini test-notif-btn i-html-31" data-type="bookingWindow-nocredits" data-copy-text="static.bookingWindowInsufficientCredits">Booking Window (insufficient credits)</button>
+                    <div class="ui-test-notif-stack" id="app-test-notif-buttons">
+                      <button class="app-btn-mini test-notif-btn ui-test-notif-btn" data-type="booking" data-copy-text="static.spotBooked">Spot Booked</button>
+                      <button class="app-btn-mini test-notif-btn ui-test-notif-btn" data-type="upgrade" data-copy-text="static.spotUpgraded">Spot Upgraded</button>
+                      <button class="app-btn-mini test-notif-btn ui-test-notif-btn" data-type="upgrade-cutoff" data-copy-text="static.spotUpgradedKeptOriginal">Spot Upgraded (kept original, &lt;12h)</button>
+                      <button class="app-btn-mini test-notif-btn ui-test-notif-btn" data-type="creditWarning" data-copy-text="static.creditWarningAutobook">Credit Warning (Auto-Book)</button>
+                      <button class="app-btn-mini test-notif-btn ui-test-notif-btn" data-type="creditWarning-upgrade" data-copy-text="static.creditWarningUpgrade">Credit Warning (Auto-Upgrade)</button>
+                      <button class="app-btn-mini test-notif-btn ui-test-notif-btn" data-type="cancellationReminder" data-copy-text="static.cancellationReminder">Cancellation Reminder</button>
+                      <button class="app-btn-mini test-notif-btn ui-test-notif-btn" data-type="bookingWindow" data-copy-text="static.bookingWindowAutoBook">Booking Window (has Auto-Book)</button>
+                      <button class="app-btn-mini test-notif-btn ui-test-notif-btn" data-type="bookingWindow-none" data-copy-text="static.bookingWindowNoAutobook">Booking Window (no Auto-Book)</button>
+                      <button class="app-btn-mini test-notif-btn ui-test-notif-btn" data-type="bookingWindow-nocredits" data-copy-text="static.bookingWindowInsufficientCredits">Booking Window (insufficient credits)</button>
                     </div>
                   </div>
                 </div>
               </div>
 
               <div class="app-settings-section-pane" id="app-settings-pane-account">
-                <div class="app-tab-header i-html-21">
+                <div class="app-tab-header ui-tab-header">
                   <h3 data-copy-text="static.account">Account</h3>
                   <p data-copy-html="static.accountDescription">Your <span data-app-name>__APP_NAME__</span> login and your data.</p>
                 </div>
-                <div class="app-settings-grid i-html-22">
+                <div class="app-settings-grid ui-settings-grid">
                   <div class="app-settings-card">
                     <h4 data-copy-text="static.accountPassword">Account Password</h4>
                     <p class="app-card-desc" data-copy-html="static.passwordDescription">Your <span data-app-name>__APP_NAME__</span> password is separate from every gym password.</p>
                     <button id="app-account-password-btn" class="app-btn" data-copy-text="static.changeAccountPassword">Change account password</button>
                   </div>
-                  <div class="app-settings-card i-html-32">
+                  <div class="app-settings-card ui-settings-danger">
                     <h4 class="is-danger" data-copy-text="static.accountSession">Account Session</h4>
                     <p class="app-card-desc" data-copy-html="static.accountSessionDescription">Clear local session tokens and log out of <span data-app-name>__APP_NAME__</span>.</p>
                     <button id="app-logout-btn" class="app-btn variant-danger" data-copy-text="static.logout">Log Out</button>
                   </div>
-                  <div class="app-settings-card i-html-34">
+                  <div class="app-settings-card ui-settings-alert">
                     <h4 class="is-danger" data-copy-text="static.deleteData">Delete All My Data</h4>
                     <p class="app-card-desc" data-copy-text="static.deleteDataHelp">Permanently delete this account, encrypted credentials, queues, preferences and push subscriptions. This cannot be undone.</p>
                     <button id="app-delete-data-btn" class="app-btn variant-danger" data-copy-text="static.deleteData">Delete All My Data</button>
@@ -690,18 +690,18 @@
 
               <!-- SECTION: YOUR GYMS -->
               <div class="app-settings-section-pane" id="app-settings-pane-gyms">
-                <div class="app-tab-header i-html-21">
+                <div class="app-tab-header ui-tab-header">
                   <h3 id="app-gyms-pane-title" data-copy-text="static.yourGyms">Your Gyms</h3>
                   <p data-copy-text="static.gymsDescription">Connect gyms and manage each gym's own booking settings.</p>
                 </div>
-                <div class="app-settings-grid i-html-22">
+                <div class="app-settings-grid ui-settings-grid">
                   <div class="app-settings-card" id="app-gyms-card">
                     <h4 data-copy-text="static.yourGyms">Your Gyms</h4>
                     <p class="app-card-desc" data-copy-text="static.gymsHelp">Re-authenticate a gym, unlink one, or connect another. Every linked gym's classes already appear together in the timetable and your bookings.</p>
-                    <div class="i-html-35" id="app-gyms-list">
+                    <div class="ui-gyms-list" id="app-gyms-list">
                       <div class="app-card-desc" data-copy-text="static.loading">Loading…</div>
                     </div>
-                    <div class="i-html-36" id="app-gyms-actions"></div>
+                    <div class="ui-gyms-actions" id="app-gyms-actions"></div>
                   </div>
                 </div>
                 <div id="app-gym-settings-section" hidden></div>
@@ -738,7 +738,7 @@
         <span data-copy-text="static.navBookings"></span>
       </button>
       <button class="app-nav-btn app-bottom-nav-btn" data-tab="auto-book" data-copy-aria-label="static.navAutoBook">
-        <svg class="app-bn-icon i-html-37" fill="currentColor" viewBox="0 0 32 32" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
+        <svg class="app-bn-icon ui-brand-icon" fill="currentColor" viewBox="0 0 32 32" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
           <g data-name="Layer 2" id="Layer_2">
             <path d="M18,11a1,1,0,0,1-1,1,5,5,0,0,0-5,5,1,1,0,0,1-2,0,5,5,0,0,0-5-5,1,1,0,0,1,0-2,5,5,0,0,0,5-5,1,1,0,0,1,2,0,5,5,0,0,0,5,5A1,1,0,0,1,18,11Z"/>
             <path d="M19,24a1,1,0,0,1-1,1,2,2,0,0,0-2,2,1,1,0,0,1-2,0,2,2,0,0,0-2-2,1,1,0,0,1,0-2,2,2,0,0,0,2-2,1,1,0,0,1,2,0,2,2,0,0,0,2,2A1,1,0,0,1,19,24Z"/>
@@ -783,12 +783,12 @@
   <!-- 4. PROFILE EXPLORER MODAL -->
   <div id="app-profile-explorer-modal" class="app-modal" style="display: none;">
     <div class="app-modal-overlay"></div>
-    <div class="app-modal-content i-html-38">
+    <div class="app-modal-content ui-profile-modal">
       <div class="app-modal-header">
         <h4 id="app-profile-explorer-title" data-copy-text="static.profileExplorer"></h4>
         <button id="app-profile-explorer-close" class="app-modal-close-btn">&times;</button>
       </div>
-      <div class="app-modal-body i-html-39" id="app-profile-explorer-body">
+      <div class="app-modal-body ui-profile-body" id="app-profile-explorer-body">
       </div>
     </div>
   </div>
@@ -796,7 +796,7 @@
   <!-- 4b. GYMS MODAL (WP-C2: link a gym / re-authenticate / change account password) -->
   <div id="app-gym-modal" class="app-modal" style="display: none;">
     <div class="app-modal-overlay"></div>
-    <div class="app-modal-card i-html-40">
+    <div class="app-modal-card ui-modal-card">
       <div class="app-modal-header">
         <h4 id="app-gym-modal-title" data-copy-text="static.addGym"></h4>
         <button id="app-gym-modal-close" class="app-modal-close-btn">&times;</button>
@@ -808,13 +808,13 @@
   <!-- 5. DEBUG MODAL -->
   <div id="app-debug-modal" class="app-modal" style="display: none;">
     <div class="app-modal-overlay"></div>
-    <div class="app-modal-content i-html-41">
+    <div class="app-modal-content ui-modal-wide">
       <div class="app-modal-header">
         <h4 id="app-debug-modal-title" data-copy-text="static.debugClassDiagnostics"></h4>
         <button id="app-debug-modal-close" class="app-modal-close-btn">&times;</button>
       </div>
       <div class="app-modal-body" id="app-debug-modal-body">
-        <div class="app-loading-spinner-container i-html-42">
+        <div class="app-loading-spinner-container ui-loading-container">
           <div class="app-spinner"></div>
           <span data-copy-text="static.loadingDebugData"></span>
         </div>
@@ -825,12 +825,12 @@
   <!-- 6. NOTIFICATION PREFERENCES MODAL -->
   <div id="app-notif-prefs-modal" class="app-modal">
     <div class="app-modal-overlay"></div>
-    <div class="app-modal-content i-html-43">
+    <div class="app-modal-content ui-terminal-modal">
       <div class="app-modal-header">
         <h4 data-copy-text="static.notificationPreferences"></h4>
         <button id="app-notif-prefs-close" class="app-modal-close-btn">&times;</button>
       </div>
-      <div class="app-modal-body i-html-39" id="app-notif-prefs-body">
+      <div class="app-modal-body ui-profile-body" id="app-notif-prefs-body">
         <!-- Rendered dynamically by settings.js -->
       </div>
     </div>
@@ -844,18 +844,18 @@
   <div id="app-debug-terminal" style="display: none; position: fixed; bottom: 30px; right: 12px; width: 420px; max-height: 280px; background: color-mix(in srgb, var(--bg) 95%, transparent); border: 1px solid color-mix(in srgb, var(--feat-autoupgrade) 30%, transparent); border-radius: 12px; z-index: 10000; font-family: 'SF Mono', 'Fira Code', 'Consolas', monospace; font-size: 12px; color: var(--text); overflow: hidden; box-shadow: 0 8px 32px color-mix(in srgb, var(--bg) 50%, transparent);">
     <!-- Minimized FAB icon (shown only when collapsed to circle) -->
     <div id="app-debug-fab" style="display:none;width:100%;height:100%;align-items:center;justify-content:center;font-family:var(--font-sans);font-weight:700;font-size:15px;color:var(--feat-autoupgrade);cursor:pointer;user-select:none;">D</div>
-    <div class="i-html-44" id="app-debug-terminal-header">
-      <span class="i-html-45" data-copy-text="static.debugLog"></span>
-      <div class="i-html-46">
-        <button class="i-html-47" id="app-debug-clear-btn" data-copy-text="static.clear"></button>
-        <span class="i-html-48" id="app-debug-toggle-icon">▼</span>
+    <div class="ui-terminal-header" id="app-debug-terminal-header">
+      <span class="ui-terminal-title" data-copy-text="static.debugLog"></span>
+      <div class="ui-terminal-controls">
+        <button class="ui-terminal-clear" id="app-debug-clear-btn" data-copy-text="static.clear"></button>
+        <span class="ui-terminal-toggle" id="app-debug-toggle-icon">▼</span>
       </div>
     </div>
-    <div class="i-html-49" id="app-debug-log"></div>
+    <div class="ui-terminal-log" id="app-debug-log"></div>
   </div>
 
   <!-- Version Stamp -->
-  <div class="i-html-50" id="app-version-stamp">
+  <div class="ui-version-stamp" id="app-version-stamp">
     v1.3.0 · <span id="app-build-time"></span>
   </div>
 

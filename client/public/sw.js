@@ -146,11 +146,30 @@ async function cacheCoherentShell(cache, response) {
 
 // ─── Install: precache shell + skip waiting ─────────────────────────────────
 
+// One failed precache fetch must not discard the worker: with cache.addAll
+// a single bad response rejected install, the worker never activated, and
+// push (which needs an ACTIVE worker) was impossible on that device. Each
+// asset is cached on its own; if any fails, the shell entries are dropped so
+// the navigation handler never serves HTML whose chunks are missing (it
+// falls back to plain network when no shell is cached).
+const PRECACHE_BUDGET_MS = 20000;
+
 self.addEventListener('install', (event) => {
   event.waitUntil(
-    caches.open(CACHE_NAME).then((cache) => {
-      return cache.addAll(ASSETS_TO_CACHE);
-    }).then(() => self.skipWaiting())
+    caches.open(CACHE_NAME).then(async (cache) => {
+      // A stalled request would hang install just as surely as a failed one
+      // breaks it, so the whole precache is bounded and a timeout counts as failure.
+      const results = await Promise.race([
+        Promise.allSettled(ASSETS_TO_CACHE.map((asset) => cache.add(asset))),
+        new Promise((resolve) => setTimeout(() => resolve(null), PRECACHE_BUDGET_MS)),
+      ]);
+      const failed = results ? ASSETS_TO_CACHE.filter((_, i) => results[i].status === 'rejected') : ['(timed out)'];
+      if (failed.length) {
+        console.warn('[Service Worker] Precache incomplete, shell not cached:', failed);
+        await Promise.all(['/', '/index.html'].map((key) => cache.delete(key)));
+      }
+    }).catch((err) => console.warn('[Service Worker] Precache failed:', err))
+      .then(() => self.skipWaiting())
   );
 });
 

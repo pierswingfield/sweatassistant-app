@@ -9,18 +9,22 @@ function response(body = 'ok', init = {}) {
   return new Response(body, { status: 200, ...init });
 }
 
-function workerHarness({ fetchImpl, shell } = {}) {
+function workerHarness({ fetchImpl, shell, failAdd = () => false, hangAdd = () => false, setTimeoutImpl = setTimeout } = {}) {
   const listeners = new Map();
   const entries = new Map(shell ? [['/index.html', shell]] : []);
   const puts = [];
+  const added = [];
+  const deleted = [];
+  let skipped = false;
   const caches = {
     async open() {
       return {
         addAll: async () => {},
+        add: async (asset) => { if (hangAdd(asset)) return new Promise(() => {}); if (failAdd(asset)) throw new TypeError(`fetch failed: ${asset}`); added.push(asset); },
         match: async (request) => entries.get(typeof request === 'string' ? request : new URL(request.url).pathname),
         put: async (request, value) => { puts.push([typeof request === 'string' ? request : new URL(request.url).pathname, value]); },
         keys: async () => [],
-        delete: async () => true,
+        delete: async (key) => { deleted.push(key); return true; },
       };
     },
     async match(request) {
@@ -33,7 +37,7 @@ function workerHarness({ fetchImpl, shell } = {}) {
     location: { origin: 'https://app.test' },
     registration: { showNotification: async () => {} },
     clients: { claim: async () => {}, matchAll: async () => [] },
-    skipWaiting: async () => {},
+    skipWaiting: async () => { skipped = true; },
     addEventListener(type, listener) { listeners.set(type, listener); },
   };
   class WorkerRequest extends Request {
@@ -43,10 +47,18 @@ function workerHarness({ fetchImpl, shell } = {}) {
   }
   vm.runInNewContext(workerSource, {
     self, caches, fetch: fetchImpl || (() => Promise.resolve(response())), Request: WorkerRequest, Response,
-    URL, Promise, console, setTimeout, clearTimeout,
+    URL, Promise, console, setTimeout: setTimeoutImpl, clearTimeout,
   });
   return {
     puts,
+    added,
+    deleted,
+    get skipped() { return skipped; },
+    async install() {
+      let done;
+      listeners.get('install')({ waitUntil(value) { done = value; } });
+      await done;
+    },
     dispatch(request) {
       let handled;
       listeners.get('fetch')({ request, respondWith(value) { handled = Promise.resolve(value); }, waitUntil() {} });
@@ -115,5 +127,32 @@ describe('service-worker navigation shell', () => {
     await new Promise((resolve) => setTimeout(resolve, 0));
     expect(worker.puts).toHaveLength(1);
     expect(await worker.puts[0][1].text()).toBe('<html>new</html>');
+  });
+});
+
+describe('service worker install', () => {
+  it('activates and keeps the shell when every precache asset loads', async () => {
+    const worker = workerHarness({ fetchImpl: () => Promise.resolve(response()), shell: undefined, failAdd: () => false });
+    await worker.install();
+    expect(worker.skipped).toBe(true);
+    expect(worker.added).toContain('/index.html');
+    expect(worker.deleted).toEqual([]);
+  });
+
+  it('still activates when one asset fails, and drops the incoherent shell', async () => {
+    const worker = workerHarness({ failAdd: (asset) => asset === '/favicon.ico' });
+    await worker.install();
+    expect(worker.skipped).toBe(true);
+    expect(worker.deleted).toEqual(expect.arrayContaining(['/', '/index.html']));
+  });
+
+  it('still activates when a precache request hangs', async () => {
+    const worker = workerHarness({
+      hangAdd: (asset) => asset === '/favicon.ico',
+      setTimeoutImpl: (fn, ms) => (ms >= 20000 ? setTimeout(fn, 0) : setTimeout(fn, ms)),
+    });
+    await worker.install();
+    expect(worker.skipped).toBe(true);
+    expect(worker.deleted).toEqual(expect.arrayContaining(['/', '/index.html']));
   });
 });

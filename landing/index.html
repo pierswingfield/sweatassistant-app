@@ -177,6 +177,8 @@ section { padding: 72px 0; }
 
 /* mock UI shared */
 .mock { padding: 18px; box-shadow: var(--shadow-sheet); }
+@media (max-width: 480px) { .mock { padding: 12px; } }
+@media (max-width: 360px) { .mock { padding: 10px; } }
 .mock-head { display: flex; align-items: center; justify-content: space-between; margin-bottom: 14px; }
 .mock-title { font-family: var(--font-serif); font-weight: 600; font-size: var(--text-md); }
 .mock-note { font-size: var(--text-xs); color: var(--text-tertiary); }
@@ -193,11 +195,14 @@ section { padding: 72px 0; }
 @media (max-width: 480px) {
   .row.cls { grid-template-columns: auto minmax(0, 1fr) auto; gap: 8px; padding: 10px; }
   .row.cls .av { width: 34px; height: 34px; }
-  .row.cls .cls-status { max-width: 132px; align-self: center; justify-self: end; text-align: right; }
-  .row.cls .pill, .row.cls .cd-time { white-space: normal; text-wrap: balance; text-align: right; line-height: 1.25; border-radius: 12px; padding: 4px 8px; }
-  .row.cls .pill { white-space: nowrap; }
-  .row.cls .mon, .row.cls .mon > span { white-space: normal; }
+  .row.cls .cls-status { align-self: center; justify-self: end; }
+  .row.cls .pill, .row.cls .cd-time { white-space: nowrap; text-align: center; line-height: 1.25; padding: 4px 6px; }
+  .row.cls .mon > span { gap: 3px; }
   .row.cls .name { overflow-wrap: anywhere; }
+}
+@media (max-width: 360px) {
+  .row.cls { gap: 6px; padding: 8px; }
+  .row.cls .av { width: 28px; height: 28px; }
 }
 .row + .row { margin-top: 8px; }
 .row .name { font-weight: 600; font-size: var(--text-sm); line-height: 1.3; }
@@ -214,8 +219,10 @@ section { padding: 72px 0; }
 .pill.ok { background: color-mix(in srgb, var(--success) 14%, transparent); color: var(--success); }
 
 /* auto-upgrade chip: monitoring (the app's radar pulse) then upgraded. Base = upgraded, the finished state. */
-.mon { display: inline-grid; align-items: center; justify-items: center; background: color-mix(in srgb, var(--success) 14%, transparent); color: var(--success); transition: background-color 0.4s var(--spring), color 0.4s var(--spring); }
-.mon > span { grid-area: 1 / 1; display: inline-flex; align-items: center; justify-content: center; gap: 4px; transition: opacity 0.35s var(--spring), transform 0.35s var(--spring); }
+.mon { display: inline-grid; grid-template-columns: 100%; align-items: center; justify-items: center; overflow: hidden; text-align: center; background: color-mix(in srgb, var(--success) 14%, transparent); color: var(--success); transition: background-color 1.2s var(--spring), color 1.2s var(--spring), width 1.2s var(--spring); }
+.mon > span { grid-area: 1 / 1; display: inline-flex; align-items: center; justify-content: center; gap: 4px; white-space: nowrap; transition: opacity 1.05s var(--spring), transform 1.05s var(--spring); }
+.mon:not(.mon-live) .mon-a { display: none; }
+.mon.tight .mon-a { white-space: normal; text-wrap: balance; }
 .mon .mon-a { opacity: 0; transform: translateY(6px); }
 .mon.mon-live:not(.done) { background: color-mix(in srgb, var(--violet) 14%, transparent); color: var(--violet); }
 .mon.mon-live:not(.done) .mon-a { opacity: 1; transform: none; }
@@ -259,7 +266,7 @@ section { padding: 72px 0; }
 .plate.jab { background: var(--plate-jab); }
 .plate.aarmy { background: var(--plate-aarmy); }
 .plate.aarmy img { height: 22px; }
-.plate.soon { background: var(--glass-strong); color: var(--text-tertiary); border: 1px dashed var(--border-strong); box-shadow: none; font-size: var(--text-sm); font-weight: 500; white-space: nowrap; }
+.plate.soon { background: var(--glass-strong); color: var(--text-tertiary); box-shadow: none; font-size: var(--text-sm); font-weight: 500; white-space: nowrap; }
 .works-note { font-size: var(--text-xs); color: var(--text-tertiary); text-align: center; }
 
 /* ===== Features ===== */
@@ -761,19 +768,37 @@ footer { padding: 32px 0 56px; color: var(--text-secondary); font-size: var(--te
       else { s = 8; el.classList.add('counting'); sync(); show(); monStart(); timer = setTimeout(tick, 1000); }
     }
     /* hero only: the toast belongs to this card (hidden while counting, shown when it finishes),
-       and the first card shows Monitoring for 3s at the start of each cycle, then Upgraded */
+       and the first card shows Monitoring for 5s at the start of each cycle, then Upgraded */
     var hrow = el.closest('#hero .row');
     var toast = hrow ? hrow.querySelector('.float-card') : null;
     var mon = hrow ? document.querySelector('#hero [data-mon]') : null;
     var monT = 0, monStarted = false;
     function sync() { if (toast) toast.classList.toggle('wait', el.classList.contains('counting')); }
+    /* the chip sizes to the visible state's text, so it shrinks (animated) when Upgraded replaces Monitoring */
+    function fitMon() {
+      if (!mon) return;
+      var cs = getComputedStyle(mon), padX = parseFloat(cs.paddingLeft) + parseFloat(cs.paddingRight);
+      var isDone = mon.classList.contains('done');
+      var span = mon.querySelector(isDone ? '.mon-b' : '.mon-a');
+      var rowEl = mon.closest('.row'), rs = getComputedStyle(rowEl);
+      mon.classList.remove('tight');
+      var nat = Math.ceil(Math.max(span.getBoundingClientRect().width, span.scrollWidth) + padX);
+      /* room left once the avatar, gaps and a usable text column (60px) are kept: wrap Monitoring, centred, only if it cannot fit */
+      var avail = rowEl.clientWidth - parseFloat(rs.paddingLeft) - parseFloat(rs.paddingRight) - rowEl.querySelector('.av').getBoundingClientRect().width - 2 * parseFloat(rs.columnGap) - 60;
+      var w = nat;
+      if (!isDone && nat > avail) { mon.classList.add('tight'); w = Math.max(Math.floor(avail), 100); }
+      mon.style.width = w + 'px';
+    }
+    if (mon && document.fonts) document.fonts.ready.then(function () { fitMon(); });
+    if (mon) window.addEventListener('resize', function () { var t = mon.style.transition; mon.style.transition = 'none'; fitMon(); mon.offsetWidth; mon.style.transition = t; });
     function monStart() {
       if (!mon) return;
       clearTimeout(monT);
       mon.classList.remove('done');
-      monT = setTimeout(function () { mon.classList.add('done'); }, 3000);
+      fitMon();
+      monT = setTimeout(function () { mon.classList.add('done'); fitMon(); }, 5000);
     }
-    if (mon) mon.classList.add('mon-live');
+    if (mon) { mon.classList.add('mon-live'); fitMon(); }
     el.classList.add('counting'); show(); sync();
     new IntersectionObserver(function (es) {
       visible = es[0].isIntersecting;

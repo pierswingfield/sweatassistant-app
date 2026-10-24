@@ -15,6 +15,7 @@ function mountMcp(app, config = configuration()) {
   const { catalog, registerTools } = require('./tools');
   const verify = verifier(config);
   require('./authorization').mountAuthorization(app, config);
+  require('../metrics').configureMcpClients(require('../db').db.prepare('SELECT client_id FROM mcp_clients WHERE disabled_at IS NULL ORDER BY client_id LIMIT 10').all().map(c => c.client_id));
   const router = express.Router();
   const metadata = new URL(metadataPath, config.resource).href;
   function challenge(res, error, scope) {

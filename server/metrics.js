@@ -1,15 +1,34 @@
 // C7-3 step 3: hand-rolled Prometheus text-format registry (no prom-client: we need two counters,
 // one histogram and a handful of scrape-time gauges).
 //
-// CARDINALITY BOUNDS (aggregate only; never a user id, email, token or raw path as a label):
+// CARDINALITY BOUNDS (never a user id, email, token or raw path as a label):
 //   route        = express route TEMPLATE, plus the fixed values "unmatched" and "static"
 //                  (<= ~150 templates)        status_class = 1xx..5xx (<= 5)
 //   gym          = configured gyms (small, fixed by gyms.config.js)   platform = provider id
 //   outcome      = ok | 429 | error         result = hit | stale | miss
 //   histogram    = per route only (x 11 buckets), not per status
+//   MCP client   = at most ten operator-registered IDs plus fixed other per process
+//   MCP tool     = six catalog names plus fixed unknown; gym = config or fixed none
 const counters = new Map(); // name -> { help, series: Map(labelKey -> { labels, value }) }
 const hist = new Map();     // route -> { buckets[], sum, count }
 const BUCKETS = [0.005, 0.01, 0.025, 0.05, 0.1, 0.25, 0.5, 1, 2.5, 5, 10];
+// Client IDs come only from operator registration, with a lifetime process cap.
+// Never allocate a new series label from a token, request argument or account.
+const mcpClients = new Set();
+const mcpTools = new Set(['list_connected_gyms', 'search_classes', 'get_class_details', 'get_my_bookings', 'get_credits', 'get_automation']);
+function configureMcpClients(ids) {
+  for (const id of ids) if (mcpClients.size < 10 && typeof id === 'string' && /^[a-zA-Z0-9_-]{1,100}$/.test(id)) mcpClients.add(id);
+}
+function mcpLabels(clientId, tool, gymId) {
+  return { client: mcpClients.has(clientId) ? clientId : 'other', tool: mcpTools.has(tool) ? tool : 'unknown',
+    gym: require('./gyms.config').getGymConfig(gymId)?.id || 'none' };
+}
+function observeMcpWork(kind, result, by = 1) {
+  const state = require('./mcp/context').current();
+  if (!state) return;
+  inc(`mcp_client_${kind}_total`, `MCP client ${kind} by bounded registration, tool, gym and result.`,
+    { ...mcpLabels(state.actor.clientId, state.tool, state.gymId), result }, by);
+}
 
 const esc = (v) => String(v).replace(/\\/g, '\\\\').replace(/\n/g, '\\n').replace(/"/g, '\\"');
 const fmtLabels = (l) => { const k = Object.keys(l); return k.length ? `{${k.map((x) => `${x}="${esc(l[x])}"`).join(',')}}` : ''; };
@@ -69,17 +88,22 @@ function render(extra = []) {
   return out.join('\n') + '\n';
 }
 
-function observeMcpTool(tool, result, milliseconds) {
+function observeMcpTool(tool, result, milliseconds, clientId, gymId) {
   inc('mcp_tools_total', 'MCP tool outcomes by fixed tool and result.', { tool, result });
   inc('mcp_tool_duration_milliseconds_total', 'Total MCP tool execution duration.', { tool }, milliseconds);
+  const labels = mcpLabels(clientId, tool, gymId);
+  inc('mcp_client_tools_total', 'MCP client tool outcomes.', { ...labels, result });
+  inc('mcp_client_tool_duration_milliseconds_total', 'Total MCP client tool execution duration.', labels, milliseconds);
 }
 function observeMcpIngress(result) {
   inc('mcp_ingress_rejections_total', 'MCP ingress refusals by fixed result.', { result });
 }
 function observeCache(result) {
   inc('schedule_cache_total', 'Shared schedule cache outcomes.', { result });
+  observeMcpWork('cache', result);
 }
 function observeAdmission(lane, result) {
   inc('provider_admission_total', 'Provider admission outcomes by fixed actor lane.', { lane, result });
+  observeMcpWork('admission', result);
 }
-module.exports = { observeMcpTool, observeMcpIngress, observeCache, observeAdmission, observeHttp, observeProvider, httpMetrics, render };
+module.exports = { configureMcpClients, observeMcpWork, observeMcpTool, observeMcpIngress, observeCache, observeAdmission, observeHttp, observeProvider, httpMetrics, render };

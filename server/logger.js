@@ -64,6 +64,7 @@ async function performProviderFetch(gymId, method, pathOrUrl, doFetch, purpose) 
     try {
       const g = require('./gyms.config').getGymConfig(gymId);
       require('./metrics').observeProvider(gymId, g ? g.provider : 'unknown', outcomeOf(st));
+      require('./metrics').observeMcpWork('provider_calls', outcomeOf(st));
     } catch (_) {}
   };
   const path = String(pathOrUrl).replace(/^https?:\/\/[^/]+/i, '').split('?')[0];

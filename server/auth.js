@@ -312,6 +312,10 @@ async function triggerAutoReloginInActor(userId, gymId = null) {
     log.info('relogin: session renewed', { userId, gymId: targetGymId });
     return renewed.accessToken;
   } catch (err) {
+    // Local capacity, cancellation and grant policy say nothing about gym
+    // credentials. Preserve the session so optional work cannot force a PWA
+    // re-link or erase a concurrently renewed scheduler session.
+    if (['RATE_LIMITED', 'DEADLINE_EXCEEDED', 'ACCESS_DENIED', 'INSUFFICIENT_SCOPE', 'PROVIDER_WORK_DISABLED', 'BUDGET_UNAVAILABLE'].includes(err.code)) throw err;
     log.error('relogin: session renewal failed', { userId, gymId: targetGymId, err });
     // Clear the dead session so callers stop retrying it in a loop, and flag the
     // link so the UI can prompt a re-link. The link itself SURVIVES: unlinking on

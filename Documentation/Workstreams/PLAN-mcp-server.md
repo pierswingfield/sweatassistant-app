@@ -1,6 +1,6 @@
 # Work plan: user-facing MCP server
 
-**Status:** Read-only server, first-party OAuth/connection controls and common provider admission implemented; independent and external release gates remain, 2026-10-24. Expands F-4, the user-facing MCP integration. A disabled-by-default local server implementation now exists; no public service or production credentials have been created. [Implemented scope and exact release gates](MCP-SERVER.md); [session evidence](MCP-SESSION-LOG.md). This is not yet a user-facing release candidate.
+**Status:** Read-only server, first-party OAuth/connection controls and common provider admission implemented; independent source review completed; external release gates remain, 2026-10-24. Expands F-4, the user-facing MCP integration. A disabled-by-default local server implementation now exists; no public service or production credentials have been created. [Implemented scope and exact release gates](MCP-SERVER.md); [independent source review](MCP-SECURITY-REVIEW.md); [session evidence](MCP-SESSION-LOG.md). This is not yet a user-facing release candidate.
 
 ## Outcome and delivery recommendation
 

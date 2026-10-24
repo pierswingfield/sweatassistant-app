@@ -133,6 +133,28 @@ const call = (lane, userId, fetcher = async () => new Response('{}'), targetGym 
   } finally { global.fetch = originalFetch; }
   reset();
   const cache = require('./schedule-cache').createCache();
+  // A local renewal refusal is not evidence that the gym credential is bad.
+  const renewalUser = db.createAccount('admission-renewal@example.test', 'fixture-password');
+  db.upsertUserGym(renewalUser, gym, { gym_email: 'renewal@example.test', encrypted_password: require('./crypto').encrypt('fixture-password'), status: 'active' });
+  db.setGymSession(renewalUser, gym, { accessToken: 'existing-session' });
+  for (let i = 0; i < 30; i++) await call('interactive', renewalUser);
+  await assert.rejects(admission.run({ lane: 'interactive', userId: renewalUser }, () => require('./auth').triggerAutoRelogin(renewalUser, gym)), e => e.code === 'RATE_LIMITED');
+  check(db.getUserSession(renewalUser, gym)?.accessToken === 'existing-session' && db.getUserGym(renewalUser, gym).status === 'active', 'local renewal refusal preserves session and link status');
+  check(db.getUserGym(renewalUser, gym).relogin_failures === 0, 'local capacity refusal never becomes a gym authentication failure');
+  reset();
+  const nativeRefresh = cf.refreshSession;
+  try {
+    for (const code of ['DEADLINE_EXCEEDED', 'ACCESS_DENIED', 'PROVIDER_WORK_DISABLED', 'BUDGET_UNAVAILABLE']) {
+      cf.refreshSession = async () => { throw Object.assign(new Error('fixture local refusal'), { code }); };
+      await assert.rejects(require('./auth').triggerAutoRelogin(renewalUser, gym), e => e.code === code);
+      check(db.getUserSession(renewalUser, gym)?.accessToken === 'existing-session' && db.getUserGym(renewalUser, gym).relogin_failures === 0, `${code} preserves gym session and authentication counters`);
+    }
+  } finally { cf.refreshSession = nativeRefresh; }
+  db.db.exec('ALTER TABLE mcp_budgets RENAME TO unavailable_budgets');
+  try {
+    await assert.rejects(admission.run({ lane: 'interactive', userId: renewalUser }, () => require('./auth').triggerAutoRelogin(renewalUser, gym)), e => e.code === 'BUDGET_UNAVAILABLE' && e.status === 503);
+    check(db.getUserSession(renewalUser, gym)?.accessToken === 'existing-session', 'real budget storage outage fails closed without deleting the gym session');
+  } finally { db.db.exec('ALTER TABLE unavailable_budgets RENAME TO mcp_budgets'); }
   let unblock;
   const stalled = new Promise(r => { unblock = r; });
   const low = admission.run({ lane: 'background', userId: 1 }, () => cache.getOrFetch('fixture', async () => { await stalled; throw new Error('cancelled optional owner'); }));

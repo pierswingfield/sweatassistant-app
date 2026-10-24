@@ -37,6 +37,14 @@ function get(port, path, token) {
     'provider_calls_total{gym="psycle-london",platform="codexfit",outcome="429"} 1',
     'provider_calls_total{gym="jab-boxing",platform="marianatek",outcome="error"} 1',
   ]) assert.ok(local.includes(n), `missing: ${n}`);
+  metrics.configureMcpClients(Array.from({ length: 20 }, (_, i) => `registered-${i}`));
+  for (let i = 0; i < 20; i++) metrics.observeMcpTool('search_classes', 'ok', 3, `registered-${i}`, 'psycle-london');
+  metrics.observeMcpTool('search_classes', 'ok', 3, 'attacker-token-must-not-be-a-label', 'arbitrary-gym-must-not-be-a-label');
+  const bounded = metrics.render();
+  const series = bounded.split('\n').filter(s => s.startsWith('mcp_client_tools_total'));
+  assert.strictEqual(series.length, 12, 'ten client labels plus other, with configured or fixed none gyms');
+  assert.ok(!bounded.includes('registered-10') && !bounded.includes('attacker-token-must-not-be-a-label') && !bounded.includes('arbitrary-gym-must-not-be-a-label'), 'unregistered values never allocate labels');
+  assert.ok(bounded.includes('client="other",tool="search_classes",gym="none"'));
 
   cleanup();
   child = spawn('node', ['server.js'], { cwd: __dirname, stdio: ['ignore', 'pipe', 'pipe'],

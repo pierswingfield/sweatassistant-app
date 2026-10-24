@@ -199,16 +199,18 @@ function clearBudgets() { db.db.prepare('DELETE FROM mcp_budgets').run(); }
   grantId = store.createGrant({ userId, issuer: config.issuer, subject: 'local-test-subject', clientId: 'sdk-test', scopes,
     gymIds: [secondGymId], expiresAt: Date.now() + 3600000, consentReference: 'automated-fixture-only' });
   let pageCalls = 0; let pageActive = 0; let pagePeak = 0;
+  const mockSession = db.getUserSession(userId, secondGymId);
   try {
     global.fetch = async () => {
       pageCalls++; pageActive++; pagePeak = Math.max(pagePeak, pageActive);
       await new Promise(r => setTimeout(r, 5)); pageActive--;
       return new Response(JSON.stringify({ results: [], meta: { pagination: { pages: 5 } } }));
     };
-    await context.run({ identity: identity(), scope: 'schedule:read', gymId: secondGymId, providerReads: true }, () =>
-      getProvider(secondGymId).fetchTimetable({ startDate: '2099-01-01', endDate: '2099-01-07' }, { accessToken: 'fixture-token' }));
+    db.setGymSession(userId, secondGymId, { accessToken: 'fixture-token' });
+    const nativeRead = await request(rpc('search_classes', { gymId: secondGymId, startDate: '2099-01-01', endDate: '2099-01-07' }), await sign());
+    check(nativeRead.status === 200 && !nativeRead.data.result?.isError, 'real MCP tool drives native paginated read');
     check(pageCalls === 5 && pagePeak === 1, 'cold five-page MCP class read completes with bounded request-local fan-out');
-  } finally { global.fetch = savedFetch; grantId = originalGrant; }
+  } finally { global.fetch = savedFetch; db.setGymSession(userId, secondGymId, mockSession); grantId = originalGrant; }
 
   // Hard cost cap is charged per transport attempt; credentials/caches cannot reset it.
   clearBudgets(); let actual = 0;
@@ -267,6 +269,10 @@ function clearBudgets() { db.db.prepare('DELETE FROM mcp_budgets').run(); }
   for (let i = 0; i < 60; i++) await request(list, fresh);
   check((await request(list, fresh)).status === 429, 'request budget enforced outside production');
   check(catalog.search_classes.schema.safeParse({ gymId, startDate: '2026-02-30', endDate: '2026-02-30' }).success === false, 'invalid date rejected');
+  const exposition = require('./metrics').render();
+  check(exposition.includes('mcp_client_tools_total{client="sdk-test",tool="get_automation"') && exposition.includes('mcp_client_tool_duration_milliseconds_total{client="sdk-test"'), 'real SDK tools expose client outcomes and latency');
+  check(exposition.includes('mcp_client_provider_calls_total{client="sdk-test"') && exposition.includes('mcp_client_cache_total{client="sdk-test"') && exposition.includes('mcp_client_admission_total{client="sdk-test"'), 'actual upstream cost, cache and refusals retain client attribution');
+  check(exposition.includes(`mcp_client_provider_calls_total{client="sdk-test",tool="search_classes",gym="${secondGymId}",result="ok"} 5`), 'native cold read cost is attributed to the actual client, tool and gym');
   console.log(`MCP security/transport suite passed (${calls} checks)`);
 })().catch(err => { console.error(err); process.exitCode = 1; }).finally(async () => {
   try { await client?.close(); } catch (_) {}

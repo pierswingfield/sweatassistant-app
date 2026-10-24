@@ -6,7 +6,7 @@ const accounts = new Map();
 const gyms = new Set();
 const limited = () => Object.assign(new Error('MCP concurrency limit reached'), { code: 'RATE_LIMITED', status: 429, retryAfter: 1 });
 const current = () => storage.getStore();
-async function run({ identity, scope, gymId, providerReads, signal }, fn) {
+async function run({ identity, scope, gymId, providerReads, signal, tool }, fn) {
   const store = require('./store');
   const actor = store.authorize(identity, scope, gymId);
   const key = `${actor.userId}:${gymId || ''}`;
@@ -18,7 +18,7 @@ async function run({ identity, scope, gymId, providerReads, signal }, fn) {
   if (signal?.aborted) disconnect();
   else signal?.addEventListener('abort', disconnect, { once: true });
   const timer = setTimeout(() => controller.abort(Object.assign(new Error('Tool deadline exceeded'), { code: 'DEADLINE_EXCEEDED' })), 12000);
-  const state = { identity, actor, scope, gymId, providerReads, controller, active: true, attempts: 0 };
+  const state = { identity, actor, scope, gymId, providerReads, controller, active: true, attempts: 0, tool };
   try {
     return await storage.run(state, async () => {
       const result = await new Promise((resolve, reject) => {

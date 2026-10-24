@@ -97,6 +97,15 @@ check('createCache: own counters, maxStaleMs forces refetch but stale-if-error s
   assert.deepStrictEqual(await c.getOrFetch('layout|jab-boxing|1', async () => ['x'], { ttlMs: 10000 }), ['jab']);
 });
 
+check('bounded reads reject an over-age cache value when refresh fails', async () => {
+  const c = cache.createCache();
+  await c.getOrFetch('bounded-read', async () => ['old'], { ttlMs: 1 });
+  await sleep(10);
+  await assert.rejects(c.getOrFetch('bounded-read', async () => { throw new Error('provider unavailable'); },
+    { ttlMs: 1, maxStaleMs: 1, backgroundRefresh: false, staleIfError: false }), /provider unavailable/);
+  assert.deepStrictEqual(await c.getOrFetch('bounded-read', async () => ['unused'], { ttlMs: 10000 }), ['old'], 'bounded refusal does not evict the PWA fallback');
+});
+
 check('invalidate drops one gym and leaves the other alone', async () => {
   const fetcher = async () => [{ id: 'x' }];
   await cache.getOrFetch('timetable|gym-a|d1|d2', fetcher, { ttlMs: 10000 });

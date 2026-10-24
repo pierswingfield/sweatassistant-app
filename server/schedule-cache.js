@@ -152,7 +152,7 @@ function createCache() {
         // A failed refresh must NOT evict a usable stale entry — that turns a
         // provider blip into an empty timetable for everyone.
         const stale = store.get(key);
-        if (stale) return stale.value;
+        if (stale && opts.staleIfError !== false) return stale.value;
         throw err;
       } finally {
         inFlight.delete(flightKey);

@@ -117,7 +117,7 @@ async function timetable(userId, { startDate = '', endDate = '', refresh = false
   const { gymId, provider, session } = resolveContext(userId);
   const events = await scheduleCache.getOrFetch(`timetable|${gymId}|${startDate}|${endDate}`,
     () => withRelogin(userId, session, s => provider.fetchTimetable({ startDate, endDate }, s)),
-    { ttlMs: 60000, force: refresh, ...(require('./mcp/context').current() ? { backgroundRefresh: false, maxStaleMs: 120000 } : {}), stamp: freshness.stampFor(gymId, provider, session, ['events']), ceilingMs: 300000 });
+    { ttlMs: 60000, force: refresh, ...(require('./mcp/context').current() ? { backgroundRefresh: false, maxStaleMs: 120000, staleIfError: false } : {}), stamp: freshness.stampFor(gymId, provider, session, ['events']), ceilingMs: 300000 });
   return { events: await stampReleaseAt(events, provider, userId, gymId, session) };
 }
 async function eventDetails(userId, eventId) {

@@ -448,6 +448,11 @@ First-run screens are full-viewport glass pages (`.app-onboarding-container`, `1
 - **Motion** (transform + opacity, tokens only): a new step slides 28px in its travel direction (`data-dir` fwd/back) while fading, `--dur-page` `--ease-out`; stagger at 50ms steps hero, headline, copy, actions (perks +40ms each); hero rises and scales with a spring (560ms); the progress fill travels from the previous step's value (460ms); the final-step seal pulses a ring once, again when everything is set up. Entrance plays only when a step first renders (`.is-entering`), never on in-step re-renders. Reduced motion: whole-step crossfade (`--dur-base`), fill and ring static.
 - **Contract**: step logic, persistence (`appOnboardingStep`), skip and finish are untouched; progress phases are Welcome, Install (if offered), Account, Gyms, Name, Setup.
 
+### 6.18 Login, signup and Connect a gym (CSSv2, 2026-10-25)
+The pre-app auth surface (`#app-login-container`: log in, create account, reset, and the Connect-a-gym panel) reuses the onboarding recipe from 6.17: the same warm aurora, `--lg-*` glass card (`.app-login-form`), 84/40 hero medallion (`.app-login-hero`, reuses `.app-onb-hero`), Fraunces headline and the `onb-hero`/`onb-rise` stagger (re-plays on every mode switch because the form toggles `display`); reduced motion is a plain `onb-fade`.
+- **Keyboard-safe**: no `position:fixed` tray; the form is in-flow and the container scrolls. Under 720px height the medallion shrinks to 60/28, under 600px it and the subtitle are hidden, so 3 fields + submit fit in 390x500.
+- **Fields**: 16px text (no iOS zoom), 44px height, clay focus ring; pill CTA 44px+. Errors use `--danger` mixed 22% toward `--text` on a surface-tinted fill (AA on glass in both themes). Markup contract (ids, `autocomplete` username / current-password / new-password, handlers) is untouched.
+
 ## 7. Scrollbars
 
 All scrollbars use token-derived values:

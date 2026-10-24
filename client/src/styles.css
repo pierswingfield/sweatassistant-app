@@ -11461,3 +11461,98 @@ html:not([data-credits-tab="on"]) .app-nav-btn[data-tab="buy-credits"] { display
 }
 .app-onb-body .onb-email-input::placeholder { color: var(--text-tertiary); }
 .app-onb-body .onb-email-input:focus-visible, .app-onb-body .app-select:focus-visible { border-color: var(--accent); box-shadow: 0 0 0 var(--focus-ring-width) color-mix(in srgb, var(--accent) 35%, transparent); }
+
+/* ==========================================================================
+   CSSv2 LOGIN / SIGNUP / CONNECT-A-GYM: same pre-app surface as onboarding (DESIGN.md 6.17).
+   Reuses the onboarding aurora, glass recipe, hero medallion and entrance motion. Presentation only:
+   the form is an ordinary in-flow glass card (never position:fixed), so the keyboard cannot cover the
+   submit button; the container scrolls instead.
+   ========================================================================== */
+.app-login-container {
+  --onb-ico-hero: 84px; --onb-glyph-hero: 40px;
+  --onb-gutter: 20px;
+  --onb-spring: cubic-bezier(.34, 1.45, .64, 1);
+  --onb-glass-fill: linear-gradient(180deg, color-mix(in srgb, var(--lg-spec) 22%, transparent), transparent 55%), var(--lg-fill);
+  --onb-glass-shadow: inset 0 1px 0 var(--lg-spec), inset 0 -1px 0 color-mix(in srgb, var(--lg-spec) 25%, transparent), 0 8px 24px color-mix(in srgb, var(--tone-ink) 12%, transparent);
+  isolation: isolate;
+  padding: 0 env(safe-area-inset-right, 0px) 0 env(safe-area-inset-left, 0px);
+}
+.app-login-container::before {
+  content: ''; position: fixed; inset: 0; z-index: -1; pointer-events: none;
+  background:
+    radial-gradient(70vmax 70vmax at 0% -5%, color-mix(in srgb, var(--accent-fill) 30%, transparent), transparent 68%),
+    radial-gradient(56vmax 56vmax at 105% 42%, color-mix(in srgb, var(--feat-quickbook) 18%, transparent), transparent 68%),
+    radial-gradient(64vmax 64vmax at 15% 108%, color-mix(in srgb, var(--accent-fill) 22%, transparent), transparent 68%);
+}
+.app-login-container .app-login-card {
+  max-width: 440px; gap: 16px; justify-content: center;
+  padding: calc(env(safe-area-inset-top, 0px) + 20px) var(--onb-gutter) calc(env(safe-area-inset-bottom, 0px) + 20px);
+}
+.app-login-logo { display: flex; flex-direction: column; align-items: center; gap: 8px; }
+.app-login-hero { margin-bottom: 6px; }
+.app-login-logo h1, #app-auth-title { font-size: clamp(28px, 8vw, 34px); letter-spacing: 0; color: var(--text); margin: 0; text-wrap: balance; }
+.app-login-logo p { font-size: var(--text-md, 16px); color: var(--text-secondary); text-wrap: balance; margin: 0; }
+
+/* Glass form card (login, signup, recover, connect-a-gym panel). */
+.app-login-container .app-login-form {
+  position: relative; max-width: none; gap: 14px; padding: 18px; box-sizing: border-box;
+  border-radius: var(--radius-sheet, 24px);
+  background: var(--onb-glass-fill);
+  -webkit-backdrop-filter: var(--lg-blur); backdrop-filter: var(--lg-blur);
+  box-shadow: var(--onb-glass-shadow);
+}
+.app-login-container .app-login-form::before {
+  content: ''; position: absolute; inset: 0; border-radius: inherit; padding: 1px; pointer-events: none;
+  background: linear-gradient(150deg, var(--lg-ring-a), var(--lg-ring-b) 38%, var(--lg-ring-b) 62%, var(--lg-ring-a));
+  -webkit-mask: linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0);
+  -webkit-mask-composite: xor; mask-composite: exclude;
+}
+@supports not ((backdrop-filter: blur(1px)) or (-webkit-backdrop-filter: blur(1px))) {
+  .app-login-container .app-login-form { background: var(--glass-solid); }
+}
+@media (prefers-reduced-transparency: reduce) {
+  .app-login-container .app-login-form { background: var(--glass-solid); -webkit-backdrop-filter: none; backdrop-filter: none; }
+}
+.app-login-container .app-form-group label { font-size: var(--text-xs, 12px); color: var(--text-secondary); }
+.app-login-container .app-form-group input,
+.app-login-container .app-form-group .app-select {
+  width: 100%; box-sizing: border-box; min-height: var(--tap-min, 44px); padding: 10px 14px;
+  background: var(--surface-inset); color: var(--text); border: 1px solid var(--border); border-radius: var(--radius-control);
+  font: 500 16px/1.3 var(--font-sans); outline: none;
+}
+.app-login-container .app-form-group input::placeholder { color: var(--text-tertiary); }
+.app-login-container .app-form-group input:focus-visible,
+.app-login-container .app-form-group .app-select:focus-visible {
+  border-color: var(--accent); box-shadow: 0 0 0 var(--focus-ring-width, 3px) color-mix(in srgb, var(--accent) 35%, transparent);
+}
+.app-login-container .app-btn-primary {
+  min-height: var(--tap-min, 44px); border-radius: var(--radius-pill, 999px); font: 700 16px/1.2 var(--font-sans);
+}
+.app-login-container .app-btn-primary:focus-visible { outline: 2px solid var(--accent); outline-offset: 3px; }
+/* Error: opaque-ish tint on glass so danger text keeps AA in both themes. */
+.app-login-container .app-login-error {
+  background: color-mix(in srgb, var(--danger) 10%, var(--surface));
+  border-color: color-mix(in srgb, var(--danger) 45%, transparent);
+  color: color-mix(in srgb, var(--danger) 78%, var(--text)); font-size: var(--text-sm, 14px); font-weight: 600;
+}
+.app-login-container .app-login-footer { font-size: var(--text-xs, 12px); color: var(--text-secondary); }
+.app-login-container .app-login-footer a { font-size: 14px; }
+/* Short viewports (SE, keyboard open): trade the medallion and subtitle for visible fields. */
+@media (max-height: 720px) {
+  .app-login-container { --onb-ico-hero: 60px; --onb-glyph-hero: 28px; }
+  .app-login-container .app-login-card { gap: 12px; }
+  .app-login-container .app-login-form { padding: 14px; gap: 10px; }
+}
+@media (max-height: 600px) {
+  .app-login-hero, .app-login-logo p { display: none; }
+  .app-login-container .app-login-card { justify-content: flex-start; padding-top: calc(env(safe-area-inset-top, 0px) + 12px); }
+}
+@media (prefers-reduced-motion: no-preference) {
+  .app-login-hero { animation: onb-hero 560ms var(--onb-spring) backwards; }
+  .app-login-logo h1, .app-login-logo p { animation: onb-rise var(--dur-slow) var(--ease-out) backwards; animation-delay: 50ms; }
+  .app-login-container .app-login-form { animation: onb-rise var(--dur-slow) var(--ease-out) backwards; animation-delay: 100ms; }
+  .app-login-container .app-login-footer { animation: onb-rise var(--dur-slow) var(--ease-out) backwards; animation-delay: 150ms; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .app-login-container .app-login-card { animation: onb-fade var(--dur-base) linear backwards; }
+}

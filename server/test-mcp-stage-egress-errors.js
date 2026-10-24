@@ -33,6 +33,22 @@ const { credentialProviderFetch } = require('./logger');
       'https://jabboxingclub.marianatek.com/api/customer/v1/me/account',
       { headers: { authorization: 'Bearer fixture-only' } },
     ), err => err.code === 'PROVIDER_WORK_DISABLED' && err.status === 502 && /invalid response/.test(err.message));
+
+    // Broker transport and JSON decoding failures must not escape as generic
+    // errors that the link route would mislabel as invalid gym credentials.
+    global.fetch = async () => { throw new TypeError('fixture transport failure'); };
+    await assert.rejects(credentialProviderFetch(
+      'jab-boxing',
+      'https://jabboxingclub.marianatek.com/api/customer/v1/me/account',
+      { headers: { authorization: 'Bearer fixture-only' } },
+    ), err => err.code === 'PROVIDER_WORK_DISABLED' && err.status === 503 && /gateway is unavailable/.test(err.message));
+
+    global.fetch = async () => new Response('not-json', { status: 200 });
+    await assert.rejects(credentialProviderFetch(
+      'jab-boxing',
+      'https://jabboxingclub.marianatek.com/api/customer/v1/me/account',
+      { headers: { authorization: 'Bearer fixture-only' } },
+    ), err => err.code === 'PROVIDER_WORK_DISABLED' && err.status === 502 && /invalid response/.test(err.message));
     process.stdout.write('gateway refusals and malformed envelopes remain non-success through the provider adapter\n');
   } finally {
     global.fetch = realFetch;

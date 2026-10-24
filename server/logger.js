@@ -135,18 +135,30 @@ function credentialProviderFetch(gymId, url, options = {}) {
       const headers = new Headers(options.headers || {});
       const body = options.body == null ? null : String(options.body);
       const signals = [signal, options.signal].filter(Boolean);
-      const response = await fetch(gateway.replace(/\/$/, '') + '/profile-request', {
-        method: 'POST', redirect: 'manual', ...(signals.length ? { signal: AbortSignal.any(signals) } : {}),
-        headers: { 'content-type': 'application/json', 'x-stage-egress-key': key },
-        body: JSON.stringify({ url: target.toString(), method: options.method || 'GET', headers: Object.fromEntries(headers), body }),
-      });
+      let response;
+      try {
+        response = await fetch(gateway.replace(/\/$/, '') + '/profile-request', {
+          method: 'POST', redirect: 'manual', ...(signals.length ? { signal: AbortSignal.any(signals) } : {}),
+          headers: { 'content-type': 'application/json', 'x-stage-egress-key': key },
+          body: JSON.stringify({ url: target.toString(), method: options.method || 'GET', headers: Object.fromEntries(headers), body }),
+        });
+      } catch {
+        throw Object.assign(new Error('The restricted JAB profile gateway is unavailable.'), {
+          code: 'PROVIDER_WORK_DISABLED', status: 503,
+        });
+      }
       if (!response.ok) {
         throw Object.assign(new Error('The restricted JAB profile gateway refused this request before contacting JAB.'), {
           code: 'PROVIDER_WORK_DISABLED',
           status: response.status,
         });
       }
-      const payload = await response.json();
+      let payload;
+      try { payload = await response.json(); } catch {
+        throw Object.assign(new Error('The restricted JAB profile gateway returned an invalid response.'), {
+          code: 'PROVIDER_WORK_DISABLED', status: 502,
+        });
+      }
       if (!payload || !Number.isInteger(payload.status) || typeof payload.body !== 'string' || !payload.headers || typeof payload.headers !== 'object' || Array.isArray(payload.headers)) {
         throw Object.assign(new Error('The restricted JAB profile gateway returned an invalid response.'), {
           code: 'PROVIDER_WORK_DISABLED',
@@ -155,7 +167,12 @@ function credentialProviderFetch(gymId, url, options = {}) {
       }
       const responseHeaders = { ...(payload.headers || {}) };
       const cookies = responseHeaders['set-cookie']; delete responseHeaders['set-cookie'];
-      const result = new Response(Buffer.from(payload.body || '', 'base64'), { status: payload.status, headers: responseHeaders });
+      let result;
+      try { result = new Response(Buffer.from(payload.body || '', 'base64'), { status: payload.status, headers: responseHeaders }); } catch {
+        throw Object.assign(new Error('The restricted JAB profile gateway returned an invalid response.'), {
+          code: 'PROVIDER_WORK_DISABLED', status: 502,
+        });
+      }
       if (Array.isArray(cookies)) result.headers.getSetCookie = () => cookies;
       else if (cookies) result.headers.set('set-cookie', cookies);
       return result;

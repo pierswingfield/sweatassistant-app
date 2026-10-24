@@ -246,7 +246,9 @@ router.post('/my-gyms/link', authenticateToken, async (req, res) => {
     res.json({ gym: link, gyms: db.getUserGymsPublic(req.userId) });
   } catch (err) {
     // A rejected gym credential is the user's problem to fix, not a server fault.
-    const status = err.code === 'PROVIDER_WORK_DISABLED' && [403, 502, 503].includes(err.status) ? err.status : 400;
+    const status = err.code === 'PROVIDER_WORK_DISABLED'
+      ? ([403, 429, 502, 503].includes(err.status) ? err.status : 502)
+      : 400;
     res.status(status).json({ message: err.message });
   }
 });

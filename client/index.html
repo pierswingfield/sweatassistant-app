@@ -19,7 +19,7 @@
        tags for manual light/dark modes. On iOS 26+ theme-color is ignored
        and Safari samples body background-color at render time — the inline
        script below sets data-theme before first paint to cover that path. -->
-  <meta name="theme-color" content="#ebeae4" media="(prefers-color-scheme: light)">
+  <meta name="theme-color" content="#eee7da" media="(prefers-color-scheme: light)">
   <meta name="theme-color" content="#161310" media="(prefers-color-scheme: dark)">
   <!-- Pre-JS fallbacks only: main.js syncThemeColorMeta() replaces both with one live tag
        holding the header's resolved background whenever the theme changes. -->
@@ -42,8 +42,8 @@
        block forever: `app-ready` is added by main.js after checkAuth, or by the 3s timeout here. -->
   <style id="app-boot-css">
     html { background: #161310; }
-    @media (prefers-color-scheme: light) { html:not([data-theme="dark"]) { background: #f5f2ec; } }
-    html[data-theme="light"] { background: #f5f2ec; }
+    @media (prefers-color-scheme: light) { html:not([data-theme="dark"]) { background: #f6f1e8; } }
+    html[data-theme="light"] { background: #f6f1e8; }
     html[data-theme="dark"] { background: #161310; }
     html:not(.app-ready) body > * { visibility: hidden !important; }
     html:not(.app-ready)::after {
@@ -54,6 +54,27 @@
     @keyframes app-boot-spin { to { transform: rotate(360deg); } }
     @media (prefers-reduced-motion: reduce) { html:not(.app-ready)::after { animation: none; } }
   </style>
+  <script>
+    // Bottom-nav mode (DESIGN.md 4.5): html.nav-glass = floating Liquid Glass pill, html.nav-docked = docked bar.
+    // Default: glass when installed (standalone display-mode / navigator.standalone), else docked. Evaluation override:
+    // ?nav=glass | ?nav=docked (persisted in localStorage 'appNavMode'), ?nav=auto clears it. CSS still falls back to
+    // docked where backdrop-filter is unsupported.
+    (function () {
+      var mode = '';
+      try {
+        var q = new URLSearchParams(location.search).get('nav');
+        if (q === 'glass' || q === 'docked') localStorage.setItem('appNavMode', q);
+        else if (q === 'auto') localStorage.removeItem('appNavMode');
+        mode = localStorage.getItem('appNavMode') || '';
+      } catch (e) {}
+      if (mode !== 'glass' && mode !== 'docked') {
+        var standalone = false;
+        try { standalone = (window.matchMedia && matchMedia('(display-mode: standalone)').matches) || navigator.standalone === true; } catch (e) {}
+        mode = standalone ? 'glass' : 'docked';
+      }
+      document.documentElement.classList.add(mode === 'glass' ? 'nav-glass' : 'nav-docked');
+    })();
+  </script>
   <script>
     // Credits tab is debug-only. Hidden by CSS unless the last known debugMode (cached by main.js) was on;
     // main.js applyCreditsTabGate() then sets the authoritative value.
@@ -718,6 +739,7 @@
 
     <!-- Mobile Bottom Tab Bar (iOS-style — hidden on desktop, replaces top nav on mobile) -->
     <nav class="app-bottom-nav" data-copy-aria-label="static.navPrimary">
+      <span class="app-nav-lens" aria-hidden="true"></span>
       <button class="app-nav-btn app-bottom-nav-btn active" data-tab="home" data-copy-aria-label="static.navHome">
         <svg class="app-bn-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
           <path d="M3 10.5 12 3l9 7.5"/><path d="M5 9.5V20h14V9.5"/><path d="M10 20v-6h4v6"/>

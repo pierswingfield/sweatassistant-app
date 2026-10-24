@@ -6,7 +6,7 @@ export const over = (fg, a, bg) => fg.map((v, i) => Math.round(v * a + bg[i] * (
 export const ratio = (a, b) => { const x = L(a), y = L(b); return (Math.max(x, y) + 0.05) / (Math.min(x, y) + 0.05); };
 const R = (a, b) => ratio(hex(a), hex(b));
 const themes = {
-  light: { bg: '#f4f2ec', surface: '#fbfaf7', text: '#1f1b16', t2: '#6b6358', t3: '#736a5d', accent: '#a8553a', accentFill: '#b5593d', onFill: '#ffffff', brandClay: '#c9785c', danger: '#b84343', success: '#047857', warning: '#9a6600', info: '#2f6bd1' },
+  light: { bg: '#f6f1e8', surface: '#fcfaf5', text: '#1f1b16', t2: '#655b4c', t3: '#6e6352', accent: '#a8553a', accentFill: '#b5593d', onFill: '#ffffff', brandClay: '#c9785c', danger: '#b84343', success: '#047857', warning: '#9a6600', info: '#2f6bd1' },
   dark: { bg: '#161310', surface: '#201c18', text: '#f3ede4', t2: '#b9ae9f', t3: '#948a7c', accent: '#e09a7f', accentFill: '#c9785c', onFill: '#1a1411', brandClay: '#d68b6f', danger: '#f08a82', success: '#4cc794', warning: '#e5b03e', info: '#7fb0f0' },
 };
 const rows = [];

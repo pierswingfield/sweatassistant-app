@@ -39,10 +39,10 @@ Warm paper (light) and warm near-black (dark), both derived from the landing ink
 
 | Token | Light | Dark | Notes |
 |---|---|---|---|
-| `--bg` / `--surface` | `#f4f2ec` / `#fbfaf7` | `#161310` / `#201c18` | `--surface-raised`: `#fff` / `#2a2520`; `--header-solid` `#ebeae4` / `#110e0c` |
+| `--bg` / `--surface` | `#f6f1e8` / `#fcfaf5` | `#161310` / `#201c18` | `--surface-raised`: `#fffdf9` / `#2a2520`; `--header-solid` `#eee7da` / `#110e0c`. Light warmed 2026-10-25 (was `#f4f2ec` / `#fbfaf7` / `#ebeae4`): borders, separators, insets and shadows are now brown-tinted `rgba(84,56,24,.x)` instead of neutral ink; `--tone-ink` (`#5a3d22` light, `--text` dark) replaces `--text` wherever a surface is darkened by a colour-mix, so tinted tiles go tan, never grey |
 | `--text` | `#1f1b16` 15.3 bg, 16.4 surface | `#f3ede4` 15.9 bg, 14.5 surface | |
-| `--text-secondary` | `#6b6358` 5.3 / 5.7 | `#b9ae9f` 8.5 / 7.8 | |
-| `--text-tertiary` | `#736a5d` 4.75 / 5.1 | `#948a7c` 5.5 / 5.0 | captions only, never disabled-looking primary info |
+| `--text-secondary` | `#655b4c` 5.9 / 6.4 | `#b9ae9f` 8.5 / 7.8 | |
+| `--text-tertiary` | `#6e6352` 5.2 / 5.6 | `#948a7c` 5.5 / 5.0 | captions only, never disabled-looking primary info |
 | `--accent` (text, border, focus) | `#a8553a` 4.66 bg, 5.0 surface | `#e09a7f` 8.0 / 7.3 | |
 | `--accent-fill` + `--on-accent-fill` | `#b5593d` + `#fff` 4.71 | `#c9785c` + `#1a1411` 5.49 | primary button, selected date, active segment |
 | `--brand-clay` (decor only: logo, large glyphs) | `#c9785c` 2.97 (never text) | `#d68b6f` 6.9 | |
@@ -62,6 +62,13 @@ Radii: `--radius-card` 20, `--radius-control` 12, `--radius-pill` 999, `--radius
 
 ### 3.5 Glass (restrained)
 Allowed ONLY on the bottom nav, sticky top bars and modal headers. Tokens: `--glass-bg` (light `rgba(251,250,247,.92)`, dark `rgba(32,28,24,.82)`), `--glass-blur: blur(18px) saturate(1.25)`, `--glass-solid` (opaque fallback), `--glass-edge`. Every glass rule needs `@supports not ((backdrop-filter: blur(1px)) or (-webkit-backdrop-filter: blur(1px)))` -> `--glass-solid`. Text on composited glass (worst case, page ink or black behind): light secondary text 4.83, primary 14.0, accent 4.26 (large/active icons only; realistic backdrop is the page colour: 5.67 / 16.4 / 5.0); dark secondary 7.4-8.2, primary 13.9-15.3. Status: bottom nav is migrated; the other ~25 `backdrop-filter` declarations in `styles.css` are Phase 3-4 work (cards must not use glass).
+
+#### 3.5.1 Bottom nav: Liquid Glass + docked fallback (2026-10-25)
+- **Mode**: inline script in `index.html` sets `html.nav-glass` when installed (`display-mode: standalone` or `navigator.standalone`), else `html.nav-docked`. Evaluation override: `?nav=glass`, `?nav=docked` (persisted in `localStorage.appNavMode`, try/catch), `?nav=auto` clears it. Glass geometry lives inside `@supports (backdrop-filter)`; without it the docked bar stays.
+- **Liquid Glass**: floating pill inset 12px from the sides, 10px + safe-area above the bottom, 64px tall; fill `--lg-fill` + `blur(24px) saturate(1.8)`, specular top highlight (inset 1px), gradient hairline ring (bright at opposite corners, a cheap refraction edge), soft warm shadow. A `.app-nav-lens` capsule slides behind the active tab (`nav-lens.js` publishes `--lens-x/--lens-w`; transform + width only, `--dur-slow`/`--ease-out`). `--nav-clear` (bar + gap) feeds every scroll container's bottom padding, so the last item is never hidden. Modals/pages sit above it (z-index) exactly as before.
+- **Docked fallback**: unchanged geometry, glassier material (`--nav-glass-bg` .78 light / .70 dark, `blur(22px) saturate(1.5)`; was .92/.82 at 18px), still `--glass-solid` under `@supports not`.
+- **Icons/labels**: not flat black. Inactive = warm umber `#5c4333` (light) / cream at 78% (dark); active = `--accent-hover` (light) / `--accent` (dark) inside the lens, weight 700. Contrast of inactive ink on composited glass (light, fill .70): 4.56 over the darkest possible backdrop, 5.8 over clay, 8.9 over white; active `#8f452d` on lens 5.15 worst case. Dark inactive 8.6 over the lightest dark-theme backdrop. A near-white full-bleed backdrop under dark glass (not present in the app) would fall below 4.5.
+- **Preferences**: `prefers-reduced-transparency` swaps both modes to opaque `--glass-solid`, no blur; `prefers-reduced-motion` removes the lens transition (it jumps). Tap targets stay >= 56px tall, ~70px wide; focus ring 2px `--nav-ink-active`, inset.
 
 ### 3.6 Buttons
 | Variant | Fill | Text | Border | Use |

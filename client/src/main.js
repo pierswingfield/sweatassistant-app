@@ -7,6 +7,7 @@ import { setupPullToRefresh, cancelPullToRefresh } from './ui/pulltorefresh';
 import { markScrollBusy, isScrollBusy } from './ui/scroll-state.js';
 import { nextCollapseState } from './ui/scroll-collapse.js';
 import { initGymLogoLoader } from './ui/gym-logo-loader.js';
+import { initNavLens } from './nav-lens.js';
 import { setCacheKeyPrefix, clearApiCache, invalidateApiCache } from './cache.js';
 import { appConfig, initConfig } from './config';
 import { coldBootDestination } from './ui/onboarding-routing.js';
@@ -1946,6 +1947,7 @@ document.addEventListener('DOMContentLoaded', () => {
   registerServiceWorker();
   initConnectivity();  // Set up offline listeners BEFORE checkAuth so app-network-fail is caught
   initGymLogoLoader();
+  initNavLens();
   // Once the inline-SVG sprite is ready, repaint the header badges so they use it (no <img> decode).
   document.addEventListener('gym-logos-ready', () => { updateCreditBadge().catch(() => {}); });
   // Reveal the shell once auth has decided which screen to show AND the fonts are ready

@@ -208,21 +208,21 @@
   :root:not([data-theme="dark"]) {
     color-scheme: light;
 
-    --bg: #f4f2ec;
-    --page-solid: #f4f2ec;
-    --header-solid: #ebeae4;
-    --surface: #fbfaf7;
-    --surface-2: rgba(31, 27, 22, 0.03);
-    --surface-inset: rgba(31, 27, 22, 0.04);
-    --surface-raised: #ffffff;
+    --bg: #f6f1e8;
+    --page-solid: #f6f1e8;
+    --header-solid: #eee7da;
+    --surface: #fcfaf5;
+    --surface-2: rgba(84, 56, 24, 0.035);
+    --surface-inset: rgba(84, 56, 24, 0.055);
+    --surface-raised: #fffdf9;
 
     --text: #1f1b16;
-    --text-secondary: #6b6358;
-    --text-tertiary: #736a5d;
+    --text-secondary: #655b4c;
+    --text-tertiary: #6e6352;
 
-    --border: rgba(31, 27, 22, 0.10);
-    --border-strong: rgba(31, 27, 22, 0.18);
-    --separator: rgba(31, 27, 22, 0.07);
+    --border: rgba(84, 56, 24, 0.13);
+    --border-strong: rgba(84, 56, 24, 0.22);
+    --separator: rgba(84, 56, 24, 0.09);
 
     --brand-clay: #c9785c;
     --accent: #a8553a;
@@ -278,12 +278,12 @@
     --danger: #b84343;
     --info: #2f6bd1;
 
-    --shadow-card: 0 4px 12px rgba(31, 27, 22, 0.08);
-    --shadow-sheet: 0 18px 48px rgba(31, 27, 22, 0.12);
+    --shadow-card: 0 4px 12px rgba(84, 56, 24, 0.10);
+    --shadow-sheet: 0 18px 48px rgba(84, 56, 24, 0.15);
 
-    --glass-bg: rgba(251, 250, 247, 0.92);
-    --glass-solid: #fbfaf7;
-    --glass-edge: rgba(31, 27, 22, 0.10);
+    --glass-bg: rgba(252, 250, 245, 0.92);
+    --glass-solid: #fcfaf5;
+    --glass-edge: rgba(84, 56, 24, 0.12);
   }
 }
 
@@ -291,21 +291,21 @@
 :root[data-theme="light"] {
   color-scheme: light;
 
-  --bg: #f4f2ec;
-  --page-solid: #f4f2ec;
-  --header-solid: #ebeae4;
-  --surface: #fbfaf7;
-  --surface-2: rgba(31, 27, 22, 0.03);
-  --surface-inset: rgba(31, 27, 22, 0.04);
-  --surface-raised: #ffffff;
+  --bg: #f6f1e8;
+  --page-solid: #f6f1e8;
+  --header-solid: #eee7da;
+  --surface: #fcfaf5;
+  --surface-2: rgba(84, 56, 24, 0.035);
+  --surface-inset: rgba(84, 56, 24, 0.055);
+  --surface-raised: #fffdf9;
 
   --text: #1f1b16;
-  --text-secondary: #6b6358;
-  --text-tertiary: #736a5d;
+  --text-secondary: #655b4c;
+  --text-tertiary: #6e6352;
 
-  --border: rgba(31, 27, 22, 0.10);
-  --border-strong: rgba(31, 27, 22, 0.18);
-  --separator: rgba(31, 27, 22, 0.07);
+  --border: rgba(84, 56, 24, 0.13);
+  --border-strong: rgba(84, 56, 24, 0.22);
+  --separator: rgba(84, 56, 24, 0.09);
 
   --brand-clay: #c9785c;
   --accent: #a8553a;
@@ -361,12 +361,12 @@
   --danger: #b84343;
   --info: #2f6bd1;
 
-  --shadow-card: 0 4px 12px rgba(31, 27, 22, 0.08);
-  --shadow-sheet: 0 18px 48px rgba(31, 27, 22, 0.12);
+  --shadow-card: 0 4px 12px rgba(84, 56, 24, 0.10);
+  --shadow-sheet: 0 18px 48px rgba(84, 56, 24, 0.15);
 
-  --glass-bg: rgba(251, 250, 247, 0.92);
-  --glass-solid: #fbfaf7;
-  --glass-edge: rgba(31, 27, 22, 0.10);
+  --glass-bg: rgba(252, 250, 245, 0.92);
+  --glass-solid: #fcfaf5;
+  --glass-edge: rgba(84, 56, 24, 0.12);
 }
 /* (dark override [data-theme="dark"] simply uses the :root defaults above) */
 
@@ -2002,7 +2002,7 @@ html, body, * {
   #app-helper-container main.app-body.app-timetable-active {
     padding-left: 0 !important;
     padding-right: 0 !important;
-    padding-bottom: calc(56px + env(safe-area-inset-bottom)) !important;
+    padding-bottom: var(--nav-clear) !important;
     overflow-y: hidden !important;
     overscroll-behavior-y: none;
   }
@@ -3225,7 +3225,7 @@ html, body, * {
 }
 
 #app-helper-container #app-timetable-rows tr:hover {
-  background: color-mix(in srgb, var(--text) 4%, var(--surface)) !important;
+  background: color-mix(in srgb, var(--tone-ink) 4%, var(--surface)) !important;
 }
 
 /* Row tint by gym identity (2026-09-02, re-fixed same day) — same colours/
@@ -3878,7 +3878,7 @@ html, body, * {
   .app-main {
     flex: 1 !important;
     overflow-y: auto !important;
-    padding: 10px 16px calc(56px + env(safe-area-inset-bottom)) 16px !important;
+    padding: 10px 16px var(--nav-clear) 16px !important;
   }
 
   .app-nav {
@@ -5733,7 +5733,7 @@ html, body, * {
   border-left: 1px solid var(--border) !important;
 }
 .app-tt-seg-more:hover {
-  background: color-mix(in srgb, var(--text) 8%, var(--surface-inset)) !important;
+  background: color-mix(in srgb, var(--tone-ink) 8%, var(--surface-inset)) !important;
   color: var(--text) !important;
 }
 
@@ -7034,7 +7034,7 @@ html, body, * {
     padding-left: max(8px, env(safe-area-inset-left)) !important;
     padding-right: max(8px, env(safe-area-inset-right)) !important;
     padding-top: 12px !important;
-    padding-bottom: calc(56px + env(safe-area-inset-bottom)) !important;
+    padding-bottom: var(--nav-clear) !important;
     gap: 12px;
     flex: 1;
     min-height: 0;
@@ -7104,7 +7104,7 @@ html, body, * {
     align-items: stretch;
     justify-content: space-around;
     gap: 0;
-    height: calc(56px + env(safe-area-inset-bottom));
+    height: var(--nav-h);
     padding: 0 4px env(safe-area-inset-bottom);
     background: color-mix(in srgb, var(--surface-inset) 96%, transparent);
     border-top: 1px solid var(--border);
@@ -7439,7 +7439,7 @@ html, body, * {
   }
 
   #app-debug-terminal.app-debug-minimized {
-    bottom: calc(64px + env(safe-area-inset-bottom)) !important;
+    bottom: calc(var(--nav-clear) + 8px) !important;
   }
 
   /* Gym logo chip on mobile rows: trim the side gutters */
@@ -8187,9 +8187,9 @@ html, body, * {
     border-top: 1px solid var(--border-strong) !important;
     box-shadow: none !important;
     /* CSSv2 glass: tokens + opaque fallback (DESIGN.md 4.5). Text contrast is computed on --glass-bg. */
-    background: var(--glass-bg) !important;
-    -webkit-backdrop-filter: var(--glass-blur) !important;
-    backdrop-filter: var(--glass-blur) !important;
+    background: var(--nav-glass-bg, var(--glass-bg)) !important;
+    -webkit-backdrop-filter: var(--nav-glass-blur, var(--glass-blur)) !important;
+    backdrop-filter: var(--nav-glass-blur, var(--glass-blur)) !important;
   }
 
   #app-helper-container .app-header { z-index: 400;
@@ -8528,7 +8528,7 @@ html, body, * {
     position: fixed;
     left: 0;
     right: 0;
-    bottom: calc(56px + env(safe-area-inset-bottom));
+    bottom: var(--nav-clear);
     width: auto;
   }
 }
@@ -9069,7 +9069,7 @@ body::before {
     height: auto; min-height: 0; overscroll-behavior-y: auto;
     -webkit-overflow-scrolling: touch;
     padding-top: calc(var(--app-header-h, 47px) + 12px) !important;
-    padding-bottom: calc(56px + env(safe-area-inset-bottom) + 36px) !important;
+    padding-bottom: calc(var(--nav-clear) + 36px) !important;
   }
 
   /* Tab panels must not flex-shrink below their content: overflowing children don't count toward the scroll
@@ -9960,7 +9960,7 @@ html:not([data-credits-tab="on"]) .app-nav-btn[data-tab="buy-credits"] { display
 
 /* ===== Filter bar order + grouped filter chips; compact gym stack ===== */
 #app-filter-rail .fr-filtergroup { display: inline-flex; align-items: center; gap: 6px; flex-shrink: 0; padding: 3px; border-radius: 22px; border: 1px solid var(--border-strong); background: color-mix(in srgb, var(--text) 5%, var(--surface-1, var(--surface-2))); }
-:root[data-theme="light"] #app-filter-rail .fr-filtergroup { background: color-mix(in srgb, var(--text) 4%, var(--surface-2)); }
+:root[data-theme="light"] #app-filter-rail .fr-filtergroup { background: color-mix(in srgb, var(--tone-ink) 4%, var(--surface-2)); }
 
 /*  Mobile overrides (max-width: 768px): Timetable filter rail and sheet  */
 @media (max-width: 768px) {
@@ -10360,7 +10360,7 @@ html:not([data-credits-tab="on"]) .app-nav-btn[data-tab="buy-credits"] { display
 #app-helper-container #app-panel-home .home-widget {
   padding: 16px 8px;
   border-radius: 16px;
-  background: color-mix(in srgb, var(--surface) 90%, var(--text) 10%);
+  background: color-mix(in srgb, var(--surface) 90%, var(--tone-ink) 10%);
 }
 #app-helper-container #app-panel-home .home-widget .home-widget-heading {
   margin-bottom: 16px !important;
@@ -10484,12 +10484,12 @@ html:not([data-credits-tab="on"]) .app-nav-btn[data-tab="buy-credits"] { display
 #app-helper-container #app-panel-home .home-credits-tile,
 #app-helper-container #app-panel-home .home-attendance-tile,
 #app-helper-container #app-panel-home .home-favourite-card {
-  background: color-mix(in srgb, var(--surface) 84%, var(--text) 16%);
+  background: color-mix(in srgb, var(--surface) 84%, var(--tone-ink) 16%);
 }
 #app-helper-container #app-panel-home .home-credits-tile:hover,
 #app-helper-container #app-panel-home .home-attendance-tile:hover,
 #app-helper-container #app-panel-home .home-favourite-card:hover {
-  background: color-mix(in srgb, var(--surface) 78%, var(--text) 22%);
+  background: color-mix(in srgb, var(--surface) 78%, var(--tone-ink) 22%);
 }
 
 #app-helper-container #app-panel-home .home-book-all {
@@ -11142,4 +11142,115 @@ html:not([data-credits-tab="on"]) .app-nav-btn[data-tab="buy-credits"] { display
 /* Large text: the lead column (time + avatar) grows with the time instead of letting it spill over the chips. */
 @media (max-width: 768px) {
   #app-helper-container .app-mobile-lead { flex: 0 0 auto; width: auto; min-width: 48px; }
+}
+
+
+/* ==========================================================================
+   CSSv2 bottom nav: Liquid Glass (floating pill, installed PWA) + docked fallback.
+   Mode is chosen by the inline script in index.html: html.nav-glass | html.nav-docked
+   (standalone display-mode, or ?nav=glass|docked|auto, persisted in localStorage 'appNavMode').
+   Glass geometry only applies where backdrop-filter works; otherwise the docked bar stays. DESIGN.md 4.5.
+   ========================================================================== */
+:root {
+  --tone-ink: var(--text); /* ink used to darken a surface tonally; warm brown in light so tints never go grey */
+  --nav-h: calc(56px + env(safe-area-inset-bottom));
+  --nav-clear: var(--nav-h);
+  --nav-glass-bg: rgba(32, 28, 24, 0.70);          /* docked: slightly glassier than the old .82 */
+  --nav-glass-blur: blur(22px) saturate(1.5);
+  --nav-ink: rgba(243, 237, 228, 0.78);             /* inactive icon + label: warm cream, not flat white */
+  --nav-ink-active: var(--accent);
+  --lg-fill: rgba(32, 28, 24, 0.64);
+  --lg-blur: blur(24px) saturate(1.8) brightness(1.04);
+  --lg-lens: rgba(255, 238, 215, 0.12);
+  --lg-lens-edge: rgba(255, 238, 215, 0.22);
+  --lg-spec: rgba(255, 244, 228, 0.28);
+  --lg-ring-a: rgba(255, 244, 228, 0.50);
+  --lg-ring-b: rgba(255, 244, 228, 0.06);
+  --lg-shadow: 0 10px 28px rgba(0, 0, 0, 0.45), 0 2px 6px rgba(0, 0, 0, 0.30);
+}
+@media (prefers-color-scheme: light) {
+  :root:not([data-theme="dark"]) {
+    --tone-ink: #5a3d22;
+    --nav-glass-bg: rgba(252, 250, 245, 0.78);
+    --nav-ink: #5c4333;
+    --nav-ink-active: var(--accent-hover);
+    --lg-fill: rgba(252, 250, 245, 0.70);
+    --lg-lens: rgba(255, 255, 255, 0.58);
+    --lg-lens-edge: rgba(168, 85, 58, 0.28);
+    --lg-spec: rgba(255, 255, 255, 0.95);
+    --lg-ring-a: rgba(255, 255, 255, 0.95);
+    --lg-ring-b: rgba(255, 255, 255, 0.20);
+    --lg-shadow: 0 10px 28px rgba(84, 56, 24, 0.20), 0 2px 6px rgba(84, 56, 24, 0.12);
+  }
+}
+:root[data-theme="light"] {
+  --tone-ink: #5a3d22;
+  --nav-glass-bg: rgba(252, 250, 245, 0.78);
+  --nav-ink: #5c4333;
+  --nav-ink-active: var(--accent-hover);
+  --lg-fill: rgba(252, 250, 245, 0.70);
+  --lg-lens: rgba(255, 255, 255, 0.58);
+  --lg-lens-edge: rgba(168, 85, 58, 0.28);
+  --lg-spec: rgba(255, 255, 255, 0.95);
+  --lg-ring-a: rgba(255, 255, 255, 0.95);
+  --lg-ring-b: rgba(255, 255, 255, 0.20);
+  --lg-shadow: 0 10px 28px rgba(84, 56, 24, 0.20), 0 2px 6px rgba(84, 56, 24, 0.12);
+}
+
+@media (max-width: 768px) {
+  /* Both modes: tinted ink instead of flat black/white; active = clay. */
+  #app-helper-container .app-bottom-nav .app-bottom-nav-btn { color: var(--nav-ink) !important; font-weight: 600; position: relative; z-index: 1; }
+  #app-helper-container .app-bottom-nav .app-bottom-nav-btn.active { color: var(--nav-ink-active) !important; font-weight: 700; }
+  #app-helper-container .app-bottom-nav .app-nav-lens { display: none; }
+  #app-helper-container .app-bottom-nav-btn:focus-visible { outline: var(--focus-ring-width) solid var(--nav-ink-active); outline-offset: -4px; border-radius: 16px; }
+}
+
+@supports ((backdrop-filter: blur(1px)) or (-webkit-backdrop-filter: blur(1px))) {
+  @media (max-width: 768px) {
+    html.nav-glass { --nav-h: 64px; --nav-clear: calc(64px + 10px + env(safe-area-inset-bottom, 0px) + 14px); }
+    html.nav-glass #app-helper-container .app-bottom-nav {
+      left: 12px; right: 12px;
+      bottom: calc(10px + env(safe-area-inset-bottom, 0px));
+      height: 64px; padding: 4px; gap: 0;
+      border: 0 !important;
+      border-radius: 32px;
+      background: linear-gradient(180deg, color-mix(in srgb, var(--lg-spec) 22%, transparent), transparent 55%), var(--lg-fill) !important;
+      -webkit-backdrop-filter: var(--lg-blur) !important;
+      backdrop-filter: var(--lg-blur) !important;
+      box-shadow: inset 0 1px 0 var(--lg-spec), inset 0 -1px 0 color-mix(in srgb, var(--lg-spec) 25%, transparent), var(--lg-shadow) !important;
+      isolation: isolate;
+    }
+    /* Refraction-like edge: gradient hairline ring, bright at top-left and bottom-right. */
+    html.nav-glass #app-helper-container .app-bottom-nav::before {
+      content: ''; position: absolute; inset: 0; border-radius: inherit; padding: 1px; pointer-events: none;
+      background: linear-gradient(150deg, var(--lg-ring-a), var(--lg-ring-b) 38%, var(--lg-ring-b) 62%, var(--lg-ring-a));
+      -webkit-mask: linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0);
+      -webkit-mask-composite: xor; mask-composite: exclude;
+    }
+    html.nav-glass #app-helper-container .app-bottom-nav .app-bottom-nav-btn { border-radius: 28px; padding: 6px 2px 4px; }
+    /* Selection lens: position/size from JS (--lens-x/--lens-w), transform + width only. */
+    html.nav-glass #app-helper-container .app-bottom-nav .app-nav-lens {
+      display: block; position: absolute; z-index: 0; top: 4px; bottom: 4px; left: 0;
+      width: var(--lens-w, 0px); transform: translate3d(var(--lens-x, 0px), 0, 0);
+      border-radius: 28px; pointer-events: none; opacity: var(--lens-o, 0);
+      background: linear-gradient(180deg, color-mix(in srgb, var(--lg-spec) 30%, var(--lg-lens)), var(--lg-lens));
+      box-shadow: inset 0 1px 0 var(--lg-spec), inset 0 0 0 1px var(--lg-lens-edge), 0 3px 10px color-mix(in srgb, var(--accent) 16%, transparent);
+      transition: transform var(--dur-slow) var(--ease-out), width var(--dur-slow) var(--ease-out), opacity var(--dur-base) var(--ease-out);
+    }
+    html.nav-glass #app-helper-container .app-bottom-nav .app-bottom-nav-btn.active { background: transparent !important; }
+  }
+}
+
+/* Reduced transparency: opaque material in both modes, no blur. */
+@media (prefers-reduced-transparency: reduce) {
+  #app-helper-container .app-bottom-nav,
+  html.nav-glass #app-helper-container .app-bottom-nav {
+    background: var(--glass-solid) !important;
+    -webkit-backdrop-filter: none !important; backdrop-filter: none !important;
+  }
+  html.nav-glass #app-helper-container .app-bottom-nav .app-nav-lens { background: color-mix(in srgb, var(--accent) 14%, var(--glass-solid)); }
+}
+/* Reduced motion: the lens jumps, it never slides. */
+@media (prefers-reduced-motion: reduce) {
+  html.nav-glass #app-helper-container .app-bottom-nav .app-nav-lens { transition: none !important; }
 }

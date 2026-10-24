@@ -4,7 +4,7 @@
 
 ## Outcome and direction
 
-Bring the PWA into the visual family of the current Front Row landing page: warm surfaces, restrained glass, clay accents, crisp sans-serif controls and expressive serif used with a clear hierarchy. Preserve the density and speed needed to browse classes and book on a phone. Deliver equally deliberate light and dark themes, rather than deriving dark mode by mechanically inverting the light-only landing page.
+Bring the PWA into the visual family of the current Dibs landing page: warm surfaces, restrained glass, clay accents, crisp sans-serif controls and expressive serif used with a clear hierarchy. Preserve the density and speed needed to browse classes and book on a phone. Deliver equally deliberate light and dark themes, rather than deriving dark mode by mechanically inverting the light-only landing page.
 
 The reference is the implementation in `landing/index.html`, not just the older landing spec. Keep its independent deployment; share documented token meanings and component recipes without importing marketing-page CSS into the PWA.
 

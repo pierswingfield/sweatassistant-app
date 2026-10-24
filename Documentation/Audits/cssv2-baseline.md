@@ -8,7 +8,7 @@ Branch `CSSv2`, worktree `App-CSSv2`, no CSS changed. Evidence: `QA/browser-runs
 |---|---|---|
 | `sweat-dev/` | https://sweat-dev.wingfield.tech (current master, the signed-in account already in the Chrome tab, real data: 3 gyms Aarmy/JAB/Psycle, real bookings and waitlists) | **Primary.** Read-only: tab switching, opening one swipe-reveal row, nothing saved. |
 | `localhost-mock/` | This worktree, `npm run dev`, throwaway DB, dev mock gyms (Psycle + JAB) | Secondary reference (mock data); has the booking modal and spot map |
-| `landing/` | `landing/index.html` served statically on :8099 ("Front Row") | Landing reference |
+| `landing/` | `landing/index.html` served statically on :8099 ("Dibs", formerly Front Row) | Landing reference |
 
 - Real Chrome via Claude for Chrome, one tab. `resize_window` does not change the page viewport in this setup (innerWidth stayed 955/1200), so **mobile widths are emulated by loading the app in a same-origin iframe of exactly 390 / 375 / 430 px** (media queries and layout respond to the iframe width; touch input, iOS safe-area insets and OS chrome are NOT emulated). Desktop captures are the real viewport (955 px on sweat-dev, 1200 px on localhost), not 1280.
 - Theme was switched by setting `data-theme` on `<html>` (DOM only, no setting saved).
@@ -42,7 +42,7 @@ Inline `style="..."` occurrences in JS (static strings) / `.style.x` writes: tim
 
 Versus the 2026-10-06 audit: lines 11,452 -> 10,463, `!important` 1,108 -> 1,055, rules 2,088 -> 2,011, mobile 768px blocks 77 -> 95 (grew). The prefix is now `app-`/`#app-helper-container` (old `psycle-` names gone).
 
-## 4. Landing tokens (`landing/index.html`, brand "Front Row", light only, no dark mode)
+## 4. Landing tokens (`landing/index.html`, brand "Dibs", light only, no dark mode)
 
 - Colours: bg `#f5f2ec`, surface `#fbfaf7`, text `#1f1b16` / secondary `#6b6358` / tertiary `#938a7c`, accent clay `#c9785c` (hover `#b5694e`), slate `#6f8aab`, success `#059669`, violet `#7c5cdb`, warning `#c2870a`; plates Psycle `#212121`, JAB `#6c1f20`, Aarmy `#000`.
 - Fonts: Fraunces 500/600 (serif, all h1-h4, brand, big time numerals) + Inter 400/500/600; scale 12/14/16/18 px.

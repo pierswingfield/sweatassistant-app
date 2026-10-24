@@ -1,5 +1,7 @@
 # M: "Front Row" name check
 
+> **Superseded 2026-10-24:** the landing page was renamed to **Dibs** (`dibs.wingfield.tech`). This check covers the old name only; a name check for "Dibs" has not been run.
+
 Date: 2026-10-23. Quick desk check, not legal advice. No official UK IPO / EUIPO / USPTO register search was run (those need interactive search forms); trademark findings come from web search only and must be confirmed on the registers before committing.
 
 ## Verdict: CROWDED (not blocked on evidence found, but risky)

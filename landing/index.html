@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Front Row: your fitness life, handled</title>
+<title>Dibs: your fitness life, handled</title>
 <meta name="description" content="A concierge for every gym you train at. It books the classes you want, the second they open, in the spot you like, and keeps it all in one calendar.">
 <script>document.documentElement.classList.add('js');
 /* Instructor photo fallback: neutral initials circle until landing/instructors/<slug>.jpg exists */
@@ -25,7 +25,9 @@ function frAv(img) {
   color-scheme: light;
 
   /* surfaces */
-  --bg: #f5f2ec;
+  --bg: #faf4f0; /* matches the droplet video ground so it has no visible edge */
+  --mask-on: #000000;
+  --mask-off: transparent;
   --surface: #fbfaf7;
   --glass: rgba(255, 255, 255, 0.62);
   --glass-strong: rgba(255, 255, 255, 0.82);
@@ -142,8 +144,9 @@ img, svg { display: block; max-width: 100%; }
 .nav { position: sticky; top: 0; z-index: 20; margin: 0; border-radius: 0; border-width: 0 0 1px; outline: none; box-shadow: none; border-bottom: 1px solid var(--border); }
 .nav .wrap { display: flex; align-items: center; justify-content: space-between; min-height: 60px; gap: 16px; }
 .brand { font-family: var(--font-serif); font-weight: 600; font-size: var(--text-lg); text-decoration: none; letter-spacing: -0.01em; display: inline-flex; align-items: center; gap: 8px; }
-.brand-mark { width: 22px; height: 22px; border-radius: 7px; background: var(--accent); color: var(--on-accent); display: grid; place-items: center; }
-.brand-mark svg { width: 14px; height: 14px; }
+.brand-mark { display: block; width: 48px; height: 32px; flex: none; }
+.brand-text { display: flex; flex-direction: column; line-height: 1.1; }
+.brand-sub { font-family: var(--font-sans); font-weight: 500; font-size: var(--text-xs); letter-spacing: 0; color: var(--text-secondary); margin-top: 2px; }
 .nav-links { display: none; gap: 24px; align-items: center; }
 .nav-links a { text-decoration: none; color: var(--text-secondary); font-size: var(--text-sm); font-weight: 500; }
 .nav-links a:hover { color: var(--text); }
@@ -166,6 +169,18 @@ section { padding: 72px 0; }
 .install-hint { margin-top: 6px; font-size: var(--text-sm); color: var(--text-secondary); max-width: 460px; }
 .install-hint strong { color: var(--text); font-weight: 600; }
 @media (min-width: 920px) { .hero-grid { grid-template-columns: 1.05fr 0.95fr; gap: 56px; } .hero { padding: 88px 0 96px; } }
+
+/* Droplet run-in: base state is the finished layout; .pre (added by JS, motion allowed) is the start */
+.run { display: none; }
+html.js .run { display: grid; grid-template-rows: 1fr; transition: grid-template-rows 0.9s var(--spring); }
+.run-clip { min-height: 0; overflow: hidden; }
+.run-frame { width: min(100%, 280px); aspect-ratio: 750 / 690; margin-bottom: 8px; transition: transform 0.9s var(--spring); }
+.run video { mix-blend-mode: darken; display: block; width: 100%; height: 100%; object-fit: cover; pointer-events: none;
+  -webkit-mask-image: radial-gradient(ellipse at center, var(--mask-on) 58%, var(--mask-off) 100%);
+  mask-image: radial-gradient(ellipse at center, var(--mask-on) 58%, var(--mask-off) 100%); }
+html.js .run.pre { grid-template-rows: 0fr; transition: none; }
+html.js .run.pre .run-frame { transform: translateX(110%); transition: none; }
+@media (prefers-reduced-motion: reduce) { html.js .run, .run-frame { transition: none; } }
 
 .stage { position: relative; padding: 8px; align-self: start; }
 @media (max-width: 480px) { .stage { padding: 0; } .mock { padding: 12px; } }
@@ -454,9 +469,9 @@ footer { padding: 32px 0 56px; color: var(--text-secondary); font-size: var(--te
 <!-- 1. Nav -->
 <header class="nav glass">
   <div class="wrap">
-    <a class="brand" href="#top" aria-label="Front Row, home">
-      <span class="brand-mark" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12.5l4.5 4.5L19 7.5"/></svg></span>
-      Front Row
+    <a class="brand" href="#top" aria-label="Dibs, your fitness assistant, home">
+      <img class="brand-mark" src="dibs/droplet.gif" alt="" width="48" height="32">
+      <span class="brand-text"><span class="brand-name">Dibs</span><span class="brand-sub">Your fitness assistant</span></span>
     </a>
     <nav class="nav-links" aria-label="Sections">
       <a href="#features">How it works</a>
@@ -473,7 +488,12 @@ footer { padding: 32px 0 56px; color: var(--text-secondary); font-size: var(--te
 <section class="hero">
   <div class="wrap hero-grid" id="hero">
     <div>
-      <div class="reveal"><p class="eyebrow">Front Row</p></div>
+      <div class="run" aria-hidden="true">
+        <div class="run-clip">
+          <div class="run-frame"><video muted playsinline preload="auto" tabindex="-1" width="750" height="690" src="dibs/droplet-run.webm"></video></div>
+        </div>
+      </div>
+      <div class="reveal"><p class="eyebrow">Dibs</p></div>
       <h1 class="reveal" style="--i:1">Your fitness life, handled.</h1>
       <p class="kicker reveal" style="--i:2">Be first in the room.</p>
       <p class="sub reveal" style="--i:3">A concierge for every gym you train at: it books the classes you want, the second they open, in the spot you like, and keeps it all in one calendar.</p>
@@ -506,7 +526,7 @@ footer { padding: 32px 0 56px; color: var(--text-secondary); font-size: var(--te
       <div class="plate aarmy"><img src="gyms/aarmy-logo.png" alt="AARMY" width="100" height="22"></div>
       <div class="plate soon">More coming soon…</div>
     </div>
-    <p class="works-note">Front Row is an independent tool. Logos belong to their owners.</p>
+    <p class="works-note">Dibs is an independent tool. Logos belong to their owners.</p>
   </div>
 </section>
 
@@ -516,7 +536,7 @@ footer { padding: 32px 0 56px; color: var(--text-secondary); font-size: var(--te
     <div class="section-head reveal">
       <p class="eyebrow">How it works</p>
       <h2>Set it once. Turn up.</h2>
-      <p>Choose your favourite bikes, benches and spots in every studio. Front Row handles booking in one tap, and upgrades you to a better spot automatically.</p>
+      <p>Choose your favourite bikes, benches and spots in every studio. Dibs handles booking in one tap, and upgrades you to a better spot automatically.</p>
     </div>
 
     <!-- Auto-Book -->
@@ -544,7 +564,7 @@ footer { padding: 32px 0 56px; color: var(--text-secondary); font-size: var(--te
       <div class="reveal">
         <span class="feat-tag upg"><i></i>Auto-Upgrade</span>
         <h3>Book now, keep looking for a better spot.</h3>
-        <p>Grab a place in the class the moment you can. Front Row keeps monitoring for a better spot and moves you into it as soon as one frees up, until shortly before class.</p>
+        <p>Grab a place in the class the moment you can. Dibs keeps monitoring for a better spot and moves you into it as soon as one frees up, until shortly before class.</p>
       </div>
       <div class="reveal" style="--i:1">
         <div class="glass scene" data-scene>
@@ -586,7 +606,7 @@ footer { padding: 32px 0 56px; color: var(--text-secondary); font-size: var(--te
     <div class="section-head reveal">
       <p class="eyebrow">Stays out of your way</p>
       <h2>Works for you in the background.</h2>
-      <p>Front Row books your classes, keeps you updated, and then gets out of the way.</p>
+      <p>Dibs books your classes, keeps you updated, and then gets out of the way.</p>
     </div>
     <div class="cards4">
       <article class="glass card reveal" style="--i:0">
@@ -619,18 +639,18 @@ footer { padding: 32px 0 56px; color: var(--text-secondary); font-size: var(--te
     <div class="section-head reveal">
       <p class="eyebrow">Trust</p>
       <h2>Putting your data first.</h2>
-      <p>Front Row securely uses your gym's credentials to book for you. We're transparent about how.</p>
+      <p>Dibs securely uses your gym's credentials to book for you. We're transparent about how.</p>
     </div>
     <div class="trust-grid">
       <article class="glass trust-item reveal" style="--i:0">
         <div class="ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="4" y="10" width="16" height="11" rx="3"/><path d="M8 10V7a4 4 0 0 1 8 0v3"/></svg></div>
         <h3>Encrypted at rest</h3>
-        <p>Your gym passwords are stored encrypted with <code>AES-256-GCM</code>, and the key is kept outside the database. Your Front Row password is its own, separate from any gym's.</p>
+        <p>Your gym passwords are stored encrypted with <code>AES-256-GCM</code>, and the key is kept outside the database. Your Dibs password is its own, separate from any gym's.</p>
       </article>
       <article class="glass trust-item reveal" style="--i:1">
         <div class="ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="M5.6 5.6l12.8 12.8"/></svg></div>
         <h3>No gym affiliation</h3>
-        <p>Front Row is an independent tool. It is not affiliated with, endorsed by or sponsored by Psycle, JAB Boxing, AARMY or any other gym.</p>
+        <p>Dibs is an independent tool. It is not affiliated with, endorsed by or sponsored by Psycle, JAB Boxing, AARMY or any other gym.</p>
       </article>
       <article class="glass trust-item reveal" style="--i:2">
         <div class="ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 7h16M9 7V4h6v3M6 7l1 13h10l1-13M10 11v6M14 11v6"/></svg></div>
@@ -669,10 +689,10 @@ footer { padding: 32px 0 56px; color: var(--text-secondary); font-size: var(--te
         <div class="phone" aria-hidden="true">
           <div class="homescreen">
             <div class="hs-icon"><i></i></div><div class="hs-icon"><i></i></div><div class="hs-icon"><i></i></div>
-            <div class="hs-icon app"><i><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12.5l4.5 4.5L19 7.5"/></svg></i>Front Row</div>
+            <div class="hs-icon app"><i><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12.5l4.5 4.5L19 7.5"/></svg></i>Dibs</div>
           </div>
         </div>
-        <div><span class="n">Step 3</span><h3>Open Front Row</h3><p>Sign up, link your gyms and queue your first class. Push alerts need the installed app on iPhone.</p></div>
+        <div><span class="n">Step 3</span><h3>Open Dibs</h3><p>Sign up, link your gyms and queue your first class. Push alerts need the installed app on iPhone.</p></div>
       </article>
     </div>
     <div class="install-cta reveal">
@@ -687,7 +707,7 @@ footer { padding: 32px 0 56px; color: var(--text-secondary); font-size: var(--te
   <div class="wrap">
     <div class="glass final reveal">
       <h2>Be first in the room.</h2>
-      <p>Set up takes a few minutes. After that, Front Row does the waiting.</p>
+      <p>Set up takes a few minutes. After that, Dibs does the waiting.</p>
       <div class="cta-row">
         <a class="btn btn-primary" href="/_a/go?src=footer">Get the app</a>
         <a class="link-quiet" href="/_a/go?src=open">Already a member? Open the app</a>
@@ -700,16 +720,54 @@ footer { padding: 32px 0 56px; color: var(--text-secondary); font-size: var(--te
 <footer>
   <div class="wrap foot">
     <div class="foot-top">
-      <a class="brand" href="#top">Front Row</a>
+      <a class="brand" href="#top">Dibs</a>
       <a class="link-quiet" href="/_a/go?src=footer">Get the app</a>
     </div>
-    <p class="disclaimer">Front Row is an independent, unofficial tool. It is not affiliated with, authorised by or endorsed by Psycle, JAB Boxing, AARMY or any other gym. All names and logos are trademarks of their respective owners and are shown only to indicate which gyms the app works with.</p>
+    <p class="disclaimer">Dibs is an independent, unofficial tool. It is not affiliated with, authorised by or endorsed by Psycle, JAB Boxing, AARMY or any other gym. All names and logos are trademarks of their respective owners and are shown only to indicate which gyms the app works with.</p>
   </div>
 </footer>
 
 <script>
 (function () {
   var reduce = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+
+  /* Droplet run-in: plays off-screen right, slides in and pushes the headline down, then freezes on its last frame */
+  (function () {
+    var run = document.querySelector('.run');
+    var v = run && run.querySelector('video');
+    if (!v) return;
+    function finish() {
+      run.classList.remove('pre');
+      try { v.pause(); if (isFinite(v.duration)) v.currentTime = v.duration; } catch (e) {}
+    }
+    v.addEventListener('error', function () { run.remove(); });
+    v.addEventListener('ended', function () { v.pause(); });
+    if (reduce) {
+      if (v.readyState >= 1) finish(); else v.addEventListener('loadedmetadata', finish, { once: true });
+      return;
+    }
+    run.classList.add('pre');
+    var started = false;
+    function go() {
+      if (started) return;
+      started = true;
+      var p = v.play();
+      run.classList.remove('pre');
+      if (p && p.catch) p.catch(finish);
+    }
+    var fonts = Promise.race([document.fonts ? document.fonts.ready : Promise.resolve(), new Promise(function (r) { setTimeout(r, 2500); })]);
+    var media = new Promise(function (res) {
+      if (v.readyState >= 3) return res();
+      v.addEventListener('canplaythrough', res, { once: true });
+      setTimeout(res, 4000);
+    });
+    var seen = new Promise(function (res) {
+      if (!('IntersectionObserver' in window)) return res();
+      var io = new IntersectionObserver(function (es) { if (es.some(function (e) { return e.isIntersecting; })) { io.disconnect(); res(); } });
+      io.observe(document.getElementById('hero'));
+    });
+    Promise.all([fonts, media, seen]).then(go);
+  })();
 
   /* Platform-aware install copy (M-D8) */
   var ua = navigator.userAgent || '';

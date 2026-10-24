@@ -1,6 +1,6 @@
-# M — Front Row landing page (spec)
+# M — Dibs landing page (spec)
 
-**Status:** built 2026-10-23, deploy pending. Specified 2026-10-23. Step 3 (server-side analytics: `server/landing-events.js`, `/_a/pv`, `/_a/go`, `GET /api/admin/landing-stats`, `server/test-landing-events.js`) built 2026-10-23, not deployed; landing page built. Decisions below were settled in a grilling session with the user. Deploying anything to the public internet needs a separate explicit go-ahead.
+**Status:** live at `dibs.wingfield.tech`. Renamed from "Front Row" to "Dibs" on 2026-10-24 (landing only: droplet mascot header, run-in video that slides in, pushes the headline down and freezes on its last frame; the old `frontrow.wingfield.tech` hostname is still routed until removed). Built 2026-10-23. Specified 2026-10-23. Step 3 (server-side analytics: `server/landing-events.js`, `/_a/pv`, `/_a/go`, `GET /api/admin/landing-stats`, `server/test-landing-events.js`) built 2026-10-23, not deployed; landing page built. Decisions below were settled in a grilling session with the user. Deploying anything to the public internet needs a separate explicit go-ahead.
 
 ## Outcome
 
@@ -10,8 +10,8 @@ A public, glassy, animated marketing page that presents the app as a **concierge
 
 | # | Decision |
 |---|---|
-| M-D1 | **Name: "Front Row"** (landing page only). The in-app name stays "Sweat Assistant" (`APP_NAME`); a full rename is a separate decision. Run domain, app-store and trademark availability checks as the first build task. |
-| M-D2 | **Host:** separate static site on `frontrow.wingfield.tech` (confirmed). Own folder `landing/` in this repo, tiny nginx container on oracle behind the existing Cloudflare tunnel, own `deploy-landing.sh` mirroring `deploy.sh`. Zero coupling to the SPA, its routes (`/` is the SPA, PWA `start_url` is `/`) or the service worker. |
+| M-D1 | **Name: "Dibs"** (landing page only; was "Front Row" until 2026-10-24, see `M-name-check.md`, whose research is about the old name). The in-app name stays "Sweat Assistant" (`APP_NAME`); a full rename is a separate decision. Run domain, app-store and trademark availability checks for "Dibs" (not yet done). |
+| M-D2 | **Host:** separate static site on `dibs.wingfield.tech` (moved from `frontrow.wingfield.tech` on 2026-10-24). Own folder `landing/` in this repo, tiny nginx container on oracle behind the existing Cloudflare tunnel, own `deploy-landing.sh` mirroring `deploy.sh`. Zero coupling to the SPA, its routes (`/` is the SPA, PWA `start_url` is `/`) or the service worker. |
 | M-D3 | **Audience and hook:** public gym-goers. Headline "Your fitness life, handled." / hero line "Be first in the room." Auto-book is the proof point, not the whole story. Calm, premium, warm tone, no hype. |
 | M-D4 | **Brands:** show the Psycle, JAB Boxing and AARMY **logos** in a "Works with" strip (copy assets from `client/public/gyms` into `landing/`, never hotlink) with a footer disclaimer: unofficial, not affiliated with or endorsed by any gym. |
 | M-D5 | **Product visuals:** coded, sanitised mock UI built from the app's own tokens with fake data; no screenshots. |

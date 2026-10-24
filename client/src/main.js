@@ -193,7 +193,7 @@ export function applyTheme(mode = getTheme()) {
 function headerBackgroundHex() {
   const cs = getComputedStyle(document.documentElement);
   const name = document.documentElement.hasAttribute('data-hdr-hidden') ? '--page-solid' : '--header-solid';
-  return (cs.getPropertyValue(name).trim() || '#090d16').toLowerCase();
+  return (cs.getPropertyValue(name).trim() || '#161310').toLowerCase();
 }
 // iOS does not re-read a media-scoped <meta name="theme-color"> when its content
 // attribute changes, so drop the static tags and REPLACE one unscoped tag each time.

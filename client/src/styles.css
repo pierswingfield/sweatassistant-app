@@ -88,6 +88,8 @@
   --dur-base: 180ms;
   --dur-slow: 240ms;
   --dur-page: 300ms;
+  --dur-slow-header: 420ms;                 /* timetable header hide/show: slower than --dur-slow, transform/opacity only */
+  --ease-header: cubic-bezier(0.22, 1, 0.36, 1);
   --ease-out: cubic-bezier(.25, 1, .5, 1);
   --ease-in-out: cubic-bezier(.4, 0, .2, 1);
 
@@ -2173,18 +2175,6 @@ html, body, * {
 
   button[data-bk-guard] { opacity: 0.5; }
 
-  #app-container.app-tt-compact .app-body.app-timetable-active .app-sticky-top.app-dates-first {
-    margin-bottom: 0 !important;
-  }
-
-  #app-container.app-tt-compact .app-wk-day .wk-num { font-size: 17px; }
-
-  #app-container.app-tt-compact .app-wk-day .wk-name { font-size: 10px; }
-
-  #app-container.app-tt-compact #app-filter-rail .fr-tile-full { max-width: 0; opacity: 0; }
-
-  #app-container.app-tt-compact #app-filter-rail .fr-tile-compact { max-width: 120px; opacity: 1; }
-
   #app-bookings-refreshing, #app-waitlists-refreshing { display: none !important; } /* U6-11: pull-to-refresh is the mobile indicator */
 
   /* U6-13: Make room for timezone-extended class times (e.g. AARMY when device
@@ -2197,14 +2187,8 @@ html, body, * {
     justify-content: flex-start;
   }
 
-  #app-container.app-tt-compact #app-filter-rail .fr-gymquick:not(.is-open) .fr-gymquick-btn + .fr-gymquick-btn { margin-left: -20px !important; }
-
   /* U6-10: let the higher-z-index logo cover the one beneath it. A masking ring
      becomes a visible dark seam above the overlap in iOS Safari. */
-
-  #app-container.app-tt-compact #app-filter-rail .fr-gymquick:not(.is-open) .fr-gymquick-btn .fr-gym-dot { box-shadow: none; }
-
-  #app-container.app-tt-compact #app-filter-rail .fr-gymquick:not(.is-open) { gap: 0; }
 
   /* ROOT CAUSE of the small instructor: the card sits in a table cell and the instructor span also carries
      .app-instructor-hover, so `#id .app-table td .app-instructor-hover { font-size: 13px !important }`
@@ -7463,8 +7447,6 @@ html, body, * {
     transition: transform var(--dur-slow) var(--ease-out), opacity var(--dur-slow) var(--ease-out) !important;
   }
 
-  #app-container.app-tt-compact .app-wk-day { height: calc(58px - var(--tt-collapse-d, 16px)); gap: 2px; }
-
   #app-filter-rail .fr-tile-full { max-width: 220px; opacity: 1; }
 }
 /* === END MOBILE TIMETABLE BLOCK === */
@@ -8197,16 +8179,16 @@ html, body, * {
   #app-helper-container #app-panel-my-bookings > .app-tab-header { display: none !important; }
 
   #app-helper-container .app-bottom-nav {
-    border-top: 1px solid var(--border-strong) !important;
+    border-top: 1px solid var(--bar-border) !important;
     box-shadow: none !important;
     /* CSSv2 glass: tokens + opaque fallback (DESIGN.md 4.5). Text contrast is computed on --glass-bg. */
-    background: var(--nav-glass-bg, var(--glass-bg)) !important;
-    -webkit-backdrop-filter: var(--nav-glass-blur, var(--glass-blur)) !important;
-    backdrop-filter: var(--nav-glass-blur, var(--glass-blur)) !important;
+    background: var(--bar-bg) !important;
+    -webkit-backdrop-filter: var(--bar-blur) !important;
+    backdrop-filter: var(--bar-blur) !important;
   }
 
   #app-helper-container .app-header { z-index: 400;
-    transform: translateY(0); transition: transform var(--dur-slow) var(--ease-out); will-change: transform;
+    transform: translateY(0); transition: transform var(--dur-slow-header) var(--ease-header); will-change: transform;
     background: var(--header-solid-bg) !important;
     position: absolute !important;
     top: 0;
@@ -9899,7 +9881,7 @@ html.app-scroll-locked { overflow: hidden !important; background: var(--bg) !imp
 @media (prefers-reduced-motion: reduce) { .fr-gymquick-btn .fr-gym-dot.lg { transition: none; } }
 
 /* ===== Mobile scroll-collapse (5-10 enh 3) =====
-   main.js toggles `.app-tt-compact` on #app-container together with the header hide (one state,
+   main.js toggles `.app-tt-compact` (a state flag; no longer styled) with the header hide (one state,
    see ui/scroll-collapse.js). MOBILE ONLY: everything is inside max-width:768px; desktop never matches.
    Layout-jump guard: the day cells shrink on one shared duration/easing. In the
    timetable, rows have their own scrollport, so the list follows the shorter rail.
@@ -11175,6 +11157,10 @@ html:not([data-credits-tab="on"]) .app-nav-btn[data-tab="buy-credits"] { display
   --nav-clear: var(--nav-h);
   --nav-glass-bg: rgba(32, 28, 24, 0.70);          /* docked: slightly glassier than the old .82 */
   --nav-glass-blur: blur(22px) saturate(1.5);
+  /* Shared 'bar' material: the docked bottom nav AND the timetable header use exactly these, so they cannot drift. */
+  --bar-bg: var(--nav-glass-bg);
+  --bar-blur: var(--nav-glass-blur);
+  --bar-border: var(--border-strong);
   --nav-ink: rgba(243, 237, 228, 0.78);             /* inactive icon + label: warm cream, not flat white */
   --nav-ink-active: var(--accent);
   --lg-fill: rgba(32, 28, 24, 0.64);
@@ -11567,9 +11553,9 @@ html:not([data-credits-tab="on"]) .app-nav-btn[data-tab="buy-credits"] { display
    - The class list is full height: it spans the page and scrolls UNDER both the glass filter block (top)
      and the glass bottom nav, reserving --tt-sticky-h (top) and --nav-clear (bottom) as padding so the
      first and last rows are reachable. --tt-sticky-h is the block's expanded height, set in main.js.
-   - Header hide/show = transform only: the block slides up by the header height in the same 240ms
+   - Header hide/show = transform only: the block slides up by the header height in the same ~420ms
      decelerate ease as the header; nothing re-lays-out the list (main's padding-top no longer snaps).
-   - Material = the --lg-* tokens (blur + saturate, specular edge), opaque and reduced-transparency fallbacks.
+   - Material = the shared --bar-* tokens (identical to the docked bottom nav), with opaque and reduced-transparency fallbacks.
    ========================================================================== */
 @media (max-width: 768px) {
   #app-helper-container main.app-body.app-timetable-active { padding-bottom: 0 !important; }
@@ -11584,24 +11570,33 @@ html:not([data-credits-tab="on"]) .app-nav-btn[data-tab="buy-credits"] { display
     padding-top: var(--tt-sticky-h, 0px) !important;
     padding-bottom: calc(var(--nav-clear) + 12px) !important;
   }
+  /* Same material as the docked bottom nav: shared --bar-* tokens (bg, blur, hairline), no extra shadow. */
   #app-helper-container .app-body.app-timetable-active .app-sticky-top {
-    background: linear-gradient(180deg, color-mix(in srgb, var(--lg-spec) 22%, transparent), transparent 60%), var(--lg-fill);
-    -webkit-backdrop-filter: var(--lg-blur); backdrop-filter: var(--lg-blur);
-    box-shadow: inset 0 1px 0 var(--lg-spec), inset 0 -1px 0 color-mix(in srgb, var(--lg-spec) 25%, transparent),
-                0 6px 18px color-mix(in srgb, var(--tone-ink) 12%, transparent) !important;
-    border-bottom-left-radius: var(--radius-card); border-bottom-right-radius: var(--radius-card);
+    background: var(--bar-bg);
+    -webkit-backdrop-filter: var(--bar-blur); backdrop-filter: var(--bar-blur);
+    box-shadow: 0 1px 0 var(--bar-border) !important;
+    border-radius: 0;
     transform: translate3d(0, 0, 0);
-    transition: transform var(--dur-slow) var(--ease-out);
+    transition: transform var(--dur-slow-header) var(--ease-header);
+    /* The date strip and chips no longer resize when the header hides (that was a layout transition);
+       the whole block only translates, so --tt-collapse-d (the day-cell shrink) is 0. */
+    --tt-collapse-d: 0px;
   }
   #app-container.app-hdr-hidden .app-body.app-timetable-active .app-sticky-top {
     transform: translate3d(0, calc(-1 * var(--app-header-h, 41px)), 0);
   }
   #app-container.app-tt-moving .app-body.app-timetable-active .app-sticky-top,
   #app-container.app-tt-moving .app-header { will-change: transform; }
+  /* Nothing inside the block resizes on hide any more, so no layout property may transition
+     (height / gap / font-size / max-width / margin). Only colour changes keep a transition. */
+  #app-helper-container .app-wk-day { transition: background-color var(--dur-base) var(--ease-out), border-color var(--dur-base) var(--ease-out); }
+  #app-helper-container .app-wk-day .wk-num, #app-helper-container .app-wk-day .wk-name,
+  #app-filter-rail .fr-tile-full, #app-filter-rail .fr-tile-compact, #app-filter-rail .fr-gymquick-btn { transition: none; }
 }
 @media (max-width: 768px) {
   @supports not ((backdrop-filter: blur(1px)) or (-webkit-backdrop-filter: blur(1px))) {
-    #app-helper-container .app-body.app-timetable-active .app-sticky-top { background: var(--glass-solid); }
+    #app-helper-container .app-body.app-timetable-active .app-sticky-top,
+    #app-helper-container .app-bottom-nav { background: var(--glass-solid) !important; }
   }
 }
 @media (max-width: 768px) and (prefers-reduced-transparency: reduce) {
@@ -11610,7 +11605,8 @@ html:not([data-credits-tab="on"]) .app-nav-btn[data-tab="buy-credits"] { display
   }
 }
 @media (max-width: 768px) and (prefers-reduced-motion: reduce) {
-  #app-helper-container .app-body.app-timetable-active .app-sticky-top { transition: none !important; }
+  #app-helper-container .app-body.app-timetable-active .app-sticky-top,
+  #app-helper-container .app-header { transition: none !important; }
 }
 
 /* Settings (mobile list): same page background as every other tab (the sidebar used the tinted inset

@@ -1,6 +1,6 @@
 # MCP server implementation
 
-**2026-10-24: implemented read-only server and first-party OAuth/connection controls; release gates remain.** See [delivery plan](PLAN-mcp-server.md) and [session evidence](MCP-SESSION-LOG.md). No deployment or live gym request was made.
+**2026-10-24: implemented read-only server and first-party OAuth/connection controls; release gates remain.** See [delivery plan](PLAN-mcp-server.md) and [session evidence](MCP-SESSION-LOG.md). Isolated Oracle staging is deployed; the user authorized and completed dedicated JAB authentication/profile linking. Provider-backed MCP reads remain disabled; production is untouched.
 
 ## Runnable scope
 
@@ -93,10 +93,10 @@ Run `npm test` under the repository-required Node 20 and `npm run build:client`.
 Before an invited read-only release:
 
 1. Retain the completed independent review evidence for the maintained OAuth integration and its local identity/consent/storage policy. The new HTTP suite and real Chrome flows now prove the implementation, including cross-origin callbacks.
-2. Complete named-client and device acceptance beyond the local fixture. Chrome 155 browser evidence covers local SA sign-in, unchecked scope/gym consent, SDK exchange/read, connection inspection and revoke, Settings link flag gating, and a 390px mobile layout. This does not establish actual iOS or ChatGPT/Claude compatibility.
+2. Complete named-client and device acceptance beyond the local fixture. Chrome 155 browser evidence covers local SA sign-in, unchecked scope/gym consent, SDK exchange/read, connection inspection and revoke, Settings link flag gating, and a 390px mobile layout. Actual ChatGPT local reads and refresh denial after revocation are now verified; latest reconnect restoration is unconfirmed. Actual iOS remains unverified.
 3. Retain the completed independent review evidence for the common admission, renewal, scheduler/PWA reservation and cache/deadline contracts below; enable provider reads only after intended-proxy and monitoring acceptance.
-4. Target both **ChatGPT and Claude**, as selected by the user, and prove OAuth consent, reads, revoke/reconnect, discovery, HTTPS proxy Host/Origin handling and request deadlines through the intended deployment. SDK interoperability alone is insufficient.
-5. Retain clean dependency audits and completed independent source review, and prove rollback/kill-switch acceptance. No deploy/production configuration has been changed.
+4. The user has deferred **Claude** acceptance; it remains unverified and must not be advertised as compatible. The selected initial pilot target is **ChatGPT**: actual consent, local reads and causal server refresh denial after revocation passed. Confirm the latest reconnect account association when possible without another sign-in loop. Finish intended-proxy request bounds/deadlines and other acceptance independently; SDK interoperability alone is insufficient.
+5. Retain clean dependency audits and completed independent source review, and prove rollback/kill-switch acceptance. Only isolated staging has been deployed; production configuration is unchanged.
 
 Booking writes and automation creation remain later delivery phases with first-party action approval, durable idempotency, reconciliation and separate acceptance.
 
@@ -122,4 +122,4 @@ Aggregate metrics: `provider_admission_total{lane,result}`, `mcp_tools_total{too
 
 Root, server and client dependency audits are clean after sharp 0.35.5/node-cron 4.6.0, Vite 6.4.5/Vitest 4.1.12 and compatible transitive security updates. Independent source review is complete; before public enablement still complete real deployment acceptance. The read-only command `node scripts/mcp-proxy-smoke.js https://YOUR_HOST/mcp` checks actual HTTPS discovery, challenge preservation and hostile-Origin rejection without gym traffic or credentials. It has only been syntax-checked here; no staging endpoint was created. Preserve canonical Host, reject spoofed forwarding headers and configure trusted client-IP handling at the actual proxy before testing it; the application currently uses socket IP rather than trusting arbitrary `X-Forwarded-For`.
 
-**External release gates:** authorize a dedicated HTTPS staging endpoint and secrets provisioning; register exact observed ChatGPT and Claude callbacks/client authentication; run both clients' OAuth consent/read/revoke/reconnect flows; complete real iOS/device acceptance; install/scrape/route alerts; and retain the completed independent source-review evidence. These gates are not satisfied by local SDK/browser/mock tests. No production deployment, public exposure or named-client registration has been performed in this session.
+**Current external release gates:** isolated HTTPS staging and ChatGPT registration exist; actual ChatGPT local reads and server refresh denial after revocation passed. The latest reconnect produced an active two-scope grant, but both exposed client handles currently fail locally without stage traffic, so restoration remains unconfirmed. Claude acceptance is deferred by the user and remains unverified. Before an invited read-only release, finish authenticated proxy bounds/deadlines, real iOS/device acceptance, private dashboard/human alert-delivery acceptance as applicable, restart-surviving budgets, and scoped kill-switch/rollback exercises. Provider-backed tools require separately authorized bounded live acceptance and remain disabled. Retain independent review evidence and agree pilot population/limits. Production has not been deployed.

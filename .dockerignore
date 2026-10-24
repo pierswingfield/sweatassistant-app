@@ -1,0 +1,34 @@
+# Never send local credentials, databases, or repository metadata to the builder.
+.env*
+**/.env*
+**/*.db
+**/*.db-*
+**/*.sqlite
+**/*.sqlite-*
+data/
+data-*/
+**/data/
+**/data-*/
+private/
+private-*/
+**/private/
+**/private-*/
+**/secrets/
+**/*.pem
+**/*.key
+.git
+.claude
+
+# Dependencies and generated build/test output are installed or built in-image.
+**/node_modules
+**/dist
+**/coverage
+**/*.log
+
+# Not consumed by Dockerfile COPY instructions.
+Documentation
+scripts
+landing
+deploy.sh
+deploy-landing.sh
+docker-compose*.yml

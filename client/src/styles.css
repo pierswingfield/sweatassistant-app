@@ -11656,8 +11656,8 @@ html:not([data-credits-tab="on"]) .app-nav-btn[data-tab="buy-credits"] { display
 /* ==========================================================================
    Landscape phones (short viewport, width > 768): the timetable glass block above applies (media list
    shared with main.js SHORT_LANDSCAPE_QUERY). Here the top tab bar is the navigation, so it never hides;
-   the title row is redundant (as on mobile), and the two desktop filter bars compress on the SAME
-   --tt-collapse-t timeline as the day strip. --tt-filters-h is measured in main.js.
+   the title row is redundant (as on mobile), and the two desktop filter bars hide entirely on the SAME
+   --tt-collapse-t timeline as the day strip shrinks. --tt-filters-h is measured in main.js.
    ========================================================================== */
 @media (min-width: 769px) and (max-height: 500px) and (orientation: landscape) {
   #app-helper-container .app-sticky-top { --tt-collapse-d: 16px; --tt-collapse-t: var(--dur-slow-header) var(--ease-header); }
@@ -11673,13 +11673,19 @@ html:not([data-credits-tab="on"]) .app-nav-btn[data-tab="buy-credits"] { display
     margin-left: 0 !important; margin-right: 0 !important; position: relative;
   }
   #app-helper-container .app-body.app-timetable-active #app-timetable-grid .app-table-container { overflow: visible !important; }
+  /* The week strip is a flex row whose < > buttons are 62px tall on desktop: they, not the (shrinking) day
+     scroller, set the strip's height and kept the space reserved. Let the buttons stretch to the scroller instead. */
+  #app-helper-container .app-body.app-timetable-active .app-wk-nav { height: auto; align-self: stretch; }
+  /* Compact: the search + filter bars go away entirely (their space too), on the same --tt-collapse-t timeline.
+     Padding / margin / height all animate to 0 and the bars fade; once the transition ends they are
+     visibility:hidden, and main.js also makes them inert, so nothing in them is focusable or announced. */
   #app-helper-container .app-body.app-timetable-active #app-timetable-filters-container {
-    max-height: var(--tt-filters-h, 160px); overflow: hidden;
-    transition: max-height var(--tt-collapse-t);
+    max-height: var(--tt-filters-h, 160px); overflow: hidden; opacity: 1; visibility: visible;
+    transition: max-height var(--tt-collapse-t), padding var(--tt-collapse-t), margin var(--tt-collapse-t), opacity var(--tt-collapse-t), visibility 0s;
   }
-  /* Compact: only the first bar (search + dropdowns) stays; the wrapped second bar is clipped. */
   #app-container.app-tt-compact .app-body.app-timetable-active #app-timetable-filters-container {
-    max-height: 52px;
+    max-height: 0; padding-top: 0 !important; padding-bottom: 0 !important; margin-bottom: 0 !important; opacity: 0; visibility: hidden;
+    transition: max-height var(--tt-collapse-t), padding var(--tt-collapse-t), margin var(--tt-collapse-t), opacity var(--tt-collapse-t), visibility 0s linear var(--dur-slow-header);
   }
 }
 

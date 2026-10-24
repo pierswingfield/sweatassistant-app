@@ -10,16 +10,18 @@
 export const COLLAPSE_TUNING = Object.freeze({ deadZone: 12, edgeZone: 32, topZone: 4 });
 
 /**
- * @param {{top:number,max:number,anchor:number,collapsed:boolean,busy:boolean,modalOpen:boolean,headerH:number}} s
+ * `holdExpanded` (optional): the user is mid-interaction with something the collapse would hide (landscape: the search
+ * field has focus or a filter dropdown is open), so never collapse and expand back if already collapsed.
+ * @param {{top:number,max:number,anchor:number,collapsed:boolean,busy:boolean,modalOpen:boolean,headerH:number,holdExpanded?:boolean}} s
  * @returns {{collapsed:boolean, anchor:number}}  next state (anchor/collapsed unchanged = no-op)
  */
 export function nextCollapseState(s, t = COLLAPSE_TUNING) {
-  const { top, max, anchor, collapsed, busy, modalOpen, headerH } = s;
+  const { top, max, anchor, collapsed, busy, modalOpen, headerH, holdExpanded } = s;
   // Too short to scroll meaningfully: never collapsed.
   if (max < headerH + 48) return { collapsed: false, anchor: 0 };
   // iOS rubber-band: not real scrolling.
   if (top < 0 || top > max) return { collapsed, anchor };
-  if (modalOpen || top <= t.topZone) return { collapsed: false, anchor: top };
+  if (modalOpen || holdExpanded || top <= t.topZone) return { collapsed: false, anchor: top };
   if (busy) return { collapsed, anchor: top };                       // settle, then re-baseline
   if (top >= max - t.edgeZone) return { collapsed, anchor: top };    // bottom bounce zone: keep state
   if (top <= t.edgeZone && !collapsed) return { collapsed, anchor: top };

@@ -26,6 +26,11 @@ describe('nextCollapseState', () => {
     expect(nextCollapseState({ ...base, top: 2050 })).toEqual({ collapsed: false, anchor: 200 });
     expect(nextCollapseState({ ...base, collapsed: true, top: 1990, anchor: 2000 })).toEqual({ collapsed: true, anchor: 1990 });
   });
+  it('holdExpanded (search focused / dropdown open) blocks collapsing and expands back', () => {
+    expect(nextCollapseState({ ...base, top: 215, holdExpanded: true })).toEqual({ collapsed: false, anchor: 215 });
+    expect(nextCollapseState({ ...base, collapsed: true, anchor: 215, top: 240, holdExpanded: true }).collapsed).toBe(false);
+    expect(nextCollapseState({ ...base, top: 215, holdExpanded: false }).collapsed).toBe(true);
+  });
   it('is never collapsed on a page too short to scroll, or with a modal open', () => {
     expect(nextCollapseState({ ...base, max: 80, collapsed: true, top: 60 })).toEqual({ collapsed: false, anchor: 0 });
     expect(nextCollapseState({ ...base, modalOpen: true, collapsed: true, top: 300 }).collapsed).toBe(false);

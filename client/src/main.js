@@ -1911,6 +1911,9 @@ function initHeaderAutoHide() {
     if (!els() || hide === hidden) return;
     hidden = hide;
     app.classList.toggle('app-hdr-hidden', hide && mode().hideHeader); // landscape keeps its top tab bar
+    // Landscape phones hide the search/filter bars entirely while compact: take them out of the focus order and the a11y tree.
+    const fbars = document.getElementById('app-timetable-filters-container');
+    if (fbars) fbars.inert = !!(hide && mode().enabled && !mode().hideHeader);
     app.classList.toggle('app-tt-compact', hide); // date strip, chips and gym stack shrink on one timeline (styles.css); filter-rail.js reads it too
     // will-change: transform only for the duration of the slide (styles.css .app-tt-moving).
     app.classList.add('app-tt-moving');
@@ -1928,6 +1931,16 @@ function initHeaderAutoHide() {
   const modalOpen = () =>
     !!document.querySelector('.app-modal[style*="display: flex"], .app-modal[style*="display: block"], .app-modal.open, .app-modal.active');
 
+  // Landscape only (the bars are hidden there): don't yank the filters away while the search field has focus or a dropdown is open.
+  const filtersEngaged = () => {
+    const m = mode();
+    if (!m.enabled || m.hideHeader) return false;
+    const fc = document.getElementById('app-timetable-filters-container');
+    if (!fc) return false;
+    if (fc.contains(document.activeElement) && document.activeElement.matches('input, textarea, select, button')) return true;
+    return !!fc.querySelector('.app-ms-menu:not([style*="display: none"])') || fc.classList.contains('app-searching') || fc.classList.contains('app-overlay-active');
+  };
+
   const update = () => {
     ticking = false;
     if (!target) return;
@@ -1938,6 +1951,7 @@ function initHeaderAutoHide() {
     const next = nextCollapseState({
       top: sc.scrollTop, max, anchor, collapsed: hidden, busy: isScrollBusy(),
       modalOpen: modalOpen(), headerH: (header && header.offsetHeight) || 47,
+      holdExpanded: filtersEngaged(),
     });
     anchor = next.anchor;
     setHidden(next.collapsed);

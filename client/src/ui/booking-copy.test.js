@@ -12,7 +12,7 @@ describe('intent-driven wording', () => {
     expect(COPY.spotSetup.chooseForNow).toBe('Choose a spot for now');
   });
   it('pluralises the summary sentence and uses the configured app name', () => {
-    expect(preferredSummaryText('autobook', 1, 'Sweat Assistant')).toBe('Sweat Assistant will book 1 spot based on your preferred spot map.');
+    expect(preferredSummaryText('autobook', 1, 'Dibs')).toBe('Dibs will book 1 spot based on your preferred spot map.');
     expect(preferredSummaryText('autobook', 3, 'Acme')).toBe('Acme will book 3 spots based on your preferred spot map.');
     expect(preferredSummaryText('quickbook', 1)).toBe('Quick-Book will book 1 spot based on your preferred spot map.');
     expect(preferredSummaryText('quickbook', 2)).toBe('Quick-Book will book 2 spots based on your preferred spot map.');

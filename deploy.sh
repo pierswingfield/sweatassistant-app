@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 #
-# Sweat Assistant: deploy to the oracle VM (C7-8).
+# Dibs: deploy to the oracle VM (C7-8).
 #
 # All environments live on `oracle`:
 #

@@ -1,5 +1,5 @@
 // The product name is configuration, not code. Fails when a hardcoded
-// 'Sweat Assistant' (or bare 'Sweat') appears in app source outside
+// 'Dibs' (or the retired 'Sweat Assistant' / bare 'Sweat') appears in app source outside
 // server/config.js, the one place the default lives. Comments are ignored; docs and
 // tests are out of scope (this test and the propagation test name it on purpose).
 const assert = require('assert');
@@ -40,7 +40,7 @@ for (const base of ['client', 'server']) {
     scanned++;
     const code = stripComments(file, fs.readFileSync(file, 'utf8'));
     code.split('\n').forEach((line, i) => {
-      if (/Sweat Assistant|\bSweat\b/.test(line)) offenders.push(`${rel}:${i + 1}: ${line.trim().slice(0, 100)}`);
+      if (/Sweat Assistant|\bSweat\b|\bDibs\b/.test(line)) offenders.push(`${rel}:${i + 1}: ${line.trim().slice(0, 100)}`);
     });
   }
 }

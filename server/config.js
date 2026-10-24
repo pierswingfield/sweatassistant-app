@@ -37,7 +37,7 @@ const landingCtaTarget = 'https://sweat.wingfield.tech';
 
 module.exports = {
   landingCtaTarget,
-  appName: process.env.APP_NAME || 'Sweat Assistant',
+  appName: process.env.APP_NAME || 'Dibs',
   publicHost,
   vapidEmail,
   corsOrigins,

@@ -1,5 +1,5 @@
 #!/bin/bash
-# backup-sqlite.sh — C1-5: nightly consistent SQLite backups of the Sweat Assistant
+# backup-sqlite.sh — C1-5: nightly consistent SQLite backups of the Dibs
 # prod + dev databases, off-host to Google Drive. Runs on oracle, as root.
 #
 # Source of truth is this file in the app repo. Install (see also the bottom of this header):

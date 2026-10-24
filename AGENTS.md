@@ -116,7 +116,7 @@ App/
 │   │                          #   (gymBrand/gymChip/renderGymRail), cleanClassName,
 │   │                          #   shortSlotLabels, escapeHtml
 │   └── public/
-│       ├── manifest.json    # PWA manifest (name: "Sweat Assistant", standalone, portrait)
+│       ├── manifest.json    # PWA manifest (name: templated from APP_NAME, default "Dibs", standalone, portrait)
 │       ├── sw.js             # Service worker (push + offline cache, network-first shell, cache-first assets)
 │       └── icons/            # App icons (128, 192, 512 — any + maskable)
 ├── Dockerfile               # Multi-stage build (client → server/public)
@@ -506,6 +506,6 @@ IndexedDB database `app-cache` (v3) has two stores: `cache` (raw timetable event
 | `LOG_LEVEL` | `logger.js` | `debug`/`info`/`warn`/`error` (default `info`). `debug` adds a line per upstream provider call (gym, method, path, status, durationMs) and health/static request lines. `LOG_PRETTY=1` indents the JSON. |
 | `METRICS_TOKEN` | `server.js` | Bearer token for `GET /metrics` (Prometheus text). Alternative: a valid admin session JWT. If neither this nor `ADMIN_PASSWORD` is set, `/metrics` returns 503; it is never unauthenticated. |
 | `ADMIN_PASSWORD` | `admin.js` | Password for admin panel login. If absent, all `/api/admin/*` routes return 503. |
-| `APP_NAME` | `server/config.js` → all server modules + client via `/api/config` | App display name (default `Sweat Assistant`, defined ONLY in `config.js`). `index.html`, `manifest.json`, `sw.js` and `admin.html` carry the placeholder `__APP_NAME__`, templated per request (`server.js sendTemplated`; the `template-app-name` Vite plugin in dev). Never hardcode the name; `test-no-hardcoded-app-name.js` enforces it. |
+| `APP_NAME` | `server/config.js` → all server modules + client via `/api/config` | App display name (default `Dibs`, renamed from Sweat Assistant 2026-10-24; host .env files set `Dibs Dev` / `Dibs Experiment`, defined ONLY in `config.js`). `index.html`, `manifest.json`, `sw.js` and `admin.html` carry the placeholder `__APP_NAME__`, templated per request (`server.js sendTemplated`; the `template-app-name` Vite plugin in dev). Never hardcode the name; `test-no-hardcoded-app-name.js` enforces it. |
 | `PUBLIC_HOST` | `server/config.js` → `calendar.js`, client via `/api/config` | Public domain for calendar feed URLs, UIDs and the CORS allowlist. **Required when `NODE_ENV=production`** (startup error otherwise); dev falls back to `localhost`. See `.env.example`. |
 | `CORS_ORIGINS` | `server/config.js` → `server.js` | Comma-separated browser-origin allowlist for CORS. Defaults to `https://$PUBLIC_HOST` + `http://$PUBLIC_HOST`. |

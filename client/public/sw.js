@@ -116,6 +116,11 @@ const ASSETS_TO_CACHE = [
   '/icons/icon-128.png',
   '/icons/icon-192.png',
   '/icons/icon-512.png',
+  '/icons/icon-maskable-192.png',
+  '/icons/icon-maskable-512.png',
+  '/icons/apple-touch-icon.png',
+  '/icons/favicon-32.png',
+  '/characters/dumbbell.png',
   ...PRECACHE_ASSETS
 ];
 

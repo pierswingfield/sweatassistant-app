@@ -1,7 +1,7 @@
 {
   "name": "app-pwa",
   "version": "1.0.0",
-  "description": "Sweat Assistant Server + PWA",
+  "description": "Dibs Server + PWA",
   "engines": {
     "node": ">=22.23.4 <23"
   },

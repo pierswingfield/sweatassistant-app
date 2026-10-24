@@ -10,10 +10,21 @@ Before starting an item, follow [AGENT_PROTOCOL.md](AGENT_PROTOCOL.md): confirm 
 |---|---|---|
 | [Reported bugs and feedback](EPIC-member-experience.md) | Active register for the bugs and UI changes reported by the user; all U6 items are open pending implementation and verification. | U6-1..U6-15; U4-19 `q` search URL wiring |
 | [Admin and operations](EPIC-admin-operations.md) | Improve durable admin data and finish user-owned production setup. | C8-1; C4-14 |
-| [Front Row landing page](M-landing-page.md) | Public glass-style marketing page with an install CTA and server-side analytics. Specified, not built. | M-D1..M-D8 |
+| [Dibs landing page](M-landing-page.md) | Public glass-style marketing page with an install CTA and server-side analytics. Specified, not built. | M-D1..M-D8 |
 | [Gym onboarding playbook](C9-gym-onboarding.md) | Repeatable tenant onboarding, provider evidence, and activation process. | Ongoing process, used when a gym is added |
 
 Lower-priority, deferred, research-first, and user-dependent items belong in [BACKLOG.md](BACKLOG.md), not in active epic documents.
+
+## Proposed work plans
+
+Requested 2026-10-24; these plans do not mark implementation as started or verified.
+
+| Plan | First milestone | Relationship to existing work |
+|---|---|---|
+| [App restyling, typography, CSS and motion](PLAN-app-restyling.md) | Real-browser baseline audit, then visual rules and reference screens | Coordinates the existing CSS/type cleanup and glass-polish backlog; preserves member-experience bug ownership |
+| [User-facing MCP server](PLAN-mcp-server.md) | Client/auth compatibility spike and threat model, then a read-only pilot | Expands F-4, the MCP integration; includes [current security research](mcp-security-research.md) |
+
+The two plans can progress independently. The MCP connection/consent UI should reuse the app's shared design components. The restyling audit requires real-browser access before implementation, as described in the agent protocol.
 
 ## Repository context
 

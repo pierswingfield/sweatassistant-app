@@ -8,7 +8,7 @@ This is the single home for deferred, low-priority, research-first, and user-dep
 - **C6-1 — Emailed password reset.** Add a transactional email sender and single-use reset flow; no real users yet, so deferred. **C6-2 — Change account email** with address verification shares the mail sender. Detail: [archived C6 plan](../Archive/2026-10-08/C6-accounts-auth.md).
 - **F-1 — In-app 3-D Secure checkout.** Confirm payment in app with Stripe.js; depends on the v2 cart and live payment evidence.
 - **F-3 — Social class sharing.** Weekly schedule export is done; handles, friend graph, “who's going”, and iCal enrichment remain.
-- **F-4 — MCP server** for timetable queries and booking actions.
+- **F-4 — MCP server** for timetable queries and booking actions. [Current work plan](PLAN-mcp-server.md): OAuth/client compatibility, read-only pilot, shared upstream budgets, then approved writes and automation. Proposed, not implemented.
 - **F-5 — MarianaTek credit-purchase research:** cart authentication and payment-option shapes.
 - **F-6 — Observe MarianaTek refresh-token hard-expiry behavior** in production.
 - **F-8 — MarianaTek profile explorer.** Expose useful normalized account details for diagnosis.
@@ -39,5 +39,5 @@ This is the single home for deferred, low-priority, research-first, and user-dep
 ## UX and design-system maintenance
 
 - **U2-4 — Shared empty-state renderer.** Low-priority maintenance to reduce duplicate markup; not a current UX issue. See [archived U2 plan](../Archive/2026-10-08/U2-components-accessibility.md).
-- **U3-1..U3-6 — CSS/design-system cleanup:** remove remaining `psycle-` naming, reduce `!important`, use type tokens, move inline styles to classes, consolidate card typography, and finish the gym-neutral copy/key audit. The dead-rule cleanup is done; the remaining work is broad and low priority. See [CSS debt audit](../Audits/css-debt-audit.md) and [archived U3 plan](../Archive/2026-10-08/U3-css-design-debt.md).
-- **U4-10 — More glass styling.** Visual polish; defer behind functional work. See [archived U4 plan](../Archive/2026-10-08/U4-ux-improvements.md).
+- **U3-1..U3-6 — CSS/design-system cleanup:** re-check neutral naming, reduce `!important`, use type tokens, move inline styles to classes, consolidate card typography, and finish the gym-neutral copy/key audit. The historical dead-rule cleanup is done; old counts and rename assumptions require fresh verification. The [proposed app-restyling plan](PLAN-app-restyling.md) coordinates the current audit, selective serif hierarchy and component migration. See [CSS debt audit](../Audits/css-debt-audit.md) and [archived U3 plan](../Archive/2026-10-08/U3-css-design-debt.md) for history.
+- **U4-10 — More glass styling.** Included in the [proposed app-restyling plan](PLAN-app-restyling.md), with dark-theme, performance and motion acceptance. See [archived U4 plan](../Archive/2026-10-08/U4-ux-improvements.md) for history.

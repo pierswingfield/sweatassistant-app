@@ -1,0 +1,47 @@
+# User-facing MCP: security and upstream protection research
+
+Researched 24 October 2026. Research and design recommendations; no app behavior changed. Sources below are official specifications and the checked-in implementation. Product choices are recommendations, not protocol requirements.
+
+## Protocol and client compatibility
+
+The official `latest` specification currently resolves to **2026-07-28**. Streamable HTTP remains the appropriate remote transport. This revision removes protocol sessions and the GET event stream; older revisions have materially different initialization and session behavior. Choose the supported protocol versions, SDK release and named clients together, then prove connection, authorization, revocation and tool calls in each client. A specification feature does not establish that any particular ChatGPT, Claude or other client supports it. [Streamable HTTP](https://modelcontextprotocol.io/specification/2026-07-28/basic/transports/streamable-http)
+
+Use an HTTPS endpoint with authentication on every request, strict request/body/time/connection limits and validated Origin headers where present. Keep deployment behind the existing reverse proxy, but test streaming and cancellation through that proxy. [Streamable HTTP security requirements](https://modelcontextprotocol.io/specification/2026-07-28/basic/transports/streamable-http#security-endpoint)
+
+## Account authorization boundary
+
+The MCP endpoint is an OAuth resource server; the authorization server can be a separate service. Publish Protected Resource Metadata, advertise the authorization server, and issue proper HTTP authentication challenges. Tokens must target the MCP resource, appear in the Authorization header on every request, and carry only granted scopes. Invalid/expired tokens receive 401; insufficient permissions receive 403 and an appropriate scope challenge. Do not copy the PWA SSE query-token fallback. [MCP authorization](https://modelcontextprotocol.io/specification/2026-07-28/basic/authorization)
+
+Current registration preference is existing pre-registration, then Client ID Metadata Documents, then Dynamic Client Registration when supported. DCR is now deprecated for new implementations, but may be necessary for an explicitly supported older client. Start with known clients; avoid an unrestricted registration service unless required. [Client registration](https://modelcontextprotocol.io/specification/2026-07-28/basic/authorization/client-registration)
+
+Use authorization-code flow with PKCE, exact redirect validation, CSRF protection, short-lived access tokens and refresh rotation/replay detection. Reuse Sweat Assistant identity through a browser sign-in/consent experience; never ask a model to collect the SA or gym password. Select an authorization-server implementation after proving it can use the existing local account identity without gym-login fallback. Do not implement OAuth by merely relabeling the existing PWA JWT. [OAuth security best practice](https://www.rfc-editor.org/rfc/rfc9700.html)
+
+Recommended grant record: SA account, OAuth client, approved scope set, approved gyms, issue/expiry times and revocation state. Suggested permissions: timetable read, personal bookings read, credits read, booking write, cancellation write and automation management. Enforce each permission at execution, plus current account/gym linkage and gym capabilities; hiding tools is insufficient. Give users a Connected Apps page to inspect and revoke grants. Scope additions or gym additions require fresh consent. These are application design choices grounded in least privilege. [MCP scope selection](https://modelcontextprotocol.io/specification/2026-07-28/basic/authorization#scope-selection-strategy)
+
+## Deputy, data and tool risks
+
+Never forward an MCP bearer token to a gym API. Keep the existing server-held, per-user/per-gym credentials separate. Show the requesting client and precise permissions in consent. Metadata URL fetching creates SSRF risk: enforce HTTPS, protect private/link-local/loopback destinations, validate redirect hops and DNS behavior, and bound fetched document size/time. Pre-registration reduces this surface. Bind every workflow/confirmation handle to the verified user and grant; possession alone grants no authority. [MCP security guidance](https://modelcontextprotocol.io/docs/2026-07-28/tutorials/security/security_best_practices)
+
+Expose narrow typed tools, with explicit gym identifiers and bounded date ranges, pagination and result sizes. Exclude raw URL/proxy tools, credentials, account recovery/admin actions and checkout/payment tools from the first release. Return normalized allowlisted fields; treat provider free text as untrusted data. Tool annotations help clients explain risk but cannot enforce authorization or consent. The tools specification requires validation, access control, rate limits and output sanitation; client-side sensitive-action confirmation is only a SHOULD. [Tools security](https://modelcontextprotocol.io/specification/2026-07-28/server/tools#security-considerations)
+
+Recommendation: launch reads first; introduce writes only with durable idempotency, ownership checks and race-safe execution. For cancellations/credit-consuming actions, prepare a server-owned intent showing exact class, gym-local time, spots, credits and possible penalties. Require a short-lived single-use approval bound to those details; revalidate before commit. If demonstrable human consent is a product requirement, use an SA-hosted approval UI: a model echoing `confirm: true` is not proof. Unknown write outcomes require reconciliation before retry. Automation creation also needs caps and revocation semantics because one call can generate many future provider requests.
+
+## What the repository already provides
+
+- `server/auth.js`: local account JWT authentication and linked-gym checking before AsyncLocalStorage gym context. Its existing JWT middleware does not itself implement MCP OAuth discovery/scopes/audience validation; invalid JWTs currently return 403. MCP needs its own conforming boundary.
+- `server/routes-normalized.js`: normalized, capability-aware routes; reads share 300 calls/minute/user, explicit cache bypasses have 30/minute/user. These limits are production-only unless a test override applies. Normalized booking/cancellation/swap route declarations do not attach the separate queue mutation limiter.
+- `server/server.js`: login brute-force limiting and a 10/minute/user mutation limiter attached to some queue/simulation routes. This is not a universal provider-write limiter.
+- `server/schedule-cache.js`: shared schedule cache. Reuse caching rather than allowing agent-controlled refreshes.
+- `server/rate-limit-backoff.js`: shared per-gym 429 backoff for scheduler/poller, honoring reported retry delay with a five-minute fallback; state is in-process. Bring interactive and MCP upstream calls under the same policy before exposure, and share state across processes if deploying separately.
+
+These are code observations, not a complete security audit. Prefer shared application services beneath HTTP and MCP, preserving ownership/capability/business rules and budget enforcement at that shared seam. Avoid loopback calls that mint broad PWA tokens or duplicate route logic.
+
+## Budgets that protect the gyms
+
+MCP call count is not upstream cost: a timetable request can fan out; an automation can poll for weeks. Enforce both ingress quotas and actual provider-request budgets across **PWA + MCP + background jobs**. Recommended dimensions: grant/client, user, user/gym, gym-wide and deployment egress. Include burst and sustained windows, concurrency limits, timeouts, bounded queues and daily ceilings. Reserve capacity for already-authorized scheduled bookings and prevent an abusive MCP user starving others.
+
+Measure/cache-hit cost separately; apply weighted costs to upstream fan-out and mutations. Cap pending automations, scheduling horizon and polling frequency; prohibit client-defined retry loops and refresh bypasses. Honor provider backoff; permit bounded jittered read retries, and never blindly retry an uncertain mutation. Return a stable retry time without sleeping indefinitely in a tool. HTTP 429 can include Retry-After; clients must still be tested for sensible behavior. [HTTP 429 semantics](https://www.rfc-editor.org/rfc/rfc6585.html#section-4)
+
+**No verified contractual provider quotas were established in this research.** Existing MarianaTek notes report roughly 35 light-touch requests without rate-limit headers, explicitly insufficient to infer a safe sustained rate (`Documentation/Services/marianatek.md`, rate-limits observations). Do not stress-test a shared live tenant to discover a ceiling. Obtain provider guidance where possible; otherwise select conservative provisional budgets from existing legitimate traffic and watch upstream latency, 429s, errors and scheduler delays. Label numerical limits as operational choices until measured or agreed.
+
+Record redacted audit events with grant/client, user, gym, tool, decision, upstream cost, outcome and idempotency identifier. Never record tokens, credentials or raw provider bodies. Add per-grant/per-gym write switches and a global MCP kill switch; define how queued work behaves after revocation. Validate cross-user/gym access, revoked/expired/wrong-audience tokens, consent replay, SSRF, retry storms, concurrency fairness and duplicate writes before broad rollout.

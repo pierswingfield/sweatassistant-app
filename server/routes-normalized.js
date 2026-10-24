@@ -29,7 +29,7 @@ const { ipKeyGenerator } = require('express-rate-limit');
 const db = require('./db');
 const auth = require('./auth');
 const classHistory = require('./class-history');
-const { authenticateToken, triggerAutoRelogin } = auth;
+const { authenticateToken } = auth;
 const { getProvider } = require('./providers');
 const { listGyms, getGymConfig } = require('./gyms.config');
 const { isRollingWeekly } = require('./providers/booking-window');
@@ -37,6 +37,8 @@ const { countSelfBookings, validateSelfBookingLimit } = require('./booking-entit
 const calendar = require('./calendar');
 const scheduleCache = require('./schedule-cache');
 const freshness = require('./freshness');
+const reads = require('./normalized-reads');
+const { resolveContext, withRelogin, getCurrentProfile } = reads;
 // Studio floor plans change rarely and are identical for every member: own cache
 // instance (own counters), keyed gymId:studioId — provider ids collide across gyms.
 const layoutCache = scheduleCache.createCache();
@@ -47,14 +49,12 @@ const LAYOUT_MAX_STALE_MS = 7 * 24 * 60 * 60 * 1000;
 // with stale-while-revalidate — a page is always instant and at most a minute
 // behind. Metadata (locations, studios, instructors, class types) changes when
 // a gym reorganises, i.e. rarely.
-const TIMETABLE_TTL_MS = 60 * 1000;
 const METADATA_TTL_MS = 30 * 60 * 1000;
 
 // C2-5 (rebuilt): for providers with freshness stamps (CodexFit /heartbeat) a TTL-stale entry is
 // kept while its stamp is unchanged, up to these hard max-ages. The schedule's `events` stamp does
 // NOT move on occupancy changes, so spot counts can lag up to TIMETABLE_STAMP_CEILING_MS (accepted,
 // as on the official website); write paths (book/cancel) still invalidate immediately.
-const TIMETABLE_STAMP_CEILING_MS = 5 * 60 * 1000;
 const METADATA_STAMP_CEILING_MS = 6 * 60 * 60 * 1000;
 const LAYOUT_STAMP_CEILING_MS = 7 * 24 * 60 * 60 * 1000;
 
@@ -120,75 +120,6 @@ function resolveGymOnly(userId) {
   }
 }
 
-function resolveContext(userId) {
-  // An app account can now exist with NO gym linked at all (signup is
-  // gym-independent since Decision D4). That is a legitimate, expected state —
-  // not a broken session — so it gets its own signal. Without this the account
-  // would resolve to the default gym, find no credential, and surface as
-  // "please log in", sending the user round a login loop they cannot win.
-  if (db.getUserGyms(userId).length === 0) {
-    const err = new Error('No gym linked to this account yet.');
-    err.status = 409;
-    err.code = 'NO_GYM_LINKED';
-    throw err;
-  }
-  // C3-28: there is no ambient gym. With several linked, a request that names none
-  // (no `x-gym-id`) used to fall back to whichever gym the server defaults to and
-  // answer for it; now it is a 400, so a forgotten header is an error rather than
-  // a plausible answer about the wrong gym. One linked gym is unambiguous.
-  let gymId;
-  try {
-    gymId = db.resolveGymStrict(userId, null, 'gym-scoped route');
-  } catch (e) {
-    e.status = 400;
-    e.code = 'GYM_REQUIRED';
-    throw e;
-  }
-  const provider = getProvider(gymId);
-  const user = db.getUserById(userId);
-  if (!user || !user.jwt) {
-    // C1-2: this 401 means ONE gym's session is missing/dead, not that the
-    // The app JWT itself is invalid (that case is a 403 — see
-    // auth.js authenticateToken). `code` lets the client branch on that
-    // distinction instead of treating every 401 as SA logout.
-    const err = new Error('No active session for this gym. Please log in.');
-    err.status = 401;
-    err.code = 'GYM_SESSION_EXPIRED';
-    err.gymId = gymId;
-    throw err;
-  }
-  return { gymId, provider, session: { accessToken: user.jwt } };
-}
-
-// Retry an authenticated provider call once after a relogin, if it signals a
-// 401 — either by throwing an error with `.status === 401` (reads:
-// fetchTimetable/fetchEventDetails/getProfile/getCancelPenalty/listBookings/
-// listWaitlists, all fixed to carry `.status` alongside this WP) or by
-// resolving with `.status === 401` on a NormalizedBookingResult (writes:
-// bookSlot/swapSpots). Mirrors scheduler.js/poller.js/calendar.js's own
-// bookSlotWithRelogin/listWithRelogin ladder (WP-N3) — closes the same
-// documented gap for routes-normalized.js (previously: "no 401 auto-relogin
-// retry", see this file's header comment).
-//
-// NOT covered: cancelBooking/joinWaitlist/leaveWaitlist, which return a bare
-// boolean with no HTTP status signal today — a 401 there is indistinguishable
-// from any other failure, so retrying blindly would risk masking a real
-// decline as "just needed a relogin." Giving those a status signal is a
-// separate, adapter-level change — see PROGRESS.md handoff.
-async function withRelogin(userId, session, fn) {
-  try {
-    const result = await fn(session);
-    if (result && result.status === 401) {
-      const newJwt = await triggerAutoRelogin(userId);
-      return fn({ ...session, accessToken: newJwt });
-    }
-    return result;
-  } catch (err) {
-    if (err.status !== 401) throw err;
-    const newJwt = await triggerAutoRelogin(userId);
-    return fn({ ...session, accessToken: newJwt });
-  }
-}
 
 function handleError(res, err) {
   const status = err.status || 500;
@@ -278,7 +209,7 @@ router.get('/gyms', (req, res) => {
 // every list is merged, and a "current gym" is not a concept this product has.
 router.get('/my-gyms', authenticateToken, readLimiter, (req, res) => {
   try {
-    const linked = db.getUserGymsPublic(req.userId);
+    const linked = reads.linkedGyms(req.userId);
     res.json({ gyms: linked });
   } catch (err) {
     handleError(res, err);
@@ -358,71 +289,10 @@ router.post('/account/password', authenticateToken, (req, res) => {
 // Doing it here, once, is what lets the client read a timestamp and compute
 // nothing. It used to reimplement Psycle's Monday-noon model in lib.js, which
 // meant every gym got Psycle's rule whether it applied or not.
-async function getCurrentProfile(userId, gymId, provider, session) {
-  const profile = await withRelogin(userId, session, (s) => provider.getProfile(s));
-  // The raw provider profile is the shared persistence shape used by the
-  // adapter's booking-window resolver and the admin profile view. Keep it
-  // explicitly scoped: merged accounts can refresh several gyms in parallel.
-  if (profile && profile.raw && typeof profile.raw === 'object') {
-    try { db.cacheUserProfile(userId, profile.raw, gymId); } catch (_) { /* best-effort snapshot; the current response still has the profile */ }
-  }
-  return profile;
-}
-
-async function stampReleaseAt(events, provider, userId, gymId, session) {
-  if (!Array.isArray(events) || events.length === 0) return events;
-  // Nothing to compute for a gym that publishes per-class releases.
-  if (events.every((e) => e && e.releaseAt)) return events;
-
-  const settings = db.getUserSettings(userId, gymId) || {};
-  // A rolling-weekly window is per member, so a timetable-first request must
-  // fetch this member's profile before it can stamp any computed releases. This
-  // uses the provider's existing memo/single-flight path. A provider error must
-  // reach the route error handler: falling back to yesterday's persisted cutoff
-  // can put the release after the class and make Quick-Book appear available.
-  // Other policies (including a per-class gym's declared fallback) do not need
-  // the member profile and remain available during an unrelated profile outage.
-  const profile = isRollingWeekly(provider.gym)
-    ? await getCurrentProfile(userId, gymId, provider, session)
-    : null;
-  let window = provider.resolveBookingWindow(profile && profile.raw, settings.cachedCredits || []);
-  // A debug override still wins, so the "simulate a different tier" workflow
-  // keeps working — and is scoped to the same gym as the timetable.
-  if (settings.debugMode && settings.manualBookingWindowDays) {
-    window = { offsetDays: Number(settings.manualBookingWindowDays), source: 'debug' };
-  }
-
-  return events.map((e) => (e && e.releaseAt) ? e : { ...e, releaseAt: provider.releaseAtFor(e.startAt, window) });
-}
-
 // GET /api/timetable?startDate=&endDate=
 router.get('/timetable', authenticateToken, refreshLimiter, readLimiter, async (req, res) => {
   try {
-    const { gymId, provider, session } = resolveContext(req.userId);
-    const startDate = req.query.startDate || '';
-    const endDate = req.query.endDate || '';
-
-    // SHARED cache: a gym's schedule is identical for every member, so one
-    // provider call serves everyone asking for the same range. Before this,
-    // each user's each visit paid a full round trip — which is why the
-    // timetable was slow on the SECOND load too, not just the first.
-    //
-    // The key carries gym AND range; omitting either serves one gym's Tuesday
-    // as another's. It deliberately carries NO user id — that is the point.
-    const events = await scheduleCache.getOrFetch(
-      `timetable|${gymId}|${startDate}|${endDate}`,
-      () => withRelogin(req.userId, session, (s) =>
-        provider.fetchTimetable({ startDate, endDate }, s)
-      ),
-      { ttlMs: TIMETABLE_TTL_MS, force: req.query.refresh === '1',
-        stamp: freshness.stampFor(gymId, provider, session, ['events']), ceilingMs: TIMETABLE_STAMP_CEILING_MS }
-    );
-
-    // `releaseAt` is stamped per request, AFTER the cache. It depends on the
-    // member's own booking-window tier, so caching the stamped result would
-    // serve one member's release times to another — a correctness bug, where
-    // the cache itself is only ever a staleness trade.
-    res.json({ events: await stampReleaseAt(events, provider, req.userId, gymId, session) });
+    res.json(await reads.timetable(req.userId, { startDate: req.query.startDate || '', endDate: req.query.endDate || '', refresh: req.query.refresh === '1' }));
   } catch (err) {
     handleError(res, err);
   }
@@ -458,12 +328,7 @@ router.get('/metadata', authenticateToken, refreshLimiter, readLimiter, async (r
 // GET /api/events/:id
 router.get('/events/:id', authenticateToken, readLimiter, async (req, res) => {
   try {
-    const { gymId, provider, session } = resolveContext(req.userId);
-    const details = await withRelogin(req.userId, session, (s) => provider.fetchEventDetails(req.params.id, s));
-    if (details && details.event) {
-      details.event = (await stampReleaseAt([details.event], provider, req.userId, gymId, session))[0];
-    }
-    res.json(details);
+    res.json(await reads.eventDetails(req.userId, req.params.id));
   } catch (err) {
     handleError(res, err);
   }
@@ -716,9 +581,7 @@ router.post('/swap', authenticateToken, async (req, res) => {
 // or /api/timetable, same as the existing client already does for the raw proxy.
 router.get('/bookings', authenticateToken, readLimiter, async (req, res) => {
   try {
-    const { provider, session } = resolveContext(req.userId);
-    const bookings = await withRelogin(req.userId, session, (s) => provider.listBookings(s));
-    res.json({ bookings });
+    res.json(await reads.bookings(req.userId));
   } catch (err) {
     handleError(res, err);
   }
@@ -783,13 +646,7 @@ router.get('/profile', authenticateToken, readLimiter, async (req, res) => {
 // rather than assuming one shape.
 router.get('/credits', authenticateToken, readLimiter, async (req, res) => {
   try {
-    const { provider, session } = resolveContext(req.userId);
-    if (typeof provider.getCredits === 'function') {
-      const credits = await withRelogin(req.userId, session, (s) => provider.getCredits(s));
-      return res.json({ credits });
-    }
-    const profile = await withRelogin(req.userId, session, (s) => provider.getProfile(s));
-    res.json({ credits: (profile.raw && profile.raw.available_credits) || [] });
+    res.json(await reads.credits(req.userId));
   } catch (err) {
     handleError(res, err);
   }

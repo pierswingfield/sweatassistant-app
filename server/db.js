@@ -429,6 +429,34 @@ db.exec(`
     FOREIGN KEY (gym_id) REFERENCES gyms(id),
     UNIQUE(user_id, gym_id)
   );
+  CREATE TABLE IF NOT EXISTS mcp_clients (
+    client_id TEXT PRIMARY KEY,
+    name TEXT NOT NULL,
+    disabled_at INTEGER
+  );
+  CREATE TABLE IF NOT EXISTS mcp_grants (
+    id TEXT PRIMARY KEY,
+    user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    issuer TEXT NOT NULL,
+    subject TEXT NOT NULL,
+    client_id TEXT NOT NULL REFERENCES mcp_clients(client_id),
+    scopes_json TEXT NOT NULL,
+    gyms_json TEXT NOT NULL,
+    account_fingerprint TEXT NOT NULL,
+    consent_reference TEXT NOT NULL,
+    issued_at INTEGER NOT NULL DEFAULT (unixepoch() * 1000),
+    expires_at INTEGER NOT NULL,
+    revoked_at INTEGER,
+    last_used_at INTEGER
+  );
+  CREATE INDEX IF NOT EXISTS mcp_grants_user ON mcp_grants(user_id);
+  CREATE TABLE IF NOT EXISTS mcp_budgets (
+    budget_key TEXT NOT NULL,
+    window_id INTEGER NOT NULL,
+    count INTEGER NOT NULL,
+    expires_at INTEGER NOT NULL,
+    PRIMARY KEY (budget_key, window_id)
+  );
 `);
 
 // --- Gym registry mirror ---

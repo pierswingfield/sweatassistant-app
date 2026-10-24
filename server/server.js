@@ -54,6 +54,9 @@ function sanePublishedRelease(releaseAt, startAt) {
   return Number.isFinite(r) && (!Number.isFinite(c) || r < c) ? releaseAt : null;
 }
 
+// Disabled by default; independent host/origin/auth/body boundary.
+require('./mcp/router').mountMcp(app);
+
 app.use(cors({
   origin(origin, cb) {
     // Allow listed origins (and requests with no Origin: curl, native calendar

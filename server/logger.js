@@ -65,7 +65,10 @@ async function timedProviderFetch(gymId, method, pathOrUrl, doFetch) {
   };
   const path = String(pathOrUrl).replace(/^https?:\/\/[^/]+/i, '').split('?')[0];
   try {
-    const res = await doFetch();
+    const signal = require('./mcp/context').admitProvider(gymId, method);
+    const res = await doFetch(signal);
+    // Share MCP-observed 429s with the existing scheduler/poller cooldown.
+    if (require('./mcp/context').current()) require('./rate-limit-backoff').noteThrottleResponse(gymId, res);
     count(res && res.status);
     log.debug('provider call', { gymId, method, path, status: res && res.status, durationMs: Date.now() - start });
     return res;

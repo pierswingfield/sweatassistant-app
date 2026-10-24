@@ -166,7 +166,7 @@ class MarianaTekProvider extends GymProvider {
     }, timeoutMs);
     opts.signal = controller.signal;
     try {
-      return await timedProviderFetch(this.gym.id, method, path, () => fetch(this.url(path), opts));
+      return await timedProviderFetch(this.gym.id, method, path, (signal) => fetch(this.url(path), { ...opts, signal: signal ? AbortSignal.any([signal, opts.signal]) : opts.signal }));
     } catch (err) {
       if (timedOut) {
         const timeout = new Error(`Booking request timed out after ${Math.ceil(timeoutMs / 1000)} seconds. Check My Bookings before trying again.`);
@@ -185,7 +185,7 @@ class MarianaTekProvider extends GymProvider {
   // once logged in (see fetchTimetable/fetchEventDetails, which prefer
   // request() whenever a session is available).
   async publicRequest(path, { method = 'GET' } = {}) {
-    return fetch(this.url(path), { method, headers: this.buildHeaders(null) });
+    return timedProviderFetch(this.gym.id, method, path, (signal) => fetch(this.url(path), { method, headers: this.buildHeaders(null), ...(signal ? { signal } : {}) }));
   }
 
   isPublicRead(method, path) {

@@ -198,7 +198,7 @@ class CodexFitProvider extends GymProvider {
         delete opts.headers['content-type'];
       }
     }
-    return timedProviderFetch(this.gym.id, method, pathOrUrl, () => fetch(urlFn(pathOrUrl), opts));
+    return timedProviderFetch(this.gym.id, method, pathOrUrl, (signal) => fetch(urlFn(pathOrUrl), { ...opts, ...(signal ? { signal } : {}) }));
   }
 
   /**
@@ -208,7 +208,7 @@ class CodexFitProvider extends GymProvider {
    * session is available — same convention as the MarianaTek adapter).
    */
   async publicRequest(pathOrUrl, { method = 'GET' } = {}) {
-    return timedProviderFetch(this.gym.id, method, pathOrUrl, () => fetch(this.url(pathOrUrl), { method, headers: this.buildHeaders(null, false) }));
+    return timedProviderFetch(this.gym.id, method, pathOrUrl, (signal) => fetch(this.url(pathOrUrl), { method, headers: this.buildHeaders(null, false), ...(signal ? { signal } : {}) }));
   }
 
   // --- Authentication -------------------------------------------------------

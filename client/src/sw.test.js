@@ -16,8 +16,10 @@ function workerHarness({ fetchImpl, shell, failAdd = () => false, hangAdd = () =
   const added = [];
   const deleted = [];
   let skipped = false;
+  let opened = 0;
   const caches = {
     async open() {
+      opened += 1;
       return {
         addAll: async () => {},
         add: async (asset) => { if (hangAdd(asset)) return new Promise(() => {}); if (failAdd(asset)) throw new TypeError(`fetch failed: ${asset}`); added.push(asset); },
@@ -54,10 +56,19 @@ function workerHarness({ fetchImpl, shell, failAdd = () => false, hangAdd = () =
     added,
     deleted,
     get skipped() { return skipped; },
+    get opened() { return opened; },
     async install() {
       let done;
       listeners.get('install')({ waitUntil(value) { done = value; } });
       await done;
+    },
+    // Activation resolves on claim(); the precache it starts is not awaited
+    // by the worker, so the test lets it run before asserting.
+    async activate() {
+      let done;
+      listeners.get('activate')({ waitUntil(value) { done = value; } });
+      await done;
+      await new Promise((resolve) => setTimeout(resolve, 20));
     },
     dispatch(request) {
       let handled;
@@ -130,29 +141,34 @@ describe('service-worker navigation shell', () => {
   });
 });
 
-describe('service worker install', () => {
-  it('activates and keeps the shell when every precache asset loads', async () => {
-    const worker = workerHarness({ fetchImpl: () => Promise.resolve(response()), shell: undefined, failAdd: () => false });
+describe('service worker install and activation', () => {
+  it('installs without touching Cache Storage', async () => {
+    const worker = workerHarness();
     await worker.install();
     expect(worker.skipped).toBe(true);
+    expect(worker.opened).toBe(0);
+  });
+
+  it('precaches after activation and keeps the shell when every asset loads', async () => {
+    const worker = workerHarness();
+    await worker.install();
+    await worker.activate();
     expect(worker.added).toContain('/index.html');
     expect(worker.deleted).toEqual([]);
   });
 
-  it('still activates when one asset fails, and drops the incoherent shell', async () => {
+  it('drops the incoherent shell when one asset fails', async () => {
     const worker = workerHarness({ failAdd: (asset) => asset === '/favicon.ico' });
-    await worker.install();
-    expect(worker.skipped).toBe(true);
+    await worker.activate();
     expect(worker.deleted).toEqual(expect.arrayContaining(['/', '/index.html']));
   });
 
-  it('still activates when a precache request hangs', async () => {
+  it('drops the shell when a precache request hangs past the budget', async () => {
     const worker = workerHarness({
       hangAdd: (asset) => asset === '/favicon.ico',
       setTimeoutImpl: (fn, ms) => (ms >= 20000 ? setTimeout(fn, 0) : setTimeout(fn, ms)),
     });
-    await worker.install();
-    expect(worker.skipped).toBe(true);
+    await worker.activate();
     expect(worker.deleted).toEqual(expect.arrayContaining(['/', '/index.html']));
   });
 });

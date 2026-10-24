@@ -685,19 +685,22 @@ document.querySelectorAll('.app-tab-refresh-btn').forEach(btn => {
 let serviceWorkerRegistration = null;
 // What the worker did on this device, shown with the "not ready" error so a
 // phone (no devtools) can report why push cannot start.
-const swDiagnostics = { registerError: '', lastState: '' };
-// The worker's own install breadcrumbs (sw.js swDiag), oldest first, as offsets in seconds.
-async function swInstallTrail() {
-  try {
-    const cache = await caches.open('app-sw-diag');
-    const res = await cache.match('/__sw_diag__');
-    const steps = res ? await res.json() : [];
-    if (!steps.length) return '; sw: no steps recorded';
-    const t0 = steps[0].t;
-    return `; sw: ${steps.map((s) => `+${Math.round((s.t - t0) / 1000)}s ${s.step}${s.detail ? ` ${s.detail}` : ''}`).join(' > ')}`;
-  } catch (err) {
-    return `; sw: unreadable (${err?.message || err})`;
-  }
+const swDiagnostics = { registerError: '', lastState: '', registeredAt: Date.now() };
+// The worker's own lifecycle breadcrumbs (sw.js swDiag), posted as messages.
+// Listening at module load catches the install step of a first registration.
+const swTrail = [];
+if (typeof navigator !== 'undefined' && navigator.serviceWorker) {
+  navigator.serviceWorker.addEventListener('message', (event) => {
+    if (event.data?.type !== 'SW_DIAG') return;
+    swTrail.push(event.data);
+    if (swTrail.length > 12) swTrail.shift();
+  });
+  navigator.serviceWorker.startMessages?.();
+}
+function swInstallTrail() {
+  if (!swTrail.length) return '; sw: no messages';
+  const t0 = swTrail[0].t;
+  return `; sw: ${swTrail.map((s) => `+${Math.round((s.t - t0) / 1000)}s ${s.step}${s.detail ? ` ${s.detail}` : ''}`).join(' > ')}`;
 }
 function swStateSummary(reg) {
   const parts = [
@@ -719,7 +722,7 @@ async function registerServiceWorker() {
     debugConsole('[SW] Service Worker registered successfully scope:', reg.scope);
     swDiagnostics.registerError = '';
     const trackInstall = (worker) => worker?.addEventListener('statechange', () => {
-      swDiagnostics.lastState = worker.state;
+      swDiagnostics.lastState = `${worker.state}@${Math.round((Date.now() - swDiagnostics.registeredAt) / 1000)}s`;
     });
     trackInstall(reg.installing);
     reg.addEventListener('updatefound', () => trackInstall(reg.installing));
@@ -849,7 +852,7 @@ export async function togglePushSubscription() {
 
   try {
     const registration = await activeRegistration();
-    if (!registration) throw new Error(`${COPY.notifications.workerNotReady} (${swStateSummary(serviceWorkerRegistration)}${await swInstallTrail()})`);
+    if (!registration) throw new Error(`${COPY.notifications.workerNotReady} (${swStateSummary(serviceWorkerRegistration)}${swInstallTrail()})`);
     const subscription = await registration.pushManager.getSubscription();
     const toggleBtn = document.getElementById('app-push-toggle-btn');
     toggleBtn.disabled = true;

@@ -43,24 +43,23 @@ self.addEventListener('message', (event) => {
     }))));
 });
 
-// Lifecycle breadcrumbs, readable by the page (main.js swStateSummary), so a
-// phone without devtools can report where an install died. Bounded to the
-// last 12 steps; failures to record are ignored.
-const SW_DIAG_CACHE = 'app-sw-diag';
-const SW_DIAG_KEY = new Request('/__sw_diag__');
-let swDiagChain = Promise.resolve();
+// Lifecycle breadcrumbs, posted to every open window (main.js collects them
+// for the push "not ready" error) so a phone without devtools can report
+// where an install died. Messages, not Cache Storage: a storage call that
+// hangs inside the worker is one of the failures this has to report.
 function swDiag(step, detail) {
-  const entry = { t: Date.now(), step, ...(detail === undefined ? {} : { detail: String(detail).slice(0, 160) }) };
-  swDiagChain = swDiagChain.then(async () => {
-    const cache = await caches.open(SW_DIAG_CACHE);
-    const previous = await cache.match(SW_DIAG_KEY).then((r) => (r ? r.json() : [])).catch(() => []);
-    const next = [...previous, entry].slice(-12);
-    await cache.put(SW_DIAG_KEY, new Response(JSON.stringify(next), { headers: { 'Content-Type': 'application/json' } }));
-  }).catch(() => {});
-  return swDiagChain;
+  const data = { type: 'SW_DIAG', t: Date.now(), step, ...(detail === undefined ? {} : { detail: String(detail).slice(0, 160) }) };
+  return self.clients.matchAll({ type: 'window', includeUncontrolled: true })
+    .then((clientList) => clientList.forEach((client) => client.postMessage(data)))
+    .catch(() => {});
 }
 self.addEventListener('error', (event) => { swDiag('error', event.message || event.error); });
 self.addEventListener('unhandledrejection', (event) => { swDiag('rejection', event.reason?.message || event.reason); });
+
+// Resolve to `fallback` if `promise` has not settled within `ms`.
+function within(promise, ms, fallback) {
+  return Promise.race([promise, new Promise((resolve) => setTimeout(() => resolve(fallback), ms))]);
+}
 
 async function configuredAppName() {
   try {
@@ -165,59 +164,60 @@ async function cacheCoherentShell(cache, response) {
 
 // ─── Install: precache shell + skip waiting ─────────────────────────────────
 
-// One failed precache fetch must not discard the worker: with cache.addAll
-// a single bad response rejected install, the worker never activated, and
-// push (which needs an ACTIVE worker) was impossible on that device. Each
-// asset is cached on its own; if any fails, the shell entries are dropped so
-// the navigation handler never serves HTML whose chunks are missing (it
-// falls back to plain network when no shell is cached).
-const PRECACHE_BUDGET_MS = 20000;
-
+// Install does no storage work at all. On an iPhone the worker went
+// redundant during install without completing a single Cache Storage call,
+// so nothing that can hang or fail is allowed to decide whether the worker
+// activates; push needs an ACTIVE worker. Precaching runs after activation,
+// best-effort (see precacheShell).
 self.addEventListener('install', (event) => {
-  const started = Date.now();
-  event.waitUntil(
-    swDiag('install-start', BUILD_STAMP).then(() => caches.open(CACHE_NAME)).then(async (cache) => {
-      // A stalled request would hang install just as surely as a failed one
-      // breaks it, so the whole precache is bounded and a timeout counts as failure.
-      const results = await Promise.race([
-        Promise.allSettled(ASSETS_TO_CACHE.map((asset) => cache.add(asset))),
-        new Promise((resolve) => setTimeout(() => resolve(null), PRECACHE_BUDGET_MS)),
-      ]);
-      const failed = results ? ASSETS_TO_CACHE.filter((_, i) => results[i].status === 'rejected') : ['(timed out)'];
-      await swDiag('precache', `${Date.now() - started}ms failed=${failed.join('|') || 'none'}`);
-      if (failed.length) {
-        console.warn('[Service Worker] Precache incomplete, shell not cached:', failed);
-        await Promise.all(['/', '/index.html'].map((key) => cache.delete(key)));
-      }
-    }).catch((err) => {
-      console.warn('[Service Worker] Precache failed:', err);
-      return swDiag('precache-error', err?.message || err);
-    })
-      .then(() => self.skipWaiting())
-      .then(() => swDiag('install-done', `${Date.now() - started}ms`))
-  );
+  swDiag('install', BUILD_STAMP);
+  event.waitUntil(self.skipWaiting());
 });
+
+// Each asset is cached on its own within a budget. If any fails or the budget
+// runs out, the shell entries are dropped so the navigation handler never
+// serves HTML whose chunks are missing (with no shell it uses plain network).
+const PRECACHE_BUDGET_MS = 20000;
+async function precacheShell() {
+  const started = Date.now();
+  try {
+    const cache = await caches.open(CACHE_NAME);
+    const results = await within(
+      Promise.allSettled(ASSETS_TO_CACHE.map((asset) => cache.add(asset))),
+      PRECACHE_BUDGET_MS,
+      null,
+    );
+    const failed = results ? ASSETS_TO_CACHE.filter((_, i) => results[i].status === 'rejected') : ['(timed out)'];
+    if (failed.length) {
+      console.warn('[Service Worker] Precache incomplete, shell not cached:', failed);
+      await Promise.all(['/', '/index.html'].map((key) => cache.delete(key)));
+    }
+    swDiag('precache', `${Date.now() - started}ms failed=${failed.join('|') || 'none'}`);
+  } catch (err) {
+    swDiag('precache-error', err?.message || err);
+  }
+}
 
 // ─── Activate: purge stale caches, claim clients ────────────────────────────
 
 // Whitelist, not prefix match: anything that isn't THIS build's exact two
 // cache names is deleted, which covers every previous stamped build (and any
 // older naming scheme) on the first activate after a version bump.
-const CACHE_WHITELIST = [CACHE_NAME, ASSETS_CACHE_NAME, IMAGES_CACHE_NAME, APP_CONFIG_CACHE, SW_DIAG_CACHE];
+const CACHE_WHITELIST = [CACHE_NAME, ASSETS_CACHE_NAME, IMAGES_CACHE_NAME, APP_CONFIG_CACHE];
 
+// Activation waits only on clients.claim(). The purge and the precache run
+// after it without holding activation open, because fetch events queue
+// behind an unfinished activate and a hung storage call would stall every
+// page load.
 self.addEventListener('activate', (event) => {
   swDiag('activate', BUILD_STAMP);
-  event.waitUntil(
-    caches.keys().then((keys) => {
-      return Promise.all(
-        keys.map((key) => {
-          if (!CACHE_WHITELIST.includes(key)) {
-            return caches.delete(key);
-          }
-        })
-      );
-    }).then(() => self.clients.claim())
-  );
+  event.waitUntil(self.clients.claim().then(() => {
+    swDiag('claimed');
+    caches.keys()
+      .then((keys) => Promise.all(keys.filter((key) => !CACHE_WHITELIST.includes(key)).map((key) => caches.delete(key))))
+      .catch(() => {})
+      .then(precacheShell);
+  }));
 });
 
 // ─── Fetch strategies ───────────────────────────────────────────────────────
@@ -268,36 +268,39 @@ self.addEventListener('fetch', (event) => {
 
   // ── Navigation requests: bounded network-first, fallback to this build's shell ─
 
+  // Cache Storage that never answers must not hang page loads: past this
+  // bound the request goes straight to the network.
+  const CACHE_STALL_MS = 3000;
+
   if (request.mode === 'navigate') {
-    event.respondWith(
-      caches.open(CACHE_NAME).then(async (cache) => {
-        const shell = await cache.match('/index.html');
-        const network = fetch(request).then((response) => {
-          // The navigation itself may use fresh HTML immediately. A late
-          // response only replaces the fallback shell after the referenced
-          // hashed assets prove it belongs to this installed generation.
-          if (response.ok && !/^\/admin(\/|$)/.test(url.pathname)) {
-            event.waitUntil(cacheCoherentShell(cache, response.clone()).catch(() => {}));
-          }
-          return response;
-        });
+    event.respondWith((async () => {
+      const shell = await within(
+        caches.open(CACHE_NAME).then((cache) => cache.match('/index.html')).catch(() => undefined),
+        CACHE_STALL_MS,
+        undefined,
+      );
+      const network = fetch(request).then((response) => {
+        // The navigation itself may use fresh HTML immediately. A late
+        // response only replaces the fallback shell after the referenced
+        // hashed assets prove it belongs to this installed generation.
+        if (response.ok && !/^\/admin(\/|$)/.test(url.pathname)) {
+          event.waitUntil(caches.open(CACHE_NAME).then((cache) => cacheCoherentShell(cache, response.clone())).catch(() => {}));
+        }
+        return response;
+      });
 
-        // Keep a late successful request alive to refresh the same-generation
-        // shell after the cached fallback has already painted.
-        event.waitUntil(network.catch(() => {}));
+      // Keep a late successful request alive to refresh the same-generation
+      // shell after the cached fallback has already painted.
+      event.waitUntil(network.catch(() => {}));
 
-        // A genuinely cold cache still uses ordinary network semantics: do
-        // not manufacture a shell or turn a useful server error into a blank
-        // page. The budget applies only when an atomic installed shell exists.
-        if (!shell) return network;
+      // A genuinely cold cache still uses ordinary network semantics: do
+      // not manufacture a shell or turn a useful server error into a blank
+      // page. The budget applies only when an atomic installed shell exists.
+      if (!shell) return network.catch(() => undefined);
 
-        const withinBudget = await Promise.race([
-          network,
-          new Promise((resolve) => setTimeout(() => resolve(null), NAVIGATION_NETWORK_BUDGET_MS)),
-        ]);
-        return withinBudget || shell;
-      }).catch(() => caches.open(CACHE_NAME).then((cache) => cache.match('/index.html')))
-    );
+      const withinBudget = await within(network.catch(() => null), NAVIGATION_NETWORK_BUDGET_MS, null);
+      return withinBudget || shell;
+    })());
     return;
   }
 
@@ -322,7 +325,7 @@ self.addEventListener('fetch', (event) => {
 
   if (isImmutableAsset) {
     event.respondWith(
-      caches.match(request).then((cached) => {
+      within(caches.match(request), CACHE_STALL_MS, undefined).then((cached) => {
         if (cached) return cached;
         return fetch(request).then((response) => {
           const clone = response.clone();

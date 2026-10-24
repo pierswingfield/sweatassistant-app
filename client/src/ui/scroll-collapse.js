@@ -27,3 +27,18 @@ export function nextCollapseState(s, t = COLLAPSE_TUNING) {
   if (Math.abs(delta) < t.deadZone) return { collapsed, anchor };    // dead zone
   return { collapsed: delta > 0, anchor: top };
 }
+
+// Viewports that get the scroll-collapse. Portrait phones are `(max-width: 768px)`; a phone turned
+// sideways (844-932 x 390-430) is wider than that, so it is matched by HEIGHT instead. Landscape phones keep the
+// desktop-width layout, so there the top tab bar stays (it is their navigation): only the timetable block compacts.
+// The CSS media list in styles.css must stay identical to SHORT_LANDSCAPE_QUERY (scroll-collapse.test.js checks it).
+export const MOBILE_QUERY = '(max-width: 768px)';
+export const SHORT_LANDSCAPE_QUERY = '(min-width: 769px) and (max-height: 500px) and (orientation: landscape)';
+
+/** @param {{mobile:boolean, shortLandscape:boolean}} m  matchMedia results
+ *  @returns {{enabled:boolean, hideHeader:boolean}} */
+export function collapseMode({ mobile, shortLandscape }) {
+  if (mobile) return { enabled: true, hideHeader: true };
+  if (shortLandscape) return { enabled: true, hideHeader: false };
+  return { enabled: false, hideHeader: false };
+}

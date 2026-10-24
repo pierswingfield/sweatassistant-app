@@ -42,6 +42,11 @@
 
 /* ---- Theme-independent tokens ---- */
 :root {
+  /* Horizontal safe-area insets (the notch / home-indicator side in landscape; 0 in portrait and on desktop).
+     Every left/right inset in this file reads these tokens, so a test can simulate a notch by setting
+     --sa-l / --sa-r on <html>. Backgrounds may bleed edge to edge; only content and controls are inset. */
+  --sa-l: env(safe-area-inset-left, 0px);
+  --sa-r: env(safe-area-inset-right, 0px);
   /* Families. Fraunces = page titles, section headings, hero figures ONLY (see TYPE ROLES below).
      'Inter Fallback' is a metric-matched local face so the swap from system sans to Inter does not shift layout. */
   --font-serif: 'Fraunces', 'Source Serif 4', Georgia, 'Times New Roman', serif;
@@ -1792,7 +1797,7 @@ html, body, * {
   #app-helper-container #app-panel-home .home-widget + .home-widget { margin-top: 32px !important; }
 
   #app-helper-container #app-panel-home .home-favourites-strip {
-    --home-rail-bleed: max(8px, env(safe-area-inset-left), env(safe-area-inset-right));
+    --home-rail-bleed: max(8px, var(--sa-l), var(--sa-r));
     width: calc(100% + (2 * var(--home-rail-bleed)));
     margin-inline: calc(-1 * var(--home-rail-bleed));
     padding-inline: var(--home-rail-bleed);
@@ -3895,7 +3900,7 @@ html, body, * {
   overflow-y: auto;
   -webkit-overflow-scrolling: touch;
   overscroll-behavior: contain;
-  padding: env(safe-area-inset-top, 0px) env(safe-area-inset-right, 0px) env(safe-area-inset-bottom, 0px) env(safe-area-inset-left, 0px);
+  padding: env(safe-area-inset-top, 0px) var(--sa-r) env(safe-area-inset-bottom, 0px) var(--sa-l);
 }
 
 /* The one Back button: first child of every onboarding screen, same spot and style everywhere. */
@@ -4602,7 +4607,7 @@ html, body, * {
   /* Cancel the body's 8px side gutters and its 12px top gap (header space stays reserved above). */
 
   #app-helper-container #app-panel-settings {
-    margin: -12px calc(-1 * max(8px, env(safe-area-inset-left))) 0 calc(-1 * max(8px, env(safe-area-inset-right)));
+    margin: -12px calc(-1 * max(8px, var(--sa-l))) 0 calc(-1 * max(8px, var(--sa-r)));
     overflow: visible;
     flex: 1 0 auto;
   }
@@ -7014,8 +7019,8 @@ html, body, * {
      this, avoiding any double-padding. */
   #app-helper-container .app-body,
   #app-helper-container .app-main {
-    padding-left: max(8px, env(safe-area-inset-left)) !important;
-    padding-right: max(8px, env(safe-area-inset-right)) !important;
+    padding-left: max(8px, var(--sa-l)) !important;
+    padding-right: max(8px, var(--sa-r)) !important;
     padding-top: 12px !important;
     padding-bottom: var(--nav-clear) !important;
     gap: 12px;
@@ -7805,6 +7810,12 @@ html, body, * {
   flex-direction: column;
   padding: 24px 0;
   gap: 16px;
+  /* The sidebar is the scroller when the menu is taller than the viewport (landscape phones fall in
+     the 769-900px two-pane/list range, where .app-body is not the sole scroller). */
+  min-height: 0;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  -webkit-overflow-scrolling: touch;
 }
 
 #app-helper-container .app-settings-sidebar-header {
@@ -7823,6 +7834,7 @@ html, body, * {
   flex-direction: column;
   gap: 6px;
   padding: 0 12px;
+  flex-shrink: 0; /* never squash the list into its own overflow:hidden box; the sidebar scrolls */
 }
 
 #app-helper-container .app-settings-menu-item {
@@ -8151,7 +8163,7 @@ html, body, * {
 
   #app-helper-container #app-timetable-filters-container .app-filters-row { display: none !important; }
 
-  .fr-rail { display: flex !important; align-items: center; gap: 6px; height: 40px; max-height: 40px; overflow-x: auto; overflow-y: hidden; overscroll-behavior-x: contain; touch-action: pan-x pan-y; -webkit-overflow-scrolling: touch; scrollbar-width: none; box-sizing: border-box; width: 100%; padding-left: max(8px, env(safe-area-inset-left)); padding-right: max(8px, env(safe-area-inset-right)); }
+  .fr-rail { display: flex !important; align-items: center; gap: 6px; height: 40px; max-height: 40px; overflow-x: auto; overflow-y: hidden; overscroll-behavior-x: contain; touch-action: pan-x pan-y; -webkit-overflow-scrolling: touch; scrollbar-width: none; box-sizing: border-box; width: 100%; padding-left: max(8px, var(--sa-l)); padding-right: max(8px, var(--sa-r)); }
 
   /* Bar -> date selector gap */
 
@@ -8204,13 +8216,13 @@ html, body, * {
   #app-helper-container .app-settings-section-pane { gap: 12px; }
 
   #app-helper-container .app-settings-mobile-header {
-    padding-left: max(16px, env(safe-area-inset-left)); padding-right: max(16px, env(safe-area-inset-right));
+    padding-left: max(16px, var(--sa-l)); padding-right: max(16px, var(--sa-r));
   }
 
   .app-modal.app-page .app-modal-header {
     flex-shrink: 0;
     min-height: 52px;
-    padding: calc(env(safe-area-inset-top, 0px) + 8px) calc(8px + env(safe-area-inset-right, 0px)) 8px calc(8px + env(safe-area-inset-left, 0px)) !important;
+    padding: calc(env(safe-area-inset-top, 0px) + 8px) calc(8px + var(--sa-r)) 8px calc(8px + var(--sa-l)) !important;
     gap: 4px;
     background: var(--bg) !important;
   }
@@ -8601,7 +8613,7 @@ html, body, * {
 
   .app-ovl.app-page .app-ovl-header {
     min-height: 52px; gap: 4px;
-    padding: calc(env(safe-area-inset-top, 0px) + 8px) calc(8px + env(safe-area-inset-right, 0px)) 8px calc(16px + env(safe-area-inset-left, 0px)) !important;
+    padding: calc(env(safe-area-inset-top, 0px) + 8px) calc(8px + var(--sa-r)) 8px calc(16px + var(--sa-l)) !important;
   }
 
   .app-ovl.app-page .app-ovl-body {
@@ -8649,7 +8661,7 @@ html, body, * {
   /* CSSv2 4b: settings cards are the shared inset card (DESIGN.md 6.1), not edge-to-edge strips. */
 
   #app-helper-container .app-settings-card {
-    margin-left: max(var(--space-2), env(safe-area-inset-left)); margin-right: max(var(--space-2), env(safe-area-inset-right));
+    margin-left: max(var(--space-2), var(--sa-l)); margin-right: max(var(--space-2), var(--sa-r));
     background: var(--surface); box-shadow: var(--shadow-card);
     border-radius: var(--radius-card);
     padding-left: var(--space-4) !important; padding-right: var(--space-4) !important;
@@ -9612,7 +9624,7 @@ body.app-scroll-locked { overflow: hidden; overscroll-behavior: none; }
 
 /*  Mobile overrides (max-width: 768px): Modals, overlays and the spot map  */
 @media (max-width: 768px) {
-  .app-search { display: none; flex: none; width: 100%; min-width: 0; box-sizing: border-box; padding-left: max(8px, env(safe-area-inset-left)); padding-right: max(8px, env(safe-area-inset-right)); }
+  .app-search { display: none; flex: none; width: 100%; min-width: 0; box-sizing: border-box; padding-left: max(8px, var(--sa-l)); padding-right: max(8px, var(--sa-r)); }
   .app-search.open { display: flex; align-items: center; gap: 4px; }
   .app-search.open .app-search-box { flex: 1 1 auto; min-width: 0; }
   .app-search-cancel { display: inline-flex; align-items: center; justify-content: center; flex: 0 0 auto; min-width: 44px; min-height: 44px; padding: 0 8px; background: none; border: 0; color: var(--accent); font: inherit; font-size: 16px; font-weight: 600; cursor: pointer; border-radius: 10px; }
@@ -11051,7 +11063,7 @@ html:not([data-credits-tab="on"]) .app-nav-btn[data-tab="buy-credits"] { display
 
 /* Gym section heading: same 16px gutter as the cards below it. */
 @media (max-width: 768px) {
-  #app-helper-container .app-gym-settings-heading { margin: var(--space-1) max(var(--space-2), env(safe-area-inset-right)) var(--space-3) max(var(--space-2), env(safe-area-inset-left)); }
+  #app-helper-container .app-gym-settings-heading { margin: var(--space-1) max(var(--space-2), var(--sa-r)) var(--space-3) max(var(--space-2), var(--sa-l)); }
 }
 
 /* 4b.2 Card recipe on list rows and content cards (DESIGN.md 6.1): surface, hairline, tokenised shadow. */
@@ -11062,7 +11074,7 @@ html:not([data-credits-tab="on"]) .app-nav-btn[data-tab="buy-credits"] { display
 /* 4b.3 Settings menu on mobile: one grouped card of 52px rows instead of full-bleed strips. */
 @media (max-width: 900px) {
   #app-helper-container .app-settings-menu {
-    margin: 0 max(var(--space-2), env(safe-area-inset-left)); padding: 0; gap: 0; overflow: hidden;
+    margin: 0 max(var(--space-2), var(--sa-l)); padding: 0; gap: 0; overflow: hidden;
     background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius-card); box-shadow: var(--shadow-card);
   }
   #app-helper-container .app-settings-menu-item { min-height: 52px; padding: 14px var(--space-4); }
@@ -11272,7 +11284,7 @@ html:not([data-credits-tab="on"]) .app-nav-btn[data-tab="buy-credits"] { display
   --onb-glass-fill: linear-gradient(180deg, color-mix(in srgb, var(--lg-spec) 22%, transparent), transparent 55%), var(--lg-fill);
   --onb-glass-shadow: inset 0 1px 0 var(--lg-spec), inset 0 -1px 0 color-mix(in srgb, var(--lg-spec) 25%, transparent), 0 8px 24px color-mix(in srgb, var(--tone-ink) 12%, transparent);
   height: 100vh; height: 100dvh;
-  padding: 0 env(safe-area-inset-right, 0px) 0 env(safe-area-inset-left, 0px);
+  padding: 0 var(--sa-r) 0 var(--sa-l);
   isolation: isolate;
   background: var(--bg);
 }
@@ -11464,7 +11476,7 @@ html:not([data-credits-tab="on"]) .app-nav-btn[data-tab="buy-credits"] { display
   --onb-glass-fill: linear-gradient(180deg, color-mix(in srgb, var(--lg-spec) 22%, transparent), transparent 55%), var(--lg-fill);
   --onb-glass-shadow: inset 0 1px 0 var(--lg-spec), inset 0 -1px 0 color-mix(in srgb, var(--lg-spec) 25%, transparent), 0 8px 24px color-mix(in srgb, var(--tone-ink) 12%, transparent);
   isolation: isolate;
-  padding: 0 env(safe-area-inset-right, 0px) 0 env(safe-area-inset-left, 0px);
+  padding: 0 var(--sa-r) 0 var(--sa-l);
 }
 .app-login-container::before {
   content: ''; position: fixed; inset: 0; z-index: -1; pointer-events: none;
@@ -11556,7 +11568,7 @@ html:not([data-credits-tab="on"]) .app-nav-btn[data-tab="buy-credits"] { display
      decelerate ease as the header; nothing re-lays-out the list (main's padding-top no longer snaps).
    - Material = the shared --bar-* tokens (identical to the docked bottom nav), with opaque and reduced-transparency fallbacks.
    ========================================================================== */
-@media (max-width: 768px) {
+@media (max-width: 768px), (min-width: 769px) and (max-height: 500px) and (orientation: landscape) {
   #app-helper-container main.app-body.app-timetable-active { padding-bottom: 0 !important; }
   /* The block is taken out of flow so its compact/expanded height never moves the list; the panel stops
      clipping so the block can slide up over the header's strip (main still clips at the viewport). */
@@ -11640,3 +11652,88 @@ html:not([data-credits-tab="on"]) .app-nav-btn[data-tab="buy-credits"] { display
   :root:not([data-theme="light"]) #app-helper-container .app-settings-menu { box-shadow: 0 6px 10px -4px rgba(0, 0, 0, 0.45), 0 1px 3px rgba(0, 0, 0, 0.30); }
 }
 :root[data-theme="dark"] #app-helper-container .app-settings-menu { box-shadow: 0 6px 10px -4px rgba(0, 0, 0, 0.45), 0 1px 3px rgba(0, 0, 0, 0.30); }
+
+/* ==========================================================================
+   Landscape phones (short viewport, width > 768): the timetable glass block above applies (media list
+   shared with main.js SHORT_LANDSCAPE_QUERY). Here the top tab bar is the navigation, so it never hides;
+   the title row is redundant (as on mobile), and the two desktop filter bars compress on the SAME
+   --tt-collapse-t timeline as the day strip. --tt-filters-h is measured in main.js.
+   ========================================================================== */
+@media (min-width: 769px) and (max-height: 500px) and (orientation: landscape) {
+  #app-helper-container .app-sticky-top { --tt-collapse-d: 16px; --tt-collapse-t: var(--dur-slow-header) var(--ease-header); }
+  #app-helper-container #app-panel-class-timetable .app-tab-header { display: none !important; }
+  /* The list is the sole scroller (as on mobile), so the out-of-flow glass block never changes what scrolls. */
+  #app-helper-container main.app-body.app-timetable-active {
+    padding-left: 0 !important; padding-right: 0 !important; overflow-y: hidden !important; overscroll-behavior-y: none;
+  }
+  #app-helper-container .app-body.app-timetable-active #app-panel-class-timetable { flex: 1 1 0%; min-height: 0; }
+  #app-helper-container .app-body.app-timetable-active #app-panel-class-timetable > #app-timetable-grid {
+    flex: 1 1 0%; min-height: 0; overflow-x: hidden !important; overflow-y: auto !important;
+    overscroll-behavior-y: contain !important; -webkit-overflow-scrolling: touch; touch-action: pan-y;
+    margin-left: 0 !important; margin-right: 0 !important; position: relative;
+  }
+  #app-helper-container .app-body.app-timetable-active #app-timetable-grid .app-table-container { overflow: visible !important; }
+  #app-helper-container .app-body.app-timetable-active #app-timetable-filters-container {
+    max-height: var(--tt-filters-h, 160px); overflow: hidden;
+    transition: max-height var(--tt-collapse-t);
+  }
+  /* Compact: only the first bar (search + dropdowns) stays; the wrapped second bar is clipped. */
+  #app-container.app-tt-compact .app-body.app-timetable-active #app-timetable-filters-container {
+    max-height: 52px;
+  }
+}
+
+/* ==========================================================================
+   Landscape safe area (notch / home-indicator side). viewport-fit=cover lets the page paint under the notch;
+   --sa-l / --sa-r (root tokens) are 0 everywhere except a notched phone turned sideways, so every rule below is
+   max(existing gutter, inset): portrait and desktop are unchanged. Backgrounds still bleed edge to edge.
+   ========================================================================== */
+#app-helper-container .app-header, #app-helper-container .app-nav-bar {
+  padding-left: max(36px, var(--sa-l)); padding-right: max(36px, var(--sa-r));
+}
+#app-helper-container .app-body { padding-left: max(36px, var(--sa-l)); padding-right: max(36px, var(--sa-r)); }
+#app-helper-container .app-offline-banner { padding-left: max(16px, var(--sa-l)); padding-right: max(16px, var(--sa-r)); }
+:is(#app-helper-container, body) .ui-version-stamp { right: max(12px, var(--sa-r)); }
+#app-helper-container .app-toast { padding-left: max(20px, var(--sa-l)); padding-right: max(20px, var(--sa-r)); }
+@media (max-width: 900px) {
+  #app-helper-container .app-tab-header,
+  #app-helper-container .app-filters-card,
+  #app-helper-container .app-timetable-list,
+  #app-helper-container .app-countdown-banner {
+    padding-left: max(16px, var(--sa-l)); padding-right: max(16px, var(--sa-r));
+  }
+}
+@media (max-width: 768px) {
+  #app-helper-container .app-header { padding-left: max(12px, var(--sa-l)); padding-right: max(12px, var(--sa-r)); }
+  /* Docked bottom nav: inset its buttons; the bar itself still spans the screen. */
+  #app-helper-container .app-bottom-nav { padding-left: max(4px, var(--sa-l)); padding-right: max(4px, var(--sa-r)); }
+  /* Floating glass pill: keep its 12px gap from the edge, clear of the notch. */
+  html.nav-glass #app-helper-container .app-bottom-nav {
+    left: max(12px, var(--sa-l)); right: max(12px, var(--sa-r)); padding-left: 4px; padding-right: 4px;
+  }
+}
+/* The out-of-flow timetable glass block spans the screen (its material bleeds); its controls sit inside the insets. */
+@media (max-width: 768px), (min-width: 769px) and (max-height: 500px) and (orientation: landscape) {
+  #app-helper-container .app-body.app-timetable-active #app-panel-class-timetable > .app-sticky-top {
+    padding-left: var(--sa-l); padding-right: var(--sa-r); box-sizing: border-box;
+  }
+}
+@media (max-width: 768px) {
+  #app-helper-container .app-body.app-timetable-active #app-panel-class-timetable > #app-timetable-grid {
+    padding-left: var(--sa-l) !important; padding-right: var(--sa-r) !important; box-sizing: border-box;
+  }
+}
+#app-helper-container .app-settings-sidebar-header { padding-left: max(24px, var(--sa-l)); padding-right: max(24px, var(--sa-r)); }
+@media (max-width: 768px) {
+  /* Settings panes sit in a container that bleeds past the body gutter, so their title row insets itself. */
+  #app-helper-container .app-settings-section-pane > .app-tab-header {
+    padding-left: max(8px, var(--sa-l)) !important; padding-right: max(8px, var(--sa-r)) !important;
+  }
+}
+@media (max-width: 768px) {
+  /* Full-screen modal pages (modal-nav): headers already add the insets; body and footer follow. */
+  .app-modal.app-page .app-modal-body, .app-modal.app-page .app-purchase-body,
+  .app-ovl.app-page .app-ovl-body, .app-page .app-modal-footer {
+    padding-left: max(16px, var(--sa-l)) !important; padding-right: max(16px, var(--sa-r)) !important;
+  }
+}

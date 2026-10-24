@@ -5,7 +5,7 @@ import { setLinkedGyms, setGymCatalogue, getLinkedGyms, getGymShortName, getDefa
 import { initTooltips } from './ui/tooltips';
 import { setupPullToRefresh, cancelPullToRefresh } from './ui/pulltorefresh';
 import { markScrollBusy, isScrollBusy } from './ui/scroll-state.js';
-import { nextCollapseState } from './ui/scroll-collapse.js';
+import { nextCollapseState, collapseMode, MOBILE_QUERY, SHORT_LANDSCAPE_QUERY } from './ui/scroll-collapse.js';
 import { initGymLogoLoader } from './ui/gym-logo-loader.js';
 import { initNavLens } from './nav-lens.js';
 import { setCacheKeyPrefix, clearApiCache, invalidateApiCache } from './cache.js';
@@ -1881,7 +1881,9 @@ initRouter((route) => {
  * nothing on pages too short to scroll or inside the top/bottom bounce zones.
  */
 function initHeaderAutoHide() {
-  const mq = window.matchMedia('(max-width: 768px)');
+  const mqMobile = window.matchMedia(MOBILE_QUERY);
+  const mqShort = window.matchMedia(SHORT_LANDSCAPE_QUERY);
+  const mode = () => collapseMode({ mobile: mqMobile.matches, shortLandscape: mqShort.matches });
   const COOLDOWN_MS = 300;   // ignore samples right after a toggle (transition + momentum)
   let app = null, header = null, ticking = false, target = null;
   let anchor = 0, hidden = false, movingTimer = 0, sticky = null;
@@ -1897,22 +1899,25 @@ function initHeaderAutoHide() {
     // expanded height as padding (styles.css). Only sample the expanded face, never the compact one.
     if (app) {
       sticky = sticky || document.querySelector('.app-sticky-top');
-      if (sticky && sticky.offsetHeight && !hidden && !app.classList.contains('app-tt-compact')) {
+      if (sticky && sticky.offsetHeight && !hidden && !app.classList.contains('app-tt-compact') && !app.classList.contains('app-tt-moving')) {
         app.style.setProperty('--tt-sticky-h', sticky.offsetHeight + 'px');
+        // Landscape: the filter bars compress on this same timeline, so their expanded height is a transition endpoint.
+        const fc = document.getElementById('app-timetable-filters-container');
+        if (fc && fc.scrollHeight) app.style.setProperty('--tt-filters-h', (fc.scrollHeight + 2) + 'px'); // natural height (+ border), not the clamped one
       }
     }
   };
   const setHidden = (hide) => {
     if (!els() || hide === hidden) return;
     hidden = hide;
-    app.classList.toggle('app-hdr-hidden', hide);
+    app.classList.toggle('app-hdr-hidden', hide && mode().hideHeader); // landscape keeps its top tab bar
     app.classList.toggle('app-tt-compact', hide); // date strip, chips and gym stack shrink on one timeline (styles.css); filter-rail.js reads it too
     // will-change: transform only for the duration of the slide (styles.css .app-tt-moving).
     app.classList.add('app-tt-moving');
     clearTimeout(movingTimer);
-    movingTimer = setTimeout(() => app.classList.remove('app-tt-moving'), 620);
+    movingTimer = setTimeout(() => { app.classList.remove('app-tt-moving'); measure(); }, 620); // measure once settled: mid-transition heights are not the expanded ones
     // Safe-area cap + theme-color follow the header: header colour while it shows, page colour once it is gone.
-    document.documentElement.toggleAttribute('data-hdr-hidden', hide);
+    document.documentElement.toggleAttribute('data-hdr-hidden', hide && mode().hideHeader);
     syncThemeColorMeta();
     markScrollBusy(COOLDOWN_MS);
   };
@@ -1926,7 +1931,7 @@ function initHeaderAutoHide() {
   const update = () => {
     ticking = false;
     if (!target) return;
-    if (!mq.matches) { setHidden(false); return; }
+    if (!mode().enabled) { setHidden(false); return; }
     const sc = target;
     const max = sc.scrollHeight - sc.clientHeight;
     // Pure hysteresis (scroll-collapse.js): header hide and the timetable's compact bar share this one state.
@@ -1946,7 +1951,8 @@ function initHeaderAutoHide() {
     if (!ticking) { ticking = true; requestAnimationFrame(update); }
   }, { passive: true, capture: true });
 
-  mq.addEventListener?.('change', () => { setHidden(false); measure(); });
+  // Resize / rotation across either breakpoint: reset to expanded and re-measure.
+  for (const m of [mqMobile, mqShort]) m.addEventListener?.('change', () => { setHidden(false); measure(); });
   document.addEventListener('click', (e) => {
     if (e.target.closest?.('.app-bottom-nav-btn, .app-nav-btn')) { setHidden(false); anchor = 0; }
   }, true);

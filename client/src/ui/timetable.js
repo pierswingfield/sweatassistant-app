@@ -917,9 +917,11 @@ const PROGRESSIVE_GRACE_MS = 0;
 // first row in view (by event id) rather than a raw scrollTop that shifts.
 function renderPreservingScroll(reason) {
   const grid = document.getElementById('app-timetable-grid');
-  const scroller = window.matchMedia?.('(max-width: 768px)').matches
-    ? grid
-    : document.querySelector('main.app-body') || grid;
+  // The list is the scroller on mobile AND on landscape phones (styles.css makes it overflow:auto there);
+  // on desktop the page body scrolls. Ask the layout, not the width.
+  const bodyEl = document.querySelector('main.app-body');
+  const bodyClips = !!bodyEl && getComputedStyle(bodyEl).overflowY === 'hidden';
+  const scroller = bodyClips ? grid : bodyEl || grid;
   const anchor = captureScrollAnchor(scroller, grid);
   // Restoring the anchor is a programmatic scroll: the collapse hysteresis must re-baseline, not toggle.
   markScrollBusy(400);

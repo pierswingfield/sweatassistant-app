@@ -31,3 +31,26 @@ describe('nextCollapseState', () => {
     expect(nextCollapseState({ ...base, modalOpen: true, collapsed: true, top: 300 }).collapsed).toBe(false);
   });
 });
+
+import fs from 'node:fs';
+import { collapseMode, MOBILE_QUERY, SHORT_LANDSCAPE_QUERY } from './scroll-collapse.js';
+
+describe('collapseMode (landscape phones)', () => {
+  it('portrait/mobile hides the header and compacts', () => {
+    expect(collapseMode({ mobile: true, shortLandscape: false })).toEqual({ enabled: true, hideHeader: true });
+  });
+  it('short landscape compacts but keeps the top tab bar', () => {
+    expect(collapseMode({ mobile: false, shortLandscape: true })).toEqual({ enabled: true, hideHeader: false });
+  });
+  it('desktop height does nothing', () => {
+    expect(collapseMode({ mobile: false, shortLandscape: false })).toEqual({ enabled: false, hideHeader: false });
+  });
+  it('mobile wins when both match (small landscape phone)', () => {
+    expect(collapseMode({ mobile: true, shortLandscape: true }).hideHeader).toBe(true);
+  });
+  it('styles.css uses the same media list as the JS constants', () => {
+    const css = fs.readFileSync('src/styles.css', 'utf8');
+    expect(css).toContain(`@media ${MOBILE_QUERY}, ${SHORT_LANDSCAPE_QUERY}`);
+    expect(css).toContain(`@media ${SHORT_LANDSCAPE_QUERY} {`);
+  });
+});

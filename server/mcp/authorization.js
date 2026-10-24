@@ -16,6 +16,21 @@ const fingerprint = id => hash(db.db.prepare('SELECT password_hash FROM users WH
 const fail = () => new OAuth.InvalidGrantError('Authorization is no longer valid');
 const escape = value => String(value).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 const scopeLabels = { 'schedule:read': 'Read class timetables and class details', 'account:read': 'Read your bookings and credits', 'automation:read': 'Read your existing automations' };
+const AUTHORIZATION_PARAMETERS = Object.freeze(['client_id', 'redirect_uri', 'response_type', 'scope', 'state', 'resource', 'code_challenge', 'code_challenge_method']);
+function boundedAuthorizationQuery(req) {
+  const originalUrl = typeof req.originalUrl === 'string' ? req.originalUrl : req.url;
+  const queryAt = originalUrl.indexOf('?');
+  const raw = queryAt < 0 ? '' : originalUrl.slice(queryAt + 1);
+  if (Buffer.byteLength(raw, 'utf8') > 8192) return null;
+  const params = new URLSearchParams(raw);
+  if (params.size > 16) return null;
+  const query = Object.create(null);
+  for (const [key, value] of params) {
+    if (!key || Object.hasOwn(query, key) || Buffer.byteLength(key, 'utf8') > 128 || Buffer.byteLength(value, 'utf8') > 2048) return null;
+    query[key] = value;
+  }
+  return query;
+}
 const COOKIE = '__Host-sa-mcp';
 
 function loadAuthorizationConfiguration(config, env = process.env) {
@@ -201,13 +216,16 @@ function mountAuthorization(app, resourceConfig, options = {}) {
     res.sendFile(css ? path.join(assets, css) : path.join(__dirname, '../../client/src/styles.css'));
   });
   router.get('/oauth/authorize', (req, res) => {
-    const q = req.query;
+    // OAuth clients may include extension parameters such as ui_locales. Ignore
+    // unknowns per RFC 6749, reject duplicates, and persist only supported fields.
+    const q = boundedAuthorizationQuery(req);
+    if (!q) return page(res, 'Connection request rejected', '<p>The client request is invalid. Return to the AI client and try again.</p>', 400);
     const client = config.clients.find(c => c.id === q.client_id);
-    if (Object.keys(q).some(k => !['client_id', 'redirect_uri', 'response_type', 'scope', 'state', 'resource', 'code_challenge', 'code_challenge_method'].includes(k)) ||
-      Object.values(q).some(v => typeof v !== 'string' || v.length > 2048) || !client || !model.getClient(client.id, null) || !client.redirectUris.includes(q.redirect_uri) ||
+    if (!client || !model.getClient(client.id, null) || !client.redirectUris.includes(q.redirect_uri) ||
       q.response_type !== 'code' || q.resource !== config.resource || !q.state || !/^[\x21-\x7e]{16,512}$/.test(q.state) || q.code_challenge_method !== 'S256' || !/^[A-Za-z0-9_-]{43}$/.test(q.code_challenge || '') ||
       typeof q.scope !== 'string' || !q.scope.length || q.scope.split(' ').some(s => !SCOPES.includes(s)) || new Set(q.scope.split(' ')).size !== q.scope.split(' ').length) return page(res, 'Connection request rejected', '<p>The client request is invalid. Return to the AI client and try again.</p>', 400);
-    return begin(res, { ...q, type: 'authorize' });
+    const request = Object.fromEntries(AUTHORIZATION_PARAMETERS.filter(key => Object.hasOwn(q, key)).map(key => [key, q[key]]));
+    return begin(res, { ...request, type: 'authorize' });
   });
   router.get('/oauth/connections', (_req, res) => begin(res, { type: 'connections' }));
   router.post('/oauth/login', (req, res) => {

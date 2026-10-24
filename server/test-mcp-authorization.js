@@ -78,6 +78,19 @@ async function refresh(value, patch = {}) { return http('/oauth/token', { body: 
     { state: '' }, { code_challenge_method: 'plain' }, { code_challenge: '' }, { scope: 'booking:write' }, { client_id: 'unknown' }, { scope: 'schedule:read schedule:read' }]) {
     const r = await start(patch); check(r.status === 400 && !r.headers.has('location'), 'untrusted authorization rejected without redirect');
   }
+  const localizedStart = await start({ ui_locales: 'en-US', client_hint: 'ChatGPT' });
+  check(localizedStart.status === 200 && localizedStart.text.includes('Sign in to your account'), 'OpenAI ui_locales authorization parameter is accepted');
+  const localizedRequest = JSON.parse(db.db.prepare('SELECT request_json FROM mcp_oauth_interactions WHERE id = ?').get(localizedStart.fields.interaction).request_json);
+  check(!Object.hasOwn(localizedRequest, 'ui_locales') && !Object.hasOwn(localizedRequest, 'client_hint'), 'ignored authorization extensions are not persisted');
+  const duplicateKnown = new URLSearchParams(parameters); duplicateKnown.append('client_id', 'pilot');
+  check((await http(`/oauth/authorize?${duplicateKnown}`)).status === 400, 'duplicate recognized authorization parameter rejected');
+  const duplicateExtension = new URLSearchParams({ ...parameters, ui_locales: 'en-US' }); duplicateExtension.append('ui_locales', 'en-GB');
+  check((await http(`/oauth/authorize?${duplicateExtension}`)).status === 400, 'duplicate authorization extension rejected');
+  check((await http('/oauth/authorize?client_id%5B%5D=pilot')).status === 400, 'array-shaped client id cannot satisfy required scalar');
+  const tooMany = new URLSearchParams(parameters); for (let i = 0; i < 9; i++) tooMany.append(`extension${i}`, 'x');
+  check((await http(`/oauth/authorize?${tooMany}`)).status === 400, 'authorization parameter count bounded');
+  const tooLong = new URLSearchParams(parameters); tooLong.set('extension', 'x'.repeat(8200));
+  check((await http(`/oauth/authorize?${tooLong}`)).status === 400, 'authorization query byte length bounded');
   check((await start()).headers.get('set-cookie').includes('Secure; SameSite=Lax'), 'secure host-only session cookie');
   let tx = await start();
   check((await http('/oauth/login', { body: { ...tx.fields, email: 'oauth@example.test', password } })).status === 400, 'cookie required for account proof');

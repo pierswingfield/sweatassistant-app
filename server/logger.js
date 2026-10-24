@@ -140,7 +140,19 @@ function credentialProviderFetch(gymId, url, options = {}) {
         headers: { 'content-type': 'application/json', 'x-stage-egress-key': key },
         body: JSON.stringify({ url: target.toString(), method: options.method || 'GET', headers: Object.fromEntries(headers), body }),
       });
+      if (!response.ok) {
+        throw Object.assign(new Error('The restricted JAB profile gateway refused this request before contacting JAB.'), {
+          code: 'PROVIDER_WORK_DISABLED',
+          status: response.status,
+        });
+      }
       const payload = await response.json();
+      if (!payload || !Number.isInteger(payload.status) || typeof payload.body !== 'string' || !payload.headers || typeof payload.headers !== 'object' || Array.isArray(payload.headers)) {
+        throw Object.assign(new Error('The restricted JAB profile gateway returned an invalid response.'), {
+          code: 'PROVIDER_WORK_DISABLED',
+          status: 502,
+        });
+      }
       const responseHeaders = { ...(payload.headers || {}) };
       const cookies = responseHeaders['set-cookie']; delete responseHeaders['set-cookie'];
       const result = new Response(Buffer.from(payload.body || '', 'base64'), { status: payload.status, headers: responseHeaders });

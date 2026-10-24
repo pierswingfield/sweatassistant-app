@@ -6,6 +6,7 @@ const { assertAllowedProfileRequest } = require('./mcp/jab-profile-policy');
 
 const port = Number(process.env.MCP_STAGE_JAB_GATEWAY_PORT || 3100);
 let active = false;
+const safePaths = new Set(['/o/authorize/', '/auth/login/', '/o/token/', '/api/customer/v1/me/account']);
 const safeHeaders = new Set(['accept', 'accept-language', 'authorization', 'content-type', 'cookie', 'referer', 'user-agent']);
 
 function sameSecret(a, b) {
@@ -32,7 +33,8 @@ return http.createServer(async (req, res) => {
   if (req.method !== 'POST' || req.url !== '/profile-request' || !sameSecret(req.headers['x-stage-egress-key'], gatewayKey)) { res.writeHead(404).end(); return; }
   if (active) { res.writeHead(429).end(); return; }
   active = true;
-  const started = Date.now(); let method = 'invalid'; let path = 'invalid'; let status = 502;
+  const started = Date.now(); let method = 'OTHER'; let path = 'unapproved'; let status = 502;
+  let phase = 'request_parse'; let outcome = 'request_invalid';
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(new Error('gateway deadline exceeded')), deadlineMs);
   const abortOnRequestAbort = () => controller.abort(new Error('gateway client disconnected'));
@@ -43,10 +45,15 @@ return http.createServer(async (req, res) => {
     const raw = await readBody(req, 256 * 1024);
     const input = JSON.parse(raw.toString('utf8'));
     if (!input || typeof input !== 'object' || Array.isArray(input) || Object.keys(input).some(k => !['url', 'method', 'headers', 'body'].includes(k)) || typeof input.url !== 'string' || input.url.length > 8192 || typeof input.method !== 'string' || (input.body != null && typeof input.body !== 'string') || (input.body && input.body.length > 16 * 1024)) throw new Error('invalid gateway request');
-    const target = assertAllowedProfileRequest(new URL(input.url), { method: input.method, body: input.body });
-    method = String(input.method || 'GET').toUpperCase(); path = target.pathname;
+    const target = new URL(input.url);
+    const requestedMethod = String(input.method || 'GET').toUpperCase();
+    method = ['GET', 'POST'].includes(requestedMethod) ? requestedMethod : 'OTHER';
+    if (safePaths.has(target.pathname)) path = target.pathname;
     const headers = {};
     for (const [name, value] of Object.entries(input.headers || {})) if (safeHeaders.has(name.toLowerCase()) && typeof value === 'string' && value.length <= 8192) headers[name.toLowerCase()] = value;
+    phase = 'policy_validate';
+    assertAllowedProfileRequest(target, { method, headers, body: input.body });
+    phase = 'upstream_request';
     let upstream;
     let bytes;
     upstream = await fetchImpl(target, { method, headers, body: method === 'POST' ? String(input.body || '') : undefined, redirect: 'manual', signal: controller.signal });
@@ -58,15 +65,19 @@ return http.createServer(async (req, res) => {
       if (v) outHeaders[h] = v;
     }
     status = upstream.status;
+    outcome = 'upstream_response';
     if (!res.destroyed && !res.writableEnded) {
       res.writeHead(200, { 'content-type': 'application/json' });
       res.end(JSON.stringify({ status, headers: outHeaders, body: bytes.toString('base64') }));
     }
-  } catch (_) {
-    if (!res.destroyed && !res.writableEnded) res.writeHead(403, { 'content-type': 'application/json' }).end('{"error":"request denied"}');
+  } catch (err) {
+    if (phase === 'policy_validate') { status = 403; outcome = 'policy_denied'; }
+    else if (phase === 'request_parse') { status = 400; outcome = 'request_invalid'; }
+    else { status = 502; outcome = 'upstream_error'; }
+    if (!res.destroyed && !res.writableEnded) res.writeHead(status, { 'content-type': 'application/json' }).end('{"error":"request denied"}');
   } finally {
     // No URL, query, headers, body, cookie, credential, token or upstream error is logged.
-    process.stdout.write(JSON.stringify({ event: 'stage_jab_profile_hop', method, path, status, durationMs: Date.now() - started }) + '\n');
+    process.stdout.write(JSON.stringify({ event: 'stage_jab_profile_hop', phase, outcome, method, path, status, durationMs: Date.now() - started }) + '\n');
     clearTimeout(timer);
     req.off('aborted', abortOnRequestAbort);
     res.off('close', abortOnResponseClose);

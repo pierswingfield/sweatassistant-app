@@ -75,7 +75,7 @@ for (const [url, opts] of [
     // Deadline abort also covers a stalled response body and releases the slot.
     stall = true;
     const deadlineResponse = await fetch(endpoint, { method: 'POST', headers: { 'content-type': 'application/json', 'x-stage-egress-key': key }, body: JSON.stringify({ url: authorize.toString(), method: 'GET' }) });
-    assert.equal(deadlineResponse.status, 403);
+    assert.equal(deadlineResponse.status, 502);
     assert.equal(stalledSignal.aborted, true, 'gateway deadline aborts the stalled upstream');
     stall = false;
     const afterDeadline = await fetch(endpoint, { method: 'POST', headers: { 'content-type': 'application/json', 'x-stage-egress-key': key }, body: JSON.stringify({ url: authorize.toString(), method: 'GET' }) });

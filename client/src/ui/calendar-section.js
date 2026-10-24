@@ -227,14 +227,14 @@ export function openCalendarSettingsModal({ zIndex = 2000, onChange = null, onCl
   overlay.setAttribute('aria-modal', 'true');
   overlay.style.cssText = `position:fixed;inset:0;background:color-mix(in srgb, var(--bg) 60%, transparent);z-index:${zIndex};display:flex;align-items:center;justify-content:center;padding:16px;`;
   overlay.innerHTML = `
-    <div class="app-ovl-card" style="background:var(--bg);border:1px solid color-mix(in srgb, var(--text) 12%, transparent);border-radius:16px;width:100%;max-width:500px;max-height:90vh;display:flex;flex-direction:column;overflow:hidden;">
-      <div class="app-ovl-header" style="display:flex;justify-content:space-between;align-items:center;padding:14px 18px;border-bottom:1px solid color-mix(in srgb, var(--text) 8%, transparent);flex-shrink:0;">
-        <h3 data-nav-title style="margin:0;font-size:16px;font-weight:700;color:var(--text);"></h3>
-        <button type="button" data-nav-close data-calendar-modal-close aria-label="${COPY.credits.closeModal}" style="background:none;border:none;color:var(--text-secondary);font-size:22px;cursor:pointer;padding:0;line-height:1;">×</button>
+    <div class="app-ovl-card i-cal-1">
+      <div class="app-ovl-header i-cal-2">
+        <h3 class="i-cal-3" data-nav-title></h3>
+        <button class="i-cal-4" type="button" data-nav-close data-calendar-modal-close aria-label="${COPY.credits.closeModal}">×</button>
       </div>
-      <div class="app-ovl-body" style="flex:1;overflow-y:auto;padding:16px;"><div data-calendar-modal-section></div></div>
-      <div style="padding:12px 16px;border-top:1px solid color-mix(in srgb, var(--text) 8%, transparent);flex-shrink:0;">
-        <button type="button" class="app-btn-primary" data-calendar-modal-close style="width:100%;"></button>
+      <div class="app-ovl-body i-cal-5"><div data-calendar-modal-section></div></div>
+      <div class="i-cal-6">
+        <button type="button" class="app-btn-primary i-cal-7" data-calendar-modal-close></button>
       </div>
     </div>`;
   overlay.querySelector('h3').textContent = COPY.onboarding.calendarFeatureTitle;

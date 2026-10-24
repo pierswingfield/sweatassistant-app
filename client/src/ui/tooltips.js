@@ -41,7 +41,7 @@ if (typeof document !== 'undefined') {
 // Returns null if the instructor isn't in metadata yet. Shared by the hover
 // (desktop) and tap (touch) code paths.
 
-const INSTAGRAM_ICON = '<svg class="ab-ico" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" style="flex:none"><rect x="3" y="3" width="18" height="18" rx="5"/><circle cx="12" cy="12" r="4"/><circle cx="17.5" cy="6.5" r="0.6" fill="currentColor"/></svg>';
+const INSTAGRAM_ICON = '<svg class="ab-ico i-tip-1" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="3" width="18" height="18" rx="5"/><circle cx="12" cy="12" r="4"/><circle cx="17.5" cy="6.5" r="0.6" fill="currentColor"/></svg>';
 
 // Instagram: expect "username" or "@username" → https://instagram.com/username
 function parseInstagramHandle(raw) {
@@ -173,7 +173,7 @@ export function instructorTooltipHTML(instructorIdRaw, gymId = null, fallback = 
   const name = instructor.name || instructor.full_name || 'Instructor';
   const avatarHtml = photoUrl
     ? `<img src="${photoUrl}" class="app-tooltip-avatar" alt="${name}" data-instructor-initial="${initialFor(name)}">`
-    : `<div class="app-tooltip-avatar" style="display:flex; align-items:center; justify-content:center; background:color-mix(in srgb, var(--text) 8%, transparent); font-weight:bold; font-size:24px; color:#fff;">${(name || '?')[0]}</div>`;
+    : `<div class="app-tooltip-avatar i-tip-2">${(name || '?')[0]}</div>`;
 
   const keywords = instructor.metafields?.keywords ? instructor.metafields.keywords.replace(/\|/g, ' • ') : '';
   const description = instructor.bio || instructor.metafields?.description || '';
@@ -199,13 +199,13 @@ export function instructorTooltipHTML(instructorIdRaw, gymId = null, fallback = 
   return `
     <div class="app-tooltip-header">
       ${avatarHtml}
-      <div style="min-width: 0; flex: 1;">
+      <div class="i-tip-3">
         <h4 class="app-tooltip-name">${name}</h4>
         ${keywords ? `<div class="app-tooltip-keywords">${keywords}</div>` : ''}
       </div>
     </div>
-    ${description ? `<p style="margin: 6px 0 0 0; display: -webkit-box; -webkit-line-clamp: 4; -webkit-box-orient: vertical; overflow: hidden; color: var(--text); font-size: 15px; line-height: 1.45;">${description}</p>` : ''}
-    ${(instagramHtml || spotifyHtml) ? `<div class="app-tooltip-socials" style="margin-top: 10px;">${instagramHtml}${spotifyHtml}</div>` : ''}
+    ${description ? `<p class="i-tip-4">${description}</p>` : ''}
+    ${(instagramHtml || spotifyHtml) ? `<div class="app-tooltip-socials i-tip-5">${instagramHtml}${spotifyHtml}</div>` : ''}
   `;
 }
 
@@ -376,12 +376,12 @@ export function initTooltips() {
         renderMinimap(eventDetailsCache.get(cacheKey), occupancyTooltip);
       } else {
         occupancyTooltip.innerHTML = `
-          <div style="display:flex; align-items:center; justify-content:center; padding:15px; color:var(--text); font-size:12px;">
-            <svg class="app-spinner-svg" viewBox="0 0 24 24" style="animation: spin 1s linear infinite; width: 14px; height: 14px; margin-right: 8px; color: var(--feat-autoupgrade); display: inline-block;">
+          <div class="i-tip-6">
+            <svg class="app-spinner-svg i-tip-7" viewBox="0 0 24 24">
               <circle cx="12" cy="12" r="10" stroke="color-mix(in srgb, var(--text) 15%, transparent)" stroke-width="3" fill="none"></circle>
               <path d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" fill="currentColor"></path>
             </svg>
-            <span style="margin-left: 6px;">${COPY.occupancy.loadingLayout}</span>
+            <span class="i-tip-8">${COPY.occupancy.loadingLayout}</span>
           </div>
         `;
         positionTooltip(target, occupancyTooltip);
@@ -396,7 +396,7 @@ export function initTooltips() {
           console.error('[Timetable] Failed to fetch event slots for minimap:', err);
           if (activeOccupancyHoverTarget === target) {
             occupancyTooltip.innerHTML = `
-              <div style="padding: 10px; color: var(--danger); font-size: 12px; text-align: center; font-weight: 500;">
+              <div class="i-tip-9">
                 ${COPY.occupancy.failedLayout}
               </div>
             `;
@@ -496,21 +496,21 @@ export function renderMinimap(payload, occupancyTooltip) {
   if (layoutSlots.length === 0) {
     // FCFS or rooms without a spot map layout (recovery, boxing, etc.)
     occupancyTooltip.innerHTML = `
-      <div style="font-size: 12px; font-weight: 700; color: var(--text); text-align: center; margin-bottom: 6px;">
+      <div class="i-tip-10">
         ${COPY.occupancy.class}
       </div>
-      <div style="display:flex; justify-content:space-around; background:var(--surface-inset); border-radius:8px; padding:10px 8px; border:1px solid var(--border);">
-        <div style="text-align:center;">
-          <div style="font-size:10px; color:var(--text-tertiary); text-transform:uppercase; font-weight:600;">${COPY.occupancy.total}</div>
-          <div style="font-size:15px; font-weight:700; color:var(--text);">${totalSlots || 'N/A'}</div>
+      <div class="i-tip-11">
+        <div class="i-tip-12">
+          <div class="i-tip-13">${COPY.occupancy.total}</div>
+          <div class="i-tip-14">${totalSlots || 'N/A'}</div>
         </div>
-        <div style="text-align:center;">
-          <div style="font-size:10px; color:var(--text-tertiary); text-transform:uppercase; font-weight:600;">${COPY.occupancy.open}</div>
-          <div style="font-size:15px; font-weight:700; color:var(--success);">${openSlots}</div>
+        <div class="i-tip-12">
+          <div class="i-tip-13">${COPY.occupancy.open}</div>
+          <div class="i-tip-15">${openSlots}</div>
         </div>
-        <div style="text-align:center;">
-          <div style="font-size:10px; color:var(--text-tertiary); text-transform:uppercase; font-weight:600;">${COPY.occupancy.booked}</div>
-          <div style="font-size:15px; font-weight:700; color:var(--danger);">${occupiedSlots}</div>
+        <div class="i-tip-12">
+          <div class="i-tip-13">${COPY.occupancy.booked}</div>
+          <div class="i-tip-16">${occupiedSlots}</div>
         </div>
       </div>
     `;
@@ -569,20 +569,20 @@ export function renderMinimap(payload, occupancyTooltip) {
   let extraSlotsHtml = '';
   if (unmappedCount > 0) {
     extraSlotsHtml += `
-      <div style="font-size: 12px; color: var(--text-secondary); text-align: center; margin-top: 4px; border-top: 1px solid color-mix(in srgb, var(--text) 6%, transparent); padding-top: 4px;">
+      <div class="i-tip-17">
         ${formatCopyText(COPY.tooltips.unmappedSpots, { count: unmappedCount })}
       </div>
     `;
   }
 
   occupancyTooltip.innerHTML = `
-    <div style="font-size: 12px; font-weight: 700; color: var(--text); text-align: center; margin-bottom: 4px;">
+    <div class="i-tip-18">
       ${COPY.occupancy.studio}
     </div>
-    <div style="font-size: 12px; color: var(--text-secondary); display: flex; justify-content: space-between; margin-bottom: 6px; border-bottom: 1px solid color-mix(in srgb, var(--text) 8%, transparent); padding-bottom: 4px;">
+    <div class="i-tip-19">
       <span>Total: ${totalSlots || 'N/A'}</span>
-      <span style="color:var(--success);">Open: ${openSlots}</span>
-      <span style="color:var(--danger);">Booked: ${occupiedSlots}</span>
+      <span class="i-tip-20">Open: ${openSlots}</span>
+      <span class="i-tip-21">Booked: ${occupiedSlots}</span>
     </div>
     <div class="app-minimap-container">
       ${stageHtml}

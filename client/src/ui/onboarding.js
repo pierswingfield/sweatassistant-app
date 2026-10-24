@@ -503,24 +503,24 @@ function stepGyms() {
       const hasLinked = myGyms.length > 0;
 
       const connectedListHtml = hasLinked
-        ? `<div class="app-onb-connected-gyms" style="margin-bottom:16px;">
-            <div style="font-size:12px;font-weight:600;text-transform:uppercase;letter-spacing:0.5px;color:var(--text-tertiary);margin-bottom:8px;">${COPY.onboarding.connectedGyms}</div>
-            <div style="display:flex;flex-direction:column;gap:8px;">
+        ? `<div class="app-onb-connected-gyms i-onb-1">
+            <div class="i-onb-2">${COPY.onboarding.connectedGyms}</div>
+            <div class="i-onb-3">
               ${myGyms.map(g => {
                 const targetId = g.gym_id || g.gymId || g.id;
                 const matchedGym = allGyms.find(ag => ag.id === targetId);
                 const gName = g.gym_name || g.name || matchedGym?.name || targetId;
                 const gEmail = g.gym_email || g.gymEmail || '';
                 return `
-                <div style="display:flex;align-items:center;justify-content:space-between;padding:10px 14px;background:var(--surface-inset);border:1px solid var(--border);border-radius:10px;">
-                  <div style="display:flex;align-items:center;gap:10px;">
-                    <span style="color:var(--success, #10b981);font-weight:bold;font-size:16px;">✓</span>
+                <div class="i-onb-4">
+                  <div class="i-onb-5">
+                    <span class="i-onb-6">✓</span>
                     <div>
-                      <div style="font-size:14px;font-weight:600;">${gName}</div>
-                      ${gEmail ? `<div style="font-size:12px;color:var(--text-tertiary);">${gEmail}</div>` : ''}
+                      <div class="i-onb-7">${gName}</div>
+                      ${gEmail ? `<div class="i-onb-8">${gEmail}</div>` : ''}
                     </div>
                   </div>
-                  <span class="app-badge" style="font-size:11px;background:color-mix(in srgb,var(--success) 15%,transparent);color:var(--success);">${COPY.gyms.connected}</span>
+                  <span class="app-badge i-onb-9">${COPY.gyms.connected}</span>
                 </div>
               `;}).join('')}
             </div>
@@ -536,36 +536,36 @@ function stepGyms() {
       let formHtml = '';
       if (unlinkedGyms.length > 0 && (!hasLinked || addingAnother)) {
         formHtml = `
-          <div class="app-onb-link-form" style="display:flex;flex-direction:column;gap:12px;background:var(--surface-inset);border:1px solid var(--border);border-radius:12px;padding:16px;">
-            <div style="font-size:13px;font-weight:600;color:var(--text-secondary);">
+          <div class="app-onb-link-form i-onb-10">
+            <div class="i-onb-11">
               ${hasLinked ? COPY.onboarding.connectAnotherGym : COPY.onboarding.connectGymAccount}
             </div>
             <div>
-              <label style="font-size:12px;color:var(--text-tertiary);display:block;margin-bottom:4px;">${COPY.onboarding.selectGym}</label>
-              <select id="app-onb-gym-select" class="app-select" style="width:100%;">
+              <label class="i-onb-12">${COPY.onboarding.selectGym}</label>
+              <select id="app-onb-gym-select" class="app-select i-onb-13">
                 ${unlinkedGyms.map(g => `<option value="${g.id}">${g.name}</option>`).join('')}
               </select>
             </div>
             <div>
-              <label style="font-size:12px;color:var(--text-tertiary);display:block;margin-bottom:4px;">${COPY.onboarding.gymLoginEmail}</label>
-              <input type="email" id="app-onb-gym-email" placeholder="${COPY.onboarding.gymEmailPlaceholder}" autocomplete="off" style="width:100%;box-sizing:border-box;">
+              <label class="i-onb-12">${COPY.onboarding.gymLoginEmail}</label>
+              <input class="i-onb-14" type="email" id="app-onb-gym-email" placeholder="${COPY.onboarding.gymEmailPlaceholder}" autocomplete="off">
             </div>
             <div>
-              <label style="font-size:12px;color:var(--text-tertiary);display:block;margin-bottom:4px;">${COPY.onboarding.gymPassword}</label>
-              <input type="password" id="app-onb-gym-password" placeholder="${COPY.onboarding.gymPasswordPlaceholder}" autocomplete="off" style="width:100%;box-sizing:border-box;">
+              <label class="i-onb-12">${COPY.onboarding.gymPassword}</label>
+              <input class="i-onb-14" type="password" id="app-onb-gym-password" placeholder="${COPY.onboarding.gymPasswordPlaceholder}" autocomplete="off">
             </div>
             <div id="app-onb-gym-error" class="app-login-error" style="display:none;margin-top:4px;"></div>
-            <button type="button" id="app-onb-gym-submit" class="app-btn-primary" style="margin-top:4px;"><span>${escapeHtml(submitLabel(unlinkedGyms[0]?.id))}</span></button>
+            <button type="button" id="app-onb-gym-submit" class="app-btn-primary i-onb-15"><span>${escapeHtml(submitLabel(unlinkedGyms[0]?.id))}</span></button>
 
           </div>
         `;
       } else if (unlinkedGyms.length > 0 && hasLinked) {
-        formHtml = `<button type="button" id="app-onb-add-another" class="app-btn-secondary" style="width:100%;">${COPY.onboarding.connectAnotherLower}</button>`;
+        formHtml = `<button type="button" id="app-onb-add-another" class="app-btn-secondary i-onb-13">${COPY.onboarding.connectAnotherLower}</button>`;
       } else {
         formHtml = `
-          <div style="padding:16px;text-align:center;background:color-mix(in srgb,var(--success) 10%,transparent);border:1px solid color-mix(in srgb,var(--success) 20%,transparent);border-radius:12px;color:var(--text-primary);margin-bottom:12px;">
-            <strong style="color:var(--success);">${COPY.onboarding.allGymsConnected}</strong><br>
-            <span style="font-size:12px;color:var(--text-secondary);">${COPY.onboarding.allSetToBook}</span>
+          <div class="i-onb-16">
+            <strong class="i-onb-17">${COPY.onboarding.allGymsConnected}</strong><br>
+            <span class="i-onb-18">${COPY.onboarding.allSetToBook}</span>
           </div>
         `;
       }
@@ -578,7 +578,7 @@ function stepGyms() {
         eyebrow: COPY.onboarding.yourGyms,
         title: COPY.onboarding.connectGymAccounts,
         body: `
-          <p class="app-onb-lead" style="margin-bottom:16px;">${appCopy(COPY.onboarding.connectDescription)}</p>
+          <p class="app-onb-lead i-onb-1">${appCopy(COPY.onboarding.connectDescription)}</p>
           ${gymLogoStripHtml(allGyms)}
           ${connectedListHtml}
           ${formHtml}
@@ -691,8 +691,8 @@ function stepName() {
         eyebrow: COPY.onboarding.nameEyebrow,
         title: COPY.onboarding.namePrompt,
         body: `<p class="psycle-onb-lead"></p>
-          <label for="psycle-onb-first-name" style="font-size:12px;color:var(--text-tertiary);display:block;margin-bottom:4px;"></label>
-          <input id="psycle-onb-first-name" autocomplete="given-name" style="width:100%;box-sizing:border-box;" value="${escapeHtml(cleanFirstName(prefill))}">
+          <label class="i-onb-12" for="psycle-onb-first-name"></label>
+          <input class="i-onb-14" id="psycle-onb-first-name" autocomplete="given-name" value="${escapeHtml(cleanFirstName(prefill))}">
           <div class="psycle-login-error psycle-onb-name-error" style="display:none;margin-top:8px;"></div>`,
         footer: `<button class="psycle-btn-primary psycle-onb-name-save" type="button"><span>${COPY.onboarding.saveAndContinue}</span></button>`,
         onBack: suggestion ? renderSuggestion : () => resolve('back'),
@@ -746,7 +746,7 @@ function stepNotifications() {
     const sheet = renderSheet({
       eyebrow: COPY.onboarding.notificationsTitle,
       title: COPY.onboarding.enablePushTitle,
-      body: `<div class="app-onb-icon" style="color: var(--feat-push, var(--accent));">${ICON.push}</div>
+      body: `<div class="app-onb-icon i-onb-19">${ICON.push}</div>
         <p class="app-onb-lead">${COPY.onboarding.notificationsDescription}</p>`,
       footer: `<button class="app-btn-primary app-onb-notif-enable" type="button"><span>${COPY.onboarding.enableNotifications}</span></button>
         <button class="app-btn-mini app-onb-skip-inline" type="button">${COPY.onboarding.maybeLater}</button>`,
@@ -785,12 +785,12 @@ async function stepCalendar() {
         eyebrow: COPY.onboarding.calendarEnabled,
         title: COPY.onboarding.subscribeCalendarTitle,
         body: `
-          <div class="app-onb-icon" style="color: var(--accent);">${ICON.calendar}</div>
+          <div class="app-onb-icon i-onb-20">${ICON.calendar}</div>
           <p class="app-onb-lead">${COPY.onboarding.addLiveFeed}</p>
           <div class="app-onb-cal-links">
-            ${webcalUrl ? `<a href="${webcalUrl}" class="app-btn-primary" style="display:block;text-align:center;text-decoration:none;margin-bottom:8px;"><span>${ios ? COPY.onboarding.appleCalendarButton : COPY.onboarding.webcalButton}</span></a>` : ''}
-            ${gcalUrl && !ios ? `<a href="${gcalUrl}" target="_blank" rel="noopener noreferrer" class="app-btn-secondary" style="display:block;text-align:center;text-decoration:none;margin-bottom:8px;"><span>${COPY.onboarding.googleCalendarButton}</span></a>` : ''}
-            ${icsUrl ? `<button class="app-btn-mini app-onb-copy-ics" type="button" style="width:100%;">${COPY.onboarding.copyFeedUrl}</button>` : ''}
+            ${webcalUrl ? `<a href="${webcalUrl}" class="app-btn-primary i-onb-21"><span>${ios ? COPY.onboarding.appleCalendarButton : COPY.onboarding.webcalButton}</span></a>` : ''}
+            ${gcalUrl && !ios ? `<a href="${gcalUrl}" target="_blank" rel="noopener noreferrer" class="app-btn-secondary i-onb-21"><span>${COPY.onboarding.googleCalendarButton}</span></a>` : ''}
+            ${icsUrl ? `<button class="app-btn-mini app-onb-copy-ics i-onb-13" type="button">${COPY.onboarding.copyFeedUrl}</button>` : ''}
           </div>`,
         footer: `<button class="app-btn-primary app-onb-continue" type="button"><span>${COPY.onboarding.done}</span></button>`,
       });
@@ -812,7 +812,7 @@ async function stepCalendar() {
     const sheet = renderSheet({
       eyebrow: COPY.onboarding.calendarTitle,
       title: COPY.onboarding.calendarDescription,
-      body: `<div class="app-onb-icon" style="color: var(--accent);">${ICON.calendar}</div>
+      body: `<div class="app-onb-icon i-onb-20">${ICON.calendar}</div>
         <p class="app-onb-lead">${COPY.onboarding.calendarEnableDescription.replace('{calendar}', ios ? 'Apple' : 'your')}</p>`,
       footer: `<button class="app-btn-primary app-onb-cal-enable" type="button"><span>${COPY.onboarding.enableCalendar}</span></button>
         <button class="app-btn-mini app-onb-skip-inline" type="button">${COPY.onboarding.setupLater}</button>`,
@@ -842,7 +842,7 @@ async function stepSpotMaps() {
     const sheet = renderSheet({
       eyebrow: COPY.onboarding.spotMapEyebrow,
       title: COPY.onboarding.spotMapTitle,
-      body: `<div class="app-onb-icon" style="color: var(--feat-quickbook, var(--accent));">${ICON.quickbook}</div>
+      body: `<div class="app-onb-icon i-onb-22">${ICON.quickbook}</div>
         <p class="app-onb-lead">${COPY.onboarding.spotMapDescription}</p>`,
       footer: `<button class="app-btn-primary app-onb-setup" type="button"><span>${COPY.onboarding.setUpNow}</span></button>
         <button class="app-btn-mini app-onb-skip-inline" type="button">${COPY.onboarding.maybeLater}</button>`,

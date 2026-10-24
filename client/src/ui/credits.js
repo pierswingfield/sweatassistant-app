@@ -70,7 +70,7 @@ export async function initBundles() {
     } catch (_) { /* leave empty; the message below is then the truth */ }
   }
   if (linked.length === 0) {
-    summaryRoot.innerHTML = `<div class="app-card-desc" style="padding:20px 0;">${COPY.credits.connectGym}</div>`;
+    summaryRoot.innerHTML = `<div class="app-card-desc i-cr-1">${COPY.credits.connectGym}</div>`;
     return;
   }
 
@@ -259,10 +259,10 @@ async function openGymCreditDetail(gymId) {
     const alertDiv = document.createElement('div');
     alertDiv.className = 'app-credits-alert';
     alertDiv.innerHTML = `
-      <div style="display:flex; gap:10px; align-items:flex-start; padding:12px 14px; background:color-mix(in srgb, var(--warning) 15%, transparent); border:1px solid var(--warning); border-radius:10px; margin:12px 0;">
-        <div style="font-size:20px; flex-shrink:0; line-height:1;">⚠</div>
-        <div style="flex:1; font-size:12px; line-height:1.5;">
-          <div style="font-weight:700; margin-bottom:4px;">${COPY.credits.experimental}</div>
+      <div class="i-cr-2">
+        <div class="i-cr-3">⚠</div>
+        <div class="i-cr-4">
+          <div class="i-cr-5">${COPY.credits.experimental}</div>
           <div>${COPY.credits.experimentalPurchaseNotice.replace('{gymName}', escapeHtml(creditGymName))}</div>
         </div>
       </div>`;
@@ -288,7 +288,7 @@ async function openGymCreditDetail(gymId) {
     renderBundles();
   } catch (err) {
     console.error('Failed to load bundles:', err);
-    container.innerHTML = `<div class="app-empty-state" style="text-align:center;padding:40px 20px;color:var(--text-secondary)"><p style="font-size:16px;margin-bottom:8px">${COPY.credits.noCachedBundles}</p><p style="font-size:13px;color:var(--text-tertiary)">${COPY.credits.loadBundlesHelp}</p></div>`;
+    container.innerHTML = `<div class="app-empty-state i-cr-6"><p class="i-cr-7">${COPY.credits.noCachedBundles}</p><p class="i-cr-8">${COPY.credits.loadBundlesHelp}</p></div>`;
   }
 }
 
@@ -498,10 +498,10 @@ function renderNoPurchaseState() {
   const container = document.getElementById('app-bundles-container');
   if (!container) return;
   container.innerHTML = `
-    <div style="text-align:center;padding:32px 24px;color:var(--text-secondary);">
-      <div style="font-size:32px;margin-bottom:12px;">\u{1F39F}\u{FE0F}</div>
-      <p style="margin:0;font-weight:600;color:var(--text);">${COPY.credits.noCreditPacks}</p>
-      <p style="font-size:13px;margin:8px 0 0;">${COPY.credits.membershipTopUpDescription}</p>
+    <div class="i-cr-9">
+      <div class="i-cr-10">\u{1F39F}\u{FE0F}</div>
+      <p class="i-cr-11">${COPY.credits.noCreditPacks}</p>
+      <p class="i-cr-12">${COPY.credits.membershipTopUpDescription}</p>
     </div>
   `;
 }
@@ -569,7 +569,7 @@ export function renderBundles() {
 
     const allHeader = document.createElement('div');
     allHeader.className = 'app-section-subheader';
-    allHeader.innerHTML = `<h4>${COPY.credits.allCredits} <span class="all-credits-chevron" style="font-size:12px; margin-left:8px;">▶\uFE0E</span></h4>`;
+    allHeader.innerHTML = `<h4>${COPY.credits.allCredits} <span class="all-credits-chevron i-cr-13">▶\uFE0E</span></h4>`;
     container.appendChild(allHeader);
 
     // Render Grid — collapsed by default
@@ -606,7 +606,7 @@ function createBundleCard(b, isFavSection) {
     <div class="fav-card-header">
       <div>
         <div class="fav-card-title">${b.name}</div>
-        <div class="fav-card-handle" style="font-size: 12px; color: var(--text-tertiary); margin-top: 2px;">${b.handle} ${formatCopyText(COPY.credits.bundleId, { id: b.id })}</div>
+        <div class="fav-card-handle i-cr-14">${b.handle} ${formatCopyText(COPY.credits.bundleId, { id: b.id })}</div>
       </div>
       <button class="fav-card-star-btn ${isFav ? 'active' : ''}" title="${isFav ? COPY.credits.unpinBundle : COPY.credits.pinBundle}">
         ${isFav ? '★' : '☆'}
@@ -617,13 +617,13 @@ function createBundleCard(b, isFavSection) {
       <div class="fav-cost">£${costPerCredit} ${COPY.credits.creditUnit}</div>
     </div>
     <div class="fav-card-pills">
-      <span class="badge-pill" style="text-transform:none;">${formatCopyText(COPY.credits.creditsCount, { count: b.total_credits })}</span>
+      <span class="badge-pill i-cr-15">${formatCopyText(COPY.credits.creditsCount, { count: b.total_credits })}</span>
       <span class="badge-pill ${allStudios ? 'valid' : 'invalid'}">${allStudios ? COPY.credits.allStudios : COPY.credits.selectStudios}</span>
       <span class="badge-pill ${allClasses ? 'valid' : 'invalid'}">${allClasses ? COPY.credits.allWorkouts : COPY.credits.excludesLagree}</span>
       <span class="badge-pill ${b.is_first_purchase_only ? 'badge-restricted' : 'badge-available'}">${b.is_first_purchase_only ? COPY.credits.firstOnly : COPY.credits.returningCustomer}</span>
       <span class="badge-pill ${b.is_one_time_purchase_only ? 'badge-restricted' : 'badge-available'}">${b.is_one_time_purchase_only ? COPY.credits.oneTime : COPY.credits.repeatPurchase}</span>
     </div>
-    <button class="app-btn-primary fav-card-buy-btn" style="margin-top: 12px; padding: 8px;">
+    <button class="app-btn-primary fav-card-buy-btn i-cr-16">
       ${formatCopyText(COPY.credits.buyFor, { price: formattedPrice })}
     </button>
   `;
@@ -653,12 +653,12 @@ export function openPurchaseModal(b) {
   overlay.className = 'app-modal app-purchase-modal';
   overlay.innerHTML = `
     <div class="app-modal-overlay"></div>
-    <div class="app-modal-card" style="width:420px; max-width:92vw;">
-      <div class="app-modal-header" style="padding:14px 20px; display:flex; justify-content:space-between; align-items:center; border-bottom:1px solid var(--border-subtle);">
-        <h4 class="app-checkout-title" style="margin:0; font-size:15px; font-weight:700; color:var(--text-primary);">${COPY.credits.cart}</h4>
+    <div class="app-modal-card i-cr-17">
+      <div class="app-modal-header i-cr-18">
+        <h4 class="app-checkout-title i-cr-19">${COPY.credits.cart}</h4>
         <button class="app-modal-close-btn" aria-label="${COPY.credits.closeModal}">×</button>
       </div>
-      <div class="app-purchase-body" style="padding:20px;"></div>
+      <div class="app-purchase-body i-cr-20"></div>
     </div>
   `;
   document.body.appendChild(overlay);
@@ -687,23 +687,23 @@ export function openPurchaseModal(b) {
   function renderCart() {
     const total = `£${((unitPence * qty) / 100).toFixed(2)}`;
     body.innerHTML = `
-      <div style="display:flex; justify-content:space-between; align-items:flex-start; margin-bottom:16px;">
-        <div style="flex:1; min-width:0; padding-right:12px;">
-          <div style="font-weight:700; color:var(--text-primary); white-space:nowrap; overflow:hidden; text-overflow:ellipsis;">${b.name}</div>
-          <div style="font-size:12px; color:var(--text-tertiary); margin-top:3px;">${formatCopyText(COPY.credits.creditBreakdown, { count: b.total_credits, plural: b.total_credits !== 1 ? 's' : '', price: unitLabel })}</div>
+      <div class="i-cr-21">
+        <div class="i-cr-22">
+          <div class="i-cr-23">${b.name}</div>
+          <div class="i-cr-24">${formatCopyText(COPY.credits.creditBreakdown, { count: b.total_credits, plural: b.total_credits !== 1 ? 's' : '', price: unitLabel })}</div>
         </div>
-        <div style="display:flex; align-items:center; gap:8px; flex-shrink:0;">
-          <button class="app-qty-btn app-qty-dec" style="width:28px; height:28px; border-radius:6px; border:1px solid var(--border-subtle); background:var(--surface-raised); color:var(--text-primary); font-size:16px; cursor:pointer; line-height:1;">−</button>
-          <span class="app-qty-val" style="min-width:20px; text-align:center; font-weight:700; color:var(--text-primary);">${qty}</span>
-          <button class="app-qty-btn app-qty-inc" style="width:28px; height:28px; border-radius:6px; border:1px solid var(--border-subtle); background:var(--surface-raised); color:var(--text-primary); font-size:16px; cursor:pointer; line-height:1;">+</button>
-          <button class="app-qty-remove" title="${COPY.credits.remove}" style="margin-left:4px; background:none; border:none; color:var(--text-tertiary); font-size:18px; cursor:pointer; padding:2px 4px;">✕</button>
+        <div class="i-cr-25">
+          <button class="app-qty-btn app-qty-dec i-cr-26">−</button>
+          <span class="app-qty-val i-cr-27">${qty}</span>
+          <button class="app-qty-btn app-qty-inc i-cr-26">+</button>
+          <button class="app-qty-remove i-cr-28" title="${COPY.credits.remove}">✕</button>
         </div>
       </div>
-      <div style="border-top:1px solid var(--border-subtle); padding-top:12px; margin-bottom:16px; display:flex; justify-content:space-between; align-items:center;">
-        <span style="font-size:13px; color:var(--text-secondary);">${COPY.credits.totalIncVat}</span>
-        <span class="app-cart-total" style="font-weight:700; font-size:16px; color:var(--text-primary);">${total}</span>
+      <div class="i-cr-29">
+        <span class="i-cr-30">${COPY.credits.totalIncVat}</span>
+        <span class="app-cart-total i-cr-31">${total}</span>
       </div>
-      <button class="app-btn-primary app-checkout-btn" style="width:100%; padding:11px;">${COPY.credits.continueToPayment}</button>
+      <button class="app-btn-primary app-checkout-btn i-cr-32">${COPY.credits.continueToPayment}</button>
     `;
 
     body.querySelector('.app-qty-dec').addEventListener('click', () => {
@@ -746,22 +746,22 @@ export function openPurchaseModal(b) {
     const defaultPm = methods.find(m => m.default) || methods[0];
 
     const cardOptions = methods.map(m => `
-      <label class="app-pm-row" style="display:flex; align-items:center; gap:10px; padding:10px 12px; border:1px solid var(--border-subtle); border-radius:10px; margin-bottom:8px; cursor:pointer;">
+      <label class="app-pm-row i-cr-33">
         <input type="radio" name="app-pm" value="${m.id}" ${m.id === defaultPm.id ? 'checked' : ''}>
-        <span style="text-transform:capitalize; font-weight:600; color:var(--text-primary);">${m.brand}</span>
-        <span style="color:var(--text-secondary);">•••• ${m.last4}</span>
-        <span style="margin-left:auto; font-size:12px; color:var(--text-tertiary);">${String(m.exp_month).padStart(2,'0')}/${m.exp_year}</span>
+        <span class="i-cr-34">${m.brand}</span>
+        <span class="i-cr-35">•••• ${m.last4}</span>
+        <span class="i-cr-36">${String(m.exp_month).padStart(2,'0')}/${m.exp_year}</span>
       </label>
     `).join('');
 
     body.innerHTML = `
-      <div style="font-size:12px; color:var(--text-tertiary); margin-bottom:8px;">${COPY.credits.payWith}</div>
+      <div class="i-cr-37">${COPY.credits.payWith}</div>
       ${cardOptions}
-      <div style="border-top:1px solid var(--border-subtle); margin:12px 0; padding-top:12px; display:flex; justify-content:space-between;">
-        <span style="font-size:13px; color:var(--text-secondary);">${qty > 1 ? `${qty}× ${b.name}` : b.name}</span>
-        <span style="font-weight:700; color:var(--text-primary);">${totalLabel}</span>
+      <div class="i-cr-38">
+        <span class="i-cr-30">${qty > 1 ? `${qty}× ${b.name}` : b.name}</span>
+        <span class="i-cr-39">${totalLabel}</span>
       </div>
-      <button class="app-btn-primary app-pay-btn" style="width:100%; padding:11px;">${formatCopyText(COPY.credits.payTotal, { total: totalLabel })}</button>
+      <button class="app-btn-primary app-pay-btn i-cr-32">${formatCopyText(COPY.credits.payTotal, { total: totalLabel })}</button>
     `;
 
     body.querySelector('.app-pay-btn').addEventListener('click', async () => {
@@ -781,11 +781,11 @@ export function openPurchaseModal(b) {
         setBusy(false);
         if (result.status === 'paid') {
           body.innerHTML = `
-            <div style="text-align:center; padding:16px 0;">
-              <div style="font-size:40px; margin-bottom:8px;">✅</div>
-              <div style="font-weight:700; color:var(--text-primary);">${COPY.credits.paymentComplete}</div>
-              <div style="font-size:13px; color:var(--text-secondary); margin-top:4px;">${formatCopyText(COPY.credits.creditsAdded, { count: b.total_credits * qty })}</div>
-              <button class="app-btn-primary app-done-btn" style="margin-top:16px; padding:10px 24px;">${COPY.credits.done}</button>
+            <div class="i-cr-40">
+              <div class="i-cr-41">✅</div>
+              <div class="i-cr-39">${COPY.credits.paymentComplete}</div>
+              <div class="i-cr-42">${formatCopyText(COPY.credits.creditsAdded, { count: b.total_credits * qty })}</div>
+              <button class="app-btn-primary app-done-btn i-cr-43">${COPY.credits.done}</button>
             </div>
           `;
           body.querySelector('.app-done-btn').addEventListener('click', closeModal);
@@ -812,21 +812,21 @@ export function openPurchaseModal(b) {
 // secureTips=true adds concise guidance for 3DS issues + website fallback.
 function renderPurchaseError(body, b, message, hint, secureTips) {
   const tips = secureTips ? `
-    <div style="text-align:left; background:var(--surface-raised); border:1px solid var(--border-subtle); border-radius:10px; padding:12px; margin-top:14px; font-size:12px; color:var(--text-secondary); line-height:1.6;">
-      <div style="font-weight:700; color:var(--text-primary); margin-bottom:6px;">${COPY.credits.avoidsThreeDSecure}</div>
+    <div class="i-cr-44">
+      <div class="i-cr-45">${COPY.credits.avoidsThreeDSecure}</div>
       • ${COPY.credits.cardTrustedTip.replace('{gymName}', escapeHtml(creditGymName))}<br>
       • ${COPY.credits.websitePurchaseTip.replace('{gymName}', escapeHtml(creditGymName))}<br>
       • ${COPY.credits.amexTip}
     </div>
-  ` : (hint ? `<div style="font-size:12px; color:var(--text-tertiary); margin-top:8px;">${hint}</div>` : '');
+  ` : (hint ? `<div class="i-cr-46">${hint}</div>` : '');
 
   body.innerHTML = `
-    <div style="text-align:center; padding:8px 0;">
-      <div style="font-size:36px; margin-bottom:8px;">⚠️</div>
-      <div style="font-weight:700; color:var(--text-primary);">${COPY.credits.paymentNotCompleted}</div>
-      <div style="font-size:13px; color:var(--text-secondary); margin-top:4px;">${message}</div>
+    <div class="i-cr-47">
+      <div class="i-cr-48">⚠️</div>
+      <div class="i-cr-39">${COPY.credits.paymentNotCompleted}</div>
+      <div class="i-cr-42">${message}</div>
       ${tips}
-      <button class="app-btn-primary app-website-btn" style="margin-top:16px; padding:10px 20px;">${COPY.credits.finishOnWebsite}</button>
+      <button class="app-btn-primary app-website-btn i-cr-49">${COPY.credits.finishOnWebsite}</button>
     </div>
   `;
   body.querySelector('.app-website-btn').addEventListener('click', () => {

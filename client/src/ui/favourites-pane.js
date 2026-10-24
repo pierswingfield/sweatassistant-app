@@ -18,13 +18,13 @@ const isMobileWidth = () => !!window.matchMedia?.('(max-width: 768px)').matches;
 const timeLabel = (hhmm) => `${String(hhmm).slice(0, 2)}:${String(hhmm).slice(2, 4)}`;
 
 const TABLE_HEAD = () => `<thead><tr>
-  <th style="width: 7%;">${COPY.timetable.timeColumn}</th>
-  <th style="width: 8%;">${COPY.timetable.gymColumn}</th>
-  <th style="width: 27%;">${COPY.timetable.classColumn}</th>
-  <th style="width: 12%;">${COPY.timetable.instructorColumn}</th>
-  <th style="width: 15%;">${COPY.timetable.locationStudioColumn}</th>
-  <th style="width: 11%;">${COPY.timetable.statusColumn}</th>
-  <th style="width: 20%; text-align: right;">${COPY.timetable.actionsColumn}</th>
+  <th class="i-fav-1">${COPY.timetable.timeColumn}</th>
+  <th class="i-fav-2">${COPY.timetable.gymColumn}</th>
+  <th class="i-fav-3">${COPY.timetable.classColumn}</th>
+  <th class="i-fav-4">${COPY.timetable.instructorColumn}</th>
+  <th class="i-fav-5">${COPY.timetable.locationStudioColumn}</th>
+  <th class="i-fav-6">${COPY.timetable.statusColumn}</th>
+  <th class="i-fav-7">${COPY.timetable.actionsColumn}</th>
 </tr></thead>`;
 
 /** A favourite whose slot has no upcoming class in the loaded schedule: still listed, from its stored labels. */
@@ -81,7 +81,7 @@ export function renderFavouritesPane(host = document.getElementById(HOST_ID)) {
     section.className = 'app-fav-day';
     section.setAttribute('aria-label', formatCopyText(COPY.favouritesPane.dayListLabel, { day: group.label }));
     section.innerHTML = `<h4 class="app-fav-day-title">${escapeHtml(group.label)}</h4>
-      <div class="app-table-container"><table class="app-table app-fav-table" style="width: 100%; border-collapse: collapse; text-align: left; table-layout: fixed;">${TABLE_HEAD()}<tbody></tbody></table></div>`;
+      <div class="app-table-container"><table class="app-table app-fav-table i-fav-8">${TABLE_HEAD()}<tbody></tbody></table></div>`;
     const tbody = section.querySelector('tbody');
     for (const item of group.items) {
       if (item.event) renderEventRowsInto(tbody, [item.event]);

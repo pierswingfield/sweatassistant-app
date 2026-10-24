@@ -88,19 +88,19 @@ function autoUpgradeHtml(settings, gym = {}) {
       <label class="app-switch"><input type="checkbox" data-gym-setting="autoUpgradeEnabled" ${settings.autoUpgradeEnabled !== false ? 'checked' : ''}><span class="app-slider"></span></label>
     </div>
     <p class="app-card-desc" data-autoupgrade-off-note ${settings.autoUpgradeEnabled === false ? '' : 'hidden'}>${COPY.gymSettings.pollingOffNote}</p>
-    <div class="app-setting-row" data-autoupgrade-dependent ${settings.autoUpgradeEnabled === false ? 'aria-disabled="true" style="opacity:.5"' : ''}>
+    <div class="app-setting-row" data-autoupgrade-dependent ${settings.autoUpgradeEnabled === false ? 'aria-disabled="true"' : ''}>
       <div class="app-setting-label"><span>${COPY.gymSettings.autoUpgradeByDefault}</span><small>${COPY.gymSettings.autoUpgradeByDefaultHelp}</small></div>
       <label class="app-switch"><input type="checkbox" data-gym-setting="autoUpgradeByDefault" ${settings.autoUpgradeEnabled === false ? 'disabled' : ''} ${settings.autoUpgradeByDefault ? 'checked' : ''}><span class="app-slider"></span></label>
     </div>
-    <div class="app-setting-row" data-autoupgrade-dependent ${settings.autoUpgradeEnabled === false ? 'aria-disabled="true" style="opacity:.5"' : ''}>
+    <div class="app-setting-row" data-autoupgrade-dependent ${settings.autoUpgradeEnabled === false ? 'aria-disabled="true"' : ''}>
       <div class="app-setting-label"><span>${COPY.gymSettings.continueCutoffByDefault}</span><small>${COPY.gymSettings.continueCutoffHelp}</small></div>
       <label class="app-switch"><input type="checkbox" data-gym-setting="autoUpgradeKeepOriginalByDefault" ${settings.autoUpgradeEnabled === false ? 'disabled' : ''} ${settings.autoUpgradeKeepOriginalByDefault ? 'checked' : ''}><span class="app-slider"></span></label>
     </div>
-    ${showCancelRebookSetting(gym) ? `<div class="app-setting-row" data-autoupgrade-dependent ${settings.autoUpgradeEnabled === false ? 'aria-disabled="true" style="opacity:.5"' : ''}>
+    ${showCancelRebookSetting(gym) ? `<div class="app-setting-row" data-autoupgrade-dependent ${settings.autoUpgradeEnabled === false ? 'aria-disabled="true"' : ''}>
       <div class="app-setting-label"><span>${COPY.gymSettings.cancelRebook}</span><small>${COPY.gymSettings.cancelRebookHelp}</small></div>
       <label class="app-switch"><input type="checkbox" data-gym-setting="autoUpgradeCancelRebook" ${settings.autoUpgradeEnabled === false ? 'disabled' : ''} ${settings.autoUpgradeCancelRebook === true ? 'checked' : ''}><span class="app-slider"></span></label>
     </div>` : ''}
-    <div class="app-setting-row" data-autoupgrade-dependent ${settings.autoUpgradeEnabled === false ? 'aria-disabled="true" style="opacity:.5"' : ''}>
+    <div class="app-setting-row" data-autoupgrade-dependent ${settings.autoUpgradeEnabled === false ? 'aria-disabled="true"' : ''}>
       <div class="app-setting-label"><span>${COPY.gymSettings.pollingInterval}</span><small>${COPY.gymSettings.pollingIntervalHelp}</small></div>
       <select class="app-select" data-gym-setting="autoUpgradeInterval" ${settings.autoUpgradeEnabled === false ? 'disabled' : ''}>
         <option value="1min" ${settings.autoUpgradeInterval === '1min' ? 'selected' : ''}>${COPY.gymSettings.pollingOneMinute}</option>
@@ -189,7 +189,6 @@ export function renderGymSettingsSection(container, model, handlers = {}) {
   // Polling off => the controls that only matter while polling is on go inert.
   const syncAutoUpgradeDependents = (pollingOn) => {
     container.querySelectorAll('[data-autoupgrade-dependent]').forEach((row) => {
-      row.style.opacity = pollingOn ? '' : '.5';
       if (pollingOn) row.removeAttribute('aria-disabled'); else row.setAttribute('aria-disabled', 'true');
       row.querySelectorAll('[data-gym-setting]').forEach((c) => { c.disabled = !pollingOn; });
     });

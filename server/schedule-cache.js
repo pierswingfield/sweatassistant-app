@@ -70,11 +70,13 @@ function createCache() {
 
     if (opts.force) {
       stats.misses++;
+      require('./metrics').observeCache('miss');
       return single(key, fetcher, ttlMs, opts);
     }
 
     if (isFresh(entry, now)) {
       stats.hits++;
+      require('./metrics').observeCache('hit');
       return entry.value;
     }
 
@@ -91,6 +93,7 @@ function createCache() {
           entry.checkedAt = Date.now();
           stats.stampUnchanged++;
           stats.hits++;
+          require('./metrics').observeCache('hit');
           return entry.value;
         } else if (cur !== entry.stamp) {
           stats.stampChanged++;
@@ -103,6 +106,7 @@ function createCache() {
     // (stale-if-error).
     if (entry && opts.maxStaleMs && (now - entry.checkedAt) > entry.ttlMs + opts.maxStaleMs) {
       stats.misses++;
+      require('./metrics').observeCache('miss');
       return single(key, fetcher, ttlMs, opts);
     }
 
@@ -111,7 +115,8 @@ function createCache() {
       // fast page with data that is at most one TTL old, instead of waiting for
       // the provider to decide how slow it feels today.
       stats.staleHits++;
-      if (!inFlight.has(key)) {
+      require('./metrics').observeCache('stale');
+      if (opts.backgroundRefresh !== false && !inFlight.has(`${key}|${require('./provider-admission').flightScope()}`)) {
         stats.refreshes++;
         single(key, fetcher, ttlMs, opts).catch(() => {});
       }
@@ -119,13 +124,16 @@ function createCache() {
     }
 
     stats.misses++;
+      require('./metrics').observeCache('miss');
     return single(key, fetcher, ttlMs, opts);
   }
 
   function single(key, fetcher, ttlMs, opts = {}) {
-    const existing = inFlight.get(key);
+    const flightKey = `${key}|${require('./provider-admission').flightScope()}`;
+    const existing = inFlight.get(flightKey);
     if (existing) {
       stats.coalesced++;
+      require('./metrics').observeCache('coalesced');
       return existing;
     }
     const p = (async () => {
@@ -147,10 +155,10 @@ function createCache() {
         if (stale) return stale.value;
         throw err;
       } finally {
-        inFlight.delete(key);
+        inFlight.delete(flightKey);
       }
     })();
-    inFlight.set(key, p);
+    inFlight.set(flightKey, p);
     return p;
   }
 

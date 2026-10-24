@@ -287,8 +287,8 @@ async function prefetchAutoBookSlots(bookings, windowMs = 18000) {
       // Authenticated with the ROW's gym session (as fetchFromGym did before the
       // adapter move): an unauthenticated call bypasses the dev mock and hits the
       // live gym, so dev-mode event 1000 read as having no free slots.
-      const details = await getProvider(booking.gym_id).fetchEventDetails(
-        booking.event_id, db.getUserSession(booking.user_id, booking.gym_id) || undefined);
+      const details = await require('./provider-admission').run({ lane: 'scheduler', userId: booking.user_id }, () => getProvider(booking.gym_id).fetchEventDetails(
+        booking.event_id, db.getUserSession(booking.user_id, booking.gym_id) || undefined));
       if (details) {
         setCachedEvent(booking.gym_id, booking.event_id, details, 30000);
         const available = (details.slots || []).filter((slot) => slot.isAvailable);
@@ -337,6 +337,9 @@ async function bookSlotWithRelogin(userId, gymId, eventId, targetSlot) {
 
 // Execute auto-book process for a single class slot booking
 async function executeAutoBookForClass(booking) {
+  return require('./provider-admission').run({ lane: 'scheduler', userId: booking.user_id }, () => executeAutoBookForClassInLane(booking));
+}
+async function executeAutoBookForClassInLane(booking) {
   const eventId = booking.event_id;
   const userId = booking.user_id;
   // The gym this queue entry belongs to — taken from the ROW, never resolved

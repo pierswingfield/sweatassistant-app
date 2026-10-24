@@ -69,4 +69,17 @@ function render(extra = []) {
   return out.join('\n') + '\n';
 }
 
-module.exports = { observeHttp, observeProvider, httpMetrics, render };
+function observeMcpTool(tool, result, milliseconds) {
+  inc('mcp_tools_total', 'MCP tool outcomes by fixed tool and result.', { tool, result });
+  inc('mcp_tool_duration_milliseconds_total', 'Total MCP tool execution duration.', { tool }, milliseconds);
+}
+function observeMcpIngress(result) {
+  inc('mcp_ingress_rejections_total', 'MCP ingress refusals by fixed result.', { result });
+}
+function observeCache(result) {
+  inc('schedule_cache_total', 'Shared schedule cache outcomes.', { result });
+}
+function observeAdmission(lane, result) {
+  inc('provider_admission_total', 'Provider admission outcomes by fixed actor lane.', { lane, result });
+}
+module.exports = { observeMcpTool, observeMcpIngress, observeCache, observeAdmission, observeHttp, observeProvider, httpMetrics, render };

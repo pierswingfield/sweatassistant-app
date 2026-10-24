@@ -17,7 +17,7 @@ const { studioHasRowGroups, studioShowsSpotType, studioMobileRotation, studioFro
 const { makeMetadata, makeProfile, makeMembership, makeEvent, makeSlot, makeBookingResult, makeBooking, makeHistoryEntry } = require('./normalize');
 const bookingWindow = require('./booking-window');
 const { noteThrottleError } = require('../rate-limit-backoff');
-const { timedProviderFetch } = require('../logger');
+const { timedProviderFetch, credentialProviderFetch } = require('../logger');
 const scheduleCache = require('../schedule-cache');
 
 // Dev-mode bypass (WP-M5), driven by the gym config's `devMock.email` exactly like
@@ -166,7 +166,7 @@ class MarianaTekProvider extends GymProvider {
     }, timeoutMs);
     opts.signal = controller.signal;
     try {
-      return await timedProviderFetch(this.gym.id, method, path, (signal) => fetch(this.url(path), { ...opts, signal: signal ? AbortSignal.any([signal, opts.signal]) : opts.signal }));
+      return await timedProviderFetch(this.gym.id, method, path, (signal) => fetch(this.url(path), { ...(require('../provider-admission').enabled() ? { redirect: 'manual' } : {}), ...opts, signal: signal ? AbortSignal.any([signal, opts.signal]) : opts.signal }));
     } catch (err) {
       if (timedOut) {
         const timeout = new Error(`Booking request timed out after ${Math.ceil(timeoutMs / 1000)} seconds. Check My Bookings before trying again.`);
@@ -185,7 +185,7 @@ class MarianaTekProvider extends GymProvider {
   // once logged in (see fetchTimetable/fetchEventDetails, which prefer
   // request() whenever a session is available).
   async publicRequest(path, { method = 'GET' } = {}) {
-    return timedProviderFetch(this.gym.id, method, path, (signal) => fetch(this.url(path), { method, headers: this.buildHeaders(null), ...(signal ? { signal } : {}) }));
+    return timedProviderFetch(this.gym.id, method, path, (signal) => fetch(this.url(path), { ...(require('../provider-admission').enabled() ? { redirect: 'manual' } : {}), method, headers: this.buildHeaders(null), ...(signal ? { signal } : {}) }));
   }
 
   isPublicRead(method, path) {
@@ -205,6 +205,10 @@ class MarianaTekProvider extends GymProvider {
    * @param {{email: string, password: string}} credentials
    * @returns {Promise<{session: import('./base').AuthSession, profile: import('./base').NormalizedProfile, raw: Object}>}
    */
+  credentialFetch(url, options) {
+    return credentialProviderFetch(this.gym.id, url, options);
+  }
+
   async login({ email, password }) {
     if (this.isMockLogin(email)) {
       const session = { accessToken: MOCK_TOKEN, refreshToken: MOCK_TOKEN, expiresAt: new Date(Date.now() + 365 * 864e5).toISOString() };
@@ -224,7 +228,7 @@ class MarianaTekProvider extends GymProvider {
     authorizeUrl.searchParams.set('code_challenge', codeChallenge);
     authorizeUrl.searchParams.set('code_challenge_method', 'S256');
 
-    let res = await fetch(authorizeUrl.toString(), { redirect: 'manual', headers: this.browserHeaders() });
+    let res = await this.credentialFetch(authorizeUrl.toString(), { redirect: 'manual', headers: this.browserHeaders() });
     jar.absorb(res);
     if (res.status < 300 || res.status >= 400 || !res.headers.get('location')) {
       throw new Error(`MarianaTek login step 1 (authorize) failed: expected a redirect, got ${res.status}`);
@@ -236,7 +240,7 @@ class MarianaTekProvider extends GymProvider {
     const nextField = new URL(loginPageUrl).searchParams.get('next');
 
     // Step 2: GET the login page -> scrape CSRF token, absorb csrftoken/sessionid cookies.
-    res = await fetch(loginPageUrl, { headers: { cookie: jar.header(), ...this.browserHeaders() } });
+    res = await this.credentialFetch(loginPageUrl, { headers: { cookie: jar.header(), ...this.browserHeaders() } });
     jar.absorb(res);
     if (!res.ok) throw new Error(`MarianaTek login step 2 (login page) failed: ${res.status}`);
     const loginPageHtml = await res.text();
@@ -253,7 +257,7 @@ class MarianaTekProvider extends GymProvider {
       next: nextField || '',
     });
     let currentUrl = loginPageUrl;
-    let response = await fetch(loginPageUrl, {
+    let response = await this.credentialFetch(loginPageUrl, {
       method: 'POST',
       redirect: 'manual',
       headers: {
@@ -275,7 +279,7 @@ class MarianaTekProvider extends GymProvider {
       const codeParam = nextUrl.searchParams.get('code');
       if (codeParam) { authCode = codeParam; break; }
       currentUrl = nextUrl.toString();
-      response = await fetch(currentUrl, { redirect: 'manual', headers: { cookie: jar.header(), ...this.browserHeaders() } });
+      response = await this.credentialFetch(currentUrl, { redirect: 'manual', headers: { cookie: jar.header(), ...this.browserHeaders() } });
       jar.absorb(response);
       hops += 1;
     }
@@ -294,7 +298,7 @@ class MarianaTekProvider extends GymProvider {
     }
 
     // Step 4: exchange the code for tokens.
-    const tokenRes = await fetch(`${this.gym.oauthBaseUrl}/token/`, {
+    const tokenRes = await this.credentialFetch(`${this.gym.oauthBaseUrl}/token/`, {
       method: 'POST',
       headers: { 'content-type': 'application/x-www-form-urlencoded', ...this.browserHeaders() },
       body: new URLSearchParams({
@@ -348,7 +352,7 @@ class MarianaTekProvider extends GymProvider {
       }
       throw new Error('No refresh token and no stored credentials — MarianaTek needs a re-link.');
     }
-    const res = await fetch(`${this.gym.oauthBaseUrl}/token/`, {
+    const res = await this.credentialFetch(`${this.gym.oauthBaseUrl}/token/`, {
       method: 'POST',
       headers: { 'content-type': 'application/x-www-form-urlencoded', ...this.browserHeaders() },
       body: new URLSearchParams({
@@ -540,7 +544,8 @@ class MarianaTekProvider extends GymProvider {
   sharedClassList(params, session) {
     const win = classListWindow(params);
     if (!this._classFlights) this._classFlights = new Map();
-    const key = [win.startDate, win.endDate, win.locationId, win.instructorId, win.pageSize].join('|');
+    const scope = require('../provider-admission').flightScope();
+    const key = [scope, win.startDate, win.endDate, win.locationId, win.instructorId, win.pageSize].join('|');
     const exact = this._classFlights.get(key);
     if (exact) return exact.promise;
     // A flight with no location/instructor filter whose window covers this one
@@ -548,7 +553,7 @@ class MarianaTekProvider extends GymProvider {
     if (win.startDate && win.endDate && !win.locationId && !win.instructorId) {
       for (const f of this._classFlights.values()) {
         const w = f.win;
-        if (w.startDate && w.endDate && !w.locationId && !w.instructorId
+        if (f.scope === scope && w.startDate && w.endDate && !w.locationId && !w.instructorId
           && w.startDate <= win.startDate && w.endDate >= win.endDate) {
           return f.promise.then((rows) => rows.filter((c) => !c.start_date
             || (c.start_date >= win.startDate && c.start_date <= win.endDate)));
@@ -556,7 +561,7 @@ class MarianaTekProvider extends GymProvider {
       }
     }
     const promise = this._fetchClassList(win, session);
-    const flight = { win, promise };
+    const flight = { win, promise, scope };
     this._classFlights.set(key, flight);
     const drop = () => { if (this._classFlights.get(key) === flight) this._classFlights.delete(key); };
     promise.then(drop, drop);
@@ -660,7 +665,10 @@ class MarianaTekProvider extends GymProvider {
         }
       };
       const workers = [];
-      for (let i = 0; i < Math.min(CLASS_LIST_PAGE_CONCURRENCY, pages - 1); i++) workers.push(worker());
+      const admission = require('../provider-admission');
+      const optional = admission.enabled() && ['background', 'mcp'].includes(admission.actor().lane);
+      const concurrency = optional ? 2 : CLASS_LIST_PAGE_CONCURRENCY;
+      for (let i = 0; i < Math.min(concurrency, pages - 1); i++) workers.push(worker());
       const settled = await Promise.allSettled(workers);
       const bad = settled.find((r) => r.status === 'rejected');
       if (bad) throw bad.reason;

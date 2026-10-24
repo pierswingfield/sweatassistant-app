@@ -96,6 +96,9 @@ function cachedLocationMap(gymId) {
 }
 
 async function refreshLocationMap(userId, force = false, gymId = null) {
+  return require('./provider-admission').runForUser(userId, () => refreshLocationMapInActor(userId, force, gymId));
+}
+async function refreshLocationMapInActor(userId, force = false, gymId = null) {
   const gym = gymId || db.resolveActiveGymId(userId);
   const raw = db.getKV(locationsKey(gym));
   if (!force && raw) {
@@ -142,6 +145,9 @@ function eventToCalendarShape(ev) {
 // Cache key includes the gym: event ids are PROVIDER ids, so two gyms can both
 // serve an event "1000" and a user-blind cache would cross them over.
 async function fetchEventDetail(userId, eventId, explicitGymId) {
+  return require('./provider-admission').runForUser(userId, () => fetchEventDetailInActor(userId, eventId, explicitGymId));
+}
+async function fetchEventDetailInActor(userId, eventId, explicitGymId) {
   const gymId = explicitGymId || db.resolveActiveGymId(userId);
   const key = `${gymId}:${eventId}`;
   const cached = eventDetailCache.get(key);
@@ -175,6 +181,9 @@ async function fetchEventDetail(userId, eventId, explicitGymId) {
 // listWaitlists throw with `.status` set on HTTP failure (see codexfit.js doc
 // comment) instead of returning a result object — that's the signal here too.
 async function listWithRelogin(userId, method, explicitGymId) {
+  return require('./provider-admission').runForUser(userId, () => listWithReloginInActor(userId, method, explicitGymId));
+}
+async function listWithReloginInActor(userId, method, explicitGymId) {
   const gymId = explicitGymId || db.resolveActiveGymId(userId);
   // The SESSION must be read inside this gym's context. `db.getUserById`
   // resolves the user's ACTIVE gym's session, so during a fan-out every gym
@@ -678,7 +687,7 @@ function scheduleRefresh(userId, delayMs = 60000) {
   if (refreshTimers.has(userId)) return;
   const t = setTimeout(() => {
     refreshTimers.delete(userId);
-    refreshUser(userId).catch(err => console.error(`[Calendar] scheduled refresh failed for user ${userId}:`, err.message));
+    require('./provider-admission').run({ lane: 'background', userId }, () => refreshUser(userId)).catch(err => console.error(`[Calendar] scheduled refresh failed for user ${userId}:`, err.message));
   }, delayMs);
   if (t.unref) t.unref();
   refreshTimers.set(userId, t);

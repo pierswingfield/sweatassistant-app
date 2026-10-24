@@ -95,6 +95,7 @@ function mountMcp(app, config = configuration()) {
 }
 function budgetError(res, err) {
   const limited = err.code === 'RATE_LIMITED';
+  require('../metrics').observeMcpIngress(limited ? 'limited' : 'storage_error');
   if (limited) res.set('Retry-After', String(err.retryAfter || 1));
   return res.status(limited ? 429 : 503).json({ code: limited ? 'RATE_LIMITED' : 'BUDGET_UNAVAILABLE' });
 }

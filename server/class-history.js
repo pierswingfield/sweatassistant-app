@@ -165,6 +165,9 @@ function recordSync(userId, gymId, { ok, error }) {
 }
 
 async function pull(userId, gymId, sinceDate) {
+  return require('./provider-admission').runForUser(userId, () => pullInActor(userId, gymId, sinceDate));
+}
+async function pullInActor(userId, gymId, sinceDate) {
   const provider = getProvider(gymId);
   const session = db.getUserSession(userId, gymId);
   if (!session || !session.accessToken) {

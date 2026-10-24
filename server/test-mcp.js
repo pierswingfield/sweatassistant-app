@@ -193,10 +193,27 @@ function clearBudgets() { db.db.prepare('DELETE FROM mcp_budgets').run(); }
   } finally { global.fetch = savedFetch; }
   check(intercepted === 4, 'both authenticated and public transports account actual attempts');
 
+  // Real adapter fan-out must survive its own strict optional transport bound.
+  clearBudgets();
+  const originalGrant = grantId;
+  grantId = store.createGrant({ userId, issuer: config.issuer, subject: 'local-test-subject', clientId: 'sdk-test', scopes,
+    gymIds: [secondGymId], expiresAt: Date.now() + 3600000, consentReference: 'automated-fixture-only' });
+  let pageCalls = 0; let pageActive = 0; let pagePeak = 0;
+  try {
+    global.fetch = async () => {
+      pageCalls++; pageActive++; pagePeak = Math.max(pagePeak, pageActive);
+      await new Promise(r => setTimeout(r, 5)); pageActive--;
+      return new Response(JSON.stringify({ results: [], meta: { pagination: { pages: 5 } } }));
+    };
+    await context.run({ identity: identity(), scope: 'schedule:read', gymId: secondGymId, providerReads: true }, () =>
+      getProvider(secondGymId).fetchTimetable({ startDate: '2099-01-01', endDate: '2099-01-07' }, { accessToken: 'fixture-token' }));
+    check(pageCalls === 5 && pagePeak === 1, 'cold five-page MCP class read completes with bounded request-local fan-out');
+  } finally { global.fetch = savedFetch; grantId = originalGrant; }
+
   // Hard cost cap is charged per transport attempt; credentials/caches cannot reset it.
   clearBudgets(); let actual = 0;
   await context.run({ identity: identity(), scope: 'schedule:read', gymId, providerReads: true }, async () => {
-    for (let i = 0; i < 6; i++) await timedProviderFetch(gymId, 'GET', '/fixture', async () => { actual++; return { status: 200 }; });
+    for (let i = 0; i < 6; i++) await timedProviderFetch(gymId, i === 0 ? 'POST' : 'GET', '/fixture', async () => { actual++; return { status: 200 }; }, i === 0 ? 'credential' : undefined);
     await assert.rejects(() => timedProviderFetch(gymId, 'GET', '/fixture', async () => { actual++; }), e => e.code === 'RATE_LIMITED');
   });
   check(actual === 6, 'six actual upstream attempts maximum');
@@ -204,7 +221,7 @@ function clearBudgets() { db.db.prepare('DELETE FROM mcp_budgets').run(); }
   check(actual === 6, 'new operation cannot reset account/gym budget');
   clearBudgets();
   await context.run({ identity: identity(), scope: 'schedule:read', gymId, providerReads: true }, async () => {
-    assert.throws(() => context.forbidCredentialRenewal(), e => e.code === 'GYM_SESSION_EXPIRED');
+    await timedProviderFetch(gymId, 'POST', '/credential-fixture', async () => ({ status: 200 }), 'credential');
     await assert.rejects(() => timedProviderFetch(gymId, 'POST', '/fixture', async () => { actual++; }), e => e.code === 'PROVIDER_WORK_DISABLED');
     await assert.rejects(() => timedProviderFetch(secondGymId, 'GET', '/fixture', async () => { actual++; }), e => e.code === 'PROVIDER_WORK_DISABLED');
     await timedProviderFetch(gymId, 'GET', '/fixture', async () => ({ status: 429, headers: new Headers({ 'retry-after': '60' }) }));
@@ -212,6 +229,15 @@ function clearBudgets() { db.db.prepare('DELETE FROM mcp_budgets').run(); }
   });
   check(backoff.isGymRateLimited(gymId), 'MCP upstream 429 shares cooldown with scheduler');
   backoff._resetRateLimitBackoffForTests();
+  clearBudgets();
+  const cancellation = new AbortController();
+  let transportCancelled = false;
+  const cancelled = context.run({ identity: identity(), scope: 'schedule:read', gymId, providerReads: true, signal: cancellation.signal }, () => timedProviderFetch(gymId, 'GET', '/fixture', signal => new Promise((_resolve, reject) => {
+    signal.addEventListener('abort', () => { transportCancelled = true; reject(signal.reason); }, { once: true });
+  })));
+  cancellation.abort();
+  await assert.rejects(cancelled, e => e.code === 'DEADLINE_EXCEEDED');
+  check(transportCancelled, 'SDK request cancellation aborts actual provider transport');
   clearBudgets();
   let release;
   const held = context.run({ identity: identity(), scope: 'account:read', gymId, providerReads: false }, () => new Promise(r => { release = r; }));

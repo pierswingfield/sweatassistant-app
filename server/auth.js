@@ -170,11 +170,12 @@ async function handleLogin(email, password) {
 // old behaviour for every existing single-gym account.
 function withGymContext(req, res, next) {
   const requested = req.headers['x-gym-id'];
-  if (!requested) return next();
+  const proceed = () => require('./provider-admission').run({ lane: 'interactive', userId: req.userId }, next);
+  if (!requested) return proceed();
   if (!db.isGymLinked(req.userId, requested)) {
     return res.status(403).json({ message: `Account is not linked to gym "${requested}".` });
   }
-  return db.runWithGymContext(req.userId, requested, next);
+  return db.runWithGymContext(req.userId, requested, proceed);
 }
 
 function authenticateToken(req, res, next) {
@@ -241,6 +242,9 @@ const isCredentialRejection = (err) => /rejected your login|incorrect email\/pas
 
 // Renew a gym session when the stored one is rejected (401 Unauthorized).
 async function triggerAutoRelogin(userId, gymId = null) {
+  return require('./provider-admission').runForUser(userId, () => triggerAutoReloginInActor(userId, gymId));
+}
+async function triggerAutoReloginInActor(userId, gymId = null) {
   // `gymId` is explicit for background callers (WP-D7). The scheduler, poller and
   // calendar cron all process rows that may belong to a gym the user is NOT
   // currently looking at; resolving the active gym here would renew the wrong

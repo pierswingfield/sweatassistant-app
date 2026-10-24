@@ -54,7 +54,10 @@ const log = createLogger();
 
 // Debug-level line per upstream provider call (gymId, method, path without query, status, durationMs),
 // so the number of upstream /events calls behind one request is countable: LOG_LEVEL=debug.
-async function timedProviderFetch(gymId, method, pathOrUrl, doFetch) {
+function timedProviderFetch(...args) {
+  return require('./mcp/context').withProviderSlot(() => performProviderFetch(...args));
+}
+async function performProviderFetch(gymId, method, pathOrUrl, doFetch, purpose) {
   const start = Date.now();
   const outcomeOf = (st) => (st === 429 ? '429' : st >= 400 || st == null ? 'error' : 'ok');
   const count = (st) => {
@@ -64,19 +67,67 @@ async function timedProviderFetch(gymId, method, pathOrUrl, doFetch) {
     } catch (_) {}
   };
   const path = String(pathOrUrl).replace(/^https?:\/\/[^/]+/i, '').split('?')[0];
+  const admission = require('./provider-admission');
+  let lease;
+  let attempted = false;
+  const lane = admission.actor().lane;
   try {
-    const signal = require('./mcp/context').admitProvider(gymId, method);
-    const res = await doFetch(signal);
-    // Share MCP-observed 429s with the existing scheduler/poller cooldown.
-    if (require('./mcp/context').current()) require('./rate-limit-backoff').noteThrottleResponse(gymId, res);
+    const mcpSignal = require('./mcp/context').admitProvider(gymId, method, purpose);
+    lease = admission.admit(gymId);
+    const signals = [mcpSignal, lease?.signal].filter(Boolean);
+    const signal = signals.length ? AbortSignal.any(signals) : undefined;
+    attempted = true;
+    let res = await abortable(doFetch(signal), signal);
+    require('./rate-limit-backoff').noteThrottleResponse(gymId, res);
+    // Keep the reservation through the complete body, with bounded memory and
+    // deadline. Otherwise slow bodies evade concurrency after headers arrive.
+    if (lease && res?.body && typeof res.body.getReader === 'function') {
+      const reader = res.body.getReader();
+      const chunks = []; let size = 0;
+      try {
+        while (true) {
+          signal.throwIfAborted();
+          const { done, value } = await abortable(reader.read(), signal);
+          if (done) break;
+          size += value.byteLength;
+          if (size > 4 * 1024 * 1024) throw Object.assign(new Error('Provider response exceeds limit'), { code: 'PROVIDER_RESPONSE_TOO_LARGE', status: 502 });
+          chunks.push(Buffer.from(value));
+        }
+      } catch (err) { reader.cancel().catch(() => {}); throw err; }
+      res = new Response(Buffer.concat(chunks), { status: res.status, statusText: res.statusText, headers: res.headers });
+    }
+    if (signal) signal.throwIfAborted();
+    admission.observe(lane, 'admitted');
     count(res && res.status);
     log.debug('provider call', { gymId, method, path, status: res && res.status, durationMs: Date.now() - start });
     return res;
   } catch (err) {
-    count(null);
+    admission.observe(lane, err.code === 'RATE_LIMITED' ? 'rejected' : 'error');
+    if (attempted) count(null);
     log.debug('provider call failed', { gymId, method, path, durationMs: Date.now() - start, err });
     throw err;
-  }
+  } finally { lease?.release(); }
 }
 
-module.exports = { createLogger, requestLogger, timedProviderFetch, log, redact };
+// Abort races bound even a stalled custom/mock response stream; native fetch also
+// receives the signal so the socket is cancelled, not just its caller.
+function abortable(promise, signal) {
+  if (!signal) return promise;
+  return new Promise((resolve, reject) => {
+    const abort = () => reject(signal.reason || new Error('Provider request aborted'));
+    if (signal.aborted) { Promise.resolve(promise).catch(() => {}); abort(); return; }
+    signal.addEventListener('abort', abort, { once: true });
+    Promise.resolve(promise).then(resolve, reject).finally(() => signal.removeEventListener('abort', abort));
+  });
+}
+function credentialProviderFetch(gymId, url, options = {}) {
+  const gym = require('./gyms.config').getGymConfig(gymId);
+  const target = new URL(url);
+  const origins = [gym?.apiBaseUrl, gym?.oauthBaseUrl].filter(Boolean).map(value => new URL(value).origin);
+  if (target.username || target.password || !origins.includes(target.origin)) {
+    throw Object.assign(new Error('Gym authentication redirect is not permitted'), { code: 'PROVIDER_WORK_DISABLED', status: 403 });
+  }
+  return timedProviderFetch(gymId, options.method || 'GET', url,
+    signal => fetch(url, { ...(require('./provider-admission').enabled() ? { redirect: 'manual' } : {}), ...options, ...(signal ? { signal } : {}) }), 'credential');
+}
+module.exports = { credentialProviderFetch, createLogger, requestLogger, timedProviderFetch, log, redact };

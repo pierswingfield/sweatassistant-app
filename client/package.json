@@ -12,10 +12,15 @@
   },
   "devDependencies": {
     "jsdom": "^29.1.1",
-    "vite": "^5.2.11",
-    "vitest": "^4.1.11"
+    "vite": "6.4.5",
+    "vitest": "4.1.12"
   },
   "dependencies": {
     "luxon": "^3.7.2"
+  },
+  "overrides": {
+    "vite": "$vite",
+    "source-map-js": "1.2.2",
+    "undici": "7.30.1"
   }
 }

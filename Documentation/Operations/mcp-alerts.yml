@@ -1,0 +1,38 @@
+# Load into the operator's Prometheus rule_files after confirming scrape access.
+# Aggregate-only labels: no user, token, grant or raw request path.
+groups:
+  - name: mcp-provider-safety
+    rules:
+      - alert: ProviderAdmissionPressure
+        expr: sum(rate(provider_admission_total{result="rejected"}[5m])) > 0.1
+        for: 5m
+        labels: { severity: warning }
+        annotations:
+          summary: Provider capacity is refusing work
+          description: Inspect fixed lane totals; disable MCP provider reads before changing any quota.
+      - alert: ScheduledProviderAdmissionDenied
+        expr: sum(increase(provider_admission_total{lane="scheduler",result="rejected"}[5m])) > 0
+        labels: { severity: critical }
+        annotations:
+          summary: Scheduled work reached provider admission limits
+          description: Disable optional MCP provider reads; inspect provider cooldowns and reservation sizing.
+      - alert: ProviderThrottling
+        expr: sum(increase(provider_calls_total{outcome="429"}[5m])) > 0
+        labels: { severity: warning }
+        annotations:
+          summary: A gym provider is throttling requests
+          description: Shared cooldown applies; do not retry mutations or raise limits blindly.
+      - alert: McpIngressAbuseOrBudgetStorageFailure
+        expr: sum(rate(mcp_ingress_rejections_total[5m])) > 0.2 or sum(increase(mcp_ingress_rejections_total{result="storage_error"}[5m])) > 0
+        for: 2m
+        labels: { severity: warning }
+        annotations:
+          summary: MCP ingress refuses sustained demand or cannot account for it
+          description: Inspect budget storage and client demand; fail-closed controls must remain enabled.
+      - alert: McpReadFailures
+        expr: sum(rate(mcp_tools_total{result!="ok"}[5m])) > 0.1
+        for: 5m
+        labels: { severity: warning }
+        annotations:
+          summary: MCP reads are failing persistently
+          description: Inspect bounded result codes and provider outcomes; disable MCP while investigating.

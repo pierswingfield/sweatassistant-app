@@ -22,7 +22,8 @@ function createFreshness({ memoMs = MEMO_MS, failMemoMs = FAIL_MEMO_MS, timeoutM
   function snapshot(gymId, provider, session) {
     const m = memo.get(gymId);
     if (m && m.expires > Date.now()) return Promise.resolve(m.value);
-    if (inflight.has(gymId)) return inflight.get(gymId);
+    const flightKey = `${gymId}|${require('./provider-admission').flightScope()}`;
+    if (inflight.has(flightKey)) return inflight.get(flightKey);
     const p = (async () => {
       stats.heartbeatChecks++;
       let timer;
@@ -41,10 +42,10 @@ function createFreshness({ memoMs = MEMO_MS, failMemoMs = FAIL_MEMO_MS, timeoutM
         return null;
       } finally {
         clearTimeout(timer);
-        inflight.delete(gymId);
+        inflight.delete(flightKey);
       }
     })();
-    inflight.set(gymId, p);
+    inflight.set(flightKey, p);
     return p;
   }
 

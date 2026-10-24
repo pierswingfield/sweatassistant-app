@@ -43,7 +43,9 @@ function applyRateLimitBackoff(gymId, retryAfterMs) {
  * language, and an ordinary 403 must not pause a gym (base.js rule).
  */
 function noteThrottleError(gymId, err) {
-  if (!err) return false;
+  // Local admission refusals are not evidence that a provider throttled us.
+  // Letting optional work arm this cooldown would also pause reserved jobs.
+  if (!err || err.code === 'RATE_LIMITED') return false;
   if (err.code === 'PROVIDER_RATE_LIMITED' || err.status === 429) {
     applyRateLimitBackoff(gymId, err.retryAfterMs);
     return true;

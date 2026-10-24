@@ -21,7 +21,7 @@ const { studioHasRowGroups, studioMobileRotation } = require('./spot-map');
 const { makeMetadata, makeProfile, makeEvent, makeSlot, makeLayoutObject, makeBookingResult, makeBooking, makeHistoryEntry, prune } = require('./normalize');
 const cart = require('./codexfit-cart');
 const favourites = require('../favourites');
-const { timedProviderFetch } = require('../logger');
+const { timedProviderFetch, credentialProviderFetch } = require('../logger');
 
 // Dev-mode bypass, driven by the gym config's `devMock.email` (see BaseProvider's
 // isMockLogin/isMockUser). login() must establish the sentinel session itself,
@@ -198,7 +198,7 @@ class CodexFitProvider extends GymProvider {
         delete opts.headers['content-type'];
       }
     }
-    return timedProviderFetch(this.gym.id, method, pathOrUrl, (signal) => fetch(urlFn(pathOrUrl), { ...opts, ...(signal ? { signal } : {}) }));
+    return timedProviderFetch(this.gym.id, method, pathOrUrl, (signal) => fetch(urlFn(pathOrUrl), { ...(require('../provider-admission').enabled() ? { redirect: 'manual' } : {}), ...opts, ...(signal ? { signal } : {}) }));
   }
 
   /**
@@ -208,7 +208,7 @@ class CodexFitProvider extends GymProvider {
    * session is available — same convention as the MarianaTek adapter).
    */
   async publicRequest(pathOrUrl, { method = 'GET' } = {}) {
-    return timedProviderFetch(this.gym.id, method, pathOrUrl, (signal) => fetch(this.url(pathOrUrl), { method, headers: this.buildHeaders(null, false), ...(signal ? { signal } : {}) }));
+    return timedProviderFetch(this.gym.id, method, pathOrUrl, (signal) => fetch(this.url(pathOrUrl), { ...(require('../provider-admission').enabled() ? { redirect: 'manual' } : {}), method, headers: this.buildHeaders(null, false), ...(signal ? { signal } : {}) }));
   }
 
   // --- Authentication -------------------------------------------------------
@@ -217,6 +217,10 @@ class CodexFitProvider extends GymProvider {
    * Direct credential login. Returns a normalized session + profile, plus the
    * raw payload so legacy callers can read `raw.access_token` / `raw.user`.
    */
+  credentialFetch(url, options) {
+    return credentialProviderFetch(this.gym.id, url, options);
+  }
+
   async login({ email, password }) {
     if (this.isMockLogin(email)) {
       const session = {
@@ -229,7 +233,7 @@ class CodexFitProvider extends GymProvider {
       return { session, profile, raw: { access_token: MOCK_TOKEN, mock: true } };
     }
 
-    const res = await fetch(this.url(this.gym.loginPath), {
+    const res = await this.credentialFetch(this.url(this.gym.loginPath), {
       method: 'POST',
       headers: this.buildHeaders(null, true),
       body: JSON.stringify({ email, password }),
@@ -303,7 +307,9 @@ class CodexFitProvider extends GymProvider {
     const key = this._profileKey(session);
     this._profileGen.set(key, (this._profileGen.get(key) || 0) + 1);
     this._profileMemo.delete(key);
-    this._profileInflight.delete(key);
+    for (const pendingKey of this._profileInflight.keys()) {
+      if (pendingKey.startsWith(`${key}|flight:`)) this._profileInflight.delete(pendingKey);
+    }
   }
 
   /** @returns {Promise<Object>} the unwrapped raw profile; rejects with `.status` on a non-2xx. */
@@ -311,7 +317,8 @@ class CodexFitProvider extends GymProvider {
     const key = this._profileKey(session);
     const hit = this._profileMemo.get(key);
     if (hit && hit.expires > Date.now()) return Promise.resolve(hit.value);
-    const pending = this._profileInflight.get(key);
+    const flightKey = `${key}|flight:${require('../provider-admission').flightScope()}`;
+    const pending = this._profileInflight.get(flightKey);
     if (pending) return pending;
 
     const gen = this._profileGen.get(key) || 0;
@@ -329,8 +336,8 @@ class CodexFitProvider extends GymProvider {
       }
       return value;
     })();
-    this._profileInflight.set(key, p);
-    const clear = () => { if (this._profileInflight.get(key) === p) this._profileInflight.delete(key); };
+    this._profileInflight.set(flightKey, p);
+    const clear = () => { if (this._profileInflight.get(flightKey) === p) this._profileInflight.delete(flightKey); };
     p.then(clear, clear);
     return p;
   }

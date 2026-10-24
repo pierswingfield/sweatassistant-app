@@ -36,6 +36,9 @@ const claimedSlots = new Set();
 // PATH, not a URL — the provider prepends its gym's base, which is the whole
 // point (an absolute URL would bypass it and pin every gym to Psycle's host).
 async function fetchFromGym(userId, gymId, path, options = {}) {
+  return require('./provider-admission').runForUser(userId, () => fetchFromGymInActor(userId, gymId, path, options));
+}
+async function fetchFromGymInActor(userId, gymId, path, options = {}) {
   // The ROW's gym session — NOT db.getUserById(userId).jwt, which resolves the
   // user's ACTIVE gym (db.resolveActiveGymId) and is wrong for a background
   // call site processing a gym the user isn't currently looking at (C3-12).
@@ -76,6 +79,9 @@ async function fetchFromGym(userId, gymId, path, options = {}) {
 
 // Cancel a booking
 async function apiCancelBooking(userId, gymId, bookingId) {
+  return require('./provider-admission').runForUser(userId, () => apiCancelBookingInActor(userId, gymId, bookingId));
+}
+async function apiCancelBookingInActor(userId, gymId, bookingId) {
   const res = await fetchFromGym(userId, gymId, `/bookings/${bookingId}`, { method: 'DELETE' });
   if (!res.ok) {
     const errData = await res.json().catch(() => ({}));
@@ -93,6 +99,9 @@ async function apiCancelBooking(userId, gymId, bookingId) {
 // Atomic spot swap with the same 401→relogin→retry ladder as bookSlotWithRelogin.
 // Only reachable for gyms whose capabilities declare `atomicSwap`.
 async function swapSpotsWithRelogin(userId, gymId, bookingId, currentSlotId, targetSlot) {
+  return require('./provider-admission').runForUser(userId, () => swapSpotsWithReloginInActor(userId, gymId, bookingId, currentSlotId, targetSlot));
+}
+async function swapSpotsWithReloginInActor(userId, gymId, bookingId, currentSlotId, targetSlot) {
   // The ROW's gym session — see fetchFromGym's note above (C3-12).
   let session = db.getUserSession(userId, gymId);
   if (!session || !session.accessToken) throw new Error('User has no active session. Please log in.');
@@ -106,6 +115,9 @@ async function swapSpotsWithRelogin(userId, gymId, bookingId, currentSlotId, tar
 }
 
 async function bookSlotWithRelogin(userId, gymId, eventId, targetSlot) {
+  return require('./provider-admission').runForUser(userId, () => bookSlotWithReloginInActor(userId, gymId, eventId, targetSlot));
+}
+async function bookSlotWithReloginInActor(userId, gymId, eventId, targetSlot) {
   // The ROW's gym session — see fetchFromGym's note above (C3-12).
   let session = db.getUserSession(userId, gymId);
   if (!session || !session.accessToken) throw new Error('User has no active session. Please log in.');
@@ -676,6 +688,9 @@ async function cancelRebookSingle({ upgrade, candidateSlot, claimKey, isCutoffMo
 }
 
 async function attemptUpgradeSlot(upgrade, isCutoffMode) {
+  return require('./provider-admission').runForUser(upgrade.user_id, () => attemptUpgradeSlotInActor(upgrade, isCutoffMode));
+}
+async function attemptUpgradeSlotInActor(upgrade, isCutoffMode) {
   // Group monitors (several reservations) are planned and moved together.
   const groupMembers = db.getAutoUpgradeMembers(upgrade.id);
   if (groupMembers.length > 1) return attemptGroupUpgrade(upgrade, groupMembers, isCutoffMode);
@@ -1032,7 +1047,7 @@ async function resumePausedUpgrades() {
           try {
             const session = db.getUserSession(userId, gymId);
             if (!session || !session.accessToken) return null;
-            return await getProvider(gymId).getCredits(session);
+            return await require('./provider-admission').runForUser(userId, () => getProvider(gymId).getCredits(session));
           } catch (err) {
             noteThrottleError(gymId, err);
             console.warn(`[Poller] Resume check: credits read failed for user ${userId} (${gymId}): ${err.message}`);
@@ -1186,6 +1201,9 @@ async function executeAutoUpgradeChecks() {
 // locally from the cache with no extra API cost.
 // One gym's bookings, via its own adapter, with the usual 401→relogin→retry.
 async function listBookingsWithRelogin(userId, gymId) {
+  return require('./provider-admission').runForUser(userId, () => listBookingsWithReloginInActor(userId, gymId));
+}
+async function listBookingsWithReloginInActor(userId, gymId) {
   const provider = getProvider(gymId);
   let session = db.getUserSession(userId, gymId);
   if (!session || !session.accessToken) throw new Error(`no session for ${gymId}`);
@@ -1207,6 +1225,9 @@ async function listBookingsWithRelogin(userId, gymId) {
  * keeps this from becoming N live calls every sweep.
  */
 async function bookingCacheRowsFor(userId, gymId) {
+  return require('./provider-admission').runForUser(userId, () => bookingCacheRowsForInActor(userId, gymId));
+}
+async function bookingCacheRowsForInActor(userId, gymId) {
   const bookings = await listBookingsWithRelogin(userId, gymId);
   const rows = [];
   for (const nb of bookings || []) {
@@ -1367,6 +1388,9 @@ async function checkBookingWindowReminder() {
 }
 
 async function sendBookingWindowTip(userId, gymId) {
+  return require('./provider-admission').runForUser(userId, () => sendBookingWindowTipInActor(userId, gymId));
+}
+async function sendBookingWindowTipInActor(userId, gymId) {
   // THIS gym's queue — a Psycle reminder must not count JAB's entries.
   const pending = db.getUserAutoBookings(userId, gymId).filter(b => b.status === 'pending');
   const count = pending.length;

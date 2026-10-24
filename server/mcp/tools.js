@@ -94,11 +94,11 @@ function registerTools(server, identity, config) {
     try { store.authorize(identity, def.scope); } catch (_) { continue; }
     if (def.upstream && !config.providerReads) continue;
     server.registerTool(name, { description: def.description, inputSchema: def.schema,
-      annotations: { readOnlyHint: true, destructiveHint: false, idempotentHint: true, openWorldHint: !!def.upstream } }, async args => {
+      annotations: { readOnlyHint: true, destructiveHint: false, idempotentHint: true, openWorldHint: !!def.upstream } }, async (args, extra) => {
       const before = Date.now();
       const actor = store.authorize(identity, def.scope, args.gymId);
       try {
-        const data = await context.run({ identity, scope: def.scope, gymId: args.gymId, providerReads: config.providerReads }, async a => {
+        const data = await context.run({ identity, scope: def.scope, gymId: args.gymId, providerReads: config.providerReads, signal: extra?.signal }, async a => {
           const execute = () => def.run(a, args);
           return args.gymId ? db.runWithGymContext(a.userId, args.gymId, execute) : execute();
         });
@@ -106,11 +106,13 @@ function registerTools(server, identity, config) {
         const serialized = JSON.stringify(result);
         if (Buffer.byteLength(serialized) > 32768) throw Object.assign(new Error('Result too large; request a smaller page'), { code: 'RESULT_TOO_LARGE' });
         store.touch(identity.grantId);
+        require('../metrics').observeMcpTool(name, 'ok', Date.now() - before);
         log.info('MCP tool', { userId: actor.userId, clientId: actor.clientId, grantId: actor.grantId, tool: name, gymId: args.gymId, outcome: 'ok', durationMs: Date.now() - before });
         return { content: [{ type: 'text', text: serialized }], structuredContent: result };
       } catch (err) {
         const safeCodes = ['ACCESS_DENIED', 'INSUFFICIENT_SCOPE', 'RATE_LIMITED', 'DEADLINE_EXCEEDED', 'GYM_SESSION_EXPIRED', 'PROVIDER_WORK_DISABLED', 'RESULT_TOO_LARGE'];
         const code = safeCodes.includes(err.code) ? err.code : 'READ_UNAVAILABLE';
+        require('../metrics').observeMcpTool(name, code, Date.now() - before);
         log.info('MCP tool', { userId: actor.userId, clientId: actor.clientId, grantId: actor.grantId, tool: name, gymId: args.gymId, outcome: code, durationMs: Date.now() - before });
         return { isError: true, content: [{ type: 'text', text: JSON.stringify({ code, ...(err.retryAfter ? { retryAfterSeconds: err.retryAfter } : {}) }) }] };
       }

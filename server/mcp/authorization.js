@@ -277,7 +277,11 @@ function mountAuthorization(app, resourceConfig, options = {}) {
     res.set(response.headers).status(response.status || 200).json(response.body || { error: 'server_error' });
   }));
   router.use((err, _req, res, _next) => page(res, 'Request rejected', '<p>This request has expired or is invalid. Return to the app or AI client and start again.</p>', err.type === 'entity.too.large' ? 413 : 400));
-  app.use((req, res, next) => req.path.startsWith('/oauth/') || req.path === '/.well-known/oauth-authorization-server' ? router(req, res, next) : next());
+  app.use((req, res, next) => {
+    if (!req.path.startsWith('/oauth/') && req.path !== '/.well-known/oauth-authorization-server') return next();
+    if (req.path === '/oauth/token') res.once('finish', () => require('../metrics').observeMcpHttp('oauth_token', req.method, res.statusCode));
+    return router(req, res, next);
+  });
   return { oauth, model };
 }
 module.exports = { mountAuthorization, createAuthorizationModel, loadAuthorizationConfiguration };

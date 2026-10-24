@@ -13,12 +13,18 @@ const store = require('./mcp/store');
 const { mountAuthorization, loadAuthorizationConfiguration } = require('./mcp/authorization');
 const { mountMcp } = require('./mcp/router');
 const { verifier } = require('./mcp/auth');
+const metrics = require('./metrics');
 const temp = fs.mkdtempSync(path.join(os.tmpdir(), 'mcp-auth-'));
 const origin = 'https://mcp.example.test';
 const resource = `${origin}/mcp`;
 const password = 'isolated-local-password';
 let server, port, checks = 0;
 const check = (value, label) => { assert.ok(value, label); checks++; };
+function metricValue(name, labels) {
+  const selector = `${name}{${Object.entries(labels).map(([key, value]) => `${key}="${value}"`).join(',')}}`;
+  const line = metrics.render().split('\n').find(value => value.startsWith(selector));
+  return line ? Number(line.slice(selector.length).trim()) : 0;
+}
 const hidden = html => Object.fromEntries([...html.matchAll(/type="hidden" name="([^"]+)" value="([^"]*)"/g)].map(m => [m[1], m[2]]));
 const challengeVerifier = crypto.randomBytes(32).toString('base64url');
 const challenge = crypto.createHash('sha256').update(challengeVerifier).digest('base64url');
@@ -143,7 +149,10 @@ async function refresh(value, patch = {}) { return http('/oauth/token', { body: 
   const rev = await http('/oauth/connections/revoke', { cookie: tx.cookie, body: { ...tx.fields, grant: grantId } });
   check(rev.status === 200 && rev.text.includes('Access revoked'), 'first-party revoke succeeds');
   await assert.rejects(() => verify(tokens.json.access_token)); checks++;
+  const refresh4xxBefore = metricValue('mcp_http_requests_total', { route: 'oauth_token', method: 'post', status: '4xx' });
   check((await refresh(tokens.json.refresh_token)).status === 400, 'revocation rejects refresh immediately');
+  check(metricValue('mcp_http_requests_total', { route: 'oauth_token', method: 'post', status: '4xx' }) === refresh4xxBefore + 1,
+    'revoked refresh rejection is counted at the early OAuth boundary');
   clearBudgets();
   code = (await consent(await login(await start({ client_id: 'confidential' })))).code;
   const secretPair = await exchange(code, { client_id: 'confidential', client_secret: 'client-secret-test' });

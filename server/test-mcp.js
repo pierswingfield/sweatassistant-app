@@ -19,6 +19,7 @@ const { timedProviderFetch } = require('./logger');
 const { getProvider } = require('./providers');
 const { listGyms } = require('./gyms.config');
 const backoff = require('./rate-limit-backoff');
+const metrics = require('./metrics');
 const temp = fs.mkdtempSync(path.join(os.tmpdir(), 'mcp-test-'));
 const config = { enabled: true, resource: 'https://mcp.example.test/mcp', issuer: 'https://issuer.example.test/', host: 'mcp.example.test',
   origins: ['https://mcp.example.test'], providerReads: true, jwksFile: path.join(temp, 'jwks.json') };
@@ -34,6 +35,11 @@ let secondGymId;
 const scopes = ['account:read', 'schedule:read', 'automation:read'];
 let calls = 0;
 function check(condition, message) { assert.ok(condition, message); calls++; }
+function metricValue(name, labels) {
+  const selector = `${name}{${Object.entries(labels).map(([key, value]) => `${key}="${value}"`).join(',')}}`;
+  const line = metrics.render().split('\n').find(value => value.startsWith(selector));
+  return line ? Number(line.slice(selector.length).trim()) : 0;
+}
 async function sign(patch = {}, options = {}) {
   const now = Math.floor(Date.now() / 1000);
   return new jose.SignJWT({ iss: config.issuer, sub: 'local-test-subject', aud: config.resource,
@@ -249,9 +255,12 @@ function clearBudgets() { db.db.prepare('DELETE FROM mcp_budgets').run(); }
   // Revocation while a read is in flight discards its result.
   let resume;
   const pending = context.run({ identity: identity(), scope: 'account:read', gymId, providerReads: false }, () => new Promise(r => { resume = r; }));
+  const revoked401Before = metricValue('mcp_http_requests_total', { route: 'mcp', method: 'post', status: '401' });
   store.revokeGrant(userId, grantId); resume({ secret: 'must not escape' });
   await assert.rejects(() => pending, e => e.code === 'ACCESS_DENIED'); calls++;
   check((await request(list, bearer)).status === 401, 'unexpired token revoked immediately');
+  check(metricValue('mcp_http_requests_total', { route: 'mcp', method: 'post', status: '401' }) === revoked401Before + 1,
+    'revoked bearer rejection is counted at the early MCP boundary');
   grantId = store.createGrant({ userId, issuer: config.issuer, subject: 'local-test-subject', clientId: 'sdk-test', scopes,
     gymIds: [gymId], expiresAt: Date.now() + 3600000, consentReference: 'automated-fixture-only' });
   const changedPasswordBearer = await sign(); db.setAccountPassword(userId, 'changed-local-password');

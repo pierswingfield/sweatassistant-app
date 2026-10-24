@@ -90,7 +90,10 @@ function mountMcp(app, config = configuration()) {
   router.all('/mcp', (_req, res) => res.set('Allow', 'POST, OPTIONS').status(405).json({ code: 'METHOD_NOT_ALLOWED' }));
   router.use((err, _req, res, _next) => res.status(err.type === 'entity.too.large' ? 413 : 400).json({ code: err.type === 'entity.too.large' ? 'REQUEST_TOO_LARGE' : 'INVALID_JSON' }));
   app.use((req, res, next) => {
-    if (req.path === '/mcp' || req.path === metadataPath) return router(req, res, next);
+    if (req.path === '/mcp' || req.path === metadataPath) {
+      if (req.path === '/mcp') res.once('finish', () => require('../metrics').observeMcpHttp('mcp', req.method, res.statusCode));
+      return router(req, res, next);
+    }
     next();
   });
 }

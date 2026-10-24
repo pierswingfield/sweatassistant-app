@@ -98,6 +98,20 @@ function observeMcpTool(tool, result, milliseconds, clientId, gymId) {
 function observeMcpIngress(result) {
   inc('mcp_ingress_rejections_total', 'MCP ingress refusals by fixed result.', { result });
 }
+// MCP/OAuth routers are intentionally mounted ahead of the general HTTP
+// metrics/logger middleware. Count only these two sensitive endpoints here,
+// using fixed labels so early authentication responses remain observable
+// without recording paths, query strings, headers, or request bodies.
+function observeMcpHttp(route, method, statusCode) {
+  const fixedRoute = route === 'mcp' || route === 'oauth_token' ? route : 'other';
+  const fixedMethod = ['GET', 'POST', 'OPTIONS'].includes(method) ? method.toLowerCase() : 'other';
+  const fixedStatus = statusCode === 401 ? '401' : statusCode === 403 ? '403' :
+    statusCode >= 200 && statusCode < 300 ? '2xx' :
+      statusCode >= 400 && statusCode < 500 ? '4xx' :
+        statusCode >= 500 && statusCode < 600 ? '5xx' : 'other';
+  inc('mcp_http_requests_total', 'MCP and OAuth endpoint requests by fixed route, method and status.',
+    { route: fixedRoute, method: fixedMethod, status: fixedStatus });
+}
 function observeCache(result) {
   inc('schedule_cache_total', 'Shared schedule cache outcomes.', { result });
   observeMcpWork('cache', result);
@@ -106,4 +120,4 @@ function observeAdmission(lane, result) {
   inc('provider_admission_total', 'Provider admission outcomes by fixed actor lane.', { lane, result });
   observeMcpWork('admission', result);
 }
-module.exports = { configureMcpClients, observeMcpWork, observeMcpTool, observeMcpIngress, observeCache, observeAdmission, observeHttp, observeProvider, httpMetrics, render };
+module.exports = { configureMcpClients, observeMcpWork, observeMcpTool, observeMcpIngress, observeMcpHttp, observeCache, observeAdmission, observeHttp, observeProvider, httpMetrics, render };

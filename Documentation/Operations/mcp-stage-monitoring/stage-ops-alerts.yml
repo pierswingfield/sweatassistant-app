@@ -1,0 +1,18 @@
+groups:
+  - name: stage-operations
+    rules:
+      - alert: StageAppMetricsUnavailable
+        expr: up{job="stage-app"} == 0
+        for: 2m
+        labels: { severity: critical }
+        annotations:
+          summary: Isolated stage metrics scrape is unavailable
+          description: Check the stage app and its private scrape path.
+
+      - alert: StageFilesystemHeadroomLow
+        expr: stage_ops_filesystem_available_bytes < 4294967296
+        for: 5m
+        labels: { severity: critical }
+        annotations:
+          summary: Stage monitoring filesystem is below 4 GiB free
+          description: Check the Oracle root filesystem before further image or database writes.

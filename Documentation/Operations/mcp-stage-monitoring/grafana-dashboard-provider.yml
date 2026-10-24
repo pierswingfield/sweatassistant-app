@@ -1,0 +1,10 @@
+apiVersion: 1
+providers:
+  - name: MCP stage
+    orgId: 1
+    folder: MCP staging
+    type: file
+    disableDeletion: true
+    editable: false
+    options:
+      path: /etc/grafana/dashboards

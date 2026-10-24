@@ -11,6 +11,7 @@
 import { COPY, formatCopyText } from '../copy.js';
 import { api } from '../api.js';
 import { openPage, pushLayer, closePage, setDesktopBack } from './modal-nav.js';
+import { renderFloorPlanSkeleton } from './loading-skeleton.js';
 import { applyBookingChrome } from './booking-chrome.js';
 import { gymLogoBanner, trimLocation, displayStudioName, gymBrand } from './cards.js';
 import { renderStudioFloorPlan } from './spotmap.js';
@@ -155,7 +156,7 @@ export function openSpotSetup({ event, className, onSaved, onContinue, onChooseF
         else showA0();
       },
     });
-    body.innerHTML = `<div class="app-setup-loading"><div class="app-spinner"></div></div>`;
+    body.innerHTML = renderFloorPlanSkeleton(COPY.spotMaps.loadingFloorPlan);
     setFooter();
     let slots, objects;
     try {

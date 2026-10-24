@@ -2,6 +2,7 @@ import { api } from '../api';
 import { metadata, mobileRotationForStudio, frontForStudio } from './timetable';
 import { makeDisplayRotator, makeUniformFit, effectiveRotation, displayFrontSide, makeFrontBar, FRONT_BAR_PX } from './spot-rotation.js';
 import { COPY, formatCopyText } from '../copy.js';
+import { renderFloorPlanSkeleton } from './loading-skeleton.js';
 
 let occupancyHoverTimeout = null;
 let occupancyHideTimeout = null;
@@ -376,13 +377,7 @@ export function initTooltips() {
         renderMinimap(eventDetailsCache.get(cacheKey), occupancyTooltip);
       } else {
         occupancyTooltip.innerHTML = `
-          <div class="tip-loading-box">
-            <svg class="app-spinner-svg tip-spinner-svg" viewBox="0 0 24 24">
-              <circle cx="12" cy="12" r="10" stroke="color-mix(in srgb, var(--text) 15%, transparent)" stroke-width="3" fill="none"></circle>
-              <path d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" fill="currentColor"></path>
-            </svg>
-            <span class="tip-loading-text">${COPY.occupancy.loadingLayout}</span>
-          </div>
+          <div class="tip-loading-box">${renderFloorPlanSkeleton(COPY.occupancy.loadingLayout, 3)}</div>
         `;
         positionTooltip(target, occupancyTooltip);
 

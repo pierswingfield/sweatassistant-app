@@ -14,6 +14,7 @@ import { getLinkedGyms, getGymShortName } from '../gym-context.js';
 import { icon, gymSquareChip, gymBrand, gymLogoBanner } from './cards.js';
 import { createRenderGuard, reconcileKeyed, lastAuthLabel, connectionHealth } from './gym-connections.js';
 import { COPY, formatCopyText } from '../copy.js';
+import { renderCardSkeletons, renderFloorPlanSkeleton, renderPanelSkeleton } from './loading-skeleton.js';
 import { appConfig } from '../config.js';
 import { openPage as openNavPage, closePage as closeNavPage, isMobile } from './modal-nav.js';
 import { initFavouritesPane, renderFavouritesPane } from './favourites-pane.js';
@@ -242,7 +243,7 @@ async function openProfileExplorerModal(gymId = null, gymName = null) {
     },
     onClose: () => { explorerModalOpen = false; editMode = false; konamiProgress = 0; },
   });
-  body.innerHTML = `<div class="set-loading-container"><div class="app-spinner set-loading-spinner"></div><div class="set-loading-text">${COPY.profileExplorer.loading}</div></div>`;
+  body.innerHTML = renderPanelSkeleton(COPY.profileExplorer.loading, 6);
 
   // Set up close handlers
   setupExplorerModalClose(modal);
@@ -661,7 +662,7 @@ export async function openManageSpotMapsModal(options = {}) {
   const body = document.createElement('div');
   body.className = 'app-ovl-body';
   body.style.cssText = 'flex:1;overflow-y:auto;padding:16px;';
-  body.innerHTML = `<div class="set-studios-loading"><div class="app-spinner set-loading-spinner"></div><div class="set-loading-text">${COPY.spotMaps.loadingStudios}</div></div>`;
+  body.innerHTML = renderCardSkeletons(4, COPY.spotMaps.loadingStudios);
 
   const loadingHtml = body.innerHTML;
   modal.appendChild(header);
@@ -1044,7 +1045,7 @@ export async function openStudioFloorPlanEditor(studioId, studioName, onSaved, o
   const body = document.createElement('div');
   body.className = 'app-ovl-body';
   body.style.cssText = 'flex:1;overflow-y:auto;padding:16px;';
-  body.innerHTML = `<div class="set-studios-loading"><div class="app-spinner set-loading-spinner"></div><div class="set-loading-text">${COPY.spotMaps.loadingFloorPlan}</div></div>`;
+  body.innerHTML = renderFloorPlanSkeleton(COPY.spotMaps.loadingFloorPlan);
 
   modal.appendChild(header);
   modal.appendChild(body);

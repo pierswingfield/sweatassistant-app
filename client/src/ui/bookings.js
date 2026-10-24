@@ -6,7 +6,7 @@ import { renderStudioFloorPlan } from './spotmap';
 import { instructorInlineHtml, instructorNameLengthClass, icon, disciplineTag, trimLocation, seatNoun, stripClassNamePrefix, trendingUpIcon, pulseIcon, renderGymRail, equalizeDiscTagWidths, observeLocationWrap, wireRailToggle, shortSlotLabels, escapeHtml} from './cards';
 import { isInGracePeriod, GRACE_PERIOD_MS, startGraceCountdown, noSept, zoneFor, formatInZone } from '../lib';
 import { invalidateApiCache } from '../cache';
-import { renderCardSkeletons } from './loading-skeleton.js';
+import { renderCardSkeletons, renderFloorPlanSkeleton } from './loading-skeleton.js';
 import { instructorAvatar } from './tooltips.js';
 import { metadata, loadMetadata, getStudioMapInfo, pickStudioPrefs, rowGroupsForStudio, mobileRotationForStudio, frontForStudio, openGuestBookingModal } from './timetable';
 import { findActiveUpgradeForBooking, findUpgradeForSeat } from './gym-isolation.js';
@@ -844,7 +844,7 @@ export async function openEditBookingModal(group, onChange = renderBookings) {
 
   title.textContent = formatCopyText(COPY.bookings.editSpotsTitle, { noun: nounCap, className });
   applyBookingChrome(modal, { titleText: COPY.bookingFlow.titleEditSpots, gymId: event.gymId, locationName: event.locationName, studioName: event.studioName });
-  body.innerHTML = `<div class="app-loading-spinner-container bk-loading-container"><div class="app-spinner"></div><span>${COPY.bookings.loadingFloorMap}</span></div>`;
+  body.innerHTML = renderFloorPlanSkeleton(COPY.bookings.loadingFloorMap);
   let editDirty = () => false; // set once the selection exists
   openNavPage(modal, { id: 'edit-spots', onClose: () => { if (modalRunId === editModalRunId) editModalRunId++; }, canClose: () => !editDirty() || confirm(COPY.bookingEditor.discardChanges) });
 
@@ -1355,12 +1355,7 @@ export async function openUpgradeConfigModal({ currentSlotLabel = '', eventId, g
   if (!modal || !body || !title) return;
 
   title.textContent = COPY.autoUpgrade.configureTitle;
-  body.innerHTML = `
-    <div class="app-loading-spinner-container bk-loading-pad">
-      <div class="app-spinner"></div>
-      <span>${COPY.bookings.fetchingFloorMap}</span>
-    </div>
-  `;
+  body.innerHTML = renderFloorPlanSkeleton(COPY.bookings.fetchingFloorMap);
 
   const spotMapDirty = () => !!body.querySelector('[data-spotmap-root]')?.__isDirty?.();
   const discardOk = () => !spotMapDirty() || confirm(COPY.bookingEditor.discardChanges);

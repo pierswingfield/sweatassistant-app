@@ -4,6 +4,7 @@ import { getLinkedGyms } from '../gym-context.js';
 import { gymChip } from './cards.js';
 import { showToast, cache } from '../main';
 import { COPY, formatCopyText } from '../copy.js';
+import { renderCardSkeletons, renderPanelSkeleton } from './loading-skeleton.js';
 import { openPage as openNavPage, closePage as closeNavPage } from './modal-nav.js';
 
 // Use same localStorage key as Chrome Extension for cross-compatibility.
@@ -271,10 +272,7 @@ async function openGymCreditDetail(gymId) {
 
   const container = document.getElementById('app-bundles-container');
   container.innerHTML = `
-    <div class="app-loading-spinner-container">
-      <div class="app-spinner"></div>
-      <span>${COPY.credits.loadingBundles}</span>
-    </div>`;
+    ${renderCardSkeletons(3, COPY.credits.loadingBundles)}`;
 
   try {
     if (cache.bundles.length === 0) {
@@ -720,10 +718,7 @@ export function openPurchaseModal(b) {
   async function proceedToPayment() {
     titleEl.textContent = COPY.credits.payment;
     body.innerHTML = `
-      <div class="app-loading-spinner-container">
-        <div class="app-spinner"></div>
-        <span>${COPY.credits.loadingSavedCards}</span>
-      </div>
+      ${renderPanelSkeleton(COPY.credits.loadingSavedCards, 4)}
     `;
 
     let instance, methods;

@@ -8133,6 +8133,20 @@ html, body, * {
   animation: app-skeleton-shimmer 1.25s ease-in-out infinite;
 }
 
+/* CSSv2 floor-plan and panel skeletons: same shimmer as .app-skeleton-line. */
+.app-skeleton-floor { display: flex; flex-direction: column; align-items: center; gap: 18px; padding: 24px 16px; }
+.app-skeleton-stage { display: block; width: min(220px, 70%); height: 14px; border-radius: 999px; background: var(--border-strong); opacity: 0.7; }
+.app-skeleton-seats { display: flex; flex-direction: column; align-items: center; gap: 12px; }
+.app-skeleton-seat-row { display: flex; gap: 12px; justify-content: center; }
+.app-skeleton-seat {
+  display: block; width: 32px; height: 32px; border-radius: 10px;
+  background: linear-gradient(90deg, var(--border) 20%, var(--border-strong) 45%, var(--border) 70%);
+  background-size: 240% 100%;
+  animation: app-skeleton-shimmer 1.25s ease-in-out infinite;
+  animation-delay: calc(var(--sk-r, 0) * 90ms);
+}
+.app-skeleton-panel { display: grid; gap: 12px; padding: 20px 16px; }
+
 /* 
    ===== Timetable filter rail and sheet =====
     */
@@ -8248,7 +8262,7 @@ html, body, * {
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .app-skeleton-line { animation: none; }
+  .app-skeleton-line, .app-skeleton-seat { animation: none; }
 }
 
 /* ===== U2-5: mobile filter rail + bottom sheet (Documentation/TIMETABLE_FILTER_DESIGN_BRIEF.md) ===== */
@@ -9040,28 +9054,29 @@ body::before {
   /* 1. Kebab block: no fill (divider kept), subtle tint only while pressed. */
 
   #app-helper-container .app-mobile-seg.ellipsis {
-    position: relative; border-radius: 8px;
-    background: transparent;
+    /* CSSv2: low-emphasis hamburger at the card's right edge, level with the time. 44px hit area; the glyph
+       (20px SVG, --text-tertiary, no fill) sits flush to the CTA's right edge. */
+    position: relative;
     display: flex;
-    align-items: center;
-    justify-content: center;
-    padding: 0;
-    border: 0 !important;
-    border-left: 0 !important;
-    border-radius: 0 !important;
-    font-size: 24px;
-    font-weight: 900;
+    flex-direction: row;
+    align-items: flex-start;
+    justify-content: flex-end;
     order: -1;
     align-self: flex-end;
     flex: 1 1 auto;
     height: auto;
-    min-height: 36px;
-    width: 60px;
-    min-width: 60px;
+    min-height: 44px;
+    width: 44px;
+    min-width: 44px;
+    padding: 13px 0 0 !important;
+    border: 0 !important;
+    border-radius: 0 !important;
     line-height: 1;
-    color: var(--text-secondary) !important;
+    white-space: nowrap !important;
+    color: var(--text-tertiary) !important;
     background: transparent !important;
   }
+  #app-helper-container .app-mobile-seg.ellipsis .ab-ico { display: block; width: 20px; height: 20px; stroke-width: 1.75; }
 
   #app-helper-container .app-body,
   #app-helper-container .app-main {
@@ -9854,9 +9869,9 @@ html.app-scroll-locked { overflow: hidden !important; background: var(--bg) !imp
   position: absolute;
   inset: 0;
   border-radius: inherit;
-  padding: 1px;
-  opacity: 0.6;
-  background: conic-gradient(from var(--hgb-spin), transparent 0deg, transparent 180deg, color-mix(in srgb, var(--gym-btn, var(--accent)) 55%, transparent) 360deg);
+  padding: 1.2px;
+  opacity: 0.72;
+  background: conic-gradient(from var(--hgb-spin), transparent 0deg, transparent 180deg, color-mix(in srgb, var(--gym-btn, var(--accent)) 66%, transparent) 360deg);
   -webkit-mask: linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0);
   -webkit-mask-composite: xor;
   mask: linear-gradient(#000 0 0) content-box exclude, linear-gradient(#000 0 0);
@@ -9866,7 +9881,7 @@ html.app-scroll-locked { overflow: hidden !important; background: var(--bg) !imp
 @keyframes hgb-spin { to { --hgb-spin: 360deg; } }
 @media (prefers-reduced-motion: reduce) {
   /* No rotation: a static dimmed ring still says "loading". */
-  .app-header-gym-badge.is-loading::after { animation: none; background: var(--gym-btn, var(--accent)); opacity: 0.2; }
+  .app-header-gym-badge.is-loading::after { animation: none; background: var(--gym-btn, var(--accent)); opacity: 0.24; }
 }
 
 /* ===== 5-10 enh 2: mobile gym quick-selector (inside the filter rail, so mobile-only) ===== */
@@ -10920,7 +10935,6 @@ html:not([data-credits-tab="on"]) .app-nav-btn[data-tab="buy-credits"] { display
 :is(#app-helper-container, body) .tip-description-text { margin: 6px 0 0 0; display: -webkit-box; -webkit-line-clamp: 4; -webkit-box-orient: vertical; overflow: hidden; color: var(--text); font-size: 15px; line-height: 1.45; }
 :is(#app-helper-container, body) .tip-socials-container { margin-top: 10px; }
 :is(#app-helper-container, body) .tip-loading-box { display:flex; align-items:center; justify-content:center; padding:15px; color:var(--text); font-size:12px; }
-:is(#app-helper-container, body) .tip-spinner-svg { animation: spin 1s linear infinite; width: 14px; height: 14px; margin-right: 8px; color: var(--feat-autoupgrade); display: inline-block; }
 :is(#app-helper-container, body) .tip-loading-text { margin-left: 6px; }
 :is(#app-helper-container, body) .tip-error-box { padding: 10px; color: var(--danger); font-size: 12px; text-align: center; font-weight: 500; }
 :is(#app-helper-container, body) .tip-title-center { font-size: 12px; font-weight: 700; color: var(--text); text-align: center; margin-bottom: 6px; }
@@ -11132,7 +11146,7 @@ html:not([data-credits-tab="on"]) .app-nav-btn[data-tab="buy-credits"] { display
   .app-stagger-in > *, .app-timetable-heart.is-pop svg, .app-spot.is-pop,
   #app-helper-container .app-toast.success.show .app-toast-icon,
   .app-container, .app-modal-card, .app-modal-content, .app-pulse-icon .core, .app-pulse-icon .radar,
-  .app-skeleton-line { animation: none !important; }
+  .app-skeleton-line, .app-skeleton-seat { animation: none !important; }
   .app-timetable-heart:active, .app-spot.is-editable:active { transform: none; }
   .app-timetable-heart.loading { transform: none; }
   .app-modal.app-page, .app-ovl.app-page { transform: none !important; transition: opacity var(--dur-fast) linear !important; }

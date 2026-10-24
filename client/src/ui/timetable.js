@@ -47,7 +47,7 @@ import { resolveDefaultFilters } from './default-filters.js';
 import { buildSearchIndex, searchEvents, tokenize } from './timetable-search.js';
 import { getSearchQuery, setSearchQuery, onSearchChange, inSearchScope, enterSearchScope, leaveSearchScope, emptyFilters, filtersAreEmpty } from './timetable-search-state.js';
 import { ensureSearchUi, openSearch } from './timetable-search-ui.js';
-import { renderTimetableSkeleton } from './loading-skeleton.js';
+import { renderTimetableSkeleton, renderFloorPlanSkeleton, renderPanelSkeleton } from './loading-skeleton.js';
 import { shouldShowPendingSkeleton } from './pending-gyms.js';
 import { markScrollBusy } from './scroll-state.js';
 import { sortEvents } from './progressive-merge.js';
@@ -3418,8 +3418,9 @@ function buildMobileClassRow(event, ctx, model) {
   // Secondary action + extras collapse into the ellipsis context menu.
   const ellipsis = document.createElement('button');
   ellipsis.className = 'app-mobile-seg ellipsis';
-  ellipsis.innerHTML = '\u22EF'; // horizontal ellipsis, stacked above the CTA
-  ellipsis.setAttribute('aria-label', COPY.timetable.moreActions);
+  ellipsis.innerHTML = icon('menu', 20); // CSSv2: low-emphasis hamburger, top-right of the card, above the CTA
+  ellipsis.setAttribute('aria-label', `${COPY.timetable.moreActions} for ${strippedClassName}`);
+  ellipsis.setAttribute('aria-haspopup', 'menu');
   rail.appendChild(ellipsis);
 
   // When Cancel took the visible slot, hide it from the shared overflow
@@ -3464,10 +3465,7 @@ async function openOccupancyModal(event) {
   const body = document.createElement('div');
   body.className = 'app-modal-body';
   body.innerHTML = `
-    <div class="app-loading-spinner-container" style="padding: 20px 0;">
-      <div class="app-spinner"></div>
-      <span>${COPY.occupancy.loadingLayout}</span>
-    </div>
+    ${renderFloorPlanSkeleton(COPY.occupancy.loadingLayout)}
   `;
 
   card.appendChild(header);
@@ -3776,7 +3774,7 @@ export async function openGuestBookingModal(c) {
 
   title.textContent = COPY.bookings.bookGuest;
   applyBookingChrome(modal, { titleText: COPY.bookings.bookGuest, gymId: c.gymId, locationName: c.locationName, studioName: c.studioName });
-  body.innerHTML = '<div class="app-loading-spinner-container u-empty-40"><div class="app-spinner"></div><span>Checking guest eligibility…</span></div>';
+  body.innerHTML = renderPanelSkeleton('Checking guest eligibility…', 3);
   openNavPage(modal, { id: 'book-guest' });
   const close = () => {
     if (closeNavPage(modal)) return;
@@ -3931,10 +3929,7 @@ export async function openBookingModal(c, mode, opts = {}) {
   const hasLayout = cachedLayout?.slots?.length > 0;
 
   body.innerHTML = `
-    <div class="app-loading-spinner-container u-empty-40">
-      <div class="app-spinner"></div>
-      <span>${hasLayout ? COPY.timetable.checkingAvailability : COPY.timetable.loadingFloorMap}</span>
-    </div>
+    ${renderFloorPlanSkeleton(hasLayout ? COPY.timetable.checkingAvailability : COPY.timetable.loadingFloorMap)}
   `;
 
   openNavPage(modal, { id: 'booking', replaceEl: opts.replaceEl });
@@ -5449,10 +5444,7 @@ export async function openDebugModal(event) {
   // Debug modal: deliberately the RAW provider name (it exists to show what the API sent).
   title.textContent = `Debug: ${event.name || 'Class'} — ${event.startAt || ''}`;
   body.innerHTML = `
-    <div class="app-loading-spinner-container u-empty-40">
-      <div class="app-spinner"></div>
-      <span>Loading debug data...</span>
-    </div>
+    ${renderPanelSkeleton('Loading debug data...', 5)}
   `;
 
   openNavPage(modal, { id: 'debug-class', closeFooter: true });

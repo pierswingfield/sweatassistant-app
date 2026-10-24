@@ -98,3 +98,46 @@ describe('pull-to-refresh on the mobile app scrollport', () => {
     cleanTimetable();
   });
 });
+
+// Landscape phones (769-1100px) take the synthetic path; the touch's real scroller may be another element.
+describe('pull-to-refresh touch ownership (synthetic path)', () => {
+  let cleanup;
+
+  afterEach(() => {
+    cleanup?.();
+    cleanup = undefined;
+    document.body.innerHTML = '';
+  });
+
+  it('does not preventDefault when the touch belongs to a different scroller', () => {
+    window.matchMedia = vi.fn(() => ({ matches: false }));
+    const outer = document.createElement('main');
+    const inner = document.createElement('section');
+    const child = document.createElement('div');
+    inner.appendChild(child);
+    outer.appendChild(inner);
+    document.body.appendChild(outer);
+    inner.style.overflowY = 'auto';
+    Object.defineProperty(inner, 'scrollHeight', { value: 1000, configurable: true });
+    Object.defineProperty(inner, 'clientHeight', { value: 300, configurable: true });
+    cleanup = setupPullToRefresh(outer, vi.fn(), { scrollTargets: [outer] });
+
+    touch(child, 'touchstart', 100);
+    const move = touch(child, 'touchmove', 160);
+    expect(move.defaultPrevented).toBe(false);
+  });
+
+  it('still engages the synthetic pull when the touch is in scrollEl at the top', () => {
+    window.matchMedia = vi.fn(() => ({ matches: false }));
+    const outer = document.createElement('main');
+    const child = document.createElement('div');
+    outer.appendChild(child);
+    document.body.appendChild(outer);
+    cleanup = setupPullToRefresh(outer, vi.fn(), { scrollTargets: [outer] });
+
+    touch(child, 'touchstart', 100);
+    const move = touch(child, 'touchmove', 200);
+    expect(move.defaultPrevented).toBe(true);
+    expect(document.querySelector('.app-pull-indicator')).not.toBeNull();
+  });
+});

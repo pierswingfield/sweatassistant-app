@@ -177,6 +177,15 @@ export function setupPullToRefresh(scrollEl, onRefresh, {
     return Math.min(d, maxPull);
   }
 
+  // Nearest vertically scrollable ancestor of the touch target (null if none).
+  function realScrollerOf(el) {
+    for (let n = el; n && n !== document.body && n !== document.documentElement; n = n.parentElement) {
+      const oy = getComputedStyle(n).overflowY;
+      if ((oy === 'auto' || oy === 'scroll') && n.scrollHeight > n.clientHeight + 1) return n;
+    }
+    return null;
+  }
+
   function onTouchStart(e) {
     if (isRefreshing) return;
     if (e.touches.length !== 1) return;
@@ -189,6 +198,12 @@ export function setupPullToRefresh(scrollEl, onRefresh, {
     isBottomPulling = false;
     wasArmed = false;
     currentElasticY = 0;
+
+    // Landscape phones (769-1100px) take the synthetic path but the real scroller can be another
+    // element (e.g. the bookings section), so preventDefault here would cancel all scrolling.
+    // If the touch's scroller isn't ours, leave the gesture to the browser.
+    const real = realScrollerOf(e.target);
+    if (real && real !== scrollEl) { startY = 0; return; }
 
     const st = getScrollTop();
     const maxScroll = getMaxScroll();

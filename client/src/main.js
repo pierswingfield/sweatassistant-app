@@ -766,7 +766,9 @@ export async function updatePushStatusUI() {
     return;
   }
 
-  const subscription = await serviceWorkerRegistration.pushManager.getSubscription();
+  const subscription = serviceWorkerRegistration.active
+    ? await serviceWorkerRegistration.pushManager.getSubscription().catch(() => null)
+    : null;
   if (subscription) {
     toggleBtn.textContent = COPY.notifications.disablePush;
     toggleBtn.className = 'app-btn-mini success';
@@ -794,11 +796,27 @@ function urlBase64ToUint8Array(base64String) {
   return outputArray;
 }
 
+// Safari rejects pushManager calls ("requires a service worker") while the
+// registration has no ACTIVE worker yet, e.g. the first launch after a deploy
+// or a fresh Add to Home Screen. Wait for one, bounded so a failed install
+// shows a message instead of hanging the button.
+async function activeRegistration(timeoutMs = 10000) {
+  if (serviceWorkerRegistration?.active) return serviceWorkerRegistration;
+  const reg = await Promise.race([
+    navigator.serviceWorker.ready,
+    new Promise((resolve) => setTimeout(() => resolve(null), timeoutMs)),
+  ]);
+  if (reg) serviceWorkerRegistration = reg;
+  return reg;
+}
+
 export async function togglePushSubscription() {
   if (!serviceWorkerRegistration) return;
 
   try {
-    const subscription = await serviceWorkerRegistration.pushManager.getSubscription();
+    const registration = await activeRegistration();
+    if (!registration) throw new Error(COPY.notifications.workerNotReady);
+    const subscription = await registration.pushManager.getSubscription();
     const toggleBtn = document.getElementById('app-push-toggle-btn');
     toggleBtn.disabled = true;
 
@@ -819,7 +837,7 @@ export async function togglePushSubscription() {
       const convertedKey = urlBase64ToUint8Array(vapidKeyStr);
 
       // Subscribe on push server
-      const newSub = await serviceWorkerRegistration.pushManager.subscribe({
+      const newSub = await registration.pushManager.subscribe({
         userVisibleOnly: true,
         applicationServerKey: convertedKey
       });

@@ -205,6 +205,7 @@ export const COPY = Object.freeze({
     unsupportedHelp: 'Push notifications are not supported on this browser/device.',
     iosVersionHelp: 'Push notifications require iOS 16.4 or later. Please update your device.',
     permissionDenied: 'Push notification permission denied by user.',
+    workerNotReady: 'The app is still finishing an update. Close and reopen it, then try again.',
     disablePush: 'Disable Push',
     pushEnabled: 'Push notifications are enabled on this device!',
     enablePush: 'Enable Push',

@@ -11347,6 +11347,8 @@ html:not([data-credits-tab="on"]) .app-nav-btn[data-tab="buy-credits"] { display
   display: flex; flex-direction: column; align-items: stretch; justify-content: flex-start; gap: 12px;
   animation: none;
 }
+/* `#app-helper-container * { margin: 0 }` outranks the class rule, which left the sheet pinned left on desktop. */
+#app-onboarding-container .app-onb-sheet { margin-inline: auto; }
 .app-onb-eyebrow { text-align: center; color: var(--accent); }
 .app-onb-title { font-size: clamp(26px, 7.4vw, 32px); text-align: center; text-wrap: balance; }
 .app-onb-sheet > .app-onb-hero + .app-onb-eyebrow { margin-top: 2px; }

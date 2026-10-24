@@ -11745,3 +11745,11 @@ html:not([data-credits-tab="on"]) .app-nav-btn[data-tab="buy-credits"] { display
     padding-left: max(16px, var(--sa-l)) !important; padding-right: max(16px, var(--sa-r)) !important;
   }
 }
+
+/* Dibs mascots: the droplet tops the onboarding welcome slide, the bike replaces the login medallion. */
+.app-onb-mascot { display: block; align-self: center; flex: none; width: auto; height: 96px; }
+.app-login-mascot { display: block; align-self: center; flex: none; width: auto; height: 120px; margin-inline: auto; }
+@media (max-height: 700px) {
+  .app-onb-mascot { height: 64px; }
+  .app-login-mascot { height: 88px; }
+}

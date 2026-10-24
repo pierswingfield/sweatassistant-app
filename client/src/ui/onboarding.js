@@ -286,6 +286,7 @@ function stepIntro() {
           <div class="app-onb-track">
             ${slides.map((s) => s.welcome ? `
               <div class="app-onb-slide app-onb-slide-welcome">
+                <img class="app-onb-mascot" src="/characters/droplet.gif" alt="" aria-hidden="true" decoding="async">
                 <div class="app-onb-wordmark">${escapeHtml(appConfig.appName)}</div>
                 <h2 class="app-onb-title app-onb-welcome-title" id="app-onb-welcome-title">${s.title}</h2>
                 <ul class="app-onb-perks" role="list">

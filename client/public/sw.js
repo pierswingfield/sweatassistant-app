@@ -121,6 +121,9 @@ const ASSETS_TO_CACHE = [
   '/icons/apple-touch-icon.png',
   '/icons/favicon-32.png',
   '/characters/dumbbell.png',
+  '/characters/droplet.gif',
+  '/characters/bike.png',
+  '/favicon.ico',
   ...PRECACHE_ASSETS
 ];
 
@@ -257,6 +260,9 @@ self.addEventListener('fetch', (event) => {
   //
   // Vite outputs content-hashed files under /assets/ (JS chunks, CSS).
   // Icons, fonts, and images are also safe to cache indefinitely.
+  // manifest.json is NOT: the server templates APP_NAME into it per request,
+  // and a cache-first copy made iOS "Add to Home Screen" offer the old name
+  // after a rename. It falls through to network-first below.
   //
   // Strategy: cache hit → return immediately.
   //           cache miss → fetch from network, store in separate assets
@@ -266,7 +272,6 @@ self.addEventListener('fetch', (event) => {
     url.pathname.startsWith('/assets/') ||
     url.pathname.startsWith('/icons/') ||
     url.pathname.startsWith('/gyms/') ||
-    url.pathname === '/manifest.json' ||
     /\.(woff2?|ttf)$/i.test(url.pathname) ||
     /\.(png|jpe?g|svg|webp|gif|avif)$/i.test(url.pathname);
 

@@ -1,12 +1,12 @@
 # Testing
 
 ```bash
-npm test              # everything: 78 server suites + the client suite
+npm test              # everything: 93 server suites + the client suite
 npm run test:server   # server only
 npm run test:client   # client only (vitest)
 ```
 
-Server suites need Node 20 and an `ENCRYPTION_KEY`; `server/run-tests.js` generates a throwaway
+Server suites need Node 22.23.4 (use `nvm use`) and an `ENCRYPTION_KEY`; `server/run-tests.js` generates a throwaway
 one and forces `DB_PATH=':memory:'`, so `npm test` works from a clean checkout.
 
 ---

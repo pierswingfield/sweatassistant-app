@@ -29,6 +29,7 @@ export const SVG_PATHS = {
   heart: '<path d="M8 13.5S2.5 10 2.5 6.2A2.7 2.7 0 0 1 8 5a2.7 2.7 0 0 1 5.5 1.2C13.5 10 8 13.5 8 13.5Z"/>',
   bolt: '<path d="M8.5 1.5 3.5 9h3.5l-1 5.5L13 6.5H9z"/>',
   warning: '<path d="M8 2 14.5 13.5h-13L8 2Z"/><path d="M8 6.5v3M8 11.8h.01"/>',
+  menu: '<path d="M2.5 4.5h11M2.5 8h11M2.5 11.5h11"/>',
   star: '<path d="M8 1.5l2.12 4.3 4.75.69-3.44 3.35.81 4.73L8 12.33l-4.24 2.24.81-4.73L1.13 6.49l4.75-.69L8 1.5z"/>',
   // Row overflow-menu glyphs.
   cog: '<circle cx="8" cy="8" r="2.2"/><path d="M8 1.6v1.8M8 12.6v1.8M14.4 8h-1.8M3.4 8H1.6M12.5 3.5l-1.3 1.3M4.8 11.2l-1.3 1.3M12.5 12.5l-1.3-1.3M4.8 4.8 3.5 3.5"/>',
@@ -230,7 +231,7 @@ export function seatNoun(groupName = '') {
 }
 
 export function sparklesIcon(size = 14, color = 'currentColor') {
-  return `<svg width="${size}" height="${size}" viewBox="0 0 32 32" fill="${color}" xmlns="http://www.w3.org/2000/svg" aria-hidden="true" style="display:inline-block;vertical-align:middle;">
+  return `<svg class="cd-svg-icon" width="${size}" height="${size}" viewBox="0 0 32 32" fill="${color}" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
 <g data-name="Layer 2" id="Layer_2">
 <path d="M18,11a1,1,0,0,1-1,1,5,5,0,0,0-5,5,1,1,0,0,1-2,0,5,5,0,0,0-5-5,1,1,0,0,1,0-2,5,5,0,0,0,5-5,1,1,0,0,1,2,0,5,5,0,0,0,5,5A1,1,0,0,1,18,11Z"/>
 <path d="M19,24a1,1,0,0,1-1,1,2,2,0,0,0-2,2,1,1,0,0,1-2,0,2,2,0,0,0-2-2,1,1,0,0,1,0-2,2,2,0,0,0,2-2,1,1,0,0,1,2,0,2,2,0,0,0,2,2A1,1,0,0,1,19,24Z"/>
@@ -240,14 +241,14 @@ export function sparklesIcon(size = 14, color = 'currentColor') {
 }
 
 export function trendingUpIcon(size = 14, color = 'currentColor', strokeWidth = 2) {
-  return `<svg width="${size}" height="${size}" viewBox="0 0 24 24" fill="none" stroke="${color}" stroke-width="${strokeWidth}" stroke-linecap="round" stroke-linejoin="round" class="feather feather-trending-up" aria-hidden="true" style="display:inline-block;vertical-align:middle;">
+  return `<svg width="${size}" height="${size}" viewBox="0 0 24 24" fill="none" stroke="${color}" stroke-width="${strokeWidth}" stroke-linecap="round" stroke-linejoin="round" class="feather feather-trending-up cd-svg-icon" aria-hidden="true">
 <polyline points="23 6 13.5 15.5 8.5 10.5 1 18"></polyline>
 <polyline points="17 6 23 6 23 12"></polyline>
 </svg>`;
 }
 
 export function pulseIcon(size = 14) {
-  return `<svg class="app-pulse-icon" width="${size}" height="${size}" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg" aria-hidden="true" style="display:inline-block;vertical-align:middle;margin-right:4px;">
+  return `<svg class="app-pulse-icon cd-pulse-icon" width="${size}" height="${size}" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
     <circle class="radar" cx="12" cy="12" r="2" />
     <circle class="core" cx="12" cy="12" r="2" />
   </svg>`;

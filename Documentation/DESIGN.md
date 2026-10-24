@@ -28,197 +28,82 @@ The `<html>` element gets `data-theme="light"` or `data-theme="dark"` when the u
 
 ---
 
-## 3. Design Tokens
+## 3. Design Tokens (CSSv2 visual contract, 2026-10-24)
 
-All tokens are defined in `client/src/styles.css` at the top of the file.
+All tokens live in one block at the top of `client/src/styles.css` ("CSSv2 TOKEN LAYER"). Names are neutral and unchanged; values changed. Components read tokens, never literals. Mobile (375-430px) is the design target; desktop must not regress. Contrast numbers below come from `node scripts/contrast.mjs` (WCAG 2.x).
 
-### 3.1 Surfaces
+### 3.1 Direction
+Warm paper (light) and warm near-black (dark), both derived from the landing ink `#1f1b16`. **Clay is the brand accent in both themes.** The former dark-theme blue is retired as chrome; blue survives only as `--info` (semantic) and the slate `--feat-waitlist`. A gym's own colour appears only on elements that identify that gym (`--gym-*`, injected at runtime by `gym-context.js`); app chrome never reads it and the app accent is never redefined per gym.
 
-| Token | Dark | Light | Usage |
+### 3.2 Colour tokens and contrast
+
+| Token | Light | Dark | Notes |
 |---|---|---|---|
-| `--bg` | `#090d16` | `#f5f2ec` | Page/panel background |
-| `--surface` | `rgba(20,24,38,0.65)` | `#fbfaf7` | Cards, sheets, overlays |
-| `--surface-2` | `rgba(255,255,255,0.03)` | `rgba(31,27,22,0.03)` | Subtle hover lift |
-| `--surface-inset` | `rgba(0,0,0,0.2)` | `rgba(31,27,22,0.04)` | Inputs, filter bars, recessed areas |
+| `--bg` / `--surface` | `#f6f1e8` / `#fcfaf5` | `#161310` / `#201c18` | `--surface-raised`: `#fffdf9` / `#2a2520`; `--header-solid` `#eee7da` / `#110e0c`. Light warmed 2026-10-25 (was `#f4f2ec` / `#fbfaf7` / `#ebeae4`): borders, separators, insets and shadows are now brown-tinted `rgba(84,56,24,.x)` instead of neutral ink; `--tone-ink` (`#5a3d22` light, `--text` dark) replaces `--text` wherever a surface is darkened by a colour-mix, so tinted tiles go tan, never grey |
+| `--text` | `#1f1b16` 15.3 bg, 16.4 surface | `#f3ede4` 15.9 bg, 14.5 surface | |
+| `--text-secondary` | `#655b4c` 5.9 / 6.4 | `#b9ae9f` 8.5 / 7.8 | |
+| `--text-tertiary` | `#6e6352` 5.2 / 5.6 | `#948a7c` 5.5 / 5.0 | captions only, never disabled-looking primary info |
+| `--accent` (text, border, focus) | `#a8553a` 4.66 bg, 5.0 surface | `#e09a7f` 8.0 / 7.3 | |
+| `--accent-fill` + `--on-accent-fill` | `#b5593d` + `#fff` 4.71 | `#c9785c` + `#1a1411` 5.49 | primary button, selected date, active segment |
+| `--brand-clay` (decor only: logo, large glyphs) | `#c9785c` 2.97 (never text) | `#d68b6f` 6.9 | |
+| `--cta-wait` / `--cta-auto` + `--on-cta` | `#8a4430` 7.1 / `#6f3524` 9.5 with `#fff` | `#e4b7a2` 10.1 / `#d9967a` 7.5 with `#1a1411` | `--cta-book` = `--accent-fill` |
+| `--success` | `#047857` 5.25 | `#4cc794` 8.0 | on surface |
+| `--warning` | `#9a6600` 4.71 | `#e5b03e` 8.6 | |
+| `--danger` | `#b84343` 5.13 | `#f08a82` 7.0 | destructive fill in light = `--danger` + `#fff` |
+| `--info` (only blue) | `#2f6bd1` 4.85 | `#7fb0f0` 7.6 | never interactive chrome |
 
-### 3.2 Text
+Borders are warm alpha: `rgba(31,27,22,.10/.18)` light, `rgba(255,238,215,.10/.18)` dark. Plum auto-functions (`--auto*`), discipline tags (`--disc-*`) and feature identity tokens are unchanged in meaning; dark values were re-tuned only where they were cool-blue.
 
-| Token | Dark | Light | Usage |
-|---|---|---|---|
-| `--text` | `#f1f5f9` | `#1f1b16` | Primary body copy |
-| `--text-secondary` | `#94a3b8` | `#6b6358` | Labels, captions, helper text |
-| `--text-tertiary` | `#64748b` | `#938a7c` | Disabled, placeholder |
+### 3.3 Surfaces and elevation
+Level 0 `--bg` (page) -> level 1 `--surface` (cards, rows) with `--shadow-card` -> level 2 `--surface-raised` (popovers, menus) -> sheets/modals `--shadow-sheet`. `--surface-2` is a 3-4% tint for nested blocks, `--surface-inset` for wells. Shadows: light `0 4px 12px rgba(31,27,22,.08)` / `0 18px 48px rgba(31,27,22,.12)`; dark `0 4px 12px rgba(0,0,0,.30)` / `0 18px 48px rgba(0,0,0,.50)`. Dark mode gets elevation mainly from the lighter surface, not the shadow.
 
-### 3.3 Borders & Separators
+### 3.4 Radii and spacing
+Radii: `--radius-card` 20, `--radius-control` 12, `--radius-pill` 999, `--radius-sm` 8 (dense inner controls, mobile segment buttons), `--radius-sheet` 24 (sheets, modals). Spacing scale `--space-1..10` = 4, 8, 12, 16, 20, 24, 32, 40 px (new rules use it; legacy `--gap-*`/`--pad-card` stay until Phase 4).
 
-| Token | Dark | Light | Usage |
-|---|---|---|---|
-| `--border` | `rgba(255,255,255,0.08)` | `rgba(31,27,22,0.10)` | Default card/input border |
-| `--border-strong` | `rgba(255,255,255,0.16)` | `rgba(31,27,22,0.18)` | Active focus, drawer edges |
-| `--separator` | `rgba(255,255,255,0.06)` | `rgba(31,27,22,0.07)` | Table rows, section dividers |
+### 3.5 Glass (restrained)
+Allowed ONLY on the bottom nav, sticky top bars and modal headers. Tokens: `--glass-bg` (light `rgba(251,250,247,.92)`, dark `rgba(32,28,24,.82)`), `--glass-blur: blur(18px) saturate(1.25)`, `--glass-solid` (opaque fallback), `--glass-edge`. Every glass rule needs `@supports not ((backdrop-filter: blur(1px)) or (-webkit-backdrop-filter: blur(1px)))` -> `--glass-solid`. Text on composited glass (worst case, page ink or black behind): light secondary text 4.83, primary 14.0, accent 4.26 (large/active icons only; realistic backdrop is the page colour: 5.67 / 16.4 / 5.0); dark secondary 7.4-8.2, primary 13.9-15.3. Status: bottom nav is migrated; the other ~25 `backdrop-filter` declarations in `styles.css` are Phase 3-4 work (cards must not use glass).
 
-### 3.4 Accent (Primary Brand)
+#### 3.5.1 Bottom nav: Liquid Glass + docked fallback (2026-10-25)
+- **Mode**: inline script in `index.html` sets `html.nav-glass` when installed (`display-mode: standalone` or `navigator.standalone`), else `html.nav-docked`. Evaluation override: `?nav=glass`, `?nav=docked` (persisted in `localStorage.appNavMode`, try/catch), `?nav=auto` clears it. Glass geometry lives inside `@supports (backdrop-filter)`; without it the docked bar stays.
+- **Liquid Glass**: floating pill inset 12px from the sides, 10px + safe-area above the bottom, 64px tall; fill `--lg-fill` + `blur(24px) saturate(1.8)`, specular top highlight (inset 1px), gradient hairline ring (bright at opposite corners, a cheap refraction edge), soft warm shadow. A `.app-nav-lens` capsule slides behind the active tab (`nav-lens.js` publishes `--lens-x/--lens-w`; transform + width only, `--dur-slow`/`--ease-out`). `--nav-clear` (bar + gap) feeds every scroll container's bottom padding, so the last item is never hidden. Modals/pages sit above it (z-index) exactly as before.
+- **Docked fallback**: unchanged geometry, glassier material (`--nav-glass-bg` .78 light / .70 dark, `blur(22px) saturate(1.5)`; was .92/.82 at 18px), still `--glass-solid` under `@supports not`.
+- **Icons/labels**: not flat black. Inactive = warm umber `#5c4333` (light) / cream at 78% (dark); active = `--accent-hover` (light) / `--accent` (dark) inside the lens, weight 700. Contrast of inactive ink on composited glass (light, fill .70): 4.56 over the darkest possible backdrop, 5.8 over clay, 8.9 over white; active `#8f452d` on lens 5.15 worst case. Dark inactive 8.6 over the lightest dark-theme backdrop. A near-white full-bleed backdrop under dark glass (not present in the app) would fall below 4.5.
+- **Preferences**: `prefers-reduced-transparency` swaps both modes to opaque `--glass-solid`, no blur; `prefers-reduced-motion` removes the lens transition (it jumps). Tap targets stay >= 56px tall, ~70px wide; focus ring 2px `--nav-ink-active`, inset.
 
-| Token | Dark | Light | Usage |
-|---|---|---|---|
-| `--accent` | `#d2876b` | `#c9785c` | Primary interactive color (Anthropic clay) |
-| `--accent-hover` | `#c9785c` | `#b5694e` | Hovered accent |
-| `--on-accent` | `#1a1815` | `#ffffff` | Text/icon on colored accent backgrounds |
+### 3.6 Buttons
+| Variant | Fill | Text | Border | Use |
+|---|---|---|---|---|
+| Primary | `--accent-fill` (hover `--accent-fill-hover`) | `--on-accent-fill` | none | one per view/section (Book, Quick Book, Done) |
+| Secondary | `--surface-2` | `--text` | 1px `--border-strong` | alternate actions (Filters, Share) |
+| Ghost | transparent | `--accent` | none | tertiary, inline links |
+| Destructive | `--danger` (light) | `#fff` | none | Cancel booking, delete; dark uses a 14% `--danger` tint fill, a 45% `--danger` border and `--danger` text (no solid red block on the dark surface) |
+Height 44px minimum hit area on every interactive control (`--tap-min`); visually smaller controls (32-40px chips) extend their hit area with padding or a `::after` inset. Radius `--radius-control`; dense inline buttons `--radius-sm`. Label: Inter 600 14px.
 
-### 3.5 Semantic Colors
-
-| Token | Dark | Light | Usage |
-|---|---|---|---|
-| `--success` | `#34d399` | `#059669` | Booked state, positive confirmation |
-| `--warning` | `#fbbf24` | `#c2870a` | Caution, partial state |
-| `--danger` | `#f87171` | `#dc2626` | Cancel, error, destructive |
-| `--info` | `#60a5fa` | `#3b82f6` | Info badges |
-| `--orange` | `#f97316` | `#ea580c` | Waitlist buttons specifically |
-
-### 3.6 Feature Identity Tokens
-
-These are canonical colors for specific product features. They must not bleed into unrelated UI.
-
-| Token | Dark | Light | Feature |
-|---|---|---|---|
-| `--feat-autobook` | `#d2876b` | `#c9785c` | Auto-Book (clay, same as `--accent`) |
-| `--feat-autoupgrade` | `#a78bfa` | `#7c5cdb` | Auto-Upgrade — violet, reserved |
-| `--feat-quickbook` | `#fbbf24` | `#c2870a` | Quick-Book (amber) |
-| `--feat-waitlist` | `#60a5fa` | `#3b82f6` | Waitlist status badge |
-| `--orange` | `#f97316` | `#ea580c` | Waitlist action button |
-
-**Rule:** Violet (`--feat-autoupgrade`) is strictly reserved for Auto-Upgrade UI. Do not use it as a general accent or action color.
-
-### 3.6a Auto-Functions Plum & Discipline Tags
-
-**Auto-functions brand (plum).** The redesigned Auto-Book panel uses a plum
-purple as the shared brand for *automation* surfaces (the release-countdown
-banner, per-class countdown chips, "spots required" pills). It is intentionally
-distinct from the clay `--accent` so automation reads as its own family. Per
-product direction this plum is the shared auto colour for both Auto-Book and
-Auto-Upgrade.
-
-| Token | Dark | Light | Usage |
-|---|---|---|---|
-| `--auto` | `#c9aed6` | `#6d4c7d` | Tint/chip text on standard surfaces (countdown chip, spots pill) |
-| `--auto-banner` | `#5a3e63` | `#5a3e63` | Filled banner surface (white text) |
-| `--on-auto` | `#ffffff` | `#ffffff` | Text/icon on the filled `--auto-banner` |
-
-### 3.6c Dark-mode interactive colour: blue (decision 2026-10-02)
-
-In **dark mode, interactive primary and selected states are blue; clay is brand-only** (logo, feature identity such as `--feat-autobook`). Light mode is unchanged (clay). Supersedes the "avoids cold blues" note and the `#402418` dark button value.
-
-| Token | Dark | Light | Usage |
-|---|---|---|---|
-| `--accent` | `--info` 75% + white (~`#88bcfb`) | `#c9785c` | Interactive text, borders, tints, focus rings |
-| `--accent-fill` / `--on-accent-fill` | `#256996` / `#ffffff` | `--accent` / `--on-accent` | Filled controls: toggles, checkboxes, segmented, primary buttons |
-| `--cta-book/-wait/-auto`, `--on-cta` | blue family, Waitlist/Auto-Book darker | accent family | Timetable row CTAs |
-| `--nav-active*` | blue tint | clay | Active nav (settings menu, week strip) |
-| `--brand-clay` | `#d2876b` | `#c9785c` | Logo / brand only |
-
-### 3.6b Timetable Redesign & Button Styles
-
-To support the mid-2026 timetable button visual clean-up, the following variables and colors are established. These styles prioritize borderless designs and clear typographic contrasts.
-
-| Token | Dark | Light | Target / Component |
-|---|---|---|---|
-| `--accent-btn-bg` | `#256996` | `var(--accent)` | Background of Book and Quick-Book primary action buttons (dark value `#402418` is superseded, see 3.6c) |
-| `--on-accent-button` | `#e8a287` | `#FEF1E9` | Text/cog on Book and Quick-Book buttons |
-| `--on-auto-pill` | `#c9aed6` | `#E2D1DD` | Text/cog on Scheduled Auto-Book button and status badge |
-| `--auto-not-scheduled` | `#3d2642` | `#D2BDD9` | Background of Auto-Book button when NOT scheduled |
-| `--on-auto-not-scheduled` | `#c9aed6` | `#5A3E63` | Text/cog of Auto-Book button when NOT scheduled |
-| `--waitlist-btn-bg` | `#2e1d1a` | `#825f58` | Background of Join Waitlist action button and Waitlisted status badge |
-| `--on-waitlist-btn` | `#c9a49e` | `#FEF1E9` | Text on Join Waitlist button and Waitlisted status badge |
-| `--buy-credits-bg` | `#301712` | `#5E382B` | Background of Buy Credits primary action button |
-| `--on-buy-credits` | `#e8a287` | `#FEF1E9` | Text on Buy Credits button |
-| `--no-credits-warning-color` | `#E6AA9C` | `#5E382B` | Color of "No eligible credits" warning in status column |
-
-**Rule:** Timetable action buttons and status badges must be borderless (`border: none`). Desktop action groups with a configuration caret (⚙) are separated by a 1px vertical divider line colored dynamically matching `currentColor` at 20% opacity.
-
-**Discipline tags.** Each queued/history class shows a pastel tag coloured by its
-workout discipline, derived from `group_name` (falls back to `class_name`). Tags
-follow the badge tint pattern: text = token, background `14%`, border `24%`.
-Purple is **not** used here — it is reserved for the auto-functions above.
-
-| Token | Dark | Light | Discipline (name match) |
-|---|---|---|---|
-| `--disc-ride` | `#5ec6c6` | `#2f8f8f` | Ride / cycle / spin (teal) |
-| `--disc-barre` | `#e8a0b4` | `#c25d7a` | Barre (pink) |
-| `--disc-strength` | `#e0aa5a` | `#a9761a` | Strength / tone / sculpt / HIIT / Signature (amber) |
-| `--disc-infrared` | `#f0907e` | `#cc5340` | Infrared / hot / sweat (coral) |
-| `--disc-reformer` | `#85aadb` | `#4775ad` | Reformer / pilates (blue) |
-| `--disc-yoga` | `#8fc98f` | `#4f9b5f` | Yoga / flow / mind (sage) |
-| `--disc-other` | `#b3a99f` | `#857a6e` | Fallback (warm grey) |
-
-Tags and rail/footer controls render their glyphs as **inline SVG** themed via
-`currentColor` (the shared icon set lives in `client/src/ui/cards.js`), not an icon
-font.
-
-### 3.7 Shape & Shadow
-
-| Token | Dark value | Light value | Usage |
-|---|---|---|---|
-| `--radius-card` | `16px` | same | Cards, info panels |
-| `--radius-control` | `12px` | same | Buttons, inputs, dropdowns |
-| `--radius-sheet` | `24px` | same | Modals, bottom sheets |
-| `--shadow-card` | `0 4px 12px rgba(0,0,0,0.15)` | `0 4px 12px rgba(31,27,22,0.08)` | Floating cards |
-| `--shadow-sheet` | `0 16px 40px rgba(0,0,0,0.2)` | `0 16px 40px rgba(31,27,22,0.12)` | Modals, sheets |
-
-**Shadow discipline:** Use only `var(--shadow-card)` or `var(--shadow-sheet)`. Do not add custom `box-shadow` values. Never add colored glows to buttons.
-
----
+### 3.7 Focus
+One ring everywhere: 2px solid `--accent`, 2px offset (`--focus-ring-width/-offset`). Contrast vs page 4.66 (light) / 8.0 (dark). Never remove outlines without replacing them.
 
 ## 4. Typography
 
-### 4.1 Font Stacks
+### 4.1 Families and type roles
+Inter (400/500/600/700) is the UI face; Fraunces (500/600 only) is for three roles. Loaded from Google Fonts in `index.html` with `display=swap`; a metric-matched `Inter Fallback` face (size-adjust 107.6%) removes layout shift while Inter loads. No blanket heading rule: semantic level (h1-h4) is independent of visual role, and the roles are assigned in the TYPE ROLES block of `styles.css` (classes `.t-page-title`, `.t-section`, `.t-stat`, `.t-card-title`, `.t-label`, `.t-caption`, `.t-data` plus the existing component selectors listed there). Do not write `font-family: var(--font-serif)` on a component.
 
-| Token | Stack | Usage |
-|---|---|---|
-| `--font-serif` | Fraunces, Source Serif 4, Georgia, Times New Roman | **All headings (h1–h4)** |
-| `--font-sans` | Inter, system-ui, -apple-system | All body, labels, buttons |
-| `--font-mono` | SF Mono, Fira Code, Consolas | Timestamps, IDs, monospace values |
-
-**Rule:** Every `h1`–`h4` must use `font-family: var(--font-serif)`. This applies everywhere — panels, modals, tooltips, cards, drawers.
-
-### 4.2 Type Scale
-
-**Accessibility floor: 12px.** No rendered text may be smaller than 12px. The
-scale below was raised from earlier 10–11px lows to meet this floor; hierarchy is
-carried by weight, colour, and serif/sans contrast rather than by sub-12px sizing.
-Sizes are tokenised in `styles.css` (`--text-xs`…`--text-2xl`) — use the tokens,
-never a raw `px` for type.
-
-| Role | Token | Size | Weight | Font | Usage |
+| Role | Family | Size mobile / desktop | Weight | Line-height | Used for |
 |---|---|---|---|---|---|
-| Panel title | `--text-2xl` | 22px | 600 | Serif | Main tab/panel heading |
-| Section header | `--text-xl` | 18px | 600 | Serif | `h3` inside sections |
-| Card heading | `--text-lg` | 16px | 600–700 | Serif | `h4` in cards / sub-headers |
-| Large body | `--text-md` | 15px | 500 | Sans | Emphasised copy |
-| Body | `--text-base` | 14px | 400–500 | Sans | Copy, table cells |
-| Compact body | `--text-sm` | 13px | 400–500 | Sans | Dense copy |
-| Label / Caption / Mono | `--text-xs` | 12px | 500–600 | Sans/Mono | Filter labels, meta, helper, timestamps, IDs — **floor** |
+| Page title | Fraunces | 22 / 26px | 600 | 1.15 | tab titles (Home, Class Timetable, My Bookings, Settings), settings pane titles, onboarding titles |
+| Section heading | Fraunces | 18px | 600 | 1.3 | Active Bookings, Find a class, modal titles, gym-settings heading |
+| Hero figure | Fraunces, lining + tabular nums | 26 / 30px | 600 | 1.05 | credit headline numbers, auto-book countdown banner |
+| Card / row title | Inter | 15px | 600 | 1.3 | class name, instructor, settings card titles (h4), booking titles |
+| Body | Inter | 14px | 400 | 1.45 | paragraphs, table cells |
+| Compact body | Inter | 13px | 400/500 | 1.4 | secondary lines, location |
+| Label / badge / chip | Inter | 12px | 600 | 1.4 | pills, chip text, form labels (+.02em tracking) |
+| Caption | Inter | 12px (floor) | 400 | 1.45 | helper text, timestamps |
+| Button | Inter | 14px (13 compact) | 600 | 1 | all buttons |
+| Data (time, count, credits, countdown) | Inter, `tabular-nums` | 15-16px | 600 | 1.2 | timetable times, credit counts; never decorative serif |
 
-### 4.3 Tap Targets & Focus (Accessibility)
+Scale tokens: `--text-2xl` 22 (26 at >=769px), `--text-xl` 18, `--text-lg` 16, `--text-md` 15, `--text-base` 14, `--text-sm` 13, `--text-xs` 12. Nothing below 12px.
 
-- **44px minimum hit target** (WCAG 2.5.5) on all primary action controls —
-  nav buttons, segmented buttons, primary/mini/action buttons, day pills,
-  timetable book/waitlist/cancel/leave buttons, split-button groups, dropdown
-  triggers, inputs, and selects. Enforced via `--tap-min: 44px` on every viewport.
-- **Exemption:** spacing-constrained controls inside the studio/spot map (slot
-  bubbles, row-select dots) are exempt per WCAG 2.5.5's essential-spacing clause.
-  They keep their compact size; where a larger hit area is needed they opt into
-  `.tap-compact`, which expands the *hit area* to 44px without changing visual size.
-- **Visible focus:** every interactive element shows a `:focus-visible` outline
-  (`2px solid var(--accent)`, `outline-offset: 2px`). Border-colour change alone
-  is not sufficient for keyboard accessibility.
-- **Checkboxes/radios** are sized 20px for tappability.
-
-> **Note:** `client/src/panel-layout.css` is **not loaded** by the app (nothing
-> imports it; Vite ships only `styles.css`). Treat `styles.css` as the single
-> rendered stylesheet. `panel-layout.css` is stale and should be deleted or wired
-> in deliberately — do not assume its rules apply.
-
----
+### 4.2 Tap targets
+44px minimum (`--tap-min`), see §3.6. Known sub-44 controls (gym badge, chips, `app-mobile-seg`, share) are tracked in `Documentation/Audits/cssv2-baseline.md` §5 item 9 for Phase 4.
 
 ## 5. Color Application Patterns
 
@@ -556,6 +441,18 @@ Loading spinner inside the tooltip uses `color: var(--feat-autoupgrade)` for the
 
 ---
 
+### 6.17 Onboarding (CSSv2, 2026-10-25)
+First-run screens are full-viewport glass pages (`.app-onboarding-container`, `100vh` then `100dvh`, side safe-area padding; top/bottom insets live on the top bar and action tray). Layout per step: top bar (glass Back pill + glass progress capsule with a clay fill), hero medallion (84px glass circle, 40px clay glyph; 60/28 under 720px height; the Gyms step drops it on short phones), Fraunces headline, copy in one glass card, and a sticky glass action tray pinned to the bottom (safe-area aware, so primary actions never leave a 375x667 screen; content scrolls beneath it). Free vertical space is split by two flex spacers, so copy centres between headline and tray.
+- **Material**: the Liquid Glass nav tokens (`--lg-fill`, `--lg-blur`, `--lg-spec`, `--lg-ring-*`) on the body card, tray, perks, feature cards, Back pill, capsule and hero; `@supports not` backdrop and `prefers-reduced-transparency` swap to `--glass-solid`. This is a deliberate exception to 3.5 (glass only on nav/headers) because the screen has no other chrome; the rest of the app stays flat. Behind it: a static warm aurora (clay + ochre radial washes, no loop).
+- **Colour**: clay (`--accent`, `--accent-fill`) for CTA, progress, icons; no violet/blue feature colours, no hard-coded hexes. Icon scale: hero 84/40, card 44/22, row 36/20; every glyph box has `aspect-ratio:1`, `flex:none` and fixed SVG size, so nothing squashes.
+- **Motion** (transform + opacity, tokens only): a new step slides 28px in its travel direction (`data-dir` fwd/back) while fading, `--dur-page` `--ease-out`; stagger at 50ms steps hero, headline, copy, actions (perks +40ms each); hero rises and scales with a spring (560ms); the progress fill travels from the previous step's value (460ms); the final-step seal pulses a ring once, again when everything is set up. Entrance plays only when a step first renders (`.is-entering`), never on in-step re-renders. Reduced motion: whole-step crossfade (`--dur-base`), fill and ring static.
+- **Contract**: step logic, persistence (`appOnboardingStep`), skip and finish are untouched; progress phases are Welcome, Install (if offered), Account, Gyms, Name, Setup.
+
+### 6.18 Login, signup and Connect a gym (CSSv2, 2026-10-25)
+The pre-app auth surface (`#app-login-container`: log in, create account, reset, and the Connect-a-gym panel) reuses the onboarding recipe from 6.17: the same warm aurora, `--lg-*` glass card (`.app-login-form`), 84/40 hero medallion (`.app-login-hero`, reuses `.app-onb-hero`), Fraunces headline and the `onb-hero`/`onb-rise` stagger (re-plays on every mode switch because the form toggles `display`); reduced motion is a plain `onb-fade`.
+- **Keyboard-safe**: no `position:fixed` tray; the form is in-flow and the container scrolls. Under 720px height the medallion shrinks to 60/28, under 600px it and the subtitle are hidden, so 3 fields + submit fit in 390x500.
+- **Fields**: 16px text (no iOS zoom), 44px height, clay focus ring; pill CTA 44px+. Errors use `--danger` mixed 22% toward `--text` on a surface-tinted fill (AA on glass in both themes). Markup contract (ids, `autocomplete` username / current-password / new-password, handlers) is untouched.
+
 ## 7. Scrollbars
 
 All scrollbars use token-derived values:
@@ -589,18 +486,9 @@ scrollbar-color: color-mix(in srgb, var(--text) 15%, transparent) transparent;
 
 ## 9. Motion
 
-| Name | Easing | Duration | Usage |
-|---|---|---|---|
-| Standard | `ease` | `0.15–0.2s` | Color, opacity, border transitions |
-| Spring | `cubic-bezier(0.25, 1, 0.5, 1)` | `0.2–0.35s` | Position, transform, scale |
+Tokens (Phase 5 adopts them; existing 23 ad-hoc durations migrate to these): durations `--dur-fast` 100ms (press, colour), `--dur-base` 180ms (hover, toggles), `--dur-slow` 240ms (cards, sheets opening), `--dur-page` 300ms (tab/page transitions); easings `--ease-out` `cubic-bezier(.25,1,.5,1)` (entrances, default) and `--ease-in-out` `cubic-bezier(.4,0,.2,1)` (moves between two resting states). Animate `transform` and `opacity` only. Every animation must be neutralised by the existing `prefers-reduced-motion: reduce` rules.
 
-- Modal entry: `translateY(24px) → translateY(0)` + opacity, 0.35s spring
-- Tooltip show: `scale(0.95) + opacity:0 → scale(1) + opacity:1`, 0.2s ease
-- Button hover: `translateY(-1px)`, 0.2s ease — only on primary CTAs, not timetable buttons
-
-No bounce. No elastic. No overshoot. Transitions should be felt, not noticed.
-
----
+**Implemented (Phase 5).** All durations/easings in `styles.css` use the tokens (loop-only timings such as spinners keep their own). Patterns: mobile full-screen pages slide in from the right (`--dur-slow`, `translateX(100%)` to none; `modal-nav.js` removes the page after its 300 ms hide timer, so a missed `transitionend` cannot strand an overlay); desktop modals fade + 12px rise; tab change plays `tab-enter-fwd/back` (opacity + 14px, direction from bottom-nav order, class removed on `animationend` with a 400 ms fallback); the timetable's first arrival staggers the first 8 rows at 24 ms steps (`app-stagger-in`, once per session, never on re-render); a confirmed favourite and a tapped spot pop once (`is-pop`, 100-180 ms); a success toast settles its icon once. **Loading placeholders (CSSv2 polish).** Content that has not arrived is a skeleton, never a spinner: `renderFloorPlanSkeleton` (stage bar + staggered rounded seats) for any studio layout, `renderPanelSkeleton` for text panels, `renderCardSkeletons` for lists. Spinners stay only on in-flight actions and background refreshes (see `Documentation/Audits/cssv2-spinner-audit.md`). The mobile timetable card's overflow button is a 20px hamburger glyph in `--text-tertiary` (no fill) at the card's top-right, 44px hit area. Reduced motion is one block at the end of `styles.css`: transitions 1 ms, one-shot animations off, pages and toasts keep an opacity fade only; spinners stay (progress, not decoration).
 
 ## 10. Anti-Patterns
 
@@ -636,7 +524,7 @@ No bounce. No elastic. No overshoot. Transitions should be felt, not noticed.
 | `client/src/ui/settings.js` | Settings panel (4 subnav sections), theme toggle, calendar card, notif prefs, Profile Explorer, spot-map manager |
 | `client/src/ui/spotmap.js` | Shared studio floor-plan editor (reused by all booking flows + settings) |
 | `client/src/ui/tooltips.js` | Instructor + occupancy tooltip HTML (hover + touch tap-to-toggle) |
-| `client/src/ui/onboarding.js` | First-run 6-step guided flow |
+| `client/src/ui/onboarding.js` | First-run guided flow (see 6.17) |
 | `client/src/ui/pulltorefresh.js` | Reusable pull-to-refresh for scroll containers |
 | `client/src/ui/cards.js` | Shared SVG icon set, discipline tags, card text helpers |
 | `client/src/main.js` | App bootstrap, auth, tab routing, push, theme, offline, pull-to-refresh |

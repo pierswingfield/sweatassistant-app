@@ -1,5 +1,7 @@
 # CSS debt audit (read-only)
 
+> **Refreshed 2026-10-24 (CSSv2 Phase 1):** `styles.css` is now 10,463 lines, 2,011 rules, **1,055 `!important`**, 995 ID-anchored selector parts, 162 duplicated selectors (240 extra copies), 95 `@media (max-width: 768px)` blocks, 293 literal `font-size: Npx` vs 96 `var()`, ~510 static inline `style=` in JS + 166 in `index.html`. Prefix is `app-` now. Full current figures: [cssv2-baseline.md](cssv2-baseline.md). The detail below is the 2026-10-06 snapshot.
+
 Date: 2026-10-06. Scope: `client/src/styles.css` (11,452 lines, the only stylesheet; `index.html:70`), `client/index.html`, `client/src/**/*.js` (non-test).
 Method: a comment-stripping brace parser (node, scratch scripts, not committed) plus grep. Counts are parser counts unless marked grep. Prefix renames (`psycle-`) are out of scope (see naming audit, category C, U3-1); overlaps are noted only.
 

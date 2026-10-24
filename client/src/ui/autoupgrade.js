@@ -51,7 +51,7 @@ function renderUpgradeList(upgrades, studioPrefs = {}) {
 
   if (activeJobs.length === 0) {
     container.innerHTML = `
-      <div class="fav-empty-state" style="padding: 30px 0;">
+      <div class="fav-empty-state au-empty-spacing">
         ${COPY.autoUpgrade.noMonitors}
       </div>
     `;

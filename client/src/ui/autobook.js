@@ -255,7 +255,7 @@ async function renderAutoBookTab() {
   } catch (err) {
     console.error('[AutoBook] Failed to load:', err);
     if (queueContainer && !cache.autoBookings) {
-      queueContainer.innerHTML = `<div class="app-empty-state" style="text-align:center;padding:40px 20px;color:var(--text-secondary)"><p style="font-size:16px;margin-bottom:8px">${COPY.autoBook.noCachedData}</p><p style="font-size:13px;color:var(--text-tertiary)">${COPY.autoBook.noCachedDataHelp}</p></div>`;
+      queueContainer.innerHTML = `<div class="app-empty-state ab-empty-container"><p class="ab-empty-title">${COPY.autoBook.noCachedData}</p><p class="ab-empty-help">${COPY.autoBook.noCachedDataHelp}</p></div>`;
     }
   }
 
@@ -269,7 +269,7 @@ function renderQueue(queue) {
   if (queue.length === 0) {
     container.__abSig = null;
     container.innerHTML = `
-      <div class="fav-empty-state" style="padding: 30px 0;">
+      <div class="fav-empty-state ab-empty-spacing">
         ${COPY.autoBook.noScheduledClasses}
       </div>
     `;

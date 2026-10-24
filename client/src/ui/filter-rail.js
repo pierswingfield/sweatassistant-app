@@ -163,10 +163,10 @@ export function renderFilterRail(ctx) {
   const linkedGyms = ctx.gyms || [];
   if (ctx.setGymQuick && linkedGyms.length > 1) {
     const items = quickSelectItems(state.gyms, linkedGyms.map(g => g.id));
-    parts.push(`<span class="fr-gymquick${gymStackOpen ? ' is-open' : ''}" role="group" aria-label="${escapeHtml(COPY.filters.gymQuickGroup)}">${items.map(({ gymId, shown }, gi) => {
+    parts.push(`<span class="fr-gymquick${gymStackOpen ? ' is-open' : ''}" style="--n:${items.length}" role="group" aria-label="${escapeHtml(COPY.filters.gymQuickGroup)}">${items.map(({ gymId, shown }, gi) => {
       const name = gymBrand(gymId).name;
       const label = formatCopyText(shown ? COPY.filters.gymQuickShown : COPY.filters.gymQuickHidden, { name });
-      return `<button type="button" style="z-index:${items.length - gi}" class="fr-gymquick-btn${shown ? ' is-shown' : ' is-off'}" data-fr-gymquick="${escapeHtml(gymId)}" aria-pressed="${shown}" aria-label="${escapeHtml(label)}">${gymDot(gymId, 'lg')}${shown ? '<svg class="fr-gymquick-tick" viewBox="0 0 10 10" aria-hidden="true"><path d="M2 5.2 4.2 7.4 8 2.8"/></svg>' : ''}</button>`;
+      return `<button type="button" style="z-index:${items.length - gi};--i:${gi}" class="fr-gymquick-btn${shown ? ' is-shown' : ' is-off'}" data-fr-gymquick="${escapeHtml(gymId)}" aria-pressed="${shown}" aria-label="${escapeHtml(label)}">${gymDot(gymId, 'lg')}${shown ? '<svg class="fr-gymquick-tick" viewBox="0 0 10 10" aria-hidden="true"><path d="M2 5.2 4.2 7.4 8 2.8"/></svg>' : ''}</button>`;
     }).join('')}</span>`);
   }
 
@@ -211,6 +211,12 @@ export function renderFilterRail(ctx) {
   }
   parts.push(`<span class="fr-filtergroup">${groupParts.join('')}</span>`);
   rail.innerHTML = parts.join('');
+  // Chip tiles collapse by max-width. Measure each face once so the transition spans the real width
+  // (animating to a 220px guess wastes the start of the curve). 0 = not laid out yet: keep the CSS fallback.
+  rail.querySelectorAll('.fr-tile-full, .fr-tile-compact').forEach((el) => {
+    const w = el.scrollWidth;
+    if (w > 0) el.style.setProperty(el.classList.contains('fr-tile-full') ? '--fr-fw' : '--fr-cw', `${w}px`);
+  });
 
   rail.onclick = (e) => {
     const clear = e.target.closest('[data-fr-clear]');

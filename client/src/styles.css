@@ -88,7 +88,7 @@
   --dur-base: 180ms;
   --dur-slow: 240ms;
   --dur-page: 300ms;
-  --dur-slow-header: 420ms;                 /* timetable header hide/show: slower than --dur-slow, transform/opacity only */
+  --dur-slow-header: 520ms;                 /* timetable header hide/show + compact shrink: ONE shared duration */
   --ease-header: cubic-bezier(0.22, 1, 0.36, 1);
   --ease-out: cubic-bezier(.25, 1, .5, 1);
   --ease-in-out: cubic-bezier(.4, 0, .2, 1);
@@ -7447,7 +7447,7 @@ html, body, * {
     transition: transform var(--dur-slow) var(--ease-out), opacity var(--dur-slow) var(--ease-out) !important;
   }
 
-  #app-filter-rail .fr-tile-full { max-width: 220px; opacity: 1; }
+  #app-filter-rail .fr-tile-full { max-width: var(--fr-fw, 220px); opacity: 1; }
 }
 /* === END MOBILE TIMETABLE BLOCK === */
 
@@ -8238,7 +8238,7 @@ html, body, * {
   .app-bk-compact p { margin: 0; font-size: 15px; line-height: 1.45; color: var(--text-secondary); }
 
   #app-helper-container .app-wk-day {
-    transition: height var(--tt-collapse-t, var(--dur-slow) var(--ease-out)), gap var(--tt-collapse-t, var(--dur-slow) var(--ease-out)), background-color var(--dur-base) var(--ease-out), border-color var(--dur-base) var(--ease-out);
+    transition: background-color var(--dur-base) var(--ease-out), border-color var(--dur-base) var(--ease-out);
   }
 }
 
@@ -8868,7 +8868,7 @@ body::before {
     margin-right: 0 !important;
   }
 
-  #app-helper-container .app-sticky-top { --tt-collapse-d: 16px; --tt-collapse-t: 0.25s cubic-bezier(0.25, 1, 0.5, 1); transition: top var(--dur-slow) var(--ease-out); box-shadow: 0 -2px 0 var(--bg), 0 1px 0 var(--border), var(--shadow-card) !important; }
+  #app-helper-container .app-sticky-top { --tt-collapse-d: 16px; --tt-collapse-t: var(--dur-slow-header) var(--ease-header); transition: top var(--dur-slow) var(--ease-out); box-shadow: 0 -2px 0 var(--bg), 0 1px 0 var(--border), var(--shadow-card) !important; }
 
   #app-helper-container .app-mobile-class-card.has-tz .app-mobile-top-line {
     margin-left: var(--tt-tz-chip-shift, 0px) !important;
@@ -9148,7 +9148,6 @@ body::before {
 
   .app-modal.app-page #app-gym-modal-body { display: block !important; }
 
-  #app-helper-container .app-wk-day .wk-num, #app-helper-container .app-wk-day .wk-name { transition: font-size var(--tt-collapse-t, var(--dur-slow) var(--ease-out)); }
 
   #app-helper-container .app-header .app-logo { display: none !important; }
 
@@ -9699,13 +9698,12 @@ html.app-scroll-locked { overflow: hidden !important; background: var(--bg) !imp
 
   /* Location chip: the logo + initials tile cross-fades into "N locations". */
 
-  #app-filter-rail .fr-tile-full, #app-filter-rail .fr-tile-compact { display: inline-flex; align-items: center; overflow: hidden; white-space: nowrap; transition: max-width var(--tt-collapse-t, var(--dur-slow) var(--ease-out)), opacity var(--dur-base) var(--ease-out); }
+  #app-filter-rail .fr-tile-full, #app-filter-rail .fr-tile-compact { display: inline-flex; align-items: center; overflow: hidden; white-space: nowrap; transition: max-width var(--tt-collapse-t), opacity var(--tt-collapse-t); }
 
   #app-filter-rail .fr-tile-compact { max-width: 0; opacity: 0; font-size: 11px; font-weight: 500; align-items: center; }
 
   #app-helper-container .app-mobile-lead { flex-basis: 48px; width: 48px; }
 
-  #app-filter-rail .fr-gymquick-btn { transition: margin-left var(--tt-collapse-t, var(--dur-slow) var(--ease-out)); }
 }
 /* Form logo remains mobile-only; heading and connection logos show across all viewports. */
 .app-gym-form-logo { display: none; }
@@ -9881,14 +9879,15 @@ html.app-scroll-locked { overflow: hidden !important; background: var(--bg) !imp
 @media (prefers-reduced-motion: reduce) { .fr-gymquick-btn .fr-gym-dot.lg { transition: none; } }
 
 /* ===== Mobile scroll-collapse (5-10 enh 3) =====
-   main.js toggles `.app-tt-compact` (a state flag; no longer styled) with the header hide (one state,
+   main.js toggles `.app-tt-compact` with the header hide (one state; its styles are in the timetable block above,
    see ui/scroll-collapse.js). MOBILE ONLY: everything is inside max-width:768px; desktop never matches.
-   Layout-jump guard: the day cells shrink on one shared duration/easing. In the
-   timetable, rows have their own scrollport, so the list follows the shorter rail.
+   Layout-jump guard: the day strip, chips and gym stack move on one shared duration/easing. In the
+   timetable the list has its own scrollport with fixed top padding, so it never reflows.
    Source order: these sit after the base .app-wk-day / .app-sticky-top / .fr-chip rules. */
 @media (max-width: 768px) and (prefers-reduced-motion: reduce) {
-  #app-helper-container .app-sticky-top,
+  #app-helper-container .app-sticky-top, #app-helper-container .app-wk-scroller,
   #app-helper-container .app-wk-day, #app-helper-container .app-wk-day .wk-num, #app-helper-container .app-wk-day .wk-name,
+  #app-filter-rail .fr-gymquick, #app-filter-rail .fr-gymquick-btn,
   #app-filter-rail .fr-tile-full, #app-filter-rail .fr-tile-compact { transition: none !important; }
 }
 /* Desktop: the compact face never shows. */
@@ -11578,20 +11577,40 @@ html:not([data-credits-tab="on"]) .app-nav-btn[data-tab="buy-credits"] { display
     border-radius: 0;
     transform: translate3d(0, 0, 0);
     transition: transform var(--dur-slow-header) var(--ease-header);
-    /* The date strip and chips no longer resize when the header hides (that was a layout transition);
-       the whole block only translates, so --tt-collapse-d (the day-cell shrink) is 0. */
-    --tt-collapse-d: 0px;
   }
   #app-container.app-hdr-hidden .app-body.app-timetable-active .app-sticky-top {
     transform: translate3d(0, calc(-1 * var(--app-header-h, 41px)), 0);
   }
   #app-container.app-tt-moving .app-body.app-timetable-active .app-sticky-top,
   #app-container.app-tt-moving .app-header { will-change: transform; }
-  /* Nothing inside the block resizes on hide any more, so no layout property may transition
-     (height / gap / font-size / max-width / margin). Only colour changes keep a transition. */
-  #app-helper-container .app-wk-day { transition: background-color var(--dur-base) var(--ease-out), border-color var(--dur-base) var(--ease-out); }
-  #app-helper-container .app-wk-day .wk-num, #app-helper-container .app-wk-day .wk-name,
-  #app-filter-rail .fr-tile-full, #app-filter-rail .fr-tile-compact, #app-filter-rail .fr-gymquick-btn { transition: none; }
+  /* ---- Compact (scrolled) state, restored from e47a8c1 and re-timed (removed in e37c3c3 by mistake) ----
+     ONE timeline: every part uses --tt-collapse-t (520ms, emphasized decelerate), so collapse and expand are
+     identical and a direction reversal mid-flight just retargets each transition.
+     Real size changes are limited to ONE height (the day-strip scroller; cells stretch to it) and the chip /
+     gym-stack widths; text and logos move with transform only (no per-child font-size / margin / gap). */
+  #app-helper-container .app-body.app-timetable-active .app-wk-scroller { height: 58px; transition: height var(--tt-collapse-t); }
+  #app-helper-container .app-body.app-timetable-active .app-wk-track { height: 100%; }
+  #app-helper-container .app-body.app-timetable-active .app-wk-day { height: auto; align-self: stretch; }
+  #app-helper-container .app-wk-day .wk-num, #app-helper-container .app-wk-day .wk-name { transition: transform var(--tt-collapse-t); transform-origin: 50% 50%; }
+  #app-container.app-tt-compact .app-body.app-timetable-active .app-sticky-top.app-dates-first { margin-bottom: 0 !important; }
+  #app-container.app-tt-compact .app-body.app-timetable-active .app-wk-scroller { height: calc(58px - var(--tt-collapse-d, 16px)); }
+  /* 20px -> 17px and 11px -> 10px as scale; translateY keeps the old 4px -> 2px gap between them. */
+  #app-container.app-tt-compact .app-wk-day .wk-num { transform: translateY(1.5px) scale(0.85); }
+  #app-container.app-tt-compact .app-wk-day .wk-name { transform: translateY(-2.5px) scale(0.909); }
+  /* Location / instructor chips: full tile fades out, "N locations" fades in (widths measured in filter-rail.js). */
+  #app-container.app-tt-compact #app-filter-rail .fr-tile-full { max-width: 0; opacity: 0; }
+  #app-container.app-tt-compact #app-filter-rail .fr-tile-compact { max-width: var(--fr-cw, 120px); opacity: 1; }
+  /* Gym logos consolidate into an overlapping horizontal stack (pitch 34px -> 8px): translateX per logo
+     (--i) plus ONE margin on the group (--n logos) so the chips beside it close up. */
+  #app-filter-rail .fr-gymquick { transition: margin-right var(--tt-collapse-t); }
+  #app-filter-rail .fr-gymquick-btn { transition: transform var(--tt-collapse-t); }
+  #app-container.app-tt-compact #app-filter-rail .fr-gymquick:not(.is-open) { margin-right: calc(6px - 26px * (var(--n, 1) - 1)); }
+  #app-container.app-tt-compact #app-filter-rail .fr-gymquick:not(.is-open) .fr-gymquick-btn { transform: translateX(calc(-26px * var(--i, 0))); }
+  /* U6-10: the higher-z-index logo covers the one beneath; a masking ring would show a dark seam in iOS Safari. */
+  #app-container.app-tt-compact #app-filter-rail .fr-gymquick:not(.is-open) .fr-gymquick-btn .fr-gym-dot { box-shadow: none; }
+  /* Layer promotion only while moving (main.js adds .app-tt-moving for the duration of the transition). */
+  #app-container.app-tt-moving .app-wk-day .wk-num, #app-container.app-tt-moving .app-wk-day .wk-name,
+  #app-container.app-tt-moving #app-filter-rail .fr-gymquick-btn { will-change: transform; }
 }
 @media (max-width: 768px) {
   @supports not ((backdrop-filter: blur(1px)) or (-webkit-backdrop-filter: blur(1px))) {

@@ -1906,11 +1906,11 @@ function initHeaderAutoHide() {
     if (!els() || hide === hidden) return;
     hidden = hide;
     app.classList.toggle('app-hdr-hidden', hide);
-    app.classList.toggle('app-tt-compact', hide); // state flag only (filter-rail.js reads it); no CSS resizes the strip any more
+    app.classList.toggle('app-tt-compact', hide); // date strip, chips and gym stack shrink on one timeline (styles.css); filter-rail.js reads it too
     // will-change: transform only for the duration of the slide (styles.css .app-tt-moving).
     app.classList.add('app-tt-moving');
     clearTimeout(movingTimer);
-    movingTimer = setTimeout(() => app.classList.remove('app-tt-moving'), 520);
+    movingTimer = setTimeout(() => app.classList.remove('app-tt-moving'), 620);
     // Safe-area cap + theme-color follow the header: header colour while it shows, page colour once it is gone.
     document.documentElement.toggleAttribute('data-hdr-hidden', hide);
     syncThemeColorMeta();

@@ -10910,7 +10910,7 @@ html:not([data-credits-tab="on"]) .app-nav-btn[data-tab="buy-credits"] { display
 :is(#app-helper-container, body) .onb-gyms-stack { display:flex; flex-direction:column; gap:8px; }
 :is(#app-helper-container, body) .onb-gym-card { display:flex; align-items:center; justify-content:space-between; padding:10px 14px; background:var(--surface-inset); border:1px solid var(--border); border-radius:10px; }
 :is(#app-helper-container, body) .onb-gym-info { display:flex; align-items:center; gap:10px; }
-:is(#app-helper-container, body) .onb-gym-check { color:var(--success, #10b981); font-weight:bold; font-size:16px; }
+:is(#app-helper-container, body) .onb-gym-check { color:var(--success); font-weight:bold; font-size:16px; }
 :is(#app-helper-container, body) .onb-gym-name { font-size:14px; font-weight:600; }
 :is(#app-helper-container, body) .onb-gym-email { font-size:12px; color:var(--text-tertiary); }
 :is(#app-helper-container, body) .onb-gym-badge { font-size:11px; background:color-mix(in srgb,var(--success) 15%,transparent); color:var(--success); }
@@ -10923,10 +10923,10 @@ html:not([data-credits-tab="on"]) .app-nav-btn[data-tab="buy-credits"] { display
 :is(#app-helper-container, body) .onb-success-banner { padding:16px; text-align:center; background:color-mix(in srgb,var(--success) 10%,transparent); border:1px solid color-mix(in srgb,var(--success) 20%,transparent); border-radius:12px; color:var(--text-primary); margin-bottom:12px; }
 :is(#app-helper-container, body) .onb-success-title { color:var(--success); }
 :is(#app-helper-container, body) .onb-success-subtitle { font-size:12px; color:var(--text-secondary); }
-:is(#app-helper-container, body) .onb-icon-push { color: var(--feat-push, var(--accent)); }
+:is(#app-helper-container, body) .onb-icon-push { color: var(--accent); }
 :is(#app-helper-container, body) .onb-icon-calendar { color: var(--accent); }
 :is(#app-helper-container, body) .onb-webcal-button { display:block; text-align:center; text-decoration:none; margin-bottom:8px; }
-:is(#app-helper-container, body) .onb-icon-quickbook { color: var(--feat-quickbook, var(--accent)); }
+:is(#app-helper-container, body) .onb-icon-quickbook { color: var(--accent); }
 
 /* src/ui/tooltips.js */
 :is(#app-helper-container, body) .tip-instagram-icon { flex:none; }
@@ -11268,3 +11268,196 @@ html:not([data-credits-tab="on"]) .app-nav-btn[data-tab="buy-credits"] { display
 @media (prefers-reduced-motion: reduce) {
   html.nav-glass #app-helper-container .app-bottom-nav .app-nav-lens { transition: none !important; }
 }
+
+/* ==========================================================================
+   CSSv2 ONBOARDING: full-screen, glass, animated. DESIGN.md 3.5.2 / 9.
+   Appended last on purpose: it re-skins the first-run rules above (same classes, same markup contract).
+   Material = the Liquid Glass tokens of the bottom nav (--lg-*), with the same two fallbacks.
+   ========================================================================== */
+.app-onboarding-container {
+  --onb-gutter: 20px;
+  --onb-ico-hero: 84px;  --onb-glyph-hero: 40px;   /* hero medallion */
+  --onb-ico-card: 44px;  --onb-glyph-card: 22px;   /* feature card */
+  --onb-ico-row: 36px;   --onb-glyph-row: 20px;    /* list rows (perks, reasons, install steps) */
+  --onb-spring: cubic-bezier(.34, 1.45, .64, 1);
+  --onb-glass-fill: linear-gradient(180deg, color-mix(in srgb, var(--lg-spec) 22%, transparent), transparent 55%), var(--lg-fill);
+  --onb-glass-shadow: inset 0 1px 0 var(--lg-spec), inset 0 -1px 0 color-mix(in srgb, var(--lg-spec) 25%, transparent), 0 8px 24px color-mix(in srgb, var(--tone-ink) 12%, transparent);
+  height: 100vh; height: 100dvh;
+  padding: 0 env(safe-area-inset-right, 0px) 0 env(safe-area-inset-left, 0px);
+  isolation: isolate;
+  background: var(--bg);
+}
+/* Warm aurora (the landing hero's blobs, static): soft clay + ochre washes the glass has something to blur. */
+.app-onboarding-container::before {
+  content: ''; position: fixed; inset: 0; z-index: -1; pointer-events: none;
+  background:
+    radial-gradient(70vmax 70vmax at 0% -5%, color-mix(in srgb, var(--accent-fill) 30%, transparent), transparent 68%),
+    radial-gradient(56vmax 56vmax at 105% 42%, color-mix(in srgb, var(--feat-quickbook) 18%, transparent), transparent 68%),
+    radial-gradient(64vmax 64vmax at 15% 108%, color-mix(in srgb, var(--accent-fill) 22%, transparent), transparent 68%);
+}
+
+/* ---- glass surfaces ---- */
+.app-onb-body, .app-onb-footer, .app-onb-hero, .app-onb-progress, .app-onb-perk,
+.app-onboarding-container .app-onb-back-top, .app-onb-feature-card {
+  background: var(--onb-glass-fill);
+  -webkit-backdrop-filter: var(--lg-blur); backdrop-filter: var(--lg-blur);
+  box-shadow: var(--onb-glass-shadow);
+  border: 0;
+}
+/* Refraction-like ring on the big surfaces. */
+.app-onb-body::before, .app-onb-footer::before, .app-onb-feature-card::before, .app-onb-hero::before {
+  content: ''; position: absolute; inset: 0; border-radius: inherit; padding: 1px; pointer-events: none;
+  background: linear-gradient(150deg, var(--lg-ring-a), var(--lg-ring-b) 38%, var(--lg-ring-b) 62%, var(--lg-ring-a));
+  -webkit-mask: linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0);
+  -webkit-mask-composite: xor; mask-composite: exclude;
+}
+@supports not ((backdrop-filter: blur(1px)) or (-webkit-backdrop-filter: blur(1px))) {
+  .app-onb-body, .app-onb-footer, .app-onb-hero, .app-onb-progress, .app-onb-perk,
+  .app-onboarding-container .app-onb-back-top, .app-onb-feature-card { background: var(--glass-solid); }
+}
+@media (prefers-reduced-transparency: reduce) {
+  .app-onb-body, .app-onb-footer, .app-onb-hero, .app-onb-progress, .app-onb-perk,
+  .app-onboarding-container .app-onb-back-top, .app-onb-feature-card {
+    background: var(--glass-solid); -webkit-backdrop-filter: none; backdrop-filter: none;
+  }
+}
+
+/* ---- top bar: Back + progress capsule ---- */
+.app-onb-top {
+  flex: 0 0 auto; position: relative; z-index: 2;
+  display: grid; grid-template-columns: 1fr auto 1fr; align-items: center; column-gap: 12px;
+  padding: calc(env(safe-area-inset-top, 0px) + 8px) var(--onb-gutter) 4px; min-height: 56px;
+}
+.app-onb-top .app-onb-back-top { grid-column: 1; justify-self: start; margin: 0; min-height: 40px; padding: 0 16px; border-radius: var(--radius-pill); color: var(--text); }
+.app-onb-progress {
+  grid-column: 2; position: relative; width: clamp(96px, 34vw, 156px); height: 10px; border-radius: var(--radius-pill); overflow: hidden;
+}
+.app-onb-progress-fill {
+  position: absolute; inset: 2px; border-radius: var(--radius-pill); background: var(--accent-fill);
+  transform: translateX(calc((var(--p, 1) - 1) * 100%));
+}
+.is-entering .app-onb-progress-fill { animation: onb-fill 460ms var(--ease-out) both; }
+@keyframes onb-fill { from { transform: translateX(calc((var(--p-from, 0) - 1) * 100%)); } }
+
+/* ---- the sheet: hero top, copy middle, actions pinned ---- */
+.app-onb-sheet {
+  flex: 1 0 auto; align-self: stretch; width: 100%; max-width: 480px; margin: 0 auto; box-sizing: border-box;
+  padding: 8px var(--onb-gutter) calc(env(safe-area-inset-bottom, 0px) + 12px);
+  display: flex; flex-direction: column; align-items: stretch; justify-content: flex-start; gap: 12px;
+  animation: none;
+}
+.app-onb-eyebrow { text-align: center; color: var(--accent); }
+.app-onb-title { font-size: clamp(26px, 7.4vw, 32px); text-align: center; text-wrap: balance; }
+.app-onb-sheet > .app-onb-hero + .app-onb-eyebrow { margin-top: 2px; }
+.app-onb-body { position: relative; border-radius: var(--radius-sheet, 24px); padding: 18px; gap: 14px; flex: 0 1 auto; margin-block: 0; }
+.app-onb-body:empty { display: none; }
+.app-onb-lead { font-size: var(--text-md); }
+.app-onb-footer {
+  position: sticky; z-index: 3; bottom: calc(env(safe-area-inset-bottom, 0px) + 10px);
+  margin-top: 0; padding: 12px; gap: 8px; border-radius: 28px; order: 4;
+}
+/* Vertical composition: hero + headline top, copy centred in the free space, actions pinned to the bottom. */
+.app-onb-sheet::before, .app-onb-sheet::after { content: ''; flex: 1 1 0; min-height: 0; }
+.app-onb-sheet::before { order: 1; }
+.app-onb-sheet::after { order: 3; }
+.app-onb-sheet > :is(.app-onb-body, .app-onb-carousel, .app-onb-feature-list) { order: 2; }
+.app-onb-footer:empty { display: none; }
+.app-onb-footer .app-btn-mini[data-quiet], .app-onb-continue[data-quiet="1"] {
+  background: transparent; color: var(--text); box-shadow: inset 0 0 0 1px var(--border-strong);
+}
+.app-onb-footer .app-btn-mini { color: var(--text-secondary); }
+.app-onb-top + .app-onb-sheet.app-onb-intro { justify-content: flex-start; }
+
+/* ---- hero medallion (the illustration): fixed aspect, never squashed ---- */
+.app-onb-hero {
+  position: relative; flex: 0 0 auto; align-self: center; width: var(--onb-ico-hero); height: var(--onb-ico-hero); aspect-ratio: 1;
+  border-radius: 50%; display: grid; place-items: center; color: var(--accent);
+  box-shadow: var(--onb-glass-shadow), 0 0 0 8px color-mix(in srgb, var(--accent-fill) 10%, transparent);
+}
+.app-onb-hero svg { flex: none; width: var(--onb-glyph-hero); height: var(--onb-glyph-hero); display: block; }
+.app-onb-hero.is-seal { background: var(--accent-fill); color: var(--on-accent-fill); }
+.app-onb-hero.is-seal::after {
+  content: ''; position: absolute; inset: -2px; border-radius: 50%; border: 2px solid var(--accent-fill); opacity: 0; pointer-events: none;
+}
+
+/* ---- icon scale: every glyph box has a fixed aspect and cannot shrink ---- */
+.app-onb-icon, .app-onb-perk-icon, .app-onb-reason-icon, .app-install-ico { flex: 0 0 auto; aspect-ratio: 1; display: grid; place-items: center; }
+.app-onb-icon, .app-onb-feature-heading .app-onb-icon { width: var(--onb-ico-card); height: var(--onb-ico-card); margin: 0; border-radius: 14px; color: var(--accent); background: color-mix(in srgb, var(--accent-fill) 14%, transparent); }
+.app-onb-icon svg, .app-onb-feature-heading .app-onb-icon svg { flex: none; width: var(--onb-glyph-card); height: var(--onb-glyph-card); display: block; }
+.app-onb-perk-icon, .app-onb-reason-icon, .app-install-ico { width: var(--onb-ico-row); height: var(--onb-ico-row); border-radius: 12px; color: var(--accent); background: color-mix(in srgb, var(--accent-fill) 14%, transparent); border: 0; }
+.app-onb-perk-icon svg, .app-onb-reason-icon svg, .app-install-ico svg { flex: none; width: var(--onb-glyph-row); height: var(--onb-glyph-row); display: block; }
+.app-install-step::before { flex: 0 0 24px; width: 24px; height: 24px; aspect-ratio: 1; }
+
+/* ---- welcome (intro) ---- */
+.app-onb-intro { justify-content: flex-start; gap: 12px; text-align: center; }
+.app-onb-intro .app-onb-carousel { margin: 0; overflow: visible; }
+.app-onb-wordmark { font-size: clamp(34px, 10vw, 44px); letter-spacing: 0; line-height: 1.05; font-weight: 600; color: var(--accent); }
+.app-onb-welcome-title { font-family: var(--font-serif); font-size: var(--text-xl); font-weight: 500; color: var(--text); text-wrap: balance; }
+.app-onb-slide-welcome { gap: 8px; }
+.app-onb-perks { gap: 8px; margin-top: 10px; }
+.app-onb-perk { position: relative; border: 0; border-radius: 18px; padding: 10px 14px; --perk: var(--accent); }
+.app-onb-perk-icon { color: var(--accent); background: color-mix(in srgb, var(--accent-fill) 14%, transparent); border: 0; }
+.app-onb-gyms-line { margin-top: 10px; }
+
+/* ---- forms / lists inside the glass card ---- */
+.onb-form-container { background: color-mix(in srgb, var(--surface) 55%, transparent) !important; border-color: var(--border) !important; border-radius: 18px !important; }
+.onb-gym-card { background: color-mix(in srgb, var(--surface) 55%, transparent) !important; }
+.app-onb-reasons li, .app-install-step { align-items: center; }
+.app-install-steps { margin-top: 12px; }
+.app-install-note { background: color-mix(in srgb, var(--accent-fill) 10%, transparent); }
+
+/* ---- features (final step) ---- */
+.app-onb-features { max-width: 520px; }
+.app-onb-feature-card { position: relative; border: 0 !important; border-radius: 20px; padding: 12px 14px; }
+.app-onb-feature-card.is-complete { box-shadow: var(--onb-glass-shadow), inset 0 0 0 1.5px color-mix(in srgb, var(--success) 45%, transparent); }
+.app-onb-feature-list { gap: 10px; }
+.app-onb-features > .app-onb-lead { font-size: var(--text-sm); }
+
+/* ---- fit: short phones (SE 375x667) trade hero size for visible actions ---- */
+@media (max-height: 720px) {
+  .app-onboarding-container { --onb-ico-hero: 60px; --onb-glyph-hero: 28px; }
+  .app-onb-sheet { gap: 8px; }
+  .app-onb-body { padding: 14px; gap: 10px; }
+  .app-onb-footer { padding: 10px; }
+  .app-onb-perk { padding: 6px 12px; }
+  .app-onboarding-container[data-step="gyms"] .app-onb-hero { display: none; }
+}
+@media (min-width: 560px) { .app-onboarding-container { --onb-gutter: 28px; } }
+
+/* ---- motion: transform + opacity only. Entrance plays only when a NEW step renders (.is-entering). ---- */
+@media (prefers-reduced-motion: no-preference) {
+  .is-entering[data-dir="fwd"] .app-onb-sheet { animation: onb-step-fwd var(--dur-page) var(--ease-out) backwards; }
+  .is-entering[data-dir="back"] .app-onb-sheet { animation: onb-step-back var(--dur-page) var(--ease-out) backwards; }
+  .is-entering .app-onb-top { animation: onb-fade var(--dur-slow) var(--ease-out) backwards; }
+  /* Stagger (50ms steps): hero, headline, copy, actions. Perks ride the copy step at 40ms each. */
+  .is-entering .app-onb-hero { animation: onb-hero 560ms var(--onb-spring) backwards; animation-delay: 0ms; }
+  .is-entering .app-onb-eyebrow, .is-entering .app-onb-title, .is-entering .app-onb-wordmark, .is-entering .app-onb-welcome-title { animation: onb-rise var(--dur-slow) var(--ease-out) backwards; animation-delay: 50ms; }
+  .is-entering .app-onb-body, .is-entering .app-onb-feature-list, .is-entering .app-onb-features > .app-onb-lead { animation: onb-rise var(--dur-slow) var(--ease-out) backwards; animation-delay: 100ms; }
+  .is-entering .app-onb-perk { animation: onb-rise var(--dur-slow) var(--ease-out) backwards; animation-delay: calc(100ms + var(--i, 0) * 40ms); }
+  .is-entering .app-onb-footer, .is-entering .app-onb-gyms-line { animation: onb-rise var(--dur-slow) var(--ease-out) backwards; animation-delay: 150ms; }
+  /* Success flourish: ring pulses once on entering the last step, and again when everything is set up. */
+  .is-entering .app-onb-hero.is-seal::after, .app-onb-hero.is-seal.is-done::after { animation: onb-ring 700ms var(--ease-out) 380ms backwards; }
+  .app-onb-hero.is-seal.is-done { animation: onb-pop 420ms var(--onb-spring); }
+}
+@keyframes onb-step-fwd { from { opacity: 0; transform: translate3d(28px, 0, 0); } }
+@keyframes onb-step-back { from { opacity: 0; transform: translate3d(-28px, 0, 0); } }
+@keyframes onb-rise { from { opacity: 0; transform: translate3d(0, 12px, 0); } }
+@keyframes onb-hero { from { opacity: 0; transform: translate3d(0, 14px, 0) scale(.82); } }
+@keyframes onb-fade { from { opacity: 0; } }
+@keyframes onb-ring { from { opacity: .6; transform: scale(1); } to { opacity: 0; transform: scale(1.7); } }
+@keyframes onb-pop { 50% { transform: scale(1.08); } }
+/* Reduced motion: a plain crossfade of the whole step; the progress fill just sits at its value. */
+@media (prefers-reduced-motion: reduce) {
+  .is-entering .app-onb-sheet { animation: onb-fade var(--dur-base) linear backwards !important; }
+  .is-entering .app-onb-sheet *, .is-entering .app-onb-progress-fill, .is-entering .app-onb-top { animation: none !important; }
+  .app-onb-hero.is-seal::after { display: none; }
+}
+
+/* Onboarding fields: same warm inset well as the select, 16px text so iOS never zooms on focus. */
+.app-onb-body .onb-email-input, .app-onb-body .app-select {
+  width: 100%; box-sizing: border-box; min-height: var(--tap-min); padding: 10px 14px;
+  background: var(--surface-inset); color: var(--text); border: 1px solid var(--border); border-radius: var(--radius-control);
+  font: 500 16px/1.3 var(--font-sans); outline: none;
+}
+.app-onb-body .onb-email-input::placeholder { color: var(--text-tertiary); }
+.app-onb-body .onb-email-input:focus-visible, .app-onb-body .app-select:focus-visible { border-color: var(--accent); box-shadow: 0 0 0 var(--focus-ring-width) color-mix(in srgb, var(--accent) 35%, transparent); }

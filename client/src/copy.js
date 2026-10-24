@@ -38,6 +38,7 @@ export const COPY = Object.freeze({
     installStepGenericMenu: 'Open your browser’s menu.',
     installStepGenericAdd: 'Choose <strong>Add to Home screen</strong> or <strong>Install app</strong>.',
     back: '← Back',
+    progressLabel: 'Step {current} of {total}',
     connectedGyms: 'Connected Studios & Gyms',
     connectAnotherGym: 'Connect Another Gym',
     connectNamedGym: 'Connect {gym}',

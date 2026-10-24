@@ -441,6 +441,13 @@ Loading spinner inside the tooltip uses `color: var(--feat-autoupgrade)` for the
 
 ---
 
+### 6.17 Onboarding (CSSv2, 2026-10-25)
+First-run screens are full-viewport glass pages (`.app-onboarding-container`, `100vh` then `100dvh`, side safe-area padding; top/bottom insets live on the top bar and action tray). Layout per step: top bar (glass Back pill + glass progress capsule with a clay fill), hero medallion (84px glass circle, 40px clay glyph; 60/28 under 720px height; the Gyms step drops it on short phones), Fraunces headline, copy in one glass card, and a sticky glass action tray pinned to the bottom (safe-area aware, so primary actions never leave a 375x667 screen; content scrolls beneath it). Free vertical space is split by two flex spacers, so copy centres between headline and tray.
+- **Material**: the Liquid Glass nav tokens (`--lg-fill`, `--lg-blur`, `--lg-spec`, `--lg-ring-*`) on the body card, tray, perks, feature cards, Back pill, capsule and hero; `@supports not` backdrop and `prefers-reduced-transparency` swap to `--glass-solid`. This is a deliberate exception to 3.5 (glass only on nav/headers) because the screen has no other chrome; the rest of the app stays flat. Behind it: a static warm aurora (clay + ochre radial washes, no loop).
+- **Colour**: clay (`--accent`, `--accent-fill`) for CTA, progress, icons; no violet/blue feature colours, no hard-coded hexes. Icon scale: hero 84/40, card 44/22, row 36/20; every glyph box has `aspect-ratio:1`, `flex:none` and fixed SVG size, so nothing squashes.
+- **Motion** (transform + opacity, tokens only): a new step slides 28px in its travel direction (`data-dir` fwd/back) while fading, `--dur-page` `--ease-out`; stagger at 50ms steps hero, headline, copy, actions (perks +40ms each); hero rises and scales with a spring (560ms); the progress fill travels from the previous step's value (460ms); the final-step seal pulses a ring once, again when everything is set up. Entrance plays only when a step first renders (`.is-entering`), never on in-step re-renders. Reduced motion: whole-step crossfade (`--dur-base`), fill and ring static.
+- **Contract**: step logic, persistence (`appOnboardingStep`), skip and finish are untouched; progress phases are Welcome, Install (if offered), Account, Gyms, Name, Setup.
+
 ## 7. Scrollbars
 
 All scrollbars use token-derived values:
@@ -512,7 +519,7 @@ Tokens (Phase 5 adopts them; existing 23 ad-hoc durations migrate to these): dur
 | `client/src/ui/settings.js` | Settings panel (4 subnav sections), theme toggle, calendar card, notif prefs, Profile Explorer, spot-map manager |
 | `client/src/ui/spotmap.js` | Shared studio floor-plan editor (reused by all booking flows + settings) |
 | `client/src/ui/tooltips.js` | Instructor + occupancy tooltip HTML (hover + touch tap-to-toggle) |
-| `client/src/ui/onboarding.js` | First-run 6-step guided flow |
+| `client/src/ui/onboarding.js` | First-run guided flow (see 6.17) |
 | `client/src/ui/pulltorefresh.js` | Reusable pull-to-refresh for scroll containers |
 | `client/src/ui/cards.js` | Shared SVG icon set, discipline tags, card text helpers |
 | `client/src/main.js` | App bootstrap, auth, tab routing, push, theme, offline, pull-to-refresh |

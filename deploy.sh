@@ -45,21 +45,24 @@ done
 if [ "$TARGET" = prod ]; then
   REMOTE_DIR='~/services/sweatassistant'
   COMPOSE_FILE='docker-compose.prod.yml'
+  CONTAINER='sweatassistant'
   HEALTH_URL='https://sweat.wingfield.tech/api/health'
 elif [ "$TARGET" = experiment ]; then
   REMOTE_DIR='~/services/sweatassistant-experiment'
   COMPOSE_FILE='docker-compose.experiment.yml'
+  CONTAINER='sweatassistant-experiment'
   HEALTH_URL='https://sweat-experiment.wingfield.tech/api/health'
 else
   REMOTE_DIR='~/services/sweatassistant-dev'
   COMPOSE_FILE='docker-compose.yml'
+  CONTAINER='sweatassistant-dev'
   HEALTH_URL='https://sweat-dev.wingfield.tech/api/health'
 fi
 
 # Always excluded: secrets, the database volume, build output, dependencies, VCS.
 EXCLUDES=(--exclude .env --exclude '.env.*' --exclude data/ --exclude node_modules
           --exclude client/node_modules --exclude server/node_modules
-          --exclude client/dist/ --exclude server/public/ --exclude .git/ --exclude .claude/ --exclude scratch/
+          --exclude client/dist/ --exclude server/public/ --exclude .git --exclude .git/ --exclude .claude/ --exclude scratch/
           --exclude .DS_Store --exclude '*.db' --exclude '*.db-shm' --exclude '*.db-wal')
 # docker-compose.yml is the DEV twin's (container sweatassistant-dev, bound to the tailnet
 # address); prod runs docker-compose.prod.yml (container sweatassistant, no published port).
@@ -72,6 +75,8 @@ esac
 
 RSYNC=(rsync -az "${EXCLUDES[@]}" ./ "$HOST:$REMOTE_DIR/")
 REMOTE_UP="cd $REMOTE_DIR && $DOCKER compose -f $COMPOSE_FILE up -d --build && $DOCKER compose -f $COMPOSE_FILE ps"
+REMOTE_PREFLIGHT="set -e; cd $REMOTE_DIR; $DOCKER compose -f $COMPOSE_FILE config -q; echo '--- writable-layer diff before recreate ---'; $DOCKER diff $CONTAINER || true; echo '--- filesystem capacity before build ---'; df -h /"
+REMOTE_VERIFY="$DOCKER exec $CONTAINER node --version | grep -Fx 'v22.23.4'"
 
 run() { if [ "$PRINT" = 1 ]; then printf '  %q' "$@"; printf '\n'; else "$@"; fi; }
 
@@ -88,10 +93,14 @@ if [ "$TARGET" = prod ] && [ "$PRINT" = 0 ]; then
   [ "$answer" = "deploy prod" ] || { echo "Aborted."; exit 1; }
 fi
 
-echo "[1/2] rsync"
+echo "[0/3] remote preflight (compose, writable layer, disk)"
+run ssh "$HOST" "$REMOTE_PREFLIGHT"
+echo "[1/3] rsync"
 run "${RSYNC[@]}"
-echo "[2/2] docker compose up -d --build"
+echo "[2/3] docker compose up -d --build"
 run ssh "$HOST" "$REMOTE_UP"
+echo "[3/3] verify patched runtime"
+run ssh "$HOST" "$REMOTE_VERIFY"
 
 echo "Done. Verify:  curl -s $HEALTH_URL"
 echo "Also check the registry (~/.claude/skills/selfhost-deploy/references/registry.md) if ports or names changed."

@@ -1,0 +1,45 @@
+# Isolated candidate only. See Documentation/Operations/MCP-STAGING.md.
+# Supply a locally built ARM64 image from the recorded clean candidate.
+name: sweatassistant-mcp-stage
+services:
+  sweatassistant-mcp-stage:
+    image: ${MCP_STAGE_IMAGE:?Set an immutable candidate image tag or digest}
+    container_name: sweatassistant-mcp-stage
+    env_file: .env.mcp-stage
+    environment:
+      NODE_ENV: production
+      PORT: "3000"
+      DB_PATH: /data/app.db
+      PUBLIC_HOST: sweat-mcp-stage.wingfield.tech
+      CORS_ORIGINS: https://sweat-mcp-stage.wingfield.tech
+      MCP_ENABLED: ${MCP_STAGE_ENABLED:-true}
+      MCP_AUTH_SERVER_ENABLED: ${MCP_STAGE_ENABLED:-true}
+      MCP_PROVIDER_READS_ENABLED: "false"
+      MCP_RESOURCE_URL: https://sweat-mcp-stage.wingfield.tech/mcp
+      MCP_ISSUER: https://sweat-mcp-stage.wingfield.tech/
+      MCP_JWKS_FILE: /private/mcp/jwks.json
+      MCP_SIGNING_KEY_FILE: /private/mcp/signing.json
+      MCP_CLIENTS_FILE: /private/mcp/clients.json
+    volumes:
+      - type: bind
+        source: ./data-mcp-stage
+        target: /data
+        bind: { create_host_path: false }
+      - type: bind
+        source: ./private-mcp-stage
+        target: /private/mcp
+        read_only: true
+        bind: { create_host_path: false }
+    mem_limit: 768m
+    cpus: "0.50"
+    pids_limit: 128
+    logging:
+      driver: json-file
+      options: { max-size: "10m", max-file: "3" }
+    restart: unless-stopped
+    networks: [default, edge]
+    # No host listener; cloudflared reaches internal port 3000 over edge.
+networks:
+  edge:
+    external: true
+    name: edge

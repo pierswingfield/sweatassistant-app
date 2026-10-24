@@ -9700,7 +9700,7 @@ html.app-scroll-locked { overflow: hidden !important; background: var(--bg) !imp
 
   #app-filter-rail .fr-tile-full, #app-filter-rail .fr-tile-compact { display: inline-flex; align-items: center; overflow: hidden; white-space: nowrap; transition: max-width var(--tt-collapse-t), opacity var(--tt-collapse-t); }
 
-  #app-filter-rail .fr-tile-compact { max-width: 0; opacity: 0; font-size: 11px; font-weight: 500; align-items: center; }
+  #app-filter-rail .fr-tile-compact { max-width: 0; opacity: 0; font-size: inherit; font-weight: 500; align-items: center; }
 
   #app-helper-container .app-mobile-lead { flex-basis: 48px; width: 48px; }
 

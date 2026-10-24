@@ -25,7 +25,7 @@ async function readResponse(response, max) {
   for await (const chunk of response.body) { size += chunk.length; if (size > max) throw new Error('upstream response too large'); chunks.push(Buffer.from(chunk)); }
   return Buffer.concat(chunks);
 }
-function createServer({ gatewayKey = process.env.MCP_STAGE_JAB_GATEWAY_KEY || '', fetchImpl = fetch } = {}) {
+function createServer({ gatewayKey = process.env.MCP_STAGE_JAB_GATEWAY_KEY || '', fetchImpl = fetch, deadlineMs = 15000 } = {}) {
 if (gatewayKey.length < 32) throw new Error('Stage gateway key must be at least 32 characters');
 return http.createServer(async (req, res) => {
   res.setHeader('cache-control', 'no-store');
@@ -33,6 +33,12 @@ return http.createServer(async (req, res) => {
   if (active) { res.writeHead(429).end(); return; }
   active = true;
   const started = Date.now(); let method = 'invalid'; let path = 'invalid'; let status = 502;
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(new Error('gateway deadline exceeded')), deadlineMs);
+  const abortOnRequestAbort = () => controller.abort(new Error('gateway client disconnected'));
+  const abortOnResponseClose = () => { if (!res.writableEnded) abortOnRequestAbort(); };
+  req.on('aborted', abortOnRequestAbort);
+  res.on('close', abortOnResponseClose);
   try {
     const raw = await readBody(req, 256 * 1024);
     const input = JSON.parse(raw.toString('utf8'));
@@ -41,26 +47,29 @@ return http.createServer(async (req, res) => {
     method = String(input.method || 'GET').toUpperCase(); path = target.pathname;
     const headers = {};
     for (const [name, value] of Object.entries(input.headers || {})) if (safeHeaders.has(name.toLowerCase()) && typeof value === 'string' && value.length <= 8192) headers[name.toLowerCase()] = value;
-    const controller = new AbortController(); const timer = setTimeout(() => controller.abort(), 15000);
     let upstream;
     let bytes;
-    try {
-      upstream = await fetchImpl(target, { method, headers, body: method === 'POST' ? String(input.body || '') : undefined, redirect: 'manual', signal: controller.signal });
-      bytes = await readResponse(upstream, 1024 * 1024);
-    } finally { clearTimeout(timer); }
+    upstream = await fetchImpl(target, { method, headers, body: method === 'POST' ? String(input.body || '') : undefined, redirect: 'manual', signal: controller.signal });
+    bytes = await readResponse(upstream, 1024 * 1024);
+    controller.signal.throwIfAborted();
     const outHeaders = {};
     for (const h of ['content-type', 'location', 'set-cookie', 'www-authenticate']) {
       const v = h === 'set-cookie' && typeof upstream.headers.getSetCookie === 'function' ? upstream.headers.getSetCookie() : upstream.headers.get(h);
       if (v) outHeaders[h] = v;
     }
     status = upstream.status;
-    res.writeHead(200, { 'content-type': 'application/json' });
-    res.end(JSON.stringify({ status, headers: outHeaders, body: bytes.toString('base64') }));
+    if (!res.destroyed && !res.writableEnded) {
+      res.writeHead(200, { 'content-type': 'application/json' });
+      res.end(JSON.stringify({ status, headers: outHeaders, body: bytes.toString('base64') }));
+    }
   } catch (_) {
-    res.writeHead(403, { 'content-type': 'application/json' }).end('{"error":"request denied"}');
+    if (!res.destroyed && !res.writableEnded) res.writeHead(403, { 'content-type': 'application/json' }).end('{"error":"request denied"}');
   } finally {
     // No URL, query, headers, body, cookie, credential, token or upstream error is logged.
     process.stdout.write(JSON.stringify({ event: 'stage_jab_profile_hop', method, path, status, durationMs: Date.now() - started }) + '\n');
+    clearTimeout(timer);
+    req.off('aborted', abortOnRequestAbort);
+    res.off('close', abortOnResponseClose);
     active = false;
   }
 }); }

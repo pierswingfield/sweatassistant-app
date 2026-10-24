@@ -683,6 +683,20 @@ document.querySelectorAll('.app-tab-refresh-btn').forEach(btn => {
 
 // --- SERVICE WORKER & PUSH REGISTRATION ---
 let serviceWorkerRegistration = null;
+// What the worker did on this device, shown with the "not ready" error so a
+// phone (no devtools) can report why push cannot start.
+const swDiagnostics = { registerError: '', lastState: '' };
+function swStateSummary(reg) {
+  const parts = [
+    `active=${reg?.active?.state || 'none'}`,
+    `installing=${reg?.installing?.state || 'none'}`,
+    `waiting=${reg?.waiting?.state || 'none'}`,
+    `controlled=${!!navigator.serviceWorker?.controller}`,
+  ];
+  if (swDiagnostics.lastState) parts.push(`last=${swDiagnostics.lastState}`);
+  if (swDiagnostics.registerError) parts.push(`register: ${swDiagnostics.registerError}`);
+  return parts.join(', ');
+}
 
 async function registerServiceWorker() {
   if (!('serviceWorker' in navigator)) return;
@@ -690,6 +704,12 @@ async function registerServiceWorker() {
     const reg = await navigator.serviceWorker.register('/sw.js', { scope: '/' });
     serviceWorkerRegistration = reg;
     debugConsole('[SW] Service Worker registered successfully scope:', reg.scope);
+    swDiagnostics.registerError = '';
+    const trackInstall = (worker) => worker?.addEventListener('statechange', () => {
+      swDiagnostics.lastState = worker.state;
+    });
+    trackInstall(reg.installing);
+    reg.addEventListener('updatefound', () => trackInstall(reg.installing));
     
     // Listen for messages from the service worker (e.g. push notification deep links)
     navigator.serviceWorker.addEventListener('message', async (event) => {
@@ -719,6 +739,7 @@ async function registerServiceWorker() {
     
     updatePushStatusUI();
   } catch (err) {
+    swDiagnostics.registerError = `${err?.name || 'Error'}: ${err?.message || err}`;
     console.error('[SW] Service Worker registration failed:', err);
     updatePushStatusUI();
   }
@@ -815,7 +836,7 @@ export async function togglePushSubscription() {
 
   try {
     const registration = await activeRegistration();
-    if (!registration) throw new Error(COPY.notifications.workerNotReady);
+    if (!registration) throw new Error(`${COPY.notifications.workerNotReady} (${swStateSummary(serviceWorkerRegistration)})`);
     const subscription = await registration.pushManager.getSubscription();
     const toggleBtn = document.getElementById('app-push-toggle-btn');
     toggleBtn.disabled = true;

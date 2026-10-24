@@ -1,8 +1,10 @@
 # Node2Shell runtime remediation
 
-**Status:** deployed to the isolated `sweatassistant-experiment` environment on
-2026-10-24. Dev remains on its existing master build and production has not
-been recreated.
+**Status:** merged to `master` as `db9605e` and deployed on 2026-10-24 to the
+experiment twin, the dev twin (`sweat-dev.wingfield.tech`) and production
+(`sweat.wingfield.tech`). Every container reports `node --version` `v22.23.4`
+and `/api/health` 200. The previous Node 20 production image is kept on oracle
+as `sweatassistant-sweatassistant:rollback-node20-20261024`.
 
 Sweat Assistant's build and runtime are pinned to `node:22.23.4-bookworm-slim`
 in both Docker stages. Node 22.23.4 is the minimum approved runtime for this

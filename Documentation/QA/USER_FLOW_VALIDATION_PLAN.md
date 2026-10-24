@@ -351,7 +351,7 @@ NEXT_SAFE_ACTION: ...
 1. Read the four documents linked at the top of this plan and the workspace `AGENTS.md`.
 2. Record the app URL, environment, build/version stamp, current commit, worktree state, browser
    version, OS, timezone, viewport, colour scheme, and whether this is mock or live.
-3. For local Lane A, select Node 20.19.0 from `.nvmrc`, run `npm test`, and run
+3. For local Lane A, select Node 22.23.4 from `.nvmrc` (`nvm use`), run `npm test`, and run
    `npm run build:client`. Record the actual output; failures are findings.
 4. Start the local app with `npm run dev` and verify both server and client respond before opening
    the browser.

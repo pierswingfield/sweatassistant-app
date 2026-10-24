@@ -447,11 +447,11 @@ function paintHomeGreeting(settings) {
   }
   const greeting = document.createElement('div');
   greeting.className = 'home-greeting-lead';
-  // The app's mascot (not the member's initial). 180px-tall cut-out for a 48px slot stays crisp at 3x.
+  // The app's mascot (not the member's initial). 180px-tall cut-out for a 32px slot stays crisp at 3x.
   const avatar = document.createElement('img');
   avatar.className = 'home-greeting-avatar';
   avatar.src = '/characters/dumbbell.png';
-  avatar.width = 68; avatar.height = 48;
+  avatar.width = 45; avatar.height = 32;
   avatar.alt = appConfig.appName || '';
   avatar.decoding = 'async';
   const copy = document.createElement('span');

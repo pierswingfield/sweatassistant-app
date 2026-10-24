@@ -193,8 +193,10 @@ section { padding: 72px 0; }
 @media (max-width: 480px) {
   .row.cls { grid-template-columns: auto minmax(0, 1fr) auto; gap: 8px; padding: 10px; }
   .row.cls .av { width: 34px; height: 34px; }
-  .row.cls .cls-status { max-width: 92px; align-self: center; justify-self: end; text-align: right; }
-  .row.cls .pill, .row.cls .cd-time { white-space: normal; text-align: right; line-height: 1.25; border-radius: 12px; padding: 4px 8px; }
+  .row.cls .cls-status { max-width: 132px; align-self: center; justify-self: end; text-align: right; }
+  .row.cls .pill, .row.cls .cd-time { white-space: normal; text-wrap: balance; text-align: right; line-height: 1.25; border-radius: 12px; padding: 4px 8px; }
+  .row.cls .pill { white-space: nowrap; }
+  .row.cls .mon, .row.cls .mon > span { white-space: normal; }
   .row.cls .name { overflow-wrap: anywhere; }
 }
 .row + .row { margin-top: 8px; }
@@ -291,10 +293,10 @@ section { padding: 72px 0; }
    The token lives in an overlay grid that uses the SAME columns and gap as the seats, so it is
    placed by grid cell (never by px) and moves by exactly one cell pitch per row at any width. */
 .stagebar { height: 8px; width: 60%; margin: 0 auto 14px; border-radius: 999px; background: var(--border-strong); }
-.seats { --gap: 10px; position: relative; max-width: 300px; margin: 0 auto; }
+.seats { --gap: 14px; position: relative; width: 100%; max-width: 480px; margin: 0 auto; }
 .seat-grid, .seat-layer { display: grid; grid-template-columns: repeat(6, minmax(0, 1fr)); gap: var(--gap); }
 .seat-layer { position: absolute; inset: 0; grid-template-rows: repeat(4, minmax(0, 1fr)); pointer-events: none; }
-.seat { aspect-ratio: 1; border-radius: 9px; border: 1.5px solid var(--border-strong); background: var(--glass-strong); display: grid; place-items: center; font-size: var(--text-xs); font-weight: 600; color: var(--text-tertiary); position: relative; }
+.seat { aspect-ratio: 1 / 1.15; border-radius: 9px; border: 1.5px solid var(--border-strong); background: var(--glass-strong); display: grid; place-items: center; font-size: var(--text-xs); font-weight: 600; color: var(--text-tertiary); position: relative; }
 .seat.t { background: var(--surface-inset); border-color: var(--separator); color: transparent; }
 /* the member's token: static state = already moved into spot 5 (row 1, column 5) */
 .you-token { grid-column: 5; grid-row: 1; border-radius: 9px; background: var(--violet); color: var(--on-accent); display: grid; place-items: center; font-size: var(--text-xs); font-weight: 600; }
@@ -305,7 +307,7 @@ section { padding: 72px 0; }
 .seat-status .b::before { content: ""; position: absolute; inset: 0; border-radius: 14px; z-index: -1; background: color-mix(in srgb, var(--success) 12%, transparent); border: 1px solid color-mix(in srgb, var(--success) 22%, transparent); }
 .seat-status .b { z-index: 0; isolation: isolate; color: var(--success); }
 .seat-status .w { display: inline-block; }
-@media (max-width: 480px) { .seats { --gap: 8px; } }
+@media (max-width: 480px) { .seats { --gap: 10px; } }
 
 /* scene 3: one timetable */
 .gym-key { display: flex; gap: 8px; margin-bottom: 14px; flex-wrap: wrap; }
@@ -759,7 +761,7 @@ footer { padding: 32px 0 56px; color: var(--text-secondary); font-size: var(--te
       else { s = 8; el.classList.add('counting'); sync(); show(); monStart(); timer = setTimeout(tick, 1000); }
     }
     /* hero only: the toast belongs to this card (hidden while counting, shown when it finishes),
-       and the first card shows Monitoring for 2s at the start of each cycle, then Upgraded */
+       and the first card shows Monitoring for 3s at the start of each cycle, then Upgraded */
     var hrow = el.closest('#hero .row');
     var toast = hrow ? hrow.querySelector('.float-card') : null;
     var mon = hrow ? document.querySelector('#hero [data-mon]') : null;
@@ -769,7 +771,7 @@ footer { padding: 32px 0 56px; color: var(--text-secondary); font-size: var(--te
       if (!mon) return;
       clearTimeout(monT);
       mon.classList.remove('done');
-      monT = setTimeout(function () { mon.classList.add('done'); }, 2000);
+      monT = setTimeout(function () { mon.classList.add('done'); }, 3000);
     }
     if (mon) mon.classList.add('mon-live');
     el.classList.add('counting'); show(); sync();

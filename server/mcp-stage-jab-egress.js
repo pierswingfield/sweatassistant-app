@@ -26,7 +26,10 @@ async function readResponse(response, max) {
   for await (const chunk of response.body) { size += chunk.length; if (size > max) throw new Error('upstream response too large'); chunks.push(Buffer.from(chunk)); }
   return Buffer.concat(chunks);
 }
-function createServer({ gatewayKey = process.env.MCP_STAGE_JAB_GATEWAY_KEY || '', fetchImpl = fetch, deadlineMs = 15000 } = {}) {
+function createServer({ gatewayKey = process.env.MCP_STAGE_JAB_GATEWAY_KEY || '', fetchImpl = fetch, deadlineMs = 15000,
+  readWindow = process.env.MCP_STAGE_JAB_READ_WINDOW_FILE ? require('./mcp/jab-read-window').gatewayWindow({
+    configurationFile: process.env.MCP_STAGE_JAB_READ_WINDOW_FILE, stateFile: process.env.MCP_STAGE_JAB_READ_STATE_FILE,
+  }) : null } = {}) {
 if (gatewayKey.length < 32) throw new Error('Stage gateway key must be at least 32 characters');
 return http.createServer(async (req, res) => {
   res.setHeader('cache-control', 'no-store');
@@ -35,8 +38,9 @@ return http.createServer(async (req, res) => {
   active = true;
   const started = Date.now(); let method = 'OTHER'; let path = 'unapproved'; let status = 502;
   let phase = 'request_parse'; let outcome = 'request_invalid';
+  let admission;
   const controller = new AbortController();
-  const timer = setTimeout(() => controller.abort(new Error('gateway deadline exceeded')), deadlineMs);
+  let timer = setTimeout(() => controller.abort(new Error('gateway deadline exceeded')), deadlineMs);
   const abortOnRequestAbort = () => controller.abort(new Error('gateway client disconnected'));
   const abortOnResponseClose = () => { if (!res.writableEnded) abortOnRequestAbort(); };
   req.on('aborted', abortOnRequestAbort);
@@ -52,13 +56,19 @@ return http.createServer(async (req, res) => {
     const headers = {};
     for (const [name, value] of Object.entries(input.headers || {})) if (safeHeaders.has(name.toLowerCase()) && typeof value === 'string' && value.length <= 8192) headers[name.toLowerCase()] = value;
     phase = 'policy_validate';
-    assertAllowedProfileRequest(target, { method, headers, body: input.body });
+    if (readWindow) admission = readWindow.admit(input.url, { method, headers, body: input.body });
+    else assertAllowedProfileRequest(target, { method, headers, body: input.body });
+    if (admission) {
+      clearTimeout(timer);
+      timer = setTimeout(() => controller.abort(new Error('read window expired')), Math.max(0, Math.min(deadlineMs, admission.expiresAt - Date.now())));
+    }
     phase = 'upstream_request';
     let upstream;
     let bytes;
     upstream = await fetchImpl(target, { method, headers, body: method === 'POST' ? String(input.body || '') : undefined, redirect: 'manual', signal: controller.signal });
     bytes = await readResponse(upstream, 1024 * 1024);
     controller.signal.throwIfAborted();
+    if (readWindow && !readWindow.finish(admission, upstream.status, bytes)) throw new Error('read window stopped');
     const outHeaders = {};
     for (const h of ['content-type', 'location', 'set-cookie', 'www-authenticate']) {
       const v = h === 'set-cookie' && typeof upstream.headers.getSetCookie === 'function' ? upstream.headers.getSetCookie() : upstream.headers.get(h);
@@ -71,6 +81,7 @@ return http.createServer(async (req, res) => {
       res.end(JSON.stringify({ status, headers: outHeaders, body: bytes.toString('base64') }));
     }
   } catch (err) {
+    if (admission) { try { readWindow.stop(); } catch (_) { /* expiry/storage already fails closed */ } }
     if (phase === 'policy_validate') { status = 403; outcome = 'policy_denied'; }
     else if (phase === 'request_parse') { status = 400; outcome = 'request_invalid'; }
     else { status = 502; outcome = 'upstream_error'; }

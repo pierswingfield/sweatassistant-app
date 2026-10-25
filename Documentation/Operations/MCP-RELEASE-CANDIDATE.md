@@ -31,3 +31,7 @@ Claude acceptance was explicitly deferred and compatibility remains unverified. 
 ## Test-state cleanup
 
 At 2026-10-25 00:10:22 UTC, after the original admin-login window reset, one normal operator login and supported admin DELETE removed the sole recorded gym-less synthetic refinement account. Preconditions confirmed it had no gym link or OAuth grant. Read-only before/after verification found zero owned accounts remaining and unchanged other-account, gym-link, grant, active-grant and client counts. The private cleanup pointer was removed. No limiter bypass, direct database deletion, user password reset or user-grant revocation was used.
+
+## Follow-up acceptance evidence — 25 October 2026
+
+The later real-Chrome check resolved the account-selection problem: two obsolete client entries requiring authentication were disconnected individually, preserving the healthy third entry and the sole active server grant. Fresh ChatGPT calls to both local tools succeeded with matching server counters. Latest restoration is therefore now confirmed; the original taggedRC1 archive retains its historical unconfirmed note. A separate bounded provider-read source candidate is pending independent review; staging remains on RC1's images with provider reads off. This follow-up does not replace or mutate the RC1 tag/archive.

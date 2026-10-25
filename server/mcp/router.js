@@ -19,7 +19,7 @@ function mountMcp(app, config = configuration()) {
   const { StreamableHTTPServerTransport } = require('@modelcontextprotocol/sdk/server/streamableHttp.js');
   const { verifier } = require('./auth');
   const store = require('./store');
-  const { catalog, registerTools } = require('./tools');
+  const { catalog, registerTools, providerReadsAllowed } = require('./tools');
   const verify = verifier(config);
   require('./authorization').mountAuthorization(app, config);
   require('../metrics').configureMcpClients(require('../db').db.prepare('SELECT client_id FROM mcp_clients WHERE disabled_at IS NULL ORDER BY client_id LIMIT 10').all().map(c => c.client_id));
@@ -73,7 +73,7 @@ function mountMcp(app, config = configuration()) {
     if (body.method === 'tools/call') {
       const toolName = body.params?.name;
       const def = typeof toolName === 'string' && Object.hasOwn(catalog, toolName) ? catalog[toolName] : null;
-      if (!def || (def.upstream && !config.providerReads)) return res.status(400).json({ code: 'UNKNOWN_TOOL' });
+      if (!def || (def.upstream && !providerReadsAllowed(req.mcpIdentity, toolName, config))) return res.status(400).json({ code: 'UNKNOWN_TOOL' });
       const parsed = def.schema.safeParse(body.params?.arguments ?? {});
       if (!parsed.success) return res.status(400).json({ code: 'INVALID_ARGUMENTS' });
       try { store.authorize(req.mcpIdentity, def.scope, parsed.data.gymId); }

@@ -19,6 +19,7 @@ function configuration(env = process.env) {
     enabled: true, resource: resource.href, issuer: issuer.href,
     jwksFile: env.MCP_JWKS_FILE, host: resource.host,
     origins: [resource.origin], providerReads: env.MCP_PROVIDER_READS_ENABLED === 'true',
+    stageReadWindowFile: env.MCP_STAGE_JAB_PROFILE_ONLY === 'true' ? env.MCP_STAGE_JAB_READ_WINDOW_FILE : undefined,
   };
 }
 module.exports = { configuration, SCOPES };

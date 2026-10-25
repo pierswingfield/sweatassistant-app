@@ -126,8 +126,16 @@ function credentialProviderFetch(gymId, url, options = {}) {
   const target = new URL(url);
   if (require('./mcp/stage-profile-only').enabled()) {
     if (!require('./mcp/stage-profile-only').permitsProvider(gym)) throw Object.assign(new Error('Provider access is disabled in stage profile-only mode'), { code: 'PROVIDER_WORK_DISABLED', status: 403 });
-    const { assertAllowedProfileRequest } = require('./mcp/jab-profile-policy');
-    assertAllowedProfileRequest(target, options);
+    if (process.env.MCP_STAGE_JAB_READ_WINDOW_FILE) {
+      const window = require('./mcp/jab-read-window');
+      const actor = require('./mcp/context').current();
+      if (!actor || !window.permitsActor(process.env.MCP_STAGE_JAB_READ_WINDOW_FILE, actor.actor, actor.tool)) {
+        throw Object.assign(new Error('Staging read window is not authorized for this actor'), { code: 'PROVIDER_WORK_DISABLED', status: 403 });
+      }
+      const c = window.configuration(process.env.MCP_STAGE_JAB_READ_WINDOW_FILE);
+      // The gateway additionally binds detail to the first search result.
+      window.assertRequest(c, url, options, target.pathname.split('/').pop());
+    } else require('./mcp/jab-profile-policy').assertAllowedProfileRequest(target, options);
     const gateway = process.env.MCP_STAGE_JAB_GATEWAY_URL;
     const key = process.env.MCP_STAGE_JAB_GATEWAY_KEY;
     if (!gateway || !key) throw Object.assign(new Error('Stage profile gateway is not configured'), { code: 'PROVIDER_WORK_DISABLED', status: 503 });

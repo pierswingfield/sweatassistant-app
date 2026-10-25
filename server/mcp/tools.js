@@ -89,16 +89,23 @@ const catalog = {
     },
   },
 };
+function providerReadsAllowed(identity, tool, config) {
+  if (config.stageReadWindowFile) {
+    try { return require('./jab-read-window').permitsActor(config.stageReadWindowFile, store.authorize(identity), tool); }
+    catch (_) { return false; }
+  }
+  return !!config.providerReads;
+}
 function registerTools(server, identity, config) {
   for (const [name, def] of Object.entries(catalog)) {
     try { store.authorize(identity, def.scope); } catch (_) { continue; }
-    if (def.upstream && !config.providerReads) continue;
+    if (def.upstream && !providerReadsAllowed(identity, name, config)) continue;
     server.registerTool(name, { description: def.description, inputSchema: def.schema,
       annotations: { readOnlyHint: true, destructiveHint: false, idempotentHint: true, openWorldHint: !!def.upstream } }, async (args, extra) => {
       const before = Date.now();
       const actor = store.authorize(identity, def.scope, args.gymId);
       try {
-        const data = await context.run({ identity, scope: def.scope, gymId: args.gymId, providerReads: config.providerReads, signal: extra?.signal, tool: name }, async a => {
+        const data = await context.run({ identity, scope: def.scope, gymId: args.gymId, providerReads: providerReadsAllowed(identity, name, config), signal: extra?.signal, tool: name }, async a => {
           const execute = () => def.run(a, args);
           return args.gymId ? db.runWithGymContext(a.userId, args.gymId, execute) : execute();
         });
@@ -119,4 +126,4 @@ function registerTools(server, identity, config) {
     });
   }
 }
-module.exports = { catalog, registerTools };
+module.exports = { catalog, registerTools, providerReadsAllowed };

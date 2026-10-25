@@ -319,6 +319,7 @@ let timetableEvents = [];
 const userBookings = () => cache.bookings || [];
 const userWaitlists = () => cache.waitlists || [];
 let isPrefetching = false;
+let ensuredScheduleContext = null;
 let prefetchError = null;
 // C3-15: the linked-gym set changed (link, re-auth, unlink) while a fetch may be
 // in flight. `prefetchGeneration` lets that fetch know its answer is for the OLD
@@ -900,6 +901,7 @@ async function cacheDel(key) {
  */
 export async function resetTimetableForGymChange() {
   prefetchGeneration++;
+  ensuredScheduleContext = null;
   timetableEvents = [];
   await Promise.all([
     cacheDel(accountScopedKey(CACHE_KEY_EVENTS)),
@@ -2445,7 +2447,16 @@ export function isScheduleLoading() { return isPrefetching && timetableEvents.le
  *  straight to Settings > Favourites would otherwise find nothing. Reuses the normal prefetch: cache paint first,
  *  then the shared server cache, so this adds no new upstream call shape. */
 export function ensureScheduleLoaded() {
-  if (timetableEvents.length || isPrefetching) return;
+  if (timetableEvents.length || isPrefetching || !document.getElementById('app-timetable-grid')) return;
+  const context = accountScopedKey(JSON.stringify([
+    (getLinkedGyms() || []).map(g => String(g.gym_id || g.id)).sort(),
+    new Date().toISOString().slice(0, 10), userSettings.prefetchWeeks || 4,
+  ]));
+  // Empty and failed loads also complete. Home repaints on that completion;
+  // treating "no rows" as "not attempted" would bootstrap forever. Explicit
+  // timetable refresh/retry still calls prefetchTimetableData directly.
+  if (ensuredScheduleContext === context) return;
+  ensuredScheduleContext = context;
   prefetchTimetableData().catch(() => {});
 }
 

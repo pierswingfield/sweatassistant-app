@@ -170,7 +170,7 @@ function mountAuthorization(app, resourceConfig, options = {}) {
   });
   router.use(express.urlencoded({ extended: false, limit: '8kb', parameterLimit: 30 }));
   function page(res, title, body, status = 200) {
-    return res.status(status).type('html').send(`<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>${escape(title)} · ${escape(appName)}</title><link rel="stylesheet" href="/oauth/styles.css"></head><body><main class="mcp-page"><p>${escape(appName)}</p><h1>${escape(title)}</h1>${body}</main></body></html>`);
+    return res.status(status).type('html').send(`<!doctype html><html lang="en" class="mcp-document"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>${escape(title)} · ${escape(appName)}</title><link rel="stylesheet" href="/oauth/styles.css"></head><body class="mcp-document-body"><main class="mcp-page"><p>${escape(appName)}</p><h1>${escape(title)}</h1>${body}</main></body></html>`);
   }
   const hidden = tx => `<input type="hidden" name="interaction" value="${escape(tx.id)}"><input type="hidden" name="csrf" value="${escape(tx.csrf)}">`;
   function login(res, tx, message = '') {

@@ -1,0 +1,33 @@
+# Proposed standing JAB read pilot
+
+**Reviewable proposal only — not implemented, activated or authorized.** The user's prior go-ahead covered the completed six-attempt/120-second acceptance run, not ongoing traffic or invitations. RC2's current app/gateway admit only two local tools outside that expired window. Keep production/dev and the healthy ChatGPT grant unchanged.
+
+## Decision proposed
+
+Approve implementation/review of an **operator-only, dedicated staging account/JAB/ChatGPT** policy first, then separately approve its activation and any invitations. Proposed initial activation lasts **24 hours**, with **20 aggregate upstream attempts maximum** for that account across the gateway, including native credential/profile hops. These are deliberately conservative proposed limits, **not provider-published quotas**; accept or change them explicitly before implementation. No automatic renewal of the activation period or daily allowance. Expiry/budget exhaustion returns to today's authentication/profile-only mode; provider tools disappear or fail closed.
+
+Existing implementation limits stay authoritative as stricter overlapping ceilings: MCP provider work is six attempts/minute/account/gym, 200/day/account, 30/minute/gym and 60/minute/fleet, with six attempts maximum per tool. Common optional account/gym/fleet ceilings are 12/30/60 per minute, concurrency 2/3/4 and account/fleet daily ceilings 400/4,000; scheduler/PWA reservations remain. The delivery plan proposes at most 14 search days/two gyms/50 records, but this initial standing policy is deliberately narrower. Do not mistake those existing ceilings for approval to send ongoing JAB traffic.
+
+## Exact initial boundary
+
+| Area | Proposed boundary to implement and independently review |
+|---|---|
+| Actor | Private allowlist for the existing dedicated staging account, JAB link/session and preregistered ChatGPT client. Derive MCP actor/gym/grant on the server and reauthorize every operation/hop; no caller-supplied actor or arbitrary URL. Bind gateway admission to that account/session hash and authenticated internal envelope. No raw token in config/metrics/logs. |
+| Consent | Existing account/automation grants remain valid but cannot gain schedule access silently. Search/detail require explicit `schedule:read` consent through the normal client flow after policy activation is approved. No new consent is requested by this proposal. |
+| Search | HTTPS GET on the configured JAB host, `/api/customer/v1/classes` with exactly `min_start_date=DAY&max_start_date=DAY&page_size=100`. One future gym-local day within the existing 14-day bound, one gym, MCP limit one/offset zero. Reject other keys/duplicate parameters, unexpected pagination and redirects. |
+| Details | GET `/api/customer/v1/classes/ID`, no query, only the first ID returned by an allowed search for this account/session within a short-lived lookup (proposed ten minutes). No guessed IDs. |
+| Upcoming bookings | GET `/api/customer/v1/me/reservations?is_upcoming=true&page_size=100`; MCP limit one/offset zero. Do not widen dates for optional class enrichment or permit history; refuse unsupported enrichment rather than broadening egress. |
+| Credits | GET `/api/customer/v1/me/credits`, no query, only if the adapter actually needs it. JAB currently declares `metered:false` and returns locally; do not claim a metered inventory acceptance or change that capability under this proposal. |
+| Credential expiry | No automatic gym-credential relogin/refresh inside an MCP tool or retry on401. Existing local OAuth access-token refresh is unchanged. Return a reauthentication requirement. Existing native authentication/profile flow may renew the stored session outside an active MCP read, through only the current `/o/authorize/`, `/auth/login/`, `/o/token/`, `/api/customer/v1/me/account` policy. Count every redirect/token/profile hop against admission and the proposed aggregate activation cap; do not reset the ledger to permit renewal. |
+| Exclusions | No provider booking/payment/automation writes, history, unrelated metadata/collections, additional account/gym, arbitrary pagination or new route/host exposure. Preserve profile-only suppression of scheduler/poller/history/calendar/background work; allowing MCP reads must not enable native/background provider reads. |
+| Execution | One gateway request in flight; no shared waiting backlog. Durable charge-before-transport ledger bound to the activation/account, surviving restarts; corrupt state, changed binding or storage failure fails closed. Existing12s MCP/15s gateway deadlines and1MiB gateway body cap remain; disconnect aborts work/releases capacity. Stop on401/429/timeout/pagination/error and honor cooldown; no automatic retry. |
+
+## Review/activation checklist
+
+1. Independently review server actor binding, expiry/default-off behavior, path/query matching, aggregate counting (including credential hops), pagination/redirect rejection, restart persistence and cancellation. Regressions must prove absent/expired/corrupt policy denies provider tools, while two local tools and native profile-only mode remain usable. Do not reopen the old acceptance ledger.
+2. Agree the account/client, proposed24h/20-attempt allowance, monitoring owner and delivery receiver. Existing private metrics/internal alert tests passed; actual human alert delivery and operator acknowledgement must be demonstrated as part of activation readiness. Keep metric labels bounded and omit personal records/tokens.
+3. Complete reviewed staging rollout and one approved bounded functional check through the intended proxy; no quota discovery or repeated live runs. Show tool availability, no denied/native/background egress and budget/expiry persistence with counts only.
+4. Rollback is remove the standing opt-in and restore current reviewed profile-only images/config; global provider reads remain off until an independently reviewed account-bound path exists. Retain counters and evidence; verify the local tools/healthy connection still work. Existing application kill-switch/image rollback evidence does not claim a DNS/tunnel unpublish exercise.
+5. Ask for explicit activation and invitation approval only against that concrete reviewed result and named population. Do not advertise all six standing tools, Claude compatibility or production readiness before then.
+
+The minimal alternative is to keep today's operator-only two-local-tool technical pilot: connection inventory and existing automation inspection work, but class/bookings/provider queries do not. No external invitation is authorized by this document.

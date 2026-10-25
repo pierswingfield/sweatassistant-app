@@ -1,6 +1,6 @@
 # MCP mobile UI regression — 25 October 2026
 
-The user's initial physical iPhone Safari check found the AI connection list readable, but the sign-in form clipped. Returning to the app resumed unfinished onboarding; after entering Home, widget errors flickered rapidly and prevented normal navigation. After independent review and isolated app deployment of `7eee61b`, the user physically retested Safari and reported: Home remained stable after ten seconds, Home/Settings navigation responded, login fields fit, and keyboard scrolling reached the submit button. These reported checks passed. The separate phone consent-checkbox layout check remains pending; phone approval/revocation and installed-PWA behavior are not claimed.
+The user's initial physical iPhone Safari check found the AI connection list readable, but the sign-in form clipped. Returning to the app resumed unfinished onboarding; after entering Home, widget errors flickered rapidly and prevented normal navigation. After independent review and isolated app deployment of `7eee61b`, the user physically retested Safari and reported: Home remained stable after ten seconds, Home/Settings navigation responded, login fields fit, and keyboard scrolling reached the submit button. These reported checks passed. The later physical Safari consent check also passed: three permission boxes/JAB initially unchecked, readable/fitting/scrollable controls, toggle on/off, leave unchecked and Safari Back without Allow/Deny. Zero submitted decisions or new grants were verified; phone approval/revocation and installed-PWA behavior are not claimed.
 
 ## Verified before changes
 
@@ -18,7 +18,7 @@ After clearing service workers, CacheStorage and IndexedDB only for the owned lo
 
 The actual authorization router served the changed sign-in HTML/CSS in an isolated in-memory local HTTP fixture. In real Chrome, all fields and buttons fit at 320×568, 390×844 and 1024×768. A 390×320 reduced viewport allowed scrolling to the Back link; inputs stayed inside the viewport with computed 16px text. No real account login, OAuth approval, provider request or existing browser-storage clearing occurred. The fixture servers and owned browser tab are task-owned and removed after verification.
 
-These are supporting Chrome/mobile-viewport checks, **not** substitutes for physical Safari. The later user-reported physical pass above is separate evidence. It covers Home/navigation and management sign-in keyboard/layout, not consent-checkbox layout or completed phone authorization.
+These are supporting Chrome/mobile-viewport checks, **not** substitutes for physical Safari. The later user-reported physical pass above is separate evidence. It includes Home/navigation, management sign-in keyboard/layout and the later consent-checkbox/layout/Back check; it does not claim completed phone authorization. See the [post-tag acceptance addendum](../../Operations/MCP-RC2-ACCEPTANCE-ADDENDUM.md).
 
 Validation on pinned Node 20.20.2 with the documented in-memory DB and London test timezone: full `npm test` passed 102 server suites and 95 client files/712 tests. Production `npm run build:client` passed. The new regression was observed red before the fix and green afterward. No staging deployment was performed.
 

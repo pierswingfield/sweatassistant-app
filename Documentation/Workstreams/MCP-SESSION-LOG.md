@@ -356,6 +356,12 @@ The user's physical Safari check passed connection-list fit and Back operation, 
 
 Pinned Node 20.20.2 full verification passed: 102 server suites, 95 client files/712 tests; production client build passed. The new real-loader completion feedback regression failed before the fix and passes with denied and successfully empty responses, explicit retry, account/gym changes and a date-window change. Task-owned fixture servers/browser tab and the unused private phone-layout PKCE state were removed. Source candidate remains undeployed pending independent review.
 
+## Physical Safari pass and RC2 packaging — 25 October 2026
+
+After independent review and the isolated `7eee61b` app rollout, the user reported an actual iPhone Safari pass: Home stable after ten seconds, responsive Home/Settings navigation, fitting sign-in fields and keyboard scrolling to a reachable submit button. Earlier connection-list fit and Back operation also passed. This is physical user-reported evidence, distinct from the supporting real-Chrome viewport fixtures. Phone consent-checkbox layout remains pending; no completed phone approval/revocation or installed-PWA pass is inferred. A dedicated layout-only authorization URL was prepared without a GET or token monitor; the user should inspect unchecked permissions/JAB and use Safari Back without Allow/Deny. This creates no grant if followed.
+
+RC2 packaging preserves immutable RC1 and reuses the separately reviewed app `7eee61b` and gateway `49d1fb7` images. Production-code equivalence is clean; the candidate commit changes only documentation and ignores its local artifact directory. Runtime remains provider reads false/profile-only true/window opt-in unset, with the completed read ledger retained at three. The acceptance helper has no bearer/verifier/nonce and its own grant is revoked; the working ChatGPT grant is untouched. The [current manifest](../Operations/MCP-RELEASE-CANDIDATE.md) is authoritative for artifacts/evidence and the two-local-tool pilot recommendation. No ongoing provider-read authorization, external invitation, publication, production/dev deployment or merge is implied.
+
 
 ## Independent mobile-fix review and staging app handoff — 25 October 2026
 

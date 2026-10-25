@@ -1,6 +1,6 @@
 # MCP server implementation
 
-**2026-10-24: implemented read-only server and first-party OAuth/connection controls; release gates remain.** See [delivery plan](PLAN-mcp-server.md) and [session evidence](MCP-SESSION-LOG.md). Isolated Oracle staging is deployed; the user authorized and completed dedicated JAB authentication/profile linking. Provider-backed MCP reads remain disabled; production is untouched.
+**2026-10-25: local RC2; reviewed read-only implementation, explicit pilot limits.** The [candidate manifest](../Operations/MCP-RELEASE-CANDIDATE.md) is the current status. Actual ChatGPT restoration, bounded provider acceptance and user-reported physical Safari Home/navigation/sign-in checks passed. The provider window is closed: only two local tools are generally available. Phone consent-layout evidence remains pending; no invitation or production readiness is claimed. Claude is explicitly deferred/unverified.
 
 ## Runnable scope
 
@@ -93,9 +93,9 @@ Run `npm test` under the repository-required Node 20 and `npm run build:client`.
 Before an invited read-only release:
 
 1. Retain the completed independent review evidence for the maintained OAuth integration and its local identity/consent/storage policy. The new HTTP suite and real Chrome flows now prove the implementation, including cross-origin callbacks.
-2. Complete named-client and device acceptance beyond the local fixture. Chrome 155 browser evidence covers local SA sign-in, unchecked scope/gym consent, SDK exchange/read, connection inspection and revoke, Settings link flag gating, and a 390px mobile layout. Actual ChatGPT local reads and refresh denial after revocation are now verified; latest reconnect restoration is unconfirmed. Actual iOS remains unverified.
+2. Complete named-client and device acceptance beyond the local fixture. Chrome 155 browser evidence covers local SA sign-in, unchecked scope/gym consent, SDK exchange/read, connection inspection and revoke, Settings link flag gating, and a 390px mobile layout. Actual ChatGPT local reads, refresh denial after revocation and latest restoration are verified. User-reported physical Safari checks passed Home stability/navigation and management sign-in/keyboard layout; phone consent-checkbox layout remains pending. Completed phone approval/revocation and installed-PWA acceptance are not claimed.
 3. Retain the completed independent review evidence for the common admission, renewal, scheduler/PWA reservation and cache/deadline contracts below; enable provider reads only after intended-proxy and monitoring acceptance.
-4. The user has deferred **Claude** acceptance; it remains unverified and must not be advertised as compatible. The selected initial pilot target is **ChatGPT**: actual consent, local reads and causal server refresh denial after revocation passed. Confirm the latest reconnect account association when possible without another sign-in loop. Finish intended-proxy request bounds/deadlines and other acceptance independently; SDK interoperability alone is insufficient.
+4. The user has deferred **Claude** acceptance; it remains unverified and must not be advertised as compatible. The selected initial pilot target is **ChatGPT**: actual consent, local reads and causal server refresh denial after revocation passed. Latest reconnect account association is confirmed and the healthy connection is preserved. Finish intended-proxy request bounds/deadlines and other acceptance independently; SDK interoperability alone is insufficient.
 5. Retain clean dependency audits and completed independent source review, and prove rollback/kill-switch acceptance. Only isolated staging has been deployed; production configuration is unchanged.
 
 Booking writes and automation creation remain later delivery phases with first-party action approval, durable idempotency, reconciliation and separate acceptance.

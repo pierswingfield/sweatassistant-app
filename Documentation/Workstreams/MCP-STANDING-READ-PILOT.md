@@ -1,6 +1,8 @@
-# Proposed standing JAB read pilot
+# Historical bounded standing-pilot proposal
 
-**Reviewable proposal only — not implemented, activated or authorized.** The user's prior go-ahead covered the completed six-attempt/120-second acceptance run, not ongoing traffic or invitations. RC2's current app/gateway admit only two local tools outside that expired window. Keep production/dev and the healthy ChatGPT grant unchanged.
+**Superseded by the user’s general-release requirements on25October2026.** The24-hour/20-attempt architecture below is historical, not the intended product or an implemented/authorized policy. See [current delivery scope](PLAN-mcp-server.md). Stage egress remains safeguarded until an independently reviewed general replacement is ready.
+
+**Original reviewable proposal only — not implemented, activated or authorized.** The user's prior go-ahead covered the completed six-attempt/120-second acceptance run, not ongoing traffic or invitations. RC2's current app/gateway admit only two local tools outside that expired window. Keep production/dev and the healthy ChatGPT grant unchanged.
 
 ## Decision proposed
 

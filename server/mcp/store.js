@@ -1,6 +1,7 @@
 const crypto = require('node:crypto');
 const db = require('../db');
 const { SCOPES } = require('./config');
+const access = require('./access');
 const fail = (message = 'Access is no longer authorized') => Object.assign(new Error(message), { code: 'ACCESS_DENIED', status: 403 });
 const fingerprint = (hash) => crypto.createHash('sha256').update(hash || '').digest('hex');
 function account(userId) {
@@ -12,6 +13,7 @@ function registerClient(clientId, name) {
 }
 // Internal seam for a future verified first-party consent interaction. Never an HTTP endpoint.
 function createGrant({ userId, issuer, subject, clientId, scopes, gymIds, expiresAt, consentReference }) {
+  if (!access.accountEnabled(userId)) throw fail();
   const user = account(userId);
   if (!user || !user.password_hash || !subject || typeof subject !== 'string' || subject.length > 200 ||
       typeof issuer !== 'string' || !issuer.startsWith('https://') ||
@@ -22,7 +24,7 @@ function createGrant({ userId, issuer, subject, clientId, scopes, gymIds, expire
       typeof consentReference !== 'string' || !consentReference.length || consentReference.length > 200) throw fail('Invalid grant');
   const links = gymIds.map(gymId => {
     const link = db.getUserGym(userId, gymId);
-    if (!link || link.status === 'disabled' || !db.getGym(gymId)?.enabled) throw fail('Gym unavailable');
+    if (!link || link.status === 'disabled' || !access.gymEnabled(gymId)) throw fail('Gym unavailable');
     return { gymId, linkId: link.id };
   });
   const id = crypto.randomUUID();
@@ -36,14 +38,14 @@ function authorize(identity, scope, gymId) {
   const grant = db.db.prepare(`SELECT g.* FROM mcp_grants g JOIN mcp_clients c ON c.client_id = g.client_id
     WHERE g.id = ? AND g.revoked_at IS NULL AND c.disabled_at IS NULL`).get(identity.grantId);
   const user = grant && account(grant.user_id);
-  if (!grant || !user || grant.issuer !== identity.issuer || grant.subject !== identity.subject || grant.client_id !== identity.clientId ||
+  if (!grant || !user || !access.accountEnabled(grant.user_id) || grant.issuer !== identity.issuer || grant.subject !== identity.subject || grant.client_id !== identity.clientId ||
       grant.expires_at <= Date.now() || identity.expiresAt <= Date.now() ||
       fingerprint(user.password_hash) !== grant.account_fingerprint) throw fail();
   const scopes = JSON.parse(grant.scopes_json);
   if (scope && (!scopes.includes(scope) || !identity.scopes.includes(scope))) throw Object.assign(fail('Required permission is missing'), { code: 'INSUFFICIENT_SCOPE', scope });
   const gyms = JSON.parse(grant.gyms_json).filter(({ gymId: id, linkId }) => {
     const link = db.getUserGym(grant.user_id, id);
-    return link && link.id === linkId && link.status !== 'disabled' && db.getGym(id)?.enabled;
+    return link && link.id === linkId && link.status !== 'disabled' && access.gymEnabled(id);
   }).map(g => g.gymId);
   if (gymId !== undefined && !gyms.includes(gymId)) throw fail('Gym is not permitted');
   return { userId: grant.user_id, grantId: grant.id, clientId: grant.client_id, gyms, scopes };

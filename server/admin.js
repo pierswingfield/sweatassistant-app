@@ -104,6 +104,33 @@ router.post('/login', (req, res) => {
 });
 
 // GET /api/admin/users — list all users with queue counts
+// MCP product eligibility is independent of rollout flags and OAuth grants.
+// Account/gym overrides are admin-only; no read-access setting is added to PWA.
+for (const kind of ['account', 'gym']) {
+  const account = kind === 'account';
+  const route = account ? '/users/:id/mcp-access' : '/gyms/:id/mcp-access';
+  const access = require('./mcp/access');
+  const target = (req) => {
+    const id = account ? Number(req.params.id) : req.params.id;
+    if (account && (!Number.isSafeInteger(id) || id < 1)) return null;
+    return (account ? db.db.prepare('SELECT 1 FROM users WHERE id=?').get(id) : db.getGym(id)) ? id : null;
+  };
+  const enabled = id => account ? access.accountEnabled(id) : access.gymEnabled(id);
+  router.get(route, authenticateAdmin, (req, res) => {
+    const id = target(req);
+    if (id === null) return res.status(404).json({ message: 'MCP access target not found.' });
+    res.json({ enabled: enabled(id) });
+  });
+  router.put(route, authenticateAdmin, (req, res) => {
+    const id = target(req);
+    if (id === null) return res.status(404).json({ message: 'MCP access target not found.' });
+    if (!req.body || Object.keys(req.body).length !== 1 || typeof req.body.enabled !== 'boolean') return res.status(400).json({ message: 'Provide only a boolean enabled value.' });
+    (account ? access.setAccount : access.setGym)(id, req.body.enabled);
+    audit(req, `mcp.${kind}-access`, account ? id : null, { enabled: req.body.enabled, ...(account ? {} : { gymId: id }) });
+    res.json({ enabled: enabled(id) });
+  });
+}
+
 router.get('/users', authenticateAdmin, (req, res) => {
   try {
     const users = db.getAllUsers();

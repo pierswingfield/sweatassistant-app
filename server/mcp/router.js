@@ -82,6 +82,13 @@ function mountMcp(app, config = configuration()) {
         return res.status(403).json({ code: err.code });
       }
     }
+    // Reserve only a parsed/validated execution, not an incomplete upload or an
+    // idle stream. The transport is stateless POST; finish/close frees the slot.
+    try { require('./request-slot').acquire(store.authorize(req.mcpIdentity).userId, res); }
+    catch (err) {
+      if (err.code === 'ACCESS_DENIED') return res.status(403).json({ code: err.code });
+      return budgetError(res, err);
+    }
     const server = new McpServer({ name: 'gym-assistant-mcp', version: '0.1.0' });
     registerTools(server, req.mcpIdentity, config);
     const transport = new StreamableHTTPServerTransport({ sessionIdGenerator: undefined, enableJsonResponse: true, maxRequestBodySize: 16384 });

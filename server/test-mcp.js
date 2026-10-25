@@ -257,6 +257,22 @@ function clearBudgets() { db.db.prepare('DELETE FROM mcp_budgets').run(); }
   await assert.rejects(() => context.run({ identity: identity(), scope: 'account:read', gymId, providerReads: false }, async () => {}), e => e.code === 'RATE_LIMITED');
   release({}); await held;
   calls++;
+  // Real HTTP admission counts every authenticated request, not only tool work.
+  clearBudgets();
+  const automationRun = catalog.get_automation.run;
+  let releaseHttp, startedHttp;
+  const started = new Promise(r => { startedHttp = r; });
+  catalog.get_automation.run = () => new Promise(r => { releaseHttp = r; startedHttp(); });
+  try {
+    const heldHttp = request({ jsonrpc: '2.0', id: 900, method: 'tools/call', params: { name: 'get_automation', arguments: { gymId } } }, bearer);
+    await started;
+    check((await request(list, bearer)).status === 429, 'same account cannot list tools while a tool request is in flight');
+    releaseHttp({ autoBookings: [], autoUpgrades: [], nextOffset: null });
+    check((await heldHttp).status === 200, 'initial tool is not deadlocked by its HTTP request reservation');
+    check((await request({ jsonrpc: '2.0', id: 901, method: 'ping' }, bearer)).status === 200, 'finish releases account HTTP slot');
+    check((await request({ invalid: true }, bearer)).status === 400, 'invalid request remains rejected');
+    check((await request(list, bearer)).status === 200, 'validation error releases account HTTP slot');
+  } finally { catalog.get_automation.run = automationRun; releaseHttp?.({}); }
   // Revocation while a read is in flight discards its result.
   let resume;
   const pending = context.run({ identity: identity(), scope: 'account:read', gymId, providerReads: false }, () => new Promise(r => { resume = r; }));

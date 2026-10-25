@@ -10,7 +10,7 @@ async function run({ identity, scope, gymId, providerReads, signal, tool }, fn) 
   const store = require('./store');
   const actor = store.authorize(identity, scope, gymId);
   const key = `${actor.userId}:${gymId || ''}`;
-  if ((accounts.get(actor.userId) || 0) >= 2 || (gymId && gyms.has(key))) throw limited();
+  if ((accounts.get(actor.userId) || 0) >= 1 || (gymId && gyms.has(key))) throw limited();
   accounts.set(actor.userId, (accounts.get(actor.userId) || 0) + 1);
   if (gymId) gyms.add(key);
   const controller = new AbortController();

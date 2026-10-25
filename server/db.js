@@ -434,6 +434,14 @@ db.exec(`
     name TEXT NOT NULL,
     disabled_at INTEGER
   );
+  CREATE TABLE IF NOT EXISTS mcp_account_access (
+    user_id INTEGER PRIMARY KEY REFERENCES users(id) ON DELETE CASCADE,
+    enabled INTEGER NOT NULL CHECK (enabled IN (0, 1))
+  );
+  CREATE TABLE IF NOT EXISTS mcp_gym_access (
+    gym_id TEXT PRIMARY KEY REFERENCES gyms(id) ON DELETE CASCADE,
+    enabled INTEGER NOT NULL CHECK (enabled IN (0, 1))
+  );
   CREATE TABLE IF NOT EXISTS mcp_grants (
     id TEXT PRIMARY KEY,
     user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,

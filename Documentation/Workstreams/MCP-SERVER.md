@@ -1,6 +1,14 @@
 # MCP server implementation
 
-**2026-10-25: local RC2; reviewed read-only implementation, explicit pilot limits.** The [candidate manifest](../Operations/MCP-RELEASE-CANDIDATE.md) is the current status. Actual ChatGPT restoration, bounded provider acceptance and user-reported physical Safari Home/navigation/sign-in checks passed. The provider window is closed: only two local tools are generally available. Phone consent-layout/checkbox/Back evidence subsequently passed without granting access; see the manifest addendum. No invitation or production readiness is claimed. Claude is explicitly deferred/unverified.
+**2026-10-25: general-release access-policy candidate; staged RC2 remains separate.** Current user scope and ordered follow-ups are in the [delivery plan](PLAN-mcp-server.md). Undeployed source now adds default-on account/gym read eligibility with audited admin overrides and one concurrent validated MCP execution per user. Deployment/provider switches and existing grant boundaries remain unchanged; write tools/settings and all-linked new consent are not implemented by this slice. Existing ChatGPT/Safari/bounded-read evidence is retained; Claude remains deferred/unverified.
+
+## General access-control slice (undeployed)
+
+The product read-eligibility default is on for existing/future accounts and configured attached gyms. Independent deployment/provider switches remain default-off; eligibility alone does not activate egress. Additive `mcp_account_access`/`mcp_gym_access` tables persist only admin overrides. Authenticated admin GET/PUT `/api/admin/users/:id/mcp-access` and `/api/admin/gyms/:id/mcp-access` accept only a boolean `enabled`, reject missing targets/extra fields and audit changes. There is no read-access user setting. Disable takes effect during authorization, before every provider hop and before returning results; enabling never widens or resurrects revoked/expired grants. Writes remain unavailable/default-off.
+
+Single-process admission allows one parsed/validated stateless MCP POST execution per account across clients/gyms. It releases on response finish/close; tool work independently allows one operation/account. Unsupported GET/SSE and incomplete uploads never occupy the execution slot, so initialization is not deadlocked by a nested reservation. This is not a distributed lock; retain the documented single-instance deployment constraint. Existing limits remain60 requests/min/account,40/min/client/grant,1,000 requests/day/account; provider work remains6/min/account/gym,200/day/account,30/min/gym,60/min/fleet and six attempts/tool. No budget or provider flag was raised.
+
+MCP tools already call `normalized-reads`, the shared application service used by native routes. Timetable reads reuse the shared fresh cache and bound stale MCP work; event details, bookings and credits still lack uniform shared response-cache coverage. That is the next implementation slice, preserving user-specific freshness/isolation rather than adding a direct MCP/provider path.
 
 ## Runnable scope
 

@@ -33,6 +33,11 @@ services:
         target: /private/mcp
         read_only: true
         bind: { create_host_path: false }
+      - type: bind
+        source: ./private-mcp-stage/read-window-config
+        target: /private/read-window
+        read_only: true
+        bind: { create_host_path: false }
     mem_limit: 768m
     cpus: "0.50"
     pids_limit: 128
@@ -49,6 +54,17 @@ services:
     environment:
       MCP_STAGE_JAB_GATEWAY_KEY: ${MCP_STAGE_JAB_GATEWAY_KEY:?Set a private stage gateway key}
       MCP_STAGE_JAB_GATEWAY_PORT: "3100"
+      MCP_STAGE_JAB_READ_STATE_FILE: /private/read-window-state/state.json
+    volumes:
+      - type: bind
+        source: ./private-mcp-stage/read-window-config
+        target: /private/read-window
+        read_only: true
+        bind: { create_host_path: false }
+      - type: bind
+        source: ./private-mcp-stage/read-window-state
+        target: /private/read-window-state
+        bind: { create_host_path: false }
     mem_limit: 128m
     cpus: "0.25"
     pids_limit: 32

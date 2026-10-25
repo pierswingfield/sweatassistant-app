@@ -1,6 +1,6 @@
 # Proposed bounded JAB provider-read acceptance
 
-The user subsequently authorized this exact bounded acceptance run on 25 October 2026. Provider-backed MCP reads remain disabled on deployed staging; the new source candidate requires independent review before deployment or activation. Explicit OAuth schedule permission remains necessary; approval to perform the run does not silently expand an existing grant. A candidate containing all six registered read tools can retain the provider-read flag off; it must describe only the two local tools as currently available.
+The user subsequently authorized this exact bounded acceptance run on 25 October 2026. Provider-backed MCP reads remain disabled on deployed staging. Candidate `49d1fb752d53797f48c9d5081fac353e71360355` passed independent source review and is deployed to the isolated app and gateway; no read-window configuration file is set, so the window remains disarmed. The global provider-read flag remains false and profile-only mode remains true. Explicit OAuth schedule permission remains necessary; approval to perform the run does not silently expand an existing grant. A candidate containing all six registered read tools can retain the provider-read flag off; it must describe only the two local tools as currently available.
 
 ## Reviewable run
 
@@ -12,7 +12,7 @@ Run the four provider tools sequentially once each: one-day `search_classes` (li
 
 ## Required before enabling
 
-Implement and independently review the separate disabled-by-default read-window policy, durable aggregate cap and cancellation behavior. Exercise exact adapter-to-gateway fixture calls without network: accepted canonical GETs, rejected extra/duplicate/encoded query variants, wrong hosts/methods/IDs/dates, paging outside the window, cap exhaustion, expiry, restart behavior, 401 and 429 without outbound reauthentication. Current deployed policy intentionally rejects these provider reads; existing profile-only gateway tests do not establish the proposed mode. Obtain explicit approval of the bounded read scope and any necessary OAuth scope consent only after this concrete implementation passes review. No new provider policy or runtime flag has been enabled in this pass.
+The separate disabled-by-default read-window policy, durable aggregate cap and cancellation behavior have been implemented, independently reviewed, and exercised with exact adapter-to-gateway fixtures without network: accepted canonical GETs; rejected extra/duplicate/encoded query variants, wrong hosts/methods/IDs/dates and out-of-window paging; cap exhaustion, expiry and restart behavior; and 401/429 without outbound reauthentication. The candidate is deployed but unarmed. The actual provider-read window still requires a fresh legitimate acceptance-client authorization with the approved scopes, then a separate explicit operator action to install its short-lived private configuration. Existing profile-only checks do not establish live provider behavior. No provider request has been made under the new window.
 
 
 ## Source candidate and controlled rollout

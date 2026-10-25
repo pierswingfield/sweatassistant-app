@@ -50,6 +50,34 @@ for (const [url, opts] of [
     assert.equal(captured.options.headers.authorization, 'secret');
     assert.equal(JSON.stringify(result).includes('secret'), false);
 
+    // A client may authenticate and then never finish its declared body. The
+    // deadline must end parsing, return a bounded response and release the slot.
+    const beforePartial = captured;
+    const partialStatus = await new Promise(resolve => {
+      let done = false;
+      const req = http.request(endpoint, { method: 'POST', headers: { 'content-type': 'application/json', 'content-length': '1000', 'x-stage-egress-key': key } }, response => {
+        response.resume(); response.on('end', () => finish(response.statusCode));
+      });
+      const timer = setTimeout(() => finish(null), 600);
+      function finish(status) { if (done) return; done = true; clearTimeout(timer); req.destroy(); resolve(status); }
+      req.on('error', () => finish(null)); req.write('{');
+    });
+    assert.equal(partialStatus, 400, 'incomplete body is rejected within the gateway deadline');
+    assert.equal(captured, beforePartial, 'incomplete body never starts upstream');
+    const valid = () => fetch(endpoint, { method: 'POST', headers: { 'content-type': 'application/json', 'x-stage-egress-key': key }, body: JSON.stringify({ url: authorize.toString(), method: 'GET' }) });
+    assert.equal((await valid()).status, 200, 'incomplete-body timeout releases the request slot');
+
+    const partialDisconnect = http.request(endpoint, { method: 'POST', headers: { 'content-type': 'application/json', 'content-length': '1000', 'x-stage-egress-key': key } });
+    partialDisconnect.on('error', () => {}); partialDisconnect.write('{');
+    await new Promise(resolve => setTimeout(resolve, 20)); partialDisconnect.destroy();
+    await new Promise(resolve => setTimeout(resolve, 20));
+    assert.equal((await valid()).status, 200, 'disconnect before complete body releases the slot');
+    const beforeOversize = captured;
+    const oversized = await fetch(endpoint, { method: 'POST', headers: { 'content-type': 'application/json', 'x-stage-egress-key': key }, body: 'x'.repeat(256 * 1024 + 1) });
+    assert.equal(oversized.status, 400, 'body byte cap returns a bounded rejection');
+    assert.equal(captured, beforeOversize, 'oversized body never starts upstream');
+    assert.equal((await valid()).status, 200, 'body byte-cap rejection releases the slot');
+
     // The request body is complete before the client disconnects. This must
     // abort a stalled upstream body promptly and release the broker's single
     // request slot, even though IncomingMessage.aborted will not fire here.

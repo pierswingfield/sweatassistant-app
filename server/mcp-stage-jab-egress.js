@@ -13,12 +13,29 @@ function sameSecret(a, b) {
   const aa = Buffer.from(String(a || '')); const bb = Buffer.from(String(b || ''));
   return aa.length === bb.length && crypto.timingSafeEqual(aa, bb);
 }
-function readBody(req, max) {
+function readBody(req, max, signal) {
   return new Promise((resolve, reject) => {
-    const chunks = []; let size = 0;
-    req.on('data', chunk => { size += chunk.length; if (size > max) { reject(new Error('request too large')); req.destroy(); } else chunks.push(chunk); });
-    req.on('end', () => resolve(Buffer.concat(chunks)));
-    req.on('error', reject);
+    const chunks = []; let size = 0; let settled = false;
+    const finish = (error) => {
+      if (settled) return;
+      settled = true;
+      req.off('data', onData); req.off('end', onEnd);
+      signal.removeEventListener('abort', onAbort);
+      if (error) { req.pause(); reject(error); } else resolve(Buffer.concat(chunks));
+    };
+    const onData = chunk => {
+      size += chunk.length;
+      if (size > max) finish(new Error('request too large')); else chunks.push(chunk);
+    };
+    const onEnd = () => finish();
+    const onAbort = () => finish(signal.reason || new Error('request cancelled'));
+    const onError = error => finish(error);
+    req.on('data', onData); req.on('end', onEnd); req.on('error', onError);
+    // A prematurely closed IncomingMessage can emit error after aborted. Keep
+    // its error listener until close, even if the AbortSignal settled us first.
+    req.once('close', () => req.off('error', onError));
+    signal.addEventListener('abort', onAbort, { once: true });
+    if (signal.aborted) onAbort();
   });
 }
 async function readResponse(response, max) {
@@ -46,7 +63,7 @@ return http.createServer(async (req, res) => {
   req.on('aborted', abortOnRequestAbort);
   res.on('close', abortOnResponseClose);
   try {
-    const raw = await readBody(req, 256 * 1024);
+    const raw = await readBody(req, 256 * 1024, controller.signal);
     const input = JSON.parse(raw.toString('utf8'));
     if (!input || typeof input !== 'object' || Array.isArray(input) || Object.keys(input).some(k => !['url', 'method', 'headers', 'body'].includes(k)) || typeof input.url !== 'string' || input.url.length > 8192 || typeof input.method !== 'string' || (input.body != null && typeof input.body !== 'string') || (input.body && input.body.length > 16 * 1024)) throw new Error('invalid gateway request');
     const target = new URL(input.url);
@@ -85,7 +102,10 @@ return http.createServer(async (req, res) => {
     if (phase === 'policy_validate') { status = 403; outcome = 'policy_denied'; }
     else if (phase === 'request_parse') { status = 400; outcome = 'request_invalid'; }
     else { status = 502; outcome = 'upstream_error'; }
-    if (!res.destroyed && !res.writableEnded) res.writeHead(status, { 'content-type': 'application/json' }).end('{"error":"request denied"}');
+    if (!res.destroyed && !res.writableEnded) {
+      if (phase === 'request_parse' || !req.complete) res.setHeader('connection', 'close');
+      res.writeHead(status, { 'content-type': 'application/json' }).end('{"error":"request denied"}');
+    }
   } finally {
     // No URL, query, headers, body, cookie, credential, token or upstream error is logged.
     process.stdout.write(JSON.stringify({ event: 'stage_jab_profile_hop', phase, outcome, method, path, status, durationMs: Date.now() - started }) + '\n');

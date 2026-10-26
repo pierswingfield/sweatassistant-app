@@ -62,8 +62,9 @@ function admitProvider(gymId, method, purpose) {
   if (!state) return undefined;
   const store = require('./store');
   const mutation = method !== 'GET' && purpose !== 'credential';
+  if(mutation&&require('./egress-client').enabled()&&process.env.MCP_EGRESS_WRITES_ENABLED!=='true')throw Object.assign(new Error('Standing writes disabled'),{code:'WRITES_DISABLED',status:403});
   if (!state.active || state.controller.signal.aborted || !state.providerReads ||
-      mutation && !state.writeAuthorization || purpose === 'credential' && state.writeAuthorization || gymId !== state.gymId) {
+      mutation && !state.writeAuthorization || purpose === 'credential' && (state.writeAuthorization || state.actionPolicy) || gymId !== state.gymId) {
     throw Object.assign(new Error('Provider work is not permitted'), { code: 'PROVIDER_WORK_DISABLED', status: 403 });
   }
   store.authorize(state.identity, state.scope, gymId);
@@ -72,7 +73,7 @@ function admitProvider(gymId, method, purpose) {
   if (backoff.isGymRateLimited(gymId)) throw limited();
   if (++state.attempts > 6) throw limited();
   store.charge([
-    [`provider:user:${state.actor.userId}:${gymId}`, 6, 60000],
+    [`provider:user:${state.actor.userId}:${gymId}`, 12, 60000],
     [`provider:daily:${state.actor.userId}`, 200, 86400000],
     [`provider:gym:${gymId}`, 30, 60000],
     ['provider:fleet', 60, 60000],

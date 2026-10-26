@@ -6,6 +6,7 @@ services:
       MCP_STANDING_EGRESS_ENABLED: "false"
       MCP_PROVIDER_READS_ENABLED: "false"
       MCP_WRITES_ENABLED: "false"
+      MCP_EGRESS_WRITES_ENABLED: "false"
       MCP_ABUSE_PROTECTION_ENABLED: "true"
       MCP_STAGE_JAB_PROFILE_ONLY: "true"
       MCP_EGRESS_URL: http://mcp-provider-egress:3101/
@@ -22,6 +23,7 @@ services:
     environment:
       MCP_EGRESS_KEY_FILE: /private/egress/receipt.key
       MCP_EGRESS_STATE_FILE: /state/receipts.db
+      MCP_EGRESS_WRITES_ENABLED: "false"
       # Container interfaces only; this service has no published host port.
       MCP_EGRESS_BIND_ADDRESS: "0.0.0.0"
       MCP_EGRESS_PORT: "3101"

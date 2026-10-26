@@ -48,10 +48,10 @@ function send(value,signature=proof.sign(key,value),extra={}){return new Promise
  identity.grantId=store.createGrant({userId,...identity,gymIds:[gymId],consentReference:'fixture'});
  const context=require('./mcp/context'),{providerFetch}=require('./logger');
  const call=()=>context.run({identity,scope:'account:read',gymId,providerReads:true,tool:'get_my_bookings'},()=>db.runWithGymContext(userId,gymId,()=>providerFetch(gymId,input().url,{headers:{authorization:'Bearer fixture-session',accept:'application/json'}})));
- const before=count;for(let n=0;n<6;n++)check((await call()).status===200,'shared admitted transport forwards one charged receipt');
+ const before=count;for(let n=0;n<12;n++)check((await call()).status===200,'shared admitted transport forwards one charged receipt');
  await assert.rejects(call,e=>e.code==='RATE_LIMITED');checks++;
- check(count===before+6,'existing durable MCP account budget bounds broker traffic');
+ check(count===before+12,'existing durable MCP account budget bounds broker traffic');
  const rows=db.db.prepare("SELECT count FROM mcp_budgets WHERE budget_key=?").all(`provider:user:${userId}:${gymId}`);
- check(rows.some(r=>r.count===6),'budget is persisted in the app ledger rather than duplicated at broker');
+ check(rows.some(r=>r.count===12),'budget is persisted in the app ledger rather than duplicated at broker');
  console.log(`PASS standing egress: ${checks} actual HTTP policy/context/replay/deadline/admission checks`);
 })().catch(e=>{console.error('FAIL standing egress:',e.message);process.exitCode=1}).finally(async()=>{if(held)held.destroy();await close(gateway);await close(upstream);db.db.close();fs.rmSync(temp,{recursive:true,force:true})});

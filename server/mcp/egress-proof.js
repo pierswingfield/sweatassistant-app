@@ -3,7 +3,7 @@ const fields=['gymId','account','tool','scope','url','method','headers','body','
 function mac(key,text){return crypto.createHmac('sha256',key).update(text).digest('hex');}
 function sign(key,input){return mac(key,JSON.stringify(input));}
 function verify(key,input,signature,now=Date.now()){
-  if(!input||typeof input!=='object'||Array.isArray(input)||Object.keys(input).length!==fields.length||fields.some(k=>!Object.hasOwn(input,k))||
+  if(!input||typeof input!=='object'||Array.isArray(input)||Object.keys(input).some(k=>!fields.includes(k)&&!['authorization','action'].includes(k))||fields.some(k=>!Object.hasOwn(input,k))||
     !/^[a-f0-9]{64}$/.test(input.account||'')||!/^[a-f0-9]{32}$/.test(input.nonce||'')||!Number.isSafeInteger(input.issuedAt)||
     input.issuedAt>now+5000||now-input.issuedAt>15000||typeof input.url!=='string'||input.url.length>4096||
     typeof input.gymId!=='string'||input.gymId.length>100||typeof signature!=='string'||!/^[a-f0-9]{64}$/.test(signature))throw Error('Invalid receipt');

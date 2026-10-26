@@ -828,7 +828,7 @@ class CodexFitProvider extends GymProvider {
    * scheduler.js's existing usage, but this method sends exactly one to keep
    * the per-attempt semantics consistent across providers.
    */
-  async bookSlot(eventId, slotIds, session) {
+  async bookSlot(eventId, slotIds, session, { singleAttempt = false } = {}) {
     // One spot per call, by contract (see base.js). CodexFit would accept the
     // whole array here, but MarianaTek cannot, so the normalized surface is
     // singular and callers loop. Taking [0] is the contract, not a truncation
@@ -857,7 +857,7 @@ class CodexFitProvider extends GymProvider {
     // A couple of candidates, in case another member takes the first between
     // our read and our write. Never retry a throttle.
     let last;
-    for (const slot of available.slice(0, 3)) {
+    for (const slot of available.slice(0, singleAttempt ? 1 : 3)) {
       last = await this._postBooking(eventId, slot, session);
       if (last.ok || last.code === 'PROVIDER_RATE_LIMITED') return last;
     }

@@ -15,6 +15,13 @@ function changed(userId, gymId) {
 function invoke(userId, session, fn, retryAuth = true) {
   return retryAuth ? withRelogin(userId, session, fn) : fn(session);
 }
+function actionBaseline(userId, gymId, session) {
+  const context = require('./mcp/context').current(), baseline = context?.bookingBaseline;
+  if (!context?.writeAuthorization || !baseline || baseline.userId !== userId || baseline.gymId !== gymId ||
+      baseline.session !== session.accessToken || Date.now() - baseline.at > 5000) return null;
+  context.writeAuthorization(gymId);
+  return baseline.bookings;
+}
 async function book(userId, { eventId, slotIds = [] }, { retryAuth = true, existingCreditOnly = false } = {}) {
   if (!eventId) throw failure('EVENT_REQUIRED', 'eventId is required', 400);
   const { gymId, provider, session } = resolveContext(userId);
@@ -26,7 +33,7 @@ async function book(userId, { eventId, slotIds = [] }, { retryAuth = true, exist
       throw failure('BOOKING_LIMIT_UNAVAILABLE', 'Booking limits could not be confirmed.', 503);
     }
     const [bookings, entitlement] = await Promise.all([
-      invoke(userId, session, (s) => provider.listBookings(s), retryAuth),
+      actionBaseline(userId, gymId, session) || invoke(userId, session, (s) => provider.listBookings(s), retryAuth),
       invoke(userId, session, (s) => provider.getBookingEntitlement(eventId, s), retryAuth),
     ]);
     const currentSelfBookings = countSelfBookings(bookings, eventId);
@@ -43,7 +50,7 @@ async function book(userId, { eventId, slotIds = [] }, { retryAuth = true, exist
       throw failure(check.code, message, check.code === 'ATTENDEE_LIMIT_EXCEEDED' ? 400 : 503);
     }
   }
-  const result = await invoke(userId, session, (s) => provider.bookSlot(eventId, slotIds || [], s, { existingCreditOnly }), retryAuth);
+  const result = await invoke(userId, session, (s) => provider.bookSlot(eventId, slotIds || [], s, { existingCreditOnly, singleAttempt: existingCreditOnly }), retryAuth);
   if (result && result.ok) changed(userId, gymId);
   return result;
 }
@@ -53,7 +60,8 @@ async function cancelReservationGroup({ userId, gymId, provider, session, bookin
   let bookings;
   try {
     if (singleOnly) {
-      const snapshot = await require('./normalized-reads').bookingSnapshot(userId, { retryAuth });
+      const baseline = actionBaseline(userId, gymId, session);
+      const snapshot = baseline ? { bookings: baseline, complete: true } : await require('./normalized-reads').bookingSnapshot(userId, { retryAuth });
       if (!snapshot.complete) throw failure('CANCELLATION_STATE_UNAVAILABLE', 'A complete reservation snapshot is required.', 503);
       bookings = snapshot.bookings;
     } else bookings = await invoke(userId, session, (s) => provider.listBookings(s), retryAuth);
@@ -139,6 +147,11 @@ async function describeAction(userId, operation, input) {
   if (bookings.some(b => b.isGuest && String(b.eventId) === eventId) ||
       target && db.getGuestBookingGroupByMember(userId, gymId, target.bookingId).length) {
     throw failure('SINGLE_BOOKING_REQUIRED', 'Guest reservation changes require the app.', 409);
+  }
+  const actionContext = require('./mcp/context').current();
+  if (actionContext?.actionPolicy) {
+    actionContext.actionPolicy.eventId = eventId;
+    actionContext.bookingBaseline = { userId, gymId, session: session.accessToken, bookings, at: Date.now() };
   }
   const details = await reads.eventDetails(userId, eventId);
   const event = details?.event;

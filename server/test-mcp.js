@@ -230,8 +230,11 @@ function clearBudgets() { db.db.prepare('DELETE FROM mcp_budgets').run(); }
     await assert.rejects(() => timedProviderFetch(gymId, 'GET', '/fixture', async () => { actual++; }), e => e.code === 'RATE_LIMITED');
   });
   check(actual === 6, 'six actual upstream attempts maximum');
+  await context.run({ identity: identity(), scope: 'schedule:read', gymId, providerReads: true }, async () => {
+    for(let i=0;i<6;i++)await timedProviderFetch(gymId,'GET','/fixture',async()=>{actual++;return {status:200}});
+  });
   await assert.rejects(() => context.run({ identity: identity(), scope: 'schedule:read', gymId, providerReads: true }, () => timedProviderFetch(gymId, 'GET', '/fixture', async () => { actual++; })), e => e.code === 'RATE_LIMITED');
-  check(actual === 6, 'new operation cannot reset account/gym budget');
+  check(actual === 12, 'new operation cannot reset twelve-attempt account/gym budget');
   clearBudgets();
   await context.run({ identity: identity(), scope: 'schedule:read', gymId, providerReads: true }, async () => {
     await timedProviderFetch(gymId, 'POST', '/credential-fixture', async () => ({ status: 200 }), 'credential');

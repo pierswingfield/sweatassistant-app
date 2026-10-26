@@ -43,6 +43,10 @@ function status(action) {
   return { actionId: action.id, state: action.state, expiresAt: new Date(action.expires_at).toISOString(),
     ...(action.result_json ? { result: JSON.parse(action.result_json) } : {}) };
 }
+function egressAction(identity, id, operation, input) {
+  const context = require('./context').current();
+  if (context) context.actionPolicy = { id, operation, input: { ...input }, eventId: input.eventId || null };
+}
 async function prepare(identity, gymId, operation, input, requestId, config) {
   input = validInput(operation, input, requestId);
   const { actor } = gate(identity, gymId, config);
@@ -55,6 +59,7 @@ async function prepare(identity, gymId, operation, input, requestId, config) {
   const currentLink = db.getUserGym(actor.userId, gymId)?.id;
   const uncertain = db.db.prepare("SELECT binding_json FROM mcp_actions WHERE user_id=? AND gym_id=? AND state IN ('executing','unknown')").all(actor.userId, gymId);
   if (uncertain.some(r => JSON.parse(r.binding_json).link === currentLink)) throw fail('ACTION_UNCERTAIN');
+  egressAction(identity, digest(`${identity.grantId}:${identity.clientId}:${requestId}`), operation, input);
   const summary = await db.runWithGymContext(actor.userId, gymId, () => mutations.describeAction(actor.userId, operation, input));
   const { binding } = gate(identity, gymId, config);
   const id = crypto.randomUUID(), expiresAt = Math.min(Date.now() + 5 * 60000, identity.expiresAt);
@@ -95,6 +100,7 @@ async function execute(identity, id, config, gymId) {
   if (action.state !== 'approved') throw fail('ACTION_APPROVAL_REQUIRED');
   if (action.expires_at <= Date.now()) throw fail();
   const input = JSON.parse(action.input_json);
+  egressAction(identity, action.id, action.operation, input);
   const summary = await db.runWithGymContext(action.user_id, action.gym_id, () => mutations.describeAction(action.user_id, action.operation, input));
   action = owned(identity, id, config);
   if (action.summary_json !== encode(summary)) throw fail();
@@ -116,6 +122,7 @@ async function execute(identity, id, config, gymId) {
   context.writeSubmitted = false;
   context.writeSubmission = () => {
     checkedExecuting(identity, id, config);
+    if (context.writeSubmitted) throw fail('ACTION_ALREADY_SUBMITTED');
     // better-sqlite3 defaults to NORMAL. Sync this intent before dispatch so
     // power loss cannot erase the claim after the provider accepts the write.
     // Restore the connection's prior mode; native app transactions are unchanged.
@@ -170,6 +177,7 @@ async function inspect(identity, id, config, gymId) {
   // cannot be treated as proof that this particular action succeeded.
   const summary = JSON.parse(action.summary_json), input = JSON.parse(action.input_json);
   if (Date.parse(summary.startAt) <= Date.now()) return status(action);
+  egressAction(identity, action.id, action.operation, input);
   const snapshot = await db.runWithGymContext(action.user_id, action.gym_id, () => reads.bookingSnapshot(action.user_id));
   if (!snapshot.complete) return status(action);
   const { bookings } = snapshot;

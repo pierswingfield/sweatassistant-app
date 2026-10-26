@@ -142,8 +142,8 @@ function abortable(promise, signal) {
 function providerFetch(gymId,url,options={}) {
   const standing=require('./mcp/egress-client');
   const mcp=require('./mcp/context').current();
-  if(standing.enabled()&&mcp)return timedProviderFetch(gymId,options.method||'GET',url,
-    signal=>standing.forward(gymId,url,options,signal));
+  if(standing.enabled()&&mcp)return standing.actionRead(gymId,url,options,()=>timedProviderFetch(gymId,options.method||'GET',url,
+    signal=>standing.forward(gymId,url,options,signal)));
   return timedProviderFetch(gymId,options.method||'GET',url,
     signal=>fetch(url,{...(require('./provider-admission').enabled()?{redirect:'manual'}:{}),...options,
       ...(signal?{signal:options.signal?AbortSignal.any([signal,options.signal]):signal}: {})}));

@@ -1247,8 +1247,17 @@ class MarianaTekProvider extends GymProvider {
         });
       });
     if (!asSnapshot) return bookings;
-    return { bookings, complete: Array.isArray(data.results) && results.length <= 100 && data.next === null &&
-      Number.isSafeInteger(data.count) && data.count === results.length };
+    const flat = Object.hasOwn(data, 'next') || Object.hasOwn(data, 'count');
+    const flatComplete = data.next === null && Number.isSafeInteger(data.count) && data.count === results.length;
+    // Live upcoming JAB reads use meta.pagination + links, unlike the flat
+    // envelope supported above. Both prove exactly one complete first page.
+    const nested = Object.hasOwn(data, 'meta') || Object.hasOwn(data, 'links');
+    const pagination = data.meta?.pagination;
+    const nestedComplete = pagination?.page === 1 && pagination.pages === 1 &&
+      Number.isSafeInteger(pagination.count) && pagination.count === results.length && data.links?.next === null;
+    // Never let one representation conceal contradictory/partial other proof.
+    return { bookings, complete: Array.isArray(data.results) && results.length <= 100 && (flat || nested) &&
+      (!flat || flatComplete) && (!nested || nestedComplete) };
   }
 
   async listBookings(session, { asSnapshot = false } = {}) { return this._listReservations(session, 'standard', asSnapshot, true); }

@@ -48,6 +48,7 @@ function createCache() {
 
   const store = new Map();   // key -> { value, fetchedAt, checkedAt, ttlMs, stamp }
   const inFlight = new Map(); // key -> Promise
+  let generation = 0;
 
   const stats = { hits: 0, staleHits: 0, misses: 0, coalesced: 0, refreshes: 0, errors: 0,
     stampUnchanged: 0, stampChanged: 0, stampUnavailable: 0, ceilingRefetches: 0 };
@@ -116,7 +117,7 @@ function createCache() {
       // the provider to decide how slow it feels today.
       stats.staleHits++;
       require('./metrics').observeCache('stale');
-      if (opts.backgroundRefresh !== false && !inFlight.has(`${key}|${require('./provider-admission').flightScope()}`)) {
+      if (opts.backgroundRefresh !== false && !inFlight.has(`${key}|${require('./provider-admission').flightScope()}|${generation}`)) {
         stats.refreshes++;
         single(key, fetcher, ttlMs, opts).catch(() => {});
       }
@@ -129,7 +130,8 @@ function createCache() {
   }
 
   function single(key, fetcher, ttlMs, opts = {}) {
-    const flightKey = `${key}|${require('./provider-admission').flightScope()}`;
+    const startedGeneration = generation;
+    const flightKey = `${key}|${require('./provider-admission').flightScope()}|${startedGeneration}`;
     const existing = inFlight.get(flightKey);
     if (existing) {
       stats.coalesced++;
@@ -145,7 +147,9 @@ function createCache() {
         const value = await fetcher();
         const stamp = stampP ? await stampP : null;
         const t = Date.now();
-        store.set(key, { value, fetchedAt: t, checkedAt: t, ttlMs, stamp });
+        // An invalidation during this request must not resurrect old rows, and
+        // post-mutation readers must not join its earlier flight.
+        if (generation === startedGeneration) store.set(key, { value, fetchedAt: t, checkedAt: t, ttlMs, stamp });
         return value;
       } catch (err) {
         stats.errors++;
@@ -164,6 +168,7 @@ function createCache() {
 
   /** Drop cached entries whose key starts with `prefix` (e.g. one gym's). */
   function invalidate(prefix) {
+    generation++;
     let n = 0;
     for (const key of store.keys()) {
       if (key.startsWith(prefix)) { store.delete(key); n++; }

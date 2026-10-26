@@ -78,6 +78,8 @@ function refreshCalendar(userId) {
  */
 function invalidateSchedule(gymId) {
   if (!gymId) return;
+  // Also covers mock adapters that complete writes without HTTP transport.
+  require('./private-read-cache').invalidateGym(gymId);
   try {
     scheduleCache.invalidate(`timetable|${gymId}|`);
   } catch (_) {}

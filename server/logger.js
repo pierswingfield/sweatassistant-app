@@ -70,19 +70,28 @@ async function performProviderFetch(gymId, method, pathOrUrl, doFetch, purpose) 
   const path = String(pathOrUrl).replace(/^https?:\/\/[^/]+/i, '').split('?')[0];
   const admission = require('./provider-admission');
   let lease;
+  let finishMutation;
   let attempted = false;
   const lane = admission.actor().lane;
   try {
     const mcpSignal = require('./mcp/context').admitProvider(gymId, method, purpose);
     lease = admission.admit(gymId);
+    // One transport boundary sees native, scheduler and MCP attempts. Even a
+    // refused/uncertain write can change provider state; invalidate both sides
+    // of the attempt so an overlapping read cannot repopulate stale responses.
+    if (!['GET', 'HEAD', 'OPTIONS'].includes(String(method).toUpperCase()) && purpose !== 'credential') {
+      finishMutation = require('./private-read-cache').beginMutation(gymId);
+      require('./schedule-cache').invalidate(`timetable|${gymId}|`);
+    }
     const signals = [mcpSignal, lease?.signal].filter(Boolean);
+    if (finishMutation && !lease) signals.push(AbortSignal.timeout(10000));
     const signal = signals.length ? AbortSignal.any(signals) : undefined;
     attempted = true;
     let res = await abortable(doFetch(signal), signal);
     require('./rate-limit-backoff').noteThrottleResponse(gymId, res);
     // Keep the reservation through the complete body, with bounded memory and
     // deadline. Otherwise slow bodies evade concurrency after headers arrive.
-    if (lease && res?.body && typeof res.body.getReader === 'function') {
+    if ((lease || finishMutation) && res?.body && typeof res.body.getReader === 'function') {
       const reader = res.body.getReader();
       const chunks = []; let size = 0;
       try {
@@ -107,7 +116,13 @@ async function performProviderFetch(gymId, method, pathOrUrl, doFetch, purpose) 
     if (attempted) count(null);
     log.debug('provider call failed', { gymId, method, path, durationMs: Date.now() - start, err });
     throw err;
-  } finally { lease?.release(); }
+  } finally {
+    if (finishMutation) {
+      finishMutation();
+      require('./schedule-cache').invalidate(`timetable|${gymId}|`);
+    }
+    lease?.release();
+  }
 }
 
 // Abort races bound even a stalled custom/mock response stream; native fetch also

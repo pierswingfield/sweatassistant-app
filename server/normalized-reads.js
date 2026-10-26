@@ -5,6 +5,8 @@ const { getProvider } = require('./providers');
 const { isRollingWeekly } = require('./providers/booking-window');
 const scheduleCache = require('./schedule-cache');
 const freshness = require('./freshness');
+const privateCache = require('./private-read-cache');
+const crypto = require('node:crypto');
 function resolveContext(userId) {
   // An app account can now exist with NO gym linked at all (signup is
   // gym-independent since Decision D4). That is a legitimate, expected state —
@@ -29,6 +31,10 @@ function resolveContext(userId) {
     e.code = 'GYM_REQUIRED';
     throw e;
   }
+  const link = db.getUserGym(userId, gymId);
+  if (!link || link.status === 'disabled' || !db.getGym(gymId)?.enabled) {
+    throw Object.assign(new Error('Gym is not available'), { code: 'ACCESS_DENIED', status: 403 });
+  }
   const provider = getProvider(gymId);
   const user = db.getUserById(userId);
   if (!user || !user.jwt) {
@@ -42,7 +48,8 @@ function resolveContext(userId) {
     err.gymId = gymId;
     throw err;
   }
-  return { gymId, provider, session: { accessToken: user.jwt } };
+  return { gymId, provider, session: { accessToken: user.jwt }, linkId: link.id,
+    fingerprint: crypto.createHash('sha256').update(user.password_hash || '').digest('hex'), expiresAt: user.jwt_expires_at };
 }
 
 // Retry an authenticated provider call once after a relogin, if it signals a
@@ -65,13 +72,15 @@ async function withRelogin(userId, session, fn) {
     const result = await fn(session);
     if (result && result.status === 401) {
       const newJwt = await triggerAutoRelogin(userId);
-      return fn({ ...session, accessToken: newJwt });
+      session.accessToken = newJwt;
+      return fn(session);
     }
     return result;
   } catch (err) {
     if (err.status !== 401) throw err;
     const newJwt = await triggerAutoRelogin(userId);
-    return fn({ ...session, accessToken: newJwt });
+    session.accessToken = newJwt;
+    return fn(session);
   }
 }
 
@@ -113,28 +122,54 @@ async function stampReleaseAt(events, provider, userId, gymId, session) {
 }
 
 
+// Always resolve/authorize before a hit and after async work. Credentials stay
+// in the app; only their hash participates in a private in-memory cache key.
+function readIdentity(userId, ctx) {
+  return JSON.stringify([userId, ctx.gymId, ctx.linkId, ctx.fingerprint,
+    crypto.createHash('sha256').update(ctx.session.accessToken).digest('hex')]);
+}
+function validator(userId, ctx, initialKey) {
+  return () => {
+    const current = resolveContext(userId);
+    if (current.gymId !== ctx.gymId || current.linkId !== ctx.linkId || current.fingerprint !== ctx.fingerprint || current.session.accessToken !== ctx.session.accessToken) {
+      throw Object.assign(new Error('Read authentication context changed; retry'), { code: 'READ_CHANGED', status: 503 });
+    }
+    const mcp = require('./mcp/context').current();
+    if (mcp) require('./mcp/store').authorize(mcp.identity, mcp.scope, ctx.gymId);
+    return readIdentity(userId, current) === initialKey && (!current.expiresAt || new Date(current.expiresAt).getTime() > Date.now());
+  };
+}
+function cachedRead(userId, kind, args, ttlMs, fn) {
+  const ctx = resolveContext(userId), identity = readIdentity(userId, ctx);
+  return privateCache.read(ctx.gymId, JSON.stringify([identity, kind, args]), ttlMs,
+    validator(userId, ctx, identity), () => fn(ctx));
+}
 async function timetable(userId, { startDate = '', endDate = '', refresh = false } = {}) {
-  const { gymId, provider, session } = resolveContext(userId);
-  const events = await scheduleCache.getOrFetch(`timetable|${gymId}|${startDate}|${endDate}`,
-    () => withRelogin(userId, session, s => provider.fetchTimetable({ startDate, endDate }, s)),
-    { ttlMs: 60000, force: refresh, ...(require('./mcp/context').current() ? { backgroundRefresh: false, maxStaleMs: 120000, staleIfError: false } : {}), stamp: freshness.stampFor(gymId, provider, session, ['events']), ceilingMs: 300000 });
-  return { events: await stampReleaseAt(events, provider, userId, gymId, session) };
+  const ctx = resolveContext(userId), { gymId, provider, session } = ctx;
+  return privateCache.guard(gymId, validator(userId, ctx, readIdentity(userId, ctx)), async () => {
+    const events = await scheduleCache.getOrFetch(`timetable|${gymId}|${startDate}|${endDate}`,
+      () => withRelogin(userId, session, s => provider.fetchTimetable({ startDate, endDate }, s)),
+      { ttlMs: 60000, force: refresh, ...(require('./mcp/context').current() ? { backgroundRefresh: false, maxStaleMs: 120000, staleIfError: false } : {}), stamp: freshness.stampFor(gymId, provider, session, ['events']), ceilingMs: 300000 });
+    return { events: await stampReleaseAt(events, provider, userId, gymId, session) };
+  });
 }
 async function eventDetails(userId, eventId) {
-  const { gymId, provider, session } = resolveContext(userId);
-  const details = await withRelogin(userId, session, s => provider.fetchEventDetails(eventId, s));
-  if (details && details.event) details.event = (await stampReleaseAt([details.event], provider, userId, gymId, session))[0];
-  return details;
+  return cachedRead(userId, 'details', [eventId], 5000, async ({ gymId, provider, session }) => {
+    const details = await withRelogin(userId, session, s => provider.fetchEventDetails(eventId, s));
+    if (details && details.event) details.event = (await stampReleaseAt([details.event], provider, userId, gymId, session))[0];
+    return details;
+  });
 }
 async function bookings(userId) {
-  const { provider, session } = resolveContext(userId);
-  return { bookings: await withRelogin(userId, session, s => provider.listBookings(s)) };
+  return cachedRead(userId, 'bookings', [], 5000, async ({ provider, session }) =>
+    ({ bookings: await withRelogin(userId, session, s => provider.listBookings(s)) }));
 }
 async function credits(userId) {
-  const { provider, session } = resolveContext(userId);
-  if (typeof provider.getCredits === 'function') return { credits: await withRelogin(userId, session, s => provider.getCredits(s)) };
-  const profile = await withRelogin(userId, session, s => provider.getProfile(s));
-  return { credits: (profile.raw && profile.raw.available_credits) || [] };
+  return cachedRead(userId, 'credits', [], 15000, async ({ provider, session }) => {
+    if (typeof provider.getCredits === 'function') return { credits: await withRelogin(userId, session, s => provider.getCredits(s)) };
+    const profile = await withRelogin(userId, session, s => provider.getProfile(s));
+    return { credits: (profile.raw && profile.raw.available_credits) || [] };
+  });
 }
 function linkedGyms(userId) { return db.getUserGymsPublic(userId); }
 function automation(userId, gymId, { limit = 25, offset = 0 } = {}) {

@@ -16,6 +16,8 @@ private-*/
 **/secrets/
 **/*.pem
 **/*.key
+# Tracked production module; Docker treats private-*/ as a file glob too.
+!server/private-read-cache.js
 .git
 .claude
 

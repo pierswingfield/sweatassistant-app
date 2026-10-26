@@ -34,6 +34,12 @@ Action preparation, guarded cancellation guest checks and reconciliation now use
 
 This is a single-instance source candidate, not activated general egress or live write acceptance. Preserve the stage gateway/profile-only safeguard until a reviewed standing replacement exists. New approval UI has Chrome390px fixture evidence only; do not reuse earlier physical Safari results as proof of this newly added action page.
 
+## Standing transport and abuse candidate (undeployed)
+
+A generic registry-derived read-only broker now accepts short-lived, signed, single-use app admission receipts. Both adapters share its optional transport hook; native PWA/scheduler lanes and stage bootstrap/background suppression are preserved. The existing durable app provider budgets remain authoritative, with broker replay persistence and one account hop across gyms. Only four provider-backed read tools are permitted; all action tools remain unsupported by this initial standing policy. Routing defaults off and all current runtime flags remain unchanged.
+
+Anonymous protection defaults on with MCP, with an operator override. It uses bounded expiring anonymous-failure bans while valid authenticated users sharing hosted egress keep account-budgeted access. CF-Connecting-IP is accepted only from configured exact immediate socket peers; arbitrary XFF is ignored. Offline Cloudflare rules stay disabled: the observed Free plan lacks Host rate-limit expressions and the available token cannot read Rulesets. Geography/DC/browser challenge blocks are not activated. See [standing transport and edge operations](../Operations/MCP-STANDING-EGRESS.md) for exact limits, secret/network separation, staged rollout/rollback and official-source constraints.
+
 ## Runnable scope
 
 `MCP_ENABLED=false` is the default. `/mcp` and `/.well-known/oauth-protected-resource/mcp` return 404. Setting it true requires canonical HTTPS `MCP_RESOURCE_URL` ending in `/mcp`, canonical HTTPS `MCP_ISSUER`, and `MCP_JWKS_FILE` containing operator-owned public signing keys. Invalid configuration fails closed. Keys are loaded at startup; rotation currently requires a restart. There is no remote metadata/JWKS fetch, client-ID URL fetch, dynamic registration or token URL parameter.

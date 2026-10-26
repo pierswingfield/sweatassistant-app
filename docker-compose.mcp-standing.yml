@@ -1,0 +1,47 @@
+# Preparation only: merge with docker-compose.mcp-stage.yml after source review.
+# This file keeps provider access and standing routing OFF. No host ports.
+services:
+  sweatassistant-mcp-stage:
+    environment:
+      MCP_STANDING_EGRESS_ENABLED: "false"
+      MCP_PROVIDER_READS_ENABLED: "false"
+      MCP_WRITES_ENABLED: "false"
+      MCP_ABUSE_PROTECTION_ENABLED: "true"
+      MCP_STAGE_JAB_PROFILE_ONLY: "true"
+      MCP_EGRESS_URL: http://mcp-provider-egress:3101/
+      MCP_EGRESS_KEY_FILE: /private/egress/receipt.key
+    volumes:
+      - type: bind
+        source: ./private-mcp-stage/standing-egress/receipt.key
+        target: /private/egress/receipt.key
+        read_only: true
+        bind: { create_host_path: false }
+  mcp-provider-egress:
+    image: ${MCP_STAGE_IMAGE:?Set the reviewed immutable candidate image}
+    command: ["node", "server/mcp-egress-gateway.js"]
+    environment:
+      MCP_EGRESS_KEY_FILE: /private/egress/receipt.key
+      MCP_EGRESS_STATE_FILE: /state/receipts.db
+      # Container interfaces only; this service has no published host port.
+      MCP_EGRESS_BIND_ADDRESS: "0.0.0.0"
+      MCP_EGRESS_PORT: "3101"
+    volumes:
+      - type: bind
+        source: ./private-mcp-stage/standing-egress/receipt.key
+        target: /private/egress/receipt.key
+        read_only: true
+        bind: { create_host_path: false }
+      - type: bind
+        source: ./private-mcp-stage/standing-egress-state
+        target: /state
+        bind: { create_host_path: false }
+    read_only: true
+    tmpfs: [/tmp]
+    mem_limit: 192m
+    cpus: "0.25"
+    pids_limit: 32
+    logging:
+      driver: json-file
+      options: { max-size: "5m", max-file: "2" }
+    restart: unless-stopped
+    networks: [mcp-stage-private, mcp-stage-egress]

@@ -21,7 +21,7 @@ const { studioHasRowGroups, studioMobileRotation } = require('./spot-map');
 const { makeMetadata, makeProfile, makeEvent, makeSlot, makeLayoutObject, makeBookingResult, makeBooking, makeHistoryEntry, prune } = require('./normalize');
 const cart = require('./codexfit-cart');
 const favourites = require('../favourites');
-const { timedProviderFetch, credentialProviderFetch } = require('../logger');
+const { timedProviderFetch, credentialProviderFetch, providerFetch } = require('../logger');
 
 // Dev-mode bypass, driven by the gym config's `devMock.email` (see BaseProvider's
 // isMockLogin/isMockUser). login() must establish the sentinel session itself,
@@ -198,7 +198,7 @@ class CodexFitProvider extends GymProvider {
         delete opts.headers['content-type'];
       }
     }
-    return timedProviderFetch(this.gym.id, method, pathOrUrl, (signal) => fetch(urlFn(pathOrUrl), { ...(require('../provider-admission').enabled() ? { redirect: 'manual' } : {}), ...opts, ...(signal ? { signal } : {}) }));
+    return providerFetch(this.gym.id, urlFn(pathOrUrl), opts);
   }
 
   /**
@@ -208,7 +208,7 @@ class CodexFitProvider extends GymProvider {
    * session is available — same convention as the MarianaTek adapter).
    */
   async publicRequest(pathOrUrl, { method = 'GET' } = {}) {
-    return timedProviderFetch(this.gym.id, method, pathOrUrl, (signal) => fetch(this.url(pathOrUrl), { ...(require('../provider-admission').enabled() ? { redirect: 'manual' } : {}), method, headers: this.buildHeaders(null, false), ...(signal ? { signal } : {}) }));
+    return providerFetch(this.gym.id, this.url(pathOrUrl), { method, headers: this.buildHeaders(null, false) });
   }
 
   // --- Authentication -------------------------------------------------------

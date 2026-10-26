@@ -17,7 +17,7 @@ const { studioHasRowGroups, studioShowsSpotType, studioMobileRotation, studioFro
 const { makeMetadata, makeProfile, makeMembership, makeEvent, makeSlot, makeBookingResult, makeBooking, makeHistoryEntry } = require('./normalize');
 const bookingWindow = require('./booking-window');
 const { noteThrottleError } = require('../rate-limit-backoff');
-const { timedProviderFetch, credentialProviderFetch } = require('../logger');
+const { timedProviderFetch, credentialProviderFetch, providerFetch } = require('../logger');
 const scheduleCache = require('../schedule-cache');
 
 // Dev-mode bypass (WP-M5), driven by the gym config's `devMock.email` exactly like
@@ -166,11 +166,11 @@ class MarianaTekProvider extends GymProvider {
     }, timeoutMs);
     opts.signal = controller.signal;
     try {
-      if (require('../mcp/stage-profile-only').enabled()) {
+      if (require('../mcp/stage-profile-only').enabled() && !(require('../mcp/egress-client').enabled() && require('../mcp/context').current())) {
         const url = this.url(path);
         return await credentialProviderFetch(this.gym.id, url, opts);
       }
-      return await timedProviderFetch(this.gym.id, method, path, (signal) => fetch(this.url(path), { ...(require('../provider-admission').enabled() ? { redirect: 'manual' } : {}), ...opts, signal: signal ? AbortSignal.any([signal, opts.signal]) : opts.signal }));
+      return await providerFetch(this.gym.id, this.url(path), opts);
     } catch (err) {
       if (timedOut) {
         const timeout = new Error(`Booking request timed out after ${Math.ceil(timeoutMs / 1000)} seconds. Check My Bookings before trying again.`);

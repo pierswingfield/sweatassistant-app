@@ -20,6 +20,8 @@ function configuration(env = process.env) {
     jwksFile: env.MCP_JWKS_FILE, host: resource.host,
     origins: [resource.origin], providerReads: env.MCP_PROVIDER_READS_ENABLED === 'true',
     writesEnabled: env.MCP_WRITES_ENABLED === 'true',
+    abuseProtection: env.MCP_ABUSE_PROTECTION_ENABLED !== 'false',
+    trustedProxyIPs: (env.MCP_TRUSTED_PROXY_IPS || '').split(',').map(value => value.trim()).filter(Boolean),
     stageReadWindowFile: env.MCP_STAGE_JAB_PROFILE_ONLY === 'true' ? env.MCP_STAGE_JAB_READ_WINDOW_FILE : undefined,
   };
 }

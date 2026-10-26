@@ -24,6 +24,7 @@ function mountMcp(app, config = configuration()) {
   require('./authorization').mountAuthorization(app, config);
   require('../metrics').configureMcpClients(require('../db').db.prepare('SELECT client_id FROM mcp_clients WHERE disabled_at IS NULL ORDER BY client_id LIMIT 10').all().map(c => c.client_id));
   const router = express.Router();
+  const abuse = config.abuseProtection !== false ? require('./abuse').createGuard() : null;
   const metadata = new URL(metadataPath, config.resource).href;
   function challenge(res, error, scope) {
     res.set('WWW-Authenticate', `Bearer resource_metadata="${metadata}"${error ? `, error="${error}"` : ''}${scope ? `, scope="${scope}"` : ''}`);
@@ -38,8 +39,14 @@ function mountMcp(app, config = configuration()) {
     }
     try {
       // Proxy must preserve Host and provide a trusted client IP before a pilot.
-      const ip = crypto.createHash('sha256').update(req.ip || req.socket.remoteAddress || 'unknown').digest('hex');
-      store.charge([[`ip:${ip}`, 120, 60000]]);
+      const source = abuse ? require('./abuse').clientIP(req, config.trustedProxyIPs || []) : req.ip || req.socket.remoteAddress || 'unknown';
+      req.mcpSourceIp = source;
+      // Valid-looking bearers are verified below before any IP-ban decision.
+      // Discovery stays available to legitimate new clients on shared egress.
+      if (!abuse || !req.headers.authorization) {
+        const ip = crypto.createHash('sha256').update(source).digest('hex');
+        store.charge([[`ip:${ip}`, 120, 60000]]);
+      }
     } catch (err) { return budgetError(res, err); }
     if (req.method === 'OPTIONS') {
       res.set('Access-Control-Allow-Methods', 'POST, OPTIONS');
@@ -53,9 +60,16 @@ function mountMcp(app, config = configuration()) {
   router.use('/mcp', async (req, res, next) => {
     if (Object.keys(req.query).length) return res.status(400).json({ code: 'QUERY_PARAMETERS_FORBIDDEN' });
     const match = /^Bearer ([A-Za-z0-9._~-]+)$/.exec(req.headers.authorization || '');
-    if (!match) { challenge(res); return res.status(401).json({ code: 'UNAUTHORIZED' }); }
+    const unauthorized = (token, cache = true) => {
+      const retry = abuse?.failure(req.mcpSourceIp, cache ? token : undefined);
+      challenge(res, token ? 'invalid_token' : undefined);
+      if (retry) return res.status(429).set('Retry-After', String(retry)).json({ code: 'RATE_LIMITED' });
+      return res.status(401).json({ code: 'UNAUTHORIZED' });
+    };
+    if (!match) return unauthorized();
+    if (abuse?.cached(match[1])) return unauthorized(match[1]);
     try { req.mcpIdentity = await verify(match[1]); }
-    catch (_) { challenge(res, 'invalid_token'); return res.status(401).json({ code: 'UNAUTHORIZED' }); }
+    catch (error) { return unauthorized(match[1], error.code !== 'ACCESS_DENIED'); }
     const actor = store.authorize(req.mcpIdentity);
     try {
       store.charge([[`requests:user:${actor.userId}`, 60, 60000], [`requests:grant:${actor.grantId}`, 40, 60000],

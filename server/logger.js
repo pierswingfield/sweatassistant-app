@@ -137,6 +137,17 @@ function abortable(promise, signal) {
     Promise.resolve(promise).then(resolve, reject).finally(() => signal.removeEventListener('abort', abort));
   });
 }
+// Shared adapter transport; standing routing is optional and MCP-only. Native
+// traffic retains the existing common admission lanes and profile bootstrap.
+function providerFetch(gymId,url,options={}) {
+  const standing=require('./mcp/egress-client');
+  const mcp=require('./mcp/context').current();
+  if(standing.enabled()&&mcp)return timedProviderFetch(gymId,options.method||'GET',url,
+    signal=>standing.forward(gymId,url,options,signal));
+  return timedProviderFetch(gymId,options.method||'GET',url,
+    signal=>fetch(url,{...(require('./provider-admission').enabled()?{redirect:'manual'}:{}),...options,
+      ...(signal?{signal:options.signal?AbortSignal.any([signal,options.signal]):signal}: {})}));
+}
 function credentialProviderFetch(gymId, url, options = {}) {
   const gym = require('./gyms.config').getGymConfig(gymId);
   const target = new URL(url);
@@ -209,4 +220,4 @@ function credentialProviderFetch(gymId, url, options = {}) {
   return timedProviderFetch(gymId, options.method || 'GET', url,
     signal => fetch(url, { ...(require('./provider-admission').enabled() ? { redirect: 'manual' } : {}), ...options, ...(signal ? { signal } : {}) }), 'credential');
 }
-module.exports = { credentialProviderFetch, createLogger, requestLogger, timedProviderFetch, log, redact };
+module.exports = { credentialProviderFetch, providerFetch, createLogger, requestLogger, timedProviderFetch, log, redact };

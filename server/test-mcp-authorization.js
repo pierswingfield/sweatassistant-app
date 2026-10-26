@@ -62,7 +62,7 @@ async function refresh(value, patch = {}) { return http('/oauth/token', { body: 
   const pair = await jose.generateKeyPair('ES256', { extractable: true });
   const privateJwk = { ...await jose.exportJWK(pair.privateKey), kid: 'auth-test', alg: 'ES256' };
   const publicJwk = { ...await jose.exportJWK(pair.publicKey), kid: 'auth-test', use: 'sig' };
-  config = { enabled: true, issuer: `${origin}/`, resource, host: 'mcp.example.test', origins: [origin], providerReads: false,
+  config = { enabled: true, issuer: `${origin}/`, resource, host: 'mcp.example.test', origins: [origin], providerReads: false, abuseProtection: true,
     jwksFile: path.join(temp, 'jwks.json') };
   fs.writeFileSync(config.jwksFile, JSON.stringify({ keys: [publicJwk] }));
   const privateFile = path.join(temp, 'private.json'); fs.writeFileSync(privateFile, JSON.stringify(privateJwk));
@@ -182,6 +182,11 @@ async function refresh(value, patch = {}) { return http('/oauth/token', { body: 
   const oldPolicy = access.policyVersion('account', accountId);
   access.setAccount(accountId, false); access.setAccount(accountId, true);
   check(access.policyVersion('account', accountId) === oldPolicy + 2, 'administrator disable and re-enable retain policy revision history');
+  const mcpHeaders = { 'content-type': 'application/json', accept: 'application/json, text/event-stream', 'mcp-protocol-version': '2025-11-25' };
+  for (let n=0;n<20;n++) await http('/mcp', { headers: { ...mcpHeaders, authorization: `Bearer invalid-${n}` }, body: JSON.stringify({jsonrpc:'2.0',id:n,method:'ping'}) });
+  check((await http('/mcp', { headers:mcpHeaders, body:JSON.stringify({jsonrpc:'2.0',id:100,method:'ping'}) })).status===429, 'anonymous abusive IP receives temporary ban');
+  check((await http('/mcp', { headers:{...mcpHeaders,authorization:`Bearer ${tokens.json.access_token}`},body:JSON.stringify({jsonrpc:'2.0',id:101,method:'ping'}) })).status===200, 'legitimate authenticated user sharing abusive egress remains usable');
+  check((await http('/.well-known/oauth-protected-resource/mcp')).status===200, 'discovery is not blocked by a shared anonymous-IP ban');
   const grantId = (await verify(tokens.json.access_token)).grantId;
   const rev = await http('/oauth/connections/revoke', { cookie: tx.cookie, body: { ...tx.fields, grant: grantId } });
   check(rev.status === 200 && rev.text.includes('Access revoked'), 'first-party revoke succeeds');

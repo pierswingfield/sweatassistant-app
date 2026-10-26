@@ -11,13 +11,14 @@ Before starting an item, follow [AGENT_PROTOCOL.md](AGENT_PROTOCOL.md): confirm 
 | [Reported bugs and feedback](EPIC-member-experience.md) | Active register for the bugs and UI changes reported by the user; all U6 items are open pending implementation and verification. | U6-1..U6-15; U4-19 `q` search URL wiring |
 | [Admin and operations](EPIC-admin-operations.md) | Improve durable admin data and finish user-owned production setup. | C8-1; C4-14 |
 | [Front Row landing page](M-landing-page.md) | Public glass-style marketing page with an install CTA and server-side analytics. Specified, not built. | M-D1..M-D8 |
+| [MCP integration](MCP-HANDOFF.md) | Isolated standing-read staging candidate; pause and resume instructions. | RC3 accepted in staging; production release and writes remain outstanding |
 | [Gym onboarding playbook](C9-gym-onboarding.md) | Repeatable tenant onboarding, provider evidence, and activation process. | Ongoing process, used when a gym is added |
 
 Lower-priority, deferred, research-first, and user-dependent items belong in [BACKLOG.md](BACKLOG.md), not in active epic documents.
 
 ## Repository context
 
-- `master` is the working branch; Home is merged at `2e93f9e`.
+- `master` is the main working branch; Home is merged at `2e93f9e`. MCP work is isolated in the `mcp_tooling` worktree described in the [handoff](MCP-HANDOFF.md).
 - C4 production-launch details are archived. The remaining C4-14 step is an account setup action on production; verify current production state before acting.
 - Historical acceptance and deployment evidence is preserved under [`../Archive/2026-10-08/`](../Archive/2026-10-08/).
 

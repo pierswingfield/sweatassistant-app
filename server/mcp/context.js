@@ -61,10 +61,13 @@ function admitProvider(gymId, method, purpose) {
   const state = current();
   if (!state) return undefined;
   const store = require('./store');
-  if (!state.active || state.controller.signal.aborted || !state.providerReads || (method !== 'GET' && purpose !== 'credential') || gymId !== state.gymId) {
+  const mutation = method !== 'GET' && purpose !== 'credential';
+  if (!state.active || state.controller.signal.aborted || !state.providerReads ||
+      mutation && !state.writeAuthorization || purpose === 'credential' && state.writeAuthorization || gymId !== state.gymId) {
     throw Object.assign(new Error('Provider work is not permitted'), { code: 'PROVIDER_WORK_DISABLED', status: 403 });
   }
   store.authorize(state.identity, state.scope, gymId);
+  if (mutation) state.writeAuthorization(gymId);
   const backoff = require('../rate-limit-backoff');
   if (backoff.isGymRateLimited(gymId)) throw limited();
   if (++state.attempts > 6) throw limited();
@@ -74,6 +77,7 @@ function admitProvider(gymId, method, purpose) {
     [`provider:gym:${gymId}`, 30, 60000],
     ['provider:fleet', 60, 60000],
   ]);
+  if (mutation) state.writeAttempts = (state.writeAttempts || 0) + 1;
   return state.controller.signal;
 }
 module.exports = { current, run, admitProvider, withProviderSlot };

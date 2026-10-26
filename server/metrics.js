@@ -8,14 +8,14 @@
 //   outcome      = ok | 429 | error         result = hit | stale | miss
 //   histogram    = per route only (x 11 buckets), not per status
 //   MCP client   = at most ten operator-registered IDs plus fixed other per process
-//   MCP tool     = six catalog names plus fixed unknown; gym = config or fixed none
+//   MCP tool     = fixed catalog names plus fixed unknown; gym = config or fixed none
 const counters = new Map(); // name -> { help, series: Map(labelKey -> { labels, value }) }
 const hist = new Map();     // route -> { buckets[], sum, count }
 const BUCKETS = [0.005, 0.01, 0.025, 0.05, 0.1, 0.25, 0.5, 1, 2.5, 5, 10];
 // Client IDs come only from operator registration, with a lifetime process cap.
 // Never allocate a new series label from a token, request argument or account.
 const mcpClients = new Set();
-const mcpTools = new Set(['list_connected_gyms', 'search_classes', 'get_class_details', 'get_my_bookings', 'get_credits', 'get_automation']);
+const mcpTools = new Set(['list_connected_gyms', 'search_classes', 'get_class_details', 'get_my_bookings', 'get_credits', 'get_automation', 'prepare_booking', 'prepare_booking_edit', 'prepare_booking_cancel', 'execute_booking_action', 'get_booking_action']);
 function configureMcpClients(ids) {
   for (const id of ids) if (mcpClients.size < 10 && typeof id === 'string' && /^[a-zA-Z0-9_-]{1,100}$/.test(id)) mcpClients.add(id);
 }

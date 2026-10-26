@@ -40,6 +40,15 @@ let mutations = 0;
   provider.listBookings = async () => [{ bookingId: 'own', eventId: 'event' }];
   const cancelled = await db.runWithGymContext(userId, gymId, () => service.cancel(userId, { bookingId: 'own' }, { singleOnly: true, retryAuth: false }));
   assert.equal(cancelled.ok, true); assert.equal(mutations, before + 1);
+  const MarianaTek = require('./providers/marianatek');
+  const paymentProvider = Object.create(MarianaTek.prototype);
+  paymentProvider.getClassPaymentOptions = async () => ({ user: [
+    { id: 'purchase-option', card_payment: {} }, { id: 'existing-pass', membership_payment: {} },
+  ], guest: [] });
+  assert.equal(await paymentProvider.resolvePaymentOption('event', {}), 'purchase-option', 'native selection behavior is preserved');
+  assert.equal(await paymentProvider.resolvePaymentOption('event', {}, { existingCreditOnly: true }), 'existing-pass', 'guarded booking uses an existing entitlement');
+  paymentProvider.getClassPaymentOptions = async () => ({ user: [{ id: 'purchase-option', card_payment: {} }], guest: [] });
+  assert.equal(await paymentProvider.resolvePaymentOption('event', {}, { existingCreditOnly: true }), null, 'guarded booking cannot select monetary or unknown payment types');
   console.log('PASS normalized mutation boundary: no auth retry, atomic-only edit, owned single cancellation');
 })().catch(err => { console.error('FAIL normalized mutations:', err.message); process.exitCode = 1; }).finally(() => {
   for (const [key, value] of originals) provider[key] = value;

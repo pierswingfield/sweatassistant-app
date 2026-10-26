@@ -202,6 +202,17 @@ function mountAuthorization(app, resourceConfig, options = {}) {
     const allLinked = request.gymMode === 'all-linked';
     return page(res, `Connect ${client.name}`, `<p>Choose this AI client’s permissions. Access expires in 30 days. You can revoke it at any time in AI connections.</p><p>Booking changes also require your write setting, deployment availability and approval of each action. Purchases and automation changes are not permitted.</p><form method="post" action="/oauth/consent">${hidden(tx)}<fieldset><legend>Permissions</legend>${request.scope.split(' ').map(s => `<label><input type="checkbox" name="scopes" value="${escape(s)}">${escape(scopeLabels[s])}</label>`).join('')}</fieldset><fieldset><legend>Gyms</legend>${allLinked ? '<p>This connection covers all your current and future linked gyms, subject to administrator restrictions. Unlinking a gym removes access immediately.</p>' + (gyms.length ? '<p>Currently linked: ' + gyms.map(g => escape(db.getGym(g.gym_id).name)).join(', ') + '</p>' : '<p>No gym is linked yet. Future linked gyms will be included.</p>') : gyms.map(g => `<label><input type="checkbox" name="gyms" value="${escape(g.gym_id)}">${escape(db.getGym(g.gym_id).name)}</label>`).join('') || '<p>Connect a gym in the app before granting access.</p>'}</fieldset><button name="decision" value="allow" type="submit">Allow selected access</button><button name="decision" value="deny" type="submit">Deny</button></form>`);
   }
+  function actionApproval(res, tx) {
+    const action = require('./actions').forApproval(tx.user_id, JSON.parse(tx.request_json).actionId, config);
+    const summary = action.summary;
+    const fields = [['Gym', db.getGym(summary.gymId)?.name || summary.gymId], ['Action', summary.operation],
+      ['Class', summary.className], ['Starts', summary.startAt], ['Time zone', summary.timeZone],
+      ['Booking', summary.bookingId || 'New personal booking'], ['Current spot', summary.currentSlotId || 'Not applicable'],
+      ['Requested spot', summary.targetSlotLabel || summary.targetSlotId || 'No assigned spot'],
+      ['Credits consumed', summary.creditCost == null ? 'Not metered or not applicable' : summary.creditCost],
+      ['Cancellation penalty', summary.cancellationPenalty || 'Not applicable']];
+    return page(res, 'Approve one booking change', `<p>Approve only the exact action below. This does not approve future actions, guest changes, purchases or a cancel-and-rebook edit. Approval expires at ${escape(action.expiresAt)}.</p><dl>${fields.map(([label,value]) => `<dt>${escape(label)}</dt><dd>${escape(value)}</dd>`).join('')}</dl><form method="post" action="/oauth/actions/decision">${hidden(tx)}<button type="submit" name="decision" value="allow">Approve this action</button><button type="submit" name="decision" value="deny">Deny this action</button></form><a href="/">Back to the app</a>`);
+  }
   function connections(res, tx, message = '') {
     const clients = new Map(config.clients.map(c => [c.id, c.name]));
     const rows = store.listGrants(tx.user_id).filter(g => !g.revoked_at && g.expires_at > Date.now());
@@ -231,6 +242,10 @@ function mountAuthorization(app, resourceConfig, options = {}) {
     return begin(res, { ...request, type: 'authorize', gymMode: 'all-linked' });
   });
   router.get('/oauth/connections', (_req, res) => begin(res, { type: 'connections' }));
+  router.get('/oauth/actions/:id', (req, res) => {
+    if (!/^[0-9a-f-]{36}$/.test(req.params.id)) throw fail();
+    return begin(res, { type: 'action', actionId: req.params.id });
+  });
   router.post('/oauth/login', (req, res) => {
     const tx = interaction(req);
     try { store.charge([[`oauth:login:ip:${hash(req.ip || req.socket.remoteAddress || 'unknown')}`, 10, 15 * 60000], [`oauth:login:account:${hash(String(req.body.email || '').trim().toLowerCase())}`, 10, 15 * 60000]]); }
@@ -240,7 +255,8 @@ function mountAuthorization(app, resourceConfig, options = {}) {
     if (!user || typeof password !== 'string' || password.length > 1024 || !db.verifyAccountPassword(user.id, password)) return login(res, tx, 'Invalid email or password');
     tx.user_id = user.id; tx.account_fingerprint = fingerprint(user.id); tx.csrf = random();
     db.db.prepare('UPDATE mcp_oauth_interactions SET user_id = ?, account_fingerprint = ?, csrf = ? WHERE id = ?').run(user.id, tx.account_fingerprint, tx.csrf, tx.id);
-    return JSON.parse(tx.request_json).type === 'connections' ? connections(res, tx) : consent(res, tx);
+    const type = JSON.parse(tx.request_json).type;
+    return type === 'connections' ? connections(res, tx) : type === 'action' ? actionApproval(res, tx) : consent(res, tx);
   });
   router.post('/oauth/consent', asyncRoute(async (req, res) => {
     const tx = interaction(req, true);
@@ -266,6 +282,17 @@ function mountAuthorization(app, resourceConfig, options = {}) {
       return res.redirect(303, response.headers.location);
     } catch (_) { store.revokeGrant(tx.user_id, grantId); return page(res, 'Connection failed', '<p>Return to your AI client and try again.</p>', 400); }
   }));
+  router.post('/oauth/actions/decision', (req, res) => {
+    const tx = interaction(req, true), request = JSON.parse(tx.request_json);
+    if (request.type !== 'action' || !['allow','deny'].includes(req.body.decision) ||
+        Object.keys(req.body).some(k => !['interaction','csrf','decision'].includes(k))) throw fail();
+    const result = db.db.transaction(() => {
+      const result = require('./actions').decide(tx.user_id, request.actionId, req.body.decision === 'allow', config);
+      if (db.db.prepare('UPDATE mcp_oauth_interactions SET consumed_at=? WHERE id=? AND consumed_at IS NULL').run(Date.now(), tx.id).changes !== 1) throw fail();
+      return result;
+    })();
+    return page(res, result.state === 'approved' ? 'Action approved' : 'Action denied', '<p>Return to your AI client. Only an approved action can be executed once; an uncertain outcome must be checked without repeating the write.</p><a href="/">Back to the app</a>');
+  });
   router.post('/oauth/connections/writes', (req, res) => {
     const tx = interaction(req, true);
     if (JSON.parse(tx.request_json).type !== 'connections' || Object.keys(req.body).some(k => !['interaction', 'csrf', 'writesEnabled'].includes(k)) ||

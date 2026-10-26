@@ -985,12 +985,13 @@ class MarianaTekProvider extends GymProvider {
 
   // Resolves the first usable payment_option.id for a class. An option carrying
   // an API error is not an entitlement, even if its id is present.
-  async resolvePaymentOption(eventId, session, { forGuest = false, timeoutMs = MT_REQUEST_TIMEOUT_MS } = {}) {
+  async resolvePaymentOption(eventId, session, { forGuest = false, existingCreditOnly = false, timeoutMs = MT_REQUEST_TIMEOUT_MS } = {}) {
     let options;
     try { options = await this.getClassPaymentOptions(eventId, session, timeoutMs); }
     catch (_) { return null; }
     const list = forGuest ? options.guest : options.user;
-    const option = list.find((item) => item && !item.error_code && !item.error_message);
+    const option = list.find((item) => item && !item.error_code && !item.error_message &&
+      (!existingCreditOnly || item.credit_payment || item.membership_payment));
     return option ? option.id : null;
   }
 
@@ -1076,7 +1077,7 @@ class MarianaTekProvider extends GymProvider {
    * Empty `slotIds` omits the `spot` field entirely (first-come-first-serve
    * classes have no spot to select).
    */
-  async bookSlot(eventId, slotIds, session) {
+  async bookSlot(eventId, slotIds, session, { existingCreditOnly = false } = {}) {
     // JAB/MarianaTek class detail publishes whether this member already has a
     // reservation. Guard before resolving payment options or trying alternate
     // spots; a duplicate is a class-level conflict, never a spot race.
@@ -1092,7 +1093,7 @@ class MarianaTekProvider extends GymProvider {
     if (this.gym?.capabilities?.selfBookingPolicy === 'one-per-class' && slotIds && slotIds.length > 1) {
       return makeBookingResult({ ok: false, status: 400, code: 'ATTENDEE_LIMIT_EXCEEDED', error: 'Only one self reservation is available per class.' });
     }
-    const paymentOptionId = await this.resolvePaymentOption(eventId, session, { timeoutMs: remainingMs() });
+    const paymentOptionId = await this.resolvePaymentOption(eventId, session, { existingCreditOnly, timeoutMs: remainingMs() });
     if (!paymentOptionId) {
       return makeBookingResult({ ok: false, status: 403, code: 'NOT_ELIGIBLE', error: 'No valid payment option is available for this class.' });
     }

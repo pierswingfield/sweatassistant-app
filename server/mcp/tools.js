@@ -92,6 +92,43 @@ const catalog = {
     },
   },
 };
+const actionRequest = z.string().min(16).max(100).regex(/^[A-Za-z0-9_-]+$/);
+const actionId = z.string().uuid();
+for (const [name, operation, fields] of [
+  ['prepare_booking', 'book', { eventId: id, slotId: id.optional() }],
+  ['prepare_booking_edit', 'edit', { bookingId: id, currentSlotId: id, slotId: id }],
+  ['prepare_booking_cancel', 'cancel', { bookingId: id }],
+]) catalog[name] = {
+  scope: 'bookings:write', upstream: true, write: true,
+  schema: z.object({ gymId: id, requestId: actionRequest, ...fields }).strict(),
+  description: `Prepare one personal ${operation} action for first-party approval. No provider write occurs. The user must enable booking changes and approve the exact action at the returned first-party URL. Retry with the same requestId; never replace an uncertain action.`,
+  run: async (_a, { gymId, requestId, ...input }, config) => require('./actions').prepare(context.current().identity, gymId, operation, input, requestId, config),
+};
+catalog.execute_booking_action = {
+  scope: 'bookings:write', upstream: true, write: true, destructive: true,
+  schema: z.object({ gymId: id, actionId }).strict(),
+  description: 'Execute one first-party-approved personal booking action once. An action ID or model confirmation cannot approve it. Repeating this same action ID never repeats an uncertain write. Use get_booking_action to reconcile; never prepare a replacement merely because a request timed out.',
+  run: async (_a, args, config) => require('./actions').execute(context.current().identity, args.actionId, config, args.gymId),
+};
+catalog.get_booking_action = {
+  scope: 'bookings:write', upstream: true, write: true,
+  schema: z.object({ gymId: id, actionId }).strict(),
+  description: 'Inspect a personal action and conservatively reconcile an uncertain outcome using current bookings. This never repeats a provider write. Unknown means check in the app before taking another action.',
+  run: async (_a, args, config) => require('./actions').inspect(context.current().identity, args.actionId, config, args.gymId),
+};
+function toolEnabled(identity, name, config) {
+  const def = catalog[name];
+  if (!def || def.upstream && !providerReadsAllowed(identity, name, config)) return false;
+  if (def.write) {
+    if (!config.writesEnabled || !config.providerReads) return false;
+    try {
+      const actor = store.authorize(identity, 'bookings:write');
+      store.authorize(identity, 'account:read'); store.authorize(identity, 'schedule:read');
+      return require('./access').writePreference(actor.userId).enabled;
+    } catch (_) { return false; }
+  }
+  return true;
+}
 function providerReadsAllowed(identity, tool, config) {
   if (config.stageReadWindowFile) {
     try { return require('./jab-read-window').permitsActor(config.stageReadWindowFile, store.authorize(identity), tool); }
@@ -102,14 +139,14 @@ function providerReadsAllowed(identity, tool, config) {
 function registerTools(server, identity, config) {
   for (const [name, def] of Object.entries(catalog)) {
     try { store.authorize(identity, def.scope); } catch (_) { continue; }
-    if (def.upstream && !providerReadsAllowed(identity, name, config)) continue;
+    if (!toolEnabled(identity, name, config)) continue;
     server.registerTool(name, { description: def.description, inputSchema: def.schema,
-      annotations: { readOnlyHint: true, destructiveHint: false, idempotentHint: true, openWorldHint: !!def.upstream } }, async (args, extra) => {
+      annotations: { readOnlyHint: !def.write, destructiveHint: !!def.destructive, idempotentHint: true, openWorldHint: !!def.upstream } }, async (args, extra) => {
       const before = Date.now();
       const actor = store.authorize(identity, def.scope, args.gymId);
       try {
         const data = await context.run({ identity, scope: def.scope, gymId: args.gymId, providerReads: providerReadsAllowed(identity, name, config), signal: extra?.signal, tool: name }, async a => {
-          const execute = () => def.run(a, args);
+          const execute = () => def.run(a, args, config);
           return args.gymId ? db.runWithGymContext(a.userId, args.gymId, execute) : execute();
         });
         const result = { ...data, observedAt: new Date().toISOString() };
@@ -120,8 +157,8 @@ function registerTools(server, identity, config) {
         log.info('MCP tool', { userId: actor.userId, clientId: actor.clientId, grantId: actor.grantId, tool: name, gymId: args.gymId, outcome: 'ok', durationMs: Date.now() - before });
         return { content: [{ type: 'text', text: serialized }], structuredContent: result };
       } catch (err) {
-        const safeCodes = ['ACCESS_DENIED', 'INSUFFICIENT_SCOPE', 'RATE_LIMITED', 'DEADLINE_EXCEEDED', 'GYM_SESSION_EXPIRED', 'PROVIDER_WORK_DISABLED', 'RESULT_TOO_LARGE'];
-        const code = safeCodes.includes(err.code) ? err.code : 'READ_UNAVAILABLE';
+        const safeCodes = ['ACCESS_DENIED', 'INSUFFICIENT_SCOPE', 'RATE_LIMITED', 'DEADLINE_EXCEEDED', 'GYM_SESSION_EXPIRED', 'PROVIDER_WORK_DISABLED', 'RESULT_TOO_LARGE', 'WRITES_DISABLED', 'ACTION_CHANGED', 'ACTION_APPROVAL_REQUIRED', 'ACTION_UNAVAILABLE', 'ACTION_LIMIT', 'ACTION_UNCERTAIN', 'INVALID_ACTION', 'IDEMPOTENCY_CONFLICT', 'SINGLE_BOOKING_REQUIRED'];
+        const code = safeCodes.includes(err.code) ? err.code : def.write ? 'ACTION_UNAVAILABLE' : 'READ_UNAVAILABLE';
         require('../metrics').observeMcpTool(name, code, Date.now() - before, actor.clientId, args.gymId);
         log.info('MCP tool', { userId: actor.userId, clientId: actor.clientId, grantId: actor.grantId, tool: name, gymId: args.gymId, outcome: code, durationMs: Date.now() - before });
         return { isError: true, content: [{ type: 'text', text: JSON.stringify({ code, ...(err.retryAfter ? { retryAfterSeconds: err.retryAfter } : {}) }) }] };
@@ -129,4 +166,4 @@ function registerTools(server, identity, config) {
     });
   }
 }
-module.exports = { catalog, registerTools, providerReadsAllowed };
+module.exports = { catalog, registerTools, providerReadsAllowed, toolEnabled };

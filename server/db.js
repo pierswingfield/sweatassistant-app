@@ -458,6 +458,26 @@ db.exec(`
     last_used_at INTEGER
   );
   CREATE INDEX IF NOT EXISTS mcp_grants_user ON mcp_grants(user_id);
+  CREATE TABLE IF NOT EXISTS mcp_actions (
+    id TEXT PRIMARY KEY,
+    user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    client_id TEXT NOT NULL,
+    grant_id TEXT NOT NULL REFERENCES mcp_grants(id) ON DELETE CASCADE,
+    request_id TEXT NOT NULL,
+    gym_id TEXT NOT NULL,
+    operation TEXT NOT NULL CHECK(operation IN ('book','edit','cancel')),
+    identity_json TEXT NOT NULL,
+    input_json TEXT NOT NULL,
+    binding_json TEXT NOT NULL,
+    summary_json TEXT NOT NULL,
+    state TEXT NOT NULL CHECK(state IN ('prepared','approved','denied','executing','succeeded','failed','unknown')),
+    created_at INTEGER NOT NULL,
+    expires_at INTEGER NOT NULL,
+    claimed_at INTEGER,
+    result_json TEXT,
+    UNIQUE(user_id,client_id,request_id)
+  );
+
   CREATE TABLE IF NOT EXISTS mcp_all_linked_grants (
     grant_id TEXT PRIMARY KEY REFERENCES mcp_grants(id) ON DELETE CASCADE
   );

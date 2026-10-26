@@ -15,7 +15,7 @@ function changed(userId, gymId) {
 function invoke(userId, session, fn, retryAuth = true) {
   return retryAuth ? withRelogin(userId, session, fn) : fn(session);
 }
-async function book(userId, { eventId, slotIds = [] }, { retryAuth = true } = {}) {
+async function book(userId, { eventId, slotIds = [] }, { retryAuth = true, existingCreditOnly = false } = {}) {
   if (!eventId) throw failure('EVENT_REQUIRED', 'eventId is required', 400);
   const { gymId, provider, session } = resolveContext(userId);
   // Enforce provider-published per-class limits at the authenticated route,
@@ -43,7 +43,7 @@ async function book(userId, { eventId, slotIds = [] }, { retryAuth = true } = {}
       throw failure(check.code, message, check.code === 'ATTENDEE_LIMIT_EXCEEDED' ? 400 : 503);
     }
   }
-  const result = await invoke(userId, session, (s) => provider.bookSlot(eventId, slotIds || [], s), retryAuth);
+  const result = await invoke(userId, session, (s) => provider.bookSlot(eventId, slotIds || [], s, { existingCreditOnly }), retryAuth);
   if (result && result.ok) changed(userId, gymId);
   return result;
 }
@@ -120,4 +120,50 @@ async function swap(userId, { bookingId, currentSlotId, targetSlotId }, { atomic
   if (result && result.ok) changed(userId, gymId);
   return result;
 }
-module.exports = { book, cancel, swap, cancelReservationGroup };
+// Bounded preflight for one immediate personal action. The caller displays
+// these exact fields for first-party approval and compares them before execution.
+async function describeAction(userId, operation, input) {
+  const reads = require('./normalized-reads');
+  const { gymId, provider, session } = resolveContext(userId);
+  const { bookings } = await reads.bookings(userId);
+  if (!Array.isArray(bookings) || bookings.length > 100) throw failure('ACTION_UNAVAILABLE', 'Booking state cannot be bounded.', 409);
+  const target = operation === 'book' ? null : bookings.find(b => String(b.bookingId) === input.bookingId && !b.isGuest && !b.isWaitlist);
+  if (operation !== 'book' && !target) throw failure('ACTION_CHANGED', 'The personal booking is no longer available.', 409);
+  const eventId = operation === 'book' ? input.eventId : String(target.eventId);
+  if (bookings.some(b => b.isGuest && String(b.eventId) === eventId) ||
+      target && db.getGuestBookingGroupByMember(userId, gymId, target.bookingId).length) {
+    throw failure('SINGLE_BOOKING_REQUIRED', 'Guest reservation changes require the app.', 409);
+  }
+  const details = await reads.eventDetails(userId, eventId);
+  const event = details?.event;
+  if (!event || String(event.id) !== eventId || !Number.isFinite(Date.parse(event.startAt)) || Date.parse(event.startAt) <= Date.now()) {
+    throw failure('ACTION_UNAVAILABLE', 'Only a confirmed future class can be changed.', 409);
+  }
+  const clean = v => String(v || '').replace(/[\u0000-\u001f\u007f\u202a-\u202e\u2066-\u2069]/g, '').slice(0, 150);
+  const summary = { operation, gymId, eventId, className: clean(event.name), startAt: event.startAt, timeZone: clean(event.timeZone),
+    bookingId: target ? String(target.bookingId) : null, currentSlotId: target?.slotId == null ? null : String(target.slotId),
+    targetSlotId: input.slotId || null, targetSlotLabel: null, creditCost: null, cancellationPenalty: null,
+    existingBookingIds: bookings.filter(b => !b.isGuest && String(b.eventId) === eventId).map(b => String(b.bookingId)).sort() };
+  if (operation === 'book' || operation === 'edit') {
+    if (operation === 'edit' && (!getGymConfig(gymId)?.capabilities?.atomicSwap || input.currentSlotId !== summary.currentSlotId)) {
+      throw failure('ACTION_CHANGED', 'The current spot changed or an in-place edit is unavailable.', 409);
+    }
+    const slots = details.slots || [];
+    const slot = input.slotId && slots.find(s => String(s.id) === input.slotId);
+    if (input.slotId ? !slot || slot.isAvailable !== true : slots.length || event.isFull === true) {
+      throw failure('ACTION_UNAVAILABLE', 'The requested personal spot is unavailable.', 409);
+    }
+    summary.targetSlotLabel = slot ? clean(slot.label) : null;
+    if (operation === 'book' && getGymConfig(gymId)?.capabilities?.metered !== false) {
+      if (!Number.isFinite(event.credits?.required) || event.credits.required < 0) throw failure('ACTION_UNAVAILABLE', 'Class credit cost is unknown.', 409);
+      summary.creditCost = event.credits.required;
+    }
+  }
+  if (operation === 'cancel') {
+    const penalty = await withRelogin(userId, session, s => provider.getCancelPenalty(input.bookingId, s));
+    if (!['none', 'credit'].includes(penalty?.penalty)) throw failure('ACTION_UNAVAILABLE', 'Unknown or monetary cancellation penalties require the app.', 409);
+    summary.cancellationPenalty = penalty.penalty;
+  }
+  return summary;
+}
+module.exports = { book, cancel, swap, cancelReservationGroup, describeAction };

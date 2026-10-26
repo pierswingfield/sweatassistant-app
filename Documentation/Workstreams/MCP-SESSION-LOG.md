@@ -457,3 +457,20 @@ The exact regression passes for both an active native write and a completed inte
 Reviewed b96b81b built as ARM64 and client production build completed, but the actual isolated staging startup failed because Docker ignored the tracked `server/private-read-cache.js`: the broad private-directory glob also matches that filename. Restored the prior7eee61b app immediately with standing/provider/writes switches off; preserved the49d1fb7 legacy gateway and all DB/keys/grants. The new broker was stopped before any provider request. Dedicated0600 receipt key,0700 state directory and WAL-consistent pre-migration DB/config backups are retained privately. No production/dev/tunnel/Access/Cloudflare change occurred.
 
 Minimal source fix adds an exact exception for this one tracked module, preserving all general private/env/database/key exclusions. Independent source review is required before deploying the fixed candidate. No broad tests are warranted for this Docker-context-only correction; actual image module-presence verification follows.
+
+## Bounded Oracle Docker cleanup — 26 October 2026
+
+At the user's request, inventoried the same Oracle Docker engine used by the local CLI. No active Docker/buildx build was found. The previously interrupted reviewed `8ec2204-standing-reviewed` build had completed: immutable ARM64 image `sha256:00b6b6d94da9422b680c03286cc4bebfc60d75628bd7c56ea58b6122e364061a` exists and was retained. Production packaging/network-none startup smoke remains pending; cleanup did not deploy it.
+
+Removed only explicit task-owned objects, without force, global image/system/container/volume prune, or data/volume removal:
+
+- One stopped failed standing-broker container (`be4871c0adc5`), retaining its bind-mounted receipt key/state and private WAL/config backups.
+- Three abandoned 40-hour-old test/stdin-Node fixtures (`6d41cde30869`, `bbe3aeabbe08`, `364f6ac989dd`). Verified network `none`, restart policy `no`, no compose service membership and bind mounts only into this task's worktree before stopping them. Their auto-remove setting completed cleanup after stop; no task test fixture remains running.
+- Six unreferenced obsolete MCP images: `b96b81b-standing-review`, `8082bb3-gateway-review`, both `4e9f1aa` gateway candidates, `984c794-cancel-fixed` and `446c41a-cancel-review`. Rechecked all containers before removing each image and refused unexpected aliases/references.
+- Twenty-nine exact-ID immutable/reclaimable/unshared build-cache records, unused for at least 24 hours, identified by this task's client/server Dockerfile operations. Explicit-ID filters were supported and combined with `until=24h`. Recent candidate cache and unrelated cache, including Hermes build records, were retained. No broad cache sweep was used.
+
+Observed root free space increased from **6,865,117,184** to **7,541,608,448 bytes** (about **676 MB** net), above the 4 GiB floor. This is measured filesystem change on a shared active host, not the sum of image virtual sizes: the six 1.77GB image listings shared most layers/cache. The cache-only interval initially recovered 313,929,728 bytes; delayed reclamation and shared-host activity affected later readings.
+
+Current reviewed app `7eee61b` (`f68459a6…`), current gateway `49d1fb7` (`8db0e6c0…`), demonstrated historical rollback `71c9203` (`d89eaa78…`), latest reviewed candidate `8ec2204` (`00b6b6d9…`), and existing RC image alias/source artifacts were retained. All **35** non-fixture services running before cleanup remained running afterward; private staging health returned **200**. No deployment/restart of those services, provider request, account/grant change, production/dev change, volume/data deletion, other worktree edit, or global infrastructure registry/changelog edit occurred.
+
+Next step: perform the latest candidate's isolated network-none production packaging/startup smoke, confirming `server/private-read-cache.js` is included, before considering any replacement of the healthy rolled-back stage.

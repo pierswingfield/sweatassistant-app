@@ -164,6 +164,21 @@ async function bookings(userId) {
   return cachedRead(userId, 'bookings', [], 5000, async ({ provider, session }) =>
     ({ bookings: await withRelogin(userId, session, s => provider.listBookings(s)) }));
 }
+// Fresh authoritative action snapshot: deliberately bypasses the response cache.
+// A provider that cannot prove completeness cannot authorize absence-based work.
+async function bookingSnapshot(userId, { retryAuth = true } = {}) {
+  const ctx = resolveContext(userId);
+  return privateCache.guard(ctx.gymId, validator(userId, ctx, readIdentity(userId, ctx)), async () => {
+    if (typeof ctx.provider.listBookingSnapshot !== 'function') return { bookings: [], complete: false };
+    const load = s => ctx.provider.listBookingSnapshot(s);
+    const value = await (retryAuth ? withRelogin(userId, ctx.session, load) : load(ctx.session));
+    const bookings = Array.isArray(value?.bookings) ? value.bookings : [];
+    const validId = id => typeof id === 'string' && /^[A-Za-z0-9_-]{1,100}$/.test(id);
+    const valid = bookings.length <= 100 && bookings.every(b => validId(b.bookingId) && validId(b.eventId)) &&
+      new Set(bookings.map(b => b.bookingId)).size === bookings.length;
+    return { bookings, complete: value?.complete === true && Array.isArray(value.bookings) && valid };
+  });
+}
 async function credits(userId) {
   return cachedRead(userId, 'credits', [], 15000, async ({ provider, session }) => {
     if (typeof provider.getCredits === 'function') return { credits: await withRelogin(userId, session, s => provider.getCredits(s)) };
@@ -179,4 +194,4 @@ function automation(userId, gymId, { limit = 25, offset = 0 } = {}) {
   return { autoBookings: autoBookings.slice(0, limit), autoUpgrades: autoUpgrades.slice(0, limit), hasMore: autoBookings.length > limit || autoUpgrades.length > limit };
 }
 
-module.exports = { resolveContext, withRelogin, getCurrentProfile, stampReleaseAt, timetable, eventDetails, bookings, credits, linkedGyms, automation };
+module.exports = { resolveContext, withRelogin, getCurrentProfile, stampReleaseAt, timetable, eventDetails, bookings, bookingSnapshot, credits, linkedGyms, automation };

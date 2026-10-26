@@ -64,13 +64,15 @@ async function approve(actionId, email) { clear(); const tx = await signIn(await
   const stub = (name, fn) => { original.set(name, provider[name]); provider[name] = fn; };
   const startAt = new Date(Date.now() + 86400000).toISOString();
   stub('listBookings', async () => bookings.map(b => ({ ...b })));
+  stub('listBookingSnapshot', async () => ({ bookings: bookings.map(b => ({ ...b })), complete: true }));
   stub('fetchEventDetails', async eventId => ({ event: { id: eventId, name: '<script>external</script>', releaseAt: new Date(Date.now() - 60000).toISOString(), startAt, timeZone: gym.timezone, credits: { required: 1 } },
     slots: ['one','two'].map(id => ({ id, label: id, isAvailable: !bookings.some(b => b.slotId === id) })) }));
   stub('getBookingEntitlement', async () => ({ selfBookingLimit: 3 }));
   stub('getCancelPenalty', async () => ({ penalty: mode === 'fee' ? 'fee' : 'none' }));
   function transport() {
     if (mode === 'disable-during-hop') access.setWritePreference(userId, false);
-    context.admitProvider(gymId, 'POST', mode === 'credential-hop' ? 'credential' : undefined); writes++;
+    context.admitProvider(gymId, 'POST', mode === 'credential-hop' ? 'credential' : undefined);
+    context.markMutationSubmitted(gymId, 'POST'); writes++;
   }
   stub('bookSlot', async (eventId, slots, _session, options) => {
     assert.equal(options.existingCreditOnly, true);
@@ -153,6 +155,7 @@ async function approve(actionId, email) { clear(); const tx = await signIn(await
   clear(); prepared = await prepare('request-restart-001'); await approve(prepared.result.actionId);
   const restartId = prepared.result.actionId;
   db.db.prepare("UPDATE mcp_actions SET state='executing',claimed_at=? WHERE id=?").run(Date.now() - 31000, restartId);
+  db.db.prepare('INSERT INTO mcp_action_submissions(action_id,submitted_at) VALUES (?,?)').run(restartId, Date.now()-31000);
   const child = require('node:child_process').spawnSync(process.execPath, ['-e', `
     global.fetch=async()=>{throw Error('network forbidden')};
     const actions=require('./server/mcp/actions');

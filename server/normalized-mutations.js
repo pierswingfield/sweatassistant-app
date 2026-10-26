@@ -52,7 +52,11 @@ async function cancelReservationGroup({ userId, gymId, provider, session, bookin
   const edges = db.getGuestBookingGroupByMember(userId, gymId, bookingId);
   let bookings;
   try {
-    bookings = await invoke(userId, session, (s) => provider.listBookings(s), retryAuth);
+    if (singleOnly) {
+      const snapshot = await require('./normalized-reads').bookingSnapshot(userId, { retryAuth });
+      if (!snapshot.complete) throw failure('CANCELLATION_STATE_UNAVAILABLE', 'A complete reservation snapshot is required.', 503);
+      bookings = snapshot.bookings;
+    } else bookings = await invoke(userId, session, (s) => provider.listBookings(s), retryAuth);
   } catch (_) {
     const err = new Error('Could not confirm linked guest reservations. Your booking has not been cancelled; refresh and try again.');
     err.status = 503;
@@ -125,7 +129,9 @@ async function swap(userId, { bookingId, currentSlotId, targetSlotId }, { atomic
 async function describeAction(userId, operation, input) {
   const reads = require('./normalized-reads');
   const { gymId, provider, session } = resolveContext(userId);
-  const { bookings } = await reads.bookings(userId);
+  const snapshot = await reads.bookingSnapshot(userId);
+  if (!snapshot.complete) throw failure('ACTION_UNAVAILABLE', 'Complete reservation state could not be confirmed.', 409);
+  const { bookings } = snapshot;
   if (!Array.isArray(bookings) || bookings.length > 100) throw failure('ACTION_UNAVAILABLE', 'Booking state cannot be bounded.', 409);
   const target = operation === 'book' ? null : bookings.find(b => String(b.bookingId) === input.bookingId && !b.isGuest && !b.isWaitlist);
   if (operation !== 'book' && !target) throw failure('ACTION_CHANGED', 'The personal booking is no longer available.', 409);

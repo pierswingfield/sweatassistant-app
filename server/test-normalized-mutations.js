@@ -1,4 +1,5 @@
 // Shared app mutation contract: isolated account, mocked provider, no network.
+global.fetch = async () => { throw Error('Unexpected network'); };
 process.env.DB_PATH = ':memory:';
 process.env.ENCRYPTION_KEY ||= 'b'.repeat(64);
 process.env.JAB_BOXING_ENABLED = 'true';
@@ -20,6 +21,7 @@ calendar.scheduleRefresh = () => {};
 let mutations = 0;
 (async () => {
   stub('listBookings', async () => []);
+  stub('listBookingSnapshot', async () => ({ bookings: await provider.listBookings(), complete: true }));
   stub('getBookingEntitlement', async () => ({ selfBookingLimit: 2 }));
   stub('bookSlot', async () => { mutations++; return { ok: false, status: 401 }; });
   await db.runWithGymContext(userId, gymId, async () => {

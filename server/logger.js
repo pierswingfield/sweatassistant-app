@@ -86,6 +86,7 @@ async function performProviderFetch(gymId, method, pathOrUrl, doFetch, purpose) 
     const signals = [mcpSignal, lease?.signal].filter(Boolean);
     if (finishMutation && !lease) signals.push(AbortSignal.timeout(10000));
     const signal = signals.length ? AbortSignal.any(signals) : undefined;
+    require('./mcp/context').markMutationSubmitted(gymId, method, purpose);
     attempted = true;
     let res = await abortable(doFetch(signal), signal);
     require('./rate-limit-backoff').noteThrottleResponse(gymId, res);

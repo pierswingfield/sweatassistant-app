@@ -77,7 +77,16 @@ function admitProvider(gymId, method, purpose) {
     [`provider:gym:${gymId}`, 30, 60000],
     ['provider:fleet', 60, 60000],
   ]);
-  if (mutation) state.writeAttempts = (state.writeAttempts || 0) + 1;
   return state.controller.signal;
 }
-module.exports = { current, run, admitProvider, withProviderSlot };
+// Called at the shared network boundary only after admission and immediately
+// before invoking transport. Persist intent before network submission so a crash
+// cannot turn a possibly submitted mutation back into an executable approval.
+function markMutationSubmitted(gymId, method, purpose) {
+  const state = current();
+  if (!state || method === 'GET' || purpose === 'credential') return;
+  if (!state.active || state.controller.signal.aborted || !state.writeSubmission || gymId !== state.gymId) throw Object.assign(new Error('Mutation submission is not authorized'), { code:'PROVIDER_WORK_DISABLED' });
+  state.writeAuthorization(gymId);
+  state.writeSubmission();
+}
+module.exports = { current, run, admitProvider, withProviderSlot, markMutationSubmitted };

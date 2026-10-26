@@ -98,14 +98,36 @@ async function execute(identity, id, config, gymId) {
   const summary = await db.runWithGymContext(action.user_id, action.gym_id, () => mutations.describeAction(action.user_id, action.operation, input));
   action = owned(identity, id, config);
   if (action.summary_json !== encode(summary)) throw fail();
-  if (db.db.prepare("UPDATE mcp_actions SET state='executing',claimed_at=? WHERE id=? AND state='approved' AND expires_at>?")
-    .run(Date.now(), id, Date.now()).changes !== 1) return status(owned(identity, id, config));
+  const claimed = db.db.prepare(`UPDATE mcp_actions SET state='executing',claimed_at=?
+    WHERE id=? AND state='approved' AND expires_at>? AND NOT EXISTS (
+      SELECT 1 FROM mcp_actions other WHERE other.user_id=mcp_actions.user_id
+      AND other.gym_id=mcp_actions.gym_id AND other.id<>mcp_actions.id AND other.state IN ('executing','unknown'))`)
+    .run(Date.now(), id, Date.now()).changes;
+  if (claimed !== 1) {
+    const latest = owned(identity, id, config);
+    if (latest.state === 'approved') throw fail('ACTION_UNCERTAIN');
+    return status(latest);
+  }
   const context = require('./context').current();
   if (!context) { // Only authenticated MCP execution may install transport write authorization.
     db.db.prepare("UPDATE mcp_actions SET state='failed' WHERE id=? AND state='executing'").run(id);
     throw fail();
   }
-  context.writeAttempts = 0;
+  context.writeSubmitted = false;
+  context.writeSubmission = () => {
+    checkedExecuting(identity, id, config);
+    // better-sqlite3 defaults to NORMAL. Sync this intent before dispatch so
+    // power loss cannot erase the claim after the provider accepts the write.
+    // Restore the connection's prior mode; native app transactions are unchanged.
+    const previousSync = db.db.pragma('synchronous', { simple: true });
+    try {
+      db.db.pragma('synchronous = FULL');
+      db.db.prepare('INSERT OR IGNORE INTO mcp_action_submissions(action_id,submitted_at) VALUES (?,?)').run(id, Date.now());
+      context.writeSubmitted = true;
+    } finally {
+      db.db.pragma(`synchronous = ${['OFF','NORMAL','FULL','EXTRA'][previousSync] || 'FULL'}`);
+    }
+  };
   context.writeAuthorization = gym => {
     const current = checkedExecuting(identity, id, config);
     if (gym !== current.gym_id) throw fail();
@@ -124,11 +146,12 @@ async function execute(identity, id, config, gymId) {
     db.db.prepare("UPDATE mcp_actions SET state=?,result_json=? WHERE id=? AND state='executing'")
       .run(safe.ok ? 'succeeded' : refused ? 'failed' : 'unknown', encode(safe), id);
   } catch (error) {
-    const blocked = context.writeAttempts === 0 && ['WRITES_DISABLED','ACTION_CHANGED','ACCESS_DENIED','INSUFFICIENT_SCOPE','PROVIDER_WORK_DISABLED','RATE_LIMITED'].includes(error.code);
+    const blocked = !context.writeSubmitted;
     db.db.prepare("UPDATE mcp_actions SET state=? WHERE id=? AND state='executing'").run(blocked ? 'failed' : 'unknown', id);
   } finally {
     delete context.writeAuthorization;
-    delete context.writeAttempts;
+    delete context.writeSubmitted;
+    delete context.writeSubmission;
     require('../private-read-cache').invalidateGym(action.gym_id);
   }
   return status(row(id));
@@ -138,7 +161,8 @@ async function inspect(identity, id, config, gymId) {
   if (gymId !== undefined && action.gym_id !== gymId) throw fail();
   // A crashed/hung execution is uncertain, never a fresh executable approval.
   if (action.state === 'executing' && action.claimed_at < Date.now() - 30000) {
-    db.db.prepare("UPDATE mcp_actions SET state='unknown' WHERE id=? AND state='executing'").run(id);
+    const submitted = db.db.prepare('SELECT 1 FROM mcp_action_submissions WHERE action_id=?').get(id);
+    db.db.prepare("UPDATE mcp_actions SET state=? WHERE id=? AND state='executing'").run(submitted ? 'unknown' : 'failed', id);
     action = row(id);
   }
   if (action.state !== 'unknown') return status(action);
@@ -146,7 +170,9 @@ async function inspect(identity, id, config, gymId) {
   // cannot be treated as proof that this particular action succeeded.
   const summary = JSON.parse(action.summary_json), input = JSON.parse(action.input_json);
   if (Date.parse(summary.startAt) <= Date.now()) return status(action);
-  const { bookings } = await db.runWithGymContext(action.user_id, action.gym_id, () => reads.bookings(action.user_id));
+  const snapshot = await db.runWithGymContext(action.user_id, action.gym_id, () => reads.bookingSnapshot(action.user_id));
+  if (!snapshot.complete) return status(action);
+  const { bookings } = snapshot;
   owned(identity, id, config, true);
   let match;
   if (action.operation === 'book') {

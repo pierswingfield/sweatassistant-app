@@ -535,6 +535,8 @@ class GymProvider {
    * @returns {Promise<NormalizedBooking[]>}
    */
   async listBookings(/* session */) { throw notImplemented('listBookings', this); }
+  // Guarded actions need positive completeness proof, never a first-page absence.
+  async listBookingSnapshot(/* session */) { return { bookings: [], complete: false }; }
 
   /**
    * List the user's active waitlist entries.

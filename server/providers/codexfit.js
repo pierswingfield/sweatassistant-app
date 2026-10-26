@@ -994,14 +994,14 @@ class CodexFitProvider extends GymProvider {
    * caller should relogin and retry, same as the booking-write ladder;
    * calendar.js's listWithRelogin keys off it.
    */
-  async listBookings(session) {
+  async listBookings(session, { asSnapshot = false } = {}) {
     const res = await this.request('/bookings?limit=100&page=1', { token: session.accessToken });
     if (!res.ok) throw httpError(`listBookings failed: ${res.status}`, res.status);
     const data = await res.json();
     const list = Array.isArray(data) ? data : (data.data || []);
     const relations = (!Array.isArray(data) && data.relations) || {};
     const eventsById = new Map((relations.events || []).map((e) => [String(e.id), e]));
-    return list
+    const bookings = list
       .filter((b) => !b.cancelled_at)
       .map((b) => {
         const eventId = b.event_id || (b.event && b.event.id);
@@ -1019,7 +1019,13 @@ class CodexFitProvider extends GymProvider {
           raw: b,
         });
       });
+    if (!asSnapshot) return bookings;
+    const meta = !Array.isArray(data) && data.meta;
+    const complete = Array.isArray(data.data) && list.length <= 100 && meta?.current_page === 1 && meta?.last_page === 1 &&
+      Number.isSafeInteger(meta.total) && meta.total === list.length && Number.isSafeInteger(meta.per_page) && meta.per_page >= list.length && meta.per_page <= 100;
+    return { bookings, complete: !!complete };
   }
+  async listBookingSnapshot(session) { return this.listBookings(session, { asSnapshot: true }); }
 
   /**
    * F-10-0: the member's PAST bookings, paginated fully.

@@ -478,6 +478,11 @@ db.exec(`
     UNIQUE(user_id,client_id,request_id)
   );
 
+  CREATE TABLE IF NOT EXISTS mcp_action_submissions (
+    action_id TEXT PRIMARY KEY REFERENCES mcp_actions(id) ON DELETE CASCADE,
+    submitted_at INTEGER NOT NULL
+  );
+
   CREATE TABLE IF NOT EXISTS mcp_all_linked_grants (
     grant_id TEXT PRIMARY KEY REFERENCES mcp_grants(id) ON DELETE CASCADE
   );

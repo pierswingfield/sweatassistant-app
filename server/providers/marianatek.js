@@ -1216,13 +1216,13 @@ class MarianaTekProvider extends GymProvider {
    * instructors; _reservationClassEvents fills that one shared field by exact
    * class-session id when the timetable data can supply it.
    */
-  async _listReservations(session, reservationType) {
+  async _listReservations(session, reservationType, asSnapshot = false) {
     const res = await this.request('/me/reservations?is_upcoming=true&page_size=100', { token: session.accessToken });
     if (!res.ok) throw new Error(`listReservations failed: ${res.status}`);
     const data = await res.json();
     const results = data.results || [];
-    const classEvents = await this._reservationClassEvents(results, session);
-    return results
+    const classEvents = asSnapshot ? new Map() : await this._reservationClassEvents(results, session);
+    const bookings = results
       .filter((r) => r.reservation_type === reservationType)
       .map((r) => {
         const embedded = r.class_session ? this.mapClassToEvent(r.class_session) : undefined;
@@ -1246,9 +1246,14 @@ class MarianaTekProvider extends GymProvider {
           raw: r,
         });
       });
+    if (!asSnapshot) return bookings;
+    return { bookings, complete: Array.isArray(data.results) && results.length <= 100 && data.next === null &&
+      Number.isSafeInteger(data.count) && data.count === results.length };
   }
 
   async listBookings(session) { return this._listReservations(session, 'standard'); }
+
+  async listBookingSnapshot(session) { return this._listReservations(session, 'standard', true); }
 
   /**
    * Map MarianaTek's reservation `status` onto the normalized history vocabulary.

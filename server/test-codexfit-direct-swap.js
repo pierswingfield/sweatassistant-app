@@ -86,6 +86,19 @@ async function stubbed(v2, v1, fn) {
   }
   console.log('✅ missing endpoint (404/405/BadMethodCall 500) falls back to cancel-then-rebook.');
 
+  // An MCP/shared-app atomic-only request must never use the legacy fallback.
+  for (const [status, body] of [[404, {}], [405, {}], [501, {}], [500, { exception: 'BadMethodCallException' }]]) {
+    const calls = [];
+    const r = await stubbed(
+      async (path, o) => { calls.push(`${o.method} ${path}`); return fakeRes(body, { ok: false, status }); },
+      async () => { calls.push('UNSAFE_FALLBACK'); return fakeRes({}); },
+      () => provider.swapSpots('1', '5', '9', session, { allowCancelRebook: false }),
+    );
+    assert.strictEqual(r.ok, false, 'atomic-only missing endpoint is a refusal');
+    assert.strictEqual(r.code, 'ATOMIC_SWAP_UNAVAILABLE');
+    assert.deepStrictEqual(calls, ['PATCH /bookings/1'], 'atomic-only swap never cancels or books');
+  }
+
   // 5. End to end against the dev mock: same booking id, new slot, taken slot refused.
   {
     const { MOCK_TOKEN } = require('./providers/codexfit');

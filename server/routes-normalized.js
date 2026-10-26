@@ -33,7 +33,7 @@ const { authenticateToken } = auth;
 const { getProvider } = require('./providers');
 const { listGyms, getGymConfig } = require('./gyms.config');
 const { isRollingWeekly } = require('./providers/booking-window');
-const { countSelfBookings, validateSelfBookingLimit } = require('./booking-entitlement');
+const mutations = require('./normalized-mutations');
 const calendar = require('./calendar');
 const scheduleCache = require('./schedule-cache');
 const freshness = require('./freshness');
@@ -385,35 +385,7 @@ router.post('/book', authenticateToken, async (req, res) => {
   try {
     const { eventId, slotIds } = req.body;
     if (!eventId) return res.status(400).json({ message: 'eventId is required' });
-    const { gymId, provider, session } = resolveContext(req.userId);
-    // Enforce provider-published per-class limits at the authenticated route,
-    // so a caller cannot bypass the spot picker or the client's request check.
-    // Guests are separate reservations and do not consume this self-booking cap.
-    if (getGymConfig(gymId)?.capabilities?.bookingEntitlement === true) {
-      if (typeof provider.getBookingEntitlement !== 'function') {
-        return res.status(503).json({ code: 'BOOKING_LIMIT_UNAVAILABLE', message: 'Booking limits could not be confirmed.' });
-      }
-      const [bookings, entitlement] = await Promise.all([
-        withRelogin(req.userId, session, (s) => provider.listBookings(s)),
-        withRelogin(req.userId, session, (s) => provider.getBookingEntitlement(eventId, s)),
-      ]);
-      const currentSelfBookings = countSelfBookings(bookings, eventId);
-      const requestedSelfBookings = Array.isArray(slotIds) && slotIds.length ? slotIds.length : 1;
-      const check = validateSelfBookingLimit({
-        currentSelfBookings,
-        requestedSelfBookings,
-        selfBookingLimit: entitlement && entitlement.selfBookingLimit,
-      });
-      if (!check.ok) {
-        const message = check.code === 'ATTENDEE_LIMIT_EXCEEDED'
-          ? `You can book up to ${check.limit} personal spot${check.limit === 1 ? '' : 's'} for this class.`
-          : 'Booking limits could not be confirmed.';
-        return res.status(check.code === 'ATTENDEE_LIMIT_EXCEEDED' ? 400 : 503)
-          .json({ code: check.code, message });
-      }
-    }
-    const result = await withRelogin(req.userId, session, (s) => provider.bookSlot(eventId, slotIds || [], s));
-    if (result && result.ok) { refreshCalendar(req.userId); invalidateSchedule(gymId); }
+    const result = await mutations.book(req.userId, { eventId, slotIds });
     if (result && !result.ok && Number.isInteger(result.status) && result.status >= 400) return res.status(result.status).json(result);
     res.json(result);
   } catch (err) {
@@ -459,69 +431,12 @@ router.post('/book-guest', authenticateToken, async (req, res) => {
  * created before it existed or after a stale client. Guest cancellations happen
  * first. A guest failure leaves the member reservation untouched.
  */
-async function cancelReservationGroup({ userId, gymId, provider, session, bookingId }) {
-  const edges = db.getGuestBookingGroupByMember(userId, gymId, bookingId);
-  let bookings;
-  try {
-    bookings = await withRelogin(userId, session, (s) => provider.listBookings(s));
-  } catch (_) {
-    const err = new Error('Could not confirm linked guest reservations. Your booking has not been cancelled; refresh and try again.');
-    err.status = 503;
-    err.code = 'CANCELLATION_STATE_UNAVAILABLE';
-    throw err;
-  }
-  const target = bookings.find((booking) => String(booking.bookingId) === String(bookingId));
-  const targetIsGuest = !!target?.isGuest || edges.some((edge) => String(edge.guest_booking_id) === String(bookingId));
-  if (targetIsGuest) {
-    const ok = await provider.cancelBooking(bookingId, session);
-    if (ok) db.deleteGuestBookingGroupForGuest(userId, gymId, bookingId);
-    return { ok, cancelledIds: ok ? [String(bookingId)] : [], primaryBookingId: null };
-  }
-
-  const eventId = target?.eventId || edges.find((edge) => String(edge.primary_booking_id) === String(bookingId))?.event_id;
-  const persistedGuestIds = db.getGuestBookingIdsForPrimary(userId, gymId, bookingId);
-  const liveGuestIds = eventId == null ? [] : bookings
-    .filter((booking) => booking.isGuest && String(booking.eventId) === String(eventId))
-    .map((booking) => String(booking.bookingId));
-  const guestIds = [...new Set([...persistedGuestIds, ...liveGuestIds])];
-  const cancelledIds = [];
-  for (const guestId of guestIds) {
-    const guestOk = await provider.cancelBooking(guestId, session);
-    if (!guestOk) {
-      return {
-        ok: false,
-        code: 'GUEST_CANCELLATION_FAILED',
-        message: 'Your guest spot could not be cancelled. Your own booking is unchanged; try again or cancel the guest from Edit booking.',
-        cancelledIds,
-        primaryBookingId: String(bookingId),
-      };
-    }
-    db.deleteGuestBookingGroupForGuest(userId, gymId, guestId);
-    cancelledIds.push(guestId);
-  }
-  const ok = await provider.cancelBooking(bookingId, session);
-  if (ok) db.deleteGuestBookingGroupsForPrimary(userId, gymId, bookingId);
-  return {
-    ok,
-    code: ok ? undefined : 'PRIMARY_CANCELLATION_FAILED',
-    message: ok ? undefined : 'Your guest spot was cancelled, but your own booking is unchanged. Refresh before trying again.',
-    cancelledIds: ok ? [...cancelledIds, String(bookingId)] : cancelledIds,
-    primaryBookingId: String(bookingId),
-  };
-}
-
 // POST /api/cancel  { bookingId }
 router.post('/cancel', authenticateToken, async (req, res) => {
   try {
     const { bookingId } = req.body;
     if (!bookingId) return res.status(400).json({ message: 'bookingId is required' });
-    const { gymId, provider, session } = resolveContext(req.userId);
-    const result = await cancelReservationGroup({ userId: req.userId, gymId, provider, session, bookingId });
-    if (result.ok) {
-      // Server-side, so every cancel path (timetable, bookings, edit modal) is covered.
-      try { db.stopAutoUpgradesForBooking(req.userId, gymId, bookingId); } catch (e) { console.error('[Cancel] stop monitor failed:', e.message); }
-      refreshCalendar(req.userId); invalidateSchedule(gymId);
-    }
+    const result = await mutations.cancel(req.userId, { bookingId });
     if (!result.ok) return res.status(409).json(result);
     res.json(result);
   } catch (err) {
@@ -573,9 +488,7 @@ router.post('/swap', authenticateToken, async (req, res) => {
   try {
     const { bookingId, currentSlotId, targetSlotId } = req.body;
     if (!bookingId || !targetSlotId) return res.status(400).json({ message: 'bookingId and targetSlotId are required' });
-    const { gymId, provider, session } = resolveContext(req.userId);
-    const result = await withRelogin(req.userId, session, (s) => provider.swapSpots(bookingId, currentSlotId, targetSlotId, s));
-    if (result && result.ok) { refreshCalendar(req.userId); invalidateSchedule(gymId); }
+    const result = await mutations.swap(req.userId, { bookingId, currentSlotId, targetSlotId });
     res.json(result);
   } catch (err) {
     handleError(res, err);
@@ -958,4 +871,4 @@ module.exports = router;
 // default export so `require('./routes-normalized')` in server.js is unchanged.
 module.exports.withRelogin = withRelogin;
 module.exports.layoutCacheStats = () => layoutCache.getStats();
-module.exports.cancelReservationGroup = cancelReservationGroup;
+module.exports.cancelReservationGroup = mutations.cancelReservationGroup;

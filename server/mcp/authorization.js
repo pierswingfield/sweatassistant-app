@@ -15,7 +15,7 @@ const random = () => crypto.randomBytes(32).toString('base64url');
 const fingerprint = id => hash(db.db.prepare('SELECT password_hash FROM users WHERE id = ?').get(id)?.password_hash || '');
 const fail = () => new OAuth.InvalidGrantError('Authorization is no longer valid');
 const escape = value => String(value).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
-const scopeLabels = { 'schedule:read': 'Read class timetables and class details', 'account:read': 'Read your bookings and credits', 'automation:read': 'Read your existing automations' };
+const scopeLabels = { 'schedule:read': 'Read class timetables and class details', 'account:read': 'Read your bookings and credits', 'automation:read': 'Read your existing automations', 'bookings:write': 'Request booking, spot-change and cancellation actions (each needs your approval)' };
 const AUTHORIZATION_PARAMETERS = Object.freeze(['client_id', 'redirect_uri', 'response_type', 'scope', 'state', 'resource', 'code_challenge', 'code_challenge_method']);
 function boundedAuthorizationQuery(req) {
   const originalUrl = typeof req.originalUrl === 'string' ? req.originalUrl : req.url;
@@ -198,13 +198,16 @@ function mountAuthorization(app, resourceConfig, options = {}) {
     // Chrome checks form-action across the code redirect as well as the POST.
     // Only this immutable preregistered callback origin is added on consent.
     res.set('Content-Security-Policy', `default-src 'none'; style-src 'self'; form-action 'self' ${new URL(request.redirect_uri).origin}; frame-ancestors 'none'; base-uri 'none'`);
-    const gyms = db.getUserGyms(tx.user_id).filter(g => g.status !== 'disabled' && db.getGym(g.gym_id)?.enabled);
-    return page(res, `Connect ${client.name}`, `<p>Choose what this AI client may read and which gyms it may access. Access expires in 30 days. You can revoke it at any time in AI connections.</p><p>No booking, cancellation, purchase or automation changes are permitted.</p><form method="post" action="/oauth/consent">${hidden(tx)}<fieldset><legend>Permissions</legend>${request.scope.split(' ').map(s => `<label><input type="checkbox" name="scopes" value="${escape(s)}">${escape(scopeLabels[s])}</label>`).join('')}</fieldset><fieldset><legend>Gyms</legend>${gyms.map(g => `<label><input type="checkbox" name="gyms" value="${escape(g.gym_id)}">${escape(db.getGym(g.gym_id).name)}</label>`).join('') || '<p>Connect a gym in the app before granting access.</p>'}</fieldset><button name="decision" value="allow" type="submit">Allow selected access</button><button name="decision" value="deny" type="submit">Deny</button></form>`);
+    const gyms = db.getUserGyms(tx.user_id).filter(g => g.status !== 'disabled' && require('./access').gymEnabled(g.gym_id));
+    const allLinked = request.gymMode === 'all-linked';
+    return page(res, `Connect ${client.name}`, `<p>Choose this AI client’s permissions. Access expires in 30 days. You can revoke it at any time in AI connections.</p><p>Booking changes also require your write setting, deployment availability and approval of each action. Purchases and automation changes are not permitted.</p><form method="post" action="/oauth/consent">${hidden(tx)}<fieldset><legend>Permissions</legend>${request.scope.split(' ').map(s => `<label><input type="checkbox" name="scopes" value="${escape(s)}">${escape(scopeLabels[s])}</label>`).join('')}</fieldset><fieldset><legend>Gyms</legend>${allLinked ? '<p>This connection covers all your current and future linked gyms, subject to administrator restrictions. Unlinking a gym removes access immediately.</p>' + (gyms.length ? '<p>Currently linked: ' + gyms.map(g => escape(db.getGym(g.gym_id).name)).join(', ') + '</p>' : '<p>No gym is linked yet. Future linked gyms will be included.</p>') : gyms.map(g => `<label><input type="checkbox" name="gyms" value="${escape(g.gym_id)}">${escape(db.getGym(g.gym_id).name)}</label>`).join('') || '<p>Connect a gym in the app before granting access.</p>'}</fieldset><button name="decision" value="allow" type="submit">Allow selected access</button><button name="decision" value="deny" type="submit">Deny</button></form>`);
   }
   function connections(res, tx, message = '') {
     const clients = new Map(config.clients.map(c => [c.id, c.name]));
     const rows = store.listGrants(tx.user_id).filter(g => !g.revoked_at && g.expires_at > Date.now());
-    return page(res, 'AI connections', `<p>Each connection can only read its selected permissions and gyms. Revoke access immediately, including refresh tokens.</p>${message ? `<p role="status">${escape(message)}</p>` : ''}${rows.map(g => `<section><h2>${escape(clients.get(g.client_id) || g.client_id)}</h2><p>${JSON.parse(g.scopes_json).map(s => escape(scopeLabels[s])).join('; ')}</p><p>Gyms: ${JSON.parse(g.gyms_json).map(v => escape(db.getGym(v.gymId)?.name || v.gymId)).join(', ')}</p><p>Expires: ${escape(new Date(g.expires_at).toISOString())}<br>Last used: ${g.last_used_at ? escape(new Date(g.last_used_at).toISOString()) : 'Not yet used'}</p><form method="post" action="/oauth/connections/revoke">${hidden(tx)}<input type="hidden" name="grant" value="${escape(g.id)}"><button type="submit">Revoke ${escape(clients.get(g.client_id) || g.client_id)}</button></form></section>`).join('') || '<p>No active AI connections.</p>'}${rows.length ? `<form method="post" action="/oauth/connections/revoke">${hidden(tx)}<input type="hidden" name="grant" value="all"><button type="submit">Revoke all AI connections</button></form>` : ''}<a href="/">Back to the app</a>`);
+    const writePref = require('./access').writePreference(tx.user_id);
+    const writeForm = `<section><h2>Booking changes</h2><p>Off by default. Enabling this setting does not grant a client write permission or approve an action. Each booking, spot change or cancellation requires separate first-party approval. ${config.writesEnabled ? '' : 'Booking changes are not activated on this deployment.'}</p><form method="post" action="/oauth/connections/writes">${hidden(tx)}<label><input type="checkbox" name="writesEnabled" value="true"${writePref.enabled ? ' checked' : ''}>Allow AI booking changes</label><button type="submit">Save booking-change setting</button></form></section>`;
+    return page(res, 'AI connections', `<p>Each connection is limited to its approved permissions and gym access. Revoke access immediately, including refresh tokens.</p>${message ? `<p role="status">${escape(message)}</p>` : ''}${writeForm}${rows.map(g => `<section><h2>${escape(clients.get(g.client_id) || g.client_id)}</h2><p>${JSON.parse(g.scopes_json).map(s => escape(scopeLabels[s])).join('; ')}</p><p>Gyms: ${g.all_linked ? 'All current and future linked gyms (administrator restrictions apply)' : JSON.parse(g.gyms_json).map(v => escape(db.getGym(v.gymId)?.name || v.gymId)).join(', ')}</p><p>Expires: ${escape(new Date(g.expires_at).toISOString())}<br>Last used: ${g.last_used_at ? escape(new Date(g.last_used_at).toISOString()) : 'Not yet used'}</p><form method="post" action="/oauth/connections/revoke">${hidden(tx)}<input type="hidden" name="grant" value="${escape(g.id)}"><button type="submit">Revoke ${escape(clients.get(g.client_id) || g.client_id)}</button></form></section>`).join('') || '<p>No active AI connections.</p>'}${rows.length ? `<form method="post" action="/oauth/connections/revoke">${hidden(tx)}<input type="hidden" name="grant" value="all"><button type="submit">Revoke all AI connections</button></form>` : ''}<a href="/">Back to the app</a>`);
   }
   router.get('/.well-known/oauth-authorization-server', (_req, res) => res.json({ issuer: config.issuer, authorization_endpoint: `${origin}/oauth/authorize`, token_endpoint: `${origin}/oauth/token`,
     response_types_supported: ['code'], grant_types_supported: ['authorization_code', 'refresh_token'], scopes_supported: SCOPES,
@@ -225,7 +228,7 @@ function mountAuthorization(app, resourceConfig, options = {}) {
       q.response_type !== 'code' || q.resource !== config.resource || !q.state || !/^[\x21-\x7e]{16,512}$/.test(q.state) || q.code_challenge_method !== 'S256' || !/^[A-Za-z0-9_-]{43}$/.test(q.code_challenge || '') ||
       typeof q.scope !== 'string' || !q.scope.length || q.scope.split(' ').some(s => !SCOPES.includes(s)) || new Set(q.scope.split(' ')).size !== q.scope.split(' ').length) return page(res, 'Connection request rejected', '<p>The client request is invalid. Return to the AI client and try again.</p>', 400);
     const request = Object.fromEntries(AUTHORIZATION_PARAMETERS.filter(key => Object.hasOwn(q, key)).map(key => [key, q[key]]));
-    return begin(res, { ...request, type: 'authorize' });
+    return begin(res, { ...request, type: 'authorize', gymMode: 'all-linked' });
   });
   router.get('/oauth/connections', (_req, res) => begin(res, { type: 'connections' }));
   router.post('/oauth/login', (req, res) => {
@@ -245,14 +248,16 @@ function mountAuthorization(app, resourceConfig, options = {}) {
     if (request.type !== 'authorize') throw fail();
     if (req.body.decision !== 'allow' && req.body.decision !== 'deny') throw fail();
     const selected = v => Array.isArray(v) ? v : typeof v === 'string' ? [v] : [];
-    const scopes = selected(req.body.scopes); const gymIds = selected(req.body.gyms);
-    if (req.body.decision === 'allow' && (!scopes.length || scopes.some(s => !request.scope.split(' ').includes(s)) || !gymIds.length)) return page(res, 'Choose access', '<p>Select at least one permission and gym. Return to your AI client to begin again.</p>', 400);
+    const scopes = selected(req.body.scopes);
+    const allLinkedGyms = request.gymMode === 'all-linked';
+    const gymIds = allLinkedGyms ? db.getUserGyms(tx.user_id).filter(g => g.status !== 'disabled' && require('./access').gymEnabled(g.gym_id)).map(g => g.gym_id) : selected(req.body.gyms);
+    if (req.body.decision === 'allow' && (!scopes.length || scopes.some(s => !request.scope.split(' ').includes(s)) || (!allLinkedGyms && !gymIds.length))) return page(res, 'Choose access', allLinkedGyms ? '<p>Select at least one permission. Return to your AI client to begin again.</p>' : '<p>Select at least one permission and gym. Return to your AI client to begin again.</p>', 400);
     if (db.db.prepare('UPDATE mcp_oauth_interactions SET consumed_at = ? WHERE id = ? AND consumed_at IS NULL').run(Date.now(), tx.id).changes !== 1) throw fail();
     if (req.body.decision === 'deny') {
       const callback = new URL(request.redirect_uri); callback.searchParams.set('error', 'access_denied'); callback.searchParams.set('state', request.state); return res.redirect(303, callback.href);
     }
     const grantId = store.createGrant({ userId: tx.user_id, issuer: config.issuer, subject: `account:${tx.user_id}`, clientId: request.client_id, scopes, gymIds,
-      expiresAt: Date.now() + 30 * 864e5, consentReference: tx.id });
+      expiresAt: Date.now() + 30 * 864e5, consentReference: tx.id, allLinkedGyms });
     log.info('MCP consent approved', { userId: tx.user_id, clientId: request.client_id, grantId, scopes, gymIds });
     const oauthRequest = new OAuth.Request({ method: 'GET', headers: {}, query: { ...request, scope: scopes.join(' ') }, body: {} });
     const response = new OAuth.Response();
@@ -261,6 +266,14 @@ function mountAuthorization(app, resourceConfig, options = {}) {
       return res.redirect(303, response.headers.location);
     } catch (_) { store.revokeGrant(tx.user_id, grantId); return page(res, 'Connection failed', '<p>Return to your AI client and try again.</p>', 400); }
   }));
+  router.post('/oauth/connections/writes', (req, res) => {
+    const tx = interaction(req, true);
+    if (JSON.parse(tx.request_json).type !== 'connections' || Object.keys(req.body).some(k => !['interaction', 'csrf', 'writesEnabled'].includes(k)) ||
+        req.body.writesEnabled !== undefined && req.body.writesEnabled !== 'true') throw fail();
+    require('./access').setWritePreference(tx.user_id, req.body.writesEnabled === 'true');
+    log.info('MCP booking-change setting updated', { userId: tx.user_id, enabled: req.body.writesEnabled === 'true' });
+    return connections(res, tx, 'Booking-change setting saved. No action was approved.');
+  });
   router.post('/oauth/connections/revoke', (req, res) => {
     const tx = interaction(req, true);
     if (JSON.parse(tx.request_json).type !== 'connections' || typeof req.body.grant !== 'string') throw fail();

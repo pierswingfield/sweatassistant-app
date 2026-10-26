@@ -1143,7 +1143,7 @@ class CodexFitProvider extends GymProvider {
    * their spot. The fallback runs only if the endpoint itself is gone
    * (404/405/501, or the old BadMethodCallException 500).
    */
-  async swapSpots(bookingId, currentSlotId, targetSlotId, session) {
+  async swapSpots(bookingId, currentSlotId, targetSlotId, session, { allowCancelRebook = true } = {}) {
     let res;
     try {
       res = await this.requestV2(`/bookings/${bookingId}`, {
@@ -1170,6 +1170,12 @@ class CodexFitProvider extends GymProvider {
         raw: data,
       });
     }
+    // Trusted shared-app callers may require a strictly in-place edit. A
+    // capability flag alone cannot guarantee the remote endpoint still exists.
+    if (!allowCancelRebook) return makeBookingResult({
+      ok: false, status: 409, code: 'ATOMIC_SWAP_UNAVAILABLE',
+      error: 'In-place spot changes are currently unavailable. Your booking is unchanged.',
+    });
     console.warn(`[CodexFit] PATCH /bookings/${bookingId} unsupported (${res.status}); falling back to cancel-then-rebook`);
     return this._swapByCancelRebook(bookingId, targetSlotId, session);
   }

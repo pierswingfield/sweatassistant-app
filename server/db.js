@@ -458,6 +458,20 @@ db.exec(`
     last_used_at INTEGER
   );
   CREATE INDEX IF NOT EXISTS mcp_grants_user ON mcp_grants(user_id);
+  CREATE TABLE IF NOT EXISTS mcp_all_linked_grants (
+    grant_id TEXT PRIMARY KEY REFERENCES mcp_grants(id) ON DELETE CASCADE
+  );
+  CREATE TABLE IF NOT EXISTS mcp_write_preferences (
+    user_id INTEGER PRIMARY KEY REFERENCES users(id) ON DELETE CASCADE,
+    enabled INTEGER NOT NULL CHECK (enabled IN (0, 1)),
+    revision INTEGER NOT NULL DEFAULT 1
+  );
+  CREATE TABLE IF NOT EXISTS mcp_policy_versions (
+    kind TEXT NOT NULL CHECK (kind IN ('account', 'gym')),
+    target TEXT NOT NULL,
+    revision INTEGER NOT NULL DEFAULT 1,
+    PRIMARY KEY(kind, target)
+  );
   CREATE TABLE IF NOT EXISTS mcp_budgets (
     budget_key TEXT NOT NULL,
     window_id INTEGER NOT NULL,

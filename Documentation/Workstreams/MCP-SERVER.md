@@ -1,6 +1,6 @@
 # MCP server implementation
 
-**2026-10-25: general-release access-policy candidate; staged RC2 remains separate.** Current user scope and ordered follow-ups are in the [delivery plan](PLAN-mcp-server.md). Undeployed source now adds default-on account/gym read eligibility with audited admin overrides, one concurrent validated MCP execution per user and a shared fresh normalized-response cache. Deployment/provider switches and existing grant boundaries remain unchanged; write tools/settings and all-linked new consent are not implemented by this slice. Existing ChatGPT/Safari/bounded-read evidence is retained; Claude remains deferred/unverified.
+**2026-10-25: general-release access-policy candidate; staged RC2 remains separate.** Current user scope and ordered follow-ups are in the [delivery plan](PLAN-mcp-server.md). Undeployed source now adds default-on account/gym read eligibility with audited admin overrides, one concurrent validated MCP execution per user and a shared fresh normalized-response cache. Deployment/provider switches and existing grant boundaries remain unchanged; New consent explicitly covers all current/future linked gyms while legacy grants retain their snapshot. A default-off write preference and separate bookings:write scope are implemented; guarded action execution remains unavailable pending the next implementation. Existing ChatGPT/Safari/bounded-read evidence is retained; Claude remains deferred/unverified.
 
 ## General access-control slice (undeployed)
 
@@ -11,6 +11,14 @@ Single-process admission allows one parsed/validated stateless MCP POST executio
 MCP tools and native API routes both call `normalized-reads`, which now caches normalized class details/bookings for5seconds and credits for15seconds. Keys bind account, gym, link identity, account-auth fingerprint and hashed gym session; cache hits and results recheck current context and MCP authorization. Expired session entries are not reused; a renewal owned by the read may return fresh data but is not cached under the prior session key. Completed values can be reused across app/MCP, but in-flight work is separated by admission lane. The private cache is bounded to256 entries/8MiB,256KiB per entry and32 flights, clones returned values and never serves stale/error fallback. Non-cacheable large responses still return normally.
 
 The shared transport invalidates before/after non-credential mutation attempts for all callers, including uncertain failures, and holds mutation coherence through a bounded response body. Existing route write invalidation also covers mock adapters without HTTP. Reads overlapping writes reject with retryable503 instead of returning or caching a stale result. Timetable keeps its existing TTL/stamp semantics; generation-keyed flights prevent old pre-invalidation requests from repopulating or being joined by post-write requests. No provider policy, request budget, deployment flag or client UI changed.
+
+## All-linked consent and shared mutation prerequisite (undeployed)
+
+New OAuth transactions disclose all current/future linked gyms without a selector. An additive grant marker enables dynamic intersection with current links and admin policy; old grants and pending old transactions retain their snapshot semantics. A gym-less account may consent but gains no gym until it links one. Discovery is paginated, up to50 gyms/page. Existing scopes never widen silently.
+
+The sole user-facing MCP preference is “Allow AI booking changes”, off by default in first-party AI connections. It requires local account sign-in, host-only interaction cookie, Origin/CSRF validation and an authenticated account fingerprint. Saving increments a durable preference revision; admin policy changes also advance revisions, including disable/re-enable. Explicit `bookings:write` OAuth consent and the independent default-off `MCP_WRITES_ENABLED` deployment flag do not replace action approval. No MCP write tool is executable yet.
+
+Native book/cancel/spot-change routes now call `normalized-mutations`; future MCP actions must use this same app boundary. Trusted guarded callers may suppress auth retries, require a single owned cancellation without guests, and prohibit cancel/rebook edit fallback. The provider atomic-only option rejects missing swap endpoints, even when a gym advertises atomic swap; native fallback behavior is preserved. Durable approval/idempotency/reconciliation remain the next slice before any MCP write activation.
 
 ## Runnable scope
 

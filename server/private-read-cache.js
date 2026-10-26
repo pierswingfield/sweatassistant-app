@@ -31,6 +31,14 @@ function createCache({ now = Date.now, maxEntries = 256, maxBytes = 8 * 1024 * 1
     if (writes.has(gymId) || epoch(gymId) !== version) throw changed();
     return cacheable;
   }
+  // Execution-local consumers share this cache's mutation generation and
+  // active-write barrier instead of maintaining a second coherence ledger.
+  function checkpoint(gymId) {
+    const version = epoch(gymId);
+    const assertCurrent = () => check(gymId, version, () => true);
+    assertCurrent();
+    return assertCurrent;
+  }
   async function guard(gymId, validate, fetcher) {
     const version = epoch(gymId);
     check(gymId, version, validate);
@@ -75,6 +83,6 @@ function createCache({ now = Date.now, maxEntries = 256, maxBytes = 8 * 1024 * 1
     check(gymId, version, validate);
     return structuredClone(value);
   }
-  return { read, guard, invalidateGym, beginMutation, stats: () => ({ entries: entries.size, bytes, inFlight: flights.size }) };
+  return { read, guard, checkpoint, invalidateGym, beginMutation, stats: () => ({ entries: entries.size, bytes, inFlight: flights.size }) };
 }
 module.exports = { ...createCache(), createCache };

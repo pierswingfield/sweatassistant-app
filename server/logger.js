@@ -80,6 +80,7 @@ async function performProviderFetch(gymId, method, pathOrUrl, doFetch, purpose) 
     // refused/uncertain write can change provider state; invalidate both sides
     // of the attempt so an overlapping read cannot repopulate stale responses.
     if (!['GET', 'HEAD', 'OPTIONS'].includes(String(method).toUpperCase()) && purpose !== 'credential') {
+      require('./mcp/context').assertMutationCoherence(gymId);
       finishMutation = require('./private-read-cache').beginMutation(gymId);
       require('./schedule-cache').invalidate(`timetable|${gymId}|`);
     }

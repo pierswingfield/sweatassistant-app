@@ -55,10 +55,10 @@ async function actionRead(gymId,url,options,load){
   };
   authorize();
   const cache=c.actionReadMemo||(c.actionReadMemo=new Map()),key=JSON.stringify([url,Object.fromEntries(new Headers(options.headers))]);
-  const hit=cache.get(key);if(hit&&hit.expires>Date.now()){const value=await hit.value;authorize();return value.clone();}
-  const entry={expires:Date.now()+5000,value:null};
+  const hit=cache.get(key);if(hit&&hit.expires>Date.now()){hit.coherent();const value=await hit.value;authorize();hit.coherent();return value.clone();}
+  const entry={expires:Date.now()+5000,value:null,coherent:require('../private-read-cache').checkpoint(gymId)};
   entry.value=Promise.resolve().then(load).then(res=>{if(!res.ok)cache.delete(key);return res;},error=>{cache.delete(key);throw error;});
   if(cache.size<6)cache.set(key,entry);
-  const value=await entry.value;authorize();return value.clone();
+  const value=await entry.value;authorize();entry.coherent();return value.clone();
 }
 module.exports={enabled,forward,actionRead};

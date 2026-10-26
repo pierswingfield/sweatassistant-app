@@ -90,4 +90,13 @@ function markMutationSubmitted(gymId, method, purpose) {
   state.writeAuthorization(gymId);
   state.writeSubmission();
 }
-module.exports = { current, run, admitProvider, withProviderSlot, markMutationSubmitted };
+// Called synchronously after admission, immediately before our own mutation
+// invalidation/intent/dispatch. There is no await between this check and fetch.
+function assertMutationCoherence(gymId) {
+  const state = current();
+  if (!state?.actionPolicy) return;
+  if (gymId !== state.gymId) throw Object.assign(new Error('Action gym changed'), { code: 'READ_CHANGED' });
+  state.bookingBaseline?.coherent();
+  for (const entry of state.actionReadMemo?.values() || []) entry.coherent();
+}
+module.exports = { current, run, admitProvider, withProviderSlot, markMutationSubmitted, assertMutationCoherence };

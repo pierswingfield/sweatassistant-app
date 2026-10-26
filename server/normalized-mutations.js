@@ -20,6 +20,7 @@ function actionBaseline(userId, gymId, session) {
   if (!context?.writeAuthorization || !baseline || baseline.userId !== userId || baseline.gymId !== gymId ||
       baseline.session !== session.accessToken || Date.now() - baseline.at > 5000) return null;
   context.writeAuthorization(gymId);
+  baseline.coherent();
   return baseline.bookings;
 }
 async function book(userId, { eventId, slotIds = [] }, { retryAuth = true, existingCreditOnly = false } = {}) {
@@ -137,7 +138,9 @@ async function swap(userId, { bookingId, currentSlotId, targetSlotId }, { atomic
 async function describeAction(userId, operation, input) {
   const reads = require('./normalized-reads');
   const { gymId, provider, session } = resolveContext(userId);
+  const coherent = require('./private-read-cache').checkpoint(gymId);
   const snapshot = await reads.bookingSnapshot(userId);
+  coherent();
   if (!snapshot.complete) throw failure('ACTION_UNAVAILABLE', 'Complete reservation state could not be confirmed.', 409);
   const { bookings } = snapshot;
   if (!Array.isArray(bookings) || bookings.length > 100) throw failure('ACTION_UNAVAILABLE', 'Booking state cannot be bounded.', 409);
@@ -151,7 +154,7 @@ async function describeAction(userId, operation, input) {
   const actionContext = require('./mcp/context').current();
   if (actionContext?.actionPolicy) {
     actionContext.actionPolicy.eventId = eventId;
-    actionContext.bookingBaseline = { userId, gymId, session: session.accessToken, bookings, at: Date.now() };
+    actionContext.bookingBaseline = { userId, gymId, session: session.accessToken, bookings, at: Date.now(), coherent };
   }
   const details = await reads.eventDetails(userId, eventId);
   const event = details?.event;

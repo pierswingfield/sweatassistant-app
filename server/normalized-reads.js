@@ -162,7 +162,18 @@ async function eventDetails(userId, eventId) {
 }
 async function bookings(userId) {
   return cachedRead(userId, 'bookings', [], 5000, async ({ provider, session }) =>
-    ({ bookings: await withRelogin(userId, session, s => provider.listBookings(s)) }));
+    bookingReadResult(await withRelogin(userId, session, s => provider.listBookings(s, { asSnapshot: true }))));
+}
+// Metadata describes the upstream snapshot, independently of MCP output pagination.
+// Missing or contradictory provider proof remains explicitly unknown/incomplete.
+function bookingReadResult(value) {
+  const rows = Array.isArray(value) ? value : value?.bookings;
+  const bookings = Array.isArray(rows) ? rows : [];
+  const validId = id => typeof id === 'string' && /^[A-Za-z0-9_-]{1,100}$/.test(id);
+  const valid = bookings.length <= 100 && bookings.every(b => validId(b.bookingId) && validId(b.eventId)) &&
+    new Set(bookings.map(b => b.bookingId)).size === bookings.length;
+  return { bookings, completeness: { complete: value?.complete === true && valid,
+    status: value?.complete === true && valid ? 'complete' : 'unverified', sourceLimit: 100 } };
 }
 // Fresh authoritative action snapshot: deliberately bypasses the response cache.
 // A provider that cannot prove completeness cannot authorize absence-based work.

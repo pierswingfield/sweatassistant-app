@@ -1216,12 +1216,12 @@ class MarianaTekProvider extends GymProvider {
    * instructors; _reservationClassEvents fills that one shared field by exact
    * class-session id when the timetable data can supply it.
    */
-  async _listReservations(session, reservationType, asSnapshot = false) {
+  async _listReservations(session, reservationType, asSnapshot = false, enrich = !asSnapshot) {
     const res = await this.request('/me/reservations?is_upcoming=true&page_size=100', { token: session.accessToken });
     if (!res.ok) throw new Error(`listReservations failed: ${res.status}`);
     const data = await res.json();
     const results = data.results || [];
-    const classEvents = asSnapshot ? new Map() : await this._reservationClassEvents(results, session);
+    const classEvents = enrich ? await this._reservationClassEvents(results, session) : new Map();
     const bookings = results
       .filter((r) => r.reservation_type === reservationType)
       .map((r) => {
@@ -1251,7 +1251,7 @@ class MarianaTekProvider extends GymProvider {
       Number.isSafeInteger(data.count) && data.count === results.length };
   }
 
-  async listBookings(session) { return this._listReservations(session, 'standard'); }
+  async listBookings(session, { asSnapshot = false } = {}) { return this._listReservations(session, 'standard', asSnapshot, true); }
 
   async listBookingSnapshot(session) { return this._listReservations(session, 'standard', true); }
 

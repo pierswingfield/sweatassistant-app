@@ -31,7 +31,7 @@ function validate(input){
     else allowed=input.tool==='search_classes'&&path==='/events'&&query(q,['filter[between]','sort'])&&q.get('sort')==='start_at'&&
       q.get('filter[between]').split(',').length===2&&dates(...q.get('filter[between]').split(','),7);
   } else if(gym.provider==='marianatek'){
-    allowed=under(base)&&((input.tool==='get_credits'&&path==='/me/account'&&noQuery())||
+    allowed=under(base)&&((input.tool==='get_credits'&&path==='/me/credits'&&noQuery())||
       (input.tool==='get_class_details'&&detail&&noQuery())||
       (input.tool==='get_my_bookings'&&path==='/me/reservations'&&query(q,['is_upcoming','page_size'])&&q.get('is_upcoming')==='true'&&q.get('page_size')==='100')||
       (['search_classes','get_my_bookings'].includes(input.tool)&&path==='/classes'&&query(q,['min_start_date','max_start_date','page_size'],['page'])&&

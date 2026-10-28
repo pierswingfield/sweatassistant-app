@@ -155,6 +155,7 @@ export function renderGymSettingsSection(container, model, handlers = {}) {
     <div class="app-settings-grid app-gym-settings-grid">
       <div class="app-settings-card">
         <h4>${COPY.gymSettings.connection}</h4>
+        <div class="app-setting-row"><div class="app-setting-label"><span>Use this gym</span><small>Turning this off hides the gym, pauses queued automation and reminders, and removes its classes from your calendar. Your connection and preferences are kept. Missed releases stay queued for review; work already in progress may finish.</small></div><label class="app-switch"><input type="checkbox" data-gym-enabled aria-label="Use ${escapeHtml(gymName)}" ${gym.account_enabled !== 0 && gym.account_enabled !== false ? 'checked' : ''}><span class="app-slider"></span></label></div>
         <div class="app-gym-conn-inline-row">
           <p class="app-card-desc">${escapeHtml(gymEmail)}</p>
           <div class="app-settings-btn-row">
@@ -185,6 +186,9 @@ export function renderGymSettingsSection(container, model, handlers = {}) {
 
   container.querySelectorAll('[data-gym-action]').forEach((button) => {
     button.addEventListener('click', () => handlers.onAction?.(button.dataset.gymAction, button));
+  });
+  container.querySelector('[data-gym-enabled]')?.addEventListener('change', (event) => {
+    handlers.onEnabledChange?.(event.target.checked, event.target);
   });
   // Polling off => the controls that only matter while polling is on go inert.
   const syncAutoUpgradeDependents = (pollingOn) => {

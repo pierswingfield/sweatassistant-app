@@ -10,7 +10,7 @@ import { cacheGet, resetTimetableForGymChange, rowGroupsForStudio, mobileRotatio
 import { clearApiCache, invalidateApiCache, accountScopedKey } from '../cache.js';
 import { renderGymSettingsSection as renderGymSettingsSectionView } from './gym-settings-section.js';
 import { renderCalendarSection } from './calendar-section.js';
-import { getLinkedGyms, getGymShortName } from '../gym-context.js';
+import { getLinkedGyms, getAllLinkedGyms, getGymShortName } from '../gym-context.js';
 import { icon, gymSquareChip, gymBrand, gymLogoBanner } from './cards.js';
 import { createRenderGuard, reconcileKeyed, lastAuthLabel, connectionHealth } from './gym-connections.js';
 import { COPY, formatCopyText } from '../copy.js';
@@ -1573,7 +1573,7 @@ async function renderGymsCard() {
   if (legacyInline) { legacyInline.hidden = true; legacyInline.innerHTML = ''; }
 
   // ── Phase 1, synchronous: paint from the gyms the app already knows ────────
-  const known = getLinkedGyms() || [];
+  const known = getAllLinkedGyms() || [];
   const painted = known.length > 0;
   if (painted) paintGyms(known, els);
 
@@ -1673,6 +1673,18 @@ export async function renderGymSettingsSection(requestedGymId = null, targetCont
       debugMode: !!userSettings.debugMode,
       canAddGym: linked.length === 1 && addable.length > 0,
     }, {
+      onEnabledChange: async (enabled, input) => {
+        input.disabled = true;
+        try {
+          await api.setGymEnabled(gymId, enabled);
+          await resetTimetableForGymChange({ refetch: false });
+          window.location.reload();
+        } catch (err) {
+          input.checked = !enabled;
+          input.disabled = false;
+          showToast(err.message, 'error');
+        }
+      },
       onSettingChange: async (key, value, input) => {
         input.disabled = true;
         const normalizedValue = key === 'manualBookingWindowWeeks' && value != null ? Number(value) : value;

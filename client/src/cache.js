@@ -234,6 +234,27 @@ export async function deleteOfflineSnapshot(name) {
   }
 }
 
+export async function deleteOfflineSnapshotsByPrefix(namePrefix) {
+  const keyPrefix = snapshotKey(namePrefix);
+  if (!keyPrefix) return;
+  try {
+    const db = await openDB();
+    const tx = db.transaction(SNAPSHOT_STORE, 'readwrite');
+    const store = tx.objectStore(SNAPSHOT_STORE);
+    const request = store.openKeyCursor();
+    request.onsuccess = () => {
+      const cursor = request.result;
+      if (!cursor) return;
+      if (String(cursor.key).startsWith(keyPrefix)) store.delete(cursor.key);
+      cursor.continue();
+    };
+    await new Promise((resolve, reject) => {
+      tx.oncomplete = () => { db.close(); resolve(); };
+      tx.onerror = () => { db.close(); reject(tx.error); };
+    });
+  } catch (_) { /* snapshots are best effort */ }
+}
+
 // --- Public API ---
 
 /**

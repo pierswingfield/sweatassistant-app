@@ -204,15 +204,17 @@ export function setLinkedGyms(gyms) {
  * Never a literal id — nothing client-side may privilege one gym (F-7 item 5).
  */
 export function getDefaultGymId() {
-  const l = linkedGyms[0];
+  const l = getLinkedGyms()[0];
   if (l && (l.gym_id || l.id)) return String(l.gym_id || l.id);
   const first = presentations.keys().next();
   return first.done ? '' : first.value;
 }
 
 export function getLinkedGyms() {
-  return linkedGyms;
+  return linkedGyms.filter((g) => g.account_enabled !== 0 && g.account_enabled !== false);
 }
+
+export function getAllLinkedGyms() { return linkedGyms; }
 
 /**
  * Fill every static `[data-gym-name]` span in the SPA shell, mirroring how

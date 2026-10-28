@@ -487,7 +487,7 @@ app.post('/api/notify/booking-success', authenticateToken, async (req, res) => {
 app.post('/api/bookings/sync', authenticateToken, (req, res) => {
   try {
     const { bookings, gymIds } = req.body;
-    const userGyms = db.getUserGyms(req.userId).map((g) => g.gym_id);
+    const userGyms = db.getUserGyms(req.userId).filter((g) => g.account_enabled).map((g) => g.gym_id);
 
     // If gymIds is provided, use it (only for gyms that actually loaded).
     // Otherwise fall back to legacy behavior (all user's gyms).
@@ -516,7 +516,7 @@ app.post('/api/bookings/sync', authenticateToken, (req, res) => {
 // detector (competing-bookings.js) wants. Cross-gym on purpose; own user only.
 function competingContextFor(userId) {
   return {
-    queued: db.getPendingAutoBookingsAllGyms(userId).map(r => ({
+    queued: db.getPendingAutoBookingsAllGyms(userId).filter(r => db.isUserGymEnabled(userId, r.gym_id)).map(r => ({
       id: r.id, gymId: r.gym_id, eventId: r.event_id, startAt: r.start_at,
       durationMin: r.duration_min, className: r.class_name,
       groupName: r.group_name, instructorName: r.instructor_name,
@@ -567,6 +567,7 @@ app.get('/api/auto-book', authenticateToken, (req, res) => {
     const historyCutoff = Date.now() - 90 * 24 * 60 * 60 * 1000;
     let keptHistory = 0;
     const bookings = db.getUserAutoBookings(req.userId, gymId).filter(b => {
+      if (!db.isUserGymEnabled(req.userId, b.gym_id)) return false;
       if (!b.executed_at) return true;
       const t = Date.parse(b.executed_at);
       if (Number.isFinite(t) && t < historyCutoff) return false;
@@ -769,7 +770,7 @@ app.delete('/api/auto-book/:id', authenticateToken, (req, res) => {
 app.get('/api/auto-upgrade', authenticateToken, (req, res) => {
   try {
     const gymId = req.query.gymId || (req.headers['x-gym-id'] ? undefined : 'all');
-    const upgrades = db.getUserAutoUpgrades(req.userId, gymId);
+    const upgrades = db.getUserAutoUpgrades(req.userId, gymId).filter(u => db.isUserGymEnabled(req.userId, u.gym_id));
     const formatted = upgrades.map(u => ({
       ...u,
       preferences: JSON.parse(u.preferences),

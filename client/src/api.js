@@ -1,7 +1,7 @@
 import { debugLog } from './main.js';
 import { getDefaultGymId } from './gym-context.js';
 import { createLayoutCache, MAX_AGE_MS as LAYOUT_MAX_AGE_MS } from './layout-cache.js';
-import { readCached, setCached, getCachedSWR, clearApiCache, setCacheKeyPrefix, invalidateApiCache, getOfflineSnapshot, setOfflineSnapshot, deleteOfflineSnapshot } from './cache.js';
+import { readCached, setCached, getCachedSWR, clearApiCache, setCacheKeyPrefix, invalidateApiCache, getOfflineSnapshot, setOfflineSnapshot, deleteOfflineSnapshot, deleteOfflineSnapshotsByPrefix } from './cache.js';
 import { classifyAuthFailure } from './auth-failure.js';
 import { COPY, formatCopyText } from './copy.js';
 import { createProgressiveMerge } from './ui/progressive-merge.js';
@@ -458,6 +458,23 @@ export const api = {
     // callers reload their gym context, otherwise a newly linked gym remains
     // invisible until the TTL expires.
     await invalidateApiCache('/api/my-gyms');
+    await invalidateApiCache('/api/auto-book');
+    await invalidateApiCache('/api/auto-upgrade');
+    await Promise.all(['metadata:', 'bookings', 'waitlists', 'studio-preferences'].map(deleteOfflineSnapshotsByPrefix));
+    return data;
+  },
+
+  async setGymEnabled(gymId, enabled) {
+    const res = await apiFetch(`/api/my-gyms/${encodeURIComponent(gymId)}/enabled`, {
+      method: 'PATCH', body: JSON.stringify({ enabled }),
+    });
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.message || 'Could not change gym availability');
+    await setOfflineSnapshot('my-gyms', data);
+    await invalidateApiCache('/api/my-gyms');
+    await invalidateApiCache('/api/auto-book');
+    await invalidateApiCache('/api/auto-upgrade');
+    await Promise.all(['metadata:', 'bookings', 'waitlists', 'studio-preferences'].map(deleteOfflineSnapshotsByPrefix));
     return data;
   },
 
@@ -502,12 +519,13 @@ export const api = {
     }
 
     const myGymsRes = await this.getMyGyms().catch(() => ({ gyms: [] }));
-    const linked = myGymsRes.gyms || [];
+    const linked = (myGymsRes.gyms || []).filter(g => g.account_enabled !== 0 && g.account_enabled !== false);
 
+    if (linked.length === 0) return [];
     if (linked.length <= 1) {
       const endpoint = `/api/timetable${suffix}`;
       debugLog(`GET ${endpoint}`, 'network');
-      const res = await apiFetch(endpoint);
+      const res = await apiFetch(endpoint, { gymId: linked[0].gym_id || linked[0].gymId || linked[0].id });
       if (!res.ok) throw new Error('Failed to load timetable');
       const data = await res.json();
       const gymId = linked[0]?.gym_id || getDefaultGymId();
@@ -558,8 +576,9 @@ export const api = {
     const suffix = qs.toString() ? `?${qs}` : '';
 
     const myGymsRes = await this.getMyGyms().catch(() => ({ gyms: [] }));
-    const linked = myGymsRes.gyms || [];
+    const linked = (myGymsRes.gyms || []).filter(g => g.account_enabled !== 0 && g.account_enabled !== false);
     const idOf = (g) => g.gym_id || g.gymId || g.id;
+    if (linked.length === 0) { onFlush?.({ events: [], pending: [], final: true, arrivedGyms: [] }); return []; }
 
     if (linked.length <= 1) {
       const gid = linked[0] ? idOf(linked[0]) : getDefaultGymId();
@@ -646,7 +665,7 @@ export const api = {
     }
 
     const myGymsRes = await this.getMyGyms().catch(() => ({ gyms: [] }));
-    const linked = myGymsRes.gyms || [];
+    const linked = (myGymsRes.gyms || []).filter(g => g.account_enabled !== 0 && g.account_enabled !== false);
 
     // C3-10: a gym-less the app account (post-signup, or after unlinking
     // the last gym) is a legitimate state, not an error — the server would answer
@@ -881,7 +900,7 @@ export const api = {
     return withOfflineSnapshot('bookings', async () => {
       debugLog('GET /api/bookings', 'network');
       const myGymsRes = gyms ? null : await this.getMyGyms();
-      const linked = gyms || myGymsRes.gyms || [];
+      const linked = (gyms || myGymsRes.gyms || []).filter(g => g.account_enabled !== 0 && g.account_enabled !== false);
       const readOne = async (gymId) => {
         const path = '/api/bookings';
         const key = `${path}?gymId=${encodeURIComponent(gymId)}`;
@@ -894,6 +913,7 @@ export const api = {
 
       if (linked.length <= 1) {
         const gymId = linked[0]?.gym_id || linked[0]?.gymId || linked[0]?.id || null;
+        if (!gymId && (gyms || myGymsRes?.gyms?.length)) { lastLoadedGymIds = new Set(); return []; }
         if (!gymId) {
           const res = await apiFetch('/api/bookings');
           if (!res.ok) throw new Error('Failed to load bookings');
@@ -960,7 +980,8 @@ export const api = {
     return withOfflineSnapshot('waitlists', async () => {
     debugLog('GET /api/waitlists', 'network');
     const myGymsRes = gyms ? null : await this.getMyGyms();
-    const linked = gyms || myGymsRes.gyms || [];
+    const linked = (gyms || myGymsRes.gyms || []).filter(g => g.account_enabled !== 0 && g.account_enabled !== false);
+    if (!linked.length && (gyms || myGymsRes?.gyms?.length)) return [];
     // Home passes cacheTtlMs so a repaint reuses the SWR row instead of a network call per render.
     const readCachedGym = async (gymId) => {
       const path = '/api/waitlists';
@@ -972,7 +993,7 @@ export const api = {
       let data;
       if (cacheTtlMs && linked[0]) data = await readCachedGym(gymId);
       else {
-        const res = await apiFetch('/api/waitlists');
+        const res = await apiFetch('/api/waitlists', { gymId });
         if (!res.ok) throw new Error('Failed to load waitlists');
         data = await res.json();
       }
@@ -1040,7 +1061,7 @@ export const api = {
   // membership) must not disable booking on another gym's classes.
   async getEligibilityByGym({ gyms = null, loading = false } = {}) {
     const myGymsRes = gyms ? null : await this.getMyGyms().catch(() => ({ gyms: [] }));
-    const linked = gyms || myGymsRes.gyms || [];
+    const linked = (gyms || myGymsRes.gyms || []).filter(g => g.account_enabled !== 0 && g.account_enabled !== false);
     const entries = await Promise.all(
       linked.map(async (g) => {
         const gymId = g.gym_id || g.gymId || g.id;
@@ -1070,7 +1091,7 @@ export const api = {
   // keep failed membership data distinct from a confirmed no-membership answer.
   async getMembershipsByGym({ gyms = null, loading = false } = {}) {
     const myGymsRes = gyms ? null : await this.getMyGyms().catch(() => ({ gyms: [] }));
-    const linked = gyms || myGymsRes.gyms || [];
+    const linked = (gyms || myGymsRes.gyms || []).filter(g => g.account_enabled !== 0 && g.account_enabled !== false);
     const entries = await Promise.all(linked.map(async (g) => {
       const gymId = g.gym_id || g.gymId || g.id;
       try {
@@ -1134,7 +1155,7 @@ export const api = {
   // A missing key is "unknown", which credit-allowance.js answers permissively.
   async getCreditsByGym({ gyms = null, loading = false } = {}) {
     const myGymsRes = gyms ? null : await this.getMyGyms().catch(() => ({ gyms: [] }));
-    const linked = gyms || myGymsRes.gyms || [];
+    const linked = (gyms || myGymsRes.gyms || []).filter(g => g.account_enabled !== 0 && g.account_enabled !== false);
     const entries = await Promise.all(
       linked.map(async (g) => {
         const gymId = g.gym_id || g.gymId || g.id;
@@ -1334,9 +1355,11 @@ export const api = {
     }
     return withOfflineSnapshot('studio-preferences', async () => {
     const myGymsRes = await this.getMyGyms().catch(() => ({ gyms: [] }));
-    const linked = myGymsRes.gyms || [];
+    const linked = (myGymsRes.gyms || []).filter(g => g.account_enabled !== 0 && g.account_enabled !== false);
+    if (!linked.length && myGymsRes.gyms?.length) return {};
     if (linked.length <= 1) {
-      const result = await getCachedSWR('/api/studio-preferences', { ttlMs: 300000, fetcher: apiFetch });
+      const gymId = linked[0]?.gym_id || linked[0]?.id;
+      const result = await getCachedSWR(`/api/studio-preferences?gymId=${encodeURIComponent(gymId || '')}`, { ttlMs: 300000, fetcher: () => apiFetch('/api/studio-preferences', { gymId }) });
       return result.data;
     }
     const results = await Promise.all(

@@ -64,7 +64,7 @@ export async function initBundles() {
       // rendered "0 credits available — you cannot book until you top up",
       // which is both wrong and alarming.
       const byId = new Map((catalogue || []).map((g) => [g.id, g]));
-      linked = (mine.gyms || []).map((g) => {
+      linked = (mine.gyms || []).filter((g) => g.account_enabled !== 0 && g.account_enabled !== false).map((g) => {
         const cfg = byId.get(g.gym_id) || {};
         return { ...cfg, ...g, capabilities: { ...(cfg.capabilities || {}), ...(g.capabilities || {}) } };
       });

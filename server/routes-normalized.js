@@ -299,6 +299,16 @@ function refreshCalendarAfterGymSetChange(userId) {
   } catch (_) { /* best effort */ }
 }
 
+router.patch('/my-gyms/:gymId/enabled', authenticateToken, (req, res) => {
+  if (typeof req.body?.enabled !== 'boolean') return res.status(400).json({ message: 'enabled must be a boolean' });
+  if (!db.setUserGymEnabled(req.userId, req.params.gymId, req.body.enabled)) {
+    return res.status(404).json({ message: 'Gym is not linked to this account' });
+  }
+  refreshCalendarAfterGymSetChange(req.userId);
+  require('./scheduler').scheduleReleaseWindow();
+  res.json({ gyms: db.getUserGymsPublic(req.userId) });
+});
+
 // POST /api/my-gyms/link  { gymId, email, password }
 // Link a new gym, or re-authenticate one whose stored password has gone stale.
 // Same endpoint for both — see auth.linkGymAccount.

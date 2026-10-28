@@ -337,6 +337,10 @@ async function bookSlotWithRelogin(userId, gymId, eventId, targetSlot) {
 
 // Execute auto-book process for a single class slot booking
 async function executeAutoBookForClass(booking) {
+  // A gym may have been switched off after the queue was selected.
+  if (!db.isUserGymEnabled(booking.user_id, booking.gym_id)) return;
+  const release = getClassReleaseTime(booking, db.getUserSettings(booking.user_id, booking.gym_id) || {});
+  if (release && missedWhileGymDisabled(booking, release)) return;
   const eventId = booking.event_id;
   const userId = booking.user_id;
   // The gym this queue entry belongs to — taken from the ROW, never resolved
@@ -853,6 +857,13 @@ const IDLE_RECHECK_MS = 15 * 60 * 1000;
 // happened. Beyond this, the spots are long gone and firing would be noise.
 const MISSED_RELEASE_GRACE_MS = 5 * 60 * 1000;
 
+function missedWhileGymDisabled(booking, releaseAt) {
+  const link = db.getUserGym(booking.user_id, booking.gym_id);
+  if (!link?.account_enabled_at || link.account_enabled_queue_cutoff == null) return false;
+  const enabled = DateTime.fromISO(link.account_enabled_at);
+  return enabled.isValid && releaseAt <= enabled && Number(booking.id) <= link.account_enabled_queue_cutoff;
+}
+
 // Every pending entry paired with its resolved release instant.
 function resolvePendingReleases() {
   const out = [];
@@ -871,6 +882,9 @@ function resolvePendingReleases() {
     const settings = db.getUserSettings(booking.user_id, booking.gym_id) || {};
     const releaseAt = getClassReleaseTime(booking, settings);
     if (!releaseAt) continue; // unresolvable → never dispatch on a guess
+    // A release missed while this gym was disabled must not be fired on re-enable
+    // or by the startup missed-release recovery. Keep the queue row for review.
+    if (missedWhileGymDisabled(booking, releaseAt)) continue;
     out.push({ booking, releaseAt });
   }
   return out;
@@ -998,6 +1012,7 @@ function checkAndRunImmediateBookings(userId) {
     const settings = db.getUserSettings(b.user_id, b.gym_id) || {};
     const releaseTime = getClassReleaseTime(b, settings);
     if (!releaseTime) return false;
+    if (missedWhileGymDisabled(b, releaseTime)) return false;
     // Release time is in the past
     return releaseTime <= now;
   });

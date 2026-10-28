@@ -76,6 +76,14 @@ describe('api.getMetadata — no gym linked (C3-10)', () => {
     expect(global.fetch).toHaveBeenCalled();
   });
 
+  it('does not fetch timetable or metadata when every linked gym is turned off', async () => {
+    vi.spyOn(api, 'getMyGyms').mockResolvedValue({ gyms: [{ gym_id: 'psycle-london', account_enabled: 0 }] });
+    const fetchSpy = vi.spyOn(global, 'fetch');
+    await expect(api.getTimetable()).resolves.toEqual([]);
+    await expect(api.getMetadata()).resolves.toEqual({ locations: [], studios: [], instructors: [], eventTypes: [] });
+    expect(fetchSpy).not.toHaveBeenCalled();
+  });
+
   it('restores saved filter metadata before attempting a fetch while offline', async () => {
     document.documentElement.classList.add('app-offline');
     cacheMocks.getOfflineSnapshot.mockResolvedValue({

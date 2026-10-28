@@ -195,6 +195,7 @@ function syncUserGym(userId, gymId, { full = false } = {}) {
   const p = (async () => {
     try {
       if (!db.isGymLinked(userId, gymId)) return { ok: false, error: 'gym not linked' };
+      if (!db.isUserGymEnabled(userId, gymId)) return { ok: false, error: 'gym turned off' };
       const state = getSyncState(userId, gymId);
       const since = (!full && state && state.lastSyncedAt)
         ? new Date(Date.parse(state.lastSyncedAt) - OVERLAP_MS).toISOString()
@@ -235,7 +236,7 @@ async function syncStale({ maxAgeMs = DEFAULT_MAX_AGE_MS } = {}) {
   const links = db.db.prepare(`
     SELECT ug.user_id, ug.gym_id FROM user_gyms ug
     LEFT JOIN class_history_sync s ON s.user_id = ug.user_id AND s.gym_id = ug.gym_id
-    WHERE ug.relogin_suspended = 0 AND ug.status != 'disabled'
+    WHERE ug.relogin_suspended = 0 AND ug.status != 'disabled' AND ug.account_enabled = 1
       AND (s.last_synced_at IS NULL OR s.last_synced_at < ?)
   `).all(new Date(Date.now() - maxAgeMs).toISOString());
   let done = 0;

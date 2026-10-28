@@ -7,7 +7,7 @@ import { registerWidget, registry, mountWidget, isNoGymError } from './widget-re
 import { renderCardSkeletons } from './loading-skeleton.js';
 import { greetingText } from './name-capture.js';
 import { getTotalCredits, isMetered } from './credit-allowance.js';
-import { canForGym, getGymShortName, getLinkedGyms } from '../gym-context.js';
+import { canForGym, getGymShortName, getLinkedGyms, getAllLinkedGyms } from '../gym-context.js';
 import { readCached } from '../cache.js';
 import { cleanClassName, gymLogoPlate, gymSquareChip, icon, sparklesIcon } from './cards.js';
 import { buildTimetableUrl } from '../url-state.js';
@@ -889,10 +889,11 @@ function widgetCopy() {
 function renderConnectGym(root) {
   clearHomeUpcomingStrip();
   root.innerHTML = `<div class="home-connect-gym"><h4></h4><p></p><button type="button" class="home-connect-btn"></button></div>`;
-  root.querySelector('h4').textContent = COPY.home.connectGymTitle;
-  root.querySelector('p').textContent = COPY.home.connectGymBody;
+  const allDisabled = getAllLinkedGyms().length > 0;
+  root.querySelector('h4').textContent = allDisabled ? 'Your gyms are turned off' : COPY.home.connectGymTitle;
+  root.querySelector('p').textContent = allDisabled ? 'Turn a gym back on in Settings to see its classes, bookings and credits.' : COPY.home.connectGymBody;
   const b = root.querySelector('button');
-  b.textContent = COPY.home.connectGymAction;
+  b.textContent = allDisabled ? 'Open Settings' : COPY.home.connectGymAction;
   b.addEventListener('click', () => goTo('settings'));
 }
 

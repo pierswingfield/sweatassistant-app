@@ -71,6 +71,98 @@ protocol.
 - Mock coverage proves provider state transitions; live mutation coverage is separately
   authorised and recorded. Browser acceptance follows cache clearing.
 
+## End-to-end tenant coverage matrix
+
+Use this matrix for every new tenant, including a tenant on an existing platform. Record
+evidence, an explicit waiver, or an open blocker for each applicable row; an adapter passing
+its shared tests does not establish that a tenant supports the same features or policies.
+Public research and live API verification must follow the live verification playbook. Never
+include tokens, credentials or personal data in the record.
+
+| Surface | Checks before acceptance |
+|---|---|
+| Identity and access | Official site and tenant identity; regional scope, login, renewal, gym linking, reauthentication, unlinking and no-gym state. Check that accounts and sessions stay isolated. |
+| Catalogue and presentation | Registry name, short name, URLs, timezone, location zones, colours, light/dark contrast, full/compact/mark assets and accessible alternative text. Confirm all assets load on desktop and mobile. Keep tenant facts in gym configuration and assets, not product core. |
+| Marketing and onboarding | Landing-page gym representation and links, gym selection and connect flow, first-run onboarding, capability-dependent copy and unlinked/disabled states. |
+| Home | Widgets, gym labels and logos, filtering, empty/loading/error states and navigation to the relevant class or feature. |
+| Timetable and discovery | Date/location/studio/instructor filters, search, favourites, gym selection, merged schedules, timezone/DST, class details, occupancy, release time, availability, floor plans and empty or sparse schedules. |
+| Booking lifecycle | Capability-gated booking, spots and swaps, waitlist join/leave, cancellation, bookings list and error states. Exercise state transitions on mocks; live writes require the playbook's specific approval or a documented waiver. |
+| Automation | Auto-book eligibility, queued jobs, release instants, priority, pause/resume, auto-upgrade, account and gym isolation, failures and notifications. Verify behavior when the gym is switched off or unlinked. |
+| Credits and membership | Profile and credit display, membership/unmetered rules, eligibility, expiry, packages and checkout availability; do not execute payment or purchase. |
+| Settings and data | Every gym's settings and visibility switch, linked versus disabled states, persistence, all-disabled state, favourites, spot preferences, account isolation and cache invalidation. Check that the switch's effects on background jobs and data retention are stated to users. |
+| Calendar, history and notifications | Feed inclusion and refresh, cancellation reminders, booking-window alerts, history and Home statistics, per-gym preferences and account isolation when the gym is off or unlinked. |
+| Operations and regression | Default-off activation gate, admin/catalogue presentation, logs and metrics without secrets, provider errors/backoff, mock/provider and cross-gym tests, full suite and client build. Clear browser caches and repeat desktop/mobile checks in real Chrome before and after the change. |
+
+For each row record the tenant, exact configuration and capability under test, evidence source,
+date, result and any unresolved limitation. Separate public-source facts from authenticated
+captures and mock results; a mock never proves a live tenant's payment or mutation behavior.
+
+## Homerun London and Barry's UK discovery — 2026-10-28
+
+The user authorised public, read-only tenant, location, timetable and branding checks; login
+and all writes were excluded. Homerun's [official site](https://homerun.london/) declares
+the Mariana Tek tenant `homerun`. Its public classes response included Duke Street, London,
+`Europe/London`, a published booking start and a pick-a-spot layout. Barry's
+[official site](https://www.barrys.com/) declares tenant `barrysbootcamp`. Its public
+locations response included UK locations, but its public class list also returned New York
+classes: the tenant is global, so a UK-only integration must enforce tenant-configured
+location scoping on every relevant read, including metadata and pagination. A timezone
+default alone does not restrict the classes returned. A location-filtered public class
+request for London Central (`9832`) returned GBP, `Europe/London`, pick-a-spot and a
+published release. Public location IDs and names are provider data, not a permanent list:
+the scoping design must account for locations being added or changed.
+
+The real Chrome baseline on the local mock showed JAB and Psycle together on Home and a
+JAB settings screen with connection and Auto-Upgrade controls, but no gym-wide switch.
+The linked-gym list also feeds background polling and calendar generation, so hiding a
+gym solely in the client would leave background activity running. No tenant login, booking,
+payment or other write was performed. Neither tenant's authenticated capabilities or
+booking policy have been accepted; public reads do not establish them.
+The two initial public endpoint availability checks were made concurrently, contrary to
+the live playbook's sequential-request rule; subsequent checks were made sequentially.
+No throttling response was observed in these checks.
+
+The draft registry entries are off by default in every environment. Set
+`HOMERUN_ENABLED=true` and/or `BARRYS_UK_ENABLED=true` for an isolated mock trial;
+production activation is a separate decision after the evidence and deployment gates.
+The public embed configuration confirms the web OAuth client ID for both tenants.
+Source assets: [Homerun wordmark](https://images.squarespace-cdn.com/content/v1/6a74902219941e665051561a/5473d500-e62e-4ca2-83e1-df954f9eea39/Homerun_Wordmark_Light.png)
+and [Barry's wordmark](https://cdn.prod.website-files.com/6949433bade2d703c90660e8/69a01416ad65e37bff26565a_Logo_white.svg).
+Compact marks come from each site's favicon: [Homerun](https://images.squarespace-cdn.com/content/v1/6a74902219941e665051561a/179f00fb-83f3-4a9e-a479-7bf687e80a45/favicon.ico)
+and [Barry's](https://cdn.prod.website-files.com/6949433bade2d703c90660e8/69fb4324bc94ae6796923ff1_favicon.png).
+These mock flags do not prove authenticated login, booking, waitlist, cancellation,
+swap, purchase or the completeness of the UK region list. Review those before enabling
+the tenants for real users. The marketing page reads the enabled gym catalogue and uses
+the same presentation assets; its existing static logos are the fallback when unavailable.
+Barry's reservation/history region fields, credits and account-wide entitlements have not
+been captured: the region guard rejects rows whose region is missing instead of assuming
+they are UK classes. The current UK region allowlist must be reviewed as locations change.
+
+Local mock browser evidence: [settings before](../QA/browser-runs/2026-10-28-gym-discovery/settings-before.png),
+[four-gym Home draft](../QA/browser-runs/2026-10-28-gym-discovery/home-draft.png),
+[landing catalogue draft](../QA/browser-runs/2026-10-28-gym-discovery/landing-draft.png),
+and [mobile dark Home draft](../QA/browser-runs/2026-10-28-gym-discovery/mobile-home-draft.png).
+The mock shares a generic Mariana Tek fixture across tenants; its class names and locations
+are not real Homerun or Barry's data. Chrome confirmed a disabled gym disappears from the
+timetable, and that all gyms off shows a Settings action which can restore a gym.
+
+### Implementation and acceptance checklist
+
+- [ ] Define an account-specific enabled state, retaining linked credentials and settings;
+  migrate existing databases with every existing link enabled by default.
+- [ ] Pause queued automation and gym-specific reminders, remove disabled gyms from the
+  calendar, and regenerate/rearm immediately on a state change. Protect dispatch against
+  a switch made after a job was selected. Document the effect on already running work.
+- [ ] Keep disabled gyms reachable in Settings for re-enabling, while excluding them from
+  Home, timetable, filters, other merged surfaces and cached data; handle all gyms disabled.
+- [ ] Configure each tenant, safe capabilities and source-backed brand assets. Restrict the
+  global Barry's tenant to UK locations through tenant configuration and generic provider
+  logic, including pagination and metadata; do not infer mutation behavior from public reads.
+- [ ] Exercise migration, user isolation, switch persistence, background and calendar behavior,
+  UK scoping and mock provider contracts; run the full suite and build.
+- [ ] Repeat real-Chrome baseline and inspect Home, timetable, settings, marketing and
+  branding in mobile/desktop and light/dark modes. Record remaining live-account gaps.
+
 ## Aarmy reference trial — 2026-09-30
 
 Aarmy was identified as a MarianaTek tenant at `mt.aarmy.com` and configured as `aarmy` with

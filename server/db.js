@@ -413,6 +413,9 @@ db.exec(`
     calendar_token TEXT UNIQUE,
     priority INTEGER DEFAULT 100,
     status TEXT DEFAULT 'active',  -- active | needs_relogin | disabled
+    account_enabled INTEGER NOT NULL DEFAULT 1 CHECK (account_enabled IN (0, 1)),
+    account_enabled_at TEXT,
+    account_enabled_queue_cutoff INTEGER,
     created_at TEXT DEFAULT CURRENT_TIMESTAMP,
     updated_at TEXT DEFAULT CURRENT_TIMESTAMP,
     -- Gym login identity for THIS link (D5); NULL = never captured, NEVER falls back to users.email.
@@ -430,6 +433,18 @@ db.exec(`
     UNIQUE(user_id, gym_id)
   );
 `);
+
+// Existing account links predate the per-account gym visibility switch.
+// Preserve their existing behavior when upgrading an established database.
+if (!db.prepare('PRAGMA table_info(user_gyms)').all().some((col) => col.name === 'account_enabled')) {
+  db.exec('ALTER TABLE user_gyms ADD COLUMN account_enabled INTEGER NOT NULL DEFAULT 1 CHECK (account_enabled IN (0, 1))');
+}
+if (!db.prepare('PRAGMA table_info(user_gyms)').all().some((col) => col.name === 'account_enabled_at')) {
+  db.exec('ALTER TABLE user_gyms ADD COLUMN account_enabled_at TEXT');
+}
+if (!db.prepare('PRAGMA table_info(user_gyms)').all().some((col) => col.name === 'account_enabled_queue_cutoff')) {
+  db.exec('ALTER TABLE user_gyms ADD COLUMN account_enabled_queue_cutoff INTEGER');
+}
 
 // --- Gym registry mirror ---
 // Keeps the `gyms` table in sync with the static registry (server/gyms.config.js
@@ -562,7 +577,7 @@ function resolveGymStrict(userId, explicitGymId, opName) {
   const ctx = gymContext.getStore();
   if (ctx && ctx.gymId && ctx.userId === String(userId)) return ctx.gymId;
 
-  const links = db.prepare('SELECT gym_id FROM user_gyms WHERE user_id = ?').all(userId);
+  const links = db.prepare('SELECT gym_id FROM user_gyms WHERE user_id = ? AND account_enabled = 1').all(userId);
   if (links.length > 1) {
     throw new Error(
       `${opName}: no gym specified for an account linked to ${links.length} gyms (user ${userId}). `
@@ -588,7 +603,7 @@ function resolveGymStrict(userId, explicitGymId, opName) {
 // unread) rather than run a destructive migration for a nullable field — same
 // call already made for `users.encrypted_password`.
 function resolvePersistedGymId(userId) {
-  const links = db.prepare('SELECT gym_id FROM user_gyms WHERE user_id = ? ORDER BY id').all(userId);
+  const links = db.prepare('SELECT gym_id FROM user_gyms WHERE user_id = ? AND account_enabled = 1 ORDER BY id').all(userId);
 
   // 1. Sole linked gym: unambiguous.
   if (links.length === 1) return links[0].gym_id;
@@ -1136,7 +1151,7 @@ module.exports = {
       SELECT ab.*, COALESCE(ug.priority, 100) AS priority
       FROM auto_bookings ab
       LEFT JOIN user_gyms ug ON ug.user_id = ab.user_id AND ug.gym_id = ab.gym_id
-      WHERE ab.status = 'pending' AND ab.executed_at IS NULL
+      WHERE ab.status = 'pending' AND ab.executed_at IS NULL AND ug.account_enabled = 1
       ORDER BY priority ASC, ab.created_at ASC
     `).all();
   },
@@ -1281,18 +1296,18 @@ module.exports = {
 
   // Auto-upgrades
   getActiveAutoUpgrades() {
-    return db.prepare("SELECT * FROM auto_upgrades WHERE status = 'active'").all();
+    return db.prepare("SELECT au.* FROM auto_upgrades au JOIN user_gyms ug ON ug.user_id = au.user_id AND ug.gym_id = au.gym_id WHERE au.status = 'active' AND ug.account_enabled = 1").all();
   },
   // C5-1: monitors the poller paused because the balance was empty. Cross-user
   // background scanner, so — like getActiveAutoUpgrades — it must NOT filter by
   // gym; the caller routes per row via row.gym_id.
   getPausedNoCreditsAutoUpgrades() {
-    return db.prepare("SELECT * FROM auto_upgrades WHERE status = 'paused_no_credits'").all();
+    return db.prepare("SELECT au.* FROM auto_upgrades au JOIN user_gyms ug ON ug.user_id = au.user_id AND ug.gym_id = au.gym_id WHERE au.status = 'paused_no_credits' AND ug.account_enabled = 1").all();
   },
   // Monitors paused because the gym's polling switch is off. Background scanner:
   // no gym filter, the caller routes per row.
   getPausedDisabledAutoUpgrades() {
-    return db.prepare("SELECT * FROM auto_upgrades WHERE status = 'paused_disabled'").all();
+    return db.prepare("SELECT au.* FROM auto_upgrades au JOIN user_gyms ug ON ug.user_id = au.user_id AND ug.gym_id = au.gym_id WHERE au.status = 'paused_disabled' AND ug.account_enabled = 1").all();
   },
   getUserAutoUpgrades(userId, gymId = undefined) {
     if (gymId === 'all') {
@@ -2105,7 +2120,7 @@ module.exports = {
     return db.prepare(`
       SELECT ug.gym_id, g.name AS gym_name, g.provider, g.enabled AS gym_enabled,
              ug.display_name,
-             ug.gym_email, ug.status, ug.priority,
+             ug.gym_email, ug.status, ug.priority, ug.account_enabled,
              (ug.calendar_token IS NOT NULL) AS calendar_enabled,
              ug.created_at, ug.updated_at, ug.last_authenticated_at,
              ug.relogin_failures, ug.relogin_rejections, ug.relogin_suspended,
@@ -2118,6 +2133,13 @@ module.exports = {
   },
   getUserGym(userId, gymId) {
     return db.prepare('SELECT * FROM user_gyms WHERE user_id = ? AND gym_id = ?').get(userId, gymId);
+  },
+  setUserGymEnabled(userId, gymId, enabled) {
+    return db.prepare("UPDATE user_gyms SET account_enabled_queue_cutoff = CASE WHEN ? = 1 AND account_enabled = 0 THEN COALESCE((SELECT MAX(id) FROM auto_bookings WHERE user_id = user_gyms.user_id AND gym_id = user_gyms.gym_id), 0) ELSE account_enabled_queue_cutoff END, account_enabled_at = CASE WHEN ? = 1 AND account_enabled = 0 THEN strftime('%Y-%m-%dT%H:%M:%fZ', 'now') ELSE account_enabled_at END, account_enabled = ?, updated_at = CURRENT_TIMESTAMP WHERE user_id = ? AND gym_id = ?")
+      .run(enabled ? 1 : 0, enabled ? 1 : 0, enabled ? 1 : 0, userId, gymId).changes > 0;
+  },
+  isUserGymEnabled(userId, gymId) {
+    return !!db.prepare('SELECT 1 FROM user_gyms WHERE user_id = ? AND gym_id = ? AND account_enabled = 1').get(userId, gymId);
   },
   // Flag a link's health (WP-D7): 'active' | 'needs_relogin' | 'disabled'.
   // Set to 'needs_relogin' when session renewal fails, so the UI can prompt for a

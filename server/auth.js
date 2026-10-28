@@ -174,6 +174,12 @@ function withGymContext(req, res, next) {
   if (!db.isGymLinked(req.userId, requested)) {
     return res.status(403).json({ message: `Account is not linked to gym "${requested}".` });
   }
+  // Settings must remain reachable so a linked gym can be re-enabled. Other
+  // stale gym-scoped requests must not fetch or mutate a disabled gym.
+  const settingsRequest = /^\/api\/settings(?:\?|$)/.test(req.originalUrl || '');
+  if (!settingsRequest && !db.isUserGymEnabled(req.userId, requested)) {
+    return res.status(409).json({ code: 'GYM_DISABLED', message: 'This gym is turned off in Settings.' });
+  }
   return db.runWithGymContext(req.userId, requested, next);
 }
 

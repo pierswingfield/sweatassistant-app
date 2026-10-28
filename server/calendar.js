@@ -48,7 +48,7 @@ const WINDOW_EVENT_DURATION_MIN = 15;
  * stay unchanged and simply resolve to whichever gym the current pass is on.
  */
 function linkedGymIds(userId) {
-  try { return (db.getUserGyms(userId) || []).map((g) => g.gym_id).filter(Boolean); }
+  try { return (db.getUserGyms(userId) || []).filter((g) => g.account_enabled).map((g) => g.gym_id).filter(Boolean); }
   catch (_) { return []; }
 }
 
@@ -621,9 +621,9 @@ function regenerateSnapshot(userId) {
 
     // No gym argument — this is the whole account's calendar.
     let rows = db.getCalendarClasses(userId);
-    rows = rows.filter(r => r.status === 'confirmed'
+    rows = rows.filter(r => gymIds.includes(r.gym_id) && (r.status === 'confirmed'
       || (r.status === 'waitlist' && prefs.includeWaitlists)
-      || (r.status === 'autobook' && prefs.includeAutoBook));
+      || (r.status === 'autobook' && prefs.includeAutoBook)));
     const windowEvents = prefs.remindBookingWindow ? bookingWindowEvents(gymIds) : [];
     const ics = serializeCalendar(userId, rows, addrMap, prefs.reminders, windowEvents);
     const etag = '"' + crypto.createHash('md5').update(ics).digest('hex') + '"';

@@ -5,6 +5,14 @@
 process.env.ENCRYPTION_KEY = process.env.ENCRYPTION_KEY || 'a'.repeat(64);
 process.env.NODE_ENV = 'test';
 process.env.JWT_SECRET = 'timetable-profile-refresh-test-secret';
+// The fixture cutoff is relative to this Monday after the release; freeze the
+// clock so its intended fifteen-day window does not drift as the suite ages.
+const RealDate = Date;
+const fixtureNow = RealDate.parse('2026-10-19T13:00:00Z');
+global.Date = class extends RealDate {
+  constructor(...args) { super(...(args.length ? args : [fixtureNow])); }
+  static now() { return fixtureNow; }
+};
 
 const assert = require('assert');
 const express = require('express');

@@ -529,7 +529,7 @@ footer { padding: 32px 0 56px; color: var(--text-secondary); font-size: var(--te
 <section class="works" aria-label="Works with">
   <div class="wrap works-inner reveal">
     <p class="works-label">Works with</p>
-    <div class="logos">
+    <div class="logos" id="gym-catalogue-logos">
       <div class="plate psycle"><img src="gyms/psycle-london.svg" alt="Psycle" width="150" height="20"></div>
       <div class="plate jab"><img src="gyms/jab-boxing.svg" alt="JAB Boxing" width="54" height="20"></div>
       <div class="plate aarmy"><img src="gyms/aarmy-logo.png" alt="AARMY" width="100" height="22"></div>
@@ -943,6 +943,26 @@ footer { padding: 32px 0 56px; color: var(--text-secondary); font-size: var(--te
     });
   }
 })();
+</script>
+<script>
+  // The app registry controls marketing visibility as well as app availability.
+  // Retain the established fallback if the catalogue cannot be reached.
+  fetch('/gym-catalogue').then(function (r) { if (!r.ok) throw new Error('catalogue'); return r.json(); }).then(function (data) {
+    var host = document.getElementById('gym-catalogue-logos');
+    var gyms = (data.gyms || []).filter(function (g) { return g.enabled && g.presentation && g.presentation.wordmark && g.presentation.wordmark.full; });
+    if (!host || !gyms.length) return;
+    var fragment = document.createDocumentFragment();
+    gyms.forEach(function (g) {
+      var src = g.presentation.wordmark.full.src;
+      if (!/^\/gyms\/[\w.\-]+(?:\?[\w=&.\-]*)?$/.test(src)) return;
+      var plate = document.createElement('div'); plate.className = 'plate';
+      if (/^#[\da-f]{6}$/i.test(g.presentation.plate || '')) plate.style.background = g.presentation.plate;
+      var img = document.createElement('img'); img.src = src; img.alt = g.name; plate.appendChild(img);
+      fragment.appendChild(plate);
+    });
+    var soon = document.createElement('div'); soon.className = 'plate soon'; soon.textContent = 'More coming soon…'; fragment.appendChild(soon);
+    host.replaceChildren(fragment);
+  }).catch(function () {});
 </script>
 </body>
 </html>

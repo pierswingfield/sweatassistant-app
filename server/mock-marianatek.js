@@ -279,6 +279,7 @@ function mockClass(id, classType, dateStr, timeStr, classroomName, layoutFormat,
 const classCaches = new Map();
 let activeZone = DEFAULT_ZONE;
 let activeGymId = null;
+let activeRegionId = null;
 function getClasses() {
   const cacheKey = `${activeGymId}|${activeZone}`;
   if (!classCaches.has(cacheKey)) classCaches.set(cacheKey, generateClasses(activeZone, activeGymId));
@@ -288,6 +289,7 @@ function getClasses() {
     const active = [...reservations.values()].filter((r) => r.class_session?.id === c.id && r.status === 'pending');
     return {
       ...c,
+      location: activeRegionId ? { ...c.location, region: { ...c.location.region, id: activeRegionId } } : c.location,
       available_spot_count: c.capacity - booked.size,
       is_user_reserved: active.some((r) => r.is_booked_for_me && r.reservation_type === 'standard'),
       is_user_guest_reserved: active.some((r) => !r.is_booked_for_me && r.reservation_type === 'standard'),
@@ -365,6 +367,7 @@ function mockHistoryPage(query) {
 function handleMockRequest(pathName, method, body, gym) {
   activeZone = (gym && gym.timezone) || DEFAULT_ZONE;
   activeGymId = (gym && gym.id) || null;
+  activeRegionId = gym?.allowedRegionIds?.[0] || null;
   activeCreditBased = !!(gym && gym.capabilities && gym.capabilities.metered);
   console.log(`[Mock MarianaTek] Intercepted ${method} ${pathName}`);
   const [path, queryString] = pathName.split('?');
@@ -388,6 +391,7 @@ function handleMockRequest(pathName, method, body, gym) {
   // GET /classes (list)
   if (path === '/classes' && method === 'GET') {
     let results = getClasses();
+    if (query.get('region')) results = results.filter(c => String(c.location?.region?.id) === query.get('region'));
     const minDate = query.get('min_start_date');
     const maxDate = query.get('max_start_date');
     if (minDate) results = results.filter((c) => c.start_date >= minDate);

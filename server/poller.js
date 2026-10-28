@@ -676,6 +676,7 @@ async function cancelRebookSingle({ upgrade, candidateSlot, claimKey, isCutoffMo
 }
 
 async function attemptUpgradeSlot(upgrade, isCutoffMode) {
+  if (!db.isUserGymEnabled(upgrade.user_id, upgrade.gym_id)) return;
   // Group monitors (several reservations) are planned and moved together.
   const groupMembers = db.getAutoUpgradeMembers(upgrade.id);
   if (groupMembers.length > 1) return attemptGroupUpgrade(upgrade, groupMembers, isCutoffMode);
@@ -1256,7 +1257,7 @@ async function refreshBookingCaches() {
       // the account, so a two-gym member got cancellation reminders for one of
       // them and silence for the other — and it used a raw CodexFit path, so
       // the gym it did read was only ever right for a CodexFit gym.
-      const gymIds = (db.getUserGyms(userId) || []).map((g) => g.gym_id).filter(Boolean);
+      const gymIds = (db.getUserGyms(userId) || []).filter((g) => g.account_enabled).map((g) => g.gym_id).filter(Boolean);
       const rows = [];
       const synced = [];
       for (const gymId of gymIds) {
@@ -1293,6 +1294,7 @@ function checkCancellationReminders() {
   const cached = db.getAllBookingCache();
   for (const bk of cached) {
     try {
+      if (!db.isUserGymEnabled(bk.user_id, bk.gym_id)) continue;
       const prefs = notifications.getPrefs(bk.user_id);
       if (!prefs.cancellationReminder.enabled) continue;
 
@@ -1339,7 +1341,7 @@ function checkCancellationReminders() {
 async function checkBookingWindowReminder() {
   const userIds = db.getUserIdsWithPushSubs();
   for (const userId of userIds) {
-    const gymIds = (db.getUserGyms(userId) || []).map((g) => g.gym_id).filter(Boolean);
+    const gymIds = (db.getUserGyms(userId) || []).filter((g) => g.account_enabled).map((g) => g.gym_id).filter(Boolean);
     for (const gymId of gymIds) {
       try {
         const cfg = getGymConfig(gymId);

@@ -1,7 +1,7 @@
 import { parseLocation, legacyHashToPath } from './url-state.js';
 import { currentRoute, navigate, pathFor, migrateLegacyHash, initRouter, stashReturnTo, takeReturnTo } from './router.js';
 import { api, setToken, isLoggedIn } from './api';
-import { setLinkedGyms, setGymCatalogue, getLinkedGyms, getGymShortName, getDefaultGymId, getGymPresentation, canForGym } from './gym-context.js';
+import { setLinkedGyms, setGymCatalogue, getLinkedGyms, getAllLinkedGyms, getGymShortName, getDefaultGymId, getGymPresentation, canForGym } from './gym-context.js';
 import { initTooltips } from './ui/tooltips';
 import { setupPullToRefresh, cancelPullToRefresh } from './ui/pulltorefresh';
 import { markScrollBusy, isScrollBusy } from './ui/scroll-state.js';
@@ -1023,6 +1023,10 @@ export async function updateCreditBadge(availableCredits = null) {
   const linked = getLinkedGyms();
 
   if (!linked || linked.length === 0) {
+    if (getAllLinkedGyms().length) {
+      creditsContainer.innerHTML = '';
+      return;
+    }
     const credits = availableCredits || cache.credits || [];
     const total = sumCredits(credits);
     creditsContainer.innerHTML = '';

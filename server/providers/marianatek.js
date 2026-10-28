@@ -119,6 +119,31 @@ function classifyCancelPenalty(data) {
 }
 
 class MarianaTekProvider extends GymProvider {
+  isClassInScope(classSession) {
+    const regions = this.gym.allowedRegionIds;
+    if (!regions?.length) return true;
+    const regionId = classSession?.location?.region?.id;
+    if (regionId == null) throw new Error('Cannot verify the class region for this gym');
+    return regions.map(String).includes(String(regionId));
+  }
+
+  async assertReservationInScope(bookingId, session) {
+    if (!this.gym.allowedRegionIds?.length) return;
+    let page = 1;
+    while (page <= 60) {
+      const res = await this.request(`/me/reservations?is_upcoming=true&page_size=100&page=${page}`, { token: session.accessToken });
+      if (!res.ok) throw new Error('Cannot verify reservation region');
+      const data = await res.json();
+      const row = (data.results || []).find(r => String(r.id) === String(bookingId));
+      if (row) {
+        if (!this.isClassInScope(row.class_session)) throw new Error('Reservation is outside this gym’s configured regions');
+        return;
+      }
+      if (!(data.next || data.links?.next)) break;
+      page++;
+    }
+    throw new Error('Cannot verify reservation region');
+  }
   get mockToken() {
     return MOCK_TOKEN;
   }
@@ -498,6 +523,11 @@ class MarianaTekProvider extends GymProvider {
    * @returns {Promise<import('./base').NormalizedEvent[]>}
    */
   async fetchTimetable(params = {}, session) {
+    if (this.gym.allowedRegionIds?.length && params.page) {
+      const rows = await this.sharedClassList({ ...params, page: undefined }, session);
+      const size = Number(params.pageSize) || 100;
+      return rows.slice((Number(params.page) - 1) * size, Number(params.page) * size).map(c => this.mapClassToEvent(c));
+    }
     if (params.page) {
       const qs = new URLSearchParams();
       if (params.startDate) qs.set('min_start_date', params.startDate);
@@ -555,7 +585,7 @@ class MarianaTekProvider extends GymProvider {
         }
       }
     }
-    const promise = this._fetchClassList(win, session);
+    const promise = this._fetchScopedClassList(win, session);
     const flight = { win, promise };
     this._classFlights.set(key, flight);
     const drop = () => { if (this._classFlights.get(key) === flight) this._classFlights.delete(key); };
@@ -619,12 +649,24 @@ class MarianaTekProvider extends GymProvider {
     return byId;
   }
 
+  async _fetchScopedClassList(win, session) {
+    const regions = this.gym.allowedRegionIds;
+    if (!regions?.length) return this._fetchClassList(win, session);
+    const rows = [];
+    for (const regionId of regions) {
+      const page = await this._fetchClassList({ ...win, regionId }, session);
+      rows.push(...page.filter(c => this.isClassInScope(c) && String(c.location.region.id) === String(regionId)));
+    }
+    return rows;
+  }
+
   async _fetchClassList(win, session) {
     const qs = new URLSearchParams();
     if (win.startDate) qs.set('min_start_date', win.startDate);
     if (win.endDate) qs.set('max_start_date', win.endDate);
     if (win.locationId) qs.set('location', win.locationId);
     if (win.instructorId) qs.set('instructor', win.instructorId);
+    if (win.regionId) qs.set('region', win.regionId);
     qs.set('page_size', String(win.pageSize));
 
     const getPage = async (path) => {
@@ -697,6 +739,9 @@ class MarianaTekProvider extends GymProvider {
       : await this.publicRequest(`/classes/${eventId}`);
     if (!res.ok) throw new Error(`fetchEventDetails failed: ${res.status}`);
     const c = await res.json();
+    if (!this.isClassInScope(c)) {
+      throw new Error('Class is outside this gym’s configured regions');
+    }
     return {
       event: this.mapClassToEvent(c),
       slots: this.mapLayoutToSlots(c.layout, c.classroom),
@@ -1157,11 +1202,13 @@ class MarianaTekProvider extends GymProvider {
   }
 
   async cancelBooking(bookingId, session) {
+    await this.assertReservationInScope(bookingId, session);
     const res = await this.request(`/me/reservations/${bookingId}/cancel`, { token: session.accessToken, method: 'POST' });
     return res.ok;
   }
 
   async getCancelPenalty(bookingId, session) {
+    await this.assertReservationInScope(bookingId, session);
     const res = await this.request(`/me/reservations/${bookingId}/cancel_penalty`, { token: session.accessToken });
     if (!res.ok) throw new Error(`getCancelPenalty failed: ${res.status}`);
     const data = await res.json();
@@ -1169,6 +1216,7 @@ class MarianaTekProvider extends GymProvider {
   }
 
   async joinWaitlist(eventId, session) {
+    if (this.gym.allowedRegionIds?.length) await this.fetchEventDetails(eventId, session);
     const paymentOptionId = await this.resolvePaymentOption(eventId, session);
     const body = { class_session: { id: eventId }, is_booked_for_me: true, reservation_type: 'waitlist' };
     if (paymentOptionId) body.payment_option = { id: paymentOptionId };
@@ -1206,7 +1254,7 @@ class MarianaTekProvider extends GymProvider {
     const res = await this.request('/me/reservations?is_upcoming=true&page_size=100', { token: session.accessToken });
     if (!res.ok) throw new Error(`listReservations failed: ${res.status}`);
     const data = await res.json();
-    const results = data.results || [];
+    const results = (data.results || []).filter(r => this.isClassInScope(r.class_session));
     const classEvents = await this._reservationClassEvents(results, session);
     return results
       .filter((r) => r.reservation_type === reservationType)
@@ -1283,6 +1331,7 @@ class MarianaTekProvider extends GymProvider {
       const data = await res.json();
       for (const r of data.results || []) {
         if (r.reservation_type === 'waitlist' || !r.class_session) continue;
+        if (!this.isClassInScope(r.class_session)) continue;
         const status = this._historyStatus(r);
         if (!status) continue;
         const event = this.mapClassToEvent(r.class_session);
@@ -1326,6 +1375,7 @@ class MarianaTekProvider extends GymProvider {
 
   /** Native spot swap — no cancel-then-rebook needed (unlike CodexFit). */
   async swapSpots(bookingId, currentSlotId, targetSlotId, session) {
+    await this.assertReservationInScope(bookingId, session);
     const res = await this.request(`/me/reservations/${bookingId}/swap_spots`, {
       token: session.accessToken, method: 'POST', body: { spot: targetSlotId },
     });

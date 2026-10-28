@@ -898,7 +898,7 @@ async function cacheDel(key) {
  * or going. Drop both first — otherwise an unlink repaints the removed gym from
  * cache before the network answers — then refetch past the shared server cache.
  */
-export async function resetTimetableForGymChange() {
+export async function resetTimetableForGymChange({ refetch = true } = {}) {
   prefetchGeneration++;
   timetableEvents = [];
   await Promise.all([
@@ -906,7 +906,7 @@ export async function resetTimetableForGymChange() {
     cacheDel(accountScopedKey(CACHE_KEY_META)),
     cacheDel(accountScopedKey(CACHE_KEY_TIME)),
   ]);
-  return prefetchTimetableData(true);
+  if (refetch) return prefetchTimetableData(true);
 }
 
 // U4-7: 0 = paint as soon as the first gym answers, merge the rest as they land.

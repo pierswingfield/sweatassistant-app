@@ -206,3 +206,7 @@ Review follow-up: the per-account switch waits for an automatic booking or spot 
 The 2026-10-29 real Chrome mock check confirmed this wording in JAB settings ([screenshot](../QA/browser-runs/2026-10-29-review/gym-switch.png)). Targeted regressions cover provider-boundary races, recovery, disabled-gym ID routes and account isolation, pagination URL boundaries, repeated disabled intervals, and legacy database migration. Live authenticated booking and cancellation remain unverified and require separate acceptance authorization.
 
 Follow-up verification: 100 server suites passed; 94 client test files and 728 tests passed; the production client build passed. Focused suites were rerun after the final provider and scheduler adjustments. The production build reported the existing large-chunk advisory.
+
+Guest switch follow-up: deterministic scheduler regressions first reproduced a switch completing while a resumed guest write was in flight and an unissued guest being marked failed during switch-off. A guest mutation now holds the same lease even when the primary reservation already succeeded. If switching interrupts guest preparation or happens between guests, unattempted participants and the queue remain pending; already issued outcomes are preserved. The regression covers both cases and a provider write already in flight.
+
+Guest follow-up verification: all 101 server suites passed. The preceding candidate's 94 client files and 728 client tests and production build passed; this follow-up changes no client files.

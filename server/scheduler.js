@@ -572,6 +572,9 @@ async function executeAutoBookForClassInner(booking) {
       return;
     }
 
+    // A self booking never sent before switch-off remains queued.
+    if (bookedCount === 0 && (mutationGate.isClosing(userId, gymId) || !db.isUserGymEnabled(userId, gymId))) return;
+
     // A named guest is only attempted after a verified primary reservation. A
     // successful participant is skipped on any re-entry. A timeout/transport
     // ambiguity is reconciled from the provider list once, then halted as
@@ -585,6 +588,7 @@ async function executeAutoBookForClassInner(booking) {
         const key = `guest:${String(guest.email || '').trim().toLowerCase()}`;
         const participant = participantRows.find((row) => row.participant_key === key);
         if (participant?.status === 'success') continue;
+        if (mutationGate.isClosing(userId, gymId) || !db.isUserGymEnabled(userId, gymId)) return;
         let guestResult = null;
         let guestBooked = false;
         // Re-plan around the primary's ACTUAL spot (it may differ from the plan): with togetherness the
@@ -597,11 +601,14 @@ async function executeAutoBookForClassInner(booking) {
         }).filter((id) => !claimedSlots.has(`${gymId}:${eventId}:${id}`) && !burnedSlots.has(`${gymId}:${eventId}:${id}`));
         let guestIdx = 0;
         while (guestIdx < guestOrder.length) {
-          if (mutationGate.isClosing(userId, gymId) || !db.isUserGymEnabled(userId, gymId)) break;
+          if (mutationGate.isClosing(userId, gymId) || !db.isUserGymEnabled(userId, gymId)) return;
+          if (!releaseMutation) releaseMutation = mutationGate.begin(userId, gymId);
+          if (!releaseMutation) return;
           const targetSlot = guestOrder[guestIdx++];
           mutationGate.nextAction();
           try { guestResult = await provider.bookGuestSlot(eventId, targetSlot, guest.email, db.getUserSession(userId, gymId) || undefined); }
           catch (err) { guestResult = err.code === 'GYM_DISABLED' ? { ok: false, code: 'GYM_DISABLED', error: 'Gym turned off before guest booking.' } : { ok: false, code: 'BOOKING_TIMEOUT', error: 'Guest booking result could not be confirmed.' }; }
+          if (guestResult?.code === 'GYM_DISABLED') return;
           if (guestResult?.ok) {
             db.markAutoBookingParticipant(booking.id, userId, key, { status: 'success', bookingId: guestResult.bookingId, slotId: guestResult.slotId || targetSlot });
             db.upsertGuestBookingGroup(userId, gymId, eventId, primaryBookingId, guestResult.bookingId);
@@ -626,6 +633,8 @@ async function executeAutoBookForClassInner(booking) {
           }
           break;
         }
+        if (!guestBooked && (!guestResult || guestResult.code === 'SPOT_UNAVAILABLE') &&
+            (mutationGate.isClosing(userId, gymId) || !db.isUserGymEnabled(userId, gymId))) return;
         if (!guestBooked && !guestResult) {
           db.markAutoBookingParticipant(booking.id, userId, key, { status: 'failed', failureCode: 'NO_GUEST_SLOT_AVAILABLE', failureMessage: 'No remaining spot was available for this guest.' });
           guestFailures++;

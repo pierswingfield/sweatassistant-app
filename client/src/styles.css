@@ -128,13 +128,13 @@
 :root {
   color-scheme: dark;
 
-  --bg: #161310;
-  --page-solid: #161310;
-  --header-solid: #110e0c;
-  --surface: #201c18;
+  --bg: #161616;
+  --page-solid: #161616;
+  --header-solid: #101010;
+  --surface: #202020;
   --surface-2: rgba(255, 238, 215, 0.045);
   --surface-inset: rgba(0, 0, 0, 0.22);
-  --surface-raised: #2a2520;
+  --surface-raised: #2a2a2a;
 
   --text: #f3ede4;
   --text-secondary: #b9ae9f;
@@ -8798,7 +8798,7 @@ html, body, * {
    syncThemeColorMeta in main.js). A fixed cap sits above content and stays put when the
    header slides away (it is independent of the header's transform), and html/body carry the
    same colour so any overscroll at the top shows it too; content areas keep their own --bg. */
-:root { --page-solid: #161310; --header-solid: #110e0c; --header-solid-bg: var(--header-solid); }
+:root { --page-solid: #161616; --header-solid: #101010; --header-solid-bg: var(--header-solid); }
 :root[data-theme="light"], :root:not([data-theme="dark"]) { --header-solid-bg: var(--header-solid); }
 html { background: var(--header-solid-bg); }
 
@@ -10516,7 +10516,7 @@ html:not([data-credits-tab="on"]) .app-nav-btn[data-tab="buy-credits"] { display
 .home-waitlist-line {
   display: block; width: 100%; margin: 10px 0 0; padding: 8px 4px; min-height: 36px;
   background: none; border: 0; color: var(--text-secondary); font: inherit; font-size: var(--text-sm);
-  font-weight: 600; text-align: center; cursor: pointer; border-radius: 10px;
+  text-align: center; cursor: pointer; border-radius: 10px;
 }
 .home-waitlist-line:hover { color: var(--text); }
 .home-waitlist-line:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
@@ -11222,10 +11222,10 @@ html:not([data-credits-tab="on"]) .app-nav-btn[data-tab="buy-credits"] { display
 
 @supports ((backdrop-filter: blur(1px)) or (-webkit-backdrop-filter: blur(1px))) {
   @media (max-width: 768px) {
-    html.nav-glass { --nav-h: 64px; --nav-clear: calc(64px + 10px + env(safe-area-inset-bottom, 0px) + 14px); }
+    html.nav-glass { --nav-h: 64px; --nav-clear: calc(64px + 6px + env(safe-area-inset-bottom, 0px) + 14px); }
     html.nav-glass #app-helper-container .app-bottom-nav {
       left: 12px; right: 12px;
-      bottom: calc(10px + env(safe-area-inset-bottom, 0px));
+      bottom: calc(6px + env(safe-area-inset-bottom, 0px));
       height: 64px; padding: 4px; gap: 0;
       border: 0 !important;
       border-radius: 32px;
@@ -11752,4 +11752,21 @@ html:not([data-credits-tab="on"]) .app-nav-btn[data-tab="buy-credits"] { display
 @media (max-height: 700px) {
   .app-onb-mascot { height: 64px; }
   .app-login-mascot { height: 88px; }
+}
+
+/* Mobile refinements: preserve the avatar column and center labels on the image. */
+.ab-card-body > .ab-card-figure .ab-card-instructor,
+.ab-card-body > .ab-card-figure .ab-card-instructor.is-short-name,
+.ab-card-body > .ab-card-figure .ab-card-instructor.is-long-name {
+  width: 84px; max-width: 84px; align-self: flex-end; text-align: center !important;
+  justify-content: center; transform: translateX(16px); white-space: normal;
+  display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 2; overflow: hidden; overflow-wrap: anywhere;
+}
+@media (max-width: 768px) {
+  #app-helper-container .app-tab-header { padding-bottom: 8px; }
+  .home-greeting-lead { gap: 6px; }
+  #app-helper-container .app-mobile-lead { flex-basis: 50px; width: 50px; }
+  #app-helper-container .app-mobile-lead .app-mobile-avatar { flex-basis: 50px; width: 50px; height: 50px; }
+  html.nav-glass #app-helper-container .app-waitlist-jump { left: 50%; right: auto; width: max-content; max-width: calc(100% - 32px); border: 1px solid var(--border-strong); border-radius: var(--radius-pill); transform: translate(-50%, 100%); box-shadow: var(--shadow-card); }
+  html.nav-glass #app-helper-container .app-waitlist-jump.is-visible { transform: translate(-50%, 0); }
 }

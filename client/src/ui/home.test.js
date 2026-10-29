@@ -304,6 +304,9 @@ describe('W5 Home credits', () => {
       { gymId: 'metered', name: 'Metered', kind: 'credits', memberCredits: 3, guestCredits: null, balanceKnown: true },
       { gymId: 'member', name: 'Member', kind: 'membership', membershipStatus: 'active', guestPasses: 2 },
     ], { navigate() {}, openGymSettings });
+    const membershipTile = root.querySelector('.is-membership');
+    expect(membershipTile.querySelector('.home-credits-value .home-credits-detail').textContent).toBe('Guest passes: 2');
+    expect(membershipTile.querySelector('.home-credits-kind').nextElementSibling.className).toBe('home-credits-detail');
     [...root.querySelectorAll('.home-credits-tile')].forEach((tile) => tile.click());
     expect(openGymSettings).toHaveBeenNthCalledWith(1, 'metered');
     expect(openGymSettings).toHaveBeenNthCalledWith(2, 'member');
@@ -345,6 +348,15 @@ describe('W4 auto-book count', () => {
   it('counts only pending rows across gyms', () => {
     expect(countPendingAutoBooks([{ id: 1 }, { id: 2, executed_at: 'x' }, { id: 3 }])).toBe(2);
   });
+  it('hides an empty queue but keeps pending and unavailable states visible', () => {
+    const widget = homeRegistry.list().find((item) => item.id === 'upcoming');
+    for (const [count, present] of [[0, false], [2, true], [null, true]]) {
+      const root = document.createElement('div');
+      widget.render(root, { cards: [], bookedCount: 1, waitlistCount: 0, queueCount: count }, { navigate() {} });
+      expect(Boolean(root.querySelector('.home-upcoming-queue'))).toBe(present);
+    }
+  });
+
   it('never turns not-loaded into zero', () => {
     expect(countPendingAutoBooks(undefined)).toBeNull();
     expect(countPendingAutoBooks([])).toBe(0);

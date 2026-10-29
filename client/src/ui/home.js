@@ -325,7 +325,9 @@ registerWidget({
       item.querySelector('.home-credits-mark').innerHTML = gymSquareChip(row.gymId);
       item.querySelector('.home-credits-kind').textContent = kind;
       item.querySelector('.home-credits-balance').textContent = balance;
-      item.querySelector('.home-credits-detail').textContent = guest;
+      const detail = item.querySelector('.home-credits-detail');
+      detail.textContent = guest;
+      if (membership) item.querySelector('.home-credits-value').appendChild(detail);
       item.addEventListener('click', () => ctx.openGymSettings(row.gymId));
       list.appendChild(item);
     }
@@ -549,6 +551,7 @@ export function countPendingAutoBooks(rows) {
 }
 
 function renderAutoBookQueue(el, count) {
+  if (count === 0) return;
   const section = document.createElement('div');
   section.className = 'home-upcoming-queue';
   if (count == null) {

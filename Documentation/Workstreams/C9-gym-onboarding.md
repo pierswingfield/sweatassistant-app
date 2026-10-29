@@ -99,6 +99,15 @@ captures and mock results; a mock never proves a live tenant's payment or mutati
 
 ## Homerun London and Barry's UK discovery — 2026-10-28
 
+### Review verification — 2026-10-29
+
+Before changes, a local mock request deleted a retained queue entry for a disabled
+gym; focused tests reproduced a booking after disabling during event lookup, omitted
+a UK reservation on page two, and suppressed a release from before the disabled
+interval. The causes are unguarded ID-based mutations, checks before asynchronous
+preparation, first-page-only reservation reads, and the absence of an interval start.
+Chrome showed the existing switch explanation in the local mock. No live writes ran.
+
 The user authorised public, read-only tenant, location, timetable and branding checks; login
 and all writes were excluded. Homerun's [official site](https://homerun.london/) declares
 the Mariana Tek tenant `homerun`. Its public classes response included Duke Street, London,
@@ -191,3 +200,9 @@ and Aarmy is enabled in production. Its acceptance record is archived at
 | P1 | MarianaTek metadata is inferred from active classes. | Specify quiet/empty-timetable behaviour; use a dedicated provider endpoint only if authoritative. | Behaviour test for an empty or sparse schedule. |
 | P1 | Registry and asset changes are still source edits. | Build the F-7 validated admin draft/preview/activation flow; secrets stay outside its schema. | Invalid draft rejected; preview branded; activation needs evidence. |
 | P2 | Unseen provider variants can differ by tenant. | Add sanitised tenant fixtures only where a live shape differs; keep shared normalized contract tests. | Variant fixture reproduces and protects a confirmed difference. |
+
+Review follow-up: the per-account switch waits for an automatic booking or spot move already underway, including any required recovery after a cancellation. Provider writes check the switch at the actual outbound request boundary after internal read-only preparation; independent later actions cannot start while the switch is pending. A cancellation already issued may finish its rebooking and recovery before the switch responds. This coordination is process-local and assumes the supported single-server deployment. Older databases did not record when a gym was turned off; their existing queue cutoff is migrated conservatively so previously suppressed releases stay suppressed until reviewed.
+
+The 2026-10-29 real Chrome mock check confirmed this wording in JAB settings ([screenshot](../QA/browser-runs/2026-10-29-review/gym-switch.png)). Targeted regressions cover provider-boundary races, recovery, disabled-gym ID routes and account isolation, pagination URL boundaries, repeated disabled intervals, and legacy database migration. Live authenticated booking and cancellation remain unverified and require separate acceptance authorization.
+
+Follow-up verification: 100 server suites passed; 94 client test files and 728 tests passed; the production client build passed. Focused suites were rerun after the final provider and scheduler adjustments. The production build reported the existing large-chunk advisory.

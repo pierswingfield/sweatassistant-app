@@ -736,10 +736,12 @@ app.put('/api/auto-book/:id', authenticateToken, async (req, res) => {
       });
     }
     if (!entry) return res.status(404).json({ code: 'AUTO_BOOK_NOT_FOUND', message: 'Auto-Book entry not found.' });
+    if (!db.isUserGymEnabled(req.userId, entry.gym_id)) return res.status(409).json({ code: 'GYM_DISABLED', message: 'This gym is turned off in Settings.' });
     const guestEligibility = await validateScheduledGuestEligibility({
       provider: getProvider(entry.gym_id), eventId: entry.event_id, session: db.getUserSession(req.userId, entry.gym_id) || undefined,
       guestCount: normalizedPreferences.guests.length,
     });
+    if (!db.isUserGymEnabled(req.userId, entry.gym_id)) return res.status(409).json({ code: 'GYM_DISABLED', message: 'This gym is turned off in Settings.' });
     db.saveAutoBookingWithStudioDraft({
       mode: 'edit', id, userId: req.userId, gymId: entry.gym_id, eventId: entry.event_id,
       preferences: normalizedPreferences, participants: participantsForPreferences(normalizedPreferences),
@@ -754,6 +756,9 @@ app.put('/api/auto-book/:id', authenticateToken, async (req, res) => {
 app.delete('/api/auto-book/:id', authenticateToken, (req, res) => {
   const id = parseInt(req.params.id);
   try {
+    const entry = db.getUserAutoBookings(req.userId, 'all').find(row => Number(row.id) === id);
+    if (!entry) return res.status(404).json({ code: 'AUTO_BOOK_NOT_FOUND', message: 'Auto-Book entry not found.' });
+    if (!db.isUserGymEnabled(req.userId, entry.gym_id)) return res.status(409).json({ code: 'GYM_DISABLED', message: 'This gym is turned off in Settings.' });
     db.deleteAutoBooking(id, req.userId);
     // This may have been the only entry the wake clock was armed for (layer I).
     scheduler.rearm();
@@ -878,6 +883,9 @@ app.put('/api/auto-upgrade/:id', authenticateToken, (req, res) => {
   const { preferences, bookingId } = req.body;
   if (!preferences) return res.status(400).json({ message: 'Missing preferences' });
   try {
+    const entry = db.getUserAutoUpgrades(req.userId, 'all').find(row => Number(row.id) === id);
+    if (!entry) return res.status(404).json({ code: 'AUTO_UPGRADE_NOT_FOUND', message: 'Auto-Upgrade entry not found.' });
+    if (!db.isUserGymEnabled(req.userId, entry.gym_id)) return res.status(409).json({ code: 'GYM_DISABLED', message: 'This gym is turned off in Settings.' });
     // Reset cutoffAttempted so the new prefs get a fresh attempt window
     const cleanPrefs = { ...preferences, cutoffAttempted: false };
     db.updateAutoUpgrade(id, req.userId, 'active', 'Preferences updated. Monitoring...', { preferences: cleanPrefs, bookingId: bookingId ?? undefined });
@@ -890,6 +898,9 @@ app.put('/api/auto-upgrade/:id', authenticateToken, (req, res) => {
 app.delete('/api/auto-upgrade/:id', authenticateToken, (req, res) => {
   const id = parseInt(req.params.id);
   try {
+    const entry = db.getUserAutoUpgrades(req.userId, 'all').find(row => Number(row.id) === id);
+    if (!entry) return res.status(404).json({ code: 'AUTO_UPGRADE_NOT_FOUND', message: 'Auto-Upgrade entry not found.' });
+    if (!db.isUserGymEnabled(req.userId, entry.gym_id)) return res.status(409).json({ code: 'GYM_DISABLED', message: 'This gym is turned off in Settings.' });
     db.deleteAutoUpgrade(id, req.userId);
     res.json({ success: true });
   } catch (err) {

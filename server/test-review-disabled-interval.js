@@ -1,0 +1,27 @@
+process.env.DB_PATH = ':memory:';
+process.env.ENCRYPTION_KEY = 'a'.repeat(64);
+const assert = require('assert');
+const { DateTime } = require('luxon');
+const db = require('./db');
+const scheduler = require('./scheduler');
+const { createUser } = require('./testkit');
+const user = createUser(db, 'interval@test.local', 'enc');
+const gym = 'psycle-london';
+const release = DateTime.utc().minus({ hours: 1 });
+db.db.prepare('INSERT INTO auto_bookings(user_id,gym_id,event_id,preferences,start_at,release_at) VALUES(?,?,?,?,?,?)')
+  .run(user, gym, 1234, '{}', DateTime.utc().plus({ days: 2 }).toISO(), release.toISO());
+db.setUserGymEnabled(user, gym, false);
+db.setUserGymEnabled(user, gym, true);
+assert.ok(scheduler.bookingsReleasingAt(release).some(row => row.event_id === 1234), 'a release before the disabled interval remains eligible');
+const interval = db.db.prepare('SELECT id FROM gym_disabled_intervals WHERE user_id=? AND gym_id=?').get(user, gym);
+db.db.prepare('UPDATE gym_disabled_intervals SET disabled_at=?, enabled_at=? WHERE id=?').run('2030-01-01T10:00:00.000Z', '2030-01-01T11:00:00.000Z', interval.id);
+const row = db.db.prepare('SELECT id FROM auto_bookings WHERE user_id=?').get(user);
+const missed = t => db.wasReleaseDuringGymDisable(user, gym, row.id, `2030-01-01T${t}:00.000Z`);
+assert.strictEqual(missed('09:59'), false);
+assert.strictEqual(missed('10:30'), true);
+assert.strictEqual(missed('11:01'), false);
+db.setUserGymEnabled(user, gym, false);
+db.setUserGymEnabled(user, gym, true);
+assert.strictEqual(missed('10:30'), true, 'later toggles retain earlier intervals');
+assert.strictEqual(db.wasReleaseDuringGymDisable(user, gym, row.id + 100, '2030-01-01T10:30:00.000Z'), false, 'later queue entries are not suppressed');
+console.log('Disabled interval boundaries and repeated toggles passed');

@@ -183,6 +183,7 @@ class CodexFitProvider extends GymProvider {
   }
 
   async _doFetch(urlFn, pathOrUrl, { token, method = 'GET', body, headers } = {}) {
+    require('../gym-mutation-gate').beforeRequest(this.gym.id, method);
     if (token === MOCK_TOKEN) {
       const { handleMockRequest } = require('../mock');
       return handleMockRequest(this.toPath(pathOrUrl), method, typeof body === 'string' ? JSON.parse(body) : body);

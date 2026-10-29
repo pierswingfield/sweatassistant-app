@@ -337,6 +337,10 @@ async function bookSlotWithRelogin(userId, gymId, eventId, targetSlot) {
 
 // Execute auto-book process for a single class slot booking
 async function executeAutoBookForClass(booking) {
+  return require('./gym-mutation-gate').run(booking.user_id, booking.gym_id, () => executeAutoBookForClassInner(booking));
+}
+
+async function executeAutoBookForClassInner(booking) {
   // A gym may have been switched off after the queue was selected.
   if (!db.isUserGymEnabled(booking.user_id, booking.gym_id)) return;
   const release = getClassReleaseTime(booking, db.getUserSettings(booking.user_id, booking.gym_id) || {});
@@ -347,6 +351,8 @@ async function executeAutoBookForClass(booking) {
   // from the user's active gym: background execution must work for a gym the
   // user isn't currently looking at (see db.js's gym scoping rule).
   const gymId = booking.gym_id;
+  const mutationGate = require('./gym-mutation-gate');
+  let releaseMutation = null;
   const prefs = JSON.parse(booking.preferences) || { preferredSlots: [], preferredRows: [], requiredCount: 1, bookAny: true };
   // Slots/rows come from the LIVE shared studio map; requiredCount/bookAny are per-entry.
   const liveMap = resolveLiveMap(userId, booking.studio_id, gymId);
@@ -456,6 +462,9 @@ async function executeAutoBookForClass(booking) {
     //   burnedSlots  — slot POST already failed for another user this window → skip (externally taken)
     // Both short-circuit without a network call, letting subsequent users reach live slots faster.
     while (bookedCount < selfRequiredCount && attemptIdx < slotsToTry.length) {
+      if (mutationGate.isClosing(userId, gymId) || !db.isUserGymEnabled(userId, gymId)) break;
+      if (!releaseMutation) releaseMutation = mutationGate.begin(userId, gymId);
+      if (!releaseMutation) break;
       const targetSlot = slotsToTry[attemptIdx++];
       // Gym-qualified: provider slot ids collide across gyms (WP-G).
       const claimKey = `${gymId}:${eventId}:${targetSlot}`;
@@ -498,6 +507,7 @@ async function executeAutoBookForClass(booking) {
         // now lives in the adapter (see codexfit.js bookSlot) — this call site
         // only handles the scheduler-specific bits: claim/burn bookkeeping and
         // the 401-relogin ladder (bookSlotWithRelogin, defined above).
+        mutationGate.nextAction();
         const result = await bookSlotWithRelogin(userId, gymId, eventId, targetSlot);
 
         if (result.ok) {
@@ -535,8 +545,9 @@ async function executeAutoBookForClass(booking) {
           burnedSlots.add(claimKey);
         }
       } catch (err) {
-        console.error(`[Scheduler] Booking attempt error for slot ${targetSlot}:`, err.message);
         claimedSlots.delete(claimKey);
+        if (err.code === 'GYM_DISABLED') return;
+        console.error(`[Scheduler] Booking attempt error for slot ${targetSlot}:`, err.message);
         burnedSlots.add(claimKey);
       }
 
@@ -586,9 +597,11 @@ async function executeAutoBookForClass(booking) {
         }).filter((id) => !claimedSlots.has(`${gymId}:${eventId}:${id}`) && !burnedSlots.has(`${gymId}:${eventId}:${id}`));
         let guestIdx = 0;
         while (guestIdx < guestOrder.length) {
+          if (mutationGate.isClosing(userId, gymId) || !db.isUserGymEnabled(userId, gymId)) break;
           const targetSlot = guestOrder[guestIdx++];
+          mutationGate.nextAction();
           try { guestResult = await provider.bookGuestSlot(eventId, targetSlot, guest.email, db.getUserSession(userId, gymId) || undefined); }
-          catch (_) { guestResult = { ok: false, code: 'BOOKING_TIMEOUT', error: 'Guest booking result could not be confirmed.' }; }
+          catch (err) { guestResult = err.code === 'GYM_DISABLED' ? { ok: false, code: 'GYM_DISABLED', error: 'Gym turned off before guest booking.' } : { ok: false, code: 'BOOKING_TIMEOUT', error: 'Guest booking result could not be confirmed.' }; }
           if (guestResult?.ok) {
             db.markAutoBookingParticipant(booking.id, userId, key, { status: 'success', bookingId: guestResult.bookingId, slotId: guestResult.slotId || targetSlot });
             db.upsertGuestBookingGroup(userId, gymId, eventId, primaryBookingId, guestResult.bookingId);
@@ -702,6 +715,9 @@ async function executeAutoBookForClass(booking) {
       }
     } else {
       // 6. Fail fallback: join waitlist
+      if (mutationGate.isClosing(userId, gymId) || !db.isUserGymEnabled(userId, gymId)) return;
+      if (!releaseMutation) releaseMutation = mutationGate.begin(userId, gymId);
+      if (!releaseMutation) return;
       console.log(`[Scheduler] All slots taken for event ${eventId}. Attempting waitlist fallback...`);
 
       emitStatusUpdate(userId, {
@@ -711,6 +727,7 @@ async function executeAutoBookForClass(booking) {
       });
 
       const wlUrl = `/waitlists/${eventId}`;
+      mutationGate.nextAction();
       const wlRes = await fetchFromGym(userId, gymId, wlUrl, { method: 'PUT' });
 
       if (wlRes.ok) {
@@ -746,9 +763,12 @@ async function executeAutoBookForClass(booking) {
       }
     }
   } catch (err) {
+    if (err.code === 'GYM_DISABLED') return;
     console.error(`[Scheduler] Auto-book worker failed for user ${userId}, event ${eventId}:`, err.message);
     db.markAutoBookingExecuted(eventId, userId, gymId, 'failed', `Worker execution failed: ${err.message}`, new Date().toISOString());
     pushService.sendNotification(userId, 'Auto-Book Error ⚠️', `Error executing booking for ${displayClass(booking)}: ${err.message}`);
+  } finally {
+    if (releaseMutation) releaseMutation();
   }
 }
 
@@ -858,10 +878,7 @@ const IDLE_RECHECK_MS = 15 * 60 * 1000;
 const MISSED_RELEASE_GRACE_MS = 5 * 60 * 1000;
 
 function missedWhileGymDisabled(booking, releaseAt) {
-  const link = db.getUserGym(booking.user_id, booking.gym_id);
-  if (!link?.account_enabled_at || link.account_enabled_queue_cutoff == null) return false;
-  const enabled = DateTime.fromISO(link.account_enabled_at);
-  return enabled.isValid && releaseAt <= enabled && Number(booking.id) <= link.account_enabled_queue_cutoff;
+  return db.wasReleaseDuringGymDisable(booking.user_id, booking.gym_id, booking.id, releaseAt.toUTC().toISO());
 }
 
 // Every pending entry paired with its resolved release instant.

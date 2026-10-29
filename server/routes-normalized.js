@@ -299,9 +299,12 @@ function refreshCalendarAfterGymSetChange(userId) {
   } catch (_) { /* best effort */ }
 }
 
-router.patch('/my-gyms/:gymId/enabled', authenticateToken, (req, res) => {
+router.patch('/my-gyms/:gymId/enabled', authenticateToken, async (req, res) => {
   if (typeof req.body?.enabled !== 'boolean') return res.status(400).json({ message: 'enabled must be a boolean' });
-  if (!db.setUserGymEnabled(req.userId, req.params.gymId, req.body.enabled)) {
+  if (require('./gym-mutation-gate').isClosing(req.userId, req.params.gymId)) return res.status(409).json({ message: 'A gym change is already in progress.' });
+  const changed = req.body.enabled ? db.setUserGymEnabled(req.userId, req.params.gymId, true)
+    : await require('./gym-mutation-gate').disable(req.userId, req.params.gymId);
+  if (!changed) {
     return res.status(404).json({ message: 'Gym is not linked to this account' });
   }
   refreshCalendarAfterGymSetChange(req.userId);

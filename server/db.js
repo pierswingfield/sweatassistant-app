@@ -445,6 +445,21 @@ if (!db.prepare('PRAGMA table_info(user_gyms)').all().some((col) => col.name ===
 if (!db.prepare('PRAGMA table_info(user_gyms)').all().some((col) => col.name === 'account_enabled_queue_cutoff')) {
   db.exec('ALTER TABLE user_gyms ADD COLUMN account_enabled_queue_cutoff INTEGER');
 }
+const hadGymDisabledIntervals = !!db.prepare("SELECT 1 FROM sqlite_master WHERE type = 'table' AND name = 'gym_disabled_intervals'").get();
+db.exec(`CREATE TABLE IF NOT EXISTS gym_disabled_intervals (
+  id INTEGER PRIMARY KEY AUTOINCREMENT, user_id INTEGER NOT NULL, gym_id TEXT NOT NULL,
+  disabled_at TEXT NOT NULL, enabled_at TEXT, queue_cutoff INTEGER,
+  FOREIGN KEY (user_id, gym_id) REFERENCES user_gyms(user_id, gym_id) ON DELETE CASCADE
+)`);
+if (!hadGymDisabledIntervals) {
+  // Older builds retained only the end of the last interval. Preserve their
+  // conservative suppression; the actual start cannot be reconstructed.
+  db.exec(`INSERT INTO gym_disabled_intervals(user_id,gym_id,disabled_at,enabled_at,queue_cutoff)
+    SELECT user_id,gym_id,'0001-01-01T00:00:00.000Z',account_enabled_at,account_enabled_queue_cutoff
+    FROM user_gyms WHERE account_enabled_at IS NOT NULL AND account_enabled_queue_cutoff IS NOT NULL`);
+  db.exec(`INSERT INTO gym_disabled_intervals(user_id,gym_id,disabled_at)
+    SELECT user_id,gym_id,strftime('%Y-%m-%dT%H:%M:%fZ','now') FROM user_gyms WHERE account_enabled = 0`);
+}
 
 // --- Gym registry mirror ---
 // Keeps the `gyms` table in sync with the static registry (server/gyms.config.js
@@ -2134,9 +2149,27 @@ module.exports = {
   getUserGym(userId, gymId) {
     return db.prepare('SELECT * FROM user_gyms WHERE user_id = ? AND gym_id = ?').get(userId, gymId);
   },
-  setUserGymEnabled(userId, gymId, enabled) {
-    return db.prepare("UPDATE user_gyms SET account_enabled_queue_cutoff = CASE WHEN ? = 1 AND account_enabled = 0 THEN COALESCE((SELECT MAX(id) FROM auto_bookings WHERE user_id = user_gyms.user_id AND gym_id = user_gyms.gym_id), 0) ELSE account_enabled_queue_cutoff END, account_enabled_at = CASE WHEN ? = 1 AND account_enabled = 0 THEN strftime('%Y-%m-%dT%H:%M:%fZ', 'now') ELSE account_enabled_at END, account_enabled = ?, updated_at = CURRENT_TIMESTAMP WHERE user_id = ? AND gym_id = ?")
-      .run(enabled ? 1 : 0, enabled ? 1 : 0, enabled ? 1 : 0, userId, gymId).changes > 0;
+  setUserGymEnabled(userId, gymId, enabled, disabledAt = null) {
+    return db.transaction(() => {
+      const link = this.getUserGym(userId, gymId);
+      if (!link) return false;
+      if (Boolean(link.account_enabled) === enabled) return true;
+      const now = new Date().toISOString();
+      if (enabled) {
+        const cutoff = db.prepare('SELECT COALESCE(MAX(id),0) AS n FROM auto_bookings WHERE user_id = ? AND gym_id = ?').get(userId, gymId).n;
+        db.prepare('UPDATE gym_disabled_intervals SET enabled_at = ?, queue_cutoff = ? WHERE user_id = ? AND gym_id = ? AND enabled_at IS NULL').run(now, cutoff, userId, gymId);
+        db.prepare('UPDATE user_gyms SET account_enabled = 1, account_enabled_at = ?, account_enabled_queue_cutoff = ?, updated_at = CURRENT_TIMESTAMP WHERE user_id = ? AND gym_id = ?').run(now, cutoff, userId, gymId);
+      } else {
+        db.prepare('INSERT INTO gym_disabled_intervals(user_id,gym_id,disabled_at) VALUES(?,?,?)').run(userId, gymId, disabledAt || now);
+        db.prepare('UPDATE user_gyms SET account_enabled = 0, updated_at = CURRENT_TIMESTAMP WHERE user_id = ? AND gym_id = ?').run(userId, gymId);
+      }
+      return true;
+    })();
+  },
+  wasReleaseDuringGymDisable(userId, gymId, bookingId, releaseAt) {
+    return !!db.prepare(`SELECT 1 FROM gym_disabled_intervals WHERE user_id = ? AND gym_id = ?
+      AND disabled_at <= ? AND enabled_at IS NOT NULL AND enabled_at >= ? AND queue_cutoff >= ? LIMIT 1`)
+      .get(userId, gymId, releaseAt, releaseAt, bookingId);
   },
   isUserGymEnabled(userId, gymId) {
     return !!db.prepare('SELECT 1 FROM user_gyms WHERE user_id = ? AND gym_id = ? AND account_enabled = 1').get(userId, gymId);

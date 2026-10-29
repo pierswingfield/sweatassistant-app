@@ -119,6 +119,30 @@ function classifyCancelPenalty(data) {
 }
 
 class MarianaTekProvider extends GymProvider {
+  async readUpcomingReservations(session) {
+    const rows = [];
+    const seen = new Set();
+    let path = '/me/reservations?is_upcoming=true&page_size=100';
+    for (let page = 0; path && page < 60; page++) {
+      if (seen.has(path)) throw new Error('Repeated reservation pagination link');
+      seen.add(path);
+      const res = await this.request(path, { token: session.accessToken });
+      if (!res.ok) throw new Error(`listReservations failed: ${res.status}`);
+      const data = await res.json();
+      if (!Array.isArray(data.results)) throw new Error('Invalid reservation page');
+      rows.push(...data.results);
+      const next = data.links?.next || data.next;
+      if (!next) return rows;
+      const base = new URL(this.gym.apiBaseUrl);
+      let url;
+      const expected = `${base.pathname.replace(/\/$/, '')}/me/reservations`;
+      try { url = new URL(next, new URL(expected + '?is_upcoming=true', base.origin)); } catch (_) { throw new Error('Invalid reservation pagination link'); }
+      if (url.origin !== base.origin || url.pathname !== expected || url.username || url.password || url.hash
+          || url.searchParams.get('is_upcoming') !== 'true') throw new Error('Unsafe reservation pagination link');
+      path = `/me/reservations${url.search}`;
+    }
+    throw new Error('Reservation pagination exceeds safety limit');
+  }
   isClassInScope(classSession) {
     const regions = this.gym.allowedRegionIds;
     if (!regions?.length) return true;
@@ -174,6 +198,7 @@ class MarianaTekProvider extends GymProvider {
   }
 
   async request(path, { token, method = 'GET', body, timeoutMs = MT_REQUEST_TIMEOUT_MS } = {}) {
+    require('../gym-mutation-gate').beforeRequest(this.gym.id, method);
     if (token === MOCK_TOKEN) {
       const { handleMockRequest } = require('../mock-marianatek');
       return handleMockRequest(path, method, body, this.gym);
@@ -1232,11 +1257,9 @@ class MarianaTekProvider extends GymProvider {
    * reservation for this event first, then cancel it by its reservation id.
    */
   async leaveWaitlist(eventId, session) {
-    const res = await this.request('/me/reservations?is_upcoming=true&page_size=100', { token: session.accessToken });
-    if (!res.ok) return false;
-    const data = await res.json().catch(() => ({}));
-    const entry = (data.results || []).find(
-      (r) => r.reservation_type === 'waitlist' && r.class_session && String(r.class_session.id) === String(eventId)
+    const rows = await this.readUpcomingReservations(session);
+    const entry = rows.find(
+      (r) => r.reservation_type === 'waitlist' && r.class_session && String(r.class_session.id) === String(eventId) && this.isClassInScope(r.class_session)
     );
     if (!entry) return false;
     return this.cancelBooking(entry.id, session);
@@ -1251,10 +1274,7 @@ class MarianaTekProvider extends GymProvider {
    * class-session id when the timetable data can supply it.
    */
   async _listReservations(session, reservationType) {
-    const res = await this.request('/me/reservations?is_upcoming=true&page_size=100', { token: session.accessToken });
-    if (!res.ok) throw new Error(`listReservations failed: ${res.status}`);
-    const data = await res.json();
-    const results = (data.results || []).filter(r => this.isClassInScope(r.class_session));
+    const results = (await this.readUpcomingReservations(session)).filter(r => this.isClassInScope(r.class_session));
     const classEvents = await this._reservationClassEvents(results, session);
     return results
       .filter((r) => r.reservation_type === reservationType)

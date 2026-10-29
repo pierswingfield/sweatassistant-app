@@ -34,6 +34,7 @@ const release = DateTime.utc().minus({ minutes: 1 });
 db.db.prepare('INSERT INTO auto_bookings (user_id, gym_id, event_id, preferences, start_at, release_at, created_at) VALUES (?, ?, ?, ?, ?, ?, ?)')
   .run(alice, gym, 987, '{}', DateTime.utc().plus({ days: 2 }).toISO(), release.toISO(), '2020-01-01 00:00:00');
 db.setUserGymEnabled(alice, gym, false);
+db.db.prepare('UPDATE gym_disabled_intervals SET disabled_at = ? WHERE user_id = ? AND gym_id = ? AND enabled_at IS NULL').run(release.minus({ minutes: 1 }).toISO(), alice, gym);
 db.setUserGymEnabled(alice, gym, true);
 assert.strictEqual(scheduler.bookingsReleasingAt(release).some(x => x.event_id === 987), false);
 assert.strictEqual(db.getUserAutoBookings(alice, gym).some(x => x.event_id === 987), true);

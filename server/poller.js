@@ -248,6 +248,8 @@ async function attemptGroupUpgradeInner(upgrade, members, isCutoffMode) {
   const eventId = String(upgrade.event_id);
   const userId = upgrade.user_id;
   const gymId = upgrade.gym_id; // the ROW's gym (C3-12)
+  const mutationGate = require('./gym-mutation-gate');
+  let releaseMutation = null;
   const gym = getGymConfig(gymId);
   const isAtomic = !!(gym && gym.capabilities && gym.capabilities.atomicSwap);
   const nowIso = () => new Date().toISOString();
@@ -402,6 +404,9 @@ async function attemptGroupUpgradeInner(upgrade, members, isCutoffMode) {
 
     await new Promise((r) => setTimeout(r, 300 + Math.floor(Math.random() * 600)));
 
+    releaseMutation = mutationGate.begin(userId, gymId);
+    if (!releaseMutation) return;
+
     const moved = [];            // { fromSlot, toSlot }
     let failure = null;          // { message, lost }
     const usedTargets = new Set(plan.moves.map((m) => m.to));
@@ -500,6 +505,11 @@ async function attemptGroupUpgradeInner(upgrade, members, isCutoffMode) {
     };
 
     for (const mv of plan.moves) {
+      if (mutationGate.isClosing(userId, gymId)) {
+        failure = { message: 'The gym was turned off during the group move.', nochange: moved.length === 0 };
+        break;
+      }
+      mutationGate.nextAction();
       let okMove = false;
       try { okMove = await doMove(mv); }
       catch (err) {
@@ -569,6 +579,7 @@ async function attemptGroupUpgradeInner(upgrade, members, isCutoffMode) {
       console.error(`[Poller] Error in group upgrade worker for event ${eventId}:`, err.message);
     }
   } finally {
+    if (releaseMutation) releaseMutation();
     // Unused claims must not block another monitor this cycle.
     if (!committed) claimed.forEach((k) => claimedSlots.delete(k));
     claimed.forEach((k) => heldGroupClaims.delete(k));
@@ -582,7 +593,7 @@ async function attemptGroupUpgradeInner(upgrade, members, isCutoffMode) {
  * Returns { done:true } when this cycle is finished (skipped / recovered / lost), or
  * { bookResult } after a successful cancel + rebook of `candidateSlot`.
  */
-async function cancelRebookSingle({ upgrade, candidateSlot, claimKey, isCutoffMode }) {
+async function cancelRebookSingle({ upgrade, candidateSlot, claimKey, isCutoffMode, acquireMutation }) {
   const userId = upgrade.user_id;
   const gymId = upgrade.gym_id; // the ROW's gym (C3-12)
   const eventId = String(upgrade.event_id);
@@ -641,6 +652,7 @@ async function cancelRebookSingle({ upgrade, candidateSlot, claimKey, isCutoffMo
   };
   const label = displayClass(upgrade);
 
+  if (!acquireMutation()) { claimedSlots.delete(claimKey); return { done: true }; }
   try { await apiCancelBooking(userId, gymId, upgrade.booking_id); }
   catch (err) {
     // The cancel may have succeeded upstream: learn the truth before deciding.
@@ -676,6 +688,10 @@ async function cancelRebookSingle({ upgrade, candidateSlot, claimKey, isCutoffMo
 }
 
 async function attemptUpgradeSlot(upgrade, isCutoffMode) {
+  return require('./gym-mutation-gate').run(upgrade.user_id, upgrade.gym_id, () => attemptUpgradeSlotInner(upgrade, isCutoffMode));
+}
+
+async function attemptUpgradeSlotInner(upgrade, isCutoffMode) {
   if (!db.isUserGymEnabled(upgrade.user_id, upgrade.gym_id)) return;
   // Group monitors (several reservations) are planned and moved together.
   const groupMembers = db.getAutoUpgradeMembers(upgrade.id);
@@ -686,6 +702,13 @@ async function attemptUpgradeSlot(upgrade, isCutoffMode) {
   // a JAB upgrade must run while the user is looking at Psycle (see db.js's gym
   // scoping rule).
   const gymId = upgrade.gym_id;
+  const mutationGate = require('./gym-mutation-gate');
+  let releaseMutation = null;
+  const acquireMutation = () => {
+    if (mutationGate.isClosing(userId, gymId) || !db.isUserGymEnabled(userId, gymId)) return false;
+    if (!releaseMutation) releaseMutation = mutationGate.begin(userId, gymId);
+    return !!releaseMutation;
+  };
   const gym = getGymConfig(gymId);
   // Set when an atomic swap moved the reservation, so the cancel-then-rebook
   // cleanup below knows there is nothing left to cancel.
@@ -827,6 +850,7 @@ async function attemptUpgradeSlot(upgrade, isCutoffMode) {
           // MarianaTek's POST /reservations/{id}/swap_spots is one call that
           // either moves them or doesn't.
           if (isAtomic) {
+            if (!acquireMutation()) { claimedSlots.delete(claimKey); return; }
             bookResult = await swapSpotsWithRelogin(userId, gymId, upgrade.booking_id, upgrade.current_slot_id, candidateSlot);
             if (!bookResult.ok && handleUpgradeThrottle(bookResult, userId, gymId, claimKey)) return;
             if (!bookResult.ok) {
@@ -836,11 +860,12 @@ async function attemptUpgradeSlot(upgrade, isCutoffMode) {
             }
             usedAtomicSwap = true;
           } else if (cancelFirst) {
-            const out = await cancelRebookSingle({ upgrade, candidateSlot, claimKey, isCutoffMode, labelForSlot });
+            const out = await cancelRebookSingle({ upgrade, candidateSlot, claimKey, isCutoffMode, acquireMutation });
             if (out.done) return;
             bookResult = out.bookResult;
             usedCancelFirst = true;
           } else {
+            if (!acquireMutation()) { claimedSlots.delete(claimKey); return; }
             bookResult = await bookSlotWithRelogin(userId, gymId, eventId, candidateSlot);
           }
 
@@ -942,6 +967,8 @@ async function attemptUpgradeSlot(upgrade, isCutoffMode) {
     } else {
       console.error(`[Poller] Error in upgrade worker for event ${eventId}:`, err.message);
     }
+  } finally {
+    if (releaseMutation) releaseMutation();
   }
 }
 

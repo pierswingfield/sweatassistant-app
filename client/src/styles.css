@@ -11754,19 +11754,25 @@ html:not([data-credits-tab="on"]) .app-nav-btn[data-tab="buy-credits"] { display
   .app-login-mascot { height: 88px; }
 }
 
-/* Mobile refinements: preserve the avatar column and center labels on the image. */
-.ab-card-body > .ab-card-figure .ab-card-instructor,
-.ab-card-body > .ab-card-figure .ab-card-instructor.is-short-name,
-.ab-card-body > .ab-card-figure .ab-card-instructor.is-long-name {
-  width: 84px; max-width: 84px; align-self: flex-end; text-align: center !important;
-  justify-content: center; transform: translateX(16px); white-space: normal;
-  display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 2; overflow: hidden; overflow-wrap: anywhere;
+/* Mobile cards center the label on the fixed avatar, including long names. */
+@media (max-width: 767px) {
+  .ab-card-body > .ab-card-figure .ab-card-instructor,
+  .ab-card-body > .ab-card-figure .ab-card-instructor.is-short-name,
+  .ab-card-body > .ab-card-figure .ab-card-instructor.is-long-name {
+    width: 84px; max-width: 84px; align-self: flex-end; text-align: center !important;
+    justify-content: center; transform: translateX(16px); white-space: normal;
+    display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 2; overflow: hidden; overflow-wrap: anywhere;
+  }
 }
 @media (max-width: 768px) {
   #app-helper-container .app-tab-header { padding-bottom: 8px; }
   .home-greeting-lead { gap: 6px; }
-  #app-helper-container .app-mobile-lead { flex-basis: 50px; width: 50px; }
+  #app-helper-container .app-mobile-lead { min-width: 50px; }
   #app-helper-container .app-mobile-lead .app-mobile-avatar { flex-basis: 50px; width: 50px; height: 50px; }
-  html.nav-glass #app-helper-container .app-waitlist-jump { left: 50%; right: auto; width: max-content; max-width: calc(100% - 32px); border: 1px solid var(--border-strong); border-radius: var(--radius-pill); transform: translate(-50%, 100%); box-shadow: var(--shadow-card); }
-  html.nav-glass #app-helper-container .app-waitlist-jump.is-visible { transform: translate(-50%, 0); }
+}
+@supports ((backdrop-filter: blur(1px)) or (-webkit-backdrop-filter: blur(1px))) {
+  @media (max-width: 768px) {
+    html.nav-glass #app-helper-container .app-waitlist-jump { left: 50%; right: auto; width: max-content; max-width: calc(100% - 32px); border: 1px solid var(--border-strong); border-radius: var(--radius-pill); transform: translate(-50%, 100%); box-shadow: var(--shadow-card); }
+    html.nav-glass #app-helper-container .app-waitlist-jump.is-visible { transform: translate(-50%, 0); }
+  }
 }

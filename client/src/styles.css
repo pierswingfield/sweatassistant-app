@@ -5240,6 +5240,8 @@ html, body, * {
 
 /* --- 8. BOOKING MODAL — Token-driven card & overlay --- */
 .app-modal-card {
+  position: relative;
+  z-index: 1;
   background: var(--surface);
   border: 1px solid var(--border-strong);
   border-radius: 24px;

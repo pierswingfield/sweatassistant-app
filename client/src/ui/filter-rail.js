@@ -415,13 +415,19 @@ function paintSheet(ctx) {
     ? section('gyms', COPY.static.gyms, summarise(state.gyms.map(gymName)), state.gyms.length, gymInner, 'gyms')
     : `<div class="fr-sec fr-sec-plain">${gymInner}</div>`;
 
-  // One merged grid. ctx.locations is already ordered by gym, so same-gym
-  // chips sit together; the round logo on each chip says whose it is.
-  const locInner = ctx.locations.length ? `<div class="fr-grid">${ctx.locations.map(l => {
-      const on = ctx.isOn('locations', l.id);
-      return `<button type="button" class="fr-opt${on ? ' on' : ''}" data-fr-toggle="locations" data-id="${escapeHtml(l.id)}" aria-pressed="${on}">
-        ${gymDot(l.gymId, 'sm')}<span class="fr-opt-name">${escapeHtml(ctx.locationLabel(l))}</span></button>`;
-    }).join('')}</div>` : `<p class="fr-hint">${COPY.filters.noLocationsForGyms}</p>`;
+  // Keep small lists compact; larger lists use the same gym headings as workouts.
+  const locationButton = (l) => {
+    const on = ctx.isOn('locations', l.id);
+    return `<button type="button" class="fr-opt${on ? ' on' : ''}" data-fr-toggle="locations" data-id="${escapeHtml(l.id)}" aria-pressed="${on}">
+      ${gymDot(l.gymId, 'sm')}<span class="fr-opt-name">${escapeHtml(ctx.locationLabel(l))}</span></button>`;
+  };
+  const locGroups = new Map();
+  ctx.locations.forEach(l => { const k = l.gymId || ''; (locGroups.get(k) || locGroups.set(k, []).get(k)).push(l); });
+  const locInner = !ctx.locations.length ? `<p class="fr-hint">${COPY.filters.noLocationsForGyms}</p>`
+    : ctx.locations.length <= 9 ? `<div class="fr-grid">${ctx.locations.map(locationButton).join('')}</div>`
+      : [...locGroups.entries()].map(([gymId, list]) => `<div class="fr-wgroup">
+          <div class="fr-wgroup-head">${gymDot(gymId)}<span>${escapeHtml(gymName(gymId))}</span></div>
+          <div class="fr-grid">${list.map(locationButton).join('')}</div></div>`).join('');
 
   // Workouts grouped by gym. A workout id is the bucket label and is shared
   // across gyms by design (see setupDropdownFilters), so the same label under

@@ -328,7 +328,7 @@ const GYMS = {
     theme: { key: 'mono', primary: '#000000' },
     presentation: {
       shortName: "Barry's",
-      wordmark: { text: "BARRY'S", full: { src: '/gyms/barrys-wordmark.svg' }, compact: { src: '/gyms/barrys-wordmark.svg' }, mark: { src: '/gyms/barrys-mark.png' }, logoWidth: 70, squareMark: true },
+      wordmark: { text: "BARRY'S", full: { src: '/gyms/barrys-wordmark.svg' }, compact: { src: '/gyms/barrys-wordmark.svg' }, mark: { src: '/gyms/barrys-mark.svg' }, logoWidth: 48, squareMark: true },
       plate: '#111111',
       light: { ink: '#000000', inkHover: '#27272A', tint: '#000000', on: '#FFFFFF' },
       dark: { ink: '#FFFFFF', inkHover: '#E4E4E7', tint: '#FFFFFF', on: '#000000' },

@@ -38,22 +38,32 @@ protocol.
    authenticated read traffic and browser assets; a matching brand alone is insufficient.
 2. **Capture safe evidence.** Save only sanitised responses proving login/renewal, profile,
    timetable, event details/layout, availability, bookings/waitlists, credits or membership and
-   booking release. Never retain credentials or tokens.
+   booking release. Verify each capability against an official same-tenant source or sanitised
+   authenticated capture; public discovery alone cannot establish authenticated support. Record
+   unknowns as unproven, including the scope of account-wide statistics. Never retain credentials
+   or tokens, and obtain the live playbook’s approval for each type of access.
 3. **Choose adapter.** Reuse an adapter only if auth and read flows fit. Otherwise add a platform
    adapter implementing `GymProvider`; do not make an existing adapter tenant-specific.
 4. **Configure one tenant entry.** Set ID, provider, timezone, endpoints, client-fidelity
    headers, a development mock identity, default-off production gate, theme/presentation/assets,
    labels/aliases, observed capabilities and booking policy. Store assets in
-   `client/public/gyms/`.
+   `client/public/gyms/`. Prefer official vector assets. Keep regional scope in tenant config,
+   and apply it to timetable, details, actions, reservations and history; fail closed where a
+   required region is missing. Follow every reservations/waitlist page and validate each next
+   link’s origin and path before requesting it.
 5. **Prove normalized wiring.** Confirm `getProvider(gymId)`, gym-qualified events, normalized
    event/slot/release fields and platform variants. MarianaTek requires separate pick-a-spot and
    FCFS checks; FCFS must produce no layout slots. Resolve payment options before any mutation.
-6. **Verify.** Run targeted provider/mock, isolation and no-gym-privilege suites under Node 20,
-   then relevant client tests/build. Run mutable mocks serially. In real Chrome, clear caches and
-   confirm branding and live read data.
+6. **Verify.** Run targeted provider/mock, isolation and no-gym-privilege suites,
+   then relevant client tests/build; use the Node version in [TESTING.md](../TESTING.md). Run
+   mutable mocks serially. In real Chrome, clear caches and confirm branding and authorised live
+   read data.
 7. **Activate separately.** Record read acceptance, policy evidence and explicitly authorised
    write coverage (or a waiver), then obtain a production enable/deploy decision and repeat the
-   target-environment browser check. An enable variable is never acceptance by itself.
+   target-environment browser check. An enable variable is never acceptance by itself. Choose the
+   intended experiment, dev or production target explicitly; preserve existing links and paused
+   copied jobs. Record the deployed application commit, enabled flags, consistent database backup
+   and rollback source/image; a later documentation commit does not change the deployed commit.
 8. **Warm instructor photos.** After adding or enabling a gym on a deployed environment, run
    `docker exec <container> node server/scripts/warm-instructor-photos.js` (all enabled gyms) or
    `... warm-instructor-photos.js --gym <gymId>` (one gym, e.g. `--gym aarmy`) so photos are
@@ -82,14 +92,14 @@ include tokens, credentials or personal data in the record.
 | Surface | Checks before acceptance |
 |---|---|
 | Identity and access | Official site and tenant identity; regional scope, login, renewal, gym linking, reauthentication, unlinking and no-gym state. Check that accounts and sessions stay isolated. |
-| Catalogue and presentation | Registry name, short name, URLs, timezone, location zones, colours, light/dark contrast, full/compact/mark assets and accessible alternative text. Confirm all assets load on desktop and mobile. Keep tenant facts in gym configuration and assets, not product core. |
-| Marketing and onboarding | Landing-page gym representation and links, gym selection and connect flow, first-run onboarding, capability-dependent copy and unlinked/disabled states. |
-| Home | Widgets, gym labels and logos, filtering, empty/loading/error states and navigation to the relevant class or feature. |
-| Timetable and discovery | Date/location/studio/instructor filters, search, favourites, gym selection, merged schedules, timezone/DST, class details, occupancy, release time, availability, floor plans and empty or sparse schedules. |
+| Catalogue and presentation | Registry name, short name, URLs, timezone, location zones, colours, light/dark contrast, full/compact/mark assets and accessible alternative text. Compare rendered inline sprites with external images and inspect actual header, Home and settings at small and large sizes on desktop/mobile in both themes; geometry alone can miss clipping. Use zero-origin square SVG marks for the shared sprite. Check settings banner and timetable chip sizing independently. Version changed asset URLs when cache-first service workers could retain the old asset, and verify the deployed asset. Keep tenant facts in gym configuration and assets, not product core. |
+| Marketing and onboarding | Landing-page gym representation and links, gym selection and connect flow, first-run onboarding, capability-dependent copy and unlinked/disabled states. With mock input, hit-test and focus the credential form and test desktop backdrop dismissal and mobile full-page navigation. |
+| Home | Widgets, gym labels and logos, filtering, empty/loading/error states and navigation to the relevant class or feature. Distinguish unsupported attendance totals from failed requests, label account-wide totals honestly and never infer attendance from booking history. |
+| Timetable and discovery | Date/location/studio/instructor filters, search, favourites, gym selection, merged schedules, timezone/DST, class details, occupancy, release time, availability, floor plans and empty or sparse schedules. Check location filters at the nine/ten boundary, selection retention and disabled-gym filtering. |
 | Booking lifecycle | Capability-gated booking, spots and swaps, waitlist join/leave, cancellation, bookings list and error states. Exercise state transitions on mocks; live writes require the playbook's specific approval or a documented waiver. |
-| Automation | Auto-book eligibility, queued jobs, release instants, priority, pause/resume, auto-upgrade, account and gym isolation, failures and notifications. Verify behavior when the gym is switched off or unlinked. |
+| Automation | Auto-book eligibility, queued jobs, release instants, priority, pause/resume, auto-upgrade, account and gym isolation, failures and notifications. Verify behavior when the gym is switched off or unlinked, including in-flight provider writes and recovery, guest-only resumption, unattempted participants and repeated disabled intervals. The switch coordination assumes one server process. |
 | Credits and membership | Profile and credit display, membership/unmetered rules, eligibility, expiry, packages and checkout availability; do not execute payment or purchase. |
-| Settings and data | Every gym's settings and visibility switch, linked versus disabled states, persistence, all-disabled state, favourites, spot preferences, account isolation and cache invalidation. Check that the switch's effects on background jobs and data retention are stated to users. |
+| Settings and data | Every gym's settings and visibility switch, linked versus disabled states, persistence, all-disabled state, favourites, spot preferences, account isolation and cache invalidation. Check that the switch's effects on background jobs and data retention are stated to users. Verify ID-based mutations enforce ownership and enabled state and that linked data, preferences and queues survive disabling. |
 | Calendar, history and notifications | Feed inclusion and refresh, cancellation reminders, booking-window alerts, history and Home statistics, per-gym preferences and account isolation when the gym is off or unlinked. |
 | Operations and regression | Default-off activation gate, admin/catalogue presentation, logs and metrics without secrets, provider errors/backoff, mock/provider and cross-gym tests, full suite and client build. Clear browser caches and repeat desktop/mobile checks in real Chrome before and after the change. |
 

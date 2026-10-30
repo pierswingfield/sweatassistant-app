@@ -133,15 +133,19 @@ registerWidget({
 export function getHomeStats(gyms, byGym = {}) {
   const rows = [];
   let unavailable = 0;
+  let unsupported = false;
+  let failed = false;
   for (const gym of Array.isArray(gyms) ? gyms : []) {
     const gymId = gymIdOf(gym);
     if (!gymId) continue;
     const data = byGym[gymId] || {};
+    if (data.attendanceUnsupported) { unavailable += 1; unsupported = true; continue; }
     const attendance = data.attendance;
     const rawTotal = attendance?.attendedTotal;
     const total = Number(rawTotal);
     if (rawTotal == null || rawTotal === '' || !Number.isInteger(total) || total < 0) {
       unavailable += 1;
+      failed = true;
       continue;
     }
     rows.push({
@@ -150,7 +154,7 @@ export function getHomeStats(gyms, byGym = {}) {
       attendanceTotal: total,
     });
   }
-  return { rows, partial: unavailable > 0 };
+  return { rows, partial: unavailable > 0, unsupported, failed };
 }
 
 /** Show an all-gym total only when every linked gym has valid attendance. */
@@ -172,7 +176,7 @@ async function loadHomeStats(gyms) {
     // Capabilities are held by gym-context while public linked-gym rows stay
     // deliberately small. Resolve this known gym through that shared contract.
     const supportsOfficialAttendance = canForGym('attendanceTotals', gymId);
-    if (!supportsOfficialAttendance) return [gymId, {}];
+    if (!supportsOfficialAttendance) return [gymId, { attendanceUnsupported: true }];
     const valid = (a) => a && a.attendedTotal != null && a.attendedTotal !== '' && Number.isInteger(Number(a.attendedTotal)) && Number(a.attendedTotal) >= 0;
     let attendance = null;
     try { attendance = await api.getAttendanceTotals(gymId, { loading: true }); } catch (_) { /* retried live below */ }
@@ -211,17 +215,17 @@ registerWidget({
   cacheKeys(ctx) { return uniqueGymIds(ctx.gyms).filter((id) => canForGym('attendanceTotals', id)).map((id) => gymCacheKey('/api/attendance-totals', id)); },
   headerMeta: getHomeActivityMeta,
   async load(ctx) { return loadHomeStats(ctx.gyms); },
-  isEmpty: (data) => Array.isArray(data?.rows) && data.rows.length === 0,
+  isEmpty: (data) => Array.isArray(data?.rows) && data.rows.length === 0 && !data.unsupported && !data.failed,
   emptyText: COPY.home.statsNone,
   render(el, data, ctx) {
     const grid = document.createElement('div');
     grid.className = 'home-attendance-grid';
     data.rows.forEach((row) => grid.appendChild(attendanceTile(row, ctx)));
     el.appendChild(grid);
-    if (data.partial) {
+    for (const text of [data.unsupported && COPY.home.statsUnsupported, data.failed && COPY.home.statsPartial].filter(Boolean)) {
       const note = document.createElement('p');
       note.className = 'home-stats-partial';
-      note.textContent = COPY.home.statsPartial;
+      note.textContent = text;
       el.appendChild(note);
     }
   },

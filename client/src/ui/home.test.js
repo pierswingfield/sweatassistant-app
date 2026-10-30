@@ -590,6 +590,37 @@ describe('W8 Home stats', () => {
     expect(stats.partial).toBe(true);
   });
 
+  it('distinguishes unsupported totals from failed requests without inventing attendance', () => {
+    const widget = homeRegistry.list().find((item) => item.id === 'stats');
+    const stats = getHomeStats(gyms, {
+      'psycle-london': { attendance: { attendedTotal: 12 } },
+      'jab-boxing': { attendanceUnsupported: true },
+      aarmy: {},
+    });
+    expect(stats).toMatchObject({ partial: true, unsupported: true, failed: true });
+    expect(widget.headerMeta(stats)).toBe('');
+    const root = document.createElement('div');
+    widget.render(root, stats, { openGymSettings: vi.fn() });
+    expect(root.textContent).toContain(COPY.home.statsUnsupported);
+    expect(root.textContent).toContain(COPY.home.statsPartial);
+    expect(root.querySelectorAll('.home-attendance-tile')).toHaveLength(1);
+    const supportedPlusUnsupported = getHomeStats(gyms.slice(0, 2), {
+      'psycle-london': { attendance: { attendedTotal: 12 } },
+      'jab-boxing': { attendanceUnsupported: true },
+    });
+    expect(supportedPlusUnsupported).toMatchObject({ partial: true, unsupported: true, failed: false });
+    const supportedRoot = document.createElement('div');
+    widget.render(supportedRoot, supportedPlusUnsupported, { openGymSettings: vi.fn() });
+    expect(supportedRoot.textContent).not.toContain(COPY.home.statsPartial);
+    expect(widget.headerMeta(supportedPlusUnsupported)).toBe('');
+    const unsupportedOnly = getHomeStats([{ gym_id: 'jab-boxing' }], { 'jab-boxing': { attendanceUnsupported: true } });
+    expect(widget.isEmpty(unsupportedOnly)).toBe(false);
+    const empty = document.createElement('div');
+    widget.render(empty, unsupportedOnly, { openGymSettings: vi.fn() });
+    expect(empty.textContent).toContain(COPY.home.statsUnsupported);
+    expect(empty.textContent).not.toContain(COPY.home.statsPartial);
+  });
+
   it('renders a prominent number with an inline classes unit', () => {
     const widget = homeRegistry.list().find((item) => item.id === 'stats');
     const root = document.createElement('div');

@@ -148,7 +148,7 @@ export function renderGymSettingsSection(container, model, handlers = {}) {
       ? `var(--gym-${gymIdForTheme}-ink, ${gym.theme?.primary || 'var(--accent)'})`
       : (gym.theme?.primary || 'var(--accent)')
   );
-  const logoBannerHtml = model.logoHtml || (gymIdForTheme ? gymLogoBanner(gymIdForTheme) : '');
+  const logoBannerHtml = model.logoHtml || (gymIdForTheme ? gymLogoBanner(gymIdForTheme, { settings: true }) : '');
   container.innerHTML = `
     <div class="app-gym-settings-heading"><div class="app-gym-settings-brand">${logoBannerHtml}</div><div class="app-settings-btn-row"><span class="app-badge ${status === 'active' ? 'success' : 'warning'}">${escapeHtml(statusLabel)}</span>${model.canAddGym ? `<button class="app-btn app-btn-mini" data-gym-action="add-gym">${COPY.gymSettings.addAnotherGym}</button>` : ''}</div></div>
     ${needsRelogin ? `<div class="app-gym-settings-warning"><strong>${COPY.gymSettings.reconnect}</strong><span>${COPY.gymSettings.reconnectHelp}</span></div>` : ''}

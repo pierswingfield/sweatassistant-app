@@ -1383,7 +1383,7 @@ function connRowUpdate(row, g) {
   const logoKey = `${g.gym_id}:${gymBrand(g.gym_id).id}`;
   if (logo.getAttribute('data-mark') !== logoKey) {
     logo.setAttribute('data-mark', logoKey);
-    logo.innerHTML = gymLogoBanner(g.gym_id);
+    logo.innerHTML = gymLogoBanner(g.gym_id, { settings: true });
   }
   const gymName = g.gym_name || g.gym_id;
   logo.setAttribute('title', gymName);
@@ -1664,7 +1664,7 @@ export async function renderGymSettingsSection(requestedGymId = null, targetCont
 
     const rerender = () => renderGymSettingsSection(gymId).catch(err => debugConsole('[Settings] Gym section refresh failed:', err.message));
     renderGymSettingsSectionView(container, {
-      logoHtml: gymLogoBanner(gymId),
+      logoHtml: gymLogoBanner(gymId, { settings: true }),
       gym,
       settings,
       membership,

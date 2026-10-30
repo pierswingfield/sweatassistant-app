@@ -326,6 +326,7 @@ export function gymBrand(gymId) {
     name: p.shortName,
     squareMark: !!(w.squareMark && w.mark),
     logoWidth: hasLogoW ? logoW : null,
+    settingsLogoWidth: Number.isFinite(Number(w.settingsLogoWidth)) && Number(w.settingsLogoWidth) > 0 ? Number(w.settingsLogoWidth) : null,
     squareLogoSvg,
     shortName: p.shortName,
     brandBg: p.plate,
@@ -336,11 +337,12 @@ export function gymBrand(gymId) {
 
 /** The gym's FULL wordmark on its brand plate, sized as a page banner (Settings panes, Your Gyms,
  *  link/re-auth form). Reuses gymChip so there is still exactly one place that knows a gym's assets. */
-export function gymLogoBanner(gymId) {
-  return `<span class="app-gym-logo-banner">${gymChip(gymId)}</span>`;
+export function gymLogoBanner(gymId, { settings = false } = {}) {
+  const width = settings ? gymBrand(gymId).settingsLogoWidth : null;
+  return `<span class="app-gym-logo-banner">${gymChip(gymId, { width })}</span>`;
 }
 
-export function gymChip(gymId) {
+export function gymChip(gymId, { width = null } = {}) {
   const brand = gymBrand(gymId);
   // The gym's actual wordmark on its actual brand colour. A logo alone is still
   // not the only signal — the row tint and, in cards, the rail carry it too —
@@ -349,8 +351,9 @@ export function gymChip(gymId) {
   //
   // `title` and the visually-hidden name keep the gym readable to screen
   // readers and to anyone who doesn't know the marks yet, since the image
-  const wStyle = brand.logoWidth ? `;--logo-w:${brand.logoWidth}px` : '';
-  return `<span class="app-gym-chip app-gym-chip-${brand.id}${brand.logoWidth ? ' has-logo-w' : ''}" title="${brand.name}" style="background:${brand.brandBg};border:1px solid ${brand.brandBg}${wStyle}">`
+  const logoWidth = width || brand.logoWidth;
+  const wStyle = logoWidth ? `;--logo-w:${logoWidth}px` : '';
+  return `<span class="app-gym-chip app-gym-chip-${brand.id}${logoWidth ? ' has-logo-w' : ''}" title="${brand.name}" style="background:${brand.brandBg};border:1px solid ${brand.brandBg}${wStyle}">`
     + `<span class="app-gym-chip-logo">${brand.logoSvg}</span>`
     + `<span class="u-visually-hidden">${brand.name}</span>`
     + `</span>`;

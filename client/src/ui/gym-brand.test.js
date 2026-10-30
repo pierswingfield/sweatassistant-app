@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeEach } from 'vitest';
-import { gymBrand, gymChip, gymLogoPlate } from './cards.js';
+import { gymBrand, gymChip, gymLogoPlate, gymLogoBanner } from './cards.js';
 import { setGymCatalogue, getGymPresentation } from '../gym-context.js';
 import { CATALOGUE } from './gym-brand-fixture.js';
 
@@ -110,4 +110,14 @@ describe('gymBrand wordmark scale (data-driven, E2)', () => {
     setGymCatalogue(CATALOGUE);
     expect(gymBrand('jab-boxing').logoSvg).not.toContain('--logo-scale');
   });
+});
+
+
+it('uses a settings-only banner width without changing timetable chips or drawer plates', () => {
+  const gym = CATALOGUE[1];
+  setGymCatalogue([{ ...gym, presentation: { ...gym.presentation, wordmark: { ...gym.presentation.wordmark, logoWidth: 40, settingsLogoWidth: 84 } } }]);
+  expect(gymLogoBanner(gym.id, { settings: true })).toContain('--logo-w:84px');
+  expect(gymChip(gym.id)).toContain('--logo-w:40px');
+  expect(gymLogoPlate(gym.id)).not.toContain('--logo-w:84px');
+  expect(gymLogoBanner(gym.id)).toContain('--logo-w:40px');
 });

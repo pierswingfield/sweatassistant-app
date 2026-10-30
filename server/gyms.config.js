@@ -328,7 +328,7 @@ const GYMS = {
     theme: { key: 'mono', primary: '#000000' },
     presentation: {
       shortName: "Barry's",
-      wordmark: { text: "BARRY'S", full: { src: '/gyms/barrys-wordmark.svg' }, compact: { src: '/gyms/barrys-wordmark.svg' }, mark: { src: '/gyms/barrys-mark.svg' }, logoWidth: 48, squareMark: true },
+      wordmark: { text: "BARRY'S", full: { src: '/gyms/barrys-wordmark.svg' }, compact: { src: '/gyms/barrys-wordmark.svg' }, mark: { src: '/gyms/barrys-mark.svg' }, logoWidth: 48, settingsLogoWidth: 80, squareMark: true },
       plate: '#111111',
       light: { ink: '#000000', inkHover: '#27272A', tint: '#000000', on: '#FFFFFF' },
       dark: { ink: '#FFFFFF', inkHover: '#E4E4E7', tint: '#FFFFFF', on: '#000000' },
@@ -380,6 +380,7 @@ const GYMS = {
         compact: { src: '/gyms/aarmy-logo.png?v=2' },
         mark: { src: '/gyms/aarmy-mark.png?v=2' },
         logoWidth: 40, // px width of the wordmark inside table chips (see gymChip)
+        settingsLogoWidth: 84, // wider full wordmark in Your Gyms and gym settings
         squareMark: true, // wide wordmark: use the mark in square/narrow chips (header badge, settings nav, card rail)
       },
       plate: '#111111', // dark plate + WHITE wordmark/mark, like Psycle and JAB
@@ -455,6 +456,7 @@ function validatePresentation(p, gymId = '?') {
   if (!str(w.text)) bad('.wordmark.text (text fallback) must be a non-empty string');
   if (w.scale != null && !(typeof w.scale === 'number' && w.scale >= 0.5 && w.scale <= 1.5)) bad('.wordmark.scale must be a number between 0.5 and 1.5');
   if (w.logoWidth != null && !(typeof w.logoWidth === 'number' && w.logoWidth >= 20 && w.logoWidth <= 140)) bad('.wordmark.logoWidth must be a number between 20 and 140');
+  if (w.settingsLogoWidth != null && !(typeof w.settingsLogoWidth === 'number' && w.settingsLogoWidth >= 20 && w.settingsLogoWidth <= 88)) bad('.wordmark.settingsLogoWidth must be a number between 20 and 88');
   if (w.squareMark != null && typeof w.squareMark !== 'boolean') bad('.wordmark.squareMark must be a boolean');
   for (const k of ['full', 'compact', 'mark']) {
     if (w[k] == null) continue;

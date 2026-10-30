@@ -336,7 +336,7 @@ const GYMS = {
     },
     labels: { class: 'class', spot: 'spot' },
     bookingWindow: { kind: 'per-class', summary: 'Published per class by the gym.' },
-    capabilities: { atomicSwap: false, cancelRebookUpgrade: false, nativeWaitlist: true, metered: true, creditPurchase: false, bookmarks: false, autoUpgrade: false, attendanceTotals: false, bookingWindow: 'per-class', maxSpotsPerClass: 1, bookingEntitlement: false, guestBooking: false },
+    capabilities: { atomicSwap: false, cancelRebookUpgrade: false, nativeWaitlist: true, metered: true, creditPurchase: false, bookmarks: false, autoUpgrade: false, attendanceTotals: true, bookingWindow: 'per-class', maxSpotsPerClass: 1, bookingEntitlement: false, guestBooking: false },
     notifications: { bookingWindowReminder: false },
   },
   'aarmy': {

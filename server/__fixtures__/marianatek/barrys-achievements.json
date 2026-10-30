@@ -1,0 +1,13 @@
+{
+  "_fixture_note": "User-supplied sanitized shape for Barry's UK, 2026-10-30. Attendance total is tenant-wide/account-wide and includes locations outside the UK region scope.",
+  "method": "GET",
+  "path": "/me/achievements",
+  "response_status": 200,
+  "response_body": {
+    "classes_completed": 612,
+    "instructors_taken": 53,
+    "member_since": "2017-08-29T12:00:00Z",
+    "most_visited_studio": "London West",
+    "number_of_studios_visited": 11
+  }
+}

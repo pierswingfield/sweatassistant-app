@@ -23,6 +23,7 @@ function createFakeResponse(data, status = 200) {
 
 const { DateTime } = require('luxon');
 const ACHIEVEMENTS = require('./__fixtures__/marianatek/prod-achievements.json').response_body;
+const BARRYS_ACHIEVEMENTS = require('./__fixtures__/marianatek/barrys-achievements.json').response_body;
 const DEFAULT_ZONE = require('./gyms.config').listGyms().find((g) => g.provider === 'marianatek').timezone; // the first MT gym's zone, from config
 const LOCATION = {
   id: '48751', name: 'SW1', address_line_one: 'Unit 5, Colonnade Walk, 151 Buckingham Palace Road',
@@ -451,7 +452,7 @@ function handleMockRequest(pathName, method, body, gym) {
   // GET /me/achievements — sanitized production capture; classes_completed is
   // the provider's all-time attendance total for the normalized seam.
   if (path === '/me/achievements' && method === 'GET') {
-    return createFakeResponse({ ...ACHIEVEMENTS });
+    return createFakeResponse({ ...(gym.id === 'barrys-uk' ? BARRYS_ACHIEVEMENTS : ACHIEVEMENTS) });
   }
 
   // GET /me/reservations?is_upcoming=...

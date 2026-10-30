@@ -454,7 +454,7 @@ The Python scripts used to drive this session (headless OAuth client, generic AP
 | Method | Endpoint | Purpose | Fixture |
 |---|---|---|---|
 | GET | `/classes/{id}/payment_options` | Returns `{user_payment_options: [...], guest_payment_options: [...]}` — the valid `payment_option.id` values (e.g. `"membership-2552"`) to pass into `POST /me/reservations`. **The adapter's `bookSlot()` needs to call this before booking on a membership-based gym** — don't assume a fixed payment_option shape. | `prod-payment-options.json` |
-| GET | `/me/achievements` | `{classes_completed, instructors_taken, member_since, most_visited_studio, number_of_studios_visited}` — user stats, not needed for M1–M3 core booking but a nice-to-have for a future stats panel. | `prod-achievements.json` |
+| GET | `/me/achievements` | `{classes_completed, instructors_taken, member_since, most_visited_studio, number_of_studios_visited}` — official account-wide stats. `classes_completed` is the all-time attendance total across the customer account's tenant locations; it is not restricted to the UK regions configured for Barry's UK. | `prod-achievements.json`, `barrys-achievements.json` |
 | GET | `/me/orders?reservation={id}&exclude_statuses=Cancelled` | Empty result set for a membership-paid booking (makes sense — a membership deduction isn't a purchase "order"). Presumably populated for credit-pack purchases; untested. | — (empty response, not worth a fixture) |
 | GET | `{tenant}.marianaiframes.com/feature-flags?userId={id}` | MT's own web-integrations SPA feature flags — **not** the Customer API, different domain, not an adapter concern. Documented for completeness only. | `prod-feature-flags.json` |
 

@@ -18,7 +18,9 @@ const { GYMS } = require('./gyms.config');
 
 const JAB = 'jab-boxing';
 const AARMY = 'aarmy';
+const BARRYS = 'barrys-uk';
 const fixture = require('./__fixtures__/marianatek/prod-achievements.json');
+const barrysFixture = require('./__fixtures__/marianatek/barrys-achievements.json');
 const expected = fixture.response_body.classes_completed;
 
 db.db.prepare('UPDATE gyms SET enabled = 1 WHERE id IN (?, ?)').run(JAB, AARMY);
@@ -30,6 +32,15 @@ check('MarianaTek maps fixture classes_completed to official all-time attendance
   const provider = getProvider(JAB);
   const totals = await provider.getMilestones({ accessToken: 'mock-mt-token' });
   assert.deepStrictEqual(totals, { attendedTotal: expected, milestones: [] });
+});
+
+check("Barry's maps the tenant-wide achievement total without region filtering", async () => {
+  const provider = getProvider(BARRYS);
+  const totals = await provider.getMilestones({ accessToken: 'mock-mt-token' });
+  assert.deepStrictEqual(totals, { attendedTotal: barrysFixture.response_body.classes_completed, milestones: [] });
+  assert.strictEqual(GYMS[BARRYS].capabilities.attendanceTotals, true);
+  const mock = await provider.request('/me/achievements', { token: provider.mockToken });
+  assert.strictEqual((await mock.json()).classes_completed, 612);
 });
 
 check('MarianaTek rejects missing attendance totals instead of turning them into zero', async () => {

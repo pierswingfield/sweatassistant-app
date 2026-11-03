@@ -11811,3 +11811,7 @@ html:not([data-credits-tab="on"]) .app-nav-btn[data-tab="buy-credits"] { display
     width: calc(min(100%, var(--ab-card-max-w)) * 0.85) !important; max-width: none;
   }
 }
+
+/* Gym logo stack: own stacking context so the per-logo inline z-index (leftmost highest, any N) only
+   orders the logos among themselves and cannot tie with or leak past neighbouring rail controls. */
+#app-filter-rail .fr-gymquick { position: relative; isolation: isolate; }

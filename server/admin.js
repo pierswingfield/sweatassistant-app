@@ -4,6 +4,7 @@ const crypto = require('crypto');
 const db = require('./db');
 const { triggerAutoRelogin } = require('./auth');
 const { getProvider } = require('./providers');
+const gymOutbound = require('./gym-outbound');
 const gymsConfig = require('./gyms.config');
 
 // Interim single-gym bridge: live CodexFit reads (bookings, profile) are always
@@ -61,6 +62,7 @@ function authenticateAdmin(req, res, next) {
 // Call a normalized provider method with the viewed user's selected-gym
 // session. Admin requests do not carry the account owner's gym context.
 async function gymProviderCall(userId, gymId, method, ...args) {
+  gymOutbound.assertOutboundAllowed(gymId, userId); // disabled gym/link: never contacted
   const user = db.runWithGymContext(userId, gymId, () => db.getUserById(userId));
   if (!user || !user.jwt) throw new Error('User has no active gym session.');
   const provider = getProvider(gymId);

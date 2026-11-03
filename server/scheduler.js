@@ -8,6 +8,7 @@ const pushService = require('./push');
 const notifications = require('./notifications');
 const { triggerAutoRelogin } = require('./auth');
 const { getProvider } = require('./providers');
+const gymOutbound = require('./gym-outbound');
 const { resolveZone, zoneOfGym } = require('./providers/timezone');
 const { getGymConfig } = require('./gyms.config');
 const { planAutoBookSlots, planCompanionSlots } = require('./spot-selection');
@@ -264,6 +265,7 @@ async function prefetchAutoBookSlots(bookings, windowMs = 18000) {
   // Provider ids are only unique within a gym, matching the event cache key.
   const eventMap = new Map();
   for (const b of bookings) {
+    if (gymOutbound.isOutboundBlocked(b.gym_id, b.user_id)) continue; // disabled gym/link: never fetched
     const key = eventCacheKey(b.gym_id, b.event_id);
     if (!eventMap.has(key)) eventMap.set(key, b);
   }
@@ -337,6 +339,9 @@ async function bookSlotWithRelogin(userId, gymId, eventId, targetSlot) {
 
 // Execute auto-book process for a single class slot booking
 async function executeAutoBookForClass(booking) {
+  // Disabled gym/link: the entry stays pending (not burned, not failed) and the
+  // provider is never contacted. Every dispatch path funnels through here.
+  if (gymOutbound.isOutboundBlocked(booking.gym_id, booking.user_id)) return;
   const eventId = booking.event_id;
   const userId = booking.user_id;
   // The gym this queue entry belongs to — taken from the ROW, never resolved
@@ -868,6 +873,8 @@ function resolvePendingReleases() {
     // THIS booking's own gym — reading the ambient/default gym's settings here
     // silently applied Psycle's rolling-weekly member-tier offset to it (or
     // omitted it) regardless of which gym the row is actually for.
+    // Disabled gym/link: nothing to wake for or dispatch (the row is kept).
+    if (gymOutbound.isOutboundBlocked(booking.gym_id, booking.user_id)) continue;
     const settings = db.getUserSettings(booking.user_id, booking.gym_id) || {};
     const releaseAt = getClassReleaseTime(booking, settings);
     if (!releaseAt) continue; // unresolvable → never dispatch on a guess

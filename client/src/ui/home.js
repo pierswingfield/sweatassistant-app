@@ -153,6 +153,24 @@ export function getHomeStats(gyms, byGym = {}) {
   return { rows, partial: unavailable > 0 };
 }
 
+/**
+ * A linked gym that is switched off (registry `gym_enabled` 0 or link status
+ * 'disabled'). The server never contacts it; /api/attendance-totals answers from
+ * its stored class history instead, whatever the gym's capabilities.
+ */
+export function isDisabledLinkedGym(gym) {
+  if (!gym) return false;
+  const enabled = gym.gym_enabled ?? gym.gymEnabled ?? gym.enabled;
+  return enabled === 0 || enabled === false || gym.status === 'disabled';
+}
+
+/** Whether the activity widget asks /api/attendance-totals for this gym. Disabled gyms always count. */
+export function homeStatsWantsAttendance(gym) {
+  const gymId = gymIdOf(gym);
+  if (!gymId) return false;
+  return isDisabledLinkedGym(gym) || canForGym('attendanceTotals', gymId);
+}
+
 /** Show an all-gym total only when every linked gym has valid attendance. */
 export function getHomeActivityMeta({ rows, partial } = {}) {
   if (partial || !Array.isArray(rows) || rows.length === 0) return '';
@@ -171,8 +189,8 @@ async function loadHomeStats(gyms) {
     const gymId = gymIdOf(gym);
     // Capabilities are held by gym-context while public linked-gym rows stay
     // deliberately small. Resolve this known gym through that shared contract.
-    const supportsOfficialAttendance = canForGym('attendanceTotals', gymId);
-    if (!supportsOfficialAttendance) return [gymId, {}];
+    // A disabled gym is always asked: the server serves its stored history count.
+    if (!homeStatsWantsAttendance(gym)) return [gymId, {}];
     const valid = (a) => a && a.attendedTotal != null && a.attendedTotal !== '' && Number.isInteger(Number(a.attendedTotal)) && Number(a.attendedTotal) >= 0;
     let attendance = null;
     try { attendance = await api.getAttendanceTotals(gymId, { loading: true }); } catch (_) { /* retried live below */ }
@@ -208,7 +226,10 @@ function attendanceTile(row, ctx) {
 
 registerWidget({
   id: 'stats', order: 70, title: COPY.home.stats,
-  cacheKeys(ctx) { return uniqueGymIds(ctx.gyms).filter((id) => canForGym('attendanceTotals', id)).map((id) => gymCacheKey('/api/attendance-totals', id)); },
+  cacheKeys(ctx) {
+    const wanted = new Set((Array.isArray(ctx.gyms) ? ctx.gyms : []).filter(homeStatsWantsAttendance).map(gymIdOf));
+    return uniqueGymIds(ctx.gyms).filter((id) => wanted.has(id)).map((id) => gymCacheKey('/api/attendance-totals', id));
+  },
   headerMeta: getHomeActivityMeta,
   async load(ctx) { return loadHomeStats(ctx.gyms); },
   isEmpty: (data) => Array.isArray(data?.rows) && data.rows.length === 0,

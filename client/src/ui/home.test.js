@@ -15,6 +15,8 @@ let getHomeFavouriteStatus;
 let renderHomeFavouriteCard;
 let getHomeStats;
 let getHomeActivityMeta;
+let isDisabledLinkedGym;
+let homeStatsWantsAttendance;
 let primaryActionForEvent;
 let actionGlyph;
 let formatInZone;
@@ -36,7 +38,7 @@ beforeAll(async () => {
   }
   ({ cache } = await import('../main.js'));
   ({ formatInZone } = await import('../lib.js'));
-  ({ countPendingAutoBooks, getHomeCreditRows, getHomeBookLinks, groupHomeGymLinks, getHomeTopInstructorRows, getHomeFavouriteRows, getHomeStats, getHomeActivityMeta, getHomeFavouriteStatus, renderHomeFavouriteCard, syncHomeDesktopFlow } = await import('./home.js'));
+  ({ countPendingAutoBooks, getHomeCreditRows, getHomeBookLinks, groupHomeGymLinks, getHomeTopInstructorRows, getHomeFavouriteRows, getHomeStats, getHomeActivityMeta, isDisabledLinkedGym, homeStatsWantsAttendance, getHomeFavouriteStatus, renderHomeFavouriteCard, syncHomeDesktopFlow } = await import('./home.js'));
   ({ primaryActionForEvent, actionGlyph } = await import('./timetable.js'));
   ({ registry: homeRegistry, mountWidget } = await import('./widget-registry.js'));
 });
@@ -579,6 +581,20 @@ describe('W8 Home stats', () => {
     expect(getHomeActivityMeta({ rows: [{ attendanceTotal: 4 }, { attendanceTotal: Infinity }], partial: false })).toBe('');
     expect(getHomeActivityMeta({ rows: [{ attendanceTotal: 4 }], partial: true })).toBe('');
     expect(getHomeActivityMeta({ rows: [], partial: false })).toBe('');
+  });
+
+  it('always asks for a disabled gym (registry or link) so its stored total counts', () => {
+    expect(isDisabledLinkedGym({ gym_id: 'x', gym_enabled: 0 })).toBe(true);
+    expect(isDisabledLinkedGym({ gym_id: 'x', gym_enabled: 1, status: 'disabled' })).toBe(true);
+    expect(isDisabledLinkedGym({ gym_id: 'x', gym_enabled: 1, status: 'active' })).toBe(false);
+    expect(homeStatsWantsAttendance({ gym_id: 'no-such-capability-gym', gym_enabled: 0 })).toBe(true);
+    const stats = getHomeStats([...gyms, { gym_id: 'old-gym', shortName: 'Old', gym_enabled: 0 }], {
+      'psycle-london': { attendance: { attendedTotal: 1 } },
+      'jab-boxing': { attendance: { attendedTotal: 2 } },
+      aarmy: { attendance: { attendedTotal: 3 } },
+      'old-gym': { attendance: { attendedTotal: 4, source: 'stored', disabled: true } },
+    });
+    expect(getHomeActivityMeta(stats)).toBe('10 classes');
   });
 
   it('omits unknown attendance and never substitutes booking history', () => {

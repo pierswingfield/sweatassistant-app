@@ -22,6 +22,7 @@ const db = require('./db');
 const { getProvider } = require('./providers');
 const { triggerAutoRelogin } = require('./auth');
 const backoff = require('./rate-limit-backoff');
+const gymOutbound = require('./gym-outbound');
 
 const DEFAULT_MAX_AGE_MS = 6 * 60 * 60 * 1000;
 // A booking's outcome can settle after the class (MarianaTek no-show / check-in
@@ -195,6 +196,9 @@ function syncUserGym(userId, gymId, { full = false } = {}) {
   const p = (async () => {
     try {
       if (!db.isGymLinked(userId, gymId)) return { ok: false, error: 'gym not linked' };
+      // Disabled gym/link: never pulled. Not recorded as a sync failure either —
+      // the stored rows are the answer for as long as it stays disabled.
+      if (gymOutbound.isOutboundBlocked(gymId, userId)) return { ok: false, error: 'gym disabled', disabled: true };
       const state = getSyncState(userId, gymId);
       const since = (!full && state && state.lastSyncedAt)
         ? new Date(Date.parse(state.lastSyncedAt) - OVERLAP_MS).toISOString()
@@ -220,6 +224,7 @@ function syncUserGym(userId, gymId, { full = false } = {}) {
  * if the data is older than maxAgeMs, refresh in the background and return now.
  */
 async function ensureHistory(userId, gymId, { maxAgeMs = DEFAULT_MAX_AGE_MS } = {}) {
+  if (gymOutbound.isOutboundBlocked(gymId, userId)) return { ok: true, cached: true, disabled: true };
   const state = getSyncState(userId, gymId);
   if (!state || !state.lastSyncedAt) return syncUserGym(userId, gymId, { full: true });
   if (Date.now() - Date.parse(state.lastSyncedAt) > maxAgeMs) syncUserGym(userId, gymId).catch(() => {});
@@ -229,7 +234,7 @@ async function ensureHistory(userId, gymId, { maxAgeMs = DEFAULT_MAX_AGE_MS } = 
 /**
  * Background scan: every user x every linked gym whose history is missing or stale.
  * Deliberately NOT filtered by active gym. Skips suspended links and gyms in
- * provider rate-limit backoff. Sequential, so it never bursts a provider.
+ * provider rate-limit backoff, and disabled gyms/links. Sequential, so it never bursts a provider.
  */
 async function syncStale({ maxAgeMs = DEFAULT_MAX_AGE_MS } = {}) {
   const links = db.db.prepare(`
@@ -241,6 +246,7 @@ async function syncStale({ maxAgeMs = DEFAULT_MAX_AGE_MS } = {}) {
   let done = 0;
   for (const l of links) {
     if (backoff.isGymRateLimited(l.gym_id)) continue;
+    if (gymOutbound.isOutboundBlocked(l.gym_id, l.user_id)) continue;
     const r = await syncUserGym(l.user_id, l.gym_id);
     if (r.ok) done++;
   }

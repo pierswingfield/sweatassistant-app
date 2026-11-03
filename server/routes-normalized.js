@@ -29,6 +29,7 @@ const { ipKeyGenerator } = require('express-rate-limit');
 const db = require('./db');
 const auth = require('./auth');
 const classHistory = require('./class-history');
+const gymOutbound = require('./gym-outbound');
 const { authenticateToken, triggerAutoRelogin } = auth;
 const { getProvider } = require('./providers');
 const { listGyms, getGymConfig } = require('./gyms.config');
@@ -144,6 +145,10 @@ function resolveContext(userId) {
     e.code = 'GYM_REQUIRED';
     throw e;
   }
+  // A disabled gym (registry) or link is never contacted: 409 GYM_DISABLED before
+  // any provider or session work. Routes that can answer from stored data
+  // (/history, /attendance-totals) check gymOutbound themselves first.
+  gymOutbound.assertOutboundAllowed(gymId, userId);
   const provider = getProvider(gymId);
   const user = db.getUserById(userId);
   if (!user || !user.jwt) {
@@ -743,7 +748,10 @@ router.get('/waitlists', authenticateToken, readLimiter, async (req, res) => {
 // on `sync`, so one dead gym cannot blank a widget.
 router.get('/history', authenticateToken, readLimiter, async (req, res) => {
   try {
-    const { gymId } = resolveContext(req.userId);
+    const gymId = resolveGymOnly(req.userId);
+    // Enabled gym: same session rules as every other route (401 for a dead one).
+    // Disabled gym: the stored rows ARE the answer, and nothing is fetched.
+    if (!gymOutbound.isOutboundBlocked(gymId, req.userId)) resolveContext(req.userId);
     const days = Math.max(1, Math.min(3650, parseInt(req.query.days, 10) || 365));
     const limit = Math.max(1, Math.min(1000, parseInt(req.query.limit, 10) || 200));
     const top = Math.max(0, Math.min(20, req.query.top === undefined ? 5 : parseInt(req.query.top, 10) || 0));
@@ -878,6 +886,14 @@ router.get('/bundles', authenticateToken, extrasLimiter, async (req, res) => {
 // milestones (gyms with capabilities.attendanceTotals; 501 otherwise). F-10-8 "provided" stats.
 router.get('/attendance-totals', authenticateToken, readLimiter, async (req, res) => {
   try {
+    const disabledGymId = resolveGymOnly(req.userId);
+    if (gymOutbound.isOutboundBlocked(disabledGymId, req.userId)) {
+      // Disabled gym/link: the provider is never asked, so the all-time total is the
+      // stored class history (same counted statuses as /history's summary). Served
+      // whatever the gym's capability, so Home's total always includes this gym.
+      const stored = classHistory.summary(req.userId, disabledGymId);
+      return res.json({ gymId: disabledGymId, attendedTotal: stored.classCount, milestones: [], source: 'stored', disabled: true });
+    }
     const { gymId, provider, session } = resolveContext(req.userId);
     requireCapability(gymId, 'attendanceTotals');
     const totals = await withRelogin(req.userId, session, (s) => provider.getMilestones(s));

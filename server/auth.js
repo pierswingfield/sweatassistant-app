@@ -3,6 +3,7 @@ const crypto = require('crypto');
 const db = require('./db');
 const { encrypt, decrypt } = require('./crypto');
 const { getProvider } = require('./providers');
+const gymOutbound = require('./gym-outbound');
 const { log } = require('./logger');
 
 const { findDevMockGym } = require('./gyms.config');
@@ -247,6 +248,9 @@ async function triggerAutoRelogin(userId, gymId = null) {
   // session and leave the row's own gym permanently expired. Request-path callers
   // omit it and get the active gym, which is what they want.
   const targetGymId = gymId || db.resolveActiveGymId(userId);
+  // A disabled gym (or link) is never contacted, and a refusal here is not a
+  // renewal FAILURE: no counters, no needs_relogin flag, the session is kept.
+  gymOutbound.assertOutboundAllowed(targetGymId, userId);
   const gymName = (db.getGym(targetGymId) || {}).name || targetGymId;
   log.info('relogin: session expired, attempting renewal', { userId, gymId: targetGymId });
 

@@ -16,6 +16,7 @@ const scheduler = require('./scheduler');
 const { normalizeAutoBookPreferences, participantsForPreferences } = require('./auto-book-preferences');
 const { validateScheduledGuestEligibility } = require('./auto-book-guests');
 const { getProvider } = require('./providers');
+const gymOutbound = require('./gym-outbound');
 const poller = require('./poller');
 const { resolveSyncScope } = require('./booking-sync-scope');
 const calendar = require('./calendar');
@@ -609,6 +610,7 @@ app.post('/api/auto-book', authenticateToken, bookingMutationLimiter, async (req
         message: `This gym allows at most ${maxSpots} self spot per class.`,
       });
     }
+    gymOutbound.assertOutboundAllowed(targetGymId, req.userId); // disabled gym/link: 409, no provider call
     const guestEligibility = await validateScheduledGuestEligibility({
       provider: getProvider(targetGymId), eventId, session: db.getUserSession(req.userId, targetGymId) || undefined,
       guestCount: normalizedPreferences.guests.length,
@@ -735,6 +737,7 @@ app.put('/api/auto-book/:id', authenticateToken, async (req, res) => {
       });
     }
     if (!entry) return res.status(404).json({ code: 'AUTO_BOOK_NOT_FOUND', message: 'Auto-Book entry not found.' });
+    gymOutbound.assertOutboundAllowed(entry.gym_id, req.userId); // disabled gym/link: 409, no provider call
     const guestEligibility = await validateScheduledGuestEligibility({
       provider: getProvider(entry.gym_id), eventId: entry.event_id, session: db.getUserSession(req.userId, entry.gym_id) || undefined,
       guestCount: normalizedPreferences.guests.length,

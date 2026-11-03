@@ -293,6 +293,18 @@ check('the Auto-Upgrade scope migration backfills every linked gym and preserves
   assert.deepStrictEqual(gymBAgain, gymB, 'the migration is idempotent');
 });
 
+check('the My Bookings view mode is account-scoped', () => {
+  const uid = twoGymUser();
+  db.setUserSettings(uid, { bookingsView: 'separate' }, GYM_A);
+  on(uid, GYM_B, () => {
+    assert.strictEqual(db.getUserSettings(uid).bookingsView, 'separate',
+      'the bookings list is merged across gyms, so its layout belongs to the person');
+  });
+  const gymRow = db.db.prepare('SELECT preferences FROM settings WHERE user_id = ? AND gym_id = ?').get(uid, GYM_A);
+  assert.ok(!gymRow || JSON.parse(gymRow.preferences).bookingsView === undefined,
+    'bookingsView must be stored on account_settings, never on a gym row');
+});
+
 check('an unknown key defaults to gym-scoped, not account-scoped', () => {
   const uid = twoGymUser();
   db.setUserSettings(uid, { someFutureProviderKey: 'psycle-value' }, GYM_A);

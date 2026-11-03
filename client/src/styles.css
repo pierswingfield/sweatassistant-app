@@ -11776,3 +11776,38 @@ html:not([data-credits-tab="on"]) .app-nav-btn[data-tab="buy-credits"] { display
     html.nav-glass #app-helper-container .app-waitlist-jump.is-visible { transform: translate(-50%, 0); }
   }
 }
+
+/* ── My Bookings view mode (Combined / Separate) ─────────────────────────────
+   Toolbar ABOVE the "Active Bookings" title: the radio-style switch on the left,
+   Share (mobile only) on the right. Reuses .app-segmented tokens, so light/dark
+   parity comes from the shared surface/accent variables. */
+#app-helper-container .bk-view-toolbar { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin: 0 0 12px; }
+#app-helper-container .bk-view-switch { display: inline-flex; flex: 0 0 auto; margin-top: 0; gap: 2px; padding: 3px; }
+#app-helper-container .bk-view-switch .app-segmented-btn { flex: 0 0 auto; padding: 0 14px; min-height: 30px; }
+#app-helper-container .bk-view-switch .app-segmented-btn:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
+#app-helper-container .bk-view-toolbar .app-share-btn { margin-left: auto; }
+@media (max-width: 768px) {
+  #app-helper-container .bk-view-switch .app-segmented-btn { min-height: 34px; }
+}
+@media (min-width: 900px) {
+  #app-panel-my-bookings > .bk-view-toolbar { grid-column: 1 / -1; margin: 0 !important; }
+  /* Combined has one list: the bookings column takes the full row width. */
+  #app-panel-my-bookings.is-bookings-combined > .app-section { grid-column: 1 / -1; }
+}
+
+/* Combined view: a waitlist card is FULLY greyscale (every element, not the light desaturation the
+   Separate section uses) and ~15% narrower than a booked card, centred within the booked cards' width. */
+#app-helper-container #app-bookings-list .ab-card.is-waitlist.is-combined {
+  filter: grayscale(1);
+  width: 85% !important; max-width: calc(var(--ab-card-max-w, 100%) * 0.85);
+  align-self: center;
+}
+#app-helper-container #app-bookings-list .ab-card.is-waitlist.is-combined :is(.ab-card-gym-rail, .ab-card-body, .ab-card-rail .ab-rail-btn) { filter: none; }
+@media (min-width: 769px) {
+  /* Desktop cards are left-aligned at --ab-card-max-w; centre the waitlist card on THAT column. */
+  #app-helper-container #app-bookings-list .ab-card.is-waitlist.is-combined {
+    align-self: flex-start;
+    margin-left: calc(min(100%, var(--ab-card-max-w)) * 0.075) !important;
+    width: calc(min(100%, var(--ab-card-max-w)) * 0.85) !important; max-width: none;
+  }
+}

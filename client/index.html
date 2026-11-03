@@ -330,13 +330,20 @@
           </button>
         </div>
 
+        <div class="bk-view-toolbar" id="app-bookings-toolbar">
+          <div class="app-segmented bk-view-switch" id="app-bookings-view-switch" role="radiogroup" aria-label="Bookings view" data-copy-aria-label="static.bookingsViewLabel">
+            <button type="button" class="app-segmented-btn active" role="radio" aria-checked="true" tabindex="0" data-bookings-view="combined" data-copy-text="static.bookingsViewCombined">Combined</button>
+            <button type="button" class="app-segmented-btn" role="radio" aria-checked="false" tabindex="-1" data-bookings-view="separate" data-copy-text="static.bookingsViewSeparate">Separate</button>
+          </div>
+          <button class="app-share-btn" id="app-bookings-share-btn" type="button" aria-label="Share my classes" data-copy-aria-label="share.button" title="Share my classes" data-copy-title="share.button">
+            <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 12v7a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-7"/><polyline points="16 6 12 2 8 6"/><line x1="12" y1="2" x2="12" y2="15"/></svg><span data-copy-text="share.buttonLabel">Share</span>
+          </button>
+        </div>
+
         <div class="app-section">
           <div class="app-section-header">
             <h3 data-copy-text="static.activeBookings">Active Bookings</h3><span id="app-bookings-count" class="app-section-count" hidden></span>
             <span id="app-bookings-refreshing" class="app-refreshing-chip" style="display: none;"><span class="app-spinner"></span> <span data-copy-text="static.refreshing">Refreshing...</span></span>
-            <button class="app-share-btn" id="app-bookings-share-btn" type="button" aria-label="Share my classes" data-copy-aria-label="share.button" title="Share my classes" data-copy-title="share.button">
-              <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 12v7a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-7"/><polyline points="16 6 12 2 8 6"/><line x1="12" y1="2" x2="12" y2="15"/></svg><span data-copy-text="share.buttonLabel">Share</span>
-            </button>
           </div>
           <div id="app-bookings-list" class="app-bookings-list">
             <div class="app-skeleton-list" role="status" aria-label="Loading bookings"><div class="app-skeleton-card" aria-hidden="true"><div class="app-skeleton-card-head"><span class="app-skeleton-line is-strong ui-skeleton-primary" aria-hidden="true"></span><span class="app-skeleton-line is-chip ui-skeleton-secondary" aria-hidden="true"></span></div><span class="app-skeleton-line ui-skeleton-tertiary" aria-hidden="true"></span><span class="app-skeleton-line is-short ui-skeleton-quarter" aria-hidden="true"></span></div><div class="app-skeleton-card" aria-hidden="true"><div class="app-skeleton-card-head"><span class="app-skeleton-line is-strong ui-skeleton-fifth" aria-hidden="true"></span><span class="app-skeleton-line is-chip ui-skeleton-secondary" aria-hidden="true"></span></div><span class="app-skeleton-line ui-skeleton-sixth" aria-hidden="true"></span><span class="app-skeleton-line is-short ui-skeleton-seventh" aria-hidden="true"></span></div></div>

@@ -30,6 +30,7 @@ import { loadCancelInfo } from './cancel-penalty-info.js';
 import { resolveUpgradeGroup } from './upgrade-group.js';
 import { bookingSpotActions } from './booking-spot-actions.js';
 import { currentRoute } from '../router.js';
+import { BOOKINGS_VIEW_KEY, normalizeBookingsView, mergeBookingsTimeline } from './bookings-view.js';
 import { DateTime } from 'luxon';
 
 // Class starts within the free-cancel cutoff (12h). Edit is hidden inside this
@@ -59,8 +60,7 @@ function bookingsDataReady() {
 /** Repaint the cards from the shared cache (no network); used after a booking mutation refetch. */
 export function repaintBookingsFromCache() {
   if (!bookingsFetched || !document.getElementById('app-bookings-list')) return;
-  renderBookingsCards(cache.bookings || [], cache.upgrades || []);
-  renderWaitlistsCards(cache.waitlists || []);
+  paintBookingLists(cache.bookings || [], cache.upgrades || [], cache.waitlists || []);
   focusBookingsDay(currentRoute().bookings?.day);
 }
 
@@ -98,9 +98,9 @@ export async function renderBookings(day = currentRoute().bookings?.day) {
 
   // Show cached data immediately if available (cache.upgrades is set after first load)
   const hasLoadedBefore = bookingsDataReady();
+  applyBookingsViewChrome(currentBookingsView());
   if (hasLoadedBefore) {
-    renderBookingsCards(cache.bookings || [], cache.upgrades || []);
-    renderWaitlistsCards(cache.waitlists || []);
+    paintBookingLists(cache.bookings || [], cache.upgrades || [], cache.waitlists || []);
     focusBookingsDay(day);
   } else {
     // First visit — no cached data yet
@@ -118,8 +118,7 @@ export async function renderBookings(day = currentRoute().bookings?.day) {
       // Only repaint once real data exists: repainting from `|| []` before the
       // first fetch resolves flashed "No active bookings found" over the skeleton.
       if (!bookingsDataReady()) return;
-      renderBookingsCards(cache.bookings, cache.upgrades || []);
-      renderWaitlistsCards(cache.waitlists || []);
+      paintBookingLists(cache.bookings, cache.upgrades || [], cache.waitlists || []);
     }).catch(() => {});
   }
 
@@ -152,8 +151,7 @@ export async function renderBookings(day = currentRoute().bookings?.day) {
     cache.upgrades = upgrades;
     bookingsFetched = true;
 
-    renderBookingsCards(bookings, upgrades);
-    renderWaitlistsCards(waitlists);
+    paintBookingLists(bookings, upgrades, waitlists);
     focusBookingsDay(day);
 
     // Hide refreshing indicators
@@ -284,6 +282,103 @@ function updateWaitlistAffordances() {
     setJumpVisible(jump, !e.isIntersecting && panelShown);
   });
   waitlistObserver.observe(target);
+}
+
+// ── View mode: Combined (one chronological list) vs Separate (two sections) ──
+// Account-scoped setting `bookingsView` (server/db.js ACCOUNT_SCOPED_SETTING_KEYS).
+// Until settings load (or for junk values) the view is Combined.
+function currentBookingsView() {
+  return normalizeBookingsView(userSettings?.[BOOKINGS_VIEW_KEY]);
+}
+
+function applyBookingsViewChrome(view) {
+  document.querySelectorAll('#app-bookings-view-switch [data-bookings-view]').forEach((btn) => {
+    const on = btn.dataset.bookingsView === view;
+    btn.classList.toggle('active', on);
+    btn.setAttribute('aria-checked', String(on));
+    btn.tabIndex = on ? 0 : -1;
+  });
+  const panel = document.getElementById('app-panel-my-bookings');
+  if (panel) panel.classList.toggle('is-bookings-combined', view === 'combined');
+  const wlSection = document.getElementById('app-waitlists-section');
+  if (wlSection) wlSection.hidden = view === 'combined';
+}
+
+function paintBookingLists(bookings, upgrades, waitlists) {
+  const view = currentBookingsView();
+  applyBookingsViewChrome(view);
+  if (view === 'combined') {
+    renderCombinedCards(bookings, upgrades, waitlists);
+  } else {
+    renderBookingsCards(bookings, upgrades);
+    renderWaitlistsCards(waitlists);
+  }
+}
+
+async function setBookingsView(view) {
+  const next = normalizeBookingsView(view);
+  const prev = userSettings[BOOKINGS_VIEW_KEY];
+  if (normalizeBookingsView(prev) === next) return;
+  haptic('light');
+  userSettings[BOOKINGS_VIEW_KEY] = next;
+  if (bookingsDataReady()) {
+    paintBookingLists(cache.bookings || [], cache.upgrades || [], cache.waitlists || []);
+  } else {
+    applyBookingsViewChrome(next);
+  }
+  try {
+    // Account-scoped key: no gymId needed (and none would be right — the list is merged).
+    await api.updateSettings({ [BOOKINGS_VIEW_KEY]: next });
+  } catch (err) {
+    console.error('[Bookings] Saving view mode failed:', err);
+    showToast(COPY.bookings.viewSaveFailed, 'error');
+  }
+}
+
+document.addEventListener('click', (e) => {
+  const btn = e.target.closest('#app-bookings-view-switch [data-bookings-view]');
+  if (!btn) return;
+  setBookingsView(btn.dataset.bookingsView);
+});
+// Radio-group keyboard model: arrows move (and select), like native radios.
+document.addEventListener('keydown', (e) => {
+  const btn = e.target.closest?.('#app-bookings-view-switch [data-bookings-view]');
+  if (!btn || !['ArrowLeft', 'ArrowRight', 'ArrowUp', 'ArrowDown'].includes(e.key)) return;
+  e.preventDefault();
+  const btns = [...btn.parentElement.querySelectorAll('[data-bookings-view]')];
+  const step = (e.key === 'ArrowLeft' || e.key === 'ArrowUp') ? -1 : 1;
+  const target = btns[(btns.indexOf(btn) + step + btns.length) % btns.length];
+  target.focus();
+  setBookingsView(target.dataset.bookingsView);
+});
+
+function renderCombinedCards(bookings, upgrades, waitlists) {
+  const container = document.getElementById('app-bookings-list');
+  if (!container) return;
+  const items = mergeBookingsTimeline(groupBookingsByEvent(bookings), waitlists);
+  // The header count is the list's length; the waitlist jump bar is meaningless
+  // when waitlists are inline, so its count is zeroed.
+  bookedCount = items.length;
+  waitlistCount = 0;
+  if (items.length === 0) {
+    container.innerHTML = `<div class="fav-empty-state bk-empty-pad">${COPY.bookings.noBookings}</div>`;
+    updateWaitlistAffordances();
+    return;
+  }
+  container.innerHTML = '';
+  items.forEach((item) => {
+    if (item.kind === 'booking') {
+      container.appendChild(buildBookingCard(item.group, upgrades));
+    } else {
+      const card = buildWaitlistCard(item.waitlist);
+      card.classList.add('is-combined');
+      container.appendChild(card);
+    }
+  });
+  equalizeDiscTagWidths(container);
+  observeLocationWrap(container);
+  wireRailToggle(container);
+  updateWaitlistAffordances();
 }
 
 function renderBookingsCards(bookings, upgrades) {

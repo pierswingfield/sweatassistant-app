@@ -658,6 +658,9 @@ const ACCOUNT_SCOPED_SETTING_KEYS = new Set([
   // A person chooses what the app calls them once; gym profiles are merely the
   // onboarding suggestion and must never change this account-level choice.
   'firstName',
+  // My Bookings view mode ('combined' | 'separate'). The tab is a MERGED
+  // multi-gym list, so how it is laid out is the person's choice, not a gym's.
+  'bookingsView',
 ]);
 
 function parseJsonOr(raw, fallback) {

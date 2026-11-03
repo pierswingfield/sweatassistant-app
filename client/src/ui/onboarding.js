@@ -247,7 +247,6 @@ const ICON = {
   autobook: '<svg viewBox="0 0 32 32" fill="currentColor"><g data-name="Layer 2" id="Layer_2"><path d="M18,11a1,1,0,0,1-1,1,5,5,0,0,0-5,5,1,1,0,0,1-2,0,5,5,0,0,0-5-5,1,1,0,0,1,0-2,5,5,0,0,0,5-5,1,1,0,0,1,2,0,5,5,0,0,0,5,5A1,1,0,0,1,18,11Z"/><path d="M19,24a1,1,0,0,1-1,1,2,2,0,0,0-2,2,1,1,0,0,1-2,0,2,2,0,0,0-2-2,1,1,0,0,1,0-2,2,2,0,0,0,2-2,1,1,0,0,1,2,0,2,2,0,0,0,2,2A1,1,0,0,1,19,24Z"/><path d="M28,17a1,1,0,0,1-1,1,4,4,0,0,0-4,4,1,1,0,0,1-2,0,4,4,0,0,0-4-4,1,1,0,0,1,0-2,4,4,0,0,0,4-4,1,1,0,0,1,2,0,4,4,0,0,0,4,4A1,1,0,0,1,28,17Z"/></g></svg>',
   autoupgrade: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 19V5"/><path d="m6 11 6-6 6 6"/></svg>',
   quickbook: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M13 2 4 14h7l-1 8 9-12h-7z"/></svg>',
-  offline: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 11a9 9 0 0 1 18 0M7 15a5 5 0 0 1 10 0"/><circle cx="12" cy="20" r="1" fill="currentColor"/></svg>',
   push: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 8a6 6 0 0 1 12 0c0 7 3 9 3 9H3s3-2 3-9"/><path d="M10.3 21a1.94 1.94 0 0 0 3.4 0"/></svg>',
   calendar: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="18" rx="2"/><path d="M16 2v4M8 2v4M3 10h18"/></svg>',
   user: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="8" r="4"/><path d="M4 21a8 8 0 0 1 16 0"/></svg>',
@@ -411,15 +410,10 @@ function stepInstall() {
     if (!shouldOfferInstall(ctx, installDismissed())) return resolve();
 
     const promptEvent = consumeInstallPrompt();
-    const reasoning = `
-      <ul class="app-onb-reasons">
-        <li><span class="app-onb-reason-icon">${ICON.push}</span><div><strong>${COPY.onboarding.pushReasonTitle}</strong><br>${COPY.onboarding.pushReason}</div></li>
-        <li><span class="app-onb-reason-icon">${ICON.offline}</span><div><strong>${COPY.onboarding.offlineReasonTitle}</strong><br>${COPY.onboarding.offlineReason}</div></li>
-      </ul>`;
     const ios = ctx.platform.startsWith('ios');
     const lead = appCopy(ios ? COPY.onboarding.installForHomeScreen : COPY.onboarding.installForExperience);
     // Android Chrome: a native one-tap Install when the browser handed us the prompt; steps otherwise.
-    const body = `<p class="app-onb-lead">${lead}</p>${reasoning}${promptEvent ? '' : installStepsHtml(ctx.platform)}`;
+    const body = `<p class="app-onb-lead">${lead}</p>${promptEvent ? '' : installStepsHtml(ctx.platform)}`;
     const primary = promptEvent
       ? `<button class="app-btn-primary app-onb-install" type="button"><span>${COPY.onboarding.installButton}</span></button>` : '';
 

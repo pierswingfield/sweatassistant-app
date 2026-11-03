@@ -19,6 +19,7 @@ const { zoneOfGym, resolveZone } = require('./providers/timezone');
 const poller = require('./poller');
 const { triggerAutoRelogin } = require('./auth');
 const { getProvider } = require('./providers');
+const gymOutbound = require('./gym-outbound');
 const { cleanClassName: cleanClassNameShared, disciplineHead } = require('./class-name');
 const { policyOf, isRollingWeekly, mostRecentRelease } = require('./providers/booking-window');
 const { normalizeCalendarPrefs } = require('./calendar-prefs');
@@ -645,6 +646,9 @@ async function refreshUser(userId) {
   // itself during someone else's outage is worse than one that is briefly stale.
   let totalBookings = 0;
   for (const gymId of linkedGymIds(userId)) {
+    // Disabled gym/link: never fetched. Its stored booking_cache rows are left in
+    // place, so the feed keeps the last-known classes rather than dropping them.
+    if (gymOutbound.isOutboundBlocked(gymId, userId)) continue;
     try {
       await refreshLocationMap(userId, false, gymId);
 

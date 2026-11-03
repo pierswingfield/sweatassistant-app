@@ -7,6 +7,7 @@
 const { getGymConfig } = require('../gyms.config');
 const CodexFitProvider = require('./codexfit');
 const MarianaTekProvider = require('./marianatek');
+const { guardProvider } = require('../gym-outbound');
 
 const ADAPTERS = {
   codexfit: CodexFitProvider,
@@ -28,7 +29,10 @@ function getProvider(gymId) {
   const Adapter = ADAPTERS[gym.provider];
   if (!Adapter) throw new Error(`No adapter for provider "${gym.provider}" (gym "${gymId}").`);
 
-  const instance = new Adapter(gym);
+  // Every adapter is wrapped by the disabled-gym gate (server/gym-outbound.js): while
+  // the gym is disabled, any I/O member rejects with GYM_DISABLED before the adapter
+  // runs. Checked per call, so the cached instance follows enable/disable live.
+  const instance = guardProvider(new Adapter(gym), gymId);
   cache.set(gymId, instance);
   return instance;
 }

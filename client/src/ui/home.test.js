@@ -15,6 +15,8 @@ let getHomeFavouriteStatus;
 let renderHomeFavouriteCard;
 let getHomeStats;
 let getHomeActivityMeta;
+let isDisabledLinkedGym;
+let homeStatsWantsAttendance;
 let primaryActionForEvent;
 let actionGlyph;
 let formatInZone;
@@ -36,7 +38,7 @@ beforeAll(async () => {
   }
   ({ cache } = await import('../main.js'));
   ({ formatInZone } = await import('../lib.js'));
-  ({ countPendingAutoBooks, getHomeCreditRows, getHomeBookLinks, groupHomeGymLinks, getHomeTopInstructorRows, getHomeFavouriteRows, getHomeStats, getHomeActivityMeta, getHomeFavouriteStatus, renderHomeFavouriteCard, syncHomeDesktopFlow } = await import('./home.js'));
+  ({ countPendingAutoBooks, getHomeCreditRows, getHomeBookLinks, groupHomeGymLinks, getHomeTopInstructorRows, getHomeFavouriteRows, getHomeStats, getHomeActivityMeta, isDisabledLinkedGym, homeStatsWantsAttendance, getHomeFavouriteStatus, renderHomeFavouriteCard, syncHomeDesktopFlow } = await import('./home.js'));
   ({ primaryActionForEvent, actionGlyph } = await import('./timetable.js'));
   ({ registry: homeRegistry, mountWidget } = await import('./widget-registry.js'));
 });
@@ -304,6 +306,9 @@ describe('W5 Home credits', () => {
       { gymId: 'metered', name: 'Metered', kind: 'credits', memberCredits: 3, guestCredits: null, balanceKnown: true },
       { gymId: 'member', name: 'Member', kind: 'membership', membershipStatus: 'active', guestPasses: 2 },
     ], { navigate() {}, openGymSettings });
+    const membershipTile = root.querySelector('.is-membership');
+    expect(membershipTile.querySelector('.home-credits-value .home-credits-detail').textContent).toBe('Guest passes: 2');
+    expect(membershipTile.querySelector('.home-credits-kind').nextElementSibling.className).toBe('home-credits-detail');
     [...root.querySelectorAll('.home-credits-tile')].forEach((tile) => tile.click());
     expect(openGymSettings).toHaveBeenNthCalledWith(1, 'metered');
     expect(openGymSettings).toHaveBeenNthCalledWith(2, 'member');
@@ -345,6 +350,15 @@ describe('W4 auto-book count', () => {
   it('counts only pending rows across gyms', () => {
     expect(countPendingAutoBooks([{ id: 1 }, { id: 2, executed_at: 'x' }, { id: 3 }])).toBe(2);
   });
+  it('hides an empty queue but keeps pending and unavailable states visible', () => {
+    const widget = homeRegistry.list().find((item) => item.id === 'upcoming');
+    for (const [count, present] of [[0, false], [2, true], [null, true]]) {
+      const root = document.createElement('div');
+      widget.render(root, { cards: [], bookedCount: 1, waitlistCount: 0, queueCount: count }, { navigate() {} });
+      expect(Boolean(root.querySelector('.home-upcoming-queue'))).toBe(present);
+    }
+  });
+
   it('never turns not-loaded into zero', () => {
     expect(countPendingAutoBooks(undefined)).toBeNull();
     expect(countPendingAutoBooks([])).toBe(0);
@@ -567,6 +581,20 @@ describe('W8 Home stats', () => {
     expect(getHomeActivityMeta({ rows: [{ attendanceTotal: 4 }, { attendanceTotal: Infinity }], partial: false })).toBe('');
     expect(getHomeActivityMeta({ rows: [{ attendanceTotal: 4 }], partial: true })).toBe('');
     expect(getHomeActivityMeta({ rows: [], partial: false })).toBe('');
+  });
+
+  it('always asks for a disabled gym (registry or link) so its stored total counts', () => {
+    expect(isDisabledLinkedGym({ gym_id: 'x', gym_enabled: 0 })).toBe(true);
+    expect(isDisabledLinkedGym({ gym_id: 'x', gym_enabled: 1, status: 'disabled' })).toBe(true);
+    expect(isDisabledLinkedGym({ gym_id: 'x', gym_enabled: 1, status: 'active' })).toBe(false);
+    expect(homeStatsWantsAttendance({ gym_id: 'no-such-capability-gym', gym_enabled: 0 })).toBe(true);
+    const stats = getHomeStats([...gyms, { gym_id: 'old-gym', shortName: 'Old', gym_enabled: 0 }], {
+      'psycle-london': { attendance: { attendedTotal: 1 } },
+      'jab-boxing': { attendance: { attendedTotal: 2 } },
+      aarmy: { attendance: { attendedTotal: 3 } },
+      'old-gym': { attendance: { attendedTotal: 4, source: 'stored', disabled: true } },
+    });
+    expect(getHomeActivityMeta(stats)).toBe('10 classes');
   });
 
   it('omits unknown attendance and never substitutes booking history', () => {

@@ -23,6 +23,9 @@ export function compressStudioName(name = '') {
   return words.map(w => w[0]).join('').slice(0, 3).toUpperCase();
 }
 
+// Gym logo stack z-order: always the reverse of x-order (leftmost on top), for any count.
+export const gymStackZ = (count, index) => Math.max(1, count - index);
+
 let sheetEl = null;
 let sheetLayer = null;
 let lastCtx = null;
@@ -166,7 +169,7 @@ export function renderFilterRail(ctx) {
     parts.push(`<span class="fr-gymquick${gymStackOpen ? ' is-open' : ''}" style="--n:${items.length}" role="group" aria-label="${escapeHtml(COPY.filters.gymQuickGroup)}">${items.map(({ gymId, shown }, gi) => {
       const name = gymBrand(gymId).name;
       const label = formatCopyText(shown ? COPY.filters.gymQuickShown : COPY.filters.gymQuickHidden, { name });
-      return `<button type="button" style="z-index:${items.length - gi};--i:${gi}" class="fr-gymquick-btn${shown ? ' is-shown' : ' is-off'}" data-fr-gymquick="${escapeHtml(gymId)}" aria-pressed="${shown}" aria-label="${escapeHtml(label)}">${gymDot(gymId, 'lg')}${shown ? '<svg class="fr-gymquick-tick" viewBox="0 0 10 10" aria-hidden="true"><path d="M2 5.2 4.2 7.4 8 2.8"/></svg>' : ''}</button>`;
+      return `<button type="button" style="z-index:${gymStackZ(items.length, gi)};--i:${gi}" class="fr-gymquick-btn${shown ? ' is-shown' : ' is-off'}" data-fr-gymquick="${escapeHtml(gymId)}" aria-pressed="${shown}" aria-label="${escapeHtml(label)}">${gymDot(gymId, 'lg')}${shown ? '<svg class="fr-gymquick-tick" viewBox="0 0 10 10" aria-hidden="true"><path d="M2 5.2 4.2 7.4 8 2.8"/></svg>' : ''}</button>`;
     }).join('')}</span>`);
   }
 

@@ -35,7 +35,7 @@ describe('compactInstructorsLabel (U6-15)', () => {
   });
 });
 
-import { renderFilterRail } from './filter-rail.js';
+import { renderFilterRail, gymStackZ } from './filter-rail.js';
 
 describe('renderFilterRail gym quick selection', () => {
   it('does not render fr-gymquick when only one gym is linked', () => {
@@ -69,5 +69,25 @@ describe('renderFilterRail gym quick selection', () => {
     expect(btns.length).toBe(2);
     expect(btns[0].getAttribute('data-fr-gymquick')).toBe('psycle-london');
     expect(btns[1].getAttribute('data-fr-gymquick')).toBe('jab');
+  });
+});
+
+describe('gym stack z-order', () => {
+  it('z-index strictly decreases left to right for any gym count', () => {
+    for (const n of [2, 3, 4, 5, 8]) {
+      const z = Array.from({ length: n }, (_, i) => gymStackZ(n, i));
+      expect(z[n - 1]).toBe(1);
+      for (let i = 1; i < n; i++) expect(z[i]).toBeLessThan(z[i - 1]);
+    }
+  });
+  it('renders four logos with descending inline z-index', () => {
+    document.body.innerHTML = '<div id="app-timetable-filters-container"></div>';
+    renderFilterRail({
+      state: { gyms: [], locations: [], instructors: [], eventTypes: [], times: [] },
+      gyms: ['a', 'b', 'c', 'd'].map(id => ({ id, name: id })),
+      locations: [], instructors: [], eventTypes: [], times: [], setGymQuick: () => {},
+    });
+    const z = [...document.querySelectorAll('.fr-gymquick-btn')].map(b => +b.style.zIndex);
+    expect(z).toEqual([4, 3, 2, 1]);
   });
 });

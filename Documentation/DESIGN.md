@@ -33,24 +33,24 @@ The `<html>` element gets `data-theme="light"` or `data-theme="dark"` when the u
 All tokens live in one block at the top of `client/src/styles.css` ("CSSv2 TOKEN LAYER"). Names are neutral and unchanged; values changed. Components read tokens, never literals. Mobile (375-430px) is the design target; desktop must not regress. Contrast numbers below come from `node scripts/contrast.mjs` (WCAG 2.x).
 
 ### 3.1 Direction
-Warm paper (light) and warm near-black (dark), both derived from the landing ink `#1f1b16`. **Clay is the brand accent in both themes.** The former dark-theme blue is retired as chrome; blue survives only as `--info` (semantic) and the slate `--feat-waitlist`. A gym's own colour appears only on elements that identify that gym (`--gym-*`, injected at runtime by `gym-context.js`); app chrome never reads it and the app accent is never redefined per gym.
+Warm paper (light) and neutral near-black (dark). **Clay is the brand accent in both themes.** The former dark-theme blue is retired as chrome; blue survives only as `--info` (semantic) and the slate `--feat-waitlist`. A gym's own colour appears only on elements that identify that gym (`--gym-*`, injected at runtime by `gym-context.js`); app chrome never reads it and the app accent is never redefined per gym.
 
 ### 3.2 Colour tokens and contrast
 
 | Token | Light | Dark | Notes |
 |---|---|---|---|
-| `--bg` / `--surface` | `#f6f1e8` / `#fcfaf5` | `#161310` / `#201c18` | `--surface-raised`: `#fffdf9` / `#2a2520`; `--header-solid` `#eee7da` / `#110e0c`. Light warmed 2026-10-25 (was `#f4f2ec` / `#fbfaf7` / `#ebeae4`): borders, separators, insets and shadows are now brown-tinted `rgba(84,56,24,.x)` instead of neutral ink; `--tone-ink` (`#5a3d22` light, `--text` dark) replaces `--text` wherever a surface is darkened by a colour-mix, so tinted tiles go tan, never grey |
-| `--text` | `#1f1b16` 15.3 bg, 16.4 surface | `#f3ede4` 15.9 bg, 14.5 surface | |
-| `--text-secondary` | `#655b4c` 5.9 / 6.4 | `#b9ae9f` 8.5 / 7.8 | |
-| `--text-tertiary` | `#6e6352` 5.2 / 5.6 | `#948a7c` 5.5 / 5.0 | captions only, never disabled-looking primary info |
-| `--accent` (text, border, focus) | `#a8553a` 4.66 bg, 5.0 surface | `#e09a7f` 8.0 / 7.3 | |
+| `--bg` / `--surface` | `#f6f1e8` / `#fcfaf5` | `#161616` / `#202020` | `--surface-raised`: `#fffdf9` / `#2a2a2a`; `--header-solid` `#eee7da` / `#101010`. Light warmed 2026-10-25 (was `#f4f2ec` / `#fbfaf7` / `#ebeae4`): borders, separators, insets and shadows are now brown-tinted `rgba(84,56,24,.x)` instead of neutral ink; `--tone-ink` (`#5a3d22` light, `--text` dark) replaces `--text` wherever a surface is darkened by a colour-mix, so tinted tiles go tan, never grey |
+| `--text` | `#1f1b16` 15.3 bg, 16.4 surface | `#f3ede4` 15.55 bg, 14.00 surface | |
+| `--text-secondary` | `#655b4c` 5.9 / 6.4 | `#b9ae9f` 8.29 / 7.46 | |
+| `--text-tertiary` | `#6e6352` 5.2 / 5.6 | `#948a7c` 5.33 / 4.80 | captions only, never disabled-looking primary info |
+| `--accent` (text, border, focus) | `#a8553a` 4.66 bg, 5.0 surface | `#e09a7f` 7.84 / 7.06 | |
 | `--accent-fill` + `--on-accent-fill` | `#b5593d` + `#fff` 4.71 | `#c9785c` + `#1a1411` 5.49 | primary button, selected date, active segment |
-| `--brand-clay` (decor only: logo, large glyphs) | `#c9785c` 2.97 (never text) | `#d68b6f` 6.9 | |
+| `--brand-clay` (decor only: logo, large glyphs) | `#c9785c` 2.97 (never text) | `#d68b6f` 6.71 | |
 | `--cta-wait` / `--cta-auto` + `--on-cta` | `#8a4430` 7.1 / `#6f3524` 9.5 with `#fff` | `#e4b7a2` 10.1 / `#d9967a` 7.5 with `#1a1411` | `--cta-book` = `--accent-fill` |
-| `--success` | `#047857` 5.25 | `#4cc794` 8.0 | on surface |
-| `--warning` | `#9a6600` 4.71 | `#e5b03e` 8.6 | |
-| `--danger` | `#b84343` 5.13 | `#f08a82` 7.0 | destructive fill in light = `--danger` + `#fff` |
-| `--info` (only blue) | `#2f6bd1` 4.85 | `#7fb0f0` 7.6 | never interactive chrome |
+| `--success` | `#047857` 5.25 | `#4cc794` 7.68 | on surface |
+| `--warning` | `#9a6600` 4.71 | `#e5b03e` 8.23 | |
+| `--danger` | `#b84343` 5.13 | `#f08a82` 6.72 | destructive fill in light = `--danger` + `#fff` |
+| `--info` (only blue) | `#2f6bd1` 4.85 | `#7fb0f0` 7.27 | never interactive chrome |
 
 Borders are warm alpha: `rgba(31,27,22,.10/.18)` light, `rgba(255,238,215,.10/.18)` dark. Plum auto-functions (`--auto*`), discipline tags (`--disc-*`) and feature identity tokens are unchanged in meaning; dark values were re-tuned only where they were cool-blue.
 
@@ -61,11 +61,11 @@ Level 0 `--bg` (page) -> level 1 `--surface` (cards, rows) with `--shadow-card` 
 Radii: `--radius-card` 20, `--radius-control` 12, `--radius-pill` 999, `--radius-sm` 8 (dense inner controls, mobile segment buttons), `--radius-sheet` 24 (sheets, modals). Spacing scale `--space-1..10` = 4, 8, 12, 16, 20, 24, 32, 40 px (new rules use it; legacy `--gap-*`/`--pad-card` stay until Phase 4).
 
 ### 3.5 Glass (restrained)
-Allowed ONLY on the bottom nav, sticky top bars and modal headers. Tokens: `--glass-bg` (light `rgba(251,250,247,.92)`, dark `rgba(32,28,24,.82)`), `--glass-blur: blur(18px) saturate(1.25)`, `--glass-solid` (opaque fallback), `--glass-edge`. Every glass rule needs `@supports not ((backdrop-filter: blur(1px)) or (-webkit-backdrop-filter: blur(1px)))` -> `--glass-solid`. Text on composited glass (worst case, page ink or black behind): light secondary text 4.83, primary 14.0, accent 4.26 (large/active icons only; realistic backdrop is the page colour: 5.67 / 16.4 / 5.0); dark secondary 7.4-8.2, primary 13.9-15.3. Status: bottom nav is migrated; the other ~25 `backdrop-filter` declarations in `styles.css` are Phase 3-4 work (cards must not use glass).
+Allowed ONLY on the bottom nav, sticky top bars and modal headers. Tokens: `--glass-bg` (light `rgba(251,250,247,.92)`, dark `rgba(32,28,24,.82)`), `--glass-blur: blur(18px) saturate(1.25)`, `--glass-solid` (opaque fallback), `--glass-edge`. Every glass rule needs `@supports not ((backdrop-filter: blur(1px)) or (-webkit-backdrop-filter: blur(1px)))` -> `--glass-solid`. Text on composited glass (worst case, page ink or black behind): light secondary text 4.83, primary 14.0, accent 4.26 (large/active icons only; realistic backdrop is the page colour: 5.67 / 16.4 / 5.0); dark secondary 7.17-7.97, primary 13.44-14.96. Status: bottom nav is migrated; the other ~25 `backdrop-filter` declarations in `styles.css` are Phase 3-4 work (cards must not use glass).
 
 #### 3.5.1 Bottom nav: Liquid Glass + docked fallback (2026-10-25)
 - **Mode**: inline script in `index.html` sets `html.nav-glass` when installed (`display-mode: standalone` or `navigator.standalone`), else `html.nav-docked`. Evaluation override: `?nav=glass`, `?nav=docked` (persisted in `localStorage.appNavMode`, try/catch), `?nav=auto` clears it. Glass geometry lives inside `@supports (backdrop-filter)`; without it the docked bar stays.
-- **Liquid Glass**: floating pill inset 12px from the sides, 10px + safe-area above the bottom, 64px tall; fill `--lg-fill` + `blur(24px) saturate(1.8)`, specular top highlight (inset 1px), gradient hairline ring (bright at opposite corners, a cheap refraction edge), soft warm shadow. A `.app-nav-lens` capsule slides behind the active tab (`nav-lens.js` publishes `--lens-x/--lens-w`; transform + width only, `--dur-slow`/`--ease-out`). `--nav-clear` (bar + gap) feeds every scroll container's bottom padding, so the last item is never hidden. Modals/pages sit above it (z-index) exactly as before.
+- **Liquid Glass**: floating pill inset 12px from the sides, 6px + safe-area above the bottom, 64px tall; fill `--lg-fill` + `blur(24px) saturate(1.8)`, specular top highlight (inset 1px), gradient hairline ring (bright at opposite corners, a cheap refraction edge), soft warm shadow. A `.app-nav-lens` capsule slides behind the active tab (`nav-lens.js` publishes `--lens-x/--lens-w`; transform + width only, `--dur-slow`/`--ease-out`). `--nav-clear` (bar + gap) feeds every scroll container's bottom padding, so the last item is never hidden. Modals/pages sit above it (z-index) exactly as before.
 - **Docked fallback**: unchanged geometry, glassier material (`--nav-glass-bg` .78 light / .70 dark, `blur(22px) saturate(1.5)`; was .92/.82 at 18px), still `--glass-solid` under `@supports not`.
 - **Icons/labels**: not flat black. Inactive = warm umber `#5c4333` (light) / cream at 78% (dark); active = `--accent-hover` (light) / `--accent` (dark) inside the lens, weight 700. Contrast of inactive ink on composited glass (light, fill .70): 4.56 over the darkest possible backdrop, 5.8 over clay, 8.9 over white; active `#8f452d` on lens 5.15 worst case. Dark inactive 8.6 over the lightest dark-theme backdrop. A near-white full-bleed backdrop under dark glass (not present in the app) would fall below 4.5.
 - **Preferences**: `prefers-reduced-transparency` swaps both modes to opaque `--glass-solid`, no blur; `prefers-reduced-motion` removes the lens transition (it jumps). Tap targets stay >= 56px tall, ~70px wide; focus ring 2px `--nav-ink-active`, inset.

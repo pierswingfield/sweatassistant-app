@@ -18,6 +18,7 @@ const {
   notifyRateLimited,
 } = require('./rate-limit-backoff');
 const { getProvider } = require('./providers');
+const gymOutbound = require('./gym-outbound');
 const { zoneOfGym } = require('./providers/timezone');
 const { getGymConfig } = require('./gyms.config');
 const { formatSpotLabel } = require('./spot-label');
@@ -1024,6 +1025,7 @@ async function resumePausedUpgrades() {
   for (const upgrade of paused) {
     try {
       const { user_id: userId, gym_id: gymId } = upgrade;
+      if (gymOutbound.isOutboundBlocked(gymId, userId)) continue; // disabled gym/link: leave paused, never fetch
       const settings = db.getUserSettings(userId, gymId) || {};
       if (settings.autoUpgradeEnabled === false) continue;
 
@@ -1141,6 +1143,8 @@ async function executeAutoUpgradeChecks() {
 
   for (const upgrade of active) {
     try {
+      // Disabled gym/link: the monitor is left as it is and never polled.
+      if (gymOutbound.isOutboundBlocked(upgrade.gym_id, upgrade.user_id)) continue;
       // THIS monitor's own gym (settings are per user+gym, not the active gym's).
       const settings = db.getUserSettings(upgrade.user_id, upgrade.gym_id) || {};
       const pollingOn = settings.autoUpgradeEnabled !== false;
@@ -1291,6 +1295,8 @@ async function refreshBookingCaches() {
         // C2-3b: skip a throttled gym. Not counted as "synced", so its cached
         // rows are kept rather than cleared.
         if (isGymRateLimited(gymId)) continue;
+        // Disabled gym/link: never fetched; not "synced", so its cached rows stay.
+        if (gymOutbound.isOutboundBlocked(gymId, userId)) continue;
         await new Promise(r => setTimeout(r, 2000 + Math.floor(Math.random() * 6000)));
         try {
           rows.push(...await bookingCacheRowsFor(userId, gymId));
@@ -1373,6 +1379,7 @@ async function checkBookingWindowReminder() {
       try {
         const cfg = getGymConfig(gymId);
         if (!cfg || !isRollingWeekly(cfg)) continue;
+        if (gymOutbound.isOutboundBlocked(gymId, userId)) continue;
         if (!notifications.bookingWindowEnabledForGym(userId, gymId)) continue;
 
         const policy = policyOf(cfg);

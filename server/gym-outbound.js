@@ -1,7 +1,11 @@
 // Outbound gate for DISABLED gyms — the one place that decides whether the server
 // may talk to a gym's provider at all.
 //
-// "Disabled" means either of:
+// "Disabled" means any of:
+//   0. PRIMARY — the member switched it off: Settings > the gym > "Use this gym"
+//      writes `user_gyms.account_enabled = 0` (db.setUserGymEnabled). That hides
+//      the gym outside Settings AND stops all communication with it; switching it
+//      back on restores both on the very next call (checked per call, no cache);
 //   1. the gym itself: `gyms.enabled = 0` in the registry mirror (synced from
 //      gyms.config.js `enabled`, and what linkGymAccount's rollout gate reads),
 //      or the config entry itself saying `enabled: false`, or an unknown gym;
@@ -43,16 +47,24 @@ function isGymDisabled(gymId) {
   return false;
 }
 
-/** True when this account's link to the gym is switched off. */
+/** True when this account's link to the gym is switched off (by the member, or link status). */
 function isLinkDisabled(userId, gymId) {
   if (userId == null || !gymId) return false;
   try {
-    if (!linkStmt) linkStmt = dbHandle().prepare('SELECT status FROM user_gyms WHERE user_id = ? AND gym_id = ?');
+    if (!linkStmt) linkStmt = dbHandle().prepare('SELECT status, account_enabled FROM user_gyms WHERE user_id = ? AND gym_id = ?');
     const row = linkStmt.get(userId, String(gymId));
-    return !!row && row.status === 'disabled';
+    return !!row && (row.account_enabled === 0 || row.status === 'disabled');
   } catch (_) {
     return false;
   }
+}
+
+/** The user of the current request context, if any (background work has none). */
+function contextUserId() {
+  try {
+    const db = require('./db');
+    return typeof db.currentGymContextUserId === 'function' ? db.currentGymContextUserId() : null;
+  } catch (_) { return null; }
 }
 
 /** The one question every outbound path asks. */
@@ -94,7 +106,9 @@ function guardProvider(instance, gymId) {
     get(target, prop, receiver) {
       const value = Reflect.get(target, prop, receiver);
       if (typeof value !== 'function' || typeof prop !== 'string' || PURE_MEMBERS.has(prop)) return value;
-      if (!isGymDisabled(gymId)) return value;
+      // Registry/config disable needs no user; the member's own switch is read
+      // from the request's gym context (db.runWithGymContext) when there is one.
+      if (!isGymDisabled(gymId) && !isLinkDisabled(contextUserId(), gymId)) return value;
       return function blockedProviderCall() {
         return Promise.reject(gymDisabledError(gymId));
       };

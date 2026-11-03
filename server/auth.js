@@ -176,8 +176,10 @@ function withGymContext(req, res, next) {
     return res.status(403).json({ message: `Account is not linked to gym "${requested}".` });
   }
   // Settings must remain reachable so a linked gym can be re-enabled. Other
-  // stale gym-scoped requests must not fetch or mutate a disabled gym.
-  const settingsRequest = /^\/api\/settings(?:\?|$)/.test(req.originalUrl || '');
+  // stale gym-scoped requests must not fetch or mutate a disabled gym. The
+  // attendance total is the one other exception: it answers a switched-off gym
+  // from stored class history only (routes-normalized.js), never the provider.
+  const settingsRequest = /^\/api\/(?:settings|attendance-totals)(?:\?|$)/.test(req.originalUrl || '');
   if (!settingsRequest && !db.isUserGymEnabled(req.userId, requested)) {
     return res.status(409).json({ code: 'GYM_DISABLED', message: 'This gym is turned off in Settings.' });
   }

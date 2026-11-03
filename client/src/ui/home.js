@@ -152,18 +152,23 @@ export function getHomeStats(gyms, byGym = {}) {
       gymId,
       gymName: getGymShortName(gymId) || gym.shortName || gym.name || gymId,
       attendanceTotal: total,
+      // A gym the member switched off is hidden outside Settings: it counts toward
+      // the header total (from its stored class history) but gets no tile.
+      ...(isDisabledLinkedGym(gym) ? { hidden: true } : {}),
     });
   }
   return { rows, partial: unavailable > 0, unsupported, failed };
 }
 
 /**
- * A linked gym that is switched off (registry `gym_enabled` 0 or link status
- * 'disabled'). The server never contacts it; /api/attendance-totals answers from
+ * A linked gym that is switched off: by the member (Settings "Use this gym",
+ * `account_enabled` 0), by the registry (`gym_enabled` 0) or by link status
+ * 'disabled'. The server never contacts it; /api/attendance-totals answers from
  * its stored class history instead, whatever the gym's capabilities.
  */
 export function isDisabledLinkedGym(gym) {
   if (!gym) return false;
+  if (gym.account_enabled === 0 || gym.account_enabled === false) return true;
   const enabled = gym.gym_enabled ?? gym.gymEnabled ?? gym.enabled;
   return enabled === 0 || enabled === false || gym.status === 'disabled';
 }
@@ -228,20 +233,25 @@ function attendanceTile(row, ctx) {
   return item;
 }
 
+// The activity total spans every linked gym, switched-off ones included (their
+// stored history); every other widget sees only the enabled gyms in ctx.gyms.
+const statsGyms = (ctx) => (Array.isArray(ctx.allGyms) ? ctx.allGyms : (Array.isArray(ctx.gyms) ? ctx.gyms : []));
+
 registerWidget({
   id: 'stats', order: 70, title: COPY.home.stats,
   cacheKeys(ctx) {
-    const wanted = new Set((Array.isArray(ctx.gyms) ? ctx.gyms : []).filter(homeStatsWantsAttendance).map(gymIdOf));
-    return uniqueGymIds(ctx.gyms).filter((id) => wanted.has(id)).map((id) => gymCacheKey('/api/attendance-totals', id));
+    const gyms = statsGyms(ctx);
+    const wanted = new Set(gyms.filter(homeStatsWantsAttendance).map(gymIdOf));
+    return uniqueGymIds(gyms).filter((id) => wanted.has(id)).map((id) => gymCacheKey('/api/attendance-totals', id));
   },
   headerMeta: getHomeActivityMeta,
-  async load(ctx) { return loadHomeStats(ctx.gyms); },
+  async load(ctx) { return loadHomeStats(statsGyms(ctx)); },
   isEmpty: (data) => Array.isArray(data?.rows) && data.rows.length === 0 && !data.unsupported && !data.failed,
   emptyText: COPY.home.statsNone,
   render(el, data, ctx) {
     const grid = document.createElement('div');
     grid.className = 'home-attendance-grid';
-    data.rows.forEach((row) => grid.appendChild(attendanceTile(row, ctx)));
+    data.rows.filter((row) => !row.hidden).forEach((row) => grid.appendChild(attendanceTile(row, ctx)));
     el.appendChild(grid);
     for (const text of [data.unsupported && COPY.home.statsUnsupported, data.failed && COPY.home.statsPartial].filter(Boolean)) {
       const note = document.createElement('p');
@@ -943,7 +953,7 @@ export async function renderHome() {
   if (run !== renderRun) return;
   paintHomeGreeting(settings);
   if (Array.isArray(gyms) && gyms.length === 0) { renderConnectGym(host); return; }
-  const ctx = { gyms, navigate: goTo, openGymSettings, contextKey };
+  const ctx = { gyms, allGyms: getAllLinkedGyms(), navigate: goTo, openGymSettings, contextKey };
   const widgets = registry.list(ctx);
   const skeleton = () => renderCardSkeletons(1, COPY.home.loadingWidget);
   // syncHomeDesktopFlow nests sections inside columns; include those mounted

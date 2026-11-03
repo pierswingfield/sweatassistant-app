@@ -1,8 +1,9 @@
 // Disabled gyms: cached activity still counts, and the server never talks to them.
 //
-// A gym is "disabled" when its registry row says `enabled = 0` (the mirror of
-// gyms.config.js `enabled`, see server/gym-outbound.js) or when one account's
-// link to it has `status = 'disabled'`. Its stored data survives and must keep
+// A gym is "disabled" when the MEMBER switched it off in Settings ("Use this
+// gym" -> `user_gyms.account_enabled = 0`, the primary case), when its registry
+// row says `enabled = 0` (the mirror of gyms.config.js `enabled`, see
+// server/gym-outbound.js) or when one account's link has `status = 'disabled'`. Its stored data survives and must keep
 // counting on Home ("Your activity" total) — served from class_history — while
 // every outbound path (routes, relogin, history sync, scheduler, poller,
 // calendar) short-circuits before the provider adapter.
@@ -60,7 +61,7 @@ const checks = [];
 const check = (name, fn) => checks.push({ name, fn });
 
 let seq = 0;
-function userWithDisabledJab(label, { linkDisabled = false } = {}) {
+function userWithDisabledJab(label, { mode = 'registry' } = {}) {
   const uid = testkit.createUser(db, `disabled-${label}-${Date.now()}-${seq++}@test.local`, 'enc:pw');
   db.linkGym(uid, JAB, { encryptedPassword: 'enc:pw' });
   db.upsertUserGym(uid, JAB, { gym_email: 'jab@test.local', encrypted_password: 'enc:pw' });
@@ -74,7 +75,9 @@ function userWithDisabledJab(label, { linkDisabled = false } = {}) {
     { bookingId: 'b3', eventId: 'e3', status: 'attended', startAt: past(20), durationMin: 45, instructorId: 'i2', instructorName: 'B' },
     { bookingId: 'b4', eventId: 'e4', status: 'cancelled', startAt: past(25), durationMin: 45 },
   ]);
-  if (linkDisabled) {
+  if (mode === 'user') {
+    db.setUserGymEnabled(uid, JAB, false);
+  } else if (mode === 'link') {
     db.setUserGymStatus(uid, JAB, 'disabled');
   } else {
     db.db.prepare('UPDATE gyms SET enabled = 0 WHERE id = ?').run(JAB);
@@ -95,11 +98,14 @@ async function withRoutes(fn) {
   try { return await fn(`http://127.0.0.1:${server.address().port}`); } finally { server.close(); }
 }
 
-for (const mode of ['registry', 'link']) {
-  const linkDisabled = mode === 'link';
+// Pending rows of one user, whatever the switch: the cross-user scanner already
+// skips a member-disabled gym, so the fixture is read per user.
+const pendingFor = (uid) => db.getPendingAutoBookingsAllGyms(uid);
+
+for (const mode of ['user', 'registry', 'link']) {
 
   check(`[${mode}-disabled] cached history counts in the activity total; routes make no provider call`, async () => {
-    const uid = userWithDisabledJab(`routes-${mode}`, { linkDisabled });
+    const uid = userWithDisabledJab(`routes-${mode}`, { mode });
     calls.length = 0;
     try {
       const token = jwt.sign({ userId: uid, email: 'x@test.local' }, process.env.JWT_SECRET);
@@ -114,10 +120,16 @@ for (const mode of ['registry', 'link']) {
         assert.strictEqual(body.source, 'stored');
 
         const hist = await get('/api/history?days=365');
-        assert.strictEqual(hist.status, 200, 'history serves stored rows');
-        const h = await hist.json();
-        assert.strictEqual(h.summary.classCount, 3);
-        assert.strictEqual(h.history.length, 4);
+        if (mode === 'user') {
+          // Member-disabled: hidden outside Settings, so history is refused (the
+          // activity total above is the one stored-data exception).
+          assert.strictEqual(hist.status, 409, 'history refuses a member-disabled gym');
+        } else {
+          assert.strictEqual(hist.status, 200, 'history serves stored rows');
+          const h = await hist.json();
+          assert.strictEqual(h.summary.classCount, 3);
+          assert.strictEqual(h.history.length, 4);
+        }
 
         for (const path of ['/api/timetable', '/api/bookings', '/api/waitlists', '/api/profile', '/api/credits', '/api/membership', '/api/eligibility', '/api/metadata']) {
           const res = await get(path);
@@ -130,7 +142,7 @@ for (const mode of ['registry', 'link']) {
   });
 
   check(`[${mode}-disabled] relogin, history sync, scheduler, poller and calendar make no provider call`, async () => {
-    const uid = userWithDisabledJab(`bg-${mode}`, { linkDisabled });
+    const uid = userWithDisabledJab(`bg-${mode}`, { mode });
     calls.length = 0;
     try {
       const before = db.getUserGym(uid, JAB);
@@ -150,14 +162,14 @@ for (const mode of ['registry', 'link']) {
       db.addAutoBooking(uid, 'evt-1', 'Boxing', 'Coach', 'Ring', 'NYC', start,
         { preferredSlots: [], preferredRows: [], requiredCount: 1, bookAny: true }, 'studio-1', 'Boxing',
         new Date(Date.now() - 1000).toISOString(), JAB);
-      const row = db.getPendingAutoBookings().find((b) => b.user_id === uid && b.gym_id === JAB);
+      const row = pendingFor(uid).find((b) => b.gym_id === JAB);
       assert.ok(row, 'fixture: pending JAB auto-book');
       await scheduler.prefetchAutoBookSlots([row], 1);
       await scheduler.executeAutoBookForClass(row);
       scheduler.checkAndRunImmediateBookings(uid);
       scheduler.runAllPendingBookings(uid);
       await new Promise((r) => setTimeout(r, 400));
-      const stillPending = db.getPendingAutoBookings().find((b) => b.id === row.id);
+      const stillPending = pendingFor(uid).find((b) => b.id === row.id);
       assert.ok(stillPending, 'disabled-gym auto-book is left pending, not burned');
 
       // Poller: an active JAB auto-upgrade monitor and the booking-cache sweep.
@@ -193,6 +205,37 @@ check('provider backstop: any adapter I/O for a disabled gym rejects with GYM_DI
   // Re-enabled: the same instance works again without a restart.
   const rows = await getProvider(JAB).listBookingHistory({ accessToken: 'mock-mt-token' });
   assert.ok(rows.length > 0, 'enabled gym reaches its provider again');
+});
+
+check('member switch: off means zero provider calls (route + backstop); on resumes them at once', async () => {
+  const uid = userWithDisabledJab('switch', { mode: 'user' });
+  calls.length = 0;
+  try {
+    const token = jwt.sign({ userId: uid, email: 'x@test.local' }, process.env.JWT_SECRET);
+    await withRoutes(async (base) => {
+      const get = (path) => fetch(`${base}${path}`, { headers: { authorization: `Bearer ${token}`, 'x-gym-id': JAB } });
+      const off = await get('/api/bookings');
+      assert.strictEqual(off.status, 409, 'switched off: bookings refused');
+      // Backstop: a provider call made inside the member's own request context.
+      await assert.rejects(
+        () => db.runWithGymContext(uid, JAB, () => getProvider(JAB).listBookingHistory({ accessToken: 'mock-mt-token' })),
+        (e) => e.code === 'GYM_DISABLED',
+      );
+      await assert.rejects(() => auth.triggerAutoRelogin(uid, JAB), (e) => e.code === 'GYM_DISABLED');
+      assert.deepStrictEqual(calls, [], `no provider calls while switched off (got ${calls.join(', ')})`);
+      const link = db.getUserGym(uid, JAB);
+      assert.strictEqual(link.relogin_failures || 0, 0, 'blocked relogin is not a failure');
+      assert.strictEqual(link.relogin_suspended || 0, 0, 'blocked calls never suspend relogin');
+      assert.notStrictEqual(link.status, 'needs_relogin', 'blocked calls never flag needs_relogin');
+
+      db.setUserGymEnabled(uid, JAB, true);
+      const on = await get('/api/bookings');
+      assert.strictEqual(on.status, 200, `switched on: bookings served again (got ${on.status})`);
+      const rows = await db.runWithGymContext(uid, JAB, () => getProvider(JAB).listBookingHistory({ accessToken: 'mock-mt-token' }));
+      assert.ok(rows.length > 0, 'backstop lets the provider through again');
+      assert.ok(calls.length > 0, 'provider calls resume immediately after switching on');
+    });
+  } finally { reenable(uid); }
 });
 
 (async () => {

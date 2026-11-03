@@ -7,6 +7,9 @@ process.env.ENCRYPTION_KEY = process.env.ENCRYPTION_KEY || 'a'.repeat(64);
 process.env.DB_PATH = process.env.DB_PATH || ':memory:';
 process.env.NODE_ENV = 'test';
 process.env.JWT_SECRET = process.env.JWT_SECRET || 'test-mariana-attendance-secret';
+// Barry's is config-gated off by default, and a disabled gym makes no provider
+// calls (gym-outbound.js); this suite exercises its adapter, so switch it on.
+process.env.BARRYS_UK_ENABLED = 'true';
 
 const assert = require('assert');
 const express = require('express');
@@ -23,7 +26,7 @@ const fixture = require('./__fixtures__/marianatek/prod-achievements.json');
 const barrysFixture = require('./__fixtures__/marianatek/barrys-achievements.json');
 const expected = fixture.response_body.classes_completed;
 
-db.db.prepare('UPDATE gyms SET enabled = 1 WHERE id IN (?, ?)').run(JAB, AARMY);
+db.db.prepare('UPDATE gyms SET enabled = 1 WHERE id IN (?, ?, ?)').run(JAB, AARMY, BARRYS);
 
 const checks = [];
 const check = (name, fn) => checks.push({ name, fn });

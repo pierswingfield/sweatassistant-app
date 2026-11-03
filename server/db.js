@@ -2306,4 +2306,10 @@ module.exports = {
   // Establish the per-request active gym (see the note on resolveActiveGymId).
   // The caller must have verified the link first — auth.js's middleware does.
   runWithGymContext,
+  // The user of the current request's gym context, or null (background work).
+  // Read by gym-outbound.js's provider backstop for the member's own gym switch.
+  currentGymContextUserId() {
+    const ctx = gymContext.getStore();
+    return ctx && ctx.userId != null ? ctx.userId : null;
+  },
 };

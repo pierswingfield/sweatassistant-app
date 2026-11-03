@@ -597,6 +597,19 @@ describe('W8 Home stats', () => {
     expect(getHomeActivityMeta(stats)).toBe('10 classes');
   });
 
+  it('counts a gym the member switched off in the total but shows it no tile', () => {
+    const off = { gym_id: 'jab-boxing', shortName: 'JAB', account_enabled: 0 };
+    expect(isDisabledLinkedGym(off)).toBe(true);
+    expect(isDisabledLinkedGym({ gym_id: 'jab-boxing', account_enabled: 1 })).toBe(false);
+    expect(homeStatsWantsAttendance({ gym_id: 'no-such-capability-gym', account_enabled: 0 })).toBe(true);
+    const stats = getHomeStats([{ gym_id: 'psycle-london', name: 'Psycle' }, off], {
+      'psycle-london': { attendance: { attendedTotal: 5 } },
+      'jab-boxing': { attendance: { attendedTotal: 3, source: 'stored', disabled: true } },
+    });
+    expect(getHomeActivityMeta(stats)).toBe('8 classes');
+    expect(stats.rows.filter((row) => !row.hidden).map((row) => row.gymId)).toEqual(['psycle-london']);
+  });
+
   it('omits unknown attendance and never substitutes booking history', () => {
     const stats = getHomeStats([{ gym_id: 'unknown', shortName: 'Unknown' }], {
       unknown: { attendance: { attendedTotal: null }, history: { summary: { classCount: 42 } } },

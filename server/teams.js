@@ -10,13 +10,17 @@
 //    they cannot already see.
 //  - Payloads never carry a user id, email or gym identity. Members are addressed by
 //    `memberRef`, a random per-Team handle; requests by a random request id.
-//  - The invite token is 128 random bits shown once (create/rotate). Only its SHA-256
-//    is stored, so a database read cannot reconstruct a working link.
+//  - The invite token is 128 random bits. Its SHA-256 is stored for lookup, and an
+//    AES-256-GCM copy (crypto.js, ENCRYPTION_KEY) lets a Captain re-copy the CURRENT link
+//    (getInvite, Captains only). A database read alone cannot reconstruct a working link;
+//    the token never reaches logs or audit rows.
 //  - A pending requester learns the Team's name, emoji and their own status. Nothing else.
 
 const crypto = require('crypto');
 const dbm = require('./db');
 const sharing = require('./team-sharing');
+const { encrypt, decrypt } = require('./crypto');
+const config = require('./config');
 
 const { db } = dbm;
 
@@ -109,16 +113,21 @@ function expireStale() {
 function cleanName(name) {
   if (typeof name !== 'string') throw invalid('A Team name is required.');
   const v = name.replace(/\s+/g, ' ').trim();
+  // Defence in depth only: the client MUST still escape the name on render (T-3 does).
+  if (/[<>]/.test(v)) throw invalid('A Team name cannot contain < or >.');
   // eslint-disable-next-line no-control-regex
   if (!v || v.length > NAME_MAX || /[\u0000-\u001f\u007f]/.test(v)) throw invalid(`A Team name must be 1 to ${NAME_MAX} characters.`);
   return v;
 }
+const GRAPHEMES = new Intl.Segmenter(undefined, { granularity: 'grapheme' });
 function cleanEmoji(emoji) {
   if (emoji == null || emoji === '') return null;
   if (typeof emoji !== 'string') throw invalid('Emoji must be text.');
   const v = emoji.trim();
-  // eslint-disable-next-line no-control-regex
-  if (!v || v.length > EMOJI_MAX || /[\s\u0000-\u001f<>]/.test(v)) throw invalid('Emoji is not valid.');
+  // Exactly one emoji grapheme (a ZWJ family or flag is one grapheme), nothing else.
+  if (!v || v.length > EMOJI_MAX || !/^(?:\p{Extended_Pictographic}|\p{Regional_Indicator}{2})/u.test(v) || [...GRAPHEMES.segment(v)].length !== 1) {
+    throw invalid('Emoji must be a single emoji.');
+  }
   return v;
 }
 // No share supplied -> the D3 defaults (what the consent sheet starts from). A supplied
@@ -226,8 +235,8 @@ function createTeam(userId, { name, emoji, share } = {}) {
   const inviteToken = randomId(16);
   const now = nowIso();
   db.transaction(() => {
-    db.prepare(`INSERT INTO teams (id, invite_token_hash, invite_enabled, invite_rotated_at, name, emoji, created_by, created_at, updated_at)
-      VALUES (?, ?, 1, ?, ?, ?, ?, ?, ?)`).run(id, hashToken(inviteToken), now, cleanN, cleanE, userId, now, now);
+    db.prepare(`INSERT INTO teams (id, invite_token_hash, invite_token_enc, invite_enabled, invite_rotated_at, name, emoji, created_by, created_at, updated_at)
+      VALUES (?, ?, ?, 1, ?, ?, ?, ?, ?, ?)`).run(id, hashToken(inviteToken), encrypt(inviteToken), now, cleanN, cleanE, userId, now, now);
     addMember(id, userId, { captain: true, shareJson: myShare });
   })();
   audit('team.create', userId, userId, { teamId: id });
@@ -303,9 +312,16 @@ function deleteTeam(userId, teamId) {
 function rotateInvite(userId, teamId) {
   const { team } = requireCaptain(userId, teamId);
   const inviteToken = randomId(16);
-  db.prepare('UPDATE teams SET invite_token_hash = ?, invite_rotated_at = ?, updated_at = ? WHERE id = ?')
-    .run(hashToken(inviteToken), nowIso(), nowIso(), team.id);
+  db.prepare('UPDATE teams SET invite_token_hash = ?, invite_token_enc = ?, invite_rotated_at = ?, updated_at = ? WHERE id = ?')
+    .run(hashToken(inviteToken), encrypt(inviteToken), nowIso(), nowIso(), team.id);
   return { inviteToken };
+}
+
+// §5.6 "copy link": the CURRENT link, for Captains only. Never logged or audited.
+function getInvite(userId, teamId) {
+  const { team } = requireCaptain(userId, teamId);
+  const token = team.invite_token_enc ? decrypt(team.invite_token_enc) : null;
+  return { url: token ? `https://${config.publicHost}/t/${token}` : null, enabled: team.invite_enabled === 1 };
 }
 
 function setInviteEnabled(userId, teamId, enabled) {
@@ -354,7 +370,7 @@ function requestJoin(userId, token, share) {
     if (share !== undefined && share !== null) {
       db.prepare('UPDATE team_join_requests SET share_json = ? WHERE id = ?').run(sharing.serializeShare(consent), last.id);
     }
-    return { status: 'pending' };
+    return { status: 'pending', requestId: last.id };
   }
   if (isBlocked(team.id, userId) || inCooldown(last)) {
     throw new TeamError('REQUEST_DECLINED', 409, "Your request wasn't accepted.");
@@ -370,9 +386,10 @@ function requestJoin(userId, token, share) {
   if (recent >= LIMITS.MAX_REQUESTS_PER_HOUR) {
     throw new TeamError('RATE_LIMITED', 429, 'Too many join requests. Try again later.');
   }
+  const requestId = randomId(9);
   db.prepare(`INSERT INTO team_join_requests (id, team_id, user_id, status, share_json, created_at)
-    VALUES (?, ?, ?, 'pending', ?, ?)`).run(randomId(9), team.id, userId, sharing.serializeShare(consent), nowIso());
-  return { status: 'pending' };
+    VALUES (?, ?, ?, 'pending', ?, ?)`).run(requestId, team.id, userId, sharing.serializeShare(consent), nowIso());
+  return { status: 'pending', requestId };
 }
 
 function withdrawRequest(userId, token) {
@@ -381,6 +398,16 @@ function withdrawRequest(userId, token) {
   db.prepare("UPDATE team_join_requests SET status = 'withdrawn', decided_at = ? WHERE team_id = ? AND user_id = ? AND status = 'pending'")
     .run(nowIso(), team.id, userId);
   return { status: myRequestStatus(team.id, userId) };
+}
+
+// Withdraw by request id: works after the link was rotated or disabled (a pending
+// request outlives the link). Own, still-pending requests only; anything else is 404.
+function withdrawRequestById(userId, requestId) {
+  expireStale();
+  const req = db.prepare("SELECT * FROM team_join_requests WHERE id = ? AND user_id = ? AND status = 'pending'").get(String(requestId), userId);
+  if (!req) throw notFound();
+  db.prepare("UPDATE team_join_requests SET status = 'withdrawn', decided_at = ? WHERE id = ?").run(nowIso(), req.id);
+  return { status: myRequestStatus(req.team_id, userId) };
 }
 
 function listRequests(userId, teamId) {
@@ -397,8 +424,9 @@ function listRequests(userId, teamId) {
 }
 
 function decideRequest(userId, teamId, requestId, decision) {
-  const { team } = requireApprover(userId, teamId);
+  const { team, me } = requireApprover(userId, teamId);
   if (!['approve', 'decline', 'block'].includes(decision)) throw invalid('decision must be approve, decline or block.');
+  if (decision === 'block' && me.is_captain !== 1) throw new TeamError('CAPTAIN_REQUIRED', 403, 'Only a Captain can block.');
   expireStale();
   const req = db.prepare("SELECT * FROM team_join_requests WHERE id = ? AND team_id = ? AND status = 'pending'").get(String(requestId), team.id);
   if (!req) throw notFound();
@@ -497,15 +525,22 @@ function setCaptain(userId, teamId, memberRef, captain) {
   return { memberRef: target.member_ref, isCaptain: captain };
 }
 
-function removeMember(userId, teamId, memberRef) {
+function removeMember(userId, teamId, memberRef, { block = false } = {}) {
   const { team } = requireCaptain(userId, teamId);
   const target = targetByRef(team.id, memberRef);
   if (target.user_id === userId) throw new TeamError('USE_LEAVE', 409, 'To remove yourself, leave the Team.');
   // The actor is a Captain and is not the target, so removing a Captain never leaves
   // the Team without one; the guard is kept explicit for the invariant's sake.
   if (target.is_captain === 1 && captainCount(team.id) <= 1) throw new TeamError('LAST_CAPTAIN', 409, 'A Team needs at least one Captain.');
-  db.prepare('DELETE FROM team_members WHERE id = ?').run(target.id);
-  audit('team.member.remove', userId, target.user_id, { teamId: team.id, memberRef: target.member_ref });
+  if (typeof block !== 'boolean') throw invalid('block must be true or false.');
+  const now = nowIso();
+  db.transaction(() => {
+    db.prepare('DELETE FROM team_members WHERE id = ?').run(target.id);
+    // Same cooldown as a decline (or a permanent block), recorded as a decided request.
+    db.prepare(`INSERT INTO team_join_requests (id, team_id, user_id, status, blocked, created_at, decided_by, decided_at)
+      VALUES (?, ?, ?, 'declined', ?, ?, ?, ?)`).run(randomId(9), team.id, target.user_id, block ? 1 : 0, now, userId, now);
+  })();
+  audit('team.member.remove', userId, target.user_id, { teamId: team.id, memberRef: target.member_ref, block });
   return { removed: true };
 }
 
@@ -516,7 +551,7 @@ function privacyOverview(userId) {
   expireStale();
   const rows = db.prepare(`SELECT t.id, t.name, t.emoji, m.share_json, m.paused_until
     FROM team_members m JOIN teams t ON t.id = m.team_id WHERE m.user_id = ? ORDER BY m.joined_at ASC, m.id ASC`).all(userId);
-  const pending = db.prepare(`SELECT t.name, t.emoji, r.share_json, r.created_at
+  const pending = db.prepare(`SELECT r.id, t.name, t.emoji, r.share_json, r.created_at
     FROM team_join_requests r JOIN teams t ON t.id = r.team_id WHERE r.user_id = ? AND r.status = 'pending' ORDER BY r.created_at ASC`).all(userId);
   return {
     teams: rows.map((r) => ({
@@ -529,7 +564,7 @@ function privacyOverview(userId) {
       paused: isPaused(r),
     })),
     pendingRequests: pending.map((r) => ({
-      name: r.name, emoji: r.emoji || null, requestedAt: r.created_at, share: sharing.resolveShare(r.share_json),
+      requestId: r.id, name: r.name, emoji: r.emoji || null, requestedAt: r.created_at, share: sharing.resolveShare(r.share_json),
     })),
   };
 }
@@ -569,7 +604,7 @@ function importMyShares(userId, list) {
 module.exports = {
   TeamError, LIMITS, COLOUR_PALETTE_SIZE, TOKEN_RE,
   createTeam, listTeams, getTeam, updateTeam, deleteTeam,
-  rotateInvite, setInviteEnabled,
+  rotateInvite, setInviteEnabled, getInvite, withdrawRequestById,
   previewInvite, requestJoin, withdrawRequest, listRequests, decideRequest,
   updateMe, leaveTeam, setCaptain, removeMember,
   privacyOverview, beforeAccountDelete, teamCountsByUser, exportMyShares, importMyShares,

@@ -293,6 +293,8 @@ check('Captains: grant/revoke, last-Captain guard, removal, and auto-promotion o
   assert.strictEqual(codeOf(() => teams.getTeam(c, team.id)), 'NOT_FOUND', 'removal is immediate');
   assert.strictEqual(codeOf(() => teams.removeMember(b, team.id, 'unknownref')), 'NOT_FOUND');
 
+  // Cat was removed: she is in the 7-day cooldown until it passes.
+  advance(7 * DAY + 1000);
   // Ben (last Captain) leaves: Ana, the longest-standing remaining member, is promoted.
   joinVia(teams, b, team.id, inviteToken, c);
   teams.leaveTeam(b, team.id);
@@ -355,6 +357,130 @@ check('pause, share update, privacy overview, display-name clash gets a last ini
   assert.strictEqual(teams.getTeam(b, team.id).paused, false);
   assert.strictEqual(codeOf(() => teams.updateMe(b, team.id, { pause: 'forever-ish' })), 'INVALID');
   assert.strictEqual(codeOf(() => teams.updateMe(b, team.id, { share: { spots: 'yes' } })), 'INVALID');
+});
+
+// --- T-1 review fixes ---------------------------------------------------------------
+
+check('review: Team names reject < and > (XSS), still trimmed and length-capped', () => {
+  const { db, teams } = boot();
+  const a = mkUser(db, 'Ana');
+  assert.strictEqual(codeOf(() => teams.createTeam(a, { name: '<img src=x onerror=1>' })), 'INVALID');
+  assert.strictEqual(codeOf(() => teams.createTeam(a, { name: 'a>b' })), 'INVALID');
+  const { team } = teams.createTeam(a, { name: '  Fish & Chips  ' });
+  assert.strictEqual(team.name, 'Fish & Chips');
+  assert.strictEqual(codeOf(() => teams.updateTeam(a, team.id, { name: 'x<y' })), 'INVALID');
+});
+
+check('review: emoji must be exactly one emoji grapheme', () => {
+  const { db, teams } = boot();
+  const a = mkUser(db, 'Ana');
+  for (const bad of ['abc', 'a', '🚴🚴', '🚴x', '12', '😀😀😀']) {
+    assert.strictEqual(codeOf(() => teams.createTeam(a, { name: 'E', emoji: bad })), 'INVALID', `emoji ${bad}`);
+  }
+  for (const good of ['🚴', '👨‍👩‍👧', '🇬🇧', '❤️', '👍🏽']) {
+    assert.doesNotThrow(() => teams.createTeam(a, { name: 'E', emoji: good }), `emoji ${good}`);
+  }
+});
+
+check('review: a requester can withdraw by request id after the link is rotated or disabled; the request stays approvable', () => {
+  const { db, teams } = boot();
+  const a = mkUser(db, 'Ana'); const b = mkUser(db, 'Ben'); const c = mkUser(db, 'Cat'); const d = mkUser(db, 'Dee');
+  const { team, inviteToken } = teams.createTeam(a, { name: 'Crew' });
+  const rb = teams.requestJoin(b, inviteToken);
+  const rc = teams.requestJoin(c, inviteToken);
+  assert.ok(rb.requestId && rc.requestId);
+  teams.rotateInvite(a, team.id);
+  teams.setInviteEnabled(a, team.id, false);
+  assert.strictEqual(codeOf(() => teams.withdrawRequest(b, inviteToken)), 'NOT_FOUND', 'token no longer works');
+  // Captain can still approve Cat after rotate + disable.
+  assert.strictEqual(teams.decideRequest(a, team.id, rc.requestId, 'approve').status, 'approved');
+  // Ben withdraws by id.
+  assert.strictEqual(teams.withdrawRequestById(b, rb.requestId).status, 'none');
+  assert.strictEqual(teams.listRequests(a, team.id).length, 0);
+  // Someone else's request, a decided one, and an unknown id are all 404.
+  assert.strictEqual(codeOf(() => teams.withdrawRequestById(d, rb.requestId)), 'NOT_FOUND');
+  assert.strictEqual(codeOf(() => teams.withdrawRequestById(b, rb.requestId)), 'NOT_FOUND');
+  assert.strictEqual(codeOf(() => teams.withdrawRequestById(c, rc.requestId)), 'NOT_FOUND');
+  assert.strictEqual(codeOf(() => teams.withdrawRequestById(b, 'nope')), 'NOT_FOUND');
+  // The privacy overview exposes the id of one's own pending request.
+  teams.setInviteEnabled(a, team.id, true);
+  const tok = teams.getInvite(a, team.id).url.split('/t/')[1];
+  const rd = teams.requestJoin(d, tok);
+  assert.strictEqual(teams.privacyOverview(d).pendingRequests[0].requestId, rd.requestId);
+});
+
+check('review: removal applies the 7-day cooldown; { block: true } blocks for good', () => {
+  const { db, teams } = boot();
+  const a = mkUser(db, 'Ana'); const b = mkUser(db, 'Ben'); const c = mkUser(db, 'Cat');
+  const { team, inviteToken } = teams.createTeam(a, { name: 'Crew' });
+  joinVia(teams, a, team.id, inviteToken, b);
+  joinVia(teams, a, team.id, inviteToken, c);
+  const refs = Object.fromEntries(teams.getTeam(a, team.id).members.map((m) => [m.name, m.memberRef]));
+  teams.removeMember(a, team.id, refs.Ben);
+  teams.removeMember(a, team.id, refs.Cat, { block: true });
+  assert.strictEqual(teams.previewInvite(b, inviteToken).myRequestStatus, 'declined');
+  assert.strictEqual(codeOf(() => teams.requestJoin(b, inviteToken)), 'REQUEST_DECLINED');
+  advance(7 * DAY + 1000);
+  assert.strictEqual(teams.requestJoin(b, inviteToken).status, 'pending', 'cooldown over');
+  assert.strictEqual(codeOf(() => teams.requestJoin(c, inviteToken)), 'REQUEST_DECLINED', 'block outlives the cooldown');
+  // Leaving on one's own carries no cooldown.
+  const { team: t2, inviteToken: tk2 } = teams.createTeam(a, { name: 'Two' });
+  joinVia(teams, a, t2.id, tk2, b);
+  teams.leaveTeam(b, t2.id);
+  assert.strictEqual(teams.requestJoin(b, tk2).status, 'pending');
+});
+
+check('review: block (on a request) is Captain-only even when approval_policy is any', () => {
+  const { db, teams } = boot();
+  const a = mkUser(db, 'Ana'); const b = mkUser(db, 'Ben'); const c = mkUser(db, 'Cat'); const d = mkUser(db, 'Dee');
+  const { team, inviteToken } = teams.createTeam(a, { name: 'Crew' });
+  teams.updateTeam(a, team.id, { approvalPolicy: 'any' });
+  joinVia(teams, a, team.id, inviteToken, b);
+  const rc = teams.requestJoin(c, inviteToken);
+  const rd = teams.requestJoin(d, inviteToken);
+  assert.strictEqual(codeOf(() => teams.decideRequest(b, team.id, rc.requestId, 'block')), 'CAPTAIN_REQUIRED');
+  assert.strictEqual(statusOf(() => teams.decideRequest(b, team.id, rc.requestId, 'block')), 403);
+  assert.strictEqual(teams.decideRequest(b, team.id, rc.requestId, 'decline').status, 'declined');
+  assert.strictEqual(teams.decideRequest(a, team.id, rd.requestId, 'block').status, 'blocked');
+});
+
+check('review: account deletion runs handover + delete in ONE transaction (rolls back together)', () => {
+  const { db, teams } = boot();
+  const a = mkUser(db, 'Ana'); const b = mkUser(db, 'Ben');
+  const { team, inviteToken } = teams.createTeam(a, { name: 'Crew' });
+  joinVia(teams, a, team.id, inviteToken, b);
+  db.db.exec('CREATE TEMP TRIGGER boom BEFORE DELETE ON users BEGIN SELECT RAISE(ABORT, \'boom\'); END');
+  assert.throws(() => db.deleteAllUserData(a), /boom/);
+  assert.strictEqual(teams.getTeam(b, team.id).myRole, 'member', 'handover rolled back with the failed delete');
+  assert.throws(() => db.deleteUser(a), /boom/);
+  assert.strictEqual(teams.getTeam(b, team.id).myRole, 'member');
+  assert.strictEqual(db.db.prepare('SELECT COUNT(*) c FROM team_members WHERE user_id = ?').get(a).c, 1);
+  db.db.exec('DROP TRIGGER boom');
+  db.deleteAllUserData(a);
+  assert.strictEqual(teams.getTeam(b, team.id).myRole, 'captain');
+});
+
+check('review: Captains can re-copy the CURRENT invite link (encrypted at rest, hash for lookup)', () => {
+  const { db, teams } = boot();
+  const a = mkUser(db, 'Ana'); const b = mkUser(db, 'Ben');
+  const { team, inviteToken } = teams.createTeam(a, { name: 'Crew' });
+  let inv = teams.getInvite(a, team.id);
+  assert.ok(inv.url.endsWith(`/t/${inviteToken}`), inv.url);
+  assert.strictEqual(inv.enabled, true);
+  assert.ok(!JSON.stringify(db.db.prepare('SELECT * FROM teams').all()).includes(inviteToken), 'token not stored in clear');
+  assert.ok(db.db.prepare('SELECT invite_token_enc e FROM teams WHERE id = ?').get(team.id).e);
+  // Members and strangers cannot read it.
+  joinVia(teams, a, team.id, inviteToken, b);
+  assert.strictEqual(codeOf(() => teams.getInvite(b, team.id)), 'CAPTAIN_REQUIRED');
+  assert.strictEqual(codeOf(() => teams.getInvite(mkUser(db, 'Zed'), team.id)), 'NOT_FOUND');
+  // Rotation replaces both; disabling is reflected.
+  const { inviteToken: t2 } = teams.rotateInvite(a, team.id);
+  inv = teams.getInvite(a, team.id);
+  assert.ok(inv.url.endsWith(`/t/${t2}`));
+  teams.setInviteEnabled(a, team.id, false);
+  assert.strictEqual(teams.getInvite(a, team.id).enabled, false);
+  // No token or hash in the audit trail.
+  assert.ok(!JSON.stringify(db.listAdminAudit({ limit: 500 })).includes(t2));
 });
 
 check('module boundary: only teams.js touches the three tables', () => {
@@ -522,7 +648,24 @@ check('HTTP: full flow, 404-not-403, no user ids / emails in any payload, tokens
   const anaRow = au.body.users.find((u) => u.email === ana.email);
   assert.strictEqual(anaRow.team_count, 1);
   assert.ok(!/memberRef|share|"teams"/.test(au.text), 'admin list carries a count only');
-  r = await rec('DELETE', `/api/teams/${teamId}/members/${benRef}`, ana.token);
+  // Review fixes over HTTP: Captain-only invite copy, withdraw by id, bad name.
+  r = await rec('GET', `/api/teams/${teamId}/invite`, ana.token);
+  assert.strictEqual(r.status, 200);
+  assert.ok(r.body.url.endsWith(`/t/${token}`) || r.body.url.includes('/t/'));
+  assert.strictEqual(r.body.enabled, true);
+  r = await rec('PUT', `/api/teams/${teamId}/members/${benRef}`, ana.token, { captain: false });
+  assert.strictEqual(r.status, 200);
+  r = await rec('GET', `/api/teams/${teamId}/invite`, ben.token);
+  assert.strictEqual(r.status, 403);
+  r = await rec('GET', `/api/teams/${teamId}/invite`, eve.token);
+  assert.strictEqual(r.status, 404);
+  r = await rec('POST', '/api/teams', ana.token, { name: '<b>x</b>' });
+  assert.strictEqual(r.status, 400); assert.strictEqual(r.body.code, 'INVALID');
+  r = await rec('DELETE', '/api/teams/requests/nonexistent', eve.token);
+  assert.strictEqual(r.status, 404);
+  r = await rec('DELETE', '/api/teams/requests/me', eve.token);
+  assert.strictEqual(r.status, 404, 'not mistaken for /teams/:id/me');
+  r = await rec('DELETE', `/api/teams/${teamId}/members/${benRef}`, ana.token, { block: true });
   assert.strictEqual(r.status, 200);
   r = await rec('DELETE', `/api/teams/${teamId}`, ana.token);
   assert.strictEqual(r.status, 200);

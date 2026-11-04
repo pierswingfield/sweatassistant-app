@@ -449,11 +449,12 @@ db.exec(`
 
   -- T-1 Teams (PLAN-teams.md §7.1). Read and written ONLY by server/teams.js.
   -- Ids are random opaque strings, not sequences, so they reveal no counts.
-  -- The invite token is never stored: only its SHA-256 (hex). Rotating it replaces
-  -- the hash, which kills every old link without touching members.
+  -- The invite token is stored as its SHA-256 (hex, for lookup) plus an encrypted copy
+  -- (Captain "copy link"). Rotating replaces both, killing every old link.
   CREATE TABLE IF NOT EXISTS teams (
     id TEXT PRIMARY KEY,
     invite_token_hash TEXT UNIQUE,
+    invite_token_enc TEXT,         -- AES-256-GCM copy (crypto.js) so a Captain can re-copy the link
     invite_enabled INTEGER NOT NULL DEFAULT 1 CHECK (invite_enabled IN (0, 1)),
     invite_rotated_at TEXT,
     name TEXT NOT NULL,
@@ -1737,8 +1738,11 @@ module.exports = {
     db.pragma('foreign_keys = ON');
     // T-1 §7.5: hand over any Team this account is the last Captain of BEFORE the
     // cascade removes its memberships. Lazy require: teams.js depends on this module.
-    require('./teams').beforeAccountDelete(userId);
-    db.prepare('DELETE FROM users WHERE id = ?').run(userId);
+    // One transaction: a failed delete must not leave a handover applied.
+    db.transaction(() => {
+      require('./teams').beforeAccountDelete(userId);
+      db.prepare('DELETE FROM users WHERE id = ?').run(userId);
+    })();
   },
 
   // User lookups (for background notification jobs)
@@ -2034,8 +2038,10 @@ module.exports = {
     }
   },
   deleteUser(userId) {
-    require('./teams').beforeAccountDelete(userId); // T-1 §7.5, as deleteAllUserData
-    db.prepare('DELETE FROM users WHERE id = ?').run(userId);
+    db.transaction(() => { // T-1 §7.5, as deleteAllUserData: handover + delete atomically
+      require('./teams').beforeAccountDelete(userId);
+      db.prepare('DELETE FROM users WHERE id = ?').run(userId);
+    })();
   },
 
   addPushSubscription(userId, subscription) {

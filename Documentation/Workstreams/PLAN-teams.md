@@ -13,7 +13,7 @@ Non-goals for this plan: public profiles, following strangers, discovering Teams
 1. **The server projects, the client displays.** A viewer's response contains only what each sharer allowed for that Team and what the viewer may see. No client-side filtering of data the viewer has already received. One server function, `projectTeamFor(viewerId, teamId)`, produces every Team payload, and one suite pins it (§8).
 2. **Consent per Team, shown in plain words.** Joining always passes through a "What you'll share with *Team name*" screen. You cannot join without seeing it. It can be changed later from the Team and from one account-level overview.
 3. **A pending requester sees nothing.** Before approval, the requester sees the Team's name and mascot only: no member count, member names or activity.
-4. **The invite link is a revocable secret, not the Team's identity.** The URL carries a random 128-bit token that is separate from the Team id. Rotating it invalidates every old link without disturbing members. Link unfurls in chat apps (Open Graph tags) are generic ("You've been invited to a Team on Dibs"), because the people in a chat are not necessarily the people being invited.
+4. **The invite link is a revocable secret, not the Team's identity.** The URL carries a random 128-bit token that is separate from the Team id (hash for lookup, encrypted copy for Captains only). Rotating it invalidates every old link without disturbing members. Link unfurls in chat apps (Open Graph tags) are generic ("You've been invited to a Team on Dibs"), because the people in a chat are not necessarily the people being invited.
 5. **Leaving is immediate and complete.** Leaving, being removed, pausing or deleting the account removes the member from every projection at once. Nothing they shared stays visible as a cached copy on the server.
 6. **No identity leakage across the boundary.** Never show email addresses, gym login identities or user ids. A member is identified by a display name and avatar only.
 7. **Location plus time is sensitive.** "Sam will be at Psycle Oxford Circus at 08:30 tomorrow" is exactly the information a stalker wants. Hence approval-only membership, an easy per-Team pause, the "Who can see my classes" overview, and conservative defaults for the most precise data (spot numbers).
@@ -111,7 +111,7 @@ A mini ring around the mascot shows the share of today's classes completed. The 
 2. **Open link** (`/t/<token>`): if signed out, log in or sign up, then resume. Once signed in: "Request to join *Team name*?", the sharing sheet, then **Send request**. It is idempotent: re-opening the link shows "Request pending · Withdraw".
 3. **Approve:** Captains (or every member, if the Team allows it) see the requester's display name and avatar, plus "Requested via link · 2 h ago", with **Approve** / **Decline** / **Decline and block**. If several Teams are pending, they can act from the Teams list badge.
 4. **Outcomes:** approved means a push plus the Team appearing in the list. Declined shows "Your request wasn't accepted" and starts a 7-day cooldown before the same person can request again. Blocked looks the same as declined to the requester. Requests expire after 14 days.
-5. **Link management** (Captains): copy, share, **Reset link** (rotate), or turn off joining.
+5. **Link management** (Captains): copy the current link (re-readable via the encrypted copy), share, **Reset link** (rotate), or turn off joining.
 
 ### 5.7 Manage page
 
@@ -155,7 +155,7 @@ One page, opened from the dashboard header, full-screen on mobile via `modal-nav
 ### 7.1 Data model (new tables in the canonical schema block)
 
 ```
-teams              id, invite_token_hash UNIQUE, invite_enabled, invite_rotated_at,
+teams              id, invite_token_hash UNIQUE, invite_token_enc, invite_enabled, invite_rotated_at,
                    name, emoji, approval_policy ('captains'|'any'), competition_enabled,
                    created_by, created_at, updated_at
 team_members       team_id, user_id, is_captain, colour_index,
@@ -165,7 +165,7 @@ team_join_requests id, team_id, user_id, status ('pending'|'approved'|'declined'
                    blocked, created_at, decided_by, decided_at
 ```
 
-- Store only a **hash** of the invite token. The raw token exists only in the URL.
+- The invite token is stored as a **SHA-256 hash for lookup** plus an **encrypted copy** (`crypto.js`, AES-256-GCM, `ENCRYPTION_KEY`) so a Captain can re-copy the current link (§5.6). Only Captains can read it (`GET /api/teams/:id/invite`); it is never logged or audited; rotation replaces both.
 - `share_json` is validated against one schema module (`server/team-sharing.js`), which also owns the defaults. Unknown keys are dropped, and a missing key resolves to the **private** value. This is deliberately the opposite of the capability flag rule (unknown means on): capabilities fail safe by showing, but sharing must fail safe by hiding.
 - Module boundary, following the house style: `server/teams.js` is the ONLY reader and writer of the three tables, and `server/team-projection.js` is pure (rows in, payload out) so it can be unit tested without a database.
 
@@ -218,20 +218,23 @@ GET    /api/teams/:id                     dashboard projection
 PATCH  /api/teams/:id                     rename / emoji / policies (Captain)
 DELETE /api/teams/:id                     delete (Captain)
 POST   /api/teams/:id/invite/rotate       new link (Captain)
+GET    /api/teams/:id/invite              { url, enabled } (Captain; the current link, decrypted)
 PUT    /api/teams/:id/invite              { enabled } (Captain)
 GET    /api/teams/invite/:token           preview: { name, emoji, myRequestStatus } only
 POST   /api/teams/invite/:token/request   { share }  → pending
-DELETE /api/teams/invite/:token/request   withdraw
+DELETE /api/teams/invite/:token/request   withdraw (needs a working token)
+DELETE /api/teams/requests/:requestId     withdraw own pending request by id (no token; works after the link is rotated or disabled; 404 otherwise)
 GET    /api/teams/:id/requests            Captains (or any member if the Team allows)
-POST   /api/teams/:id/requests/:rid       { decision: approve|decline|block }
+POST   /api/teams/:id/requests/:rid       { decision: approve|decline|block } (block is Captain-only even when any member may approve)
 PUT    /api/teams/:id/me                  share settings / pause
 DELETE /api/teams/:id/me                  leave (the last Captain leaving promotes the longest-standing member)
 PUT    /api/teams/:id/members/:memberRef  { captain: true|false } (Captain; refuses to remove the last Captain)
-DELETE /api/teams/:id/members/:memberRef  remove (Captain); memberRef is a per-Team opaque id, never a user id
+DELETE /api/teams/:id/members/:memberRef  remove (Captain; optional { block: true }; removal starts the same 7-day cooldown as a decline); memberRef is a per-Team opaque id, never a user id
 GET    /api/privacy/sharing               the "Who can see my classes" overview
 ```
 
 - Any authorisation failure (not a member, or an unknown Team) answers **404, never 403**, so ids and tokens cannot be probed. Invite endpoints are rate limited per IP and per account.
+- Rotating or disabling the link leaves pending requests intact: Captains can still approve or decline them, and the requester can withdraw by request id (`requestJoin` and the privacy overview return it).
 - A Team payload carries no `userId`. Members are addressed by a per-Team opaque `memberRef`.
 - The `/t/<token>` route serves the SPA shell with **generic** Open Graph tags (principle 4) and `Referrer-Policy: no-referrer`, so the token never leaks to third-party images.
 - Admin panel: a Team count per user, and Team detail **without** member class data (the operator has no product need for it). Audit-log rows (C7-3) record create, delete, Captain changes (including automatic promotion), member removal and blocks.
@@ -248,7 +251,7 @@ Each phase follows [AGENT_PROTOCOL.md](AGENT_PROTOCOL.md): verify in code and a 
 |---|---|---|---|
 | **T-0** | Design | Mobile and desktop mock-ups of the Teams list, dashboard, Manage page, join flow and sharing sheet in the current visual language. Brief the mascot poses. (§9 decisions are settled.) | The user approves the mock-ups |
 | **T-B** | Universal background booking sync | §7.2: every account and every enabled gym refreshed in the background, a single writer of `booking_cache`, waitlists included. Independent of the Teams UI; can ship first. **Progress 2026-11-04 (branch `teams`):** built as `server/booking-sync.js` (single background writer; calendar consumes it; 2 h priority predicate stubbed empty for T-2; 3 h kept for calendar-feed users; per-(user, gym) `booking_sync_state`; `/api/health` + `/metrics` counters). Suite `test-booking-sync.js` green. **Not yet done:** measured upstream calls per cycle on dev and prod; not deployed. | The §7.2 suite, plus measured upstream calls per cycle on dev, then on prod |
-| **T-1** | Membership core | Schema, `teams.js`, create, invite link, request, approve or decline or block, leave, remove, Captains (grant, revoke, last-Captain guard, auto-promotion), 16-member limit, share settings, the Manage page, Settings → Privacy overview, Teams in the nav (six items). The Teams tab shows Teams and members only (no class data). **Progress 2026-11-04 (branch `teams`), server side only:** schema (`teams`, `team_members`, `team_join_requests`, random text ids), `server/teams.js` (sole table owner), `server/team-sharing.js` (D3 defaults; missing key = private), `server/teams-routes.js` (all §7.4 routes, invite limiters per IP and per account), `GET /t/:token` generic shell with `Referrer-Policy: no-referrer`, invite tokens scrubbed from request logs, audit rows (create, delete, Captain grant/revoke/auto-promote, removal, block), last-Captain auto-promotion on leave and on account deletion (self and admin), admin Team count per user, own share settings in config export/import. Suite `test-team-membership.js` green. Deviations: a join request also stores the requester's `share_json` (consent, applied on approval); a request that sends a partial share gets private for omitted keys, while sending none gets the D3 defaults; the raw invite token is returned only on create and rotate (it is never stored, so a Captain cannot re-copy an old link). **Not yet done:** all client UI (Manage page, Privacy overview, nav, `/t/` client routing) waiting on T-0 mock-ups; the two-account browser run and the 320/375 px nav check; the "Ana is now a Captain" Team-visible notice (needs an activity feed). | `test-team-membership.js` (Captain rules, last-Captain guard, full Team, cooldowns, token rotation, 404-not-403, opaque refs), a browser run of the two-account join flow, and a bottom-nav check at 320 px and 375 px |
+| **T-1** | Membership core | Schema, `teams.js`, create, invite link, request, approve or decline or block, leave, remove, Captains (grant, revoke, last-Captain guard, auto-promotion), 16-member limit, share settings, the Manage page, Settings → Privacy overview, Teams in the nav (six items). The Teams tab shows Teams and members only (no class data). **Progress 2026-11-04 (branch `teams`), server side only:** schema (`teams`, `team_members`, `team_join_requests`, random text ids), `server/teams.js` (sole table owner), `server/team-sharing.js` (D3 defaults; missing key = private), `server/teams-routes.js` (all §7.4 routes, invite limiters per IP and per account), `GET /t/:token` generic shell with `Referrer-Policy: no-referrer`, invite tokens scrubbed from request logs, audit rows (create, delete, Captain grant/revoke/auto-promote, removal, block), last-Captain auto-promotion on leave and on account deletion (self and admin), admin Team count per user, own share settings in config export/import. Suite `test-team-membership.js` green. Deviations: a join request also stores the requester's `share_json` (consent, applied on approval); a request that sends a partial share gets private for omitted keys, while sending none gets the D3 defaults; the raw invite token is returned on create and rotate, and Captains can re-copy the current link via `GET /api/teams/:id/invite` (encrypted copy, review fix). **Not yet done:** all client UI (Manage page, Privacy overview, nav, `/t/` client routing) waiting on T-0 mock-ups; the two-account browser run and the 320/375 px nav check; the "Ana is now a Captain" Team-visible notice (needs an activity feed). | `test-team-membership.js` (Captain rules, last-Captain guard, full Team, cooldowns, token rotation, 404-not-403, opaque refs), a browser run of the two-account join flow, and a bottom-nav check at 320 px and 375 px |
 | **T-2** | Projection and Teams list | Requires T-B. `team-projection.js`, the 2 h cadence for shared members, `GET /api/teams` today summaries, mascot state machine (pure, unit tested), Teams list cards. | **`test-team-privacy.js`**: a multi-user, multi-gym matrix in which every share toggle, pause, unlinked gym, disabled gym, cancelled booking and removed member is asserted absent from the payload (the Teams counterpart of `test-gym-isolation.js`) |
 | **T-3** | Team dashboard | Header, Now and next, Classes together with booking CTAs via existing flows, Week view, Members. | Browser run with three dev accounts across both mock gyms (Psycle and JAB), mobile and desktop, light and dark |
 | **T-4** | Stats | Counts, streaks, mix, busiest times. Opt-in competition. | Unit tests on aggregation, using the zones of the class's gym |

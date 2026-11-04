@@ -59,6 +59,10 @@ router.post('/teams/invite/:token/request', inviteIpLimiter, authenticateToken, 
 router.delete('/teams/invite/:token/request', inviteIpLimiter, authenticateToken, inviteAccountLimiter,
   handle((req) => teams.withdrawRequest(req.userId, req.params.token)));
 
+// Before '/teams/:id' routes: '/teams/requests/me' must not be read as '/teams/:id/me'.
+router.delete('/teams/requests/:requestId', authenticateToken,
+  handle((req) => teams.withdrawRequestById(req.userId, req.params.requestId)));
+
 router.get('/teams', authenticateToken, handle((req) => ({ teams: teams.listTeams(req.userId) })));
 router.post('/teams', authenticateToken, handle((req) => teams.createTeam(req.userId, body(req)), 201));
 router.get('/teams/:id', authenticateToken, handle((req) => teams.getTeam(req.userId, req.params.id)));
@@ -66,6 +70,7 @@ router.patch('/teams/:id', authenticateToken, handle((req) => teams.updateTeam(r
 router.delete('/teams/:id', authenticateToken, handle((req) => teams.deleteTeam(req.userId, req.params.id)));
 
 router.post('/teams/:id/invite/rotate', authenticateToken, handle((req) => teams.rotateInvite(req.userId, req.params.id)));
+router.get('/teams/:id/invite', authenticateToken, handle((req) => teams.getInvite(req.userId, req.params.id)));
 router.put('/teams/:id/invite', authenticateToken,
   handle((req) => teams.setInviteEnabled(req.userId, req.params.id, body(req).enabled)));
 
@@ -80,7 +85,7 @@ router.delete('/teams/:id/me', authenticateToken, handle((req) => teams.leaveTea
 router.put('/teams/:id/members/:memberRef', authenticateToken,
   handle((req) => teams.setCaptain(req.userId, req.params.id, req.params.memberRef, body(req).captain)));
 router.delete('/teams/:id/members/:memberRef', authenticateToken,
-  handle((req) => teams.removeMember(req.userId, req.params.id, req.params.memberRef)));
+  handle((req) => teams.removeMember(req.userId, req.params.id, req.params.memberRef, { block: body(req).block === undefined ? false : body(req).block })));
 
 router.get('/privacy/sharing', authenticateToken, handle((req) => teams.privacyOverview(req.userId)));
 

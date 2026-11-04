@@ -566,12 +566,15 @@ async function afterBookingSync(userId, gymIds) {
 }
 
 // Refresh one account now (after a book/cancel/waitlist action through the app,
-// or an explicit feed refresh): a FORCED booking sync across its enabled gyms,
-// for every account (T-B: not only calendar users). The sync republishes the
-// feed itself when anything was stored; with every gym skipped or failed, the
-// feed is still republished from the last good rows.
-async function refreshUser(userId) {
-  const synced = await bookingSync.syncUser(userId, { force: true });
+// or an explicit feed refresh): a FORCED booking sync, for every account (T-B:
+// not only calendar users). `gymIds` names the gyms to sync: a mutation passes
+// only the gym it changed, so a member with five gyms costs one fetch, not five;
+// null means every enabled gym (explicit refresh, gym link). The sync
+// republishes the feed itself when anything was stored; with every gym skipped
+// or failed, the feed is still republished from the last good rows.
+async function refreshUser(userId, gymIds = null) {
+  const only = gymIds == null ? null : [].concat(gymIds).filter(Boolean);
+  const synced = await bookingSync.syncUser(userId, { force: true, gymIds: only && only.length ? only : null });
   const settings = db.getUserSettings(userId) || {};
   if (!settings.calendar || !settings.calendar.enabled) return;
   if (!synced.length) regenerateSnapshot(userId);
@@ -579,16 +582,25 @@ async function refreshUser(userId) {
 }
 
 // Debounced one-shot refresh, fired ~1 min after an in-app booking mutation so the
-// feed reflects the change without waiting for the 3-hourly cycle. Coalesces bursts.
-const refreshTimers = new Map();
-function scheduleRefresh(userId, delayMs = 60000) {
-  if (refreshTimers.has(userId)) return;
-  const t = setTimeout(() => {
+// feed reflects the change without waiting for the cycle. Coalesces bursts: one
+// timer per account, collecting the gyms named while it waits (a call without a
+// gym widens it to every gym).
+const refreshTimers = new Map(); // userId -> { timer, gyms: Set | null (all) }
+function scheduleRefresh(userId, delayMs = 60000, gymId = null) {
+  const pending = refreshTimers.get(userId);
+  if (pending) {
+    if (!gymId) pending.gyms = null;
+    else if (pending.gyms) pending.gyms.add(gymId);
+    return;
+  }
+  const entry = { timer: null, gyms: gymId ? new Set([gymId]) : null };
+  entry.timer = setTimeout(() => {
     refreshTimers.delete(userId);
-    refreshUser(userId).catch(err => console.error(`[Calendar] scheduled refresh failed for user ${userId}:`, err.message));
+    refreshUser(userId, entry.gyms ? [...entry.gyms] : null)
+      .catch(err => console.error(`[Calendar] scheduled refresh failed for user ${userId}:`, err.message));
   }, delayMs);
-  if (t.unref) t.unref();
-  refreshTimers.set(userId, t);
+  if (entry.timer.unref) entry.timer.unref();
+  refreshTimers.set(userId, entry);
 }
 
 // ─── 3-hourly republish for all feed users (DB only; T-B) ──────────────────────

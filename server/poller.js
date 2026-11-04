@@ -1380,7 +1380,8 @@ module.exports = {
       try { require('./landing-events').purgeOld(); } catch (e) { console.warn('[Landing] purge failed:', e.message); }
     });
     // Warm the cache shortly after startup with a small random offset.
-    setTimeout(() => { refreshBookingCaches().catch(() => {}); }, 45000 + Math.floor(Math.random() * 45000));
+    // boot: true staggers each gym lane by a further random 0-60 s (booking-sync.js).
+    setTimeout(() => { refreshBookingCaches({ boot: true }).catch(() => {}); }, 45000 + Math.floor(Math.random() * 45000));
   },
   executeAutoUpgradeChecks,
   refreshBookingCaches,

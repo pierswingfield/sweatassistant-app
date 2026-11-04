@@ -154,15 +154,8 @@ router.get('/users/:id', authenticateAdmin, async (req, res) => {
       const normalized = (Array.isArray(list) ? list : []).map(adminBookingFromNormalized).filter(Boolean);
       if (normalized.length > 0) {
         bookings = normalized;
-        // Warm the reminder cache (camelCase shape expected by replaceBookingCache).
-        try {
-          db.replaceBookingCache(userId, normalized.map(b => ({
-            bookingId: b.booking_id, eventId: b.event_id, startAt: b.start_at,
-            className: b.class_name, groupName: b.group_name, instructorName: b.instructor_name,
-            studioName: b.studio_name, locationName: b.location_name, slotLabel: b.slot_label,
-            gymId,
-          })), [gymId]);
-        } catch (_) {}
+        // Read-only: booking_cache has one background writer (booking-sync.js),
+        // and this shape lacks its enrichment (duration, address).
       }
     } catch (err) {
       console.warn('[Admin] Live bookings fetch failed for user', userId, err.message);

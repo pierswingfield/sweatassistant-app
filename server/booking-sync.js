@@ -21,13 +21,14 @@
 //   - a failed fetch keeps that gym's last good rows; other gyms are unaffected;
 //   - writes are scoped to the one gym just fetched.
 //
-// Other writers that remain: POST /api/bookings/sync (the client pushing what it
-// already fetched) and the admin detail page's cache warm. Neither fetches in
-// the background.
+// The client's POST /api/bookings/sync goes through acceptClientBookings() here:
+// it is ignored for a gym this module synced recently or is syncing now, and
+// otherwise merged so the sync's enrichment (duration, address) survives. The
+// admin detail page reads only.
 
 const { DateTime } = require('luxon');
 const db = require('./db');
-const { triggerAutoRelogin } = require('./auth');
+const auth = require('./auth'); // called as auth.triggerAutoRelogin so tests can stub it
 const { getProvider } = require('./providers');
 const gymOutbound = require('./gym-outbound');
 const { isGymRateLimited, noteThrottleError } = require('./rate-limit-backoff');
@@ -38,6 +39,9 @@ const PRIORITY_CADENCE_MS = 2 * HOUR;   // members a Team can see (supplied by T
 const CALENDAR_CADENCE_MS = 3 * HOUR;   // calendar-feed users: the feed's pre-T-B cadence, kept
 const DEFAULT_CADENCE_MS = 6 * HOUR;    // everyone else (the reminder sweep's old cadence)
 const FAILURE_RETRY_MS = 30 * 60 * 1000; // a failed gym is retried no sooner than this
+const CLIENT_PUSH_GRACE_MS = 5 * 60 * 1000; // a server sync this recent beats a client push
+const MAX_LANES = 3;                      // gyms fetched concurrently in one cycle (one lane per gym)
+const BOOT_STAGGER_MS = 60 * 1000;        // first cycle after boot: each lane starts after a random 0-60 s
 
 // ── Priority set (pluggable) ─────────────────────────────────────────────────
 // Returns the user ids that get the 2 h cadence. Teams do not exist yet, so the
@@ -65,7 +69,7 @@ function cadenceFor(userId, priority = prioritySet()) {
 
 // ── Counters (aggregate only: /api/health and /metrics) ─────────────────────
 const stats = {
-  cycles: 0, usersSynced: 0, gymsSynced: 0, gymsFailed: 0, gymsSkipped: 0,
+  cycles: 0, ticksSkipped: 0, usersSynced: 0, gymsSynced: 0, gymsFailed: 0, gymsSkipped: 0,
   skipped: { disabled: 0, throttled: 0, needsRelogin: 0 },
   lastCycleAt: null, lastCycleMs: null,
 };
@@ -80,7 +84,7 @@ async function listWithRelogin(userId, gymId, method) {
     return await provider[method](session);
   } catch (err) {
     if (!err || err.status !== 401) throw err;
-    const jwt = await triggerAutoRelogin(userId, gymId);
+    const jwt = await auth.triggerAutoRelogin(userId, gymId);
     return provider[method]({ ...session, accessToken: jwt });
   }
 }
@@ -149,12 +153,38 @@ function skipReason(userId, gymId, link = db.getUserGym(userId, gymId)) {
   return null;
 }
 
+// One fetch per (user, gym) at a time, shared by the cycle and forced syncs, so
+// an older fetch can never land after a newer one and overwrite post-mutation
+// rows. A non-forced caller joins the fetch in flight; a FORCED caller (after a
+// book/cancel) may have mutated after that fetch began, so it gets one more
+// fetch that starts once the in-flight one has written (concurrent forced
+// callers share that rerun).
+const inflight = new Map(); // `${userId}:${gymId}` -> { promise, rerun }
+const flightKey = (userId, gymId) => `${userId}:${gymId}`;
+function isSyncInFlight(userId, gymId) { return inflight.has(flightKey(userId, gymId)); }
+
 /**
  * Fetch and store one (user, gym): bookings and waitlists, each written only if
  * its own fetch succeeded, scoped to this gym. `last_synced_at` moves only when
  * both succeeded, so a half-failed gym never passes as fresh.
  */
-async function syncUserGym(userId, gymId) {
+function syncUserGym(userId, gymId, { force = false } = {}) {
+  const key = flightKey(userId, gymId);
+  const cur = inflight.get(key);
+  if (cur) {
+    if (!force) return cur.promise;
+    if (!cur.rerun) cur.rerun = cur.promise.catch(() => {}).then(() => syncUserGym(userId, gymId));
+    return cur.rerun;
+  }
+  const entry = { promise: null, rerun: null };
+  entry.promise = fetchAndStore(userId, gymId).finally(() => {
+    if (inflight.get(key) === entry) inflight.delete(key);
+  });
+  inflight.set(key, entry);
+  return entry.promise;
+}
+
+async function fetchAndStore(userId, gymId) {
   const startedAt = new Date().toISOString();
   db.setBookingSyncState(userId, gymId, { lastAttemptAt: startedAt });
   const errors = [];
@@ -195,47 +225,68 @@ function isDue(userId, gymId, cadenceMs, now) {
   return true;
 }
 
-const pause = (jitter) => (jitter ? new Promise((r) => setTimeout(r, 2000 + Math.floor(Math.random() * 6000))) : null);
+const sleep = (ms) => (ms > 0 ? new Promise((r) => setTimeout(r, ms)) : null);
+// Per-gym pacing, unchanged from before lanes: 2-8 s between two calls to one gym.
+const pause = (jitter) => sleep(jitter ? 2000 + Math.floor(Math.random() * 6000) : 0);
+
+/** Fetch one (user, gym) unless skipped; true when anything was stored. */
+async function syncLink(userId, link, { force = false } = {}) {
+  const gymId = link.gym_id;
+  const reason = skipReason(userId, gymId, link);
+  if (reason) { stats.gymsSkipped++; stats.skipped[reason]++; return false; }
+  try {
+    const r = await syncUserGym(userId, gymId, { force });
+    return !!(r.ok || r.bookings || r.waitlists);
+  } catch (err) {
+    console.error(`[BookingSync] user ${userId} ${gymId}:`, err.message);
+    return false;
+  }
+}
+
+async function afterUserSynced(userId, synced) {
+  if (!synced.length) return;
+  stats.usersSynced++;
+  if (calendarEnabled(userId)) {
+    try { await require('./calendar').afterBookingSync(userId, synced); }
+    catch (err) { console.error(`[BookingSync] calendar publish failed for user ${userId}:`, err.message); }
+  }
+}
 
 /**
  * Sync one account. `force` ignores the cadence (calendar refresh after a
- * booking mutation, explicit refresh). Calendar users get their snapshot
- * regenerated from the stored rows afterwards.
+ * booking mutation, explicit refresh); `gymIds` limits it to those gyms (a
+ * mutation refreshes only the gym it changed). Calendar users get their
+ * snapshot regenerated from the stored rows afterwards.
  */
-async function syncUser(userId, { force = false, jitter = false, links = null, priority = null, now = Date.now() } = {}) {
-  const userLinks = links || (db.getUserGyms(userId) || []).filter((l) => l.account_enabled);
+async function syncUser(userId, { force = false, gymIds = null, links = null, priority = null, now = Date.now() } = {}) {
+  let userLinks = links || (db.getUserGyms(userId) || []).filter((l) => l.account_enabled);
+  if (Array.isArray(gymIds)) userLinks = userLinks.filter((l) => gymIds.includes(l.gym_id));
   const cadence = force ? 0 : cadenceFor(userId, priority || prioritySet());
   const synced = [];
   for (const link of userLinks) {
-    const gymId = link.gym_id;
-    if (!force && !isDue(userId, gymId, cadence, now)) continue;
-    const reason = skipReason(userId, gymId, link);
-    if (reason) { stats.gymsSkipped++; stats.skipped[reason]++; continue; }
-    await pause(jitter);
-    try {
-      const r = await syncUserGym(userId, gymId);
-      if (r.ok || r.bookings || r.waitlists) synced.push(gymId);
-    } catch (err) {
-      console.error(`[BookingSync] user ${userId} ${gymId}:`, err.message);
-    }
+    if (!force && !isDue(userId, link.gym_id, cadence, now)) continue;
+    if (await syncLink(userId, link, { force })) synced.push(link.gym_id);
   }
-  if (synced.length) {
-    stats.usersSynced++;
-    if (calendarEnabled(userId)) {
-      try { await require('./calendar').afterBookingSync(userId, synced); }
-      catch (err) { console.error(`[BookingSync] calendar publish failed for user ${userId}:`, err.message); }
-    }
-  }
+  await afterUserSynced(userId, synced);
   return synced;
+}
+
+/** Random start offset per lane on the boot cycle, so gyms are not all hit at once. */
+function laneStartDelays({ boot = false, lanes = 0, maxMs = BOOT_STAGGER_MS, rand = Math.random } = {}) {
+  return Array.from({ length: lanes }, () => (boot ? Math.floor(rand() * maxMs) : 0));
 }
 
 let running = null;
 /**
  * One pass of the single background loop: every enabled link, synced if due.
- * Overlapping calls share the pass in flight (a slow cycle never doubles up).
+ * Work runs in one lane per gym (serial within the lane, paced as before), with
+ * up to MAX_LANES gyms in parallel, so a cold cycle costs ~5·N s rather than
+ * ~5·N·G s and one gym is never called twice at once by the cycle. A tick that
+ * arrives while a pass is running is skipped (it gets the running pass back).
+ * `boot: true` (the first pass after start) staggers each lane's start.
  */
 function runCycle(opts = {}) {
-  if (running) return running;
+  if (running) { stats.ticksSkipped++; return running; }
   running = (async () => {
     const started = Date.now();
     const jitter = opts.jitter !== false;
@@ -245,10 +296,40 @@ function runCycle(opts = {}) {
       if (!byUser.has(l.user_id)) byUser.set(l.user_id, []);
       byUser.get(l.user_id).push({ ...l, account_enabled: 1 });
     }
+    // Plan: due links, grouped by gym; per-user countdown so each account's
+    // calendar is republished once, when its last due gym has finished.
+    const lanes = new Map(); // gymId -> [{ userId, link }]
+    const perUser = new Map(); // userId -> { remaining, synced: [] }
     for (const [userId, links] of byUser) {
-      try { await syncUser(userId, { links, priority, jitter, now: started }); }
-      catch (err) { console.error(`[BookingSync] cycle failed for user ${userId}:`, err.message); }
+      let cadence;
+      try { cadence = cadenceFor(userId, priority); } catch (_) { cadence = DEFAULT_CADENCE_MS; }
+      for (const link of links) {
+        if (!isDue(userId, link.gym_id, cadence, started)) continue;
+        if (!lanes.has(link.gym_id)) lanes.set(link.gym_id, []);
+        lanes.get(link.gym_id).push({ userId, link });
+        if (!perUser.has(userId)) perUser.set(userId, { remaining: 0, synced: [] });
+        perUser.get(userId).remaining++;
+      }
     }
+    const queue = [...lanes.values()];
+    const delays = laneStartDelays({ boot: !!opts.boot, lanes: queue.length });
+    let laneIdx = 0;
+    const worker = async () => {
+      while (laneIdx < queue.length) {
+        const i = laneIdx++;
+        await sleep(delays[i]);
+        let first = true;
+        for (const { userId, link } of queue[i]) {
+          if (!first) await pause(jitter);
+          first = false;
+          const u = perUser.get(userId);
+          try { if (await syncLink(userId, link)) u.synced.push(link.gym_id); }
+          catch (err) { console.error(`[BookingSync] cycle failed for user ${userId}:`, err.message); }
+          if (--u.remaining === 0) await afterUserSynced(userId, u.synced);
+        }
+      }
+    };
+    await Promise.all(Array.from({ length: Math.min(MAX_LANES, queue.length) }, worker));
     // Housekeeping: past classes and stale dedupe keys.
     const nowIso = DateTime.now().toISO();
     db.pruneBookingCache(nowIso);
@@ -261,8 +342,41 @@ function runCycle(opts = {}) {
   return running;
 }
 
+/**
+ * The client's POST /api/bookings/sync. The background sync is authoritative:
+ * a gym it is syncing now, or synced within CLIENT_PUSH_GRACE_MS, ignores the
+ * push. Otherwise the client's list (a fresh fetch, so it may drop a cancelled
+ * booking) replaces that gym's rows, keeping the sync's enriched fields
+ * (duration, address) for bookings both lists know. Never recorded as a server
+ * sync, so the cadence is unaffected. Returns the gyms written.
+ */
+function acceptClientBookings(userId, bookings, scope, now = Date.now()) {
+  const list = Array.isArray(bookings) ? bookings : [];
+  const gyms = (scope || []).filter((gymId) => {
+    if (isSyncInFlight(userId, gymId)) return false;
+    const st = db.getBookingSyncState(userId, gymId);
+    const synced = st && st.last_synced_at ? Date.parse(st.last_synced_at) : 0;
+    return now - synced >= CLIENT_PUSH_GRACE_MS;
+  });
+  if (!gyms.length) return [];
+  const existing = new Map();
+  const sel = db.db.prepare('SELECT booking_id, duration_min, location_address FROM booking_cache WHERE user_id = ? AND gym_id = ?');
+  for (const gymId of gyms) for (const r of sel.all(userId, gymId)) existing.set(`${gymId}:${r.booking_id}`, r);
+  const merged = list.map((b) => {
+    const gymId = b && b.gymId;
+    const prev = gymId && b.bookingId != null ? existing.get(`${gymId}:${b.bookingId}`) : null;
+    if (!prev) return b;
+    return { ...b, durationMin: b.durationMin ?? prev.duration_min, locationAddress: b.locationAddress ?? prev.location_address };
+  });
+  db.replaceBookingCache(userId, merged, gyms);
+  return gyms;
+}
+
 module.exports = {
   runCycle,
+  acceptClientBookings,
+  isSyncInFlight,
+  _laneStartDelays: laneStartDelays,
   syncUser,
   syncUserGym,
   bookingRowsFor,
@@ -275,4 +389,6 @@ module.exports = {
   CALENDAR_CADENCE_MS,
   DEFAULT_CADENCE_MS,
   FAILURE_RETRY_MS,
+  CLIENT_PUSH_GRACE_MS,
+  MAX_LANES,
 };

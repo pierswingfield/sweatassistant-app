@@ -488,7 +488,7 @@ app.post('/api/notify/booking-success', authenticateToken, async (req, res) => {
       gymId: bodyGymId || db.resolveActiveGymId(req.userId),
     });
     // Refresh the calendar feed shortly after a manual/quick booking.
-    try { calendar.scheduleRefresh(req.userId); } catch (_) {}
+    try { calendar.scheduleRefresh(req.userId, undefined, bodyGymId || db.resolveActiveGymId(req.userId)); } catch (_) {}
     res.json({ success: true });
   } catch (err) {
     res.status(500).json({ message: err.message });
@@ -507,7 +507,10 @@ app.post('/api/bookings/sync', authenticateToken, (req, res) => {
     const { scope, skip } = resolveSyncScope(gymIds, userGyms);
     if (skip) return res.json({ success: true }); // nothing loaded: touch nothing
 
-    db.replaceBookingCache(
+    // T-B review: the background sync stays authoritative. A gym it synced in the
+    // last few minutes (or is syncing now) ignores the push; otherwise the rows are
+    // merged keeping the sync's enriched fields. Response contract unchanged.
+    require('./booking-sync').acceptClientBookings(
       req.userId,
       Array.isArray(bookings) ? bookings : [],
       scope,

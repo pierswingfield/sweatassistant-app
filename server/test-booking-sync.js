@@ -46,6 +46,7 @@ function cleanup() {
 const future = (days) => new Date(Date.now() + days * 864e5).toISOString();
 const calls = { [PSYCLE]: { listBookings: 0, listWaitlists: 0 }, [JAB]: { listBookings: 0, listWaitlists: 0 } };
 const failing = new Set(); // gym ids whose list calls throw
+const override = {}; // gymId -> async (n) => list, replaces the default listBookings body
 const originals = {};
 function ev(gymId, id, days) {
   return { id, startAt: future(days), name: `${gymId} class ${id}`, discipline: 'Ride', durationMin: 45,
@@ -55,9 +56,10 @@ function installStubs() {
   for (const gymId of [PSYCLE, JAB]) {
     const p = getProvider(gymId);
     originals[gymId] = { listBookings: p.listBookings, listWaitlists: p.listWaitlists };
-    p.listBookings = async () => {
+    p.listBookings = async function () {
       calls[gymId].listBookings++;
       if (failing.has(gymId)) { const e = new Error('upstream 500'); e.status = 500; throw e; }
+      if (override[gymId]) return override[gymId](calls[gymId].listBookings, arguments[0]);
       return [{ bookingId: `${gymId}-b${calls[gymId].listBookings}`, eventId: `${gymId}-e1`, slotLabel: '7', event: ev(gymId, `${gymId}-e1`, 3) }];
     };
     p.listWaitlists = async () => {
@@ -202,6 +204,182 @@ check('the priority predicate selects the 2 h cadence; everyone else stays on 6 
     bookingSync.setPriorityPredicate(null);
   }
   assert.strictEqual(bookingSync.cadenceFor(pri), bookingSync.DEFAULT_CADENCE_MS, 'default predicate is empty');
+});
+
+
+// ── review fixes (T-B review) ───────────────────────────────────────────────
+const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+const booking = (gymId, id) => ({ bookingId: id, eventId: `${gymId}-${id}`, slotLabel: '7', event: ev(gymId, `${gymId}-${id}`, 3) });
+const stale = (uid, gymId, msAgo, extra = {}) => {
+  const t = new Date(Date.now() - msAgo).toISOString();
+  db.setBookingSyncState(uid, gymId, { lastSyncedAt: t, lastAttemptAt: t, lastError: null, ...extra });
+};
+
+check('calendar-feed users are on the 3 h cadence: 4 h stale is due for them, not for others', async () => {
+  const cal = twoGymUser();
+  const plain = twoGymUser();
+  db.setUserSettings(cal, { calendar: { enabled: true } });
+  onlyDue([cal, plain]);
+  for (const uid of [cal, plain]) for (const g of [PSYCLE, JAB]) stale(uid, g, 4 * 3600e3);
+  assert.strictEqual(bookingSync.cadenceFor(cal), bookingSync.CALENDAR_CADENCE_MS);
+  assert.strictEqual(bookingSync.CALENDAR_CADENCE_MS, 3 * 3600e3);
+  await cycle();
+  assert.strictEqual(bookingRows(cal, PSYCLE).length, 1, 'calendar user refreshed');
+  assert.strictEqual(bookingRows(plain, PSYCLE).length, 0, 'plain user not yet due');
+});
+
+check('a failed gym is retried no sooner than 30 min after the failed attempt', async () => {
+  const uid = twoGymUser();
+  onlyDue([uid]);
+  stale(uid, PSYCLE, 10 * 3600e3);
+  stale(uid, JAB, 10 * 3600e3, { lastAttemptAt: new Date(Date.now() - 10 * 60e3).toISOString(), lastError: 'boom' });
+  resetCalls();
+  await cycle();
+  assert.strictEqual(calls[JAB].listBookings, 0, '10 min after a failure: not retried');
+  assert.strictEqual(calls[PSYCLE].listBookings, 1, 'the healthy, due gym is fetched');
+  stale(uid, JAB, 10 * 3600e3, { lastAttemptAt: new Date(Date.now() - 31 * 60e3).toISOString(), lastError: 'boom' });
+  resetCalls();
+  await cycle();
+  assert.strictEqual(calls[JAB].listBookings, 1, '31 min after a failure: retried');
+  assert.strictEqual(db.getBookingSyncState(uid, JAB).last_error, null, 'and the error clears on success');
+});
+
+check('a forced sync ignores the cadence', async () => {
+  const uid = twoGymUser();
+  onlyDue([]);
+  resetCalls();
+  await bookingSync.syncUser(uid, { force: true });
+  assert.strictEqual(calls[PSYCLE].listBookings, 1);
+  assert.strictEqual(calls[JAB].listBookings, 1);
+});
+
+check('concurrent syncs of one (user, gym) share the fetch in flight', async () => {
+  const uid = twoGymUser();
+  resetCalls();
+  override[PSYCLE] = async () => { await sleep(40); return [booking(PSYCLE, 'shared')]; };
+  try {
+    await Promise.all([bookingSync.syncUserGym(uid, PSYCLE), bookingSync.syncUserGym(uid, PSYCLE)]);
+  } finally { delete override[PSYCLE]; }
+  assert.strictEqual(calls[PSYCLE].listBookings, 1, 'one provider call for two callers');
+});
+
+check('a forced sync arriving during an in-flight fetch runs again after it, so the newest fetch writes last', async () => {
+  const uid = twoGymUser();
+  resetCalls();
+  // Call 1 (the cycle) is slow and returns the pre-mutation list; call 2 (forced,
+  // after a cancel) is fast and returns the post-mutation list.
+  override[PSYCLE] = async (n) => {
+    if (n === 1) { await sleep(60); return [booking(PSYCLE, 'before-cancel')]; }
+    return [booking(PSYCLE, 'after-cancel')];
+  };
+  try {
+    const cyclePass = bookingSync.syncUserGym(uid, PSYCLE);
+    await sleep(5);
+    const forced = bookingSync.syncUserGym(uid, PSYCLE, { force: true });
+    await Promise.all([cyclePass, forced]);
+  } finally { delete override[PSYCLE]; }
+  assert.strictEqual(calls[PSYCLE].listBookings, 2, 'the forced request fetched again');
+  assert.deepStrictEqual(bookingRows(uid, PSYCLE).map((r) => r.booking_id), ['after-cancel'], 'newest rows win');
+});
+
+check('a 401 re-authenticates through the gym and retries with the new token', async () => {
+  const uid = twoGymUser();
+  const auth = require('./auth');
+  const orig = auth.triggerAutoRelogin;
+  const relogins = [];
+  auth.triggerAutoRelogin = async (u, g) => { relogins.push([u, g]); return 'fresh-token'; };
+  const seen = [];
+  override[JAB] = async (n, session) => {
+    seen.push(session && session.accessToken);
+    if (n === 1) { const e = new Error('unauthorised'); e.status = 401; throw e; }
+    return [booking(JAB, 'after-relogin')];
+  };
+  resetCalls();
+  try { await bookingSync.syncUserGym(uid, JAB); }
+  finally { auth.triggerAutoRelogin = orig; delete override[JAB]; }
+  assert.deepStrictEqual(relogins, [[uid, JAB]], 'relogin for the ROW gym');
+  assert.deepStrictEqual(seen, [TOKENS[JAB], 'fresh-token']);
+  assert.deepStrictEqual(bookingRows(uid, JAB).map((r) => r.booking_id), ['after-relogin']);
+});
+
+check('a mutation refresh syncs only the mutated gym (debounced, gyms coalesced)', async () => {
+  const uid = twoGymUser();
+  onlyDue([]);
+  resetCalls();
+  await calendar.refreshUser(uid, JAB);
+  assert.strictEqual(calls[JAB].listBookings, 1, 'mutated gym synced');
+  assert.strictEqual(calls[PSYCLE].listBookings, 0, 'other gym untouched');
+  resetCalls();
+  calendar.scheduleRefresh(uid, 30, JAB);
+  calendar.scheduleRefresh(uid, 30, JAB); // burst: one timer
+  await sleep(120);
+  assert.strictEqual(calls[JAB].listBookings, 1, 'debounced to one sync');
+  assert.strictEqual(calls[PSYCLE].listBookings, 0, 'scheduled refresh scoped to the mutated gym');
+  resetCalls();
+  calendar.scheduleRefresh(uid, 30); // no gym named (explicit feed refresh): every gym
+  await sleep(120);
+  assert.strictEqual(calls[JAB].listBookings + calls[PSYCLE].listBookings, 2);
+});
+
+check("the client's booking push never clobbers the sync's enriched rows", async () => {
+  const uid = twoGymUser();
+  onlyDue([]);
+  await bookingSync.syncUser(uid, { force: true, gymIds: [PSYCLE] });
+  const id = bookingRows(uid, PSYCLE)[0].booking_id;
+  const clientRow = { bookingId: id, gymId: PSYCLE, eventId: `${PSYCLE}-e1`, startAt: future(3), className: 'X', slotLabel: '7' };
+  // 1) a server sync just happened: the server's rows win outright
+  bookingSync.acceptClientBookings(uid, [], [PSYCLE]);
+  assert.strictEqual(bookingRows(uid, PSYCLE).length, 1, 'recent server sync is authoritative');
+  // 2) server sync older than the window: client rows are merged, enrichment kept
+  stale(uid, PSYCLE, 3600e3);
+  bookingSync.acceptClientBookings(uid, [clientRow], [PSYCLE]);
+  const r = bookingRows(uid, PSYCLE);
+  assert.strictEqual(r.length, 1);
+  assert.strictEqual(r[0].duration_min, 45, 'duration kept');
+  assert.strictEqual(r[0].location_address, '1 Road', 'address kept');
+  assert.ok(db.getBookingSyncState(uid, PSYCLE).last_synced_at < new Date(Date.now() - 1800e3).toISOString(),
+    'a client push is not recorded as a server sync');
+  const src = fs.readFileSync(path.join(__dirname, 'admin.js'), 'utf8') + fs.readFileSync(path.join(__dirname, 'server.js'), 'utf8');
+  assert.ok(!/replaceBookingCache\s*\(/.test(src), 'admin warm-up and client route do not write booking_cache directly');
+});
+
+check('a cycle runs gyms in parallel lanes, never two concurrent calls to one gym', async () => {
+  const a = twoGymUser();
+  const b = twoGymUser();
+  onlyDue([a, b]);
+  const active = { [PSYCLE]: 0, [JAB]: 0 };
+  const peak = { [PSYCLE]: 0, [JAB]: 0, total: 0 };
+  const slow = (g) => async (n) => {
+    active[g]++; peak[g] = Math.max(peak[g], active[g]);
+    peak.total = Math.max(peak.total, active[PSYCLE] + active[JAB]);
+    await sleep(30); active[g]--; return [booking(g, `lane-${n}`)];
+  };
+  override[PSYCLE] = slow(PSYCLE); override[JAB] = slow(JAB);
+  try { await cycle(); } finally { delete override[PSYCLE]; delete override[JAB]; }
+  assert.strictEqual(peak[PSYCLE], 1, 'one call at a time to Psycle');
+  assert.strictEqual(peak[JAB], 1, 'one call at a time to JAB');
+  assert.strictEqual(peak.total, 2, 'the two gyms ran concurrently');
+  for (const uid of [a, b]) for (const g of [PSYCLE, JAB]) assert.strictEqual(bookingRows(uid, g).length, 1);
+});
+
+check('an overlapping tick is skipped while a cycle runs', async () => {
+  const uid = twoGymUser();
+  onlyDue([uid]);
+  resetCalls();
+  const before = bookingSync.getStats();
+  const first = cycle();
+  const second = cycle();
+  await Promise.all([first, second]);
+  const after = bookingSync.getStats();
+  assert.strictEqual(after.cycles - before.cycles, 1, 'one pass');
+  assert.strictEqual(after.ticksSkipped - before.ticksSkipped, 1, 'the overlapping tick is counted as skipped');
+  assert.strictEqual(calls[PSYCLE].listBookings, 1);
+});
+
+check('the boot cycle staggers each lane by a random delay', async () => {
+  const delays = bookingSync._laneStartDelays({ boot: true, lanes: 4, maxMs: 1000, rand: () => 0.5 });
+  assert.deepStrictEqual(delays, [500, 500, 500, 500]);
+  assert.deepStrictEqual(bookingSync._laneStartDelays({ boot: false, lanes: 2, maxMs: 1000 }), [0, 0]);
 });
 
 check('cycle counters are exposed (aggregate only)', async () => {

@@ -64,8 +64,9 @@ const LAYOUT_STAMP_CEILING_MS = 7 * 24 * 60 * 60 * 1000;
 // which meant it silently stopped applying as write paths migrated to the
 // normalized routes — and never applied at all to MarianaTek, which never went
 // through the proxy. Debounced inside calendar.js; safe to call per mutation.
-function refreshCalendar(userId) {
-  try { calendar.scheduleRefresh(userId); } catch (_) {}
+// T-B review: only the gym the write went to is re-synced.
+function refreshCalendar(userId, gymId) {
+  try { calendar.scheduleRefresh(userId, undefined, gymId); } catch (_) {}
 }
 
 /**
@@ -559,7 +560,7 @@ router.post('/book', authenticateToken, async (req, res) => {
       }
     }
     const result = await withRelogin(req.userId, session, (s) => provider.bookSlot(eventId, slotIds || [], s));
-    if (result && result.ok) { refreshCalendar(req.userId); invalidateSchedule(gymId); }
+    if (result && result.ok) { refreshCalendar(req.userId, gymId); invalidateSchedule(gymId); }
     if (result && !result.ok && Number.isInteger(result.status) && result.status >= 400) return res.status(result.status).json(result);
     res.json(result);
   } catch (err) {
@@ -590,7 +591,7 @@ router.post('/book-guest', authenticateToken, async (req, res) => {
     const result = await withRelogin(req.userId, session, (s) => provider.bookGuestSlot(eventId, slotId ?? null, guestEmail, s));
     if (result && result.ok) {
       db.upsertGuestBookingGroup(req.userId, gymId, eventId, primary.bookingId, result.bookingId);
-      refreshCalendar(req.userId); invalidateSchedule(gymId);
+      refreshCalendar(req.userId, gymId); invalidateSchedule(gymId);
     }
     if (result && !result.ok && Number.isInteger(result.status) && result.status >= 400) return res.status(result.status).json(result);
     res.json(result);
@@ -666,7 +667,7 @@ router.post('/cancel', authenticateToken, async (req, res) => {
     if (result.ok) {
       // Server-side, so every cancel path (timetable, bookings, edit modal) is covered.
       try { db.stopAutoUpgradesForBooking(req.userId, gymId, bookingId); } catch (e) { console.error('[Cancel] stop monitor failed:', e.message); }
-      refreshCalendar(req.userId); invalidateSchedule(gymId);
+      refreshCalendar(req.userId, gymId); invalidateSchedule(gymId);
     }
     if (!result.ok) return res.status(409).json(result);
     res.json(result);
@@ -693,7 +694,7 @@ router.post('/waitlist/join', authenticateToken, async (req, res) => {
     if (!eventId) return res.status(400).json({ message: 'eventId is required' });
     const { gymId, provider, session } = resolveContext(req.userId);
     const ok = await provider.joinWaitlist(eventId, session);
-    if (ok) { refreshCalendar(req.userId); invalidateSchedule(gymId); }
+    if (ok) { refreshCalendar(req.userId, gymId); invalidateSchedule(gymId); }
     res.json({ ok });
   } catch (err) {
     handleError(res, err);
@@ -707,7 +708,7 @@ router.post('/waitlist/leave', authenticateToken, async (req, res) => {
     if (!eventId) return res.status(400).json({ message: 'eventId is required' });
     const { gymId, provider, session } = resolveContext(req.userId);
     const ok = await provider.leaveWaitlist(eventId, session);
-    if (ok) { refreshCalendar(req.userId); invalidateSchedule(gymId); }
+    if (ok) { refreshCalendar(req.userId, gymId); invalidateSchedule(gymId); }
     res.json({ ok });
   } catch (err) {
     handleError(res, err);
@@ -721,7 +722,7 @@ router.post('/swap', authenticateToken, async (req, res) => {
     if (!bookingId || !targetSlotId) return res.status(400).json({ message: 'bookingId and targetSlotId are required' });
     const { gymId, provider, session } = resolveContext(req.userId);
     const result = await withRelogin(req.userId, session, (s) => provider.swapSpots(bookingId, currentSlotId, targetSlotId, s));
-    if (result && result.ok) { refreshCalendar(req.userId); invalidateSchedule(gymId); }
+    if (result && result.ok) { refreshCalendar(req.userId, gymId); invalidateSchedule(gymId); }
     res.json(result);
   } catch (err) {
     handleError(res, err);

@@ -32,6 +32,23 @@ const corsOrigins = process.env.CORS_ORIGINS
   ? process.env.CORS_ORIGINS.split(',').map((s) => s.trim()).filter(Boolean)
   : [`https://${publicHost}`, `http://${publicHost}`];
 
+// Express `trust proxy`: how many reverse-proxy hops in front of the app to
+// believe. Production sits behind exactly one (the Cloudflare Tunnel's
+// cloudflared, reaching sweatassistant:3000 over the `edge` network; Cloudflare
+// appends the real client IP to X-Forwarded-For). Trusting exactly 1 hop makes
+// req.ip the last X-Forwarded-For entry, which a client cannot forge. NEVER
+// `true` (trusts the whole header, so any client can mint a fresh rate-limit
+// bucket per request). Dev/tests default to 0 (no proxy). Override with
+// TRUST_PROXY=<hops>; set 0 if the app is ever exposed without the tunnel.
+function parseTrustProxy(raw) {
+  if (raw === undefined || String(raw).trim() === '') return isProduction ? 1 : 0;
+  const v = String(raw).trim().toLowerCase();
+  if (v === 'false') return 0;
+  if (/^\d+$/.test(v)) return Number(v);
+  throw new Error('[Config] TRUST_PROXY must be a non-negative hop count (e.g. 1) or "false"; "true" and subnet lists are refused.');
+}
+const trustProxy = parseTrustProxy(process.env.TRUST_PROXY);
+
 // Where /_a/go sends the landing-page CTA. Fixed here, never taken from request input.
 const landingCtaTarget = 'https://sweat.wingfield.tech';
 
@@ -41,4 +58,5 @@ module.exports = {
   publicHost,
   vapidEmail,
   corsOrigins,
+  trustProxy,
 };

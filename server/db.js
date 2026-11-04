@@ -760,6 +760,9 @@ const ACCOUNT_SCOPED_SETTING_KEYS = new Set([
   // A person chooses what the app calls them once; gym profiles are merely the
   // onboarding suggestion and must never change this account-level choice.
   'firstName',
+  // T-1 (PLAN-teams.md 5.8): the last name sits beside it. Teams show only its
+  // initial, and only when two members of a Team share a first name.
+  'lastName',
   // My Bookings view mode ('combined' | 'separate'). The tab is a MERGED
   // multi-gym list, so how it is laid out is the person's choice, not a gym's.
   'bookingsView',
@@ -2245,6 +2248,10 @@ module.exports = {
     return db.prepare(`
       SELECT ug.gym_id, g.name AS gym_name, g.provider, g.enabled AS gym_enabled,
              ug.display_name,
+             -- T-1: the gym profile's own name fields, so name capture never has to
+             -- guess where a multi-word display_name splits into first and last.
+             CASE WHEN json_valid(ug.profile_json) THEN COALESCE(json_extract(ug.profile_json, '$.first_name'), json_extract(ug.profile_json, '$.data.first_name')) END AS first_name,
+             CASE WHEN json_valid(ug.profile_json) THEN COALESCE(json_extract(ug.profile_json, '$.last_name'), json_extract(ug.profile_json, '$.data.last_name')) END AS last_name,
              ug.gym_email, ug.status, ug.priority, ug.account_enabled,
              (ug.calendar_token IS NOT NULL) AS calendar_enabled,
              ug.created_at, ug.updated_at, ug.last_authenticated_at,

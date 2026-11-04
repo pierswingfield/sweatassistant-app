@@ -137,12 +137,17 @@ function shareFromInput(share) {
 
 // First name: the account `firstName` setting; else the first word of a linked gym's
 // profile name; else "Member". Never the email.
+// Last initial (shown only on a clash, §5.5): the account `lastName` setting (§5.8).
+// When that was never captured (not a string), fall back to the linked gym profile's
+// last word; an explicitly EMPTY lastName means the member chose none, so no initial.
 function nameParts(userId) {
   let first = '';
+  let last = null;
   let full = '';
   try {
     const acct = dbm.getAccountSettings(userId) || {};
     if (typeof acct.firstName === 'string') first = acct.firstName.replace(/\s+/g, ' ').trim().slice(0, NAME_MAX);
+    if (typeof acct.lastName === 'string') last = acct.lastName.replace(/\s+/g, ' ').trim();
   } catch (_) { /* no settings row */ }
   try {
     const g = dbm.getUserGyms(userId).find((x) => x.display_name && String(x.display_name).trim());
@@ -150,7 +155,9 @@ function nameParts(userId) {
   } catch (_) { /* no gyms */ }
   const words = full ? full.split(' ') : [];
   if (!first) first = words[0] || 'Member';
-  const initial = words.length > 1 ? words[words.length - 1][0].toUpperCase() : '';
+  let initial = '';
+  if (last !== null) initial = last ? [...last][0].toLocaleUpperCase() : '';
+  else if (words.length > 1) initial = [...words[words.length - 1]][0].toLocaleUpperCase();
   return { first, initial };
 }
 

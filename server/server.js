@@ -6,6 +6,7 @@ const rateLimit = require('express-rate-limit');
 const { ipKeyGenerator } = require('express-rate-limit');
 const cancelRebookPolicy = require('./cancel-rebook-policy');
 const db = require('./db');
+const { normaliseNameSettings, dropInvalidNameSettings } = require('./user-text');
 const { log, requestLogger } = require('./logger');
 const metrics = require('./metrics');
 const auth = require('./auth');
@@ -948,6 +949,11 @@ app.put('/api/settings', authenticateToken, (req, res) => {
   try {
     // A PATCH of just the changed keys. The gym comes from `x-gym-id` context
     // and is only needed when the patch touches a gym-scoped key.
+    // T-1: firstName/lastName are shown to teammates, so they pass the shared
+    // person-name rule (server/user-text.js) and are stored normalised.
+    try { normaliseNameSettings(req.body); } catch (e) {
+      return res.status(400).json({ code: e.code, message: e.message });
+    }
     db.setUserSettings(req.userId, req.body);
     // Calendar prefs (includeTentative / alarm) live in settings — republish on change.
     try { if (req.body && req.body.calendar) calendar.regenerateSnapshot(req.userId); } catch (_) {}
@@ -1174,7 +1180,7 @@ app.post('/api/config/import', authenticateToken, (req, res) => {
     if (accountSettings || Array.isArray(gymSettings)) {
       // New format: account keys, then each gym block onto ITS OWN gym.
       if (accountSettings && Object.keys(accountSettings).length) {
-        db.setUserSettings(req.userId, db.splitSettingsByScope(accountSettings).account);
+        db.setUserSettings(req.userId, dropInvalidNameSettings(db.splitSettingsByScope(accountSettings).account));
       }
       for (const block of (Array.isArray(gymSettings) ? gymSettings : [])) {
         if (!block || !block.gymId || !block.settings) continue;

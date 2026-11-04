@@ -1,6 +1,6 @@
 # Work plan: Teams (shared upcoming classes for small groups)
 
-**Status:** Proposed, 2026-11-04. Nothing is built. Expands F-3 (social class sharing: "who's going", friend graph). The decisions in §9 were settled by the user on 2026-11-04; mock-ups (T-0) are the next step.
+**Status:** Proposed, 2026-11-04. Nothing is built. Expands F-3 (social class sharing: "who's going", friend graph). The decisions in §9 were settled by the user on 2026-11-04; round 1 mock-ups (T-0) are reviewed and the feedback is recorded here; round 2 mock-ups are the next step.
 
 ## 1. Outcome
 
@@ -29,9 +29,9 @@ A per-member, per-Team record called `share`. **Defaults (D3, agreed): everythin
 | Waitlists | "On the waitlist for…" | **On** |
 | Activity counts | Classes this week and this month, and the Team mascot's activity | **On** |
 | Recent classes | An itemised list of past classes (from H-0, the class-history store) | **On**, limited to the last 30 days |
-| Spot numbers | "Bike 14", so friends can pick neighbouring spots | **Off** (most precise; opt in) |
+| Spot numbers | "Bike 14", so friends can pick neighbouring spots | **Off** (most precise; opt in). Shown next to the name in attendee rows and as "teammate" seats in the spot picker (§5.3, proposed) |
 | Auto-book queue | "Trying for 08:30 Train on Mon", useful for coordinating releases | **Off** (it reveals intent before a booking exists) |
-| Friendly competition | The member appears in leaderboards and streaks | **Off** (team setting plus a member opt-in) |
+| Friendly competition | The member appears in leaderboards and streaks | **Off** (Captains' team setting plus a member opt-in; proposed, §5.3) |
 | Pause | Hide me from this Team until I unpause, or for 24 h or 7 days | Off |
 
 - A newly linked gym joins "All my gyms" automatically, and the gym-link confirmation says "Shared with 2 Teams. Change." so this is never silent.
@@ -52,37 +52,42 @@ Teams gets its own primary destination (D1, decided). The Credits tab is hidden 
 
 ### 5.2 Teams list (top view)
 
-One card per Team, ordered by the soonest upcoming shared class:
+One card per Team, ordered by the soonest upcoming shared class. **Pinning:** a member of more than 3 Teams can pin up to 2 to the top of the list (per-member setting, stored server-side on `team_members.pinned`).
 
 - A mini mascot in the Team's current state (§5.4) plus the Team name.
-- **Today line:** "3 classes today · 1 done", or "Quiet day" / "All done for today 🏆".
+- **Today line:** "3 classes today · 1 done", or "Rest day" / "All done for today 🏆". When no more classes are booked today, the line shows a group insight or hint about tomorrow or the next class instead; if only one person is doing an upcoming class it may say "John doing 08:30 Train".
 - **Hottest line** (one only): "2 doing 08:30 Train · JAB Shoreditch". This shows only when two or more members share a class the viewer can see.
 - An avatar stack of the members active today.
-- A badge with the pending-request count, for those who can approve (Captains, or every member if the Team allows it).
+- **No pending-request badge** (decided 2026-11-04; requests are visible only on the link page, §5.6).
 - The viewer's own state, if paused: "You're hidden from this Team".
 
 Primary action: **Create Team**. Secondary: **Join with a link** (a paste field, since iOS PWAs often open shared links in Safari rather than the installed app, §7).
 
-Empty state: the mascot, one sentence on what Teams are, and Create plus Join.
+Empty state: the mascot, then exactly: "A Team is a private group (like friends, or a group chat) that can share their workout schedule and book in together. You can choose what your team sees, and what is private." Then Create plus Join.
 
 ### 5.3 Team dashboard
 
 The widget order is deliberate: today's state first, coordinating classes second, everything else after. It reuses `widget-registry.js` so each widget loads and fails independently, as Home's do.
 
-1. **Header:** the mascot (large) plus the Team name, a one-line state ("Ana and Sam are in class now"), and Share link / **Manage** buttons (§5.7).
-2. **Now and next:** who is in class right now (with a progress ring to the class end), then the next one or two classes today. This disappears when there is nothing today.
-3. **Classes together** (horizontal, chronological): classes where two or more members are booked. The card shows the class, time, gym, avatar stack and spots left. The CTA follows the viewer's state: **Book** (existing quick-book flow), **Join waitlist**, **Auto-book** (not released yet, so it opens with the release time shown), **You're in ✓**, or **Turn on *Gym***. This is the feature's main reason to exist; it converts a group chat's "who's going to 8:30?" into a single tap.
-4. **Week view:** the Home week strip, with one coloured dot per member per day (members get colours from the deterministic palette in §5.5). Tapping a day lists that day's shared classes, grouped by class, not by member.
-5. **Members:** avatar, name, a small Captain mark, "4 this week · 11 in Nov", next class (if shared), gym chips. Whoever can approve sees a "2 requests" row at the top, which opens the approval sheet. Tapping a member opens their Team-scoped profile: upcoming and recent classes as they shared them.
-6. **Team stats:** classes this week versus last, an active-days streak ("the Team has trained 5 days running"), discipline mix, and the busiest times. A leaderboard appears only if friendly competition is on (§3), because rankings put pressure on the least active member, which is the opposite of a supportive group.
+1. **Header:** the mascot (large) plus the Team name and a one-line state ("Ana and Sam are in class now"). **Share link** and **Manage** sit in the page header next to the back link: icon-only on mobile (with `aria-label`s), text allowed on desktop. Share is shown to Captains only (§5.6).
+2. **Today's workouts** (was "Now and next"): the Team's past (done), ongoing and upcoming workouts today, in time order. Ongoing ones carry a progress ring to the class end. Disappears when there is nothing today.
+3. **This week**, directly after Today's workouts: the Home week strip, with no "one dot per member" text. The class list under the strip shows at most **3 classes**, then **See more** expands. It opens on the day with the next class (today or a future day). Each class row reads: time and name, then the instructor name, then a separator, then the attendees. There is **no "+N at a gym you haven't linked" text** in this widget and no space reserved for it (the count still feeds the mascot and totals, §4).
+4. **Classes together** (horizontal, chronological): classes where two or more members are booked. It **reuses the Home screen's upcoming favourite-class card component**; the attendee avatars sit under the instructor, left of the CTA button. The CTA follows the viewer's state: **Book** (existing quick-book flow), **Join waitlist**, **Auto-book** (not released yet, so it opens with the release time shown), **You're in ✓**, or **Turn on *Gym***. This is the feature's main reason to exist; it converts a group chat's "who's going to 8:30?" into a single tap.
+5. **Members:** avatar, name, a small Captain mark, "4 this week · 11 in Nov", next class (if shared), gym chips. **On mobile it pages horizontally, 4 members per page, with dot indicators.** A small sort-icon menu orders by **name**, **activity** (classes count) or **shuffle**; the choice is remembered per member per Team, client-side (`localStorage`). There is no requests row here (requests live in Manage). Tapping a member opens their Team-scoped profile: upcoming and recent classes as they shared them. With friendly competition on, personal streaks show on member cards.
+6. **Team stats:**
+   - **Classes this week:** "+3 on last week" (no bracketed total).
+   - **Team streak** (was "The Team has trained 5 days running"): consecutive days on which at least one member completed a shared class, counting each class in its own zone.
+   - **Graphs:** busiest **days of the week** (was busiest times), gym mix (coloured by gym branding) and busiest times. A **swipeable carousel with dot indicators on mobile** (order: busiest days, gym mix, busiest times); **side by side on desktop, no swiping**.
+   - **Friendly competition** (*proposed, owner to confirm after mock-up*): a Team setting (Captains) plus a per-member opt-in (§3). Off by default. When on, the carousel gains a **Leaderboard** slide ranking opted-in members by classes this week and this month, and member cards show personal streaks. Non-opted members never appear in any ranking.
 7. **Moments** (later phase): milestones ("Sam's 100th class"), "first class together", and new members joining.
+
+**Spot numbers** (*proposed, owner to confirm*): shown only when that teammate has opted in (§3). (a) Next to their name in a class's attendee row, "Ana · Bike 14", on the dashboard and in the timetable. (b) In the spot picker when booking that class: their seats are highlighted as "teammate" seats ("Book next to", building on `companion-slots.js`).
 
 Additional suggestions beyond the brief, sorted into phases in §8:
 
-- **Teammate avatars in the Timetable:** a small avatar stack on any class teammates are booked into, across all Teams. This is probably more valuable than the dashboard itself, because it reaches people at the moment they decide.
+- **Teammate avatars and Team badges in the Timetable:** rows for classes teammates are going to show a small avatar stack plus a badge naming the Team. With several Teams, show the first Team's name plus "+1" (e.g. "Run Club +1"), the rest in the row's expanded detail; sort Teams by pin, then name. This is probably more valuable than the dashboard itself, because it reaches people at the moment they decide.
 - **A Home widget:** "Your Teams today", the top two Teams' today lines.
-- **Book next to:** when a teammate shares their spot, the spot picker highlights the seats either side. This builds on `companion-slots.js`.
-- **Pushes**, opt-in per Team and conservative by default: a join request (to whoever can approve), request approved (to the requester), and "Ana booked 08:30 Train, a class you're in". Never "Ana booked a class" in general, since that is spam in a ten-person Team.
+- **Pushes**, opt-in per Team and conservative by default: a join request (to Captains), request approved (to the requester), and "Ana booked 08:30 Train, a class you're in". Never "Ana booked a class" in general, since that is spam in a ten-person Team.
 
 ### 5.4 Team mascot states
 
@@ -90,53 +95,75 @@ The state is derived from the shared classes today (in each class's own zone), a
 
 | State | Condition | Art |
 |---|---|---|
-| Sleeping | Before 05:00 or after 22:00, nothing in progress | new |
-| Resting | No shared classes today | new |
-| Warming up | Classes today, none started | `droplet.gif` or new |
-| Exercising | At least one member in class now | `bike.png` / `dumbbell.png` (by discipline when known) |
-| Cooling down | Some classes done, more to come | new |
-| Champion | Everything done today (one or more classes) | new |
+| Sleeping | Before 05:00 or after 22:00, nothing in progress | `bed` |
+| Resting | No shared classes today | `stretch` / `bed` |
+| Warming up | Classes today, none started | `droplet.gif` / `dropletrun` |
+| Exercising | At least one member in class now | A rotating pose (below) |
+| Cooling down | Some classes done, more to come | `stretch` |
+| Champion | Everything done today (one or more classes) | `champion` |
 
-A mini ring around the mascot shows the share of today's classes completed. The art needs four new poses in the existing character style (from `characters/`). This is user-dependent asset work, and T2 can launch with the existing three plus a CSS-dimmed "resting" fallback.
+**Mascot ring:** a mini ring around the mascot shows progress through **all** of the Team's classes today, unless the mascot sits on a single class's card, in which case it is that class's own progress.
+
+**Exercising pose (decided 2026-11-04):** it rotates **daily**, deterministic per Team per date (a hash of Team id and the date in the viewer's zone, so every member sees the same pose that day), chosen from: dumbbell, running, handstand, skip, boxing, bike.
+
+- **bike** is eligible only on a day with a cycle/ride class; **boxing** only on a day with a boxing class. The others are always eligible.
+- **Centralised and data-driven:** one module (`client/src/ui/mascot-poses.js`) holds a registry of poses, each with an id, asset and an eligibility rule over the day's classes. Callers ask for the pose for (Team, date, classes) and never name a pose. A new pose is a registry entry plus an asset, with no caller changes. Unit tested for determinism, eligibility and fallback (if nothing is eligible, dumbbell).
+
+**Assets:** the owner's new art is in `/characters/` on this branch (27 files). New and untracked: `bed.png`, `bed_alpha.png`, `boxing.png`, `champion.png`, `champion_alpha.png`, `dropletrun_alpha.png`, `dumbbell_alpha.png`, `handstand.png`, `handstand_alpha.png`, `skip_alpha.png`, `smoothie_alpha.png`, `stretch.png`, `stretch_alpha.png`. Already tracked: `bike.png`, `bike_alpha.png`, `droplet.png`, `droplet_#FAF4F0.png`, `droplet_alpha.gif`, `droplet_alpha.png`, `dropletrun.png`, `dropletrun_#FAF4F0.png`, `dropletrun_#FAF4F0_video.mp4`, `dropletrun_#FAF4F0_video.webm`, `dumbbell.png`, `icon_template.png`, `skip.png`, `smoothie.png`. Note there is no `boxing_alpha.png`, and no running/skip/handstand variants beyond those listed.
+
+**Task (asset prep, before T-2):** crop to the figure with consistent padding, use the transparent `_alpha` versions as sources, and web-optimise (WebP or optimised PNG at 1x/2x, a few KB each, the large originals stay out of `client/public`), then put them under `client/public/characters/`. Boxing needs an alpha version made.
 
 ### 5.5 Identity and avatars
 
-- **Name:** the account `firstName` setting (already captured by `name-capture.js`) plus the last initial if two members share a first name. This is resolved per Team, so "Sam" is unique within it. An optional per-Team nickname is a later nicety.
+- **Name:** the account first name, shown alone unless two members of the Team share it, then first name plus the last initial from the account’s real last name (§5.8 captures it). This is resolved per Team, so "Sam" is unique within it. An optional per-Team nickname is a later nicety.
 - **Avatar:** initials on a colour circle, the colour chosen deterministically from a fixed accessible palette (contrast-checked in light and dark). The colour is assigned per Team so no two members in one Team clash, and stored on the membership so it is stable.
 - **Photo upload is later (T6),** because it brings storage, size limits, EXIF and GPS stripping (metadata in a photo is itself a location leak), server-side re-encoding, and moderation for a reported image.
 
 ### 5.6 Create, invite, request and approve flows
 
+Joining is **strictly via the URL** (decided 2026-11-04).
+
 1. **Create:** name (required, at most 40 characters), an optional emoji or colour, then the sharing sheet for your own membership. The Team is created with you as its first Captain and a link ready to copy or share via the native share sheet.
-2. **Open link** (`/t/<token>`): if signed out, log in or sign up, then resume. Once signed in: "Request to join *Team name*?", the sharing sheet, then **Send request**. It is idempotent: re-opening the link shows "Request pending · Withdraw".
-3. **Approve:** Captains (or every member, if the Team allows it) see the requester's display name and avatar, plus "Requested via link · 2 h ago", with **Approve** / **Decline** / **Decline and block**. If several Teams are pending, they can act from the Teams list badge.
-4. **Outcomes:** approved means a push plus the Team appearing in the list. Declined shows "Your request wasn't accepted" and starts a 7-day cooldown before the same person can request again. Blocked looks the same as declined to the requester. Requests expire after 14 days.
-5. **Link management** (Captains): copy the current link (re-readable via the encrypted copy), share, **Reset link** (rotate), or turn off joining.
+2. **Open link** (`/t/<token>`): if signed out, log in or sign up, then resume. Once signed in: "Request to join *Team name*?", the sharing sheet, then **Send request**. It is idempotent: re-opening the link shows "Request pending · Withdraw". **The link page is the only place a pending request is shown**: not in the Teams list, not in the Privacy overview, and the join response carries only what the link page needs.
+3. **Approve:** Captains see the requester's display name and avatar, plus "Requested via link · 2 h ago", with **Approve** / **Decline** / **Decline and block** (Manage → Join requests). There is no badge on the Teams list.
+4. **Outcomes:** approved means a push plus the Team appearing in the list. Declined starts a 7-day cooldown before the same person can request again; removal starts the same cooldown; blocked is permanent. **A declined, blocked or removed person opening the link during the cooldown sees only "You aren't a member of this Team."** (never "not accepted" or "declined", so the three cases look identical). After the cooldown (unless blocked), or once the request has expired (14 days), the link offers **Request to join** again.
+5. **Link management** (Captains): **Share** (copy or native share) in the dashboard header (§5.3); **Reset link** and **Turn off joining** live inside Manage → Team settings as items, not as a widget.
 
 ### 5.7 Manage page
 
-One page, opened from the dashboard header, full-screen on mobile via `modal-nav.js` (the mobile full-screen page helper). Sections appear according to the viewer's role:
+One page, opened from the dashboard header, full-screen on mobile via `modal-nav.js` (the mobile full-screen page helper). Sections appear according to the viewer's role. **There is no invite-link widget or section** (decided 2026-11-04).
 
 - **Everyone:**
-  - **My sharing:** the §3 sheet for this Team, plus Pause.
+  - **My sharing:** the §3 sheet for this Team, plus Pause and the friendly-competition opt-in (only shown when the Team has it on).
+  - **Pin to top** (only for members of more than 3 Teams; at most 2 pinned).
   - **Leave Team:** a confirmation that names what stops being shared.
 - **Captains only:**
   - **Members:** for each member, **Make Captain** / **Remove as Captain** and **Remove from Team**.
   - **Join requests:** the approve / decline / block list.
-  - **Invite link:** copy, reset, turn joining on or off.
-  - **Team:** name, emoji, "Any member can approve requests", friendly competition, and **Delete Team** (typed confirmation of the Team name).
+  - **Team settings:** name, emoji, friendly competition (Captains), **Reset link**, **Turn off joining**, and **Delete Team** (typed confirmation of the Team name). The "Any member can approve requests" setting is removed.
+
+**Open question for the owner:** "remove the invite link widget" is read here as removing the widget only, with Share in the header and Reset/Turn off as Team settings items. If it also means Captains should have no way to reset or turn off the link, say so; the cost is that a leaked link could never be revoked.
+
+### 5.8 Onboarding, names and landing page
+
+Part of T-1 UI unless noted. Decided 2026-11-04.
+
+- **Name capture:** collect **first and last name**, prefilled from the gym profile data, both editable. This replaces the first-name-only behaviour of `name-capture.js`. Teams display first name, plus last initial on a clash (§5.5).
+- **Onboarding gains a Teams step** introducing Teams (what they are, that nothing is shared until you join one, and that you choose what is shared).
+- **Auto-upgrade step:** if the user already has at least ONE gym set up for auto-upgrade, the "enable auto-upgrade for all gyms" tickbox is replaced by a note that they can change it in Settings at any time.
+- **Landing page (the M workstream, `M-landing-page.md`):** gets a Teams section with details (private groups, what you choose to share, booking together). Cross-referenced from [M-landing-page.md](M-landing-page.md). Not part of T-1 gating; it ships with the Teams launch.
 
 ## 6. Roles and limits
 
 - **Captain:** ownership is **shared equally by every Captain** (D4, decided). There is no single owner and no Captain above another. Any Captain can do everything:
-  - approve, decline or block requests
+  - approve, decline or block requests (Captains only, no policy setting)
   - remove members
   - make another member a Captain, or remove a Captain's status (their own included)
   - rename the Team
   - reset or disable the link
   - change Team settings
   - delete the Team
-- **Member:** view the Team, change their own sharing, pause, leave. If the Team setting allows it, members can also approve requests.
+- **Member:** view the Team, change their own sharing, pause, pin (when in more than 3 Teams), leave. Members never approve requests; only Captains do.
 - **There is always at least one Captain:**
   - The server refuses to demote or remove the last Captain.
   - If the last Captain leaves, or deletes their account, the longest-standing member is made Captain automatically, and the Team sees "Ana is now a Captain".
@@ -156,15 +183,16 @@ One page, opened from the dashboard header, full-screen on mobile via `modal-nav
 
 ```
 teams              id, invite_token_hash UNIQUE, invite_token_enc, invite_enabled, invite_rotated_at,
-                   name, emoji, approval_policy ('captains'|'any'), competition_enabled,
+                   name, emoji, competition_enabled,
                    created_by, created_at, updated_at
-team_members       team_id, user_id, is_captain, colour_index,
-                   share_json, paused_until, joined_at, UNIQUE(team_id, user_id),
+team_members       team_id, user_id, is_captain, colour_index, pinned (0|1),
+                   share_json, paused_until, competition_opt_in, joined_at, UNIQUE(team_id, user_id),
                    FK users ON DELETE CASCADE, FK teams ON DELETE CASCADE
 team_join_requests id, team_id, user_id, status ('pending'|'approved'|'declined'|'withdrawn'|'expired'),
                    blocked, created_at, decided_by, decided_at
 ```
 
+- `approval_policy` is **removed** (decided 2026-11-04): only Captains approve. **Code change pending (T-1 follow-up):** drop the column and its handling in `server/teams.js`, `teams-routes.js` and `test-team-membership.js`. Pins are per member, server-side, capped at 2, and only allowed when the member is in more than 3 Teams (the server re-checks both on every write).
 - The invite token is stored as a **SHA-256 hash for lookup** plus an **encrypted copy** (`crypto.js`, AES-256-GCM, `ENCRYPTION_KEY`) so a Captain can re-copy the current link (§5.6). Only Captains can read it (`GET /api/teams/:id/invite`); it is never logged or audited; rotation replaces both.
 - `share_json` is validated against one schema module (`server/team-sharing.js`), which also owns the defaults. Unknown keys are dropped, and a missing key resolves to the **private** value. This is deliberately the opposite of the capability flag rule (unknown means on): capabilities fail safe by showing, but sharing must fail safe by hiding.
 - Module boundary, following the house style: `server/teams.js` is the ONLY reader and writer of the three tables, and `server/team-projection.js` is pure (rows in, payload out) so it can be unit tested without a database.
@@ -212,21 +240,22 @@ Gym zones come from `zoneOfGym(gymId)`, and every key is `gymId:eventId` (event 
 ### 7.4 API (all authenticated, all through `teams.js` and the projection)
 
 ```
-GET    /api/teams                         list + today summaries (for the Teams tab)
+GET    /api/teams                         list + today summaries (for the Teams tab); pinned first; no pending counts
 POST   /api/teams                         create
 GET    /api/teams/:id                     dashboard projection
-PATCH  /api/teams/:id                     rename / emoji / policies (Captain)
+PATCH  /api/teams/:id                     rename / emoji / competition (Captain); no approval policy
 DELETE /api/teams/:id                     delete (Captain)
 POST   /api/teams/:id/invite/rotate       new link (Captain)
 GET    /api/teams/:id/invite              { url, enabled } (Captain; the current link, decrypted)
 PUT    /api/teams/:id/invite              { enabled } (Captain)
-GET    /api/teams/invite/:token           preview: { name, emoji, myRequestStatus } only
+GET    /api/teams/invite/:token           link page state only: { name, emoji, state: invite|pending|not-a-member|expired }. "not-a-member" covers declined, blocked and removed during cooldown. This is the only place a pending request is visible.
 POST   /api/teams/invite/:token/request   { share }  → pending
 DELETE /api/teams/invite/:token/request   withdraw (needs a working token)
 DELETE /api/teams/requests/:requestId     withdraw own pending request by id (no token; works after the link is rotated or disabled; 404 otherwise)
-GET    /api/teams/:id/requests            Captains (or any member if the Team allows)
-POST   /api/teams/:id/requests/:rid       { decision: approve|decline|block } (block is Captain-only even when any member may approve)
-PUT    /api/teams/:id/me                  share settings / pause
+GET    /api/teams/:id/requests            Captains only
+POST   /api/teams/:id/requests/:rid       { decision: approve|decline|block } (Captains only)
+PUT    /api/teams/:id/me                  share settings / pause / competition opt-in
+PUT    /api/teams/:id/pin                 { pinned: bool } per-member pin; refused beyond 2 pins or with 3 or fewer Teams (409 PIN_LIMIT)
 DELETE /api/teams/:id/me                  leave (the last Captain leaving promotes the longest-standing member)
 PUT    /api/teams/:id/members/:memberRef  { captain: true|false } (Captain; refuses to remove the last Captain)
 DELETE /api/teams/:id/members/:memberRef  remove (Captain; optional { block: true }; removal starts the same 7-day cooldown as a decline); memberRef is a per-Team opaque id, never a user id
@@ -234,7 +263,7 @@ GET    /api/privacy/sharing               the "Who can see my classes" overview
 ```
 
 - Any authorisation failure (not a member, or an unknown Team) answers **404, never 403**, so ids and tokens cannot be probed. Invite endpoints are rate limited per IP and per account.
-- Rotating or disabling the link leaves pending requests intact: Captains can still approve or decline them, and the requester can withdraw by request id (`requestJoin` and the privacy overview return it).
+- Rotating or disabling the link leaves pending requests intact: Captains can still approve or decline them, and the requester can withdraw by request id (`requestJoin` returns it; the Privacy overview never lists pending requests).
 - A Team payload carries no `userId`. Members are addressed by a per-Team opaque `memberRef`.
 - The `/t/<token>` route serves the SPA shell with **generic** Open Graph tags (principle 4) and `Referrer-Policy: no-referrer`, so the token never leaks to third-party images.
 - Admin panel: a Team count per user, and Team detail **without** member class data (the operator has no product need for it). Audit-log rows (C7-3) record create, delete, Captain changes (including automatic promotion), member removal and blocks.
@@ -249,13 +278,13 @@ Each phase follows [AGENT_PROTOCOL.md](AGENT_PROTOCOL.md): verify in code and a 
 
 | ID | Phase | Scope | Exit criteria |
 |---|---|---|---|
-| **T-0** | Design | Mobile and desktop mock-ups of the Teams list, dashboard, Manage page, join flow and sharing sheet in the current visual language. Brief the mascot poses. (§9 decisions are settled.) | The user approves the mock-ups |
+| **T-0** | Design | **Round 1 done (2026-11-04); round 2 mock-ups pending**, applying the owner's feedback. Extra screens needed: timetable rows with Team badges and avatars (with the overflow rule); spot numbers in the attendee row and in the spot picker ("Book next to"); the Leaderboard slide and member-card streaks; Members widget pagination (4 per page, dots) and the sort menu; the stats carousel (mobile) and side-by-side graphs (desktop); the Teams list with pins, the new today line and the new empty state; the dashboard header (Share and Manage, icon-only on mobile); This week with "See more"; onboarding name capture, Teams step and auto-upgrade step; the landing page Teams section; the link page "You aren't a member of this Team." state; the mascot pose set (§5.4). | The user approves the round 2 mock-ups |
 | **T-B** | Universal background booking sync | §7.2: every account and every enabled gym refreshed in the background, a single writer of `booking_cache`, waitlists included. Independent of the Teams UI; can ship first. **Progress 2026-11-04 (branch `teams`):** built as `server/booking-sync.js` (single background writer; calendar consumes it; 2 h priority predicate stubbed empty for T-2; 3 h kept for calendar-feed users; per-(user, gym) `booking_sync_state`; `/api/health` + `/metrics` counters). Suite `test-booking-sync.js` green. **Not yet done:** measured upstream calls per cycle on dev and prod; not deployed. | The §7.2 suite, plus measured upstream calls per cycle on dev, then on prod |
-| **T-1** | Membership core | Schema, `teams.js`, create, invite link, request, approve or decline or block, leave, remove, Captains (grant, revoke, last-Captain guard, auto-promotion), 16-member limit, share settings, the Manage page, Settings → Privacy overview, Teams in the nav (six items). The Teams tab shows Teams and members only (no class data). **Progress 2026-11-04 (branch `teams`), server side only:** schema (`teams`, `team_members`, `team_join_requests`, random text ids), `server/teams.js` (sole table owner), `server/team-sharing.js` (D3 defaults; missing key = private), `server/teams-routes.js` (all §7.4 routes, invite limiters per IP and per account), `GET /t/:token` generic shell with `Referrer-Policy: no-referrer`, invite tokens scrubbed from request logs, audit rows (create, delete, Captain grant/revoke/auto-promote, removal, block), last-Captain auto-promotion on leave and on account deletion (self and admin), admin Team count per user, own share settings in config export/import. Suite `test-team-membership.js` green. Deviations: a join request also stores the requester's `share_json` (consent, applied on approval); a request that sends a partial share gets private for omitted keys, while sending none gets the D3 defaults; the raw invite token is returned on create and rotate, and Captains can re-copy the current link via `GET /api/teams/:id/invite` (encrypted copy, review fix). **Not yet done:** all client UI (Manage page, Privacy overview, nav, `/t/` client routing) waiting on T-0 mock-ups; the two-account browser run and the 320/375 px nav check; the "Ana is now a Captain" Team-visible notice (needs an activity feed). | `test-team-membership.js` (Captain rules, last-Captain guard, full Team, cooldowns, token rotation, 404-not-403, opaque refs), a browser run of the two-account join flow, and a bottom-nav check at 320 px and 375 px |
+| **T-1** | Membership core | Schema, `teams.js`, create, invite link, request, approve or decline or block, leave, remove, Captains (grant, revoke, last-Captain guard, auto-promotion), 16-member limit, share settings, the Manage page, Settings → Privacy overview, Teams in the nav (six items), pinning (`team_members.pinned`), name capture and onboarding changes (§5.8). The Teams tab shows Teams and members only (no class data). **Progress 2026-11-04 (branch `teams`), server side only:** schema (`teams`, `team_members`, `team_join_requests`, random text ids), `server/teams.js` (sole table owner), `server/team-sharing.js` (D3 defaults; missing key = private), `server/teams-routes.js` (all §7.4 routes, invite limiters per IP and per account), `GET /t/:token` generic shell with `Referrer-Policy: no-referrer`, invite tokens scrubbed from request logs, audit rows (create, delete, Captain grant/revoke/auto-promote, removal, block), last-Captain auto-promotion on leave and on account deletion (self and admin), admin Team count per user, own share settings in config export/import. Suite `test-team-membership.js` green. Deviations: a join request also stores the requester's `share_json` (consent, applied on approval); a request that sends a partial share gets private for omitted keys, while sending none gets the D3 defaults; the raw invite token is returned on create and rotate, and Captains can re-copy the current link via `GET /api/teams/:id/invite` (encrypted copy, review fix). **Not yet done:** all client UI (Manage page, Privacy overview, nav, `/t/` client routing) waiting on T-0 mock-ups; the two-account browser run and the 320/375 px nav check; the "Ana is now a Captain" Team-visible notice (needs an activity feed). | `test-team-membership.js` (Captain rules, last-Captain guard, full Team, cooldowns, token rotation, 404-not-403, opaque refs), a browser run of the two-account join flow, and a bottom-nav check at 320 px and 375 px |
 | **T-2** | Projection and Teams list | Requires T-B. `team-projection.js`, the 2 h cadence for shared members, `GET /api/teams` today summaries, mascot state machine (pure, unit tested), Teams list cards. | **`test-team-privacy.js`**: a multi-user, multi-gym matrix in which every share toggle, pause, unlinked gym, disabled gym, cancelled booking and removed member is asserted absent from the payload (the Teams counterpart of `test-gym-isolation.js`) |
-| **T-3** | Team dashboard | Header, Now and next, Classes together with booking CTAs via existing flows, Week view, Members. | Browser run with three dev accounts across both mock gyms (Psycle and JAB), mobile and desktop, light and dark |
-| **T-4** | Stats | Counts, streaks, mix, busiest times. Opt-in competition. | Unit tests on aggregation, using the zones of the class's gym |
-| **T-5** | Reach | Timetable avatar stacks, Home "Your Teams today" widget, the three pushes (with per-Team toggles). | Push dedupe keys in `sent_notifications`. A browser check of the timetable with avatars at 375 px |
+| **T-3** | Team dashboard | Header (Share and Manage), Today’s workouts, This week, Classes together with booking CTAs via existing flows, Week view, Members. | Browser run with three dev accounts across both mock gyms (Psycle and JAB), mobile and desktop, light and dark |
+| **T-4** | Stats | Counts, Team streak, gym mix, busiest days and times, stats carousel. Opt-in friendly competition and leaderboard (proposed). | Unit tests on aggregation, using the zones of the class's gym |
+| **T-5** | Reach | Timetable avatar stacks plus Team badges, Home "Your Teams today" widget, the three pushes (with per-Team toggles). | Push dedupe keys in `sent_notifications`. A browser check of the timetable with avatars at 375 px |
 | **T-6** | Later | Profile photos (§5.5), Book next to, Moments, per-Team nicknames. | Separate specs |
 
 T-1 and T-2 are the privacy-critical core; they should be reviewed (`/code-review high`) before T-3 builds UI on them.
@@ -267,8 +296,11 @@ T-1 and T-2 are the privacy-critical core; they should be reviewed (`/code-revie
 | D1 | Navigation | Home · Timetable · Bookings · Auto-Book · Teams · Settings. Credits is hidden for all users and not expected back. |
 | D2 | Classes at gyms the viewer hasn't linked | Details hidden; counted as "+N at other gyms" in the mascot and totals |
 | D3 | Sharing defaults | Everything on except **spot numbers** and the **auto-book queue**, which are opt-in |
-| D4 | Roles and approval | **Captains** with equal, shared ownership. Captains approve by default; a Team setting lets any member approve. The Manage page (§5.7) covers members' own sharing and leaving, and Captains' member and Captain management. |
-| D5 | Visibility of a new member's earlier history | Counts and the last 30 days are visible on join |
-| D6 | Team size cap | 16 members for now |
-| D7 | Name | Teams |
+| D4 | Roles and approval | **Captains** with equal, shared ownership. **Only Captains approve** requests (no "any member can approve" setting; removed 2026-11-04). The Manage page (§5.7) covers members' own sharing and leaving, and Captains' member and Captain management. |
+| D8 | Teams list (2026-11-04) | No pending-request badge. Members of more than 3 Teams can pin up to 2. "Rest day", not "Quiet day". |
+| D9 | Joining (2026-11-04) | Strictly via URL. Pending requests are visible only on the invite link page itself. No invite-link widget on Manage; Share sits in the dashboard header, Reset and turn-off inside Team settings. |
+| D10 | Dashboard (2026-11-04) | Today's workouts first, then This week. Stats are a carousel on mobile. Team streak defined in §5.3. |
+| D11 | Mascot poses (2026-11-04) | The exercising pose rotates daily from a registry in one module (§5.4). |
+| D12 | Names (2026-11-04) | Collect first and last name; Teams show first name plus last initial on a clash (§5.5, §5.8). |
+| D13 | Proposed, owner to confirm after mock-up round 2 | Friendly competition (§5.3) and spot-number display (§5.3). |
 | — | Background sync | Every account's classes are refreshed in the background regardless of app use (§7.2, T-B) |

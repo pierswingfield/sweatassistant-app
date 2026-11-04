@@ -61,3 +61,7 @@ Privacy and terms pages (gap to file in BACKLOG.md), full app rename, scroll-dep
 - Server test covers event recording, visitor-hash rotation, the click redirect, rate limiting and the admin stats endpoint.
 - No raw hex or `rgba()` outside the `:root` token block; every heading uses the serif stack.
 - Nothing deployed without an explicit go-ahead.
+
+## Teams section (added 2026-11-04)
+
+The landing page also gets a Teams section with details; the content and the spec live in [PLAN-teams.md](PLAN-teams.md) §5.8. Ships with the Teams launch.

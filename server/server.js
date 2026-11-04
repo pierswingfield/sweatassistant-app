@@ -40,6 +40,9 @@ const { getGymConfig } = require('./gyms.config');
 
 const app = express();
 const PORT = process.env.PORT || 3000;
+// Behind the Cloudflare Tunnel every socket peer is cloudflared; without this every
+// per-IP limiter shares one bucket. Hop count, never `true` (see config.js).
+app.set('trust proxy', config.trustProxy);
 
 // CORS allowlist. The PWA is served same-origin in production, so only the
 // configured public host (and localhost in dev) are permitted. Requests with no

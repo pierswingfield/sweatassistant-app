@@ -2,6 +2,7 @@ import { api, isLoggedIn } from '../api';
 import { noSept } from '../lib';
 import { getLinkedGyms } from '../gym-context.js';
 import { gymChip } from './cards.js';
+import { isBenefitUnknown } from './benefit-state.js';
 import { showToast, cache } from '../main';
 import { COPY, formatCopyText } from '../copy.js';
 import { renderCardSkeletons, renderPanelSkeleton } from './loading-skeleton.js';
@@ -88,8 +89,8 @@ export async function initBundles() {
   await Promise.all(linked.map(async (gym) => {
     const gymId = gym.gym_id || gym.id;
     const [membership, credits] = await Promise.all([
-      api.getMembership(gymId).catch(() => null),
-      api.getNormalizedCredits(gymId).catch(() => []),
+      api.getMembership(gymId).catch(() => undefined), // undefined = unknown, null = confirmed none
+      api.getNormalizedCredits(gymId).catch(() => undefined),
     ]);
     memberships[gymId] = membership;
     creditsByGym[gymId] = credits;
@@ -162,7 +163,10 @@ function summaryCardHtml(gym, membership, credits) {
 
   let headline, sub;
   const facts = [];
-  if (metered) {
+  if (isBenefitUnknown(gym, membership, credits)) {
+    headline = '';
+    sub = '';
+  } else if (metered) {
     headline = `${total}`;
     sub = total === 1 ? COPY.credits.creditAvailableOne : COPY.credits.creditAvailableMany;
     // Surface the soonest expiry: a balance about to lapse is the one fact a
@@ -190,7 +194,8 @@ function summaryCardHtml(gym, membership, credits) {
   }
 
   const websiteUrl = membership?.manageUrl || gym.websiteUrl;
-  const action = canPurchase
+  const unknown = isBenefitUnknown(gym, membership, credits);
+  const action = unknown ? '' : canPurchase
     ? `<button class="app-btn app-btn-mini primary" data-open-credit-gym="${escapeHtml(gymId)}">${COPY.credits.buyCredits}</button>`
     : websiteUrl
       ? `<a class="app-btn app-btn-mini" href="${escapeHtml(websiteUrl)}" target="_blank" rel="noopener noreferrer">${COPY.credits.manageAtGym}</a>`
@@ -205,7 +210,7 @@ function summaryCardHtml(gym, membership, credits) {
       ${gymChip(gymId)}
       <span class="app-benefit-kind">${metered ? COPY.credits.creditsKind : COPY.credits.membershipKind}</span>
     </div>
-    <div class="app-benefit-headline"><strong>${escapeHtml(headline)}</strong><span>${escapeHtml(sub)}</span></div>
+    ${headline || sub ? `<div class="app-benefit-headline"><strong>${escapeHtml(headline)}</strong><span>${escapeHtml(sub)}</span></div>` : ''}
     ${facts.length ? `<ul class="app-benefit-facts">${facts.map(f => `<li>${escapeHtml(f)}</li>`).join('')}</ul>` : ''}
     ${action ? `<div class="app-benefit-card-actions">${action}</div>` : ''}
   </article>`;
@@ -320,6 +325,7 @@ function renderMembershipSections(linked, memberships) {
   root.innerHTML = membershipGyms.map((gym) => {
     const gymId = gym.gym_id || gym.id;
     const membership = memberships[gymId];
+    if (membership === undefined) return ''; // unknown: render nothing, not "no membership"
     const websiteUrl = membership?.manageUrl || gym.websiteUrl;
     const expiry = formatMembershipDate(membership?.expiresAt);
     const renewal = formatMembershipDate(membership?.renewsAt);

@@ -19,6 +19,15 @@ export function sortEvents(events) {
   return events.sort((a, b) => startOf(a) - startOf(b));
 }
 
+// A gym that is still pending OR whose fetch failed keeps its last cached rows:
+// a failed fetch is "unknown", never "this gym has no classes". Pure.
+export function carryStaleRows(staleEvents, freshEvents, { pending = [], failed = [] } = {}) {
+  const keep = new Set([...pending, ...failed].map(String));
+  if (!keep.size) return freshEvents;
+  const carried = (staleEvents || []).filter((e) => keep.has(String(e.gymId)));
+  return carried.length ? sortEvents([...freshEvents, ...carried]) : freshEvents;
+}
+
 export function createProgressiveMerge({
   gymIds,
   graceMs = 4000,
@@ -29,6 +38,7 @@ export function createProgressiveMerge({
   const all = gymIds.map(String);
   const pending = new Set(all);
   const arrived = new Map(); // gymId -> events (failed gyms hold [])
+  const failed = new Set();
   let graceOver = false;
   let flushedOnce = false;
   let dirty = false;
@@ -43,7 +53,7 @@ export function createProgressiveMerge({
     flushedOnce = true;
     dirty = false;
     if (isFinal && !finished) finished = true;
-    onFlush({ events, pending: [...pending], final: isFinal, arrivedGyms: [...arrived.keys()] });
+    onFlush({ events, pending: [...pending], failed: [...failed], final: isFinal, arrivedGyms: [...arrived.keys()] });
     if (isFinal) { if (timer) clearTimer(timer); resolveDone(events); }
   }
 
@@ -69,7 +79,7 @@ export function createProgressiveMerge({
 
   return {
     arrive: settle,
-    fail: (gymId) => settle(gymId, []),
+    fail: (gymId) => { if (pending.has(String(gymId))) failed.add(String(gymId)); settle(gymId, []); },
     pending: () => [...pending],
     hasFlushed: () => flushedOnce,
     done,

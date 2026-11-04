@@ -1,6 +1,7 @@
 import { noSept } from '../lib';
 import { COPY, formatCopyText } from '../copy.js';
 import { gymLogoBanner } from './cards.js';
+import { isBenefitUnknown } from './benefit-state.js';
 // Reusable per-gym Settings section (Settings restructure Phase 2).
 //
 // This module owns markup and DOM binding only. The settings coordinator supplies
@@ -40,7 +41,8 @@ function creditTotal(credits) {
 // renders as its own inline sub-section at every gym count, so there is no
 // presentation mode to pick and no n=1 special case to keep in step.
 
-function membershipHtml(gym, membership, credits) {
+export function membershipHtml(gym, membership, credits) {
+  if (isBenefitUnknown(gym, membership, credits)) return '';
   if (membership) {
     const dates = [];
     const renews = formatDate(membership.renewsAt);
@@ -150,12 +152,12 @@ export function renderGymSettingsSection(container, model, handlers = {}) {
   );
   const logoBannerHtml = model.logoHtml || (gymIdForTheme ? gymLogoBanner(gymIdForTheme, { settings: true }) : '');
   container.innerHTML = `
-    <div class="app-gym-settings-heading"><div class="app-gym-settings-brand">${logoBannerHtml}</div><div class="app-settings-btn-row"><span class="app-badge ${status === 'active' ? 'success' : 'warning'}">${escapeHtml(statusLabel)}</span>${model.canAddGym ? `<button class="app-btn app-btn-mini" data-gym-action="add-gym">${COPY.gymSettings.addAnotherGym}</button>` : ''}</div></div>
+    <div class="app-gym-settings-heading"><div class="app-gym-settings-brand">${logoBannerHtml}</div><div class="app-settings-btn-row"><span class="app-badge ${status === 'active' ? 'success' : 'warning'}">${escapeHtml(statusLabel)}</span></div></div>
     ${needsRelogin ? `<div class="app-gym-settings-warning"><strong>${COPY.gymSettings.reconnect}</strong><span>${COPY.gymSettings.reconnectHelp}</span></div>` : ''}
     <div class="app-settings-grid app-gym-settings-grid">
       <div class="app-settings-card">
         <h4>${COPY.gymSettings.connection}</h4>
-        <div class="app-setting-row"><div class="app-setting-label"><span>Use this gym</span><small>Turning this off hides the gym, pauses queued automation and reminders, and removes its classes from your calendar. Your connection and preferences are kept. Missed releases stay queued for review. Turning off waits for automatic bookings or spot moves already started, including any recovery, to finish; no new automatic action starts while it waits.</small></div><label class="app-switch"><input type="checkbox" data-gym-enabled aria-label="Use ${escapeHtml(gymName)}" ${gym.account_enabled !== 0 && gym.account_enabled !== false ? 'checked' : ''}><span class="app-slider"></span></label></div>
+        <div class="app-setting-row"><div class="app-setting-label"><span>Enable this gym</span><small>Hide the gym everywhere in the app, and disables Auto-Book, Auto Upgrade, calendar and notifications. Your bookings and waitlists aren't changed.</small></div><label class="app-switch"><input type="checkbox" data-gym-enabled aria-label="Enable ${escapeHtml(gymName)}" ${gym.account_enabled !== 0 && gym.account_enabled !== false ? 'checked' : ''}><span class="app-slider"></span></label></div>
         <div class="app-gym-conn-inline-row">
           <p class="app-card-desc">${escapeHtml(gymEmail)}</p>
           <div class="app-settings-btn-row">

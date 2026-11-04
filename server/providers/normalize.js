@@ -7,6 +7,8 @@
 //
 // See server/providers/base.js for the typedefs.
 
+const { applyClassNameRules, applyInstructorAlias } = require('./display-rules');
+
 /**
  * Build a NormalizedEvent, dropping undefined keys for clean equality in tests.
  * @param {Partial<import('./base').NormalizedEvent>} e
@@ -47,11 +49,12 @@ function photoProxyUrl(gymId, instructorId, size, sourceUrl) {
 }
 
 function makeEvent(e) {
+  const shown = applyClassNameRules(e.gymId, e.name || '', e.discipline);
   return prune({
     id: str(e.id),
     gymId: e.gymId,
-    name: e.name || '',
-    discipline: e.discipline,
+    name: shown.name,
+    discipline: shown.discipline,
     startAt: e.startAt,
     timeZone: e.timeZone,
     endAt: e.endAt,
@@ -127,7 +130,7 @@ function makeInstructor(i, gymId) {
   const imageSource = i.imageUrl || i.thumbUrl;
   const thumbSource = i.thumbUrl || i.imageUrl;
   return prune({
-    id: str(i.id), name: i.name || '',
+    id: str(i.id), name: applyInstructorAlias(gymId, i.name || ''),
     // Keep direct URLs when a caller does not yet have a gym context (mostly
     // small unit tests). Real provider responses always carry one, so every
     // browser image becomes same-origin and versioned by its source URL.

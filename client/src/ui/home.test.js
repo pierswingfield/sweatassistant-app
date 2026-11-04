@@ -480,6 +480,12 @@ describe('W6 Home favourites', () => {
     expect(result).toMatchObject({ state: 'empty', rows: [] });
   });
 
+  it('stays loading while the schedule is requested, then empty once it settles', () => {
+    const args = { favouritesByGym, now, events: [] };
+    expect(getHomeFavouriteRows(gyms, { ...args, scheduleLoading: true }).state).toBe('loading');
+    expect(getHomeFavouriteRows(gyms, { ...args, scheduleLoading: false }).state).toBe('empty');
+  });
+
   it('uses the compact timetable decision for a full class without a waitlist', () => {
     cache.bookings = [];
     cache.waitlists = [];

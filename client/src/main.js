@@ -15,7 +15,7 @@ import { shouldShowOnboarding, resumeOnboarding, getPostLoginDestination, isOnbo
 import { detectBookingWindow, noSept } from './lib';
 import { indexFavourites } from './favourites.js';
 import { canBookAtAll, getIneligibleReason, unmeteredBadgeLabel } from './ui/credit-allowance.js';
-import { escapeHtml, gymBrand, wordmarkElement } from './ui/cards';
+import { escapeHtml, gymBrand } from './ui/cards';
 import { installBookingState } from './ui/booking-state.js';
 import { applyGymLoadState, onGymLoadChange } from './ui/gym-load-state.js';
 import { applyStaticCopy } from './copy.js';
@@ -98,6 +98,13 @@ const DEFAULT_SETTINGS = {
 
 // Global App State
 export let currentUser = null;
+
+function storedAccountEmail() {
+  try { return localStorage.getItem('appUserEmail') || ''; } catch { return ''; }
+}
+function rememberAccountEmail(email) {
+  try { if (email) localStorage.setItem('appUserEmail', email); } catch { /* storage unavailable */ }
+}
 export let userSettings = { ...DEFAULT_SETTINGS };
 
 // UI Cache data to avoid constant reloading
@@ -644,6 +651,12 @@ async function refreshActiveTab() {
       // Re-fetch settings from the server so the refresh is a true data reload,
       // not just a re-application of in-memory state.
       await invalidateApiCache('/api/settings');
+      // Drop every linked gym's SWR entries (prefix match covers each `?gymId=`),
+      // so the re-render below truly refetches instead of serving a fresh-enough row.
+      for (const path of ['/api/membership', '/api/credits', '/api/eligibility', '/api/profile', '/api/favourites', '/api/my-gyms']) {
+        await invalidateApiCache(path).catch(() => {});
+      }
+      refreshUserData(true); // fire-and-forget: credit badges / per-gym profile
       const settings = await api.getSettings();
       if (settings && Object.keys(settings).length > 0) {
         Object.assign(userSettings, settings);
@@ -659,9 +672,9 @@ async function refreshActiveTab() {
 const scrollBody = document.querySelector('main.app-body');
 if (scrollBody) {
   // Timetable has a separate class-list scroller so its sticky rails stay outside native bounce.
-  // Settings has no refreshable data and its panes are long forms: pull-to-refresh stays off there.
+  // Settings now refreshes too (gym membership/credits/eligibility/profile): see refreshActiveTab.
   setupPullToRefresh(scrollBody, refreshActiveTab, {
-    isEnabled: () => currentTabId !== 'settings' && currentTabId !== 'class-timetable',
+    isEnabled: () => currentTabId !== 'class-timetable',
     getScrollTop: () => scrollBody.scrollTop,
     getMaxScroll: () => Math.max(0, scrollBody.scrollHeight - scrollBody.clientHeight),
     scrollTargets: [scrollBody, window],
@@ -927,22 +940,20 @@ function sumCredits(credits) {
 // `.app-badges-compact` on the container (see fitHeaderBadges) picks the mark.
 // Assets and plate come from the same presentation contract gymBrand() reads.
 function gymBadgeLogo(gymId, shortName) {
-  const brand = gymBrand(gymId);
-  const w = getGymPresentation(gymId)?.wordmark || {};
-  const wide = w.compact || w.full, mark = w.mark;
-  const name = escapeHtml(brand.name || shortName);
-  if (!wide && !mark) {
-    return `<span class="app-hgb-logo" aria-hidden="true" style="background:${brand.brandBg}"><span class="app-hgb-logo-text">${name}</span></span>`;
+  const half = gymBrand(gymId, 'half');
+  const square = gymBrand(gymId, 'square');
+  const style = `style="background:${half.brandBg}"`;
+  const isText = (b) => b.logo.includes('-text"');
+  // No wordmark asset but a mark: the pill shows the mark alone.
+  if (isText(half) && !isText(square)) return `<span class="app-hgb-logo is-markonly" aria-hidden="true" ${style}>${square.logo.replace('gym-logo--square', 'gym-logo--half')}</span>`;
+  // Neutral/text-only gym: the name on its plate.
+  if (isText(half)) {
+    return `<span class="app-hgb-logo" aria-hidden="true" ${style}><span class="app-hgb-logo-text">${escapeHtml(half.name || shortName)}</span></span>`;
   }
-  const img = (cls, src) => wordmarkElement(cls, src);
-  // squareMark gyms (very wide wordmark): the header pill shows the short MARK, like the other gyms' marks.
-  if (brand.squareMark && mark) {
-    return `<span class="app-hgb-logo is-markonly" aria-hidden="true" style="background:${brand.brandBg}">${img('app-hgb-logo-mark', mark.src)}</span>`;
-  }
-  return `<span class="app-hgb-logo" aria-hidden="true" style="background:${brand.brandBg}">`
-    + (wide ? wordmarkElement('app-hgb-logo-wide', wide.src, brand.logoWidth ? ' style="height:9px"' : '') : '')
-    + (mark ? img('app-hgb-logo-mark', mark.src) : (wide ? img('app-hgb-logo-mark', wide.src) : ''))
-    + `</span>`;
+  // Wide-wordmark gyms: 'half' already IS the short mark, so the pill shows only that.
+  if (half.isMark) return `<span class="app-hgb-logo is-markonly" aria-hidden="true" ${style}>${half.logo}</span>`;
+  // Otherwise the half wordmark, swapped for the square mark when `.app-badges-compact` is set on the container.
+  return `<span class="app-hgb-logo" aria-hidden="true" ${style}>${half.logo}${square.logo}</span>`;
 }
 
 function renderGymBadge(container, gymId, shortName, isMetered, total, credits) {
@@ -1131,7 +1142,7 @@ function showOfflineBanner(reason) {
   if (textSpan) {
     textSpan.textContent = lastOfflineSnapshotAt
       ? formatCopyText(COPY.shell.offlineSavedData, {
-        time: noSept(new Date(lastOfflineSnapshotAt).toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' })),
+        time: noSept(new Date(lastOfflineSnapshotAt).toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit', hour12: false })),
       })
       : COPY.shell.offline;
   }
@@ -1386,7 +1397,9 @@ export async function refreshUserData(force = false) {
 
     const emailEl = document.querySelector('.app-user-email');
     if (emailEl) {
-      emailEl.textContent = currentUser?.email || profile.email || '';
+      // The SA account's own email only. `profile.email` is a GYM's profile (the first linked
+      // gym's, or an offline snapshot of it), never the account identity.
+      emailEl.textContent = currentUser?.email || storedAccountEmail();
     }
 
     // 2. Settings. The account-scoped keys are identical whichever gym's merged
@@ -1572,6 +1585,7 @@ async function checkAuth() {
     try {
       const status = await api.getStatus();
       currentUser = { id: status.userId, email: status.email };
+      rememberAccountEmail(status.email);
       setCacheKeyPrefix(currentUser.id);
       localStorage.setItem('appUserId', currentUser.id);
       // Cold load: honour an earlier "Set up later" (completion is per account); don't nag on every launch.
@@ -1635,6 +1649,7 @@ function showLogin() {
   setCacheKeyPrefix('');
   clearApiCache().catch(() => {});
   localStorage.removeItem('appUserId');
+  try { localStorage.removeItem('appUserEmail'); } catch { /* ignore */ }
   // Reset settings to defaults so a new user doesn't inherit the previous
   // user's settings (e.g. debugMode). The server returns {} for a brand-new
   // user, which would skip the Object.assign merge and leave stale values.
@@ -1721,6 +1736,7 @@ if (loginForm) {
 
       const user = await api.login(email, password);
       currentUser = user;
+      rememberAccountEmail(user && user.email);
       setCacheKeyPrefix(currentUser.id);
       localStorage.setItem('appUserId', currentUser.id);
       showToast(COPY.auth.loginSuccess, 'success');
@@ -1897,6 +1913,7 @@ if (signupForm) {
     try {
       const { user } = await api.signup(email, password);
       currentUser = user;
+      rememberAccountEmail((user && user.email) || email);
       setCacheKeyPrefix(currentUser.id || email);
       localStorage.setItem('appUserId', currentUser.id || email);
       showToast(COPY.auth.accountCreated, 'success');

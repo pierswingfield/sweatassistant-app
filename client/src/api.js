@@ -27,7 +27,25 @@ function publishOfflineSnapshot(name, snapshot) {
   return snapshot.data;
 }
 
-async function withOfflineSnapshot(name, readLive) {
+// Per-gym rows for the merged bookings/waitlists lists. A gym whose fetch failed
+// is "unknown", so its last known rows stand in and the merged snapshot is never
+// persisted with that gym dropped.
+async function loadGymRows(kind, gymId, fetchRows) {
+  try {
+    const rows = await fetchRows();
+    setOfflineSnapshot(`${kind}:${gymId}`, rows);
+    return { data: rows, gymId, loaded: true, complete: true };
+  } catch (err) {
+    if (isOfflineForMutation()) throw err;
+    return gymFailureResult(kind, gymId);
+  }
+}
+async function gymFailureResult(kind, gymId) {
+  const snap = await getOfflineSnapshot(`${kind}:${gymId}`);
+  return { data: Array.isArray(snap?.data) ? snap.data : [], gymId, loaded: false, complete: !!snap };
+}
+
+async function withOfflineSnapshot(name, readLive, { persist = () => true } = {}) {
   // A 401/403 must never revive old private data. Only the app's explicit
   // offline state permits a snapshot fallback.
   const fromSnapshot = async () => {
@@ -42,7 +60,7 @@ async function withOfflineSnapshot(name, readLive) {
   try {
     const data = await readLive();
     offlineSnapshotMeta.delete(name);
-    setOfflineSnapshot(name, data);
+    if (persist(data)) setOfflineSnapshot(name, data);
     return data;
   } catch (err) {
     // A thrown fetch (TypeError) is a transport failure, not an auth answer, so the
@@ -427,16 +445,17 @@ export const api = {
   // `getGyms()` above is the public catalogue of everything configured; this is
   // the per-account view Settings → Your Gyms renders from.
   async getMyGyms() {
-    const result = await getCachedSWR('/api/my-gyms', {
-      ttlMs: 300000,
-      fetcher: async () => {
-        const res = await apiFetch('/api/my-gyms');
-        if (!res.ok) throw new Error('Failed to load your gyms');
-        return res;
-      },
+    return withOfflineSnapshot('my-gyms', async () => {
+      const result = await getCachedSWR('/api/my-gyms', {
+        ttlMs: 300000,
+        fetcher: async () => {
+          const res = await apiFetch('/api/my-gyms');
+          if (!res.ok) throw new Error('Failed to load your gyms');
+          return res;
+        },
+      });
+      return result.data; // { gyms: [...], activeGymId }
     });
-    setOfflineSnapshot('my-gyms', result.data);
-    return result.data; // { gyms: [...], activeGymId }
   },
 
   // NOTE: `setActiveGym()` used to live here and is deliberately gone, along
@@ -897,6 +916,7 @@ export const api = {
   // comment — it resolves via the response's embedded `relations` block when
   // not already inline). bookings.js's renderBookings() is the first caller.
   async getBookings({ silent = false, cacheTtlMs = 0, gyms = null } = {}) {
+    let incomplete = false; // a gym failed with no last-known rows: never persist the merged list
     return withOfflineSnapshot('bookings', async () => {
       debugLog('GET /api/bookings', 'network');
       const myGymsRes = gyms ? null : await this.getMyGyms();
@@ -935,29 +955,23 @@ export const api = {
       const results = await Promise.all(linked.map(async (g) => {
         const gymId = g.gym_id || g.gymId || g.id;
         const gName = g.gym_name || g.name || gymId;
-        try {
+        return loadGymRows('bookings', gymId, async () => {
           const data = await readOne(gymId);
-          return {
-            data: (data.bookings || []).map((b) => ({
-              ...b,
-              gymId: b.gymId || gymId,
-              gymName: b.gymName || gName,
-              event: b.event ? { ...b.event, gymId: b.event.gymId || gymId, gymName: b.event.gymName || gName } : b.event,
-            })),
-            gymId,
-            loaded: true,
-          };
-        } catch (err) {
-          if (isOfflineForMutation()) throw err;
-          return { data: [], gymId, loaded: false };
-        }
+          return (data.bookings || []).map((b) => ({
+            ...b,
+            gymId: b.gymId || gymId,
+            gymName: b.gymName || gName,
+            event: b.event ? { ...b.event, gymId: b.event.gymId || gymId, gymName: b.event.gymName || gName } : b.event,
+          }));
+        });
       }));
+      incomplete = results.some(r => !r.complete);
 
       lastLoadedGymIds = new Set(results.filter(r => r.loaded).map(r => r.gymId));
       const all = results.flatMap(r => r.data);
       all.sort((a, b) => new Date(a.event?.startAt || a.event?.start_at || a.start_at || 0) - new Date(b.event?.startAt || b.event?.start_at || b.start_at || 0));
       return all;
-    });
+    }, { persist: () => !incomplete });
   },
 
   // One gym's bookings straight from the provider (`refresh=1`), annotated like getBookings().
@@ -977,6 +991,7 @@ export const api = {
   async getWaitlists({ silent = false, cacheTtlMs = 0, gyms = null } = {}) {
     const beginGymLoad = silent ? () => {} : _beginGymLoad;
     const endGymLoad = silent ? () => {} : _endGymLoad;
+    let incomplete = false;
     return withOfflineSnapshot('waitlists', async () => {
     debugLog('GET /api/waitlists', 'network');
     const myGymsRes = gyms ? null : await this.getMyGyms();
@@ -1010,39 +1025,32 @@ export const api = {
       linked.map(async (g) => {
         const gymId = g.gym_id || g.gymId || g.id;
         const gName = g.gym_name || g.name || gymId;
-        try {
+        return loadGymRows('waitlists', gymId, async () => {
           beginGymLoad(gymId);
           let data;
           try {
             if (cacheTtlMs) data = await readCachedGym(gymId);
             else {
               const res = await apiFetch('/api/waitlists', { gymId });
-              if (!res.ok) return { data: [], gymId, loaded: false };
+              if (!res.ok) throw new Error('Failed to load waitlists');
               data = await res.json();
             }
           } finally { endGymLoad(gymId); }
-          return {
-            data: (data.waitlists || []).map((w) => ({
-              ...w,
-              gymId: w.gymId || gymId,
-              gymName: w.gymName || gName,
-              event: w.event ? { ...w.event, gymId: w.event.gymId || gymId, gymName: w.event.gymName || gName } : w.event,
-            })),
-            gymId,
-            loaded: true,
-          };
-        } catch (err) {
-          if (isOfflineForMutation()) throw err;
-          return { data: [], gymId, loaded: false };
-        }
+          return (data.waitlists || []).map((w) => ({
+            ...w,
+            gymId: w.gymId || gymId,
+            gymName: w.gymName || gName,
+            event: w.event ? { ...w.event, gymId: w.event.gymId || gymId, gymName: w.event.gymName || gName } : w.event,
+          }));
+        });
       })
     );
-
+    incomplete = results.some(r => !r.complete);
 
     const all = results.flatMap(r => r.data);
     all.sort((a, b) => new Date(a.event?.startAt || a.event?.start_at || a.start_at || 0) - new Date(b.event?.startAt || b.event?.start_at || b.start_at || 0));
     return all;
-    });
+    }, { persist: () => !incomplete });
   },
 
   // "Can this account book at all" (WP-J) — distinct from credit arithmetic,
@@ -1078,12 +1086,16 @@ export const api = {
   // why it took seconds to show data that had not changed since the last look.
   async getMembership(gymId = null, { ttlMs = 10 * 60 * 1000, loading = false } = {}) {
     const url = gymId ? `/api/membership?gymId=${encodeURIComponent(gymId)}` : '/api/membership';
-    const result = await getCachedSWR(url, {
-      ttlMs,
-      fetcher: (u, o) => withGymLoadState(gymId, () => apiFetch(u.split('?')[0], { ...o, gymId }), loading),
+    // Snapshot keeps the last answer for an offline read; a failure still throws
+    // (unknown), it is never turned into null (confirmed none).
+    return withOfflineSnapshot(`membership:${gymId || 'default'}`, async () => {
+      const result = await getCachedSWR(url, {
+        ttlMs,
+        fetcher: (u, o) => withGymLoadState(gymId, () => apiFetch(u.split('?')[0], { ...o, gymId }), loading),
+      });
+      const data = result.data || {};
+      return data.membership || null;
     });
-    const data = result.data || {};
-    return data.membership || null;
   },
 
   // One normalized membership result per linked gym. A credit-based gym
@@ -1138,11 +1150,13 @@ export const api = {
   // Booking invalidates it explicitly (see invalidateApiCache callers).
   async getNormalizedCredits(gymId = null, { ttlMs = 60 * 1000, loading = false } = {}) {
     const url = gymId ? `/api/credits?gymId=${encodeURIComponent(gymId)}` : '/api/credits';
-    const result = await getCachedSWR(url, {
-      ttlMs,
-      fetcher: (u, o) => withGymLoadState(gymId, () => apiFetch(u.split('?')[0], { ...o, gymId }), loading),
+    return withOfflineSnapshot(`credits:${gymId || 'default'}`, async () => {
+      const result = await getCachedSWR(url, {
+        ttlMs,
+        fetcher: (u, o) => withGymLoadState(gymId, () => apiFetch(u.split('?')[0], { ...o, gymId }), loading),
+      });
+      return (result.data && result.data.credits) || [];
     });
-    return (result.data && result.data.credits) || [];
   },
 
   // Per-gym credit inventories, one call per linked gym. `/api/credits` (above)
@@ -1247,11 +1261,13 @@ export const api = {
 
   // Auto-Upgrade
   async getAutoUpgrades({ gymIds = [], loading = false } = {}) {
-    const result = await getCachedSWR('/api/auto-upgrade', {
-      ttlMs: 30000,
-      fetcher: (url, options) => withGymLoadState(gymIds, () => apiFetch(url, options), loading),
+    return withOfflineSnapshot('auto-upgrades', async () => {
+      const result = await getCachedSWR('/api/auto-upgrade', {
+        ttlMs: 30000,
+        fetcher: (url, options) => withGymLoadState(gymIds, () => apiFetch(url, options), loading),
+      });
+      return result.data;
     });
-    return result.data;
   },
 
   async addAutoUpgrade(upgradeData) {

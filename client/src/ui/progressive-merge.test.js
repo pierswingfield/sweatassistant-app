@@ -104,3 +104,22 @@ describe('scroll anchor', () => {
     expect(() => restoreScrollAnchor(c, null)).not.toThrow();
   });
 });
+
+describe('failed gym keeps cached rows', () => {
+  it('reports failed gyms on the flush', () => {
+    const { m, flushes } = harness(['a', 'b']);
+    m.arrive('a', [ev(1, 'a', '12')]);
+    m.fail('b');
+    expect(flushes.at(-1).final).toBe(true);
+    expect(flushes.at(-1).failed).toEqual(['b']);
+  });
+
+  it('carryStaleRows keeps the failed gym\'s stale rows and the fresh gym\'s new rows', async () => {
+    const { carryStaleRows } = await import('./progressive-merge.js');
+    const stale = [ev(1, 'a', '12'), ev(2, 'b', '08'), ev(3, 'b', '09')];
+    const fresh = [ev(9, 'a', '10')];
+    const out = carryStaleRows(stale, fresh, { pending: [], failed: ['b'] });
+    expect(out.map(e => e.id)).toEqual([2, 3, 9]);
+    expect(carryStaleRows(stale, fresh, {})).toBe(fresh);
+  });
+});

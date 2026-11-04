@@ -41,7 +41,7 @@ import { disciplineTag, seatNoun, sparklesIcon, trendingUpIcon, icon, pulseIcon,
 import { openEditBookingModal, openGroupedCancellationModal, syncBookingCache } from './bookings';
 import { openStudioFloorPlanEditor } from './settings';
 import { studioHasRowGroups, rowSelectorVisible } from './spotmap.js';
-import { renderFilterRail, removeFilterRail, syncFilterSheetState, isFilterSheetOpen } from './filter-rail.js';
+import { renderFilterRail, removeFilterRail, syncFilterSheetState, isFilterSheetOpen, isFilterSheetHoldingHistory } from './filter-rail.js';
 import { nextGymSelection } from './gym-quick-select.js';
 import { resolveDefaultFilters } from './default-filters.js';
 import { buildSearchIndex, searchEvents, tokenize } from './timetable-search.js';
@@ -50,7 +50,7 @@ import { ensureSearchUi, openSearch } from './timetable-search-ui.js';
 import { renderTimetableSkeleton, renderFloorPlanSkeleton, renderPanelSkeleton } from './loading-skeleton.js';
 import { shouldShowPendingSkeleton } from './pending-gyms.js';
 import { markScrollBusy } from './scroll-state.js';
-import { sortEvents } from './progressive-merge.js';
+import { sortEvents, carryStaleRows } from './progressive-merge.js';
 import { captureScrollAnchor, restoreScrollAnchor } from './scroll-anchor.js';
 import { confirmOverlap } from './overlap-modal.js';
 import { quickBookTap } from './quickbook-flow.js';
@@ -717,6 +717,10 @@ export function restoreTimetableFromUrl(t) {
 /** Reflect day + filters in the URL. Called from render once the day is validated. */
 function syncUrlFromState(defaultDay = lastDefaultDay) {
   if (!timetableTabVisible() || pendingUrlTimetable || !metadata.locations.length) return;
+  // The open filter drawer owns the top history entry: hold until it has closed (filter-rail.js
+  // calls ctx.onSheetClosed), then commit the live filters as ONE entry. Pushing now would create
+  // an entry that closing the drawer pops straight back past, reverting the edits.
+  if (isFilterSheetHoldingHistory()) return;
   const filters = currentFilterState();
   const q = getSearchQuery();
   const day = selectedTimetableDate || null;
@@ -1038,16 +1042,14 @@ export async function prefetchTimetableData(force = false) {
     // revalidate) so a late gym replaces its own rows in place instead of vanishing.
     const staleEvents = timetableEvents.slice();
     let flushChain = Promise.resolve();
-    const applyFlush = async ({ events, pending, final }) => {
+    const applyFlush = async ({ events, pending, failed, final }) => {
       await contextGate;
       if (generation !== prefetchGeneration) return;
       pendingGymIds = final ? [] : (pending || []).map(String);
       if (final && !events.length) { renderPreservingScroll('network-refresh'); return; } // every gym failed/empty: keep what we had, drop the skeleton
-      const stillPending = new Set((pending || []).map(String));
-      const carried = stillPending.size
-        ? staleEvents.filter((e) => stillPending.has(String(e.gymId)))
-        : [];
-      timetableEvents = carried.length ? sortEvents([...events, ...carried]) : events;
+      // A failed gym keeps its cached rows exactly like a pending one, and so
+      // does the persisted cache below (it never loses a gym to a failed fetch).
+      timetableEvents = carryStaleRows(staleEvents, events, { pending, failed });
       mergeMetadataFromEvents(timetableEvents);
       buildMetaMaps();
       if (final) {
@@ -1059,7 +1061,8 @@ export async function prefetchTimetableData(force = false) {
             instructors: metadata.instructors,
             eventTypes: metadata.eventTypes
           });
-          localStorage.setItem(accountScopedKey(CACHE_KEY_TIME), String(Date.now()));
+          // Carried rows are not fresh: do not restart the cache TTL for them.
+          if (!(failed && failed.length)) localStorage.setItem(accountScopedKey(CACHE_KEY_TIME), String(Date.now()));
         } catch (e) {
           console.warn('[Timetable] Failed to cache events:', e);
         }
@@ -1787,6 +1790,8 @@ function buildFilterRailCtx(eventsExcluding, resultCount) {
     searchActive: inSearchScope(),
     canBookmark: true, // F-12: gym-neutral favourites exist for every gym now
     flush: flushDeferredFilterRender,
+    // The drawer closed (any way, incl. the back gesture): its edits stand; reflect them in the URL.
+    onSheetClosed: () => { syncUrlFromState(); renderOverlayBanner(); },
     // Nothing picked = no filter (every chip shows unselected); picking chips
     // narrows to just those. OR within a section, AND across sections.
     isOn: (key, id) => arrays[key]().includes(String(id)),
@@ -2451,14 +2456,27 @@ function buildEventRow(event, autoBookedIds) {
 export function getLoadedEvents() { return timetableEvents; }
 
 /** F-12: true while the first timetable fetch has produced nothing yet (an absent class is then "not loaded", not "none"). */
-export function isScheduleLoading() { return isPrefetching && timetableEvents.length === 0; }
+export function isScheduleLoading() { return (isPrefetching || scheduleRequested) && timetableEvents.length === 0; }
+
+// Set synchronously by ensureScheduleLoaded: isPrefetching only flips after an await, so without this a caller
+// asking and then checking would read "not loading" and conclude "no classes".
+let scheduleRequested = false;
+let lastScheduleFailAt = 0;
 
 /** F-12: make sure the schedule is (being) loaded. The unified fetch is lazy (first Timetable visit), so a deep link
  *  straight to Settings > Favourites would otherwise find nothing. Reuses the normal prefetch: cache paint first,
  *  then the shared server cache, so this adds no new upstream call shape. */
 export function ensureScheduleLoaded() {
-  if (timetableEvents.length || isPrefetching) return;
-  prefetchTimetableData().catch(() => {});
+  if (timetableEvents.length || isPrefetching || scheduleRequested) return;
+  if (Date.now() - lastScheduleFailAt < 30000) return; // a failed load must not loop through the re-render it triggers
+  scheduleRequested = true;
+  prefetchTimetableData()
+    .catch(() => {})
+    .finally(() => {
+      scheduleRequested = false;
+      if (!timetableEvents.length) lastScheduleFailAt = Date.now();
+      announceTimetableRendered(); // let Home (and others) re-decide loading vs empty
+    });
 }
 
 /** F-12: remove a favourite slot that may have no loaded class (Settings > Favourites). Same contract as the heart. */

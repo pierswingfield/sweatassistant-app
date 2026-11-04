@@ -459,7 +459,6 @@ db.exec(`
     invite_rotated_at TEXT,
     name TEXT NOT NULL,
     emoji TEXT,
-    approval_policy TEXT NOT NULL DEFAULT 'captains' CHECK (approval_policy IN ('captains', 'any')),
     competition_enabled INTEGER NOT NULL DEFAULT 0 CHECK (competition_enabled IN (0, 1)),
     created_by INTEGER,
     created_at TEXT NOT NULL,
@@ -477,6 +476,7 @@ db.exec(`
     colour_index INTEGER NOT NULL,
     share_json TEXT NOT NULL,      -- validated by server/team-sharing.js; missing key = private
     paused_until TEXT,             -- ISO instant; NULL or past = not paused
+    pinned INTEGER NOT NULL DEFAULT 0 CHECK (pinned IN (0, 1)),  -- per-member pin (max 2; teams.js enforces)
     joined_at TEXT NOT NULL,
     FOREIGN KEY (team_id) REFERENCES teams(id) ON DELETE CASCADE,
     FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,

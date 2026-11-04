@@ -80,6 +80,7 @@ router.post('/teams/:id/requests/:rid', authenticateToken,
   handle((req) => teams.decideRequest(req.userId, req.params.id, req.params.rid, body(req).decision)));
 
 router.put('/teams/:id/me', authenticateToken, handle((req) => teams.updateMe(req.userId, req.params.id, body(req))));
+router.put('/teams/:id/pin', authenticateToken, handle((req) => teams.setPinned(req.userId, req.params.id, body(req).pinned)));
 router.delete('/teams/:id/me', authenticateToken, handle((req) => teams.leaveTeam(req.userId, req.params.id)));
 
 router.put('/teams/:id/members/:memberRef', authenticateToken,

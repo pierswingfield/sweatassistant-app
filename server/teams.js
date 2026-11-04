@@ -95,12 +95,6 @@ function requireCaptain(userId, teamId) {
   if (ctx.me.is_captain !== 1) throw new TeamError('CAPTAIN_REQUIRED', 403, 'Only a Captain can do that.');
   return ctx;
 }
-const canApprove = (team, me) => me.is_captain === 1 || team.approval_policy === 'any';
-function requireApprover(userId, teamId) {
-  const ctx = requireMember(userId, teamId);
-  if (!canApprove(ctx.team, ctx.me)) throw new TeamError('APPROVER_REQUIRED', 403, 'Only a Captain can review requests in this Team.');
-  return ctx;
-}
 
 // Lazy 14-day expiry: run before anything reads pending requests.
 function expireStale() {
@@ -211,7 +205,6 @@ function teamSummary(team) {
     id: team.id,
     name: team.name,
     emoji: team.emoji || null,
-    approvalPolicy: team.approval_policy,
     competitionEnabled: team.competition_enabled === 1,
     inviteEnabled: team.invite_enabled === 1,
     memberCount: memberCount(team.id),
@@ -245,13 +238,11 @@ function createTeam(userId, { name, emoji, share } = {}) {
 
 function listTeams(userId) {
   expireStale();
-  const rows = db.prepare(`SELECT t.*, m.is_captain, m.paused_until, m.joined_at AS my_joined_at
-    FROM team_members m JOIN teams t ON t.id = m.team_id WHERE m.user_id = ? ORDER BY m.joined_at ASC, m.id ASC`).all(userId);
+  const rows = db.prepare(`SELECT t.*, m.is_captain, m.paused_until, m.pinned, m.joined_at AS my_joined_at
+    FROM team_members m JOIN teams t ON t.id = m.team_id WHERE m.user_id = ? ORDER BY m.pinned DESC, m.joined_at ASC, m.id ASC`).all(userId);
   return rows.map((t) => {
     const me = { is_captain: t.is_captain, paused_until: t.paused_until };
-    const out = { ...teamSummary(t), myRole: t.is_captain === 1 ? 'captain' : 'member', paused: isPaused(me) };
-    if (canApprove(t, me)) out.pendingRequestCount = pendingCount(t.id);
-    return out;
+    return { ...teamSummary(t), myRole: t.is_captain === 1 ? 'captain' : 'member', paused: isPaused(me), pinned: t.pinned === 1 };
   });
 }
 
@@ -260,7 +251,7 @@ function getTeam(userId, teamId) {
   const { team, me } = requireMember(userId, teamId);
   const rows = memberRows(team.id);
   const names = resolveNames(rows.map((r) => r.user_id));
-  const approver = canApprove(team, me);
+  const approver = me.is_captain === 1;
   const out = {
     team: teamSummary(team),
     myRole: me.is_captain === 1 ? 'captain' : 'member',
@@ -284,10 +275,6 @@ function updateTeam(userId, teamId, patch = {}) {
   const sets = {};
   if (patch.name !== undefined) sets.name = cleanName(patch.name);
   if (patch.emoji !== undefined) sets.emoji = cleanEmoji(patch.emoji);
-  if (patch.approvalPolicy !== undefined) {
-    if (!['captains', 'any'].includes(patch.approvalPolicy)) throw invalid('approvalPolicy must be "captains" or "any".');
-    sets.approval_policy = patch.approvalPolicy;
-  }
   if (patch.competitionEnabled !== undefined) {
     if (typeof patch.competitionEnabled !== 'boolean') throw invalid('competitionEnabled must be true or false.');
     sets.competition_enabled = patch.competitionEnabled ? 1 : 0;
@@ -341,12 +328,12 @@ const isBlocked = (teamId, userId) => !!db.prepare(
 ).get(teamId, userId);
 const inCooldown = (req) => req && req.status === 'declined' && req.decided_at && req.decided_at > isoAgo(DECLINE_COOLDOWN_MS);
 
-// Blocked reads exactly like declined to the requester (§5.6).
+// Declined, blocked and removed-in-cooldown all read as the neutral 'notMember' (§5.6).
 function myRequestStatus(teamId, userId) {
   if (memberRow(teamId, userId)) return 'member';
   const last = latestRequest(teamId, userId);
   if (last && last.status === 'pending') return 'pending';
-  if (isBlocked(teamId, userId) || inCooldown(last)) return 'declined';
+  if (isBlocked(teamId, userId) || inCooldown(last)) return 'notMember';
   if (last && last.status === 'expired') return 'expired';
   return 'none';
 }
@@ -411,7 +398,7 @@ function withdrawRequestById(userId, requestId) {
 }
 
 function listRequests(userId, teamId) {
-  const { team } = requireApprover(userId, teamId);
+  const { team } = requireCaptain(userId, teamId);
   expireStale();
   const rows = db.prepare("SELECT id, user_id, created_at FROM team_join_requests WHERE team_id = ? AND status = 'pending' ORDER BY created_at ASC, rowid ASC")
     .all(team.id);
@@ -424,7 +411,7 @@ function listRequests(userId, teamId) {
 }
 
 function decideRequest(userId, teamId, requestId, decision) {
-  const { team, me } = requireApprover(userId, teamId);
+  const { team, me } = requireCaptain(userId, teamId);
   if (!['approve', 'decline', 'block'].includes(decision)) throw invalid('decision must be approve, decline or block.');
   if (decision === 'block' && me.is_captain !== 1) throw new TeamError('CAPTAIN_REQUIRED', 403, 'Only a Captain can block.');
   expireStale();
@@ -498,6 +485,19 @@ function departAndMaybeDelete(teamId, userId, reason) {
   })();
 }
 
+// Per-member pin (§5.2, §7.4): at most 2, and only meaningful when in more than 3 Teams.
+function setPinned(userId, teamId, pinned) {
+  const { team, me } = requireMember(userId, teamId);
+  if (typeof pinned !== 'boolean') throw invalid('pinned must be true or false.');
+  if (pinned && me.pinned !== 1) {
+    if (teamCountFor(userId) <= 3) throw new TeamError('PIN_LIMIT', 409, 'You can pin Teams once you are in more than 3.');
+    const n = db.prepare('SELECT COUNT(*) c FROM team_members WHERE user_id = ? AND pinned = 1').get(userId).c;
+    if (n >= 2) throw new TeamError('PIN_LIMIT', 409, 'You can pin at most 2 Teams.');
+  }
+  db.prepare('UPDATE team_members SET pinned = ? WHERE id = ?').run(pinned ? 1 : 0, me.id);
+  return { teamId: team.id, pinned };
+}
+
 function leaveTeam(userId, teamId) {
   const { team } = requireMember(userId, teamId);
   departAndMaybeDelete(team.id, userId, 'leave');
@@ -551,8 +551,6 @@ function privacyOverview(userId) {
   expireStale();
   const rows = db.prepare(`SELECT t.id, t.name, t.emoji, m.share_json, m.paused_until
     FROM team_members m JOIN teams t ON t.id = m.team_id WHERE m.user_id = ? ORDER BY m.joined_at ASC, m.id ASC`).all(userId);
-  const pending = db.prepare(`SELECT r.id, t.name, t.emoji, r.share_json, r.created_at
-    FROM team_join_requests r JOIN teams t ON t.id = r.team_id WHERE r.user_id = ? AND r.status = 'pending' ORDER BY r.created_at ASC`).all(userId);
   return {
     teams: rows.map((r) => ({
       id: r.id,
@@ -562,9 +560,6 @@ function privacyOverview(userId) {
       share: sharing.resolveShare(r.share_json),
       pausedUntil: isPaused(r) ? r.paused_until : null,
       paused: isPaused(r),
-    })),
-    pendingRequests: pending.map((r) => ({
-      requestId: r.id, name: r.name, emoji: r.emoji || null, requestedAt: r.created_at, share: sharing.resolveShare(r.share_json),
     })),
   };
 }
@@ -606,7 +601,7 @@ module.exports = {
   createTeam, listTeams, getTeam, updateTeam, deleteTeam,
   rotateInvite, setInviteEnabled, getInvite, withdrawRequestById,
   previewInvite, requestJoin, withdrawRequest, listRequests, decideRequest,
-  updateMe, leaveTeam, setCaptain, removeMember,
+  updateMe, setPinned, leaveTeam, setCaptain, removeMember,
   privacyOverview, beforeAccountDelete, teamCountsByUser, exportMyShares, importMyShares,
   __setNow(fn) { nowFn = typeof fn === 'function' ? fn : () => Date.now(); },
 };

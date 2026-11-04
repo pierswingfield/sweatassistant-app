@@ -163,7 +163,7 @@ check('request is idempotent, carries its share, can be withdrawn; approval appl
   assert.deepStrictEqual(teams.getTeam(c, team.id).myShare, require('./team-sharing').defaultShare());
 });
 
-check('approval policy: members cannot approve (403) unless approval_policy = any', () => {
+check('approval is Captains-only: members get 403 on requests, no approvalPolicy exists', () => {
   const { db, teams } = boot();
   const a = mkUser(db, 'Ana'); const b = mkUser(db, 'Ben'); const c = mkUser(db, 'Cat');
   const { team, inviteToken } = teams.createTeam(a, { name: 'Crew' });
@@ -171,16 +171,25 @@ check('approval policy: members cannot approve (403) unless approval_policy = an
   teams.decideRequest(a, team.id, teams.listRequests(a, team.id)[0].id, 'approve');
   teams.requestJoin(c, inviteToken);
   assert.strictEqual(statusOf(() => teams.listRequests(b, team.id)), 403);
+  assert.strictEqual(codeOf(() => teams.listRequests(b, team.id)), 'CAPTAIN_REQUIRED');
   const rid = teams.listRequests(a, team.id)[0].id;
-  assert.strictEqual(statusOf(() => teams.decideRequest(b, team.id, rid, 'approve')), 403);
-  assert.strictEqual(teams.getTeam(b, team.id).canApprove, false);
-  // Captain-only settings stay Captain-only.
-  assert.strictEqual(statusOf(() => teams.updateTeam(b, team.id, { approvalPolicy: 'any' })), 403);
+  for (const d of ['approve', 'decline', 'block']) assert.strictEqual(statusOf(() => teams.decideRequest(b, team.id, rid, d)), 403);
+  const vb = teams.getTeam(b, team.id);
+  assert.strictEqual(vb.canApprove, false);
+  assert.strictEqual(vb.pendingRequestCount, undefined);
+  assert.strictEqual(teams.getTeam(a, team.id).canApprove, true);
+  // The setting is gone: no field in any payload, and a patch for it changes nothing.
+  assert.ok(!('approvalPolicy' in teams.getTeam(a, team.id).team));
   teams.updateTeam(a, team.id, { approvalPolicy: 'any' });
-  assert.strictEqual(teams.getTeam(b, team.id).canApprove, true);
-  teams.decideRequest(b, team.id, rid, 'approve');
+  assert.strictEqual(statusOf(() => teams.listRequests(b, team.id)), 403);
+  assert.strictEqual(db.db.prepare("SELECT COUNT(*) c FROM pragma_table_info('teams') WHERE name = 'approval_policy'").get().c, 0);
+  // Pending requests: never in the Teams list, never in the privacy overview (§7.4).
+  assert.ok(!('pendingRequestCount' in teams.listTeams(a)[0]));
+  assert.ok(!('pendingRequests' in teams.privacyOverview(c)));
+  assert.strictEqual(teams.previewInvite(c, inviteToken).myRequestStatus, 'pending');
+  teams.decideRequest(a, team.id, rid, 'approve');
   assert.strictEqual(teams.getTeam(c, team.id).myRole, 'member');
-  // A member still cannot do Captain-only actions under 'any'.
+  // A member cannot do Captain-only actions.
   assert.strictEqual(statusOf(() => teams.rotateInvite(b, team.id)), 403);
   assert.strictEqual(statusOf(() => teams.deleteTeam(b, team.id)), 403);
   // Non-members get 404 for everything, including Captain actions.
@@ -208,8 +217,8 @@ check('decline starts a 7-day cooldown; block refuses for good and looks like a 
   const byName = Object.fromEntries(teams.listRequests(a, team.id).map((r) => [r.name, r.id]));
   teams.decideRequest(a, team.id, byName.Ben, 'decline');
   teams.decideRequest(a, team.id, byName.Cat, 'block');
-  assert.strictEqual(teams.previewInvite(b, inviteToken).myRequestStatus, 'declined');
-  assert.strictEqual(teams.previewInvite(c, inviteToken).myRequestStatus, 'declined');
+  assert.strictEqual(teams.previewInvite(b, inviteToken).myRequestStatus, 'notMember');
+  assert.strictEqual(teams.previewInvite(c, inviteToken).myRequestStatus, 'notMember');
   assert.strictEqual(codeOf(() => teams.requestJoin(b, inviteToken)), 'REQUEST_DECLINED');
   assert.strictEqual(codeOf(() => teams.requestJoin(c, inviteToken)), 'REQUEST_DECLINED');
   advance(6 * DAY);
@@ -406,7 +415,8 @@ check('review: a requester can withdraw by request id after the link is rotated 
   teams.setInviteEnabled(a, team.id, true);
   const tok = teams.getInvite(a, team.id).url.split('/t/')[1];
   const rd = teams.requestJoin(d, tok);
-  assert.strictEqual(teams.privacyOverview(d).pendingRequests[0].requestId, rd.requestId);
+  assert.ok(!('pendingRequests' in teams.privacyOverview(d)));
+  assert.ok(rd.requestId);
 });
 
 check('review: removal applies the 7-day cooldown; { block: true } blocks for good', () => {
@@ -418,7 +428,7 @@ check('review: removal applies the 7-day cooldown; { block: true } blocks for go
   const refs = Object.fromEntries(teams.getTeam(a, team.id).members.map((m) => [m.name, m.memberRef]));
   teams.removeMember(a, team.id, refs.Ben);
   teams.removeMember(a, team.id, refs.Cat, { block: true });
-  assert.strictEqual(teams.previewInvite(b, inviteToken).myRequestStatus, 'declined');
+  assert.strictEqual(teams.previewInvite(b, inviteToken).myRequestStatus, 'notMember');
   assert.strictEqual(codeOf(() => teams.requestJoin(b, inviteToken)), 'REQUEST_DECLINED');
   advance(7 * DAY + 1000);
   assert.strictEqual(teams.requestJoin(b, inviteToken).status, 'pending', 'cooldown over');
@@ -430,18 +440,41 @@ check('review: removal applies the 7-day cooldown; { block: true } blocks for go
   assert.strictEqual(teams.requestJoin(b, tk2).status, 'pending');
 });
 
-check('review: block (on a request) is Captain-only even when approval_policy is any', () => {
+check('review: a promoted Captain can block; a plain member can decide nothing', () => {
   const { db, teams } = boot();
   const a = mkUser(db, 'Ana'); const b = mkUser(db, 'Ben'); const c = mkUser(db, 'Cat'); const d = mkUser(db, 'Dee');
   const { team, inviteToken } = teams.createTeam(a, { name: 'Crew' });
-  teams.updateTeam(a, team.id, { approvalPolicy: 'any' });
   joinVia(teams, a, team.id, inviteToken, b);
   const rc = teams.requestJoin(c, inviteToken);
   const rd = teams.requestJoin(d, inviteToken);
   assert.strictEqual(codeOf(() => teams.decideRequest(b, team.id, rc.requestId, 'block')), 'CAPTAIN_REQUIRED');
-  assert.strictEqual(statusOf(() => teams.decideRequest(b, team.id, rc.requestId, 'block')), 403);
-  assert.strictEqual(teams.decideRequest(b, team.id, rc.requestId, 'decline').status, 'declined');
+  assert.strictEqual(statusOf(() => teams.decideRequest(b, team.id, rc.requestId, 'decline')), 403);
+  assert.strictEqual(teams.decideRequest(a, team.id, rc.requestId, 'decline').status, 'declined');
   assert.strictEqual(teams.decideRequest(a, team.id, rd.requestId, 'block').status, 'blocked');
+});
+
+check('pin: per-member, max 2, only with more than 3 Teams, pinned first in the list', () => {
+  const { db, teams } = boot();
+  const a = mkUser(db, 'Ana'); const b = mkUser(db, 'Ben');
+  const ids = [];
+  for (let i = 0; i < 3; i++) ids.push(teams.createTeam(a, { name: `T${i}` }).team.id);
+  assert.strictEqual(codeOf(() => teams.setPinned(a, ids[0], true)), 'PIN_LIMIT', '3 Teams or fewer: refused');
+  assert.strictEqual(statusOf(() => teams.setPinned(a, ids[0], true)), 409);
+  ids.push(teams.createTeam(a, { name: 'T3' }).team.id);
+  assert.strictEqual(teams.setPinned(a, ids[3], true).pinned, true);
+  teams.setPinned(a, ids[2], true);
+  assert.strictEqual(codeOf(() => teams.setPinned(a, ids[1], true)), 'PIN_LIMIT', 'third pin refused');
+  assert.strictEqual(teams.setPinned(a, ids[3], true).pinned, true, 'idempotent re-pin');
+  const list = teams.listTeams(a);
+  assert.deepStrictEqual(list.map((t) => t.pinned), [true, true, false, false]);
+  assert.deepStrictEqual(list.slice(0, 2).map((t) => t.name).sort(), ['T2', 'T3']);
+  assert.deepStrictEqual(list.slice(2).map((t) => t.name), ['T0', 'T1']);
+  assert.strictEqual(teams.setPinned(a, ids[3], false).pinned, false);
+  assert.strictEqual(teams.setPinned(a, ids[3], false).pinned, false);
+  assert.strictEqual(codeOf(() => teams.setPinned(a, ids[0], 'yes')), 'INVALID');
+  // Per member: Ben's pins are his own; a non-member gets 404.
+  assert.strictEqual(statusOf(() => teams.setPinned(b, ids[0], true)), 404);
+  assert.ok(!('pinned' in teams.getTeam(a, ids[0]).members[0]));
 });
 
 check('review: account deletion runs handover + delete in ONE transaction (rolls back together)', () => {
@@ -617,10 +650,12 @@ check('HTTP: full flow, 404-not-403, no user ids / emails in any payload, tokens
   assert.strictEqual(r.status, 200); assert.strictEqual(r.body.teams.length, 1);
   r = await rec('PUT', `/api/teams/${teamId}/members/${benRef}`, ana.token, { captain: true });
   assert.strictEqual(r.status, 200);
-  r = await rec('PATCH', `/api/teams/${teamId}`, ana.token, { name: 'Crew 2', approvalPolicy: 'any', competitionEnabled: true });
+  r = await rec('PATCH', `/api/teams/${teamId}`, ana.token, { name: 'Crew 2', competitionEnabled: true });
   assert.strictEqual(r.status, 200); assert.strictEqual(r.body.team.name, 'Crew 2');
-  r = await rec('PATCH', `/api/teams/${teamId}`, ana.token, { approvalPolicy: 'everyone' });
-  assert.strictEqual(r.status, 400);
+  r = await rec('PUT', `/api/teams/${teamId}/pin`, ana.token, { pinned: true });
+  assert.strictEqual(r.status, 409); assert.strictEqual(r.body.code, 'PIN_LIMIT');
+  r = await rec('GET', `/api/teams/${teamId}/requests`, ben.token);
+  assert.strictEqual(r.status, 200, 'Ben was made Captain above');
   r = await rec('POST', `/api/teams/${teamId}/invite/rotate`, ana.token);
   assert.strictEqual(r.status, 200); const token2 = r.body.inviteToken;
   r = await rec('GET', `/api/teams/invite/${token}`, eve.token);

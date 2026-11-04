@@ -457,18 +457,19 @@ POST   /api/bookings/sync           # Client pushes bookings to warm server remi
 # non-member (unknown Team, bad/rotated/disabled token) is 404, never 403; a member
 # asking for a Captain-only action on their own Team is 403. Payloads carry no user
 # id, email or gym identity: members are addressed by memberRef. No class data yet (T-2).
-GET    /api/teams                   # My Teams (name, emoji, role, memberCount, paused, pendingRequestCount for approvers)
+GET    /api/teams                   # My Teams (name, emoji, role, memberCount, paused, pinned; pinned first; no pending counts)
 POST   /api/teams                   # Create { name<=40, emoji?, share? } -> 201 { team, inviteToken } (token shown once)
 GET    /api/teams/:id               # Team + members (memberRef, name, colourIndex, isCaptain) + my role + my share/pause
-PATCH  /api/teams/:id               # Captain: { name, emoji, approvalPolicy: captains|any, competitionEnabled }
+PATCH  /api/teams/:id               # Captain: { name, emoji, competitionEnabled }
 DELETE /api/teams/:id               # Captain: delete
 POST   /api/teams/:id/invite/rotate # Captain: new link token (old links die)
 PUT    /api/teams/:id/invite        # Captain: { enabled }
-GET    /api/teams/invite/:token     # Preview: { name, emoji, myRequestStatus } ONLY (rate limited per IP + account)
+GET    /api/teams/invite/:token     # Preview: { name, emoji, myRequestStatus: none|pending|member|notMember|expired } ONLY (declined/blocked/removed all read notMember) (rate limited per IP + account)
 POST   /api/teams/invite/:token/request   # { share } -> pending (idempotent; 10/hour/account)
 DELETE /api/teams/invite/:token/request   # Withdraw
-GET    /api/teams/:id/requests      # Captains (or any member when approvalPolicy = any)
+GET    /api/teams/:id/requests      # Captains only (members 403, non-members 404)
 POST   /api/teams/:id/requests/:rid # { decision: approve|decline|block } (TEAM_FULL at 16)
+PUT    /api/teams/:id/pin           # { pinned } per-member; max 2, only when in more than 3 Teams (409 PIN_LIMIT)
 PUT    /api/teams/:id/me            # { share (patch), pause: 24h|7d|indefinite|null }
 DELETE /api/teams/:id/me            # Leave (last Captain leaving promotes the longest-standing member)
 PUT    /api/teams/:id/members/:memberRef  # Captain: { captain } (LAST_CAPTAIN guard)
@@ -501,7 +502,7 @@ GET    /t/:token                    # (production) SPA shell with GENERIC Open G
 | `calendar_classes` | Per-user calendar event rows | `event_id`, `start_at`, `class_name`, `slot_label`, `status`, `upgrade_note`, `sequence`, `content_hash`, `UNIQUE(user_id, event_id)` |
 | `calendar_snapshots` | Generated .ics per user | `ics`, `etag`, `class_count`, `generated_at` (PK `user_id`) |
 | `admin_audit_log` | C7-3 admin action audit trail (append-only; never holds passwords/tokens; no FK so `user.delete` rows survive) | `ts`, `actor`, `action`, `target_user_id`, `ip`, `detail` (JSON, key-redacted) |
-| `teams` | T-1 Teams. Random text id; only `server/teams.js` reads/writes | `invite_token_hash` (SHA-256 of the 128-bit link token; the raw token is never stored), `invite_enabled`, `name`, `emoji`, `approval_policy` (`captains`/`any`), `competition_enabled`, `created_by` (FK SET NULL) |
+| `teams` | T-1 Teams. Random text id; only `server/teams.js` reads/writes | `invite_token_hash` (SHA-256 of the 128-bit link token; the raw token is never stored), `invite_enabled`, `name`, `emoji`, `competition_enabled`, `created_by` (FK SET NULL) |
 | `team_members` | T-1 one row per (Team, account) | `member_ref` (per-Team opaque handle; the only member id in payloads), `is_captain`, `colour_index` (unique per Team, palette 16), `share_json` (`team-sharing.js`), `paused_until`, `joined_at`; `UNIQUE(team_id, user_id)`, cascades from `teams` and `users` |
 | `team_join_requests` | T-1 join requests | `status` (pending/approved/declined/withdrawn/expired), `blocked` (stored as declined), `share_json` (consent, applied on approval), `created_at`, `decided_by`, `decided_at`; 7-day decline cooldown, 14-day expiry |
 | `server_kv` | Key-value store | `jwt_secret`, `vapid_public_key`, `vapid_private_key`, `locations_json`, `studio_name_map` |

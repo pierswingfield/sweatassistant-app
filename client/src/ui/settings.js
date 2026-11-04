@@ -18,6 +18,7 @@ import { renderCardSkeletons, renderFloorPlanSkeleton, renderPanelSkeleton } fro
 import { appConfig } from '../config.js';
 import { openPage as openNavPage, closePage as closeNavPage, isMobile } from './modal-nav.js';
 import { initFavouritesPane, renderFavouritesPane } from './favourites-pane.js';
+import { cleanNameField, inferNames } from './name-capture.js';
 
 let loadedProfile = null;
 let activeSpotEditorOverlay = null;
@@ -2190,11 +2191,67 @@ function loadSettingsInputs() {
 
   if (debugMode) debugMode.checked = !!userSettings.debugMode;
   if (prefetchWeeks) prefetchWeeks.value = String(userSettings.prefetchWeeks || 4);
+  loadAccountNameInputs();
+}
+
+// T-1 (PLAN-teams.md §5.8): first and last name, account-scoped. The saved value wins;
+// a never-saved field is prefilled from the linked gym profiles (the same inference
+// onboarding uses) and only stored when the member presses Save. Read from the server
+// rather than `userSettings`: on a cold load straight into Settings the in-memory blob
+// is still the defaults, which made a saved name look unsaved.
+function loadAccountNameInputs() {
+  const first = document.getElementById('app-account-first-name');
+  const last = document.getElementById('app-account-last-name');
+  if (!first || !last) return;
+  const fill = (input, value) => { if (!input.dataset.dirty) input.value = value; };
+  for (const input of [first, last]) {
+    if (!input.dataset.dirtyListener) {
+      input.dataset.dirtyListener = 'true';
+      input.addEventListener('input', () => { input.dataset.dirty = 'true'; });
+    }
+  }
+  fill(first, cleanNameField(userSettings.firstName));
+  fill(last, cleanNameField(userSettings.lastName));
+  Promise.all([api.getSettings().catch(() => null), api.getMyGyms().catch(() => null)]).then(([saved, mine]) => {
+    const settings = saved || userSettings;
+    const guess = inferNames(mine?.gyms || []);
+    const savedFirst = cleanNameField(settings.firstName);
+    fill(first, savedFirst || guess.firstName);
+    if (typeof settings.lastName === 'string') fill(last, cleanNameField(settings.lastName));
+    else fill(last, (savedFirst || guess.firstName).toLocaleLowerCase() === guess.firstName.toLocaleLowerCase() ? guess.lastName : '');
+  });
+}
+
+async function saveAccountName(button) {
+  const first = document.getElementById('app-account-first-name');
+  const last = document.getElementById('app-account-last-name');
+  const patch = { firstName: cleanNameField(first?.value), lastName: cleanNameField(last?.value) };
+  if (!patch.firstName) { showToast(COPY.settings.firstNameRequired, 'error'); first?.focus(); return; }
+  button.disabled = true;
+  try {
+    await api.updateSettings(patch);
+    Object.assign(userSettings, patch);
+    first.value = patch.firstName;
+    last.value = patch.lastName;
+    delete first.dataset.dirty;
+    delete last.dataset.dirty;
+    showToast(COPY.settings.nameSaved, 'success');
+  } catch (err) {
+    showToast(formatCopyText(COPY.settings.nameSaveFailed, { error: err.message }), 'error');
+  } finally {
+    button.disabled = false;
+  }
 }
 
 function setupSettingsListeners() {
   const debugMode = document.getElementById('app-setting-debug-mode');
   const prefetchWeeks = document.getElementById('app-setting-prefetch-weeks');
+
+  const accountNameBtn = document.getElementById('app-account-name-save');
+  if (accountNameBtn && !accountNameBtn.dataset.listener) {
+    accountNameBtn.dataset.listener = 'true';
+    accountNameBtn.addEventListener('click', () => saveAccountName(accountNameBtn));
+  }
 
   const accountPasswordBtn = document.getElementById('app-account-password-btn');
   if (accountPasswordBtn && !accountPasswordBtn.dataset.listener) {

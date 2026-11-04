@@ -715,6 +715,17 @@
                   <p data-copy-html="static.accountDescription">Your <span data-app-name>__APP_NAME__</span> login and your data.</p>
                 </div>
                 <div class="app-settings-grid ui-settings-grid">
+                  <div class="app-settings-card" id="app-account-name-card">
+                    <h4 data-copy-text="static.yourName">Your name</h4>
+                    <p class="app-card-desc" data-copy-text="static.yourNameDescription">Home greets you by your first name. Teams show your first name, and your last initial only if two people in a Team share a first name.</p>
+                    <div class="ui-account-name-fields">
+                      <label class="ui-account-name-field"><span data-copy-text="static.firstName">First name</span>
+                        <input class="app-input" id="app-account-first-name" type="text" autocomplete="given-name" maxlength="40"></label>
+                      <label class="ui-account-name-field"><span data-copy-text="static.lastName">Last name</span>
+                        <input class="app-input" id="app-account-last-name" type="text" autocomplete="family-name" maxlength="40"></label>
+                    </div>
+                    <button id="app-account-name-save" class="app-btn" data-copy-text="static.saveName">Save name</button>
+                  </div>
                   <div class="app-settings-card">
                     <h4 data-copy-text="static.accountPassword">Account Password</h4>
                     <p class="app-card-desc" data-copy-html="static.passwordDescription">Your <span data-app-name>__APP_NAME__</span> password is separate from every gym password.</p>

@@ -9,12 +9,51 @@ export function cleanFirstName(value) {
 
 /** Return one unambiguous first-name suggestion, otherwise an empty string. */
 export function inferFirstName(linkedGyms) {
-  const byCanonical = new Map();
-  for (const gym of linkedGyms || []) {
-    const name = cleanFirstName(gym?.display_name || gym?.displayName);
-    if (name && !byCanonical.has(name.toLocaleLowerCase())) byCanonical.set(name.toLocaleLowerCase(), name);
-  }
-  return byCanonical.size === 1 ? [...byCanonical.values()][0] : '';
+  return inferNames(linkedGyms).firstName;
+}
+
+/** Collapse whitespace and trim one name field (the server applies the same normalisation). */
+export function cleanNameField(value) {
+  return String(value ?? '').replace(/\s+/g, ' ').trim();
+}
+
+/**
+ * One gym profile's name as { first, last }. The profile's own first_name/last_name
+ * win (the server lifts them from the stored profile), because a multi-word
+ * display_name ("Mary Ann Smith") cannot be split reliably. Without them the
+ * display_name splits at its first and last words.
+ */
+export function gymProfileName(gym) {
+  const first = cleanNameField(gym?.first_name ?? gym?.firstName);
+  const last = cleanNameField(gym?.last_name ?? gym?.lastName);
+  if (first || last) return { first, last };
+  const words = cleanNameField(gym?.display_name ?? gym?.displayName).split(' ').filter(Boolean);
+  if (!words.length) return { first: '', last: '' };
+  return { first: words[0], last: words.length > 1 ? words[words.length - 1] : '' };
+}
+
+/**
+ * T-1 (PLAN-teams.md §5.8): one unambiguous { firstName, lastName } suggestion from
+ * the linked gym profiles, plus the gyms it came from. Names compare
+ * case-insensitively. Profiles that disagree on the first name give no suggestion at
+ * all; profiles that agree on the first name but disagree on the last suggest the
+ * first name only. A profile without a last name never contradicts one that has it.
+ */
+export function inferNames(linkedGyms) {
+  const named = (linkedGyms || [])
+    .map((gym) => ({ gym, ...gymProfileName(gym) }))
+    .filter((p) => p.first);
+  const firsts = new Map();
+  for (const p of named) if (!firsts.has(p.first.toLocaleLowerCase())) firsts.set(p.first.toLocaleLowerCase(), p.first);
+  if (firsts.size !== 1) return { firstName: '', lastName: '', sources: [] };
+  const lasts = new Map();
+  for (const p of named) if (p.last && !lasts.has(p.last.toLocaleLowerCase())) lasts.set(p.last.toLocaleLowerCase(), p.last);
+  const sources = named.map((p) => p.gym?.gym_name || p.gym?.gymName || '').filter(Boolean);
+  return {
+    firstName: [...firsts.values()][0],
+    lastName: lasts.size === 1 ? [...lasts.values()][0] : '',
+    sources: [...new Set(sources)],
+  };
 }
 
 /**

@@ -7775,6 +7775,10 @@ html, body, * {
 .app-onb-feature-card .app-onb-feature-action .app-btn-mini { min-height: 36px !important; padding: 6px 12px; font-size: var(--text-xs); white-space: normal; text-align: center; }
 .app-onb-auto-upgrade-option { display: flex; align-items: center; gap: 8px; margin-top: 8px; min-height: var(--tap-min); cursor: pointer; font-size: var(--text-sm); color: var(--text); }
 .app-onb-auto-upgrade-option input[type="checkbox"] { flex: 0 0 auto; width: 22px; height: 22px; accent-color: var(--accent); cursor: pointer; }
+/* T-1 (PLAN-teams.md §5.8): with a gym already set up for Auto-Upgrade, a note replaces the tickbox. */
+.app-onb-feature-heading .app-onb-auto-upgrade-note { display: flex; gap: 6px; align-items: flex-start; margin: 8px 0 0; color: var(--success) !important; font-weight: 600; font-size: var(--text-sm); }
+.app-onb-auto-upgrade-note svg { flex: 0 0 auto; width: 16px; height: 16px; margin-top: 2px; }
+.app-onb-last-name-label { display: block; margin-top: 14px; }
 .app-onb-features .app-onb-footer { margin-top: 4px; }
 .app-onboarding-container .app-btn-secondary {
   display: inline-flex; align-items: center; justify-content: center; text-align: center; text-decoration: none;
@@ -12145,3 +12149,12 @@ html:not([data-credits-tab="on"]) .app-nav-btn[data-tab="buy-credits"] { display
   #app-helper-container .app-bottom-nav .app-bottom-nav-btn { padding-left: 0 !important; padding-right: 0 !important; }
   #app-helper-container .app-bottom-nav-btn span { letter-spacing: 0 !important; }
 }
+
+/* T-1 (PLAN-teams.md §5.8): Settings → Account → Your name. */
+.ui-account-name-fields { display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 12px; margin: 4px 0 14px; }
+.ui-account-name-field { display: flex; flex-direction: column; gap: 6px; min-width: 0; font-size: var(--text-sm); font-weight: 600; color: var(--text-secondary); }
+.ui-account-name-field .app-input {
+  width: 100%; min-width: 0; box-sizing: border-box; padding: 11px 14px; border-radius: var(--radius-control);
+  background: var(--surface-inset); border: 1px solid var(--border); color: var(--text); font: inherit; font-weight: 400; font-size: 16px; outline: none;
+}
+.ui-account-name-field .app-input:focus { border-color: var(--accent); box-shadow: 0 0 0 2px color-mix(in srgb, var(--accent) 25%, transparent); }

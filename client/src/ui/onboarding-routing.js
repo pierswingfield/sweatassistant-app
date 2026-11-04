@@ -33,6 +33,22 @@ export async function enableAutoUpgradeForGyms(linkedGyms, catalogue, updateSett
   };
 }
 
+/**
+ * T-1 (PLAN-teams.md §5.8): the linked gyms already SET UP for Auto-Upgrade, i.e. whose
+ * own settings say `autoUpgradeEnabled: true` (an explicit choice, made here or in
+ * Settings). An unset value is the app default, not a choice, so it does not count;
+ * otherwise every new account would lose the "turn on for all" tickbox. Gyms without
+ * the capability never count. When this is non-empty the onboarding Auto-Upgrade card
+ * shows a "change it in Settings" note instead of the tickbox.
+ * @param settingsByGym { [gymId]: settings } as read per gym
+ */
+export function gymsWithAutoUpgradeOn(linkedGyms, catalogue, settingsByGym) {
+  const configured = new Map((catalogue || []).map((gym) => [gym.id, gym]));
+  return [...new Set((linkedGyms || []).map((link) => link.gym_id || link.gymId || link.id).filter(Boolean))]
+    .filter((gymId) => configured.get(gymId)?.capabilities?.autoUpgrade !== false)
+    .filter((gymId) => settingsByGym?.[gymId]?.autoUpgradeEnabled === true);
+}
+
 /** Gym logos scroll as a marquee only when there are more than this many. */
 export const GYM_LOGO_STATIC_MAX = 3;
 export function shouldAnimateGymLogos(count) {

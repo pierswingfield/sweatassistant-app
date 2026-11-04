@@ -7,7 +7,7 @@
 //   - failed: hidden, and the container shows the gym's initial on the same plate.
 import { getGymPresentation } from '../gym-context.js';
 
-const LOGO_SEL = '.ab-gym-logo-img, .ab-gym-logo-svg, .fr-mark-img, .app-hgb-logo img';
+const LOGO_SEL = '.gym-logo';
 const HOLDER_SEL = '.app-gym-chip-logo, .ab-gym-logo, .app-hgb-logo, .fr-gym-dot, .app-gym-mark, .fr-logo-plate';
 
 function initialFor(img) {

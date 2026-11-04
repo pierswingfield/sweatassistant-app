@@ -15,7 +15,7 @@ import { shouldShowOnboarding, resumeOnboarding, getPostLoginDestination, isOnbo
 import { detectBookingWindow, noSept } from './lib';
 import { indexFavourites } from './favourites.js';
 import { canBookAtAll, getIneligibleReason, unmeteredBadgeLabel } from './ui/credit-allowance.js';
-import { escapeHtml, gymBrand, wordmarkElement } from './ui/cards';
+import { escapeHtml, gymBrand } from './ui/cards';
 import { installBookingState } from './ui/booking-state.js';
 import { applyGymLoadState, onGymLoadChange } from './ui/gym-load-state.js';
 import { applyStaticCopy } from './copy.js';
@@ -931,22 +931,20 @@ function sumCredits(credits) {
 // `.app-badges-compact` on the container (see fitHeaderBadges) picks the mark.
 // Assets and plate come from the same presentation contract gymBrand() reads.
 function gymBadgeLogo(gymId, shortName) {
-  const brand = gymBrand(gymId);
-  const w = getGymPresentation(gymId)?.wordmark || {};
-  const wide = w.compact || w.full, mark = w.mark;
-  const name = escapeHtml(brand.name || shortName);
-  if (!wide && !mark) {
-    return `<span class="app-hgb-logo" aria-hidden="true" style="background:${brand.brandBg}"><span class="app-hgb-logo-text">${name}</span></span>`;
+  const half = gymBrand(gymId, 'half');
+  const square = gymBrand(gymId, 'square');
+  const style = `style="background:${half.brandBg}"`;
+  const isText = (b) => b.logo.includes('-text"');
+  // No wordmark asset but a mark: the pill shows the mark alone.
+  if (isText(half) && !isText(square)) return `<span class="app-hgb-logo is-markonly" aria-hidden="true" ${style}>${square.logo.replace('gym-logo--square', 'gym-logo--half')}</span>`;
+  // Neutral/text-only gym: the name on its plate.
+  if (isText(half)) {
+    return `<span class="app-hgb-logo" aria-hidden="true" ${style}><span class="app-hgb-logo-text">${escapeHtml(half.name || shortName)}</span></span>`;
   }
-  const img = (cls, src) => wordmarkElement(cls, src);
-  // squareMark gyms (very wide wordmark): the header pill shows the short MARK, like the other gyms' marks.
-  if (brand.squareMark && mark) {
-    return `<span class="app-hgb-logo is-markonly" aria-hidden="true" style="background:${brand.brandBg}">${img('app-hgb-logo-mark', mark.src)}</span>`;
-  }
-  return `<span class="app-hgb-logo" aria-hidden="true" style="background:${brand.brandBg}">`
-    + (wide ? wordmarkElement('app-hgb-logo-wide', wide.src, brand.logoWidth ? ' style="height:9px"' : '') : '')
-    + (mark ? img('app-hgb-logo-mark', mark.src) : (wide ? img('app-hgb-logo-mark', wide.src) : ''))
-    + `</span>`;
+  // Wide-wordmark gyms: 'half' already IS the short mark, so the pill shows only that.
+  if (half.isMark) return `<span class="app-hgb-logo is-markonly" aria-hidden="true" ${style}>${half.logo}</span>`;
+  // Otherwise the half wordmark, swapped for the square mark when `.app-badges-compact` is set on the container.
+  return `<span class="app-hgb-logo" aria-hidden="true" ${style}>${half.logo}${square.logo}</span>`;
 }
 
 function renderGymBadge(container, gymId, shortName, isMetered, total, credits) {

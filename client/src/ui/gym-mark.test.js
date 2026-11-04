@@ -13,10 +13,10 @@ describe('gymSquareChip (U1-8)', () => {
     expect(psycle).toContain('aria-hidden="true"');
     const jab = gymSquareChip('jab-boxing');
     expect(jab).toContain('app-gym-mark-jab-boxing');
-    expect(jab).toContain('ab-gym-logo-svg');
+    expect(jab).toContain('gym-logo-flat');
   });
   it('reuses the shared brand asset instead of a second copy', () => {
-    expect(gymSquareChip('jab-boxing')).toContain(gymBrand('jab-boxing').logoSvg);
+    expect(gymSquareChip('jab-boxing')).toContain(gymBrand('jab-boxing', 'half').logo);
   });
 });
 

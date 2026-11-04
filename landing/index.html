@@ -373,6 +373,12 @@ html.js .run.pre ~ h1.reveal { translate: calc(var(--run-slot) * -1) 0; transiti
 .trust-item .ic { width: 40px; height: 40px; border-radius: 12px; background: var(--surface-inset); display: grid; place-items: center; margin-bottom: 14px; color: var(--text); }
 .trust-item .ic svg { width: 20px; height: 20px; }
 .trust-item h3 { font-size: var(--text-lg); }
+/* Teams section (PLAN-teams.md 5.8): one sample Team card above the three detail cards. */
+.team-peek { max-width: 560px; margin: 0 auto 28px; display: flex !important; gap: 18px; align-items: center; text-align: left; }
+.team-peek-art { width: 96px; height: 96px; flex: 0 0 auto; border-radius: 50%; background: rgba(201,120,92,.10); }
+.team-peek h3 { margin: 0 0 4px; }
+.team-peek p { margin: 0; }
+.team-peek .team-peek-next { margin-top: 8px; font-weight: 600; }
 .trust-item p { margin-top: 8px; color: var(--text-secondary); font-size: var(--text-sm); }
 .trust-item code { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: var(--text-xs); background: var(--surface-inset); padding: 1px 6px; border-radius: 6px; }
 
@@ -488,6 +494,7 @@ footer { padding: 32px 0 56px; color: var(--text-secondary); font-size: var(--te
     <nav class="nav-links" aria-label="Sections">
       <a href="#features">How it works</a>
       <a href="#extras">Features</a>
+      <a href="#teams">Teams</a>
       <a href="#trust">Your Data</a>
       <a href="#install">Install</a>
     </nav>
@@ -507,6 +514,7 @@ footer { padding: 32px 0 56px; color: var(--text-secondary); font-size: var(--te
       </div>
       <p class="kicker reveal" style="--i:2">Be first in the room.</p>
       <p class="sub reveal" style="--i:3">A concierge for every gym you train at: it books the classes you want, the second they open, in the spot you like, and keeps it all in one calendar.</p>
+      <p class="sub reveal" style="--i:3">Create and join a private Team to stay in sync with your buddies.</p>
       <div class="cta-row reveal" style="--i:4">
         <a class="btn btn-primary" href="/_a/go?src=hero">Get the app</a>
       </div>
@@ -637,6 +645,42 @@ footer { padding: 32px 0 56px; color: var(--text-secondary); font-size: var(--te
         <div class="ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 20s-7-4.4-7-10a4 4 0 0 1 7-2.6A4 4 0 0 1 19 10c0 5.6-7 10-7 10z"/></svg></div>
         <h3>Favourites</h3>
         <p>Heart your favourite classes and instructors. They're one tap away across every gym.</p>
+      </article>
+    </div>
+  </div>
+</section>
+
+<!-- 6. Teams (PLAN-teams.md 5.8, round 3 copy) -->
+<section id="teams">
+  <div class="wrap">
+    <div class="section-head reveal">
+      <p class="eyebrow">Teams</p>
+      <h2>Bring your workout plans out of the group chat.</h2>
+      <p>On Dibs, a Team is a private group to help you train with your people. Members can share and co-ordinate their workout schedule with friends, partners and more.</p>
+    </div>
+    <div class="glass card team-peek reveal" style="--i:0">
+      <img class="team-peek-art" src="dibs/pose-skip.webp" alt="" width="96" height="96" loading="lazy" decoding="async">
+      <div>
+        <h3>Tuesday Riders</h3>
+        <p>Ana and Sam are in class now · 4 classes today</p>
+        <p class="team-peek-next">2 doing 07:30 Ride 45 · Psycle Oxford Circus</p>
+      </div>
+    </div>
+    <div class="trust-grid">
+      <article class="glass trust-item reveal" style="--i:1">
+        <div class="ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="9" cy="8.5" r="3.4"/><path d="M2.8 19.5c1.1-3 3.4-4.6 6.2-4.6s5.1 1.6 6.2 4.6"/><circle cx="16.8" cy="9.6" r="2.7"/><path d="M15.6 14.3c2.6-.3 4.6 1.1 5.6 3.9"/></svg></div>
+        <h3>Private by invitation</h3>
+        <p>Join up to 16 people in a private group, to share your workout plans and stay motivated.</p>
+      </article>
+      <article class="glass trust-item reveal" style="--i:2">
+        <div class="ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3 4 6v6c0 4.5 3.4 8.2 8 9 4.6-.8 8-4.5 8-9V6Z"/><path d="m9 12 2 2 4-4"/></svg></div>
+        <h3>You choose what's shared</h3>
+        <p>You can choose to share the information you're comfortable with. For each group, you choose whether your upcoming classes, chosen spots, and activity history are visible.</p>
+      </article>
+      <article class="glass trust-item reveal" style="--i:3">
+        <div class="ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="5" width="18" height="16" rx="3"/><path d="M3 10h18M8 3v4M16 3v4"/><path d="m9 15 2 2 4-4"/></svg></div>
+        <h3>Book in together</h3>
+        <p>See the classes your friends are already in, then book, join the waitlist or set an Auto-Book in one tap. Grab the spot next to theirs.</p>
       </article>
     </div>
   </div>

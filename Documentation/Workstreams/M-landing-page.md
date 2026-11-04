@@ -64,4 +64,4 @@ Privacy and terms pages (gap to file in BACKLOG.md), full app rename, scroll-dep
 
 ## Teams section (added 2026-11-04)
 
-The landing page also gets a Teams section with details; the content and the spec live in [PLAN-teams.md](PLAN-teams.md) §5.8. Ships with the Teams launch.
+The landing page also gets a Teams section with details; the content and the spec live in [PLAN-teams.md](PLAN-teams.md) §5.8. Ships with the Teams launch. Built on branch `teams` (T-1 part B, 2026-11-04): the hero paragraph, a Teams nav link and `<section id="teams">` in `landing/index.html`, with the round-3 copy verbatim; the `/_a/pv` and `/_a/go?src=` hooks are unchanged.

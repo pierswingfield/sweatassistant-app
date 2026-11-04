@@ -10,7 +10,7 @@
 import { icon, gymBrand, gymLogoPlate, getDiscipline } from './cards.js';
 import { escapeHtml } from './cards.js';
 import { COPY, formatCopyText } from '../copy.js';
-import { pushLayer } from './modal-nav.js';
+import { pushLayer, isMobile } from './modal-nav.js';
 import { summariseInstructorsByGym, compactInstructorsCount } from './instructor-filter.js';
 import { quickSelectItems } from './gym-quick-select.js';
 
@@ -269,18 +269,41 @@ export function removeFilterRail() {
 let closeTimer = null;
 let lastPaintedGymsKey = '';
 
+// While the drawer is open its history layer is the top history entry. Filter edits apply live, but
+// the URL must NOT be pushed meanwhile: a pushed filter entry would copy the layer's appNavId, so
+// closing the drawer (history.back) would land on the pre-edit layer entry, the router would restore
+// the pre-edit filters from it and flag them as a link overlay (hiding the rail). So timetable.js
+// holds URL sync while this is true, and commits the live filters once (ctx.onSheetClosed) after the
+// layer's entry has been popped. Covers Show classes, X, scrim tap, drag-down and the back gesture.
+let sheetHoldsHistory = false;
+let sheetLayerIsHistory = false; // decided at open: pushLayer only adds a history entry on mobile
+export function isFilterSheetHoldingHistory() { return sheetHoldsHistory; }
+
+function afterSheetClosed() {
+  if (!sheetHoldsHistory) return;
+  sheetHoldsHistory = false;
+  lastCtx?.flush?.();
+  lastCtx?.onSheetClosed?.();
+}
+
 function destroySheet() {
   if (closeTimer) { clearTimeout(closeTimer); closeTimer = null; }
-  if (!sheetEl) return;
-  sheetEl.remove();
+  // Torn down while open (tab switch, gym change): drop the hold and the layer, commit nothing.
+  sheetHoldsHistory = false;
+  const l = sheetLayer; sheetLayer = null;
+  if (sheetEl) sheetEl.remove();
   sheetEl = null;
   lastPaintedGymsKey = '';
+  l?.release();
 }
 
 export function closeSheet() {
   if (!sheetEl || !sheetEl.classList.contains('open')) return;
   lastCtx?.flush?.();
-  if (sheetLayer) { const l = sheetLayer; sheetLayer = null; l.release(); }
+  const l = sheetLayer; sheetLayer = null;
+  // Mobile: release() pops the layer entry; its onBack (on popstate) runs afterSheetClosed.
+  if (l && sheetLayerIsHistory) l.release();
+  else afterSheetClosed();
   sheetEl.classList.remove('open');
   const targetEl = sheetEl;
   if (closeTimer) clearTimeout(closeTimer);
@@ -315,7 +338,13 @@ function openSheet(ctx, focusKey = null) {
     sheetEl.addEventListener('click', (e) => { if (e.target === sheetEl) closeSheet(); });
     document.body.appendChild(sheetEl);
     // Mobile: hardware/iOS back closes the sheet, and body scroll is locked while it is open.
-    sheetLayer = pushLayer({ id: 'filter-sheet', lock: true, escCloses: true, onBack: () => { sheetLayer = null; closeSheet(); } });
+    sheetHoldsHistory = true;
+    sheetLayerIsHistory = isMobile();
+    sheetLayer = pushLayer({ id: 'filter-sheet', lock: true, escCloses: true, onBack: () => {
+      sheetLayer = null;
+      if (isFilterSheetOpen()) closeSheet(); // back gesture: animate the sheet away (keeps the live filters)
+      afterSheetClosed();
+    } });
     // Force reflow so translateY(100%) initial frame commits, then transition smoothly to translateY(0)
     void sheetEl.offsetWidth;
     sheetEl.classList.add('open');

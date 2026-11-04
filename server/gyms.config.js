@@ -165,6 +165,8 @@ const GYMS = {
     name: 'JAB Boxing Club',
     shortName: 'JAB',
     websiteUrl: 'https://jabboxing.club/',
+    // Folded (accent-less, lower-case) raw instructor name -> shown name.
+    instructorAliases: { 'luis javier pareja munoz': 'Luis Javier' },
     provider: 'marianatek',
     // MarianaTek returns offset-bearing ISO timestamps, so this is used for
     // display grouping rather than for parsing.
@@ -292,6 +294,9 @@ const GYMS = {
     websiteUrl: 'https://homerun.london/', provider: 'marianatek', timezone: 'Europe/London',
     enabled: process.env.HOMERUN_ENABLED === 'true', tenant: 'homerun',
     devMock: { email: 'dev@homerun.mock' },
+    // Homerun publishes "Base (Upper Body)" as both class type and class name: show
+    // chip/filter "Base" and class name "Upper Body". Speed/Endurance don't match.
+    classNameRules: [{ match: '^base\\s*\\((.+)\\)\\s*$', discipline: 'Base', name: '$1' }],
     apiBaseUrl: 'https://homerun.marianatek.com/api/customer/v1',
     oauthBaseUrl: 'https://homerun.marianatek.com/o',
     loginPageUrl: 'https://homerun.marianatek.com/auth/login/',
@@ -301,7 +306,9 @@ const GYMS = {
     theme: { key: 'mono', primary: '#000000' },
     presentation: {
       shortName: 'Homerun',
-      wordmark: { text: 'HOMERUN', full: { src: '/gyms/homerun-wordmark.webp' }, compact: { src: '/gyms/homerun-wordmark.webp' }, mark: { src: '/gyms/homerun-mark.webp' }, logoWidth: 70, squareMark: true },
+      // Three form factors: mark = square 1:1 "H"; compact = half-width cards (the H again);
+      // full = full-width wordmark (Settings banner, Home widgets). All white-on-plate, so legible in light AND dark.
+      wordmark: { text: 'HOMERUN', full: { src: '/gyms/homerun-wordmark.svg' }, compact: { src: '/gyms/homerun-mark.svg' }, mark: { src: '/gyms/homerun-mark.svg' } },
       plate: '#111111',
       light: { ink: '#000000', inkHover: '#27272A', tint: '#000000', on: '#FFFFFF' },
       dark: { ink: '#FFFFFF', inkHover: '#E4E4E7', tint: '#FFFFFF', on: '#000000' },

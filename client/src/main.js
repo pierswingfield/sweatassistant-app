@@ -97,6 +97,13 @@ const DEFAULT_SETTINGS = {
 
 // Global App State
 export let currentUser = null;
+
+function storedAccountEmail() {
+  try { return localStorage.getItem('appUserEmail') || ''; } catch { return ''; }
+}
+function rememberAccountEmail(email) {
+  try { if (email) localStorage.setItem('appUserEmail', email); } catch { /* storage unavailable */ }
+}
 export let userSettings = { ...DEFAULT_SETTINGS };
 
 // UI Cache data to avoid constant reloading
@@ -635,6 +642,12 @@ async function refreshActiveTab() {
       // Re-fetch settings from the server so the refresh is a true data reload,
       // not just a re-application of in-memory state.
       await invalidateApiCache('/api/settings');
+      // Drop every linked gym's SWR entries (prefix match covers each `?gymId=`),
+      // so the re-render below truly refetches instead of serving a fresh-enough row.
+      for (const path of ['/api/membership', '/api/credits', '/api/eligibility', '/api/profile', '/api/favourites', '/api/my-gyms']) {
+        await invalidateApiCache(path).catch(() => {});
+      }
+      refreshUserData(true); // fire-and-forget: credit badges / per-gym profile
       const settings = await api.getSettings();
       if (settings && Object.keys(settings).length > 0) {
         Object.assign(userSettings, settings);
@@ -650,9 +663,9 @@ async function refreshActiveTab() {
 const scrollBody = document.querySelector('main.app-body');
 if (scrollBody) {
   // Timetable has a separate class-list scroller so its sticky rails stay outside native bounce.
-  // Settings has no refreshable data and its panes are long forms: pull-to-refresh stays off there.
+  // Settings now refreshes too (gym membership/credits/eligibility/profile): see refreshActiveTab.
   setupPullToRefresh(scrollBody, refreshActiveTab, {
-    isEnabled: () => currentTabId !== 'settings' && currentTabId !== 'class-timetable',
+    isEnabled: () => currentTabId !== 'class-timetable',
     getScrollTop: () => scrollBody.scrollTop,
     getMaxScroll: () => Math.max(0, scrollBody.scrollHeight - scrollBody.clientHeight),
     scrollTargets: [scrollBody, window],
@@ -1122,7 +1135,7 @@ function showOfflineBanner(reason) {
   if (textSpan) {
     textSpan.textContent = lastOfflineSnapshotAt
       ? formatCopyText(COPY.shell.offlineSavedData, {
-        time: noSept(new Date(lastOfflineSnapshotAt).toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' })),
+        time: noSept(new Date(lastOfflineSnapshotAt).toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit', hour12: false })),
       })
       : COPY.shell.offline;
   }
@@ -1377,7 +1390,9 @@ export async function refreshUserData(force = false) {
 
     const emailEl = document.querySelector('.app-user-email');
     if (emailEl) {
-      emailEl.textContent = currentUser?.email || profile.email || '';
+      // The SA account's own email only. `profile.email` is a GYM's profile (the first linked
+      // gym's, or an offline snapshot of it), never the account identity.
+      emailEl.textContent = currentUser?.email || storedAccountEmail();
     }
 
     // 2. Settings. The account-scoped keys are identical whichever gym's merged
@@ -1555,6 +1570,7 @@ async function checkAuth() {
     try {
       const status = await api.getStatus();
       currentUser = { id: status.userId, email: status.email };
+      rememberAccountEmail(status.email);
       setCacheKeyPrefix(currentUser.id);
       localStorage.setItem('appUserId', currentUser.id);
       // Cold load: honour an earlier "Set up later" (completion is per account); don't nag on every launch.
@@ -1607,6 +1623,7 @@ function showLogin() {
   setCacheKeyPrefix('');
   clearApiCache().catch(() => {});
   localStorage.removeItem('appUserId');
+  try { localStorage.removeItem('appUserEmail'); } catch { /* ignore */ }
   // Reset settings to defaults so a new user doesn't inherit the previous
   // user's settings (e.g. debugMode). The server returns {} for a brand-new
   // user, which would skip the Object.assign merge and leave stale values.
@@ -1693,6 +1710,7 @@ if (loginForm) {
 
       const user = await api.login(email, password);
       currentUser = user;
+      rememberAccountEmail(user && user.email);
       setCacheKeyPrefix(currentUser.id);
       localStorage.setItem('appUserId', currentUser.id);
       showToast(COPY.auth.loginSuccess, 'success');
@@ -1869,6 +1887,7 @@ if (signupForm) {
     try {
       const { user } = await api.signup(email, password);
       currentUser = user;
+      rememberAccountEmail((user && user.email) || email);
       setCacheKeyPrefix(currentUser.id || email);
       localStorage.setItem('appUserId', currentUser.id || email);
       showToast(COPY.auth.accountCreated, 'success');

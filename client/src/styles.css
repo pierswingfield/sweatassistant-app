@@ -1750,6 +1750,10 @@ html, body, * {
 
 #app-helper-container .app-offline-banner .offline-text {
   line-height: 1.4;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  min-width: 0;
 }
 
 #app-helper-container .app-offline-retry {
@@ -1762,6 +1766,8 @@ html, body, * {
   font-size: 12px;
   font-weight: 700;
   padding: 3px 9px;
+  flex-shrink: 0;
+  white-space: nowrap;
 }
 
 /* U6-7: the mobile shell is document-flow so Safari can collapse its browser chrome.
@@ -4464,8 +4470,8 @@ html, body, * {
   white-space: nowrap;
 }
 /* On mobile, stack each gym connection row:
-   Row 1: Logo banner (full width)
-   Row 2: Email (left) + Action buttons (right)
+   Row 1: Logo banner (left) + Action buttons (right)
+   Row 2: Email (full width)
    Row 3: Connected status (left) + Auth date (right) */
 
 /*  Mobile overrides (max-width: 768px): Timetable, tooltips and mobile class cards  */
@@ -4483,12 +4489,13 @@ html, body, * {
     display: contents;
   }
   #app-helper-container .app-gym-conn-name .app-gym-conn-logo {
-    grid-column: 1 / -1;
+    grid-column: 1;
     grid-row: 1;
-    margin-bottom: 2px;
+    min-width: 0;
+    margin-bottom: 0;
   }
   #app-helper-container .app-gym-conn-name small {
-    grid-column: 1;
+    grid-column: 1 / -1;
     grid-row: 2;
     font-size: var(--text-xs);
     color: var(--text-secondary);
@@ -4498,7 +4505,7 @@ html, body, * {
   }
   #app-helper-container .app-gym-conn-actions {
     grid-column: 2;
-    grid-row: 2;
+    grid-row: 1;
     display: flex;
     gap: 6px;
     align-items: center;
@@ -9912,6 +9919,14 @@ html.app-scroll-locked { overflow: hidden !important; background: var(--bg) !imp
 .fr-sheet .fr-grid.fr-grid3 { grid-template-columns: repeat(3, minmax(0, 1fr)) !important; width: 100%; box-sizing: border-box; }
 .fr-sheet .fr-grid3 .fr-opt-stack { min-width: 0; overflow: hidden; }
 .fr-sheet .fr-grid3 .fr-opt-stack .fr-opt-name { white-space: normal !important; overflow-wrap: anywhere; line-height: 1.15; text-align: center; }
+/* Two-column option grids (locations): shrinkable columns, so a long name ellipsises instead of widening the grid. */
+.fr-sheet .fr-grid:not(.fr-grid3) { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+.fr-sheet .fr-grid > .fr-opt { min-width: 0; }
+/* Instructor list: always ONE column. A single linked/selected gym renders a flat .fr-grid (which was
+   two 1fr columns, so a long name pushed the list into horizontal scroll); the multi-gym groups were
+   already one column (.fr-igroup-body is flex). The list itself never scrolls sideways. */
+.fr-sheet .fr-list { overflow-x: hidden; }
+.fr-sheet .fr-list .fr-grid { grid-template-columns: minmax(0, 1fr) !important; }
 
 /* Credits & Membership nav is debug-only: hidden by default (incl. before JS runs, so no flash on iOS PWA
    launch); revealed only when <html data-credits-tab="on"> (early hint, then main.js's authoritative gate). */
@@ -9959,6 +9974,11 @@ html:not([data-credits-tab="on"]) .app-nav-btn[data-tab="buy-credits"] { display
 }
 @media (min-width: 768px) {
   .ab-card-body > .ab-card-figure { width: 52px !important; max-width: 52px !important; flex: 0 0 52px !important; }
+  /* Desktop shows the instructor once, inline in row 2; the figure keeps only the avatar. This must
+     beat the .is-long-name/.is-short-name display rules above (higher specificity). */
+  .ab-card-body > .ab-card-figure .ab-card-instructor,
+  .ab-card-body > .ab-card-figure .ab-card-instructor.is-short-name,
+  .ab-card-body > .ab-card-figure .ab-card-instructor.is-long-name { display: none !important; }
 }
 
 /* Instructor photo sizing + border (items A/B). Appended last on purpose: earlier rules use !important. */
@@ -11126,8 +11146,11 @@ html:not([data-credits-tab="on"]) .app-nav-btn[data-tab="buy-credits"] { display
 /* Tactile feedback: confirmed favourite and tapped spot (classes added only by the interaction). */
 @keyframes app-pop { 0% { transform: scale(1); } 45% { transform: scale(1.22); } 100% { transform: scale(1); } }
 .app-timetable-heart.is-pop svg { animation: app-pop var(--dur-base) var(--ease-out); }
-.app-spot.is-pop { animation: app-pop var(--dur-fast) var(--ease-out); }
-.app-timetable-heart:active, .app-spot.is-editable:active { transform: scale(0.94); }
+/* .app-spot is centred with translate(-50%,-50%): every transform on it must keep that translate or it jumps off the pointer. */
+@keyframes app-spot-pop { 0% { transform: translate(-50%, -50%) scale(1); } 45% { transform: translate(-50%, -50%) scale(1.22); } 100% { transform: translate(-50%, -50%) scale(1); } }
+.app-spot.is-pop { animation: app-spot-pop var(--dur-fast) var(--ease-out); }
+.app-timetable-heart:active { transform: scale(0.94); }
+.app-spot.is-editable:active { transform: translate(-50%, -50%) scale(0.94); }
 .app-timetable-heart { transition: transform var(--dur-fast) var(--ease-out), color var(--dur-fast) var(--ease-out); }
 
 /* Confirmed success (booking, upgrade, any success toast): the icon settles once, 240 ms. The toast text stays. */
@@ -11146,7 +11169,8 @@ html:not([data-credits-tab="on"]) .app-nav-btn[data-tab="buy-credits"] { display
   #app-helper-container .app-toast.success.show .app-toast-icon,
   .app-container, .app-modal-card, .app-modal-content, .app-pulse-icon .core, .app-pulse-icon .radar,
   .app-skeleton-line, .app-skeleton-seat { animation: none !important; }
-  .app-timetable-heart:active, .app-spot.is-editable:active { transform: none; }
+  .app-timetable-heart:active { transform: none; }
+  .app-spot.is-editable:active { transform: translate(-50%, -50%); }
   .app-timetable-heart.loading { transform: none; }
   .app-modal.app-page, .app-ovl.app-page { transform: none !important; transition: opacity var(--dur-fast) linear !important; }
   #app-helper-container .app-toast { transform: none !important; transition: opacity var(--dur-fast) linear !important; }

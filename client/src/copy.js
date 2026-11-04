@@ -243,7 +243,6 @@ export const COPY = Object.freeze({
     cancelBookingHelp: 'This releases all your spots and cancels the booking.',
     occupiedSpot: 'That spot is occupied.',
     noWaitlists: 'No active waitlists found.',
-    viewSaveFailed: 'Could not save your view choice. It will reset next time.',
     waitlisted: 'Waitlisted',
     leaveWaitlist: 'Leave',
     leavingWaitlist: 'Leaving waitlist...',
@@ -456,7 +455,6 @@ export const COPY = Object.freeze({
   gymSettings: Object.freeze({
     pollingOneMinute: '1 minute', pollingFifteenMinutes: '15 minutes', pollingOneHour: '1 hour',
     settings: 'Gym settings',
-    addAnotherGym: '＋ Connect another gym',
     reconnect: 'Reconnect this gym',
     reconnectHelp: 'The saved gym session could not be renewed. Re-authenticate to resume background bookings and calendar updates.',
     connection: 'Connection',
@@ -726,8 +724,8 @@ export const COPY = Object.freeze({
     unfavouriteFailed: 'Could not remove that favourite. Try again.',
   }),
   shell: Object.freeze({
-    offline: "You're offline! Some features are unavailable.",
-    offlineSavedData: "You're offline. Showing saved data from {time}; changes are disabled.",
+    offline: "You're offline!",
+    offlineSavedData: "You're offline! Last updated {time}.",
     noMembership: 'No membership',
     noMembershipBadge: '0',
     membershipActive: 'Membership active',

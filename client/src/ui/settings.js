@@ -1654,11 +1654,10 @@ export async function renderGymSettingsSection(requestedGymId = null, targetCont
 
     const config = catalogue.find(g => g.id === gymId) || {};
     const gym = { ...config, ...link, id: gymId, capabilities: { ...(config.capabilities || {}), ...(link.capabilities || {}) } };
-    const addable = catalogue.filter(g => g.enabled && !linked.some(item => item.gym_id === g.id));
     const [settings, membership, credits] = await Promise.all([
       api.getSettings(gymId),
-      api.getMembership(gymId).catch(() => null),
-      api.getNormalizedCredits(gymId).catch(() => []),
+      api.getMembership(gymId).catch(() => undefined), // undefined = unknown, null = confirmed none
+      api.getNormalizedCredits(gymId).catch(() => undefined),
     ]);
     const bookingWindowText = describeBookingWindow(getBookingOffset(settings), null);
 
@@ -1671,7 +1670,6 @@ export async function renderGymSettingsSection(requestedGymId = null, targetCont
       credits,
       bookingWindowText,
       debugMode: !!userSettings.debugMode,
-      canAddGym: linked.length === 1 && addable.length > 0,
     }, {
       onEnabledChange: async (enabled, input) => {
         input.disabled = true;
@@ -1709,7 +1707,6 @@ export async function renderGymSettingsSection(requestedGymId = null, targetCont
       },
       onAction: async (action, button) => {
         if (action === 'reauth') return openLinkGymModal(gymId, link);
-        if (action === 'add-gym') return openLinkGymModal(null, null, addable);
         if (action === 'spot-maps') return openManageSpotMapsModal({ gymId });
         if (action === 'profile') return openProfileExplorerModal(gymId, gym.name || link.gym_name);
         if (action === 'buy-credits') {

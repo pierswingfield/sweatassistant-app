@@ -136,20 +136,27 @@ export async function renderBookings(day = currentRoute().bookings?.day) {
     // (`{...raw booking row, event: <raw resolved event>}`) so every existing
     // field read below (many layers deep in renderBookingsCards/
     // renderWaitlistsCards) keeps working unmodified.
-    const [normalizedBookings, normalizedWaitlists, upgradesRes] = await Promise.all([
+    const settled = await Promise.allSettled([
       api.getBookings(),
       api.getWaitlists(),
       api.getAutoUpgrades()
     ]);
-
-    const bookings = normalizedBookings || [];
-    const waitlists = normalizedWaitlists || [];
-    const upgrades = upgradesRes || [];
+    const failures = settled.filter((r) => r.status === 'rejected');
+    // Something already painted/cached stands: a failed refresh (offline, a gym
+    // down) must not replace it with an error. Only a view with nothing to show errors.
+    if (settled[0].status === 'rejected' && !bookingsDataReady()) {
+      throw failures[0].reason;
+    }
+    const pick = (i, prior) => (settled[i].status === 'fulfilled' ? (settled[i].value || []) : (prior || []));
+    const bookings = pick(0, cache.bookings);
+    const waitlists = pick(1, cache.waitlists);
+    const upgrades = pick(2, cache.upgrades);
+    if (failures.length) console.warn('[Bookings] Partial refresh failed, keeping prior data:', failures.map((f) => f.reason?.message));
 
     cache.bookings = bookings;
     cache.waitlists = waitlists;
     cache.upgrades = upgrades;
-    bookingsFetched = true;
+    if (!failures.length) bookingsFetched = true;
 
     paintBookingLists(bookings, upgrades, waitlists);
     focusBookingsDay(day);
@@ -164,6 +171,12 @@ export async function renderBookings(day = currentRoute().bookings?.day) {
   } catch (err) {
     console.error('[Bookings] Loading failed:', err);
 
+    // Data already painted/cached stays as-is; no error banner over it.
+    if (bookingsDataReady()) {
+      if (bookingsRefreshing) bookingsRefreshing.style.display = 'none';
+      if (waitlistsRefreshing) waitlistsRefreshing.style.display = 'none';
+      return;
+    }
     // Show a friendly empty state when offline and no cached data is available
     if (bookingsList && !bookingsDataReady()) {
       bookingsList.innerHTML = `<div class="app-empty-state bk-empty-container"><p class="bk-empty-title">${COPY.bookings.noCachedData}</p><p class="bk-empty-help">${COPY.bookings.connectInternetBookings}</p></div>`;
@@ -330,8 +343,8 @@ async function setBookingsView(view) {
     // Account-scoped key: no gymId needed (and none would be right — the list is merged).
     await api.updateSettings({ [BOOKINGS_VIEW_KEY]: next });
   } catch (err) {
-    console.error('[Bookings] Saving view mode failed:', err);
-    showToast(COPY.bookings.viewSaveFailed, 'error');
+    // Fail silently: the local choice stays; it just may not persist across sessions.
+    console.warn('[Bookings] Saving view mode failed:', err);
   }
 }
 

@@ -642,9 +642,14 @@ async function loadHomeFavourites(ctx) {
   const gymIds = [...new Set((Array.isArray(gyms) ? gyms : []).map(gymIdOf).filter(Boolean))];
   const settled = await Promise.allSettled(gymIds.map((gymId) => api.getFavourites(gymId, { loading: true })));
   const favouritesByGym = { ...(cache.favouritesByGym || {}) };
+  const decisionByGym = { ...favouritesByGym };
   settled.forEach((result, index) => {
     if (result.status === 'fulfilled' && Array.isArray(result.value?.favourites)) {
       favouritesByGym[gymIds[index]] = indexFavourites(result.value.favourites);
+      decisionByGym[gymIds[index]] = favouritesByGym[gymIds[index]];
+    } else if (!decisionByGym[gymIds[index]]) {
+      // One gym failing must not hold the others back: it counts as "no favourites" for this render only.
+      decisionByGym[gymIds[index]] = indexFavourites([]);
     }
   });
   if (isCurrentHomeContext(ctx)) cache.favouritesByGym = favouritesByGym;
@@ -652,7 +657,7 @@ async function loadHomeFavourites(ctx) {
   if (!events.length) timetable.ensureScheduleLoaded();
   return {
     ...getHomeFavouriteRows(gyms, {
-      favouritesByGym,
+      favouritesByGym: decisionByGym,
       events,
       scheduleLoading: timetable.isScheduleLoading(),
     }),

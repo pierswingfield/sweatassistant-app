@@ -342,7 +342,11 @@ function previewInvite(userId, token) {
   expireStale();
   const team = teamByToken(token);
   if (!team) throw notFound();
-  return { name: team.name, emoji: team.emoji || null, myRequestStatus: myRequestStatus(team.id, userId) };
+  const myRequestStatus_ = myRequestStatus(team.id, userId);
+  const out = { name: team.name, emoji: team.emoji || null, myRequestStatus: myRequestStatus_ };
+  // An existing member already knows the Team; its id lets the client open it exactly.
+  if (myRequestStatus_ === 'member') out.teamId = team.id;
+  return out;
 }
 
 function requestJoin(userId, token, share) {

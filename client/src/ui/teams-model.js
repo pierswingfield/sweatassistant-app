@@ -275,6 +275,7 @@ export function inviteUrlOn(origin, urlOrToken) {
 
 // ---- Pending invite across the auth flow (§5.6 step 2) -------------------------------------
 
+export const TEAMS_HOME_PATH = '/teams';
 const PENDING_KEY = 'appPendingTeamInvite';
 export const PENDING_TTL_MS = 60 * 60 * 1000;
 
@@ -305,6 +306,13 @@ export function peekPendingInvite(storage, now = Date.now()) {
     try { storage?.removeItem(PENDING_KEY); } catch (_e) { /* blocked */ }
   }
   return null;
+}
+
+/** Read AND remove: the stored token is single-use once it has been acted on. */
+export function consumePendingInvite(storage, now = Date.now()) {
+  const t = peekPendingInvite(storage, now);
+  clearPendingInvite(storage);
+  return t;
 }
 
 export function clearPendingInvite(storage) {
@@ -346,6 +354,18 @@ export function invitePageState(preview) {
   if (s === 'pending') return 'pending';
   if (s === 'notMember') return 'notMember';
   return 'invite'; // 'none' and 'expired' both offer Request to join again
+}
+
+/**
+ * For an existing member the preview carries `teamId` (server/teams.js previewInvite), which is
+ * exact. FALLBACK for an older server that omits it: match the member's own Team list by
+ * name + emoji, accepted only when that is unambiguous (two Teams can share both).
+ */
+export function resolveMemberTeamId(preview, teams) {
+  if (preview && isTeamId(preview.teamId)) return preview.teamId;
+  const list = Array.isArray(teams) ? teams : [];
+  const m = list.filter((t) => preview && t.name === preview.name && (t.emoji || null) === (preview.emoji || null));
+  return m.length === 1 ? m[0].id : null;
 }
 
 // ---- Time labels --------------------------------------------------------------------------

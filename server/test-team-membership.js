@@ -108,7 +108,9 @@ check('preview leaks nothing beyond name, emoji and my request status; rotation 
   const p = teams.previewInvite(b, inviteToken);
   assert.deepStrictEqual(Object.keys(p).sort(), ['emoji', 'myRequestStatus', 'name']);
   assert.deepStrictEqual(p, { name: 'Crew', emoji: '🥊', myRequestStatus: 'none' });
-  assert.strictEqual(teams.previewInvite(a, inviteToken).myRequestStatus, 'member');
+  const own = teams.previewInvite(a, inviteToken);
+  assert.strictEqual(own.myRequestStatus, 'member');
+  assert.strictEqual(own.teamId, team.id, 'a member gets the exact team id; a non-member never does');
   assert.strictEqual(codeOf(() => teams.previewInvite(b, 'A'.repeat(22))), 'NOT_FOUND');
   assert.strictEqual(codeOf(() => teams.previewInvite(b, 'short')), 'NOT_FOUND');
 

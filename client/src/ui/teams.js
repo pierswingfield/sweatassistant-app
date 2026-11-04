@@ -9,7 +9,7 @@ import { escapeHtml } from './cards.js';
 import { showToast } from '../main.js';
 import {
   orderTeams, canOfferPin, canTogglePin, pinsUsed, sortMembers, paginate, readSortChoice, writeSortChoice,
-  SORT_MODES, MEMBERS_PER_PAGE, validateTeamName, validateEmoji, defaultShare, clearPendingInvite,
+  SORT_MODES, MEMBERS_PER_PAGE, validateTeamName, validateEmoji, defaultShare, consumePendingInvite, TEAMS_HOME_PATH,
 } from './teams-model.js';
 import {
   T, fmt, avatarHtml, avatarStackHtml, mascotHtml, teamTitleHtml, teamTitleText, memberCountLabel, ICONS,
@@ -18,11 +18,23 @@ import {
 
 let renderSeq = 0;
 const membersCache = new Map(); // teamId -> members (for list avatar stacks); refreshed on every list render
+// The invite token lives only in memory once read: the address bar is scrubbed to /teams so the
+// secret does not linger in the URL, history entry or a copied link. Cleared on any navigation away.
+let activeInvite = null;
+
+/** Drop every piece of Teams state that belongs to the signed-in account (logout). */
+export function resetTeamsState() {
+  membersCache.clear();
+  activeInvite = null;
+  renderSeq++; // invalidate in-flight renders
+}
+if (typeof window !== 'undefined') window.addEventListener('app-logout-triggered', resetTeamsState);
 
 function root() { return document.getElementById('app-teams-root'); }
 
 /** Navigate within the Teams tab (pushes history, re-renders via switchTab). */
 export function goTeams(route, { replace = false } = {}) {
+  activeInvite = null;
   window.switchTab?.('teams', { teams: route, history: replace ? 'replace' : 'push' });
 }
 
@@ -36,10 +48,15 @@ export async function initTeams() {
   const route = currentRoute().teams || { view: 'list' };
   const seq = ++renderSeq;
   const stale = () => seq !== renderSeq;
-  if (route.view === 'invite') {
-    clearPendingInvite(storage()); // consumed: the member is signed in and on the page
+  if (route.view === 'invite' || (route.view === 'list' && activeInvite)) {
+    consumePendingInvite(storage()); // consumed: the member is signed in and on the page
+    const token = route.view === 'invite' ? route.token : activeInvite;
+    activeInvite = token;
+    if (route.view === 'invite') {
+      try { history.replaceState(history.state, '', TEAMS_HOME_PATH); } catch (_) { /* keep the URL */ }
+    }
     const { renderInvite } = await import('./teams-join.js');
-    if (!stale()) await renderInvite(el, route.token, { stale });
+    if (!stale()) await renderInvite(el, token, { stale });
     return;
   }
   if (route.view === 'team') {

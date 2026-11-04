@@ -8,7 +8,7 @@
 import { teamsApi } from '../teams-api.js';
 import { escapeHtml } from './cards.js';
 import { showToast } from '../main.js';
-import { invitePageState, defaultShare } from './teams-model.js';
+import { invitePageState, defaultShare, resolveMemberTeamId } from './teams-model.js';
 import { T, fmt, mascotHtml, teamTitleText, ICONS, errorText, renderSharingSheet } from './teams-ui.js';
 import { goTeams } from './teams.js';
 
@@ -56,11 +56,10 @@ export async function renderInvite(el, token, { stale = () => false } = {}) {
   const state = invitePageState(preview);
 
   if (state === 'member') {
-    // Already in: open the Team. The preview carries no id (principle 3), so find it in the list.
+    // Already in: open the Team. Exact via preview.teamId; name+emoji fallback documented in resolveMemberTeamId.
     try {
-      const list = (await teamsApi.list()).teams || [];
-      const matches = list.filter((t) => t.name === preview.name && (t.emoji || null) === (preview.emoji || null));
-      if (matches.length === 1) { goTeams({ view: 'team', teamId: matches[0].id }, { replace: true }); return; }
+      const id = preview.teamId ? resolveMemberTeamId(preview, []) : resolveMemberTeamId(preview, (await teamsApi.list()).teams);
+      if (id) { goTeams({ view: 'team', teamId: id }, { replace: true }); return; }
     } catch (_) { /* fall through to the list */ }
     goTeams({ view: 'list' }, { replace: true });
     return;

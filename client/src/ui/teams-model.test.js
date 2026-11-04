@@ -4,7 +4,7 @@ import {
   sortMembers, paginate, readSortChoice, writeSortChoice, DEFAULT_SORT,
   defaultShare, normaliseShare, applyShareChange, shareChips, isIndefinitePause, pauseOptionFor,
   parseTeamsPath, teamsPathFor, inviteUrlOn, stashPendingInvite, peekPendingInvite, clearPendingInvite, PENDING_TTL_MS,
-  validateTeamName, validateEmoji, invitePageState, relativeTime,
+  validateTeamName, validateEmoji, invitePageState, relativeTime, consumePendingInvite, resolveMemberTeamId,
 } from './teams-model.js';
 
 function luminance(hex) {
@@ -239,5 +239,29 @@ describe('validation and labels', () => {
     expect(relativeTime('2026-11-03T10:00:00Z', now)).toBe('yesterday');
     expect(relativeTime('2026-11-01T10:00:00Z', now)).toBe('3 days ago');
     expect(relativeTime('nope', now)).toBe('');
+  });
+});
+
+describe('consumePendingInvite', () => {
+  it('returns the token once, then nothing', () => {
+    const st = memStorage();
+    stashPendingInvite(st, 'A'.repeat(22));
+    expect(consumePendingInvite(st)).toBe('A'.repeat(22));
+    expect(peekPendingInvite(st)).toBeNull();
+    expect(consumePendingInvite(st)).toBeNull();
+  });
+});
+
+describe('resolveMemberTeamId', () => {
+  const teams = [{ id: 't1', name: 'Crew', emoji: null }, { id: 't2', name: 'Crew', emoji: null }, { id: 't3', name: 'Solo', emoji: '🔥' }];
+  it('prefers the exact id from the preview', () => {
+    expect(resolveMemberTeamId({ teamId: '7kntzL1cm8bQ1poS', name: 'Crew' }, teams)).toBe('7kntzL1cm8bQ1poS');
+  });
+  it('falls back to an unambiguous name+emoji match', () => {
+    expect(resolveMemberTeamId({ name: 'Solo', emoji: '🔥' }, teams)).toBe('t3');
+  });
+  it('returns null when ambiguous or unknown', () => {
+    expect(resolveMemberTeamId({ name: 'Crew', emoji: null }, teams)).toBeNull();
+    expect(resolveMemberTeamId({ name: 'Nope' }, teams)).toBeNull();
   });
 });

@@ -22,7 +22,7 @@ import { applyStaticCopy } from './copy.js';
 import { COPY, formatCopyText } from './copy.js';
 import { resetWindowScroll, installStaleScrollGuard } from './scroll-reset.js';
 import { syncTabScrollState } from './tab-scroll-state.js';
-import { parseTeamsPath, stashPendingInvite, peekPendingInvite, clearPendingInvite } from './ui/teams-model.js';
+import { parseTeamsPath, stashPendingInvite, consumePendingInvite, clearPendingInvite } from './ui/teams-model.js';
 
 installStaleScrollGuard();
 
@@ -1533,7 +1533,7 @@ export async function initApp() {
   // T-1 (PLAN-teams.md §5.6): an invite link opened while signed out resumes here once the
   // member has logged in or signed up (and finished onboarding). The token is never logged.
   {
-    const pendingInvite = peekPendingInvite(safeLocalStorage());
+    const pendingInvite = consumePendingInvite(safeLocalStorage()); // single use: removed as it is acted on
     if (pendingInvite && !(parseTeamsPath(location.pathname)?.view === 'invite')) {
       history.replaceState(history.state, '', `/t/${pendingInvite}`);
     }
@@ -1927,6 +1927,8 @@ if (recoverFindBtn) {
 // Listen for global logout triggers (e.g. from api.js 401 interceptor)
 window.addEventListener('app-logout-triggered', () => {
   clearPendingInvite(safeLocalStorage()); // T-1: an invite stashed for one account never resumes for the next
+  // ...and the /t/<token> must not be re-stashed by showLogin() for the NEXT account.
+  if (parseTeamsPath(location.pathname)) { try { history.replaceState(null, '', '/'); } catch (_) { /* keep */ } }
   setCacheKeyPrefix('');
   clearApiCache().catch(() => {});
   showToast(COPY.auth.sessionExpired, 'warning');
